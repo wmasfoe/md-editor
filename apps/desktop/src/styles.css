@@ -1,0 +1,227 @@
+@import "tailwindcss";
+
+:root,
+:root[data-theme="typora-light"] {
+  /* 主题 token：后续用户自定义主题色时只替换这一组变量。 */
+  --theme-bg: rgb(250, 250, 252);
+  --theme-bg-muted: rgb(236, 236, 238);
+  --theme-surface: #ffffff;
+  --theme-text: #000000;
+  --theme-muted: #666666;
+  --theme-title: #070909;
+  --theme-border: #d2d2d2;
+  --theme-primary: #3e69d7;
+  --theme-primary-soft: rgba(62, 105, 215, 0.06);
+  --theme-primary-selected: rgba(62, 105, 215, 0.15);
+  --theme-danger-bg: rgba(227, 15, 46, 0.08);
+  --theme-danger-text: #a30d22;
+  --theme-code: #2f479f;
+  --theme-shadow: 0 12px 32px rgba(7, 9, 9, 0.12);
+  --theme-content-width: 900px;
+  --theme-font:
+    "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", Arial, "Helvetica Neue",
+    Helvetica, sans-serif;
+  --theme-mono-font:
+    "JetBrains Mono", "Source Code Pro", "Fira Code", Consolas, Inconsolata,
+    "Cascadia Code", Monaco, "Ubuntu Mono", monospace;
+
+  color: var(--theme-text);
+  background: var(--theme-bg);
+  font-family: var(--theme-font);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--theme-bg);
+}
+
+.editor-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--theme-surface);
+}
+
+.error-banner {
+  border-bottom: 1px solid rgba(227, 15, 46, 0.25);
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+.source-editor {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.source-editor .cm-editor {
+  height: 100%;
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font-size: 15px;
+}
+
+.source-editor .cm-scroller {
+  font-family: var(--theme-mono-font);
+}
+
+.source-editor .cm-content {
+  padding: 28px clamp(24px, 7vw, 96px);
+}
+
+.source-editor .cm-gutters {
+  border-right: 0;
+  background: var(--theme-bg);
+  color: #999999;
+}
+
+.source-editor .cm-activeLine,
+.source-editor .cm-activeLineGutter {
+  background: var(--theme-primary-soft);
+}
+
+.milkdown {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  background: var(--theme-surface);
+  padding: 34px clamp(28px, 8vw, 112px) 72px;
+}
+
+.milkdown .ProseMirror {
+  max-width: var(--theme-content-width);
+  min-height: 100%;
+  margin: 0 auto;
+  outline: 0;
+  color: var(--theme-text);
+  font-size: 16px;
+  line-height: 1.68;
+  letter-spacing: 0;
+}
+
+.milkdown .ProseMirror h1,
+.milkdown .ProseMirror h2,
+.milkdown .ProseMirror h3,
+.milkdown .ProseMirror h4,
+.milkdown .ProseMirror h5,
+.milkdown .ProseMirror h6 {
+  margin: 30px 0 16px;
+  color: var(--theme-title);
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.milkdown .ProseMirror h1 {
+  border-bottom: 1px solid var(--theme-border);
+  padding-bottom: 8px;
+  font-size: 32px;
+}
+
+.milkdown .ProseMirror h2 {
+  font-size: 28px;
+}
+
+.milkdown .ProseMirror h3 {
+  font-size: 24px;
+}
+
+.milkdown .ProseMirror h4 {
+  font-size: 20px;
+}
+
+.milkdown .ProseMirror p {
+  margin: 0 0 18px;
+}
+
+.milkdown .ProseMirror p + p {
+  margin-top: 24px;
+}
+
+.milkdown .ProseMirror ul,
+.milkdown .ProseMirror ol {
+  margin: 0 0 18px;
+  padding-left: 36px;
+}
+
+.milkdown .ProseMirror li {
+  margin-top: 6px;
+}
+
+.milkdown .ProseMirror blockquote {
+  margin: 16px 0;
+  border-left: 4px solid var(--theme-primary);
+  border-radius: 6px;
+  background: var(--theme-primary-soft);
+  padding: 14px 16px;
+  color: var(--theme-text);
+}
+
+.milkdown .ProseMirror code {
+  border-radius: 4px;
+  background: var(--theme-primary-selected);
+  padding: 3px 5px;
+  color: var(--theme-code);
+  font-family: var(--theme-mono-font);
+  font-size: 14px;
+}
+
+.milkdown .ProseMirror pre {
+  overflow: auto;
+  margin: 16px 0;
+  border-radius: 6px;
+  background: var(--theme-bg-muted);
+  padding: 16px;
+  color: var(--theme-code);
+  font-family: var(--theme-mono-font);
+  font-size: 14px;
+}
+
+.milkdown .ProseMirror pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.milkdown .ProseMirror img {
+  display: block;
+  max-width: 100%;
+  margin: 16px auto;
+  border-radius: 6px;
+}
+
+.milkdown .ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.milkdown .ProseMirror th,
+.milkdown .ProseMirror td {
+  border: 1px solid var(--theme-border);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+@media (max-width: 760px) {
+  .milkdown {
+    padding: 26px 20px 56px;
+  }
+}

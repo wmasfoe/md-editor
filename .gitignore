@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 
 # JavaScript / TypeScript build output
 dist/
@@ -10,10 +11,13 @@ build/
 # Rust / Tauri build output
 target/
 src-tauri/target/
+**/src-tauri/target/
 
 # Tauri generated files and local config
 src-tauri/gen/
 src-tauri/.cargo/
+**/src-tauri/gen/
+**/src-tauri/.cargo/
 
 # Package manager logs
 npm-debug.log*

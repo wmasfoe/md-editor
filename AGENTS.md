@@ -11,13 +11,17 @@ The planned product structure is a TypeScript monorepo with `apps/desktop`, `app
 
 ## Build, Test, and Development Commands
 
-There is no package manager or build system configured yet. Useful current commands:
+The workspace now uses pnpm workspaces with a Tauri + React desktop app. Useful commands:
 
 - `find docs -type f -name '*.md'`: list documentation files.
 - `rg "Milkdown|MDX|Tauri" docs/`: search project decisions.
 - `git status`: check pending changes once a Git repository is initialized.
-
-After scaffolding, document the real commands here, for example `npm run dev`, `npm run build`, and `npm test`.
+- `pnpm install`: install workspace dependencies.
+- `pnpm dev`: start the desktop web shell through Vite.
+- `pnpm tauri dev`: run the Tauri desktop app.
+- `pnpm typecheck`: run TypeScript checks for every workspace.
+- `pnpm test`: run Vitest suites.
+- `pnpm build`: build all workspaces.
 
 ## Coding Style & Naming Conventions
 

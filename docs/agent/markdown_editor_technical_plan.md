@@ -12,9 +12,9 @@
 4. 支持本地文件打开 / 保存，并明确未保存文档、dirty 状态、关闭提示等文件生命周期。
 5. 支持源码模式全局切换，第一阶段以内容一致性为优先目标。
 6. 支持 Frontmatter raw metadata block，避免第一阶段对象化重写导致内容丢失。
-7. 提前验证 MDX 最小垂直切片：`remark-mdx`、未知 MDX raw block 保真、一个官方 Callout 组件。
+7. 提前预留 MDX 接入接口并保证未知 MDX raw block 保真；官方 Callout 组件作为后续最小切片验证。
 8. 支持图片复制到 assets 目录，并预留自定义存储接口。
-9. 支持独立导出模块，首期支持 HTML / PDF。
+9. 后续支持独立导出模块，首期支持 HTML / PDF。
 10. 后续支持 AI 写作辅助插件。
 
 优先级原则：
@@ -40,12 +40,10 @@ packages/
   editor-ui/               # React UI 组件
   feature-outline/         # 大纲目录
   feature-source-mode/     # 源码模式
-  feature-image/           # 图片粘贴、拖拽、资源存储
+  feature-image/           # 图片粘贴、后续拖拽、资源存储
   feature-frontmatter/     # Frontmatter 支持
   feature-code-block/      # 代码块高亮
   feature-mdx/             # MDX 组件系统
-  feature-export/          # 导出模块
-  feature-ai/              # 后续 AI 写作辅助
   file-system/             # 文件打开、保存、路径处理
   shared/                  # 公共类型、工具函数
 ```
@@ -69,14 +67,12 @@ Feature Layer
   ├── Source Mode
   ├── Image Storage
   ├── Frontmatter
-  ├── Export
   ├── MDX Components
-  └── AI Suggestion
+  └── File Lifecycle
 
 Service Layer
   ├── FileService
   ├── ImageStorageProvider
-  ├── Exporter
   ├── SettingsService
   └── FeatureRegistry
 ```
@@ -125,7 +121,7 @@ PDF: HTML render + print / WebView / headless pipeline
 
 ```txt
 本地配置：Tauri store / JSON config
-最近文件：local app data
+最近文件：local app data（v0.2）
 后续索引：SQLite / 本地向量库
 ```
 
@@ -239,7 +235,7 @@ interface DocumentState {
 - `path` 为空表示新建未保存文档，保存时必须走 `saveFileAs`。
 - 未保存文档粘贴图片时，第一版提示用户先保存文档，再写入同级 `assets` 目录。
 - 文件写入优先采用原子写入策略，避免保存失败时破坏原文件。
-- 最近文件需要处理文件已移动、删除或无权限访问的情况。
+- 最近文件属于 v0.2 增强，需要处理文件已移动、删除或无权限访问的情况。
 
 ### 5.4 文档保真原则
 
@@ -323,12 +319,14 @@ Source → WYSIWYG:
 
 ### 7.1 默认行为
 
-图片粘贴 / 拖拽时：
+图片粘贴时：
 
-1. 获取剪贴板或拖拽中的 image file。
+1. 获取剪贴板中的 image file。
 2. 调用 ImageStorageProvider 保存。
 3. 返回 Markdown 可使用的 `src`。
 4. 插入 `![alt](src)` 或图片节点。
+
+拖拽图片作为后续增强能力，不进入 v0.1 必做范围。
 
 默认保存规则：
 
@@ -426,6 +424,8 @@ interface OutlineItem {
 ---
 
 ## 9. 代码块高亮技术方案
+
+本节能力属于 v0.2 技术写作增强，不属于 v0.1 必做范围。v0.1 只要求 fenced code block 的源码保真，包括语言标识、meta、缩进和内容。
 
 ### 9.1 基础方案
 
@@ -552,14 +552,20 @@ Markdown → HTML → 打印 / WebView PDF
 
 ### 12.1 目标
 
-提前验证 MDX 最小垂直切片，支持官方内置 MDX 组件，并为后续第三方插件预留注册接口。
+提前预留 MDX 接入接口，保证未知 MDX / JSX raw block 保真，并为后续第三方插件预留注册接口。
 
-第一阶段只做：
+v0.1 只做：
 
 - 接入 `remark-mdx`。
 - 未知 MDX 组件 raw block 保真。
-- 一个官方 Callout 组件的 parser、serializer、node view 和插入命令。
-- 内置 Component Registry。
+- 内置 Component Registry 和 descriptor 类型。
+
+v0.2 再做一个官方 `Callout` 组件的最小切片：
+
+- Callout parser / serializer。
+- Callout node view。
+- Callout 卡片化展示 + 源码编辑。
+- Callout 插入命令。
 
 不把完整 MDX runtime、第三方组件加载、npm 插件作为 MVP 目标。
 
@@ -602,15 +608,19 @@ interface MDXChildrenSchema {
 
 ### 12.4 Milkdown 接入点
 
-需要实现：
+v0.1 需要实现：
 
 1. remark-mdx 解析 MDX。
-2. Milkdown schema 定义 `mdx_component` 节点。
-3. parser：mdx AST → ProseMirror node。
-4. serializer：ProseMirror node → MDX string。
-5. node view：渲染编辑器内组件卡片。
-6. slash command：插入组件。
-7. raw block fallback：未知组件保真。
+2. raw block fallback：未知组件保真。
+3. Component Registry 和 descriptor 类型。
+
+v0.2 做官方 Callout 最小切片时，再引入：
+
+- `mdx_component` 节点。
+- parser：mdx AST → ProseMirror node。
+- serializer：ProseMirror node → MDX string。
+- node view：渲染编辑器内组件卡片。
+- slash command：插入组件。
 
 ### 12.5 官方组件建议
 
@@ -635,13 +645,14 @@ interface MDXChildrenSchema {
 
 ### 12.6 边界
 
-第一阶段不支持：
+v0.1 / v0.2 不支持：
 
 - 执行任意 import/export。
 - 任意 JS expression props 的结构化编辑。
 - 任意动态组件运行。
 - 完整 MDX runtime。
 - 复杂嵌套 JSX 的完全可视化编辑。
+- `Callout` props 的结构化表单编辑。
 
 ---
 
@@ -723,7 +734,6 @@ interface PluginContext {
   editor: EditorRuntime
   commands: CommandRegistry
   mdxComponents: MDXComponentRegistry
-  exporters: ExportRegistry
   imageStorage: ImageStorageRegistry
 }
 ```
@@ -734,7 +744,6 @@ interface PluginContext {
 
 - CommandRegistry
 - MDXComponentRegistry
-- ExportRegistry
 - ImageStorageRegistry
 - KeymapRegistry
 
@@ -764,75 +773,78 @@ npm 包插件
 
 ## 15. 开发里程碑
 
-### Milestone 1：项目骨架与编辑器最小闭环
+### Milestone 1（v0.1）：可保存的 Markdown 编辑闭环
 
 - Tauri + React + TypeScript 项目初始化
 - Milkdown Core 接入
-- 基础 Markdown WYSIWYG 编辑
 - EditorRuntime 封装
+- 基础 Markdown WYSIWYG 编辑
+- 文件生命周期
 - 文档状态管理
+- dirty 状态
+- 原子保存
 
-### Milestone 2：文件生命周期与文档保真基础
-
-- 打开 Markdown 文件
-- 保存文件
-- 另存为
-- 关闭前 dirty 提示
-- 最近文件
-- Markdown round-trip 验收标准
-- Frontmatter raw metadata block
-- 新建未保存文档的保存策略
-
-### Milestone 3：源码模式
+### Milestone 2（v0.1）：源码模式与内容一致性
 
 - CodeMirror 6 接入
 - WYSIWYG / Source Mode 全局切换
+- `DocumentState.markdown` 内容同步模型
 - 切换前后内容一致
+- 模式切换失败保护
 - 光标和滚动恢复初版
 - 长文档切换性能提示
+- Markdown round-trip 验收标准
 
-### Milestone 4：MDX 最小垂直切片
+### Milestone 3（v0.1）：文档保真与接口骨架
 
-- remark-mdx 接入
-- mdx_component / mdx_raw 最小 schema
-- 未知 MDX 组件 raw block 保真
-- 官方 Callout 组件
-- Callout parser / serializer / node view / 插入命令
-- 不支持任意 import/export、任意 JS expression props、完整 MDX runtime
-
-### Milestone 5：技术写作基础能力
-
+- Frontmatter raw metadata block
 - 大纲目录
+- FeatureRegistry
+- CommandRegistry
+- KeymapRegistry
+- MDXComponentRegistry
+- MDX component descriptor
+- parser / serializer 接入点
+- 未知 MDX / JSX raw 保真
+- v0.1 不支持第三方插件运行时
+
+### Milestone 4（v0.1）：图片粘贴与最低错误反馈
+
+- 粘贴图片
+- 默认保存到 assets
+- ImageStorageProvider 接口，本地 provider 优先
+- 基础主题
+- 最低可恢复错误反馈：保存失败、模式切换失败、Frontmatter 解析错误、未保存文档粘贴图片、图片写入失败
+
+### Milestone 5（v0.2）：技术写作增强
+
+- 最近文件
 - 代码块高亮
 - 语言标识
 - 代码块内 Tab 缩进
 - 复制代码按钮
-- 粘贴图片
-- 拖拽图片
-- 默认保存到 assets
-- ImageStorageProvider 接口，本地 provider 优先
+- 大纲当前标题高亮与滚动同步
+- 图片拖拽
+- 图片自定义命名和重复文件处理
+- 通用错误提示体验
 
-### Milestone 6：导出模块
+### Milestone 6（v0.2）：官方 MDX 组件最小切片
 
-- Exporter 接口
-- HTML 导出
-- PDF 导出初版
-- MDX 组件 preview 或 fallback HTML
-- 图片路径按当前文件路径和 assets 目录解析
+- 官方 Callout 组件 Level 2
+- Callout parser / serializer / node view / 插入命令
+- 组件 fallback 策略
+- 卡片化展示 + 源码编辑
+- 不支持任意 import/export、任意 JS expression props、完整 MDX runtime
 
-### Milestone 7：产品化增强
+### Milestone 7（v0.3+）：产品化增强
 
-- 主题
 - 设置
 - 快捷键
 - 菜单
-- 错误提示
 - 长文档性能优化
 - 图片自定义目录和云端上传接口
 - 扩展 LinkCard / Video / FileTree / Steps 等官方 MDX 组件
-
-### Milestone 8：AI 增强
-
+- 导出模块
 - AI 插件接口
 - 显式续写
 - 静默检查
@@ -840,6 +852,8 @@ npm 包插件
 - OpenAI-compatible endpoint
 - 静默检查默认关闭
 - 本地模型、历史文章风格学习、`.aiignore`
+- 第三方插件运行时
+- 本地插件目录 / 插件市场
 
 ---
 
@@ -879,9 +893,10 @@ npm 包插件
 
 应对：
 
-- 第一阶段提前做最小垂直切片。
+- v0.1 先预留 MDX 接入接口并保证 raw 保真。
+- v0.2 再做官方 Callout 最小垂直切片。
 - 只支持有限 MDX 子集。
-- 先实现官方 Callout 组件。
+- Callout 先做卡片化展示 + 源码编辑，不做结构化表单编辑。
 - 未知组件 raw block 保真。
 - 不执行任意 JS。
 
@@ -915,9 +930,10 @@ npm 包插件
 
 ### 17.1 Markdown / MDX 保真测试
 
-- 增加 Markdown round-trip fixtures，覆盖标题、列表、引用、代码块、图片、Frontmatter、HTML block。
-- 增加 MDX 保真 fixtures，覆盖未知组件、自闭合组件、有 children 的组件、Callout 组件。
+- 增加 Markdown round-trip fixtures，覆盖标题、列表、引用、fenced code block 保真、图片、Frontmatter、HTML block。
+- 增加 MDX 保真 fixtures，覆盖未知组件、自闭合组件、有 children 的组件。
 - 验证未知 MDX、Frontmatter raw YAML、HTML/raw block 在未主动编辑时不丢失。
+- 明确定义允许归一化范围；Frontmatter、未知 MDX / JSX、HTML/raw block、fenced code block 内容必须保持原始文本。
 
 ### 17.2 模式切换测试
 
@@ -928,14 +944,15 @@ npm 包插件
 ### 17.3 文件生命周期测试
 
 - 覆盖新建、打开、保存、另存为、dirty 状态、关闭前提示。
-- 覆盖最近文件失效、保存失败、无路径文档保存。
-- 覆盖外部文件移动或删除后的错误提示。
+- 覆盖保存失败时原文件不被破坏、dirty 状态保留、错误可见。
+- 覆盖无路径文档保存必须走另存为。
+- 最近文件失效、外部文件移动或删除后的错误提示作为后续增强。
 
-### 17.4 图片与导出测试
+### 17.4 图片测试
 
 - 验证已保存文档粘贴图片会写入同级 `assets` 目录，并插入相对路径。
-- 验证未保存文档粘贴图片会提示先保存或走明确的临时策略。
-- 增加导出 smoke test，覆盖 Markdown、Frontmatter、图片、代码块、Callout 到 HTML / PDF 的基本输出。
+- 验证未保存文档粘贴图片会提示先保存。
+- 导出 smoke test 后续在导出模块中补充。
 
 ---
 

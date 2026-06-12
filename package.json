@@ -1,0 +1,21 @@
+{
+  "name": "md-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Daily-usable Markdown and MDX-compatible desktop editor.",
+  "type": "module",
+  "packageManager": "pnpm@11.6.0",
+  "scripts": {
+    "dev": "pnpm --filter @md-editor/desktop dev",
+    "tauri": "pnpm --filter @md-editor/desktop tauri",
+    "build": "pnpm -r --sort build",
+    "typecheck": "pnpm -r --sort typecheck",
+    "test": "pnpm -r --sort test",
+    "lint": "pnpm -r --sort lint"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
