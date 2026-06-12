@@ -8,19 +8,20 @@
 
 1. 使用 Milkdown Core 实现 Typora-like Markdown WYSIWYG 编辑体验。
 2. 不使用 Crepe，但参考 Crepe 的模块拆分和插件实现方式。
-3. 优先验证 `Milkdown Core + Markdown / MDX 保真 + 源码模式 + 文件保存` 主链路。
+3. 优先验证 `Milkdown Core + Markdown 编辑 + 文件保存 + Frontmatter / MDX 保真 + 内部 MDX 组件接入` 主链路。
 4. 支持本地文件打开 / 保存，并明确未保存文档、dirty 状态、关闭提示等文件生命周期。
 5. 支持源码模式全局切换，第一阶段以内容一致性为优先目标。
 6. 支持 Frontmatter raw metadata block，避免第一阶段对象化重写导致内容丢失。
-7. 提前预留 MDX 接入接口并保证未知 MDX raw block 保真；官方 Callout 组件作为后续最小切片验证。
+7. 提前预留 MDX 接入接口并保证未知 MDX raw block 保真；官方 Callout 组件作为 M0 / v0.1 最小切片验证对象。
 8. 支持图片复制到 assets 目录，并预留自定义存储接口。
-9. 后续支持独立导出模块，首期支持 HTML / PDF。
+9. 支持独立导出模块，但导出模块边界作为 P1，在核心编辑链路稳定后再进入；首期目标为 HTML / PDF。
 10. 后续支持 AI 写作辅助插件。
 
 优先级原则：
 
 - 先验证核心技术风险，再扩展产品能力。
-- MDX 是产品差异化能力，必须早期验证，但第一阶段不追求完整 MDX runtime。
+- MDX 是产品差异化能力，内部 / 官方组件最小接入进入 P0，但第一阶段不追求完整 MDX runtime。
+- 源码模式和导出模块均为 P1，不进入第一优先级主链路。
 - AI 是增强能力，不进入基础编辑器 MVP。
 - 导出质量依赖 Markdown / MDX 解析、主题、图片路径和组件 fallback 策略，因此在核心编辑链路稳定后再做。
 
@@ -47,6 +48,17 @@ packages/
   file-system/             # 文件打开、保存、路径处理
   shared/                  # 公共类型、工具函数
 ```
+
+初期落地时可以先收敛包数量，避免在核心风险未验证前过早拆分：
+
+```txt
+packages/
+  editor-core/             # 先承载编辑器 runtime、内置 feature、parser/serializer
+  file-system/             # 文件服务抽象和桌面端实现
+  shared/                  # 公共类型、fixtures、测试工具
+```
+
+当 feature 的接口稳定后，再逐步拆出 `feature-*` 包。
 
 架构分层：
 
@@ -141,21 +153,43 @@ interface EditorRuntime {
   getMode(): EditorMode
   setMode(mode: EditorMode): Promise<void>
 
-  getMarkdown(): string
-  getCurrentContent(): string
-  setMarkdown(markdown: string): void
+  getContent(): EditorContent
+  setContent(content: EditorContent): Promise<void>
+  serialize(): EditorSerializeResult
 
   focus(): void
   insertMarkdown(markdown: string): void
+  executeCommand(command: EditorCommand): void
 
-  onChange(listener: (markdown: string) => void): () => void
+  onContentChange(listener: (change: EditorContentChange) => void): () => void
   onSelectionChange(listener: (selection: EditorSelection) => void): () => void
+  onInteractionChange(listener: (state: EditorInteractionState) => void): () => void
 }
 
 type EditorMode = 'wysiwyg' | 'source'
+
+interface EditorContent {
+  rawMarkdown: string
+  markdown?: string
+  rawFragments?: RawFragment[]
+}
+
+interface EditorSerializeResult {
+  rawMarkdown: string
+  markdown: string
+  rawFragments: RawFragment[]
+}
 ```
 
 这样 App 层不直接依赖 Milkdown 细节，后续替换部分实现更容易。
+
+Runtime 职责边界：
+
+- Runtime 负责 Milkdown / ProseMirror / CodeMirror 的生命周期和模式切换。
+- Runtime 对外只暴露内容、命令、选区和交互状态，不暴露底层 editor view 作为常规业务依赖。
+- Runtime 负责把 ProseMirror doc、CodeMirror doc、raw fragment 合成为可保存的 `rawMarkdown`。
+- App 层负责文件生命周期、窗口菜单、最近文件、设置和全局 UI，不直接拼接 Markdown。
+- Feature 可以注册 parser、serializer、command、keymap 和必要 UI，但不能绕过 Runtime 改写文档权威源。
 
 ### 4.2 插件组织方式
 
@@ -183,9 +217,130 @@ interface EditorFeature {
   prosePlugins?: unknown[]
   commands?: Record<string, EditorCommand>
   keymaps?: Record<string, EditorCommand>
+  parseExtensions?: MarkdownParseExtension[]
+  serializeExtensions?: MarkdownSerializeExtension[]
   ui?: React.ComponentType<any>
 }
 ```
+
+### 4.3 内容状态流转
+
+Milkdown 是 WYSIWYG 交互内核，但文件内容权威源仍然是 `rawMarkdown`。
+
+```txt
+FileService 读取文件
+  ↓
+DocumentState.rawMarkdown
+  ↓
+EditorRuntime.setContent()
+  ↓
+Markdown / MDX parser + raw fragment collector
+  ↓
+ProseMirror doc
+  ↓
+用户在 WYSIWYG 中编辑
+  ↓
+EditorRuntime.serialize()
+  ↓
+serializeWithRawFragments()
+  ↓
+DocumentState.rawMarkdown
+  ↓
+FileService 保存
+```
+
+关键约束：
+
+- ProseMirror doc 是结构化编辑状态，不是保存时唯一事实来源。
+- CodeMirror doc 是源码模式编辑状态，源码模式下它的全文内容可以直接更新 `rawMarkdown`。
+- `rawMarkdown` 是保存和 dirty 判断的权威内容。
+- `markdown` 是结构化 serializer 的当前输出，可用于 UI 同步、调试和 normalized fixture，但不单独决定保存内容。
+
+### 4.4 Raw Fragment 模型
+
+为了支持源码保真，解析阶段需要记录 raw fragment：
+
+```ts
+interface RawFragment {
+  id: string
+  kind:
+    | 'frontmatter'
+    | 'html_block'
+    | 'mdx_unknown_flow'
+    | 'mdx_unknown_text'
+    | 'mdx_esm'
+    | 'mdx_expression'
+    | 'raw_block'
+
+  source: string
+  range?: {
+    start: number
+    end: number
+  }
+  dirty: boolean
+}
+```
+
+合成策略：
+
+- 用户未主动编辑 raw fragment 时，serializer 必须优先输出 `source` 原文。
+- 用户主动编辑 raw fragment 或结构化组件后，才允许重新生成对应 Markdown / MDX。
+- 已注册官方 MDX 组件也建议保留 `rawSource` / `rawProps` / `sourceRange`，避免未编辑时重排 props、引号、空白和 children。
+- 如果无法可靠映射某段语法，第一阶段应降级为 raw block，而不是丢弃或格式化。
+- Milestone 0 必须验证 raw fragment collector、dirty 标记和 `serializeWithRawFragments()` 的最小闭环。
+
+### 4.5 交互状态分层
+
+Milkdown 相关状态需要按职责分层，避免所有状态挤进 React 全局 store。
+
+```ts
+interface EditorInteractionState {
+  focused: boolean
+  composing: boolean
+  selection?: EditorSelection
+  activeBlock?: ActiveBlock
+  activeMarks?: ActiveMarks
+  slashMenu?: SlashMenuState
+  linkTooltip?: LinkTooltipState
+  imageToolbar?: ImageToolbarState
+  mdxComponentPanel?: MDXComponentPanelState
+  aiSuggestion?: AISuggestionState
+}
+```
+
+状态边界：
+
+- `DocumentState`：文件路径、内容、dirty、保存快照、解析状态。
+- `EditorRuntimeState`：Runtime 是否初始化、当前模式、是否正在切换。
+- `EditorInteractionState`：选区、焦点、输入法 composing、浮层、菜单、AI ghost text。
+- `FeatureState`：大纲、MDX registry、图片 storage provider、导出 registry、插件配置。
+
+交互原则：
+
+- ProseMirror transaction 和 plugin state 承担编辑器内部高频状态。
+- React 只订阅需要渲染外部 UI 的低频状态，例如 toolbar、outline、侧栏和浮层。
+- 输入法 composing 期间避免触发破坏输入连续性的自动格式化、AI 替换和模式切换。
+- selection、floating menu、slash menu、link tooltip 需要由 Runtime 统一派发状态，避免多个 feature 争抢 DOM 事件。
+
+### 4.6 第一阶段交互边界
+
+第一阶段必须稳定：
+
+- 基础 Markdown 输入、删除、粘贴、撤销、重做。
+- 标题、列表、引用、代码块、链接、图片的基础快捷键和命令。
+- Frontmatter、未知 MDX、HTML block 以 raw block 形式可见、可复制、可保存。
+- 内部 / 官方 MDX 组件的插入、编辑、保存和再次打开。
+- 编辑器 focus、selection、dirty 状态和关闭提示可靠。
+
+第一阶段可以延后：
+
+- WYSIWYG / Source Mode 全局切换。
+- 完整 toolbar 体验。
+- 跨模式 undo history。
+- 精准光标映射。
+- 复杂 block handle / drag handle。
+- 第三方 MDX 组件运行时预览。
+- AI 静默检查和 ghost text。
 
 ---
 
@@ -219,25 +374,48 @@ interface DocumentState {
   path?: string
   filename?: string
   ext: '.md' | '.mdx'
+  rawMarkdown: string
   markdown: string
-  savedMarkdown: string
+  savedRawMarkdown: string
+  rawFragments: RawFragment[]
   dirty: boolean
   mode: 'wysiwyg' | 'source'
+  parseStatus: 'clean' | 'warning' | 'error'
 }
 ```
+
+字段说明：
+
+- `rawMarkdown` 是当前文档的保存权威源，优先保留用户原始源码。
+- `markdown` 是结构化 serializer 的当前输出，可用于 UI 同步、调试和 normalized fixture。
+- `savedRawMarkdown` 是最近一次成功保存后的 raw 内容快照。
+- `rawFragments` 记录需要原文保真的 Frontmatter、未知 MDX、HTML block 等片段。
+- `dirty` 优先由 `rawMarkdown !== savedRawMarkdown` 得出，不能只依赖 ProseMirror doc 是否变化。
+- ProseMirror doc 是 WYSIWYG 编辑结构，不应被当作唯一源码事实来源。
 
 ### 5.3 注意事项
 
 - 保存前从当前编辑模式获取最新内容。
-- WYSIWYG 模式下从 Milkdown serializer 获取 Markdown。
-- Source Mode 下从 CodeMirror 获取 Markdown。
+- WYSIWYG 模式下通过 `EditorRuntime.serialize()` 合成 `rawMarkdown`，不能直接把普通 Milkdown serializer 输出当作保存内容。
+- Source Mode 下从 CodeMirror 获取全文内容，并更新 `rawMarkdown`。
 - 关闭窗口或打开新文件前检查 dirty 状态。
 - `path` 为空表示新建未保存文档，保存时必须走 `saveFileAs`。
 - 未保存文档粘贴图片时，第一版提示用户先保存文档，再写入同级 `assets` 目录。
 - 文件写入优先采用原子写入策略，避免保存失败时破坏原文件。
 - 最近文件属于 v0.2 增强，需要处理文件已移动、删除或无权限访问的情况。
 
-### 5.4 文档保真原则
+### 5.4 Tauri 文件实现
+
+桌面端建议提供 `TauriFileService`，实现 `FileService` 接口：
+
+- 使用 Tauri dialog 获取用户授权路径。
+- 使用 Tauri fs 或自定义 command 完成读写。
+- 在 Tauri v2 capabilities 中显式声明文件读写权限和允许范围。
+- 保存时采用临时文件 + rename 的原子写入策略。
+- 写入失败时保留原文件，并返回可展示给用户的错误信息。
+- 最近文件只保存路径和基础元数据，不缓存完整文件内容。
+
+### 5.5 文档保真原则
 
 文档保真是第一阶段的核心验收标准，不能只依赖“能渲染出来”判断成功。
 
@@ -247,7 +425,15 @@ interface DocumentState {
 - Frontmatter 在未被主动编辑时保持 raw YAML。
 - 未知 MDX 组件、HTML block、raw block 不丢失。
 - fenced code block 的语言、meta、缩进和内容不丢失。
-- 源码模式和 WYSIWYG 模式来回切换后内容一致。
+- P1 源码模式启用后，源码模式和 WYSIWYG 模式来回切换内容一致。
+
+实现原则：
+
+- 对 Frontmatter、未知 MDX、HTML block、raw block 使用 raw text 节点或 raw fragment 记录原始源码。
+- 用户未主动编辑这些 raw 节点时，serializer 必须优先输出原始文本。
+- 用户主动编辑结构化节点后，才允许由 serializer 生成规范化 Markdown。
+- 每个保真 fixture 必须标注 `byte-equal` 或 `normalized-equal` 验收级别。
+- 第一阶段宁可把不确定语法显示为 raw block，也不要丢弃或重写源码。
 
 ---
 
@@ -266,22 +452,25 @@ Source Mode: CodeMirror 6
 
 ```txt
 WYSIWYG → Source:
-  1. 从 Milkdown 获取 markdown
-  2. 更新 DocumentState.markdown
+  1. 调用 EditorRuntime.serialize()
+  2. 合并 raw fragment 后更新 DocumentState.rawMarkdown / markdown / rawFragments
   3. 初始化 CodeMirror
-  4. 设置 markdown
+  4. 设置 rawMarkdown
   5. 尝试恢复光标 / 滚动位置
 
 Source → WYSIWYG:
-  1. 从 CodeMirror 获取 markdown
-  2. 更新 DocumentState.markdown
-  3. 将 markdown 设置回 Milkdown
-  4. 尝试恢复光标 / 滚动位置
+  1. 从 CodeMirror 获取 rawMarkdown
+  2. 更新 DocumentState.rawMarkdown
+  3. 将 rawMarkdown 设置回 Milkdown
+  4. 重新解析 raw fragment
+  5. 尝试恢复光标 / 滚动位置
 ```
 
-第一阶段切换策略：
+P1 初版切换策略：
 
-- 以 `DocumentState.markdown` 作为跨模式同步的唯一内容源。
+- 以 `DocumentState.rawMarkdown` 作为跨模式同步的保存权威源。
+- `DocumentState.markdown` 可作为当前模式输出和 UI 同步内容，但不单独承担源码保真。
+- dirty 判断以 `rawMarkdown` 和 `savedRawMarkdown` 为准。
 - 模式切换必须保证内容一致性，光标和滚动恢复作为可用性目标，不作为第一轮阻塞项。
 - 切换失败时保留原模式和原内容，并向用户提示错误。
 - undo history 暂不要求跨模式完整保留，后续再优化。
@@ -298,12 +487,13 @@ Source → WYSIWYG:
 
 ### 6.3 优化策略
 
-第一阶段：
+P1 初版：
 
 - 使用 debounce 降低频繁序列化。
 - 源码模式下直接使用 CodeMirror 的大文档能力。
 - 切换模式时显示轻量 loading。
 - 对非常大的文档给出性能提示。
+- WYSIWYG 切到源码模式时，优先复用 raw fragment 保留的原始源码。
 
 后续阶段：
 
@@ -485,7 +675,7 @@ Source Mode：显示原始 YAML
 
 ### 11.1 模块独立
 
-导出功能独立为 `feature-export`，不耦合 Milkdown 运行时。
+导出功能独立为 `feature-export`，不耦合 Milkdown 运行时。该模块属于 P1，在 P0 编辑和保存主链路稳定后进入。
 
 ```ts
 interface Exporter {
@@ -534,8 +724,15 @@ Markdown / MDX
 初期建议：
 
 ```txt
-Markdown → HTML → 打印 / WebView PDF
+Markdown → HTML → WebView 打印 / 系统打印
 ```
+
+MVP 交付边界：
+
+- HTML 导出是确定交付能力。
+- PDF 初版优先复用 HTML 导出结果，通过桌面端 WebView 或系统打印生成。
+- PDF 初版只承诺可用，不承诺复杂分页、页眉页脚、字体嵌入和跨平台完全一致。
+- 高质量 PDF 排版作为后续独立增强，不阻塞编辑器主链路。
 
 后续可以增强：
 
@@ -559,13 +756,13 @@ v0.1 只做：
 - 接入 `remark-mdx`。
 - 未知 MDX 组件 raw block 保真。
 - 内置 Component Registry 和 descriptor 类型。
+- MDX import/export、expression、未知 JSX 节点全部 raw 保真展示，不执行、不格式化。
+- 一个官方 Callout 组件的 parser、serializer、node view 和插入命令，用于验证最小垂直切片。
 
-v0.2 再做一个官方 `Callout` 组件的最小切片：
+v0.2 再将官方 `Callout` 组件产品化：
 
-- Callout parser / serializer。
-- Callout node view。
 - Callout 卡片化展示 + 源码编辑。
-- Callout 插入命令。
+- 更完整的组件 fallback 策略。
 
 不把完整 MDX runtime、第三方组件加载、npm 插件作为 MVP 目标。
 
@@ -613,14 +810,19 @@ v0.1 需要实现：
 1. remark-mdx 解析 MDX。
 2. raw block fallback：未知组件保真。
 3. Component Registry 和 descriptor 类型。
+4. raw inline fallback：未知 inline JSX / expression 保真。
+5. `mdx_component` 节点。
+6. parser：mdx AST → ProseMirror node。
+7. serializer：ProseMirror node → MDX string。
+8. node view：渲染编辑器内组件卡片。
+9. slash command：插入组件。
 
-v0.2 做官方 Callout 最小切片时，再引入：
+MDX AST 处理边界：
 
-- `mdx_component` 节点。
-- parser：mdx AST → ProseMirror node。
-- serializer：ProseMirror node → MDX string。
-- node view：渲染编辑器内组件卡片。
-- slash command：插入组件。
+- 已注册的官方组件可以转为结构化 `mdx_component` 节点。
+- 未注册的 `mdxJsxFlowElement` 和 `mdxJsxTextElement` 保留为 raw 节点。
+- `mdxjsEsm`、`mdxFlowExpression`、`mdxTextExpression` 只做 raw 保真。
+- 第一阶段不执行 MDX 代码，也不解析 JS expression props 的运行时值。
 
 ### 12.5 官方组件建议
 
@@ -653,6 +855,8 @@ v0.1 / v0.2 不支持：
 - 完整 MDX runtime。
 - 复杂嵌套 JSX 的完全可视化编辑。
 - `Callout` props 的结构化表单编辑。
+
+这些语法在第一阶段仍应可打开、显示、保存，并尽量保持原始源码不变。
 
 ---
 
@@ -773,7 +977,18 @@ npm 包插件
 
 ## 15. 开发里程碑
 
-### Milestone 1（v0.1）：可保存的 Markdown 编辑闭环
+### Milestone 0：核心技术尖刺
+
+- EditorRuntime 内容接口验证
+- Milkdown parser / serializer 扩展验证
+- raw fragment collector / dirty 标记 / 合成 serializer 验证
+- Markdown round-trip fixture 验证
+- Frontmatter raw block 保真验证
+- remark-mdx 接入验证
+- 未知 MDX raw node 保真验证
+- 官方 Callout 的最小 AST 映射验证
+
+### Milestone 1（v0.1）：项目骨架与可保存的 Markdown 编辑闭环
 
 - Tauri + React + TypeScript 项目初始化
 - Milkdown Core 接入
@@ -783,6 +998,7 @@ npm 包插件
 - 文档状态管理
 - dirty 状态
 - 原子保存
+- selection / focus / composing 等基础交互状态派发
 
 ### Milestone 2（v0.1）：源码模式与内容一致性
 
@@ -795,9 +1011,17 @@ npm 包插件
 - 长文档切换性能提示
 - Markdown round-trip 验收标准
 
-### Milestone 3（v0.1）：文档保真与接口骨架
+### Milestone 3（v0.1）：文档保真、接口骨架与 P0 MDX 基础
 
 - Frontmatter raw metadata block
+- 打开 Markdown 文件
+- 保存文件
+- 另存为
+- 关闭前 dirty 提示
+- 新建未保存文档的保存策略
+- 内部 / 官方 Callout 组件
+- Callout parser / serializer / node view / 插入命令
+- 未知 MDX 组件 raw block 保真
 - 大纲目录
 - FeatureRegistry
 - CommandRegistry
@@ -828,7 +1052,14 @@ npm 包插件
 - 图片自定义命名和重复文件处理
 - 通用错误提示体验
 
-### Milestone 6（v0.2）：官方 MDX 组件最小切片
+### Milestone 5：MDX 组件增强
+
+- mdx_component / mdx_raw schema 完善
+- 扩展 LinkCard / Video / FileTree / Steps 等官方组件
+- 不支持任意 import/export、任意 JS expression props、完整 MDX runtime
+- 第三方组件注册接口设计
+
+### Milestone 6（v0.2）：官方 MDX 组件产品化与导出模块边界
 
 - 官方 Callout 组件 Level 2
 - Callout parser / serializer / node view / 插入命令
@@ -905,13 +1136,30 @@ npm 包插件
 风险：
 
 - 高质量 PDF 排版复杂。
+- WebView / 系统打印 / headless pipeline 的体积、能力和跨平台一致性差异明显。
 
 应对：
 
-- 初期先做可用导出。
+- 初期先做 HTML 导出和可用 PDF 导出。
+- PDF 初版不承诺复杂排版质量。
 - 后续独立打磨 PDF 模块。
 
-### 16.5 AI 干扰写作
+### 16.5 Tauri 文件权限和保存可靠性
+
+风险：
+
+- Tauri v2 文件系统权限需要显式配置。
+- 权限范围过宽会带来安全风险，过窄会影响文件打开和图片写入。
+- 保存失败或应用崩溃可能破坏原文件。
+
+应对：
+
+- 文件读写集中在 `TauriFileService`。
+- 使用 dialog 授权和最小权限 capabilities。
+- 保存采用临时文件 + rename。
+- 文件错误需要进入可测试的错误分支。
+
+### 16.6 AI 干扰写作
 
 风险：
 
@@ -934,11 +1182,16 @@ npm 包插件
 - 增加 MDX 保真 fixtures，覆盖未知组件、自闭合组件、有 children 的组件。
 - 验证未知 MDX、Frontmatter raw YAML、HTML/raw block 在未主动编辑时不丢失。
 - 明确定义允许归一化范围；Frontmatter、未知 MDX / JSX、HTML/raw block、fenced code block 内容必须保持原始文本。
+- 每个 fixture 标注 `byte-equal` 或 `normalized-equal`。
+- 对 raw 保真节点优先使用 `byte-equal` 验收。
+- 验证 `serializeWithRawFragments()` 未编辑 raw fragment 时输出原文，编辑后才输出规范化内容。
+- 验证官方 Callout 组件未编辑时不重排 props、空白和 children。
 
 ### 17.2 模式切换测试
 
 - 验证 WYSIWYG → Source → WYSIWYG 后内容一致。
 - 验证源码模式保存和 WYSIWYG 模式保存都使用当前最新内容。
+- 验证 dirty 状态以 `rawMarkdown` 和 `savedRawMarkdown` 为准。
 - 验证长文档切换时出现性能提示，并且切换失败不会破坏原内容。
 
 ### 17.3 文件生命周期测试

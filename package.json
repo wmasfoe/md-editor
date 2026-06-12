@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "pnpm --filter @md-editor/desktop dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
+    "smoke:editor-core": "node --experimental-strip-types scripts/smoke-editor-core.mjs",
     "build": "pnpm -r --sort build",
     "typecheck": "pnpm -r --sort typecheck",
     "test": "pnpm -r --sort test",

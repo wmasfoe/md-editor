@@ -1,6 +1,18 @@
 import type { MDXComponentRegistry } from "@md-editor/mdx-registry";
 import type { Markdown } from "@md-editor/shared";
 
+export const editorCoreSpikeName = "editor-core-m0";
+
+export * from "./callout.ts";
+export * from "./content.ts";
+export * from "./file-lifecycle.ts";
+export * from "./markdown.ts";
+export * from "./raw-fragments.ts";
+
+export function describeEditorCoreSpike(): string {
+  return editorCoreSpikeName;
+}
+
 export type EditorMode = "wysiwyg" | "source";
 
 export interface DocumentSnapshot {

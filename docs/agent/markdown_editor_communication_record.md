@@ -293,3 +293,39 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 8. AI 功能作为后续增强，不影响基础编辑器主线。
 9. 图片、导出、MDX 组件都需要模块化和可扩展。
 10. 后续要重点讨论 Milkdown Core 的插件架构设计和 Crepe 可参考的实现方式。
+
+---
+
+## 11. 技术方案审阅后的调整
+
+本次根据技术方案审阅，确认整体方向不需要推翻，但需要收窄若干高风险点的边界。
+
+调整共识：
+
+1. MDX 是核心技术风险，需要在正式功能开发前增加技术尖刺，优先验证 `remark-mdx`、未知 MDX raw 保真、Callout 最小 AST 映射。
+2. 文档保存不能只依赖 ProseMirror doc，需要把 `rawMarkdown` 和 raw fragment 作为源码保真的重要依据。
+3. Frontmatter、未知 MDX、HTML block、raw block 在未主动编辑时应优先保持原始文本。
+4. MDX import/export、expression、未知 JSX 节点第一阶段只做 raw 保真，不执行、不格式化、不做结构化编辑。
+5. 初期包结构可以收敛，先保留 `editor-core`、`file-system`、`shared` 等核心包，feature 边界稳定后再拆分。
+6. PDF 初版以 HTML 导出结果为基础，通过 WebView 或系统打印生成，只承诺可用，不承诺高质量排版。
+7. Tauri 文件读写需要单独设计 `TauriFileService`，并明确 capabilities、dialog 授权、原子写入和错误处理。
+8. 保真测试 fixture 需要标注 `byte-equal` 或 `normalized-equal`，raw 保真节点优先使用 `byte-equal` 验收。
+
+---
+
+## 12. Milkdown 核心状态与交互讨论
+
+本次进一步确认：Milkdown 不是普通 UI 组件，而是编辑器产品的交互内核。文件状态、源码模式、MDX、AI、图片和导出都需要围绕 Editor Runtime 建立边界。
+
+核心共识：
+
+1. App 层不直接依赖 Milkdown / ProseMirror 细节，应通过 `EditorRuntime` 访问内容、命令、选区和交互状态。
+2. 文件保存权威源是 `rawMarkdown`，ProseMirror doc 是 WYSIWYG 结构化编辑状态，CodeMirror doc 是源码模式编辑状态。
+3. dirty 判断应优先基于 `rawMarkdown` 和 `savedRawMarkdown`，避免普通 serializer 格式化导致误判。
+4. WYSIWYG 保存必须通过 `serializeWithRawFragments()` 合成内容，不能直接把普通 Milkdown serializer 输出当作最终保存内容。
+5. Frontmatter、未知 MDX、HTML block、MDX ESM、expression 等需要通过 raw fragment 记录原文和 dirty 状态。
+6. 用户未主动编辑 raw fragment 时必须输出原文；用户主动编辑后才允许规范化序列化。
+7. 已注册官方 MDX 组件也应尽量保留 `rawSource` / `rawProps` / `sourceRange`，避免未编辑时重排 props、空白和 children。
+8. 交互状态需要分层：`DocumentState` 管内容和文件生命周期，`EditorRuntimeState` 管初始化和模式切换，`EditorInteractionState` 管选区、焦点、输入法和浮层，`FeatureState` 管大纲、MDX registry、图片和导出等功能状态。
+9. React 不应承接所有编辑器高频状态，高频编辑状态优先留在 ProseMirror transaction 和 plugin state 中。
+10. Milestone 0 需要把 EditorRuntime 内容接口、raw fragment collector、dirty 标记和合成 serializer 做成可验证尖刺。
