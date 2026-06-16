@@ -1,6 +1,6 @@
 {
   "name": "md-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Daily-usable Markdown and MDX-compatible desktop editor.",
   "type": "module",
@@ -9,6 +9,7 @@
     "dev": "pnpm --filter @md-editor/desktop dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
     "build:macos": "pnpm --filter @md-editor/desktop tauri build --bundles dmg",
+    "release:version": "node scripts/release/version-desktop.mjs",
     "smoke:editor-core": "node --experimental-strip-types scripts/smoke-editor-core.mjs",
     "build": "pnpm -r --sort build",
     "typecheck": "pnpm -r --sort typecheck",
