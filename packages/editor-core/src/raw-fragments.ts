@@ -42,7 +42,7 @@ export function serializeWithRawFragments(
     }
 
     const replacement = fragment.dirty
-      ? fragment.serializedMarkdown ?? fragment.rawSource
+      ? preserveRawFragmentLineBoundary(fragment.rawSource, fragment.serializedMarkdown ?? fragment.rawSource)
       : fragment.rawSource;
 
     return replaceRange(nextMarkdown, fragment.sourceRange, replacement);
@@ -169,6 +169,14 @@ function sortFragments(rawFragments: readonly RawFragment[]): RawFragment[] {
 
 function replaceRange(markdown: string, range: SourceRange, replacement: string): string {
   return `${markdown.slice(0, range.start)}${replacement}${markdown.slice(range.end)}`;
+}
+
+function preserveRawFragmentLineBoundary(rawSource: string, replacement: string): string {
+  if (rawSource.endsWith("\n") && !replacement.endsWith("\n")) {
+    return `${replacement}\n`;
+  }
+
+  return replacement;
 }
 
 function isInsideExistingFragment(offset: number, rawFragments: readonly RawFragment[]): boolean {

@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   calloutDescriptor,
   computeDirtyState,
+  createBuiltInEditorFeature,
+  createCommandRegistry,
   collectRawFragments,
+  createDocumentState,
   createEditorContent,
+  createFeatureRegistry,
   describeEditorCoreSpike,
   createInMemoryMarkdownFileStore,
+  createKeymapRegistry,
   getRawFragmentSaveSource,
   loadMarkdownFile,
   markSaved,
@@ -134,7 +139,7 @@ describe("raw fragment preservation", () => {
       throw new Error("Expected unknown MDX flow fragment");
     }
 
-    expect(fragment?.rawSource).toBe("<UnknownCard old />");
+    expect(fragment?.rawSource).toBe("<UnknownCard old />\n");
 
     const serialized = serializeWithRawFragments(markdown, [
       {
@@ -394,5 +399,42 @@ describe("content authority contracts", () => {
     expect(getRawFragmentSaveSource(fragment)).toBe(
       "<Callout type=\"warning\">New</Callout>",
     );
+  });
+});
+
+describe("built-in feature registry", () => {
+  it("registers editor commands and keymaps through FeatureRegistry", async () => {
+    const commands = createCommandRegistry();
+    const keymaps = createKeymapRegistry();
+    const features = createFeatureRegistry();
+    const calls: string[] = [];
+
+    features.register(createBuiltInEditorFeature());
+    features.activateAll({ commands, keymaps });
+
+    expect(commands.list().map((command) => command.id)).toEqual([
+      "file.new",
+      "file.open",
+      "file.openFolder",
+      "file.save",
+      "file.saveAs",
+      "view.toggleSource",
+      "view.showWysiwyg",
+      "view.toggleSidebarPrimary",
+    ]);
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Mod-Shift-1:view.toggleSidebarPrimary",
+    );
+
+    await commands.dispatch("view.toggleSidebarPrimary", {
+      document: createDocumentState(),
+      actions: {
+        toggleSidebarPrimary: () => {
+          calls.push("sidebar");
+        },
+      },
+    });
+
+    expect(calls).toEqual(["sidebar"]);
   });
 });

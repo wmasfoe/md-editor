@@ -8,8 +8,11 @@ import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
+import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import {
+  createBuiltInEditorFeature,
+  createFeatureRegistry,
   createDocumentState,
   createEditorRuntime,
   switchEditorModeSafely,
@@ -21,20 +24,28 @@ import {
   createFileService,
   type FileServiceAdapter,
   type MarkdownDocumentFile,
+  type MarkdownFileTreeNode,
+  type MarkdownFolder,
   type SaveMarkdownInput
 } from "@md-editor/file-system";
 import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-registry";
 import "./styles.css";
 
+const featureRegistry = createFeatureRegistry();
+featureRegistry.register(createBuiltInEditorFeature());
+
 const runtime = createEditorRuntime({
   document: createDocumentState({
     markdown: "# Untitled\n\nStart writing Markdown."
   }),
-  mdxComponents: createBuiltInMdxRegistry()
+  mdxComponents: createBuiltInMdxRegistry(),
+  features: featureRegistry
 });
 const fileService = createFileService(createDesktopFileAdapter());
 const MENU_ACTION_EVENT = "md-editor-menu-action";
+
+type SidebarMode = "files" | "outline";
 
 interface PastedImageInput {
   readonly file: File;
@@ -62,14 +73,24 @@ interface KeyboardShortcut {
   readonly run: (event: KeyboardEvent) => void;
 }
 
+interface TocTarget {
+  readonly line: number;
+  readonly level: number;
+  readonly text: string;
+  readonly nonce: number;
+}
+
 function App() {
   // 初始桌面壳先绑定 EditorRuntime，后续接入 Milkdown / CodeMirror 时
   // App 层仍然通过同一份运行时契约读写文档。
   const [snapshot, setSnapshot] = useState(() => runtime.getSnapshot());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [tocTargetLine, setTocTargetLine] = useState<number | null>(null);
+  const [tocTarget, setTocTarget] = useState<TocTarget | null>(null);
+  const [folder, setFolder] = useState<MarkdownFolder | null>(null);
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}`;
+  const outline = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
 
   const commitMarkdown = useCallback((markdown: string) => {
     setErrorMessage(null);
@@ -147,6 +168,30 @@ function App() {
     });
   }, [ensureDiscardAllowed, replaceDocument, runFileAction]);
 
+  const openFolder = useCallback(async () => {
+    await runFileAction("正在打开文件夹", async () => {
+      const openedFolder = await fileService.openFolder();
+      if (!openedFolder) {
+        return;
+      }
+      setFolder(openedFolder);
+      setSidebarMode("files");
+    });
+  }, [runFileAction]);
+
+  const openDocumentFromTree = useCallback(
+    async (filePath: string) => {
+      if (!ensureDiscardAllowed()) {
+        return;
+      }
+
+      await runFileAction("正在打开", async () => {
+        replaceDocument(await fileService.openDocumentAtPath(filePath));
+      });
+    },
+    [ensureDiscardAllowed, replaceDocument, runFileAction]
+  );
+
   const saveDocument = useCallback(
     async (forceDialog = false) => {
       await runFileAction(forceDialog ? "正在另存为" : "正在保存", async () => {
@@ -207,51 +252,49 @@ function App() {
     [replaceDocument, runFileAction]
   );
 
-  const jumpToTocLine = useCallback(
-    async (line: number) => {
-      // 目录跳转仍复用 Markdown 标题解析；v0.1 先切到源码模式定位行号。
-      setTocTargetLine(line);
-      await switchMode("source");
-    },
-    [switchMode]
-  );
+  const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
+    setTocTarget({ ...target, nonce: Date.now() });
+  }, []);
 
-  const jumpToFirstHeading = useCallback(async () => {
-    const [firstHeading] = extractHeadingOutline(runtime.document.getSnapshot().markdown);
-    if (!firstHeading) {
-      setErrorMessage("当前文档没有标题。");
-      return;
-    }
-    await jumpToTocLine(firstHeading.line);
-  }, [jumpToTocLine]);
+  const toggleSidebarPrimary = useCallback(async () => {
+    setSidebarMode((current) => (current === "files" ? "outline" : "files"));
+  }, []);
+
+  const dispatchCommand = useCallback(
+    async (id: string) => {
+      await runtime.commands.dispatch(id, {
+        document: runtime.document,
+        actions: {
+          newDocument: createNewDocument,
+          openDocument,
+          openFolder,
+          saveDocument: () => saveDocument(false),
+          saveDocumentAs: () => saveDocument(true),
+          toggleSourceMode,
+          showWysiwygMode: () => switchMode("wysiwyg"),
+          toggleSidebarPrimary
+        }
+      });
+    },
+    [
+      createNewDocument,
+      openDocument,
+      openFolder,
+      saveDocument,
+      switchMode,
+      toggleSidebarPrimary,
+      toggleSourceMode
+    ]
+  );
 
   useEffect(() => {
     // 集中维护快捷键，后续新增时保持键盘和菜单动作一致。
-    const shortcuts: readonly KeyboardShortcut[] = [
-      {
-        matches: (event) =>
-          isPrimaryShortcut(event) && event.key.toLowerCase() === "s",
-        run: (event) => {
-          void saveDocument(event.shiftKey);
-        }
-      },
-      {
-        matches: (event) =>
-          isPrimaryShortcut(event) && !event.shiftKey && event.key.toLowerCase() === "o",
-        run: () => {
-          void openDocument();
-        }
-      },
-      {
-        matches: (event) =>
-          isPrimaryShortcut(event) &&
-          !event.shiftKey &&
-          (event.key === "/" || event.code === "Slash"),
-        run: () => {
-          void toggleSourceMode();
-        }
+    const shortcuts: readonly KeyboardShortcut[] = runtime.keymaps.list().map((keymap) => ({
+      matches: (event) => matchesRuntimeKeymap(event, keymap.key),
+      run: () => {
+        void dispatchCommand(keymap.commandId);
       }
-    ];
+    }));
 
     const listener = (event: KeyboardEvent) => {
       const shortcut = shortcuts.find((candidate) => candidate.matches(event));
@@ -265,39 +308,46 @@ function App() {
 
     window.addEventListener("keydown", listener, { capture: true });
     return () => window.removeEventListener("keydown", listener, { capture: true });
-  }, [openDocument, saveDocument, toggleSourceMode]);
+  }, [dispatchCommand]);
 
   const runMenuAction = useCallback(
     (action: string) => {
       switch (action) {
         case "md-editor:new":
-          createNewDocument();
+          void dispatchCommand("file.new");
           break;
         case "md-editor:open":
-          void openDocument();
+          void dispatchCommand("file.open");
+          break;
+        case "md-editor:open-folder":
+          void dispatchCommand("file.openFolder");
           break;
         case "md-editor:save":
-          void saveDocument(false);
+          void dispatchCommand("file.save");
           break;
         case "md-editor:save-as":
-          void saveDocument(true);
+          void dispatchCommand("file.saveAs");
           break;
         case "md-editor:mode-wysiwyg":
-          void switchMode("wysiwyg");
+          void dispatchCommand("view.showWysiwyg");
           break;
         case "md-editor:toggle-source":
-          void toggleSourceMode();
+          void dispatchCommand("view.toggleSource");
           break;
-        case "md-editor:outline":
-          void jumpToFirstHeading();
+        case "md-editor:toggle-sidebar-primary":
+          void dispatchCommand("view.toggleSidebarPrimary");
           break;
       }
     },
-    [createNewDocument, jumpToFirstHeading, openDocument, saveDocument, switchMode, toggleSourceMode]
+    [dispatchCommand]
   );
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+
+    if (!isTauri()) {
+      return undefined;
+    }
 
     void listen<string>(MENU_ACTION_EVENT, (event) => {
       runMenuAction(event.payload);
@@ -311,18 +361,51 @@ function App() {
   }, [runMenuAction]);
 
   return (
-    <main className="flex h-full min-w-0 flex-col bg-[var(--theme-bg)] md:min-w-[640px]">
+    <main className="app-shell">
+      <aside className="sidebar" aria-label={sidebarMode === "files" ? "文件树" : "大纲目录"}>
+        <div className="sidebar-switcher" role="tablist" aria-label="侧栏视图">
+          <button
+            type="button"
+            className={sidebarMode === "files" ? "sidebar-tab active" : "sidebar-tab"}
+            onClick={() => setSidebarMode("files")}
+          >
+            文件
+          </button>
+          <button
+            type="button"
+            className={sidebarMode === "outline" ? "sidebar-tab active" : "sidebar-tab"}
+            onClick={() => setSidebarMode("outline")}
+          >
+            大纲
+          </button>
+        </div>
+        {sidebarMode === "files" ? (
+          <FileTreePanel
+            folder={folder}
+            activeFilePath={snapshot.filePath}
+            onOpenFolder={() => void dispatchCommand("file.openFolder")}
+            onOpenFile={(filePath) => void openDocumentFromTree(filePath)}
+          />
+        ) : (
+          <OutlinePanel outline={outline} onJump={jumpToTocItem} />
+        )}
+      </aside>
       <section className="editor-pane" aria-label="Markdown 编辑器" onPasteCapture={pasteImage}>
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {pendingAction ? <div className="status-banner">{pendingAction}</div> : null}
         {snapshot.mode === "source" ? (
           <SourceEditor
             snapshot={snapshot}
-            targetLine={tocTargetLine}
+            target={tocTarget}
             onChange={commitMarkdown}
           />
         ) : (
-          <MilkdownEditor key={documentKey} snapshot={snapshot} onChange={commitMarkdown} />
+          <MilkdownEditor
+            key={documentKey}
+            snapshot={snapshot}
+            target={tocTarget}
+            onChange={commitMarkdown}
+          />
         )}
       </section>
     </main>
@@ -335,10 +418,10 @@ interface EditorProps {
 }
 
 interface SourceEditorProps extends EditorProps {
-  readonly targetLine: number | null;
+  readonly target: TocTarget | null;
 }
 
-function SourceEditor({ snapshot, targetLine, onChange }: SourceEditorProps) {
+function SourceEditor({ snapshot, target, onChange }: SourceEditorProps) {
   const editorView = useRef<SourceEditorView | null>(null);
   const extensions = useMemo(
     () => [markdown({ base: markdownLanguage })],
@@ -346,36 +429,188 @@ function SourceEditor({ snapshot, targetLine, onChange }: SourceEditorProps) {
   );
 
   useEffect(() => {
-    if (targetLine === null || !editorView.current) {
+    if (target === null || !editorView.current) {
       return;
     }
 
     const view = editorView.current;
-    const safeLine = Math.min(Math.max(targetLine, 1), view.state.doc.lines);
+    const safeLine = Math.min(Math.max(target.line, 1), view.state.doc.lines);
     const position = view.state.doc.line(safeLine).from;
     view.dispatch({ selection: { anchor: position } });
     view.focus();
     requestAnimationFrame(() => {
       view.dom.querySelector(".cm-activeLine")?.scrollIntoView({ block: "center" });
     });
-  }, [snapshot.markdown, targetLine]);
+  }, [snapshot.markdown, target]);
 
   return (
-    <CodeMirror
-      value={snapshot.markdown}
-      height="100%"
-      basicSetup={{ lineNumbers: true, foldGutter: true }}
-      extensions={extensions}
-      onChange={onChange}
-      onCreateEditor={(view) => {
-        editorView.current = view;
-      }}
-      className="source-editor"
-    />
+    <div className="source-editor-shell">
+      <CodeMirror
+        value={snapshot.markdown}
+        height="100%"
+        basicSetup={{ lineNumbers: true, foldGutter: true }}
+        extensions={extensions}
+        onChange={onChange}
+        onCreateEditor={(view) => {
+          editorView.current = view;
+        }}
+        className="source-editor"
+      />
+    </div>
   );
 }
 
-function MilkdownEditor(props: EditorProps) {
+interface FileTreePanelProps {
+  readonly folder: MarkdownFolder | null;
+  readonly activeFilePath: string | null;
+  readonly onOpenFolder: () => void;
+  readonly onOpenFile: (filePath: string) => void;
+}
+
+function FileTreePanel({ folder, activeFilePath, onOpenFolder, onOpenFile }: FileTreePanelProps) {
+  const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
+
+  useEffect(() => {
+    setCollapsedPaths(new Set());
+  }, [folder?.rootPath]);
+
+  const toggleCollapsed = useCallback((path: string) => {
+    setCollapsedPaths((current) => {
+      const next = new Set(current);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  if (!folder) {
+    return (
+      <div className="sidebar-empty">
+        <button type="button" className="sidebar-command" onClick={onOpenFolder}>
+          打开文件夹
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="file-tree-panel">
+      <div className="sidebar-title" title={folder.rootPath}>
+        {folder.rootName}
+      </div>
+      <FileTreeNodeView
+        node={folder.tree}
+        activeFilePath={activeFilePath}
+        collapsedPaths={collapsedPaths}
+        onToggleCollapsed={toggleCollapsed}
+        onOpenFile={onOpenFile}
+      />
+    </div>
+  );
+}
+
+interface FileTreeNodeViewProps {
+  readonly node: MarkdownFileTreeNode;
+  readonly activeFilePath: string | null;
+  readonly collapsedPaths: ReadonlySet<string>;
+  readonly depth?: number;
+  readonly onToggleCollapsed: (path: string) => void;
+  readonly onOpenFile: (filePath: string) => void;
+}
+
+function FileTreeNodeView({
+  node,
+  activeFilePath,
+  collapsedPaths,
+  depth = 0,
+  onToggleCollapsed,
+  onOpenFile
+}: FileTreeNodeViewProps) {
+  const paddingLeft = 12 + depth * 14;
+
+  if (node.kind === "markdown") {
+    return (
+      <button
+        type="button"
+        className={node.path === activeFilePath ? "tree-row active" : "tree-row"}
+        style={{ paddingLeft }}
+        title={node.path}
+        onClick={() => onOpenFile(node.path)}
+      >
+        <span className="tree-icon">#</span>
+        <span className="tree-label">{node.name}</span>
+      </button>
+    );
+  }
+
+  const isCollapsed = collapsedPaths.has(node.path);
+
+  return (
+    <div className="tree-group">
+      <button
+        type="button"
+        className="tree-row directory"
+        style={{ paddingLeft }}
+        title={node.path}
+        aria-expanded={!isCollapsed}
+        onClick={() => onToggleCollapsed(node.path)}
+      >
+        <span className="tree-icon">{isCollapsed ? "▸" : "▾"}</span>
+        <span className="tree-label">{node.name}</span>
+      </button>
+      {isCollapsed
+        ? null
+        : node.children?.map((child) => (
+            <FileTreeNodeView
+              key={child.path}
+              node={child}
+              activeFilePath={activeFilePath}
+              collapsedPaths={collapsedPaths}
+              depth={depth + 1}
+              onToggleCollapsed={onToggleCollapsed}
+              onOpenFile={onOpenFile}
+            />
+          ))}
+    </div>
+  );
+}
+
+interface OutlinePanelProps {
+  readonly outline: ReturnType<typeof extractHeadingOutline>;
+  readonly onJump: (target: Omit<TocTarget, "nonce">) => void;
+}
+
+function OutlinePanel({ outline, onJump }: OutlinePanelProps) {
+  if (outline.length === 0) {
+    return <div className="sidebar-empty">当前文档没有标题。</div>;
+  }
+
+  return (
+    <nav className="outline-panel" aria-label="大纲目录">
+      {outline.map((item) => (
+        <button
+          type="button"
+          key={`${item.id}-${item.line}`}
+          className="outline-row"
+          style={{ paddingLeft: 12 + (item.level - 1) * 14 }}
+          onClick={() => onJump({ line: item.line, level: item.level, text: item.text })}
+          title={item.text}
+        >
+          {item.text}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+interface MilkdownEditorProps extends EditorProps {
+  readonly target: TocTarget | null;
+}
+
+function MilkdownEditor(props: MilkdownEditorProps) {
   return (
     <MilkdownProvider>
       <MilkdownEditorInner {...props} />
@@ -383,8 +618,9 @@ function MilkdownEditor(props: EditorProps) {
   );
 }
 
-function MilkdownEditorInner({ snapshot, onChange }: EditorProps) {
+function MilkdownEditorInner({ snapshot, target, onChange }: MilkdownEditorProps) {
   const initialMarkdown = useMemo(() => snapshot.markdown, []);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEditor(
     (root) =>
@@ -401,12 +637,34 @@ function MilkdownEditorInner({ snapshot, onChange }: EditorProps) {
           });
         })
         .use(commonmark)
+        .use(gfm)
         .use(history)
         .use(listener),
     [initialMarkdown, onChange]
   );
 
-  return <Milkdown />;
+  useEffect(() => {
+    if (!target || !rootRef.current) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const headings = Array.from(
+        rootRef.current?.querySelectorAll<HTMLElement>(
+          `.ProseMirror h${target.level}`
+        ) ?? []
+      );
+      const heading = headings.find((candidate) => candidate.textContent?.trim() === target.text);
+      heading?.scrollIntoView({ block: "center" });
+      heading?.focus?.();
+    });
+  }, [target]);
+
+  return (
+    <div ref={rootRef} className="milkdown-host">
+      <Milkdown />
+    </div>
+  );
 }
 
 createRoot(document.getElementById("root")!).render(
@@ -419,11 +677,42 @@ function isPrimaryShortcut(event: KeyboardEvent) {
   return (event.metaKey || event.ctrlKey) && !event.altKey;
 }
 
+function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): boolean {
+  const parts = keymap.split("-");
+  const key = parts.at(-1)?.toLowerCase();
+  const wantsMod = parts.includes("Mod");
+  const wantsShift = parts.includes("Shift");
+
+  if (wantsMod && !isPrimaryShortcut(event)) {
+    return false;
+  }
+  if (!wantsMod && (event.metaKey || event.ctrlKey)) {
+    return false;
+  }
+  if (event.shiftKey !== wantsShift) {
+    return false;
+  }
+
+  if (key === "/") {
+    return event.key === "/" || event.code === "Slash";
+  }
+
+  return event.key.toLowerCase() === key;
+}
+
 function createDesktopFileAdapter(): FileServiceAdapter {
   return {
     openMarkdownFile() {
       assertDesktopRuntime();
       return invoke<MarkdownDocumentFile | null>("open_markdown_document");
+    },
+    openMarkdownFolder() {
+      assertDesktopRuntime();
+      return invoke<MarkdownFolder | null>("open_markdown_folder");
+    },
+    readMarkdownFile(path) {
+      assertDesktopRuntime();
+      return invoke<MarkdownDocumentFile>("open_markdown_document_at_path", { path });
     },
     saveMarkdownFile(input: SaveMarkdownInput) {
       assertDesktopRuntime();

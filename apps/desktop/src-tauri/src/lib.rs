@@ -22,6 +22,30 @@ struct MarkdownDocumentFile {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct MarkdownFolder {
+    root_path: String,
+    root_name: String,
+    tree: MarkdownFileTreeNode,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MarkdownFileTreeNode {
+    name: String,
+    path: String,
+    kind: MarkdownFileTreeNodeKind,
+    children: Option<Vec<MarkdownFileTreeNode>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum MarkdownFileTreeNodeKind {
+    Directory,
+    Markdown,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PastedImageFile {
     markdown_path: String,
 }
@@ -41,6 +65,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             open_markdown_document,
+            open_markdown_document_at_path,
+            open_markdown_folder,
             save_markdown_document,
             save_pasted_image
         ])
@@ -61,6 +87,12 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
         .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
+        .item(&menu_item(
+            app,
+            "md-editor:open-folder",
+            "Open Folder...",
+            "CmdOrCtrl+Shift+O",
+        )?)
         .separator()
         .item(&menu_item(app, "md-editor:save", "Save", "CmdOrCtrl+S")?)
         .item(&menu_item(
@@ -97,9 +129,9 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .separator()
         .item(&menu_item(
             app,
-            "md-editor:outline",
-            "Jump to First Heading",
-            "CmdOrCtrl+L",
+            "md-editor:toggle-sidebar-primary",
+            "Toggle File Tree / Outline",
+            "CmdOrCtrl+Shift+1",
         )?)
         .build()?;
 
@@ -141,6 +173,53 @@ async fn open_markdown_document(
     Ok(Some(MarkdownDocumentFile {
         file_path: path_to_string(&path),
         markdown,
+    }))
+}
+
+#[tauri::command]
+async fn open_markdown_document_at_path(path: String) -> Result<MarkdownDocumentFile, String> {
+    let path = PathBuf::from(path);
+    let markdown = fs::read_to_string(&path)
+        .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
+
+    Ok(MarkdownDocumentFile {
+        file_path: path_to_string(&path),
+        markdown,
+    })
+}
+
+#[tauri::command]
+async fn open_markdown_folder(app: tauri::AppHandle) -> Result<Option<MarkdownFolder>, String> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("Open Folder")
+        .blocking_pick_folder();
+
+    let Some(folder_path) = selected else {
+        return Ok(None);
+    };
+
+    let path = folder_path
+        .into_path()
+        .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
+    let Some(tree) = build_markdown_tree(&path)? else {
+        return Ok(Some(MarkdownFolder {
+            root_name: folder_name(&path),
+            root_path: path_to_string(&path),
+            tree: MarkdownFileTreeNode {
+                name: folder_name(&path),
+                path: path_to_string(&path),
+                kind: MarkdownFileTreeNodeKind::Directory,
+                children: Some(Vec::new()),
+            },
+        }));
+    };
+
+    Ok(Some(MarkdownFolder {
+        root_name: folder_name(&path),
+        root_path: path_to_string(&path),
+        tree,
     }))
 }
 
@@ -305,6 +384,76 @@ fn next_image_path(directory: &Path, extension: &str) -> PathBuf {
         }
         index += 1;
     }
+}
+
+fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, String> {
+    if path.is_file() {
+        return Ok(if is_markdown_path(path) {
+            Some(MarkdownFileTreeNode {
+                name: folder_name(path),
+                path: path_to_string(path),
+                kind: MarkdownFileTreeNodeKind::Markdown,
+                children: None,
+            })
+        } else {
+            None
+        });
+    }
+
+    let mut children = Vec::new();
+    let entries = fs::read_dir(path)
+        .map_err(|error| format!("Failed to read folder {}: {error}", path.display()))?;
+
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Failed to read folder entry: {error}"))?;
+        let entry_path = entry.path();
+        let name = folder_name(&entry_path);
+
+        if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" {
+            continue;
+        }
+
+        if let Some(node) = build_markdown_tree(&entry_path)? {
+            children.push(node);
+        }
+    }
+
+    children.sort_by(|left, right| match (&left.kind, &right.kind) {
+        (MarkdownFileTreeNodeKind::Directory, MarkdownFileTreeNodeKind::Markdown) => {
+            std::cmp::Ordering::Less
+        }
+        (MarkdownFileTreeNodeKind::Markdown, MarkdownFileTreeNodeKind::Directory) => {
+            std::cmp::Ordering::Greater
+        }
+        _ => left.name.to_lowercase().cmp(&right.name.to_lowercase()),
+    });
+
+    if children.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(MarkdownFileTreeNode {
+        name: folder_name(path),
+        path: path_to_string(path),
+        kind: MarkdownFileTreeNodeKind::Directory,
+        children: Some(children),
+    }))
+}
+
+fn is_markdown_path(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("md" | "mdx" | "markdown")
+    )
+}
+
+fn folder_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
 }
 
 fn path_to_string(path: &Path) -> String {

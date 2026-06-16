@@ -24,6 +24,58 @@ describe("FileService", () => {
     });
   });
 
+  it("opens a Markdown folder tree through the adapter", async () => {
+    const service = createFileService(
+      fakeAdapter({
+        folderResult: {
+          rootPath: "/Users/me/docs",
+          rootName: "docs",
+          tree: {
+            name: "docs",
+            path: "/Users/me/docs",
+            kind: "directory",
+            children: [
+              { name: "index.md", path: "/Users/me/docs/index.md", kind: "markdown" },
+              {
+                name: "guide",
+                path: "/Users/me/docs/guide",
+                kind: "directory",
+                children: [{ name: "intro.mdx", path: "/Users/me/docs/guide/intro.mdx", kind: "markdown" }]
+              }
+            ]
+          }
+        }
+      })
+    );
+
+    await expect(service.openFolder()).resolves.toMatchObject({
+      rootName: "docs",
+      tree: {
+        children: [
+          { name: "index.md", kind: "markdown" },
+          {
+            name: "guide",
+            kind: "directory",
+            children: [{ name: "intro.mdx", kind: "markdown" }]
+          }
+        ]
+      }
+    });
+  });
+
+  it("opens a Markdown document by path through the adapter", async () => {
+    const service = createFileService(
+      fakeAdapter({
+        readResult: { filePath: "/Users/me/docs/index.md", markdown: "# Index" }
+      })
+    );
+
+    await expect(service.openDocumentAtPath("/Users/me/docs/index.md")).resolves.toEqual({
+      filePath: "/Users/me/docs/index.md",
+      markdown: "# Index"
+    });
+  });
+
   it("saves to the existing path without forcing the dialog", async () => {
     const adapter = fakeAdapter({
       saveResult: { filePath: "/Users/me/post.md", markdown: "# Saved" }
@@ -66,10 +118,14 @@ describe("FileService", () => {
 
 function fakeAdapter(options: {
   readonly openResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFile"]>>;
+  readonly folderResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFolder"]>>;
+  readonly readResult?: Awaited<ReturnType<FileServiceAdapter["readMarkdownFile"]>>;
   readonly saveResult?: Awaited<ReturnType<FileServiceAdapter["saveMarkdownFile"]>>;
 } = {}): FileServiceAdapter {
   return {
     openMarkdownFile: vi.fn(async () => options.openResult ?? null),
+    openMarkdownFolder: vi.fn(async () => options.folderResult ?? null),
+    readMarkdownFile: vi.fn(async () => options.readResult ?? { filePath: "", markdown: "" }),
     saveMarkdownFile: vi.fn(async () => options.saveResult ?? null)
   };
 }

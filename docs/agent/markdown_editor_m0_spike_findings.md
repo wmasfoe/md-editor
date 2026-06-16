@@ -15,12 +15,14 @@
 
 ## 当前限制
 
-- 当前实现是 headless seam 与 fixture proof，不是完整 Milkdown / remark parser 集成。
+- 本文记录的是 M0 headless 技术尖刺结论；桌面层的最新状态见 `markdown_editor_v0_1_sidebar_runtime_mdx_status.md`。
+- M0 的 raw fragment / Callout 仍是 headless seam 与 fixture proof，不是完整 Milkdown / remark-mdx parser 集成。
 - 未知 MDX 和 MDX expression 当前仍按 raw-only 策略保存，不执行、不格式化、不做结构化编辑。
 - Inline MDX 的 source range 仍是高风险点；当前已做 stale range fail-fast，但后续真实 parser 接入时仍必须验证 range remap 或改用 node-bound raw source。
 - Callout extension smoke 在当前环境记录为 blocker：尚未安装 / 验证真实 Milkdown 或 ProseMirror extension API。
-- 本地 `node` 可用，且 `npm run smoke:editor-core` 已通过无依赖 runtime smoke。
-- `pnpm` shim / 依赖安装仍不可用，因此 `pnpm -r test` 和 `pnpm -r typecheck` 尚未实际运行通过。
+- 桌面层已接入 Milkdown / CodeMirror，WYSIWYG 不会因为 Frontmatter / MDX / HTML raw block 自动切到源码模式；源码模式由用户显式切换。
+- 本地 `node` 可用，且 `node --experimental-strip-types scripts/smoke-editor-core.mjs` 已通过无依赖 runtime smoke。
+- 当前环境下 `pnpm test` 和 `pnpm typecheck` 会被 pnpm 11.6.0 registry signature fetch 失败挡住，需要恢复 pnpm 校验或使用已安装二进制做局部验证。
 
 ## P1 边界
 

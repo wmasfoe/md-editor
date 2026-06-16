@@ -5,6 +5,19 @@ export interface MarkdownDocumentFile {
   readonly markdown: string;
 }
 
+export interface MarkdownFileTreeNode {
+  readonly name: string;
+  readonly path: string;
+  readonly kind: "directory" | "markdown";
+  readonly children?: readonly MarkdownFileTreeNode[];
+}
+
+export interface MarkdownFolder {
+  readonly rootPath: string;
+  readonly rootName: string;
+  readonly tree: MarkdownFileTreeNode;
+}
+
 export interface SaveMarkdownInput {
   readonly filePath: string | null;
   readonly markdown: string;
@@ -13,6 +26,8 @@ export interface SaveMarkdownInput {
 
 export interface FileServiceAdapter {
   openMarkdownFile(): Promise<MarkdownDocumentFile | null>;
+  openMarkdownFolder(): Promise<MarkdownFolder | null>;
+  readMarkdownFile(path: string): Promise<MarkdownDocumentFile>;
   saveMarkdownFile(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
 }
 
@@ -24,6 +39,8 @@ export interface NewDocumentResult {
 export interface FileService {
   newDocument(defaultMarkdown?: string): NewDocumentResult;
   openDocument(): Promise<MarkdownDocumentFile | null>;
+  openFolder(): Promise<MarkdownFolder | null>;
+  openDocumentAtPath(path: string): Promise<MarkdownDocumentFile>;
   saveDocument(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
   saveDocumentAs(input: Omit<SaveMarkdownInput, "forceDialog">): Promise<MarkdownDocumentFile | null>;
 }
@@ -54,6 +71,12 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
     },
     openDocument() {
       return adapter.openMarkdownFile();
+    },
+    openFolder() {
+      return adapter.openMarkdownFolder();
+    },
+    openDocumentAtPath(path) {
+      return adapter.readMarkdownFile(path);
     },
     saveDocument(input) {
       return adapter.saveMarkdownFile(input);

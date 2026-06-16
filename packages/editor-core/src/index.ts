@@ -60,6 +60,7 @@ export type ModeSwitchResult = ModeSwitchOk | ModeSwitchFailure;
 
 export interface CommandContext {
   readonly document: DocumentState;
+  readonly actions?: EditorActionHandlers;
 }
 
 export type CommandHandler = (context: CommandContext) => void | Promise<void>;
@@ -103,6 +104,27 @@ export interface FeatureRegistry {
   register(feature: FeatureDescriptor): void;
   activateAll(context: FeatureContext): void;
   list(): readonly FeatureDescriptor[];
+}
+
+export type BuiltInCommandId =
+  | "file.new"
+  | "file.open"
+  | "file.openFolder"
+  | "file.save"
+  | "file.saveAs"
+  | "view.toggleSource"
+  | "view.showWysiwyg"
+  | "view.toggleSidebarPrimary";
+
+export interface EditorActionHandlers {
+  readonly newDocument?: () => void | Promise<void>;
+  readonly openDocument?: () => void | Promise<void>;
+  readonly openFolder?: () => void | Promise<void>;
+  readonly saveDocument?: () => void | Promise<void>;
+  readonly saveDocumentAs?: () => void | Promise<void>;
+  readonly toggleSourceMode?: () => void | Promise<void>;
+  readonly showWysiwygMode?: () => void | Promise<void>;
+  readonly toggleSidebarPrimary?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -225,6 +247,79 @@ export function createFeatureRegistry(): FeatureRegistry {
       return [...features.values()];
     }
   };
+}
+
+export function createBuiltInEditorFeature(): FeatureDescriptor {
+  return {
+    id: "editor.built-in",
+    title: "Built-in editor commands",
+    setup(context) {
+      registerActionCommand(context.commands, "file.new", "New Document", "newDocument");
+      registerActionCommand(context.commands, "file.open", "Open File", "openDocument");
+      registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
+      registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
+      registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
+      registerActionCommand(
+        context.commands,
+        "view.toggleSource",
+        "Toggle Source Mode",
+        "toggleSourceMode",
+      );
+      registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode");
+      registerActionCommand(
+        context.commands,
+        "view.toggleSidebarPrimary",
+        "Toggle File Tree and Outline",
+        "toggleSidebarPrimary",
+      );
+
+      context.keymaps.register({
+        id: "file.new",
+        key: "Mod-N",
+        commandId: "file.new",
+      });
+      context.keymaps.register({
+        id: "file.save",
+        key: "Mod-S",
+        commandId: "file.save",
+      });
+      context.keymaps.register({
+        id: "file.saveAs",
+        key: "Mod-Shift-S",
+        commandId: "file.saveAs",
+      });
+      context.keymaps.register({
+        id: "file.open",
+        key: "Mod-O",
+        commandId: "file.open",
+      });
+      context.keymaps.register({
+        id: "view.toggleSource",
+        key: "Mod-/",
+        commandId: "view.toggleSource",
+      });
+      context.keymaps.register({
+        id: "view.toggleSidebarPrimary",
+        key: "Mod-Shift-1",
+        commandId: "view.toggleSidebarPrimary",
+      });
+    },
+  };
+}
+
+function registerActionCommand(
+  commands: CommandRegistry,
+  id: BuiltInCommandId,
+  title: string,
+  actionName: keyof EditorActionHandlers,
+): void {
+  commands.register({
+    id,
+    title,
+    async run(context) {
+      await context.actions?.[actionName]?.();
+    },
+  });
 }
 
 export function createEditorRuntime(input: EditorRuntimeInput): EditorRuntime {

@@ -5,3 +5,4 @@
 - 制定的技术方案: [markdown_editor_technical_plan](./markdown_editor_technical_plan.md)
 - 任务优先级与里程碑: [markdown_editor_task_priorities.md](./markdown_editor_task_priorities.md)
 - M0 技术尖刺结论: [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
+- v0.1 侧栏、Runtime 托管和 Raw 编辑状态: [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)
