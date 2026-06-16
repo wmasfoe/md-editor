@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItemBuilder, SubmenuBuilder},
     Emitter,
@@ -50,6 +50,20 @@ struct PastedImageFile {
     markdown_path: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FileTreeMutationResult {
+    folder: MarkdownFolder,
+    affected_path: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum CreateTreeItemKind {
+    Markdown,
+    Directory,
+}
+
 pub fn run() {
     // v0.1 只开放对话框和文件系统能力，先满足打开/保存流程，
     // 避免过早增加无关的原生接口面。
@@ -67,6 +81,10 @@ pub fn run() {
             open_markdown_document,
             open_markdown_document_at_path,
             open_markdown_folder,
+            refresh_markdown_folder,
+            create_markdown_tree_item,
+            rename_markdown_tree_item,
+            delete_markdown_tree_item,
             save_markdown_document,
             save_pasted_image
         ])
@@ -203,24 +221,129 @@ async fn open_markdown_folder(app: tauri::AppHandle) -> Result<Option<MarkdownFo
     let path = folder_path
         .into_path()
         .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
-    let Some(tree) = build_markdown_tree(&path)? else {
-        return Ok(Some(MarkdownFolder {
-            root_name: folder_name(&path),
-            root_path: path_to_string(&path),
-            tree: MarkdownFileTreeNode {
-                name: folder_name(&path),
-                path: path_to_string(&path),
-                kind: MarkdownFileTreeNodeKind::Directory,
-                children: Some(Vec::new()),
-            },
-        }));
+    Ok(Some(build_markdown_folder(&path)?))
+}
+
+#[tauri::command]
+fn refresh_markdown_folder(root_path: String) -> Result<MarkdownFolder, String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    build_markdown_folder(&root)
+}
+
+#[tauri::command]
+fn create_markdown_tree_item(
+    root_path: String,
+    parent_path: String,
+    name: String,
+    kind: CreateTreeItemKind,
+) -> Result<FileTreeMutationResult, String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let parent = canonicalize_existing_path(&parent_path, "parent folder")?;
+    ensure_path_inside_root(&root, &parent)?;
+
+    if !parent.is_dir() {
+        return Err(format!("{} is not a folder.", parent.display()));
+    }
+
+    let path = match kind {
+        CreateTreeItemKind::Markdown => {
+            let path = ensure_markdown_extension(parent.join(valid_child_name(&name)?));
+            if !is_markdown_path(&path) {
+                return Err("Markdown files must use .md, .mdx, or .markdown.".to_string());
+            }
+            if path.exists() {
+                return Err(format!("{} already exists.", path.display()));
+            }
+            write_atomically(&path, b"")?;
+            path
+        }
+        CreateTreeItemKind::Directory => {
+            let path = parent.join(valid_child_name(&name)?);
+            if path.exists() {
+                return Err(format!("{} already exists.", path.display()));
+            }
+            fs::create_dir(&path)
+                .map_err(|error| format!("Failed to create folder {}: {error}", path.display()))?;
+            path
+        }
     };
 
-    Ok(Some(MarkdownFolder {
-        root_name: folder_name(&path),
-        root_path: path_to_string(&path),
-        tree,
-    }))
+    Ok(FileTreeMutationResult {
+        folder: build_markdown_folder(&root)?,
+        affected_path: Some(path_to_string(&path)),
+    })
+}
+
+#[tauri::command]
+fn rename_markdown_tree_item(
+    root_path: String,
+    path: String,
+    name: String,
+) -> Result<FileTreeMutationResult, String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let current_path = canonicalize_existing_path(&path, "tree item")?;
+    ensure_path_inside_root(&root, &current_path)?;
+
+    if current_path == root {
+        return Err("Cannot rename the opened root folder.".to_string());
+    }
+
+    let parent = current_path
+        .parent()
+        .ok_or_else(|| format!("Cannot resolve parent directory for {}", current_path.display()))?;
+    let next_path = if current_path.is_file() {
+        let path = ensure_markdown_extension(parent.join(valid_child_name(&name)?));
+        if !is_markdown_path(&path) {
+            return Err("Markdown files must use .md, .mdx, or .markdown.".to_string());
+        }
+        path
+    } else {
+        parent.join(valid_child_name(&name)?)
+    };
+
+    if next_path.exists() {
+        return Err(format!("{} already exists.", next_path.display()));
+    }
+
+    fs::rename(&current_path, &next_path).map_err(|error| {
+        format!(
+            "Failed to rename {} to {}: {error}",
+            current_path.display(),
+            next_path.display()
+        )
+    })?;
+
+    Ok(FileTreeMutationResult {
+        folder: build_markdown_folder(&root)?,
+        affected_path: Some(path_to_string(&next_path)),
+    })
+}
+
+#[tauri::command]
+fn delete_markdown_tree_item(
+    root_path: String,
+    path: String,
+) -> Result<FileTreeMutationResult, String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let target = canonicalize_existing_path(&path, "tree item")?;
+    ensure_path_inside_root(&root, &target)?;
+
+    if target == root {
+        return Err("Cannot delete the opened root folder.".to_string());
+    }
+
+    if target.is_dir() {
+        fs::remove_dir_all(&target)
+            .map_err(|error| format!("Failed to delete folder {}: {error}", target.display()))?;
+    } else {
+        fs::remove_file(&target)
+            .map_err(|error| format!("Failed to delete file {}: {error}", target.display()))?;
+    }
+
+    Ok(FileTreeMutationResult {
+        folder: build_markdown_folder(&root)?,
+        affected_path: None,
+    })
 }
 
 #[tauri::command]
@@ -386,6 +509,21 @@ fn next_image_path(directory: &Path, extension: &str) -> PathBuf {
     }
 }
 
+fn build_markdown_folder(path: &Path) -> Result<MarkdownFolder, String> {
+    let tree = build_markdown_tree(path)?.unwrap_or_else(|| MarkdownFileTreeNode {
+        name: folder_name(path),
+        path: path_to_string(path),
+        kind: MarkdownFileTreeNodeKind::Directory,
+        children: Some(Vec::new()),
+    });
+
+    Ok(MarkdownFolder {
+        root_name: folder_name(path),
+        root_path: path_to_string(path),
+        tree,
+    })
+}
+
 fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, String> {
     if path.is_file() {
         return Ok(if is_markdown_path(path) {
@@ -458,4 +596,34 @@ fn folder_name(path: &Path) -> String {
 
 fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
+}
+
+fn canonicalize_existing_path(path: &str, label: &str) -> Result<PathBuf, String> {
+    fs::canonicalize(path).map_err(|error| format!("Failed to resolve {label} {path}: {error}"))
+}
+
+fn ensure_path_inside_root(root: &Path, path: &Path) -> Result<(), String> {
+    if path.starts_with(root) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "{} is outside opened folder {}.",
+        path.display(),
+        root.display()
+    ))
+}
+
+fn valid_child_name(name: &str) -> Result<&str, String> {
+    let trimmed = name.trim();
+
+    if trimmed.is_empty() {
+        return Err("Name cannot be empty.".to_string());
+    }
+
+    if trimmed == "." || trimmed == ".." || trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("Name must be a single file or folder name.".to_string());
+    }
+
+    Ok(trimmed)
 }

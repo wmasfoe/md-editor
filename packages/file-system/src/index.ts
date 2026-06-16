@@ -24,11 +24,38 @@ export interface SaveMarkdownInput {
   readonly forceDialog?: boolean;
 }
 
+export interface CreateTreeItemInput {
+  readonly rootPath: string;
+  readonly parentPath: string;
+  readonly name: string;
+  readonly kind: "markdown" | "directory";
+}
+
+export interface RenameTreeItemInput {
+  readonly rootPath: string;
+  readonly path: string;
+  readonly name: string;
+}
+
+export interface DeleteTreeItemInput {
+  readonly rootPath: string;
+  readonly path: string;
+}
+
+export interface FileTreeMutationResult {
+  readonly folder: MarkdownFolder;
+  readonly affectedPath: string | null;
+}
+
 export interface FileServiceAdapter {
   openMarkdownFile(): Promise<MarkdownDocumentFile | null>;
   openMarkdownFolder(): Promise<MarkdownFolder | null>;
   readMarkdownFile(path: string): Promise<MarkdownDocumentFile>;
   saveMarkdownFile(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
+  refreshMarkdownFolder(rootPath: string): Promise<MarkdownFolder>;
+  createMarkdownTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult>;
+  renameMarkdownTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult>;
+  deleteMarkdownTreeItem(input: DeleteTreeItemInput): Promise<FileTreeMutationResult>;
 }
 
 export interface NewDocumentResult {
@@ -43,6 +70,10 @@ export interface FileService {
   openDocumentAtPath(path: string): Promise<MarkdownDocumentFile>;
   saveDocument(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
   saveDocumentAs(input: Omit<SaveMarkdownInput, "forceDialog">): Promise<MarkdownDocumentFile | null>;
+  refreshFolder(rootPath: string): Promise<MarkdownFolder>;
+  createTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult>;
+  renameTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult>;
+  deleteTreeItem(input: DeleteTreeItemInput): Promise<FileTreeMutationResult>;
 }
 
 export interface ImagePasteInput {
@@ -83,6 +114,18 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
     },
     saveDocumentAs(input) {
       return adapter.saveMarkdownFile({ ...input, forceDialog: true });
+    },
+    refreshFolder(rootPath) {
+      return adapter.refreshMarkdownFolder(rootPath);
+    },
+    createTreeItem(input) {
+      return adapter.createMarkdownTreeItem(input);
+    },
+    renameTreeItem(input) {
+      return adapter.renameMarkdownTreeItem(input);
+    },
+    deleteTreeItem(input) {
+      return adapter.deleteMarkdownTreeItem(input);
     }
   };
 }

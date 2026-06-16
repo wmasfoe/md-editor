@@ -23,6 +23,7 @@ import {
   appendImageMarkdown,
   createFileService,
   type FileServiceAdapter,
+  type FileTreeMutationResult,
   type MarkdownDocumentFile,
   type MarkdownFileTreeNode,
   type MarkdownFolder,
@@ -46,6 +47,13 @@ const fileService = createFileService(createDesktopFileAdapter());
 const MENU_ACTION_EVENT = "md-editor-menu-action";
 
 type SidebarMode = "files" | "outline";
+type TreeItemKind = "markdown" | "directory";
+
+interface FileTreeContextMenuState {
+  readonly x: number;
+  readonly y: number;
+  readonly node: MarkdownFileTreeNode | null;
+}
 
 interface PastedImageInput {
   readonly file: File;
@@ -190,6 +198,111 @@ function App() {
       });
     },
     [ensureDiscardAllowed, replaceDocument, runFileAction]
+  );
+
+  const applyFileTreeMutation = useCallback(
+    (result: FileTreeMutationResult, previousPath?: string) => {
+      setFolder(result.folder);
+
+      const current = runtime.document.getSnapshot();
+      if (!current.filePath) {
+        return;
+      }
+
+      if (!previousPath || !isSameOrChildPath(current.filePath, previousPath)) {
+        return;
+      }
+
+      if (result.affectedPath) {
+        const nextFilePath =
+          current.filePath === previousPath
+            ? result.affectedPath
+            : `${result.affectedPath}${current.filePath.slice(previousPath.length)}`;
+
+        setSnapshot(
+          runtime.document.markSaved({
+            markdown: current.markdown,
+            filePath: nextFilePath
+          })
+        );
+        return;
+      }
+
+      const markdown = "# Untitled\n\nStart writing Markdown.";
+      runtime.document.updateMarkdown(markdown);
+      setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
+    },
+    []
+  );
+
+  const createTreeItem = useCallback(
+    async (parentPath: string, kind: TreeItemKind) => {
+      if (!folder) {
+        return;
+      }
+
+      const defaultName = kind === "markdown" ? "Untitled.md" : "Untitled";
+      const name = window.prompt(kind === "markdown" ? "新建 Markdown 文件" : "新建文件夹", defaultName);
+      if (!name) {
+        return;
+      }
+
+      await runFileAction(kind === "markdown" ? "正在新建文件" : "正在新建文件夹", async () => {
+        const result = await fileService.createTreeItem({
+          rootPath: folder.rootPath,
+          parentPath,
+          name,
+          kind
+        });
+        applyFileTreeMutation(result);
+      });
+    },
+    [applyFileTreeMutation, folder, runFileAction]
+  );
+
+  const renameTreeItem = useCallback(
+    async (node: MarkdownFileTreeNode) => {
+      if (!folder) {
+        return;
+      }
+
+      const name = window.prompt("重命名", node.name);
+      if (!name || name === node.name) {
+        return;
+      }
+
+      await runFileAction("正在重命名", async () => {
+        const result = await fileService.renameTreeItem({
+          rootPath: folder.rootPath,
+          path: node.path,
+          name
+        });
+        applyFileTreeMutation(result, node.path);
+      });
+    },
+    [applyFileTreeMutation, folder, runFileAction]
+  );
+
+  const deleteTreeItem = useCallback(
+    async (node: MarkdownFileTreeNode) => {
+      if (!folder) {
+        return;
+      }
+
+      const confirmed = window.confirm(`确定删除“${node.name}”吗？`);
+      if (!confirmed) {
+        return;
+      }
+
+      await runFileAction("正在删除", async () => {
+        const result = await fileService.deleteTreeItem({
+          rootPath: folder.rootPath,
+          path: node.path
+        });
+        applyFileTreeMutation(result, node.path);
+      });
+    },
+    [applyFileTreeMutation, folder, runFileAction]
   );
 
   const saveDocument = useCallback(
@@ -385,6 +498,9 @@ function App() {
             activeFilePath={snapshot.filePath}
             onOpenFolder={() => void dispatchCommand("file.openFolder")}
             onOpenFile={(filePath) => void openDocumentFromTree(filePath)}
+            onCreateTreeItem={(parentPath, kind) => void createTreeItem(parentPath, kind)}
+            onRenameTreeItem={(node) => void renameTreeItem(node)}
+            onDeleteTreeItem={(node) => void deleteTreeItem(node)}
           />
         ) : (
           <OutlinePanel outline={outline} onJump={jumpToTocItem} />
@@ -465,14 +581,40 @@ interface FileTreePanelProps {
   readonly activeFilePath: string | null;
   readonly onOpenFolder: () => void;
   readonly onOpenFile: (filePath: string) => void;
+  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind) => void;
+  readonly onRenameTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
 }
 
-function FileTreePanel({ folder, activeFilePath, onOpenFolder, onOpenFile }: FileTreePanelProps) {
+function FileTreePanel({
+  folder,
+  activeFilePath,
+  onOpenFolder,
+  onOpenFile,
+  onCreateTreeItem,
+  onRenameTreeItem,
+  onDeleteTreeItem
+}: FileTreePanelProps) {
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
+  const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
 
   useEffect(() => {
     setCollapsedPaths(new Set());
   }, [folder?.rootPath]);
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("keydown", closeMenu);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("keydown", closeMenu);
+    };
+  }, [contextMenu]);
 
   const toggleCollapsed = useCallback((path: string) => {
     setCollapsedPaths((current) => {
@@ -486,6 +628,20 @@ function FileTreePanel({ folder, activeFilePath, onOpenFolder, onOpenFile }: Fil
     });
   }, []);
 
+  const openContextMenu = useCallback((event: React.MouseEvent, node: MarkdownFileTreeNode | null) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      node
+    });
+  }, []);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
   if (!folder) {
     return (
       <div className="sidebar-empty">
@@ -496,8 +652,11 @@ function FileTreePanel({ folder, activeFilePath, onOpenFolder, onOpenFile }: Fil
     );
   }
 
+  const contextParentPath =
+    contextMenu?.node?.kind === "directory" ? contextMenu.node.path : folder.rootPath;
+
   return (
-    <div className="file-tree-panel">
+    <div className="file-tree-panel" onContextMenu={(event) => openContextMenu(event, null)}>
       <div className="sidebar-title" title={folder.rootPath}>
         {folder.rootName}
       </div>
@@ -507,7 +666,18 @@ function FileTreePanel({ folder, activeFilePath, onOpenFolder, onOpenFile }: Fil
         collapsedPaths={collapsedPaths}
         onToggleCollapsed={toggleCollapsed}
         onOpenFile={onOpenFile}
+        onOpenContextMenu={openContextMenu}
       />
+      {contextMenu ? (
+        <FileTreeContextMenu
+          menu={contextMenu}
+          parentPath={contextParentPath}
+          onClose={closeContextMenu}
+          onCreateTreeItem={onCreateTreeItem}
+          onRenameTreeItem={onRenameTreeItem}
+          onDeleteTreeItem={onDeleteTreeItem}
+        />
+      ) : null}
     </div>
   );
 }
@@ -519,6 +689,7 @@ interface FileTreeNodeViewProps {
   readonly depth?: number;
   readonly onToggleCollapsed: (path: string) => void;
   readonly onOpenFile: (filePath: string) => void;
+  readonly onOpenContextMenu: (event: React.MouseEvent, node: MarkdownFileTreeNode) => void;
 }
 
 function FileTreeNodeView({
@@ -527,7 +698,8 @@ function FileTreeNodeView({
   collapsedPaths,
   depth = 0,
   onToggleCollapsed,
-  onOpenFile
+  onOpenFile,
+  onOpenContextMenu
 }: FileTreeNodeViewProps) {
   const paddingLeft = 12 + depth * 14;
 
@@ -539,6 +711,7 @@ function FileTreeNodeView({
         style={{ paddingLeft }}
         title={node.path}
         onClick={() => onOpenFile(node.path)}
+        onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
         <span className="tree-icon">#</span>
         <span className="tree-label">{node.name}</span>
@@ -557,6 +730,7 @@ function FileTreeNodeView({
         title={node.path}
         aria-expanded={!isCollapsed}
         onClick={() => onToggleCollapsed(node.path)}
+        onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
         <span className="tree-icon">{isCollapsed ? "▸" : "▾"}</span>
         <span className="tree-label">{node.name}</span>
@@ -572,8 +746,83 @@ function FileTreeNodeView({
               depth={depth + 1}
               onToggleCollapsed={onToggleCollapsed}
               onOpenFile={onOpenFile}
+              onOpenContextMenu={onOpenContextMenu}
             />
           ))}
+    </div>
+  );
+}
+
+interface FileTreeContextMenuProps {
+  readonly menu: FileTreeContextMenuState;
+  readonly parentPath: string;
+  readonly onClose: () => void;
+  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind) => void;
+  readonly onRenameTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
+}
+
+function FileTreeContextMenu({
+  menu,
+  parentPath,
+  onClose,
+  onCreateTreeItem,
+  onRenameTreeItem,
+  onDeleteTreeItem
+}: FileTreeContextMenuProps) {
+  const run = useCallback(
+    (action: () => void) => {
+      onClose();
+      action();
+    },
+    [onClose]
+  );
+
+  return (
+    <div
+      className="context-menu"
+      style={{ left: menu.x, top: menu.y }}
+      role="menu"
+      onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        className="context-menu-item"
+        onClick={() => run(() => onCreateTreeItem(parentPath, "markdown"))}
+      >
+        新建文件
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="context-menu-item"
+        onClick={() => run(() => onCreateTreeItem(parentPath, "directory"))}
+      >
+        新建文件夹
+      </button>
+      {menu.node ? (
+        <>
+          <div className="context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="context-menu-item"
+            onClick={() => run(() => onRenameTreeItem(menu.node!))}
+          >
+            重命名
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="context-menu-item danger"
+            onClick={() => run(() => onDeleteTreeItem(menu.node!))}
+          >
+            删除
+          </button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -700,6 +949,10 @@ function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): boolean {
   return event.key.toLowerCase() === key;
 }
 
+function isSameOrChildPath(path: string, parentPath: string): boolean {
+  return path === parentPath || path.startsWith(`${parentPath}/`);
+}
+
 function createDesktopFileAdapter(): FileServiceAdapter {
   return {
     openMarkdownFile() {
@@ -720,6 +973,34 @@ function createDesktopFileAdapter(): FileServiceAdapter {
         filePath: input.filePath,
         markdown: input.markdown,
         forceDialog: input.forceDialog ?? false
+      });
+    },
+    refreshMarkdownFolder(rootPath) {
+      assertDesktopRuntime();
+      return invoke<MarkdownFolder>("refresh_markdown_folder", { rootPath });
+    },
+    createMarkdownTreeItem(input) {
+      assertDesktopRuntime();
+      return invoke<FileTreeMutationResult>("create_markdown_tree_item", {
+        rootPath: input.rootPath,
+        parentPath: input.parentPath,
+        name: input.name,
+        kind: input.kind
+      });
+    },
+    renameMarkdownTreeItem(input) {
+      assertDesktopRuntime();
+      return invoke<FileTreeMutationResult>("rename_markdown_tree_item", {
+        rootPath: input.rootPath,
+        path: input.path,
+        name: input.name
+      });
+    },
+    deleteMarkdownTreeItem(input) {
+      assertDesktopRuntime();
+      return invoke<FileTreeMutationResult>("delete_markdown_tree_item", {
+        rootPath: input.rootPath,
+        path: input.path
       });
     }
   };

@@ -188,6 +188,47 @@ body {
   white-space: nowrap;
 }
 
+.context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 150px;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--theme-surface);
+  box-shadow: var(--theme-shadow);
+  padding: 4px;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-control-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: var(--theme-control-hover);
+  color: var(--theme-text);
+}
+
+.context-menu-item.danger {
+  color: var(--theme-danger-text);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px;
+  background: var(--theme-border);
+}
+
 .editor-pane {
   display: flex;
   flex: 1;

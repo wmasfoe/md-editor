@@ -114,6 +114,50 @@ describe("FileService", () => {
       forceDialog: true
     });
   });
+
+  it("creates file tree items through the adapter", async () => {
+    const adapter = fakeAdapter();
+    const service = createFileService(adapter);
+
+    await service.createTreeItem({
+      rootPath: "/Users/me/docs",
+      parentPath: "/Users/me/docs",
+      name: "draft.md",
+      kind: "markdown"
+    });
+
+    expect(adapter.createMarkdownTreeItem).toHaveBeenCalledWith({
+      rootPath: "/Users/me/docs",
+      parentPath: "/Users/me/docs",
+      name: "draft.md",
+      kind: "markdown"
+    });
+  });
+
+  it("renames and deletes file tree items through the adapter", async () => {
+    const adapter = fakeAdapter();
+    const service = createFileService(adapter);
+
+    await service.renameTreeItem({
+      rootPath: "/Users/me/docs",
+      path: "/Users/me/docs/draft.md",
+      name: "post.md"
+    });
+    await service.deleteTreeItem({
+      rootPath: "/Users/me/docs",
+      path: "/Users/me/docs/post.md"
+    });
+
+    expect(adapter.renameMarkdownTreeItem).toHaveBeenCalledWith({
+      rootPath: "/Users/me/docs",
+      path: "/Users/me/docs/draft.md",
+      name: "post.md"
+    });
+    expect(adapter.deleteMarkdownTreeItem).toHaveBeenCalledWith({
+      rootPath: "/Users/me/docs",
+      path: "/Users/me/docs/post.md"
+    });
+  });
 });
 
 function fakeAdapter(options: {
@@ -122,10 +166,25 @@ function fakeAdapter(options: {
   readonly readResult?: Awaited<ReturnType<FileServiceAdapter["readMarkdownFile"]>>;
   readonly saveResult?: Awaited<ReturnType<FileServiceAdapter["saveMarkdownFile"]>>;
 } = {}): FileServiceAdapter {
+  const fallbackFolder = options.folderResult ?? {
+    rootPath: "/Users/me/docs",
+    rootName: "docs",
+    tree: {
+      name: "docs",
+      path: "/Users/me/docs",
+      kind: "directory" as const,
+      children: []
+    }
+  };
+
   return {
     openMarkdownFile: vi.fn(async () => options.openResult ?? null),
     openMarkdownFolder: vi.fn(async () => options.folderResult ?? null),
     readMarkdownFile: vi.fn(async () => options.readResult ?? { filePath: "", markdown: "" }),
-    saveMarkdownFile: vi.fn(async () => options.saveResult ?? null)
+    saveMarkdownFile: vi.fn(async () => options.saveResult ?? null),
+    refreshMarkdownFolder: vi.fn(async () => fallbackFolder),
+    createMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
+    renameMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
+    deleteMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null }))
   };
 }
