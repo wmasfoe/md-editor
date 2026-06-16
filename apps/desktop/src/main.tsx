@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { Popover, PopoverButton, PopoverPanel } from "@headlessui/react";
+import { listen } from "@tauri-apps/api/event";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
@@ -23,7 +23,7 @@ import {
   type MarkdownDocumentFile,
   type SaveMarkdownInput
 } from "@md-editor/file-system";
-import { extractHeadingOutline, type HeadingOutlineItem } from "@md-editor/markdown-fidelity";
+import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-registry";
 import "./styles.css";
 
@@ -34,15 +34,7 @@ const runtime = createEditorRuntime({
   mdxComponents: createBuiltInMdxRegistry()
 });
 const fileService = createFileService(createDesktopFileAdapter());
-
-// 顶部 chrome 统一用 Tailwind utility，主题色仍来自 CSS variables。
-const toolbarButtonClass =
-  "min-h-7 rounded-md border border-transparent px-2.5 text-[13px] text-[var(--theme-text)] hover:border-[var(--theme-border)] hover:bg-[var(--theme-bg-muted)] disabled:cursor-default disabled:text-[#9a9a9a]";
-const toolbarButtonActiveClass =
-  "border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-primary)]";
-const modeButtonClass =
-  "min-h-6 rounded border-0 px-2 text-[13px] text-[var(--theme-muted)] hover:bg-[var(--theme-primary-soft)]";
-const modeButtonActiveClass = "bg-[var(--theme-surface)] text-[var(--theme-title)]";
+const MENU_ACTION_EVENT = "md-editor-menu-action";
 
 interface PastedImageInput {
   readonly file: File;
@@ -65,6 +57,11 @@ interface SourceEditorView {
   focus(): void;
 }
 
+interface KeyboardShortcut {
+  readonly matches: (event: KeyboardEvent) => boolean;
+  readonly run: (event: KeyboardEvent) => void;
+}
+
 function App() {
   // 初始桌面壳先绑定 EditorRuntime，后续接入 Milkdown / CodeMirror 时
   // App 层仍然通过同一份运行时契约读写文档。
@@ -72,7 +69,6 @@ function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [tocTargetLine, setTocTargetLine] = useState<number | null>(null);
-  const tocItems = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}`;
 
   const commitMarkdown = useCallback((markdown: string) => {
@@ -85,6 +81,11 @@ function App() {
     setSnapshot(result.snapshot);
     setErrorMessage(result.ok ? null : result.message);
   }, []);
+
+  const toggleSourceMode = useCallback(async () => {
+    const currentMode = runtime.document.getSnapshot().mode;
+    await switchMode(currentMode === "source" ? "wysiwyg" : "source");
+  }, [switchMode]);
 
   const replaceDocument = useCallback((document: MarkdownDocumentFile | null) => {
     if (!document) {
@@ -215,83 +216,105 @@ function App() {
     [switchMode]
   );
 
+  const jumpToFirstHeading = useCallback(async () => {
+    const [firstHeading] = extractHeadingOutline(runtime.document.getSnapshot().markdown);
+    if (!firstHeading) {
+      setErrorMessage("当前文档没有标题。");
+      return;
+    }
+    await jumpToTocLine(firstHeading.line);
+  }, [jumpToTocLine]);
+
   useEffect(() => {
-    const listener = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void saveDocument(event.shiftKey);
+    // 集中维护快捷键，后续新增时保持键盘和菜单动作一致。
+    const shortcuts: readonly KeyboardShortcut[] = [
+      {
+        matches: (event) =>
+          isPrimaryShortcut(event) && event.key.toLowerCase() === "s",
+        run: (event) => {
+          void saveDocument(event.shiftKey);
+        }
+      },
+      {
+        matches: (event) =>
+          isPrimaryShortcut(event) && !event.shiftKey && event.key.toLowerCase() === "o",
+        run: () => {
+          void openDocument();
+        }
+      },
+      {
+        matches: (event) =>
+          isPrimaryShortcut(event) &&
+          !event.shiftKey &&
+          (event.key === "/" || event.code === "Slash"),
+        run: () => {
+          void toggleSourceMode();
+        }
       }
+    ];
+
+    const listener = (event: KeyboardEvent) => {
+      const shortcut = shortcuts.find((candidate) => candidate.matches(event));
+      if (!shortcut) {
+        return;
+      }
+
+      event.preventDefault();
+      shortcut.run(event);
     };
 
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
-  }, [saveDocument]);
+    window.addEventListener("keydown", listener, { capture: true });
+    return () => window.removeEventListener("keydown", listener, { capture: true });
+  }, [openDocument, saveDocument, toggleSourceMode]);
+
+  const runMenuAction = useCallback(
+    (action: string) => {
+      switch (action) {
+        case "md-editor:new":
+          createNewDocument();
+          break;
+        case "md-editor:open":
+          void openDocument();
+          break;
+        case "md-editor:save":
+          void saveDocument(false);
+          break;
+        case "md-editor:save-as":
+          void saveDocument(true);
+          break;
+        case "md-editor:mode-wysiwyg":
+          void switchMode("wysiwyg");
+          break;
+        case "md-editor:toggle-source":
+          void toggleSourceMode();
+          break;
+        case "md-editor:outline":
+          void jumpToFirstHeading();
+          break;
+      }
+    },
+    [createNewDocument, jumpToFirstHeading, openDocument, saveDocument, switchMode, toggleSourceMode]
+  );
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    void listen<string>(MENU_ACTION_EVENT, (event) => {
+      runMenuAction(event.payload);
+    }).then((dispose) => {
+      unlisten = dispose;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [runMenuAction]);
 
   return (
     <main className="flex h-full min-w-0 flex-col bg-[var(--theme-bg)] md:min-w-[640px]">
-      <header className="grid min-h-12 grid-cols-1 items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-bg)] px-3 py-2 md:grid-cols-[minmax(160px,1fr)_auto_minmax(180px,1fr)] md:gap-4 md:px-[18px] md:py-0">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="font-bold text-[var(--theme-title)]">Markdown</span>
-          <span
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-[var(--theme-muted)]"
-            title={snapshot.filePath ?? "Untitled.md"}
-          >
-            {getDisplayFileName(snapshot.filePath)}
-          </span>
-        </div>
-        <nav
-          className="flex min-w-0 justify-start gap-0.5 overflow-x-auto md:justify-center"
-          aria-label="文档操作"
-        >
-          <button
-            type="button"
-            className={toolbarButtonClass}
-            onClick={createNewDocument}
-            disabled={Boolean(pendingAction)}
-          >
-            新建
-          </button>
-          <button
-            type="button"
-            className={toolbarButtonClass}
-            onClick={openDocument}
-            disabled={Boolean(pendingAction)}
-          >
-            打开
-          </button>
-          <button
-            type="button"
-            className={toolbarButtonClass}
-            onClick={() => void saveDocument(false)}
-            disabled={Boolean(pendingAction) || !snapshot.isDirty}
-          >
-            保存
-          </button>
-          <button
-            type="button"
-            className={toolbarButtonClass}
-            onClick={() => void saveDocument(true)}
-            disabled={Boolean(pendingAction)}
-          >
-            另存为
-          </button>
-          <TocMenu items={tocItems} onJump={jumpToTocLine} />
-        </nav>
-        <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-          <ModeToggle mode={snapshot.mode} onChange={switchMode} />
-          <span
-            className={
-              snapshot.isDirty
-                ? "min-w-[52px] whitespace-nowrap text-right text-[13px] text-[var(--theme-primary)]"
-                : "min-w-[52px] whitespace-nowrap text-right text-[13px] text-[var(--theme-muted)]"
-            }
-          >
-            {pendingAction ?? (snapshot.isDirty ? "未保存" : "已保存")}
-          </span>
-        </div>
-      </header>
       <section className="editor-pane" aria-label="Markdown 编辑器" onPasteCapture={pasteImage}>
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
+        {pendingAction ? <div className="status-banner">{pendingAction}</div> : null}
         {snapshot.mode === "source" ? (
           <SourceEditor
             snapshot={snapshot}
@@ -303,54 +326,6 @@ function App() {
         )}
       </section>
     </main>
-  );
-}
-
-interface TocMenuProps {
-  readonly items: readonly HeadingOutlineItem[];
-  readonly onJump: (line: number) => void;
-}
-
-function TocMenu({ items, onJump }: TocMenuProps) {
-  return (
-    <Popover className="relative">
-      {({ open, close }) => (
-        <>
-          <PopoverButton
-            type="button"
-            className={`${toolbarButtonClass} ${open ? toolbarButtonActiveClass : ""}`}
-          >
-            目录
-          </PopoverButton>
-          <PopoverPanel className="absolute top-[calc(100%+8px)] left-0 z-20 max-h-[min(460px,calc(100vh-88px))] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] p-2 shadow-[var(--theme-shadow)] md:left-1/2 md:-translate-x-1/2">
-            {items.length > 0 ? (
-              <ol className="grid list-none gap-0.5 p-0">
-                {items.map((item) => (
-                  <li
-                    key={`${item.id}:${item.line}`}
-                    className="min-w-0"
-                    style={{ paddingLeft: (item.level - 1) * 14 }}
-                  >
-                    <button
-                      type="button"
-                      className="min-h-7 w-full rounded border-0 px-2.5 text-left text-[13px] text-[var(--theme-muted)] hover:bg-[var(--theme-primary-soft)] hover:text-[var(--theme-primary)]"
-                      onClick={() => {
-                        close();
-                        onJump(item.line);
-                      }}
-                    >
-                      {item.text}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="m-2 text-[13px] text-[var(--theme-muted)]">暂无标题</p>
-            )}
-          </PopoverPanel>
-        </>
-      )}
-    </Popover>
   );
 }
 
@@ -434,50 +409,15 @@ function MilkdownEditorInner({ snapshot, onChange }: EditorProps) {
   return <Milkdown />;
 }
 
-interface ModeToggleProps {
-  readonly mode: EditorMode;
-  readonly onChange: (mode: EditorMode) => void;
-}
-
-function ModeToggle({ mode, onChange }: ModeToggleProps) {
-  return (
-    <div
-      className="inline-grid w-28 grid-cols-2 gap-0.5 rounded-md border border-[var(--theme-border)] bg-[var(--theme-bg-muted)] p-0.5"
-      aria-label="编辑模式"
-    >
-      <button
-        type="button"
-        className={`${modeButtonClass} ${mode === "wysiwyg" ? modeButtonActiveClass : ""}`}
-        aria-pressed={mode === "wysiwyg"}
-        onClick={() => onChange("wysiwyg")}
-      >
-        编辑
-      </button>
-      <button
-        type="button"
-        className={`${modeButtonClass} ${mode === "source" ? modeButtonActiveClass : ""}`}
-        aria-pressed={mode === "source"}
-        onClick={() => onChange("source")}
-      >
-        源码
-      </button>
-    </div>
-  );
-}
-
-function getDisplayFileName(filePath: string | null): string {
-  if (!filePath) {
-    return "Untitled.md";
-  }
-
-  return filePath.split(/[\\/]/).pop() || filePath;
-}
-
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
+
+function isPrimaryShortcut(event: KeyboardEvent) {
+  return (event.metaKey || event.ctrlKey) && !event.altKey;
+}
 
 function createDesktopFileAdapter(): FileServiceAdapter {
   return {

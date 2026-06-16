@@ -5,7 +5,13 @@ use std::{
 };
 
 use serde::Serialize;
+use tauri::{
+    menu::{Menu, MenuItemBuilder, SubmenuBuilder},
+    Emitter,
+};
 use tauri_plugin_dialog::DialogExt;
+
+const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +30,13 @@ pub fn run() {
     // v0.1 只开放对话框和文件系统能力，先满足打开/保存流程，
     // 避免过早增加无关的原生接口面。
     tauri::Builder::default()
+        .menu(build_app_menu)
+        .on_menu_event(|app, event| {
+            let action = event.id().as_ref();
+            if action.starts_with("md-editor:") {
+                let _ = app.emit_to("main", MENU_ACTION_EVENT, action);
+            }
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
@@ -35,9 +48,80 @@ pub fn run() {
         .expect("error while running Markdown Editor");
 }
 
+fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
+        .about(None)
+        .separator()
+        .hide()
+        .hide_others()
+        .separator()
+        .quit()
+        .build()?;
+
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
+        .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
+        .separator()
+        .item(&menu_item(app, "md-editor:save", "Save", "CmdOrCtrl+S")?)
+        .item(&menu_item(
+            app,
+            "md-editor:save-as",
+            "Save As...",
+            "CmdOrCtrl+Shift+S",
+        )?)
+        .build()?;
+
+    let edit_menu = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&menu_item(
+            app,
+            "md-editor:mode-wysiwyg",
+            "Edit Mode",
+            "CmdOrCtrl+1",
+        )?)
+        .item(&menu_item(
+            app,
+            "md-editor:toggle-source",
+            "Toggle Source Mode",
+            "CmdOrCtrl+/",
+        )?)
+        .separator()
+        .item(&menu_item(
+            app,
+            "md-editor:outline",
+            "Jump to First Heading",
+            "CmdOrCtrl+L",
+        )?)
+        .build()?;
+
+    Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu])
+}
+
+fn menu_item(
+    app: &tauri::AppHandle,
+    id: &str,
+    label: &str,
+    accelerator: &str,
+) -> tauri::Result<tauri::menu::MenuItem<tauri::Wry>> {
+    MenuItemBuilder::with_id(id, label)
+        .accelerator(accelerator)
+        .build(app)
+}
+
 #[tauri::command]
-fn open_markdown_document(window: tauri::Window) -> Result<Option<MarkdownDocumentFile>, String> {
-    let selected = window
+async fn open_markdown_document(
+    app: tauri::AppHandle,
+) -> Result<Option<MarkdownDocumentFile>, String> {
+    let selected = app
         .dialog()
         .file()
         .set_title("Open Markdown")
@@ -61,21 +145,21 @@ fn open_markdown_document(window: tauri::Window) -> Result<Option<MarkdownDocume
 }
 
 #[tauri::command]
-fn save_markdown_document(
-    window: tauri::Window,
+async fn save_markdown_document(
+    app: tauri::AppHandle,
     file_path: Option<String>,
     markdown: String,
     force_dialog: bool,
 ) -> Result<Option<MarkdownDocumentFile>, String> {
     let path = if force_dialog {
-        let Some(path) = choose_save_path(&window, file_path.as_deref())? else {
+        let Some(path) = choose_save_path(&app, file_path.as_deref())? else {
             return Ok(None);
         };
         path
     } else if let Some(file_path) = file_path {
         PathBuf::from(file_path)
     } else {
-        let Some(path) = choose_save_path(&window, None)? else {
+        let Some(path) = choose_save_path(&app, None)? else {
             return Ok(None);
         };
         path
@@ -124,10 +208,10 @@ fn save_pasted_image(
 }
 
 fn choose_save_path(
-    window: &tauri::Window,
+    app: &tauri::AppHandle,
     current_path: Option<&str>,
 ) -> Result<Option<PathBuf>, String> {
-    let mut dialog = window
+    let mut dialog = app
         .dialog()
         .file()
         .set_title("Save Markdown")
