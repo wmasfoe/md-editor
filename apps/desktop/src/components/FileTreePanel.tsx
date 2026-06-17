@@ -70,10 +70,10 @@ export function FileTreePanel({
 
   if (!folder) {
     return (
-      <div className="p-4 text-[13px] text-[var(--theme-muted)]">
+      <div className="p-3 text-[13px] text-[var(--theme-control-subtle)]">
         <button
           type="button"
-          className="w-full rounded border border-transparent bg-transparent px-2 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)]"
+          className="w-full rounded-sm border border-transparent bg-transparent px-2 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
           onClick={onOpenFolder}
         >
           打开文件夹
@@ -87,14 +87,22 @@ export function FileTreePanel({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-auto py-2"
+      className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
       <div
-        className="overflow-hidden px-3 pb-2 pt-1 text-[12px] font-semibold text-ellipsis whitespace-nowrap text-[var(--theme-muted)]"
+        className="flex h-9 items-center gap-1 overflow-hidden px-4 text-[13px] text-ellipsis whitespace-nowrap text-[var(--theme-control-subtle)]"
         title={folder.rootPath}
       >
+        <span className="file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center" aria-hidden="true">
+          <svg viewBox="0 0 16 16">
+            <path d="M1.75 4.25h4l1.25 1.5h7.25v6.75H1.75z" />
+            <path d="M1.75 4.25V3h4.5l1.25 1.25h6.75v1.5" />
+          </svg>
+        </span>
+        <span className="min-w-0 truncate">
         {folder.rootName}
+        </span>
       </div>
       <FileTreeNodeView
         node={folder.tree}
@@ -140,7 +148,7 @@ function FileTreeNodeView({
   onOpenAsset,
   onOpenContextMenu
 }: FileTreeNodeViewProps) {
-  const paddingLeft = 12 + depth * 14;
+  const paddingLeft = 16 + depth * 14;
 
   if (node.kind === "markdown" || node.kind === "asset") {
     const isMarkdown = node.kind === "markdown";
@@ -149,8 +157,8 @@ function FileTreeNodeView({
       <button
         type="button"
         className={cx(
-          "flex min-h-7 w-full items-center gap-1.5 border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)]",
-          node.path === activeFilePath && "bg-[var(--theme-primary-soft)] text-[var(--theme-text)]"
+          "flex min-h-7 w-full items-center gap-1.5 border-0 bg-transparent py-0 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] transition-colors duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
+          node.path === activeFilePath && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
         )}
         style={{ paddingLeft }}
         title={node.path}
@@ -169,14 +177,14 @@ function FileTreeNodeView({
     <div>
       <button
         type="button"
-        className="flex min-h-7 w-full items-center gap-1.5 border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-muted)] hover:bg-[var(--theme-control-hover)]"
+        className="flex min-h-7 w-full items-center gap-1.5 border-0 bg-transparent py-0 text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-colors duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none"
         style={{ paddingLeft }}
         title={node.path}
         aria-expanded={!isCollapsed}
         onClick={() => onToggleCollapsed(node.path)}
         onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
-        <span className="inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-muted)]">
+        <span className="file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-control-subtle)]">
           {isCollapsed ? "▸" : "▾"}
         </span>
         <span className="overflow-hidden text-ellipsis whitespace-nowrap">{node.name}</span>
@@ -206,8 +214,8 @@ function FileKindIcon({ kind }: { readonly kind: "markdown" | "asset" }) {
   return (
     <span
       className={cx(
-        "file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-muted)]",
-        kind === "asset" && "text-[#667085]"
+        "file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-control-subtle)]",
+        kind === "asset" && "text-[var(--theme-control-text)]"
       )}
       title={title}
       aria-label={title}
@@ -264,7 +272,7 @@ function FileTreeContextMenu({
       <MenuItems
         static
         anchor="bottom start"
-        className="fixed z-50 min-w-[150px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-[var(--theme-shadow)]"
+        className="fixed z-50 min-w-[150px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-[0_12px_30px_rgba(51,51,51,0.14)]"
         style={{ left: menu.x, top: menu.y }}
         onClick={(event) => event.stopPropagation()}
         onContextMenu={(event) => event.preventDefault()}
@@ -305,7 +313,7 @@ function ContextMenuItem({
       <button
         type="button"
         className={cx(
-          "block min-h-7 w-full rounded border-0 bg-transparent px-2 py-1 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-text)] data-focus:bg-[var(--theme-control-hover)] data-focus:text-[var(--theme-text)]",
+          "block min-h-7 w-full rounded-sm border-0 bg-transparent px-2 py-1 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] data-focus:bg-[var(--theme-control-hover)] data-focus:text-[var(--theme-title)]",
           danger && "text-[var(--theme-danger-text)]"
         )}
         onClick={onClick}

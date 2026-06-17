@@ -9,11 +9,11 @@ export function App() {
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
       <aside
-        className="flex min-h-0 w-[250px] min-w-[220px] max-w-[320px] flex-[0_0_250px] flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[var(--theme-control-text)]"
+        className="flex min-h-0 w-[272px] min-w-[220px] max-w-[360px] flex-[0_0_272px] flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)]"
         aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
       >
         <div
-          className="grid grid-cols-2 gap-1 border-b border-[var(--theme-border)] p-2.5"
+          className="grid h-10 shrink-0 grid-cols-2 items-end border-b border-[var(--theme-border)] px-3"
           role="tablist"
           aria-label="侧栏视图"
         >
@@ -88,8 +88,8 @@ function SidebarTab({
     <button
       type="button"
       className={cx(
-        "rounded border border-transparent bg-transparent px-2 py-1 text-[13px] leading-[1.4] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)]",
-        active && "border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)]"
+        "relative -mb-px h-10 cursor-pointer border-0 border-b border-transparent bg-transparent px-2 text-[13px] font-[560] leading-none text-[var(--theme-control-subtle)] transition-colors duration-150 ease-out hover:text-[var(--theme-title)] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]",
+        active && "border-[var(--theme-title)] text-[var(--theme-title)]"
       )}
       onClick={onClick}
     >

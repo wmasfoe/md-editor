@@ -6,17 +6,21 @@
   --theme-bg: #ffffff;
   --theme-bg-muted: #f4f4f4;
   --theme-chrome: #fafafa;
+  --theme-chrome-soft: color-mix(in oklab, var(--theme-chrome) 82%, var(--theme-surface));
   --theme-surface: #ffffff;
   --theme-text: #333333;
   --theme-muted: #777777;
   --theme-control-text: #666666;
+  --theme-control-subtle: #999999;
   --theme-disabled: #b4b4b4;
   --theme-title: #333333;
-  --theme-border: #e6e6e6;
+  --theme-border: #eeeeee;
+  --theme-border-strong: #dddddd;
   --theme-primary: #4183c4;
   --theme-primary-soft: rgba(65, 131, 196, 0.08);
   --theme-primary-selected: #b5d6fc;
-  --theme-control-hover: #f1f1f1;
+  --theme-control-hover: #f5f5f5;
+  --theme-control-active: #eeeeee;
   --theme-danger-bg: rgba(227, 15, 46, 0.08);
   --theme-danger-text: #a30d22;
   --theme-code: #24292f;
@@ -54,6 +58,10 @@ body {
   background: var(--theme-bg);
 }
 
+button {
+  font-family: inherit;
+}
+
 .file-tree-icon svg {
   width: 15px;
   height: 15px;
@@ -66,6 +74,32 @@ body {
 
 .overflow-anywhere {
   overflow-wrap: anywhere;
+}
+
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-control-subtle) 44%, transparent) transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-control-subtle) 44%, transparent);
+  background-clip: padding-box;
+}
+
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--theme-control-subtle) 64%, transparent);
+  background-clip: padding-box;
 }
 
 .source-editor {
