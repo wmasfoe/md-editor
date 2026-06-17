@@ -86,4 +86,5 @@ brew install --cask wmasfoe/tap/md-editor
 - Release 步骤被跳过：确认触发事件是 push 到 `refs/heads/main`。PR、非 main 分支和手动 workflow 只构建，不发 Release。
 - `a release with the same tag name already exists`：当前 workflow 应该使用 `gh release upload --clobber` 处理已存在 Release；若再次出现，检查 workflow 是否是最新版本。
 - tap 更新失败：优先检查 `HOMEBREW_TAP_TOKEN` 是否存在、是否有 `wmasfoe/homebrew-tap` 的 Contents write 权限。
+- tap 日志显示 `Wrote homebrew-tap/Casks/md-editor.rb` 后又提示 `Homebrew cask is already up to date.`：检查 workflow 是否先 `git add Casks/md-editor.rb` 再用 `git diff --cached --quiet` 判断变化；未跟踪的新文件不会被普通 `git diff --quiet` 检测到。
 - Homebrew 安装失败且提示 sha256 不匹配：检查 Release 里的 DMG 是否被重新上传但 tap 未更新，或 workflow 是否在 Release 上传后才计算 sha256。

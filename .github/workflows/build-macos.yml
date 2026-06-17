@@ -120,13 +120,14 @@ jobs:
             git checkout -b main
           fi
 
-          if git diff --quiet -- Casks/md-editor.rb; then
+          git add Casks/md-editor.rb
+
+          if git diff --cached --quiet -- Casks/md-editor.rb; then
             echo "Homebrew cask is already up to date."
             exit 0
           fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/md-editor.rb
           git commit -m "Update md-editor to ${{ steps.release_version.outputs.tag }}"
-          git push
+          git push origin main

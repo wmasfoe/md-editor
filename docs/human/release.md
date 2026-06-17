@@ -58,4 +58,5 @@ brew install --cask wmasfoe/tap/md-editor
 - 非 main 分支不会发 Release，只会构建。
 - PR 不会发 Release，只会构建。
 - 如果 Homebrew tap 更新失败，优先检查 `HOMEBREW_TAP_TOKEN` 是否过期或权限不足。
+- 如果日志里已经出现 `Wrote homebrew-tap/Casks/md-editor.rb`，但随后说 `Homebrew cask is already up to date.`，说明 cask 已生成，问题通常在 workflow 的 git 变更判断。
 - 如果 Homebrew 提示 sha256 不匹配，重新跑一次 main 分支的 Actions，或检查 Release DMG 是否被手动替换过。
