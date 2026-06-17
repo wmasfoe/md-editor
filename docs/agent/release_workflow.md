@@ -5,7 +5,7 @@
 ## 目标
 
 - 非 main 分支 push / PR：只构建 macOS DMG 并上传 workflow artifact。
-- main 分支 push：构建 DMG，创建或更新 GitHub Release，并同步 `wmasfoe/homebrew-tap` 的 cask。
+- main 分支 push：构建 DMG，创建或更新 GitHub Release，把 DMG 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask。
 - Release 版本号以 `apps/desktop/src-tauri/tauri.conf.json` 的 `version` 为准，并要求 root package、desktop package、Cargo manifest 与它一致。
 
 ## 相关文件
@@ -37,6 +37,7 @@
    - 创建或更新 `v{version}` GitHub Release。
    - 计算 DMG `sha256`。
    - clone `wmasfoe/homebrew-tap`。
+   - 创建或更新 `wmasfoe/homebrew-tap` 中的 `md-editor-v{version}` Release，并上传 DMG。
    - 生成并提交 `Casks/md-editor.rb`。
 
 ## 必需 Secret
@@ -45,7 +46,7 @@
 
 - `HOMEBREW_TAP_TOKEN`
 
-该 token 用于写入 `wmasfoe/homebrew-tap`。推荐 fine-grained PAT：
+该 token 用于写入 `wmasfoe/homebrew-tap` 的 cask 文件和公开 Release asset。推荐 fine-grained PAT：
 
 - Repository access: `wmasfoe/homebrew-tap`
 - Permissions:
@@ -61,6 +62,14 @@ main push 时使用 `v{version}` 作为 Release tag。
 - 如果 Release 不存在：`gh release create` 创建 Release 并上传 DMG。
 - 如果 Release 已存在：`gh release upload --clobber` 覆盖上传 DMG，避免同名 tag 报错。
 
+源码仓库是私有仓库时，Homebrew 无法匿名下载 `wmasfoe/md-editor` 的 Release asset，GitHub 会返回 404。因此 workflow 还会把同一个 DMG 上传到公开 tap 仓库：
+
+```text
+wmasfoe/homebrew-tap releases md-editor-v{version}
+```
+
+cask 的下载 URL 指向这个公开 Release。
+
 ## Homebrew cask 行为
 
 生成的 cask 位于 tap 仓库：
@@ -72,7 +81,7 @@ Casks/md-editor.rb
 下载 URL 形如：
 
 ```ruby
-url "https://github.com/wmasfoe/md-editor/releases/download/v#{version}/Markdown%20Editor_#{version}_aarch64.dmg"
+url "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v#{version}/Markdown%20Editor_#{version}_aarch64.dmg"
 ```
 
 安装命令：
@@ -87,4 +96,5 @@ brew install --cask wmasfoe/tap/md-editor
 - `a release with the same tag name already exists`：当前 workflow 应该使用 `gh release upload --clobber` 处理已存在 Release；若再次出现，检查 workflow 是否是最新版本。
 - tap 更新失败：优先检查 `HOMEBREW_TAP_TOKEN` 是否存在、是否有 `wmasfoe/homebrew-tap` 的 Contents write 权限。
 - tap 日志显示 `Wrote homebrew-tap/Casks/md-editor.rb` 后又提示 `Homebrew cask is already up to date.`：检查 workflow 是否先 `git add Casks/md-editor.rb` 再用 `git diff --cached --quiet` 判断变化；未跟踪的新文件不会被普通 `git diff --quiet` 检测到。
+- `brew install` 下载 DMG 时 404：如果 `md-editor` 仓库是私有仓库，cask 不能指向 `wmasfoe/md-editor` Release asset，应指向公开 `wmasfoe/homebrew-tap` 的 `md-editor-v{version}` Release asset。
 - Homebrew 安装失败且提示 sha256 不匹配：检查 Release 里的 DMG 是否被重新上传但 tap 未更新，或 workflow 是否在 Release 上传后才计算 sha256。

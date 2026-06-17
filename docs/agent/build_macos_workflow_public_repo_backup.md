@@ -1,3 +1,14 @@
+# Public Repository Homebrew Workflow Backup
+
+用途：当 `wmasfoe/md-editor` 从私有仓库切换为公开仓库后，可以参考本文件把 Homebrew cask 的下载源切回 `wmasfoe/md-editor` 自身的 GitHub Release asset。
+
+当前私有仓库阶段需要把 DMG 复制到公开的 `wmasfoe/homebrew-tap` Release，否则 Homebrew 匿名下载会收到 404。仓库公开后，可以移除 `Publish public Homebrew asset` 步骤，并让 `Update Homebrew cask` 不再传入 `CASK_RELEASE_REPOSITORY` / `CASK_RELEASE_TAG`。
+
+## 备份 workflow
+
+将下面内容复制到 `.github/workflows/build-macos.yml` 可恢复为“直接从本仓库 Release 下载 DMG”的版本：
+
+```yaml
 name: Build macOS App
 
 on:
@@ -103,26 +114,6 @@ jobs:
         run: |
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/wmasfoe/homebrew-tap.git" homebrew-tap
 
-      - name: Publish public Homebrew asset
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
-        run: |
-          if gh release view "$RELEASE_TAG" --repo wmasfoe/homebrew-tap >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" \
-              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
-              --repo wmasfoe/homebrew-tap \
-              --clobber
-          else
-            gh release create "$RELEASE_TAG" \
-              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
-              --repo wmasfoe/homebrew-tap \
-              --title "Markdown Editor $RELEASE_TAG" \
-              --notes "Public Homebrew cask asset for Markdown Editor $RELEASE_VERSION."
-          fi
-
       - name: Update Homebrew cask
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -130,8 +121,6 @@ jobs:
           DMG_FILE_NAME: ${{ steps.dmg_metadata.outputs.file_name }}
           DMG_SHA256: ${{ steps.dmg_metadata.outputs.sha256 }}
           CASK_OUTPUT_PATH: homebrew-tap/Casks/md-editor.rb
-          CASK_RELEASE_REPOSITORY: wmasfoe/homebrew-tap
-          CASK_RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
         run: node scripts/release/write-homebrew-cask.mjs
 
       - name: Publish Homebrew tap
@@ -153,3 +142,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Update md-editor to ${{ steps.release_version.outputs.tag }}"
           git push origin main
+```
+
