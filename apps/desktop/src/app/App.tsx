@@ -36,7 +36,11 @@ export function App() {
             onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
           />
         ) : (
-          <OutlinePanel outline={editor.outline} onJump={editor.jumpToTocItem} />
+          <OutlinePanel
+            outline={editor.outline}
+            activeId={editor.activeOutlineId}
+            onJump={editor.jumpToTocItem}
+          />
         )}
       </aside>
       <section
@@ -60,13 +64,16 @@ export function App() {
             snapshot={editor.snapshot}
             target={editor.tocTarget}
             onChange={editor.commitMarkdown}
+            onVisibleLineChange={editor.updateActiveOutlineForLine}
           />
         ) : (
           <MilkdownEditor
             key={editor.documentKey}
             snapshot={editor.snapshot}
+            outline={editor.outline}
             target={editor.tocTarget}
             onChange={editor.commitMarkdown}
+            onActiveOutlineChange={editor.setActiveOutlineId}
             resolveImageSrc={editor.resolveImageSrc}
           />
         )}

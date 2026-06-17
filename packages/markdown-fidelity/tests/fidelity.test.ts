@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMarkdownImageSrcResolver,
   extractHeadingOutline,
+  findActiveHeadingIdForLine,
   isLikelyMdxBlock,
   restoreMarkdownImageSources,
   rewriteMarkdownImageSourcesForPreview,
@@ -49,6 +50,15 @@ describe("outline extraction", () => {
       { id: "b", level: 2, text: "B", line: 2 },
       { id: "b-2", level: 3, text: "B", line: 3 }
     ]);
+  });
+
+  it("finds the active heading for a visible line", () => {
+    const outline = extractHeadingOutline("# A\nbody\n## B\nmore\n### C\n");
+
+    expect(findActiveHeadingIdForLine(outline, 1)).toBe("a");
+    expect(findActiveHeadingIdForLine(outline, 4)).toBe("b");
+    expect(findActiveHeadingIdForLine(outline, 99)).toBe("c");
+    expect(findActiveHeadingIdForLine(outline, 0)).toBeNull();
   });
 });
 

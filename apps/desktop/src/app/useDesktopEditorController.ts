@@ -7,7 +7,7 @@ import type {
   MarkdownFileTreeNode,
   MarkdownFolder
 } from "@md-editor/file-system";
-import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
+import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
 import { fileService } from "../desktop/file-service";
 import { dirname, isSameOrChildPath } from "../lib/path";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
@@ -31,6 +31,7 @@ export function useDesktopEditorController() {
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
   const [editorRevision, setEditorRevision] = useState(0);
   const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
+  const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
   const outline = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
 
@@ -302,8 +303,27 @@ export function useDesktopEditorController() {
   );
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
+    const matched = outline.find(
+      (item) => item.line === target.line && item.level === target.level && item.text === target.text
+    );
+    setActiveOutlineId(matched?.id ?? null);
     setTocTarget({ ...target, nonce: Date.now() });
-  }, []);
+  }, [outline]);
+
+  const updateActiveOutlineForLine = useCallback(
+    (line: number) => {
+      setActiveOutlineId(findActiveHeadingIdForLine(outline, line));
+    },
+    [outline]
+  );
+
+  useEffect(() => {
+    // Editing can delete or rename the active heading. Clear stale ids so the
+    // outline never highlights a section that no longer exists.
+    if (activeOutlineId && !outline.some((item) => item.id === activeOutlineId)) {
+      setActiveOutlineId(null);
+    }
+  }, [activeOutlineId, outline]);
 
   const resolveImageSrc = useCallback(
     (src: string) => resolvePreviewImageSrc(snapshot.filePath, src),
@@ -356,6 +376,7 @@ export function useDesktopEditorController() {
     openedAsset,
     documentKey,
     outline,
+    activeOutlineId,
     setSidebarMode,
     commitMarkdown,
     dispatchCommand,
@@ -365,6 +386,8 @@ export function useDesktopEditorController() {
     renameTreeItem,
     deleteTreeItem,
     jumpToTocItem,
+    setActiveOutlineId,
+    updateActiveOutlineForLine,
     resolveImageSrc
   };
 }

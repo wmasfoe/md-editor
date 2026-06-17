@@ -137,6 +137,25 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
     });
 }
 
+export function findActiveHeadingIdForLine(
+  outline: readonly HeadingOutlineItem[],
+  line: number
+): string | null {
+  let active: HeadingOutlineItem | null = null;
+
+  for (const item of outline) {
+    if (item.line > line) {
+      break;
+    }
+
+    // The visible section is the closest preceding heading. This keeps the
+    // outline stable while the cursor or scroll position moves through body text.
+    active = item;
+  }
+
+  return active?.id ?? null;
+}
+
 export function isLikelyMdxBlock(markdown: string): boolean {
   // 大写 JSX 标签暂时只识别为需要保留的 MDX 组件源码，
   // 不渲染，也不执行。
