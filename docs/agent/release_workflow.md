@@ -38,6 +38,7 @@
    - 计算 DMG `sha256`。
    - clone `wmasfoe/homebrew-tap`。
    - 创建或更新 `wmasfoe/homebrew-tap` 中的 `md-editor-v{version}` Release，并上传 DMG。
+   - 读取公开 tap Release 中真实 DMG asset URL。
    - 生成并提交 `Casks/md-editor.rb`。
 
 ## 必需 Secret
@@ -68,7 +69,7 @@ main push 时使用 `v{version}` 作为 Release tag。
 wmasfoe/homebrew-tap releases md-editor-v{version}
 ```
 
-cask 的下载 URL 指向这个公开 Release。
+cask 的下载 URL 指向这个公开 Release 中真实的 `browser_download_url`。不要用本地 DMG 文件名手动拼下载地址，因为 GitHub Release asset 可能会规范化文件名，例如把空格显示为点。
 
 ## Homebrew cask 行为
 
@@ -81,7 +82,7 @@ Casks/md-editor.rb
 下载 URL 形如：
 
 ```ruby
-url "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v#{version}/Markdown%20Editor_#{version}_aarch64.dmg"
+url "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v#{version}/Markdown.Editor_#{version}_aarch64.dmg"
 ```
 
 安装命令：
@@ -97,4 +98,5 @@ brew install --cask wmasfoe/tap/md-editor
 - tap 更新失败：优先检查 `HOMEBREW_TAP_TOKEN` 是否存在、是否有 `wmasfoe/homebrew-tap` 的 Contents write 权限。
 - tap 日志显示 `Wrote homebrew-tap/Casks/md-editor.rb` 后又提示 `Homebrew cask is already up to date.`：检查 workflow 是否先 `git add Casks/md-editor.rb` 再用 `git diff --cached --quiet` 判断变化；未跟踪的新文件不会被普通 `git diff --quiet` 检测到。
 - `brew install` 下载 DMG 时 404：如果 `md-editor` 仓库是私有仓库，cask 不能指向 `wmasfoe/md-editor` Release asset，应指向公开 `wmasfoe/homebrew-tap` 的 `md-editor-v{version}` Release asset。
+- cask URL 和 Release 页面里的 DMG 文件名不一致：以 GitHub Release API 返回的 `browser_download_url` 为准，不要从本地文件名推导。
 - Homebrew 安装失败且提示 sha256 不匹配：检查 Release 里的 DMG 是否被重新上传但 tap 未更新，或 workflow 是否在 Release 上传后才计算 sha256。

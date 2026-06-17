@@ -35,7 +35,8 @@ git push origin main
 3. 把 DMG 上传到 Release 页面。
 4. 计算 DMG 的 sha256。
 5. 把 DMG 复制到公开的 `wmasfoe/homebrew-tap` Release，供 Homebrew 匿名下载。
-6. 更新 `wmasfoe/homebrew-tap` 里的 Homebrew cask。
+6. 读取公开 Release 里真实的 DMG 下载地址。
+7. 更新 `wmasfoe/homebrew-tap` 里的 Homebrew cask。
 
 ## 用户怎样安装
 
@@ -62,4 +63,5 @@ brew install --cask wmasfoe/tap/md-editor
 - 如果 Homebrew tap 更新失败，优先检查 `HOMEBREW_TAP_TOKEN` 是否过期或权限不足。
 - 如果日志里已经出现 `Wrote homebrew-tap/Casks/md-editor.rb`，但随后说 `Homebrew cask is already up to date.`，说明 cask 已生成，问题通常在 workflow 的 git 变更判断。
 - 如果 `brew install` 下载 DMG 时 404，通常是 cask 指向了私有 `wmasfoe/md-editor` 的 Release。Homebrew 需要指向公开 `wmasfoe/homebrew-tap` Release 里的 DMG。
+- 如果 cask 里的 DMG 文件名和 GitHub Release 页面看到的不一样，以 Release 页面和 workflow 读取到的真实 asset URL 为准。GitHub 可能会把文件名里的空格显示或处理成点。
 - 如果 Homebrew 提示 sha256 不匹配，重新跑一次 main 分支的 Actions，或检查 Release DMG 是否被手动替换过。

@@ -15,17 +15,20 @@ const fileName = requiredEnv("DMG_FILE_NAME");
 const outputPath = process.env.CASK_OUTPUT_PATH?.trim() || "Casks/md-editor.rb";
 const releaseRepository = process.env.CASK_RELEASE_REPOSITORY?.trim() || "wmasfoe/md-editor";
 const releaseTag = process.env.CASK_RELEASE_TAG?.trim() || `v${version}`;
+const downloadUrl = process.env.CASK_DOWNLOAD_URL?.trim();
 const encodedFileName = fileName
   .split("/")
   .map((part) => encodeURIComponent(part))
   .join("/");
 const encodedReleaseTag = encodeURIComponent(releaseTag);
+const assetUrl =
+  downloadUrl || `https://github.com/${releaseRepository}/releases/download/${encodedReleaseTag}/${encodedFileName}`;
 
 const cask = `cask "md-editor" do
   version "${version}"
   sha256 "${sha256}"
 
-  url "https://github.com/${releaseRepository}/releases/download/${encodedReleaseTag}/${encodedFileName}"
+  url "${assetUrl}"
   name "Markdown Editor"
   desc "Markdown and MDX-compatible desktop editor"
   homepage "https://github.com/wmasfoe/md-editor"

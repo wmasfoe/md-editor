@@ -123,6 +123,26 @@ jobs:
               --notes "Public Homebrew cask asset for Markdown Editor $RELEASE_VERSION."
           fi
 
+      - name: Read public Homebrew asset URL
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: homebrew_asset
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+        run: |
+          download_url="$(
+            gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" \
+              --jq '.assets[] | select(.name | endswith(".dmg")) | .browser_download_url' \
+              | head -n 1
+          )"
+
+          if [[ -z "$download_url" ]]; then
+            echo "No public DMG asset found on wmasfoe/homebrew-tap release $RELEASE_TAG." >&2
+            exit 1
+          fi
+
+          echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
+
       - name: Update Homebrew cask
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -132,6 +152,7 @@ jobs:
           CASK_OUTPUT_PATH: homebrew-tap/Casks/md-editor.rb
           CASK_RELEASE_REPOSITORY: wmasfoe/homebrew-tap
           CASK_RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          CASK_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
         run: node scripts/release/write-homebrew-cask.mjs
 
       - name: Publish Homebrew tap
