@@ -3,6 +3,8 @@ import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-syste
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
 
+const COLLAPSED_PATHS_STORAGE_PREFIX = "md-editor:file-tree:collapsed:";
+
 // 行内编辑状态：新建 or 重命名
 type EditingState =
   | { mode: "create"; parentPath: string; kind: TreeItemKind; defaultName: string }
@@ -32,10 +34,21 @@ export function FileTreePanel({
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const collapsedPathsRootRef = useRef<string | null>(null);
 
   useEffect(() => {
-    setCollapsedPaths(new Set());
+    const rootPath = folder?.rootPath ?? null;
+    collapsedPathsRootRef.current = rootPath;
+    setCollapsedPaths(rootPath ? readCollapsedPaths(rootPath) : new Set());
   }, [folder?.rootPath]);
+
+  useEffect(() => {
+    if (!folder?.rootPath || collapsedPathsRootRef.current !== folder.rootPath) {
+      return;
+    }
+
+    writeCollapsedPaths(folder.rootPath, collapsedPaths);
+  }, [collapsedPaths, folder?.rootPath]);
 
   useEffect(() => {
     if (!contextMenu) {
@@ -128,20 +141,6 @@ export function FileTreePanel({
       className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
-      <div
-        className="flex h-9 items-center gap-1 overflow-hidden px-4 text-[13px] text-ellipsis whitespace-nowrap text-[var(--theme-control-subtle)]"
-        title={folder.rootPath}
-      >
-        <span className="file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center" aria-hidden="true">
-          <svg viewBox="0 0 16 16">
-            <path d="M1.75 4.25h4l1.25 1.5h7.25v6.75H1.75z" />
-            <path d="M1.75 4.25V3h4.5l1.25 1.25h6.75v1.5" />
-          </svg>
-        </span>
-        <span className="min-w-0 truncate">
-        {folder.rootName}
-        </span>
-      </div>
       <FileTreeNodeView
         node={folder.tree}
         activeFilePath={activeFilePath}
@@ -166,6 +165,35 @@ export function FileTreePanel({
       ) : null}
     </div>
   );
+}
+
+function storageKeyForRoot(rootPath: string): string {
+  return `${COLLAPSED_PATHS_STORAGE_PREFIX}${encodeURIComponent(rootPath)}`;
+}
+
+function readCollapsedPaths(rootPath: string): ReadonlySet<string> {
+  try {
+    const raw = window.localStorage.getItem(storageKeyForRoot(rootPath));
+    const paths = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(paths) ? paths.filter((path) => typeof path === "string") : []);
+  } catch {
+    // Persisted tree state is a convenience only; broken storage should not block authoring.
+    return new Set();
+  }
+}
+
+function writeCollapsedPaths(rootPath: string, collapsedPaths: ReadonlySet<string>) {
+  try {
+    const key = storageKeyForRoot(rootPath);
+    if (collapsedPaths.size === 0) {
+      window.localStorage.removeItem(key);
+      return;
+    }
+
+    window.localStorage.setItem(key, JSON.stringify([...collapsedPaths]));
+  } catch {
+    // Ignore quota/private-mode failures and keep the in-memory tree usable.
+  }
 }
 
 interface FileTreeNodeViewProps {

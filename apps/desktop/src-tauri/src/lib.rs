@@ -615,10 +615,6 @@ fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, Stri
         _ => left.name.to_lowercase().cmp(&right.name.to_lowercase()),
     });
 
-    if children.is_empty() {
-        return Ok(None);
-    }
-
     Ok(Some(MarkdownFileTreeNode {
         name: folder_name(path),
         path: path_to_string(path),
@@ -685,4 +681,56 @@ fn valid_child_name(name: &str) -> Result<&str, String> {
     }
 
     Ok(trimmed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn folder_tree_keeps_empty_directories_visible() {
+        let root = unique_test_directory("empty-directories-visible");
+        fs::create_dir_all(root.join("drafts")).unwrap();
+        fs::write(root.join("notes.txt"), "not markdown").unwrap();
+
+        let folder = build_markdown_folder(&root).unwrap();
+        let children = folder.tree.children.as_deref().unwrap();
+
+        assert!(children.iter().any(|child| {
+            child.name == "drafts" && matches!(child.kind, MarkdownFileTreeNodeKind::Directory)
+        }));
+        assert!(!children.iter().any(|child| child.name == "notes.txt"));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn creating_directory_returns_refreshed_tree_with_new_empty_directory() {
+        let root = unique_test_directory("create-directory-tree-refresh");
+        fs::create_dir_all(&root).unwrap();
+
+        let result = create_markdown_tree_item(
+            path_to_string(&root),
+            path_to_string(&root),
+            "drafts".to_string(),
+            CreateTreeItemKind::Directory,
+        )
+        .unwrap();
+        let children = result.folder.tree.children.as_deref().unwrap();
+
+        assert!(children.iter().any(|child| {
+            child.name == "drafts" && matches!(child.kind, MarkdownFileTreeNodeKind::Directory)
+        }));
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn unique_test_directory(label: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        std::env::temp_dir().join(format!("md-editor-{label}-{}-{suffix}", std::process::id()))
+    }
 }
