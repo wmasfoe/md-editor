@@ -843,7 +843,7 @@ function FileTreeNodeView({
         onClick={() => (isMarkdown ? onOpenFile(node.path) : onOpenAsset(node))}
         onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
-        <span className="tree-icon">{isMarkdown ? "#" : "img"}</span>
+        <FileKindIcon kind={node.kind} />
         <span className="tree-label">{node.name}</span>
       </button>
     );
@@ -881,6 +881,28 @@ function FileTreeNodeView({
             />
           ))}
     </div>
+  );
+}
+
+function FileKindIcon({ kind }: { readonly kind: "markdown" | "asset" }) {
+  const title = kind === "markdown" ? "Markdown 文件" : "图片文件";
+
+  return (
+    <span className={`tree-icon tree-icon-${kind}`} title={title} aria-label={title}>
+      {kind === "markdown" ? (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3.5 1.75h6.25l2.75 2.75v9.75H3.5z" />
+          <path d="M9.75 1.75V4.5h2.75" />
+          <path d="M5.25 10.75V6.25l2 2 2-2v4.5" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.75 3.25h10.5v9.5H2.75z" />
+          <circle cx="10.75" cy="5.75" r="1" />
+          <path d="M4.25 11.25 7 8.5l1.75 1.75 1.25-1.5 1.75 2.5" />
+        </svg>
+      )}
+    </span>
   );
 }
 

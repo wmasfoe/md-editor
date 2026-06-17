@@ -174,11 +174,32 @@ body {
 }
 
 .tree-icon {
-  width: 14px;
-  flex: 0 0 14px;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
   color: var(--theme-muted);
-  font-size: 11px;
-  text-align: center;
+}
+
+.tree-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.tree-icon-asset {
+  color: #667085;
+}
+
+.tree-row.active .tree-icon,
+.tree-row:hover .tree-icon {
+  color: var(--theme-primary);
 }
 
 .tree-label,
@@ -379,7 +400,20 @@ body {
   flex: 1;
   width: 100%;
   min-height: 0;
+  align-items: stretch;
   overflow: hidden;
+}
+
+.milkdown-host > [data-milkdown-root] {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.milkdown-host .milkdown {
+  min-width: 0;
 }
 
 .milkdown .ProseMirror {
