@@ -4,7 +4,7 @@
   "private": true,
   "description": "Daily-usable Markdown and MDX-compatible desktop editor.",
   "type": "module",
-  "packageManager": "pnpm@11.6.0",
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev": "pnpm --filter @md-editor/desktop dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
@@ -17,8 +17,8 @@
     "lint": "pnpm -r --sort lint"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

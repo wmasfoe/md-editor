@@ -34,6 +34,14 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Distribution note:
+      # A plain Tauri DMG can be built and installed locally, but macOS Gatekeeper
+      # treats downloaded unsigned/unnotarized apps as untrusted. That is why users
+      # may see "app is damaged" until they manually clear com.apple.quarantine.
+      #
+      # When you add Apple distribution support, insert the certificate/keychain
+      # setup before this build step and expose the Tauri/Apple signing env vars
+      # here, so the generated .app/.dmg is Developer ID signed and notarized.
       - name: Build macOS app
         run: pnpm build:macos
 
@@ -64,6 +72,9 @@ jobs:
           path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: error
 
+      # Release users and Homebrew users both receive the DMG uploaded below.
+      # If signing/notarization is added later, validate the exact DMG in this
+      # directory before these upload steps, for example with spctl and stapler.
       - name: Create GitHub Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:

@@ -66,8 +66,8 @@ enum CreateTreeItemKind {
 }
 
 pub fn run() {
-    // v0.1 只开放对话框和文件系统能力，先满足打开/保存流程，
-    // 避免过早增加无关的原生接口面。
+    // Rust stays as a thin desktop capability layer: menus, dialogs, scoped
+    // file access, and persistence. Markdown editing semantics live in TS.
     tauri::Builder::default()
         .menu(build_app_menu)
         .on_menu_event(|app, event| {
@@ -94,6 +94,8 @@ pub fn run() {
 }
 
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    // Menu item IDs are the native half of the command contract. React maps
+    // these IDs back to editor-core command IDs.
     let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
         .about(None)
         .separator()
@@ -295,9 +297,12 @@ fn rename_markdown_tree_item(
         return Err("Cannot rename the opened root folder.".to_string());
     }
 
-    let parent = current_path
-        .parent()
-        .ok_or_else(|| format!("Cannot resolve parent directory for {}", current_path.display()))?;
+    let parent = current_path.parent().ok_or_else(|| {
+        format!(
+            "Cannot resolve parent directory for {}",
+            current_path.display()
+        )
+    })?;
     let next_path = if current_path.is_file() {
         let path = ensure_markdown_extension(parent.join(valid_child_name(&name)?));
         if !is_markdown_path(&path) {
@@ -360,6 +365,8 @@ async fn save_markdown_document(
     markdown: String,
     force_dialog: bool,
 ) -> Result<Option<MarkdownDocumentFile>, String> {
+    // Save and Save As share one command so the frontend owns dirty-state
+    // handling while Rust owns native dialog behavior.
     let path = if force_dialog {
         let Some(path) = choose_save_path(&app, file_path.as_deref())? else {
             return Ok(None);
@@ -391,6 +398,8 @@ fn save_pasted_image(
     mime_type: String,
     bytes: Vec<u8>,
 ) -> Result<PastedImageFile, String> {
+    // Pasted images are colocated under assets/ beside the current document.
+    // The returned path is Markdown-facing and deliberately relative.
     let extension = image_extension(&mime_type)
         .ok_or_else(|| format!("Unsupported image type: {mime_type}"))?;
     let document_directory = Path::new(&document_path)
@@ -472,7 +481,8 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .to_string_lossy();
     let temporary_path = parent.join(format!(".{file_name}.tmp-{}", std::process::id()));
 
-    // 先写临时文件再替换目标文件；如果写入失败，原文件仍然保持不变。
+    // Write to a sibling temp file first, then rename over the target. A failed
+    // write keeps the previous Markdown file intact.
     if let Err(error) = fs::write(&temporary_path, bytes) {
         let _ = fs::remove_file(&temporary_path);
         return Err(format!("Failed to write {}: {error}", path.display()));
@@ -495,6 +505,8 @@ fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result
 }
 
 fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+    // Tauri's file-src conversion only works for allowed paths. Grant read
+    // access to opened folders/document directories so image previews render.
     app.state::<tauri::scope::Scopes>()
         .allow_directory(path, true)
         .map_err(|error| {
@@ -580,6 +592,8 @@ fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, Stri
         let entry_path = entry.path();
         let name = folder_name(&entry_path);
 
+        // Hide generated and dependency folders from the authoring tree; they
+        // can be huge and are not useful Markdown navigation targets.
         if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" {
             continue;
         }

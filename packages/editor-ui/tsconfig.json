@@ -2,10 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "baseUrl": ".",
-    "typeRoots": ["node_modules/@types"],
+    "rootDir": "../..",
+    "baseUrl": "../../apps/desktop",
+    "typeRoots": ["../../apps/desktop/node_modules/@types"],
     "paths": {
-      "@md-editor/editor-ui": ["../../packages/editor-ui/src/index.ts"],
       "@md-editor/editor-core": ["../../packages/editor-core/src/index.ts"],
       "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"],
       "@codemirror/lang-markdown": ["node_modules/@codemirror/lang-markdown/dist/index.d.ts"],
