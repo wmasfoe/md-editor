@@ -17,7 +17,15 @@
     "lint": "pnpm -r --sort lint"
   },
   "devDependencies": {
+    "@codemirror/lang-markdown": "catalog:",
+    "@milkdown/kit": "catalog:",
+    "@milkdown/react": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@uiw/react-codemirror": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

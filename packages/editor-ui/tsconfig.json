@@ -3,23 +3,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "rootDir": "../..",
-    "baseUrl": "../../apps/desktop",
-    "typeRoots": ["../../apps/desktop/node_modules/@types"],
     "paths": {
       "@md-editor/editor-core": ["../../packages/editor-core/src/index.ts"],
-      "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"],
-      "@codemirror/lang-markdown": ["node_modules/@codemirror/lang-markdown/dist/index.d.ts"],
-      "@milkdown/kit/core": ["node_modules/@milkdown/kit/lib/core.d.ts"],
-      "@milkdown/kit/plugin/listener": [
-        "node_modules/@milkdown/kit/lib/plugin/listener.d.ts"
-      ],
-      "@milkdown/kit/plugin/history": ["node_modules/@milkdown/kit/lib/plugin/history.d.ts"],
-      "@milkdown/kit/preset/commonmark": [
-        "node_modules/@milkdown/kit/lib/preset/commonmark.d.ts"
-      ],
-      "@milkdown/kit/preset/gfm": ["node_modules/@milkdown/kit/lib/preset/gfm.d.ts"],
-      "@milkdown/react": ["node_modules/@milkdown/react/lib/index.d.ts"],
-      "@uiw/react-codemirror": ["node_modules/@uiw/react-codemirror/esm/index.d.ts"]
+      "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"]
     }
   },
   "include": ["src"]

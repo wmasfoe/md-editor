@@ -1,5 +1,3 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
 import type { TocTarget } from "@md-editor/editor-ui";
@@ -11,13 +9,18 @@ import type {
 } from "@md-editor/file-system";
 import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
 import { fileService } from "../desktop/file-service";
-import { listenToDesktopMenuActions } from "../desktop/menu-events";
-import { matchesRuntimeKeymap } from "../lib/keyboard";
 import { dirname, isSameOrChildPath } from "../lib/path";
-import { getPastedImage, pasteImageInput } from "../lib/paste-image";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
-import type { KeyboardShortcut, OpenedAsset, SidebarMode, TreeItemKind } from "../types";
+import type { OpenedAsset, SidebarMode, TreeItemKind } from "../types";
+import {
+  bindBrowserDirtyDocumentGuard,
+  bindDesktopMenuCommands,
+  bindRuntimeKeyboardShortcuts,
+  bindTauriCloseGuard
+} from "./editor-events";
 import { runtime } from "./editor-runtime";
+import { resolveOpenDocumentMutation } from "./file-tree-mutations";
+import { bindPasteImageListener } from "./paste-image-listener";
 
 export function useDesktopEditorController() {
   const [snapshot, setSnapshot] = useState(() => runtime.getSnapshot());
@@ -181,28 +184,18 @@ export function useDesktopEditorController() {
       setFolder(result.folder);
 
       const current = runtime.document.getSnapshot();
-      if (!current.filePath) {
-        return;
-      }
-
-      if (!previousPath || !isSameOrChildPath(current.filePath, previousPath)) {
-        return;
-      }
-
-      if (result.affectedPath) {
-        // Rename returns the new root path for the changed item. If the open
-        // document is inside that renamed folder, preserve its relative suffix.
-        const nextFilePath =
-          current.filePath === previousPath
-            ? result.affectedPath
-            : `${result.affectedPath}${current.filePath.slice(previousPath.length)}`;
-
+      const mutation = resolveOpenDocumentMutation(current.filePath, result, previousPath);
+      if (mutation.kind === "move") {
         setSnapshot(
           runtime.document.markSaved({
             markdown: current.markdown,
-            filePath: nextFilePath
+            filePath: mutation.filePath
           })
         );
+        return;
+      }
+
+      if (mutation.kind === "none") {
         return;
       }
 
@@ -308,30 +301,16 @@ export function useDesktopEditorController() {
     [refreshFolderForDocumentPath, replaceDocument, runFileAction]
   );
 
-  useEffect(() => {
-    const listener = (event: ClipboardEvent) => {
-      if (!event.clipboardData) {
-        return;
-      }
-
-      const image = getPastedImage(event.clipboardData);
-      if (!image) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      void pasteImageInput(image, {
+  useEffect(
+    () =>
+      bindPasteImageListener({
         replaceDocument,
         runFileAction,
         applyMarkdown: applyProgrammaticMarkdown,
         afterSaveImage: refreshOpenedFolder
-      });
-    };
-
-    window.addEventListener("paste", listener, true);
-    return () => window.removeEventListener("paste", listener, true);
-  }, [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]);
+      }),
+    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]
+  );
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
     setTocTarget({ ...target, nonce: Date.now() });
@@ -373,102 +352,10 @@ export function useDesktopEditorController() {
     ]
   );
 
-  useEffect(() => {
-    // Keymaps come from editor-core so menu actions, app commands, and keyboard
-    // shortcuts stay on the same command IDs instead of drifting independently.
-    const shortcuts: readonly KeyboardShortcut[] = runtime.keymaps.list().map((keymap) => ({
-      matches: (event) => matchesRuntimeKeymap(event, keymap.key),
-      run: () => {
-        void dispatchCommand(keymap.commandId);
-      }
-    }));
-
-    const listener = (event: KeyboardEvent) => {
-      const shortcut = shortcuts.find((candidate) => candidate.matches(event));
-      if (!shortcut) {
-        return;
-      }
-
-      event.preventDefault();
-      shortcut.run(event);
-    };
-
-    window.addEventListener("keydown", listener, { capture: true });
-    return () => window.removeEventListener("keydown", listener, { capture: true });
-  }, [dispatchCommand]);
-
-  const runMenuAction = useCallback(
-    (action: string) => {
-      switch (action) {
-        case "md-editor:new":
-          void dispatchCommand("file.new");
-          break;
-        case "md-editor:open":
-          void dispatchCommand("file.open");
-          break;
-        case "md-editor:open-folder":
-          void dispatchCommand("file.openFolder");
-          break;
-        case "md-editor:save":
-          void dispatchCommand("file.save");
-          break;
-        case "md-editor:save-as":
-          void dispatchCommand("file.saveAs");
-          break;
-        case "md-editor:mode-wysiwyg":
-          void dispatchCommand("view.showWysiwyg");
-          break;
-        case "md-editor:toggle-source":
-          void dispatchCommand("view.toggleSource");
-          break;
-        case "md-editor:toggle-sidebar-primary":
-          void dispatchCommand("view.toggleSidebarPrimary");
-          break;
-      }
-    },
-    [dispatchCommand]
-  );
-
-  useEffect(() => listenToDesktopMenuActions(runMenuAction), [runMenuAction]);
-
-  useEffect(() => {
-    const listener = (event: BeforeUnloadEvent) => {
-      if (!runtime.document.getSnapshot().isDirty) {
-        return;
-      }
-
-      event.preventDefault();
-      event.returnValue = "";
-    };
-
-    window.addEventListener("beforeunload", listener);
-    return () => window.removeEventListener("beforeunload", listener);
-  }, []);
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    if (!isTauri()) {
-      return undefined;
-    }
-
-    void getCurrentWindow().onCloseRequested((event) => {
-      if (!runtime.document.getSnapshot().isDirty) {
-        return;
-      }
-
-      const confirmed = window.confirm("Current document has unsaved changes. Close anyway?");
-      if (!confirmed) {
-        event.preventDefault();
-      }
-    }).then((dispose) => {
-      unlisten = dispose;
-    });
-
-    return () => {
-      unlisten?.();
-    };
-  }, []);
+  useEffect(() => bindRuntimeKeyboardShortcuts(dispatchCommand), [dispatchCommand]);
+  useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
+  useEffect(() => bindBrowserDirtyDocumentGuard(), []);
+  useEffect(() => bindTauriCloseGuard(), []);
 
   return {
     snapshot,

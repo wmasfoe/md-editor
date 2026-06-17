@@ -17,28 +17,28 @@ export default defineConfig({
         new URL("../../packages/markdown-fidelity/src/index.ts", import.meta.url)
       ),
       "@codemirror/lang-markdown": fileURLToPath(
-        new URL("./node_modules/@codemirror/lang-markdown/dist/index.js", import.meta.url)
+        new URL("../../node_modules/@codemirror/lang-markdown/dist/index.js", import.meta.url)
       ),
       "@milkdown/kit/core": fileURLToPath(
-        new URL("./node_modules/@milkdown/kit/lib/core.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/kit/lib/core.js", import.meta.url)
       ),
       "@milkdown/kit/plugin/listener": fileURLToPath(
-        new URL("./node_modules/@milkdown/kit/lib/plugin/listener.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/kit/lib/plugin/listener.js", import.meta.url)
       ),
       "@milkdown/kit/plugin/history": fileURLToPath(
-        new URL("./node_modules/@milkdown/kit/lib/plugin/history.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/kit/lib/plugin/history.js", import.meta.url)
       ),
       "@milkdown/kit/preset/commonmark": fileURLToPath(
-        new URL("./node_modules/@milkdown/kit/lib/preset/commonmark.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/kit/lib/preset/commonmark.js", import.meta.url)
       ),
       "@milkdown/kit/preset/gfm": fileURLToPath(
-        new URL("./node_modules/@milkdown/kit/lib/preset/gfm.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/kit/lib/preset/gfm.js", import.meta.url)
       ),
       "@milkdown/react": fileURLToPath(
-        new URL("./node_modules/@milkdown/react/lib/index.js", import.meta.url)
+        new URL("../../node_modules/@milkdown/react/lib/index.js", import.meta.url)
       ),
       "@uiw/react-codemirror": fileURLToPath(
-        new URL("./node_modules/@uiw/react-codemirror/esm/index.js", import.meta.url)
+        new URL("../../node_modules/@uiw/react-codemirror/esm/index.js", import.meta.url)
       )
     }
   },
