@@ -36,6 +36,7 @@ describe("FileService", () => {
             kind: "directory",
             children: [
               { name: "index.md", path: "/Users/me/docs/index.md", kind: "markdown" },
+              { name: "image.png", path: "/Users/me/docs/assets/image.png", kind: "asset" },
               {
                 name: "guide",
                 path: "/Users/me/docs/guide",
@@ -51,10 +52,11 @@ describe("FileService", () => {
     await expect(service.openFolder()).resolves.toMatchObject({
       rootName: "docs",
       tree: {
-        children: [
-          { name: "index.md", kind: "markdown" },
-          {
-            name: "guide",
+            children: [
+              { name: "index.md", kind: "markdown" },
+              { name: "image.png", kind: "asset" },
+              {
+                name: "guide",
             kind: "directory",
             children: [{ name: "intro.mdx", kind: "markdown" }]
           }

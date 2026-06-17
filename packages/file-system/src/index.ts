@@ -8,7 +8,7 @@ export interface MarkdownDocumentFile {
 export interface MarkdownFileTreeNode {
   readonly name: string;
   readonly path: string;
-  readonly kind: "directory" | "markdown";
+  readonly kind: "directory" | "markdown" | "asset";
   readonly children?: readonly MarkdownFileTreeNode[];
 }
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  createMarkdownImageSrcResolver,
   extractHeadingOutline,
   isLikelyMdxBlock,
+  restoreMarkdownImageSources,
+  rewriteMarkdownImageSourcesForPreview,
   serializeRoundTrip,
   splitFrontmatter
 } from "../src";
@@ -53,5 +56,49 @@ describe("MDX raw block detection", () => {
   it("detects unknown MDX component blocks without executing them", () => {
     expect(isLikelyMdxBlock("<CustomThing foo=\"bar\" />")).toBe(true);
     expect(isLikelyMdxBlock("<div>html</div>")).toBe(false);
+  });
+});
+
+describe("local Markdown image preview sources", () => {
+  it("resolves relative image paths through the desktop asset protocol", () => {
+    const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
+      hasTauriRuntime: true,
+      convertFileSrc: (path) => `asset://${path}`
+    });
+
+    expect(resolveImageSrc("assets/pasted%20image.png")).toBe(
+      "asset:///Users/me/docs/assets/pasted image.png"
+    );
+  });
+
+  it("leaves remote, embedded, and non-desktop image sources unchanged", () => {
+    const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
+      hasTauriRuntime: true,
+      convertFileSrc: (path) => `asset://${path}`
+    });
+
+    expect(resolveImageSrc("https://example.com/a.png")).toBe("https://example.com/a.png");
+    expect(resolveImageSrc("data:image/png;base64,abc")).toBe("data:image/png;base64,abc");
+    expect(
+      createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
+        hasTauriRuntime: false,
+        convertFileSrc: (path) => `asset://${path}`
+      })("assets/a.png")
+    ).toBe("assets/a.png");
+  });
+
+  it("rewrites preview Markdown and restores original persisted sources", () => {
+    const input = "before\n\n![shot](assets/a.png)\n\n![remote](https://example.com/a.png)\n";
+    const preview = rewriteMarkdownImageSourcesForPreview(
+      input,
+      createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
+        hasTauriRuntime: true,
+        convertFileSrc: (path) => `asset://${path}`
+      })
+    );
+
+    expect(preview.markdown).toContain("![shot](asset:///Users/me/docs/assets/a.png)");
+    expect(preview.markdown).toContain("![remote](https://example.com/a.png)");
+    expect(restoreMarkdownImageSources(preview.markdown, preview.sourceMap)).toBe(input);
   });
 });

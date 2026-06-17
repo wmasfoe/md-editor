@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
@@ -29,7 +30,12 @@ import {
   type MarkdownFolder,
   type SaveMarkdownInput
 } from "@md-editor/file-system";
-import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
+import {
+  createMarkdownImageSrcResolver,
+  extractHeadingOutline,
+  restoreMarkdownImageSources,
+  rewriteMarkdownImageSourcesForPreview
+} from "@md-editor/markdown-fidelity";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-registry";
 import "./styles.css";
 
@@ -48,6 +54,7 @@ const MENU_ACTION_EVENT = "md-editor-menu-action";
 
 type SidebarMode = "files" | "outline";
 type TreeItemKind = "markdown" | "directory";
+type OpenedAsset = Pick<MarkdownFileTreeNode, "name" | "path">;
 
 interface FileTreeContextMenuState {
   readonly x: number;
@@ -62,6 +69,13 @@ interface PastedImageInput {
 
 interface PastedImageFile {
   readonly markdownPath: string;
+}
+
+interface PasteImageRuntime {
+  readonly replaceDocument: (document: MarkdownDocumentFile | null) => void;
+  readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
+  readonly applyMarkdown: (markdown: string) => void;
+  readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
 }
 
 interface SourceEditorView {
@@ -97,12 +111,22 @@ function App() {
   const [tocTarget, setTocTarget] = useState<TocTarget | null>(null);
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
-  const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}`;
+  const [editorRevision, setEditorRevision] = useState(0);
+  const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
+  const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
   const outline = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
 
   const commitMarkdown = useCallback((markdown: string) => {
     setErrorMessage(null);
+    setOpenedAsset(null);
     setSnapshot(runtime.document.updateMarkdown(markdown));
+  }, []);
+
+  const applyProgrammaticMarkdown = useCallback((markdown: string) => {
+    setErrorMessage(null);
+    setOpenedAsset(null);
+    setSnapshot(runtime.document.updateMarkdown(markdown));
+    setEditorRevision((current) => current + 1);
   }, []);
 
   const switchMode = useCallback(async (mode: EditorMode) => {
@@ -129,7 +153,21 @@ function App() {
       })
     );
     setErrorMessage(null);
+    setOpenedAsset(null);
   }, []);
+
+  const refreshFolderForDocumentPath = useCallback(
+    async (documentPath: string) => {
+      const nextRootPath =
+        folder && isSameOrChildPath(documentPath, folder.rootPath)
+          ? folder.rootPath
+          : dirname(documentPath);
+
+      setFolder(await fileService.refreshFolder(nextRootPath));
+      setSidebarMode("files");
+    },
+    [folder]
+  );
 
   const ensureDiscardAllowed = useCallback(() => {
     return (
@@ -172,9 +210,13 @@ function App() {
     }
 
     await runFileAction("正在打开", async () => {
-      replaceDocument(await fileService.openDocument());
+      const document = await fileService.openDocument();
+      replaceDocument(document);
+      if (document) {
+        await refreshFolderForDocumentPath(document.filePath);
+      }
     });
-  }, [ensureDiscardAllowed, replaceDocument, runFileAction]);
+  }, [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]);
 
   const openFolder = useCallback(async () => {
     await runFileAction("正在打开文件夹", async () => {
@@ -187,6 +229,18 @@ function App() {
     });
   }, [runFileAction]);
 
+  const refreshOpenedFolder = useCallback(
+    async (documentPath?: string) => {
+      const currentPath = documentPath ?? runtime.document.getSnapshot().filePath;
+      if (!currentPath) {
+        return;
+      }
+
+      await refreshFolderForDocumentPath(currentPath);
+    },
+    [refreshFolderForDocumentPath]
+  );
+
   const openDocumentFromTree = useCallback(
     async (filePath: string) => {
       if (!ensureDiscardAllowed()) {
@@ -194,11 +248,18 @@ function App() {
       }
 
       await runFileAction("正在打开", async () => {
-        replaceDocument(await fileService.openDocumentAtPath(filePath));
+        const document = await fileService.openDocumentAtPath(filePath);
+        replaceDocument(document);
+        await refreshFolderForDocumentPath(document.filePath);
       });
     },
-    [ensureDiscardAllowed, replaceDocument, runFileAction]
+    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]
   );
+
+  const openAssetFromTree = useCallback((node: MarkdownFileTreeNode) => {
+    setErrorMessage(null);
+    setOpenedAsset({ name: node.name, path: node.path });
+  }, []);
 
   const applyFileTreeMutation = useCallback(
     (result: FileTreeMutationResult, previousPath?: string) => {
@@ -322,48 +383,37 @@ function App() {
         if (saved) {
           // 只有原生端确认写盘成功后才清 dirty；取消或失败都必须保留未保存状态。
           replaceDocument(saved);
+          await refreshFolderForDocumentPath(saved.filePath);
         }
       });
     },
-    [replaceDocument, runFileAction]
+    [refreshFolderForDocumentPath, replaceDocument, runFileAction]
   );
 
-  const pasteImage = useCallback(
-    async (event: React.ClipboardEvent) => {
+  useEffect(() => {
+    const listener = (event: ClipboardEvent) => {
+      if (!event.clipboardData) {
+        return;
+      }
+
       const image = getPastedImage(event.clipboardData);
       if (!image) {
         return;
       }
 
       event.preventDefault();
-      await runFileAction("正在粘贴图片", async () => {
-        let current = runtime.document.getSnapshot();
-
-        if (!current.filePath) {
-          const saved = await fileService.saveDocumentAs({
-            filePath: null,
-            markdown: current.markdown
-          });
-          if (!saved) {
-            return;
-          }
-          replaceDocument(saved);
-          current = runtime.document.getSnapshot();
-        }
-
-        if (!current.filePath) {
-          throw new Error("Save the document before pasting images.");
-        }
-
-        const pasted = await savePastedImage(current.filePath, image);
-        const nextMarkdown = appendImageMarkdown(current.markdown, pasted.markdownPath);
-
-        // 图片文件已写入 assets，但 Markdown 插入仍是文档编辑，保持 dirty 等待用户保存。
-        setSnapshot(runtime.document.updateMarkdown(nextMarkdown));
+      event.stopPropagation();
+      void pasteImageInput(image, {
+        replaceDocument,
+        runFileAction,
+        applyMarkdown: applyProgrammaticMarkdown,
+        afterSaveImage: refreshOpenedFolder
       });
-    },
-    [replaceDocument, runFileAction]
-  );
+    };
+
+    window.addEventListener("paste", listener, true);
+    return () => window.removeEventListener("paste", listener, true);
+  }, [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]);
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
     setTocTarget({ ...target, nonce: Date.now() });
@@ -473,6 +523,45 @@ function App() {
     };
   }, [runMenuAction]);
 
+  useEffect(() => {
+    const listener = (event: BeforeUnloadEvent) => {
+      if (!runtime.document.getSnapshot().isDirty) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", listener);
+    return () => window.removeEventListener("beforeunload", listener);
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    if (!isTauri()) {
+      return undefined;
+    }
+
+    void getCurrentWindow().onCloseRequested((event) => {
+      if (!runtime.document.getSnapshot().isDirty) {
+        return;
+      }
+
+      const confirmed = window.confirm("Current document has unsaved changes. Close anyway?");
+      if (!confirmed) {
+        event.preventDefault();
+      }
+    }).then((dispose) => {
+      unlisten = dispose;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label={sidebarMode === "files" ? "文件树" : "大纲目录"}>
@@ -498,6 +587,7 @@ function App() {
             activeFilePath={snapshot.filePath}
             onOpenFolder={() => void dispatchCommand("file.openFolder")}
             onOpenFile={(filePath) => void openDocumentFromTree(filePath)}
+            onOpenAsset={(node) => openAssetFromTree(node)}
             onCreateTreeItem={(parentPath, kind) => void createTreeItem(parentPath, kind)}
             onRenameTreeItem={(node) => void renameTreeItem(node)}
             onDeleteTreeItem={(node) => void deleteTreeItem(node)}
@@ -506,10 +596,12 @@ function App() {
           <OutlinePanel outline={outline} onJump={jumpToTocItem} />
         )}
       </aside>
-      <section className="editor-pane" aria-label="Markdown 编辑器" onPasteCapture={pasteImage}>
+      <section className="editor-pane" aria-label="Markdown 编辑器">
         {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
         {pendingAction ? <div className="status-banner">{pendingAction}</div> : null}
-        {snapshot.mode === "source" ? (
+        {openedAsset ? (
+          <AssetPreview asset={openedAsset} />
+        ) : snapshot.mode === "source" ? (
           <SourceEditor
             snapshot={snapshot}
             target={tocTarget}
@@ -576,11 +668,43 @@ function SourceEditor({ snapshot, target, onChange }: SourceEditorProps) {
   );
 }
 
+function AssetPreview({ asset }: { readonly asset: OpenedAsset }) {
+  const [failedPath, setFailedPath] = useState<string | null>(null);
+  const assetUrl = useMemo(() => toAssetUrl(asset.path), [asset.path]);
+
+  useEffect(() => {
+    setFailedPath(null);
+  }, [asset.path]);
+
+  return (
+    <div className="asset-preview">
+      <div className="asset-preview-header" title={asset.path}>
+        {asset.name}
+      </div>
+      <div className="asset-preview-body">
+        {failedPath ? (
+          <div className="asset-preview-error">
+            <strong>图片加载失败</strong>
+            <span>{failedPath}</span>
+          </div>
+        ) : (
+          <img
+            src={assetUrl}
+            alt={asset.name}
+            onError={() => setFailedPath(asset.path)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface FileTreePanelProps {
   readonly folder: MarkdownFolder | null;
   readonly activeFilePath: string | null;
   readonly onOpenFolder: () => void;
   readonly onOpenFile: (filePath: string) => void;
+  readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
   readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind) => void;
   readonly onRenameTreeItem: (node: MarkdownFileTreeNode) => void;
   readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
@@ -591,6 +715,7 @@ function FileTreePanel({
   activeFilePath,
   onOpenFolder,
   onOpenFile,
+  onOpenAsset,
   onCreateTreeItem,
   onRenameTreeItem,
   onDeleteTreeItem
@@ -666,6 +791,7 @@ function FileTreePanel({
         collapsedPaths={collapsedPaths}
         onToggleCollapsed={toggleCollapsed}
         onOpenFile={onOpenFile}
+        onOpenAsset={onOpenAsset}
         onOpenContextMenu={openContextMenu}
       />
       {contextMenu ? (
@@ -689,6 +815,7 @@ interface FileTreeNodeViewProps {
   readonly depth?: number;
   readonly onToggleCollapsed: (path: string) => void;
   readonly onOpenFile: (filePath: string) => void;
+  readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
   readonly onOpenContextMenu: (event: React.MouseEvent, node: MarkdownFileTreeNode) => void;
 }
 
@@ -699,21 +826,24 @@ function FileTreeNodeView({
   depth = 0,
   onToggleCollapsed,
   onOpenFile,
+  onOpenAsset,
   onOpenContextMenu
 }: FileTreeNodeViewProps) {
   const paddingLeft = 12 + depth * 14;
 
-  if (node.kind === "markdown") {
+  if (node.kind === "markdown" || node.kind === "asset") {
+    const isMarkdown = node.kind === "markdown";
+
     return (
       <button
         type="button"
         className={node.path === activeFilePath ? "tree-row active" : "tree-row"}
         style={{ paddingLeft }}
         title={node.path}
-        onClick={() => onOpenFile(node.path)}
+        onClick={() => (isMarkdown ? onOpenFile(node.path) : onOpenAsset(node))}
         onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
-        <span className="tree-icon">#</span>
+        <span className="tree-icon">{isMarkdown ? "#" : "img"}</span>
         <span className="tree-label">{node.name}</span>
       </button>
     );
@@ -746,6 +876,7 @@ function FileTreeNodeView({
               depth={depth + 1}
               onToggleCollapsed={onToggleCollapsed}
               onOpenFile={onOpenFile}
+              onOpenAsset={onOpenAsset}
               onOpenContextMenu={onOpenContextMenu}
             />
           ))}
@@ -868,7 +999,11 @@ function MilkdownEditor(props: MilkdownEditorProps) {
 }
 
 function MilkdownEditorInner({ snapshot, target, onChange }: MilkdownEditorProps) {
-  const initialMarkdown = useMemo(() => snapshot.markdown, []);
+  const previewInput = useMemo(
+    () => markdownPreviewInput(snapshot.markdown, snapshot.filePath),
+    []
+  );
+  const sourceMapRef = useRef(previewInput.sourceMap);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEditor(
@@ -876,12 +1011,12 @@ function MilkdownEditorInner({ snapshot, target, onChange }: MilkdownEditorProps
       Editor.make()
         .config((ctx) => {
           ctx.set(rootCtx, root);
-          ctx.set(defaultValueCtx, initialMarkdown);
+          ctx.set(defaultValueCtx, previewInput.markdown);
           // Milkdown 是 v0.1 的 WYSIWYG 事实入口；每次序列化后的 Markdown
           // 都同步回 DocumentState，保证源码模式切换时不读取过期内容。
           ctx.get(listenerCtx).markdownUpdated((_, markdown, previousMarkdown) => {
             if (markdown !== previousMarkdown) {
-              onChange(markdown);
+              onChange(markdownFromPreview(markdown, sourceMapRef.current));
             }
           });
         })
@@ -889,7 +1024,7 @@ function MilkdownEditorInner({ snapshot, target, onChange }: MilkdownEditorProps
         .use(gfm)
         .use(history)
         .use(listener),
-    [initialMarkdown, onChange]
+    [onChange, previewInput.markdown]
   );
 
   useEffect(() => {
@@ -951,6 +1086,38 @@ function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): boolean {
 
 function isSameOrChildPath(path: string, parentPath: string): boolean {
   return path === parentPath || path.startsWith(`${parentPath}/`);
+}
+
+function markdownPreviewInput(markdown: string, filePath: string | null) {
+  return rewriteMarkdownImageSourcesForPreview(
+    markdown,
+    createMarkdownImageSrcResolver(filePath, {
+      convertFileSrc,
+      hasTauriRuntime: isTauri()
+    })
+  );
+}
+
+function markdownFromPreview(markdown: string, sourceMap: readonly [string, string][]): string {
+  return restoreMarkdownImageSources(markdown, sourceMap);
+}
+
+function toAssetUrl(path: string): string {
+  return isTauri() ? convertFileSrc(path) : path;
+}
+
+function dirname(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const index = normalized.lastIndexOf("/");
+
+  return index <= 0 ? "." : normalized.slice(0, index);
+}
+
+function joinPath(...segments: readonly string[]): string {
+  return segments
+    .filter(Boolean)
+    .join("/")
+    .replace(/\/+/g, "/");
 }
 
 function createDesktopFileAdapter(): FileServiceAdapter {
@@ -1037,5 +1204,33 @@ async function savePastedImage(
     documentPath,
     mimeType: image.mimeType,
     bytes: Array.from(new Uint8Array(await image.file.arrayBuffer()))
+  });
+}
+
+async function pasteImageInput(image: PastedImageInput, runtimeActions: PasteImageRuntime) {
+  await runtimeActions.runFileAction("正在粘贴图片", async () => {
+    let current = runtime.document.getSnapshot();
+
+    if (!current.filePath) {
+      const saved = await fileService.saveDocumentAs({
+        filePath: null,
+        markdown: current.markdown
+      });
+      if (!saved) {
+        return;
+      }
+      runtimeActions.replaceDocument(saved);
+      current = runtime.document.getSnapshot();
+    }
+
+    if (!current.filePath) {
+      throw new Error("Save the document before pasting images.");
+    }
+
+    const pasted = await savePastedImage(current.filePath, image);
+    const nextMarkdown = appendImageMarkdown(current.markdown, pasted.markdownPath);
+
+    // 图片文件已写入 assets，但 Markdown 插入仍是文档编辑，保持 dirty 等待用户保存。
+    runtimeActions.applyMarkdown(nextMarkdown);
   });
 }

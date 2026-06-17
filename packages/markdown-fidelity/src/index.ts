@@ -17,6 +17,16 @@ export interface RoundTripResult {
   readonly changed: boolean;
 }
 
+export interface MarkdownImagePreviewInput {
+  readonly markdown: string;
+  readonly sourceMap: readonly [previewSrc: string, markdownSrc: string][];
+}
+
+export interface MarkdownImageSrcResolverOptions {
+  readonly convertFileSrc?: (path: string) => string;
+  readonly hasTauriRuntime?: boolean;
+}
+
 export function splitFrontmatter(markdown: string): FrontmatterBlock | null {
   const normalized = normalizeLineEndings(markdown);
   if (!normalized.startsWith("---\n")) {
@@ -46,6 +56,58 @@ export function serializeRoundTrip(markdown: string): RoundTripResult {
     markdown: withTrailingNewline,
     changed: withTrailingNewline !== markdown
   };
+}
+
+export function createMarkdownImageSrcResolver(
+  documentPath: string | null | undefined,
+  options: MarkdownImageSrcResolverOptions = {}
+) {
+  return (src: string): string => {
+    if (!documentPath || isRemoteOrEmbeddedImageSrc(src) || src.startsWith("#")) {
+      return src;
+    }
+
+    if (!options.convertFileSrc || options.hasTauriRuntime === false) {
+      return src;
+    }
+
+    return options.convertFileSrc(resolveLocalImagePath(src, documentPath));
+  };
+}
+
+export function rewriteMarkdownImageSourcesForPreview(
+  markdown: string,
+  resolveImageSrc: (src: string) => string
+): MarkdownImagePreviewInput {
+  const sourceMap: [string, string][] = [];
+  const previewMarkdown = markdown.replace(
+    /(!\[[^\]]*\]\()((?:<[^>\n]+>)|(?:[^)\s\n]+))(?:\s+"[^"\n]*")?(\))/g,
+    (source) => {
+      const image = parseImageMarkdown(source);
+      if (!image) {
+        return source;
+      }
+
+      const previewSrc = resolveImageSrc(image.src);
+      if (previewSrc === image.src) {
+        return source;
+      }
+
+      sourceMap.push([previewSrc, image.src]);
+      return source.replace(image.src, previewSrc);
+    }
+  );
+
+  return { markdown: previewMarkdown, sourceMap };
+}
+
+export function restoreMarkdownImageSources(
+  markdown: string,
+  sourceMap: readonly [previewSrc: string, markdownSrc: string][]
+): string {
+  return sourceMap.reduce((nextMarkdown, [previewSrc, markdownSrc]) => {
+    return nextMarkdown.split(previewSrc).join(markdownSrc);
+  }, markdown);
 }
 
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
@@ -88,4 +150,58 @@ function slugify(value: string): string {
     .replace(/[`*_~[\]()]/g, "")
     .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function isRemoteOrEmbeddedImageSrc(src: string): boolean {
+  return /^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(src) && !/^[a-zA-Z]:[\\/]/u.test(src);
+}
+
+function parseImageMarkdown(source: string): { readonly src: string } | null {
+  const match = /^!\[[^\]]*\]\((?:<([^>\n]+)>|([^\s)\n]+))(?:\s+"[^"\n]*")?\)$/u.exec(
+    source.trim()
+  );
+
+  return match ? { src: match[1] ?? match[2] ?? "" } : null;
+}
+
+function resolveLocalImagePath(src: string, documentPath: string): string {
+  const decodedSrc = decodeMarkdownImagePath(src);
+  const separator = documentPath.includes("\\") && !documentPath.includes("/") ? "\\" : "/";
+
+  if (decodedSrc.startsWith("/") || /^[a-zA-Z]:[\\/]/u.test(decodedSrc)) {
+    return decodedSrc;
+  }
+
+  const parts = [
+    ...documentDirectory(documentPath).split(/[\\/]/u),
+    ...decodedSrc.split(/[\\/]/u)
+  ];
+  const resolvedParts: string[] = [];
+
+  for (const part of parts) {
+    if (!part || part === ".") {
+      continue;
+    }
+    if (part === "..") {
+      resolvedParts.pop();
+      continue;
+    }
+    resolvedParts.push(part);
+  }
+
+  return documentPath.startsWith("/") ? `/${resolvedParts.join("/")}` : resolvedParts.join(separator);
+}
+
+function documentDirectory(path: string): string {
+  const slash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+
+  return slash < 0 ? "" : path.slice(0, slash);
+}
+
+function decodeMarkdownImagePath(src: string): string {
+  try {
+    return decodeURI(src.split(/[?#]/u)[0] ?? src);
+  } catch {
+    return src;
+  }
 }

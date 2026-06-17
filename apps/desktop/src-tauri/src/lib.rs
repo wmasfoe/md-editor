@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItemBuilder, SubmenuBuilder},
-    Emitter,
+    Emitter, Manager,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -42,6 +42,7 @@ struct MarkdownFileTreeNode {
 enum MarkdownFileTreeNodeKind {
     Directory,
     Markdown,
+    Asset,
 }
 
 #[derive(Serialize)]
@@ -187,6 +188,7 @@ async fn open_markdown_document(
         .map_err(|error| format!("Selected file path is not readable: {error}"))?;
     let markdown = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
+    allow_asset_directory_for_file(&app, &path)?;
 
     Ok(Some(MarkdownDocumentFile {
         file_path: path_to_string(&path),
@@ -195,10 +197,14 @@ async fn open_markdown_document(
 }
 
 #[tauri::command]
-async fn open_markdown_document_at_path(path: String) -> Result<MarkdownDocumentFile, String> {
+async fn open_markdown_document_at_path(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<MarkdownDocumentFile, String> {
     let path = PathBuf::from(path);
     let markdown = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
+    allow_asset_directory_for_file(&app, &path)?;
 
     Ok(MarkdownDocumentFile {
         file_path: path_to_string(&path),
@@ -221,6 +227,7 @@ async fn open_markdown_folder(app: tauri::AppHandle) -> Result<Option<MarkdownFo
     let path = folder_path
         .into_path()
         .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
+    allow_asset_directory(&app, &path)?;
     Ok(Some(build_markdown_folder(&path)?))
 }
 
@@ -369,6 +376,7 @@ async fn save_markdown_document(
 
     let path = ensure_markdown_extension(path);
     write_atomically(&path, markdown.as_bytes())?;
+    allow_asset_directory_for_file(&app, &path)?;
 
     Ok(Some(MarkdownDocumentFile {
         file_path: path_to_string(&path),
@@ -378,6 +386,7 @@ async fn save_markdown_document(
 
 #[tauri::command]
 fn save_pasted_image(
+    app: tauri::AppHandle,
     document_path: String,
     mime_type: String,
     bytes: Vec<u8>,
@@ -397,6 +406,7 @@ fn save_pasted_image(
 
     let image_path = next_image_path(&assets_directory, extension);
     write_atomically(&image_path, &bytes)?;
+    allow_asset_directory(&app, &assets_directory)?;
 
     Ok(PastedImageFile {
         markdown_path: format!(
@@ -476,6 +486,25 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+
+    allow_asset_directory(app, parent)
+}
+
+fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+    app.state::<tauri::scope::Scopes>()
+        .allow_directory(path, true)
+        .map_err(|error| {
+            format!(
+                "Failed to allow image preview access for {}: {error}",
+                path.display()
+            )
+        })
+}
+
 fn image_extension(mime_type: &str) -> Option<&'static str> {
     match mime_type {
         "image/png" => Some("png"),
@@ -526,11 +555,15 @@ fn build_markdown_folder(path: &Path) -> Result<MarkdownFolder, String> {
 
 fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, String> {
     if path.is_file() {
-        return Ok(if is_markdown_path(path) {
+        return Ok(if is_markdown_path(path) || is_image_asset_path(path) {
             Some(MarkdownFileTreeNode {
                 name: folder_name(path),
                 path: path_to_string(path),
-                kind: MarkdownFileTreeNodeKind::Markdown,
+                kind: if is_markdown_path(path) {
+                    MarkdownFileTreeNodeKind::Markdown
+                } else {
+                    MarkdownFileTreeNodeKind::Asset
+                },
                 children: None,
             })
         } else {
@@ -557,10 +590,12 @@ fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, Stri
     }
 
     children.sort_by(|left, right| match (&left.kind, &right.kind) {
-        (MarkdownFileTreeNodeKind::Directory, MarkdownFileTreeNodeKind::Markdown) => {
+        (MarkdownFileTreeNodeKind::Directory, MarkdownFileTreeNodeKind::Markdown)
+        | (MarkdownFileTreeNodeKind::Directory, MarkdownFileTreeNodeKind::Asset) => {
             std::cmp::Ordering::Less
         }
-        (MarkdownFileTreeNodeKind::Markdown, MarkdownFileTreeNodeKind::Directory) => {
+        (MarkdownFileTreeNodeKind::Markdown, MarkdownFileTreeNodeKind::Directory)
+        | (MarkdownFileTreeNodeKind::Asset, MarkdownFileTreeNodeKind::Directory) => {
             std::cmp::Ordering::Greater
         }
         _ => left.name.to_lowercase().cmp(&right.name.to_lowercase()),
@@ -585,6 +620,16 @@ fn is_markdown_path(path: &Path) -> bool {
             .map(|extension| extension.to_ascii_lowercase())
             .as_deref(),
         Some("md" | "mdx" | "markdown")
+    )
+}
+
+fn is_image_asset_path(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("png" | "jpg" | "jpeg" | "webp" | "gif" | "svg")
     )
 }
 
