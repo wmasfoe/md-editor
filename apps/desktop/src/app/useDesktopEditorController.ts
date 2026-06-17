@@ -207,14 +207,8 @@ export function useDesktopEditorController() {
   );
 
   const createTreeItem = useCallback(
-    async (parentPath: string, kind: TreeItemKind) => {
+    async (parentPath: string, kind: TreeItemKind, name: string) => {
       if (!folder) {
-        return;
-      }
-
-      const defaultName = kind === "markdown" ? "Untitled.md" : "Untitled";
-      const name = window.prompt(kind === "markdown" ? "新建 Markdown 文件" : "新建文件夹", defaultName);
-      if (!name) {
         return;
       }
 
@@ -232,13 +226,8 @@ export function useDesktopEditorController() {
   );
 
   const renameTreeItem = useCallback(
-    async (node: MarkdownFileTreeNode) => {
-      if (!folder) {
-        return;
-      }
-
-      const name = window.prompt("重命名", node.name);
-      if (!name || name === node.name) {
+    async (node: MarkdownFileTreeNode, name: string) => {
+      if (!folder || name === node.name) {
         return;
       }
 

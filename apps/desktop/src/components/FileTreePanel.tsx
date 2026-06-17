@@ -1,8 +1,12 @@
-import { Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
+
+// 行内编辑状态：新建 or 重命名
+type EditingState =
+  | { mode: "create"; parentPath: string; kind: TreeItemKind; defaultName: string }
+  | { mode: "rename"; node: MarkdownFileTreeNode };
 
 interface FileTreePanelProps {
   readonly folder: MarkdownFolder | null;
@@ -10,8 +14,8 @@ interface FileTreePanelProps {
   readonly onOpenFolder: () => void;
   readonly onOpenFile: (filePath: string) => void;
   readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
-  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind) => void;
-  readonly onRenameTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind, name: string) => void;
+  readonly onRenameTreeItem: (node: MarkdownFileTreeNode, name: string) => void;
   readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
 }
 
@@ -27,6 +31,7 @@ export function FileTreePanel({
 }: FileTreePanelProps) {
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
+  const [editing, setEditing] = useState<EditingState | null>(null);
 
   useEffect(() => {
     setCollapsedPaths(new Set());
@@ -68,6 +73,39 @@ export function FileTreePanel({
     });
   }, []);
 
+  const startCreate = useCallback((parentPath: string, kind: TreeItemKind) => {
+    const defaultName = kind === "markdown" ? "untitled.md" : "untitled";
+    // 展开目标目录
+    setCollapsedPaths((current) => {
+      const next = new Set(current);
+      next.delete(parentPath);
+      return next;
+    });
+    setEditing({ mode: "create", parentPath, kind, defaultName });
+  }, []);
+
+  const startRename = useCallback((node: MarkdownFileTreeNode) => {
+    setEditing({ mode: "rename", node });
+  }, []);
+
+  const commitEdit = useCallback(
+    (name: string) => {
+      if (!editing) return;
+      const trimmed = name.trim();
+      if (trimmed) {
+        if (editing.mode === "create") {
+          onCreateTreeItem(editing.parentPath, editing.kind, trimmed);
+        } else {
+          onRenameTreeItem(editing.node, trimmed);
+        }
+      }
+      setEditing(null);
+    },
+    [editing, onCreateTreeItem, onRenameTreeItem]
+  );
+
+  const cancelEdit = useCallback(() => setEditing(null), []);
+
   if (!folder) {
     return (
       <div className="p-3 text-[13px] text-[var(--theme-control-subtle)]">
@@ -108,18 +146,21 @@ export function FileTreePanel({
         node={folder.tree}
         activeFilePath={activeFilePath}
         collapsedPaths={collapsedPaths}
+        editing={editing}
         onToggleCollapsed={toggleCollapsed}
         onOpenFile={onOpenFile}
         onOpenAsset={onOpenAsset}
         onOpenContextMenu={openContextMenu}
+        onCommitEdit={commitEdit}
+        onCancelEdit={cancelEdit}
       />
       {contextMenu ? (
         <FileTreeContextMenu
           menu={contextMenu}
           parentPath={contextParentPath}
           onClose={() => setContextMenu(null)}
-          onCreateTreeItem={onCreateTreeItem}
-          onRenameTreeItem={onRenameTreeItem}
+          onStartCreate={startCreate}
+          onStartRename={startRename}
           onDeleteTreeItem={onDeleteTreeItem}
         />
       ) : null}
@@ -132,10 +173,13 @@ interface FileTreeNodeViewProps {
   readonly activeFilePath: string | null;
   readonly collapsedPaths: ReadonlySet<string>;
   readonly depth?: number;
+  readonly editing: EditingState | null;
   readonly onToggleCollapsed: (path: string) => void;
   readonly onOpenFile: (filePath: string) => void;
   readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
   readonly onOpenContextMenu: (event: React.MouseEvent, node: MarkdownFileTreeNode) => void;
+  readonly onCommitEdit: (name: string) => void;
+  readonly onCancelEdit: () => void;
 }
 
 function FileTreeNodeView({
@@ -143,15 +187,31 @@ function FileTreeNodeView({
   activeFilePath,
   collapsedPaths,
   depth = 0,
+  editing,
   onToggleCollapsed,
   onOpenFile,
   onOpenAsset,
-  onOpenContextMenu
+  onOpenContextMenu,
+  onCommitEdit,
+  onCancelEdit
 }: FileTreeNodeViewProps) {
   const paddingLeft = 16 + depth * 14;
 
+  const isRenaming = editing?.mode === "rename" && editing.node.path === node.path;
+
   if (node.kind === "markdown" || node.kind === "asset") {
     const isMarkdown = node.kind === "markdown";
+
+    if (isRenaming) {
+      return (
+        <InlineInput
+          defaultValue={node.name}
+          paddingLeft={paddingLeft}
+          onCommit={onCommitEdit}
+          onCancel={onCancelEdit}
+        />
+      );
+    }
 
     return (
       <button
@@ -172,6 +232,21 @@ function FileTreeNodeView({
   }
 
   const isCollapsed = collapsedPaths.has(node.path);
+  const isCreatingInside =
+    editing?.mode === "create" && editing.parentPath === node.path;
+
+  if (isRenaming) {
+    return (
+      <div>
+        <InlineInput
+          defaultValue={node.name}
+          paddingLeft={paddingLeft}
+          onCommit={onCommitEdit}
+          onCancel={onCancelEdit}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -185,25 +260,95 @@ function FileTreeNodeView({
         onContextMenu={(event) => onOpenContextMenu(event, node)}
       >
         <span className="file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-control-subtle)]">
-          {isCollapsed ? "▸" : "▾"}
+          {isCollapsed ? (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
         </span>
         <span className="overflow-hidden text-ellipsis whitespace-nowrap">{node.name}</span>
       </button>
-      {isCollapsed
-        ? null
-        : node.children?.map((child) => (
+      {!isCollapsed && (
+        <>
+          {node.children?.map((child) => (
             <FileTreeNodeView
               key={child.path}
               node={child}
               activeFilePath={activeFilePath}
               collapsedPaths={collapsedPaths}
               depth={depth + 1}
+              editing={editing}
               onToggleCollapsed={onToggleCollapsed}
               onOpenFile={onOpenFile}
               onOpenAsset={onOpenAsset}
               onOpenContextMenu={onOpenContextMenu}
+              onCommitEdit={onCommitEdit}
+              onCancelEdit={onCancelEdit}
             />
           ))}
+          {isCreatingInside && (
+            <InlineInput
+              defaultValue={editing.defaultName}
+              paddingLeft={16 + (depth + 1) * 14}
+              onCommit={onCommitEdit}
+              onCancel={onCancelEdit}
+            />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function InlineInput({
+  defaultValue,
+  paddingLeft,
+  onCommit,
+  onCancel
+}: {
+  readonly defaultValue: string;
+  readonly paddingLeft: number;
+  readonly onCommit: (name: string) => void;
+  readonly onCancel: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    // 选中不含扩展名的部分
+    const dotIndex = el.value.lastIndexOf(".");
+    el.setSelectionRange(0, dotIndex > 0 ? dotIndex : el.value.length);
+  }, []);
+
+  const commit = () => {
+    const val = inputRef.current?.value ?? "";
+    onCommit(val);
+  };
+
+  return (
+    <div className="flex min-h-7 items-center" style={{ paddingLeft }}>
+      <input
+        ref={inputRef}
+        type="text"
+        defaultValue={defaultValue}
+        className="h-5.5 w-full min-w-0 rounded-[3px] border border-(--theme-accent,#4f8ef7) bg-(--theme-surface) px-1.5 text-[13px] leading-[1.35] text-(--theme-title) outline-none ring-2 ring-(--theme-accent,#4f8ef7)/20"
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+      />
     </div>
   );
 }
@@ -214,23 +359,23 @@ function FileKindIcon({ kind }: { readonly kind: "markdown" | "asset" }) {
   return (
     <span
       className={cx(
-        "file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-control-subtle)]",
-        kind === "asset" && "text-[var(--theme-control-text)]"
+        "file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-(--theme-control-subtle)",
+        kind === "asset" && "text-(--theme-control-text)"
       )}
       title={title}
       aria-label={title}
     >
       {kind === "markdown" ? (
-        <svg className="h-[15px] w-[15px]" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M3.5 1.75h6.25l2.75 2.75v9.75H3.5z" />
-          <path d="M9.75 1.75V4.5h2.75" />
-          <path d="M5.25 10.75V6.25l2 2 2-2v4.5" />
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+          <path d="M3.5 9V4.5L5.5 7L7.5 4.5V9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M9.5 4.5V9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
         </svg>
       ) : (
-        <svg className="h-[15px] w-[15px]" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.75 3.25h10.5v9.5H2.75z" />
-          <circle cx="10.75" cy="5.75" r="1" />
-          <path d="M4.25 11.25 7 8.5l1.75 1.75 1.25-1.5 1.75 2.5" />
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+          <circle cx="9" cy="4.5" r="1" fill="currentColor"/>
+          <path d="M1.5 9.5L4 7L6 9L8 7.5L11.5 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       )}
     </span>
@@ -241,8 +386,8 @@ interface FileTreeContextMenuProps {
   readonly menu: FileTreeContextMenuState;
   readonly parentPath: string;
   readonly onClose: () => void;
-  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind) => void;
-  readonly onRenameTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onStartCreate: (parentPath: string, kind: TreeItemKind) => void;
+  readonly onStartRename: (node: MarkdownFileTreeNode) => void;
   readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
 }
 
@@ -250,8 +395,8 @@ function FileTreeContextMenu({
   menu,
   parentPath,
   onClose,
-  onCreateTreeItem,
-  onRenameTreeItem,
+  onStartCreate,
+  onStartRename,
   onDeleteTreeItem
 }: FileTreeContextMenuProps) {
   const run = useCallback(
@@ -263,39 +408,30 @@ function FileTreeContextMenu({
   );
 
   return (
-    <Menu>
-      <MenuButton
-        className="fixed h-px w-px opacity-0"
-        style={{ left: menu.x, top: menu.y }}
-        aria-label="文件树菜单"
-      />
-      <MenuItems
-        static
-        anchor="bottom start"
-        className="fixed z-50 min-w-[150px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-[0_12px_30px_rgba(51,51,51,0.14)]"
-        style={{ left: menu.x, top: menu.y }}
-        onClick={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.preventDefault()}
-      >
-        <ContextMenuItem onClick={() => run(() => onCreateTreeItem(parentPath, "markdown"))}>
-          新建文件
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => run(() => onCreateTreeItem(parentPath, "directory"))}>
-          新建文件夹
-        </ContextMenuItem>
-        {menu.node ? (
-          <>
-            <div className="m-1 h-px bg-[var(--theme-border)]" />
-            <ContextMenuItem onClick={() => run(() => onRenameTreeItem(menu.node!))}>
-              重命名
-            </ContextMenuItem>
-            <ContextMenuItem danger onClick={() => run(() => onDeleteTreeItem(menu.node!))}>
-              删除
-            </ContextMenuItem>
-          </>
-        ) : null}
-      </MenuItems>
-    </Menu>
+    <div
+      className="fixed z-50 min-w-37.5 rounded-md border border-(--theme-border) bg-(--theme-surface) p-1 shadow-[0_12px_30px_rgba(51,51,51,0.14)]"
+      style={{ left: menu.x, top: menu.y }}
+      onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.preventDefault()}
+    >
+      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "markdown"))}>
+        新建文件
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "directory"))}>
+        新建文件夹
+      </ContextMenuItem>
+      {menu.node ? (
+        <>
+          <div className="m-1 h-px bg-(--theme-border)" />
+          <ContextMenuItem onClick={() => run(() => onStartRename(menu.node!))}>
+            重命名
+          </ContextMenuItem>
+          <ContextMenuItem danger onClick={() => run(() => onDeleteTreeItem(menu.node!))}>
+            删除
+          </ContextMenuItem>
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -309,17 +445,15 @@ function ContextMenuItem({
   readonly onClick: () => void;
 }) {
   return (
-    <MenuItem>
-      <button
-        type="button"
-        className={cx(
-          "block min-h-7 w-full rounded-sm border-0 bg-transparent px-2 py-1 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] data-focus:bg-[var(--theme-control-hover)] data-focus:text-[var(--theme-title)]",
-          danger && "text-[var(--theme-danger-text)]"
-        )}
-        onClick={onClick}
-      >
-        {children}
-      </button>
-    </MenuItem>
+    <button
+      type="button"
+      className={cx(
+        "block min-h-7 w-full rounded-sm border-0 bg-transparent px-2 py-1 text-left text-[13px] leading-[1.35] text-(--theme-control-text) transition-colors hover:bg-(--theme-control-hover) hover:text-(--theme-title)",
+        danger && "text-(--theme-danger-text)"
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }

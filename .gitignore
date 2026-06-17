@@ -58,6 +58,7 @@ Thumbs.db
 tmp/
 temp/
 .omx/
+.omc/
 .codex/*
 !.codex/agents/
 !.codex/agents/**

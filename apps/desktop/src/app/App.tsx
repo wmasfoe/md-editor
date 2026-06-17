@@ -31,8 +31,8 @@ export function App() {
             onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
             onOpenFile={(filePath) => void editor.openDocumentFromTree(filePath)}
             onOpenAsset={(node) => editor.openAssetFromTree(node)}
-            onCreateTreeItem={(parentPath, kind) => void editor.createTreeItem(parentPath, kind)}
-            onRenameTreeItem={(node) => void editor.renameTreeItem(node)}
+            onCreateTreeItem={(parentPath, kind, name) => void editor.createTreeItem(parentPath, kind, name)}
+            onRenameTreeItem={(node, name) => void editor.renameTreeItem(node, name)}
             onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
           />
         ) : (
