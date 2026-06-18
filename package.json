@@ -9,6 +9,7 @@
     "dev": "pnpm --filter @md-editor/desktop dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
     "build:macos": "pnpm --filter @md-editor/desktop tauri build --bundles dmg",
+    "release": "node scripts/release/publish-desktop.mjs",
     "release:version": "node scripts/release/version-desktop.mjs",
     "smoke:editor-core": "node --experimental-strip-types scripts/smoke-editor-core.mjs",
     "build": "pnpm -r --sort build",
