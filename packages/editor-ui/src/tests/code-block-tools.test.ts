@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getLanguageSuggestions, planCodeBlockTabIndent } from "../utils/code-block-tools";
+import {
+  getLanguageSuggestions,
+  normalizeCodeLanguage,
+  planCodeBlockTabIndent
+} from "../utils/code-block-tools";
 
 describe("code block tools", () => {
   it("plans tab insertion only inside code blocks", () => {
@@ -28,5 +32,11 @@ describe("code block tools", () => {
     expect(getLanguageSuggestions("ts")).toContain("typescript");
     expect(getLanguageSuggestions("jx")).toContain("jsx");
     expect(getLanguageSuggestions("totally-custom-language")).toEqual([]);
+  });
+
+  it("normalizes free-form language labels before writing fenced info", () => {
+    expect(normalizeCodeLanguage(" Type Script ")).toBe("Type-Script");
+    expect(normalizeCodeLanguage("`custom lang`")).toBe("custom-lang");
+    expect(normalizeCodeLanguage(null)).toBe("");
   });
 });

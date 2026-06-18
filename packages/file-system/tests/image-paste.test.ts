@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   appendImageMarkdown,
+  defaultAssetsDirectoryForDocument,
   dirname,
+  imageAltTextFromFileName,
   joinPath,
   nextAssetFileName,
   planImagePasteTarget
@@ -51,6 +53,19 @@ describe("image paste target planning", () => {
 
     expect(second).toBe(first.replace(".png", "-2.png"));
   });
+
+  it("uses a sanitized preferred image name when provided", () => {
+    expect(nextAssetFileName(".PNG", [], "Architecture Diagram 01.png")).toBe(
+      "architecture-diagram-01.png"
+    );
+    expect(nextAssetFileName("png", ["architecture-diagram-01.png"], "Architecture Diagram 01.png")).toBe(
+      "architecture-diagram-01-2.png"
+    );
+  });
+
+  it("derives the default assets directory from the document path", () => {
+    expect(defaultAssetsDirectoryForDocument("/Users/me/docs/post.md")).toBe("/Users/me/docs/assets");
+  });
 });
 
 describe("image Markdown insertion", () => {
@@ -62,5 +77,10 @@ describe("image Markdown insertion", () => {
     expect(appendImageMarkdown("# Post", "assets/image.png", "diagram")).toBe(
       "# Post\n\n![diagram](assets/image.png)\n"
     );
+  });
+
+  it("derives readable alt text from a file name", () => {
+    expect(imageAltTextFromFileName("Architecture_Diagram-01.png")).toBe("Architecture Diagram 01");
+    expect(imageAltTextFromFileName()).toBe("");
   });
 });

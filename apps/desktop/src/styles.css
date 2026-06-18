@@ -25,6 +25,14 @@
   --theme-danger-text: #a30d22;
   --theme-code: #24292f;
   --theme-code-bg: #f8f8f8;
+  --theme-code-border: #e1e5ea;
+  --theme-code-gutter-bg: #f1f3f5;
+  --theme-code-gutter-text: #8b949e;
+  --theme-code-keyword: #8839ef;
+  --theme-code-string: #40a02b;
+  --theme-code-comment: #6c6f85;
+  --theme-code-number: #fe640b;
+  --theme-code-tag: #179299;
   --theme-inline-code-bg: #f3f4f4;
   --theme-shadow: 0 1px 1px rgba(0, 28, 36, 0.08), 0 4px 20px rgba(0, 0, 0, 0.08);
   --theme-content-width: 860px;
@@ -294,9 +302,9 @@ button {
   position: relative;
   overflow: auto;
   margin: 1.25rem 0 1.75rem;
-  border: 1px solid #e4e7eb;
+  border: 1px solid var(--theme-code-border);
   border-radius: 6px;
-  background: #f8f8f8;
+  background: var(--theme-code-bg);
   padding: 1rem 1.12rem;
   color: var(--theme-code);
   font-family: var(--theme-mono-font);
@@ -309,9 +317,9 @@ button {
   display: block;
   overflow: visible;
   margin: 1.25rem 0 1.75rem;
-  border: 1px solid #e1e5ea;
+  border: 1px solid var(--theme-code-border);
   border-radius: 6px;
-  background: #f8f8f8;
+  background: var(--theme-code-bg);
   color: var(--theme-code);
 }
 
@@ -369,7 +377,7 @@ button {
   position: relative;
   display: flex;
   margin: 0.35rem 0 1.75rem;
-  border: 1px solid #e1e5ea;
+  border: 1px solid var(--theme-code-border);
   border-radius: 8px;
   background: var(--theme-surface);
   font-size: 0.9em;
@@ -379,9 +387,9 @@ button {
 .milkdown .ProseMirror .md-code-block-line-numbers {
   flex-shrink: 0;
   padding: 1rem 0.75rem;
-  background: #f1f3f5;
-  border-right: 1px solid #e1e5ea;
-  color: #8b949e;
+  background: var(--theme-code-gutter-bg);
+  border-right: 1px solid var(--theme-code-border);
+  color: var(--theme-code-gutter-text);
   font-family: var(--theme-mono-font);
   font-size: 1em;
   line-height: 1.65;
@@ -442,7 +450,7 @@ button {
   width: 1.75rem;
   height: 1.75rem;
   place-items: center;
-  border: 1px solid #e1e5ea;
+  border: 1px solid var(--theme-code-border);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.92);
   padding: 0;
@@ -536,7 +544,7 @@ button {
   max-width: min(18rem, calc(100vw - 4rem));
   min-width: 10rem;
   height: 2rem;
-  border: 1px solid #e1e5ea;
+  border: 1px solid var(--theme-code-border);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 1px 2px rgba(31, 35, 44, 0.05);
@@ -565,29 +573,29 @@ button {
 .milkdown .ProseMirror pre code .keyword,
 .milkdown .ProseMirror pre code .cm-keyword,
 .milkdown .ProseMirror pre code .md-code-token-keyword {
-  color: #8839ef;
+  color: var(--theme-code-keyword);
   font-weight: 650;
 }
 
 .milkdown .ProseMirror pre code .string,
 .milkdown .ProseMirror pre code .cm-string,
 .milkdown .ProseMirror pre code .md-code-token-string {
-  color: #40a02b;
+  color: var(--theme-code-string);
 }
 
 .milkdown .ProseMirror pre code .comment,
 .milkdown .ProseMirror pre code .cm-comment,
 .milkdown .ProseMirror pre code .md-code-token-comment {
-  color: #6c6f85;
+  color: var(--theme-code-comment);
   font-style: italic;
 }
 
 .milkdown .ProseMirror pre code .md-code-token-number {
-  color: #fe640b;
+  color: var(--theme-code-number);
 }
 
 .milkdown .ProseMirror pre code .md-code-token-tag {
-  color: #179299;
+  color: var(--theme-code-tag);
 }
 
 .milkdown .ProseMirror hr {
@@ -602,6 +610,12 @@ button {
   max-width: 100%;
   margin: 1rem auto;
   border-radius: 0;
+}
+
+.milkdown .ProseMirror img.ProseMirror-selectednode,
+.milkdown .ProseMirror img.md-editor-selected-image {
+  outline: 2px solid var(--theme-primary);
+  outline-offset: 3px;
 }
 
 .milkdown .ProseMirror .tableWrapper {

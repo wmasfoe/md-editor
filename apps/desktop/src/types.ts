@@ -13,6 +13,7 @@ export interface FileTreeContextMenuState {
 export interface PastedImageInput {
   readonly file: File;
   readonly mimeType: string;
+  readonly preferredName?: string;
 }
 
 export interface PastedImageFile {

@@ -79,6 +79,7 @@ export interface FileService {
 export interface ImagePasteInput {
   readonly documentPath: string | null;
   readonly mimeType: string;
+  readonly preferredName?: string;
   readonly existingAssetNames?: readonly string[];
 }
 
@@ -87,6 +88,27 @@ export interface ImagePasteTarget {
   readonly fileName: string;
   readonly absolutePath: string;
   readonly markdownPath: string;
+}
+
+export interface ImageSaveContext {
+  readonly documentPath: string;
+  readonly defaultAssetsDir: string;
+  readonly preferredName?: string;
+}
+
+export interface ImageSaveInput {
+  readonly bytes: Uint8Array;
+  readonly mimeType: string;
+  readonly context: ImageSaveContext;
+}
+
+export interface ImageSaveResult {
+  readonly src: string;
+  readonly storageType: "local" | "remote";
+}
+
+export interface ImageStorageProvider {
+  save(input: ImageSaveInput): Promise<ImageSaveResult>;
 }
 
 export type ImagePasteError = "SAVE_FIRST" | "UNSUPPORTED_IMAGE_TYPE";
@@ -153,7 +175,7 @@ export function planImagePasteTarget(
 
   const documentDirectory = dirname(input.documentPath);
   const assetsDirectory = joinPath(documentDirectory, "assets");
-  const fileName = nextAssetFileName(extension, input.existingAssetNames ?? []);
+  const fileName = nextAssetFileName(extension, input.existingAssetNames ?? [], input.preferredName);
 
   return ok({
     assetsDirectory,
@@ -163,16 +185,21 @@ export function planImagePasteTarget(
   });
 }
 
-export function nextAssetFileName(extension: string, existingNames: readonly string[]): string {
+export function nextAssetFileName(
+  extension: string,
+  existingNames: readonly string[],
+  preferredName?: string
+): string {
   const names = new Set(existingNames);
-  const base = timestampSlug(new Date());
-  let candidate = `${base}.${extension}`;
+  const normalizedExtension = extension.replace(/^\./u, "").toLowerCase();
+  const base = sanitizeAssetBaseName(preferredName) ?? timestampSlug(new Date());
+  let candidate = `${base}.${normalizedExtension}`;
   let index = 2;
 
   // 这里只避开当前可见的文件名冲突；真正写盘时仍需要原子创建/写入，
   // 用来处理并发或外部进程带来的竞态。
   while (names.has(candidate)) {
-    candidate = `${base}-${index}.${extension}`;
+    candidate = `${base}-${index}.${normalizedExtension}`;
     index += 1;
   }
 
@@ -190,6 +217,19 @@ export function appendImageMarkdown(markdown: string, markdownPath: string, altT
   // 后续接入编辑器光标 API 时，可以替换为当前位置插入而不影响文件写盘契约。
   const separator = markdown.endsWith("\n") ? "\n" : "\n\n";
   return `${markdown}${separator}${imageMarkdown}\n`;
+}
+
+export function imageAltTextFromFileName(name?: string): string {
+  return name
+    ?.replace(/\.[^.]+$/u, "")
+    .trim()
+    .replace(/[_-]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    ?? "";
+}
+
+export function defaultAssetsDirectoryForDocument(documentPath: string): string {
+  return joinPath(dirname(documentPath), "assets");
 }
 
 export function dirname(path: string): string {
@@ -211,4 +251,15 @@ function timestampSlug(date: Date): string {
     .replace(/[-:]/g, "")
     .replace(/\.\d{3}Z$/, "Z")
     .toLowerCase();
+}
+
+function sanitizeAssetBaseName(name?: string): string | null {
+  const base = name
+    ?.replace(/\.[^.]+$/u, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/gu, "-")
+    .replace(/^-+|-+$/gu, "");
+
+  return base ? base.slice(0, 80) : null;
 }

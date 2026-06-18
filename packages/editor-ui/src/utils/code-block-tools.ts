@@ -55,6 +55,7 @@ export const codeLanguageOptions = [
   { label: "JSX", value: "jsx" },
   { label: "Markdown", value: "markdown" },
   { label: "MDX", value: "mdx" },
+  { label: "Text", value: "text" },
   { label: "Python", value: "python" },
   { label: "Ruby", value: "ruby" },
   { label: "Rust", value: "rust" },
@@ -453,8 +454,10 @@ class MarkdownCodeBlockNodeView implements NodeView {
   }
 }
 
-function normalizeCodeLanguage(language: unknown) {
-  return typeof language === "string" ? language.trim().replace(/[\s`]+/gu, "-") : "";
+export function normalizeCodeLanguage(language: unknown) {
+  return typeof language === "string"
+    ? language.trim().replace(/[\s`]+/gu, "-").replace(/^-+|-+$/gu, "")
+    : "";
 }
 
 function parseManagedRawBlockLanguage(language: unknown): { readonly kind: string; readonly title: string } | null {
