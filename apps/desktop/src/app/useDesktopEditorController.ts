@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
+import { switchEditorModeSafely, type EditorMode, createRecentFilesStore } from "@md-editor/editor-core";
 import type { TocTarget } from "@md-editor/editor-ui";
 import type {
   FileTreeMutationResult,
@@ -21,6 +21,8 @@ import {
 import { runtime } from "./editor-runtime";
 import { resolveOpenDocumentMutation } from "./file-tree-mutations";
 import { bindPasteImageListener } from "./paste-image-listener";
+
+const recentFilesStore = createRecentFilesStore();
 
 export function useDesktopEditorController() {
   const [snapshot, setSnapshot] = useState(() => runtime.getSnapshot());
@@ -73,6 +75,13 @@ export function useDesktopEditorController() {
     );
     setErrorMessage(null);
     setOpenedAsset(null);
+
+    // 添加到最近文件列表
+    const fileName = document.filePath.split("/").pop() || "Untitled";
+    recentFilesStore.add({
+      path: document.filePath,
+      name: fileName
+    });
   }, []);
 
   const refreshFolderForDocumentPath = useCallback(
@@ -334,6 +343,31 @@ export function useDesktopEditorController() {
     setSidebarMode((current) => (current === "files" ? "outline" : "files"));
   }, []);
 
+  const getRecentFiles = useCallback(() => {
+    return recentFilesStore.list();
+  }, []);
+
+  const openRecentFile = useCallback(
+    async (filePath: string) => {
+      if (!ensureDiscardAllowed()) {
+        return;
+      }
+
+      await runFileAction("正在打开", async () => {
+        try {
+          const document = await fileService.openDocumentAtPath(filePath);
+          replaceDocument(document);
+          await refreshFolderForDocumentPath(document.filePath);
+        } catch (error) {
+          // 文件可能已被删除或移动，从最近列表中移除
+          recentFilesStore.remove(filePath);
+          throw error;
+        }
+      });
+    },
+    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]
+  );
+
   const dispatchCommand = useCallback(
     async (id: string) => {
       await runtime.commands.dispatch(id, {
@@ -388,6 +422,8 @@ export function useDesktopEditorController() {
     jumpToTocItem,
     setActiveOutlineId,
     updateActiveOutlineForLine,
-    resolveImageSrc
+    resolveImageSrc,
+    getRecentFiles,
+    openRecentFile
   };
 }

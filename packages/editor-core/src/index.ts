@@ -7,7 +7,9 @@ export * from "./callout.ts";
 export * from "./content.ts";
 export * from "./file-lifecycle.ts";
 export * from "./markdown.ts";
+export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
+export * from "./recent-files.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
