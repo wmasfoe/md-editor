@@ -12,10 +12,10 @@ import {
   rewriteMarkdownImageSourcesForPreview,
   rewriteRawBlocksForPreview
 } from "@md-editor/markdown-fidelity";
-import { codeBlockToolsPlugin } from "./code-block-tools";
-import { codeHighlightPlugin } from "./code-highlight";
+import { codeBlockToolsPlugin } from "../utils/code-block-tools";
+import { codeHighlightPlugin } from "../utils/code-highlight";
 import type { OutlineItem } from "./OutlinePanel";
-import type { TocTarget } from "./types";
+import type { TocTarget } from "../types";
 
 export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
