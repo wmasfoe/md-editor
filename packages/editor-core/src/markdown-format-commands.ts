@@ -20,6 +20,9 @@ export function createMarkdownFormatFeature(): FeatureDescriptor {
     title: "Markdown Formatting Commands",
     setup(context: FeatureContext) {
       // 格式化命令 - 这些命令需要由 Milkdown/ProseMirror 层实现具体逻辑
+      // 注意：大部分快捷键已由 Milkdown 的 commonmark 和 gfm presets 内置
+      // 我们只注册命令，不注册快捷键，避免与 Milkdown 冲突
+
       context.commands.register({
         id: "format.bold",
         title: "Bold",
@@ -117,78 +120,17 @@ export function createMarkdownFormatFeature(): FeatureDescriptor {
         }
       });
 
-      // 快捷键绑定
-      context.keymaps.register({
-        id: "format.bold",
-        key: "Mod-B",
-        commandId: "format.bold"
-      });
-
-      context.keymaps.register({
-        id: "format.italic",
-        key: "Mod-I",
-        commandId: "format.italic"
-      });
-
-      context.keymaps.register({
-        id: "format.code",
-        key: "Mod-E",
-        commandId: "format.code"
-      });
-
-      context.keymaps.register({
-        id: "format.strikethrough",
-        key: "Mod-Shift-X",
-        commandId: "format.strikethrough"
-      });
-
-      context.keymaps.register({
-        id: "format.link",
-        key: "Mod-K",
-        commandId: "format.link"
-      });
-
-      context.keymaps.register({
-        id: "format.codeBlock",
-        key: "Mod-Shift-C",
-        commandId: "format.codeBlock"
-      });
-
-      context.keymaps.register({
-        id: "format.blockquote",
-        key: "Mod-Shift-.",
-        commandId: "format.blockquote"
-      });
-
-      context.keymaps.register({
-        id: "format.bulletList",
-        key: "Mod-Shift-8",
-        commandId: "format.bulletList"
-      });
-
-      context.keymaps.register({
-        id: "format.orderedList",
-        key: "Mod-Shift-7",
-        commandId: "format.orderedList"
-      });
-
-      context.keymaps.register({
-        id: "format.heading1",
-        key: "Mod-Alt-1",
-        commandId: "format.heading1"
-      });
-
-      context.keymaps.register({
-        id: "format.heading2",
-        key: "Mod-Alt-2",
-        commandId: "format.heading2"
-      });
-
-      context.keymaps.register({
-        id: "format.heading3",
-        key: "Mod-Alt-3",
-        commandId: "format.heading3"
-      });
+      // 注意：快捷键已由 Milkdown 内置处理，无需重复注册
+      // Milkdown 内置快捷键：
+      // - Cmd+B: 加粗
+      // - Cmd+I: 斜体
+      // - Cmd+`: 行内代码
+      // - Cmd+K: 插入链接
+      // - Cmd+Shift+X: 删除线
+      // - Cmd+Shift+8: 无序列表
+      // - Cmd+Shift+7: 有序列表
+      // - Cmd+Shift+.: 引用块
+      // - Cmd+Alt+1/2/3/4/5/6: 标题
     }
   };
 }

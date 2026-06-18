@@ -10,6 +10,7 @@ export type DesktopCommandDispatcher = (id: string) => Promise<void>;
 const MENU_COMMANDS: Record<string, string> = {
   "md-editor:new": "file.new",
   "md-editor:open": "file.open",
+  "md-editor:open-recent": "file.openRecent",
   "md-editor:open-folder": "file.openFolder",
   "md-editor:save": "file.save",
   "md-editor:save-as": "file.saveAs",
@@ -50,9 +51,13 @@ export function bindRuntimeKeyboardShortcuts(dispatchCommand: DesktopCommandDisp
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {
   return listenToDesktopMenuActions((action) => {
+    console.log('[Menu Event]', action);
     const commandId = MENU_COMMANDS[action];
+    console.log('[Command ID]', commandId);
     if (commandId) {
       void dispatchCommand(commandId);
+    } else {
+      console.warn('[Menu Event] No command mapped for action:', action);
     }
   });
 }

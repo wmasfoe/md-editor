@@ -73,7 +73,8 @@ pub fn run() {
         .on_menu_event(|app, event| {
             let action = event.id().as_ref();
             if action.starts_with("md-editor:") {
-                let _ = app.emit_to("main", MENU_ACTION_EVENT, action);
+                // Tauri v2: emit to all webviews instead of targeting a specific window label
+                let _ = app.emit(MENU_ACTION_EVENT, action);
             }
         })
         .plugin(tauri_plugin_dialog::init())
@@ -108,6 +109,12 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
         .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
+        .item(&menu_item(
+            app,
+            "md-editor:open-recent",
+            "Open Recent...",
+            "",
+        )?)
         .item(&menu_item(
             app,
             "md-editor:open-folder",

@@ -146,6 +146,56 @@ export function useDesktopEditorController() {
     });
   }, [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]);
 
+  const openRecentFile = useCallback(
+    async (filePath: string) => {
+      if (!ensureDiscardAllowed()) {
+        return;
+      }
+
+      await runFileAction("正在打开", async () => {
+        try {
+          const document = await fileService.openDocumentAtPath(filePath);
+          replaceDocument(document);
+          await refreshFolderForDocumentPath(document.filePath);
+        } catch (error) {
+          // 文件可能已被删除或移动，从最近列表中移除
+          recentFilesStore.remove(filePath);
+          throw error;
+        }
+      });
+    },
+    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]
+  );
+
+  const openRecentDocument = useCallback(async () => {
+    const recentFiles = recentFilesStore.list();
+
+    if (recentFiles.length === 0) {
+      setErrorMessage("没有最近打开的文件");
+      return;
+    }
+
+    // 创建选择对话框
+    const options = recentFiles.map((file, index) =>
+      `${index + 1}. ${file.name}\n   ${file.path}`
+    ).join('\n\n');
+
+    const choice = window.prompt(
+      `选择要打开的文件 (输入序号 1-${recentFiles.length}):\n\n${options}`,
+      "1"
+    );
+
+    if (!choice) return;
+
+    const index = parseInt(choice, 10) - 1;
+    if (isNaN(index) || index < 0 || index >= recentFiles.length) {
+      setErrorMessage("无效的选择");
+      return;
+    }
+
+    await openRecentFile(recentFiles[index].path);
+  }, [openRecentFile]);
+
   const openFolder = useCallback(async () => {
     await runFileAction("正在打开文件夹", async () => {
       const openedFolder = await fileService.openFolder();
@@ -347,27 +397,6 @@ export function useDesktopEditorController() {
     return recentFilesStore.list();
   }, []);
 
-  const openRecentFile = useCallback(
-    async (filePath: string) => {
-      if (!ensureDiscardAllowed()) {
-        return;
-      }
-
-      await runFileAction("正在打开", async () => {
-        try {
-          const document = await fileService.openDocumentAtPath(filePath);
-          replaceDocument(document);
-          await refreshFolderForDocumentPath(document.filePath);
-        } catch (error) {
-          // 文件可能已被删除或移动，从最近列表中移除
-          recentFilesStore.remove(filePath);
-          throw error;
-        }
-      });
-    },
-    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]
-  );
-
   const dispatchCommand = useCallback(
     async (id: string) => {
       await runtime.commands.dispatch(id, {
@@ -375,6 +404,7 @@ export function useDesktopEditorController() {
         actions: {
           newDocument: createNewDocument,
           openDocument,
+          openRecentDocument,
           openFolder,
           saveDocument: () => saveDocument(false),
           saveDocumentAs: () => saveDocument(true),
@@ -387,6 +417,7 @@ export function useDesktopEditorController() {
     [
       createNewDocument,
       openDocument,
+      openRecentDocument,
       openFolder,
       saveDocument,
       switchMode,
