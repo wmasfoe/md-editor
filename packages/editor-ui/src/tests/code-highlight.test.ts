@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tokenizeCodeForHighlighting } from "./code-highlight";
+import { tokenizeCodeForHighlighting } from "../utils/code-highlight";
 
 describe("code block highlighting", () => {
   it("tokenizes common fenced code block syntax without changing source text", () => {
