@@ -13,6 +13,10 @@ import { java } from "@codemirror/lang-java";
 import { cpp } from "@codemirror/lang-cpp";
 import { python } from "@codemirror/lang-python";
 import { rust } from "@codemirror/lang-rust";
+import { go } from "@codemirror/lang-go";
+import { StreamLanguage } from "@codemirror/language";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+import { swift } from "@codemirror/legacy-modes/mode/swift";
 
 const tabText = "  ";
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -30,6 +34,9 @@ function getLanguageExtension(language: string) {
   if (lang === "c" || lang === "cpp" || lang === "c++" || lang === "csharp" || lang === "c#") return cpp();
   if (lang === "python" || lang === "py") return python();
   if (lang === "rust" || lang === "rs") return rust();
+  if (lang === "go") return go();
+  if (lang === "ruby" || lang === "rb") return StreamLanguage.define(ruby);
+  if (lang === "swift") return StreamLanguage.define(swift);
   return null;
 }
 
