@@ -8,7 +8,9 @@ import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
-  rewriteMarkdownImageSourcesForPreview
+  restoreRawBlocksFromPreview,
+  rewriteMarkdownImageSourcesForPreview,
+  rewriteRawBlocksForPreview
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "./code-block-tools";
 import { codeHighlightPlugin } from "./code-highlight";
@@ -41,10 +43,19 @@ function MilkdownEditorInner({
   resolveImageSrc = (src) => src
 }: MilkdownEditorProps) {
   const previewInput = useMemo(
-    () => rewriteMarkdownImageSourcesForPreview(snapshot.markdown, resolveImageSrc),
+    () => {
+      const rawPreview = rewriteRawBlocksForPreview(snapshot.markdown);
+      const imagePreview = rewriteMarkdownImageSourcesForPreview(rawPreview.markdown, resolveImageSrc);
+      return {
+        markdown: imagePreview.markdown,
+        imageSourceMap: imagePreview.sourceMap,
+        rawSourceMap: rawPreview.sourceMap
+      };
+    },
     []
   );
-  const sourceMapRef = useRef(previewInput.sourceMap);
+  const imageSourceMapRef = useRef(previewInput.imageSourceMap);
+  const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEditor(
@@ -57,7 +68,8 @@ function MilkdownEditorInner({
           // URL resolution, then this component restores author-facing paths.
           ctx.get(listenerCtx).markdownUpdated((_, markdown, previousMarkdown) => {
             if (markdown !== previousMarkdown) {
-              onChange(restoreMarkdownImageSources(markdown, sourceMapRef.current));
+              const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
+              onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
             }
           });
         })
