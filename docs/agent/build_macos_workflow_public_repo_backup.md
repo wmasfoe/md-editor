@@ -6,7 +6,7 @@
 
 ## 备份 workflow
 
-将下面内容复制到 `.github/workflows/build-macos.yml` 可恢复为“直接从本仓库 Release 下载 DMG”的版本：
+下面内容只用于保留“公开仓库时直接从本仓库 Release 下载 DMG”的差异参考。当前实际发版策略是 `.github/workflows/release-macos.yml` 由 `v*` tag 触发 Release，`.github/workflows/build-macos.yml` 对分支 push / PR 只做 lint、typecheck、test 和构建校验；如果要恢复本备份中的下载源，请把下载源差异移植到当前 release workflow，不能直接恢复旧的 `main` push 发版条件。
 
 ```yaml
 name: Build macOS App
@@ -143,4 +143,3 @@ jobs:
           git commit -m "Update md-editor to ${{ steps.release_version.outputs.tag }}"
           git push origin main
 ```
-

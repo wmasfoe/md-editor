@@ -1,0 +1,219 @@
+name: Release macOS App
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Publish tagged macOS release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Read release version
+        id: release_version
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require("fs");
+          const rootPackage = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const desktopPackage = JSON.parse(fs.readFileSync("apps/desktop/package.json", "utf8"));
+          const tauriConfig = JSON.parse(fs.readFileSync("apps/desktop/src-tauri/tauri.conf.json", "utf8"));
+          const cargoToml = fs.readFileSync("apps/desktop/src-tauri/Cargo.toml", "utf8");
+          const cargoVersion = cargoToml.match(/^\s*version\s*=\s*"([^"]+)"/m)?.[1];
+          const versions = [rootPackage.version, desktopPackage.version, tauriConfig.version, cargoVersion];
+          const isPrerelease = tauriConfig.version.includes("-");
+
+          if (versions.some((version) => version !== tauriConfig.version)) {
+            throw new Error(`Version mismatch: root=${rootPackage.version}, desktop=${desktopPackage.version}, tauri=${tauriConfig.version}, cargo=${cargoVersion}`);
+          }
+
+          console.log(`version=${tauriConfig.version}`);
+          console.log(`tag=v${tauriConfig.version}`);
+          console.log(`is_prerelease=${isPrerelease}`);
+          NODE
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
+        run: |
+          if [[ "${GITHUB_REF_NAME}" != "${RELEASE_TAG}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match app version tag ${RELEASE_TAG}." >&2
+            exit 1
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Distribution note:
+      # A plain Tauri DMG can be built and installed locally, but macOS Gatekeeper
+      # treats downloaded unsigned/unnotarized apps as untrusted. That is why users
+      # may see "app is damaged" until they manually clear com.apple.quarantine.
+      #
+      # When you add Apple distribution support, insert the certificate/keychain
+      # setup before this build step and expose the Tauri/Apple signing env vars
+      # here, so the generated .app/.dmg is Developer ID signed and notarized.
+      - name: Build macOS app
+        run: pnpm build:macos
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-editor-macos-dmg
+          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      # Stable release users and Homebrew users both receive the DMG uploaded
+      # below. Prereleases stop after the GitHub prerelease upload and do not
+      # publish to the public Homebrew tap.
+      #
+      # If signing/notarization is added later, validate the exact DMG in this
+      # directory before these upload steps, for example with spctl and stapler.
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          IS_PRERELEASE: ${{ steps.release_version.outputs.is_prerelease }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              gh release edit "$RELEASE_TAG" --prerelease
+            fi
+
+            gh release upload "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              --clobber
+          else
+            release_flags=()
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              release_flags+=(--prerelease)
+            fi
+
+            gh release create "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              --title "Markdown Editor $RELEASE_TAG" \
+              --notes "Automated macOS DMG build for $RELEASE_VERSION." \
+              "${release_flags[@]}"
+          fi
+
+      - name: Read DMG metadata
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        id: dmg_metadata
+        run: |
+          dmg_path="$(find apps/desktop/src-tauri/target/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
+
+          if [[ -z "$dmg_path" ]]; then
+            echo "No DMG file found." >&2
+            exit 1
+          fi
+
+          echo "file_name=$(basename "$dmg_path")" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$dmg_path" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Clone Homebrew tap
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/wmasfoe/homebrew-tap.git" homebrew-tap
+
+      - name: Publish public Homebrew asset
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo wmasfoe/homebrew-tap >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              --repo wmasfoe/homebrew-tap \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              --repo wmasfoe/homebrew-tap \
+              --title "Markdown Editor $RELEASE_TAG" \
+              --notes "Public Homebrew cask asset for Markdown Editor $RELEASE_VERSION."
+          fi
+
+      - name: Read public Homebrew asset URL
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        id: homebrew_asset
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+        run: |
+          download_url="$(
+            gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" \
+              --jq '.assets[] | select(.name | endswith(".dmg")) | .browser_download_url' \
+              | head -n 1
+          )"
+
+          if [[ -z "$download_url" ]]; then
+            echo "No public DMG asset found on wmasfoe/homebrew-tap release $RELEASE_TAG." >&2
+            exit 1
+          fi
+
+          echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
+
+      - name: Update Homebrew cask
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          DMG_FILE_NAME: ${{ steps.dmg_metadata.outputs.file_name }}
+          DMG_SHA256: ${{ steps.dmg_metadata.outputs.sha256 }}
+          CASK_OUTPUT_PATH: homebrew-tap/Casks/md-editor.rb
+          CASK_RELEASE_REPOSITORY: wmasfoe/homebrew-tap
+          CASK_RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          CASK_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
+        run: node scripts/release/write-homebrew-cask.mjs
+
+      - name: Publish Homebrew tap
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        working-directory: homebrew-tap
+        run: |
+          if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+            git checkout -b main
+          fi
+
+          git add Casks/md-editor.rb
+
+          if git diff --cached --quiet -- Casks/md-editor.rb; then
+            echo "Homebrew cask is already up to date."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update md-editor to ${{ steps.release_version.outputs.tag }}"
+          git push origin main
