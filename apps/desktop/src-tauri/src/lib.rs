@@ -13,6 +13,14 @@ use tauri_plugin_dialog::DialogExt;
 
 const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
+#[derive(Serialize, Deserialize, Clone)]
+struct RecentFile {
+    path: String,
+    name: String,
+    #[serde(rename = "lastOpenedAt")]
+    last_opened_at: u64,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MarkdownDocumentFile {
@@ -88,10 +96,40 @@ pub fn run() {
             rename_markdown_tree_item,
             delete_markdown_tree_item,
             save_markdown_document,
-            save_pasted_image
+            save_pasted_image,
+            save_recent_files,
+            update_recent_files_menu
         ])
         .run(tauri::generate_context!())
         .expect("error while running Markdown Editor");
+}
+
+fn load_recent_files() -> Vec<RecentFile> {
+    // Read recent files from app data directory
+    let app_data_dir = match dirs::data_dir() {
+        Some(dir) => dir.join("md-editor"),
+        None => return Vec::new(),
+    };
+
+    let recent_files_path = app_data_dir.join("recent-files.json");
+
+    if !recent_files_path.exists() {
+        return Vec::new();
+    }
+
+    match fs::read_to_string(&recent_files_path) {
+        Ok(content) => {
+            match serde_json::from_str::<Vec<RecentFile>>(&content) {
+                Ok(mut files) => {
+                    // Sort by last opened time (newest first)
+                    files.sort_by(|a, b| b.last_opened_at.cmp(&a.last_opened_at));
+                    files
+                }
+                Err(_) => Vec::new(),
+            }
+        }
+        Err(_) => Vec::new(),
+    }
 }
 
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
@@ -106,15 +144,28 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .quit()
         .build()?;
 
+    // Build Open Recent submenu
+    let recent_files = load_recent_files();
+    let mut open_recent_submenu = SubmenuBuilder::new(app, "Open Recent");
+
+    if recent_files.is_empty() {
+        open_recent_submenu = open_recent_submenu.item(&menu_item(app, "md-editor:no-recent", "No Recent Files", "")?);
+    } else {
+        for (index, file) in recent_files.iter().take(10).enumerate() {
+            let id = format!("md-editor:open-recent:{}", index);
+            open_recent_submenu = open_recent_submenu.item(&menu_item(app, &id, &file.name, "")?);
+        }
+        open_recent_submenu = open_recent_submenu
+            .separator()
+            .item(&menu_item(app, "md-editor:clear-recent", "Clear Recent Files", "")?);
+    }
+
+    let open_recent_menu = open_recent_submenu.build()?;
+
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
         .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
-        .item(&menu_item(
-            app,
-            "md-editor:open-recent",
-            "Open Recent...",
-            "",
-        )?)
+        .items(&[&open_recent_menu])
         .item(&menu_item(
             app,
             "md-editor:open-folder",
@@ -433,6 +484,38 @@ fn save_pasted_image(
                 .to_string_lossy()
         ),
     })
+}
+
+#[tauri::command]
+fn save_recent_files(recent_files: Vec<RecentFile>) -> Result<(), String> {
+    let app_data_dir = dirs::data_dir()
+        .ok_or_else(|| "Cannot resolve app data directory".to_string())?
+        .join("md-editor");
+
+    // Ensure the directory exists
+    fs::create_dir_all(&app_data_dir)
+        .map_err(|error| format!("Failed to create app data directory: {error}"))?;
+
+    let recent_files_path = app_data_dir.join("recent-files.json");
+
+    let json = serde_json::to_string_pretty(&recent_files)
+        .map_err(|error| format!("Failed to serialize recent files: {error}"))?;
+
+    fs::write(&recent_files_path, json)
+        .map_err(|error| format!("Failed to write recent files: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn update_recent_files_menu(app: tauri::AppHandle) -> Result<(), String> {
+    let new_menu = build_app_menu(&app)
+        .map_err(|error| format!("Failed to build menu: {error}"))?;
+
+    app.set_menu(new_menu)
+        .map_err(|error| format!("Failed to set menu: {error}"))?;
+
+    Ok(())
 }
 
 fn choose_save_path(

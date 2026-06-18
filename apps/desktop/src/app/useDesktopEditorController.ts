@@ -168,6 +168,7 @@ export function useDesktopEditorController() {
   );
 
   const openRecentDocument = useCallback(async () => {
+    // 这个函数现在由菜单子项处理，保留作为后备方案
     const recentFiles = recentFilesStore.list();
 
     if (recentFiles.length === 0) {
@@ -175,25 +176,10 @@ export function useDesktopEditorController() {
       return;
     }
 
-    // 创建选择对话框
-    const options = recentFiles.map((file, index) =>
-      `${index + 1}. ${file.name}\n   ${file.path}`
-    ).join('\n\n');
-
-    const choice = window.prompt(
-      `选择要打开的文件 (输入序号 1-${recentFiles.length}):\n\n${options}`,
-      "1"
-    );
-
-    if (!choice) return;
-
-    const index = parseInt(choice, 10) - 1;
-    if (isNaN(index) || index < 0 || index >= recentFiles.length) {
-      setErrorMessage("无效的选择");
-      return;
+    // 如果菜单没有正确设置，显示第一个文件
+    if (recentFiles.length > 0) {
+      await openRecentFile(recentFiles[0].path);
     }
-
-    await openRecentFile(recentFiles[index].path);
   }, [openRecentFile]);
 
   const openFolder = useCallback(async () => {
@@ -426,10 +412,38 @@ export function useDesktopEditorController() {
     ]
   );
 
-  useEffect(() => bindRuntimeKeyboardShortcuts(dispatchCommand), [dispatchCommand]);
-  useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
+  useEffect(() => {
+    return bindRuntimeKeyboardShortcuts(dispatchCommand);
+  }, [dispatchCommand]);
+  useEffect(() => {
+    return bindDesktopMenuCommands(dispatchCommand);
+  }, [dispatchCommand]);
   useEffect(() => bindBrowserDirtyDocumentGuard(), []);
   useEffect(() => bindTauriCloseGuard(), []);
+
+  // Listen for recent file menu events
+  useEffect(() => {
+    const handleOpenRecentFile = (event: CustomEvent<{ index: number }>) => {
+      const recentFiles = recentFilesStore.list();
+      const { index } = event.detail;
+      if (index >= 0 && index < recentFiles.length) {
+        void openRecentFile(recentFiles[index].path);
+      }
+    };
+
+    const handleClearRecentFiles = () => {
+      recentFilesStore.clear();
+      // TODO: Rebuild menu to reflect empty state
+    };
+
+    window.addEventListener('open-recent-file-by-index', handleOpenRecentFile as EventListener);
+    window.addEventListener('clear-recent-files', handleClearRecentFiles);
+
+    return () => {
+      window.removeEventListener('open-recent-file-by-index', handleOpenRecentFile as EventListener);
+      window.removeEventListener('clear-recent-files', handleClearRecentFiles);
+    };
+  }, [openRecentFile]);
 
   return {
     snapshot,

@@ -29,9 +29,26 @@ export function createRecentFilesStore(
     }
   }
 
-  function save(files: RecentFile[]): void {
+  async function save(files: RecentFile[]): Promise<void> {
     try {
       storage.setItem(STORAGE_KEY, JSON.stringify(files));
+
+      // Also save to Tauri backend for menu persistence
+      // Check if we're in Tauri environment by looking for the Tauri context
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        try {
+          // Dynamic import to avoid bundler issues in non-Tauri environments
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("save_recent_files", { recentFiles: files });
+          console.log('[RecentFiles] Saved to Tauri backend successfully');
+
+          // Update the menu to reflect the new recent files
+          await invoke("update_recent_files_menu");
+          console.log('[RecentFiles] Menu updated successfully');
+        } catch (error) {
+          console.error("Failed to save recent files to Tauri backend:", error);
+        }
+      }
     } catch (error) {
       console.error("Failed to save recent files:", error);
     }
