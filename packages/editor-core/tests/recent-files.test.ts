@@ -94,4 +94,15 @@ describe("RecentFilesStore", () => {
     expect(files).toHaveLength(1);
     expect(files[0].path).toBe("/test/file.md");
   });
+
+  it("listAuthoritative falls back to stored list off-Tauri", async () => {
+    store.add({ path: "/test/file1.md", name: "file1.md" });
+    store.add({ path: "/test/file2.md", name: "file2.md" });
+
+    // Without a Tauri backend, the authoritative list must equal the local one
+    // so the same index the menu carries still resolves to the right path.
+    const authoritative = await store.listAuthoritative();
+    expect(authoritative).toEqual(store.list());
+    expect(authoritative[0].path).toBe("/test/file2.md");
+  });
 });

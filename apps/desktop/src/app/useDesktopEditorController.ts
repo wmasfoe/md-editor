@@ -424,11 +424,16 @@ export function useDesktopEditorController() {
   // Listen for recent file menu events
   useEffect(() => {
     const handleOpenRecentFile = (event: CustomEvent<{ index: number }>) => {
-      const recentFiles = recentFilesStore.list();
       const { index } = event.detail;
-      if (index >= 0 && index < recentFiles.length) {
-        void openRecentFile(recentFiles[index].path);
-      }
+      void (async () => {
+        // Resolve the index against the same list the native menu was built
+        // from (recent-files.json), not localStorage. Right after launch the
+        // two can diverge in order/length, which silently dropped clicks.
+        const recentFiles = await recentFilesStore.listAuthoritative();
+        if (index >= 0 && index < recentFiles.length) {
+          await openRecentFile(recentFiles[index].path);
+        }
+      })();
     };
 
     const handleClearRecentFiles = () => {
