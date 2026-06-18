@@ -98,12 +98,14 @@ pub fn run() {
             save_markdown_document,
             save_pasted_image,
             save_recent_files,
-            update_recent_files_menu
+            update_recent_files_menu,
+            load_recent_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running Markdown Editor");
 }
 
+#[tauri::command]
 fn load_recent_files() -> Vec<RecentFile> {
     // Read recent files from app data directory
     let app_data_dir = match dirs::data_dir() {

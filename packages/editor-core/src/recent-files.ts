@@ -8,6 +8,12 @@ export interface RecentFilesStore {
   add(file: Omit<RecentFile, "lastOpenedAt">): void;
   remove(path: string): void;
   list(): readonly RecentFile[];
+  /**
+   * Resolve the authoritative recent-files list. In Tauri this reads the same
+   * `recent-files.json` the native menu is built from, so menu indices always
+   * map to the correct path. Falls back to localStorage off-Tauri.
+   */
+  listAuthoritative(): Promise<readonly RecentFile[]>;
   clear(): void;
 }
 
@@ -83,6 +89,20 @@ export function createRecentFilesStore(
     },
 
     list() {
+      return load();
+    },
+
+    async listAuthoritative() {
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          // The native menu is rebuilt from this same source on every change,
+          // so the index carried by a menu click always lines up here.
+          return await invoke<RecentFile[]>("load_recent_files");
+        } catch (error) {
+          console.error("Failed to load recent files from Tauri backend:", error);
+        }
+      }
       return load();
     },
 
