@@ -168,12 +168,6 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .items(&[&open_recent_menu])
         .item(&menu_item(
             app,
-            "md-editor:open-recent",
-            "Open Recent...",
-            "",
-        )?)
-        .item(&menu_item(
-            app,
             "md-editor:open-folder",
             "Open Folder...",
             "CmdOrCtrl+Shift+O",
