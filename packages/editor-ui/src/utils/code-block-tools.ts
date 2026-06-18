@@ -80,6 +80,20 @@ export const codeBlockToolsPlugin = $prose(
       key: codeBlockToolsPluginKey,
       props: {
         handleKeyDown(view, event) {
+          if ((event.metaKey || event.ctrlKey) && event.key === "a" && !event.shiftKey && !event.altKey) {
+            const { $from } = view.state.selection;
+            if ($from.parent.type.name === "code_block") {
+              const codeBlockStart = $from.start();
+              const codeBlockEnd = $from.end();
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, codeBlockStart, codeBlockEnd)
+                )
+              );
+              return true;
+            }
+          }
+
           if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
             return false;
           }

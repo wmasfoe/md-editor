@@ -4,7 +4,9 @@ import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
-import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
+import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
+import { TextSelection } from "@milkdown/kit/prose/state";
+import { editorViewCtx } from "@milkdown/kit/core";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
@@ -57,6 +59,67 @@ function MilkdownEditorInner({
   const imageSourceMapRef = useRef(previewInput.imageSourceMap);
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const [loading, getInstance] = useInstance();
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    let scroller: HTMLElement | null = null;
+    let observer: MutationObserver | null = null;
+
+    const handleClick = (event: MouseEvent) => {
+      if (loading) return;
+
+      const target = event.target as HTMLElement;
+      const proseMirror = root.querySelector<HTMLElement>(".ProseMirror");
+
+      // 只有点击 .milkdown 容器或 .ProseMirror 容器本身时才触发
+      // 如果点击的是文本节点、标题、段落等内部元素，不触发
+      if (target !== scroller && target !== proseMirror) return;
+
+      const editor = getInstance();
+      if (!editor) return;
+      const view = editor.ctx.get(editorViewCtx);
+      if (!view) return;
+      const { doc } = view.state;
+      const endPos = doc.content.size;
+      const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, endPos));
+      view.dispatch(tr);
+
+      // 先聚焦，然后确保光标可见
+      requestAnimationFrame(() => {
+        view.focus();
+      });
+    };
+
+    const bindScroller = () => {
+      const nextScroller = root.querySelector<HTMLElement>(".milkdown");
+      if (!nextScroller || nextScroller === scroller) {
+        return Boolean(scroller);
+      }
+
+      scroller?.removeEventListener("click", handleClick);
+      scroller = nextScroller;
+      scroller.addEventListener("click", handleClick);
+      return true;
+    };
+
+    if (!bindScroller()) {
+      observer = new MutationObserver(() => {
+        if (bindScroller()) {
+          observer?.disconnect();
+          observer = null;
+        }
+      });
+      observer.observe(root, { childList: true, subtree: true });
+    }
+
+    return () => {
+      observer?.disconnect();
+      scroller?.removeEventListener("click", handleClick);
+    };
+  }, [loading, getInstance]);
 
   useEditor(
     (root) =>
