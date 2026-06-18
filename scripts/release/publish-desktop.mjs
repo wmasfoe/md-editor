@@ -17,6 +17,7 @@ const releaseFiles = [
 function parseArgs(argv) {
   const options = {
     dryRun: false,
+    resume: false,
     yes: false,
     noPush: false,
     allowAnyBranch: false,
@@ -30,6 +31,8 @@ function parseArgs(argv) {
 
     if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--resume") {
+      options.resume = true;
     } else if (arg === "--yes" || arg === "-y") {
       options.yes = true;
     } else if (arg === "--no-push") {
@@ -76,6 +79,7 @@ Options:
   --branch <name>       Require the current branch to match this name. Default: main.
   --allow-any-branch   Skip the release branch check.
   --dry-run            Print the release plan without changing files.
+  --resume             Continue after release:version already changed version files.
   --no-push            Commit and tag locally, but do not push.
   --notes <text>       Release notes used in the commit and annotated tag.
   --yes, -y            Skip the final interactive confirmation.`;
@@ -87,10 +91,12 @@ function run(command, args, options = {}) {
     return "";
   }
 
-  return execFileSync(command, args, {
+  const result = execFileSync(command, args, {
     encoding: "utf8",
     stdio: options.stdio ?? ["ignore", "pipe", "pipe"]
-  }).trim();
+  });
+
+  return typeof result === "string" ? result.trim() : "";
 }
 
 function formatCommand(command, args) {
@@ -160,17 +166,24 @@ async function promptForRelease(options, currentVersion) {
     }
 
     const nextVersion = resolveNextVersion(currentVersion, resolvedKind);
-    let notes = options.notes;
-    if (notes === undefined) {
-      notes = input.isTTY
-        ? (await rl.question(`输入本次更新内容 (默认：${defaultNotes}): `)).trim() || defaultNotes
-        : defaultNotes;
-    }
+    const notes = await promptNotes(options, rl);
 
     return { kind: resolvedKind, nextVersion, notes };
   } finally {
     rl.close();
   }
+}
+
+async function promptNotes(options, rl) {
+  if (options.notes !== undefined) {
+    return options.notes;
+  }
+
+  if (!input.isTTY) {
+    return defaultNotes;
+  }
+
+  return (await rl.question(`输入本次更新内容 (默认：${defaultNotes}): `)).trim() || defaultNotes;
 }
 
 async function confirmRelease(options, plan) {
@@ -193,6 +206,13 @@ function assertCleanWorktree() {
   const status = run("git", ["status", "--porcelain"]);
   if (status) {
     throw new Error("Working tree is not clean. Commit or stash existing changes before running the release script.");
+  }
+}
+
+function assertReleaseFilesChangedForResume() {
+  const status = run("git", ["status", "--porcelain", "--", ...releaseFiles]);
+  if (!status) {
+    throw new Error("No release version file changes found to resume.");
   }
 }
 
@@ -254,12 +274,17 @@ async function main() {
   }
 
   const branch = assertBranch(options);
-  if (!options.dryRun) {
+  if (!options.dryRun && !options.resume) {
     assertCleanWorktree();
+  }
+  if (!options.dryRun && options.resume) {
+    assertReleaseFilesChangedForResume();
   }
 
   const currentVersion = readCurrentVersion();
-  const release = await promptForRelease(options, currentVersion);
+  const release = options.resume
+    ? await promptForResume(options, currentVersion)
+    : await promptForRelease(options, currentVersion);
   const tag = `v${release.nextVersion}`;
   const plan = { ...release, tag, branch };
 
@@ -275,7 +300,11 @@ async function main() {
     assertTagAvailable(plan.tag);
   }
 
-  run("pnpm", ["release:version", plan.nextVersion], { dryRun: options.dryRun, stdio: "inherit" });
+  if (!options.resume) {
+    run("pnpm", ["release:version", plan.nextVersion], { dryRun: options.dryRun, stdio: "inherit" });
+  } else if (options.dryRun) {
+    console.log("resume: skip pnpm release:version because version files are already changed");
+  }
 
   if (options.dryRun) {
     run("git", ["add", ...releaseFiles], { dryRun: true });
@@ -310,6 +339,20 @@ async function main() {
   }
 
   console.log(`Release tag ${plan.tag} pushed. GitHub Actions will run the release workflow.`);
+}
+
+async function promptForResume(options, currentVersion) {
+  const rl = readline.createInterface({ input, output });
+
+  try {
+    return {
+      kind: "resume",
+      nextVersion: currentVersion,
+      notes: await promptNotes(options, rl)
+    };
+  } finally {
+    rl.close();
+  }
 }
 
 main().catch((error) => {

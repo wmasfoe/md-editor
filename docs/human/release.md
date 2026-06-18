@@ -23,6 +23,12 @@ pnpm release
 pnpm release patch --dry-run
 ```
 
+如果脚本在 `pnpm release:version` 之后、commit/tag 之前中断，可以在确认版本文件已经正确更新后继续：
+
+```bash
+pnpm release --resume
+```
+
 也可以显式指定：
 
 ```bash
@@ -114,6 +120,7 @@ brew install --cask wmasfoe/tap/md-editor
 - 分支 push 和 PR 不会发 Release，只会 lint、typecheck、test、构建 DMG 并上传 workflow artifact。
 - `main` push 不会发 Release。只有推送 `v*` tag 才会发 Release 和更新 Homebrew。
 - 如果 tag 构建失败并提示版本不匹配，说明 tag 名和项目版本号不同，例如项目版本是 `0.1.3` 时必须推送 `v0.1.3`。
+- 如果本地发版脚本已经改了版本文件但还没创建 commit/tag，使用 `pnpm release --resume` 继续。
 - beta 版本只发 GitHub prerelease，不上传 Homebrew tap，也不更新 cask。
 - 如果 Homebrew tap 更新失败，优先检查 `HOMEBREW_TAP_TOKEN` 是否过期或权限不足。
 - 如果日志里已经出现 `Wrote homebrew-tap/Casks/md-editor.rb`，但随后说 `Homebrew cask is already up to date.`，说明 cask 已生成，问题通常在 workflow 的 git 变更判断。

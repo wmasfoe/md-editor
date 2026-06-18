@@ -29,7 +29,7 @@
 
    脚本会要求当前分支默认是 `main` 且工作区干净，然后引导选择 `patch`、`minor`、`major`、`beta` 或具体版本号，输入更新内容，自动同步版本文件、创建 Lore commit、创建 tag，并 push 分支和 tag。
 
-   可用 `pnpm release patch --dry-run` 预览，也可用 `--notes` 传入更新内容。
+   可用 `pnpm release patch --dry-run` 预览，也可用 `--notes` 传入更新内容。如果脚本在版本文件更新后中断，可用 `pnpm release --resume` 跳过 `release:version`，直接用当前版本文件继续 commit、tag 和 push。
 
 2. 如需手动更新版本号：
 
