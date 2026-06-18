@@ -10,6 +10,7 @@ export type DesktopCommandDispatcher = (id: string) => Promise<void>;
 const MENU_COMMANDS: Record<string, string> = {
   "md-editor:new": "file.new",
   "md-editor:open": "file.open",
+  "md-editor:open-recent": "file.openRecent",
   "md-editor:open-folder": "file.openFolder",
   "md-editor:save": "file.save",
   "md-editor:save-as": "file.saveAs",
@@ -50,9 +51,37 @@ export function bindRuntimeKeyboardShortcuts(dispatchCommand: DesktopCommandDisp
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {
   return listenToDesktopMenuActions((action) => {
+    console.log('[Menu Event]', action);
+
+    // Handle dynamic recent file menu items
+    if (action.startsWith('md-editor:open-recent:')) {
+      const index = parseInt(action.split(':')[2], 10);
+      console.log('[Recent File] Opening index:', index);
+
+      // Emit a custom event that the controller can listen to
+      window.dispatchEvent(new CustomEvent('open-recent-file-by-index', {
+        detail: { index }
+      }));
+      return;
+    }
+
+    // Handle clear recent files
+    if (action === 'md-editor:clear-recent') {
+      window.dispatchEvent(new CustomEvent('clear-recent-files'));
+      return;
+    }
+
+    // Handle "No Recent Files" (disabled item, do nothing)
+    if (action === 'md-editor:no-recent') {
+      return;
+    }
+
     const commandId = MENU_COMMANDS[action];
+    console.log('[Command ID]', commandId);
     if (commandId) {
       void dispatchCommand(commandId);
+    } else {
+      console.warn('[Menu Event] No command mapped for action:', action);
     }
   });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getLanguageSuggestions, planCodeBlockTabIndent } from "./code-block-tools";
+import { getLanguageSuggestions, planCodeBlockTabIndent } from "../utils/code-block-tools";
 
 describe("code block tools", () => {
   it("plans tab insertion only inside code blocks", () => {

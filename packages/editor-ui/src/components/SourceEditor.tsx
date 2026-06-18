@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
-import type { SourceEditorView, TocTarget } from "./types";
+import type { SourceEditorView, TocTarget } from "../types";
 
 export interface SourceEditorProps {
   readonly snapshot: DocumentSnapshot;

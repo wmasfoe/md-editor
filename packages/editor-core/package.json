@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@md-editor/mdx-registry": "workspace:*",
-    "@md-editor/shared": "workspace:*"
+    "@md-editor/shared": "workspace:*",
+    "@tauri-apps/api": "catalog:"
   },
   "devDependencies": {
     "typescript": "catalog:",

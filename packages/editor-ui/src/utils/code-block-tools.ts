@@ -2,21 +2,64 @@ import { $prose } from "@milkdown/kit/utils";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import type { EditorView, NodeView, ViewMutationRecord } from "@milkdown/kit/prose/view";
+import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
+import { EditorState, Compartment } from "@codemirror/state";
+import { javascript } from "@codemirror/lang-javascript";
+import { css } from "@codemirror/lang-css";
+import { html } from "@codemirror/lang-html";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
+import { java } from "@codemirror/lang-java";
+import { cpp } from "@codemirror/lang-cpp";
+import { python } from "@codemirror/lang-python";
+import { rust } from "@codemirror/lang-rust";
+import { go } from "@codemirror/lang-go";
+import { StreamLanguage } from "@codemirror/language";
+import { ruby } from "@codemirror/legacy-modes/mode/ruby";
+import { swift } from "@codemirror/legacy-modes/mode/swift";
 
 const tabText = "  ";
 const svgNamespace = "http://www.w3.org/2000/svg";
 
+// 语言扩展映射
+function getLanguageExtension(language: string) {
+  const lang = language.toLowerCase();
+  if (lang === "javascript" || lang === "js" || lang === "jsx") return javascript({ jsx: true });
+  if (lang === "typescript" || lang === "ts" || lang === "tsx") return javascript({ typescript: true, jsx: true });
+  if (lang === "css") return css();
+  if (lang === "html") return html();
+  if (lang === "json") return json();
+  if (lang === "markdown" || lang === "md") return markdown();
+  if (lang === "java") return java();
+  if (lang === "c" || lang === "cpp" || lang === "c++" || lang === "csharp" || lang === "c#") return cpp();
+  if (lang === "python" || lang === "py") return python();
+  if (lang === "rust" || lang === "rs") return rust();
+  if (lang === "go") return go();
+  if (lang === "ruby" || lang === "rb") return StreamLanguage.define(ruby);
+  if (lang === "swift") return StreamLanguage.define(swift);
+  return null;
+}
+
 export const codeLanguageOptions = [
   { label: "Plain Text", value: "" },
   { label: "Bash", value: "bash" },
+  { label: "C", value: "c" },
+  { label: "C#", value: "csharp" },
+  { label: "C++", value: "cpp" },
   { label: "CSS", value: "css" },
+  { label: "Go", value: "go" },
   { label: "HTML", value: "html" },
+  { label: "Java", value: "java" },
   { label: "JavaScript", value: "javascript" },
   { label: "JSON", value: "json" },
   { label: "JSX", value: "jsx" },
   { label: "Markdown", value: "markdown" },
   { label: "MDX", value: "mdx" },
+  { label: "Python", value: "python" },
+  { label: "Ruby", value: "ruby" },
+  { label: "Rust", value: "rust" },
   { label: "Shell", value: "shell" },
+  { label: "Swift", value: "swift" },
   { label: "TSX", value: "tsx" },
   { label: "TypeScript", value: "typescript" },
   { label: "YAML", value: "yaml" }
@@ -37,6 +80,20 @@ export const codeBlockToolsPlugin = $prose(
       key: codeBlockToolsPluginKey,
       props: {
         handleKeyDown(view, event) {
+          if ((event.metaKey || event.ctrlKey) && event.key === "a" && !event.shiftKey && !event.altKey) {
+            const { $from } = view.state.selection;
+            if ($from.parent.type.name === "code_block") {
+              const codeBlockStart = $from.start();
+              const codeBlockEnd = $from.end();
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, codeBlockStart, codeBlockEnd)
+                )
+              );
+              return true;
+            }
+          }
+
           if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
             return false;
           }
@@ -152,7 +209,13 @@ class MarkdownCodeBlockNodeView implements NodeView {
   private readonly lineNumbers: HTMLElement;
   private readonly languageControl: HTMLElement;
   private readonly languageSelect: HTMLSelectElement;
+  private readonly pre: HTMLPreElement;
   private readonly code: HTMLElement;
+  private readonly rawHeader: HTMLElement;
+  private readonly rawTitle: HTMLElement;
+  private readonly rawHint: HTMLElement;
+  private codeMirrorView: CodeMirrorView | null = null;
+  private languageCompartment = new Compartment();
 
   constructor(
     node: ProseMirrorNode,
@@ -163,11 +226,14 @@ class MarkdownCodeBlockNodeView implements NodeView {
     const ownerDocument = view.dom.ownerDocument;
 
     this.dom = ownerDocument.createElement("div");
-    this.lineNumbers = ownerDocument.createElement("div");
     this.copyButton = ownerDocument.createElement("button");
+    this.lineNumbers = ownerDocument.createElement("div");
     this.languageControl = ownerDocument.createElement("div");
     this.languageSelect = ownerDocument.createElement("select");
-    const pre = ownerDocument.createElement("pre");
+    this.rawHeader = ownerDocument.createElement("div");
+    this.rawTitle = ownerDocument.createElement("div");
+    this.rawHint = ownerDocument.createElement("div");
+    this.pre = ownerDocument.createElement("pre");
     this.code = ownerDocument.createElement("code");
     this.contentDOM = this.code;
 
@@ -175,6 +241,19 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.lineNumbers.className = "md-code-block-line-numbers";
     this.lineNumbers.contentEditable = "false";
     this.lineNumbers.setAttribute("aria-hidden", "true");
+
+    this.rawHeader.className = "md-raw-block-header";
+    this.rawHeader.contentEditable = "false";
+    this.rawTitle.className = "md-raw-block-title";
+    this.rawHint.className = "md-raw-block-hint";
+    this.rawHint.textContent = "Raw source is preserved unless edited here.";
+    this.rawHeader.append(this.rawTitle, this.rawHint);
+
+    this.code.className = "md-code-block-content";
+    this.code.spellcheck = false;
+    this.code.setAttribute("spellcheck", "false");
+    this.code.setAttribute("autocorrect", "off");
+    this.code.setAttribute("autocapitalize", "off");
 
     this.copyButton.className = "md-code-block-copy";
     this.copyButton.type = "button";
@@ -191,19 +270,49 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.populateLanguageOptions();
     this.languageControl.append(this.languageSelect);
 
-    this.code.className = "md-code-block-content";
-    this.code.spellcheck = false;
-    this.code.setAttribute("spellcheck", "false");
-    this.code.setAttribute("autocorrect", "off");
-    this.code.setAttribute("autocapitalize", "off");
-
-    pre.append(this.code);
-    this.dom.append(this.lineNumbers, pre, this.copyButton, this.languageControl);
+    this.pre.append(this.code);
+    this.dom.append(this.rawHeader, this.lineNumbers, this.pre, this.copyButton, this.languageControl);
 
     this.copyButton.addEventListener("click", this.handleCopyClick);
     this.languageSelect.addEventListener("change", this.handleLanguageChange);
+
     this.syncLanguage();
+    this.syncRawBlockChrome();
     this.syncLineNumbers();
+    this.initCodeMirror();
+  }
+
+  private initCodeMirror() {
+    const language = normalizeCodeLanguage(this.node.attrs.language);
+    const languageExt = getLanguageExtension(language);
+    const extensions = [
+      this.languageCompartment.of(languageExt ? [languageExt] : [])
+    ];
+
+    this.codeMirrorView = new CodeMirrorView({
+      state: EditorState.create({
+        doc: "",
+        extensions
+      }),
+      parent: this.code
+    });
+
+    // 隐藏 CodeMirror 编辑器，只用于语法高亮
+    if (this.codeMirrorView.dom) {
+      this.codeMirrorView.dom.style.display = "none";
+    }
+  }
+
+  private syncLineNumbers() {
+    const lineCount = Math.max(1, this.node.textContent.split("\n").length);
+    const lines = Array.from({ length: lineCount }, (_, index) => {
+      const line = this.dom.ownerDocument.createElement("span");
+      line.className = "md-code-block-line-number";
+      line.textContent = String(index + 1);
+      return line;
+    });
+
+    this.lineNumbers.replaceChildren(...lines);
   }
 
   update(nextNode: ProseMirrorNode) {
@@ -213,7 +322,18 @@ class MarkdownCodeBlockNodeView implements NodeView {
 
     this.node = nextNode;
     this.syncLanguage();
+    this.syncRawBlockChrome();
     this.syncLineNumbers();
+
+    // 更新 CodeMirror 语言
+    if (this.codeMirrorView) {
+      const language = normalizeCodeLanguage(this.node.attrs.language);
+      const languageExt = getLanguageExtension(language);
+      this.codeMirrorView.dispatch({
+        effects: this.languageCompartment.reconfigure(languageExt ? [languageExt] : [])
+      });
+    }
+
     return true;
   }
 
@@ -222,9 +342,13 @@ class MarkdownCodeBlockNodeView implements NodeView {
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {
-    return targetIsInside(mutation.target, this.copyButton) ||
+    return mutation.target === this.dom ||
+      mutation.target === this.pre ||
+      mutation.target === this.lineNumbers ||
+      targetIsInside(mutation.target, this.copyButton) ||
+      targetIsInside(mutation.target, this.lineNumbers) ||
       targetIsInside(mutation.target, this.languageControl) ||
-      targetIsInside(mutation.target, this.lineNumbers);
+      targetIsInside(mutation.target, this.rawHeader);
   }
 
   destroy() {
@@ -232,6 +356,9 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.languageSelect.removeEventListener("change", this.handleLanguageChange);
     if (this.copyResetTimer) {
       this.dom.ownerDocument.defaultView?.clearTimeout(this.copyResetTimer);
+    }
+    if (this.codeMirrorView) {
+      this.codeMirrorView.destroy();
     }
   }
 
@@ -251,11 +378,21 @@ class MarkdownCodeBlockNodeView implements NodeView {
 
     if (language) {
       this.dom.dataset.language = language;
-      this.code.className = `md-code-block-content language-${language.replace(/[^\w-]/gu, "-")}`;
     } else {
       delete this.dom.dataset.language;
-      this.code.className = "md-code-block-content";
     }
+  }
+
+  private syncRawBlockChrome() {
+    const rawBlock = parseManagedRawBlockLanguage(this.node.attrs.language);
+    if (!rawBlock) {
+      delete this.dom.dataset.rawBlock;
+      this.rawTitle.textContent = "";
+      return;
+    }
+
+    this.dom.dataset.rawBlock = rawBlock.kind;
+    this.rawTitle.textContent = rawBlock.title;
   }
 
   private syncCustomLanguageOption(language: string) {
@@ -269,17 +406,6 @@ class MarkdownCodeBlockNodeView implements NodeView {
     option.textContent = language;
     option.dataset.mdCodeCustomLanguage = "true";
     this.languageSelect.append(option);
-  }
-
-  private syncLineNumbers() {
-    const lineCount = Math.max(1, this.node.textContent.split("\n").length);
-    const lines = Array.from({ length: lineCount }, (_, index) => {
-      const line = this.dom.ownerDocument.createElement("span");
-      line.className = "md-code-block-line-number";
-      line.textContent = String(index + 1);
-      return line;
-    });
-    this.lineNumbers.replaceChildren(...lines);
   }
 
   private readonly handleLanguageChange = () => {
@@ -329,6 +455,25 @@ class MarkdownCodeBlockNodeView implements NodeView {
 
 function normalizeCodeLanguage(language: unknown) {
   return typeof language === "string" ? language.trim().replace(/[\s`]+/gu, "-") : "";
+}
+
+function parseManagedRawBlockLanguage(language: unknown): { readonly kind: string; readonly title: string } | null {
+  if (typeof language !== "string") {
+    return null;
+  }
+
+  const normalized = language.trim().toLowerCase();
+  if (normalized.includes("md-editor-frontmatter")) {
+    return { kind: "frontmatter", title: "Frontmatter" };
+  }
+  if (normalized.includes("md-editor-callout")) {
+    return { kind: "callout", title: "Callout" };
+  }
+  if (normalized.includes("md-editor-mdx")) {
+    return { kind: "mdx", title: "MDX Component" };
+  }
+
+  return null;
 }
 
 function targetIsInside(target: EventTarget | Node | null, container: HTMLElement) {

@@ -7,7 +7,9 @@ export * from "./callout.ts";
 export * from "./content.ts";
 export * from "./file-lifecycle.ts";
 export * from "./markdown.ts";
+export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
+export * from "./recent-files.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
@@ -109,6 +111,7 @@ export interface FeatureRegistry {
 export type BuiltInCommandId =
   | "file.new"
   | "file.open"
+  | "file.openRecent"
   | "file.openFolder"
   | "file.save"
   | "file.saveAs"
@@ -119,6 +122,7 @@ export type BuiltInCommandId =
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
   readonly openDocument?: () => void | Promise<void>;
+  readonly openRecentDocument?: () => void | Promise<void>;
   readonly openFolder?: () => void | Promise<void>;
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
@@ -192,11 +196,15 @@ export function createCommandRegistry(): CommandRegistry {
       commands.set(command.id, command);
     },
     async dispatch(id, context) {
+      console.log('[Command Dispatch]', id, 'registered commands:', [...commands.keys()]);
       const command = commands.get(id);
       if (!command) {
+        console.warn('[Command Dispatch] Command not found:', id);
         return false;
       }
+      console.log('[Command Dispatch] Running:', id);
       await command.run(context);
+      console.log('[Command Dispatch] Completed:', id);
       return true;
     },
     list() {
@@ -256,6 +264,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
     setup(context) {
       registerActionCommand(context.commands, "file.new", "New Document", "newDocument");
       registerActionCommand(context.commands, "file.open", "Open File", "openDocument");
+      registerActionCommand(context.commands, "file.openRecent", "Open Recent File", "openRecentDocument");
       registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
       registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
       registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
@@ -274,26 +283,6 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       );
 
       context.keymaps.register({
-        id: "file.new",
-        key: "Mod-N",
-        commandId: "file.new",
-      });
-      context.keymaps.register({
-        id: "file.save",
-        key: "Mod-S",
-        commandId: "file.save",
-      });
-      context.keymaps.register({
-        id: "file.saveAs",
-        key: "Mod-Shift-S",
-        commandId: "file.saveAs",
-      });
-      context.keymaps.register({
-        id: "file.open",
-        key: "Mod-O",
-        commandId: "file.open",
-      });
-      context.keymaps.register({
         id: "view.toggleSource",
         key: "Mod-/",
         commandId: "view.toggleSource",
@@ -303,6 +292,9 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         key: "Mod-Shift-1",
         commandId: "view.toggleSidebarPrimary",
       });
+
+      // 注意：file.new, file.open, file.save, file.saveAs 的快捷键
+      // 由 Tauri 菜单直接处理，不在这里注册，避免冲突
     },
   };
 }

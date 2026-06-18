@@ -5,7 +5,9 @@ import {
   findActiveHeadingIdForLine,
   isLikelyMdxBlock,
   restoreMarkdownImageSources,
+  restoreRawBlocksFromPreview,
   rewriteMarkdownImageSourcesForPreview,
+  rewriteRawBlocksForPreview,
   serializeRoundTrip,
   splitFrontmatter
 } from "../src";
@@ -66,6 +68,37 @@ describe("MDX raw block detection", () => {
   it("detects unknown MDX component blocks without executing them", () => {
     expect(isLikelyMdxBlock("<CustomThing foo=\"bar\" />")).toBe(true);
     expect(isLikelyMdxBlock("<div>html</div>")).toBe(false);
+  });
+
+  it("rewrites frontmatter and MDX blocks into managed preview fences", () => {
+    const input = [
+      "---",
+      "title: Draft",
+      "---",
+      "",
+      "<Callout type=\"info\">Read this.</Callout>",
+      "",
+      "<CustomThing value=\"x\" />",
+      ""
+    ].join("\n");
+    const preview = rewriteRawBlocksForPreview(input);
+
+    expect(preview.markdown).toContain("```yaml md-editor-frontmatter\ntitle: Draft\n```");
+    expect(preview.markdown).toContain("```mdx md-editor-callout\n<Callout type=\"info\">Read this.</Callout>\n```");
+    expect(preview.markdown).toContain("```mdx md-editor-mdx\n<CustomThing value=\"x\" />\n```");
+    expect(restoreRawBlocksFromPreview(preview.markdown, preview.sourceMap)).toBe(input);
+  });
+
+  it("restores edited managed raw blocks to author-facing Markdown", () => {
+    const input = "---\ntitle: Draft\n---\n\n<Callout type=\"info\">Read this.</Callout>\n";
+    const preview = rewriteRawBlocksForPreview(input);
+    const editedPreview = preview.markdown
+      .replace("title: Draft", "title: Final")
+      .replace("Read this.", "Updated.");
+
+    expect(restoreRawBlocksFromPreview(editedPreview, preview.sourceMap)).toBe(
+      "---\ntitle: Final\n---\n\n<Callout type=\"info\">Updated.</Callout>\n"
+    );
   });
 });
 

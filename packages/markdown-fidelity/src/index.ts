@@ -22,6 +22,11 @@ export interface MarkdownImagePreviewInput {
   readonly sourceMap: readonly [previewSrc: string, markdownSrc: string][];
 }
 
+export interface MarkdownRawBlockPreviewInput {
+  readonly markdown: string;
+  readonly sourceMap: readonly [previewBlock: string, markdownBlock: string][];
+}
+
 export interface MarkdownImageSrcResolverOptions {
   readonly convertFileSrc?: (path: string) => string;
   readonly hasTauriRuntime?: boolean;
@@ -110,6 +115,45 @@ export function restoreMarkdownImageSources(
   }, markdown);
 }
 
+export function rewriteRawBlocksForPreview(markdown: string): MarkdownRawBlockPreviewInput {
+  const sourceMap: [string, string][] = [];
+  const frontmatter = matchFrontmatterSource(markdown);
+  let previewMarkdown = markdown;
+
+  if (frontmatter) {
+    const previewBlock = createManagedRawFence("frontmatter", stripFrontmatterFence(frontmatter));
+    previewMarkdown = previewBlock + previewMarkdown.slice(frontmatter.length);
+    sourceMap.push([previewBlock, frontmatter]);
+  }
+
+  previewMarkdown = previewMarkdown.replace(
+    /^ {0,3}<([A-Z][A-Za-z0-9.:-]*)(?:\s[^>\n]*)?(?:\/>|>[\s\S]*?<\/\1>)(?:\r?\n|$)/gm,
+    (source) => {
+      const kind = /^\s*<Callout(?:\s|>|\/>)/u.test(source) ? "callout" : "mdx";
+      const previewBlock = createManagedRawFence(kind, source.replace(/\r?\n$/u, ""));
+      sourceMap.push([previewBlock, source]);
+      return previewBlock;
+    }
+  );
+
+  return { markdown: previewMarkdown, sourceMap };
+}
+
+export function restoreRawBlocksFromPreview(
+  markdown: string,
+  sourceMap: readonly [previewBlock: string, markdownBlock: string][]
+): string {
+  return sourceMap.reduce((nextMarkdown, [previewBlock, markdownBlock]) => {
+    const edited = extractManagedRawFenceContent(previewBlock, nextMarkdown);
+    if (edited === null) {
+      return nextMarkdown.split(previewBlock).join(markdownBlock);
+    }
+
+    const restored = restoreManagedRawBlock(markdownBlock, edited);
+    return nextMarkdown.replace(edited.fence, restored);
+  }, markdown);
+}
+
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
   const seen = new Map<string, number>();
 
@@ -173,6 +217,53 @@ function slugify(value: string): string {
 
 function isRemoteOrEmbeddedImageSrc(src: string): boolean {
   return /^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(src) && !/^[a-zA-Z]:[\\/]/u.test(src);
+}
+
+function matchFrontmatterSource(markdown: string): string | null {
+  const match = markdown.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/u);
+  return match?.[0] ?? null;
+}
+
+function stripFrontmatterFence(frontmatter: string): string {
+  return frontmatter
+    .replace(/^---\r?\n/u, "")
+    .replace(/\r?\n---(?:\r?\n)?$/u, "");
+}
+
+function createManagedRawFence(kind: "frontmatter" | "callout" | "mdx", source: string): string {
+  const language = kind === "frontmatter" ? "yaml" : "mdx";
+  return `\`\`\`${language} md-editor-${kind}\n${source}\n\`\`\`\n`;
+}
+
+function extractManagedRawFenceContent(
+  previewBlock: string,
+  markdown: string
+): { readonly fence: string; readonly body: string } | null {
+  const firstLine = previewBlock.slice(0, previewBlock.indexOf("\n"));
+  const escapedFirstLine = escapeRegExp(firstLine);
+  const pattern = new RegExp(`${escapedFirstLine}\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`(?:\\r?\\n|$)`, "u");
+  const match = markdown.match(pattern);
+
+  if (!match || match[1] === undefined) {
+    return null;
+  }
+
+  return { fence: match[0], body: match[1] };
+}
+
+function restoreManagedRawBlock(
+  originalBlock: string,
+  edited: { readonly body: string }
+): string {
+  if (originalBlock.startsWith("---")) {
+    return `---\n${edited.body}\n---\n`;
+  }
+
+  return `${edited.body}\n`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function parseImageMarkdown(source: string): { readonly src: string } | null {

@@ -9,7 +9,7 @@ export function App() {
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
       <aside
-        className="flex min-h-0 w-[272px] min-w-[220px] max-w-[360px] flex-[0_0_272px] flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)]"
+        className="flex min-h-0 w-[272px] min-w-[220px] max-w-[360px] flex-[0_0_272px] flex-col select-none overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)]"
         aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
       >
         <div

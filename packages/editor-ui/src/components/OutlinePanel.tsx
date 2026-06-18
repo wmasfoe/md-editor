@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { TocTarget } from "./types";
+import type { TocTarget } from "../types";
 
 export interface OutlineItem {
   readonly id: string;
