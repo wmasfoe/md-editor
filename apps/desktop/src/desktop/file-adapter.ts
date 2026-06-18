@@ -2,11 +2,13 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import type {
   FileServiceAdapter,
   FileTreeMutationResult,
+  ImageSaveInput,
+  ImageStorageProvider,
   MarkdownDocumentFile,
   MarkdownFolder,
   SaveMarkdownInput
 } from "@md-editor/file-system";
-import type { PastedImageFile, PastedImageInput } from "../types";
+import type { PastedImageFile } from "../types";
 
 export function createDesktopFileAdapter(): FileServiceAdapter {
   return {
@@ -62,15 +64,28 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
 }
 
 export async function savePastedImage(
-  documentPath: string,
-  image: PastedImageInput
+  input: ImageSaveInput
 ): Promise<PastedImageFile> {
   assertDesktopRuntime();
   return invoke<PastedImageFile>("save_pasted_image", {
-    documentPath,
-    mimeType: image.mimeType,
-    bytes: Array.from(new Uint8Array(await image.file.arrayBuffer()))
+    documentPath: input.context.documentPath,
+    defaultAssetsDir: input.context.defaultAssetsDir,
+    preferredName: input.context.preferredName ?? null,
+    mimeType: input.mimeType,
+    bytes: Array.from(input.bytes)
   });
+}
+
+export function createLocalAssetsImageStorageProvider(): ImageStorageProvider {
+  return {
+    async save(input) {
+      const result = await savePastedImage(input);
+      return {
+        src: result.markdownPath,
+        storageType: "local"
+      };
+    }
+  };
 }
 
 export function assertDesktopRuntime() {

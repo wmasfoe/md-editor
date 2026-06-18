@@ -455,6 +455,8 @@ async fn save_markdown_document(
 fn save_pasted_image(
     app: tauri::AppHandle,
     document_path: String,
+    default_assets_dir: String,
+    preferred_name: Option<String>,
     mime_type: String,
     bytes: Vec<u8>,
 ) -> Result<PastedImageFile, String> {
@@ -465,7 +467,7 @@ fn save_pasted_image(
     let document_directory = Path::new(&document_path)
         .parent()
         .ok_or_else(|| format!("Cannot resolve parent directory for {document_path}"))?;
-    let assets_directory = document_directory.join("assets");
+    let assets_directory = normalize_child_assets_directory(document_directory, &default_assets_dir)?;
     fs::create_dir_all(&assets_directory).map_err(|error| {
         format!(
             "Failed to create image assets directory {}: {error}",
@@ -473,7 +475,7 @@ fn save_pasted_image(
         )
     })?;
 
-    let image_path = next_image_path(&assets_directory, extension);
+    let image_path = next_image_path(&assets_directory, extension, preferred_name.as_deref());
     write_atomically(&image_path, &bytes)?;
     allow_asset_directory(&app, &assets_directory)?;
 
@@ -619,11 +621,50 @@ fn image_extension(mime_type: &str) -> Option<&'static str> {
     }
 }
 
-fn next_image_path(directory: &Path, extension: &str) -> PathBuf {
+fn normalize_child_assets_directory(document_directory: &Path, assets_dir: &str) -> Result<PathBuf, String> {
+    let requested = PathBuf::from(assets_dir);
+    let directory = if requested.is_absolute() {
+        requested
+    } else {
+        document_directory.join(requested)
+    };
+    let normalized_document_directory = normalize_path_without_fs(document_directory);
+    let normalized_directory = normalize_path_without_fs(&directory);
+
+    if !normalized_directory.starts_with(&normalized_document_directory) {
+        return Err(format!(
+            "Image assets directory must be inside {}",
+            document_directory.display()
+        ));
+    }
+
+    Ok(normalized_directory)
+}
+
+fn normalize_path_without_fs(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+
+    normalized
+}
+
+fn next_image_path(directory: &Path, extension: &str, preferred_name: Option<&str>) -> PathBuf {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or(0);
+    let base_name = preferred_name
+        .and_then(sanitize_image_base_name)
+        .unwrap_or_else(|| format!("image-{timestamp}"));
     let mut index = 1;
 
     loop {
@@ -632,13 +673,42 @@ fn next_image_path(directory: &Path, extension: &str) -> PathBuf {
         } else {
             format!("-{index}")
         };
-        let candidate = directory.join(format!("image-{timestamp}{suffix}.{extension}"));
+        let candidate = directory.join(format!("{base_name}{suffix}.{extension}"));
 
         // 文件名冲突通常只来自同一毫秒内的连续粘贴；循环避开即可。
         if !candidate.exists() {
             return candidate;
         }
         index += 1;
+    }
+}
+
+fn sanitize_image_base_name(name: &str) -> Option<String> {
+    let file_stem = Path::new(name).file_stem()?.to_string_lossy().to_lowercase();
+    let mut output = String::new();
+    let mut previous_dash = false;
+
+    for character in file_stem.chars() {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            output.push(character);
+            previous_dash = false;
+        } else if character == '-' || character.is_whitespace() {
+            if !previous_dash && !output.is_empty() {
+                output.push('-');
+                previous_dash = true;
+            }
+        }
+    }
+
+    while output.ends_with('-') {
+        output.pop();
+    }
+
+    if output.is_empty() {
+        None
+    } else {
+        output.truncate(80);
+        Some(output)
     }
 }
 

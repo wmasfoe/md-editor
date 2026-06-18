@@ -18,6 +18,7 @@ import {
   bindRuntimeKeyboardShortcuts,
   bindTauriCloseGuard
 } from "./editor-events";
+import { bindDropImageListener } from "./drop-image-listener";
 import { runtime } from "./editor-runtime";
 import { resolveOpenDocumentMutation } from "./file-tree-mutations";
 import { bindPasteImageListener } from "./paste-image-listener";
@@ -339,6 +340,16 @@ export function useDesktopEditorController() {
   useEffect(
     () =>
       bindPasteImageListener({
+        replaceDocument,
+        runFileAction,
+        applyMarkdown: applyProgrammaticMarkdown,
+        afterSaveImage: refreshOpenedFolder
+      }),
+    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]
+  );
+  useEffect(
+    () =>
+      bindDropImageListener({
         replaceDocument,
         runFileAction,
         applyMarkdown: applyProgrammaticMarkdown,

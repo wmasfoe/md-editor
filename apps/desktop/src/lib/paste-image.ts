@@ -1,9 +1,15 @@
-import { appendImageMarkdown } from "@md-editor/file-system";
+import {
+  appendImageMarkdown,
+  defaultAssetsDirectoryForDocument,
+  imageAltTextFromFileName
+} from "@md-editor/file-system";
 import type { MarkdownDocumentFile } from "@md-editor/file-system";
 import { fileService } from "../desktop/file-service";
-import { savePastedImage } from "../desktop/file-adapter";
+import { createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
 import { runtime } from "../app/editor-runtime";
 import type { PastedImageInput } from "../types";
+
+const imageStorageProvider = createLocalAssetsImageStorageProvider();
 
 export interface PasteImageRuntime {
   readonly replaceDocument: (document: MarkdownDocumentFile | null) => void;
@@ -19,7 +25,8 @@ export function getPastedImage(data: DataTransfer): PastedImageInput | null {
       if (file) {
         return {
           file,
-          mimeType: item.type || file.type
+          mimeType: item.type || file.type,
+          preferredName: file.name
         };
       }
     }
@@ -28,8 +35,26 @@ export function getPastedImage(data: DataTransfer): PastedImageInput | null {
   return null;
 }
 
-export async function pasteImageInput(image: PastedImageInput, runtimeActions: PasteImageRuntime) {
-  await runtimeActions.runFileAction("正在粘贴图片", async () => {
+export function getDroppedImage(data: DataTransfer): PastedImageInput | null {
+  for (const file of Array.from(data.files)) {
+    if (file.type.startsWith("image/")) {
+      return {
+        file,
+        mimeType: file.type,
+        preferredName: file.name
+      };
+    }
+  }
+
+  return null;
+}
+
+export async function pasteImageInput(
+  image: PastedImageInput,
+  runtimeActions: PasteImageRuntime,
+  label = "正在粘贴图片"
+) {
+  await runtimeActions.runFileAction(label, async () => {
     let current = runtime.document.getSnapshot();
 
     // Image assets live next to a saved Markdown file. Untitled documents must
@@ -50,8 +75,20 @@ export async function pasteImageInput(image: PastedImageInput, runtimeActions: P
       throw new Error("Save the document before pasting images.");
     }
 
-    const pasted = await savePastedImage(current.filePath, image);
-    const nextMarkdown = appendImageMarkdown(current.markdown, pasted.markdownPath);
+    const savedImage = await imageStorageProvider.save({
+      bytes: new Uint8Array(await image.file.arrayBuffer()),
+      mimeType: image.mimeType,
+      context: {
+        documentPath: current.filePath,
+        defaultAssetsDir: defaultAssetsDirectoryForDocument(current.filePath),
+        preferredName: image.preferredName
+      }
+    });
+    const nextMarkdown = appendImageMarkdown(
+      current.markdown,
+      savedImage.src,
+      imageAltTextFromFileName(image.preferredName)
+    );
 
     // The asset is already on disk, but the Markdown reference is still an
     // unsaved document edit. Keep dirty state until the user saves the note.

@@ -76,4 +76,18 @@ describe("code block highlighting", () => {
       ])
     );
   });
+
+  it("tokenizes MDX component tags in fenced mdx blocks", () => {
+    const tokens = tokenizeCodeForHighlighting("<Callout type=\"info\">Note</Callout>", "mdx");
+
+    expect(tokens).toEqual(
+      expect.arrayContaining([
+        { from: 0, to: 8, kind: "tag" },
+        { from: 14, to: 20, kind: "string" },
+        { from: 20, to: 21, kind: "tag" },
+        { from: 25, to: 34, kind: "tag" },
+        { from: 34, to: 35, kind: "tag" }
+      ])
+    );
+  });
 });

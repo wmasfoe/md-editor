@@ -391,6 +391,7 @@ const keywordGroups: Readonly<Record<string, readonly string[]>> = {
   css: ["important", "inherit", "initial", "unset"],
   html: [],
   markdown: [],
+  mdx: [],
   shell: ["case", "do", "done", "elif", "else", "esac", "fi", "for", "function", "if", "in", "then", "while"],
   yaml: ["false", "null", "true"]
 };
@@ -420,6 +421,7 @@ const languageAliases: Readonly<Record<string, keyof typeof keywordGroups>> = {
   kotlin: "java",
   markdown: "markdown",
   md: "markdown",
+  mdx: "mdx",
   mjs: "js",
   nginx: "nginx",
   php: "php",
@@ -464,7 +466,9 @@ export function tokenizeCodeForHighlighting(
   const normalized = normalizeLanguage(language);
   const keywords = normalized ? keywordGroups[normalized] : keywordGroups.js;
   const keywordPattern = keywords.length > 0 ? `\\b(?:${keywords.map(escapeRegExp).join("|")})\\b` : "";
-  const tagPattern = normalized === "html" || normalized === "markdown" ? "</?[A-Za-z][\\w:-]*\\b|>" : "";
+  const tagPattern = normalized === "html" || normalized === "markdown" || normalized === "mdx"
+    ? "</?[A-Za-z][\\w:-]*\\b|>"
+    : "";
   const patterns = [
     "(?:\\/\\*[\\s\\S]*?\\*\\/)",
     "(?://[^\\n]*)",
@@ -539,7 +543,7 @@ function classifyToken(
   if (/^\d/u.test(value)) {
     return "number";
   }
-  if ((language === "html" || language === "markdown") && /^<\/?|^>$/u.test(value)) {
+  if ((language === "html" || language === "markdown" || language === "mdx") && /^<\/?|^>$/u.test(value)) {
     return "tag";
   }
   return keywords.includes(value) ? "keyword" : null;

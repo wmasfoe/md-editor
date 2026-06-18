@@ -16,6 +16,7 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
+import { imageSelectionPlugin } from "../utils/image-selection";
 import type { OutlineItem } from "./OutlinePanel";
 import type { TocTarget } from "../types";
 
@@ -139,6 +140,7 @@ function MilkdownEditorInner({
         .use(commonmark)
         .use(gfm)
         .use(history)
+        .use(imageSelectionPlugin)
         .use(codeBlockToolsPlugin)
         .use(codeHighlightPlugin)
         .use(listener),
