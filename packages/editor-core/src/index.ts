@@ -289,7 +289,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       });
       context.keymaps.register({
         id: "view.toggleSidebarPrimary",
-        key: "Mod-Shift-1",
+        key: "Mod-Shift-B",
         commandId: "view.toggleSidebarPrimary",
       });
 

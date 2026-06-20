@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { EditorState } from "@codemirror/state";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import type { SourceEditorView, TocTarget } from "../types";
 
@@ -19,7 +20,25 @@ export function SourceEditor({
 }: SourceEditorProps) {
   const editorView = useRef<SourceEditorView | null>(null);
   const [editorReadyVersion, setEditorReadyVersion] = useState(0);
-  const extensions = useMemo(() => [markdown({ base: markdownLanguage })], []);
+  const extensions = useMemo(
+    () => [
+      markdown({ base: markdownLanguage }),
+      EditorState.phrases.of({
+        Find: "查找",
+        Replace: "替换",
+        next: "下一个",
+        previous: "上一个",
+        all: "全选",
+        "match case": "区分大小写",
+        regexp: "正则表达式",
+        "by word": "全词匹配",
+        replace: "替换",
+        "replace all": "全部替换",
+        close: "关闭"
+      })
+    ],
+    []
+  );
 
   useEffect(() => {
     if (target === null || !editorView.current) {

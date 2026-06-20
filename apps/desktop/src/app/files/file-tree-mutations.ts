@@ -1,5 +1,5 @@
-import type { FileTreeMutationResult } from "@md-editor/file-system";
-import { isSameOrChildPath } from "../lib/path";
+import type { FileTreeMutationResult, MarkdownFileTreeNode } from "@md-editor/file-system";
+import { isSameOrChildPath } from "../../lib/path";
 
 export type OpenDocumentMutation =
   | {
@@ -12,6 +12,20 @@ export type OpenDocumentMutation =
   | {
       readonly kind: "close";
     };
+
+export function findFirstMarkdownPath(node: MarkdownFileTreeNode): string | null {
+  if (node.kind === "markdown") {
+    return node.path;
+  }
+
+  for (const child of node.children ?? []) {
+    const path = findFirstMarkdownPath(child);
+    if (path) {
+      return path;
+    }
+  }
+  return null;
+}
 
 export function resolveOpenDocumentMutation(
   currentFilePath: string | null,

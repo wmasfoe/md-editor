@@ -1,5 +1,5 @@
 import type { MarkdownDocumentFile } from "@md-editor/file-system";
-import { getPastedImage, pasteImageInput } from "../lib/paste-image";
+import { getPastedImage, pasteImageInput } from "../../lib/paste-image";
 
 export interface PasteImageListenerRuntime {
   readonly replaceDocument: (document: MarkdownDocumentFile | null) => void;

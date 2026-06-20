@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { switchEditorModeSafely, type EditorMode, createRecentFilesStore } from "@md-editor/editor-core";
-import type { TocTarget } from "@md-editor/editor-ui";
+import type { ConfirmationChoice, ConfirmationState, TocTarget } from "@md-editor/editor-ui";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
   FileTreeMutationResult,
   MarkdownDocumentFile,
@@ -8,20 +10,19 @@ import type {
   MarkdownFolder
 } from "@md-editor/file-system";
 import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
-import { fileService } from "../desktop/file-service";
-import { dirname, isSameOrChildPath } from "../lib/path";
-import { resolvePreviewImageSrc } from "../lib/markdown-preview";
-import type { OpenedAsset, SidebarMode, TreeItemKind } from "../types";
+import { fileService } from "../../desktop/file-service";
+import { dirname, isSameOrChildPath } from "../../lib/path";
+import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
+import type { OpenedAsset, SidebarMode, TreeItemKind } from "../../types";
 import {
-  bindBrowserDirtyDocumentGuard,
   bindDesktopMenuCommands,
-  bindRuntimeKeyboardShortcuts,
-  bindTauriCloseGuard
-} from "./editor-events";
-import { bindDropImageListener } from "./drop-image-listener";
-import { runtime } from "./editor-runtime";
-import { resolveOpenDocumentMutation } from "./file-tree-mutations";
-import { bindPasteImageListener } from "./paste-image-listener";
+  bindRuntimeKeyboardShortcuts
+} from "../events/command-bindings";
+import { bindDropImageListener } from "../events/drop-image-listener";
+import { bindPasteImageListener } from "../events/paste-image-listener";
+import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
+import { findFirstMarkdownPath, resolveOpenDocumentMutation } from "../files/file-tree-mutations";
+import { runtime } from "../runtime/editor-runtime";
 
 const recentFilesStore = createRecentFilesStore();
 
@@ -32,13 +33,18 @@ export function useDesktopEditorController() {
   const [tocTarget, setTocTarget] = useState<TocTarget | null>(null);
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
+  const [isSidebarVisible, setIsSidebarVisible] = useState(() => window.innerWidth >= 960);
+  const [hasActiveDocument, setHasActiveDocument] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
   const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
   const outline = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
 
   const commitMarkdown = useCallback((markdown: string) => {
+    setHasActiveDocument(true);
     setErrorMessage(null);
     setOpenedAsset(null);
     setSnapshot(runtime.document.updateMarkdown(markdown));
@@ -76,6 +82,7 @@ export function useDesktopEditorController() {
     );
     setErrorMessage(null);
     setOpenedAsset(null);
+    setHasActiveDocument(true);
 
     // 添加到最近文件列表
     const fileName = document.filePath.split("/").pop() || "Untitled";
@@ -98,31 +105,87 @@ export function useDesktopEditorController() {
     [folder]
   );
 
-  const ensureDiscardAllowed = useCallback(() => {
-    return (
-      !runtime.document.getSnapshot().isDirty ||
-      window.confirm("Current document has unsaved changes. Continue?")
-    );
-  }, []);
-
   const runFileAction = useCallback(async (label: string, action: () => Promise<void> | void) => {
     setPendingAction(label);
     setErrorMessage(null);
     try {
       await action();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "File operation failed.");
+      setErrorMessage(error instanceof Error ? error.message : "文件操作失败。");
     } finally {
       setPendingAction(null);
     }
   }, []);
 
-  const createNewDocument = useCallback(() => {
-    if (!ensureDiscardAllowed()) {
+  const requestConfirmation = useCallback((nextConfirmation: ConfirmationState) => {
+    return new Promise<ConfirmationChoice>((resolve) => {
+      confirmationResolver.current = resolve;
+      setConfirmation(nextConfirmation);
+    });
+  }, []);
+
+  const resolveConfirmation = useCallback((choice: ConfirmationChoice) => {
+    const resolve = confirmationResolver.current;
+    confirmationResolver.current = null;
+    setConfirmation(null);
+    resolve?.(choice);
+  }, []);
+
+  const saveDocument = useCallback(
+    async (forceDialog = false) => {
+      await runFileAction(forceDialog ? "正在另存为" : "正在保存", async () => {
+        const current = runtime.document.getSnapshot();
+        const saved = forceDialog
+          ? await fileService.saveDocumentAs({
+              filePath: current.filePath,
+              markdown: current.markdown
+            })
+          : await fileService.saveDocument({
+              filePath: current.filePath,
+              markdown: current.markdown
+            });
+
+        if (saved) {
+          // Only the native save confirmation clears dirty state; cancelled
+          // dialogs and failed writes keep the document unsaved.
+          replaceDocument(saved);
+          await refreshFolderForDocumentPath(saved.filePath);
+        }
+      });
+    },
+    [refreshFolderForDocumentPath, replaceDocument, runFileAction]
+  );
+
+  const ensureDiscardAllowed = useCallback(async (description?: string) => {
+    if (!runtime.document.getSnapshot().isDirty) {
+      return true;
+    }
+
+    const choice = await requestConfirmation({
+      title: "保存当前文档的更改？",
+      description:
+        description ?? "继续后将切换到其他文档。你可以先保存，或放弃尚未保存的更改。",
+      confirmLabel: "保存并继续",
+      secondaryLabel: "不保存"
+    });
+
+    if (choice === "secondary") {
+      return true;
+    }
+    if (choice !== "confirm") {
+      return false;
+    }
+
+    await saveDocument(false);
+    return !runtime.document.getSnapshot().isDirty;
+  }, [requestConfirmation, saveDocument]);
+
+  const createNewDocument = useCallback(async () => {
+    if (!(await ensureDiscardAllowed())) {
       return;
     }
 
-    const nextDocument = fileService.newDocument();
+    const nextDocument = fileService.newDocument("");
     runtime.document.updateMarkdown(nextDocument.markdown);
     setSnapshot(
       runtime.document.markSaved({
@@ -131,10 +194,12 @@ export function useDesktopEditorController() {
       })
     );
     setErrorMessage(null);
+    setOpenedAsset(null);
+    setHasActiveDocument(true);
   }, [ensureDiscardAllowed]);
 
   const openDocument = useCallback(async () => {
-    if (!ensureDiscardAllowed()) {
+    if (!(await ensureDiscardAllowed())) {
       return;
     }
 
@@ -149,7 +214,7 @@ export function useDesktopEditorController() {
 
   const openRecentFile = useCallback(
     async (filePath: string) => {
-      if (!ensureDiscardAllowed()) {
+      if (!(await ensureDiscardAllowed())) {
         return;
       }
 
@@ -169,30 +234,35 @@ export function useDesktopEditorController() {
   );
 
   const openRecentDocument = useCallback(async () => {
-    // 这个函数现在由菜单子项处理，保留作为后备方案
     const recentFiles = recentFilesStore.list();
 
     if (recentFiles.length === 0) {
       setErrorMessage("没有最近打开的文件");
       return;
     }
-
-    // 如果菜单没有正确设置，显示第一个文件
-    if (recentFiles.length > 0) {
-      await openRecentFile(recentFiles[0].path);
-    }
-  }, [openRecentFile]);
+    setErrorMessage("请从“最近文件”菜单中选择要打开的文件。");
+  }, []);
 
   const openFolder = useCallback(async () => {
+    if (!(await ensureDiscardAllowed())) {
+      return;
+    }
+
     await runFileAction("正在打开文件夹", async () => {
       const openedFolder = await fileService.openFolder();
       if (!openedFolder) {
         return;
       }
+      const firstMarkdownPath = findFirstMarkdownPath(openedFolder.tree);
+      const firstDocument = firstMarkdownPath
+        ? await fileService.openDocumentAtPath(firstMarkdownPath)
+        : null;
       setFolder(openedFolder);
       setSidebarMode("files");
+      setIsSidebarVisible(true);
+      replaceDocument(firstDocument);
     });
-  }, [runFileAction]);
+  }, [ensureDiscardAllowed, replaceDocument, runFileAction]);
 
   const refreshOpenedFolder = useCallback(
     async (documentPath?: string) => {
@@ -208,7 +278,7 @@ export function useDesktopEditorController() {
 
   const openDocumentFromTree = useCallback(
     async (filePath: string) => {
-      if (!ensureDiscardAllowed()) {
+      if (!(await ensureDiscardAllowed())) {
         return;
       }
 
@@ -224,6 +294,10 @@ export function useDesktopEditorController() {
   const openAssetFromTree = useCallback((node: MarkdownFileTreeNode) => {
     setErrorMessage(null);
     setOpenedAsset({ name: node.name, path: node.path });
+  }, []);
+
+  const closeAssetPreview = useCallback(() => {
+    setOpenedAsset(null);
   }, []);
 
   const applyFileTreeMutation = useCallback(
@@ -246,7 +320,7 @@ export function useDesktopEditorController() {
         return;
       }
 
-      const markdown = "# Untitled\n\nStart writing Markdown.";
+      const markdown = "";
       runtime.document.updateMarkdown(markdown);
       setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
     },
@@ -296,8 +370,13 @@ export function useDesktopEditorController() {
         return;
       }
 
-      const confirmed = window.confirm(`确定删除“${node.name}”吗？`);
-      if (!confirmed) {
+      const choice = await requestConfirmation({
+        title: `删除“${node.name}”？`,
+        description: node.kind === "directory" ? "该文件夹及其中的内容将被永久删除。" : "该文件将被永久删除。",
+        confirmLabel: "删除",
+        destructive: true
+      });
+      if (choice !== "confirm") {
         return;
       }
 
@@ -309,32 +388,7 @@ export function useDesktopEditorController() {
         applyFileTreeMutation(result, node.path);
       });
     },
-    [applyFileTreeMutation, folder, runFileAction]
-  );
-
-  const saveDocument = useCallback(
-    async (forceDialog = false) => {
-      await runFileAction(forceDialog ? "正在另存为" : "正在保存", async () => {
-        const current = runtime.document.getSnapshot();
-        const saved = forceDialog
-          ? await fileService.saveDocumentAs({
-              filePath: current.filePath,
-              markdown: current.markdown
-            })
-          : await fileService.saveDocument({
-              filePath: current.filePath,
-              markdown: current.markdown
-            });
-
-        if (saved) {
-          // Only the native save confirmation clears dirty state; cancelled
-          // dialogs and failed writes keep the document unsaved.
-          replaceDocument(saved);
-          await refreshFolderForDocumentPath(saved.filePath);
-        }
-      });
-    },
-    [refreshFolderForDocumentPath, replaceDocument, runFileAction]
+    [applyFileTreeMutation, folder, requestConfirmation, runFileAction]
   );
 
   useEffect(
@@ -387,7 +441,7 @@ export function useDesktopEditorController() {
   );
 
   const toggleSidebarPrimary = useCallback(async () => {
-    setSidebarMode((current) => (current === "files" ? "outline" : "files"));
+    setIsSidebarVisible((current) => !current);
   }, []);
 
   const getRecentFiles = useCallback(() => {
@@ -396,6 +450,11 @@ export function useDesktopEditorController() {
 
   const dispatchCommand = useCallback(
     async (id: string) => {
+      // Global menu and keyboard events are captured outside React. Ignore
+      // them while a modal decision is pending so its Promise cannot be lost.
+      if (confirmationResolver.current) {
+        return;
+      }
       await runtime.commands.dispatch(id, {
         document: runtime.document,
         actions: {
@@ -430,7 +489,35 @@ export function useDesktopEditorController() {
     return bindDesktopMenuCommands(dispatchCommand);
   }, [dispatchCommand]);
   useEffect(() => bindBrowserDirtyDocumentGuard(), []);
-  useEffect(() => bindTauriCloseGuard(), []);
+  useEffect(
+    () =>
+      bindTauriCloseGuard(() =>
+        ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。")
+      ),
+    [ensureDiscardAllowed]
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 959px)");
+    const collapseForNarrowWindow = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        setIsSidebarVisible(false);
+      }
+    };
+    media.addEventListener("change", collapseForNarrowWindow);
+    return () => media.removeEventListener("change", collapseForNarrowWindow);
+  }, []);
+
+  useEffect(() => {
+    const fileName = snapshot.filePath?.split(/[\\/]/).pop() || "未命名文档";
+    const title = `${snapshot.isDirty ? "• " : ""}${fileName} - Markdown Editor`;
+    document.title = title;
+    if (isTauri()) {
+      // The web preview has no native window; a title-sync failure must never
+      // interrupt editing in either runtime.
+      void getCurrentWindow().setTitle(title).catch(() => undefined);
+    }
+  }, [snapshot.filePath, snapshot.isDirty]);
 
   // Listen for recent file menu events
   useEffect(() => {
@@ -468,20 +555,26 @@ export function useDesktopEditorController() {
     tocTarget,
     folder,
     sidebarMode,
+    isSidebarVisible,
+    hasActiveDocument,
     openedAsset,
     documentKey,
     outline,
     activeOutlineId,
+    confirmation,
     setSidebarMode,
+    setIsSidebarVisible,
     commitMarkdown,
     dispatchCommand,
     openDocumentFromTree,
     openAssetFromTree,
+    closeAssetPreview,
     createTreeItem,
     renameTreeItem,
     deleteTreeItem,
     jumpToTocItem,
     setActiveOutlineId,
+    resolveConfirmation,
     updateActiveOutlineForLine,
     resolveImageSrc,
     getRecentFiles,

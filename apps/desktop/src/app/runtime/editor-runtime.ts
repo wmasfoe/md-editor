@@ -15,7 +15,7 @@ featureRegistry.register(createMarkdownFormatFeature());
 // subscribe to snapshots, while commands and file actions mutate this runtime.
 export const runtime = createEditorRuntime({
   document: createDocumentState({
-    markdown: "# Untitled\n\nStart writing Markdown."
+    markdown: ""
   }),
   mdxComponents: createBuiltInMdxRegistry(),
   features: featureRegistry

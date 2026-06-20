@@ -1,16 +1,34 @@
-import { AssetPreview, MilkdownEditor, OutlinePanel, SourceEditor } from "@md-editor/editor-ui";
+import {
+  AssetPreview,
+  ConfirmActionDialog,
+  DocumentBar,
+  MilkdownEditor,
+  OutlinePanel,
+  SourceEditor,
+  WelcomeState
+} from "@md-editor/editor-ui";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { cx } from "../lib/cx";
-import { useDesktopEditorController } from "./useDesktopEditorController";
+import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 
 export function App() {
   const editor = useDesktopEditorController();
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
+      {editor.isSidebarVisible ? (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="关闭侧栏"
+          onClick={() => editor.setIsSidebarVisible(false)}
+        />
+      ) : null}
       <aside
-        className="flex min-h-0 w-[272px] min-w-[220px] max-w-[360px] flex-[0_0_272px] flex-col select-none overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)]"
+        className={cx("app-sidebar", editor.isSidebarVisible && "app-sidebar--visible")}
         aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
+        aria-hidden={!editor.isSidebarVisible}
+        inert={!editor.isSidebarVisible}
       >
         <div
           className="grid h-10 shrink-0 grid-cols-2 items-end border-b border-[var(--theme-border)] px-3"
@@ -47,18 +65,51 @@ export function App() {
         className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
         aria-label="Markdown 编辑器"
       >
+        <DocumentBar
+          filePath={editor.snapshot.filePath}
+          isDirty={editor.snapshot.isDirty}
+          isSaving={editor.pendingAction === "正在保存" || editor.pendingAction === "正在另存为"}
+          hasActiveDocument={editor.hasActiveDocument}
+          mode={editor.snapshot.mode}
+          isSidebarVisible={editor.isSidebarVisible}
+          onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
+          onChangeMode={(mode) => {
+            if (mode !== editor.snapshot.mode) {
+              void editor.dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
+            }
+          }}
+          onSave={() => void editor.dispatchCommand("file.save")}
+        />
         {editor.errorMessage ? (
-          <div className="border-b border-[rgba(227,15,46,0.25)] bg-[var(--theme-danger-bg)] px-5 py-2.5 text-sm text-[var(--theme-danger-text)]">
+          <div
+            className="border-b border-[rgba(227,15,46,0.25)] bg-[var(--theme-danger-bg)] px-5 py-2.5 text-sm text-[var(--theme-danger-text)]"
+            role="alert"
+          >
             {editor.errorMessage}
           </div>
         ) : null}
         {editor.pendingAction ? (
-          <div className="pointer-events-none fixed left-1/2 top-[18px] z-20 -translate-x-1/2 rounded border border-[var(--theme-border)] bg-white/95 px-3 py-1.5 text-[13px] leading-[1.4] text-[var(--theme-muted)] shadow-[0_4px_18px_rgba(0,0,0,0.08)]">
+          <div
+            className="pointer-events-none fixed left-1/2 top-[18px] z-20 -translate-x-1/2 rounded border border-[var(--theme-border)] bg-white/95 px-3 py-1.5 text-[13px] leading-[1.4] text-[var(--theme-muted)] shadow-[0_4px_18px_rgba(0,0,0,0.08)]"
+            role="status"
+          >
             {editor.pendingAction}
           </div>
         ) : null}
-        {editor.openedAsset ? (
-          <AssetPreview asset={editor.openedAsset} resolveAssetSrc={editor.resolveImageSrc} />
+        {!editor.hasActiveDocument && !editor.openedAsset ? (
+          <WelcomeState
+            recentFiles={editor.getRecentFiles()}
+            onNewDocument={() => void editor.dispatchCommand("file.new")}
+            onOpenDocument={() => void editor.dispatchCommand("file.open")}
+            onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
+            onOpenRecent={(path) => void editor.openRecentFile(path)}
+          />
+        ) : editor.openedAsset ? (
+          <AssetPreview
+            asset={editor.openedAsset}
+            resolveAssetSrc={editor.resolveImageSrc}
+            onBack={editor.closeAssetPreview}
+          />
         ) : editor.snapshot.mode === "source" ? (
           <SourceEditor
             snapshot={editor.snapshot}
@@ -78,6 +129,10 @@ export function App() {
           />
         )}
       </section>
+      <ConfirmActionDialog
+        confirmation={editor.confirmation}
+        onResolve={editor.resolveConfirmation}
+      />
     </main>
   );
 }

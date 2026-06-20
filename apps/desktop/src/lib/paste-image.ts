@@ -6,7 +6,7 @@ import {
 import type { MarkdownDocumentFile } from "@md-editor/file-system";
 import { fileService } from "../desktop/file-service";
 import { createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
-import { runtime } from "../app/editor-runtime";
+import { runtime } from "../app/runtime/editor-runtime";
 import type { PastedImageInput } from "../types";
 
 const imageStorageProvider = createLocalAssetsImageStorageProvider();
