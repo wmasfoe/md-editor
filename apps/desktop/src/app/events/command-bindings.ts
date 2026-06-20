@@ -1,9 +1,7 @@
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listenToDesktopMenuActions } from "../desktop/menu-events";
-import { matchesRuntimeKeymap } from "../lib/keyboard";
-import type { KeyboardShortcut } from "../types";
-import { runtime } from "./editor-runtime";
+import { listenToDesktopMenuActions } from "../../desktop/menu-events";
+import { matchesRuntimeKeymap } from "../../lib/keyboard";
+import type { KeyboardShortcut } from "../../types";
+import { runtime } from "../runtime/editor-runtime";
 
 export type DesktopCommandDispatcher = (id: string) => Promise<void>;
 
@@ -84,45 +82,4 @@ export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatche
       console.warn('[Menu Event] No command mapped for action:', action);
     }
   });
-}
-
-export function bindBrowserDirtyDocumentGuard() {
-  const listener = (event: BeforeUnloadEvent) => {
-    if (!runtime.document.getSnapshot().isDirty) {
-      return;
-    }
-
-    event.preventDefault();
-    event.returnValue = "";
-  };
-
-  window.addEventListener("beforeunload", listener);
-  return () => window.removeEventListener("beforeunload", listener);
-}
-
-export function bindTauriCloseGuard() {
-  let unlisten: (() => void) | undefined;
-
-  if (!isTauri()) {
-    return undefined;
-  }
-
-  void getCurrentWindow()
-    .onCloseRequested((event) => {
-      if (!runtime.document.getSnapshot().isDirty) {
-        return;
-      }
-
-      const confirmed = window.confirm("Current document has unsaved changes. Close anyway?");
-      if (!confirmed) {
-        event.preventDefault();
-      }
-    })
-    .then((dispose) => {
-      unlisten = dispose;
-    });
-
-  return () => {
-    unlisten?.();
-  };
 }

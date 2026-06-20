@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
@@ -17,6 +17,7 @@ import {
 import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
 import { imageSelectionPlugin } from "../utils/image-selection";
+import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
 import type { TocTarget } from "../types";
 
@@ -60,7 +61,70 @@ function MilkdownEditorInner({
   const imageSourceMapRef = useRef(previewInput.imageSourceMap);
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchCaseSensitive, setIsSearchCaseSensitive] = useState(false);
+  const [searchResult, setSearchResult] = useState({ matchCount: 0, activeIndex: -1 });
   const [loading, getInstance] = useInstance();
+
+  const runSearch = useCallback(
+    (query: string, requestedIndex: number, caseSensitive = isSearchCaseSensitive) => {
+      const editor = getInstance();
+      if (!editor || loading) {
+        return;
+      }
+      const view = editor.ctx.get(editorViewCtx);
+      setSearchResult(updateWysiwygSearch(view, query, caseSensitive, requestedIndex));
+    },
+    [getInstance, isSearchCaseSensitive, loading]
+  );
+
+  const closeSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    const editor = getInstance();
+    if (!editor || loading) {
+      return;
+    }
+    const view = editor.ctx.get(editorViewCtx);
+    updateWysiwygSearch(view, "", false, -1);
+    requestAnimationFrame(() => view.focus());
+  }, [getInstance, loading]);
+
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if (
+        document.querySelector('[role="dialog"]') ||
+        !(event.metaKey || event.ctrlKey) ||
+        event.key.toLowerCase() !== "f"
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const editor = getInstance();
+      const view = !loading && editor ? editor.ctx.get(editorViewCtx) : null;
+      const selection = view?.state.selection;
+      const selectedText =
+        selection && !selection.empty
+          ? view.state.doc.textBetween(selection.from, selection.to, " ").slice(0, 120)
+          : "";
+      const nextQuery = selectedText || searchQuery;
+      setSearchQuery(nextQuery);
+      setIsSearchOpen(true);
+      if (view) {
+        setSearchResult(updateWysiwygSearch(view, nextQuery, isSearchCaseSensitive, 0));
+      }
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      });
+    };
+
+    window.addEventListener("keydown", openSearch, { capture: true });
+    return () => window.removeEventListener("keydown", openSearch, { capture: true });
+  }, [getInstance, isSearchCaseSensitive, loading, searchQuery]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -141,6 +205,7 @@ function MilkdownEditorInner({
         .use(gfm)
         .use(history)
         .use(imageSelectionPlugin)
+        .use(wysiwygSearchPlugin)
         .use(codeBlockToolsPlugin)
         .use(codeHighlightPlugin)
         .use(listener),
@@ -232,6 +297,64 @@ function MilkdownEditorInner({
 
   return (
     <div ref={rootRef} className="milkdown-host">
+      {isSearchOpen ? (
+        <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            aria-label="查找内容"
+            placeholder="查找"
+            onChange={(event) => {
+              const query = event.target.value;
+              setSearchQuery(query);
+              runSearch(query, 0);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                closeSearch();
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                runSearch(searchQuery, searchResult.activeIndex + (event.shiftKey ? -1 : 1));
+              }
+            }}
+          />
+          <span className="wysiwyg-search-panel__count" aria-live="polite">
+            {searchResult.matchCount === 0
+              ? "无匹配"
+              : `${searchResult.activeIndex + 1} / ${searchResult.matchCount}`}
+          </span>
+          <button
+            type="button"
+            aria-label="上一个匹配"
+            onClick={() => runSearch(searchQuery, searchResult.activeIndex - 1)}
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            aria-label="下一个匹配"
+            onClick={() => runSearch(searchQuery, searchResult.activeIndex + 1)}
+          >
+            ↓
+          </button>
+          <label>
+            <input
+              type="checkbox"
+              checked={isSearchCaseSensitive}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setIsSearchCaseSensitive(checked);
+                runSearch(searchQuery, 0, checked);
+              }}
+            />
+            区分大小写
+          </label>
+          <button type="button" aria-label="关闭查找" onClick={closeSearch}>
+            ×
+          </button>
+        </div>
+      ) : null}
       <Milkdown />
     </div>
   );

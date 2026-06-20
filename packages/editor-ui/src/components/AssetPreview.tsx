@@ -8,9 +8,10 @@ export interface AssetPreviewInput {
 export interface AssetPreviewProps {
   readonly asset: AssetPreviewInput;
   readonly resolveAssetSrc?: (path: string) => string;
+  readonly onBack?: () => void;
 }
 
-export function AssetPreview({ asset, resolveAssetSrc = (path) => path }: AssetPreviewProps) {
+export function AssetPreview({ asset, resolveAssetSrc = (path) => path, onBack }: AssetPreviewProps) {
   const [failedPath, setFailedPath] = useState<string | null>(null);
   const assetUrl = useMemo(() => resolveAssetSrc(asset.path), [asset.path, resolveAssetSrc]);
 
@@ -20,11 +21,22 @@ export function AssetPreview({ asset, resolveAssetSrc = (path) => path }: AssetP
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--theme-surface)]">
-      <div
-        className="min-h-[34px] overflow-hidden border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-1.5 text-[13px] font-semibold leading-[1.35] text-ellipsis whitespace-nowrap text-[var(--theme-control-text)]"
-        title={asset.path}
-      >
-        {asset.name}
+      <div className="flex min-h-[38px] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3">
+        {onBack ? (
+          <button
+            type="button"
+            className="rounded px-2 py-1 text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
+            onClick={onBack}
+          >
+            返回文档
+          </button>
+        ) : null}
+        <div
+          className="min-w-0 flex-1 overflow-hidden text-[13px] font-semibold leading-[1.35] text-ellipsis whitespace-nowrap text-[var(--theme-control-text)]"
+          title={asset.path}
+        >
+          {asset.name}
+        </div>
       </div>
       <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-7">
         {failedPath ? (

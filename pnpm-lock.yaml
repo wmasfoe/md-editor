@@ -104,9 +104,6 @@ importers:
       '@codemirror/lang-markdown':
         specifier: 'catalog:'
         version: 6.5.0
-      '@headlessui/react':
-        specifier: 'catalog:'
-        version: 2.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -238,6 +235,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.1
         version: 6.43.1
+      '@headlessui/react':
+        specifier: 'catalog:'
+        version: 2.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../editor-core

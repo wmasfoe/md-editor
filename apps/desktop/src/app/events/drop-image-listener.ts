@@ -1,4 +1,4 @@
-import { getDroppedImage, pasteImageInput, type PasteImageRuntime } from "../lib/paste-image";
+import { getDroppedImage, pasteImageInput, type PasteImageRuntime } from "../../lib/paste-image";
 
 export function bindDropImageListener(runtimeActions: PasteImageRuntime) {
   const handleDragOver = (event: DragEvent) => {

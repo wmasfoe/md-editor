@@ -415,6 +415,7 @@ describe("built-in feature registry", () => {
     expect(commands.list().map((command) => command.id)).toEqual([
       "file.new",
       "file.open",
+      "file.openRecent",
       "file.openFolder",
       "file.save",
       "file.saveAs",
@@ -423,7 +424,7 @@ describe("built-in feature registry", () => {
       "view.toggleSidebarPrimary",
     ]);
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
-      "Mod-Shift-1:view.toggleSidebarPrimary",
+      "Mod-Shift-B:view.toggleSidebarPrimary",
     );
 
     await commands.dispatch("view.toggleSidebarPrimary", {

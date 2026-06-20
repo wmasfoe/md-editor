@@ -212,7 +212,7 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             app,
             "md-editor:toggle-sidebar-primary",
             "Toggle File Tree / Outline",
-            "CmdOrCtrl+Shift+1",
+            "CmdOrCtrl+Shift+B",
         )?)
         .build()?;
 
