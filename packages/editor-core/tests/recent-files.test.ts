@@ -1,5 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { createRecentFilesStore } from "../src/recent-files";
+import {
+  createRecentFilesStore,
+  type RecentFile,
+  type RecentFilesBackend
+} from "../src/recent-files";
 
 describe("RecentFilesStore", () => {
   let store: ReturnType<typeof createRecentFilesStore>;
@@ -104,5 +108,43 @@ describe("RecentFilesStore", () => {
     const authoritative = await store.listAuthoritative();
     expect(authoritative).toEqual(store.list());
     expect(authoritative[0].path).toBe("/test/file2.md");
+  });
+
+  it("keeps the native recent-file source and menu synchronized", async () => {
+    const nativeFiles: RecentFile[][] = [];
+    let menuUpdates = 0;
+    const backend: RecentFilesBackend = {
+      load: async () => nativeFiles.at(-1) ?? [],
+      save: async (files) => {
+        nativeFiles.push([...files]);
+      },
+      updateMenu: async () => {
+        menuUpdates += 1;
+      }
+    };
+    const synchronizedStore = createRecentFilesStore(undefined, backend);
+
+    await synchronizedStore.add({ path: "/test/file.md", name: "file.md" });
+    expect(await synchronizedStore.listAuthoritative()).toEqual(synchronizedStore.list());
+
+    await synchronizedStore.clear();
+    expect(synchronizedStore.list()).toEqual([]);
+    expect(nativeFiles.at(-1)).toEqual([]);
+    expect(menuUpdates).toBe(2);
+  });
+
+  it("surfaces native persistence failures without losing the local update", async () => {
+    const synchronizedStore = createRecentFilesStore(undefined, {
+      load: async () => [],
+      save: async () => {
+        throw new Error("native write failed");
+      },
+      updateMenu: async () => undefined
+    });
+
+    await expect(
+      synchronizedStore.add({ path: "/test/file.md", name: "file.md" })
+    ).rejects.toThrow("native write failed");
+    expect(synchronizedStore.list()).toHaveLength(1);
   });
 });

@@ -1,15 +1,21 @@
+import { lazy, Suspense } from "react";
 import {
   AssetPreview,
   ConfirmActionDialog,
   DocumentBar,
-  MilkdownEditor,
   OutlinePanel,
-  SourceEditor,
   WelcomeState
 } from "@md-editor/editor-ui";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+
+const SourceEditor = lazy(() =>
+  import("@md-editor/editor-ui/source-editor").then((module) => ({ default: module.SourceEditor }))
+);
+const MilkdownEditor = lazy(() =>
+  import("@md-editor/editor-ui/milkdown-editor").then((module) => ({ default: module.MilkdownEditor }))
+);
 
 export function App() {
   const editor = useDesktopEditorController();
@@ -111,22 +117,26 @@ export function App() {
             onBack={editor.closeAssetPreview}
           />
         ) : editor.snapshot.mode === "source" ? (
-          <SourceEditor
-            snapshot={editor.snapshot}
-            target={editor.tocTarget}
-            onChange={editor.commitMarkdown}
-            onVisibleLineChange={editor.updateActiveOutlineForLine}
-          />
+          <Suspense fallback={<EditorLoadingState />}>
+            <SourceEditor
+              snapshot={editor.snapshot}
+              target={editor.tocTarget}
+              onChange={editor.commitMarkdown}
+              onVisibleLineChange={editor.updateActiveOutlineForLine}
+            />
+          </Suspense>
         ) : (
-          <MilkdownEditor
-            key={editor.documentKey}
-            snapshot={editor.snapshot}
-            outline={editor.outline}
-            target={editor.tocTarget}
-            onChange={editor.commitMarkdown}
-            onActiveOutlineChange={editor.setActiveOutlineId}
-            resolveImageSrc={editor.resolveImageSrc}
-          />
+          <Suspense fallback={<EditorLoadingState />}>
+            <MilkdownEditor
+              key={editor.documentKey}
+              snapshot={editor.snapshot}
+              outline={editor.outline}
+              target={editor.tocTarget}
+              onChange={editor.commitMarkdown}
+              onActiveOutlineChange={editor.setActiveOutlineId}
+              resolveImageSrc={editor.resolveImageSrc}
+            />
+          </Suspense>
         )}
       </section>
       <ConfirmActionDialog
@@ -134,6 +144,14 @@ export function App() {
         onResolve={editor.resolveConfirmation}
       />
     </main>
+  );
+}
+
+function EditorLoadingState() {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-[var(--theme-muted)]" role="status">
+      正在载入源码编辑器…
+    </div>
   );
 }
 

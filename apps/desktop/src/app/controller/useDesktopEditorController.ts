@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { switchEditorModeSafely, type EditorMode, createRecentFilesStore } from "@md-editor/editor-core";
 import type { ConfirmationChoice, ConfirmationState, TocTarget } from "@md-editor/editor-ui";
 import { isTauri } from "@tauri-apps/api/core";
@@ -19,10 +19,12 @@ import {
   bindRuntimeKeyboardShortcuts
 } from "../events/command-bindings";
 import { bindDropImageListener } from "../events/drop-image-listener";
+import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindPasteImageListener } from "../events/paste-image-listener";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { findFirstMarkdownPath, resolveOpenDocumentMutation } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
+import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 
 const recentFilesStore = createRecentFilesStore();
 
@@ -41,7 +43,8 @@ export function useDesktopEditorController() {
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
-  const outline = useMemo(() => extractHeadingOutline(snapshot.markdown), [snapshot.markdown]);
+  const deferredMarkdown = useDeferredValue(snapshot.markdown);
+  const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
 
   const commitMarkdown = useCallback((markdown: string) => {
     setHasActiveDocument(true);
@@ -86,9 +89,11 @@ export function useDesktopEditorController() {
 
     // 添加到最近文件列表
     const fileName = document.filePath.split("/").pop() || "Untitled";
-    recentFilesStore.add({
+    void recentFilesStore.add({
       path: document.filePath,
       name: fileName
+    }).catch((error: unknown) => {
+      setErrorMessage(error instanceof Error ? error.message : "最近文件保存失败。");
     });
   }, []);
 
@@ -149,11 +154,19 @@ export function useDesktopEditorController() {
           // Only the native save confirmation clears dirty state; cancelled
           // dialogs and failed writes keep the document unsaved.
           replaceDocument(saved);
-          await refreshFolderForDocumentPath(saved.filePath);
+          if (
+            shouldRefreshFolderAfterSave({
+              previousPath: current.filePath,
+              savedPath: saved.filePath,
+              openedRootPath: folder?.rootPath ?? null
+            })
+          ) {
+            await refreshFolderForDocumentPath(saved.filePath);
+          }
         }
       });
     },
-    [refreshFolderForDocumentPath, replaceDocument, runFileAction]
+    [folder?.rootPath, refreshFolderForDocumentPath, replaceDocument, runFileAction]
   );
 
   const ensureDiscardAllowed = useCallback(async (description?: string) => {
@@ -225,7 +238,7 @@ export function useDesktopEditorController() {
           await refreshFolderForDocumentPath(document.filePath);
         } catch (error) {
           // 文件可能已被删除或移动，从最近列表中移除
-          recentFilesStore.remove(filePath);
+          await recentFilesStore.remove(filePath);
           throw error;
         }
       });
@@ -519,34 +532,15 @@ export function useDesktopEditorController() {
     }
   }, [snapshot.filePath, snapshot.isDirty]);
 
-  // Listen for recent file menu events
-  useEffect(() => {
-    const handleOpenRecentFile = (event: CustomEvent<{ index: number }>) => {
-      const { index } = event.detail;
-      void (async () => {
-        // Resolve the index against the same list the native menu was built
-        // from (recent-files.json), not localStorage. Right after launch the
-        // two can diverge in order/length, which silently dropped clicks.
-        const recentFiles = await recentFilesStore.listAuthoritative();
-        if (index >= 0 && index < recentFiles.length) {
-          await openRecentFile(recentFiles[index].path);
-        }
-      })();
-    };
-
-    const handleClearRecentFiles = () => {
-      recentFilesStore.clear();
-      // TODO: Rebuild menu to reflect empty state
-    };
-
-    window.addEventListener('open-recent-file-by-index', handleOpenRecentFile as EventListener);
-    window.addEventListener('clear-recent-files', handleClearRecentFiles);
-
-    return () => {
-      window.removeEventListener('open-recent-file-by-index', handleOpenRecentFile as EventListener);
-      window.removeEventListener('clear-recent-files', handleClearRecentFiles);
-    };
-  }, [openRecentFile]);
+  useEffect(
+    () =>
+      bindRecentFileMenuEvents({
+        store: recentFilesStore,
+        openRecentFile,
+        onError: setErrorMessage
+      }),
+    [openRecentFile]
+  );
 
   return {
     snapshot,

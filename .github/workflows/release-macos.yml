@@ -27,6 +27,9 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -38,6 +41,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Test Rust
+        run: pnpm test:rust
 
       - name: Read release version
         id: release_version
@@ -69,9 +75,6 @@ jobs:
             echo "Release tag ${GITHUB_REF_NAME} does not match app version tag ${RELEASE_TAG}." >&2
             exit 1
           fi
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
 
       # Distribution note:
       # A plain Tauri DMG can be built and installed locally, but macOS Gatekeeper

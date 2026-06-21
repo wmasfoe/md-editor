@@ -156,29 +156,28 @@ export function restoreRawBlocksFromPreview(
 
 export function extractHeadingOutline(markdown: string): readonly HeadingOutlineItem[] {
   const seen = new Map<string, number>();
+  const outline: HeadingOutlineItem[] = [];
+  const lines = normalizeLineEndings(markdown).split("\n");
 
-  return normalizeLineEndings(markdown)
-    .split("\n")
-    .flatMap((line, index) => {
-      const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(line);
-      if (!match) {
-        return [];
-      }
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(#{1,6})\s+(.+?)\s*#*$/.exec(lines[index]);
+    if (!match) {
+      continue;
+    }
 
-      const text = match[2].trim();
-      const slug = slugify(text);
-      const count = seen.get(slug) ?? 0;
-      seen.set(slug, count + 1);
-
-      return [
-        {
-          id: count === 0 ? slug : `${slug}-${count + 1}`,
-          level: match[1].length,
-          text,
-          line: index + 1
-        }
-      ];
+    const text = match[2].trim();
+    const slug = slugify(text);
+    const count = seen.get(slug) ?? 0;
+    seen.set(slug, count + 1);
+    outline.push({
+      id: count === 0 ? slug : `${slug}-${count + 1}`,
+      level: match[1].length,
+      text,
+      line: index + 1
     });
+  }
+
+  return outline;
 }
 
 export function findActiveHeadingIdForLine(

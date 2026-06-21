@@ -7,6 +7,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
+      "@md-editor/editor-ui/milkdown-editor": fileURLToPath(
+        new URL("../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url)
+      ),
+      "@md-editor/editor-ui/source-editor": fileURLToPath(
+        new URL("../../packages/editor-ui/src/components/SourceEditor.tsx", import.meta.url)
+      ),
       "@md-editor/editor-ui": fileURLToPath(
         new URL("../../packages/editor-ui/src/index.ts", import.meta.url)
       ),

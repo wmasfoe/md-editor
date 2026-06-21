@@ -15,7 +15,8 @@
     "build": "pnpm -r --sort build",
     "typecheck": "pnpm -r --sort typecheck",
     "test": "pnpm -r --sort test",
-    "lint": "pnpm -r --sort lint"
+    "test:rust": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "lint": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",
