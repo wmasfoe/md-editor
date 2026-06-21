@@ -62,6 +62,16 @@ describe("outline extraction", () => {
     expect(findActiveHeadingIdForLine(outline, 99)).toBe("c");
     expect(findActiveHeadingIdForLine(outline, 0)).toBeNull();
   });
+
+  it("keeps heading positions stable in a large document", () => {
+    const markdown = Array.from({ length: 10_000 }, (_, index) =>
+      index % 1_000 === 0 ? `## Section ${index}` : `paragraph ${index}`
+    ).join("\n");
+
+    const outline = extractHeadingOutline(markdown);
+    expect(outline).toHaveLength(10);
+    expect(outline.at(-1)).toMatchObject({ text: "Section 9000", line: 9001 });
+  });
 });
 
 describe("MDX raw block detection", () => {

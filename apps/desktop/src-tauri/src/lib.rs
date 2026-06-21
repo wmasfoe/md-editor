@@ -11,15 +11,11 @@ use tauri::{
 };
 use tauri_plugin_dialog::DialogExt;
 
-const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
+mod recent_files;
 
-#[derive(Serialize, Deserialize, Clone)]
-struct RecentFile {
-    path: String,
-    name: String,
-    #[serde(rename = "lastOpenedAt")]
-    last_opened_at: u64,
-}
+use recent_files::{load_recent_files, save_recent_files};
+
+const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,35 +101,6 @@ pub fn run() {
         .expect("error while running Markdown Editor");
 }
 
-#[tauri::command]
-fn load_recent_files() -> Vec<RecentFile> {
-    // Read recent files from app data directory
-    let app_data_dir = match dirs::data_dir() {
-        Some(dir) => dir.join("md-editor"),
-        None => return Vec::new(),
-    };
-
-    let recent_files_path = app_data_dir.join("recent-files.json");
-
-    if !recent_files_path.exists() {
-        return Vec::new();
-    }
-
-    match fs::read_to_string(&recent_files_path) {
-        Ok(content) => {
-            match serde_json::from_str::<Vec<RecentFile>>(&content) {
-                Ok(mut files) => {
-                    // Sort by last opened time (newest first)
-                    files.sort_by(|a, b| b.last_opened_at.cmp(&a.last_opened_at));
-                    files
-                }
-                Err(_) => Vec::new(),
-            }
-        }
-        Err(_) => Vec::new(),
-    }
-}
-
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // Menu item IDs are the native half of the command contract. React maps
     // these IDs back to editor-core command IDs.
@@ -146,23 +113,7 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .quit()
         .build()?;
 
-    // Build Open Recent submenu
-    let recent_files = load_recent_files();
-    let mut open_recent_submenu = SubmenuBuilder::new(app, "Open Recent");
-
-    if recent_files.is_empty() {
-        open_recent_submenu = open_recent_submenu.item(&menu_item(app, "md-editor:no-recent", "No Recent Files", "")?);
-    } else {
-        for (index, file) in recent_files.iter().take(10).enumerate() {
-            let id = format!("md-editor:open-recent:{}", index);
-            open_recent_submenu = open_recent_submenu.item(&menu_item(app, &id, &file.name, "")?);
-        }
-        open_recent_submenu = open_recent_submenu
-            .separator()
-            .item(&menu_item(app, "md-editor:clear-recent", "Clear Recent Files", "")?);
-    }
-
-    let open_recent_menu = open_recent_submenu.build()?;
+    let open_recent_menu = recent_files::build_open_recent_menu(app)?;
 
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
@@ -467,7 +418,8 @@ fn save_pasted_image(
     let document_directory = Path::new(&document_path)
         .parent()
         .ok_or_else(|| format!("Cannot resolve parent directory for {document_path}"))?;
-    let assets_directory = normalize_child_assets_directory(document_directory, &default_assets_dir)?;
+    let assets_directory =
+        normalize_child_assets_directory(document_directory, &default_assets_dir)?;
     fs::create_dir_all(&assets_directory).map_err(|error| {
         format!(
             "Failed to create image assets directory {}: {error}",
@@ -491,30 +443,9 @@ fn save_pasted_image(
 }
 
 #[tauri::command]
-fn save_recent_files(recent_files: Vec<RecentFile>) -> Result<(), String> {
-    let app_data_dir = dirs::data_dir()
-        .ok_or_else(|| "Cannot resolve app data directory".to_string())?
-        .join("md-editor");
-
-    // Ensure the directory exists
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|error| format!("Failed to create app data directory: {error}"))?;
-
-    let recent_files_path = app_data_dir.join("recent-files.json");
-
-    let json = serde_json::to_string_pretty(&recent_files)
-        .map_err(|error| format!("Failed to serialize recent files: {error}"))?;
-
-    fs::write(&recent_files_path, json)
-        .map_err(|error| format!("Failed to write recent files: {error}"))?;
-
-    Ok(())
-}
-
-#[tauri::command]
 fn update_recent_files_menu(app: tauri::AppHandle) -> Result<(), String> {
-    let new_menu = build_app_menu(&app)
-        .map_err(|error| format!("Failed to build menu: {error}"))?;
+    let new_menu =
+        build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
 
     app.set_menu(new_menu)
         .map_err(|error| format!("Failed to set menu: {error}"))?;
@@ -621,7 +552,10 @@ fn image_extension(mime_type: &str) -> Option<&'static str> {
     }
 }
 
-fn normalize_child_assets_directory(document_directory: &Path, assets_dir: &str) -> Result<PathBuf, String> {
+fn normalize_child_assets_directory(
+    document_directory: &Path,
+    assets_dir: &str,
+) -> Result<PathBuf, String> {
     let requested = PathBuf::from(assets_dir);
     let directory = if requested.is_absolute() {
         requested
@@ -684,7 +618,10 @@ fn next_image_path(directory: &Path, extension: &str, preferred_name: Option<&st
 }
 
 fn sanitize_image_base_name(name: &str) -> Option<String> {
-    let file_stem = Path::new(name).file_stem()?.to_string_lossy().to_lowercase();
+    let file_stem = Path::new(name)
+        .file_stem()?
+        .to_string_lossy()
+        .to_lowercase();
     let mut output = String::new();
     let mut previous_dash = false;
 
@@ -692,11 +629,12 @@ fn sanitize_image_base_name(name: &str) -> Option<String> {
         if character.is_ascii_alphanumeric() || character == '_' {
             output.push(character);
             previous_dash = false;
-        } else if character == '-' || character.is_whitespace() {
-            if !previous_dash && !output.is_empty() {
-                output.push('-');
-                previous_dash = true;
-            }
+        } else if (character == '-' || character.is_whitespace())
+            && !previous_dash
+            && !output.is_empty()
+        {
+            output.push('-');
+            previous_dash = true;
         }
     }
 

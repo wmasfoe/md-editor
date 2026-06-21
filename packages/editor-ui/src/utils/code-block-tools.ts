@@ -2,43 +2,9 @@ import { $prose } from "@milkdown/kit/utils";
 import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import type { EditorView, NodeView, ViewMutationRecord } from "@milkdown/kit/prose/view";
-import { EditorView as CodeMirrorView, lineNumbers } from "@codemirror/view";
-import { EditorState, Compartment } from "@codemirror/state";
-import { javascript } from "@codemirror/lang-javascript";
-import { css } from "@codemirror/lang-css";
-import { html } from "@codemirror/lang-html";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { java } from "@codemirror/lang-java";
-import { cpp } from "@codemirror/lang-cpp";
-import { python } from "@codemirror/lang-python";
-import { rust } from "@codemirror/lang-rust";
-import { go } from "@codemirror/lang-go";
-import { StreamLanguage } from "@codemirror/language";
-import { ruby } from "@codemirror/legacy-modes/mode/ruby";
-import { swift } from "@codemirror/legacy-modes/mode/swift";
 
 const tabText = "  ";
 const svgNamespace = "http://www.w3.org/2000/svg";
-
-// 语言扩展映射
-function getLanguageExtension(language: string) {
-  const lang = language.toLowerCase();
-  if (lang === "javascript" || lang === "js" || lang === "jsx") return javascript({ jsx: true });
-  if (lang === "typescript" || lang === "ts" || lang === "tsx") return javascript({ typescript: true, jsx: true });
-  if (lang === "css") return css();
-  if (lang === "html") return html();
-  if (lang === "json") return json();
-  if (lang === "markdown" || lang === "md") return markdown();
-  if (lang === "java") return java();
-  if (lang === "c" || lang === "cpp" || lang === "c++" || lang === "csharp" || lang === "c#") return cpp();
-  if (lang === "python" || lang === "py") return python();
-  if (lang === "rust" || lang === "rs") return rust();
-  if (lang === "go") return go();
-  if (lang === "ruby" || lang === "rb") return StreamLanguage.define(ruby);
-  if (lang === "swift") return StreamLanguage.define(swift);
-  return null;
-}
 
 export const codeLanguageOptions = [
   { label: "Plain Text", value: "" },
@@ -215,9 +181,6 @@ class MarkdownCodeBlockNodeView implements NodeView {
   private readonly rawHeader: HTMLElement;
   private readonly rawTitle: HTMLElement;
   private readonly rawHint: HTMLElement;
-  private codeMirrorView: CodeMirrorView | null = null;
-  private languageCompartment = new Compartment();
-
   constructor(
     node: ProseMirrorNode,
     private readonly view: EditorView,
@@ -280,28 +243,6 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.syncLanguage();
     this.syncRawBlockChrome();
     this.syncLineNumbers();
-    this.initCodeMirror();
-  }
-
-  private initCodeMirror() {
-    const language = normalizeCodeLanguage(this.node.attrs.language);
-    const languageExt = getLanguageExtension(language);
-    const extensions = [
-      this.languageCompartment.of(languageExt ? [languageExt] : [])
-    ];
-
-    this.codeMirrorView = new CodeMirrorView({
-      state: EditorState.create({
-        doc: "",
-        extensions
-      }),
-      parent: this.code
-    });
-
-    // 隐藏 CodeMirror 编辑器，只用于语法高亮
-    if (this.codeMirrorView.dom) {
-      this.codeMirrorView.dom.style.display = "none";
-    }
   }
 
   private syncLineNumbers() {
@@ -326,15 +267,6 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.syncRawBlockChrome();
     this.syncLineNumbers();
 
-    // 更新 CodeMirror 语言
-    if (this.codeMirrorView) {
-      const language = normalizeCodeLanguage(this.node.attrs.language);
-      const languageExt = getLanguageExtension(language);
-      this.codeMirrorView.dispatch({
-        effects: this.languageCompartment.reconfigure(languageExt ? [languageExt] : [])
-      });
-    }
-
     return true;
   }
 
@@ -357,9 +289,6 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.languageSelect.removeEventListener("change", this.handleLanguageChange);
     if (this.copyResetTimer) {
       this.dom.ownerDocument.defaultView?.clearTimeout(this.copyResetTimer);
-    }
-    if (this.codeMirrorView) {
-      this.codeMirrorView.destroy();
     }
   }
 

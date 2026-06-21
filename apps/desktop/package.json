@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "lint": "tsc -p tsconfig.json --noEmit"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "catalog:",
