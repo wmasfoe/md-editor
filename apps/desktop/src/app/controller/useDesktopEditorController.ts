@@ -69,7 +69,7 @@ export function useDesktopEditorController() {
     message: "点击检查更新获取当前发布状态。"
   }));
   const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
-  const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
+  const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
   const deferredMarkdown = useDeferredValue(snapshot.markdown);
   const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
 
@@ -210,6 +210,25 @@ export function useDesktopEditorController() {
     });
   }, []);
 
+  const markCurrentDocumentSaved = useCallback((document: MarkdownDocumentFile) => {
+    setSnapshot(
+      runtime.document.markSaved({
+        markdown: document.markdown,
+        filePath: document.filePath
+      })
+    );
+    setErrorMessage(null);
+    setOpenedAsset(null);
+
+    const fileName = document.filePath.split("/").pop() || "Untitled";
+    void recentFilesStore.add({
+      path: document.filePath,
+      name: fileName
+    }).catch((error: unknown) => {
+      setErrorMessage(error instanceof Error ? error.message : "最近文件保存失败。");
+    });
+  }, []);
+
   const refreshFolderForDocumentPath = useCallback(
     async (documentPath: string) => {
       const nextRootPath =
@@ -229,7 +248,7 @@ export function useDesktopEditorController() {
     try {
       await action();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "文件操作失败。");
+      setErrorMessage(formatActionError(error, "文件操作失败。"));
     } finally {
       setPendingAction(null);
     }
@@ -265,7 +284,7 @@ export function useDesktopEditorController() {
 
         if (saved) {
           // 只有原生保存确认成功后才清除 dirty；取消弹窗或写入失败都保持未保存状态。
-          replaceDocument(saved);
+          markCurrentDocumentSaved(saved);
           if (
             shouldRefreshFolderAfterSave({
               previousPath: current.filePath,
@@ -278,7 +297,7 @@ export function useDesktopEditorController() {
         }
       });
     },
-    [folder?.rootPath, refreshFolderForDocumentPath, replaceDocument, runFileAction]
+    [folder?.rootPath, markCurrentDocumentSaved, refreshFolderForDocumentPath, runFileAction]
   );
 
   const ensureDiscardAllowed = useCallback(async (description?: string) => {
@@ -736,4 +755,14 @@ function findDuplicateShortcut(shortcuts: readonly string[]): string | null {
   }
 
   return null;
+}
+
+function formatActionError(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+  return fallback;
 }
