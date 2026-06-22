@@ -11,6 +11,7 @@ import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
 
 const SourceEditor = lazy(() =>
   import("@md-editor/editor-ui/source-editor").then((module) => ({ default: module.SourceEditor }))
@@ -34,6 +35,7 @@ export function App() {
   );
   const sidebarTitle = editor.sidebarMode === "files" ? "文件" : "大纲";
   const showFileSearch = editor.sidebarMode === "files" && isFileSearchOpen;
+  const pendingActionDescription = getLoadingDescription(editor.pendingAction);
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
@@ -175,50 +177,52 @@ export function App() {
             {editor.errorMessage}
           </div>
         ) : null}
-        {editor.pendingAction ? (
-          <div
-            className="pointer-events-none fixed left-1/2 top-[18px] z-20 -translate-x-1/2 rounded border border-[var(--theme-border)] bg-white/95 px-3 py-1.5 text-[13px] leading-[1.4] text-[var(--theme-muted)] shadow-[0_4px_18px_rgba(0,0,0,0.08)]"
-            role="status"
-          >
-            {editor.pendingAction}
-          </div>
-        ) : null}
-        {!editor.hasActiveDocument && !editor.openedAsset ? (
-          <WelcomeState
-            recentFiles={editor.getRecentFiles()}
-            onNewDocument={() => void editor.dispatchCommand("file.new")}
-            onOpenDocument={() => void editor.dispatchCommand("file.open")}
-            onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
-            onOpenRecent={(path) => void editor.openRecentFile(path)}
-          />
-        ) : editor.openedAsset ? (
-          <AssetPreview
-            asset={editor.openedAsset}
-            resolveAssetSrc={editor.resolveImageSrc}
-            onBack={editor.closeAssetPreview}
-          />
-        ) : editor.snapshot.mode === "source" ? (
-          <Suspense fallback={<EditorLoadingState />}>
-            <SourceEditor
-              snapshot={editor.snapshot}
-              target={editor.tocTarget}
-              onChange={editor.commitMarkdown}
-              onVisibleLineChange={editor.updateActiveOutlineForLine}
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          {!editor.hasActiveDocument && !editor.openedAsset ? (
+            <WelcomeState
+              recentFiles={editor.getRecentFiles()}
+              onNewDocument={() => void editor.dispatchCommand("file.new")}
+              onOpenDocument={() => void editor.dispatchCommand("file.open")}
+              onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
+              onOpenRecent={(path) => void editor.openRecentFile(path)}
             />
-          </Suspense>
-        ) : (
-          <Suspense fallback={<EditorLoadingState />}>
-            <MilkdownEditor
-              key={editor.documentKey}
-              snapshot={editor.snapshot}
-              outline={editor.outline}
-              target={editor.tocTarget}
-              onChange={editor.commitMarkdown}
-              onActiveOutlineChange={editor.setActiveOutlineId}
-              resolveImageSrc={editor.resolveImageSrc}
+          ) : editor.openedAsset ? (
+            <AssetPreview
+              asset={editor.openedAsset}
+              resolveAssetSrc={editor.resolveImageSrc}
+              onBack={editor.closeAssetPreview}
             />
-          </Suspense>
-        )}
+          ) : editor.snapshot.mode === "source" ? (
+            <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
+              <SourceEditor
+                snapshot={editor.snapshot}
+                target={editor.tocTarget}
+                onChange={editor.commitMarkdown}
+                onVisibleLineChange={editor.updateActiveOutlineForLine}
+              />
+            </Suspense>
+          ) : (
+            <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
+              <MilkdownEditor
+                key={editor.documentKey}
+                snapshot={editor.snapshot}
+                outline={editor.outline}
+                target={editor.tocTarget}
+                onChange={editor.commitMarkdown}
+                onActiveOutlineChange={editor.setActiveOutlineId}
+                resolveImageSrc={editor.resolveImageSrc}
+              />
+            </Suspense>
+          )}
+          {editor.pendingAction ? (
+            <EditorLoadingState
+              title={GLOBAL_LOADING_TITLE}
+              description={pendingActionDescription}
+              ariaLabel={editor.pendingAction}
+              isOverlay
+            />
+          ) : null}
+        </div>
       </section>
       <ConfirmActionDialog
         confirmation={editor.confirmation}
@@ -292,10 +296,39 @@ function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
 
-function EditorLoadingState() {
+function EditorLoadingState({
+  title,
+  description,
+  ariaLabel,
+  isOverlay = false
+}: {
+  readonly title: string;
+  readonly description?: string;
+  readonly ariaLabel?: string;
+  readonly isOverlay?: boolean;
+}) {
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-[var(--theme-muted)]" role="status">
-      正在载入源码编辑器…
+    <div
+      className={cx(
+        "pointer-events-none flex items-center justify-center bg-[color-mix(in_oklab,var(--theme-surface)_72%,transparent)] backdrop-blur-[2px]",
+        isOverlay ? "absolute inset-0 z-10" : "min-h-0 flex-1"
+      )}
+      role="status"
+      aria-live="polite"
+      aria-label={ariaLabel ?? title}
+    >
+      <div className="flex min-w-[180px] max-w-[240px] flex-col items-center gap-3 rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_94%,white)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
+        <span
+          className="block size-5 animate-spin rounded-full border-2 border-[var(--theme-border-strong)] border-t-[var(--theme-primary)]"
+          aria-hidden="true"
+        />
+        <div className="space-y-1">
+          <p className="m-0 text-[13px] font-medium leading-5 text-[var(--theme-title)]">{title}</p>
+          {description ? (
+            <p className="m-0 text-[12px] leading-5 text-[var(--theme-muted)]">{description}</p>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

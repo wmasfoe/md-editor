@@ -1,4 +1,5 @@
 import type { RecentFile } from "@md-editor/editor-core";
+import { dialogButtonClassName, primaryDialogButtonClassName } from "./ConfirmActionDialog";
 
 export interface WelcomeStateProps {
   readonly recentFiles: readonly RecentFile[];
@@ -79,7 +80,7 @@ export function WelcomeState({
 }
 
 const secondaryActionClassName =
-  "min-h-8 rounded-md border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-3 py-[5px] text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]";
+  `${dialogButtonClassName} min-h-8 px-3 py-[5px]`;
 
 const primaryActionClassName =
-  `${secondaryActionClassName} border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white hover:bg-[var(--theme-primary)] hover:text-white`;
+  `${primaryDialogButtonClassName} min-h-8 px-3 py-[5px]`;
