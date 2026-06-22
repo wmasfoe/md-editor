@@ -7,6 +7,7 @@ export interface RecentFile {
 export interface RecentFilesStore {
   add(file: Omit<RecentFile, "lastOpenedAt">): Promise<void>;
   remove(path: string): Promise<void>;
+  move(previousPath: string, file: Omit<RecentFile, "lastOpenedAt">): Promise<void>;
   list(): readonly RecentFile[];
   /**
    * Resolve the authoritative recent-files list. In Tauri this reads the same
@@ -83,6 +84,42 @@ export function createRecentFilesStore(
       return save(files);
     },
 
+    move(previousPath, file) {
+      const files = load();
+      const movedFiles = files.map((current) => {
+        if (!isSameOrChildPath(current.path, previousPath)) {
+          return current;
+        }
+
+        const nextPath =
+          current.path === previousPath
+            ? file.path
+            : `${file.path}${current.path.slice(previousPath.length)}`;
+
+        return {
+          ...current,
+          path: nextPath,
+          name: current.path === previousPath ? file.name : basename(nextPath)
+        };
+      });
+
+      if (movedFiles.every((current, index) => current.path === files[index]?.path)) {
+        return Promise.resolve();
+      }
+
+      const deduplicatedFiles: RecentFile[] = [];
+      const seenPaths = new Set<string>();
+      for (const current of movedFiles) {
+        if (seenPaths.has(current.path)) {
+          continue;
+        }
+        seenPaths.add(current.path);
+        deduplicatedFiles.push(current);
+      }
+
+      return save(deduplicatedFiles);
+    },
+
     list() {
       return load();
     },
@@ -98,6 +135,16 @@ export function createRecentFilesStore(
       return save([]);
     }
   };
+}
+
+function isSameOrChildPath(path: string, parentPath: string): boolean {
+  const normalizedPath = path.replace(/\\/g, "/");
+  const normalizedParent = parentPath.replace(/\\/g, "/").replace(/\/+$/u, "");
+  return normalizedPath === normalizedParent || normalizedPath.startsWith(`${normalizedParent}/`);
+}
+
+function basename(path: string): string {
+  return path.replace(/\\/g, "/").split("/").pop() || path;
 }
 
 function createTauriRecentFilesBackend(): RecentFilesBackend | null {

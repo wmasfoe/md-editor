@@ -68,6 +68,90 @@ describe("RecentFilesStore", () => {
     expect(files[0].path).toBe("/test/file2.md");
   });
 
+  it("moves existing recent files after a rename without changing their order", async () => {
+    await store.add({ path: "/test/file1.md", name: "file1.md" });
+    await store.add({ path: "/test/file2.md", name: "file2.md" });
+
+    const previousLastOpenedAt = store.list()[1].lastOpenedAt;
+    await store.move("/test/file1.md", {
+      path: "/test/renamed.md",
+      name: "renamed.md"
+    });
+
+    const files = store.list();
+    expect(files).toHaveLength(2);
+    expect(files[0].path).toBe("/test/file2.md");
+    expect(files[1]).toEqual({
+      path: "/test/renamed.md",
+      name: "renamed.md",
+      lastOpenedAt: previousLastOpenedAt
+    });
+  });
+
+  it("updates descendant recent files when a directory path changes", async () => {
+    await store.add({ path: "/test/docs/child.md", name: "child.md" });
+    await store.add({ path: "/test/other.md", name: "other.md" });
+
+    await store.move("/test/docs", {
+      path: "/test/notes",
+      name: "notes"
+    });
+
+    expect(store.list()).toEqual([
+      {
+        path: "/test/other.md",
+        name: "other.md",
+        lastOpenedAt: expect.any(Number)
+      },
+      {
+        path: "/test/notes/child.md",
+        name: "child.md",
+        lastOpenedAt: expect.any(Number)
+      }
+    ]);
+  });
+
+  it("deduplicates the target path when moving a recent file", async () => {
+    await store.add({ path: "/test/file1.md", name: "file1.md" });
+    await store.add({ path: "/test/file2.md", name: "file2.md" });
+
+    await store.move("/test/file1.md", {
+      path: "/test/file2.md",
+      name: "file2.md"
+    });
+
+    expect(store.list()).toEqual([
+      {
+        path: "/test/file2.md",
+        name: "file2.md",
+        lastOpenedAt: expect.any(Number)
+      }
+    ]);
+  });
+
+  it("ignores move requests for files outside the recent list", async () => {
+    await store.add({ path: "/test/file1.md", name: "file1.md" });
+
+    await store.move("/test/missing.md", {
+      path: "/test/renamed.md",
+      name: "renamed.md"
+    });
+
+    expect(store.list()).toHaveLength(1);
+    expect(store.list()[0].path).toBe("/test/file1.md");
+  });
+
+  it("keeps existing names for descendant files when moving a directory", async () => {
+    await store.add({ path: "/test/docs/child.md", name: "child.md" });
+
+    await store.move("/test/docs", {
+      path: "/test/archive",
+      name: "archive"
+    });
+
+    expect(store.list()[0].name).toBe("child.md");
+  });
+
   it("clears all files", () => {
     store.add({ path: "/test/file1.md", name: "file1.md" });
     store.add({ path: "/test/file2.md", name: "file2.md" });

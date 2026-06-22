@@ -503,6 +503,12 @@ export function useDesktopEditorController() {
           name
         });
         applyFileTreeMutation(result, node.path);
+        if (result.affectedPath) {
+          await recentFilesStore.move(node.path, {
+            path: result.affectedPath,
+            name: result.affectedPath.split("/").pop() || name
+          });
+        }
       });
     },
     [applyFileTreeMutation, folder, runFileAction]
