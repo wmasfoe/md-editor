@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
+import "./FileTreePanel.css";
 
 const COLLAPSED_PATHS_STORAGE_PREFIX = "md-editor:file-tree:collapsed:";
 
@@ -147,7 +148,7 @@ export function FileTreePanel({
   if (normalizedSearchQuery) {
     return (
       <div
-        className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-1"
+        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-1"
         onContextMenu={(event) => openContextMenu(event, null)}
       >
         {searchResults.length > 0 ? (
@@ -181,7 +182,7 @@ export function FileTreePanel({
 
   return (
     <div
-      className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4"
+      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto pb-4"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
       <FileTreeNodeView

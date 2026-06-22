@@ -14,11 +14,14 @@ export function DocumentBar({
   onOpenSettings
 }: DocumentBarProps) {
   const controlsClassName = hasActiveDocument
-    ? "document-bar__controls"
-    : "document-bar__controls document-bar__controls--settings-only";
+    ? "flex w-full min-w-0 items-center justify-between gap-1.5"
+    : "flex w-full min-w-0 items-center justify-end gap-1.5";
 
   return (
-    <header className="document-bar" aria-label="编辑视图控制">
+    <header
+      className="flex min-h-[42px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2 py-1.5 text-[var(--theme-control-text)]"
+      aria-label="编辑视图控制"
+    >
       <div className={controlsClassName}>
         {hasActiveDocument ? (
           <ModeToggleButton
@@ -28,7 +31,7 @@ export function DocumentBar({
         ) : null}
         <button
           type="button"
-          className="document-bar__icon-button"
+          className={iconButtonClassName}
           aria-label="打开设置"
           title="设置"
           onClick={onOpenSettings}
@@ -53,7 +56,7 @@ function ModeToggleButton({
   return (
     <button
       type="button"
-      className="document-bar__icon-button"
+      className={iconButtonClassName}
       aria-pressed={isSourceMode}
       aria-label={label}
       title={label}
@@ -63,6 +66,9 @@ function ModeToggleButton({
     </button>
   );
 }
+
+const iconButtonClassName =
+  "grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
 function WysiwygIcon() {
   return (
