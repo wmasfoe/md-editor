@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  findDocumentMatches,
   findTextOccurrences,
   revealActiveWysiwygSearchMatch
 } from "../utils/wysiwyg-search";
+import { createImageTestSchema } from "./image-selection.test";
 
 describe("findTextOccurrences", () => {
   it("finds every non-overlapping match without case sensitivity by default", () => {
@@ -19,6 +21,19 @@ describe("findTextOccurrences", () => {
 
   it("returns no matches for an empty query", () => {
     expect(findTextOccurrences("content", "")).toEqual([]);
+  });
+
+  it("does not search image alt text or src as editable document text", () => {
+    const schema = createImageTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("visible text"),
+        schema.nodes.image.create({ src: "assets/diagram.png", alt: "Secret OCR Text", title: "" })
+      ])
+    ]);
+
+    expect(findDocumentMatches(doc, "Secret OCR Text", false)).toEqual([]);
+    expect(findDocumentMatches(doc, "visible", false)).toEqual([{ from: 1, to: 8 }]);
   });
 
   it("centers the active match after decorations render", () => {
