@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
@@ -9,9 +9,11 @@ const COLLAPSED_PATHS_STORAGE_PREFIX = "md-editor:file-tree:collapsed:";
 type EditingState =
   | { mode: "create"; parentPath: string; kind: TreeItemKind; defaultName: string }
   | { mode: "rename"; node: MarkdownFileTreeNode };
+type SearchResultNode = MarkdownFileTreeNode & { kind: "markdown" | "asset" };
 
 interface FileTreePanelProps {
   readonly folder: MarkdownFolder | null;
+  readonly searchQuery?: string;
   readonly activeFilePath: string | null;
   readonly onOpenFolder: () => void;
   readonly onOpenFile: (filePath: string) => void;
@@ -23,6 +25,7 @@ interface FileTreePanelProps {
 
 export function FileTreePanel({
   folder,
+  searchQuery = "",
   activeFilePath,
   onOpenFolder,
   onOpenFile,
@@ -35,6 +38,11 @@ export function FileTreePanel({
   const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const collapsedPathsRootRef = useRef<string | null>(null);
+  const normalizedSearchQuery = normalizeSearchQuery(searchQuery);
+  const searchResults = useMemo(
+    () => (folder && normalizedSearchQuery ? collectSearchResults(folder.tree, normalizedSearchQuery) : []),
+    [folder, normalizedSearchQuery]
+  );
 
   useEffect(() => {
     const rootPath = folder?.rootPath ?? null;
@@ -136,6 +144,41 @@ export function FileTreePanel({
   const contextParentPath =
     contextMenu?.node?.kind === "directory" ? contextMenu.node.path : folder.rootPath;
 
+  if (normalizedSearchQuery) {
+    return (
+      <div
+        className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-1"
+        onContextMenu={(event) => openContextMenu(event, null)}
+      >
+        {searchResults.length > 0 ? (
+          searchResults.map((node) => (
+            <SearchResultRow
+              key={node.path}
+              node={node}
+              rootPath={folder.rootPath}
+              activeFilePath={activeFilePath}
+              onOpenFile={onOpenFile}
+              onOpenAsset={onOpenAsset}
+              onOpenContextMenu={openContextMenu}
+            />
+          ))
+        ) : (
+          <p className="m-0 px-3 py-2 text-[13px] text-[var(--theme-control-subtle)]">没有匹配的文件。</p>
+        )}
+        {contextMenu ? (
+          <FileTreeContextMenu
+            menu={contextMenu}
+            parentPath={contextParentPath}
+            onClose={() => setContextMenu(null)}
+            onStartCreate={startCreate}
+            onStartRename={startRename}
+            onDeleteTreeItem={onDeleteTreeItem}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
       className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4"
@@ -165,6 +208,83 @@ export function FileTreePanel({
       ) : null}
     </div>
   );
+}
+
+function normalizeSearchQuery(query: string): string {
+  return query.trim().toLowerCase();
+}
+
+function collectSearchResults(
+  root: MarkdownFileTreeNode,
+  normalizedQuery: string
+): readonly SearchResultNode[] {
+  const results: SearchResultNode[] = [];
+
+  const visit = (node: MarkdownFileTreeNode) => {
+    if (isSearchResultNode(node)) {
+      const haystack = `${node.name}\n${node.path}`.toLowerCase();
+      if (haystack.includes(normalizedQuery)) {
+        results.push(node);
+      }
+      return;
+    }
+    node.children?.forEach(visit);
+  };
+
+  visit(root);
+  return results;
+}
+
+function isSearchResultNode(node: MarkdownFileTreeNode): node is SearchResultNode {
+  return node.kind === "markdown" || node.kind === "asset";
+}
+
+function SearchResultRow({
+  node,
+  rootPath,
+  activeFilePath,
+  onOpenFile,
+  onOpenAsset,
+  onOpenContextMenu
+}: {
+  readonly node: SearchResultNode;
+  readonly rootPath: string;
+  readonly activeFilePath: string | null;
+  readonly onOpenFile: (filePath: string) => void;
+  readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
+  readonly onOpenContextMenu: (event: React.MouseEvent, node: MarkdownFileTreeNode) => void;
+}) {
+  const isMarkdown = node.kind === "markdown";
+  const relativePath = relativePathFromRoot(rootPath, node.path);
+
+  return (
+    <button
+      type="button"
+      className={cx(
+        "flex min-h-9 w-full items-center gap-2 border-0 bg-transparent px-3 py-1 text-left text-[13px] leading-[1.3] text-[var(--theme-control-text)] transition-colors duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
+        node.path === activeFilePath && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
+      )}
+      title={node.path}
+      onClick={() => (isMarkdown ? onOpenFile(node.path) : onOpenAsset(node))}
+      onContextMenu={(event) => onOpenContextMenu(event, node)}
+    >
+      <FileKindIcon kind={node.kind} />
+      <span className="min-w-0">
+        <span className="block overflow-hidden text-ellipsis whitespace-nowrap">{node.name}</span>
+        <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-normal text-[var(--theme-control-subtle)]">
+          {relativePath}
+        </small>
+      </span>
+    </button>
+  );
+}
+
+function relativePathFromRoot(rootPath: string, path: string): string {
+  const normalizedRoot = rootPath.replace(/\\/g, "/").replace(/\/$/u, "");
+  const normalizedPath = path.replace(/\\/g, "/");
+  return normalizedPath.startsWith(`${normalizedRoot}/`)
+    ? normalizedPath.slice(normalizedRoot.length + 1)
+    : normalizedPath;
 }
 
 function storageKeyForRoot(rootPath: string): string {

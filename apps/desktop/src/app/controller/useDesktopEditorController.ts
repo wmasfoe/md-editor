@@ -656,11 +656,13 @@ export function useDesktopEditorController() {
 
   useEffect(() => {
     const fileName = snapshot.filePath?.split(/[\\/]/).pop() || "未命名文档";
-    const title = `${snapshot.isDirty ? "• " : ""}${fileName} - Markdown Editor`;
+    const title = `${fileName}${snapshot.isDirty ? "*" : ""}`;
     document.title = title;
     if (isTauri()) {
       // Web 预览没有原生窗口；标题同步失败不能影响任一运行时的编辑流程。
-      void getCurrentWindow().setTitle(title).catch(() => undefined);
+      void getCurrentWindow().setTitle(title).catch((error: unknown) => {
+        console.warn("窗口标题同步失败", error);
+      });
     }
   }, [snapshot.filePath, snapshot.isDirty]);
 
