@@ -26,4 +26,18 @@ describe("matchesRuntimeKeymap", () => {
       )
     ).toBe(false);
   });
+
+  it("matches shortcuts with Option when the keymap asks for Alt", () => {
+    expect(matchesRuntimeKeymap(keyboardEvent({ altKey: true }), "Mod-Shift-Alt-B")).toBe(true);
+    expect(matchesRuntimeKeymap(keyboardEvent({ altKey: false }), "Mod-Shift-Alt-B")).toBe(false);
+  });
+
+  it("matches the slash key by key or code", () => {
+    expect(
+      matchesRuntimeKeymap(
+        keyboardEvent({ code: "Slash", key: "/", shiftKey: false }),
+        "Mod-/"
+      )
+    ).toBe(true);
+  });
 });

@@ -115,6 +115,7 @@ export type BuiltInCommandId =
   | "file.openFolder"
   | "file.save"
   | "file.saveAs"
+  | "settings.open"
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary";
@@ -126,6 +127,7 @@ export interface EditorActionHandlers {
   readonly openFolder?: () => void | Promise<void>;
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
+  readonly openSettings?: () => void | Promise<void>;
   readonly toggleSourceMode?: () => void | Promise<void>;
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
@@ -268,6 +270,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
       registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
       registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
+      registerActionCommand(context.commands, "settings.open", "Settings", "openSettings");
       registerActionCommand(
         context.commands,
         "view.toggleSource",
@@ -291,6 +294,11 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         id: "view.toggleSidebarPrimary",
         key: "Mod-Shift-B",
         commandId: "view.toggleSidebarPrimary",
+      });
+      context.keymaps.register({
+        id: "settings.open",
+        key: "Mod-,",
+        commandId: "settings.open",
       });
 
       // 注意：file.new, file.open, file.save, file.saveAs 的快捷键

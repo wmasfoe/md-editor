@@ -10,6 +10,7 @@ export interface DocumentBarProps {
   readonly onToggleSidebar: () => void;
   readonly onChangeMode: (mode: EditorMode) => void;
   readonly onSave: () => void;
+  readonly onOpenSettings: () => void;
 }
 
 export function DocumentBar({
@@ -21,7 +22,8 @@ export function DocumentBar({
   isSidebarVisible,
   onToggleSidebar,
   onChangeMode,
-  onSave
+  onSave,
+  onOpenSettings
 }: DocumentBarProps) {
   const fileName = filePath?.split(/[\\/]/).pop() || "未命名文档";
   const saveLabel = isSaving ? "保存中" : isDirty ? "未保存" : "已保存";
@@ -66,6 +68,15 @@ export function DocumentBar({
       ) : (
         <strong className="document-bar__welcome-title">Markdown Editor</strong>
       )}
+      <button
+        type="button"
+        className="document-bar__icon-button"
+        aria-label="打开设置"
+        title="设置"
+        onClick={onOpenSettings}
+      >
+        <SettingsIcon />
+      </button>
     </header>
   );
 }
@@ -96,6 +107,15 @@ function SidebarIcon() {
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
       <path d="M6 3v10" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r="2.25" />
+      <path d="M8 1.8v2M8 12.2v2M3.6 3.6 5 5M11 11l1.4 1.4M1.8 8h2M12.2 8h2M3.6 12.4 5 11M11 5l1.4-1.4" />
     </svg>
   );
 }

@@ -16,6 +16,7 @@ export interface PasteImageRuntime {
   readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
   readonly applyMarkdown: (markdown: string) => void;
   readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
+  readonly assetsDirectory?: string;
 }
 
 export function getPastedImage(data: DataTransfer): PastedImageInput | null {
@@ -57,8 +58,7 @@ export async function pasteImageInput(
   await runtimeActions.runFileAction(label, async () => {
     let current = runtime.document.getSnapshot();
 
-    // Image assets live next to a saved Markdown file. Untitled documents must
-    // be saved first so the backend can derive a stable assets/ directory.
+    // 图片资源依赖已保存 Markdown 的目录；未命名文档需要先另存为，后端才能计算稳定目录。
     if (!current.filePath) {
       const saved = await fileService.saveDocumentAs({
         filePath: null,
@@ -80,7 +80,8 @@ export async function pasteImageInput(
       mimeType: image.mimeType,
       context: {
         documentPath: current.filePath,
-        defaultAssetsDir: defaultAssetsDirectoryForDocument(current.filePath),
+        defaultAssetsDir:
+          runtimeActions.assetsDirectory ?? defaultAssetsDirectoryForDocument(current.filePath),
         preferredName: image.preferredName
       }
     });
@@ -90,8 +91,7 @@ export async function pasteImageInput(
       imageAltTextFromFileName(image.preferredName)
     );
 
-    // The asset is already on disk, but the Markdown reference is still an
-    // unsaved document edit. Keep dirty state until the user saves the note.
+    // 图片文件已经落盘，但 Markdown 引用仍是未保存编辑；保持 dirty 状态直到用户保存文档。
     runtimeActions.applyMarkdown(nextMarkdown);
     await runtimeActions.afterSaveImage?.(current.filePath);
   });

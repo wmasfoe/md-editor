@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@codemirror/lang-markdown": "catalog:",
+    "@headlessui/react": "catalog:",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/editor-ui": "workspace:*",
     "@md-editor/file-system": "workspace:*",

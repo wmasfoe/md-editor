@@ -419,12 +419,16 @@ describe("built-in feature registry", () => {
       "file.openFolder",
       "file.save",
       "file.saveAs",
+      "settings.open",
       "view.toggleSource",
       "view.showWysiwyg",
       "view.toggleSidebarPrimary",
     ]);
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Shift-B:view.toggleSidebarPrimary",
+    );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Mod-,:settings.open",
     );
 
     await commands.dispatch("view.toggleSidebarPrimary", {

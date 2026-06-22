@@ -24,6 +24,18 @@ import { bindPasteImageListener } from "../events/paste-image-listener";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { findFirstMarkdownPath, resolveOpenDocumentMutation } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
+import {
+  appVersion,
+  checkForUpdates,
+  createDefaultSettings,
+  keyboardShortcutLabel,
+  loadAppSettings,
+  normalizeShortcutKey,
+  saveAppSettings,
+  validateAssetsDirectory,
+  type AppSettings,
+  type UpdateStatus
+} from "../settings/app-settings";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 
 const recentFilesStore = createRecentFilesStore();
@@ -41,6 +53,21 @@ export function useDesktopEditorController() {
   const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
+    Object.fromEntries(
+      createDefaultSettings().shortcuts.map((shortcut) => [shortcut.id, keyboardShortcutLabel(shortcut.key)])
+    )
+  );
+  const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
+  const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
+    currentVersion: appVersion(),
+    state: "idle",
+    message: "点击检查更新获取当前发布状态。"
+  }));
   const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${snapshot.savedMarkdown}:${editorRevision}`;
   const deferredMarkdown = useDeferredValue(snapshot.markdown);
@@ -58,6 +85,92 @@ export function useDesktopEditorController() {
     setOpenedAsset(null);
     setSnapshot(runtime.document.updateMarkdown(markdown));
     setEditorRevision((current) => current + 1);
+  }, []);
+
+  const syncSettingsDrafts = useCallback((nextSettings: AppSettings) => {
+    setShortcutDrafts(
+      Object.fromEntries(
+        nextSettings.shortcuts.map((shortcut) => [shortcut.id, keyboardShortcutLabel(shortcut.key)])
+      )
+    );
+    setAssetsDirectoryDraft(nextSettings.assetsDirectory);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    syncSettingsDrafts(settings);
+    setSettingsErrorMessage(null);
+    setIsSettingsOpen(true);
+  }, [settings, syncSettingsDrafts]);
+
+  const closeSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+    setSettingsErrorMessage(null);
+    syncSettingsDrafts(settings);
+  }, [settings, syncSettingsDrafts]);
+
+  const captureShortcutDraft = useCallback((id: string, key: string) => {
+    setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
+  }, []);
+
+  const resetShortcutDraft = useCallback(
+    (id: string) => {
+      const shortcut = settings.shortcuts.find((candidate) => candidate.id === id);
+      if (!shortcut) {
+        return;
+      }
+      setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(shortcut.defaultKey) }));
+    },
+    [settings.shortcuts]
+  );
+
+  const saveSettings = useCallback(async () => {
+    const nextAssetsDirectory = validateAssetsDirectory(assetsDirectoryDraft);
+    if (!nextAssetsDirectory) {
+      setSettingsErrorMessage("图片资源目录必须是当前文档目录内的子目录，例如 assets 或 images/posts。");
+      return;
+    }
+
+    // 快捷键保存前统一校验，避免两个命令在全局 keydown 捕获阶段抢同一个组合。
+    const normalizedShortcuts = [];
+    for (const shortcut of settings.shortcuts) {
+      const key = normalizeShortcutKey(shortcutDrafts[shortcut.id] ?? shortcut.key);
+      if (!key) {
+        setSettingsErrorMessage(`“${shortcut.label}”快捷键格式无效，请使用 Command+Shift+B 这类组合。`);
+        return;
+      }
+      normalizedShortcuts.push({ ...shortcut, key });
+    }
+    const duplicate = findDuplicateShortcut(normalizedShortcuts.map((shortcut) => shortcut.key));
+    if (duplicate) {
+      setSettingsErrorMessage(`快捷键 ${keyboardShortcutLabel(duplicate)} 被重复使用。`);
+      return;
+    }
+
+    setIsSavingSettings(true);
+    setSettingsErrorMessage(null);
+    try {
+      const saved = await saveAppSettings({
+        shortcuts: normalizedShortcuts,
+        assetsDirectory: nextAssetsDirectory
+      });
+      setSettings(saved);
+      syncSettingsDrafts(saved);
+      setIsSettingsOpen(false);
+    } catch (error) {
+      setSettingsErrorMessage(error instanceof Error ? error.message : "设置保存失败。");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }, [assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
+
+  const runUpdateCheck = useCallback(async () => {
+    // 现在没有接入 Tauri updater，检查动作仍保留入口和状态，后续可直接替换实现。
+    setUpdateStatus({
+      currentVersion: appVersion(),
+      state: "checking",
+      message: "正在检查更新..."
+    });
+    setUpdateStatus(await checkForUpdates(appVersion()));
   }, []);
 
   const switchMode = useCallback(async (mode: EditorMode) => {
@@ -151,8 +264,7 @@ export function useDesktopEditorController() {
             });
 
         if (saved) {
-          // Only the native save confirmation clears dirty state; cancelled
-          // dialogs and failed writes keep the document unsaved.
+          // 只有原生保存确认成功后才清除 dirty；取消弹窗或写入失败都保持未保存状态。
           replaceDocument(saved);
           if (
             shouldRefreshFolderAfterSave({
@@ -410,9 +522,10 @@ export function useDesktopEditorController() {
         replaceDocument,
         runFileAction,
         applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder
+        afterSaveImage: refreshOpenedFolder,
+        assetsDirectory: settings.assetsDirectory
       }),
-    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]
+    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction, settings.assetsDirectory]
   );
   useEffect(
     () =>
@@ -420,9 +533,10 @@ export function useDesktopEditorController() {
         replaceDocument,
         runFileAction,
         applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder
+        afterSaveImage: refreshOpenedFolder,
+        assetsDirectory: settings.assetsDirectory
       }),
-    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction]
+    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction, settings.assetsDirectory]
   );
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
@@ -441,8 +555,7 @@ export function useDesktopEditorController() {
   );
 
   useEffect(() => {
-    // Editing can delete or rename the active heading. Clear stale ids so the
-    // outline never highlights a section that no longer exists.
+    // 编辑可能删除或重命名当前标题，及时清掉过期 id，避免大纲高亮不存在的章节。
     if (activeOutlineId && !outline.some((item) => item.id === activeOutlineId)) {
       setActiveOutlineId(null);
     }
@@ -463,8 +576,7 @@ export function useDesktopEditorController() {
 
   const dispatchCommand = useCallback(
     async (id: string) => {
-      // Global menu and keyboard events are captured outside React. Ignore
-      // them while a modal decision is pending so its Promise cannot be lost.
+      // 全局菜单和快捷键在 React 外部捕获；有弹窗等待决策时先忽略，避免 Promise 丢失。
       if (confirmationResolver.current) {
         return;
       }
@@ -477,6 +589,7 @@ export function useDesktopEditorController() {
           openFolder,
           saveDocument: () => saveDocument(false),
           saveDocumentAs: () => saveDocument(true),
+          openSettings,
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
           toggleSidebarPrimary
@@ -488,6 +601,7 @@ export function useDesktopEditorController() {
       openDocument,
       openRecentDocument,
       openFolder,
+      openSettings,
       saveDocument,
       switchMode,
       toggleSidebarPrimary,
@@ -496,8 +610,8 @@ export function useDesktopEditorController() {
   );
 
   useEffect(() => {
-    return bindRuntimeKeyboardShortcuts(dispatchCommand);
-  }, [dispatchCommand]);
+    return bindRuntimeKeyboardShortcuts(dispatchCommand, settings);
+  }, [dispatchCommand, settings]);
   useEffect(() => {
     return bindDesktopMenuCommands(dispatchCommand);
   }, [dispatchCommand]);
@@ -526,8 +640,7 @@ export function useDesktopEditorController() {
     const title = `${snapshot.isDirty ? "• " : ""}${fileName} - Markdown Editor`;
     document.title = title;
     if (isTauri()) {
-      // The web preview has no native window; a title-sync failure must never
-      // interrupt editing in either runtime.
+      // Web 预览没有原生窗口；标题同步失败不能影响任一运行时的编辑流程。
       void getCurrentWindow().setTitle(title).catch(() => undefined);
     }
   }, [snapshot.filePath, snapshot.isDirty]);
@@ -541,6 +654,29 @@ export function useDesktopEditorController() {
       }),
     [openRecentFile]
   );
+
+  useEffect(() => {
+    // 设置异步加载；先用默认值渲染，加载成功后再重绑快捷键和图片目录。
+    let cancelled = false;
+
+    void loadAppSettings()
+      .then((loadedSettings) => {
+        if (cancelled) {
+          return;
+        }
+        setSettings(loadedSettings);
+        syncSettingsDrafts(loadedSettings);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : "设置读取失败。");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [syncSettingsDrafts]);
 
   return {
     snapshot,
@@ -556,8 +692,16 @@ export function useDesktopEditorController() {
     outline,
     activeOutlineId,
     confirmation,
+    settings,
+    isSettingsOpen,
+    shortcutDrafts,
+    assetsDirectoryDraft,
+    settingsErrorMessage,
+    isSavingSettings,
+    updateStatus,
     setSidebarMode,
     setIsSidebarVisible,
+    setAssetsDirectoryDraft,
     commitMarkdown,
     dispatchCommand,
     openDocumentFromTree,
@@ -572,6 +716,24 @@ export function useDesktopEditorController() {
     updateActiveOutlineForLine,
     resolveImageSrc,
     getRecentFiles,
-    openRecentFile
+    openRecentFile,
+    closeSettings,
+    captureShortcutDraft,
+    resetShortcutDraft,
+    saveSettings,
+    runUpdateCheck
   };
+}
+
+function findDuplicateShortcut(shortcuts: readonly string[]): string | null {
+  const seen = new Set<string>();
+
+  for (const shortcut of shortcuts) {
+    if (seen.has(shortcut)) {
+      return shortcut;
+    }
+    seen.add(shortcut);
+  }
+
+  return null;
 }
