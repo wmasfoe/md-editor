@@ -587,10 +587,7 @@ fn temporary_save_path(path: &Path) -> Result<PathBuf, String> {
         .map_err(|error| format!("Failed to create temporary save path: {error}"))?
         .as_nanos();
 
-    Ok(parent.join(format!(
-        ".{file_name}.tmp-{}-{suffix}",
-        std::process::id()
-    )))
+    Ok(parent.join(format!(".{file_name}.tmp-{}-{suffix}", std::process::id())))
 }
 
 fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
