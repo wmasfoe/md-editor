@@ -1,5 +1,5 @@
 function isPrimaryShortcut(event: KeyboardEvent) {
-  return (event.metaKey || event.ctrlKey) && !event.altKey;
+  return event.metaKey || event.ctrlKey;
 }
 
 export function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): boolean {
@@ -7,6 +7,7 @@ export function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): bool
   const key = parts.at(-1)?.toLowerCase();
   const wantsMod = parts.includes("Mod");
   const wantsShift = parts.includes("Shift");
+  const wantsAlt = parts.includes("Alt");
 
   if (wantsMod && !isPrimaryShortcut(event)) {
     return false;
@@ -17,9 +18,15 @@ export function matchesRuntimeKeymap(event: KeyboardEvent, keymap: string): bool
   if (event.shiftKey !== wantsShift) {
     return false;
   }
+  if (event.altKey !== wantsAlt) {
+    return false;
+  }
 
   if (key === "/") {
     return event.key === "/" || event.code === "Slash";
+  }
+  if (key === "space") {
+    return event.key === " " || event.code === "Space";
   }
 
   return event.key.toLowerCase() === key;

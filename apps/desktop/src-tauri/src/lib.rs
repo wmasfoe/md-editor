@@ -12,8 +12,10 @@ use tauri::{
 use tauri_plugin_dialog::DialogExt;
 
 mod recent_files;
+mod settings;
 
 use recent_files::{load_recent_files, save_recent_files};
+use settings::{load_app_settings, save_app_settings};
 
 const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
@@ -62,6 +64,14 @@ struct FileTreeMutationResult {
     affected_path: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateStatus {
+    current_version: String,
+    state: String,
+    message: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum CreateTreeItemKind {
@@ -70,14 +80,13 @@ enum CreateTreeItemKind {
 }
 
 pub fn run() {
-    // Rust stays as a thin desktop capability layer: menus, dialogs, scoped
-    // file access, and persistence. Markdown editing semantics live in TS.
+    // Rust 只保留桌面能力边界：菜单、弹窗、文件访问授权和持久化；Markdown 编辑语义在 TS 层。
     tauri::Builder::default()
         .menu(build_app_menu)
         .on_menu_event(|app, event| {
             let action = event.id().as_ref();
             if action.starts_with("md-editor:") {
-                // Tauri v2: emit to all webviews instead of targeting a specific window label
+                // Tauri v2 这里广播给所有 webview，避免依赖固定窗口 label。
                 let _ = app.emit(MENU_ACTION_EVENT, action);
             }
         })
@@ -95,15 +104,17 @@ pub fn run() {
             save_pasted_image,
             save_recent_files,
             update_recent_files_menu,
-            load_recent_files
+            load_recent_files,
+            load_app_settings,
+            save_app_settings_and_update_menu,
+            check_for_updates
         ])
         .run(tauri::generate_context!())
         .expect("error while running Markdown Editor");
 }
 
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
-    // Menu item IDs are the native half of the command contract. React maps
-    // these IDs back to editor-core command IDs.
+    // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
     let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
         .about(None)
         .separator()
@@ -156,18 +167,39 @@ fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             app,
             "md-editor:toggle-source",
             "Toggle Source Mode",
-            "CmdOrCtrl+/",
+            &menu_accelerator_for_shortcut(&settings::shortcut_key("view.toggleSource", "Mod-/")),
         )?)
         .separator()
         .item(&menu_item(
             app,
             "md-editor:toggle-sidebar-primary",
             "Toggle File Tree / Outline",
-            "CmdOrCtrl+Shift+B",
+            &menu_accelerator_for_shortcut(&settings::shortcut_key(
+                "view.toggleSidebarPrimary",
+                "Mod-Shift-B",
+            )),
         )?)
         .build()?;
 
-    Menu::with_items(app, &[&app_menu, &file_menu, &edit_menu, &view_menu])
+    let settings_menu = SubmenuBuilder::new(app, "Settings")
+        .item(&menu_item(
+            app,
+            "md-editor:settings",
+            "Settings...",
+            &menu_accelerator_for_shortcut(&settings::shortcut_key("settings.open", "Mod-,")),
+        )?)
+        .build()?;
+
+    Menu::with_items(
+        app,
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &settings_menu,
+        ],
+    )
 }
 
 fn menu_item(
@@ -179,6 +211,11 @@ fn menu_item(
     MenuItemBuilder::with_id(id, label)
         .accelerator(accelerator)
         .build(app)
+}
+
+fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
+    // 前端 keymap 使用 ProseMirror 风格的 Mod；Tauri 菜单加速键使用 CmdOrCtrl。
+    shortcut.replace("Mod", "CmdOrCtrl").replace('-', "+")
 }
 
 #[tauri::command]
@@ -376,8 +413,7 @@ async fn save_markdown_document(
     markdown: String,
     force_dialog: bool,
 ) -> Result<Option<MarkdownDocumentFile>, String> {
-    // Save and Save As share one command so the frontend owns dirty-state
-    // handling while Rust owns native dialog behavior.
+    // 保存和另存为共享一个命令：前端负责 dirty 状态，Rust 负责原生弹窗。
     let path = if force_dialog {
         let Some(path) = choose_save_path(&app, file_path.as_deref())? else {
             return Ok(None);
@@ -411,8 +447,7 @@ fn save_pasted_image(
     mime_type: String,
     bytes: Vec<u8>,
 ) -> Result<PastedImageFile, String> {
-    // Pasted images are colocated under assets/ beside the current document.
-    // The returned path is Markdown-facing and deliberately relative.
+    // 粘贴图片写入当前文档旁边的资源目录，返回给 Markdown 的路径必须保持相对路径。
     let extension = image_extension(&mime_type)
         .ok_or_else(|| format!("Unsupported image type: {mime_type}"))?;
     let document_directory = Path::new(&document_path)
@@ -432,13 +467,7 @@ fn save_pasted_image(
     allow_asset_directory(&app, &assets_directory)?;
 
     Ok(PastedImageFile {
-        markdown_path: format!(
-            "assets/{}",
-            image_path
-                .file_name()
-                .ok_or_else(|| format!("Cannot resolve file name for {}", image_path.display()))?
-                .to_string_lossy()
-        ),
+        markdown_path: markdown_relative_path(document_directory, &image_path)?,
     })
 }
 
@@ -451,6 +480,35 @@ fn update_recent_files_menu(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|error| format!("Failed to set menu: {error}"))?;
 
     Ok(())
+}
+
+#[tauri::command]
+fn save_app_settings_and_update_menu(
+    app: tauri::AppHandle,
+    settings: settings::AppSettings,
+) -> Result<(), String> {
+    save_app_settings(settings)?;
+    let new_menu =
+        build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
+
+    app.set_menu(new_menu)
+        .map_err(|error| format!("Failed to set menu: {error}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn check_for_updates() -> UpdateStatus {
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+
+    // 先保留产品入口，但不伪装成已接入自动更新；真正检查更新需要签名发布源和 updater 插件。
+    UpdateStatus {
+        current_version: current_version.clone(),
+        state: "unconfigured".to_string(),
+        message: format!(
+            "当前版本 {current_version}。自动更新源尚未配置，请通过 GitHub Release 或 Homebrew 获取新版本。"
+        ),
+    }
 }
 
 fn choose_save_path(
@@ -506,8 +564,7 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
         .to_string_lossy();
     let temporary_path = parent.join(format!(".{file_name}.tmp-{}", std::process::id()));
 
-    // Write to a sibling temp file first, then rename over the target. A failed
-    // write keeps the previous Markdown file intact.
+    // 先写同级临时文件，再 rename 覆盖目标；写入失败时保留原 Markdown 文件。
     if let Err(error) = fs::write(&temporary_path, bytes) {
         let _ = fs::remove_file(&temporary_path);
         return Err(format!("Failed to write {}: {error}", path.display()));
@@ -530,8 +587,7 @@ fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result
 }
 
 fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
-    // Tauri's file-src conversion only works for allowed paths. Grant read
-    // access to opened folders/document directories so image previews render.
+    // Tauri 的 file-src 转换只允许已授权路径；打开文件夹/文档时放开读权限用于图片预览。
     app.state::<tauri::scope::Scopes>()
         .allow_directory(path, true)
         .map_err(|error| {
@@ -573,6 +629,21 @@ fn normalize_child_assets_directory(
     }
 
     Ok(normalized_directory)
+}
+
+fn markdown_relative_path(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path.strip_prefix(root).map_err(|error| {
+        format!(
+            "Failed to derive relative image path from {}: {error}",
+            path.display()
+        )
+    })?;
+
+    Ok(relative
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/"))
 }
 
 fn normalize_path_without_fs(path: &Path) -> PathBuf {
@@ -692,8 +763,7 @@ fn build_markdown_tree(path: &Path) -> Result<Option<MarkdownFileTreeNode>, Stri
         let entry_path = entry.path();
         let name = folder_name(&entry_path);
 
-        // Hide generated and dependency folders from the authoring tree; they
-        // can be huge and are not useful Markdown navigation targets.
+        // 隐藏生成物和依赖目录；它们通常很大，也不是写作导航目标。
         if name.starts_with('.') || name == "node_modules" || name == "target" || name == "dist" {
             continue;
         }
@@ -823,6 +893,17 @@ mod tests {
         }));
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn markdown_relative_path_uses_custom_assets_directory() {
+        let root = Path::new("/notes/post");
+        let image = root.join("images/pasted.png");
+
+        assert_eq!(
+            markdown_relative_path(root, &image).unwrap(),
+            "images/pasted.png"
+        );
     }
 
     fn unique_test_directory(label: &str) -> PathBuf {

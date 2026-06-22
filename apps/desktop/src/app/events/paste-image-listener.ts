@@ -1,14 +1,6 @@
-import type { MarkdownDocumentFile } from "@md-editor/file-system";
-import { getPastedImage, pasteImageInput } from "../../lib/paste-image";
+import { getPastedImage, pasteImageInput, type PasteImageRuntime } from "../../lib/paste-image";
 
-export interface PasteImageListenerRuntime {
-  readonly replaceDocument: (document: MarkdownDocumentFile | null) => void;
-  readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
-  readonly applyMarkdown: (markdown: string) => void;
-  readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
-}
-
-export function bindPasteImageListener(runtimeActions: PasteImageListenerRuntime) {
+export function bindPasteImageListener(runtimeActions: PasteImageRuntime) {
   const listener = (event: ClipboardEvent) => {
     if (!event.clipboardData) {
       return;

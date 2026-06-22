@@ -7,6 +7,7 @@ import {
   WelcomeState
 } from "@md-editor/editor-ui";
 import { FileTreePanel } from "../components/FileTreePanel";
+import { SettingsDialog } from "../components/SettingsDialog";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 
@@ -85,6 +86,7 @@ export function App() {
             }
           }}
           onSave={() => void editor.dispatchCommand("file.save")}
+          onOpenSettings={() => void editor.dispatchCommand("settings.open")}
         />
         {editor.errorMessage ? (
           <div
@@ -143,6 +145,23 @@ export function App() {
         confirmation={editor.confirmation}
         onResolve={editor.resolveConfirmation}
       />
+      {editor.isSettingsOpen ? (
+        <SettingsDialog
+          settings={editor.settings}
+          updateStatus={editor.updateStatus}
+          shortcutDrafts={editor.shortcutDrafts}
+          assetsDirectoryDraft={editor.assetsDirectoryDraft}
+          errorMessage={editor.settingsErrorMessage}
+          isSaving={editor.isSavingSettings}
+          isCheckingForUpdates={editor.updateStatus.state === "checking"}
+          onCaptureShortcut={editor.captureShortcutDraft}
+          onResetShortcut={editor.resetShortcutDraft}
+          onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
+          onSave={() => void editor.saveSettings()}
+          onClose={editor.closeSettings}
+          onCheckForUpdates={() => void editor.runUpdateCheck()}
+        />
+      ) : null}
     </main>
   );
 }
