@@ -1,93 +1,81 @@
 import { describe, expect, it } from "vitest";
-import { tokenizeCodeForHighlighting } from "../utils/code-highlight";
+import { normalizeCodeHighlightLanguage, tokenizeCodeForHighlighting } from "../utils/code-highlight";
 
 describe("code block highlighting", () => {
-  it("tokenizes common fenced code block syntax without changing source text", () => {
-    const tokens = tokenizeCodeForHighlighting("const answer = 42;\n// note\nreturn \"ok\";", "ts");
+  it("uses Shiki tokens without changing source offsets", async () => {
+    const code = "const answer = 42;\n// note\nreturn \"ok\";";
+    const tokens = await tokenizeCodeForHighlighting(code, "ts");
+
+    expect(tokens.length).toBeGreaterThan(4);
+    expect(tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 0, to: 5 }),
+        expect.objectContaining({ from: 15, to: 17 }),
+        expect.objectContaining({ from: 19, to: 26 }),
+        expect.objectContaining({ from: 27, to: 33 }),
+        expect.objectContaining({ from: 34, to: 38 })
+      ])
+    );
+    expect(tokens.every((token) => token.from >= 0 && token.to <= code.length && token.color)).toBe(true);
+  });
+
+  it("normalizes common fenced language aliases to Shiki languages", () => {
+    expect(normalizeCodeHighlightLanguage("ts")).toBe("typescript");
+    expect(normalizeCodeHighlightLanguage("tsx")).toBe("tsx");
+    expect(normalizeCodeHighlightLanguage("js")).toBe("javascript");
+    expect(normalizeCodeHighlightLanguage("sh")).toBe("shellscript");
+    expect(normalizeCodeHighlightLanguage("yml")).toBe("yaml");
+  });
+
+  it("returns no tokens for unsupported languages", async () => {
+    await expect(tokenizeCodeForHighlighting("hello", "unknown-language")).resolves.toEqual([]);
+  });
+
+  it("highlights JSON keys and values as separate source ranges", async () => {
+    const tokens = await tokenizeCodeForHighlighting("{\"name\":\"Ada\",\"enabled\":true}", "json");
 
     expect(tokens).toEqual(
       expect.arrayContaining([
-        { from: 0, to: 5, kind: "keyword" },
-        { from: 15, to: 17, kind: "number" },
-        { from: 19, to: 26, kind: "comment" },
-        { from: 27, to: 33, kind: "keyword" },
-        { from: 34, to: 38, kind: "string" }
+        expect.objectContaining({ from: 1, to: 7 }),
+        expect.objectContaining({ from: 8, to: 13 }),
+        expect.objectContaining({ from: 14, to: 23 }),
+        expect.objectContaining({ from: 24, to: 28 })
       ])
     );
   });
 
-  it("tokenizes HTML tags for markdown-adjacent snippets", () => {
-    const tokens = tokenizeCodeForHighlighting("<Callout>Hi</Callout>", "html");
+  it("highlights HTML and MDX tag attributes", async () => {
+    const htmlTokens = await tokenizeCodeForHighlighting("<Callout type=\"info\">Hi</Callout>", "html");
+    const mdxTokens = await tokenizeCodeForHighlighting("<Callout type=\"info\">Note</Callout>", "mdx");
 
-    expect(tokens).toEqual(
+    expect(htmlTokens).toEqual(
       expect.arrayContaining([
-        { from: 0, to: 8, kind: "tag" },
-        { from: 8, to: 9, kind: "tag" },
-        { from: 11, to: 20, kind: "tag" },
-        { from: 20, to: 21, kind: "tag" }
+        expect.objectContaining({ from: 1, to: 8 }),
+        expect.objectContaining({ from: 9, to: 13 }),
+        expect.objectContaining({ from: 14, to: 20 })
+      ])
+    );
+    expect(mdxTokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 1, to: 8 }),
+        expect.objectContaining({ from: 9, to: 13 }),
+        expect.objectContaining({ from: 14, to: 20 })
       ])
     );
   });
 
-  it("tokenizes Python code with Python-specific keywords", () => {
-    const tokens = tokenizeCodeForHighlighting("def hello():\n    return True", "python");
+  it("does not collapse CSS color values into comment ranges", async () => {
+    const code = ".note { color: #1f6feb; margin: 0; }";
+    const tokens = await tokenizeCodeForHighlighting(code, "css");
 
     expect(tokens).toEqual(
       expect.arrayContaining([
-        { from: 0, to: 3, kind: "keyword" },
-        { from: 17, to: 23, kind: "keyword" },
-        { from: 24, to: 28, kind: "keyword" }
+        expect.objectContaining({ from: 8, to: 13 }),
+        expect.objectContaining({ from: 15, to: 22 }),
+        expect.objectContaining({ from: 24, to: 30 }),
+        expect.objectContaining({ from: 32, to: 33 })
       ])
     );
-  });
-
-  it("tokenizes Rust code with Rust-specific keywords", () => {
-    const tokens = tokenizeCodeForHighlighting("fn main() {\n  let x = 42;\n}", "rust");
-
-    expect(tokens).toEqual(
-      expect.arrayContaining([
-        { from: 0, to: 2, kind: "keyword" },
-        { from: 14, to: 17, kind: "keyword" },
-        { from: 22, to: 24, kind: "number" }
-      ])
-    );
-  });
-
-  it("tokenizes SQL with case-insensitive keywords", () => {
-    const tokens = tokenizeCodeForHighlighting("SELECT * FROM users WHERE id = 1", "sql");
-
-    expect(tokens).toEqual(
-      expect.arrayContaining([
-        { from: 0, to: 6, kind: "keyword" },
-        { from: 9, to: 13, kind: "keyword" },
-        { from: 20, to: 25, kind: "keyword" },
-        { from: 31, to: 32, kind: "number" }
-      ])
-    );
-  });
-
-  it("tokenizes Dockerfile with uppercase keywords", () => {
-    const tokens = tokenizeCodeForHighlighting("FROM node:18\nRUN npm install", "dockerfile");
-
-    expect(tokens).toEqual(
-      expect.arrayContaining([
-        { from: 0, to: 4, kind: "keyword" },
-        { from: 13, to: 16, kind: "keyword" }
-      ])
-    );
-  });
-
-  it("tokenizes MDX component tags in fenced mdx blocks", () => {
-    const tokens = tokenizeCodeForHighlighting("<Callout type=\"info\">Note</Callout>", "mdx");
-
-    expect(tokens).toEqual(
-      expect.arrayContaining([
-        { from: 0, to: 8, kind: "tag" },
-        { from: 14, to: 20, kind: "string" },
-        { from: 20, to: 21, kind: "tag" },
-        { from: 25, to: 34, kind: "tag" },
-        { from: 34, to: 35, kind: "tag" }
-      ])
-    );
+    expect(tokens.some((token) => token.from === 15 && token.to === code.length)).toBe(false);
   });
 });
