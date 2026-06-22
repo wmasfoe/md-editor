@@ -2,9 +2,6 @@ name: Build macOS App
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "**"
   pull_request:
 
 jobs:
