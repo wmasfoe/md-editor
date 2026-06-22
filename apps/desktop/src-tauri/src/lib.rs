@@ -558,11 +558,7 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
     fs::create_dir_all(parent)
         .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
 
-    let file_name = path
-        .file_name()
-        .ok_or_else(|| format!("Cannot resolve file name for {}", path.display()))?
-        .to_string_lossy();
-    let temporary_path = parent.join(format!(".{file_name}.tmp-{}", std::process::id()));
+    let temporary_path = temporary_save_path(path)?;
 
     // 先写同级临时文件，再 rename 覆盖目标；写入失败时保留原 Markdown 文件。
     if let Err(error) = fs::write(&temporary_path, bytes) {
@@ -576,6 +572,25 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn temporary_save_path(path: &Path) -> Result<PathBuf, String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("Cannot resolve parent directory for {}", path.display()))?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("Cannot resolve file name for {}", path.display()))?
+        .to_string_lossy();
+    let suffix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("Failed to create temporary save path: {error}"))?
+        .as_nanos();
+
+    Ok(parent.join(format!(
+        ".{file_name}.tmp-{}-{suffix}",
+        std::process::id()
+    )))
 }
 
 fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
@@ -904,6 +919,23 @@ mod tests {
             markdown_relative_path(root, &image).unwrap(),
             "images/pasted.png"
         );
+    }
+
+    #[test]
+    fn atomic_save_ignores_stale_fixed_process_temp_file() {
+        let root = unique_test_directory("atomic-save-stale-temp");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("post.md");
+        let stale_temp = root.join(format!(".post.md.tmp-{}", std::process::id()));
+        fs::write(&path, "old").unwrap();
+        fs::write(&stale_temp, "stale").unwrap();
+
+        write_atomically(&path, b"new").unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+        assert_eq!(fs::read_to_string(&stale_temp).unwrap(), "stale");
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     fn unique_test_directory(label: &str) -> PathBuf {

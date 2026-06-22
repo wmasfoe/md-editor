@@ -42,7 +42,7 @@ const languageAliases: Readonly<Record<string, BundledLanguage>> = {
   jsx: "jsx",
   markdown: "markdown",
   md: "markdown",
-  mdx: "mdx",
+  mdx: "html",
   mjs: "javascript",
   py: "python",
   python: "python",
@@ -63,6 +63,7 @@ const codeHighlightPluginKey = new PluginKey<DecorationSet>("md-editor-code-high
 const codeHighlightRefreshMeta = "md-editor-code-highlight-refresh";
 const tokenCache = new Map<string, readonly CodeHighlightToken[]>();
 const pendingHighlights = new Map<string, Promise<void>>();
+const pendingLanguageLoads = new Map<BundledLanguage, Promise<void>>();
 
 let highlighterPromise: Promise<Highlighter> | null = null;
 
@@ -218,6 +219,7 @@ async function highlightWithShiki(
   language: BundledLanguage
 ): Promise<readonly CodeHighlightToken[]> {
   const highlighter = await getHighlighter();
+  await ensureLanguageLoaded(highlighter, language);
   const result = highlighter.codeToTokens(code, {
     lang: language,
     theme: codeHighlightTheme
@@ -244,10 +246,26 @@ async function highlightWithShiki(
 function getHighlighter(): Promise<Highlighter> {
   highlighterPromise ??= getSingletonHighlighter({
     themes: [codeHighlightTheme],
-    langs: Object.keys(bundledLanguages) as BundledLanguage[]
+    langs: []
   });
 
   return highlighterPromise;
+}
+
+async function ensureLanguageLoaded(highlighter: Highlighter, language: BundledLanguage): Promise<void> {
+  if (highlighter.getLoadedLanguages().includes(language)) {
+    return;
+  }
+
+  let load = pendingLanguageLoads.get(language);
+  if (!load) {
+    load = highlighter.loadLanguage(language).finally(() => {
+      pendingLanguageLoads.delete(language);
+    });
+    pendingLanguageLoads.set(language, load);
+  }
+
+  await load;
 }
 
 function normalizeLanguage(language?: string | null): BundledLanguage | null {
