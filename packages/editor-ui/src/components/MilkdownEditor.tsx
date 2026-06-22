@@ -16,6 +16,7 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
+import { isEditorBlankSurface } from "../utils/editor-surface";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
@@ -133,15 +134,8 @@ function MilkdownEditorInner({
     let scroller: HTMLElement | null = null;
     let observer: MutationObserver | null = null;
 
-    const handleClick = (event: MouseEvent) => {
+    const placeCursorAtDocumentEnd = () => {
       if (loading) return;
-
-      const target = event.target as HTMLElement;
-      const proseMirror = root.querySelector<HTMLElement>(".ProseMirror");
-
-      // 只有点击 .milkdown 容器或 .ProseMirror 容器本身时才触发
-      // 如果点击的是文本节点、标题、段落等内部元素，不触发
-      if (target !== scroller && target !== proseMirror) return;
 
       const editor = getInstance();
       if (!editor) return;
@@ -149,6 +143,7 @@ function MilkdownEditorInner({
       if (!view) return;
       const { doc } = view.state;
       const endPos = doc.content.size;
+      window.getSelection()?.removeAllRanges();
       const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, endPos));
       view.dispatch(tr);
 
@@ -158,6 +153,17 @@ function MilkdownEditorInner({
       });
     };
 
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!isEditorBlankSurface(event.target, scroller, root.querySelector<HTMLElement>(".ProseMirror"))) return;
+      event.preventDefault();
+      placeCursorAtDocumentEnd();
+    };
+
+    const handleClick = (event: MouseEvent) => {
+      if (!isEditorBlankSurface(event.target, scroller, root.querySelector<HTMLElement>(".ProseMirror"))) return;
+      placeCursorAtDocumentEnd();
+    };
+
     const bindScroller = () => {
       const nextScroller = root.querySelector<HTMLElement>(".milkdown");
       if (!nextScroller || nextScroller === scroller) {
@@ -165,7 +171,9 @@ function MilkdownEditorInner({
       }
 
       scroller?.removeEventListener("click", handleClick);
+      scroller?.removeEventListener("mousedown", handleMouseDown);
       scroller = nextScroller;
+      scroller.addEventListener("mousedown", handleMouseDown);
       scroller.addEventListener("click", handleClick);
       return true;
     };
@@ -182,6 +190,7 @@ function MilkdownEditorInner({
 
     return () => {
       observer?.disconnect();
+      scroller?.removeEventListener("mousedown", handleMouseDown);
       scroller?.removeEventListener("click", handleClick);
     };
   }, [loading, getInstance]);

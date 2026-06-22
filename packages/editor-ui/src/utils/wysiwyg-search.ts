@@ -141,13 +141,17 @@ function createSearchState(
   return { query, caseSensitive, activeIndex, decorations };
 }
 
-function findDocumentMatches(
+export function findDocumentMatches(
   doc: ProseMirrorNode,
   query: string,
   caseSensitive: boolean
 ): readonly SearchMatch[] {
   const matches: SearchMatch[] = [];
   doc.descendants((node, position) => {
+    if (node.type.name === "image") {
+      return false;
+    }
+
     if (!node.isText || !node.text) {
       return;
     }
