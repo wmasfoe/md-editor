@@ -14,16 +14,17 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@headlessui/react": "catalog:",
     "@codemirror/lang-markdown": "catalog:",
     "@codemirror/language": "^6.12.3",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.1",
+    "@headlessui/react": "catalog:",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@milkdown/kit": "catalog:",
     "@milkdown/react": "catalog:",
-    "@uiw/react-codemirror": "catalog:"
+    "@uiw/react-codemirror": "catalog:",
+    "shiki": "^4.2.0"
   },
   "peerDependencies": {
     "react": "catalog:",
