@@ -1730,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "md-editor"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "dirs 5.0.1",
  "serde",
