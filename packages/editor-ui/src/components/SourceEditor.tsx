@@ -4,6 +4,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import type { SourceEditorView, TocTarget } from "../types";
+import "./SourceEditor.css";
 
 export interface SourceEditorProps {
   readonly snapshot: DocumentSnapshot;

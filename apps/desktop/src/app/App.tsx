@@ -40,32 +40,41 @@ export function App() {
       {editor.isSidebarVisible ? (
         <button
           type="button"
-          className="sidebar-backdrop"
+          className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
           aria-label="关闭侧栏"
           onClick={() => editor.setIsSidebarVisible(false)}
         />
       ) : null}
       <aside
-        className={cx("app-sidebar", editor.isSidebarVisible && "app-sidebar--visible")}
+        className={cx(
+          "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r-0 border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-150 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
+          editor.isSidebarVisible &&
+            "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] border-r opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
+        )}
         style={{ "--app-sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
         aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
         aria-hidden={!editor.isSidebarVisible}
         inert={!editor.isSidebarVisible}
       >
-        <div className="sidebar-header">
+        <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
           <button
             type="button"
-            className="sidebar-header__tab sidebar-header__tab--active"
+            className={sidebarHeaderIconButtonClassName}
             aria-label={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
             title={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
             onClick={() => editor.setSidebarMode(editor.sidebarMode === "files" ? "outline" : "files")}
           >
             {editor.sidebarMode === "files" ? <FilesIcon /> : <OutlineIcon />}
           </button>
-          <strong className="sidebar-header__title">{sidebarTitle}</strong>
+          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none text-[var(--theme-title)]">
+            {sidebarTitle}
+          </strong>
           <button
             type="button"
-            className="sidebar-header__icon-button"
+            className={cx(
+              sidebarHeaderIconButtonClassName,
+              isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
+            )}
             aria-label={isFileSearchOpen ? "关闭文件搜索" : "搜索文件"}
             aria-pressed={isFileSearchOpen}
             title="搜索文件"
@@ -78,10 +87,14 @@ export function App() {
           </button>
         </div>
         {showFileSearch ? (
-          <div className="sidebar-search" role="search">
+          <div
+            className="grid min-h-[38px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2.5 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+            role="search"
+          >
             <SearchIcon />
             <input
               type="search"
+              className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
               value={fileSearchQuery}
               autoFocus
               placeholder="搜索文件"
@@ -94,12 +107,16 @@ export function App() {
                 }
               }}
             />
-            <span aria-live="polite" title="匹配数量">
+            <span
+              className="min-w-4 text-right text-[11px] leading-none text-[var(--theme-control-subtle)]"
+              aria-live="polite"
+              title="匹配数量"
+            >
               {fileSearchQuery.trim() ? fileSearchResultCount : ""}
             </span>
           </div>
         ) : null}
-        <div className="sidebar-content">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {editor.sidebarMode === "files" ? (
             <FileTreePanel
               folder={editor.folder}
@@ -142,7 +159,7 @@ export function App() {
         {!editor.isSidebarVisible ? (
           <button
             type="button"
-            className="editor-sidebar-toggle"
+            className="fixed left-2 top-2 z-[15] grid size-[30px] place-items-center rounded-[5px] border-0 bg-[var(--theme-chrome)] text-[var(--theme-control-text)] shadow-[0_1px_6px_rgba(0,0,0,0.08)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
             aria-label="显示侧栏"
             title="显示侧栏"
             onClick={() => editor.setIsSidebarVisible(true)}
@@ -237,7 +254,7 @@ function SidebarResizeHandle({
 }) {
   return (
     <div
-      className="sidebar-resize-handle"
+      className="absolute bottom-0 right-[-3px] top-0 z-[2] w-1.5 cursor-col-resize touch-none after:absolute after:bottom-0 after:right-0.5 after:top-0 after:w-px after:bg-transparent after:content-[''] hover:after:bg-[var(--theme-primary)]"
       role="separator"
       aria-label="调整侧栏宽度"
       aria-orientation="vertical"
@@ -267,6 +284,9 @@ function SidebarResizeHandle({
     />
   );
 }
+
+const sidebarHeaderIconButtonClassName =
+  "grid size-[30px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));

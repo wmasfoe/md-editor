@@ -42,7 +42,7 @@ export function AssetPreview({ asset, resolveAssetSrc = (path) => path, onBack }
         {failedPath ? (
           <div className="grid max-w-[min(520px,100%)] gap-2 rounded border border-[rgba(227,15,46,0.18)] bg-[var(--theme-danger-bg)] px-4 py-3.5 text-[13px] leading-[1.45] text-[var(--theme-danger-text)]">
             <strong>图片加载失败</strong>
-            <span className="overflow-anywhere font-mono text-[var(--theme-control-text)]">
+            <span className="[overflow-wrap:anywhere] font-mono text-[var(--theme-control-text)]">
               {failedPath}
             </span>
           </div>

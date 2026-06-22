@@ -1,6 +1,8 @@
 export { AssetPreview, type AssetPreviewInput, type AssetPreviewProps } from "./components/AssetPreview";
 export {
   ConfirmActionDialog,
+  dialogButtonClassName,
+  primaryDialogButtonClassName,
   type ConfirmationChoice,
   type ConfirmationState,
   type ConfirmActionDialogProps

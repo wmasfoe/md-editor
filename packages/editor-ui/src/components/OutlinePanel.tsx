@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { TocTarget } from "../types";
+import "./OutlinePanel.css";
 
 export interface OutlineItem {
   readonly id: string;
@@ -32,7 +33,7 @@ export function OutlinePanel({ outline, activeId = null, onJump }: OutlinePanelP
   }
 
   return (
-    <nav className="sidebar-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-2" aria-label="大纲目录">
+    <nav className="outline-panel-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-2" aria-label="大纲目录">
       {outline.map((item) => {
         const active = item.id === activeId;
 

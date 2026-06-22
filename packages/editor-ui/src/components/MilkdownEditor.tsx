@@ -21,6 +21,7 @@ import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
 import type { TocTarget } from "../types";
+import "./MilkdownEditor.css";
 
 export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
