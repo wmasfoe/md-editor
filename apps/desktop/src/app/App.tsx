@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import {
   AssetPreview,
@@ -169,15 +169,8 @@ export function App() {
             <SidebarIcon />
           </button>
         ) : null}
-        {editor.errorMessage ? (
-          <div
-            className="border-b border-[rgba(227,15,46,0.25)] bg-[var(--theme-danger-bg)] px-5 py-2.5 text-sm text-[var(--theme-danger-text)]"
-            role="alert"
-          >
-            {editor.errorMessage}
-          </div>
-        ) : null}
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          <EditorToast toast={editor.toast} />
           {!editor.hasActiveDocument && !editor.openedAsset ? (
             <WelcomeState
               recentFiles={editor.getRecentFiles()}
@@ -246,6 +239,39 @@ export function App() {
         />
       ) : null}
     </main>
+  );
+}
+
+function EditorToast({
+  toast
+}: {
+  readonly toast: { readonly id: number; readonly message: string } | null;
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!toast) {
+      setIsVisible(false);
+      return;
+    }
+
+    setIsVisible(true);
+    const timer = window.setTimeout(() => setIsVisible(false), 3200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  if (!toast || !isVisible) {
+    return null;
+  }
+
+  return (
+    <div
+      key={toast.id}
+      className="pointer-events-none absolute left-1/2 top-4 z-20 max-w-[min(520px,calc(100%_-_32px))] -translate-x-1/2 rounded-[10px] border border-white/10 bg-[rgba(38,38,40,0.86)] px-3.5 py-2 text-center text-[13px] font-medium leading-[1.35] text-white shadow-[0_10px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl motion-safe:animate-[toast-in_160ms_ease-out] motion-reduce:animate-none"
+      role="alert"
+    >
+      {toast.message}
+    </div>
   );
 }
 

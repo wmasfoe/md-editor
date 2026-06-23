@@ -40,9 +40,14 @@ import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 
 const recentFilesStore = createRecentFilesStore();
 
+interface ToastState {
+  readonly id: number;
+  readonly message: string;
+}
+
 export function useDesktopEditorController() {
   const [snapshot, setSnapshot] = useState(() => runtime.getSnapshot());
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [tocTarget, setTocTarget] = useState<TocTarget | null>(null);
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
@@ -73,19 +78,31 @@ export function useDesktopEditorController() {
   const deferredMarkdown = useDeferredValue(snapshot.markdown);
   const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
 
-  const commitMarkdown = useCallback((markdown: string) => {
-    setHasActiveDocument(true);
-    setErrorMessage(null);
-    setOpenedAsset(null);
-    setSnapshot(runtime.document.updateMarkdown(markdown));
+  const showToast = useCallback((message: string | null) => {
+    if (!message) {
+      setToast(null);
+      return;
+    }
+
+    setToast({
+      id: Date.now(),
+      message
+    });
   }, []);
 
+  const commitMarkdown = useCallback((markdown: string) => {
+    setHasActiveDocument(true);
+    showToast(null);
+    setOpenedAsset(null);
+    setSnapshot(runtime.document.updateMarkdown(markdown));
+  }, [showToast]);
+
   const applyProgrammaticMarkdown = useCallback((markdown: string) => {
-    setErrorMessage(null);
+    showToast(null);
     setOpenedAsset(null);
     setSnapshot(runtime.document.updateMarkdown(markdown));
     setEditorRevision((current) => current + 1);
-  }, []);
+  }, [showToast]);
 
   const syncSettingsDrafts = useCallback((nextSettings: AppSettings) => {
     setShortcutDrafts(
@@ -176,8 +193,8 @@ export function useDesktopEditorController() {
   const switchMode = useCallback(async (mode: EditorMode) => {
     const result = await switchEditorModeSafely(runtime.document, mode);
     setSnapshot(result.snapshot);
-    setErrorMessage(result.ok ? null : result.message);
-  }, []);
+    showToast(result.ok ? null : result.message);
+  }, [showToast]);
 
   const toggleSourceMode = useCallback(async () => {
     const currentMode = runtime.document.getSnapshot().mode;
@@ -196,7 +213,7 @@ export function useDesktopEditorController() {
         filePath: document.filePath
       })
     );
-    setErrorMessage(null);
+    showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
 
@@ -206,9 +223,9 @@ export function useDesktopEditorController() {
       path: document.filePath,
       name: fileName
     }).catch((error: unknown) => {
-      setErrorMessage(error instanceof Error ? error.message : "最近文件保存失败。");
+      showToast(error instanceof Error ? error.message : "最近文件保存失败。");
     });
-  }, []);
+  }, [showToast]);
 
   const markCurrentDocumentSaved = useCallback((document: MarkdownDocumentFile) => {
     setSnapshot(
@@ -217,7 +234,7 @@ export function useDesktopEditorController() {
         filePath: document.filePath
       })
     );
-    setErrorMessage(null);
+    showToast(null);
     setOpenedAsset(null);
 
     const fileName = document.filePath.split("/").pop() || "Untitled";
@@ -225,9 +242,9 @@ export function useDesktopEditorController() {
       path: document.filePath,
       name: fileName
     }).catch((error: unknown) => {
-      setErrorMessage(error instanceof Error ? error.message : "最近文件保存失败。");
+      showToast(error instanceof Error ? error.message : "最近文件保存失败。");
     });
-  }, []);
+  }, [showToast]);
 
   const refreshFolderForDocumentPath = useCallback(
     async (documentPath: string) => {
@@ -244,15 +261,15 @@ export function useDesktopEditorController() {
 
   const runFileAction = useCallback(async (label: string, action: () => Promise<void> | void) => {
     setPendingAction(label);
-    setErrorMessage(null);
+    showToast(null);
     try {
       await action();
     } catch (error) {
-      setErrorMessage(formatActionError(error, "文件操作失败。"));
+      showToast(formatActionError(error, "文件操作失败。"));
     } finally {
       setPendingAction(null);
     }
-  }, []);
+  }, [showToast]);
 
   const requestConfirmation = useCallback((nextConfirmation: ConfirmationState) => {
     return new Promise<ConfirmationChoice>((resolve) => {
@@ -337,10 +354,10 @@ export function useDesktopEditorController() {
         filePath: nextDocument.filePath
       })
     );
-    setErrorMessage(null);
+    showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
-  }, [ensureDiscardAllowed]);
+  }, [ensureDiscardAllowed, showToast]);
 
   const openDocument = useCallback(async () => {
     if (!(await ensureDiscardAllowed())) {
@@ -381,11 +398,11 @@ export function useDesktopEditorController() {
     const recentFiles = recentFilesStore.list();
 
     if (recentFiles.length === 0) {
-      setErrorMessage("没有最近打开的文件");
+      showToast("没有最近打开的文件");
       return;
     }
-    setErrorMessage("请从“最近文件”菜单中选择要打开的文件。");
-  }, []);
+    showToast("请从“最近文件”菜单中选择要打开的文件。");
+  }, [showToast]);
 
   const openFolder = useCallback(async () => {
     if (!(await ensureDiscardAllowed())) {
@@ -436,9 +453,9 @@ export function useDesktopEditorController() {
   );
 
   const openAssetFromTree = useCallback((node: MarkdownFileTreeNode) => {
-    setErrorMessage(null);
+    showToast(null);
     setOpenedAsset({ name: node.name, path: node.path });
-  }, []);
+  }, [showToast]);
 
   const closeAssetPreview = useCallback(() => {
     setOpenedAsset(null);
@@ -677,9 +694,9 @@ export function useDesktopEditorController() {
       bindRecentFileMenuEvents({
         store: recentFilesStore,
         openRecentFile,
-        onError: setErrorMessage
+        onError: showToast
       }),
-    [openRecentFile]
+    [openRecentFile, showToast]
   );
 
   useEffect(() => {
@@ -696,18 +713,18 @@ export function useDesktopEditorController() {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : "设置读取失败。");
+          showToast(error instanceof Error ? error.message : "设置读取失败。");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [syncSettingsDrafts]);
+  }, [showToast, syncSettingsDrafts]);
 
   return {
     snapshot,
-    errorMessage,
+    toast,
     pendingAction,
     tocTarget,
     folder,
