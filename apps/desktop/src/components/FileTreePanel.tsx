@@ -95,15 +95,15 @@ export function FileTreePanel({
     });
   }, []);
 
-  const startCreate = useCallback((parentPath: string, kind: TreeItemKind) => {
-    const defaultName = kind === "markdown" ? "untitled.md" : "untitled";
+  const startCreate = useCallback((parentPath: string, kind: TreeItemKind, defaultName?: string) => {
+    const nextDefaultName = defaultName ?? (kind === "markdown" ? "untitled.md" : "untitled");
     // 展开目标目录
     setCollapsedPaths((current) => {
       const next = new Set(current);
       next.delete(parentPath);
       return next;
     });
-    setEditing({ mode: "create", parentPath, kind, defaultName });
+    setEditing({ mode: "create", parentPath, kind, defaultName: nextDefaultName });
   }, []);
 
   const startRename = useCallback((node: MarkdownFileTreeNode) => {
@@ -535,7 +535,7 @@ interface FileTreeContextMenuProps {
   readonly menu: FileTreeContextMenuState;
   readonly parentPath: string;
   readonly onClose: () => void;
-  readonly onStartCreate: (parentPath: string, kind: TreeItemKind) => void;
+  readonly onStartCreate: (parentPath: string, kind: TreeItemKind, defaultName?: string) => void;
   readonly onStartRename: (node: MarkdownFileTreeNode) => void;
   readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
 }
@@ -565,6 +565,9 @@ function FileTreeContextMenu({
     >
       <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "markdown"))}>
         新建文件
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "markdown", "untitled.mdx"))}>
+        新建 MDX 文件
       </ContextMenuItem>
       <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "directory"))}>
         新建文件夹
