@@ -5,6 +5,15 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 
 export const imageSelectionPluginKey = new PluginKey("md-editor-image-selection");
+const nativeSelectionGuardDurationMs = 1500;
+
+interface NativeImageSelectionGuard {
+  arm(): void;
+  disarm(): void;
+  destroy(): void;
+}
+
+const nativeSelectionGuards = new WeakMap<EditorView, NativeImageSelectionGuard>();
 
 export const imageSelectionPlugin = $prose(
   () =>
@@ -12,7 +21,7 @@ export const imageSelectionPlugin = $prose(
       key: imageSelectionPluginKey,
       props: {
         handleDOMEvents: {
-          click(view, event) {
+          mousedown(view, event) {
             return handleImagePointerEvent(view, event);
           },
           dragstart(_, event) {
@@ -22,17 +31,6 @@ export const imageSelectionPlugin = $prose(
             }
             return false;
           }
-        },
-        handleClickOn(view, position, node, nodePosition, event) {
-          if (node.type.name !== "image") {
-            clearStaleSelectedImageDom(view);
-            return false;
-          }
-
-          event.preventDefault();
-          event.stopPropagation();
-          selectImageNode(view, nodePosition);
-          return true;
         },
         handleKeyDown(view, event) {
           if (!(event.key === "Backspace" || event.key === "Delete")) {
@@ -51,23 +49,23 @@ export const imageSelectionPlugin = $prose(
       },
       view(view) {
         prepareImageDom(view);
-        setImageSelectionGuard(view);
-        const removeSelectionGuard = bindNativeSelectionGuard(view);
+        const nativeSelectionGuard = bindNativeImageSelectionGuard(view);
+        nativeSelectionGuards.set(view, nativeSelectionGuard);
         return {
           update(nextView) {
             prepareImageDom(nextView);
-            setImageSelectionGuard(nextView);
             const selection = nextView.state.selection;
             if (selection instanceof NodeSelection && selection.node.type.name === "image") {
-              clearNativeSelection(nextView);
               markSelectedImageDom(nextView, selection.from);
             } else {
+              nativeSelectionGuard.disarm();
               clearStaleSelectedImageDom(nextView);
             }
           },
           destroy() {
-            removeSelectionGuard();
-            view.dom.classList.remove("md-editor-image-node-selected");
+            nativeSelectionGuard.destroy();
+            nativeSelectionGuards.delete(view);
+            clearStaleSelectedImageDom(view);
           }
         };
       }
@@ -83,7 +81,6 @@ export function selectImageNode(view: EditorView, position: number): void {
   );
   view.focus();
   markSelectedImageDom(view, position);
-  scheduleNativeSelectionCleanup(view);
 }
 
 export function findImageNodePositionForDom(
@@ -123,10 +120,11 @@ function handleImagePointerEvent(view: EditorView, event: MouseEvent): boolean {
     return false;
   }
 
-  // Desktop WebKit can expose Live Text/OCR interactions on images. Claiming
-  // the pointer event here keeps image clicks as editor node selection only.
+  // Desktop WebKit can expose Live Text/OCR interactions on images. Claim the
+  // initial pointer event before a native image selection can be created.
   event.preventDefault();
   event.stopPropagation();
+  nativeSelectionGuards.get(view)?.arm();
   selectImageNode(view, position);
   return true;
 }
@@ -137,36 +135,69 @@ function clearNativeSelection(view: EditorView): void {
   selection?.removeAllRanges();
 }
 
-function bindNativeSelectionGuard(view: EditorView): () => void {
-  const root = view.root;
-  const ownerDocument = root instanceof Document ? root : view.dom.ownerDocument;
-  const handleSelectionChange = () => {
-    if (!hasSelectedImageNode(view) || !hasNativeSelectionInside(view)) {
-      return;
-    }
-
-    clearNativeSelection(view);
-  };
-
-  ownerDocument.addEventListener("selectionchange", handleSelectionChange);
-
-  return () => {
-    ownerDocument.removeEventListener("selectionchange", handleSelectionChange);
-    view.dom.classList.remove("md-editor-image-node-selected");
-  };
-}
-
-function setImageSelectionGuard(view: EditorView): void {
-  view.dom.classList.toggle("md-editor-image-node-selected", hasSelectedImageNode(view));
-}
-
 export function isImageNodeSelection(selection: unknown): boolean {
   return selection instanceof NodeSelection && selection.node.type.name === "image";
 }
 
-function hasSelectedImageNode(view: EditorView): boolean {
-  const selection = view.state.selection;
-  return isImageNodeSelection(selection);
+export function shouldClearNativeImageSelection(
+  guardArmed: boolean,
+  selection: unknown,
+  hasNativeSelectionInside: boolean
+): boolean {
+  return guardArmed && isImageNodeSelection(selection) && hasNativeSelectionInside;
+}
+
+function bindNativeImageSelectionGuard(view: EditorView): NativeImageSelectionGuard {
+  const root = view.root;
+  const ownerDocument = root instanceof Document ? root : view.dom.ownerDocument;
+  const ownerWindow = ownerDocument.defaultView ?? window;
+  let armed = false;
+  let disarmTimer: number | undefined;
+
+  const disarm = () => {
+    armed = false;
+    if (disarmTimer !== undefined) {
+      ownerWindow.clearTimeout(disarmTimer);
+      disarmTimer = undefined;
+    }
+  };
+  const arm = () => {
+    disarm();
+    armed = true;
+    disarmTimer = ownerWindow.setTimeout(disarm, nativeSelectionGuardDurationMs);
+  };
+  const handleSelectionChange = () => {
+    if (
+      shouldClearNativeImageSelection(
+        armed,
+        view.state.selection,
+        hasNativeSelectionInside(view)
+      )
+    ) {
+      clearNativeSelection(view);
+    }
+  };
+  const handleMouseDown = (event: MouseEvent) => {
+    if (!findImageElement(event.target)) {
+      disarm();
+    }
+  };
+
+  // Capture new user input before the browser can create a legitimate range.
+  ownerDocument.addEventListener("mousedown", handleMouseDown, true);
+  ownerDocument.addEventListener("keydown", disarm, true);
+  ownerDocument.addEventListener("selectionchange", handleSelectionChange);
+
+  return {
+    arm,
+    disarm,
+    destroy() {
+      disarm();
+      ownerDocument.removeEventListener("mousedown", handleMouseDown, true);
+      ownerDocument.removeEventListener("keydown", disarm, true);
+      ownerDocument.removeEventListener("selectionchange", handleSelectionChange);
+    }
+  };
 }
 
 function hasNativeSelectionInside(view: EditorView): boolean {
@@ -182,16 +213,6 @@ function hasNativeSelectionInside(view: EditorView): boolean {
     (anchor && view.dom.contains(anchor)) ||
     (focus && view.dom.contains(focus))
   );
-}
-
-function scheduleNativeSelectionCleanup(view: EditorView): void {
-  [0, 50, 250, 750, 1200].forEach((delay) => {
-    window.setTimeout(() => {
-      if (hasSelectedImageNode(view)) {
-        clearNativeSelection(view);
-      }
-    }, delay);
-  });
 }
 
 function prepareImageDom(view: EditorView): void {

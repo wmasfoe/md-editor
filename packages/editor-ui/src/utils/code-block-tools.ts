@@ -41,53 +41,40 @@ export interface IndentPlan {
   readonly text: string;
 }
 
-export const codeBlockToolsPlugin = $prose(
-  () =>
-    new Plugin({
-      key: codeBlockToolsPluginKey,
-      props: {
-        handleKeyDown(view, event) {
-          if ((event.metaKey || event.ctrlKey) && event.key === "a" && !event.shiftKey && !event.altKey) {
-            const { $from } = view.state.selection;
-            if ($from.parent.type.name === "code_block") {
-              const codeBlockStart = $from.start();
-              const codeBlockEnd = $from.end();
-              view.dispatch(
-                view.state.tr.setSelection(
-                  TextSelection.create(view.state.doc, codeBlockStart, codeBlockEnd)
-                )
-              );
-              return true;
-            }
-          }
-
-          if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
-            return false;
-          }
-
-          const plan = planCodeBlockTabIndent(
-            view.state.selection.$from.parent.type.name,
-            view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n"),
-            view.state.selection.from,
-            view.state.selection.to,
-            event.shiftKey
-          );
-          if (!plan) {
-            return false;
-          }
-
-          event.preventDefault();
-          const transaction = view.state.tr.insertText(plan.text, plan.from, plan.to);
-          const nextPosition = plan.from + plan.text.length;
-          view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, nextPosition)));
-          return true;
-        },
-        nodeViews: {
-          code_block: (node, view, getPos) => new MarkdownCodeBlockNodeView(node, view, getPos)
+export function createCodeBlockToolsProsePlugin(): Plugin {
+  return new Plugin({
+    key: codeBlockToolsPluginKey,
+    props: {
+      handleKeyDown(view, event) {
+        if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
+          return false;
         }
+
+        const plan = planCodeBlockTabIndent(
+          view.state.selection.$from.parent.type.name,
+          view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n"),
+          view.state.selection.from,
+          view.state.selection.to,
+          event.shiftKey
+        );
+        if (!plan) {
+          return false;
+        }
+
+        event.preventDefault();
+        const transaction = view.state.tr.insertText(plan.text, plan.from, plan.to);
+        const nextPosition = plan.from + plan.text.length;
+        view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, nextPosition)));
+        return true;
+      },
+      nodeViews: {
+        code_block: (node, view, getPos) => new MarkdownCodeBlockNodeView(node, view, getPos)
       }
-    })
-);
+    }
+  });
+}
+
+export const codeBlockToolsPlugin = $prose(createCodeBlockToolsProsePlugin);
 
 export function planCodeBlockTabIndent(
   parentTypeName: string,

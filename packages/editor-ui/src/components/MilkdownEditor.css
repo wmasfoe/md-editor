@@ -118,11 +118,6 @@
   overflow-wrap: break-word;
 }
 
-.milkdown .ProseMirror.md-editor-image-node-selected {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
 .milkdown .ProseMirror h1,
 .milkdown .ProseMirror h2,
 .milkdown .ProseMirror h3,
