@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Editor, defaultValueCtx, rootCtx } from "@milkdown/kit/core";
+import { Editor, defaultValueCtx, editorViewCtx, parserCtx, rootCtx } from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
-import { TextSelection } from "@milkdown/kit/prose/state";
-import { editorViewCtx } from "@milkdown/kit/core";
+import { Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
+import { Slice } from "@milkdown/kit/prose/model";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
@@ -27,9 +27,16 @@ export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
   readonly outline?: readonly OutlineItem[];
   readonly target: TocTarget | null;
+  readonly insertRequest?: MarkdownInsertRequest | null;
+  readonly onInsertRequestHandled?: (id: number) => void;
   readonly onChange: (markdown: string) => void;
   readonly onActiveOutlineChange?: (id: string | null) => void;
   readonly resolveImageSrc?: (src: string) => string;
+}
+
+export interface MarkdownInsertRequest {
+  readonly id: number;
+  readonly markdown: string;
 }
 
 export function MilkdownEditor(props: MilkdownEditorProps) {
@@ -44,6 +51,8 @@ function MilkdownEditorInner({
   snapshot,
   outline = [],
   target,
+  insertRequest = null,
+  onInsertRequestHandled,
   onChange,
   onActiveOutlineChange,
   resolveImageSrc = (src) => src
@@ -62,6 +71,8 @@ function MilkdownEditorInner({
   );
   const imageSourceMapRef = useRef(previewInput.imageSourceMap);
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
+  const selectionBookmarkRef = useRef<SelectionBookmark | null>(null);
+  const handledInsertRequestIdRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -228,6 +239,13 @@ function MilkdownEditorInner({
               onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
             }
           });
+          ctx.get(listenerCtx).mounted((mountedCtx) => {
+            const view = mountedCtx.get(editorViewCtx);
+            selectionBookmarkRef.current = view.state.selection.getBookmark();
+          });
+          ctx.get(listenerCtx).selectionUpdated((_, selection) => {
+            selectionBookmarkRef.current = selection.getBookmark();
+          });
         })
         .use(commonmark)
         .use(gfm)
@@ -239,6 +257,53 @@ function MilkdownEditorInner({
         .use(listener),
     [onChange, previewInput.markdown]
   );
+
+  useEffect(() => {
+    if (!insertRequest || handledInsertRequestIdRef.current === insertRequest.id) {
+      return;
+    }
+
+    const editor = getInstance();
+    if (!editor || loading) {
+      return;
+    }
+
+    handledInsertRequestIdRef.current = insertRequest.id;
+    const rawPreview = rewriteRawBlocksForPreview(insertRequest.markdown);
+    rawSourceMapRef.current = [...rawSourceMapRef.current, ...rawPreview.sourceMap];
+
+    let didInsert = false;
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const parser = ctx.get(parserCtx);
+      const doc = parser(rawPreview.markdown);
+      if (!doc) {
+        return;
+      }
+
+      const bookmarkedSelection = selectionBookmarkRef.current?.resolve(view.state.doc);
+      const selection = bookmarkedSelection ?? view.state.selection;
+      const contentSlice = selection.content();
+      const slice = new Slice(doc.content, contentSlice.openStart, contentSlice.openEnd);
+      const transaction = view.state.tr
+        .setSelection(selection)
+        .replaceSelection(slice);
+      const changedRange = transaction.changedRange();
+      const cursorPosition = Math.min(
+        changedRange?.to ?? transaction.selection.to,
+        transaction.doc.content.size
+      );
+      const nextSelection = Selection.near(transaction.doc.resolve(cursorPosition), 1);
+
+      view.dispatch(transaction.setSelection(nextSelection).scrollIntoView());
+      selectionBookmarkRef.current = nextSelection.getBookmark();
+      didInsert = true;
+      requestAnimationFrame(() => view.focus());
+    });
+    // Once the loaded editor has attempted this request, the host should drop
+    // it. Otherwise a later document remount can replay the same insertion.
+    onInsertRequestHandled?.(insertRequest.id);
+  }, [getInstance, insertRequest, loading, onInsertRequestHandled]);
 
   useEffect(() => {
     if (!target || !rootRef.current) {

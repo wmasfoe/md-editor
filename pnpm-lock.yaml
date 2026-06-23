@@ -119,9 +119,12 @@ importers:
       '@md-editor/markdown-fidelity':
         specifier: workspace:*
         version: link:../../packages/markdown-fidelity
-      '@md-editor/mdx-registry':
+      '@md-editor/mdx-component-registry':
         specifier: workspace:*
-        version: link:../../packages/mdx-registry
+        version: link:../../packages/mdx-component-registry
+      '@md-editor/mdx-plugins':
+        specifier: workspace:*
+        version: link:../../packages/mdx-plugins
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -177,9 +180,9 @@ importers:
 
   packages/editor-core:
     dependencies:
-      '@md-editor/mdx-registry':
+      '@md-editor/mdx-component-registry':
         specifier: workspace:*
-        version: link:../mdx-registry
+        version: link:../mdx-component-registry
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../shared
@@ -187,6 +190,9 @@ importers:
         specifier: 'catalog:'
         version: 2.11.0
     devDependencies:
+      '@md-editor/mdx-plugins':
+        specifier: workspace:*
+        version: link:../mdx-plugins
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -272,8 +278,27 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.21)(lightningcss@1.32.0)
 
-  packages/mdx-registry:
+  packages/mdx-component-registry:
     devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@types/node@22.19.21)(lightningcss@1.32.0)
+
+  packages/mdx-plugins:
+    dependencies:
+      '@md-editor/mdx-component-registry':
+        specifier: workspace:*
+        version: link:../mdx-component-registry
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

@@ -26,6 +26,15 @@ export default defineConfig({
       "@md-editor/markdown-fidelity": fileURLToPath(
         new URL("../../packages/markdown-fidelity/src/index.ts", import.meta.url)
       ),
+      "@md-editor/mdx-component-registry": fileURLToPath(
+        new URL("../../packages/mdx-component-registry/src/index.ts", import.meta.url)
+      ),
+      "@md-editor/mdx-plugins/metadata": fileURLToPath(
+        new URL("../../packages/mdx-plugins/src/metadata.ts", import.meta.url)
+      ),
+      "@md-editor/mdx-plugins": fileURLToPath(
+        new URL("../../packages/mdx-plugins/src/index.ts", import.meta.url)
+      ),
       "@codemirror/lang-markdown": fileURLToPath(
         new URL("../../node_modules/@codemirror/lang-markdown/dist/index.js", import.meta.url)
       ),

@@ -8,6 +8,7 @@ import {
   WelcomeState
 } from "@md-editor/editor-ui";
 import { FileTreePanel } from "../components/FileTreePanel";
+import { MdxComponentMenu } from "../components/MdxComponentMenu";
 import { SettingsDialog } from "../components/SettingsDialog";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
@@ -201,6 +202,8 @@ export function App() {
                 snapshot={editor.snapshot}
                 outline={editor.outline}
                 target={editor.tocTarget}
+                insertRequest={editor.mdxInsertRequest}
+                onInsertRequestHandled={editor.clearMdxInsertRequest}
                 onChange={editor.commitMarkdown}
                 onActiveOutlineChange={editor.setActiveOutlineId}
                 resolveImageSrc={editor.resolveImageSrc}
@@ -221,6 +224,13 @@ export function App() {
         confirmation={editor.confirmation}
         onResolve={editor.resolveConfirmation}
       />
+      {editor.isMdxComponentMenuOpen ? (
+        <MdxComponentMenu
+          plugins={editor.mdxComponentPlugins}
+          onInsert={editor.insertMdxComponent}
+          onClose={editor.closeMdxComponentMenu}
+        />
+      ) : null}
       {editor.isSettingsOpen ? (
         <SettingsDialog
           settings={editor.settings}

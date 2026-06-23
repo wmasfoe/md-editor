@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { calloutPlugin } from "@md-editor/mdx-plugins/metadata";
 
 import {
-  calloutDescriptor,
   computeDirtyState,
   createBuiltInEditorFeature,
   createCommandRegistry,
@@ -186,13 +186,13 @@ describe("raw fragment preservation", () => {
 });
 
 describe("internal Callout minimum slice", () => {
-  it("defines the official Callout descriptor", () => {
-    expect(calloutDescriptor).toMatchObject({
+  it("consumes the official Callout plugin metadata outside editor-core", () => {
+    expect(calloutPlugin.component).toMatchObject({
       name: "Callout",
-      kind: "block",
-      acceptsMarkdownChildren: true,
+      packageName: "@md-editor/mdx-plugins",
+      acceptsChildren: true,
     });
-    expect(calloutDescriptor.props.map((prop) => prop.name)).toEqual(["type", "title"]);
+    expect(calloutPlugin.component.props.map((prop) => prop.name)).toEqual(["type", "title"]);
   });
 
   it("maps a registered Callout raw fragment to a structured node", () => {
@@ -420,6 +420,7 @@ describe("built-in feature registry", () => {
       "file.save",
       "file.saveAs",
       "settings.open",
+      "mdx.openComponentMenu",
       "view.toggleSource",
       "view.showWysiwyg",
       "view.toggleSidebarPrimary",
@@ -430,16 +431,19 @@ describe("built-in feature registry", () => {
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-,:settings.open",
     );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Mod-Shift-M:mdx.openComponentMenu",
+    );
 
-    await commands.dispatch("view.toggleSidebarPrimary", {
+    await commands.dispatch("mdx.openComponentMenu", {
       document: createDocumentState(),
       actions: {
-        toggleSidebarPrimary: () => {
-          calls.push("sidebar");
+        openMdxComponentMenu: () => {
+          calls.push("mdx-menu");
         },
       },
     });
 
-    expect(calls).toEqual(["sidebar"]);
+    expect(calls).toEqual(["mdx-menu"]);
   });
 });

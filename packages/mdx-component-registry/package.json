@@ -1,5 +1,5 @@
 {
-  "name": "@md-editor/editor-core",
+  "name": "@md-editor/mdx-component-registry",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@md-editor/mdx-component-registry": "workspace:*",
-    "@md-editor/shared": "workspace:*",
-    "@tauri-apps/api": "catalog:"
-  },
   "devDependencies": {
-    "@md-editor/mdx-plugins": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

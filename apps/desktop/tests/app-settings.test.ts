@@ -14,7 +14,8 @@ describe("app settings", () => {
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
       "view.toggleSource",
       "view.toggleSidebarPrimary",
-      "settings.open"
+      "settings.open",
+      "mdx.openComponentMenu"
     ]);
   });
 

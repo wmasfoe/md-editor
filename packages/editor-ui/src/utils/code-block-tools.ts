@@ -1,5 +1,11 @@
 import { $prose } from "@milkdown/kit/utils";
-import { Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type EditorState
+} from "@milkdown/kit/prose/state";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import type { EditorView, NodeView, ViewMutationRecord } from "@milkdown/kit/prose/view";
 
@@ -34,6 +40,13 @@ export const codeLanguageOptions = [
 
 const languageSuggestionValues = codeLanguageOptions.map((option) => option.value).filter(Boolean);
 const codeBlockToolsPluginKey = new PluginKey("md-editor-code-block-tools");
+const calloutToneLabels = {
+  info: "Info",
+  warning: "Warning",
+  success: "Success",
+  danger: "Danger"
+} as const;
+type CalloutTone = keyof typeof calloutToneLabels;
 
 export interface IndentPlan {
   readonly from: number;
@@ -46,6 +59,10 @@ export function createCodeBlockToolsProsePlugin(): Plugin {
     key: codeBlockToolsPluginKey,
     props: {
       handleKeyDown(view, event) {
+        if (handleCalloutPreviewDeleteKey(view, event)) {
+          return true;
+        }
+
         if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) {
           return false;
         }
@@ -128,6 +145,106 @@ export function getLanguageSuggestions(input: string): readonly string[] {
     .map((item) => item.language);
 }
 
+export function findAdjacentCalloutPreviewNodePosition(
+  state: EditorState,
+  direction: "forward" | "backward"
+): number | null {
+  const selection = state.selection;
+  if (!(selection instanceof TextSelection) || !selection.empty) {
+    return null;
+  }
+
+  const $from = selection.$from;
+  if ($from.depth === 0) {
+    const node = direction === "forward" ? $from.nodeAfter : $from.nodeBefore;
+    if (!isCalloutPreviewCodeBlockNode(node)) {
+      return null;
+    }
+    return direction === "forward" ? selection.from : selection.from - node.nodeSize;
+  }
+
+  if (direction === "forward") {
+    if ($from.parentOffset !== $from.parent.content.size) {
+      return null;
+    }
+    const afterParentPosition = $from.after($from.depth);
+    return isCalloutPreviewCodeBlockNode(state.doc.nodeAt(afterParentPosition))
+      ? afterParentPosition
+      : null;
+  }
+
+  if ($from.parentOffset !== 0) {
+    return null;
+  }
+  const beforeParentPosition = $from.before($from.depth);
+  const nodeBefore = state.doc.resolve(beforeParentPosition).nodeBefore;
+  if (!isCalloutPreviewCodeBlockNode(nodeBefore)) {
+    return null;
+  }
+
+  return beforeParentPosition - nodeBefore.nodeSize;
+}
+
+export function findCurrentCalloutPreviewNodePosition(state: EditorState): number | null {
+  const selection = state.selection;
+  if (!(selection instanceof TextSelection) || !selection.empty) {
+    return null;
+  }
+
+  const $from = selection.$from;
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth);
+    if (isCalloutPreviewCodeBlockNode(node)) {
+      return $from.before(depth);
+    }
+  }
+
+  return null;
+}
+
+export function isCalloutPreviewCodeBlockNode(
+  node: ProseMirrorNode | null | undefined
+): node is ProseMirrorNode {
+  return Boolean(node && node.type.name === "code_block" && parseCalloutPreviewSource(node.textContent));
+}
+
+function handleCalloutPreviewDeleteKey(view: EditorView, event: KeyboardEvent): boolean {
+  if (
+    !(event.key === "Backspace" || event.key === "Delete") ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey
+  ) {
+    return false;
+  }
+
+  const selection = view.state.selection;
+  if (selection instanceof NodeSelection && isCalloutPreviewCodeBlockNode(selection.node)) {
+    event.preventDefault();
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+    return true;
+  }
+
+  const position =
+    findCurrentCalloutPreviewNodePosition(view.state) ??
+    findAdjacentCalloutPreviewNodePosition(
+      view.state,
+      event.key === "Delete" ? "forward" : "backward"
+    );
+  if (position === null) {
+    return false;
+  }
+
+  event.preventDefault();
+  view.dispatch(
+    view.state.tr
+      .setSelection(NodeSelection.create(view.state.doc, position))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
+}
+
 function fuzzyScore(value: string, query: string): number {
   if (value === query) {
     return 100;
@@ -168,6 +285,11 @@ class MarkdownCodeBlockNodeView implements NodeView {
   private readonly rawHeader: HTMLElement;
   private readonly rawTitle: HTMLElement;
   private readonly rawHint: HTMLElement;
+  private readonly calloutPreview: HTMLElement;
+  private readonly calloutEyebrow: HTMLElement;
+  private readonly calloutTitle: HTMLElement;
+  private readonly calloutBody: HTMLElement;
+  private readonly codeBodyWrap: HTMLElement;
   constructor(
     node: ProseMirrorNode,
     private readonly view: EditorView,
@@ -184,6 +306,11 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.rawHeader = ownerDocument.createElement("div");
     this.rawTitle = ownerDocument.createElement("div");
     this.rawHint = ownerDocument.createElement("div");
+    this.calloutPreview = ownerDocument.createElement("div");
+    this.calloutEyebrow = ownerDocument.createElement("span");
+    this.calloutTitle = ownerDocument.createElement("strong");
+    this.calloutBody = ownerDocument.createElement("div");
+    this.codeBodyWrap = ownerDocument.createElement("div");
     this.pre = ownerDocument.createElement("pre");
     this.code = ownerDocument.createElement("code");
     this.contentDOM = this.code;
@@ -199,6 +326,16 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.rawHint.className = "md-raw-block-hint";
     this.rawHint.textContent = "Raw source is preserved unless edited here.";
     this.rawHeader.append(this.rawTitle, this.rawHint);
+
+    this.calloutPreview.className = "md-callout-preview";
+    this.calloutPreview.contentEditable = "false";
+    this.calloutEyebrow.className = "md-callout-preview-eyebrow";
+    this.calloutTitle.className = "md-callout-preview-title";
+    this.calloutBody.className = "md-callout-preview-body";
+    this.calloutPreview.append(this.calloutEyebrow, this.calloutTitle, this.calloutBody);
+
+    this.codeBodyWrap.className = "md-code-block-body";
+    this.codeBodyWrap.append(this.rawHeader);
 
     this.code.className = "md-code-block-content";
     this.code.spellcheck = false;
@@ -222,7 +359,14 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.languageControl.append(this.languageSelect);
 
     this.pre.append(this.code);
-    this.dom.append(this.rawHeader, this.lineNumbers, this.pre, this.copyButton, this.languageControl);
+    this.codeBodyWrap.append(this.pre);
+    this.dom.append(
+      this.calloutPreview,
+      this.lineNumbers,
+      this.codeBodyWrap,
+      this.copyButton,
+      this.languageControl
+    );
 
     this.copyButton.addEventListener("click", this.handleCopyClick);
     this.languageSelect.addEventListener("change", this.handleLanguageChange);
@@ -258,7 +402,9 @@ class MarkdownCodeBlockNodeView implements NodeView {
   }
 
   stopEvent(event: Event) {
-    return targetIsInside(event.target, this.copyButton) || targetIsInside(event.target, this.languageControl);
+    return targetIsInside(event.target, this.copyButton) ||
+      targetIsInside(event.target, this.languageControl) ||
+      targetIsInside(event.target, this.calloutPreview);
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {
@@ -268,7 +414,8 @@ class MarkdownCodeBlockNodeView implements NodeView {
       targetIsInside(mutation.target, this.copyButton) ||
       targetIsInside(mutation.target, this.lineNumbers) ||
       targetIsInside(mutation.target, this.languageControl) ||
-      targetIsInside(mutation.target, this.rawHeader);
+      targetIsInside(mutation.target, this.rawHeader) ||
+      targetIsInside(mutation.target, this.calloutPreview);
   }
 
   destroy() {
@@ -305,11 +452,29 @@ class MarkdownCodeBlockNodeView implements NodeView {
     if (!rawBlock) {
       delete this.dom.dataset.rawBlock;
       this.rawTitle.textContent = "";
+      this.syncCalloutPreview();
       return;
     }
 
     this.dom.dataset.rawBlock = rawBlock.kind;
     this.rawTitle.textContent = rawBlock.title;
+    this.syncCalloutPreview();
+  }
+
+  private syncCalloutPreview() {
+    const callout = parseCalloutPreviewSource(this.node.textContent);
+    if (!callout) {
+      delete this.dom.dataset.calloutPreview;
+      this.calloutEyebrow.textContent = "";
+      this.calloutTitle.textContent = "";
+      this.calloutBody.textContent = "";
+      return;
+    }
+
+    this.dom.dataset.calloutPreview = callout.type;
+    this.calloutEyebrow.textContent = callout.type.toUpperCase();
+    this.calloutTitle.textContent = callout.title || calloutToneLabels[callout.type];
+    this.calloutBody.textContent = callout.children || "内容";
   }
 
   private syncCustomLanguageOption(language: string) {
@@ -393,6 +558,48 @@ function parseManagedRawBlockLanguage(language: unknown): { readonly kind: strin
   }
 
   return null;
+}
+
+export function parseCalloutPreviewSource(source: string): {
+  readonly type: CalloutTone;
+  readonly title: string;
+  readonly children: string;
+} | null {
+  const normalized = source.trim();
+  const match =
+    /^<Callout(?<props>[^>]*)>(?<children>[\s\S]*)<\/Callout>$/u.exec(normalized) ??
+    /^<Callout(?<props>[^>]*)\/>$/u.exec(normalized);
+  const propsSource = match?.groups?.props;
+  if (propsSource === undefined) {
+    return null;
+  }
+
+  const props = parseSimpleJsxStringProps(propsSource);
+  const type = isCalloutTone(props.type) ? props.type : "info";
+  return {
+    type,
+    title: props.title ?? "",
+    children: (match?.groups?.children ?? "").trim()
+  };
+}
+
+function parseSimpleJsxStringProps(propsSource: string): Record<string, string> {
+  const props: Record<string, string> = {};
+  const propPattern = /([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]*)"/gu;
+
+  for (const match of propsSource.matchAll(propPattern)) {
+    const name = match[1];
+    const value = match[2];
+    if (name !== undefined && value !== undefined) {
+      props[name] = value;
+    }
+  }
+
+  return props;
+}
+
+function isCalloutTone(value: string | undefined): value is CalloutTone {
+  return value === "info" || value === "warning" || value === "success" || value === "danger";
 }
 
 function targetIsInside(target: EventTarget | Node | null, container: HTMLElement) {

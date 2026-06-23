@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
+import { calloutPlugin } from "../packages/mdx-plugins/src/metadata.ts";
 
 import {
   RawFragmentRangeError,
-  calloutDescriptor,
   collectRawFragments,
   createEditorContent,
   createInMemoryMarkdownFileStore,
@@ -56,7 +56,8 @@ assert.deepEqual(
 
 const callout = parseCalloutFragment(rawResult.rawFragments[1]);
 assert.ok(callout);
-assert.equal(calloutDescriptor.name, "Callout");
+assert.equal(calloutPlugin.component.name, "Callout");
+assert.equal(calloutPlugin.component.packageName, "@md-editor/mdx-plugins");
 assert.equal(serializeCalloutNode(callout, rawResult.rawFragments[1]), rawResult.rawFragments[1].rawSource);
 assert.equal(
   serializeCalloutNode(

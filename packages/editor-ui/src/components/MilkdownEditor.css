@@ -316,6 +316,20 @@
   overflow: visible;
 }
 
+.milkdown .ProseMirror .md-code-block[data-callout-preview] {
+  display: block;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--theme-border) 70%, transparent);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview].ProseMirror-selectednode {
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 3px var(--theme-primary-soft);
+  outline: none;
+}
+
 .milkdown .ProseMirror .md-code-block-line-numbers {
   flex-shrink: 0;
   padding: 1rem 0.75rem;
@@ -333,6 +347,16 @@
 .milkdown .ProseMirror .md-code-block-line-number {
   display: block;
   line-height: 1.65;
+}
+
+.milkdown .ProseMirror .md-code-block-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.milkdown .ProseMirror .md-code-block[data-raw-block] .md-code-block-body {
+  display: block;
 }
 
 .milkdown .ProseMirror .md-code-block pre {
@@ -356,6 +380,70 @@
 .milkdown .ProseMirror .md-code-block[data-raw-block] .md-code-block-line-numbers,
 .milkdown .ProseMirror .md-code-block[data-raw-block] .md-code-block-language-control {
   display: none;
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview] .md-code-block-line-numbers,
+.milkdown .ProseMirror .md-code-block[data-callout-preview] .md-code-block-body,
+.milkdown .ProseMirror .md-code-block[data-callout-preview] .md-code-block-copy,
+.milkdown .ProseMirror .md-code-block[data-callout-preview] .md-code-block-language-control {
+  display: none;
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview] .md-callout-preview {
+  display: grid;
+}
+
+.milkdown .ProseMirror .md-callout-preview {
+  display: none;
+  grid-template-columns: 0.2rem minmax(0, 1fr);
+  gap: 0.35rem 0.9rem;
+  padding: 0.85rem 0.95rem;
+}
+
+.milkdown .ProseMirror .md-callout-preview::before {
+  width: 0.2rem;
+  border-radius: 999px;
+  background: #2f7dd1;
+  content: "";
+  grid-column: 1;
+  grid-row: 1 / span 3;
+}
+
+.milkdown .ProseMirror .md-callout-preview-eyebrow {
+  grid-column: 2;
+  color: var(--theme-muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.milkdown .ProseMirror .md-callout-preview-title {
+  grid-column: 2;
+  color: var(--theme-title);
+  font-size: 0.96rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.milkdown .ProseMirror .md-callout-preview-body {
+  grid-column: 2;
+  color: var(--theme-text);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview="warning"] .md-callout-preview::before {
+  background: #b7791f;
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview="success"] .md-callout-preview::before {
+  background: #2f855a;
+}
+
+.milkdown .ProseMirror .md-code-block[data-callout-preview="danger"] .md-callout-preview::before {
+  background: #c53030;
 }
 
 .milkdown .ProseMirror pre code,
