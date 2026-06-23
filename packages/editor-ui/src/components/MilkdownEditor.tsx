@@ -16,7 +16,7 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
-import { isEditorBlankSurface } from "../utils/editor-surface";
+import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
@@ -155,13 +155,31 @@ function MilkdownEditorInner({
     };
 
     const handleMouseDown = (event: MouseEvent) => {
-      if (!isEditorBlankSurface(event.target, scroller, root.querySelector<HTMLElement>(".ProseMirror"))) return;
+      if (
+        !shouldPlaceCursorAtDocumentEnd(
+          event.target,
+          scroller,
+          root.querySelector<HTMLElement>(".ProseMirror"),
+          window.getSelection()
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       placeCursorAtDocumentEnd();
     };
 
     const handleClick = (event: MouseEvent) => {
-      if (!isEditorBlankSurface(event.target, scroller, root.querySelector<HTMLElement>(".ProseMirror"))) return;
+      if (
+        !shouldPlaceCursorAtDocumentEnd(
+          event.target,
+          scroller,
+          root.querySelector<HTMLElement>(".ProseMirror"),
+          window.getSelection()
+        )
+      ) {
+        return;
+      }
       placeCursorAtDocumentEnd();
     };
 
