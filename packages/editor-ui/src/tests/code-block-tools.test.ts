@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { Schema } from "@milkdown/kit/prose/model";
+import { EditorState } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import {
+  createCodeBlockToolsProsePlugin,
   getLanguageSuggestions,
   normalizeCodeLanguage,
   planCodeBlockTabIndent
@@ -38,5 +42,37 @@ describe("code block tools", () => {
     expect(normalizeCodeLanguage(" Type Script ")).toBe("Type-Script");
     expect(normalizeCodeLanguage("`custom lang`")).toBe("custom-lang");
     expect(normalizeCodeLanguage(null)).toBe("");
+  });
+
+  it("leaves Mod-a to the default ProseMirror full-document keymap", () => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: "block+" },
+        paragraph: { content: "text*", group: "block" },
+        code_block: { content: "text*", group: "block", code: true },
+        text: {}
+      }
+    });
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.code_block.create(null, schema.text("const value = 1;")),
+      schema.nodes.paragraph.create(null, schema.text("after"))
+    ]);
+    const view = {
+      state: EditorState.create({ doc }),
+      dispatch: () => {
+        throw new Error("code block tools must not dispatch for Mod-a");
+      }
+    } as unknown as EditorView;
+    const event = {
+      key: "a",
+      metaKey: true,
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false
+    } as KeyboardEvent;
+
+    const plugin = createCodeBlockToolsProsePlugin();
+
+    expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(false);
   });
 });
