@@ -5,7 +5,8 @@ import {
   createFeatureRegistry,
   createMarkdownFormatFeature
 } from "@md-editor/editor-core";
-import { createBuiltInMdxRegistry } from "@md-editor/mdx-registry";
+import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 
 const featureRegistry = createFeatureRegistry();
 featureRegistry.register(createBuiltInEditorFeature());
@@ -17,6 +18,6 @@ export const runtime = createEditorRuntime({
   document: createDocumentState({
     markdown: ""
   }),
-  mdxComponents: createBuiltInMdxRegistry(),
+  mdxComponents: createBuiltInMdxRegistry(officialMdxPlugins),
   features: featureRegistry
 });

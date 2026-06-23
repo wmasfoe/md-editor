@@ -1,17 +1,26 @@
 {
-  "name": "@md-editor/mdx-registry",
+  "name": "@md-editor/mdx-plugins",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./metadata": "./src/metadata.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@md-editor/mdx-component-registry": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=18.3.0 <20"
+  },
   "devDependencies": {
+    "@types/react": "catalog:",
+    "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

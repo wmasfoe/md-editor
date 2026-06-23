@@ -52,7 +52,8 @@ packages/
   editor-ui/            # React UI 组件
   file-system/          # 文件系统抽象
   markdown-fidelity/    # Markdown 保真处理
-  mdx-registry/         # MDX 组件注册表
+  mdx-component-registry/ # MDX 组件协议和注册表
+  mdx-plugins/          # 官方 MDX React 组件和 metadata
   shared/               # 共享工具
 ```
 

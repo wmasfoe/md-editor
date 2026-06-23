@@ -75,7 +75,8 @@ packages/
   editor-ui/            # React UI 组件 (MilkdownEditor, SourceEditor, OutlinePanel 等)
   file-system/          # 文件服务抽象层
   markdown-fidelity/    # Markdown 保真处理 (frontmatter, MDX blocks, 图片路径等)
-  mdx-registry/         # MDX 组件注册表
+  mdx-component-registry/ # MDX 组件协议和注册表
+  mdx-plugins/          # 官方 MDX React 组件和 metadata
   shared/               # 共享类型和工具函数
 ```
 

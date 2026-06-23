@@ -2,20 +2,6 @@ import type { CalloutNode, RawFragment } from "./content.ts";
 
 export type CalloutTone = "info" | "warning" | "success" | "danger";
 
-export interface MdxPropSchema {
-  readonly name: string;
-  readonly type: "string" | "enum";
-  readonly required: boolean;
-  readonly values?: readonly string[];
-}
-
-export interface MdxComponentDescriptor {
-  readonly name: string;
-  readonly kind: "block";
-  readonly props: readonly MdxPropSchema[];
-  readonly acceptsMarkdownChildren: boolean;
-}
-
 export interface CalloutExtensionAdapter {
   readonly name: string;
   readonly canRepresentCalloutNode: boolean;
@@ -31,25 +17,6 @@ export type CalloutExtensionSmokeResult =
       readonly status: "blocked";
       readonly blocker: string;
     };
-
-export const calloutDescriptor: MdxComponentDescriptor = {
-  name: "Callout",
-  kind: "block",
-  props: [
-    {
-      name: "type",
-      type: "enum",
-      required: false,
-      values: ["info", "warning", "success", "danger"],
-    },
-    {
-      name: "title",
-      type: "string",
-      required: false,
-    },
-  ],
-  acceptsMarkdownChildren: true,
-};
 
 export function parseCalloutFragment(fragment: RawFragment): CalloutNode | undefined {
   if (fragment.kind !== "registeredMdxComponent") {

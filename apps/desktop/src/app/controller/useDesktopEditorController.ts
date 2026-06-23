@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { switchEditorModeSafely, type EditorMode, createRecentFilesStore } from "@md-editor/editor-core";
+import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import type { ConfirmationChoice, ConfirmationState, TocTarget } from "@md-editor/editor-ui";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -58,6 +59,8 @@ export function useDesktopEditorController() {
   const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
+  const [isMdxComponentMenuOpen, setIsMdxComponentMenuOpen] = useState(false);
+  const [mdxInsertRequest, setMdxInsertRequest] = useState<{ readonly id: number; readonly markdown: string } | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
@@ -74,9 +77,11 @@ export function useDesktopEditorController() {
     message: "点击检查更新获取当前发布状态。"
   }));
   const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
+  const mdxInsertRequestId = useRef(0);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
   const deferredMarkdown = useDeferredValue(snapshot.markdown);
   const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
+  const mdxComponentPlugins = useMemo(() => runtime.mdxComponents.listInsertable(), []);
 
   const showToast = useCallback((message: string | null) => {
     if (!message) {
@@ -206,6 +211,7 @@ export function useDesktopEditorController() {
       return;
     }
 
+    setMdxInsertRequest(null);
     runtime.document.updateMarkdown(document.markdown);
     setSnapshot(
       runtime.document.markSaved({
@@ -347,6 +353,7 @@ export function useDesktopEditorController() {
     }
 
     const nextDocument = fileService.newDocument("");
+    setMdxInsertRequest(null);
     runtime.document.updateMarkdown(nextDocument.markdown);
     setSnapshot(
       runtime.document.markSaved({
@@ -482,6 +489,7 @@ export function useDesktopEditorController() {
       }
 
       const markdown = "";
+      setMdxInsertRequest(null);
       runtime.document.updateMarkdown(markdown);
       setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
     },
@@ -612,6 +620,45 @@ export function useDesktopEditorController() {
     setIsSidebarVisible((current) => !current);
   }, []);
 
+  const openMdxComponentMenu = useCallback(() => {
+    if (runtime.document.getSnapshot().mode !== "wysiwyg") {
+      showToast("请先切换到所见即所得模式再插入 MDX 组件。");
+      return;
+    }
+    if (mdxComponentPlugins.length === 0) {
+      showToast("没有可插入的 MDX 组件。");
+      return;
+    }
+    setIsMdxComponentMenuOpen(true);
+  }, [mdxComponentPlugins.length, showToast]);
+
+  const closeMdxComponentMenu = useCallback(() => {
+    setIsMdxComponentMenuOpen(false);
+  }, []);
+
+  const clearMdxInsertRequest = useCallback((id?: number) => {
+    setMdxInsertRequest((current) => {
+      if (!current) {
+        return null;
+      }
+      return id === undefined || current.id === id ? null : current;
+    });
+  }, []);
+
+  const insertMdxComponent = useCallback((plugin: MdxComponentPlugin) => {
+    const snippet = plugin.insert?.createSnippet();
+    if (!snippet) {
+      showToast("该 MDX 组件没有可插入模板。");
+      return;
+    }
+
+    setIsMdxComponentMenuOpen(false);
+    setMdxInsertRequest({
+      id: (mdxInsertRequestId.current += 1),
+      markdown: snippet
+    });
+  }, [showToast]);
+
   const getRecentFiles = useCallback(() => {
     return recentFilesStore.list();
   }, []);
@@ -632,6 +679,7 @@ export function useDesktopEditorController() {
           saveDocument: () => saveDocument(false),
           saveDocumentAs: () => saveDocument(true),
           openSettings,
+          openMdxComponentMenu,
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
           toggleSidebarPrimary
@@ -644,6 +692,7 @@ export function useDesktopEditorController() {
       openRecentDocument,
       openFolder,
       openSettings,
+      openMdxComponentMenu,
       saveDocument,
       switchMode,
       toggleSidebarPrimary,
@@ -736,6 +785,9 @@ export function useDesktopEditorController() {
     outline,
     activeOutlineId,
     confirmation,
+    isMdxComponentMenuOpen,
+    mdxInsertRequest,
+    mdxComponentPlugins,
     settings,
     isSettingsOpen,
     shortcutDrafts,
@@ -757,6 +809,9 @@ export function useDesktopEditorController() {
     jumpToTocItem,
     setActiveOutlineId,
     resolveConfirmation,
+    closeMdxComponentMenu,
+    clearMdxInsertRequest,
+    insertMdxComponent,
     updateActiveOutlineForLine,
     resolveImageSrc,
     getRecentFiles,

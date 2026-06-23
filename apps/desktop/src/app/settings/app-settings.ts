@@ -40,6 +40,12 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
     commandId: "settings.open",
     label: "打开设置",
     defaultKey: "Mod-,"
+  },
+  {
+    id: "mdx.openComponentMenu",
+    commandId: "mdx.openComponentMenu",
+    label: "插入 MDX 组件",
+    defaultKey: "Mod-Shift-M"
   }
 ];
 

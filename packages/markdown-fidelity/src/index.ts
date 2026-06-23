@@ -239,15 +239,29 @@ function extractManagedRawFenceContent(
   markdown: string
 ): { readonly fence: string; readonly body: string } | null {
   const firstLine = previewBlock.slice(0, previewBlock.indexOf("\n"));
-  const escapedFirstLine = escapeRegExp(firstLine);
-  const pattern = new RegExp(`${escapedFirstLine}\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`(?:\\r?\\n|$)`, "u");
-  const match = markdown.match(pattern);
+  const match = matchFenceByFirstLine(markdown, firstLine) ??
+    matchManagedCalloutFallback(markdown, previewBlock);
 
   if (!match || match[1] === undefined) {
     return null;
   }
 
   return { fence: match[0], body: match[1] };
+}
+
+function matchFenceByFirstLine(markdown: string, firstLine: string): RegExpMatchArray | null {
+  const escapedFirstLine = escapeRegExp(firstLine);
+  const pattern = new RegExp(`${escapedFirstLine}\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`(?:\\r?\\n|$)`, "u");
+  return markdown.match(pattern);
+}
+
+function matchManagedCalloutFallback(markdown: string, previewBlock: string): RegExpMatchArray | null {
+  if (!previewBlock.startsWith("```mdx md-editor-callout\n")) {
+    return null;
+  }
+
+  const pattern = /```mdx\r?\n(\s*<Callout(?:\s[^>]*)?(?:\/>|>[\s\S]*?<\/Callout>)\s*)\r?\n```(?:\r?\n|$)/u;
+  return markdown.match(pattern);
 }
 
 function restoreManagedRawBlock(

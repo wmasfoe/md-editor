@@ -110,6 +110,14 @@ describe("MDX raw block detection", () => {
       "---\ntitle: Final\n---\n\n<Callout type=\"info\">Updated.</Callout>\n"
     );
   });
+
+  it("restores Callout when the editor normalizes the managed fence language metadata", () => {
+    const input = '<Callout type="info" title="提示">\n  内容\n</Callout>\n';
+    const preview = rewriteRawBlocksForPreview(input);
+    const normalizedPreview = preview.markdown.replace("```mdx md-editor-callout", "```mdx");
+
+    expect(restoreRawBlocksFromPreview(normalizedPreview, preview.sourceMap)).toBe(input);
+  });
 });
 
 describe("local Markdown image preview sources", () => {

@@ -1,4 +1,4 @@
-import type { MDXComponentRegistry } from "@md-editor/mdx-registry";
+import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import type { Markdown } from "@md-editor/shared";
 
 export const editorCoreSpikeName = "editor-core-m0";
@@ -116,6 +116,7 @@ export type BuiltInCommandId =
   | "file.save"
   | "file.saveAs"
   | "settings.open"
+  | "mdx.openComponentMenu"
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary";
@@ -128,6 +129,7 @@ export interface EditorActionHandlers {
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
   readonly openSettings?: () => void | Promise<void>;
+  readonly openMdxComponentMenu?: () => void | Promise<void>;
   readonly toggleSourceMode?: () => void | Promise<void>;
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
@@ -138,13 +140,13 @@ export interface EditorRuntime {
   readonly commands: CommandRegistry;
   readonly keymaps: KeymapRegistry;
   readonly features: FeatureRegistry;
-  readonly mdxComponents: MDXComponentRegistry;
+  readonly mdxComponents: MdxComponentRegistry;
   getSnapshot(): DocumentSnapshot;
 }
 
 export interface EditorRuntimeInput {
   readonly document: DocumentState;
-  readonly mdxComponents: MDXComponentRegistry;
+  readonly mdxComponents: MdxComponentRegistry;
   readonly commands?: CommandRegistry;
   readonly keymaps?: KeymapRegistry;
   readonly features?: FeatureRegistry;
@@ -271,6 +273,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
       registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
       registerActionCommand(context.commands, "settings.open", "Settings", "openSettings");
+      registerActionCommand(context.commands, "mdx.openComponentMenu", "Insert MDX Component", "openMdxComponentMenu");
       registerActionCommand(
         context.commands,
         "view.toggleSource",
@@ -299,6 +302,11 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         id: "settings.open",
         key: "Mod-,",
         commandId: "settings.open",
+      });
+      context.keymaps.register({
+        id: "mdx.openComponentMenu",
+        key: "Mod-Shift-M",
+        commandId: "mdx.openComponentMenu",
       });
 
       // 注意：file.new, file.open, file.save, file.saveAs 的快捷键
