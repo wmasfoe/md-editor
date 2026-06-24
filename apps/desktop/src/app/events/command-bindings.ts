@@ -1,3 +1,4 @@
+import { FILE_TREE_MENU_ACTION_PREFIX } from "../../desktop/file-tree-context-menu";
 import { listenToDesktopMenuActions } from "../../desktop/menu-events";
 import { matchesRuntimeKeymap } from "../../lib/keyboard";
 import type { KeyboardShortcut } from "../../types";
@@ -58,6 +59,10 @@ export function bindRuntimeKeyboardShortcuts(
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {
   return listenToDesktopMenuActions((action) => {
+    if (action.startsWith(FILE_TREE_MENU_ACTION_PREFIX)) {
+      return;
+    }
+
     // 处理动态生成的最近文件菜单项。
     if (action.startsWith('md-editor:open-recent:')) {
       const index = parseInt(action.split(':')[2], 10);

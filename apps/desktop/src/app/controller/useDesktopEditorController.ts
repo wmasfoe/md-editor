@@ -285,6 +285,10 @@ export function useDesktopEditorController() {
     }
   }, [showToast]);
 
+  const showFileActionError = useCallback((error: unknown) => {
+    showToast(formatActionError(error, "文件操作失败。"));
+  }, [showToast]);
+
   const requestConfirmation = useCallback((nextConfirmation: ConfirmationState) => {
     return new Promise<ConfirmationChoice>((resolve) => {
       confirmationResolver.current = resolve;
@@ -895,6 +899,7 @@ export function useDesktopEditorController() {
     createTreeItem,
     renameTreeItem,
     deleteTreeItem,
+    showFileActionError,
     jumpToTocItem,
     setActiveOutlineId,
     resolveConfirmation,

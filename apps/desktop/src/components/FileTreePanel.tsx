@@ -6,6 +6,15 @@ import {
   PhotoIcon
 } from "@heroicons/react/24/outline";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
+import {
+  FILE_TREE_CONTEXT_MENU_ACTION,
+  copyNativeFileTreePath,
+  isDesktopNativeFileTreeContextMenuAvailable,
+  listenToNativeFileTreeContextMenuActions,
+  revealNativeFileTreeItemInFinder,
+  showNativeFileTreeContextMenu,
+  type FileTreeContextMenuAction
+} from "../desktop/file-tree-context-menu";
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
 import "./FileTreePanel.css";
@@ -28,6 +37,7 @@ interface FileTreePanelProps {
   readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind, name: string) => void;
   readonly onRenameTreeItem: (node: MarkdownFileTreeNode, name: string) => void;
   readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onContextMenuError?: (error: unknown) => void;
 }
 
 export function FileTreePanel({
@@ -39,12 +49,14 @@ export function FileTreePanel({
   onOpenAsset,
   onCreateTreeItem,
   onRenameTreeItem,
-  onDeleteTreeItem
+  onDeleteTreeItem,
+  onContextMenuError
 }: FileTreePanelProps) {
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const collapsedPathsRootRef = useRef<string | null>(null);
+  const contextMenuTargetRef = useRef<FileTreeContextMenuState | null>(null);
   const normalizedSearchQuery = normalizeSearchQuery(searchQuery);
   const searchResults = useMemo(
     () => (folder && normalizedSearchQuery ? collectSearchResults(folder.tree, normalizedSearchQuery) : []),
@@ -91,16 +103,6 @@ export function FileTreePanel({
     });
   }, []);
 
-  const openContextMenu = useCallback((event: React.MouseEvent, node: MarkdownFileTreeNode | null) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-      node
-    });
-  }, []);
-
   const startCreate = useCallback((parentPath: string, kind: TreeItemKind, defaultName?: string) => {
     const nextDefaultName = defaultName ?? (kind === "markdown" ? "untitled.md" : "untitled");
     // 展开目标目录
@@ -115,6 +117,114 @@ export function FileTreePanel({
   const startRename = useCallback((node: MarkdownFileTreeNode) => {
     setEditing({ mode: "rename", node });
   }, []);
+
+  const runContextMenuAction = useCallback(
+    async (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => {
+      if (!folder) {
+        return;
+      }
+
+      const parentPath = menu.node?.kind === "directory" ? menu.node.path : folder.rootPath;
+
+      switch (action) {
+        case FILE_TREE_CONTEXT_MENU_ACTION.newMarkdown:
+          startCreate(parentPath, "markdown");
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.newMdx:
+          startCreate(parentPath, "markdown", "untitled.mdx");
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.newFolder:
+          startCreate(parentPath, "directory");
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.copyRelativePath:
+          if (menu.node) {
+            await copyNativeFileTreePath({
+              rootPath: folder.rootPath,
+              path: menu.node.path,
+              relative: true
+            });
+          }
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.copyAbsolutePath:
+          if (menu.node) {
+            await copyNativeFileTreePath({
+              rootPath: folder.rootPath,
+              path: menu.node.path,
+              relative: false
+            });
+          }
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.revealInFinder:
+          if (menu.node) {
+            await revealNativeFileTreeItemInFinder({
+              rootPath: folder.rootPath,
+              path: menu.node.path
+            });
+          }
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.rename:
+          if (menu.node) {
+            startRename(menu.node);
+          }
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.delete:
+          if (menu.node) {
+            onDeleteTreeItem(menu.node);
+          }
+          break;
+      }
+    },
+    [folder, onDeleteTreeItem, startCreate, startRename]
+  );
+
+  const runContextMenuActionWithErrorHandling = useCallback(
+    (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => {
+      void runContextMenuAction(menu, action).catch((error: unknown) => {
+        onContextMenuError?.(error);
+      });
+    },
+    [onContextMenuError, runContextMenuAction]
+  );
+
+  useEffect(() => {
+    return listenToNativeFileTreeContextMenuActions((action) => {
+      const menu = contextMenuTargetRef.current;
+      if (!menu) {
+        return;
+      }
+
+      runContextMenuActionWithErrorHandling(menu, action);
+    });
+  }, [runContextMenuActionWithErrorHandling]);
+
+  const openContextMenu = useCallback(
+    (event: React.MouseEvent, node: MarkdownFileTreeNode | null) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const menu = {
+        x: event.clientX,
+        y: event.clientY,
+        node
+      };
+      contextMenuTargetRef.current = menu;
+
+      if (isDesktopNativeFileTreeContextMenuAvailable()) {
+        setContextMenu(null);
+        void showNativeFileTreeContextMenu({
+          x: menu.x,
+          y: menu.y,
+          hasNode: Boolean(node)
+        }).catch((error: unknown) => {
+          onContextMenuError?.(error);
+        });
+        return;
+      }
+
+      setContextMenu(menu);
+    },
+    [onContextMenuError]
+  );
 
   const commitEdit = useCallback(
     (name: string) => {
@@ -148,9 +258,6 @@ export function FileTreePanel({
     );
   }
 
-  const contextParentPath =
-    contextMenu?.node?.kind === "directory" ? contextMenu.node.path : folder.rootPath;
-
   if (normalizedSearchQuery) {
     return (
       <div
@@ -175,11 +282,8 @@ export function FileTreePanel({
         {contextMenu ? (
           <FileTreeContextMenu
             menu={contextMenu}
-            parentPath={contextParentPath}
             onClose={() => setContextMenu(null)}
-            onStartCreate={startCreate}
-            onStartRename={startRename}
-            onDeleteTreeItem={onDeleteTreeItem}
+            onRunAction={runContextMenuActionWithErrorHandling}
           />
         ) : null}
       </div>
@@ -206,11 +310,8 @@ export function FileTreePanel({
       {contextMenu ? (
         <FileTreeContextMenu
           menu={contextMenu}
-          parentPath={contextParentPath}
           onClose={() => setContextMenu(null)}
-          onStartCreate={startCreate}
-          onStartRename={startRename}
-          onDeleteTreeItem={onDeleteTreeItem}
+          onRunAction={runContextMenuActionWithErrorHandling}
         />
       ) : null}
     </div>
@@ -527,27 +628,21 @@ function FileKindIcon({ kind }: { readonly kind: "markdown" | "asset" }) {
 
 interface FileTreeContextMenuProps {
   readonly menu: FileTreeContextMenuState;
-  readonly parentPath: string;
   readonly onClose: () => void;
-  readonly onStartCreate: (parentPath: string, kind: TreeItemKind, defaultName?: string) => void;
-  readonly onStartRename: (node: MarkdownFileTreeNode) => void;
-  readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
+  readonly onRunAction: (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => void;
 }
 
 function FileTreeContextMenu({
   menu,
-  parentPath,
   onClose,
-  onStartCreate,
-  onStartRename,
-  onDeleteTreeItem
+  onRunAction
 }: FileTreeContextMenuProps) {
   const run = useCallback(
-    (action: () => void) => {
+    (action: FileTreeContextMenuAction) => {
       onClose();
-      action();
+      onRunAction(menu, action);
     },
-    [onClose]
+    [menu, onClose, onRunAction]
   );
 
   return (
@@ -557,22 +652,32 @@ function FileTreeContextMenu({
       onClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "markdown"))}>
+      <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newMarkdown)}>
         新建文件
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "markdown", "untitled.mdx"))}>
+      <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newMdx)}>
         新建 MDX 文件
       </ContextMenuItem>
-      <ContextMenuItem onClick={() => run(() => onStartCreate(parentPath, "directory"))}>
+      <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newFolder)}>
         新建文件夹
       </ContextMenuItem>
       {menu.node ? (
         <>
           <div className="m-1 h-px bg-(--theme-border)" />
-          <ContextMenuItem onClick={() => run(() => onStartRename(menu.node!))}>
+          <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyRelativePath)}>
+            复制路径
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyAbsolutePath)}>
+            复制绝对路径
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.revealInFinder)}>
+            在 Finder 中显示
+          </ContextMenuItem>
+          <div className="m-1 h-px bg-(--theme-border)" />
+          <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.rename)}>
             重命名
           </ContextMenuItem>
-          <ContextMenuItem danger onClick={() => run(() => onDeleteTreeItem(menu.node!))}>
+          <ContextMenuItem danger onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.delete)}>
             删除
           </ContextMenuItem>
         </>

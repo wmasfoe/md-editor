@@ -141,6 +141,7 @@ export function App() {
               onCreateTreeItem={(parentPath, kind, name) => void editor.createTreeItem(parentPath, kind, name)}
               onRenameTreeItem={(node, name) => void editor.renameTreeItem(node, name)}
               onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
+              onContextMenuError={editor.showFileActionError}
             />
           ) : (
             <OutlinePanel
