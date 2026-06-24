@@ -8,7 +8,7 @@
 - 设计规范： [design/index.md](./design/index.md)
 - 技术架构与方案： [architecture/index.md](./architecture/index.md)
 - 实现状态与阶段记录： [status/index.md](./status/index.md)
-- 高风险问题规范： [specs/index.md](./specs/index.md)
+- 高风险问题规范（选区、IME 等编辑器交互契约）： [specs/index.md](./specs/index.md)
 - 发布与仓库流程： [release/index.md](./release/index.md)
 
 ## 使用规则

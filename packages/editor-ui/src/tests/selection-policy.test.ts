@@ -23,11 +23,21 @@ describe("editor selection policy", () => {
   });
 
   it("keeps native drag and selection disabled on image elements", () => {
-    const imageRule = editorStyles.match(/\.milkdown \.ProseMirror img \{(?<body>[^}]+)\}/u);
+    const imageRule = editorStyles.match(
+      /\.milkdown \.ProseMirror img:not\(\.ProseMirror-separator\) \{(?<body>[^}]+)\}/u
+    );
 
     expect(imageRule?.groups?.body).toContain("-webkit-user-drag: none");
     expect(imageRule?.groups?.body).toContain("-webkit-user-select: none");
     expect(imageRule?.groups?.body).toContain("user-select: none");
+  });
+
+  it("does not treat ProseMirror separator images as editor image nodes", () => {
+    expect(editorStyles).not.toContain(".milkdown .ProseMirror img {");
+    expect(editorStyles).toContain("img:not(.ProseMirror-separator)");
+    expect(imageSelectionSource).toContain("img:not(.ProseMirror-separator)");
+    expect(imageSelectionSource).toContain("clearEditorImageDomState");
+    expect(imageSelectionSource).toContain('removeAttribute("data-md-editor-image")');
   });
 
   it("uses a transient image guard that yields before new user selection input", () => {
@@ -66,7 +76,16 @@ describe("editor selection policy", () => {
     expect(milkdownEditorSource).toContain("serializer(view.state.doc)");
     expect(milkdownEditorSource).toContain("IME_MARKDOWN_PUBLISH_DELAY_MS = 260");
     expect(milkdownEditorSource).not.toContain("compositionMarkdownPendingRef");
-    expect(editorStyles).not.toContain("br.ProseMirror-trailingBreak {\n  display: none;");
+    expect(editorStyles).not.toMatch(
+      /^\.milkdown \.ProseMirror br\.ProseMirror-trailingBreak \{\n  display: none;/mu
+    );
+  });
+
+  it("hides ProseMirror trailing breaks only during active IME composition", () => {
+    expect(editorStyles).toContain(
+      ".milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak"
+    );
+    expect(editorStyles).toContain("br.ProseMirror-trailingBreak {\n  display: none;");
   });
 
   it("guards against composition hardbreaks leaking into markdown", () => {

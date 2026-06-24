@@ -8,6 +8,7 @@ import {
 } from "@milkdown/kit/prose/state";
 import {
   findImageNodePositionForDom,
+  hasProseMirrorSeparatorImageClass,
   imageSelectionPluginKey,
   isImageNodeSelection,
   shouldClearNativeImageSelection
@@ -16,6 +17,12 @@ import {
 describe("image selection", () => {
   it("uses a stable plugin key for image node selection handling", () => {
     expect(imageSelectionPluginKey).toBeTruthy();
+  });
+
+  it("recognizes ProseMirror separator images as internal DOM, not editor images", () => {
+    expect(hasProseMirrorSeparatorImageClass("ProseMirror-separator")).toBe(true);
+    expect(hasProseMirrorSeparatorImageClass("foo ProseMirror-separator bar")).toBe(true);
+    expect(hasProseMirrorSeparatorImageClass("md-editor-selected-image")).toBe(false);
   });
 
   it("maps a clicked image DOM node back to the whole image node", () => {
