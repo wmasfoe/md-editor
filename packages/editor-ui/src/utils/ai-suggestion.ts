@@ -158,7 +158,7 @@ function createAiSuggestionState(
         class: "md-ai-edit-original"
       }),
       Decoration.widget(
-        edit.to,
+        edit.from,
         () => {
           const node = document.createElement("span");
           node.className = "md-ai-edit-replacement";
@@ -166,7 +166,7 @@ function createAiSuggestionState(
           node.contentEditable = "false";
           return node;
         },
-        { side: 1 }
+        { side: -1 }
       )
     );
   }

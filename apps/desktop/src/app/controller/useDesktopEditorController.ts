@@ -81,7 +81,7 @@ export function useDesktopEditorController() {
   const [isMdxComponentMenuOpen, setIsMdxComponentMenuOpen] = useState(false);
   const [mdxInsertRequest, setMdxInsertRequest] = useState<{ readonly id: number; readonly markdown: string } | null>(null);
   const [aiSuggestionRequest, setAiSuggestionRequest] = useState<{ readonly id: number } | null>(null);
-  const [aiSuggestionStatus, setAiSuggestionStatus] = useState<string | null>(null);
+  const [isAiSuggestionPending, setIsAiSuggestionPending] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
@@ -700,7 +700,7 @@ export function useDesktopEditorController() {
       }
       return id === undefined || current.id === id ? null : current;
     });
-    setAiSuggestionStatus(null);
+    setIsAiSuggestionPending(false);
   }, []);
 
   const insertMdxComponent = useCallback((plugin: MdxComponentPlugin) => {
@@ -718,20 +718,19 @@ export function useDesktopEditorController() {
   }, [showToast]);
 
   const continueAiWriting = useCallback(async () => {
+    showToast(null);
+
     const current = runtime.document.getSnapshot();
     if (current.mode !== "wysiwyg") {
-      showToast("AI 续写首版只支持所见即所得模式，请先切换回来。");
       return;
     }
 
     const readiness = getAiCompletionReadiness(settings.ai);
     if (readiness) {
-      showToast(readiness);
       return;
     }
 
-    showToast(null);
-    setAiSuggestionStatus("AI 正在生成建议...");
+    setIsAiSuggestionPending(true);
     setAiSuggestionRequest({ id: (aiSuggestionRequestId.current += 1) });
   }, [settings.ai, showToast]);
 
@@ -745,13 +744,9 @@ export function useDesktopEditorController() {
     [settings.ai]
   );
 
-  const handleAiSuggestionError = useCallback(
-    (message: string) => {
-      setAiSuggestionStatus(null);
-      showToast(message);
-    },
-    [showToast]
-  );
+  const handleAiSuggestionError = useCallback(() => {
+    setIsAiSuggestionPending(false);
+  }, []);
 
   const openWysiwygLink = useCallback(
     async (href: string) => {
@@ -946,7 +941,7 @@ export function useDesktopEditorController() {
     isMdxComponentMenuOpen,
     mdxInsertRequest,
     aiSuggestionRequest,
-    aiSuggestionStatus,
+    isAiSuggestionPending,
     isAiCompletionReady,
     mdxComponentPlugins,
     settings,

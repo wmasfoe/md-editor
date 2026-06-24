@@ -41,4 +41,11 @@ describe("editor selection policy", () => {
     expect(editorStyles).toContain(".milkdown-host--link-modifier-active .milkdown .ProseMirror a[href]");
     expect(editorStyles).toContain("cursor: pointer");
   });
+
+  it("anchors AI edit ghost text at the start of the replaced range", () => {
+    expect(readFileSync(
+      new URL("../utils/ai-suggestion.ts", import.meta.url),
+      "utf8"
+    )).toContain("Decoration.widget(\n        edit.from,");
+  });
 });

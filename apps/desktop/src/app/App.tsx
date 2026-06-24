@@ -215,7 +215,7 @@ export function App() {
                 target={editor.tocTarget}
                 insertRequest={editor.mdxInsertRequest}
                 aiSuggestionRequest={editor.aiSuggestionRequest}
-                aiSuggestionStatus={editor.aiSuggestionStatus}
+                isAiSuggestionPending={editor.isAiSuggestionPending}
                 aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
                 onInsertRequestHandled={editor.clearMdxInsertRequest}
                 onAiSuggestionRequest={editor.requestAiSuggestion}
