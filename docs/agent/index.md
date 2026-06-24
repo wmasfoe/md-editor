@@ -1,13 +1,19 @@
+# Agent 文档目录
+
+用途：作为 agent 的第一层导航。只记录当前目录下有哪些文档集合；具体文档请进入对应子目录的 `index.md` 按需查找。
+
 ## 目录
 
-- 需求沟通记录: [markdown_editor_communication_record.md](./markdown_editor_communication_record.md)
-- 总结的 PRD: [markdown_editor_requirements](./markdown_editor_requirements.md)
-- 制定的技术方案: [markdown_editor_technical_plan](./markdown_editor_technical_plan.md)
-- 任务优先级与里程碑: [markdown_editor_task_priorities.md](./markdown_editor_task_priorities.md)
-- AI 功能需求与隐私边界: [markdown_editor_ai_feature_requirements.md](./markdown_editor_ai_feature_requirements.md)
-- M0 技术尖刺结论: [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
-- v0.1 侧栏、Runtime 托管和 Raw 编辑状态: [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)
-- MDX 组件插件分层方案: [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
-- WYSIWYG 选区完整性回归规范: [wysiwyg_selection_integrity_spec.md](./wysiwyg_selection_integrity_spec.md)
-- macOS DMG、GitHub Release 与 Homebrew tap 发版流程: [release_workflow.md](./release_workflow.md)
-- 公开仓库后可恢复的 macOS workflow 备份: [build_macos_workflow_public_repo_backup.md](./build_macos_workflow_public_repo_backup.md)
+- 产品需求与路线： [product/index.md](./product/index.md)
+- 设计规范： [design/index.md](./design/index.md)
+- 技术架构与方案： [architecture/index.md](./architecture/index.md)
+- 实现状态与阶段记录： [status/index.md](./status/index.md)
+- 高风险问题规范： [specs/index.md](./specs/index.md)
+- 发布与仓库流程： [release/index.md](./release/index.md)
+
+## 使用规则
+
+- 先读本文件判断方向，再读对应子目录的 `index.md`。
+- 根目录索引只保留一层导航，不展开具体文档清单。
+- 新增子目录时必须同步更新本文件。
+- 及时更新对应的文档，文档和代码的状态要保持同步。
