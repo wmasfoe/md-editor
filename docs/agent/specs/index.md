@@ -5,8 +5,10 @@
 ## 文档
 
 - WYSIWYG 选区完整性回归规范： [wysiwyg_selection_integrity_spec.md](./wysiwyg_selection_integrity_spec.md)
+- WYSIWYG 中文输入法 composition 行高稳定性规范： [wysiwyg_chinese_ime_composition_layout_spec.md](./wysiwyg_chinese_ime_composition_layout_spec.md)
 
 ## 使用规则
 
 - 涉及编辑器选区、拖选、ProseMirror NodeView、blockquote、列表或图片节点交互时，先读 WYSIWYG 选区规范。
+- 涉及中文/CJK 输入法、IME composition、`ProseMirror-trailingBreak`、`ProseMirror-separator` 或 WYSIWYG 行高异常时，先读 WYSIWYG 中文输入法 composition 行高稳定性规范。
 - 新增棘手问题时，优先放在本目录，并在本文件写清楚触发阅读的改动范围。

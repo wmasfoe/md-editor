@@ -250,6 +250,10 @@
   margin-top: 0.8em;
 }
 
+.milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak {
+  display: none;
+}
+
 .milkdown-host--empty
   .milkdown
   .ProseMirror
@@ -710,7 +714,7 @@
   background: #e7e7e7;
 }
 
-.milkdown .ProseMirror img {
+.milkdown .ProseMirror img:not(.ProseMirror-separator) {
   display: block;
   max-width: 100%;
   margin: 1rem auto;
@@ -720,8 +724,8 @@
   user-select: none;
 }
 
-.milkdown .ProseMirror img.ProseMirror-selectednode,
-.milkdown .ProseMirror img.md-editor-selected-image {
+.milkdown .ProseMirror img:not(.ProseMirror-separator).ProseMirror-selectednode,
+.milkdown .ProseMirror img:not(.ProseMirror-separator).md-editor-selected-image {
   outline: 2px solid var(--theme-primary);
   outline-offset: 3px;
 }

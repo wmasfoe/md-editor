@@ -6,6 +6,7 @@ import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 
 export const imageSelectionPluginKey = new PluginKey("md-editor-image-selection");
 const nativeSelectionGuardDurationMs = 1500;
+const proseMirrorSeparatorClassName = "ProseMirror-separator";
 
 interface NativeImageSelectionGuard {
   arm(): void;
@@ -217,6 +218,11 @@ function hasNativeSelectionInside(view: EditorView): boolean {
 
 function prepareImageDom(view: EditorView): void {
   view.dom.querySelectorAll<HTMLImageElement>("img").forEach((image) => {
+    if (isProseMirrorSeparatorImage(image)) {
+      clearEditorImageDomState(image);
+      return;
+    }
+
     image.draggable = false;
     image.setAttribute("contenteditable", "false");
     image.dataset.mdEditorImage = "true";
@@ -224,7 +230,25 @@ function prepareImageDom(view: EditorView): void {
 }
 
 function findImageElement(target: EventTarget | null): HTMLImageElement | null {
-  return target instanceof Element ? target.closest<HTMLImageElement>("img") : null;
+  const image = target instanceof Element
+    ? target.closest<HTMLImageElement>("img:not(.ProseMirror-separator)")
+    : null;
+  return image && !isProseMirrorSeparatorImage(image) ? image : null;
+}
+
+export function hasProseMirrorSeparatorImageClass(className: string): boolean {
+  return className.split(/\s+/u).includes(proseMirrorSeparatorClassName);
+}
+
+function isProseMirrorSeparatorImage(image: HTMLImageElement): boolean {
+  return hasProseMirrorSeparatorImageClass(image.className);
+}
+
+function clearEditorImageDomState(image: HTMLImageElement): void {
+  image.removeAttribute("contenteditable");
+  image.removeAttribute("data-md-editor-image");
+  image.removeAttribute("draggable");
+  image.classList.remove("md-editor-selected-image");
 }
 
 function markSelectedImageDom(view: EditorView, position: number): void {
