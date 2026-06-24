@@ -1,6 +1,7 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
 import type { KeyboardEvent } from "react";
+import type { AiSettings } from "@md-editor/editor-core";
 import type { AppSettings, UpdateStatus } from "../app/settings/app-settings";
 import { keyboardShortcutLabel, shortcutKeyFromKeyboardEvent } from "../app/settings/app-settings";
 
@@ -9,12 +10,14 @@ export interface SettingsDialogProps {
   readonly updateStatus: UpdateStatus;
   readonly shortcutDrafts: Readonly<Record<string, string>>;
   readonly assetsDirectoryDraft: string;
+  readonly aiSettingsDraft: AiSettings;
   readonly errorMessage: string | null;
   readonly isSaving: boolean;
   readonly isCheckingForUpdates: boolean;
   readonly onCaptureShortcut: (id: string, key: string) => void;
   readonly onResetShortcut: (id: string) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
+  readonly onChangeAiSettings: (value: AiSettings) => void;
   readonly onSave: () => void;
   readonly onClose: () => void;
   readonly onCheckForUpdates: () => void;
@@ -25,12 +28,14 @@ export function SettingsDialog({
   updateStatus,
   shortcutDrafts,
   assetsDirectoryDraft,
+  aiSettingsDraft,
   errorMessage,
   isSaving,
   isCheckingForUpdates,
   onCaptureShortcut,
   onResetShortcut,
   onChangeAssetsDirectory,
+  onChangeAiSettings,
   onSave,
   onClose,
   onCheckForUpdates
@@ -119,6 +124,152 @@ export function SettingsDialog({
             </label>
           </section>
 
+          <section className={settingsSectionClassName} aria-labelledby="ai-settings-title">
+            <div className="mb-3">
+              <h3 id="ai-settings-title" className={settingsSectionTitleClassName}>AI 写作</h3>
+              <p className={settingsDescriptionClassName}>
+                AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <label className="flex min-h-[30px] items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--theme-primary)]"
+                  checked={aiSettingsDraft.features.editing}
+                  onChange={(event) =>
+                    onChangeAiSettings(updateAiFeature(aiSettingsDraft, "editing", event.target.checked))
+                  }
+                />
+                <span className={settingsFieldLabelClassName}>语法、标点修复</span>
+              </label>
+              <label className="flex min-h-[30px] items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--theme-primary)]"
+                  checked={aiSettingsDraft.features.continuation}
+                  onChange={(event) =>
+                    onChangeAiSettings(updateAiFeature(aiSettingsDraft, "continuation", event.target.checked))
+                  }
+                />
+                <span className={settingsFieldLabelClassName}>AI 续写</span>
+              </label>
+
+              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                <span className={settingsFieldLabelClassName}>Provider</span>
+                <select
+                  className={settingsInputClassName}
+                  value={aiSettingsDraft.provider}
+                  onChange={(event) =>
+                    onChangeAiSettings({
+                      ...aiSettingsDraft,
+                      provider: event.target.value === "local" ? "local" : "openai-compatible"
+                    })
+                  }
+                >
+                  <option value="openai-compatible">OpenAI-compatible</option>
+                  <option value="local">本地模型</option>
+                </select>
+              </label>
+
+              {aiSettingsDraft.provider === "openai-compatible" ? (
+                <div className="grid gap-2.5">
+                  <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                    <span className={settingsFieldLabelClassName}>Endpoint</span>
+                    <input
+                      className={settingsInputClassName}
+                      value={aiSettingsDraft.openAiCompatible.baseUrl}
+                      onChange={(event) =>
+                        onChangeAiSettings({
+                          ...aiSettingsDraft,
+                          openAiCompatible: {
+                            ...aiSettingsDraft.openAiCompatible,
+                            baseUrl: event.target.value
+                          }
+                        })
+                      }
+                      placeholder="https://api.openai.com/v1"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                    <span className={settingsFieldLabelClassName}>Model</span>
+                    <input
+                      className={settingsInputClassName}
+                      value={aiSettingsDraft.openAiCompatible.model}
+                      onChange={(event) =>
+                        onChangeAiSettings({
+                          ...aiSettingsDraft,
+                          openAiCompatible: {
+                            ...aiSettingsDraft.openAiCompatible,
+                            model: event.target.value
+                          }
+                        })
+                      }
+                      placeholder="gpt-4.1-mini"
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                    <span className={settingsFieldLabelClassName}>API Key</span>
+                    <input
+                      type="password"
+                      className={settingsInputClassName}
+                      value={aiSettingsDraft.openAiCompatible.apiKey}
+                      onChange={(event) =>
+                        onChangeAiSettings({
+                          ...aiSettingsDraft,
+                          openAiCompatible: {
+                            ...aiSettingsDraft.openAiCompatible,
+                            apiKey: event.target.value
+                          }
+                        })
+                      }
+                      placeholder="sk-..."
+                      spellCheck={false}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid gap-2.5">
+                  <label className="flex min-h-[30px] items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[var(--theme-primary)]"
+                      checked={aiSettingsDraft.localModel.enabled}
+                      onChange={(event) =>
+                        onChangeAiSettings({
+                          ...aiSettingsDraft,
+                          localModel: {
+                            ...aiSettingsDraft.localModel,
+                            enabled: event.target.checked
+                          }
+                        })
+                      }
+                    />
+                    <span className={settingsFieldLabelClassName}>启用本地模型</span>
+                  </label>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={settingsFieldLabelClassName}>
+                      模型状态：{localModelStatusLabel(aiSettingsDraft.localModel.status)}
+                    </span>
+                    <button
+                      type="button"
+                      className={settingsSmallButtonClassName}
+                      disabled
+                      title="本地模型下载器会在后续版本接入"
+                    >
+                      下载模型
+                    </button>
+                  </div>
+                  <p className={settingsDescriptionClassName}>
+                    用户风格学习后续只会走本地模型，不会把历史文章批量上传到远程 provider。
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+
           <section className={settingsSectionClassName} aria-labelledby="update-settings-title">
             <div className="mb-3">
               <h3 id="update-settings-title" className={settingsSectionTitleClassName}>更新</h3>
@@ -176,4 +327,33 @@ const settingsInputClassName =
   "h-[30px] w-full rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 text-[13px] leading-none text-[var(--theme-text)] outline-none read-only:cursor-default focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_2px_var(--theme-primary-soft)]";
 
 const settingsSmallButtonClassName =
-  "h-[30px] rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55";
+  "h-[30px] px-2 rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55";
+
+function localModelStatusLabel(status: AiSettings["localModel"]["status"]): string {
+  switch (status) {
+    case "downloading":
+      return "下载中";
+    case "available":
+      return "可用";
+    case "failed":
+      return "下载失败";
+    case "not-downloaded":
+      return "未下载";
+  }
+}
+
+function updateAiFeature(
+  settings: AiSettings,
+  feature: keyof AiSettings["features"],
+  enabled: boolean
+): AiSettings {
+  const nextFeatures = {
+    ...settings.features,
+    [feature]: enabled
+  };
+  return {
+    ...settings,
+    enabled: nextFeatures.continuation || nextFeatures.editing,
+    features: nextFeatures
+  };
+}

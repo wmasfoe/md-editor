@@ -1,5 +1,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type {
+  AiLocalModelStatus,
+  AiProviderType,
+  AiSettings
+} from "@md-editor/editor-core";
 
 export interface ShortcutSetting {
   readonly id: string;
@@ -12,6 +17,7 @@ export interface ShortcutSetting {
 export interface AppSettings {
   readonly shortcuts: readonly ShortcutSetting[];
   readonly assetsDirectory: string;
+  readonly ai: AiSettings;
 }
 
 export interface UpdateStatus {
@@ -46,15 +52,39 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
     commandId: "mdx.openComponentMenu",
     label: "插入 MDX 组件",
     defaultKey: "Mod-Shift-M"
+  },
+  {
+    id: "ai.continueWriting",
+    commandId: "ai.continueWriting",
+    label: "AI 写作建议",
+    defaultKey: "Mod-Shift-A"
   }
 ];
 
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
+const DEFAULT_AI_SETTINGS: AiSettings = {
+  enabled: true,
+  provider: "openai-compatible",
+  features: {
+    continuation: false,
+    editing: true
+  },
+  openAiCompatible: {
+    baseUrl: "https://api.openai.com/v1",
+    model: "",
+    apiKey: ""
+  },
+  localModel: {
+    enabled: false,
+    status: "not-downloaded"
+  }
+};
 
 export function createDefaultSettings(): AppSettings {
   return {
     shortcuts: SHORTCUTS.map((shortcut) => ({ ...shortcut, key: shortcut.defaultKey })),
-    assetsDirectory: DEFAULT_ASSETS_DIRECTORY
+    assetsDirectory: DEFAULT_ASSETS_DIRECTORY,
+    ai: DEFAULT_AI_SETTINGS
   };
 }
 
@@ -99,6 +129,29 @@ export async function checkForUpdates(currentVersion: string): Promise<UpdateSta
 
 export function appVersion(): string {
   return __APP_VERSION__;
+}
+
+export function normalizeAiSettings(input: Partial<AiSettings> | null | undefined): AiSettings {
+  const provider = normalizeAiProvider(input?.provider);
+  const hasFeatureSettings = input?.features !== undefined;
+  const features = {
+    continuation: Boolean(input?.features?.continuation),
+    editing: input?.features?.editing ?? true
+  };
+  return {
+    enabled: hasFeatureSettings ? input?.enabled ?? true : true,
+    provider,
+    features,
+    openAiCompatible: {
+      baseUrl: normalizeAiBaseUrl(input?.openAiCompatible?.baseUrl),
+      model: input?.openAiCompatible?.model?.trim() ?? "",
+      apiKey: input?.openAiCompatible?.apiKey ?? ""
+    },
+    localModel: {
+      enabled: Boolean(input?.localModel?.enabled),
+      status: normalizeLocalModelStatus(input?.localModel?.status)
+    }
+  };
 }
 
 export function keyboardShortcutLabel(key: string): string {
@@ -211,6 +264,7 @@ interface PersistedSettings {
     readonly key: string;
   }[];
   readonly assetsDirectory?: string;
+  readonly ai?: Partial<AiSettings>;
 }
 
 function readLocalSettings(): Partial<PersistedSettings> {
@@ -235,7 +289,8 @@ function normalizeSettings(input: Partial<PersistedSettings | AppSettings> | nul
       ...shortcut,
       key: shortcutOverrides.get(shortcut.id) ?? shortcut.defaultKey
     })),
-    assetsDirectory
+    assetsDirectory,
+    ai: normalizeAiSettings(input?.ai)
   };
 }
 
@@ -245,8 +300,24 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
       id: shortcut.id,
       key: shortcut.key
     })),
-    assetsDirectory: settings.assetsDirectory
+    assetsDirectory: settings.assetsDirectory,
+    ai: settings.ai
   };
+}
+
+function normalizeAiProvider(input: unknown): AiProviderType {
+  return input === "local" ? "local" : "openai-compatible";
+}
+
+function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
+  return input === "downloading" || input === "available" || input === "failed"
+    ? input
+    : "not-downloaded";
+}
+
+function normalizeAiBaseUrl(input: string | undefined): string {
+  const value = input?.trim().replace(/\/+$/u, "");
+  return value || DEFAULT_AI_SETTINGS.openAiCompatible.baseUrl;
 }
 
 function normalizeKeyName(key: string): string {

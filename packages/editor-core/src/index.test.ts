@@ -4,6 +4,7 @@ import { calloutPlugin } from "@md-editor/mdx-plugins/metadata";
 import {
   computeDirtyState,
   createBuiltInEditorFeature,
+  createAiWritingFeature,
   createCommandRegistry,
   collectRawFragments,
   createDocumentState,
@@ -34,6 +35,29 @@ import {
 describe("editor-core M0 skeleton", () => {
   it("loads the headless editor-core package", () => {
     expect(describeEditorCoreSpike()).toBe("editor-core-m0");
+  });
+
+  it("registers the AI writing command and keymap as a built-in feature", async () => {
+    const commands = createCommandRegistry();
+    const keymaps = createKeymapRegistry();
+    let called = false;
+
+    createAiWritingFeature().setup({ commands, keymaps });
+
+    expect(keymaps.list()).toContainEqual({
+      id: "ai.continueWriting",
+      key: "Mod-Shift-A",
+      commandId: "ai.continueWriting",
+    });
+    expect(await commands.dispatch("ai.continueWriting", {
+      document: createDocumentState(),
+      actions: {
+        continueAiWriting: () => {
+          called = true;
+        },
+      },
+    })).toBe(true);
+    expect(called).toBe(true);
   });
 });
 
