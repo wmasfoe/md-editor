@@ -12,6 +12,14 @@ import type {
 } from "@md-editor/file-system";
 import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
 import { fileService } from "../../desktop/file-service";
+import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
+import {
+  basename,
+  isExternalSchemeLink,
+  isHttpLink,
+  normalizeLocalHrefPath,
+  splitLinkHref
+} from "../../lib/link-target";
 import { dirname, isSameOrChildPath } from "../../lib/path";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
 import type { OpenedAsset, SidebarMode, TreeItemKind } from "../../types";
@@ -604,6 +612,25 @@ export function useDesktopEditorController() {
     [outline]
   );
 
+  const jumpToMarkdownFragment = useCallback(
+    (markdown: string, fragment: string | null) => {
+      if (!fragment) {
+        return;
+      }
+
+      const nextOutline = extractHeadingOutline(markdown);
+      const item = nextOutline.find((candidate) => candidate.id === fragment);
+      if (!item) {
+        showToast(`没有找到标题 #${fragment}`);
+        return;
+      }
+
+      setActiveOutlineId(item.id);
+      setTocTarget({ line: item.line, level: item.level, text: item.text, nonce: Date.now() });
+    },
+    [showToast]
+  );
+
   useEffect(() => {
     // 编辑可能删除或重命名当前标题，及时清掉过期 id，避免大纲高亮不存在的章节。
     if (activeOutlineId && !outline.some((item) => item.id === activeOutlineId)) {
@@ -658,6 +685,68 @@ export function useDesktopEditorController() {
       markdown: snippet
     });
   }, [showToast]);
+
+  const openWysiwygLink = useCallback(
+    async (href: string) => {
+      const parts = splitLinkHref(href);
+      if (parts.path === "" && parts.fragment) {
+        jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
+        return;
+      }
+
+      if (
+        isHttpLink(href) ||
+        (isExternalSchemeLink(href) && !href.trim().toLowerCase().startsWith("file:"))
+      ) {
+        await runFileAction("正在打开链接", async () => {
+          await openExternalTarget(href);
+        });
+        return;
+      }
+
+      const current = runtime.document.getSnapshot();
+      if (!current.filePath) {
+        showToast("请先保存当前文档，再打开相对链接。");
+        return;
+      }
+      const currentFilePath = current.filePath;
+
+      await runFileAction("正在打开链接", async () => {
+        const linked = await inspectLinkedFileTarget(
+          currentFilePath,
+          normalizeLocalHrefPath(parts.path)
+        );
+
+        if (linked.kind === "asset") {
+          showToast(null);
+          setOpenedAsset({ name: basename(linked.path), path: linked.path });
+          return;
+        }
+
+        if (linked.kind === "markdown") {
+          if (!(await ensureDiscardAllowed())) {
+            return;
+          }
+
+          const document = await fileService.openDocumentAtPath(linked.path);
+          replaceDocument(document);
+          await refreshFolderForDocumentPath(document.filePath);
+          jumpToMarkdownFragment(document.markdown, parts.fragment);
+          return;
+        }
+
+        await openExternalTarget(linked.path);
+      });
+    },
+    [
+      ensureDiscardAllowed,
+      jumpToMarkdownFragment,
+      refreshFolderForDocumentPath,
+      replaceDocument,
+      runFileAction,
+      showToast
+    ]
+  );
 
   const getRecentFiles = useCallback(() => {
     return recentFilesStore.list();
@@ -802,6 +891,7 @@ export function useDesktopEditorController() {
     dispatchCommand,
     openDocumentFromTree,
     openAssetFromTree,
+    openWysiwygLink,
     closeAssetPreview,
     createTreeItem,
     renameTreeItem,

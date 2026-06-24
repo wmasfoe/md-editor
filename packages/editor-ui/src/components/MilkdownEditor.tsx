@@ -30,6 +30,7 @@ export interface MilkdownEditorProps {
   readonly insertRequest?: MarkdownInsertRequest | null;
   readonly onInsertRequestHandled?: (id: number) => void;
   readonly onChange: (markdown: string) => void;
+  readonly onOpenLink?: (href: string) => void;
   readonly onActiveOutlineChange?: (id: string | null) => void;
   readonly resolveImageSrc?: (src: string) => string;
 }
@@ -54,6 +55,7 @@ function MilkdownEditorInner({
   insertRequest = null,
   onInsertRequestHandled,
   onChange,
+  onOpenLink,
   onActiveOutlineChange,
   resolveImageSrc = (src) => src
 }: MilkdownEditorProps) {
@@ -78,6 +80,7 @@ function MilkdownEditorInner({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchCaseSensitive, setIsSearchCaseSensitive] = useState(false);
+  const [isLinkModifierActive, setIsLinkModifierActive] = useState(false);
   const [searchResult, setSearchResult] = useState({ matchCount: 0, activeIndex: -1 });
   const [loading, getInstance] = useInstance();
 
@@ -140,6 +143,36 @@ function MilkdownEditorInner({
   }, [getInstance, isSearchCaseSensitive, loading, searchQuery]);
 
   useEffect(() => {
+    const activateLinkCursor = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey) {
+        setIsLinkModifierActive(true);
+      }
+    };
+    const resetLinkCursor = (event?: KeyboardEvent) => {
+      if (!event || event.key === "Meta" || event.key === "Control" || !(event.metaKey || event.ctrlKey)) {
+        setIsLinkModifierActive(false);
+      }
+    };
+    const resetOnVisibilityChange = () => {
+      if (document.visibilityState !== "visible") {
+        setIsLinkModifierActive(false);
+      }
+    };
+    const resetOnWindowBlur = () => resetLinkCursor();
+
+    window.addEventListener("keydown", activateLinkCursor, { capture: true });
+    window.addEventListener("keyup", resetLinkCursor, { capture: true });
+    window.addEventListener("blur", resetOnWindowBlur);
+    document.addEventListener("visibilitychange", resetOnVisibilityChange);
+    return () => {
+      window.removeEventListener("keydown", activateLinkCursor, { capture: true });
+      window.removeEventListener("keyup", resetLinkCursor, { capture: true });
+      window.removeEventListener("blur", resetOnWindowBlur);
+      document.removeEventListener("visibilitychange", resetOnVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
 
@@ -166,6 +199,12 @@ function MilkdownEditorInner({
     };
 
     const handleMouseDown = (event: MouseEvent) => {
+      if (findModifiedPrimaryClickLinkHref(event, root)) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       if (
         !shouldPlaceCursorAtDocumentEnd(
           event.target,
@@ -181,6 +220,14 @@ function MilkdownEditorInner({
     };
 
     const handleClick = (event: MouseEvent) => {
+      const href = findModifiedPrimaryClickLinkHref(event, root);
+      if (href) {
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenLink?.(href);
+        return;
+      }
+
       if (
         !shouldPlaceCursorAtDocumentEnd(
           event.target,
@@ -223,7 +270,7 @@ function MilkdownEditorInner({
       scroller?.removeEventListener("mousedown", handleMouseDown);
       scroller?.removeEventListener("click", handleClick);
     };
-  }, [loading, getInstance]);
+  }, [loading, getInstance, onOpenLink]);
 
   useEditor(
     (root) =>
@@ -389,7 +436,10 @@ function MilkdownEditorInner({
   }, [onActiveOutlineChange, outline, snapshot.markdown]);
 
   return (
-    <div ref={rootRef} className="milkdown-host">
+    <div
+      ref={rootRef}
+      className={isLinkModifierActive ? "milkdown-host milkdown-host--link-modifier-active" : "milkdown-host"}
+    >
       {isSearchOpen ? (
         <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
           <input
@@ -451,4 +501,19 @@ function MilkdownEditorInner({
       <Milkdown />
     </div>
   );
+}
+
+function findModifiedPrimaryClickLinkHref(event: MouseEvent, root: HTMLElement): string | null {
+  if (!(event.metaKey || event.ctrlKey) || event.button !== 0) {
+    return null;
+  }
+
+  const target = event.target instanceof Element ? event.target : null;
+  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
+  if (!anchor || !root.contains(anchor)) {
+    return null;
+  }
+
+  const href = anchor.getAttribute("href")?.trim();
+  return href || null;
 }
