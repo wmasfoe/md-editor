@@ -12,6 +12,9 @@ catalogs:
     '@headlessui/react':
       specifier: ^2.2.9
       version: 2.2.10
+    '@heroicons/react':
+      specifier: ^2.2.0
+      version: 2.2.0
     '@milkdown/kit':
       specifier: ^7.21.2
       version: 7.21.2
@@ -107,6 +110,9 @@ importers:
       '@headlessui/react':
         specifier: 'catalog:'
         version: 2.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@heroicons/react':
+        specifier: 'catalog:'
+        version: 2.2.0(react@19.2.7)
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -217,6 +223,9 @@ importers:
       '@headlessui/react':
         specifier: 'catalog:'
         version: 2.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@heroicons/react':
+        specifier: 'catalog:'
+        version: 2.2.0(react@19.2.7)
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../editor-core
@@ -818,6 +827,11 @@ packages:
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
+
+  '@heroicons/react@2.2.0':
+    resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
+    peerDependencies:
+      react: '>= 16 || ^19.0.0-rc'
 
   '@internationalized/date@3.12.2':
     resolution: {integrity: sha512-FY1Y+H64NDs+HAF6omlnWxm3mEpfgaCSWtL5l551ZZfImA+kGjPFgrnJrGjH6lfmLL0g8Z/mBu1R3kufeCp6Jw==}
@@ -2888,6 +2902,10 @@ snapshots:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
+
+  '@heroicons/react@2.2.0(react@19.2.7)':
+    dependencies:
+      react: 19.2.7
 
   '@internationalized/date@3.12.2':
     dependencies:

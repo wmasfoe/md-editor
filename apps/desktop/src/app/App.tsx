@@ -1,4 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  Bars3BottomLeftIcon,
+  FolderIcon,
+  MagnifyingGlassIcon,
+  QueueListIcon
+} from "@heroicons/react/24/outline";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import {
   AssetPreview,
@@ -67,7 +73,11 @@ export function App() {
             title={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
             onClick={() => editor.setSidebarMode(editor.sidebarMode === "files" ? "outline" : "files")}
           >
-            {editor.sidebarMode === "files" ? <FilesIcon /> : <OutlineIcon />}
+            {editor.sidebarMode === "files" ? (
+              <FolderIcon aria-hidden="true" />
+            ) : (
+              <QueueListIcon aria-hidden="true" />
+            )}
           </button>
           <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none text-[var(--theme-title)]">
             {sidebarTitle}
@@ -86,7 +96,7 @@ export function App() {
               setIsFileSearchOpen((current) => !current);
             }}
           >
-            <SearchIcon />
+            <MagnifyingGlassIcon aria-hidden="true" />
           </button>
         </div>
         {showFileSearch ? (
@@ -94,7 +104,7 @@ export function App() {
             className="grid min-h-[38px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2.5 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
             role="search"
           >
-            <SearchIcon />
+            <MagnifyingGlassIcon aria-hidden="true" />
             <input
               type="search"
               className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
@@ -167,7 +177,7 @@ export function App() {
             title="显示侧栏"
             onClick={() => editor.setIsSidebarVisible(true)}
           >
-            <SidebarIcon />
+            <Bars3BottomLeftIcon aria-hidden="true" />
           </button>
         ) : null}
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -394,40 +404,4 @@ function countMatchedFiles(root: MarkdownFileTreeNode | null, query: string): nu
 
 function normalizeSearchQuery(query: string): string {
   return query.trim().toLowerCase();
-}
-
-function FilesIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M2.5 4.2h4l1 1.3h6v6.8a1.2 1.2 0 0 1-1.2 1.2H3.7a1.2 1.2 0 0 1-1.2-1.2z" />
-      <path d="M2.5 4.2V3.7a1.2 1.2 0 0 1 1.2-1.2h3.1l1 1.2h4.5a1.2 1.2 0 0 1 1.2 1.2v.6" />
-    </svg>
-  );
-}
-
-function OutlineIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M4.5 3h8M4.5 8h8M4.5 13h8" />
-      <path d="M2 3h.1M2 8h.1M2 13h.1" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="7" cy="7" r="4.2" />
-      <path d="M10.2 10.2 13.5 13.5" />
-    </svg>
-  );
-}
-
-function SidebarIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-      <path d="M6 3v10" />
-    </svg>
-  );
 }

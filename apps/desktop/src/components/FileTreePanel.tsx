@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  DocumentTextIcon,
+  PhotoIcon
+} from "@heroicons/react/24/outline";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { cx } from "../lib/cx";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
@@ -410,13 +416,9 @@ function FileTreeNodeView({
       >
         <span className="file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-[var(--theme-control-subtle)]">
           {isCollapsed ? (
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <ChevronRightIcon className="size-2.5 stroke-[2]" aria-hidden="true" />
           ) : (
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <ChevronDownIcon className="size-2.5 stroke-[2]" aria-hidden="true" />
           )}
         </span>
         <span className="overflow-hidden text-ellipsis whitespace-nowrap">{node.name}</span>
@@ -515,17 +517,9 @@ function FileKindIcon({ kind }: { readonly kind: "markdown" | "asset" }) {
       aria-label={title}
     >
       {kind === "markdown" ? (
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-          <path d="M3.5 9V4.5L5.5 7L7.5 4.5V9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M9.5 4.5V9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-        </svg>
+        <DocumentTextIcon className="size-[13px] stroke-[1.65]" aria-hidden="true" />
       ) : (
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <rect x="1" y="1" width="11" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-          <circle cx="9" cy="4.5" r="1" fill="currentColor"/>
-          <path d="M1.5 9.5L4 7L6 9L8 7.5L11.5 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <PhotoIcon className="size-[13px] stroke-[1.65]" aria-hidden="true" />
       )}
     </span>
   );

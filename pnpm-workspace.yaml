@@ -5,6 +5,7 @@ packages:
 catalog:
   "@codemirror/lang-markdown": ^6.5.0
   "@headlessui/react": ^2.2.9
+  "@heroicons/react": ^2.2.0
   "@milkdown/kit": ^7.21.2
   "@milkdown/react": ^7.21.2
   "@tailwindcss/vite": ^4.1.17
