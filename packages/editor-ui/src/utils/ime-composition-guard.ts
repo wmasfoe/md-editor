@@ -3,21 +3,31 @@ import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import { Plugin, PluginKey, type Transaction } from "@milkdown/kit/prose/state";
 
 const imeCompositionGuardKey = new PluginKey("md-editor-ime-composition-guard");
+const IME_COMPOSITION_SETTLE_DELAY_MS = 260;
 
 export const imeCompositionGuardPlugin = $prose(
   () => {
     let isComposing = false;
-    let compositionEndFrame: number | null = null;
+    let compositionEndTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearCompositionEndTimer = () => {
+      if (compositionEndTimer !== null) {
+        clearTimeout(compositionEndTimer);
+        compositionEndTimer = null;
+      }
+    };
+
+    const startComposition = () => {
+      clearCompositionEndTimer();
+      isComposing = true;
+    };
 
     const finishCompositionSoon = () => {
-      if (compositionEndFrame !== null) {
-        cancelAnimationFrame(compositionEndFrame);
-      }
-
-      compositionEndFrame = requestAnimationFrame(() => {
-        compositionEndFrame = null;
+      clearCompositionEndTimer();
+      compositionEndTimer = setTimeout(() => {
+        compositionEndTimer = null;
         isComposing = false;
-      });
+      }, IME_COMPOSITION_SETTLE_DELAY_MS);
     };
 
     return new Plugin({
@@ -45,11 +55,7 @@ export const imeCompositionGuardPlugin = $prose(
       props: {
         handleDOMEvents: {
           compositionstart() {
-            if (compositionEndFrame !== null) {
-              cancelAnimationFrame(compositionEndFrame);
-              compositionEndFrame = null;
-            }
-            isComposing = true;
+            startComposition();
             return false;
           },
           compositionend() {
@@ -57,7 +63,10 @@ export const imeCompositionGuardPlugin = $prose(
             return false;
           }
         }
-      }
+      },
+      view: () => ({
+        destroy: clearCompositionEndTimer
+      })
     });
   }
 );

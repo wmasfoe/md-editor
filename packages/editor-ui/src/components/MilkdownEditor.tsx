@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Editor, defaultValueCtx, editorViewCtx, parserCtx, rootCtx } from "@milkdown/kit/core";
+import {
+  Editor,
+  defaultValueCtx,
+  editorViewCtx,
+  parserCtx,
+  rootCtx,
+  serializerCtx
+} from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
@@ -34,6 +41,8 @@ import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-searc
 import type { OutlineItem } from "./OutlinePanel";
 import type { TocTarget } from "../types";
 import "./MilkdownEditor.css";
+
+const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
 
 export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
@@ -108,6 +117,8 @@ function MilkdownEditorInner({
   const selectionBookmarkRef = useRef<SelectionBookmark | null>(null);
   const handledInsertRequestIdRef = useRef<number | null>(null);
   const handledAiSuggestionRequestIdRef = useRef<number | null>(null);
+  const compositionMarkdownDirtyRef = useRef(false);
+  const lastPublishedPreviewMarkdownRef = useRef(previewInput.markdown);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -124,8 +135,20 @@ function MilkdownEditorInner({
   const hostClassName = [
     "milkdown-host",
     isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
-    snapshot.markdown.trim() ? "" : "milkdown-host--empty"
+    isImeComposing ? "milkdown-host--ime-composing" : "",
+    !isImeComposing && !snapshot.markdown.trim() ? "milkdown-host--empty" : ""
   ].filter(Boolean).join(" ");
+
+  const publishPreviewMarkdownUpdate = useCallback((markdown: string) => {
+    if (markdown === lastPublishedPreviewMarkdownRef.current) {
+      return;
+    }
+
+    lastPublishedPreviewMarkdownRef.current = markdown;
+    setUserEditRevision((current) => current + 1);
+    const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
+    onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
+  }, [onChange]);
 
   const runSearch = useCallback(
     (query: string, requestedIndex: number, caseSensitive = isSearchCaseSensitive) => {
@@ -222,7 +245,7 @@ function MilkdownEditorInner({
     }
 
     const view = editor.ctx.get(editorViewCtx);
-    let compositionEndFrame: number | null = null;
+    let compositionEndTimer: number | null = null;
 
     const setCompositionState = (nextState: boolean) => {
       isImeComposingRef.current = nextState;
@@ -230,41 +253,51 @@ function MilkdownEditorInner({
     };
 
     const handleCompositionStart = () => {
-      if (compositionEndFrame !== null) {
-        cancelAnimationFrame(compositionEndFrame);
-        compositionEndFrame = null;
+      if (compositionEndTimer !== null) {
+        window.clearTimeout(compositionEndTimer);
+        compositionEndTimer = null;
       }
 
       setCompositionState(true);
+      compositionMarkdownDirtyRef.current = false;
       setIsLocalAiSuggestionPending(false);
       clearAiSuggestion(view);
     };
 
     const handleCompositionEnd = () => {
-      if (compositionEndFrame !== null) {
-        cancelAnimationFrame(compositionEndFrame);
+      if (compositionEndTimer !== null) {
+        window.clearTimeout(compositionEndTimer);
       }
 
-      // Let the IME commit transaction settle before auto suggestions can read
-      // context or add decorations around the composing range again.
-      compositionEndFrame = requestAnimationFrame(() => {
-        compositionEndFrame = null;
+      // ProseMirror finishes composition cleanup on a short timer. Keep AI
+      // gating active until that DOM cleanup has settled. Milkdown's listener
+      // debounces markdownUpdated by 200ms, so the publish fallback waits long
+      // enough to serialize only the final committed IME text.
+      compositionEndTimer = window.setTimeout(() => {
+        compositionEndTimer = null;
         setCompositionState(false);
-      });
+        if (!compositionMarkdownDirtyRef.current) {
+          return;
+        }
+
+        compositionMarkdownDirtyRef.current = false;
+        const serializer = editor.ctx.get(serializerCtx);
+        publishPreviewMarkdownUpdate(serializer(view.state.doc));
+      }, IME_MARKDOWN_PUBLISH_DELAY_MS);
     };
 
     view.dom.addEventListener("compositionstart", handleCompositionStart);
     view.dom.addEventListener("compositionend", handleCompositionEnd);
 
     return () => {
-      if (compositionEndFrame !== null) {
-        cancelAnimationFrame(compositionEndFrame);
+      if (compositionEndTimer !== null) {
+        window.clearTimeout(compositionEndTimer);
       }
       view.dom.removeEventListener("compositionstart", handleCompositionStart);
       view.dom.removeEventListener("compositionend", handleCompositionEnd);
       isImeComposingRef.current = false;
     };
-  }, [getInstance, loading]);
+  }, [getInstance, loading, publishPreviewMarkdownUpdate]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -374,11 +407,16 @@ function MilkdownEditorInner({
           ctx.set(defaultValueCtx, previewInput.markdown);
           // The UI package edits preview-safe Markdown. Host apps inject image
           // URL resolution, then this component restores author-facing paths.
-          ctx.get(listenerCtx).markdownUpdated((_, markdown, previousMarkdown) => {
+          ctx.get(listenerCtx).markdownUpdated((listenerCtx, markdown, previousMarkdown) => {
             if (markdown !== previousMarkdown) {
-              setUserEditRevision((current) => current + 1);
-              const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
-              onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
+              const view = listenerCtx.get(editorViewCtx);
+              if (isImeComposingRef.current || view.composing) {
+                compositionMarkdownDirtyRef.current = true;
+                return;
+              }
+
+              compositionMarkdownDirtyRef.current = false;
+              publishPreviewMarkdownUpdate(markdown);
             }
           });
           ctx.get(listenerCtx).mounted((mountedCtx) => {
@@ -399,7 +437,7 @@ function MilkdownEditorInner({
         .use(codeBlockToolsPlugin)
         .use(codeHighlightPlugin)
         .use(listener),
-    [onChange, previewInput.markdown]
+    [previewInput.markdown, publishPreviewMarkdownUpdate]
   );
 
   useEffect(() => {

@@ -17,7 +17,6 @@ const imeCompositionGuardSource = readFileSync(
   new URL("../utils/ime-composition-guard.ts", import.meta.url),
   "utf8"
 );
-
 describe("editor selection policy", () => {
   it("never disables native selection on the whole ProseMirror surface", () => {
     expect(editorStyles).not.toContain(".ProseMirror.md-editor-image-node-selected");
@@ -55,13 +54,25 @@ describe("editor selection policy", () => {
 
   it("pauses AI suggestions while an IME composition is active", () => {
     expect(milkdownEditorSource).toContain('addEventListener("compositionstart"');
+    expect(milkdownEditorSource).toContain("milkdown-host--ime-composing");
     expect(milkdownEditorSource).toContain("clearAiSuggestion(view)");
     expect(milkdownEditorSource).toContain("isImeComposingRef.current || view.composing");
+  });
+
+  it("does not rewrite editor content while an IME composition is active", () => {
+    expect(milkdownEditorSource).toContain("compositionMarkdownDirtyRef.current = true");
+    expect(milkdownEditorSource).toContain("isImeComposingRef.current || view.composing");
+    expect(milkdownEditorSource).toContain("return;");
+    expect(milkdownEditorSource).toContain("serializer(view.state.doc)");
+    expect(milkdownEditorSource).toContain("IME_MARKDOWN_PUBLISH_DELAY_MS = 260");
+    expect(milkdownEditorSource).not.toContain("compositionMarkdownPendingRef");
+    expect(editorStyles).not.toContain("br.ProseMirror-trailingBreak {\n  display: none;");
   });
 
   it("guards against composition hardbreaks leaking into markdown", () => {
     expect(milkdownEditorSource).toContain("imeCompositionGuardPlugin");
     expect(imeCompositionGuardSource).toContain('node.type.name === "hardbreak"');
     expect(imeCompositionGuardSource).toContain('transaction.getMeta("composition")');
+    expect(imeCompositionGuardSource).toContain("IME_COMPOSITION_SETTLE_DELAY_MS = 260");
   });
 });
