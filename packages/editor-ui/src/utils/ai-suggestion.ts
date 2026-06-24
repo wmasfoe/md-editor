@@ -127,6 +127,10 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
 }
 
 export function clearAiSuggestion(view: EditorView): void {
+  if (!aiSuggestionPluginKey.getState(view.state)) {
+    return;
+  }
+
   view.dispatch(view.state.tr.setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta));
 }
 

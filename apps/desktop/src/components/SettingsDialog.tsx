@@ -3,7 +3,12 @@ import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/
 import type { KeyboardEvent } from "react";
 import type { AiSettings } from "@md-editor/editor-core";
 import type { AppSettings, UpdateStatus } from "../app/settings/app-settings";
-import { keyboardShortcutLabel, shortcutKeyFromKeyboardEvent } from "../app/settings/app-settings";
+import {
+  DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
+  keyboardShortcutLabel,
+  shortcutKeyFromKeyboardEvent
+} from "../app/settings/app-settings";
 
 export interface SettingsDialogProps {
   readonly settings: AppSettings;
@@ -161,24 +166,23 @@ export function SettingsDialog({
                   className={settingsInputClassName}
                   value={aiSettingsDraft.provider}
                   onChange={(event) =>
-                    onChangeAiSettings({
-                      ...aiSettingsDraft,
-                      provider: event.target.value === "local" ? "local" : "openai-compatible"
-                    })
+                    onChangeAiSettings(updateAiProvider(aiSettingsDraft, readAiProvider(event.target.value)))
                   }
                 >
                   <option value="openai-compatible">OpenAI-compatible</option>
+                  <option value="deepseek">DeepSeek</option>
                   <option value="local">本地模型</option>
                 </select>
               </label>
 
-              {aiSettingsDraft.provider === "openai-compatible" ? (
+              {isRemoteAiProvider(aiSettingsDraft.provider) ? (
                 <div className="grid gap-2.5">
                   <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
                     <span className={settingsFieldLabelClassName}>Endpoint</span>
                     <input
                       className={settingsInputClassName}
                       value={aiSettingsDraft.openAiCompatible.baseUrl}
+                      disabled={aiSettingsDraft.provider === "deepseek"}
                       onChange={(event) =>
                         onChangeAiSettings({
                           ...aiSettingsDraft,
@@ -188,7 +192,7 @@ export function SettingsDialog({
                           }
                         })
                       }
-                      placeholder="https://api.openai.com/v1"
+                      placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
                       spellCheck={false}
                     />
                   </label>
@@ -206,7 +210,7 @@ export function SettingsDialog({
                           }
                         })
                       }
-                      placeholder="gpt-4.1-mini"
+                      placeholder={providerModelPlaceholder(aiSettingsDraft.provider)}
                       spellCheck={false}
                     />
                   </label>
@@ -340,6 +344,44 @@ function localModelStatusLabel(status: AiSettings["localModel"]["status"]): stri
     case "not-downloaded":
       return "未下载";
   }
+}
+
+function readAiProvider(input: string): AiSettings["provider"] {
+  if (input === "deepseek" || input === "local") {
+    return input;
+  }
+
+  return "openai-compatible";
+}
+
+function isRemoteAiProvider(provider: AiSettings["provider"]): boolean {
+  return provider === "openai-compatible" || provider === "deepseek";
+}
+
+function providerEndpointPlaceholder(provider: AiSettings["provider"]): string {
+  return provider === "deepseek" ? DEFAULT_DEEPSEEK_ENDPOINT : DEFAULT_OPENAI_COMPATIBLE_ENDPOINT;
+}
+
+function providerModelPlaceholder(provider: AiSettings["provider"]): string {
+  return provider === "deepseek" ? "deepseek-chat" : "gpt-4.1-mini";
+}
+
+function updateAiProvider(settings: AiSettings, provider: AiSettings["provider"]): AiSettings {
+  const currentBaseUrl = settings.openAiCompatible.baseUrl;
+  const baseUrl = provider === "deepseek"
+    ? DEFAULT_DEEPSEEK_ENDPOINT
+    : provider === "openai-compatible" && currentBaseUrl === DEFAULT_DEEPSEEK_ENDPOINT
+      ? DEFAULT_OPENAI_COMPATIBLE_ENDPOINT
+      : currentBaseUrl;
+
+  return {
+    ...settings,
+    provider,
+    openAiCompatible: {
+      ...settings.openAiCompatible,
+      baseUrl
+    }
+  };
 }
 
 function updateAiFeature(

@@ -5,6 +5,7 @@ import type {
   AiProviderType,
   AiSettings
 } from "@md-editor/editor-core";
+import { isComposingKeyboardEvent } from "../../lib/keyboard";
 
 export interface ShortcutSetting {
   readonly id: string;
@@ -62,6 +63,9 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 ];
 
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
+export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
+export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
+
 const DEFAULT_AI_SETTINGS: AiSettings = {
   enabled: true,
   provider: "openai-compatible",
@@ -70,7 +74,7 @@ const DEFAULT_AI_SETTINGS: AiSettings = {
     editing: true
   },
   openAiCompatible: {
-    baseUrl: "https://api.openai.com/v1",
+    baseUrl: DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
     model: "",
     apiKey: ""
   },
@@ -143,7 +147,7 @@ export function normalizeAiSettings(input: Partial<AiSettings> | null | undefine
     provider,
     features,
     openAiCompatible: {
-      baseUrl: normalizeAiBaseUrl(input?.openAiCompatible?.baseUrl),
+      baseUrl: normalizeAiBaseUrl(input?.openAiCompatible?.baseUrl, provider),
       model: input?.openAiCompatible?.model?.trim() ?? "",
       apiKey: input?.openAiCompatible?.apiKey ?? ""
     },
@@ -161,6 +165,11 @@ export function keyboardShortcutLabel(key: string): string {
 }
 
 export function shortcutKeyFromKeyboardEvent(event: KeyboardEvent | ReactKeyboardEvent): string | null {
+  const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
+  if (isComposingKeyboardEvent(nativeEvent)) {
+    return null;
+  }
+
   if (isModifierKey(event.key)) {
     return null;
   }
@@ -306,7 +315,11 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
 }
 
 function normalizeAiProvider(input: unknown): AiProviderType {
-  return input === "local" ? "local" : "openai-compatible";
+  if (input === "deepseek" || input === "local") {
+    return input;
+  }
+
+  return "openai-compatible";
 }
 
 function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
@@ -315,7 +328,11 @@ function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
     : "not-downloaded";
 }
 
-function normalizeAiBaseUrl(input: string | undefined): string {
+function normalizeAiBaseUrl(input: string | undefined, provider: AiProviderType): string {
+  if (provider === "deepseek") {
+    return DEFAULT_DEEPSEEK_ENDPOINT;
+  }
+
   const value = input?.trim().replace(/\/+$/u, "");
   return value || DEFAULT_AI_SETTINGS.openAiCompatible.baseUrl;
 }

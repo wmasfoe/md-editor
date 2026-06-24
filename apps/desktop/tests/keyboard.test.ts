@@ -40,4 +40,9 @@ describe("matchesRuntimeKeymap", () => {
       )
     ).toBe(true);
   });
+
+  it("ignores shortcut matching while the IME is composing text", () => {
+    expect(matchesRuntimeKeymap(keyboardEvent({ isComposing: true }), "Mod-Shift-B")).toBe(false);
+    expect(matchesRuntimeKeymap(keyboardEvent({ keyCode: 229 }), "Mod-Shift-B")).toBe(false);
+  });
 });

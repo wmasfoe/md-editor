@@ -91,7 +91,7 @@ export interface KeymapRegistry {
   list(): readonly KeymapDescriptor[];
 }
 
-export type AiProviderType = "openai-compatible" | "local";
+export type AiProviderType = "openai-compatible" | "deepseek" | "local";
 
 export type AiLocalModelStatus = "not-downloaded" | "downloading" | "available" | "failed";
 

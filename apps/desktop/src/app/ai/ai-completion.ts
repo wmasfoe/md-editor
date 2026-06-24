@@ -44,7 +44,7 @@ export function getAiCompletionReadiness(settings: AiSettings): string | null {
   }
 
   if (!settings.openAiCompatible.baseUrl.trim()) {
-    return "请先配置 OpenAI-compatible endpoint。";
+    return "请先配置 AI endpoint。";
   }
   if (!settings.openAiCompatible.model.trim()) {
     return "请先配置 AI 模型名称。";
@@ -67,7 +67,7 @@ export async function requestAiContinuation(
   }
 
   if (settings.provider === "local") {
-    throw new Error("本地模型续写还未接入，当前请先使用 OpenAI-compatible provider。");
+    throw new Error("本地模型续写还未接入，当前请先使用远程 AI provider。");
   }
 
   return requestOpenAiCompatibleContinuation(settings, context, options);
@@ -82,6 +82,9 @@ export function createOpenAiCompatibleRequestBody(
     stream: false,
     temperature: 0.7,
     max_tokens: 220,
+    ...(shouldDisableDeepSeekThinking(settings)
+      ? { extra_body: { thinking: { type: "disabled" } } }
+      : {}),
     messages: [
       {
         role: "system",
@@ -118,6 +121,10 @@ export function createOpenAiCompatibleRequestBody(
       }
     ]
   };
+}
+
+function shouldDisableDeepSeekThinking(settings: AiSettings): boolean {
+  return settings.provider === "deepseek";
 }
 
 async function requestOpenAiCompatibleContinuation(

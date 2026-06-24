@@ -53,7 +53,9 @@ describe("AI completion settings", () => {
   });
 
   it("builds a non-streaming OpenAI-compatible chat completion request", () => {
-    expect(createOpenAiCompatibleRequestBody(baseSettings, context)).toMatchObject({
+    const requestBody = createOpenAiCompatibleRequestBody(baseSettings, context);
+
+    expect(requestBody).toMatchObject({
       model: "writer-model",
       stream: false,
       messages: [
@@ -64,6 +66,37 @@ describe("AI completion settings", () => {
         }
       ]
     });
+    expect(requestBody).not.toHaveProperty("extra_body");
+  });
+
+  it("disables provider thinking for DeepSeek-compatible requests", () => {
+    expect(createOpenAiCompatibleRequestBody({
+      ...baseSettings,
+      provider: "deepseek",
+      openAiCompatible: {
+        ...baseSettings.openAiCompatible,
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat"
+      }
+    }, context)).toMatchObject({
+      extra_body: {
+        thinking: {
+          type: "disabled"
+        }
+      }
+    });
+  });
+
+  it("does not infer DeepSeek thinking controls from endpoint or model alone", () => {
+    expect(createOpenAiCompatibleRequestBody({
+      ...baseSettings,
+      provider: "openai-compatible",
+      openAiCompatible: {
+        ...baseSettings.openAiCompatible,
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat"
+      }
+    }, context)).not.toHaveProperty("extra_body");
   });
 
   it("parses structured continuation and edit suggestions from model JSON", () => {

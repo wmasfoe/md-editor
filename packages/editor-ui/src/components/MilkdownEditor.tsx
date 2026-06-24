@@ -23,10 +23,12 @@ import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
 import {
   aiSuggestionPlugin,
+  clearAiSuggestion,
   getAiCompletionContext,
   showAiSuggestion
 } from "../utils/ai-suggestion";
 import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
+import { imeCompositionGuardPlugin } from "../utils/ime-composition-guard";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
@@ -114,7 +116,9 @@ function MilkdownEditorInner({
   const [isLinkModifierActive, setIsLinkModifierActive] = useState(false);
   const [searchResult, setSearchResult] = useState({ matchCount: 0, activeIndex: -1 });
   const [isLocalAiSuggestionPending, setIsLocalAiSuggestionPending] = useState(false);
+  const [isImeComposing, setIsImeComposing] = useState(false);
   const [userEditRevision, setUserEditRevision] = useState(0);
+  const isImeComposingRef = useRef(false);
   const [loading, getInstance] = useInstance();
   const isAiThinking = isAiSuggestionPending || isLocalAiSuggestionPending;
   const hostClassName = [
@@ -210,6 +214,57 @@ function MilkdownEditorInner({
       document.removeEventListener("visibilitychange", resetOnVisibilityChange);
     };
   }, []);
+
+  useEffect(() => {
+    const editor = getInstance();
+    if (loading || !editor) {
+      return;
+    }
+
+    const view = editor.ctx.get(editorViewCtx);
+    let compositionEndFrame: number | null = null;
+
+    const setCompositionState = (nextState: boolean) => {
+      isImeComposingRef.current = nextState;
+      setIsImeComposing(nextState);
+    };
+
+    const handleCompositionStart = () => {
+      if (compositionEndFrame !== null) {
+        cancelAnimationFrame(compositionEndFrame);
+        compositionEndFrame = null;
+      }
+
+      setCompositionState(true);
+      setIsLocalAiSuggestionPending(false);
+      clearAiSuggestion(view);
+    };
+
+    const handleCompositionEnd = () => {
+      if (compositionEndFrame !== null) {
+        cancelAnimationFrame(compositionEndFrame);
+      }
+
+      // Let the IME commit transaction settle before auto suggestions can read
+      // context or add decorations around the composing range again.
+      compositionEndFrame = requestAnimationFrame(() => {
+        compositionEndFrame = null;
+        setCompositionState(false);
+      });
+    };
+
+    view.dom.addEventListener("compositionstart", handleCompositionStart);
+    view.dom.addEventListener("compositionend", handleCompositionEnd);
+
+    return () => {
+      if (compositionEndFrame !== null) {
+        cancelAnimationFrame(compositionEndFrame);
+      }
+      view.dom.removeEventListener("compositionstart", handleCompositionStart);
+      view.dom.removeEventListener("compositionend", handleCompositionEnd);
+      isImeComposingRef.current = false;
+    };
+  }, [getInstance, loading]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -337,6 +392,7 @@ function MilkdownEditorInner({
         .use(commonmark)
         .use(gfm)
         .use(history)
+        .use(imeCompositionGuardPlugin)
         .use(imageSelectionPlugin)
         .use(aiSuggestionPlugin)
         .use(wysiwygSearchPlugin)
@@ -406,8 +462,15 @@ function MilkdownEditorInner({
       return;
     }
 
-    handledAiSuggestionRequestIdRef.current = aiSuggestionRequest.id;
     const view = editor.ctx.get(editorViewCtx);
+    if (isImeComposingRef.current || view.composing) {
+      handledAiSuggestionRequestIdRef.current = aiSuggestionRequest.id;
+      onAiSuggestionRequestHandled?.(aiSuggestionRequest.id);
+      setIsLocalAiSuggestionPending(false);
+      return;
+    }
+
+    handledAiSuggestionRequestIdRef.current = aiSuggestionRequest.id;
     const requestedDoc = view.state.doc;
     const requestedSelection = view.state.selection;
     const context = getAiCompletionContext(view, snapshot.mode);
@@ -425,6 +488,8 @@ function MilkdownEditorInner({
       .then((suggestion) => {
         if (
           cancelled ||
+          isImeComposingRef.current ||
+          view.composing ||
           view.state.doc !== requestedDoc ||
           view.state.selection.from !== requestedSelection.from ||
           view.state.selection.to !== requestedSelection.to
@@ -450,6 +515,7 @@ function MilkdownEditorInner({
   }, [
     aiSuggestionRequest,
     getInstance,
+    isImeComposing,
     loading,
     onAiSuggestionError,
     onAiSuggestionRequest,
@@ -462,6 +528,7 @@ function MilkdownEditorInner({
     if (
       !aiAutoSuggestionsEnabled ||
       !onAiSuggestionRequest ||
+      isImeComposing ||
       loading ||
       snapshot.mode !== "wysiwyg" ||
       userEditRevision === 0 ||
@@ -480,6 +547,10 @@ function MilkdownEditorInner({
     const abortController = new AbortController();
     const timer = window.setTimeout(() => {
       const view = editor.ctx.get(editorViewCtx);
+      if (isImeComposingRef.current || view.composing) {
+        return;
+      }
+
       const requestedDoc = view.state.doc;
       const requestedSelection = view.state.selection;
       const context = getAiCompletionContext(view, snapshot.mode);
@@ -490,6 +561,8 @@ function MilkdownEditorInner({
         .then((suggestion) => {
           if (
             cancelled ||
+            isImeComposingRef.current ||
+            view.composing ||
             view.state.doc !== requestedDoc ||
             view.state.selection.from !== requestedSelection.from ||
             view.state.selection.to !== requestedSelection.to
@@ -519,6 +592,7 @@ function MilkdownEditorInner({
   }, [
     aiAutoSuggestionsEnabled,
     getInstance,
+    isImeComposing,
     loading,
     onAiSuggestionError,
     onAiSuggestionRequest,
