@@ -9,6 +9,7 @@
 }
 
 .milkdown-host {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -89,6 +90,58 @@
 .wysiwyg-search-match--active {
   outline: 1px solid var(--theme-primary);
   background: var(--theme-primary-selected);
+}
+
+.md-ai-suggestion {
+  color: var(--theme-control-subtle);
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.md-ai-suggestion::before {
+  content: " ";
+}
+
+.md-ai-edit-original {
+  border-radius: 3px;
+  background: color-mix(in srgb, #f97316 14%, transparent);
+  color: color-mix(in srgb, var(--theme-text) 62%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, #dc2626 72%, transparent);
+}
+
+.md-ai-edit-replacement {
+  position: absolute;
+  z-index: 4;
+  max-width: min(520px, calc(100vw - 64px));
+  transform: translateY(-1.2em);
+  border-radius: 4px;
+  background: transparent;
+  opacity: 0.58;
+  color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--theme-surface) 70%, transparent);
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+
+.md-ai-edit-replacement::before {
+  color: color-mix(in srgb, #16a34a 78%, var(--theme-text));
+  content: " → ";
+}
+
+.md-ai-suggestion-status {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  z-index: 3;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
+  padding: 5px 8px;
+  color: var(--theme-muted);
+  font-size: 12px;
+  box-shadow: 0 8px 24px rgba(20, 27, 35, 0.08);
+  pointer-events: none;
 }
 
 .milkdown-host > [data-milkdown-root] {
@@ -172,7 +225,10 @@
   margin-top: 0.8em;
 }
 
-.milkdown .ProseMirror > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {
+.milkdown-host--empty:not(.milkdown-host--ai-active)
+  .milkdown
+  .ProseMirror
+  > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {
   position: absolute;
   color: var(--theme-control-subtle);
   content: "开始写作…";

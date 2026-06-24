@@ -214,7 +214,13 @@ export function App() {
                 outline={editor.outline}
                 target={editor.tocTarget}
                 insertRequest={editor.mdxInsertRequest}
+                aiSuggestionRequest={editor.aiSuggestionRequest}
+                aiSuggestionStatus={editor.aiSuggestionStatus}
+                aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
                 onInsertRequestHandled={editor.clearMdxInsertRequest}
+                onAiSuggestionRequest={editor.requestAiSuggestion}
+                onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
+                onAiSuggestionError={editor.handleAiSuggestionError}
                 onChange={editor.commitMarkdown}
                 onOpenLink={editor.openWysiwygLink}
                 onActiveOutlineChange={editor.setActiveOutlineId}
@@ -249,12 +255,14 @@ export function App() {
           updateStatus={editor.updateStatus}
           shortcutDrafts={editor.shortcutDrafts}
           assetsDirectoryDraft={editor.assetsDirectoryDraft}
+          aiSettingsDraft={editor.aiSettingsDraft}
           errorMessage={editor.settingsErrorMessage}
           isSaving={editor.isSavingSettings}
           isCheckingForUpdates={editor.updateStatus.state === "checking"}
           onCaptureShortcut={editor.captureShortcutDraft}
           onResetShortcut={editor.resetShortcutDraft}
           onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
+          onChangeAiSettings={editor.setAiSettingsDraft}
           onSave={() => void editor.saveSettings()}
           onClose={editor.closeSettings}
           onCheckForUpdates={() => void editor.runUpdateCheck()}

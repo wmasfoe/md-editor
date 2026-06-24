@@ -7,7 +7,11 @@ import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import { Slice } from "@milkdown/kit/prose/model";
-import type { DocumentSnapshot } from "@md-editor/editor-core";
+import type {
+  AiCompletionContext,
+  AiWritingSuggestion,
+  DocumentSnapshot
+} from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
@@ -16,6 +20,11 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../utils/code-block-tools";
 import { codeHighlightPlugin } from "../utils/code-highlight";
+import {
+  aiSuggestionPlugin,
+  getAiCompletionContext,
+  showAiSuggestion
+} from "../utils/ai-suggestion";
 import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
@@ -28,7 +37,16 @@ export interface MilkdownEditorProps {
   readonly outline?: readonly OutlineItem[];
   readonly target: TocTarget | null;
   readonly insertRequest?: MarkdownInsertRequest | null;
+  readonly aiSuggestionRequest?: AiSuggestionRequest | null;
+  readonly aiSuggestionStatus?: string | null;
+  readonly aiAutoSuggestionsEnabled?: boolean;
   readonly onInsertRequestHandled?: (id: number) => void;
+  readonly onAiSuggestionRequest?: (
+    context: AiCompletionContext,
+    request: AiSuggestionRequest
+  ) => Promise<AiWritingSuggestion>;
+  readonly onAiSuggestionRequestHandled?: (id: number) => void;
+  readonly onAiSuggestionError?: (message: string) => void;
   readonly onChange: (markdown: string) => void;
   readonly onOpenLink?: (href: string) => void;
   readonly onActiveOutlineChange?: (id: string | null) => void;
@@ -38,6 +56,11 @@ export interface MilkdownEditorProps {
 export interface MarkdownInsertRequest {
   readonly id: number;
   readonly markdown: string;
+}
+
+export interface AiSuggestionRequest {
+  readonly id: number;
+  readonly signal?: AbortSignal;
 }
 
 export function MilkdownEditor(props: MilkdownEditorProps) {
@@ -53,7 +76,13 @@ function MilkdownEditorInner({
   outline = [],
   target,
   insertRequest = null,
+  aiSuggestionRequest = null,
+  aiSuggestionStatus = null,
+  aiAutoSuggestionsEnabled = false,
   onInsertRequestHandled,
+  onAiSuggestionRequest,
+  onAiSuggestionRequestHandled,
+  onAiSuggestionError,
   onChange,
   onOpenLink,
   onActiveOutlineChange,
@@ -75,6 +104,7 @@ function MilkdownEditorInner({
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const selectionBookmarkRef = useRef<SelectionBookmark | null>(null);
   const handledInsertRequestIdRef = useRef<number | null>(null);
+  const handledAiSuggestionRequestIdRef = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -82,7 +112,15 @@ function MilkdownEditorInner({
   const [isSearchCaseSensitive, setIsSearchCaseSensitive] = useState(false);
   const [isLinkModifierActive, setIsLinkModifierActive] = useState(false);
   const [searchResult, setSearchResult] = useState({ matchCount: 0, activeIndex: -1 });
+  const [localAiSuggestionStatus, setLocalAiSuggestionStatus] = useState<string | null>(null);
+  const [userEditRevision, setUserEditRevision] = useState(0);
   const [loading, getInstance] = useInstance();
+  const hostClassName = [
+    "milkdown-host",
+    isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
+    snapshot.markdown.trim() ? "" : "milkdown-host--empty",
+    aiSuggestionStatus || localAiSuggestionStatus ? "milkdown-host--ai-active" : ""
+  ].filter(Boolean).join(" ");
 
   const runSearch = useCallback(
     (query: string, requestedIndex: number, caseSensitive = isSearchCaseSensitive) => {
@@ -282,6 +320,7 @@ function MilkdownEditorInner({
           // URL resolution, then this component restores author-facing paths.
           ctx.get(listenerCtx).markdownUpdated((_, markdown, previousMarkdown) => {
             if (markdown !== previousMarkdown) {
+              setUserEditRevision((current) => current + 1);
               const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
               onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
             }
@@ -298,6 +337,7 @@ function MilkdownEditorInner({
         .use(gfm)
         .use(history)
         .use(imageSelectionPlugin)
+        .use(aiSuggestionPlugin)
         .use(wysiwygSearchPlugin)
         .use(codeBlockToolsPlugin)
         .use(codeHighlightPlugin)
@@ -351,6 +391,140 @@ function MilkdownEditorInner({
     // it. Otherwise a later document remount can replay the same insertion.
     onInsertRequestHandled?.(insertRequest.id);
   }, [getInstance, insertRequest, loading, onInsertRequestHandled]);
+
+  useEffect(() => {
+    if (
+      !aiSuggestionRequest ||
+      handledAiSuggestionRequestIdRef.current === aiSuggestionRequest.id
+    ) {
+      return;
+    }
+
+    const editor = getInstance();
+    if (!editor || loading) {
+      return;
+    }
+
+    handledAiSuggestionRequestIdRef.current = aiSuggestionRequest.id;
+    const view = editor.ctx.get(editorViewCtx);
+    const requestedDoc = view.state.doc;
+    const requestedSelection = view.state.selection;
+    const context = getAiCompletionContext(view, snapshot.mode);
+    let cancelled = false;
+    const abortController = new AbortController();
+    if (!onAiSuggestionRequest) {
+      onAiSuggestionRequestHandled?.(aiSuggestionRequest.id);
+      return;
+    }
+
+    void onAiSuggestionRequest(context, {
+      ...aiSuggestionRequest,
+      signal: abortController.signal
+    })
+      .then((suggestion) => {
+        if (
+          cancelled ||
+          view.state.doc !== requestedDoc ||
+          view.state.selection.from !== requestedSelection.from ||
+          view.state.selection.to !== requestedSelection.to
+        ) {
+          return;
+        }
+        showAiSuggestion(view, aiSuggestionRequest.id, suggestion);
+        requestAnimationFrame(() => view.focus());
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          onAiSuggestionError?.(error instanceof Error ? error.message : "AI 续写失败。");
+        }
+      })
+      .finally(() => {
+        onAiSuggestionRequestHandled?.(aiSuggestionRequest.id);
+      });
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+    };
+  }, [
+    aiSuggestionRequest,
+    getInstance,
+    loading,
+    onAiSuggestionError,
+    onAiSuggestionRequest,
+    onAiSuggestionRequestHandled,
+    snapshot.markdown,
+    snapshot.mode
+  ]);
+
+  useEffect(() => {
+    if (
+      !aiAutoSuggestionsEnabled ||
+      !onAiSuggestionRequest ||
+      loading ||
+      snapshot.mode !== "wysiwyg" ||
+      userEditRevision === 0 ||
+      !snapshot.markdown.trim()
+    ) {
+      setLocalAiSuggestionStatus(null);
+      return;
+    }
+
+    const editor = getInstance();
+    if (!editor) {
+      return;
+    }
+
+    let cancelled = false;
+    const abortController = new AbortController();
+    const timer = window.setTimeout(() => {
+      const view = editor.ctx.get(editorViewCtx);
+      const requestedDoc = view.state.doc;
+      const requestedSelection = view.state.selection;
+      const context = getAiCompletionContext(view, snapshot.mode);
+      const request = { id: Date.now(), signal: abortController.signal };
+      setLocalAiSuggestionStatus("AI 正在生成建议...");
+
+      void onAiSuggestionRequest(context, request)
+        .then((suggestion) => {
+          if (
+            cancelled ||
+            view.state.doc !== requestedDoc ||
+            view.state.selection.from !== requestedSelection.from ||
+            view.state.selection.to !== requestedSelection.to
+          ) {
+            return;
+          }
+          showAiSuggestion(view, request.id, suggestion);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            onAiSuggestionError?.(error instanceof Error ? error.message : "AI 写作建议生成失败。");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLocalAiSuggestionStatus(null);
+          }
+        });
+    }, 1_200);
+
+    return () => {
+      cancelled = true;
+      abortController.abort();
+      window.clearTimeout(timer);
+      setLocalAiSuggestionStatus(null);
+    };
+  }, [
+    aiAutoSuggestionsEnabled,
+    getInstance,
+    loading,
+    onAiSuggestionError,
+    onAiSuggestionRequest,
+    snapshot.markdown,
+    snapshot.mode,
+    userEditRevision
+  ]);
 
   useEffect(() => {
     if (!target || !rootRef.current) {
@@ -438,7 +612,7 @@ function MilkdownEditorInner({
   return (
     <div
       ref={rootRef}
-      className={isLinkModifierActive ? "milkdown-host milkdown-host--link-modifier-active" : "milkdown-host"}
+      className={hostClassName}
     >
       {isSearchOpen ? (
         <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
@@ -496,6 +670,11 @@ function MilkdownEditorInner({
           <button type="button" aria-label="关闭查找" onClick={closeSearch}>
             ×
           </button>
+        </div>
+      ) : null}
+      {aiSuggestionStatus || localAiSuggestionStatus ? (
+        <div className="md-ai-suggestion-status" role="status" aria-live="polite">
+          {aiSuggestionStatus ?? localAiSuggestionStatus}
         </div>
       ) : null}
       <Milkdown />

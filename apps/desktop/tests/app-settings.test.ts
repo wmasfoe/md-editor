@@ -11,11 +11,16 @@ describe("app settings", () => {
     const settings = createDefaultSettings();
 
     expect(settings.assetsDirectory).toBe("assets");
+    expect(settings.ai.features).toEqual({
+      continuation: false,
+      editing: true
+    });
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
       "view.toggleSource",
       "view.toggleSidebarPrimary",
       "settings.open",
-      "mdx.openComponentMenu"
+      "mdx.openComponentMenu",
+      "ai.continueWriting"
     ]);
   });
 

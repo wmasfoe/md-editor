@@ -9,6 +9,7 @@ const SETTINGS_FILE_NAME: &str = "settings.json";
 pub(crate) struct AppSettings {
     pub(crate) shortcuts: Option<Vec<ShortcutSetting>>,
     pub(crate) assets_directory: Option<String>,
+    pub(crate) ai: Option<AiSettings>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -16,6 +17,38 @@ pub(crate) struct AppSettings {
 pub(crate) struct ShortcutSetting {
     pub(crate) id: String,
     pub(crate) key: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiSettings {
+    pub(crate) enabled: Option<bool>,
+    pub(crate) provider: Option<String>,
+    pub(crate) features: Option<AiFeatureSettings>,
+    pub(crate) open_ai_compatible: Option<AiOpenAiCompatibleSettings>,
+    pub(crate) local_model: Option<AiLocalModelSettings>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiFeatureSettings {
+    pub(crate) continuation: Option<bool>,
+    pub(crate) editing: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiOpenAiCompatibleSettings {
+    pub(crate) base_url: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) api_key: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiLocalModelSettings {
+    pub(crate) enabled: Option<bool>,
+    pub(crate) status: Option<String>,
 }
 
 #[tauri::command]
@@ -51,6 +84,7 @@ fn default_settings() -> AppSettings {
     AppSettings {
         shortcuts: None,
         assets_directory: None,
+        ai: None,
     }
 }
 
@@ -90,6 +124,23 @@ mod tests {
                 key: "Mod-Shift-/".to_string(),
             }]),
             assets_directory: Some("images".to_string()),
+            ai: Some(AiSettings {
+                enabled: Some(true),
+                provider: Some("openai-compatible".to_string()),
+                features: Some(AiFeatureSettings {
+                    continuation: Some(false),
+                    editing: Some(true),
+                }),
+                open_ai_compatible: Some(AiOpenAiCompatibleSettings {
+                    base_url: Some("https://api.example.test/v1".to_string()),
+                    model: Some("writer".to_string()),
+                    api_key: Some("local-key".to_string()),
+                }),
+                local_model: Some(AiLocalModelSettings {
+                    enabled: Some(false),
+                    status: Some("not-downloaded".to_string()),
+                }),
+            }),
         };
 
         write_settings(&path, &settings).unwrap();

@@ -1,5 +1,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { switchEditorModeSafely, type EditorMode, createRecentFilesStore } from "@md-editor/editor-core";
+import {
+  switchEditorModeSafely,
+  type AiCompletionContext,
+  type AiSettings,
+  type EditorMode,
+  createRecentFilesStore
+} from "@md-editor/editor-core";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import type { ConfirmationChoice, ConfirmationState, TocTarget } from "@md-editor/editor-ui";
 import { isTauri } from "@tauri-apps/api/core";
@@ -24,6 +30,10 @@ import { dirname, isSameOrChildPath } from "../../lib/path";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
 import type { OpenedAsset, SidebarMode, TreeItemKind } from "../../types";
 import {
+  getAiCompletionReadiness,
+  requestAiContinuation
+} from "../ai/ai-completion";
+import {
   bindDesktopMenuCommands,
   bindRuntimeKeyboardShortcuts
 } from "../events/command-bindings";
@@ -39,6 +49,7 @@ import {
   createDefaultSettings,
   keyboardShortcutLabel,
   loadAppSettings,
+  normalizeAiSettings,
   normalizeShortcutKey,
   saveAppSettings,
   validateAssetsDirectory,
@@ -69,6 +80,8 @@ export function useDesktopEditorController() {
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);
   const [isMdxComponentMenuOpen, setIsMdxComponentMenuOpen] = useState(false);
   const [mdxInsertRequest, setMdxInsertRequest] = useState<{ readonly id: number; readonly markdown: string } | null>(null);
+  const [aiSuggestionRequest, setAiSuggestionRequest] = useState<{ readonly id: number } | null>(null);
+  const [aiSuggestionStatus, setAiSuggestionStatus] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
@@ -77,6 +90,7 @@ export function useDesktopEditorController() {
     )
   );
   const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
+  const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
@@ -86,10 +100,12 @@ export function useDesktopEditorController() {
   }));
   const confirmationResolver = useRef<((choice: ConfirmationChoice) => void) | null>(null);
   const mdxInsertRequestId = useRef(0);
+  const aiSuggestionRequestId = useRef(0);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
   const deferredMarkdown = useDeferredValue(snapshot.markdown);
   const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
   const mdxComponentPlugins = useMemo(() => runtime.mdxComponents.listInsertable(), []);
+  const isAiCompletionReady = useMemo(() => getAiCompletionReadiness(settings.ai) === null, [settings.ai]);
 
   const showToast = useCallback((message: string | null) => {
     if (!message) {
@@ -124,6 +140,7 @@ export function useDesktopEditorController() {
       )
     );
     setAssetsDirectoryDraft(nextSettings.assetsDirectory);
+    setAiSettingsDraft(nextSettings.ai);
   }, []);
 
   const openSettings = useCallback(() => {
@@ -181,7 +198,8 @@ export function useDesktopEditorController() {
     try {
       const saved = await saveAppSettings({
         shortcuts: normalizedShortcuts,
-        assetsDirectory: nextAssetsDirectory
+        assetsDirectory: nextAssetsDirectory,
+        ai: normalizeAiSettings(aiSettingsDraft)
       });
       setSettings(saved);
       syncSettingsDrafts(saved);
@@ -191,7 +209,7 @@ export function useDesktopEditorController() {
     } finally {
       setIsSavingSettings(false);
     }
-  }, [assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
+  }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
 
   const runUpdateCheck = useCallback(async () => {
     // 现在没有接入 Tauri updater，检查动作仍保留入口和状态，后续可直接替换实现。
@@ -675,6 +693,16 @@ export function useDesktopEditorController() {
     });
   }, []);
 
+  const clearAiSuggestionRequest = useCallback((id?: number) => {
+    setAiSuggestionRequest((current) => {
+      if (!current) {
+        return null;
+      }
+      return id === undefined || current.id === id ? null : current;
+    });
+    setAiSuggestionStatus(null);
+  }, []);
+
   const insertMdxComponent = useCallback((plugin: MdxComponentPlugin) => {
     const snippet = plugin.insert?.createSnippet();
     if (!snippet) {
@@ -688,6 +716,42 @@ export function useDesktopEditorController() {
       markdown: snippet
     });
   }, [showToast]);
+
+  const continueAiWriting = useCallback(async () => {
+    const current = runtime.document.getSnapshot();
+    if (current.mode !== "wysiwyg") {
+      showToast("AI 续写首版只支持所见即所得模式，请先切换回来。");
+      return;
+    }
+
+    const readiness = getAiCompletionReadiness(settings.ai);
+    if (readiness) {
+      showToast(readiness);
+      return;
+    }
+
+    showToast(null);
+    setAiSuggestionStatus("AI 正在生成建议...");
+    setAiSuggestionRequest({ id: (aiSuggestionRequestId.current += 1) });
+  }, [settings.ai, showToast]);
+
+  const requestAiSuggestion = useCallback(
+    async (
+      context: AiCompletionContext,
+      request?: { readonly signal?: AbortSignal }
+    ) => {
+      return requestAiContinuation(settings.ai, context, { signal: request?.signal });
+    },
+    [settings.ai]
+  );
+
+  const handleAiSuggestionError = useCallback(
+    (message: string) => {
+      setAiSuggestionStatus(null);
+      showToast(message);
+    },
+    [showToast]
+  );
 
   const openWysiwygLink = useCallback(
     async (href: string) => {
@@ -772,6 +836,7 @@ export function useDesktopEditorController() {
           saveDocumentAs: () => saveDocument(true),
           openSettings,
           openMdxComponentMenu,
+          continueAiWriting,
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
           toggleSidebarPrimary
@@ -785,6 +850,7 @@ export function useDesktopEditorController() {
       openFolder,
       openSettings,
       openMdxComponentMenu,
+      continueAiWriting,
       saveDocument,
       switchMode,
       toggleSidebarPrimary,
@@ -879,17 +945,22 @@ export function useDesktopEditorController() {
     confirmation,
     isMdxComponentMenuOpen,
     mdxInsertRequest,
+    aiSuggestionRequest,
+    aiSuggestionStatus,
+    isAiCompletionReady,
     mdxComponentPlugins,
     settings,
     isSettingsOpen,
     shortcutDrafts,
     assetsDirectoryDraft,
+    aiSettingsDraft,
     settingsErrorMessage,
     isSavingSettings,
     updateStatus,
     setSidebarMode,
     setIsSidebarVisible,
     setAssetsDirectoryDraft,
+    setAiSettingsDraft,
     commitMarkdown,
     dispatchCommand,
     openDocumentFromTree,
@@ -905,7 +976,10 @@ export function useDesktopEditorController() {
     resolveConfirmation,
     closeMdxComponentMenu,
     clearMdxInsertRequest,
+    clearAiSuggestionRequest,
     insertMdxComponent,
+    requestAiSuggestion,
+    handleAiSuggestionError,
     updateActiveOutlineForLine,
     resolveImageSrc,
     getRecentFiles,

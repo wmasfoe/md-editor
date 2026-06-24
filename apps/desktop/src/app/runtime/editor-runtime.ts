@@ -1,5 +1,6 @@
 import {
   createBuiltInEditorFeature,
+  createAiWritingFeature,
   createDocumentState,
   createEditorRuntime,
   createFeatureRegistry,
@@ -10,6 +11,7 @@ import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 
 const featureRegistry = createFeatureRegistry();
 featureRegistry.register(createBuiltInEditorFeature());
+featureRegistry.register(createAiWritingFeature());
 featureRegistry.register(createMarkdownFormatFeature());
 
 // The desktop app owns one EditorRuntime for the whole window. React components

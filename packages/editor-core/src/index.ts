@@ -91,6 +91,52 @@ export interface KeymapRegistry {
   list(): readonly KeymapDescriptor[];
 }
 
+export type AiProviderType = "openai-compatible" | "local";
+
+export type AiLocalModelStatus = "not-downloaded" | "downloading" | "available" | "failed";
+
+export interface AiOpenAiCompatibleSettings {
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly apiKey: string;
+}
+
+export interface AiLocalModelSettings {
+  readonly enabled: boolean;
+  readonly status: AiLocalModelStatus;
+}
+
+export interface AiFeatureSettings {
+  readonly continuation: boolean;
+  readonly editing: boolean;
+}
+
+export interface AiSettings {
+  readonly enabled: boolean;
+  readonly provider: AiProviderType;
+  readonly features: AiFeatureSettings;
+  readonly openAiCompatible: AiOpenAiCompatibleSettings;
+  readonly localModel: AiLocalModelSettings;
+}
+
+export interface AiCompletionContext {
+  readonly before: string;
+  readonly after: string;
+  readonly selectedText: string;
+  readonly mode: EditorMode;
+}
+
+export interface AiWritingEditSuggestion {
+  readonly original: string;
+  readonly replacement: string;
+  readonly reason?: string;
+}
+
+export interface AiWritingSuggestion {
+  readonly continuation?: string;
+  readonly edit?: AiWritingEditSuggestion;
+}
+
 export interface FeatureContext {
   readonly commands: CommandRegistry;
   readonly keymaps: KeymapRegistry;
@@ -119,7 +165,8 @@ export type BuiltInCommandId =
   | "mdx.openComponentMenu"
   | "view.toggleSource"
   | "view.showWysiwyg"
-  | "view.toggleSidebarPrimary";
+  | "view.toggleSidebarPrimary"
+  | "ai.continueWriting";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -133,6 +180,7 @@ export interface EditorActionHandlers {
   readonly toggleSourceMode?: () => void | Promise<void>;
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
+  readonly continueAiWriting?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -311,6 +359,21 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
 
       // 注意：file.new, file.open, file.save, file.saveAs 的快捷键
       // 由 Tauri 菜单直接处理，不在这里注册，避免冲突
+    },
+  };
+}
+
+export function createAiWritingFeature(): FeatureDescriptor {
+  return {
+    id: "editor.ai-writing",
+    title: "AI writing commands",
+    setup(context) {
+      registerActionCommand(context.commands, "ai.continueWriting", "Continue Writing with AI", "continueAiWriting");
+      context.keymaps.register({
+        id: "ai.continueWriting",
+        key: "Mod-Shift-A",
+        commandId: "ai.continueWriting",
+      });
     },
   };
 }
