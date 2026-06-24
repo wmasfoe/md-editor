@@ -6,8 +6,14 @@ describe("folder refresh after save", () => {
     expect(
       shouldRefreshFolderAfterSave({
         previousPath: "/notes/draft.md",
-        savedPath: "/notes/draft.md",
-        openedRootPath: "/notes"
+        savedPath: "/notes/draft.md"
+      })
+    ).toBe(false);
+
+    expect(
+      shouldRefreshFolderAfterSave({
+        previousPath: "/notes/child/draft.md",
+        savedPath: "/notes/child/draft.md"
       })
     ).toBe(false);
   });
@@ -16,15 +22,13 @@ describe("folder refresh after save", () => {
     expect(
       shouldRefreshFolderAfterSave({
         previousPath: null,
-        savedPath: "/notes/draft.md",
-        openedRootPath: "/notes"
+        savedPath: "/notes/draft.md"
       })
     ).toBe(true);
     expect(
       shouldRefreshFolderAfterSave({
         previousPath: "/notes/draft.md",
-        savedPath: "/archive/draft.md",
-        openedRootPath: "/notes"
+        savedPath: "/archive/draft.md"
       })
     ).toBe(true);
   });
