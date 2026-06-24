@@ -1,14 +1,15 @@
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    menu::{Menu, MenuItemBuilder, SubmenuBuilder},
-    Emitter, Manager,
+    menu::{Menu, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
+    Emitter, Manager, WebviewWindow,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -19,6 +20,7 @@ use recent_files::{load_recent_files, save_recent_files};
 use settings::{load_app_settings, save_app_settings};
 
 const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
+const FILE_TREE_MENU_PREFIX: &str = "md-editor:file-tree:";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,6 +97,33 @@ enum CreateTreeItemKind {
     Directory,
 }
 
+#[derive(Clone, Copy)]
+enum FileTreeContextMenuAction {
+    NewMarkdown,
+    NewMdx,
+    NewFolder,
+    CopyRelativePath,
+    CopyAbsolutePath,
+    RevealInFinder,
+    Rename,
+    Delete,
+}
+
+impl FileTreeContextMenuAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::NewMarkdown => "new-markdown",
+            Self::NewMdx => "new-mdx",
+            Self::NewFolder => "new-folder",
+            Self::CopyRelativePath => "copy-relative-path",
+            Self::CopyAbsolutePath => "copy-absolute-path",
+            Self::RevealInFinder => "reveal-in-finder",
+            Self::Rename => "rename",
+            Self::Delete => "delete",
+        }
+    }
+}
+
 pub fn run() {
     // Rust 只保留桌面能力边界：菜单、弹窗、文件访问授权和持久化；Markdown 编辑语义在 TS 层。
     tauri::Builder::default()
@@ -120,6 +149,9 @@ pub fn run() {
             save_pasted_image,
             save_recent_files,
             update_recent_files_menu,
+            show_file_tree_context_menu,
+            copy_file_tree_path,
+            reveal_file_tree_item_in_finder,
             load_recent_files,
             load_app_settings,
             save_app_settings_and_update_menu,
@@ -231,9 +263,38 @@ fn menu_item(
         .build(app)
 }
 
+fn enabled_menu_item(
+    app: &tauri::AppHandle,
+    id: &str,
+    label: &str,
+    enabled: bool,
+) -> tauri::Result<tauri::menu::MenuItem<tauri::Wry>> {
+    MenuItemBuilder::with_id(id, label)
+        .enabled(enabled)
+        .build(app)
+}
+
+fn file_tree_context_menu_item(
+    app: &tauri::AppHandle,
+    action: FileTreeContextMenuAction,
+    label: &str,
+    enabled: bool,
+) -> Result<tauri::menu::MenuItem<tauri::Wry>, String> {
+    enabled_menu_item(app, &file_tree_menu_id(action), label, enabled)
+        .map_err(tauri_error_to_string)
+}
+
 fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
     // 前端 keymap 使用 ProseMirror 风格的 Mod；Tauri 菜单加速键使用 CmdOrCtrl。
     shortcut.replace("Mod", "CmdOrCtrl").replace('-', "+")
+}
+
+fn file_tree_menu_id(action: FileTreeContextMenuAction) -> String {
+    format!("{}{}", FILE_TREE_MENU_PREFIX, action.as_str())
+}
+
+fn tauri_error_to_string(error: tauri::Error) -> String {
+    error.to_string()
 }
 
 #[tauri::command]
@@ -422,6 +483,103 @@ fn delete_markdown_tree_item(
         folder: build_markdown_folder(&root)?,
         affected_path: None,
     })
+}
+
+#[tauri::command]
+fn show_file_tree_context_menu(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    x: f64,
+    y: f64,
+    has_node: bool,
+) -> Result<(), String> {
+    let new_markdown = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::NewMarkdown,
+        "新建文件",
+        true,
+    )?;
+    let new_mdx = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::NewMdx,
+        "新建 MDX 文件",
+        true,
+    )?;
+    let new_folder = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::NewFolder,
+        "新建文件夹",
+        true,
+    )?;
+    let copy_relative_path = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::CopyRelativePath,
+        "复制路径",
+        has_node,
+    )?;
+    let copy_absolute_path = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::CopyAbsolutePath,
+        "复制绝对路径",
+        has_node,
+    )?;
+    let reveal_in_finder = file_tree_context_menu_item(
+        &app,
+        FileTreeContextMenuAction::RevealInFinder,
+        "在 Finder 中显示",
+        has_node,
+    )?;
+    let rename =
+        file_tree_context_menu_item(&app, FileTreeContextMenuAction::Rename, "重命名", has_node)?;
+    let delete =
+        file_tree_context_menu_item(&app, FileTreeContextMenuAction::Delete, "删除", has_node)?;
+    let separator_one = PredefinedMenuItem::separator(&app).map_err(tauri_error_to_string)?;
+    let separator_two = PredefinedMenuItem::separator(&app).map_err(tauri_error_to_string)?;
+
+    let menu = Menu::with_items(
+        &app,
+        &[
+            &new_markdown,
+            &new_mdx,
+            &new_folder,
+            &separator_one,
+            &copy_relative_path,
+            &copy_absolute_path,
+            &reveal_in_finder,
+            &separator_two,
+            &rename,
+            &delete,
+        ],
+    )
+    .map_err(tauri_error_to_string)?;
+
+    window
+        .popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))
+        .map_err(|error| format!("Failed to open file tree context menu: {error}"))
+}
+
+#[tauri::command]
+fn copy_file_tree_path(root_path: String, path: String, relative: bool) -> Result<(), String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let target = canonicalize_existing_path(&path, "tree item")?;
+    ensure_path_inside_root(&root, &target)?;
+
+    let text = if relative {
+        file_tree_relative_path(&root, &target)?
+    } else {
+        path_to_string(&target)
+    };
+
+    copy_text_to_clipboard(&text)
+}
+
+#[tauri::command]
+fn reveal_file_tree_item_in_finder(root_path: String, path: String) -> Result<(), String> {
+    let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let target = canonicalize_existing_path(&path, "tree item")?;
+    ensure_path_inside_root(&root, &target)?;
+
+    open_with_system_default(&path_to_string(&reveal_target_path(&target)))
 }
 
 #[tauri::command]
@@ -996,6 +1154,59 @@ fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+fn file_tree_relative_path(root: &Path, path: &Path) -> Result<String, String> {
+    path.strip_prefix(root)
+        .map(path_to_string)
+        .map_err(|error| {
+            format!(
+                "Failed to compute path for {} relative to {}: {error}",
+                path.display(),
+                root.display()
+            )
+        })
+}
+
+fn reveal_target_path(path: &Path) -> PathBuf {
+    if path.is_dir() {
+        path.to_path_buf()
+    } else {
+        path.parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| path.to_path_buf())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn copy_text_to_clipboard(text: &str) -> Result<(), String> {
+    let mut child = Command::new("pbcopy")
+        .stdin(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("Failed to start pbcopy: {error}"))?;
+
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "Failed to open pbcopy stdin.".to_string())?;
+    stdin
+        .write_all(text.as_bytes())
+        .map_err(|error| format!("Failed to write text to clipboard: {error}"))?;
+    drop(stdin);
+
+    let status = child
+        .wait()
+        .map_err(|error| format!("Failed to wait for pbcopy: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("pbcopy exited with status {status}."))
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn copy_text_to_clipboard(_text: &str) -> Result<(), String> {
+    Err("Copying file tree paths is only supported on macOS for now.".to_string())
+}
+
 fn canonicalize_existing_path(path: &str, label: &str) -> Result<PathBuf, String> {
     fs::canonicalize(path).map_err(|error| format!("Failed to resolve {label} {path}: {error}"))
 }
@@ -1077,6 +1288,33 @@ mod tests {
             markdown_relative_path(root, &image).unwrap(),
             "images/pasted.png"
         );
+    }
+
+    #[test]
+    fn file_tree_relative_path_is_based_on_opened_folder() {
+        let root = Path::new("/notes/book");
+        let target = root.join("drafts/chapter-1.md");
+
+        assert_eq!(
+            file_tree_relative_path(root, &target).unwrap(),
+            "drafts/chapter-1.md"
+        );
+    }
+
+    #[test]
+    fn reveal_target_path_opens_parent_for_files() {
+        let root = unique_test_directory("reveal-target-parent");
+        fs::create_dir_all(root.join("drafts")).unwrap();
+        let file = root.join("drafts/chapter-1.md");
+        fs::write(&file, "# Chapter").unwrap();
+
+        assert_eq!(reveal_target_path(&file), root.join("drafts"));
+        assert_eq!(
+            reveal_target_path(&root.join("drafts")),
+            root.join("drafts")
+        );
+
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

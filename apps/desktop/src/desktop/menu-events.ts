@@ -3,7 +3,10 @@ import { listen } from "@tauri-apps/api/event";
 
 export const MENU_ACTION_EVENT = "md-editor-menu-action";
 
-export function listenToDesktopMenuActions(handler: (action: string) => void): (() => void) | undefined {
+function listenToDesktopEvent<T>(
+  eventName: string,
+  handler: (payload: T) => void
+): (() => void) | undefined {
   let unlisten: (() => void) | undefined;
   let disposed = false;
 
@@ -13,7 +16,7 @@ export function listenToDesktopMenuActions(handler: (action: string) => void): (
 
   // Tauri resolves listener registration asynchronously. Keep a stable cleanup
   // closure so React can unmount safely even if registration finishes later.
-  void listen<string>(MENU_ACTION_EVENT, (event) => {
+  void listen<T>(eventName, (event) => {
     handler(event.payload);
   }).then((dispose) => {
     if (disposed) {
@@ -28,4 +31,8 @@ export function listenToDesktopMenuActions(handler: (action: string) => void): (
     unlisten?.();
     unlisten = undefined;
   };
+}
+
+export function listenToDesktopMenuActions(handler: (action: string) => void): (() => void) | undefined {
+  return listenToDesktopEvent(MENU_ACTION_EVENT, handler);
 }
