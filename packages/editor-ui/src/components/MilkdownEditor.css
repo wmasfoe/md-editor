@@ -113,7 +113,7 @@
 .md-ai-edit-replacement {
   position: absolute;
   z-index: 4;
-  max-width: min(520px, calc(100vw - 64px));
+  max-width: min(640px, calc(100vw - 64px));
   transform: translateY(-1.2em);
   border-radius: 4px;
   background: transparent;
@@ -124,24 +124,49 @@
   pointer-events: none;
 }
 
-.md-ai-edit-replacement::before {
-  color: color-mix(in srgb, #16a34a 78%, var(--theme-text));
-  content: " → ";
-}
-
-.md-ai-suggestion-status {
+.md-ai-thinking-indicator {
   position: absolute;
-  top: 14px;
+  top: 16px;
   right: 18px;
   z-index: 3;
-  border: 1px solid var(--theme-border);
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--theme-border) 64%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
-  padding: 5px 8px;
-  color: var(--theme-muted);
-  font-size: 12px;
-  box-shadow: 0 8px 24px rgba(20, 27, 35, 0.08);
+  background: color-mix(in srgb, var(--theme-surface) 72%, transparent);
+  color: color-mix(in srgb, var(--theme-control-text) 72%, transparent);
+  box-shadow: 0 6px 18px rgba(20, 27, 35, 0.06);
   pointer-events: none;
+}
+
+.md-ai-thinking-indicator svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  animation: md-ai-thinking-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes md-ai-thinking-pulse {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: rotate(0deg) scale(0.94);
+  }
+
+  50% {
+    opacity: 0.88;
+    transform: rotate(12deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-ai-thinking-indicator svg {
+    animation: none;
+  }
 }
 
 .milkdown-host > [data-milkdown-root] {
@@ -225,7 +250,7 @@
   margin-top: 0.8em;
 }
 
-.milkdown-host--empty:not(.milkdown-host--ai-active)
+.milkdown-host--empty
   .milkdown
   .ProseMirror
   > p:first-child:last-child:has(> br.ProseMirror-trailingBreak)::before {

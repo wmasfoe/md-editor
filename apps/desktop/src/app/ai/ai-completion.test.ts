@@ -3,7 +3,8 @@ import type { AiCompletionContext, AiSettings } from "@md-editor/editor-core";
 import {
   createOpenAiCompatibleRequestBody,
   getAiCompletionReadiness,
-  parseAiWritingSuggestion
+  parseAiWritingSuggestion,
+  requestAiContinuation
 } from "./ai-completion";
 
 const baseSettings: AiSettings = {
@@ -81,5 +82,25 @@ describe("AI completion settings", () => {
         reason: "subject verb agreement"
       }
     });
+  });
+
+  it("treats an empty model response as no suggestion instead of a user-facing error", async () => {
+    const fetchImpl = async () =>
+      new Response(JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ continuation: "", edit: null })
+            }
+          }
+        ]
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+
+    await expect(
+      requestAiContinuation(baseSettings, context, { fetchImpl })
+    ).resolves.toEqual({});
   });
 });

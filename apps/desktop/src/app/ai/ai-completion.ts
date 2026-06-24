@@ -153,9 +153,6 @@ async function requestOpenAiCompatibleContinuation(
 
     const content = body.choices?.[0]?.message?.content?.trim() ?? "";
     const suggestion = filterAiSuggestionBySettings(parseAiWritingSuggestion(content), settings);
-    if (!suggestion.continuation && !suggestion.edit) {
-      throw new Error("AI 没有返回可展示的写作建议。");
-    }
     return suggestion;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {

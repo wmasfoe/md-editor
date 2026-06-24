@@ -7,6 +7,7 @@ import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import { Slice } from "@milkdown/kit/prose/model";
+import { SparklesIcon } from "@heroicons/react/24/outline";
 import type {
   AiCompletionContext,
   AiWritingSuggestion,
@@ -38,7 +39,7 @@ export interface MilkdownEditorProps {
   readonly target: TocTarget | null;
   readonly insertRequest?: MarkdownInsertRequest | null;
   readonly aiSuggestionRequest?: AiSuggestionRequest | null;
-  readonly aiSuggestionStatus?: string | null;
+  readonly isAiSuggestionPending?: boolean;
   readonly aiAutoSuggestionsEnabled?: boolean;
   readonly onInsertRequestHandled?: (id: number) => void;
   readonly onAiSuggestionRequest?: (
@@ -77,7 +78,7 @@ function MilkdownEditorInner({
   target,
   insertRequest = null,
   aiSuggestionRequest = null,
-  aiSuggestionStatus = null,
+  isAiSuggestionPending = false,
   aiAutoSuggestionsEnabled = false,
   onInsertRequestHandled,
   onAiSuggestionRequest,
@@ -112,14 +113,14 @@ function MilkdownEditorInner({
   const [isSearchCaseSensitive, setIsSearchCaseSensitive] = useState(false);
   const [isLinkModifierActive, setIsLinkModifierActive] = useState(false);
   const [searchResult, setSearchResult] = useState({ matchCount: 0, activeIndex: -1 });
-  const [localAiSuggestionStatus, setLocalAiSuggestionStatus] = useState<string | null>(null);
+  const [isLocalAiSuggestionPending, setIsLocalAiSuggestionPending] = useState(false);
   const [userEditRevision, setUserEditRevision] = useState(0);
   const [loading, getInstance] = useInstance();
+  const isAiThinking = isAiSuggestionPending || isLocalAiSuggestionPending;
   const hostClassName = [
     "milkdown-host",
     isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
-    snapshot.markdown.trim() ? "" : "milkdown-host--empty",
-    aiSuggestionStatus || localAiSuggestionStatus ? "milkdown-host--ai-active" : ""
+    snapshot.markdown.trim() ? "" : "milkdown-host--empty"
   ].filter(Boolean).join(" ");
 
   const runSearch = useCallback(
@@ -466,7 +467,7 @@ function MilkdownEditorInner({
       userEditRevision === 0 ||
       !snapshot.markdown.trim()
     ) {
-      setLocalAiSuggestionStatus(null);
+      setIsLocalAiSuggestionPending(false);
       return;
     }
 
@@ -483,7 +484,7 @@ function MilkdownEditorInner({
       const requestedSelection = view.state.selection;
       const context = getAiCompletionContext(view, snapshot.mode);
       const request = { id: Date.now(), signal: abortController.signal };
-      setLocalAiSuggestionStatus("AI 正在生成建议...");
+      setIsLocalAiSuggestionPending(true);
 
       void onAiSuggestionRequest(context, request)
         .then((suggestion) => {
@@ -504,7 +505,7 @@ function MilkdownEditorInner({
         })
         .finally(() => {
           if (!cancelled) {
-            setLocalAiSuggestionStatus(null);
+            setIsLocalAiSuggestionPending(false);
           }
         });
     }, 1_200);
@@ -513,7 +514,7 @@ function MilkdownEditorInner({
       cancelled = true;
       abortController.abort();
       window.clearTimeout(timer);
-      setLocalAiSuggestionStatus(null);
+      setIsLocalAiSuggestionPending(false);
     };
   }, [
     aiAutoSuggestionsEnabled,
@@ -672,9 +673,9 @@ function MilkdownEditorInner({
           </button>
         </div>
       ) : null}
-      {aiSuggestionStatus || localAiSuggestionStatus ? (
-        <div className="md-ai-suggestion-status" role="status" aria-live="polite">
-          {aiSuggestionStatus ?? localAiSuggestionStatus}
+      {isAiThinking ? (
+        <div className="md-ai-thinking-indicator" role="status" aria-label="AI 正在思考">
+          <SparklesIcon aria-hidden="true" />
         </div>
       ) : null}
       <Milkdown />
