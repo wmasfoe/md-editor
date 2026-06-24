@@ -5,6 +5,7 @@ export const MENU_ACTION_EVENT = "md-editor-menu-action";
 
 export function listenToDesktopMenuActions(handler: (action: string) => void): (() => void) | undefined {
   let unlisten: (() => void) | undefined;
+  let disposed = false;
 
   if (!isTauri()) {
     return undefined;
@@ -15,10 +16,16 @@ export function listenToDesktopMenuActions(handler: (action: string) => void): (
   void listen<string>(MENU_ACTION_EVENT, (event) => {
     handler(event.payload);
   }).then((dispose) => {
+    if (disposed) {
+      dispose();
+      return;
+    }
     unlisten = dispose;
   });
 
   return () => {
+    disposed = true;
     unlisten?.();
+    unlisten = undefined;
   };
 }

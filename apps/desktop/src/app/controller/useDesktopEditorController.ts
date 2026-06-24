@@ -319,8 +319,7 @@ export function useDesktopEditorController() {
           if (
             shouldRefreshFolderAfterSave({
               previousPath: current.filePath,
-              savedPath: saved.filePath,
-              openedRootPath: folder?.rootPath ?? null
+              savedPath: saved.filePath
             })
           ) {
             await refreshFolderForDocumentPath(saved.filePath);

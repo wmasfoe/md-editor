@@ -1,13 +1,11 @@
 interface SaveFolderRefreshInput {
   readonly previousPath: string | null;
   readonly savedPath: string;
-  readonly openedRootPath: string | null;
 }
 
 export function shouldRefreshFolderAfterSave({
   previousPath,
-  savedPath,
-  openedRootPath
+  savedPath
 }: SaveFolderRefreshInput): boolean {
-  return previousPath !== savedPath || openedRootPath === null;
+  return previousPath !== savedPath;
 }
