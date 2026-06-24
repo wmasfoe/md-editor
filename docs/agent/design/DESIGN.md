@@ -5,7 +5,7 @@
 - 状态：草案
 - 最后更新：2026-06-19
 - 主要产品界面：macOS 桌面外壳、文件树、大纲、所见即所得编辑器、源码编辑器、资源预览和原生菜单。
-- 已审阅证据：`README.md`、`docs/agent/markdown_editor_requirements.md`、`docs/agent/v0_1_polish_improvements.md`、`apps/desktop/src/app/App.tsx`、`apps/desktop/src/app/useDesktopEditorController.ts`、`apps/desktop/src/components/FileTreePanel.tsx`、`apps/desktop/src/styles.css`、`apps/desktop/src-tauri/src/lib.rs`，以及 `packages/editor-ui/src/components/` 下的编辑器组件。
+- 已审阅证据：`README.md`、`docs/agent/product/markdown_editor_requirements.md`、`docs/agent/status/v0_1_polish_improvements.md`、`apps/desktop/src/app/App.tsx`、`apps/desktop/src/app/useDesktopEditorController.ts`、`apps/desktop/src/components/FileTreePanel.tsx`、`apps/desktop/src/styles.css`、`apps/desktop/src-tauri/src/lib.rs`，以及 `packages/editor-ui/src/components/` 下的编辑器组件。
 - 证据边界：本次审视基于仓库中的行为实现与样式。仓库内没有用户研究记录、产品分析数据或持续维护的截图基线。
 
 ## 品牌

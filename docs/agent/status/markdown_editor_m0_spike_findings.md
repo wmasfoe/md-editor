@@ -15,7 +15,7 @@
 
 ## 当前限制
 
-- 本文记录的是 M0 headless 技术尖刺结论；桌面层的最新状态见 `markdown_editor_v0_1_sidebar_runtime_mdx_status.md`。
+- 本文记录的是 M0 headless 技术尖刺结论；桌面层的最新状态见 [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)。
 - M0 的 raw fragment / Callout 仍是 headless seam 与 fixture proof，不是完整 Milkdown / remark-mdx parser 集成。
 - 未知 MDX 和 MDX expression 当前仍按 raw-only 策略保存，不执行、不格式化、不做结构化编辑。
 - Inline MDX 的 source range 仍是高风险点；当前已做 stale range fail-fast，但后续真实 parser 接入时仍必须验证 range remap 或改用 node-bound raw source。
