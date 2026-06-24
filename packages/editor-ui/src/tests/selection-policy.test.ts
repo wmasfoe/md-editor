@@ -9,6 +9,10 @@ const imageSelectionSource = readFileSync(
   new URL("../utils/image-selection.ts", import.meta.url),
   "utf8"
 );
+const milkdownEditorSource = readFileSync(
+  new URL("../components/MilkdownEditor.tsx", import.meta.url),
+  "utf8"
+);
 
 describe("editor selection policy", () => {
   it("never disables native selection on the whole ProseMirror surface", () => {
@@ -30,5 +34,11 @@ describe("editor selection policy", () => {
     expect(imageSelectionSource).toContain('addEventListener("keydown"');
     expect(imageSelectionSource).not.toContain("scheduleNativeSelectionCleanup");
     expect(imageSelectionSource).not.toContain("md-editor-image-node-selected");
+  });
+
+  it("shows pointer cursor on links only while the link-opening modifier is active", () => {
+    expect(milkdownEditorSource).toContain("milkdown-host--link-modifier-active");
+    expect(editorStyles).toContain(".milkdown-host--link-modifier-active .milkdown .ProseMirror a[href]");
+    expect(editorStyles).toContain("cursor: pointer");
   });
 });

@@ -205,6 +205,7 @@ export function App() {
                 insertRequest={editor.mdxInsertRequest}
                 onInsertRequestHandled={editor.clearMdxInsertRequest}
                 onChange={editor.commitMarkdown}
+                onOpenLink={editor.openWysiwygLink}
                 onActiveOutlineChange={editor.setActiveOutlineId}
                 resolveImageSrc={editor.resolveImageSrc}
               />

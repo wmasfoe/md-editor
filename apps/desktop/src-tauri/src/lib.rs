@@ -1,6 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -72,6 +73,21 @@ struct UpdateStatus {
     message: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkedFileTarget {
+    path: String,
+    kind: LinkedFileKind,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum LinkedFileKind {
+    Markdown,
+    Asset,
+    File,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum CreateTreeItemKind {
@@ -107,6 +123,8 @@ pub fn run() {
             load_recent_files,
             load_app_settings,
             save_app_settings_and_update_menu,
+            inspect_linked_file,
+            open_external_target,
             check_for_updates
         ])
         .run(tauri::generate_context!())
@@ -498,6 +516,45 @@ fn save_app_settings_and_update_menu(
 }
 
 #[tauri::command]
+fn inspect_linked_file(
+    app: tauri::AppHandle,
+    document_path: String,
+    href: String,
+) -> Result<LinkedFileTarget, String> {
+    let target = resolve_linked_file_path(&document_path, &href)?;
+    allow_asset_directory_for_file(&app, &target)?;
+
+    let kind = if is_markdown_path(&target) {
+        LinkedFileKind::Markdown
+    } else if is_image_asset_path(&target) {
+        LinkedFileKind::Asset
+    } else {
+        LinkedFileKind::File
+    };
+
+    Ok(LinkedFileTarget {
+        path: path_to_string(&target),
+        kind,
+    })
+}
+
+#[tauri::command]
+fn open_external_target(target: String) -> Result<(), String> {
+    let target = target.trim();
+    if target.is_empty() {
+        return Err("Link target is empty.".to_string());
+    }
+
+    let resolved_target = if is_external_url(target) {
+        target.to_string()
+    } else {
+        path_to_string(&canonicalize_existing_path(target, "linked file")?)
+    };
+
+    open_with_system_default(&resolved_target)
+}
+
+#[tauri::command]
 fn check_for_updates() -> UpdateStatus {
     let current_version = env!("CARGO_PKG_VERSION").to_string();
 
@@ -608,6 +665,110 @@ fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), Stri
                 path.display()
             )
         })
+}
+
+fn resolve_linked_file_path(document_path: &str, href: &str) -> Result<PathBuf, String> {
+    let document = canonicalize_existing_path(document_path, "document")?;
+    let document_directory = document
+        .parent()
+        .ok_or_else(|| format!("Cannot resolve parent directory for {}", document.display()))?;
+    let link_path = link_href_to_path(href)?;
+    let path = if link_path.is_absolute() {
+        link_path
+    } else {
+        document_directory.join(link_path)
+    };
+
+    fs::canonicalize(&path).map_err(|error| {
+        format!(
+            "Failed to resolve linked file {} from {}: {error}",
+            href,
+            document.display()
+        )
+    })
+}
+
+fn link_href_to_path(href: &str) -> Result<PathBuf, String> {
+    let target = strip_link_href_suffix(href.trim());
+    if target.is_empty() {
+        return Err("Link target is empty.".to_string());
+    }
+
+    if let Some(path) = target.strip_prefix("file://") {
+        let decoded = percent_decode(path);
+        #[cfg(target_os = "windows")]
+        let decoded = decoded.trim_start_matches('/').to_string();
+        return Ok(PathBuf::from(decoded));
+    }
+
+    let unwrapped = target
+        .strip_prefix('<')
+        .and_then(|inner| inner.strip_suffix('>'))
+        .unwrap_or(target);
+
+    Ok(PathBuf::from(percent_decode(unwrapped)))
+}
+
+fn strip_link_href_suffix(href: &str) -> &str {
+    let query_index = href.find('?').unwrap_or(href.len());
+    let fragment_index = href.find('#').unwrap_or(href.len());
+    let end = query_index.min(fragment_index);
+
+    &href[..end]
+}
+
+fn percent_decode(input: &str) -> String {
+    let mut bytes = Vec::with_capacity(input.len());
+    let input_bytes = input.as_bytes();
+    let mut index = 0;
+
+    while index < input_bytes.len() {
+        if input_bytes[index] == b'%' && index + 2 < input_bytes.len() {
+            if let Ok(hex) = u8::from_str_radix(&input[index + 1..index + 3], 16) {
+                bytes.push(hex);
+                index += 3;
+                continue;
+            }
+        }
+
+        bytes.push(input_bytes[index]);
+        index += 1;
+    }
+
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn is_external_url(target: &str) -> bool {
+    let lower = target.to_ascii_lowercase();
+    lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:")
+}
+
+fn open_with_system_default(target: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(target);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", target]);
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(target);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Failed to open link target {target}: {error}"))
 }
 
 fn image_extension(mime_type: &str) -> Option<&'static str> {
@@ -915,6 +1076,29 @@ mod tests {
         assert_eq!(
             markdown_relative_path(root, &image).unwrap(),
             "images/pasted.png"
+        );
+    }
+
+    #[test]
+    fn link_href_to_path_strips_suffixes_and_decodes_spaces() {
+        assert_eq!(
+            link_href_to_path("<docs/my%20post.md>?preview=true#intro").unwrap(),
+            PathBuf::from("docs/my post.md")
+        );
+    }
+
+    #[test]
+    fn file_url_link_href_keeps_platform_absolute_path() {
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            link_href_to_path("file:///C:/notes/post.md").unwrap(),
+            PathBuf::from("C:/notes/post.md")
+        );
+
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(
+            link_href_to_path("file:///Users/me/notes/post.md").unwrap(),
+            PathBuf::from("/Users/me/notes/post.md")
         );
     }
 

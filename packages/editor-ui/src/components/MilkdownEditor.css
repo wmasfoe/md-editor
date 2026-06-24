@@ -219,6 +219,10 @@
   color: var(--theme-primary);
 }
 
+.milkdown-host--link-modifier-active .milkdown .ProseMirror a[href] {
+  cursor: pointer;
+}
+
 .milkdown .ProseMirror code {
   border: 1px solid #e7eaed;
   border-radius: 3px;
