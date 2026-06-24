@@ -1,4 +1,9 @@
 import type { EditorMode } from "@md-editor/editor-core";
+import {
+  CodeBracketIcon,
+  Cog6ToothIcon,
+  PencilSquareIcon
+} from "@heroicons/react/24/outline";
 
 export interface DocumentBarProps {
   readonly hasActiveDocument: boolean;
@@ -36,7 +41,7 @@ export function DocumentBar({
           title="设置"
           onClick={onOpenSettings}
         >
-          <SettingsIcon />
+          <Cog6ToothIcon aria-hidden="true" />
         </button>
       </div>
     </header>
@@ -62,36 +67,10 @@ function ModeToggleButton({
       title={label}
       onClick={onClick}
     >
-      {isSourceMode ? <SourceIcon /> : <WysiwygIcon />}
+      {isSourceMode ? <CodeBracketIcon aria-hidden="true" /> : <PencilSquareIcon aria-hidden="true" />}
     </button>
   );
 }
 
 const iconButtonClassName =
   "grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
-
-function WysiwygIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M3 3.3h10v9.4H3z" />
-      <path d="M5 5.5h6M5 8h6M5 10.5h3.5" />
-    </svg>
-  );
-}
-
-function SourceIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M6.2 4.5 3 8l3.2 3.5M9.8 4.5 13 8l-3.2 3.5" />
-    </svg>
-  );
-}
-
-function SettingsIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="8" cy="8" r="2.15" />
-      <path d="M8 2.1c.42 0 .82.04 1.2.13l.38 1.35c.28.11.54.26.78.45l1.35-.36c.52.58.91 1.25 1.13 2l-.98.99c.03.15.04.31.04.47s-.01.32-.04.47l.98.99a5.07 5.07 0 0 1-1.13 2l-1.35-.36c-.24.19-.5.34-.78.45l-.38 1.35a5.5 5.5 0 0 1-2.4 0l-.38-1.35a3.8 3.8 0 0 1-.78-.45l-1.35.36a5.07 5.07 0 0 1-1.13-2l.98-.99A2.7 2.7 0 0 1 4.1 8c0-.16.01-.32.04-.47l-.98-.99c.22-.75.61-1.42 1.13-2l1.35.36c.24-.19.5-.34.78-.45l.38-1.35c.38-.09.78-.13 1.2-.13Z" />
-    </svg>
-  );
-}
