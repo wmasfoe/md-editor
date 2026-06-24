@@ -13,6 +13,10 @@ const milkdownEditorSource = readFileSync(
   new URL("../components/MilkdownEditor.tsx", import.meta.url),
   "utf8"
 );
+const imeCompositionGuardSource = readFileSync(
+  new URL("../utils/ime-composition-guard.ts", import.meta.url),
+  "utf8"
+);
 
 describe("editor selection policy", () => {
   it("never disables native selection on the whole ProseMirror surface", () => {
@@ -47,5 +51,17 @@ describe("editor selection policy", () => {
       new URL("../utils/ai-suggestion.ts", import.meta.url),
       "utf8"
     )).toContain("Decoration.widget(\n        edit.from,");
+  });
+
+  it("pauses AI suggestions while an IME composition is active", () => {
+    expect(milkdownEditorSource).toContain('addEventListener("compositionstart"');
+    expect(milkdownEditorSource).toContain("clearAiSuggestion(view)");
+    expect(milkdownEditorSource).toContain("isImeComposingRef.current || view.composing");
+  });
+
+  it("guards against composition hardbreaks leaking into markdown", () => {
+    expect(milkdownEditorSource).toContain("imeCompositionGuardPlugin");
+    expect(imeCompositionGuardSource).toContain('node.type.name === "hardbreak"');
+    expect(imeCompositionGuardSource).toContain('transaction.getMeta("composition")');
   });
 });
