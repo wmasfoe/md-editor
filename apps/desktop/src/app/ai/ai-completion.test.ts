@@ -21,7 +21,12 @@ const baseSettings: AiSettings = {
   },
   localModel: {
     enabled: false,
-    status: "not-downloaded"
+    modelId: "md-editor-writer-small-v1",
+    version: null,
+    status: "not-downloaded",
+    downloadedBytes: 0,
+    totalBytes: 0,
+    error: null
   }
 };
 
@@ -48,7 +53,11 @@ describe("AI completion settings", () => {
     expect(getAiCompletionReadiness({
       ...baseSettings,
       provider: "local",
-      localModel: { enabled: true, status: "not-downloaded" }
+      localModel: {
+        ...baseSettings.localModel,
+        enabled: true,
+        status: "not-downloaded"
+      }
     })).toBe("本地模型尚未下载，当前还不能续写。");
   });
 
@@ -135,5 +144,41 @@ describe("AI completion settings", () => {
     await expect(
       requestAiContinuation(baseSettings, context, { fetchImpl })
     ).resolves.toEqual({});
+  });
+
+  it("routes local completion through the desktop local model command", async () => {
+    const localInvokeCalls: Array<{ readonly command: string; readonly args?: Record<string, unknown> }> = [];
+    const localInvokeImpl = async (command: string, args?: Record<string, unknown>) => {
+      localInvokeCalls.push({ command, args });
+      return JSON.stringify({ continuation: "本地续写。", edit: null });
+    };
+
+    await expect(
+      requestAiContinuation({
+        ...baseSettings,
+        provider: "local",
+        localModel: {
+          ...baseSettings.localModel,
+          enabled: true,
+          version: "2026.06.25",
+          status: "available",
+          downloadedBytes: 1024,
+          totalBytes: 1024
+        }
+      }, context, { localInvokeImpl })
+    ).resolves.toEqual({ continuation: "本地续写。" });
+
+    expect(localInvokeCalls).toEqual([
+      {
+        command: "request_local_ai_continuation",
+        args: {
+          context,
+          options: {
+            modelId: "md-editor-writer-small-v1",
+            maxTokens: 220
+          }
+        }
+      }
+    ]);
   });
 });

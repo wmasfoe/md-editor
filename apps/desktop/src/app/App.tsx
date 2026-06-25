@@ -256,6 +256,7 @@ export function App() {
           shortcutDrafts={editor.shortcutDrafts}
           assetsDirectoryDraft={editor.assetsDirectoryDraft}
           aiSettingsDraft={editor.aiSettingsDraft}
+          isLocalModelActionPending={editor.isLocalModelActionPending}
           errorMessage={editor.settingsErrorMessage}
           isSaving={editor.isSavingSettings}
           isCheckingForUpdates={editor.updateStatus.state === "checking"}
@@ -263,6 +264,8 @@ export function App() {
           onResetShortcut={editor.resetShortcutDraft}
           onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
           onChangeAiSettings={editor.setAiSettingsDraft}
+          onDownloadLocalModel={editor.downloadLocalModel}
+          onDeleteLocalModel={editor.deleteLocalModel}
           onSave={() => void editor.saveSettings()}
           onClose={editor.closeSettings}
           onCheckForUpdates={() => void editor.runUpdateCheck()}

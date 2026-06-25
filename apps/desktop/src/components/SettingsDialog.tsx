@@ -16,6 +16,7 @@ export interface SettingsDialogProps {
   readonly shortcutDrafts: Readonly<Record<string, string>>;
   readonly assetsDirectoryDraft: string;
   readonly aiSettingsDraft: AiSettings;
+  readonly isLocalModelActionPending: boolean;
   readonly errorMessage: string | null;
   readonly isSaving: boolean;
   readonly isCheckingForUpdates: boolean;
@@ -23,6 +24,8 @@ export interface SettingsDialogProps {
   readonly onResetShortcut: (id: string) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
   readonly onChangeAiSettings: (value: AiSettings) => void;
+  readonly onDownloadLocalModel: () => void;
+  readonly onDeleteLocalModel: () => void;
   readonly onSave: () => void;
   readonly onClose: () => void;
   readonly onCheckForUpdates: () => void;
@@ -34,6 +37,7 @@ export function SettingsDialog({
   shortcutDrafts,
   assetsDirectoryDraft,
   aiSettingsDraft,
+  isLocalModelActionPending,
   errorMessage,
   isSaving,
   isCheckingForUpdates,
@@ -41,10 +45,20 @@ export function SettingsDialog({
   onResetShortcut,
   onChangeAssetsDirectory,
   onChangeAiSettings,
+  onDownloadLocalModel,
+  onDeleteLocalModel,
   onSave,
   onClose,
   onCheckForUpdates
 }: SettingsDialogProps) {
+  const isLocalModelBusy =
+    isLocalModelActionPending ||
+    aiSettingsDraft.localModel.status === "downloading" ||
+    aiSettingsDraft.localModel.status === "verifying";
+  const canDeleteLocalModel =
+    aiSettingsDraft.localModel.status === "available" ||
+    aiSettingsDraft.localModel.status === "failed";
+
   const captureShortcut = (id: string, event: KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -253,18 +267,35 @@ export function SettingsDialog({
                     />
                     <span className={settingsFieldLabelClassName}>启用本地模型</span>
                   </label>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={settingsFieldLabelClassName}>
-                      模型状态：{localModelStatusLabel(aiSettingsDraft.localModel.status)}
-                    </span>
-                    <button
-                      type="button"
-                      className={settingsSmallButtonClassName}
-                      disabled
-                      title="本地模型下载器会在后续版本接入"
-                    >
-                      下载模型
-                    </button>
+                  <div className="grid gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className={settingsFieldLabelClassName}>
+                        模型状态：{localModelStatusLabel(aiSettingsDraft.localModel.status)}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className={settingsSmallButtonClassName}
+                          onClick={onDownloadLocalModel}
+                          disabled={isLocalModelBusy}
+                        >
+                          {aiSettingsDraft.localModel.status === "available" ? "重新下载" : "下载模型"}
+                        </button>
+                        {canDeleteLocalModel ? (
+                          <button
+                            type="button"
+                            className={settingsSmallButtonClassName}
+                            onClick={onDeleteLocalModel}
+                            disabled={isLocalModelBusy}
+                          >
+                            删除模型
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className={settingsDescriptionClassName}>
+                      {localModelProgressLabel(aiSettingsDraft.localModel)}
+                    </p>
                   </div>
                   <p className={settingsDescriptionClassName}>
                     用户风格学习后续只会走本地模型，不会把历史文章批量上传到远程 provider。
@@ -337,6 +368,8 @@ function localModelStatusLabel(status: AiSettings["localModel"]["status"]): stri
   switch (status) {
     case "downloading":
       return "下载中";
+    case "verifying":
+      return "校验中";
     case "available":
       return "可用";
     case "failed":
@@ -344,6 +377,45 @@ function localModelStatusLabel(status: AiSettings["localModel"]["status"]): stri
     case "not-downloaded":
       return "未下载";
   }
+}
+
+function localModelProgressLabel(localModel: AiSettings["localModel"]): string {
+  const statusLabel = localModelStatusLabel(localModel.status);
+  const progressLabel =
+    localModel.totalBytes > 0
+      ? `${formatByteSize(localModel.downloadedBytes)} / ${formatByteSize(localModel.totalBytes)}`
+      : formatByteSize(localModel.downloadedBytes);
+  const versionLabel = localModel.version ? `版本 ${localModel.version}` : "尚未下载版本";
+
+  if (localModel.status === "not-downloaded") {
+    return `模型 ${localModel.modelId}，${versionLabel}。`;
+  }
+
+  if (localModel.error) {
+    return `模型 ${localModel.modelId}，${statusLabel}：${localModel.error}`;
+  }
+
+  if (localModel.status === "available") {
+    return `模型 ${localModel.modelId}，${versionLabel}，文件 ${progressLabel}。`;
+  }
+
+  return `模型 ${localModel.modelId}，${versionLabel}，${progressLabel}。`;
+}
+
+function formatByteSize(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 B";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  if (value < 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 function readAiProvider(input: string): AiSettings["provider"] {

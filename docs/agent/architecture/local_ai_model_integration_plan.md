@@ -34,6 +34,14 @@
 
 因此改造重点不是重新设计 AI UI，而是把 local provider 补成完整链路。
 
+2026-06-25 进度：
+
+- Rust 侧已接入本地模型状态查询、下载和删除命令。
+- Desktop 设置页已能显示本地模型状态、进度和删除入口，并同步下载事件。
+- `request_local_ai_continuation` 已接入 bundled `llama-server` sidecar runtime 和本机 `/v1/chat/completions` 转发。
+- 默认模型下载源已配置为 `Qwen/Qwen2.5-0.5B-Instruct-GGUF` 的 `q4_k_m` 文件。
+- 当前 runtime 先覆盖 macOS arm64 预编译包，其他平台还需要补齐对应 sidecar 资产。
+
 ## 3. 总体架构
 
 建议采用三层结构：

@@ -17,6 +17,15 @@ describe("app settings", () => {
       continuation: false,
       editing: true
     });
+    expect(settings.ai.localModel).toEqual({
+      enabled: false,
+      modelId: "md-editor-writer-small-v1",
+      version: null,
+      status: "not-downloaded",
+      downloadedBytes: 0,
+      totalBytes: 0,
+      error: null
+    });
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
       "view.toggleSource",
       "view.toggleSidebarPrimary",

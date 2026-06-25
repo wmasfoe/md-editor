@@ -1,10 +1,13 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type {
-  AiLocalModelStatus,
   AiProviderType,
   AiSettings
 } from "@md-editor/editor-core";
+import {
+  DEFAULT_LOCAL_MODEL_SETTINGS,
+  normalizeLocalAiModelSettings
+} from "../ai/local-ai-model-state";
 import { isComposingKeyboardEvent } from "../../lib/keyboard";
 
 export interface ShortcutSetting {
@@ -79,8 +82,7 @@ const DEFAULT_AI_SETTINGS: AiSettings = {
     apiKey: ""
   },
   localModel: {
-    enabled: false,
-    status: "not-downloaded"
+    ...DEFAULT_LOCAL_MODEL_SETTINGS
   }
 };
 
@@ -151,10 +153,7 @@ export function normalizeAiSettings(input: Partial<AiSettings> | null | undefine
       model: input?.openAiCompatible?.model?.trim() ?? "",
       apiKey: input?.openAiCompatible?.apiKey ?? ""
     },
-    localModel: {
-      enabled: Boolean(input?.localModel?.enabled),
-      status: normalizeLocalModelStatus(input?.localModel?.status)
-    }
+    localModel: normalizeLocalAiModelSettings(input?.localModel)
   };
 }
 
@@ -320,12 +319,6 @@ function normalizeAiProvider(input: unknown): AiProviderType {
   }
 
   return "openai-compatible";
-}
-
-function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
-  return input === "downloading" || input === "available" || input === "failed"
-    ? input
-    : "not-downloaded";
 }
 
 function normalizeAiBaseUrl(input: string | undefined, provider: AiProviderType): string {

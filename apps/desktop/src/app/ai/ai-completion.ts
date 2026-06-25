@@ -7,6 +7,7 @@ import type {
 
 export interface AiContinuationRequestOptions {
   readonly fetchImpl?: typeof fetch;
+  readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
 }
@@ -67,7 +68,7 @@ export async function requestAiContinuation(
   }
 
   if (settings.provider === "local") {
-    throw new Error("本地模型续写还未接入，当前请先使用远程 AI provider。");
+    return requestLocalAiContinuation(settings, context, options);
   }
 
   return requestOpenAiCompatibleContinuation(settings, context, options);
@@ -160,6 +161,65 @@ async function requestOpenAiCompatibleContinuation(
 
     const content = body.choices?.[0]?.message?.content?.trim() ?? "";
     const suggestion = filterAiSuggestionBySettings(parseAiWritingSuggestion(content), settings);
+    return suggestion;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("AI 续写超时，请稍后重试。");
+    }
+    throw error;
+  } finally {
+    options.signal?.removeEventListener("abort", abortFromParent);
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+async function requestLocalAiContinuation(
+  settings: AiSettings,
+  context: AiCompletionContext,
+  options: AiContinuationRequestOptions
+): Promise<AiWritingSuggestion> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS);
+  const abortFromParent = () => controller.abort();
+  if (options.signal?.aborted) {
+    controller.abort();
+  } else {
+    options.signal?.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  try {
+    let localInvokeImpl = options.localInvokeImpl;
+    if (!localInvokeImpl) {
+      const { invoke, isTauri } = await import("@tauri-apps/api/core");
+      if (!isTauri()) {
+        throw new Error("桌面端才能调用本地模型。");
+      }
+      localInvokeImpl = invoke;
+    }
+
+    if (!localInvokeImpl) {
+      throw new Error("桌面端才能调用本地模型。");
+    }
+
+    const response = await localInvokeImpl("request_local_ai_continuation", {
+      context,
+      options: {
+        modelId: settings.localModel.modelId,
+        maxTokens: 220
+      }
+    });
+    const content = typeof response === "string"
+      ? response
+      : typeof response === "object" && response !== null && "content" in response
+        ? String((response as { content?: unknown }).content ?? "")
+        : "";
+    const suggestion = filterAiSuggestionBySettings(parseAiWritingSuggestion(content), settings);
+    if (
+      Object.keys(suggestion).length === 0 &&
+      settings.localModel.status === "available"
+    ) {
+      throw new Error("本地模型未返回可用建议。");
+    }
     return suggestion;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {

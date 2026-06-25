@@ -48,7 +48,12 @@ pub(crate) struct AiOpenAiCompatibleSettings {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiLocalModelSettings {
     pub(crate) enabled: Option<bool>,
+    pub(crate) model_id: Option<String>,
+    pub(crate) version: Option<String>,
     pub(crate) status: Option<String>,
+    pub(crate) downloaded_bytes: Option<u64>,
+    pub(crate) total_bytes: Option<u64>,
+    pub(crate) error: Option<String>,
 }
 
 #[tauri::command]
@@ -88,7 +93,7 @@ fn default_settings() -> AppSettings {
     }
 }
 
-fn app_data_dir() -> Option<std::path::PathBuf> {
+pub(crate) fn app_data_dir() -> Option<std::path::PathBuf> {
     dirs::data_dir().map(|directory| directory.join("md-editor"))
 }
 
@@ -138,7 +143,12 @@ mod tests {
                 }),
                 local_model: Some(AiLocalModelSettings {
                     enabled: Some(false),
+                    model_id: Some("md-editor-writer-small-v1".to_string()),
+                    version: None,
                     status: Some("not-downloaded".to_string()),
+                    downloaded_bytes: Some(0),
+                    total_bytes: Some(0),
+                    error: None,
                 }),
             }),
         };
