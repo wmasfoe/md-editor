@@ -13,6 +13,9 @@ use tauri::{
 };
 use tauri_plugin_dialog::DialogExt;
 
+mod local_ai_completion;
+mod local_ai_model;
+mod local_ai_runtime;
 mod recent_files;
 mod settings;
 
@@ -137,6 +140,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(local_ai_runtime::LocalAiRuntimeState::default())
         .invoke_handler(tauri::generate_handler![
             open_markdown_document,
             open_markdown_document_at_path,
@@ -154,6 +158,10 @@ pub fn run() {
             reveal_file_tree_item_in_finder,
             load_recent_files,
             load_app_settings,
+            get_local_ai_model_status,
+            download_local_ai_model,
+            delete_local_ai_model,
+            request_local_ai_continuation,
             save_app_settings_and_update_menu,
             inspect_linked_file,
             open_external_target,
@@ -162,6 +170,9 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running Markdown Editor");
 }
+
+use local_ai_completion::request_local_ai_continuation;
+use local_ai_model::{delete_local_ai_model, download_local_ai_model, get_local_ai_model_status};
 
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。

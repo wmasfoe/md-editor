@@ -93,7 +93,7 @@ export interface KeymapRegistry {
 
 export type AiProviderType = "openai-compatible" | "deepseek" | "local";
 
-export type AiLocalModelStatus = "not-downloaded" | "downloading" | "available" | "failed";
+export type AiLocalModelStatus = "not-downloaded" | "downloading" | "verifying" | "available" | "failed";
 
 export interface AiOpenAiCompatibleSettings {
   readonly baseUrl: string;
@@ -103,7 +103,12 @@ export interface AiOpenAiCompatibleSettings {
 
 export interface AiLocalModelSettings {
   readonly enabled: boolean;
+  readonly modelId: string;
+  readonly version: string | null;
   readonly status: AiLocalModelStatus;
+  readonly downloadedBytes: number;
+  readonly totalBytes: number;
+  readonly error: string | null;
 }
 
 export interface AiFeatureSettings {

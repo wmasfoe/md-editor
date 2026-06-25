@@ -34,6 +34,14 @@ import {
   requestAiContinuation
 } from "../ai/ai-completion";
 import {
+  deleteLocalAiModel,
+  downloadLocalAiModel,
+  listenToLocalAiModelProgress,
+  mergeLocalAiModelStatus,
+  readLocalAiModelStatus,
+  type LocalAiModelCommandStatus
+} from "../ai/local-ai-model";
+import {
   bindDesktopMenuCommands,
   bindRuntimeKeyboardShortcuts
 } from "../events/command-bindings";
@@ -93,6 +101,7 @@ export function useDesktopEditorController() {
   const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
     currentVersion: appVersion(),
     state: "idle",
@@ -141,6 +150,20 @@ export function useDesktopEditorController() {
     );
     setAssetsDirectoryDraft(nextSettings.assetsDirectory);
     setAiSettingsDraft(nextSettings.ai);
+  }, []);
+
+  const applyLocalModelStatus = useCallback((status: LocalAiModelCommandStatus) => {
+    setSettings((current) => ({
+      ...current,
+      ai: {
+        ...current.ai,
+        localModel: mergeLocalAiModelStatus(current.ai.localModel, status)
+      }
+    }));
+    setAiSettingsDraft((current) => ({
+      ...current,
+      localModel: mergeLocalAiModelStatus(current.localModel, status)
+    }));
   }, []);
 
   const openSettings = useCallback(() => {
@@ -210,6 +233,32 @@ export function useDesktopEditorController() {
       setIsSavingSettings(false);
     }
   }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
+
+  const downloadLocalModel = useCallback(async () => {
+    setIsLocalModelActionPending(true);
+    setSettingsErrorMessage(null);
+    try {
+      const status = await downloadLocalAiModel(settings.ai.localModel.modelId);
+      applyLocalModelStatus(status);
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
+    } finally {
+      setIsLocalModelActionPending(false);
+    }
+  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
+
+  const deleteLocalModel = useCallback(async () => {
+    setIsLocalModelActionPending(true);
+    setSettingsErrorMessage(null);
+    try {
+      const status = await deleteLocalAiModel(settings.ai.localModel.modelId);
+      applyLocalModelStatus(status);
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "本地模型删除失败。"));
+    } finally {
+      setIsLocalModelActionPending(false);
+    }
+  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
 
   const runUpdateCheck = useCallback(async () => {
     // 现在没有接入 Tauri updater，检查动作仍保留入口和状态，后续可直接替换实现。
@@ -906,12 +955,28 @@ export function useDesktopEditorController() {
     let cancelled = false;
 
     void loadAppSettings()
-      .then((loadedSettings) => {
+      .then(async (loadedSettings) => {
         if (cancelled) {
           return;
         }
-        setSettings(loadedSettings);
-        syncSettingsDrafts(loadedSettings);
+        try {
+          const localModelStatus = await readLocalAiModelStatus(loadedSettings.ai.localModel.modelId);
+          const hydratedSettings: AppSettings = {
+            ...loadedSettings,
+            ai: {
+              ...loadedSettings.ai,
+              localModel: mergeLocalAiModelStatus(loadedSettings.ai.localModel, localModelStatus)
+            }
+          };
+          if (cancelled) {
+            return;
+          }
+          setSettings(hydratedSettings);
+          syncSettingsDrafts(hydratedSettings);
+        } catch {
+          setSettings(loadedSettings);
+          syncSettingsDrafts(loadedSettings);
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -923,6 +988,17 @@ export function useDesktopEditorController() {
       cancelled = true;
     };
   }, [showToast, syncSettingsDrafts]);
+
+  useEffect(() => {
+    return listenToLocalAiModelProgress((status) => {
+      applyLocalModelStatus(status);
+      if (status.status === "failed") {
+        setSettingsErrorMessage(status.error ?? "本地模型状态更新失败。");
+      } else {
+        setSettingsErrorMessage(null);
+      }
+    });
+  }, [applyLocalModelStatus]);
 
   return {
     snapshot,
@@ -949,6 +1025,7 @@ export function useDesktopEditorController() {
     shortcutDrafts,
     assetsDirectoryDraft,
     aiSettingsDraft,
+    isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
     updateStatus,
@@ -983,6 +1060,8 @@ export function useDesktopEditorController() {
     captureShortcutDraft,
     resetShortcutDraft,
     saveSettings,
+    downloadLocalModel,
+    deleteLocalModel,
     runUpdateCheck
   };
 }

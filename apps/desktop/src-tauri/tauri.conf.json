@@ -30,6 +30,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": [
+      "binaries/llama-server"
+    ],
+    "resources": {
+      "binaries/llama-runtime-macos-arm64/*.dylib": "",
+      "binaries/llama-runtime-macos-arm64/LICENSE.llama.cpp": "local-ai-runtime/LICENSE.llama.cpp"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
