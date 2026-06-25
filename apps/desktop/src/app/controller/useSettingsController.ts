@@ -1,0 +1,264 @@
+import { useCallback, useEffect, useState } from "react";
+import type { AiSettings } from "@md-editor/editor-core";
+import {
+  deleteLocalAiModel,
+  downloadLocalAiModel,
+  listenToLocalAiModelProgress,
+  mergeLocalAiModelStatus,
+  readLocalAiModelStatus,
+  type LocalAiModelCommandStatus
+} from "../ai/local-ai-model";
+import {
+  appVersion,
+  checkForUpdates,
+  createDefaultSettings,
+  keyboardShortcutLabel,
+  loadAppSettings,
+  normalizeAiSettings,
+  normalizeShortcutKey,
+  saveAppSettings,
+  validateAssetsDirectory,
+  type AppSettings,
+  type ShortcutSetting,
+  type UpdateStatus
+} from "../settings/app-settings";
+import { formatActionError } from "./controller-errors";
+
+interface UseSettingsControllerOptions {
+  readonly showToast: (message: string | null) => void;
+}
+
+export function useSettingsController({ showToast }: UseSettingsControllerOptions) {
+  const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
+    createShortcutDrafts(createDefaultSettings().shortcuts)
+  );
+  const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
+  const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
+  const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
+    currentVersion: appVersion(),
+    state: "idle",
+    message: "点击检查更新获取当前发布状态。"
+  }));
+
+  const syncSettingsDrafts = useCallback((nextSettings: AppSettings) => {
+    // 设置弹窗编辑的是草稿；保存或取消时必须和权威 settings 重新对齐。
+    setShortcutDrafts(createShortcutDrafts(nextSettings.shortcuts));
+    setAssetsDirectoryDraft(nextSettings.assetsDirectory);
+    setAiSettingsDraft(nextSettings.ai);
+  }, []);
+
+  const applyLocalModelStatus = useCallback((status: LocalAiModelCommandStatus) => {
+    // 本地模型状态会从命令结果和后台进度事件两路进入，需要同步到 settings 与弹窗草稿。
+    setSettings((current) => ({
+      ...current,
+      ai: {
+        ...current.ai,
+        localModel: mergeLocalAiModelStatus(current.ai.localModel, status)
+      }
+    }));
+    setAiSettingsDraft((current) => ({
+      ...current,
+      localModel: mergeLocalAiModelStatus(current.localModel, status)
+    }));
+  }, []);
+
+  const openSettings = useCallback(() => {
+    syncSettingsDrafts(settings);
+    setSettingsErrorMessage(null);
+    setIsSettingsOpen(true);
+  }, [settings, syncSettingsDrafts]);
+
+  const closeSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+    setSettingsErrorMessage(null);
+    syncSettingsDrafts(settings);
+  }, [settings, syncSettingsDrafts]);
+
+  const captureShortcutDraft = useCallback((id: string, key: string) => {
+    setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
+  }, []);
+
+  const resetShortcutDraft = useCallback(
+    (id: string) => {
+      const shortcut = settings.shortcuts.find((candidate) => candidate.id === id);
+      if (!shortcut) {
+        return;
+      }
+      setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(shortcut.defaultKey) }));
+    },
+    [settings.shortcuts]
+  );
+
+  const saveSettings = useCallback(async () => {
+    const nextAssetsDirectory = validateAssetsDirectory(assetsDirectoryDraft);
+    if (!nextAssetsDirectory) {
+      setSettingsErrorMessage("图片资源目录必须是当前文档目录内的子目录，例如 assets 或 images/posts。");
+      return;
+    }
+
+    // 快捷键保存前统一校验，避免两个命令在全局 keydown 捕获阶段抢同一个组合。
+    const normalizedShortcuts: ShortcutSetting[] = [];
+    for (const shortcut of settings.shortcuts) {
+      const key = normalizeShortcutKey(shortcutDrafts[shortcut.id] ?? shortcut.key);
+      if (!key) {
+        setSettingsErrorMessage(`“${shortcut.label}”快捷键格式无效，请使用 Command+Shift+B 这类组合。`);
+        return;
+      }
+      normalizedShortcuts.push({ ...shortcut, key });
+    }
+    const duplicate = findDuplicateShortcut(normalizedShortcuts.map((shortcut) => shortcut.key));
+    if (duplicate) {
+      setSettingsErrorMessage(`快捷键 ${keyboardShortcutLabel(duplicate)} 被重复使用。`);
+      return;
+    }
+
+    setIsSavingSettings(true);
+    setSettingsErrorMessage(null);
+    try {
+      const saved = await saveAppSettings({
+        shortcuts: normalizedShortcuts,
+        assetsDirectory: nextAssetsDirectory,
+        ai: normalizeAiSettings(aiSettingsDraft)
+      });
+      setSettings(saved);
+      syncSettingsDrafts(saved);
+      setIsSettingsOpen(false);
+    } catch (error) {
+      setSettingsErrorMessage(error instanceof Error ? error.message : "设置保存失败。");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
+
+  const downloadLocalModel = useCallback(async () => {
+    setIsLocalModelActionPending(true);
+    setSettingsErrorMessage(null);
+    try {
+      const status = await downloadLocalAiModel(settings.ai.localModel.modelId);
+      applyLocalModelStatus(status);
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
+    } finally {
+      setIsLocalModelActionPending(false);
+    }
+  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
+
+  const deleteLocalModel = useCallback(async () => {
+    setIsLocalModelActionPending(true);
+    setSettingsErrorMessage(null);
+    try {
+      const status = await deleteLocalAiModel(settings.ai.localModel.modelId);
+      applyLocalModelStatus(status);
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "本地模型删除失败。"));
+    } finally {
+      setIsLocalModelActionPending(false);
+    }
+  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
+
+  const runUpdateCheck = useCallback(async () => {
+    // 现在没有接入 Tauri updater，检查动作仍保留入口和状态，后续可直接替换实现。
+    setUpdateStatus({
+      currentVersion: appVersion(),
+      state: "checking",
+      message: "正在检查更新..."
+    });
+    setUpdateStatus(await checkForUpdates(appVersion()));
+  }, []);
+
+  useEffect(() => {
+    // 设置异步加载；先用默认值渲染，加载成功后再重绑快捷键和图片目录。
+    let cancelled = false;
+
+    void loadAppSettings()
+      .then(async (loadedSettings) => {
+        if (cancelled) {
+          return;
+        }
+        try {
+          const localModelStatus = await readLocalAiModelStatus(loadedSettings.ai.localModel.modelId);
+          const hydratedSettings: AppSettings = {
+            ...loadedSettings,
+            ai: {
+              ...loadedSettings.ai,
+              localModel: mergeLocalAiModelStatus(loadedSettings.ai.localModel, localModelStatus)
+            }
+          };
+          if (cancelled) {
+            return;
+          }
+          setSettings(hydratedSettings);
+          syncSettingsDrafts(hydratedSettings);
+        } catch {
+          setSettings(loadedSettings);
+          syncSettingsDrafts(loadedSettings);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          showToast(error instanceof Error ? error.message : "设置读取失败。");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showToast, syncSettingsDrafts]);
+
+  useEffect(() => {
+    return listenToLocalAiModelProgress((status) => {
+      applyLocalModelStatus(status);
+      if (status.status === "failed") {
+        setSettingsErrorMessage(status.error ?? "本地模型状态更新失败。");
+      } else {
+        setSettingsErrorMessage(null);
+      }
+    });
+  }, [applyLocalModelStatus]);
+
+  return {
+    settings,
+    isSettingsOpen,
+    shortcutDrafts,
+    assetsDirectoryDraft,
+    aiSettingsDraft,
+    isLocalModelActionPending,
+    settingsErrorMessage,
+    isSavingSettings,
+    updateStatus,
+    setAssetsDirectoryDraft,
+    setAiSettingsDraft,
+    openSettings,
+    closeSettings,
+    captureShortcutDraft,
+    resetShortcutDraft,
+    saveSettings,
+    downloadLocalModel,
+    deleteLocalModel,
+    runUpdateCheck
+  };
+}
+
+function createShortcutDrafts(shortcuts: readonly ShortcutSetting[]): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    shortcuts.map((shortcut) => [shortcut.id, keyboardShortcutLabel(shortcut.key)])
+  );
+}
+
+function findDuplicateShortcut(shortcuts: readonly string[]): string | null {
+  const seen = new Set<string>();
+
+  for (const shortcut of shortcuts) {
+    if (seen.has(shortcut)) {
+      return shortcut;
+    }
+    seen.add(shortcut);
+  }
+
+  return null;
+}
