@@ -11,6 +11,16 @@
 - 🖼️ **图片支持** - 粘贴图片自动保存到 assets 目录
 - 📋 **Frontmatter** - 完整保留 YAML frontmatter
 
+## 安装
+
+推荐使用 [Homebrew](https://brew.sh/) 包管理器。
+
+```
+brew install --cask wmasfoe/tap/md-editor
+```
+
+> 等 macos 功能稳定之后会提供 Windows 以及 Linux 版本。
+
 ## 快速开始
 
 ### 前置要求
