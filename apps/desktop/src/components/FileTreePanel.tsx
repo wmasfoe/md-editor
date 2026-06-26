@@ -246,7 +246,7 @@ export function FileTreePanel({
 
   if (!folder) {
     return (
-      <div className="p-3 text-[13px] text-[var(--theme-control-subtle)]">
+      <div className="min-h-0 flex-1 bg-[var(--theme-surface)] p-3 text-[13px] text-[var(--theme-control-subtle)]">
         <button
           type="button"
           className="w-full rounded-sm border border-transparent bg-transparent px-2 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
@@ -261,7 +261,7 @@ export function FileTreePanel({
   if (normalizedSearchQuery) {
     return (
       <div
-        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-1"
+        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-[var(--theme-surface)] pb-4 pt-1"
         onContextMenu={(event) => openContextMenu(event, null)}
       >
         {searchResults.length > 0 ? (
@@ -292,7 +292,7 @@ export function FileTreePanel({
 
   return (
     <div
-      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto pb-4"
+      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-[var(--theme-surface)] pb-4"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
       <FileTreeNodeView
