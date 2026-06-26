@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultSettings,
   DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_THEME_SETTINGS,
   normalizeAiSettings,
+  normalizeAppTheme,
   normalizeShortcutKey,
   shortcutKeyFromKeyboardEvent,
   validateAssetsDirectory
@@ -13,6 +15,7 @@ describe("app settings", () => {
     const settings = createDefaultSettings();
 
     expect(settings.assetsDirectory).toBe("assets");
+    expect(settings.theme).toEqual(DEFAULT_THEME_SETTINGS);
     expect(settings.ai.features).toEqual({
       continuation: false,
       editing: true
@@ -102,6 +105,60 @@ describe("app settings", () => {
     expect(validateAssetsDirectory("./assets")).toBe("assets");
     expect(validateAssetsDirectory("../outside")).toBeNull();
     expect(validateAssetsDirectory("/tmp/assets")).toBeNull();
+  });
+
+  it("normalizes persisted theme choices", () => {
+    expect(normalizeAppTheme({
+      mode: "dark",
+      light: {
+        source: "builtin",
+        builtinTheme: "github-light",
+        customCssPath: null
+      },
+      dark: {
+        source: "custom",
+        builtinTheme: "night-dark",
+        customCssPath: "/tmp/md-editor-dark.css"
+      }
+    })).toEqual({
+      mode: "dark",
+      light: {
+        source: "builtin",
+        builtinTheme: "github-light",
+        customCssPath: null
+      },
+      dark: {
+        source: "custom",
+        builtinTheme: "night-dark",
+        customCssPath: "/tmp/md-editor-dark.css"
+      }
+    });
+    expect(normalizeAppTheme({
+      mode: "neon",
+      light: {
+        source: "rainbow",
+        builtinTheme: "unknown",
+        customCssPath: 42
+      }
+    })).toEqual(DEFAULT_THEME_SETTINGS);
+    expect(normalizeAppTheme({
+      mode: "system",
+      lightCssPath: "/tmp/md-editor-light.css",
+      darkCssPath: "/tmp/md-editor-dark.css"
+    })).toEqual({
+      ...DEFAULT_THEME_SETTINGS,
+      light: {
+        ...DEFAULT_THEME_SETTINGS.light,
+        source: "custom",
+        customCssPath: "/tmp/md-editor-light.css"
+      },
+      dark: {
+        ...DEFAULT_THEME_SETTINGS.dark,
+        source: "custom",
+        customCssPath: "/tmp/md-editor-dark.css"
+      }
+    });
+    expect(normalizeAppTheme("typora-dark")).toEqual(DEFAULT_THEME_SETTINGS);
   });
 
   it("normalizes DeepSeek provider settings to the fixed endpoint", () => {

@@ -4,6 +4,23 @@ DO NOT STOP TO ASK "SHOULD I PROCEED?" — PROCEED. DO NOT WAIT FOR CONFIRMATION
 IF BLOCKED, TRY AN ALTERNATIVE APPROACH. ONLY ASK WHEN TRULY AMBIGUOUS OR DESTRUCTIVE.
 USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES THROUGHPUT. THIS IS COMPLEMENTARY TO OMX TEAM MODE.
 <!-- END AUTONOMY DIRECTIVE -->
+
+# 注意事项
+
+## 注意遵守的事项
+
+1. 编码过程中注意写注释；
+2. 如果 GitHub / NPM 上有成熟的开源方案，直接复用，不要自己实现；
+3. 分析 bug 的时候，要从第一性原理出发；
+4. 所有实现必须易维护、易扩展，不允许为了当前需求硬编码；
+5. 遇到不确定的信息，不要猜测，优先查官方文档或明确指出需要确认的地方。
+
+## 文档规范
+
+你可以**按需阅读** [agent/index](./docs/agent/index.md) 这篇文档，来获得相应的信息，**注意是按需阅读目录下的文件**，不可一下加载所有的文档。
+
+如果你有文档需要记录，只可以记录在 `./docs/agent/` 目录下，并且更新 `./docs/agent/index.md` 这篇目录文档，在记录时说清楚文档的用途，以便将来更好的查询。
+
 <!-- omx:generated:agents-md -->
 
 # oh-my-codex - Intelligent Multi-Agent Orchestration
@@ -17,6 +34,7 @@ When OMX is installed, load the installed prompt/skill/agent surfaces from `./.c
 Canonical guidance schema for this template is defined in `docs/guidance-schema.md`.
 
 Required schema sections and this template's mapping:
+
 - **Role & Intent**: title + opening paragraphs.
 - **Operating Principles**: `<operating_principles>`.
 - **Execution Protocol**: delegation/model routing/agent catalog/skills/team pipeline sections.
@@ -25,6 +43,7 @@ Required schema sections and this template's mapping:
 - **Recovery & Lifecycle Overlays**: runtime/team overlays are appended by marker-bounded runtime hooks.
 
 Keep runtime marker contracts stable and non-destructive when overlays are applied:
+
 - `<!-- OMX:RUNTIME:START --> ... <!-- OMX:RUNTIME:END -->`
 - `<!-- OMX:TEAM:WORKER:START --> ... <!-- OMX:TEAM:WORKER:END -->`
 </guidance_schema_contract>
@@ -42,6 +61,7 @@ The workspace now uses pnpm workspaces with a Tauri + React desktop app. Useful 
 - `pnpm build`: build all workspaces.
 
 <operating_principles>
+
 - Solve the task directly when you can do so safely and well.
 - Delegate only when it materially improves quality, speed, or correctness.
 - Keep progress short, concrete, and useful.
@@ -70,12 +90,14 @@ The workspace now uses pnpm workspaces with a Tauri + React desktop app. Useful 
 </operating_principles>
 
 ## Working agreements
+
 - For cleanup/refactor/deslop work, write a cleanup plan and lock behavior with regression tests before editing when coverage is missing.
 - Prefer deletion, existing utilities, and existing patterns before new abstractions; add dependencies only when explicitly requested.
 - Keep diffs small, reviewable, and reversible.
 - Verify with lint, typecheck, tests, and static analysis after changes; final reports include changed files, simplifications, and remaining risks.
 
 <lore_commit_protocol>
+
 ## Lore Commit Protocol
 
 Every commit message must follow the Lore protocol: a concise decision record using git-native trailers.
@@ -111,6 +133,7 @@ Not-tested: <known gaps in verification>
 Default posture: work directly.
 
 Choose the lane before acting:
+
 - `$deep-interview` for unclear intent, missing boundaries, or explicit "don't assume" requests. This mode clarifies and hands off; it does not implement.
 - `$ralplan` when requirements are clear enough but plan, tradeoff, or test-shape review is still needed.
 - `$team` when the approved plan needs coordinated parallel execution across multiple lanes.
@@ -126,16 +149,19 @@ Switch modes only for a concrete reason: unresolved ambiguity, coordination load
 
 <child_agent_protocol>
 Leader responsibilities:
+
 1. Pick the mode and keep the user-facing brief current.
 2. Delegate only bounded, verifiable subtasks with clear ownership.
 3. Integrate results, decide follow-up, and own final verification.
 
 Worker responsibilities:
+
 1. Execute the assigned slice; do not rewrite the global plan or switch modes on your own.
 2. Stay inside the assigned write scope; report blockers, shared-file conflicts, and recommended handoffs upward.
 3. Ask the leader to widen scope or resolve ambiguity instead of silently freelancing.
 
 Rules:
+
 - Max 6 concurrent child agents.
 - Child prompts stay under AGENTS.md authority.
 - `worker` is a team-runtime surface, not a general-purpose child role.
@@ -147,6 +173,7 @@ Rules:
 </child_agent_protocol>
 
 <invocation_conventions>
+
 - `$name` — invoke a workflow skill
 - `/skills` — browse available skills
 - Prefer skill invocation and keyword routing as the primary user-facing workflow surface
@@ -154,6 +181,7 @@ Rules:
 
 <model_routing>
 Match role to task shape:
+
 - Low complexity: `explore`, `style-reviewer`, `writer`
 - Research/discovery: `explore` for repo lookup, `researcher` for official docs/reference gathering, `dependency-expert` for SDK/API/package evaluation
 - Standard: `executor`, `debugger`, `test-engineer`
@@ -180,6 +208,7 @@ Leader/workflow routing contract:
 Key roles: `explore` (repo search/mapping), `planner` (plans/sequencing), `architect` (read-only design/diagnosis), `debugger` (root cause), `executor` (implementation/refactoring), and `verifier` (completion evidence).
 
 Research/discovery specialists:
+
 - `explore` — first-stop repository lookup and symbol/file mapping
 - `researcher` — official docs, references, and external fact gathering
 - `dependency-expert` — SDK/API/package evaluation before adopting or changing dependencies
@@ -193,17 +222,20 @@ Specialists remain available through the role catalog and native child-agent sur
 Keyword routing is implemented primarily by native `UserPromptSubmit` hooks and the generated keyword registry. Treat hook-injected routing context as authoritative for the current turn, then load the named `SKILL.md` or prompt file as instructed.
 
 Fallback behavior when hook context is unavailable:
+
 - Explicit `$name` invocations run left-to-right and override implicit keywords.
 - Bare skill names do not activate skills by themselves; skill-name activation requires explicit `$skill` invocation. Natural-language routing phrases may still map to a workflow when they are not just the bare skill name. Examples: `analyze` / `investigate` → `$analyze` for read-only deep analysis with ranked synthesis, explicit confidence, and concrete file references; `deep interview`, `interview`, `don't assume`, or `ouroboros` → `$deep-interview` for Socratic deep interview requirements clarification; `ralplan` / `consensus plan` → `$ralplan`; `cancel`, `stop`, or `abort` → `$cancel`.
 - Keep the detailed keyword list in `src/hooks/keyword-registry.ts`; do not duplicate that table here.
 
 Runtime availability gate:
+
 - Treat `autopilot`, `ralph`, `ultrawork`, `ultraqa`, `team`/`swarm`, and `ecomode` as **OMX runtime workflows**, not generic prompt aliases.
 - Auto-activate runtime workflows only when the current session is actually running under OMX CLI/runtime (for example, launched via `omx`, with OMX session overlay/runtime state available, or when the user explicitly asks to run `omx ...` in the shell).
 - In Codex App or plain Codex sessions without OMX runtime, do **not** treat those keywords alone as activation. Explain that they require OMX CLI runtime support and are not directly available there, and continue with the nearest App-safe surface (`deep-interview`, `ralplan`, `plan`, or native subagents) unless the user explicitly wants you to launch OMX CLI from shell first.
 - When deep-interview is active in attached-tmux OMX CLI/runtime, ask each interview round via `omx question` as a temporary popup-style renderer over the leader pane; after launching `omx question` in a background terminal, wait for that terminal to finish and read the JSON answer before continuing; preserve the leader pane with `OMX_QUESTION_RETURN_PANE=$TMUX_PANE` (or an explicit `%pane` value) when invoking it through Bash/tool paths, prefer `answers[0].answer` / `answers[]` from the response and use legacy `answer` only as fallback, and respect Stop-hook blocking while a deep-interview question obligation is pending. Deep-interview remains one question per round; do not batch multiple interview rounds into one `questions[]` form. Outside tmux or native surfaces that cannot render `omx question` should use the native structured question path when available, otherwise ask exactly one concise plain-text question and wait for the answer.
 
 <triage_routing>
+
 ## Triage: advisory prompt-routing context
 
 The keyword detector is the first and deterministic routing surface. Triage runs only when no keyword matches.
@@ -218,6 +250,7 @@ To opt out per prompt with phrases such as `no workflow`, `just chat`, or `plain
 </triage_routing>
 
 Ralph / Ralplan execution gate:
+
 - Enforce **ralplan-first** when ralph is active and planning is not complete.
 - Planning is complete only after both `.omx/plans/prd-*.md` and `.omx/plans/test-spec-*.md` exist.
 - Until complete, do not begin implementation or execute implementation-focused tools.
@@ -251,6 +284,7 @@ Terminal states: `complete`, `failed`, `cancelled`.
 <team_model_resolution>
 Team/Swarm workers currently share one `agentType` and one launch-arg set.
 Model precedence:
+
 1. Explicit model in `OMX_TEAM_WORKER_LAUNCH_ARGS`
 2. Inherited leader `--model`
 3. Low-complexity default model from `OMX_DEFAULT_SPARK_MODEL` (legacy alias: `OMX_SPARK_MODEL`)
@@ -299,6 +333,7 @@ Auto-generated by `omx setup` from the current `config.toml` plus OMX model over
 Verify before claiming completion.
 
 Sizing guidance:
+
 - Small changes: lightweight verification
 - Standard changes: standard verification
 - Large or security/architectural changes: thorough verification
@@ -317,23 +352,27 @@ Verification loop: define the claim and success criteria, run the smallest valid
 Mode selection: use `$deep-interview` for unclear intent/boundaries; `$ralplan` for consensus on architecture, tradeoffs, or tests; `$team` for approved multi-lane work; `$ralph` for persistent single-owner completion/verification loops; otherwise execute directly in solo mode. Switch modes only when evidence shows the current lane is mismatched or blocked.
 
 Command routing:
+
 - `omx explore` is deprecated and MUST NOT be recommended as the default surface for simple read-only repository lookup tasks. Use normal Codex repository inspection tools/subagents for file, symbol, pattern, relationship, and implementation discovery.
 - `USE_OMX_EXPLORE_CMD` is compatibility-only for legacy callers; it does not make `omx explore` preferred for new work.
 
 Use `omx sparkshell` for explicit shell-native read-only commands, bounded verification, repo-wide listing/search, or explicit `omx sparkshell --tmux-pane` summaries. Treat sparkshell as explicit opt-in. When to use what: keep ambiguous, implementation-heavy, edit-heavy, diagnostics, tests, MCP/web, and complex shell work on the normal path; if `omx sparkshell` is incomplete, retry narrower or gracefully fall back to the normal path.
 
 Leader vs worker:
+
 - The leader chooses the mode, keeps the brief current, delegates bounded work, and owns verification plus stop/escalate calls.
 - Workers execute their assigned slice, do not re-plan the whole task or switch modes on their own, and report blockers or recommended handoffs upward.
 - Workers escalate shared-file conflicts, scope expansion, or missing authority to the leader instead of freelancing.
 
 Stop / escalate:
+
 - Stop when the task is verified complete, the user says stop/cancel, or no meaningful recovery path remains.
 - Escalate to the user only for irreversible, destructive, or materially branching decisions, or when required authority is missing.
 - Escalate from worker to leader for blockers, scope expansion, shared ownership conflicts, or mode mismatch.
 - `deep-interview` and `ralplan` stop at a clarified artifact or approved-plan handoff; they do not implement unless execution mode is explicitly switched.
 
 Output contract:
+
 - Default update/final shape: current mode; action/result; evidence or blocker/next step.
 - Keep rationale once; do not restate the full plan every turn.
 - Expand only for risk, handoff, or explicit user request.
@@ -341,6 +380,7 @@ Output contract:
 Parallelization: run independent tasks in parallel, dependent tasks sequentially, and long builds/tests in the background when helpful. Prefer Team mode only when coordination value outweighs overhead. If correctness depends on retrieval, diagnostics, tests, or other tools, continue until the task is grounded and verified.
 
 Anti-slop workflow:
+
 - Cleanup/refactor/deslop work still follows the same `$deep-interview` -> `$ralplan` -> `$team`/`$ralph` path; use `$ai-slop-cleaner` as a bounded helper inside the chosen execution lane, not as a competing top-level workflow.
 - Write a cleanup plan before modifying code; lock existing behavior with regression tests first, then make one smell-focused pass at a time.
 - Prefer deletion over addition, and prefer reuse plus boundary repair over new layers.
@@ -349,6 +389,7 @@ Anti-slop workflow:
 - Keep writer/reviewer pass separation for cleanup plans and approvals; preserve writer/reviewer pass separation explicitly.
 
 Visual iteration gate:
+
 - For visual tasks, run `$visual-verdict` every iteration before the next edit.
 - Persist verdict JSON in `.omx/state/{scope}/ralph-progress.json`.
 
@@ -371,6 +412,7 @@ Do not cancel while recoverable work remains.
 Hooks own normal skill-active and workflow-state persistence under `.omx/state/`.
 
 OMX persists runtime state under `.omx/`:
+
 - `.omx/state/` — mode state
 - `.omx/notepad.md` — session notes
 - `.omx/project-memory.json` — cross-session memory
@@ -388,15 +430,3 @@ Do not manually duplicate hook-owned activation state unless recovering from mis
 ## Setup
 
 Execute `omx setup` to install all components. Execute `omx doctor` to verify installation.
-
-# 其他事项
-
-## 文档规范
-
-你可以**按需阅读** [agent/index](./docs/agent/index.md) 这篇文档，来获得相应的信息，**注意是按需阅读目录下的文件**，不可一下加载所有的文档。
-
-如果你有文档需要记录，只可以记录在 `./docs/agent/` 目录下，并且更新 `./docs/agent/index.md` 这篇目录文档，在记录时说清楚文档的用途，以便将来更好的查询。
-
-## 代码规范
-
-编码过程中注意写注释。

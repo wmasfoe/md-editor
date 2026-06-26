@@ -1,9 +1,9 @@
 @import "tailwindcss";
 @source "../../../packages/editor-ui/src";
 
-:root,
-:root[data-theme="typora-light"] {
-  /* 主题 token 对齐 Typora 默认写作界面：白色画布、轻 chrome、正文优先。 */
+:root {
+  /* 默认 token 只做无自定义 CSS 时的兜底；用户主题通过设置里的 CSS 覆盖这些变量。 */
+  color-scheme: light;
   --theme-bg: #ffffff;
   --theme-bg-muted: #f4f4f4;
   --theme-chrome: #fafafa;
@@ -34,6 +34,8 @@
   --theme-code-comment: #6c6f85;
   --theme-code-number: #fe640b;
   --theme-code-tag: #179299;
+  --theme-code-attribute: #8250df;
+  --theme-code-variable: #0550ae;
   --theme-inline-code-bg: #f3f4f4;
   --theme-shadow: 0 1px 1px rgba(0, 28, 36, 0.08), 0 4px 20px rgba(0, 0, 0, 0.08);
   --theme-content-width: 860px;

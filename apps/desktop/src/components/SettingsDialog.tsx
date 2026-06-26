@@ -1,13 +1,25 @@
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
 import { useEffect, type KeyboardEvent } from "react";
 import type { AiSettings } from "@md-editor/editor-core";
-import type { AppSettings, UpdateStatus } from "../app/settings/app-settings";
+import type {
+  AppSettings,
+  AppThemeSettings,
+  BuiltInThemeId,
+  ThemeColorScheme,
+  ThemeSchemeSettings,
+  UpdateStatus
+} from "../app/settings/app-settings";
 import {
   DEFAULT_DEEPSEEK_ENDPOINT,
   DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
   keyboardShortcutLabel,
   shortcutKeyFromKeyboardEvent
 } from "../app/settings/app-settings";
+import {
+  BUILT_IN_DARK_THEME_OPTIONS,
+  BUILT_IN_LIGHT_THEME_OPTIONS,
+  type BuiltInThemeOption
+} from "../app/settings/built-in-themes";
 import { isComposingKeyboardEvent } from "../lib/keyboard";
 
 export interface SettingsPageProps {
@@ -15,6 +27,7 @@ export interface SettingsPageProps {
   readonly updateStatus: UpdateStatus;
   readonly shortcutDrafts: Readonly<Record<string, string>>;
   readonly assetsDirectoryDraft: string;
+  readonly themeDraft: AppThemeSettings;
   readonly aiSettingsDraft: AiSettings;
   readonly isLocalModelActionPending: boolean;
   readonly errorMessage: string | null;
@@ -23,8 +36,12 @@ export interface SettingsPageProps {
   readonly onCaptureShortcut: (id: string, key: string) => void;
   readonly onResetShortcut: (id: string) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
+  readonly onChangeTheme: (value: AppThemeSettings) => void;
+  readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
+  readonly onClearThemeCss: (scheme: "light" | "dark") => void;
   readonly onChangeAiSettings: (value: AiSettings) => void;
   readonly onDownloadLocalModel: () => void;
+  readonly onCancelLocalModelDownload: () => void;
   readonly onDeleteLocalModel: () => void;
   readonly onSave: () => void;
   readonly onClose: () => void;
@@ -36,6 +53,7 @@ export function SettingsPage({
   updateStatus,
   shortcutDrafts,
   assetsDirectoryDraft,
+  themeDraft,
   aiSettingsDraft,
   isLocalModelActionPending,
   errorMessage,
@@ -44,8 +62,12 @@ export function SettingsPage({
   onCaptureShortcut,
   onResetShortcut,
   onChangeAssetsDirectory,
+  onChangeTheme,
+  onChooseThemeCss,
+  onClearThemeCss,
   onChangeAiSettings,
   onDownloadLocalModel,
+  onCancelLocalModelDownload,
   onDeleteLocalModel,
   onSave,
   onClose,
@@ -55,6 +77,8 @@ export function SettingsPage({
     isLocalModelActionPending ||
     aiSettingsDraft.localModel.status === "downloading" ||
     aiSettingsDraft.localModel.status === "verifying";
+  const canCancelLocalModelDownload =
+    !isLocalModelActionPending && aiSettingsDraft.localModel.status === "downloading";
   const canDeleteLocalModel =
     aiSettingsDraft.localModel.status === "available" ||
     aiSettingsDraft.localModel.status === "failed";
@@ -114,6 +138,45 @@ export function SettingsPage({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 overflow-auto px-6 py-5 max-[760px]:px-4">
           <div className="mx-auto grid w-full max-w-[920px] gap-5">
+            <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
+              <div className="mb-3">
+                <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>外观</h2>
+                <p className={settingsDescriptionClassName}>为亮色和暗色分别选择内置主题或自定义 CSS，应用默认跟随系统明暗。</p>
+              </div>
+              <div className="grid gap-2.5">
+                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                  <span className={settingsFieldLabelClassName}>应用方式</span>
+                  <select
+                    className={settingsInputClassName}
+                    value={themeDraft.mode}
+                    onChange={(event) =>
+                      onChangeTheme({ ...themeDraft, mode: readThemeColorScheme(event.target.value) })
+                    }
+                  >
+                    <option value="system">跟随系统</option>
+                    <option value="light">使用亮色 CSS</option>
+                    <option value="dark">使用暗色 CSS</option>
+                  </select>
+                </label>
+                <ThemeCssPicker
+                  label="亮色主题"
+                  theme={themeDraft.light}
+                  builtInOptions={BUILT_IN_LIGHT_THEME_OPTIONS}
+                  onChange={(light) => onChangeTheme({ ...themeDraft, light })}
+                  onChoose={() => onChooseThemeCss("light")}
+                  onClear={() => onClearThemeCss("light")}
+                />
+                <ThemeCssPicker
+                  label="暗色主题"
+                  theme={themeDraft.dark}
+                  builtInOptions={BUILT_IN_DARK_THEME_OPTIONS}
+                  onChange={(dark) => onChangeTheme({ ...themeDraft, dark })}
+                  onChoose={() => onChooseThemeCss("dark")}
+                  onClear={() => onClearThemeCss("dark")}
+                />
+              </div>
+            </section>
+
             <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
               <div className="mb-3">
                 <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>快捷键设置</h2>
@@ -305,6 +368,15 @@ export function SettingsPage({
                           >
                             {aiSettingsDraft.localModel.status === "available" ? "重新下载" : "下载模型"}
                           </button>
+                          {canCancelLocalModelDownload ? (
+                            <button
+                              type="button"
+                              className={settingsSmallButtonClassName}
+                              onClick={onCancelLocalModelDownload}
+                            >
+                              取消下载
+                            </button>
+                          ) : null}
                           {canDeleteLocalModel ? (
                             <button
                               type="button"
@@ -391,6 +463,70 @@ const settingsInputClassName =
 const settingsSmallButtonClassName =
   "h-[30px] px-2 rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55";
 
+interface ThemeCssPickerProps {
+  readonly label: string;
+  readonly theme: ThemeSchemeSettings;
+  readonly builtInOptions: readonly BuiltInThemeOption[];
+  readonly onChange: (value: ThemeSchemeSettings) => void;
+  readonly onChoose: () => void;
+  readonly onClear: () => void;
+}
+
+function ThemeCssPicker({
+  label,
+  theme,
+  builtInOptions,
+  onChange,
+  onChoose,
+  onClear
+}: ThemeCssPickerProps) {
+  const customCssPath = theme.customCssPath;
+  const shouldShowCustomCss = theme.source === "custom" || customCssPath !== null;
+
+  return (
+    <div className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-start gap-3 max-[760px]:grid-cols-1">
+      <span className={settingsFieldLabelClassName}>{label}</span>
+      <div className="grid gap-2">
+        <select
+          className={settingsInputClassName}
+          value={theme.source === "custom" ? "custom" : theme.builtinTheme}
+          onChange={(event) =>
+            onChange(readThemeSelection(event.target.value, theme, builtInOptions))
+          }
+        >
+          {builtInOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+          <option value="custom">自定义 CSS</option>
+        </select>
+        {shouldShowCustomCss ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 max-[760px]:grid-cols-1">
+            <input
+              className={settingsInputClassName}
+              value={customCssPath ?? ""}
+              placeholder="未选择 CSS 文件"
+              readOnly
+              spellCheck={false}
+              aria-label={`${label}自定义 CSS 路径`}
+              title={customCssPath ?? "未选择 CSS 文件"}
+            />
+            <button type="button" className={`${settingsSmallButtonClassName} max-[760px]:w-max`} onClick={onChoose}>
+              选择
+            </button>
+            {customCssPath ? (
+              <button type="button" className={`${settingsSmallButtonClassName} max-[760px]:w-max`} onClick={onClear}>
+                清除
+              </button>
+            ) : null}
+          </div>
+      ) : null}
+      </div>
+    </div>
+  );
+}
+
 function localModelStatusLabel(status: AiSettings["localModel"]["status"]): string {
   switch (status) {
     case "downloading":
@@ -413,6 +549,10 @@ function localModelProgressLabel(localModel: AiSettings["localModel"]): string {
       ? `${formatByteSize(localModel.downloadedBytes)} / ${formatByteSize(localModel.totalBytes)}`
       : formatByteSize(localModel.downloadedBytes);
   const versionLabel = localModel.version ? `版本 ${localModel.version}` : "尚未下载版本";
+
+  if (localModel.error) {
+    return localModel.error;
+  }
 
   if (localModel.status === "not-downloaded") {
     return `模型 ${localModel.modelId}，${versionLabel}。`;
@@ -463,6 +603,34 @@ function providerEndpointPlaceholder(provider: AiSettings["provider"]): string {
 
 function providerModelPlaceholder(provider: AiSettings["provider"]): string {
   return provider === "deepseek" ? "deepseek-chat" : "gpt-4.1-mini";
+}
+
+function readThemeColorScheme(input: string): ThemeColorScheme {
+  return input === "light" || input === "dark" ? input : "system";
+}
+
+function readThemeSelection(
+  input: string,
+  current: ThemeSchemeSettings,
+  builtInOptions: readonly BuiltInThemeOption[]
+): ThemeSchemeSettings {
+  if (input === "custom") {
+    return { ...current, source: "custom" };
+  }
+
+  return {
+    ...current,
+    source: "builtin",
+    builtinTheme: readBuiltInTheme(input, current.builtinTheme, builtInOptions)
+  };
+}
+
+function readBuiltInTheme(
+  input: string,
+  fallback: BuiltInThemeId,
+  builtInOptions: readonly BuiltInThemeOption[]
+): BuiltInThemeId {
+  return builtInOptions.some((option) => option.id === input) ? (input as BuiltInThemeId) : fallback;
 }
 
 function updateAiProvider(settings: AiSettings, provider: AiSettings["provider"]): AiSettings {

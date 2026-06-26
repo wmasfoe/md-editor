@@ -30,6 +30,16 @@ export async function downloadLocalAiModel(modelId = DEFAULT_LOCAL_MODEL_ID): Pr
   );
 }
 
+export async function cancelLocalAiModelDownload(modelId = DEFAULT_LOCAL_MODEL_ID): Promise<LocalAiModelCommandStatus> {
+  if (!isTauri()) {
+    throw new Error("Web 预览不支持取消本地模型下载，请在桌面端使用。");
+  }
+
+  return toLocalAiModelCommandStatus(
+    await invoke<Partial<LocalAiModelCommandStatus>>("cancel_local_ai_model_download", { modelId })
+  );
+}
+
 export async function deleteLocalAiModel(modelId = DEFAULT_LOCAL_MODEL_ID): Promise<LocalAiModelCommandStatus> {
   if (!isTauri()) {
     throw new Error("Web 预览不支持删除本地模型，请在桌面端使用。");

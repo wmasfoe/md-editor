@@ -5,6 +5,8 @@ import {
   MagnifyingGlassIcon,
   QueueListIcon
 } from "@heroicons/react/24/outline";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import {
   AssetPreview,
@@ -36,6 +38,7 @@ export function App() {
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const shouldShowOverlayTitleBar = isMacPlatform();
   const fileSearchResultCount = useMemo(
     () => countMatchedFiles(editor.folder?.tree ?? null, fileSearchQuery),
     [editor.folder?.tree, fileSearchQuery]
@@ -46,225 +49,240 @@ export function App() {
 
   if (editor.isSettingsOpen) {
     return (
-      <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
-        <SettingsPage
-          settings={editor.settings}
-          updateStatus={editor.updateStatus}
-          shortcutDrafts={editor.shortcutDrafts}
-          assetsDirectoryDraft={editor.assetsDirectoryDraft}
-          aiSettingsDraft={editor.aiSettingsDraft}
-          isLocalModelActionPending={editor.isLocalModelActionPending}
-          errorMessage={editor.settingsErrorMessage}
-          isSaving={editor.isSavingSettings}
-          isCheckingForUpdates={editor.updateStatus.state === "checking"}
-          onCaptureShortcut={editor.captureShortcutDraft}
-          onResetShortcut={editor.resetShortcutDraft}
-          onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
-          onChangeAiSettings={editor.setAiSettingsDraft}
-          onDownloadLocalModel={editor.downloadLocalModel}
-          onDeleteLocalModel={editor.deleteLocalModel}
-          onSave={() => void editor.saveSettings()}
-          onClose={editor.closeSettings}
-          onCheckForUpdates={() => void editor.runUpdateCheck()}
-        />
+      <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
+        <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} />
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <SettingsPage
+            settings={editor.settings}
+            updateStatus={editor.updateStatus}
+            shortcutDrafts={editor.shortcutDrafts}
+            assetsDirectoryDraft={editor.assetsDirectoryDraft}
+            themeDraft={editor.themeDraft}
+            aiSettingsDraft={editor.aiSettingsDraft}
+            isLocalModelActionPending={editor.isLocalModelActionPending}
+            errorMessage={editor.settingsErrorMessage}
+            isSaving={editor.isSavingSettings}
+            isCheckingForUpdates={editor.updateStatus.state === "checking"}
+            onCaptureShortcut={editor.captureShortcutDraft}
+            onResetShortcut={editor.resetShortcutDraft}
+            onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
+            onChangeTheme={editor.setThemeDraft}
+            onChooseThemeCss={editor.chooseThemeCss}
+            onClearThemeCss={editor.clearThemeCss}
+            onChangeAiSettings={editor.setAiSettingsDraft}
+            onDownloadLocalModel={editor.downloadLocalModel}
+            onCancelLocalModelDownload={editor.cancelLocalModelDownload}
+            onDeleteLocalModel={editor.deleteLocalModel}
+            onSave={() => void editor.saveSettings()}
+            onClose={editor.closeSettings}
+            onCheckForUpdates={() => void editor.runUpdateCheck()}
+          />
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
-      {editor.isSidebarVisible ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
-          aria-label="关闭侧栏"
-          onClick={() => editor.setIsSidebarVisible(false)}
-        />
-      ) : null}
-      <aside
-        className={cx(
-          "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r-0 border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-150 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
-          editor.isSidebarVisible &&
-            "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] border-r opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
-        )}
-        style={{ "--app-sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
-        aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
-        aria-hidden={!editor.isSidebarVisible}
-        inert={!editor.isSidebarVisible}
-      >
-        <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
+    <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
+      <AppTitleBar
+        title={editor.snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
+        isDirty={editor.snapshot.isDirty}
+        isVisible={shouldShowOverlayTitleBar}
+      />
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {editor.isSidebarVisible ? (
           <button
             type="button"
-            className={sidebarHeaderIconButtonClassName}
-            aria-label={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
-            title={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
-            onClick={() => editor.setSidebarMode(editor.sidebarMode === "files" ? "outline" : "files")}
-          >
-            {editor.sidebarMode === "files" ? (
-              <FolderIcon aria-hidden="true" />
-            ) : (
-              <QueueListIcon aria-hidden="true" />
-            )}
-          </button>
-          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none text-[var(--theme-title)]">
-            {sidebarTitle}
-          </strong>
-          <button
-            type="button"
-            className={cx(
-              sidebarHeaderIconButtonClassName,
-              isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
-            )}
-            aria-label={isFileSearchOpen ? "关闭文件搜索" : "搜索文件"}
-            aria-pressed={isFileSearchOpen}
-            title="搜索文件"
-            onClick={() => {
-              editor.setSidebarMode("files");
-              setIsFileSearchOpen((current) => !current);
-            }}
-          >
-            <MagnifyingGlassIcon aria-hidden="true" />
-          </button>
-        </div>
-        {showFileSearch ? (
-          <div
-            className="grid min-h-[38px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2.5 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
-            role="search"
-          >
-            <MagnifyingGlassIcon aria-hidden="true" />
-            <input
-              type="search"
-              className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
-              value={fileSearchQuery}
-              autoFocus
-              placeholder="搜索文件"
-              aria-label="搜索当前打开文件夹下的文件"
-              onChange={(event) => setFileSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setFileSearchQuery("");
-                  setIsFileSearchOpen(false);
-                }
-              }}
-            />
-            <span
-              className="min-w-4 text-right text-[11px] leading-none text-[var(--theme-control-subtle)]"
-              aria-live="polite"
-              title="匹配数量"
+            className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
+            aria-label="关闭侧栏"
+            onClick={() => editor.setIsSidebarVisible(false)}
+          />
+        ) : null}
+        <aside
+          className={cx(
+            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r-0 border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-150 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
+            editor.isSidebarVisible &&
+              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] border-r opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
+          )}
+          style={{ "--app-sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+          aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
+          aria-hidden={!editor.isSidebarVisible}
+          inert={!editor.isSidebarVisible}
+        >
+          <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
+            <button
+              type="button"
+              className={sidebarHeaderIconButtonClassName}
+              aria-label={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
+              title={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
+              onClick={() => editor.setSidebarMode(editor.sidebarMode === "files" ? "outline" : "files")}
             >
-              {fileSearchQuery.trim() ? fileSearchResultCount : ""}
-            </span>
+              {editor.sidebarMode === "files" ? (
+                <FolderIcon aria-hidden="true" />
+              ) : (
+                <QueueListIcon aria-hidden="true" />
+              )}
+            </button>
+            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none text-[var(--theme-title)]">
+              {sidebarTitle}
+            </strong>
+            <button
+              type="button"
+              className={cx(
+                sidebarHeaderIconButtonClassName,
+                isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
+              )}
+              aria-label={isFileSearchOpen ? "关闭文件搜索" : "搜索文件"}
+              aria-pressed={isFileSearchOpen}
+              title="搜索文件"
+              onClick={() => {
+                editor.setSidebarMode("files");
+                setIsFileSearchOpen((current) => !current);
+              }}
+            >
+              <MagnifyingGlassIcon aria-hidden="true" />
+            </button>
           </div>
-        ) : null}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {editor.sidebarMode === "files" ? (
-            <FileTreePanel
-              folder={editor.folder}
-              searchQuery={showFileSearch ? fileSearchQuery : ""}
-              activeFilePath={editor.snapshot.filePath}
-              onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
-              onOpenFile={(filePath) => void editor.openDocumentFromTree(filePath)}
-              onOpenAsset={(node) => editor.openAssetFromTree(node)}
-              onCreateTreeItem={(parentPath, kind, name) => void editor.createTreeItem(parentPath, kind, name)}
-              onRenameTreeItem={(node, name) => void editor.renameTreeItem(node, name)}
-              onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
-              onContextMenuError={editor.showFileActionError}
-            />
-          ) : (
-            <OutlinePanel
-              outline={editor.outline}
-              activeId={editor.activeOutlineId}
-              onJump={editor.jumpToTocItem}
-            />
-          )}
-        </div>
-        <DocumentBar
-          hasActiveDocument={editor.hasActiveDocument}
-          mode={editor.snapshot.mode}
-          onChangeMode={(mode) => {
-            if (mode !== editor.snapshot.mode) {
-              void editor.dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
-            }
-          }}
-          onOpenSettings={() => void editor.dispatchCommand("settings.open")}
-        />
-        <SidebarResizeHandle
-          onResize={(width) => setSidebarWidth(clampSidebarWidth(width))}
-          onCollapse={() => editor.setIsSidebarVisible(false)}
-        />
-      </aside>
-      <section
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
-        aria-label="Markdown 编辑器"
-      >
-        {!editor.isSidebarVisible ? (
-          <button
-            type="button"
-            className="fixed left-2 top-2 z-[15] grid size-[30px] place-items-center rounded-[5px] border-0 bg-[var(--theme-chrome)] text-[var(--theme-control-text)] shadow-[0_1px_6px_rgba(0,0,0,0.08)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
-            aria-label="显示侧栏"
-            title="显示侧栏"
-            onClick={() => editor.setIsSidebarVisible(true)}
-          >
-            <Bars3BottomLeftIcon aria-hidden="true" />
-          </button>
-        ) : null}
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          <EditorToast toast={editor.toast} />
-          {!editor.hasActiveDocument && !editor.openedAsset ? (
-            <WelcomeState
-              recentFiles={editor.getRecentFiles()}
-              onNewDocument={() => void editor.dispatchCommand("file.new")}
-              onOpenDocument={() => void editor.dispatchCommand("file.open")}
-              onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
-              onOpenRecent={(path) => void editor.openRecentFile(path)}
-            />
-          ) : editor.openedAsset ? (
-            <AssetPreview
-              asset={editor.openedAsset}
-              resolveAssetSrc={editor.resolveImageSrc}
-              onBack={editor.closeAssetPreview}
-            />
-          ) : editor.snapshot.mode === "source" ? (
-            <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-              <SourceEditor
-                snapshot={editor.snapshot}
-                target={editor.tocTarget}
-                onChange={editor.commitMarkdown}
-                onVisibleLineChange={editor.updateActiveOutlineForLine}
+          {showFileSearch ? (
+            <div
+              className="grid min-h-[38px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2.5 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+              role="search"
+            >
+              <MagnifyingGlassIcon aria-hidden="true" />
+              <input
+                type="search"
+                className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+                value={fileSearchQuery}
+                autoFocus
+                placeholder="搜索文件"
+                aria-label="搜索当前打开文件夹下的文件"
+                onChange={(event) => setFileSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setFileSearchQuery("");
+                    setIsFileSearchOpen(false);
+                  }
+                }}
               />
-            </Suspense>
-          ) : (
-            <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-              <MilkdownEditor
-                key={editor.documentKey}
-                snapshot={editor.snapshot}
-                outline={editor.outline}
-                target={editor.tocTarget}
-                insertRequest={editor.mdxInsertRequest}
-                aiSuggestionRequest={editor.aiSuggestionRequest}
-                isAiSuggestionPending={editor.isAiSuggestionPending}
-                aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
-                onInsertRequestHandled={editor.clearMdxInsertRequest}
-                onAiSuggestionRequest={editor.requestAiSuggestion}
-                onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
-                onAiSuggestionError={editor.handleAiSuggestionError}
-                onChange={editor.commitMarkdown}
-                onOpenLink={editor.openWysiwygLink}
-                onActiveOutlineChange={editor.setActiveOutlineId}
-                resolveImageSrc={editor.resolveImageSrc}
-              />
-            </Suspense>
-          )}
-          {editor.pendingAction ? (
-            <EditorLoadingState
-              title={GLOBAL_LOADING_TITLE}
-              description={pendingActionDescription}
-              ariaLabel={editor.pendingAction}
-              isOverlay
-            />
+              <span
+                className="min-w-4 text-right text-[11px] leading-none text-[var(--theme-control-subtle)]"
+                aria-live="polite"
+                title="匹配数量"
+              >
+                {fileSearchQuery.trim() ? fileSearchResultCount : ""}
+              </span>
+            </div>
           ) : null}
-        </div>
-      </section>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {editor.sidebarMode === "files" ? (
+              <FileTreePanel
+                folder={editor.folder}
+                searchQuery={showFileSearch ? fileSearchQuery : ""}
+                activeFilePath={editor.snapshot.filePath}
+                onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
+                onOpenFile={(filePath) => void editor.openDocumentFromTree(filePath)}
+                onOpenAsset={(node) => editor.openAssetFromTree(node)}
+                onCreateTreeItem={(parentPath, kind, name) => void editor.createTreeItem(parentPath, kind, name)}
+                onRenameTreeItem={(node, name) => void editor.renameTreeItem(node, name)}
+                onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
+                onContextMenuError={editor.showFileActionError}
+              />
+            ) : (
+              <OutlinePanel
+                outline={editor.outline}
+                activeId={editor.activeOutlineId}
+                onJump={editor.jumpToTocItem}
+              />
+            )}
+          </div>
+          <DocumentBar
+            hasActiveDocument={editor.hasActiveDocument}
+            mode={editor.snapshot.mode}
+            onChangeMode={(mode) => {
+              if (mode !== editor.snapshot.mode) {
+                void editor.dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
+              }
+            }}
+            onOpenSettings={() => void editor.dispatchCommand("settings.open")}
+          />
+          <SidebarResizeHandle
+            onResize={(width) => setSidebarWidth(clampSidebarWidth(width))}
+            onCollapse={() => editor.setIsSidebarVisible(false)}
+          />
+        </aside>
+        <section
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
+          aria-label="Markdown 编辑器"
+        >
+          {!editor.isSidebarVisible ? (
+            <button
+              type="button"
+              className="absolute left-2 top-2 z-[15] grid size-[30px] place-items-center rounded-[5px] border-0 bg-[var(--theme-chrome)] text-[var(--theme-control-text)] shadow-[0_1px_6px_rgba(0,0,0,0.08)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
+              aria-label="显示侧栏"
+              title="显示侧栏"
+              onClick={() => editor.setIsSidebarVisible(true)}
+            >
+              <Bars3BottomLeftIcon aria-hidden="true" />
+            </button>
+          ) : null}
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            <EditorToast toast={editor.toast} />
+            {!editor.hasActiveDocument && !editor.openedAsset ? (
+              <WelcomeState
+                recentFiles={editor.getRecentFiles()}
+                onNewDocument={() => void editor.dispatchCommand("file.new")}
+                onOpenDocument={() => void editor.dispatchCommand("file.open")}
+                onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
+                onOpenRecent={(path) => void editor.openRecentFile(path)}
+              />
+            ) : editor.openedAsset ? (
+              <AssetPreview
+                asset={editor.openedAsset}
+                resolveAssetSrc={editor.resolveImageSrc}
+                onBack={editor.closeAssetPreview}
+              />
+            ) : editor.snapshot.mode === "source" ? (
+              <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
+                <SourceEditor
+                  snapshot={editor.snapshot}
+                  target={editor.tocTarget}
+                  onChange={editor.commitMarkdown}
+                  onVisibleLineChange={editor.updateActiveOutlineForLine}
+                />
+              </Suspense>
+            ) : (
+              <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
+                <MilkdownEditor
+                  key={editor.documentKey}
+                  snapshot={editor.snapshot}
+                  outline={editor.outline}
+                  target={editor.tocTarget}
+                  insertRequest={editor.mdxInsertRequest}
+                  aiSuggestionRequest={editor.aiSuggestionRequest}
+                  isAiSuggestionPending={editor.isAiSuggestionPending}
+                  aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
+                  onInsertRequestHandled={editor.clearMdxInsertRequest}
+                  onAiSuggestionRequest={editor.requestAiSuggestion}
+                  onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
+                  onAiSuggestionError={editor.handleAiSuggestionError}
+                  onChange={editor.commitMarkdown}
+                  onOpenLink={editor.openWysiwygLink}
+                  onActiveOutlineChange={editor.setActiveOutlineId}
+                  resolveImageSrc={editor.resolveImageSrc}
+                />
+              </Suspense>
+            )}
+            {editor.pendingAction ? (
+              <EditorLoadingState
+                title={GLOBAL_LOADING_TITLE}
+                description={pendingActionDescription}
+                ariaLabel={editor.pendingAction}
+                isOverlay
+              />
+            ) : null}
+          </div>
+        </section>
+      </div>
       <ConfirmActionDialog
         confirmation={editor.confirmation}
         onResolve={editor.resolveConfirmation}
@@ -278,6 +296,48 @@ export function App() {
       ) : null}
     </main>
   );
+}
+
+function AppTitleBar({
+  title,
+  isDirty = false,
+  isVisible
+}: {
+  readonly title: string;
+  readonly isDirty?: boolean;
+  readonly isVisible: boolean;
+}) {
+  if (!isVisible) {
+    return null;
+  }
+
+  return (
+    <div
+      data-tauri-drag-region
+      className="flex h-[34px] shrink-0 select-none items-center border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] pl-[76px] pr-4 text-[13px] text-[var(--theme-muted)]"
+      onMouseDown={startTitleBarDrag}
+    >
+      <span
+        data-tauri-drag-region
+        className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium leading-none"
+      >
+        {title}
+        {isDirty ? "*" : ""}
+      </span>
+    </div>
+  );
+}
+
+function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
+  if (event.button !== 0 || event.detail !== 1 || !isTauri()) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  void getCurrentWindow().startDragging().catch((error: unknown) => {
+    console.warn("窗口拖拽启动失败", error);
+  });
 }
 
 function EditorToast({
@@ -421,4 +481,8 @@ function countMatchedFiles(root: MarkdownFileTreeNode | null, query: string): nu
 
 function normalizeSearchQuery(query: string): string {
   return query.trim().toLowerCase();
+}
+
+function isMacPlatform(): boolean {
+  return navigator.platform.toLowerCase().includes("mac");
 }

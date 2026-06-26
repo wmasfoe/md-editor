@@ -16,7 +16,16 @@ describe("code block highlighting", () => {
         expect.objectContaining({ from: 34, to: 38 })
       ])
     );
-    expect(tokens.every((token) => token.from >= 0 && token.to <= code.length && token.color)).toBe(true);
+    expect(tokens.every((token) => token.from >= 0 && token.to <= code.length && token.kind)).toBe(true);
+    expect(tokens).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 0, to: 5, kind: "keyword" }),
+        expect.objectContaining({ from: 15, to: 17, kind: "number" }),
+        expect.objectContaining({ from: 19, to: 26, kind: "comment" }),
+        expect.objectContaining({ from: 27, to: 33, kind: "keyword" }),
+        expect.objectContaining({ from: 34, to: 38, kind: "string" })
+      ])
+    );
   });
 
   it("normalizes common fenced language aliases to Shiki languages", () => {
