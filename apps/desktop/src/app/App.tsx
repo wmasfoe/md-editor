@@ -15,7 +15,7 @@ import {
 } from "@md-editor/editor-ui";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { MdxComponentMenu } from "../components/MdxComponentMenu";
-import { SettingsDialog } from "../components/SettingsDialog";
+import { SettingsPage } from "../components/SettingsDialog";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
@@ -43,6 +43,33 @@ export function App() {
   const sidebarTitle = editor.sidebarMode === "files" ? "文件" : "大纲";
   const showFileSearch = editor.sidebarMode === "files" && isFileSearchOpen;
   const pendingActionDescription = getLoadingDescription(editor.pendingAction);
+
+  if (editor.isSettingsOpen) {
+    return (
+      <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
+        <SettingsPage
+          settings={editor.settings}
+          updateStatus={editor.updateStatus}
+          shortcutDrafts={editor.shortcutDrafts}
+          assetsDirectoryDraft={editor.assetsDirectoryDraft}
+          aiSettingsDraft={editor.aiSettingsDraft}
+          isLocalModelActionPending={editor.isLocalModelActionPending}
+          errorMessage={editor.settingsErrorMessage}
+          isSaving={editor.isSavingSettings}
+          isCheckingForUpdates={editor.updateStatus.state === "checking"}
+          onCaptureShortcut={editor.captureShortcutDraft}
+          onResetShortcut={editor.resetShortcutDraft}
+          onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
+          onChangeAiSettings={editor.setAiSettingsDraft}
+          onDownloadLocalModel={editor.downloadLocalModel}
+          onDeleteLocalModel={editor.deleteLocalModel}
+          onSave={() => void editor.saveSettings()}
+          onClose={editor.closeSettings}
+          onCheckForUpdates={() => void editor.runUpdateCheck()}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 overflow-hidden bg-[var(--theme-bg)]">
@@ -247,28 +274,6 @@ export function App() {
           plugins={editor.mdxComponentPlugins}
           onInsert={editor.insertMdxComponent}
           onClose={editor.closeMdxComponentMenu}
-        />
-      ) : null}
-      {editor.isSettingsOpen ? (
-        <SettingsDialog
-          settings={editor.settings}
-          updateStatus={editor.updateStatus}
-          shortcutDrafts={editor.shortcutDrafts}
-          assetsDirectoryDraft={editor.assetsDirectoryDraft}
-          aiSettingsDraft={editor.aiSettingsDraft}
-          isLocalModelActionPending={editor.isLocalModelActionPending}
-          errorMessage={editor.settingsErrorMessage}
-          isSaving={editor.isSavingSettings}
-          isCheckingForUpdates={editor.updateStatus.state === "checking"}
-          onCaptureShortcut={editor.captureShortcutDraft}
-          onResetShortcut={editor.resetShortcutDraft}
-          onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
-          onChangeAiSettings={editor.setAiSettingsDraft}
-          onDownloadLocalModel={editor.downloadLocalModel}
-          onDeleteLocalModel={editor.deleteLocalModel}
-          onSave={() => void editor.saveSettings()}
-          onClose={editor.closeSettings}
-          onCheckForUpdates={() => void editor.runUpdateCheck()}
         />
       ) : null}
     </main>
