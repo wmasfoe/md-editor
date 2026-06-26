@@ -44,6 +44,10 @@ export function bindRuntimeKeyboardShortcuts(
   const shortcuts = createRuntimeKeyboardShortcuts(dispatchCommand, settings);
 
   const listener = (event: KeyboardEvent) => {
+    if (isSettingsShortcutCaptureTarget(event.target)) {
+      return;
+    }
+
     const shortcut = shortcuts.find((candidate) => candidate.matches(event));
     if (!shortcut) {
       return;
@@ -55,6 +59,10 @@ export function bindRuntimeKeyboardShortcuts(
 
   window.addEventListener("keydown", listener, { capture: true });
   return () => window.removeEventListener("keydown", listener, { capture: true });
+}
+
+function isSettingsShortcutCaptureTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest('[data-settings-shortcut-input="true"]'));
 }
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {
