@@ -19,6 +19,7 @@ const LOCAL_AI_HOST: &str = "127.0.0.1";
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(250);
+const LOCAL_AI_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone, Default)]
 pub(crate) struct LocalAiRuntimeState {
@@ -45,6 +46,7 @@ struct LocalAiRuntimeProcess {
     child: Child,
     model_id: String,
     port: u16,
+    last_used_at: Instant,
 }
 
 impl LocalAiRuntimeManager {
@@ -57,6 +59,7 @@ impl LocalAiRuntimeManager {
             return Ok(endpoint);
         }
 
+        self.stop_runtime_if_idle(LOCAL_AI_IDLE_TIMEOUT);
         self.stop_runtime();
 
         let port = pick_available_localhost_port()?;
@@ -87,6 +90,7 @@ impl LocalAiRuntimeManager {
             child,
             model_id: model.model_id.clone(),
             port,
+            last_used_at: Instant::now(),
         });
 
         Ok(LocalAiRuntimeEndpoint { port })
@@ -96,6 +100,14 @@ impl LocalAiRuntimeManager {
         &mut self,
         model: &LocalAiModelFile,
     ) -> Result<Option<LocalAiRuntimeEndpoint>, String> {
+        if self.process.as_ref().is_some_and(|process| {
+            process.model_id == model.model_id
+                && process.last_used_at.elapsed() >= LOCAL_AI_IDLE_TIMEOUT
+        }) {
+            self.stop_runtime();
+            return Ok(None);
+        }
+
         let Some(process) = self.process.as_mut() else {
             return Ok(None);
         };
@@ -107,6 +119,7 @@ impl LocalAiRuntimeManager {
         match process.child.try_wait() {
             Ok(None) => {
                 if health_check(process.port).is_ok() {
+                    process.last_used_at = Instant::now();
                     Ok(Some(LocalAiRuntimeEndpoint { port: process.port }))
                 } else {
                     Ok(None)
@@ -124,6 +137,21 @@ impl LocalAiRuntimeManager {
 
         let _ = process.child.kill();
         let _ = process.child.wait();
+    }
+
+    pub(crate) fn mark_used(&mut self) {
+        if let Some(process) = self.process.as_mut() {
+            process.last_used_at = Instant::now();
+        }
+    }
+
+    fn stop_runtime_if_idle(&mut self, max_idle: Duration) {
+        let Some(process) = self.process.as_ref() else {
+            return;
+        };
+        if process.last_used_at.elapsed() >= max_idle {
+            self.stop_runtime();
+        }
     }
 }
 
@@ -162,6 +190,15 @@ pub(crate) fn post_chat_completion(
     let response =
         send_localhost_http_request("POST", "/v1/chat/completions", port, Some(&body), timeout)?;
     Ok(response.body)
+}
+
+pub(crate) fn schedule_idle_shutdown(manager: Arc<Mutex<LocalAiRuntimeManager>>) {
+    thread::spawn(move || {
+        thread::sleep(LOCAL_AI_IDLE_TIMEOUT);
+        if let Ok(mut manager) = manager.lock() {
+            manager.stop_runtime_if_idle(LOCAL_AI_IDLE_TIMEOUT);
+        }
+    });
 }
 
 fn health_check(port: u16) -> Result<(), String> {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AiSettings } from "@md-editor/editor-core";
 import {
+  cancelLocalAiModelDownload,
   deleteLocalAiModel,
   downloadLocalAiModel,
   listenToLocalAiModelProgress,
@@ -19,10 +20,14 @@ import {
   saveAppSettings,
   validateAssetsDirectory,
   type AppSettings,
+  type AppThemeSettings,
   type ShortcutSetting,
   type UpdateStatus
 } from "../settings/app-settings";
+import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
 import { formatActionError } from "./controller-errors";
+
+const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
 
 interface UseSettingsControllerOptions {
   readonly showToast: (message: string | null) => void;
@@ -35,6 +40,7 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     createShortcutDrafts(createDefaultSettings().shortcuts)
   );
   const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
+  const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(createDefaultSettings().theme);
   const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -49,6 +55,7 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     // 设置弹窗编辑的是草稿；保存或取消时必须和权威 settings 重新对齐。
     setShortcutDrafts(createShortcutDrafts(nextSettings.shortcuts));
     setAssetsDirectoryDraft(nextSettings.assetsDirectory);
+    setThemeDraft(nextSettings.theme);
     setAiSettingsDraft(nextSettings.ai);
   }, []);
 
@@ -123,6 +130,7 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
       const saved = await saveAppSettings({
         shortcuts: normalizedShortcuts,
         assetsDirectory: nextAssetsDirectory,
+        theme: themeDraft,
         ai: normalizeAiSettings(aiSettingsDraft)
       });
       setSettings(saved);
@@ -133,20 +141,65 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     } finally {
       setIsSavingSettings(false);
     }
-  }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts]);
+  }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts, themeDraft]);
+
+  const chooseThemeCss = useCallback(async (scheme: "light" | "dark") => {
+    setSettingsErrorMessage(null);
+    try {
+      const file = await pickThemeCssFile();
+      if (!file) {
+        return;
+      }
+      rememberThemeCssFile(file);
+      setThemeDraft((current) => scheme === "dark"
+        ? { ...current, dark: { ...current.dark, source: "custom", customCssPath: file.path } }
+        : { ...current, light: { ...current.light, source: "custom", customCssPath: file.path } });
+    } catch (error) {
+      setSettingsErrorMessage(error instanceof Error ? error.message : "主题 CSS 选择失败。");
+    }
+  }, []);
+
+  const clearThemeCss = useCallback((scheme: "light" | "dark") => {
+    setThemeDraft((current) => scheme === "dark"
+      ? { ...current, dark: { ...current.dark, source: "builtin", customCssPath: null } }
+      : { ...current, light: { ...current.light, source: "builtin", customCssPath: null } });
+  }, []);
 
   const downloadLocalModel = useCallback(async () => {
-    setIsLocalModelActionPending(true);
     setSettingsErrorMessage(null);
+    applyLocalModelStatus({
+      ...settings.ai.localModel,
+      displayName: "md-editor Writer Small",
+      path: null,
+      status: "downloading",
+      downloadedBytes: 0,
+      error: null
+    });
     try {
       const status = await downloadLocalAiModel(settings.ai.localModel.modelId);
       applyLocalModelStatus(status);
     } catch (error) {
+      if (isLocalModelDownloadCancel(error)) {
+        setSettingsErrorMessage(null);
+        return;
+      }
       setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
+    }
+  }, [applyLocalModelStatus, settings.ai.localModel]);
+
+  const cancelLocalModelDownload = useCallback(async () => {
+    setIsLocalModelActionPending(true);
+    setSettingsErrorMessage(null);
+    try {
+      const status = await cancelLocalAiModelDownload(settings.ai.localModel.modelId);
+      applyLocalModelStatus(status);
+      showToast(LOCAL_MODEL_CANCEL_MESSAGE);
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "取消本地模型下载失败。"));
     } finally {
       setIsLocalModelActionPending(false);
     }
-  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
+  }, [applyLocalModelStatus, settings.ai.localModel.modelId, showToast]);
 
   const deleteLocalModel = useCallback(async () => {
     setIsLocalModelActionPending(true);
@@ -214,31 +267,43 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     return listenToLocalAiModelProgress((status) => {
       applyLocalModelStatus(status);
       if (status.status === "failed") {
-        setSettingsErrorMessage(status.error ?? "本地模型状态更新失败。");
+        setSettingsErrorMessage(
+          status.error === LOCAL_MODEL_CANCEL_MESSAGE ? null : status.error ?? "本地模型状态更新失败。"
+        );
       } else {
         setSettingsErrorMessage(null);
       }
     });
   }, [applyLocalModelStatus]);
 
+  useEffect(
+    () => applyCustomThemeCss(isSettingsOpen ? themeDraft : settings.theme),
+    [isSettingsOpen, settings.theme, themeDraft]
+  );
+
   return {
     settings,
     isSettingsOpen,
     shortcutDrafts,
     assetsDirectoryDraft,
+    themeDraft,
     aiSettingsDraft,
     isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
     updateStatus,
     setAssetsDirectoryDraft,
+    setThemeDraft,
     setAiSettingsDraft,
+    chooseThemeCss,
+    clearThemeCss,
     openSettings,
     closeSettings,
     captureShortcutDraft,
     resetShortcutDraft,
     saveSettings,
     downloadLocalModel,
+    cancelLocalModelDownload,
     deleteLocalModel,
     runUpdateCheck
   };
@@ -261,4 +326,10 @@ function findDuplicateShortcut(shortcuts: readonly string[]): string | null {
   }
 
   return null;
+}
+
+function isLocalModelDownloadCancel(error: unknown): boolean {
+  return error instanceof Error
+    ? error.message.includes(LOCAL_MODEL_CANCEL_MESSAGE)
+    : String(error).includes(LOCAL_MODEL_CANCEL_MESSAGE);
 }

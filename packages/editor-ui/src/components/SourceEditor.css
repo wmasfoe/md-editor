@@ -12,6 +12,10 @@
   font-size: 14px;
 }
 
+.source-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
 .source-editor .cm-scroller {
   font-family: var(--theme-mono-font);
   line-height: 1.55;
@@ -27,12 +31,53 @@
 .source-editor .cm-gutters {
   border-right: 0;
   background: var(--theme-surface);
-  color: #999999;
+  color: var(--theme-code-gutter-text);
+}
+
+.source-editor .cm-gutterElement {
+  color: var(--theme-code-gutter-text);
+}
+
+.source-editor .cm-cursor {
+  border-left-color: var(--theme-primary);
 }
 
 .source-editor .cm-activeLine,
 .source-editor .cm-activeLineGutter {
   background: var(--theme-primary-soft);
+}
+
+.source-editor .cm-activeLineGutter {
+  color: var(--theme-title);
+}
+
+.source-editor .cm-selectionBackground,
+.source-editor .cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--theme-primary-selected) 70%, transparent);
+}
+
+.source-editor .cm-line ::selection,
+.source-editor .cm-content ::selection {
+  background: color-mix(in srgb, var(--theme-primary-selected) 70%, transparent);
+}
+
+.source-editor .cm-matchingBracket {
+  outline: 1px solid var(--theme-primary);
+  background: var(--theme-primary-soft);
+  color: var(--theme-title);
+}
+
+.source-editor .cm-nonmatchingBracket {
+  outline: 1px solid var(--theme-danger-text);
+  background: var(--theme-danger-bg);
+  color: var(--theme-danger-text);
+}
+
+.source-editor .cm-foldPlaceholder {
+  border: 1px solid var(--theme-border-strong);
+  border-radius: 4px;
+  background: var(--theme-code-bg);
+  color: var(--theme-muted);
 }
 
 .source-editor .cm-panels {
@@ -126,6 +171,22 @@
 .source-editor .cm-searchMatch-selected {
   outline: 1px solid var(--theme-primary);
   background: var(--theme-primary-selected);
+}
+
+.source-editor .cm-tooltip {
+  border: 1px solid var(--theme-border-strong);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  box-shadow: var(--theme-shadow);
+}
+
+.source-editor .cm-tooltip-autocomplete ul li[aria-selected] {
+  background: var(--theme-primary-soft);
+  color: var(--theme-title);
+}
+
+.source-editor .cm-diagnostic {
+  border-left-color: var(--theme-danger-text);
 }
 
 @media (max-width: 760px) {

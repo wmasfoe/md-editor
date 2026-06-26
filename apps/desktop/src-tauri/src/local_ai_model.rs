@@ -12,6 +12,9 @@ use crate::settings;
 
 const LOCAL_AI_MODEL_PROGRESS_EVENT: &str = "local-ai-model-progress";
 const DEFAULT_MODEL_ID: &str = "md-editor-writer-small-v1";
+const DOWNLOAD_TEMP_FILE_NAME: &str = "download.tmp";
+const DOWNLOAD_CANCEL_FILE_NAME: &str = "download.cancel";
+const LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE: &str = "本地模型下载已取消。";
 
 #[derive(Clone, Copy)]
 struct LocalAiModelManifest {
@@ -94,19 +97,51 @@ pub(crate) async fn download_local_ai_model(
     let manifest = resolve_manifest(model_id.as_deref())?;
     let result = download_model(&app, manifest).await;
     if let Err(error) = &result {
-        emit_status(
-            &app,
-            build_status(
-                manifest,
-                "failed",
-                0,
-                manifest.size_bytes,
-                None,
-                Some(error.clone()),
-            ),
-        );
+        if error != LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE {
+            emit_status(
+                &app,
+                build_status(
+                    manifest,
+                    "failed",
+                    0,
+                    manifest.size_bytes,
+                    None,
+                    Some(error.clone()),
+                ),
+            );
+        }
     }
     result
+}
+
+#[tauri::command]
+pub(crate) fn cancel_local_ai_model_download(
+    app: AppHandle,
+    model_id: Option<String>,
+) -> Result<LocalAiModelStatus, String> {
+    let manifest = resolve_manifest(model_id.as_deref())?;
+    let directory = model_directory(manifest)?;
+    fs::create_dir_all(&directory).map_err(|error| {
+        format!(
+            "Failed to create local AI model directory {}: {error}",
+            directory.display()
+        )
+    })?;
+    fs::write(directory.join(DOWNLOAD_CANCEL_FILE_NAME), b"cancel")
+        .map_err(|error| format!("取消本地模型下载失败：{error}"))?;
+
+    let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
+    let downloaded_bytes = temp_path.metadata().map(|meta| meta.len()).unwrap_or(0);
+    let status = build_status(
+        manifest,
+        "not-downloaded",
+        downloaded_bytes,
+        manifest.size_bytes,
+        None,
+        Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+    );
+    emit_status(&app, status.clone());
+    Ok(status)
 }
 
 #[tauri::command]
@@ -182,7 +217,9 @@ fn download_model_blocking(
         )
     })?;
 
-    let temp_path = directory.join("download.tmp");
+    let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
+    let cancel_path = directory.join(DOWNLOAD_CANCEL_FILE_NAME);
+    let _ = fs::remove_file(&cancel_path);
     let model_path = model_file_path(manifest)?;
     let mut output = fs::File::create(&temp_path).map_err(|error| {
         format!(
@@ -217,6 +254,25 @@ fn download_model_blocking(
 
     let mut buffer = [0_u8; 64 * 1024];
     loop {
+        if cancel_path.exists() {
+            let _ = curl.kill();
+            let _ = curl.wait();
+            let _ = fs::remove_file(&temp_path);
+            let _ = fs::remove_file(&cancel_path);
+            emit_status(
+                app,
+                build_status(
+                    manifest,
+                    "not-downloaded",
+                    downloaded_bytes,
+                    total_bytes,
+                    None,
+                    Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+                ),
+            );
+            return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+        }
+
         let read = stdout
             .read(&mut buffer)
             .map_err(|error| format!("读取本地模型下载流失败：{error}"))?;
@@ -245,6 +301,25 @@ fn download_model_blocking(
         .map_err(|error| format!("保存本地模型失败：{error}"))?;
     drop(output);
 
+    if cancel_path.exists() {
+        let _ = curl.kill();
+        let _ = curl.wait();
+        let _ = fs::remove_file(&temp_path);
+        let _ = fs::remove_file(&cancel_path);
+        emit_status(
+            app,
+            build_status(
+                manifest,
+                "not-downloaded",
+                downloaded_bytes,
+                total_bytes,
+                None,
+                Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+            ),
+        );
+        return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+    }
+
     let status = curl
         .wait()
         .map_err(|error| format!("等待本地模型下载完成时失败：{error}"))?;
@@ -254,6 +329,7 @@ fn download_model_blocking(
     }
     if !status.success() {
         let _ = fs::remove_file(&temp_path);
+        let _ = fs::remove_file(&cancel_path);
         let message = stderr_output.trim();
         return Err(if message.is_empty() {
             "本地模型下载失败。".to_string()
@@ -273,9 +349,26 @@ fn download_model_blocking(
             None,
         ),
     );
+    if cancel_path.exists() {
+        let _ = fs::remove_file(&temp_path);
+        let _ = fs::remove_file(&cancel_path);
+        emit_status(
+            app,
+            build_status(
+                manifest,
+                "not-downloaded",
+                downloaded_bytes,
+                total_bytes,
+                None,
+                Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
+            ),
+        );
+        return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+    }
     let actual_sha256 = compute_sha256_hex(&temp_path)?;
     if actual_sha256 != manifest.sha256.to_ascii_lowercase() {
         let _ = fs::remove_file(&temp_path);
+        let _ = fs::remove_file(&cancel_path);
         return Err("本地模型校验失败，已删除未通过校验的下载文件。".to_string());
     }
 
@@ -295,6 +388,7 @@ fn download_model_blocking(
         )
     })?;
     write_model_metadata(manifest)?;
+    let _ = fs::remove_file(&cancel_path);
 
     let status = read_model_status(manifest);
     emit_status(app, status.clone());
@@ -396,7 +490,7 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
     };
     let temp_path = model_path
         .parent()
-        .map(|directory| directory.join("download.tmp"));
+        .map(|directory| directory.join(DOWNLOAD_TEMP_FILE_NAME));
 
     if model_path.exists() {
         let downloaded_bytes = model_path.metadata().map(|meta| meta.len()).unwrap_or(0);

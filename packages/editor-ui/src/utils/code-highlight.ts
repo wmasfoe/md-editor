@@ -16,9 +16,18 @@ export const codeHighlightTheme = "github-light" satisfies BundledTheme;
 export interface CodeHighlightToken {
   readonly from: number;
   readonly to: number;
-  readonly color: string;
+  readonly kind: CodeHighlightTokenKind;
   readonly fontStyle?: number;
 }
+
+export type CodeHighlightTokenKind =
+  | "attribute"
+  | "comment"
+  | "keyword"
+  | "number"
+  | "string"
+  | "tag"
+  | "variable";
 
 const languageAliases: Readonly<Record<string, BundledLanguage>> = {
   bash: "bash",
@@ -147,8 +156,7 @@ function buildCodeDecorations(doc: ProseMirrorNode): DecorationSet {
     for (const token of tokens) {
       decorations.push(
         Decoration.inline(codeStart + token.from, codeStart + token.to, {
-          class: "md-code-token md-code-token-shiki",
-          style: createTokenStyle(token)
+          class: createTokenClassName(token)
         })
       );
     }
@@ -231,10 +239,14 @@ async function highlightWithShiki(
       if (!token.color || token.content.length === 0) {
         continue;
       }
+      const kind = classifyToken(token.color, token.content);
+      if (!kind) {
+        continue;
+      }
       tokens.push({
         from: token.offset,
         to: token.offset + token.content.length,
-        color: token.color,
+        kind,
         fontStyle: token.fontStyle
       });
     }
@@ -286,19 +298,45 @@ function createCacheKey(code: string, language: BundledLanguage): string {
   return `${codeHighlightTheme}\u0000${language}\u0000${code}`;
 }
 
-function createTokenStyle(token: CodeHighlightToken): string {
-  const styles = [`color: ${token.color}`];
+function classifyToken(color: string, content: string): CodeHighlightTokenKind | null {
+  const normalizedColor = color.toLowerCase();
+  const trimmed = content.trim();
+
+  switch (normalizedColor) {
+    case "#24292e":
+      return null;
+    case "#d73a49":
+      return "keyword";
+    case "#032f62":
+      return "string";
+    case "#6a737d":
+      return "comment";
+    case "#b31d28":
+      return "tag";
+    case "#6f42c1":
+      return "attribute";
+    case "#005cc5":
+      return /^(?:0x[\da-f]+|\d|true\b|false\b|null\b)/iu.test(trimmed)
+        ? "number"
+        : "variable";
+    default:
+      return "variable";
+  }
+}
+
+function createTokenClassName(token: CodeHighlightToken): string {
+  const classNames = ["md-code-token", `md-code-token-${token.kind}`];
   if (token.fontStyle && (token.fontStyle & 1) !== 0) {
-    styles.push("font-style: italic");
+    classNames.push("md-code-token-italic");
   }
   if (token.fontStyle && (token.fontStyle & 2) !== 0) {
-    styles.push("font-weight: 650");
+    classNames.push("md-code-token-bold");
   }
   if (token.fontStyle && (token.fontStyle & 4) !== 0) {
-    styles.push("text-decoration: underline");
+    classNames.push("md-code-token-underline");
   }
 
-  return styles.join("; ");
+  return classNames.join(" ");
 }
 
 export function createCodeHighlightRefreshTransaction(state: EditorState): Transaction {

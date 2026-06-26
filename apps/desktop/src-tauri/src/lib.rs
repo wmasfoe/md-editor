@@ -80,6 +80,13 @@ struct UpdateStatus {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct ThemeCssFile {
+    path: String,
+    css: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LinkedFileTarget {
     path: String,
     kind: LinkedFileKind,
@@ -153,6 +160,8 @@ pub fn run() {
             save_pasted_image,
             save_recent_files,
             update_recent_files_menu,
+            pick_theme_css_file,
+            read_theme_css_file,
             show_file_tree_context_menu,
             copy_file_tree_path,
             reveal_file_tree_item_in_finder,
@@ -160,6 +169,7 @@ pub fn run() {
             load_app_settings,
             get_local_ai_model_status,
             download_local_ai_model,
+            cancel_local_ai_model_download,
             delete_local_ai_model,
             request_local_ai_continuation,
             save_app_settings_and_update_menu,
@@ -172,7 +182,10 @@ pub fn run() {
 }
 
 use local_ai_completion::request_local_ai_continuation;
-use local_ai_model::{delete_local_ai_model, download_local_ai_model, get_local_ai_model_status};
+use local_ai_model::{
+    cancel_local_ai_model_download, delete_local_ai_model, download_local_ai_model,
+    get_local_ai_model_status,
+};
 
 fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
@@ -334,6 +347,44 @@ async fn open_markdown_document(
         file_path: path_to_string(&path),
         markdown,
     }))
+}
+
+#[tauri::command]
+async fn pick_theme_css_file(app: tauri::AppHandle) -> Result<Option<ThemeCssFile>, String> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("Choose Theme CSS")
+        .add_filter("CSS", &["css"])
+        .blocking_pick_file();
+
+    let Some(file_path) = selected else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Selected CSS path is not readable: {error}"))?;
+    read_theme_css_path(path).map(Some)
+}
+
+#[tauri::command]
+fn read_theme_css_file(path: String) -> Result<ThemeCssFile, String> {
+    read_theme_css_path(canonicalize_existing_path(&path, "theme CSS")?)
+}
+
+fn read_theme_css_path(path: PathBuf) -> Result<ThemeCssFile, String> {
+    if !is_css_path(&path) {
+        return Err("主题文件必须使用 .css 扩展名。".to_string());
+    }
+
+    let css = fs::read_to_string(&path)
+        .map_err(|error| format!("Failed to read theme CSS {}: {error}", path.display()))?;
+
+    Ok(ThemeCssFile {
+        path: path_to_string(&path),
+        css,
+    })
 }
 
 #[tauri::command]
@@ -1142,6 +1193,16 @@ fn is_markdown_path(path: &Path) -> bool {
             .map(|extension| extension.to_ascii_lowercase())
             .as_deref(),
         Some("md" | "mdx" | "markdown")
+    )
+}
+
+fn is_css_path(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(|extension| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("css")
     )
 }
 

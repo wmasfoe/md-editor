@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -6,7 +6,7 @@ use tauri::{AppHandle, State};
 
 use crate::{
     local_ai_model::get_available_local_ai_model,
-    local_ai_runtime::{post_chat_completion, LocalAiRuntimeState},
+    local_ai_runtime::{post_chat_completion, schedule_idle_shutdown, LocalAiRuntimeState},
 };
 
 #[derive(Deserialize)]
@@ -45,11 +45,16 @@ pub(crate) async fn request_local_ai_continuation(
     let model_for_runtime = model.clone();
 
     let response_body = tauri::async_runtime::spawn_blocking(move || {
+        let idle_manager = Arc::clone(&runtime_manager);
         let mut runtime = runtime_manager
             .lock()
             .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
         let endpoint = runtime.ensure_ready(&app_handle, &model_for_runtime)?;
-        post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
+        let response = post_chat_completion(endpoint.port, &request, Duration::from_secs(120));
+        runtime.mark_used();
+        drop(runtime);
+        schedule_idle_shutdown(idle_manager);
+        response
     })
     .await
     .map_err(|error| format!("本地推理 runtime 任务失败：{error}"))??;
