@@ -24,7 +24,7 @@ export function DocumentBar({
 
   return (
     <header
-      className="flex min-h-[42px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-chrome-soft)] px-2 py-1.5 text-[var(--theme-control-text)]"
+      className="flex min-h-[42px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5 text-[var(--theme-control-text)]"
       aria-label="编辑视图控制"
     >
       <div className={controlsClassName}>
