@@ -7,7 +7,7 @@
   --theme-bg: #ffffff;
   --theme-bg-muted: #f4f4f4;
   --theme-chrome: #fafafa;
-  --theme-chrome-soft: color-mix(in oklab, var(--theme-chrome) 82%, var(--theme-surface));
+  --theme-chrome-soft: var(--theme-surface);
   --theme-surface: #ffffff;
   --theme-text: #333333;
   --theme-muted: #777777;

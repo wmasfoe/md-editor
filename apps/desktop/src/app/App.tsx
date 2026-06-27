@@ -102,7 +102,7 @@ export function App() {
           className={cx(
             "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r-0 border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-150 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
             editor.isSidebarVisible &&
-              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] border-r opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
+              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
           )}
           style={{ "--app-sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
           aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
@@ -205,6 +205,12 @@ export function App() {
             }}
             onOpenSettings={() => void editor.dispatchCommand("settings.open")}
           />
+          {editor.isSidebarVisible ? (
+            <div
+              className="pointer-events-none absolute bottom-0 right-0 top-0 z-[1] w-px bg-[var(--theme-border)]"
+              aria-hidden="true"
+            />
+          ) : null}
           <SidebarResizeHandle
             onResize={(width) => setSidebarWidth(clampSidebarWidth(width))}
             onCollapse={() => editor.setIsSidebarVisible(false)}
@@ -382,7 +388,7 @@ function SidebarResizeHandle({
 }) {
   return (
     <div
-      className="absolute bottom-0 right-[-3px] top-0 z-[2] w-1.5 cursor-col-resize touch-none after:absolute after:bottom-0 after:right-0.5 after:top-0 after:w-px after:bg-transparent after:content-[''] hover:after:bg-[var(--theme-primary)]"
+      className="absolute bottom-0 right-[-3px] top-0 z-[2] w-1.5 cursor-col-resize touch-none after:absolute after:bottom-0 after:right-[2px] after:top-0 after:w-px after:bg-transparent after:content-[''] hover:after:bg-[var(--theme-primary)]"
       role="separator"
       aria-label="调整侧栏宽度"
       aria-orientation="vertical"

@@ -34,8 +34,8 @@ const GITHUB_LIGHT_THEME_CSS = `
   --theme-bg: #f6f8fa;
   --theme-bg-muted: #f6f8fa;
   --theme-chrome: #ffffff;
-  --theme-chrome-soft: #f6f8fa;
   --theme-surface: #ffffff;
+  --theme-chrome-soft: var(--theme-surface);
   --theme-text: #24292f;
   --theme-muted: #57606a;
   --theme-control-text: #57606a;
@@ -74,8 +74,8 @@ const GOTHIC_LIGHT_THEME_CSS = `
   --theme-bg: #fbfaf5;
   --theme-bg-muted: #f3f0e8;
   --theme-chrome: #fffdf8;
-  --theme-chrome-soft: #f6f2e9;
   --theme-surface: #fffdf8;
+  --theme-chrome-soft: var(--theme-surface);
   --theme-text: #2d2b28;
   --theme-muted: #786f64;
   --theme-control-text: #675f56;
@@ -118,8 +118,8 @@ const NIGHT_DARK_THEME_CSS = `
   --theme-bg: #0b0d10;
   --theme-bg-muted: #15181d;
   --theme-chrome: #101318;
-  --theme-chrome-soft: #151920;
   --theme-surface: #14171d;
+  --theme-chrome-soft: var(--theme-surface);
   --theme-text: #d7dae0;
   --theme-muted: #9aa3ad;
   --theme-control-text: #b5bdc7;
