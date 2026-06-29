@@ -32,6 +32,20 @@ describe("DocumentState", () => {
     });
   });
 
+  it("updates the saved baseline without discarding edits made while saving", () => {
+    const document = createDocumentState({ markdown: "One", filePath: "/tmp/post.md" });
+
+    document.updateMarkdown("Two");
+    document.updateMarkdown("Three");
+
+    expect(document.updateSavedBaseline({ markdown: "Two", filePath: "/tmp/post.md" })).toMatchObject({
+      markdown: "Three",
+      savedMarkdown: "Two",
+      filePath: "/tmp/post.md",
+      isDirty: true
+    });
+  });
+
   it("changes modes without discarding markdown", () => {
     const document = createDocumentState({ markdown: "- item" });
 

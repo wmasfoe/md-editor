@@ -103,12 +103,18 @@ export function useDocumentActionsController({
   ]);
 
   const markCurrentDocumentSaved = useCallback((document: MarkdownDocumentFile) => {
-    setSnapshot(
-      runtime.document.markSaved({
-        markdown: document.markdown,
-        filePath: document.filePath
-      })
-    );
+    const latest = runtime.document.getSnapshot();
+    const nextSnapshot = latest.markdown === document.markdown
+      ? runtime.document.markSaved({
+          markdown: document.markdown,
+          filePath: document.filePath
+        })
+      : runtime.document.updateSavedBaseline({
+          markdown: document.markdown,
+          filePath: document.filePath
+        });
+
+    setSnapshot(nextSnapshot);
     showToast(null);
     setOpenedAsset(null);
     rememberRecentDocument(document);
@@ -140,7 +146,7 @@ export function useDocumentActionsController({
             await refreshFolderForDocumentPath(saved.filePath);
           }
         }
-      });
+      }, { feedback: "quiet" });
     },
     [markCurrentDocumentSaved, refreshFolderForDocumentPath, runFileAction]
   );

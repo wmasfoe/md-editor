@@ -36,6 +36,7 @@ export interface DocumentState {
   getSnapshot(): DocumentSnapshot;
   updateMarkdown(markdown: Markdown): DocumentSnapshot;
   markSaved(input?: { readonly markdown?: Markdown; readonly filePath?: string | null }): DocumentSnapshot;
+  updateSavedBaseline(input: { readonly markdown: Markdown; readonly filePath?: string | null }): DocumentSnapshot;
   setMode(mode: EditorMode): DocumentSnapshot;
 }
 
@@ -232,6 +233,11 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     markSaved(next = {}) {
       markdown = next.markdown ?? markdown;
       savedMarkdown = markdown;
+      filePath = next.filePath === undefined ? filePath : next.filePath;
+      return snapshot();
+    },
+    updateSavedBaseline(next) {
+      savedMarkdown = next.markdown;
       filePath = next.filePath === undefined ? filePath : next.filePath;
       return snapshot();
     },
