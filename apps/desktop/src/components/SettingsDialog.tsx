@@ -405,6 +405,14 @@ export function SettingsPage({
               <div className="mb-3">
                 <h2 id="update-settings-title" className={settingsSectionTitleClassName}>版本</h2>
                 <p className={settingsDescriptionClassName}>{updateStatus.message}</p>
+                {updateStatus.state === "available" && updateStatus.installCommand ? (
+                  <div className="mt-2 grid gap-1">
+                    <span className={settingsFieldLabelClassName}>安装命令</span>
+                    <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
+                      {updateStatus.installCommand}
+                    </code>
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
                 <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>

@@ -201,6 +201,15 @@ jobs:
           CASK_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
         run: node scripts/release/write-homebrew-cask.mjs
 
+      - name: Update curl installer
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          DMG_SHA256: ${{ steps.dmg_metadata.outputs.sha256 }}
+          DMG_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
+          INSTALL_SCRIPT_OUTPUT_PATH: homebrew-tap/install-md-editor.sh
+        run: node scripts/release/write-install-script.mjs
+
       - name: Publish Homebrew tap
         if: steps.release_version.outputs.is_prerelease != 'true'
         working-directory: homebrew-tap
@@ -209,10 +218,10 @@ jobs:
             git checkout -b main
           fi
 
-          git add Casks/md-editor.rb
+          git add Casks/md-editor.rb install-md-editor.sh
 
-          if git diff --cached --quiet -- Casks/md-editor.rb; then
-            echo "Homebrew cask is already up to date."
+          if git diff --cached --quiet -- Casks/md-editor.rb install-md-editor.sh; then
+            echo "Homebrew cask and curl installer are already up to date."
             exit 0
           fi
 

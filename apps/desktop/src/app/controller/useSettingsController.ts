@@ -215,7 +215,7 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
   }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
 
   const runUpdateCheck = useCallback(async () => {
-    // 现在没有接入 Tauri updater，检查动作仍保留入口和状态，后续可直接替换实现。
+    // 这里仅检查公开发布状态，不直接下载覆盖 App；安装仍走发布页或 curl 安装脚本。
     setUpdateStatus({
       currentVersion: appVersion(),
       state: "checking",

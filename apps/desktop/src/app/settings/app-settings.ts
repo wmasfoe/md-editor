@@ -27,8 +27,12 @@ export interface AppSettings {
 
 export interface UpdateStatus {
   readonly currentVersion: string;
-  readonly state: "idle" | "checking" | "unconfigured" | "error";
+  readonly state: "idle" | "checking" | "up-to-date" | "available" | "unconfigured" | "error";
   readonly message: string;
+  readonly latestVersion?: string;
+  readonly releaseUrl?: string;
+  readonly downloadUrl?: string;
+  readonly installCommand?: string;
 }
 
 export type ThemeColorScheme = "system" | "light" | "dark";
@@ -85,6 +89,9 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
 export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
 export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
+export const UPDATE_RELEASES_API_URL = "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
+export const INSTALL_WITH_CURL_COMMAND =
+  "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
 
 const DEFAULT_AI_SETTINGS: AiSettings = {
   enabled: true,
@@ -149,24 +156,99 @@ export async function saveAppSettings(settings: AppSettings): Promise<AppSetting
   return normalized;
 }
 
-export async function checkForUpdates(currentVersion: string): Promise<UpdateStatus> {
-  if (!isTauri()) {
+export async function checkForUpdates(
+  currentVersion: string,
+  fetchReleases: typeof fetch = fetch
+): Promise<UpdateStatus> {
+  try {
+    const response = await fetchReleases(UPDATE_RELEASES_API_URL, {
+      headers: {
+        Accept: "application/vnd.github+json"
+      },
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      return {
+        currentVersion,
+        state: "error",
+        message: `检查更新失败：GitHub Release API 返回 ${response.status}。`
+      };
+    }
+
+    return createUpdateStatusFromGitHubReleases(currentVersion, await response.json());
+  } catch (error) {
     return {
       currentVersion,
-      state: "unconfigured",
-      message: "Web 预览不支持桌面端更新检查。"
+      state: "error",
+      message: error instanceof Error ? `检查更新失败：${error.message}` : "检查更新失败。"
     };
   }
-
-  return invoke<UpdateStatus>("check_for_updates").catch((error: unknown) => ({
-    currentVersion,
-    state: "error",
-    message: error instanceof Error ? error.message : "检查更新失败。"
-  }));
 }
 
 export function appVersion(): string {
   return __APP_VERSION__;
+}
+
+export function createUpdateStatusFromGitHubReleases(currentVersion: string, payload: unknown): UpdateStatus {
+  const latestRelease = findLatestMdEditorRelease(payload);
+  if (!latestRelease) {
+    return {
+      currentVersion,
+      state: "unconfigured",
+      message: "没有找到公开稳定版发布记录，请确认 Release workflow 已完成。"
+    };
+  }
+
+  const comparison = compareReleaseVersions(latestRelease.version, currentVersion);
+  if (comparison > 0) {
+    return {
+      currentVersion,
+      state: "available",
+      latestVersion: latestRelease.version,
+      releaseUrl: latestRelease.releaseUrl,
+      downloadUrl: latestRelease.downloadUrl,
+      installCommand: INSTALL_WITH_CURL_COMMAND,
+      message: `发现新版本 ${latestRelease.version}，当前版本 ${currentVersion}。`
+    };
+  }
+
+  return {
+    currentVersion,
+    state: "up-to-date",
+    latestVersion: latestRelease.version,
+    releaseUrl: latestRelease.releaseUrl,
+    downloadUrl: latestRelease.downloadUrl,
+    message: `当前版本 ${currentVersion} 已是最新发布版本。`
+  };
+}
+
+export function compareReleaseVersions(left: string, right: string): number {
+  const leftVersion = parseSemver(left);
+  const rightVersion = parseSemver(right);
+
+  if (!leftVersion || !rightVersion) {
+    const fallback = left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+    return fallback === 0 ? 0 : fallback > 0 ? 1 : -1;
+  }
+
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (leftVersion[key] !== rightVersion[key]) {
+      return leftVersion[key] > rightVersion[key] ? 1 : -1;
+    }
+  }
+
+  if (leftVersion.prerelease === rightVersion.prerelease) {
+    return 0;
+  }
+  if (!leftVersion.prerelease) {
+    return 1;
+  }
+  if (!rightVersion.prerelease) {
+    return -1;
+  }
+
+  return comparePrerelease(leftVersion.prerelease, rightVersion.prerelease);
 }
 
 export function normalizeAiSettings(input: Partial<AiSettings> | null | undefined): AiSettings {
@@ -296,6 +378,135 @@ export function validateAssetsDirectory(input: string): string | null {
   }
 
   return value;
+}
+
+interface PublishedRelease {
+  readonly version: string;
+  readonly releaseUrl?: string;
+  readonly downloadUrl?: string;
+}
+
+interface SemverParts {
+  readonly major: number;
+  readonly minor: number;
+  readonly patch: number;
+  readonly prerelease: string | null;
+}
+
+function findLatestMdEditorRelease(payload: unknown): PublishedRelease | null {
+  const releases = Array.isArray(payload) ? payload : [payload];
+
+  for (const release of releases) {
+    if (!isRecord(release) || release.draft === true || release.prerelease === true) {
+      continue;
+    }
+
+    const version = parsePublishedVersionTag(readString(release.tag_name));
+    if (!version) {
+      continue;
+    }
+
+    return {
+      version,
+      releaseUrl: readString(release.html_url) ?? undefined,
+      downloadUrl: readDmgDownloadUrl(release.assets)
+    };
+  }
+
+  return null;
+}
+
+function parsePublishedVersionTag(tagName: string | null): string | null {
+  const value = tagName?.trim();
+  if (!value) {
+    return null;
+  }
+
+  const tapReleaseMatch = value.match(/^md-editor-v(.+)$/u);
+  if (tapReleaseMatch) {
+    return tapReleaseMatch[1] ?? null;
+  }
+
+  const sourceReleaseMatch = value.match(/^v(.+)$/u);
+  return sourceReleaseMatch?.[1] ?? null;
+}
+
+function readDmgDownloadUrl(input: unknown): string | undefined {
+  if (!Array.isArray(input)) {
+    return undefined;
+  }
+
+  for (const asset of input) {
+    if (!isRecord(asset)) {
+      continue;
+    }
+    const name = readString(asset.name);
+    const downloadUrl = readString(asset.browser_download_url);
+    if (name?.toLowerCase().endsWith(".dmg") && downloadUrl) {
+      return downloadUrl;
+    }
+  }
+
+  return undefined;
+}
+
+function readString(input: unknown): string | null {
+  return typeof input === "string" && input.trim() ? input.trim() : null;
+}
+
+function parseSemver(input: string): SemverParts | null {
+  const match = input
+    .trim()
+    .match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    major: Number.parseInt(match[1] ?? "0", 10),
+    minor: Number.parseInt(match[2] ?? "0", 10),
+    patch: Number.parseInt(match[3] ?? "0", 10),
+    prerelease: match[4] ?? null
+  };
+}
+
+function comparePrerelease(left: string, right: string): number {
+  const leftParts = left.split(".");
+  const rightParts = right.split(".");
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const leftPart = leftParts[index];
+    const rightPart = rightParts[index];
+    if (leftPart === rightPart) {
+      continue;
+    }
+    if (leftPart === undefined) {
+      return -1;
+    }
+    if (rightPart === undefined) {
+      return 1;
+    }
+
+    const leftNumeric = /^\d+$/u.test(leftPart);
+    const rightNumeric = /^\d+$/u.test(rightPart);
+    if (leftNumeric && rightNumeric) {
+      const leftNumber = Number.parseInt(leftPart, 10);
+      const rightNumber = Number.parseInt(rightPart, 10);
+      return leftNumber === rightNumber ? 0 : leftNumber > rightNumber ? 1 : -1;
+    }
+    if (leftNumeric !== rightNumeric) {
+      return leftNumeric ? -1 : 1;
+    }
+
+    const lexical = leftPart.localeCompare(rightPart, undefined, { numeric: true, sensitivity: "base" });
+    if (lexical !== 0) {
+      return lexical > 0 ? 1 : -1;
+    }
+  }
+
+  return 0;
 }
 
 interface PersistedSettings {
