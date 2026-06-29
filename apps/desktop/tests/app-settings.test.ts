@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  compareReleaseVersions,
+  createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
   DEFAULT_DEEPSEEK_ENDPOINT,
   DEFAULT_THEME_SETTINGS,
+  INSTALL_WITH_CURL_COMMAND,
   normalizeAiSettings,
   normalizeAppTheme,
   normalizeShortcutKey,
@@ -170,5 +173,75 @@ describe("app settings", () => {
         apiKey: "local-key"
       }
     }).openAiCompatible.baseUrl).toBe(DEFAULT_DEEPSEEK_ENDPOINT);
+  });
+
+  it("detects a newer public release from the tap release payload", () => {
+    expect(createUpdateStatusFromGitHubReleases("0.2.8", [
+      {
+        tag_name: "md-editor-v0.2.9",
+        html_url: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
+        prerelease: false,
+        draft: false,
+        assets: [
+          {
+            name: "Markdown.Editor_0.2.9_aarch64.dmg",
+            browser_download_url: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg"
+          }
+        ]
+      }
+    ])).toEqual({
+      currentVersion: "0.2.8",
+      state: "available",
+      latestVersion: "0.2.9",
+      releaseUrl: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
+      downloadUrl: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
+      installCommand: INSTALL_WITH_CURL_COMMAND,
+      message: "发现新版本 0.2.9，当前版本 0.2.8。"
+    });
+  });
+
+  it("reports up-to-date when the installed version matches the latest public release", () => {
+    expect(createUpdateStatusFromGitHubReleases("0.2.9", [
+      {
+        tag_name: "md-editor-v0.2.9",
+        prerelease: false,
+        draft: false,
+        assets: []
+      }
+    ])).toEqual({
+      currentVersion: "0.2.9",
+      state: "up-to-date",
+      latestVersion: "0.2.9",
+      releaseUrl: undefined,
+      downloadUrl: undefined,
+      message: "当前版本 0.2.9 已是最新发布版本。"
+    });
+  });
+
+  it("ignores prerelease and unrelated GitHub release tags", () => {
+    expect(createUpdateStatusFromGitHubReleases("0.2.8", [
+      {
+        tag_name: "md-editor-v0.2.9-beta.1",
+        prerelease: true,
+        draft: false
+      },
+      {
+        tag_name: "other-tool-v9.0.0",
+        prerelease: false,
+        draft: false
+      }
+    ])).toEqual({
+      currentVersion: "0.2.8",
+      state: "unconfigured",
+      message: "没有找到公开稳定版发布记录，请确认 Release workflow 已完成。"
+    });
+  });
+
+  it("compares stable and prerelease versions with semver precedence", () => {
+    expect(compareReleaseVersions("0.2.9", "0.2.8")).toBe(1);
+    expect(compareReleaseVersions("0.2.9-beta.2", "0.2.9-beta.1")).toBe(1);
+    expect(compareReleaseVersions("0.2.9", "0.2.9-beta.2")).toBe(1);
+    expect(compareReleaseVersions("0.2.9-beta.1", "0.2.9")).toBe(-1);
+    expect(compareReleaseVersions("0.2.9", "0.2.9")).toBe(0);
   });
 });
