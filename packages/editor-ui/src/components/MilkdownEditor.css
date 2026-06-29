@@ -93,13 +93,11 @@
 }
 
 .md-ai-suggestion {
+  display: contents;
   color: var(--theme-control-subtle);
-  white-space: pre-wrap;
   pointer-events: none;
-}
-
-.md-ai-suggestion::before {
-  content: " ";
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .md-ai-edit-original {
@@ -110,17 +108,30 @@
   text-decoration-color: color-mix(in srgb, #dc2626 72%, transparent);
 }
 
+.md-ai-edit-replacement-anchor {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0;
+  line-height: inherit;
+  vertical-align: baseline;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .md-ai-edit-replacement {
   position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
   z-index: 4;
-  max-width: min(640px, calc(100vw - 64px));
-  transform: translateY(-1.2em);
-  border-radius: 4px;
-  background: transparent;
-  opacity: 0.58;
+  width: var(--md-ai-edit-replacement-width, 1px);
+  max-width: var(--md-ai-edit-replacement-width, 1px);
+  transform: translateY(calc(-100% - 0.38em));
+  opacity: 0.72;
   color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
-  text-shadow: 0 1px 0 color-mix(in srgb, var(--theme-surface) 70%, transparent);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   pointer-events: none;
 }
 
@@ -248,6 +259,10 @@
 
 .milkdown .ProseMirror p + p {
   margin-top: 0.8em;
+}
+
+.milkdown-host--ime-composing .milkdown .ProseMirror p {
+  min-height: 1.6em;
 }
 
 .milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak {

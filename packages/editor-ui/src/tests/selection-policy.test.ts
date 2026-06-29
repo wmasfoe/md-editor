@@ -17,6 +17,10 @@ const imeCompositionGuardSource = readFileSync(
   new URL("../utils/ime-composition-guard.ts", import.meta.url),
   "utf8"
 );
+const aiSuggestionSource = readFileSync(
+  new URL("../utils/ai-suggestion.ts", import.meta.url),
+  "utf8"
+);
 describe("editor selection policy", () => {
   it("never disables native selection on the whole ProseMirror surface", () => {
     expect(editorStyles).not.toContain(".ProseMirror.md-editor-image-node-selected");
@@ -55,11 +59,39 @@ describe("editor selection policy", () => {
     expect(editorStyles).toContain("cursor: pointer");
   });
 
-  it("anchors AI edit ghost text at the start of the replaced range", () => {
-    expect(readFileSync(
-      new URL("../utils/ai-suggestion.ts", import.meta.url),
-      "utf8"
-    )).toContain("Decoration.widget(\n        edit.from,");
+  it("renders AI edit diff text above the original with remaining-line width", () => {
+    expect(aiSuggestionSource).toContain("Decoration.widget(\n        edit.from,");
+    expect(aiSuggestionSource).toMatch(
+      /createAiEditReplacementAnchor\(view, edit\.replacement\)[\s\S]+?\{\n\s+side: -1,\n\s+ignoreSelection: true\n\s+\}/u
+    );
+    const editOriginalRule = editorStyles.match(/\.md-ai-edit-original \{(?<body>[^}]+)\}/u);
+    const editAnchorRule = editorStyles.match(/\.md-ai-edit-replacement-anchor \{(?<body>[^}]+)\}/u);
+    const editReplacementRule = editorStyles.match(/\.md-ai-edit-replacement \{(?<body>[^}]+)\}/u);
+    expect(editOriginalRule?.groups?.body).toContain("text-decoration: line-through;");
+    expect(editAnchorRule?.groups?.body).toContain("position: relative;");
+    expect(editAnchorRule?.groups?.body).toContain("width: 0;");
+    expect(editReplacementRule?.groups?.body).toContain("position: absolute;");
+    expect(editReplacementRule?.groups?.body).toContain("width: var(--md-ai-edit-replacement-width, 1px);");
+    expect(editReplacementRule?.groups?.body).toContain("max-width: var(--md-ai-edit-replacement-width, 1px);");
+    expect(editReplacementRule?.groups?.body).toContain("transform: translateY(calc(-100% - 0.38em));");
+    expect(aiSuggestionSource).toContain("contentRight - anchorRect.left");
+    expect(aiSuggestionSource).toContain("--md-ai-edit-replacement-width");
+    expect(aiSuggestionSource).not.toContain("coordsAtPos");
+    expect(editReplacementRule?.groups?.body).not.toContain("position: fixed;");
+  });
+
+  it("keeps AI continuation ghost text on the non-document side of the real cursor", () => {
+    const continuationWidget = aiSuggestionSource.match(
+      /node\.className = "md-ai-suggestion";[\s\S]+?node\.textContent = ` \$\{displayContinuation\}`;[\s\S]+?\{\n\s+side: 1,\n\s+ignoreSelection: true\n\s+\}/u
+    );
+
+    expect(continuationWidget).not.toBeNull();
+    expect(aiSuggestionSource).toContain(".setSelection(selection)");
+    expect(aiSuggestionSource).toContain("isSelectionAtSuggestionAnchor");
+    const suggestionRule = editorStyles.match(/\.md-ai-suggestion \{(?<body>[^}]+)\}/u);
+    expect(suggestionRule?.groups?.body).toContain("display: contents;");
+    expect(suggestionRule?.groups?.body).not.toContain("position: absolute;");
+    expect(editorStyles).not.toContain(".md-ai-suggestion-anchor");
   });
 
   it("pauses AI suggestions while an IME composition is active", () => {
@@ -86,6 +118,9 @@ describe("editor selection policy", () => {
       ".milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak"
     );
     expect(editorStyles).toContain("br.ProseMirror-trailingBreak {\n  display: none;");
+    expect(editorStyles).toContain(
+      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: 1.6em;"
+    );
   });
 
   it("guards against composition hardbreaks leaking into markdown", () => {

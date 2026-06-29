@@ -249,10 +249,10 @@ function filterAiSuggestionBySettings(
 export function parseAiWritingSuggestion(content: string): AiWritingSuggestion {
   const parsed = parseJsonObject(extractJsonObject(content));
   if (!parsed) {
-    return { continuation: normalizeSuggestionText(content) };
+    return { continuation: normalizeContinuationText(content) };
   }
 
-  const continuation = normalizeSuggestionText(readStringProperty(parsed, "continuation"));
+  const continuation = normalizeContinuationText(readStringProperty(parsed, "continuation"));
   const editInput = readObjectProperty(parsed, "edit");
   const edit = editInput ? normalizeEditSuggestion(editInput) : undefined;
   return {
@@ -293,6 +293,10 @@ function normalizeEditSuggestion(input: Record<string, unknown>): AiWritingEditS
 
 function normalizeSuggestionText(value: string): string {
   return value.trim();
+}
+
+function normalizeContinuationText(value: string): string {
+  return value.replace(/^[\t ]+/u, "").trimEnd();
 }
 
 function extractJsonObject(content: string): string {

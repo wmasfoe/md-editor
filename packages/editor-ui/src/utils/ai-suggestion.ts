@@ -1,17 +1,25 @@
-import { $prose } from "@milkdown/kit/utils";
+import { $prose, markdownToSlice } from "@milkdown/kit/utils";
 import type {
   AiCompletionContext,
   AiWritingEditSuggestion,
   AiWritingSuggestion,
   EditorMode
 } from "@md-editor/editor-core";
-import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
-import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
+import type { Node as ProseMirrorNode, Slice } from "@milkdown/kit/prose/model";
+import {
+  Plugin,
+  PluginKey,
+  Selection,
+  type EditorState,
+  type Transaction
+} from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 
 interface AiSuggestionState {
   readonly id: number;
   readonly position: number;
+  readonly selectionFrom: number;
+  readonly selectionTo: number;
   readonly continuation?: string;
   readonly edit?: AnchoredEditSuggestion;
   readonly decorations: DecorationSet;
@@ -22,6 +30,8 @@ type AiSuggestionMeta =
       readonly type: "show";
       readonly id: number;
       readonly position: number;
+      readonly selectionFrom: number;
+      readonly selectionTo: number;
       readonly suggestion: AiWritingSuggestion;
     }
   | {
@@ -37,8 +47,10 @@ const aiSuggestionPluginKey = new PluginKey<AiSuggestionState | null>("md-editor
 const BEFORE_CONTEXT_CHARS = 3_000;
 const AFTER_CONTEXT_CHARS = 1_500;
 
+type MarkdownSliceParser = (markdown: string) => Slice;
+
 export const aiSuggestionPlugin = $prose(
-  () =>
+  (ctx) =>
     new Plugin<AiSuggestionState | null>({
       key: aiSuggestionPluginKey,
       state: {
@@ -49,12 +61,22 @@ export const aiSuggestionPlugin = $prose(
             return null;
           }
           if (meta?.type === "show") {
-            return createAiSuggestionState(transaction.doc, meta.id, meta.position, meta.suggestion);
+            return createAiSuggestionState(
+              transaction.doc,
+              meta.id,
+              meta.position,
+              meta.selectionFrom,
+              meta.selectionTo,
+              meta.suggestion
+            );
           }
           if (!previous) {
             return null;
           }
-          if (transaction.docChanged || transaction.selectionSet) {
+          if (
+            transaction.docChanged ||
+            (transaction.selectionSet && !isSelectionAtSuggestionAnchor(transaction.selection, previous))
+          ) {
             return null;
           }
           return {
@@ -93,9 +115,14 @@ export const aiSuggestionPlugin = $prose(
 
           if ((event.metaKey || event.ctrlKey) && event.key === "ArrowRight" && state.continuation) {
             event.preventDefault();
+            const transaction = createAiContinuationAcceptTransaction(
+              view.state,
+              state.position,
+              state.continuation,
+              (markdown) => markdownToSlice(markdown)(ctx)
+            );
             view.dispatch(
-              view.state.tr
-                .insertText(state.continuation, state.position, state.position)
+              transaction
                 .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
                 .scrollIntoView()
             );
@@ -115,14 +142,22 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
     clearAiSuggestion(view);
     return;
   }
+  const selection = view.state.selection;
 
   view.dispatch(
-    view.state.tr.setMeta(aiSuggestionPluginKey, {
-      type: "show",
-      id,
-      position: view.state.selection.to,
-      suggestion: normalizedSuggestion
-    } satisfies AiSuggestionMeta)
+    view.state.tr
+      // Showing ghost text must not move the real cursor. Mark the current
+      // selection explicitly so ProseMirror re-syncs the DOM caret around the
+      // newly added widget.
+      .setSelection(selection)
+      .setMeta(aiSuggestionPluginKey, {
+        type: "show",
+        id,
+        position: selection.to,
+        selectionFrom: selection.from,
+        selectionTo: selection.to,
+        suggestion: normalizedSuggestion
+      } satisfies AiSuggestionMeta)
   );
 }
 
@@ -145,15 +180,81 @@ export function getAiCompletionContext(view: EditorView, mode: EditorMode): AiCo
   };
 }
 
+export function createAiContinuationAcceptTransaction(
+  editorState: EditorState,
+  position: number,
+  continuation: string,
+  parseMarkdownSlice: MarkdownSliceParser
+): Transaction {
+  const safePosition = Math.max(0, Math.min(position, editorState.doc.content.size));
+  const markdownContinuation = normalizeContinuationMarkdown(continuation);
+  const fallbackText = normalizeSuggestionText(markdownContinuation);
+  const insertionPosition = getContinuationInsertionPosition(editorState, safePosition, markdownContinuation);
+
+  // AI continuations may contain Markdown block syntax. Inserting as text makes
+  // Milkdown serialize list markers as escaped literals like `1\.` and `\-`.
+  try {
+    const slice = parseMarkdownSlice(markdownContinuation);
+    if (slice.content.size > 0) {
+      return setSelectionAfterInsertedContent(
+        editorState.tr.replace(insertionPosition, insertionPosition, slice)
+      );
+    }
+  } catch {
+    // Fall back to the previous plain-text behavior if Markdown parsing or
+    // fitting fails, so accepting a suggestion never drops model output.
+  }
+
+  return editorState.tr.insertText(fallbackText, safePosition, safePosition);
+}
+
+function setSelectionAfterInsertedContent(transaction: Transaction): Transaction {
+  const changedRange = transaction.changedRange();
+  const cursorPosition = Math.min(
+    changedRange?.to ?? transaction.selection.to,
+    transaction.doc.content.size
+  );
+  return transaction.setSelection(Selection.near(transaction.doc.resolve(cursorPosition), 1));
+}
+
+function getContinuationInsertionPosition(
+  editorState: EditorState,
+  position: number,
+  continuation: string
+): number {
+  if (!hasLeadingLineBreak(continuation)) {
+    return position;
+  }
+
+  const resolvedPosition = editorState.doc.resolve(position);
+  if (resolvedPosition.depth === 0 || !resolvedPosition.parent.isTextblock) {
+    return position;
+  }
+
+  const topLevelNode = resolvedPosition.node(1);
+  if (topLevelNode.type.spec.code) {
+    return position;
+  }
+
+  return Math.min(resolvedPosition.after(1), editorState.doc.content.size);
+}
+
+function hasLeadingLineBreak(value: string): boolean {
+  return /^[\t ]*\r?\n/u.test(value);
+}
+
 function createAiSuggestionState(
   doc: ProseMirrorNode,
   id: number,
   position: number,
+  selectionFrom: number,
+  selectionTo: number,
   suggestion: AiWritingSuggestion
 ): AiSuggestionState {
   const safePosition = Math.max(0, Math.min(position, doc.content.size));
   const decorations: Decoration[] = [];
-  const continuation = normalizeSuggestionText(suggestion.continuation ?? "");
+  const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
+  const displayContinuation = normalizeSuggestionText(continuation);
   const edit = suggestion.edit ? anchorEditSuggestion(doc, safePosition, suggestion.edit) : undefined;
 
   if (edit) {
@@ -163,30 +264,30 @@ function createAiSuggestionState(
       }),
       Decoration.widget(
         edit.from,
-        () => {
-          const node = document.createElement("span");
-          node.className = "md-ai-edit-replacement";
-          node.textContent = edit.replacement;
-          node.contentEditable = "false";
-          return node;
-        },
-        { side: -1 }
+        (view) => createAiEditReplacementAnchor(view, edit.replacement),
+        {
+          side: -1,
+          ignoreSelection: true
+        }
       )
     );
   }
 
-  if (continuation) {
+  if (displayContinuation) {
     decorations.push(
       Decoration.widget(
         safePosition,
         () => {
           const node = document.createElement("span");
           node.className = "md-ai-suggestion";
-          node.textContent = continuation;
+          node.textContent = ` ${displayContinuation}`;
           node.contentEditable = "false";
           return node;
         },
-        { side: 1 }
+        {
+          side: 1,
+          ignoreSelection: true
+        }
       )
     );
   }
@@ -194,21 +295,61 @@ function createAiSuggestionState(
   return {
     id,
     position: safePosition,
-    ...(continuation ? { continuation } : {}),
+    selectionFrom,
+    selectionTo,
+    ...(displayContinuation ? { continuation } : {}),
     ...(edit ? { edit } : {}),
     decorations: DecorationSet.create(doc, decorations)
   };
+}
+
+function isSelectionAtSuggestionAnchor(selection: Selection, state: AiSuggestionState): boolean {
+  return selection.from === state.selectionFrom && selection.to === state.selectionTo;
+}
+
+function createAiEditReplacementAnchor(view: EditorView, replacement: string): HTMLElement {
+  const anchor = document.createElement("span");
+  anchor.className = "md-ai-edit-replacement-anchor";
+  anchor.contentEditable = "false";
+
+  const replacementNode = document.createElement("span");
+  replacementNode.className = "md-ai-edit-replacement";
+  replacementNode.textContent = replacement;
+  anchor.append(replacementNode);
+
+  requestAnimationFrame(() => setEditReplacementWidth(view, anchor));
+  return anchor;
+}
+
+function setEditReplacementWidth(view: EditorView, anchor: HTMLElement): void {
+  if (!anchor.isConnected) {
+    return;
+  }
+
+  const anchorRect = anchor.getBoundingClientRect();
+  const editorRect = view.dom.getBoundingClientRect();
+  const editorStyle = getComputedStyle(view.dom);
+  const paddingRight = Number.parseFloat(editorStyle.paddingRight) || 0;
+  const contentRight = editorRect.right - paddingRight;
+  const remainingWidth = Math.max(1, Math.floor(contentRight - anchorRect.left));
+
+  anchor.style.setProperty("--md-ai-edit-replacement-width", `${remainingWidth}px`);
 }
 
 function normalizeSuggestionText(text: string): string {
   return text.replace(/^\s+/u, "").replace(/\s+$/u, "");
 }
 
+function normalizeContinuationMarkdown(text: string): string {
+  return text.replace(/^[\t ]+/u, "").replace(/\s+$/u, "");
+}
+
 function normalizeSuggestion(view: EditorView, suggestion: AiWritingSuggestion): AiWritingSuggestion {
-  const continuation = normalizeSuggestionText(suggestion.continuation ?? "");
+  const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
+  const displayContinuation = normalizeSuggestionText(continuation);
   const edit = suggestion.edit ? anchorEditSuggestion(view.state.doc, view.state.selection.to, suggestion.edit) : undefined;
   return {
-    ...(continuation ? { continuation } : {}),
+    ...(displayContinuation ? { continuation } : {}),
     ...(edit ? { edit } : {})
   };
 }

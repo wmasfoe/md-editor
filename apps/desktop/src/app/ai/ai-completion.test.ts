@@ -126,6 +126,15 @@ describe("AI completion settings", () => {
     });
   });
 
+  it("preserves leading newlines in continuation so Markdown blocks keep their boundary", () => {
+    expect(parseAiWritingSuggestion(JSON.stringify({
+      continuation: "\n\n### 需求分析\n\n1. 审核触发条件",
+      edit: null
+    }))).toEqual({
+      continuation: "\n\n### 需求分析\n\n1. 审核触发条件"
+    });
+  });
+
   it("treats an empty model response as no suggestion instead of a user-facing error", async () => {
     const fetchImpl = async () =>
       new Response(JSON.stringify({
