@@ -10,10 +10,15 @@ import {
   type LocalAiModelCommandStatus
 } from "../ai/local-ai-model";
 import {
+  closeCurrentSettingsWindow,
+  openSettingsWindow
+} from "../../desktop/settings-window";
+import {
   appVersion,
   createDefaultSettings,
   keyboardShortcutLabel,
   loadAppSettings,
+  listenToAppSettingsChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
   saveAppSettings,
@@ -35,11 +40,12 @@ const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
 
 interface UseSettingsControllerOptions {
   readonly showToast: (message: string | null) => void;
+  readonly surface?: "main" | "settings-window";
 }
 
-export function useSettingsController({ showToast }: UseSettingsControllerOptions) {
+export function useSettingsController({ showToast, surface = "main" }: UseSettingsControllerOptions) {
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(surface === "settings-window");
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
     createShortcutDrafts(createDefaultSettings().shortcuts)
   );
@@ -79,16 +85,41 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
   }, []);
 
   const openSettings = useCallback(() => {
+    if (surface === "main") {
+      // 主窗口不再承载设置 UI；Tauri 桌面端打开独立设置窗口，Web 预览失败时才回退到内嵌页。
+      void openSettingsWindow()
+        .then((didOpenWindow) => {
+          if (didOpenWindow) {
+            return;
+          }
+          syncSettingsDrafts(settings);
+          setSettingsErrorMessage(null);
+          setIsSettingsOpen(true);
+        })
+        .catch((error: unknown) => {
+          showToast(formatActionError(error, "设置窗口打开失败。"));
+        });
+      return;
+    }
+
     syncSettingsDrafts(settings);
     setSettingsErrorMessage(null);
     setIsSettingsOpen(true);
-  }, [settings, syncSettingsDrafts]);
+  }, [settings, showToast, surface, syncSettingsDrafts]);
 
   const closeSettings = useCallback(() => {
+    if (surface === "settings-window") {
+      // 设置窗口关闭的是当前原生窗口；不要回写主窗口的 isSettingsOpen 状态。
+      void closeCurrentSettingsWindow().catch((error: unknown) => {
+        setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
+      });
+      return;
+    }
+
     setIsSettingsOpen(false);
     setSettingsErrorMessage(null);
     syncSettingsDrafts(settings);
-  }, [settings, syncSettingsDrafts]);
+  }, [settings, surface, syncSettingsDrafts]);
 
   const captureShortcutDraft = useCallback((id: string, key: string) => {
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
@@ -139,13 +170,27 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
       });
       setSettings(saved);
       syncSettingsDrafts(saved);
-      setIsSettingsOpen(false);
+      if (surface === "main") {
+        setIsSettingsOpen(false);
+      } else {
+        // 独立设置窗口保存后保持打开，方便用户继续调整并观察主编辑器窗口变化。
+        showToast("设置已保存。");
+      }
     } catch (error) {
       setSettingsErrorMessage(error instanceof Error ? error.message : "设置保存失败。");
     } finally {
       setIsSavingSettings(false);
     }
-  }, [aiSettingsDraft, assetsDirectoryDraft, settings.shortcuts, shortcutDrafts, syncSettingsDrafts, themeDraft]);
+  }, [
+    aiSettingsDraft,
+    assetsDirectoryDraft,
+    settings.shortcuts,
+    shortcutDrafts,
+    showToast,
+    surface,
+    syncSettingsDrafts,
+    themeDraft
+  ]);
 
   const chooseThemeCss = useCallback(async (scheme: "light" | "dark") => {
     setSettingsErrorMessage(null);
@@ -284,6 +329,15 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     };
   }, [showToast, syncSettingsDrafts]);
 
+  useEffect(
+    () =>
+      listenToAppSettingsChanged((nextSettings) => {
+        setSettings(nextSettings);
+        syncSettingsDrafts(nextSettings);
+      }),
+    [syncSettingsDrafts]
+  );
+
   useEffect(() => {
     return listenToLocalAiModelProgress((status) => {
       applyLocalModelStatus(status);
@@ -298,8 +352,8 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
   }, [applyLocalModelStatus]);
 
   useEffect(
-    () => applyCustomThemeCss(isSettingsOpen ? themeDraft : settings.theme),
-    [isSettingsOpen, settings.theme, themeDraft]
+    () => applyCustomThemeCss(isSettingsOpen || surface === "settings-window" ? themeDraft : settings.theme),
+    [isSettingsOpen, settings.theme, surface, themeDraft]
   );
 
   return {

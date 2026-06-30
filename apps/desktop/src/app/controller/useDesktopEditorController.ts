@@ -280,10 +280,6 @@ export function useDesktopEditorController() {
       if (hasPendingConfirmation()) {
         return;
       }
-      if (id === "settings.open" && isSettingsOpen) {
-        await saveSettings();
-        return;
-      }
       await runtime.commands.dispatch(id, {
         document: runtime.document,
         actions: {
@@ -311,9 +307,7 @@ export function useDesktopEditorController() {
       openMdxComponentMenu,
       continueAiWriting,
       hasPendingConfirmation,
-      isSettingsOpen,
       saveDocument,
-      saveSettings,
       switchMode,
       toggleSidebarPrimary,
       toggleSourceMode

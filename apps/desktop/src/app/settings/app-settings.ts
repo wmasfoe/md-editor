@@ -1,4 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type {
   AiProviderType,
@@ -99,6 +100,7 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 ];
 
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
+export const APP_SETTINGS_CHANGED_EVENT = "md-editor-app-settings-changed";
 export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
 export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
 export const UPDATE_RELEASES_API_URL = "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
@@ -165,7 +167,51 @@ export async function saveAppSettings(settings: AppSettings): Promise<AppSetting
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persisted));
   }
 
+  // 独立设置窗口保存后必须通知主编辑器窗口刷新运行时配置，保证不用关闭设置也能看到结果。
+  await publishAppSettingsChanged(normalized);
   return normalized;
+}
+
+export function listenToAppSettingsChanged(
+  handler: (settings: AppSettings) => void
+): (() => void) | undefined {
+  if (isTauri()) {
+    // Tauri event 会广播到所有 webview；每个窗口都重新 normalize，防止旧版 payload 形状污染状态。
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    void listen<Partial<AppSettings | PersistedSettings>>(APP_SETTINGS_CHANGED_EVENT, (event) => {
+      handler(normalizeSettings(event.payload));
+    }).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
+      unlisten = dispose;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      unlisten = undefined;
+    };
+  }
+
+  const listener = (event: Event) => {
+    handler(normalizeSettings((event as CustomEvent<AppSettings>).detail));
+  };
+  window.addEventListener(APP_SETTINGS_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, listener);
+}
+
+async function publishAppSettingsChanged(settings: AppSettings): Promise<void> {
+  if (isTauri()) {
+    // 使用前端事件而不是 Rust 命令回调，避免设置窗口需要知道主窗口 label。
+    await emit(APP_SETTINGS_CHANGED_EVENT, settings);
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(APP_SETTINGS_CHANGED_EVENT, { detail: settings }));
 }
 
 export async function checkForUpdates(

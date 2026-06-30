@@ -1,5 +1,6 @@
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { useEffect, type KeyboardEvent } from "react";
+import { useEffect, type KeyboardEvent, type ReactNode } from "react";
 import type { AiSettings } from "@md-editor/editor-core";
 import type {
   AppSettings,
@@ -48,6 +49,7 @@ export interface SettingsPageProps {
   readonly onCheckForUpdates: () => void;
   readonly onInstallUpdate: () => void;
   readonly onRelaunchAfterUpdate: () => void;
+  readonly onStartWindowDrag?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 export function SettingsPage({
@@ -75,7 +77,8 @@ export function SettingsPage({
   onClose,
   onCheckForUpdates,
   onInstallUpdate,
-  onRelaunchAfterUpdate
+  onRelaunchAfterUpdate,
+  onStartWindowDrag
 }: SettingsPageProps) {
   const isLocalModelBusy =
     isLocalModelActionPending ||
@@ -125,342 +128,403 @@ export function SettingsPage({
     }
   };
 
+  const settingsTabs: readonly SettingsTabDefinition[] = [
+    {
+      id: "shortcuts",
+      label: "快捷键设置",
+      description: "命令键位",
+      panel: (
+        <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
+          <div className="mb-3">
+            <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>快捷键设置</h2>
+            <p className={settingsDescriptionClassName}>点击输入框后按下组合键，系统会自动记录键位。</p>
+          </div>
+          <div className="grid gap-2">
+            {settings.shortcuts.map((shortcut) => (
+              <label key={shortcut.id} className="grid grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_56px] items-center gap-2.5 max-[760px]:grid-cols-1">
+                <span className="min-w-0">
+                  <strong className={settingsFieldLabelClassName}>{shortcut.label}</strong>
+                  <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">
+                    默认 {keyboardShortcutLabel(shortcut.defaultKey)}
+                  </small>
+                </span>
+                <input
+                  data-settings-shortcut-input="true"
+                  className={settingsInputClassName}
+                  value={shortcutDrafts[shortcut.id] ?? keyboardShortcutLabel(shortcut.key)}
+                  onKeyDown={(event) => captureShortcut(shortcut.id, event)}
+                  onChange={() => undefined}
+                  readOnly
+                  spellCheck={false}
+                  aria-label={`${shortcut.label}快捷键`}
+                />
+                <button
+                  type="button"
+                  className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
+                  onClick={() => onResetShortcut(shortcut.id)}
+                >
+                  重置
+                </button>
+              </label>
+            ))}
+          </div>
+        </section>
+      )
+    },
+    {
+      id: "ai",
+      label: "AI 设置",
+      description: "续写、修复和模型",
+      panel: (
+        <section className={settingsModuleClassName} aria-labelledby="ai-settings-title">
+          <div className="mb-3">
+            <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>AI 设置</h2>
+            <p className={settingsDescriptionClassName}>
+              AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。
+            </p>
+          </div>
+          <div className="grid gap-3">
+            <label className="flex min-h-[30px] items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-[var(--theme-primary)]"
+                checked={aiSettingsDraft.features.editing}
+                onChange={(event) =>
+                  onChangeAiSettings(updateAiFeature(aiSettingsDraft, "editing", event.target.checked))
+                }
+              />
+              <span className={settingsFieldLabelClassName}>语法、标点修复</span>
+            </label>
+            <label className="flex min-h-[30px] items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-[var(--theme-primary)]"
+                checked={aiSettingsDraft.features.continuation}
+                onChange={(event) =>
+                  onChangeAiSettings(updateAiFeature(aiSettingsDraft, "continuation", event.target.checked))
+                }
+              />
+              <span className={settingsFieldLabelClassName}>AI 续写</span>
+            </label>
+
+            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+              <span className={settingsFieldLabelClassName}>Provider</span>
+              <select
+                className={settingsInputClassName}
+                value={aiSettingsDraft.provider}
+                onChange={(event) =>
+                  onChangeAiSettings(updateAiProvider(aiSettingsDraft, readAiProvider(event.target.value)))
+                }
+              >
+                <option value="openai-compatible">OpenAI-compatible</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="local">本地模型</option>
+              </select>
+            </label>
+
+            {isRemoteAiProvider(aiSettingsDraft.provider) ? (
+              <div className="grid gap-2.5">
+                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                  <span className={settingsFieldLabelClassName}>Endpoint</span>
+                  <input
+                    className={settingsInputClassName}
+                    value={aiSettingsDraft.openAiCompatible.baseUrl}
+                    disabled={aiSettingsDraft.provider === "deepseek"}
+                    onChange={(event) =>
+                      onChangeAiSettings({
+                        ...aiSettingsDraft,
+                        openAiCompatible: {
+                          ...aiSettingsDraft.openAiCompatible,
+                          baseUrl: event.target.value
+                        }
+                      })
+                    }
+                    placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                  <span className={settingsFieldLabelClassName}>Model</span>
+                  <input
+                    className={settingsInputClassName}
+                    value={aiSettingsDraft.openAiCompatible.model}
+                    onChange={(event) =>
+                      onChangeAiSettings({
+                        ...aiSettingsDraft,
+                        openAiCompatible: {
+                          ...aiSettingsDraft.openAiCompatible,
+                          model: event.target.value
+                        }
+                      })
+                    }
+                    placeholder={providerModelPlaceholder(aiSettingsDraft.provider)}
+                    spellCheck={false}
+                  />
+                </label>
+                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                  <span className={settingsFieldLabelClassName}>API Key</span>
+                  <input
+                    type="password"
+                    className={settingsInputClassName}
+                    value={aiSettingsDraft.openAiCompatible.apiKey}
+                    onChange={(event) =>
+                      onChangeAiSettings({
+                        ...aiSettingsDraft,
+                        openAiCompatible: {
+                          ...aiSettingsDraft.openAiCompatible,
+                          apiKey: event.target.value
+                        }
+                      })
+                    }
+                    placeholder="sk-..."
+                    spellCheck={false}
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="grid gap-2.5">
+                <label className="flex min-h-[30px] items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--theme-primary)]"
+                    checked={aiSettingsDraft.localModel.enabled}
+                    onChange={(event) =>
+                      onChangeAiSettings({
+                        ...aiSettingsDraft,
+                        localModel: {
+                          ...aiSettingsDraft.localModel,
+                          enabled: event.target.checked
+                        }
+                      })
+                    }
+                  />
+                  <span className={settingsFieldLabelClassName}>启用本地模型</span>
+                </label>
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className={settingsFieldLabelClassName}>
+                      模型状态：{localModelStatusLabel(aiSettingsDraft.localModel.status)}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={settingsSmallButtonClassName}
+                        onClick={onDownloadLocalModel}
+                        disabled={isLocalModelBusy}
+                      >
+                        {aiSettingsDraft.localModel.status === "available" ? "重新下载" : "下载模型"}
+                      </button>
+                      {canCancelLocalModelDownload ? (
+                        <button
+                          type="button"
+                          className={settingsSmallButtonClassName}
+                          onClick={onCancelLocalModelDownload}
+                        >
+                          取消下载
+                        </button>
+                      ) : null}
+                      {canDeleteLocalModel ? (
+                        <button
+                          type="button"
+                          className={settingsSmallButtonClassName}
+                          onClick={onDeleteLocalModel}
+                          disabled={isLocalModelBusy}
+                        >
+                          删除模型
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <p className={settingsDescriptionClassName}>
+                    {localModelProgressLabel(aiSettingsDraft.localModel)}
+                  </p>
+                </div>
+                <p className={settingsDescriptionClassName}>
+                  用户风格学习后续只会走本地模型，不会把历史文章批量上传到远程 provider。
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+      )
+    },
+    {
+      id: "appearance",
+      label: "外观设置",
+      description: "主题和自定义 CSS",
+      panel: (
+        <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
+          <div className="mb-3">
+            <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>外观设置</h2>
+            <p className={settingsDescriptionClassName}>为亮色和暗色分别选择内置主题或自定义 CSS，应用默认跟随系统明暗。</p>
+          </div>
+          <div className="grid gap-2.5">
+            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+              <span className={settingsFieldLabelClassName}>应用方式</span>
+              <select
+                className={settingsInputClassName}
+                value={themeDraft.mode}
+                onChange={(event) =>
+                  onChangeTheme({ ...themeDraft, mode: readThemeColorScheme(event.target.value) })
+                }
+              >
+                <option value="system">跟随系统</option>
+                <option value="light">使用亮色 CSS</option>
+                <option value="dark">使用暗色 CSS</option>
+              </select>
+            </label>
+            <ThemeCssPicker
+              label="亮色主题"
+              theme={themeDraft.light}
+              builtInOptions={BUILT_IN_LIGHT_THEME_OPTIONS}
+              onChange={(light) => onChangeTheme({ ...themeDraft, light })}
+              onChoose={() => onChooseThemeCss("light")}
+              onClear={() => onClearThemeCss("light")}
+            />
+            <ThemeCssPicker
+              label="暗色主题"
+              theme={themeDraft.dark}
+              builtInOptions={BUILT_IN_DARK_THEME_OPTIONS}
+              onChange={(dark) => onChangeTheme({ ...themeDraft, dark })}
+              onChoose={() => onChooseThemeCss("dark")}
+              onClear={() => onClearThemeCss("dark")}
+            />
+          </div>
+        </section>
+      )
+    },
+    {
+      id: "other",
+      label: "其他设置",
+      description: "图片目录和版本",
+      panel: (
+        <div className="grid gap-5">
+          <section className={settingsModuleClassName} aria-labelledby="assets-settings-title">
+            <div className="mb-3">
+              <h2 id="assets-settings-title" className={settingsSectionTitleClassName}>图片设置</h2>
+              <p className={settingsDescriptionClassName}>粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。</p>
+            </div>
+            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+              <span className={settingsFieldLabelClassName}>图片资源目录</span>
+              <input
+                className={settingsInputClassName}
+                value={assetsDirectoryDraft}
+                onChange={(event) => onChangeAssetsDirectory(event.target.value)}
+                placeholder="assets"
+                spellCheck={false}
+              />
+            </label>
+          </section>
+
+          <section className={settingsModuleClassName} aria-labelledby="update-settings-title">
+            <div className="mb-3">
+              <h2 id="update-settings-title" className={settingsSectionTitleClassName}>版本</h2>
+              <p className={settingsDescriptionClassName}>{updateStatus.message}</p>
+              {updateStatus.state === "available" && updateStatus.installCommand ? (
+                <div className="mt-2 grid gap-1">
+                  <span className={settingsFieldLabelClassName}>手动安装命令</span>
+                  <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
+                    {updateStatus.installCommand}
+                  </code>
+                </div>
+              ) : null}
+              {updateProgressLabel(updateStatus) ? (
+                <p className={settingsDescriptionClassName}>{updateProgressLabel(updateStatus)}</p>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
+              <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={settingsSmallButtonClassName}
+                  onClick={onCheckForUpdates}
+                  disabled={isUpdateBusy}
+                >
+                  {isCheckingForUpdates ? "检查中" : "检查更新"}
+                </button>
+                {canInstallUpdate ? (
+                  <button
+                    type="button"
+                    className={settingsSmallButtonClassName}
+                    onClick={onInstallUpdate}
+                  >
+                    安装更新
+                  </button>
+                ) : null}
+                {canRelaunchAfterUpdate ? (
+                  <button
+                    type="button"
+                    className={settingsSmallButtonClassName}
+                    onClick={onRelaunchAfterUpdate}
+                  >
+                    重启应用
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        </div>
+      )
+    }
+  ];
+
   return (
     <section className="flex h-full min-h-0 w-full flex-col bg-[var(--theme-surface)] text-[var(--theme-text)]" aria-labelledby="settings-title">
-      <header className="flex min-h-[54px] shrink-0 items-center justify-between gap-4 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5">
-        <div className="min-w-0">
+      <header
+        data-tauri-drag-region={onStartWindowDrag ? true : undefined}
+        className="flex min-h-[54px] shrink-0 items-center gap-4 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5"
+        onMouseDown={onStartWindowDrag}
+      >
+        <div data-tauri-drag-region={onStartWindowDrag ? true : undefined} className="min-w-0">
           <h1 id="settings-title" className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]">
             设置
           </h1>
           <p className={settingsDescriptionClassName}>调整编辑器偏好和桌面端行为。</p>
         </div>
-        <button
-          type="button"
-          className="grid size-8 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[22px] leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
-          aria-label="取消并关闭设置"
-          title="取消"
-          onClick={onClose}
-        >
-          ×
-        </button>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="min-h-0 overflow-auto px-6 py-5 max-[760px]:px-4">
-          <div className="mx-auto grid w-full max-w-[920px] gap-5">
-            <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
-              <div className="mb-3">
-                <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>外观</h2>
-                <p className={settingsDescriptionClassName}>为亮色和暗色分别选择内置主题或自定义 CSS，应用默认跟随系统明暗。</p>
-              </div>
-              <div className="grid gap-2.5">
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>应用方式</span>
-                  <select
-                    className={settingsInputClassName}
-                    value={themeDraft.mode}
-                    onChange={(event) =>
-                      onChangeTheme({ ...themeDraft, mode: readThemeColorScheme(event.target.value) })
-                    }
-                  >
-                    <option value="system">跟随系统</option>
-                    <option value="light">使用亮色 CSS</option>
-                    <option value="dark">使用暗色 CSS</option>
-                  </select>
-                </label>
-                <ThemeCssPicker
-                  label="亮色主题"
-                  theme={themeDraft.light}
-                  builtInOptions={BUILT_IN_LIGHT_THEME_OPTIONS}
-                  onChange={(light) => onChangeTheme({ ...themeDraft, light })}
-                  onChoose={() => onChooseThemeCss("light")}
-                  onClear={() => onClearThemeCss("light")}
-                />
-                <ThemeCssPicker
-                  label="暗色主题"
-                  theme={themeDraft.dark}
-                  builtInOptions={BUILT_IN_DARK_THEME_OPTIONS}
-                  onChange={(dark) => onChangeTheme({ ...themeDraft, dark })}
-                  onChoose={() => onChooseThemeCss("dark")}
-                  onClear={() => onClearThemeCss("dark")}
-                />
-              </div>
-            </section>
-
-            <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
-              <div className="mb-3">
-                <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>快捷键设置</h2>
-                <p className={settingsDescriptionClassName}>点击输入框后按下组合键，系统会自动记录键位。</p>
-              </div>
-              <div className="grid gap-2">
-                {settings.shortcuts.map((shortcut) => (
-                  <label key={shortcut.id} className="grid grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_56px] items-center gap-2.5 max-[760px]:grid-cols-1">
-                    <span className="min-w-0">
-                      <strong className={settingsFieldLabelClassName}>{shortcut.label}</strong>
-                      <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">
-                        默认 {keyboardShortcutLabel(shortcut.defaultKey)}
-                      </small>
-                    </span>
-                    <input
-                      data-settings-shortcut-input="true"
-                      className={settingsInputClassName}
-                      value={shortcutDrafts[shortcut.id] ?? keyboardShortcutLabel(shortcut.key)}
-                      onKeyDown={(event) => captureShortcut(shortcut.id, event)}
-                      onChange={() => undefined}
-                      readOnly
-                      spellCheck={false}
-                      aria-label={`${shortcut.label}快捷键`}
-                    />
-                    <button
-                      type="button"
-                      className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
-                      onClick={() => onResetShortcut(shortcut.id)}
-                    >
-                      重置
-                    </button>
-                  </label>
-                ))}
-              </div>
-            </section>
-
-            <section className={settingsModuleClassName} aria-labelledby="assets-settings-title">
-              <div className="mb-3">
-                <h2 id="assets-settings-title" className={settingsSectionTitleClassName}>图片设置</h2>
-                <p className={settingsDescriptionClassName}>粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。</p>
-              </div>
-              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>图片资源目录</span>
-                <input
-                  className={settingsInputClassName}
-                  value={assetsDirectoryDraft}
-                  onChange={(event) => onChangeAssetsDirectory(event.target.value)}
-                  placeholder="assets"
-                  spellCheck={false}
-                />
-              </label>
-            </section>
-
-            <section className={settingsModuleClassName} aria-labelledby="ai-settings-title">
-              <div className="mb-3">
-                <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>AI 设置</h2>
-                <p className={settingsDescriptionClassName}>
-                  AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。
-                </p>
-              </div>
-              <div className="grid gap-3">
-                <label className="flex min-h-[30px] items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--theme-primary)]"
-                    checked={aiSettingsDraft.features.editing}
-                    onChange={(event) =>
-                      onChangeAiSettings(updateAiFeature(aiSettingsDraft, "editing", event.target.checked))
-                    }
-                  />
-                  <span className={settingsFieldLabelClassName}>语法、标点修复</span>
-                </label>
-                <label className="flex min-h-[30px] items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--theme-primary)]"
-                    checked={aiSettingsDraft.features.continuation}
-                    onChange={(event) =>
-                      onChangeAiSettings(updateAiFeature(aiSettingsDraft, "continuation", event.target.checked))
-                    }
-                  />
-                  <span className={settingsFieldLabelClassName}>AI 续写</span>
-                </label>
-
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>Provider</span>
-                  <select
-                    className={settingsInputClassName}
-                    value={aiSettingsDraft.provider}
-                    onChange={(event) =>
-                      onChangeAiSettings(updateAiProvider(aiSettingsDraft, readAiProvider(event.target.value)))
-                    }
-                  >
-                    <option value="openai-compatible">OpenAI-compatible</option>
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="local">本地模型</option>
-                  </select>
-                </label>
-
-                {isRemoteAiProvider(aiSettingsDraft.provider) ? (
-                  <div className="grid gap-2.5">
-                    <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                      <span className={settingsFieldLabelClassName}>Endpoint</span>
-                      <input
-                        className={settingsInputClassName}
-                        value={aiSettingsDraft.openAiCompatible.baseUrl}
-                        disabled={aiSettingsDraft.provider === "deepseek"}
-                        onChange={(event) =>
-                          onChangeAiSettings({
-                            ...aiSettingsDraft,
-                            openAiCompatible: {
-                              ...aiSettingsDraft.openAiCompatible,
-                              baseUrl: event.target.value
-                            }
-                          })
-                        }
-                        placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
-                        spellCheck={false}
-                      />
-                    </label>
-                    <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                      <span className={settingsFieldLabelClassName}>Model</span>
-                      <input
-                        className={settingsInputClassName}
-                        value={aiSettingsDraft.openAiCompatible.model}
-                        onChange={(event) =>
-                          onChangeAiSettings({
-                            ...aiSettingsDraft,
-                            openAiCompatible: {
-                              ...aiSettingsDraft.openAiCompatible,
-                              model: event.target.value
-                            }
-                          })
-                        }
-                        placeholder={providerModelPlaceholder(aiSettingsDraft.provider)}
-                        spellCheck={false}
-                      />
-                    </label>
-                    <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                      <span className={settingsFieldLabelClassName}>API Key</span>
-                      <input
-                        type="password"
-                        className={settingsInputClassName}
-                        value={aiSettingsDraft.openAiCompatible.apiKey}
-                        onChange={(event) =>
-                          onChangeAiSettings({
-                            ...aiSettingsDraft,
-                            openAiCompatible: {
-                              ...aiSettingsDraft.openAiCompatible,
-                              apiKey: event.target.value
-                            }
-                          })
-                        }
-                        placeholder="sk-..."
-                        spellCheck={false}
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <div className="grid gap-2.5">
-                    <label className="flex min-h-[30px] items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-[var(--theme-primary)]"
-                        checked={aiSettingsDraft.localModel.enabled}
-                        onChange={(event) =>
-                          onChangeAiSettings({
-                            ...aiSettingsDraft,
-                            localModel: {
-                              ...aiSettingsDraft.localModel,
-                              enabled: event.target.checked
-                            }
-                          })
-                        }
-                      />
-                      <span className={settingsFieldLabelClassName}>启用本地模型</span>
-                    </label>
-                    <div className="grid gap-2">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <span className={settingsFieldLabelClassName}>
-                          模型状态：{localModelStatusLabel(aiSettingsDraft.localModel.status)}
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className={settingsSmallButtonClassName}
-                            onClick={onDownloadLocalModel}
-                            disabled={isLocalModelBusy}
-                          >
-                            {aiSettingsDraft.localModel.status === "available" ? "重新下载" : "下载模型"}
-                          </button>
-                          {canCancelLocalModelDownload ? (
-                            <button
-                              type="button"
-                              className={settingsSmallButtonClassName}
-                              onClick={onCancelLocalModelDownload}
-                            >
-                              取消下载
-                            </button>
-                          ) : null}
-                          {canDeleteLocalModel ? (
-                            <button
-                              type="button"
-                              className={settingsSmallButtonClassName}
-                              onClick={onDeleteLocalModel}
-                              disabled={isLocalModelBusy}
-                            >
-                              删除模型
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                      <p className={settingsDescriptionClassName}>
-                        {localModelProgressLabel(aiSettingsDraft.localModel)}
-                      </p>
-                    </div>
-                    <p className={settingsDescriptionClassName}>
-                      用户风格学习后续只会走本地模型，不会把历史文章批量上传到远程 provider。
-                    </p>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className={settingsModuleClassName} aria-labelledby="update-settings-title">
-              <div className="mb-3">
-                <h2 id="update-settings-title" className={settingsSectionTitleClassName}>版本</h2>
-                <p className={settingsDescriptionClassName}>{updateStatus.message}</p>
-                {updateStatus.state === "available" && updateStatus.installCommand ? (
-                  <div className="mt-2 grid gap-1">
-                    <span className={settingsFieldLabelClassName}>手动安装命令</span>
-                    <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
-                      {updateStatus.installCommand}
-                    </code>
-                  </div>
-                ) : null}
-                {updateProgressLabel(updateStatus) ? (
-                  <p className={settingsDescriptionClassName}>{updateProgressLabel(updateStatus)}</p>
-                ) : null}
-              </div>
-              <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
-                <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className={settingsSmallButtonClassName}
-                    onClick={onCheckForUpdates}
-                    disabled={isUpdateBusy}
-                  >
-                    {isCheckingForUpdates ? "检查中" : "检查更新"}
-                  </button>
-                  {canInstallUpdate ? (
-                    <button
-                      type="button"
-                      className={settingsSmallButtonClassName}
-                      onClick={onInstallUpdate}
-                    >
-                      安装更新
-                    </button>
-                  ) : null}
-                  {canRelaunchAfterUpdate ? (
-                    <button
-                      type="button"
-                      className={settingsSmallButtonClassName}
-                      onClick={onRelaunchAfterUpdate}
-                    >
-                      重启应用
-                    </button>
-                  ) : null}
+        <TabGroup
+          vertical
+          className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)] overflow-hidden max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]"
+        >
+          {/* 左侧分类是设置窗口的主导航；新增设置项应先归入已有分类，避免退回一整页长表单。 */}
+          <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
+            <TabList className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto" aria-label="设置分类">
+              {settingsTabs.map((tab) => (
+                <Tab
+                  key={tab.id}
+                  className={({ selected }) =>
+                    [
+                      "grid min-h-[46px] w-full min-w-0 grid-cols-1 rounded-[6px] border-0 px-3 py-2 text-left outline-none transition-colors max-[720px]:min-w-[132px]",
+                      selected
+                        ? "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
+                        : "bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]",
+                      "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+                    ].join(" ")
+                  }
+                >
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-[1.3]">
+                    {tab.label}
+                  </span>
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-[1.35] text-[var(--theme-muted)]">
+                    {tab.description}
+                  </span>
+                </Tab>
+              ))}
+            </TabList>
+          </aside>
+          <TabPanels className="min-h-0 overflow-auto bg-[var(--theme-surface)]">
+            {settingsTabs.map((tab) => (
+              <TabPanel key={tab.id} className="min-h-full outline-none">
+                <div className="mx-auto grid w-full max-w-[760px] gap-5 px-7 py-6 max-[760px]:px-4">
+                  {tab.panel}
                 </div>
-              </div>
-            </section>
-          </div>
-        </div>
+              </TabPanel>
+            ))}
+          </TabPanels>
+        </TabGroup>
 
         {errorMessage ? (
           <p
@@ -486,8 +550,15 @@ export function SettingsPage({
 
 export const SettingsDialog = SettingsPage;
 
+interface SettingsTabDefinition {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly panel: ReactNode;
+}
+
 const settingsModuleClassName =
-  "border-t border-[var(--theme-border)] py-5 first:border-t-0";
+  "py-1";
 
 const settingsSectionTitleClassName =
   "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";

@@ -18,8 +18,10 @@ import {
 import { FileTreePanel } from "../components/FileTreePanel";
 import { MdxComponentMenu } from "../components/MdxComponentMenu";
 import { SettingsPage } from "../components/SettingsDialog";
+import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+import { useSettingsController } from "./controller/useSettingsController";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
 
 const SourceEditor = lazy(() =>
@@ -34,6 +36,10 @@ const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 420;
 
 export function App() {
+  if (isSettingsWindow()) {
+    return <SettingsWindowApp />;
+  }
+
   const editor = useDesktopEditorController();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
@@ -50,6 +56,7 @@ export function App() {
   const sidebarResizePreviewOffset =
     sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
+  // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
   if (editor.isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
@@ -331,6 +338,63 @@ export function App() {
   );
 }
 
+function SettingsWindowApp() {
+  const [toast, setToast] = useState<{ readonly id: number; readonly message: string } | null>(null);
+  const settings = useSettingsController({
+    surface: "settings-window",
+    showToast: (message) => {
+      setToast(message ? { id: Date.now(), message } : null);
+    }
+  });
+  const shouldShowOverlayTitleBar = isMacPlatform();
+
+  useEffect(() => {
+    document.title = "设置";
+  }, []);
+
+  return (
+    <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
+      <AppTitleBar
+        title="设置"
+        isVisible={shouldShowOverlayTitleBar}
+        hasWindowControlsInset
+        titleAlign="center"
+      />
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <EditorToast toast={toast} />
+        <SettingsPage
+          settings={settings.settings}
+          updateStatus={settings.updateStatus}
+          shortcutDrafts={settings.shortcutDrafts}
+          assetsDirectoryDraft={settings.assetsDirectoryDraft}
+          themeDraft={settings.themeDraft}
+          aiSettingsDraft={settings.aiSettingsDraft}
+          isLocalModelActionPending={settings.isLocalModelActionPending}
+          errorMessage={settings.settingsErrorMessage}
+          isSaving={settings.isSavingSettings}
+          isCheckingForUpdates={settings.updateStatus.state === "checking"}
+          onCaptureShortcut={settings.captureShortcutDraft}
+          onResetShortcut={settings.resetShortcutDraft}
+          onChangeAssetsDirectory={settings.setAssetsDirectoryDraft}
+          onChangeTheme={settings.setThemeDraft}
+          onChooseThemeCss={settings.chooseThemeCss}
+          onClearThemeCss={settings.clearThemeCss}
+          onChangeAiSettings={settings.setAiSettingsDraft}
+          onDownloadLocalModel={settings.downloadLocalModel}
+          onCancelLocalModelDownload={settings.cancelLocalModelDownload}
+          onDeleteLocalModel={settings.deleteLocalModel}
+          onSave={() => void settings.saveSettings()}
+          onClose={settings.closeSettings}
+          onCheckForUpdates={() => void settings.runUpdateCheck()}
+          onInstallUpdate={() => void settings.installUpdate()}
+          onRelaunchAfterUpdate={() => void settings.relaunchUpdate()}
+          onStartWindowDrag={startTitleBarDrag}
+        />
+      </div>
+    </main>
+  );
+}
+
 function AppTitleBar({
   title,
   hasWindowControlsInset = false,
@@ -411,10 +475,12 @@ function MarkdownTitleIcon() {
 }
 
 function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
-  if (event.button !== 0 || event.detail !== 1 || !isTauri()) {
+  if (event.button !== 0 || event.detail > 1 || !isTauri()) {
     return;
   }
 
+  // Tauri 要求拖拽必须从一次真实的按下事件里启动；WebKit 子窗口有时会把
+  // 首次 mousedown 的 detail 记为 0，所以这里只拦截双击/多击，不强依赖 detail === 1。
   event.preventDefault();
   event.stopPropagation();
   void getCurrentWindow().startDragging().catch((error: unknown) => {

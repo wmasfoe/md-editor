@@ -9,7 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder},
-    Emitter, Manager, WebviewWindow,
+    Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
 use tauri_plugin_dialog::DialogExt;
 
@@ -24,6 +24,7 @@ use settings::{load_app_settings, save_app_settings};
 
 const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 const FILE_TREE_MENU_PREFIX: &str = "md-editor:file-tree:";
+const SETTINGS_WINDOW_LABEL: &str = "settings";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +167,8 @@ pub fn run() {
             cancel_local_ai_model_download,
             delete_local_ai_model,
             request_local_ai_continuation,
+            open_settings_window,
+            close_settings_window,
             save_app_settings_and_update_menu,
             inspect_linked_file,
             open_external_target
@@ -359,6 +362,51 @@ async fn pick_theme_css_file(app: tauri::AppHandle) -> Result<Option<ThemeCssFil
         .into_path()
         .map_err(|error| format!("Selected CSS path is not readable: {error}"))?;
     read_theme_css_path(path).map(Some)
+}
+
+#[tauri::command]
+async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    // 设置必须是单例窗口：菜单、快捷键和主窗口按钮都可能同时触发打开动作。
+    if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
+        window.show().map_err(tauri_error_to_string)?;
+        if window.is_minimized().unwrap_or(false) {
+            window.unminimize().map_err(tauri_error_to_string)?;
+        }
+        return window.set_focus().map_err(tauri_error_to_string);
+    }
+
+    let mut builder = WebviewWindowBuilder::new(
+        &app,
+        SETTINGS_WINDOW_LABEL,
+        WebviewUrl::App("index.html?window=settings".into()),
+    )
+    // 设置窗口是桌面偏好设置面板，不占用主编辑器布局，也不绑定主窗口文件菜单行为。
+    .title("设置")
+    .inner_size(840.0, 620.0)
+    .min_inner_size(680.0, 460.0)
+    .center()
+    .resizable(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(16.0, 13.0));
+    }
+
+    builder.build().map_err(tauri_error_to_string)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_settings_window(app: tauri::AppHandle) -> Result<(), String> {
+    // 取消按钮从前端走命令关闭设置窗口，避免 JS window.close 受能力配置或窗口上下文影响。
+    if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
+        window.close().map_err(tauri_error_to_string)?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
