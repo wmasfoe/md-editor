@@ -38,6 +38,7 @@ export function App() {
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
   const fileSearchResultCount = useMemo(
     () => countMatchedFiles(editor.folder?.tree ?? null, fileSearchQuery),
@@ -46,11 +47,17 @@ export function App() {
   const sidebarTitle = editor.sidebarMode === "files" ? "文件" : "大纲";
   const showFileSearch = editor.sidebarMode === "files" && isFileSearchOpen;
   const pendingActionDescription = getLoadingDescription(editor.pendingAction);
+  const sidebarResizePreviewOffset =
+    sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
   if (editor.isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-        <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} />
+        <AppTitleBar
+          title="设置"
+          isVisible={shouldShowOverlayTitleBar}
+          hasWindowControlsInset
+        />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <SettingsPage
             settings={editor.settings}
@@ -86,11 +93,6 @@ export function App() {
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-      <AppTitleBar
-        title={editor.snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
-        isDirty={editor.snapshot.isDirty}
-        isVisible={shouldShowOverlayTitleBar}
-      />
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {editor.isSidebarVisible ? (
           <button
@@ -102,15 +104,24 @@ export function App() {
         ) : null}
         <aside
           className={cx(
-            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r-0 border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-150 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
+            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
             editor.isSidebarVisible &&
               "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
           )}
-          style={{ "--app-sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+          style={
+            {
+              "--app-sidebar-width": `${sidebarWidth}px`,
+              borderRightWidth: editor.isSidebarVisible ? 1 : 0
+            } as React.CSSProperties
+          }
           aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
           aria-hidden={!editor.isSidebarVisible}
           inert={!editor.isSidebarVisible}
         >
+          <AppTitleBar
+            isVisible={shouldShowOverlayTitleBar}
+            hasWindowControlsInset
+          />
           <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
             <button
               type="button"
@@ -207,21 +218,35 @@ export function App() {
             }}
             onOpenSettings={() => void editor.dispatchCommand("settings.open")}
           />
-          {editor.isSidebarVisible ? (
-            <div
-              className="pointer-events-none absolute bottom-0 right-0 top-0 z-[1] w-px bg-[var(--theme-border)]"
-              aria-hidden="true"
-            />
-          ) : null}
-          <SidebarResizeHandle
-            onResize={(width) => setSidebarWidth(clampSidebarWidth(width))}
-            onCollapse={() => editor.setIsSidebarVisible(false)}
-          />
         </aside>
+        {editor.isSidebarVisible ? (
+          <SidebarResizeBoundary
+            width={sidebarWidth}
+            previewOffset={sidebarResizePreviewOffset}
+            onPreview={setSidebarResizePreviewWidth}
+            onCommit={(width) => {
+              setSidebarResizePreviewWidth(null);
+              if (width < SIDEBAR_MIN_WIDTH) {
+                editor.setIsSidebarVisible(false);
+                return;
+              }
+              setSidebarWidth(clampSidebarWidth(width));
+            }}
+            onCancel={() => setSidebarResizePreviewWidth(null)}
+          />
+        ) : null}
         <section
           className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
           aria-label="Markdown 编辑器"
         >
+          <AppTitleBar
+            title={editor.snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
+            isDirty={editor.snapshot.isDirty}
+            isVisible={shouldShowOverlayTitleBar}
+            hasWindowControlsInset={!editor.isSidebarVisible}
+            titleAlign="center"
+            titleIcon="markdown"
+          />
           {!editor.isSidebarVisible ? (
             <button
               type="button"
@@ -308,12 +333,18 @@ export function App() {
 
 function AppTitleBar({
   title,
+  hasWindowControlsInset = false,
   isDirty = false,
-  isVisible
+  isVisible,
+  titleAlign = "start",
+  titleIcon
 }: {
-  readonly title: string;
+  readonly title?: string;
+  readonly hasWindowControlsInset?: boolean;
   readonly isDirty?: boolean;
   readonly isVisible: boolean;
+  readonly titleAlign?: "start" | "center";
+  readonly titleIcon?: "markdown";
 }) {
   if (!isVisible) {
     return null;
@@ -322,17 +353,60 @@ function AppTitleBar({
   return (
     <div
       data-tauri-drag-region
-      className="flex h-[34px] shrink-0 select-none items-center border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] pl-[76px] pr-4 text-[13px] text-[var(--theme-muted)]"
+      className={cx(
+        "h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
+        titleAlign === "center"
+          ? "grid items-center"
+          : "flex items-center pr-4",
+        titleAlign === "center"
+          ? hasWindowControlsInset
+            ? "grid-cols-[76px_minmax(0,1fr)_76px]"
+            : "grid-cols-[12px_minmax(0,1fr)_12px]"
+          : hasWindowControlsInset
+            ? "pl-[76px]"
+            : "pl-3"
+      )}
       onMouseDown={startTitleBarDrag}
     >
-      <span
-        data-tauri-drag-region
-        className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-medium leading-none"
-      >
-        {title}
-        {isDirty ? "*" : ""}
-      </span>
+      {title ? (
+        <span
+          data-tauri-drag-region
+          className={cx(
+            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
+            titleAlign === "center" && "col-start-2 justify-self-center"
+          )}
+        >
+          {titleIcon === "markdown" ? <MarkdownTitleIcon /> : null}
+          <span
+            data-tauri-drag-region
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            {title}
+            {isDirty ? "*" : ""}
+          </span>
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+function MarkdownTitleIcon() {
+  return (
+    <svg
+      className="size-[17px] shrink-0 text-[var(--theme-control-subtle)]"
+      viewBox="0 0 24 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="1.75" y="1.75" width="20.5" height="12.5" rx="2" />
+      <path d="M5 11V5l2.5 3L10 5v6" />
+      <path d="M16 5v5.5" />
+      <path d="m13.75 8.5 2.25 2.25 2.25-2.25" />
+    </svg>
   );
 }
 
@@ -381,43 +455,98 @@ function EditorToast({
   );
 }
 
-function SidebarResizeHandle({
-  onCollapse,
-  onResize
+function SidebarResizeBoundary({
+  onCancel,
+  onCommit,
+  onPreview,
+  previewOffset,
+  width
 }: {
-  readonly onCollapse: () => void;
-  readonly onResize: (width: number) => void;
+  readonly onCancel: () => void;
+  readonly onCommit: (width: number) => void;
+  readonly onPreview: (width: number) => void;
+  readonly previewOffset: number | null;
+  readonly width: number;
+}) {
+  return (
+    <div className="z-20 hidden h-full w-0 shrink-0 min-[960px]:grid">
+      {previewOffset !== null ? (
+        <div
+          className="pointer-events-none col-start-1 row-start-1 h-full w-0 border-l border-dashed border-[var(--theme-primary)]"
+          style={{ transform: `translateX(${previewOffset}px)` }}
+          aria-hidden="true"
+        />
+      ) : null}
+      <SidebarResizeHandle
+        width={width}
+        onPreview={onPreview}
+        onCommit={onCommit}
+        onCancel={onCancel}
+      />
+    </div>
+  );
+}
+
+function SidebarResizeHandle({
+  onCancel,
+  onCommit,
+  onPreview,
+  width
+}: {
+  readonly onCancel: () => void;
+  readonly onCommit: (width: number) => void;
+  readonly onPreview: (width: number) => void;
+  readonly width: number;
 }) {
   return (
     <div
-      className="absolute bottom-0 right-[-3px] top-0 z-[2] w-1.5 cursor-col-resize touch-none after:absolute after:bottom-0 after:right-[2px] after:top-0 after:w-px after:bg-transparent after:content-[''] hover:after:bg-[var(--theme-primary)]"
+      className="group col-start-1 row-start-1 grid h-full w-1.5 -translate-x-1/2 cursor-col-resize touch-none place-items-center"
       role="separator"
       aria-label="调整侧栏宽度"
       aria-orientation="vertical"
+      aria-valuemin={SIDEBAR_MIN_WIDTH}
+      aria-valuemax={SIDEBAR_MAX_WIDTH}
+      aria-valuenow={width}
       onPointerDown={(event) => {
         event.preventDefault();
         const pointerId = event.pointerId;
+        const target = event.currentTarget;
         event.currentTarget.setPointerCapture(pointerId);
+        onPreview(event.clientX);
 
         const handlePointerMove = (moveEvent: PointerEvent) => {
-          if (moveEvent.clientX < SIDEBAR_MIN_WIDTH) {
-            onCollapse();
-            return;
-          }
-          onResize(moveEvent.clientX);
+          onPreview(moveEvent.clientX);
         };
 
-        const handlePointerUp = () => {
+        const stopTracking = () => {
+          if (target.hasPointerCapture(pointerId)) {
+            target.releasePointerCapture(pointerId);
+          }
           window.removeEventListener("pointermove", handlePointerMove);
           window.removeEventListener("pointerup", handlePointerUp);
-          window.removeEventListener("pointercancel", handlePointerUp);
+          window.removeEventListener("pointercancel", handlePointerCancel);
+        };
+
+        const handlePointerUp = (upEvent: PointerEvent) => {
+          stopTracking();
+          onCommit(upEvent.clientX);
+        };
+
+        const handlePointerCancel = () => {
+          stopTracking();
+          onCancel();
         };
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
-        window.addEventListener("pointercancel", handlePointerUp);
+        window.addEventListener("pointercancel", handlePointerCancel);
       }}
-    />
+    >
+      <span
+        className="pointer-events-none h-full w-px bg-transparent group-hover:bg-[var(--theme-primary)]"
+        aria-hidden="true"
+      />
+    </div>
   );
 }
 
@@ -426,6 +555,10 @@ const sidebarHeaderIconButtonClassName =
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
+}
+
+function clampSidebarPreviewWidth(width: number): number {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(0, width));
 }
 
 function EditorLoadingState({
