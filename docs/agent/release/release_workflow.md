@@ -4,21 +4,23 @@
 
 ## 目标
 
-- 分支 push / PR / 手动触发：由 `.github/workflows/build-macos.yml` 执行 lint、typecheck、test，构建 macOS DMG，并上传 workflow artifact。普通构建不生成 updater artifact，因此不依赖 Tauri updater 私钥。
-- `v*` tag push：由 `.github/workflows/release-macos.yml` 执行同样的校验和 release-only DMG 构建；校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。
+- PR：由 `.github/workflows/build-macos.yml` 执行 lint、typecheck、test、Rust test 和版本一致性校验，不默认构建 DMG。
+- 手动触发 `.github/workflows/build-macos.yml`：执行同样校验后构建 macOS DMG，并上传 workflow artifact。普通构建不生成 updater artifact，因此不依赖 Tauri updater 私钥。
+- `v*` tag push：由 `.github/workflows/release-macos.yml` 先校验版本、tag 和 updater signing secret，再执行校验与 release-only 构建；release 构建会先生成 DMG，再单独生成 signed updater artifact。校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。
 - main 分支 push 不发 Release。Release 和 Homebrew 同步只允许由 `v*` tag 触发。
 - Release 版本号以 `apps/desktop/src-tauri/tauri.conf.json` 的 `version` 为准，并要求 root package、desktop package、Cargo manifest 与它一致。
 - tag 名必须匹配版本号生成的 `v{version}`，例如版本 `0.2.1` 必须推送 `v0.2.1`。
 
 ## 相关文件
 
-- `.github/workflows/build-macos.yml`: 分支、PR 和手动触发的 macOS 校验构建入口。
+- `.github/workflows/build-macos.yml`: PR 和手动触发的 macOS 校验构建入口。
 - `.github/workflows/release-macos.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
 - `scripts/release/publish-desktop.mjs`: 交互式发版编排脚本，负责版本同步、commit、tag 和 push。
 - `scripts/release/version-desktop.mjs`: 同步更新 root package、desktop package、Tauri config、Cargo manifest 和 Cargo lock 的版本号。
 - `scripts/release/write-homebrew-cask.mjs`: 根据 DMG 文件名、sha256 和版本生成 `Casks/md-editor.rb`。
 - `scripts/release/write-install-script.mjs`: 根据公开 DMG 下载地址、sha256 和版本生成 `install-md-editor.sh`，供用户通过 curl 直接安装。
 - `scripts/release/write-updater-manifest.mjs`: 根据公开 updater artifact URL、签名和平台 key 生成 `md-editor-latest.json`。
+- `package.json`: `build:macos:release` 顺序调用 `build:macos:release:dmg` 和 `build:macos:release:updater`，避免 DMG 和 app updater artifact 在同一轮 Tauri build 中互相影响。
 - `apps/desktop/src-tauri/tauri.conf.json`: Tauri app 版本号源头，并配置 updater 公钥和 manifest endpoint。
 - `apps/desktop/src-tauri/tauri.release.conf.json`: release-only Tauri 配置，只在 tag release 构建中打开 `bundle.createUpdaterArtifacts`。
 
@@ -44,7 +46,7 @@
 
 3. 提交版本文件和代码改动。
 
-4. push 到 `main`，等待分支校验通过。
+4. push 到 `main`。如需在打 tag 前额外确认构建产物，可手动触发 `Build macOS App` workflow。
 
 5. 创建并推送与版本号匹配的 tag：
 
@@ -54,11 +56,12 @@
    ```
 
 6. GitHub Actions 会自动：
-   - 安装 pnpm / Node / Rust。
-   - 执行 `pnpm lint`、`pnpm typecheck` 和 `pnpm test`。
    - 读取并校验版本一致性。
    - 校验 tag 名等于 `v{version}`。
-   - 执行 `pnpm build:macos:release` 构建 DMG、`.app.tar.gz` updater artifact 和 `.sig`。
+   - 校验 `TAURI_SIGNING_PRIVATE_KEY` 已配置。
+   - 安装 pnpm / Node / Rust，并恢复 pnpm / Cargo 缓存。
+   - 执行 `pnpm lint`、`pnpm typecheck`、`pnpm test` 和 `pnpm test:rust`。
+   - 执行 `pnpm build:macos:release`；该脚本先用 `build:macos:release:dmg` 构建 DMG，再用 `build:macos:release:updater` 构建 `.app.tar.gz` updater artifact 和 `.sig`。
    - 上传 DMG 和 updater workflow artifact。
    - 创建或更新 `v{version}` GitHub Release，并上传 DMG、updater artifact 和签名。
    - 计算 DMG `sha256`。
@@ -174,7 +177,7 @@ curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-m
 
 ## 常见问题
 
-- Release 步骤被跳过：确认触发事件是 push 到 `refs/tags/v*`。PR、分支 push 和手动 workflow 只校验、构建并上传 artifact，不发 Release。
+- Release 步骤被跳过：确认触发事件是 push 到 `refs/tags/v*`。PR 只校验，不发 Release；手动 `Build macOS App` workflow 会校验并上传 DMG artifact，但也不会发 Release。
 - tag 校验失败：确认 tag 名等于项目版本号。例如 `tauri.conf.json` 是 `0.2.1` 时，必须推送 `v0.2.1`。
 - `a release with the same tag name already exists`：当前 workflow 应该使用 `gh release upload --clobber` 处理已存在 Release；若再次出现，检查 workflow 是否是最新版本。
 - tap 更新失败：优先检查 `HOMEBREW_TAP_TOKEN` 是否存在、是否有 `wmasfoe/homebrew-tap` 的 Contents write 权限。
