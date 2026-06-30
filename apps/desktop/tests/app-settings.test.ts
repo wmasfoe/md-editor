@@ -195,6 +195,7 @@ describe("app settings", () => {
       latestVersion: "0.2.9",
       releaseUrl: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
       downloadUrl: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
+      installKind: "manual",
       installCommand: INSTALL_WITH_CURL_COMMAND,
       message: "发现新版本 0.2.9，当前版本 0.2.8。"
     });

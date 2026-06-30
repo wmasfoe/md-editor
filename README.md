@@ -91,10 +91,11 @@ packages/
 
 ## 文档
 
-完整文档请查看 [`docs/`](docs/) 目录:
+完整文档请查看 [`docs/index.md`](docs/index.md) 入口:
 
-- [技术方案](docs/agent/markdown_editor_technical_plan.md) - 架构设计和实现细节
-- [发布流程](docs/agent/release_workflow.md) - 版本发布说明
+- [技术方案](docs/agent/architecture/markdown_editor_technical_plan.md) - 架构设计和实现细节
+- [发布流程](docs/agent/release/release_workflow.md) - 自动化发布、Homebrew 和应用内更新说明
+- [发版指南](docs/human/release.md) - 面向维护者的发版步骤
 - [项目背景](docs/human/project.md) - 项目起源和目标
 
 ## 开发指南

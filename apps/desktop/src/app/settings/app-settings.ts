@@ -27,12 +27,24 @@ export interface AppSettings {
 
 export interface UpdateStatus {
   readonly currentVersion: string;
-  readonly state: "idle" | "checking" | "up-to-date" | "available" | "unconfigured" | "error";
+  readonly state:
+    | "idle"
+    | "checking"
+    | "up-to-date"
+    | "available"
+    | "downloading"
+    | "installing"
+    | "installed"
+    | "unconfigured"
+    | "error";
   readonly message: string;
   readonly latestVersion?: string;
   readonly releaseUrl?: string;
   readonly downloadUrl?: string;
+  readonly installKind?: "app" | "manual";
   readonly installCommand?: string;
+  readonly downloadedBytes?: number;
+  readonly totalBytes?: number;
 }
 
 export type ThemeColorScheme = "system" | "light" | "dark";
@@ -208,6 +220,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
       latestVersion: latestRelease.version,
       releaseUrl: latestRelease.releaseUrl,
       downloadUrl: latestRelease.downloadUrl,
+      installKind: "manual",
       installCommand: INSTALL_WITH_CURL_COMMAND,
       message: `发现新版本 ${latestRelease.version}，当前版本 ${currentVersion}。`
     };

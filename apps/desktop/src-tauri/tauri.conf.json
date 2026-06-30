@@ -49,6 +49,17 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc1QzVFMzI0RjFGOUFBNDMKUldSRHF2bnhKT1BGZGJoZ0Vpa1IzMS9jWWhCSHVkUlZXWjE3Z1djTXFXU3I0QWhucmhQOU5BKzYK",
+      "endpoints": [
+        "https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/md-editor-latest.json"
+      ]
+    }
   }
 }
