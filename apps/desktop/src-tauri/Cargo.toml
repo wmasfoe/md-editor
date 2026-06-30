@@ -1,6 +1,6 @@
 [package]
 name = "md-editor"
-version = "0.3.4"
+version = "0.3.5"
 description = "Daily-usable Markdown and MDX-compatible desktop editor."
 authors = ["md-editor contributors"]
 edition = "2021"
