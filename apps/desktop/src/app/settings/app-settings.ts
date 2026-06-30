@@ -101,6 +101,7 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
 export const APP_SETTINGS_CHANGED_EVENT = "md-editor-app-settings-changed";
+export const APP_THEME_PREVIEW_CHANGED_EVENT = "md-editor-app-theme-preview-changed";
 export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
 export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
 export const UPDATE_RELEASES_API_URL = "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
@@ -204,6 +205,38 @@ export function listenToAppSettingsChanged(
   return () => window.removeEventListener(APP_SETTINGS_CHANGED_EVENT, listener);
 }
 
+export function listenToAppThemePreviewChanged(
+  handler: (theme: AppThemeSettings) => void
+): (() => void) | undefined {
+  if (isTauri()) {
+    // 主题预览是跨窗口即时反馈，不代表已保存；主窗口只临时应用 payload。
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    void listen<unknown>(APP_THEME_PREVIEW_CHANGED_EVENT, (event) => {
+      handler(normalizeAppTheme(event.payload));
+    }).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
+      unlisten = dispose;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      unlisten = undefined;
+    };
+  }
+
+  const listener = (event: Event) => {
+    handler(normalizeAppTheme((event as CustomEvent<unknown>).detail));
+  };
+  window.addEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
+}
+
 async function publishAppSettingsChanged(settings: AppSettings): Promise<void> {
   if (isTauri()) {
     // 使用前端事件而不是 Rust 命令回调，避免设置窗口需要知道主窗口 label。
@@ -212,6 +245,17 @@ async function publishAppSettingsChanged(settings: AppSettings): Promise<void> {
   }
 
   window.dispatchEvent(new CustomEvent(APP_SETTINGS_CHANGED_EVENT, { detail: settings }));
+}
+
+export async function publishAppThemePreviewChanged(theme: AppThemeSettings): Promise<void> {
+  const normalized = normalizeAppTheme(theme);
+
+  if (isTauri()) {
+    await emit(APP_THEME_PREVIEW_CHANGED_EVENT, normalized);
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(APP_THEME_PREVIEW_CHANGED_EVENT, { detail: normalized }));
 }
 
 export async function checkForUpdates(

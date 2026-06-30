@@ -106,5 +106,8 @@ function setThemeStyleText(css: string) {
     style.id = "md-editor-custom-theme";
     document.head.append(style);
   }
+  if (style.textContent === css) {
+    return;
+  }
   style.textContent = css;
 }

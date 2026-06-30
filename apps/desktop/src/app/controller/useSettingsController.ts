@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AiSettings } from "@md-editor/editor-core";
 import {
   cancelLocalAiModelDownload,
@@ -10,7 +10,7 @@ import {
   type LocalAiModelCommandStatus
 } from "../ai/local-ai-model";
 import {
-  closeCurrentSettingsWindow,
+  destroyCurrentSettingsWindow,
   openSettingsWindow
 } from "../../desktop/settings-window";
 import {
@@ -19,8 +19,10 @@ import {
   keyboardShortcutLabel,
   loadAppSettings,
   listenToAppSettingsChanged,
+  listenToAppThemePreviewChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
+  publishAppThemePreviewChanged,
   saveAppSettings,
   validateAssetsDirectory,
   type AppSettings,
@@ -55,6 +57,8 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
+  const [previewTheme, setPreviewTheme] = useState<AppThemeSettings | null>(null);
+  const hasLoadedSettingsRef = useRef(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
     currentVersion: appVersion(),
     state: "idle",
@@ -107,19 +111,35 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setIsSettingsOpen(true);
   }, [settings, showToast, surface, syncSettingsDrafts]);
 
+  const restoreSavedThemePreview = useCallback(async () => {
+    // 主题预览不会写入存储；关闭/取消设置时要广播已保存主题，让主窗口退出草稿预览。
+    setPreviewTheme(null);
+    await publishAppThemePreviewChanged(settings.theme);
+  }, [settings.theme]);
+
   const closeSettings = useCallback(() => {
     if (surface === "settings-window") {
-      // 设置窗口关闭的是当前原生窗口；不要回写主窗口的 isSettingsOpen 状态。
-      void closeCurrentSettingsWindow().catch((error: unknown) => {
-        setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
-      });
+      // 取消设置时需要先回滚跨窗口主题预览，再关闭当前原生设置窗口。
+      void restoreSavedThemePreview()
+        .then(() => destroyCurrentSettingsWindow())
+        .catch((error: unknown) => {
+          setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
+        });
       return;
     }
 
     setIsSettingsOpen(false);
     setSettingsErrorMessage(null);
     syncSettingsDrafts(settings);
-  }, [settings, surface, syncSettingsDrafts]);
+    void restoreSavedThemePreview().catch((error: unknown) => {
+      console.warn("主题预览回滚失败", error);
+    });
+  }, [restoreSavedThemePreview, settings, surface, syncSettingsDrafts]);
+
+  const destroySettingsWindowAfterRollback = useCallback(async () => {
+    await restoreSavedThemePreview();
+    await destroyCurrentSettingsWindow();
+  }, [restoreSavedThemePreview]);
 
   const captureShortcutDraft = useCallback((id: string, key: string) => {
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
@@ -170,6 +190,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       });
       setSettings(saved);
       syncSettingsDrafts(saved);
+      setPreviewTheme(null);
       if (surface === "main") {
         setIsSettingsOpen(false);
       } else {
@@ -313,9 +334,11 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
           }
           setSettings(hydratedSettings);
           syncSettingsDrafts(hydratedSettings);
+          hasLoadedSettingsRef.current = true;
         } catch {
           setSettings(loadedSettings);
           syncSettingsDrafts(loadedSettings);
+          hasLoadedSettingsRef.current = true;
         }
       })
       .catch((error: unknown) => {
@@ -334,9 +357,29 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       listenToAppSettingsChanged((nextSettings) => {
         setSettings(nextSettings);
         syncSettingsDrafts(nextSettings);
+        setPreviewTheme(null);
       }),
     [syncSettingsDrafts]
   );
+
+  useEffect(
+    () =>
+      listenToAppThemePreviewChanged((nextTheme) => {
+        setPreviewTheme(nextTheme);
+      }),
+    []
+  );
+
+  useEffect(() => {
+    if (surface !== "settings-window" || !hasLoadedSettingsRef.current) {
+      return;
+    }
+
+    // 设置窗口里的主题草稿要实时广播给主窗口预览，但仍然等保存时才进入 settings.json。
+    void publishAppThemePreviewChanged(themeDraft).catch((error: unknown) => {
+      console.warn("主题预览广播失败", error);
+    });
+  }, [surface, themeDraft]);
 
   useEffect(() => {
     return listenToLocalAiModelProgress((status) => {
@@ -352,8 +395,8 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   }, [applyLocalModelStatus]);
 
   useEffect(
-    () => applyCustomThemeCss(isSettingsOpen || surface === "settings-window" ? themeDraft : settings.theme),
-    [isSettingsOpen, settings.theme, surface, themeDraft]
+    () => applyCustomThemeCss(isSettingsOpen || surface === "settings-window" ? themeDraft : previewTheme ?? settings.theme),
+    [isSettingsOpen, previewTheme, settings.theme, surface, themeDraft]
   );
 
   return {
@@ -374,6 +417,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     clearThemeCss,
     openSettings,
     closeSettings,
+    destroySettingsWindowAfterRollback,
     captureShortcutDraft,
     resetShortcutDraft,
     saveSettings,

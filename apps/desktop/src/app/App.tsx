@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bars3BottomLeftIcon,
   FolderIcon,
@@ -340,17 +340,49 @@ export function App() {
 
 function SettingsWindowApp() {
   const [toast, setToast] = useState<{ readonly id: number; readonly message: string } | null>(null);
+  // useSettingsController 的加载 effect 依赖 showToast；设置窗口里必须保持回调稳定，
+  // 否则任意草稿更新都会触发重新读取旧设置，把刚选的主题覆盖回去。
+  const showSettingsToast = useCallback((message: string | null) => {
+    setToast(message ? { id: Date.now(), message } : null);
+  }, []);
   const settings = useSettingsController({
     surface: "settings-window",
-    showToast: (message) => {
-      setToast(message ? { id: Date.now(), message } : null);
-    }
+    showToast: showSettingsToast
   });
   const shouldShowOverlayTitleBar = isMacPlatform();
 
   useEffect(() => {
     document.title = "设置";
   }, []);
+
+  useEffect(() => {
+    if (!isTauri()) {
+      return undefined;
+    }
+
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        // 原生关闭和“取消”语义一致：未保存的主题预览必须先恢复到已保存主题。
+        event.preventDefault();
+        void settings.destroySettingsWindowAfterRollback().catch((error: unknown) => {
+          console.warn("设置窗口关闭回滚失败", error);
+        });
+      })
+      .then((dispose) => {
+        if (disposed) {
+          dispose();
+          return;
+        }
+        unlisten = dispose;
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [settings.destroySettingsWindowAfterRollback]);
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">

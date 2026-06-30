@@ -31,3 +31,13 @@ export async function closeCurrentSettingsWindow(): Promise<boolean> {
   await invoke("close_settings_window");
   return true;
 }
+
+export async function destroyCurrentSettingsWindow(): Promise<boolean> {
+  if (!isSettingsWindow() || !isTauri()) {
+    return false;
+  }
+
+  // 原生关闭事件里已经 preventDefault；这里直接销毁，避免再次触发 close-requested 形成关闭循环。
+  await getCurrentWindow().destroy();
+  return true;
+}
