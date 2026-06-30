@@ -25,6 +25,8 @@
     "fs:allow-create",
     "fs:allow-remove",
     "fs:allow-rename",
-    "fs:allow-exists"
+    "fs:allow-exists",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

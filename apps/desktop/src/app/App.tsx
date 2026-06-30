@@ -76,6 +76,8 @@ export function App() {
             onSave={() => void editor.saveSettings()}
             onClose={editor.closeSettings}
             onCheckForUpdates={() => void editor.runUpdateCheck()}
+            onInstallUpdate={() => void editor.installUpdate()}
+            onRelaunchAfterUpdate={() => void editor.relaunchUpdate()}
           />
         </div>
       </main>

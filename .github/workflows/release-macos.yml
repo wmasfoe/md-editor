@@ -76,22 +76,40 @@ jobs:
             exit 1
           fi
 
+      - name: Validate updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "Missing TAURI_SIGNING_PRIVATE_KEY. Store the Tauri updater private key content as this secret." >&2
+            exit 1
+          fi
+
       # Distribution note:
-      # A plain Tauri DMG can be built and installed locally, but macOS Gatekeeper
-      # treats downloaded unsigned/unnotarized apps as untrusted. That is why users
-      # may see "app is damaged" until they manually clear com.apple.quarantine.
-      #
-      # When you add Apple distribution support, insert the certificate/keychain
-      # setup before this build step and expose the Tauri/Apple signing env vars
-      # here, so the generated .app/.dmg is Developer ID signed and notarized.
+      # Tauri updater signing verifies update artifacts and is separate from
+      # Apple Developer ID signing/notarization. This workflow still uses macOS
+      # ad-hoc signing, so first-install Gatekeeper behavior is unchanged until
+      # Apple distribution credentials are added later.
       - name: Build macOS app
-        run: pnpm build:macos
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm build:macos:release
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
         with:
           name: markdown-editor-macos-dmg
           path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Upload updater artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-editor-macos-updater
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
 
       # Stable release users and Homebrew users both receive the DMG uploaded
@@ -114,6 +132,8 @@ jobs:
 
             gh release upload "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
               --clobber
           else
             release_flags=()
@@ -123,6 +143,8 @@ jobs:
 
             gh release create "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
               --title "Markdown Editor $RELEASE_TAG" \
               --notes "Automated macOS DMG build for $RELEASE_VERSION." \
               "${release_flags[@]}"
@@ -142,6 +164,46 @@ jobs:
           echo "file_name=$(basename "$dmg_path")" >> "$GITHUB_OUTPUT"
           echo "sha256=$(shasum -a 256 "$dmg_path" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      - name: Read updater metadata
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        id: updater_metadata
+        run: |
+          updater_path="$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -type f -name '*.app.tar.gz' -print -quit)"
+
+          if [[ -z "$updater_path" ]]; then
+            echo "No updater archive found." >&2
+            exit 1
+          fi
+
+          sig_path="$updater_path.sig"
+          if [[ ! -f "$sig_path" ]]; then
+            echo "No updater signature found at $sig_path." >&2
+            exit 1
+          fi
+
+          case "$(uname -m)" in
+            arm64) platform="darwin-aarch64" ;;
+            x86_64) platform="darwin-x86_64" ;;
+            *)
+              echo "Unsupported macOS runner architecture: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ ! -s "$sig_path" ]]; then
+            echo "Updater signature is empty." >&2
+            exit 1
+          fi
+
+          echo "file_name=$(basename "$updater_path")" >> "$GITHUB_OUTPUT"
+          echo "platform=$platform" >> "$GITHUB_OUTPUT"
+          {
+            echo "signature<<UPDATER_SIGNATURE"
+            cat "$sig_path"
+            echo
+            echo "UPDATER_SIGNATURE"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Clone Homebrew tap
         if: steps.release_version.outputs.is_prerelease != 'true'
         env:
@@ -159,11 +221,15 @@ jobs:
           if gh release view "$RELEASE_TAG" --repo wmasfoe/homebrew-tap >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
               --repo wmasfoe/homebrew-tap \
               --clobber
           else
             gh release create "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
               --repo wmasfoe/homebrew-tap \
               --title "Markdown Editor $RELEASE_TAG" \
               --notes "Public Homebrew cask asset for Markdown Editor $RELEASE_VERSION."
@@ -184,6 +250,26 @@ jobs:
 
           if [[ -z "$download_url" ]]; then
             echo "No public DMG asset found on wmasfoe/homebrew-tap release $RELEASE_TAG." >&2
+            exit 1
+          fi
+
+          echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
+
+      - name: Read public updater asset URL
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        id: homebrew_updater_asset
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+        run: |
+          download_url="$(
+            gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" \
+              --jq '.assets[] | select(.name | endswith(".app.tar.gz")) | .browser_download_url' \
+              | head -n 1
+          )"
+
+          if [[ -z "$download_url" ]]; then
+            echo "No public updater archive found on wmasfoe/homebrew-tap release $RELEASE_TAG." >&2
             exit 1
           fi
 
@@ -210,6 +296,16 @@ jobs:
           INSTALL_SCRIPT_OUTPUT_PATH: homebrew-tap/install-md-editor.sh
         run: node scripts/release/write-install-script.mjs
 
+      - name: Update updater manifest
+        if: steps.release_version.outputs.is_prerelease != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          UPDATER_DOWNLOAD_URL: ${{ steps.homebrew_updater_asset.outputs.download_url }}
+          UPDATER_SIGNATURE: ${{ steps.updater_metadata.outputs.signature }}
+          UPDATER_PLATFORM: ${{ steps.updater_metadata.outputs.platform }}
+          UPDATER_MANIFEST_OUTPUT_PATH: homebrew-tap/md-editor-latest.json
+        run: node scripts/release/write-updater-manifest.mjs
+
       - name: Publish Homebrew tap
         if: steps.release_version.outputs.is_prerelease != 'true'
         working-directory: homebrew-tap
@@ -218,10 +314,10 @@ jobs:
             git checkout -b main
           fi
 
-          git add Casks/md-editor.rb install-md-editor.sh
+          git add Casks/md-editor.rb install-md-editor.sh md-editor-latest.json
 
-          if git diff --cached --quiet -- Casks/md-editor.rb install-md-editor.sh; then
-            echo "Homebrew cask and curl installer are already up to date."
+          if git diff --cached --quiet -- Casks/md-editor.rb install-md-editor.sh md-editor-latest.json; then
+            echo "Homebrew cask, curl installer, and updater manifest are already up to date."
             exit 0
           fi
 

@@ -46,6 +46,8 @@ export interface SettingsPageProps {
   readonly onSave: () => void;
   readonly onClose: () => void;
   readonly onCheckForUpdates: () => void;
+  readonly onInstallUpdate: () => void;
+  readonly onRelaunchAfterUpdate: () => void;
 }
 
 export function SettingsPage({
@@ -71,7 +73,9 @@ export function SettingsPage({
   onDeleteLocalModel,
   onSave,
   onClose,
-  onCheckForUpdates
+  onCheckForUpdates,
+  onInstallUpdate,
+  onRelaunchAfterUpdate
 }: SettingsPageProps) {
   const isLocalModelBusy =
     isLocalModelActionPending ||
@@ -82,6 +86,12 @@ export function SettingsPage({
   const canDeleteLocalModel =
     aiSettingsDraft.localModel.status === "available" ||
     aiSettingsDraft.localModel.status === "failed";
+  const isUpdateBusy =
+    isCheckingForUpdates ||
+    updateStatus.state === "downloading" ||
+    updateStatus.state === "installing";
+  const canInstallUpdate = updateStatus.state === "available" && updateStatus.installKind === "app";
+  const canRelaunchAfterUpdate = updateStatus.state === "installed";
 
   useEffect(() => {
     const closeOnPlainEscape = (event: globalThis.KeyboardEvent) => {
@@ -407,23 +417,46 @@ export function SettingsPage({
                 <p className={settingsDescriptionClassName}>{updateStatus.message}</p>
                 {updateStatus.state === "available" && updateStatus.installCommand ? (
                   <div className="mt-2 grid gap-1">
-                    <span className={settingsFieldLabelClassName}>安装命令</span>
+                    <span className={settingsFieldLabelClassName}>手动安装命令</span>
                     <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
                       {updateStatus.installCommand}
                     </code>
                   </div>
                 ) : null}
+                {updateProgressLabel(updateStatus) ? (
+                  <p className={settingsDescriptionClassName}>{updateProgressLabel(updateStatus)}</p>
+                ) : null}
               </div>
               <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
                 <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>
-                <button
-                  type="button"
-                  className={settingsSmallButtonClassName}
-                  onClick={onCheckForUpdates}
-                  disabled={isCheckingForUpdates}
-                >
-                  {isCheckingForUpdates ? "检查中" : "检查更新"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={settingsSmallButtonClassName}
+                    onClick={onCheckForUpdates}
+                    disabled={isUpdateBusy}
+                  >
+                    {isCheckingForUpdates ? "检查中" : "检查更新"}
+                  </button>
+                  {canInstallUpdate ? (
+                    <button
+                      type="button"
+                      className={settingsSmallButtonClassName}
+                      onClick={onInstallUpdate}
+                    >
+                      安装更新
+                    </button>
+                  ) : null}
+                  {canRelaunchAfterUpdate ? (
+                    <button
+                      type="button"
+                      className={settingsSmallButtonClassName}
+                      onClick={onRelaunchAfterUpdate}
+                    >
+                      重启应用
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </section>
           </div>
@@ -575,6 +608,21 @@ function localModelProgressLabel(localModel: AiSettings["localModel"]): string {
   }
 
   return `模型 ${localModel.modelId}，${versionLabel}，${progressLabel}。`;
+}
+
+function updateProgressLabel(updateStatus: UpdateStatus): string | null {
+  if (updateStatus.state === "installing") {
+    return "正在安装更新，请保持应用打开。";
+  }
+  if (updateStatus.state !== "downloading") {
+    return null;
+  }
+
+  const downloadedBytes = updateStatus.downloadedBytes ?? 0;
+  const totalBytes = updateStatus.totalBytes ?? 0;
+  return totalBytes > 0
+    ? `${formatByteSize(downloadedBytes)} / ${formatByteSize(totalBytes)}`
+    : `${formatByteSize(downloadedBytes)} 已下载`;
 }
 
 function formatByteSize(value: number): string {

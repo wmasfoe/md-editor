@@ -11,7 +11,6 @@ import {
 } from "../ai/local-ai-model";
 import {
   appVersion,
-  checkForUpdates,
   createDefaultSettings,
   keyboardShortcutLabel,
   loadAppSettings,
@@ -25,6 +24,11 @@ import {
   type UpdateStatus
 } from "../settings/app-settings";
 import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
+import {
+  checkForInstallableUpdate,
+  installPendingUpdate,
+  relaunchAfterUpdate
+} from "../updates/app-updater";
 import { formatActionError } from "./controller-errors";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
@@ -215,13 +219,30 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
   }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
 
   const runUpdateCheck = useCallback(async () => {
-    // 这里仅检查公开发布状态，不直接下载覆盖 App；安装仍走发布页或 curl 安装脚本。
     setUpdateStatus({
       currentVersion: appVersion(),
       state: "checking",
       message: "正在检查更新..."
     });
-    setUpdateStatus(await checkForUpdates(appVersion()));
+    setUpdateStatus(await checkForInstallableUpdate(appVersion()));
+  }, []);
+
+  const installUpdate = useCallback(async () => {
+    setSettingsErrorMessage(null);
+    const result = await installPendingUpdate(setUpdateStatus);
+    setUpdateStatus(result);
+    if (result.state === "installed") {
+      showToast("更新已安装，重启应用后生效。");
+    }
+  }, [showToast]);
+
+  const relaunchUpdate = useCallback(async () => {
+    setSettingsErrorMessage(null);
+    try {
+      await relaunchAfterUpdate();
+    } catch (error) {
+      setSettingsErrorMessage(formatActionError(error, "重启应用失败。"));
+    }
   }, []);
 
   useEffect(() => {
@@ -305,7 +326,9 @@ export function useSettingsController({ showToast }: UseSettingsControllerOption
     downloadLocalModel,
     cancelLocalModelDownload,
     deleteLocalModel,
-    runUpdateCheck
+    runUpdateCheck,
+    installUpdate,
+    relaunchUpdate
   };
 }
 

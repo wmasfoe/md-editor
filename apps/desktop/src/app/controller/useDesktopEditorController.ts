@@ -83,7 +83,9 @@ export function useDesktopEditorController() {
     downloadLocalModel,
     cancelLocalModelDownload,
     deleteLocalModel,
-    runUpdateCheck
+    runUpdateCheck,
+    installUpdate,
+    relaunchUpdate
   } = useSettingsController({ showToast });
   const {
     confirmation,
@@ -433,6 +435,8 @@ export function useDesktopEditorController() {
     downloadLocalModel,
     cancelLocalModelDownload,
     deleteLocalModel,
-    runUpdateCheck
+    runUpdateCheck,
+    installUpdate,
+    relaunchUpdate
   };
 }

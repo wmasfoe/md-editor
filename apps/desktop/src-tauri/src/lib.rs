@@ -72,14 +72,6 @@ struct FileTreeMutationResult {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct UpdateStatus {
-    current_version: String,
-    state: String,
-    message: String,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 struct ThemeCssFile {
     path: String,
     css: String,
@@ -147,6 +139,8 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
         .invoke_handler(tauri::generate_handler![
             open_markdown_document,
@@ -174,8 +168,7 @@ pub fn run() {
             request_local_ai_continuation,
             save_app_settings_and_update_menu,
             inspect_linked_file,
-            open_external_target,
-            check_for_updates
+            open_external_target
         ])
         .run(tauri::generate_context!())
         .expect("error while running Markdown Editor");
@@ -772,20 +765,6 @@ fn open_external_target(target: String) -> Result<(), String> {
     };
 
     open_with_system_default(&resolved_target)
-}
-
-#[tauri::command]
-fn check_for_updates() -> UpdateStatus {
-    let current_version = env!("CARGO_PKG_VERSION").to_string();
-
-    // 先保留产品入口，但不伪装成已接入自动更新；真正检查更新需要签名发布源和 updater 插件。
-    UpdateStatus {
-        current_version: current_version.clone(),
-        state: "unconfigured".to_string(),
-        message: format!(
-            "当前版本 {current_version}。自动更新源尚未配置，请通过 GitHub Release 或 Homebrew 获取新版本。"
-        ),
-    }
 }
 
 fn choose_save_path(
