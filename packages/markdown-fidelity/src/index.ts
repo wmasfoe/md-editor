@@ -126,14 +126,18 @@ export function rewriteRawBlocksForPreview(markdown: string): MarkdownRawBlockPr
     sourceMap.push([previewBlock, frontmatter]);
   }
 
-  previewMarkdown = previewMarkdown.replace(
-    /^ {0,3}<([A-Z][A-Za-z0-9.:-]*)(?:\s[^>\n]*)?(?:\/>|>[\s\S]*?<\/\1>)(?:\r?\n|$)/gm,
-    (source) => {
-      const kind = /^\s*<Callout(?:\s|>|\/>)/u.test(source) ? "callout" : "mdx";
-      const previewBlock = createManagedRawFence(kind, source.replace(/\r?\n$/u, ""));
-      sourceMap.push([previewBlock, source]);
-      return previewBlock;
-    }
+  // MDX raw-block 托管只能作用在正文段落；代码围栏里的 Vue/TSX 示例必须原样保留。
+  previewMarkdown = replaceOutsideMarkdownCodeFences(
+    previewMarkdown,
+    (markdownSegment) => markdownSegment.replace(
+      /^ {0,3}<([A-Z][A-Za-z0-9.:-]*)(?:\s[^>\n]*)?(?:\/>|>[\s\S]*?<\/\1>)(?:\r?\n|$)/gm,
+      (source) => {
+        const kind = /^\s*<Callout(?:\s|>|\/>)/u.test(source) ? "callout" : "mdx";
+        const previewBlock = createManagedRawFence(kind, source.replace(/\r?\n$/u, ""));
+        sourceMap.push([previewBlock, source]);
+        return previewBlock;
+      }
+    )
   );
 
   return { markdown: previewMarkdown, sourceMap };
@@ -232,6 +236,85 @@ function stripFrontmatterFence(frontmatter: string): string {
 function createManagedRawFence(kind: "frontmatter" | "callout" | "mdx", source: string): string {
   const language = kind === "frontmatter" ? "yaml" : "mdx";
   return `\`\`\`${language} md-editor-${kind}\n${source}\n\`\`\`\n`;
+}
+
+function replaceOutsideMarkdownCodeFences(
+  markdown: string,
+  replaceSegment: (markdownSegment: string) => string
+): string {
+  let result = "";
+  let plainStart = 0;
+  let index = 0;
+
+  while (index < markdown.length) {
+    const lineEnd = markdown.indexOf("\n", index);
+    const nextIndex = lineEnd === -1 ? markdown.length : lineEnd + 1;
+    const line = markdown.slice(index, lineEnd === -1 ? markdown.length : lineEnd);
+    const fence = matchOpeningCodeFence(line);
+
+    if (!fence) {
+      index = nextIndex;
+      continue;
+    }
+
+    result += replaceSegment(markdown.slice(plainStart, index));
+    const fenceStart = index;
+    index = nextIndex;
+
+    while (index < markdown.length) {
+      const closingLineEnd = markdown.indexOf("\n", index);
+      const closingNextIndex = closingLineEnd === -1 ? markdown.length : closingLineEnd + 1;
+      const closingLine = markdown.slice(
+        index,
+        closingLineEnd === -1 ? markdown.length : closingLineEnd
+      );
+
+      index = closingNextIndex;
+
+      if (isClosingCodeFence(closingLine, fence)) {
+        break;
+      }
+    }
+
+    result += markdown.slice(fenceStart, index);
+    plainStart = index;
+  }
+
+  return result + replaceSegment(markdown.slice(plainStart));
+}
+
+function matchOpeningCodeFence(
+  line: string
+): { readonly marker: "`" | "~"; readonly length: number } | null {
+  const match = /^(?: {0,3})(`{3,}|~{3,})/u.exec(line);
+
+  if (!match) {
+    return null;
+  }
+
+  const sequence = match[1];
+  const marker = sequence[0] as "`" | "~";
+  const infoString = line.slice(match[0].length);
+
+  // CommonMark 不允许反引号代码围栏的 info string 再包含反引号。
+  if (marker === "`" && infoString.includes("`")) {
+    return null;
+  }
+
+  return { marker, length: sequence.length };
+}
+
+function isClosingCodeFence(
+  line: string,
+  opening: { readonly marker: "`" | "~"; readonly length: number }
+): boolean {
+  const match = /^(?: {0,3})(`+|~+)\s*$/u.exec(line);
+
+  return Boolean(
+    match &&
+      match[1][0] === opening.marker &&
+      match[1].length >= opening.length
+  );
 }
 
 function extractManagedRawFenceContent(

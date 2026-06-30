@@ -99,6 +99,40 @@ describe("MDX raw block detection", () => {
     expect(restoreRawBlocksFromPreview(preview.markdown, preview.sourceMap)).toBe(input);
   });
 
+  it("does not rewrite Vue components inside fenced code blocks as MDX raw blocks", () => {
+    const input = [
+      "**v-model 绑定**:",
+      "",
+      "```vue",
+      '<AdvCheckboxSelector v-model="formData.advIds" :bc-id="currentBcId" />',
+      "```",
+      "",
+      "**样式参考**: 复用 `AuthDialog.vue` 的 `.auth-all-list` 样式类",
+      "",
+      "```typescript",
+      "export function useUserManagement() {",
+      "  return {}",
+      "}",
+      "```",
+      "",
+      "<CustomThing value=\"x\" />",
+      ""
+    ].join("\n");
+    const preview = rewriteRawBlocksForPreview(input);
+
+    expect(preview.markdown).toContain(
+      [
+        "```vue",
+        '<AdvCheckboxSelector v-model="formData.advIds" :bc-id="currentBcId" />',
+        "```"
+      ].join("\n")
+    );
+    expect(preview.markdown).toContain("```typescript\nexport function useUserManagement()");
+    expect(preview.markdown).not.toContain("```mdx md-editor-mdx\n<AdvCheckboxSelector");
+    expect(preview.markdown).toContain("```mdx md-editor-mdx\n<CustomThing value=\"x\" />\n```");
+    expect(restoreRawBlocksFromPreview(preview.markdown, preview.sourceMap)).toBe(input);
+  });
+
   it("restores edited managed raw blocks to author-facing Markdown", () => {
     const input = "---\ntitle: Draft\n---\n\n<Callout type=\"info\">Read this.</Callout>\n";
     const preview = rewriteRawBlocksForPreview(input);
