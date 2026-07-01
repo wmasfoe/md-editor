@@ -122,21 +122,27 @@
   user-select: none;
 }
 
-.md-ai-edit-preview {
+.md-ai-edit-preview-mirror {
   position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 0;
   z-index: 4;
-  width: var(--md-ai-edit-preview-width, 1px);
-  max-width: var(--md-ai-edit-preview-width, 1px);
-  transform: translateY(calc(-100% - 0.38em));
   opacity: 0.72;
-  color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+.md-ai-edit-preview-placeholder {
+  color: transparent;
+}
+
+.md-ai-edit-preview-replacement {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 3px;
+  background: color-mix(in srgb, #dcfce7 58%, transparent);
+  color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
 }
 
 .md-ai-thinking-indicator {
