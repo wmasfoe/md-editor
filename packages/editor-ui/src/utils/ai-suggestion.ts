@@ -43,11 +43,57 @@ interface AnchoredEditSuggestion extends AiWritingEditSuggestion {
   readonly to: number;
 }
 
+export interface AiEditPreviewModel {
+  readonly textblockFrom: number;
+  readonly textblockTo: number;
+  readonly before: string;
+  readonly original: string;
+  readonly replacement: string;
+  readonly after: string;
+}
+
+export interface AiEditPreviewGeometry {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface AiEditPreviewTextStyle {
+  readonly paddingLeft: string;
+  readonly paddingRight: string;
+  readonly paddingTop: string;
+  readonly fontSize: string;
+  readonly font: string;
+  readonly lineHeight: string;
+  readonly letterSpacing: string;
+  readonly textAlign: string;
+  readonly tabSize: string;
+}
+
+export interface AiEditPreviewMirrorPlacement {
+  readonly left: string;
+  readonly top: string;
+  readonly width: string;
+  readonly font: string;
+  readonly lineHeight: string;
+  readonly letterSpacing: string;
+  readonly textAlign: string;
+  readonly tabSize: string;
+}
+
 const aiSuggestionPluginKey = new PluginKey<AiSuggestionState | null>("md-editor-ai-suggestion");
 const BEFORE_CONTEXT_CHARS = 3_000;
 const AFTER_CONTEXT_CHARS = 1_500;
+// Keep edit previews close above the source line box while following each block's text metrics.
+const AI_EDIT_PREVIEW_LINE_OFFSET_RATIO = 0.75;
+const aiEditPreviewCleanupKey = Symbol("md-editor-ai-edit-preview-cleanup");
 
 type MarkdownSliceParser = (markdown: string) => Slice;
+
+interface AiEditPreviewAnchorElement extends HTMLSpanElement {
+  [aiEditPreviewCleanupKey]?: () => void;
+}
 
 export const aiSuggestionPlugin = $prose(
   (ctx) =>
@@ -101,31 +147,16 @@ export const aiSuggestionPlugin = $prose(
             return true;
           }
 
-          if (event.key === "Tab" && state.edit) {
+          if (event.key === "Tab" && (state.edit || state.continuation)) {
             event.preventDefault();
-            view.dispatch(
-              view.state.tr
-                .insertText(state.edit.replacement, state.edit.from, state.edit.to)
-                .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
-                .scrollIntoView()
-            );
+            acceptAiSuggestion(view, state, (markdown) => markdownToSlice(markdown)(ctx));
             requestAnimationFrame(() => view.focus());
             return true;
           }
 
           if ((event.metaKey || event.ctrlKey) && event.key === "ArrowRight" && state.continuation) {
             event.preventDefault();
-            const transaction = createAiContinuationAcceptTransaction(
-              view.state,
-              state.position,
-              state.continuation,
-              (markdown) => markdownToSlice(markdown)(ctx)
-            );
-            view.dispatch(
-              transaction
-                .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
-                .scrollIntoView()
-            );
+            acceptAiSuggestion(view, { ...state, edit: undefined }, (markdown) => markdownToSlice(markdown)(ctx));
             requestAnimationFrame(() => view.focus());
             return true;
           }
@@ -146,9 +177,8 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
 
   view.dispatch(
     view.state.tr
-      // Showing ghost text must not move the real cursor. Mark the current
-      // selection explicitly so ProseMirror re-syncs the DOM caret around the
-      // newly added widget.
+      // 展示 ghost text 不能移动真实光标。这里显式写回当前选区，
+      // 让 ProseMirror 在新增 widget 后重新同步 DOM 光标位置。
       .setSelection(selection)
       .setMeta(aiSuggestionPluginKey, {
         type: "show",
@@ -158,6 +188,34 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
         selectionTo: selection.to,
         suggestion: normalizedSuggestion
       } satisfies AiSuggestionMeta)
+  );
+}
+
+function acceptAiSuggestion(
+  view: EditorView,
+  state: AiSuggestionState,
+  parseMarkdownSlice: MarkdownSliceParser
+): void {
+  // Tab 是用户确认 suggestion 的统一入口；如果同一轮同时有纠错和续写，
+  // 先接受更局部的纠错，避免一次按键写入两类不同语义的模型输出。
+  const transaction = state.edit
+    ? createAiEditAcceptTransactionIfPreviewSupported(view.state, state.edit)
+    : createAiContinuationAcceptTransaction(
+        view.state,
+        state.position,
+        state.continuation ?? "",
+        parseMarkdownSlice
+      );
+
+  if (!transaction) {
+    clearAiSuggestion(view);
+    return;
+  }
+
+  view.dispatch(
+    transaction
+      .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
+      .scrollIntoView()
   );
 }
 
@@ -180,6 +238,23 @@ export function getAiCompletionContext(view: EditorView, mode: EditorMode): AiCo
   };
 }
 
+export function createAiEditAcceptTransaction(
+  editorState: EditorState,
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+): Transaction {
+  return editorState.tr.insertText(edit.replacement, edit.from, edit.to);
+}
+
+function createAiEditAcceptTransactionIfPreviewSupported(
+  editorState: EditorState,
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+): Transaction | null {
+  if (!createAiEditPreviewModel(editorState.doc, edit)) {
+    return null;
+  }
+  return createAiEditAcceptTransaction(editorState, edit);
+}
+
 export function createAiContinuationAcceptTransaction(
   editorState: EditorState,
   position: number,
@@ -191,8 +266,8 @@ export function createAiContinuationAcceptTransaction(
   const fallbackText = normalizeSuggestionText(markdownContinuation);
   const insertionPosition = getContinuationInsertionPosition(editorState, safePosition, markdownContinuation);
 
-  // AI continuations may contain Markdown block syntax. Inserting as text makes
-  // Milkdown serialize list markers as escaped literals like `1\.` and `\-`.
+  // AI 续写可能包含列表、标题等 Markdown 块语法。先交给 Milkdown 解析，
+  // 避免纯文本插入后把 `1.` 或 `-` 序列化成被转义的普通字符。
   try {
     const slice = parseMarkdownSlice(markdownContinuation);
     if (slice.content.size > 0) {
@@ -201,8 +276,7 @@ export function createAiContinuationAcceptTransaction(
       );
     }
   } catch {
-    // Fall back to the previous plain-text behavior if Markdown parsing or
-    // fitting fails, so accepting a suggestion never drops model output.
+    // 解析失败时回退到纯文本插入，保证用户确认后不会丢弃模型输出。
   }
 
   return editorState.tr.insertText(fallbackText, safePosition, safePosition);
@@ -252,22 +326,57 @@ function createAiSuggestionState(
   suggestion: AiWritingSuggestion
 ): AiSuggestionState {
   const safePosition = Math.max(0, Math.min(position, doc.content.size));
-  const decorations: Decoration[] = [];
   const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
   const displayContinuation = normalizeSuggestionText(continuation);
-  const edit = suggestion.edit ? anchorEditSuggestion(doc, safePosition, suggestion.edit) : undefined;
+  const edit = suggestion.edit ? createSupportedAnchoredEditSuggestion(doc, safePosition, suggestion.edit) : undefined;
+
+  return createDecoratedAiSuggestionState({
+    doc,
+    id,
+    position: safePosition,
+    selectionFrom,
+    selectionTo,
+    continuation: displayContinuation ? continuation : undefined,
+    edit
+  });
+}
+
+function createDecoratedAiSuggestionState({
+  doc,
+  id,
+  position,
+  selectionFrom,
+  selectionTo,
+  continuation,
+  edit
+}: {
+  readonly doc: ProseMirrorNode;
+  readonly id: number;
+  readonly position: number;
+  readonly selectionFrom: number;
+  readonly selectionTo: number;
+  readonly continuation?: string;
+  readonly edit?: AnchoredEditSuggestion;
+}): AiSuggestionState {
+  const decorations: Decoration[] = [];
+  const displayContinuation = continuation ? normalizeSuggestionText(continuation) : "";
 
   if (edit) {
     decorations.push(
       Decoration.inline(edit.from, edit.to, {
         class: "md-ai-edit-original"
-      }),
+      })
+    );
+
+    decorations.push(
       Decoration.widget(
         edit.from,
-        (view) => createAiEditReplacementAnchor(view, edit.replacement),
+        (view) => createAiEditPreviewAnchor(view, edit),
         {
           side: -1,
-          ignoreSelection: true
+          ignoreSelection: true,
+          key: `md-ai-edit-preview-${id}`,
+          destroy: (node) => disposeAiEditPreviewAnchor(node as HTMLElement)
         }
       )
     );
@@ -276,17 +385,14 @@ function createAiSuggestionState(
   if (displayContinuation) {
     decorations.push(
       Decoration.widget(
-        safePosition,
+        position,
         () => {
-          const node = document.createElement("span");
-          node.className = "md-ai-suggestion";
-          node.textContent = ` ${displayContinuation}`;
-          node.contentEditable = "false";
-          return node;
+          return createAiInlineSuggestionNode("md-ai-suggestion", ` ${displayContinuation}`);
         },
         {
           side: 1,
-          ignoreSelection: true
+          ignoreSelection: true,
+          key: `md-ai-continuation-${id}`
         }
       )
     );
@@ -294,10 +400,10 @@ function createAiSuggestionState(
 
   return {
     id,
-    position: safePosition,
+    position,
     selectionFrom,
     selectionTo,
-    ...(displayContinuation ? { continuation } : {}),
+    ...(continuation ? { continuation } : {}),
     ...(edit ? { edit } : {}),
     decorations: DecorationSet.create(doc, decorations)
   };
@@ -307,33 +413,310 @@ function isSelectionAtSuggestionAnchor(selection: Selection, state: AiSuggestion
   return selection.from === state.selectionFrom && selection.to === state.selectionTo;
 }
 
-function createAiEditReplacementAnchor(view: EditorView, replacement: string): HTMLElement {
-  const anchor = document.createElement("span");
-  anchor.className = "md-ai-edit-replacement-anchor";
+function createAiEditPreviewAnchor(view: EditorView, edit: AnchoredEditSuggestion): HTMLElement {
+  // edit preview 镜像当前 textblock 的行盒，只在 overlay 中展示 replacement；
+  // 真实文档、选择和历史仍等到 Tab 确认后才改变。
+  const anchor = document.createElement("span") as AiEditPreviewAnchorElement;
+  anchor.className = "md-ai-edit-preview-anchor";
   anchor.contentEditable = "false";
+  anchor.setAttribute("aria-hidden", "true");
 
-  const replacementNode = document.createElement("span");
-  replacementNode.className = "md-ai-edit-replacement";
-  replacementNode.textContent = replacement;
-  anchor.append(replacementNode);
+  const model = createAiEditPreviewModel(view.state.doc, edit);
+  if (!model) {
+    return anchor;
+  }
 
-  requestAnimationFrame(() => setEditReplacementWidth(view, anchor));
+  const mirror = createAiEditPreviewMirror(model);
+  anchor.append(mirror);
+  anchor[aiEditPreviewCleanupKey] = bindAiEditPreviewMirrorPositioning(view, anchor, mirror, model);
+
   return anchor;
 }
 
-function setEditReplacementWidth(view: EditorView, anchor: HTMLElement): void {
-  if (!anchor.isConnected) {
-    return;
+function disposeAiEditPreviewAnchor(anchor: HTMLElement): void {
+  (anchor as AiEditPreviewAnchorElement)[aiEditPreviewCleanupKey]?.();
+  delete (anchor as AiEditPreviewAnchorElement)[aiEditPreviewCleanupKey];
+}
+
+function createAiEditPreviewMirror(model: AiEditPreviewModel): HTMLElement {
+  const mirror = document.createElement("span");
+  mirror.className = "md-ai-edit-preview-mirror";
+  mirror.contentEditable = "false";
+  mirror.setAttribute("aria-hidden", "true");
+  mirror.hidden = true;
+
+  mirror.append(
+    createAiEditPreviewTextNode("md-ai-edit-preview-placeholder", model.before),
+    createAiEditPreviewTextNode("md-ai-edit-preview-replacement", model.replacement),
+    createAiEditPreviewTextNode("md-ai-edit-preview-placeholder", model.after)
+  );
+  return mirror;
+}
+
+function createAiEditPreviewTextNode(className: string, text: string): HTMLElement {
+  const node = document.createElement("span");
+  node.className = className;
+  node.textContent = text;
+  node.contentEditable = "false";
+  return node;
+}
+
+function bindAiEditPreviewMirrorPositioning(
+  view: EditorView,
+  anchor: HTMLElement,
+  mirror: HTMLElement,
+  model: AiEditPreviewModel
+): () => void {
+  const ownerWindow = view.dom.ownerDocument.defaultView;
+  const requestFrame =
+    ownerWindow?.requestAnimationFrame.bind(ownerWindow) ??
+    ((callback: FrameRequestCallback) =>
+      globalThis.setTimeout(() => callback(Date.now()), 16) as unknown as number);
+  const cancelFrame =
+    ownerWindow?.cancelAnimationFrame.bind(ownerWindow) ??
+    ((handle: number) =>
+      globalThis.clearTimeout(handle as unknown as ReturnType<typeof globalThis.setTimeout>));
+  const ResizeObserverCtor = ownerWindow?.ResizeObserver;
+  const resizeObserver = ResizeObserverCtor
+    ? new ResizeObserverCtor(() => schedulePositionUpdate())
+    : null;
+  let frame: number | null = null;
+  let disposed = false;
+  let observedTextblock: Element | null = null;
+
+  const cleanup = () => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    if (frame !== null) {
+      cancelFrame(frame);
+      frame = null;
+    }
+    resizeObserver?.disconnect();
+    ownerWindow?.removeEventListener("resize", schedulePositionUpdate);
+    ownerWindow?.removeEventListener("scroll", schedulePositionUpdate, true);
+  };
+
+  const updatePosition = () => {
+    frame = null;
+    if (disposed) {
+      return;
+    }
+    if (!anchor.isConnected) {
+      cleanup();
+      return;
+    }
+
+    const textblock = findAiEditPreviewTextblockDom(view, model);
+    if (resizeObserver && textblock !== observedTextblock) {
+      if (observedTextblock) {
+        resizeObserver.unobserve(observedTextblock);
+      }
+      if (textblock) {
+        resizeObserver.observe(textblock);
+      }
+      observedTextblock = textblock;
+    }
+
+    const isPositioned = positionAiEditPreviewMirror(anchor, mirror, textblock);
+    mirror.hidden = !isPositioned;
+    if (!isPositioned) {
+      clearAiSuggestion(view);
+    }
+  };
+
+  function schedulePositionUpdate() {
+    if (disposed || frame !== null) {
+      return;
+    }
+    frame = requestFrame(updatePosition);
+  }
+
+  resizeObserver?.observe(view.dom);
+  ownerWindow?.addEventListener("resize", schedulePositionUpdate);
+  ownerWindow?.addEventListener("scroll", schedulePositionUpdate, true);
+  schedulePositionUpdate();
+
+  return cleanup;
+}
+
+function positionAiEditPreviewMirror(
+  anchor: HTMLElement,
+  mirror: HTMLElement,
+  textblock: Element | null
+): boolean {
+  if (!textblock) {
+    return false;
   }
 
   const anchorRect = anchor.getBoundingClientRect();
-  const editorRect = view.dom.getBoundingClientRect();
-  const editorStyle = getComputedStyle(view.dom);
-  const paddingRight = Number.parseFloat(editorStyle.paddingRight) || 0;
-  const contentRight = editorRect.right - paddingRight;
-  const remainingWidth = Math.max(1, Math.floor(contentRight - anchorRect.left));
+  const textblockRect = textblock.getBoundingClientRect();
+  const placement = calculateAiEditPreviewMirrorPlacement(
+    anchorRect,
+    textblockRect,
+    getComputedStyle(textblock)
+  );
+  if (!placement) {
+    return false;
+  }
 
-  anchor.style.setProperty("--md-ai-edit-replacement-width", `${remainingWidth}px`);
+  mirror.style.left = placement.left;
+  mirror.style.top = placement.top;
+  mirror.style.width = placement.width;
+  mirror.style.font = placement.font;
+  mirror.style.lineHeight = placement.lineHeight;
+  mirror.style.letterSpacing = placement.letterSpacing;
+  mirror.style.textAlign = placement.textAlign;
+  mirror.style.tabSize = placement.tabSize;
+  return true;
+}
+
+export function calculateAiEditPreviewMirrorPlacement(
+  anchorRect: Pick<AiEditPreviewGeometry, "left" | "top">,
+  textblockRect: AiEditPreviewGeometry,
+  textblockStyle: AiEditPreviewTextStyle
+): AiEditPreviewMirrorPlacement | null {
+  if (!isAiEditPreviewAnchorPointReady(anchorRect) || !isAiEditPreviewGeometryReady(textblockRect)) {
+    return null;
+  }
+
+  const paddingLeft = Number.parseFloat(textblockStyle.paddingLeft) || 0;
+  const paddingRight = Number.parseFloat(textblockStyle.paddingRight) || 0;
+  const paddingTop = Number.parseFloat(textblockStyle.paddingTop) || 0;
+  const previewOffset = getAiEditPreviewLineOffset(textblockStyle);
+  const contentWidth = textblockRect.width - paddingLeft - paddingRight;
+  if (contentWidth <= 0) {
+    return null;
+  }
+
+  return {
+    left: `${textblockRect.left + paddingLeft - anchorRect.left}px`,
+    top: `${textblockRect.top + paddingTop - anchorRect.top - previewOffset}px`,
+    width: `${contentWidth}px`,
+    font: textblockStyle.font,
+    lineHeight: textblockStyle.lineHeight,
+    letterSpacing: textblockStyle.letterSpacing,
+    textAlign: textblockStyle.textAlign,
+    tabSize: textblockStyle.tabSize
+  };
+}
+
+function getAiEditPreviewLineOffset(
+  textblockStyle: Pick<AiEditPreviewTextStyle, "fontSize" | "lineHeight">
+): number {
+  const lineHeight = Number.parseFloat(textblockStyle.lineHeight);
+  if (Number.isFinite(lineHeight) && lineHeight > 0) {
+    return lineHeight * AI_EDIT_PREVIEW_LINE_OFFSET_RATIO;
+  }
+
+  const fontSize = Number.parseFloat(textblockStyle.fontSize);
+  return Number.isFinite(fontSize) && fontSize > 0
+    ? fontSize * 1.2 * AI_EDIT_PREVIEW_LINE_OFFSET_RATIO
+    : 0;
+}
+
+function findAiEditPreviewTextblockDom(
+  view: EditorView,
+  model: AiEditPreviewModel
+): Element | null {
+  const nodeDom = view.nodeDOM(Math.max(0, model.textblockFrom - 1));
+  if (isElementNode(nodeDom)) {
+    return nodeDom;
+  }
+
+  const { node } = view.domAtPos(model.textblockFrom);
+  const parent = isElementNode(node) ? node : node.parentElement;
+  if (!parent || !view.dom.contains(parent)) {
+    return null;
+  }
+  return parent;
+}
+
+function isElementNode(node: Node | null): node is Element {
+  return node?.nodeType === 1;
+}
+
+function isAiEditPreviewAnchorPointReady(rect: Pick<AiEditPreviewGeometry, "left" | "top">): boolean {
+  return Number.isFinite(rect.left) && Number.isFinite(rect.top);
+}
+
+export function isAiEditPreviewGeometryReady(
+  rect: AiEditPreviewGeometry | null
+): boolean {
+  return Boolean(
+    rect &&
+      Number.isFinite(rect.left) &&
+      Number.isFinite(rect.top) &&
+      Number.isFinite(rect.width) &&
+      Number.isFinite(rect.height) &&
+      rect.width > 0 &&
+      rect.height > 0
+  );
+}
+
+export function createAiEditPreviewModel(
+  doc: ProseMirrorNode,
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+): AiEditPreviewModel | null {
+  if (edit.from < 0 || edit.to <= edit.from || edit.to > doc.content.size) {
+    return null;
+  }
+
+  const $from = doc.resolve(edit.from);
+  const textblock = $from.parent;
+  if (!textblock.isTextblock || textblock.type.spec.code) {
+    return null;
+  }
+
+  const textblockFrom = $from.start($from.depth);
+  const textblockTo = $from.end($from.depth);
+  if (edit.from < textblockFrom || edit.to > textblockTo || !isPlainTextblock(textblock)) {
+    return null;
+  }
+
+  const text = textblock.textBetween(0, textblock.content.size, "", "\ufffc");
+  const fromOffset = edit.from - textblockFrom;
+  const toOffset = edit.to - textblockFrom;
+  const original = normalizeSuggestionText(edit.original);
+  const replacement = normalizeSuggestionText(edit.replacement);
+  if (
+    !original ||
+    !replacement ||
+    original === replacement ||
+    text.slice(fromOffset, toOffset) !== original
+  ) {
+    return null;
+  }
+
+  return {
+    textblockFrom,
+    textblockTo,
+    before: text.slice(0, fromOffset),
+    original,
+    replacement,
+    after: text.slice(toOffset)
+  };
+}
+
+function isPlainTextblock(textblock: ProseMirrorNode): boolean {
+  let isPlain = true;
+  textblock.forEach((child) => {
+    if (!child.isText || child.marks.length > 0) {
+      isPlain = false;
+    }
+  });
+  return isPlain;
+}
+
+function createAiInlineSuggestionNode(className: string, text: string): HTMLElement {
+  // continuation 仍是光标后的 ghost text。edit suggestion 走上面的对比预览，
+  // 避免把语法/标点替换误渲染成已经接受的正文。
+  const node = document.createElement("span");
+  node.className = className;
+  node.textContent = text;
+  node.contentEditable = "false";
+  return node;
 }
 
 function normalizeSuggestionText(text: string): string {
@@ -347,11 +730,25 @@ function normalizeContinuationMarkdown(text: string): string {
 function normalizeSuggestion(view: EditorView, suggestion: AiWritingSuggestion): AiWritingSuggestion {
   const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
   const displayContinuation = normalizeSuggestionText(continuation);
-  const edit = suggestion.edit ? anchorEditSuggestion(view.state.doc, view.state.selection.to, suggestion.edit) : undefined;
+  const edit = suggestion.edit
+    ? createSupportedAnchoredEditSuggestion(view.state.doc, view.state.selection.to, suggestion.edit)
+    : undefined;
   return {
     ...(displayContinuation ? { continuation } : {}),
     ...(edit ? { edit } : {})
   };
+}
+
+function createSupportedAnchoredEditSuggestion(
+  doc: ProseMirrorNode,
+  position: number,
+  edit: AiWritingEditSuggestion
+): AnchoredEditSuggestion | undefined {
+  const anchoredEdit = anchorEditSuggestion(doc, position, edit);
+  if (!anchoredEdit || !createAiEditPreviewModel(doc, anchoredEdit)) {
+    return undefined;
+  }
+  return anchoredEdit;
 }
 
 function anchorEditSuggestion(
