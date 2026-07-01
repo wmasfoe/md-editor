@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { Schema, Slice } from "@milkdown/kit/prose/model";
 import { EditorState, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { createAiContinuationAcceptTransaction, showAiSuggestion } from "../utils/ai-suggestion";
+import {
+  createAiContinuationAcceptTransaction,
+  createAiEditAcceptTransaction,
+  showAiSuggestion
+} from "../utils/ai-suggestion";
 
 describe("AI suggestion acceptance", () => {
   it("shows a continuation without moving the real editor selection", () => {
@@ -64,6 +68,29 @@ describe("AI suggestion acceptance", () => {
     expect(nextState.doc.textContent).toContain("Intro明确审核流程");
     expect(nextState.doc.textContent).toContain("提交审核请求");
     expect(nextState.doc.textContent).toContain("审核准确性");
+  });
+
+  it("replaces the anchored original text when accepting an edit suggestion", () => {
+    const schema = createMarkdownLikeSchema();
+    const text = "时代少年团深受粉丝的喜爱。笑死我了";
+    const original = "笑死我了";
+    const from = 1 + text.indexOf(original);
+    const state = EditorState.create({
+      doc: schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, schema.text(text))
+      ])
+    });
+
+    const transaction = createAiEditAcceptTransaction(state, {
+      original,
+      replacement: "笑死我了，\nsss，哈哈哈",
+      from,
+      to: from + original.length
+    });
+
+    expect(state.apply(transaction).doc.textContent).toBe(
+      "时代少年团深受粉丝的喜爱。笑死我了，\nsss，哈哈哈"
+    );
   });
 
   it("keeps a leading Markdown block break so headings do not collapse into text", () => {
