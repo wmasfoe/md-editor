@@ -6,7 +6,7 @@
 
 - 产品需求与路线： [product/index.md](./product/index.md)
 - 设计规范： [design/index.md](./design/index.md)
-- 技术架构与方案： [architecture/index.md](./architecture/index.md)
+- 技术架构、能力边界与方案： [architecture/index.md](./architecture/index.md)
 - 实现状态与阶段记录： [status/index.md](./status/index.md)
 - 高风险问题规范（选区、IME 等编辑器交互契约）： [specs/index.md](./specs/index.md)
 - 发布与仓库流程： [release/index.md](./release/index.md)

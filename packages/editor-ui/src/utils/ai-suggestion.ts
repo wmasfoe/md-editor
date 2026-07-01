@@ -101,31 +101,16 @@ export const aiSuggestionPlugin = $prose(
             return true;
           }
 
-          if (event.key === "Tab" && state.edit) {
+          if (event.key === "Tab" && (state.edit || state.continuation)) {
             event.preventDefault();
-            view.dispatch(
-              view.state.tr
-                .insertText(state.edit.replacement, state.edit.from, state.edit.to)
-                .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
-                .scrollIntoView()
-            );
+            acceptAiSuggestion(view, state, (markdown) => markdownToSlice(markdown)(ctx));
             requestAnimationFrame(() => view.focus());
             return true;
           }
 
           if ((event.metaKey || event.ctrlKey) && event.key === "ArrowRight" && state.continuation) {
             event.preventDefault();
-            const transaction = createAiContinuationAcceptTransaction(
-              view.state,
-              state.position,
-              state.continuation,
-              (markdown) => markdownToSlice(markdown)(ctx)
-            );
-            view.dispatch(
-              transaction
-                .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
-                .scrollIntoView()
-            );
+            acceptAiSuggestion(view, { ...state, edit: undefined }, (markdown) => markdownToSlice(markdown)(ctx));
             requestAnimationFrame(() => view.focus());
             return true;
           }
@@ -146,9 +131,8 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
 
   view.dispatch(
     view.state.tr
-      // Showing ghost text must not move the real cursor. Mark the current
-      // selection explicitly so ProseMirror re-syncs the DOM caret around the
-      // newly added widget.
+      // 展示 ghost text 不能移动真实光标。这里显式写回当前选区，
+      // 让 ProseMirror 在新增 widget 后重新同步 DOM 光标位置。
       .setSelection(selection)
       .setMeta(aiSuggestionPluginKey, {
         type: "show",
@@ -158,6 +142,29 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
         selectionTo: selection.to,
         suggestion: normalizedSuggestion
       } satisfies AiSuggestionMeta)
+  );
+}
+
+function acceptAiSuggestion(
+  view: EditorView,
+  state: AiSuggestionState,
+  parseMarkdownSlice: MarkdownSliceParser
+): void {
+  // Tab 是用户确认 suggestion 的统一入口；如果同一轮同时有纠错和续写，
+  // 先接受更局部的纠错，避免一次按键写入两类不同语义的模型输出。
+  const transaction = state.edit
+    ? createAiEditAcceptTransaction(view.state, state.edit)
+    : createAiContinuationAcceptTransaction(
+        view.state,
+        state.position,
+        state.continuation ?? "",
+        parseMarkdownSlice
+      );
+
+  view.dispatch(
+    transaction
+      .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
+      .scrollIntoView()
   );
 }
 
@@ -180,6 +187,13 @@ export function getAiCompletionContext(view: EditorView, mode: EditorMode): AiCo
   };
 }
 
+export function createAiEditAcceptTransaction(
+  editorState: EditorState,
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+): Transaction {
+  return editorState.tr.insertText(edit.replacement, edit.from, edit.to);
+}
+
 export function createAiContinuationAcceptTransaction(
   editorState: EditorState,
   position: number,
@@ -191,8 +205,8 @@ export function createAiContinuationAcceptTransaction(
   const fallbackText = normalizeSuggestionText(markdownContinuation);
   const insertionPosition = getContinuationInsertionPosition(editorState, safePosition, markdownContinuation);
 
-  // AI continuations may contain Markdown block syntax. Inserting as text makes
-  // Milkdown serialize list markers as escaped literals like `1\.` and `\-`.
+  // AI 续写可能包含列表、标题等 Markdown 块语法。先交给 Milkdown 解析，
+  // 避免纯文本插入后把 `1.` 或 `-` 序列化成被转义的普通字符。
   try {
     const slice = parseMarkdownSlice(markdownContinuation);
     if (slice.content.size > 0) {
@@ -201,8 +215,7 @@ export function createAiContinuationAcceptTransaction(
       );
     }
   } catch {
-    // Fall back to the previous plain-text behavior if Markdown parsing or
-    // fitting fails, so accepting a suggestion never drops model output.
+    // 解析失败时回退到纯文本插入，保证用户确认后不会丢弃模型输出。
   }
 
   return editorState.tr.insertText(fallbackText, safePosition, safePosition);
@@ -252,22 +265,56 @@ function createAiSuggestionState(
   suggestion: AiWritingSuggestion
 ): AiSuggestionState {
   const safePosition = Math.max(0, Math.min(position, doc.content.size));
-  const decorations: Decoration[] = [];
   const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
   const displayContinuation = normalizeSuggestionText(continuation);
   const edit = suggestion.edit ? anchorEditSuggestion(doc, safePosition, suggestion.edit) : undefined;
+
+  return createDecoratedAiSuggestionState({
+    doc,
+    id,
+    position: safePosition,
+    selectionFrom,
+    selectionTo,
+    continuation: displayContinuation ? continuation : undefined,
+    edit
+  });
+}
+
+function createDecoratedAiSuggestionState({
+  doc,
+  id,
+  position,
+  selectionFrom,
+  selectionTo,
+  continuation,
+  edit
+}: {
+  readonly doc: ProseMirrorNode;
+  readonly id: number;
+  readonly position: number;
+  readonly selectionFrom: number;
+  readonly selectionTo: number;
+  readonly continuation?: string;
+  readonly edit?: AnchoredEditSuggestion;
+}): AiSuggestionState {
+  const decorations: Decoration[] = [];
+  const displayContinuation = continuation ? normalizeSuggestionText(continuation) : "";
 
   if (edit) {
     decorations.push(
       Decoration.inline(edit.from, edit.to, {
         class: "md-ai-edit-original"
-      }),
+      })
+    );
+
+    decorations.push(
       Decoration.widget(
         edit.from,
-        (view) => createAiEditReplacementAnchor(view, edit.replacement),
+        (view) => createAiEditPreviewAnchor(view, edit),
         {
           side: -1,
-          ignoreSelection: true
+          ignoreSelection: true,
+          key: `md-ai-edit-preview-${id}`
         }
       )
     );
@@ -276,17 +323,14 @@ function createAiSuggestionState(
   if (displayContinuation) {
     decorations.push(
       Decoration.widget(
-        safePosition,
+        position,
         () => {
-          const node = document.createElement("span");
-          node.className = "md-ai-suggestion";
-          node.textContent = ` ${displayContinuation}`;
-          node.contentEditable = "false";
-          return node;
+          return createAiInlineSuggestionNode("md-ai-suggestion", ` ${displayContinuation}`);
         },
         {
           side: 1,
-          ignoreSelection: true
+          ignoreSelection: true,
+          key: `md-ai-continuation-${id}`
         }
       )
     );
@@ -294,10 +338,10 @@ function createAiSuggestionState(
 
   return {
     id,
-    position: safePosition,
+    position,
     selectionFrom,
     selectionTo,
-    ...(displayContinuation ? { continuation } : {}),
+    ...(continuation ? { continuation } : {}),
     ...(edit ? { edit } : {}),
     decorations: DecorationSet.create(doc, decorations)
   };
@@ -307,21 +351,23 @@ function isSelectionAtSuggestionAnchor(selection: Selection, state: AiSuggestion
   return selection.from === state.selectionFrom && selection.to === state.selectionTo;
 }
 
-function createAiEditReplacementAnchor(view: EditorView, replacement: string): HTMLElement {
+function createAiEditPreviewAnchor(view: EditorView, edit: AnchoredEditSuggestion): HTMLElement {
+  // edit preview 是 Tab 前的绝对定位浮层。它只负责展示建议，不参与正文排版，
+  // 因此不会把原始文本向下推；Tab 接受时才真正替换 Markdown。
   const anchor = document.createElement("span");
-  anchor.className = "md-ai-edit-replacement-anchor";
+  anchor.className = "md-ai-edit-preview-anchor";
   anchor.contentEditable = "false";
 
-  const replacementNode = document.createElement("span");
-  replacementNode.className = "md-ai-edit-replacement";
-  replacementNode.textContent = replacement;
-  anchor.append(replacementNode);
+  const preview = document.createElement("span");
+  preview.className = "md-ai-edit-preview";
+  preview.textContent = edit.replacement;
+  anchor.append(preview);
 
-  requestAnimationFrame(() => setEditReplacementWidth(view, anchor));
+  requestAnimationFrame(() => setAiEditPreviewWidth(view, anchor));
   return anchor;
 }
 
-function setEditReplacementWidth(view: EditorView, anchor: HTMLElement): void {
+function setAiEditPreviewWidth(view: EditorView, anchor: HTMLElement): void {
   if (!anchor.isConnected) {
     return;
   }
@@ -333,7 +379,17 @@ function setEditReplacementWidth(view: EditorView, anchor: HTMLElement): void {
   const contentRight = editorRect.right - paddingRight;
   const remainingWidth = Math.max(1, Math.floor(contentRight - anchorRect.left));
 
-  anchor.style.setProperty("--md-ai-edit-replacement-width", `${remainingWidth}px`);
+  anchor.style.setProperty("--md-ai-edit-preview-width", `${remainingWidth}px`);
+}
+
+function createAiInlineSuggestionNode(className: string, text: string): HTMLElement {
+  // continuation 仍是光标后的 ghost text。edit suggestion 走上面的对比预览，
+  // 避免把语法/标点替换误渲染成已经接受的正文。
+  const node = document.createElement("span");
+  node.className = className;
+  node.textContent = text;
+  node.contentEditable = "false";
+  return node;
 }
 
 function normalizeSuggestionText(text: string): string {

@@ -59,37 +59,42 @@ describe("editor selection policy", () => {
     expect(editorStyles).toContain("cursor: pointer");
   });
 
-  it("renders AI edit diff text above the original with remaining-line width", () => {
-    expect(aiSuggestionSource).toContain("Decoration.widget(\n        edit.from,");
-    expect(aiSuggestionSource).toMatch(
-      /createAiEditReplacementAnchor\(view, edit\.replacement\)[\s\S]+?\{\n\s+side: -1,\n\s+ignoreSelection: true\n\s+\}/u
-    );
+  it("renders AI edit replacement as a non-layout preview layer", () => {
+    expect(aiSuggestionSource).toContain("createAiEditPreviewAnchor(view, edit)");
     const editOriginalRule = editorStyles.match(/\.md-ai-edit-original \{(?<body>[^}]+)\}/u);
-    const editAnchorRule = editorStyles.match(/\.md-ai-edit-replacement-anchor \{(?<body>[^}]+)\}/u);
-    const editReplacementRule = editorStyles.match(/\.md-ai-edit-replacement \{(?<body>[^}]+)\}/u);
+    const editAnchorRule = editorStyles.match(/\.md-ai-edit-preview-anchor \{(?<body>[^}]+)\}/u);
+    const editPreviewRule = editorStyles.match(/\.md-ai-edit-preview \{(?<body>[^}]+)\}/u);
     expect(editOriginalRule?.groups?.body).toContain("text-decoration: line-through;");
+    expect(editOriginalRule?.groups?.body).not.toContain("display: none;");
     expect(editAnchorRule?.groups?.body).toContain("position: relative;");
     expect(editAnchorRule?.groups?.body).toContain("width: 0;");
-    expect(editReplacementRule?.groups?.body).toContain("position: absolute;");
-    expect(editReplacementRule?.groups?.body).toContain("width: var(--md-ai-edit-replacement-width, 1px);");
-    expect(editReplacementRule?.groups?.body).toContain("max-width: var(--md-ai-edit-replacement-width, 1px);");
-    expect(editReplacementRule?.groups?.body).toContain("transform: translateY(calc(-100% - 0.38em));");
-    expect(aiSuggestionSource).toContain("contentRight - anchorRect.left");
-    expect(aiSuggestionSource).toContain("--md-ai-edit-replacement-width");
-    expect(aiSuggestionSource).not.toContain("coordsAtPos");
-    expect(editReplacementRule?.groups?.body).not.toContain("position: fixed;");
+    expect(editAnchorRule?.groups?.body).toContain("height: 0;");
+    expect(editPreviewRule?.groups?.body).toContain("position: absolute;");
+    expect(editPreviewRule?.groups?.body).toContain("width: var(--md-ai-edit-preview-width, 1px);");
+    expect(editPreviewRule?.groups?.body).toContain("transform: translateY(calc(-100% - 0.38em));");
+    expect(editPreviewRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(editPreviewRule?.groups?.body).toContain("overflow-wrap: anywhere;");
+    expect(editPreviewRule?.groups?.body).toContain("pointer-events: none;");
+    expect(editPreviewRule?.groups?.body).toContain("user-select: none;");
+    expect(editorStyles).not.toContain(".md-ai-edit-replacement");
+    expect(aiSuggestionSource).not.toContain('createAiInlineSuggestionNode("md-ai-edit-replacement"');
+    expect(editorStyles).not.toContain("--md-ai-edit-replacement-width");
+    expect(aiSuggestionSource).toContain("--md-ai-edit-preview-width");
+    expect(aiSuggestionSource).not.toContain("measureAiEditPreviewBlocks");
   });
 
   it("keeps AI continuation ghost text on the non-document side of the real cursor", () => {
     const continuationWidget = aiSuggestionSource.match(
-      /node\.className = "md-ai-suggestion";[\s\S]+?node\.textContent = ` \$\{displayContinuation\}`;[\s\S]+?\{\n\s+side: 1,\n\s+ignoreSelection: true\n\s+\}/u
+      /createAiInlineSuggestionNode\("md-ai-suggestion", ` \$\{displayContinuation\}`\)[\s\S]+?\{\n\s+side: 1,\n\s+ignoreSelection: true/u
     );
 
     expect(continuationWidget).not.toBeNull();
     expect(aiSuggestionSource).toContain(".setSelection(selection)");
     expect(aiSuggestionSource).toContain("isSelectionAtSuggestionAnchor");
     const suggestionRule = editorStyles.match(/\.md-ai-suggestion \{(?<body>[^}]+)\}/u);
-    expect(suggestionRule?.groups?.body).toContain("display: contents;");
+    expect(suggestionRule?.groups?.body).toContain("display: inline;");
+    expect(suggestionRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(suggestionRule?.groups?.body).toContain("overflow-wrap: anywhere;");
     expect(suggestionRule?.groups?.body).not.toContain("position: absolute;");
     expect(editorStyles).not.toContain(".md-ai-suggestion-anchor");
   });
