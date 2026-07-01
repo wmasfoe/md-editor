@@ -59,27 +59,35 @@ describe("editor selection policy", () => {
     expect(editorStyles).toContain("cursor: pointer");
   });
 
-  it("renders AI edit replacement as a non-layout preview layer", () => {
+  it("renders AI edit replacement as a scoped mirror preview layer", () => {
     expect(aiSuggestionSource).toContain("createAiEditPreviewAnchor(view, edit)");
+    expect(aiSuggestionSource).toContain("createAiEditPreviewModel");
+    expect(aiSuggestionSource).toContain("isAiEditPreviewGeometryReady");
+    expect(aiSuggestionSource).toContain("isAiEditPreviewAnchorPointReady(anchorRect)");
+    expect(aiSuggestionSource).not.toContain("isAiEditPreviewGeometryReady(anchorRect)");
     const editOriginalRule = editorStyles.match(/\.md-ai-edit-original \{(?<body>[^}]+)\}/u);
     const editAnchorRule = editorStyles.match(/\.md-ai-edit-preview-anchor \{(?<body>[^}]+)\}/u);
-    const editPreviewRule = editorStyles.match(/\.md-ai-edit-preview \{(?<body>[^}]+)\}/u);
+    const editMirrorRule = editorStyles.match(/\.md-ai-edit-preview-mirror \{(?<body>[^}]+)\}/u);
+    const editReplacementRule = editorStyles.match(/\.md-ai-edit-preview-replacement \{(?<body>[^}]+)\}/u);
+    const editPlaceholderRule = editorStyles.match(/\.md-ai-edit-preview-placeholder \{(?<body>[^}]+)\}/u);
     expect(editOriginalRule?.groups?.body).toContain("text-decoration: line-through;");
     expect(editOriginalRule?.groups?.body).not.toContain("display: none;");
     expect(editAnchorRule?.groups?.body).toContain("position: relative;");
     expect(editAnchorRule?.groups?.body).toContain("width: 0;");
     expect(editAnchorRule?.groups?.body).toContain("height: 0;");
-    expect(editPreviewRule?.groups?.body).toContain("position: absolute;");
-    expect(editPreviewRule?.groups?.body).toContain("width: var(--md-ai-edit-preview-width, 1px);");
-    expect(editPreviewRule?.groups?.body).toContain("transform: translateY(calc(-100% - 0.38em));");
-    expect(editPreviewRule?.groups?.body).toContain("white-space: pre-wrap;");
-    expect(editPreviewRule?.groups?.body).toContain("overflow-wrap: anywhere;");
-    expect(editPreviewRule?.groups?.body).toContain("pointer-events: none;");
-    expect(editPreviewRule?.groups?.body).toContain("user-select: none;");
+    expect(editMirrorRule?.groups?.body).toContain("position: absolute;");
+    expect(editMirrorRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(editMirrorRule?.groups?.body).toContain("overflow-wrap: anywhere;");
+    expect(editMirrorRule?.groups?.body).toContain("pointer-events: none;");
+    expect(editMirrorRule?.groups?.body).toContain("user-select: none;");
+    expect(editReplacementRule?.groups?.body).toContain("background: color-mix");
+    expect(editReplacementRule?.groups?.body).toContain("color: color-mix");
+    expect(editPlaceholderRule?.groups?.body).toContain("color: transparent;");
     expect(editorStyles).not.toContain(".md-ai-edit-replacement");
     expect(aiSuggestionSource).not.toContain('createAiInlineSuggestionNode("md-ai-edit-replacement"');
-    expect(editorStyles).not.toContain("--md-ai-edit-replacement-width");
-    expect(aiSuggestionSource).toContain("--md-ai-edit-preview-width");
+    expect(editorStyles).not.toContain("--md-ai-edit-preview-width");
+    expect(aiSuggestionSource).not.toContain("--md-ai-edit-preview-width");
+    expect(aiSuggestionSource).not.toContain("setAiEditPreviewWidth");
     expect(aiSuggestionSource).not.toContain("measureAiEditPreviewBlocks");
   });
 
