@@ -5,3 +5,4 @@
 ## 文档
 
 - 设计规范： [DESIGN.md](./DESIGN.md)
+- App 精致感缺口分析： [app_polish_gap_analysis.md](./app_polish_gap_analysis.md)
