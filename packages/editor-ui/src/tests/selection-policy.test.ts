@@ -69,6 +69,7 @@ describe("editor selection policy", () => {
     const editAnchorRule = editorStyles.match(/\.md-ai-edit-preview-anchor \{(?<body>[^}]+)\}/u);
     const editMirrorRule = editorStyles.match(/\.md-ai-edit-preview-mirror \{(?<body>[^}]+)\}/u);
     const editReplacementRule = editorStyles.match(/\.md-ai-edit-preview-replacement \{(?<body>[^}]+)\}/u);
+    const editInsertRule = editorStyles.match(/\.md-ai-edit-preview-insert \{(?<body>[^}]+)\}/u);
     const editPlaceholderRule = editorStyles.match(/\.md-ai-edit-preview-placeholder \{(?<body>[^}]+)\}/u);
     expect(editOriginalRule?.groups?.body).toContain("text-decoration: line-through;");
     expect(editOriginalRule?.groups?.body).not.toContain("display: none;");
@@ -82,7 +83,14 @@ describe("editor selection policy", () => {
     expect(editMirrorRule?.groups?.body).toContain("user-select: none;");
     expect(editReplacementRule?.groups?.body).toContain("background: color-mix");
     expect(editReplacementRule?.groups?.body).toContain("color: color-mix");
+    expect(editInsertRule?.groups?.body).toContain("display: inline;");
+    expect(editInsertRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(editInsertRule?.groups?.body).toContain("overflow-wrap: anywhere;");
+    expect(editInsertRule?.groups?.body).toContain("pointer-events: none;");
+    expect(editInsertRule?.groups?.body).toContain("user-select: none;");
+    expect(editInsertRule?.groups?.body).not.toContain("position: absolute;");
     expect(editPlaceholderRule?.groups?.body).toContain("color: transparent;");
+    expect(aiSuggestionSource).toContain('createAiInlineSuggestionNode("md-ai-edit-preview-insert"');
     expect(editorStyles).not.toContain(".md-ai-edit-replacement");
     expect(aiSuggestionSource).not.toContain('createAiInlineSuggestionNode("md-ai-edit-replacement"');
     expect(editorStyles).not.toContain("--md-ai-edit-preview-width");

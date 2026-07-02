@@ -145,6 +145,20 @@
   color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
 }
 
+.md-ai-edit-preview-insert {
+  display: inline;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  border-radius: 3px;
+  background: color-mix(in srgb, #dcfce7 58%, transparent);
+  color: color-mix(in srgb, #16a34a 82%, var(--theme-text));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .md-ai-thinking-indicator {
   position: absolute;
   top: 16px;
