@@ -40,9 +40,33 @@ import { formatActionError } from "./controller-errors";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
 
+type SettingsSurface = "main" | "settings-window";
+
 interface UseSettingsControllerOptions {
   readonly showToast: (message: string | null) => void;
-  readonly surface?: "main" | "settings-window";
+  readonly surface?: SettingsSurface;
+}
+
+export async function closeSettingsSurfaceAfterSave({
+  surface,
+  closeEmbeddedSettings,
+  closeSettingsWindow,
+  showSavedToast
+}: {
+  readonly surface: SettingsSurface;
+  readonly closeEmbeddedSettings: () => void;
+  readonly closeSettingsWindow: () => Promise<boolean>;
+  readonly showSavedToast: () => void;
+}): Promise<void> {
+  if (surface === "main") {
+    closeEmbeddedSettings();
+    return;
+  }
+
+  const didCloseWindow = await closeSettingsWindow();
+  if (!didCloseWindow) {
+    showSavedToast();
+  }
 }
 
 export function useSettingsController({ showToast, surface = "main" }: UseSettingsControllerOptions) {
@@ -191,11 +215,15 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       setSettings(saved);
       syncSettingsDrafts(saved);
       setPreviewTheme(null);
-      if (surface === "main") {
-        setIsSettingsOpen(false);
-      } else {
-        // 独立设置窗口保存后保持打开，方便用户继续调整并观察主编辑器窗口变化。
-        showToast("设置已保存。");
+      try {
+        await closeSettingsSurfaceAfterSave({
+          surface,
+          closeEmbeddedSettings: () => setIsSettingsOpen(false),
+          closeSettingsWindow: destroyCurrentSettingsWindow,
+          showSavedToast: () => showToast("设置已保存。")
+        });
+      } catch (error) {
+        setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
       }
     } catch (error) {
       setSettingsErrorMessage(error instanceof Error ? error.message : "设置保存失败。");

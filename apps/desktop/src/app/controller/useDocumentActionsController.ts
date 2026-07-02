@@ -102,6 +102,24 @@ export function useDocumentActionsController({
     showToast
   ]);
 
+  const startBlankDocument = useCallback(() => {
+    const markdown = "";
+    clearMdxInsertRequest();
+    runtime.document.updateMarkdown(markdown);
+    setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
+    setEditorRevision((current) => current + 1);
+    showToast(null);
+    setOpenedAsset(null);
+    setHasActiveDocument(true);
+  }, [
+    clearMdxInsertRequest,
+    setEditorRevision,
+    setHasActiveDocument,
+    setOpenedAsset,
+    setSnapshot,
+    showToast
+  ]);
+
   const markCurrentDocumentSaved = useCallback((document: MarkdownDocumentFile) => {
     const latest = runtime.document.getSnapshot();
     const nextSnapshot = latest.markdown === document.markdown
@@ -261,9 +279,14 @@ export function useDocumentActionsController({
         ? await fileService.openDocumentAtPath(firstMarkdownPath)
         : null;
       showOpenedFolder(openedFolder);
-      replaceDocument(firstDocument);
+      if (firstDocument) {
+        replaceDocument(firstDocument);
+      } else {
+        // 文件夹没有 Markdown 时仍然展示文件树，并启动一个保存时会弹位置选择的空白文档。
+        startBlankDocument();
+      }
     });
-  }, [ensureDiscardAllowed, replaceDocument, runFileAction, showOpenedFolder]);
+  }, [ensureDiscardAllowed, replaceDocument, runFileAction, showOpenedFolder, startBlankDocument]);
 
   const openDocumentFromTree = useCallback(
     async (filePath: string) => {
