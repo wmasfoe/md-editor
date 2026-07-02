@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findFirstMarkdownPath } from "../src/app/files/file-tree-mutations";
 
 describe("findFirstMarkdownPath", () => {
-  it("returns the first Markdown file in tree order, including nested folders", () => {
+  it("returns the first Markdown file in breadth-first tree order", () => {
     expect(
       findFirstMarkdownPath({
         name: "docs",
@@ -19,7 +19,38 @@ describe("findFirstMarkdownPath", () => {
           { name: "readme.md", path: "/docs/readme.md", kind: "markdown" }
         ]
       })
-    ).toBe("/docs/guide/intro.mdx");
+    ).toBe("/docs/readme.md");
+  });
+
+  it("continues level by level when the current folder level has no Markdown file", () => {
+    expect(
+      findFirstMarkdownPath({
+        name: "docs",
+        path: "/docs",
+        kind: "directory",
+        children: [
+          {
+            name: "a",
+            path: "/docs/a",
+            kind: "directory",
+            children: [
+              {
+                name: "deep",
+                path: "/docs/a/deep",
+                kind: "directory",
+                children: [{ name: "deep.md", path: "/docs/a/deep/deep.md", kind: "markdown" }]
+              }
+            ]
+          },
+          {
+            name: "b",
+            path: "/docs/b",
+            kind: "directory",
+            children: [{ name: "intro.mdx", path: "/docs/b/intro.mdx", kind: "markdown" }]
+          }
+        ]
+      })
+    ).toBe("/docs/b/intro.mdx");
   });
 
   it("returns null for a folder without Markdown documents", () => {

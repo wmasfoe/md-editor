@@ -6,6 +6,8 @@ import {
   PhotoIcon
 } from "@heroicons/react/24/outline";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
+import { findFirstMarkdownPath } from "../app/files/file-tree-mutations";
+import { createDefaultCollapsedDirectoryPaths } from "../app/files/file-tree-view-state";
 import {
   FILE_TREE_CONTEXT_MENU_ACTION,
   copyNativeFileTreePath,
@@ -64,10 +66,28 @@ export function FileTreePanel({
   );
 
   useEffect(() => {
-    const rootPath = folder?.rootPath ?? null;
-    collapsedPathsRootRef.current = rootPath;
-    setCollapsedPaths(rootPath ? readCollapsedPaths(rootPath) : new Set());
-  }, [folder?.rootPath]);
+    const nextRootPath = folder?.rootPath ?? null;
+    if (collapsedPathsRootRef.current === nextRootPath) {
+      return;
+    }
+
+    collapsedPathsRootRef.current = nextRootPath;
+    if (!folder) {
+      setCollapsedPaths(new Set());
+      return;
+    }
+
+    const storedCollapsedPaths = readCollapsedPaths(folder.rootPath);
+    setCollapsedPaths(
+      storedCollapsedPaths ??
+        createDefaultCollapsedDirectoryPaths(
+          folder.tree,
+          activeFilePath && isPathInsideRoot(activeFilePath, folder.rootPath)
+            ? activeFilePath
+            : findFirstMarkdownPath(folder.tree)
+        )
+    );
+  }, [activeFilePath, folder]);
 
   useEffect(() => {
     if (!folder?.rootPath || collapsedPathsRootRef.current !== folder.rootPath) {
@@ -399,15 +419,22 @@ function storageKeyForRoot(rootPath: string): string {
   return `${COLLAPSED_PATHS_STORAGE_PREFIX}${encodeURIComponent(rootPath)}`;
 }
 
-function readCollapsedPaths(rootPath: string): ReadonlySet<string> {
+function readCollapsedPaths(rootPath: string): ReadonlySet<string> | null {
   try {
     const raw = window.localStorage.getItem(storageKeyForRoot(rootPath));
+    if (!raw) {
+      return null;
+    }
     const paths = raw ? JSON.parse(raw) : [];
     return new Set(Array.isArray(paths) ? paths.filter((path) => typeof path === "string") : []);
   } catch {
     // Persisted tree state is a convenience only; broken storage should not block authoring.
-    return new Set();
+    return null;
   }
+}
+
+function isPathInsideRoot(path: string, rootPath: string): boolean {
+  return path === rootPath || path.startsWith(`${rootPath}/`);
 }
 
 function writeCollapsedPaths(rootPath: string, collapsedPaths: ReadonlySet<string>) {

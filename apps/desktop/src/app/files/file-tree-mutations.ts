@@ -14,16 +14,20 @@ export type OpenDocumentMutation =
     };
 
 export function findFirstMarkdownPath(node: MarkdownFileTreeNode): string | null {
-  if (node.kind === "markdown") {
-    return node.path;
+  let currentLevel: readonly MarkdownFileTreeNode[] = [node];
+
+  while (currentLevel.length > 0) {
+    for (const candidate of currentLevel) {
+      if (candidate.kind === "markdown") {
+        return candidate.path;
+      }
+    }
+
+    currentLevel = currentLevel.flatMap((candidate) =>
+      candidate.kind === "directory" ? candidate.children ?? [] : []
+    );
   }
 
-  for (const child of node.children ?? []) {
-    const path = findFirstMarkdownPath(child);
-    if (path) {
-      return path;
-    }
-  }
   return null;
 }
 
