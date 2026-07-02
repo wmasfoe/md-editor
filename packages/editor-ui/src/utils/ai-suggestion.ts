@@ -44,12 +44,14 @@ interface AnchoredEditSuggestion extends AiWritingEditSuggestion {
 }
 
 export interface AiEditPreviewModel {
+  readonly kind: AiEditPreviewKind;
   readonly textblockFrom: number;
   readonly textblockTo: number;
   readonly before: string;
   readonly original: string;
   readonly replacement: string;
   readonly after: string;
+  readonly changes: readonly AiEditPreviewChange[];
 }
 
 export interface AiEditPreviewGeometry {
@@ -80,6 +82,17 @@ export interface AiEditPreviewMirrorPlacement {
   readonly letterSpacing: string;
   readonly textAlign: string;
   readonly tabSize: string;
+}
+
+export type AiEditPreviewKind = "delete-only" | "insert-only" | "mixed";
+
+export interface AiEditPreviewChange {
+  readonly originalFrom: number;
+  readonly originalTo: number;
+  readonly replacementFrom: number;
+  readonly replacementTo: number;
+  readonly deletedText: string;
+  readonly insertedText: string;
 }
 
 const aiSuggestionPluginKey = new PluginKey<AiSuggestionState | null>("md-editor-ai-suggestion");
@@ -362,24 +375,7 @@ function createDecoratedAiSuggestionState({
   const displayContinuation = continuation ? normalizeSuggestionText(continuation) : "";
 
   if (edit) {
-    decorations.push(
-      Decoration.inline(edit.from, edit.to, {
-        class: "md-ai-edit-original"
-      })
-    );
-
-    decorations.push(
-      Decoration.widget(
-        edit.from,
-        (view) => createAiEditPreviewAnchor(view, edit),
-        {
-          side: -1,
-          ignoreSelection: true,
-          key: `md-ai-edit-preview-${id}`,
-          destroy: (node) => disposeAiEditPreviewAnchor(node as HTMLElement)
-        }
-      )
-    );
+    decorations.push(...createAiEditPreviewDecorations(doc, id, edit));
   }
 
   if (displayContinuation) {
@@ -407,6 +403,55 @@ function createDecoratedAiSuggestionState({
     ...(edit ? { edit } : {}),
     decorations: DecorationSet.create(doc, decorations)
   };
+}
+
+function createAiEditPreviewDecorations(
+  doc: ProseMirrorNode,
+  id: number,
+  edit: AnchoredEditSuggestion
+): Decoration[] {
+  const model = createAiEditPreviewModel(doc, edit);
+  if (!model) {
+    return [];
+  }
+
+  if (model.kind === "delete-only") {
+    return model.changes.map((change) =>
+      Decoration.inline(edit.from + change.originalFrom, edit.from + change.originalTo, {
+        class: "md-ai-edit-original"
+      })
+    );
+  }
+
+  if (model.kind === "insert-only") {
+    return model.changes.map((change, index) =>
+      Decoration.widget(
+        edit.from + change.originalFrom,
+        () => createAiInlineSuggestionNode("md-ai-edit-preview-insert", change.insertedText),
+        {
+          side: change.originalFrom === 0 ? -1 : 1,
+          ignoreSelection: true,
+          key: `md-ai-edit-preview-insert-${id}-${index}`
+        }
+      )
+    );
+  }
+
+  return [
+    Decoration.inline(edit.from, edit.to, {
+      class: "md-ai-edit-original"
+    }),
+    Decoration.widget(
+      edit.from,
+      (view) => createAiEditPreviewAnchor(view, edit),
+      {
+        side: -1,
+        ignoreSelection: true,
+        key: `md-ai-edit-preview-${id}`,
+        destroy: (node) => disposeAiEditPreviewAnchor(node as HTMLElement)
+      }
+    )
+  ];
 }
 
 function isSelectionAtSuggestionAnchor(selection: Selection, state: AiSuggestionState): boolean {
@@ -689,13 +734,194 @@ export function createAiEditPreviewModel(
     return null;
   }
 
+  const changes = createAiEditPreviewChanges(original, replacement);
+
   return {
+    kind: getAiEditPreviewKind(changes),
     textblockFrom,
     textblockTo,
     before: text.slice(0, fromOffset),
     original,
     replacement,
-    after: text.slice(toOffset)
+    after: text.slice(toOffset),
+    changes
+  };
+}
+
+function getAiEditPreviewKind(changes: readonly AiEditPreviewChange[]): AiEditPreviewKind {
+  if (changes.every((change) => change.deletedText && !change.insertedText)) {
+    return "delete-only";
+  }
+  if (changes.every((change) => change.insertedText && !change.deletedText)) {
+    return "insert-only";
+  }
+  return "mixed";
+}
+
+function createAiEditPreviewChanges(
+  original: string,
+  replacement: string
+): readonly AiEditPreviewChange[] {
+  return (
+    createDeleteOnlyAiEditPreviewChanges(original, replacement) ??
+    createInsertOnlyAiEditPreviewChanges(original, replacement) ??
+    [createMixedAiEditPreviewChange(original, replacement)]
+  );
+}
+
+function createDeleteOnlyAiEditPreviewChanges(
+  original: string,
+  replacement: string
+): readonly AiEditPreviewChange[] | null {
+  const changes: AiEditPreviewChange[] = [];
+  let replacementOffset = 0;
+  let current: {
+    originalFrom: number;
+    originalTo: number;
+    deletedText: string;
+  } | null = null;
+
+  for (let originalOffset = 0; originalOffset < original.length; originalOffset += 1) {
+    const originalCharacter = original.charAt(originalOffset);
+    if (
+      replacementOffset < replacement.length &&
+      originalCharacter === replacement.charAt(replacementOffset)
+    ) {
+      if (current) {
+        changes.push({
+          originalFrom: current.originalFrom,
+          originalTo: current.originalTo,
+          replacementFrom: replacementOffset,
+          replacementTo: replacementOffset,
+          deletedText: current.deletedText,
+          insertedText: ""
+        });
+        current = null;
+      }
+      replacementOffset += 1;
+      continue;
+    }
+
+    if (current) {
+      current = {
+        originalFrom: current.originalFrom,
+        originalTo: originalOffset + 1,
+        deletedText: `${current.deletedText}${originalCharacter}`
+      };
+    } else {
+      current = {
+        originalFrom: originalOffset,
+        originalTo: originalOffset + 1,
+        deletedText: originalCharacter
+      };
+    }
+  }
+
+  if (current) {
+    changes.push({
+      originalFrom: current.originalFrom,
+      originalTo: current.originalTo,
+      replacementFrom: replacementOffset,
+      replacementTo: replacementOffset,
+      deletedText: current.deletedText,
+      insertedText: ""
+    });
+  }
+
+  return replacementOffset === replacement.length && changes.length > 0 ? changes : null;
+}
+
+function createInsertOnlyAiEditPreviewChanges(
+  original: string,
+  replacement: string
+): readonly AiEditPreviewChange[] | null {
+  const changes: AiEditPreviewChange[] = [];
+  let originalOffset = 0;
+  let current: {
+    originalFrom: number;
+    replacementFrom: number;
+    replacementTo: number;
+    insertedText: string;
+  } | null = null;
+
+  for (let replacementOffset = 0; replacementOffset < replacement.length; replacementOffset += 1) {
+    const replacementCharacter = replacement.charAt(replacementOffset);
+    if (
+      originalOffset < original.length &&
+      original.charAt(originalOffset) === replacementCharacter
+    ) {
+      if (current) {
+        changes.push({
+          originalFrom: current.originalFrom,
+          originalTo: current.originalFrom,
+          replacementFrom: current.replacementFrom,
+          replacementTo: current.replacementTo,
+          deletedText: "",
+          insertedText: current.insertedText
+        });
+        current = null;
+      }
+      originalOffset += 1;
+      continue;
+    }
+
+    if (current) {
+      current = {
+        originalFrom: current.originalFrom,
+        replacementFrom: current.replacementFrom,
+        replacementTo: replacementOffset + 1,
+        insertedText: `${current.insertedText}${replacementCharacter}`
+      };
+    } else {
+      current = {
+        originalFrom: originalOffset,
+        replacementFrom: replacementOffset,
+        replacementTo: replacementOffset + 1,
+        insertedText: replacementCharacter
+      };
+    }
+  }
+
+  if (current) {
+    changes.push({
+      originalFrom: current.originalFrom,
+      originalTo: current.originalFrom,
+      replacementFrom: current.replacementFrom,
+      replacementTo: current.replacementTo,
+      deletedText: "",
+      insertedText: current.insertedText
+    });
+  }
+
+  return originalOffset === original.length && changes.length > 0 ? changes : null;
+}
+
+function createMixedAiEditPreviewChange(original: string, replacement: string): AiEditPreviewChange {
+  let prefixLength = 0;
+  const maxPrefixLength = Math.min(original.length, replacement.length);
+  while (
+    prefixLength < maxPrefixLength &&
+    original[prefixLength] === replacement[prefixLength]
+  ) {
+    prefixLength += 1;
+  }
+
+  let suffixLength = 0;
+  const maxSuffixLength = maxPrefixLength - prefixLength;
+  while (
+    suffixLength < maxSuffixLength &&
+    original[original.length - suffixLength - 1] === replacement[replacement.length - suffixLength - 1]
+  ) {
+    suffixLength += 1;
+  }
+
+  return {
+    originalFrom: prefixLength,
+    originalTo: original.length - suffixLength,
+    replacementFrom: prefixLength,
+    replacementTo: replacement.length - suffixLength,
+    deletedText: original.slice(prefixLength, original.length - suffixLength),
+    insertedText: replacement.slice(prefixLength, replacement.length - suffixLength)
   };
 }
 
@@ -710,8 +936,6 @@ function isPlainTextblock(textblock: ProseMirrorNode): boolean {
 }
 
 function createAiInlineSuggestionNode(className: string, text: string): HTMLElement {
-  // continuation 仍是光标后的 ghost text。edit suggestion 走上面的对比预览，
-  // 避免把语法/标点替换误渲染成已经接受的正文。
   const node = document.createElement("span");
   node.className = className;
   node.textContent = text;

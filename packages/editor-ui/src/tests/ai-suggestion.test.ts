@@ -113,13 +113,110 @@ describe("AI suggestion acceptance", () => {
       replacement,
       from,
       to: from + original.length
-    })).toEqual({
+    })).toMatchObject({
+      kind: "mixed",
       textblockFrom: 1,
       textblockTo: 1 + text.length,
       before: "hello ",
       original,
       replacement,
       after: " text after"
+    });
+  });
+
+  it("classifies delete-only edit previews and tracks deleted original spans", () => {
+    const schema = createMarkdownLikeSchema();
+    const text = "hello very broken text after";
+    const original = "very broken";
+    const replacement = "broken";
+    const from = 1 + text.indexOf(original);
+    const state = EditorState.create({
+      doc: schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, schema.text(text))
+      ])
+    });
+
+    expect(createAiEditPreviewModel(state.doc, {
+      original,
+      replacement,
+      from,
+      to: from + original.length
+    })).toMatchObject({
+      kind: "delete-only",
+      changes: [
+        {
+          originalFrom: 0,
+          originalTo: "very ".length,
+          replacementFrom: 0,
+          replacementTo: 0,
+          deletedText: "very ",
+          insertedText: ""
+        }
+      ]
+    });
+  });
+
+  it("classifies insert-only edit previews and tracks inline insertion points", () => {
+    const schema = createMarkdownLikeSchema();
+    const text = "hello broken text after";
+    const original = "broken text";
+    const replacement = "broken fixed text";
+    const from = 1 + text.indexOf(original);
+    const state = EditorState.create({
+      doc: schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, schema.text(text))
+      ])
+    });
+
+    expect(createAiEditPreviewModel(state.doc, {
+      original,
+      replacement,
+      from,
+      to: from + original.length
+    })).toMatchObject({
+      kind: "insert-only",
+      changes: [
+        {
+          originalFrom: "broken ".length,
+          originalTo: "broken ".length,
+          replacementFrom: "broken ".length,
+          replacementTo: "broken fixed ".length,
+          deletedText: "",
+          insertedText: "fixed "
+        }
+      ]
+    });
+  });
+
+  it("keeps substitutions on the mixed preview path", () => {
+    const schema = createMarkdownLikeSchema();
+    const text = "hello broken text after";
+    const original = "broken";
+    const replacement = "fixed";
+    const from = 1 + text.indexOf(original);
+    const state = EditorState.create({
+      doc: schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, schema.text(text))
+      ])
+    });
+
+    expect(createAiEditPreviewModel(state.doc, {
+      original,
+      replacement,
+      from,
+      to: from + original.length
+    })).toMatchObject({
+      kind: "mixed",
+      changes: [
+        {
+          originalFrom: 0,
+          originalTo: original.length,
+          replacementFrom: 0,
+          replacementTo: replacement.length,
+          deletedText: original,
+          insertedText: replacement
+        }
+      ]
     });
   });
 
