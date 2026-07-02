@@ -1,6 +1,20 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 const SETTINGS_WINDOW_LABEL: &str = "settings";
+#[cfg(target_os = "macos")]
+const APP_MAIN_TRAFFIC_LIGHT_LEFT: f64 = 16.0;
+#[cfg(target_os = "macos")]
+const APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET: f64 = 13.0;
+#[cfg(target_os = "macos")]
+const SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION: f64 = -7.0;
+#[cfg(target_os = "macos")]
+const SETTINGS_TRAFFIC_LIGHT_VERTICAL_COMPENSATION: f64 = 5.0;
+#[cfg(target_os = "macos")]
+const SETTINGS_TRAFFIC_LIGHT_LEFT: f64 =
+    APP_MAIN_TRAFFIC_LIGHT_LEFT + SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION;
+#[cfg(target_os = "macos")]
+const SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET: f64 =
+    APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET + SETTINGS_TRAFFIC_LIGHT_VERTICAL_COMPENSATION;
 
 #[tauri::command]
 pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
@@ -30,7 +44,11 @@ pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), St
         builder = builder
             .title_bar_style(tauri::TitleBarStyle::Overlay)
             .hidden_title(true)
-            .traffic_light_position(tauri::LogicalPosition::new(16.0, 13.0));
+            // 动态 WebviewWindow 和 tauri.conf 主窗口的同一 y 值视觉上不同；这里补偿到主窗口观感。
+            .traffic_light_position(tauri::LogicalPosition::new(
+                SETTINGS_TRAFFIC_LIGHT_LEFT,
+                SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
+            ));
     }
 
     builder.build().map_err(tauri_error_to_string)?;
@@ -49,4 +67,40 @@ pub(crate) async fn close_settings_window(app: tauri::AppHandle) -> Result<(), S
 
 fn tauri_error_to_string(error: tauri::Error) -> String {
     error.to_string()
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    #[test]
+    fn dynamic_settings_window_tracks_main_window_traffic_light_baseline() {
+        let config: Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid tauri config");
+        let main_window = config
+            .pointer("/app/windows/0")
+            .expect("main window config exists");
+
+        assert_eq!(
+            main_window
+                .pointer("/trafficLightPosition/x")
+                .and_then(Value::as_f64),
+            Some(APP_MAIN_TRAFFIC_LIGHT_LEFT)
+        );
+        assert_eq!(
+            main_window
+                .pointer("/trafficLightPosition/y")
+                .and_then(Value::as_f64),
+            Some(APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET)
+        );
+        assert_eq!(
+            SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
+            APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET + SETTINGS_TRAFFIC_LIGHT_VERTICAL_COMPENSATION
+        );
+        assert_eq!(
+            SETTINGS_TRAFFIC_LIGHT_LEFT,
+            APP_MAIN_TRAFFIC_LIGHT_LEFT + SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION
+        );
+    }
 }
