@@ -1,10 +1,9 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(target_os = "macos")]
+use crate::window_chrome::{APP_MAIN_TRAFFIC_LIGHT_LEFT, APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET};
+
 const SETTINGS_WINDOW_LABEL: &str = "settings";
-#[cfg(target_os = "macos")]
-const APP_MAIN_TRAFFIC_LIGHT_LEFT: f64 = 16.0;
-#[cfg(target_os = "macos")]
-const APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET: f64 = 13.0;
 #[cfg(target_os = "macos")]
 const SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION: f64 = -7.0;
 #[cfg(target_os = "macos")]

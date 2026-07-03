@@ -8,6 +8,7 @@ mod local_ai_runtime;
 mod recent_files;
 mod settings;
 mod settings_window;
+mod window_chrome;
 
 use app_menu::MENU_ACTION_EVENT;
 use app_menu::{build_app_menu, save_app_settings_and_update_menu, update_recent_files_menu};
@@ -43,6 +44,16 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            window_chrome::install_initial_main_window_traffic_light_refresh(app.handle());
+
+            Ok(())
+        })
+        .on_window_event(|_window, _event| {
+            #[cfg(target_os = "macos")]
+            window_chrome::refresh_main_window_traffic_lights_after_layout_event(_window, _event);
+        })
         .invoke_handler(tauri::generate_handler![
             open_markdown_document,
             open_markdown_document_at_path,
