@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Bars3BottomLeftIcon,
+  ChevronRightIcon,
   FolderIcon,
   MagnifyingGlassIcon,
   QueueListIcon
@@ -255,15 +255,10 @@ export function App() {
             titleIcon="markdown"
           />
           {!editor.isSidebarVisible ? (
-            <button
-              type="button"
-              className="absolute left-2 top-2 z-[15] grid size-[30px] place-items-center rounded-[5px] border-0 bg-[var(--theme-chrome)] text-[var(--theme-control-text)] shadow-[0_1px_6px_rgba(0,0,0,0.08)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
-              aria-label="显示侧栏"
-              title="显示侧栏"
-              onClick={() => editor.setIsSidebarVisible(true)}
-            >
-              <Bars3BottomLeftIcon aria-hidden="true" />
-            </button>
+            <CollapsedSidebarReveal
+              hasTitleBar={shouldShowOverlayTitleBar}
+              onReveal={() => editor.setIsSidebarVisible(true)}
+            />
           ) : null}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <EditorToast toast={editor.toast} />
@@ -335,6 +330,44 @@ export function App() {
         />
       ) : null}
     </main>
+  );
+}
+
+function CollapsedSidebarReveal({
+  hasTitleBar,
+  onReveal
+}: {
+  readonly hasTitleBar: boolean;
+  readonly onReveal: () => void;
+}) {
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    onReveal();
+  };
+
+  return (
+    <div
+      className={cx(
+        "group absolute bottom-0 left-0 z-[15] w-14",
+        // 只让正文左侧 56px 成为唤起热区，避免覆盖 macOS 标题栏拖拽和红黄绿按钮。
+        hasTitleBar ? "top-[34px]" : "top-0"
+      )}
+    >
+      <button
+        type="button"
+        className="absolute left-1 top-1/2 grid h-14 w-10 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-7 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
+        aria-label="显示侧栏"
+        title="显示侧栏"
+        onPointerDown={handlePointerDown}
+        onClick={onReveal}
+      >
+        <ChevronRightIcon aria-hidden="true" />
+      </button>
+    </div>
   );
 }
 
