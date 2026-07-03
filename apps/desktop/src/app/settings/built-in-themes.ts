@@ -6,7 +6,6 @@ export interface BuiltInThemeOption {
 }
 
 export const BUILT_IN_LIGHT_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
-  { id: "default-light", label: "默认白色" },
   { id: "github-light", label: "GitHub" },
   { id: "gothic-light", label: "Gothic" }
 ];
@@ -23,8 +22,6 @@ export function builtInThemeCss(themeId: BuiltInThemeId): string {
       return GOTHIC_LIGHT_THEME_CSS;
     case "night-dark":
       return NIGHT_DARK_THEME_CSS;
-    case "default-light":
-      return "";
   }
 }
 

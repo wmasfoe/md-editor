@@ -2,42 +2,42 @@
 @source "../../../packages/editor-ui/src";
 
 :root {
-  /* 默认 token 只做无自定义 CSS 时的兜底；用户主题通过设置里的 CSS 覆盖这些变量。 */
+  /* 兜底 token 对齐 GitHub 主题，避免主题 CSS 注入前闪回旧兜底配色。 */
   color-scheme: light;
-  --theme-bg: #ffffff;
-  --theme-bg-muted: #f4f4f4;
-  --theme-chrome: #fafafa;
-  --theme-chrome-soft: var(--theme-surface);
+  --theme-bg: #f6f8fa;
+  --theme-bg-muted: #f6f8fa;
+  --theme-chrome: #ffffff;
   --theme-surface: #ffffff;
-  --theme-text: #333333;
-  --theme-muted: #777777;
-  --theme-control-text: #666666;
-  --theme-control-subtle: #999999;
-  --theme-disabled: #b4b4b4;
-  --theme-title: #333333;
-  --theme-border: #eeeeee;
-  --theme-border-strong: #dddddd;
-  --theme-primary: #4183c4;
-  --theme-primary-soft: rgba(65, 131, 196, 0.08);
-  --theme-primary-selected: #b5d6fc;
-  --theme-control-hover: #f5f5f5;
-  --theme-control-active: #eeeeee;
-  --theme-danger-bg: rgba(227, 15, 46, 0.08);
-  --theme-danger-text: #a30d22;
+  --theme-chrome-soft: var(--theme-surface);
+  --theme-text: #24292f;
+  --theme-muted: #57606a;
+  --theme-control-text: #57606a;
+  --theme-control-subtle: #6e7781;
+  --theme-disabled: #8c959f;
+  --theme-title: #1f2328;
+  --theme-border: #d8dee4;
+  --theme-border-strong: #afb8c1;
+  --theme-primary: #0969da;
+  --theme-primary-soft: rgba(9, 105, 218, 0.1);
+  --theme-primary-selected: rgba(9, 105, 218, 0.24);
+  --theme-control-hover: #f3f4f6;
+  --theme-control-active: #eaeef2;
+  --theme-danger-bg: rgba(207, 34, 46, 0.1);
+  --theme-danger-text: #cf222e;
   --theme-code: #24292f;
-  --theme-code-bg: #f8f8f8;
-  --theme-code-border: #e1e5ea;
-  --theme-code-gutter-bg: #f1f3f5;
-  --theme-code-gutter-text: #8b949e;
-  --theme-code-keyword: #8839ef;
-  --theme-code-string: #40a02b;
-  --theme-code-comment: #6c6f85;
-  --theme-code-number: #fe640b;
-  --theme-code-tag: #179299;
+  --theme-code-bg: #f6f8fa;
+  --theme-code-border: #d8dee4;
+  --theme-code-gutter-bg: #f6f8fa;
+  --theme-code-gutter-text: #6e7781;
+  --theme-code-keyword: #cf222e;
+  --theme-code-string: #0a3069;
+  --theme-code-comment: #6e7781;
+  --theme-code-number: #0550ae;
+  --theme-code-tag: #116329;
   --theme-code-attribute: #8250df;
   --theme-code-variable: #0550ae;
-  --theme-inline-code-bg: #f3f4f4;
-  --theme-shadow: 0 1px 1px rgba(0, 28, 36, 0.08), 0 4px 20px rgba(0, 0, 0, 0.08);
+  --theme-inline-code-bg: rgba(175, 184, 193, 0.2);
+  --theme-shadow: 0 1px 1px rgba(31, 35, 40, 0.04), 0 8px 24px rgba(140, 149, 159, 0.18);
   --theme-content-width: 860px;
   --theme-font:
     "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC",

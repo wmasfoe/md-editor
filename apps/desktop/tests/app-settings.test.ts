@@ -145,6 +145,17 @@ describe("app settings", () => {
       }
     })).toEqual(DEFAULT_THEME_SETTINGS);
     expect(normalizeAppTheme({
+      mode: "light",
+      light: {
+        source: "builtin",
+        builtinTheme: "default-light",
+        customCssPath: null
+      }
+    })).toEqual({
+      ...DEFAULT_THEME_SETTINGS,
+      mode: "light"
+    });
+    expect(normalizeAppTheme({
       mode: "system",
       lightCssPath: "/tmp/md-editor-light.css",
       darkCssPath: "/tmp/md-editor-dark.css"
