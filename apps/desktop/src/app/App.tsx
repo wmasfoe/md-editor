@@ -71,6 +71,7 @@ export function App() {
             updateStatus={editor.updateStatus}
             shortcutDrafts={editor.shortcutDrafts}
             assetsDirectoryDraft={editor.assetsDirectoryDraft}
+            editorSettingsDraft={editor.editorSettingsDraft}
             themeDraft={editor.themeDraft}
             aiSettingsDraft={editor.aiSettingsDraft}
             isLocalModelActionPending={editor.isLocalModelActionPending}
@@ -80,6 +81,7 @@ export function App() {
             onCaptureShortcut={editor.captureShortcutDraft}
             onResetShortcut={editor.resetShortcutDraft}
             onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
+            onChangeEditorSettings={editor.setEditorSettingsDraft}
             onChangeTheme={editor.setThemeDraft}
             onChooseThemeCss={editor.chooseThemeCss}
             onClearThemeCss={editor.clearThemeCss}
@@ -296,6 +298,7 @@ export function App() {
                   aiSuggestionRequest={editor.aiSuggestionRequest}
                   isAiSuggestionPending={editor.isAiSuggestionPending}
                   aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
+                  showCodeBlockLineNumbers={editor.settings.editor.showCodeBlockLineNumbers}
                   onInsertRequestHandled={editor.clearMdxInsertRequest}
                   onAiSuggestionRequest={editor.requestAiSuggestion}
                   onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
@@ -432,6 +435,7 @@ function SettingsWindowApp() {
           updateStatus={settings.updateStatus}
           shortcutDrafts={settings.shortcutDrafts}
           assetsDirectoryDraft={settings.assetsDirectoryDraft}
+          editorSettingsDraft={settings.editorSettingsDraft}
           themeDraft={settings.themeDraft}
           aiSettingsDraft={settings.aiSettingsDraft}
           isLocalModelActionPending={settings.isLocalModelActionPending}
@@ -441,6 +445,7 @@ function SettingsWindowApp() {
           onCaptureShortcut={settings.captureShortcutDraft}
           onResetShortcut={settings.resetShortcutDraft}
           onChangeAssetsDirectory={settings.setAssetsDirectoryDraft}
+          onChangeEditorSettings={settings.setEditorSettingsDraft}
           onChangeTheme={settings.setThemeDraft}
           onChooseThemeCss={settings.chooseThemeCss}
           onClearThemeCss={settings.clearThemeCss}

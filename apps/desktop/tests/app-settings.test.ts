@@ -4,9 +4,11 @@ import {
   createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
   DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_EDITOR_DISPLAY_SETTINGS,
   DEFAULT_THEME_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
   normalizeAiSettings,
+  normalizeEditorDisplaySettings,
   normalizeAppTheme,
   normalizeShortcutKey,
   shortcutKeyFromKeyboardEvent,
@@ -18,6 +20,7 @@ describe("app settings", () => {
     const settings = createDefaultSettings();
 
     expect(settings.assetsDirectory).toBe("assets");
+    expect(settings.editor).toEqual(DEFAULT_EDITOR_DISPLAY_SETTINGS);
     expect(settings.theme).toEqual(DEFAULT_THEME_SETTINGS);
     expect(settings.ai.features).toEqual({
       continuation: false,
@@ -39,6 +42,18 @@ describe("app settings", () => {
       "mdx.openComponentMenu",
       "ai.continueWriting"
     ]);
+  });
+
+  it("normalizes editor display settings with code block line numbers off by default", () => {
+    expect(normalizeEditorDisplaySettings(undefined)).toEqual({
+      showCodeBlockLineNumbers: false
+    });
+    expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
+      showCodeBlockLineNumbers: true
+    });
+    expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: "true" })).toEqual({
+      showCodeBlockLineNumbers: false
+    });
   });
 
   it("normalizes product-facing shortcut text to runtime keymaps", () => {

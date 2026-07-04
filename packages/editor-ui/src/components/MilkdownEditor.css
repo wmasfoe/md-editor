@@ -460,6 +460,7 @@
 
 .milkdown .ProseMirror .md-code-block-line-numbers {
   flex-shrink: 0;
+  display: none;
   padding: 1rem 0.75rem;
   background: var(--theme-code-gutter-bg);
   border-right: 1px solid var(--theme-code-border);
@@ -470,6 +471,10 @@
   text-align: right;
   user-select: none;
   min-width: 3em;
+}
+
+.milkdown-host--code-line-numbers .milkdown .ProseMirror .md-code-block-line-numbers {
+  display: block;
 }
 
 .milkdown .ProseMirror .md-code-block-line-number {

@@ -1,4 +1,7 @@
-import type { AppThemeSettings } from "../../app/settings/app-settings";
+import type {
+  AppThemeSettings,
+  EditorDisplaySettings
+} from "../../app/settings/app-settings";
 import {
   BUILT_IN_DARK_THEME_OPTIONS,
   BUILT_IN_LIGHT_THEME_OPTIONS
@@ -14,14 +17,18 @@ import {
 } from "./settingsStyles";
 
 interface AppearanceSettingsPanelProps {
+  readonly editorSettingsDraft: EditorDisplaySettings;
   readonly themeDraft: AppThemeSettings;
+  readonly onChangeEditorSettings: (value: EditorDisplaySettings) => void;
   readonly onChangeTheme: (value: AppThemeSettings) => void;
   readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
   readonly onClearThemeCss: (scheme: "light" | "dark") => void;
 }
 
 export function AppearanceSettingsPanel({
+  editorSettingsDraft,
   themeDraft,
+  onChangeEditorSettings,
   onChangeTheme,
   onChooseThemeCss,
   onClearThemeCss
@@ -32,7 +39,26 @@ export function AppearanceSettingsPanel({
         <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>外观设置</h2>
         <p className={settingsDescriptionClassName}>为亮色和暗色分别选择内置主题或自定义 CSS，应用默认跟随系统明暗。</p>
       </div>
-      <div className="grid gap-2.5">
+      <div className="grid gap-4">
+        <fieldset className="grid gap-2.5 border-0 p-0">
+          <legend className={settingsFieldLabelClassName}>编辑显示</legend>
+          <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--theme-primary)]"
+              checked={editorSettingsDraft.showCodeBlockLineNumbers}
+              onChange={(event) =>
+                onChangeEditorSettings({
+                  ...editorSettingsDraft,
+                  showCodeBlockLineNumbers: event.target.checked
+                })
+              }
+            />
+            <span>显示代码块行号</span>
+          </label>
+        </fieldset>
+        <div className="grid gap-2.5">
+          <h3 className={settingsFieldLabelClassName}>主题</h3>
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
           <span className={settingsFieldLabelClassName}>应用方式</span>
           <select
@@ -63,6 +89,7 @@ export function AppearanceSettingsPanel({
           onChoose={() => onChooseThemeCss("dark")}
           onClear={() => onClearThemeCss("dark")}
         />
+        </div>
       </div>
     </section>
   );

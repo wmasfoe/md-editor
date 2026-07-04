@@ -26,6 +26,7 @@ import {
   saveAppSettings,
   validateAssetsDirectory,
   type AppSettings,
+  type EditorDisplaySettings,
   type AppThemeSettings,
   type ShortcutSetting,
   type UpdateStatus
@@ -76,6 +77,9 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     createShortcutDrafts(createDefaultSettings().shortcuts)
   );
   const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
+  const [editorSettingsDraft, setEditorSettingsDraft] = useState<EditorDisplaySettings>(
+    createDefaultSettings().editor
+  );
   const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(createDefaultSettings().theme);
   const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
@@ -93,6 +97,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     // 设置弹窗编辑的是草稿；保存或取消时必须和权威 settings 重新对齐。
     setShortcutDrafts(createShortcutDrafts(nextSettings.shortcuts));
     setAssetsDirectoryDraft(nextSettings.assetsDirectory);
+    setEditorSettingsDraft(nextSettings.editor);
     setThemeDraft(nextSettings.theme);
     setAiSettingsDraft(nextSettings.ai);
   }, []);
@@ -209,6 +214,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       const saved = await saveAppSettings({
         shortcuts: normalizedShortcuts,
         assetsDirectory: nextAssetsDirectory,
+        editor: editorSettingsDraft,
         theme: themeDraft,
         ai: normalizeAiSettings(aiSettingsDraft)
       });
@@ -233,6 +239,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   }, [
     aiSettingsDraft,
     assetsDirectoryDraft,
+    editorSettingsDraft,
     settings.shortcuts,
     shortcutDrafts,
     showToast,
@@ -432,6 +439,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     isSettingsOpen,
     shortcutDrafts,
     assetsDirectoryDraft,
+    editorSettingsDraft,
     themeDraft,
     aiSettingsDraft,
     isLocalModelActionPending,
@@ -439,6 +447,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     isSavingSettings,
     updateStatus,
     setAssetsDirectoryDraft,
+    setEditorSettingsDraft,
     setThemeDraft,
     setAiSettingsDraft,
     chooseThemeCss,

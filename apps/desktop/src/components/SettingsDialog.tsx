@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "r
 import type { AiSettings } from "@md-editor/editor-core";
 import type {
   AppSettings,
+  EditorDisplaySettings,
   AppThemeSettings,
   UpdateStatus
 } from "../app/settings/app-settings";
@@ -19,6 +20,7 @@ export interface SettingsPageProps {
   readonly updateStatus: UpdateStatus;
   readonly shortcutDrafts: Readonly<Record<string, string>>;
   readonly assetsDirectoryDraft: string;
+  readonly editorSettingsDraft: EditorDisplaySettings;
   readonly themeDraft: AppThemeSettings;
   readonly aiSettingsDraft: AiSettings;
   readonly isLocalModelActionPending: boolean;
@@ -28,6 +30,7 @@ export interface SettingsPageProps {
   readonly onCaptureShortcut: (id: string, key: string) => void;
   readonly onResetShortcut: (id: string) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
+  readonly onChangeEditorSettings: (value: EditorDisplaySettings) => void;
   readonly onChangeTheme: (value: AppThemeSettings) => void;
   readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
   readonly onClearThemeCss: (scheme: "light" | "dark") => void;
@@ -48,6 +51,7 @@ export function SettingsPage({
   updateStatus,
   shortcutDrafts,
   assetsDirectoryDraft,
+  editorSettingsDraft,
   themeDraft,
   aiSettingsDraft,
   isLocalModelActionPending,
@@ -57,6 +61,7 @@ export function SettingsPage({
   onCaptureShortcut,
   onResetShortcut,
   onChangeAssetsDirectory,
+  onChangeEditorSettings,
   onChangeTheme,
   onChooseThemeCss,
   onClearThemeCss,
@@ -128,10 +133,12 @@ export function SettingsPage({
       {
         id: "appearance",
         label: "外观设置",
-        description: "主题和自定义 CSS",
+        description: "主题和编辑显示",
         panel: (
           <AppearanceSettingsPanel
+            editorSettingsDraft={editorSettingsDraft}
             themeDraft={themeDraft}
+            onChangeEditorSettings={onChangeEditorSettings}
             onChangeTheme={onChangeTheme}
             onChooseThemeCss={onChooseThemeCss}
             onClearThemeCss={onClearThemeCss}
@@ -158,12 +165,14 @@ export function SettingsPage({
     [
       aiSettingsDraft,
       assetsDirectoryDraft,
+      editorSettingsDraft,
       isCheckingForUpdates,
       isLocalModelActionPending,
       onCancelLocalModelDownload,
       onCaptureShortcut,
       onChangeAiSettings,
       onChangeAssetsDirectory,
+      onChangeEditorSettings,
       onChangeTheme,
       onCheckForUpdates,
       onChooseThemeCss,

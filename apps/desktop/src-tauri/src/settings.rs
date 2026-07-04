@@ -10,6 +10,8 @@ const SETTINGS_FILE_NAME: &str = "settings.json";
 pub(crate) struct AppSettings {
     pub(crate) shortcuts: Option<Vec<ShortcutSetting>>,
     pub(crate) assets_directory: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_object_settings")]
+    pub(crate) editor: Option<Value>,
     #[serde(default, deserialize_with = "deserialize_theme_settings")]
     pub(crate) theme: Option<Value>,
     pub(crate) ai: Option<AiSettings>,
@@ -92,6 +94,7 @@ fn default_settings() -> AppSettings {
     AppSettings {
         shortcuts: None,
         assets_directory: None,
+        editor: None,
         theme: None,
         ai: None,
     }
@@ -113,6 +116,13 @@ fn write_settings(path: &Path, settings: &AppSettings) -> Result<(), String> {
 }
 
 fn deserialize_theme_settings<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserialize_object_settings(deserializer)
+}
+
+fn deserialize_object_settings<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -147,6 +157,9 @@ mod tests {
                 key: "Mod-Shift-/".to_string(),
             }]),
             assets_directory: Some("images".to_string()),
+            editor: Some(serde_json::json!({
+                "showCodeBlockLineNumbers": true
+            })),
             theme: Some(serde_json::json!({
                 "mode": "dark",
                 "light": {
@@ -201,6 +214,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(settings.theme, None);
+        assert_eq!(settings.editor, None);
         assert_eq!(settings.assets_directory, Some("images".to_string()));
         assert_eq!(
             settings.shortcuts,

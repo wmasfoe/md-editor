@@ -52,6 +52,7 @@ export interface MilkdownEditorProps {
   readonly aiSuggestionRequest?: AiSuggestionRequest | null;
   readonly isAiSuggestionPending?: boolean;
   readonly aiAutoSuggestionsEnabled?: boolean;
+  readonly showCodeBlockLineNumbers?: boolean;
   readonly onInsertRequestHandled?: (id: number) => void;
   readonly onAiSuggestionRequest?: (
     context: AiCompletionContext,
@@ -91,6 +92,7 @@ function MilkdownEditorInner({
   aiSuggestionRequest = null,
   isAiSuggestionPending = false,
   aiAutoSuggestionsEnabled = false,
+  showCodeBlockLineNumbers = false,
   onInsertRequestHandled,
   onAiSuggestionRequest,
   onAiSuggestionRequestHandled,
@@ -136,6 +138,7 @@ function MilkdownEditorInner({
     "milkdown-host",
     isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
     isImeComposing ? "milkdown-host--ime-composing" : "",
+    showCodeBlockLineNumbers ? "milkdown-host--code-line-numbers" : "",
     !isImeComposing && !snapshot.markdown.trim() ? "milkdown-host--empty" : ""
   ].filter(Boolean).join(" ");
 

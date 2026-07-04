@@ -22,6 +22,7 @@ export interface ShortcutSetting {
 export interface AppSettings {
   readonly shortcuts: readonly ShortcutSetting[];
   readonly assetsDirectory: string;
+  readonly editor: EditorDisplaySettings;
   readonly theme: AppThemeSettings;
   readonly ai: AiSettings;
 }
@@ -62,6 +63,10 @@ export interface AppThemeSettings {
   readonly mode: ThemeColorScheme;
   readonly light: ThemeSchemeSettings;
   readonly dark: ThemeSchemeSettings;
+}
+
+export interface EditorDisplaySettings {
+  readonly showCodeBlockLineNumbers: boolean;
 }
 
 export const DEFAULT_ASSETS_DIRECTORY = "assets";
@@ -139,10 +144,15 @@ export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
   }
 };
 
+export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
+  showCodeBlockLineNumbers: false
+};
+
 export function createDefaultSettings(): AppSettings {
   return {
     shortcuts: SHORTCUTS.map((shortcut) => ({ ...shortcut, key: shortcut.defaultKey })),
     assetsDirectory: DEFAULT_ASSETS_DIRECTORY,
+    editor: DEFAULT_EDITOR_DISPLAY_SETTINGS,
     theme: DEFAULT_THEME_SETTINGS,
     ai: DEFAULT_AI_SETTINGS
   };
@@ -618,6 +628,7 @@ interface PersistedSettings {
     readonly key: string;
   }[];
   readonly assetsDirectory?: string;
+  readonly editor?: unknown;
   readonly theme?: unknown;
   readonly ai?: Partial<AiSettings>;
 }
@@ -645,6 +656,7 @@ function normalizeSettings(input: Partial<PersistedSettings | AppSettings> | nul
       key: shortcutOverrides.get(shortcut.id) ?? shortcut.defaultKey
     })),
     assetsDirectory,
+    editor: normalizeEditorDisplaySettings(input?.editor),
     theme: normalizeAppTheme(input?.theme),
     ai: normalizeAiSettings(input?.ai)
   };
@@ -657,8 +669,19 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
       key: shortcut.key
     })),
     assetsDirectory: settings.assetsDirectory,
+    editor: settings.editor,
     theme: settings.theme,
     ai: settings.ai
+  };
+}
+
+export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySettings {
+  if (!isRecord(input)) {
+    return DEFAULT_EDITOR_DISPLAY_SETTINGS;
+  }
+
+  return {
+    showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true
   };
 }
 
