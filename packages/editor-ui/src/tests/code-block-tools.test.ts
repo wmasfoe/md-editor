@@ -5,6 +5,7 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 import {
   createCodeBlockToolsProsePlugin,
   findAdjacentCalloutPreviewNodePosition,
+  findCurrentCodeBlockTextRange,
   findCurrentCalloutPreviewNodePosition,
   getLanguageSuggestions,
   isCalloutPreviewCodeBlockNode,
@@ -149,16 +150,56 @@ describe("code block tools", () => {
     expect(isCalloutPreviewCodeBlockNode(schema.nodes.paragraph.create())).toBe(false);
   });
 
-  it("leaves Mod-a to the default ProseMirror full-document keymap", () => {
-    const schema = new Schema({
-      nodes: {
-        doc: { content: "block+" },
-        paragraph: { content: "text*", group: "block" },
-        code_block: { content: "text*", group: "block", code: true },
-        text: {}
-      }
-    });
+  it("selects only the current code block text for Mod-a inside a code block", () => {
+    const schema = createCodeBlockTestSchema();
+    const code = "const value = 1;\nreturn value;";
     const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, schema.text("before")),
+      schema.nodes.code_block.create(null, schema.text(code)),
+      schema.nodes.paragraph.create(null, schema.text("after"))
+    ]);
+    const codePosition = findFirstCodeBlockPosition(doc);
+    const codeStart = codePosition + 1;
+    const view = createMutableEditorView(
+      EditorState.create({
+        doc,
+        selection: TextSelection.create(doc, codeStart + 6)
+      })
+    );
+    const plugin = createCodeBlockToolsProsePlugin();
+    const event = createKeyboardEventLike("a", { metaKey: true });
+
+    expect(findCurrentCodeBlockTextRange(view.state)).toEqual({
+      from: codeStart,
+      to: codeStart + code.length
+    });
+    expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(true);
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(codeStart);
+    expect(view.state.selection.to).toBe(codeStart + code.length);
+    expect(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n")).toBe(code);
+  });
+
+  it("leaves Mod-a inside Callout previews to the default ProseMirror keymap", () => {
+    const { state, positions } = createCalloutDeleteState();
+    const view = {
+      state: state.apply(state.tr.setSelection(TextSelection.create(state.doc, positions.insideCalloutCursor))),
+      dispatch: () => {
+        throw new Error("code block tools must not dispatch for Callout preview Mod-a");
+      }
+    } as unknown as EditorView;
+    const event = createKeyboardEventLike("a", { metaKey: true });
+    const plugin = createCodeBlockToolsProsePlugin();
+
+    expect(findCurrentCodeBlockTextRange(view.state)).toBeNull();
+    expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("leaves Mod-a outside code blocks to the default ProseMirror keymap", () => {
+    const schema = createCodeBlockTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, schema.text("before")),
       schema.nodes.code_block.create(null, schema.text("const value = 1;")),
       schema.nodes.paragraph.create(null, schema.text("after"))
     ]);
@@ -179,6 +220,30 @@ describe("code block tools", () => {
     const plugin = createCodeBlockToolsProsePlugin();
 
     expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(false);
+  });
+
+  it("leaves cross-block Mod-a selections to the default ProseMirror keymap", () => {
+    const schema = createCodeBlockTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, schema.text("before")),
+      schema.nodes.code_block.create(null, schema.text("const value = 1;")),
+      schema.nodes.paragraph.create(null, schema.text("after"))
+    ]);
+    const view = {
+      state: EditorState.create({
+        doc,
+        selection: TextSelection.create(doc, 2, doc.content.size - 1)
+      }),
+      dispatch: () => {
+        throw new Error("code block tools must not dispatch for cross-block Mod-a");
+      }
+    } as unknown as EditorView;
+    const event = createKeyboardEventLike("a", { metaKey: true });
+    const plugin = createCodeBlockToolsProsePlugin();
+
+    expect(findCurrentCodeBlockTextRange(view.state)).toBeNull();
+    expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(false);
+    expect(event.defaultPrevented).toBe(false);
   });
 });
 
@@ -220,6 +285,18 @@ function createCodeBlockTestSchema(): Schema {
   });
 }
 
+function findFirstCodeBlockPosition(doc: ReturnType<Schema["nodes"]["doc"]["create"]>): number {
+  let codePosition = -1;
+  doc.descendants((node, position) => {
+    if (node.type.name === "code_block") {
+      codePosition = position;
+      return false;
+    }
+  });
+  expect(codePosition).toBeGreaterThanOrEqual(0);
+  return codePosition;
+}
+
 function createMutableEditorView(initialState: EditorState): EditorView {
   let currentState = initialState;
   const view = {
@@ -235,13 +312,16 @@ function createMutableEditorView(initialState: EditorState): EditorView {
   return view;
 }
 
-function createKeyboardEventLike(key: string) {
+function createKeyboardEventLike(
+  key: string,
+  options: Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">> = {}
+) {
   return {
     key,
-    metaKey: false,
-    ctrlKey: false,
-    altKey: false,
-    shiftKey: false,
+    metaKey: options.metaKey ?? false,
+    ctrlKey: options.ctrlKey ?? false,
+    altKey: options.altKey ?? false,
+    shiftKey: options.shiftKey ?? false,
     defaultPrevented: false,
     preventDefault() {
       this.defaultPrevented = true;

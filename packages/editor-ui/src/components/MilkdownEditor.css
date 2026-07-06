@@ -363,7 +363,7 @@
   overflow: auto;
   margin: 1.25rem 0 1.75rem;
   border: 1px solid var(--theme-code-border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--theme-code-bg);
   padding: 1rem 1.12rem;
   color: var(--theme-code);
@@ -374,74 +374,43 @@
 
 .milkdown .ProseMirror .md-code-block {
   position: relative;
-  display: block;
+  display: flex;
   overflow: visible;
-  margin: 1.25rem 0 1.75rem;
-  border: 1px solid var(--theme-code-border);
-  border-radius: 6px;
-  background: var(--theme-code-bg);
+  margin: 1.15rem 0 1.9rem;
+  border: 1px solid color-mix(in srgb, var(--theme-code-border) 82%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-code-bg) 92%, var(--theme-surface));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--theme-surface) 88%, transparent),
+    0 1px 2px color-mix(in srgb, var(--theme-border-strong) 12%, transparent);
   color: var(--theme-code);
+  font-size: 0.9em;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.milkdown .ProseMirror .md-code-block:hover,
+.milkdown .ProseMirror .md-code-block:focus-within,
+.milkdown .ProseMirror .md-code-block.md-code-block--active {
+  border-color: color-mix(in srgb, var(--theme-code-border) 52%, var(--theme-primary));
+  background: color-mix(in srgb, var(--theme-code-bg) 86%, var(--theme-surface));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--theme-surface) 92%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--theme-primary-soft) 80%, transparent);
 }
 
 .milkdown .ProseMirror .md-code-block[data-raw-block] {
-  border-color: color-mix(in srgb, var(--theme-code-border) 84%, var(--theme-primary));
-  background: color-mix(in srgb, var(--theme-code-bg) 88%, var(--theme-surface));
+  border-color: color-mix(in srgb, var(--theme-code-border) 76%, var(--theme-primary));
 }
 
 .milkdown .ProseMirror .md-code-block[data-raw-block="frontmatter"] {
-  border-color: color-mix(in srgb, var(--theme-code-border) 78%, var(--theme-code-string));
-  background: color-mix(in srgb, var(--theme-code-bg) 88%, var(--theme-surface));
+  border-color: color-mix(in srgb, var(--theme-code-border) 70%, var(--theme-code-string));
 }
 
 .milkdown .ProseMirror .md-code-block[data-raw-block="callout"] {
-  border-color: color-mix(in srgb, var(--theme-code-border) 78%, var(--theme-primary));
-  background: color-mix(in srgb, var(--theme-code-bg) 88%, var(--theme-surface));
-}
-
-.milkdown .ProseMirror .md-raw-block-header {
-  display: none;
-}
-
-.milkdown .ProseMirror .md-code-block[data-raw-block] .md-raw-block-header {
-  display: flex;
-  grid-column: 1;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid var(--theme-code-border);
-  padding: 0.55rem 0.78rem;
-  color: var(--theme-control-text);
-  user-select: none;
-}
-
-.milkdown .ProseMirror .md-code-block[data-raw-block="frontmatter"] .md-raw-block-header {
-  border-bottom-color: color-mix(in srgb, var(--theme-code-border) 78%, var(--theme-code-string));
-}
-
-.milkdown .ProseMirror .md-raw-block-title {
-  color: var(--theme-title);
-  font-size: 0.78rem;
-  font-weight: 650;
-  letter-spacing: 0;
-}
-
-.milkdown .ProseMirror .md-raw-block-hint {
-  overflow: hidden;
-  color: var(--theme-muted);
-  font-size: 0.76rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.milkdown .ProseMirror .md-code-block {
-  position: relative;
-  display: flex;
-  margin: 0.35rem 0 1.75rem;
-  border: 1px solid var(--theme-code-border);
-  border-radius: 8px;
-  background: var(--theme-surface);
-  font-size: 0.9em;
-  overflow: visible;
+  border-color: color-mix(in srgb, var(--theme-code-border) 70%, var(--theme-primary));
 }
 
 .milkdown .ProseMirror .md-code-block[data-callout-preview] {
@@ -461,16 +430,16 @@
 .milkdown .ProseMirror .md-code-block-line-numbers {
   flex-shrink: 0;
   display: none;
-  padding: 1rem 0.75rem;
-  background: var(--theme-code-gutter-bg);
-  border-right: 1px solid var(--theme-code-border);
+  padding: 1rem 0.6rem 1rem 0.85rem;
+  background: color-mix(in srgb, var(--theme-code-gutter-bg) 84%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--theme-code-border) 74%, transparent);
   color: var(--theme-code-gutter-text);
   font-family: var(--theme-mono-font);
-  font-size: 1em;
+  font-size: 0.96em;
   line-height: 1.65;
   text-align: right;
   user-select: none;
-  min-width: 3em;
+  min-width: 2.75rem;
 }
 
 .milkdown-host--code-line-numbers .milkdown .ProseMirror .md-code-block-line-numbers {
@@ -483,7 +452,7 @@
 }
 
 .milkdown .ProseMirror .md-code-block-body {
-  display: flex;
+  display: block;
   flex: 1;
   min-width: 0;
 }
@@ -492,18 +461,55 @@
   display: block;
 }
 
+.milkdown .ProseMirror .md-raw-block-header {
+  display: none;
+}
+
+.milkdown .ProseMirror .md-code-block[data-raw-block] .md-raw-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.35rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--theme-code-border) 76%, transparent);
+  padding: 0.55rem 0.85rem;
+  color: var(--theme-control-text);
+  user-select: none;
+}
+
+.milkdown .ProseMirror .md-code-block[data-raw-block="frontmatter"] .md-raw-block-header {
+  border-bottom-color: color-mix(in srgb, var(--theme-code-border) 72%, var(--theme-code-string));
+}
+
+.milkdown .ProseMirror .md-raw-block-title {
+  color: var(--theme-title);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.milkdown .ProseMirror .md-raw-block-hint {
+  overflow: hidden;
+  color: var(--theme-muted);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .milkdown .ProseMirror .md-code-block pre {
-  flex: 1;
+  display: block;
   min-width: 0;
   margin: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 1rem 1.12rem;
+  padding: 1rem 1.15rem;
   box-shadow: none;
   font-size: 1em;
   line-height: 1.65;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-code-gutter-text) 40%, transparent) transparent;
 }
 
 .milkdown .ProseMirror .md-code-block[data-raw-block] pre {
@@ -582,6 +588,8 @@
 .milkdown .ProseMirror pre code,
 .milkdown .ProseMirror .md-code-block code {
   display: block;
+  width: max-content;
+  min-width: 100%;
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -590,22 +598,24 @@
   font-family: var(--theme-mono-font);
   font-size: 1em;
   line-height: 1.65;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  overflow-wrap: normal;
+  tab-size: 2;
+  white-space: pre;
 }
 
 .milkdown .ProseMirror .md-code-block-copy {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
+  top: 0.55rem;
+  right: 0.55rem;
   z-index: 3;
   display: grid;
   width: 1.75rem;
   height: 1.75rem;
   place-items: center;
-  border: 1px solid var(--theme-code-border);
+  border: 1px solid color-mix(in srgb, var(--theme-code-border) 74%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
+  background: color-mix(in srgb, var(--theme-surface) 86%, transparent);
+  backdrop-filter: blur(8px);
   padding: 0;
   color: var(--theme-control-text);
   cursor: pointer;
@@ -632,7 +642,7 @@
 
 .milkdown .ProseMirror .md-code-block-copy:hover,
 .milkdown .ProseMirror .md-code-block-copy:focus-visible {
-  border-color: var(--theme-border-strong);
+  border-color: color-mix(in srgb, var(--theme-border-strong) 72%, var(--theme-primary));
   background: var(--theme-surface);
   color: var(--theme-title);
   box-shadow: 0 0 0 3px var(--theme-primary-soft);
@@ -697,10 +707,10 @@
   max-width: min(18rem, calc(100vw - 4rem));
   min-width: 10rem;
   height: 2rem;
-  border: 1px solid var(--theme-code-border);
+  border: 1px solid color-mix(in srgb, var(--theme-code-border) 76%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--theme-surface) 96%, transparent);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--theme-border-strong) 24%, transparent);
+  background: color-mix(in srgb, var(--theme-surface) 94%, transparent);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--theme-border-strong) 20%, transparent);
   padding: 0 0.75rem;
   color: var(--theme-control-text);
   font-family: var(--theme-mono-font);

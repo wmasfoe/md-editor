@@ -59,6 +59,38 @@ describe("editor selection policy", () => {
     expect(editorStyles).toContain("cursor: pointer");
   });
 
+  it("keeps code block tools hidden until hover or focus without wrapping source lines", () => {
+    const codeBlockRules = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block \{/gu);
+    const copyRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-copy \{(?<body>[^}]+)\}/u);
+    const languageRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-language-control \{(?<body>[^}]+)\}/u);
+    const codeRule = editorStyles.match(
+      /\.milkdown \.ProseMirror pre code,\n\.milkdown \.ProseMirror \.md-code-block code \{(?<body>[^}]+)\}/u
+    );
+    const lineNumberRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-line-numbers \{(?<body>[^}]+)\}/u);
+
+    expect(codeBlockRules).toHaveLength(1);
+    expect(copyRule?.groups?.body).toContain("top: 0.55rem;");
+    expect(copyRule?.groups?.body).toContain("right: 0.55rem;");
+    expect(copyRule?.groups?.body).toContain("opacity: 0;");
+    expect(copyRule?.groups?.body).toContain("pointer-events: none;");
+    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:hover .md-code-block-copy");
+    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-copy");
+    expect(languageRule?.groups?.body).toContain("bottom: calc(-2rem - 0.125rem);");
+    expect(languageRule?.groups?.body).toContain("right: 0;");
+    expect(languageRule?.groups?.body).toContain("opacity: 0;");
+    expect(languageRule?.groups?.body).toContain("pointer-events: none;");
+    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:hover .md-code-block-language-control");
+    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-language-control");
+    expect(codeRule?.groups?.body).toContain("width: max-content;");
+    expect(codeRule?.groups?.body).toContain("min-width: 100%;");
+    expect(codeRule?.groups?.body).toContain("overflow-wrap: normal;");
+    expect(codeRule?.groups?.body).toContain("white-space: pre;");
+    expect(lineNumberRule?.groups?.body).toContain("display: none;");
+    expect(editorStyles).toContain(
+      ".milkdown-host--code-line-numbers .milkdown .ProseMirror .md-code-block-line-numbers"
+    );
+  });
+
   it("renders AI edit replacement as a scoped mirror preview layer", () => {
     expect(aiSuggestionSource).toContain("createAiEditPreviewAnchor(view, edit)");
     expect(aiSuggestionSource).toContain("createAiEditPreviewModel");

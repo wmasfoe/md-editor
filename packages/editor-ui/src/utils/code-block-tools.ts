@@ -7,7 +7,13 @@ import {
   type EditorState
 } from "@milkdown/kit/prose/state";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
-import type { EditorView, NodeView, ViewMutationRecord } from "@milkdown/kit/prose/view";
+import {
+  Decoration,
+  DecorationSet,
+  type EditorView,
+  type NodeView,
+  type ViewMutationRecord
+} from "@milkdown/kit/prose/view";
 
 const tabText = "  ";
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -57,9 +63,24 @@ export interface IndentPlan {
 export function createCodeBlockToolsProsePlugin(): Plugin {
   return new Plugin({
     key: codeBlockToolsPluginKey,
+    state: {
+      init: (_, state) => buildActiveCodeBlockDecoration(state),
+      apply(transaction, _decoration, _previousState, nextState) {
+        // 蓝色焦点描边必须跟随 ProseMirror 选区，而不是 DOM focus；
+        // 代码块控件获得焦点时，不代表代码源码本身处于编辑态。
+        return buildActiveCodeBlockDecoration(nextState);
+      }
+    },
     props: {
+      decorations(state) {
+        return codeBlockToolsPluginKey.getState(state) as DecorationSet | undefined;
+      },
       handleKeyDown(view, event) {
         if (handleCalloutPreviewDeleteKey(view, event)) {
+          return true;
+        }
+
+        if (handleCodeBlockSelectAll(view, event)) {
           return true;
         }
 
@@ -126,6 +147,37 @@ export function planCodeBlockTabIndent(
     .join("\n");
 
   return { from, to, text };
+}
+
+export function findCurrentCodeBlockTextRange(state: EditorState): { from: number; to: number } | null {
+  const selection = state.selection;
+  if (!(selection instanceof TextSelection)) {
+    return null;
+  }
+
+  const { $from, $to } = selection;
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const node = $from.node(depth);
+    if (node.type.name !== "code_block") {
+      continue;
+    }
+
+    if (parseCalloutPreviewSource(node.textContent)) {
+      return null;
+    }
+
+    if ($to.depth < depth || !$to.node(depth).eq(node)) {
+      return null;
+    }
+
+    const from = $from.before(depth) + 1;
+    return {
+      from,
+      to: from + node.content.size
+    };
+  }
+
+  return null;
 }
 
 export function getLanguageSuggestions(input: string): readonly string[] {
@@ -243,6 +295,46 @@ function handleCalloutPreviewDeleteKey(view: EditorView, event: KeyboardEvent): 
   );
   view.focus();
   return true;
+}
+
+function handleCodeBlockSelectAll(view: EditorView, event: KeyboardEvent): boolean {
+  // 只恢复普通代码块内的编辑器式全选：Mod-a 只选当前代码块文本。
+  // 段落、图片、Callout preview 和跨块选区仍交给 ProseMirror 默认全文全选路径。
+  if (
+    event.key.toLowerCase() !== "a" ||
+    !(event.metaKey || event.ctrlKey) ||
+    event.altKey ||
+    event.shiftKey
+  ) {
+    return false;
+  }
+
+  const range = findCurrentCodeBlockTextRange(view.state);
+  if (!range) {
+    return false;
+  }
+
+  event.preventDefault();
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, range.from, range.to))
+      .scrollIntoView()
+  );
+  return true;
+}
+
+function buildActiveCodeBlockDecoration(state: EditorState): DecorationSet {
+  const range = findCurrentCodeBlockTextRange(state);
+  if (!range) {
+    return DecorationSet.empty;
+  }
+
+  const nodePosition = range.from - 1;
+  return DecorationSet.create(state.doc, [
+    Decoration.node(nodePosition, range.to + 1, {
+      class: "md-code-block--active"
+    })
+  ]);
 }
 
 function fuzzyScore(value: string, query: string): number {
