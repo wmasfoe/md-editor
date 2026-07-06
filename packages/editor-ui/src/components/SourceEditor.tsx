@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { search } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
 import type { SourceEditorView, TocTarget } from "../types";
 import "./SourceEditor.css";
@@ -12,6 +16,58 @@ export interface SourceEditorProps {
   readonly onChange: (markdown: string) => void;
   readonly onVisibleLineChange?: (line: number) => void;
 }
+
+const sourceMarkdownHighlightStyle = HighlightStyle.define([
+  {
+    tag: tags.heading1,
+    color: "var(--theme-source-heading, #d97706)",
+    fontSize: "1.42em",
+    fontWeight: "700"
+  },
+  {
+    tag: tags.heading2,
+    color: "var(--theme-source-heading, #d97706)",
+    fontSize: "1.28em",
+    fontWeight: "700"
+  },
+  {
+    tag: tags.heading3,
+    color: "var(--theme-source-heading, #d97706)",
+    fontSize: "1.16em",
+    fontWeight: "700"
+  },
+  {
+    tag: [tags.heading4, tags.heading5, tags.heading6],
+    color: "var(--theme-source-heading, #d97706)",
+    fontWeight: "700"
+  },
+  {
+    tag: tags.monospace,
+    borderRadius: "4px",
+    backgroundColor: "var(--theme-inline-code-bg)",
+    color: "var(--theme-primary)",
+    padding: "0 0.2em"
+  },
+  {
+    tag: tags.strong,
+    color: "var(--theme-title)",
+    fontWeight: "700"
+  },
+  {
+    tag: tags.emphasis,
+    color: "var(--theme-title)",
+    fontStyle: "italic"
+  },
+  {
+    tag: tags.link,
+    color: "var(--theme-primary)"
+  },
+  {
+    tag: tags.quote,
+    color: "var(--theme-muted)",
+    fontStyle: "italic"
+  }
+]);
 
 export function SourceEditor({
   snapshot,
@@ -24,6 +80,9 @@ export function SourceEditor({
   const extensions = useMemo(
     () => [
       markdown({ base: markdownLanguage }),
+      EditorView.lineWrapping,
+      search({ top: true }),
+      syntaxHighlighting(sourceMarkdownHighlightStyle),
       EditorState.phrases.of({
         Find: "查找",
         Replace: "替换",
