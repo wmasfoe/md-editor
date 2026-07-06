@@ -227,7 +227,7 @@
   font-family: var(--theme-font);
   font-size: var(--theme-editor-font-size, 17px);
   font-kerning: normal;
-  line-height: var(--theme-editor-line-height, 1.78);
+  line-height: normal;
   letter-spacing: 0;
   text-rendering: optimizeLegibility;
   white-space: pre-wrap;
@@ -282,6 +282,7 @@
 }
 
 .milkdown .ProseMirror p {
+  line-height: normal;
   margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;
 }
 
@@ -323,6 +324,7 @@
 
 .milkdown .ProseMirror li {
   display: list-item;
+  line-height: normal;
   margin: 0;
 }
 

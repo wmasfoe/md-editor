@@ -91,7 +91,7 @@ describe("editor selection policy", () => {
     );
   });
 
-  it("keeps the editor text rhythm relaxed without changing letter spacing", () => {
+  it("keeps soft-wrapped text selection aligned with the rendered text box", () => {
     const proseMirrorRule = editorStyles.match(/\.milkdown \.ProseMirror \{(?<body>[^}]+)\}/u);
     const paragraphRule = editorStyles.match(/\.milkdown \.ProseMirror p \{(?<body>[^}]+)\}/u);
     const headingRule = editorStyles.match(
@@ -105,12 +105,15 @@ describe("editor selection policy", () => {
       "font-size: var(--theme-editor-font-size, 17px);"
     );
     expect(proseMirrorRule?.groups?.body).toContain(
-      "line-height: var(--theme-editor-line-height, 1.78);"
+      "line-height: normal;"
     );
     expect(proseMirrorRule?.groups?.body).toContain("letter-spacing: 0;");
     expect(proseMirrorRule?.groups?.body).toContain("font-kerning: normal;");
     expect(proseMirrorRule?.groups?.body).toContain("text-rendering: optimizeLegibility;");
     expect(proseMirrorRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(paragraphRule?.groups?.body).toContain(
+      "line-height: normal;"
+    );
     expect(paragraphRule?.groups?.body).toContain(
       "margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;"
     );

@@ -30,9 +30,9 @@ describe("WYSIWYG appearance settings", () => {
     expect(appearancePanelSource).toContain("WYSIWYG_FONT_SIZE_MAX = 22");
   });
 
-  it("keeps source mode independent while relaxing WYSIWYG text rhythm", () => {
+  it("keeps source mode independent while aligning WYSIWYG soft-wrapped text", () => {
     expect(milkdownEditorStyles).toContain("font-size: var(--theme-editor-font-size, 17px);");
-    expect(milkdownEditorStyles).toContain("line-height: var(--theme-editor-line-height, 1.78);");
+    expect(milkdownEditorStyles).toContain(".milkdown .ProseMirror p {\n  line-height: normal;");
     expect(milkdownEditorStyles).toContain("letter-spacing: 0;");
     expect(milkdownEditorStyles).not.toContain("--theme-source-line-height");
   });
