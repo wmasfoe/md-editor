@@ -25,6 +25,9 @@ interface AppearanceSettingsPanelProps {
   readonly onClearThemeCss: (scheme: "light" | "dark") => void;
 }
 
+const WYSIWYG_FONT_SIZE_MIN = 13;
+const WYSIWYG_FONT_SIZE_MAX = 22;
+
 export function AppearanceSettingsPanel({
   editorSettingsDraft,
   themeDraft,
@@ -42,6 +45,26 @@ export function AppearanceSettingsPanel({
       <div className="grid gap-4">
         <fieldset className="grid gap-2.5 border-0 p-0">
           <legend className={settingsFieldLabelClassName}>编辑显示</legend>
+          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
+            <span className={settingsFieldLabelClassName}>所见即所得字号</span>
+            <input
+              type="range"
+              min={WYSIWYG_FONT_SIZE_MIN}
+              max={WYSIWYG_FONT_SIZE_MAX}
+              step={1}
+              value={editorSettingsDraft.wysiwygFontSize}
+              aria-label="所见即所得字号"
+              onChange={(event) =>
+                onChangeEditorSettings({
+                  ...editorSettingsDraft,
+                  wysiwygFontSize: Number.parseInt(event.target.value, 10)
+                })
+              }
+            />
+            <output className="text-right text-[13px] tabular-nums text-[var(--theme-control-text)]">
+              {editorSettingsDraft.wysiwygFontSize}px
+            </output>
+          </label>
           <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
             <input
               type="checkbox"

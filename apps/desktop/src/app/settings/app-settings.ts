@@ -67,6 +67,7 @@ export interface AppThemeSettings {
 
 export interface EditorDisplaySettings {
   readonly showCodeBlockLineNumbers: boolean;
+  readonly wysiwygFontSize: number;
 }
 
 export const DEFAULT_ASSETS_DIRECTORY = "assets";
@@ -145,7 +146,8 @@ export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
 };
 
 export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
-  showCodeBlockLineNumbers: false
+  showCodeBlockLineNumbers: false,
+  wysiwygFontSize: 17
 };
 
 export function createDefaultSettings(): AppSettings {
@@ -681,8 +683,23 @@ export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySet
   }
 
   return {
-    showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true
+    showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true,
+    wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize)
   };
+}
+
+function normalizeWysiwygFontSize(input: unknown): number {
+  const value = typeof input === "number"
+    ? input
+    : typeof input === "string"
+      ? Number.parseFloat(input)
+      : Number.NaN;
+
+  if (!Number.isFinite(value)) {
+    return DEFAULT_EDITOR_DISPLAY_SETTINGS.wysiwygFontSize;
+  }
+
+  return Math.min(Math.max(Math.round(value), 13), 22);
 }
 
 export function normalizeAppTheme(input: unknown): AppThemeSettings {

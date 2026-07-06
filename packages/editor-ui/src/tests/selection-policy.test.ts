@@ -99,14 +99,20 @@ describe("editor selection policy", () => {
     );
 
     expect(proseMirrorRule?.groups?.body).toContain(
-      "line-height: var(--theme-editor-line-height, 1.72);"
+      "font-family: var(--theme-font);"
+    );
+    expect(proseMirrorRule?.groups?.body).toContain(
+      "font-size: var(--theme-editor-font-size, 17px);"
+    );
+    expect(proseMirrorRule?.groups?.body).toContain(
+      "line-height: var(--theme-editor-line-height, 1.78);"
     );
     expect(proseMirrorRule?.groups?.body).toContain("letter-spacing: 0;");
     expect(proseMirrorRule?.groups?.body).toContain("font-kerning: normal;");
     expect(proseMirrorRule?.groups?.body).toContain("text-rendering: optimizeLegibility;");
     expect(proseMirrorRule?.groups?.body).toContain("white-space: pre-wrap;");
     expect(paragraphRule?.groups?.body).toContain(
-      "margin: var(--theme-editor-paragraph-spacing, 0.95em) 0;"
+      "margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;"
     );
     expect(headingRule?.groups?.body).toContain(
       "line-height: var(--theme-editor-heading-line-height, 1.38);"
@@ -195,7 +201,7 @@ describe("editor selection policy", () => {
     );
     expect(editorStyles).toContain("br.ProseMirror-trailingBreak {\n  display: none;");
     expect(editorStyles).toContain(
-      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.72em);"
+      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.78em);"
     );
   });
 

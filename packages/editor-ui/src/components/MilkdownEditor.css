@@ -224,9 +224,10 @@
   padding: 36px 30px 100px;
   outline: 0;
   color: var(--theme-text);
-  font-size: 16px;
+  font-family: var(--theme-font);
+  font-size: var(--theme-editor-font-size, 17px);
   font-kerning: normal;
-  line-height: var(--theme-editor-line-height, 1.72);
+  line-height: var(--theme-editor-line-height, 1.78);
   letter-spacing: 0;
   text-rendering: optimizeLegibility;
   white-space: pre-wrap;
@@ -281,15 +282,15 @@
 }
 
 .milkdown .ProseMirror p {
-  margin: var(--theme-editor-paragraph-spacing, 0.95em) 0;
+  margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;
 }
 
 .milkdown .ProseMirror p + p {
-  margin-top: var(--theme-editor-paragraph-spacing, 0.95em);
+  margin-top: var(--theme-editor-paragraph-spacing, 1.02em);
 }
 
 .milkdown-host--ime-composing .milkdown .ProseMirror p {
-  min-height: var(--theme-editor-line-height-em, 1.72em);
+  min-height: var(--theme-editor-line-height-em, 1.78em);
 }
 
 .milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak {
@@ -308,7 +309,7 @@
 
 .milkdown .ProseMirror ul,
 .milkdown .ProseMirror ol {
-  margin: var(--theme-editor-paragraph-spacing, 0.95em) 0;
+  margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;
   padding-left: 30px;
 }
 

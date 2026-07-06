@@ -39,9 +39,10 @@
   --theme-inline-code-bg: rgba(175, 184, 193, 0.2);
   --theme-shadow: 0 1px 1px rgba(31, 35, 40, 0.04), 0 8px 24px rgba(140, 149, 159, 0.18);
   --theme-content-width: 860px;
-  --theme-editor-line-height: 1.72;
-  --theme-editor-line-height-em: 1.72em;
-  --theme-editor-paragraph-spacing: 0.95em;
+  --theme-editor-font-size: 17px;
+  --theme-editor-line-height: 1.78;
+  --theme-editor-line-height-em: 1.78em;
+  --theme-editor-paragraph-spacing: 1.02em;
   --theme-editor-heading-line-height: 1.38;
   --theme-source-line-height: 1.66;
   --theme-font:

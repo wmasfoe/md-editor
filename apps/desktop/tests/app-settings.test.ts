@@ -46,14 +46,23 @@ describe("app settings", () => {
 
   it("normalizes editor display settings with code block line numbers off by default", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
-      showCodeBlockLineNumbers: false
+      showCodeBlockLineNumbers: false,
+      wysiwygFontSize: 17
     });
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
-      showCodeBlockLineNumbers: true
+      showCodeBlockLineNumbers: true,
+      wysiwygFontSize: 17
     });
-    expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: "true" })).toEqual({
-      showCodeBlockLineNumbers: false
+    expect(normalizeEditorDisplaySettings({
+      showCodeBlockLineNumbers: "true",
+      wysiwygFontSize: "20"
+    })).toEqual({
+      showCodeBlockLineNumbers: false,
+      wysiwygFontSize: 20
     });
+    expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 8 }).wysiwygFontSize).toBe(13);
+    expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 40 }).wysiwygFontSize).toBe(22);
+    expect(normalizeEditorDisplaySettings({ wysiwygFontSize: "bad" }).wysiwygFontSize).toBe(17);
   });
 
   it("normalizes product-facing shortcut text to runtime keymaps", () => {

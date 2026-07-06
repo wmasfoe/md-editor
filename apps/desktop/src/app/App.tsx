@@ -306,6 +306,7 @@ export function App() {
                   isAiSuggestionPending={editor.isAiSuggestionPending}
                   aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
                   showCodeBlockLineNumbers={editor.settings.editor.showCodeBlockLineNumbers}
+                  wysiwygFontSize={editor.settings.editor.wysiwygFontSize}
                   onInsertRequestHandled={editor.clearMdxInsertRequest}
                   onAiSuggestionRequest={editor.requestAiSuggestion}
                   onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}

@@ -43,6 +43,8 @@ import type { EditorScrollTarget, TocTarget } from "../types";
 import "./MilkdownEditor.css";
 
 const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
+const WYSIWYG_FONT_SIZE_MIN = 13;
+const WYSIWYG_FONT_SIZE_MAX = 22;
 
 export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
@@ -54,6 +56,7 @@ export interface MilkdownEditorProps {
   readonly isAiSuggestionPending?: boolean;
   readonly aiAutoSuggestionsEnabled?: boolean;
   readonly showCodeBlockLineNumbers?: boolean;
+  readonly wysiwygFontSize?: number;
   readonly onInsertRequestHandled?: (id: number) => void;
   readonly onAiSuggestionRequest?: (
     context: AiCompletionContext,
@@ -97,6 +100,7 @@ function MilkdownEditorInner({
   isAiSuggestionPending = false,
   aiAutoSuggestionsEnabled = false,
   showCodeBlockLineNumbers = false,
+  wysiwygFontSize,
   onInsertRequestHandled,
   onAiSuggestionRequest,
   onAiSuggestionRequestHandled,
@@ -140,6 +144,21 @@ function MilkdownEditorInner({
   const isImeComposingRef = useRef(false);
   const [loading, getInstance] = useInstance();
   const isAiThinking = isAiSuggestionPending || isLocalAiSuggestionPending;
+  // 将字号变量限制在所见即所得容器上，避免影响源码模式的字体样式。
+  const editorStyle = useMemo<React.CSSProperties | undefined>(() => {
+    if (typeof wysiwygFontSize !== "number" || !Number.isFinite(wysiwygFontSize)) {
+      return undefined;
+    }
+
+    const safeFontSize = Math.min(
+      Math.max(Math.round(wysiwygFontSize), WYSIWYG_FONT_SIZE_MIN),
+      WYSIWYG_FONT_SIZE_MAX
+    );
+
+    return {
+      "--theme-editor-font-size": `${safeFontSize}px`
+    } as React.CSSProperties;
+  }, [wysiwygFontSize]);
   const hostClassName = [
     "milkdown-host",
     isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
@@ -784,6 +803,7 @@ function MilkdownEditorInner({
     <div
       ref={rootRef}
       className={hostClassName}
+      style={editorStyle}
     >
       {isSearchOpen ? (
         <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
