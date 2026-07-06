@@ -18,7 +18,8 @@
 
 .source-editor .cm-scroller {
   font-family: var(--theme-mono-font);
-  line-height: 1.55;
+  line-height: var(--theme-source-line-height, 1.66);
+  letter-spacing: 0;
 }
 
 .source-editor .cm-content {
