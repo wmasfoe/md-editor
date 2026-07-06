@@ -7,13 +7,16 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
-import type { SourceEditorView, TocTarget } from "../types";
+import type { EditorScrollTarget, SourceEditorView, TocTarget } from "../types";
 import "./SourceEditor.css";
 
 export interface SourceEditorProps {
   readonly snapshot: DocumentSnapshot;
   readonly target: TocTarget | null;
+  readonly scrollTarget?: EditorScrollTarget | null;
   readonly onChange: (markdown: string) => void;
+  readonly onScrollRatioChange?: (ratio: number) => void;
+  readonly onScrollTargetApplied?: (nonce: number) => void;
   readonly onVisibleLineChange?: (line: number) => void;
 }
 
@@ -72,7 +75,10 @@ const sourceMarkdownHighlightStyle = HighlightStyle.define([
 export function SourceEditor({
   snapshot,
   target,
+  scrollTarget = null,
   onChange,
+  onScrollRatioChange,
+  onScrollTargetApplied,
   onVisibleLineChange
 }: SourceEditorProps) {
   const editorView = useRef<SourceEditorView | null>(null);
@@ -101,10 +107,12 @@ export function SourceEditor({
   );
 
   useEffect(() => {
-    if (target === null || !editorView.current) {
+    if (scrollTarget || target === null || !editorView.current) {
       return;
     }
 
+    // A mode-switch scroll target is more recent than a TOC target. Let it win
+    // so switching between editors does not immediately jump back to a heading.
     const view = editorView.current;
     const safeLine = Math.min(Math.max(target.line, 1), view.state.doc.lines);
     const position = view.state.doc.line(safeLine).from;
@@ -113,19 +121,26 @@ export function SourceEditor({
     requestAnimationFrame(() => {
       view.dom.querySelector(".cm-activeLine")?.scrollIntoView({ block: "center" });
     });
-  }, [snapshot.markdown, target]);
+  }, [scrollTarget, snapshot.markdown, target]);
 
   useEffect(() => {
     const view = editorView.current;
     const scroller = view?.dom.querySelector<HTMLElement>(".cm-scroller");
-    if (!view || !scroller || !onVisibleLineChange) {
+    if (!view || !scroller || (!onVisibleLineChange && !onScrollRatioChange)) {
       return;
     }
 
     let frame = 0;
-    const reportVisibleLine = () => {
+    const reportScrollState = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
+        const maxScrollTop = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+        onScrollRatioChange?.(maxScrollTop === 0 ? 0 : scroller.scrollTop / maxScrollTop);
+
+        if (!onVisibleLineChange) {
+          return;
+        }
+
         const rect = scroller.getBoundingClientRect();
         // The outline should follow what the reader sees, not only cursor
         // movement. CodeMirror's coordinate lookup gives a stable top line even
@@ -137,13 +152,29 @@ export function SourceEditor({
       });
     };
 
-    reportVisibleLine();
-    scroller.addEventListener("scroll", reportVisibleLine, { passive: true });
+    reportScrollState();
+    scroller.addEventListener("scroll", reportScrollState, { passive: true });
     return () => {
       window.cancelAnimationFrame(frame);
-      scroller.removeEventListener("scroll", reportVisibleLine);
+      scroller.removeEventListener("scroll", reportScrollState);
     };
-  }, [editorReadyVersion, onVisibleLineChange, snapshot.markdown]);
+  }, [editorReadyVersion, onScrollRatioChange, onVisibleLineChange, snapshot.markdown]);
+
+  useEffect(() => {
+    const view = editorView.current;
+    const scroller = view?.dom.querySelector<HTMLElement>(".cm-scroller");
+    if (!scroller || !scrollTarget) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const maxScrollTop = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+      scroller.scrollTop = maxScrollTop * Math.min(Math.max(scrollTarget.ratio, 0), 1);
+      onScrollTargetApplied?.(scrollTarget.nonce);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [editorReadyVersion, onScrollTargetApplied, scrollTarget]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

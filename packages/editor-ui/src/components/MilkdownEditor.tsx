@@ -39,7 +39,7 @@ import { imeCompositionGuardPlugin } from "../utils/ime-composition-guard";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
 import type { OutlineItem } from "./OutlinePanel";
-import type { TocTarget } from "../types";
+import type { EditorScrollTarget, TocTarget } from "../types";
 import "./MilkdownEditor.css";
 
 const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
@@ -48,6 +48,7 @@ export interface MilkdownEditorProps {
   readonly snapshot: DocumentSnapshot;
   readonly outline?: readonly OutlineItem[];
   readonly target: TocTarget | null;
+  readonly scrollTarget?: EditorScrollTarget | null;
   readonly insertRequest?: MarkdownInsertRequest | null;
   readonly aiSuggestionRequest?: AiSuggestionRequest | null;
   readonly isAiSuggestionPending?: boolean;
@@ -62,6 +63,8 @@ export interface MilkdownEditorProps {
   readonly onAiSuggestionError?: (message: string) => void;
   readonly onChange: (markdown: string) => void;
   readonly onOpenLink?: (href: string) => void;
+  readonly onScrollRatioChange?: (ratio: number) => void;
+  readonly onScrollTargetApplied?: (nonce: number) => void;
   readonly onActiveOutlineChange?: (id: string | null) => void;
   readonly resolveImageSrc?: (src: string) => string;
 }
@@ -88,6 +91,7 @@ function MilkdownEditorInner({
   snapshot,
   outline = [],
   target,
+  scrollTarget = null,
   insertRequest = null,
   aiSuggestionRequest = null,
   isAiSuggestionPending = false,
@@ -99,6 +103,8 @@ function MilkdownEditorInner({
   onAiSuggestionError,
   onChange,
   onOpenLink,
+  onScrollRatioChange,
+  onScrollTargetApplied,
   onActiveOutlineChange,
   resolveImageSrc = (src) => src
 }: MilkdownEditorProps) {
@@ -643,10 +649,13 @@ function MilkdownEditorInner({
   ]);
 
   useEffect(() => {
-    if (!target || !rootRef.current) {
+    if (scrollTarget || !target || !rootRef.current) {
       return;
     }
 
+    // Mode restoration is intentionally allowed to override a stale TOC jump.
+    // The same Markdown can have different rendered heights in WYSIWYG, so the
+    // ratio target is the best cross-mode anchor for the user's current place.
     requestAnimationFrame(() => {
       const headings = Array.from(
         rootRef.current?.querySelectorAll<HTMLElement>(
@@ -657,11 +666,50 @@ function MilkdownEditorInner({
       heading?.scrollIntoView({ block: "center" });
       heading?.focus?.();
     });
-  }, [target]);
+  }, [scrollTarget, target]);
+
+  useEffect(() => {
+    if (!scrollTarget || !rootRef.current) {
+      return;
+    }
+
+    const root = rootRef.current;
+    let frame = 0;
+    let observer: MutationObserver | null = null;
+
+    const applyScrollTarget = () => {
+      const scroller = root.querySelector<HTMLElement>(".milkdown");
+      if (!scroller) {
+        return false;
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        const maxScrollTop = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+        scroller.scrollTop = maxScrollTop * Math.min(Math.max(scrollTarget.ratio, 0), 1);
+        onScrollTargetApplied?.(scrollTarget.nonce);
+      });
+      return true;
+    };
+
+    if (!applyScrollTarget()) {
+      observer = new MutationObserver(() => {
+        if (applyScrollTarget()) {
+          observer?.disconnect();
+          observer = null;
+        }
+      });
+      observer.observe(root, { childList: true, subtree: true });
+    }
+
+    return () => {
+      observer?.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [onScrollTargetApplied, scrollTarget]);
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || !onActiveOutlineChange) {
+    if (!root || (!onActiveOutlineChange && !onScrollRatioChange)) {
       return;
     }
 
@@ -672,6 +720,13 @@ function MilkdownEditorInner({
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         if (!scroller) {
+          return;
+        }
+
+        const maxScrollTop = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+        onScrollRatioChange?.(maxScrollTop === 0 ? 0 : scroller.scrollTop / maxScrollTop);
+
+        if (!onActiveOutlineChange) {
           return;
         }
 
@@ -723,7 +778,7 @@ function MilkdownEditorInner({
       window.cancelAnimationFrame(frame);
       scroller?.removeEventListener("scroll", reportActiveHeading);
     };
-  }, [onActiveOutlineChange, outline, snapshot.markdown]);
+  }, [onActiveOutlineChange, onScrollRatioChange, outline, snapshot.markdown]);
 
   return (
     <div

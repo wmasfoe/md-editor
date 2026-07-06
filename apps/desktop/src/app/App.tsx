@@ -283,7 +283,14 @@ export function App() {
                 <SourceEditor
                   snapshot={editor.snapshot}
                   target={editor.tocTarget}
+                  scrollTarget={
+                    editor.modeScrollTarget?.mode === "source"
+                      ? editor.modeScrollTarget.target
+                      : null
+                  }
                   onChange={editor.commitMarkdown}
+                  onScrollRatioChange={editor.updateModeScrollRatio}
+                  onScrollTargetApplied={editor.completeModeScrollTarget}
                   onVisibleLineChange={editor.updateActiveOutlineForLine}
                 />
               </Suspense>
@@ -305,6 +312,13 @@ export function App() {
                   onAiSuggestionError={editor.handleAiSuggestionError}
                   onChange={editor.commitMarkdown}
                   onOpenLink={editor.openWysiwygLink}
+                  scrollTarget={
+                    editor.modeScrollTarget?.mode === "wysiwyg"
+                      ? editor.modeScrollTarget.target
+                      : null
+                  }
+                  onScrollRatioChange={editor.updateModeScrollRatio}
+                  onScrollTargetApplied={editor.completeModeScrollTarget}
                   onActiveOutlineChange={editor.setActiveOutlineId}
                   resolveImageSrc={editor.resolveImageSrc}
                 />

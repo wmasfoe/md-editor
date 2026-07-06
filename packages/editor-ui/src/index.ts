@@ -10,4 +10,4 @@ export {
 export { DocumentBar, type DocumentBarProps } from "./components/DocumentBar";
 export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./components/OutlinePanel";
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
-export type { SourceEditorView, TocTarget } from "./types";
+export type { EditorScrollTarget, SourceEditorView, TocTarget } from "./types";

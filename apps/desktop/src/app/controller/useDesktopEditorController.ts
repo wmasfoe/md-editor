@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { EditorMode } from "@md-editor/editor-core";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import { fileService } from "../../desktop/file-service";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
@@ -22,6 +23,11 @@ import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindPasteImageListener } from "../events/paste-image-listener";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { runtime } from "../runtime/editor-runtime";
+import {
+  clampEditorScrollRatio,
+  createModeScrollTarget,
+  type PendingModeScrollTarget
+} from "./mode-scroll-target";
 import { recentFilesStore } from "./recent-files-store";
 import { useConfirmationController } from "./useConfirmationController";
 import { useDocumentActionsController } from "./useDocumentActionsController";
@@ -44,6 +50,8 @@ export function useDesktopEditorController() {
   const [hasActiveDocument, setHasActiveDocument] = useState(false);
   const [editorRevision, setEditorRevision] = useState(0);
   const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
+  const [modeScrollTarget, setModeScrollTarget] = useState<PendingModeScrollTarget | null>(null);
+  const activeScrollRatioRef = useRef(0);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
 
   const showToast = useCallback((message: string | null) => {
@@ -148,8 +156,7 @@ export function useDesktopEditorController() {
   const {
     commitMarkdown,
     applyProgrammaticMarkdown,
-    switchMode,
-    toggleSourceMode,
+    switchMode: baseSwitchMode,
     replaceDocument,
     saveDocument,
     ensureDiscardAllowed,
@@ -213,6 +220,43 @@ export function useDesktopEditorController() {
   const toggleSidebarPrimary = useCallback(async () => {
     setIsSidebarVisible((current) => !current);
   }, []);
+
+  const updateModeScrollRatio = useCallback((ratio: number) => {
+    const clampedRatio = clampEditorScrollRatio(ratio);
+    if (clampedRatio === null) {
+      return;
+    }
+
+    activeScrollRatioRef.current = clampedRatio;
+  }, []);
+
+  const completeModeScrollTarget = useCallback((nonce: number) => {
+    setModeScrollTarget((current) => (
+      current?.target.nonce === nonce ? null : current
+    ));
+  }, []);
+
+  const switchMode = useCallback(async (mode: EditorMode) => {
+    const currentMode = runtime.document.getSnapshot().mode;
+    if (currentMode !== mode) {
+      // Source mode and WYSIWYG mode do not share reliable line numbers: one is
+      // raw Markdown and the other is rendered ProseMirror content. A scroll
+      // ratio gives both editors the same approximate reading position without
+      // trying to translate line 300 between two different layouts.
+      setModeScrollTarget(createModeScrollTarget(mode, activeScrollRatioRef.current));
+    }
+
+    await baseSwitchMode(mode);
+
+    if (runtime.document.getSnapshot().mode !== mode) {
+      setModeScrollTarget(null);
+    }
+  }, [baseSwitchMode]);
+
+  const toggleSourceMode = useCallback(async () => {
+    const currentMode = runtime.document.getSnapshot().mode;
+    await switchMode(currentMode === "source" ? "wysiwyg" : "source");
+  }, [switchMode]);
 
   const openWysiwygLink = useCallback(
     async (href: string) => {
@@ -364,6 +408,11 @@ export function useDesktopEditorController() {
     [openRecentFile, showToast]
   );
 
+  useEffect(() => {
+    activeScrollRatioRef.current = 0;
+    setModeScrollTarget(null);
+  }, [documentKey]);
+
   return {
     snapshot,
     toast,
@@ -375,6 +424,7 @@ export function useDesktopEditorController() {
     hasActiveDocument,
     openedAsset,
     documentKey,
+    modeScrollTarget,
     outline,
     activeOutlineId,
     confirmation,
@@ -404,6 +454,8 @@ export function useDesktopEditorController() {
     chooseThemeCss,
     clearThemeCss,
     commitMarkdown,
+    updateModeScrollRatio,
+    completeModeScrollTarget,
     dispatchCommand,
     openDocumentFromTree,
     openAssetFromTree,
