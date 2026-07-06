@@ -224,13 +224,16 @@
   padding: 36px 30px 100px;
   outline: 0;
   color: var(--theme-text);
-  font-family: var(--theme-font);
+  font-family: var(--theme-editor-font, var(--theme-font));
   font-size: var(--theme-editor-font-size, 17px);
-  font-kerning: normal;
-  line-height: normal;
-  letter-spacing: 0;
-  text-rendering: optimizeLegibility;
-  white-space: pre-wrap;
+  /* Match ProseMirror's text metrics policy so soft-wrap caret geometry stays stable. */
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0;
+  line-height: var(--theme-editor-line-height, 1.68);
+  letter-spacing: var(--theme-editor-letter-spacing, 0.015em);
+  text-rendering: auto;
+  white-space: break-spaces;
   word-break: normal;
   overflow-wrap: break-word;
 }
@@ -282,7 +285,7 @@
 }
 
 .milkdown .ProseMirror p {
-  line-height: normal;
+  line-height: inherit;
   margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;
 }
 
@@ -291,7 +294,7 @@
 }
 
 .milkdown-host--ime-composing .milkdown .ProseMirror p {
-  min-height: var(--theme-editor-line-height-em, 1.78em);
+  min-height: var(--theme-editor-line-height-em, 1.68em);
 }
 
 .milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak {
@@ -324,7 +327,7 @@
 
 .milkdown .ProseMirror li {
   display: list-item;
-  line-height: normal;
+  line-height: inherit;
   margin: 0;
 }
 

@@ -31,9 +31,11 @@ describe("WYSIWYG appearance settings", () => {
   });
 
   it("keeps source mode independent while aligning WYSIWYG soft-wrapped text", () => {
+    expect(milkdownEditorStyles).toContain("font-family: var(--theme-editor-font, var(--theme-font));");
     expect(milkdownEditorStyles).toContain("font-size: var(--theme-editor-font-size, 17px);");
-    expect(milkdownEditorStyles).toContain(".milkdown .ProseMirror p {\n  line-height: normal;");
-    expect(milkdownEditorStyles).toContain("letter-spacing: 0;");
+    expect(milkdownEditorStyles).toContain("line-height: var(--theme-editor-line-height, 1.68);");
+    expect(milkdownEditorStyles).toContain("letter-spacing: var(--theme-editor-letter-spacing, 0.015em);");
+    expect(milkdownEditorStyles).toContain(".milkdown .ProseMirror p {\n  line-height: inherit;");
     expect(milkdownEditorStyles).not.toContain("--theme-source-line-height");
   });
 });

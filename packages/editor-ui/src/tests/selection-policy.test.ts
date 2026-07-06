@@ -94,29 +94,33 @@ describe("editor selection policy", () => {
   it("keeps soft-wrapped text selection aligned with the rendered text box", () => {
     const proseMirrorRule = editorStyles.match(/\.milkdown \.ProseMirror \{(?<body>[^}]+)\}/u);
     const paragraphRule = editorStyles.match(/\.milkdown \.ProseMirror p \{(?<body>[^}]+)\}/u);
+    const listItemRule = editorStyles.match(/\.milkdown \.ProseMirror li \{(?<body>[^}]+)\}/u);
     const headingRule = editorStyles.match(
       /\.milkdown \.ProseMirror h1,[\s\S]+?\.milkdown \.ProseMirror h6 \{(?<body>[^}]+)\}/u
     );
 
     expect(proseMirrorRule?.groups?.body).toContain(
-      "font-family: var(--theme-font);"
+      "font-family: var(--theme-editor-font, var(--theme-font));"
     );
     expect(proseMirrorRule?.groups?.body).toContain(
       "font-size: var(--theme-editor-font-size, 17px);"
     );
     expect(proseMirrorRule?.groups?.body).toContain(
-      "line-height: normal;"
+      "line-height: var(--theme-editor-line-height, 1.68);"
     );
-    expect(proseMirrorRule?.groups?.body).toContain("letter-spacing: 0;");
-    expect(proseMirrorRule?.groups?.body).toContain("font-kerning: normal;");
-    expect(proseMirrorRule?.groups?.body).toContain("text-rendering: optimizeLegibility;");
-    expect(proseMirrorRule?.groups?.body).toContain("white-space: pre-wrap;");
+    expect(proseMirrorRule?.groups?.body).toContain("letter-spacing: var(--theme-editor-letter-spacing, 0.015em);");
+    expect(proseMirrorRule?.groups?.body).toContain("font-kerning: none;");
+    expect(proseMirrorRule?.groups?.body).toContain("font-variant-ligatures: none;");
+    expect(proseMirrorRule?.groups?.body).toContain('font-feature-settings: "liga" 0;');
+    expect(proseMirrorRule?.groups?.body).toContain("text-rendering: auto;");
+    expect(proseMirrorRule?.groups?.body).toContain("white-space: break-spaces;");
     expect(paragraphRule?.groups?.body).toContain(
-      "line-height: normal;"
+      "line-height: inherit;"
     );
     expect(paragraphRule?.groups?.body).toContain(
       "margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;"
     );
+    expect(listItemRule?.groups?.body).toContain("line-height: inherit;");
     expect(headingRule?.groups?.body).toContain(
       "line-height: var(--theme-editor-heading-line-height, 1.38);"
     );
@@ -204,7 +208,7 @@ describe("editor selection policy", () => {
     );
     expect(editorStyles).toContain("br.ProseMirror-trailingBreak {\n  display: none;");
     expect(editorStyles).toContain(
-      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.78em);"
+      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.68em);"
     );
   });
 
