@@ -1,22 +1,39 @@
-name: Build macOS App
+name: CI
 
 on:
-  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build macOS app
-    runs-on: macos-latest
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            wget
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -46,6 +63,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test Rust
+        run: pnpm test:rust
+
       - name: Validate release version files
         run: |
           node <<'NODE'
@@ -61,21 +90,3 @@ jobs:
             throw new Error(`Version mismatch: root=${rootPackage.version}, desktop=${desktopPackage.version}, tauri=${tauriConfig.version}, cargo=${cargoVersion}`);
           }
           NODE
-
-      # Distribution note:
-      # A plain Tauri DMG can be built and installed locally, but macOS Gatekeeper
-      # treats downloaded unsigned/unnotarized apps as untrusted. That is why users
-      # may see "app is damaged" until they manually clear com.apple.quarantine.
-      #
-      # When you add Apple distribution support, insert the certificate/keychain
-      # setup before this build step and expose the Tauri/Apple signing env vars
-      # here, so the generated .app/.dmg is Developer ID signed and notarized.
-      - name: Build macOS app
-        run: pnpm build:macos
-
-      - name: Upload DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: markdown-editor-macos-dmg
-          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
-          if-no-files-found: error
