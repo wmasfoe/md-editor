@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
@@ -13,7 +13,6 @@ import {
   splitLinkHref
 } from "../../lib/link-target";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
-import type { OpenedAsset, SidebarMode } from "../../types";
 import { useDocumentSnapshot } from "../document-store";
 import { useAppSettings } from "../settings-context";
 import {
@@ -28,19 +27,25 @@ import { runtime } from "../runtime/editor-runtime";
 import {
   clampEditorScrollRatio,
   createModeScrollTarget,
-  type PendingModeScrollTarget
 } from "./mode-scroll-target";
 import { recentFilesStore } from "./recent-files-store";
 import { useConfirmationController } from "./useConfirmationController";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useFileActionController } from "./useFileActionController";
 import { useFileTreeController } from "./useFileTreeController";
-import { useMdxAiController } from "./useMdxAiController";
 import { useOutlineController } from "./useOutlineController";
 import {
   isUpdateActionBusy,
   shouldShowEditorUpdateAction
 } from "../updates/update-status";
+import { useConfirmationStore } from "../stores/confirmation-store";
+import { useDocumentUiStore } from "../stores/document-ui-store";
+import { useEditorScrollStore } from "../stores/editor-scroll-store";
+import { useFileActionStore } from "../stores/file-action-store";
+import { useFileTreeStore } from "../stores/file-tree-store";
+import { useEditorCommandsStore } from "../stores/editor-commands-store";
+import { useOutlineStore } from "../stores/outline-store";
+import { useSidebarStore } from "../stores/sidebar-store";
 
 export interface UseDesktopEditorControllerInput {
   readonly showToast: (message: string | null) => void;
@@ -49,163 +54,167 @@ export interface UseDesktopEditorControllerInput {
 export function useDesktopEditorController({ showToast }: UseDesktopEditorControllerInput) {
   const { settings, updateStatus, openSettings, relaunchUpdate, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
-  const [isSidebarVisible, setIsSidebarVisible] = useState(() => window.innerWidth >= 960);
-  const [hasActiveDocument, setHasActiveDocument] = useState(false);
-  const [editorRevision, setEditorRevision] = useState(0);
-  const [openedAsset, setOpenedAsset] = useState<OpenedAsset | null>(null);
-  const [modeScrollTarget, setModeScrollTarget] = useState<PendingModeScrollTarget | null>(null);
   const activeScrollRatioRef = useRef(0);
-  const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
 
-  const getCurrentEditorMode = useCallback(() => runtime.document.getSnapshot().mode, []);
+  // --- Store-backed setters (compatible with Dispatch<SetStateAction<T>>) ---
 
-  const {
-    confirmation,
-    requestConfirmation,
-    resolveConfirmation,
-    hasPendingConfirmation
-  } = useConfirmationController();
-  const {
-    tocTarget,
-    outline,
-    activeOutlineId,
-    setActiveOutlineId,
-    jumpToTocItem,
-    jumpToMarkdownFragment,
-    updateActiveOutlineForLine
-  } = useOutlineController({ markdown: snapshot.markdown, showToast });
-  const {
-    isMdxComponentMenuOpen,
-    mdxInsertRequest,
-    aiSuggestionRequest,
-    isAiSuggestionPending,
-    isAiCompletionReady,
-    mdxComponentPlugins,
-    openMdxComponentMenu,
-    closeMdxComponentMenu,
-    clearMdxInsertRequest,
-    clearAiSuggestionRequest,
-    insertMdxComponent,
-    continueAiWriting,
-    requestAiSuggestion,
-    handleAiSuggestionError
-  } = useMdxAiController({
-    aiSettings: settings.ai,
-    getEditorMode: getCurrentEditorMode,
-    showToast
-  });
-  const {
-    pendingAction,
-    runFileAction,
-    showFileActionError
-  } = useFileActionController({ showToast });
-  const {
-    folder,
-    refreshFolderForDocumentPath,
-    refreshOpenedFolder,
-    showOpenedFolder,
-    createTreeItem,
-    renameTreeItem,
-    deleteTreeItem
-  } = useFileTreeController({
-    clearMdxInsertRequest,
-    requestConfirmation,
-    runFileAction,
+  const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    useSidebarStore.setState((state) => ({
+      isSidebarVisible: typeof value === "function" ? value(state.isSidebarVisible) : value,
+    }));
+  }, []);
+
+  const setSidebarMode = useCallback((value: import("../../types").SidebarMode | ((prev: import("../../types").SidebarMode) => import("../../types").SidebarMode)) => {
+    useSidebarStore.setState((state) => ({
+      sidebarMode: typeof value === "function" ? value(state.sidebarMode) : value,
+    }));
+  }, []);
+
+  const setHasActiveDocument = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    useDocumentUiStore.setState((state) => ({
+      hasActiveDocument: typeof value === "function" ? value(state.hasActiveDocument) : value,
+    }));
+  }, []);
+
+  const setOpenedAsset = useCallback((value: import("../../types").OpenedAsset | null | ((prev: import("../../types").OpenedAsset | null) => import("../../types").OpenedAsset | null)) => {
+    useDocumentUiStore.setState((state) => ({
+      openedAsset: typeof value === "function" ? value(state.openedAsset) : value,
+    }));
+  }, []);
+
+  const setEditorRevision = useCallback((value: number | ((prev: number) => number)) => {
+    // editorRevision is tracked locally via a ref to compute documentKey
+    // We update the store's documentKey directly
+  }, []);
+
+  // documentKey: computed from filePath + revision, managed via ref
+  const editorRevisionRef = useRef(0);
+  const setEditorRevisionAndKey = useCallback((value: number | ((prev: number) => number)) => {
+    const next = typeof value === "function" ? value(editorRevisionRef.current) : value;
+    editorRevisionRef.current = next;
+    const filePath = runtime.document.getSnapshot().filePath;
+    useDocumentUiStore.setState({
+      documentKey: `${filePath ?? "untitled"}:${next}`,
+    });
+  }, []);
+
+  // --- Sub-hooks ---
+
+  const confirmation = useConfirmationController();
+
+  const outline = useOutlineController({ markdown: snapshot.markdown, showToast });
+
+
+  const fileAction = useFileActionController({ showToast });
+
+  const fileTree = useFileTreeController({
+    clearMdxInsertRequest: () => {},
+    requestConfirmation: confirmation.requestConfirmation,
+    runFileAction: fileAction.runFileAction,
     setIsSidebarVisible,
-    setSidebarMode
+    setSidebarMode,
   });
-  const {
-    commitMarkdown,
-    applyProgrammaticMarkdown,
-    switchMode: baseSwitchMode,
-    replaceDocument,
-    saveDocument,
-    ensureDiscardAllowed,
-    createNewDocument,
-    openDocument,
-    openRecentFile,
-    openRecentDocument,
-    openFolder,
-    openDocumentFromTree,
-    getRecentFiles
-  } = useDocumentActionsController({
-    clearMdxInsertRequest,
-    refreshFolderForDocumentPath,
-    requestConfirmation,
-    runFileAction,
-    setEditorRevision,
+
+  const docActions = useDocumentActionsController({
+    clearMdxInsertRequest: () => {},
+    refreshFolderForDocumentPath: fileTree.refreshFolderForDocumentPath,
+    requestConfirmation: confirmation.requestConfirmation,
+    runFileAction: fileAction.runFileAction,
+    setEditorRevision: setEditorRevisionAndKey,
     setHasActiveDocument,
     setOpenedAsset,
-    showOpenedFolder,
-    showToast
+    showOpenedFolder: fileTree.showOpenedFolder,
+    showToast,
   });
 
-  const openAssetFromTree = useCallback((node: MarkdownFileTreeNode) => {
-    showToast(null);
-    setOpenedAsset({ name: node.name, path: node.path });
-  }, [showToast]);
+  // --- Sync sub-hook results to Zustand stores ---
 
-  const closeAssetPreview = useCallback(() => {
-    setOpenedAsset(null);
-  }, []);
+  useLayoutEffect(() => {
+    useConfirmationStore.setState({
+      confirmation: confirmation.confirmation,
+      requestConfirmation: confirmation.requestConfirmation,
+      resolveConfirmation: confirmation.resolveConfirmation,
+      hasPendingConfirmation: confirmation.hasPendingConfirmation,
+    });
+  }, [
+    confirmation.confirmation,
+    confirmation.hasPendingConfirmation,
+    confirmation.requestConfirmation,
+    confirmation.resolveConfirmation,
+  ]);
 
-  useEffect(
-    () =>
-      bindPasteImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory
-      }),
-    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction, settings.assetsDirectory]
-  );
-  useEffect(
-    () =>
-      bindDropImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory
-      }),
-    [applyProgrammaticMarkdown, refreshOpenedFolder, replaceDocument, runFileAction, settings.assetsDirectory]
-  );
+  useLayoutEffect(() => {
+    useOutlineStore.setState({
+      outline: outline.outline,
+      tocTarget: outline.tocTarget,
+      activeOutlineId: outline.activeOutlineId,
+      setActiveOutlineId: outline.setActiveOutlineId,
+      jumpToTocItem: outline.jumpToTocItem,
+      jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
+      updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
+    });
+  }, [
+    outline.outline,
+    outline.tocTarget,
+    outline.activeOutlineId,
+    outline.setActiveOutlineId,
+    outline.jumpToTocItem,
+    outline.jumpToMarkdownFragment,
+    outline.updateActiveOutlineForLine,
+  ]);
 
-  const resolveImageSrc = useCallback(
-    (src: string) => resolvePreviewImageSrc(snapshot.filePath, src),
-    [snapshot.filePath]
-  );
 
-  const toggleSidebarPrimary = useCallback(async () => {
-    setIsSidebarVisible((current) => !current);
-  }, []);
+  useLayoutEffect(() => {
+    useFileActionStore.setState({
+      pendingAction: fileAction.pendingAction,
+      runFileAction: fileAction.runFileAction,
+      showFileActionError: fileAction.showFileActionError,
+    });
+  }, [fileAction.pendingAction, fileAction.runFileAction, fileAction.showFileActionError]);
+
+  useLayoutEffect(() => {
+    useFileTreeStore.setState({
+      folder: fileTree.folder,
+      createTreeItem: fileTree.createTreeItem,
+      renameTreeItem: fileTree.renameTreeItem,
+      deleteTreeItem: fileTree.deleteTreeItem,
+    });
+  }, [
+    fileTree.folder,
+    fileTree.createTreeItem,
+    fileTree.renameTreeItem,
+    fileTree.deleteTreeItem,
+  ]);
+
+  // --- Coordinator-level actions (depend on multiple sub-hooks) ---
 
   const updateModeScrollRatio = useCallback((ratio: number) => {
-    const clampedRatio = clampEditorScrollRatio(ratio);
-    if (clampedRatio === null) {
-      return;
+    const clamped = clampEditorScrollRatio(ratio);
+    if (clamped !== null) {
+      activeScrollRatioRef.current = clamped;
     }
-    activeScrollRatioRef.current = clampedRatio;
   }, []);
 
   const completeModeScrollTarget = useCallback((nonce: number) => {
-    setModeScrollTarget((current) => (
-      current?.target.nonce === nonce ? null : current
-    ));
+    useEditorScrollStore.setState((current) => ({
+      modeScrollTarget: current.modeScrollTarget?.target.nonce === nonce
+        ? null
+        : current.modeScrollTarget,
+    }));
   }, []);
 
   const switchMode = useCallback(async (mode: EditorMode) => {
     const currentMode = runtime.document.getSnapshot().mode;
     if (currentMode !== mode) {
-      setModeScrollTarget(createModeScrollTarget(mode, activeScrollRatioRef.current));
+      useEditorScrollStore.setState({
+        modeScrollTarget: createModeScrollTarget(mode, activeScrollRatioRef.current),
+      });
     }
-    await baseSwitchMode(mode);
+    await docActions.switchMode(mode);
     if (runtime.document.getSnapshot().mode !== mode) {
-      setModeScrollTarget(null);
+      useEditorScrollStore.setState({ modeScrollTarget: null });
     }
-  }, [baseSwitchMode]);
+  }, [docActions.switchMode]);
 
   const toggleSourceMode = useCallback(async () => {
     const currentMode = runtime.document.getSnapshot().mode;
@@ -223,7 +232,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
       if (!runtime.document.getSnapshot().isDirty) {
         return true;
       }
-      await requestConfirmation({
+      await confirmation.requestConfirmation({
         title: "请先保存文档",
         description: "当前文档还有未保存的更改。请先保存，再继续更新 App。",
         confirmLabel: "知道了"
@@ -232,184 +241,252 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     };
 
     if (nextStatus.state === "available") {
-      const choice = await requestConfirmation({
+      const choice = await confirmation.requestConfirmation({
         title: "下载更新",
         description: `发现 Markdown Editor ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。`,
         confirmLabel: "下载更新"
       });
-      if (choice !== "confirm") {
-        return;
-      }
+      if (choice !== "confirm") return;
       const result = await downloadUpdate();
-      if (result.state !== "downloaded") {
-        return;
-      }
+      if (result.state !== "downloaded") return;
       nextStatus = result;
     }
 
-    if (!await ensureSavedBeforeApply()) {
-      return;
-    }
+    if (!await ensureSavedBeforeApply()) return;
 
     if (nextStatus.state === "installed") {
-      const choice = await requestConfirmation({
+      const choice = await confirmation.requestConfirmation({
         title: "重启 App",
         description: "更新已安装。重启 App 后，新版本会生效。",
         confirmLabel: "重启 App"
       });
-      if (choice === "confirm") {
-        await relaunchUpdate();
-      }
+      if (choice === "confirm") await relaunchUpdate();
       return;
     }
 
-    const choice = await requestConfirmation({
+    const choice = await confirmation.requestConfirmation({
       title: "退出并更新",
       description: `Markdown Editor ${nextStatus.latestVersion ?? "新版本"} 已准备好。继续后会退出 App 并进行更新。`,
       confirmLabel: "退出并更新"
     });
-    if (choice !== "confirm") {
+    if (choice !== "confirm") return;
+
+    const result = await applyDownloadedUpdate();
+    if (result.state === "installed") await relaunchUpdate();
+  }, [
+    applyDownloadedUpdate,
+    confirmation.requestConfirmation,
+    downloadUpdate,
+    relaunchUpdate,
+    updateStatus,
+  ]);
+
+  const openWysiwygLink = useCallback(async (href: string) => {
+    const parts = splitLinkHref(href);
+    if (parts.path === "" && parts.fragment) {
+      outline.jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
       return;
     }
 
-    const result = await applyDownloadedUpdate();
-    if (result.state === "installed") {
-      await relaunchUpdate();
+    if (
+      isHttpLink(href) ||
+      (isExternalSchemeLink(href) && !href.trim().toLowerCase().startsWith("file:"))
+    ) {
+      await fileAction.runFileAction("正在打开链接", async () => {
+        await openExternalTarget(href);
+      });
+      return;
     }
-  }, [
-    applyDownloadedUpdate,
-    downloadUpdate,
-    relaunchUpdate,
-    requestConfirmation,
-    updateStatus
-  ]);
 
-  const openWysiwygLink = useCallback(
-    async (href: string) => {
-      const parts = splitLinkHref(href);
-      if (parts.path === "" && parts.fragment) {
-        jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
-        return;
-      }
+    const current = runtime.document.getSnapshot();
+    if (!current.filePath) {
+      showToast("请先保存当前文档，再打开相对链接。");
+      return;
+    }
 
-      if (
-        isHttpLink(href) ||
-        (isExternalSchemeLink(href) && !href.trim().toLowerCase().startsWith("file:"))
-      ) {
-        await runFileAction("正在打开链接", async () => {
-          await openExternalTarget(href);
+    await fileAction.runFileAction("正在打开链接", async () => {
+      const linked = await inspectLinkedFileTarget(
+        current.filePath!,
+        normalizeLocalHrefPath(parts.path)
+      );
+
+      if (linked.kind === "asset") {
+        showToast(null);
+        useDocumentUiStore.setState({
+          openedAsset: { name: basename(linked.path), path: linked.path },
         });
         return;
       }
 
-      const current = runtime.document.getSnapshot();
-      if (!current.filePath) {
-        showToast("请先保存当前文档，再打开相对链接。");
+      if (linked.kind === "markdown") {
+        if (!(await docActions.ensureDiscardAllowed())) return;
+        const document = await fileService.openDocumentAtPath(linked.path);
+        docActions.replaceDocument(document);
+        await fileTree.refreshFolderForDocumentPath(document.filePath);
+        outline.jumpToMarkdownFragment(document.markdown, parts.fragment);
         return;
       }
-      const currentFilePath = current.filePath;
 
-      await runFileAction("正在打开链接", async () => {
-        const linked = await inspectLinkedFileTarget(
-          currentFilePath,
-          normalizeLocalHrefPath(parts.path)
-        );
+      await openExternalTarget(linked.path);
+    });
+  }, [
+    docActions.ensureDiscardAllowed,
+    docActions.replaceDocument,
+    fileAction.runFileAction,
+    fileTree.refreshFolderForDocumentPath,
+    outline.jumpToMarkdownFragment,
+    showToast,
+  ]);
 
-        if (linked.kind === "asset") {
-          showToast(null);
-          setOpenedAsset({ name: basename(linked.path), path: linked.path });
-          return;
-        }
-
-        if (linked.kind === "markdown") {
-          if (!(await ensureDiscardAllowed())) {
-            return;
-          }
-          const document = await fileService.openDocumentAtPath(linked.path);
-          replaceDocument(document);
-          await refreshFolderForDocumentPath(document.filePath);
-          jumpToMarkdownFragment(document.markdown, parts.fragment);
-          return;
-        }
-
-        await openExternalTarget(linked.path);
-      });
-    },
-    [
-      ensureDiscardAllowed,
-      jumpToMarkdownFragment,
-      refreshFolderForDocumentPath,
-      replaceDocument,
-      runFileAction,
-      showToast
-    ]
+  const resolveImageSrc = useCallback(
+    (src: string) => resolvePreviewImageSrc(snapshot.filePath, src),
+    [snapshot.filePath]
   );
 
-  const dispatchCommand = useCallback(
-    async (id: string) => {
-      // 全局菜单和快捷键在 React 外部捕获；有弹窗等待决策时先忽略，避免 Promise 丢失。
-      if (hasPendingConfirmation()) {
-        return;
-      }
-      await runtime.commands.dispatch(id, {
-        document: runtime.document,
-        actions: {
-          newDocument: createNewDocument,
-          openDocument,
-          openRecentDocument,
-          openFolder,
-          saveDocument: () => saveDocument(false),
-          saveDocumentAs: () => saveDocument(true),
-          openSettings,
-          openMdxComponentMenu,
-          continueAiWriting,
-          toggleSourceMode,
-          showWysiwygMode: () => switchMode("wysiwyg"),
-          toggleSidebarPrimary
-        }
-      });
-    },
-    [
-      createNewDocument,
-      openDocument,
-      openRecentDocument,
-      openFolder,
-      openSettings,
-      openMdxComponentMenu,
-      continueAiWriting,
-      hasPendingConfirmation,
-      saveDocument,
-      switchMode,
-      toggleSidebarPrimary,
-      toggleSourceMode
-    ]
-  );
+  const openAssetFromTree = useCallback((node: MarkdownFileTreeNode) => {
+    showToast(null);
+    useDocumentUiStore.setState({
+      openedAsset: { name: node.name, path: node.path },
+    });
+  }, [showToast]);
 
-  useEffect(() => {
-    return bindRuntimeKeyboardShortcuts(dispatchCommand, settings);
-  }, [dispatchCommand, settings]);
-  useEffect(() => {
-    return bindDesktopMenuCommands(dispatchCommand);
-  }, [dispatchCommand]);
+  const closeAssetPreview = useCallback(() => {
+    useDocumentUiStore.setState({ openedAsset: null });
+  }, []);
+
+  const dispatchCommand = useCallback(async (id: string) => {
+    if (confirmation.hasPendingConfirmation()) return;
+    await runtime.commands.dispatch(id, {
+      document: runtime.document,
+      actions: {
+        newDocument: docActions.createNewDocument,
+        openDocument: docActions.openDocument,
+        openRecentDocument: docActions.openRecentDocument,
+        openFolder: docActions.openFolder,
+        saveDocument: () => docActions.saveDocument(false),
+        saveDocumentAs: () => docActions.saveDocument(true),
+        openSettings,
+        openMdxComponentMenu: useEditorCommandsStore.getState().openMdxComponentMenu,
+        continueAiWriting: useEditorCommandsStore.getState().continueAiWriting,
+        toggleSourceMode,
+        showWysiwygMode: () => switchMode("wysiwyg"),
+        toggleSidebarPrimary: () => setIsSidebarVisible((v) => !v),
+      },
+    });
+  }, [
+    confirmation.hasPendingConfirmation,
+    docActions.createNewDocument,
+    docActions.openDocument,
+    docActions.openRecentDocument,
+    docActions.openFolder,
+    docActions.saveDocument,
+    openSettings,
+    setIsSidebarVisible,
+    switchMode,
+    toggleSourceMode,
+  ]);
+
+  // --- Sync coordinator-level actions to document-ui store ---
+
+  useLayoutEffect(() => {
+    const filePath = snapshot.filePath;
+    useDocumentUiStore.setState({
+      documentKey: `${filePath ?? "untitled"}:${editorRevisionRef.current}`,
+      resolveImageSrc,
+      closeAssetPreview,
+      openAssetFromTree,
+      getRecentFiles: docActions.getRecentFiles,
+      openRecentFile: docActions.openRecentFile,
+      runEditorUpdateAction,
+      commitMarkdown: docActions.commitMarkdown,
+      openWysiwygLink,
+      dispatchCommand,
+      openDocumentFromTree: docActions.openDocumentFromTree,
+    });
+  }, [
+    snapshot.filePath,
+    resolveImageSrc,
+    closeAssetPreview,
+    openAssetFromTree,
+    docActions.getRecentFiles,
+    docActions.openRecentFile,
+    runEditorUpdateAction,
+    docActions.commitMarkdown,
+    openWysiwygLink,
+    dispatchCommand,
+    docActions.openDocumentFromTree,
+  ]);
+
+  useLayoutEffect(() => {
+    useEditorScrollStore.setState({
+      updateModeScrollRatio,
+      completeModeScrollTarget,
+    });
+  }, [updateModeScrollRatio, completeModeScrollTarget]);
+
+  // --- Global effects ---
+
+  useEffect(() => bindRuntimeKeyboardShortcuts(dispatchCommand, settings), [dispatchCommand, settings]);
+  useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
   useEffect(() => bindBrowserDirtyDocumentGuard(), []);
   useEffect(
-    () =>
-      bindTauriCloseGuard(() =>
-        ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。")
-      ),
-    [ensureDiscardAllowed]
+    () => bindTauriCloseGuard(() =>
+      docActions.ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。")
+    ),
+    [docActions.ensureDiscardAllowed]
+  );
+
+  useEffect(
+    () => bindPasteImageListener({
+      replaceDocument: docActions.replaceDocument,
+      runFileAction: fileAction.runFileAction,
+      applyMarkdown: docActions.applyProgrammaticMarkdown,
+      afterSaveImage: fileTree.refreshOpenedFolder,
+      assetsDirectory: settings.assetsDirectory,
+    }),
+    [
+      docActions.applyProgrammaticMarkdown,
+      docActions.replaceDocument,
+      fileAction.runFileAction,
+      fileTree.refreshOpenedFolder,
+      settings.assetsDirectory,
+    ]
+  );
+
+  useEffect(
+    () => bindDropImageListener({
+      replaceDocument: docActions.replaceDocument,
+      runFileAction: fileAction.runFileAction,
+      applyMarkdown: docActions.applyProgrammaticMarkdown,
+      afterSaveImage: fileTree.refreshOpenedFolder,
+      assetsDirectory: settings.assetsDirectory,
+    }),
+    [
+      docActions.applyProgrammaticMarkdown,
+      docActions.replaceDocument,
+      fileAction.runFileAction,
+      fileTree.refreshOpenedFolder,
+      settings.assetsDirectory,
+    ]
+  );
+
+  useEffect(
+    () => bindRecentFileMenuEvents({
+      store: recentFilesStore,
+      openRecentFile: docActions.openRecentFile,
+      onError: showToast,
+    }),
+    [docActions.openRecentFile, showToast]
   );
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 959px)");
-    const collapseForNarrowWindow = (event: MediaQueryListEvent) => {
-      if (event.matches) {
-        setIsSidebarVisible(false);
-      }
+    const collapse = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsSidebarVisible(false);
     };
-    media.addEventListener("change", collapseForNarrowWindow);
-    return () => media.removeEventListener("change", collapseForNarrowWindow);
-  }, []);
+    media.addEventListener("change", collapse);
+    return () => media.removeEventListener("change", collapse);
+  }, [setIsSidebarVisible]);
 
   useEffect(() => {
     const fileName = snapshot.filePath?.split(/[\\/]/).pop() || "未命名文档";
@@ -422,69 +499,10 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     }
   }, [snapshot.filePath, snapshot.isDirty]);
 
-  useEffect(
-    () =>
-      bindRecentFileMenuEvents({
-        store: recentFilesStore,
-        openRecentFile,
-        onError: showToast
-      }),
-    [openRecentFile, showToast]
-  );
-
+  // Reset scroll state when document changes
+  const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevisionRef.current}`;
   useEffect(() => {
     activeScrollRatioRef.current = 0;
-    setModeScrollTarget(null);
+    useEditorScrollStore.setState({ modeScrollTarget: null });
   }, [documentKey]);
-
-  return {
-    pendingAction,
-    tocTarget,
-    folder,
-    sidebarMode,
-    isSidebarVisible,
-    hasActiveDocument,
-    openedAsset,
-    documentKey,
-    modeScrollTarget,
-    outline,
-    activeOutlineId,
-    confirmation,
-    isMdxComponentMenuOpen,
-    mdxInsertRequest,
-    aiSuggestionRequest,
-    isAiSuggestionPending,
-    isAiCompletionReady,
-    mdxComponentPlugins,
-    shouldShowEditorUpdateAction: shouldShowEditorUpdateAction(updateStatus),
-    isUpdateActionBusy: isUpdateActionBusy(updateStatus),
-    setSidebarMode,
-    setIsSidebarVisible,
-    commitMarkdown,
-    updateModeScrollRatio,
-    completeModeScrollTarget,
-    dispatchCommand,
-    openDocumentFromTree,
-    openAssetFromTree,
-    openWysiwygLink,
-    closeAssetPreview,
-    createTreeItem,
-    renameTreeItem,
-    deleteTreeItem,
-    showFileActionError,
-    jumpToTocItem,
-    setActiveOutlineId,
-    resolveConfirmation,
-    closeMdxComponentMenu,
-    clearMdxInsertRequest,
-    clearAiSuggestionRequest,
-    insertMdxComponent,
-    requestAiSuggestion,
-    handleAiSuggestionError,
-    updateActiveOutlineForLine,
-    resolveImageSrc,
-    getRecentFiles,
-    openRecentFile,
-    runEditorUpdateAction
-  };
 }
