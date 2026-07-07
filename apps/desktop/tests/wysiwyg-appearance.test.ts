@@ -6,6 +6,10 @@ const appearancePanelSource = readFileSync(
   new URL("../src/components/settings/AppearanceSettingsPanel.tsx", import.meta.url),
   "utf8"
 );
+const desktopMilkdownEditorSource = readFileSync(
+  new URL("../src/components/DesktopMilkdownEditor.tsx", import.meta.url),
+  "utf8"
+);
 const milkdownEditorSource = readFileSync(
   new URL("../../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url),
   "utf8"
@@ -17,9 +21,9 @@ const milkdownEditorStyles = readFileSync(
 
 describe("WYSIWYG appearance settings", () => {
   it("passes the configured WYSIWYG font size into the reusable editor", () => {
-    // DesktopMilkdownEditor 包装器从 useAppSettings() 读取显示设置并注入 MilkdownEditor
-    expect(appSource).toContain("settings.editor.wysiwygFontSize");
-    expect(appSource).toContain("DesktopMilkdownEditor");
+    // DesktopMilkdownEditor 从 useAppSettings() 读取显示设置并注入 MilkdownEditor
+    expect(desktopMilkdownEditorSource).toContain("settings.editor.wysiwygFontSize");
+    expect(desktopMilkdownEditorSource).toContain("DesktopMilkdownEditor");
     expect(milkdownEditorSource).toContain("readonly wysiwygFontSize?: number;");
     expect(milkdownEditorSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
     expect(milkdownEditorSource).toContain('"--theme-editor-font-size": `${safeFontSize}px`');

@@ -18,6 +18,10 @@ import {
   type FileTreeContextMenuAction
 } from "../desktop/file-tree-context-menu";
 import { cx } from "../lib/cx";
+import { useDocumentSnapshot } from "../app/document-store";
+import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useFileActionStore } from "../app/stores/file-action-store";
+import { useFileTreeStore } from "../app/stores/file-tree-store";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
 import "./FileTreePanel.css";
 
@@ -29,31 +33,32 @@ type EditingState =
   | { mode: "rename"; node: MarkdownFileTreeNode };
 type SearchResultNode = MarkdownFileTreeNode & { kind: "markdown" | "asset" };
 
-interface FileTreePanelProps {
-  readonly folder: MarkdownFolder | null;
+export interface FileTreePanelProps {
   readonly searchQuery?: string;
-  readonly activeFilePath: string | null;
-  readonly onOpenFolder: () => void;
-  readonly onOpenFile: (filePath: string) => void;
-  readonly onOpenAsset: (node: MarkdownFileTreeNode) => void;
-  readonly onCreateTreeItem: (parentPath: string, kind: TreeItemKind, name: string) => void;
-  readonly onRenameTreeItem: (node: MarkdownFileTreeNode, name: string) => void;
-  readonly onDeleteTreeItem: (node: MarkdownFileTreeNode) => void;
-  readonly onContextMenuError?: (error: unknown) => void;
 }
 
-export function FileTreePanel({
-  folder,
-  searchQuery = "",
-  activeFilePath,
-  onOpenFolder,
-  onOpenFile,
-  onOpenAsset,
-  onCreateTreeItem,
-  onRenameTreeItem,
-  onDeleteTreeItem,
-  onContextMenuError
-}: FileTreePanelProps) {
+export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
+  const { folder, createTreeItem, renameTreeItem, deleteTreeItem } = useFileTreeStore();
+  const { dispatchCommand, openDocumentFromTree, openAssetFromTree } = useDocumentUiStore();
+  const { showFileActionError } = useFileActionStore();
+  const { filePath: activeFilePath } = useDocumentSnapshot();
+
+  const onOpenFolder = useCallback(() => void dispatchCommand("file.openFolder"), [dispatchCommand]);
+  const onOpenFile = useCallback((filePath: string) => void openDocumentFromTree(filePath), [openDocumentFromTree]);
+  const onOpenAsset = useCallback((node: MarkdownFileTreeNode) => openAssetFromTree(node), [openAssetFromTree]);
+  const onCreateTreeItem = useCallback(
+    (parentPath: string, kind: TreeItemKind, name: string) => void createTreeItem(parentPath, kind, name),
+    [createTreeItem]
+  );
+  const onRenameTreeItem = useCallback(
+    (node: MarkdownFileTreeNode, name: string) => void renameTreeItem(node, name),
+    [renameTreeItem]
+  );
+  const onDeleteTreeItem = useCallback(
+    (node: MarkdownFileTreeNode) => void deleteTreeItem(node),
+    [deleteTreeItem]
+  );
+  const onContextMenuError = showFileActionError;
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<FileTreeContextMenuState | null>(null);
   const [editing, setEditing] = useState<EditingState | null>(null);

@@ -1,6 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions, Dialog } from "@headlessui/react";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
-import { useEffect, useMemo, useState } from "react";
 import { cx } from "../lib/cx";
 
 export interface MdxComponentMenuProps {
@@ -12,10 +12,7 @@ export interface MdxComponentMenuProps {
 export function MdxComponentMenu({ plugins, onInsert, onClose }: MdxComponentMenuProps) {
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const filteredPlugins = useMemo(
-    () => filterPlugins(plugins, query),
-    [plugins, query]
-  );
+  const filteredPlugins = useMemo(() => filterPlugins(plugins, query), [plugins, query]);
   const activePlugin = filteredPlugins[activeIndex] ?? filteredPlugins[0] ?? null;
 
   useEffect(() => {
@@ -29,9 +26,7 @@ export function MdxComponentMenu({ plugins, onInsert, onClose }: MdxComponentMen
         <Combobox
           value={null}
           onChange={(plugin: MdxComponentPlugin | null) => {
-            if (plugin) {
-              onInsert(plugin);
-            }
+            if (plugin) onInsert(plugin);
           }}
           immediate
         >
@@ -102,18 +97,12 @@ export function MdxComponentMenu({ plugins, onInsert, onClose }: MdxComponentMen
   );
 }
 
-function filterPlugins(
-  plugins: readonly MdxComponentPlugin[],
-  query: string
-): readonly MdxComponentPlugin[] {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) {
-    return plugins;
-  }
-
+function filterPlugins(plugins: readonly MdxComponentPlugin[], query: string): readonly MdxComponentPlugin[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return plugins;
   return plugins.filter((plugin) => {
     const insert = plugin.insert;
-    const haystack = [
+    return [
       plugin.id,
       plugin.component.name,
       plugin.component.displayName,
@@ -124,15 +113,12 @@ function filterPlugins(
     ]
       .filter(Boolean)
       .join("\n")
-      .toLowerCase();
-    return haystack.includes(normalizedQuery);
+      .toLowerCase()
+      .includes(q);
   });
 }
 
 function wrapIndex(index: number, length: number): number {
-  if (length <= 0) {
-    return 0;
-  }
-
+  if (length <= 0) return 0;
   return (index + length) % length;
 }

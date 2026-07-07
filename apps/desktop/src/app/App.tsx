@@ -27,8 +27,10 @@ import {
   OutlinePanel,
   WelcomeState
 } from "@md-editor/editor-ui";
+import { DesktopMilkdownEditor } from "../components/DesktopMilkdownEditor";
+import { DesktopSourceEditor } from "../components/DesktopSourceEditor";
+import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
-import { MdxComponentMenu } from "../components/MdxComponentMenu";
 import { SettingsPage } from "../components/SettingsDialog";
 import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
@@ -47,13 +49,13 @@ import {
   isUpdateActionBusy as isUpdateActionBusy_,
   shouldShowEditorUpdateAction,
 } from "./updates/update-status";
-
-const SourceEditor = lazy(() =>
-  import("@md-editor/editor-ui/source-editor").then((module) => ({ default: module.SourceEditor }))
-);
-const MilkdownEditor = lazy(() =>
-  import("@md-editor/editor-ui/milkdown-editor").then((module) => ({ default: module.MilkdownEditor }))
-);
+import { useConfirmationStore } from "./stores/confirmation-store";
+import { useDocumentUiStore } from "./stores/document-ui-store";
+import { useEditorScrollStore } from "./stores/editor-scroll-store";
+import { useFileActionStore } from "./stores/file-action-store";
+import { useFileTreeStore } from "./stores/file-tree-store";
+import { useOutlineStore } from "./stores/outline-store";
+import { useSidebarStore } from "./stores/sidebar-store";
 
 const SIDEBAR_DEFAULT_WIDTH = 272;
 const SIDEBAR_MIN_WIDTH = 220;
@@ -70,9 +72,16 @@ function AppWithProviders() {
   const { toast, showToast } = useToast();
   return (
     <AppSettingsProvider showToast={showToast} surface="main">
+      {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
+      <DesktopEditorEffects showToast={showToast} />
       <MainApp toast={toast} showToast={showToast} />
     </AppSettingsProvider>
   );
+}
+
+function DesktopEditorEffects({ showToast }: { readonly showToast: (message: string | null) => void }) {
+  useDesktopEditorController({ showToast });
+  return null;
 }
 
 function MainApp({
@@ -84,19 +93,24 @@ function MainApp({
 }) {
   const { isSettingsOpen } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const editor = useDesktopEditorController({ showToast });
+  const { isSidebarVisible, sidebarMode, setIsSidebarVisible, setSidebarMode } = useSidebarStore();
+  const { pendingAction } = useFileActionStore();
+  const { outline, activeOutlineId, jumpToTocItem } = useOutlineStore();
+  const { hasActiveDocument, openedAsset, dispatchCommand, resolveImageSrc, closeAssetPreview, getRecentFiles, openRecentFile } = useDocumentUiStore();
+  const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
+  const folderTree = useFileTreeStore(s => s.folder?.tree ?? null);
   const fileSearchResultCount = useMemo(
-    () => countMatchedFiles(editor.folder?.tree ?? null, fileSearchQuery),
-    [editor.folder?.tree, fileSearchQuery]
+    () => countMatchedFiles(folderTree, fileSearchQuery),
+    [folderTree, fileSearchQuery]
   );
-  const sidebarTitle = editor.sidebarMode === "files" ? "文件" : "大纲";
-  const showFileSearch = editor.sidebarMode === "files" && isFileSearchOpen;
-  const pendingActionDescription = getLoadingDescription(editor.pendingAction);
+  const sidebarTitle = sidebarMode === "files" ? "文件" : "大纲";
+  const showFileSearch = sidebarMode === "files" && isFileSearchOpen;
+  const pendingActionDescription = getLoadingDescription(pendingAction);
   const sidebarResizePreviewOffset =
     sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
@@ -115,29 +129,29 @@ function MainApp({
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        {editor.isSidebarVisible ? (
+        {isSidebarVisible ? (
           <button
             type="button"
             className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
             aria-label="关闭侧栏"
-            onClick={() => editor.setIsSidebarVisible(false)}
+            onClick={() => setIsSidebarVisible(false)}
           />
         ) : null}
         <aside
           className={cx(
             "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
-            editor.isSidebarVisible &&
+            isSidebarVisible &&
               "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
           )}
           style={
             {
               "--app-sidebar-width": `${sidebarWidth}px`,
-              borderRightWidth: editor.isSidebarVisible ? 1 : 0
+              borderRightWidth: isSidebarVisible ? 1 : 0
             } as React.CSSProperties
           }
-          aria-label={editor.sidebarMode === "files" ? "文件树" : "大纲目录"}
-          aria-hidden={!editor.isSidebarVisible}
-          inert={!editor.isSidebarVisible}
+          aria-label={sidebarMode === "files" ? "文件树" : "大纲目录"}
+          aria-hidden={!isSidebarVisible}
+          inert={!isSidebarVisible}
         >
           <AppTitleBar
             isVisible={shouldShowOverlayTitleBar}
@@ -147,11 +161,11 @@ function MainApp({
             <button
               type="button"
               className={sidebarHeaderIconButtonClassName}
-              aria-label={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
-              title={editor.sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
-              onClick={() => editor.setSidebarMode(editor.sidebarMode === "files" ? "outline" : "files")}
+              aria-label={sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
+              title={sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
+              onClick={() => setSidebarMode(sidebarMode === "files" ? "outline" : "files")}
             >
-              {editor.sidebarMode === "files" ? (
+              {sidebarMode === "files" ? (
                 <FolderIcon aria-hidden="true" />
               ) : (
                 <QueueListIcon aria-hidden="true" />
@@ -170,7 +184,7 @@ function MainApp({
               aria-pressed={isFileSearchOpen}
               title="搜索文件"
               onClick={() => {
-                editor.setSidebarMode("files");
+                setSidebarMode("files");
                 setIsFileSearchOpen((current) => !current);
               }}
             >
@@ -208,39 +222,28 @@ function MainApp({
             </div>
           ) : null}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {editor.sidebarMode === "files" ? (
-              <FileTreePanel
-                folder={editor.folder}
-                searchQuery={showFileSearch ? fileSearchQuery : ""}
-                activeFilePath={snapshot.filePath}
-                onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
-                onOpenFile={(filePath) => void editor.openDocumentFromTree(filePath)}
-                onOpenAsset={(node) => editor.openAssetFromTree(node)}
-                onCreateTreeItem={(parentPath, kind, name) => void editor.createTreeItem(parentPath, kind, name)}
-                onRenameTreeItem={(node, name) => void editor.renameTreeItem(node, name)}
-                onDeleteTreeItem={(node) => void editor.deleteTreeItem(node)}
-                onContextMenuError={editor.showFileActionError}
-              />
+            {sidebarMode === "files" ? (
+              <FileTreePanel searchQuery={showFileSearch ? fileSearchQuery : ""} />
             ) : (
               <OutlinePanel
-                outline={editor.outline}
-                activeId={editor.activeOutlineId}
-                onJump={editor.jumpToTocItem}
+                outline={outline}
+                activeId={activeOutlineId}
+                onJump={jumpToTocItem}
               />
             )}
           </div>
           <DocumentBar
-            hasActiveDocument={editor.hasActiveDocument}
+            hasActiveDocument={hasActiveDocument}
             mode={snapshot.mode}
             onChangeMode={(mode) => {
               if (mode !== snapshot.mode) {
-                void editor.dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
+                void dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
               }
             }}
-            onOpenSettings={() => void editor.dispatchCommand("settings.open")}
+            onOpenSettings={() => void dispatchCommand("settings.open")}
           />
         </aside>
-        {editor.isSidebarVisible ? (
+        {isSidebarVisible ? (
           <SidebarResizeBoundary
             width={sidebarWidth}
             previewOffset={sidebarResizePreviewOffset}
@@ -248,7 +251,7 @@ function MainApp({
             onCommit={(width) => {
               setSidebarResizePreviewWidth(null);
               if (width < SIDEBAR_MIN_WIDTH) {
-                editor.setIsSidebarVisible(false);
+                setIsSidebarVisible(false);
                 return;
               }
               setSidebarWidth(clampSidebarWidth(width));
@@ -264,93 +267,45 @@ function MainApp({
             title={snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
             isDirty={snapshot.isDirty}
             isVisible={shouldShowOverlayTitleBar}
-            hasWindowControlsInset={!editor.isSidebarVisible}
+            hasWindowControlsInset={!isSidebarVisible}
             titleAlign="center"
             titleIcon="markdown"
             actions={
-              <EditorTitleBarControls
-                outline={editor.outline}
-                activeOutlineId={editor.activeOutlineId}
-                hasActiveDocument={editor.hasActiveDocument}
-                isSidebarVisible={editor.isSidebarVisible}
-                onJumpToOutlineItem={editor.jumpToTocItem}
-                onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
-                onRunUpdateAction={() => void editor.runEditorUpdateAction()}
-              />
+              <EditorTitleBarControls />
             }
           />
-          {!editor.isSidebarVisible ? (
+          {!isSidebarVisible ? (
             <CollapsedSidebarReveal
               hasTitleBar={shouldShowOverlayTitleBar}
-              onReveal={() => editor.setIsSidebarVisible(true)}
+              onReveal={() => setIsSidebarVisible(true)}
             />
           ) : null}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <EditorToast toast={toast} />
-            {!editor.hasActiveDocument && !editor.openedAsset ? (
+            {!hasActiveDocument && !openedAsset ? (
               <WelcomeState
-                recentFiles={editor.getRecentFiles()}
-                onNewDocument={() => void editor.dispatchCommand("file.new")}
-                onOpenDocument={() => void editor.dispatchCommand("file.open")}
-                onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
-                onOpenRecent={(path) => void editor.openRecentFile(path)}
+                recentFiles={getRecentFiles()}
+                onNewDocument={() => void dispatchCommand("file.new")}
+                onOpenDocument={() => void dispatchCommand("file.open")}
+                onOpenFolder={() => void dispatchCommand("file.openFolder")}
+                onOpenRecent={(path) => void openRecentFile(path)}
               />
-            ) : editor.openedAsset ? (
+            ) : openedAsset ? (
               <AssetPreview
-                asset={editor.openedAsset}
-                resolveAssetSrc={editor.resolveImageSrc}
-                onBack={editor.closeAssetPreview}
+                asset={openedAsset}
+                resolveAssetSrc={resolveImageSrc}
+                onBack={closeAssetPreview}
               />
             ) : snapshot.mode === "source" ? (
-              <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-                <SourceEditor
-                  snapshot={snapshot}
-                  target={editor.tocTarget}
-                  scrollTarget={
-                    editor.modeScrollTarget?.mode === "source"
-                      ? editor.modeScrollTarget.target
-                      : null
-                  }
-                  onChange={editor.commitMarkdown}
-                  onScrollRatioChange={editor.updateModeScrollRatio}
-                  onScrollTargetApplied={editor.completeModeScrollTarget}
-                  onVisibleLineChange={editor.updateActiveOutlineForLine}
-                />
-              </Suspense>
+              <DesktopSourceEditor />
             ) : (
-              <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-                <DesktopMilkdownEditor
-                  key={editor.documentKey}
-                  snapshot={snapshot}
-                  outline={editor.outline}
-                  target={editor.tocTarget}
-                  insertRequest={editor.mdxInsertRequest}
-                  aiSuggestionRequest={editor.aiSuggestionRequest}
-                  isAiSuggestionPending={editor.isAiSuggestionPending}
-                  aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
-                  onInsertRequestHandled={editor.clearMdxInsertRequest}
-                  onAiSuggestionRequest={editor.requestAiSuggestion}
-                  onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
-                  onAiSuggestionError={editor.handleAiSuggestionError}
-                  onChange={editor.commitMarkdown}
-                  onOpenLink={editor.openWysiwygLink}
-                  scrollTarget={
-                    editor.modeScrollTarget?.mode === "wysiwyg"
-                      ? editor.modeScrollTarget.target
-                      : null
-                  }
-                  onScrollRatioChange={editor.updateModeScrollRatio}
-                  onScrollTargetApplied={editor.completeModeScrollTarget}
-                  onActiveOutlineChange={editor.setActiveOutlineId}
-                  resolveImageSrc={editor.resolveImageSrc}
-                />
-              </Suspense>
+              <DesktopMilkdownEditor showToast={showToast} />
             )}
-            {editor.pendingAction ? (
+            {pendingAction ? (
               <EditorLoadingState
                 title={GLOBAL_LOADING_TITLE}
                 description={pendingActionDescription}
-                ariaLabel={editor.pendingAction}
+                ariaLabel={pendingAction}
                 isOverlay
               />
             ) : null}
@@ -358,16 +313,9 @@ function MainApp({
         </section>
       </div>
       <ConfirmActionDialog
-        confirmation={editor.confirmation}
-        onResolve={editor.resolveConfirmation}
+        confirmation={confirmation}
+        onResolve={resolveConfirmation}
       />
-      {editor.isMdxComponentMenuOpen ? (
-        <MdxComponentMenu
-          plugins={editor.mdxComponentPlugins}
-          onInsert={editor.insertMdxComponent}
-          onClose={editor.closeMdxComponentMenu}
-        />
-      ) : null}
     </main>
   );
 }
@@ -512,204 +460,6 @@ function AppTitleBar({
   );
 }
 
-function DesktopMilkdownEditor(props: Omit<React.ComponentProps<typeof MilkdownEditor>, "showCodeBlockLineNumbers" | "wysiwygFontSize">) {
-  const { settings } = useAppSettings();
-  return (
-    <MilkdownEditor
-      {...props}
-      showCodeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
-      wysiwygFontSize={settings.editor.wysiwygFontSize}
-    />
-  );
-}
-
-function EditorTitleBarControls({
-  activeOutlineId,
-  hasActiveDocument,
-  isSidebarVisible,
-  onJumpToOutlineItem,
-  onRunUpdateAction,
-  onToggleSidebar,
-  outline,
-}: {
-  readonly activeOutlineId: string | null;
-  readonly hasActiveDocument: boolean;
-  readonly isSidebarVisible: boolean;
-  readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
-  readonly onRunUpdateAction: () => void;
-  readonly onToggleSidebar: () => void;
-  readonly outline: readonly {
-    readonly id: string;
-    readonly level: number;
-    readonly text: string;
-    readonly line: number;
-  }[];
-}) {
-  const { updateStatus } = useAppSettings();
-  const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);
-  const isUpdateActionBusy = isUpdateActionBusy_(updateStatus);
-  const updateActionLabel = editorUpdateActionLabel(updateStatus);
-  const [metricKind, setMetricKind] = useState<DocumentMetricKind>("words");
-  const { markdown } = useDocumentSnapshot();
-  const metrics = useMemo(() => calculateDocumentMetrics(markdown), [markdown]);
-  return (
-    <div className="group/titlebar-controls flex h-[30px] items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
-      {showUpdateAction ? (
-        <button
-          type="button"
-          className="h-[22px] cursor-pointer rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white shadow-[0_1px_0_rgba(0,0,0,0.12)] hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
-          onClick={onRunUpdateAction}
-          disabled={isUpdateActionBusy}
-        >
-          {updateActionLabel}
-        </button>
-      ) : null}
-      {hasActiveDocument ? (
-        <>
-          <DocumentMetricMenu
-            metricKind={metricKind}
-            metrics={metrics}
-            onMetricKindChange={setMetricKind}
-          />
-          <OutlinePopover
-            outline={outline}
-            activeOutlineId={activeOutlineId}
-            onJumpToOutlineItem={onJumpToOutlineItem}
-          />
-        </>
-      ) : null}
-      <button
-        type="button"
-        className={titleBarSecondaryButtonClassName}
-        aria-label={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
-        title={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
-        onClick={onToggleSidebar}
-      >
-        <RectangleGroupIcon aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
-
-function DocumentMetricMenu({
-  metricKind,
-  metrics,
-  onMetricKindChange
-}: {
-  readonly metricKind: DocumentMetricKind;
-  readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
-  readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
-}) {
-  return (
-    <Menu as="div" className="relative">
-      <MenuButton className="flex h-[28px] min-w-[76px] items-center justify-center gap-1 rounded-[5px] border-0 bg-transparent px-2 text-[13px] font-medium leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]">
-        <span>{getDocumentMetricLabel(metricKind, metrics)}</span>
-        <ChevronUpDownIcon className="size-3.5 shrink-0 stroke-[1.5]" aria-hidden="true" />
-      </MenuButton>
-      <MenuItems
-        anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[0_14px_44px_rgba(0,0,0,0.16)] outline-none backdrop-blur-xl"
-      >
-        {documentMetricOptions.map((option) => (
-          <MenuItem key={option.kind}>
-            {({ focus }) => (
-              <button
-                type="button"
-                className={cx(
-                  "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
-                  focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
-                  metricKind === option.kind && "font-[560] text-[var(--theme-title)]"
-                )}
-                onClick={() => onMetricKindChange(option.kind)}
-              >
-                <span>{option.label}</span>
-                <span className="text-[12px] text-[var(--theme-muted)]">
-                  {getDocumentMetricLabel(option.kind, metrics)}
-                </span>
-              </button>
-            )}
-          </MenuItem>
-        ))}
-      </MenuItems>
-    </Menu>
-  );
-}
-
-function OutlinePopover({
-  activeOutlineId,
-  onJumpToOutlineItem,
-  outline
-}: {
-  readonly activeOutlineId: string | null;
-  readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
-  readonly outline: readonly {
-    readonly id: string;
-    readonly level: number;
-    readonly text: string;
-    readonly line: number;
-  }[];
-}) {
-  return (
-    <Popover className="relative">
-      {({ close }) => (
-        <>
-          <PopoverButton
-            className={titleBarSecondaryButtonClassName}
-            aria-label="打开大纲浮层"
-            title="大纲"
-          >
-            <ListBulletIcon aria-hidden="true" />
-          </PopoverButton>
-          <PopoverPanel
-            anchor={{ to: "bottom end", gap: 12, padding: 12 }}
-            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] text-[var(--theme-text)] shadow-[0_18px_56px_rgba(0,0,0,0.18)] outline-none backdrop-blur-xl"
-          >
-            <span
-              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)]"
-              aria-hidden="true"
-            />
-            <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
-              <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">大纲</h2>
-            </div>
-            {outline.length === 0 ? (
-              <p className="m-0 px-4 py-5 text-[13px] leading-5 text-[var(--theme-control-subtle)]">
-                当前文档没有标题。
-              </p>
-            ) : (
-              <nav className="max-h-[min(420px,calc(100vh_-_120px))] overflow-auto p-2" aria-label="文章大纲">
-                {outline.map((item) => {
-                  const active = item.id === activeOutlineId;
-
-                  return (
-                    <button
-                      type="button"
-                      key={`${item.id}-${item.line}`}
-                      className={cx(
-                        "flex min-h-8 w-full items-center rounded-[6px] border-0 bg-transparent py-1 pr-2 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
-                        active && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
-                      )}
-                      style={{ paddingLeft: 10 + (item.level - 1) * 14 }}
-                      title={item.text}
-                      aria-current={active ? "location" : undefined}
-                      onClick={() => {
-                        onJumpToOutlineItem({ line: item.line, level: item.level, text: item.text });
-                        close();
-                      }}
-                    >
-                      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-                        {item.text}
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-            )}
-          </PopoverPanel>
-        </>
-      )}
-    </Popover>
-  );
-}
 
 function MarkdownTitleIcon() {
   return (
