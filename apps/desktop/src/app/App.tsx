@@ -1,9 +1,21 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuItems,
+  Popover,
+  PopoverButton,
+  PopoverPanel
+} from "@headlessui/react";
+import {
+  ChevronUpDownIcon,
   ChevronRightIcon,
   FolderIcon,
+  ListBulletIcon,
   MagnifyingGlassIcon,
-  QueueListIcon
+  QueueListIcon,
+  RectangleGroupIcon
 } from "@heroicons/react/24/outline";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -21,6 +33,11 @@ import { SettingsPage } from "../components/SettingsDialog";
 import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+import {
+  calculateDocumentMetrics,
+  getDocumentMetricLabel,
+  type DocumentMetricKind
+} from "./document-metrics";
 import { useSettingsController } from "./controller/useSettingsController";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
 
@@ -43,6 +60,7 @@ export function App() {
   const editor = useDesktopEditorController();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [documentMetricKind, setDocumentMetricKind] = useState<DocumentMetricKind>("words");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
@@ -55,6 +73,10 @@ export function App() {
   const pendingActionDescription = getLoadingDescription(editor.pendingAction);
   const sidebarResizePreviewOffset =
     sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
+  const documentMetrics = useMemo(
+    () => calculateDocumentMetrics(editor.snapshot.markdown),
+    [editor.snapshot.markdown]
+  );
 
   // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
   if (editor.isSettingsOpen) {
@@ -255,6 +277,20 @@ export function App() {
             hasWindowControlsInset={!editor.isSidebarVisible}
             titleAlign="center"
             titleIcon="markdown"
+            actions={
+              editor.hasActiveDocument ? (
+                <EditorTitleBarControls
+                  metricKind={documentMetricKind}
+                  metrics={documentMetrics}
+                  outline={editor.outline}
+                  activeOutlineId={editor.activeOutlineId}
+                  isSidebarVisible={editor.isSidebarVisible}
+                  onMetricKindChange={setDocumentMetricKind}
+                  onJumpToOutlineItem={editor.jumpToTocItem}
+                  onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
+                />
+              ) : null
+            }
           />
           {!editor.isSidebarVisible ? (
             <CollapsedSidebarReveal
@@ -481,6 +517,7 @@ function SettingsWindowApp() {
 }
 
 function AppTitleBar({
+  actions,
   title,
   hasWindowControlsInset = false,
   isDirty = false,
@@ -488,6 +525,7 @@ function AppTitleBar({
   titleAlign = "start",
   titleIcon
 }: {
+  readonly actions?: ReactNode;
   readonly title?: string;
   readonly hasWindowControlsInset?: boolean;
   readonly isDirty?: boolean;
@@ -503,7 +541,7 @@ function AppTitleBar({
     <div
       data-tauri-drag-region
       className={cx(
-        "h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
+        "relative h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
         titleAlign === "center"
           ? "grid items-center"
           : "flex items-center pr-4",
@@ -535,7 +573,185 @@ function AppTitleBar({
           </span>
         </span>
       ) : null}
+      {actions ? (
+        <div
+          className="absolute right-2 top-1/2 z-10 -translate-y-1/2"
+          onMouseDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          {actions}
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function EditorTitleBarControls({
+  activeOutlineId,
+  isSidebarVisible,
+  metricKind,
+  metrics,
+  onJumpToOutlineItem,
+  onMetricKindChange,
+  onToggleSidebar,
+  outline
+}: {
+  readonly activeOutlineId: string | null;
+  readonly isSidebarVisible: boolean;
+  readonly metricKind: DocumentMetricKind;
+  readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
+  readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
+  readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
+  readonly onToggleSidebar: () => void;
+  readonly outline: readonly {
+    readonly id: string;
+    readonly level: number;
+    readonly text: string;
+    readonly line: number;
+  }[];
+}) {
+  return (
+    <div className="group/titlebar-controls flex h-[30px] items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
+      <DocumentMetricMenu
+        metricKind={metricKind}
+        metrics={metrics}
+        onMetricKindChange={onMetricKindChange}
+      />
+      <OutlinePopover
+        outline={outline}
+        activeOutlineId={activeOutlineId}
+        onJumpToOutlineItem={onJumpToOutlineItem}
+      />
+      <button
+        type="button"
+        className={titleBarSecondaryButtonClassName}
+        aria-label={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
+        title={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
+        onClick={onToggleSidebar}
+      >
+        <RectangleGroupIcon aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+function DocumentMetricMenu({
+  metricKind,
+  metrics,
+  onMetricKindChange
+}: {
+  readonly metricKind: DocumentMetricKind;
+  readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
+  readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
+}) {
+  return (
+    <Menu as="div" className="relative">
+      <MenuButton className="flex h-[28px] min-w-[76px] items-center justify-center gap-1 rounded-[5px] border-0 bg-transparent px-2 text-[13px] font-medium leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]">
+        <span>{getDocumentMetricLabel(metricKind, metrics)}</span>
+        <ChevronUpDownIcon className="size-3.5 shrink-0 stroke-[1.5]" aria-hidden="true" />
+      </MenuButton>
+      <MenuItems
+        anchor={{ to: "bottom end", gap: 6, padding: 8 }}
+        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[0_14px_44px_rgba(0,0,0,0.16)] outline-none backdrop-blur-xl"
+      >
+        {documentMetricOptions.map((option) => (
+          <MenuItem key={option.kind}>
+            {({ focus }) => (
+              <button
+                type="button"
+                className={cx(
+                  "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                  focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+                  metricKind === option.kind && "font-[560] text-[var(--theme-title)]"
+                )}
+                onClick={() => onMetricKindChange(option.kind)}
+              >
+                <span>{option.label}</span>
+                <span className="text-[12px] text-[var(--theme-muted)]">
+                  {getDocumentMetricLabel(option.kind, metrics)}
+                </span>
+              </button>
+            )}
+          </MenuItem>
+        ))}
+      </MenuItems>
+    </Menu>
+  );
+}
+
+function OutlinePopover({
+  activeOutlineId,
+  onJumpToOutlineItem,
+  outline
+}: {
+  readonly activeOutlineId: string | null;
+  readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
+  readonly outline: readonly {
+    readonly id: string;
+    readonly level: number;
+    readonly text: string;
+    readonly line: number;
+  }[];
+}) {
+  return (
+    <Popover className="relative">
+      {({ close }) => (
+        <>
+          <PopoverButton
+            className={titleBarSecondaryButtonClassName}
+            aria-label="打开大纲浮层"
+            title="大纲"
+          >
+            <ListBulletIcon aria-hidden="true" />
+          </PopoverButton>
+          <PopoverPanel
+            anchor={{ to: "bottom end", gap: 12, padding: 12 }}
+            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] text-[var(--theme-text)] shadow-[0_18px_56px_rgba(0,0,0,0.18)] outline-none backdrop-blur-xl"
+          >
+            <span
+              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)]"
+              aria-hidden="true"
+            />
+            <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
+              <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">大纲</h2>
+            </div>
+            {outline.length === 0 ? (
+              <p className="m-0 px-4 py-5 text-[13px] leading-5 text-[var(--theme-control-subtle)]">
+                当前文档没有标题。
+              </p>
+            ) : (
+              <nav className="max-h-[min(420px,calc(100vh_-_120px))] overflow-auto p-2" aria-label="文章大纲">
+                {outline.map((item) => {
+                  const active = item.id === activeOutlineId;
+
+                  return (
+                    <button
+                      type="button"
+                      key={`${item.id}-${item.line}`}
+                      className={cx(
+                        "flex min-h-8 w-full items-center rounded-[6px] border-0 bg-transparent py-1 pr-2 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
+                        active && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
+                      )}
+                      style={{ paddingLeft: 10 + (item.level - 1) * 14 }}
+                      title={item.text}
+                      aria-current={active ? "location" : undefined}
+                      onClick={() => {
+                        onJumpToOutlineItem({ line: item.line, level: item.level, text: item.text });
+                        close();
+                      }}
+                    >
+                      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+                        {item.text}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+            )}
+          </PopoverPanel>
+        </>
+      )}
+    </Popover>
   );
 }
 
@@ -703,6 +919,18 @@ function SidebarResizeHandle({
 
 const sidebarHeaderIconButtonClassName =
   "grid size-[30px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+
+const titleBarSecondaryButtonClassName =
+  "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+
+const documentMetricOptions: readonly {
+  readonly kind: DocumentMetricKind;
+  readonly label: string;
+}[] = [
+  { kind: "words", label: "词数" },
+  { kind: "lines", label: "行数" },
+  { kind: "characters", label: "字符数" }
+];
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
