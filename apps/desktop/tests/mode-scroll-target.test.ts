@@ -5,7 +5,6 @@ import {
   createModeScrollTarget
 } from "../src/app/controller/mode-scroll-target";
 
-const appSource = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
 const controllerSource = readFileSync(
   new URL("../src/app/controller/useDesktopEditorController.ts", import.meta.url),
   "utf8"

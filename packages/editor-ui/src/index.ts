@@ -8,6 +8,17 @@ export {
   type ConfirmActionDialogProps
 } from "./components/ConfirmActionDialog";
 export { DocumentBar, type DocumentBarProps } from "./components/DocumentBar";
+export type {
+  AiSuggestionRequest,
+  MarkdownInsertRequest,
+  MdxComponentMenuRenderProps,
+  MilkdownEditorCommandHandlers,
+  MilkdownEditorMdxAiOptions,
+  MilkdownEditorPrimitiveProps,
+  MilkdownEditorProps
+} from "./components/MilkdownEditor";
 export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./components/OutlinePanel";
+export type { SourceEditorProps } from "./components/SourceEditor";
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
+export * from "./hooks";
 export type { EditorScrollTarget, SourceEditorView, TocTarget } from "./types";

@@ -29,11 +29,13 @@ import {
   createModeScrollTarget,
 } from "./mode-scroll-target";
 import { recentFilesStore } from "./recent-files-store";
-import { useConfirmationController } from "./useConfirmationController";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { useFileActionController } from "./useFileActionController";
 import { useFileTreeController } from "./useFileTreeController";
-import { useOutlineController } from "./useOutlineController";
+import {
+  useConfirmationController,
+  useFileActionController,
+  useOutlineController
+} from "@md-editor/editor-ui";
 import {
   isUpdateActionBusy,
   shouldShowEditorUpdateAction
@@ -82,11 +84,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     }));
   }, []);
 
-  const setEditorRevision = useCallback((value: number | ((prev: number) => number)) => {
-    // editorRevision is tracked locally via a ref to compute documentKey
-    // We update the store's documentKey directly
-  }, []);
-
   // documentKey: computed from filePath + revision, managed via ref
   const editorRevisionRef = useRef(0);
   const setEditorRevisionAndKey = useCallback((value: number | ((prev: number) => number)) => {
@@ -108,7 +105,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
   const fileAction = useFileActionController({ showToast });
 
   const fileTree = useFileTreeController({
-    clearMdxInsertRequest: () => {},
     requestConfirmation: confirmation.requestConfirmation,
     runFileAction: fileAction.runFileAction,
     setIsSidebarVisible,
@@ -116,7 +112,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
   });
 
   const docActions = useDocumentActionsController({
-    clearMdxInsertRequest: () => {},
     refreshFolderForDocumentPath: fileTree.refreshFolderForDocumentPath,
     requestConfirmation: confirmation.requestConfirmation,
     runFileAction: fileAction.runFileAction,

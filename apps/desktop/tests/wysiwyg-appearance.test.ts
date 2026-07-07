@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const appSource = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
 const appearancePanelSource = readFileSync(
   new URL("../src/components/settings/AppearanceSettingsPanel.tsx", import.meta.url),
   "utf8"

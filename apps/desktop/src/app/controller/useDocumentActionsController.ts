@@ -3,7 +3,7 @@ import {
   switchEditorModeSafely,
   type EditorMode
 } from "@md-editor/editor-core";
-import type { ConfirmationChoice, ConfirmationState } from "@md-editor/editor-ui";
+import type { ConfirmationChoice, ConfirmationState, RunFileAction } from "@md-editor/editor-ui";
 import type { MarkdownDocumentFile, MarkdownFolder } from "@md-editor/file-system";
 import { fileService } from "../../desktop/file-service";
 import type { OpenedAsset } from "../../types";
@@ -11,10 +11,8 @@ import { findFirstMarkdownPath } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
-import type { RunFileAction } from "./useFileActionController";
 
 interface UseDocumentActionsControllerOptions {
-  readonly clearMdxInsertRequest: (id?: number) => void;
   readonly refreshFolderForDocumentPath: (documentPath: string) => Promise<void>;
   readonly requestConfirmation: (confirmation: ConfirmationState) => Promise<ConfirmationChoice>;
   readonly runFileAction: RunFileAction;
@@ -26,7 +24,6 @@ interface UseDocumentActionsControllerOptions {
 }
 
 export function useDocumentActionsController({
-  clearMdxInsertRequest,
   refreshFolderForDocumentPath,
   requestConfirmation,
   runFileAction,
@@ -78,19 +75,19 @@ export function useDocumentActionsController({
       return;
     }
 
-    clearMdxInsertRequest();
     runtime.document.updateMarkdown(document.markdown);
     runtime.document.markSaved({
       markdown: document.markdown,
       filePath: document.filePath
     });
+    setEditorRevision((current) => current + 1);
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
     rememberRecentDocument(document);
   }, [
-    clearMdxInsertRequest,
     rememberRecentDocument,
+    setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
     showToast
@@ -98,7 +95,6 @@ export function useDocumentActionsController({
 
   const startBlankDocument = useCallback(() => {
     const markdown = "";
-    clearMdxInsertRequest();
     runtime.document.updateMarkdown(markdown);
     runtime.document.markSaved({ markdown, filePath: null });
     setEditorRevision((current) => current + 1);
@@ -106,7 +102,6 @@ export function useDocumentActionsController({
     setOpenedAsset(null);
     setHasActiveDocument(true);
   }, [
-    clearMdxInsertRequest,
     setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
@@ -192,18 +187,18 @@ export function useDocumentActionsController({
     }
 
     const nextDocument = fileService.newDocument("");
-    clearMdxInsertRequest();
     runtime.document.updateMarkdown(nextDocument.markdown);
     runtime.document.markSaved({
       markdown: nextDocument.markdown,
       filePath: nextDocument.filePath
     });
+    setEditorRevision((current) => current + 1);
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
   }, [
-    clearMdxInsertRequest,
     ensureDiscardAllowed,
+    setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
     showToast

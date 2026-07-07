@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from "react";
 import {
   Editor,
   defaultValueCtx,
@@ -17,8 +25,10 @@ import { Slice } from "@milkdown/kit/prose/model";
 import { SparklesIcon } from "@heroicons/react/24/outline";
 import type {
   AiCompletionContext,
+  AiSettings,
   AiWritingSuggestion,
-  DocumentSnapshot
+  DocumentSnapshot,
+  EditorMode
 } from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
@@ -38,6 +48,7 @@ import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
 import { imeCompositionGuardPlugin } from "../utils/ime-composition-guard";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
+import { useMdxAiController, type MdxSnippetPlugin } from "../hooks/useMdxAiController";
 import type { OutlineItem } from "./OutlinePanel";
 import type { EditorScrollTarget, TocTarget } from "../types";
 import "./MilkdownEditor.css";
@@ -46,7 +57,47 @@ const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
 const WYSIWYG_FONT_SIZE_MIN = 13;
 const WYSIWYG_FONT_SIZE_MAX = 22;
 
-export interface MilkdownEditorProps {
+export interface MilkdownEditorCommandHandlers {
+  readonly openMdxComponentMenu: () => void;
+  readonly continueAiWriting: () => Promise<void>;
+}
+
+export interface MdxComponentMenuRenderProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> {
+  readonly plugins: readonly TPlugin[];
+  readonly onInsert: (plugin: TPlugin) => void;
+  readonly onClose: () => void;
+}
+
+export interface MilkdownEditorMdxAiOptions<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> {
+  readonly aiSettings: AiSettings;
+  readonly getEditorMode: () => EditorMode;
+  readonly showToast: (message: string | null) => void;
+  readonly getMdxComponentPlugins: () => readonly TPlugin[];
+  readonly getAiCompletionReadiness: (settings: AiSettings) => string | null;
+  readonly requestAiCompletion: (
+    settings: AiSettings,
+    context: AiCompletionContext,
+    request?: { readonly signal?: AbortSignal }
+  ) => Promise<AiWritingSuggestion>;
+}
+
+export interface MilkdownEditorProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> extends Omit<
+  MilkdownEditorPrimitiveProps,
+  | "insertRequest"
+  | "aiSuggestionRequest"
+  | "isAiSuggestionPending"
+  | "aiAutoSuggestionsEnabled"
+  | "onInsertRequestHandled"
+  | "onAiSuggestionRequest"
+  | "onAiSuggestionRequestHandled"
+  | "onAiSuggestionError"
+> {
+  readonly mdxAi: MilkdownEditorMdxAiOptions<TPlugin>;
+  readonly onEditorCommandsChange?: (commands: MilkdownEditorCommandHandlers) => void;
+  readonly renderMdxComponentMenu?: (props: MdxComponentMenuRenderProps<TPlugin>) => ReactNode;
+}
+
+export interface MilkdownEditorPrimitiveProps {
   readonly snapshot: DocumentSnapshot;
   readonly outline?: readonly OutlineItem[];
   readonly target: TocTarget | null;
@@ -82,15 +133,63 @@ export interface AiSuggestionRequest {
   readonly signal?: AbortSignal;
 }
 
-export function MilkdownEditor(props: MilkdownEditorProps) {
+const emptyMilkdownEditorCommands: MilkdownEditorCommandHandlers = {
+  openMdxComponentMenu: () => {},
+  continueAiWriting: async () => {}
+};
+
+export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin>({
+  mdxAi,
+  onEditorCommandsChange,
+  renderMdxComponentMenu,
+  ...primitiveInput
+}: MilkdownEditorProps<TPlugin>) {
+  const mdxController = useMdxAiController<TPlugin>(mdxAi);
+
+  useLayoutEffect(() => {
+    onEditorCommandsChange?.({
+      openMdxComponentMenu: mdxController.openMdxComponentMenu,
+      continueAiWriting: mdxController.continueAiWriting
+    });
+
+    return () => {
+      onEditorCommandsChange?.(emptyMilkdownEditorCommands);
+    };
+  }, [
+    mdxController.continueAiWriting,
+    mdxController.openMdxComponentMenu,
+    onEditorCommandsChange
+  ]);
+
+  const primitiveProps: MilkdownEditorPrimitiveProps = {
+    ...primitiveInput,
+    insertRequest: mdxController.mdxInsertRequest,
+    aiSuggestionRequest: mdxController.aiSuggestionRequest,
+    isAiSuggestionPending: mdxController.isAiSuggestionPending,
+    aiAutoSuggestionsEnabled: mdxController.isAiCompletionReady,
+    onInsertRequestHandled: mdxController.clearMdxInsertRequest,
+    onAiSuggestionRequest: mdxController.requestAiSuggestion,
+    onAiSuggestionRequestHandled: mdxController.clearAiSuggestionRequest,
+    onAiSuggestionError: mdxController.handleAiSuggestionError
+  };
+
   return (
-    <MilkdownProvider>
-      <MilkdownEditorInner {...props} />
-    </MilkdownProvider>
+    <>
+      <MilkdownProvider>
+        <MilkdownEditorPrimitive {...primitiveProps} />
+      </MilkdownProvider>
+      {mdxController.isMdxComponentMenuOpen && renderMdxComponentMenu
+        ? renderMdxComponentMenu({
+          plugins: mdxController.mdxComponentPlugins,
+          onInsert: mdxController.insertMdxComponent,
+          onClose: mdxController.closeMdxComponentMenu
+        })
+        : null}
+    </>
   );
 }
 
-function MilkdownEditorInner({
+function MilkdownEditorPrimitive({
   snapshot,
   outline = [],
   target,
@@ -111,7 +210,9 @@ function MilkdownEditorInner({
   onScrollTargetApplied,
   onActiveOutlineChange,
   resolveImageSrc = (src) => src
-}: MilkdownEditorProps) {
+}: MilkdownEditorPrimitiveProps) {
+  // Milkdown owns document state after mount. Hosts must remount this primitive
+  // for document replacement so preview image/raw-block maps stay aligned.
   const previewInput = useMemo(
     () => {
       const rawPreview = rewriteRawBlocksForPreview(snapshot.markdown);
@@ -482,7 +583,6 @@ function MilkdownEditorInner({
     const rawPreview = rewriteRawBlocksForPreview(insertRequest.markdown);
     rawSourceMapRef.current = [...rawSourceMapRef.current, ...rawPreview.sourceMap];
 
-    let didInsert = false;
     editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
       const parser = ctx.get(parserCtx);
@@ -507,7 +607,6 @@ function MilkdownEditorInner({
 
       view.dispatch(transaction.setSelection(nextSelection).scrollIntoView());
       selectionBookmarkRef.current = nextSelection.getBookmark();
-      didInsert = true;
       requestAnimationFrame(() => view.focus());
     });
     // Once the loaded editor has attempted this request, the host should drop

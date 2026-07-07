@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import type { TocTarget } from "@md-editor/editor-ui";
 import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
+import type { TocTarget } from "../types";
 
 interface UseOutlineControllerOptions {
   readonly markdown: string;
