@@ -1,111 +1,66 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
-import type { AiSettings } from "@md-editor/editor-core";
-import type {
-  AppSettings,
-  EditorDisplaySettings,
-  AppThemeSettings,
-  AppUpdateSettings,
-  UpdateStatus
-} from "../app/settings/app-settings";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isComposingKeyboardEvent } from "../lib/keyboard";
+import { useAppSettings } from "../app/settings-context";
+import { useSettingsController } from "../app/controller/useSettingsController";
+import { useToast } from "../app/controller/useToast";
+import { EditorToast } from "../app/App";
 import { AiSettingsPanel } from "./settings/AiSettingsPanel";
 import { AppearanceSettingsPanel } from "./settings/AppearanceSettingsPanel";
 import { OtherSettingsPanel } from "./settings/OtherSettingsPanel";
 import { ShortcutSettingsPanel } from "./settings/ShortcutSettingsPanel";
 import { settingsDescriptionClassName } from "./settings/settingsStyles";
 
-export interface SettingsPageProps {
-  readonly settings: AppSettings;
-  readonly updateStatus: UpdateStatus;
-  readonly shortcutDrafts: Readonly<Record<string, string>>;
-  readonly assetsDirectoryDraft: string;
-  readonly editorSettingsDraft: EditorDisplaySettings;
-  readonly themeDraft: AppThemeSettings;
-  readonly aiSettingsDraft: AiSettings;
-  readonly updateSettingsDraft: AppUpdateSettings;
-  readonly isLocalModelActionPending: boolean;
-  readonly errorMessage: string | null;
-  readonly isSaving: boolean;
-  readonly isCheckingForUpdates: boolean;
-  readonly onCaptureShortcut: (id: string, key: string) => void;
-  readonly onResetShortcut: (id: string) => void;
-  readonly onChangeAssetsDirectory: (value: string) => void;
-  readonly onChangeEditorSettings: (value: EditorDisplaySettings) => void;
-  readonly onChangeTheme: (value: AppThemeSettings) => void;
-  readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
-  readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
-  readonly onClearThemeCss: (scheme: "light" | "dark") => void;
-  readonly onChangeAiSettings: (value: AiSettings) => void;
-  readonly onDownloadLocalModel: () => void;
-  readonly onCancelLocalModelDownload: () => void;
-  readonly onDeleteLocalModel: () => void;
-  readonly onSave: () => void;
-  readonly onClose: () => void;
-  readonly onCheckForUpdates: () => void;
-  readonly onInstallUpdate: () => void;
-  readonly onRelaunchAfterUpdate: () => void;
+interface SettingsPageProps {
+  // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
+  readonly surface?: "main" | "settings-window";
   readonly onStartWindowDrag?: (event: MouseEvent<HTMLElement>) => void;
 }
 
-export function SettingsPage({
-  settings,
-  updateStatus,
-  shortcutDrafts,
-  assetsDirectoryDraft,
-  editorSettingsDraft,
-  themeDraft,
-  aiSettingsDraft,
-  updateSettingsDraft,
-  isLocalModelActionPending,
-  errorMessage,
-  isSaving,
-  isCheckingForUpdates,
-  onCaptureShortcut,
-  onResetShortcut,
-  onChangeAssetsDirectory,
-  onChangeEditorSettings,
-  onChangeTheme,
-  onChangeUpdateSettings,
-  onChooseThemeCss,
-  onClearThemeCss,
-  onChangeAiSettings,
-  onDownloadLocalModel,
-  onCancelLocalModelDownload,
-  onDeleteLocalModel,
-  onSave,
-  onClose,
-  onCheckForUpdates,
-  onInstallUpdate,
-  onRelaunchAfterUpdate,
-  onStartWindowDrag
-}: SettingsPageProps) {
+export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPageProps) {
+  const { settings, updateStatus, relaunchUpdate } = useAppSettings();
+  const { toast, showToast } = useToast();
+  const ctrl = useSettingsController({ showToast, surface });
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
+  // settings-window：监听原生关闭按钮，回滚主题预览后再销毁窗口
   useEffect(() => {
-    const closeOnPlainEscape = (event: globalThis.KeyboardEvent) => {
+    if (surface !== "settings-window" || !isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void getCurrentWindow()
+      .onCloseRequested((event) => {
+        event.preventDefault();
+        void ctrl.destroySettingsWindowAfterRollback().catch((error: unknown) => {
+          console.warn("设置窗口关闭回滚失败", error);
+        });
+      })
+      .then((dispose) => {
+        if (disposed) { dispose(); return; }
+        unlisten = dispose;
+      });
+    return () => { disposed = true; unlisten?.(); };
+  }, [ctrl.destroySettingsWindowAfterRollback, surface]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (
         event.key !== "Escape" ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.altKey ||
-        event.shiftKey ||
+        event.metaKey || event.ctrlKey || event.altKey || event.shiftKey ||
         isComposingKeyboardEvent(event)
-      ) {
-        return;
-      }
-
+      ) return;
       event.preventDefault();
       event.stopPropagation();
-      onClose();
+      ctrl.closeSettings();
     };
+    window.addEventListener("keydown", closeOnEscape, { capture: true });
+    return () => window.removeEventListener("keydown", closeOnEscape, { capture: true });
+  }, [ctrl.closeSettings]);
 
-    window.addEventListener("keydown", closeOnPlainEscape, { capture: true });
-    return () => window.removeEventListener("keydown", closeOnPlainEscape, { capture: true });
-  }, [onClose]);
-
-  const settingsTabs: readonly SettingsTabDefinition[] = useMemo(
+  const tabs = useMemo(
     () => [
       {
         id: "shortcuts",
@@ -114,9 +69,9 @@ export function SettingsPage({
         panel: (
           <ShortcutSettingsPanel
             shortcuts={settings.shortcuts}
-            shortcutDrafts={shortcutDrafts}
-            onCaptureShortcut={onCaptureShortcut}
-            onResetShortcut={onResetShortcut}
+            shortcutDrafts={ctrl.shortcutDrafts}
+            onCaptureShortcut={ctrl.captureShortcutDraft}
+            onResetShortcut={ctrl.resetShortcutDraft}
           />
         )
       },
@@ -126,12 +81,12 @@ export function SettingsPage({
         description: "续写、修复和模型",
         panel: (
           <AiSettingsPanel
-            aiSettingsDraft={aiSettingsDraft}
-            isLocalModelActionPending={isLocalModelActionPending}
-            onChangeAiSettings={onChangeAiSettings}
-            onDownloadLocalModel={onDownloadLocalModel}
-            onCancelLocalModelDownload={onCancelLocalModelDownload}
-            onDeleteLocalModel={onDeleteLocalModel}
+            aiSettingsDraft={ctrl.aiSettingsDraft}
+            isLocalModelActionPending={ctrl.isLocalModelActionPending}
+            onChangeAiSettings={ctrl.setAiSettingsDraft}
+            onDownloadLocalModel={ctrl.downloadLocalModel}
+            onCancelLocalModelDownload={ctrl.cancelLocalModelDownload}
+            onDeleteLocalModel={ctrl.deleteLocalModel}
           />
         )
       },
@@ -141,12 +96,12 @@ export function SettingsPage({
         description: "主题和编辑显示",
         panel: (
           <AppearanceSettingsPanel
-            editorSettingsDraft={editorSettingsDraft}
-            themeDraft={themeDraft}
-            onChangeEditorSettings={onChangeEditorSettings}
-            onChangeTheme={onChangeTheme}
-            onChooseThemeCss={onChooseThemeCss}
-            onClearThemeCss={onClearThemeCss}
+            editorSettingsDraft={ctrl.editorSettingsDraft}
+            themeDraft={ctrl.themeDraft}
+            onChangeEditorSettings={ctrl.setEditorSettingsDraft}
+            onChangeTheme={ctrl.setThemeDraft}
+            onChooseThemeCss={ctrl.chooseThemeCss}
+            onClearThemeCss={ctrl.clearThemeCss}
           />
         )
       },
@@ -156,49 +111,30 @@ export function SettingsPage({
         description: "图片目录和版本",
         panel: (
           <OtherSettingsPanel
-            assetsDirectoryDraft={assetsDirectoryDraft}
+            assetsDirectoryDraft={ctrl.assetsDirectoryDraft}
             updateStatus={updateStatus}
-            updateSettingsDraft={updateSettingsDraft}
-            isCheckingForUpdates={isCheckingForUpdates}
-            onChangeAssetsDirectory={onChangeAssetsDirectory}
-            onChangeUpdateSettings={onChangeUpdateSettings}
-            onCheckForUpdates={onCheckForUpdates}
-            onInstallUpdate={onInstallUpdate}
-            onRelaunchAfterUpdate={onRelaunchAfterUpdate}
+            updateSettingsDraft={ctrl.updateSettingsDraft}
+            isCheckingForUpdates={updateStatus.state === "checking"}
+            onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
+            onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
+            onCheckForUpdates={() => void ctrl.runUpdateCheck()}
+            onInstallUpdate={() => void ctrl.installUpdate()}
+            onRelaunchAfterUpdate={() => void relaunchUpdate()}
           />
         )
       }
     ],
-    [
-      aiSettingsDraft,
-      assetsDirectoryDraft,
-      editorSettingsDraft,
-      isCheckingForUpdates,
-      isLocalModelActionPending,
-      onCancelLocalModelDownload,
-      onCaptureShortcut,
-      onChangeAiSettings,
-      onChangeAssetsDirectory,
-      onChangeEditorSettings,
-      onChangeTheme,
-      onCheckForUpdates,
-      onChooseThemeCss,
-      onClearThemeCss,
-      onDeleteLocalModel,
-      onDownloadLocalModel,
-      onInstallUpdate,
-      onRelaunchAfterUpdate,
-      onResetShortcut,
-      settings.shortcuts,
-      shortcutDrafts,
-      themeDraft,
-      updateStatus,
-      updateSettingsDraft
-    ]
+    [ctrl, relaunchUpdate, settings.shortcuts, updateStatus]
   );
 
   return (
-    <section className="flex h-full min-h-0 w-full flex-col bg-[var(--theme-surface)] text-[var(--theme-text)]" aria-labelledby="settings-title">
+    <section
+      className="flex h-full min-h-0 w-full flex-col bg-[var(--theme-surface)] text-[var(--theme-text)]"
+      aria-labelledby="settings-title"
+    >
+      {/* toast 只在独立设置窗口中显示，主窗口内嵌模式共用主窗口 toast */}
+      {surface === "settings-window" ? <EditorToast toast={toast} /> : null}
+
       <header
         data-tauri-drag-region={onStartWindowDrag ? true : undefined}
         className="flex min-h-[54px] shrink-0 items-center gap-4 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5"
@@ -219,10 +155,9 @@ export function SettingsPage({
           onChange={setSelectedTabIndex}
           className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)] overflow-hidden max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]"
         >
-          {/* 左侧分类是设置窗口的主导航；新增设置项应先归入已有分类，避免退回一整页长表单。 */}
           <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
             <TabList className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto" aria-label="设置分类">
-              {settingsTabs.map((tab) => (
+              {tabs.map((tab) => (
                 <Tab
                   key={tab.id}
                   className={({ selected }) =>
@@ -246,7 +181,7 @@ export function SettingsPage({
             </TabList>
           </aside>
           <TabPanels className="min-h-0 overflow-auto bg-[var(--theme-surface)]">
-            {settingsTabs.map((tab) => (
+            {tabs.map((tab) => (
               <TabPanel key={tab.id} className="min-h-full outline-none">
                 <div className="mx-auto grid w-full max-w-[760px] gap-5 px-7 py-6 max-[760px]:px-4">
                   {tab.panel}
@@ -256,21 +191,26 @@ export function SettingsPage({
           </TabPanels>
         </TabGroup>
 
-        {errorMessage ? (
+        {ctrl.settingsErrorMessage ? (
           <p
             className="mx-auto mb-0 mt-[-2px] w-[min(920px,calc(100%_-_48px))] rounded-md border border-[rgba(227,15,46,0.22)] bg-[var(--theme-danger-bg)] px-2.5 py-2 text-xs text-[var(--theme-danger-text)] max-[760px]:w-[calc(100%_-_32px)]"
             role="alert"
           >
-            {errorMessage}
+            {ctrl.settingsErrorMessage}
           </p>
         ) : null}
 
         <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-3.5">
-          <button type="button" className={dialogButtonClassName} onClick={onClose}>
+          <button type="button" className={dialogButtonClassName} onClick={ctrl.closeSettings}>
             取消
           </button>
-          <button type="button" className={primaryDialogButtonClassName} onClick={onSave} disabled={isSaving}>
-            {isSaving ? "保存中" : "保存"}
+          <button
+            type="button"
+            className={primaryDialogButtonClassName}
+            onClick={() => void ctrl.saveSettings()}
+            disabled={ctrl.isSavingSettings}
+          >
+            {ctrl.isSavingSettings ? "保存中" : "保存"}
           </button>
         </footer>
       </div>
@@ -279,10 +219,3 @@ export function SettingsPage({
 }
 
 export const SettingsDialog = SettingsPage;
-
-interface SettingsTabDefinition {
-  readonly id: string;
-  readonly label: string;
-  readonly description: string;
-  readonly panel: ReactNode;
-}

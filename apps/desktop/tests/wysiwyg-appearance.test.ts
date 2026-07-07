@@ -17,7 +17,9 @@ const milkdownEditorStyles = readFileSync(
 
 describe("WYSIWYG appearance settings", () => {
   it("passes the configured WYSIWYG font size into the reusable editor", () => {
-    expect(appSource).toContain("wysiwygFontSize={editor.settings.editor.wysiwygFontSize}");
+    // DesktopMilkdownEditor 包装器从 useAppSettings() 读取显示设置并注入 MilkdownEditor
+    expect(appSource).toContain("settings.editor.wysiwygFontSize");
+    expect(appSource).toContain("DesktopMilkdownEditor");
     expect(milkdownEditorSource).toContain("readonly wysiwygFontSize?: number;");
     expect(milkdownEditorSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
     expect(milkdownEditorSource).toContain('"--theme-editor-font-size": `${safeFontSize}px`');

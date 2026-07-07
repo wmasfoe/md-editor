@@ -38,9 +38,15 @@ import {
   getDocumentMetricLabel,
   type DocumentMetricKind
 } from "./document-metrics";
-import { useSettingsController } from "./controller/useSettingsController";
+import { useDocumentSnapshot } from "./document-store";
+import { AppSettingsProvider, useAppSettings } from "./settings-context";
+import { useToast } from "./controller/useToast";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
 import { editorUpdateActionLabel } from "../components/settings/settingsUtils";
+import {
+  isUpdateActionBusy as isUpdateActionBusy_,
+  shouldShowEditorUpdateAction,
+} from "./updates/update-status";
 
 const SourceEditor = lazy(() =>
   import("@md-editor/editor-ui/source-editor").then((module) => ({ default: module.SourceEditor }))
@@ -57,11 +63,30 @@ export function App() {
   if (isSettingsWindow()) {
     return <SettingsWindowApp />;
   }
+  return <AppWithProviders />;
+}
 
-  const editor = useDesktopEditorController();
+function AppWithProviders() {
+  const { toast, showToast } = useToast();
+  return (
+    <AppSettingsProvider showToast={showToast} surface="main">
+      <MainApp toast={toast} showToast={showToast} />
+    </AppSettingsProvider>
+  );
+}
+
+function MainApp({
+  toast,
+  showToast,
+}: {
+  readonly toast: { readonly id: number; readonly message: string } | null;
+  readonly showToast: (message: string | null) => void;
+}) {
+  const { isSettingsOpen } = useAppSettings();
+  const snapshot = useDocumentSnapshot();
+  const editor = useDesktopEditorController({ showToast });
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
-  const [documentMetricKind, setDocumentMetricKind] = useState<DocumentMetricKind>("words");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
@@ -74,52 +99,14 @@ export function App() {
   const pendingActionDescription = getLoadingDescription(editor.pendingAction);
   const sidebarResizePreviewOffset =
     sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
-  const documentMetrics = useMemo(
-    () => calculateDocumentMetrics(editor.snapshot.markdown),
-    [editor.snapshot.markdown]
-  );
 
   // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
-  if (editor.isSettingsOpen) {
+  if (isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-        <AppTitleBar
-          title="设置"
-          isVisible={shouldShowOverlayTitleBar}
-          hasWindowControlsInset
-        />
+        <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SettingsPage
-            settings={editor.settings}
-            updateStatus={editor.updateStatus}
-            shortcutDrafts={editor.shortcutDrafts}
-            assetsDirectoryDraft={editor.assetsDirectoryDraft}
-            editorSettingsDraft={editor.editorSettingsDraft}
-            themeDraft={editor.themeDraft}
-            aiSettingsDraft={editor.aiSettingsDraft}
-            updateSettingsDraft={editor.updateSettingsDraft}
-            isLocalModelActionPending={editor.isLocalModelActionPending}
-            errorMessage={editor.settingsErrorMessage}
-            isSaving={editor.isSavingSettings}
-            isCheckingForUpdates={editor.updateStatus.state === "checking"}
-            onCaptureShortcut={editor.captureShortcutDraft}
-            onResetShortcut={editor.resetShortcutDraft}
-            onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
-            onChangeEditorSettings={editor.setEditorSettingsDraft}
-            onChangeTheme={editor.setThemeDraft}
-            onChangeUpdateSettings={editor.setUpdateSettingsDraft}
-            onChooseThemeCss={editor.chooseThemeCss}
-            onClearThemeCss={editor.clearThemeCss}
-            onChangeAiSettings={editor.setAiSettingsDraft}
-            onDownloadLocalModel={editor.downloadLocalModel}
-            onCancelLocalModelDownload={editor.cancelLocalModelDownload}
-            onDeleteLocalModel={editor.deleteLocalModel}
-            onSave={() => void editor.saveSettings()}
-            onClose={editor.closeSettings}
-            onCheckForUpdates={() => void editor.runUpdateCheck()}
-            onInstallUpdate={() => void editor.installUpdate()}
-            onRelaunchAfterUpdate={() => void editor.relaunchUpdate()}
-          />
+          <SettingsPage surface="main" />
         </div>
       </main>
     );
@@ -225,7 +212,7 @@ export function App() {
               <FileTreePanel
                 folder={editor.folder}
                 searchQuery={showFileSearch ? fileSearchQuery : ""}
-                activeFilePath={editor.snapshot.filePath}
+                activeFilePath={snapshot.filePath}
                 onOpenFolder={() => void editor.dispatchCommand("file.openFolder")}
                 onOpenFile={(filePath) => void editor.openDocumentFromTree(filePath)}
                 onOpenAsset={(node) => editor.openAssetFromTree(node)}
@@ -244,9 +231,9 @@ export function App() {
           </div>
           <DocumentBar
             hasActiveDocument={editor.hasActiveDocument}
-            mode={editor.snapshot.mode}
+            mode={snapshot.mode}
             onChangeMode={(mode) => {
-              if (mode !== editor.snapshot.mode) {
+              if (mode !== snapshot.mode) {
                 void editor.dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
               }
             }}
@@ -274,24 +261,18 @@ export function App() {
           aria-label="Markdown 编辑器"
         >
           <AppTitleBar
-            title={editor.snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
-            isDirty={editor.snapshot.isDirty}
+            title={snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
+            isDirty={snapshot.isDirty}
             isVisible={shouldShowOverlayTitleBar}
             hasWindowControlsInset={!editor.isSidebarVisible}
             titleAlign="center"
             titleIcon="markdown"
             actions={
               <EditorTitleBarControls
-                metricKind={documentMetricKind}
-                metrics={documentMetrics}
                 outline={editor.outline}
                 activeOutlineId={editor.activeOutlineId}
                 hasActiveDocument={editor.hasActiveDocument}
                 isSidebarVisible={editor.isSidebarVisible}
-                showUpdateAction={editor.shouldShowEditorUpdateAction}
-                isUpdateActionBusy={editor.isUpdateActionBusy}
-                updateActionLabel={editorUpdateActionLabel(editor.updateStatus)}
-                onMetricKindChange={setDocumentMetricKind}
                 onJumpToOutlineItem={editor.jumpToTocItem}
                 onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
                 onRunUpdateAction={() => void editor.runEditorUpdateAction()}
@@ -305,7 +286,7 @@ export function App() {
             />
           ) : null}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <EditorToast toast={editor.toast} />
+            <EditorToast toast={toast} />
             {!editor.hasActiveDocument && !editor.openedAsset ? (
               <WelcomeState
                 recentFiles={editor.getRecentFiles()}
@@ -320,10 +301,10 @@ export function App() {
                 resolveAssetSrc={editor.resolveImageSrc}
                 onBack={editor.closeAssetPreview}
               />
-            ) : editor.snapshot.mode === "source" ? (
+            ) : snapshot.mode === "source" ? (
               <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
                 <SourceEditor
-                  snapshot={editor.snapshot}
+                  snapshot={snapshot}
                   target={editor.tocTarget}
                   scrollTarget={
                     editor.modeScrollTarget?.mode === "source"
@@ -338,17 +319,15 @@ export function App() {
               </Suspense>
             ) : (
               <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-                <MilkdownEditor
+                <DesktopMilkdownEditor
                   key={editor.documentKey}
-                  snapshot={editor.snapshot}
+                  snapshot={snapshot}
                   outline={editor.outline}
                   target={editor.tocTarget}
                   insertRequest={editor.mdxInsertRequest}
                   aiSuggestionRequest={editor.aiSuggestionRequest}
                   isAiSuggestionPending={editor.isAiSuggestionPending}
                   aiAutoSuggestionsEnabled={editor.isAiCompletionReady}
-                  showCodeBlockLineNumbers={editor.settings.editor.showCodeBlockLineNumbers}
-                  wysiwygFontSize={editor.settings.editor.wysiwygFontSize}
                   onInsertRequestHandled={editor.clearMdxInsertRequest}
                   onAiSuggestionRequest={editor.requestAiSuggestion}
                   onAiSuggestionRequestHandled={editor.clearAiSuggestionRequest}
@@ -432,51 +411,21 @@ function CollapsedSidebarReveal({
 }
 
 function SettingsWindowApp() {
-  const [toast, setToast] = useState<{ readonly id: number; readonly message: string } | null>(null);
-  // useSettingsController 的加载 effect 依赖 showToast；设置窗口里必须保持回调稳定，
-  // 否则任意草稿更新都会触发重新读取旧设置，把刚选的主题覆盖回去。
-  const showSettingsToast = useCallback((message: string | null) => {
-    setToast(message ? { id: Date.now(), message } : null);
-  }, []);
-  const settings = useSettingsController({
-    surface: "settings-window",
-    showToast: showSettingsToast
-  });
+  const { toast, showToast } = useToast();
+  return (
+    <AppSettingsProvider showToast={showToast} surface="settings-window">
+      <SettingsWindowContent toast={toast} />
+    </AppSettingsProvider>
+  );
+}
+
+function SettingsWindowContent({
+  toast
+}: {
+  readonly toast: { readonly id: number; readonly message: string } | null;
+}) {
   const shouldShowOverlayTitleBar = isMacPlatform();
-
-  useEffect(() => {
-    document.title = "设置";
-  }, []);
-
-  useEffect(() => {
-    if (!isTauri()) {
-      return undefined;
-    }
-
-    let unlisten: (() => void) | undefined;
-    let disposed = false;
-    void getCurrentWindow()
-      .onCloseRequested((event) => {
-        // 原生关闭和“取消”语义一致：未保存的主题预览必须先恢复到已保存主题。
-        event.preventDefault();
-        void settings.destroySettingsWindowAfterRollback().catch((error: unknown) => {
-          console.warn("设置窗口关闭回滚失败", error);
-        });
-      })
-      .then((dispose) => {
-        if (disposed) {
-          dispose();
-          return;
-        }
-        unlisten = dispose;
-      });
-
-    return () => {
-      disposed = true;
-      unlisten?.();
-    };
-  }, [settings.destroySettingsWindowAfterRollback]);
-
+  useEffect(() => { document.title = "设置"; }, []);
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
       <AppTitleBar
@@ -487,38 +436,7 @@ function SettingsWindowApp() {
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <EditorToast toast={toast} />
-        <SettingsPage
-          settings={settings.settings}
-          updateStatus={settings.updateStatus}
-          shortcutDrafts={settings.shortcutDrafts}
-          assetsDirectoryDraft={settings.assetsDirectoryDraft}
-          editorSettingsDraft={settings.editorSettingsDraft}
-          themeDraft={settings.themeDraft}
-          aiSettingsDraft={settings.aiSettingsDraft}
-          updateSettingsDraft={settings.updateSettingsDraft}
-          isLocalModelActionPending={settings.isLocalModelActionPending}
-          errorMessage={settings.settingsErrorMessage}
-          isSaving={settings.isSavingSettings}
-          isCheckingForUpdates={settings.updateStatus.state === "checking"}
-          onCaptureShortcut={settings.captureShortcutDraft}
-          onResetShortcut={settings.resetShortcutDraft}
-          onChangeAssetsDirectory={settings.setAssetsDirectoryDraft}
-          onChangeEditorSettings={settings.setEditorSettingsDraft}
-          onChangeTheme={settings.setThemeDraft}
-          onChangeUpdateSettings={settings.setUpdateSettingsDraft}
-          onChooseThemeCss={settings.chooseThemeCss}
-          onClearThemeCss={settings.clearThemeCss}
-          onChangeAiSettings={settings.setAiSettingsDraft}
-          onDownloadLocalModel={settings.downloadLocalModel}
-          onCancelLocalModelDownload={settings.cancelLocalModelDownload}
-          onDeleteLocalModel={settings.deleteLocalModel}
-          onSave={() => void settings.saveSettings()}
-          onClose={settings.closeSettings}
-          onCheckForUpdates={() => void settings.runUpdateCheck()}
-          onInstallUpdate={() => void settings.installUpdate()}
-          onRelaunchAfterUpdate={() => void settings.relaunchUpdate()}
-          onStartWindowDrag={startTitleBarDrag}
-        />
+        <SettingsPage surface="settings-window" onStartWindowDrag={startTitleBarDrag} />
       </div>
     </main>
   );
@@ -594,29 +512,30 @@ function AppTitleBar({
   );
 }
 
+function DesktopMilkdownEditor(props: Omit<React.ComponentProps<typeof MilkdownEditor>, "showCodeBlockLineNumbers" | "wysiwygFontSize">) {
+  const { settings } = useAppSettings();
+  return (
+    <MilkdownEditor
+      {...props}
+      showCodeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
+      wysiwygFontSize={settings.editor.wysiwygFontSize}
+    />
+  );
+}
+
 function EditorTitleBarControls({
   activeOutlineId,
   hasActiveDocument,
   isSidebarVisible,
-  isUpdateActionBusy,
-  metricKind,
-  metrics,
   onJumpToOutlineItem,
-  onMetricKindChange,
   onRunUpdateAction,
   onToggleSidebar,
   outline,
-  showUpdateAction,
-  updateActionLabel
 }: {
   readonly activeOutlineId: string | null;
   readonly hasActiveDocument: boolean;
   readonly isSidebarVisible: boolean;
-  readonly isUpdateActionBusy: boolean;
-  readonly metricKind: DocumentMetricKind;
-  readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
   readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
-  readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
   readonly onRunUpdateAction: () => void;
   readonly onToggleSidebar: () => void;
   readonly outline: readonly {
@@ -625,9 +544,14 @@ function EditorTitleBarControls({
     readonly text: string;
     readonly line: number;
   }[];
-  readonly showUpdateAction: boolean;
-  readonly updateActionLabel: string;
 }) {
+  const { updateStatus } = useAppSettings();
+  const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);
+  const isUpdateActionBusy = isUpdateActionBusy_(updateStatus);
+  const updateActionLabel = editorUpdateActionLabel(updateStatus);
+  const [metricKind, setMetricKind] = useState<DocumentMetricKind>("words");
+  const { markdown } = useDocumentSnapshot();
+  const metrics = useMemo(() => calculateDocumentMetrics(markdown), [markdown]);
   return (
     <div className="group/titlebar-controls flex h-[30px] items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
       {showUpdateAction ? (
@@ -645,7 +569,7 @@ function EditorTitleBarControls({
           <DocumentMetricMenu
             metricKind={metricKind}
             metrics={metrics}
-            onMetricKindChange={onMetricKindChange}
+            onMetricKindChange={setMetricKind}
           />
           <OutlinePopover
             outline={outline}
@@ -821,7 +745,7 @@ function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
   });
 }
 
-function EditorToast({
+export function EditorToast({
   toast
 }: {
   readonly toast: { readonly id: number; readonly message: string } | null;
