@@ -13,8 +13,6 @@ import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 import type { RunFileAction } from "./useFileActionController";
 
-type EditorSnapshot = ReturnType<typeof runtime.getSnapshot>;
-
 interface UseDocumentActionsControllerOptions {
   readonly clearMdxInsertRequest: (id?: number) => void;
   readonly refreshFolderForDocumentPath: (documentPath: string) => Promise<void>;
@@ -23,7 +21,6 @@ interface UseDocumentActionsControllerOptions {
   readonly setHasActiveDocument: Dispatch<SetStateAction<boolean>>;
   readonly setOpenedAsset: Dispatch<SetStateAction<OpenedAsset | null>>;
   readonly setEditorRevision: Dispatch<SetStateAction<number>>;
-  readonly setSnapshot: Dispatch<SetStateAction<EditorSnapshot>>;
   readonly showOpenedFolder: (folder: MarkdownFolder) => void;
   readonly showToast: (message: string | null) => void;
 }
@@ -36,7 +33,6 @@ export function useDocumentActionsController({
   setEditorRevision,
   setHasActiveDocument,
   setOpenedAsset,
-  setSnapshot,
   showOpenedFolder,
   showToast
 }: UseDocumentActionsControllerOptions) {
@@ -52,24 +48,25 @@ export function useDocumentActionsController({
   }, [showToast]);
 
   const commitMarkdown = useCallback((markdown: string) => {
+    // runtime.document.subscribe 订阅者（useDocumentSnapshot）会自动感知变化
+    runtime.document.updateMarkdown(markdown);
     setHasActiveDocument(true);
     showToast(null);
     setOpenedAsset(null);
-    setSnapshot(runtime.document.updateMarkdown(markdown));
-  }, [setHasActiveDocument, setOpenedAsset, setSnapshot, showToast]);
+  }, [setHasActiveDocument, setOpenedAsset, showToast]);
 
   const applyProgrammaticMarkdown = useCallback((markdown: string) => {
+    runtime.document.updateMarkdown(markdown);
     showToast(null);
     setOpenedAsset(null);
-    setSnapshot(runtime.document.updateMarkdown(markdown));
     setEditorRevision((current) => current + 1);
-  }, [setEditorRevision, setOpenedAsset, setSnapshot, showToast]);
+  }, [setEditorRevision, setOpenedAsset, showToast]);
 
   const switchMode = useCallback(async (mode: EditorMode) => {
+    // switchEditorModeSafely 内部会调用 document.setMode，触发 notify()
     const result = await switchEditorModeSafely(runtime.document, mode);
-    setSnapshot(result.snapshot);
     showToast(result.ok ? null : result.message);
-  }, [setSnapshot, showToast]);
+  }, [showToast]);
 
   const toggleSourceMode = useCallback(async () => {
     const currentMode = runtime.document.getSnapshot().mode;
@@ -83,12 +80,10 @@ export function useDocumentActionsController({
 
     clearMdxInsertRequest();
     runtime.document.updateMarkdown(document.markdown);
-    setSnapshot(
-      runtime.document.markSaved({
-        markdown: document.markdown,
-        filePath: document.filePath
-      })
-    );
+    runtime.document.markSaved({
+      markdown: document.markdown,
+      filePath: document.filePath
+    });
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
@@ -98,7 +93,6 @@ export function useDocumentActionsController({
     rememberRecentDocument,
     setHasActiveDocument,
     setOpenedAsset,
-    setSnapshot,
     showToast
   ]);
 
@@ -106,7 +100,7 @@ export function useDocumentActionsController({
     const markdown = "";
     clearMdxInsertRequest();
     runtime.document.updateMarkdown(markdown);
-    setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
+    runtime.document.markSaved({ markdown, filePath: null });
     setEditorRevision((current) => current + 1);
     showToast(null);
     setOpenedAsset(null);
@@ -116,27 +110,26 @@ export function useDocumentActionsController({
     setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
-    setSnapshot,
     showToast
   ]);
 
   const markCurrentDocumentSaved = useCallback((document: MarkdownDocumentFile) => {
     const latest = runtime.document.getSnapshot();
-    const nextSnapshot = latest.markdown === document.markdown
-      ? runtime.document.markSaved({
-          markdown: document.markdown,
-          filePath: document.filePath
-        })
-      : runtime.document.updateSavedBaseline({
-          markdown: document.markdown,
-          filePath: document.filePath
-        });
-
-    setSnapshot(nextSnapshot);
+    if (latest.markdown === document.markdown) {
+      runtime.document.markSaved({
+        markdown: document.markdown,
+        filePath: document.filePath
+      });
+    } else {
+      runtime.document.updateSavedBaseline({
+        markdown: document.markdown,
+        filePath: document.filePath
+      });
+    }
     showToast(null);
     setOpenedAsset(null);
     rememberRecentDocument(document);
-  }, [rememberRecentDocument, setOpenedAsset, setSnapshot, showToast]);
+  }, [rememberRecentDocument, setOpenedAsset, showToast]);
 
   const saveDocument = useCallback(
     async (forceDialog = false) => {
@@ -201,12 +194,10 @@ export function useDocumentActionsController({
     const nextDocument = fileService.newDocument("");
     clearMdxInsertRequest();
     runtime.document.updateMarkdown(nextDocument.markdown);
-    setSnapshot(
-      runtime.document.markSaved({
-        markdown: nextDocument.markdown,
-        filePath: nextDocument.filePath
-      })
-    );
+    runtime.document.markSaved({
+      markdown: nextDocument.markdown,
+      filePath: nextDocument.filePath
+    });
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
@@ -215,7 +206,6 @@ export function useDocumentActionsController({
     ensureDiscardAllowed,
     setHasActiveDocument,
     setOpenedAsset,
-    setSnapshot,
     showToast
   ]);
 
@@ -261,7 +251,7 @@ export function useDocumentActionsController({
       showToast("没有最近打开的文件");
       return;
     }
-    showToast("请从“最近文件”菜单中选择要打开的文件。");
+    showToast(`请从“最近文件”菜单中选择要打开的文件。`);
   }, [showToast]);
 
   const openFolder = useCallback(async () => {

@@ -13,15 +13,12 @@ import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import type { RunFileAction } from "./useFileActionController";
 
-type EditorSnapshot = ReturnType<typeof runtime.getSnapshot>;
-
 interface UseFileTreeControllerOptions {
   readonly clearMdxInsertRequest: (id?: number) => void;
   readonly requestConfirmation: (confirmation: ConfirmationState) => Promise<ConfirmationChoice>;
   readonly runFileAction: RunFileAction;
   readonly setIsSidebarVisible: Dispatch<SetStateAction<boolean>>;
   readonly setSidebarMode: Dispatch<SetStateAction<SidebarMode>>;
-  readonly setSnapshot: Dispatch<SetStateAction<EditorSnapshot>>;
 }
 
 export function useFileTreeController({
@@ -29,8 +26,7 @@ export function useFileTreeController({
   requestConfirmation,
   runFileAction,
   setIsSidebarVisible,
-  setSidebarMode,
-  setSnapshot
+  setSidebarMode
 }: UseFileTreeControllerOptions) {
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
 
@@ -73,12 +69,10 @@ export function useFileTreeController({
       const current = runtime.document.getSnapshot();
       const mutation = resolveOpenDocumentMutation(current.filePath, result, previousPath);
       if (mutation.kind === "move") {
-        setSnapshot(
-          runtime.document.markSaved({
-            markdown: current.markdown,
-            filePath: mutation.filePath
-          })
-        );
+        runtime.document.markSaved({
+          markdown: current.markdown,
+          filePath: mutation.filePath
+        });
         return;
       }
 
@@ -89,9 +83,9 @@ export function useFileTreeController({
       const markdown = "";
       clearMdxInsertRequest();
       runtime.document.updateMarkdown(markdown);
-      setSnapshot(runtime.document.markSaved({ markdown, filePath: null }));
+      runtime.document.markSaved({ markdown, filePath: null });
     },
-    [clearMdxInsertRequest, setSnapshot]
+    [clearMdxInsertRequest]
   );
 
   const createTreeItem = useCallback(

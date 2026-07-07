@@ -33,6 +33,7 @@ export interface DocumentStateInput {
 }
 
 export interface DocumentState {
+  subscribe(listener: () => void): () => void;
   getSnapshot(): DocumentSnapshot;
   updateMarkdown(markdown: Markdown): DocumentSnapshot;
   markSaved(input?: { readonly markdown?: Markdown; readonly filePath?: string | null }): DocumentSnapshot;
@@ -214,35 +215,60 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
   let filePath = input.filePath ?? null;
   let mode = input.mode ?? "wysiwyg";
 
+  // useSyncExternalStore 所需的订阅机制：每次 mutation 后通知所有 React 订阅者。
+  const listeners = new Set<() => void>();
+  // useSyncExternalStore 要求 getSnapshot 返回稳定引用：相同状态必须返回同一对象。
+  // 缓存上一次快照，mutation 时置 null 失效，下次调用再重建。
+  let cachedSnapshot: DocumentSnapshot | null = null;
+
+  function notify() {
+    listeners.forEach((l) => l());
+  }
+
   function snapshot(): DocumentSnapshot {
-    return {
-      markdown,
-      savedMarkdown,
-      filePath,
-      mode,
-      isDirty: markdown !== savedMarkdown
-    };
+    if (cachedSnapshot === null) {
+      cachedSnapshot = {
+        markdown,
+        savedMarkdown,
+        filePath,
+        mode,
+        isDirty: markdown !== savedMarkdown
+      };
+    }
+    return cachedSnapshot;
   }
 
   return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
     getSnapshot: snapshot,
     updateMarkdown(nextMarkdown) {
       markdown = nextMarkdown;
+      cachedSnapshot = null;
+      notify();
       return snapshot();
     },
     markSaved(next = {}) {
       markdown = next.markdown ?? markdown;
       savedMarkdown = markdown;
       filePath = next.filePath === undefined ? filePath : next.filePath;
+      cachedSnapshot = null;
+      notify();
       return snapshot();
     },
     updateSavedBaseline(next) {
       savedMarkdown = next.markdown;
       filePath = next.filePath === undefined ? filePath : next.filePath;
+      cachedSnapshot = null;
+      notify();
       return snapshot();
     },
     setMode(nextMode) {
       mode = nextMode;
+      cachedSnapshot = null;
+      notify();
       return snapshot();
     }
   };

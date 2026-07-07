@@ -14,6 +14,8 @@ import {
 } from "../../lib/link-target";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
 import type { OpenedAsset, SidebarMode } from "../../types";
+import { useDocumentSnapshot } from "../document-store";
+import { useAppSettings } from "../settings-context";
 import {
   bindDesktopMenuCommands,
   bindRuntimeKeyboardShortcuts
@@ -35,20 +37,18 @@ import { useFileActionController } from "./useFileActionController";
 import { useFileTreeController } from "./useFileTreeController";
 import { useMdxAiController } from "./useMdxAiController";
 import { useOutlineController } from "./useOutlineController";
-import { useSettingsController } from "./useSettingsController";
 import {
   isUpdateActionBusy,
   shouldShowEditorUpdateAction
 } from "../updates/update-status";
 
-interface ToastState {
-  readonly id: number;
-  readonly message: string;
+export interface UseDesktopEditorControllerInput {
+  readonly showToast: (message: string | null) => void;
 }
 
-export function useDesktopEditorController() {
-  const [snapshot, setSnapshot] = useState(() => runtime.getSnapshot());
-  const [toast, setToast] = useState<ToastState | null>(null);
+export function useDesktopEditorController({ showToast }: UseDesktopEditorControllerInput) {
+  const { settings, updateStatus, openSettings, relaunchUpdate, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
+  const snapshot = useDocumentSnapshot();
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("files");
   const [isSidebarVisible, setIsSidebarVisible] = useState(() => window.innerWidth >= 960);
   const [hasActiveDocument, setHasActiveDocument] = useState(false);
@@ -58,53 +58,8 @@ export function useDesktopEditorController() {
   const activeScrollRatioRef = useRef(0);
   const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevision}`;
 
-  const showToast = useCallback((message: string | null) => {
-    if (!message) {
-      setToast(null);
-      return;
-    }
-
-    setToast({
-      id: Date.now(),
-      message
-    });
-  }, []);
   const getCurrentEditorMode = useCallback(() => runtime.document.getSnapshot().mode, []);
 
-  const {
-    settings,
-    isSettingsOpen,
-    shortcutDrafts,
-    assetsDirectoryDraft,
-    editorSettingsDraft,
-    themeDraft,
-    aiSettingsDraft,
-    updateSettingsDraft,
-    isLocalModelActionPending,
-    settingsErrorMessage,
-    isSavingSettings,
-    updateStatus,
-    setAssetsDirectoryDraft,
-    setEditorSettingsDraft,
-    setThemeDraft,
-    setAiSettingsDraft,
-    setUpdateSettingsDraft,
-    chooseThemeCss,
-    clearThemeCss,
-    openSettings,
-    closeSettings,
-    captureShortcutDraft,
-    resetShortcutDraft,
-    saveSettings,
-    downloadLocalModel,
-    cancelLocalModelDownload,
-    deleteLocalModel,
-    runUpdateCheck,
-    downloadUpdate,
-    applyDownloadedUpdate,
-    installUpdate,
-    relaunchUpdate
-  } = useSettingsController({ showToast });
   const {
     confirmation,
     requestConfirmation,
@@ -158,8 +113,7 @@ export function useDesktopEditorController() {
     requestConfirmation,
     runFileAction,
     setIsSidebarVisible,
-    setSidebarMode,
-    setSnapshot
+    setSidebarMode
   });
   const {
     commitMarkdown,
@@ -183,7 +137,6 @@ export function useDesktopEditorController() {
     setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
-    setSnapshot,
     showOpenedFolder,
     showToast
   });
@@ -234,7 +187,6 @@ export function useDesktopEditorController() {
     if (clampedRatio === null) {
       return;
     }
-
     activeScrollRatioRef.current = clampedRatio;
   }, []);
 
@@ -247,15 +199,9 @@ export function useDesktopEditorController() {
   const switchMode = useCallback(async (mode: EditorMode) => {
     const currentMode = runtime.document.getSnapshot().mode;
     if (currentMode !== mode) {
-      // Source mode and WYSIWYG mode do not share reliable line numbers: one is
-      // raw Markdown and the other is rendered ProseMirror content. A scroll
-      // ratio gives both editors the same approximate reading position without
-      // trying to translate line 300 between two different layouts.
       setModeScrollTarget(createModeScrollTarget(mode, activeScrollRatioRef.current));
     }
-
     await baseSwitchMode(mode);
-
     if (runtime.document.getSnapshot().mode !== mode) {
       setModeScrollTarget(null);
     }
@@ -379,7 +325,6 @@ export function useDesktopEditorController() {
           if (!(await ensureDiscardAllowed())) {
             return;
           }
-
           const document = await fileService.openDocumentAtPath(linked.path);
           replaceDocument(document);
           await refreshFolderForDocumentPath(document.filePath);
@@ -471,7 +416,6 @@ export function useDesktopEditorController() {
     const title = `${fileName}${snapshot.isDirty ? "*" : ""}`;
     document.title = title;
     if (isTauri()) {
-      // Web 预览没有原生窗口；标题同步失败不能影响任一运行时的编辑流程。
       void getCurrentWindow().setTitle(title).catch((error: unknown) => {
         console.warn("窗口标题同步失败", error);
       });
@@ -494,8 +438,6 @@ export function useDesktopEditorController() {
   }, [documentKey]);
 
   return {
-    snapshot,
-    toast,
     pendingAction,
     tocTarget,
     folder,
@@ -514,29 +456,10 @@ export function useDesktopEditorController() {
     isAiSuggestionPending,
     isAiCompletionReady,
     mdxComponentPlugins,
-    settings,
-    isSettingsOpen,
-    shortcutDrafts,
-    assetsDirectoryDraft,
-    editorSettingsDraft,
-    themeDraft,
-    aiSettingsDraft,
-    updateSettingsDraft,
-    isLocalModelActionPending,
-    settingsErrorMessage,
-    isSavingSettings,
-    updateStatus,
     shouldShowEditorUpdateAction: shouldShowEditorUpdateAction(updateStatus),
     isUpdateActionBusy: isUpdateActionBusy(updateStatus),
     setSidebarMode,
     setIsSidebarVisible,
-    setAssetsDirectoryDraft,
-    setEditorSettingsDraft,
-    setThemeDraft,
-    setAiSettingsDraft,
-    setUpdateSettingsDraft,
-    chooseThemeCss,
-    clearThemeCss,
     commitMarkdown,
     updateModeScrollRatio,
     completeModeScrollTarget,
@@ -562,16 +485,6 @@ export function useDesktopEditorController() {
     resolveImageSrc,
     getRecentFiles,
     openRecentFile,
-    closeSettings,
-    captureShortcutDraft,
-    resetShortcutDraft,
-    saveSettings,
-    downloadLocalModel,
-    cancelLocalModelDownload,
-    deleteLocalModel,
-    runUpdateCheck,
-    runEditorUpdateAction,
-    installUpdate,
-    relaunchUpdate
+    runEditorUpdateAction
   };
 }

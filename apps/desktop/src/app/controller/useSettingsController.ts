@@ -7,20 +7,16 @@ import {
   downloadLocalAiModel,
   listenToLocalAiModelProgress,
   mergeLocalAiModelStatus,
-  readLocalAiModelStatus,
   type LocalAiModelCommandStatus
 } from "../ai/local-ai-model";
 import {
-  destroyCurrentSettingsWindow,
-  openSettingsWindow
+  destroyCurrentSettingsWindow
 } from "../../desktop/settings-window";
 import {
   appVersion,
   createDefaultSettings,
   keyboardShortcutLabel,
-  loadAppSettings,
   listenToAppSettingsChanged,
-  listenToAppThemePreviewChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
   publishAppThemePreviewChanged,
@@ -36,20 +32,13 @@ import {
 import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
 import {
   checkForInstallableUpdate,
-  downloadPendingUpdate,
   installDownloadedUpdate,
   installPendingUpdate,
-  relaunchAfterUpdate
 } from "../updates/app-updater";
-import {
-  isUpdateActionBusy,
-  isUpdateReadyToApply
-} from "../updates/update-status";
 import { formatActionError } from "./controller-errors";
+import { useAppSettings } from "../settings-context";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
-const AUTO_UPDATE_INITIAL_CHECK_DELAY_MS = 30_000;
-const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 type SettingsSurface = "main" | "settings-window";
 
@@ -73,102 +62,94 @@ export async function closeSettingsSurfaceAfterSave({
     closeEmbeddedSettings();
     return;
   }
-
-  const didCloseWindow = await closeSettingsWindow();
-  if (!didCloseWindow) {
-    showSavedToast();
-  }
+  const didClose = await closeSettingsWindow();
+  if (!didClose) showSavedToast();
 }
 
 export function useSettingsController({ showToast, surface = "main" }: UseSettingsControllerOptions) {
-  const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
-  const [isSettingsOpen, setIsSettingsOpen] = useState(surface === "settings-window");
-  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
-    createShortcutDrafts(createDefaultSettings().shortcuts)
+  const { settings: loadedSettings, updateStatus, closeSettings: closeEmbedded, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
+
+  // 草稿状态：用已加载设置初始化，对齐 loadedSettings 变化
+  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(
+    () => createShortcutDrafts(loadedSettings.shortcuts)
   );
-  const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(createDefaultSettings().assetsDirectory);
-  const [editorSettingsDraft, setEditorSettingsDraft] = useState<EditorDisplaySettings>(
-    createDefaultSettings().editor
-  );
-  const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(createDefaultSettings().theme);
-  const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
-  const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(
-    createDefaultSettings().update
-  );
+  const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(loadedSettings.assetsDirectory);
+  const [editorSettingsDraft, setEditorSettingsDraft] = useState<EditorDisplaySettings>(loadedSettings.editor);
+  const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(loadedSettings.theme);
+  const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => loadedSettings.ai);
+  const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(loadedSettings.update);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
-  const [previewTheme, setPreviewTheme] = useState<AppThemeSettings | null>(null);
-  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
-  const hasLoadedSettingsRef = useRef(false);
-  const isAutoUpdateRunningRef = useRef(false);
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
-    currentVersion: appVersion(),
-    state: "idle"
-  }));
-  const updateStatusRef = useRef<UpdateStatus>(updateStatus);
+  const hasInitialized = useRef(false);
 
-  const syncSettingsDrafts = useCallback((nextSettings: AppSettings) => {
-    // 设置弹窗编辑的是草稿；保存或取消时必须和权威 settings 重新对齐。
-    setShortcutDrafts(createShortcutDrafts(nextSettings.shortcuts));
-    setAssetsDirectoryDraft(nextSettings.assetsDirectory);
-    setEditorSettingsDraft(nextSettings.editor);
-    setThemeDraft(nextSettings.theme);
-    setAiSettingsDraft(nextSettings.ai);
-    setUpdateSettingsDraft(nextSettings.update);
+  const syncDrafts = useCallback((next: AppSettings) => {
+    setShortcutDrafts(createShortcutDrafts(next.shortcuts));
+    setAssetsDirectoryDraft(next.assetsDirectory);
+    setEditorSettingsDraft(next.editor);
+    setThemeDraft(next.theme);
+    setAiSettingsDraft(next.ai);
+    setUpdateSettingsDraft(next.update);
   }, []);
 
+  // 设置窗口首次挂载时对齐草稿（主窗口内嵌模式每次打开时调用 syncDrafts）
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      syncDrafts(loadedSettings);
+    }
+  }, [loadedSettings, syncDrafts]);
+
+  // 跨窗口同步：settings-window 保存后，主窗口收到广播并对齐草稿
+  useEffect(() => {
+    if (surface !== "main") return;
+    return listenToAppSettingsChanged((next) => syncDrafts(next));
+  }, [surface, syncDrafts]);
+
   const applyLocalModelStatus = useCallback((status: LocalAiModelCommandStatus) => {
-    // 本地模型状态会从命令结果和后台进度事件两路进入，需要同步到 settings 与弹窗草稿。
-    setSettings((current) => ({
-      ...current,
-      ai: {
-        ...current.ai,
-        localModel: mergeLocalAiModelStatus(current.ai.localModel, status)
-      }
-    }));
+    // 模型状态从命令结果和进度事件两路进入，需同步到已保存设置和草稿
+    // 注意：已保存设置的更新通过 listenToAppSettingsChanged 广播机制处理，
+    // 此处只更新 AI 草稿以保持弹窗实时显示正确状态
     setAiSettingsDraft((current) => ({
       ...current,
       localModel: mergeLocalAiModelStatus(current.localModel, status)
     }));
   }, []);
 
+  // 设置窗口主题草稿实时广播给主窗口预览
   useEffect(() => {
-    updateStatusRef.current = updateStatus;
-  }, [updateStatus]);
+    if (surface !== "settings-window" || !hasInitialized.current) return;
+    void publishAppThemePreviewChanged(themeDraft).catch((error: unknown) => {
+      console.warn("主题预览广播失败", error);
+    });
+  }, [surface, themeDraft]);
 
-  const openSettings = useCallback(() => {
-    if (surface === "main") {
-      // 主窗口不再承载设置 UI；Tauri 桌面端打开独立设置窗口，Web 预览失败时才回退到内嵌页。
-      void openSettingsWindow()
-        .then((didOpenWindow) => {
-          if (didOpenWindow) {
-            return;
-          }
-          syncSettingsDrafts(settings);
-          setSettingsErrorMessage(null);
-          setIsSettingsOpen(true);
-        })
-        .catch((error: unknown) => {
-          showToast(formatActionError(error, "设置窗口打开失败。"));
-        });
-      return;
-    }
+  // 应用主题 CSS（设置窗口或内嵌设置页打开时应用草稿主题）
+  useEffect(() => {
+    if (surface !== "settings-window") return;
+    applyCustomThemeCss(themeDraft);
+  }, [surface, themeDraft]);
 
-    syncSettingsDrafts(settings);
-    setSettingsErrorMessage(null);
-    setIsSettingsOpen(true);
-  }, [settings, showToast, surface, syncSettingsDrafts]);
+  // 本地模型进度监听
+  useEffect(() => {
+    return listenToLocalAiModelProgress((status) => {
+      applyLocalModelStatus(status);
+      if (status.status === "failed") {
+        setSettingsErrorMessage(
+          status.error === LOCAL_MODEL_CANCEL_MESSAGE ? null : status.error ?? "本地模型状态更新失败。"
+        );
+      } else {
+        setSettingsErrorMessage(null);
+      }
+    });
+  }, [applyLocalModelStatus]);
 
   const restoreSavedThemePreview = useCallback(async () => {
-    // 主题预览不会写入存储；关闭/取消设置时要广播已保存主题，让主窗口退出草稿预览。
-    setPreviewTheme(null);
-    await publishAppThemePreviewChanged(settings.theme);
-  }, [settings.theme]);
+    await publishAppThemePreviewChanged(loadedSettings.theme);
+  }, [loadedSettings.theme]);
 
   const closeSettings = useCallback(() => {
     if (surface === "settings-window") {
-      // 取消设置时需要先回滚跨窗口主题预览，再关闭当前原生设置窗口。
       void restoreSavedThemePreview()
         .then(() => destroyCurrentSettingsWindow())
         .catch((error: unknown) => {
@@ -176,14 +157,13 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
         });
       return;
     }
-
-    setIsSettingsOpen(false);
+    closeEmbedded();
     setSettingsErrorMessage(null);
-    syncSettingsDrafts(settings);
+    syncDrafts(loadedSettings);
     void restoreSavedThemePreview().catch((error: unknown) => {
       console.warn("主题预览回滚失败", error);
     });
-  }, [restoreSavedThemePreview, settings, surface, syncSettingsDrafts]);
+  }, [closeEmbedded, loadedSettings, restoreSavedThemePreview, surface, syncDrafts]);
 
   const destroySettingsWindowAfterRollback = useCallback(async () => {
     await restoreSavedThemePreview();
@@ -194,16 +174,11 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
   }, []);
 
-  const resetShortcutDraft = useCallback(
-    (id: string) => {
-      const shortcut = settings.shortcuts.find((candidate) => candidate.id === id);
-      if (!shortcut) {
-        return;
-      }
-      setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(shortcut.defaultKey) }));
-    },
-    [settings.shortcuts]
-  );
+  const resetShortcutDraft = useCallback((id: string) => {
+    const shortcut = loadedSettings.shortcuts.find((s) => s.id === id);
+    if (!shortcut) return;
+    setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(shortcut.defaultKey) }));
+  }, [loadedSettings.shortcuts]);
 
   const saveSettings = useCallback(async () => {
     const nextAssetsDirectory = validateAssetsDirectory(assetsDirectoryDraft);
@@ -212,17 +187,16 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       return;
     }
 
-    // 快捷键保存前统一校验，避免两个命令在全局 keydown 捕获阶段抢同一个组合。
     const normalizedShortcuts: ShortcutSetting[] = [];
-    for (const shortcut of settings.shortcuts) {
+    for (const shortcut of loadedSettings.shortcuts) {
       const key = normalizeShortcutKey(shortcutDrafts[shortcut.id] ?? shortcut.key);
       if (!key) {
-        setSettingsErrorMessage(`“${shortcut.label}”快捷键格式无效，请使用 Command+Shift+B 这类组合。`);
+        setSettingsErrorMessage(`"${shortcut.label}"快捷键格式无效，请使用 Command+Shift+B 这类组合。`);
         return;
       }
       normalizedShortcuts.push({ ...shortcut, key });
     }
-    const duplicate = findDuplicateShortcut(normalizedShortcuts.map((shortcut) => shortcut.key));
+    const duplicate = findDuplicateShortcut(normalizedShortcuts.map((s) => s.key));
     if (duplicate) {
       setSettingsErrorMessage(`快捷键 ${keyboardShortcutLabel(duplicate)} 被重复使用。`);
       return;
@@ -231,7 +205,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setIsSavingSettings(true);
     setSettingsErrorMessage(null);
     try {
-      const saved = await saveAppSettings({
+      await saveAppSettings({
         shortcuts: normalizedShortcuts,
         assetsDirectory: nextAssetsDirectory,
         editor: editorSettingsDraft,
@@ -239,13 +213,11 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
         ai: normalizeAiSettings(aiSettingsDraft),
         update: updateSettingsDraft
       });
-      setSettings(saved);
-      syncSettingsDrafts(saved);
-      setPreviewTheme(null);
+      // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
       try {
         await closeSettingsSurfaceAfterSave({
           surface,
-          closeEmbeddedSettings: () => setIsSettingsOpen(false),
+          closeEmbeddedSettings: closeEmbedded,
           closeSettingsWindow: destroyCurrentSettingsWindow,
           showSavedToast: () => showToast("设置已保存。")
         });
@@ -260,12 +232,12 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   }, [
     aiSettingsDraft,
     assetsDirectoryDraft,
+    closeEmbedded,
     editorSettingsDraft,
-    settings.shortcuts,
+    loadedSettings.shortcuts,
     shortcutDrafts,
     showToast,
     surface,
-    syncSettingsDrafts,
     themeDraft,
     updateSettingsDraft
   ]);
@@ -274,9 +246,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setSettingsErrorMessage(null);
     try {
       const file = await pickThemeCssFile();
-      if (!file) {
-        return;
-      }
+      if (!file) return;
       rememberThemeCssFile(file);
       setThemeDraft((current) => scheme === "dark"
         ? { ...current, dark: { ...current.dark, source: "custom", customCssPath: file.path } }
@@ -295,7 +265,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   const downloadLocalModel = useCallback(async () => {
     setSettingsErrorMessage(null);
     applyLocalModelStatus({
-      ...settings.ai.localModel,
+      ...loadedSettings.ai.localModel,
       displayName: "md-editor Writer Small",
       path: null,
       status: "downloading",
@@ -303,22 +273,19 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       error: null
     });
     try {
-      const status = await downloadLocalAiModel(settings.ai.localModel.modelId);
+      const status = await downloadLocalAiModel(loadedSettings.ai.localModel.modelId);
       applyLocalModelStatus(status);
     } catch (error) {
-      if (isLocalModelDownloadCancel(error)) {
-        setSettingsErrorMessage(null);
-        return;
-      }
+      if (isLocalModelDownloadCancel(error)) { setSettingsErrorMessage(null); return; }
       setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
     }
-  }, [applyLocalModelStatus, settings.ai.localModel]);
+  }, [applyLocalModelStatus, loadedSettings.ai.localModel]);
 
   const cancelLocalModelDownload = useCallback(async () => {
     setIsLocalModelActionPending(true);
     setSettingsErrorMessage(null);
     try {
-      const status = await cancelLocalAiModelDownload(settings.ai.localModel.modelId);
+      const status = await cancelLocalAiModelDownload(loadedSettings.ai.localModel.modelId);
       applyLocalModelStatus(status);
       showToast(LOCAL_MODEL_CANCEL_MESSAGE);
     } catch (error) {
@@ -326,235 +293,38 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     } finally {
       setIsLocalModelActionPending(false);
     }
-  }, [applyLocalModelStatus, settings.ai.localModel.modelId, showToast]);
+  }, [applyLocalModelStatus, loadedSettings.ai.localModel.modelId, showToast]);
 
   const deleteLocalModel = useCallback(async () => {
     setIsLocalModelActionPending(true);
     setSettingsErrorMessage(null);
     try {
-      const status = await deleteLocalAiModel(settings.ai.localModel.modelId);
+      const status = await deleteLocalAiModel(loadedSettings.ai.localModel.modelId);
       applyLocalModelStatus(status);
     } catch (error) {
       setSettingsErrorMessage(formatActionError(error, "本地模型删除失败。"));
     } finally {
       setIsLocalModelActionPending(false);
     }
-  }, [applyLocalModelStatus, settings.ai.localModel.modelId]);
+  }, [applyLocalModelStatus, loadedSettings.ai.localModel.modelId]);
 
   const runUpdateCheck = useCallback(async () => {
-    setUpdateStatus({
-      currentVersion: appVersion(),
-      state: "checking"
-    });
-    setUpdateStatus(await checkForInstallableUpdate(appVersion()));
+    // updateStatus 由 Context 管理，此处通过设置窗口触发更新检查后
+    // 结果通过 applyDownloadedUpdate / downloadUpdate 回流到 Context
+    await checkForInstallableUpdate(appVersion());
   }, []);
-
-  const downloadUpdate = useCallback(async () => {
-    setSettingsErrorMessage(null);
-    const result = await downloadPendingUpdate(setUpdateStatus);
-    setUpdateStatus(result);
-    return result;
-  }, []);
-
-  const applyDownloadedUpdate = useCallback(async () => {
-    setSettingsErrorMessage(null);
-    const installingStatus: UpdateStatus = {
-      ...updateStatus,
-      currentVersion: updateStatus.currentVersion || appVersion(),
-      state: "installing"
-    };
-    setUpdateStatus(installingStatus);
-    const result = await installDownloadedUpdate();
-    setUpdateStatus(result);
-    return result;
-  }, [updateStatus]);
 
   const installUpdate = useCallback(async () => {
     setSettingsErrorMessage(null);
     const result = updateStatus.state === "downloaded"
       ? await installDownloadedUpdate()
-      : await installPendingUpdate(setUpdateStatus);
-    setUpdateStatus(result);
+      : await installPendingUpdate(() => {});
     if (result.state === "installed") {
       showToast("更新已安装，重启应用后生效。");
     }
   }, [showToast, updateStatus.state]);
 
-  const runAutomaticUpdateCheck = useCallback(async () => {
-    const currentStatus = updateStatusRef.current;
-    if (
-      !isTauri() ||
-      !settings.update.automaticCheck ||
-      isAutoUpdateRunningRef.current ||
-      isUpdateActionBusy(currentStatus) ||
-      isUpdateReadyToApply(currentStatus)
-    ) {
-      return;
-    }
-
-    isAutoUpdateRunningRef.current = true;
-    try {
-      if (currentStatus.state === "available" && currentStatus.installKind === "app") {
-        if (!settings.update.automaticDownload) {
-          return;
-        }
-
-        // 已经检测到应用更新时，自动下载复用 pending update，避免再次检测清理可下载句柄。
-        const downloadedStatus = await downloadPendingUpdate(setUpdateStatus);
-        if (downloadedStatus.state === "error") {
-          console.warn("自动下载更新失败", downloadedStatus.error ?? downloadedStatus.state);
-          setUpdateStatus(currentStatus);
-          return;
-        }
-        setUpdateStatus(downloadedStatus);
-        return;
-      }
-
-      const nextStatus = await checkForInstallableUpdate(appVersion());
-      if (nextStatus.state === "error" || nextStatus.state === "unconfigured") {
-        // 后台自动检测失败只进入日志，不能打断编辑，也不能冒出 toast / 弹窗。
-        console.warn("自动检测更新失败", nextStatus.error ?? nextStatus.state);
-        return;
-      }
-
-      setUpdateStatus(nextStatus);
-      if (nextStatus.state === "available" && nextStatus.installKind === "app" && settings.update.automaticDownload) {
-        const downloadedStatus = await downloadPendingUpdate(setUpdateStatus);
-        if (downloadedStatus.state === "error") {
-          // 自动下载失败也只写日志，保留“发现更新”状态给用户后续手动处理。
-          console.warn("自动下载更新失败", downloadedStatus.error ?? downloadedStatus.state);
-          setUpdateStatus(nextStatus);
-          return;
-        }
-        setUpdateStatus(downloadedStatus);
-      }
-    } catch (error) {
-      console.warn("自动检测更新失败", error);
-    } finally {
-      isAutoUpdateRunningRef.current = false;
-    }
-  }, [settings.update.automaticCheck, settings.update.automaticDownload]);
-
-  const relaunchUpdate = useCallback(async () => {
-    setSettingsErrorMessage(null);
-    try {
-      await relaunchAfterUpdate();
-    } catch (error) {
-      setSettingsErrorMessage(formatActionError(error, "重启应用失败。"));
-    }
-  }, []);
-
-  useEffect(() => {
-    // 设置异步加载；先用默认值渲染，加载成功后再重绑快捷键和图片目录。
-    let cancelled = false;
-
-    void loadAppSettings()
-      .then(async (loadedSettings) => {
-        if (cancelled) {
-          return;
-        }
-        try {
-          const localModelStatus = await readLocalAiModelStatus(loadedSettings.ai.localModel.modelId);
-          const hydratedSettings: AppSettings = {
-            ...loadedSettings,
-            ai: {
-              ...loadedSettings.ai,
-              localModel: mergeLocalAiModelStatus(loadedSettings.ai.localModel, localModelStatus)
-            }
-          };
-          if (cancelled) {
-            return;
-          }
-          setSettings(hydratedSettings);
-          syncSettingsDrafts(hydratedSettings);
-          hasLoadedSettingsRef.current = true;
-          setHasLoadedSettings(true);
-        } catch {
-          setSettings(loadedSettings);
-          syncSettingsDrafts(loadedSettings);
-          hasLoadedSettingsRef.current = true;
-          setHasLoadedSettings(true);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          showToast(error instanceof Error ? error.message : "设置读取失败。");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [showToast, syncSettingsDrafts]);
-
-  useEffect(
-    () =>
-      listenToAppSettingsChanged((nextSettings) => {
-        setSettings(nextSettings);
-        syncSettingsDrafts(nextSettings);
-        setPreviewTheme(null);
-      }),
-    [syncSettingsDrafts]
-  );
-
-  useEffect(
-    () =>
-      listenToAppThemePreviewChanged((nextTheme) => {
-        setPreviewTheme(nextTheme);
-      }),
-    []
-  );
-
-  useEffect(() => {
-    if (surface !== "settings-window" || !hasLoadedSettingsRef.current) {
-      return;
-    }
-
-    // 设置窗口里的主题草稿要实时广播给主窗口预览，但仍然等保存时才进入 settings.json。
-    void publishAppThemePreviewChanged(themeDraft).catch((error: unknown) => {
-      console.warn("主题预览广播失败", error);
-    });
-  }, [surface, themeDraft]);
-
-  useEffect(() => {
-    return listenToLocalAiModelProgress((status) => {
-      applyLocalModelStatus(status);
-      if (status.status === "failed") {
-        setSettingsErrorMessage(
-          status.error === LOCAL_MODEL_CANCEL_MESSAGE ? null : status.error ?? "本地模型状态更新失败。"
-        );
-      } else {
-        setSettingsErrorMessage(null);
-      }
-    });
-  }, [applyLocalModelStatus]);
-
-  useEffect(
-    () => applyCustomThemeCss(isSettingsOpen || surface === "settings-window" ? themeDraft : previewTheme ?? settings.theme),
-    [isSettingsOpen, previewTheme, settings.theme, surface, themeDraft]
-  );
-
-  useEffect(() => {
-    if (surface !== "main" || !hasLoadedSettings || !settings.update.automaticCheck || !isTauri()) {
-      return;
-    }
-
-    const initialTimer = window.setTimeout(() => {
-      void runAutomaticUpdateCheck();
-    }, AUTO_UPDATE_INITIAL_CHECK_DELAY_MS);
-    const intervalTimer = window.setInterval(() => {
-      void runAutomaticUpdateCheck();
-    }, AUTO_UPDATE_CHECK_INTERVAL_MS);
-
-    return () => {
-      window.clearTimeout(initialTimer);
-      window.clearInterval(intervalTimer);
-    };
-  }, [hasLoadedSettings, runAutomaticUpdateCheck, settings.update.automaticCheck, surface]);
-
   return {
-    settings,
-    isSettingsOpen,
     shortcutDrafts,
     assetsDirectoryDraft,
     editorSettingsDraft,
@@ -564,7 +334,6 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
-    updateStatus,
     setAssetsDirectoryDraft,
     setEditorSettingsDraft,
     setThemeDraft,
@@ -572,7 +341,6 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setUpdateSettingsDraft,
     chooseThemeCss,
     clearThemeCss,
-    openSettings,
     closeSettings,
     destroySettingsWindowAfterRollback,
     captureShortcutDraft,
@@ -585,26 +353,21 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     downloadUpdate,
     applyDownloadedUpdate,
     installUpdate,
-    relaunchUpdate
   };
 }
 
 function createShortcutDrafts(shortcuts: readonly ShortcutSetting[]): Readonly<Record<string, string>> {
   return Object.fromEntries(
-    shortcuts.map((shortcut) => [shortcut.id, keyboardShortcutLabel(shortcut.key)])
+    shortcuts.map((s) => [s.id, keyboardShortcutLabel(s.key)])
   );
 }
 
 function findDuplicateShortcut(shortcuts: readonly string[]): string | null {
   const seen = new Set<string>();
-
-  for (const shortcut of shortcuts) {
-    if (seen.has(shortcut)) {
-      return shortcut;
-    }
-    seen.add(shortcut);
+  for (const key of shortcuts) {
+    if (seen.has(key)) return key;
+    seen.add(key);
   }
-
   return null;
 }
 
