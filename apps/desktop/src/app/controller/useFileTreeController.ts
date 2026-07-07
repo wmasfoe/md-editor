@@ -4,17 +4,15 @@ import type {
   MarkdownFileTreeNode,
   MarkdownFolder
 } from "@md-editor/file-system";
-import type { ConfirmationState, ConfirmationChoice } from "@md-editor/editor-ui";
+import type { ConfirmationState, ConfirmationChoice, RunFileAction } from "@md-editor/editor-ui";
 import { fileService } from "../../desktop/file-service";
 import type { SidebarMode, TreeItemKind } from "../../types";
 import { dirname, isSameOrChildPath } from "../../lib/path";
 import { resolveOpenDocumentMutation } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
-import type { RunFileAction } from "./useFileActionController";
 
 interface UseFileTreeControllerOptions {
-  readonly clearMdxInsertRequest: (id?: number) => void;
   readonly requestConfirmation: (confirmation: ConfirmationState) => Promise<ConfirmationChoice>;
   readonly runFileAction: RunFileAction;
   readonly setIsSidebarVisible: Dispatch<SetStateAction<boolean>>;
@@ -22,7 +20,6 @@ interface UseFileTreeControllerOptions {
 }
 
 export function useFileTreeController({
-  clearMdxInsertRequest,
   requestConfirmation,
   runFileAction,
   setIsSidebarVisible,
@@ -81,11 +78,10 @@ export function useFileTreeController({
       }
 
       const markdown = "";
-      clearMdxInsertRequest();
       runtime.document.updateMarkdown(markdown);
       runtime.document.markSaved({ markdown, filePath: null });
     },
-    [clearMdxInsertRequest]
+    []
   );
 
   const createTreeItem = useCallback(

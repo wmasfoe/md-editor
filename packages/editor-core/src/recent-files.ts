@@ -10,9 +10,8 @@ export interface RecentFilesStore {
   move(previousPath: string, file: Omit<RecentFile, "lastOpenedAt">): Promise<void>;
   list(): readonly RecentFile[];
   /**
-   * Resolve the authoritative recent-files list. In Tauri this reads the same
-   * `recent-files.json` the native menu is built from, so menu indices always
-   * map to the correct path. Falls back to localStorage off-Tauri.
+   * Resolve the authoritative recent-files list from an injected native backend
+   * when available, so menu indices always map to the correct path.
    */
   listAuthoritative(): Promise<readonly RecentFile[]>;
   clear(): Promise<void>;
@@ -28,7 +27,7 @@ const MAX_RECENT_FILES = 10;
 
 export function createRecentFilesStore(
   storage: Storage = typeof window !== "undefined" ? window.localStorage : createMemoryStorage(),
-  backend: RecentFilesBackend | null = createTauriRecentFilesBackend()
+  backend: RecentFilesBackend | null = null
 ): RecentFilesStore {
   const STORAGE_KEY = "md-editor-recent-files";
 
@@ -145,27 +144,6 @@ function isSameOrChildPath(path: string, parentPath: string): boolean {
 
 function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() || path;
-}
-
-function createTauriRecentFilesBackend(): RecentFilesBackend | null {
-  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
-    return null;
-  }
-
-  return {
-    async load() {
-      const { invoke } = await import("@tauri-apps/api/core");
-      return invoke<RecentFile[]>("load_recent_files");
-    },
-    async save(files) {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("save_recent_files", { recentFiles: files });
-    },
-    async updateMenu() {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("update_recent_files_menu");
-    }
-  };
 }
 
 function createMemoryStorage(): Storage {

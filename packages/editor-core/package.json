@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ai": "./src/ai/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,8 +14,7 @@
   },
   "dependencies": {
     "@md-editor/mdx-component-registry": "workspace:*",
-    "@md-editor/shared": "workspace:*",
-    "@tauri-apps/api": "catalog:"
+    "@md-editor/shared": "workspace:*"
   },
   "devDependencies": {
     "@md-editor/mdx-plugins": "workspace:*",

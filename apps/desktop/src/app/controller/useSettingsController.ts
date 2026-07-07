@@ -35,7 +35,7 @@ import {
   installDownloadedUpdate,
   installPendingUpdate,
 } from "../updates/app-updater";
-import { formatActionError } from "./controller-errors";
+import { formatActionError } from "@md-editor/editor-ui";
 import { useAppSettings } from "../settings-context";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { RunFileAction } from "../controller/useFileActionController";
+import type { RunFileAction } from "@md-editor/editor-ui";
 
 export interface FileActionStore {
   pendingAction: string | null;

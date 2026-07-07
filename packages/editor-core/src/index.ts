@@ -10,6 +10,7 @@ export * from "./markdown.ts";
 export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
 export * from "./recent-files.ts";
+export * from "./ai/index.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
@@ -395,7 +396,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       });
 
       // 注意：file.new, file.open, file.save, file.saveAs 的快捷键
-      // 由 Tauri 菜单直接处理，不在这里注册，避免冲突
+      // 由平台菜单直接处理，不在这里注册，避免冲突
     },
   };
 }

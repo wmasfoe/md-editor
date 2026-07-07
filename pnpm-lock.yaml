@@ -204,9 +204,6 @@ importers:
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../shared
-      '@tauri-apps/api':
-        specifier: 'catalog:'
-        version: 2.11.0
     devDependencies:
       '@md-editor/mdx-plugins':
         specifier: workspace:*

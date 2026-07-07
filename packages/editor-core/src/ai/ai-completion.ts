@@ -3,7 +3,7 @@ import type {
   AiSettings,
   AiWritingEditSuggestion,
   AiWritingSuggestion
-} from "@md-editor/editor-core";
+} from "../index.ts";
 
 export interface AiContinuationRequestOptions {
   readonly fetchImpl?: typeof fetch;
@@ -26,6 +26,9 @@ interface OpenAiChatCompletionResponse {
 const DEFAULT_AI_TIMEOUT_MS = 30_000;
 const CONTEXT_WINDOW = 3_000;
 
+// Temporary home for platform-free provider request/parsing logic.
+// Prompt cache, agents, and provider orchestration should move to a future
+// @md-editor/ai package instead of growing inside editor-core.
 export function getAiCompletionReadiness(settings: AiSettings): string | null {
   if (!settings.enabled) {
     return "请先在设置中开启 AI 功能。";
@@ -188,26 +191,24 @@ async function requestLocalAiContinuation(
   }
 
   try {
-    let localInvokeImpl = options.localInvokeImpl;
-    if (!localInvokeImpl) {
-      const { invoke, isTauri } = await import("@tauri-apps/api/core");
-      if (!isTauri()) {
-        throw new Error("桌面端才能调用本地模型。");
-      }
-      localInvokeImpl = invoke;
+    if (!options.localInvokeImpl) {
+      throw new Error("本地模型请求需要由平台注入 localInvokeImpl。");
     }
 
-    if (!localInvokeImpl) {
-      throw new Error("桌面端才能调用本地模型。");
+    if (controller.signal.aborted) {
+      throw createAbortError();
     }
 
-    const response = await localInvokeImpl("request_local_ai_continuation", {
-      context,
-      options: {
-        modelId: settings.localModel.modelId,
-        maxTokens: 220
-      }
-    });
+    const response = await waitForAbort(
+      options.localInvokeImpl("request_local_ai_continuation", {
+        context,
+        options: {
+          modelId: settings.localModel.modelId,
+          maxTokens: 220
+        }
+      }),
+      controller.signal
+    );
     const content = typeof response === "string"
       ? response
       : typeof response === "object" && response !== null && "content" in response
@@ -230,6 +231,34 @@ async function requestLocalAiContinuation(
     options.signal?.removeEventListener("abort", abortFromParent);
     globalThis.clearTimeout(timeout);
   }
+}
+
+function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    return Promise.reject(createAbortError());
+  }
+
+  return new Promise<T>((resolve, reject) => {
+    const abortOperation = () => {
+      reject(createAbortError());
+    };
+
+    signal.addEventListener("abort", abortOperation, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", abortOperation);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abortOperation);
+        reject(error);
+      }
+    );
+  });
+}
+
+function createAbortError(): DOMException {
+  return new DOMException("AI continuation aborted.", "AbortError");
 }
 
 function filterAiSuggestionBySettings(

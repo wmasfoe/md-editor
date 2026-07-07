@@ -6,6 +6,7 @@
 
 - 技术方案： [markdown_editor_technical_plan.md](./markdown_editor_technical_plan.md)
 - 能力边界设计原则： [capability_boundary_design_principles.md](./capability_boundary_design_principles.md)
+- Hooks 迁移到 React-facing 层与 editor-core 平台依赖清理手册： [hooks-migration-to-editor-core.md](./hooks-migration-to-editor-core.md)
 - macOS 窗口 Chrome 规范： [macos_window_chrome_guidelines.md](./macos_window_chrome_guidelines.md)
 - MDX 组件插件分层方案： [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
 - 本地小模型接入方案： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)

@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
-import type { AiCompletionContext, AiSettings } from "@md-editor/editor-core";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { AiCompletionContext, AiSettings } from "../src/index.ts";
 import {
   createOpenAiCompatibleRequestBody,
   getAiCompletionReadiness,
   parseAiWritingSuggestion,
   requestAiContinuation
-} from "./ai-completion";
+} from "../src/ai/ai-completion.ts";
 
 const baseSettings: AiSettings = {
   enabled: true,
@@ -37,7 +37,26 @@ const context: AiCompletionContext = {
   mode: "wysiwyg"
 };
 
+function localReadySettings(): AiSettings {
+  return {
+    ...baseSettings,
+    provider: "local",
+    localModel: {
+      ...baseSettings.localModel,
+      enabled: true,
+      version: "2026.06.25",
+      status: "available",
+      downloadedBytes: 1024,
+      totalBytes: 1024
+    }
+  };
+}
+
 describe("AI completion settings", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("requires explicit AI enablement before completion", () => {
     expect(getAiCompletionReadiness({ ...baseSettings, enabled: false })).toBe("请先在设置中开启 AI 功能。");
   });
@@ -155,7 +174,7 @@ describe("AI completion settings", () => {
     ).resolves.toEqual({});
   });
 
-  it("routes local completion through the desktop local model command", async () => {
+  it("routes local completion through the injected local model command", async () => {
     const localInvokeCalls: Array<{ readonly command: string; readonly args?: Record<string, unknown> }> = [];
     const localInvokeImpl = async (command: string, args?: Record<string, unknown>) => {
       localInvokeCalls.push({ command, args });
@@ -163,18 +182,7 @@ describe("AI completion settings", () => {
     };
 
     await expect(
-      requestAiContinuation({
-        ...baseSettings,
-        provider: "local",
-        localModel: {
-          ...baseSettings.localModel,
-          enabled: true,
-          version: "2026.06.25",
-          status: "available",
-          downloadedBytes: 1024,
-          totalBytes: 1024
-        }
-      }, context, { localInvokeImpl })
+      requestAiContinuation(localReadySettings(), context, { localInvokeImpl })
     ).resolves.toEqual({ continuation: "本地续写。" });
 
     expect(localInvokeCalls).toEqual([
@@ -189,5 +197,43 @@ describe("AI completion settings", () => {
         }
       }
     ]);
+  });
+
+  it("requires platform injection for local completion instead of importing runtime APIs", async () => {
+    await expect(
+      requestAiContinuation(localReadySettings(), context)
+    ).rejects.toThrow("本地模型请求需要由平台注入 localInvokeImpl。");
+  });
+
+  it("times out stalled local completion requests", async () => {
+    vi.useFakeTimers();
+    const localInvokeImpl = () => new Promise<unknown>(() => {});
+
+    const request = requestAiContinuation(localReadySettings(), context, {
+      localInvokeImpl,
+      timeoutMs: 1_000
+    });
+    const assertion = expect(request).rejects.toThrow("AI 续写超时，请稍后重试。");
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await assertion;
+  });
+
+  it("does not start local completion when the caller already aborted", async () => {
+    let localInvokeCalled = false;
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      requestAiContinuation(localReadySettings(), context, {
+        signal: controller.signal,
+        localInvokeImpl: async () => {
+          localInvokeCalled = true;
+          return JSON.stringify({ continuation: "不应该出现。", edit: null });
+        }
+      })
+    ).rejects.toThrow("AI 续写超时，请稍后重试。");
+
+    expect(localInvokeCalled).toBe(false);
   });
 });

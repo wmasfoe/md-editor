@@ -1,20 +1,28 @@
-import { lazy, useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, type ComponentType } from "react";
 import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useEditorScrollStore } from "../app/stores/editor-scroll-store";
 import { useOutlineStore } from "../app/stores/outline-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
-import { useMdxAiController } from "../app/controller/useMdxAiController";
+import type {
+  MdxComponentMenuRenderProps,
+  MilkdownEditorCommandHandlers,
+  MilkdownEditorProps
+} from "@md-editor/editor-ui";
+import { getAiCompletionReadiness } from "@md-editor/editor-core/ai";
 import { useEditorCommandsStore } from "../app/stores/editor-commands-store";
 import { runtime } from "../app/runtime/editor-runtime";
+import { requestDesktopAiContinuation } from "../app/ai/ai-continuation-adapter";
 import { MdxComponentMenu } from "./MdxComponentMenu";
 import { GLOBAL_LOADING_TITLE } from "../app/loading-state";
+import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 
-const MilkdownEditor = lazy(() =>
-  import("@md-editor/editor-ui/milkdown-editor").then((m) => ({ default: m.MilkdownEditor }))
-);
-
-import { Suspense } from "react";
+const MilkdownEditor = lazy(async () => {
+  const module = await import("@md-editor/editor-ui/milkdown-editor");
+  return {
+    default: module.MilkdownEditor as ComponentType<MilkdownEditorProps<MdxComponentPlugin>>
+  };
+});
 
 function EditorLoadingState({ title }: { readonly title: string }) {
   return (
@@ -36,63 +44,51 @@ export function DesktopMilkdownEditor({ showToast }: DesktopMilkdownEditorProps)
   const { documentKey, commitMarkdown, openWysiwygLink, resolveImageSrc } = useDocumentUiStore();
 
   const getEditorMode = useCallback(() => runtime.document.getSnapshot().mode, []);
-
-  const {
-    isMdxComponentMenuOpen,
-    mdxInsertRequest,
-    aiSuggestionRequest,
-    isAiSuggestionPending,
-    isAiCompletionReady,
-    mdxComponentPlugins,
-    closeMdxComponentMenu,
-    clearMdxInsertRequest,
-    clearAiSuggestionRequest,
-    insertMdxComponent,
-    requestAiSuggestion,
-    handleAiSuggestionError,
-    openMdxComponentMenu,
-    continueAiWriting,
-  } = useMdxAiController({ aiSettings: settings.ai, getEditorMode, showToast });
-
-  // 把命令注册进全局 command store，供 dispatchCommand (快捷键/菜单) 调用
-  useLayoutEffect(() => {
-    useEditorCommandsStore.setState({ openMdxComponentMenu, continueAiWriting });
-  }, [openMdxComponentMenu, continueAiWriting]);
+  const getMdxComponentPlugins = useCallback(() => runtime.mdxComponents.listInsertable(), []);
+  const registerEditorCommands = useCallback((commands: MilkdownEditorCommandHandlers) => {
+    useEditorCommandsStore.setState({
+      openMdxComponentMenu: commands.openMdxComponentMenu,
+      continueAiWriting: commands.continueAiWriting
+    });
+  }, []);
+  const renderMdxComponentMenu = useCallback(
+    ({ plugins, onInsert, onClose }: MdxComponentMenuRenderProps<MdxComponentPlugin>) => (
+      <MdxComponentMenu
+        plugins={plugins}
+        onInsert={onInsert}
+        onClose={onClose}
+      />
+    ),
+    []
+  );
 
   return (
-    <>
-      <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
-        <MilkdownEditor
-          key={documentKey}
-          snapshot={snapshot}
-          outline={outline}
-          target={tocTarget}
-          insertRequest={mdxInsertRequest}
-          aiSuggestionRequest={aiSuggestionRequest}
-          isAiSuggestionPending={isAiSuggestionPending}
-          aiAutoSuggestionsEnabled={isAiCompletionReady}
-          onInsertRequestHandled={clearMdxInsertRequest}
-          onAiSuggestionRequest={requestAiSuggestion}
-          onAiSuggestionRequestHandled={clearAiSuggestionRequest}
-          onAiSuggestionError={handleAiSuggestionError}
-          onChange={commitMarkdown}
-          onOpenLink={openWysiwygLink}
-          scrollTarget={modeScrollTarget?.mode === "wysiwyg" ? modeScrollTarget.target : null}
-          onScrollRatioChange={updateModeScrollRatio}
-          onScrollTargetApplied={completeModeScrollTarget}
-          onActiveOutlineChange={setActiveOutlineId}
-          resolveImageSrc={resolveImageSrc}
-          showCodeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
-          wysiwygFontSize={settings.editor.wysiwygFontSize}
-        />
-      </Suspense>
-      {isMdxComponentMenuOpen ? (
-        <MdxComponentMenu
-          plugins={mdxComponentPlugins}
-          onInsert={insertMdxComponent}
-          onClose={closeMdxComponentMenu}
-        />
-      ) : null}
-    </>
+    <Suspense fallback={<EditorLoadingState title={GLOBAL_LOADING_TITLE} />}>
+      <MilkdownEditor
+        key={documentKey}
+        snapshot={snapshot}
+        outline={outline}
+        target={tocTarget}
+        mdxAi={{
+          aiSettings: settings.ai,
+          getEditorMode,
+          showToast,
+          getMdxComponentPlugins,
+          getAiCompletionReadiness,
+          requestAiCompletion: requestDesktopAiContinuation
+        }}
+        onEditorCommandsChange={registerEditorCommands}
+        renderMdxComponentMenu={renderMdxComponentMenu}
+        onChange={commitMarkdown}
+        onOpenLink={openWysiwygLink}
+        scrollTarget={modeScrollTarget?.mode === "wysiwyg" ? modeScrollTarget.target : null}
+        onScrollRatioChange={updateModeScrollRatio}
+        onScrollTargetApplied={completeModeScrollTarget}
+        onActiveOutlineChange={setActiveOutlineId}
+        resolveImageSrc={resolveImageSrc}
+        showCodeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
+        wysiwygFontSize={settings.editor.wysiwygFontSize}
+      />
+    </Suspense>
   );
 }

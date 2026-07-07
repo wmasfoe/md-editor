@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { ConfirmationChoice, ConfirmationState } from "@md-editor/editor-ui";
+import type { ConfirmationChoice, ConfirmationState } from "../components/ConfirmActionDialog";
 
 export function useConfirmationController() {
   const [confirmation, setConfirmation] = useState<ConfirmationState | null>(null);

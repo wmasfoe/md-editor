@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./hooks": "./src/hooks/index.ts",
     "./milkdown-editor": "./src/components/MilkdownEditor.tsx",
     "./source-editor": "./src/components/SourceEditor.tsx"
   },
