@@ -6,6 +6,7 @@ import type {
   AppSettings,
   EditorDisplaySettings,
   AppThemeSettings,
+  AppUpdateSettings,
   UpdateStatus
 } from "../app/settings/app-settings";
 import { isComposingKeyboardEvent } from "../lib/keyboard";
@@ -23,6 +24,7 @@ export interface SettingsPageProps {
   readonly editorSettingsDraft: EditorDisplaySettings;
   readonly themeDraft: AppThemeSettings;
   readonly aiSettingsDraft: AiSettings;
+  readonly updateSettingsDraft: AppUpdateSettings;
   readonly isLocalModelActionPending: boolean;
   readonly errorMessage: string | null;
   readonly isSaving: boolean;
@@ -32,6 +34,7 @@ export interface SettingsPageProps {
   readonly onChangeAssetsDirectory: (value: string) => void;
   readonly onChangeEditorSettings: (value: EditorDisplaySettings) => void;
   readonly onChangeTheme: (value: AppThemeSettings) => void;
+  readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
   readonly onClearThemeCss: (scheme: "light" | "dark") => void;
   readonly onChangeAiSettings: (value: AiSettings) => void;
@@ -54,6 +57,7 @@ export function SettingsPage({
   editorSettingsDraft,
   themeDraft,
   aiSettingsDraft,
+  updateSettingsDraft,
   isLocalModelActionPending,
   errorMessage,
   isSaving,
@@ -63,6 +67,7 @@ export function SettingsPage({
   onChangeAssetsDirectory,
   onChangeEditorSettings,
   onChangeTheme,
+  onChangeUpdateSettings,
   onChooseThemeCss,
   onClearThemeCss,
   onChangeAiSettings,
@@ -153,8 +158,10 @@ export function SettingsPage({
           <OtherSettingsPanel
             assetsDirectoryDraft={assetsDirectoryDraft}
             updateStatus={updateStatus}
+            updateSettingsDraft={updateSettingsDraft}
             isCheckingForUpdates={isCheckingForUpdates}
             onChangeAssetsDirectory={onChangeAssetsDirectory}
+            onChangeUpdateSettings={onChangeUpdateSettings}
             onCheckForUpdates={onCheckForUpdates}
             onInstallUpdate={onInstallUpdate}
             onRelaunchAfterUpdate={onRelaunchAfterUpdate}
@@ -185,7 +192,8 @@ export function SettingsPage({
       settings.shortcuts,
       shortcutDrafts,
       themeDraft,
-      updateStatus
+      updateStatus,
+      updateSettingsDraft
     ]
   );
 

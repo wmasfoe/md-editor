@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import type { AiSettings } from "@md-editor/editor-core";
 import {
   cancelLocalAiModelDownload,
@@ -28,18 +29,27 @@ import {
   type AppSettings,
   type EditorDisplaySettings,
   type AppThemeSettings,
+  type AppUpdateSettings,
   type ShortcutSetting,
   type UpdateStatus
 } from "../settings/app-settings";
 import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
 import {
   checkForInstallableUpdate,
+  downloadPendingUpdate,
+  installDownloadedUpdate,
   installPendingUpdate,
   relaunchAfterUpdate
 } from "../updates/app-updater";
+import {
+  isUpdateActionBusy,
+  isUpdateReadyToApply
+} from "../updates/update-status";
 import { formatActionError } from "./controller-errors";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
+const AUTO_UPDATE_INITIAL_CHECK_DELAY_MS = 30_000;
+const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 type SettingsSurface = "main" | "settings-window";
 
@@ -82,16 +92,21 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   );
   const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(createDefaultSettings().theme);
   const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => createDefaultSettings().ai);
+  const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(
+    createDefaultSettings().update
+  );
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
   const [previewTheme, setPreviewTheme] = useState<AppThemeSettings | null>(null);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const hasLoadedSettingsRef = useRef(false);
+  const isAutoUpdateRunningRef = useRef(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
     currentVersion: appVersion(),
-    state: "idle",
-    message: "点击检查更新获取当前发布状态。"
+    state: "idle"
   }));
+  const updateStatusRef = useRef<UpdateStatus>(updateStatus);
 
   const syncSettingsDrafts = useCallback((nextSettings: AppSettings) => {
     // 设置弹窗编辑的是草稿；保存或取消时必须和权威 settings 重新对齐。
@@ -100,6 +115,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setEditorSettingsDraft(nextSettings.editor);
     setThemeDraft(nextSettings.theme);
     setAiSettingsDraft(nextSettings.ai);
+    setUpdateSettingsDraft(nextSettings.update);
   }, []);
 
   const applyLocalModelStatus = useCallback((status: LocalAiModelCommandStatus) => {
@@ -116,6 +132,10 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       localModel: mergeLocalAiModelStatus(current.localModel, status)
     }));
   }, []);
+
+  useEffect(() => {
+    updateStatusRef.current = updateStatus;
+  }, [updateStatus]);
 
   const openSettings = useCallback(() => {
     if (surface === "main") {
@@ -216,7 +236,8 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
         assetsDirectory: nextAssetsDirectory,
         editor: editorSettingsDraft,
         theme: themeDraft,
-        ai: normalizeAiSettings(aiSettingsDraft)
+        ai: normalizeAiSettings(aiSettingsDraft),
+        update: updateSettingsDraft
       });
       setSettings(saved);
       syncSettingsDrafts(saved);
@@ -245,7 +266,8 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     showToast,
     surface,
     syncSettingsDrafts,
-    themeDraft
+    themeDraft,
+    updateSettingsDraft
   ]);
 
   const chooseThemeCss = useCallback(async (scheme: "light" | "dark") => {
@@ -322,20 +344,96 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   const runUpdateCheck = useCallback(async () => {
     setUpdateStatus({
       currentVersion: appVersion(),
-      state: "checking",
-      message: "正在检查更新..."
+      state: "checking"
     });
     setUpdateStatus(await checkForInstallableUpdate(appVersion()));
   }, []);
 
+  const downloadUpdate = useCallback(async () => {
+    setSettingsErrorMessage(null);
+    const result = await downloadPendingUpdate(setUpdateStatus);
+    setUpdateStatus(result);
+    return result;
+  }, []);
+
+  const applyDownloadedUpdate = useCallback(async () => {
+    setSettingsErrorMessage(null);
+    const installingStatus: UpdateStatus = {
+      ...updateStatus,
+      currentVersion: updateStatus.currentVersion || appVersion(),
+      state: "installing"
+    };
+    setUpdateStatus(installingStatus);
+    const result = await installDownloadedUpdate();
+    setUpdateStatus(result);
+    return result;
+  }, [updateStatus]);
+
   const installUpdate = useCallback(async () => {
     setSettingsErrorMessage(null);
-    const result = await installPendingUpdate(setUpdateStatus);
+    const result = updateStatus.state === "downloaded"
+      ? await installDownloadedUpdate()
+      : await installPendingUpdate(setUpdateStatus);
     setUpdateStatus(result);
     if (result.state === "installed") {
       showToast("更新已安装，重启应用后生效。");
     }
-  }, [showToast]);
+  }, [showToast, updateStatus.state]);
+
+  const runAutomaticUpdateCheck = useCallback(async () => {
+    const currentStatus = updateStatusRef.current;
+    if (
+      !isTauri() ||
+      !settings.update.automaticCheck ||
+      isAutoUpdateRunningRef.current ||
+      isUpdateActionBusy(currentStatus) ||
+      isUpdateReadyToApply(currentStatus)
+    ) {
+      return;
+    }
+
+    isAutoUpdateRunningRef.current = true;
+    try {
+      if (currentStatus.state === "available" && currentStatus.installKind === "app") {
+        if (!settings.update.automaticDownload) {
+          return;
+        }
+
+        // 已经检测到应用更新时，自动下载复用 pending update，避免再次检测清理可下载句柄。
+        const downloadedStatus = await downloadPendingUpdate(setUpdateStatus);
+        if (downloadedStatus.state === "error") {
+          console.warn("自动下载更新失败", downloadedStatus.error ?? downloadedStatus.state);
+          setUpdateStatus(currentStatus);
+          return;
+        }
+        setUpdateStatus(downloadedStatus);
+        return;
+      }
+
+      const nextStatus = await checkForInstallableUpdate(appVersion());
+      if (nextStatus.state === "error" || nextStatus.state === "unconfigured") {
+        // 后台自动检测失败只进入日志，不能打断编辑，也不能冒出 toast / 弹窗。
+        console.warn("自动检测更新失败", nextStatus.error ?? nextStatus.state);
+        return;
+      }
+
+      setUpdateStatus(nextStatus);
+      if (nextStatus.state === "available" && nextStatus.installKind === "app" && settings.update.automaticDownload) {
+        const downloadedStatus = await downloadPendingUpdate(setUpdateStatus);
+        if (downloadedStatus.state === "error") {
+          // 自动下载失败也只写日志，保留“发现更新”状态给用户后续手动处理。
+          console.warn("自动下载更新失败", downloadedStatus.error ?? downloadedStatus.state);
+          setUpdateStatus(nextStatus);
+          return;
+        }
+        setUpdateStatus(downloadedStatus);
+      }
+    } catch (error) {
+      console.warn("自动检测更新失败", error);
+    } finally {
+      isAutoUpdateRunningRef.current = false;
+    }
+  }, [settings.update.automaticCheck, settings.update.automaticDownload]);
 
   const relaunchUpdate = useCallback(async () => {
     setSettingsErrorMessage(null);
@@ -370,10 +468,12 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
           setSettings(hydratedSettings);
           syncSettingsDrafts(hydratedSettings);
           hasLoadedSettingsRef.current = true;
+          setHasLoadedSettings(true);
         } catch {
           setSettings(loadedSettings);
           syncSettingsDrafts(loadedSettings);
           hasLoadedSettingsRef.current = true;
+          setHasLoadedSettings(true);
         }
       })
       .catch((error: unknown) => {
@@ -434,6 +534,24 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     [isSettingsOpen, previewTheme, settings.theme, surface, themeDraft]
   );
 
+  useEffect(() => {
+    if (surface !== "main" || !hasLoadedSettings || !settings.update.automaticCheck || !isTauri()) {
+      return;
+    }
+
+    const initialTimer = window.setTimeout(() => {
+      void runAutomaticUpdateCheck();
+    }, AUTO_UPDATE_INITIAL_CHECK_DELAY_MS);
+    const intervalTimer = window.setInterval(() => {
+      void runAutomaticUpdateCheck();
+    }, AUTO_UPDATE_CHECK_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(intervalTimer);
+    };
+  }, [hasLoadedSettings, runAutomaticUpdateCheck, settings.update.automaticCheck, surface]);
+
   return {
     settings,
     isSettingsOpen,
@@ -442,6 +560,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     editorSettingsDraft,
     themeDraft,
     aiSettingsDraft,
+    updateSettingsDraft,
     isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
@@ -450,6 +569,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setEditorSettingsDraft,
     setThemeDraft,
     setAiSettingsDraft,
+    setUpdateSettingsDraft,
     chooseThemeCss,
     clearThemeCss,
     openSettings,
@@ -462,6 +582,8 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     cancelLocalModelDownload,
     deleteLocalModel,
     runUpdateCheck,
+    downloadUpdate,
+    applyDownloadedUpdate,
     installUpdate,
     relaunchUpdate
   };

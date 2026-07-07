@@ -1,5 +1,5 @@
-import type { UpdateStatus } from "../../app/settings/app-settings";
-import { updateProgressLabel } from "./settingsUtils";
+import type { AppUpdateSettings, UpdateStatus } from "../../app/settings/app-settings";
+import { updateProgressLabel, updateStatusMessage } from "./settingsUtils";
 import {
   settingsDescriptionClassName,
   settingsFieldLabelClassName,
@@ -12,8 +12,10 @@ import {
 interface OtherSettingsPanelProps {
   readonly assetsDirectoryDraft: string;
   readonly updateStatus: UpdateStatus;
+  readonly updateSettingsDraft: AppUpdateSettings;
   readonly isCheckingForUpdates: boolean;
   readonly onChangeAssetsDirectory: (value: string) => void;
+  readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
   readonly onInstallUpdate: () => void;
   readonly onRelaunchAfterUpdate: () => void;
@@ -22,8 +24,10 @@ interface OtherSettingsPanelProps {
 export function OtherSettingsPanel({
   assetsDirectoryDraft,
   updateStatus,
+  updateSettingsDraft,
   isCheckingForUpdates,
   onChangeAssetsDirectory,
+  onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
   onRelaunchAfterUpdate
@@ -32,7 +36,10 @@ export function OtherSettingsPanel({
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
     updateStatus.state === "installing";
-  const canInstallUpdate = updateStatus.state === "available" && updateStatus.installKind === "app";
+  const canInstallUpdate = (
+    updateStatus.state === "available" ||
+    updateStatus.state === "downloaded"
+  ) && updateStatus.installKind === "app";
   const canRelaunchAfterUpdate = updateStatus.state === "installed";
 
   return (
@@ -57,7 +64,7 @@ export function OtherSettingsPanel({
       <section className={settingsModuleClassName} aria-labelledby="update-settings-title">
         <div className="mb-3">
           <h2 id="update-settings-title" className={settingsSectionTitleClassName}>版本</h2>
-          <p className={settingsDescriptionClassName}>{updateStatus.message}</p>
+          <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
           {updateStatus.state === "available" && updateStatus.installCommand ? (
             <div className="mt-2 grid gap-1">
               <span className={settingsFieldLabelClassName}>手动安装命令</span>
@@ -69,6 +76,39 @@ export function OtherSettingsPanel({
           {updateProgressLabel(updateStatus) ? (
             <p className={settingsDescriptionClassName}>{updateProgressLabel(updateStatus)}</p>
           ) : null}
+        </div>
+        <div className="mb-4 grid gap-2">
+          <label className="flex min-h-[28px] items-center gap-2 text-[13px] text-[var(--theme-control-text)]">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--theme-primary)]"
+              checked={updateSettingsDraft.automaticCheck}
+              onChange={(event) => {
+                const automaticCheck = event.target.checked;
+                // 自动下载依赖自动检测；重新开启自动检测时默认帮用户勾上自动下载。
+                onChangeUpdateSettings({
+                  automaticCheck,
+                  automaticDownload: automaticCheck ? true : false
+                });
+              }}
+            />
+            <span>自动检测更新</span>
+          </label>
+          <label className="flex min-h-[28px] items-center gap-2 text-[13px] text-[var(--theme-control-text)]">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--theme-primary)] disabled:opacity-55"
+              checked={updateSettingsDraft.automaticCheck && updateSettingsDraft.automaticDownload}
+              disabled={!updateSettingsDraft.automaticCheck}
+              onChange={(event) => {
+                onChangeUpdateSettings({
+                  automaticCheck: true,
+                  automaticDownload: event.target.checked
+                });
+              }}
+            />
+            <span>自动下载更新</span>
+          </label>
         </div>
         <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
           <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>

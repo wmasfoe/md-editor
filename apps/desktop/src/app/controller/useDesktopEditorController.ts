@@ -36,6 +36,10 @@ import { useFileTreeController } from "./useFileTreeController";
 import { useMdxAiController } from "./useMdxAiController";
 import { useOutlineController } from "./useOutlineController";
 import { useSettingsController } from "./useSettingsController";
+import {
+  isUpdateActionBusy,
+  shouldShowEditorUpdateAction
+} from "../updates/update-status";
 
 interface ToastState {
   readonly id: number;
@@ -75,6 +79,7 @@ export function useDesktopEditorController() {
     editorSettingsDraft,
     themeDraft,
     aiSettingsDraft,
+    updateSettingsDraft,
     isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
@@ -83,6 +88,7 @@ export function useDesktopEditorController() {
     setEditorSettingsDraft,
     setThemeDraft,
     setAiSettingsDraft,
+    setUpdateSettingsDraft,
     chooseThemeCss,
     clearThemeCss,
     openSettings,
@@ -94,6 +100,8 @@ export function useDesktopEditorController() {
     cancelLocalModelDownload,
     deleteLocalModel,
     runUpdateCheck,
+    downloadUpdate,
+    applyDownloadedUpdate,
     installUpdate,
     relaunchUpdate
   } = useSettingsController({ showToast });
@@ -257,6 +265,78 @@ export function useDesktopEditorController() {
     const currentMode = runtime.document.getSnapshot().mode;
     await switchMode(currentMode === "source" ? "wysiwyg" : "source");
   }, [switchMode]);
+
+  const runEditorUpdateAction = useCallback(async () => {
+    if (!shouldShowEditorUpdateAction(updateStatus) || isUpdateActionBusy(updateStatus)) {
+      return;
+    }
+
+    let nextStatus = updateStatus;
+
+    const ensureSavedBeforeApply = async () => {
+      if (!runtime.document.getSnapshot().isDirty) {
+        return true;
+      }
+      await requestConfirmation({
+        title: "请先保存文档",
+        description: "当前文档还有未保存的更改。请先保存，再继续更新 App。",
+        confirmLabel: "知道了"
+      });
+      return false;
+    };
+
+    if (nextStatus.state === "available") {
+      const choice = await requestConfirmation({
+        title: "下载更新",
+        description: `发现 Markdown Editor ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。`,
+        confirmLabel: "下载更新"
+      });
+      if (choice !== "confirm") {
+        return;
+      }
+      const result = await downloadUpdate();
+      if (result.state !== "downloaded") {
+        return;
+      }
+      nextStatus = result;
+    }
+
+    if (!await ensureSavedBeforeApply()) {
+      return;
+    }
+
+    if (nextStatus.state === "installed") {
+      const choice = await requestConfirmation({
+        title: "重启 App",
+        description: "更新已安装。重启 App 后，新版本会生效。",
+        confirmLabel: "重启 App"
+      });
+      if (choice === "confirm") {
+        await relaunchUpdate();
+      }
+      return;
+    }
+
+    const choice = await requestConfirmation({
+      title: "退出并更新",
+      description: `Markdown Editor ${nextStatus.latestVersion ?? "新版本"} 已准备好。继续后会退出 App 并进行更新。`,
+      confirmLabel: "退出并更新"
+    });
+    if (choice !== "confirm") {
+      return;
+    }
+
+    const result = await applyDownloadedUpdate();
+    if (result.state === "installed") {
+      await relaunchUpdate();
+    }
+  }, [
+    applyDownloadedUpdate,
+    downloadUpdate,
+    relaunchUpdate,
+    requestConfirmation,
+    updateStatus
+  ]);
 
   const openWysiwygLink = useCallback(
     async (href: string) => {
@@ -441,16 +521,20 @@ export function useDesktopEditorController() {
     editorSettingsDraft,
     themeDraft,
     aiSettingsDraft,
+    updateSettingsDraft,
     isLocalModelActionPending,
     settingsErrorMessage,
     isSavingSettings,
     updateStatus,
+    shouldShowEditorUpdateAction: shouldShowEditorUpdateAction(updateStatus),
+    isUpdateActionBusy: isUpdateActionBusy(updateStatus),
     setSidebarMode,
     setIsSidebarVisible,
     setAssetsDirectoryDraft,
     setEditorSettingsDraft,
     setThemeDraft,
     setAiSettingsDraft,
+    setUpdateSettingsDraft,
     chooseThemeCss,
     clearThemeCss,
     commitMarkdown,
@@ -486,6 +570,7 @@ export function useDesktopEditorController() {
     cancelLocalModelDownload,
     deleteLocalModel,
     runUpdateCheck,
+    runEditorUpdateAction,
     installUpdate,
     relaunchUpdate
   };

@@ -6,14 +6,21 @@ import {
   DEFAULT_DEEPSEEK_ENDPOINT,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
   DEFAULT_THEME_SETTINGS,
+  DEFAULT_UPDATE_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
   normalizeAppTheme,
+  normalizeUpdateSettings,
   normalizeShortcutKey,
   shortcutKeyFromKeyboardEvent,
   validateAssetsDirectory
 } from "../src/app/settings/app-settings";
+import {
+  isUpdateActionBusy,
+  isUpdateReadyToApply,
+  shouldShowEditorUpdateAction
+} from "../src/app/updates/update-status";
 
 describe("app settings", () => {
   it("keeps the default settings aligned with editable shortcuts", () => {
@@ -35,6 +42,7 @@ describe("app settings", () => {
       totalBytes: 0,
       error: null
     });
+    expect(settings.update).toEqual(DEFAULT_UPDATE_SETTINGS);
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
       "view.toggleSource",
       "view.toggleSidebarPrimary",
@@ -42,6 +50,31 @@ describe("app settings", () => {
       "mdx.openComponentMenu",
       "ai.continueWriting"
     ]);
+  });
+
+  it("normalizes update settings for old and partial settings payloads", () => {
+    expect(normalizeUpdateSettings(undefined)).toEqual({
+      automaticCheck: true,
+      automaticDownload: true
+    });
+    expect(normalizeUpdateSettings({})).toEqual({
+      automaticCheck: true,
+      automaticDownload: true
+    });
+    expect(normalizeUpdateSettings({
+      automaticCheck: false,
+      automaticDownload: true
+    })).toEqual({
+      automaticCheck: false,
+      automaticDownload: false
+    });
+    expect(normalizeUpdateSettings({
+      automaticCheck: true,
+      automaticDownload: false
+    })).toEqual({
+      automaticCheck: true,
+      automaticDownload: false
+    });
   });
 
   it("normalizes editor display settings with code block line numbers off by default", () => {
@@ -231,8 +264,7 @@ describe("app settings", () => {
       releaseUrl: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
       downloadUrl: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND,
-      message: "发现新版本 0.2.9，当前版本 0.2.8。"
+      installCommand: INSTALL_WITH_CURL_COMMAND
     });
   });
 
@@ -249,8 +281,7 @@ describe("app settings", () => {
       state: "up-to-date",
       latestVersion: "0.2.9",
       releaseUrl: undefined,
-      downloadUrl: undefined,
-      message: "当前版本 0.2.9 已是最新发布版本。"
+      downloadUrl: undefined
     });
   });
 
@@ -268,8 +299,7 @@ describe("app settings", () => {
       }
     ])).toEqual({
       currentVersion: "0.2.8",
-      state: "unconfigured",
-      message: "没有找到公开稳定版发布记录，请确认 Release workflow 已完成。"
+      state: "unconfigured"
     });
   });
 
@@ -279,5 +309,32 @@ describe("app settings", () => {
     expect(compareReleaseVersions("0.2.9", "0.2.9-beta.2")).toBe(1);
     expect(compareReleaseVersions("0.2.9-beta.1", "0.2.9")).toBe(-1);
     expect(compareReleaseVersions("0.2.9", "0.2.9")).toBe(0);
+  });
+
+  it("keeps editor update action visibility in pure status helpers", () => {
+    expect(shouldShowEditorUpdateAction({
+      currentVersion: "0.3.0",
+      state: "available",
+      latestVersion: "0.3.1",
+      installKind: "app"
+    })).toBe(true);
+    expect(shouldShowEditorUpdateAction({
+      currentVersion: "0.3.0",
+      state: "available",
+      latestVersion: "0.3.1",
+      installKind: "manual"
+    })).toBe(false);
+    expect(isUpdateReadyToApply({
+      currentVersion: "0.3.0",
+      state: "downloaded",
+      latestVersion: "0.3.1",
+      installKind: "app"
+    })).toBe(true);
+    expect(isUpdateActionBusy({
+      currentVersion: "0.3.0",
+      state: "downloading",
+      latestVersion: "0.3.1",
+      installKind: "app"
+    })).toBe(true);
   });
 });

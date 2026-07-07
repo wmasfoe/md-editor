@@ -25,6 +25,7 @@ export interface AppSettings {
   readonly editor: EditorDisplaySettings;
   readonly theme: AppThemeSettings;
   readonly ai: AiSettings;
+  readonly update: AppUpdateSettings;
 }
 
 export interface UpdateStatus {
@@ -35,11 +36,12 @@ export interface UpdateStatus {
     | "up-to-date"
     | "available"
     | "downloading"
+    | "downloaded"
     | "installing"
     | "installed"
     | "unconfigured"
     | "error";
-  readonly message: string;
+  readonly message?: string;
   readonly latestVersion?: string;
   readonly releaseUrl?: string;
   readonly downloadUrl?: string;
@@ -47,6 +49,7 @@ export interface UpdateStatus {
   readonly installCommand?: string;
   readonly downloadedBytes?: number;
   readonly totalBytes?: number;
+  readonly error?: string;
 }
 
 export type ThemeColorScheme = "system" | "light" | "dark";
@@ -68,6 +71,11 @@ export interface AppThemeSettings {
 export interface EditorDisplaySettings {
   readonly showCodeBlockLineNumbers: boolean;
   readonly wysiwygFontSize: number;
+}
+
+export interface AppUpdateSettings {
+  readonly automaticCheck: boolean;
+  readonly automaticDownload: boolean;
 }
 
 export const DEFAULT_ASSETS_DIRECTORY = "assets";
@@ -150,13 +158,19 @@ export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
   wysiwygFontSize: 17
 };
 
+export const DEFAULT_UPDATE_SETTINGS: AppUpdateSettings = {
+  automaticCheck: true,
+  automaticDownload: true
+};
+
 export function createDefaultSettings(): AppSettings {
   return {
     shortcuts: SHORTCUTS.map((shortcut) => ({ ...shortcut, key: shortcut.defaultKey })),
     assetsDirectory: DEFAULT_ASSETS_DIRECTORY,
     editor: DEFAULT_EDITOR_DISPLAY_SETTINGS,
     theme: DEFAULT_THEME_SETTINGS,
-    ai: DEFAULT_AI_SETTINGS
+    ai: DEFAULT_AI_SETTINGS,
+    update: DEFAULT_UPDATE_SETTINGS
   };
 }
 
@@ -286,7 +300,7 @@ export async function checkForUpdates(
       return {
         currentVersion,
         state: "error",
-        message: `检查更新失败：GitHub Release API 返回 ${response.status}。`
+        error: `github-release-http-${response.status}`
       };
     }
 
@@ -295,7 +309,7 @@ export async function checkForUpdates(
     return {
       currentVersion,
       state: "error",
-      message: error instanceof Error ? `检查更新失败：${error.message}` : "检查更新失败。"
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
@@ -309,8 +323,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
   if (!latestRelease) {
     return {
       currentVersion,
-      state: "unconfigured",
-      message: "没有找到公开稳定版发布记录，请确认 Release workflow 已完成。"
+      state: "unconfigured"
     };
   }
 
@@ -323,8 +336,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
       releaseUrl: latestRelease.releaseUrl,
       downloadUrl: latestRelease.downloadUrl,
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND,
-      message: `发现新版本 ${latestRelease.version}，当前版本 ${currentVersion}。`
+      installCommand: INSTALL_WITH_CURL_COMMAND
     };
   }
 
@@ -333,8 +345,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
     state: "up-to-date",
     latestVersion: latestRelease.version,
     releaseUrl: latestRelease.releaseUrl,
-    downloadUrl: latestRelease.downloadUrl,
-    message: `当前版本 ${currentVersion} 已是最新发布版本。`
+    downloadUrl: latestRelease.downloadUrl
   };
 }
 
@@ -633,6 +644,7 @@ interface PersistedSettings {
   readonly editor?: unknown;
   readonly theme?: unknown;
   readonly ai?: Partial<AiSettings>;
+  readonly update?: unknown;
 }
 
 function readLocalSettings(): Partial<PersistedSettings> {
@@ -660,7 +672,8 @@ function normalizeSettings(input: Partial<PersistedSettings | AppSettings> | nul
     assetsDirectory,
     editor: normalizeEditorDisplaySettings(input?.editor),
     theme: normalizeAppTheme(input?.theme),
-    ai: normalizeAiSettings(input?.ai)
+    ai: normalizeAiSettings(input?.ai),
+    update: normalizeUpdateSettings(input?.update)
   };
 }
 
@@ -673,7 +686,8 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
     assetsDirectory: settings.assetsDirectory,
     editor: settings.editor,
     theme: settings.theme,
-    ai: settings.ai
+    ai: settings.ai,
+    update: settings.update
   };
 }
 
@@ -685,6 +699,26 @@ export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySet
   return {
     showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true,
     wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize)
+  };
+}
+
+export function normalizeUpdateSettings(input: unknown): AppUpdateSettings {
+  if (!isRecord(input)) {
+    return DEFAULT_UPDATE_SETTINGS;
+  }
+
+  const automaticCheck = input.automaticCheck === undefined
+    ? DEFAULT_UPDATE_SETTINGS.automaticCheck
+    : input.automaticCheck === true;
+  const automaticDownload = automaticCheck
+    ? input.automaticDownload === undefined
+      ? DEFAULT_UPDATE_SETTINGS.automaticDownload
+      : input.automaticDownload === true
+    : false;
+
+  return {
+    automaticCheck,
+    automaticDownload
   };
 }
 

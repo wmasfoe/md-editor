@@ -63,6 +63,49 @@ export function updateProgressLabel(updateStatus: UpdateStatus): string | null {
     : `${formatByteSize(downloadedBytes)} 已下载`;
 }
 
+export function updateStatusMessage(updateStatus: UpdateStatus): string {
+  if (updateStatus.message) {
+    return updateStatus.message;
+  }
+
+  const latestVersion = updateStatus.latestVersion ?? "未知版本";
+  switch (updateStatus.state) {
+    case "idle":
+      return "点击检查更新获取当前发布状态。";
+    case "checking":
+      return "正在检查更新...";
+    case "up-to-date":
+      return `当前版本 ${updateStatus.currentVersion} 已是最新发布版本。`;
+    case "available":
+      return `发现新版本 ${latestVersion}，当前版本 ${updateStatus.currentVersion}。`;
+    case "downloading":
+      return `正在下载 Markdown Editor ${latestVersion}...`;
+    case "downloaded":
+      return `Markdown Editor ${latestVersion} 已下载，退出并更新后生效。`;
+    case "installing":
+      return "更新下载完成，正在安装...";
+    case "installed":
+      return `Markdown Editor ${latestVersion} 已安装，重启应用后生效。`;
+    case "unconfigured":
+      return "应用内更新暂不可用，请确认 Release workflow 已完成。";
+    case "error":
+      return updateStatus.error ? `更新失败：${updateStatus.error}` : "更新失败。";
+  }
+}
+
+export function editorUpdateActionLabel(updateStatus: UpdateStatus): string {
+  switch (updateStatus.state) {
+    case "downloading":
+      return "下载中";
+    case "installing":
+      return "安装中";
+    case "installed":
+      return "重启 App";
+    default:
+      return "更新 App";
+  }
+}
+
 export function readAiProvider(input: string): AiSettings["provider"] {
   if (input === "deepseek" || input === "local") {
     return input;

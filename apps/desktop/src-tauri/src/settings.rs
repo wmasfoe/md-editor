@@ -15,6 +15,7 @@ pub(crate) struct AppSettings {
     #[serde(default, deserialize_with = "deserialize_theme_settings")]
     pub(crate) theme: Option<Value>,
     pub(crate) ai: Option<AiSettings>,
+    pub(crate) update: Option<UpdateSettings>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -61,6 +62,13 @@ pub(crate) struct AiLocalModelSettings {
     pub(crate) error: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct UpdateSettings {
+    pub(crate) automatic_check: Option<bool>,
+    pub(crate) automatic_download: Option<bool>,
+}
+
 #[tauri::command]
 pub(crate) fn load_app_settings() -> AppSettings {
     let Some(data_dir) = app_data_dir() else {
@@ -97,6 +105,7 @@ fn default_settings() -> AppSettings {
         editor: None,
         theme: None,
         ai: None,
+        update: None,
     }
 }
 
@@ -195,6 +204,10 @@ mod tests {
                     error: None,
                 }),
             }),
+            update: Some(UpdateSettings {
+                automatic_check: Some(true),
+                automatic_download: Some(false),
+            }),
         };
 
         write_settings(&path, &settings).unwrap();
@@ -215,6 +228,7 @@ mod tests {
 
         assert_eq!(settings.theme, None);
         assert_eq!(settings.editor, None);
+        assert_eq!(settings.update, None);
         assert_eq!(settings.assets_directory, Some("images".to_string()));
         assert_eq!(
             settings.shortcuts,

@@ -1,73 +1,83 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import {
+  check,
+  type DownloadEvent,
+  type Update,
+} from "@tauri-apps/plugin-updater";
 import {
   appVersion,
   checkForUpdates,
-  type UpdateStatus
+  type UpdateStatus,
 } from "../settings/app-settings";
+export {
+  isUpdateActionBusy,
+  isUpdateReadyToApply,
+  shouldShowEditorUpdateAction,
+} from "./update-status";
 
 type ProgressReporter = (status: UpdateStatus) => void;
 
 interface DownloadProgressUpdate {
-  readonly state: "downloading" | "installing";
+  readonly state: "downloading";
   readonly downloadedBytes: number;
   readonly totalBytes: number;
-  readonly message: string;
 }
 
 let pendingUpdate: Update | null = null;
+let downloadedUpdate: Update | null = null;
 
-export async function checkForInstallableUpdate(currentVersion = appVersion()): Promise<UpdateStatus> {
+export async function checkForInstallableUpdate(
+  currentVersion = appVersion(),
+): Promise<UpdateStatus> {
   if (!isTauri()) {
     return checkForUpdates(currentVersion);
   }
 
   try {
+    if (downloadedUpdate) {
+      return createDownloadedUpdateStatus(
+        downloadedUpdate.version,
+        currentVersion,
+      );
+    }
+
     await clearPendingUpdate();
     const update = await check({ timeout: 30_000 });
     if (!update) {
       return {
         currentVersion,
         state: "up-to-date",
-        message: `当前版本 ${currentVersion} 已是最新发布版本。`
       };
     }
 
     pendingUpdate = update;
-    return {
-      currentVersion,
-      state: "available",
-      latestVersion: update.version,
-      installKind: "app",
-      message: `发现新版本 ${update.version}，当前版本 ${currentVersion}。可以直接安装更新。`
-    };
+    return createAvailableUpdateStatus(update.version, currentVersion);
   } catch (error) {
     // Manifest 尚未发布或 updater 配置异常时，退回现有公开 release 检查，保留手动安装路径。
     const fallbackStatus = await checkForUpdates(currentVersion);
     if (fallbackStatus.state === "available") {
-      return {
-        ...fallbackStatus,
-        message: `应用内更新暂不可用：${formatUpdateError(error)}。${fallbackStatus.message}`
-      };
+      return fallbackStatus;
     }
 
     return {
       currentVersion,
       state: fallbackStatus.state === "error" ? "error" : "unconfigured",
-      message: `应用内更新暂不可用：${formatUpdateError(error)}。${fallbackStatus.message}`
+      error: formatUpdateError(error),
     };
   }
 }
 
-export async function installPendingUpdate(reportProgress: ProgressReporter): Promise<UpdateStatus> {
+export async function downloadPendingUpdate(
+  reportProgress: ProgressReporter,
+): Promise<UpdateStatus> {
   const update = pendingUpdate;
   const currentVersion = appVersion();
   if (!update) {
     return {
       currentVersion,
       state: "error",
-      message: "没有待安装的应用内更新，请先检查更新。"
+      error: "missing-pending-update",
     };
   }
 
@@ -76,7 +86,7 @@ export async function installPendingUpdate(reportProgress: ProgressReporter): Pr
   const baseStatus = {
     currentVersion,
     latestVersion: update.version,
-    installKind: "app" as const
+    installKind: "app" as const,
   };
 
   try {
@@ -85,11 +95,14 @@ export async function installPendingUpdate(reportProgress: ProgressReporter): Pr
       state: "downloading",
       downloadedBytes,
       totalBytes,
-      message: `正在下载 Markdown Editor ${update.version}...`
     });
 
-    await update.downloadAndInstall((event) => {
-      const nextProgress = readDownloadProgress(event, downloadedBytes, totalBytes);
+    await update.download((event) => {
+      const nextProgress = readDownloadProgress(
+        event,
+        downloadedBytes,
+        totalBytes,
+      );
       downloadedBytes = nextProgress.downloadedBytes;
       totalBytes = nextProgress.totalBytes;
       reportProgress({
@@ -97,18 +110,16 @@ export async function installPendingUpdate(reportProgress: ProgressReporter): Pr
         state: nextProgress.state,
         downloadedBytes,
         totalBytes,
-        message: nextProgress.message
       });
     });
 
     pendingUpdate = null;
-    await update.close().catch(() => undefined);
+    downloadedUpdate = update;
     return {
       ...baseStatus,
-      state: "installed",
+      state: "downloaded",
       downloadedBytes,
       totalBytes,
-      message: `Markdown Editor ${update.version} 已安装，重启应用后生效。`
     };
   } catch (error) {
     return {
@@ -116,16 +127,88 @@ export async function installPendingUpdate(reportProgress: ProgressReporter): Pr
       state: "error",
       downloadedBytes,
       totalBytes,
-      message: `安装更新失败：${formatUpdateError(error)}`
+      error: formatUpdateError(error),
     };
   }
 }
 
+export async function installDownloadedUpdate(): Promise<UpdateStatus> {
+  const update = downloadedUpdate;
+  const currentVersion = appVersion();
+  if (!update) {
+    return {
+      currentVersion,
+      state: "error",
+      error: "missing-downloaded-update",
+    };
+  }
+
+  const baseStatus = {
+    currentVersion,
+    latestVersion: update.version,
+    installKind: "app" as const,
+  };
+
+  try {
+    await update.install();
+    downloadedUpdate = null;
+    await update.close().catch(() => undefined);
+    return {
+      ...baseStatus,
+      state: "installed",
+    };
+  } catch (error) {
+    return {
+      ...baseStatus,
+      state: "error",
+      error: formatUpdateError(error),
+    };
+  }
+}
+
+export async function installPendingUpdate(
+  reportProgress: ProgressReporter,
+): Promise<UpdateStatus> {
+  const downloadStatus = await downloadPendingUpdate(reportProgress);
+  if (downloadStatus.state !== "downloaded") {
+    return downloadStatus;
+  }
+  reportProgress({
+    ...downloadStatus,
+    state: "installing",
+  });
+  return installDownloadedUpdate();
+}
+
 export async function relaunchAfterUpdate(): Promise<void> {
   if (!isTauri()) {
-    throw new Error("重启应用只在桌面端可用。");
+    throw new Error("tauri-runtime-unavailable");
   }
   await relaunch();
+}
+
+function createAvailableUpdateStatus(
+  version: string,
+  currentVersion: string,
+): UpdateStatus {
+  return {
+    currentVersion,
+    state: "available",
+    latestVersion: version,
+    installKind: "app",
+  };
+}
+
+function createDownloadedUpdateStatus(
+  version: string,
+  currentVersion: string,
+): UpdateStatus {
+  return {
+    currentVersion,
+    state: "downloaded",
+    latestVersion: version,
+    installKind: "app",
+  };
 }
 
 async function clearPendingUpdate(): Promise<void> {
@@ -137,7 +220,7 @@ async function clearPendingUpdate(): Promise<void> {
 function readDownloadProgress(
   event: DownloadEvent,
   downloadedBytes: number,
-  totalBytes: number
+  totalBytes: number,
 ): DownloadProgressUpdate {
   switch (event.event) {
     case "Started":
@@ -145,7 +228,6 @@ function readDownloadProgress(
         state: "downloading",
         downloadedBytes: 0,
         totalBytes: event.data.contentLength ?? 0,
-        message: "正在下载更新..."
       };
     case "Progress": {
       const nextDownloadedBytes = downloadedBytes + event.data.chunkLength;
@@ -153,15 +235,13 @@ function readDownloadProgress(
         state: "downloading",
         downloadedBytes: nextDownloadedBytes,
         totalBytes,
-        message: "正在下载更新..."
       };
     }
     case "Finished":
       return {
-        state: "installing",
+        state: "downloading",
         downloadedBytes,
         totalBytes,
-        message: "更新下载完成，正在安装..."
       };
   }
 }

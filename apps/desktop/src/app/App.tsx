@@ -40,6 +40,7 @@ import {
 } from "./document-metrics";
 import { useSettingsController } from "./controller/useSettingsController";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
+import { editorUpdateActionLabel } from "../components/settings/settingsUtils";
 
 const SourceEditor = lazy(() =>
   import("@md-editor/editor-ui/source-editor").then((module) => ({ default: module.SourceEditor }))
@@ -96,6 +97,7 @@ export function App() {
             editorSettingsDraft={editor.editorSettingsDraft}
             themeDraft={editor.themeDraft}
             aiSettingsDraft={editor.aiSettingsDraft}
+            updateSettingsDraft={editor.updateSettingsDraft}
             isLocalModelActionPending={editor.isLocalModelActionPending}
             errorMessage={editor.settingsErrorMessage}
             isSaving={editor.isSavingSettings}
@@ -105,6 +107,7 @@ export function App() {
             onChangeAssetsDirectory={editor.setAssetsDirectoryDraft}
             onChangeEditorSettings={editor.setEditorSettingsDraft}
             onChangeTheme={editor.setThemeDraft}
+            onChangeUpdateSettings={editor.setUpdateSettingsDraft}
             onChooseThemeCss={editor.chooseThemeCss}
             onClearThemeCss={editor.clearThemeCss}
             onChangeAiSettings={editor.setAiSettingsDraft}
@@ -278,18 +281,21 @@ export function App() {
             titleAlign="center"
             titleIcon="markdown"
             actions={
-              editor.hasActiveDocument ? (
-                <EditorTitleBarControls
-                  metricKind={documentMetricKind}
-                  metrics={documentMetrics}
-                  outline={editor.outline}
-                  activeOutlineId={editor.activeOutlineId}
-                  isSidebarVisible={editor.isSidebarVisible}
-                  onMetricKindChange={setDocumentMetricKind}
-                  onJumpToOutlineItem={editor.jumpToTocItem}
-                  onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
-                />
-              ) : null
+              <EditorTitleBarControls
+                metricKind={documentMetricKind}
+                metrics={documentMetrics}
+                outline={editor.outline}
+                activeOutlineId={editor.activeOutlineId}
+                hasActiveDocument={editor.hasActiveDocument}
+                isSidebarVisible={editor.isSidebarVisible}
+                showUpdateAction={editor.shouldShowEditorUpdateAction}
+                isUpdateActionBusy={editor.isUpdateActionBusy}
+                updateActionLabel={editorUpdateActionLabel(editor.updateStatus)}
+                onMetricKindChange={setDocumentMetricKind}
+                onJumpToOutlineItem={editor.jumpToTocItem}
+                onToggleSidebar={() => editor.setIsSidebarVisible(!editor.isSidebarVisible)}
+                onRunUpdateAction={() => void editor.runEditorUpdateAction()}
+              />
             }
           />
           {!editor.isSidebarVisible ? (
@@ -489,6 +495,7 @@ function SettingsWindowApp() {
           editorSettingsDraft={settings.editorSettingsDraft}
           themeDraft={settings.themeDraft}
           aiSettingsDraft={settings.aiSettingsDraft}
+          updateSettingsDraft={settings.updateSettingsDraft}
           isLocalModelActionPending={settings.isLocalModelActionPending}
           errorMessage={settings.settingsErrorMessage}
           isSaving={settings.isSavingSettings}
@@ -498,6 +505,7 @@ function SettingsWindowApp() {
           onChangeAssetsDirectory={settings.setAssetsDirectoryDraft}
           onChangeEditorSettings={settings.setEditorSettingsDraft}
           onChangeTheme={settings.setThemeDraft}
+          onChangeUpdateSettings={settings.setUpdateSettingsDraft}
           onChooseThemeCss={settings.chooseThemeCss}
           onClearThemeCss={settings.clearThemeCss}
           onChangeAiSettings={settings.setAiSettingsDraft}
@@ -588,20 +596,28 @@ function AppTitleBar({
 
 function EditorTitleBarControls({
   activeOutlineId,
+  hasActiveDocument,
   isSidebarVisible,
+  isUpdateActionBusy,
   metricKind,
   metrics,
   onJumpToOutlineItem,
   onMetricKindChange,
+  onRunUpdateAction,
   onToggleSidebar,
-  outline
+  outline,
+  showUpdateAction,
+  updateActionLabel
 }: {
   readonly activeOutlineId: string | null;
+  readonly hasActiveDocument: boolean;
   readonly isSidebarVisible: boolean;
+  readonly isUpdateActionBusy: boolean;
   readonly metricKind: DocumentMetricKind;
   readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
   readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
   readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
+  readonly onRunUpdateAction: () => void;
   readonly onToggleSidebar: () => void;
   readonly outline: readonly {
     readonly id: string;
@@ -609,19 +625,35 @@ function EditorTitleBarControls({
     readonly text: string;
     readonly line: number;
   }[];
+  readonly showUpdateAction: boolean;
+  readonly updateActionLabel: string;
 }) {
   return (
     <div className="group/titlebar-controls flex h-[30px] items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
-      <DocumentMetricMenu
-        metricKind={metricKind}
-        metrics={metrics}
-        onMetricKindChange={onMetricKindChange}
-      />
-      <OutlinePopover
-        outline={outline}
-        activeOutlineId={activeOutlineId}
-        onJumpToOutlineItem={onJumpToOutlineItem}
-      />
+      {showUpdateAction ? (
+        <button
+          type="button"
+          className="h-[22px] cursor-pointer rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white shadow-[0_1px_0_rgba(0,0,0,0.12)] hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
+          onClick={onRunUpdateAction}
+          disabled={isUpdateActionBusy}
+        >
+          {updateActionLabel}
+        </button>
+      ) : null}
+      {hasActiveDocument ? (
+        <>
+          <DocumentMetricMenu
+            metricKind={metricKind}
+            metrics={metrics}
+            onMetricKindChange={onMetricKindChange}
+          />
+          <OutlinePopover
+            outline={outline}
+            activeOutlineId={activeOutlineId}
+            onJumpToOutlineItem={onJumpToOutlineItem}
+          />
+        </>
+      ) : null}
       <button
         type="button"
         className={titleBarSecondaryButtonClassName}
