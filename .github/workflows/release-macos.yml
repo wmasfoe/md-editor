@@ -24,6 +24,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Load CI Tauri config
+        run: |
+          {
+            echo "TAURI_CONFIG<<TAURI_CI_CONFIG"
+            cat apps/desktop/src-tauri/tauri.ci.conf.json
+            echo "TAURI_CI_CONFIG"
+          } >> "$GITHUB_ENV"
+
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
