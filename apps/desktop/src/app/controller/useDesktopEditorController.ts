@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
@@ -24,17 +24,13 @@ import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindPasteImageListener } from "../events/paste-image-listener";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { runtime } from "../runtime/editor-runtime";
-import {
-  clampEditorScrollRatio,
-  createModeScrollTarget,
-} from "./mode-scroll-target";
 import { recentFilesStore } from "./recent-files-store";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useFileTreeController } from "./useFileTreeController";
 import {
+  useEditorUiActions,
   useConfirmationController,
-  useFileActionController,
-  useOutlineController
+  useFileActionController
 } from "@md-editor/editor-ui";
 import {
   isUpdateActionBusy,
@@ -42,11 +38,8 @@ import {
 } from "../updates/update-status";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
-import { useEditorScrollStore } from "../stores/editor-scroll-store";
 import { useFileActionStore } from "../stores/file-action-store";
 import { useFileTreeStore } from "../stores/file-tree-store";
-import { useEditorCommandsStore } from "../stores/editor-commands-store";
-import { useOutlineStore } from "../stores/outline-store";
 import { useSidebarStore } from "../stores/sidebar-store";
 
 export interface UseDesktopEditorControllerInput {
@@ -56,7 +49,13 @@ export interface UseDesktopEditorControllerInput {
 export function useDesktopEditorController({ showToast }: UseDesktopEditorControllerInput) {
   const { settings, updateStatus, openSettings, relaunchUpdate, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const activeScrollRatioRef = useRef(0);
+  const {
+    clearModeScrollTarget,
+    getEditorCommands,
+    jumpToMarkdownFragment,
+    setDocumentRevision,
+    startModeScrollTarget
+  } = useEditorUiActions();
 
   // --- Store-backed setters (compatible with Dispatch<SetStateAction<T>>) ---
 
@@ -84,23 +83,9 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     }));
   }, []);
 
-  // documentKey: computed from filePath + revision, managed via ref
-  const editorRevisionRef = useRef(0);
-  const setEditorRevisionAndKey = useCallback((value: number | ((prev: number) => number)) => {
-    const next = typeof value === "function" ? value(editorRevisionRef.current) : value;
-    editorRevisionRef.current = next;
-    const filePath = runtime.document.getSnapshot().filePath;
-    useDocumentUiStore.setState({
-      documentKey: `${filePath ?? "untitled"}:${next}`,
-    });
-  }, []);
-
   // --- Sub-hooks ---
 
   const confirmation = useConfirmationController();
-
-  const outline = useOutlineController({ markdown: snapshot.markdown, showToast });
-
 
   const fileAction = useFileActionController({ showToast });
 
@@ -115,7 +100,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     refreshFolderForDocumentPath: fileTree.refreshFolderForDocumentPath,
     requestConfirmation: confirmation.requestConfirmation,
     runFileAction: fileAction.runFileAction,
-    setEditorRevision: setEditorRevisionAndKey,
+    setEditorRevision: setDocumentRevision,
     setHasActiveDocument,
     setOpenedAsset,
     showOpenedFolder: fileTree.showOpenedFolder,
@@ -137,27 +122,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     confirmation.requestConfirmation,
     confirmation.resolveConfirmation,
   ]);
-
-  useLayoutEffect(() => {
-    useOutlineStore.setState({
-      outline: outline.outline,
-      tocTarget: outline.tocTarget,
-      activeOutlineId: outline.activeOutlineId,
-      setActiveOutlineId: outline.setActiveOutlineId,
-      jumpToTocItem: outline.jumpToTocItem,
-      jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
-      updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
-    });
-  }, [
-    outline.outline,
-    outline.tocTarget,
-    outline.activeOutlineId,
-    outline.setActiveOutlineId,
-    outline.jumpToTocItem,
-    outline.jumpToMarkdownFragment,
-    outline.updateActiveOutlineForLine,
-  ]);
-
 
   useLayoutEffect(() => {
     useFileActionStore.setState({
@@ -183,33 +147,16 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
 
   // --- Coordinator-level actions (depend on multiple sub-hooks) ---
 
-  const updateModeScrollRatio = useCallback((ratio: number) => {
-    const clamped = clampEditorScrollRatio(ratio);
-    if (clamped !== null) {
-      activeScrollRatioRef.current = clamped;
-    }
-  }, []);
-
-  const completeModeScrollTarget = useCallback((nonce: number) => {
-    useEditorScrollStore.setState((current) => ({
-      modeScrollTarget: current.modeScrollTarget?.target.nonce === nonce
-        ? null
-        : current.modeScrollTarget,
-    }));
-  }, []);
-
   const switchMode = useCallback(async (mode: EditorMode) => {
     const currentMode = runtime.document.getSnapshot().mode;
     if (currentMode !== mode) {
-      useEditorScrollStore.setState({
-        modeScrollTarget: createModeScrollTarget(mode, activeScrollRatioRef.current),
-      });
+      startModeScrollTarget(mode);
     }
     await docActions.switchMode(mode);
     if (runtime.document.getSnapshot().mode !== mode) {
-      useEditorScrollStore.setState({ modeScrollTarget: null });
+      clearModeScrollTarget();
     }
-  }, [docActions.switchMode]);
+  }, [clearModeScrollTarget, docActions.switchMode, startModeScrollTarget]);
 
   const toggleSourceMode = useCallback(async () => {
     const currentMode = runtime.document.getSnapshot().mode;
@@ -279,7 +226,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
   const openWysiwygLink = useCallback(async (href: string) => {
     const parts = splitLinkHref(href);
     if (parts.path === "" && parts.fragment) {
-      outline.jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
+      jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
       return;
     }
 
@@ -318,7 +265,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
         const document = await fileService.openDocumentAtPath(linked.path);
         docActions.replaceDocument(document);
         await fileTree.refreshFolderForDocumentPath(document.filePath);
-        outline.jumpToMarkdownFragment(document.markdown, parts.fragment);
+        jumpToMarkdownFragment(document.markdown, parts.fragment);
         return;
       }
 
@@ -329,7 +276,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     docActions.replaceDocument,
     fileAction.runFileAction,
     fileTree.refreshFolderForDocumentPath,
-    outline.jumpToMarkdownFragment,
+    jumpToMarkdownFragment,
     showToast,
   ]);
 
@@ -351,6 +298,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
 
   const dispatchCommand = useCallback(async (id: string) => {
     if (confirmation.hasPendingConfirmation()) return;
+    const editorCommands = getEditorCommands();
     await runtime.commands.dispatch(id, {
       document: runtime.document,
       actions: {
@@ -361,8 +309,8 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
         saveDocument: () => docActions.saveDocument(false),
         saveDocumentAs: () => docActions.saveDocument(true),
         openSettings,
-        openMdxComponentMenu: useEditorCommandsStore.getState().openMdxComponentMenu,
-        continueAiWriting: useEditorCommandsStore.getState().continueAiWriting,
+        openMdxComponentMenu: editorCommands.openMdxComponentMenu,
+        continueAiWriting: editorCommands.continueAiWriting,
         toggleSourceMode,
         showWysiwygMode: () => switchMode("wysiwyg"),
         toggleSidebarPrimary: () => setIsSidebarVisible((v) => !v),
@@ -375,6 +323,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     docActions.openRecentDocument,
     docActions.openFolder,
     docActions.saveDocument,
+    getEditorCommands,
     openSettings,
     setIsSidebarVisible,
     switchMode,
@@ -384,9 +333,7 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
   // --- Sync coordinator-level actions to document-ui store ---
 
   useLayoutEffect(() => {
-    const filePath = snapshot.filePath;
     useDocumentUiStore.setState({
-      documentKey: `${filePath ?? "untitled"}:${editorRevisionRef.current}`,
       resolveImageSrc,
       closeAssetPreview,
       openAssetFromTree,
@@ -399,7 +346,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
       openDocumentFromTree: docActions.openDocumentFromTree,
     });
   }, [
-    snapshot.filePath,
     resolveImageSrc,
     closeAssetPreview,
     openAssetFromTree,
@@ -411,13 +357,6 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
     dispatchCommand,
     docActions.openDocumentFromTree,
   ]);
-
-  useLayoutEffect(() => {
-    useEditorScrollStore.setState({
-      updateModeScrollRatio,
-      completeModeScrollTarget,
-    });
-  }, [updateModeScrollRatio, completeModeScrollTarget]);
 
   // --- Global effects ---
 
@@ -493,11 +432,4 @@ export function useDesktopEditorController({ showToast }: UseDesktopEditorContro
       });
     }
   }, [snapshot.filePath, snapshot.isDirty]);
-
-  // Reset scroll state when document changes
-  const documentKey = `${snapshot.filePath ?? "untitled"}:${editorRevisionRef.current}`;
-  useEffect(() => {
-    activeScrollRatioRef.current = 0;
-    useEditorScrollStore.setState({ modeScrollTarget: null });
-  }, [documentKey]);
 }

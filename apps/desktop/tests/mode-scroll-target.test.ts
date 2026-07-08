@@ -3,10 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   clampEditorScrollRatio,
   createModeScrollTarget
-} from "../src/app/controller/mode-scroll-target";
+} from "../../../packages/editor-ui/src/utils/editor-ui-state";
 
 const controllerSource = readFileSync(
   new URL("../src/app/controller/useDesktopEditorController.ts", import.meta.url),
+  "utf8"
+);
+const editorUiProviderSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/hooks/useEditorUi.tsx", import.meta.url),
+  "utf8"
+);
+const editorUiSourceEditorSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/components/SourceEditor.tsx", import.meta.url),
+  "utf8"
+);
+const editorUiMilkdownEditorSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url),
   "utf8"
 );
 const desktopSourceEditorSource = readFileSync(
@@ -35,22 +47,23 @@ describe("mode switch scroll target", () => {
   });
 
   it("keeps the scroll target alive until the target editor applies it", () => {
-    expect(controllerSource).toContain("createModeScrollTarget(mode, activeScrollRatioRef.current)");
-    expect(controllerSource).toContain("completeModeScrollTarget");
-    // completeModeScrollTarget now writes to editorScrollStore, clearing target when nonce matches
-    expect(controllerSource).toContain("modeScrollTarget?.target.nonce === nonce");
+    expect(controllerSource).toContain("startModeScrollTarget(mode)");
+    expect(controllerSource).toContain("clearModeScrollTarget()");
+    expect(editorUiProviderSource).toContain("setModeScrollTarget(createModeScrollTarget(mode, activeScrollRatioRef.current))");
+    expect(editorUiProviderSource).toContain("current?.target.nonce === nonce ? null : current");
   });
 
-  it("passes mode-specific scroll targets to source and WYSIWYG editors", () => {
-    // 模式滚动目标现在由各自的自治编辑器组件直接从 editorScrollStore 读取
-    expect(desktopSourceEditorSource).toContain('modeScrollTarget?.mode === "source"');
-    expect(desktopMilkdownEditorSource).toContain('modeScrollTarget?.mode === "wysiwyg"');
-    expect(desktopSourceEditorSource).toContain("onScrollRatioChange={updateModeScrollRatio}");
-    expect(desktopMilkdownEditorSource).toContain("onScrollTargetApplied={completeModeScrollTarget}");
+  it("keeps mode-specific scroll targets in editor-ui instead of desktop stores", () => {
+    expect(editorUiSourceEditorSource).toContain('getModeScrollTargetForMode(editorUiState.modeScrollTarget, "source")');
+    expect(editorUiMilkdownEditorSource).toContain('getModeScrollTargetForMode(editorUiState.modeScrollTarget, "wysiwyg")');
+    expect(desktopSourceEditorSource).not.toContain('modeScrollTarget?.mode === "source"');
+    expect(desktopMilkdownEditorSource).not.toContain('modeScrollTarget?.mode === "wysiwyg"');
+    expect(desktopSourceEditorSource).not.toContain("onScrollRatioChange={updateModeScrollRatio}");
+    expect(desktopMilkdownEditorSource).not.toContain("onScrollTargetApplied={completeModeScrollTarget}");
   });
 
   it("lets mode restoration override stale TOC jumps in both editors", () => {
-    expect(desktopSourceEditorSource).toContain("onScrollTargetApplied={completeModeScrollTarget}");
-    expect(desktopMilkdownEditorSource).toContain("onScrollTargetApplied={completeModeScrollTarget}");
+    expect(editorUiSourceEditorSource).toContain("onScrollTargetApplied={editorUiActions.completeModeScrollTarget}");
+    expect(editorUiMilkdownEditorSource).toContain("onScrollTargetApplied: editorUiActions.completeModeScrollTarget");
   });
 });

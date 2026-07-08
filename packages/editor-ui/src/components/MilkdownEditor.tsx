@@ -48,6 +48,13 @@ import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
 import { imeCompositionGuardPlugin } from "../utils/ime-composition-guard";
 import { imageSelectionPlugin } from "../utils/image-selection";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
+import {
+  emptyEditorUiCommandSlots,
+  getModeScrollTargetForMode,
+  useEditorUiActions,
+  useEditorUiState,
+  type EditorUiCommandSlots
+} from "../hooks/useEditorUi";
 import { useMdxAiController, type MdxSnippetPlugin } from "../hooks/useMdxAiController";
 import type { OutlineItem } from "./OutlinePanel";
 import type { EditorScrollTarget, TocTarget } from "../types";
@@ -57,10 +64,7 @@ const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
 const WYSIWYG_FONT_SIZE_MIN = 13;
 const WYSIWYG_FONT_SIZE_MAX = 22;
 
-export interface MilkdownEditorCommandHandlers {
-  readonly openMdxComponentMenu: () => void;
-  readonly continueAiWriting: () => Promise<void>;
-}
+export type MilkdownEditorCommandHandlers = EditorUiCommandSlots;
 
 export interface MdxComponentMenuRenderProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> {
   readonly plugins: readonly TPlugin[];
@@ -91,6 +95,12 @@ export interface MilkdownEditorProps<TPlugin extends MdxSnippetPlugin = MdxSnipp
   | "onAiSuggestionRequest"
   | "onAiSuggestionRequestHandled"
   | "onAiSuggestionError"
+  | "outline"
+  | "target"
+  | "scrollTarget"
+  | "onScrollRatioChange"
+  | "onScrollTargetApplied"
+  | "onActiveOutlineChange"
 > {
   readonly mdxAi: MilkdownEditorMdxAiOptions<TPlugin>;
   readonly onEditorCommandsChange?: (commands: MilkdownEditorCommandHandlers) => void;
@@ -133,32 +143,34 @@ export interface AiSuggestionRequest {
   readonly signal?: AbortSignal;
 }
 
-const emptyMilkdownEditorCommands: MilkdownEditorCommandHandlers = {
-  openMdxComponentMenu: () => {},
-  continueAiWriting: async () => {}
-};
-
 export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin>({
   mdxAi,
   onEditorCommandsChange,
   renderMdxComponentMenu,
   ...primitiveInput
 }: MilkdownEditorProps<TPlugin>) {
+  const editorUiState = useEditorUiState();
+  const editorUiActions = useEditorUiActions();
+  const { registerEditorCommands } = editorUiActions;
   const mdxController = useMdxAiController<TPlugin>(mdxAi);
 
   useLayoutEffect(() => {
-    onEditorCommandsChange?.({
+    const commands = {
       openMdxComponentMenu: mdxController.openMdxComponentMenu,
       continueAiWriting: mdxController.continueAiWriting
-    });
+    };
+    registerEditorCommands(commands);
+    onEditorCommandsChange?.(commands);
 
     return () => {
-      onEditorCommandsChange?.(emptyMilkdownEditorCommands);
+      registerEditorCommands(emptyEditorUiCommandSlots);
+      onEditorCommandsChange?.(emptyEditorUiCommandSlots);
     };
   }, [
     mdxController.continueAiWriting,
     mdxController.openMdxComponentMenu,
-    onEditorCommandsChange
+    onEditorCommandsChange,
+    registerEditorCommands
   ]);
 
   const primitiveProps: MilkdownEditorPrimitiveProps = {
@@ -170,12 +182,18 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
     onInsertRequestHandled: mdxController.clearMdxInsertRequest,
     onAiSuggestionRequest: mdxController.requestAiSuggestion,
     onAiSuggestionRequestHandled: mdxController.clearAiSuggestionRequest,
-    onAiSuggestionError: mdxController.handleAiSuggestionError
+    onAiSuggestionError: mdxController.handleAiSuggestionError,
+    outline: editorUiState.outline,
+    target: editorUiState.tocTarget,
+    scrollTarget: getModeScrollTargetForMode(editorUiState.modeScrollTarget, "wysiwyg"),
+    onScrollRatioChange: editorUiActions.updateModeScrollRatio,
+    onScrollTargetApplied: editorUiActions.completeModeScrollTarget,
+    onActiveOutlineChange: editorUiActions.setActiveOutlineId
   };
 
   return (
     <>
-      <MilkdownProvider>
+      <MilkdownProvider key={editorUiState.documentKey}>
         <MilkdownEditorPrimitive {...primitiveProps} />
       </MilkdownProvider>
       {mdxController.isMdxComponentMenuOpen && renderMdxComponentMenu
@@ -189,7 +207,7 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
   );
 }
 
-function MilkdownEditorPrimitive({
+export function MilkdownEditorPrimitive({
   snapshot,
   outline = [],
   target,

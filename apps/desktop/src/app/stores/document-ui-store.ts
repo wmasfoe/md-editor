@@ -6,7 +6,6 @@ import type { OpenedAsset } from "../../types";
 export interface DocumentUiStore {
   hasActiveDocument: boolean;
   openedAsset: OpenedAsset | null;
-  documentKey: string;
   resolveImageSrc: (src: string) => string;
   closeAssetPreview: () => void;
   openAssetFromTree: (node: MarkdownFileTreeNode) => void;
@@ -19,10 +18,11 @@ export interface DocumentUiStore {
   openDocumentFromTree: (filePath: string) => Promise<void>;
 }
 
+// 桌面端桥接层：真实处理函数由 useDesktopEditorController 在主应用挂载时注入。
+// 这里的默认实现只用于首帧渲染和隔离测试兜底，不承载业务逻辑。
 export const useDocumentUiStore = create<DocumentUiStore>(() => ({
   hasActiveDocument: false,
   openedAsset: null,
-  documentKey: "untitled:0",
   resolveImageSrc: (src) => src,
   closeAssetPreview: () => {},
   openAssetFromTree: () => {},
