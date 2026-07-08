@@ -7,10 +7,24 @@ import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { DocumentSnapshot } from "@md-editor/editor-core";
+import {
+  getModeScrollTargetForMode,
+  useEditorUiActions,
+  useEditorUiState
+} from "../hooks/useEditorUi";
 import type { EditorScrollTarget, SourceEditorView, TocTarget } from "../types";
 import "./SourceEditor.css";
 
-export interface SourceEditorProps {
+export interface SourceEditorProps extends Omit<
+  SourceEditorPrimitiveProps,
+  | "target"
+  | "scrollTarget"
+  | "onScrollRatioChange"
+  | "onScrollTargetApplied"
+  | "onVisibleLineChange"
+> {}
+
+export interface SourceEditorPrimitiveProps {
   readonly snapshot: DocumentSnapshot;
   readonly target: TocTarget | null;
   readonly scrollTarget?: EditorScrollTarget | null;
@@ -74,13 +88,33 @@ const sourceMarkdownHighlightStyle = HighlightStyle.define([
 
 export function SourceEditor({
   snapshot,
+  onChange
+}: SourceEditorProps) {
+  const editorUiState = useEditorUiState();
+  const editorUiActions = useEditorUiActions();
+
+  return (
+    <SourceEditorPrimitive
+      snapshot={snapshot}
+      target={editorUiState.tocTarget}
+      scrollTarget={getModeScrollTargetForMode(editorUiState.modeScrollTarget, "source")}
+      onChange={onChange}
+      onScrollRatioChange={editorUiActions.updateModeScrollRatio}
+      onScrollTargetApplied={editorUiActions.completeModeScrollTarget}
+      onVisibleLineChange={editorUiActions.updateActiveOutlineForLine}
+    />
+  );
+}
+
+export function SourceEditorPrimitive({
+  snapshot,
   target,
   scrollTarget = null,
   onChange,
   onScrollRatioChange,
   onScrollTargetApplied,
   onVisibleLineChange
-}: SourceEditorProps) {
+}: SourceEditorPrimitiveProps) {
   const editorView = useRef<SourceEditorView | null>(null);
   const [editorReadyVersion, setEditorReadyVersion] = useState(0);
   const extensions = useMemo(

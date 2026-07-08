@@ -18,7 +18,13 @@ export type {
   MilkdownEditorProps
 } from "./components/MilkdownEditor";
 export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./components/OutlinePanel";
-export type { SourceEditorProps } from "./components/SourceEditor";
+export type { SourceEditorPrimitiveProps, SourceEditorProps } from "./components/SourceEditor";
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
 export * from "./hooks";
 export type { EditorScrollTarget, SourceEditorView, TocTarget } from "./types";
+export {
+  clampEditorScrollRatio,
+  createEditorDocumentKey,
+  createModeScrollTarget,
+  type PendingModeScrollTarget
+} from "./utils/editor-ui-state";

@@ -21,12 +21,12 @@ import {
 import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
-import { useOutlineStore } from "../app/stores/outline-store";
 import { useSidebarStore } from "../app/stores/sidebar-store";
 import {
   isUpdateActionBusy,
   shouldShowEditorUpdateAction,
 } from "../app/updates/update-status";
+import { useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
 import { editorUpdateActionLabel } from "./settings/settingsUtils";
 import { cx } from "../lib/cx";
 
@@ -41,7 +41,8 @@ const documentMetricOptions: readonly { readonly kind: DocumentMetricKind; reado
 
 export function EditorTitleBarControls() {
   const { updateStatus } = useAppSettings();
-  const { outline, activeOutlineId, jumpToTocItem } = useOutlineStore();
+  const { outline, activeOutlineId } = useEditorUiState();
+  const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument, runEditorUpdateAction } = useDocumentUiStore();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
 

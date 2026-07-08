@@ -24,7 +24,10 @@ import {
   AssetPreview,
   ConfirmActionDialog,
   DocumentBar,
+  EditorUiProvider,
   OutlinePanel,
+  useEditorUiActions,
+  useEditorUiState,
   WelcomeState
 } from "@md-editor/editor-ui";
 import { DesktopMilkdownEditor } from "../components/DesktopMilkdownEditor";
@@ -51,10 +54,8 @@ import {
 } from "./updates/update-status";
 import { useConfirmationStore } from "./stores/confirmation-store";
 import { useDocumentUiStore } from "./stores/document-ui-store";
-import { useEditorScrollStore } from "./stores/editor-scroll-store";
 import { useFileActionStore } from "./stores/file-action-store";
 import { useFileTreeStore } from "./stores/file-tree-store";
-import { useOutlineStore } from "./stores/outline-store";
 import { useSidebarStore } from "./stores/sidebar-store";
 
 const SIDEBAR_DEFAULT_WIDTH = 272;
@@ -72,10 +73,32 @@ function AppWithProviders() {
   const { toast, showToast } = useToast();
   return (
     <AppSettingsProvider showToast={showToast} surface="main">
-      {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
-      <DesktopEditorEffects showToast={showToast} />
-      <MainApp toast={toast} showToast={showToast} />
+      {/* Keep this provider above both desktop effects and shell consumers so command dispatch, outline, and editor surfaces share one editor-ui instance. */}
+      <DesktopEditorUiProvider showToast={showToast}>
+        {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
+        <DesktopEditorEffects showToast={showToast} />
+        <MainApp toast={toast} showToast={showToast} />
+      </DesktopEditorUiProvider>
     </AppSettingsProvider>
+  );
+}
+
+function DesktopEditorUiProvider({
+  children,
+  showToast
+}: {
+  readonly children: ReactNode;
+  readonly showToast: (message: string | null) => void;
+}) {
+  const snapshot = useDocumentSnapshot();
+  return (
+    <EditorUiProvider
+      filePath={snapshot.filePath}
+      markdown={snapshot.markdown}
+      showToast={showToast}
+    >
+      {children}
+    </EditorUiProvider>
   );
 }
 
@@ -95,7 +118,8 @@ function MainApp({
   const snapshot = useDocumentSnapshot();
   const { isSidebarVisible, sidebarMode, setIsSidebarVisible, setSidebarMode } = useSidebarStore();
   const { pendingAction } = useFileActionStore();
-  const { outline, activeOutlineId, jumpToTocItem } = useOutlineStore();
+  const { outline, activeOutlineId } = useEditorUiState();
+  const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument, openedAsset, dispatchCommand, resolveImageSrc, closeAssetPreview, getRecentFiles, openRecentFile } = useDocumentUiStore();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);

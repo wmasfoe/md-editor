@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
 import type { TocTarget } from "../types";
 
@@ -12,20 +12,22 @@ export function useOutlineController({ markdown, showToast }: UseOutlineControll
   const [activeOutlineId, setActiveOutlineId] = useState<string | null>(null);
   const deferredMarkdown = useDeferredValue(markdown);
   const outline = useMemo(() => extractHeadingOutline(deferredMarkdown), [deferredMarkdown]);
+  const outlineRef = useRef(outline);
+  outlineRef.current = outline;
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
-    const matched = outline.find(
+    const matched = outlineRef.current.find(
       (item) => item.line === target.line && item.level === target.level && item.text === target.text
     );
     setActiveOutlineId(matched?.id ?? null);
     setTocTarget({ ...target, nonce: Date.now() });
-  }, [outline]);
+  }, []);
 
   const updateActiveOutlineForLine = useCallback(
     (line: number) => {
-      setActiveOutlineId(findActiveHeadingIdForLine(outline, line));
+      setActiveOutlineId(findActiveHeadingIdForLine(outlineRef.current, line));
     },
-    [outline]
+    []
   );
 
   const jumpToMarkdownFragment = useCallback(

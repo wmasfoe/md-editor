@@ -1,8 +1,19 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sourceRoot = new URL("../", import.meta.url);
+const editorHostPackageRoot = new URL("../../../editor-host", import.meta.url);
+const desktopPackageJson = JSON.parse(
+  readFileSync(new URL("../../../../apps/desktop/package.json", import.meta.url), "utf8")
+) as {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+};
+const desktopViteConfigSource = readFileSync(
+  new URL("../../../../apps/desktop/vite.config.ts", import.meta.url),
+  "utf8"
+);
 const packageJson = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8")
 ) as {
@@ -11,6 +22,8 @@ const packageJson = JSON.parse(
   peerDependencies?: Record<string, string>;
 };
 const hooksIndexSource = readFileSync(new URL("../hooks/index.ts", import.meta.url), "utf8");
+const rootIndexSource = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
+const editorUiProviderSource = readFileSync(new URL("../hooks/useEditorUi.tsx", import.meta.url), "utf8");
 const mdxAiControllerSource = readFileSync(
   new URL("../hooks/useMdxAiController.ts", import.meta.url),
   "utf8"
@@ -21,12 +34,32 @@ const outlineControllerSource = readFileSync(
 );
 
 describe("editor-ui hooks and package boundary", () => {
+  it("does not keep the abandoned editor-host package or desktop wiring", () => {
+    expect(existsSync(editorHostPackageRoot)).toBe(false);
+    expect(desktopPackageJson.dependencies?.["@md-editor/editor-host"]).toBeUndefined();
+    expect(desktopPackageJson.devDependencies?.["@md-editor/editor-host"]).toBeUndefined();
+    expect(desktopViteConfigSource).not.toContain("@md-editor/editor-host");
+  });
+
   it("exports migrated hooks from the editor-ui hooks entrypoint", () => {
     expect(hooksIndexSource).toContain('export * from "./controller-errors"');
     expect(hooksIndexSource).toContain('export * from "./useConfirmationController"');
+    expect(hooksIndexSource).toContain('export * from "./useEditorUi"');
     expect(hooksIndexSource).toContain('export * from "./useFileActionController"');
     expect(hooksIndexSource).toContain('export * from "./useMdxAiController"');
     expect(hooksIndexSource).toContain('export * from "./useOutlineController"');
+    expect(rootIndexSource).toContain('export * from "./hooks"');
+  });
+
+  it("exposes an explicit provider instead of a module-level singleton store", () => {
+    expect(editorUiProviderSource).toContain("export function EditorUiProvider");
+    expect(editorUiProviderSource).toContain("export function useEditorUiState");
+    expect(editorUiProviderSource).toContain("export function useEditorUiActions");
+    expect(editorUiProviderSource).toContain("export function useEditorUi");
+    expect(editorUiProviderSource).toContain("createContext<EditorUiStateContextValue | null>(null)");
+    expect(editorUiProviderSource).toContain("createContext<EditorUiActionsContextValue | null>(null)");
+    expect(editorUiProviderSource).not.toContain("zustand");
+    expect(editorUiProviderSource).not.toContain("create<");
   });
 
   it("keeps MDX and AI controller behavior injected instead of desktop/provider-owned", () => {
@@ -51,6 +84,7 @@ describe("editor-ui hooks and package boundary", () => {
     expect(source).not.toContain("editor-runtime");
     expect(source).not.toContain("@md-editor/editor-core/ai");
     expect(source).not.toContain("@md-editor/mdx-component-registry");
+    expect(source).not.toContain("zustand");
   });
 
   it("keeps the editor-ui import graph free of platform-only modules", () => {
@@ -71,10 +105,17 @@ describe("editor-ui hooks and package boundary", () => {
 
     expect(dependencyNames.has("@tauri-apps/api")).toBe(false);
     expect(dependencyNames.has("@md-editor/mdx-component-registry")).toBe(false);
+    expect(dependencyNames.has("zustand")).toBe(false);
   });
 
   it("keeps outline state reusable through markdown-fidelity instead of desktop stores", () => {
     expect(outlineControllerSource).toContain("@md-editor/markdown-fidelity");
+    expect(outlineControllerSource).toContain("const outlineRef = useRef(outline)");
+    expect(outlineControllerSource).toContain("outlineRef.current = outline");
+    expect(outlineControllerSource).toContain("outlineRef.current.find");
+    expect(outlineControllerSource).toContain("findActiveHeadingIdForLine(outlineRef.current, line)");
+    expect(outlineControllerSource).not.toContain("}, [outline]);");
+    expect(outlineControllerSource).not.toContain("[outline]\n  );");
     expect(outlineControllerSource).not.toContain("useOutlineStore");
     expect(outlineControllerSource).not.toContain("apps/desktop");
   });

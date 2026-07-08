@@ -1,9 +1,13 @@
 import type { EditorMode } from "@md-editor/editor-core";
-import type { EditorScrollTarget } from "@md-editor/editor-ui";
+import type { EditorScrollTarget } from "../types";
 
 export interface PendingModeScrollTarget {
   readonly mode: EditorMode;
   readonly target: EditorScrollTarget;
+}
+
+export function createEditorDocumentKey(filePath: string | null | undefined, revision: number): string {
+  return `${filePath ?? "untitled"}:${Math.max(0, Math.trunc(revision))}`;
 }
 
 export function clampEditorScrollRatio(ratio: number): number | null {
