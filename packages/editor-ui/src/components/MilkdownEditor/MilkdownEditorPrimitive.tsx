@@ -1,11 +1,9 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
-  type ReactNode
+  useState
 } from "react";
 import {
   Editor,
@@ -19,193 +17,38 @@ import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
-import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
+import { Milkdown, useEditor, useInstance } from "@milkdown/react";
 import { Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import { Slice } from "@milkdown/kit/prose/model";
-import { SparklesIcon } from "@heroicons/react/24/outline";
-import type {
-  AiCompletionContext,
-  AiSettings,
-  AiWritingSuggestion,
-  DocumentSnapshot,
-  EditorMode
-} from "@md-editor/editor-core";
 import {
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
   rewriteMarkdownImageSourcesForPreview,
   rewriteRawBlocksForPreview
 } from "@md-editor/markdown-fidelity";
-import { codeBlockToolsPlugin } from "../utils/code-block-tools";
-import { codeHighlightPlugin } from "../utils/code-highlight";
+import { codeBlockToolsPlugin } from "../../utils/code-block-tools";
+import { codeHighlightPlugin } from "../../utils/code-highlight";
 import {
   aiSuggestionPlugin,
   clearAiSuggestion,
   getAiCompletionContext,
   showAiSuggestion
-} from "../utils/ai-suggestion";
-import { shouldPlaceCursorAtDocumentEnd } from "../utils/editor-surface";
-import { imeCompositionGuardPlugin } from "../utils/ime-composition-guard";
-import { imageSelectionPlugin } from "../utils/image-selection";
-import { updateWysiwygSearch, wysiwygSearchPlugin } from "../utils/wysiwyg-search";
-import {
-  emptyEditorUiCommandSlots,
-  getModeScrollTargetForMode,
-  useEditorUiActions,
-  useEditorUiState,
-  type EditorUiCommandSlots
-} from "../hooks/useEditorUi";
-import { useMdxAiController, type MdxSnippetPlugin } from "../hooks/useMdxAiController";
-import type { OutlineItem } from "./OutlinePanel";
-import type { EditorScrollTarget, TocTarget } from "../types";
+} from "../../utils/ai-suggestion";
+import { shouldPlaceCursorAtDocumentEnd } from "../../utils/editor-surface";
+import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
+import { imageSelectionPlugin } from "../../utils/image-selection";
+import { updateWysiwygSearch, wysiwygSearchPlugin } from "../../utils/wysiwyg-search";
+import type {
+  MilkdownEditorPrimitiveProps
+} from "./types";
+import { WysiwygSearchPanel } from "./WysiwygSearchPanel";
+import { AiThinkingIndicator } from "./AiThinkingIndicator";
+import { findModifiedPrimaryClickLinkHref } from "./utils";
 import "./MilkdownEditor.css";
 
 const IME_MARKDOWN_PUBLISH_DELAY_MS = 260;
 const WYSIWYG_FONT_SIZE_MIN = 13;
 const WYSIWYG_FONT_SIZE_MAX = 22;
-
-export type MilkdownEditorCommandHandlers = EditorUiCommandSlots;
-
-export interface MdxComponentMenuRenderProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> {
-  readonly plugins: readonly TPlugin[];
-  readonly onInsert: (plugin: TPlugin) => void;
-  readonly onClose: () => void;
-}
-
-export interface MilkdownEditorMdxAiOptions<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> {
-  readonly aiSettings: AiSettings;
-  readonly getEditorMode: () => EditorMode;
-  readonly showToast: (message: string | null) => void;
-  readonly getMdxComponentPlugins: () => readonly TPlugin[];
-  readonly getAiCompletionReadiness: (settings: AiSettings) => string | null;
-  readonly requestAiCompletion: (
-    settings: AiSettings,
-    context: AiCompletionContext,
-    request?: { readonly signal?: AbortSignal }
-  ) => Promise<AiWritingSuggestion>;
-}
-
-export interface MilkdownEditorProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> extends Omit<
-  MilkdownEditorPrimitiveProps,
-  | "insertRequest"
-  | "aiSuggestionRequest"
-  | "isAiSuggestionPending"
-  | "aiAutoSuggestionsEnabled"
-  | "onInsertRequestHandled"
-  | "onAiSuggestionRequest"
-  | "onAiSuggestionRequestHandled"
-  | "onAiSuggestionError"
-  | "outline"
-  | "target"
-  | "scrollTarget"
-  | "onScrollRatioChange"
-  | "onScrollTargetApplied"
-  | "onActiveOutlineChange"
-> {
-  readonly mdxAi: MilkdownEditorMdxAiOptions<TPlugin>;
-  readonly onEditorCommandsChange?: (commands: MilkdownEditorCommandHandlers) => void;
-  readonly renderMdxComponentMenu?: (props: MdxComponentMenuRenderProps<TPlugin>) => ReactNode;
-}
-
-export interface MilkdownEditorPrimitiveProps {
-  readonly snapshot: DocumentSnapshot;
-  readonly outline?: readonly OutlineItem[];
-  readonly target: TocTarget | null;
-  readonly scrollTarget?: EditorScrollTarget | null;
-  readonly insertRequest?: MarkdownInsertRequest | null;
-  readonly aiSuggestionRequest?: AiSuggestionRequest | null;
-  readonly isAiSuggestionPending?: boolean;
-  readonly aiAutoSuggestionsEnabled?: boolean;
-  readonly showCodeBlockLineNumbers?: boolean;
-  readonly wysiwygFontSize?: number;
-  readonly onInsertRequestHandled?: (id: number) => void;
-  readonly onAiSuggestionRequest?: (
-    context: AiCompletionContext,
-    request: AiSuggestionRequest
-  ) => Promise<AiWritingSuggestion>;
-  readonly onAiSuggestionRequestHandled?: (id: number) => void;
-  readonly onAiSuggestionError?: (message: string) => void;
-  readonly onChange: (markdown: string) => void;
-  readonly onOpenLink?: (href: string) => void;
-  readonly onScrollRatioChange?: (ratio: number) => void;
-  readonly onScrollTargetApplied?: (nonce: number) => void;
-  readonly onActiveOutlineChange?: (id: string | null) => void;
-  readonly resolveImageSrc?: (src: string) => string;
-}
-
-export interface MarkdownInsertRequest {
-  readonly id: number;
-  readonly markdown: string;
-}
-
-export interface AiSuggestionRequest {
-  readonly id: number;
-  readonly signal?: AbortSignal;
-}
-
-export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin>({
-  mdxAi,
-  onEditorCommandsChange,
-  renderMdxComponentMenu,
-  ...primitiveInput
-}: MilkdownEditorProps<TPlugin>) {
-  const editorUiState = useEditorUiState();
-  const editorUiActions = useEditorUiActions();
-  const { registerEditorCommands } = editorUiActions;
-  const mdxController = useMdxAiController<TPlugin>(mdxAi);
-
-  useLayoutEffect(() => {
-    const commands = {
-      openMdxComponentMenu: mdxController.openMdxComponentMenu,
-      continueAiWriting: mdxController.continueAiWriting
-    };
-    registerEditorCommands(commands);
-    onEditorCommandsChange?.(commands);
-
-    return () => {
-      registerEditorCommands(emptyEditorUiCommandSlots);
-      onEditorCommandsChange?.(emptyEditorUiCommandSlots);
-    };
-  }, [
-    mdxController.continueAiWriting,
-    mdxController.openMdxComponentMenu,
-    onEditorCommandsChange,
-    registerEditorCommands
-  ]);
-
-  const primitiveProps: MilkdownEditorPrimitiveProps = {
-    ...primitiveInput,
-    insertRequest: mdxController.mdxInsertRequest,
-    aiSuggestionRequest: mdxController.aiSuggestionRequest,
-    isAiSuggestionPending: mdxController.isAiSuggestionPending,
-    aiAutoSuggestionsEnabled: mdxController.isAiCompletionReady,
-    onInsertRequestHandled: mdxController.clearMdxInsertRequest,
-    onAiSuggestionRequest: mdxController.requestAiSuggestion,
-    onAiSuggestionRequestHandled: mdxController.clearAiSuggestionRequest,
-    onAiSuggestionError: mdxController.handleAiSuggestionError,
-    outline: editorUiState.outline,
-    target: editorUiState.tocTarget,
-    scrollTarget: getModeScrollTargetForMode(editorUiState.modeScrollTarget, "wysiwyg"),
-    onScrollRatioChange: editorUiActions.updateModeScrollRatio,
-    onScrollTargetApplied: editorUiActions.completeModeScrollTarget,
-    onActiveOutlineChange: editorUiActions.setActiveOutlineId
-  };
-
-  return (
-    <>
-      <MilkdownProvider key={editorUiState.documentKey}>
-        <MilkdownEditorPrimitive {...primitiveProps} />
-      </MilkdownProvider>
-      {mdxController.isMdxComponentMenuOpen && renderMdxComponentMenu
-        ? renderMdxComponentMenu({
-          plugins: mdxController.mdxComponentPlugins,
-          onInsert: mdxController.insertMdxComponent,
-          onClose: mdxController.closeMdxComponentMenu
-        })
-        : null}
-    </>
-  );
-}
 
 export function MilkdownEditorPrimitive({
   snapshot,
@@ -923,84 +766,19 @@ export function MilkdownEditorPrimitive({
       style={editorStyle}
     >
       {isSearchOpen ? (
-        <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
-          <input
-            ref={searchInputRef}
-            value={searchQuery}
-            aria-label="查找内容"
-            placeholder="查找"
-            onChange={(event) => {
-              const query = event.target.value;
-              setSearchQuery(query);
-              runSearch(query, 0);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                closeSearch();
-              } else if (event.key === "Enter") {
-                event.preventDefault();
-                runSearch(searchQuery, searchResult.activeIndex + (event.shiftKey ? -1 : 1));
-              }
-            }}
-          />
-          <span className="wysiwyg-search-panel__count" aria-live="polite">
-            {searchResult.matchCount === 0
-              ? "无匹配"
-              : `${searchResult.activeIndex + 1} / ${searchResult.matchCount}`}
-          </span>
-          <button
-            type="button"
-            aria-label="上一个匹配"
-            onClick={() => runSearch(searchQuery, searchResult.activeIndex - 1)}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            aria-label="下一个匹配"
-            onClick={() => runSearch(searchQuery, searchResult.activeIndex + 1)}
-          >
-            ↓
-          </button>
-          <label>
-            <input
-              type="checkbox"
-              checked={isSearchCaseSensitive}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                setIsSearchCaseSensitive(checked);
-                runSearch(searchQuery, 0, checked);
-              }}
-            />
-            区分大小写
-          </label>
-          <button type="button" aria-label="关闭查找" onClick={closeSearch}>
-            ×
-          </button>
-        </div>
+        <WysiwygSearchPanel
+          inputRef={searchInputRef}
+          query={searchQuery}
+          result={searchResult}
+          caseSensitive={isSearchCaseSensitive}
+          onQueryChange={setSearchQuery}
+          onCaseSensitiveChange={setIsSearchCaseSensitive}
+          onSearch={runSearch}
+          onClose={closeSearch}
+        />
       ) : null}
-      {isAiThinking ? (
-        <div className="md-ai-thinking-indicator" role="status" aria-label="AI 正在思考">
-          <SparklesIcon aria-hidden="true" />
-        </div>
-      ) : null}
+      <AiThinkingIndicator visible={isAiThinking} />
       <Milkdown />
     </div>
   );
-}
-
-function findModifiedPrimaryClickLinkHref(event: MouseEvent, root: HTMLElement): string | null {
-  if (!(event.metaKey || event.ctrlKey) || event.button !== 0) {
-    return null;
-  }
-
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest<HTMLAnchorElement>("a[href]") ?? null;
-  if (!anchor || !root.contains(anchor)) {
-    return null;
-  }
-
-  const href = anchor.getAttribute("href")?.trim();
-  return href || null;
 }

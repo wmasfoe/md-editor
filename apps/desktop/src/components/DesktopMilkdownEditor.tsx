@@ -15,7 +15,7 @@ import { GLOBAL_LOADING_TITLE } from "../app/loading-state";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 
 const MilkdownEditor = lazy(async () => {
-  const module = await import("@md-editor/editor-ui/milkdown-editor");
+  const module = await import("@md-editor/editor-ui/MilkdownEditor");
   return {
     default: module.MilkdownEditor as ComponentType<MilkdownEditorProps<MdxComponentPlugin>>
   };

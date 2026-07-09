@@ -8,6 +8,7 @@ export {
   type ConfirmActionDialogProps
 } from "./components/ConfirmActionDialog";
 export { DocumentBar, type DocumentBarProps } from "./components/DocumentBar";
+export { MilkdownEditor, MilkdownEditorPrimitive } from "./components/MilkdownEditor";
 export type {
   AiSuggestionRequest,
   MarkdownInsertRequest,
@@ -18,6 +19,7 @@ export type {
   MilkdownEditorProps
 } from "./components/MilkdownEditor";
 export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./components/OutlinePanel";
+export { SourceEditor, SourceEditorPrimitive } from "./components/SourceEditor";
 export type { SourceEditorPrimitiveProps, SourceEditorProps } from "./components/SourceEditor";
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
 export * from "./hooks";

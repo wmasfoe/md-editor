@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const editorStyles = readFileSync(
-  new URL("../components/MilkdownEditor.css", import.meta.url),
+  new URL("../components/MilkdownEditor/MilkdownEditor.css", import.meta.url),
   "utf8"
 );
 const imageSelectionSource = readFileSync(
@@ -10,7 +10,7 @@ const imageSelectionSource = readFileSync(
   "utf8"
 );
 const milkdownEditorSource = readFileSync(
-  new URL("../components/MilkdownEditor.tsx", import.meta.url),
+  new URL("../components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
   "utf8"
 );
 const imeCompositionGuardSource = readFileSync(

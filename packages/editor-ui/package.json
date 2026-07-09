@@ -6,8 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./hooks": "./src/hooks/index.ts",
-    "./milkdown-editor": "./src/components/MilkdownEditor.tsx",
-    "./source-editor": "./src/components/SourceEditor.tsx"
+    "./MilkdownEditor": "./src/components/MilkdownEditor/index.ts",
+    "./SourceEditor": "./src/components/SourceEditor/index.ts",
+    "./OutlinePanel": "./src/components/OutlinePanel.tsx"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

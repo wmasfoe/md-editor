@@ -4,7 +4,7 @@ import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { GLOBAL_LOADING_TITLE } from "../app/loading-state";
 
 const SourceEditor = lazy(() =>
-  import("@md-editor/editor-ui/source-editor").then((m) => ({ default: m.SourceEditor }))
+  import("@md-editor/editor-ui/SourceEditor").then((m) => ({ default: m.SourceEditor }))
 );
 
 function EditorLoadingState({ title }: { readonly title: string }) {

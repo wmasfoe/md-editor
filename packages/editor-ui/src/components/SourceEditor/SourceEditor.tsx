@@ -11,8 +11,8 @@ import {
   getModeScrollTargetForMode,
   useEditorUiActions,
   useEditorUiState
-} from "../hooks/useEditorUi";
-import type { EditorScrollTarget, SourceEditorView, TocTarget } from "../types";
+} from "../../hooks/useEditorUi";
+import type { EditorScrollTarget, SourceEditorView, TocTarget } from "../../types";
 import "./SourceEditor.css";
 
 export interface SourceEditorProps extends Omit<
