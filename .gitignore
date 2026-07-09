@@ -5,8 +5,11 @@ node_modules/
 # JavaScript / TypeScript build output
 dist/
 build/
+.next/
+*.tsbuildinfo
 .vite/
 .turbo/
+.vercel/
 
 # Rust / Tauri build output
 target/
