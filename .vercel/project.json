@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_Psi8ZoA2JDHrhMWQ9uG1PRoiTZ97",
+  "orgId": "team_T5HZzs5DBSs79DWD9f1YADyM",
+  "projectName": "md-editor-website",
+  "settings": {
+    "createdAt": 1783623938759,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": "site",
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

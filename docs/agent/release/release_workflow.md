@@ -17,7 +17,7 @@
 - `.github/workflows/release-macos.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
 - `scripts/release/publish-desktop.mjs`: 交互式发版编排脚本，负责版本同步、commit、tag 和 push。
 - `scripts/release/changelog.mjs`: `CHANGELOG.md` 更新规则，普通发版新增目标版本 section，`--resume` 复用已存在 section，禁止重复或静默覆盖。
-- `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；本地 `pnpm deploy:site` 和 release workflow 都通过它发布。流程为 monorepo 根目录 `vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`。Vercel 项目 Root Directory 必须为 `site`（CLI cwd 为仓库根，避免 `site/site/package.json`）；预构建保留 monorepo 上下文以便读取根目录 `CHANGELOG.md`。
+- `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；本地 `pnpm deploy:site` 和 release workflow 都通过它发布。流程为 monorepo 根目录 `vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`。约定：`.vercel/` 只在 monorepo 根；Vercel 项目 Root Directory 必须为 `site`（CLI cwd 为仓库根，避免 `site/site/package.json`）；预构建保留 monorepo 上下文以便读取根目录 `CHANGELOG.md`。
 - `scripts/release/version-desktop.mjs`: 同步更新 root package、desktop package、Tauri config、Cargo manifest 和 Cargo lock 的版本号。
 - `scripts/release/write-homebrew-cask.mjs`: 根据 DMG 文件名、sha256 和版本生成 `Casks/md-editor.rb`。
 - `scripts/release/write-install-script.mjs`: 根据公开 DMG 下载地址、sha256 和版本生成 `install-md-editor.sh`，供用户通过 curl 直接安装。

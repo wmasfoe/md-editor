@@ -9,7 +9,10 @@ build/
 *.tsbuildinfo
 .vite/
 .turbo/
-.vercel/
+# Vercel CLI link：只允许 monorepo 根 .vercel/（不要 site/.vercel）
+.vercel/*
+!.vercel/project.json
+site/.vercel/
 
 # Rust / Tauri build output
 target/
