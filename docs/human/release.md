@@ -138,26 +138,64 @@ brew install --cask wmasfoe/tap/md-editor
 - 不要开 Vercel Git 自动部署
 - 不要开 PR Preview / main push production deploy
 - 仓库内**唯一**发布入口：`pnpm deploy:site` → `scripts/site/deploy-site.mjs`
+- `site/vercel.json` 已设置 `git.deploymentEnabled: false`，关闭 push / PR 触发的自动部署（**不影响** `pnpm deploy:site` 的 CLI prebuilt 发布）
 
 ### 2. Vercel 侧准备（一次性）
 
 1. 在 [Vercel](https://vercel.com) 新建 Project  
    - Framework：Next.js  
-   - **Root Directory：必须设为 `site`**（CLI 从 monorepo 根执行，不要设空）  
-2. **关闭** Git 自动部署与 PR Preview  
+   - **Root Directory：必须设为 `site`**（应用在 `site/`，CLI 从 monorepo 根执行）  
+2. **关闭** Git 自动部署与 PR Preview（见下方「取消 push 自动构建」）  
 3. 创建 Token：Account Settings → Tokens  
-4. 记下 **Team / Org ID** 与 **Project ID**（Project Settings → General，或本地 link 后的 `.vercel/project.json`）  
+4. 记下 **Team / Org ID** 与 **Project ID**（Project Settings → General，或本地 link 后的根目录 `.vercel/project.json`）  
 5. 可选：绑定自定义域名  
 
-本机首次关联（在 **仓库根目录** link；`.vercel/` 已 gitignore，不会提交）：
+**`.vercel` 约定：只放在 monorepo 根目录**（已在 `.gitignore`，勿提交）。不要写在 `site/.vercel`。
+
+对应关系：
+
+| 位置 | 含义 |
+|------|------|
+| 仓库根 `.vercel/` | CLI 项目 link（本机 / CI pull 写入） |
+| Vercel 控制台 Root Directory = `site` | 应用源码子目录 |
+| `pnpm deploy:site` 的 cwd | 仓库根 |
+
+本机首次关联（在 **仓库根目录** 执行）：
 
 ```bash
-# 在 monorepo 根执行，不要 cd site
-pnpm exec vercel login
+# 在 monorepo 根，不要 cd site
+site/node_modules/.bin/vercel login
 site/node_modules/.bin/vercel link
+# 生成：./.vercel/project.json
 ```
 
-若以前在 `site/` 下 link 过，`pnpm deploy:site` 会把 `site/.vercel/project.json` 同步到仓库根 `.vercel/`。
+若本地还有历史遗留的 `site/.vercel`，可直接删掉；`pnpm deploy:site` 会优先使用并迁移到根目录 `.vercel/`。
+
+#### 取消 push 自动构建
+
+本仓库只允许 CLI 发布。若 push 仍触发 Vercel：
+
+**方式 A（推荐，已入库）：** `site/vercel.json` 中：
+
+```json
+{
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
+
+合并并成功跑过一次 `pnpm deploy:site`（或任意一次带该配置的部署）后生效。
+
+**方式 B（控制台立刻生效）：**
+
+1. 打开 Vercel → 项目 `md-editor-website` → **Settings → Git**
+2. 任选其一：
+   - **Disconnect** 仓库连接（最干净；之后只靠 CLI Token 发布）
+   - 或 **Ignored Build Step** 选自定义命令：`exit 0`（跳过所有 Git 触发的 build）
+3. 若 Production Branch 会自动上线，确认没有 “Deploy Hooks” 误绑到 push
+
+CLI 的 `vercel deploy --prebuilt` **不依赖** Git 集成，断连仓库后仍可 `pnpm deploy:site`。
 
 ### 3. GitHub Secrets（CI 必需）
 

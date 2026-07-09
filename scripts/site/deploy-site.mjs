@@ -7,8 +7,9 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../..");
 const siteDir = path.join(repoRoot, "site");
 const rootChangelogPath = path.join(repoRoot, "CHANGELOG.md");
+// 约定：.vercel 只放在 monorepo 根。Vercel Root Directory=site，CLI cwd=仓库根。
 const rootVercelDir = path.join(repoRoot, ".vercel");
-const siteVercelDir = path.join(siteDir, ".vercel");
+const legacySiteVercelDir = path.join(siteDir, ".vercel");
 const isCi = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
 // CI 发布必须显式提供 Vercel CLI 凭证；本地发布可以复用开发者本机登录态。
@@ -24,9 +25,7 @@ if (!fs.existsSync(rootChangelogPath)) {
   throw new Error(`Missing ${rootChangelogPath}; website changelog cannot be built.`);
 }
 
-// Vercel 项目 Root Directory 配置为 site/ 时，CLI 必须以 monorepo 根为 cwd，
-// 否则会拼出 site/site/package.json。本地若只在 site/ 做过 link，这里同步到根目录。
-ensureRootVercelLink();
+migrateLegacySiteVercelLink();
 
 const vercelBin = resolveVercelBin();
 const tokenArgs = process.env.VERCEL_TOKEN ? ["--token", process.env.VERCEL_TOKEN] : [];
@@ -38,22 +37,36 @@ assertProjectRootDirectory();
 runVercel(["build", "--prod", ...tokenArgs]);
 runVercel(["deploy", "--prebuilt", "--prod", "--yes", ...tokenArgs]);
 
-function ensureRootVercelLink() {
+/**
+ * 历史遗留：曾在 site/ 下 vercel link。统一迁到仓库根 .vercel/，之后只认根目录。
+ */
+function migrateLegacySiteVercelLink() {
   const rootProject = path.join(rootVercelDir, "project.json");
-  const siteProject = path.join(siteVercelDir, "project.json");
+  const legacyProject = path.join(legacySiteVercelDir, "project.json");
 
-  if (fs.existsSync(rootProject)) {
+  if (!fs.existsSync(legacyProject)) {
     return;
   }
 
-  if (!fs.existsSync(siteProject)) {
-    // CI 仅靠 VERCEL_ORG_ID / VERCEL_PROJECT_ID 时，pull 会在 monorepo 根生成 .vercel。
-    return;
+  if (!fs.existsSync(rootProject)) {
+    fs.mkdirSync(rootVercelDir, { recursive: true });
+    for (const name of fs.readdirSync(legacySiteVercelDir)) {
+      // output 是构建产物缓存，不必迁到根。
+      if (name === "output") {
+        continue;
+      }
+      const from = path.join(legacySiteVercelDir, name);
+      const to = path.join(rootVercelDir, name);
+      if (fs.statSync(from).isFile()) {
+        fs.copyFileSync(from, to);
+      }
+    }
+    console.log(`Migrated Vercel link: ${legacySiteVercelDir} -> ${rootVercelDir}`);
   }
 
-  fs.mkdirSync(rootVercelDir, { recursive: true });
-  fs.copyFileSync(siteProject, rootProject);
-  console.log(`Synced Vercel project link: ${siteProject} -> ${rootProject}`);
+  console.warn(
+    `Legacy ${legacySiteVercelDir} is ignored. Safe to delete it; use monorepo-root .vercel only.`
+  );
 }
 
 function assertProjectRootDirectory() {
@@ -65,16 +78,16 @@ function assertProjectRootDirectory() {
   const project = JSON.parse(fs.readFileSync(projectPath, "utf8"));
   const rootDirectory = project?.settings?.rootDirectory;
 
-  // 本仓库约定：Vercel Root Directory = site，CLI cwd = monorepo 根。
+  // 本仓库约定：Vercel Root Directory = site，CLI cwd = monorepo 根，.vercel 在 monorepo 根。
   if (rootDirectory && rootDirectory !== "site" && rootDirectory !== "./site") {
     throw new Error(
-      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "site" so CLI can run from the monorepo root. Update the Vercel project Root Directory setting.`
+      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "site" so CLI can run from the monorepo root with .vercel at the repo root.`
     );
   }
 
   if (!rootDirectory) {
     console.warn(
-      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "site" and deploying from the monorepo root.'
+      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "site" and keeping .vercel at the monorepo root.'
     );
   }
 }
@@ -97,7 +110,7 @@ function resolveVercelBin() {
 }
 
 function runVercel(args) {
-  // cwd 固定 monorepo 根：匹配 Vercel 项目 rootDirectory=site，并保留对 CHANGELOG.md 的访问。
+  // cwd 固定 monorepo 根：读取根目录 .vercel，匹配 rootDirectory=site。
   run(vercelBin, args, repoRoot);
 }
 
