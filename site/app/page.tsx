@@ -1,9 +1,17 @@
 import Link from "next/link";
 import { InstallCommand } from "../components/install-command";
 import { getChangelogEntries } from "../lib/changelog";
+import {
+  buildMacosDmgUrl,
+  GITHUB_RELEASES_URL
+} from "../lib/site-links";
 
 const installCommand =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
+
+// 手动安装 DMG 时移除隔离标记；安装脚本会默认处理，此命令给手动下载用户备用。
+const quarantineCommand =
+  "xattr -dr com.apple.quarantine /Applications/Markdown\\ Editor.app";
 
 const features = [
   {
@@ -22,6 +30,7 @@ const features = [
 
 export default function HomePage() {
   const [latest] = getChangelogEntries();
+  const dmgUrl = latest ? buildMacosDmgUrl(latest.version) : GITHUB_RELEASES_URL;
 
   return (
     <main>
@@ -41,23 +50,46 @@ export default function HomePage() {
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <a
-              href="https://github.com/wmasfoe/homebrew-tap/releases"
-              rel="noreferrer"
+              href={dmgUrl}
+              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
+              download={latest ? `Markdown.Editor_${latest.version}_aarch64.dmg` : undefined}
               className="inline-flex h-11 items-center justify-center rounded-full bg-ink px-6 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
               下载 macOS 版本
             </a>
-            <Link
-              href="/changelog"
+            <a
+              href={GITHUB_RELEASES_URL}
+              target="_blank"
+              rel="noreferrer"
               className="inline-flex h-11 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-ink-soft transition-colors hover:border-ink/20 hover:text-ink"
             >
-              查看更新记录
-            </Link>
+              历史版本
+            </a>
           </div>
+
+          {/* 次要入口：版本说明 + 源码，保持一行不抢主 CTA。 */}
+          <p className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-muted">
+            {latest ? (
+              <span>
+                最新 v{latest.version}
+                <span className="mx-1.5 text-line-strong">·</span>
+                Apple Silicon
+              </span>
+            ) : null}
+            <span
+              className="text-ink-soft transition-colors"
+            >
+              Windows 版本敬请期待
+            </span>
+          </p>
         </div>
 
-        <div className="mx-auto mt-14 max-w-2xl">
-          <InstallCommand command={installCommand} />
+        <div className="mx-auto mt-14 flex max-w-2xl flex-col gap-4">
+          <InstallCommand command={installCommand} recommended />
+          <InstallCommand
+            title="若提示「已损坏」· 移除隔离标记"
+            command={quarantineCommand}
+          />
         </div>
       </section>
 
@@ -99,6 +131,23 @@ export default function HomePage() {
               </p>
               <p className="mt-1 text-sm text-muted">{latest.date}</p>
               <p className="mt-4 text-sm leading-relaxed text-ink-soft">{latest.items[0]}</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <a
+                  href={dmgUrl}
+                  download={`Markdown.Editor_${latest.version}_aarch64.dmg`}
+                  className="text-sm font-medium text-ink transition-opacity hover:opacity-80"
+                >
+                  下载 DMG
+                </a>
+                <a
+                  href={GITHUB_RELEASES_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-muted transition-colors hover:text-ink"
+                >
+                  历史版本
+                </a>
+              </div>
             </>
           ) : (
             <p className="mt-4 text-sm text-muted">暂无更新记录</p>

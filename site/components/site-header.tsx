@@ -1,15 +1,14 @@
 import Link from "next/link";
-
-const navItems = [
-  { href: "/changelog", label: "更新记录" },
-  {
-    href: "https://github.com/wmasfoe/homebrew-tap/releases",
-    label: "下载",
-    external: true
-  }
-] as const;
+import { getChangelogEntries } from "../lib/changelog";
+import {
+  buildMacosDmgUrl,
+  GITHUB_REPO_URL
+} from "../lib/site-links";
 
 export function SiteHeader() {
+  const [latest] = getChangelogEntries();
+  const dmgUrl = latest ? buildMacosDmgUrl(latest.version) : null;
+
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/80 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6 sm:px-8">
@@ -27,26 +26,30 @@ export function SiteHeader() {
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2" aria-label="主导航">
-          {navItems.map((item) =>
-            "external" in item && item.external ? (
-              <a
-                key={item.href}
-                href={item.href}
-                rel="noreferrer"
-                className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink"
-              >
-                {item.label}
-              </a>
-            ) : (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink"
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+          <Link
+            href="/changelog"
+            className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink"
+          >
+            更新记录
+          </Link>
+          <a
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full px-3 py-1.5 text-sm text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink"
+          >
+            GitHub
+          </a>
+          {dmgUrl ? (
+            <a
+              href={dmgUrl}
+              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
+              download
+              className="ml-1 inline-flex items-center rounded-full bg-ink px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            >
+              下载
+            </a>
+          ) : null}
         </nav>
       </div>
     </header>
