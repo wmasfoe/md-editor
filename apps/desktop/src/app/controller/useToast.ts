@@ -1,20 +1,8 @@
-import { useCallback, useState } from "react";
-
-interface ToastState {
-  readonly id: number;
-  readonly message: string;
-}
+import { useToastStore } from "../stores/toast-store";
 
 export function useToast() {
-  const [toast, setToast] = useState<ToastState | null>(null);
-
-  const showToast = useCallback((message: string | null) => {
-    if (!message) {
-      setToast(null);
-      return;
-    }
-    setToast({ id: Date.now(), message });
-  }, []);
+  const toast = useToastStore((state) => state.toast);
+  const showToast = useToastStore((state) => state.showToast);
 
   return { toast, showToast };
 }

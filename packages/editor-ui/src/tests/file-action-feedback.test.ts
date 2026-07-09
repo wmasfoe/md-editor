@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldShowFileActionOverlay } from "../hooks/useFileActionController";
+import { shouldShowFileActionOverlay } from "../hooks/file-action-feedback";
 
 describe("file action feedback", () => {
   it("keeps blocking overlay as the default for disruptive file operations", () => {

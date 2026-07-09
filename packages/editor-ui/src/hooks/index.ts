@@ -1,6 +1,5 @@
 export * from "./controller-errors";
-export * from "./useConfirmationController";
+export * from "./file-action-feedback";
 export * from "./useEditorUi";
-export * from "./useFileActionController";
 export * from "./useMdxAiController";
 export * from "./useOutlineController";
