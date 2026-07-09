@@ -35,15 +35,17 @@ describe("editor-core AI boundary", () => {
     expect(dependencyNames.has("react-dom")).toBe(false);
   });
 
-  it("keeps the AI subpath as an explicit compatibility export", () => {
+  it("keeps AI imports out of editor-core exports", () => {
     const manifest = JSON.parse(readFileSync(packageJsonUrl, "utf8")) as {
       readonly exports?: Record<string, string>;
+      readonly dependencies?: Record<string, string>;
     };
-    const aiShim = readFileSync(new URL("../src/ai/index.ts", import.meta.url), "utf8");
+    const packageEntry = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
 
-    expect(manifest.exports?.["./ai"]).toBe("./src/ai/index.ts");
-    expect(aiShim).toContain("Compatibility shim");
-    expect(aiShim).toContain("export * from \"@md-editor/ai\"");
+    expect(manifest.exports?.["./ai"]).toBeUndefined();
+    expect(manifest.dependencies?.["@md-editor/ai"]).toBeUndefined();
+    expect(packageEntry).not.toContain("./ai");
+    expect(packageEntry).not.toContain("@md-editor/ai");
   });
 });
 

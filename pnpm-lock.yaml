@@ -210,9 +210,6 @@ importers:
 
   packages/editor-core:
     dependencies:
-      '@md-editor/ai':
-        specifier: workspace:*
-        version: link:../ai
       '@md-editor/mdx-component-registry':
         specifier: workspace:*
         version: link:../mdx-component-registry

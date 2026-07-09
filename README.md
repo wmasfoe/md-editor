@@ -72,6 +72,7 @@ pnpm build:macos
 apps/
   desktop/              # Tauri 桌面应用
 packages/
+  ai/                   # AI provider、请求解析和写作建议类型
   editor-core/          # 编辑器核心逻辑
   editor-ui/            # React UI 组件
   file-system/          # 文件系统抽象

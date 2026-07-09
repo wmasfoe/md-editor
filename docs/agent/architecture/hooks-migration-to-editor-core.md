@@ -8,7 +8,7 @@
 
 | 层 | 职责 | 不应承担 |
 | --- | --- | --- |
-| `packages/editor-core` | 编辑器领域类型、文档状态契约、命令/快捷键契约、Markdown/AI 纯类型、平台无关算法和 headless store；过渡期临时承载平台无关 AI provider/request parsing | React hooks、DOM、Tauri、desktop runtime 单例、agent 编排和 prompt cache |
+| `packages/editor-core` | 编辑器领域类型、文档状态契约、命令/快捷键契约、Markdown 纯类型、平台无关算法和 headless store；只保留编辑器命令 ID 等必须理解的 AI 交互入口 | React hooks、DOM、Tauri、desktop runtime 单例、AI provider/request parsing、agent 编排和 prompt cache |
 | `packages/editor-ui` React-facing 层 | React 组件、React hooks、编辑器 UI controller 状态、两层编辑器组件（底层 primitive + 外层公开 `MilkdownEditor`） | Tauri 文件系统、native menu/window、平台 runtime 直接调用 |
 | `apps/desktop` | Tauri/file-system/settings/native menu/window 适配，向 UI/hooks 注入 callback 和数据 | 重复编辑器领域语义、把通用状态硬编码在 desktop wrapper 内 |
 
@@ -209,15 +209,15 @@ interface UseMdxAiControllerOptions {
 建议职责拆分：
 
 - `editor-ui/src/hooks/useMdxAiController.ts` 只管理菜单打开、插入请求、AI suggestion request lifecycle。
-- AI provider/request parsing 逻辑不要放进 `editor-ui`。
-- 过渡期将 `apps/desktop/src/app/ai/ai-completion.ts` 下沉到 `packages/editor-core/src/ai/ai-completion.ts`，作为临时 headless 位置。
-- 下沉前必须剥离 Tauri 默认路径：本地模型调用通过 `localInvokeImpl` 注入，不能在 `editor-core` 动态 import `@tauri-apps/api/core`。
-- 在 `packages/editor-core/src/ai/` 文件顶部保留简短注释：该目录是 AI 子包拆分前的临时位置，未来迁往独立 AI 包。
+- AI provider/request parsing 逻辑不要放进 `editor-ui` 或 `editor-core`。
+- provider 请求、prompt 组装、结果解析、本地/远程模型策略统一收敛在 `@md-editor/ai`。
+- desktop 只负责把 Tauri `invoke`、settings 和错误提示等平台能力适配后注入 AI 调用链。
+- `editor-core` 不提供 `@md-editor/editor-core/ai` 兼容子路径，也不 re-export `@md-editor/ai`。
 
 长期目标：
 
-- 新建独立 AI 子包（暂定 `@md-editor/ai`）承载 provider 请求、prompt 组装、agent 编排、prompt cache、本地/远程模型策略。
-- `editor-core` 最终只保留编辑器需要理解的 AI 纯类型和契约。
+- 独立 AI 子包 `@md-editor/ai` 承载 provider 请求、prompt 组装、agent 编排、prompt cache、本地/远程模型策略。
+- `editor-core` 只保留编辑器命令、Feature descriptor 和非 AI 领域契约；AI 类型从 `@md-editor/ai` 直接导入。
 - `editor-ui` 只通过 callback 消费 AI suggestion，不直接依赖 provider/request/prompt/cache 实现。
 
 ## 8. 执行顺序
@@ -227,8 +227,8 @@ interface UseMdxAiControllerOptions {
 3. 迁移 `controller-errors` 与 `useFileActionController`。
 4. 迁移 `useConfirmationController`。
 5. 迁移 `useOutlineController`。
-6. 将 `apps/desktop/src/app/ai/ai-completion.ts` 迁到 `packages/editor-core/src/ai/ai-completion.ts`，删除其中的 Tauri 动态 import fallback，改为要求 desktop 注入 `localInvokeImpl`。
-7. 从 `packages/editor-core/src/index.ts` 导出临时 AI request API，并在导出附近注明未来迁往 AI 子包。
+6. 将 provider 请求、prompt 组装和结果解析迁到 `@md-editor/ai`，desktop 通过 adapter 注入本地模型 invoke。
+7. 确认 `packages/editor-core/src/index.ts` 不导出 AI request API，`packages/editor-core/package.json` 不暴露 `./ai` 子路径。
 8. 改造并迁移 `useMdxAiController`，所有 runtime / provider 调用通过参数注入；hook 内只调用注入的 `requestAiSuggestion`。
 9. 重构 `packages/editor-ui/src/components/MilkdownEditor.tsx`：外层公开组件保留/命名为 `MilkdownEditor`，内部 Milkdown 实现改名为 `MilkdownEditorPrimitive`，并由外层消费迁出的 hooks 后渲染。
 10. 从 `packages/editor-ui/src/index.ts` 导出新 hooks 和外层编辑器类型；`MilkdownEditor` / `SourceEditor` 组件 value 继续只通过 `./milkdown-editor` / `./source-editor` 子路径导出，避免轻量 root import 拉入 heavy editor 模块。
@@ -256,7 +256,7 @@ pnpm test
 
 - `editor-core` 不依赖 `@tauri-apps/api`。
 - `editor-core` 不新增 React 依赖。
-- `editor-core/src/ai` 只包含平台无关的临时 AI provider/request parsing，不包含 Tauri import、agent 编排或 prompt cache。
+- `editor-core` 不包含 `src/ai` provider/request parsing，也不依赖或 re-export `@md-editor/ai`。
 - `editor-ui` 暴露可复用 React hooks 和外层公开 `MilkdownEditor`；底层 primitive 仍保持 controlled props/callbacks。
 - desktop wrapper 没有重复通用 editor/controller 状态，只做平台适配和注入；若已无额外职责，应删除。
 - Tauri、file-system、window/menu、local model invoke 等平台行为只存在于 desktop adapter 或通过 callback 注入。

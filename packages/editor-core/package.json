@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./ai": "./src/ai/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@md-editor/ai": "workspace:*",
     "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/shared": "workspace:*"
   },

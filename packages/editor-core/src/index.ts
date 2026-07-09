@@ -10,7 +10,6 @@ export * from "./markdown.ts";
 export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
 export * from "./recent-files.ts";
-export * from "./ai/index.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
