@@ -7,7 +7,10 @@
   "packageManager": "pnpm@11.6.0",
   "scripts": {
     "dev": "pnpm --filter @md-editor/desktop dev",
+    "dev:site": "pnpm --filter @md-editor/site dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
+    "build:site": "pnpm --filter @md-editor/site build",
+    "deploy:site": "pnpm --filter @md-editor/site deploy",
     "build:macos": "pnpm --filter @md-editor/desktop tauri build --bundles dmg",
     "build:macos:release": "pnpm run build:macos:release:dmg && pnpm run build:macos:release:updater",
     "build:macos:release:dmg": "pnpm --filter @md-editor/desktop tauri build --bundles dmg --config src-tauri/tauri.release.conf.json",
@@ -17,7 +20,8 @@
     "smoke:editor-core": "node --experimental-strip-types scripts/smoke-editor-core.mjs",
     "build": "pnpm -r --sort build",
     "typecheck": "pnpm -r --sort typecheck",
-    "test": "pnpm -r --sort test",
+    "test": "pnpm -r --sort test && pnpm test:release",
+    "test:release": "node --test scripts/release/*.test.mjs",
     "test:rust": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "lint": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings"
   },

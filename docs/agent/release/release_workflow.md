@@ -6,7 +6,7 @@
 
 - PR：由 `.github/workflows/build-macos.yml` 执行 lint、typecheck、test、Rust test 和版本一致性校验，不默认构建 DMG。
 - 手动触发 `.github/workflows/build-macos.yml`：执行同样校验后构建 macOS DMG，并上传 workflow artifact。普通构建不生成 updater artifact，因此不依赖 Tauri updater 私钥。
-- `v*` tag push：由 `.github/workflows/release-macos.yml` 先校验版本、tag 和 updater signing secret，再执行校验与 release-only 构建；release 构建会先生成 DMG，再单独生成 signed updater artifact。校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。
+- `v*` tag push：由 `.github/workflows/release-macos.yml` 先校验版本、tag 和 updater signing secret，再执行校验与 release-only 构建；release 构建会先生成 DMG，再单独生成 signed updater artifact。校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。app 发布成功后，workflow 会通过共享的 `pnpm deploy:site` 入口发布官网 changelog。
 - main 分支 push 不发 Release。Release 和 Homebrew 同步只允许由 `v*` tag 触发。
 - Release 版本号以 `apps/desktop/src-tauri/tauri.conf.json` 的 `version` 为准，并要求 root package、desktop package、Cargo manifest 与它一致。
 - tag 名必须匹配版本号生成的 `v{version}`，例如版本 `0.2.1` 必须推送 `v0.2.1`。
@@ -16,11 +16,14 @@
 - `.github/workflows/build-macos.yml`: PR 和手动触发的 macOS 校验构建入口。
 - `.github/workflows/release-macos.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
 - `scripts/release/publish-desktop.mjs`: 交互式发版编排脚本，负责版本同步、commit、tag 和 push。
+- `scripts/release/changelog.mjs`: `CHANGELOG.md` 更新规则，普通发版新增目标版本 section，`--resume` 复用已存在 section，禁止重复或静默覆盖。
+- `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；本地 `pnpm deploy:site` 和 release workflow 都通过它发布。
 - `scripts/release/version-desktop.mjs`: 同步更新 root package、desktop package、Tauri config、Cargo manifest 和 Cargo lock 的版本号。
 - `scripts/release/write-homebrew-cask.mjs`: 根据 DMG 文件名、sha256 和版本生成 `Casks/md-editor.rb`。
 - `scripts/release/write-install-script.mjs`: 根据公开 DMG 下载地址、sha256 和版本生成 `install-md-editor.sh`，供用户通过 curl 直接安装。
 - `scripts/release/write-updater-manifest.mjs`: 根据公开 updater artifact URL、签名和平台 key 生成 `md-editor-latest.json`。
 - `package.json`: `build:macos:release` 顺序调用 `build:macos:release:dmg` 和 `build:macos:release:updater`，避免 DMG 和 app updater artifact 在同一轮 Tauri build 中互相影响。
+- `CHANGELOG.md`: 官网 changelog 的人可读主源，发版脚本会把本次 release notes 写入这里。
 - `apps/desktop/src-tauri/tauri.conf.json`: Tauri app 版本号源头，并配置 updater 公钥和 manifest endpoint。
 - `apps/desktop/src-tauri/tauri.release.conf.json`: release-only Tauri 配置，只在 tag release 构建中打开 `bundle.createUpdaterArtifacts`。
 
@@ -33,6 +36,8 @@
    ```
 
    脚本会要求当前分支默认是 `main` 且工作区干净，然后引导选择 `patch`、`minor`、`major`、`beta` 或具体版本号，输入更新内容，自动同步版本文件、创建 Lore commit、创建 tag，并 push 分支和 tag。
+
+   发版脚本还会更新根目录 `CHANGELOG.md`。普通发版会新增一个目标版本 section；如果该版本 section 已存在，脚本会失败，避免重复 changelog。`--resume` 只用于部分发版重试，并要求目标版本 section 已经存在且保持不变。
 
    可用 `pnpm release patch --dry-run` 预览，也可用 `--notes` 传入更新内容。如果脚本在版本文件更新后中断，可用 `pnpm release --resume` 跳过 `release:version`，直接用当前版本文件继续 commit、tag 和 push。
 
@@ -72,6 +77,7 @@
    - 生成并提交 `Casks/md-editor.rb`。
    - 生成并提交 `install-md-editor.sh`。
    - 生成并提交 `md-editor-latest.json`。
+   - 通过 `pnpm deploy:site` 构建并发布官网，使公开 changelog 同步到本次 app release。
 
 ## 必需 Secret
 
@@ -80,6 +86,9 @@
 - `HOMEBREW_TAP_TOKEN`
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，仅当 updater 私钥设置了密码时需要。
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
 
 `HOMEBREW_TAP_TOKEN` 用于写入 `wmasfoe/homebrew-tap` 的 cask 文件、curl 安装脚本、updater manifest 和公开 Release asset。推荐 fine-grained PAT：
 
@@ -91,6 +100,22 @@
 `TAURI_SIGNING_PRIVATE_KEY` 是 Tauri updater 私钥内容，用于签 `.app.tar.gz` 更新包。它和 Apple Developer ID 证书无关；当前没有 Apple Developer 签名时，release workflow 仍使用 `signingIdentity: "-"` 做 macOS ad-hoc signing。不要提交私钥文件或把私钥写进文档。
 
 当前仓库的 GitHub Release 创建使用 `github.token`，不需要额外 secret。
+
+`VERCEL_*` secrets 仅用于官网发布。官网项目必须使用 CLI-only 发布；不要启用 Vercel Git 自动部署、PR preview 或 main push production deploy。release workflow 和本地发布都必须通过 `pnpm deploy:site` 调用 `scripts/site/deploy-site.mjs`。
+
+## 官网发布行为
+
+官网位于根目录 `site/`，是独立 pnpm workspace 包。常用命令：
+
+```bash
+pnpm dev:site
+pnpm build:site
+pnpm deploy:site
+```
+
+`pnpm deploy:site` 是唯一允许调用 Vercel CLI 的仓库入口。它会先构建官网，再执行 production deploy。本地运行时可使用本机 Vercel 登录状态；CI 中必须提供 `VERCEL_TOKEN`、`VERCEL_ORG_ID` 和 `VERCEL_PROJECT_ID`。
+
+PR 不创建 Vercel preview。普通 `main` push 不发布官网。app release 成功后会自动运行 `pnpm deploy:site` 发布最新 changelog。如果 app artifact 已发布但官网部署失败，app release 仍然有效；此时官网 changelog 可能暂时落后，可在 release commit/tag checkout 上重新运行 `pnpm deploy:site`，或重跑失败的 workflow。
 
 ## Release 行为
 

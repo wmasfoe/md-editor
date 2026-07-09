@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* 官网主题：偏暖的石色基调，留白优先，强调克制。 */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --color-ink: #14120f;
+  --color-ink-soft: #3f3a34;
+  --color-muted: #7a736a;
+  --color-line: #e8e4dc;
+  --color-line-strong: #d6d0c4;
+  --color-canvas: #faf9f6;
+  --color-surface: #ffffff;
+  --color-surface-soft: #f3f1eb;
+  --color-accent: #1f6feb;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-full bg-canvas font-sans text-ink antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(31 111 235 / 0.08), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(180 140 90 / 0.05), transparent);
+  }
+
+  ::selection {
+    @apply bg-accent/15 text-ink;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  code {
+    @apply font-mono;
+  }
+}

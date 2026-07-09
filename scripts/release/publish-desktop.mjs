@@ -2,11 +2,14 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { updateChangelogFile } from "./changelog.mjs";
 
 const defaultNotes = "修复了一些已知问题，添加了一些新功能";
 const releaseBranchDefault = "main";
 const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
+const changelogPath = "CHANGELOG.md";
 const releaseFiles = [
+  changelogPath,
   "package.json",
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
@@ -304,6 +307,19 @@ async function main() {
     run("pnpm", ["release:version", plan.nextVersion], { dryRun: options.dryRun, stdio: "inherit" });
   } else if (options.dryRun) {
     console.log("resume: skip pnpm release:version because version files are already changed");
+  }
+
+  const changelogResult = updateChangelogFile({
+    path: changelogPath,
+    version: plan.nextVersion,
+    notes: plan.notes,
+    mode: options.resume ? "resume" : "normal",
+    dryRun: options.dryRun
+  });
+
+  if (options.dryRun) {
+    const action = changelogResult.changed ? "would update" : "would reuse";
+    console.log(`${action} ${changelogPath} for ${plan.nextVersion}`);
   }
 
   if (options.dryRun) {
