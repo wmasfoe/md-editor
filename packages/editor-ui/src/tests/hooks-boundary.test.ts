@@ -43,9 +43,8 @@ describe("editor-ui hooks and package boundary", () => {
 
   it("exports migrated hooks from the editor-ui hooks entrypoint", () => {
     expect(hooksIndexSource).toContain('export * from "./controller-errors"');
-    expect(hooksIndexSource).toContain('export * from "./useConfirmationController"');
+    expect(hooksIndexSource).toContain('export * from "./file-action-feedback"');
     expect(hooksIndexSource).toContain('export * from "./useEditorUi"');
-    expect(hooksIndexSource).toContain('export * from "./useFileActionController"');
     expect(hooksIndexSource).toContain('export * from "./useMdxAiController"');
     expect(hooksIndexSource).toContain('export * from "./useOutlineController"');
     expect(rootIndexSource).toContain('export * from "./hooks"');

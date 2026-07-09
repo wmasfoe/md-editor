@@ -309,3 +309,5 @@ export function useDocumentActionsController({
     getRecentFiles
   };
 }
+
+export type DocumentActionsController = ReturnType<typeof useDocumentActionsController>;

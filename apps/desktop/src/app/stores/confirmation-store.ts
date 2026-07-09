@@ -8,9 +8,22 @@ export interface ConfirmationStore {
   hasPendingConfirmation: () => boolean;
 }
 
-export const useConfirmationStore = create<ConfirmationStore>(() => ({
+// Resolver 是一次性 continuation，不属于可订阅 UI 状态；store 只暴露当前弹窗数据。
+let confirmationResolver: ((choice: ConfirmationChoice) => void) | null = null;
+
+export const useConfirmationStore = create<ConfirmationStore>((set) => ({
   confirmation: null,
-  requestConfirmation: () => Promise.resolve("cancel" as ConfirmationChoice),
-  resolveConfirmation: () => {},
-  hasPendingConfirmation: () => false,
+  requestConfirmation: (confirmation) => {
+    return new Promise<ConfirmationChoice>((resolve) => {
+      confirmationResolver = resolve;
+      set({ confirmation });
+    });
+  },
+  resolveConfirmation: (choice) => {
+    const resolve = confirmationResolver;
+    confirmationResolver = null;
+    set({ confirmation: null });
+    resolve?.(choice);
+  },
+  hasPendingConfirmation: () => confirmationResolver !== null,
 }));
