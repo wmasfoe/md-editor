@@ -48,9 +48,9 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(target_os = "macos")]
-            window_chrome::install_initial_main_window_traffic_light_refresh(app.handle());
+            window_chrome::install_initial_main_window_traffic_light_refresh(_app.handle());
 
             Ok(())
         })

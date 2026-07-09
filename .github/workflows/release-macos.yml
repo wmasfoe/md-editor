@@ -10,15 +10,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Publish tagged macOS release
-    runs-on: macos-latest
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      is_prerelease: ${{ steps.release_version.outputs.is_prerelease }}
+      tag: ${{ steps.release_version.outputs.tag }}
+      version: ${{ steps.release_version.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Load CI Tauri config
+        run: |
+          {
+            echo "TAURI_CONFIG<<TAURI_CI_CONFIG"
+            cat apps/desktop/src-tauri/tauri.ci.conf.json
+            echo "TAURI_CI_CONFIG"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            wget
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -30,6 +56,23 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Read release version
         id: release_version
@@ -62,6 +105,40 @@ jobs:
             exit 1
           fi
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test Rust
+        run: pnpm test:rust
+
+  release:
+    name: Publish tagged macOS release
+    needs: validate
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
       - name: Validate updater signing key
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -88,18 +165,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Test Rust
-        run: pnpm test:rust
 
       # Distribution note:
       # Tauri updater signing verifies update artifacts and is separate from
@@ -137,9 +202,9 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
-          IS_PRERELEASE: ${{ steps.release_version.outputs.is_prerelease }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          IS_PRERELEASE: ${{ needs.validate.outputs.is_prerelease }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             if [[ "$IS_PRERELEASE" == "true" ]]; then
@@ -167,7 +232,7 @@ jobs:
           fi
 
       - name: Read DMG metadata
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         id: dmg_metadata
         run: |
           dmg_path="$(find apps/desktop/src-tauri/target/release/bundle/dmg -maxdepth 1 -type f -name '*.dmg' -print -quit)"
@@ -181,7 +246,7 @@ jobs:
           echo "sha256=$(shasum -a 256 "$dmg_path" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Read updater metadata
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         id: updater_metadata
         run: |
           updater_path="$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -type f -name '*.app.tar.gz' -print -quit)"
@@ -221,18 +286,18 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Clone Homebrew tap
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/wmasfoe/homebrew-tap.git" homebrew-tap
 
       - name: Publish public Homebrew asset
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          RELEASE_TAG: md-editor-${{ needs.validate.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
         run: |
           if gh release view "$RELEASE_TAG" --repo wmasfoe/homebrew-tap >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" \
@@ -252,11 +317,11 @@ jobs:
           fi
 
       - name: Read public Homebrew asset URL
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         id: homebrew_asset
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          RELEASE_TAG: md-editor-${{ needs.validate.outputs.tag }}
         run: |
           download_url="$(
             gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" \
@@ -272,11 +337,11 @@ jobs:
           echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
 
       - name: Read public updater asset URL
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         id: homebrew_updater_asset
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          RELEASE_TAG: md-editor-${{ needs.validate.outputs.tag }}
         run: |
           download_url="$(
             gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" \
@@ -292,30 +357,30 @@ jobs:
           echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
 
       - name: Update Homebrew cask
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         env:
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
           DMG_FILE_NAME: ${{ steps.dmg_metadata.outputs.file_name }}
           DMG_SHA256: ${{ steps.dmg_metadata.outputs.sha256 }}
           CASK_OUTPUT_PATH: homebrew-tap/Casks/md-editor.rb
           CASK_RELEASE_REPOSITORY: wmasfoe/homebrew-tap
-          CASK_RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          CASK_RELEASE_TAG: md-editor-${{ needs.validate.outputs.tag }}
           CASK_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
         run: node scripts/release/write-homebrew-cask.mjs
 
       - name: Update curl installer
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         env:
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
           DMG_SHA256: ${{ steps.dmg_metadata.outputs.sha256 }}
           DMG_DOWNLOAD_URL: ${{ steps.homebrew_asset.outputs.download_url }}
           INSTALL_SCRIPT_OUTPUT_PATH: homebrew-tap/install-md-editor.sh
         run: node scripts/release/write-install-script.mjs
 
       - name: Update updater manifest
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         env:
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
           UPDATER_DOWNLOAD_URL: ${{ steps.homebrew_updater_asset.outputs.download_url }}
           UPDATER_SIGNATURE: ${{ steps.updater_metadata.outputs.signature }}
           UPDATER_PLATFORM: ${{ steps.updater_metadata.outputs.platform }}
@@ -323,7 +388,7 @@ jobs:
         run: node scripts/release/write-updater-manifest.mjs
 
       - name: Publish Homebrew tap
-        if: steps.release_version.outputs.is_prerelease != 'true'
+        if: needs.validate.outputs.is_prerelease != 'true'
         working-directory: homebrew-tap
         run: |
           if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
@@ -339,7 +404,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update md-editor to ${{ steps.release_version.outputs.tag }}"
+          git commit -m "Update md-editor to ${{ needs.validate.outputs.tag }}"
           git push origin main
 
       - name: Publish website changelog

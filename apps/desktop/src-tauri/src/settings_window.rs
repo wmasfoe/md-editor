@@ -26,7 +26,7 @@ pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), St
         return window.set_focus().map_err(tauri_error_to_string);
     }
 
-    let mut builder = WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         &app,
         SETTINGS_WINDOW_LABEL,
         WebviewUrl::App("index.html?window=settings".into()),
@@ -39,16 +39,14 @@ pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), St
     .resizable(true);
 
     #[cfg(target_os = "macos")]
-    {
-        builder = builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true)
-            // 动态 WebviewWindow 和 tauri.conf 主窗口的同一 y 值视觉上不同；这里补偿到主窗口观感。
-            .traffic_light_position(tauri::LogicalPosition::new(
-                SETTINGS_TRAFFIC_LIGHT_LEFT,
-                SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
-            ));
-    }
+    let builder = builder
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true)
+        // 动态 WebviewWindow 和 tauri.conf 主窗口的同一 y 值视觉上不同；这里补偿到主窗口观感。
+        .traffic_light_position(tauri::LogicalPosition::new(
+            SETTINGS_TRAFFIC_LIGHT_LEFT,
+            SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
+        ));
 
     builder.build().map_err(tauri_error_to_string)?;
     Ok(())

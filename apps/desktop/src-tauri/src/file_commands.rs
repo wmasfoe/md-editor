@@ -1,10 +1,11 @@
 use std::{
     fs,
-    io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
+#[cfg(target_os = "macos")]
+use std::{io::Write, process::Stdio};
 
 use serde::{Deserialize, Serialize};
 use tauri::{
