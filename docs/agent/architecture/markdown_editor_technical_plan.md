@@ -514,7 +514,7 @@ P1 初版：
 1. 获取剪贴板中的 image file。
 2. 调用 ImageStorageProvider 保存。
 3. 返回 Markdown 可使用的 `src`。
-4. 插入 `![alt](src)` 或图片节点。
+4. 插入 Markdown 图片语法或图片节点，其中图片地址使用上一步返回的 `src`。
 
 拖拽图片作为后续增强能力，不进入 v0.1 必做范围。
 

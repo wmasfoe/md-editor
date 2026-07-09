@@ -171,6 +171,6 @@ v0.1 策略: MDX 组件作为 raw block 保留，不执行
 - `docs/index.md` - 文档导航入口
 
 关键文档:
-- [技术方案](docs/agent/markdown_editor_technical_plan.md) - 架构设计和技术选型
-- [发布流程](docs/agent/release_workflow.md) - 版本发布和自动化
+- [技术方案](docs/agent/architecture/markdown_editor_technical_plan.md) - 架构设计和技术选型
+- [发布流程](docs/agent/release/release_workflow.md) - 版本发布和自动化
 - [项目背景](docs/human/project.md) - 为什么做这个项目
