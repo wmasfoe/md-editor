@@ -37,6 +37,8 @@ import {
 import { shouldPlaceCursorAtDocumentEnd } from "../../utils/editor-surface";
 import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
 import { imageSelectionPlugin } from "../../utils/image-selection";
+// 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
+// import { straightQuotesPlugin } from "../../utils/straight-quotes";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../../utils/wysiwyg-search";
 import type {
   MilkdownEditorPrimitiveProps
@@ -420,6 +422,9 @@ export function MilkdownEditorPrimitive({
         .use(commonmark)
         .use(gfm)
         .use(history)
+        // 可选兜底：纠正 macOS/WebKit 将 ASCII 引号改写成弯引号（源码模式不需要）。
+        // 当前依赖 apps/desktop 壳层 NSUserDefaults，先不挂载。
+        // .use(straightQuotesPlugin)
         .use(imeCompositionGuardPlugin)
         .use(imageSelectionPlugin)
         .use(aiSuggestionPlugin)

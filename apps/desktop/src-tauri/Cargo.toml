@@ -33,4 +33,4 @@ dirs = "5"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSButton", "NSControl", "NSView", "NSWindow"] }
-objc2-foundation = { version = "0.3", features = ["block2", "NSGeometry", "NSNotification", "NSOperation", "NSString"] }
+objc2-foundation = { version = "0.3", features = ["block2", "NSGeometry", "NSNotification", "NSOperation", "NSString", "NSUserDefaults"] }

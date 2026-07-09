@@ -8,6 +8,7 @@ mod local_ai_runtime;
 mod recent_files;
 mod settings;
 mod settings_window;
+mod text_substitutions;
 mod window_chrome;
 
 use app_menu::MENU_ACTION_EVENT;
@@ -29,6 +30,9 @@ use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
 
 pub fn run() {
+    // 在 WKWebView 启动前关闭本进程的 AppKit 智能引号 / 破折号替换。
+    text_substitutions::disable_automatic_text_substitutions();
+
     // Rust 只保留桌面能力边界：菜单、弹窗、文件访问授权和持久化；Markdown 编辑语义在 TS 层。
     tauri::Builder::default()
         .menu(build_app_menu)
