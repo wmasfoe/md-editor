@@ -24,15 +24,17 @@
 
 ## 2. 当前代码基础
 
-当前代码已经有本地模型的占位接口：
+当前代码已经接入本地模型的主要链路：
 
 - `packages/editor-core/src/index.ts` 已定义 `AiProviderType = "openai-compatible" | "deepseek" | "local"`。
 - `AiLocalModelSettings` 已有 `enabled` 和 `status`。
 - `apps/desktop/src/app/settings/app-settings.ts` 默认状态为 `localModel.enabled = false`、`status = "not-downloaded"`。
-- `apps/desktop/src/components/SettingsDialog.tsx` 已有“本地模型”和“下载模型”区域，但下载按钮处于 disabled。
-- `apps/desktop/src/app/ai/ai-completion.ts` 在 `provider === "local"` 时已经做 readiness 检查，但真正请求时仍抛出“本地模型续写还未接入”。
+- `apps/desktop/src/components/settings/AiSettingsPanel.tsx` 已有“本地模型”、下载、取消下载和删除模型入口；下载按钮仅在本地模型操作进行中禁用。
+- `packages/editor-core/src/ai/ai-completion.ts` 在 `provider === "local"` 时会做 readiness 检查，并通过桌面端注入的 `localInvokeImpl` 调用 `request_local_ai_continuation`。
+- `apps/desktop/src/app/ai/ai-continuation-adapter.ts` 负责把 Tauri `invoke` 注入到 editor-core 的本地模型请求中。
+- Rust 侧 `request_local_ai_continuation` 已接入 bundled `llama-server` sidecar runtime 和本机 `/v1/chat/completions` 转发。
 
-因此改造重点不是重新设计 AI UI，而是把 local provider 补成完整链路。
+因此后续改造重点不是从零实现 local provider，而是完善跨平台 sidecar 资产、下载可靠性、错误恢复和体验打磨。
 
 2026-06-25 进度：
 

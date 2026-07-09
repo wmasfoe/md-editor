@@ -39,8 +39,8 @@ xattr -dr com.apple.quarantine /Applications/Markdown\ Editor.app
 
 ### 前置要求
 
-- Node.js 18+
-- pnpm 8+
+- Node.js 18+（推荐使用 `.node-version` 中的版本）
+- pnpm 11.6.0（仓库 `packageManager` 固定版本，可通过 Corepack 启用）
 - Rust (用于 Tauri)
 
 ### 开发
