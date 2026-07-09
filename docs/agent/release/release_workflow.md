@@ -17,7 +17,7 @@
 - `.github/workflows/release-macos.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
 - `scripts/release/publish-desktop.mjs`: 交互式发版编排脚本，负责版本同步、commit、tag 和 push。
 - `scripts/release/changelog.mjs`: `CHANGELOG.md` 更新规则，普通发版新增目标版本 section，`--resume` 复用已存在 section，禁止重复或静默覆盖。
-- `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；本地 `pnpm deploy:site` 和 release workflow 都通过它发布。
+- `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；本地 `pnpm deploy:site` 和 release workflow 都通过它发布。流程为 monorepo 根目录 `vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt --prod`。Vercel 项目 Root Directory 必须为 `site`（CLI cwd 为仓库根，避免 `site/site/package.json`）；预构建保留 monorepo 上下文以便读取根目录 `CHANGELOG.md`。
 - `scripts/release/version-desktop.mjs`: 同步更新 root package、desktop package、Tauri config、Cargo manifest 和 Cargo lock 的版本号。
 - `scripts/release/write-homebrew-cask.mjs`: 根据 DMG 文件名、sha256 和版本生成 `Casks/md-editor.rb`。
 - `scripts/release/write-install-script.mjs`: 根据公开 DMG 下载地址、sha256 和版本生成 `install-md-editor.sh`，供用户通过 curl 直接安装。
@@ -113,7 +113,7 @@ pnpm build:site
 pnpm deploy:site
 ```
 
-`pnpm deploy:site` 是唯一允许调用 Vercel CLI 的仓库入口。它会先构建官网，再执行 production deploy。本地运行时可使用本机 Vercel 登录状态；CI 中必须提供 `VERCEL_TOKEN`、`VERCEL_ORG_ID` 和 `VERCEL_PROJECT_ID`。
+`pnpm deploy:site` 是唯一允许调用 Vercel CLI 的仓库入口。它在 monorepo 完整 checkout 中执行 production 预构建，再以 `--prebuilt` 上传产物（不在 Vercel 远程重新 build）。本地运行时可使用本机 Vercel 登录状态；CI 中必须提供 `VERCEL_TOKEN`、`VERCEL_ORG_ID` 和 `VERCEL_PROJECT_ID`。
 
 PR 不创建 Vercel preview。普通 `main` push 不发布官网。app release 成功后会自动运行 `pnpm deploy:site` 发布最新 changelog。如果 app artifact 已发布但官网部署失败，app release 仍然有效；此时官网 changelog 可能暂时落后，可在 release commit/tag checkout 上重新运行 `pnpm deploy:site`，或重跑失败的 workflow。
 

@@ -7,7 +7,11 @@ export interface ChangelogEntry {
   items: string[];
 }
 
-const changelogPath = path.join(process.cwd(), "..", "CHANGELOG.md");
+// monorepo 根优先；site 目录内副本次之（预留给打包工具只带 site 子树的场景）。
+const defaultChangelogCandidates = [
+  path.join(process.cwd(), "..", "CHANGELOG.md"),
+  path.join(process.cwd(), "CHANGELOG.md")
+];
 
 export function parseChangelog(markdown: string): ChangelogEntry[] {
   const lines = markdown.split(/\r?\n/u);
@@ -36,10 +40,19 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
   return entries.filter((entry) => entry.version && entry.items.length > 0);
 }
 
-export function getChangelogEntries(filePath = changelogPath): ChangelogEntry[] {
-  if (!fs.existsSync(filePath)) {
+export function getChangelogEntries(filePath?: string): ChangelogEntry[] {
+  const resolved = resolveChangelogPath(filePath);
+  if (!resolved) {
     return [];
   }
 
-  return parseChangelog(fs.readFileSync(filePath, "utf8"));
+  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+function resolveChangelogPath(filePath?: string): string | null {
+  if (filePath) {
+    return fs.existsSync(filePath) ? filePath : null;
+  }
+
+  return defaultChangelogCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }
