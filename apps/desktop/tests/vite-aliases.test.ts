@@ -15,6 +15,9 @@ describe("desktop Vite aliases", () => {
     await expect(resolveId("@md-editor/editor-core/ai")).resolves.toBe(workspacePath(
       "../../../packages/editor-core/src/ai/index.ts"
     ));
+    await expect(resolveId("@md-editor/ai")).resolves.toBe(workspacePath(
+      "../../../packages/ai/src/index.ts"
+    ));
     await expect(resolveId("@md-editor/editor-ui")).resolves.toBe(workspacePath(
       "../../../packages/editor-ui/src/index.ts"
     ));

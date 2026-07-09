@@ -94,57 +94,6 @@ export interface KeymapRegistry {
   list(): readonly KeymapDescriptor[];
 }
 
-export type AiProviderType = "openai-compatible" | "deepseek" | "local";
-
-export type AiLocalModelStatus = "not-downloaded" | "downloading" | "verifying" | "available" | "failed";
-
-export interface AiOpenAiCompatibleSettings {
-  readonly baseUrl: string;
-  readonly model: string;
-  readonly apiKey: string;
-}
-
-export interface AiLocalModelSettings {
-  readonly enabled: boolean;
-  readonly modelId: string;
-  readonly version: string | null;
-  readonly status: AiLocalModelStatus;
-  readonly downloadedBytes: number;
-  readonly totalBytes: number;
-  readonly error: string | null;
-}
-
-export interface AiFeatureSettings {
-  readonly continuation: boolean;
-  readonly editing: boolean;
-}
-
-export interface AiSettings {
-  readonly enabled: boolean;
-  readonly provider: AiProviderType;
-  readonly features: AiFeatureSettings;
-  readonly openAiCompatible: AiOpenAiCompatibleSettings;
-  readonly localModel: AiLocalModelSettings;
-}
-
-export interface AiCompletionContext {
-  readonly before: string;
-  readonly after: string;
-  readonly selectedText: string;
-  readonly mode: EditorMode;
-}
-
-export interface AiWritingEditSuggestion {
-  readonly original: string;
-  readonly replacement: string;
-  readonly reason?: string;
-}
-
-export interface AiWritingSuggestion {
-  readonly continuation?: string;
-  readonly edit?: AiWritingEditSuggestion;
-}
-
 export interface FeatureContext {
   readonly commands: CommandRegistry;
   readonly keymaps: KeymapRegistry;

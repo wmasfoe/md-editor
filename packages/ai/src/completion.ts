@@ -1,16 +1,10 @@
 import type {
-  AiCompletionContext,
+  AiContextSnapshot,
+  AiContinuationRequestOptions,
   AiSettings,
   AiWritingEditSuggestion,
   AiWritingSuggestion
-} from "../index.ts";
-
-export interface AiContinuationRequestOptions {
-  readonly fetchImpl?: typeof fetch;
-  readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
-  readonly timeoutMs?: number;
-  readonly signal?: AbortSignal;
-}
+} from "./types.ts";
 
 interface OpenAiChatCompletionResponse {
   readonly choices?: Array<{
@@ -23,12 +17,17 @@ interface OpenAiChatCompletionResponse {
   };
 }
 
+export interface AiPromptContext {
+  readonly before: string;
+  readonly selectedText: string;
+  readonly after: string;
+  readonly mode: AiContextSnapshot["mode"];
+  readonly filePath?: string | null;
+}
+
 const DEFAULT_AI_TIMEOUT_MS = 30_000;
 const CONTEXT_WINDOW = 3_000;
 
-// Temporary home for platform-free provider request/parsing logic.
-// Prompt cache, agents, and provider orchestration should move to a future
-// @md-editor/ai package instead of growing inside editor-core.
 export function getAiCompletionReadiness(settings: AiSettings): string | null {
   if (!settings.enabled) {
     return "请先在设置中开启 AI 功能。";
@@ -62,7 +61,7 @@ export function getAiCompletionReadiness(settings: AiSettings): string | null {
 
 export async function requestAiContinuation(
   settings: AiSettings,
-  context: AiCompletionContext,
+  context: AiContextSnapshot,
   options: AiContinuationRequestOptions = {}
 ): Promise<AiWritingSuggestion> {
   const readiness = getAiCompletionReadiness(settings);
@@ -79,8 +78,9 @@ export async function requestAiContinuation(
 
 export function createOpenAiCompatibleRequestBody(
   settings: AiSettings,
-  context: AiCompletionContext
+  context: AiContextSnapshot
 ): unknown {
+  const promptContext = createAiPromptContext(context);
   return {
     model: settings.openAiCompatible.model.trim(),
     stream: false,
@@ -112,13 +112,13 @@ export function createOpenAiCompatibleRequestBody(
           "请根据以下上下文返回 JSON 建议。",
           "",
           "【光标前】",
-          trimContext(context.before),
+          promptContext.before,
           "",
-          context.selectedText ? "【当前选中文本】" : "",
-          context.selectedText ? context.selectedText : "",
+          promptContext.selectedText ? "【当前选中文本】" : "",
+          promptContext.selectedText ? promptContext.selectedText : "",
           "",
           "【光标后】",
-          trimContext(context.after),
+          promptContext.after,
           "",
           "只输出 JSON。"
         ].filter(Boolean).join("\n")
@@ -127,13 +127,36 @@ export function createOpenAiCompatibleRequestBody(
   };
 }
 
+export function createAiPromptContext(snapshot: AiContextSnapshot): AiPromptContext {
+  return {
+    before: trimBeforeContext(snapshot.before),
+    selectedText: snapshot.selectedText,
+    after: trimAfterContext(snapshot.after),
+    mode: snapshot.mode,
+    ...(snapshot.document && "filePath" in snapshot.document
+      ? { filePath: snapshot.document.filePath ?? null }
+      : {})
+  };
+}
+
+export function createAiContextCacheSeed(snapshot: AiContextSnapshot): string {
+  return JSON.stringify({
+    before: trimBeforeContext(snapshot.before),
+    selectedText: snapshot.selectedText,
+    after: trimAfterContext(snapshot.after),
+    mode: snapshot.mode,
+    cursor: snapshot.cursor,
+    filePath: snapshot.document?.filePath ?? null
+  });
+}
+
 function shouldDisableDeepSeekThinking(settings: AiSettings): boolean {
   return settings.provider === "deepseek";
 }
 
 async function requestOpenAiCompatibleContinuation(
   settings: AiSettings,
-  context: AiCompletionContext,
+  context: AiContextSnapshot,
   options: AiContinuationRequestOptions
 ): Promise<AiWritingSuggestion> {
   const controller = new AbortController();
@@ -178,7 +201,7 @@ async function requestOpenAiCompatibleContinuation(
 
 async function requestLocalAiContinuation(
   settings: AiSettings,
-  context: AiCompletionContext,
+  context: AiContextSnapshot,
   options: AiContinuationRequestOptions
 ): Promise<AiWritingSuggestion> {
   const controller = new AbortController();
@@ -298,11 +321,18 @@ async function readOpenAiResponse(response: Response): Promise<OpenAiChatComplet
   }
 }
 
-function trimContext(value: string): string {
+function trimBeforeContext(value: string): string {
   if (value.length <= CONTEXT_WINDOW) {
     return value;
   }
   return value.slice(-CONTEXT_WINDOW);
+}
+
+function trimAfterContext(value: string): string {
+  if (value.length <= CONTEXT_WINDOW) {
+    return value;
+  }
+  return value.slice(0, CONTEXT_WINDOW);
 }
 
 function normalizeEditSuggestion(input: Record<string, unknown>): AiWritingEditSuggestion | undefined {
@@ -341,7 +371,7 @@ function extractJsonObject(content: string): string {
 function parseJsonObject(content: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(content) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? parsed as Record<string, unknown>
       : null;
   } catch {
@@ -349,14 +379,14 @@ function parseJsonObject(content: string): Record<string, unknown> | null {
   }
 }
 
-function readStringProperty(input: Record<string, unknown>, key: string): string {
-  const value = input[key];
+function readStringProperty(input: Record<string, unknown> | null, key: string): string {
+  const value = input?.[key];
   return typeof value === "string" ? value : "";
 }
 
 function readObjectProperty(input: Record<string, unknown>, key: string): Record<string, unknown> | null {
   const value = input[key];
-  return value && typeof value === "object" && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
 }

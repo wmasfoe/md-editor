@@ -1,4 +1,4 @@
-import type { AiLocalModelSettings, AiLocalModelStatus } from "@md-editor/editor-core";
+import type { AiLocalModelSettings, AiLocalModelStatus } from "@md-editor/ai";
 
 export const DEFAULT_LOCAL_MODEL_ID = "md-editor-writer-small-v1";
 export const LOCAL_AI_MODEL_PROGRESS_EVENT = "local-ai-model-progress";

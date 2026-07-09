@@ -4,7 +4,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type {
   AiProviderType,
   AiSettings
-} from "@md-editor/editor-core";
+} from "@md-editor/ai";
 import {
   DEFAULT_LOCAL_MODEL_SETTINGS,
   normalizeLocalAiModelSettings

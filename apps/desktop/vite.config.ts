@@ -36,6 +36,10 @@ export default defineConfig({
         replacement: workspacePath("../../packages/editor-core/src/ai/index.ts"),
       },
       {
+        find: /^@md-editor\/ai$/,
+        replacement: workspacePath("../../packages/ai/src/index.ts"),
+      },
+      {
         find: /^@md-editor\/editor-core$/,
         replacement: workspacePath("../../packages/editor-core/src/index.ts"),
       },

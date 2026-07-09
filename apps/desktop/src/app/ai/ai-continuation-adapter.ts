@@ -1,9 +1,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { AiCompletionContext, AiSettings } from "@md-editor/editor-core";
 import {
+  type AiCompletionContext,
+  type AiSettings,
   requestAiContinuation,
   type AiContinuationRequestOptions
-} from "@md-editor/editor-core/ai";
+} from "@md-editor/ai";
 
 export async function requestDesktopAiContinuation(
   settings: AiSettings,

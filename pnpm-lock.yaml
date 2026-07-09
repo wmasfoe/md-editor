@@ -116,6 +116,9 @@ importers:
       '@heroicons/react':
         specifier: 'catalog:'
         version: 2.2.0(react@19.2.7)
+      '@md-editor/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -196,8 +199,20 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.21)(lightningcss@1.32.0)
 
+  packages/ai:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@types/node@22.19.21)(lightningcss@1.32.0)
+
   packages/editor-core:
     dependencies:
+      '@md-editor/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@md-editor/mdx-component-registry':
         specifier: workspace:*
         version: link:../mdx-component-registry
@@ -241,6 +256,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
+      '@md-editor/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../editor-core

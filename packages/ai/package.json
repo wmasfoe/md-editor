@@ -1,24 +1,17 @@
 {
-  "name": "@md-editor/editor-core",
+  "name": "@md-editor/ai",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./ai": "./src/ai/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@md-editor/ai": "workspace:*",
-    "@md-editor/mdx-component-registry": "workspace:*",
-    "@md-editor/shared": "workspace:*"
-  },
   "devDependencies": {
-    "@md-editor/mdx-plugins": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

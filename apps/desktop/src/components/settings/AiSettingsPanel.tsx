@@ -1,4 +1,4 @@
-import type { AiSettings } from "@md-editor/editor-core";
+import type { AiSettings } from "@md-editor/ai";
 import {
   isRemoteAiProvider,
   localModelProgressLabel,
