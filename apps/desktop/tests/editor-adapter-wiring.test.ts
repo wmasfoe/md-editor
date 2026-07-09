@@ -10,7 +10,11 @@ const desktopSourceEditorSource = readFileSync(
   "utf8"
 );
 const editorUiMilkdownSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url),
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
+  "utf8"
+);
+const editorUiMilkdownPrimitiveSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
   "utf8"
 );
 
@@ -39,8 +43,8 @@ describe("desktop editor adapter wiring", () => {
   });
 
   it("remounts Milkdown on document replacement to honor primitive mount-scoped state", () => {
-    expect(editorUiMilkdownSource).toContain("Milkdown owns document state after mount");
-    expect(editorUiMilkdownSource).toContain("for document replacement");
+    expect(editorUiMilkdownPrimitiveSource).toContain("Milkdown owns document state after mount");
+    expect(editorUiMilkdownPrimitiveSource).toContain("for document replacement");
     expect(editorUiMilkdownSource).toContain("<MilkdownProvider key={editorUiState.documentKey}>");
     expect(desktopMilkdownEditorSource).not.toContain("documentKey");
   });

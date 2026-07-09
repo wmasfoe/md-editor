@@ -14,11 +14,11 @@ const editorUiProviderSource = readFileSync(
   "utf8"
 );
 const editorUiSourceEditorSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/SourceEditor.tsx", import.meta.url),
+  new URL("../../../packages/editor-ui/src/components/SourceEditor/SourceEditor.tsx", import.meta.url),
   "utf8"
 );
 const editorUiMilkdownEditorSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url),
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
   "utf8"
 );
 const desktopSourceEditorSource = readFileSync(

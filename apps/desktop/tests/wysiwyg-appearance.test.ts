@@ -10,11 +10,19 @@ const desktopMilkdownEditorSource = readFileSync(
   "utf8"
 );
 const milkdownEditorSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor.tsx", import.meta.url),
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
+  "utf8"
+);
+const milkdownEditorPrimitiveSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
+  "utf8"
+);
+const milkdownEditorTypesSource = readFileSync(
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/types.ts", import.meta.url),
   "utf8"
 );
 const milkdownEditorStyles = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor.css", import.meta.url),
+  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.css", import.meta.url),
   "utf8"
 );
 
@@ -23,9 +31,9 @@ describe("WYSIWYG appearance settings", () => {
     // DesktopMilkdownEditor 从 useAppSettings() 读取显示设置并注入 MilkdownEditor
     expect(desktopMilkdownEditorSource).toContain("settings.editor.wysiwygFontSize");
     expect(desktopMilkdownEditorSource).toContain("DesktopMilkdownEditor");
-    expect(milkdownEditorSource).toContain("readonly wysiwygFontSize?: number;");
-    expect(milkdownEditorSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
-    expect(milkdownEditorSource).toContain('"--theme-editor-font-size": `${safeFontSize}px`');
+    expect(milkdownEditorTypesSource).toContain("readonly wysiwygFontSize?: number;");
+    expect(milkdownEditorPrimitiveSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
+    expect(milkdownEditorPrimitiveSource).toContain('"--theme-editor-font-size": `${safeFontSize}px`');
   });
 
   it("exposes a bounded font-size control in appearance settings", () => {
