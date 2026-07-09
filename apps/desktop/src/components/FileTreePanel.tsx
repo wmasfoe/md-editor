@@ -20,6 +20,7 @@ import {
 import { cx } from "../lib/cx";
 import { useDocumentSnapshot } from "../app/document-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { useFileActionStore } from "../app/stores/file-action-store";
 import { useFileTreeStore } from "../app/stores/file-tree-store";
 import type { FileTreeContextMenuState, TreeItemKind } from "../types";
@@ -39,7 +40,8 @@ export interface FileTreePanelProps {
 
 export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
   const { folder, createTreeItem, renameTreeItem, deleteTreeItem } = useFileTreeStore();
-  const { dispatchCommand, openDocumentFromTree, openAssetFromTree } = useDocumentUiStore();
+  const { openAssetFromTree } = useDocumentUiStore();
+  const { dispatchCommand, openDocumentFromTree } = useDesktopEditorActions();
   const { showFileActionError } = useFileActionStore();
   const { filePath: activeFilePath } = useDocumentSnapshot();
 

@@ -21,6 +21,7 @@ import {
 import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { useSidebarStore } from "../app/stores/sidebar-store";
 import {
   isUpdateActionBusy,
@@ -43,7 +44,8 @@ export function EditorTitleBarControls() {
   const { updateStatus } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
-  const { hasActiveDocument, runEditorUpdateAction } = useDocumentUiStore();
+  const { hasActiveDocument } = useDocumentUiStore();
+  const { runEditorUpdateAction } = useDesktopEditorActions();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
 
   const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);

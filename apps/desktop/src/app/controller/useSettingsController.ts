@@ -13,7 +13,6 @@ import {
   destroyCurrentSettingsWindow
 } from "../../desktop/settings-window";
 import {
-  appVersion,
   createDefaultSettings,
   keyboardShortcutLabel,
   listenToAppSettingsChanged,
@@ -30,11 +29,6 @@ import {
   type UpdateStatus
 } from "../settings/app-settings";
 import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
-import {
-  checkForInstallableUpdate,
-  installDownloadedUpdate,
-  installPendingUpdate,
-} from "../updates/app-updater";
 import { formatActionError } from "@md-editor/editor-ui";
 import { useAppSettings } from "../settings-context";
 
@@ -67,7 +61,7 @@ export async function closeSettingsSurfaceAfterSave({
 }
 
 export function useSettingsController({ showToast, surface = "main" }: UseSettingsControllerOptions) {
-  const { settings: loadedSettings, updateStatus, closeSettings: closeEmbedded, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
+  const { settings: loadedSettings, updateStatus, closeSettings: closeEmbedded, checkForUpdate, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
 
   // 草稿状态：用已加载设置初始化，对齐 loadedSettings 变化
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(
@@ -309,20 +303,19 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   }, [applyLocalModelStatus, loadedSettings.ai.localModel.modelId]);
 
   const runUpdateCheck = useCallback(async () => {
-    // updateStatus 由 Context 管理，此处通过设置窗口触发更新检查后
-    // 结果通过 applyDownloadedUpdate / downloadUpdate 回流到 Context
-    await checkForInstallableUpdate(appVersion());
-  }, []);
+    setSettingsErrorMessage(null);
+    await checkForUpdate();
+  }, [checkForUpdate]);
 
   const installUpdate = useCallback(async () => {
     setSettingsErrorMessage(null);
     const result = updateStatus.state === "downloaded"
-      ? await installDownloadedUpdate()
-      : await installPendingUpdate(() => {});
+      ? await applyDownloadedUpdate()
+      : await downloadUpdate().then((downloaded) => downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded);
     if (result.state === "installed") {
       showToast("更新已安装，重启应用后生效。");
     }
-  }, [showToast, updateStatus.state]);
+  }, [applyDownloadedUpdate, downloadUpdate, showToast, updateStatus.state]);
 
   return {
     shortcutDrafts,

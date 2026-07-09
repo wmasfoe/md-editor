@@ -14,7 +14,6 @@ import {
   checkForInstallableUpdate,
   downloadPendingUpdate,
   installDownloadedUpdate,
-  installPendingUpdate,
   relaunchAfterUpdate
 } from "./updates/app-updater";
 import {
@@ -33,9 +32,15 @@ export interface AppSettingsContextValue {
   readonly isSettingsOpen: boolean;
   readonly openSettings: () => void;
   readonly closeSettings: () => void;
+  readonly checkForUpdate: () => Promise<UpdateStatus>;
   readonly relaunchUpdate: () => Promise<void>;
   readonly downloadUpdate: () => Promise<UpdateStatus>;
   readonly applyDownloadedUpdate: () => Promise<UpdateStatus>;
+}
+
+interface UpdateCheckOptions {
+  readonly automatic?: boolean;
+  readonly downloadAvailableUpdate?: boolean;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -151,62 +156,92 @@ export function AppSettingsProvider({
     await relaunchAfterUpdate();
   }, []);
 
-  const installUpdate = useCallback(async () => {
-    const current = updateStatusRef.current;
-    const result = current.state === "downloaded"
-      ? await installDownloadedUpdate()
-      : await installPendingUpdate(setUpdateStatus);
-    setUpdateStatus(result);
-    if (result.state === "installed") {
-      showToast("更新已安装，重启应用后生效。");
-    }
-  }, [showToast]);
-
-  const runAutomaticUpdateCheck = useCallback(async () => {
+  const runUpdateCheck = useCallback(async ({
+    automatic = false,
+    downloadAvailableUpdate = false,
+  }: UpdateCheckOptions = {}) => {
     const current = updateStatusRef.current;
     if (
-      !isTauri() ||
-      !settings.update.automaticCheck ||
       isAutoUpdateRunningRef.current ||
       isUpdateActionBusy(current) ||
       isUpdateReadyToApply(current)
-    ) return;
+    ) return current;
 
     isAutoUpdateRunningRef.current = true;
+    const checkingStatus: UpdateStatus = {
+      ...current,
+      currentVersion: current.currentVersion || appVersion(),
+      state: "checking",
+    };
+    setUpdateStatus(checkingStatus);
+
     try {
-      if (current.state === "available" && current.installKind === "app") {
-        if (!settings.update.automaticDownload) return;
+      if (automatic && current.state === "available" && current.installKind === "app") {
+        if (!downloadAvailableUpdate) {
+          setUpdateStatus(current);
+          return current;
+        }
         const downloaded = await downloadPendingUpdate(setUpdateStatus);
         if (downloaded.state === "error") {
           console.warn("自动下载更新失败", downloaded.error ?? downloaded.state);
           setUpdateStatus(current);
-          return;
+          return downloaded;
         }
         setUpdateStatus(downloaded);
-        return;
+        return downloaded;
       }
 
       const next = await checkForInstallableUpdate(appVersion());
       if (next.state === "error" || next.state === "unconfigured") {
-        console.warn("自动检测更新失败", next.error ?? next.state);
-        return;
+        if (automatic) {
+          console.warn("自动检测更新失败", next.error ?? next.state);
+          setUpdateStatus(current);
+        } else {
+          setUpdateStatus(next);
+        }
+        return next;
       }
+
       setUpdateStatus(next);
-      if (next.state === "available" && next.installKind === "app" && settings.update.automaticDownload) {
+      if (next.state === "available" && next.installKind === "app" && downloadAvailableUpdate) {
         const downloaded = await downloadPendingUpdate(setUpdateStatus);
         if (downloaded.state === "error") {
           console.warn("自动下载更新失败", downloaded.error ?? downloaded.state);
           setUpdateStatus(next);
-          return;
+          return downloaded;
         }
         setUpdateStatus(downloaded);
+        return downloaded;
       }
+
+      return next;
     } catch (error) {
       console.warn("自动检测更新失败", error);
+      const failedStatus: UpdateStatus = {
+        currentVersion: appVersion(),
+        state: "error",
+        error: formatUpdateCheckError(error),
+      };
+      if (automatic) {
+        setUpdateStatus(current);
+      } else {
+        setUpdateStatus(failedStatus);
+      }
+      return failedStatus;
     } finally {
       isAutoUpdateRunningRef.current = false;
     }
-  }, [settings.update.automaticCheck, settings.update.automaticDownload]);
+  }, []);
+
+  const checkForUpdate = useCallback(async () => runUpdateCheck(), [runUpdateCheck]);
+
+  const runAutomaticUpdateCheck = useCallback(async () => {
+    if (!isTauri() || !settings.update.automaticCheck) return;
+    await runUpdateCheck({
+      automatic: true,
+      downloadAvailableUpdate: settings.update.automaticDownload,
+    });
+  }, [runUpdateCheck, settings.update.automaticCheck, settings.update.automaticDownload]);
 
   // 自动更新定时器（仅主窗口）
   useEffect(() => {
@@ -225,6 +260,7 @@ export function AppSettingsProvider({
     isSettingsOpen,
     openSettings,
     closeSettings,
+    checkForUpdate,
     relaunchUpdate,
     downloadUpdate,
     applyDownloadedUpdate,
@@ -237,5 +273,6 @@ export function AppSettingsProvider({
   );
 }
 
-// installUpdate 暴露给 SettingsPage 内部使用，不放进主 Context（避免 API 膨胀）
-// 通过 useSettingsController 直接调用 installDownloadedUpdate/installPendingUpdate 即可
+function formatUpdateCheckError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

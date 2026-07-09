@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, type ComponentType } from "react";
 import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import type {
   MdxComponentMenuRenderProps,
   MilkdownEditorProps
@@ -35,7 +36,8 @@ interface DesktopMilkdownEditorProps {
 export function DesktopMilkdownEditor({ showToast }: DesktopMilkdownEditorProps) {
   const snapshot = useDocumentSnapshot();
   const { settings } = useAppSettings();
-  const { commitMarkdown, openWysiwygLink, resolveImageSrc } = useDocumentUiStore();
+  const { commitMarkdown, resolveImageSrc } = useDocumentUiStore();
+  const { openWysiwygLink } = useDesktopEditorActions();
 
   const getEditorMode = useCallback(() => runtime.document.getSnapshot().mode, []);
   const getMdxComponentPlugins = useCallback(() => runtime.mdxComponents.listInsertable(), []);

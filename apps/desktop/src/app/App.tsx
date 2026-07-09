@@ -38,6 +38,7 @@ import { SettingsPage } from "../components/SettingsDialog";
 import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+import { DesktopEditorActionsContext, useDesktopEditorActions } from "./context/DesktopEditorActionsContext";
 import {
   calculateDocumentMetrics,
   getDocumentMetricLabel,
@@ -76,8 +77,9 @@ function AppWithProviders() {
       {/* Keep this provider above both desktop effects and shell consumers so command dispatch, outline, and editor surfaces share one editor-ui instance. */}
       <DesktopEditorUiProvider showToast={showToast}>
         {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
-        <DesktopEditorEffects showToast={showToast} />
-        <MainApp toast={toast} showToast={showToast} />
+        <DesktopEditorEffects showToast={showToast}>
+          <MainApp toast={toast} showToast={showToast} />
+        </DesktopEditorEffects>
       </DesktopEditorUiProvider>
     </AppSettingsProvider>
   );
@@ -102,9 +104,19 @@ function DesktopEditorUiProvider({
   );
 }
 
-function DesktopEditorEffects({ showToast }: { readonly showToast: (message: string | null) => void }) {
-  useDesktopEditorController({ showToast });
-  return null;
+function DesktopEditorEffects({
+  children,
+  showToast
+}: {
+  readonly children: ReactNode;
+  readonly showToast: (message: string | null) => void;
+}) {
+  const actions = useDesktopEditorController({ showToast });
+  return (
+    <DesktopEditorActionsContext value={actions}>
+      {children}
+    </DesktopEditorActionsContext>
+  );
 }
 
 function MainApp({
@@ -120,7 +132,8 @@ function MainApp({
   const { pendingAction } = useFileActionStore();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
-  const { hasActiveDocument, openedAsset, dispatchCommand, resolveImageSrc, closeAssetPreview, getRecentFiles, openRecentFile } = useDocumentUiStore();
+  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } = useDocumentUiStore();
+  const { dispatchCommand, openRecentFile } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");

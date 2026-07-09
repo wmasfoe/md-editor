@@ -20,20 +20,7 @@ export interface DocumentUiStore {
   closeAssetPreview: () => void;
   openAssetFromTree: (node: MarkdownFileTreeNode) => void;
   getRecentFiles: () => readonly RecentFile[];
-  openRecentFile: (path: string) => Promise<void>;
-  runEditorUpdateAction: () => Promise<void>;
   commitMarkdown: (markdown: string) => void;
-  openWysiwygLink: (href: string) => Promise<void>;
-  dispatchCommand: (id: string) => Promise<void>;
-  openDocumentFromTree: (filePath: string) => Promise<void>;
-}
-
-// 少数动作依赖 React provider 或设置上下文，只在对应 bridge 挂载后替换。
-// 默认实现保留在 store 里，避免首帧/测试环境因为调用顺序直接崩溃。
-function createMissingBridgeAction(name: string): () => Promise<void> {
-  return async () => {
-    console.warn(`${name} bridge is not mounted yet.`);
-  };
 }
 
 export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
@@ -59,15 +46,9 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
     get().openAssetPath(node.path, node.name);
   },
   getRecentFiles: () => recentFilesStore.list(),
-  openRecentFile: createMissingBridgeAction("openRecentFile"),
-  runEditorUpdateAction: createMissingBridgeAction("runEditorUpdateAction"),
-  // commitMarkdown 是稳定的 desktop 行为，直接落在 store，避免再通过 controller 注入。
   commitMarkdown: (markdown) => {
     runtime.document.updateMarkdown(markdown);
     set({ hasActiveDocument: true, openedAsset: null });
     useToastStore.getState().showToast(null);
   },
-  openWysiwygLink: createMissingBridgeAction("openWysiwygLink"),
-  dispatchCommand: createMissingBridgeAction("dispatchCommand"),
-  openDocumentFromTree: createMissingBridgeAction("openDocumentFromTree"),
 }));
