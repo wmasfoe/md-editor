@@ -5,21 +5,36 @@ import { describe, expect, it } from "vitest";
 const sourceRoot = new URL("../src", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 
-describe("editor-core AI boundary", () => {
-  it("keeps source free of platform and React imports", () => {
+const forbiddenSourceImports = [
+  "@tauri-apps/api",
+  "@milkdown/",
+  "prosemirror-",
+  "apps/desktop"
+];
+
+const forbiddenDependencies = [
+  "@tauri-apps/api",
+  "@milkdown/kit",
+  "@milkdown/react",
+  "react",
+  "react-dom"
+];
+
+describe("AI package boundary", () => {
+  it("keeps source free of platform, editor runtime, and React imports", () => {
     const source = sourceFiles(sourceRoot)
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
 
-    expect(source).not.toContain("@tauri-apps/api");
+    for (const forbiddenImport of forbiddenSourceImports) {
+      expect(source).not.toContain(forbiddenImport);
+    }
     expect(source).not.toMatch(/from\s+["']react["']/u);
     expect(source).not.toMatch(/from\s+["']react-dom["']/u);
-    expect(source).not.toContain("apps/desktop");
   });
 
-  it("keeps the package manifest free of platform and React dependencies", () => {
+  it("keeps the package manifest free of platform, editor runtime, and React dependencies", () => {
     const manifest = JSON.parse(readFileSync(packageJsonUrl, "utf8")) as {
-      readonly exports?: Record<string, string>;
       readonly dependencies?: Record<string, string>;
       readonly devDependencies?: Record<string, string>;
       readonly peerDependencies?: Record<string, string>;
@@ -30,20 +45,9 @@ describe("editor-core AI boundary", () => {
       ...Object.keys(manifest.peerDependencies ?? {})
     ]);
 
-    expect(dependencyNames.has("@tauri-apps/api")).toBe(false);
-    expect(dependencyNames.has("react")).toBe(false);
-    expect(dependencyNames.has("react-dom")).toBe(false);
-  });
-
-  it("keeps the AI subpath as an explicit compatibility export", () => {
-    const manifest = JSON.parse(readFileSync(packageJsonUrl, "utf8")) as {
-      readonly exports?: Record<string, string>;
-    };
-    const aiShim = readFileSync(new URL("../src/ai/index.ts", import.meta.url), "utf8");
-
-    expect(manifest.exports?.["./ai"]).toBe("./src/ai/index.ts");
-    expect(aiShim).toContain("Compatibility shim");
-    expect(aiShim).toContain("export * from \"@md-editor/ai\"");
+    for (const dependency of forbiddenDependencies) {
+      expect(dependencyNames.has(dependency)).toBe(false);
+    }
   });
 });
 

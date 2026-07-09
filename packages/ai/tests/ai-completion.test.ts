@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiCompletionContext, AiSettings } from "../src/index.ts";
 import {
+  createAiContextCacheSeed,
+  createAiPromptContext,
   createOpenAiCompatibleRequestBody,
   getAiCompletionReadiness,
   parseAiWritingSuggestion,
   requestAiContinuation
-} from "../src/ai/ai-completion.ts";
+} from "../src/index.ts";
 
 const baseSettings: AiSettings = {
   enabled: true,
@@ -95,6 +97,32 @@ describe("AI completion settings", () => {
       ]
     });
     expect(requestBody).not.toHaveProperty("extra_body");
+  });
+
+  it("normalizes pure context snapshots before prompt creation", () => {
+    const snapshot = {
+      ...context,
+      before: `${"x".repeat(3_100)}before`,
+      after: `after${"y".repeat(3_100)}`,
+      cursor: {
+        position: 42,
+        selection: { from: 40, to: 42 }
+      },
+      document: {
+        filePath: "/tmp/post.md"
+      }
+    };
+
+    expect(createAiPromptContext(snapshot)).toEqual({
+      before: `${"x".repeat(2_994)}before`,
+      selectedText: "",
+      after: `after${"y".repeat(2_995)}`,
+      mode: "wysiwyg",
+      filePath: "/tmp/post.md"
+    });
+    const cacheSeed = createAiContextCacheSeed(snapshot);
+    expect(cacheSeed).toContain("\"cursor\":{\"position\":42,\"selection\":{\"from\":40,\"to\":42}}");
+    expect(cacheSeed).toContain("\"filePath\":\"/tmp/post.md\"");
   });
 
   it("disables provider thinking for DeepSeek-compatible requests", () => {

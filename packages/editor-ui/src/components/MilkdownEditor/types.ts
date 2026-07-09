@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import type {
   AiCompletionContext,
   AiSettings,
-  AiWritingSuggestion,
+  AiWritingSuggestion
+} from "@md-editor/ai";
+import type {
   DocumentSnapshot,
   EditorMode
 } from "@md-editor/editor-core";

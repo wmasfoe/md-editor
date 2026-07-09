@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import type { AiSettings } from "@md-editor/editor-core";
+import type { AiSettings } from "@md-editor/ai";
 import {
   cancelLocalAiModelDownload,
   deleteLocalAiModel,

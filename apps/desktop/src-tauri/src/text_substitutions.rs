@@ -62,10 +62,7 @@ mod tests {
         let defaults = NSUserDefaults::standardUserDefaults();
         for key in DISABLED_TEXT_SUBSTITUTION_KEYS {
             let enabled = defaults.boolForKey(&NSString::from_str(key));
-            assert!(
-                !enabled,
-                "{key} 应在本 App 的 NSUserDefaults 中为 false"
-            );
+            assert!(!enabled, "{key} 应在本 App 的 NSUserDefaults 中为 false");
         }
     }
 }

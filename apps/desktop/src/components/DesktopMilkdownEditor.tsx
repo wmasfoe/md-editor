@@ -7,7 +7,7 @@ import type {
   MdxComponentMenuRenderProps,
   MilkdownEditorProps
 } from "@md-editor/editor-ui";
-import { getAiCompletionReadiness } from "@md-editor/editor-core/ai";
+import { getAiCompletionReadiness } from "@md-editor/ai";
 import { runtime } from "../app/runtime/editor-runtime";
 import { requestDesktopAiContinuation } from "../app/ai/ai-continuation-adapter";
 import { MdxComponentMenu } from "./MdxComponentMenu";

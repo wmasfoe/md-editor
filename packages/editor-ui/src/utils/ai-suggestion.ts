@@ -2,9 +2,9 @@ import { $prose, markdownToSlice } from "@milkdown/kit/utils";
 import type {
   AiCompletionContext,
   AiWritingEditSuggestion,
-  AiWritingSuggestion,
-  EditorMode
-} from "@md-editor/editor-core";
+  AiWritingSuggestion
+} from "@md-editor/ai";
+import type { EditorMode } from "@md-editor/editor-core";
 import type { Node as ProseMirrorNode, Slice } from "@milkdown/kit/prose/model";
 import {
   Plugin,

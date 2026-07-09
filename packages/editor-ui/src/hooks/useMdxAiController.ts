@@ -2,9 +2,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type {
   AiCompletionContext,
   AiSettings,
-  AiWritingSuggestion,
-  EditorMode
-} from "@md-editor/editor-core";
+  AiWritingSuggestion
+} from "@md-editor/ai";
+import type { EditorMode } from "@md-editor/editor-core";
 
 export interface MdxSnippetPlugin {
   readonly insert?: {
