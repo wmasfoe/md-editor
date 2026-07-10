@@ -24,7 +24,7 @@ export function findFirstMarkdownPath(node: MarkdownFileTreeNode): string | null
     }
 
     currentLevel = currentLevel.flatMap((candidate) =>
-      candidate.kind === "directory" ? candidate.children ?? [] : []
+      candidate.kind === "directory" ? (candidate.children ?? []) : [],
     );
   }
 
@@ -34,7 +34,7 @@ export function findFirstMarkdownPath(node: MarkdownFileTreeNode): string | null
 export function resolveOpenDocumentMutation(
   currentFilePath: string | null,
   result: FileTreeMutationResult,
-  previousPath?: string
+  previousPath?: string,
 ): OpenDocumentMutation {
   if (!currentFilePath || !previousPath || !isSameOrChildPath(currentFilePath, previousPath)) {
     return { kind: "none" };

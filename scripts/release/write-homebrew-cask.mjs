@@ -25,7 +25,8 @@ const encodedFileName = fileName
   .join("/");
 const encodedReleaseTag = encodeURIComponent(releaseTag);
 const assetUrl =
-  downloadUrl || `https://github.com/${releaseRepository}/releases/download/${encodedReleaseTag}/${encodedFileName}`;
+  downloadUrl ||
+  `https://github.com/${releaseRepository}/releases/download/${encodedReleaseTag}/${encodedFileName}`;
 
 // Homebrew's sha256 only verifies that the downloaded DMG matches this release.
 // It does not make macOS trust the app. Gatekeeper trust still depends on the

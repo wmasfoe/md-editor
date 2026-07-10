@@ -3,7 +3,7 @@ import { dirname, isSameOrChildPath } from "../../lib/path";
 
 export function createDefaultCollapsedDirectoryPaths(
   root: MarkdownFileTreeNode,
-  visibleFilePath: string | null
+  visibleFilePath: string | null,
 ): ReadonlySet<string> {
   const expandedDirectoryPaths = collectAncestorDirectoryPaths(root.path, visibleFilePath);
   const collapsedPaths = new Set<string>();
@@ -17,7 +17,10 @@ export function createDefaultCollapsedDirectoryPaths(
   return collapsedPaths;
 }
 
-function collectAncestorDirectoryPaths(rootPath: string, filePath: string | null): ReadonlySet<string> {
+function collectAncestorDirectoryPaths(
+  rootPath: string,
+  filePath: string | null,
+): ReadonlySet<string> {
   const paths = new Set<string>([rootPath]);
   if (!filePath) {
     return paths;
@@ -37,7 +40,7 @@ function collectAncestorDirectoryPaths(rootPath: string, filePath: string | null
 
 function visitDirectoryNodes(
   node: MarkdownFileTreeNode,
-  visit: (node: MarkdownFileTreeNode) => void
+  visit: (node: MarkdownFileTreeNode) => void,
 ) {
   if (node.kind !== "directory") {
     return;

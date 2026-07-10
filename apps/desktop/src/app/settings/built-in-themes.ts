@@ -7,11 +7,11 @@ export interface BuiltInThemeOption {
 
 export const BUILT_IN_LIGHT_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
   { id: "github-light", label: "GitHub" },
-  { id: "gothic-light", label: "Gothic" }
+  { id: "gothic-light", label: "Gothic" },
 ];
 
 export const BUILT_IN_DARK_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
-  { id: "night-dark", label: "Night" }
+  { id: "night-dark", label: "Night" },
 ];
 
 export function builtInThemeCss(themeId: BuiltInThemeId): string {

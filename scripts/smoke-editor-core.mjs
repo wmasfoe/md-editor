@@ -40,12 +40,12 @@ assert.equal(markSaved(updateRawMarkdown(content, "# Current\n\nNew\n")).dirty, 
 
 const rawMarkdown = [
   "---\r\n",
-  "title:  \"Spacing\"\r\n",
+  'title:  "Spacing"\r\n',
   "---\r\n",
   "\r\n",
-  "<Callout type=\"info\">Keep **this**.</Callout>\r\n",
+  '<Callout type="info">Keep **this**.</Callout>\r\n',
   "\r\n",
-  "<UnknownCard prop=\"x\" />\r\n",
+  '<UnknownCard prop="x" />\r\n',
 ].join("");
 const rawResult = collectRawFragments(rawMarkdown);
 assert.equal(serializeWithRawFragments(rawMarkdown, rawResult.rawFragments), rawMarkdown);
@@ -58,7 +58,10 @@ const callout = parseCalloutFragment(rawResult.rawFragments[1]);
 assert.ok(callout);
 assert.equal(calloutPlugin.component.name, "Callout");
 assert.equal(calloutPlugin.component.packageName, "@md-editor/mdx-plugins");
-assert.equal(serializeCalloutNode(callout, rawResult.rawFragments[1]), rawResult.rawFragments[1].rawSource);
+assert.equal(
+  serializeCalloutNode(callout, rawResult.rawFragments[1]),
+  rawResult.rawFragments[1].rawSource,
+);
 assert.equal(
   serializeCalloutNode(
     markCalloutDirty(callout, { props: { type: "warning" }, childrenMarkdown: "Changed" }),

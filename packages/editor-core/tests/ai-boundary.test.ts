@@ -27,7 +27,7 @@ describe("editor-core AI boundary", () => {
     const dependencyNames = new Set([
       ...Object.keys(manifest.dependencies ?? {}),
       ...Object.keys(manifest.devDependencies ?? {}),
-      ...Object.keys(manifest.peerDependencies ?? {})
+      ...Object.keys(manifest.peerDependencies ?? {}),
     ]);
 
     expect(dependencyNames.has("@tauri-apps/api")).toBe(false);
@@ -50,7 +50,9 @@ describe("editor-core AI boundary", () => {
 });
 
 function sourceFiles(root: URL): string[] {
-  return listFiles(root.pathname).filter((file) => extname(file) === ".ts" || extname(file) === ".tsx");
+  return listFiles(root.pathname).filter(
+    (file) => extname(file) === ".ts" || extname(file) === ".tsx",
+  );
 }
 
 function listFiles(directory: string): string[] {

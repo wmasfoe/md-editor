@@ -32,17 +32,17 @@ export function serializeWithRawFragments(
       return nextMarkdown;
     }
 
-    const currentSource = nextMarkdown.slice(
-      fragment.sourceRange.start,
-      fragment.sourceRange.end,
-    );
+    const currentSource = nextMarkdown.slice(fragment.sourceRange.start, fragment.sourceRange.end);
 
     if (currentSource !== fragment.rawSource) {
       throw new RawFragmentRangeError(fragment);
     }
 
     const replacement = fragment.dirty
-      ? preserveRawFragmentLineBoundary(fragment.rawSource, fragment.serializedMarkdown ?? fragment.rawSource)
+      ? preserveRawFragmentLineBoundary(
+          fragment.rawSource,
+          fragment.serializedMarkdown ?? fragment.rawSource,
+        )
       : fragment.rawSource;
 
     return replaceRange(nextMarkdown, fragment.sourceRange, replacement);
@@ -106,9 +106,7 @@ function collectLineBlocks(rawMarkdown: string, rawFragments: RawFragment[]): vo
 
     if (isRegisteredCalloutStart(line)) {
       const end = findMdxComponentBlockEnd(lines, index, "Callout");
-      rawFragments.push(
-        createRawFragment("registeredMdxComponent", rawMarkdown, { start, end }),
-      );
+      rawFragments.push(createRawFragment("registeredMdxComponent", rawMarkdown, { start, end }));
       index = findLineIndexAtOffset(lines, end);
       continue;
     }

@@ -21,7 +21,11 @@ export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDi
     : primaryDialogButtonClassName;
 
   return (
-    <Dialog open={confirmation !== null} onClose={() => onResolve("cancel")} className="relative z-[60]">
+    <Dialog
+      open={confirmation !== null}
+      onClose={() => onResolve("cancel")}
+      className="relative z-[60]"
+    >
       <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.2)]" />
       <div className="fixed inset-0 grid place-items-center p-6">
         <DialogPanel className="w-[min(420px,100%)] rounded-[10px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">

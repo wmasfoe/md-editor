@@ -11,7 +11,7 @@ describe("settings save surface close behavior", () => {
       surface: "main",
       closeEmbeddedSettings,
       closeSettingsWindow,
-      showSavedToast
+      showSavedToast,
     });
 
     expect(closeEmbeddedSettings).toHaveBeenCalledOnce();
@@ -28,7 +28,7 @@ describe("settings save surface close behavior", () => {
       surface: "settings-window",
       closeEmbeddedSettings,
       closeSettingsWindow,
-      showSavedToast
+      showSavedToast,
     });
 
     expect(closeEmbeddedSettings).not.toHaveBeenCalled();
@@ -45,7 +45,7 @@ describe("settings save surface close behavior", () => {
       surface: "settings-window",
       closeEmbeddedSettings,
       closeSettingsWindow,
-      showSavedToast
+      showSavedToast,
     });
 
     expect(closeEmbeddedSettings).not.toHaveBeenCalled();

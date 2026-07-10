@@ -3,10 +3,7 @@ import { useDocumentSnapshot } from "../app/document-store";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
-import type {
-  MdxComponentMenuRenderProps,
-  MilkdownEditorProps
-} from "@md-editor/editor-ui";
+import type { MdxComponentMenuRenderProps, MilkdownEditorProps } from "@md-editor/editor-ui";
 import { getAiCompletionReadiness } from "@md-editor/ai";
 import { runtime } from "../app/runtime/editor-runtime";
 import { requestDesktopAiContinuation } from "../app/ai/ai-continuation-adapter";
@@ -17,7 +14,7 @@ import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 const MilkdownEditor = lazy(async () => {
   const module = await import("@md-editor/editor-ui/MilkdownEditor");
   return {
-    default: module.MilkdownEditor as ComponentType<MilkdownEditorProps<MdxComponentPlugin>>
+    default: module.MilkdownEditor as ComponentType<MilkdownEditorProps<MdxComponentPlugin>>,
   };
 });
 
@@ -43,13 +40,9 @@ export function DesktopMilkdownEditor({ showToast }: DesktopMilkdownEditorProps)
   const getMdxComponentPlugins = useCallback(() => runtime.mdxComponents.listInsertable(), []);
   const renderMdxComponentMenu = useCallback(
     ({ plugins, onInsert, onClose }: MdxComponentMenuRenderProps<MdxComponentPlugin>) => (
-      <MdxComponentMenu
-        plugins={plugins}
-        onInsert={onInsert}
-        onClose={onClose}
-      />
+      <MdxComponentMenu plugins={plugins} onInsert={onInsert} onClose={onClose} />
     ),
-    []
+    [],
   );
 
   return (
@@ -62,7 +55,7 @@ export function DesktopMilkdownEditor({ showToast }: DesktopMilkdownEditorProps)
           showToast,
           getMdxComponentPlugins,
           getAiCompletionReadiness,
-          requestAiCompletion: requestDesktopAiContinuation
+          requestAiCompletion: requestDesktopAiContinuation,
         }}
         renderMdxComponentMenu={renderMdxComponentMenu}
         onChange={commitMarkdown}

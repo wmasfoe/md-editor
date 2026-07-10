@@ -3,23 +3,23 @@ import { describe, expect, it } from "vitest";
 
 const editorStyles = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditor.css", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const imageSelectionSource = readFileSync(
   new URL("../utils/image-selection.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const milkdownEditorSource = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const imeCompositionGuardSource = readFileSync(
   new URL("../utils/ime-composition-guard.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const aiSuggestionSource = readFileSync(
   new URL("../utils/ai-suggestion.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 describe("editor selection policy", () => {
   it("never disables native selection on the whole ProseMirror surface", () => {
@@ -28,7 +28,7 @@ describe("editor selection policy", () => {
 
   it("keeps native drag and selection disabled on image elements", () => {
     const imageRule = editorStyles.match(
-      /\.milkdown \.ProseMirror img:not\(\.ProseMirror-separator\) \{(?<body>[^}]+)\}/u
+      /\.milkdown \.ProseMirror img:not\(\.ProseMirror-separator\) \{(?<body>[^}]+)\}/u,
     );
 
     expect(imageRule?.groups?.body).toContain("-webkit-user-drag: none");
@@ -55,39 +55,55 @@ describe("editor selection policy", () => {
 
   it("shows pointer cursor on links only while the link-opening modifier is active", () => {
     expect(milkdownEditorSource).toContain("milkdown-host--link-modifier-active");
-    expect(editorStyles).toContain(".milkdown-host--link-modifier-active .milkdown .ProseMirror a[href]");
+    expect(editorStyles).toContain(
+      ".milkdown-host--link-modifier-active .milkdown .ProseMirror a[href]",
+    );
     expect(editorStyles).toContain("cursor: pointer");
   });
 
   it("keeps code block tools hidden until hover or focus without wrapping source lines", () => {
     const codeBlockRules = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block \{/gu);
-    const copyRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-copy \{(?<body>[^}]+)\}/u);
-    const languageRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-language-control \{(?<body>[^}]+)\}/u);
-    const codeRule = editorStyles.match(
-      /\.milkdown \.ProseMirror pre code,\n\.milkdown \.ProseMirror \.md-code-block code \{(?<body>[^}]+)\}/u
+    const copyRule = editorStyles.match(
+      /\.milkdown \.ProseMirror \.md-code-block-copy \{(?<body>[^}]+)\}/u,
     );
-    const lineNumberRule = editorStyles.match(/\.milkdown \.ProseMirror \.md-code-block-line-numbers \{(?<body>[^}]+)\}/u);
+    const languageRule = editorStyles.match(
+      /\.milkdown \.ProseMirror \.md-code-block-language-control \{(?<body>[^}]+)\}/u,
+    );
+    const codeRule = editorStyles.match(
+      /\.milkdown \.ProseMirror pre code,\n\.milkdown \.ProseMirror \.md-code-block code \{(?<body>[^}]+)\}/u,
+    );
+    const lineNumberRule = editorStyles.match(
+      /\.milkdown \.ProseMirror \.md-code-block-line-numbers \{(?<body>[^}]+)\}/u,
+    );
 
     expect(codeBlockRules).toHaveLength(1);
     expect(copyRule?.groups?.body).toContain("top: 0.55rem;");
     expect(copyRule?.groups?.body).toContain("right: 0.55rem;");
     expect(copyRule?.groups?.body).toContain("opacity: 0;");
     expect(copyRule?.groups?.body).toContain("pointer-events: none;");
-    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:hover .md-code-block-copy");
-    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-copy");
+    expect(editorStyles).toContain(
+      ".milkdown .ProseMirror .md-code-block:hover .md-code-block-copy",
+    );
+    expect(editorStyles).toContain(
+      ".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-copy",
+    );
     expect(languageRule?.groups?.body).toContain("bottom: calc(-2rem - 0.125rem);");
     expect(languageRule?.groups?.body).toContain("right: 0;");
     expect(languageRule?.groups?.body).toContain("opacity: 0;");
     expect(languageRule?.groups?.body).toContain("pointer-events: none;");
-    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:hover .md-code-block-language-control");
-    expect(editorStyles).toContain(".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-language-control");
+    expect(editorStyles).toContain(
+      ".milkdown .ProseMirror .md-code-block:hover .md-code-block-language-control",
+    );
+    expect(editorStyles).toContain(
+      ".milkdown .ProseMirror .md-code-block:focus-within .md-code-block-language-control",
+    );
     expect(codeRule?.groups?.body).toContain("width: max-content;");
     expect(codeRule?.groups?.body).toContain("min-width: 100%;");
     expect(codeRule?.groups?.body).toContain("overflow-wrap: normal;");
     expect(codeRule?.groups?.body).toContain("white-space: pre;");
     expect(lineNumberRule?.groups?.body).toContain("display: none;");
     expect(editorStyles).toContain(
-      ".milkdown-host--code-line-numbers .milkdown .ProseMirror .md-code-block-line-numbers"
+      ".milkdown-host--code-line-numbers .milkdown .ProseMirror .md-code-block-line-numbers",
     );
   });
 
@@ -95,27 +111,25 @@ describe("editor selection policy", () => {
     const proseMirrorRule = editorStyles.match(/\.milkdown \.ProseMirror \{(?<body>[^}]+)\}/u);
     const paragraphRule = editorStyles.match(/\.milkdown \.ProseMirror p \{(?<body>[^}]+)\}/u);
     const headingRule = editorStyles.match(
-      /\.milkdown \.ProseMirror h1,[\s\S]+?\.milkdown \.ProseMirror h6 \{(?<body>[^}]+)\}/u
+      /\.milkdown \.ProseMirror h1,[\s\S]+?\.milkdown \.ProseMirror h6 \{(?<body>[^}]+)\}/u,
     );
 
+    expect(proseMirrorRule?.groups?.body).toContain("font-family: var(--theme-font);");
     expect(proseMirrorRule?.groups?.body).toContain(
-      "font-family: var(--theme-font);"
+      "font-size: var(--theme-editor-font-size, 17px);",
     );
     expect(proseMirrorRule?.groups?.body).toContain(
-      "font-size: var(--theme-editor-font-size, 17px);"
-    );
-    expect(proseMirrorRule?.groups?.body).toContain(
-      "line-height: var(--theme-editor-line-height, 1.78);"
+      "line-height: var(--theme-editor-line-height, 1.78);",
     );
     expect(proseMirrorRule?.groups?.body).toContain("letter-spacing: 0;");
     expect(proseMirrorRule?.groups?.body).toContain("font-kerning: normal;");
     expect(proseMirrorRule?.groups?.body).toContain("text-rendering: optimizeLegibility;");
     expect(proseMirrorRule?.groups?.body).toContain("white-space: pre-wrap;");
     expect(paragraphRule?.groups?.body).toContain(
-      "margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;"
+      "margin: var(--theme-editor-paragraph-spacing, 1.02em) 0;",
     );
     expect(headingRule?.groups?.body).toContain(
-      "line-height: var(--theme-editor-heading-line-height, 1.38);"
+      "line-height: var(--theme-editor-heading-line-height, 1.38);",
     );
     expect(headingRule?.groups?.body).toContain("letter-spacing: 0;");
   });
@@ -129,9 +143,13 @@ describe("editor selection policy", () => {
     const editOriginalRule = editorStyles.match(/\.md-ai-edit-original \{(?<body>[^}]+)\}/u);
     const editAnchorRule = editorStyles.match(/\.md-ai-edit-preview-anchor \{(?<body>[^}]+)\}/u);
     const editMirrorRule = editorStyles.match(/\.md-ai-edit-preview-mirror \{(?<body>[^}]+)\}/u);
-    const editReplacementRule = editorStyles.match(/\.md-ai-edit-preview-replacement \{(?<body>[^}]+)\}/u);
+    const editReplacementRule = editorStyles.match(
+      /\.md-ai-edit-preview-replacement \{(?<body>[^}]+)\}/u,
+    );
     const editInsertRule = editorStyles.match(/\.md-ai-edit-preview-insert \{(?<body>[^}]+)\}/u);
-    const editPlaceholderRule = editorStyles.match(/\.md-ai-edit-preview-placeholder \{(?<body>[^}]+)\}/u);
+    const editPlaceholderRule = editorStyles.match(
+      /\.md-ai-edit-preview-placeholder \{(?<body>[^}]+)\}/u,
+    );
     expect(editOriginalRule?.groups?.body).toContain("text-decoration: line-through;");
     expect(editOriginalRule?.groups?.body).not.toContain("display: none;");
     expect(editAnchorRule?.groups?.body).toContain("position: relative;");
@@ -151,9 +169,13 @@ describe("editor selection policy", () => {
     expect(editInsertRule?.groups?.body).toContain("user-select: none;");
     expect(editInsertRule?.groups?.body).not.toContain("position: absolute;");
     expect(editPlaceholderRule?.groups?.body).toContain("color: transparent;");
-    expect(aiSuggestionSource).toContain('createAiInlineSuggestionNode("md-ai-edit-preview-insert"');
+    expect(aiSuggestionSource).toContain(
+      'createAiInlineSuggestionNode("md-ai-edit-preview-insert"',
+    );
     expect(editorStyles).not.toContain(".md-ai-edit-replacement");
-    expect(aiSuggestionSource).not.toContain('createAiInlineSuggestionNode("md-ai-edit-replacement"');
+    expect(aiSuggestionSource).not.toContain(
+      'createAiInlineSuggestionNode("md-ai-edit-replacement"',
+    );
     expect(editorStyles).not.toContain("--md-ai-edit-preview-width");
     expect(aiSuggestionSource).not.toContain("--md-ai-edit-preview-width");
     expect(aiSuggestionSource).not.toContain("setAiEditPreviewWidth");
@@ -162,7 +184,7 @@ describe("editor selection policy", () => {
 
   it("keeps AI continuation ghost text on the non-document side of the real cursor", () => {
     const continuationWidget = aiSuggestionSource.match(
-      /createAiInlineSuggestionNode\("md-ai-suggestion", ` \$\{displayContinuation\}`\)[\s\S]+?\{\n\s+side: 1,\n\s+ignoreSelection: true/u
+      /createAiInlineSuggestionNode\("md-ai-suggestion", ` \$\{displayContinuation\}`\)[\s\S]+?\{\n\s+side: 1,\n\s+ignoreSelection: true/u,
     );
 
     expect(continuationWidget).not.toBeNull();
@@ -191,17 +213,17 @@ describe("editor selection policy", () => {
     expect(milkdownEditorSource).toContain("IME_MARKDOWN_PUBLISH_DELAY_MS = 260");
     expect(milkdownEditorSource).not.toContain("compositionMarkdownPendingRef");
     expect(editorStyles).not.toMatch(
-      /^\.milkdown \.ProseMirror br\.ProseMirror-trailingBreak \{\n  display: none;/mu
+      /^\.milkdown \.ProseMirror br\.ProseMirror-trailingBreak \{\n  display: none;/mu,
     );
   });
 
   it("hides ProseMirror trailing breaks only during active IME composition", () => {
     expect(editorStyles).toContain(
-      ".milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak"
+      ".milkdown-host--ime-composing .milkdown .ProseMirror br.ProseMirror-trailingBreak",
     );
     expect(editorStyles).toContain("br.ProseMirror-trailingBreak {\n  display: none;");
     expect(editorStyles).toContain(
-      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.78em);"
+      ".milkdown-host--ime-composing .milkdown .ProseMirror p {\n  min-height: var(--theme-editor-line-height-em, 1.78em);",
     );
   });
 

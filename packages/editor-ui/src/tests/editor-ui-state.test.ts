@@ -7,12 +7,12 @@ import {
   useEditorUiActions,
   useEditorUiState,
   type EditorUiActionsContextValue,
-  type EditorUiCommandSlots
+  type EditorUiCommandSlots,
 } from "../hooks/useEditorUi";
 import {
   clampEditorScrollRatio,
   createEditorDocumentKey,
-  createModeScrollTarget
+  createModeScrollTarget,
 } from "../utils/editor-ui-state";
 
 describe("editor UI instance state policy", () => {
@@ -36,8 +36,8 @@ describe("editor UI instance state policy", () => {
       mode: "source",
       target: {
         ratio: 0.5,
-        nonce: 123
-      }
+        nonce: 123,
+      },
     });
     expect(createModeScrollTarget("wysiwyg", Number.NaN, 123)).toBeNull();
   });
@@ -61,12 +61,14 @@ describe("editor UI instance state policy", () => {
             filePath: "/docs/one.md",
             initialDocumentRevision: 1,
             markdown: "# One",
-            showToast: () => {}
+            showToast: () => {},
           },
           createElement(CaptureProbe, {
             label: "first",
-            capture: (actions) => { firstActions = actions; }
-          })
+            capture: (actions) => {
+              firstActions = actions;
+            },
+          }),
         ),
         createElement(
           EditorUiProvider,
@@ -74,14 +76,16 @@ describe("editor UI instance state policy", () => {
             filePath: "/docs/two.md",
             initialDocumentRevision: 2,
             markdown: "# Two",
-            showToast: () => {}
+            showToast: () => {},
           },
           createElement(CaptureProbe, {
             label: "second",
-            capture: (actions) => { secondActions = actions; }
-          })
-        )
-      )
+            capture: (actions) => {
+              secondActions = actions;
+            },
+          }),
+        ),
+      ),
     );
 
     expect(html).toContain("first:/docs/one.md:1:One");
@@ -89,7 +93,7 @@ describe("editor UI instance state policy", () => {
 
     const customCommands: EditorUiCommandSlots = {
       openMdxComponentMenu: () => {},
-      continueAiWriting: async () => {}
+      continueAiWriting: async () => {},
     };
     expect(firstActions).not.toBeNull();
     expect(secondActions).not.toBeNull();
@@ -100,14 +104,15 @@ describe("editor UI instance state policy", () => {
   });
 
   it("fails fast when provider-scoped state is read outside EditorUiProvider", () => {
-    expect(() => renderToStaticMarkup(createElement(OutsideProviderProbe)))
-      .toThrow("useEditorUiState must be used within an EditorUiProvider.");
+    expect(() => renderToStaticMarkup(createElement(OutsideProviderProbe))).toThrow(
+      "useEditorUiState must be used within an EditorUiProvider.",
+    );
   });
 });
 
 function CaptureProbe({
   capture,
-  label
+  label,
 }: {
   readonly capture: (actions: EditorUiActionsContextValue) => void;
   readonly label: string;
@@ -118,7 +123,7 @@ function CaptureProbe({
   return createElement(
     "span",
     null,
-    `${label}:${state.documentKey}:${state.outline.map((item) => item.text).join(",")}`
+    `${label}:${state.documentKey}:${state.outline.map((item) => item.text).join(",")}`,
   );
 }
 

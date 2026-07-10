@@ -5,7 +5,7 @@ import {
   findIntroducedHardbreakPositions,
   forceCompositionDomFlush,
   refreshCompositionDom,
-  shouldRestoreCancelledCompositionSelection
+  shouldRestoreCancelledCompositionSelection,
 } from "../utils/ime-composition-guard";
 
 describe("IME composition guard", () => {
@@ -28,12 +28,14 @@ describe("IME composition guard", () => {
   it("flushes pending composition DOM cleanup after composition settles", () => {
     const calls: string[] = [];
 
-    expect(forceCompositionDomFlush({
-      domObserver: {
-        forceFlush: () => calls.push("forceFlush"),
-        flush: () => calls.push("flush")
-      }
-    })).toBe(true);
+    expect(
+      forceCompositionDomFlush({
+        domObserver: {
+          forceFlush: () => calls.push("forceFlush"),
+          flush: () => calls.push("flush"),
+        },
+      }),
+    ).toBe(true);
     expect(calls).toEqual(["forceFlush", "flush"]);
   });
 
@@ -45,7 +47,7 @@ describe("IME composition guard", () => {
       state,
       dispatch: (transaction) => {
         dispatched = transaction;
-      }
+      },
     });
 
     expect(dispatched.docChanged).toBe(false);
@@ -62,8 +64,8 @@ describe("IME composition guard", () => {
         state.doc,
         state.doc,
         startSelection,
-        driftedSelection
-      )
+        driftedSelection,
+      ),
     ).toBe(true);
   });
 
@@ -78,8 +80,8 @@ describe("IME composition guard", () => {
         state.doc,
         nextState.doc,
         startSelection,
-        nextState.selection
-      )
+        nextState.selection,
+      ),
     ).toBe(false);
   });
 });
@@ -90,8 +92,8 @@ function createHardbreakState(text: string, withHardbreak = false) {
       doc: { content: "block+" },
       paragraph: { content: "inline*", group: "block" },
       text: { group: "inline" },
-      hardbreak: { inline: true, group: "inline", selectable: false }
-    }
+      hardbreak: { inline: true, group: "inline", selectable: false },
+    },
   });
   const hardbreak = schema.nodes.hardbreak;
   const paragraphContent = withHardbreak
@@ -102,7 +104,7 @@ function createHardbreakState(text: string, withHardbreak = false) {
     hardbreak,
     state: EditorState.create({
       schema,
-      doc: schema.nodes.doc.create(null, schema.nodes.paragraph.create(null, paragraphContent))
-    })
+      doc: schema.nodes.doc.create(null, schema.nodes.paragraph.create(null, paragraphContent)),
+    }),
   };
 }

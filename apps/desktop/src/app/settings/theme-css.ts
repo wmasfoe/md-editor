@@ -33,7 +33,7 @@ export function applyCustomThemeCss(
   options: {
     readonly loadCss?: (path: string) => Promise<ThemeCssFile>;
     readonly target?: HTMLElement;
-  } = {}
+  } = {},
 ): () => void {
   const target = options.target ?? document.documentElement;
   const loadCss = options.loadCss ?? readThemeCssFile;

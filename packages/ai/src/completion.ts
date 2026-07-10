@@ -3,7 +3,7 @@ import type {
   AiContinuationRequestOptions,
   AiSettings,
   AiWritingEditSuggestion,
-  AiWritingSuggestion
+  AiWritingSuggestion,
 } from "./types.ts";
 
 interface OpenAiChatCompletionResponse {
@@ -62,7 +62,7 @@ export function getAiCompletionReadiness(settings: AiSettings): string | null {
 export async function requestAiContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
-  options: AiContinuationRequestOptions = {}
+  options: AiContinuationRequestOptions = {},
 ): Promise<AiWritingSuggestion> {
   const readiness = getAiCompletionReadiness(settings);
   if (readiness) {
@@ -78,7 +78,7 @@ export async function requestAiContinuation(
 
 export function createOpenAiCompatibleRequestBody(
   settings: AiSettings,
-  context: AiContextSnapshot
+  context: AiContextSnapshot,
 ): unknown {
   const promptContext = createAiPromptContext(context);
   return {
@@ -95,7 +95,7 @@ export function createOpenAiCompatibleRequestBody(
         content: [
           "你是 Markdown 写作助手，需要同时给出光标处续写建议和当前句子的语法/标点修复建议。",
           "只返回 JSON，不要解释，不要添加代码围栏。",
-          "JSON schema: {\"continuation\":\"string\",\"edit\":{\"original\":\"string\",\"replacement\":\"string\",\"reason\":\"string\"}}。",
+          'JSON schema: {"continuation":"string","edit":{"original":"string","replacement":"string","reason":"string"}}。',
           settings.features.continuation
             ? "continuation 是要插入到光标处的续写内容，可以为空字符串。"
             : "continuation 必须返回空字符串，因为用户关闭了 AI 续写。",
@@ -103,8 +103,8 @@ export function createOpenAiCompatibleRequestBody(
             ? "edit.original 必须是光标附近上下文中逐字存在的原文片段；没有明确问题时 edit 设为 null。"
             : "edit 必须返回 null，因为用户关闭了语法、标点修复。",
           "edit.replacement 只能修复语法、错别字、标点或轻微表达，不要改写整段。",
-          "保持原文语言、语气和 Markdown/MDX 格式边界。"
-        ].join("\n")
+          "保持原文语言、语气和 Markdown/MDX 格式边界。",
+        ].join("\n"),
       },
       {
         role: "user",
@@ -120,10 +120,12 @@ export function createOpenAiCompatibleRequestBody(
           "【光标后】",
           promptContext.after,
           "",
-          "只输出 JSON。"
-        ].filter(Boolean).join("\n")
-      }
-    ]
+          "只输出 JSON。",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    ],
   };
 }
 
@@ -135,7 +137,7 @@ export function createAiPromptContext(snapshot: AiContextSnapshot): AiPromptCont
     mode: snapshot.mode,
     ...(snapshot.document && "filePath" in snapshot.document
       ? { filePath: snapshot.document.filePath ?? null }
-      : {})
+      : {}),
   };
 }
 
@@ -146,7 +148,7 @@ export function createAiContextCacheSeed(snapshot: AiContextSnapshot): string {
     after: trimAfterContext(snapshot.after),
     mode: snapshot.mode,
     cursor: snapshot.cursor,
-    filePath: snapshot.document?.filePath ?? null
+    filePath: snapshot.document?.filePath ?? null,
   });
 }
 
@@ -157,10 +159,13 @@ function shouldDisableDeepSeekThinking(settings: AiSettings): boolean {
 async function requestOpenAiCompatibleContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
-  options: AiContinuationRequestOptions
+  options: AiContinuationRequestOptions,
 ): Promise<AiWritingSuggestion> {
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS);
+  const timeout = globalThis.setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS,
+  );
   const fetchImpl = options.fetchImpl ?? fetch;
   const abortFromParent = () => controller.abort();
   if (options.signal?.aborted) {
@@ -174,10 +179,10 @@ async function requestOpenAiCompatibleContinuation(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${settings.openAiCompatible.apiKey}`
+        Authorization: `Bearer ${settings.openAiCompatible.apiKey}`,
       },
       body: JSON.stringify(createOpenAiCompatibleRequestBody(settings, context)),
-      signal: controller.signal
+      signal: controller.signal,
     });
     const body = await readOpenAiResponse(response);
 
@@ -190,7 +195,7 @@ async function requestOpenAiCompatibleContinuation(
     return suggestion;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("AI 续写超时，请稍后重试。");
+      throw new Error("AI 续写超时，请稍后重试。", { cause: error });
     }
     throw error;
   } finally {
@@ -202,10 +207,13 @@ async function requestOpenAiCompatibleContinuation(
 async function requestLocalAiContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
-  options: AiContinuationRequestOptions
+  options: AiContinuationRequestOptions,
 ): Promise<AiWritingSuggestion> {
   const controller = new AbortController();
-  const timeout = globalThis.setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS);
+  const timeout = globalThis.setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS,
+  );
   const abortFromParent = () => controller.abort();
   if (options.signal?.aborted) {
     controller.abort();
@@ -227,27 +235,25 @@ async function requestLocalAiContinuation(
         context,
         options: {
           modelId: settings.localModel.modelId,
-          maxTokens: 220
-        }
+          maxTokens: 220,
+        },
       }),
-      controller.signal
+      controller.signal,
     );
-    const content = typeof response === "string"
-      ? response
-      : typeof response === "object" && response !== null && "content" in response
-        ? String((response as { content?: unknown }).content ?? "")
-        : "";
+    const content =
+      typeof response === "string"
+        ? response
+        : typeof response === "object" && response !== null && "content" in response
+          ? String((response as { content?: unknown }).content ?? "")
+          : "";
     const suggestion = filterAiSuggestionBySettings(parseAiWritingSuggestion(content), settings);
-    if (
-      Object.keys(suggestion).length === 0 &&
-      settings.localModel.status === "available"
-    ) {
+    if (Object.keys(suggestion).length === 0 && settings.localModel.status === "available") {
       throw new Error("本地模型未返回可用建议。");
     }
     return suggestion;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("AI 续写超时，请稍后重试。");
+      throw new Error("AI 续写超时，请稍后重试。", { cause: error });
     }
     throw error;
   } finally {
@@ -275,7 +281,7 @@ function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T>
       (error: unknown) => {
         signal.removeEventListener("abort", abortOperation);
         reject(error);
-      }
+      },
     );
   });
 }
@@ -286,15 +292,13 @@ function createAbortError(): DOMException {
 
 function filterAiSuggestionBySettings(
   suggestion: AiWritingSuggestion,
-  settings: AiSettings
+  settings: AiSettings,
 ): AiWritingSuggestion {
   return {
     ...(settings.features.continuation && suggestion.continuation
       ? { continuation: suggestion.continuation }
       : {}),
-    ...(settings.features.editing && suggestion.edit
-      ? { edit: suggestion.edit }
-      : {})
+    ...(settings.features.editing && suggestion.edit ? { edit: suggestion.edit } : {}),
   };
 }
 
@@ -309,13 +313,13 @@ export function parseAiWritingSuggestion(content: string): AiWritingSuggestion {
   const edit = editInput ? normalizeEditSuggestion(editInput) : undefined;
   return {
     ...(continuation ? { continuation } : {}),
-    ...(edit ? { edit } : {})
+    ...(edit ? { edit } : {}),
   };
 }
 
 async function readOpenAiResponse(response: Response): Promise<OpenAiChatCompletionResponse> {
   try {
-    return await response.json() as OpenAiChatCompletionResponse;
+    return (await response.json()) as OpenAiChatCompletionResponse;
   } catch {
     return {};
   }
@@ -335,7 +339,9 @@ function trimAfterContext(value: string): string {
   return value.slice(0, CONTEXT_WINDOW);
 }
 
-function normalizeEditSuggestion(input: Record<string, unknown>): AiWritingEditSuggestion | undefined {
+function normalizeEditSuggestion(
+  input: Record<string, unknown>,
+): AiWritingEditSuggestion | undefined {
   const original = normalizeSuggestionText(readStringProperty(input, "original"));
   const replacement = normalizeSuggestionText(readStringProperty(input, "replacement"));
   if (!original || !replacement || original === replacement) {
@@ -346,7 +352,7 @@ function normalizeEditSuggestion(input: Record<string, unknown>): AiWritingEditS
   return {
     original,
     replacement,
-    ...(reason ? { reason } : {})
+    ...(reason ? { reason } : {}),
   };
 }
 
@@ -372,7 +378,7 @@ function parseJsonObject(content: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(content) as unknown;
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : null;
   } catch {
     return null;
@@ -384,9 +390,12 @@ function readStringProperty(input: Record<string, unknown> | null, key: string):
   return typeof value === "string" ? value : "";
 }
 
-function readObjectProperty(input: Record<string, unknown>, key: string): Record<string, unknown> | null {
+function readObjectProperty(
+  input: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
   const value = input[key];
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : null;
 }

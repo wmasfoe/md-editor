@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "@milkdown/kit/prose/model";
-import {
-  AllSelection,
-  EditorState,
-  NodeSelection,
-  TextSelection
-} from "@milkdown/kit/prose/state";
+import { AllSelection, EditorState, NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import {
   findImageNodePositionForDom,
   hasProseMirrorSeparatorImageClass,
   imageSelectionPluginKey,
   isImageNodeSelection,
-  shouldClearNativeImageSelection
+  shouldClearNativeImageSelection,
 } from "../utils/image-selection";
 
 describe("image selection", () => {
@@ -31,8 +26,8 @@ describe("image selection", () => {
       schema.nodes.paragraph.create(null, [
         schema.text("before "),
         schema.nodes.image.create({ src: "assets/diagram.png", alt: "Diagram", title: "" }),
-        schema.text(" after")
-      ])
+        schema.text(" after"),
+      ]),
     ]);
     const imageDom = createFakeDomNode();
     const imagePosition = 8;
@@ -41,8 +36,8 @@ describe("image selection", () => {
       findImageNodePositionForDom(
         doc,
         (position) => (position === imagePosition ? imageDom : null),
-        imageDom
-      )
+        imageDom,
+      ),
     ).toBe(imagePosition);
   });
 
@@ -52,8 +47,8 @@ describe("image selection", () => {
       schema.nodes.paragraph.create(null, [
         schema.text("before "),
         schema.nodes.image.create({ src: "assets/diagram.png", alt: "Diagram", title: "" }),
-        schema.text(" after")
-      ])
+        schema.text(" after"),
+      ]),
     ]);
 
     expect(isImageNodeSelection(NodeSelection.create(doc, 8))).toBe(true);
@@ -64,13 +59,9 @@ describe("image selection", () => {
     const { doc, imagePosition, textRanges } = createSelectionTransitionDocument();
     const state = EditorState.create({
       doc,
-      selection: NodeSelection.create(doc, imagePosition)
+      selection: NodeSelection.create(doc, imagePosition),
     });
-    const selection = TextSelection.create(
-      doc,
-      textRanges[0].from,
-      textRanges.at(-1)?.to
-    );
+    const selection = TextSelection.create(doc, textRanges[0].from, textRanges.at(-1)?.to);
     const nextState = state.apply(state.tr.setSelection(selection));
 
     expect(nextState.selection).toBeInstanceOf(TextSelection);
@@ -83,7 +74,7 @@ describe("image selection", () => {
     const { doc, imagePosition } = createSelectionTransitionDocument();
     const state = EditorState.create({
       doc,
-      selection: NodeSelection.create(doc, imagePosition)
+      selection: NodeSelection.create(doc, imagePosition),
     });
     const nextState = state.apply(state.tr.setSelection(new AllSelection(doc)));
 
@@ -97,11 +88,7 @@ describe("image selection", () => {
   it("clears delayed native selection only while the transient image guard is armed", () => {
     const { doc, imagePosition, textRanges } = createSelectionTransitionDocument();
     const imageSelection = NodeSelection.create(doc, imagePosition);
-    const textSelection = TextSelection.create(
-      doc,
-      textRanges[0].from,
-      textRanges.at(-1)?.to
-    );
+    const textSelection = TextSelection.create(doc, textRanges[0].from, textRanges.at(-1)?.to);
 
     expect(shouldClearNativeImageSelection(true, imageSelection, true)).toBe(true);
     expect(shouldClearNativeImageSelection(false, imageSelection, true)).toBe(false);
@@ -125,10 +112,10 @@ export function createImageTestSchema(): Schema {
         attrs: {
           src: { default: "" },
           alt: { default: "" },
-          title: { default: "" }
-        }
-      }
-    }
+          title: { default: "" },
+        },
+      },
+    },
   });
 }
 
@@ -137,12 +124,12 @@ function createSelectionTransitionDocument() {
   const doc = schema.nodes.doc.create(null, [
     schema.nodes.paragraph.create(null, [
       schema.text("plain text "),
-      schema.nodes.image.create({ src: "assets/diagram.png", alt: "Diagram", title: "" })
+      schema.nodes.image.create({ src: "assets/diagram.png", alt: "Diagram", title: "" }),
     ]),
     schema.nodes.blockquote.create(
       null,
-      schema.nodes.paragraph.create(null, schema.text("quoted text"))
-    )
+      schema.nodes.paragraph.create(null, schema.text("quoted text")),
+    ),
   ]);
   let imagePosition = -1;
   const textRanges: Array<{ from: number; to: number }> = [];
@@ -159,7 +146,7 @@ function createSelectionTransitionDocument() {
 
 function createFakeDomNode(): Node {
   const node = {
-    contains: (target: Node) => target === node
+    contains: (target: Node) => target === node,
   };
   return node as Node;
 }

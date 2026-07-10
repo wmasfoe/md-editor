@@ -14,11 +14,11 @@ describe("findFirstMarkdownPath", () => {
             name: "guide",
             path: "/docs/guide",
             kind: "directory",
-            children: [{ name: "intro.mdx", path: "/docs/guide/intro.mdx", kind: "markdown" }]
+            children: [{ name: "intro.mdx", path: "/docs/guide/intro.mdx", kind: "markdown" }],
           },
-          { name: "readme.md", path: "/docs/readme.md", kind: "markdown" }
-        ]
-      })
+          { name: "readme.md", path: "/docs/readme.md", kind: "markdown" },
+        ],
+      }),
     ).toBe("/docs/readme.md");
   });
 
@@ -38,18 +38,18 @@ describe("findFirstMarkdownPath", () => {
                 name: "deep",
                 path: "/docs/a/deep",
                 kind: "directory",
-                children: [{ name: "deep.md", path: "/docs/a/deep/deep.md", kind: "markdown" }]
-              }
-            ]
+                children: [{ name: "deep.md", path: "/docs/a/deep/deep.md", kind: "markdown" }],
+              },
+            ],
           },
           {
             name: "b",
             path: "/docs/b",
             kind: "directory",
-            children: [{ name: "intro.mdx", path: "/docs/b/intro.mdx", kind: "markdown" }]
-          }
-        ]
-      })
+            children: [{ name: "intro.mdx", path: "/docs/b/intro.mdx", kind: "markdown" }],
+          },
+        ],
+      }),
     ).toBe("/docs/b/intro.mdx");
   });
 
@@ -59,8 +59,8 @@ describe("findFirstMarkdownPath", () => {
         name: "assets",
         path: "/assets",
         kind: "directory",
-        children: [{ name: "cover.png", path: "/assets/cover.png", kind: "asset" }]
-      })
+        children: [{ name: "cover.png", path: "/assets/cover.png", kind: "asset" }],
+      }),
     ).toBeNull();
   });
 });

@@ -1,9 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type {
-  AiCompletionContext,
-  AiSettings,
-  AiWritingSuggestion
-} from "@md-editor/ai";
+import type { AiCompletionContext, AiSettings, AiWritingSuggestion } from "@md-editor/ai";
 import type { EditorMode } from "@md-editor/editor-core";
 
 export interface MdxSnippetPlugin {
@@ -21,7 +17,7 @@ export interface UseMdxAiControllerOptions<TPlugin extends MdxSnippetPlugin> {
   readonly requestAiCompletion: (
     settings: AiSettings,
     context: AiCompletionContext,
-    request?: { readonly signal?: AbortSignal }
+    request?: { readonly signal?: AbortSignal },
   ) => Promise<AiWritingSuggestion>;
 }
 
@@ -31,18 +27,23 @@ export function useMdxAiController<TPlugin extends MdxSnippetPlugin>({
   showToast,
   getMdxComponentPlugins,
   getAiCompletionReadiness,
-  requestAiCompletion
+  requestAiCompletion,
 }: UseMdxAiControllerOptions<TPlugin>) {
   const [isMdxComponentMenuOpen, setIsMdxComponentMenuOpen] = useState(false);
-  const [mdxInsertRequest, setMdxInsertRequest] = useState<{ readonly id: number; readonly markdown: string } | null>(null);
-  const [aiSuggestionRequest, setAiSuggestionRequest] = useState<{ readonly id: number } | null>(null);
+  const [mdxInsertRequest, setMdxInsertRequest] = useState<{
+    readonly id: number;
+    readonly markdown: string;
+  } | null>(null);
+  const [aiSuggestionRequest, setAiSuggestionRequest] = useState<{ readonly id: number } | null>(
+    null,
+  );
   const [isAiSuggestionPending, setIsAiSuggestionPending] = useState(false);
   const mdxInsertRequestId = useRef(0);
   const aiSuggestionRequestId = useRef(0);
   const mdxComponentPlugins = useMemo(() => getMdxComponentPlugins(), [getMdxComponentPlugins]);
   const isAiCompletionReady = useMemo(
     () => getAiCompletionReadiness(aiSettings) === null,
-    [aiSettings, getAiCompletionReadiness]
+    [aiSettings, getAiCompletionReadiness],
   );
 
   const openMdxComponentMenu = useCallback(() => {
@@ -80,20 +81,23 @@ export function useMdxAiController<TPlugin extends MdxSnippetPlugin>({
     setIsAiSuggestionPending(false);
   }, []);
 
-  const insertMdxComponent = useCallback((plugin: TPlugin) => {
-    const snippet = plugin.insert?.createSnippet();
-    if (!snippet) {
-      showToast("该 MDX 组件没有可插入模板。");
-      return;
-    }
+  const insertMdxComponent = useCallback(
+    (plugin: TPlugin) => {
+      const snippet = plugin.insert?.createSnippet();
+      if (!snippet) {
+        showToast("该 MDX 组件没有可插入模板。");
+        return;
+      }
 
-    // Milkdown 通过 id 识别一次性插入请求，避免相同 markdown 连续插入被 React 合并。
-    setIsMdxComponentMenuOpen(false);
-    setMdxInsertRequest({
-      id: (mdxInsertRequestId.current += 1),
-      markdown: snippet
-    });
-  }, [showToast]);
+      // Milkdown 通过 id 识别一次性插入请求，避免相同 markdown 连续插入被 React 合并。
+      setIsMdxComponentMenuOpen(false);
+      setMdxInsertRequest({
+        id: (mdxInsertRequestId.current += 1),
+        markdown: snippet,
+      });
+    },
+    [showToast],
+  );
 
   const continueAiWriting = useCallback(async () => {
     showToast(null);
@@ -112,13 +116,10 @@ export function useMdxAiController<TPlugin extends MdxSnippetPlugin>({
   }, [aiSettings, getAiCompletionReadiness, getEditorMode, showToast]);
 
   const requestAiSuggestion = useCallback(
-    async (
-      context: AiCompletionContext,
-      request?: { readonly signal?: AbortSignal }
-    ) => {
+    async (context: AiCompletionContext, request?: { readonly signal?: AbortSignal }) => {
       return requestAiCompletion(aiSettings, context, { signal: request?.signal });
     },
-    [aiSettings, requestAiCompletion]
+    [aiSettings, requestAiCompletion],
   );
 
   const handleAiSuggestionError = useCallback(() => {
@@ -139,6 +140,6 @@ export function useMdxAiController<TPlugin extends MdxSnippetPlugin>({
     insertMdxComponent,
     continueAiWriting,
     requestAiSuggestion,
-    handleAiSuggestionError
+    handleAiSuggestionError,
   };
 }

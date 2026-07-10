@@ -3,15 +3,15 @@ import { listenToDesktopMenuActions, MENU_ACTION_EVENT } from "../src/desktop/me
 
 const tauri = vi.hoisted(() => ({
   isTauri: vi.fn(() => true),
-  listen: vi.fn()
+  listen: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
-  isTauri: tauri.isTauri
+  isTauri: tauri.isTauri,
 }));
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: tauri.listen
+  listen: tauri.listen,
 }));
 
 describe("desktop menu events", () => {
@@ -38,7 +38,7 @@ describe("desktop menu events", () => {
     tauri.listen.mockReturnValue(
       new Promise<() => void>((resolve) => {
         resolveListen = resolve;
-      })
+      }),
     );
 
     const cleanup = listenToDesktopMenuActions(vi.fn());

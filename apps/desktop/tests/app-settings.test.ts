@@ -14,12 +14,12 @@ import {
   normalizeUpdateSettings,
   normalizeShortcutKey,
   shortcutKeyFromKeyboardEvent,
-  validateAssetsDirectory
+  validateAssetsDirectory,
 } from "../src/app/settings/app-settings";
 import {
   isUpdateActionBusy,
   isUpdateReadyToApply,
-  shouldShowEditorUpdateAction
+  shouldShowEditorUpdateAction,
 } from "../src/app/updates/update-status";
 
 describe("app settings", () => {
@@ -31,7 +31,7 @@ describe("app settings", () => {
     expect(settings.theme).toEqual(DEFAULT_THEME_SETTINGS);
     expect(settings.ai.features).toEqual({
       continuation: false,
-      editing: true
+      editing: true,
     });
     expect(settings.ai.localModel).toEqual({
       enabled: false,
@@ -40,7 +40,7 @@ describe("app settings", () => {
       status: "not-downloaded",
       downloadedBytes: 0,
       totalBytes: 0,
-      error: null
+      error: null,
     });
     expect(settings.update).toEqual(DEFAULT_UPDATE_SETTINGS);
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
@@ -48,50 +48,56 @@ describe("app settings", () => {
       "view.toggleSidebarPrimary",
       "settings.open",
       "mdx.openComponentMenu",
-      "ai.continueWriting"
+      "ai.continueWriting",
     ]);
   });
 
   it("normalizes update settings for old and partial settings payloads", () => {
     expect(normalizeUpdateSettings(undefined)).toEqual({
       automaticCheck: true,
-      automaticDownload: true
+      automaticDownload: true,
     });
     expect(normalizeUpdateSettings({})).toEqual({
       automaticCheck: true,
-      automaticDownload: true
+      automaticDownload: true,
     });
-    expect(normalizeUpdateSettings({
+    expect(
+      normalizeUpdateSettings({
+        automaticCheck: false,
+        automaticDownload: true,
+      }),
+    ).toEqual({
       automaticCheck: false,
-      automaticDownload: true
-    })).toEqual({
-      automaticCheck: false,
-      automaticDownload: false
+      automaticDownload: false,
     });
-    expect(normalizeUpdateSettings({
+    expect(
+      normalizeUpdateSettings({
+        automaticCheck: true,
+        automaticDownload: false,
+      }),
+    ).toEqual({
       automaticCheck: true,
-      automaticDownload: false
-    })).toEqual({
-      automaticCheck: true,
-      automaticDownload: false
+      automaticDownload: false,
     });
   });
 
   it("normalizes editor display settings with code block line numbers off by default", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
       showCodeBlockLineNumbers: false,
-      wysiwygFontSize: 17
+      wysiwygFontSize: 17,
     });
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
       showCodeBlockLineNumbers: true,
-      wysiwygFontSize: 17
+      wysiwygFontSize: 17,
     });
-    expect(normalizeEditorDisplaySettings({
-      showCodeBlockLineNumbers: "true",
-      wysiwygFontSize: "20"
-    })).toEqual({
+    expect(
+      normalizeEditorDisplaySettings({
+        showCodeBlockLineNumbers: "true",
+        wysiwygFontSize: "20",
+      }),
+    ).toEqual({
       showCodeBlockLineNumbers: false,
-      wysiwygFontSize: 20
+      wysiwygFontSize: 20,
     });
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 8 }).wysiwygFontSize).toBe(13);
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 40 }).wysiwygFontSize).toBe(22);
@@ -118,8 +124,8 @@ describe("app settings", () => {
         ctrlKey: false,
         key: "b",
         metaKey: true,
-        shiftKey: true
-      } as KeyboardEvent)
+        shiftKey: true,
+      } as KeyboardEvent),
     ).toBe("Mod-Shift-B");
     expect(
       shortcutKeyFromKeyboardEvent({
@@ -128,8 +134,8 @@ describe("app settings", () => {
         ctrlKey: true,
         key: "/",
         metaKey: false,
-        shiftKey: false
-      } as KeyboardEvent)
+        shiftKey: false,
+      } as KeyboardEvent),
     ).toBe("Mod-/");
   });
 
@@ -143,8 +149,8 @@ describe("app settings", () => {
         key: "a",
         keyCode: 65,
         metaKey: true,
-        shiftKey: true
-      } as KeyboardEvent)
+        shiftKey: true,
+      } as KeyboardEvent),
     ).toBeNull();
     expect(
       shortcutKeyFromKeyboardEvent({
@@ -155,8 +161,8 @@ describe("app settings", () => {
         key: "a",
         keyCode: 229,
         metaKey: true,
-        shiftKey: true
-      } as KeyboardEvent)
+        shiftKey: true,
+      } as KeyboardEvent),
     ).toBeNull();
   });
 
@@ -168,138 +174,156 @@ describe("app settings", () => {
   });
 
   it("normalizes persisted theme choices", () => {
-    expect(normalizeAppTheme({
+    expect(
+      normalizeAppTheme({
+        mode: "dark",
+        light: {
+          source: "builtin",
+          builtinTheme: "github-light",
+          customCssPath: null,
+        },
+        dark: {
+          source: "custom",
+          builtinTheme: "night-dark",
+          customCssPath: "/tmp/md-editor-dark.css",
+        },
+      }),
+    ).toEqual({
       mode: "dark",
       light: {
         source: "builtin",
         builtinTheme: "github-light",
-        customCssPath: null
+        customCssPath: null,
       },
       dark: {
         source: "custom",
         builtinTheme: "night-dark",
-        customCssPath: "/tmp/md-editor-dark.css"
-      }
-    })).toEqual({
-      mode: "dark",
-      light: {
-        source: "builtin",
-        builtinTheme: "github-light",
-        customCssPath: null
+        customCssPath: "/tmp/md-editor-dark.css",
       },
-      dark: {
-        source: "custom",
-        builtinTheme: "night-dark",
-        customCssPath: "/tmp/md-editor-dark.css"
-      }
     });
-    expect(normalizeAppTheme({
-      mode: "neon",
-      light: {
-        source: "rainbow",
-        builtinTheme: "unknown",
-        customCssPath: 42
-      }
-    })).toEqual(DEFAULT_THEME_SETTINGS);
-    expect(normalizeAppTheme({
-      mode: "light",
-      light: {
-        source: "builtin",
-        builtinTheme: "default-light",
-        customCssPath: null
-      }
-    })).toEqual({
+    expect(
+      normalizeAppTheme({
+        mode: "neon",
+        light: {
+          source: "rainbow",
+          builtinTheme: "unknown",
+          customCssPath: 42,
+        },
+      }),
+    ).toEqual(DEFAULT_THEME_SETTINGS);
+    expect(
+      normalizeAppTheme({
+        mode: "light",
+        light: {
+          source: "builtin",
+          builtinTheme: "default-light",
+          customCssPath: null,
+        },
+      }),
+    ).toEqual({
       ...DEFAULT_THEME_SETTINGS,
-      mode: "light"
+      mode: "light",
     });
-    expect(normalizeAppTheme({
-      mode: "system",
-      lightCssPath: "/tmp/md-editor-light.css",
-      darkCssPath: "/tmp/md-editor-dark.css"
-    })).toEqual({
+    expect(
+      normalizeAppTheme({
+        mode: "system",
+        lightCssPath: "/tmp/md-editor-light.css",
+        darkCssPath: "/tmp/md-editor-dark.css",
+      }),
+    ).toEqual({
       ...DEFAULT_THEME_SETTINGS,
       light: {
         ...DEFAULT_THEME_SETTINGS.light,
         source: "custom",
-        customCssPath: "/tmp/md-editor-light.css"
+        customCssPath: "/tmp/md-editor-light.css",
       },
       dark: {
         ...DEFAULT_THEME_SETTINGS.dark,
         source: "custom",
-        customCssPath: "/tmp/md-editor-dark.css"
-      }
+        customCssPath: "/tmp/md-editor-dark.css",
+      },
     });
     expect(normalizeAppTheme("typora-dark")).toEqual(DEFAULT_THEME_SETTINGS);
   });
 
   it("normalizes DeepSeek provider settings to the fixed endpoint", () => {
-    expect(normalizeAiSettings({
-      provider: "deepseek",
-      openAiCompatible: {
-        baseUrl: "https://api.openai.com/v1",
-        model: "deepseek-chat",
-        apiKey: "local-key"
-      }
-    }).openAiCompatible.baseUrl).toBe(DEFAULT_DEEPSEEK_ENDPOINT);
+    expect(
+      normalizeAiSettings({
+        provider: "deepseek",
+        openAiCompatible: {
+          baseUrl: "https://api.openai.com/v1",
+          model: "deepseek-chat",
+          apiKey: "local-key",
+        },
+      }).openAiCompatible.baseUrl,
+    ).toBe(DEFAULT_DEEPSEEK_ENDPOINT);
   });
 
   it("detects a newer public release from the tap release payload", () => {
-    expect(createUpdateStatusFromGitHubReleases("0.2.8", [
-      {
-        tag_name: "md-editor-v0.2.9",
-        html_url: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: "Markdown.Editor_0.2.9_aarch64.dmg",
-            browser_download_url: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg"
-          }
-        ]
-      }
-    ])).toEqual({
+    expect(
+      createUpdateStatusFromGitHubReleases("0.2.8", [
+        {
+          tag_name: "md-editor-v0.2.9",
+          html_url: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
+          prerelease: false,
+          draft: false,
+          assets: [
+            {
+              name: "Markdown.Editor_0.2.9_aarch64.dmg",
+              browser_download_url:
+                "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
+            },
+          ],
+        },
+      ]),
+    ).toEqual({
       currentVersion: "0.2.8",
       state: "available",
       latestVersion: "0.2.9",
       releaseUrl: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
-      downloadUrl: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
+      downloadUrl:
+        "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND
+      installCommand: INSTALL_WITH_CURL_COMMAND,
     });
   });
 
   it("reports up-to-date when the installed version matches the latest public release", () => {
-    expect(createUpdateStatusFromGitHubReleases("0.2.9", [
-      {
-        tag_name: "md-editor-v0.2.9",
-        prerelease: false,
-        draft: false,
-        assets: []
-      }
-    ])).toEqual({
+    expect(
+      createUpdateStatusFromGitHubReleases("0.2.9", [
+        {
+          tag_name: "md-editor-v0.2.9",
+          prerelease: false,
+          draft: false,
+          assets: [],
+        },
+      ]),
+    ).toEqual({
       currentVersion: "0.2.9",
       state: "up-to-date",
       latestVersion: "0.2.9",
       releaseUrl: undefined,
-      downloadUrl: undefined
+      downloadUrl: undefined,
     });
   });
 
   it("ignores prerelease and unrelated GitHub release tags", () => {
-    expect(createUpdateStatusFromGitHubReleases("0.2.8", [
-      {
-        tag_name: "md-editor-v0.2.9-beta.1",
-        prerelease: true,
-        draft: false
-      },
-      {
-        tag_name: "other-tool-v9.0.0",
-        prerelease: false,
-        draft: false
-      }
-    ])).toEqual({
+    expect(
+      createUpdateStatusFromGitHubReleases("0.2.8", [
+        {
+          tag_name: "md-editor-v0.2.9-beta.1",
+          prerelease: true,
+          draft: false,
+        },
+        {
+          tag_name: "other-tool-v9.0.0",
+          prerelease: false,
+          draft: false,
+        },
+      ]),
+    ).toEqual({
       currentVersion: "0.2.8",
-      state: "unconfigured"
+      state: "unconfigured",
     });
   });
 
@@ -312,29 +336,37 @@ describe("app settings", () => {
   });
 
   it("keeps editor update action visibility in pure status helpers", () => {
-    expect(shouldShowEditorUpdateAction({
-      currentVersion: "0.3.0",
-      state: "available",
-      latestVersion: "0.3.1",
-      installKind: "app"
-    })).toBe(true);
-    expect(shouldShowEditorUpdateAction({
-      currentVersion: "0.3.0",
-      state: "available",
-      latestVersion: "0.3.1",
-      installKind: "manual"
-    })).toBe(false);
-    expect(isUpdateReadyToApply({
-      currentVersion: "0.3.0",
-      state: "downloaded",
-      latestVersion: "0.3.1",
-      installKind: "app"
-    })).toBe(true);
-    expect(isUpdateActionBusy({
-      currentVersion: "0.3.0",
-      state: "downloading",
-      latestVersion: "0.3.1",
-      installKind: "app"
-    })).toBe(true);
+    expect(
+      shouldShowEditorUpdateAction({
+        currentVersion: "0.3.0",
+        state: "available",
+        latestVersion: "0.3.1",
+        installKind: "app",
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowEditorUpdateAction({
+        currentVersion: "0.3.0",
+        state: "available",
+        latestVersion: "0.3.1",
+        installKind: "manual",
+      }),
+    ).toBe(false);
+    expect(
+      isUpdateReadyToApply({
+        currentVersion: "0.3.0",
+        state: "downloaded",
+        latestVersion: "0.3.1",
+        installKind: "app",
+      }),
+    ).toBe(true);
+    expect(
+      isUpdateActionBusy({
+        currentVersion: "0.3.0",
+        state: "downloading",
+        latestVersion: "0.3.1",
+        installKind: "app",
+      }),
+    ).toBe(true);
   });
 });

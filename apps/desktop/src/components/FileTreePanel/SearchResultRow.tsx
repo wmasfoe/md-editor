@@ -19,7 +19,7 @@ export function SearchResultRow({
   activeFilePath,
   onOpenFile,
   onOpenAsset,
-  onOpenContextMenu
+  onOpenContextMenu,
 }: SearchResultRowProps) {
   const isMarkdown = node.kind === "markdown";
   const relativePath = relativePathFromRoot(rootPath, node.path);
@@ -29,7 +29,8 @@ export function SearchResultRow({
       type="button"
       className={cx(
         "flex min-h-9 w-full items-center gap-2 border-0 bg-transparent px-3 py-1 text-left text-[13px] leading-[1.3] text-[var(--theme-control-text)] transition-colors duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
-        node.path === activeFilePath && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
+        node.path === activeFilePath &&
+          "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]",
       )}
       title={node.path}
       onClick={() => (isMarkdown ? onOpenFile(node.path) : onOpenAsset(node))}

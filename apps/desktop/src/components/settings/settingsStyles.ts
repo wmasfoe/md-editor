@@ -1,7 +1,6 @@
 export const settingsModuleClassName = "py-1";
 
-export const settingsSectionTitleClassName =
-  "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";
+export const settingsSectionTitleClassName = "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";
 
 export const settingsDescriptionClassName =
   "mb-0 mt-1 text-xs leading-normal text-[var(--theme-muted)]";

@@ -4,7 +4,7 @@ import {
   createDocumentState,
   createEditorRuntime,
   createFeatureRegistry,
-  createMarkdownFormatFeature
+  createMarkdownFormatFeature,
 } from "@md-editor/editor-core";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
@@ -18,8 +18,8 @@ featureRegistry.register(createMarkdownFormatFeature());
 // subscribe to snapshots, while commands and file actions mutate this runtime.
 export const runtime = createEditorRuntime({
   document: createDocumentState({
-    markdown: ""
+    markdown: "",
   }),
   mdxComponents: createBuiltInMdxRegistry(officialMdxPlugins),
-  features: featureRegistry
+  features: featureRegistry,
 });

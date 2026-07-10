@@ -8,7 +8,7 @@ import {
   getSingletonHighlighter,
   type BundledLanguage,
   type BundledTheme,
-  type Highlighter
+  type Highlighter,
 } from "shiki";
 
 export const codeHighlightTheme = "github-light" satisfies BundledTheme;
@@ -21,13 +21,7 @@ export interface CodeHighlightToken {
 }
 
 export type CodeHighlightTokenKind =
-  | "attribute"
-  | "comment"
-  | "keyword"
-  | "number"
-  | "string"
-  | "tag"
-  | "variable";
+  "attribute" | "comment" | "keyword" | "number" | "string" | "tag" | "variable";
 
 const languageAliases: Readonly<Record<string, BundledLanguage>> = {
   bash: "bash",
@@ -65,7 +59,7 @@ const languageAliases: Readonly<Record<string, BundledLanguage>> = {
   typescript: "typescript",
   xml: "xml",
   yml: "yaml",
-  yaml: "yaml"
+  yaml: "yaml",
 };
 
 const codeHighlightPluginKey = new PluginKey<DecorationSet>("md-editor-code-highlight");
@@ -88,12 +82,12 @@ export const codeHighlightPlugin = $prose(
           }
 
           return decorations.map(transaction.mapping, transaction.doc);
-        }
+        },
       },
       props: {
         decorations(state) {
           return codeHighlightPluginKey.getState(state);
-        }
+        },
       },
       view(view) {
         scheduleMissingHighlights(view);
@@ -103,15 +97,15 @@ export const codeHighlightPlugin = $prose(
             if (updatedView.state.doc !== previousState.doc) {
               scheduleMissingHighlights(updatedView);
             }
-          }
+          },
         };
-      }
-    })
+      },
+    }),
 );
 
 export async function tokenizeCodeForHighlighting(
   code: string,
-  language?: string | null
+  language?: string | null,
 ): Promise<readonly CodeHighlightToken[]> {
   const normalized = normalizeLanguage(language);
   if (!normalized || code.length === 0) {
@@ -156,8 +150,8 @@ function buildCodeDecorations(doc: ProseMirrorNode): DecorationSet {
     for (const token of tokens) {
       decorations.push(
         Decoration.inline(codeStart + token.from, codeStart + token.to, {
-          class: createTokenClassName(token)
-        })
+          class: createTokenClassName(token),
+        }),
       );
     }
 
@@ -224,13 +218,13 @@ function dispatchHighlightRefresh(view: EditorView): void {
 
 async function highlightWithShiki(
   code: string,
-  language: BundledLanguage
+  language: BundledLanguage,
 ): Promise<readonly CodeHighlightToken[]> {
   const highlighter = await getHighlighter();
   await ensureLanguageLoaded(highlighter, language);
   const result = highlighter.codeToTokens(code, {
     lang: language,
-    theme: codeHighlightTheme
+    theme: codeHighlightTheme,
   });
 
   const tokens: CodeHighlightToken[] = [];
@@ -247,7 +241,7 @@ async function highlightWithShiki(
         from: token.offset,
         to: token.offset + token.content.length,
         kind,
-        fontStyle: token.fontStyle
+        fontStyle: token.fontStyle,
       });
     }
   }
@@ -258,13 +252,16 @@ async function highlightWithShiki(
 function getHighlighter(): Promise<Highlighter> {
   highlighterPromise ??= getSingletonHighlighter({
     themes: [codeHighlightTheme],
-    langs: []
+    langs: [],
   });
 
   return highlighterPromise;
 }
 
-async function ensureLanguageLoaded(highlighter: Highlighter, language: BundledLanguage): Promise<void> {
+async function ensureLanguageLoaded(
+  highlighter: Highlighter,
+  language: BundledLanguage,
+): Promise<void> {
   if (highlighter.getLoadedLanguages().includes(language)) {
     return;
   }
@@ -316,9 +313,7 @@ function classifyToken(color: string, content: string): CodeHighlightTokenKind |
     case "#6f42c1":
       return "attribute";
     case "#005cc5":
-      return /^(?:0x[\da-f]+|\d|true\b|false\b|null\b)/iu.test(trimmed)
-        ? "number"
-        : "variable";
+      return /^(?:0x[\da-f]+|\d|true\b|false\b|null\b)/iu.test(trimmed) ? "number" : "variable";
     default:
       return "variable";
   }

@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import type { AppSettings } from "../../app/settings/app-settings";
 import {
   keyboardShortcutLabel,
-  shortcutKeyFromKeyboardEvent
+  shortcutKeyFromKeyboardEvent,
 } from "../../app/settings/app-settings";
 import {
   settingsDescriptionClassName,
@@ -10,7 +10,7 @@ import {
   settingsInputClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-  settingsSmallButtonClassName
+  settingsSmallButtonClassName,
 } from "./settingsStyles";
 
 interface ShortcutSettingsPanelProps {
@@ -24,7 +24,7 @@ export function ShortcutSettingsPanel({
   shortcuts,
   shortcutDrafts,
   onCaptureShortcut,
-  onResetShortcut
+  onResetShortcut,
 }: ShortcutSettingsPanelProps) {
   const captureShortcut = (id: string, event: KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault();
@@ -39,12 +39,17 @@ export function ShortcutSettingsPanel({
   return (
     <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
       <div className="mb-3">
-        <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>快捷键设置</h2>
+        <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>
+          快捷键设置
+        </h2>
         <p className={settingsDescriptionClassName}>点击输入框后按下组合键，系统会自动记录键位。</p>
       </div>
       <div className="grid gap-2">
         {shortcuts.map((shortcut) => (
-          <label key={shortcut.id} className="grid grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_56px] items-center gap-2.5 max-[760px]:grid-cols-1">
+          <label
+            key={shortcut.id}
+            className="grid grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_56px] items-center gap-2.5 max-[760px]:grid-cols-1"
+          >
             <span className="min-w-0">
               <strong className={settingsFieldLabelClassName}>{shortcut.label}</strong>
               <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">

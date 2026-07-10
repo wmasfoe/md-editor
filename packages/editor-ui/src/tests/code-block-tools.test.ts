@@ -11,7 +11,7 @@ import {
   isCalloutPreviewCodeBlockNode,
   normalizeCodeLanguage,
   parseCalloutPreviewSource,
-  planCodeBlockTabIndent
+  planCodeBlockTabIndent,
 } from "../utils/code-block-tools";
 
 describe("code block tools", () => {
@@ -20,7 +20,7 @@ describe("code block tools", () => {
     expect(planCodeBlockTabIndent("code_block", "", 4, 4)).toEqual({
       from: 4,
       to: 4,
-      text: "  "
+      text: "  ",
     });
   });
 
@@ -28,12 +28,12 @@ describe("code block tools", () => {
     expect(planCodeBlockTabIndent("code_block", "a\nb", 10, 13)).toEqual({
       from: 10,
       to: 13,
-      text: "  a\n  b"
+      text: "  a\n  b",
     });
     expect(planCodeBlockTabIndent("code_block", "  a\n\tb\nc", 10, 19, true)).toEqual({
       from: 10,
       to: 19,
-      text: "a\nb\nc"
+      text: "a\nb\nc",
     });
   });
 
@@ -51,19 +51,23 @@ describe("code block tools", () => {
 
   it("extracts registered Callout preview data from raw MDX source", () => {
     expect(
-      parseCalloutPreviewSource('<Callout type="warning" title="Heads up">\n  Read this.\n</Callout>')
+      parseCalloutPreviewSource(
+        '<Callout type="warning" title="Heads up">\n  Read this.\n</Callout>',
+      ),
     ).toEqual({
       type: "warning",
       title: "Heads up",
-      children: "Read this."
+      children: "Read this.",
     });
-    expect(parseCalloutPreviewSource('<Unknown />')).toBeNull();
+    expect(parseCalloutPreviewSource("<Unknown />")).toBeNull();
   });
 
   it("selects an adjacent Callout preview on the first Delete and removes it on the second", () => {
     const { state, positions } = createCalloutDeleteState();
     const view = createMutableEditorView(
-      state.apply(state.tr.setSelection(TextSelection.create(state.doc, positions.beforeCalloutCursor)))
+      state.apply(
+        state.tr.setSelection(TextSelection.create(state.doc, positions.beforeCalloutCursor)),
+      ),
     );
     const plugin = createCodeBlockToolsProsePlugin();
     const firstDelete = createKeyboardEventLike("Delete");
@@ -84,7 +88,9 @@ describe("code block tools", () => {
   it("selects an adjacent Callout preview before the cursor on Backspace", () => {
     const { state, positions } = createCalloutDeleteState();
     const view = createMutableEditorView(
-      state.apply(state.tr.setSelection(TextSelection.create(state.doc, positions.afterCalloutCursor)))
+      state.apply(
+        state.tr.setSelection(TextSelection.create(state.doc, positions.afterCalloutCursor)),
+      ),
     );
     const plugin = createCodeBlockToolsProsePlugin();
     const event = createKeyboardEventLike("Backspace");
@@ -99,7 +105,9 @@ describe("code block tools", () => {
   it("selects the whole Callout preview when the cursor is inside its hidden source", () => {
     const { state, positions } = createCalloutDeleteState();
     const view = createMutableEditorView(
-      state.apply(state.tr.setSelection(TextSelection.create(state.doc, positions.insideCalloutCursor)))
+      state.apply(
+        state.tr.setSelection(TextSelection.create(state.doc, positions.insideCalloutCursor)),
+      ),
     );
     const plugin = createCodeBlockToolsProsePlugin();
     const event = createKeyboardEventLike("Delete");
@@ -116,13 +124,13 @@ describe("code block tools", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, schema.text("before")),
       schema.nodes.code_block.create(null, schema.text("const value = 1;")),
-      schema.nodes.paragraph.create(null, schema.text("after"))
+      schema.nodes.paragraph.create(null, schema.text("after")),
     ]);
     const view = createMutableEditorView(
       EditorState.create({
         doc,
-        selection: TextSelection.create(doc, 7)
-      })
+        selection: TextSelection.create(doc, 7),
+      }),
     );
     const plugin = createCodeBlockToolsProsePlugin();
     const event = createKeyboardEventLike("Delete");
@@ -137,7 +145,9 @@ describe("code block tools", () => {
     const selectedTextView = createMutableEditorView(selectedTextState);
 
     expect(findAdjacentCalloutPreviewNodePosition(selectedTextView.state, "forward")).toBeNull();
-    expect(plugin.props.handleKeyDown?.call(plugin, selectedTextView, createKeyboardEventLike("Delete"))).toBe(false);
+    expect(
+      plugin.props.handleKeyDown?.call(plugin, selectedTextView, createKeyboardEventLike("Delete")),
+    ).toBe(false);
   });
 
   it("identifies only Callout code blocks as selectable component previews", () => {
@@ -156,37 +166,41 @@ describe("code block tools", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, schema.text("before")),
       schema.nodes.code_block.create(null, schema.text(code)),
-      schema.nodes.paragraph.create(null, schema.text("after"))
+      schema.nodes.paragraph.create(null, schema.text("after")),
     ]);
     const codePosition = findFirstCodeBlockPosition(doc);
     const codeStart = codePosition + 1;
     const view = createMutableEditorView(
       EditorState.create({
         doc,
-        selection: TextSelection.create(doc, codeStart + 6)
-      })
+        selection: TextSelection.create(doc, codeStart + 6),
+      }),
     );
     const plugin = createCodeBlockToolsProsePlugin();
     const event = createKeyboardEventLike("a", { metaKey: true });
 
     expect(findCurrentCodeBlockTextRange(view.state)).toEqual({
       from: codeStart,
-      to: codeStart + code.length
+      to: codeStart + code.length,
     });
     expect(plugin.props.handleKeyDown?.call(plugin, view, event)).toBe(true);
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.selection.from).toBe(codeStart);
     expect(view.state.selection.to).toBe(codeStart + code.length);
-    expect(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n")).toBe(code);
+    expect(
+      view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n"),
+    ).toBe(code);
   });
 
   it("leaves Mod-a inside Callout previews to the default ProseMirror keymap", () => {
     const { state, positions } = createCalloutDeleteState();
     const view = {
-      state: state.apply(state.tr.setSelection(TextSelection.create(state.doc, positions.insideCalloutCursor))),
+      state: state.apply(
+        state.tr.setSelection(TextSelection.create(state.doc, positions.insideCalloutCursor)),
+      ),
       dispatch: () => {
         throw new Error("code block tools must not dispatch for Callout preview Mod-a");
-      }
+      },
     } as unknown as EditorView;
     const event = createKeyboardEventLike("a", { metaKey: true });
     const plugin = createCodeBlockToolsProsePlugin();
@@ -201,20 +215,20 @@ describe("code block tools", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, schema.text("before")),
       schema.nodes.code_block.create(null, schema.text("const value = 1;")),
-      schema.nodes.paragraph.create(null, schema.text("after"))
+      schema.nodes.paragraph.create(null, schema.text("after")),
     ]);
     const view = {
       state: EditorState.create({ doc }),
       dispatch: () => {
         throw new Error("code block tools must not dispatch for Mod-a");
-      }
+      },
     } as unknown as EditorView;
     const event = {
       key: "a",
       metaKey: true,
       ctrlKey: false,
       shiftKey: false,
-      altKey: false
+      altKey: false,
     } as KeyboardEvent;
 
     const plugin = createCodeBlockToolsProsePlugin();
@@ -227,16 +241,16 @@ describe("code block tools", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, schema.text("before")),
       schema.nodes.code_block.create(null, schema.text("const value = 1;")),
-      schema.nodes.paragraph.create(null, schema.text("after"))
+      schema.nodes.paragraph.create(null, schema.text("after")),
     ]);
     const view = {
       state: EditorState.create({
         doc,
-        selection: TextSelection.create(doc, 2, doc.content.size - 1)
+        selection: TextSelection.create(doc, 2, doc.content.size - 1),
       }),
       dispatch: () => {
         throw new Error("code block tools must not dispatch for cross-block Mod-a");
-      }
+      },
     } as unknown as EditorView;
     const event = createKeyboardEventLike("a", { metaKey: true });
     const plugin = createCodeBlockToolsProsePlugin();
@@ -253,7 +267,7 @@ function createCalloutDeleteState() {
   const doc = schema.nodes.doc.create(null, [
     schema.nodes.paragraph.create(null, schema.text("before")),
     schema.nodes.code_block.create(null, schema.text(calloutSource)),
-    schema.nodes.paragraph.create(null, schema.text("after"))
+    schema.nodes.paragraph.create(null, schema.text("after")),
   ]);
   let callout = -1;
   doc.descendants((node, position) => {
@@ -269,8 +283,8 @@ function createCalloutDeleteState() {
       beforeCalloutCursor: callout - 1,
       callout,
       insideCalloutCursor: callout + 1,
-      afterCalloutCursor: callout + doc.nodeAt(callout)!.nodeSize + 1
-    }
+      afterCalloutCursor: callout + doc.nodeAt(callout)!.nodeSize + 1,
+    },
   };
 }
 
@@ -280,8 +294,8 @@ function createCodeBlockTestSchema(): Schema {
       doc: { content: "block+" },
       paragraph: { content: "text*", group: "block" },
       code_block: { content: "text*", group: "block", code: true },
-      text: {}
-    }
+      text: {},
+    },
   });
 }
 
@@ -306,7 +320,7 @@ function createMutableEditorView(initialState: EditorState): EditorView {
     dispatch(transaction: Parameters<EditorView["dispatch"]>[0]) {
       currentState = currentState.apply(transaction);
     },
-    focus() {}
+    focus() {},
   } as unknown as EditorView;
 
   return view;
@@ -314,7 +328,7 @@ function createMutableEditorView(initialState: EditorState): EditorView {
 
 function createKeyboardEventLike(
   key: string,
-  options: Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">> = {}
+  options: Partial<Pick<KeyboardEvent, "altKey" | "ctrlKey" | "metaKey" | "shiftKey">> = {},
 ) {
   return {
     key,
@@ -325,6 +339,6 @@ function createKeyboardEventLike(
     defaultPrevented: false,
     preventDefault() {
       this.defaultPrevented = true;
-    }
+    },
   } as KeyboardEvent & { defaultPrevented: boolean };
 }

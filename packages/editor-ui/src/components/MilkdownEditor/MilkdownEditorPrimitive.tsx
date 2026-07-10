@@ -1,17 +1,11 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Editor,
   defaultValueCtx,
   editorViewCtx,
   parserCtx,
   rootCtx,
-  serializerCtx
+  serializerCtx,
 } from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
@@ -24,7 +18,7 @@ import {
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
   rewriteMarkdownImageSourcesForPreview,
-  rewriteRawBlocksForPreview
+  rewriteRawBlocksForPreview,
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../../utils/code-block-tools";
 import { codeHighlightPlugin } from "../../utils/code-highlight";
@@ -32,7 +26,7 @@ import {
   aiSuggestionPlugin,
   clearAiSuggestion,
   getAiCompletionContext,
-  showAiSuggestion
+  showAiSuggestion,
 } from "../../utils/ai-suggestion";
 import { shouldPlaceCursorAtDocumentEnd } from "../../utils/editor-surface";
 import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
@@ -40,9 +34,7 @@ import { imageSelectionPlugin } from "../../utils/image-selection";
 // 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
 // import { straightQuotesPlugin } from "../../utils/straight-quotes";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../../utils/wysiwyg-search";
-import type {
-  MilkdownEditorPrimitiveProps
-} from "./types";
+import type { MilkdownEditorPrimitiveProps } from "./types";
 import { WysiwygSearchPanel } from "./WysiwygSearchPanel";
 import { AiThinkingIndicator } from "./AiThinkingIndicator";
 import { findModifiedPrimaryClickLinkHref } from "./utils";
@@ -72,22 +64,22 @@ export function MilkdownEditorPrimitive({
   onScrollRatioChange,
   onScrollTargetApplied,
   onActiveOutlineChange,
-  resolveImageSrc = (src) => src
+  resolveImageSrc = (src) => src,
 }: MilkdownEditorPrimitiveProps) {
   // Milkdown owns document state after mount. Hosts must remount this primitive
   // for document replacement so preview image/raw-block maps stay aligned.
-  const previewInput = useMemo(
-    () => {
-      const rawPreview = rewriteRawBlocksForPreview(snapshot.markdown);
-      const imagePreview = rewriteMarkdownImageSourcesForPreview(rawPreview.markdown, resolveImageSrc);
-      return {
-        markdown: imagePreview.markdown,
-        imageSourceMap: imagePreview.sourceMap,
-        rawSourceMap: rawPreview.sourceMap
-      };
-    },
-    []
-  );
+  const [previewInput] = useState(() => {
+    const rawPreview = rewriteRawBlocksForPreview(snapshot.markdown);
+    const imagePreview = rewriteMarkdownImageSourcesForPreview(
+      rawPreview.markdown,
+      resolveImageSrc,
+    );
+    return {
+      markdown: imagePreview.markdown,
+      imageSourceMap: imagePreview.sourceMap,
+      rawSourceMap: rawPreview.sourceMap,
+    };
+  });
   const imageSourceMapRef = useRef(previewInput.imageSourceMap);
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const selectionBookmarkRef = useRef<SelectionBookmark | null>(null);
@@ -116,11 +108,11 @@ export function MilkdownEditorPrimitive({
 
     const safeFontSize = Math.min(
       Math.max(Math.round(wysiwygFontSize), WYSIWYG_FONT_SIZE_MIN),
-      WYSIWYG_FONT_SIZE_MAX
+      WYSIWYG_FONT_SIZE_MAX,
     );
 
     return {
-      "--theme-editor-font-size": `${safeFontSize}px`
+      "--theme-editor-font-size": `${safeFontSize}px`,
     } as React.CSSProperties;
   }, [wysiwygFontSize]);
   const hostClassName = [
@@ -128,19 +120,24 @@ export function MilkdownEditorPrimitive({
     isLinkModifierActive ? "milkdown-host--link-modifier-active" : "",
     isImeComposing ? "milkdown-host--ime-composing" : "",
     showCodeBlockLineNumbers ? "milkdown-host--code-line-numbers" : "",
-    !isImeComposing && !snapshot.markdown.trim() ? "milkdown-host--empty" : ""
-  ].filter(Boolean).join(" ");
+    !isImeComposing && !snapshot.markdown.trim() ? "milkdown-host--empty" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-  const publishPreviewMarkdownUpdate = useCallback((markdown: string) => {
-    if (markdown === lastPublishedPreviewMarkdownRef.current) {
-      return;
-    }
+  const publishPreviewMarkdownUpdate = useCallback(
+    (markdown: string) => {
+      if (markdown === lastPublishedPreviewMarkdownRef.current) {
+        return;
+      }
 
-    lastPublishedPreviewMarkdownRef.current = markdown;
-    setUserEditRevision((current) => current + 1);
-    const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
-    onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
-  }, [onChange]);
+      lastPublishedPreviewMarkdownRef.current = markdown;
+      setUserEditRevision((current) => current + 1);
+      const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
+      onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
+    },
+    [onChange],
+  );
 
   const runSearch = useCallback(
     (query: string, requestedIndex: number, caseSensitive = isSearchCaseSensitive) => {
@@ -151,7 +148,7 @@ export function MilkdownEditorPrimitive({
       const view = editor.ctx.get(editorViewCtx);
       setSearchResult(updateWysiwygSearch(view, query, caseSensitive, requestedIndex));
     },
-    [getInstance, isSearchCaseSensitive, loading]
+    [getInstance, isSearchCaseSensitive, loading],
   );
 
   const closeSearch = useCallback(() => {
@@ -207,7 +204,12 @@ export function MilkdownEditorPrimitive({
       }
     };
     const resetLinkCursor = (event?: KeyboardEvent) => {
-      if (!event || event.key === "Meta" || event.key === "Control" || !(event.metaKey || event.ctrlKey)) {
+      if (
+        !event ||
+        event.key === "Meta" ||
+        event.key === "Control" ||
+        !(event.metaKey || event.ctrlKey)
+      ) {
         setIsLinkModifierActive(false);
       }
     };
@@ -329,7 +331,7 @@ export function MilkdownEditorPrimitive({
           event.target,
           scroller,
           root.querySelector<HTMLElement>(".ProseMirror"),
-          window.getSelection()
+          window.getSelection(),
         )
       ) {
         return;
@@ -352,7 +354,7 @@ export function MilkdownEditorPrimitive({
           event.target,
           scroller,
           root.querySelector<HTMLElement>(".ProseMirror"),
-          window.getSelection()
+          window.getSelection(),
         )
       ) {
         return;
@@ -399,9 +401,9 @@ export function MilkdownEditorPrimitive({
           ctx.set(defaultValueCtx, previewInput.markdown);
           // The UI package edits preview-safe Markdown. Host apps inject image
           // URL resolution, then this component restores author-facing paths.
-          ctx.get(listenerCtx).markdownUpdated((listenerCtx, markdown, previousMarkdown) => {
+          ctx.get(listenerCtx).markdownUpdated((listenerContext, markdown, previousMarkdown) => {
             if (markdown !== previousMarkdown) {
-              const view = listenerCtx.get(editorViewCtx);
+              const view = listenerContext.get(editorViewCtx);
               if (isImeComposingRef.current || view.composing) {
                 compositionMarkdownDirtyRef.current = true;
                 return;
@@ -432,7 +434,7 @@ export function MilkdownEditorPrimitive({
         .use(codeBlockToolsPlugin)
         .use(codeHighlightPlugin)
         .use(listener),
-    [previewInput.markdown, publishPreviewMarkdownUpdate]
+    [previewInput.markdown, publishPreviewMarkdownUpdate],
   );
 
   useEffect(() => {
@@ -461,13 +463,11 @@ export function MilkdownEditorPrimitive({
       const selection = bookmarkedSelection ?? view.state.selection;
       const contentSlice = selection.content();
       const slice = new Slice(doc.content, contentSlice.openStart, contentSlice.openEnd);
-      const transaction = view.state.tr
-        .setSelection(selection)
-        .replaceSelection(slice);
+      const transaction = view.state.tr.setSelection(selection).replaceSelection(slice);
       const changedRange = transaction.changedRange();
       const cursorPosition = Math.min(
         changedRange?.to ?? transaction.selection.to,
-        transaction.doc.content.size
+        transaction.doc.content.size,
       );
       const nextSelection = Selection.near(transaction.doc.resolve(cursorPosition), 1);
 
@@ -514,7 +514,7 @@ export function MilkdownEditorPrimitive({
 
     void onAiSuggestionRequest(context, {
       ...aiSuggestionRequest,
-      signal: abortController.signal
+      signal: abortController.signal,
     })
       .then((suggestion) => {
         if (
@@ -552,7 +552,7 @@ export function MilkdownEditorPrimitive({
     onAiSuggestionRequest,
     onAiSuggestionRequestHandled,
     snapshot.markdown,
-    snapshot.mode
+    snapshot.mode,
   ]);
 
   useEffect(() => {
@@ -629,7 +629,7 @@ export function MilkdownEditorPrimitive({
     onAiSuggestionRequest,
     snapshot.markdown,
     snapshot.mode,
-    userEditRevision
+    userEditRevision,
   ]);
 
   useEffect(() => {
@@ -642,9 +642,7 @@ export function MilkdownEditorPrimitive({
     // ratio target is the best cross-mode anchor for the user's current place.
     requestAnimationFrame(() => {
       const headings = Array.from(
-        rootRef.current?.querySelectorAll<HTMLElement>(
-          `.ProseMirror h${target.level}`
-        ) ?? []
+        rootRef.current?.querySelectorAll<HTMLElement>(`.ProseMirror h${target.level}`) ?? [],
       );
       const heading = headings.find((candidate) => candidate.textContent?.trim() === target.text);
       heading?.scrollIntoView({ block: "center" });
@@ -716,8 +714,8 @@ export function MilkdownEditorPrimitive({
 
         const headings = Array.from(
           root.querySelectorAll<HTMLElement>(
-            ".ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6"
-          )
+            ".ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4, .ProseMirror h5, .ProseMirror h6",
+          ),
         );
         const scrollerTop = scroller.getBoundingClientRect().top;
         const activeIndex = headings.reduce((current, heading, index) => {
@@ -727,7 +725,7 @@ export function MilkdownEditorPrimitive({
           return heading.getBoundingClientRect().top <= scrollerTop + 96 ? index : current;
         }, -1);
 
-        onActiveOutlineChange(activeIndex >= 0 ? outline[activeIndex]?.id ?? null : null);
+        onActiveOutlineChange(activeIndex >= 0 ? (outline[activeIndex]?.id ?? null) : null);
       });
     };
 
@@ -765,11 +763,7 @@ export function MilkdownEditorPrimitive({
   }, [onActiveOutlineChange, onScrollRatioChange, outline, snapshot.markdown]);
 
   return (
-    <div
-      ref={rootRef}
-      className={hostClassName}
-      style={editorStyle}
-    >
+    <div ref={rootRef} className={hostClassName} style={editorStyle}>
       {isSearchOpen ? (
         <WysiwygSearchPanel
           inputRef={searchInputRef}

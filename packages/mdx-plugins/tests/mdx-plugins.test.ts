@@ -13,7 +13,7 @@ describe("@md-editor/mdx-plugins", () => {
       },
     });
     expect(calloutPlugin.insert?.createSnippet()).toBe(
-      '<Callout type="info" title="提示">\n  内容\n</Callout>'
+      '<Callout type="info" title="提示">\n  内容\n</Callout>',
     );
   });
 

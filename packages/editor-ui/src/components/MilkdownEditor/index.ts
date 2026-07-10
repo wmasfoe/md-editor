@@ -7,5 +7,5 @@ export type {
   MilkdownEditorCommandHandlers,
   MilkdownEditorMdxAiOptions,
   MilkdownEditorPrimitiveProps,
-  MilkdownEditorProps
+  MilkdownEditorProps,
 } from "./types";

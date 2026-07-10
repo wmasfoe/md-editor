@@ -27,7 +27,7 @@ const MAX_RECENT_FILES = 10;
 
 export function createRecentFilesStore(
   storage: Storage = typeof window !== "undefined" ? window.localStorage : createMemoryStorage(),
-  backend: RecentFilesBackend | null = null
+  backend: RecentFilesBackend | null = null,
 ): RecentFilesStore {
   const STORAGE_KEY = "md-editor-recent-files";
 
@@ -62,7 +62,7 @@ export function createRecentFilesStore(
 
       const newFile: RecentFile = {
         ...file,
-        lastOpenedAt: Date.now()
+        lastOpenedAt: Date.now(),
       };
 
       if (existingIndex >= 0) {
@@ -98,7 +98,7 @@ export function createRecentFilesStore(
         return {
           ...current,
           path: nextPath,
-          name: current.path === previousPath ? file.name : basename(nextPath)
+          name: current.path === previousPath ? file.name : basename(nextPath),
         };
       });
 
@@ -132,7 +132,7 @@ export function createRecentFilesStore(
 
     clear() {
       return save([]);
-    }
+    },
   };
 }
 
@@ -167,6 +167,6 @@ function createMemoryStorage(): Storage {
     },
     key(index: number): string | null {
       return Array.from(store.keys())[index] ?? null;
-    }
+    },
   };
 }

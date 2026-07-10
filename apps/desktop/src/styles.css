@@ -49,8 +49,7 @@
     "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC",
     "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --theme-mono-font:
-    "Lucida Console", Consolas, "Courier", "JetBrains Mono", "Source Code Pro",
-    Monaco, monospace;
+    "Lucida Console", Consolas, "Courier", "JetBrains Mono", "Source Code Pro", Monaco, monospace;
 
   color: var(--theme-text);
   background: var(--theme-bg);

@@ -1,11 +1,5 @@
 export type MarkdownBlockType =
-  | "heading"
-  | "paragraph"
-  | "list"
-  | "blockquote"
-  | "image"
-  | "codeFence"
-  | "thematicBreak";
+  "heading" | "paragraph" | "list" | "blockquote" | "image" | "codeFence" | "thematicBreak";
 
 export interface MarkdownBlock {
   readonly type: MarkdownBlockType;

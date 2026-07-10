@@ -5,17 +5,17 @@ import { describe, expect, it } from "vitest";
 const sourceRoot = new URL("../", import.meta.url);
 const editorHostPackageRoot = new URL("../../../editor-host", import.meta.url);
 const desktopPackageJson = JSON.parse(
-  readFileSync(new URL("../../../../apps/desktop/package.json", import.meta.url), "utf8")
+  readFileSync(new URL("../../../../apps/desktop/package.json", import.meta.url), "utf8"),
 ) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 };
 const desktopViteConfigSource = readFileSync(
   new URL("../../../../apps/desktop/vite.config.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -23,14 +23,17 @@ const packageJson = JSON.parse(
 };
 const hooksIndexSource = readFileSync(new URL("../hooks/index.ts", import.meta.url), "utf8");
 const rootIndexSource = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
-const editorUiProviderSource = readFileSync(new URL("../hooks/useEditorUi.tsx", import.meta.url), "utf8");
+const editorUiProviderSource = readFileSync(
+  new URL("../hooks/useEditorUi.tsx", import.meta.url),
+  "utf8",
+);
 const mdxAiControllerSource = readFileSync(
   new URL("../hooks/useMdxAiController.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const outlineControllerSource = readFileSync(
   new URL("../hooks/useOutlineController.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 
 describe("editor-ui hooks and package boundary", () => {
@@ -55,8 +58,12 @@ describe("editor-ui hooks and package boundary", () => {
     expect(editorUiProviderSource).toContain("export function useEditorUiState");
     expect(editorUiProviderSource).toContain("export function useEditorUiActions");
     expect(editorUiProviderSource).toContain("export function useEditorUi");
-    expect(editorUiProviderSource).toContain("createContext<EditorUiStateContextValue | null>(null)");
-    expect(editorUiProviderSource).toContain("createContext<EditorUiActionsContextValue | null>(null)");
+    expect(editorUiProviderSource).toContain(
+      "createContext<EditorUiStateContextValue | null>(null)",
+    );
+    expect(editorUiProviderSource).toContain(
+      "createContext<EditorUiActionsContextValue | null>(null)",
+    );
     expect(editorUiProviderSource).not.toContain("zustand");
     expect(editorUiProviderSource).not.toContain("create<");
   });
@@ -99,7 +106,7 @@ describe("editor-ui hooks and package boundary", () => {
     const dependencyNames = new Set([
       ...Object.keys(packageJson.dependencies ?? {}),
       ...Object.keys(packageJson.devDependencies ?? {}),
-      ...Object.keys(packageJson.peerDependencies ?? {})
+      ...Object.keys(packageJson.peerDependencies ?? {}),
     ]);
 
     expect(dependencyNames.has("@tauri-apps/api")).toBe(false);
@@ -112,7 +119,9 @@ describe("editor-ui hooks and package boundary", () => {
     expect(outlineControllerSource).toContain("const outlineRef = useRef(outline)");
     expect(outlineControllerSource).toContain("outlineRef.current = outline");
     expect(outlineControllerSource).toContain("outlineRef.current.find");
-    expect(outlineControllerSource).toContain("findActiveHeadingIdForLine(outlineRef.current, line)");
+    expect(outlineControllerSource).toContain(
+      "findActiveHeadingIdForLine(outlineRef.current, line)",
+    );
     expect(outlineControllerSource).not.toContain("}, [outline]);");
     expect(outlineControllerSource).not.toContain("[outline]\n  );");
     expect(outlineControllerSource).not.toContain("useOutlineStore");
@@ -121,7 +130,9 @@ describe("editor-ui hooks and package boundary", () => {
 });
 
 function sourceFiles(root: URL): string[] {
-  return listFiles(root.pathname).filter((file) => extname(file) === ".ts" || extname(file) === ".tsx");
+  return listFiles(root.pathname).filter(
+    (file) => extname(file) === ".ts" || extname(file) === ".tsx",
+  );
 }
 
 function listFiles(directory: string): string[] {

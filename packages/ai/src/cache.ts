@@ -12,10 +12,5 @@ export interface AiCacheEntry<TValue = unknown> {
 }
 
 export function createAiCacheKey(input: AiCacheKeyInput): string {
-  return JSON.stringify([
-    input.namespace,
-    input.provider ?? null,
-    input.model ?? null,
-    input.seed
-  ]);
+  return JSON.stringify([input.namespace, input.provider ?? null, input.model ?? null, input.seed]);
 }

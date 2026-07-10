@@ -5,7 +5,7 @@ export const MENU_ACTION_EVENT = "md-editor-menu-action";
 
 function listenToDesktopEvent<T>(
   eventName: string,
-  handler: (payload: T) => void
+  handler: (payload: T) => void,
 ): (() => void) | undefined {
   let unlisten: (() => void) | undefined;
   let disposed = false;
@@ -33,6 +33,8 @@ function listenToDesktopEvent<T>(
   };
 }
 
-export function listenToDesktopMenuActions(handler: (action: string) => void): (() => void) | undefined {
+export function listenToDesktopMenuActions(
+  handler: (action: string) => void,
+): (() => void) | undefined {
   return listenToDesktopEvent(MENU_ACTION_EVENT, handler);
 }

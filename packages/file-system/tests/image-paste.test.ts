@@ -6,7 +6,7 @@ import {
   imageAltTextFromFileName,
   joinPath,
   nextAssetFileName,
-  planImagePasteTarget
+  planImagePasteTarget,
 } from "../src";
 
 describe("path helpers", () => {
@@ -24,27 +24,28 @@ describe("image paste target planning", () => {
   it("returns a save-first result for unsaved documents", () => {
     const result = planImagePasteTarget({
       documentPath: null,
-      mimeType: "image/png"
+      mimeType: "image/png",
     });
 
     expect(result).toMatchObject({
       ok: false,
-      error: "SAVE_FIRST"
+      error: "SAVE_FIRST",
     });
   });
 
   it("plans sibling assets path and Markdown relative path", () => {
     const result = planImagePasteTarget({
       documentPath: "/Users/me/docs/post.md",
-      mimeType: "image/png"
+      mimeType: "image/png",
     });
 
     expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.assetsDirectory).toBe("/Users/me/docs/assets");
-      expect(result.value.absolutePath).toContain("/Users/me/docs/assets/");
-      expect(result.value.markdownPath).toMatch(/^assets\/.+\.png$/);
+    if (!result.ok) {
+      throw new Error(`Expected a valid image paste target, received ${result.error}.`);
     }
+    expect(result.value.assetsDirectory).toBe("/Users/me/docs/assets");
+    expect(result.value.absolutePath).toContain("/Users/me/docs/assets/");
+    expect(result.value.markdownPath).toMatch(/^assets\/.+\.png$/);
   });
 
   it("avoids immediate filename collisions", () => {
@@ -56,15 +57,17 @@ describe("image paste target planning", () => {
 
   it("uses a sanitized preferred image name when provided", () => {
     expect(nextAssetFileName(".PNG", [], "Architecture Diagram 01.png")).toBe(
-      "architecture-diagram-01.png"
+      "architecture-diagram-01.png",
     );
-    expect(nextAssetFileName("png", ["architecture-diagram-01.png"], "Architecture Diagram 01.png")).toBe(
-      "architecture-diagram-01-2.png"
-    );
+    expect(
+      nextAssetFileName("png", ["architecture-diagram-01.png"], "Architecture Diagram 01.png"),
+    ).toBe("architecture-diagram-01-2.png");
   });
 
   it("derives the default assets directory from the document path", () => {
-    expect(defaultAssetsDirectoryForDocument("/Users/me/docs/post.md")).toBe("/Users/me/docs/assets");
+    expect(defaultAssetsDirectoryForDocument("/Users/me/docs/post.md")).toBe(
+      "/Users/me/docs/assets",
+    );
   });
 });
 
@@ -75,7 +78,7 @@ describe("image Markdown insertion", () => {
 
   it("separates pasted image Markdown from existing text", () => {
     expect(appendImageMarkdown("# Post", "assets/image.png", "diagram")).toBe(
-      "# Post\n\n![diagram](assets/image.png)\n"
+      "# Post\n\n![diagram](assets/image.png)\n",
     );
   });
 

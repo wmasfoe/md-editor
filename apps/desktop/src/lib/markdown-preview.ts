@@ -1,12 +1,10 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import {
-  createMarkdownImageSrcResolver
-} from "@md-editor/markdown-fidelity";
+import { createMarkdownImageSrcResolver } from "@md-editor/markdown-fidelity";
 
 export function resolvePreviewImageSrc(filePath: string | null, src: string): string {
   return createMarkdownImageSrcResolver(filePath, {
     convertFileSrc,
-    hasTauriRuntime: isTauri()
+    hasTauriRuntime: isTauri(),
   })(src);
 }
 

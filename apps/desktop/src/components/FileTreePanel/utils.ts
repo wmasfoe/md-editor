@@ -9,7 +9,7 @@ export function normalizeSearchQuery(query: string): string {
 
 export function collectSearchResults(
   root: MarkdownFileTreeNode,
-  normalizedQuery: string
+  normalizedQuery: string,
 ): readonly SearchResultNode[] {
   const results: SearchResultNode[] = [];
 

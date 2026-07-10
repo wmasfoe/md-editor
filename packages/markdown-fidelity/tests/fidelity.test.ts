@@ -9,16 +9,16 @@ import {
   rewriteMarkdownImageSourcesForPreview,
   rewriteRawBlocksForPreview,
   serializeRoundTrip,
-  splitFrontmatter
+  splitFrontmatter,
 } from "../src";
 
 describe("frontmatter preservation", () => {
   it("keeps raw frontmatter text separate from body", () => {
-    const markdown = "---\n# comment\ntitle: \"Post\"\ndate: 2026-06-12\n---\n# Body\n";
+    const markdown = '---\n# comment\ntitle: "Post"\ndate: 2026-06-12\n---\n# Body\n';
 
     expect(splitFrontmatter(markdown)).toEqual({
-      raw: "---\n# comment\ntitle: \"Post\"\ndate: 2026-06-12\n---",
-      body: "# Body\n"
+      raw: '---\n# comment\ntitle: "Post"\ndate: 2026-06-12\n---',
+      body: "# Body\n",
     });
   });
 
@@ -29,9 +29,9 @@ describe("frontmatter preservation", () => {
 
 describe("round-trip normalization", () => {
   it("only adds a final trailing newline in the placeholder serializer", () => {
-    expect(serializeRoundTrip("<Callout type=\"info\" />")).toEqual({
-      markdown: "<Callout type=\"info\" />\n",
-      changed: true
+    expect(serializeRoundTrip('<Callout type="info" />')).toEqual({
+      markdown: '<Callout type="info" />\n',
+      changed: true,
     });
   });
 
@@ -40,7 +40,7 @@ describe("round-trip normalization", () => {
 
     expect(serializeRoundTrip(markdown)).toEqual({
       markdown,
-      changed: false
+      changed: false,
     });
   });
 });
@@ -50,7 +50,7 @@ describe("outline extraction", () => {
     expect(extractHeadingOutline("# A\n## B\n### B\n")).toEqual([
       { id: "a", level: 1, text: "A", line: 1 },
       { id: "b", level: 2, text: "B", line: 2 },
-      { id: "b-2", level: 3, text: "B", line: 3 }
+      { id: "b-2", level: 3, text: "B", line: 3 },
     ]);
   });
 
@@ -65,7 +65,7 @@ describe("outline extraction", () => {
 
   it("keeps heading positions stable in a large document", () => {
     const markdown = Array.from({ length: 10_000 }, (_, index) =>
-      index % 1_000 === 0 ? `## Section ${index}` : `paragraph ${index}`
+      index % 1_000 === 0 ? `## Section ${index}` : `paragraph ${index}`,
     ).join("\n");
 
     const outline = extractHeadingOutline(markdown);
@@ -76,7 +76,7 @@ describe("outline extraction", () => {
 
 describe("MDX raw block detection", () => {
   it("detects unknown MDX component blocks without executing them", () => {
-    expect(isLikelyMdxBlock("<CustomThing foo=\"bar\" />")).toBe(true);
+    expect(isLikelyMdxBlock('<CustomThing foo="bar" />')).toBe(true);
     expect(isLikelyMdxBlock("<div>html</div>")).toBe(false);
   });
 
@@ -86,16 +86,18 @@ describe("MDX raw block detection", () => {
       "title: Draft",
       "---",
       "",
-      "<Callout type=\"info\">Read this.</Callout>",
+      '<Callout type="info">Read this.</Callout>',
       "",
-      "<CustomThing value=\"x\" />",
-      ""
+      '<CustomThing value="x" />',
+      "",
     ].join("\n");
     const preview = rewriteRawBlocksForPreview(input);
 
     expect(preview.markdown).toContain("```yaml md-editor-frontmatter\ntitle: Draft\n```");
-    expect(preview.markdown).toContain("```mdx md-editor-callout\n<Callout type=\"info\">Read this.</Callout>\n```");
-    expect(preview.markdown).toContain("```mdx md-editor-mdx\n<CustomThing value=\"x\" />\n```");
+    expect(preview.markdown).toContain(
+      '```mdx md-editor-callout\n<Callout type="info">Read this.</Callout>\n```',
+    );
+    expect(preview.markdown).toContain('```mdx md-editor-mdx\n<CustomThing value="x" />\n```');
     expect(restoreRawBlocksFromPreview(preview.markdown, preview.sourceMap)).toBe(input);
   });
 
@@ -115,8 +117,8 @@ describe("MDX raw block detection", () => {
       "}",
       "```",
       "",
-      "<CustomThing value=\"x\" />",
-      ""
+      '<CustomThing value="x" />',
+      "",
     ].join("\n");
     const preview = rewriteRawBlocksForPreview(input);
 
@@ -124,24 +126,24 @@ describe("MDX raw block detection", () => {
       [
         "```vue",
         '<AdvCheckboxSelector v-model="formData.advIds" :bc-id="currentBcId" />',
-        "```"
-      ].join("\n")
+        "```",
+      ].join("\n"),
     );
     expect(preview.markdown).toContain("```typescript\nexport function useUserManagement()");
     expect(preview.markdown).not.toContain("```mdx md-editor-mdx\n<AdvCheckboxSelector");
-    expect(preview.markdown).toContain("```mdx md-editor-mdx\n<CustomThing value=\"x\" />\n```");
+    expect(preview.markdown).toContain('```mdx md-editor-mdx\n<CustomThing value="x" />\n```');
     expect(restoreRawBlocksFromPreview(preview.markdown, preview.sourceMap)).toBe(input);
   });
 
   it("restores edited managed raw blocks to author-facing Markdown", () => {
-    const input = "---\ntitle: Draft\n---\n\n<Callout type=\"info\">Read this.</Callout>\n";
+    const input = '---\ntitle: Draft\n---\n\n<Callout type="info">Read this.</Callout>\n';
     const preview = rewriteRawBlocksForPreview(input);
     const editedPreview = preview.markdown
       .replace("title: Draft", "title: Final")
       .replace("Read this.", "Updated.");
 
     expect(restoreRawBlocksFromPreview(editedPreview, preview.sourceMap)).toBe(
-      "---\ntitle: Final\n---\n\n<Callout type=\"info\">Updated.</Callout>\n"
+      '---\ntitle: Final\n---\n\n<Callout type="info">Updated.</Callout>\n',
     );
   });
 
@@ -158,18 +160,18 @@ describe("local Markdown image preview sources", () => {
   it("resolves relative image paths through the desktop asset protocol", () => {
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
       hasTauriRuntime: true,
-      convertFileSrc: (path) => `asset://${path}`
+      convertFileSrc: (path) => `asset://${path}`,
     });
 
     expect(resolveImageSrc("assets/pasted%20image.png")).toBe(
-      "asset:///Users/me/docs/assets/pasted image.png"
+      "asset:///Users/me/docs/assets/pasted image.png",
     );
   });
 
   it("leaves remote, embedded, and non-desktop image sources unchanged", () => {
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
       hasTauriRuntime: true,
-      convertFileSrc: (path) => `asset://${path}`
+      convertFileSrc: (path) => `asset://${path}`,
     });
 
     expect(resolveImageSrc("https://example.com/a.png")).toBe("https://example.com/a.png");
@@ -177,8 +179,8 @@ describe("local Markdown image preview sources", () => {
     expect(
       createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
         hasTauriRuntime: false,
-        convertFileSrc: (path) => `asset://${path}`
-      })("assets/a.png")
+        convertFileSrc: (path) => `asset://${path}`,
+      })("assets/a.png"),
     ).toBe("assets/a.png");
   });
 
@@ -188,8 +190,8 @@ describe("local Markdown image preview sources", () => {
       input,
       createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
         hasTauriRuntime: true,
-        convertFileSrc: (path) => `asset://${path}`
-      })
+        convertFileSrc: (path) => `asset://${path}`,
+      }),
     );
 
     expect(preview.markdown).toContain("![shot](asset:///Users/me/docs/assets/a.png)");

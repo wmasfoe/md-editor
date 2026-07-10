@@ -12,6 +12,9 @@ export const DesktopEditorActionsContext = createContext<DesktopEditorActions | 
 
 export function useDesktopEditorActions(): DesktopEditorActions {
   const ctx = use(DesktopEditorActionsContext);
-  if (!ctx) throw new Error("useDesktopEditorActions must be used inside DesktopEditorActionsContext.Provider");
+  if (!ctx)
+    throw new Error(
+      "useDesktopEditorActions must be used inside DesktopEditorActionsContext.Provider",
+    );
   return ctx;
 }

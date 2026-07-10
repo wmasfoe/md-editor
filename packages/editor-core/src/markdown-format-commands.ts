@@ -26,98 +26,98 @@ export function createMarkdownFormatFeature(): FeatureDescriptor {
       context.commands.register({
         id: "format.bold",
         title: "Bold",
-        async run(ctx) {
+        async run() {
           // 实际实现需要调用 Milkdown 的 toggleStrong 命令
           console.log("format.bold command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.italic",
         title: "Italic",
-        async run(ctx) {
+        async run() {
           console.log("format.italic command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.code",
         title: "Inline Code",
-        async run(ctx) {
+        async run() {
           console.log("format.code command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.strikethrough",
         title: "Strikethrough",
-        async run(ctx) {
+        async run() {
           console.log("format.strikethrough command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.link",
         title: "Insert Link",
-        async run(ctx) {
+        async run() {
           console.log("format.link command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.codeBlock",
         title: "Insert Code Block",
-        async run(ctx) {
+        async run() {
           console.log("format.codeBlock command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.blockquote",
         title: "Insert Blockquote",
-        async run(ctx) {
+        async run() {
           console.log("format.blockquote command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.bulletList",
         title: "Insert Bullet List",
-        async run(ctx) {
+        async run() {
           console.log("format.bulletList command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.orderedList",
         title: "Insert Ordered List",
-        async run(ctx) {
+        async run() {
           console.log("format.orderedList command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.heading1",
         title: "Heading 1",
-        async run(ctx) {
+        async run() {
           console.log("format.heading1 command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.heading2",
         title: "Heading 2",
-        async run(ctx) {
+        async run() {
           console.log("format.heading2 command triggered");
-        }
+        },
       });
 
       context.commands.register({
         id: "format.heading3",
         title: "Heading 3",
-        async run(ctx) {
+        async run() {
           console.log("format.heading3 command triggered");
-        }
+        },
       });
 
       // 注意：快捷键已由 Milkdown 内置处理，无需重复注册
@@ -131,6 +131,6 @@ export function createMarkdownFormatFeature(): FeatureDescriptor {
       // - Cmd+Shift+7: 有序列表
       // - Cmd+Shift+.: 引用块
       // - Cmd+Alt+1/2/3/4/5/6: 标题
-    }
+    },
   };
 }

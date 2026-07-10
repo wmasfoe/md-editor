@@ -43,28 +43,28 @@ export const wysiwygSearchPlugin = $prose(
             transaction.doc,
             request?.query ?? previous.query,
             request?.caseSensitive ?? previous.caseSensitive,
-            request?.activeIndex ?? previous.activeIndex
+            request?.activeIndex ?? previous.activeIndex,
           );
-        }
+        },
       },
       props: {
-        decorations: (state) => searchPluginKey.getState(state)?.decorations ?? DecorationSet.empty
-      }
-    })
+        decorations: (state) => searchPluginKey.getState(state)?.decorations ?? DecorationSet.empty,
+      },
+    }),
 );
 
 export function updateWysiwygSearch(
   view: EditorView,
   query: string,
   caseSensitive: boolean,
-  requestedIndex: number
+  requestedIndex: number,
 ): SearchResult {
   const matches = findDocumentMatches(view.state.doc, query, caseSensitive);
   const activeIndex = normalizeMatchIndex(requestedIndex, matches.length);
   let transaction = view.state.tr.setMeta(searchPluginKey, {
     query,
     caseSensitive,
-    activeIndex
+    activeIndex,
   } satisfies SearchRequest);
 
   const activeMatch = matches[activeIndex];
@@ -83,7 +83,7 @@ export function updateWysiwygSearch(
 
 export function revealActiveWysiwygSearchMatch(
   root: ParentNode,
-  schedule: FrameScheduler = (callback) => window.requestAnimationFrame(callback)
+  schedule: FrameScheduler = (callback) => window.requestAnimationFrame(callback),
 ): void {
   // Decorations are written to the DOM during the view update. Waiting for the
   // next frame makes the active marker stable before asking the inner Milkdown
@@ -98,7 +98,7 @@ export function revealActiveWysiwygSearchMatch(
 export function findTextOccurrences(
   text: string,
   query: string,
-  caseSensitive = false
+  caseSensitive = false,
 ): readonly { readonly from: number; readonly to: number }[] {
   if (!query) {
     return [];
@@ -125,7 +125,7 @@ function createSearchState(
   doc: ProseMirrorNode,
   query: string,
   caseSensitive: boolean,
-  requestedIndex: number
+  requestedIndex: number,
 ): SearchPluginState {
   const matches = findDocumentMatches(doc, query, caseSensitive);
   const activeIndex = normalizeMatchIndex(requestedIndex, matches.length);
@@ -133,9 +133,12 @@ function createSearchState(
     doc,
     matches.map((match, index) =>
       Decoration.inline(match.from, match.to, {
-        class: index === activeIndex ? "wysiwyg-search-match wysiwyg-search-match--active" : "wysiwyg-search-match"
-      })
-    )
+        class:
+          index === activeIndex
+            ? "wysiwyg-search-match wysiwyg-search-match--active"
+            : "wysiwyg-search-match",
+      }),
+    ),
   );
 
   return { query, caseSensitive, activeIndex, decorations };
@@ -144,7 +147,7 @@ function createSearchState(
 export function findDocumentMatches(
   doc: ProseMirrorNode,
   query: string,
-  caseSensitive: boolean
+  caseSensitive: boolean,
 ): readonly SearchMatch[] {
   const matches: SearchMatch[] = [];
   doc.descendants((node, position) => {

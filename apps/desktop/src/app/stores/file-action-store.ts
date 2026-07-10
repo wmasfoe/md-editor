@@ -2,7 +2,7 @@ import { create } from "zustand";
 import {
   formatActionError,
   shouldShowFileActionOverlay,
-  type RunFileAction
+  type RunFileAction,
 } from "@md-editor/editor-ui";
 import { useToastStore } from "./toast-store";
 

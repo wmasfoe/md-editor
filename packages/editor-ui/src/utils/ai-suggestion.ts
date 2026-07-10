@@ -2,7 +2,7 @@ import { $prose, markdownToSlice } from "@milkdown/kit/utils";
 import type {
   AiCompletionContext,
   AiWritingEditSuggestion,
-  AiWritingSuggestion
+  AiWritingSuggestion,
 } from "@md-editor/ai";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { Node as ProseMirrorNode, Slice } from "@milkdown/kit/prose/model";
@@ -11,7 +11,7 @@ import {
   PluginKey,
   Selection,
   type EditorState,
-  type Transaction
+  type Transaction,
 } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 
@@ -126,7 +126,7 @@ export const aiSuggestionPlugin = $prose(
               meta.position,
               meta.selectionFrom,
               meta.selectionTo,
-              meta.suggestion
+              meta.suggestion,
             );
           }
           if (!previous) {
@@ -134,15 +134,16 @@ export const aiSuggestionPlugin = $prose(
           }
           if (
             transaction.docChanged ||
-            (transaction.selectionSet && !isSelectionAtSuggestionAnchor(transaction.selection, previous))
+            (transaction.selectionSet &&
+              !isSelectionAtSuggestionAnchor(transaction.selection, previous))
           ) {
             return null;
           }
           return {
             ...previous,
-            decorations: previous.decorations.map(transaction.mapping, transaction.doc)
+            decorations: previous.decorations.map(transaction.mapping, transaction.doc),
           };
-        }
+        },
       },
       props: {
         decorations(state) {
@@ -167,20 +168,30 @@ export const aiSuggestionPlugin = $prose(
             return true;
           }
 
-          if ((event.metaKey || event.ctrlKey) && event.key === "ArrowRight" && state.continuation) {
+          if (
+            (event.metaKey || event.ctrlKey) &&
+            event.key === "ArrowRight" &&
+            state.continuation
+          ) {
             event.preventDefault();
-            acceptAiSuggestion(view, { ...state, edit: undefined }, (markdown) => markdownToSlice(markdown)(ctx));
+            acceptAiSuggestion(view, { ...state, edit: undefined }, (markdown) =>
+              markdownToSlice(markdown)(ctx),
+            );
             requestAnimationFrame(() => view.focus());
             return true;
           }
 
           return false;
-        }
-      }
-    })
+        },
+      },
+    }),
 );
 
-export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWritingSuggestion): void {
+export function showAiSuggestion(
+  view: EditorView,
+  id: number,
+  suggestion: AiWritingSuggestion,
+): void {
   const normalizedSuggestion = normalizeSuggestion(view, suggestion);
   if (!normalizedSuggestion.continuation && !normalizedSuggestion.edit) {
     clearAiSuggestion(view);
@@ -199,15 +210,15 @@ export function showAiSuggestion(view: EditorView, id: number, suggestion: AiWri
         position: selection.to,
         selectionFrom: selection.from,
         selectionTo: selection.to,
-        suggestion: normalizedSuggestion
-      } satisfies AiSuggestionMeta)
+        suggestion: normalizedSuggestion,
+      } satisfies AiSuggestionMeta),
   );
 }
 
 function acceptAiSuggestion(
   view: EditorView,
   state: AiSuggestionState,
-  parseMarkdownSlice: MarkdownSliceParser
+  parseMarkdownSlice: MarkdownSliceParser,
 ): void {
   // Tab 是用户确认 suggestion 的统一入口；如果同一轮同时有纠错和续写，
   // 先接受更局部的纠错，避免一次按键写入两类不同语义的模型输出。
@@ -217,7 +228,7 @@ function acceptAiSuggestion(
         view.state,
         state.position,
         state.continuation ?? "",
-        parseMarkdownSlice
+        parseMarkdownSlice,
       );
 
   if (!transaction) {
@@ -228,7 +239,7 @@ function acceptAiSuggestion(
   view.dispatch(
     transaction
       .setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta)
-      .scrollIntoView()
+      .scrollIntoView(),
   );
 }
 
@@ -237,7 +248,9 @@ export function clearAiSuggestion(view: EditorView): void {
     return;
   }
 
-  view.dispatch(view.state.tr.setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta));
+  view.dispatch(
+    view.state.tr.setMeta(aiSuggestionPluginKey, { type: "clear" } satisfies AiSuggestionMeta),
+  );
 }
 
 export function getAiCompletionContext(view: EditorView, mode: EditorMode): AiCompletionContext {
@@ -245,22 +258,26 @@ export function getAiCompletionContext(view: EditorView, mode: EditorMode): AiCo
   const doc = view.state.doc;
   return {
     before: doc.textBetween(0, selection.from, "\n\n", "\n").slice(-BEFORE_CONTEXT_CHARS),
-    after: doc.textBetween(selection.to, doc.content.size, "\n\n", "\n").slice(0, AFTER_CONTEXT_CHARS),
-    selectedText: selection.empty ? "" : doc.textBetween(selection.from, selection.to, "\n\n", "\n"),
-    mode
+    after: doc
+      .textBetween(selection.to, doc.content.size, "\n\n", "\n")
+      .slice(0, AFTER_CONTEXT_CHARS),
+    selectedText: selection.empty
+      ? ""
+      : doc.textBetween(selection.from, selection.to, "\n\n", "\n"),
+    mode,
   };
 }
 
 export function createAiEditAcceptTransaction(
   editorState: EditorState,
-  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number },
 ): Transaction {
   return editorState.tr.insertText(edit.replacement, edit.from, edit.to);
 }
 
 function createAiEditAcceptTransactionIfPreviewSupported(
   editorState: EditorState,
-  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number },
 ): Transaction | null {
   if (!createAiEditPreviewModel(editorState.doc, edit)) {
     return null;
@@ -272,12 +289,16 @@ export function createAiContinuationAcceptTransaction(
   editorState: EditorState,
   position: number,
   continuation: string,
-  parseMarkdownSlice: MarkdownSliceParser
+  parseMarkdownSlice: MarkdownSliceParser,
 ): Transaction {
   const safePosition = Math.max(0, Math.min(position, editorState.doc.content.size));
   const markdownContinuation = normalizeContinuationMarkdown(continuation);
   const fallbackText = normalizeSuggestionText(markdownContinuation);
-  const insertionPosition = getContinuationInsertionPosition(editorState, safePosition, markdownContinuation);
+  const insertionPosition = getContinuationInsertionPosition(
+    editorState,
+    safePosition,
+    markdownContinuation,
+  );
 
   // AI 续写可能包含列表、标题等 Markdown 块语法。先交给 Milkdown 解析，
   // 避免纯文本插入后把 `1.` 或 `-` 序列化成被转义的普通字符。
@@ -285,7 +306,7 @@ export function createAiContinuationAcceptTransaction(
     const slice = parseMarkdownSlice(markdownContinuation);
     if (slice.content.size > 0) {
       return setSelectionAfterInsertedContent(
-        editorState.tr.replace(insertionPosition, insertionPosition, slice)
+        editorState.tr.replace(insertionPosition, insertionPosition, slice),
       );
     }
   } catch {
@@ -299,7 +320,7 @@ function setSelectionAfterInsertedContent(transaction: Transaction): Transaction
   const changedRange = transaction.changedRange();
   const cursorPosition = Math.min(
     changedRange?.to ?? transaction.selection.to,
-    transaction.doc.content.size
+    transaction.doc.content.size,
   );
   return transaction.setSelection(Selection.near(transaction.doc.resolve(cursorPosition), 1));
 }
@@ -307,7 +328,7 @@ function setSelectionAfterInsertedContent(transaction: Transaction): Transaction
 function getContinuationInsertionPosition(
   editorState: EditorState,
   position: number,
-  continuation: string
+  continuation: string,
 ): number {
   if (!hasLeadingLineBreak(continuation)) {
     return position;
@@ -336,12 +357,14 @@ function createAiSuggestionState(
   position: number,
   selectionFrom: number,
   selectionTo: number,
-  suggestion: AiWritingSuggestion
+  suggestion: AiWritingSuggestion,
 ): AiSuggestionState {
   const safePosition = Math.max(0, Math.min(position, doc.content.size));
   const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
   const displayContinuation = normalizeSuggestionText(continuation);
-  const edit = suggestion.edit ? createSupportedAnchoredEditSuggestion(doc, safePosition, suggestion.edit) : undefined;
+  const edit = suggestion.edit
+    ? createSupportedAnchoredEditSuggestion(doc, safePosition, suggestion.edit)
+    : undefined;
 
   return createDecoratedAiSuggestionState({
     doc,
@@ -350,7 +373,7 @@ function createAiSuggestionState(
     selectionFrom,
     selectionTo,
     continuation: displayContinuation ? continuation : undefined,
-    edit
+    edit,
   });
 }
 
@@ -361,7 +384,7 @@ function createDecoratedAiSuggestionState({
   selectionFrom,
   selectionTo,
   continuation,
-  edit
+  edit,
 }: {
   readonly doc: ProseMirrorNode;
   readonly id: number;
@@ -388,9 +411,9 @@ function createDecoratedAiSuggestionState({
         {
           side: 1,
           ignoreSelection: true,
-          key: `md-ai-continuation-${id}`
-        }
-      )
+          key: `md-ai-continuation-${id}`,
+        },
+      ),
     );
   }
 
@@ -401,14 +424,14 @@ function createDecoratedAiSuggestionState({
     selectionTo,
     ...(continuation ? { continuation } : {}),
     ...(edit ? { edit } : {}),
-    decorations: DecorationSet.create(doc, decorations)
+    decorations: DecorationSet.create(doc, decorations),
   };
 }
 
 function createAiEditPreviewDecorations(
   doc: ProseMirrorNode,
   id: number,
-  edit: AnchoredEditSuggestion
+  edit: AnchoredEditSuggestion,
 ): Decoration[] {
   const model = createAiEditPreviewModel(doc, edit);
   if (!model) {
@@ -418,8 +441,8 @@ function createAiEditPreviewDecorations(
   if (model.kind === "delete-only") {
     return model.changes.map((change) =>
       Decoration.inline(edit.from + change.originalFrom, edit.from + change.originalTo, {
-        class: "md-ai-edit-original"
-      })
+        class: "md-ai-edit-original",
+      }),
     );
   }
 
@@ -431,26 +454,22 @@ function createAiEditPreviewDecorations(
         {
           side: change.originalFrom === 0 ? -1 : 1,
           ignoreSelection: true,
-          key: `md-ai-edit-preview-insert-${id}-${index}`
-        }
-      )
+          key: `md-ai-edit-preview-insert-${id}-${index}`,
+        },
+      ),
     );
   }
 
   return [
     Decoration.inline(edit.from, edit.to, {
-      class: "md-ai-edit-original"
+      class: "md-ai-edit-original",
     }),
-    Decoration.widget(
-      edit.from,
-      (view) => createAiEditPreviewAnchor(view, edit),
-      {
-        side: -1,
-        ignoreSelection: true,
-        key: `md-ai-edit-preview-${id}`,
-        destroy: (node) => disposeAiEditPreviewAnchor(node as HTMLElement)
-      }
-    )
+    Decoration.widget(edit.from, (view) => createAiEditPreviewAnchor(view, edit), {
+      side: -1,
+      ignoreSelection: true,
+      key: `md-ai-edit-preview-${id}`,
+      destroy: (node) => disposeAiEditPreviewAnchor(node as HTMLElement),
+    }),
   ];
 }
 
@@ -493,7 +512,7 @@ function createAiEditPreviewMirror(model: AiEditPreviewModel): HTMLElement {
   mirror.append(
     createAiEditPreviewTextNode("md-ai-edit-preview-placeholder", model.before),
     createAiEditPreviewTextNode("md-ai-edit-preview-replacement", model.replacement),
-    createAiEditPreviewTextNode("md-ai-edit-preview-placeholder", model.after)
+    createAiEditPreviewTextNode("md-ai-edit-preview-placeholder", model.after),
   );
   return mirror;
 }
@@ -510,7 +529,7 @@ function bindAiEditPreviewMirrorPositioning(
   view: EditorView,
   anchor: HTMLElement,
   mirror: HTMLElement,
-  model: AiEditPreviewModel
+  model: AiEditPreviewModel,
 ): () => void {
   const ownerWindow = view.dom.ownerDocument.defaultView;
   const requestFrame =
@@ -589,7 +608,7 @@ function bindAiEditPreviewMirrorPositioning(
 function positionAiEditPreviewMirror(
   anchor: HTMLElement,
   mirror: HTMLElement,
-  textblock: Element | null
+  textblock: Element | null,
 ): boolean {
   if (!textblock) {
     return false;
@@ -600,7 +619,7 @@ function positionAiEditPreviewMirror(
   const placement = calculateAiEditPreviewMirrorPlacement(
     anchorRect,
     textblockRect,
-    getComputedStyle(textblock)
+    getComputedStyle(textblock),
   );
   if (!placement) {
     return false;
@@ -620,9 +639,12 @@ function positionAiEditPreviewMirror(
 export function calculateAiEditPreviewMirrorPlacement(
   anchorRect: Pick<AiEditPreviewGeometry, "left" | "top">,
   textblockRect: AiEditPreviewGeometry,
-  textblockStyle: AiEditPreviewTextStyle
+  textblockStyle: AiEditPreviewTextStyle,
 ): AiEditPreviewMirrorPlacement | null {
-  if (!isAiEditPreviewAnchorPointReady(anchorRect) || !isAiEditPreviewGeometryReady(textblockRect)) {
+  if (
+    !isAiEditPreviewAnchorPointReady(anchorRect) ||
+    !isAiEditPreviewGeometryReady(textblockRect)
+  ) {
     return null;
   }
 
@@ -643,12 +665,12 @@ export function calculateAiEditPreviewMirrorPlacement(
     lineHeight: textblockStyle.lineHeight,
     letterSpacing: textblockStyle.letterSpacing,
     textAlign: textblockStyle.textAlign,
-    tabSize: textblockStyle.tabSize
+    tabSize: textblockStyle.tabSize,
   };
 }
 
 function getAiEditPreviewLineOffset(
-  textblockStyle: Pick<AiEditPreviewTextStyle, "fontSize" | "lineHeight">
+  textblockStyle: Pick<AiEditPreviewTextStyle, "fontSize" | "lineHeight">,
 ): number {
   const lineHeight = Number.parseFloat(textblockStyle.lineHeight);
   if (Number.isFinite(lineHeight) && lineHeight > 0) {
@@ -663,7 +685,7 @@ function getAiEditPreviewLineOffset(
 
 function findAiEditPreviewTextblockDom(
   view: EditorView,
-  model: AiEditPreviewModel
+  model: AiEditPreviewModel,
 ): Element | null {
   const nodeDom = view.nodeDOM(Math.max(0, model.textblockFrom - 1));
   if (isElementNode(nodeDom)) {
@@ -682,27 +704,27 @@ function isElementNode(node: Node | null): node is Element {
   return node?.nodeType === 1;
 }
 
-function isAiEditPreviewAnchorPointReady(rect: Pick<AiEditPreviewGeometry, "left" | "top">): boolean {
+function isAiEditPreviewAnchorPointReady(
+  rect: Pick<AiEditPreviewGeometry, "left" | "top">,
+): boolean {
   return Number.isFinite(rect.left) && Number.isFinite(rect.top);
 }
 
-export function isAiEditPreviewGeometryReady(
-  rect: AiEditPreviewGeometry | null
-): boolean {
+export function isAiEditPreviewGeometryReady(rect: AiEditPreviewGeometry | null): boolean {
   return Boolean(
     rect &&
-      Number.isFinite(rect.left) &&
-      Number.isFinite(rect.top) &&
-      Number.isFinite(rect.width) &&
-      Number.isFinite(rect.height) &&
-      rect.width > 0 &&
-      rect.height > 0
+    Number.isFinite(rect.left) &&
+    Number.isFinite(rect.top) &&
+    Number.isFinite(rect.width) &&
+    Number.isFinite(rect.height) &&
+    rect.width > 0 &&
+    rect.height > 0,
   );
 }
 
 export function createAiEditPreviewModel(
   doc: ProseMirrorNode,
-  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number }
+  edit: AiWritingEditSuggestion & { readonly from: number; readonly to: number },
 ): AiEditPreviewModel | null {
   if (edit.from < 0 || edit.to <= edit.from || edit.to > doc.content.size) {
     return null;
@@ -744,7 +766,7 @@ export function createAiEditPreviewModel(
     original,
     replacement,
     after: text.slice(toOffset),
-    changes
+    changes,
   };
 }
 
@@ -760,18 +782,19 @@ function getAiEditPreviewKind(changes: readonly AiEditPreviewChange[]): AiEditPr
 
 function createAiEditPreviewChanges(
   original: string,
-  replacement: string
+  replacement: string,
 ): readonly AiEditPreviewChange[] {
   return (
     createDeleteOnlyAiEditPreviewChanges(original, replacement) ??
-    createInsertOnlyAiEditPreviewChanges(original, replacement) ??
-    [createMixedAiEditPreviewChange(original, replacement)]
+    createInsertOnlyAiEditPreviewChanges(original, replacement) ?? [
+      createMixedAiEditPreviewChange(original, replacement),
+    ]
   );
 }
 
 function createDeleteOnlyAiEditPreviewChanges(
   original: string,
-  replacement: string
+  replacement: string,
 ): readonly AiEditPreviewChange[] | null {
   const changes: AiEditPreviewChange[] = [];
   let replacementOffset = 0;
@@ -794,7 +817,7 @@ function createDeleteOnlyAiEditPreviewChanges(
           replacementFrom: replacementOffset,
           replacementTo: replacementOffset,
           deletedText: current.deletedText,
-          insertedText: ""
+          insertedText: "",
         });
         current = null;
       }
@@ -806,13 +829,13 @@ function createDeleteOnlyAiEditPreviewChanges(
       current = {
         originalFrom: current.originalFrom,
         originalTo: originalOffset + 1,
-        deletedText: `${current.deletedText}${originalCharacter}`
+        deletedText: `${current.deletedText}${originalCharacter}`,
       };
     } else {
       current = {
         originalFrom: originalOffset,
         originalTo: originalOffset + 1,
-        deletedText: originalCharacter
+        deletedText: originalCharacter,
       };
     }
   }
@@ -824,7 +847,7 @@ function createDeleteOnlyAiEditPreviewChanges(
       replacementFrom: replacementOffset,
       replacementTo: replacementOffset,
       deletedText: current.deletedText,
-      insertedText: ""
+      insertedText: "",
     });
   }
 
@@ -833,7 +856,7 @@ function createDeleteOnlyAiEditPreviewChanges(
 
 function createInsertOnlyAiEditPreviewChanges(
   original: string,
-  replacement: string
+  replacement: string,
 ): readonly AiEditPreviewChange[] | null {
   const changes: AiEditPreviewChange[] = [];
   let originalOffset = 0;
@@ -857,7 +880,7 @@ function createInsertOnlyAiEditPreviewChanges(
           replacementFrom: current.replacementFrom,
           replacementTo: current.replacementTo,
           deletedText: "",
-          insertedText: current.insertedText
+          insertedText: current.insertedText,
         });
         current = null;
       }
@@ -870,14 +893,14 @@ function createInsertOnlyAiEditPreviewChanges(
         originalFrom: current.originalFrom,
         replacementFrom: current.replacementFrom,
         replacementTo: replacementOffset + 1,
-        insertedText: `${current.insertedText}${replacementCharacter}`
+        insertedText: `${current.insertedText}${replacementCharacter}`,
       };
     } else {
       current = {
         originalFrom: originalOffset,
         replacementFrom: replacementOffset,
         replacementTo: replacementOffset + 1,
-        insertedText: replacementCharacter
+        insertedText: replacementCharacter,
       };
     }
   }
@@ -889,20 +912,20 @@ function createInsertOnlyAiEditPreviewChanges(
       replacementFrom: current.replacementFrom,
       replacementTo: current.replacementTo,
       deletedText: "",
-      insertedText: current.insertedText
+      insertedText: current.insertedText,
     });
   }
 
   return originalOffset === original.length && changes.length > 0 ? changes : null;
 }
 
-function createMixedAiEditPreviewChange(original: string, replacement: string): AiEditPreviewChange {
+function createMixedAiEditPreviewChange(
+  original: string,
+  replacement: string,
+): AiEditPreviewChange {
   let prefixLength = 0;
   const maxPrefixLength = Math.min(original.length, replacement.length);
-  while (
-    prefixLength < maxPrefixLength &&
-    original[prefixLength] === replacement[prefixLength]
-  ) {
+  while (prefixLength < maxPrefixLength && original[prefixLength] === replacement[prefixLength]) {
     prefixLength += 1;
   }
 
@@ -910,7 +933,8 @@ function createMixedAiEditPreviewChange(original: string, replacement: string): 
   const maxSuffixLength = maxPrefixLength - prefixLength;
   while (
     suffixLength < maxSuffixLength &&
-    original[original.length - suffixLength - 1] === replacement[replacement.length - suffixLength - 1]
+    original[original.length - suffixLength - 1] ===
+      replacement[replacement.length - suffixLength - 1]
   ) {
     suffixLength += 1;
   }
@@ -921,7 +945,7 @@ function createMixedAiEditPreviewChange(original: string, replacement: string): 
     replacementFrom: prefixLength,
     replacementTo: replacement.length - suffixLength,
     deletedText: original.slice(prefixLength, original.length - suffixLength),
-    insertedText: replacement.slice(prefixLength, replacement.length - suffixLength)
+    insertedText: replacement.slice(prefixLength, replacement.length - suffixLength),
   };
 }
 
@@ -951,22 +975,29 @@ function normalizeContinuationMarkdown(text: string): string {
   return text.replace(/^[\t ]+/u, "").replace(/\s+$/u, "");
 }
 
-function normalizeSuggestion(view: EditorView, suggestion: AiWritingSuggestion): AiWritingSuggestion {
+function normalizeSuggestion(
+  view: EditorView,
+  suggestion: AiWritingSuggestion,
+): AiWritingSuggestion {
   const continuation = normalizeContinuationMarkdown(suggestion.continuation ?? "");
   const displayContinuation = normalizeSuggestionText(continuation);
   const edit = suggestion.edit
-    ? createSupportedAnchoredEditSuggestion(view.state.doc, view.state.selection.to, suggestion.edit)
+    ? createSupportedAnchoredEditSuggestion(
+        view.state.doc,
+        view.state.selection.to,
+        suggestion.edit,
+      )
     : undefined;
   return {
     ...(displayContinuation ? { continuation } : {}),
-    ...(edit ? { edit } : {})
+    ...(edit ? { edit } : {}),
   };
 }
 
 function createSupportedAnchoredEditSuggestion(
   doc: ProseMirrorNode,
   position: number,
-  edit: AiWritingEditSuggestion
+  edit: AiWritingEditSuggestion,
 ): AnchoredEditSuggestion | undefined {
   const anchoredEdit = anchorEditSuggestion(doc, position, edit);
   if (!anchoredEdit || !createAiEditPreviewModel(doc, anchoredEdit)) {
@@ -978,7 +1009,7 @@ function createSupportedAnchoredEditSuggestion(
 function anchorEditSuggestion(
   doc: ProseMirrorNode,
   position: number,
-  edit: AiWritingEditSuggestion
+  edit: AiWritingEditSuggestion,
 ): AnchoredEditSuggestion | undefined {
   const original = normalizeSuggestionText(edit.original);
   const replacement = normalizeSuggestionText(edit.replacement);
@@ -996,14 +1027,14 @@ function anchorEditSuggestion(
     original,
     replacement,
     from: range.from,
-    to: range.to
+    to: range.to,
   };
 }
 
 function findTextRangeNearPosition(
   doc: ProseMirrorNode,
   original: string,
-  position: number
+  position: number,
 ): { readonly from: number; readonly to: number } | null {
   type BestMatch = { readonly from: number; readonly to: number; readonly distance: number };
   const matches: BestMatch[] = [];
@@ -1030,7 +1061,7 @@ function findTextRangeNearPosition(
 
   const result = matches.reduce<BestMatch | null>(
     (best, match) => (!best || match.distance < best.distance ? match : best),
-    null
+    null,
   );
   return result ? { from: result.from, to: result.to } : null;
 }

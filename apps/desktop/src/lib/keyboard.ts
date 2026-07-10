@@ -2,7 +2,9 @@ function isPrimaryShortcut(event: KeyboardEvent) {
   return event.metaKey || event.ctrlKey;
 }
 
-export function isComposingKeyboardEvent(event: Pick<KeyboardEvent, "isComposing" | "keyCode">): boolean {
+export function isComposingKeyboardEvent(
+  event: Pick<KeyboardEvent, "isComposing" | "keyCode">,
+): boolean {
   return event.isComposing || event.keyCode === 229;
 }
 

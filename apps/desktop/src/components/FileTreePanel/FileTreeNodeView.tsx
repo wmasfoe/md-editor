@@ -30,7 +30,7 @@ export function FileTreeNodeView({
   onOpenAsset,
   onOpenContextMenu,
   onCommitEdit,
-  onCancelEdit
+  onCancelEdit,
 }: FileTreeNodeViewProps) {
   const paddingLeft = 16 + depth * 14;
 
@@ -55,7 +55,8 @@ export function FileTreeNodeView({
         type="button"
         className={cx(
           "flex min-h-7 w-full items-center gap-1.5 border-0 bg-transparent py-0 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] transition-colors duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
-          node.path === activeFilePath && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
+          node.path === activeFilePath &&
+            "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]",
         )}
         style={{ paddingLeft }}
         title={node.path}
@@ -69,8 +70,7 @@ export function FileTreeNodeView({
   }
 
   const isCollapsed = collapsedPaths.has(node.path);
-  const isCreatingInside =
-    editing?.mode === "create" && editing.parentPath === node.path;
+  const isCreatingInside = editing?.mode === "create" && editing.parentPath === node.path;
 
   if (isRenaming) {
     return (

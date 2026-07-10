@@ -1,9 +1,5 @@
 import type { EditorMode } from "@md-editor/editor-core";
-import {
-  CodeBracketIcon,
-  Cog6ToothIcon,
-  PencilSquareIcon
-} from "@heroicons/react/24/outline";
+import { CodeBracketIcon, Cog6ToothIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 
 export interface DocumentBarProps {
   readonly hasActiveDocument: boolean;
@@ -16,7 +12,7 @@ export function DocumentBar({
   hasActiveDocument,
   mode,
   onChangeMode,
-  onOpenSettings
+  onOpenSettings,
 }: DocumentBarProps) {
   const controlsClassName = hasActiveDocument
     ? "flex w-full min-w-0 items-center justify-between gap-1.5"
@@ -50,7 +46,7 @@ export function DocumentBar({
 
 function ModeToggleButton({
   mode,
-  onClick
+  onClick,
 }: {
   readonly mode: EditorMode;
   readonly onClick: () => void;
@@ -67,7 +63,11 @@ function ModeToggleButton({
       title={label}
       onClick={onClick}
     >
-      {isSourceMode ? <CodeBracketIcon aria-hidden="true" /> : <PencilSquareIcon aria-hidden="true" />}
+      {isSourceMode ? (
+        <CodeBracketIcon aria-hidden="true" />
+      ) : (
+        <PencilSquareIcon aria-hidden="true" />
+      )}
     </button>
   );
 }

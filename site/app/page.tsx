@@ -1,31 +1,27 @@
 import Link from "next/link";
 import { InstallCommand } from "../components/install-command";
 import { getChangelogEntries } from "../lib/changelog";
-import {
-  buildMacosDmgUrl,
-  GITHUB_RELEASES_URL
-} from "../lib/site-links";
+import { buildMacosDmgUrl, GITHUB_RELEASES_URL } from "../lib/site-links";
 
 const installCommand =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
 
 // 手动安装 DMG 时移除隔离标记；安装脚本会默认处理，此命令给手动下载用户备用。
-const quarantineCommand =
-  "xattr -dr com.apple.quarantine /Applications/Markdown\\ Editor.app";
+const quarantineCommand = "xattr -dr com.apple.quarantine /Applications/Markdown\\ Editor.app";
 
 const features = [
   {
     title: "本地优先",
-    description: "文件就在你的磁盘上。无需账号，也不依赖云同步。"
+    description: "文件就在你的磁盘上。无需账号，也不依赖云同步。",
   },
   {
     title: "Markdown / MDX",
-    description: "日常写作与组件化内容同一套编辑体验。"
+    description: "日常写作与组件化内容同一套编辑体验。",
   },
   {
     title: "桌面工作流",
-    description: "文件树、最近文件、图片粘贴与原生菜单开箱即用。"
-  }
+    description: "文件树、最近文件、图片粘贴与原生菜单开箱即用。",
+  },
 ] as const;
 
 export default function HomePage() {
@@ -76,28 +72,18 @@ export default function HomePage() {
                 Apple Silicon
               </span>
             ) : null}
-            <span
-              className="text-ink-soft transition-colors"
-            >
-              Windows 版本敬请期待
-            </span>
+            <span className="text-ink-soft transition-colors">Windows 版本敬请期待</span>
           </p>
         </div>
 
         <div className="mx-auto mt-14 flex max-w-2xl flex-col gap-4">
           <InstallCommand command={installCommand} recommended />
-          <InstallCommand
-            title="若提示「已损坏」· 移除隔离标记"
-            command={quarantineCommand}
-          />
+          <InstallCommand title="若提示「已损坏」· 移除隔离标记" command={quarantineCommand} />
         </div>
       </section>
 
       {/* 能力要点：三列等宽，弱化装饰。 */}
-      <section
-        aria-label="主要能力"
-        className="border-y border-line/80 bg-surface/60"
-      >
+      <section aria-label="主要能力" className="border-y border-line/80 bg-surface/60">
         <div className="mx-auto grid max-w-5xl gap-px bg-line/80 sm:grid-cols-3">
           {features.map((feature) => (
             <div key={feature.title} className="bg-canvas px-6 py-10 sm:px-8 sm:py-12">

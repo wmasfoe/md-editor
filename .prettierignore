@@ -1,0 +1,16 @@
+node_modules/
+.codex/
+.claude/
+dist/
+build/
+.next/
+target/
+**/src-tauri/target/
+**/src-tauri/gen/
+coverage/
+.vercel/
+.pnpm-store/
+pnpm-lock.yaml
+*.min.js
+*.snap
+**/*.md

@@ -20,7 +20,9 @@ export function updateChangelogContents(contents, { version, notes, date, mode }
   }
 
   if (targetExists) {
-    throw new Error(`CHANGELOG.md already contains section for ${version}; use --resume only for partial release retries.`);
+    throw new Error(
+      `CHANGELOG.md already contains section for ${version}; use --resume only for partial release retries.`,
+    );
   }
 
   const nextSection = formatChangelogSection({ version, notes, date });
@@ -41,7 +43,14 @@ export function updateChangelogContents(contents, { version, notes, date, mode }
   return `${title}\n\n${nextSection}\n\n${tail}\n`;
 }
 
-export function updateChangelogFile({ path, version, notes, date = today(), mode = "normal", dryRun = false }) {
+export function updateChangelogFile({
+  path,
+  version,
+  notes,
+  date = today(),
+  mode = "normal",
+  dryRun = false,
+}) {
   const current = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
   const next = updateChangelogContents(current, { version, notes, date, mode });
 
@@ -52,7 +61,7 @@ export function updateChangelogFile({ path, version, notes, date = today(), mode
   return {
     changed: next !== current,
     path,
-    version
+    version,
   };
 }
 
@@ -70,7 +79,9 @@ function formatNotes(notes) {
   const effectiveLines = lines.length > 0 ? lines : ["暂无发布说明。"];
 
   // 允许用户输入普通文本或项目符号，最终统一写成 Markdown bullet。
-  return effectiveLines.map((line) => (line.match(/^[-*]\s+/u) ? line.replace(/^[-*]\s+/u, "- ") : `- ${line}`));
+  return effectiveLines.map((line) =>
+    line.match(/^[-*]\s+/u) ? line.replace(/^[-*]\s+/u, "- ") : `- ${line}`,
+  );
 }
 
 function versionSectionPattern(version) {

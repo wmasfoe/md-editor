@@ -25,7 +25,7 @@ export function splitLinkHref(href: string): LinkHrefParts {
 
   return {
     path: trimmed.slice(0, hashIndex),
-    fragment: decodeLinkFragment(trimmed.slice(hashIndex + 1))
+    fragment: decodeLinkFragment(trimmed.slice(hashIndex + 1)),
   };
 }
 
@@ -36,9 +36,10 @@ export function basename(path: string): string {
 
 export function normalizeLocalHrefPath(path: string): string {
   const withoutQuery = path.split("?")[0] ?? path;
-  const unwrapped = withoutQuery.startsWith("<") && withoutQuery.endsWith(">")
-    ? withoutQuery.slice(1, -1)
-    : withoutQuery;
+  const unwrapped =
+    withoutQuery.startsWith("<") && withoutQuery.endsWith(">")
+      ? withoutQuery.slice(1, -1)
+      : withoutQuery;
 
   try {
     return decodeURI(unwrapped);

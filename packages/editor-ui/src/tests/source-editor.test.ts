@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 
 const sourceEditorSource = readFileSync(
   new URL("../components/SourceEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const sourceEditorStyles = readFileSync(
   new URL("../components/SourceEditor.css", import.meta.url),
-  "utf8"
+  "utf8",
 );
 
 describe("source editor UI contract", () => {
@@ -19,10 +19,10 @@ describe("source editor UI contract", () => {
 
   it("keeps source search in the editor top panel", () => {
     const replaceInputRule = sourceEditorStyles.match(
-      /\.source-editor \.cm-panel\.cm-search input\[name="replace"\] \{(?<body>[^}]+)\}/u
+      /\.source-editor \.cm-panel\.cm-search input\[name="replace"\] \{(?<body>[^}]+)\}/u,
     );
     const replaceButtonsRule = sourceEditorStyles.match(
-      /\.source-editor \.cm-panel\.cm-search button\[name="replace"\],[\s\S]+?button\[name="replaceAll"\] \{(?<body>[^}]+)\}/u
+      /\.source-editor \.cm-panel\.cm-search button\[name="replace"\],[\s\S]+?button\[name="replaceAll"\] \{(?<body>[^}]+)\}/u,
     );
 
     expect(sourceEditorSource).toContain("search({ top: true })");
@@ -35,7 +35,7 @@ describe("source editor UI contract", () => {
   it("keeps source line numbers out of text selection", () => {
     const gutterRule = sourceEditorStyles.match(/\.source-editor \.cm-gutters \{(?<body>[^}]+)\}/u);
     const gutterElementRule = sourceEditorStyles.match(
-      /\.source-editor \.cm-gutterElement \{(?<body>[^}]+)\}/u
+      /\.source-editor \.cm-gutterElement \{(?<body>[^}]+)\}/u,
     );
 
     expect(gutterRule?.groups?.body).toContain("user-select: none;");
@@ -51,7 +51,7 @@ describe("source editor UI contract", () => {
     expect(sourceEditorSource).toContain("tags.monospace");
     expect(sourceEditorSource).toContain("tags.strong");
     expect(sourceEditorSource).toContain("tags.emphasis");
-    expect(sourceEditorSource).not.toContain("display: \"none\"");
-    expect(sourceEditorSource).not.toContain("visibility: \"hidden\"");
+    expect(sourceEditorSource).not.toContain('display: "none"');
+    expect(sourceEditorSource).not.toContain('visibility: "hidden"');
   });
 });

@@ -8,25 +8,25 @@ import {
   createAiEditAcceptTransaction,
   createAiEditPreviewModel,
   isAiEditPreviewGeometryReady,
-  showAiSuggestion
+  showAiSuggestion,
 } from "../utils/ai-suggestion";
 
 describe("AI suggestion acceptance", () => {
   it("shows a continuation without moving the real editor selection", () => {
     const schema = createMarkdownLikeSchema();
     const doc = schema.nodes.doc.create(null, [
-      schema.nodes.paragraph.create(null, schema.text("Intro"))
+      schema.nodes.paragraph.create(null, schema.text("Intro")),
     ]);
     const state = EditorState.create({
       doc,
-      selection: TextSelection.create(doc, 6)
+      selection: TextSelection.create(doc, 6),
     });
     const dispatched: { current: Transaction | null } = { current: null };
     const view = {
       state,
       dispatch(transaction: Transaction) {
         dispatched.current = transaction;
-      }
+      },
     } as unknown as EditorView;
 
     showAiSuggestion(view, 1, { continuation: " AI suggestion" });
@@ -40,27 +40,39 @@ describe("AI suggestion acceptance", () => {
     const schema = createMarkdownLikeSchema();
     const state = EditorState.create({
       doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text("Intro"))
-      ])
+        schema.nodes.paragraph.create(null, schema.text("Intro")),
+      ]),
     });
     const parsedContinuation = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, schema.text("明确审核流程包括以下几个步骤：")),
       schema.nodes.ordered_list.create({ order: 1 }, [
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("提交审核请求"))),
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("自动审核")))
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("提交审核请求")),
+        ),
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("自动审核")),
+        ),
       ]),
       schema.nodes.paragraph.create(null, schema.text("关键点包括：")),
       schema.nodes.bullet_list.create(null, [
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("审核效率"))),
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("审核准确性")))
-      ])
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("审核效率")),
+        ),
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("审核准确性")),
+        ),
+      ]),
     ]);
 
     const transaction = createAiContinuationAcceptTransaction(
       state,
       state.doc.content.size,
       "明确审核流程包括以下几个步骤：\n\n1. 提交审核请求\n2. 自动审核\n\n关键点包括：\n\n- 审核效率\n- 审核准确性",
-      () => new Slice(parsedContinuation.content, 0, 0)
+      () => new Slice(parsedContinuation.content, 0, 0),
     );
     const nextState = state.apply(transaction);
 
@@ -79,20 +91,18 @@ describe("AI suggestion acceptance", () => {
     const original = "笑死我了";
     const from = 1 + text.indexOf(original);
     const state = EditorState.create({
-      doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text(text))
-      ])
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, schema.text(text))]),
     });
 
     const transaction = createAiEditAcceptTransaction(state, {
       original,
       replacement: "笑死我了，\nsss，哈哈哈",
       from,
-      to: from + original.length
+      to: from + original.length,
     });
 
     expect(state.apply(transaction).doc.textContent).toBe(
-      "时代少年团深受粉丝的喜爱。笑死我了，\nsss，哈哈哈"
+      "时代少年团深受粉丝的喜爱。笑死我了，\nsss，哈哈哈",
     );
   });
 
@@ -103,24 +113,24 @@ describe("AI suggestion acceptance", () => {
     const replacement = "fixed text that can wrap";
     const from = 1 + text.indexOf(original);
     const state = EditorState.create({
-      doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text(text))
-      ])
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, schema.text(text))]),
     });
 
-    expect(createAiEditPreviewModel(state.doc, {
-      original,
-      replacement,
-      from,
-      to: from + original.length
-    })).toMatchObject({
+    expect(
+      createAiEditPreviewModel(state.doc, {
+        original,
+        replacement,
+        from,
+        to: from + original.length,
+      }),
+    ).toMatchObject({
       kind: "mixed",
       textblockFrom: 1,
       textblockTo: 1 + text.length,
       before: "hello ",
       original,
       replacement,
-      after: " text after"
+      after: " text after",
     });
   });
 
@@ -131,17 +141,17 @@ describe("AI suggestion acceptance", () => {
     const replacement = "broken";
     const from = 1 + text.indexOf(original);
     const state = EditorState.create({
-      doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text(text))
-      ])
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, schema.text(text))]),
     });
 
-    expect(createAiEditPreviewModel(state.doc, {
-      original,
-      replacement,
-      from,
-      to: from + original.length
-    })).toMatchObject({
+    expect(
+      createAiEditPreviewModel(state.doc, {
+        original,
+        replacement,
+        from,
+        to: from + original.length,
+      }),
+    ).toMatchObject({
       kind: "delete-only",
       changes: [
         {
@@ -150,9 +160,9 @@ describe("AI suggestion acceptance", () => {
           replacementFrom: 0,
           replacementTo: 0,
           deletedText: "very ",
-          insertedText: ""
-        }
-      ]
+          insertedText: "",
+        },
+      ],
     });
   });
 
@@ -163,17 +173,17 @@ describe("AI suggestion acceptance", () => {
     const replacement = "broken fixed text";
     const from = 1 + text.indexOf(original);
     const state = EditorState.create({
-      doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text(text))
-      ])
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, schema.text(text))]),
     });
 
-    expect(createAiEditPreviewModel(state.doc, {
-      original,
-      replacement,
-      from,
-      to: from + original.length
-    })).toMatchObject({
+    expect(
+      createAiEditPreviewModel(state.doc, {
+        original,
+        replacement,
+        from,
+        to: from + original.length,
+      }),
+    ).toMatchObject({
       kind: "insert-only",
       changes: [
         {
@@ -182,9 +192,9 @@ describe("AI suggestion acceptance", () => {
           replacementFrom: "broken ".length,
           replacementTo: "broken fixed ".length,
           deletedText: "",
-          insertedText: "fixed "
-        }
-      ]
+          insertedText: "fixed ",
+        },
+      ],
     });
   });
 
@@ -195,17 +205,17 @@ describe("AI suggestion acceptance", () => {
     const replacement = "fixed";
     const from = 1 + text.indexOf(original);
     const state = EditorState.create({
-      doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text(text))
-      ])
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, schema.text(text))]),
     });
 
-    expect(createAiEditPreviewModel(state.doc, {
-      original,
-      replacement,
-      from,
-      to: from + original.length
-    })).toMatchObject({
+    expect(
+      createAiEditPreviewModel(state.doc, {
+        original,
+        replacement,
+        from,
+        to: from + original.length,
+      }),
+    ).toMatchObject({
       kind: "mixed",
       changes: [
         {
@@ -214,62 +224,68 @@ describe("AI suggestion acceptance", () => {
           replacementFrom: 0,
           replacementTo: replacement.length,
           deletedText: original,
-          insertedText: replacement
-        }
-      ]
+          insertedText: replacement,
+        },
+      ],
     });
   });
 
   it("fails closed for rich inline edit preview targets", () => {
     const schema = createMarkdownLikeSchema();
-    const markedText = schema.text("broken", [schema.marks.link.create({ href: "https://example.com" })]);
+    const markedText = schema.text("broken", [
+      schema.marks.link.create({ href: "https://example.com" }),
+    ]);
     const state = EditorState.create({
       doc: schema.nodes.doc.create(null, [
         schema.nodes.paragraph.create(null, [
           schema.text("hello "),
           markedText,
-          schema.text(" text after")
-        ])
-      ])
+          schema.text(" text after"),
+        ]),
+      ]),
     });
     const from = 1 + "hello ".length;
 
-    expect(createAiEditPreviewModel(state.doc, {
-      original: "broken",
-      replacement: "fixed",
-      from,
-      to: from + "broken".length
-    })).toBeNull();
+    expect(
+      createAiEditPreviewModel(state.doc, {
+        original: "broken",
+        replacement: "fixed",
+        from,
+        to: from + "broken".length,
+      }),
+    ).toBeNull();
   });
 
   it("does not leave an unsupported rich inline edit suggestion active", () => {
     const schema = createMarkdownLikeSchema();
     const text = "hello broken text after";
-    const markedText = schema.text("broken", [schema.marks.link.create({ href: "https://example.com" })]);
+    const markedText = schema.text("broken", [
+      schema.marks.link.create({ href: "https://example.com" }),
+    ]);
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, [
         schema.text("hello "),
         markedText,
-        schema.text(" text after")
-      ])
+        schema.text(" text after"),
+      ]),
     ]);
     const state = EditorState.create({
       doc,
-      selection: TextSelection.create(doc, 1 + text.length)
+      selection: TextSelection.create(doc, 1 + text.length),
     });
     const dispatched: { current: Transaction | null } = { current: null };
     const view = {
       state,
       dispatch(transaction: Transaction) {
         dispatched.current = transaction;
-      }
+      },
     } as unknown as EditorView;
 
     showAiSuggestion(view, 1, {
       edit: {
         original: "broken",
-        replacement: "fixed"
-      }
+        replacement: "fixed",
+      },
     });
 
     expect(dispatched.current).toBeNull();
@@ -282,21 +298,23 @@ describe("AI suggestion acceptance", () => {
   });
 
   it("positions the mirror from a zero-size anchor and textblock content box", () => {
-    expect(calculateAiEditPreviewMirrorPlacement(
-      { left: 80, top: 40 },
-      { left: 100, top: 60, width: 320, height: 48 },
-      {
-        paddingLeft: "12px",
-        paddingRight: "20px",
-        paddingTop: "4px",
-        fontSize: "16px",
-        font: "16px sans-serif",
-        lineHeight: "24px",
-        letterSpacing: "0px",
-        textAlign: "start",
-        tabSize: "4"
-      }
-    )).toEqual({
+    expect(
+      calculateAiEditPreviewMirrorPlacement(
+        { left: 80, top: 40 },
+        { left: 100, top: 60, width: 320, height: 48 },
+        {
+          paddingLeft: "12px",
+          paddingRight: "20px",
+          paddingTop: "4px",
+          fontSize: "16px",
+          font: "16px sans-serif",
+          lineHeight: "24px",
+          letterSpacing: "0px",
+          textAlign: "start",
+          tabSize: "4",
+        },
+      ),
+    ).toEqual({
       left: "32px",
       top: "6px",
       width: "288px",
@@ -304,55 +322,65 @@ describe("AI suggestion acceptance", () => {
       lineHeight: "24px",
       letterSpacing: "0px",
       textAlign: "start",
-      tabSize: "4"
+      tabSize: "4",
     });
 
-    expect(calculateAiEditPreviewMirrorPlacement(
-      { left: 80, top: 40 },
-      { left: 100, top: 60, width: 0, height: 48 },
-      {
-        paddingLeft: "12px",
-        paddingRight: "20px",
-        paddingTop: "4px",
-        fontSize: "16px",
-        font: "16px sans-serif",
-        lineHeight: "24px",
-        letterSpacing: "0px",
-        textAlign: "start",
-        tabSize: "4"
-      }
-    )).toBeNull();
+    expect(
+      calculateAiEditPreviewMirrorPlacement(
+        { left: 80, top: 40 },
+        { left: 100, top: 60, width: 0, height: 48 },
+        {
+          paddingLeft: "12px",
+          paddingRight: "20px",
+          paddingTop: "4px",
+          fontSize: "16px",
+          font: "16px sans-serif",
+          lineHeight: "24px",
+          letterSpacing: "0px",
+          textAlign: "start",
+          tabSize: "4",
+        },
+      ),
+    ).toBeNull();
 
-    expect(calculateAiEditPreviewMirrorPlacement(
-      { left: 80, top: 40 },
-      { left: 100, top: 60, width: 320, height: 48 },
-      {
-        paddingLeft: "12px",
-        paddingRight: "20px",
-        paddingTop: "4px",
-        fontSize: "20px",
-        font: "700 20px sans-serif",
-        lineHeight: "normal",
-        letterSpacing: "0px",
-        textAlign: "start",
-        tabSize: "4"
-      }
-    )?.top).toBe("6px");
+    expect(
+      calculateAiEditPreviewMirrorPlacement(
+        { left: 80, top: 40 },
+        { left: 100, top: 60, width: 320, height: 48 },
+        {
+          paddingLeft: "12px",
+          paddingRight: "20px",
+          paddingTop: "4px",
+          fontSize: "20px",
+          font: "700 20px sans-serif",
+          lineHeight: "normal",
+          letterSpacing: "0px",
+          textAlign: "start",
+          tabSize: "4",
+        },
+      )?.top,
+    ).toBe("6px");
   });
 
   it("keeps a leading Markdown block break so headings do not collapse into text", () => {
     const schema = createMarkdownLikeSchema();
     const state = EditorState.create({
       doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text("Intro"))
-      ])
+        schema.nodes.paragraph.create(null, schema.text("Intro")),
+      ]),
     });
     const parsedContinuation = schema.nodes.doc.create(null, [
       schema.nodes.heading.create({ level: 3 }, schema.text("需求分析")),
       schema.nodes.ordered_list.create({ order: 1 }, [
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("审核触发条件"))),
-        schema.nodes.list_item.create(null, schema.nodes.paragraph.create(null, schema.text("审核标准")))
-      ])
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("审核触发条件")),
+        ),
+        schema.nodes.list_item.create(
+          null,
+          schema.nodes.paragraph.create(null, schema.text("审核标准")),
+        ),
+      ]),
     ]);
 
     const transaction = createAiContinuationAcceptTransaction(
@@ -362,7 +390,7 @@ describe("AI suggestion acceptance", () => {
       (markdown) => {
         expect(markdown).toBe("\n\n### 需求分析\n\n1. 审核触发条件\n2. 审核标准");
         return new Slice(parsedContinuation.content, 0, 0);
-      }
+      },
     );
     const nextState = state.apply(transaction);
 
@@ -378,18 +406,13 @@ describe("AI suggestion acceptance", () => {
     const schema = createMarkdownLikeSchema();
     const state = EditorState.create({
       doc: schema.nodes.doc.create(null, [
-        schema.nodes.paragraph.create(null, schema.text("Intro"))
-      ])
+        schema.nodes.paragraph.create(null, schema.text("Intro")),
+      ]),
     });
 
-    const transaction = createAiContinuationAcceptTransaction(
-      state,
-      6,
-      "1. plain fallback",
-      () => {
-        throw new Error("parser unavailable");
-      }
-    );
+    const transaction = createAiContinuationAcceptTransaction(state, 6, "1. plain fallback", () => {
+      throw new Error("parser unavailable");
+    });
 
     expect(state.apply(transaction).doc.textContent).toBe("Intro1. plain fallback");
   });
@@ -403,24 +426,29 @@ function createMarkdownLikeSchema() {
       heading: {
         content: "inline*",
         group: "block",
-        attrs: { level: { default: 1 } }
+        attrs: { level: { default: 1 } },
       },
       ordered_list: {
         content: "list_item+",
         group: "block",
-        attrs: { order: { default: 1 } }
+        attrs: { order: { default: 1 } },
       },
       bullet_list: { content: "list_item+", group: "block" },
       list_item: { content: "paragraph block*" },
-      text: { group: "inline" }
+      text: { group: "inline" },
     },
     marks: {
       link: {
         attrs: { href: {} },
         inclusive: false,
         toDOM: (node) => ["a", { href: node.attrs.href }, 0],
-        parseDOM: [{ tag: "a[href]", getAttrs: (node) => ({ href: (node as Element).getAttribute("href") }) }]
-      }
-    }
+        parseDOM: [
+          {
+            tag: "a[href]",
+            getAttrs: (node) => ({ href: (node as Element).getAttribute("href") }),
+          },
+        ],
+      },
+    },
   });
 }

@@ -3,7 +3,7 @@ import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import {
   Plugin,
   PluginKey,
-  type Transaction as ProseMirrorTransaction
+  type Transaction as ProseMirrorTransaction,
 } from "@milkdown/kit/prose/state";
 import { Mapping } from "@milkdown/kit/prose/transform";
 
@@ -40,7 +40,7 @@ const SMART_TO_STRAIGHT: Readonly<Record<string, string>> = {
   [CURLY_DOUBLE_OPEN]: '"',
   [CURLY_DOUBLE_CLOSE]: '"',
   [CURLY_SINGLE_OPEN]: "'",
-  [CURLY_SINGLE_CLOSE]: "'"
+  [CURLY_SINGLE_CLOSE]: "'",
 };
 
 const straightQuotesPluginKey = new PluginKey("md-editor-straight-quotes");
@@ -86,7 +86,7 @@ export function isSmartQuoteCharacter(character: string): boolean {
 export function shouldNormalizeSmartQuoteChange(
   deletedText: string,
   insertedText: string,
-  options: SmartQuoteChangeOptions = {}
+  options: SmartQuoteChangeOptions = {},
 ): boolean {
   if (!insertedText || normalizeSmartQuotes(insertedText) === insertedText) {
     return false;
@@ -125,7 +125,7 @@ export function mergeTextRanges(ranges: readonly TextRange[]): TextRange[] {
     if (current.from <= last.to) {
       merged[merged.length - 1] = {
         from: last.from,
-        to: Math.max(last.to, current.to)
+        to: Math.max(last.to, current.to),
       };
       continue;
     }
@@ -140,7 +140,7 @@ export function mergeTextRanges(ranges: readonly TextRange[]): TextRange[] {
  */
 export function planSmartQuoteNormalizationsInRanges(
   doc: ProseMirrorNode,
-  ranges: readonly TextRange[]
+  ranges: readonly TextRange[],
 ): QuoteNormalizationPlan[] {
   const plans: QuoteNormalizationPlan[] = [];
 
@@ -170,11 +170,7 @@ export function planSmartQuoteNormalizationsInRanges(
 
         let end = index + 1;
         let insert = straight;
-        while (
-          end < text.length &&
-          pos + end < range.to &&
-          SMART_TO_STRAIGHT[text[end]!]
-        ) {
+        while (end < text.length && pos + end < range.to && SMART_TO_STRAIGHT[text[end]!]) {
           insert += SMART_TO_STRAIGHT[text[end]!]!;
           end += 1;
         }
@@ -195,7 +191,7 @@ export function planSmartQuoteNormalizationsInRanges(
  */
 export function planSmartQuoteNormalizationsFromTransactions(
   transactions: readonly ProseMirrorTransaction[],
-  options: SmartQuoteChangeOptions = {}
+  options: SmartQuoteChangeOptions = {},
 ): QuoteNormalizationPlan[] {
   const pending: QuoteNormalizationPlan[] = [];
 
@@ -210,7 +206,7 @@ export function planSmartQuoteNormalizationsFromTransactions(
       pending[index] = {
         from: transaction.mapping.map(plan.from, -1),
         to: transaction.mapping.map(plan.to, 1),
-        insert: plan.insert
+        insert: plan.insert,
       };
     }
 
@@ -226,7 +222,7 @@ export function planSmartQuoteNormalizationsFromTransactions(
           : transaction.doc;
       const stepMap = transaction.steps[stepIndex]!.getMap();
       const mapThroughRestOfTransaction = new Mapping(
-        transaction.mapping.maps.slice(stepIndex + 1)
+        transaction.mapping.maps.slice(stepIndex + 1),
       );
 
       stepMap.forEach((oldStart, oldEnd, newStart, newEnd) => {
@@ -243,14 +239,14 @@ export function planSmartQuoteNormalizationsFromTransactions(
         }
 
         const localPlans = planSmartQuoteNormalizationsInRanges(docAfter, [
-          { from: newStart, to: newEnd }
+          { from: newStart, to: newEnd },
         ]);
 
         for (const local of localPlans) {
           pending.push({
             from: mapThroughRestOfTransaction.map(local.from, -1),
             to: mapThroughRestOfTransaction.map(local.to, 1),
-            insert: local.insert
+            insert: local.insert,
           });
         }
       });
@@ -263,7 +259,7 @@ export function planSmartQuoteNormalizationsFromTransactions(
 }
 
 export function shouldSkipStraightQuoteNormalization(
-  transactions: readonly Pick<ProseMirrorTransaction, "getMeta">[]
+  transactions: readonly Pick<ProseMirrorTransaction, "getMeta">[],
 ): boolean {
   return transactions.some((transaction) => {
     if (transaction.getMeta(straightQuotesPluginKey)) {
@@ -279,7 +275,8 @@ export function shouldSkipStraightQuoteNormalization(
     }
 
     // 避免与 IME composition 的 DOM 更新互相抢改。
-    if (transaction.getMeta("composition") != null) {
+    const compositionMeta = transaction.getMeta("composition");
+    if (compositionMeta !== null && compositionMeta !== undefined) {
       return true;
     }
 
@@ -322,8 +319,8 @@ export const straightQuotesPlugin = $prose(() => {
             pendingReplacementNormalize = true;
           }
           return false;
-        }
-      }
+        },
+      },
     },
     appendTransaction(transactions, _oldState, newState) {
       if (shouldSkipStraightQuoteNormalization(transactions)) {
@@ -339,7 +336,7 @@ export const straightQuotesPlugin = $prose(() => {
       pendingReplacementNormalize = false;
 
       const plans = planSmartQuoteNormalizationsFromTransactions(transactions, {
-        allowPureSmartInsert
+        allowPureSmartInsert,
       });
       if (plans.length === 0) {
         return null;
@@ -363,9 +360,7 @@ export const straightQuotesPlugin = $prose(() => {
       }
 
       // 与用户按键合并为一次历史记录；智能引号还原本身不应再占一步 undo。
-      return transaction
-        .setMeta(straightQuotesPluginKey, true)
-        .setMeta("addToHistory", false);
-    }
+      return transaction.setMeta(straightQuotesPluginKey, true).setMeta("addToHistory", false);
+    },
   });
 });

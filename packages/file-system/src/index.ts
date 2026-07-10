@@ -69,7 +69,9 @@ export interface FileService {
   openFolder(): Promise<MarkdownFolder | null>;
   openDocumentAtPath(path: string): Promise<MarkdownDocumentFile>;
   saveDocument(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
-  saveDocumentAs(input: Omit<SaveMarkdownInput, "forceDialog">): Promise<MarkdownDocumentFile | null>;
+  saveDocumentAs(
+    input: Omit<SaveMarkdownInput, "forceDialog">,
+  ): Promise<MarkdownDocumentFile | null>;
   refreshFolder(rootPath: string): Promise<MarkdownFolder>;
   createTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult>;
   renameTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult>;
@@ -119,7 +121,7 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
       // 新建文档必须从干净状态开始，避免把上一份文档的 dirty 标记带进来。
       return {
         markdown: defaultMarkdown,
-        filePath: null
+        filePath: null,
       };
     },
     openDocument() {
@@ -148,7 +150,7 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
     },
     deleteTreeItem(input) {
       return adapter.deleteMarkdownTreeItem(input);
-    }
+    },
   };
 }
 
@@ -156,11 +158,11 @@ const imageExtensions: Readonly<Record<string, string>> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/webp": "webp",
-  "image/gif": "gif"
+  "image/gif": "gif",
 };
 
 export function planImagePasteTarget(
-  input: ImagePasteInput
+  input: ImagePasteInput,
 ): Result<ImagePasteTarget, ImagePasteError> {
   if (!input.documentPath) {
     // 未保存文档没有稳定的相对路径基准，所以 v0.1 会先要求 Save As，
@@ -175,20 +177,24 @@ export function planImagePasteTarget(
 
   const documentDirectory = dirname(input.documentPath);
   const assetsDirectory = joinPath(documentDirectory, "assets");
-  const fileName = nextAssetFileName(extension, input.existingAssetNames ?? [], input.preferredName);
+  const fileName = nextAssetFileName(
+    extension,
+    input.existingAssetNames ?? [],
+    input.preferredName,
+  );
 
   return ok({
     assetsDirectory,
     fileName,
     absolutePath: joinPath(assetsDirectory, fileName),
-    markdownPath: `assets/${fileName}`
+    markdownPath: `assets/${fileName}`,
   });
 }
 
 export function nextAssetFileName(
   extension: string,
   existingNames: readonly string[],
-  preferredName?: string
+  preferredName?: string,
 ): string {
   const names = new Set(existingNames);
   const normalizedExtension = extension.replace(/^\./u, "").toLowerCase();
@@ -220,12 +226,13 @@ export function appendImageMarkdown(markdown: string, markdownPath: string, altT
 }
 
 export function imageAltTextFromFileName(name?: string): string {
-  return name
-    ?.replace(/\.[^.]+$/u, "")
-    .trim()
-    .replace(/[_-]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    ?? "";
+  return (
+    name
+      ?.replace(/\.[^.]+$/u, "")
+      .trim()
+      .replace(/[_-]+/gu, " ")
+      .replace(/\s+/gu, " ") ?? ""
+  );
 }
 
 export function defaultAssetsDirectoryForDocument(documentPath: string): string {
@@ -239,10 +246,7 @@ export function dirname(path: string): string {
 }
 
 export function joinPath(...segments: readonly string[]): string {
-  return segments
-    .filter(Boolean)
-    .join("/")
-    .replace(/\/+/g, "/");
+  return segments.filter(Boolean).join("/").replace(/\/+/g, "/");
 }
 
 function timestampSlug(date: Date): string {

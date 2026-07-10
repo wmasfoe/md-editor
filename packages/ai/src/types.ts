@@ -1,11 +1,7 @@
 export type AiProviderType = "openai-compatible" | "deepseek" | "local";
 
 export type AiLocalModelStatus =
-  | "not-downloaded"
-  | "downloading"
-  | "verifying"
-  | "available"
-  | "failed";
+  "not-downloaded" | "downloading" | "verifying" | "available" | "failed";
 
 export type AiEditorMode = "source" | "wysiwyg";
 

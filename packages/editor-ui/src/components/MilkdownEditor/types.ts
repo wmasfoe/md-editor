@@ -1,13 +1,6 @@
 import type { ReactNode } from "react";
-import type {
-  AiCompletionContext,
-  AiSettings,
-  AiWritingSuggestion
-} from "@md-editor/ai";
-import type {
-  DocumentSnapshot,
-  EditorMode
-} from "@md-editor/editor-core";
+import type { AiCompletionContext, AiSettings, AiWritingSuggestion } from "@md-editor/ai";
+import type { DocumentSnapshot, EditorMode } from "@md-editor/editor-core";
 import type { EditorUiCommandSlots } from "../../hooks/useEditorUi";
 import type { MdxSnippetPlugin } from "../../hooks/useMdxAiController";
 import type { OutlineItem } from "../OutlinePanel";
@@ -30,11 +23,13 @@ export interface MilkdownEditorMdxAiOptions<TPlugin extends MdxSnippetPlugin = M
   readonly requestAiCompletion: (
     settings: AiSettings,
     context: AiCompletionContext,
-    request?: { readonly signal?: AbortSignal }
+    request?: { readonly signal?: AbortSignal },
   ) => Promise<AiWritingSuggestion>;
 }
 
-export interface MilkdownEditorProps<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin> extends Omit<
+export interface MilkdownEditorProps<
+  TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin,
+> extends Omit<
   MilkdownEditorPrimitiveProps,
   | "insertRequest"
   | "aiSuggestionRequest"
@@ -70,7 +65,7 @@ export interface MilkdownEditorPrimitiveProps {
   readonly onInsertRequestHandled?: (id: number) => void;
   readonly onAiSuggestionRequest?: (
     context: AiCompletionContext,
-    request: AiSuggestionRequest
+    request: AiSuggestionRequest,
   ) => Promise<AiWritingSuggestion>;
   readonly onAiSuggestionRequestHandled?: (id: number) => void;
   readonly onAiSuggestionError?: (message: string) => void;

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf8")
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as {
   exports?: Record<string, string>;
 };
@@ -10,21 +10,23 @@ const indexSource = readFileSync(new URL("../index.ts", import.meta.url), "utf8"
 const hooksIndexSource = readFileSync(new URL("../hooks/index.ts", import.meta.url), "utf8");
 const milkdownEditorSource = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const milkdownEditorPrimitiveSource = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const sourceEditorSource = readFileSync(
   new URL("../components/SourceEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 
 describe("editor-ui public editor entrypoints", () => {
   it("keeps root and editor subpath entrypoints usable", () => {
     expect(packageJson.exports?.["."]).toBe("./src/index.ts");
-    expect(packageJson.exports?.["./milkdown-editor"]).toBe("./src/components/MilkdownEditor/index.ts");
+    expect(packageJson.exports?.["./milkdown-editor"]).toBe(
+      "./src/components/MilkdownEditor/index.ts",
+    );
     expect(packageJson.exports?.["./source-editor"]).toBe("./src/components/SourceEditor.tsx");
 
     expect(indexSource).toContain("MilkdownEditorCommandHandlers");
@@ -57,7 +59,9 @@ describe("editor-ui public editor entrypoints", () => {
     expect(sourceEditorSource).toContain("useEditorUiActions()");
     expect(sourceEditorSource).toContain("export function SourceEditorPrimitive");
     expect(sourceEditorSource).toContain("onChange");
-    expect(sourceEditorSource).toContain('getModeScrollTargetForMode(editorUiState.modeScrollTarget, "source")');
+    expect(sourceEditorSource).toContain(
+      'getModeScrollTargetForMode(editorUiState.modeScrollTarget, "source")',
+    );
     expect(sourceEditorSource).not.toMatch(/from ["']apps\/desktop/u);
     expect(sourceEditorSource).not.toContain("@tauri-apps/api");
   });

@@ -4,7 +4,7 @@ import {
   isExternalSchemeLink,
   isHttpLink,
   normalizeLocalHrefPath,
-  splitLinkHref
+  splitLinkHref,
 } from "./link-target";
 
 describe("link target helpers", () => {
@@ -22,11 +22,11 @@ describe("link target helpers", () => {
   it("splits local paths from fragments", () => {
     expect(splitLinkHref("./guide.md#install")).toEqual({
       path: "./guide.md",
-      fragment: "install"
+      fragment: "install",
     });
     expect(splitLinkHref("#current-section")).toEqual({
       path: "",
-      fragment: "current-section"
+      fragment: "current-section",
     });
   });
 

@@ -5,19 +5,14 @@ import { describe, expect, it } from "vitest";
 const sourceRoot = new URL("../src", import.meta.url);
 const packageJsonUrl = new URL("../package.json", import.meta.url);
 
-const forbiddenSourceImports = [
-  "@tauri-apps/api",
-  "@milkdown/",
-  "prosemirror-",
-  "apps/desktop"
-];
+const forbiddenSourceImports = ["@tauri-apps/api", "@milkdown/", "prosemirror-", "apps/desktop"];
 
 const forbiddenDependencies = [
   "@tauri-apps/api",
   "@milkdown/kit",
   "@milkdown/react",
   "react",
-  "react-dom"
+  "react-dom",
 ];
 
 describe("AI package boundary", () => {
@@ -42,7 +37,7 @@ describe("AI package boundary", () => {
     const dependencyNames = new Set([
       ...Object.keys(manifest.dependencies ?? {}),
       ...Object.keys(manifest.devDependencies ?? {}),
-      ...Object.keys(manifest.peerDependencies ?? {})
+      ...Object.keys(manifest.peerDependencies ?? {}),
     ]);
 
     for (const dependency of forbiddenDependencies) {
@@ -52,7 +47,9 @@ describe("AI package boundary", () => {
 });
 
 function sourceFiles(root: URL): string[] {
-  return listFiles(root.pathname).filter((file) => extname(file) === ".ts" || extname(file) === ".tsx");
+  return listFiles(root.pathname).filter(
+    (file) => extname(file) === ".ts" || extname(file) === ".tsx",
+  );
 }
 
 function listFiles(directory: string): string[] {

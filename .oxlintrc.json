@@ -1,0 +1,35 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "plugins": ["import", "react", "typescript", "vitest"],
+  "rules": {
+    "eqeqeq": "error",
+    "import/no-duplicates": "error",
+    "import/no-unassigned-import": "off",
+    "no-debugger": "error",
+    "no-underscore-dangle": "off",
+    "no-var": "error",
+    "prefer-const": "error",
+    "react/exhaustive-deps": "error",
+    "react/jsx-key": "error",
+    "react/jsx-no-target-blank": "error",
+    "react/no-unknown-property": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/rules-of-hooks": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "vitest/require-mock-type-parameters": "off"
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/.next/**",
+    "**/target/**",
+    "**/src-tauri/gen/**",
+    "**/coverage/**",
+    ".vercel/**"
+  ]
+}

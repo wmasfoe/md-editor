@@ -7,11 +7,14 @@ test("normal mode prepends one target-version section", () => {
     version: "0.3.17",
     notes: "Added website.\n- Fixed deploy.",
     date: "2026-07-10",
-    mode: "normal"
+    mode: "normal",
   });
 
-  assert.match(next, /^# Changelog\n\n## 0\.3\.17 - 2026-07-10\n\n- Added website\.\n- Fixed deploy\./u);
-  assert.equal((next.match(/^##\s+0\.3\.17/mgu) ?? []).length, 1);
+  assert.match(
+    next,
+    /^# Changelog\n\n## 0\.3\.17 - 2026-07-10\n\n- Added website\.\n- Fixed deploy\./u,
+  );
+  assert.equal((next.match(/^##\s+0\.3\.17/gmu) ?? []).length, 1);
 });
 
 test("normal mode fails when target version already exists", () => {
@@ -21,9 +24,9 @@ test("normal mode fails when target version already exists", () => {
         version: "0.3.17",
         notes: "Duplicate.",
         date: "2026-07-10",
-        mode: "normal"
+        mode: "normal",
       }),
-    /already contains section/u
+    /already contains section/u,
   );
 });
 
@@ -32,7 +35,7 @@ test("normal mode uses a Chinese note when notes are empty", () => {
     version: "0.3.17",
     notes: "",
     date: "2026-07-10",
-    mode: "normal"
+    mode: "normal",
   });
 
   assert.match(next, /- 暂无发布说明。/u);
@@ -44,7 +47,7 @@ test("resume mode reuses existing target section unchanged", () => {
     version: "0.3.17",
     notes: "Ignored on resume.",
     date: "2026-07-10",
-    mode: "resume"
+    mode: "resume",
   });
 
   assert.equal(next, current);
@@ -57,8 +60,8 @@ test("resume mode fails without target section", () => {
         version: "0.3.17",
         notes: "Missing.",
         date: "2026-07-10",
-        mode: "resume"
+        mode: "resume",
       }),
-    /missing section/u
+    /missing section/u,
   );
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findDocumentMatches,
   findTextOccurrences,
-  revealActiveWysiwygSearchMatch
+  revealActiveWysiwygSearchMatch,
 } from "../utils/wysiwyg-search";
 import { createImageTestSchema } from "./image-selection.test";
 
@@ -11,7 +11,7 @@ describe("findTextOccurrences", () => {
     expect(findTextOccurrences("Markdown markdown MARKDOWN", "markdown")).toEqual([
       { from: 0, to: 8 },
       { from: 9, to: 17 },
-      { from: 18, to: 26 }
+      { from: 18, to: 26 },
     ]);
   });
 
@@ -28,8 +28,8 @@ describe("findTextOccurrences", () => {
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.paragraph.create(null, [
         schema.text("visible text"),
-        schema.nodes.image.create({ src: "assets/diagram.png", alt: "Secret OCR Text", title: "" })
-      ])
+        schema.nodes.image.create({ src: "assets/diagram.png", alt: "Secret OCR Text", title: "" }),
+      ]),
     ]);
 
     expect(findDocumentMatches(doc, "Secret OCR Text", false)).toEqual([]);
@@ -41,12 +41,12 @@ describe("findTextOccurrences", () => {
     const activeMatch = {
       scrollIntoView(options?: ScrollIntoViewOptions) {
         receivedOptions = options;
-      }
+      },
     };
     const root = {
       querySelector(selector: string) {
         return selector === ".wysiwyg-search-match--active" ? activeMatch : null;
-      }
+      },
     } as unknown as ParentNode;
 
     revealActiveWysiwygSearchMatch(root, (callback) => callback());
@@ -54,7 +54,7 @@ describe("findTextOccurrences", () => {
     expect(receivedOptions).toEqual({
       block: "center",
       inline: "nearest",
-      behavior: "auto"
+      behavior: "auto",
     });
   });
 });

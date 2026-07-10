@@ -19,7 +19,7 @@ export function WysiwygSearchPanel({
   onQueryChange,
   onCaseSensitiveChange,
   onSearch,
-  onClose
+  onClose,
 }: WysiwygSearchPanelProps) {
   return (
     <div className="wysiwyg-search-panel" role="search" aria-label="在文档中查找">
@@ -44,9 +44,7 @@ export function WysiwygSearchPanel({
         }}
       />
       <span className="wysiwyg-search-panel__count" aria-live="polite">
-        {result.matchCount === 0
-          ? "无匹配"
-          : `${result.activeIndex + 1} / ${result.matchCount}`}
+        {result.matchCount === 0 ? "无匹配" : `${result.activeIndex + 1} / ${result.matchCount}`}
       </span>
       <button
         type="button"

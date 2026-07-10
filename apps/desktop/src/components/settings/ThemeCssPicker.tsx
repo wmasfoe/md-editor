@@ -4,7 +4,7 @@ import { readThemeSelection } from "./settingsUtils";
 import {
   settingsFieldLabelClassName,
   settingsInputClassName,
-  settingsSmallButtonClassName
+  settingsSmallButtonClassName,
 } from "./settingsStyles";
 
 interface ThemeCssPickerProps {
@@ -22,7 +22,7 @@ export function ThemeCssPicker({
   builtInOptions,
   onChange,
   onChoose,
-  onClear
+  onClear,
 }: ThemeCssPickerProps) {
   const customCssPath = theme.customCssPath;
   const shouldShowCustomCss = theme.source === "custom" || customCssPath !== null;
@@ -56,11 +56,19 @@ export function ThemeCssPicker({
               aria-label={`${label}自定义 CSS 路径`}
               title={customCssPath ?? "未选择 CSS 文件"}
             />
-            <button type="button" className={`${settingsSmallButtonClassName} max-[760px]:w-max`} onClick={onChoose}>
+            <button
+              type="button"
+              className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
+              onClick={onChoose}
+            >
               选择
             </button>
             {customCssPath ? (
-              <button type="button" className={`${settingsSmallButtonClassName} max-[760px]:w-max`} onClick={onClear}>
+              <button
+                type="button"
+                className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
+                onClick={onClear}
+              >
                 清除
               </button>
             ) : null}

@@ -3,11 +3,11 @@ import type {
   BuiltInThemeId,
   ThemeColorScheme,
   ThemeSchemeSettings,
-  UpdateStatus
+  UpdateStatus,
 } from "../../app/settings/app-settings";
 import {
   DEFAULT_DEEPSEEK_ENDPOINT,
-  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT
+  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
 } from "../../app/settings/app-settings";
 import type { BuiltInThemeOption } from "../../app/settings/built-in-themes";
 
@@ -133,7 +133,7 @@ export function readThemeColorScheme(input: string): ThemeColorScheme {
 export function readThemeSelection(
   input: string,
   current: ThemeSchemeSettings,
-  builtInOptions: readonly BuiltInThemeOption[]
+  builtInOptions: readonly BuiltInThemeOption[],
 ): ThemeSchemeSettings {
   if (input === "custom") {
     return { ...current, source: "custom" };
@@ -142,50 +142,56 @@ export function readThemeSelection(
   return {
     ...current,
     source: "builtin",
-    builtinTheme: readBuiltInTheme(input, current.builtinTheme, builtInOptions)
+    builtinTheme: readBuiltInTheme(input, current.builtinTheme, builtInOptions),
   };
 }
 
-export function updateAiProvider(settings: AiSettings, provider: AiSettings["provider"]): AiSettings {
+export function updateAiProvider(
+  settings: AiSettings,
+  provider: AiSettings["provider"],
+): AiSettings {
   const currentBaseUrl = settings.openAiCompatible.baseUrl;
-  const baseUrl = provider === "deepseek"
-    ? DEFAULT_DEEPSEEK_ENDPOINT
-    : provider === "openai-compatible" && currentBaseUrl === DEFAULT_DEEPSEEK_ENDPOINT
-      ? DEFAULT_OPENAI_COMPATIBLE_ENDPOINT
-      : currentBaseUrl;
+  const baseUrl =
+    provider === "deepseek"
+      ? DEFAULT_DEEPSEEK_ENDPOINT
+      : provider === "openai-compatible" && currentBaseUrl === DEFAULT_DEEPSEEK_ENDPOINT
+        ? DEFAULT_OPENAI_COMPATIBLE_ENDPOINT
+        : currentBaseUrl;
 
   return {
     ...settings,
     provider,
     openAiCompatible: {
       ...settings.openAiCompatible,
-      baseUrl
-    }
+      baseUrl,
+    },
   };
 }
 
 export function updateAiFeature(
   settings: AiSettings,
   feature: keyof AiSettings["features"],
-  enabled: boolean
+  enabled: boolean,
 ): AiSettings {
   const nextFeatures = {
     ...settings.features,
-    [feature]: enabled
+    [feature]: enabled,
   };
   return {
     ...settings,
     enabled: nextFeatures.continuation || nextFeatures.editing,
-    features: nextFeatures
+    features: nextFeatures,
   };
 }
 
 function readBuiltInTheme(
   input: string,
   fallback: BuiltInThemeId,
-  builtInOptions: readonly BuiltInThemeOption[]
+  builtInOptions: readonly BuiltInThemeOption[],
 ): BuiltInThemeId {
-  return builtInOptions.some((option) => option.id === input) ? (input as BuiltInThemeId) : fallback;
+  return builtInOptions.some((option) => option.id === input)
+    ? (input as BuiltInThemeId)
+    : fallback;
 }
 
 function formatByteSize(value: number): string {

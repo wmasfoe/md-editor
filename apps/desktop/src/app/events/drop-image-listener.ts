@@ -35,5 +35,7 @@ export function bindDropImageListener(runtimeActions: PasteImageRuntime) {
 }
 
 function hasImageFile(data: DataTransfer): boolean {
-  return Array.from(data.items).some((item) => item.kind === "file" && item.type.startsWith("image/"));
+  return Array.from(data.items).some(
+    (item) => item.kind === "file" && item.type.startsWith("image/"),
+  );
 }
