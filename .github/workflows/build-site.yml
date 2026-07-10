@@ -47,5 +47,8 @@ jobs:
       - name: Test website
         run: pnpm --filter @md-editor/site test
 
+      - name: Check formatting
+        run: pnpm format:prettier:check
+
       - name: Build website
         run: pnpm build:site

@@ -2,18 +2,18 @@ import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { runtime } from "../runtime/editor-runtime";
 
+function preventDirtyDocumentUnload(event: BeforeUnloadEvent) {
+  if (!runtime.document.getSnapshot().isDirty) {
+    return;
+  }
+
+  event.preventDefault();
+  event.returnValue = "";
+}
+
 export function bindBrowserDirtyDocumentGuard() {
-  const listener = (event: BeforeUnloadEvent) => {
-    if (!runtime.document.getSnapshot().isDirty) {
-      return;
-    }
-
-    event.preventDefault();
-    event.returnValue = "";
-  };
-
-  window.addEventListener("beforeunload", listener);
-  return () => window.removeEventListener("beforeunload", listener);
+  window.addEventListener("beforeunload", preventDirtyDocumentUnload);
+  return () => window.removeEventListener("beforeunload", preventDirtyDocumentUnload);
 }
 
 export function bindTauriCloseGuard(confirmClose: () => Promise<boolean>) {

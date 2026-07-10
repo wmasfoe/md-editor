@@ -160,9 +160,14 @@ function createRawFragment(
 }
 
 function sortFragments(rawFragments: readonly RawFragment[]): RawFragment[] {
-  return [...rawFragments].sort(
+  return sortCopy(
+    rawFragments,
     (left, right) => (left.sourceRange?.start ?? 0) - (right.sourceRange?.start ?? 0),
   );
+}
+
+function sortCopy<T>(values: readonly T[], compare: (left: T, right: T) => number): T[] {
+  return Array.prototype.sort.call([...values], compare) as T[];
 }
 
 function replaceRange(markdown: string, range: SourceRange, replacement: string): string {

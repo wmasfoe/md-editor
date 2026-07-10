@@ -78,21 +78,6 @@ describe("editor-ui hooks and package boundary", () => {
     expect(mdxAiControllerSource).not.toContain("@tauri-apps/api");
   });
 
-  it("keeps editor-ui source free of desktop and native runtime imports", () => {
-    const source = sourceFiles(sourceRoot)
-      .filter((file) => !file.endsWith(".test.ts"))
-      .map((file) => readFileSync(file, "utf8"))
-      .join("\n");
-
-    expect(source).not.toContain("apps/desktop");
-    expect(source).not.toContain("@tauri-apps/api");
-    expect(source).not.toContain("requestDesktopAiContinuation");
-    expect(source).not.toContain("editor-runtime");
-    expect(source).not.toContain("@md-editor/editor-core/ai");
-    expect(source).not.toContain("@md-editor/mdx-component-registry");
-    expect(source).not.toContain("zustand");
-  });
-
   it("keeps the editor-ui import graph free of platform-only modules", () => {
     const forbiddenSpecifiers = sourceFiles(sourceRoot)
       .filter((file) => !file.endsWith(".test.ts"))

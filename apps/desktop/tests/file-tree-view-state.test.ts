@@ -27,7 +27,7 @@ describe("file tree default collapsed state", () => {
       "/docs/readme.md",
     );
 
-    expect([...collapsedPaths].sort()).toEqual(["/docs/assets", "/docs/drafts"]);
+    expect(collapsedPaths).toEqual(new Set(["/docs/assets", "/docs/drafts"]));
   });
 
   it("keeps only the active file ancestors expanded", () => {
@@ -64,7 +64,7 @@ describe("file tree default collapsed state", () => {
       "/docs/guide/intro.md",
     );
 
-    expect([...collapsedPaths].sort()).toEqual(["/docs/archive", "/docs/guide/drafts"]);
+    expect(collapsedPaths).toEqual(new Set(["/docs/archive", "/docs/guide/drafts"]));
   });
 
   it("collapses child folders when the opened folder has no Markdown files", () => {
@@ -91,6 +91,6 @@ describe("file tree default collapsed state", () => {
       null,
     );
 
-    expect([...collapsedPaths].sort()).toEqual(["/assets/exports", "/assets/images"]);
+    expect(collapsedPaths).toEqual(new Set(["/assets/exports", "/assets/images"]));
   });
 });

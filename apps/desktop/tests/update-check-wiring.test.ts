@@ -20,8 +20,8 @@ describe("update check wiring", () => {
       "downloadAvailableUpdate: settings.update.automaticDownload",
     );
 
-    expect(settingsControllerSource).toContain(
-      "checkForUpdate, downloadUpdate, applyDownloadedUpdate",
+    expect(settingsControllerSource).toMatch(
+      /checkForUpdate,\s+downloadUpdate,\s+applyDownloadedUpdate,/u,
     );
     expect(settingsControllerSource).toContain("await checkForUpdate()");
     expect(settingsControllerSource).not.toContain("checkForInstallableUpdate");

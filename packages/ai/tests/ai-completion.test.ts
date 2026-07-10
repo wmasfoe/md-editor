@@ -39,6 +39,25 @@ const context: AiCompletionContext = {
   mode: "wysiwyg",
 };
 
+const emptyOpenAiResponse = async () =>
+  new Response(
+    JSON.stringify({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ continuation: "", edit: null }),
+          },
+        },
+      ],
+    }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+
+const stalledLocalInvoke = () => new Promise<unknown>(() => {});
+
 function localReadySettings(): AiSettings {
   return {
     ...baseSettings,
@@ -207,24 +226,9 @@ describe("AI completion settings", () => {
   });
 
   it("treats an empty model response as no suggestion instead of a user-facing error", async () => {
-    const fetchImpl = async () =>
-      new Response(
-        JSON.stringify({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({ continuation: "", edit: null }),
-              },
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-    await expect(requestAiContinuation(baseSettings, context, { fetchImpl })).resolves.toEqual({});
+    await expect(
+      requestAiContinuation(baseSettings, context, { fetchImpl: emptyOpenAiResponse }),
+    ).resolves.toEqual({});
   });
 
   it("routes local completion through the injected local model command", async () => {
@@ -263,10 +267,9 @@ describe("AI completion settings", () => {
 
   it("times out stalled local completion requests", async () => {
     vi.useFakeTimers();
-    const localInvokeImpl = () => new Promise<unknown>(() => {});
 
     const request = requestAiContinuation(localReadySettings(), context, {
-      localInvokeImpl,
+      localInvokeImpl: stalledLocalInvoke,
       timeoutMs: 1_000,
     });
     await Promise.all([

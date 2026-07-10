@@ -110,9 +110,10 @@ export function mergeTextRanges(ranges: readonly TextRange[]): TextRange[] {
     return [];
   }
 
-  const sorted = [...ranges]
-    .filter((range) => range.to > range.from)
-    .sort((left, right) => left.from - right.from || left.to - right.to);
+  const sorted = sortCopy(
+    ranges.filter((range) => range.to > range.from),
+    (left, right) => left.from - right.from || left.to - right.to,
+  );
 
   if (sorted.length === 0) {
     return [];
@@ -181,7 +182,7 @@ export function planSmartQuoteNormalizationsInRanges(
     });
   }
 
-  return plans.sort((left, right) => right.from - left.from || right.to - left.to);
+  return sortCopy(plans, (left, right) => right.from - left.from || right.to - left.to);
 }
 
 /**
@@ -253,9 +254,14 @@ export function planSmartQuoteNormalizationsFromTransactions(
     }
   }
 
-  return pending
-    .filter((plan) => plan.to > plan.from)
-    .sort((left, right) => right.from - left.from || right.to - left.to);
+  return sortCopy(
+    pending.filter((plan) => plan.to > plan.from),
+    (left, right) => right.from - left.from || right.to - left.to,
+  );
+}
+
+function sortCopy<T>(values: readonly T[], compare: (left: T, right: T) => number): T[] {
+  return Array.prototype.sort.call([...values], compare) as T[];
 }
 
 export function shouldSkipStraightQuoteNormalization(

@@ -4,7 +4,7 @@
     "correctness": "error",
     "suspicious": "error"
   },
-  "plugins": ["import", "react", "typescript", "vitest"],
+  "plugins": ["import", "react", "typescript", "vitest", "oxc", "unicorn"],
   "rules": {
     "eqeqeq": "error",
     "import/no-duplicates": "error",

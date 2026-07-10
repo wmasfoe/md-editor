@@ -73,7 +73,8 @@ export const imeCompositionGuardPlugin = $prose(() => {
       }
 
       let transaction = newState.tr;
-      for (const position of positions.reverse()) {
+      for (let index = positions.length - 1; index >= 0; index -= 1) {
+        const position = positions[index]!;
         const node = transaction.doc.nodeAt(position);
         if (node?.type.name === "hardbreak") {
           transaction = transaction.delete(position, position + node.nodeSize);

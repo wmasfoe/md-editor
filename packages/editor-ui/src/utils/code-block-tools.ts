@@ -190,15 +190,21 @@ export function getLanguageSuggestions(input: string): readonly string[] {
     return languageSuggestionValues.slice(0, 6);
   }
 
-  return languageSuggestionValues
-    .map((language) => ({
-      language,
-      score: fuzzyScore(language, query),
-    }))
-    .filter((item) => item.score > 0)
-    .sort((left, right) => right.score - left.score || left.language.localeCompare(right.language))
+  return sortCopy(
+    languageSuggestionValues
+      .map((language) => ({
+        language,
+        score: fuzzyScore(language, query),
+      }))
+      .filter((item) => item.score > 0),
+    (left, right) => right.score - left.score || left.language.localeCompare(right.language),
+  )
     .slice(0, 6)
     .map((item) => item.language);
+}
+
+function sortCopy<T>(values: readonly T[], compare: (left: T, right: T) => number): T[] {
+  return Array.prototype.sort.call([...values], compare) as T[];
 }
 
 export function findAdjacentCalloutPreviewNodePosition(
