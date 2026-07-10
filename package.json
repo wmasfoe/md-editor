@@ -23,12 +23,13 @@
     "test": "pnpm -r --sort test && pnpm test:release",
     "test:release": "node --test scripts/release/*.test.mjs",
     "test:rust": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml",
-    "lint": "pnpm lint:oxlint && pnpm lint:rust",
+    "lint": "pnpm lint:oxlint && pnpm format:prettier:check && pnpm lint:rust",
     "lint:fix": "oxlint --fix . && prettier --write . && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "lint:oxlint": "oxlint --deny-warnings .",
     "lint:rust": "cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings",
     "format": "prettier --write . && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml",
-    "format:check": "prettier --check . && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check"
+    "format:check": "pnpm format:prettier:check && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check",
+    "format:prettier:check": "prettier --check ."
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",

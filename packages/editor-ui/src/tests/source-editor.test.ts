@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const sourceEditorSource = readFileSync(
-  new URL("../components/SourceEditor.tsx", import.meta.url),
+  new URL("../components/SourceEditor/SourceEditor.tsx", import.meta.url),
   "utf8",
 );
 const sourceEditorStyles = readFileSync(
-  new URL("../components/SourceEditor.css", import.meta.url),
+  new URL("../components/SourceEditor/SourceEditor.css", import.meta.url),
   "utf8",
 );
 

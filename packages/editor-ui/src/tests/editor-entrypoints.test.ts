@@ -17,17 +17,17 @@ const milkdownEditorPrimitiveSource = readFileSync(
   "utf8",
 );
 const sourceEditorSource = readFileSync(
-  new URL("../components/SourceEditor.tsx", import.meta.url),
+  new URL("../components/SourceEditor/SourceEditor.tsx", import.meta.url),
   "utf8",
 );
 
 describe("editor-ui public editor entrypoints", () => {
   it("keeps root and editor subpath entrypoints usable", () => {
     expect(packageJson.exports?.["."]).toBe("./src/index.ts");
-    expect(packageJson.exports?.["./milkdown-editor"]).toBe(
+    expect(packageJson.exports?.["./MilkdownEditor"]).toBe(
       "./src/components/MilkdownEditor/index.ts",
     );
-    expect(packageJson.exports?.["./source-editor"]).toBe("./src/components/SourceEditor.tsx");
+    expect(packageJson.exports?.["./SourceEditor"]).toBe("./src/components/SourceEditor/index.ts");
 
     expect(indexSource).toContain("MilkdownEditorCommandHandlers");
     expect(indexSource).toContain("MilkdownEditorProps");
@@ -35,8 +35,8 @@ describe("editor-ui public editor entrypoints", () => {
     expect(indexSource).toContain("SourceEditorProps");
     expect(indexSource).toContain("SourceEditorPrimitiveProps");
     expect(indexSource).toContain('export * from "./hooks"');
-    expect(runtimeExportSources(indexSource)).not.toContain("./components/MilkdownEditor");
-    expect(runtimeExportSources(indexSource)).not.toContain("./components/SourceEditor");
+    expect(runtimeExportSources(indexSource)).toContain("./components/MilkdownEditor");
+    expect(runtimeExportSources(indexSource)).toContain("./components/SourceEditor");
   });
 
   it("keeps Milkdown as a public surface over a platform-free primitive", () => {
