@@ -36,9 +36,9 @@ const manifest = {
   platforms: {
     [platform]: {
       signature,
-      url: downloadUrl
-    }
-  }
+      url: downloadUrl,
+    },
+  },
 };
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });

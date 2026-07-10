@@ -14,7 +14,7 @@ const releaseFiles = [
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
   "apps/desktop/src-tauri/Cargo.toml",
-  "apps/desktop/src-tauri/Cargo.lock"
+  "apps/desktop/src-tauri/Cargo.lock",
 ];
 
 function parseArgs(argv) {
@@ -26,7 +26,7 @@ function parseArgs(argv) {
     allowAnyBranch: false,
     branch: releaseBranchDefault,
     notes: undefined,
-    kind: undefined
+    kind: undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -96,7 +96,7 @@ function run(command, args, options = {}) {
 
   const result = execFileSync(command, args, {
     encoding: "utf8",
-    stdio: options.stdio ?? ["ignore", "pipe", "pipe"]
+    stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
   });
 
   return typeof result === "string" ? result.trim() : "";
@@ -120,7 +120,7 @@ function parseSemver(version) {
     major: Number.parseInt(match[1], 10),
     minor: Number.parseInt(match[2], 10),
     patch: Number.parseInt(match[3], 10),
-    prerelease: match[4]
+    prerelease: match[4],
   };
 }
 
@@ -160,7 +160,9 @@ async function promptForRelease(options, currentVersion) {
   try {
     const kind =
       options.kind ||
-      (input.isTTY ? await rl.question("选择版本类型 [patch/minor/major/beta/custom] (默认 patch): ") : "") ||
+      (input.isTTY
+        ? await rl.question("选择版本类型 [patch/minor/major/beta/custom] (默认 patch): ")
+        : "") ||
       "patch";
 
     let resolvedKind = kind.trim();
@@ -208,7 +210,9 @@ async function confirmRelease(options, plan) {
 function assertCleanWorktree() {
   const status = run("git", ["status", "--porcelain"]);
   if (status) {
-    throw new Error("Working tree is not clean. Commit or stash existing changes before running the release script.");
+    throw new Error(
+      "Working tree is not clean. Commit or stash existing changes before running the release script.",
+    );
   }
 }
 
@@ -226,7 +230,9 @@ function assertBranch(options) {
   }
 
   if (!options.allowAnyBranch && branch !== options.branch) {
-    throw new Error(`Expected to release from branch "${options.branch}", but current branch is "${branch}".`);
+    throw new Error(
+      `Expected to release from branch "${options.branch}", but current branch is "${branch}".`,
+    );
   }
 
   return branch;
@@ -250,7 +256,9 @@ function assertTagAvailable(tag) {
       throw error;
     }
     if (error.status !== 2) {
-      throw new Error(`Unable to check remote tag ${tag}: ${error.stderr || error.message}`);
+      throw new Error(`Unable to check remote tag ${tag}: ${error.stderr || error.message}`, {
+        cause: error,
+      });
     }
   }
 }
@@ -265,7 +273,7 @@ function commitMessage(tag, notes) {
     "Scope-risk: narrow",
     "Directive: Keep release version files, git tag, GitHub Release tag, and Homebrew cask version aligned.",
     "Tested: pnpm release:version updates package, Tauri, and Cargo version files before commit.",
-    "Not-tested: GitHub-hosted macOS release workflow before the tag is pushed."
+    "Not-tested: GitHub-hosted macOS release workflow before the tag is pushed.",
   ];
 }
 
@@ -304,7 +312,10 @@ async function main() {
   }
 
   if (!options.resume) {
-    run("pnpm", ["release:version", plan.nextVersion], { dryRun: options.dryRun, stdio: "inherit" });
+    run("pnpm", ["release:version", plan.nextVersion], {
+      dryRun: options.dryRun,
+      stdio: "inherit",
+    });
   } else if (options.dryRun) {
     console.log("resume: skip pnpm release:version because version files are already changed");
   }
@@ -314,7 +325,7 @@ async function main() {
     version: plan.nextVersion,
     notes: plan.notes,
     mode: options.resume ? "resume" : "normal",
-    dryRun: options.dryRun
+    dryRun: options.dryRun,
   });
 
   if (options.dryRun) {
@@ -324,10 +335,16 @@ async function main() {
 
   if (options.dryRun) {
     run("git", ["add", ...releaseFiles], { dryRun: true });
-    run("git", ["commit", ...commitMessage(plan.tag, plan.notes).flatMap((message) => ["-m", message])], {
-      dryRun: true
+    run(
+      "git",
+      ["commit", ...commitMessage(plan.tag, plan.notes).flatMap((message) => ["-m", message])],
+      {
+        dryRun: true,
+      },
+    );
+    run("git", ["tag", "-a", plan.tag, "-m", `Release ${plan.tag}`, "-m", plan.notes], {
+      dryRun: true,
     });
-    run("git", ["tag", "-a", plan.tag, "-m", `Release ${plan.tag}`, "-m", plan.notes], { dryRun: true });
   } else {
     const actualVersion = readCurrentVersion();
     if (actualVersion !== plan.nextVersion) {
@@ -335,10 +352,16 @@ async function main() {
     }
 
     run("git", ["add", ...releaseFiles], { stdio: "inherit" });
-    run("git", ["commit", ...commitMessage(plan.tag, plan.notes).flatMap((message) => ["-m", message])], {
-      stdio: "inherit"
+    run(
+      "git",
+      ["commit", ...commitMessage(plan.tag, plan.notes).flatMap((message) => ["-m", message])],
+      {
+        stdio: "inherit",
+      },
+    );
+    run("git", ["tag", "-a", plan.tag, "-m", `Release ${plan.tag}`, "-m", plan.notes], {
+      stdio: "inherit",
     });
-    run("git", ["tag", "-a", plan.tag, "-m", `Release ${plan.tag}`, "-m", plan.notes], { stdio: "inherit" });
   }
 
   if (options.noPush) {
@@ -364,7 +387,7 @@ async function promptForResume(options, currentVersion) {
     return {
       kind: "resume",
       nextVersion: currentVersion,
-      notes: await promptNotes(options, rl)
+      notes: await promptNotes(options, rl),
     };
   } finally {
     rl.close();

@@ -19,13 +19,13 @@ describe("parseChangelog", () => {
       {
         version: "0.3.17",
         date: "2026-07-10",
-        items: ["Added website.", "Fixed release notes."]
+        items: ["Added website.", "Fixed release notes."],
       },
       {
         version: "0.3.16",
         date: "2026-07-09",
-        items: ["Previous release."]
-      }
+        items: ["Previous release."],
+      },
     ]);
   });
 

@@ -7,7 +7,7 @@ export interface RunFileActionOptions {
 export type RunFileAction = (
   label: string,
   action: () => Promise<void> | void,
-  options?: RunFileActionOptions
+  options?: RunFileActionOptions,
 ) => Promise<void>;
 
 export function shouldShowFileActionOverlay(options?: RunFileActionOptions): boolean {

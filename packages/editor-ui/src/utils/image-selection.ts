@@ -1,8 +1,7 @@
 import { $prose } from "@milkdown/kit/utils";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
-import { NodeSelection } from "@milkdown/kit/prose/state";
+import { NodeSelection, Plugin, PluginKey } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { Plugin, PluginKey } from "@milkdown/kit/prose/state";
 
 export const imageSelectionPluginKey = new PluginKey("md-editor-image-selection");
 const nativeSelectionGuardDurationMs = 1500;
@@ -31,7 +30,7 @@ export const imageSelectionPlugin = $prose(
               return true;
             }
             return false;
-          }
+          },
         },
         handleKeyDown(view, event) {
           if (!(event.key === "Backspace" || event.key === "Delete")) {
@@ -46,7 +45,7 @@ export const imageSelectionPlugin = $prose(
           event.preventDefault();
           view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
           return true;
-        }
+        },
       },
       view(view) {
         prepareImageDom(view);
@@ -67,18 +66,16 @@ export const imageSelectionPlugin = $prose(
             nativeSelectionGuard.destroy();
             nativeSelectionGuards.delete(view);
             clearStaleSelectedImageDom(view);
-          }
+          },
         };
-      }
-    })
+      },
+    }),
 );
 
 export function selectImageNode(view: EditorView, position: number): void {
   clearNativeSelection(view);
   view.dispatch(
-    view.state.tr
-      .setSelection(NodeSelection.create(view.state.doc, position))
-      .scrollIntoView()
+    view.state.tr.setSelection(NodeSelection.create(view.state.doc, position)).scrollIntoView(),
   );
   view.focus();
   markSelectedImageDom(view, position);
@@ -87,7 +84,7 @@ export function selectImageNode(view: EditorView, position: number): void {
 export function findImageNodePositionForDom(
   doc: ProseMirrorNode,
   nodeDOM: (position: number) => Node | null,
-  target: Node
+  target: Node,
 ): number | null {
   let foundPosition: number | null = null;
 
@@ -143,9 +140,9 @@ export function isImageNodeSelection(selection: unknown): boolean {
 export function shouldClearNativeImageSelection(
   guardArmed: boolean,
   selection: unknown,
-  hasNativeSelectionInside: boolean
+  hasNativeSelection: boolean,
 ): boolean {
-  return guardArmed && isImageNodeSelection(selection) && hasNativeSelectionInside;
+  return guardArmed && isImageNodeSelection(selection) && hasNativeSelection;
 }
 
 function bindNativeImageSelectionGuard(view: EditorView): NativeImageSelectionGuard {
@@ -169,11 +166,7 @@ function bindNativeImageSelectionGuard(view: EditorView): NativeImageSelectionGu
   };
   const handleSelectionChange = () => {
     if (
-      shouldClearNativeImageSelection(
-        armed,
-        view.state.selection,
-        hasNativeSelectionInside(view)
-      )
+      shouldClearNativeImageSelection(armed, view.state.selection, hasNativeSelectionInside(view))
     ) {
       clearNativeSelection(view);
     }
@@ -197,7 +190,7 @@ function bindNativeImageSelectionGuard(view: EditorView): NativeImageSelectionGu
       ownerDocument.removeEventListener("mousedown", handleMouseDown, true);
       ownerDocument.removeEventListener("keydown", disarm, true);
       ownerDocument.removeEventListener("selectionchange", handleSelectionChange);
-    }
+    },
   };
 }
 
@@ -210,10 +203,7 @@ function hasNativeSelectionInside(view: EditorView): boolean {
 
   const anchor = selection.anchorNode;
   const focus = selection.focusNode;
-  return Boolean(
-    (anchor && view.dom.contains(anchor)) ||
-    (focus && view.dom.contains(focus))
-  );
+  return Boolean((anchor && view.dom.contains(anchor)) || (focus && view.dom.contains(focus)));
 }
 
 function prepareImageDom(view: EditorView): void {
@@ -230,9 +220,10 @@ function prepareImageDom(view: EditorView): void {
 }
 
 function findImageElement(target: EventTarget | null): HTMLImageElement | null {
-  const image = target instanceof Element
-    ? target.closest<HTMLImageElement>("img:not(.ProseMirror-separator)")
-    : null;
+  const image =
+    target instanceof Element
+      ? target.closest<HTMLImageElement>("img:not(.ProseMirror-separator)")
+      : null;
   return image && !isProseMirrorSeparatorImage(image) ? image : null;
 }
 

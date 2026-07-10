@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getChangelogEntries } from "../../lib/changelog";
 
 export const metadata: Metadata = {
-  title: "更新记录"
+  title: "更新记录",
 };
 
 export default function ChangelogPage() {
@@ -12,9 +12,7 @@ export default function ChangelogPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 sm:px-8 sm:py-20">
       <header className="mb-14 border-b border-line pb-10">
-        <p className="mb-3 text-sm font-medium tracking-[0.08em] text-accent uppercase">
-          Releases
-        </p>
+        <p className="mb-3 text-sm font-medium tracking-[0.08em] text-accent uppercase">Releases</p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">更新记录</h1>
         <p className="mt-4 max-w-xl text-base leading-relaxed text-muted">
           每个版本的变更说明。内容来自仓库根目录{" "}
@@ -40,7 +38,7 @@ export default function ChangelogPage() {
                 aria-hidden
                 className={[
                   "absolute top-12 left-0 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 border-canvas",
-                  index === 0 ? "bg-accent" : "bg-line-strong"
+                  index === 0 ? "bg-accent" : "bg-line-strong",
                 ].join(" ")}
               />
 
@@ -65,7 +63,10 @@ export default function ChangelogPage() {
                       key={item}
                       className="flex gap-2.5 text-[15px] leading-relaxed text-ink-soft"
                     >
-                      <span aria-hidden className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-muted/50" />
+                      <span
+                        aria-hidden
+                        className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-muted/50"
+                      />
                       <span>{item}</span>
                     </li>
                   ))}

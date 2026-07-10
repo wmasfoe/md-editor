@@ -7,19 +7,19 @@ import "./globals.css";
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter"
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
   title: {
     default: "Markdown Editor",
-    template: "%s · Markdown Editor"
+    template: "%s · Markdown Editor",
   },
-  description: "简洁的本地 Markdown 和 MDX 桌面编辑器。"
+  description: "简洁的本地 Markdown 和 MDX 桌面编辑器。",
 };
 
 export default function RootLayout({
-  children
+  children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {

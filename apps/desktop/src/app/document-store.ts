@@ -17,10 +17,7 @@ import { runtime } from "./runtime/editor-runtime";
  * }
  */
 export function useDocumentSnapshot(): DocumentSnapshot {
-  return useSyncExternalStore(
-    runtime.document.subscribe,
-    runtime.document.getSnapshot
-  );
+  return useSyncExternalStore(runtime.document.subscribe, runtime.document.getSnapshot);
 }
 
 /**

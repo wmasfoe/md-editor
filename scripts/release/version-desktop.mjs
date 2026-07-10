@@ -97,9 +97,13 @@ if (!requestedVersion) {
 const currentVersion = readJson(tauriConfigPath).version;
 const nextVersion = bumpVersion(currentVersion, requestedVersion);
 
-execFileSync("cargo", ["metadata", "--manifest-path", cargoManifestPath, "--no-deps", "--format-version", "1"], {
-  stdio: "ignore",
-});
+execFileSync(
+  "cargo",
+  ["metadata", "--manifest-path", cargoManifestPath, "--no-deps", "--format-version", "1"],
+  {
+    stdio: "ignore",
+  },
+);
 
 updatePackageJson(rootPackagePath, nextVersion);
 updatePackageJson(desktopPackagePath, nextVersion);

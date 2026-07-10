@@ -1,9 +1,7 @@
 import type { AiContextSnapshot } from "./types.ts";
 
 export type AiConnectorCapability =
-  | "context.snapshot"
-  | "document.metadata"
-  | "document.recent-text";
+  "context.snapshot" | "document.metadata" | "document.recent-text";
 
 export interface AiConnectorDescriptor {
   readonly id: string;

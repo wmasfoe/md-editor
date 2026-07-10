@@ -38,7 +38,9 @@ describe("MdxComponentRegistry", () => {
   it("rejects duplicate plugin ids and component names", () => {
     const registry = createMdxComponentRegistry([calloutPlugin]);
 
-    expect(() => registry.register(calloutPlugin)).toThrow("MDX component plugin already registered");
+    expect(() => registry.register(calloutPlugin)).toThrow(
+      "MDX component plugin already registered",
+    );
     expect(() =>
       registry.register({
         ...calloutPlugin,

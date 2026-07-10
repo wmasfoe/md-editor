@@ -4,7 +4,7 @@ import {
   createDocumentState,
   createFeatureRegistry,
   createKeymapRegistry,
-  switchEditorModeSafely
+  switchEditorModeSafely,
 } from "../src";
 
 describe("DocumentState", () => {
@@ -16,7 +16,7 @@ describe("DocumentState", () => {
       savedMarkdown: "# Draft",
       filePath: null,
       mode: "wysiwyg",
-      isDirty: false
+      isDirty: false,
     });
   });
 
@@ -28,7 +28,7 @@ describe("DocumentState", () => {
       markdown: "Two",
       savedMarkdown: "Two",
       filePath: "/tmp/two.md",
-      isDirty: false
+      isDirty: false,
     });
   });
 
@@ -38,11 +38,13 @@ describe("DocumentState", () => {
     document.updateMarkdown("Two");
     document.updateMarkdown("Three");
 
-    expect(document.updateSavedBaseline({ markdown: "Two", filePath: "/tmp/post.md" })).toMatchObject({
+    expect(
+      document.updateSavedBaseline({ markdown: "Two", filePath: "/tmp/post.md" }),
+    ).toMatchObject({
       markdown: "Three",
       savedMarkdown: "Two",
       filePath: "/tmp/post.md",
-      isDirty: true
+      isDirty: true,
     });
   });
 
@@ -51,7 +53,7 @@ describe("DocumentState", () => {
 
     expect(document.setMode("source")).toMatchObject({
       markdown: "- item",
-      mode: "source"
+      mode: "source",
     });
   });
 
@@ -59,15 +61,15 @@ describe("DocumentState", () => {
     const document = createDocumentState({ markdown: "# Title" });
 
     const result = await switchEditorModeSafely(document, "source", {
-      beforeSwitch: (snapshot) => `${snapshot.markdown}\n\nBody`
+      beforeSwitch: (snapshot) => `${snapshot.markdown}\n\nBody`,
     });
 
     expect(result).toMatchObject({
       ok: true,
       snapshot: {
         markdown: "# Title\n\nBody",
-        mode: "source"
-      }
+        mode: "source",
+      },
     });
   });
 
@@ -77,7 +79,7 @@ describe("DocumentState", () => {
     const result = await switchEditorModeSafely(document, "source", {
       beforeSwitch: () => {
         throw new Error("serialize failed");
-      }
+      },
     });
 
     expect(result).toMatchObject({
@@ -86,12 +88,12 @@ describe("DocumentState", () => {
       message: "serialize failed",
       snapshot: {
         markdown: "# Safe",
-        mode: "wysiwyg"
-      }
+        mode: "wysiwyg",
+      },
     });
     expect(document.getSnapshot()).toMatchObject({
       markdown: "# Safe",
-      mode: "wysiwyg"
+      mode: "wysiwyg",
     });
   });
 });
@@ -106,7 +108,7 @@ describe("registries", () => {
       title: "Insert heading",
       run: ({ document: state }) => {
         state.updateMarkdown("# Heading");
-      }
+      },
     });
 
     await expect(commands.dispatch("document.insert-heading", { document })).resolves.toBe(true);
@@ -120,7 +122,7 @@ describe("registries", () => {
     keymaps.register({ id: "save", key: "Mod+S", commandId: "document.save" });
 
     expect(() =>
-      keymaps.register({ id: "save-as", key: "Mod+S", commandId: "document.save-as" })
+      keymaps.register({ id: "save-as", key: "Mod+S", commandId: "document.save-as" }),
     ).toThrow("Ambiguous key binding");
   });
 
@@ -132,15 +134,15 @@ describe("registries", () => {
     features.register({
       id: "source-mode",
       title: "Source Mode",
-      setup: ({ commands }) => {
-        commands.register({
+      setup: ({ commands: featureCommands }) => {
+        featureCommands.register({
           id: "mode.source",
           title: "Source Mode",
           run: ({ document }) => {
             document.setMode("source");
-          }
+          },
         });
-      }
+      },
     });
 
     features.activateAll({ commands, keymaps });

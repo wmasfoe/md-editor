@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import {
   createRecentFilesStore,
   type RecentFile,
-  type RecentFilesBackend
+  type RecentFilesBackend,
 } from "../src/recent-files";
 
 describe("RecentFilesStore", () => {
@@ -18,7 +18,7 @@ describe("RecentFilesStore", () => {
       get length() {
         return memoryStorage.size;
       },
-      key: (index) => Array.from(memoryStorage.keys())[index] ?? null
+      key: (index) => Array.from(memoryStorage.keys())[index] ?? null,
     };
     store = createRecentFilesStore(mockStorage);
   });
@@ -75,7 +75,7 @@ describe("RecentFilesStore", () => {
     const previousLastOpenedAt = store.list()[1].lastOpenedAt;
     await store.move("/test/file1.md", {
       path: "/test/renamed.md",
-      name: "renamed.md"
+      name: "renamed.md",
     });
 
     const files = store.list();
@@ -84,7 +84,7 @@ describe("RecentFilesStore", () => {
     expect(files[1]).toEqual({
       path: "/test/renamed.md",
       name: "renamed.md",
-      lastOpenedAt: previousLastOpenedAt
+      lastOpenedAt: previousLastOpenedAt,
     });
   });
 
@@ -94,20 +94,20 @@ describe("RecentFilesStore", () => {
 
     await store.move("/test/docs", {
       path: "/test/notes",
-      name: "notes"
+      name: "notes",
     });
 
     expect(store.list()).toEqual([
       {
         path: "/test/other.md",
         name: "other.md",
-        lastOpenedAt: expect.any(Number)
+        lastOpenedAt: expect.any(Number),
       },
       {
         path: "/test/notes/child.md",
         name: "child.md",
-        lastOpenedAt: expect.any(Number)
-      }
+        lastOpenedAt: expect.any(Number),
+      },
     ]);
   });
 
@@ -117,15 +117,15 @@ describe("RecentFilesStore", () => {
 
     await store.move("/test/file1.md", {
       path: "/test/file2.md",
-      name: "file2.md"
+      name: "file2.md",
     });
 
     expect(store.list()).toEqual([
       {
         path: "/test/file2.md",
         name: "file2.md",
-        lastOpenedAt: expect.any(Number)
-      }
+        lastOpenedAt: expect.any(Number),
+      },
     ]);
   });
 
@@ -134,7 +134,7 @@ describe("RecentFilesStore", () => {
 
     await store.move("/test/missing.md", {
       path: "/test/renamed.md",
-      name: "renamed.md"
+      name: "renamed.md",
     });
 
     expect(store.list()).toHaveLength(1);
@@ -146,7 +146,7 @@ describe("RecentFilesStore", () => {
 
     await store.move("/test/docs", {
       path: "/test/archive",
-      name: "archive"
+      name: "archive",
     });
 
     expect(store.list()[0].name).toBe("child.md");
@@ -170,7 +170,7 @@ describe("RecentFilesStore", () => {
       get length() {
         return memoryStorage.size;
       },
-      key: (index) => Array.from(memoryStorage.keys())[index] ?? null
+      key: (index) => Array.from(memoryStorage.keys())[index] ?? null,
     };
 
     const store1 = createRecentFilesStore(mockStorage);
@@ -204,7 +204,7 @@ describe("RecentFilesStore", () => {
       },
       updateMenu: async () => {
         menuUpdates += 1;
-      }
+      },
     };
     const synchronizedStore = createRecentFilesStore(undefined, backend);
 
@@ -223,12 +223,12 @@ describe("RecentFilesStore", () => {
       save: async () => {
         throw new Error("native write failed");
       },
-      updateMenu: async () => undefined
+      updateMenu: async () => undefined,
     });
 
-    await expect(
-      synchronizedStore.add({ path: "/test/file.md", name: "file.md" })
-    ).rejects.toThrow("native write failed");
+    await expect(synchronizedStore.add({ path: "/test/file.md", name: "file.md" })).rejects.toThrow(
+      "native write failed",
+    );
     expect(synchronizedStore.list()).toHaveLength(1);
   });
 });

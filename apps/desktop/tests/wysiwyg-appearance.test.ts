@@ -3,27 +3,29 @@ import { describe, expect, it } from "vitest";
 
 const appearancePanelSource = readFileSync(
   new URL("../src/components/settings/AppearanceSettingsPanel.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const desktopMilkdownEditorSource = readFileSync(
   new URL("../src/components/DesktopMilkdownEditor.tsx", import.meta.url),
-  "utf8"
-);
-const milkdownEditorSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const milkdownEditorPrimitiveSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
-  "utf8"
+  new URL(
+    "../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx",
+    import.meta.url,
+  ),
+  "utf8",
 );
 const milkdownEditorTypesSource = readFileSync(
   new URL("../../../packages/editor-ui/src/components/MilkdownEditor/types.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const milkdownEditorStyles = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.css", import.meta.url),
-  "utf8"
+  new URL(
+    "../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.css",
+    import.meta.url,
+  ),
+  "utf8",
 );
 
 describe("WYSIWYG appearance settings", () => {
@@ -33,12 +35,14 @@ describe("WYSIWYG appearance settings", () => {
     expect(desktopMilkdownEditorSource).toContain("DesktopMilkdownEditor");
     expect(milkdownEditorTypesSource).toContain("readonly wysiwygFontSize?: number;");
     expect(milkdownEditorPrimitiveSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
-    expect(milkdownEditorPrimitiveSource).toContain('"--theme-editor-font-size": `${safeFontSize}px`');
+    expect(milkdownEditorPrimitiveSource).toContain(
+      '"--theme-editor-font-size": `${safeFontSize}px`',
+    );
   });
 
   it("exposes a bounded font-size control in appearance settings", () => {
     expect(appearancePanelSource).toContain("所见即所得字号");
-    expect(appearancePanelSource).toContain("type=\"range\"");
+    expect(appearancePanelSource).toContain('type="range"');
     expect(appearancePanelSource).toContain("WYSIWYG_FONT_SIZE_MIN = 13");
     expect(appearancePanelSource).toContain("WYSIWYG_FONT_SIZE_MAX = 22");
   });

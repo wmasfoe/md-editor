@@ -7,12 +7,7 @@ export interface InlineInputProps {
   readonly onCancel: () => void;
 }
 
-export function InlineInput({
-  defaultValue,
-  paddingLeft,
-  onCommit,
-  onCancel
-}: InlineInputProps) {
+export function InlineInput({ defaultValue, paddingLeft, onCommit, onCancel }: InlineInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {

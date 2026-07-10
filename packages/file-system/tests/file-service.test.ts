@@ -7,20 +7,20 @@ describe("FileService", () => {
 
     expect(service.newDocument("# Draft")).toEqual({
       markdown: "# Draft",
-      filePath: null
+      filePath: null,
     });
   });
 
   it("opens Markdown through the adapter", async () => {
     const service = createFileService(
       fakeAdapter({
-        openResult: { filePath: "/Users/me/post.md", markdown: "# Post" }
-      })
+        openResult: { filePath: "/Users/me/post.md", markdown: "# Post" },
+      }),
     );
 
     await expect(service.openDocument()).resolves.toEqual({
       filePath: "/Users/me/post.md",
-      markdown: "# Post"
+      markdown: "# Post",
     });
   });
 
@@ -41,58 +41,60 @@ describe("FileService", () => {
                 name: "guide",
                 path: "/Users/me/docs/guide",
                 kind: "directory",
-                children: [{ name: "intro.mdx", path: "/Users/me/docs/guide/intro.mdx", kind: "markdown" }]
-              }
-            ]
-          }
-        }
-      })
+                children: [
+                  { name: "intro.mdx", path: "/Users/me/docs/guide/intro.mdx", kind: "markdown" },
+                ],
+              },
+            ],
+          },
+        },
+      }),
     );
 
     await expect(service.openFolder()).resolves.toMatchObject({
       rootName: "docs",
       tree: {
-            children: [
-              { name: "index.md", kind: "markdown" },
-              { name: "image.png", kind: "asset" },
-              {
-                name: "guide",
+        children: [
+          { name: "index.md", kind: "markdown" },
+          { name: "image.png", kind: "asset" },
+          {
+            name: "guide",
             kind: "directory",
-            children: [{ name: "intro.mdx", kind: "markdown" }]
-          }
-        ]
-      }
+            children: [{ name: "intro.mdx", kind: "markdown" }],
+          },
+        ],
+      },
     });
   });
 
   it("opens a Markdown document by path through the adapter", async () => {
     const service = createFileService(
       fakeAdapter({
-        readResult: { filePath: "/Users/me/docs/index.md", markdown: "# Index" }
-      })
+        readResult: { filePath: "/Users/me/docs/index.md", markdown: "# Index" },
+      }),
     );
 
     await expect(service.openDocumentAtPath("/Users/me/docs/index.md")).resolves.toEqual({
       filePath: "/Users/me/docs/index.md",
-      markdown: "# Index"
+      markdown: "# Index",
     });
   });
 
   it("saves to the existing path without forcing the dialog", async () => {
     const adapter = fakeAdapter({
-      saveResult: { filePath: "/Users/me/post.md", markdown: "# Saved" }
+      saveResult: { filePath: "/Users/me/post.md", markdown: "# Saved" },
     });
     const service = createFileService(adapter);
 
     await expect(
-      service.saveDocument({ filePath: "/Users/me/post.md", markdown: "# Saved" })
+      service.saveDocument({ filePath: "/Users/me/post.md", markdown: "# Saved" }),
     ).resolves.toEqual({
       filePath: "/Users/me/post.md",
-      markdown: "# Saved"
+      markdown: "# Saved",
     });
     expect(adapter.saveMarkdownFile).toHaveBeenCalledWith({
       filePath: "/Users/me/post.md",
-      markdown: "# Saved"
+      markdown: "# Saved",
     });
   });
 
@@ -104,7 +106,7 @@ describe("FileService", () => {
 
   it("forces a dialog for Save As even when the document already has a path", async () => {
     const adapter = fakeAdapter({
-      saveResult: { filePath: "/Users/me/copy.md", markdown: "# Copy" }
+      saveResult: { filePath: "/Users/me/copy.md", markdown: "# Copy" },
     });
     const service = createFileService(adapter);
 
@@ -113,7 +115,7 @@ describe("FileService", () => {
     expect(adapter.saveMarkdownFile).toHaveBeenCalledWith({
       filePath: "/Users/me/post.md",
       markdown: "# Copy",
-      forceDialog: true
+      forceDialog: true,
     });
   });
 
@@ -125,14 +127,14 @@ describe("FileService", () => {
       rootPath: "/Users/me/docs",
       parentPath: "/Users/me/docs",
       name: "draft.md",
-      kind: "markdown"
+      kind: "markdown",
     });
 
     expect(adapter.createMarkdownTreeItem).toHaveBeenCalledWith({
       rootPath: "/Users/me/docs",
       parentPath: "/Users/me/docs",
       name: "draft.md",
-      kind: "markdown"
+      kind: "markdown",
     });
   });
 
@@ -143,31 +145,33 @@ describe("FileService", () => {
     await service.renameTreeItem({
       rootPath: "/Users/me/docs",
       path: "/Users/me/docs/draft.md",
-      name: "post.md"
+      name: "post.md",
     });
     await service.deleteTreeItem({
       rootPath: "/Users/me/docs",
-      path: "/Users/me/docs/post.md"
+      path: "/Users/me/docs/post.md",
     });
 
     expect(adapter.renameMarkdownTreeItem).toHaveBeenCalledWith({
       rootPath: "/Users/me/docs",
       path: "/Users/me/docs/draft.md",
-      name: "post.md"
+      name: "post.md",
     });
     expect(adapter.deleteMarkdownTreeItem).toHaveBeenCalledWith({
       rootPath: "/Users/me/docs",
-      path: "/Users/me/docs/post.md"
+      path: "/Users/me/docs/post.md",
     });
   });
 });
 
-function fakeAdapter(options: {
-  readonly openResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFile"]>>;
-  readonly folderResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFolder"]>>;
-  readonly readResult?: Awaited<ReturnType<FileServiceAdapter["readMarkdownFile"]>>;
-  readonly saveResult?: Awaited<ReturnType<FileServiceAdapter["saveMarkdownFile"]>>;
-} = {}): FileServiceAdapter {
+function fakeAdapter(
+  options: {
+    readonly openResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFile"]>>;
+    readonly folderResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFolder"]>>;
+    readonly readResult?: Awaited<ReturnType<FileServiceAdapter["readMarkdownFile"]>>;
+    readonly saveResult?: Awaited<ReturnType<FileServiceAdapter["saveMarkdownFile"]>>;
+  } = {},
+): FileServiceAdapter {
   const fallbackFolder = options.folderResult ?? {
     rootPath: "/Users/me/docs",
     rootName: "docs",
@@ -175,8 +179,8 @@ function fakeAdapter(options: {
       name: "docs",
       path: "/Users/me/docs",
       kind: "directory" as const,
-      children: []
-    }
+      children: [],
+    },
   };
 
   return {
@@ -187,6 +191,6 @@ function fakeAdapter(options: {
     refreshMarkdownFolder: vi.fn(async () => fallbackFolder),
     createMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
     renameMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
-    deleteMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null }))
+    deleteMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
   };
 }

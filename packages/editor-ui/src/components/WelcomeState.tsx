@@ -14,7 +14,7 @@ export function WelcomeState({
   onNewDocument,
   onOpenDocument,
   onOpenFolder,
-  onOpenRecent
+  onOpenRecent,
 }: WelcomeStateProps) {
   return (
     <section
@@ -28,7 +28,9 @@ export function WelcomeState({
         M
       </div>
       <div className="mb-[26px] mt-[22px]">
-        <p className="mb-1 mt-0 text-[13px] text-[var(--theme-muted)]">本地优先的 Markdown 写作工具</p>
+        <p className="mb-1 mt-0 text-[13px] text-[var(--theme-muted)]">
+          本地优先的 Markdown 写作工具
+        </p>
         <h1
           id="welcome-title"
           className="m-0 text-[28px] leading-[1.3] tracking-normal text-[var(--theme-title)]"
@@ -73,14 +75,14 @@ export function WelcomeState({
           </ul>
         </div>
       ) : (
-        <p className="mt-[30px] text-xs text-[var(--theme-control-subtle)]">你打开的文件只保存在本机。</p>
+        <p className="mt-[30px] text-xs text-[var(--theme-control-subtle)]">
+          你打开的文件只保存在本机。
+        </p>
       )}
     </section>
   );
 }
 
-const secondaryActionClassName =
-  `${dialogButtonClassName} min-h-8 px-3 py-[5px]`;
+const secondaryActionClassName = `${dialogButtonClassName} min-h-8 px-3 py-[5px]`;
 
-const primaryActionClassName =
-  `${primaryDialogButtonClassName} min-h-8 px-3 py-[5px]`;
+const primaryActionClassName = `${primaryDialogButtonClassName} min-h-8 px-3 py-[5px]`;

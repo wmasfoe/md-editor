@@ -36,15 +36,24 @@ export interface DocumentState {
   subscribe(listener: () => void): () => void;
   getSnapshot(): DocumentSnapshot;
   updateMarkdown(markdown: Markdown): DocumentSnapshot;
-  markSaved(input?: { readonly markdown?: Markdown; readonly filePath?: string | null }): DocumentSnapshot;
-  updateSavedBaseline(input: { readonly markdown: Markdown; readonly filePath?: string | null }): DocumentSnapshot;
+  markSaved(input?: {
+    readonly markdown?: Markdown;
+    readonly filePath?: string | null;
+  }): DocumentSnapshot;
+  updateSavedBaseline(input: {
+    readonly markdown: Markdown;
+    readonly filePath?: string | null;
+  }): DocumentSnapshot;
   setMode(mode: EditorMode): DocumentSnapshot;
 }
 
 export type ModeSwitchError = "MODE_SWITCH_FAILED";
 
 export interface ModeSwitchAdapter {
-  readonly beforeSwitch?: (snapshot: DocumentSnapshot, nextMode: EditorMode) => Markdown | Promise<Markdown>;
+  readonly beforeSwitch?: (
+    snapshot: DocumentSnapshot,
+    nextMode: EditorMode,
+  ) => Markdown | Promise<Markdown>;
   readonly afterSwitch?: (snapshot: DocumentSnapshot) => void | Promise<void>;
 }
 
@@ -181,7 +190,7 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
         savedMarkdown,
         filePath,
         mode,
-        isDirty: markdown !== savedMarkdown
+        isDirty: markdown !== savedMarkdown,
       };
     }
     return cachedSnapshot;
@@ -190,7 +199,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
   return {
     subscribe(listener) {
       listeners.add(listener);
-      return () => { listeners.delete(listener); };
+      return () => {
+        listeners.delete(listener);
+      };
     },
     getSnapshot: snapshot,
     updateMarkdown(nextMarkdown) {
@@ -219,7 +230,7 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
       cachedSnapshot = null;
       notify();
       return snapshot();
-    }
+    },
   };
 }
 
@@ -234,20 +245,20 @@ export function createCommandRegistry(): CommandRegistry {
       commands.set(command.id, command);
     },
     async dispatch(id, context) {
-      console.log('[Command Dispatch]', id, 'registered commands:', [...commands.keys()]);
+      console.log("[Command Dispatch]", id, "registered commands:", [...commands.keys()]);
       const command = commands.get(id);
       if (!command) {
-        console.warn('[Command Dispatch] Command not found:', id);
+        console.warn("[Command Dispatch] Command not found:", id);
         return false;
       }
-      console.log('[Command Dispatch] Running:', id);
+      console.log("[Command Dispatch] Running:", id);
       await command.run(context);
-      console.log('[Command Dispatch] Completed:', id);
+      console.log("[Command Dispatch] Completed:", id);
       return true;
     },
     list() {
       return [...commands.values()];
-    }
+    },
   };
 }
 
@@ -270,7 +281,7 @@ export function createKeymapRegistry(): KeymapRegistry {
     },
     list() {
       return [...keymaps.values()];
-    }
+    },
   };
 }
 
@@ -291,7 +302,7 @@ export function createFeatureRegistry(): FeatureRegistry {
     },
     list() {
       return [...features.values()];
-    }
+    },
   };
 }
 
@@ -302,12 +313,22 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
     setup(context) {
       registerActionCommand(context.commands, "file.new", "New Document", "newDocument");
       registerActionCommand(context.commands, "file.open", "Open File", "openDocument");
-      registerActionCommand(context.commands, "file.openRecent", "Open Recent File", "openRecentDocument");
+      registerActionCommand(
+        context.commands,
+        "file.openRecent",
+        "Open Recent File",
+        "openRecentDocument",
+      );
       registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
       registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
       registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
       registerActionCommand(context.commands, "settings.open", "Settings", "openSettings");
-      registerActionCommand(context.commands, "mdx.openComponentMenu", "Insert MDX Component", "openMdxComponentMenu");
+      registerActionCommand(
+        context.commands,
+        "mdx.openComponentMenu",
+        "Insert MDX Component",
+        "openMdxComponentMenu",
+      );
       registerActionCommand(
         context.commands,
         "view.toggleSource",
@@ -354,7 +375,12 @@ export function createAiWritingFeature(): FeatureDescriptor {
     id: "editor.ai-writing",
     title: "AI writing commands",
     setup(context) {
-      registerActionCommand(context.commands, "ai.continueWriting", "Continue Writing with AI", "continueAiWriting");
+      registerActionCommand(
+        context.commands,
+        "ai.continueWriting",
+        "Continue Writing with AI",
+        "continueAiWriting",
+      );
       context.keymaps.register({
         id: "ai.continueWriting",
         key: "Mod-Shift-A",
@@ -395,14 +421,14 @@ export function createEditorRuntime(input: EditorRuntimeInput): EditorRuntime {
     mdxComponents: input.mdxComponents,
     getSnapshot() {
       return input.document.getSnapshot();
-    }
+    },
   };
 }
 
 export async function switchEditorModeSafely(
   document: DocumentState,
   nextMode: EditorMode,
-  adapter: ModeSwitchAdapter = {}
+  adapter: ModeSwitchAdapter = {},
 ): Promise<ModeSwitchResult> {
   const previous = document.getSnapshot();
 
@@ -430,7 +456,7 @@ export async function switchEditorModeSafely(
       ok: false,
       error: "MODE_SWITCH_FAILED",
       message: error instanceof Error ? error.message : "Failed to switch editor mode.",
-      snapshot: document.getSnapshot()
+      snapshot: document.getSnapshot(),
     };
   }
 }

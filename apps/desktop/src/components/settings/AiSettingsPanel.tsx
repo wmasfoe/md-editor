@@ -7,7 +7,7 @@ import {
   providerModelPlaceholder,
   readAiProvider,
   updateAiFeature,
-  updateAiProvider
+  updateAiProvider,
 } from "./settingsUtils";
 import {
   settingsDescriptionClassName,
@@ -15,7 +15,7 @@ import {
   settingsInputClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-  settingsSmallButtonClassName
+  settingsSmallButtonClassName,
 } from "./settingsStyles";
 
 interface AiSettingsPanelProps {
@@ -33,7 +33,7 @@ export function AiSettingsPanel({
   onChangeAiSettings,
   onDownloadLocalModel,
   onCancelLocalModelDownload,
-  onDeleteLocalModel
+  onDeleteLocalModel,
 }: AiSettingsPanelProps) {
   const isLocalModelBusy =
     isLocalModelActionPending ||
@@ -48,7 +48,9 @@ export function AiSettingsPanel({
   return (
     <section className={settingsModuleClassName} aria-labelledby="ai-settings-title">
       <div className="mb-3">
-        <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>AI 设置</h2>
+        <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>
+          AI 设置
+        </h2>
         <p className={settingsDescriptionClassName}>
           AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。
         </p>
@@ -71,7 +73,9 @@ export function AiSettingsPanel({
             className="size-4 accent-[var(--theme-primary)]"
             checked={aiSettingsDraft.features.continuation}
             onChange={(event) =>
-              onChangeAiSettings(updateAiFeature(aiSettingsDraft, "continuation", event.target.checked))
+              onChangeAiSettings(
+                updateAiFeature(aiSettingsDraft, "continuation", event.target.checked),
+              )
             }
           />
           <span className={settingsFieldLabelClassName}>AI 续写</span>
@@ -83,7 +87,9 @@ export function AiSettingsPanel({
             className={settingsInputClassName}
             value={aiSettingsDraft.provider}
             onChange={(event) =>
-              onChangeAiSettings(updateAiProvider(aiSettingsDraft, readAiProvider(event.target.value)))
+              onChangeAiSettings(
+                updateAiProvider(aiSettingsDraft, readAiProvider(event.target.value)),
+              )
             }
           >
             <option value="openai-compatible">OpenAI-compatible</option>
@@ -116,7 +122,7 @@ export function AiSettingsPanel({
 
 function RemoteAiSettings({
   aiSettingsDraft,
-  onChangeAiSettings
+  onChangeAiSettings,
 }: Pick<AiSettingsPanelProps, "aiSettingsDraft" | "onChangeAiSettings">) {
   return (
     <div className="grid gap-2.5">
@@ -131,8 +137,8 @@ function RemoteAiSettings({
               ...aiSettingsDraft,
               openAiCompatible: {
                 ...aiSettingsDraft.openAiCompatible,
-                baseUrl: event.target.value
-              }
+                baseUrl: event.target.value,
+              },
             })
           }
           placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
@@ -149,8 +155,8 @@ function RemoteAiSettings({
               ...aiSettingsDraft,
               openAiCompatible: {
                 ...aiSettingsDraft.openAiCompatible,
-                model: event.target.value
-              }
+                model: event.target.value,
+              },
             })
           }
           placeholder={providerModelPlaceholder(aiSettingsDraft.provider)}
@@ -168,8 +174,8 @@ function RemoteAiSettings({
               ...aiSettingsDraft,
               openAiCompatible: {
                 ...aiSettingsDraft.openAiCompatible,
-                apiKey: event.target.value
-              }
+                apiKey: event.target.value,
+              },
             })
           }
           placeholder="sk-..."
@@ -201,7 +207,7 @@ function LocalAiSettings({
   onChangeAiSettings,
   onDownloadLocalModel,
   onCancelLocalModelDownload,
-  onDeleteLocalModel
+  onDeleteLocalModel,
 }: LocalAiSettingsProps) {
   return (
     <div className="grid gap-2.5">
@@ -215,8 +221,8 @@ function LocalAiSettings({
               ...aiSettingsDraft,
               localModel: {
                 ...aiSettingsDraft.localModel,
-                enabled: event.target.checked
-              }
+                enabled: event.target.checked,
+              },
             })
           }
         />

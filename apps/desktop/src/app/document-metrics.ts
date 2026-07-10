@@ -10,7 +10,7 @@ export function calculateDocumentMetrics(markdown: string): DocumentMetrics {
   return {
     words: countWords(markdown),
     lines: countLines(markdown),
-    characters: Array.from(markdown).length
+    characters: Array.from(markdown).length,
   };
 }
 

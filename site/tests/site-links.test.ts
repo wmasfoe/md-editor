@@ -3,7 +3,7 @@ import {
   buildMacosDmgUrl,
   GITHUB_RELEASES_URL,
   GITHUB_REPO_URL,
-  normalizeVersion
+  normalizeVersion,
 } from "../lib/site-links";
 
 describe("site-links", () => {
@@ -22,10 +22,10 @@ describe("site-links", () => {
 
   it("builds stable DMG download URL matching cask naming", () => {
     expect(buildMacosDmgUrl("0.3.16")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Markdown.Editor_0.3.16_aarch64.dmg"
+      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Markdown.Editor_0.3.16_aarch64.dmg",
     );
     expect(buildMacosDmgUrl("v0.3.16")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Markdown.Editor_0.3.16_aarch64.dmg"
+      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Markdown.Editor_0.3.16_aarch64.dmg",
     );
   });
 

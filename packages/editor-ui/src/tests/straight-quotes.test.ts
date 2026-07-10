@@ -6,20 +6,20 @@ import {
   normalizeSmartQuotes,
   planSmartQuoteNormalizationsFromTransactions,
   shouldNormalizeSmartQuoteChange,
-  shouldSkipStraightQuoteNormalization
+  shouldSkipStraightQuoteNormalization,
 } from "../utils/straight-quotes";
 
 const milkdownEditorSource = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const sourceEditorSource = readFileSync(
   new URL("../components/SourceEditor/SourceEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const straightQuotesSource = readFileSync(
   new URL("../utils/straight-quotes.ts", import.meta.url),
-  "utf8"
+  "utf8",
 );
 
 describe("straight quotes policy", () => {
@@ -50,16 +50,16 @@ describe("straight quotes policy", () => {
   });
 
   it("allows pure curly inserts only when insertReplacementText path is armed", () => {
-    expect(
-      shouldNormalizeSmartQuoteChange("", "\u201c", { allowPureSmartInsert: true })
-    ).toBe(true);
-    expect(
-      shouldNormalizeSmartQuoteChange("", "\u201c", { allowPureSmartInsert: false })
-    ).toBe(false);
+    expect(shouldNormalizeSmartQuoteChange("", "\u201c", { allowPureSmartInsert: true })).toBe(
+      true,
+    );
+    expect(shouldNormalizeSmartQuoteChange("", "\u201c", { allowPureSmartInsert: false })).toBe(
+      false,
+    );
   });
 
   it("plans normalization for delayed smart-quote rewrite of an earlier ASCII quote", () => {
-    const { state } = createParagraphState("\"\"3");
+    const { state } = createParagraphState('""3');
     // 系统把第一个 ASCII 引号改写成开引号弯引号。
     const transaction = state.tr.insertText("\u201c", 1, 2);
     const plans = planSmartQuoteNormalizationsFromTransactions([transaction]);
@@ -81,8 +81,8 @@ describe("straight quotes policy", () => {
     expect(planSmartQuoteNormalizationsFromTransactions([transaction])).toEqual([]);
     expect(
       planSmartQuoteNormalizationsFromTransactions([transaction], {
-        allowPureSmartInsert: true
-      })
+        allowPureSmartInsert: true,
+      }),
     ).toEqual([{ from: 6, to: 7, insert: '"' }]);
   });
 
@@ -90,7 +90,7 @@ describe("straight quotes policy", () => {
     const paste = { getMeta: (key: unknown) => (key === "paste" ? true : undefined) };
     const drop = { getMeta: (key: unknown) => (key === "uiEvent" ? "drop" : undefined) };
     const composition = {
-      getMeta: (key: unknown) => (key === "composition" ? { data: "" } : undefined)
+      getMeta: (key: unknown) => (key === "composition" ? { data: "" } : undefined),
     };
 
     expect(shouldSkipStraightQuoteNormalization([paste])).toBe(true);
@@ -104,14 +104,14 @@ function createParagraphState(text: string) {
     nodes: {
       doc: { content: "block+" },
       paragraph: { content: "inline*", group: "block" },
-      text: { group: "inline" }
-    }
+      text: { group: "inline" },
+    },
   });
   const paragraphContent = text.length > 0 ? [schema.text(text)] : [];
   const doc = schema.node("doc", null, [schema.node("paragraph", null, paragraphContent)]);
   const state = EditorState.create({
     doc,
-    selection: TextSelection.create(doc, Math.min(1 + text.length, doc.content.size - 1))
+    selection: TextSelection.create(doc, Math.min(1 + text.length, doc.content.size - 1)),
   });
   return { schema, doc, state };
 }

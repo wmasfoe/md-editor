@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { getChangelogEntries } from "../lib/changelog";
-import {
-  buildMacosDmgUrl,
-  GITHUB_REPO_URL
-} from "../lib/site-links";
+import { buildMacosDmgUrl, GITHUB_REPO_URL } from "../lib/site-links";
 
 export function SiteHeader() {
   const [latest] = getChangelogEntries();

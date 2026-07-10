@@ -10,7 +10,7 @@ export interface ChangelogEntry {
 // monorepo 根优先；site 目录内副本次之（预留给打包工具只带 site 子树的场景）。
 const defaultChangelogCandidates = [
   path.join(process.cwd(), "..", "CHANGELOG.md"),
-  path.join(process.cwd(), "CHANGELOG.md")
+  path.join(process.cwd(), "CHANGELOG.md"),
 ];
 
 export function parseChangelog(markdown: string): ChangelogEntry[] {
@@ -25,7 +25,7 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
       current = {
         version: heading[1].trim(),
         date: heading[2]?.trim() ?? "",
-        items: []
+        items: [],
       };
       entries.push(current);
       continue;

@@ -4,14 +4,11 @@ import {
   emptyEditorUiCommandSlots,
   getModeScrollTargetForMode,
   useEditorUiActions,
-  useEditorUiState
+  useEditorUiState,
 } from "../../hooks/useEditorUi";
 import { useMdxAiController, type MdxSnippetPlugin } from "../../hooks/useMdxAiController";
 import { MilkdownEditorPrimitive } from "./MilkdownEditorPrimitive";
-import type {
-  MilkdownEditorProps,
-  MilkdownEditorPrimitiveProps
-} from "./types";
+import type { MilkdownEditorProps, MilkdownEditorPrimitiveProps } from "./types";
 
 export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlugin>({
   mdxAi,
@@ -27,7 +24,7 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
   useLayoutEffect(() => {
     const commands = {
       openMdxComponentMenu: mdxController.openMdxComponentMenu,
-      continueAiWriting: mdxController.continueAiWriting
+      continueAiWriting: mdxController.continueAiWriting,
     };
     registerEditorCommands(commands);
     onEditorCommandsChange?.(commands);
@@ -40,7 +37,7 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
     mdxController.continueAiWriting,
     mdxController.openMdxComponentMenu,
     onEditorCommandsChange,
-    registerEditorCommands
+    registerEditorCommands,
   ]);
 
   const primitiveProps: MilkdownEditorPrimitiveProps = {
@@ -58,7 +55,7 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
     scrollTarget: getModeScrollTargetForMode(editorUiState.modeScrollTarget, "wysiwyg"),
     onScrollRatioChange: editorUiActions.updateModeScrollRatio,
     onScrollTargetApplied: editorUiActions.completeModeScrollTarget,
-    onActiveOutlineChange: editorUiActions.setActiveOutlineId
+    onActiveOutlineChange: editorUiActions.setActiveOutlineId,
   };
 
   return (
@@ -68,10 +65,10 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
       </MilkdownProvider>
       {mdxController.isMdxComponentMenuOpen && renderMdxComponentMenu
         ? renderMdxComponentMenu({
-          plugins: mdxController.mdxComponentPlugins,
-          onInsert: mdxController.insertMdxComponent,
-          onClose: mdxController.closeMdxComponentMenu
-        })
+            plugins: mdxController.mdxComponentPlugins,
+            onInsert: mdxController.insertMdxComponent,
+            onClose: mdxController.closeMdxComponentMenu,
+          })
         : null}
     </>
   );

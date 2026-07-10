@@ -11,7 +11,11 @@ export interface AssetPreviewProps {
   readonly onBack?: () => void;
 }
 
-export function AssetPreview({ asset, resolveAssetSrc = (path) => path, onBack }: AssetPreviewProps) {
+export function AssetPreview({
+  asset,
+  resolveAssetSrc = (path) => path,
+  onBack,
+}: AssetPreviewProps) {
   const [failedPath, setFailedPath] = useState<string | null>(null);
   const assetUrl = useMemo(() => resolveAssetSrc(asset.path), [asset.path, resolveAssetSrc]);
 

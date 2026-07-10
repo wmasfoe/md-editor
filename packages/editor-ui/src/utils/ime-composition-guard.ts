@@ -6,7 +6,7 @@ import {
   PluginKey,
   type Selection,
   type SelectionBookmark,
-  type Transaction
+  type Transaction,
 } from "@milkdown/kit/prose/state";
 
 const imeCompositionGuardKey = new PluginKey("md-editor-ime-composition-guard");
@@ -23,99 +23,99 @@ interface CompositionDomObserver {
   readonly flush?: () => void;
 }
 
-export const imeCompositionGuardPlugin = $prose(
-  () => {
-    let isComposing = false;
-    let compositionEndTimer: ReturnType<typeof setTimeout> | null = null;
-    let compositionStartSnapshot: CompositionStartSnapshot | null = null;
+export const imeCompositionGuardPlugin = $prose(() => {
+  let isComposing = false;
+  let compositionEndTimer: ReturnType<typeof setTimeout> | null = null;
+  let compositionStartSnapshot: CompositionStartSnapshot | null = null;
 
-    const clearCompositionEndTimer = () => {
-      if (compositionEndTimer !== null) {
-        clearTimeout(compositionEndTimer);
-        compositionEndTimer = null;
+  const clearCompositionEndTimer = () => {
+    if (compositionEndTimer !== null) {
+      clearTimeout(compositionEndTimer);
+      compositionEndTimer = null;
+    }
+  };
+
+  const startComposition = (view: EditorView) => {
+    clearCompositionEndTimer();
+    isComposing = true;
+    compositionStartSnapshot = {
+      doc: view.state.doc,
+      selection: view.state.selection,
+      bookmark: view.state.selection.getBookmark(),
+    };
+  };
+
+  const finishCompositionSoon = (view: EditorView) => {
+    clearCompositionEndTimer();
+    compositionEndTimer = setTimeout(() => {
+      compositionEndTimer = null;
+      isComposing = false;
+      // Some IMEs leave ProseMirror's composition DOM pending until the
+      // next input. Settle it here so CJK input does not need an ASCII key
+      // press to repair layout or caret state.
+      forceCompositionDomFlush(view);
+      refreshCompositionDom(view);
+      restoreCancelledCompositionSelection(view, compositionStartSnapshot);
+      compositionStartSnapshot = null;
+    }, IME_COMPOSITION_SETTLE_DELAY_MS);
+  };
+
+  return new Plugin({
+    key: imeCompositionGuardKey,
+    appendTransaction(transactions, oldState, newState) {
+      if (!isComposing && !transactions.some(isCompositionTransaction)) {
+        return;
       }
-    };
 
-    const startComposition = (view: EditorView) => {
-      clearCompositionEndTimer();
-      isComposing = true;
-      compositionStartSnapshot = {
-        doc: view.state.doc,
-        selection: view.state.selection,
-        bookmark: view.state.selection.getBookmark()
-      };
-    };
+      const positions = findIntroducedHardbreakPositions(oldState.doc, newState.doc, transactions);
+      if (positions.length === 0) {
+        return;
+      }
 
-    const finishCompositionSoon = (view: EditorView) => {
-      clearCompositionEndTimer();
-      compositionEndTimer = setTimeout(() => {
-        compositionEndTimer = null;
-        isComposing = false;
-        // Some IMEs leave ProseMirror's composition DOM pending until the
-        // next input. Settle it here so CJK input does not need an ASCII key
-        // press to repair layout or caret state.
-        forceCompositionDomFlush(view);
-        refreshCompositionDom(view);
-        restoreCancelledCompositionSelection(view, compositionStartSnapshot);
+      let transaction = newState.tr;
+      for (const position of positions.reverse()) {
+        const node = transaction.doc.nodeAt(position);
+        if (node?.type.name === "hardbreak") {
+          transaction = transaction.delete(position, position + node.nodeSize);
+        }
+      }
+
+      return transaction;
+    },
+    props: {
+      handleDOMEvents: {
+        compositionstart(view) {
+          startComposition(view);
+          return false;
+        },
+        compositionend(view) {
+          finishCompositionSoon(view);
+          return false;
+        },
+      },
+    },
+    view: () => ({
+      destroy() {
+        clearCompositionEndTimer();
         compositionStartSnapshot = null;
-      }, IME_COMPOSITION_SETTLE_DELAY_MS);
-    };
-
-    return new Plugin({
-      key: imeCompositionGuardKey,
-      appendTransaction(transactions, oldState, newState) {
-        if (!isComposing && !transactions.some(isCompositionTransaction)) {
-          return;
-        }
-
-        const positions = findIntroducedHardbreakPositions(oldState.doc, newState.doc, transactions);
-        if (positions.length === 0) {
-          return;
-        }
-
-        let transaction = newState.tr;
-        for (const position of positions.reverse()) {
-          const node = transaction.doc.nodeAt(position);
-          if (node?.type.name === "hardbreak") {
-            transaction = transaction.delete(position, position + node.nodeSize);
-          }
-        }
-
-        return transaction;
       },
-      props: {
-        handleDOMEvents: {
-          compositionstart(view) {
-            startComposition(view);
-            return false;
-          },
-          compositionend(view) {
-            finishCompositionSoon(view);
-            return false;
-          }
-        }
-      },
-      view: () => ({
-        destroy() {
-          clearCompositionEndTimer();
-          compositionStartSnapshot = null;
-        }
-      })
-    });
-  }
-);
+    }),
+  });
+});
 
 export function findIntroducedHardbreakPositions(
   oldDoc: ProseMirrorNode,
   newDoc: ProseMirrorNode,
-  transactions: readonly Transaction[]
+  transactions: readonly Transaction[],
 ): number[] {
   const mappedExistingHardbreaks = mapExistingHardbreakPositions(
     findHardbreakPositions(oldDoc),
-    transactions
+    transactions,
   );
 
-  return findHardbreakPositions(newDoc).filter((position) => !mappedExistingHardbreaks.has(position));
+  return findHardbreakPositions(newDoc).filter(
+    (position) => !mappedExistingHardbreaks.has(position),
+  );
 }
 
 export function forceCompositionDomFlush(view: unknown): boolean {
@@ -137,13 +137,11 @@ export function forceCompositionDomFlush(view: unknown): boolean {
   return didFlush;
 }
 
-export function refreshCompositionDom(
-  view: Pick<EditorView, "dispatch" | "state">
-): void {
+export function refreshCompositionDom(view: Pick<EditorView, "dispatch" | "state">): void {
   view.dispatch(
     view.state.tr
       .setMeta("addToHistory", false)
-      .setMeta(imeCompositionGuardKey, "refresh-composition-dom")
+      .setMeta(imeCompositionGuardKey, "refresh-composition-dom"),
   );
 }
 
@@ -151,7 +149,7 @@ export function shouldRestoreCancelledCompositionSelection(
   startDoc: ProseMirrorNode,
   currentDoc: ProseMirrorNode,
   startSelection: Selection,
-  currentSelection: Selection
+  currentSelection: Selection,
 ): boolean {
   return (
     startDoc.eq(currentDoc) &&
@@ -167,7 +165,7 @@ function isCompositionTransaction(transaction: Transaction): boolean {
 
 function restoreCancelledCompositionSelection(
   view: EditorView,
-  snapshot: CompositionStartSnapshot | null
+  snapshot: CompositionStartSnapshot | null,
 ): boolean {
   if (
     !snapshot ||
@@ -175,7 +173,7 @@ function restoreCancelledCompositionSelection(
       snapshot.doc,
       view.state.doc,
       snapshot.selection,
-      view.state.selection
+      view.state.selection,
     )
   ) {
     return false;
@@ -190,7 +188,7 @@ function restoreCancelledCompositionSelection(
     view.state.tr
       .setSelection(restoredSelection)
       .setMeta("addToHistory", false)
-      .setMeta(imeCompositionGuardKey, "restore-cancelled-composition-selection")
+      .setMeta(imeCompositionGuardKey, "restore-cancelled-composition-selection"),
   );
   return true;
 }
@@ -208,7 +206,7 @@ function findHardbreakPositions(doc: ProseMirrorNode): number[] {
 
 function mapExistingHardbreakPositions(
   positions: readonly number[],
-  transactions: readonly Transaction[]
+  transactions: readonly Transaction[],
 ): Set<number> {
   const mapped = new Set<number>();
 

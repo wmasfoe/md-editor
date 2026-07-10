@@ -6,7 +6,10 @@ export interface PendingModeScrollTarget {
   readonly target: EditorScrollTarget;
 }
 
-export function createEditorDocumentKey(filePath: string | null | undefined, revision: number): string {
+export function createEditorDocumentKey(
+  filePath: string | null | undefined,
+  revision: number,
+): string {
   return `${filePath ?? "untitled"}:${Math.max(0, Math.trunc(revision))}`;
 }
 
@@ -21,7 +24,7 @@ export function clampEditorScrollRatio(ratio: number): number | null {
 export function createModeScrollTarget(
   mode: EditorMode,
   ratio: number,
-  nonce = Date.now()
+  nonce = Date.now(),
 ): PendingModeScrollTarget | null {
   const clampedRatio = clampEditorScrollRatio(ratio);
   if (clampedRatio === null) {
@@ -32,7 +35,7 @@ export function createModeScrollTarget(
     mode,
     target: {
       ratio: clampedRatio,
-      nonce
-    }
+      nonce,
+    },
   };
 }

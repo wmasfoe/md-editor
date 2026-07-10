@@ -9,7 +9,7 @@ export interface LinkedFileTarget {
 
 export async function inspectLinkedFileTarget(
   documentPath: string,
-  href: string
+  href: string,
 ): Promise<LinkedFileTarget> {
   assertDesktopRuntime();
   return invoke<LinkedFileTarget>("inspect_linked_file", { documentPath, href });

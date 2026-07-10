@@ -17,18 +17,16 @@ export function useOutlineController({ markdown, showToast }: UseOutlineControll
 
   const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
     const matched = outlineRef.current.find(
-      (item) => item.line === target.line && item.level === target.level && item.text === target.text
+      (item) =>
+        item.line === target.line && item.level === target.level && item.text === target.text,
     );
     setActiveOutlineId(matched?.id ?? null);
     setTocTarget({ ...target, nonce: Date.now() });
   }, []);
 
-  const updateActiveOutlineForLine = useCallback(
-    (line: number) => {
-      setActiveOutlineId(findActiveHeadingIdForLine(outlineRef.current, line));
-    },
-    []
-  );
+  const updateActiveOutlineForLine = useCallback((line: number) => {
+    setActiveOutlineId(findActiveHeadingIdForLine(outlineRef.current, line));
+  }, []);
 
   const jumpToMarkdownFragment = useCallback(
     (targetMarkdown: string, fragment: string | null) => {
@@ -46,7 +44,7 @@ export function useOutlineController({ markdown, showToast }: UseOutlineControll
       setActiveOutlineId(item.id);
       setTocTarget({ line: item.line, level: item.level, text: item.text, nonce: Date.now() });
     },
-    [showToast]
+    [showToast],
   );
 
   useEffect(() => {
@@ -63,6 +61,6 @@ export function useOutlineController({ markdown, showToast }: UseOutlineControll
     setActiveOutlineId,
     jumpToTocItem,
     jumpToMarkdownFragment,
-    updateActiveOutlineForLine
+    updateActiveOutlineForLine,
   };
 }

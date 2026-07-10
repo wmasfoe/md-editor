@@ -6,7 +6,7 @@ import {
   settingsInputClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-  settingsSmallButtonClassName
+  settingsSmallButtonClassName,
 } from "./settingsStyles";
 
 interface OtherSettingsPanelProps {
@@ -30,24 +30,27 @@ export function OtherSettingsPanel({
   onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
-  onRelaunchAfterUpdate
+  onRelaunchAfterUpdate,
 }: OtherSettingsPanelProps) {
   const isUpdateBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
     updateStatus.state === "installing";
-  const canInstallUpdate = (
-    updateStatus.state === "available" ||
-    updateStatus.state === "downloaded"
-  ) && updateStatus.installKind === "app";
+  const canInstallUpdate =
+    (updateStatus.state === "available" || updateStatus.state === "downloaded") &&
+    updateStatus.installKind === "app";
   const canRelaunchAfterUpdate = updateStatus.state === "installed";
 
   return (
     <div className="grid gap-5">
       <section className={settingsModuleClassName} aria-labelledby="assets-settings-title">
         <div className="mb-3">
-          <h2 id="assets-settings-title" className={settingsSectionTitleClassName}>图片设置</h2>
-          <p className={settingsDescriptionClassName}>粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。</p>
+          <h2 id="assets-settings-title" className={settingsSectionTitleClassName}>
+            图片设置
+          </h2>
+          <p className={settingsDescriptionClassName}>
+            粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。
+          </p>
         </div>
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
           <span className={settingsFieldLabelClassName}>图片资源目录</span>
@@ -63,7 +66,9 @@ export function OtherSettingsPanel({
 
       <section className={settingsModuleClassName} aria-labelledby="update-settings-title">
         <div className="mb-3">
-          <h2 id="update-settings-title" className={settingsSectionTitleClassName}>版本</h2>
+          <h2 id="update-settings-title" className={settingsSectionTitleClassName}>
+            版本
+          </h2>
           <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
           {updateStatus.state === "available" && updateStatus.installCommand ? (
             <div className="mt-2 grid gap-1">
@@ -88,7 +93,7 @@ export function OtherSettingsPanel({
                 // 自动下载依赖自动检测；重新开启自动检测时默认帮用户勾上自动下载。
                 onChangeUpdateSettings({
                   automaticCheck,
-                  automaticDownload: automaticCheck ? true : false
+                  automaticDownload: automaticCheck,
                 });
               }}
             />
@@ -103,7 +108,7 @@ export function OtherSettingsPanel({
               onChange={(event) => {
                 onChangeUpdateSettings({
                   automaticCheck: true,
-                  automaticDownload: event.target.checked
+                  automaticDownload: event.target.checked,
                 });
               }}
             />
@@ -111,7 +116,9 @@ export function OtherSettingsPanel({
           </label>
         </div>
         <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
-          <span className={settingsFieldLabelClassName}>当前版本 {updateStatus.currentVersion}</span>
+          <span className={settingsFieldLabelClassName}>
+            当前版本 {updateStatus.currentVersion}
+          </span>
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"

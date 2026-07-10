@@ -8,7 +8,7 @@ import {
   useState,
   type Dispatch,
   type ReactNode,
-  type SetStateAction
+  type SetStateAction,
 } from "react";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { OutlineItem } from "../components/OutlinePanel";
@@ -17,7 +17,7 @@ import {
   clampEditorScrollRatio,
   createEditorDocumentKey,
   createModeScrollTarget,
-  type PendingModeScrollTarget
+  type PendingModeScrollTarget,
 } from "../utils/editor-ui-state";
 import { useOutlineController } from "./useOutlineController";
 
@@ -83,7 +83,7 @@ export interface EditorUiActionsContextValue {
 
 export const emptyEditorUiCommandSlots: EditorUiCommandSlots = {
   openMdxComponentMenu: () => {},
-  continueAiWriting: async () => {}
+  continueAiWriting: async () => {},
 };
 
 const EditorUiStateContext = createContext<EditorUiStateContextValue | null>(null);
@@ -94,7 +94,7 @@ export function EditorUiProvider({
   filePath,
   initialDocumentRevision = 0,
   markdown,
-  showToast
+  showToast,
 }: EditorUiProviderProps) {
   const [documentRevision, setDocumentRevision] = useState(initialDocumentRevision);
   const [modeScrollTarget, setModeScrollTarget] = useState<PendingModeScrollTarget | null>(null);
@@ -123,9 +123,7 @@ export function EditorUiProvider({
   }, []);
 
   const completeModeScrollTarget = useCallback((nonce: number) => {
-    setModeScrollTarget((current) => (
-      current?.target.nonce === nonce ? null : current
-    ));
+    setModeScrollTarget((current) => (current?.target.nonce === nonce ? null : current));
   }, []);
 
   const registerEditorCommands = useCallback((commands: EditorUiCommandSlots) => {
@@ -139,54 +137,58 @@ export function EditorUiProvider({
     setModeScrollTarget(null);
   }, [documentKey]);
 
-  const state = useMemo<EditorUiStateContextValue>(() => ({
-    documentKey,
-    documentRevision,
-    outline: outline.outline,
-    tocTarget: outline.tocTarget,
-    activeOutlineId: outline.activeOutlineId,
-    modeScrollTarget
-  }), [
-    documentKey,
-    documentRevision,
-    modeScrollTarget,
-    outline.activeOutlineId,
-    outline.outline,
-    outline.tocTarget
-  ]);
+  const state = useMemo<EditorUiStateContextValue>(
+    () => ({
+      documentKey,
+      documentRevision,
+      outline: outline.outline,
+      tocTarget: outline.tocTarget,
+      activeOutlineId: outline.activeOutlineId,
+      modeScrollTarget,
+    }),
+    [
+      documentKey,
+      documentRevision,
+      modeScrollTarget,
+      outline.activeOutlineId,
+      outline.outline,
+      outline.tocTarget,
+    ],
+  );
 
-  const actions = useMemo<EditorUiActionsContextValue>(() => ({
-    setDocumentRevision,
-    bumpDocumentRevision,
-    setActiveOutlineId: outline.setActiveOutlineId,
-    jumpToTocItem: outline.jumpToTocItem,
-    jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
-    updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
-    updateModeScrollRatio,
-    startModeScrollTarget,
-    clearModeScrollTarget,
-    completeModeScrollTarget,
-    registerEditorCommands,
-    getEditorCommands
-  }), [
-    bumpDocumentRevision,
-    clearModeScrollTarget,
-    completeModeScrollTarget,
-    getEditorCommands,
-    outline.jumpToMarkdownFragment,
-    outline.jumpToTocItem,
-    outline.setActiveOutlineId,
-    outline.updateActiveOutlineForLine,
-    registerEditorCommands,
-    startModeScrollTarget,
-    updateModeScrollRatio
-  ]);
+  const actions = useMemo<EditorUiActionsContextValue>(
+    () => ({
+      setDocumentRevision,
+      bumpDocumentRevision,
+      setActiveOutlineId: outline.setActiveOutlineId,
+      jumpToTocItem: outline.jumpToTocItem,
+      jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
+      updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
+      updateModeScrollRatio,
+      startModeScrollTarget,
+      clearModeScrollTarget,
+      completeModeScrollTarget,
+      registerEditorCommands,
+      getEditorCommands,
+    }),
+    [
+      bumpDocumentRevision,
+      clearModeScrollTarget,
+      completeModeScrollTarget,
+      getEditorCommands,
+      outline.jumpToMarkdownFragment,
+      outline.jumpToTocItem,
+      outline.setActiveOutlineId,
+      outline.updateActiveOutlineForLine,
+      registerEditorCommands,
+      startModeScrollTarget,
+      updateModeScrollRatio,
+    ],
+  );
 
   return (
     <EditorUiActionsContext.Provider value={actions}>
-      <EditorUiStateContext.Provider value={state}>
-        {children}
-      </EditorUiStateContext.Provider>
+      <EditorUiStateContext.Provider value={state}>{children}</EditorUiStateContext.Provider>
     </EditorUiActionsContext.Provider>
   );
 }
@@ -215,13 +217,13 @@ export function useEditorUi(): EditorUiContextValue {
     state,
     actions,
     ...state,
-    ...actions
+    ...actions,
   };
 }
 
 export function getModeScrollTargetForMode(
   modeScrollTarget: PendingModeScrollTarget | null,
-  mode: EditorMode
+  mode: EditorMode,
 ): EditorScrollTarget | null {
   return modeScrollTarget?.mode === mode ? modeScrollTarget.target : null;
 }

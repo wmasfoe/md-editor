@@ -9,7 +9,7 @@ function keyboardEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
     key: "b",
     metaKey: true,
     shiftKey: true,
-    ...overrides
+    ...overrides,
   } as KeyboardEvent;
 }
 
@@ -19,12 +19,9 @@ describe("matchesRuntimeKeymap", () => {
   });
 
   it("does not match the previous Shift+Command+1 shortcut", () => {
-    expect(
-      matchesRuntimeKeymap(
-        keyboardEvent({ code: "Digit1", key: "1" }),
-        "Mod-Shift-B"
-      )
-    ).toBe(false);
+    expect(matchesRuntimeKeymap(keyboardEvent({ code: "Digit1", key: "1" }), "Mod-Shift-B")).toBe(
+      false,
+    );
   });
 
   it("matches shortcuts with Option when the keymap asks for Alt", () => {
@@ -34,10 +31,7 @@ describe("matchesRuntimeKeymap", () => {
 
   it("matches the slash key by key or code", () => {
     expect(
-      matchesRuntimeKeymap(
-        keyboardEvent({ code: "Slash", key: "/", shiftKey: false }),
-        "Mod-/"
-      )
+      matchesRuntimeKeymap(keyboardEvent({ code: "Slash", key: "/", shiftKey: false }), "Mod-/"),
     ).toBe(true);
   });
 

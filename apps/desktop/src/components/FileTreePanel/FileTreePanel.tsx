@@ -9,7 +9,7 @@ import {
   listenToNativeFileTreeContextMenuActions,
   revealNativeFileTreeItemInFinder,
   showNativeFileTreeContextMenu,
-  type FileTreeContextMenuAction
+  type FileTreeContextMenuAction,
 } from "../../desktop/file-tree-context-menu";
 import { useDocumentSnapshot } from "../../app/document-store";
 import { useDocumentUiStore } from "../../app/stores/document-ui-store";
@@ -26,7 +26,7 @@ import {
   collectSearchResults,
   readCollapsedPaths,
   writeCollapsedPaths,
-  isPathInsideRoot
+  isPathInsideRoot,
 } from "./utils";
 import "./FileTreePanel.css";
 
@@ -41,20 +41,30 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
   const { showFileActionError } = useFileActionStore();
   const { filePath: activeFilePath } = useDocumentSnapshot();
 
-  const onOpenFolder = useCallback(() => void dispatchCommand("file.openFolder"), [dispatchCommand]);
-  const onOpenFile = useCallback((filePath: string) => void openDocumentFromTree(filePath), [openDocumentFromTree]);
-  const onOpenAsset = useCallback((node: MarkdownFileTreeNode) => openAssetFromTree(node), [openAssetFromTree]);
+  const onOpenFolder = useCallback(
+    () => void dispatchCommand("file.openFolder"),
+    [dispatchCommand],
+  );
+  const onOpenFile = useCallback(
+    (filePath: string) => void openDocumentFromTree(filePath),
+    [openDocumentFromTree],
+  );
+  const onOpenAsset = useCallback(
+    (node: MarkdownFileTreeNode) => openAssetFromTree(node),
+    [openAssetFromTree],
+  );
   const onCreateTreeItem = useCallback(
-    (parentPath: string, kind: TreeItemKind, name: string) => void createTreeItem(parentPath, kind, name),
-    [createTreeItem]
+    (parentPath: string, kind: TreeItemKind, name: string) =>
+      void createTreeItem(parentPath, kind, name),
+    [createTreeItem],
   );
   const onRenameTreeItem = useCallback(
     (node: MarkdownFileTreeNode, name: string) => void renameTreeItem(node, name),
-    [renameTreeItem]
+    [renameTreeItem],
   );
   const onDeleteTreeItem = useCallback(
     (node: MarkdownFileTreeNode) => void deleteTreeItem(node),
-    [deleteTreeItem]
+    [deleteTreeItem],
   );
   const onContextMenuError = showFileActionError;
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
@@ -64,8 +74,11 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
   const contextMenuTargetRef = useRef<FileTreeContextMenuState | null>(null);
   const normalizedSearchQuery = normalizeSearchQuery(searchQuery);
   const searchResults = useMemo(
-    () => (folder && normalizedSearchQuery ? collectSearchResults(folder.tree, normalizedSearchQuery) : []),
-    [folder, normalizedSearchQuery]
+    () =>
+      folder && normalizedSearchQuery
+        ? collectSearchResults(folder.tree, normalizedSearchQuery)
+        : [],
+    [folder, normalizedSearchQuery],
   );
 
   useEffect(() => {
@@ -87,8 +100,8 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
           folder.tree,
           activeFilePath && isPathInsideRoot(activeFilePath, folder.rootPath)
             ? activeFilePath
-            : findFirstMarkdownPath(folder.tree)
-        )
+            : findFirstMarkdownPath(folder.tree),
+        ),
     );
   }, [activeFilePath, folder]);
 
@@ -126,16 +139,19 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
     });
   }, []);
 
-  const startCreate = useCallback((parentPath: string, kind: TreeItemKind, defaultName?: string) => {
-    const nextDefaultName = defaultName ?? (kind === "markdown" ? "untitled.md" : "untitled");
-    // 展开目标目录
-    setCollapsedPaths((current) => {
-      const next = new Set(current);
-      next.delete(parentPath);
-      return next;
-    });
-    setEditing({ mode: "create", parentPath, kind, defaultName: nextDefaultName });
-  }, []);
+  const startCreate = useCallback(
+    (parentPath: string, kind: TreeItemKind, defaultName?: string) => {
+      const nextDefaultName = defaultName ?? (kind === "markdown" ? "untitled.md" : "untitled");
+      // 展开目标目录
+      setCollapsedPaths((current) => {
+        const next = new Set(current);
+        next.delete(parentPath);
+        return next;
+      });
+      setEditing({ mode: "create", parentPath, kind, defaultName: nextDefaultName });
+    },
+    [],
+  );
 
   const startRename = useCallback((node: MarkdownFileTreeNode) => {
     setEditing({ mode: "rename", node });
@@ -164,7 +180,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
             await copyNativeFileTreePath({
               rootPath: folder.rootPath,
               path: menu.node.path,
-              relative: true
+              relative: true,
             });
           }
           break;
@@ -173,7 +189,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
             await copyNativeFileTreePath({
               rootPath: folder.rootPath,
               path: menu.node.path,
-              relative: false
+              relative: false,
             });
           }
           break;
@@ -181,7 +197,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
           if (menu.node) {
             await revealNativeFileTreeItemInFinder({
               rootPath: folder.rootPath,
-              path: menu.node.path
+              path: menu.node.path,
             });
           }
           break;
@@ -197,7 +213,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
           break;
       }
     },
-    [folder, onDeleteTreeItem, startCreate, startRename]
+    [folder, onDeleteTreeItem, startCreate, startRename],
   );
 
   const runContextMenuActionWithErrorHandling = useCallback(
@@ -206,7 +222,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
         onContextMenuError?.(error);
       });
     },
-    [onContextMenuError, runContextMenuAction]
+    [onContextMenuError, runContextMenuAction],
   );
 
   useEffect(() => {
@@ -228,7 +244,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
       const menu = {
         x: event.clientX,
         y: event.clientY,
-        node
+        node,
       };
       contextMenuTargetRef.current = menu;
 
@@ -237,7 +253,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
         void showNativeFileTreeContextMenu({
           x: menu.x,
           y: menu.y,
-          hasNode: Boolean(node)
+          hasNode: Boolean(node),
         }).catch((error: unknown) => {
           onContextMenuError?.(error);
         });
@@ -246,7 +262,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
 
       setContextMenu(menu);
     },
-    [onContextMenuError]
+    [onContextMenuError],
   );
 
   const commitEdit = useCallback(
@@ -262,7 +278,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
       }
       setEditing(null);
     },
-    [editing, onCreateTreeItem, onRenameTreeItem]
+    [editing, onCreateTreeItem, onRenameTreeItem],
   );
 
   const cancelEdit = useCallback(() => setEditing(null), []);
@@ -300,7 +316,9 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
             />
           ))
         ) : (
-          <p className="m-0 px-3 py-2 text-[13px] text-[var(--theme-control-subtle)]">没有匹配的文件。</p>
+          <p className="m-0 px-3 py-2 text-[13px] text-[var(--theme-control-subtle)]">
+            没有匹配的文件。
+          </p>
         )}
         {contextMenu ? (
           <FileTreeContextMenu

@@ -26,9 +26,7 @@ export function parseCalloutFragment(fragment: RawFragment): CalloutNode | undef
   const match = fragment.rawSource.match(
     /^\s*<Callout(?<props>[^>]*)>(?<children>[^]*)<\/Callout>\s*$/,
   );
-  const selfClosingMatch = fragment.rawSource.match(
-    /^\s*<Callout(?<props>[^>]*)\/>\s*$/,
-  );
+  const selfClosingMatch = fragment.rawSource.match(/^\s*<Callout(?<props>[^>]*)\/>\s*$/);
   const propsSource = match?.groups?.props ?? selfClosingMatch?.groups?.props;
 
   if (propsSource === undefined) {

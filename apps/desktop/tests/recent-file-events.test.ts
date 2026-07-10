@@ -10,11 +10,11 @@ describe("recent-file menu events", () => {
       store: {
         listAuthoritative: async () => [
           { path: "/notes/first.md", name: "first.md", lastOpenedAt: 2 },
-          { path: "/notes/second.md", name: "second.md", lastOpenedAt: 1 }
+          { path: "/notes/second.md", name: "second.md", lastOpenedAt: 1 },
         ],
-        clear: async () => undefined
+        clear: async () => undefined,
       },
-      openRecentFile
+      openRecentFile,
     });
 
     const event = new Event("open-recent-file-by-index") as Event & { detail: { index: number } };
@@ -37,7 +37,7 @@ describe("recent-file menu events", () => {
       target,
       store: { listAuthoritative: async () => [], clear },
       openRecentFile: async () => undefined,
-      onError
+      onError,
     });
 
     target.dispatchEvent(new Event("clear-recent-files"));

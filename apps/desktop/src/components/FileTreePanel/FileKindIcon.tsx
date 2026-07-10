@@ -12,7 +12,7 @@ export function FileKindIcon({ kind }: FileKindIconProps) {
     <span
       className={cx(
         "file-tree-icon inline-flex h-4 w-4 flex-none items-center justify-center text-(--theme-control-subtle)",
-        kind === "asset" && "text-(--theme-control-text)"
+        kind === "asset" && "text-(--theme-control-text)",
       )}
       title={title}
       aria-label={title}

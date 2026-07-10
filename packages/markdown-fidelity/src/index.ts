@@ -47,7 +47,7 @@ export function splitFrontmatter(markdown: string): FrontmatterBlock | null {
 
   return {
     raw: normalized.slice(0, closingIndex + "\n---".length),
-    body: normalized.slice(closingIndex + "\n---\n".length)
+    body: normalized.slice(closingIndex + "\n---\n".length),
   };
 }
 
@@ -59,13 +59,13 @@ export function serializeRoundTrip(markdown: string): RoundTripResult {
 
   return {
     markdown: withTrailingNewline,
-    changed: withTrailingNewline !== markdown
+    changed: withTrailingNewline !== markdown,
   };
 }
 
 export function createMarkdownImageSrcResolver(
   documentPath: string | null | undefined,
-  options: MarkdownImageSrcResolverOptions = {}
+  options: MarkdownImageSrcResolverOptions = {},
 ) {
   return (src: string): string => {
     if (!documentPath || isRemoteOrEmbeddedImageSrc(src) || src.startsWith("#")) {
@@ -82,7 +82,7 @@ export function createMarkdownImageSrcResolver(
 
 export function rewriteMarkdownImageSourcesForPreview(
   markdown: string,
-  resolveImageSrc: (src: string) => string
+  resolveImageSrc: (src: string) => string,
 ): MarkdownImagePreviewInput {
   const sourceMap: [string, string][] = [];
   const previewMarkdown = markdown.replace(
@@ -100,7 +100,7 @@ export function rewriteMarkdownImageSourcesForPreview(
 
       sourceMap.push([previewSrc, image.src]);
       return source.replace(image.src, previewSrc);
-    }
+    },
   );
 
   return { markdown: previewMarkdown, sourceMap };
@@ -108,7 +108,7 @@ export function rewriteMarkdownImageSourcesForPreview(
 
 export function restoreMarkdownImageSources(
   markdown: string,
-  sourceMap: readonly [previewSrc: string, markdownSrc: string][]
+  sourceMap: readonly [previewSrc: string, markdownSrc: string][],
 ): string {
   return sourceMap.reduce((nextMarkdown, [previewSrc, markdownSrc]) => {
     return nextMarkdown.split(previewSrc).join(markdownSrc);
@@ -127,17 +127,16 @@ export function rewriteRawBlocksForPreview(markdown: string): MarkdownRawBlockPr
   }
 
   // MDX raw-block 托管只能作用在正文段落；代码围栏里的 Vue/TSX 示例必须原样保留。
-  previewMarkdown = replaceOutsideMarkdownCodeFences(
-    previewMarkdown,
-    (markdownSegment) => markdownSegment.replace(
+  previewMarkdown = replaceOutsideMarkdownCodeFences(previewMarkdown, (markdownSegment) =>
+    markdownSegment.replace(
       /^ {0,3}<([A-Z][A-Za-z0-9.:-]*)(?:\s[^>\n]*)?(?:\/>|>[\s\S]*?<\/\1>)(?:\r?\n|$)/gm,
       (source) => {
         const kind = /^\s*<Callout(?:\s|>|\/>)/u.test(source) ? "callout" : "mdx";
         const previewBlock = createManagedRawFence(kind, source.replace(/\r?\n$/u, ""));
         sourceMap.push([previewBlock, source]);
         return previewBlock;
-      }
-    )
+      },
+    ),
   );
 
   return { markdown: previewMarkdown, sourceMap };
@@ -145,7 +144,7 @@ export function rewriteRawBlocksForPreview(markdown: string): MarkdownRawBlockPr
 
 export function restoreRawBlocksFromPreview(
   markdown: string,
-  sourceMap: readonly [previewBlock: string, markdownBlock: string][]
+  sourceMap: readonly [previewBlock: string, markdownBlock: string][],
 ): string {
   return sourceMap.reduce((nextMarkdown, [previewBlock, markdownBlock]) => {
     const edited = extractManagedRawFenceContent(previewBlock, nextMarkdown);
@@ -177,7 +176,7 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
       id: count === 0 ? slug : `${slug}-${count + 1}`,
       level: match[1].length,
       text,
-      line: index + 1
+      line: index + 1,
     });
   }
 
@@ -186,7 +185,7 @@ export function extractHeadingOutline(markdown: string): readonly HeadingOutline
 
 export function findActiveHeadingIdForLine(
   outline: readonly HeadingOutlineItem[],
-  line: number
+  line: number,
 ): string | null {
   let active: HeadingOutlineItem | null = null;
 
@@ -228,9 +227,7 @@ function matchFrontmatterSource(markdown: string): string | null {
 }
 
 function stripFrontmatterFence(frontmatter: string): string {
-  return frontmatter
-    .replace(/^---\r?\n/u, "")
-    .replace(/\r?\n---(?:\r?\n)?$/u, "");
+  return frontmatter.replace(/^---\r?\n/u, "").replace(/\r?\n---(?:\r?\n)?$/u, "");
 }
 
 function createManagedRawFence(kind: "frontmatter" | "callout" | "mdx", source: string): string {
@@ -240,7 +237,7 @@ function createManagedRawFence(kind: "frontmatter" | "callout" | "mdx", source: 
 
 function replaceOutsideMarkdownCodeFences(
   markdown: string,
-  replaceSegment: (markdownSegment: string) => string
+  replaceSegment: (markdownSegment: string) => string,
 ): string {
   let result = "";
   let plainStart = 0;
@@ -266,7 +263,7 @@ function replaceOutsideMarkdownCodeFences(
       const closingNextIndex = closingLineEnd === -1 ? markdown.length : closingLineEnd + 1;
       const closingLine = markdown.slice(
         index,
-        closingLineEnd === -1 ? markdown.length : closingLineEnd
+        closingLineEnd === -1 ? markdown.length : closingLineEnd,
       );
 
       index = closingNextIndex;
@@ -284,7 +281,7 @@ function replaceOutsideMarkdownCodeFences(
 }
 
 function matchOpeningCodeFence(
-  line: string
+  line: string,
 ): { readonly marker: "`" | "~"; readonly length: number } | null {
   const match = /^(?: {0,3})(`{3,}|~{3,})/u.exec(line);
 
@@ -306,23 +303,20 @@ function matchOpeningCodeFence(
 
 function isClosingCodeFence(
   line: string,
-  opening: { readonly marker: "`" | "~"; readonly length: number }
+  opening: { readonly marker: "`" | "~"; readonly length: number },
 ): boolean {
   const match = /^(?: {0,3})(`+|~+)\s*$/u.exec(line);
 
-  return Boolean(
-    match &&
-      match[1][0] === opening.marker &&
-      match[1].length >= opening.length
-  );
+  return Boolean(match && match[1][0] === opening.marker && match[1].length >= opening.length);
 }
 
 function extractManagedRawFenceContent(
   previewBlock: string,
-  markdown: string
+  markdown: string,
 ): { readonly fence: string; readonly body: string } | null {
   const firstLine = previewBlock.slice(0, previewBlock.indexOf("\n"));
-  const match = matchFenceByFirstLine(markdown, firstLine) ??
+  const match =
+    matchFenceByFirstLine(markdown, firstLine) ??
     matchManagedCalloutFallback(markdown, previewBlock);
 
   if (!match || match[1] === undefined) {
@@ -334,23 +328,27 @@ function extractManagedRawFenceContent(
 
 function matchFenceByFirstLine(markdown: string, firstLine: string): RegExpMatchArray | null {
   const escapedFirstLine = escapeRegExp(firstLine);
-  const pattern = new RegExp(`${escapedFirstLine}\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`(?:\\r?\\n|$)`, "u");
+  const pattern = new RegExp(
+    `${escapedFirstLine}\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`(?:\\r?\\n|$)`,
+    "u",
+  );
   return markdown.match(pattern);
 }
 
-function matchManagedCalloutFallback(markdown: string, previewBlock: string): RegExpMatchArray | null {
+function matchManagedCalloutFallback(
+  markdown: string,
+  previewBlock: string,
+): RegExpMatchArray | null {
   if (!previewBlock.startsWith("```mdx md-editor-callout\n")) {
     return null;
   }
 
-  const pattern = /```mdx\r?\n(\s*<Callout(?:\s[^>]*)?(?:\/>|>[\s\S]*?<\/Callout>)\s*)\r?\n```(?:\r?\n|$)/u;
+  const pattern =
+    /```mdx\r?\n(\s*<Callout(?:\s[^>]*)?(?:\/>|>[\s\S]*?<\/Callout>)\s*)\r?\n```(?:\r?\n|$)/u;
   return markdown.match(pattern);
 }
 
-function restoreManagedRawBlock(
-  originalBlock: string,
-  edited: { readonly body: string }
-): string {
+function restoreManagedRawBlock(originalBlock: string, edited: { readonly body: string }): string {
   if (originalBlock.startsWith("---")) {
     return `---\n${edited.body}\n---\n`;
   }
@@ -364,7 +362,7 @@ function escapeRegExp(value: string): string {
 
 function parseImageMarkdown(source: string): { readonly src: string } | null {
   const match = /^!\[[^\]]*\]\((?:<([^>\n]+)>|([^\s)\n]+))(?:\s+"[^"\n]*")?\)$/u.exec(
-    source.trim()
+    source.trim(),
   );
 
   return match ? { src: match[1] ?? match[2] ?? "" } : null;
@@ -378,10 +376,7 @@ function resolveLocalImagePath(src: string, documentPath: string): string {
     return decodedSrc;
   }
 
-  const parts = [
-    ...documentDirectory(documentPath).split(/[\\/]/u),
-    ...decodedSrc.split(/[\\/]/u)
-  ];
+  const parts = [...documentDirectory(documentPath).split(/[\\/]/u), ...decodedSrc.split(/[\\/]/u)];
   const resolvedParts: string[] = [];
 
   for (const part of parts) {
@@ -395,7 +390,9 @@ function resolveLocalImagePath(src: string, documentPath: string): string {
     resolvedParts.push(part);
   }
 
-  return documentPath.startsWith("/") ? `/${resolvedParts.join("/")}` : resolvedParts.join(separator);
+  return documentPath.startsWith("/")
+    ? `/${resolvedParts.join("/")}`
+    : resolvedParts.join(separator);
 }
 
 function documentDirectory(path: string): string {

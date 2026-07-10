@@ -1,21 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuItems,
-  Popover,
-  PopoverButton,
-  PopoverPanel
-} from "@headlessui/react";
-import {
-  ChevronUpDownIcon,
   ChevronRightIcon,
   FolderIcon,
-  ListBulletIcon,
   MagnifyingGlassIcon,
   QueueListIcon,
-  RectangleGroupIcon
 } from "@heroicons/react/24/outline";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -28,7 +16,7 @@ import {
   OutlinePanel,
   useEditorUiActions,
   useEditorUiState,
-  WelcomeState
+  WelcomeState,
 } from "@md-editor/editor-ui";
 import { DesktopMilkdownEditor } from "../components/DesktopMilkdownEditor";
 import { DesktopSourceEditor } from "../components/DesktopSourceEditor";
@@ -38,21 +26,14 @@ import { SettingsPage } from "../components/SettingsDialog";
 import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
-import { DesktopEditorActionsContext, useDesktopEditorActions } from "./context/DesktopEditorActionsContext";
 import {
-  calculateDocumentMetrics,
-  getDocumentMetricLabel,
-  type DocumentMetricKind
-} from "./document-metrics";
+  DesktopEditorActionsContext,
+  useDesktopEditorActions,
+} from "./context/DesktopEditorActionsContext";
 import { useDocumentSnapshot } from "./document-store";
 import { AppSettingsProvider, useAppSettings } from "./settings-context";
 import { useToast } from "./controller/useToast";
 import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
-import { editorUpdateActionLabel } from "../components/settings/settingsUtils";
-import {
-  isUpdateActionBusy as isUpdateActionBusy_,
-  shouldShowEditorUpdateAction,
-} from "./updates/update-status";
 import { useConfirmationStore } from "./stores/confirmation-store";
 import { useDocumentUiStore } from "./stores/document-ui-store";
 import { useFileActionStore } from "./stores/file-action-store";
@@ -87,7 +68,7 @@ function AppWithProviders() {
 
 function DesktopEditorUiProvider({
   children,
-  showToast
+  showToast,
 }: {
   readonly children: ReactNode;
   readonly showToast: (message: string | null) => void;
@@ -106,17 +87,13 @@ function DesktopEditorUiProvider({
 
 function DesktopEditorEffects({
   children,
-  showToast
+  showToast,
 }: {
   readonly children: ReactNode;
   readonly showToast: (message: string | null) => void;
 }) {
   const actions = useDesktopEditorController({ showToast });
-  return (
-    <DesktopEditorActionsContext value={actions}>
-      {children}
-    </DesktopEditorActionsContext>
-  );
+  return <DesktopEditorActionsContext value={actions}>{children}</DesktopEditorActionsContext>;
 }
 
 function MainApp({
@@ -132,7 +109,8 @@ function MainApp({
   const { pendingAction } = useFileActionStore();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
-  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } = useDocumentUiStore();
+  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
+    useDocumentUiStore();
   const { dispatchCommand, openRecentFile } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
@@ -140,16 +118,18 @@ function MainApp({
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
-  const folderTree = useFileTreeStore(s => s.folder?.tree ?? null);
+  const folderTree = useFileTreeStore((s) => s.folder?.tree ?? null);
   const fileSearchResultCount = useMemo(
     () => countMatchedFiles(folderTree, fileSearchQuery),
-    [folderTree, fileSearchQuery]
+    [folderTree, fileSearchQuery],
   );
   const sidebarTitle = sidebarMode === "files" ? "文件" : "大纲";
   const showFileSearch = sidebarMode === "files" && isFileSearchOpen;
   const pendingActionDescription = getLoadingDescription(pendingAction);
   const sidebarResizePreviewOffset =
-    sidebarResizePreviewWidth === null ? null : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
+    sidebarResizePreviewWidth === null
+      ? null
+      : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
   // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
   if (isSettingsOpen) {
@@ -178,22 +158,19 @@ function MainApp({
           className={cx(
             "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
             isSidebarVisible &&
-              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]"
+              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]",
           )}
           style={
             {
               "--app-sidebar-width": `${sidebarWidth}px`,
-              borderRightWidth: isSidebarVisible ? 1 : 0
+              borderRightWidth: isSidebarVisible ? 1 : 0,
             } as React.CSSProperties
           }
           aria-label={sidebarMode === "files" ? "文件树" : "大纲目录"}
           aria-hidden={!isSidebarVisible}
           inert={!isSidebarVisible}
         >
-          <AppTitleBar
-            isVisible={shouldShowOverlayTitleBar}
-            hasWindowControlsInset
-          />
+          <AppTitleBar isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
           <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
             <button
               type="button"
@@ -215,7 +192,7 @@ function MainApp({
               type="button"
               className={cx(
                 sidebarHeaderIconButtonClassName,
-                isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
+                isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]",
               )}
               aria-label={isFileSearchOpen ? "关闭文件搜索" : "搜索文件"}
               aria-pressed={isFileSearchOpen}
@@ -262,11 +239,7 @@ function MainApp({
             {sidebarMode === "files" ? (
               <FileTreePanel searchQuery={showFileSearch ? fileSearchQuery : ""} />
             ) : (
-              <OutlinePanel
-                outline={outline}
-                activeId={activeOutlineId}
-                onJump={jumpToTocItem}
-              />
+              <OutlinePanel outline={outline} activeId={activeOutlineId} onJump={jumpToTocItem} />
             )}
           </div>
           <DocumentBar
@@ -307,9 +280,7 @@ function MainApp({
             hasWindowControlsInset={!isSidebarVisible}
             titleAlign="center"
             titleIcon="markdown"
-            actions={
-              <EditorTitleBarControls />
-            }
+            actions={<EditorTitleBarControls />}
           />
           {!isSidebarVisible ? (
             <CollapsedSidebarReveal
@@ -349,17 +320,14 @@ function MainApp({
           </div>
         </section>
       </div>
-      <ConfirmActionDialog
-        confirmation={confirmation}
-        onResolve={resolveConfirmation}
-      />
+      <ConfirmActionDialog confirmation={confirmation} onResolve={resolveConfirmation} />
     </main>
   );
 }
 
 function CollapsedSidebarReveal({
   hasTitleBar,
-  onReveal
+  onReveal,
 }: {
   readonly hasTitleBar: boolean;
   readonly onReveal: () => void;
@@ -378,7 +346,7 @@ function CollapsedSidebarReveal({
       className={cx(
         "group absolute bottom-0 left-0 z-[15] w-14",
         // 只让正文左侧 56px 成为唤起热区，避免覆盖 macOS 标题栏拖拽和红黄绿按钮。
-        hasTitleBar ? "top-[34px]" : "top-0"
+        hasTitleBar ? "top-[34px]" : "top-0",
       )}
     >
       <button
@@ -405,12 +373,14 @@ function SettingsWindowApp() {
 }
 
 function SettingsWindowContent({
-  toast
+  toast,
 }: {
   readonly toast: { readonly id: number; readonly message: string } | null;
 }) {
   const shouldShowOverlayTitleBar = isMacPlatform();
-  useEffect(() => { document.title = "设置"; }, []);
+  useEffect(() => {
+    document.title = "设置";
+  }, []);
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
       <AppTitleBar
@@ -434,7 +404,7 @@ function AppTitleBar({
   isDirty = false,
   isVisible,
   titleAlign = "start",
-  titleIcon
+  titleIcon,
 }: {
   readonly actions?: ReactNode;
   readonly title?: string;
@@ -453,16 +423,14 @@ function AppTitleBar({
       data-tauri-drag-region
       className={cx(
         "relative h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
-        titleAlign === "center"
-          ? "grid items-center"
-          : "flex items-center pr-4",
+        titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
         titleAlign === "center"
           ? hasWindowControlsInset
             ? "grid-cols-[76px_minmax(0,1fr)_76px]"
             : "grid-cols-[12px_minmax(0,1fr)_12px]"
           : hasWindowControlsInset
             ? "pl-[76px]"
-            : "pl-3"
+            : "pl-3",
       )}
       onMouseDown={startTitleBarDrag}
     >
@@ -471,7 +439,7 @@ function AppTitleBar({
           data-tauri-drag-region
           className={cx(
             "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
-            titleAlign === "center" && "col-start-2 justify-self-center"
+            titleAlign === "center" && "col-start-2 justify-self-center",
           )}
         >
           {titleIcon === "markdown" ? <MarkdownTitleIcon /> : null}
@@ -496,7 +464,6 @@ function AppTitleBar({
     </div>
   );
 }
-
 
 function MarkdownTitleIcon() {
   return (
@@ -527,13 +494,15 @@ function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
   // 首次 mousedown 的 detail 记为 0，所以这里只拦截双击/多击，不强依赖 detail === 1。
   event.preventDefault();
   event.stopPropagation();
-  void getCurrentWindow().startDragging().catch((error: unknown) => {
-    console.warn("窗口拖拽启动失败", error);
-  });
+  void getCurrentWindow()
+    .startDragging()
+    .catch((error: unknown) => {
+      console.warn("窗口拖拽启动失败", error);
+    });
 }
 
 export function EditorToast({
-  toast
+  toast,
 }: {
   readonly toast: { readonly id: number; readonly message: string } | null;
 }) {
@@ -570,7 +539,7 @@ function SidebarResizeBoundary({
   onCommit,
   onPreview,
   previewOffset,
-  width
+  width,
 }: {
   readonly onCancel: () => void;
   readonly onCommit: (width: number) => void;
@@ -601,7 +570,7 @@ function SidebarResizeHandle({
   onCancel,
   onCommit,
   onPreview,
-  width
+  width,
 }: {
   readonly onCancel: () => void;
   readonly onCommit: (width: number) => void;
@@ -663,18 +632,6 @@ function SidebarResizeHandle({
 const sidebarHeaderIconButtonClassName =
   "grid size-[30px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
-const titleBarSecondaryButtonClassName =
-  "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
-
-const documentMetricOptions: readonly {
-  readonly kind: DocumentMetricKind;
-  readonly label: string;
-}[] = [
-  { kind: "words", label: "词数" },
-  { kind: "lines", label: "行数" },
-  { kind: "characters", label: "字符数" }
-];
-
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
 }
@@ -687,7 +644,7 @@ function EditorLoadingState({
   title,
   description,
   ariaLabel,
-  isOverlay = false
+  isOverlay = false,
 }: {
   readonly title: string;
   readonly description?: string;
@@ -698,7 +655,7 @@ function EditorLoadingState({
     <div
       className={cx(
         "pointer-events-none flex items-center justify-center bg-[color-mix(in_oklab,var(--theme-surface)_72%,transparent)] backdrop-blur-[2px]",
-        isOverlay ? "absolute inset-0 z-10" : "min-h-0 flex-1"
+        isOverlay ? "absolute inset-0 z-10" : "min-h-0 flex-1",
       )}
       role="status"
       aria-live="polite"

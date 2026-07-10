@@ -65,7 +65,7 @@ function migrateLegacySiteVercelLink() {
   }
 
   console.warn(
-    `Legacy ${legacySiteVercelDir} is ignored. Safe to delete it; use monorepo-root .vercel only.`
+    `Legacy ${legacySiteVercelDir} is ignored. Safe to delete it; use monorepo-root .vercel only.`,
   );
 }
 
@@ -81,13 +81,13 @@ function assertProjectRootDirectory() {
   // 本仓库约定：Vercel Root Directory = site，CLI cwd = monorepo 根，.vercel 在 monorepo 根。
   if (rootDirectory && rootDirectory !== "site" && rootDirectory !== "./site") {
     throw new Error(
-      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "site" so CLI can run from the monorepo root with .vercel at the repo root.`
+      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "site" so CLI can run from the monorepo root with .vercel at the repo root.`,
     );
   }
 
   if (!rootDirectory) {
     console.warn(
-      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "site" and keeping .vercel at the monorepo root.'
+      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "site" and keeping .vercel at the monorepo root.',
     );
   }
 }
@@ -95,7 +95,7 @@ function assertProjectRootDirectory() {
 function resolveVercelBin() {
   const candidates = [
     path.join(siteDir, "node_modules", ".bin", "vercel"),
-    path.join(repoRoot, "node_modules", ".bin", "vercel")
+    path.join(repoRoot, "node_modules", ".bin", "vercel"),
   ];
 
   for (const candidate of candidates) {
@@ -105,7 +105,7 @@ function resolveVercelBin() {
   }
 
   throw new Error(
-    "vercel CLI not found under site/node_modules; run `pnpm install` from the repo root first."
+    "vercel CLI not found under site/node_modules; run `pnpm install` from the repo root first.",
   );
 }
 
@@ -115,9 +115,11 @@ function runVercel(args) {
 }
 
 function run(command, args, cwd = repoRoot) {
-  console.log([command, ...args.map((arg) => (/\s/u.test(arg) ? JSON.stringify(arg) : arg))].join(" "));
+  console.log(
+    [command, ...args.map((arg) => (/\s/u.test(arg) ? JSON.stringify(arg) : arg))].join(" "),
+  );
   execFileSync(command, args, {
     cwd,
-    stdio: "inherit"
+    stdio: "inherit",
   });
 }

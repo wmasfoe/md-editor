@@ -10,7 +10,7 @@ import type { DocumentSnapshot } from "@md-editor/editor-core";
 import {
   getModeScrollTargetForMode,
   useEditorUiActions,
-  useEditorUiState
+  useEditorUiState,
 } from "../../hooks/useEditorUi";
 import type { EditorScrollTarget, SourceEditorView, TocTarget } from "../../types";
 import "./SourceEditor.css";
@@ -39,57 +39,54 @@ const sourceMarkdownHighlightStyle = HighlightStyle.define([
     tag: tags.heading1,
     color: "var(--theme-source-heading, #d97706)",
     fontSize: "1.42em",
-    fontWeight: "700"
+    fontWeight: "700",
   },
   {
     tag: tags.heading2,
     color: "var(--theme-source-heading, #d97706)",
     fontSize: "1.28em",
-    fontWeight: "700"
+    fontWeight: "700",
   },
   {
     tag: tags.heading3,
     color: "var(--theme-source-heading, #d97706)",
     fontSize: "1.16em",
-    fontWeight: "700"
+    fontWeight: "700",
   },
   {
     tag: [tags.heading4, tags.heading5, tags.heading6],
     color: "var(--theme-source-heading, #d97706)",
-    fontWeight: "700"
+    fontWeight: "700",
   },
   {
     tag: tags.monospace,
     borderRadius: "4px",
     backgroundColor: "var(--theme-inline-code-bg)",
     color: "var(--theme-primary)",
-    padding: "0 0.2em"
+    padding: "0 0.2em",
   },
   {
     tag: tags.strong,
     color: "var(--theme-title)",
-    fontWeight: "700"
+    fontWeight: "700",
   },
   {
     tag: tags.emphasis,
     color: "var(--theme-title)",
-    fontStyle: "italic"
+    fontStyle: "italic",
   },
   {
     tag: tags.link,
-    color: "var(--theme-primary)"
+    color: "var(--theme-primary)",
   },
   {
     tag: tags.quote,
     color: "var(--theme-muted)",
-    fontStyle: "italic"
-  }
+    fontStyle: "italic",
+  },
 ]);
 
-export function SourceEditor({
-  snapshot,
-  onChange
-}: SourceEditorProps) {
+export function SourceEditor({ snapshot, onChange }: SourceEditorProps) {
   const editorUiState = useEditorUiState();
   const editorUiActions = useEditorUiActions();
 
@@ -113,7 +110,7 @@ export function SourceEditorPrimitive({
   onChange,
   onScrollRatioChange,
   onScrollTargetApplied,
-  onVisibleLineChange
+  onVisibleLineChange,
 }: SourceEditorPrimitiveProps) {
   const editorView = useRef<SourceEditorView | null>(null);
   const [editorReadyVersion, setEditorReadyVersion] = useState(0);
@@ -134,10 +131,10 @@ export function SourceEditorPrimitive({
         "by word": "全词匹配",
         replace: "替换",
         "replace all": "全部替换",
-        close: "关闭"
-      })
+        close: "关闭",
+      }),
     ],
-    []
+    [],
   );
 
   useEffect(() => {
@@ -179,7 +176,10 @@ export function SourceEditorPrimitive({
         // The outline should follow what the reader sees, not only cursor
         // movement. CodeMirror's coordinate lookup gives a stable top line even
         // when the selection stays elsewhere.
-        const position = view.posAtCoords({ x: rect.left + Math.min(96, rect.width / 2), y: rect.top + 8 });
+        const position = view.posAtCoords({
+          x: rect.left + Math.min(96, rect.width / 2),
+          y: rect.top + 8,
+        });
         if (position !== null) {
           onVisibleLineChange(view.state.doc.lineAt(position).number);
         }

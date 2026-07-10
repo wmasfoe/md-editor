@@ -17,6 +17,6 @@ export function createTauriRecentFilesBackend(): RecentFilesBackend | null {
     async updateMenu() {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("update_recent_files_menu");
-    }
+    },
   };
 }

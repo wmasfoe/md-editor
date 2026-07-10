@@ -18,7 +18,7 @@ export function InstallCommand({
   command,
   title = "终端安装 · macOS",
   description,
-  recommended = false
+  recommended = false,
 }: InstallCommandProps) {
   const [copied, setCopied] = useState(false);
 

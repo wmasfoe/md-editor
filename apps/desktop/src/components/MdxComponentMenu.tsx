@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions, Dialog } from "@headlessui/react";
+import {
+  Combobox,
+  ComboboxInput,
+  ComboboxOption,
+  ComboboxOptions,
+  Dialog,
+} from "@headlessui/react";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import { cx } from "../lib/cx";
 
@@ -64,7 +70,7 @@ export function MdxComponentMenu({ plugins, onInsert, onClose }: MdxComponentMen
                   className={({ focus }) =>
                     cx(
                       "grid cursor-default grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-[8px] px-2.5 py-2 text-left",
-                      (focus || index === activeIndex) && "bg-[var(--theme-control-hover)]"
+                      (focus || index === activeIndex) && "bg-[var(--theme-control-hover)]",
                     )
                   }
                 >
@@ -97,7 +103,10 @@ export function MdxComponentMenu({ plugins, onInsert, onClose }: MdxComponentMen
   );
 }
 
-function filterPlugins(plugins: readonly MdxComponentPlugin[], query: string): readonly MdxComponentPlugin[] {
+function filterPlugins(
+  plugins: readonly MdxComponentPlugin[],
+  query: string,
+): readonly MdxComponentPlugin[] {
   const q = query.trim().toLowerCase();
   if (!q) return plugins;
   return plugins.filter((plugin) => {

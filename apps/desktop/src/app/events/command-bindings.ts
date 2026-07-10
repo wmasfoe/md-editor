@@ -17,28 +17,26 @@ const MENU_COMMANDS: Record<string, string> = {
   "md-editor:settings": "settings.open",
   "md-editor:mode-wysiwyg": "view.showWysiwyg",
   "md-editor:toggle-source": "view.toggleSource",
-  "md-editor:toggle-sidebar-primary": "view.toggleSidebarPrimary"
+  "md-editor:toggle-sidebar-primary": "view.toggleSidebarPrimary",
 };
 
 export function createRuntimeKeyboardShortcuts(
   dispatchCommand: DesktopCommandDispatcher,
-  settings: AppSettings
+  settings: AppSettings,
 ) {
   const customKeymaps = new Map(settings.shortcuts.map((shortcut) => [shortcut.id, shortcut.key]));
 
-  return runtime.keymaps.list().map(
-    (keymap): KeyboardShortcut => ({
-      matches: (event) => matchesRuntimeKeymap(event, customKeymaps.get(keymap.id) ?? keymap.key),
-      run: () => {
-        void dispatchCommand(keymap.commandId);
-      }
-    })
-  );
+  return runtime.keymaps.list().map((keymap): KeyboardShortcut => ({
+    matches: (event) => matchesRuntimeKeymap(event, customKeymaps.get(keymap.id) ?? keymap.key),
+    run: () => {
+      void dispatchCommand(keymap.commandId);
+    },
+  }));
 }
 
 export function bindRuntimeKeyboardShortcuts(
   dispatchCommand: DesktopCommandDispatcher,
-  settings: AppSettings
+  settings: AppSettings,
 ) {
   // keymap 来自 editor-core，菜单、命令和快捷键共享同一组 command id，避免各自漂移。
   const shortcuts = createRuntimeKeyboardShortcuts(dispatchCommand, settings);
@@ -62,7 +60,10 @@ export function bindRuntimeKeyboardShortcuts(
 }
 
 function isSettingsShortcutCaptureTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest('[data-settings-shortcut-input="true"]'));
+  return (
+    target instanceof HTMLElement &&
+    Boolean(target.closest('[data-settings-shortcut-input="true"]'))
+  );
 }
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {
@@ -72,24 +73,26 @@ export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatche
     }
 
     // 处理动态生成的最近文件菜单项。
-    if (action.startsWith('md-editor:open-recent:')) {
-      const index = parseInt(action.split(':')[2], 10);
+    if (action.startsWith("md-editor:open-recent:")) {
+      const index = parseInt(action.split(":")[2], 10);
 
       // 转成 controller 可以监听的浏览器事件。
-      window.dispatchEvent(new CustomEvent('open-recent-file-by-index', {
-        detail: { index }
-      }));
+      window.dispatchEvent(
+        new CustomEvent("open-recent-file-by-index", {
+          detail: { index },
+        }),
+      );
       return;
     }
 
     // 处理清空最近文件菜单项。
-    if (action === 'md-editor:clear-recent') {
-      window.dispatchEvent(new CustomEvent('clear-recent-files'));
+    if (action === "md-editor:clear-recent") {
+      window.dispatchEvent(new CustomEvent("clear-recent-files"));
       return;
     }
 
     // “没有最近文件”只是占位项，不触发命令。
-    if (action === 'md-editor:no-recent') {
+    if (action === "md-editor:no-recent") {
       return;
     }
 
@@ -97,7 +100,7 @@ export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatche
     if (commandId) {
       void dispatchCommand(commandId);
     } else {
-      console.warn('[Menu Event] No command mapped for action:', action);
+      console.warn("[Menu Event] No command mapped for action:", action);
     }
   });
 }

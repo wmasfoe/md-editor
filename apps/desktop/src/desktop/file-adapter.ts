@@ -6,7 +6,7 @@ import type {
   ImageStorageProvider,
   MarkdownDocumentFile,
   MarkdownFolder,
-  SaveMarkdownInput
+  SaveMarkdownInput,
 } from "@md-editor/file-system";
 import type { PastedImageFile } from "../types";
 
@@ -29,7 +29,7 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
       return invoke<MarkdownDocumentFile | null>("save_markdown_document", {
         filePath: input.filePath,
         markdown: input.markdown,
-        forceDialog: input.forceDialog ?? false
+        forceDialog: input.forceDialog ?? false,
       });
     },
     refreshMarkdownFolder(rootPath) {
@@ -42,7 +42,7 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
         rootPath: input.rootPath,
         parentPath: input.parentPath,
         name: input.name,
-        kind: input.kind
+        kind: input.kind,
       });
     },
     renameMarkdownTreeItem(input) {
@@ -50,29 +50,27 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
       return invoke<FileTreeMutationResult>("rename_markdown_tree_item", {
         rootPath: input.rootPath,
         path: input.path,
-        name: input.name
+        name: input.name,
       });
     },
     deleteMarkdownTreeItem(input) {
       assertDesktopRuntime();
       return invoke<FileTreeMutationResult>("delete_markdown_tree_item", {
         rootPath: input.rootPath,
-        path: input.path
+        path: input.path,
       });
-    }
+    },
   };
 }
 
-export async function savePastedImage(
-  input: ImageSaveInput
-): Promise<PastedImageFile> {
+export async function savePastedImage(input: ImageSaveInput): Promise<PastedImageFile> {
   assertDesktopRuntime();
   return invoke<PastedImageFile>("save_pasted_image", {
     documentPath: input.context.documentPath,
     defaultAssetsDir: input.context.defaultAssetsDir,
     preferredName: input.context.preferredName ?? null,
     mimeType: input.mimeType,
-    bytes: Array.from(input.bytes)
+    bytes: Array.from(input.bytes),
   });
 }
 
@@ -82,9 +80,9 @@ export function createLocalAssetsImageStorageProvider(): ImageStorageProvider {
       const result = await savePastedImage(input);
       return {
         src: result.markdownPath,
-        storageType: "local"
+        storageType: "local",
       };
-    }
+    },
   };
 }
 

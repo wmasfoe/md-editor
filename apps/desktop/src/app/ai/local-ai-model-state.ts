@@ -15,11 +15,11 @@ export const DEFAULT_LOCAL_MODEL_SETTINGS: AiLocalModelSettings = {
   status: "not-downloaded",
   downloadedBytes: 0,
   totalBytes: 0,
-  error: null
+  error: null,
 };
 
 export function normalizeLocalAiModelSettings(
-  input: Partial<AiLocalModelSettings> | null | undefined
+  input: Partial<AiLocalModelSettings> | null | undefined,
 ): AiLocalModelSettings {
   return {
     enabled: Boolean(input?.enabled),
@@ -28,19 +28,22 @@ export function normalizeLocalAiModelSettings(
     status: normalizeLocalModelStatus(input?.status),
     downloadedBytes: normalizeByteCount(input?.downloadedBytes),
     totalBytes: normalizeByteCount(input?.totalBytes),
-    error: normalizeNullableString(input?.error)
+    error: normalizeNullableString(input?.error),
   };
 }
 
 export function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
-  return input === "downloading" || input === "verifying" || input === "available" || input === "failed"
+  return input === "downloading" ||
+    input === "verifying" ||
+    input === "available" ||
+    input === "failed"
     ? input
     : "not-downloaded";
 }
 
 export function mergeLocalAiModelStatus(
   settings: AiLocalModelSettings,
-  status: Partial<LocalAiModelCommandStatus>
+  status: Partial<LocalAiModelCommandStatus>,
 ): AiLocalModelSettings {
   const normalizedStatus = toLocalAiModelCommandStatus(status);
   return {
@@ -50,18 +53,18 @@ export function mergeLocalAiModelStatus(
     status: normalizedStatus.status,
     downloadedBytes: normalizedStatus.downloadedBytes,
     totalBytes: normalizedStatus.totalBytes,
-    error: normalizedStatus.error
+    error: normalizedStatus.error,
   };
 }
 
 export function toLocalAiModelCommandStatus(
-  input: Partial<LocalAiModelCommandStatus> | null | undefined
+  input: Partial<LocalAiModelCommandStatus> | null | undefined,
 ): LocalAiModelCommandStatus {
   const settings = normalizeLocalAiModelSettings(input);
   return {
     ...settings,
     displayName: normalizeString(input?.displayName, "md-editor Writer Small"),
-    path: normalizeNullableString(input?.path)
+    path: normalizeNullableString(input?.path),
   };
 }
 
@@ -81,7 +84,5 @@ function normalizeNullableString(input: unknown): string | null {
 }
 
 function normalizeByteCount(input: unknown): number {
-  return typeof input === "number" && Number.isFinite(input) && input > 0
-    ? Math.floor(input)
-    : 0;
+  return typeof input === "number" && Number.isFinite(input) && input > 0 ? Math.floor(input) : 0;
 }

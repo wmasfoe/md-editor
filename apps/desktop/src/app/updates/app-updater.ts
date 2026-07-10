@@ -1,15 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import {
-  check,
-  type DownloadEvent,
-  type Update,
-} from "@tauri-apps/plugin-updater";
-import {
-  appVersion,
-  checkForUpdates,
-  type UpdateStatus,
-} from "../settings/app-settings";
+import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
+import { appVersion, checkForUpdates, type UpdateStatus } from "../settings/app-settings";
 export {
   isUpdateActionBusy,
   isUpdateReadyToApply,
@@ -36,10 +28,7 @@ export async function checkForInstallableUpdate(
 
   try {
     if (downloadedUpdate) {
-      return createDownloadedUpdateStatus(
-        downloadedUpdate.version,
-        currentVersion,
-      );
+      return createDownloadedUpdateStatus(downloadedUpdate.version, currentVersion);
     }
 
     await clearPendingUpdate();
@@ -98,11 +87,7 @@ export async function downloadPendingUpdate(
     });
 
     await update.download((event) => {
-      const nextProgress = readDownloadProgress(
-        event,
-        downloadedBytes,
-        totalBytes,
-      );
+      const nextProgress = readDownloadProgress(event, downloadedBytes, totalBytes);
       downloadedBytes = nextProgress.downloadedBytes;
       totalBytes = nextProgress.totalBytes;
       reportProgress({
@@ -187,10 +172,7 @@ export async function relaunchAfterUpdate(): Promise<void> {
   await relaunch();
 }
 
-function createAvailableUpdateStatus(
-  version: string,
-  currentVersion: string,
-): UpdateStatus {
+function createAvailableUpdateStatus(version: string, currentVersion: string): UpdateStatus {
   return {
     currentVersion,
     state: "available",
@@ -199,10 +181,7 @@ function createAvailableUpdateStatus(
   };
 }
 
-function createDownloadedUpdateStatus(
-  version: string,
-  currentVersion: string,
-): UpdateStatus {
+function createDownloadedUpdateStatus(version: string, currentVersion: string): UpdateStatus {
   return {
     currentVersion,
     state: "downloaded",

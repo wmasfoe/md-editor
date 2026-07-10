@@ -9,7 +9,7 @@ export const FILE_TREE_CONTEXT_MENU_ACTION = {
   copyAbsolutePath: "copy-absolute-path",
   revealInFinder: "reveal-in-finder",
   rename: "rename",
-  delete: "delete"
+  delete: "delete",
 } as const;
 
 export type FileTreeContextMenuAction =
@@ -35,7 +35,7 @@ export async function showNativeFileTreeContextMenu(input: {
   await invoke("show_file_tree_context_menu", {
     x: input.x,
     y: input.y,
-    hasNode: input.hasNode
+    hasNode: input.hasNode,
   });
 }
 
@@ -51,7 +51,7 @@ export async function copyNativeFileTreePath(input: {
   await invoke("copy_file_tree_path", {
     rootPath: input.rootPath,
     path: input.path,
-    relative: input.relative
+    relative: input.relative,
   });
 }
 
@@ -65,12 +65,12 @@ export async function revealNativeFileTreeItemInFinder(input: {
 
   await invoke("reveal_file_tree_item_in_finder", {
     rootPath: input.rootPath,
-    path: input.path
+    path: input.path,
   });
 }
 
 export function listenToNativeFileTreeContextMenuActions(
-  handler: (action: FileTreeContextMenuAction) => void
+  handler: (action: FileTreeContextMenuAction) => void,
 ): (() => void) | undefined {
   return listenToDesktopMenuActions((action) => {
     if (!action.startsWith(FILE_TREE_MENU_ACTION_PREFIX)) {

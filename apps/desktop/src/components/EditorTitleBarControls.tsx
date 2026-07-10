@@ -8,11 +8,7 @@ import {
   PopoverButton,
   PopoverPanel,
 } from "@headlessui/react";
-import {
-  ChevronUpDownIcon,
-  ListBulletIcon,
-  RectangleGroupIcon,
-} from "@heroicons/react/24/outline";
+import { ChevronUpDownIcon, ListBulletIcon, RectangleGroupIcon } from "@heroicons/react/24/outline";
 import {
   calculateDocumentMetrics,
   getDocumentMetricLabel,
@@ -23,10 +19,7 @@ import { useAppSettings } from "../app/settings-context";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { useSidebarStore } from "../app/stores/sidebar-store";
-import {
-  isUpdateActionBusy,
-  shouldShowEditorUpdateAction,
-} from "../app/updates/update-status";
+import { isUpdateActionBusy, shouldShowEditorUpdateAction } from "../app/updates/update-status";
 import { useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
 import { editorUpdateActionLabel } from "./settings/settingsUtils";
 import { cx } from "../lib/cx";
@@ -34,7 +27,10 @@ import { cx } from "../lib/cx";
 const titleBarSecondaryButtonClassName =
   "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
-const documentMetricOptions: readonly { readonly kind: DocumentMetricKind; readonly label: string }[] = [
+const documentMetricOptions: readonly {
+  readonly kind: DocumentMetricKind;
+  readonly label: string;
+}[] = [
   { kind: "words", label: "词数" },
   { kind: "lines", label: "行数" },
   { kind: "characters", label: "字符数" },
@@ -122,7 +118,7 @@ function DocumentMetricMenu({
                 className={cx(
                   "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
                   focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
-                  metricKind === option.kind && "font-[560] text-[var(--theme-title)]"
+                  metricKind === option.kind && "font-[560] text-[var(--theme-title)]",
                 )}
                 onClick={() => onMetricKindChange(option.kind)}
               >
@@ -144,15 +140,28 @@ function OutlinePopover({
   activeOutlineId,
   onJumpToOutlineItem,
 }: {
-  readonly outline: readonly { readonly id: string; readonly level: number; readonly text: string; readonly line: number }[];
+  readonly outline: readonly {
+    readonly id: string;
+    readonly level: number;
+    readonly text: string;
+    readonly line: number;
+  }[];
   readonly activeOutlineId: string | null;
-  readonly onJumpToOutlineItem: (target: { readonly line: number; readonly level: number; readonly text: string }) => void;
+  readonly onJumpToOutlineItem: (target: {
+    readonly line: number;
+    readonly level: number;
+    readonly text: string;
+  }) => void;
 }) {
   return (
     <Popover className="relative">
       {({ close }) => (
         <>
-          <PopoverButton className={titleBarSecondaryButtonClassName} aria-label="打开大纲浮层" title="大纲">
+          <PopoverButton
+            className={titleBarSecondaryButtonClassName}
+            aria-label="打开大纲浮层"
+            title="大纲"
+          >
             <ListBulletIcon aria-hidden="true" />
           </PopoverButton>
           <PopoverPanel
@@ -164,14 +173,19 @@ function OutlinePopover({
               aria-hidden="true"
             />
             <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
-              <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">大纲</h2>
+              <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">
+                大纲
+              </h2>
             </div>
             {outline.length === 0 ? (
               <p className="m-0 px-4 py-5 text-[13px] leading-5 text-[var(--theme-control-subtle)]">
                 当前文档没有标题。
               </p>
             ) : (
-              <nav className="max-h-[min(420px,calc(100vh_-_120px))] overflow-auto p-2" aria-label="文章大纲">
+              <nav
+                className="max-h-[min(420px,calc(100vh_-_120px))] overflow-auto p-2"
+                aria-label="文章大纲"
+              >
                 {outline.map((item) => {
                   const active = item.id === activeOutlineId;
                   return (
@@ -180,13 +194,18 @@ function OutlinePopover({
                       key={`${item.id}-${item.line}`}
                       className={cx(
                         "flex min-h-8 w-full items-center rounded-[6px] border-0 bg-transparent py-1 pr-2 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
-                        active && "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]"
+                        active &&
+                          "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]",
                       )}
                       style={{ paddingLeft: 10 + (item.level - 1) * 14 }}
                       title={item.text}
                       aria-current={active ? "location" : undefined}
                       onClick={() => {
-                        onJumpToOutlineItem({ line: item.line, level: item.level, text: item.text });
+                        onJumpToOutlineItem({
+                          line: item.line,
+                          level: item.level,
+                          text: item.text,
+                        });
                         close();
                       }}
                     >

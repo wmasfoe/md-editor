@@ -1,13 +1,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type {
-  AiProviderType,
-  AiSettings
-} from "@md-editor/ai";
+import type { AiProviderType, AiSettings } from "@md-editor/ai";
 import {
   DEFAULT_LOCAL_MODEL_SETTINGS,
-  normalizeLocalAiModelSettings
+  normalizeLocalAiModelSettings,
 } from "../ai/local-ai-model-state";
 import { isComposingKeyboardEvent } from "../../lib/keyboard";
 
@@ -85,32 +82,32 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
     id: "view.toggleSource",
     commandId: "view.toggleSource",
     label: "切换源码模式",
-    defaultKey: "Mod-/"
+    defaultKey: "Mod-/",
   },
   {
     id: "view.toggleSidebarPrimary",
     commandId: "view.toggleSidebarPrimary",
     label: "切换文件树 / 大纲",
-    defaultKey: "Mod-Shift-B"
+    defaultKey: "Mod-Shift-B",
   },
   {
     id: "settings.open",
     commandId: "settings.open",
     label: "打开设置",
-    defaultKey: "Mod-,"
+    defaultKey: "Mod-,",
   },
   {
     id: "mdx.openComponentMenu",
     commandId: "mdx.openComponentMenu",
     label: "插入 MDX 组件",
-    defaultKey: "Mod-Shift-M"
+    defaultKey: "Mod-Shift-M",
   },
   {
     id: "ai.continueWriting",
     commandId: "ai.continueWriting",
     label: "AI 写作建议",
-    defaultKey: "Mod-Shift-A"
-  }
+    defaultKey: "Mod-Shift-A",
+  },
 ];
 
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
@@ -118,7 +115,8 @@ export const APP_SETTINGS_CHANGED_EVENT = "md-editor-app-settings-changed";
 export const APP_THEME_PREVIEW_CHANGED_EVENT = "md-editor-app-theme-preview-changed";
 export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
 export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
-export const UPDATE_RELEASES_API_URL = "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
+export const UPDATE_RELEASES_API_URL =
+  "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
 export const INSTALL_WITH_CURL_COMMAND =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
 
@@ -127,16 +125,16 @@ const DEFAULT_AI_SETTINGS: AiSettings = {
   provider: "openai-compatible",
   features: {
     continuation: false,
-    editing: true
+    editing: true,
   },
   openAiCompatible: {
     baseUrl: DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
     model: "",
-    apiKey: ""
+    apiKey: "",
   },
   localModel: {
-    ...DEFAULT_LOCAL_MODEL_SETTINGS
-  }
+    ...DEFAULT_LOCAL_MODEL_SETTINGS,
+  },
 };
 
 export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
@@ -144,23 +142,23 @@ export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
   light: {
     source: "builtin",
     builtinTheme: "github-light",
-    customCssPath: null
+    customCssPath: null,
   },
   dark: {
     source: "builtin",
     builtinTheme: "night-dark",
-    customCssPath: null
-  }
+    customCssPath: null,
+  },
 };
 
 export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
   showCodeBlockLineNumbers: false,
-  wysiwygFontSize: 17
+  wysiwygFontSize: 17,
 };
 
 export const DEFAULT_UPDATE_SETTINGS: AppUpdateSettings = {
   automaticCheck: true,
-  automaticDownload: true
+  automaticDownload: true,
 };
 
 export function createDefaultSettings(): AppSettings {
@@ -170,7 +168,7 @@ export function createDefaultSettings(): AppSettings {
     editor: DEFAULT_EDITOR_DISPLAY_SETTINGS,
     theme: DEFAULT_THEME_SETTINGS,
     ai: DEFAULT_AI_SETTINGS,
-    update: DEFAULT_UPDATE_SETTINGS
+    update: DEFAULT_UPDATE_SETTINGS,
   };
 }
 
@@ -200,7 +198,7 @@ export async function saveAppSettings(settings: AppSettings): Promise<AppSetting
 }
 
 export function listenToAppSettingsChanged(
-  handler: (settings: AppSettings) => void
+  handler: (settings: AppSettings) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
     // Tauri event 会广播到所有 webview；每个窗口都重新 normalize，防止旧版 payload 形状污染状态。
@@ -232,7 +230,7 @@ export function listenToAppSettingsChanged(
 }
 
 export function listenToAppThemePreviewChanged(
-  handler: (theme: AppThemeSettings) => void
+  handler: (theme: AppThemeSettings) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
     // 主题预览是跨窗口即时反馈，不代表已保存；主窗口只临时应用 payload。
@@ -286,21 +284,21 @@ export async function publishAppThemePreviewChanged(theme: AppThemeSettings): Pr
 
 export async function checkForUpdates(
   currentVersion: string,
-  fetchReleases: typeof fetch = fetch
+  fetchReleases: typeof fetch = fetch,
 ): Promise<UpdateStatus> {
   try {
     const response = await fetchReleases(UPDATE_RELEASES_API_URL, {
       headers: {
-        Accept: "application/vnd.github+json"
+        Accept: "application/vnd.github+json",
       },
-      cache: "no-store"
+      cache: "no-store",
     });
 
     if (!response.ok) {
       return {
         currentVersion,
         state: "error",
-        error: `github-release-http-${response.status}`
+        error: `github-release-http-${response.status}`,
       };
     }
 
@@ -309,7 +307,7 @@ export async function checkForUpdates(
     return {
       currentVersion,
       state: "error",
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -318,12 +316,15 @@ export function appVersion(): string {
   return __APP_VERSION__;
 }
 
-export function createUpdateStatusFromGitHubReleases(currentVersion: string, payload: unknown): UpdateStatus {
+export function createUpdateStatusFromGitHubReleases(
+  currentVersion: string,
+  payload: unknown,
+): UpdateStatus {
   const latestRelease = findLatestMdEditorRelease(payload);
   if (!latestRelease) {
     return {
       currentVersion,
-      state: "unconfigured"
+      state: "unconfigured",
     };
   }
 
@@ -336,7 +337,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
       releaseUrl: latestRelease.releaseUrl,
       downloadUrl: latestRelease.downloadUrl,
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND
+      installCommand: INSTALL_WITH_CURL_COMMAND,
     };
   }
 
@@ -345,7 +346,7 @@ export function createUpdateStatusFromGitHubReleases(currentVersion: string, pay
     state: "up-to-date",
     latestVersion: latestRelease.version,
     releaseUrl: latestRelease.releaseUrl,
-    downloadUrl: latestRelease.downloadUrl
+    downloadUrl: latestRelease.downloadUrl,
   };
 }
 
@@ -382,18 +383,18 @@ export function normalizeAiSettings(input: Partial<AiSettings> | null | undefine
   const hasFeatureSettings = input?.features !== undefined;
   const features = {
     continuation: Boolean(input?.features?.continuation),
-    editing: input?.features?.editing ?? true
+    editing: input?.features?.editing ?? true,
   };
   return {
-    enabled: hasFeatureSettings ? input?.enabled ?? true : true,
+    enabled: hasFeatureSettings ? (input?.enabled ?? true) : true,
     provider,
     features,
     openAiCompatible: {
       baseUrl: normalizeAiBaseUrl(input?.openAiCompatible?.baseUrl, provider),
       model: input?.openAiCompatible?.model?.trim() ?? "",
-      apiKey: input?.openAiCompatible?.apiKey ?? ""
+      apiKey: input?.openAiCompatible?.apiKey ?? "",
     },
-    localModel: normalizeLocalAiModelSettings(input?.localModel)
+    localModel: normalizeLocalAiModelSettings(input?.localModel),
   };
 }
 
@@ -403,7 +404,9 @@ export function keyboardShortcutLabel(key: string): string {
     .replace(/-/gu, "+");
 }
 
-export function shortcutKeyFromKeyboardEvent(event: KeyboardEvent | ReactKeyboardEvent): string | null {
+export function shortcutKeyFromKeyboardEvent(
+  event: KeyboardEvent | ReactKeyboardEvent,
+): string | null {
   const nativeEvent = "nativeEvent" in event ? event.nativeEvent : event;
   if (isComposingKeyboardEvent(nativeEvent)) {
     return null;
@@ -422,8 +425,10 @@ export function shortcutKeyFromKeyboardEvent(event: KeyboardEvent | ReactKeyboar
     event.metaKey || event.ctrlKey ? "Mod" : null,
     event.shiftKey ? "Shift" : null,
     event.altKey ? "Alt" : null,
-    key
-  ].filter(Boolean).join("-");
+    key,
+  ]
+    .filter(Boolean)
+    .join("-");
 }
 
 export function normalizeShortcutKey(input: string): string | null {
@@ -450,7 +455,13 @@ export function normalizeShortcutKey(input: string): string | null {
 
   for (const rawPart of parts) {
     const part = rawPart.toLowerCase();
-    if (part === "cmd" || part === "command" || part === "ctrl" || part === "control" || part === "mod") {
+    if (
+      part === "cmd" ||
+      part === "command" ||
+      part === "ctrl" ||
+      part === "control" ||
+      part === "mod"
+    ) {
       wantsMod = true;
       continue;
     }
@@ -472,7 +483,9 @@ export function normalizeShortcutKey(input: string): string | null {
     return null;
   }
 
-  return ["Mod", wantsShift ? "Shift" : null, wantsAlt ? "Alt" : null, key].filter(Boolean).join("-");
+  return ["Mod", wantsShift ? "Shift" : null, wantsAlt ? "Alt" : null, key]
+    .filter(Boolean)
+    .join("-");
 }
 
 function normalizeInternalShortcutKey(input: string): string | null {
@@ -491,7 +504,10 @@ function normalizeInternalShortcutKey(input: string): string | null {
 
 export function validateAssetsDirectory(input: string): string | null {
   // v0.1 只允许当前 Markdown 所在目录下的相对目录，避免图片写到任意文件系统位置。
-  const value = input.trim().replace(/\\/gu, "/").replace(/^\.\/+/u, "");
+  const value = input
+    .trim()
+    .replace(/\\/gu, "/")
+    .replace(/^\.\/+/u, "");
 
   if (!value || value === "." || value === "..") {
     return null;
@@ -535,7 +551,7 @@ function findLatestMdEditorRelease(payload: unknown): PublishedRelease | null {
     return {
       version,
       releaseUrl: readString(release.html_url) ?? undefined,
-      downloadUrl: readDmgDownloadUrl(release.assets)
+      downloadUrl: readDmgDownloadUrl(release.assets),
     };
   }
 
@@ -593,7 +609,7 @@ function parseSemver(input: string): SemverParts | null {
     major: Number.parseInt(match[1] ?? "0", 10),
     minor: Number.parseInt(match[2] ?? "0", 10),
     patch: Number.parseInt(match[3] ?? "0", 10),
-    prerelease: match[4] ?? null
+    prerelease: match[4] ?? null,
   };
 }
 
@@ -626,7 +642,10 @@ function comparePrerelease(left: string, right: string): number {
       return leftNumeric ? -1 : 1;
     }
 
-    const lexical = leftPart.localeCompare(rightPart, undefined, { numeric: true, sensitivity: "base" });
+    const lexical = leftPart.localeCompare(rightPart, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
     if (lexical !== 0) {
       return lexical > 0 ? 1 : -1;
     }
@@ -649,31 +668,36 @@ interface PersistedSettings {
 
 function readLocalSettings(): Partial<PersistedSettings> {
   try {
-    return JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) ?? "{}") as Partial<PersistedSettings>;
+    return JSON.parse(
+      localStorage.getItem(LOCAL_STORAGE_KEY) ?? "{}",
+    ) as Partial<PersistedSettings>;
   } catch {
     return {};
   }
 }
 
-function normalizeSettings(input: Partial<PersistedSettings | AppSettings> | null | undefined): AppSettings {
+function normalizeSettings(
+  input: Partial<PersistedSettings | AppSettings> | null | undefined,
+): AppSettings {
   // 持久化数据可能来自旧版本或用户手动编辑；加载时做一次收敛，坏值回退默认值。
   const shortcutOverrides = new Map(
     (input?.shortcuts ?? [])
       .map((shortcut) => [shortcut.id, normalizeShortcutKey(shortcut.key)] as const)
-      .filter((entry): entry is readonly [string, string] => Boolean(entry[1]))
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
   );
-  const assetsDirectory = validateAssetsDirectory(input?.assetsDirectory ?? "") ?? DEFAULT_ASSETS_DIRECTORY;
+  const assetsDirectory =
+    validateAssetsDirectory(input?.assetsDirectory ?? "") ?? DEFAULT_ASSETS_DIRECTORY;
 
   return {
     shortcuts: SHORTCUTS.map((shortcut) => ({
       ...shortcut,
-      key: shortcutOverrides.get(shortcut.id) ?? shortcut.defaultKey
+      key: shortcutOverrides.get(shortcut.id) ?? shortcut.defaultKey,
     })),
     assetsDirectory,
     editor: normalizeEditorDisplaySettings(input?.editor),
     theme: normalizeAppTheme(input?.theme),
     ai: normalizeAiSettings(input?.ai),
-    update: normalizeUpdateSettings(input?.update)
+    update: normalizeUpdateSettings(input?.update),
   };
 }
 
@@ -681,13 +705,13 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
   return {
     shortcuts: settings.shortcuts.map((shortcut) => ({
       id: shortcut.id,
-      key: shortcut.key
+      key: shortcut.key,
     })),
     assetsDirectory: settings.assetsDirectory,
     editor: settings.editor,
     theme: settings.theme,
     ai: settings.ai,
-    update: settings.update
+    update: settings.update,
   };
 }
 
@@ -698,7 +722,7 @@ export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySet
 
   return {
     showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true,
-    wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize)
+    wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize),
   };
 }
 
@@ -707,9 +731,10 @@ export function normalizeUpdateSettings(input: unknown): AppUpdateSettings {
     return DEFAULT_UPDATE_SETTINGS;
   }
 
-  const automaticCheck = input.automaticCheck === undefined
-    ? DEFAULT_UPDATE_SETTINGS.automaticCheck
-    : input.automaticCheck === true;
+  const automaticCheck =
+    input.automaticCheck === undefined
+      ? DEFAULT_UPDATE_SETTINGS.automaticCheck
+      : input.automaticCheck === true;
   const automaticDownload = automaticCheck
     ? input.automaticDownload === undefined
       ? DEFAULT_UPDATE_SETTINGS.automaticDownload
@@ -718,16 +743,17 @@ export function normalizeUpdateSettings(input: unknown): AppUpdateSettings {
 
   return {
     automaticCheck,
-    automaticDownload
+    automaticDownload,
   };
 }
 
 function normalizeWysiwygFontSize(input: unknown): number {
-  const value = typeof input === "number"
-    ? input
-    : typeof input === "string"
-      ? Number.parseFloat(input)
-      : Number.NaN;
+  const value =
+    typeof input === "number"
+      ? input
+      : typeof input === "string"
+        ? Number.parseFloat(input)
+        : Number.NaN;
 
   if (!Number.isFinite(value)) {
     return DEFAULT_EDITOR_DISPLAY_SETTINGS.wysiwygFontSize;
@@ -747,11 +773,13 @@ export function normalizeAppTheme(input: unknown): AppThemeSettings {
   return {
     mode: normalizeThemeMode(input.mode),
     light: normalizeThemeScheme(input.light, DEFAULT_THEME_SETTINGS.light, legacyLightCssPath),
-    dark: normalizeThemeScheme(input.dark, DEFAULT_THEME_SETTINGS.dark, legacyDarkCssPath)
+    dark: normalizeThemeScheme(input.dark, DEFAULT_THEME_SETTINGS.dark, legacyDarkCssPath),
   };
 }
 
-export function resolveThemeColorScheme(mode: ThemeColorScheme): Exclude<ThemeColorScheme, "system"> {
+export function resolveThemeColorScheme(
+  mode: ThemeColorScheme,
+): Exclude<ThemeColorScheme, "system"> {
   if (mode !== "system") {
     return mode;
   }
@@ -768,7 +796,7 @@ function normalizeThemeMode(input: unknown): ThemeColorScheme {
 function normalizeThemeScheme(
   input: unknown,
   fallback: ThemeSchemeSettings,
-  legacyCssPath: string | null
+  legacyCssPath: string | null,
 ): ThemeSchemeSettings {
   if (!isRecord(input)) {
     return legacyCssPath
@@ -779,7 +807,7 @@ function normalizeThemeScheme(
   return {
     source: input.source === "custom" ? "custom" : "builtin",
     builtinTheme: normalizeBuiltInTheme(input.builtinTheme, fallback.builtinTheme),
-    customCssPath: normalizeThemeCssPath(input.customCssPath)
+    customCssPath: normalizeThemeCssPath(input.customCssPath),
   };
 }
 
@@ -850,7 +878,12 @@ function normalizeKeyboardEventKey(event: KeyboardEvent | ReactKeyboardEvent): s
   if (event.key.length === 1) {
     return normalizeKeyName(event.key);
   }
-  if (/^F\d{1,2}$/u.test(event.key) || event.key === "Escape" || event.key === "Enter" || event.key === "Tab") {
+  if (
+    /^F\d{1,2}$/u.test(event.key) ||
+    event.key === "Escape" ||
+    event.key === "Enter" ||
+    event.key === "Tab"
+  ) {
     return event.key;
   }
 

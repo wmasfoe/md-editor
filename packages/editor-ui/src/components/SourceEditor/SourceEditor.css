@@ -18,12 +18,17 @@
 }
 
 .source-editor .cm-scroller {
-  font-family:
-    var(
-      --theme-source-font,
-      "JetBrains Mono", "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas,
-      "Liberation Mono", monospace
-    );
+  font-family: var(
+    --theme-source-font,
+    "JetBrains Mono",
+    "SFMono-Regular",
+    "SF Mono",
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    monospace
+  );
   line-height: var(--theme-source-line-height, 1.86);
   letter-spacing: 0;
   word-spacing: 0.02em;

@@ -4,7 +4,7 @@ import {
   Plugin,
   PluginKey,
   TextSelection,
-  type EditorState
+  type EditorState,
 } from "@milkdown/kit/prose/state";
 import type { Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import {
@@ -12,7 +12,7 @@ import {
   DecorationSet,
   type EditorView,
   type NodeView,
-  type ViewMutationRecord
+  type ViewMutationRecord,
 } from "@milkdown/kit/prose/view";
 
 const tabText = "  ";
@@ -41,7 +41,7 @@ export const codeLanguageOptions = [
   { label: "Swift", value: "swift" },
   { label: "TSX", value: "tsx" },
   { label: "TypeScript", value: "typescript" },
-  { label: "YAML", value: "yaml" }
+  { label: "YAML", value: "yaml" },
 ] as const;
 
 const languageSuggestionValues = codeLanguageOptions.map((option) => option.value).filter(Boolean);
@@ -50,7 +50,7 @@ const calloutToneLabels = {
   info: "Info",
   warning: "Warning",
   success: "Success",
-  danger: "Danger"
+  danger: "Danger",
 } as const;
 type CalloutTone = keyof typeof calloutToneLabels;
 
@@ -69,7 +69,7 @@ export function createCodeBlockToolsProsePlugin(): Plugin {
         // 蓝色焦点描边必须跟随 ProseMirror 选区，而不是 DOM focus；
         // 代码块控件获得焦点时，不代表代码源码本身处于编辑态。
         return buildActiveCodeBlockDecoration(nextState);
-      }
+      },
     },
     props: {
       decorations(state) {
@@ -93,7 +93,7 @@ export function createCodeBlockToolsProsePlugin(): Plugin {
           view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n"),
           view.state.selection.from,
           view.state.selection.to,
-          event.shiftKey
+          event.shiftKey,
         );
         if (!plan) {
           return false;
@@ -102,13 +102,15 @@ export function createCodeBlockToolsProsePlugin(): Plugin {
         event.preventDefault();
         const transaction = view.state.tr.insertText(plan.text, plan.from, plan.to);
         const nextPosition = plan.from + plan.text.length;
-        view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, nextPosition)));
+        view.dispatch(
+          transaction.setSelection(TextSelection.create(transaction.doc, nextPosition)),
+        );
         return true;
       },
       nodeViews: {
-        code_block: (node, view, getPos) => new MarkdownCodeBlockNodeView(node, view, getPos)
-      }
-    }
+        code_block: (node, view, getPos) => new MarkdownCodeBlockNodeView(node, view, getPos),
+      },
+    },
   });
 }
 
@@ -119,7 +121,7 @@ export function planCodeBlockTabIndent(
   selectedText: string,
   from: number,
   to: number,
-  outdent = false
+  outdent = false,
 ): IndentPlan | null {
   if (parentTypeName !== "code_block") {
     return null;
@@ -129,7 +131,7 @@ export function planCodeBlockTabIndent(
     return {
       from,
       to,
-      text: outdent ? "" : tabText
+      text: outdent ? "" : tabText,
     };
   }
 
@@ -149,7 +151,9 @@ export function planCodeBlockTabIndent(
   return { from, to, text };
 }
 
-export function findCurrentCodeBlockTextRange(state: EditorState): { from: number; to: number } | null {
+export function findCurrentCodeBlockTextRange(
+  state: EditorState,
+): { from: number; to: number } | null {
   const selection = state.selection;
   if (!(selection instanceof TextSelection)) {
     return null;
@@ -173,7 +177,7 @@ export function findCurrentCodeBlockTextRange(state: EditorState): { from: numbe
     const from = $from.before(depth) + 1;
     return {
       from,
-      to: from + node.content.size
+      to: from + node.content.size,
     };
   }
 
@@ -189,7 +193,7 @@ export function getLanguageSuggestions(input: string): readonly string[] {
   return languageSuggestionValues
     .map((language) => ({
       language,
-      score: fuzzyScore(language, query)
+      score: fuzzyScore(language, query),
     }))
     .filter((item) => item.score > 0)
     .sort((left, right) => right.score - left.score || left.language.localeCompare(right.language))
@@ -199,7 +203,7 @@ export function getLanguageSuggestions(input: string): readonly string[] {
 
 export function findAdjacentCalloutPreviewNodePosition(
   state: EditorState,
-  direction: "forward" | "backward"
+  direction: "forward" | "backward",
 ): number | null {
   const selection = state.selection;
   if (!(selection instanceof TextSelection) || !selection.empty) {
@@ -255,9 +259,11 @@ export function findCurrentCalloutPreviewNodePosition(state: EditorState): numbe
 }
 
 export function isCalloutPreviewCodeBlockNode(
-  node: ProseMirrorNode | null | undefined
+  node: ProseMirrorNode | null | undefined,
 ): node is ProseMirrorNode {
-  return Boolean(node && node.type.name === "code_block" && parseCalloutPreviewSource(node.textContent));
+  return Boolean(
+    node && node.type.name === "code_block" && parseCalloutPreviewSource(node.textContent),
+  );
 }
 
 function handleCalloutPreviewDeleteKey(view: EditorView, event: KeyboardEvent): boolean {
@@ -281,7 +287,7 @@ function handleCalloutPreviewDeleteKey(view: EditorView, event: KeyboardEvent): 
     findCurrentCalloutPreviewNodePosition(view.state) ??
     findAdjacentCalloutPreviewNodePosition(
       view.state,
-      event.key === "Delete" ? "forward" : "backward"
+      event.key === "Delete" ? "forward" : "backward",
     );
   if (position === null) {
     return false;
@@ -289,9 +295,7 @@ function handleCalloutPreviewDeleteKey(view: EditorView, event: KeyboardEvent): 
 
   event.preventDefault();
   view.dispatch(
-    view.state.tr
-      .setSelection(NodeSelection.create(view.state.doc, position))
-      .scrollIntoView()
+    view.state.tr.setSelection(NodeSelection.create(view.state.doc, position)).scrollIntoView(),
   );
   view.focus();
   return true;
@@ -318,7 +322,7 @@ function handleCodeBlockSelectAll(view: EditorView, event: KeyboardEvent): boole
   view.dispatch(
     view.state.tr
       .setSelection(TextSelection.create(view.state.doc, range.from, range.to))
-      .scrollIntoView()
+      .scrollIntoView(),
   );
   return true;
 }
@@ -332,8 +336,8 @@ function buildActiveCodeBlockDecoration(state: EditorState): DecorationSet {
   const nodePosition = range.from - 1;
   return DecorationSet.create(state.doc, [
     Decoration.node(nodePosition, range.to + 1, {
-      class: "md-code-block--active"
-    })
+      class: "md-code-block--active",
+    }),
   ]);
 }
 
@@ -385,7 +389,7 @@ class MarkdownCodeBlockNodeView implements NodeView {
   constructor(
     node: ProseMirrorNode,
     private readonly view: EditorView,
-    private readonly getPos: () => number | undefined
+    private readonly getPos: () => number | undefined,
   ) {
     this.node = node;
     const ownerDocument = view.dom.ownerDocument;
@@ -457,7 +461,7 @@ class MarkdownCodeBlockNodeView implements NodeView {
       this.lineNumbers,
       this.codeBodyWrap,
       this.copyButton,
-      this.languageControl
+      this.languageControl,
     );
 
     this.copyButton.addEventListener("click", this.handleCopyClick);
@@ -494,20 +498,24 @@ class MarkdownCodeBlockNodeView implements NodeView {
   }
 
   stopEvent(event: Event) {
-    return targetIsInside(event.target, this.copyButton) ||
+    return (
+      targetIsInside(event.target, this.copyButton) ||
       targetIsInside(event.target, this.languageControl) ||
-      targetIsInside(event.target, this.calloutPreview);
+      targetIsInside(event.target, this.calloutPreview)
+    );
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {
-    return mutation.target === this.dom ||
+    return (
+      mutation.target === this.dom ||
       mutation.target === this.pre ||
       mutation.target === this.lineNumbers ||
       targetIsInside(mutation.target, this.copyButton) ||
       targetIsInside(mutation.target, this.lineNumbers) ||
       targetIsInside(mutation.target, this.languageControl) ||
       targetIsInside(mutation.target, this.rawHeader) ||
-      targetIsInside(mutation.target, this.calloutPreview);
+      targetIsInside(mutation.target, this.calloutPreview)
+    );
   }
 
   destroy() {
@@ -603,7 +611,9 @@ class MarkdownCodeBlockNodeView implements NodeView {
 
   private async copyCode() {
     try {
-      await this.dom.ownerDocument.defaultView?.navigator.clipboard?.writeText(this.node.textContent);
+      await this.dom.ownerDocument.defaultView?.navigator.clipboard?.writeText(
+        this.node.textContent,
+      );
       this.showCopiedState();
     } catch {
       // Clipboard access can be unavailable in restricted previews.
@@ -618,22 +628,28 @@ class MarkdownCodeBlockNodeView implements NodeView {
     this.copyButton.dataset.copied = "true";
     this.copyButton.title = "Code copied";
     this.copyButton.setAttribute("aria-label", "Code copied");
-    this.copyResetTimer = this.dom.ownerDocument.defaultView?.setTimeout(() => {
-      this.copyButton.dataset.copied = "false";
-      this.copyButton.title = "Copy code block";
-      this.copyButton.setAttribute("aria-label", "Copy code block");
-      this.copyResetTimer = 0;
-    }, 1400) ?? 0;
+    this.copyResetTimer =
+      this.dom.ownerDocument.defaultView?.setTimeout(() => {
+        this.copyButton.dataset.copied = "false";
+        this.copyButton.title = "Copy code block";
+        this.copyButton.setAttribute("aria-label", "Copy code block");
+        this.copyResetTimer = 0;
+      }, 1400) ?? 0;
   }
 }
 
 export function normalizeCodeLanguage(language: unknown) {
   return typeof language === "string"
-    ? language.trim().replace(/[\s`]+/gu, "-").replace(/^-+|-+$/gu, "")
+    ? language
+        .trim()
+        .replace(/[\s`]+/gu, "-")
+        .replace(/^-+|-+$/gu, "")
     : "";
 }
 
-function parseManagedRawBlockLanguage(language: unknown): { readonly kind: string; readonly title: string } | null {
+function parseManagedRawBlockLanguage(
+  language: unknown,
+): { readonly kind: string; readonly title: string } | null {
   if (typeof language !== "string") {
     return null;
   }
@@ -671,7 +687,7 @@ export function parseCalloutPreviewSource(source: string): {
   return {
     type,
     title: props.title ?? "",
-    children: (match?.groups?.children ?? "").trim()
+    children: (match?.groups?.children ?? "").trim(),
   };
 }
 

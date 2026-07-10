@@ -24,6 +24,7 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
   const { settings, updateStatus, relaunchUpdate } = useAppSettings();
   const { toast, showToast } = useToast();
   const ctrl = useSettingsController({ showToast, surface });
+  const { closeSettings, destroySettingsWindowAfterRollback } = ctrl;
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
   // settings-window：监听原生关闭按钮，回滚主题预览后再销毁窗口
@@ -34,31 +35,41 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
     void getCurrentWindow()
       .onCloseRequested((event) => {
         event.preventDefault();
-        void ctrl.destroySettingsWindowAfterRollback().catch((error: unknown) => {
+        void destroySettingsWindowAfterRollback().catch((error: unknown) => {
           console.warn("设置窗口关闭回滚失败", error);
         });
       })
       .then((dispose) => {
-        if (disposed) { dispose(); return; }
+        if (disposed) {
+          dispose();
+          return;
+        }
         unlisten = dispose;
       });
-    return () => { disposed = true; unlisten?.(); };
-  }, [ctrl.destroySettingsWindowAfterRollback, surface]);
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [destroySettingsWindowAfterRollback, surface]);
 
   useEffect(() => {
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
       if (
         event.key !== "Escape" ||
-        event.metaKey || event.ctrlKey || event.altKey || event.shiftKey ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.shiftKey ||
         isComposingKeyboardEvent(event)
-      ) return;
+      )
+        return;
       event.preventDefault();
       event.stopPropagation();
-      ctrl.closeSettings();
+      closeSettings();
     };
     window.addEventListener("keydown", closeOnEscape, { capture: true });
     return () => window.removeEventListener("keydown", closeOnEscape, { capture: true });
-  }, [ctrl.closeSettings]);
+  }, [closeSettings]);
 
   const tabs = useMemo(
     () => [
@@ -73,7 +84,7 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
             onCaptureShortcut={ctrl.captureShortcutDraft}
             onResetShortcut={ctrl.resetShortcutDraft}
           />
-        )
+        ),
       },
       {
         id: "ai",
@@ -88,7 +99,7 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
             onCancelLocalModelDownload={ctrl.cancelLocalModelDownload}
             onDeleteLocalModel={ctrl.deleteLocalModel}
           />
-        )
+        ),
       },
       {
         id: "appearance",
@@ -103,7 +114,7 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
             onChooseThemeCss={ctrl.chooseThemeCss}
             onClearThemeCss={ctrl.clearThemeCss}
           />
-        )
+        ),
       },
       {
         id: "other",
@@ -121,10 +132,10 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
             onInstallUpdate={() => void ctrl.installUpdate()}
             onRelaunchAfterUpdate={() => void relaunchUpdate()}
           />
-        )
-      }
+        ),
+      },
     ],
-    [ctrl, relaunchUpdate, settings.shortcuts, updateStatus]
+    [ctrl, relaunchUpdate, settings.shortcuts, updateStatus],
   );
 
   return (
@@ -141,7 +152,10 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
         onMouseDown={onStartWindowDrag}
       >
         <div data-tauri-drag-region={onStartWindowDrag ? true : undefined} className="min-w-0">
-          <h1 id="settings-title" className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]">
+          <h1
+            id="settings-title"
+            className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]"
+          >
             设置
           </h1>
           <p className={settingsDescriptionClassName}>调整编辑器偏好和桌面端行为。</p>
@@ -156,7 +170,10 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
           className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)] overflow-hidden max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]"
         >
           <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
-            <TabList className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto" aria-label="设置分类">
+            <TabList
+              className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto"
+              aria-label="设置分类"
+            >
               {tabs.map((tab) => (
                 <Tab
                   key={tab.id}
@@ -166,7 +183,7 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
                       selected
                         ? "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
                         : "bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]",
-                      "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+                      "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]",
                     ].join(" ")
                   }
                 >

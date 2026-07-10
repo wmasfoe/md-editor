@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isTauri } from "@tauri-apps/api/core";
 import type { AiSettings } from "@md-editor/ai";
 import {
   cancelLocalAiModelDownload,
@@ -7,13 +6,10 @@ import {
   downloadLocalAiModel,
   listenToLocalAiModelProgress,
   mergeLocalAiModelStatus,
-  type LocalAiModelCommandStatus
+  type LocalAiModelCommandStatus,
 } from "../ai/local-ai-model";
+import { destroyCurrentSettingsWindow } from "../../desktop/settings-window";
 import {
-  destroyCurrentSettingsWindow
-} from "../../desktop/settings-window";
-import {
-  createDefaultSettings,
   keyboardShortcutLabel,
   listenToAppSettingsChanged,
   normalizeAiSettings,
@@ -26,7 +22,6 @@ import {
   type AppThemeSettings,
   type AppUpdateSettings,
   type ShortcutSetting,
-  type UpdateStatus
 } from "../settings/app-settings";
 import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
 import { formatActionError } from "@md-editor/editor-ui";
@@ -45,7 +40,7 @@ export async function closeSettingsSurfaceAfterSave({
   surface,
   closeEmbeddedSettings,
   closeSettingsWindow,
-  showSavedToast
+  showSavedToast,
 }: {
   readonly surface: SettingsSurface;
   readonly closeEmbeddedSettings: () => void;
@@ -60,18 +55,32 @@ export async function closeSettingsSurfaceAfterSave({
   if (!didClose) showSavedToast();
 }
 
-export function useSettingsController({ showToast, surface = "main" }: UseSettingsControllerOptions) {
-  const { settings: loadedSettings, updateStatus, closeSettings: closeEmbedded, checkForUpdate, downloadUpdate, applyDownloadedUpdate } = useAppSettings();
+export function useSettingsController({
+  showToast,
+  surface = "main",
+}: UseSettingsControllerOptions) {
+  const {
+    settings: loadedSettings,
+    updateStatus,
+    closeSettings: closeEmbedded,
+    checkForUpdate,
+    downloadUpdate,
+    applyDownloadedUpdate,
+  } = useAppSettings();
 
   // 草稿状态：用已加载设置初始化，对齐 loadedSettings 变化
-  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(
-    () => createShortcutDrafts(loadedSettings.shortcuts)
+  const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
+    createShortcutDrafts(loadedSettings.shortcuts),
   );
   const [assetsDirectoryDraft, setAssetsDirectoryDraft] = useState(loadedSettings.assetsDirectory);
-  const [editorSettingsDraft, setEditorSettingsDraft] = useState<EditorDisplaySettings>(loadedSettings.editor);
+  const [editorSettingsDraft, setEditorSettingsDraft] = useState<EditorDisplaySettings>(
+    loadedSettings.editor,
+  );
   const [themeDraft, setThemeDraft] = useState<AppThemeSettings>(loadedSettings.theme);
   const [aiSettingsDraft, setAiSettingsDraft] = useState<AiSettings>(() => loadedSettings.ai);
-  const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(loadedSettings.update);
+  const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(
+    loadedSettings.update,
+  );
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
@@ -106,7 +115,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     // 此处只更新 AI 草稿以保持弹窗实时显示正确状态
     setAiSettingsDraft((current) => ({
       ...current,
-      localModel: mergeLocalAiModelStatus(current.localModel, status)
+      localModel: mergeLocalAiModelStatus(current.localModel, status),
     }));
   }, []);
 
@@ -130,7 +139,9 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       applyLocalModelStatus(status);
       if (status.status === "failed") {
         setSettingsErrorMessage(
-          status.error === LOCAL_MODEL_CANCEL_MESSAGE ? null : status.error ?? "本地模型状态更新失败。"
+          status.error === LOCAL_MODEL_CANCEL_MESSAGE
+            ? null
+            : (status.error ?? "本地模型状态更新失败。"),
         );
       } else {
         setSettingsErrorMessage(null);
@@ -168,16 +179,24 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
   }, []);
 
-  const resetShortcutDraft = useCallback((id: string) => {
-    const shortcut = loadedSettings.shortcuts.find((s) => s.id === id);
-    if (!shortcut) return;
-    setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(shortcut.defaultKey) }));
-  }, [loadedSettings.shortcuts]);
+  const resetShortcutDraft = useCallback(
+    (id: string) => {
+      const shortcut = loadedSettings.shortcuts.find((s) => s.id === id);
+      if (!shortcut) return;
+      setShortcutDrafts((current) => ({
+        ...current,
+        [id]: keyboardShortcutLabel(shortcut.defaultKey),
+      }));
+    },
+    [loadedSettings.shortcuts],
+  );
 
   const saveSettings = useCallback(async () => {
     const nextAssetsDirectory = validateAssetsDirectory(assetsDirectoryDraft);
     if (!nextAssetsDirectory) {
-      setSettingsErrorMessage("图片资源目录必须是当前文档目录内的子目录，例如 assets 或 images/posts。");
+      setSettingsErrorMessage(
+        "图片资源目录必须是当前文档目录内的子目录，例如 assets 或 images/posts。",
+      );
       return;
     }
 
@@ -185,7 +204,9 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     for (const shortcut of loadedSettings.shortcuts) {
       const key = normalizeShortcutKey(shortcutDrafts[shortcut.id] ?? shortcut.key);
       if (!key) {
-        setSettingsErrorMessage(`"${shortcut.label}"快捷键格式无效，请使用 Command+Shift+B 这类组合。`);
+        setSettingsErrorMessage(
+          `"${shortcut.label}"快捷键格式无效，请使用 Command+Shift+B 这类组合。`,
+        );
         return;
       }
       normalizedShortcuts.push({ ...shortcut, key });
@@ -205,7 +226,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
         editor: editorSettingsDraft,
         theme: themeDraft,
         ai: normalizeAiSettings(aiSettingsDraft),
-        update: updateSettingsDraft
+        update: updateSettingsDraft,
       });
       // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
       try {
@@ -213,7 +234,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
           surface,
           closeEmbeddedSettings: closeEmbedded,
           closeSettingsWindow: destroyCurrentSettingsWindow,
-          showSavedToast: () => showToast("设置已保存。")
+          showSavedToast: () => showToast("设置已保存。"),
         });
       } catch (error) {
         setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
@@ -233,7 +254,7 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
     showToast,
     surface,
     themeDraft,
-    updateSettingsDraft
+    updateSettingsDraft,
   ]);
 
   const chooseThemeCss = useCallback(async (scheme: "light" | "dark") => {
@@ -242,18 +263,22 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       const file = await pickThemeCssFile();
       if (!file) return;
       rememberThemeCssFile(file);
-      setThemeDraft((current) => scheme === "dark"
-        ? { ...current, dark: { ...current.dark, source: "custom", customCssPath: file.path } }
-        : { ...current, light: { ...current.light, source: "custom", customCssPath: file.path } });
+      setThemeDraft((current) =>
+        scheme === "dark"
+          ? { ...current, dark: { ...current.dark, source: "custom", customCssPath: file.path } }
+          : { ...current, light: { ...current.light, source: "custom", customCssPath: file.path } },
+      );
     } catch (error) {
       setSettingsErrorMessage(error instanceof Error ? error.message : "主题 CSS 选择失败。");
     }
   }, []);
 
   const clearThemeCss = useCallback((scheme: "light" | "dark") => {
-    setThemeDraft((current) => scheme === "dark"
-      ? { ...current, dark: { ...current.dark, source: "builtin", customCssPath: null } }
-      : { ...current, light: { ...current.light, source: "builtin", customCssPath: null } });
+    setThemeDraft((current) =>
+      scheme === "dark"
+        ? { ...current, dark: { ...current.dark, source: "builtin", customCssPath: null } }
+        : { ...current, light: { ...current.light, source: "builtin", customCssPath: null } },
+    );
   }, []);
 
   const downloadLocalModel = useCallback(async () => {
@@ -264,13 +289,16 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
       path: null,
       status: "downloading",
       downloadedBytes: 0,
-      error: null
+      error: null,
     });
     try {
       const status = await downloadLocalAiModel(loadedSettings.ai.localModel.modelId);
       applyLocalModelStatus(status);
     } catch (error) {
-      if (isLocalModelDownloadCancel(error)) { setSettingsErrorMessage(null); return; }
+      if (isLocalModelDownloadCancel(error)) {
+        setSettingsErrorMessage(null);
+        return;
+      }
       setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
     }
   }, [applyLocalModelStatus, loadedSettings.ai.localModel]);
@@ -309,9 +337,12 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
 
   const installUpdate = useCallback(async () => {
     setSettingsErrorMessage(null);
-    const result = updateStatus.state === "downloaded"
-      ? await applyDownloadedUpdate()
-      : await downloadUpdate().then((downloaded) => downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded);
+    const result =
+      updateStatus.state === "downloaded"
+        ? await applyDownloadedUpdate()
+        : await downloadUpdate().then((downloaded) =>
+            downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded,
+          );
     if (result.state === "installed") {
       showToast("更新已安装，重启应用后生效。");
     }
@@ -349,10 +380,10 @@ export function useSettingsController({ showToast, surface = "main" }: UseSettin
   };
 }
 
-function createShortcutDrafts(shortcuts: readonly ShortcutSetting[]): Readonly<Record<string, string>> {
-  return Object.fromEntries(
-    shortcuts.map((s) => [s.id, keyboardShortcutLabel(s.key)])
-  );
+function createShortcutDrafts(
+  shortcuts: readonly ShortcutSetting[],
+): Readonly<Record<string, string>> {
+  return Object.fromEntries(shortcuts.map((s) => [s.id, keyboardShortcutLabel(s.key)]));
 }
 
 function findDuplicateShortcut(shortcuts: readonly string[]): string | null {

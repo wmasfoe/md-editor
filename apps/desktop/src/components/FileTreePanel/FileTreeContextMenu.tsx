@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { FileTreeContextMenuState } from "../../types";
 import {
   FILE_TREE_CONTEXT_MENU_ACTION,
-  type FileTreeContextMenuAction
+  type FileTreeContextMenuAction,
 } from "../../desktop/file-tree-context-menu";
 import { ContextMenuItem } from "./ContextMenuItem";
 
@@ -12,17 +12,13 @@ export interface FileTreeContextMenuProps {
   readonly onRunAction: (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => void;
 }
 
-export function FileTreeContextMenu({
-  menu,
-  onClose,
-  onRunAction
-}: FileTreeContextMenuProps) {
+export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeContextMenuProps) {
   const run = useCallback(
     (action: FileTreeContextMenuAction) => {
       onClose();
       onRunAction(menu, action);
     },
-    [menu, onClose, onRunAction]
+    [menu, onClose, onRunAction],
   );
 
   return (

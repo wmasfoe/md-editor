@@ -1,7 +1,7 @@
 import {
   appendImageMarkdown,
   defaultAssetsDirectoryForDocument,
-  imageAltTextFromFileName
+  imageAltTextFromFileName,
 } from "@md-editor/file-system";
 import type { MarkdownDocumentFile } from "@md-editor/file-system";
 import { fileService } from "../desktop/file-service";
@@ -27,7 +27,7 @@ export function getPastedImage(data: DataTransfer): PastedImageInput | null {
         return {
           file,
           mimeType: item.type || file.type,
-          preferredName: file.name
+          preferredName: file.name,
         };
       }
     }
@@ -42,7 +42,7 @@ export function getDroppedImage(data: DataTransfer): PastedImageInput | null {
       return {
         file,
         mimeType: file.type,
-        preferredName: file.name
+        preferredName: file.name,
       };
     }
   }
@@ -53,7 +53,7 @@ export function getDroppedImage(data: DataTransfer): PastedImageInput | null {
 export async function pasteImageInput(
   image: PastedImageInput,
   runtimeActions: PasteImageRuntime,
-  label = "正在粘贴图片"
+  label = "正在粘贴图片",
 ) {
   await runtimeActions.runFileAction(label, async () => {
     let current = runtime.document.getSnapshot();
@@ -62,7 +62,7 @@ export async function pasteImageInput(
     if (!current.filePath) {
       const saved = await fileService.saveDocumentAs({
         filePath: null,
-        markdown: current.markdown
+        markdown: current.markdown,
       });
       if (!saved) {
         return;
@@ -82,13 +82,13 @@ export async function pasteImageInput(
         documentPath: current.filePath,
         defaultAssetsDir:
           runtimeActions.assetsDirectory ?? defaultAssetsDirectoryForDocument(current.filePath),
-        preferredName: image.preferredName
-      }
+        preferredName: image.preferredName,
+      },
     });
     const nextMarkdown = appendImageMarkdown(
       current.markdown,
       savedImage.src,
-      imageAltTextFromFileName(image.preferredName)
+      imageAltTextFromFileName(image.preferredName),
     );
 
     // 图片文件已经落盘，但 Markdown 引用仍是未保存编辑；保持 dirty 状态直到用户保存文档。

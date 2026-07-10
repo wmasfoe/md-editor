@@ -16,7 +16,7 @@ export function bindRecentFileMenuEvents({
   target = window,
   store,
   openRecentFile,
-  onError
+  onError,
 }: RecentFileMenuEventOptions) {
   const reportError = (error: unknown) => {
     onError?.(error instanceof Error ? error.message : "最近文件操作失败。");

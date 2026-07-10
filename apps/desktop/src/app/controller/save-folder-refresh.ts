@@ -5,7 +5,7 @@ interface SaveFolderRefreshInput {
 
 export function shouldRefreshFolderAfterSave({
   previousPath,
-  savedPath
+  savedPath,
 }: SaveFolderRefreshInput): boolean {
   return previousPath !== savedPath;
 }

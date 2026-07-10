@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculateDocumentMetrics,
-  getDocumentMetricLabel
-} from "../src/app/document-metrics";
+import { calculateDocumentMetrics, getDocumentMetricLabel } from "../src/app/document-metrics";
 
 describe("document metrics", () => {
   it("counts words, lines, and characters for mixed Markdown", () => {
@@ -11,7 +8,7 @@ describe("document metrics", () => {
     expect(metrics).toEqual({
       words: 7,
       lines: 3,
-      characters: 25
+      characters: 25,
     });
   });
 

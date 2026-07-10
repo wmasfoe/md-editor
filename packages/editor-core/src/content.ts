@@ -73,10 +73,7 @@ export function createEditorContent(input: CreateEditorContentInput): EditorCont
   };
 }
 
-export function updateRawMarkdown(
-  content: EditorContent,
-  rawMarkdown: string,
-): EditorContent {
+export function updateRawMarkdown(content: EditorContent, rawMarkdown: string): EditorContent {
   return createEditorContent({
     rawMarkdown,
     savedRawMarkdown: content.savedRawMarkdown,

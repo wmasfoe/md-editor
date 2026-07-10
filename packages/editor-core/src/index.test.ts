@@ -49,14 +49,16 @@ describe("editor-core M0 skeleton", () => {
       key: "Mod-Shift-A",
       commandId: "ai.continueWriting",
     });
-    expect(await commands.dispatch("ai.continueWriting", {
-      document: createDocumentState(),
-      actions: {
-        continueAiWriting: () => {
-          called = true;
+    expect(
+      await commands.dispatch("ai.continueWriting", {
+        document: createDocumentState(),
+        actions: {
+          continueAiWriting: () => {
+            called = true;
+          },
         },
-      },
-    })).toBe(true);
+      }),
+    ).toBe(true);
     expect(called).toBe(true);
   });
 });
@@ -103,10 +105,7 @@ describe("Markdown normalized round-trip fixtures", () => {
     const result = roundTripMarkdownFixture("1. One\n2. Two\n\n---\n");
 
     expect(result.normalizedEqual).toBe(true);
-    expect(result.document.blocks.map((block) => block.type)).toEqual([
-      "list",
-      "thematicBreak",
-    ]);
+    expect(result.document.blocks.map((block) => block.type)).toEqual(["list", "thematicBreak"]);
   });
 });
 
@@ -115,7 +114,7 @@ describe("raw fragment preservation", () => {
     const markdown = [
       "---",
       "# keep comment",
-      "title:  \"Spacing\"",
+      'title:  "Spacing"',
       "date: 2026-06-06",
       "---",
       "",
@@ -124,15 +123,15 @@ describe("raw fragment preservation", () => {
       "",
       "{value + 1}",
       "",
-      "<div class=\"raw\">",
+      '<div class="raw">',
       "  HTML stays raw.",
       "</div>",
       "",
-      "<UnknownCard prop = \" spaced \" />",
+      '<UnknownCard prop = " spaced " />',
       "",
-      "Paragraph with <InlineThing value=\"x\" /> and {inlineValue}.",
+      'Paragraph with <InlineThing value="x" /> and {inlineValue}.',
       "",
-      "```ts {1,3} title=\"demo.ts\"",
+      '```ts {1,3} title="demo.ts"',
       "const value = '<Unknown />';",
       "```",
       "",
@@ -196,7 +195,7 @@ describe("raw fragment preservation", () => {
   });
 
   it("preserves CRLF frontmatter bytes", () => {
-    const markdown = "---\r\ntitle:  \"Spacing\"\r\n---\r\n\r\nBody\r\n";
+    const markdown = '---\r\ntitle:  "Spacing"\r\n---\r\n\r\nBody\r\n';
     const fragment = collectRawFragments(markdown).rawFragments[0];
 
     if (fragment === undefined) {
@@ -204,7 +203,7 @@ describe("raw fragment preservation", () => {
     }
 
     expect(fragment.kind).toBe("frontmatter");
-    expect(fragment.rawSource).toBe("---\r\ntitle:  \"Spacing\"\r\n---\r\n");
+    expect(fragment.rawSource).toBe('---\r\ntitle:  "Spacing"\r\n---\r\n');
     expect(serializeWithRawFragments(markdown, [fragment])).toBe(markdown);
   });
 });
@@ -295,9 +294,7 @@ describe("internal Callout minimum slice", () => {
       childrenMarkdown: "New",
     });
 
-    expect(serializeCalloutNode(dirtyNode, fragment)).toBe(
-      '<Callout type="warning">New</Callout>',
-    );
+    expect(serializeCalloutNode(dirtyNode, fragment)).toBe('<Callout type="warning">New</Callout>');
   });
 
   it("records an explicit blocker when editor extension APIs are unavailable", () => {
@@ -415,14 +412,12 @@ describe("content authority contracts", () => {
     const fragment: RawFragment = {
       id: "callout-1",
       kind: "registeredMdxComponent",
-      rawSource: "<Callout type=\"info\">Old</Callout>",
+      rawSource: '<Callout type="info">Old</Callout>',
       dirty: true,
-      serializedMarkdown: "<Callout type=\"warning\">New</Callout>",
+      serializedMarkdown: '<Callout type="warning">New</Callout>',
     };
 
-    expect(getRawFragmentSaveSource(fragment)).toBe(
-      "<Callout type=\"warning\">New</Callout>",
-    );
+    expect(getRawFragmentSaveSource(fragment)).toBe('<Callout type="warning">New</Callout>');
   });
 });
 

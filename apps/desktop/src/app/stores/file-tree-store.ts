@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type {
   FileTreeMutationResult,
   MarkdownFileTreeNode,
-  MarkdownFolder
+  MarkdownFolder,
 } from "@md-editor/file-system";
 import type { TreeItemKind } from "../../types";
 import { fileService } from "../../desktop/file-service";
@@ -32,7 +32,7 @@ function applyFileTreeMutation(result: FileTreeMutationResult, previousPath?: st
   if (mutation.kind === "move") {
     runtime.document.markSaved({
       markdown: current.markdown,
-      filePath: mutation.filePath
+      filePath: mutation.filePath,
     });
     return;
   }
@@ -78,19 +78,18 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       return;
     }
 
-    await useFileActionStore.getState().runFileAction(
-      kind === "markdown" ? "正在新建文件" : "正在新建文件夹",
-      async () => {
+    await useFileActionStore
+      .getState()
+      .runFileAction(kind === "markdown" ? "正在新建文件" : "正在新建文件夹", async () => {
         const result = await fileService.createTreeItem({
           rootPath: folder.rootPath,
           parentPath,
           name,
-          kind
+          kind,
         });
         set({ folder: result.folder });
         applyFileTreeMutation(result);
-      }
-    );
+      });
   },
   renameTreeItem: async (node, name) => {
     const folder = get().folder;
@@ -102,14 +101,14 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       const result = await fileService.renameTreeItem({
         rootPath: folder.rootPath,
         path: node.path,
-        name
+        name,
       });
       set({ folder: result.folder });
       applyFileTreeMutation(result, node.path);
       if (result.affectedPath) {
         await recentFilesStore.move(node.path, {
           path: result.affectedPath,
-          name: result.affectedPath.split("/").pop() || name
+          name: result.affectedPath.split("/").pop() || name,
         });
       }
     });
@@ -122,9 +121,10 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
 
     const choice = await useConfirmationStore.getState().requestConfirmation({
       title: `删除“${node.name}”？`,
-      description: node.kind === "directory" ? "该文件夹及其中的内容将被永久删除。" : "该文件将被永久删除。",
+      description:
+        node.kind === "directory" ? "该文件夹及其中的内容将被永久删除。" : "该文件将被永久删除。",
       confirmLabel: "删除",
-      destructive: true
+      destructive: true,
     });
     if (choice !== "confirm") {
       return;
@@ -133,7 +133,7 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
     await useFileActionStore.getState().runFileAction("正在删除", async () => {
       const result = await fileService.deleteTreeItem({
         rootPath: folder.rootPath,
-        path: node.path
+        path: node.path,
       });
       set({ folder: result.folder });
       applyFileTreeMutation(result, node.path);

@@ -3,19 +3,25 @@ import { describe, expect, it } from "vitest";
 
 const desktopMilkdownEditorSource = readFileSync(
   new URL("../src/components/DesktopMilkdownEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const desktopSourceEditorSource = readFileSync(
   new URL("../src/components/DesktopSourceEditor.tsx", import.meta.url),
-  "utf8"
+  "utf8",
 );
 const editorUiMilkdownSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx", import.meta.url),
-  "utf8"
+  new URL(
+    "../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.tsx",
+    import.meta.url,
+  ),
+  "utf8",
 );
 const editorUiMilkdownPrimitiveSource = readFileSync(
-  new URL("../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
-  "utf8"
+  new URL(
+    "../../../packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx",
+    import.meta.url,
+  ),
+  "utf8",
 );
 
 describe("desktop editor adapter wiring", () => {
@@ -35,9 +41,13 @@ describe("desktop editor adapter wiring", () => {
     expect(desktopMilkdownEditorSource).toContain("mdxAi={{");
     expect(desktopMilkdownEditorSource).toContain("getMdxComponentPlugins");
     expect(desktopMilkdownEditorSource).toContain("getAiCompletionReadiness");
-    expect(desktopMilkdownEditorSource).toContain("requestAiCompletion: requestDesktopAiContinuation");
+    expect(desktopMilkdownEditorSource).toContain(
+      "requestAiCompletion: requestDesktopAiContinuation",
+    );
     expect(desktopMilkdownEditorSource).not.toContain("onEditorCommandsChange");
-    expect(desktopMilkdownEditorSource).toContain("renderMdxComponentMenu={renderMdxComponentMenu}");
+    expect(desktopMilkdownEditorSource).toContain(
+      "renderMdxComponentMenu={renderMdxComponentMenu}",
+    );
     expect(desktopMilkdownEditorSource).toContain("resolveImageSrc={resolveImageSrc}");
     expect(desktopMilkdownEditorSource).toContain("settings.editor.wysiwygFontSize");
   });
@@ -56,7 +66,9 @@ describe("desktop editor adapter wiring", () => {
     expect(desktopSourceEditorSource).not.toContain("useOutlineStore");
     expect(desktopSourceEditorSource).not.toContain('modeScrollTarget?.mode === "source"');
     expect(desktopSourceEditorSource).not.toContain("onScrollRatioChange={updateModeScrollRatio}");
-    expect(desktopSourceEditorSource).not.toContain("onScrollTargetApplied={completeModeScrollTarget}");
+    expect(desktopSourceEditorSource).not.toContain(
+      "onScrollTargetApplied={completeModeScrollTarget}",
+    );
     expect(desktopSourceEditorSource).not.toContain("useMdxAiController");
     expect(desktopSourceEditorSource).not.toContain("requestDesktopAiContinuation");
   });
