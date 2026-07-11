@@ -5,6 +5,7 @@ import type { EditorUiCommandSlots } from "../../hooks/useEditorUi";
 import type { MdxSnippetPlugin } from "../../hooks/useMdxAiController";
 import type { OutlineItem } from "../OutlinePanel";
 import type { EditorScrollTarget, TocTarget } from "../../types";
+import type { WysiwygMarkdownSourceDraft } from "../../utils/wysiwyg-markdown-source";
 
 export type MilkdownEditorCommandHandlers = EditorUiCommandSlots;
 
@@ -75,6 +76,8 @@ export interface MilkdownEditorPrimitiveProps {
   readonly onScrollTargetApplied?: (nonce: number) => void;
   readonly onActiveOutlineChange?: (id: string | null) => void;
   readonly resolveImageSrc?: (src: string) => string;
+  readonly sourceDrafts?: readonly WysiwygMarkdownSourceDraft[];
+  readonly onSourceDraftsChange?: (drafts: readonly WysiwygMarkdownSourceDraft[]) => void;
 }
 
 export interface MarkdownInsertRequest {

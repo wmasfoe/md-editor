@@ -56,6 +56,8 @@ export function MilkdownEditor<TPlugin extends MdxSnippetPlugin = MdxSnippetPlug
     onScrollRatioChange: editorUiActions.updateModeScrollRatio,
     onScrollTargetApplied: editorUiActions.completeModeScrollTarget,
     onActiveOutlineChange: editorUiActions.setActiveOutlineId,
+    sourceDrafts: editorUiState.wysiwygMarkdownSourceDrafts,
+    onSourceDraftsChange: editorUiActions.setWysiwygMarkdownSourceDrafts,
   };
 
   return (

@@ -5,6 +5,7 @@ import {
   findImageNodePositionForDom,
   hasProseMirrorSeparatorImageClass,
   imageSelectionPluginKey,
+  isMarkdownSourceImagePreviewElement,
   isImageNodeSelection,
   shouldClearNativeImageSelection,
 } from "../utils/image-selection";
@@ -18,6 +19,19 @@ describe("image selection", () => {
     expect(hasProseMirrorSeparatorImageClass("ProseMirror-separator")).toBe(true);
     expect(hasProseMirrorSeparatorImageClass("foo ProseMirror-separator bar")).toBe(true);
     expect(hasProseMirrorSeparatorImageClass("md-editor-selected-image")).toBe(false);
+  });
+
+  it("keeps source-session image previews outside whole-image selection handling", () => {
+    expect(
+      isMarkdownSourceImagePreviewElement({
+        hasAttribute: (name) => name === "data-md-source-image-preview",
+      }),
+    ).toBe(true);
+    expect(
+      isMarkdownSourceImagePreviewElement({
+        hasAttribute: () => false,
+      }),
+    ).toBe(false);
   });
 
   it("maps a clicked image DOM node back to the whole image node", () => {

@@ -13,12 +13,14 @@ import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, useEditor, useInstance } from "@milkdown/react";
 import { Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
-import { Slice } from "@milkdown/kit/prose/model";
+import { Slice, type Node as ProseMirrorNode } from "@milkdown/kit/prose/model";
 import {
+  findMarkdownImageAuthorSource,
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
   rewriteMarkdownImageSourcesForPreview,
   rewriteRawBlocksForPreview,
+  upsertMarkdownImageSourceMapping,
 } from "@md-editor/markdown-fidelity";
 import { codeBlockToolsPlugin } from "../../utils/code-block-tools";
 import { codeHighlightPlugin } from "../../utils/code-highlight";
@@ -38,6 +40,18 @@ import { imageSelectionPlugin } from "../../utils/image-selection";
 // 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
 // import { straightQuotesPlugin } from "../../utils/straight-quotes";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../../utils/wysiwyg-search";
+import {
+  collectWysiwygMarkdownSourceDraftIds,
+  extractWysiwygMarkdownSourceDrafts,
+  prepareWysiwygMarkdownSourceDraftsForPreview,
+  wysiwygMarkdownBlockSourceSchema,
+  wysiwygMarkdownInlineSourceSchema,
+  wysiwygMarkdownSourcePreviewRemark,
+} from "../../utils/wysiwyg-markdown-source";
+import {
+  wysiwygMarkdownSourceConfig,
+  wysiwygMarkdownSourcePlugin,
+} from "../../utils/wysiwyg-markdown-source-plugin";
 import type { MilkdownEditorPrimitiveProps } from "./types";
 import { WysiwygSearchPanel } from "./WysiwygSearchPanel";
 import { AiThinkingIndicator } from "./AiThinkingIndicator";
@@ -69,11 +83,17 @@ export function MilkdownEditorPrimitive({
   onScrollTargetApplied,
   onActiveOutlineChange,
   resolveImageSrc = (src) => src,
+  sourceDrafts = [],
+  onSourceDraftsChange,
 }: MilkdownEditorPrimitiveProps) {
   // Milkdown owns document state after mount. Hosts must remount this primitive
   // for document replacement so preview image/raw-block maps stay aligned.
   const [previewInput] = useState(() => {
-    const rawPreview = rewriteRawBlocksForPreview(snapshot.markdown);
+    const sourceDraftPreview = prepareWysiwygMarkdownSourceDraftsForPreview(
+      snapshot.markdown,
+      sourceDrafts,
+    );
+    const rawPreview = rewriteRawBlocksForPreview(sourceDraftPreview);
     const imagePreview = rewriteMarkdownImageSourcesForPreview(
       rawPreview.markdown,
       resolveImageSrc,
@@ -85,6 +105,8 @@ export function MilkdownEditorPrimitive({
     };
   });
   const imageSourceMapRef = useRef(previewInput.imageSourceMap);
+  const resolveImageSrcRef = useRef(resolveImageSrc);
+  resolveImageSrcRef.current = resolveImageSrc;
   const rawSourceMapRef = useRef(previewInput.rawSourceMap);
   const selectionBookmarkRef = useRef<SelectionBookmark | null>(null);
   const handledInsertRequestIdRef = useRef<number | null>(null);
@@ -130,7 +152,7 @@ export function MilkdownEditorPrimitive({
     .join(" ");
 
   const publishPreviewMarkdownUpdate = useCallback(
-    (markdown: string) => {
+    (markdown: string, doc: ProseMirrorNode) => {
       if (markdown === lastPublishedPreviewMarkdownRef.current) {
         return;
       }
@@ -138,9 +160,18 @@ export function MilkdownEditorPrimitive({
       lastPublishedPreviewMarkdownRef.current = markdown;
       setUserEditRevision((current) => current + 1);
       const restoredImages = restoreMarkdownImageSources(markdown, imageSourceMapRef.current);
-      onChange(restoreRawBlocksFromPreview(restoredImages, rawSourceMapRef.current));
+      const restoredRawBlocks = restoreRawBlocksFromPreview(
+        restoredImages,
+        rawSourceMapRef.current,
+      );
+      const sourceDraftResult = extractWysiwygMarkdownSourceDrafts(
+        restoredRawBlocks,
+        collectWysiwygMarkdownSourceDraftIds(doc),
+      );
+      onSourceDraftsChange?.(sourceDraftResult.drafts);
+      onChange(sourceDraftResult.markdown);
     },
-    [onChange],
+    [onChange, onSourceDraftsChange],
   );
 
   const runSearch = useCallback(
@@ -280,7 +311,7 @@ export function MilkdownEditorPrimitive({
 
         compositionMarkdownDirtyRef.current = false;
         const serializer = editor.ctx.get(serializerCtx);
-        publishPreviewMarkdownUpdate(serializer(view.state.doc));
+        publishPreviewMarkdownUpdate(serializer(view.state.doc), view.state.doc);
       }, IME_MARKDOWN_PUBLISH_DELAY_MS);
     };
 
@@ -423,6 +454,21 @@ export function MilkdownEditorPrimitive({
         .config((ctx) => {
           ctx.set(rootCtx, root);
           ctx.set(defaultValueCtx, previewInput.markdown);
+          ctx.set(wysiwygMarkdownSourcePreviewRemark.options.key, { drafts: sourceDrafts });
+          ctx.set(wysiwygMarkdownSourceConfig.key, {
+            includeImages: true,
+            getAuthorImageSrc: (previewSrc) =>
+              findMarkdownImageAuthorSource(imageSourceMapRef.current, previewSrc),
+            resolveImageSrc: (authorSrc) => resolveImageSrcRef.current(authorSrc),
+            registerImageSource: (previewSrc, authorSrc) => {
+              imageSourceMapRef.current = upsertMarkdownImageSourceMapping(
+                imageSourceMapRef.current,
+                previewSrc,
+                authorSrc,
+              );
+            },
+            imagePreviewDebounceMs: 180,
+          });
           // The UI package edits preview-safe Markdown. Host apps inject image
           // URL resolution, then this component restores author-facing paths.
           ctx.get(listenerCtx).markdownUpdated((listenerContext, markdown, previousMarkdown) => {
@@ -434,7 +480,7 @@ export function MilkdownEditorPrimitive({
               }
 
               compositionMarkdownDirtyRef.current = false;
-              publishPreviewMarkdownUpdate(markdown);
+              publishPreviewMarkdownUpdate(markdown, view.state.doc);
             }
           });
           ctx.get(listenerCtx).mounted((mountedCtx) => {
@@ -447,11 +493,16 @@ export function MilkdownEditorPrimitive({
         })
         .use(commonmark)
         .use(gfm)
+        .use(wysiwygMarkdownSourcePreviewRemark)
+        .use(wysiwygMarkdownInlineSourceSchema)
+        .use(wysiwygMarkdownBlockSourceSchema)
+        .use(wysiwygMarkdownSourceConfig)
         .use(history)
         // 可选兜底：纠正 macOS/WebKit 将 ASCII 引号改写成弯引号（源码模式不需要）。
         // 当前依赖 apps/desktop 壳层 NSUserDefaults，先不挂载。
         // .use(straightQuotesPlugin)
         .use(imeCompositionGuardPlugin)
+        .use(wysiwygMarkdownSourcePlugin)
         .use(imageSelectionPlugin)
         .use(horizontalRuleSelectionPlugin)
         .use(aiSuggestionPlugin)

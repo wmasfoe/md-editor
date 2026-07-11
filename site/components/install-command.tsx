@@ -34,7 +34,7 @@ export function InstallCommand({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_0_rgb(0_0_0_/0.02)]">
-      <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-soft/70 px-4 py-2.5">
+      <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-soft/70 px-3 py-2.5 sm:px-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {recommended ? (
@@ -55,12 +55,13 @@ export function InstallCommand({
         <button
           type="button"
           onClick={handleCopy}
-          className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-ink-soft transition-colors hover:bg-white hover:text-ink"
+          className="inline-flex min-h-10 shrink-0 items-center rounded-md px-2.5 text-xs font-medium text-ink-soft transition-colors hover:bg-white hover:text-ink sm:min-h-0 sm:py-1"
         >
           {copied ? "已复制" : "复制"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 text-[13px] leading-relaxed text-ink-soft sm:text-sm">
+      {/* 窄屏优先换行可读，避免整段命令只能横滑；桌面仍保持单行滚动风格 */}
+      <pre className="overflow-x-auto p-3 text-[12px] leading-relaxed break-all whitespace-pre-wrap text-ink-soft sm:p-4 sm:text-sm sm:break-normal sm:whitespace-pre">
         <code>{command}</code>
       </pre>
     </div>

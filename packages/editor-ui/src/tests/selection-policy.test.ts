@@ -64,6 +64,7 @@ describe("editor selection policy", () => {
     expect(editorStyles).not.toContain(".milkdown .ProseMirror img {");
     expect(editorStyles).toContain("img:not(.ProseMirror-separator)");
     expect(imageSelectionSource).toContain("img:not(.ProseMirror-separator)");
+    expect(imageSelectionSource).toContain(":not([data-md-source-image-preview])");
     expect(imageSelectionSource).toContain("clearEditorImageDomState");
     expect(imageSelectionSource).toContain('removeAttribute("data-md-editor-image")');
   });

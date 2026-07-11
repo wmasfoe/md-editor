@@ -115,6 +115,31 @@ export function restoreMarkdownImageSources(
   }, markdown);
 }
 
+export function findMarkdownImageAuthorSource(
+  sourceMap: readonly [previewSrc: string, markdownSrc: string][],
+  previewSrc: string,
+): string {
+  return sourceMap.find(([mappedPreviewSrc]) => mappedPreviewSrc === previewSrc)?.[1] ?? previewSrc;
+}
+
+export function upsertMarkdownImageSourceMapping(
+  sourceMap: readonly [previewSrc: string, markdownSrc: string][],
+  previewSrc: string,
+  markdownSrc: string,
+): [previewSrc: string, markdownSrc: string][] {
+  if (previewSrc === markdownSrc) {
+    return [...sourceMap];
+  }
+
+  return [
+    ...sourceMap.filter(
+      ([mappedPreviewSrc, mappedMarkdownSrc]) =>
+        mappedPreviewSrc !== previewSrc && mappedMarkdownSrc !== markdownSrc,
+    ),
+    [previewSrc, markdownSrc],
+  ];
+}
+
 export function rewriteRawBlocksForPreview(markdown: string): MarkdownRawBlockPreviewInput {
   const sourceMap: [string, string][] = [];
   const frontmatter = matchFrontmatterSource(markdown);

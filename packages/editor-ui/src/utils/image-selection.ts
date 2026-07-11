@@ -6,6 +6,7 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 export const imageSelectionPluginKey = new PluginKey("md-editor-image-selection");
 const nativeSelectionGuardDurationMs = 1500;
 const proseMirrorSeparatorClassName = "ProseMirror-separator";
+const markdownSourceImagePreviewAttribute = "data-md-source-image-preview";
 
 interface NativeImageSelectionGuard {
   arm(): void;
@@ -14,6 +15,7 @@ interface NativeImageSelectionGuard {
 }
 
 const nativeSelectionGuards = new WeakMap<EditorView, NativeImageSelectionGuard>();
+const imagesWithSilentFailureHandling = new WeakSet<HTMLImageElement>();
 
 export const imageSelectionPlugin = $prose(
   () =>
@@ -212,19 +214,31 @@ function prepareImageDom(view: EditorView): void {
       clearEditorImageDomState(image);
       return;
     }
+    if (isMarkdownSourceImagePreviewElement(image)) {
+      image.draggable = false;
+      image.setAttribute("contenteditable", "false");
+      image.removeAttribute("data-md-editor-image");
+      image.classList.remove("md-editor-selected-image");
+      return;
+    }
 
     image.draggable = false;
     image.setAttribute("contenteditable", "false");
     image.dataset.mdEditorImage = "true";
+    bindSilentImageFailureHandling(image);
   });
 }
 
 function findImageElement(target: EventTarget | null): HTMLImageElement | null {
   const image =
     target instanceof Element
-      ? target.closest<HTMLImageElement>("img:not(.ProseMirror-separator)")
+      ? target.closest<HTMLImageElement>(
+          "img:not(.ProseMirror-separator):not([data-md-source-image-preview])",
+        )
       : null;
-  return image && !isProseMirrorSeparatorImage(image) ? image : null;
+  return image && !isProseMirrorSeparatorImage(image) && !isMarkdownSourceImagePreviewElement(image)
+    ? image
+    : null;
 }
 
 export function hasProseMirrorSeparatorImageClass(className: string): boolean {
@@ -233,6 +247,29 @@ export function hasProseMirrorSeparatorImageClass(className: string): boolean {
 
 function isProseMirrorSeparatorImage(image: HTMLImageElement): boolean {
   return hasProseMirrorSeparatorImageClass(image.className);
+}
+
+export function isMarkdownSourceImagePreviewElement(
+  image: Pick<HTMLImageElement, "hasAttribute">,
+): boolean {
+  return image.hasAttribute(markdownSourceImagePreviewAttribute);
+}
+
+function bindSilentImageFailureHandling(image: HTMLImageElement): void {
+  if (imagesWithSilentFailureHandling.has(image)) {
+    return;
+  }
+
+  imagesWithSilentFailureHandling.add(image);
+  image.addEventListener("load", () => {
+    image.hidden = false;
+  });
+  image.addEventListener("error", () => {
+    image.hidden = true;
+  });
+  if (image.complete && image.naturalWidth === 0 && image.getAttribute("src")) {
+    image.hidden = true;
+  }
 }
 
 function clearEditorImageDomState(image: HTMLImageElement): void {

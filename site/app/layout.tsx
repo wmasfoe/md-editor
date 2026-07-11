@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { SiteFooter } from "../components/site-footer";
 import { SiteHeader } from "../components/site-header";
@@ -16,6 +16,14 @@ export const metadata: Metadata = {
     template: "%s · Markdown Editor",
   },
   description: "简洁的本地 Markdown 和 MDX 桌面编辑器。",
+};
+
+// 覆盖刘海/底部指示条；themeColor 与 canvas 一致，减少移动端浏览器栏跳色。
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#faf9f6",
 };
 
 export default function RootLayout({

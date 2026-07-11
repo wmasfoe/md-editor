@@ -3,6 +3,7 @@ import {
   createMarkdownImageSrcResolver,
   extractHeadingOutline,
   findActiveHeadingIdForLine,
+  findMarkdownImageAuthorSource,
   isLikelyMdxBlock,
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
@@ -10,6 +11,7 @@ import {
   rewriteRawBlocksForPreview,
   serializeRoundTrip,
   splitFrontmatter,
+  upsertMarkdownImageSourceMapping,
 } from "../src";
 
 describe("frontmatter preservation", () => {
@@ -197,5 +199,43 @@ describe("local Markdown image preview sources", () => {
     expect(preview.markdown).toContain("![shot](asset:///Users/me/docs/assets/a.png)");
     expect(preview.markdown).toContain("![remote](https://example.com/a.png)");
     expect(restoreMarkdownImageSources(preview.markdown, preview.sourceMap)).toBe(input);
+  });
+
+  it("does not restore a stale source after the author changes the preview URL", () => {
+    const input = "![shot](assets/a.png)\n";
+    const preview = rewriteMarkdownImageSourcesForPreview(
+      input,
+      createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
+        hasTauriRuntime: true,
+        convertFileSrc: (path) => `asset://${path}`,
+      }),
+    );
+    const editedPreview = preview.markdown.replace(
+      "asset:///Users/me/docs/assets/a.png",
+      "assets/replacement.png",
+    );
+
+    expect(restoreMarkdownImageSources(editedPreview, preview.sourceMap)).toBe(
+      "![shot](assets/replacement.png)\n",
+    );
+  });
+
+  it("updates the preview mapping when an edited author source resolves again", () => {
+    const sourceMap: [string, string][] = [["asset:///Users/me/docs/assets/a.png", "assets/a.png"]];
+    const updated = upsertMarkdownImageSourceMapping(
+      sourceMap,
+      "asset:///Users/me/docs/assets/replacement.png",
+      "assets/replacement.png",
+    );
+
+    expect(
+      findMarkdownImageAuthorSource(updated, "asset:///Users/me/docs/assets/replacement.png"),
+    ).toBe("assets/replacement.png");
+    expect(
+      restoreMarkdownImageSources(
+        "![shot](asset:///Users/me/docs/assets/replacement.png)\n",
+        updated,
+      ),
+    ).toBe("![shot](assets/replacement.png)\n");
   });
 });

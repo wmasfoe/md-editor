@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,6 +12,10 @@ import {
   type SetStateAction,
 } from "react";
 import type { EditorMode } from "@md-editor/editor-core";
+import {
+  reconcileWysiwygMarkdownSourceDrafts,
+  type WysiwygMarkdownSourceDraft,
+} from "../utils/wysiwyg-markdown-source";
 import type { OutlineItem } from "../components/OutlinePanel";
 import type { EditorScrollTarget, TocTarget } from "../types";
 import {
@@ -55,6 +60,8 @@ export interface EditorUiContextValue {
   readonly completeModeScrollTarget: (nonce: number) => void;
   readonly registerEditorCommands: (commands: EditorUiCommandSlots) => void;
   readonly getEditorCommands: () => EditorUiCommandSlots;
+  readonly wysiwygMarkdownSourceDrafts: readonly WysiwygMarkdownSourceDraft[];
+  readonly setWysiwygMarkdownSourceDrafts: (drafts: readonly WysiwygMarkdownSourceDraft[]) => void;
 }
 
 export interface EditorUiStateContextValue {
@@ -64,6 +71,7 @@ export interface EditorUiStateContextValue {
   readonly tocTarget: TocTarget | null;
   readonly activeOutlineId: string | null;
   readonly modeScrollTarget: PendingModeScrollTarget | null;
+  readonly wysiwygMarkdownSourceDrafts: readonly WysiwygMarkdownSourceDraft[];
 }
 
 export interface EditorUiActionsContextValue {
@@ -79,12 +87,14 @@ export interface EditorUiActionsContextValue {
   readonly completeModeScrollTarget: (nonce: number) => void;
   readonly registerEditorCommands: (commands: EditorUiCommandSlots) => void;
   readonly getEditorCommands: () => EditorUiCommandSlots;
+  readonly setWysiwygMarkdownSourceDrafts: (drafts: readonly WysiwygMarkdownSourceDraft[]) => void;
 }
 
 export const emptyEditorUiCommandSlots: EditorUiCommandSlots = {
   openMdxComponentMenu: () => {},
   continueAiWriting: async () => {},
 };
+const emptyWysiwygMarkdownSourceDrafts: readonly WysiwygMarkdownSourceDraft[] = [];
 
 const EditorUiStateContext = createContext<EditorUiStateContextValue | null>(null);
 const EditorUiActionsContext = createContext<EditorUiActionsContextValue | null>(null);
@@ -98,6 +108,10 @@ export function EditorUiProvider({
 }: EditorUiProviderProps) {
   const [documentRevision, setDocumentRevision] = useState(initialDocumentRevision);
   const [modeScrollTarget, setModeScrollTarget] = useState<PendingModeScrollTarget | null>(null);
+  const [sourceDraftState, setSourceDraftState] = useState<{
+    readonly documentKey: string;
+    readonly drafts: readonly WysiwygMarkdownSourceDraft[];
+  } | null>(null);
   const activeScrollRatioRef = useRef(0);
   const commandSlotsRef = useRef<EditorUiCommandSlots>(emptyEditorUiCommandSlots);
   const outline = useOutlineController({ markdown, showToast });
@@ -131,6 +145,30 @@ export function EditorUiProvider({
   }, []);
 
   const getEditorCommands = useCallback(() => commandSlotsRef.current, []);
+  const setWysiwygMarkdownSourceDrafts = useCallback(
+    (drafts: readonly WysiwygMarkdownSourceDraft[]) => {
+      setSourceDraftState({ documentKey, drafts });
+    },
+    [documentKey],
+  );
+  const storedWysiwygMarkdownSourceDrafts =
+    sourceDraftState?.documentKey === documentKey
+      ? sourceDraftState.drafts
+      : emptyWysiwygMarkdownSourceDrafts;
+  const wysiwygMarkdownSourceDrafts = useMemo(
+    () => reconcileWysiwygMarkdownSourceDrafts(markdown, storedWysiwygMarkdownSourceDrafts),
+    [markdown, storedWysiwygMarkdownSourceDrafts],
+  );
+
+  useLayoutEffect(() => {
+    if (
+      sourceDraftState?.documentKey !== documentKey ||
+      areWysiwygMarkdownSourceDraftListsEqual(sourceDraftState.drafts, wysiwygMarkdownSourceDrafts)
+    ) {
+      return;
+    }
+    setSourceDraftState({ documentKey, drafts: wysiwygMarkdownSourceDrafts });
+  }, [documentKey, sourceDraftState, wysiwygMarkdownSourceDrafts]);
 
   useEffect(() => {
     activeScrollRatioRef.current = 0;
@@ -145,6 +183,7 @@ export function EditorUiProvider({
       tocTarget: outline.tocTarget,
       activeOutlineId: outline.activeOutlineId,
       modeScrollTarget,
+      wysiwygMarkdownSourceDrafts,
     }),
     [
       documentKey,
@@ -153,6 +192,7 @@ export function EditorUiProvider({
       outline.activeOutlineId,
       outline.outline,
       outline.tocTarget,
+      wysiwygMarkdownSourceDrafts,
     ],
   );
 
@@ -170,6 +210,7 @@ export function EditorUiProvider({
       completeModeScrollTarget,
       registerEditorCommands,
       getEditorCommands,
+      setWysiwygMarkdownSourceDrafts,
     }),
     [
       bumpDocumentRevision,
@@ -181,6 +222,7 @@ export function EditorUiProvider({
       outline.setActiveOutlineId,
       outline.updateActiveOutlineForLine,
       registerEditorCommands,
+      setWysiwygMarkdownSourceDrafts,
       startModeScrollTarget,
       updateModeScrollRatio,
     ],
@@ -226,4 +268,11 @@ export function getModeScrollTargetForMode(
   mode: EditorMode,
 ): EditorScrollTarget | null {
   return modeScrollTarget?.mode === mode ? modeScrollTarget.target : null;
+}
+
+function areWysiwygMarkdownSourceDraftListsEqual(
+  left: readonly WysiwygMarkdownSourceDraft[],
+  right: readonly WysiwygMarkdownSourceDraft[],
+): boolean {
+  return left.length === right.length && left.every((draft, index) => draft === right[index]);
 }
