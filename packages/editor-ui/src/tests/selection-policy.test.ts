@@ -9,6 +9,10 @@ const imageSelectionSource = readFileSync(
   new URL("../utils/image-selection.ts", import.meta.url),
   "utf8",
 );
+const horizontalRuleSelectionSource = readFileSync(
+  new URL("../utils/horizontal-rule-selection.ts", import.meta.url),
+  "utf8",
+);
 const milkdownEditorSource = readFileSync(
   new URL("../components/MilkdownEditor/MilkdownEditorPrimitive.tsx", import.meta.url),
   "utf8",
@@ -34,6 +38,26 @@ describe("editor selection policy", () => {
     expect(imageRule?.groups?.body).toContain("-webkit-user-drag: none");
     expect(imageRule?.groups?.body).toContain("-webkit-user-select: none");
     expect(imageRule?.groups?.body).toContain("user-select: none");
+  });
+
+  it("gives horizontal rules a stable hit target and scoped selection feedback", () => {
+    const surfaceRule = editorStyles.match(
+      /\.milkdown \.ProseMirror \.md-horizontal-rule \{(?<body>[^}]+)\}/u,
+    );
+    const lineRule = editorStyles.match(
+      /\.milkdown \.ProseMirror \.md-horizontal-rule__line \{(?<body>[^}]+)\}/u,
+    );
+
+    expect(surfaceRule?.groups?.body).toContain("height: 24px;");
+    expect(surfaceRule?.groups?.body).toContain("cursor: default;");
+    expect(lineRule?.groups?.body).toContain("height: 2px;");
+    expect(editorStyles).toContain(".md-horizontal-rule:hover .md-horizontal-rule__line");
+    expect(editorStyles).toMatch(
+      /\.md-horizontal-rule\.ProseMirror-selectednode\s+\.md-horizontal-rule__line/u,
+    );
+    expect(horizontalRuleSelectionSource).toContain("nodeViews: {\n        hr:");
+    expect(horizontalRuleSelectionSource).toContain('setAttribute("role", "separator")');
+    expect(horizontalRuleSelectionSource).not.toContain('addEventListener("selectionchange"');
   });
 
   it("does not treat ProseMirror separator images as editor image nodes", () => {

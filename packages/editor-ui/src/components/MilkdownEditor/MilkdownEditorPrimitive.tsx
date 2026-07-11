@@ -12,7 +12,7 @@ import { history } from "@milkdown/kit/plugin/history";
 import { commonmark } from "@milkdown/kit/preset/commonmark";
 import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, useEditor, useInstance } from "@milkdown/react";
-import { Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
+import { Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import { Slice } from "@milkdown/kit/prose/model";
 import {
   restoreMarkdownImageSources,
@@ -28,8 +28,12 @@ import {
   getAiCompletionContext,
   showAiSuggestion,
 } from "../../utils/ai-suggestion";
-import { shouldPlaceCursorAtDocumentEnd } from "../../utils/editor-surface";
+import {
+  resolveBlankSurfaceCursorAnchor,
+  shouldHandleBlankSurfaceCursor,
+} from "../../utils/editor-surface";
 import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
+import { horizontalRuleSelectionPlugin } from "../../utils/horizontal-rule-selection";
 import { imageSelectionPlugin } from "../../utils/image-selection";
 // 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
 // import { straightQuotesPlugin } from "../../utils/straight-quotes";
@@ -300,7 +304,7 @@ export function MilkdownEditorPrimitive({
     let scroller: HTMLElement | null = null;
     let observer: MutationObserver | null = null;
 
-    const placeCursorAtDocumentEnd = () => {
+    const placeCursorFromBlankSurface = (clientY: number) => {
       if (loading) return;
 
       const editor = getInstance();
@@ -308,9 +312,29 @@ export function MilkdownEditorPrimitive({
       const view = editor.ctx.get(editorViewCtx);
       if (!view) return;
       const { doc } = view.state;
-      const endPos = doc.content.size;
+      const proseMirror = root.querySelector<HTMLElement>(".ProseMirror");
+      if (!proseMirror) return;
+
+      const anchor = resolveBlankSurfaceCursorAnchor(
+        clientY,
+        proseMirror,
+        doc.content.size,
+        (block) => {
+          try {
+            return view.posAtDOM(block, block.childNodes.length);
+          } catch {
+            // Ignore non-document decorations accidentally mounted at root level.
+            return null;
+          }
+        },
+      );
+      const position = Math.max(0, Math.min(anchor.position, doc.content.size));
+      const selection =
+        Selection.findFrom(doc.resolve(position), anchor.bias, true) ??
+        (anchor.bias < 0 ? Selection.atEnd(doc) : Selection.atStart(doc));
+
       window.getSelection()?.removeAllRanges();
-      const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, endPos));
+      const tr = view.state.tr.setSelection(selection);
       view.dispatch(tr);
 
       // 先聚焦，然后确保光标可见
@@ -327,7 +351,7 @@ export function MilkdownEditorPrimitive({
       }
 
       if (
-        !shouldPlaceCursorAtDocumentEnd(
+        !shouldHandleBlankSurfaceCursor(
           event.target,
           scroller,
           root.querySelector<HTMLElement>(".ProseMirror"),
@@ -337,7 +361,7 @@ export function MilkdownEditorPrimitive({
         return;
       }
       event.preventDefault();
-      placeCursorAtDocumentEnd();
+      placeCursorFromBlankSurface(event.clientY);
     };
 
     const handleClick = (event: MouseEvent) => {
@@ -350,7 +374,7 @@ export function MilkdownEditorPrimitive({
       }
 
       if (
-        !shouldPlaceCursorAtDocumentEnd(
+        !shouldHandleBlankSurfaceCursor(
           event.target,
           scroller,
           root.querySelector<HTMLElement>(".ProseMirror"),
@@ -359,7 +383,7 @@ export function MilkdownEditorPrimitive({
       ) {
         return;
       }
-      placeCursorAtDocumentEnd();
+      placeCursorFromBlankSurface(event.clientY);
     };
 
     const bindScroller = () => {
@@ -429,6 +453,7 @@ export function MilkdownEditorPrimitive({
         // .use(straightQuotesPlugin)
         .use(imeCompositionGuardPlugin)
         .use(imageSelectionPlugin)
+        .use(horizontalRuleSelectionPlugin)
         .use(aiSuggestionPlugin)
         .use(wysiwygSearchPlugin)
         .use(codeBlockToolsPlugin)

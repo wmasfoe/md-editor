@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   hasNonCollapsedNativeSelection,
   isEditorBlankSurface,
-  shouldPlaceCursorAtDocumentEnd,
+  resolveBlankSurfaceCursorAnchor,
+  shouldHandleBlankSurfaceCursor,
 } from "../utils/editor-surface";
 
 describe("editor blank surface detection", () => {
@@ -24,7 +25,7 @@ describe("editor blank surface detection", () => {
     const activeSelection = { rangeCount: 1, isCollapsed: false } as Selection;
 
     expect(
-      shouldPlaceCursorAtDocumentEnd(proseMirror, scroller, proseMirror, activeSelection),
+      shouldHandleBlankSurfaceCursor(proseMirror, scroller, proseMirror, activeSelection),
     ).toBe(false);
     expect(hasNonCollapsedNativeSelection(activeSelection)).toBe(true);
   });
@@ -42,7 +43,7 @@ describe("editor blank surface detection", () => {
         focusBlock,
       );
 
-      expect(shouldPlaceCursorAtDocumentEnd(proseMirror, scroller, proseMirror, selection)).toBe(
+      expect(shouldHandleBlankSurfaceCursor(proseMirror, scroller, proseMirror, selection)).toBe(
         false,
       );
     },
@@ -54,10 +55,10 @@ describe("editor blank surface detection", () => {
       "blockquote",
     );
 
-    expect(shouldPlaceCursorAtDocumentEnd(proseMirror, scroller, proseMirror, selection)).toBe(
+    expect(shouldHandleBlankSurfaceCursor(proseMirror, scroller, proseMirror, selection)).toBe(
       false,
     );
-    expect(shouldPlaceCursorAtDocumentEnd(scroller, scroller, proseMirror, selection)).toBe(false);
+    expect(shouldHandleBlankSurfaceCursor(scroller, scroller, proseMirror, selection)).toBe(false);
   });
 
   it("allows blank-surface cursor placement when no native range is selected", () => {
@@ -65,9 +66,9 @@ describe("editor blank surface detection", () => {
     const proseMirror = {} as HTMLElement;
     const collapsedSelection = { rangeCount: 1, isCollapsed: true } as Selection;
 
-    expect(shouldPlaceCursorAtDocumentEnd(scroller, scroller, proseMirror, null)).toBe(true);
+    expect(shouldHandleBlankSurfaceCursor(scroller, scroller, proseMirror, null)).toBe(true);
     expect(
-      shouldPlaceCursorAtDocumentEnd(proseMirror, scroller, proseMirror, collapsedSelection),
+      shouldHandleBlankSurfaceCursor(proseMirror, scroller, proseMirror, collapsedSelection),
     ).toBe(true);
     expect(hasNonCollapsedNativeSelection(collapsedSelection)).toBe(false);
   });
@@ -78,9 +79,70 @@ describe("editor blank surface detection", () => {
     const staleEmptySelection = { rangeCount: 0, isCollapsed: false } as Selection;
 
     expect(
-      shouldPlaceCursorAtDocumentEnd(proseMirror, scroller, proseMirror, staleEmptySelection),
+      shouldHandleBlankSurfaceCursor(proseMirror, scroller, proseMirror, staleEmptySelection),
     ).toBe(true);
     expect(hasNonCollapsedNativeSelection(staleEmptySelection)).toBe(false);
+  });
+
+  it("places a click above the first content block at the document start", () => {
+    const proseMirror = createProseMirrorSurface([
+      { top: 100, bottom: 140, position: 8 },
+      { top: 180, bottom: 220, position: 16 },
+    ]);
+
+    expect(resolveBlankSurfaceCursorAnchor(80, proseMirror, 24, resolveTestBlockEnd)).toEqual({
+      position: 0,
+      bias: 1,
+    });
+  });
+
+  it("places a click between content blocks at the preceding block end", () => {
+    const proseMirror = createProseMirrorSurface([
+      { top: 100, bottom: 140, position: 8 },
+      { top: 180, bottom: 220, position: 16 },
+    ]);
+
+    expect(resolveBlankSurfaceCursorAnchor(160, proseMirror, 24, resolveTestBlockEnd)).toEqual({
+      position: 8,
+      bias: -1,
+    });
+  });
+
+  it("uses the current line block when a root-surface click shares its vertical range", () => {
+    const proseMirror = createProseMirrorSurface([
+      { top: 100, bottom: 140, position: 8 },
+      { top: 180, bottom: 220, position: 16 },
+    ]);
+
+    expect(resolveBlankSurfaceCursorAnchor(200, proseMirror, 24, resolveTestBlockEnd)).toEqual({
+      position: 16,
+      bias: -1,
+    });
+  });
+
+  it("places a click below the last content block at the document end", () => {
+    const proseMirror = createProseMirrorSurface([
+      { top: 100, bottom: 140, position: 8 },
+      { top: 180, bottom: 220, position: 16 },
+    ]);
+
+    expect(resolveBlankSurfaceCursorAnchor(260, proseMirror, 24, resolveTestBlockEnd)).toEqual({
+      position: 24,
+      bias: -1,
+    });
+  });
+
+  it("skips an unmappable root decoration and uses the preceding content block", () => {
+    const proseMirror = createProseMirrorSurface([
+      { top: 100, bottom: 140, position: 8 },
+      { top: 150, bottom: 170, position: null },
+      { top: 180, bottom: 220, position: 16 },
+    ]);
+
+    expect(resolveBlankSurfaceCursorAnchor(160, proseMirror, 24, resolveTestBlockEnd)).toEqual({
+      position: 8,
+      bias: -1,
+    });
   });
 });
 
@@ -95,4 +157,24 @@ function createCrossBlockSelection(anchorBlock: string, focusBlock: string) {
   } as unknown as Selection;
 
   return { scroller, proseMirror, selection };
+}
+
+function createProseMirrorSurface(
+  blocks: Array<{ top: number; bottom: number; position: number | null }>,
+): HTMLElement {
+  const children = blocks.map(({ top, bottom, position }) => ({
+    childNodes: [],
+    dataset: position === null ? {} : { position: String(position) },
+    getBoundingClientRect: () => ({ top, bottom }),
+  }));
+
+  return {
+    children,
+  } as unknown as HTMLElement;
+}
+
+function resolveTestBlockEnd(block: Element): number | null {
+  if (!(block as HTMLElement).dataset.position) return null;
+  const position = Number((block as HTMLElement).dataset.position);
+  return Number.isFinite(position) ? position : null;
 }
