@@ -144,10 +144,7 @@ export function useSettingsController({
     if (surface !== "settings-window") return;
     if (!hasRevealedSettingsWindow.current) {
       hasRevealedSettingsWindow.current = true;
-      const initialTheme = applyThemeBeforeWindowReveal(
-        themeDraft,
-        revealCurrentSettingsWindow,
-      );
+      const initialTheme = applyThemeBeforeWindowReveal(themeDraft, revealCurrentSettingsWindow);
       let didReveal = false;
       void initialTheme.revealed
         .then(() => {

@@ -353,7 +353,6 @@ export function createAppThemePreviewCoordinator({
 }
 
 async function publishAppThemePreviewEvent(event: AppThemePreviewEvent): Promise<void> {
-
   if (isTauri()) {
     await emit(APP_THEME_PREVIEW_CHANGED_EVENT, event);
     return;

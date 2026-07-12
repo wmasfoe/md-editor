@@ -8,10 +8,7 @@ import {
   type AppThemePreviewEvent,
   type AppThemeSettings,
 } from "../src/app/settings/app-settings";
-import {
-  applyCustomThemeCss,
-  applyThemeBeforeWindowReveal,
-} from "../src/app/settings/theme-css";
+import { applyCustomThemeCss, applyThemeBeforeWindowReveal } from "../src/app/settings/theme-css";
 
 describe("settings theme lifecycle", () => {
   afterEach(() => {
@@ -87,7 +84,9 @@ describe("settings theme lifecycle", () => {
       target,
     });
 
-    await lifecycle.coordinator.handle(previewEvent(1, { ...initialSettings.theme, mode: "light" }));
+    await lifecycle.coordinator.handle(
+      previewEvent(1, { ...initialSettings.theme, mode: "light" }),
+    );
     await lifecycle.coordinator.handle(previewEvent(2, null));
 
     expect(lifecycle.settings.editor.wysiwygFontSize).toBe(20);

@@ -14,7 +14,9 @@ const desktopStyles = readFileSync(new URL("../src/styles.css", import.meta.url)
 
 describe("theme effect cleanup wiring", () => {
   it("disposes the main-window theme application before applying a new preview", () => {
-    expect(settingsContextSource).toContain("return applyCustomThemeCss(previewTheme ?? settings.theme);");
+    expect(settingsContextSource).toContain(
+      "return applyCustomThemeCss(previewTheme ?? settings.theme);",
+    );
   });
 
   it("disposes the settings-window draft theme application before applying the next draft", () => {

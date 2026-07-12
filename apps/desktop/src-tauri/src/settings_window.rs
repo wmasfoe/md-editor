@@ -5,6 +5,8 @@ use crate::window_chrome::{APP_MAIN_TRAFFIC_LIGHT_LEFT, APP_MAIN_TRAFFIC_LIGHT_V
 
 const SETTINGS_WINDOW_LABEL: &str = "settings";
 const SETTINGS_WINDOW_STARTS_VISIBLE: bool = false;
+// 设置窗口必须等待前端主题应用完成后再显示，避免暴露 WebView 的白色首帧。
+const _: () = assert!(!SETTINGS_WINDOW_STARTS_VISIBLE);
 #[cfg(target_os = "macos")]
 const SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION: f64 = -7.0;
 #[cfg(target_os = "macos")]
@@ -106,10 +108,5 @@ mod tests {
             SETTINGS_TRAFFIC_LIGHT_LEFT,
             APP_MAIN_TRAFFIC_LIGHT_LEFT + SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION
         );
-    }
-
-    #[test]
-    fn settings_window_stays_hidden_until_the_frontend_theme_is_ready() {
-        assert!(!SETTINGS_WINDOW_STARTS_VISIBLE);
     }
 }

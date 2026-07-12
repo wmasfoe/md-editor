@@ -24,10 +24,7 @@ export function SiteHeader() {
           <span className="truncate min-[361px]:hidden">MD Editor</span>
         </Link>
 
-        <nav
-          className="flex shrink-0 items-center gap-0.5 sm:gap-2"
-          aria-label="主导航"
-        >
+        <nav className="flex shrink-0 items-center gap-0.5 sm:gap-2" aria-label="主导航">
           <Link
             href="/changelog"
             className="inline-flex min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:min-h-0 sm:px-3 sm:text-sm"
