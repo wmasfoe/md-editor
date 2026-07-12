@@ -2,7 +2,7 @@ import { GITHUB_REPO_URL } from "../lib/site-links";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-line/80 pb-[env(safe-area-inset-bottom,0px)]">
+    <footer className="site-header-bar mt-auto pb-[env(safe-area-inset-bottom,0px)]">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-10">
         <p className="text-pretty">本地优先的 Markdown / MDX 桌面编辑器</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

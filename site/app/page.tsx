@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { InstallCommand } from "../components/install-command";
+import { LiquidGlass, LiquidGlassGroup } from "../components/liquid-glass-link";
 import { getChangelogEntries } from "../lib/changelog";
 import { buildMacosDmgUrl, GITHUB_RELEASES_URL } from "../lib/site-links";
 
@@ -30,7 +31,7 @@ export default function HomePage() {
 
   return (
     <main>
-      {/* Hero：大量留白 + 克制字重，突出产品一句话价值。 */}
+      {/* Hero：文案保持克制；液态玻璃 CTA 叠在高饱和 backdrop 上才可见折射 */}
       <section className="mx-auto max-w-5xl px-4 pb-14 pt-12 sm:px-8 sm:pb-28 sm:pt-28">
         <div className="mx-auto max-w-2xl text-center">
           <p className="mb-4 text-xs font-medium tracking-[0.08em] text-accent uppercase sm:mb-5 sm:text-sm">
@@ -46,27 +47,22 @@ export default function HomePage() {
             一个简洁的本地 Markdown 编辑器，用来处理日常写作、MDX 内容和桌面文件流。
           </p>
 
-          {/* 移动端纵向全宽 CTA，拇指区更易点；≥sm 恢复横向居中 */}
-          <div className="mt-8 flex flex-col items-stretch gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
-            <a
+          {/* 固定槽位 + 居中锚点，避免 liquid-glass-react 的 -50% transform 打散 flex */}
+          <LiquidGlassGroup className="site-hero-ctas mt-8 sm:mt-10">
+            <LiquidGlass
               href={dmgUrl}
-              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
-              download={latest ? `Markdown.Editor_${latest.version}_aarch64.dmg` : undefined}
-              className="inline-flex h-12 items-center justify-center rounded-full bg-ink px-6 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:h-11"
+              tone="primary"
+              download={
+                latest ? `Markdown.Editor_${latest.version}_aarch64.dmg` : true
+              }
             >
               下载 macOS 版本
-            </a>
-            <a
-              href={GITHUB_RELEASES_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-12 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-ink-soft transition-colors hover:border-ink/20 hover:text-ink sm:h-11"
-            >
+            </LiquidGlass>
+            <LiquidGlass href={GITHUB_RELEASES_URL} tone="secondary" external>
               历史版本
-            </a>
-          </div>
+            </LiquidGlass>
+          </LiquidGlassGroup>
 
-          {/* 次要入口：版本说明 + 源码，保持一行不抢主 CTA。 */}
           <p className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-muted">
             {latest ? (
               <span>
@@ -85,11 +81,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 能力要点：三列等宽，弱化装饰。 */}
-      <section aria-label="主要能力" className="border-y border-line/80 bg-surface/60">
-        <div className="mx-auto grid max-w-5xl gap-px bg-line/80 sm:grid-cols-3">
-          {features.map((feature) => (
-            <div key={feature.title} className="bg-canvas px-4 py-8 sm:px-8 sm:py-12">
+      <section aria-label="主要能力" className="px-4 py-2 sm:px-8 sm:py-4">
+        <div className="site-panel-soft mx-auto grid max-w-5xl overflow-hidden rounded-3xl sm:grid-cols-3">
+          {features.map((feature, index) => (
+            <div
+              key={feature.title}
+              className={[
+                "px-5 py-9 sm:px-8 sm:py-12",
+                index > 0
+                  ? "border-t border-white/10 sm:border-t-0 sm:border-l sm:border-white/10"
+                  : "",
+              ].join(" ")}
+            >
               <h2 className="text-base font-semibold tracking-tight text-ink">{feature.title}</h2>
               <p className="mt-2.5 text-sm leading-relaxed text-muted sm:mt-3 sm:text-[15px]">
                 {feature.description}
@@ -99,9 +102,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 版本与状态：两列信息卡，密度低于 hero。 */}
       <section className="mx-auto grid max-w-5xl gap-4 px-4 py-12 sm:grid-cols-2 sm:gap-6 sm:px-8 sm:py-20">
-        <article className="rounded-2xl border border-line bg-surface p-5 sm:p-8">
+        <article className="site-panel rounded-2xl p-5 sm:p-8">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium tracking-wide text-muted">最新版本</h2>
             {latest ? (
@@ -143,13 +145,13 @@ export default function HomePage() {
           )}
         </article>
 
-        <article className="rounded-2xl border border-line bg-surface p-5 sm:p-8">
+        <article className="site-panel rounded-2xl p-5 sm:p-8">
           <h2 className="text-sm font-medium tracking-wide text-muted">Web App</h2>
           <p className="mt-4 text-2xl font-semibold tracking-tight text-ink">计划中</p>
           <p className="mt-4 text-sm leading-relaxed text-ink-soft">
             第一版官网只保留入口状态，不提供在线编辑器。桌面端仍是完整产品形态。
           </p>
-          <span className="mt-6 inline-flex rounded-full border border-line bg-surface-soft px-3 py-1 text-xs font-medium text-muted">
+          <span className="mt-6 inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-muted">
             暂未开放
           </span>
         </article>

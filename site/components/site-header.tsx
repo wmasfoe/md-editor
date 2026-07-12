@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { getChangelogEntries } from "../lib/changelog";
 import { buildMacosDmgUrl, GITHUB_REPO_URL } from "../lib/site-links";
+import { LiquidGlass, LiquidGlassGroup } from "./liquid-glass-link";
 
 export function SiteHeader() {
   const [latest] = getChangelogEntries();
   const dmgUrl = latest ? buildMacosDmgUrl(latest.version) : null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/80 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]">
-      <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-3 px-4 sm:h-14 sm:px-8">
+    <header className="site-header-bar sticky top-0 z-40 pt-[env(safe-area-inset-top,0px)]">
+      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-3 px-4 sm:px-8">
         <Link
           href="/"
           className="group flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-ink sm:gap-2.5"
         >
           <span
             aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink text-[11px] font-bold tracking-tight text-white transition-transform group-hover:scale-[1.03]"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-[11px] font-bold tracking-tight text-white ring-1 ring-white/25 transition-transform group-hover:scale-[1.03]"
           >
             M
           </span>
@@ -24,35 +25,29 @@ export function SiteHeader() {
           <span className="truncate min-[361px]:hidden">MD Editor</span>
         </Link>
 
-        <nav
-          className="flex shrink-0 items-center gap-0.5 sm:gap-2"
-          aria-label="主导航"
-        >
-          <Link
-            href="/changelog"
-            className="inline-flex min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:min-h-0 sm:px-3 sm:text-sm"
-          >
-            <span className="sm:hidden">更新</span>
-            <span className="hidden sm:inline">更新记录</span>
-          </Link>
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="hidden min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:inline-flex sm:min-h-0 sm:px-3 sm:text-sm"
-          >
-            GitHub
-          </a>
-          {dmgUrl ? (
-            <a
-              href={dmgUrl}
-              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
-              download
-              className="ml-0.5 inline-flex min-h-10 items-center rounded-full bg-ink px-3 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-1 sm:min-h-0 sm:px-3.5 sm:text-sm"
-            >
-              下载
-            </a>
-          ) : null}
+        <nav className="shrink-0" aria-label="主导航">
+          <LiquidGlassGroup className="flex items-center gap-1.5 sm:gap-2">
+            <LiquidGlass href="/changelog" tone="nav">
+              <span className="sm:hidden">更新</span>
+              <span className="hidden sm:inline">更新记录</span>
+            </LiquidGlass>
+            <span className="hidden sm:inline-flex">
+              <LiquidGlass href={GITHUB_REPO_URL} tone="nav" external>
+                GitHub
+              </LiquidGlass>
+            </span>
+            {dmgUrl ? (
+              <LiquidGlass
+                href={dmgUrl}
+                tone="nav"
+                className="site-liquid-link--nav-wide"
+                // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
+                download
+              >
+                下载
+              </LiquidGlass>
+            ) : null}
+          </LiquidGlassGroup>
         </nav>
       </div>
     </header>
