@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
-/* 官网主题：偏暖的石色基调，留白优先，强调克制。 */
+/*
+ * 官网设计令牌
+ * 注意：内容层默认在深色/高饱和 backdrop 上工作，才能让 liquid glass 折射可见。
+ */
 @theme {
   --font-sans:
     var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -8,43 +11,37 @@
   --font-mono:
     "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
 
-  --color-ink: #14120f;
-  --color-ink-soft: #3f3a34;
-  --color-muted: #7a736a;
-  --color-line: #e8e4dc;
-  --color-line-strong: #d6d0c4;
-  --color-canvas: #faf9f6;
-  --color-surface: #ffffff;
-  --color-surface-soft: #f3f1eb;
-  --color-accent: #1f6feb;
+  --color-ink: #f4f1ea;
+  --color-ink-soft: #d8d2c6;
+  --color-muted: #a59c8f;
+  --color-line: rgb(255 255 255 / 0.14);
+  --color-line-strong: rgb(255 255 255 / 0.24);
+  --color-canvas: #0b0a0f;
+  --color-surface: rgb(255 255 255 / 0.08);
+  --color-surface-soft: rgb(255 255 255 / 0.12);
+  --color-accent: #7db4ff;
 }
 
 @layer base {
   html {
-    color-scheme: light;
+    color-scheme: dark;
     scroll-behavior: smooth;
-    /* 阻止 iOS 横竖屏切换时自动放大正文字号 */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* 长命令 / 宽表格在窄屏上不把整页撑出横向滚动 */
     overflow-x: clip;
   }
 
   body {
-    @apply min-h-full bg-canvas font-sans text-ink antialiased;
+    @apply min-h-full font-sans text-ink antialiased;
     overflow-x: clip;
-    /* 刘海与底部 Home 指示条：水平安全区由 body 承担，顶/底由 header/footer 补 */
+    background: #0b0a0f;
     padding-left: env(safe-area-inset-left, 0px);
     padding-right: env(safe-area-inset-right, 0px);
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(31 111 235 / 0.08), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(180 140 90 / 0.05), transparent);
-    /* 移动端点击高亮偏克制，贴近原生感 */
-    -webkit-tap-highlight-color: rgb(31 111 235 / 0.12);
+    -webkit-tap-highlight-color: rgb(125 180 255 / 0.16);
   }
 
   ::selection {
-    @apply bg-accent/15 text-ink;
+    @apply bg-accent/25 text-ink;
   }
 
   a {
@@ -55,9 +52,431 @@
     @apply font-mono;
   }
 
-  /* 可点控件默认最小触控高度，避免桌面链接样式在手机上难点 */
   button,
   [role="button"] {
     touch-action: manipulation;
+  }
+}
+
+/*
+ * ──────────────────────────────────────────────
+ * Liquid Glass 基础架构
+ *
+ * 硬性约束（违反则 backdrop-filter / 折射失效）：
+ * 1. glass 祖先节点禁止：isolation / transform / filter / opacity<1 / will-change:transform
+ * 2. 背景必须是独立层且有足够色相对比，否则折射「无素材」
+ * 3. 禁止使用裸 class 名 `glass` —— liquid-glass-react 内部占用该名
+ * ──────────────────────────────────────────────
+ */
+@layer components {
+  /* 固定背景层：永远在内容之下，不参与交互 */
+  .site-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .site-backdrop__base {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 90% 70% at 50% -10%, #2a1f55 0%, transparent 55%),
+      radial-gradient(ellipse 80% 60% at 100% 20%, #1a2a6c 0%, transparent 50%),
+      radial-gradient(ellipse 70% 50% at 0% 80%, #4a1028 0%, transparent 55%),
+      linear-gradient(165deg, #120f1c 0%, #0b0a0f 45%, #14101a 100%);
+  }
+
+  .site-backdrop__orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(8px);
+    will-change: transform;
+    animation: site-orb-drift 18s ease-in-out infinite alternate;
+  }
+
+  .site-backdrop__orb--a {
+    top: -8%;
+    left: -6%;
+    width: min(58vw, 520px);
+    height: min(58vw, 520px);
+    background: radial-gradient(circle, rgb(96 80 255 / 0.7) 0%, transparent 70%);
+    animation-duration: 22s;
+  }
+
+  .site-backdrop__orb--b {
+    top: 8%;
+    right: -10%;
+    width: min(50vw, 460px);
+    height: min(50vw, 460px);
+    background: radial-gradient(circle, rgb(255 70 140 / 0.55) 0%, transparent 70%);
+    animation-duration: 26s;
+    animation-delay: -4s;
+  }
+
+  .site-backdrop__orb--c {
+    bottom: 4%;
+    left: 18%;
+    width: min(46vw, 420px);
+    height: min(46vw, 420px);
+    background: radial-gradient(circle, rgb(40 160 255 / 0.45) 0%, transparent 70%);
+    animation-duration: 20s;
+    animation-delay: -8s;
+  }
+
+  .site-backdrop__orb--d {
+    bottom: 18%;
+    right: 12%;
+    width: min(36vw, 320px);
+    height: min(36vw, 320px);
+    background: radial-gradient(circle, rgb(255 170 70 / 0.35) 0%, transparent 70%);
+    animation-duration: 24s;
+    animation-delay: -2s;
+  }
+
+  .site-backdrop__grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.12;
+    background-image:
+      radial-gradient(rgb(255 255 255 / 0.35) 0.6px, transparent 0.6px);
+    background-size: 3px 3px;
+    mix-blend-mode: soft-light;
+  }
+
+  @keyframes site-orb-drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(3%, -4%, 0) scale(1.08);
+    }
+  }
+
+  /* 内容壳：相对 backdrop 抬起，自身不创建会切断 backdrop 采样的上下文 */
+  .site-shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
+  }
+
+  /*
+   * 面板玻璃（非库组件）：用于安装卡 / 信息卡。
+   * 命名故意避开 `glass`，防止覆盖 liquid-glass-react 内部节点。
+   */
+  .site-panel {
+    position: relative;
+    background: linear-gradient(
+      155deg,
+      rgb(255 255 255 / 0.16) 0%,
+      rgb(255 255 255 / 0.06) 48%,
+      rgb(255 255 255 / 0.1) 100%
+    );
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgb(255 255 255 / 0.22);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.28),
+      0 18px 50px -24px rgb(0 0 0 / 0.55);
+  }
+
+  .site-panel-soft {
+    background: rgb(255 255 255 / 0.08);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    border: 1px solid rgb(255 255 255 / 0.16);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.2),
+      0 14px 40px -22px rgb(0 0 0 / 0.45);
+  }
+
+  .site-panel-bar {
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.14) 0%,
+      rgb(255 255 255 / 0.05) 100%
+    );
+    border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  }
+
+  .site-header-bar {
+    background: rgb(12 10 18 / 0.45);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    backdrop-filter: blur(22px) saturate(160%);
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  }
+
+  /*
+   * liquid-glass-react 布局槽：
+   * 库把每个实例当「中心锚点悬浮物」（top/left 50% + translate -50%），
+   * 因此外层必须提供固定宽高的 relative 盒，flex 只认这个槽位。
+   */
+  .site-liquid-link {
+    --site-liquid-fill: rgb(255 255 255 / 0.1);
+    --site-liquid-highlight: rgb(255 255 255 / 0.24);
+    --site-liquid-warp: rgb(255 255 255 / 0.04);
+    --site-liquid-border: rgb(255 255 255 / 0.28);
+    --site-liquid-pointer-x: 50%;
+    --site-liquid-pointer-y: 50%;
+    --site-liquid-pointer-light: rgb(255 255 255 / 0);
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    overflow: visible;
+    border-radius: 9999px;
+    cursor: pointer;
+  }
+
+  /* 组内只保留一个可移动玻璃层；每个链接仍拥有独立的原生交互语义。 */
+  .site-liquid-group {
+    position: relative;
+  }
+
+  .site-liquid-group .site-liquid-link {
+    z-index: auto;
+  }
+
+  /* 所有成员保留低强度玻璃轮廓，移动层只承接鼠标下的高光与折射。 */
+  .site-liquid-group .site-liquid-link--grouped::before {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    border: 1px solid var(--site-liquid-border);
+    border-radius: inherit;
+    background: var(--site-liquid-fill);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14);
+    content: "";
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(12px) saturate(135%);
+    backdrop-filter: blur(12px) saturate(135%);
+  }
+
+  .site-liquid-group__surface {
+    --site-liquid-fill: rgb(255 255 255 / 0.1);
+    --site-liquid-highlight: rgb(255 255 255 / 0.24);
+    --site-liquid-warp: rgb(255 255 255 / 0.04);
+    --site-liquid-border: rgb(255 255 255 / 0.28);
+    --site-liquid-pointer-x: 50%;
+    --site-liquid-pointer-y: 50%;
+    --site-liquid-pointer-light: rgb(255 255 255 / 0);
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    overflow: visible;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+      transform 240ms cubic-bezier(0.22, 0.8, 0.2, 1),
+      opacity 140ms ease-out;
+  }
+
+  .site-liquid-group__surface--active {
+    opacity: 1;
+  }
+
+  .site-liquid-group__surface--nav {
+    --site-liquid-fill: rgb(255 255 255 / 0.08);
+    --site-liquid-highlight: rgb(255 255 255 / 0.18);
+    --site-liquid-warp: rgb(255 255 255 / 0.03);
+    --site-liquid-border: rgb(255 255 255 / 0.2);
+  }
+
+  .site-liquid-group__surface--primary {
+    --site-liquid-fill: rgb(116 169 255 / 0.22);
+    --site-liquid-highlight: rgb(255 255 255 / 0.3);
+    --site-liquid-warp: rgb(192 220 255 / 0.08);
+    --site-liquid-border: rgb(202 224 255 / 0.46);
+  }
+
+  .site-liquid-group__surface--secondary {
+    --site-liquid-fill: rgb(255 255 255 / 0.12);
+    --site-liquid-highlight: rgb(255 255 255 / 0.26);
+    --site-liquid-warp: rgb(255 255 255 / 0.05);
+    --site-liquid-border: rgb(255 255 255 / 0.34);
+  }
+
+  .site-liquid-group__sizer {
+    display: block;
+    flex: none;
+  }
+
+  /*
+   * 共享实例按组内最大尺寸测量；视口只裁切实际目标按钮的轮廓。
+   * 这样在不同宽度成员间过渡时，不会触发上游库过期的尺寸缓存。
+   */
+  .site-liquid-group__viewport {
+    position: relative;
+    overflow: hidden;
+    border-radius: 9999px;
+    transition:
+      width 240ms cubic-bezier(0.22, 0.8, 0.2, 1),
+      height 240ms cubic-bezier(0.22, 0.8, 0.2, 1);
+  }
+
+  .site-liquid-link--nav {
+    width: 5.75rem;
+    height: 2.5rem;
+  }
+
+  .site-liquid-link--primary {
+    --site-liquid-fill: rgb(116 169 255 / 0.22);
+    --site-liquid-highlight: rgb(255 255 255 / 0.3);
+    --site-liquid-warp: rgb(192 220 255 / 0.08);
+    --site-liquid-border: rgb(202 224 255 / 0.46);
+    width: 12rem;
+    height: 3rem;
+  }
+
+  .site-liquid-link--secondary {
+    --site-liquid-fill: rgb(255 255 255 / 0.12);
+    --site-liquid-highlight: rgb(255 255 255 / 0.26);
+    --site-liquid-warp: rgb(255 255 255 / 0.05);
+    --site-liquid-border: rgb(255 255 255 / 0.34);
+    width: 7.5rem;
+    height: 3rem;
+  }
+
+  /* 顶栏「下载」若用 primary 会过宽；允许紧凑覆写 */
+  .site-liquid-link--nav-wide {
+    width: 6.5rem;
+  }
+
+  .site-liquid-link__label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    white-space: nowrap;
+    text-shadow: 0 1px 10px rgb(0 0 0 / 0.35);
+  }
+
+  /* 保留库的文本尺寸计算，同时由外层标签负责可见和可访问的 CTA 文案。 */
+  .site-liquid-link__label--visual {
+    color: transparent;
+    text-shadow: none;
+  }
+
+  .site-liquid-link__label--overlay {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .site-liquid-link:focus-visible {
+    outline: 2px solid rgb(190 220 255 / 0.95);
+    outline-offset: 4px;
+  }
+
+  /* 客户端玻璃尚未 hydrate 时的占位：铺满槽位，避免布局跳动 */
+  .site-liquid-surface__fallback {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 1px solid rgb(255 255 255 / 0.22);
+    background: rgb(255 255 255 / 0.1);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    backdrop-filter: blur(18px) saturate(150%);
+  }
+
+  .site-liquid-link--nav .site-liquid-link__label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+  }
+
+  @media (min-width: 640px) {
+    .site-liquid-link--nav .site-liquid-link__label {
+      font-size: 0.875rem;
+    }
+  }
+
+  /* Hero CTA 行：始终居中，不再 stretch 全宽 */
+  .site-hero-ctas {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  /*
+   * liquid-glass-react 内部节点 class 名为 `glass`。
+   * 以半透明填充承接折射层，给深色背景上的 CTA 明确材质与边缘；
+   * 不使用 isolation / transform，避免切断库的 backdrop-filter 采样。
+   * 适配目标固定为 liquid-glass-react 1.1.1；升级时必须复验 hover 与减少动态效果。
+   */
+  .site-liquid-link .glass,
+  .site-liquid-group__surface .glass {
+    background: linear-gradient(
+      135deg,
+      var(--site-liquid-highlight) 0%,
+      var(--site-liquid-fill) 46%,
+      rgb(255 255 255 / 0.06) 100%
+    );
+    outline: 1px solid var(--site-liquid-border);
+  }
+
+  .site-liquid-link .glass__warp,
+  .site-liquid-group__surface .glass__warp {
+    background:
+      radial-gradient(
+        circle at var(--site-liquid-pointer-x) var(--site-liquid-pointer-y),
+        var(--site-liquid-pointer-light) 0%,
+        transparent 52%
+      ),
+      linear-gradient(135deg, var(--site-liquid-warp), transparent 60%);
+  }
+
+  .site-liquid-link--nav .glass {
+    --site-liquid-fill: rgb(255 255 255 / 0.08);
+    --site-liquid-highlight: rgb(255 255 255 / 0.18);
+    --site-liquid-warp: rgb(255 255 255 / 0.03);
+    --site-liquid-border: rgb(255 255 255 / 0.2);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-backdrop__orb {
+      animation: none;
+    }
+
+    .site-liquid-link > :not(.site-liquid-link__label--overlay),
+    .site-liquid-link .glass,
+    .site-liquid-link .glass__warp,
+    .site-liquid-group__surface,
+    .site-liquid-group__surface > *,
+    .site-liquid-group__surface .glass,
+    .site-liquid-group__surface .glass__warp {
+      transition: none !important;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .site-panel,
+    .site-panel-soft,
+    .site-panel-bar,
+    .site-header-bar {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .site-panel,
+    .site-panel-soft {
+      background: rgb(28 24 36 / 0.96);
+      border-color: rgb(255 255 255 / 0.12);
+    }
+
+    .site-header-bar {
+      background: rgb(16 14 22 / 0.98);
+    }
   }
 }

@@ -33,13 +33,13 @@ export function InstallCommand({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_0_rgb(0_0_0_/0.02)]">
-      <div className="flex items-start justify-between gap-3 border-b border-line bg-surface-soft/70 px-3 py-2.5 sm:px-4">
+    <div className="site-panel overflow-hidden rounded-2xl">
+      <div className="site-panel-bar flex items-start justify-between gap-3 px-3 py-2.5 sm:px-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             {recommended ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium tracking-wide text-accent"
+                className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/15 px-2 py-0.5 text-[11px] font-medium tracking-wide text-accent"
                 title="推荐安装方式"
               >
                 <StarIcon aria-hidden className="h-3 w-3" />
@@ -55,7 +55,7 @@ export function InstallCommand({
         <button
           type="button"
           onClick={handleCopy}
-          className="inline-flex min-h-10 shrink-0 items-center rounded-md px-2.5 text-xs font-medium text-ink-soft transition-colors hover:bg-white hover:text-ink sm:min-h-0 sm:py-1"
+          className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-white/20 bg-white/10 px-2.5 text-xs font-medium text-ink-soft transition-colors hover:bg-white/18 hover:text-ink sm:min-h-0 sm:py-1"
         >
           {copied ? "已复制" : "复制"}
         </button>
