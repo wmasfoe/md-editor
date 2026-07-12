@@ -9,6 +9,7 @@ export interface ThemeCssFile {
 }
 
 const themeCssCache = new Map<string, string>();
+const themeCssPreloadCache = new Map<string, Promise<void>>();
 
 export async function pickThemeCssFile(): Promise<ThemeCssFile | null> {
   if (!isTauri()) {
@@ -28,10 +29,44 @@ export function rememberThemeCssFile(file: ThemeCssFile) {
   themeCssCache.set(file.path, file.css);
 }
 
+export function applyThemeBeforeWindowReveal(
+  theme: AppThemeSettings,
+  revealWindow: () => Promise<unknown>,
+  options: Parameters<typeof applyCustomThemeCss>[1] = {},
+): { readonly dispose: () => void; readonly revealed: Promise<void> } {
+  let disposed = false;
+  let disposeTheme: (() => void) | undefined;
+  const revealed = (async () => {
+    try {
+      await preloadCurrentThemeCss(theme, options.loadCss ?? readThemeCssFile);
+    } catch (error) {
+      // 自定义文件失效时仍显示同明暗分支的内置主题，避免隐藏窗口永久不可用。
+      console.warn("主题 CSS 预加载失败，将使用内置主题", error);
+    }
+    if (disposed) return;
+
+    disposeTheme = applyCustomThemeCss(theme, { ...options, refreshCachedCss: false });
+    if (disposed) {
+      disposeTheme();
+      return;
+    }
+    await revealWindow();
+  })();
+
+  return {
+    dispose() {
+      disposed = true;
+      disposeTheme?.();
+    },
+    revealed,
+  };
+}
+
 export function applyCustomThemeCss(
   theme: AppThemeSettings,
   options: {
     readonly loadCss?: (path: string) => Promise<ThemeCssFile>;
+    readonly refreshCachedCss?: boolean;
     readonly target?: HTMLElement;
   } = {},
 ): () => void {
@@ -60,6 +95,7 @@ export function applyCustomThemeCss(
     const cachedCss = themeCssCache.get(cssPath);
     if (cachedCss !== undefined) {
       setThemeStyleText(cachedCss);
+      if (options.refreshCachedCss === false) return;
     } else {
       setThemeStyleText(fallbackCss);
     }
@@ -97,6 +133,31 @@ export function applyCustomThemeCss(
 
 function customCssPathForThemeScheme(theme: ThemeSchemeSettings): string | null {
   return theme.source === "custom" ? theme.customCssPath : null;
+}
+
+async function preloadCurrentThemeCss(
+  theme: AppThemeSettings,
+  loadCss: (path: string) => Promise<ThemeCssFile>,
+): Promise<void> {
+  const scheme = resolveThemeColorScheme(theme.mode);
+  const themeScheme = scheme === "dark" ? theme.dark : theme.light;
+  const cssPath = customCssPathForThemeScheme(themeScheme);
+  if (!cssPath || themeCssCache.has(cssPath)) return;
+
+  let pending = themeCssPreloadCache.get(cssPath);
+  if (!pending) {
+    pending = loadCss(cssPath)
+      .then((file) => {
+        // 使用请求路径缓存，避免文件适配器返回的规范化路径与设置值存在表示差异。
+        themeCssCache.set(cssPath, file.css);
+        rememberThemeCssFile(file);
+      })
+      .finally(() => {
+        themeCssPreloadCache.delete(cssPath);
+      });
+    themeCssPreloadCache.set(cssPath, pending);
+  }
+  await pending;
 }
 
 function setThemeStyleText(css: string) {

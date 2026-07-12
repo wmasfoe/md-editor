@@ -72,4 +72,4 @@ export const dialogButtonClassName =
   "h-[30px] min-w-[68px] rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2.5 text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";
 
 export const primaryDialogButtonClassName =
-  "h-[30px] min-w-[68px] rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2.5 text-[13px] text-white hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";
+  "h-[30px] min-w-[68px] rounded-[5px] border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2.5 text-[13px] text-white hover:bg-[color-mix(in_srgb,var(--theme-primary-fill)_88%,black)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";

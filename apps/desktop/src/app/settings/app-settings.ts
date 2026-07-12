@@ -65,6 +65,22 @@ export interface AppThemeSettings {
   readonly dark: ThemeSchemeSettings;
 }
 
+export interface AppThemePreviewEvent {
+  readonly sessionId: string;
+  readonly sequence: number;
+  readonly theme: AppThemeSettings | null;
+}
+
+export interface AppThemePreviewSession {
+  readonly sessionId: string;
+  readonly publish: (theme: AppThemeSettings | null) => Promise<void>;
+}
+
+export interface AppThemePreviewCoordinator {
+  readonly handle: (event: AppThemePreviewEvent) => Promise<void>;
+  readonly dispose: () => void;
+}
+
 export interface EditorDisplaySettings {
   readonly showCodeBlockLineNumbers: boolean;
   readonly wysiwygFontSize: number;
@@ -175,7 +191,7 @@ export function createDefaultSettings(): AppSettings {
 export async function loadAppSettings(): Promise<AppSettings> {
   // Tauri 是桌面端权威存储；Web 预览只用 localStorage，方便调试 UI。
   const saved = isTauri()
-    ? await invoke<Partial<PersistedSettings>>("load_app_settings").catch(() => readLocalSettings())
+    ? await invoke<Partial<PersistedSettings>>("load_app_settings")
     : readLocalSettings();
 
   return normalizeSettings(saved);
@@ -230,15 +246,16 @@ export function listenToAppSettingsChanged(
 }
 
 export function listenToAppThemePreviewChanged(
-  handler: (theme: AppThemeSettings) => void,
+  handler: (event: AppThemePreviewEvent) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
-    // 主题预览是跨窗口即时反馈，不代表已保存；主窗口只临时应用 payload。
+    // 主题预览是跨窗口即时反馈，不代表已保存；会话和序号用于拒绝迟到事件。
     let unlisten: (() => void) | undefined;
     let disposed = false;
 
     void listen<unknown>(APP_THEME_PREVIEW_CHANGED_EVENT, (event) => {
-      handler(normalizeAppTheme(event.payload));
+      const normalized = normalizeAppThemePreviewEvent(event.payload);
+      if (normalized) handler(normalized);
     }).then((dispose) => {
       if (disposed) {
         dispose();
@@ -255,7 +272,8 @@ export function listenToAppThemePreviewChanged(
   }
 
   const listener = (event: Event) => {
-    handler(normalizeAppTheme((event as CustomEvent<unknown>).detail));
+    const normalized = normalizeAppThemePreviewEvent((event as CustomEvent<unknown>).detail);
+    if (normalized) handler(normalized);
   };
   window.addEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
   return () => window.removeEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
@@ -271,15 +289,131 @@ async function publishAppSettingsChanged(settings: AppSettings): Promise<void> {
   window.dispatchEvent(new CustomEvent(APP_SETTINGS_CHANGED_EVENT, { detail: settings }));
 }
 
-export async function publishAppThemePreviewChanged(theme: AppThemeSettings): Promise<void> {
-  const normalized = normalizeAppTheme(theme);
+export function createAppThemePreviewSession({
+  sessionId = createAppThemePreviewSessionId(),
+  publishEvent = publishAppThemePreviewEvent,
+}: {
+  readonly sessionId?: string;
+  readonly publishEvent?: (event: AppThemePreviewEvent) => Promise<void>;
+} = {}): AppThemePreviewSession {
+  let sequence = 0;
+  let pending = Promise.resolve();
+
+  return {
+    sessionId,
+    publish(theme) {
+      const event: AppThemePreviewEvent = {
+        sessionId,
+        sequence: (sequence += 1),
+        theme: theme === null ? null : normalizeAppTheme(theme),
+      };
+      // 串行发送保证结束事件一定排在本会话所有预览之后；失败不阻塞后续结束事件。
+      const operation = pending.catch(() => undefined).then(() => publishEvent(event));
+      pending = operation;
+      return operation;
+    },
+  };
+}
+
+export function createAppThemePreviewCoordinator({
+  loadPersistedSettings,
+  onPersistedSettings,
+  onPreviewTheme,
+}: {
+  readonly loadPersistedSettings: () => Promise<AppSettings>;
+  readonly onPersistedSettings: (settings: AppSettings) => void;
+  readonly onPreviewTheme: (theme: AppThemeSettings | null) => void;
+}): AppThemePreviewCoordinator {
+  const gate = createAppThemePreviewEventGate();
+  let revision = 0;
+  let disposed = false;
+
+  return {
+    async handle(event) {
+      const decision = gate(event);
+      if (decision === "ignore" || disposed) return;
+
+      const currentRevision = (revision += 1);
+      if (decision === "preview") {
+        onPreviewTheme(event.theme);
+        return;
+      }
+
+      const persistedSettings = await loadPersistedSettings();
+      if (disposed || currentRevision !== revision) return;
+      // 先更新权威设置，再清空预览；React 会在同一任务中批处理这两个状态变更。
+      onPersistedSettings(persistedSettings);
+      onPreviewTheme(null);
+    },
+    dispose() {
+      disposed = true;
+      revision += 1;
+    },
+  };
+}
+
+async function publishAppThemePreviewEvent(event: AppThemePreviewEvent): Promise<void> {
 
   if (isTauri()) {
-    await emit(APP_THEME_PREVIEW_CHANGED_EVENT, normalized);
+    await emit(APP_THEME_PREVIEW_CHANGED_EVENT, event);
     return;
   }
 
-  window.dispatchEvent(new CustomEvent(APP_THEME_PREVIEW_CHANGED_EVENT, { detail: normalized }));
+  window.dispatchEvent(new CustomEvent(APP_THEME_PREVIEW_CHANGED_EVENT, { detail: event }));
+}
+
+function createAppThemePreviewEventGate() {
+  const lastSequenceBySession = new Map<string, number>();
+  const closedSessions = new Set<string>();
+  let activeSessionId: string | null = null;
+
+  return (event: AppThemePreviewEvent): "preview" | "end" | "ignore" => {
+    const lastSequence = lastSequenceBySession.get(event.sessionId) ?? 0;
+    if (event.sequence <= lastSequence || closedSessions.has(event.sessionId)) {
+      return "ignore";
+    }
+    lastSequenceBySession.set(event.sessionId, event.sequence);
+
+    if (event.theme !== null) {
+      activeSessionId = event.sessionId;
+      return "preview";
+    }
+
+    closedSessions.add(event.sessionId);
+    if (activeSessionId !== null && activeSessionId !== event.sessionId) {
+      return "ignore";
+    }
+    activeSessionId = null;
+    return "end";
+  };
+}
+
+function normalizeAppThemePreviewEvent(input: unknown): AppThemePreviewEvent | null {
+  if (
+    !isRecord(input) ||
+    typeof input.sessionId !== "string" ||
+    input.sessionId.length === 0 ||
+    !Number.isSafeInteger(input.sequence) ||
+    (input.sequence as number) <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    sessionId: input.sessionId,
+    sequence: input.sequence as number,
+    theme: input.theme === null ? null : normalizeAppTheme(input.theme),
+  };
+}
+
+let fallbackThemePreviewSessionSequence = 0;
+
+function createAppThemePreviewSessionId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  fallbackThemePreviewSessionSequence += 1;
+  return `theme-preview-${Date.now()}-${fallbackThemePreviewSessionSequence}`;
 }
 
 export async function checkForUpdates(

@@ -4,6 +4,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::window_chrome::{APP_MAIN_TRAFFIC_LIGHT_LEFT, APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET};
 
 const SETTINGS_WINDOW_LABEL: &str = "settings";
+const SETTINGS_WINDOW_STARTS_VISIBLE: bool = false;
 #[cfg(target_os = "macos")]
 const SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION: f64 = -7.0;
 #[cfg(target_os = "macos")]
@@ -19,7 +20,10 @@ const SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET: f64 =
 pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     // 设置必须是单例窗口：菜单、快捷键和主窗口按钮都可能同时触发打开动作。
     if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
-        window.show().map_err(tauri_error_to_string)?;
+        // 新窗口在前端应用持久化主题前保持隐藏；重复打开不能提前暴露 WKWebView 的白色首帧。
+        if !window.is_visible().map_err(tauri_error_to_string)? {
+            return Ok(());
+        }
         if window.is_minimized().unwrap_or(false) {
             window.unminimize().map_err(tauri_error_to_string)?;
         }
@@ -35,6 +39,7 @@ pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), St
     .title("设置")
     .inner_size(840.0, 620.0)
     .min_inner_size(680.0, 460.0)
+    .visible(SETTINGS_WINDOW_STARTS_VISIBLE)
     .center()
     .resizable(true);
 
@@ -101,5 +106,10 @@ mod tests {
             SETTINGS_TRAFFIC_LIGHT_LEFT,
             APP_MAIN_TRAFFIC_LIGHT_LEFT + SETTINGS_TRAFFIC_LIGHT_HORIZONTAL_COMPENSATION
         );
+    }
+
+    #[test]
+    fn settings_window_stays_hidden_until_the_frontend_theme_is_ready() {
+        assert!(!SETTINGS_WINDOW_STARTS_VISIBLE);
     }
 }

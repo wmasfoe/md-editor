@@ -12,6 +12,8 @@
     "core:window:allow-create",
     "core:window:allow-close",
     "core:window:allow-destroy",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "core:window:allow-start-dragging",
     "core:window:allow-set-title",
     "core:menu:default",

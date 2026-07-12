@@ -22,6 +22,19 @@ export async function openSettingsWindow(): Promise<boolean> {
   return true;
 }
 
+export async function revealCurrentSettingsWindow(): Promise<boolean> {
+  if (!isSettingsWindow() || !isTauri()) {
+    return false;
+  }
+
+  const window = getCurrentWindow();
+  // 主题变量和自定义 style 已同步写入；强制完成样式计算后再让原生窗口产生首帧。
+  void document.documentElement.offsetWidth;
+  await window.show();
+  await window.setFocus();
+  return true;
+}
+
 export async function closeCurrentSettingsWindow(): Promise<boolean> {
   if (!isSettingsWindow() || !isTauri()) {
     return false;

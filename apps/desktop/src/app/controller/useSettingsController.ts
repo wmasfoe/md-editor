@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AiSettings } from "@md-editor/ai";
 import {
   cancelLocalAiModelDownload,
@@ -8,13 +8,16 @@ import {
   mergeLocalAiModelStatus,
   type LocalAiModelCommandStatus,
 } from "../ai/local-ai-model";
-import { destroyCurrentSettingsWindow } from "../../desktop/settings-window";
+import {
+  destroyCurrentSettingsWindow,
+  revealCurrentSettingsWindow,
+} from "../../desktop/settings-window";
 import {
   keyboardShortcutLabel,
+  createAppThemePreviewSession,
   listenToAppSettingsChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
-  publishAppThemePreviewChanged,
   saveAppSettings,
   validateAssetsDirectory,
   type AppSettings,
@@ -23,7 +26,12 @@ import {
   type AppUpdateSettings,
   type ShortcutSetting,
 } from "../settings/app-settings";
-import { applyCustomThemeCss, pickThemeCssFile, rememberThemeCssFile } from "../settings/theme-css";
+import {
+  applyCustomThemeCss,
+  applyThemeBeforeWindowReveal,
+  pickThemeCssFile,
+  rememberThemeCssFile,
+} from "../settings/theme-css";
 import { formatActionError } from "@md-editor/editor-ui";
 import { useAppSettings } from "../settings-context";
 
@@ -61,6 +69,7 @@ export function useSettingsController({
 }: UseSettingsControllerOptions) {
   const {
     settings: loadedSettings,
+    hasLoadedSettings,
     updateStatus,
     closeSettings: closeEmbedded,
     checkForUpdate,
@@ -85,6 +94,8 @@ export function useSettingsController({
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
   const hasInitialized = useRef(false);
+  const hasRevealedSettingsWindow = useRef(false);
+  const [themePreviewSession] = useState(() => createAppThemePreviewSession());
 
   const syncDrafts = useCallback((next: AppSettings) => {
     setShortcutDrafts(createShortcutDrafts(next.shortcuts));
@@ -97,11 +108,12 @@ export function useSettingsController({
 
   // 设置窗口首次挂载时对齐草稿（主窗口内嵌模式每次打开时调用 syncDrafts）
   useEffect(() => {
+    if (!hasLoadedSettings) return;
     if (!hasInitialized.current) {
       hasInitialized.current = true;
       syncDrafts(loadedSettings);
     }
-  }, [loadedSettings, syncDrafts]);
+  }, [hasLoadedSettings, loadedSettings, syncDrafts]);
 
   // 跨窗口同步：settings-window 保存后，主窗口收到广播并对齐草稿
   useEffect(() => {
@@ -122,15 +134,36 @@ export function useSettingsController({
   // 设置窗口主题草稿实时广播给主窗口预览
   useEffect(() => {
     if (surface !== "settings-window" || !hasInitialized.current) return;
-    void publishAppThemePreviewChanged(themeDraft).catch((error: unknown) => {
+    void themePreviewSession.publish(themeDraft).catch((error: unknown) => {
       console.warn("主题预览广播失败", error);
     });
-  }, [surface, themeDraft]);
+  }, [surface, themeDraft, themePreviewSession]);
 
   // 应用主题 CSS（设置窗口或内嵌设置页打开时应用草稿主题）
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (surface !== "settings-window") return;
-    applyCustomThemeCss(themeDraft);
+    if (!hasRevealedSettingsWindow.current) {
+      hasRevealedSettingsWindow.current = true;
+      const initialTheme = applyThemeBeforeWindowReveal(
+        themeDraft,
+        revealCurrentSettingsWindow,
+      );
+      let didReveal = false;
+      void initialTheme.revealed
+        .then(() => {
+          didReveal = true;
+        })
+        .catch((error: unknown) => {
+          setSettingsErrorMessage(formatActionError(error, "设置窗口显示失败。"));
+        });
+      return () => {
+        initialTheme.dispose();
+        // React StrictMode 会重放 layout effect；未显示时允许下一次 setup 重新承担 reveal。
+        if (!didReveal) hasRevealedSettingsWindow.current = false;
+      };
+    }
+
+    return applyCustomThemeCss(themeDraft);
   }, [surface, themeDraft]);
 
   // 本地模型进度监听
@@ -150,8 +183,8 @@ export function useSettingsController({
   }, [applyLocalModelStatus]);
 
   const restoreSavedThemePreview = useCallback(async () => {
-    await publishAppThemePreviewChanged(loadedSettings.theme);
-  }, [loadedSettings.theme]);
+    await themePreviewSession.publish(null);
+  }, [themePreviewSession]);
 
   const closeSettings = useCallback(() => {
     if (surface === "settings-window") {
@@ -228,6 +261,7 @@ export function useSettingsController({
         ai: normalizeAiSettings(aiSettingsDraft),
         update: updateSettingsDraft,
       });
+      await themePreviewSession.publish(null);
       // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
       try {
         await closeSettingsSurfaceAfterSave({
@@ -254,6 +288,7 @@ export function useSettingsController({
     showToast,
     surface,
     themeDraft,
+    themePreviewSession,
     updateSettingsDraft,
   ]);
 

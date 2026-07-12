@@ -42,6 +42,7 @@ const GITHUB_LIGHT_THEME_CSS = `
   --theme-border: #d8dee4;
   --theme-border-strong: #afb8c1;
   --theme-primary: #0969da;
+  --theme-primary-fill: var(--theme-primary);
   --theme-primary-soft: rgba(9, 105, 218, 0.1);
   --theme-primary-selected: rgba(9, 105, 218, 0.24);
   --theme-control-hover: #f3f4f6;
@@ -82,6 +83,7 @@ const GOTHIC_LIGHT_THEME_CSS = `
   --theme-border: #e5ded1;
   --theme-border-strong: #cfc4b3;
   --theme-primary: #7b5d2a;
+  --theme-primary-fill: var(--theme-primary);
   --theme-primary-soft: rgba(123, 93, 42, 0.12);
   --theme-primary-selected: rgba(123, 93, 42, 0.24);
   --theme-control-hover: #f1ece2;
@@ -126,6 +128,7 @@ const NIGHT_DARK_THEME_CSS = `
   --theme-border: #262c35;
   --theme-border-strong: #3a424f;
   --theme-primary: #7aa2f7;
+  --theme-primary-fill: #4774ca;
   --theme-primary-soft: rgba(122, 162, 247, 0.16);
   --theme-primary-selected: rgba(122, 162, 247, 0.32);
   --theme-control-hover: #1c222b;

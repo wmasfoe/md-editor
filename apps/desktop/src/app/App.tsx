@@ -377,6 +377,7 @@ function SettingsWindowContent({
 }: {
   readonly toast: { readonly id: number; readonly message: string } | null;
 }) {
+  const { hasLoadedSettings } = useAppSettings();
   const shouldShowOverlayTitleBar = isMacPlatform();
   useEffect(() => {
     document.title = "设置";
@@ -391,7 +392,9 @@ function SettingsWindowContent({
       />
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <EditorToast toast={toast} />
-        <SettingsPage surface="settings-window" onStartWindowDrag={startTitleBarDrag} />
+        {hasLoadedSettings ? (
+          <SettingsPage surface="settings-window" onStartWindowDrag={startTitleBarDrag} />
+        ) : null}
       </div>
     </main>
   );

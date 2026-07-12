@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   compareReleaseVersions,
+  createAppThemePreviewSession,
   createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
   DEFAULT_DEEPSEEK_ENDPOINT,
@@ -13,6 +14,10 @@ import {
   normalizeAppTheme,
   normalizeUpdateSettings,
   normalizeShortcutKey,
+  listenToAppSettingsChanged,
+  listenToAppThemePreviewChanged,
+  loadAppSettings,
+  saveAppSettings,
   shortcutKeyFromKeyboardEvent,
   validateAssetsDirectory,
 } from "../src/app/settings/app-settings";
@@ -23,6 +28,10 @@ import {
 } from "../src/app/updates/update-status";
 
 describe("app settings", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("keeps the default settings aligned with editable shortcuts", () => {
     const settings = createDefaultSettings();
 
@@ -244,6 +253,77 @@ describe("app settings", () => {
       },
     });
     expect(normalizeAppTheme("typora-dark")).toEqual(DEFAULT_THEME_SETTINGS);
+  });
+
+  it("publishes sequenced preview events for one settings session", async () => {
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+
+    const previews: unknown[] = [];
+    const dispose = listenToAppThemePreviewChanged((event) => previews.push(event));
+    const session = createAppThemePreviewSession({ sessionId: "settings-test" });
+
+    await session.publish({
+      ...DEFAULT_THEME_SETTINGS,
+      mode: "light",
+    });
+    await session.publish(null);
+    dispose?.();
+
+    expect(previews).toEqual([
+      {
+        sessionId: "settings-test",
+        sequence: 1,
+        theme: {
+          ...DEFAULT_THEME_SETTINGS,
+          mode: "light",
+        },
+      },
+      {
+        sessionId: "settings-test",
+        sequence: 2,
+        theme: null,
+      },
+    ]);
+  });
+
+  it("persists edited settings and publishes the saved normalized value", async () => {
+    const events = new EventTarget();
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", events);
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+    });
+
+    const savedEvents: unknown[] = [];
+    const dispose = listenToAppSettingsChanged((settings) => savedEvents.push(settings));
+    const edited = {
+      ...createDefaultSettings(),
+      assetsDirectory: "images/posts",
+      editor: {
+        showCodeBlockLineNumbers: true,
+        wysiwygFontSize: 20,
+      },
+      theme: {
+        ...DEFAULT_THEME_SETTINGS,
+        mode: "dark" as const,
+      },
+      update: {
+        automaticCheck: false,
+        automaticDownload: false,
+      },
+    };
+
+    const saved = await saveAppSettings(edited);
+    const reloaded = await loadAppSettings();
+    dispose?.();
+
+    expect(reloaded).toEqual(saved);
+    expect(savedEvents).toEqual([saved]);
+    expect(saved.theme.mode).toBe("dark");
+    expect(saved.editor.wysiwygFontSize).toBe(20);
+    expect(saved.assetsDirectory).toBe("images/posts");
   });
 
   it("normalizes DeepSeek provider settings to the fixed endpoint", () => {

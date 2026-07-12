@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { isTauri } from "@tauri-apps/api/core";
 import {
   appVersion,
+  createAppThemePreviewCoordinator,
   createDefaultSettings,
   loadAppSettings,
   listenToAppSettingsChanged,
@@ -25,6 +26,7 @@ const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export interface AppSettingsContextValue {
   readonly settings: AppSettings;
+  readonly hasLoadedSettings: boolean;
   readonly updateStatus: UpdateStatus;
   readonly isSettingsOpen: boolean;
   readonly openSettings: () => void;
@@ -113,13 +115,27 @@ export function AppSettingsProvider({
   // 主窗口接收设置窗口的主题预览
   useEffect(() => {
     if (surface !== "main") return;
-    return listenToAppThemePreviewChanged(setPreviewTheme);
-  }, [surface]);
+    const coordinator = createAppThemePreviewCoordinator({
+      loadPersistedSettings: loadAppSettings,
+      onPersistedSettings: setSettings,
+      onPreviewTheme: setPreviewTheme,
+    });
+    const stopListening = listenToAppThemePreviewChanged((event) => {
+      void coordinator.handle(event).catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : "设置重新读取失败。");
+      });
+    });
+
+    return () => {
+      coordinator.dispose();
+      stopListening?.();
+    };
+  }, [showToast, surface]);
 
   // 应用主题 CSS（非预览：已保存主题或跨窗口预览）
   useEffect(() => {
     if (surface === "settings-window" || isSettingsOpen) return;
-    applyCustomThemeCss(previewTheme ?? settings.theme);
+    return applyCustomThemeCss(previewTheme ?? settings.theme);
   }, [isSettingsOpen, previewTheme, settings.theme, surface]);
 
   const openSettings = useCallback(() => {
@@ -266,6 +282,7 @@ export function AppSettingsProvider({
 
   const value: AppSettingsContextValue = {
     settings,
+    hasLoadedSettings,
     updateStatus,
     isSettingsOpen,
     openSettings,
