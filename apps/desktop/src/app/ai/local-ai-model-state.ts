@@ -1,44 +1,15 @@
-import type { AiLocalModelSettings, AiLocalModelStatus } from "@md-editor/ai";
+import { normalizeLocalAiModelSettings, type AiLocalModelSettings } from "@md-editor/ai";
 
-export const DEFAULT_LOCAL_MODEL_ID = "md-editor-writer-small-v1";
+export {
+  DEFAULT_LOCAL_MODEL_ID,
+  DEFAULT_LOCAL_MODEL_SETTINGS,
+  normalizeLocalAiModelSettings,
+} from "@md-editor/ai";
 export const LOCAL_AI_MODEL_PROGRESS_EVENT = "local-ai-model-progress";
 
 export interface LocalAiModelCommandStatus extends AiLocalModelSettings {
   readonly displayName: string;
   readonly path: string | null;
-}
-
-export const DEFAULT_LOCAL_MODEL_SETTINGS: AiLocalModelSettings = {
-  enabled: false,
-  modelId: DEFAULT_LOCAL_MODEL_ID,
-  version: null,
-  status: "not-downloaded",
-  downloadedBytes: 0,
-  totalBytes: 0,
-  error: null,
-};
-
-export function normalizeLocalAiModelSettings(
-  input: Partial<AiLocalModelSettings> | null | undefined,
-): AiLocalModelSettings {
-  return {
-    enabled: Boolean(input?.enabled),
-    modelId: normalizeModelId(input?.modelId),
-    version: normalizeNullableString(input?.version),
-    status: normalizeLocalModelStatus(input?.status),
-    downloadedBytes: normalizeByteCount(input?.downloadedBytes),
-    totalBytes: normalizeByteCount(input?.totalBytes),
-    error: normalizeNullableString(input?.error),
-  };
-}
-
-export function normalizeLocalModelStatus(input: unknown): AiLocalModelStatus {
-  return input === "downloading" ||
-    input === "verifying" ||
-    input === "available" ||
-    input === "failed"
-    ? input
-    : "not-downloaded";
 }
 
 export function mergeLocalAiModelStatus(
@@ -68,11 +39,6 @@ export function toLocalAiModelCommandStatus(
   };
 }
 
-function normalizeModelId(input: unknown): string {
-  const value = typeof input === "string" ? input.trim() : "";
-  return value || DEFAULT_LOCAL_MODEL_ID;
-}
-
 function normalizeString(input: unknown, fallback: string): string {
   const value = typeof input === "string" ? input.trim() : "";
   return value || fallback;
@@ -81,8 +47,4 @@ function normalizeString(input: unknown, fallback: string): string {
 function normalizeNullableString(input: unknown): string | null {
   const value = typeof input === "string" ? input.trim() : "";
   return value || null;
-}
-
-function normalizeByteCount(input: unknown): number {
-  return typeof input === "number" && Number.isFinite(input) && input > 0 ? Math.floor(input) : 0;
 }

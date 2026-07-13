@@ -1,12 +1,15 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { AiProviderType, AiSettings } from "@md-editor/ai";
-import {
-  DEFAULT_LOCAL_MODEL_SETTINGS,
-  normalizeLocalAiModelSettings,
-} from "../ai/local-ai-model-state";
+import type { AiSettings } from "@md-editor/ai";
+import { DEFAULT_AI_SETTINGS, normalizeAiSettings } from "@md-editor/ai";
 import { isComposingKeyboardEvent } from "../../lib/keyboard";
+
+export {
+  DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
+  normalizeAiSettings,
+} from "@md-editor/ai";
 
 export interface ShortcutSetting {
   readonly id: string;
@@ -129,29 +132,10 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
 export const APP_SETTINGS_CHANGED_EVENT = "md-editor-app-settings-changed";
 export const APP_THEME_PREVIEW_CHANGED_EVENT = "md-editor-app-theme-preview-changed";
-export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
-export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
 export const UPDATE_RELEASES_API_URL =
   "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
 export const INSTALL_WITH_CURL_COMMAND =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
-
-const DEFAULT_AI_SETTINGS: AiSettings = {
-  enabled: true,
-  provider: "openai-compatible",
-  features: {
-    continuation: false,
-    editing: true,
-  },
-  openAiCompatible: {
-    baseUrl: DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
-    model: "",
-    apiKey: "",
-  },
-  localModel: {
-    ...DEFAULT_LOCAL_MODEL_SETTINGS,
-  },
-};
 
 export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
   mode: "system",
@@ -509,26 +493,6 @@ export function compareReleaseVersions(left: string, right: string): number {
   }
 
   return comparePrerelease(leftVersion.prerelease, rightVersion.prerelease);
-}
-
-export function normalizeAiSettings(input: Partial<AiSettings> | null | undefined): AiSettings {
-  const provider = normalizeAiProvider(input?.provider);
-  const hasFeatureSettings = input?.features !== undefined;
-  const features = {
-    continuation: Boolean(input?.features?.continuation),
-    editing: input?.features?.editing ?? true,
-  };
-  return {
-    enabled: hasFeatureSettings ? (input?.enabled ?? true) : true,
-    provider,
-    features,
-    openAiCompatible: {
-      baseUrl: normalizeAiBaseUrl(input?.openAiCompatible?.baseUrl, provider),
-      model: input?.openAiCompatible?.model?.trim() ?? "",
-      apiKey: input?.openAiCompatible?.apiKey ?? "",
-    },
-    localModel: normalizeLocalAiModelSettings(input?.localModel),
-  };
 }
 
 export function keyboardShortcutLabel(key: string): string {
@@ -957,23 +921,6 @@ function normalizeThemeCssPath(input: unknown): string | null {
 
 function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null;
-}
-
-function normalizeAiProvider(input: unknown): AiProviderType {
-  if (input === "deepseek" || input === "local") {
-    return input;
-  }
-
-  return "openai-compatible";
-}
-
-function normalizeAiBaseUrl(input: string | undefined, provider: AiProviderType): string {
-  if (provider === "deepseek") {
-    return DEFAULT_DEEPSEEK_ENDPOINT;
-  }
-
-  const value = input?.trim().replace(/\/+$/u, "");
-  return value || DEFAULT_AI_SETTINGS.openAiCompatible.baseUrl;
 }
 
 function normalizeKeyName(key: string): string {

@@ -1,15 +1,20 @@
 import type { AiSettings } from "@md-editor/ai";
+import { normalizeAiProvider } from "@md-editor/ai";
 import type {
   BuiltInThemeId,
   ThemeColorScheme,
   ThemeSchemeSettings,
   UpdateStatus,
 } from "../../app/settings/app-settings";
-import {
-  DEFAULT_DEEPSEEK_ENDPOINT,
-  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
-} from "../../app/settings/app-settings";
 import type { BuiltInThemeOption } from "../../app/settings/built-in-themes";
+
+export {
+  isRemoteAiProvider,
+  providerEndpointPlaceholder,
+  providerModelPlaceholder,
+  updateAiFeature,
+  updateAiProvider,
+} from "@md-editor/ai";
 
 export function localModelStatusLabel(status: AiSettings["localModel"]["status"]): string {
   switch (status) {
@@ -107,23 +112,7 @@ export function editorUpdateActionLabel(updateStatus: UpdateStatus): string {
 }
 
 export function readAiProvider(input: string): AiSettings["provider"] {
-  if (input === "deepseek" || input === "local") {
-    return input;
-  }
-
-  return "openai-compatible";
-}
-
-export function isRemoteAiProvider(provider: AiSettings["provider"]): boolean {
-  return provider === "openai-compatible" || provider === "deepseek";
-}
-
-export function providerEndpointPlaceholder(provider: AiSettings["provider"]): string {
-  return provider === "deepseek" ? DEFAULT_DEEPSEEK_ENDPOINT : DEFAULT_OPENAI_COMPATIBLE_ENDPOINT;
-}
-
-export function providerModelPlaceholder(provider: AiSettings["provider"]): string {
-  return provider === "deepseek" ? "deepseek-chat" : "gpt-4.1-mini";
+  return normalizeAiProvider(input);
 }
 
 export function readThemeColorScheme(input: string): ThemeColorScheme {
@@ -143,44 +132,6 @@ export function readThemeSelection(
     ...current,
     source: "builtin",
     builtinTheme: readBuiltInTheme(input, current.builtinTheme, builtInOptions),
-  };
-}
-
-export function updateAiProvider(
-  settings: AiSettings,
-  provider: AiSettings["provider"],
-): AiSettings {
-  const currentBaseUrl = settings.openAiCompatible.baseUrl;
-  const baseUrl =
-    provider === "deepseek"
-      ? DEFAULT_DEEPSEEK_ENDPOINT
-      : provider === "openai-compatible" && currentBaseUrl === DEFAULT_DEEPSEEK_ENDPOINT
-        ? DEFAULT_OPENAI_COMPATIBLE_ENDPOINT
-        : currentBaseUrl;
-
-  return {
-    ...settings,
-    provider,
-    openAiCompatible: {
-      ...settings.openAiCompatible,
-      baseUrl,
-    },
-  };
-}
-
-export function updateAiFeature(
-  settings: AiSettings,
-  feature: keyof AiSettings["features"],
-  enabled: boolean,
-): AiSettings {
-  const nextFeatures = {
-    ...settings.features,
-    [feature]: enabled,
-  };
-  return {
-    ...settings,
-    enabled: nextFeatures.continuation || nextFeatures.editing,
-    features: nextFeatures,
   };
 }
 
