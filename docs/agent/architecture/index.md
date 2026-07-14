@@ -12,3 +12,4 @@
 - MDX 组件插件分层方案： [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
 - 本地小模型接入方案： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
 - Desktop Editor Actions Context（Provider 依赖型动作的组织规范）： [desktop_editor_actions_context.md](./desktop_editor_actions_context.md)
+- WYSIWYG 内联可删除语法标记（路线 D）+ 编辑器视觉优化实施文档： [inline_syntax_markers_and_visual_refresh.md](./inline_syntax_markers_and_visual_refresh.md)
