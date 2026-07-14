@@ -243,7 +243,10 @@
 .milkdown .ProseMirror h6 {
   position: relative;
   margin: 1.2rem 0 0.85rem;
-  color: var(--theme-title);
+  color: var(
+    --theme-heading-accent,
+    color-mix(in srgb, var(--theme-title) 55%, var(--theme-primary) 45%)
+  );
   font-weight: 700;
   line-height: var(--theme-editor-heading-line-height, 1.38);
   letter-spacing: 0;
@@ -277,7 +280,6 @@
 }
 
 .milkdown .ProseMirror h6 {
-  color: var(--theme-muted);
   font-size: 1em;
 }
 
@@ -327,7 +329,7 @@
 }
 
 .milkdown .ProseMirror li::marker {
-  color: var(--theme-text);
+  color: var(--theme-marker-dim, color-mix(in srgb, var(--theme-text) 55%, transparent));
 }
 
 .milkdown .ProseMirror li p {

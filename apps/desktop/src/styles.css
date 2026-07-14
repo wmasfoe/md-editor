@@ -39,6 +39,12 @@
   --theme-code-variable: #0550ae;
   --theme-inline-code-bg: rgba(175, 184, 193, 0.2);
   --theme-shadow: 0 1px 1px rgba(31, 35, 40, 0.04), 0 8px 24px rgba(140, 149, 159, 0.18);
+  --theme-heading-accent: #0f6d8c;
+  --theme-strong-accent: #9a4e18;
+  --theme-em-accent: #6b46c1;
+  --theme-del-accent: #9a3b3b;
+  --theme-code-accent: #0d6b49;
+  --theme-marker-dim: #878e95;
   --theme-content-width: 860px;
   --theme-editor-font-size: 17px;
   --theme-editor-line-height: 1.78;
@@ -97,6 +103,12 @@
     --theme-code-variable: #7dcfff;
     --theme-inline-code-bg: #1d232d;
     --theme-shadow: 0 1px 1px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.36);
+    --theme-heading-accent: #6ecbe0;
+    --theme-strong-accent: #f0a868;
+    --theme-em-accent: #c299fc;
+    --theme-del-accent: #e08a99;
+    --theme-code-accent: #8fd693;
+    --theme-marker-dim: #6f767e;
   }
 }
 

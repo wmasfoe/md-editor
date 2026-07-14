@@ -9,8 +9,6 @@ import {
 } from "@milkdown/kit/core";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { history } from "@milkdown/kit/plugin/history";
-import { commonmark } from "@milkdown/kit/preset/commonmark";
-import { gfm } from "@milkdown/kit/preset/gfm";
 import { Milkdown, useEditor, useInstance } from "@milkdown/react";
 import { Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import { Slice } from "@milkdown/kit/prose/model";
@@ -35,6 +33,11 @@ import {
 import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
 import { horizontalRuleSelectionPlugin } from "../../utils/horizontal-rule-selection";
 import { imageSelectionPlugin } from "../../utils/image-selection";
+import {
+  configureInlineMarkerSerializer,
+  inlineMarkerPreset,
+} from "./inlineMarkerPreset";
+import { inlineSyntaxDecorationPlugin } from "./inlineSyntaxDecorationPlugin";
 // 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
 // import { straightQuotesPlugin } from "../../utils/straight-quotes";
 import { updateWysiwygSearch, wysiwygSearchPlugin } from "../../utils/wysiwyg-search";
@@ -444,9 +447,14 @@ export function MilkdownEditorPrimitive({
           ctx.get(listenerCtx).selectionUpdated((_, selection) => {
             selectionBookmarkRef.current = selection.getBookmark();
           });
+          // Route D: emit inline markers (* _ ` ~) raw instead of \-escaped.
+          configureInlineMarkerSerializer(ctx);
         })
-        .use(commonmark)
-        .use(gfm)
+        // Route D: commonmark + gfm recomposed without the 4 inline marks, plus
+        // a remark plugin that disables their micromark tokenization. Replaces
+        // .use(commonmark).use(gfm).
+        .use(inlineMarkerPreset)
+        .use(inlineSyntaxDecorationPlugin)
         .use(history)
         // 可选兜底：纠正 macOS/WebKit 将 ASCII 引号改写成弯引号（源码模式不需要）。
         // 当前依赖 apps/desktop 壳层 NSUserDefaults，先不挂载。
