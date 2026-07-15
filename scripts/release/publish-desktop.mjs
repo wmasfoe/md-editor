@@ -154,32 +154,134 @@ function resolveNextVersion(currentVersion, kind) {
   return kind;
 }
 
-async function promptForRelease(options, currentVersion) {
+// 交互式选择版本类型（使用方向键）
+async function selectVersionType(currentVersion) {
+  if (!input.isTTY) {
+    return "patch";
+  }
+
+  const options = ["patch", "minor", "major", "beta", "custom"];
+  let selectedIndex = 0;
+
+  // 计算预览版本
+  const previewVersions = options.map((opt) => {
+    if (opt === "custom") return "x.y.z";
+    try {
+      return resolveNextVersion(currentVersion, opt);
+    } catch {
+      return "x.y.z";
+    }
+  });
+
+  const renderMenu = () => {
+    console.clear();
+    console.log(`\n当前版本: ${currentVersion}\n`);
+    console.log("请选择版本类型 (使用 ↑/↓ 方向键选择, Enter 确认):\n");
+
+    options.forEach((option, index) => {
+      const prefix = index === selectedIndex ? "→" : " ";
+      const preview = previewVersions[index];
+      console.log(`  ${prefix} ${option.padEnd(10)} (${preview})`);
+    });
+  };
+
+  return new Promise((resolve) => {
+    renderMenu();
+
+    const onKeypress = (str, key) => {
+      if (key.name === "up") {
+        selectedIndex = (selectedIndex - 1 + options.length) % options.length;
+        renderMenu();
+      } else if (key.name === "down") {
+        selectedIndex = (selectedIndex + 1) % options.length;
+        renderMenu();
+      } else if (key.name === "return") {
+        readline.emitKeypressEvents(input);
+        if (input.isTTY) {
+          input.setRawMode(false);
+        }
+        input.removeListener("keypress", onKeypress);
+        resolve(options[selectedIndex]);
+      } else if (key.ctrl && key.name === "c") {
+        process.exit(0);
+      }
+    };
+
+    readline.emitKeypressEvents(input);
+    if (input.isTTY) {
+      input.setRawMode(true);
+    }
+    input.on("keypress", onKeypress);
+  });
+}
+
+// 输入自定义版本号
+async function inputCustomVersion() {
   const rl = readline.createInterface({ input, output });
 
-  try {
-    const kind =
-      options.kind ||
-      (input.isTTY
-        ? await rl.question("选择版本类型 [patch/minor/major/beta/custom] (默认 patch): ")
-        : "") ||
-      "patch";
+  return new Promise((resolve) => {
+    rl.question("\n请输入自定义版本号 (格式: x.y.z): ", (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
-    let resolvedKind = kind.trim();
-    if (resolvedKind === "custom") {
-      resolvedKind = (await rl.question("输入具体版本号，例如 0.3.0-beta.1: ")).trim();
-    }
+// 输入多行更新内容
+async function inputChangelogEntries() {
+  const rl = readline.createInterface({ input, output });
+
+  console.log("\n请输入本次更新内容 (每行一条，空行结束):\n");
+
+  const changes = [];
+
+  return new Promise((resolve) => {
+    const promptLine = () => {
+      rl.question(`${changes.length + 1}. `, (answer) => {
+        const trimmed = answer.trim();
+
+        if (trimmed === "") {
+          rl.close();
+          if (changes.length === 0) {
+            console.log("\n错误: 至少需要输入一条更新内容");
+            process.exit(1);
+          }
+          resolve(changes);
+        } else {
+          changes.push(trimmed);
+          promptLine();
+        }
+      });
+    };
+
+    promptLine();
+  });
+}
+
+async function promptForRelease(options, currentVersion) {
+  try {
+    // 1. 选择版本类型
+    const versionType = options.kind || (await selectVersionType(currentVersion));
+
+    // 2. 如果选择 custom，输入自定义版本号
+    const resolvedKind = versionType === "custom" ? await inputCustomVersion() : versionType;
 
     const nextVersion = resolveNextVersion(currentVersion, resolvedKind);
-    const notes = await promptNotes(options, rl);
+
+    // 3. 输入更新内容（多行或单行）
+    const notes = await promptNotes(options);
 
     return { kind: resolvedKind, nextVersion, notes };
-  } finally {
-    rl.close();
+  } catch (error) {
+    // 确保清理 raw mode
+    if (input.isTTY) {
+      input.setRawMode(false);
+    }
+    throw error;
   }
 }
 
-async function promptNotes(options, rl) {
+async function promptNotes(options) {
   if (options.notes !== undefined) {
     return options.notes;
   }
@@ -188,7 +290,9 @@ async function promptNotes(options, rl) {
     return defaultNotes;
   }
 
-  return (await rl.question(`输入本次更新内容 (默认：${defaultNotes}): `)).trim() || defaultNotes;
+  // 多行输入模式
+  const changes = await inputChangelogEntries();
+  return changes.join("\n- ");
 }
 
 async function confirmRelease(options, plan) {
@@ -381,16 +485,18 @@ async function main() {
 }
 
 async function promptForResume(options, currentVersion) {
-  const rl = readline.createInterface({ input, output });
-
   try {
     return {
       kind: "resume",
       nextVersion: currentVersion,
-      notes: await promptNotes(options, rl),
+      notes: await promptNotes(options),
     };
-  } finally {
-    rl.close();
+  } catch (error) {
+    // 确保清理 raw mode
+    if (input.isTTY) {
+      input.setRawMode(false);
+    }
+    throw error;
   }
 }
 
