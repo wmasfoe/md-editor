@@ -1,6 +1,6 @@
 {
   "name": "md-editor",
-  "version": "0.3.18",
+  "version": "0.3.19",
   "private": true,
   "description": "Daily-usable Markdown and MDX-compatible desktop editor.",
   "type": "module",
