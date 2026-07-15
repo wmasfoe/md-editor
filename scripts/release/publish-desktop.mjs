@@ -219,9 +219,13 @@ async function selectVersionType(currentVersion) {
 async function inputCustomVersion() {
   const rl = readline.createInterface({ input, output });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     rl.question("\n请输入自定义版本号 (格式: x.y.z): ", (answer) => {
       rl.close();
+      if (answer === null || answer === undefined) {
+        reject(new Error("输入被取消"));
+        return;
+      }
       resolve(answer.trim());
     });
   });
@@ -235,9 +239,15 @@ async function inputChangelogEntries() {
 
   const changes = [];
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const promptLine = () => {
       rl.question(`${changes.length + 1}. `, (answer) => {
+        if (answer === null || answer === undefined) {
+          rl.close();
+          reject(new Error("输入被取消"));
+          return;
+        }
+
         const trimmed = answer.trim();
 
         if (trimmed === "") {
