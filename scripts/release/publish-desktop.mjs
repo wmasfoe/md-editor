@@ -313,7 +313,7 @@ async function confirmRelease(options, plan) {
   const rl = readline.createInterface({ input, output });
   try {
     const answer = await rl.question(`确认创建 ${plan.tag} 并推送触发 GitHub Actions? [y/N]: `);
-    if (!/^y(?:es)?$/iu.test(answer.trim())) {
+    if (!answer || !/^y(?:es)?$/iu.test(answer.trim())) {
       throw new Error("Release cancelled.");
     }
   } finally {
