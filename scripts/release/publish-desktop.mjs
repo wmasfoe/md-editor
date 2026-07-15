@@ -154,7 +154,7 @@ function resolveNextVersion(currentVersion, kind) {
   return kind;
 }
 
-// 交互式选择版本类型（使用方向键）
+// 交互式选择版本类型（使用方向键，不依赖 readline 实例）
 async function selectVersionType(currentVersion) {
   if (!input.isTTY) {
     return "patch";
@@ -163,7 +163,6 @@ async function selectVersionType(currentVersion) {
   const options = ["patch", "minor", "major", "beta", "custom"];
   let selectedIndex = 0;
 
-  // 计算预览版本
   const previewVersions = options.map((opt) => {
     if (opt === "custom") return "x.y.z";
     try {
@@ -177,16 +176,16 @@ async function selectVersionType(currentVersion) {
     console.clear();
     console.log(`\n当前版本: ${currentVersion}\n`);
     console.log("请选择版本类型 (使用 ↑/↓ 方向键选择, Enter 确认):\n");
-
     options.forEach((option, index) => {
       const prefix = index === selectedIndex ? "→" : " ";
-      const preview = previewVersions[index];
-      console.log(`  ${prefix} ${option.padEnd(10)} (${preview})`);
+      console.log(`  ${prefix} ${option.padEnd(10)} (${previewVersions[index]})`);
     });
   };
 
   return new Promise((resolve) => {
     renderMenu();
+    readline.emitKeypressEvents(input);
+    input.setRawMode(true);
 
     const onKeypress = (str, key) => {
       if (key.name === "up") {
@@ -196,32 +195,24 @@ async function selectVersionType(currentVersion) {
         selectedIndex = (selectedIndex + 1) % options.length;
         renderMenu();
       } else if (key.name === "return") {
-        readline.emitKeypressEvents(input);
-        if (input.isTTY) {
-          input.setRawMode(false);
-        }
+        input.setRawMode(false);
         input.removeListener("keypress", onKeypress);
-        resolve(options[selectedIndex]);
+        // 清空 raw mode 留下的缓冲，下一个 readline 不会吃到这个 Enter
+        setImmediate(() => resolve(options[selectedIndex]));
       } else if (key.ctrl && key.name === "c") {
+        input.setRawMode(false);
         process.exit(0);
       }
     };
 
-    readline.emitKeypressEvents(input);
-    if (input.isTTY) {
-      input.setRawMode(true);
-    }
     input.on("keypress", onKeypress);
   });
 }
 
-// 输入自定义版本号
-async function inputCustomVersion() {
-  const rl = readline.createInterface({ input, output });
-
+// 输入自定义版本号（复用传入的 rl）
+async function inputCustomVersion(rl) {
   return new Promise((resolve, reject) => {
     rl.question("\n请输入自定义版本号 (格式: x.y.z): ", (answer) => {
-      rl.close();
       if (answer === null || answer === undefined) {
         reject(new Error("输入被取消"));
         return;
@@ -231,10 +222,8 @@ async function inputCustomVersion() {
   });
 }
 
-// 输入多行更新内容
-async function inputChangelogEntries() {
-  const rl = readline.createInterface({ input, output });
-
+// 输入多行更新内容（复用传入的 rl）
+async function inputChangelogEntries(rl) {
   console.log("\n请输入本次更新内容 (每行一条，空行结束):\n");
 
   const changes = [];
@@ -243,7 +232,6 @@ async function inputChangelogEntries() {
     const promptLine = () => {
       rl.question(`${changes.length + 1}. `, (answer) => {
         if (answer === null || answer === undefined) {
-          rl.close();
           reject(new Error("输入被取消"));
           return;
         }
@@ -251,7 +239,6 @@ async function inputChangelogEntries() {
         const trimmed = answer.trim();
 
         if (trimmed === "") {
-          rl.close();
           if (changes.length === 0) {
             console.log("\n错误: 至少需要输入一条更新内容");
             process.exit(1);
@@ -269,39 +256,33 @@ async function inputChangelogEntries() {
 }
 
 async function promptForRelease(options, currentVersion) {
-  try {
-    // 1. 选择版本类型
-    const versionType = options.kind || (await selectVersionType(currentVersion));
+  // 1. 选择版本类型（raw mode，不用 rl）
+  const versionType = options.kind || (await selectVersionType(currentVersion));
 
+  // 用一个 rl 贯穿后续所有问答，避免多次 createInterface/close 导致 Enter 缓冲泄漏
+  const rl = readline.createInterface({ input, output });
+
+  try {
     // 2. 如果选择 custom，输入自定义版本号
-    const resolvedKind = versionType === "custom" ? await inputCustomVersion() : versionType;
+    const resolvedKind = versionType === "custom" ? await inputCustomVersion(rl) : versionType;
 
     const nextVersion = resolveNextVersion(currentVersion, resolvedKind);
 
-    // 3. 输入更新内容（多行或单行）
-    const notes = await promptNotes(options);
+    // 3. 输入更新内容（多行）
+    const notes = options.notes ?? (await promptNotes(rl));
 
     return { kind: resolvedKind, nextVersion, notes };
-  } catch (error) {
-    // 确保清理 raw mode
-    if (input.isTTY) {
-      input.setRawMode(false);
-    }
-    throw error;
+  } finally {
+    rl.close();
   }
 }
 
-async function promptNotes(options) {
-  if (options.notes !== undefined) {
-    return options.notes;
-  }
-
+async function promptNotes(rl) {
   if (!input.isTTY) {
     return defaultNotes;
   }
 
-  // 多行输入模式
-  const changes = await inputChangelogEntries();
+  const changes = await inputChangelogEntries(rl);
   return changes.join("\n- ");
 }
 
@@ -310,15 +291,17 @@ async function confirmRelease(options, plan) {
     return;
   }
 
-  const rl = readline.createInterface({ input, output });
-  try {
-    const answer = await rl.question(`确认创建 ${plan.tag} 并推送触发 GitHub Actions? [y/N]: `);
-    if (!answer || !/^y(?:es)?$/iu.test(answer.trim())) {
-      throw new Error("Release cancelled.");
-    }
-  } finally {
-    rl.close();
-  }
+  return new Promise((resolve, reject) => {
+    const rl = readline.createInterface({ input, output });
+    rl.question(`确认创建 ${plan.tag} 并推送触发 GitHub Actions? [y/N]: `, (answer) => {
+      rl.close();
+      if (!answer || !/^y(?:es)?$/iu.test(answer.trim())) {
+        reject(new Error("Release cancelled."));
+      } else {
+        resolve();
+      }
+    });
+  });
 }
 
 function assertCleanWorktree() {
@@ -495,18 +478,16 @@ async function main() {
 }
 
 async function promptForResume(options, currentVersion) {
+  if (options.notes !== undefined) {
+    return { kind: "resume", nextVersion: currentVersion, notes: options.notes };
+  }
+
+  const rl = readline.createInterface({ input, output });
   try {
-    return {
-      kind: "resume",
-      nextVersion: currentVersion,
-      notes: await promptNotes(options),
-    };
-  } catch (error) {
-    // 确保清理 raw mode
-    if (input.isTTY) {
-      input.setRawMode(false);
-    }
-    throw error;
+    const notes = input.isTTY ? await promptNotes(rl) : defaultNotes;
+    return { kind: "resume", nextVersion: currentVersion, notes };
+  } finally {
+    rl.close();
   }
 }
 
