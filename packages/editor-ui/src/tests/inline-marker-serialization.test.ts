@@ -60,7 +60,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
   it("T6.1 — ** characters not escaped by handler", () => {
     const handler = createRawInlineMarkerTextHandler();
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
-    const result = handler({ value: "**bold**" } as any, null, state as any, {});
+    const result = handler({ value: "**bold**" }, null, state, {});
     expect(result).toBe("**bold**");
     expect(result).not.toContain("\\*");
   });
@@ -68,7 +68,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
   it("T6.2 — * characters not escaped by handler", () => {
     const handler = createRawInlineMarkerTextHandler();
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
-    const result = handler({ value: "*italic*" } as any, null, state as any, {});
+    const result = handler({ value: "*italic*" }, null, state, {});
     expect(result).toBe("*italic*");
     expect(result).not.toContain("\\*");
   });
@@ -76,7 +76,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
   it("T6.3 — backtick characters not escaped by handler", () => {
     const handler = createRawInlineMarkerTextHandler();
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
-    const result = handler({ value: "`code`" } as any, null, state as any, {});
+    const result = handler({ value: "`code`" }, null, state, {});
     expect(result).toBe("`code`");
     expect(result).not.toContain("\\`");
   });
@@ -84,7 +84,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
   it("T6.4 — ~ characters not escaped by handler", () => {
     const handler = createRawInlineMarkerTextHandler();
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
-    const result = handler({ value: "~~strike~~" } as any, null, state as any, {});
+    const result = handler({ value: "~~strike~~" }, null, state, {});
     expect(result).toBe("~~strike~~");
     expect(result).not.toContain("\\~");
   });
@@ -93,7 +93,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
     const handler = createRawInlineMarkerTextHandler();
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
     const input = "**bold** *italic* `code` ~~strike~~";
-    const result = handler({ value: input } as any, null, state as any, {});
+    const result = handler({ value: input }, null, state, {});
     expect(result).toBe(input);
   });
 
@@ -102,7 +102,7 @@ describe("T6 — serialization identity via raw-emit handler", () => {
     const state = makeMockState(REAL_UNSAFE_PATTERNS);
     const unsafeBefore = state.unsafe.map((p) => ({ ...p }));
 
-    handler({ value: "**bold**" } as any, null, state as any, {});
+    handler({ value: "**bold**" }, null, state, {});
 
     // 调用后 state.unsafe 应与调用前完全一致（长度和内容）
     expect(state.unsafe).toHaveLength(unsafeBefore.length);
@@ -115,8 +115,8 @@ describe("T6 — serialization identity via raw-emit handler", () => {
   });
 
   it("T6.7 — DISABLED_MICROMARK_CONSTRUCTS covers all 4 inline syntaxes", () => {
-    expect(DISABLED_MICROMARK_CONSTRUCTS).toContain("attention");     // ** and *
-    expect(DISABLED_MICROMARK_CONSTRUCTS).toContain("codeText");      // `
+    expect(DISABLED_MICROMARK_CONSTRUCTS).toContain("attention"); // ** and *
+    expect(DISABLED_MICROMARK_CONSTRUCTS).toContain("codeText"); // `
     expect(DISABLED_MICROMARK_CONSTRUCTS).toContain("strikethrough"); // ~~
     expect(DISABLED_MICROMARK_CONSTRUCTS).toHaveLength(3);
   });

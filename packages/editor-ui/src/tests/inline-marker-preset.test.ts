@@ -24,9 +24,9 @@ describe("inlineMarkerPreset recomposition correctness", () => {
     const nodes = collectNodeSchemaNames(commonmarkKeepList);
     const marks = collectMarkSchemaNames(commonmarkKeepList);
 
-    // 快照：commonmark 的节点键集（按字母序排列便于 diff）
+    // 快照：commonmark 的节点键集（collectNodeSchemaNames 内部已按字母序排列）
     // 注：docSchema 和 textSchema 由 Milkdown 内部自动注册，不在重组列表中
-    expect(nodes.sort()).toMatchInlineSnapshot(`
+    expect(nodes).toMatchInlineSnapshot(`
       [
         "blockquote",
         "bullet_list",
@@ -43,7 +43,8 @@ describe("inlineMarkerPreset recomposition correctness", () => {
     `);
 
     // 快照：commonmark 只保留 link mark，移除了 strong/emphasis/inlineCode
-    expect(marks.sort()).toMatchInlineSnapshot(`
+    // eslint-disable-next-line unicorn/no-array-sort
+    expect([...marks].sort()).toMatchInlineSnapshot(`
       [
         "link",
       ]
@@ -60,7 +61,8 @@ describe("inlineMarkerPreset recomposition correctness", () => {
     const marks = collectMarkSchemaNames(gfmKeepList);
 
     // 快照：gfm 的节点键集（table 展开为细粒度子节点，footnote 包含 definition 和 reference）
-    expect(nodes.sort()).toMatchInlineSnapshot(`
+    // eslint-disable-next-line unicorn/no-array-sort
+    expect([...nodes].sort()).toMatchInlineSnapshot(`
       [
         "footnote_definition",
         "footnote_reference",

@@ -90,4 +90,3 @@ describe("inline syntax decoration correctness", () => {
     }
   });
 });
-

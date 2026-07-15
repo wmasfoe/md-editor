@@ -86,10 +86,7 @@ interface MatchClaim {
  * decoration spans. `blockStart` is the document position of the block's first
  * inline character (i.e. blockNodePos + 1). Exported for unit testing.
  */
-export function collectBlockDecorationSpans(
-  text: string,
-  blockStart: number,
-): DecorationSpan[] {
+export function collectBlockDecorationSpans(text: string, blockStart: number): DecorationSpan[] {
   const spans: DecorationSpan[] = [];
   // Track claimed [start,end) index ranges so higher-priority syntaxes win and
   // overlapping lower-priority matches are skipped (e.g. em inside strong).

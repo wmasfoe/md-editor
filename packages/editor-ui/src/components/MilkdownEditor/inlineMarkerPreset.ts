@@ -1,5 +1,5 @@
 import { remarkStringifyOptionsCtx } from "@milkdown/kit/core";
-import type { Ctx, MilkdownPlugin } from "@milkdown/kit/ctx";
+import type { Ctx } from "@milkdown/kit/ctx";
 import { $remark } from "@milkdown/kit/utils";
 import {
   // schema (nodes + marks). Keep every node/mark EXCEPT emphasis/strong/inlineCode.
@@ -134,11 +134,7 @@ import {
  * Disabling by construct name is global and order-independent (verified in the
  * Step 0 spike against micromark@4 create-tokenizer.js:415).
  */
-export const DISABLED_MICROMARK_CONSTRUCTS = [
-  "attention",
-  "codeText",
-  "strikethrough",
-] as const;
+export const DISABLED_MICROMARK_CONSTRUCTS = ["attention", "codeText", "strikethrough"] as const;
 
 /**
  * Characters whose unsafe-table escaping we suppress during serialization so the
@@ -152,12 +148,7 @@ const RAW_EMIT_CHARACTERS = new Set(["*", "_", "`", "~"]);
  * The mark schema names that route D removes from the editor. Exposed for the
  * schema key-set guardrail test.
  */
-export const REMOVED_MARK_NAMES = [
-  "emphasis",
-  "strong",
-  "inlineCode",
-  "strike_through",
-] as const;
+export const REMOVED_MARK_NAMES = ["emphasis", "strong", "inlineCode", "strike_through"] as const;
 
 /**
  * Custom remark-stringify `text` handler. It temporarily removes the unsafe
@@ -202,9 +193,8 @@ export function configureInlineMarkerSerializer(ctx: Ctx): void {
   ctx.set(remarkStringifyOptionsCtx, {
     ...options,
     handlers: {
-      ...(options.handlers ?? {}),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      text: createRawInlineMarkerTextHandler() as any,
+      ...options.handlers,
+      text: createRawInlineMarkerTextHandler() as NonNullable<typeof options.handlers>["text"],
     },
   });
 }
@@ -221,8 +211,7 @@ export const disableInlineMarkTokenizationPlugin = $remark(
       data: () => { micromarkExtensions?: unknown[] };
     }) {
       const data = this.data();
-      const micromarkExtensions =
-        data.micromarkExtensions ?? (data.micromarkExtensions = []);
+      const micromarkExtensions = data.micromarkExtensions ?? (data.micromarkExtensions = []);
       micromarkExtensions.push({
         disable: { null: [...DISABLED_MICROMARK_CONSTRUCTS] },
       });
@@ -413,6 +402,7 @@ function collectSchemaNames(list: readonly unknown[], kind: "mark" | "node"): st
       names.add(plugin.key.name);
     }
   }
+  // toSorted() needs ES2023 lib; project targets ES2022 (tsconfig.base.json).
+  // eslint-disable-next-line unicorn/no-array-sort
   return [...names].sort();
 }
-

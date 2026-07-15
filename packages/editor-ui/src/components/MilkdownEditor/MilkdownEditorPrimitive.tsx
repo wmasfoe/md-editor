@@ -33,10 +33,7 @@ import {
 import { imeCompositionGuardPlugin } from "../../utils/ime-composition-guard";
 import { horizontalRuleSelectionPlugin } from "../../utils/horizontal-rule-selection";
 import { imageSelectionPlugin } from "../../utils/image-selection";
-import {
-  configureInlineMarkerSerializer,
-  inlineMarkerPreset,
-} from "./inlineMarkerPreset";
+import { configureInlineMarkerSerializer, inlineMarkerPreset } from "./inlineMarkerPreset";
 import { inlineSyntaxDecorationPlugin } from "./inlineSyntaxDecorationPlugin";
 // 壳层已关本 App 智能引号；WYSIWYG 兜底插件暂不挂载，需要时取消下一行与 .use 注释即可。
 // import { straightQuotesPlugin } from "../../utils/straight-quotes";
@@ -453,6 +450,7 @@ export function MilkdownEditorPrimitive({
         // Route D: commonmark + gfm recomposed without the 4 inline marks, plus
         // a remark plugin that disables their micromark tokenization. Replaces
         // .use(commonmark).use(gfm).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .use(inlineMarkerPreset as any)
         .use(inlineSyntaxDecorationPlugin)
         .use(history)
