@@ -203,7 +203,8 @@ export function configureInlineMarkerSerializer(ctx: Ctx): void {
     ...options,
     handlers: {
       ...(options.handlers ?? {}),
-      text: createRawInlineMarkerTextHandler(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      text: createRawInlineMarkerTextHandler() as any,
     },
   });
 }
@@ -239,7 +240,7 @@ export const disableInlineMarkTokenizationPlugin = $remark(
  * schema-name guardrail. Milkdown's `.use()` double-flattens, so nesting is
  * fine at registration time.
  */
-export const commonmarkKeepList: MilkdownPlugin[] = [
+export const commonmarkKeepList: unknown[] = [
   // schema
   docSchema,
   paragraphAttr,
@@ -330,7 +331,7 @@ export const commonmarkKeepList: MilkdownPlugin[] = [
  * pieces. Mirrors preset-gfm's flat-array ordering. Left un-flattened (see
  * commonmarkKeepList note).
  */
-export const gfmKeepList: MilkdownPlugin[] = [
+export const gfmKeepList: unknown[] = [
   // schema (no strikethroughAttr/strikethroughSchema)
   extendListItemSchemaForTask,
   tableSchema,
@@ -378,7 +379,7 @@ export const gfmKeepList: MilkdownPlugin[] = [
  *
  * Left nested; Milkdown `.use()` double-flattens at registration.
  */
-export const inlineMarkerPreset: MilkdownPlugin[] = [
+export const inlineMarkerPreset: unknown[] = [
   ...commonmarkKeepList,
   ...gfmKeepList,
   disableInlineMarkTokenizationPlugin,

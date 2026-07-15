@@ -453,7 +453,7 @@ export function MilkdownEditorPrimitive({
         // Route D: commonmark + gfm recomposed without the 4 inline marks, plus
         // a remark plugin that disables their micromark tokenization. Replaces
         // .use(commonmark).use(gfm).
-        .use(inlineMarkerPreset)
+        .use(inlineMarkerPreset as any)
         .use(inlineSyntaxDecorationPlugin)
         .use(history)
         // 可选兜底：纠正 macOS/WebKit 将 ASCII 引号改写成弯引号（源码模式不需要）。

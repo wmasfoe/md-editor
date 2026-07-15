@@ -63,12 +63,12 @@ const GITHUB_LIGHT_THEME_CSS = `
   --theme-code-variable: #0550ae;
   --theme-inline-code-bg: rgba(175, 184, 193, 0.2);
   --theme-shadow: 0 1px 1px rgba(31, 35, 40, 0.04), 0 8px 24px rgba(140, 149, 159, 0.18);
-  --theme-heading-accent: #0f6d8c;
-  --theme-strong-accent: #9a4e18;
-  --theme-em-accent: #6b46c1;
-  --theme-del-accent: #9a3b3b;
-  --theme-code-accent: #0d6b49;
-  --theme-marker-dim: #878e95;
+  --theme-heading-accent: #0969da;
+  --theme-strong-accent: #8250df;
+  --theme-em-accent: #0550ae;
+  --theme-del-accent: #cf222e;
+  --theme-code-accent: #116329;
+  --theme-marker-dim: #6e7781;
 }
 `;
 
@@ -110,11 +110,11 @@ const GOTHIC_LIGHT_THEME_CSS = `
   --theme-code-variable: #7b5d2a;
   --theme-inline-code-bg: #efe7da;
   --theme-shadow: 0 1px 1px rgba(47, 43, 37, 0.06), 0 10px 30px rgba(47, 43, 37, 0.12);
-  --theme-heading-accent: #2f6f79;
-  --theme-strong-accent: #96501f;
-  --theme-em-accent: #6a4b8c;
-  --theme-del-accent: #8c3f4a;
-  --theme-code-accent: #3f6b2f;
+  --theme-heading-accent: #7b5d2a;
+  --theme-strong-accent: #6a3d9a;
+  --theme-em-accent: #2e6b5e;
+  --theme-del-accent: #8c2c1a;
+  --theme-code-accent: #2e6b3b;
   --theme-marker-dim: #9f9990;
   --theme-font:
     "Century Gothic", "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial,
@@ -161,11 +161,11 @@ const NIGHT_DARK_THEME_CSS = `
   --theme-code-variable: #7dcfff;
   --theme-inline-code-bg: #1d232d;
   --theme-shadow: 0 1px 1px rgba(0, 0, 0, 0.5), 0 18px 44px rgba(0, 0, 0, 0.36);
-  --theme-heading-accent: #6ecbe0;
-  --theme-strong-accent: #f0a868;
-  --theme-em-accent: #c299fc;
-  --theme-del-accent: #e08a99;
-  --theme-code-accent: #8fd693;
-  --theme-marker-dim: #6f767e;
+  --theme-heading-accent: #7aa2f7;
+  --theme-strong-accent: #bb9af7;
+  --theme-em-accent: #7dcfff;
+  --theme-del-accent: #f7768e;
+  --theme-code-accent: #9ece6a;
+  --theme-marker-dim: #565f89;
 }
 `;
