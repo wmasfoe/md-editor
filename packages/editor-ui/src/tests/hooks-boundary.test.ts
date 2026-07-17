@@ -27,30 +27,26 @@ const editorUiProviderSource = readFileSync(
   new URL("../hooks/useEditorUi.tsx", import.meta.url),
   "utf8",
 );
-const mdxAiControllerSource = readFileSync(
-  new URL("../hooks/useMdxAiController.ts", import.meta.url),
-  "utf8",
-);
 const outlineControllerSource = readFileSync(
   new URL("../hooks/useOutlineController.ts", import.meta.url),
   "utf8",
 );
 
 describe("editor-ui hooks and package boundary", () => {
-  it("does not keep the abandoned editor-host package or desktop wiring", () => {
+  it("does not keep abandoned editor packages or desktop wiring", () => {
     expect(existsSync(editorHostPackageRoot)).toBe(false);
     expect(desktopPackageJson.dependencies?.["@md-editor/editor-host"]).toBeUndefined();
     expect(desktopPackageJson.devDependencies?.["@md-editor/editor-host"]).toBeUndefined();
     expect(desktopViteConfigSource).not.toContain("@md-editor/editor-host");
   });
 
-  it("exports migrated hooks from the editor-ui hooks entrypoint", () => {
+  it("exports only retained hooks from the editor-ui hooks entrypoint", () => {
     expect(hooksIndexSource).toContain('export * from "./controller-errors"');
     expect(hooksIndexSource).toContain('export * from "./file-action-feedback"');
     expect(hooksIndexSource).toContain('export * from "./useEditorUi"');
-    expect(hooksIndexSource).toContain('export * from "./useMdxAiController"');
     expect(hooksIndexSource).toContain('export * from "./useOutlineController"');
     expect(rootIndexSource).toContain('export * from "./hooks"');
+    expect(hooksIndexSource).not.toContain("useMdxAiController");
   });
 
   it("exposes an explicit provider instead of a module-level singleton store", () => {
@@ -68,16 +64,6 @@ describe("editor-ui hooks and package boundary", () => {
     expect(editorUiProviderSource).not.toContain("create<");
   });
 
-  it("keeps MDX and AI controller behavior injected instead of desktop/provider-owned", () => {
-    expect(mdxAiControllerSource).toContain("getMdxComponentPlugins");
-    expect(mdxAiControllerSource).toContain("getAiCompletionReadiness");
-    expect(mdxAiControllerSource).toContain("requestAiCompletion");
-    expect(mdxAiControllerSource).not.toContain("requestDesktopAiContinuation");
-    expect(mdxAiControllerSource).not.toContain("@md-editor/editor-core/ai");
-    expect(mdxAiControllerSource).not.toContain("editor-runtime");
-    expect(mdxAiControllerSource).not.toContain("@tauri-apps/api");
-  });
-
   it("keeps the editor-ui import graph free of platform-only modules", () => {
     const forbiddenSpecifiers = sourceFiles(sourceRoot)
       .filter((file) => !file.endsWith(".test.ts"))
@@ -87,7 +73,7 @@ describe("editor-ui hooks and package boundary", () => {
     expect(forbiddenSpecifiers).toEqual([]);
   });
 
-  it("keeps the editor-ui manifest free of platform-only packages", () => {
+  it("keeps the editor-ui manifest free of platform and legacy editor packages", () => {
     const dependencyNames = new Set([
       ...Object.keys(packageJson.dependencies ?? {}),
       ...Object.keys(packageJson.devDependencies ?? {}),
@@ -97,6 +83,8 @@ describe("editor-ui hooks and package boundary", () => {
     expect(dependencyNames.has("@tauri-apps/api")).toBe(false);
     expect(dependencyNames.has("@md-editor/mdx-component-registry")).toBe(false);
     expect(dependencyNames.has("zustand")).toBe(false);
+    expect([...dependencyNames].some((name) => name.startsWith("@milkdown/"))).toBe(false);
+    expect(dependencyNames.has("@uiw/react-codemirror")).toBe(false);
   });
 
   it("keeps outline state reusable through markdown-fidelity instead of desktop stores", () => {

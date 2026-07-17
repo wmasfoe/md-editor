@@ -1,9 +1,10 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isDiscardProtectionRequired } from "../controller/document-save";
 import { runtime } from "../runtime/editor-runtime";
 
-function preventDirtyDocumentUnload(event: BeforeUnloadEvent) {
-  if (!runtime.document.getSnapshot().isDirty) {
+function preventProtectedDocumentUnload(event: BeforeUnloadEvent) {
+  if (!isDiscardProtectionRequired(runtime.document.getSnapshot())) {
     return;
   }
 
@@ -12,8 +13,8 @@ function preventDirtyDocumentUnload(event: BeforeUnloadEvent) {
 }
 
 export function bindBrowserDirtyDocumentGuard() {
-  window.addEventListener("beforeunload", preventDirtyDocumentUnload);
-  return () => window.removeEventListener("beforeunload", preventDirtyDocumentUnload);
+  window.addEventListener("beforeunload", preventProtectedDocumentUnload);
+  return () => window.removeEventListener("beforeunload", preventProtectedDocumentUnload);
 }
 
 export function bindTauriCloseGuard(confirmClose: () => Promise<boolean>) {
@@ -25,7 +26,7 @@ export function bindTauriCloseGuard(confirmClose: () => Promise<boolean>) {
 
   void getCurrentWindow()
     .onCloseRequested((event) => {
-      if (!runtime.document.getSnapshot().isDirty) {
+      if (!isDiscardProtectionRequired(runtime.document.getSnapshot())) {
         return;
       }
 

@@ -12,25 +12,13 @@ export {
   type ConfirmActionDialogProps,
 } from "./components/ConfirmActionDialog";
 export { DocumentBar, type DocumentBarProps } from "./components/DocumentBar";
-export { MilkdownEditor, MilkdownEditorPrimitive } from "./components/MilkdownEditor";
+export { CodeMirrorEditor, type CodeMirrorEditorProps } from "./components/CodeMirrorEditor";
 export type {
-  AiSuggestionRequest,
-  MarkdownInsertRequest,
-  MdxComponentMenuRenderProps,
-  MilkdownEditorCommandHandlers,
-  MilkdownEditorMdxAiOptions,
-  MilkdownEditorPrimitiveProps,
-  MilkdownEditorProps,
-} from "./components/MilkdownEditor";
+  CodeMirrorEditorExternalEditResult,
+  CodeMirrorEditorPorts,
+  CodeMirrorEditorSyncError,
+} from "./components/CodeMirrorEditor";
 export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./components/OutlinePanel";
-export { SourceEditor, SourceEditorPrimitive } from "./components/SourceEditor";
-export type { SourceEditorPrimitiveProps, SourceEditorProps } from "./components/SourceEditor";
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
 export * from "./hooks";
-export type { EditorScrollTarget, SourceEditorView, TocTarget } from "./types";
-export {
-  clampEditorScrollRatio,
-  createEditorDocumentKey,
-  createModeScrollTarget,
-  type PendingModeScrollTarget,
-} from "./utils/editor-ui-state";
+export type { TocTarget } from "./types";

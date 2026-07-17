@@ -1,53 +1,26 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { CodeMirrorEditorPorts } from "../components/CodeMirrorEditor";
 import {
   EditorUiProvider,
-  emptyEditorUiCommandSlots,
+  unsupportedEditorUiCommandSlots,
   useEditorUiActions,
   useEditorUiState,
   type EditorUiActionsContextValue,
-  type EditorUiCommandSlots,
 } from "../hooks/useEditorUi";
-import {
-  clampEditorScrollRatio,
-  createEditorDocumentKey,
-  createModeScrollTarget,
-} from "../utils/editor-ui-state";
 
 describe("editor UI instance state policy", () => {
-  it("derives remount keys from document identity and revision", () => {
-    expect(createEditorDocumentKey("/docs/a.md", 0)).toBe("/docs/a.md:0");
-    expect(createEditorDocumentKey(null, 3)).toBe("untitled:3");
-    expect(createEditorDocumentKey(undefined, 1.8)).toBe("untitled:1");
-    expect(createEditorDocumentKey("/docs/a.md", -1)).toBe("/docs/a.md:0");
+  it("returns typed unsupported results when no editor command implementation is mounted", async () => {
+    const unsupported = {
+      status: "unsupported",
+      reason: "not-available-in-active-editor",
+    };
+    expect(unsupportedEditorUiCommandSlots.openMdxComponentMenu()).toEqual(unsupported);
+    await expect(unsupportedEditorUiCommandSlots.continueAiWriting()).resolves.toEqual(unsupported);
   });
 
-  it("clamps mode-switch scroll ratios", () => {
-    expect(clampEditorScrollRatio(-1)).toBe(0);
-    expect(clampEditorScrollRatio(0.42)).toBe(0.42);
-    expect(clampEditorScrollRatio(2)).toBe(1);
-    expect(clampEditorScrollRatio(Number.NaN)).toBeNull();
-    expect(clampEditorScrollRatio(Number.POSITIVE_INFINITY)).toBeNull();
-  });
-
-  it("creates mode scroll targets with stable nonces", () => {
-    expect(createModeScrollTarget("source", 0.5, 123)).toEqual({
-      mode: "source",
-      target: {
-        ratio: 0.5,
-        nonce: 123,
-      },
-    });
-    expect(createModeScrollTarget("wysiwyg", Number.NaN, 123)).toBeNull();
-  });
-
-  it("keeps editor command defaults as safe no-ops", async () => {
-    expect(emptyEditorUiCommandSlots.openMdxComponentMenu()).toBeUndefined();
-    await expect(emptyEditorUiCommandSlots.continueAiWriting()).resolves.toBeUndefined();
-  });
-
-  it("isolates provider state and command slots per editor instance", () => {
+  it("isolates provider state and renderer ports per editor instance", () => {
     let firstActions: EditorUiActionsContextValue | null = null;
     let secondActions: EditorUiActionsContextValue | null = null;
 
@@ -57,12 +30,7 @@ describe("editor UI instance state policy", () => {
         null,
         createElement(
           EditorUiProvider,
-          {
-            filePath: "/docs/one.md",
-            initialDocumentRevision: 1,
-            markdown: "# One",
-            showToast: () => {},
-          },
+          { markdown: "# One", showToast: () => {} },
           createElement(CaptureProbe, {
             label: "first",
             capture: (actions) => {
@@ -72,12 +40,7 @@ describe("editor UI instance state policy", () => {
         ),
         createElement(
           EditorUiProvider,
-          {
-            filePath: "/docs/two.md",
-            initialDocumentRevision: 2,
-            markdown: "# Two",
-            showToast: () => {},
-          },
+          { markdown: "# Two", showToast: () => {} },
           createElement(CaptureProbe, {
             label: "second",
             capture: (actions) => {
@@ -88,19 +51,48 @@ describe("editor UI instance state policy", () => {
       ),
     );
 
-    expect(html).toContain("first:/docs/one.md:1:One");
-    expect(html).toContain("second:/docs/two.md:2:Two");
+    expect(html).toContain("first:One");
+    expect(html).toContain("second:Two");
 
-    const customCommands: EditorUiCommandSlots = {
-      openMdxComponentMenu: () => {},
-      continueAiWriting: async () => {},
-    };
+    const rendererPorts = createRendererPorts("renderer:first");
     expect(firstActions).not.toBeNull();
     expect(secondActions).not.toBeNull();
-    firstActions!.registerEditorCommands(customCommands);
+    const unregister = firstActions!.registerRendererPorts(rendererPorts);
 
-    expect(firstActions!.getEditorCommands()).toBe(customCommands);
-    expect(secondActions!.getEditorCommands()).toBe(emptyEditorUiCommandSlots);
+    expect(firstActions!.getRendererPorts()).toEqual({ status: "available", ports: rendererPorts });
+    expect(secondActions!.getRendererPorts()).toEqual({
+      status: "unavailable",
+      reason: "editor-not-mounted",
+    });
+
+    unregister();
+    unregister();
+    expect(firstActions!.getRendererPorts()).toEqual({
+      status: "unavailable",
+      reason: "editor-not-mounted",
+    });
+  });
+
+  it("rejects a second active renderer registration instead of silently replacing it", () => {
+    let actions: EditorUiActionsContextValue | null = null;
+    renderToStaticMarkup(
+      createElement(
+        EditorUiProvider,
+        { markdown: "", showToast: () => {} },
+        createElement(CaptureProbe, {
+          label: "only",
+          capture: (value) => {
+            actions = value;
+          },
+        }),
+      ),
+    );
+
+    const unregister = actions!.registerRendererPorts(createRendererPorts("renderer:one"));
+    expect(() => actions!.registerRendererPorts(createRendererPorts("renderer:two"))).toThrow(
+      "Only one active Markdown renderer",
+    );
+    unregister();
   });
 
   it("fails fast when provider-scoped state is read outside EditorUiProvider", () => {
@@ -109,6 +101,21 @@ describe("editor UI instance state policy", () => {
     );
   });
 });
+
+function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
+  return {
+    clientId,
+    mode: {
+      applyMode: vi.fn(() => ({ status: "failed" as const, errorCode: "TEST" })),
+      rollbackMode: vi.fn(),
+    },
+    applyExternalEdit: vi.fn(() => ({ status: "noop" as const })),
+    setLineNumbers: vi.fn(() => ({ status: "noop" as const })),
+    setHostVisibility: vi.fn(),
+    focus: vi.fn(),
+    requestMeasure: vi.fn(),
+  };
+}
 
 function CaptureProbe({
   capture,
@@ -123,7 +130,7 @@ function CaptureProbe({
   return createElement(
     "span",
     null,
-    `${label}:${state.documentKey}:${state.outline.map((item) => item.text).join(",")}`,
+    `${label}:${state.outline.map((item) => item.text).join(",")}`,
   );
 }
 

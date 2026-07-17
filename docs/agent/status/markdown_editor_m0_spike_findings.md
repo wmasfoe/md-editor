@@ -2,6 +2,8 @@
 
 用途：记录 M0 headless 技术尖刺的验证结论、限制和后续接入风险，供后续实现 Markdown / MDX 编辑器主链路时查询。
 
+> 状态：迁移前历史基线。本文的已验证事实继续有效，但 Milkdown / ProseMirror 后续接入建议不再执行；CM6 实时进度见 [`codemirror_renderer_migration_status.md`](./codemirror_renderer_migration_status.md)。
+
 ## 结论
 
 - 已建立最小 pnpm workspace 与 `@md-editor/editor-core` / `@md-editor/shared` 包骨架。
@@ -30,9 +32,9 @@
 - 导出模块仍为 P1，本次不实现 HTML / PDF / docx export。
 - 桌面 native dialog、recent file、窗口关闭提示不进入 editor-core；后续桌面层只能通过 file lifecycle seam 接入。
 
-## 后续优先级
+## 后续优先级状态
 
-1. 修复 pnpm / dependency install 环境后运行 `pnpm -r test` 和 `pnpm -r typecheck`。
-2. 用真实 Milkdown / remark / remark-mdx API 替换 headless fixture seam，并保留当前 fixture 断言。
-3. 验证 Callout extension API，若 API 不匹配，先记录阻断再调整 descriptor / node contract。
-4. 在真实 parser adapter 中继续验证 inline MDX 和 range invalidation，确保 `RawFragmentRangeError` 能接入重新收集 / remap 恢复路径。
+1. pnpm / dependency 验证和既有 fixture 仍作为迁移前基线保留。
+2. 不再投入真实 Milkdown extension、ProseMirror node 或 Milkdown Callout API 接入。
+3. Raw fragment、MDX range invalidation 和 fail-fast 断言迁移到 CM6 parser / Widget 测试。
+4. 当前执行顺序以 CM6 架构的 S1-S6 和实时状态文档为准。

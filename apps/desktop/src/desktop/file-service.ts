@@ -1,6 +1,19 @@
-import { createFileService } from "@md-editor/file-system";
-import { createDesktopFileAdapter } from "./file-adapter";
+import {
+  createRuntimeFileService,
+  type FileSaveSchedulerOptions,
+  type NativeSaveRuntimeRegistration,
+  type RuntimeFileService,
+} from "@md-editor/file-system";
+import { createDesktopFileAdapter, createDesktopNativeSaveAdapter } from "./file-adapter";
 
-// FileService is framework-agnostic; this module binds it to the Tauri adapter
-// once so React code does not import invoke-level details.
-export const fileService = createFileService(createDesktopFileAdapter());
+export function createDesktopRuntimeFileService(
+  registration: NativeSaveRuntimeRegistration,
+  options?: FileSaveSchedulerOptions,
+): RuntimeFileService {
+  return createRuntimeFileService(
+    createDesktopFileAdapter(),
+    createDesktopNativeSaveAdapter(),
+    registration,
+    options,
+  );
+}

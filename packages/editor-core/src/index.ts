@@ -1,75 +1,19 @@
 import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
-import type { Markdown } from "@md-editor/shared";
+import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
 export const editorCoreSpikeName = "editor-core-m0";
 
 export * from "./callout.ts";
 export * from "./content.ts";
+export * from "./document-state.ts";
 export * from "./file-lifecycle.ts";
 export * from "./markdown.ts";
-export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
 export * from "./recent-files.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
 }
-
-export type EditorMode = "wysiwyg" | "source";
-
-export interface DocumentSnapshot {
-  readonly markdown: Markdown;
-  readonly savedMarkdown: Markdown;
-  readonly filePath: string | null;
-  readonly mode: EditorMode;
-  readonly isDirty: boolean;
-}
-
-export interface DocumentStateInput {
-  readonly markdown?: Markdown;
-  readonly savedMarkdown?: Markdown;
-  readonly filePath?: string | null;
-  readonly mode?: EditorMode;
-}
-
-export interface DocumentState {
-  subscribe(listener: () => void): () => void;
-  getSnapshot(): DocumentSnapshot;
-  updateMarkdown(markdown: Markdown): DocumentSnapshot;
-  markSaved(input?: {
-    readonly markdown?: Markdown;
-    readonly filePath?: string | null;
-  }): DocumentSnapshot;
-  updateSavedBaseline(input: {
-    readonly markdown: Markdown;
-    readonly filePath?: string | null;
-  }): DocumentSnapshot;
-  setMode(mode: EditorMode): DocumentSnapshot;
-}
-
-export type ModeSwitchError = "MODE_SWITCH_FAILED";
-
-export interface ModeSwitchAdapter {
-  readonly beforeSwitch?: (
-    snapshot: DocumentSnapshot,
-    nextMode: EditorMode,
-  ) => Markdown | Promise<Markdown>;
-  readonly afterSwitch?: (snapshot: DocumentSnapshot) => void | Promise<void>;
-}
-
-export interface ModeSwitchOk {
-  readonly ok: true;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export interface ModeSwitchFailure {
-  readonly ok: false;
-  readonly error: ModeSwitchError;
-  readonly message: string;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export type ModeSwitchResult = ModeSwitchOk | ModeSwitchFailure;
 
 export interface CommandContext {
   readonly document: DocumentState;
@@ -163,75 +107,6 @@ export interface EditorRuntimeInput {
   readonly commands?: CommandRegistry;
   readonly keymaps?: KeymapRegistry;
   readonly features?: FeatureRegistry;
-}
-
-export function createDocumentState(input: DocumentStateInput = {}): DocumentState {
-  // 只保留一份 Markdown 字符串作为跨模式事实源。
-  // WYSIWYG 和 Source Mode 适配层都必须通过这里同步，避免各自持有副本。
-  let markdown = input.markdown ?? "";
-  let savedMarkdown = input.savedMarkdown ?? markdown;
-  let filePath = input.filePath ?? null;
-  let mode = input.mode ?? "wysiwyg";
-
-  // useSyncExternalStore 所需的订阅机制：每次 mutation 后通知所有 React 订阅者。
-  const listeners = new Set<() => void>();
-  // useSyncExternalStore 要求 getSnapshot 返回稳定引用：相同状态必须返回同一对象。
-  // 缓存上一次快照，mutation 时置 null 失效，下次调用再重建。
-  let cachedSnapshot: DocumentSnapshot | null = null;
-
-  function notify() {
-    listeners.forEach((l) => l());
-  }
-
-  function snapshot(): DocumentSnapshot {
-    if (cachedSnapshot === null) {
-      cachedSnapshot = {
-        markdown,
-        savedMarkdown,
-        filePath,
-        mode,
-        isDirty: markdown !== savedMarkdown,
-      };
-    }
-    return cachedSnapshot;
-  }
-
-  return {
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    getSnapshot: snapshot,
-    updateMarkdown(nextMarkdown) {
-      markdown = nextMarkdown;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    markSaved(next = {}) {
-      markdown = next.markdown ?? markdown;
-      savedMarkdown = markdown;
-      filePath = next.filePath === undefined ? filePath : next.filePath;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    updateSavedBaseline(next) {
-      savedMarkdown = next.markdown;
-      filePath = next.filePath === undefined ? filePath : next.filePath;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    setMode(nextMode) {
-      mode = nextMode;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-  };
 }
 
 export function createCommandRegistry(): CommandRegistry {
@@ -423,40 +298,4 @@ export function createEditorRuntime(input: EditorRuntimeInput): EditorRuntime {
       return input.document.getSnapshot();
     },
   };
-}
-
-export async function switchEditorModeSafely(
-  document: DocumentState,
-  nextMode: EditorMode,
-  adapter: ModeSwitchAdapter = {},
-): Promise<ModeSwitchResult> {
-  const previous = document.getSnapshot();
-
-  if (previous.mode === nextMode) {
-    return { ok: true, snapshot: previous };
-  }
-
-  try {
-    // 切换前允许当前模式把自己的编辑内容序列化回 Markdown；
-    // 如果这里失败，必须保持原模式和原内容，避免静默丢稿。
-    const nextMarkdown = adapter.beforeSwitch
-      ? await adapter.beforeSwitch(previous, nextMode)
-      : previous.markdown;
-
-    document.updateMarkdown(nextMarkdown);
-    const snapshot = document.setMode(nextMode);
-    await adapter.afterSwitch?.(snapshot);
-
-    return { ok: true, snapshot };
-  } catch (error) {
-    document.updateMarkdown(previous.markdown);
-    document.setMode(previous.mode);
-
-    return {
-      ok: false,
-      error: "MODE_SWITCH_FAILED",
-      message: error instanceof Error ? error.message : "Failed to switch editor mode.",
-      snapshot: document.getSnapshot(),
-    };
-  }
 }

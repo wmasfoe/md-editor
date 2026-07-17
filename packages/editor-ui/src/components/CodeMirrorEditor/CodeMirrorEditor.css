@@ -1,0 +1,29 @@
+.code-mirror-editor-host {
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.code-mirror-editor-host > .cm-editor {
+  height: 100%;
+}
+
+.code-mirror-editor-host .cm-scroller {
+  overflow: auto;
+  font-family: var(--theme-font, system-ui, sans-serif);
+  line-height: var(--theme-editor-line-height, 1.78);
+  letter-spacing: 0;
+}
+
+.code-mirror-editor-host .cm-md-editor--source .cm-scroller {
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+}

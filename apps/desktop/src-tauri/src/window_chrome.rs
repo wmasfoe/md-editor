@@ -16,7 +16,7 @@ use objc2_foundation::{NSNotification, NSNotificationCenter};
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
-pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
+use crate::platform_contract::MAIN_WINDOW_LABEL;
 
 #[cfg(target_os = "macos")]
 pub(crate) const APP_MAIN_TRAFFIC_LIGHT_LEFT: f64 = 16.0;

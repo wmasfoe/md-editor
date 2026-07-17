@@ -1,46 +1,34 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from "react";
-import type { EditorMode } from "@md-editor/editor-core";
+import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import type { CodeMirrorEditorPorts } from "../components/CodeMirrorEditor/bridge";
 import type { OutlineItem } from "../components/OutlinePanel";
-import type { EditorScrollTarget, TocTarget } from "../types";
-import {
-  clampEditorScrollRatio,
-  createEditorDocumentKey,
-  createModeScrollTarget,
-  type PendingModeScrollTarget,
-} from "../utils/editor-ui-state";
+import type { TocTarget } from "../types";
 import { useOutlineController } from "./useOutlineController";
 
-export interface EditorUiCommandSlots {
-  readonly openMdxComponentMenu: () => void;
-  readonly continueAiWriting: () => Promise<void>;
+export interface EditorUiUnsupportedCommandResult {
+  readonly status: "unsupported";
+  readonly reason: "not-available-in-active-editor";
 }
+
+export type EditorUiCommandResult = void | EditorUiUnsupportedCommandResult;
+
+export interface EditorUiCommandSlots {
+  readonly openMdxComponentMenu: () => EditorUiCommandResult;
+  readonly continueAiWriting: () => Promise<EditorUiCommandResult>;
+}
+
+export type EditorRendererPortsAccess =
+  | { readonly status: "available"; readonly ports: CodeMirrorEditorPorts }
+  | { readonly status: "unavailable"; readonly reason: "editor-not-mounted" };
 
 export interface EditorUiProviderProps {
   readonly children?: ReactNode;
-  readonly filePath: string | null;
   readonly markdown: string;
   readonly showToast: (message: string | null) => void;
-  readonly initialDocumentRevision?: number;
 }
 
 export interface EditorUiContextValue {
   readonly state: EditorUiStateContextValue;
   readonly actions: EditorUiActionsContextValue;
-  readonly documentKey: string;
-  readonly documentRevision: number;
-  readonly setDocumentRevision: Dispatch<SetStateAction<number>>;
-  readonly bumpDocumentRevision: () => void;
   readonly outline: readonly OutlineItem[];
   readonly tocTarget: TocTarget | null;
   readonly activeOutlineId: string | null;
@@ -48,141 +36,95 @@ export interface EditorUiContextValue {
   readonly jumpToTocItem: (target: Omit<TocTarget, "nonce">) => void;
   readonly jumpToMarkdownFragment: (markdown: string, fragment: string | null) => void;
   readonly updateActiveOutlineForLine: (line: number) => void;
-  readonly modeScrollTarget: PendingModeScrollTarget | null;
-  readonly updateModeScrollRatio: (ratio: number) => void;
-  readonly startModeScrollTarget: (mode: EditorMode) => void;
-  readonly clearModeScrollTarget: () => void;
-  readonly completeModeScrollTarget: (nonce: number) => void;
-  readonly registerEditorCommands: (commands: EditorUiCommandSlots) => void;
-  readonly getEditorCommands: () => EditorUiCommandSlots;
+  readonly registerRendererPorts: (ports: CodeMirrorEditorPorts) => () => void;
+  readonly getRendererPorts: () => EditorRendererPortsAccess;
 }
 
 export interface EditorUiStateContextValue {
-  readonly documentKey: string;
-  readonly documentRevision: number;
   readonly outline: readonly OutlineItem[];
   readonly tocTarget: TocTarget | null;
   readonly activeOutlineId: string | null;
-  readonly modeScrollTarget: PendingModeScrollTarget | null;
 }
 
 export interface EditorUiActionsContextValue {
-  readonly setDocumentRevision: Dispatch<SetStateAction<number>>;
-  readonly bumpDocumentRevision: () => void;
   readonly setActiveOutlineId: (id: string | null) => void;
   readonly jumpToTocItem: (target: Omit<TocTarget, "nonce">) => void;
   readonly jumpToMarkdownFragment: (markdown: string, fragment: string | null) => void;
   readonly updateActiveOutlineForLine: (line: number) => void;
-  readonly updateModeScrollRatio: (ratio: number) => void;
-  readonly startModeScrollTarget: (mode: EditorMode) => void;
-  readonly clearModeScrollTarget: () => void;
-  readonly completeModeScrollTarget: (nonce: number) => void;
-  readonly registerEditorCommands: (commands: EditorUiCommandSlots) => void;
-  readonly getEditorCommands: () => EditorUiCommandSlots;
+  readonly registerRendererPorts: (ports: CodeMirrorEditorPorts) => () => void;
+  readonly getRendererPorts: () => EditorRendererPortsAccess;
 }
 
-export const emptyEditorUiCommandSlots: EditorUiCommandSlots = {
-  openMdxComponentMenu: () => {},
-  continueAiWriting: async () => {},
-};
+const unsupportedEditorCommandResult: EditorUiUnsupportedCommandResult = Object.freeze({
+  status: "unsupported",
+  reason: "not-available-in-active-editor",
+});
+
+export const unsupportedEditorUiCommandSlots: EditorUiCommandSlots = Object.freeze({
+  openMdxComponentMenu: () => unsupportedEditorCommandResult,
+  continueAiWriting: async () => unsupportedEditorCommandResult,
+});
+
+const unavailableRendererPorts: EditorRendererPortsAccess = Object.freeze({
+  status: "unavailable",
+  reason: "editor-not-mounted",
+});
 
 const EditorUiStateContext = createContext<EditorUiStateContextValue | null>(null);
 const EditorUiActionsContext = createContext<EditorUiActionsContextValue | null>(null);
 
-export function EditorUiProvider({
-  children,
-  filePath,
-  initialDocumentRevision = 0,
-  markdown,
-  showToast,
-}: EditorUiProviderProps) {
-  const [documentRevision, setDocumentRevision] = useState(initialDocumentRevision);
-  const [modeScrollTarget, setModeScrollTarget] = useState<PendingModeScrollTarget | null>(null);
-  const activeScrollRatioRef = useRef(0);
-  const commandSlotsRef = useRef<EditorUiCommandSlots>(emptyEditorUiCommandSlots);
+export function EditorUiProvider({ children, markdown, showToast }: EditorUiProviderProps) {
+  const rendererPortsRef = useRef<CodeMirrorEditorPorts | null>(null);
   const outline = useOutlineController({ markdown, showToast });
-  const documentKey = createEditorDocumentKey(filePath, documentRevision);
 
-  const bumpDocumentRevision = useCallback(() => {
-    setDocumentRevision((current) => current + 1);
-  }, []);
-
-  const updateModeScrollRatio = useCallback((ratio: number) => {
-    const clamped = clampEditorScrollRatio(ratio);
-    if (clamped !== null) {
-      activeScrollRatioRef.current = clamped;
+  const registerRendererPorts = useCallback((ports: CodeMirrorEditorPorts) => {
+    if (rendererPortsRef.current !== null) {
+      throw new Error("Only one active Markdown renderer may register with EditorUiProvider.");
     }
+    rendererPortsRef.current = ports;
+    let registered = true;
+
+    return () => {
+      if (!registered) {
+        return;
+      }
+      registered = false;
+      if (rendererPortsRef.current === ports) {
+        rendererPortsRef.current = null;
+      }
+    };
   }, []);
 
-  const startModeScrollTarget = useCallback((mode: EditorMode) => {
-    setModeScrollTarget(createModeScrollTarget(mode, activeScrollRatioRef.current));
+  const getRendererPorts = useCallback((): EditorRendererPortsAccess => {
+    const ports = rendererPortsRef.current;
+    return ports === null ? unavailableRendererPorts : { status: "available", ports };
   }, []);
-
-  const clearModeScrollTarget = useCallback(() => {
-    setModeScrollTarget(null);
-  }, []);
-
-  const completeModeScrollTarget = useCallback((nonce: number) => {
-    setModeScrollTarget((current) => (current?.target.nonce === nonce ? null : current));
-  }, []);
-
-  const registerEditorCommands = useCallback((commands: EditorUiCommandSlots) => {
-    commandSlotsRef.current = commands;
-  }, []);
-
-  const getEditorCommands = useCallback(() => commandSlotsRef.current, []);
-
-  useEffect(() => {
-    activeScrollRatioRef.current = 0;
-    setModeScrollTarget(null);
-  }, [documentKey]);
 
   const state = useMemo<EditorUiStateContextValue>(
     () => ({
-      documentKey,
-      documentRevision,
       outline: outline.outline,
       tocTarget: outline.tocTarget,
       activeOutlineId: outline.activeOutlineId,
-      modeScrollTarget,
     }),
-    [
-      documentKey,
-      documentRevision,
-      modeScrollTarget,
-      outline.activeOutlineId,
-      outline.outline,
-      outline.tocTarget,
-    ],
+    [outline.activeOutlineId, outline.outline, outline.tocTarget],
   );
 
   const actions = useMemo<EditorUiActionsContextValue>(
     () => ({
-      setDocumentRevision,
-      bumpDocumentRevision,
       setActiveOutlineId: outline.setActiveOutlineId,
       jumpToTocItem: outline.jumpToTocItem,
       jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
       updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
-      updateModeScrollRatio,
-      startModeScrollTarget,
-      clearModeScrollTarget,
-      completeModeScrollTarget,
-      registerEditorCommands,
-      getEditorCommands,
+      registerRendererPorts,
+      getRendererPorts,
     }),
     [
-      bumpDocumentRevision,
-      clearModeScrollTarget,
-      completeModeScrollTarget,
-      getEditorCommands,
+      getRendererPorts,
       outline.jumpToMarkdownFragment,
       outline.jumpToTocItem,
       outline.setActiveOutlineId,
       outline.updateActiveOutlineForLine,
-      registerEditorCommands,
-      startModeScrollTarget,
-      updateModeScrollRatio,
+      registerRendererPorts,
     ],
   );
 
@@ -219,11 +161,4 @@ export function useEditorUi(): EditorUiContextValue {
     ...state,
     ...actions,
   };
-}
-
-export function getModeScrollTargetForMode(
-  modeScrollTarget: PendingModeScrollTarget | null,
-  mode: EditorMode,
-): EditorScrollTarget | null {
-  return modeScrollTarget?.mode === mode ? modeScrollTarget.target : null;
 }

@@ -18,7 +18,7 @@ interface OtherSettingsPanelProps {
   readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
   readonly onInstallUpdate: () => void;
-  readonly onRelaunchAfterUpdate: () => void;
+  readonly onRelaunchAfterUpdate?: () => void;
 }
 
 export function OtherSettingsPanel({
@@ -137,7 +137,7 @@ export function OtherSettingsPanel({
                 安装更新
               </button>
             ) : null}
-            {canRelaunchAfterUpdate ? (
+            {canRelaunchAfterUpdate && onRelaunchAfterUpdate ? (
               <button
                 type="button"
                 className={settingsSmallButtonClassName}

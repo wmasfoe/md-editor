@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronRightIcon,
   FolderIcon,
   MagnifyingGlassIcon,
   QueueListIcon,
 } from "@heroicons/react/24/outline";
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { MarkdownFileTreeNode } from "@md-editor/file-system";
+import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
 import {
   AssetPreview,
   ConfirmActionDialog,
@@ -18,17 +16,18 @@ import {
   useEditorUiState,
   WelcomeState,
 } from "@md-editor/editor-ui";
-import { DesktopMilkdownEditor } from "../components/DesktopMilkdownEditor";
-import { DesktopSourceEditor } from "../components/DesktopSourceEditor";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
-import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
+import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 import {
   DesktopEditorActionsContext,
   useDesktopEditorActions,
+  type DesktopEditorActions,
 } from "./context/DesktopEditorActionsContext";
 import { useDocumentSnapshot } from "./document-store";
 import { AppSettingsProvider, useAppSettings } from "./settings-context";
@@ -44,22 +43,30 @@ const SIDEBAR_DEFAULT_WIDTH = 272;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 420;
 
-export function App() {
-  if (isSettingsWindow()) {
-    return <SettingsWindowApp />;
-  }
-  return <AppWithProviders />;
+export interface AppProps {
+  readonly fileService: RuntimeFileService;
+  readonly onDesktopActionsChange?: (actions: DesktopEditorActions | null) => void;
+  readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
 }
 
-function AppWithProviders() {
+export function App({ fileService, onDesktopActionsChange, onRendererPortsChange }: AppProps) {
   const { toast, showToast } = useToast();
   return (
     <AppSettingsProvider showToast={showToast} surface="main">
       {/* Keep this provider above both desktop effects and shell consumers so command dispatch, outline, and editor surfaces share one editor-ui instance. */}
       <DesktopEditorUiProvider showToast={showToast}>
         {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
-        <DesktopEditorEffects showToast={showToast}>
-          <MainApp toast={toast} showToast={showToast} />
+        <DesktopEditorEffects
+          fileService={fileService}
+          onDesktopActionsChange={onDesktopActionsChange}
+          showToast={showToast}
+        >
+          <MainApp
+            fileService={fileService}
+            onRendererPortsChange={onRendererPortsChange}
+            toast={toast}
+            showToast={showToast}
+          />
         </DesktopEditorEffects>
       </DesktopEditorUiProvider>
     </AppSettingsProvider>
@@ -75,11 +82,7 @@ function DesktopEditorUiProvider({
 }) {
   const snapshot = useDocumentSnapshot();
   return (
-    <EditorUiProvider
-      filePath={snapshot.filePath}
-      markdown={snapshot.markdown}
-      showToast={showToast}
-    >
+    <EditorUiProvider markdown={snapshot.markdown} showToast={showToast}>
       {children}
     </EditorUiProvider>
   );
@@ -87,19 +90,31 @@ function DesktopEditorUiProvider({
 
 function DesktopEditorEffects({
   children,
+  fileService,
+  onDesktopActionsChange,
   showToast,
 }: {
   readonly children: ReactNode;
+  readonly fileService: RuntimeFileService;
+  readonly onDesktopActionsChange?: (actions: DesktopEditorActions | null) => void;
   readonly showToast: (message: string | null) => void;
 }) {
-  const actions = useDesktopEditorController({ showToast });
+  const actions = useDesktopEditorController({ fileService, showToast });
+  useLayoutEffect(() => {
+    onDesktopActionsChange?.(actions);
+    return () => onDesktopActionsChange?.(null);
+  }, [actions, onDesktopActionsChange]);
   return <DesktopEditorActionsContext value={actions}>{children}</DesktopEditorActionsContext>;
 }
 
 function MainApp({
+  fileService,
+  onRendererPortsChange,
   toast,
   showToast,
 }: {
+  readonly fileService: RuntimeFileService;
+  readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
   readonly toast: { readonly id: number; readonly message: string } | null;
   readonly showToast: (message: string | null) => void;
 }) {
@@ -111,7 +126,7 @@ function MainApp({
   const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
     useDocumentUiStore();
-  const { dispatchCommand, openRecentFile } = useDesktopEditorActions();
+  const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
@@ -137,7 +152,7 @@ function MainApp({
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
         <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SettingsPage surface="main" />
+          <SettingsPage surface="main" onRelaunchAfterUpdate={() => void runEditorUpdateAction()} />
         </div>
       </main>
     );
@@ -237,7 +252,10 @@ function MainApp({
           ) : null}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {sidebarMode === "files" ? (
-              <FileTreePanel searchQuery={showFileSearch ? fileSearchQuery : ""} />
+              <FileTreePanel
+                fileService={fileService}
+                searchQuery={showFileSearch ? fileSearchQuery : ""}
+              />
             ) : (
               <OutlinePanel outline={outline} activeId={activeOutlineId} onJump={jumpToTocItem} />
             )}
@@ -298,16 +316,25 @@ function MainApp({
                 onOpenFolder={() => void dispatchCommand("file.openFolder")}
                 onOpenRecent={(path) => void openRecentFile(path)}
               />
-            ) : openedAsset ? (
-              <AssetPreview
-                asset={openedAsset}
-                resolveAssetSrc={resolveImageSrc}
-                onBack={closeAssetPreview}
-              />
-            ) : snapshot.mode === "source" ? (
-              <DesktopSourceEditor />
             ) : (
-              <DesktopMilkdownEditor showToast={showToast} />
+              <>
+                {hasActiveDocument ? (
+                  <DesktopCodeMirrorEditor
+                    hidden={openedAsset !== null}
+                    onRendererPortsChange={onRendererPortsChange}
+                    showToast={showToast}
+                  />
+                ) : null}
+                {openedAsset ? (
+                  <div className="absolute inset-0 z-[5] flex min-h-0 flex-col">
+                    <AssetPreview
+                      asset={openedAsset}
+                      resolveAssetSrc={resolveImageSrc}
+                      onBack={closeAssetPreview}
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
             {pendingAction ? (
               <EditorLoadingState
@@ -359,180 +386,6 @@ function CollapsedSidebarReveal({
       >
         <ChevronRightIcon aria-hidden="true" />
       </button>
-    </div>
-  );
-}
-
-function SettingsWindowApp() {
-  const { toast, showToast } = useToast();
-  return (
-    <AppSettingsProvider showToast={showToast} surface="settings-window">
-      <SettingsWindowContent toast={toast} />
-    </AppSettingsProvider>
-  );
-}
-
-function SettingsWindowContent({
-  toast,
-}: {
-  readonly toast: { readonly id: number; readonly message: string } | null;
-}) {
-  const { hasLoadedSettings } = useAppSettings();
-  const shouldShowOverlayTitleBar = isMacPlatform();
-  useEffect(() => {
-    document.title = "设置";
-  }, []);
-  return (
-    <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-      <AppTitleBar
-        title="设置"
-        isVisible={shouldShowOverlayTitleBar}
-        hasWindowControlsInset
-        titleAlign="center"
-      />
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <EditorToast toast={toast} />
-        {hasLoadedSettings ? (
-          <SettingsPage surface="settings-window" onStartWindowDrag={startTitleBarDrag} />
-        ) : null}
-      </div>
-    </main>
-  );
-}
-
-function AppTitleBar({
-  actions,
-  title,
-  hasWindowControlsInset = false,
-  isDirty = false,
-  isVisible,
-  titleAlign = "start",
-  titleIcon,
-}: {
-  readonly actions?: ReactNode;
-  readonly title?: string;
-  readonly hasWindowControlsInset?: boolean;
-  readonly isDirty?: boolean;
-  readonly isVisible: boolean;
-  readonly titleAlign?: "start" | "center";
-  readonly titleIcon?: "markdown";
-}) {
-  if (!isVisible) {
-    return null;
-  }
-
-  return (
-    <div
-      data-tauri-drag-region
-      className={cx(
-        "relative h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
-        titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
-        titleAlign === "center"
-          ? hasWindowControlsInset
-            ? "grid-cols-[76px_minmax(0,1fr)_76px]"
-            : "grid-cols-[12px_minmax(0,1fr)_12px]"
-          : hasWindowControlsInset
-            ? "pl-[76px]"
-            : "pl-3",
-      )}
-      onMouseDown={startTitleBarDrag}
-    >
-      {title ? (
-        <span
-          data-tauri-drag-region
-          className={cx(
-            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
-            titleAlign === "center" && "col-start-2 justify-self-center",
-          )}
-        >
-          {titleIcon === "markdown" ? <MarkdownTitleIcon /> : null}
-          <span
-            data-tauri-drag-region
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-          >
-            {title}
-            {isDirty ? "*" : ""}
-          </span>
-        </span>
-      ) : null}
-      {actions ? (
-        <div
-          className="absolute right-2 top-1/2 z-10 -translate-y-1/2"
-          onMouseDown={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          {actions}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MarkdownTitleIcon() {
-  return (
-    <svg
-      className="size-[17px] shrink-0 text-[var(--theme-control-subtle)]"
-      viewBox="0 0 24 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="1.75" y="1.75" width="20.5" height="12.5" rx="2" />
-      <path d="M5 11V5l2.5 3L10 5v6" />
-      <path d="M16 5v5.5" />
-      <path d="m13.75 8.5 2.25 2.25 2.25-2.25" />
-    </svg>
-  );
-}
-
-function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
-  if (event.button !== 0 || event.detail > 1 || !isTauri()) {
-    return;
-  }
-
-  // Tauri 要求拖拽必须从一次真实的按下事件里启动；WebKit 子窗口有时会把
-  // 首次 mousedown 的 detail 记为 0，所以这里只拦截双击/多击，不强依赖 detail === 1。
-  event.preventDefault();
-  event.stopPropagation();
-  void getCurrentWindow()
-    .startDragging()
-    .catch((error: unknown) => {
-      console.warn("窗口拖拽启动失败", error);
-    });
-}
-
-export function EditorToast({
-  toast,
-}: {
-  readonly toast: { readonly id: number; readonly message: string } | null;
-}) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (!toast) {
-      setIsVisible(false);
-      return;
-    }
-
-    setIsVisible(true);
-    const timer = window.setTimeout(() => setIsVisible(false), 3200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  if (!toast || !isVisible) {
-    return null;
-  }
-
-  return (
-    <div
-      key={toast.id}
-      className="pointer-events-none absolute left-1/2 top-4 z-20 max-w-[min(520px,calc(100%_-_32px))] -translate-x-1/2 rounded-[10px] border border-white/10 bg-[rgba(38,38,40,0.86)] px-3.5 py-2 text-center text-[13px] font-medium leading-[1.35] text-white shadow-[0_10px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl motion-safe:animate-[toast-in_160ms_ease-out] motion-reduce:animate-none"
-      role="alert"
-    >
-      {toast.message}
     </div>
   );
 }
@@ -704,8 +557,4 @@ function countMatchedFiles(root: MarkdownFileTreeNode | null, query: string): nu
 
 function normalizeSearchQuery(query: string): string {
   return query.trim().toLowerCase();
-}
-
-function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes("mac");
 }

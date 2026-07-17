@@ -1,15 +1,11 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isSettingsWindowSurface, resolveDesktopWindowSurface } from "./window-labels";
 
-export const SETTINGS_WINDOW_LABEL = "settings";
+export { SETTINGS_WINDOW_LABEL } from "./window-labels";
 
 export function isSettingsWindow(): boolean {
-  // Tauri 的 window label 是设置窗口的权威判断；query 参数只用于 Vite/Web 预览兜底。
-  if (isTauri()) {
-    return getCurrentWindow().label === SETTINGS_WINDOW_LABEL;
-  }
-
-  return new URLSearchParams(window.location.search).get("window") === SETTINGS_WINDOW_LABEL;
+  return isSettingsWindowSurface(resolveDesktopWindowSurface());
 }
 
 export async function openSettingsWindow(): Promise<boolean> {
