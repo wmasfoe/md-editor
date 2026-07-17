@@ -20,7 +20,6 @@ export interface DocumentUiStore {
   closeAssetPreview: () => void;
   openAssetFromTree: (node: MarkdownFileTreeNode) => void;
   getRecentFiles: () => readonly RecentFile[];
-  commitMarkdown: (markdown: string) => void;
 }
 
 export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
@@ -46,9 +45,4 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
     get().openAssetPath(node.path, node.name);
   },
   getRecentFiles: () => recentFilesStore.list(),
-  commitMarkdown: (markdown) => {
-    runtime.document.updateMarkdown(markdown);
-    set({ hasActiveDocument: true, openedAsset: null });
-    useToastStore.getState().showToast(null);
-  },
 }));

@@ -3,9 +3,9 @@ import type {
   FileTreeMutationResult,
   MarkdownFileTreeNode,
   MarkdownFolder,
+  RuntimeFileService,
 } from "@md-editor/file-system";
 import type { TreeItemKind } from "../../types";
-import { fileService } from "../../desktop/file-service";
 import { dirname, isSameOrChildPath } from "../../lib/path";
 import { resolveOpenDocumentMutation } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
@@ -16,24 +16,42 @@ import { useSidebarStore } from "./sidebar-store";
 
 export interface FileTreeStore {
   folder: MarkdownFolder | null;
-  refreshFolderForDocumentPath: (documentPath: string) => Promise<void>;
-  refreshOpenedFolder: (documentPath?: string) => Promise<void>;
+  refreshFolderForDocumentPath: (
+    fileService: RuntimeFileService,
+    documentPath: string,
+  ) => Promise<void>;
+  refreshOpenedFolder: (fileService: RuntimeFileService, documentPath?: string) => Promise<void>;
   showOpenedFolder: (folder: MarkdownFolder) => void;
-  createTreeItem: (parentPath: string, kind: TreeItemKind, name: string) => Promise<void>;
-  renameTreeItem: (node: MarkdownFileTreeNode, name: string) => Promise<void>;
-  deleteTreeItem: (node: MarkdownFileTreeNode) => Promise<void>;
+  createTreeItem: (
+    fileService: RuntimeFileService,
+    parentPath: string,
+    kind: TreeItemKind,
+    name: string,
+  ) => Promise<void>;
+  renameTreeItem: (
+    fileService: RuntimeFileService,
+    node: MarkdownFileTreeNode,
+    name: string,
+  ) => Promise<void>;
+  deleteTreeItem: (fileService: RuntimeFileService, node: MarkdownFileTreeNode) => Promise<void>;
 }
 
 // 文件树变更可能影响当前打开文档；同步逻辑放在 store，调用方不需要硬算 rename/delete 影响面。
-function applyFileTreeMutation(result: FileTreeMutationResult, previousPath?: string) {
+export function applyFileTreeMutation(
+  fileMutation: FileTreeMutationResult,
+  previousPath?: string,
+): void {
   const current = runtime.document.getSnapshot();
-  const mutation = resolveOpenDocumentMutation(current.filePath, result, previousPath);
+  const mutation = resolveOpenDocumentMutation(current.filePath, fileMutation, previousPath);
 
   if (mutation.kind === "move") {
-    runtime.document.markSaved({
-      markdown: current.markdown,
+    const coreResult = runtime.document.setDocumentPath({
       filePath: mutation.filePath,
+      expectedGeneration: current.documentGeneration,
+      expectedStateRevision: current.stateRevision,
+      origin: { kind: "command", commandId: "file-tree.rename" },
     });
+    assertDocumentMutationApplied(coreResult.status, "rename the open document");
     return;
   }
 
@@ -41,14 +59,22 @@ function applyFileTreeMutation(result: FileTreeMutationResult, previousPath?: st
     return;
   }
 
-  const markdown = "";
-  runtime.document.updateMarkdown(markdown);
-  runtime.document.markSaved({ markdown, filePath: null });
+  const coreResult = runtime.document.replaceDocument(
+    { markdown: "", savedMarkdown: "", filePath: null },
+    { kind: "command", commandId: "file-tree.delete" },
+  );
+  assertDocumentMutationApplied(coreResult.status, "replace the deleted open document");
+}
+
+function assertDocumentMutationApplied(status: string, operation: string): void {
+  if (status !== "applied" && status !== "noop") {
+    throw new Error(`Could not ${operation}: ${status}.`);
+  }
 }
 
 export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
   folder: null,
-  refreshFolderForDocumentPath: async (documentPath) => {
+  refreshFolderForDocumentPath: async (fileService, documentPath) => {
     const folder = get().folder;
     const nextRootPath =
       folder && isSameOrChildPath(documentPath, folder.rootPath)
@@ -58,13 +84,13 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
     set({ folder: await fileService.refreshFolder(nextRootPath) });
     useSidebarStore.getState().setSidebarMode("files");
   },
-  refreshOpenedFolder: async (documentPath) => {
+  refreshOpenedFolder: async (fileService, documentPath) => {
     const currentPath = documentPath ?? runtime.document.getSnapshot().filePath;
     if (!currentPath) {
       return;
     }
 
-    await get().refreshFolderForDocumentPath(currentPath);
+    await get().refreshFolderForDocumentPath(fileService, currentPath);
   },
   showOpenedFolder: (folder) => {
     set({ folder });
@@ -72,7 +98,7 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
     sidebar.setSidebarMode("files");
     sidebar.setIsSidebarVisible(true);
   },
-  createTreeItem: async (parentPath, kind, name) => {
+  createTreeItem: async (fileService, parentPath, kind, name) => {
     const folder = get().folder;
     if (!folder) {
       return;
@@ -91,7 +117,7 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
         applyFileTreeMutation(result);
       });
   },
-  renameTreeItem: async (node, name) => {
+  renameTreeItem: async (fileService, node, name) => {
     const folder = get().folder;
     if (!folder || name === node.name) {
       return;
@@ -113,7 +139,7 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       }
     });
   },
-  deleteTreeItem: async (node) => {
+  deleteTreeItem: async (fileService, node) => {
     const folder = get().folder;
     if (!folder) {
       return;

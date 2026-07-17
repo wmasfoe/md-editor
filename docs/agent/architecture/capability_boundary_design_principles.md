@@ -17,7 +17,7 @@ AI 写作能力采用以下分工：
 
 - `@md-editor/ai` 层：读取设置、请求大模型或本地模型、解析 JSON/文本结果、返回纯 suggestion 数据。
 - editor-core 层：定义编辑器命令、feature 契约和跨模式稳定接口；不 re-export AI 包，不承载 provider/request parsing。
-- editor-ui / Milkdown 层：负责 suggestion 的展示、接受、取消、失效、选区保持、Markdown 插入、换行跟随和可访问交互。
+- `renderer-codemirror` 层：负责 suggestion 的展示、接受、取消、失效、选区保持、Markdown 插入、换行跟随和可访问交互；`editor-ui` 只注入纯 suggestion 数据和 UI adapter。
 - desktop app 层：负责设置页、provider 配置、本地模型状态、错误提示和把 AI 结果注入编辑器能力。
 
 因此，类似“AI tab 补全建议跨行显示错位”的问题，本体是编辑器 suggestion 渲染和交互语义，不应在 AI 请求层或桌面容器里硬算位置。AI 层只产出 `continuation` / `edit` 等结构化结果，编辑器层提供稳定的 suggestion preview 能力来消费它。

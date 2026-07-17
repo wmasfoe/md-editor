@@ -7,7 +7,7 @@ import { isComposingKeyboardEvent } from "../lib/keyboard";
 import { useAppSettings } from "../app/settings-context";
 import { useSettingsController } from "../app/controller/useSettingsController";
 import { useToast } from "../app/controller/useToast";
-import { EditorToast } from "../app/App";
+import { EditorToast } from "../app/AppWindowChrome";
 import { AiSettingsPanel } from "./settings/AiSettingsPanel";
 import { AppearanceSettingsPanel } from "./settings/AppearanceSettingsPanel";
 import { OtherSettingsPanel } from "./settings/OtherSettingsPanel";
@@ -18,10 +18,15 @@ interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
   readonly surface?: "main" | "settings-window";
   readonly onStartWindowDrag?: (event: MouseEvent<HTMLElement>) => void;
+  readonly onRelaunchAfterUpdate?: () => void;
 }
 
-export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPageProps) {
-  const { settings, updateStatus, relaunchUpdate } = useAppSettings();
+export function SettingsPage({
+  surface = "main",
+  onStartWindowDrag,
+  onRelaunchAfterUpdate,
+}: SettingsPageProps) {
+  const { settings, updateStatus } = useAppSettings();
   const { toast, showToast } = useToast();
   const ctrl = useSettingsController({ showToast, surface });
   const { closeSettings, destroySettingsWindowAfterRollback } = ctrl;
@@ -130,12 +135,12 @@ export function SettingsPage({ surface = "main", onStartWindowDrag }: SettingsPa
             onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
             onCheckForUpdates={() => void ctrl.runUpdateCheck()}
             onInstallUpdate={() => void ctrl.installUpdate()}
-            onRelaunchAfterUpdate={() => void relaunchUpdate()}
+            onRelaunchAfterUpdate={onRelaunchAfterUpdate}
           />
         ),
       },
     ],
-    [ctrl, relaunchUpdate, settings.shortcuts, updateStatus],
+    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, updateStatus],
   );
 
   return (
