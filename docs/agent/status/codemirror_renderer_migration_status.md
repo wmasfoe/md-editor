@@ -2,11 +2,11 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-07-18（S1 原生验收反馈补齐编辑区模式差异并保持原有模式按钮；Ultragoal G008 质量门禁保持通过）
+> 最后更新：2026-07-18（S1/M0 原生人工验收通过，CM6-only 主链路标记为 beta 可用）
 
 ## 当前结论
 
-- **阶段：G001-G007 实现已完成；G008 的全仓自动化门禁、changed-file cleaner、初轮独立复核修复、post-fix 全量重验、非交互 Tauri 启动冒烟和清洁独立复核均已通过。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；原生人工验收仍待完成。**
+- **阶段：S1/M0 beta 可用。G001-G007 实现、G008 全仓自动化门禁、changed-file cleaner、初轮独立复核修复、post-fix 全量重验、非交互 Tauri 启动冒烟、清洁独立复核和 2026-07-18 原生人工验收均已通过。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
 - `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
@@ -16,7 +16,7 @@
 - Desktop 新建/打开/空文件夹/删除走 atomic `replaceDocument`，rename/move 走 `setDocumentPath`；程序化同文档修改走 renderer external-edit port，mode 走 typed mode port，不再由 controller 调用旧 snapshot-only 文档兼容方法。
 - `main.tsx` 在 React 前分流 window surface：main 严格执行 attach -> FileService factory -> render，settings 只加载 `SettingsWindowApp`；一个 main-only `RuntimeFileService` 被注入 App、controllers 与 file tree。unknown/attach failure 均 fail closed。
 - 保存 controller 在第一个 `await` 前同步 `beginSave` + enqueue，typed outcome 只 settle 一次；成功采用实际返回 path，warning/failed/cancel/indeterminate 分别反馈，verification-required 继续阻止无提示放弃。
-- 当前是 **CM6-only beta 候选**，仍不标记“beta 可用”：E11 deferred controls、E12 production exclusion、G008 post-fix 自动化质量门禁与独立复核已通过，但系统中文 IME、原生 Save dialog/settings 窗口人工交互没有通过记录。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。
+- 当前是 **CM6-only beta 可用**：E11 deferred controls、E12 production exclusion、G008 post-fix 自动化质量门禁、独立复核和 S1 原生人工验收均已通过。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论只覆盖 S1/M0，不代表 S2-S6、M1-M5 或 M6 已完成。
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
 - 迁移开始后只维护 CM6 编辑器路径，不增加 Milkdown / CM6 功能开关或双向同步层。
 
@@ -44,7 +44,7 @@
 
 | Spike | 状态 | 当前证据 / 缺口 |
 | --- | --- | --- |
-| S1 单实例与数据同步 | 进行中 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描及独立复核已通过；尚缺系统 IME/原生 dialog 人工证据，故不标“beta 可用” |
+| S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
 | S2 核心显隐与选择 | 未开始 | 当前 CM6 WYSIWYG 仍为布局中性配置；旧实现已删除，不能引用历史行为作为当前能力 |
 | S3 代码块 | 未开始 | 当前 CM6 只有 Markdown 源码编辑，尚无语言菜单、高亮工具栏、行号和复制交互 |
 | S4 可视化 GFM 表格 | 未开始 | 尚未完成成熟表格引擎评估和 CM6 history 验证 |
@@ -55,7 +55,7 @@
 
 | 里程碑 | 状态 | Beta / 完成判断 |
 | --- | --- | --- |
-| M0 CM6 单编辑器主链路 | 进行中 | CM6-only 主链路、旧引擎删除、E1-E12、G008 自动化质量门禁与独立复核已通过；必需原生人工证据完成前暂不标 beta 可用 |
+| M0 CM6 单编辑器主链路 | beta 可用 | CM6-only 主链路、旧引擎删除、E1-E12、G008 自动化质量门禁、独立复核与必需原生人工证据均已通过 |
 | M1 基础 Markdown / Frontmatter | 未开始 | 不可用 |
 | M2 代码块 | 未开始 | 不可用 |
 | M3 GFM 表格 | 未开始 | 不可用 |
@@ -92,7 +92,7 @@
 | asset preview | 当前为 sibling overlay，editor hidden/inert | retained；产品 E9 已验证不卸载 renderer |
 | image/paste/drop、link open、search/outline、full editor theme parity | 当前未达到 CM6 parity；旧 editor 已删除 | removed-disabled 或 retained API typed unsupported，并作为 beta gap 记录 |
 
-这张表的 retained 主链路、格式化 no-op 移除和 paste/drop 停用已由 G006 实施；G007 又完成旧 engine/module/dependency、legacy save API 和测试 setter 的物理删除。E11/E12、G008 全仓自动化、移除扫描和独立复核已经通过，但原生人工证据尚未完成，所以 S1/M0 仍不标记 beta 可用。
+这张表的 retained 主链路、格式化 no-op 移除和 paste/drop 停用已由 G006 实施；G007 又完成旧 engine/module/dependency、legacy save API 和测试 setter 的物理删除。E11/E12、G008 全仓自动化、移除扫描、独立复核和 2026-07-18 原生人工验收均已通过，因此 S1/M0 标记为 beta 可用。
 
 ## Beta 规则
 
@@ -101,7 +101,7 @@
 - Beta 可用不等于迁移完成；M6 只有在完整功能矩阵和发布门槛通过后才能标记完成。
 - 需要回退时使用 Git 分支或历史版本，不在产品代码中恢复第二套编辑器。
 
-## 当前 Beta 候选缺口
+## 当前 Beta 已知缺口
 
 - M1 / S2：inline marker、标题、列表、链接、图片、分割线和 Frontmatter 可视化尚未实现；WYSIWYG 当前与源码模式共享同一 raw Markdown 文档，虽已有不同字体排版，但尚未进行 Markdown decoration / Widget 渲染。
 - M2 / S3：代码块语言选择、高亮工具栏、行号、复制和完整键盘交互尚未实现。
@@ -109,7 +109,7 @@
 - M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
-- 原生人工门禁：macOS 系统中文 IME、Save/Save As dialog 并发、settings 原生窗口隔离、asset preview 与真实文件 LF 字节尚未人工验收。
+- S1/M0 原生人工门禁已通过；环境、覆盖范围和结论见文末“原生人工验收通过记录”。后续里程碑引入 decoration、Widget、表格或 MDX 后，仍须针对新增交互重新执行对应原生验收。
 - G008：全仓 typecheck/test/lint/build/Rust/browser/Tauri 启动冒烟、post-cleaner 重验和初轮复核修复后的全量重验已通过；独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`。
 
 ## 文档同步记录
@@ -224,7 +224,7 @@
 - `tauri dev --no-watch` 完成 Vite/Cargo 编译并启动 `target/debug/md-editor`，无终端初始化错误后主动停止；该证据仅是非交互启动冒烟，不等同于原生 GUI 人工验收。
 - G008 全量验证当时，本机普通 `pnpm` shim 因 PATH 中找不到 `node` 而不可用，因此验证改用同一已安装 pnpm CLI 的绝对 Node 路径执行；全工作区 build 访问 Google Fonts 时受 sandbox 网络限制，获准联网后通过。这两项是当时的命令入口/环境事实，不是产品失败。
 - 2026-07-18 已按 Volta 官方 pnpm 支持方式修复本机入口：shell 启用 `VOLTA_FEATURE_PNPM=1`，Volta 安装仓库固定的 `pnpm@11.6.0`。全新登录 shell 已确认 `node v24.16.0`、`pnpm 11.6.0`、`tauri-cli 2.11.2`，普通 `pnpm tauri dev` 已启动 Vite `http://localhost:7273/`、完成 Cargo dev build 并运行 `target/debug/md-editor`；该记录仍只是启动冒烟，不替代下述原生 GUI 人工验收。
-- 初轮独立结果为 code-reviewer `REQUEST CHANGES`、architect `WATCH`；两项同源问题修复并通过 post-fix 全量门禁后，独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`，没有剩余代码或架构 blocker。系统中文 IME、原生 Save/Save As dialog、settings 原生窗口、asset preview 和真实文件字节仍无人工证据。因此当前仍是 beta 候选，不能标记 S1/M0“beta 可用”或完整迁移完成。
+- 初轮独立结果为 code-reviewer `REQUEST CHANGES`、architect `WATCH`；两项同源问题修复并通过 post-fix 全量门禁后，独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`，没有剩余代码或架构 blocker。G008 结束时系统中文 IME、原生 Save/Save As dialog、settings 原生窗口、asset preview 和真实文件字节仍无人工证据，因此当时只标 beta 候选；该历史缺口已由下述 2026-07-18 原生人工验收关闭。
 
 ## S1 原生验收反馈：模式可观察性
 
@@ -232,4 +232,12 @@
 - 首轮修复曾把 `DocumentBar` 改为带文字和背景活动态的“所见即所得 / 源码”分段控件；产品验收明确要求右下角维持原有样式后，该 UI 变化已完整撤回，继续使用 30×30px 单图标透明按钮，不增加常驻文案或背景色。
 - 编辑区在保持相同垂直行高的前提下，WYSIWYG 使用正文 UI 字体，source 使用等宽字体。该差异补齐 S1 的最小可观察 mode reconfiguration，不实现 S2 Markdown decoration，也不改变右下角 chrome。
 - 产品 Playwright E1 通过原有按钮驱动模式切换，并新增 `aria-pressed`、`data-editor-mode` 和 computed font-family 断言；完整 Chromium E1-E11 仍为 12/12 通过，并继续验证同一 view、history、selection、focus 和 scroll 保持。`editor-ui` 恢复为 4 files / 14 tests，package typecheck 通过。
-- 系统 IME、原生 dialog/settings、asset preview 与真实文件 LF 人工证据仍待完成，因此 S1/M0 状态保持“进行中”。
+- 产品确认模式差异修复后的原生验证没有问题；该反馈与下述完整人工验收记录共同关闭 S1/M0 的人工证据门禁。
+
+## S1/M0 原生人工验收通过记录
+
+- 日期与环境：2026-07-18；macOS 26.5（build 25F71）、系统 WebKit 21624、`tauri-cli 2.11.2`。
+- 产品验收确认系统中文 IME 输入、候选选择、undo/redo、多字符选区、滚动和重复模式切换没有问题；source/WYSIWYG 保持同一 history、selection 与 viewport，并保留原有右下角单图标透明按钮。
+- 产品验收确认原生 Save/Save As 排序、取消与编辑期间保存、dialog 打开时窗口响应、settings 窗口隔离、asset preview 状态保持、跨文档边界及相同内容文档边界没有问题。
+- 产品验收确认真实文件保存后为 LF、单一编辑器表面无 engine selector，延后能力会明确显示 unsupported 而不是静默执行。本轮未报告失败项或未测项。
+- 结论：S1 单实例与数据同步及 M0 CM6 单编辑器主链路达到功能体验 beta 门槛，状态更新为 **beta 可用**。S2-S6、M1-M5 仍按上表保持未开始，M6 稳定发布收口未完成。

@@ -13,4 +13,4 @@
 - 本地小模型接入方案： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
 - Desktop Editor Actions Context（Provider 依赖型动作的组织规范）： [desktop_editor_actions_context.md](./desktop_editor_actions_context.md)
 - WYSIWYG 内联可删除语法标记（Milkdown 路线 D 历史实现）+ 编辑器视觉优化记录： [inline_syntax_markers_and_visual_refresh.md](./inline_syntax_markers_and_visual_refresh.md)
-- CodeMirror 6 Markdown 可视化编辑器架构方案（权威目标；CM6-only beta 候选已接入，完整可视化迁移未完成）： [custom_markdown_renderer_architecture.md](./custom_markdown_renderer_architecture.md)
+- CodeMirror 6 Markdown 可视化编辑器架构方案（权威目标；S1/M0 CM6-only beta 已可用，完整可视化迁移未完成）： [custom_markdown_renderer_architecture.md](./custom_markdown_renderer_architecture.md)
