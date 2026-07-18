@@ -2,6 +2,8 @@
 
 > 面向接手实施的 AI Agent。本文自包含：读完即可执行，无需依赖会话上下文或 `.omc/` 临时产物。
 > 关联规格：`.omc/specs/deep-interview-wysiwyg-ui.md`；共识计划：`.omc/plans/wysiwyg-ui-route-d.md`；spike 结论：`.omc/research/route-d-spike.md`。
+>
+> 当前状态：视觉主题结论和 Milkdown 现状记录仍有效；“保留 Milkdown 的路线 D”已被 [`custom_markdown_renderer_architecture.md`](./custom_markdown_renderer_architecture.md) 的 CM6 单编辑器路线替代。不要继续扩展或维护 Route D 兼容层，迁移回退使用 Git 历史而不是产品内双运行时。
 
 ## 1. 目标（两个独立组件）
 
@@ -18,9 +20,9 @@
 - 删除一个字符使语法非法时（`**加粗**` → `**加粗*`），样式**自动消失**，只剩字面字符——无需自研合法性判定，交给解析器/正则天然处理。
 - 保存到磁盘的 markdown **identity 往返**，`**`/`*`/`` ` `` 不被转义成 `\*\*` 等。
 
-## 2. 关键架构决策（已定，勿推翻）
+## 2. Milkdown 路线 D 决策记录（已被 CM6 路线替代）
 
-- **底座不换**：保留 Milkdown(ProseMirror)，不迁 CodeMirror（否决路线 A）。
+- **历史决策**：曾选择保留 Milkdown(ProseMirror) 并否决 CodeMirror；该决策不再指导后续实现。
 - **路线 D 三支柱**（spike 已验证 GO，全走官方扩展点、无 patch node_modules）：
   1. **micromark disable**：`$remark` 插件向 remark-parse 传 `data().micromarkExtensions.push({ disable: { null: ['attention','codeText','strikethrough'] } })`（`attention`=strong+emphasis，`codeText`=inline code，`strikethrough`=gfm 删除线；按构造名全局生效、与 gfm 注册顺序无关）。使 `**` 等在 mdast 层就不再被切成 mark 节点、保留为纯文本。
   2. **bundle 重组**：停用 `.use(commonmark)`/`.use(gfm)`，用 granular 导出重组 keep-list，**剔除 emphasis/strong/inlineCode/strikethrough 的四件套**（`$markSchema` + `$inputRule` + `$command` + `$useKeymap`）。keymap 必须一并删，否则 Mod-b 调 `toggleStrongCommand` 命中已删 mark 类型会**运行时报错**。
@@ -43,9 +45,9 @@
 - `packages/editor-ui/src/components/MilkdownEditor/inlineMarkerPreset.ts`（~417 行）：含 `DISABLED_MICROMARK_CONSTRUCTS`、`REMOVED_MARK_NAMES`、`createRawInlineMarkerTextHandler`、`configureInlineMarkerSerializer`、`disableInlineMarkTokenizationPlugin`、`commonmarkKeepList`、`gfmKeepList`、`inlineMarkerPreset`、`collectMarkSchemaNames`/`collectNodeSchemaNames`。
 - `packages/editor-ui/src/components/MilkdownEditor/inlineSyntaxDecorationPlugin.ts`（~226 行）：含 `inlineSyntaxDecorationPluginKey`、`SYNTAX_RULES`（4 条正则）、`collectBlockDecorationSpans`（按 textblock 拼接扫描 + `￼` 占位符跳过 + 重叠 claim 去冲突）、decoration 下发逻辑。
 
-## 4. 待接手 Agent 执行的任务
+## 4. 历史执行清单
 
-以下按依赖顺序。**先验证既有实现，再补测、修复、收口**，不要推翻已符合本文技法的代码。
+以下任务用于解释当前 Milkdown 代码来源和已有测试，不再作为未来迁移清单。CM6 迁移必须按新架构执行，不为完成本节任务继续增加 Milkdown 专用代码。
 
 ### T1 — 编译与既有测试基线
 - `pnpm typecheck`（全包）与 `pnpm --filter @md-editor/editor-ui test` 跑通。记录初始错误。

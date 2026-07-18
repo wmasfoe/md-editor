@@ -9,7 +9,10 @@ const settingsControllerSource = readFileSync(
   new URL("../src/app/controller/useSettingsController.ts", import.meta.url),
   "utf8",
 );
-const appSource = readFileSync(new URL("../src/app/App.tsx", import.meta.url), "utf8");
+const settingsWindowAppSource = readFileSync(
+  new URL("../src/app/SettingsWindowApp.tsx", import.meta.url),
+  "utf8",
+);
 const desktopStyles = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 
 describe("theme effect cleanup wiring", () => {
@@ -36,8 +39,8 @@ describe("theme effect cleanup wiring", () => {
 
   it("waits for loaded settings before initializing the settings-window drafts", () => {
     expect(settingsControllerSource).toContain("if (!hasLoadedSettings) return;");
-    expect(appSource).toContain("hasLoadedSettings ? (");
-    expect(appSource).toContain('<SettingsPage surface="settings-window"');
+    expect(settingsWindowAppSource).toContain("hasLoadedSettings ? (");
+    expect(settingsWindowAppSource).toContain('<SettingsPage surface="settings-window"');
   });
 
   it("reveals the native settings window only after applying its loaded theme", () => {

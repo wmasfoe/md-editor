@@ -75,7 +75,7 @@ export function smokeCalloutExtension(
     return {
       status: "blocked",
       blocker:
-        "No editor extension adapter is installed in this M0 harness; real Milkdown/ProseMirror Callout extension smoke must run after editor package APIs are available.",
+        "No CM6 MDX component adapter is installed in this M0 harness; real Callout rendering and serialization smoke remains a beta gap.",
     };
   }
 

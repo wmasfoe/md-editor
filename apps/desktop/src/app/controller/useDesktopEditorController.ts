@@ -2,14 +2,12 @@ import { useCallback, useEffect } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
+import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
 import { useAppSettings } from "../settings-context";
 import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events/command-bindings";
-import { bindDropImageListener } from "../events/drop-image-listener";
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
-import { bindPasteImageListener } from "../events/paste-image-listener";
-import { fileService } from "../../desktop/file-service";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
 import {
   isExternalSchemeLink,
@@ -19,8 +17,9 @@ import {
 } from "../../lib/link-target";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
+import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { useEditorUiActions } from "@md-editor/editor-ui";
+import { unsupportedEditorUiCommandSlots, useEditorUiActions } from "@md-editor/editor-ui";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 import { useFileActionStore } from "../stores/file-action-store";
@@ -30,10 +29,12 @@ import { isUpdateActionBusy, shouldShowEditorUpdateAction } from "../updates/upd
 import type { DesktopEditorActions } from "../context/DesktopEditorActionsContext";
 
 export interface UseDesktopEditorControllerInput {
+  readonly fileService: RuntimeFileService;
   readonly showToast: (message: string | null) => void;
 }
 
 export function useDesktopEditorController({
+  fileService,
   showToast,
 }: UseDesktopEditorControllerInput): DesktopEditorActions {
   const {
@@ -45,13 +46,7 @@ export function useDesktopEditorController({
     applyDownloadedUpdate,
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const {
-    clearModeScrollTarget,
-    getEditorCommands,
-    jumpToMarkdownFragment,
-    setDocumentRevision: setEditorRevision,
-    startModeScrollTarget,
-  } = useEditorUiActions();
+  const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
 
   const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
     useSidebarStore.setState((state) => ({
@@ -65,24 +60,26 @@ export function useDesktopEditorController({
   const setOpenedAsset = useDocumentUiStore((state) => state.setOpenedAsset);
   const openAssetPath = useDocumentUiStore((state) => state.openAssetPath);
   const runFileAction = useFileActionStore((state) => state.runFileAction);
-  const refreshFolderForDocumentPath = useFileTreeStore(
+  const refreshFolderForDocumentPathWithService = useFileTreeStore(
     (state) => state.refreshFolderForDocumentPath,
   );
-  const refreshOpenedFolder = useFileTreeStore((state) => state.refreshOpenedFolder);
   const showOpenedFolder = useFileTreeStore((state) => state.showOpenedFolder);
-
+  const refreshFolderForDocumentPath = useCallback(
+    (documentPath: string) => refreshFolderForDocumentPathWithService(fileService, documentPath),
+    [fileService, refreshFolderForDocumentPathWithService],
+  );
   const docActions = useDocumentActionsController({
+    fileService,
+    getRendererPorts,
     refreshFolderForDocumentPath,
     requestConfirmation,
     runFileAction,
-    setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
     showOpenedFolder,
     showToast,
   });
   const {
-    applyProgrammaticMarkdown,
     createNewDocument,
     ensureDiscardAllowed,
     openDocument,
@@ -97,16 +94,9 @@ export function useDesktopEditorController({
 
   const switchMode = useCallback(
     async (mode: EditorMode) => {
-      const currentMode = runtime.document.getSnapshot().mode;
-      if (currentMode !== mode) {
-        startModeScrollTarget(mode);
-      }
       await switchDocumentMode(mode);
-      if (runtime.document.getSnapshot().mode !== mode) {
-        clearModeScrollTarget();
-      }
     },
-    [clearModeScrollTarget, startModeScrollTarget, switchDocumentMode],
+    [switchDocumentMode],
   );
 
   const toggleSourceMode = useCallback(async () => {
@@ -118,7 +108,6 @@ export function useDesktopEditorController({
   const dispatchCommand = useCallback(
     async (id: string) => {
       if (hasPendingConfirmation()) return;
-      const editorCommands = getEditorCommands();
       await runtime.commands.dispatch(id, {
         document: runtime.document,
         actions: {
@@ -126,11 +115,25 @@ export function useDesktopEditorController({
           openDocument,
           openRecentDocument,
           openFolder,
-          saveDocument: () => saveDocument(false),
-          saveDocumentAs: () => saveDocument(true),
+          saveDocument: async () => {
+            await saveDocument(false);
+          },
+          saveDocumentAs: async () => {
+            await saveDocument(true);
+          },
           openSettings,
-          openMdxComponentMenu: editorCommands.openMdxComponentMenu,
-          continueAiWriting: editorCommands.continueAiWriting,
+          openMdxComponentMenu: async () => {
+            const result = unsupportedEditorUiCommandSlots.openMdxComponentMenu();
+            if (result?.status === "unsupported") {
+              showToast("当前编辑器暂不支持插入 MDX 组件。");
+            }
+          },
+          continueAiWriting: async () => {
+            const result = await unsupportedEditorUiCommandSlots.continueAiWriting();
+            if (result?.status === "unsupported") {
+              showToast("当前编辑器暂不支持 AI 续写。");
+            }
+          },
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
           toggleSidebarPrimary: () => setIsSidebarVisible((v) => !v),
@@ -139,7 +142,6 @@ export function useDesktopEditorController({
     },
     [
       createNewDocument,
-      getEditorCommands,
       hasPendingConfirmation,
       openDocument,
       openFolder,
@@ -147,6 +149,7 @@ export function useDesktopEditorController({
       openSettings,
       saveDocument,
       setIsSidebarVisible,
+      showToast,
       switchMode,
       toggleSourceMode,
     ],
@@ -161,12 +164,19 @@ export function useDesktopEditorController({
     let nextStatus = updateStatus;
 
     const ensureSavedBeforeApply = async () => {
-      if (!runtime.document.getSnapshot().isDirty) {
+      const current = runtime.document.getSnapshot();
+      if (!isDiscardProtectionRequired(current)) {
         return true;
       }
       await requestConfirmation({
-        title: "请先保存文档",
-        description: "当前文档还有未保存的更改。请先保存，再继续更新 App。",
+        title:
+          current.persistenceStatus.kind === "verification-required"
+            ? "保存结果仍需确认"
+            : "请先保存文档",
+        description:
+          current.persistenceStatus.kind === "verification-required"
+            ? "上一次保存结果无法确认。请再次保存并确认成功，再继续更新 App。"
+            : "当前文档还有未保存的更改。请先保存，再继续更新 App。",
         confirmLabel: "知道了",
       });
       return false;
@@ -259,6 +269,7 @@ export function useDesktopEditorController({
     },
     [
       ensureDiscardAllowed,
+      fileService,
       jumpToMarkdownFragment,
       openAssetPath,
       refreshFolderForDocumentPath,
@@ -281,42 +292,6 @@ export function useDesktopEditorController({
         ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。"),
       ),
     [ensureDiscardAllowed],
-  );
-
-  useEffect(
-    () =>
-      bindPasteImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory,
-      }),
-    [
-      applyProgrammaticMarkdown,
-      refreshOpenedFolder,
-      replaceDocument,
-      runFileAction,
-      settings.assetsDirectory,
-    ],
-  );
-
-  useEffect(
-    () =>
-      bindDropImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory,
-      }),
-    [
-      applyProgrammaticMarkdown,
-      refreshOpenedFolder,
-      replaceDocument,
-      runFileAction,
-      settings.assetsDirectory,
-    ],
   );
 
   useEffect(

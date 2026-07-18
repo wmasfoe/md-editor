@@ -6,7 +6,7 @@
 
 `useDocumentUiStore` 历史上承担了两类混合职责：
 
-1. **真实 UI 状态**：`hasActiveDocument`、`openedAsset`、`commitMarkdown` 等，store 初始化时依赖 module-level 单例即可实现。
+1. **真实 UI 状态**：`hasActiveDocument`、`openedAsset` 等不改变文档语义的状态，store 初始化时依赖 module-level 单例即可实现。
 2. **Provider 依赖型动作**：`dispatchCommand`、`openWysiwygLink`、`runEditorUpdateAction`、`openDocumentFromTree`、`openRecentFile`——这些需要 `useEditorUiActions()`（editor-ui Provider）或 `useAppSettings()`（settings context）才能构造。
 
 这导致了 `createMissingBridgeAction` 占位模式：store 里放 no-op stub，对应的 bridge hook 在挂载后通过 `useLayoutEffect → setState` 替换真实实现。这是 `desktop_store_controller_boundary.md` 明确反对的反模式——"store 看起来是行为主人，实际只是 no-op 占位，真实逻辑藏在 controller 生命周期里"。
@@ -38,10 +38,11 @@ AppSettingsProvider
 | `runEditorUpdateAction` | Context | 需要 `useAppSettings()` hooks |
 | `openDocumentFromTree` | Context | 需要 `documentActions`（含 discard 检查） |
 | `openRecentFile` | Context | 同上 |
-| `commitMarkdown` | Store | 只依赖 `runtime` 单例，初始化时即可实现 |
 | `resolveImageSrc` | Store | 同上 |
 | `openAssetPath` / `closeAssetPreview` | Store | 纯 store 状态操作 |
 | `hasActiveDocument` / `openedAsset` | Store | UI 状态 |
+
+文档内容、mode、baseline 和 path 不是 UI store mutation。内容修改必须通过 renderer-first external edit，mode 必须通过 typed mode port，文档边界和 path/save settlement 必须调用对应的 `DocumentState` 语义 API；禁止恢复 snapshot-only `commitMarkdown` helper。
 
 ## 不要再做的事
 

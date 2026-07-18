@@ -82,7 +82,7 @@ Bundled sidecar + downloaded model
   -> HTTP POST 127.0.0.1:<port>/v1/chat/completions
   -> Rust 返回 content
   -> TypeScript 复用 parseAiWritingSuggestion / filterAiSuggestionBySettings
-  -> Milkdown inline suggestion 展示
+  -> CM6 renderer inline suggestion 展示
 ```
 
 ## 4. 技术选型

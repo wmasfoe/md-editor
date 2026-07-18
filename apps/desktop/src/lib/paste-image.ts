@@ -3,8 +3,6 @@ import {
   defaultAssetsDirectoryForDocument,
   imageAltTextFromFileName,
 } from "@md-editor/file-system";
-import type { MarkdownDocumentFile } from "@md-editor/file-system";
-import { fileService } from "../desktop/file-service";
 import { createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
 import { runtime } from "../app/runtime/editor-runtime";
 import type { PastedImageInput } from "../types";
@@ -12,7 +10,7 @@ import type { PastedImageInput } from "../types";
 const imageStorageProvider = createLocalAssetsImageStorageProvider();
 
 export interface PasteImageRuntime {
-  readonly replaceDocument: (document: MarkdownDocumentFile | null) => void;
+  readonly ensureDocumentSaved: () => Promise<boolean>;
   readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
   readonly applyMarkdown: (markdown: string) => void;
   readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
@@ -60,14 +58,9 @@ export async function pasteImageInput(
 
     // 图片资源依赖已保存 Markdown 的目录；未命名文档需要先另存为，后端才能计算稳定目录。
     if (!current.filePath) {
-      const saved = await fileService.saveDocumentAs({
-        filePath: null,
-        markdown: current.markdown,
-      });
-      if (!saved) {
+      if (!(await runtimeActions.ensureDocumentSaved())) {
         return;
       }
-      runtimeActions.replaceDocument(saved);
       current = runtime.document.getSnapshot();
     }
 

@@ -6,7 +6,7 @@ import type {
   ImageStorageProvider,
   MarkdownDocumentFile,
   MarkdownFolder,
-  SaveMarkdownInput,
+  NativeSaveAdapter,
 } from "@md-editor/file-system";
 import type { PastedImageFile } from "../types";
 
@@ -23,14 +23,6 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
     readMarkdownFile(path) {
       assertDesktopRuntime();
       return invoke<MarkdownDocumentFile>("open_markdown_document_at_path", { path });
-    },
-    saveMarkdownFile(input: SaveMarkdownInput) {
-      assertDesktopRuntime();
-      return invoke<MarkdownDocumentFile | null>("save_markdown_document", {
-        filePath: input.filePath,
-        markdown: input.markdown,
-        forceDialog: input.forceDialog ?? false,
-      });
     },
     refreshMarkdownFolder(rootPath) {
       assertDesktopRuntime();
@@ -58,6 +50,19 @@ export function createDesktopFileAdapter(): FileServiceAdapter {
       return invoke<FileTreeMutationResult>("delete_markdown_tree_item", {
         rootPath: input.rootPath,
         path: input.path,
+      });
+    },
+  };
+}
+
+export function createDesktopNativeSaveAdapter(): NativeSaveAdapter {
+  return {
+    saveMarkdownJob(job) {
+      assertDesktopRuntime();
+      return invoke("save_markdown_document_ordered", {
+        orderingToken: job.orderingToken,
+        markdownLf: job.markdownLf,
+        destination: job.destination,
       });
     },
   };

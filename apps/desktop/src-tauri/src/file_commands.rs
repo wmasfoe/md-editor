@@ -9,9 +9,15 @@ use std::{
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{Menu, MenuItemBuilder, PredefinedMenuItem},
-    Manager, WebviewWindow,
+    Manager, State, WebviewWindow,
 };
 use tauri_plugin_dialog::DialogExt;
+
+use crate::save_runtime::{
+    reject_non_main_attach, reject_non_main_save, AttachSaveRuntimeResult, NativeSaveDestination,
+    NativeSaveOrderingToken, NativeSaveResult, SaveCommitGate, SaveCommitResult,
+    SavePathResolution, SaveWarning,
+};
 
 const FILE_TREE_MENU_PREFIX: &str = "md-editor:file-tree:";
 
@@ -451,35 +457,168 @@ pub(crate) fn reveal_file_tree_item_in_finder(
 }
 
 #[tauri::command]
-pub(crate) async fn save_markdown_document(
+pub(crate) async fn attach_save_runtime(
+    window: WebviewWindow,
+    gate: State<'_, SaveCommitGate>,
+) -> Result<AttachSaveRuntimeResult, String> {
+    if let Some(rejection) = reject_non_main_attach(window.label()) {
+        return Ok(rejection);
+    }
+
+    let gate = gate.inner().clone();
+    match tauri::async_runtime::spawn_blocking(move || gate.attach_blocking()).await {
+        Ok(result) => Ok(result),
+        Err(error) => Ok(AttachSaveRuntimeResult::Indeterminate {
+            error_code: format!("save-runtime-attach-join-failed:{error}"),
+        }),
+    }
+}
+
+#[tauri::command]
+pub(crate) async fn save_markdown_document_ordered(
+    window: WebviewWindow,
     app: tauri::AppHandle,
-    file_path: Option<String>,
-    markdown: String,
-    force_dialog: bool,
-) -> Result<Option<MarkdownDocumentFile>, String> {
-    // 保存和另存为共享一个命令：前端负责 dirty 状态，Rust 负责原生弹窗。
-    let path = if force_dialog {
-        let Some(path) = choose_save_path(&app, file_path.as_deref())? else {
-            return Ok(None);
+    gate: State<'_, SaveCommitGate>,
+    ordering_token: NativeSaveOrderingToken,
+    markdown_lf: String,
+    destination: NativeSaveDestination,
+) -> Result<NativeSaveResult, String> {
+    if let Some(rejection) = reject_non_main_save(window.label(), ordering_token.runtime_sequence) {
+        return Ok(rejection);
+    }
+
+    let gate = gate.inner().clone();
+    let resolver_app = app.clone();
+    let runtime_sequence = ordering_token.runtime_sequence;
+    match tauri::async_runtime::spawn_blocking(move || {
+        gate.run_save_job(
+            ordering_token,
+            &markdown_lf,
+            move || resolve_native_save_destination(&resolver_app, destination),
+            move |path, bytes| commit_markdown_save(&app, path, bytes),
+        )
+    })
+    .await
+    {
+        Ok(result) => Ok(result),
+        Err(error) => Ok(NativeSaveResult::indeterminate(
+            runtime_sequence,
+            format!("save-runtime-helper-join-failed:{error}"),
+        )),
+    }
+}
+
+fn resolve_native_save_destination(
+    app: &tauri::AppHandle,
+    destination: NativeSaveDestination,
+) -> SavePathResolution {
+    match destination {
+        NativeSaveDestination::CurrentPath { path } => {
+            if path.trim().is_empty() {
+                return SavePathResolution::Failed {
+                    phase: "validation",
+                    error_code: "empty-current-path".to_string(),
+                };
+            }
+            SavePathResolution::Selected(ensure_markdown_extension(PathBuf::from(path)))
+        }
+        NativeSaveDestination::Prompt { suggested_path } => {
+            match choose_save_path(app, suggested_path.as_deref()) {
+                Ok(Some(path)) => SavePathResolution::Selected(ensure_markdown_extension(path)),
+                Ok(None) => SavePathResolution::Cancelled,
+                Err(error) => SavePathResolution::Failed {
+                    phase: "dialog",
+                    error_code: error,
+                },
+            }
+        }
+    }
+}
+
+fn commit_markdown_save(app: &tauri::AppHandle, path: &Path, bytes: &[u8]) -> SaveCommitResult {
+    commit_markdown_save_with(
+        path,
+        bytes,
+        |file| file.sync_all(),
+        |temporary_path, target_path| fs::rename(temporary_path, target_path),
+        |committed_path| allow_asset_directory_for_file(app, committed_path),
+    )
+}
+
+fn commit_markdown_save_with<Sync, Rename, Allow>(
+    path: &Path,
+    bytes: &[u8],
+    sync: Sync,
+    rename: Rename,
+    allow: Allow,
+) -> SaveCommitResult
+where
+    Sync: FnOnce(&fs::File) -> std::io::Result<()>,
+    Rename: FnOnce(&Path, &Path) -> std::io::Result<()>,
+    Allow: FnOnce(&Path) -> Result<(), String>,
+{
+    let Some(parent) = path.parent() else {
+        return SaveCommitResult::Failed {
+            phase: "validation",
+            error_code: "missing-parent-directory".to_string(),
         };
-        path
-    } else if let Some(file_path) = file_path {
-        PathBuf::from(file_path)
-    } else {
-        let Some(path) = choose_save_path(&app, None)? else {
-            return Ok(None);
+    };
+    if let Err(error) = fs::create_dir_all(parent) {
+        return SaveCommitResult::Failed {
+            phase: "temp-write",
+            error_code: format!("create-parent-failed:{error}"),
         };
-        path
+    }
+    let temporary_path = match temporary_save_path(path) {
+        Ok(path) => path,
+        Err(error) => {
+            return SaveCommitResult::Failed {
+                phase: "temp-write",
+                error_code: error,
+            };
+        }
     };
 
-    let path = ensure_markdown_extension(path);
-    write_atomically(&path, markdown.as_bytes())?;
-    allow_asset_directory_for_file(&app, &path)?;
+    let write_result = (|| {
+        let mut temporary_file =
+            fs::File::create(&temporary_path).map_err(|error| SaveCommitResult::Failed {
+                phase: "temp-write",
+                error_code: format!("temp-create-failed:{error}"),
+            })?;
+        temporary_file
+            .write_all(bytes)
+            .map_err(|error| SaveCommitResult::Failed {
+                phase: "temp-write",
+                error_code: format!("temp-write-failed:{error}"),
+            })?;
+        sync(&temporary_file).map_err(|error| SaveCommitResult::Failed {
+            phase: "temp-sync",
+            error_code: format!("temp-sync-failed:{error}"),
+        })?;
+        drop(temporary_file);
+        rename(&temporary_path, path).map_err(|error| SaveCommitResult::Failed {
+            phase: "rename",
+            error_code: format!("atomic-rename-failed:{error}"),
+        })?;
+        Ok::<(), SaveCommitResult>(())
+    })();
 
-    Ok(Some(MarkdownDocumentFile {
-        file_path: path_to_string(&path),
-        markdown,
-    }))
+    if let Err(result) = write_result {
+        let _ = fs::remove_file(&temporary_path);
+        return result;
+    }
+
+    let warnings = match allow(path) {
+        Ok(()) => Vec::new(),
+        Err(message) => vec![SaveWarning {
+            code: "asset-directory-registration-failed",
+            message,
+        }],
+    };
+    SaveCommitResult::Committed {
+        file_path: path_to_string(path),
+        warnings,
+    }
 }
 
 #[tauri::command]
@@ -1221,6 +1360,112 @@ mod tests {
         assert_eq!(fs::read_to_string(&path).unwrap(), "new");
         assert_eq!(fs::read_to_string(&stale_temp).unwrap(), "stale");
 
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn markdown_commit_renames_synced_bytes_before_reporting_scope_warning() {
+        let root = unique_test_directory("ordered-markdown-warning");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("post.md");
+        fs::write(&path, "old").unwrap();
+
+        let result = commit_markdown_save_with(
+            &path,
+            b"new\n",
+            |file| file.sync_all(),
+            |temporary, target| fs::rename(temporary, target),
+            |_| Err("scope unavailable".to_string()),
+        );
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new\n");
+        assert!(matches!(
+            result,
+            SaveCommitResult::Committed { warnings, .. }
+                if warnings == vec![SaveWarning {
+                    code: "asset-directory-registration-failed",
+                    message: "scope unavailable".to_string(),
+                }]
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn markdown_temp_sync_failure_preserves_existing_target_bytes() {
+        let root = unique_test_directory("ordered-markdown-sync-failure");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("post.md");
+        fs::write(&path, "old").unwrap();
+
+        let result = commit_markdown_save_with(
+            &path,
+            b"new\n",
+            |_| Err(std::io::Error::other("sync failed")),
+            |temporary, target| fs::rename(temporary, target),
+            |_| Ok(()),
+        );
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "old");
+        assert!(matches!(
+            result,
+            SaveCommitResult::Failed {
+                phase: "temp-sync",
+                ..
+            }
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn markdown_rename_failure_preserves_existing_target_bytes() {
+        let root = unique_test_directory("ordered-markdown-rename-failure");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("post.md");
+        fs::write(&path, "old").unwrap();
+
+        let result = commit_markdown_save_with(
+            &path,
+            b"new\n",
+            |file| file.sync_all(),
+            |_, _| Err(std::io::Error::other("rename failed")),
+            |_| Ok(()),
+        );
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "old");
+        assert!(matches!(
+            result,
+            SaveCommitResult::Failed {
+                phase: "rename",
+                ..
+            }
+        ));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn markdown_temp_write_failure_preserves_existing_target_bytes() {
+        let root = unique_test_directory("ordered-markdown-write-failure");
+        fs::create_dir_all(&root).unwrap();
+        let parent_file = root.join("not-a-directory");
+        fs::write(&parent_file, "parent").unwrap();
+        let path = parent_file.join("post.md");
+
+        let result = commit_markdown_save_with(
+            &path,
+            b"new\n",
+            |file| file.sync_all(),
+            |temporary, target| fs::rename(temporary, target),
+            |_| Ok(()),
+        );
+
+        assert!(matches!(
+            result,
+            SaveCommitResult::Failed {
+                phase: "temp-write",
+                ..
+            }
+        ));
+        assert_eq!(fs::read_to_string(&parent_file).unwrap(), "parent");
         fs::remove_dir_all(root).unwrap();
     }
 

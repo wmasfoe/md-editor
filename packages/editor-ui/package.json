@@ -6,8 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./hooks": "./src/hooks/index.ts",
-    "./MilkdownEditor": "./src/components/MilkdownEditor/index.ts",
-    "./SourceEditor": "./src/components/SourceEditor/index.ts",
+    "./CodeMirrorEditor": "./src/components/CodeMirrorEditor/index.ts",
+    "./CodeMirrorEditor/testing": "./src/components/CodeMirrorEditor/testing.ts",
     "./OutlinePanel": "./src/components/OutlinePanel.tsx"
   },
   "scripts": {
@@ -16,21 +16,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@codemirror/lang-markdown": "catalog:",
-    "@codemirror/language": "^6.12.3",
-    "@codemirror/search": "^6.7.0",
-    "@codemirror/state": "^6.6.0",
-    "@codemirror/view": "^6.43.1",
     "@headlessui/react": "catalog:",
     "@heroicons/react": "catalog:",
-    "@md-editor/ai": "workspace:*",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@lezer/highlight": "^1.2.3",
-    "@milkdown/kit": "catalog:",
-    "@milkdown/react": "catalog:",
-    "@uiw/react-codemirror": "catalog:",
-    "shiki": "^4.2.0"
+    "@md-editor/renderer-codemirror": "workspace:*"
   },
   "peerDependencies": {
     "react": "catalog:",

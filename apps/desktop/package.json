@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:e2e": "vite --mode e2e --host 127.0.0.1 --port 4173",
     "build": "tsc -p tsconfig.json && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:browser": "playwright test --config playwright.config.ts"
   },
   "dependencies": {
-    "@codemirror/lang-markdown": "catalog:",
     "@headlessui/react": "catalog:",
     "@heroicons/react": "catalog:",
     "@md-editor/ai": "workspace:*",
@@ -23,13 +24,10 @@
     "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/shared": "workspace:*",
-    "@milkdown/kit": "catalog:",
-    "@milkdown/react": "catalog:",
     "@tauri-apps/api": "catalog:",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
-    "@uiw/react-codemirror": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -37,6 +35,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/react": "catalog:",
