@@ -6,6 +6,7 @@ import {
 } from "@md-editor/editor-ui";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
+import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 
 export interface DesktopCodeMirrorEditorProps {
   readonly hidden?: boolean;
@@ -27,6 +28,9 @@ export function DesktopCodeMirrorEditor({
       fontSize={settings.editor.wysiwygFontSize}
       hidden={hidden}
       lineNumbers={settings.editor.showCodeBlockLineNumbers}
+      resolveImageSrc={(source) =>
+        resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, source)
+      }
       onRendererPortsChange={onRendererPortsChange}
       onQueuedExternalEditResult={(result) => reportQueuedEditResult(result, showToast)}
       onSyncError={(error) => reportSyncError(error, showToast)}

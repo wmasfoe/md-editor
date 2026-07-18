@@ -5,6 +5,22 @@ export interface FrontmatterBlock {
   readonly body: string;
 }
 
+export interface MarkdownSourceRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface FrontmatterSourceRange {
+  readonly status: "closed" | "unterminated";
+  readonly precedence: "frontmatter";
+  readonly fullRange: MarkdownSourceRange;
+  readonly openingFenceRange: MarkdownSourceRange;
+  readonly contentRange: MarkdownSourceRange;
+  readonly closingFenceRange: MarkdownSourceRange | null;
+  readonly raw: string;
+  readonly content: string;
+}
+
 export interface HeadingOutlineItem {
   readonly id: string;
   readonly level: number;
@@ -32,22 +48,64 @@ export interface MarkdownImageSrcResolverOptions {
   readonly hasTauriRuntime?: boolean;
 }
 
-export function splitFrontmatter(markdown: string): FrontmatterBlock | null {
+export function findFrontmatterSourceRange(markdown: string): FrontmatterSourceRange | null {
   const normalized = normalizeLineEndings(markdown);
   if (!normalized.startsWith("---\n")) {
     return null;
   }
 
-  // Frontmatter 作为原始元数据块保存；v0.1 只展示和移动它，
-  // 不解析重排注释、引号或 key 顺序。
-  const closingIndex = normalized.indexOf("\n---\n", 4);
-  if (closingIndex === -1) {
+  let lineStart = 4;
+  while (lineStart <= normalized.length) {
+    const newlineIndex = normalized.indexOf("\n", lineStart);
+    const lineEnd = newlineIndex === -1 ? normalized.length : newlineIndex;
+    if (normalized.slice(lineStart, lineEnd) === "---") {
+      const fullRange = Object.freeze({ from: 0, to: lineEnd });
+      const contentRange = Object.freeze({ from: 4, to: lineStart });
+      return Object.freeze({
+        status: "closed",
+        precedence: "frontmatter",
+        fullRange,
+        openingFenceRange: Object.freeze({ from: 0, to: 3 }),
+        contentRange,
+        closingFenceRange: Object.freeze({ from: lineStart, to: lineEnd }),
+        raw: normalized.slice(fullRange.from, fullRange.to),
+        content: normalized.slice(contentRange.from, contentRange.to),
+      });
+    }
+
+    if (newlineIndex === -1) {
+      break;
+    }
+    lineStart = newlineIndex + 1;
+  }
+
+  const fullRange = Object.freeze({ from: 0, to: normalized.length });
+  const contentRange = Object.freeze({ from: 4, to: normalized.length });
+  return Object.freeze({
+    status: "unterminated",
+    precedence: "frontmatter",
+    fullRange,
+    openingFenceRange: Object.freeze({ from: 0, to: 3 }),
+    contentRange,
+    closingFenceRange: null,
+    raw: normalized,
+    content: normalized.slice(contentRange.from),
+  });
+}
+
+export function splitFrontmatter(markdown: string): FrontmatterBlock | null {
+  const normalized = normalizeLineEndings(markdown);
+  const range = findFrontmatterSourceRange(normalized);
+  if (!range || range.status !== "closed") {
     return null;
   }
 
+  // Preserve Frontmatter as raw source; this layer never parses or reorders YAML.
+  const bodyStart =
+    normalized[range.fullRange.to] === "\n" ? range.fullRange.to + 1 : range.fullRange.to;
   return {
-    raw: normalized.slice(0, closingIndex + "\n---".length),
-    body: normalized.slice(closingIndex + "\n---\n".length),
+    raw: range.raw,
+    body: normalized.slice(bodyStart),
   };
 }
 

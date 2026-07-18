@@ -117,6 +117,15 @@ class StateBackedViewAdapter implements RendererViewAdapter {
     });
   }
 
+  setSelections(ranges: readonly { readonly anchor: number; readonly head: number }[]): void {
+    this.dispatch({
+      selection: EditorSelection.create(
+        ranges.map((range) => EditorSelection.range(range.anchor, range.head)),
+      ),
+      annotations: Transaction.addToHistory.of(false),
+    });
+  }
+
   run(command: StateCommand): boolean {
     return command({
       state: this.#state,
@@ -140,6 +149,7 @@ export interface RendererTestHarness {
   probe(): RendererTestingProbeInternal;
   replaceAsUser(markdown: Markdown): void;
   setSelection(anchor: number, head?: number): void;
+  setSelections(ranges: readonly { readonly anchor: number; readonly head: number }[]): void;
   setScrollTop(value: number): void;
   focus(): void;
   requestMeasure(): void;
@@ -177,6 +187,8 @@ export function createRendererTestHarness(
     probe: () => inspectRendererForTesting(renderer),
     replaceAsUser: (markdown: Markdown) => requireView().replaceAsUser(markdown),
     setSelection: (anchor: number, head?: number) => requireView().setSelection(anchor, head),
+    setSelections: (ranges: readonly { readonly anchor: number; readonly head: number }[]) =>
+      requireView().setSelections(ranges),
     setScrollTop: (value: number) => requireView().setScrollTop(value),
     focus: () => renderer.focus(),
     requestMeasure: () => renderer.requestMeasure(),

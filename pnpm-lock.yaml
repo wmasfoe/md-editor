@@ -314,15 +314,30 @@ importers:
       '@codemirror/lang-markdown':
         specifier: 'catalog:'
         version: 6.5.0
+      '@codemirror/language':
+        specifier: ^6.12.3
+        version: 6.12.3
       '@codemirror/state':
         specifier: ^6.6.0
         version: 6.6.0
       '@codemirror/view':
         specifier: ^6.43.1
         version: 6.43.1
+      '@lezer/common':
+        specifier: ^1.5.2
+        version: 1.5.2
+      '@lezer/markdown':
+        specifier: ^1.6.4
+        version: 1.6.4
+      '@lezer/yaml':
+        specifier: ^1.0.4
+        version: 1.0.4
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../editor-core
+      '@md-editor/markdown-fidelity':
+        specifier: workspace:*
+        version: link:../markdown-fidelity
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1377,6 +1392,9 @@ packages:
 
   '@lezer/markdown@1.6.4':
     resolution: {integrity: sha512-N0SxazMj4k65DBfaf1azqtMZd6u7MqluP84/NZnB/io8Td9aleFmAhz9hcbvSfsxT5tdYlJ5qgv5aMJGY4zEtA==}
+
+  '@lezer/yaml@1.0.4':
+    resolution: {integrity: sha512-2lrrHqxalACEbxIbsjhqGpSW8kWpUKuY6RHgnSAFZa6qK62wvnPxA8hGOwOoDbwHcOFs5M4o27mjGu+P7TvBmw==}
 
   '@mapbox/node-pre-gyp@2.0.3':
     resolution: {integrity: sha512-uwPAhccfFJlsfCxMYTwOdVfOz3xqyj8xYL3zJj8f0pb30tLohnnFPhLuqp4/qoEz8sNxe4SESZedcBojRefIzg==}
@@ -4570,6 +4588,12 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
+
+  '@lezer/yaml@1.0.4':
+    dependencies:
+      '@lezer/common': 1.5.2
+      '@lezer/highlight': 1.2.3
+      '@lezer/lr': 1.4.10
 
   '@mapbox/node-pre-gyp@2.0.3':
     dependencies:

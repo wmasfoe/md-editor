@@ -25,6 +25,7 @@ export interface CodeMirrorEditorProps {
   readonly className?: string;
   readonly style?: CSSProperties;
   readonly ariaLabel?: string;
+  readonly resolveImageSrc?: (source: string) => string;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -38,6 +39,7 @@ export function CodeMirrorEditor({
   className,
   style,
   ariaLabel = "Markdown 编辑器",
+  resolveImageSrc,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -47,9 +49,15 @@ export function CodeMirrorEditor({
   const callbacksRef = useRef({
     onQueuedExternalEditResult,
     onRendererPortsChange,
+    resolveImageSrc,
     onSyncError,
   });
-  callbacksRef.current = { onQueuedExternalEditResult, onRendererPortsChange, onSyncError };
+  callbacksRef.current = {
+    onQueuedExternalEditResult,
+    onRendererPortsChange,
+    resolveImageSrc,
+    onSyncError,
+  };
   const [syncStatus, setSyncStatus] = useState<"synchronized" | "sync-error">("synchronized");
   const { registerRendererPorts } = useEditorUiActions();
   const subscribeSnapshot = useCallback(
@@ -68,6 +76,9 @@ export function CodeMirrorEditor({
     const bridge = createCodeMirrorEditorBridge({
       parent,
       document,
+      resolveImageSrc(source) {
+        return callbacksRef.current.resolveImageSrc?.(source) ?? source;
+      },
       onSyncError(error) {
         setSyncStatus("sync-error");
         callbacksRef.current.onSyncError?.(error);

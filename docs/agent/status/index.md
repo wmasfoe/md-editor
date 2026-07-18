@@ -4,7 +4,7 @@
 
 ## 文档
 
-- CM6 单编辑器迁移实时状态（S1/M0 CM6-only beta 可用、验证证据与后续缺口）： [codemirror_renderer_migration_status.md](./codemirror_renderer_migration_status.md)
+- CM6 单编辑器迁移实时状态（S1/M0 beta、M1/S2 与 M1-FM/S5-FM-only 自动化实现、验证证据及后续缺口）： [codemirror_renderer_migration_status.md](./codemirror_renderer_migration_status.md)
 - 迁移前 M0 技术尖刺结论： [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
 - 迁移前 v0.1 侧栏、Runtime 托管和 Raw 编辑状态： [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)
 - 迁移前 v0.1 打磨改进记录： [v0_1_polish_improvements.md](./v0_1_polish_improvements.md)
