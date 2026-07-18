@@ -28,16 +28,36 @@ import type {
   RendererSyncResult,
 } from "@md-editor/editor-core";
 import { normalizeLineEndings, type Markdown } from "@md-editor/shared";
+import {
+  provideWysiwygDiagnostics,
+  WysiwygDiagnostics,
+  type WysiwygDiagnosticsSnapshot,
+} from "./diagnostics.ts";
+import { markdownRangeIndexField } from "./markdown/range-index.ts";
+import { M1_MARKDOWN_EXTENSIONS } from "./markdown/extensions.ts";
 import { createModeExtensions, editorModeField, setEditorModeEffect } from "./mode.ts";
 import {
   readRendererTransactionOrigin,
   rendererTransactionOrigin,
   type RendererTransactionOrigin,
 } from "./origin.ts";
+import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
+import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-protection.ts";
+import {
+  provideImagePreviewResolver,
+  type ImagePreviewResolver,
+} from "./wysiwyg/image-resolver.ts";
+import {
+  endWysiwygCompositionGuardEffect,
+  inspectWysiwygProjection,
+  startWysiwygCompositionGuardEffect,
+  type WysiwygProjectionSnapshot,
+} from "./wysiwyg/projection-state.ts";
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
   readonly initialSnapshot: DocumentSnapshot;
+  readonly resolveImagePreview?: ImagePreviewResolver;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {
@@ -133,6 +153,10 @@ export interface RendererTestingProbeInternal {
   readonly selectionAnchor: number;
   readonly selectionHead: number;
   readonly selectionRangeCount: number;
+  readonly selectionRanges: readonly {
+    readonly anchor: number;
+    readonly head: number;
+  }[];
   readonly scrollTop: number;
   readonly focused: boolean;
   readonly undoDepth: number;
@@ -157,6 +181,8 @@ export interface RendererTestingProbeInternal {
   readonly lastSyncStatus: RendererSyncResult["status"] | null;
   readonly lastErrorCode: string | null;
   readonly destroyed: boolean;
+  readonly wysiwyg: WysiwygDiagnosticsSnapshot;
+  readonly wysiwygProjection: WysiwygProjectionSnapshot;
 }
 
 class DomRendererViewAdapter implements RendererViewAdapter {
@@ -267,6 +293,7 @@ class CodeMirrorRendererController {
   readonly #lineNumberCompartment = new Compartment();
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
+  readonly #wysiwygDiagnostics = new WysiwygDiagnostics();
 
   #stateEpochSequence = 1;
   #stateEpochId: string;
@@ -295,6 +322,7 @@ class CodeMirrorRendererController {
   #lastErrorCode: string | null = null;
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
   #visibilityRestoreSequence = 0;
+  #modeScrollRestoreSequence = 0;
   #destroyed = false;
 
   constructor(options: CodeMirrorRendererOptions, viewFactory: RendererViewFactory) {
@@ -313,9 +341,24 @@ class CodeMirrorRendererController {
 
     this.#rootExtensions = Object.freeze([
       history(),
+      EditorState.allowMultipleSelections.of(true),
+      EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      markdown(),
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      provideWysiwygDiagnostics(this.#wysiwygDiagnostics),
+      options.resolveImagePreview ? provideImagePreviewResolver(options.resolveImagePreview) : [],
       editorModeField,
+      markdownRangeIndexField,
+      createWysiwygProjectionExtensions([
+        "inline-styles",
+        "headings",
+        "blocks",
+        "links",
+        "images",
+        "thematic-breaks",
+        "default-atoms",
+        "frontmatter",
+      ]),
       EditorView.updateListener.of((update) => this.#handleViewUpdate(update)),
       EditorView.domEventObservers({
         compositionstart: () => this.#startComposition(),
@@ -351,6 +394,14 @@ class CodeMirrorRendererController {
       selectionAnchor: selection.main.anchor,
       selectionHead: selection.main.head,
       selectionRangeCount: selection.ranges.length,
+      selectionRanges: Object.freeze(
+        selection.ranges.map((range) =>
+          Object.freeze({
+            anchor: range.anchor,
+            head: range.head,
+          }),
+        ),
+      ),
       scrollTop: this.#view.getScrollTop(),
       focused: this.#view.hasFocus(),
       undoDepth: undoDepth(this.#view.state),
@@ -375,6 +426,8 @@ class CodeMirrorRendererController {
       lastSyncStatus: this.#lastSyncStatus,
       lastErrorCode: this.#lastErrorCode,
       destroyed: this.#destroyed,
+      wysiwyg: this.#wysiwygDiagnostics.snapshot(),
+      wysiwygProjection: inspectWysiwygProjection(this.#view.state),
     });
   }
 
@@ -542,6 +595,7 @@ class CodeMirrorRendererController {
       annotations: [
         Transaction.addToHistory.of(false),
         isolateHistory.of("full"),
+        authorizeWysiwygProtectedChange.of(true),
         rendererTransactionOrigin.of({ kind: "reconcile" }),
       ],
     });
@@ -607,6 +661,7 @@ class CodeMirrorRendererController {
         annotations: [
           Transaction.addToHistory.of(true),
           isolateHistory.of("full"),
+          authorizeWysiwygProtectedChange.of(true),
           rendererTransactionOrigin.of({
             kind: "external-edit",
             operationId: frozenRequest.operationId,
@@ -867,6 +922,7 @@ class CodeMirrorRendererController {
   }
 
   #dispatchModeChange(mode: EditorMode, origin: RendererTransactionOrigin): void {
+    const scrollTop = this.#view.getScrollTop();
     const scrollSnapshot = this.#view.scrollSnapshot();
     this.#view.dispatch({
       effects: [
@@ -875,6 +931,19 @@ class CodeMirrorRendererController {
         scrollSnapshot,
       ],
       annotations: [Transaction.addToHistory.of(false), rendererTransactionOrigin.of(origin)],
+    });
+    this.#view.setScrollTop(scrollTop);
+    const generation = this.#documentGeneration;
+    const restoreSequence = ++this.#modeScrollRestoreSequence;
+    this.#requestMeasure(() => {
+      if (
+        !this.#destroyed &&
+        this.#documentGeneration === generation &&
+        this.#currentMode() === mode &&
+        this.#modeScrollRestoreSequence === restoreSequence
+      ) {
+        this.#view.setScrollTop(scrollTop);
+      }
     });
   }
 
@@ -962,11 +1031,32 @@ class CodeMirrorRendererController {
   }
 
   #startComposition(): void {
+    if (this.#compositionActive || this.#destroyed) {
+      return;
+    }
     this.#compositionActive = true;
+    this.#view.dispatch({
+      effects: startWysiwygCompositionGuardEffect.of(
+        this.#view.state.selection.ranges.map((range) => ({
+          from: range.from,
+          to: range.to,
+        })),
+      ),
+      annotations: Transaction.addToHistory.of(false),
+    });
   }
 
   #finishComposition(): void {
+    if (!this.#compositionActive) {
+      return;
+    }
     this.#compositionActive = false;
+    if (!this.#destroyed) {
+      this.#view.dispatch({
+        effects: endWysiwygCompositionGuardEffect.of(null),
+        annotations: Transaction.addToHistory.of(false),
+      });
+    }
     const request = this.#queuedExternalEdit;
     this.#queuedExternalEdit = null;
     if (request === null || this.#destroyed) {

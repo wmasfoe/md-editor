@@ -16,6 +16,10 @@ const codeMirrorBridgeSource = readFileSync(
   new URL("../components/CodeMirrorEditor/bridge.ts", import.meta.url),
   "utf8",
 );
+const codeMirrorEditorStyles = readFileSync(
+  new URL("../components/CodeMirrorEditor/CodeMirrorEditor.css", import.meta.url),
+  "utf8",
+);
 
 describe("editor-ui public editor entrypoints", () => {
   it("exposes CodeMirror as the only editor implementation", () => {
@@ -41,6 +45,66 @@ describe("editor-ui public editor entrypoints", () => {
     expect(codeMirrorBridgeSource).toContain("synchronizeRendererEvent");
     expect(codeMirrorEditorSource).not.toMatch(/\bvalue\s*=/u);
     expect(codeMirrorEditorSource).not.toContain("snapshot.markdown");
+  });
+
+  it("styles parser-owned inline and heading projection classes through theme variables", () => {
+    for (const className of [
+      "cm-md-bold",
+      "cm-md-italic",
+      "cm-md-strikethrough",
+      "cm-md-inline-code",
+      "cm-md-heading--level-1",
+      "cm-md-heading--level-6",
+      "cm-md-heading--source-only",
+      "cm-md-marker",
+    ]) {
+      expect(codeMirrorEditorStyles).toContain(`.${className}`);
+    }
+    for (const variableName of [
+      "--theme-strong-accent",
+      "--theme-em-accent",
+      "--theme-del-accent",
+      "--theme-code-accent",
+      "--theme-heading-accent",
+      "--theme-marker-dim",
+    ]) {
+      expect(codeMirrorEditorStyles).toContain(variableName);
+    }
+  });
+
+  it("styles quote, list, and task projection without nested form controls", () => {
+    for (const className of [
+      "cm-md-block-line--quote",
+      "cm-md-block-marker--quote",
+      "cm-md-block-marker--list-item-ordered",
+      "cm-md-task-checkbox",
+      "cm-md-task-checkbox--checked",
+    ]) {
+      expect(codeMirrorEditorStyles).toContain(`.${className}`);
+    }
+    for (const variableName of [
+      "--theme-blockquote-border",
+      "--theme-list-marker",
+      "--theme-checkbox-border",
+      "--theme-checkbox-check",
+    ]) {
+      expect(codeMirrorEditorStyles).toContain(variableName);
+    }
+  });
+
+  it("keeps image resolution injected while renderer-owned media projection uses stable classes", () => {
+    expect(codeMirrorEditorSource).toContain("resolveImageSrc");
+    expect(codeMirrorBridgeSource).toContain("resolveImagePreview");
+    expect(codeMirrorBridgeSource).not.toContain("convertFileSrc");
+    for (const className of [
+      "cm-md-link-label",
+      "cm-md-image-widget",
+      "cm-md-image-widget--failed",
+      "cm-md-thematic-break-widget",
+      "cm-md-thematic-break-widget--selected",
+    ]) {
+      expect(codeMirrorEditorStyles).toContain(`.${className}`);
+    }
   });
 });
 

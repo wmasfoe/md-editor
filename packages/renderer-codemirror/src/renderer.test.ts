@@ -200,6 +200,14 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     const after = setup.harness.probe();
     expectStableIdentity(before, after);
     expect(after.mode).toBe("source");
+    expect(after.wysiwygProjection).toMatchObject({
+      mode: "source",
+      activeSyntaxIds: [],
+      selectedAtomIds: [],
+      protectedRanges: [],
+      layoutDecorationCount: 0,
+      atomicRangeCount: 0,
+    });
     expect(after.undoDepth).toBe(before.undoDepth);
     expect(after.selectionAnchor).toBe(before.selectionAnchor);
     expect(after.selectionHead).toBe(before.selectionHead);
@@ -207,6 +215,20 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.lineNumbersEnabled).toBe(true);
     expect(after.modeTransactionCount).toBe(1);
     expect(after.lineNumberTransactionCount).toBe(1);
+  });
+
+  it("R2a enables parser-backed default atoms in the production root extension", () => {
+    const markdown = "Setext\n=======\n\nhttps://example.com\n\n[^note]\n";
+    const setup = createSetup({ markdown });
+    const probe = setup.harness.probe();
+
+    expect(probe.markdown).toBe(markdown);
+    expect(probe.wysiwygProjection).toMatchObject({
+      mode: "wysiwyg",
+      layoutDecorationCount: 3,
+      atomicRangeCount: 3,
+    });
+    expect(probe.wysiwygProjection.protectedRanges).toHaveLength(3);
   });
 
   it("R3 publishes one local origin and acknowledges it without an echo transaction", () => {
@@ -267,6 +289,22 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       markdown: "xyz\n",
       selectionAnchor: 4,
       selectionHead: 2,
+      externalEditTransactionCount: 1,
+      documentTransactionCount: 1,
+      undoDepth: 1,
+    });
+  });
+
+  it("R5a authorizes external replacement across protected default atoms", () => {
+    const initial = "<https://example.com>\n";
+    const setup = createSetup({ markdown: initial });
+    setup.harness.setSelection(4, 4);
+
+    const result = applyExternalEdit(setup, "replacement\n", "external:r5a");
+
+    expect(result.status).toBe("applied");
+    expect(setup.harness.probe()).toMatchObject({
+      markdown: "replacement\n",
       externalEditTransactionCount: 1,
       documentTransactionCount: 1,
       undoDepth: 1,
@@ -358,6 +396,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       documentGeneration: 3,
       markdown: "three\n",
       queuedExternalEditOperationId: null,
+      wysiwygProjection: { compositionGuardRanges: [] },
     });
   });
 
@@ -417,6 +456,40 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.modeTransactionCount).toBe(50);
     expect(after.lineNumberTransactionCount).toBe(2);
     expect(after.pendingModeOperationId).toBeNull();
+    expect(after.wysiwygProjection.mode).toBe("wysiwyg");
+  });
+
+  it("R11a preserves every selection range and direction across mode switches", () => {
+    const setup = createSetup({ markdown: "alpha beta gamma delta\n" });
+    setup.harness.setSelections([
+      { anchor: 5, head: 1 },
+      { anchor: 8, head: 12 },
+      { anchor: 20, head: 16 },
+    ]);
+    const before = setup.harness.probe();
+
+    expect(before.selectionRanges).toEqual([
+      { anchor: 5, head: 1 },
+      { anchor: 8, head: 12 },
+      { anchor: 20, head: 16 },
+    ]);
+    expect(before.selectionRangeCount).toBe(3);
+
+    for (let index = 0; index < 50; index += 1) {
+      const mode = index % 2 === 0 ? "source" : "wysiwyg";
+      const result = switchEditorModeSafely(setup.document, mode, {
+        operationId: `mode:r11a:${index}`,
+        renderer: setup.harness.renderer,
+      });
+      expect(result.ok).toBe(true);
+    }
+
+    const after = setup.harness.probe();
+    expectStableIdentity(before, after);
+    expect(after.selectionRanges).toEqual(before.selectionRanges);
+    expect(after.selectionRangeCount).toBe(3);
+    expect(after.undoDepth).toBe(before.undoDepth);
+    expect(after.scrollTop).toBe(before.scrollTop);
   });
 
   it("R12 acknowledges metadata and persistence events without CM transactions", () => {
@@ -462,13 +535,19 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
 
   it("R13 keeps one IME request, lets local composition win, and applies unchanged work once", () => {
     const unchanged = createSetup({ markdown: "alpha\n" });
+    const beforeComposition = unchanged.harness.probe();
     unchanged.harness.startComposition();
+    expect(unchanged.harness.probe()).toMatchObject({
+      undoDepth: beforeComposition.undoDepth,
+      wysiwygProjection: { compositionGuardRanges: [{ from: 0, to: 0 }] },
+    });
     expect(applyExternalEdit(unchanged, "first\n", "ime:first").status).toBe("queued-composition");
     expect(applyExternalEdit(unchanged, "second\n", "ime:second").status).toBe(
       "queued-composition",
     );
     expect(unchanged.cancellations).toEqual([{ status: "cancelled", reason: "superseded" }]);
     unchanged.harness.endComposition();
+    expect(unchanged.harness.probe().wysiwygProjection.compositionGuardRanges).toEqual([]);
     expect(unchanged.ready.map((request) => request.operationId)).toEqual(["ime:second"]);
     expect(applyExternalEdit(unchanged, "second\n", "ime:second").status).toBe("applied");
     expect(unchanged.harness.probe()).toMatchObject({
@@ -610,6 +689,30 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     });
   });
 
+  it("R16a authorizes authoritative reconciliation across protected default atoms", () => {
+    const setup = createSetup(
+      { markdown: "[^note]\n" },
+      { wireTransitions: false, commitLocalChanges: false },
+    );
+    const base = setup.document.getSnapshot();
+    const authoritative = cloneSnapshot(base, {
+      markdown: "authoritative\n",
+      stateRevision: base.stateRevision + 1,
+      contentRevision: base.contentRevision + 1,
+    });
+
+    expect(setup.harness.renderer.reconcile(authoritative)).toEqual({
+      status: "reconciled",
+      strategy: "isolated-transaction",
+    });
+    expect(setup.harness.probe()).toMatchObject({
+      markdown: "authoritative\n",
+      reconciliationTransactionCount: 1,
+      documentTransactionCount: 1,
+      undoDepth: 0,
+    });
+  });
+
   it("R17 explicitly resets boundary selection and scroll after setState", () => {
     const setup = createSetup({ markdown: "line 1\nline 2\nline 3\n" });
     setup.harness.setSelection(10, 15);
@@ -627,6 +730,11 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.selectionAnchor).toBe(0);
     expect(after.selectionHead).toBe(0);
     expect(after.scrollTop).toBe(0);
+    expect(after.wysiwyg.fullIndexBuildCount).toBe(before.wysiwyg.fullIndexBuildCount + 1);
+    expect(after.wysiwyg.layoutDecorationReplaceCount).toBe(
+      before.wysiwyg.layoutDecorationReplaceCount + 1,
+    );
+    expect(after.wysiwygProjection.rangeIndexVersion).toBe(1);
   });
 
   it("R18 restores focus-owned scroll after a hidden host is revealed", () => {

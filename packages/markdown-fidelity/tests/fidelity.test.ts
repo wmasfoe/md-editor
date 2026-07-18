@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMarkdownImageSrcResolver,
   extractHeadingOutline,
+  findFrontmatterSourceRange,
   findActiveHeadingIdForLine,
   isLikelyMdxBlock,
   restoreMarkdownImageSources,
@@ -24,6 +25,38 @@ describe("frontmatter preservation", () => {
 
   it("does not treat invalid top matter as frontmatter", () => {
     expect(splitFrontmatter("---\ntitle: Post\n# Missing close")).toBeNull();
+  });
+
+  it("returns exact normalized ranges without parsing YAML", () => {
+    const markdown = '---\r\n# comment\r\ntitle: "Post"\r\n---\r\n# Body\r\n';
+    expect(findFrontmatterSourceRange(markdown)).toEqual({
+      status: "closed",
+      precedence: "frontmatter",
+      fullRange: { from: 0, to: 31 },
+      openingFenceRange: { from: 0, to: 3 },
+      contentRange: { from: 4, to: 28 },
+      closingFenceRange: { from: 28, to: 31 },
+      raw: '---\n# comment\ntitle: "Post"\n---',
+      content: '# comment\ntitle: "Post"\n',
+    });
+  });
+
+  it("reports an unterminated document-start range for safe renderer fallback", () => {
+    expect(findFrontmatterSourceRange("---\ntitle: [unterminated\n")).toEqual({
+      status: "unterminated",
+      precedence: "frontmatter",
+      fullRange: { from: 0, to: 25 },
+      openingFenceRange: { from: 0, to: 3 },
+      contentRange: { from: 4, to: 25 },
+      closingFenceRange: null,
+      raw: "---\ntitle: [unterminated\n",
+      content: "title: [unterminated\n",
+    });
+  });
+
+  it("accepts a closing fence at end of file and rejects later delimiters", () => {
+    expect(findFrontmatterSourceRange("---\ntitle: End\n---")?.status).toBe("closed");
+    expect(findFrontmatterSourceRange("body\n\n---\ntitle: Later\n---")).toBeNull();
   });
 });
 

@@ -49,6 +49,7 @@ export type CodeMirrorEditorSyncError =
 export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
   readonly document: DocumentState;
+  readonly resolveImageSrc?: (source: string) => string;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -126,6 +127,7 @@ export function createCodeMirrorEditorBridge(
   const renderer = createCodeMirrorRenderer({
     parent: options.parent,
     initialSnapshot: options.document.getSnapshot(),
+    resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied") {
