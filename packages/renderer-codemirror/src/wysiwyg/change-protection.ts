@@ -1,15 +1,12 @@
-import {
-  Annotation,
-  EditorState,
-  StateEffect,
-  Transaction,
-  type Extension,
-} from "@codemirror/state";
+import { EditorState, StateEffect, Transaction, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorModeField } from "../mode.ts";
+import {
+  authorizeWysiwygProtectedChange,
+  isWysiwygStructuredCommandAuthorized,
+} from "./change-authorization.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
 
-export const authorizeWysiwygProtectedChange = Annotation.define<boolean>();
 export const protectedWysiwygChangeRejectedEffect = StateEffect.define<null>();
 export const WYSIWYG_SOURCE_MODE_REQUIRED_MESSAGE =
   "This Markdown syntax can only be edited in source mode.";
@@ -39,6 +36,7 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
     transaction.startState.field(editorModeField) === "source" ||
     transaction.isUserEvent("undo") ||
     transaction.isUserEvent("redo") ||
+    isWysiwygStructuredCommandAuthorized(transaction.startState) ||
     transaction.annotation(authorizeWysiwygProtectedChange) === true
   ) {
     return true;

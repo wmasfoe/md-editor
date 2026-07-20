@@ -42,7 +42,7 @@ import {
   type RendererTransactionOrigin,
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
-import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-protection.ts";
+import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
   provideImagePreviewResolver,
   type ImagePreviewResolver,

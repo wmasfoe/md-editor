@@ -2,7 +2,7 @@
 
 > 用途：定义从 Milkdown 迁移到 CodeMirror 6 后的产品行为、领域边界、状态模型、实现顺序和验收契约。
 >
-> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用。M1/S2 核心和独立 M1-FM/S5-FM-only 已在单一 CM6 状态栈上完成自动化实现，renderer 122/122 与完整 Chromium 31/31 通过；macOS Tauri/WebKit N01-N10 仍待人工验收，因此暂不标记 M1/S2 或 M1-FM 完成。S3/S4、S5 HTML/MDX、M2-M6 仍未完成。**
+> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用。M1/S2 核心和独立 M1-FM/S5-FM-only 已在单一 CM6 状态栈上通过 renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 人工验收，现标记为已验证。N09 由用户明确验收覆盖，报告的保存产物未被独立观测，该证据边界保留在状态与 Ultragoal 记录中。S3/S4、S5 HTML/MDX、M2-M6 仍未完成。**
 >
 > 本文是迁移目标和冲突决策的权威来源。迁移在 feature 分支上以单一 CM6 编辑器推进，不维护
 > Milkdown / CM6 双运行时；未达到完整验收前可以发布明确标注缺口的 beta，但不得宣称迁移完成。
@@ -117,6 +117,7 @@ Setext 标题按默认规则在 WYSIWYG 中可视化渲染。首版没有为它�
 WYSIWYG 行为：
 
 - 源码标记始终隐藏，不因光标进入而展开。
+- marker 的实际隐藏 replacement ranges 同时属于 atomic/protected ranges；从 source mode 保留在这些 offset 内的 selection 不能让普通 typing/paste 修改 marker。
 - 引用显示为引用块，列表显示缩进和列表 marker，任务项显示复选框。
 - 任务复选框点击时只切换对应 `[ ]` / `[x]` 源码。
 - Enter 延续当前列表项；空列表项 Enter 退出列表。
@@ -124,7 +125,7 @@ WYSIWYG 行为：
 - Backspace 在行首遵循列表解除和层级回退语义。
 - 完整 marker 编辑统一进入源码模式。
 
-这些交互属于 renderer 的 Markdown 编辑语义，不允许由桌面容器或 React 组件拼接字符串实现。
+这些交互属于 renderer 的 Markdown 编辑语义，不允许由桌面容器或 React 组件拼接字符串实现。只有 renderer-owned 结构化 transaction 可以获得 marker 修改授权；普通输入和粘贴继续受 projection change protection 约束。
 
 ### 4.4 链接
 
@@ -535,7 +536,7 @@ AI provider 仍只返回纯 suggestion 数据，不接触 CM6 selection 或 deco
 
 ## 9. 技术 Spike 与 Go/No-Go
 
-S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编辑器删除和 E11/E12 自动化收口，G008 全仓自动化、cleaner、初轮复核修复后的重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工验收完成且产品确认无问题，因此 S1/M0 已达到 beta 可用门槛。S2-S6 继续在 CM6 单一实现上验证，不建立双运行时。历史提交和文档只作为行为对照，不再接收兼容性修改。
+S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编辑器删除和 E11/E12 自动化收口，G008 全仓自动化、cleaner、初轮复核修复后的重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工验收完成且产品确认无问题，因此 S1/M0 已达到 beta 可用门槛。M1/S2 与 M1-FM/S5-FM-only 已完成验证；S3-S6 的剩余范围继续在 CM6 单一实现上验证，不建立双运行时。历史提交和文档只作为行为对照，不再接收兼容性修改。
 
 ### S1：单实例与数据同步
 
@@ -591,7 +592,7 @@ S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编�
 - 未注册、语法错误、不支持 expression 和渲染异常进入占位块。
 - React root 滚动进出视口无泄漏和明显闪烁。
 
-S5 必须分开记账：`S5-FM` 是只验证 Frontmatter 的独立子 spike，并同时作为 M1-FM 的实现证据；它不得携带 HTML/MDX 工作，也不得把通过写成整个 S5 完成。当前 S5-FM 的单元与完整 Chromium 已通过，macOS Tauri/WebKit N08 仍待人工验收；S5 HTML/MDX 仍未开始。
+S5 必须分开记账：`S5-FM` 是只验证 Frontmatter 的独立子 spike，并同时作为 M1-FM 的实现证据；它不得携带 HTML/MDX 工作，也不得把通过写成整个 S5 完成。当前 S5-FM 的单元、完整 Chromium 与 macOS Tauri/WebKit N08 已通过；S5 HTML/MDX 仍未开始。
 
 ### S6：性能基线
 
@@ -627,8 +628,8 @@ M0 通过后可以发布功能体验 beta。Beta 允许后续里程碑尚未完�
 
 ### 10.1 当前 CM6-only Beta 已知缺口
 
-- M1 core / S2：核心 projection 与 G011 图片/编辑面修正已实现，renderer 122/122 与完整 Chromium 31/31 已通过；macOS Tauri/WebKit N01-N10 未取得人工结果前，不标记 M1/S2 完成。
-- M1-FM / S5-FM-only：Frontmatter panel、YAML highlight/error、range-only edit、source copy 与 undo 已实现；原生 N08 待验。该结论不包括 HTML/MDX。
+- M1 core / S2：核心 projection、G011 图片/编辑面修正与 G012 隐藏 marker 保护已实现，renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，标记为已验证；N09 使用用户明确验收覆盖并保留未独立观测保存产物的 caveat。
+- M1-FM / S5-FM-only：Frontmatter panel、YAML highlight/error、range-only edit、source copy、undo 与原生 N08 已通过，标记为已验证。该结论不包括 HTML/MDX。
 - M2 / S3：代码块语言选择、高亮工具栏、行号、复制和完整键盘交互尚未迁移。
 - M3 / S4：GFM 可视化表格引擎选型、单元格直接编辑、多选、Tab、行列操作和主 history 接入尚未实现。
 - M4 / S5：基础 HTML 白名单渲染、最内层标签展开、官方 MDX 真实渲染、原子选择和错误占位尚未实现；MDX 命令当前明确返回 typed unsupported。
@@ -669,7 +670,7 @@ M0 通过后可以发布功能体验 beta。Beta 允许后续里程碑尚未完�
 
 S1 已建立 `apps/desktop/playwright.config.ts`、`test:browser` / `dev:e2e` 和 LF 严格的内存文件 fixture。E2E 模式运行真实 desktop `App` 与内存平台 adapter；`window.__MD_EDITOR_E2E__` 只在 Vite `e2e` mode 动态加载，暴露只读诊断和受控产品命令。独立 `CodeMirrorEditor` bridge harness 仍用于更窄的 React lifecycle 验证，两者都不进入 production bundle。
 
-G005 bridge harness、G006 产品 Chromium 测试与 G007 E11 共同验证 S1 单实例主链路。M1/S2 与 M1-FM 当前 renderer 14 files / 122 tests、完整 Chromium 31/31 通过：验证 panel 位于唯一 `.cm-editor` / `.cm-content`、无 nested editor/input、隐藏 exact fences、YAML token/error、range edit、composition、undo、完整源码 clipboard、mode、stable view identity、selection-independent 更新和 invalid/unterminated 降级，并覆盖任务项、链接多选激活、活动图片源码与实时预览并存、成功/失败图片的横向和纵向键盘进入、`---` / `***` / `___` 的双向纵向原子选择、窄窗口长行自动换行且无横向滚动、失败占位、图片/分割线原子语义、跨块正反拖选、多选区及解析修复。macOS Tauri/WebKit N01-N10 仍是完成门槛。
+G005 bridge harness、G006 产品 Chromium 测试与 G007 E11 共同验证 S1 单实例主链路。M1/S2 与 M1-FM 当前 renderer 14 files / 126 tests、完整 Chromium 32/32 通过：验证 panel 位于唯一 `.cm-editor` / `.cm-content`、无 nested editor/input、隐藏 exact fences、YAML token/error、range edit、composition、undo、完整源码 clipboard、mode、stable view identity、selection-independent 更新和 invalid/unterminated 降级，并覆盖任务项、隐藏 block marker 保护、链接多选激活、活动图片源码与实时预览并存、成功/失败图片的横向和纵向键盘进入、`---` / `***` / `___` 的双向纵向原子选择、窄窗口长行自动换行且无横向滚动、失败占位、图片/分割线原子语义、跨块正反拖选、多选区及解析修复。2026-07-20 用户在真实 macOS Tauri/WebKit 窗口确认 N01-N10 通过；N09 为用户验收覆盖，保存产物未被独立观测。
 
 S1 原生人工验收已覆盖系统中文 IME、Save/Save As、settings 原生窗口隔离、asset preview、文档边界和真实文件 LF；环境与逐项结论记录在 [`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md)。下列后续 spike 行为仍必须逐项补齐：
 
@@ -770,4 +771,4 @@ pnpm build
 - MDX AST 增量解析成本。
 - block widget 全文索引与大文件性能。
 
-G007 已完成 CM6-only 代码切换和自动化移除门禁，G008 自动化质量门禁、cleaner、初轮复核修复后的全量重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工证据完成，因此 S1/M0 标记为“beta 可用”。S2-S6 或 M1-M5 未完成时仍不得标记 M6 完成或宣称稳定迁移完成。
+G007 已完成 CM6-only 代码切换和自动化移除门禁，G008 自动化质量门禁、cleaner、初轮复核修复后的全量重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工证据完成，因此 S1/M0 标记为“beta 可用”。M1/S2 与 M1-FM/S5-FM-only 已在 2026-07-20 完成对应自动化和原生验收；S3-S6 或 M2-M5 未完成时仍不得标记 M6 完成或宣称稳定迁移完成。

@@ -217,6 +217,37 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect.poll(async () => (await diagnostics(page)).renderer!.markdown).toBe(CORE_MARKDOWN);
   });
 
+  test("E03b: DOM input from a hidden list marker maps to visible content", async ({ page }) => {
+    const markdown = "- item\n";
+    await loadMarkdown(page, markdown);
+    const content = page.locator(".cm-content");
+
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("source"));
+    await clickLineText(page, lineWithText(page, "- item"), "- item");
+    await content.press("Home");
+    await content.press("ArrowRight");
+    expect((await diagnostics(page)).renderer).toMatchObject({
+      selectionAnchor: 1,
+      selectionHead: 1,
+    });
+
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("wysiwyg"));
+    expect((await diagnostics(page)).renderer).toMatchObject({
+      selectionAnchor: 1,
+      selectionHead: 1,
+      wysiwygProjection: {
+        protectedRanges: [{ from: 0, to: 2 }],
+      },
+    });
+    await content.pressSequentially("x");
+    await page.evaluate(() => navigator.clipboard.writeText("pasted"));
+    await content.press(PASTE_KEY);
+
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.markdown)
+      .toBe("- xpasteditem\n");
+  });
+
   test("E04: inactive links show only labels and reveal exact source when touched", async ({
     page,
   }) => {
