@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../markdown/extensions.ts";
 import { editorModeField } from "../mode.ts";
+import { wysiwygChangeProtection } from "./change-protection.ts";
 import {
   continueMarkdownMarkup,
   deleteMarkdownMarkupBackward,
@@ -50,6 +51,7 @@ function createState(
       markdownRangeIndexField,
       configureWysiwygProjectionFeatures(["blocks"]),
       wysiwygProjectionField,
+      wysiwygChangeProtection,
     ],
   });
 }

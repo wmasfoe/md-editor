@@ -62,6 +62,18 @@ export function buildBlockAtomicRanges(
   record: MarkdownRangeRecord,
   state: EditorState,
 ): readonly Range<Decoration>[] {
+  return getBlockProtectedRanges(record, state).map((range) =>
+    Decoration.mark({
+      wysiwygRecordId: record.id,
+      wysiwygRole: `${record.kind}-marker-atomic`,
+    }).range(range.from, range.to),
+  );
+}
+
+export function getBlockProtectedRanges(
+  record: MarkdownRangeRecord,
+  state: EditorState,
+): readonly SourceRange[] {
   if (
     record.parserCoverage !== "complete" ||
     record.renderPolicy !== "marker-hidden" ||
@@ -69,13 +81,7 @@ export function buildBlockAtomicRanges(
   ) {
     return [];
   }
-  return record.markerRanges.map((marker) => {
-    const range = markerReplacementRange(state, record.kind, marker);
-    return Decoration.mark({
-      wysiwygRecordId: record.id,
-      wysiwygRole: `${record.kind}-marker-atomic`,
-    }).range(range.from, range.to);
-  });
+  return record.markerRanges.map((marker) => markerReplacementRange(state, record.kind, marker));
 }
 
 export class BlockMarkerWidget extends WidgetType {

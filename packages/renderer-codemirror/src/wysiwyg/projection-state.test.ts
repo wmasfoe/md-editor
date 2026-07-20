@@ -286,6 +286,49 @@ describe("WYSIWYG projection StateField", () => {
     expect(undoDepth(editedInSource)).toBe(1);
   });
 
+  it.each([
+    ["quote", "> quote\n", 1],
+    ["unordered list", "- item\n", 1],
+    ["ordered list", "1. item\n", 1],
+    ["task", "- [ ] task\n", 3],
+  ])(
+    "protects a source-mode cursor preserved inside a hidden %s marker from typing and paste",
+    (_kind, doc, markerPosition) => {
+      const initial = createProjectionState(EditorSelection.cursor(0), ["blocks"], doc).state;
+      const source = initial.update({
+        effects: setEditorModeEffect.of("source"),
+        annotations: Transaction.addToHistory.of(false),
+      }).state;
+      const positioned = source.update({
+        selection: EditorSelection.cursor(markerPosition),
+        annotations: Transaction.addToHistory.of(false),
+      }).state;
+      const wysiwyg = positioned.update({
+        effects: setEditorModeEffect.of("wysiwyg"),
+        annotations: Transaction.addToHistory.of(false),
+      }).state;
+
+      expect(
+        inspectWysiwygProjection(wysiwyg).protectedRanges.some(
+          (range) => range.from < markerPosition && range.to > markerPosition,
+        ),
+      ).toBe(true);
+      for (const userEvent of ["input.type", "input.paste"] as const) {
+        const attempted = wysiwyg.update({
+          changes: { from: markerPosition, insert: "x" },
+          selection: EditorSelection.cursor(markerPosition + 1),
+          userEvent,
+        });
+        expect(attempted.docChanged).toBe(false);
+        expect(attempted.state.doc.toString()).toBe(doc);
+        expect(attempted.state.selection).toEqual(wysiwyg.selection);
+        expect(
+          attempted.effects.some((effect) => effect.is(protectedWysiwygChangeRejectedEffect)),
+        ).toBe(true);
+      }
+    },
+  );
+
   it("replays source-mode edits through undo and redo after returning to WYSIWYG", () => {
     const document = "<https://example.org>\n";
     const { state } = createProjectionState(EditorSelection.cursor(0), ["default-atoms"], document);

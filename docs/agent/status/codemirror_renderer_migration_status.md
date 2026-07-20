@@ -2,11 +2,11 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-07-18（G011 图片键盘进入、分割线纵向键盘选择、自动换行、编辑面与 Frontmatter 视觉修正已完成自动化实现，完整 Chromium 31/31；macOS Tauri/WebKit N01-N10 待重新人工验收）
+> 最后更新：2026-07-20（M1/S2、M1-FM/S5-FM-only 已通过 renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10；N09 为用户验收覆盖并保留未独立观测产物的 caveat）
 
 ## 当前结论
 
-- **阶段：S1/M0 beta 可用。G001-G007 实现、G008 全仓自动化门禁、changed-file cleaner、初轮独立复核修复、post-fix 全量重验、非交互 Tauri 启动冒烟、清洁独立复核和 2026-07-18 原生人工验收均已通过。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离。**
+- **阶段：S1/M0 beta 可用，M1/S2 与 M1-FM/S5-FM-only 已验证。G001-G009 与 G011 的实现、自动化及对应原生人工矩阵已通过；G010 独立复核发现的隐藏 block marker 修改保护缺口已由 G012 修复，全量自动化重验及最终 code-reviewer `APPROVE` / architect `CLEAR` 均已通过。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离。M2-M6 仍未完成，因此不能宣称完整迁移。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
 - `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
@@ -16,8 +16,8 @@
 - Desktop 新建/打开/空文件夹/删除走 atomic `replaceDocument`，rename/move 走 `setDocumentPath`；程序化同文档修改走 renderer external-edit port，mode 走 typed mode port，不再由 controller 调用旧 snapshot-only 文档兼容方法。
 - `main.tsx` 在 React 前分流 window surface：main 严格执行 attach -> FileService factory -> render，settings 只加载 `SettingsWindowApp`；一个 main-only `RuntimeFileService` 被注入 App、controllers 与 file tree。unknown/attach failure 均 fail closed。
 - 保存 controller 在第一个 `await` 前同步 `beginSave` + enqueue，typed outcome 只 settle 一次；成功采用实际返回 path，warning/failed/cancel/indeterminate 分别反馈，verification-required 继续阻止无提示放弃。
-- 当前是 **CM6-only beta 可用**：E11 deferred controls、E12 production exclusion、G008 post-fix 自动化质量门禁、独立复核和 S1 原生人工验收均已通过。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论只覆盖 S1/M0，不代表 S2-S6、M1-M5 或 M6 已完成。
-- M1/S2 核心投影已在同一 `EditorView` / `EditorState` 上实现 inline marker、活动标题、引用/列表/任务项、链接、图片、分割线和默认可视化；M1-FM/S5-FM-only 又实现了 `.cm-content` 内的 Frontmatter 面板。G011 进一步完成活动图片源码与实时预览并存、成功/失败图片的键盘进入、分割线纵向键盘选择、源码/WYSIWYG 自动换行、失败占位、可读列布局和 Frontmatter 视觉层级。完整 Chromium 31/31 已通过；macOS Tauri/WebKit N01-N10 未取得新一轮人工结果前，仍不标记 M1/S2 或 M1-FM 完成。
+- 当前是 **CM6-only beta 可用**：S1/M0 与 M1 已通过对应自动化和原生人工门禁。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论不代表 M2-M6 已完成。
+- M1/S2 核心投影已在同一 `EditorView` / `EditorState` 上实现 inline marker、活动标题、引用/列表/任务项、链接、图片、分割线和默认可视化；M1-FM/S5-FM-only 又实现了 `.cm-content` 内的 Frontmatter 面板。G011 进一步完成活动图片源码与实时预览并存、成功/失败图片的键盘进入、分割线纵向键盘选择、源码/WYSIWYG 自动换行、失败占位、可读列布局和 Frontmatter 视觉层级；G012 补齐隐藏 block marker 的修改保护。renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，M1/S2 与 M1-FM 标记为已验证；N09 的通过来自用户明确验收覆盖，报告的保存产物未被独立观测。
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
 - 迁移开始后只维护 CM6 编辑器路径，不增加 Milkdown / CM6 功能开关或双向同步层。
 
@@ -46,10 +46,10 @@
 | Spike | 状态 | 当前证据 / 缺口 |
 | --- | --- | --- |
 | S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
-| S2 核心显隐与选择 | Chromium 完成，原生待验 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 122/122 和完整 Chromium 31/31 已通过，原生交互矩阵待验 |
+| S2 核心显隐与选择 | 已验证 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 126/126、完整 Chromium 32/32 和原生 N01-N10 已通过 |
 | S3 代码块 | 未开始 | 当前 CM6 只有 Markdown 源码编辑，尚无语言菜单、高亮工具栏、行号和复制交互 |
 | S4 可视化 GFM 表格 | 未开始 | 尚未完成成熟表格引擎评估和 CM6 history 验证 |
-| S5-FM Frontmatter-only | Chromium 完成，原生待验 | 精确 top-matter range、YAML panel/highlight/error、主 history 和无嵌套 editor 已由单元及 Chromium 证明；N08 待人工 |
+| S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
 | S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
 | S6 性能基线 | 未开始 | 删除旧引擎前未固化同环境量化结果；必须建立 CM6 fixture/门槛，并把历史对照缺口显式保留 |
 
@@ -58,8 +58,8 @@
 | 里程碑 | 状态 | Beta / 完成判断 |
 | --- | --- | --- |
 | M0 CM6 单编辑器主链路 | beta 可用 | CM6-only 主链路、旧引擎删除、E1-E12、G008 自动化质量门禁、独立复核与必需原生人工证据均已通过 |
-| M1 core 基础 Markdown | Chromium 完成，原生待验 | S2 核心行为和 G011 图片/分割线键盘、自动换行及视觉修正已实现，完整 Chromium 31/31 通过；macOS Tauri/WebKit N01-N10 未完成前不标记完成 |
-| M1-FM Frontmatter 子故事 | Chromium 完成，原生待验 | 面板、错误降级、范围编辑、source mode、undo 与源码复制已通过；N08 原生矩阵待验 |
+| M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
+| M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 未开始 | 不可用 |
 | M3 GFM 表格 | 未开始 | 不可用 |
 | M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
@@ -106,8 +106,6 @@
 
 ## 当前 Beta 已知缺口
 
-- M1 core / S2：完整 Chromium 31/31 已覆盖跨块正反拖选、系统剪贴板、键盘/删除、多选区、模式切换、滚动保持、两种模式的长行自动换行、活动图片实时更新、成功/失败图片的上下/左右键源码进入，以及三种分割线的上下键双向精确原子选择；macOS Tauri/WebKit 的系统中文 IME、原生选区绘制、系统剪贴板、图片和主题矩阵仍待人工，因此不能标记 M1/S2 完成。
-- M1-FM / S5-FM-only：Frontmatter 面板已实现；剩余门禁是 macOS Tauri/WebKit 的 YAML IME/edit/error/undo 与跨 panel 边界选择。HTML/MDX 不属于该子故事。
 - M2 / S3：代码块语言选择、高亮工具栏、行号、复制和完整键盘交互尚未实现。
 - M3 / S4：可视化 GFM 表格、单元格编辑、多选、Tab、行列操作和主 history 接入尚未实现。
 - M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
@@ -124,15 +122,15 @@
 - panel 没有 `input`、`textarea`、嵌套 `.cm-editor` 或第二套 history/selection/IME 状态。YAML body 输入是普通 CM6 transaction，undo/redo 与 source mode 继续使用主 `EditorState`。
 - invalid YAML 显示 `YAML error` 并保留可编辑原文；unterminated top matter 显示 `Unterminated`，不降级成 HR/Setext。后置 `---`、相邻 HTML 和 MDX 不进入 Frontmatter 路径。
 - 新鲜自动化：renderer 14 files / 112 tests 通过；聚焦 Chromium `codemirror-m1-frontmatter.spec.ts` 3/3 通过，覆盖单一 editor、DOM 结构、高亮、原位编辑、composition、undo、完整源码复制、mode、invalid/unterminated、稳定 view identity 与 selection-independent panel 更新。
-- 范围声明：上述证据完成 M1-FM 与 S5 的 Frontmatter-only 技术实现，不完成整个 S5；HTML/MDX 仍为 raw/deferred，且没有新增 parser、sanitizer 或运行时。macOS Tauri/WebKit N08 仍由下一阶段原生门禁验证。
+- 范围声明：上述证据与原生 N08 完成 M1-FM 与 S5 的 Frontmatter-only 验证，不完成整个 S5；HTML/MDX 仍为 raw/deferred，且没有新增 parser、sanitizer 或运行时。
 
-## G009 Chromium/Product 通过与原生待验记录
+## G009 Chromium/Product 与原生验收记录
 
 - 新增 `codemirror-m1-s2-wysiwyg.spec.ts` 的真实产品矩阵；完整 Chromium 27/27 通过。覆盖单一 `.cm-editor`、inline/heading/block projection、任务项 pointer/Space/Enter/Tab/Shift+Tab/Backspace、双链接多选激活、图片与分割线原子选择/复制/删除/undo、跨图片/分割线/default atom/Frontmatter 的正反拖选与剪贴板、双向多选区、mode/rerender/preview/scroll/history 保持、parse repair、可访问性和全部 S1 回归。
 - renderer probe 新增不可变 `selectionRanges`；生产 root 显式启用 `EditorState.allowMultipleSelections`。R11a 验证三个正反混合选区经过 50 次模式切换后保留 range count、anchor/head 方向、history、scroll 和 view/state identity。
 - 新鲜自动门禁：workspace 11 个 TypeScript 项目通过；Vitest 50 files / 278 tests 与 release 5/5 通过；renderer 14 files / 113 tests；Oxlint、Prettier、Rust fmt/clippy 通过；完整 Chromium 27/27 通过。独立 verifier 首轮指出双链接 browser multi-range 与 Frontmatter reverse drag 两个缺口，补齐后复核为 browser/product `PASS`。
 - 原生环境已确认：macOS 26.5（build 25F71）、`tauri-cli 2.11.2`、系统启用 ABC 与简体拼音。`pnpm tauri dev --no-watch` 完成 Vite/Cargo 并运行 `target/debug/md-editor`。该进程启动证据不替代交互验收。
-- 自动化边界：当前 Codex 进程 `AXIsProcessTrusted=false`，PID 级事件不能进入 WebKit key window；全局输入与读取既有系统剪贴板不获安全授权。因此 N01-N10 必须由人在真实 Tauri 窗口执行，不能从 Chromium、Node、启动冒烟或旧 S1 人工记录推断。
+- 自动化边界：Codex 进程 `AXIsProcessTrusted=false`，因此 N01-N10 由用户在真实 Tauri/WebKit 窗口执行。2026-07-20 用户明确报告 N01-N10 全部通过；N09 为用户验收覆盖，报告的 `/private/tmp/md-editor-m1-native/saved.md` 未被独立文件系统检查观测，不能写成独立产物验证。
 
 ## G011 图片与编辑面反馈修正
 
@@ -145,20 +143,27 @@
 - Frontmatter 已去掉卡片边框、圆角、底色、`Frontmatter` 标题和 `YAML` 徽标，只以一条细竖线组织 YAML 正文；正常状态不显示标题，异常时才显示简短 status。正文继续位于唯一 `.cm-content`，没有 nested editor、form 或独立 history。
 - 视觉检查覆盖 1280 x 720 和 760 x 520：真实图片活动预览为 190 x 190、源码同时可见；窄窗口编辑面和 Frontmatter 无水平溢出或控件重叠。
 - 新鲜自动门禁：workspace 11 个 TypeScript 项目通过；Vitest 63 files / 386 tests 与 release 5/5 通过；renderer 14 files / 122 tests；完整 Chromium 31/31 通过。此前 G011 的 Oxlint、Prettier、Rust fmt/clippy 和排除站点后的 10 个 workspace build 仍为全绿；根 `pnpm build` 仅因 `next/font` 无法连接 Google Fonts 失败，编辑器和 desktop production build 已通过。
-- G011 不替代原生验收。N05、N06、N08、N10 需要在真实 Tauri/WebKit 窗口按新视觉重新确认，N01-N10 未完成前 G009、M1/S2 和 M1-FM 仍保持原生待验。
+- G011 后续原生验收已由用户在真实 Tauri/WebKit 窗口完成，N05、N06、N08、N10 均按新视觉确认通过。
 
 | 原生项 | 当前状态 | 待确认结果 |
 | --- | --- | --- |
-| N01 系统中文 IME01-IME10 | 待人工 | 候选窗可用、单次提交、selection/history 正确 |
-| N02 正反向跨全部 block family 拖选 | 待人工 | 原生选区连续可见，复制源码精确 |
-| N03 纯键盘 atom/list/task | 待人工 | 无焦点陷阱，选择反馈、删除和 undo 正确 |
-| N04 系统 copy/cut/paste | 待人工 | 底层 Markdown 与 source-only 保护符合矩阵 |
-| N05 相对本地图片 | 待人工 | 预览成功且保存仍保留相对 `src` |
-| N06 失败/慢图片 | 待人工 | 新占位布局/选区稳定，alt/source 可读，源码不变 |
-| N07 mode/scroll/ranges/history | 待人工 | 同一 view/state/history/selection/viewport |
-| N08 Frontmatter YAML | 待人工 | 主 `.cm-content` IME/edit/error/undo，无嵌套焦点/history |
-| N09 Save/Save As | 待人工 | 混合结构编辑后 LF bytes 等于当前 CM6 Markdown |
-| N10 light/dark theme | 待人工 | markers/widgets/selection 清晰且无重叠/位移 |
+| N01 系统中文 IME01-IME10 | 通过 | 候选窗可用、单次提交、selection/history 正确 |
+| N02 正反向跨全部 block family 拖选 | 通过 | 原生选区连续可见，复制源码精确 |
+| N03 纯键盘 atom/list/task | 通过 | 无焦点陷阱，选择反馈、删除和 undo 正确 |
+| N04 系统 copy/cut/paste | 通过 | 底层 Markdown 与 source-only 保护符合矩阵 |
+| N05 相对本地图片 | 通过 | 预览成功且保存仍保留相对 `src` |
+| N06 失败/慢图片 | 通过 | 新占位布局/选区稳定，alt/source 可读，源码不变 |
+| N07 mode/scroll/ranges/history | 通过 | 同一 view/state/history/selection/viewport |
+| N08 Frontmatter YAML | 通过 | 主 `.cm-content` IME/edit/error/undo，无嵌套焦点/history |
+| N09 Save/Save As | 通过（用户覆盖） | 用户确认保存语义通过；报告的保存产物未被独立观测 |
+| N10 light/dark theme | 通过 | markers/widgets/selection 清晰且无重叠/位移 |
+
+## G012 隐藏 block marker 修改保护
+
+- 独立 code-reviewer 复现 source mode 光标位于隐藏引用、列表或任务 marker 内部时，直接构造的 WYSIWYG typing transaction 可以修改 marker；atomic range 只约束导航，不等同于 transaction 保护。
+- quote、unordered/ordered list 和 task 的实际 replacement ranges 现同时进入 `protectedRanges`。普通 typing/paste 命中内部 offset 时保持文档、selection 和 history 不变；覆盖完整 marker 的跨块宽选区仍按既有规则放行。
+- renderer 自有的 Enter、Backspace、Tab、Shift-Tab 和任务切换显式授权。上游 `@codemirror/lang-markdown` 命令通过同步、state-scoped 授权上下文接入，不复制其结构化编辑实现，也不向普通输入泄漏权限。
+- 回归覆盖四类 marker 的 source -> WYSIWYG 保留 offset、typing/paste 拒绝，以及真实 Chromium DOM 输入从隐藏 marker 安全映射到可见正文。post-cleaner 全量门禁通过：11-workspace typecheck/build、Vitest 63 files / 390 tests、release 5/5、renderer 126/126、Oxlint、Prettier、Rust fmt/clippy、Rust 38/38 与 Chromium 32/32；最终独立复核为 code-reviewer `APPROVE`、architect `CLEAR`，无未解决 finding。
 
 ## 文档同步记录
 

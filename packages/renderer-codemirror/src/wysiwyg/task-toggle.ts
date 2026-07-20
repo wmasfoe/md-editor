@@ -3,6 +3,7 @@ import type { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { SourceRange } from "../markdown/range-types.ts";
 import { editorModeField } from "../mode.ts";
+import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 
 export interface TaskMarkerTarget extends SourceRange {
   readonly recordId: string;
@@ -23,7 +24,13 @@ export const toggleSelectedTasks: StateCommand = ({ state, dispatch }) => {
     to: target!.to,
     insert: taskToggleText(state.sliceDoc(target!.from, target!.to)),
   }));
-  dispatch(state.update({ changes, userEvent: "input.task-toggle" }));
+  dispatch(
+    state.update({
+      changes,
+      annotations: authorizeWysiwygProtectedChange.of(true),
+      userEvent: "input.task-toggle",
+    }),
+  );
   return true;
 };
 
@@ -42,6 +49,7 @@ export function toggleTaskMarkerAt(view: EditorView, target: TaskMarkerTarget): 
       to: target.to,
       insert: taskToggleText(state.sliceDoc(target.from, target.to)),
     },
+    annotations: authorizeWysiwygProtectedChange.of(true),
     userEvent: "input.task-toggle",
   });
   return true;

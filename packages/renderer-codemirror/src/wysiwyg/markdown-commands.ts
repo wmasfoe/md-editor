@@ -5,6 +5,10 @@ import { keymap, type Command } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import {
+  authorizeWysiwygProtectedChange,
+  authorizeWysiwygStructuredCommand,
+} from "./change-authorization.ts";
+import {
   clearSelectedAtoms,
   deleteSelectedAtomBackward,
   deleteSelectedAtomForward,
@@ -17,7 +21,13 @@ import { toggleSelectedTasks as toggleSelectedTasksBase } from "./task-toggle.ts
 
 export { toggleTaskMarkerAt } from "./task-toggle.ts";
 
-export const continueMarkdownMarkup: StateCommand = guarded(insertNewlineContinueMarkup);
+const continueMarkdownMarkupAuthorized = authorizeWysiwygStructuredCommand(
+  insertNewlineContinueMarkup,
+);
+const deleteMarkdownMarkupBackwardAuthorized =
+  authorizeWysiwygStructuredCommand(deleteMarkupBackward);
+
+export const continueMarkdownMarkup: StateCommand = guarded(continueMarkdownMarkupAuthorized);
 export const toggleSelectedTasks: StateCommand = guarded(toggleSelectedTasksBase);
 
 export function createMarkdownStructuredCommandExtensions() {
@@ -77,6 +87,7 @@ const indentListItems: StateCommand = ({ state, dispatch }) => {
         targets.map((target) => ({ from: target.marker.from, insert: unit })),
         (change) => change.from,
       ),
+      annotations: authorizeWysiwygProtectedChange.of(true),
       userEvent: "input.indent",
     }),
   );
@@ -98,6 +109,7 @@ const outdentListItems: StateCommand = ({ state, dispatch }) => {
         removals.map((range) => ({ from: range!.from, to: range!.to })),
         (change) => change.from,
       ),
+      annotations: authorizeWysiwygProtectedChange.of(true),
       userEvent: "delete.dedent",
     }),
   );
@@ -118,6 +130,7 @@ const deleteListMarkupBackward: StateCommand = (target) => {
             removals.map((range) => ({ from: range!.from, to: range!.to })),
             (change) => change.from,
           ),
+          annotations: authorizeWysiwygProtectedChange.of(true),
           userEvent: "delete.dedent",
         }),
       );
@@ -127,7 +140,7 @@ const deleteListMarkupBackward: StateCommand = (target) => {
       return false;
     }
   }
-  return deleteMarkupBackward(target);
+  return deleteMarkdownMarkupBackwardAuthorized(target);
 };
 
 export const deleteMarkdownMarkupBackward: StateCommand = guarded(

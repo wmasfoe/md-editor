@@ -15,7 +15,11 @@ import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.t
 import { editorModeField } from "../mode.ts";
 import { buildHeadingLayoutDecorations } from "./inline-heading.ts";
 import { buildLinkMediaAtomicRanges, buildLinkMediaLayoutDecorations } from "./link-projection.ts";
-import { buildBlockAtomicRanges, buildBlockLayoutDecorations } from "./list-projection.ts";
+import {
+  buildBlockAtomicRanges,
+  buildBlockLayoutDecorations,
+  getBlockProtectedRanges,
+} from "./list-projection.ts";
 import {
   buildDefaultAtomAtomicRanges,
   buildDefaultAtomLayoutDecorations,
@@ -441,6 +445,9 @@ function buildProtectedRanges(
       }
       if (hasWysiwygProjectionFeature(state, "frontmatter") && record.kind === "frontmatter") {
         return getFrontmatterProtectedRanges(record, state);
+      }
+      if (hasWysiwygProjectionFeature(state, "blocks")) {
+        return getBlockProtectedRanges(record, state);
       }
       return [];
     }),
