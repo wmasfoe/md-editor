@@ -171,7 +171,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
 
     setup.harness.probe();
     setup.harness.renderer.reconcile(setup.document.getSnapshot());
-    setup.harness.renderer.setLineNumbers(false);
+    setup.harness.renderer.setCodeBlockLineNumbers(false);
     setup.harness.renderer.destroy();
     setup.harness.renderer.destroy();
 
@@ -183,7 +183,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(final.destroyed).toBe(true);
   });
 
-  it("R2 keeps root history while reconfiguring only mode and line-number compartments", () => {
+  it("R2 keeps root history while reconfiguring only mode and code-block line-number compartments", () => {
     const setup = createSetup({ markdown: "alpha\n" });
     setup.harness.replaceAsUser("alpha beta\n");
     setup.harness.setSelection(2, 7);
@@ -195,7 +195,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       renderer: setup.harness.renderer,
     });
     expect(result.ok).toBe(true);
-    expect(setup.harness.renderer.setLineNumbers(true)).toEqual({ status: "applied" });
+    expect(setup.harness.renderer.setCodeBlockLineNumbers(true)).toEqual({ status: "applied" });
 
     const after = setup.harness.probe();
     expectStableIdentity(before, after);
@@ -212,9 +212,9 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.selectionAnchor).toBe(before.selectionAnchor);
     expect(after.selectionHead).toBe(before.selectionHead);
     expect(after.scrollTop).toBe(before.scrollTop);
-    expect(after.lineNumbersEnabled).toBe(true);
+    expect(after.codeBlockLineNumbers).toBe(true);
     expect(after.modeTransactionCount).toBe(1);
-    expect(after.lineNumberTransactionCount).toBe(1);
+    expect(after.codeBlockLineNumberTransactionCount).toBe(1);
   });
 
   it("R2a enables parser-backed default atoms in the production root extension", () => {
@@ -342,6 +342,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     setup.harness.replaceAsUser("old changed\n");
     setup.harness.setSelection(4, 1);
     setup.harness.setScrollTop(240);
+    expect(setup.harness.renderer.setCodeBlockLineNumbers(true)).toEqual({ status: "applied" });
     const before = setup.harness.probe();
 
     const result = setup.document.replaceDocument(
@@ -361,6 +362,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.selectionHead).toBe(0);
     expect(after.scrollTop).toBe(0);
     expect(after.mode).toBe("source");
+    expect(after.codeBlockLineNumbers).toBe(true);
     expect(setup.changes).toHaveLength(1);
   });
 
@@ -429,7 +431,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(setup.syncResults.at(-1)).toEqual({ status: "acknowledged", transactionCount: 0 });
   });
 
-  it("R11 survives 50 mode switches and line-number toggles without state replacement", () => {
+  it("R11 survives 50 mode switches and code-block line-number toggles without state replacement", () => {
     const setup = createSetup({ markdown: "alpha\n" });
     setup.harness.replaceAsUser("alpha beta\n");
     setup.harness.setSelection(4, 7);
@@ -443,8 +445,8 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       });
       expect(result.ok).toBe(true);
     }
-    expect(setup.harness.renderer.setLineNumbers(true)).toEqual({ status: "applied" });
-    expect(setup.harness.renderer.setLineNumbers(false)).toEqual({ status: "applied" });
+    expect(setup.harness.renderer.setCodeBlockLineNumbers(true)).toEqual({ status: "applied" });
+    expect(setup.harness.renderer.setCodeBlockLineNumbers(false)).toEqual({ status: "applied" });
 
     const after = setup.harness.probe();
     expectStableIdentity(before, after);
@@ -454,7 +456,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.undoDepth).toBe(before.undoDepth);
     expect(after.stateRevision).toBe(before.stateRevision + 50);
     expect(after.modeTransactionCount).toBe(50);
-    expect(after.lineNumberTransactionCount).toBe(2);
+    expect(after.codeBlockLineNumberTransactionCount).toBe(2);
     expect(after.pendingModeOperationId).toBeNull();
     expect(after.wysiwygProjection.mode).toBe("wysiwyg");
   });

@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
+    "@md-editor/renderer-codemirror": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/react": "catalog:",

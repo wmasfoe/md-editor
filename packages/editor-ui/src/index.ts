@@ -14,6 +14,7 @@ export {
 export { DocumentBar, type DocumentBarProps } from "./components/DocumentBar";
 export { CodeMirrorEditor, type CodeMirrorEditorProps } from "./components/CodeMirrorEditor";
 export type {
+  CodeMirrorEditorClipboardWriter,
   CodeMirrorEditorExternalEditResult,
   CodeMirrorEditorPorts,
   CodeMirrorEditorSyncError,

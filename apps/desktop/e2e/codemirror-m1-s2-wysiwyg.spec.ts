@@ -684,7 +684,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     );
   });
 
-  test("E07-E08: broad selection preserves source clipboard and defers native deletion", async ({
+  test("E07-E08: broad selection preserves source clipboard and requires source mode for structural deletion", async ({
     page,
   }) => {
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("source"));
@@ -709,6 +709,19 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await content.press(COPY_KEY);
     await expect.poll(() => readClipboard(page)).toBe(FIXTURE_MARKDOWN);
 
+    const rejectionCount = wysiwyg.renderer!.wysiwyg.protectedChangeRejectionCount;
+    await content.press("Backspace");
+    const protectedDeletion = await diagnostics(page);
+    expect(protectedDeletion.renderer).toMatchObject({
+      markdown: FIXTURE_MARKDOWN,
+      selectionAnchor: 0,
+      selectionHead: FIXTURE_MARKDOWN.length,
+    });
+    expect(protectedDeletion.renderer!.wysiwyg.protectedChangeRejectionCount).toBe(
+      rejectionCount + 1,
+    );
+
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("source"));
     await content.press("Backspace");
     await expect.poll(async () => (await diagnostics(page)).renderer!.markdown).toBe("");
     await content.press(UNDO_KEY);
@@ -717,7 +730,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
       .toBe(FIXTURE_MARKDOWN);
   });
 
-  test("E01-AC14: supported defaults visualize while deferred syntax remains raw", async ({
+  test("E01-AC14: supported defaults and code blocks visualize while unsupported syntax stays raw", async ({
     page,
   }) => {
     const defaults = page.locator(".cm-md-default-atom");
@@ -735,7 +748,9 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(page.locator('.cm-md-default-atom[data-syntax-kind="footnote"]')).toHaveCount(2);
 
     const content = page.locator(".cm-content");
-    await expect(content).toContainText("```md");
+    await expect(page.locator(".cm-md-code-toolbar")).toHaveCount(1);
+    await expect(page.locator(".cm-md-code-toolbar__language")).toHaveValue("markdown");
+    await expect(content).not.toContainText("```md");
     await expect(content).toContainText("https://raw.example [^raw]");
     await expect(content).toContainText("| [^table] |");
     await page.locator(".cm-scroller").evaluate((scroller) => {
@@ -829,19 +844,28 @@ function lineWithText(page: Page, text: string): Locator {
 async function clickLineText(page: Page, line: Locator, text: string): Promise<void> {
   const point = await line.evaluate((element, target) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
     let node = walker.nextNode();
     while (node) {
-      const content = node.textContent ?? "";
-      const index = content.indexOf(target);
-      if (index >= 0) {
-        const range = document.createRange();
-        const offset = index + Math.floor(target.length / 2);
-        range.setStart(node, offset);
-        range.setEnd(node, Math.min(offset + 1, content.length));
-        const rect = range.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      }
+      nodes.push(node as Text);
       node = walker.nextNode();
+    }
+    const content = nodes.map((textNode) => textNode.data).join("");
+    const targetOffset = content.indexOf(target);
+    if (targetOffset >= 0) {
+      const midpoint = targetOffset + Math.floor(target.length / 2);
+      let consumed = 0;
+      for (const textNode of nodes) {
+        if (midpoint <= consumed + textNode.data.length) {
+          const offset = Math.min(midpoint - consumed, textNode.data.length);
+          const range = document.createRange();
+          range.setStart(textNode, offset);
+          range.setEnd(textNode, Math.min(offset + 1, textNode.data.length));
+          const rect = range.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+        consumed += textNode.data.length;
+      }
     }
     return null;
   }, text);

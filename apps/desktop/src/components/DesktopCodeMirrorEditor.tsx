@@ -27,7 +27,7 @@ export function DesktopCodeMirrorEditor({
       className="min-h-0 flex-1"
       fontSize={settings.editor.wysiwygFontSize}
       hidden={hidden}
-      lineNumbers={settings.editor.showCodeBlockLineNumbers}
+      codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
       resolveImageSrc={(source) =>
         resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, source)
       }

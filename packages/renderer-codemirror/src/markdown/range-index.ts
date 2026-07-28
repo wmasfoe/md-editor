@@ -13,6 +13,7 @@ import {
   type FrontmatterSourceRange,
 } from "@md-editor/markdown-fidelity";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
+import { findCodeBlockLanguage } from "./code-languages.ts";
 import { getMarkdownNodePolicy, type MarkdownNodePolicy } from "./node-policy.ts";
 import {
   fingerprintSource,
@@ -20,6 +21,10 @@ import {
   sourceRangeContains,
   sourceRangesOverlap,
   type MarkdownParseCoverage,
+  type MarkdownCodeBlockMetadata,
+  type MarkdownCodeBlockStatus,
+  type MarkdownCodeBlockFenceStyle,
+  type MarkdownCodeBlockLineFingerprint,
   type MarkdownRangeRecord,
   type MarkdownRangeSegment,
   type MarkdownRangeSegmentRole,
@@ -110,7 +115,6 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   update(previous, transaction) {
     const diagnostics = getWysiwygDiagnostics(transaction.state);
     if (transaction.docChanged) {
-      diagnostics?.recordDirtyBlockRebuild();
       return updateMarkdownRangeIndex(previous, transaction);
     }
 
@@ -173,6 +177,7 @@ function updateMarkdownRangeIndex(
     ),
   );
   expandFrontmatterPriorityRanges(oldSource, newSource, changedRanges, oldDirty, newDirty);
+  getWysiwygDiagnostics(transaction.state)?.recordDirtyBlockRebuild(newDirty);
 
   const mapped: MarkdownRangeRecord[] = [];
   for (const record of previous.records) {
@@ -250,6 +255,11 @@ function createParserRecord(
   const children = directChildren(node);
   const markerRanges = collectMarkerRanges(node, children, policy);
   const contentRange = resolveContentRange(node, children, markerRanges, policy, source);
+  const parserCoverage = fullRange.to <= coverage.to ? "complete" : "partial";
+  const codeBlock =
+    node.name === "FencedCode" || node.name === "CodeBlock"
+      ? createCodeBlockMetadata(node, children, source, parserCoverage)
+      : undefined;
   const segments: MarkdownRangeSegment[] = markerRanges.map((range) => ({
     ...range,
     role: "marker",
@@ -279,8 +289,222 @@ function createParserRecord(
     interactionPolicy: policy.interactionPolicy,
     priority: policy.priority,
     sourceFingerprint: fingerprint,
-    parserCoverage: fullRange.to <= coverage.to ? "complete" : "partial",
+    parserCoverage,
+    ...(codeBlock ? { codeBlock } : {}),
   });
+}
+
+function createCodeBlockMetadata(
+  node: SyntaxNode,
+  children: readonly SyntaxNode[],
+  source: string,
+  parserCoverage: "complete" | "partial",
+): MarkdownCodeBlockMetadata {
+  return node.name === "FencedCode"
+    ? createFencedCodeBlockMetadata(node, children, source, parserCoverage)
+    : createIndentedCodeBlockMetadata(node, children, source, parserCoverage);
+}
+
+function createFencedCodeBlockMetadata(
+  node: SyntaxNode,
+  children: readonly SyntaxNode[],
+  source: string,
+  parserCoverage: "complete" | "partial",
+): MarkdownCodeBlockMetadata {
+  const fullRange = nodeRange(node);
+  const codeMarks = children.filter((child) => child.name === "CodeMark").map(nodeRange);
+  const openingFenceRange = codeMarks[0] ?? null;
+  const closingFenceRange = codeMarks.length >= 2 ? (codeMarks.at(-1) ?? null) : null;
+  const rawInfoRange = children.find((child) => child.name === "CodeInfo");
+  const bodySegments = children.filter((child) => child.name === "CodeText").map(nodeRange);
+  const sourceBlockRange = lineRangeForSource(source, fullRange);
+  const languageRanges = rawInfoRange
+    ? deriveLanguageInfoRanges(source, nodeRange(rawInfoRange))
+    : { languageTokenRange: null, infoSuffixRange: null };
+  const languageToken = languageRanges.languageTokenRange
+    ? source.slice(languageRanges.languageTokenRange.from, languageRanges.languageTokenRange.to)
+    : "";
+  const resolvedLanguage = findCodeBlockLanguage(languageToken);
+  const stableStatus = validateFencedCodeBlockMarks(source, openingFenceRange, closingFenceRange);
+  const status = resolveCodeBlockStatus(parserCoverage, stableStatus);
+  return {
+    blockKind: "fenced",
+    fenceStyle: openingFenceRange
+      ? fenceStyleFor(source.slice(openingFenceRange.from, openingFenceRange.to))
+      : "none",
+    blockStatus: status,
+    sourceBlockRange,
+    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
+    openingFenceRange,
+    rawInfoRange: rawInfoRange ? nodeRange(rawInfoRange) : null,
+    languageTokenRange: languageRanges.languageTokenRange,
+    infoSuffixRange: languageRanges.infoSuffixRange,
+    bodySegments,
+    syntaxIndentRanges: [],
+    bodyEnvelopeRange: envelopeRange(bodySegments),
+    closingFenceRange,
+    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
+    languageInfo: {
+      raw: rawInfoRange ? source.slice(rawInfoRange.from, rawInfoRange.to) : "",
+      token: languageToken,
+      resolvedName: resolvedLanguage?.name ?? null,
+    },
+  };
+}
+
+function createIndentedCodeBlockMetadata(
+  node: SyntaxNode,
+  children: readonly SyntaxNode[],
+  source: string,
+  parserCoverage: "complete" | "partial",
+): MarkdownCodeBlockMetadata {
+  const fullRange = nodeRange(node);
+  const bodySegments = children.filter((child) => child.name === "CodeText").map(nodeRange);
+  const sourceBlockRange = lineRangeForSource(source, {
+    from: bodySegments[0]?.from ?? fullRange.from,
+    to: bodySegments.at(-1)?.to ?? fullRange.to,
+  });
+  const syntaxIndentRanges = collectIndentedSyntaxRanges(source, bodySegments);
+  return {
+    blockKind: "indented",
+    fenceStyle: "none",
+    blockStatus: resolveCodeBlockStatus(parserCoverage, "closed"),
+    sourceBlockRange,
+    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
+    openingFenceRange: null,
+    rawInfoRange: null,
+    languageTokenRange: null,
+    infoSuffixRange: null,
+    bodySegments,
+    syntaxIndentRanges,
+    bodyEnvelopeRange: envelopeRange(bodySegments),
+    closingFenceRange: null,
+    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
+    languageInfo: {
+      raw: "",
+      token: "",
+      resolvedName: null,
+    },
+  };
+}
+
+function deriveLanguageInfoRanges(
+  source: string,
+  rawInfoRange: SourceRange,
+): Pick<MarkdownCodeBlockMetadata, "languageTokenRange" | "infoSuffixRange"> {
+  let tokenFrom = rawInfoRange.from;
+  while (tokenFrom < rawInfoRange.to && isHorizontalSpace(source[tokenFrom] ?? "")) {
+    tokenFrom += 1;
+  }
+  let tokenTo = tokenFrom;
+  while (tokenTo < rawInfoRange.to && !isHorizontalSpace(source[tokenTo] ?? "")) {
+    tokenTo += 1;
+  }
+  if (tokenFrom === tokenTo) {
+    return { languageTokenRange: null, infoSuffixRange: rawInfoRange };
+  }
+  return {
+    languageTokenRange: { from: tokenFrom, to: tokenTo },
+    infoSuffixRange: { from: tokenTo, to: rawInfoRange.to },
+  };
+}
+
+function collectIndentedSyntaxRanges(
+  source: string,
+  bodySegments: readonly SourceRange[],
+): SourceRange[] {
+  const ranges: SourceRange[] = [];
+  for (const segment of bodySegments) {
+    let lineStart = source.lastIndexOf("\n", Math.max(0, segment.from - 1)) + 1;
+    while (lineStart < segment.to) {
+      const lineEnd = source.indexOf("\n", lineStart);
+      const to = lineEnd === -1 ? segment.to : Math.min(lineEnd + 1, segment.to);
+      const bodyStart =
+        lineStart === source.lastIndexOf("\n", Math.max(0, segment.from - 1)) + 1
+          ? segment.from
+          : lineStart;
+      if (lineStart < bodyStart) {
+        ranges.push({ from: lineStart, to: bodyStart });
+      }
+      lineStart = to;
+    }
+  }
+  return ranges;
+}
+
+function envelopeRange(ranges: readonly SourceRange[]): SourceRange | null {
+  if (ranges.length === 0) {
+    return null;
+  }
+  return { from: ranges[0].from, to: ranges.at(-1)?.to ?? ranges[0].to };
+}
+
+function resolveCodeBlockStatus(
+  parserCoverage: "complete" | "partial",
+  stableStatus: Exclude<MarkdownCodeBlockStatus, "partial">,
+): MarkdownCodeBlockStatus {
+  return parserCoverage === "partial" ? "partial" : stableStatus;
+}
+
+function validateFencedCodeBlockMarks(
+  source: string,
+  openingFenceRange: SourceRange | null,
+  closingFenceRange: SourceRange | null,
+): Exclude<MarkdownCodeBlockStatus, "partial"> {
+  if (!openingFenceRange) {
+    return "malformed";
+  }
+  const openingMark = source.slice(openingFenceRange.from, openingFenceRange.to);
+  const openingStyle = fenceStyleFor(openingMark);
+  if (openingStyle === "none" || openingMark.length < 3) {
+    return "malformed";
+  }
+  if (!closingFenceRange) {
+    return "unclosed";
+  }
+  const closingMark = source.slice(closingFenceRange.from, closingFenceRange.to);
+  if (fenceStyleFor(closingMark) !== openingStyle || closingMark.length < openingMark.length) {
+    return "malformed";
+  }
+  return "closed";
+}
+
+function fenceStyleFor(mark: string): MarkdownCodeBlockFenceStyle {
+  if (mark.startsWith("`")) {
+    return "backtick";
+  }
+  if (mark.startsWith("~")) {
+    return "tilde";
+  }
+  return "none";
+}
+
+function fingerprintSourceLines(
+  source: string,
+  sourceBlockRange: SourceRange,
+): MarkdownCodeBlockLineFingerprint[] {
+  const fingerprints: MarkdownCodeBlockLineFingerprint[] = [];
+  let from = sourceBlockRange.from;
+  while (from <= sourceBlockRange.to && from < source.length) {
+    const newline = source.indexOf("\n", from);
+    const to = newline === -1 || newline > sourceBlockRange.to ? sourceBlockRange.to : newline;
+    fingerprints.push({
+      from,
+      to,
+      fingerprint: fingerprintSource(source.slice(from, to)),
+    });
+    if (newline === -1 || newline >= sourceBlockRange.to) {
+      break;
+    }
+    from = newline + 1;
+  }
+  if (sourceBlockRange.from === sourceBlockRange.to) {
+    fingerprints.push({
+      ...sourceBlockRange,
+      fingerprint: fingerprintSource(""),
+    });
+  }
+  return fingerprints;
 }
 
 function collectMarkerRanges(
@@ -409,6 +633,39 @@ function freezeRecord(record: MarkdownRangeRecord): MarkdownRangeRecord {
     contentRange: record.contentRange ? freezeSourceRange(record.contentRange) : null,
     markerRanges: Object.freeze(record.markerRanges.map(freezeSourceRange)),
     segments: Object.freeze(record.segments.map((segment) => Object.freeze({ ...segment }))),
+    ...(record.codeBlock ? { codeBlock: freezeCodeBlockMetadata(record.codeBlock) } : {}),
+  });
+}
+
+function freezeCodeBlockMetadata(metadata: MarkdownCodeBlockMetadata): MarkdownCodeBlockMetadata {
+  return Object.freeze({
+    ...metadata,
+    sourceBlockRange: freezeSourceRange(metadata.sourceBlockRange),
+    openingFenceRange: metadata.openingFenceRange
+      ? freezeSourceRange(metadata.openingFenceRange)
+      : null,
+    rawInfoRange: metadata.rawInfoRange ? freezeSourceRange(metadata.rawInfoRange) : null,
+    languageTokenRange: metadata.languageTokenRange
+      ? freezeSourceRange(metadata.languageTokenRange)
+      : null,
+    infoSuffixRange: metadata.infoSuffixRange ? freezeSourceRange(metadata.infoSuffixRange) : null,
+    bodySegments: Object.freeze(metadata.bodySegments.map(freezeSourceRange)),
+    syntaxIndentRanges: Object.freeze(metadata.syntaxIndentRanges.map(freezeSourceRange)),
+    bodyEnvelopeRange: metadata.bodyEnvelopeRange
+      ? freezeSourceRange(metadata.bodyEnvelopeRange)
+      : null,
+    closingFenceRange: metadata.closingFenceRange
+      ? freezeSourceRange(metadata.closingFenceRange)
+      : null,
+    sourceLineFingerprints: Object.freeze(
+      metadata.sourceLineFingerprints.map((line) =>
+        Object.freeze({
+          ...freezeSourceRange(line),
+          fingerprint: line.fingerprint,
+        }),
+      ),
+    ),
+    languageInfo: Object.freeze({ ...metadata.languageInfo }),
   });
 }
 
@@ -437,10 +694,14 @@ function mapRecord(
     const range = mapRange(segment, changes);
     return range ? { ...range, role: segment.role } : null;
   });
+  const codeBlock = record.codeBlock
+    ? mapCodeBlockMetadata(record.codeBlock, changes, newSource)
+    : undefined;
   if (
     (record.contentRange && !contentRange) ||
     markerRanges.some((range) => !range) ||
-    segments.some((segment) => !segment)
+    segments.some((segment) => !segment) ||
+    (record.codeBlock && !codeBlock)
   ) {
     return null;
   }
@@ -452,7 +713,68 @@ function mapRecord(
     contentRange,
     markerRanges: markerRanges as SourceRange[],
     segments: segments as MarkdownRangeSegment[],
+    ...(codeBlock ? { codeBlock } : {}),
   });
+}
+
+function mapCodeBlockMetadata(
+  metadata: MarkdownCodeBlockMetadata,
+  changes: ChangeDesc,
+  newSource: string,
+): MarkdownCodeBlockMetadata | null {
+  const sourceBlockRange = mapRange(metadata.sourceBlockRange, changes);
+  const openingFenceRange = mapOptionalRange(metadata.openingFenceRange, changes);
+  const rawInfoRange = mapOptionalRange(metadata.rawInfoRange, changes);
+  const languageTokenRange = mapOptionalRange(metadata.languageTokenRange, changes);
+  const infoSuffixRange = mapOptionalRange(metadata.infoSuffixRange, changes);
+  const bodySegments = metadata.bodySegments.map((range) => mapRange(range, changes));
+  const syntaxIndentRanges = metadata.syntaxIndentRanges.map((range) => mapRange(range, changes));
+  const bodyEnvelopeRange = mapOptionalRange(metadata.bodyEnvelopeRange, changes);
+  const closingFenceRange = mapOptionalRange(metadata.closingFenceRange, changes);
+  const sourceLineFingerprints = metadata.sourceLineFingerprints.map((line) => {
+    const range = mapRange(line, changes);
+    return range ? { ...range, fingerprint: line.fingerprint } : null;
+  });
+  if (
+    !sourceBlockRange ||
+    openingFenceRange === undefined ||
+    rawInfoRange === undefined ||
+    languageTokenRange === undefined ||
+    infoSuffixRange === undefined ||
+    bodySegments.some((range) => !range) ||
+    syntaxIndentRanges.some((range) => !range) ||
+    bodyEnvelopeRange === undefined ||
+    closingFenceRange === undefined ||
+    sourceLineFingerprints.some((line) => !line)
+  ) {
+    return null;
+  }
+  if (
+    fingerprintSource(newSource.slice(sourceBlockRange.from, sourceBlockRange.to)) !==
+    metadata.sourceFingerprint
+  ) {
+    return null;
+  }
+  return {
+    ...metadata,
+    sourceBlockRange,
+    openingFenceRange,
+    rawInfoRange,
+    languageTokenRange,
+    infoSuffixRange,
+    bodySegments: bodySegments as SourceRange[],
+    syntaxIndentRanges: syntaxIndentRanges as SourceRange[],
+    bodyEnvelopeRange,
+    closingFenceRange,
+    sourceLineFingerprints: sourceLineFingerprints as MarkdownCodeBlockLineFingerprint[],
+  };
+}
+
+function mapOptionalRange(
+  range: SourceRange | null,
+  changes: ChangeDesc,
+): SourceRange | null | undefined {
+  return range ? (mapRange(range, changes) ?? undefined) : null;
 }
 
 function mapRange(range: SourceRange, changes: ChangeDesc): SourceRange | null {
@@ -603,6 +925,10 @@ function skipHorizontalSpace(source: string, from: number, to: number): number {
     position += 1;
   }
   return position;
+}
+
+function isHorizontalSpace(character: string): boolean {
+  return character === " " || character === "\t";
 }
 
 function trimTrailingLineBreak(source: string, from: number, minimum: number): number {

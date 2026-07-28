@@ -25,6 +25,10 @@ import {
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
 } from "./projection-state.ts";
+import {
+  codeBlockLineNumbersField,
+  setCodeBlockLineNumbersEffect,
+} from "./code-block-projection.ts";
 import { buildVisibleMarkdownMarks } from "./visible-marks.ts";
 
 const DOCUMENT = [
@@ -55,6 +59,7 @@ function createProjectionState(
       editorModeField,
       markdownRangeIndexField,
       configureWysiwygProjectionFeatures(features),
+      codeBlockLineNumbersField,
       wysiwygProjectionField,
       wysiwygChangeProtection,
     ],
@@ -275,6 +280,7 @@ describe("WYSIWYG projection StateField", () => {
         to: broadSelection.selection.main.to,
         insert: "replacement",
       },
+      userEvent: "input.paste",
     }).state;
     expect(broadlyDeleted.doc.toString()).toContain("replacement");
     expect(broadlyDeleted.doc.toString()).not.toContain("https://example.org");
@@ -386,6 +392,169 @@ describe("WYSIWYG projection StateField", () => {
       indexBeforeRefresh.version + 1,
     );
     expect(undoDepth(refreshed)).toBe(depthBeforeRefresh);
+  });
+
+  it("projects closed fenced code blocks with hidden protected syntax and renderer toolbar", () => {
+    const doc = ["Before", "", "```ts meta=1", "const x = 1;", "x++;", "```", "", "After"].join(
+      "\n",
+    );
+    const markerPosition = doc.indexOf("```");
+    const { state } = createProjectionState(
+      EditorSelection.cursor(doc.indexOf("const")),
+      ["blocks"],
+      doc,
+    );
+    const record = state.field(markdownRangeIndexField).byKind("deferred-code")[0];
+    const projection = state.field(wysiwygProjectionField);
+    const layoutSpecs: unknown[] = [];
+    const atomicSpecs: unknown[] = [];
+
+    projection.layoutDecorations.between(0, state.doc.length, (_from, _to, value) => {
+      layoutSpecs.push(value.spec);
+    });
+    projection.atomicRanges.between(0, state.doc.length, (_from, _to, value) => {
+      atomicSpecs.push(value.spec);
+    });
+
+    expect(record?.codeBlock?.blockStatus).toBe("closed");
+    expect(inspectWysiwygProjection(state).protectedRanges).toEqual([
+      record?.codeBlock?.openingFenceRange,
+      record?.codeBlock?.rawInfoRange,
+      record?.codeBlock?.closingFenceRange,
+    ]);
+    expect(
+      layoutSpecs.some(
+        (spec) => (spec as { hiddenCodeBlockSyntax?: boolean }).hiddenCodeBlockSyntax,
+      ),
+    ).toBe(true);
+    expect(layoutSpecs.some((spec) => "widget" in (spec as Record<string, unknown>))).toBe(true);
+    expect(atomicSpecs).toHaveLength(3);
+
+    const blocked = state.update({
+      changes: { from: markerPosition + 1, insert: "x" },
+      selection: EditorSelection.cursor(markerPosition + 2),
+      userEvent: "input.type",
+    });
+    expect(blocked.docChanged).toBe(false);
+    expect(blocked.state.doc.toString()).toBe(doc);
+    expect(blocked.effects.some((effect) => effect.is(protectedWysiwygChangeRejectedEffect))).toBe(
+      true,
+    );
+  });
+
+  it("keeps an empty fenced body as one visible semantic code line", () => {
+    const doc = ["Before", "", "```js", "```", "", "After"].join("\n");
+    const bodyAnchor = doc.lastIndexOf("```");
+    const { state } = createProjectionState(EditorSelection.cursor(bodyAnchor), ["blocks"], doc);
+    const projection = state.field(wysiwygProjectionField);
+    const structuralLines: number[] = [];
+    const codeLines: number[] = [];
+
+    projection.layoutDecorations.between(0, state.doc.length, (from, _to, value) => {
+      const attributes = (value.spec as { attributes?: Record<string, string> }).attributes;
+      if (attributes?.["data-md-code-structural-line"] === "fence") {
+        structuralLines.push(from);
+      }
+      if (attributes?.["data-md-code-block-id"] && attributes.class?.includes("cm-md-code-line")) {
+        codeLines.push(from);
+      }
+    });
+
+    expect(structuralLines).toEqual([doc.indexOf("```")]);
+    expect(codeLines).toEqual([bodyAnchor]);
+    expect(inspectWysiwygProjection(state).protectedRanges).toHaveLength(3);
+  });
+
+  it("protects indented structural indentation while leaving semantic body editable", () => {
+    const doc = ["Before", "", "    alpha", "      beta", "", "After"].join("\n");
+    const bodyPosition = doc.indexOf("alpha");
+    const indentPosition = doc.indexOf("    alpha") + 1;
+    const { state } = createProjectionState(EditorSelection.cursor(bodyPosition), ["blocks"], doc);
+    const record = state.field(markdownRangeIndexField).byKind("deferred-code")[0];
+
+    expect(record?.codeBlock?.blockKind).toBe("indented");
+    expect(inspectWysiwygProjection(state).protectedRanges).toEqual(
+      record?.codeBlock?.syntaxIndentRanges,
+    );
+
+    const blocked = state.update({
+      changes: { from: indentPosition, insert: "x" },
+      selection: EditorSelection.cursor(indentPosition + 1),
+      userEvent: "input.type",
+    });
+    expect(blocked.docChanged).toBe(false);
+
+    const edited = state.update({
+      changes: { from: bodyPosition, insert: "x" },
+      selection: EditorSelection.cursor(bodyPosition + 1),
+      userEvent: "input.type",
+    }).state;
+    expect(edited.doc.toString()).toContain("    xalpha");
+  });
+
+  it("adds direct block-local line decorations only when codeBlockLineNumbers is enabled", () => {
+    const doc = ["```", "one", "two wrapped source line", "```", "", "tail"].join("\n");
+    const { state } = createProjectionState(
+      EditorSelection.cursor(doc.indexOf("one")),
+      ["blocks"],
+      doc,
+    );
+    const enabled = state.update({
+      effects: setCodeBlockLineNumbersEffect.of(true),
+      annotations: Transaction.addToHistory.of(false),
+    }).state;
+    const disabledNumbers: string[] = [];
+    const enabledNumbers: string[] = [];
+
+    state
+      .field(wysiwygProjectionField)
+      .layoutDecorations.between(0, state.doc.length, (_from, _to, value) => {
+        const attrs = (value.spec as { attributes?: Record<string, string> }).attributes;
+        if (attrs?.["data-md-code-line-number"]) {
+          disabledNumbers.push(attrs["data-md-code-line-number"]);
+        }
+      });
+    enabled
+      .field(wysiwygProjectionField)
+      .layoutDecorations.between(0, enabled.doc.length, (_from, _to, value) => {
+        const attrs = (value.spec as { attributes?: Record<string, string> }).attributes;
+        if (attrs?.["data-md-code-line-number"]) {
+          enabledNumbers.push(attrs["data-md-code-line-number"]);
+        }
+      });
+
+    expect(disabledNumbers).toEqual([]);
+    expect(enabledNumbers).toEqual(["1", "2"]);
+    expect(undoDepth(enabled)).toBe(0);
+  });
+
+  it("fails open for unclosed fenced code and source mode reveals all code syntax", () => {
+    const doc = ["Before", "", "```ts", "const x = 1;"].join("\n");
+    const { state } = createProjectionState(
+      EditorSelection.cursor(doc.indexOf("const")),
+      ["blocks"],
+      doc,
+    );
+    const record = state.field(markdownRangeIndexField).byKind("deferred-code")[0];
+
+    expect(record?.codeBlock?.blockStatus).toBe("unclosed");
+    expect(inspectWysiwygProjection(state)).toMatchObject({
+      protectedRanges: [],
+      atomicRangeCount: 0,
+    });
+    expect(state.field(wysiwygProjectionField).layoutDecorations.size).toBe(0);
+
+    const sourceState = state.update({
+      effects: [setEditorModeEffect.of("source"), setCodeBlockLineNumbersEffect.of(true)],
+      annotations: Transaction.addToHistory.of(false),
+    }).state;
+    expect(inspectWysiwygProjection(sourceState)).toMatchObject({
+      mode: "source",
+      protectedRanges: [],
+      layoutDecorationCount: 0,
+      atomicRangeCount: 0,
+    });
+    expect(sourceState.doc.toString()).toBe(doc);
   });
 
   it("builds paint-only inline Marks from visible ranges only", () => {

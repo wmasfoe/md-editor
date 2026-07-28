@@ -1,4 +1,5 @@
 export type M1MarkdownFixtureKind = "combined" | "malformed" | "partial";
+export type M2CodeBlockFixtureKind = "fenced" | "indented" | "malformed" | "partial";
 
 export interface M1MarkdownFixture {
   readonly id: string;
@@ -8,12 +9,31 @@ export interface M1MarkdownFixture {
   readonly deferredSourceFragments: readonly string[];
 }
 
+export interface M2CodeBlockFixture {
+  readonly id: string;
+  readonly kind: M2CodeBlockFixtureKind;
+  readonly markdown: string;
+}
+
+export interface M2CodeBlockPerformanceFixture {
+  readonly id: "M2C-F18";
+  readonly markdown: string;
+  readonly fencedBlockCount: 51;
+  readonly regularBlockCount: 50;
+  readonly regularBodyLineCount: 200;
+  readonly hugeBodyLineCount: 20_000;
+}
+
 function defineFixture(fixture: M1MarkdownFixture): M1MarkdownFixture {
   return Object.freeze({
     ...fixture,
     requiredSourceFragments: Object.freeze([...fixture.requiredSourceFragments]),
     deferredSourceFragments: Object.freeze([...fixture.deferredSourceFragments]),
   });
+}
+
+function defineCodeBlockFixture(fixture: M2CodeBlockFixture): M2CodeBlockFixture {
+  return Object.freeze({ ...fixture });
 }
 
 export const M1_MARKDOWN_FIXTURES: readonly M1MarkdownFixture[] = Object.freeze([
@@ -142,10 +162,122 @@ tags:
   }),
 ]);
 
+export const M2_CODE_BLOCK_FIXTURES: readonly M2CodeBlockFixture[] = Object.freeze([
+  defineCodeBlockFixture({
+    id: "M2C-F01",
+    kind: "fenced",
+    markdown: "```\nplain body\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F02",
+    kind: "fenced",
+    markdown: "~~~~ts\nconst value = 1;\n~~~~\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F05",
+    kind: "fenced",
+    markdown: "```ts meta=1 keep\nconst value = 1;\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F05B",
+    kind: "fenced",
+    markdown: "```   ts meta=1\nbody\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F06",
+    kind: "fenced",
+    markdown: "````\n``` remains body\n````\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F07",
+    kind: "indented",
+    markdown: "    first\n      second\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F08",
+    kind: "indented",
+    markdown: "    first\n\n      second\n    third\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F09",
+    kind: "fenced",
+    markdown: "```\n\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F09B",
+    kind: "fenced",
+    markdown: "```\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F11",
+    kind: "partial",
+    markdown: "```ts\nno closing fence\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F12",
+    kind: "malformed",
+    markdown: "~~~ts\nbody\n```\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F13",
+    kind: "fenced",
+    markdown: "before\n\n```js\none\n```\n\n```py\ntwo\n```\n\nafter\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F14",
+    kind: "indented",
+    markdown: "- item\n\n        nested\n        code\n",
+  }),
+  defineCodeBlockFixture({
+    id: "M2C-F16",
+    kind: "fenced",
+    markdown: '```ts\nconst café = "☕️";\n```\n',
+  }),
+]);
+
 export function getM1MarkdownFixture(id: string): M1MarkdownFixture {
   const fixture = M1_MARKDOWN_FIXTURES.find((candidate) => candidate.id === id);
   if (!fixture) {
     throw new Error(`Unknown M1 Markdown fixture: ${id}`);
   }
   return fixture;
+}
+
+export function getM2CodeBlockFixture(id: string): M2CodeBlockFixture {
+  const fixture = M2_CODE_BLOCK_FIXTURES.find((candidate) => candidate.id === id);
+  if (!fixture) {
+    throw new Error(`Unknown M2 code-block fixture: ${id}`);
+  }
+  return fixture;
+}
+
+let performanceFixture: M2CodeBlockPerformanceFixture | null = null;
+
+export function getM2CodeBlockPerformanceFixture(): M2CodeBlockPerformanceFixture {
+  if (performanceFixture) {
+    return performanceFixture;
+  }
+  const blocks: string[] = [];
+  for (let block = 0; block < 50; block += 1) {
+    const blockId = String(block).padStart(3, "0");
+    const lines = Array.from(
+      { length: 200 },
+      (_, line) => `regular-${blockId}-line-${String(line).padStart(3, "0")}`,
+    );
+    blocks.push(["```text", ...lines, "```"].join("\n"));
+  }
+  const hugeLines = Array.from(
+    { length: 20_000 },
+    (_, line) => `huge-line-${String(line).padStart(5, "0")}`,
+  );
+  blocks.push(["```text", ...hugeLines, "```"].join("\n"));
+  performanceFixture = Object.freeze({
+    id: "M2C-F18",
+    markdown: `${blocks.join("\n\n")}\n`,
+    fencedBlockCount: 51,
+    regularBlockCount: 50,
+    regularBodyLineCount: 200,
+    hugeBodyLineCount: 20_000,
+  });
+  return performanceFixture;
 }

@@ -2,7 +2,7 @@
 
 > 用途：定义从 Milkdown 迁移到 CodeMirror 6 后的产品行为、领域边界、状态模型、实现顺序和验收契约。
 >
-> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用。M1/S2 核心和独立 M1-FM/S5-FM-only 已在单一 CM6 状态栈上通过 renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 人工验收，现标记为已验证。N09 由用户明确验收覆盖，报告的保存产物未被独立观测，该证据边界保留在状态与 Ultragoal 记录中。S3/S4、S5 HTML/MDX、M2-M6 仍未完成。**
+> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用，M1/S2 核心、独立 M1-FM/S5-FM-only 与 M2/S3 代码块均已验证。M2/S3 保持单一 CM6 状态栈，当前自动化为 renderer 184/184、editor-ui 20/20、desktop 103/103 与完整 Chromium 45/45；2026-07-24 空 fenced body 修复后的 macOS Tauri/WebKit N13 原生增量复验也已通过。M3-M6、S4、S5 HTML/MDX 仍未完成。**
 >
 > 本文是迁移目标和冲突决策的权威来源。迁移在 feature 分支上以单一 CM6 编辑器推进，不维护
 > Milkdown / CM6 双运行时；未达到完整验收前可以发布明确标注缺口的 beta，但不得宣称迁移完成。
@@ -536,7 +536,7 @@ AI provider 仍只返回纯 suggestion 数据，不接触 CM6 selection 或 deco
 
 ## 9. 技术 Spike 与 Go/No-Go
 
-S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编辑器删除和 E11/E12 自动化收口，G008 全仓自动化、cleaner、初轮复核修复后的重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工验收完成且产品确认无问题，因此 S1/M0 已达到 beta 可用门槛。M1/S2 与 M1-FM/S5-FM-only 已完成验证；S3-S6 的剩余范围继续在 CM6 单一实现上验证，不建立双运行时。历史提交和文档只作为行为对照，不再接收兼容性修改。
+S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编辑器删除和 E11/E12 自动化收口，G008 全仓自动化、cleaner、初轮复核修复后的重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工验收完成且产品确认无问题，因此 S1/M0 已达到 beta 可用门槛。M1/S2、M1-FM/S5-FM-only 与 M2/S3 均已完成验证；M2/S3 的 post-fix 原生 N13 增量门禁于 2026-07-24 关闭。S4-S6 的剩余范围继续在 CM6 单一实现上验证，不建立双运行时。历史提交和文档只作为行为对照，不再接收兼容性修改。
 
 ### S1：单实例与数据同步
 
@@ -565,7 +565,21 @@ S1 是切换到 CM6 单一编辑器路径前的硬门槛。G007 已完成旧编�
 
 ### S3：代码块
 
-验证同一 CM6 文档中的 fence 隐藏、混合语言高亮、语言修改、行号、复制、Tab 和 undo，不创建嵌套编辑器。
+S3 实现和验证已在同一 CM6 文档和同一 `.cm-content` 内完成，不创建嵌套编辑器：
+
+- range index 直接消费 Lezer `FencedCode` / `CodeBlock`，记录 fenced opening/raw info/language token/info suffix/body/closing，以及 indented `bodySegments` / `syntaxIndentRanges` / source-line fingerprint；`closed`、`unclosed`、`malformed`、`partial` 是显式状态。
+- 只有完整 closed block 进入 WYSIWYG projection。fence、info 与结构缩进通过 Decoration 隐藏，并同时进入 atomic/protected ranges；unclosed/malformed 必须 fail open 为可编辑源码。
+- `code-block-projection.ts` 和主 `wysiwygProjectionField` 共同拥有 toolbar Widget、活动块样式、隐藏范围、block-local `Decoration.line` 与 logical line number；行号不使用 editor-wide gutter，自动换行的 continuation row 不重复编号。
+- fenced block 使用 CM6 `markdown({ codeLanguages })` 的原生 mixed parsing。运行时采用 20 个显式 `LanguageDescription` loader 和 exact alias resolver；未知、pending 或 load failure 保留源码并使用 plain fallback，不建立第二套异步高亮状态机。
+- 语言命令只替换首个 info token，保留 `infoSuffixRange`；Plain 仅在无非空 suffix 时删除 token，否则写入 canonical `text`。toolbar Copy 只复制 semantic body，并通过注入的 clipboard adapter 回报成功或失败。
+- renderer-owned keymap 处理 fenced/indented Enter、Tab、Shift+Tab、边界 Backspace/Delete、两段式 Mod-A、箭头/指针进入和 toolbar focus restoration；多选区、IME、undo/redo 与 mode switch 继续使用主 `EditorState` / history。
+- fenced fence/info 与 indented structural prefixes 采用严格 transaction 保护：普通 typing、paste、selection delete 和 cut 即使来自覆盖整块的宽选区也不能修改隐藏结构；只有 renderer 显式授权的结构命令或全局源码模式可以改写这些范围。
+- closed fenced block 的零长度 body 以 closing fence 前的原生 CM6 position 为语义锚点，并保留一行可见 code-line geometry。直接键入、pointer 进入或 Enter 会在同一主状态栈内把首次内容与所需 LF 原子写入；WYSIWYG Backspace 不删除隐藏 fence。源码模式删坏 fence 后立即 fail open，并清除 code-line projection，不能把下方普通段落遗留为缩进代码样式。
+- 增量路径映射未受影响 ranges，只重建 dirty code block。固定 50 x 200 行加一个 20,000 行 block 的单元预算证明局部 body/info/huge-block edit 均为 `delta fullIndex=0`、`delta fullProjection=0`、`delta dirtyBlock=1`、`delta dirtyCodeBlock=1`；浏览器门禁单独归因 CM6 合法的后台 parse coverage refresh。
+
+依赖决策没有采用 broad `@codemirror/language-data` registry。对比 probe 中 broad registry 产生 119 个 chunk；最终 curated direct loader 构建为 18 个 JavaScript chunk、491940 gzip bytes、boot 364758 gzip bytes、excluded parser module 为 0，且没有顺带升级整套 CM6。
+
+当前自动化已覆盖零长度 fenced body 的直接键入、pointer、Enter、undo/redo、WYSIWYG fence Backspace 保护和源码模式单 backtick 删除后的 fail-open。2026-07-23 的原生 N01-N12 早于这组 2026-07-24 修复；同日补充的真实 Tauri/WebKit N13 已在当前工作树复验上述路径，证据目录 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13` 经 verifier 确认 N13 PASS、保存 Markdown 66 bytes 且 LF-only，因此 S3/M2 标记为“已验证”。
 
 ### S4：可视化表格
 
@@ -630,7 +644,7 @@ M0 通过后可以发布功能体验 beta。Beta 允许后续里程碑尚未完�
 
 - M1 core / S2：核心 projection、G011 图片/编辑面修正与 G012 隐藏 marker 保护已实现，renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，标记为已验证；N09 使用用户明确验收覆盖并保留未独立观测保存产物的 caveat。
 - M1-FM / S5-FM-only：Frontmatter panel、YAML highlight/error、range-only edit、source copy、undo 与原生 N08 已通过，标记为已验证。该结论不包括 HTML/MDX。
-- M2 / S3：代码块语言选择、高亮工具栏、行号、复制和完整键盘交互尚未迁移。
+- M2 / S3：代码块实现和当前 renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 已通过；2026-07-24 空 fenced body 修复后的原生 N13 增量复验也已通过，因此标记为“已验证”。
 - M3 / S4：GFM 可视化表格引擎选型、单元格直接编辑、多选、Tab、行列操作和主 history 接入尚未实现。
 - M4 / S5：基础 HTML 白名单渲染、最内层标签展开、官方 MDX 真实渲染、原子选择和错误占位尚未实现；MDX 命令当前明确返回 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 命令当前明确返回 typed unsupported。
@@ -672,13 +686,14 @@ S1 已建立 `apps/desktop/playwright.config.ts`、`test:browser` / `dev:e2e` �
 
 G005 bridge harness、G006 产品 Chromium 测试与 G007 E11 共同验证 S1 单实例主链路。M1/S2 与 M1-FM 当前 renderer 14 files / 126 tests、完整 Chromium 32/32 通过：验证 panel 位于唯一 `.cm-editor` / `.cm-content`、无 nested editor/input、隐藏 exact fences、YAML token/error、range edit、composition、undo、完整源码 clipboard、mode、stable view identity、selection-independent 更新和 invalid/unterminated 降级，并覆盖任务项、隐藏 block marker 保护、链接多选激活、活动图片源码与实时预览并存、成功/失败图片的横向和纵向键盘进入、`---` / `***` / `___` 的双向纵向原子选择、窄窗口长行自动换行且无横向滚动、失败占位、图片/分割线原子语义、跨块正反拖选、多选区及解析修复。2026-07-20 用户在真实 macOS Tauri/WebKit 窗口确认 N01-N10 通过；N09 为用户验收覆盖，保存产物未被独立观测。
 
+M2/S3 将 renderer 扩展到 18 files / 184 tests，并把完整 Chromium 扩展到 45/45。新增矩阵覆盖 projection、native mixed-language load race、block-local line-number geometry、toolbar/keyboard editing、零长度 fenced body 首次输入、跨块源码拖选、composition history、malformed repair、结构语法事务保护、A01-A05 可访问性和固定大文件增量预算。2026-07-23 的真实 Tauri/WebKit N01-N12 历史证据位于 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T045021Z`，当时 verifier 确认 12 项 PASS、toolbar copy 115 bytes、保存 Markdown 244 bytes 且 LF-only；该目录的 `working.md` 后来被继续编辑，当前 verifier 不再可重放通过。空 fenced body 修复后的独立 N13 证据位于 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13`，覆盖直接键入、pointer、Enter materialization、单步 undo/redo、WYSIWYG Backspace 保护和源码模式单 backtick fail-open；verifier 确认 N13 PASS、保存 Markdown 66 bytes 且 LF-only。
+
 S1 原生人工验收已覆盖系统中文 IME、Save/Save As、settings 原生窗口隔离、asset preview、文档边界和真实文件 LF；环境与逐项结论记录在 [`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md)。下列后续 spike 行为仍必须逐项补齐：
 
 - 跨段、列表、引用、图片和 Widget 拖选。
 - 键盘-only 操作和 focus 顺序。
 - 亮色、暗色和自定义主题。
 - 本地相对图片路径。
-- 代码块语言菜单、行号和复制。
 - 表格多选、Tab、行列操作、undo / redo。
 - MDX / HTML Widget 的点击、删除和错误占位。
 - 大文件 fixture 性能。
@@ -771,4 +786,4 @@ pnpm build
 - MDX AST 增量解析成本。
 - block widget 全文索引与大文件性能。
 
-G007 已完成 CM6-only 代码切换和自动化移除门禁，G008 自动化质量门禁、cleaner、初轮复核修复后的全量重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工证据完成，因此 S1/M0 标记为“beta 可用”。M1/S2 与 M1-FM/S5-FM-only 已在 2026-07-20 完成对应自动化和原生验收；S3-S6 或 M2-M5 未完成时仍不得标记 M6 完成或宣称稳定迁移完成。
+G007 已完成 CM6-only 代码切换和自动化移除门禁，G008 自动化质量门禁、cleaner、初轮复核修复后的全量重验、非交互 Tauri 启动冒烟和清洁独立复核也已通过；2026-07-18 测试规范要求的原生人工证据完成，因此 S1/M0 标记为“beta 可用”。M1/S2 与 M1-FM/S5-FM-only 已在 2026-07-20 完成对应自动化和原生验收。M2/S3 于 2026-07-23 完成当时快照的 renderer、Chromium、性能/可访问性与原生 N01-N12 验收；2026-07-24 空 fenced body 修复重新通过 renderer 184/184、Chromium 45/45 和独立 Tauri/WebKit N13 增量复验，因此标记为“已验证”。S4-S6 或 M3-M5 未完成时，仍不得标记 M6 完成或宣称稳定迁移完成。

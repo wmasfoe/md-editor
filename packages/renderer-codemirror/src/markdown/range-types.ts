@@ -59,6 +59,40 @@ export interface MarkdownRangeSegment extends SourceRange {
   readonly role: MarkdownRangeSegmentRole;
 }
 
+export type MarkdownCodeBlockKind = "fenced" | "indented";
+
+export type MarkdownCodeBlockFenceStyle = "backtick" | "tilde" | "none";
+
+export type MarkdownCodeBlockStatus = "closed" | "unclosed" | "malformed" | "partial";
+
+export interface MarkdownCodeBlockLineFingerprint extends SourceRange {
+  readonly fingerprint: string;
+}
+
+export interface MarkdownCodeBlockLanguageInfo {
+  readonly raw: string;
+  readonly token: string;
+  readonly resolvedName: string | null;
+}
+
+export interface MarkdownCodeBlockMetadata {
+  readonly blockKind: MarkdownCodeBlockKind;
+  readonly fenceStyle: MarkdownCodeBlockFenceStyle;
+  readonly blockStatus: MarkdownCodeBlockStatus;
+  readonly sourceBlockRange: SourceRange;
+  readonly sourceFingerprint: string;
+  readonly openingFenceRange: SourceRange | null;
+  readonly rawInfoRange: SourceRange | null;
+  readonly languageTokenRange: SourceRange | null;
+  readonly infoSuffixRange: SourceRange | null;
+  readonly bodySegments: readonly SourceRange[];
+  readonly syntaxIndentRanges: readonly SourceRange[];
+  readonly bodyEnvelopeRange: SourceRange | null;
+  readonly closingFenceRange: SourceRange | null;
+  readonly sourceLineFingerprints: readonly MarkdownCodeBlockLineFingerprint[];
+  readonly languageInfo: MarkdownCodeBlockLanguageInfo;
+}
+
 export interface MarkdownRangeRecord {
   readonly id: string;
   readonly kind: MarkdownSyntaxKind;
@@ -75,6 +109,7 @@ export interface MarkdownRangeRecord {
   readonly priority: number;
   readonly sourceFingerprint: string;
   readonly parserCoverage: "complete" | "partial";
+  readonly codeBlock?: MarkdownCodeBlockMetadata;
 }
 
 export interface MarkdownParseCoverage {

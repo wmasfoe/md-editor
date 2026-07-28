@@ -15,7 +15,7 @@ describe("desktop editor adapter wiring", () => {
     expect(desktopCodeMirrorSource).toContain("document={runtime.document}");
     expect(desktopCodeMirrorSource).toContain("fontSize={settings.editor.wysiwygFontSize}");
     expect(desktopCodeMirrorSource).toContain(
-      "lineNumbers={settings.editor.showCodeBlockLineNumbers}",
+      "codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}",
     );
   });
 

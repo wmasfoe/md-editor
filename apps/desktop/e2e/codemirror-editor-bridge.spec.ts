@@ -17,7 +17,7 @@ async function diagnostics(page: Page) {
 }
 
 test.describe("CodeMirrorEditor React bridge", () => {
-  test("preserves one native view across parent rerenders, modes, line numbers, and preview", async ({
+  test("preserves one native view across parent rerenders, modes, code-block line numbers, and preview", async ({
     page,
   }) => {
     await openHarness(page);
@@ -77,10 +77,11 @@ test.describe("CodeMirrorEditor React bridge", () => {
       focused: true,
     });
 
-    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setLineNumbers(true));
+    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setCodeBlockLineNumbers(true));
     await expect
-      .poll(async () => (await diagnostics(page)).renderer?.lineNumbersEnabled)
+      .poll(async () => (await diagnostics(page)).renderer?.codeBlockLineNumbers)
       .toBe(true);
+    await expect(page.locator(".cm-gutters, .cm-lineNumbers")).toHaveCount(0);
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setFontSize(19));
     await expect(page.locator(".code-mirror-editor-host")).toHaveCSS("font-size", "19px");
     const beforePreview = await diagnostics(page);
@@ -102,7 +103,7 @@ test.describe("CodeMirrorEditor React bridge", () => {
       selectionHead: beforePreview.renderer?.selectionHead,
       scrollTop: beforePreview.renderer?.scrollTop,
       focused: true,
-      lineNumbersEnabled: true,
+      codeBlockLineNumbers: true,
     });
     expect(afterPreview.renderer?.measureRequestCount).toBe(
       (beforePreview.renderer?.measureRequestCount ?? 0) + 1,
