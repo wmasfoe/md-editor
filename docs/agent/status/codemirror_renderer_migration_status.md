@@ -2,11 +2,11 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-07-20（M1/S2、M1-FM/S5-FM-only 已通过 renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10；N09 为用户验收覆盖并保留未独立观测产物的 caveat）
+> 最后更新：2026-07-28（当前工作树已通过 renderer 184/184、editor-ui 20/20、desktop 103/103 与完整 Chromium 45/45。2026-07-24 空 fenced body 修复后的 macOS Tauri/WebKit N13 原生增量复验也已通过）
 
 ## 当前结论
 
-- **阶段：S1/M0 beta 可用，M1/S2 与 M1-FM/S5-FM-only 已验证。G001-G009 与 G011 的实现、自动化及对应原生人工矩阵已通过；G010 独立复核发现的隐藏 block marker 修改保护缺口已由 G012 修复，全量自动化重验及最终 code-reviewer `APPROVE` / architect `CLEAR` 均已通过。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离。M2-M6 仍未完成，因此不能宣称完整迁移。**
+- **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only 与 M2/S3 均已验证。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M3-M6 仍未完成，因此不能宣称完整迁移。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
 - `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
@@ -16,8 +16,9 @@
 - Desktop 新建/打开/空文件夹/删除走 atomic `replaceDocument`，rename/move 走 `setDocumentPath`；程序化同文档修改走 renderer external-edit port，mode 走 typed mode port，不再由 controller 调用旧 snapshot-only 文档兼容方法。
 - `main.tsx` 在 React 前分流 window surface：main 严格执行 attach -> FileService factory -> render，settings 只加载 `SettingsWindowApp`；一个 main-only `RuntimeFileService` 被注入 App、controllers 与 file tree。unknown/attach failure 均 fail closed。
 - 保存 controller 在第一个 `await` 前同步 `beginSave` + enqueue，typed outcome 只 settle 一次；成功采用实际返回 path，warning/failed/cancel/indeterminate 分别反馈，verification-required 继续阻止无提示放弃。
-- 当前是 **CM6-only beta 可用**：S1/M0 与 M1 已通过对应自动化和原生人工门禁。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论不代表 M2-M6 已完成。
+- 当前是 **CM6-only beta 可用**：S1/M0、M1 与 M2 已通过对应自动化和原生门禁。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论不代表 M3-M6 已完成。
 - M1/S2 核心投影已在同一 `EditorView` / `EditorState` 上实现 inline marker、活动标题、引用/列表/任务项、链接、图片、分割线和默认可视化；M1-FM/S5-FM-only 又实现了 `.cm-content` 内的 Frontmatter 面板。G011 进一步完成活动图片源码与实时预览并存、成功/失败图片的键盘进入、分割线纵向键盘选择、源码/WYSIWYG 自动换行、失败占位、可读列布局和 Frontmatter 视觉层级；G012 补齐隐藏 block marker 的修改保护。renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，M1/S2 与 M1-FM 标记为已验证；N09 的通过来自用户明确验收覆盖，报告的保存产物未被独立观测。
+- M2/S3 在相同状态栈上实现 fenced/indented code range model、curated native mixed-language loading、WYSIWYG projection、语言菜单、block-local 行号、body-only copy 和 renderer-owned 编辑命令。当前工作树重新验证 renderer 18 files / 184 tests、editor-ui 5 files / 20 tests、desktop 27 files / 103 tests 与完整 Chromium 45/45。真实 Tauri/WebKit N01-N12 于 2026-07-23 在修复前快照通过；2026-07-24 的独立 N13 又验证零长度 fenced body 首次输入、pointer/Enter、undo/redo、WYSIWYG Backspace 保护和单 backtick 删除降级，M2/S3 因此标记为已验证。
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
 - 迁移开始后只维护 CM6 编辑器路径，不增加 Milkdown / CM6 功能开关或双向同步层。
 
@@ -29,6 +30,9 @@
 - [`editor-ui/package.json`](../../../packages/editor-ui/package.json)、desktop/root manifests、workspace catalog 与 lockfile 已移除 Milkdown、ProseMirror 和 `@uiw/react-codemirror` 依赖。
 - [`editor-ui/src/index.ts`](../../../packages/editor-ui/src/index.ts) 只导出 `CodeMirrorEditor` 产品表面；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
 - [`renderer.ts`](../../../packages/renderer-codemirror/src/renderer.ts) 是 G004 的原生 CM6 lifecycle/sync 实现；只有 generation boundary 调用 `setState`。
+- [`range-index.ts`](../../../packages/renderer-codemirror/src/markdown/range-index.ts) 与 [`range-types.ts`](../../../packages/renderer-codemirror/src/markdown/range-types.ts) 持有 fenced/indented 精确 ranges、block status、source fingerprint 与增量 mapping。
+- [`code-languages.ts`](../../../packages/renderer-codemirror/src/markdown/code-languages.ts) 持有 20 个 direct `LanguageDescription` loader、exact alias resolver、native `codeLanguages` 接入和 theme-backed token highlighting。
+- [`code-block-projection.ts`](../../../packages/renderer-codemirror/src/wysiwyg/code-block-projection.ts)、[`code-block-line-numbers.ts`](../../../packages/renderer-codemirror/src/wysiwyg/code-block-line-numbers.ts) 与 [`code-block-commands.ts`](../../../packages/renderer-codemirror/src/wysiwyg/code-block-commands.ts) 分别拥有 projection/ranges、logical line geometry 和编辑语义。
 - [`renderer.test.ts`](../../../packages/renderer-codemirror/src/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
 - [`testing.ts`](../../../packages/renderer-codemirror/src/testing.ts) 提供只读 probe 和用户 transaction 模拟，不把可变 `EditorView` / `EditorState` 暴露给消费方。
 - [`CodeMirrorEditor`](../../../packages/editor-ui/src/components/CodeMirrorEditor/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
@@ -47,7 +51,7 @@
 | --- | --- | --- |
 | S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
 | S2 核心显隐与选择 | 已验证 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 126/126、完整 Chromium 32/32 和原生 N01-N10 已通过 |
-| S3 代码块 | 未开始 | 当前 CM6 只有 Markdown 源码编辑，尚无语言菜单、高亮工具栏、行号和复制交互 |
+| S3 代码块 | 已验证 | fenced/indented projection、native mixed highlighting、语言菜单、block-local 行号、copy/keyboard/IME/history、fail-open 与固定大文件增量预算已通过自动化；post-fix 原生 N13 已在 Tauri/WebKit 通过 |
 | S4 可视化 GFM 表格 | 未开始 | 尚未完成成熟表格引擎评估和 CM6 history 验证 |
 | S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
 | S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
@@ -60,7 +64,7 @@
 | M0 CM6 单编辑器主链路 | beta 可用 | CM6-only 主链路、旧引擎删除、E1-E12、G008 自动化质量门禁、独立复核与必需原生人工证据均已通过 |
 | M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
-| M2 代码块 | 未开始 | 不可用 |
+| M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
 | M3 GFM 表格 | 未开始 | 不可用 |
 | M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
 | M5 现有能力迁移 | 未开始 | 不可用 |
@@ -73,7 +77,7 @@
 - `mdx-component-registry` 已有 metadata registry；`mdx-plugins` 已有官方 `Callout`、component map、metadata 子出口和组件测试。
 - 已删除的 Milkdown 表面曾提供官方 MDX 插入菜单、`Mod-Shift-M` 快捷键和 snippet 插入链路；这些事实只保留在历史文档/Git 中，当前代码没有可复用旧运行时。
 - 已删除的 Milkdown Callout 轻量预览曾有 ProseMirror `NodeSelection`、选中描边和两步整块删除，但不是 CM6 renderer 的原子交互或 Widget 生命周期证据。
-- 搜索、大纲、图片粘贴、代码块、AI suggestion、selection 和 IME 的完整 parity 仍需在 CM6 上重建对应测试；不能引用不可达旧表面宣称已迁移。
+- 搜索、大纲、图片粘贴、AI suggestion 及后续表格/HTML/MDX 的完整 parity 仍需在 CM6 上重建对应测试；不能引用不可达旧表面宣称已迁移。
 
 这些能力只是迁移输入，不能作为 CM6 spike 或里程碑完成证据。
 
@@ -106,7 +110,6 @@
 
 ## 当前 Beta 已知缺口
 
-- M2 / S3：代码块语言选择、高亮工具栏、行号、复制和完整键盘交互尚未实现。
 - M3 / S4：可视化 GFM 表格、单元格编辑、多选、Tab、行列操作和主 history 接入尚未实现。
 - M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
@@ -164,6 +167,34 @@
 - quote、unordered/ordered list 和 task 的实际 replacement ranges 现同时进入 `protectedRanges`。普通 typing/paste 命中内部 offset 时保持文档、selection 和 history 不变；覆盖完整 marker 的跨块宽选区仍按既有规则放行。
 - renderer 自有的 Enter、Backspace、Tab、Shift-Tab 和任务切换显式授权。上游 `@codemirror/lang-markdown` 命令通过同步、state-scoped 授权上下文接入，不复制其结构化编辑实现，也不向普通输入泄漏权限。
 - 回归覆盖四类 marker 的 source -> WYSIWYG 保留 offset、typing/paste 拒绝，以及真实 Chromium DOM 输入从隐藏 marker 安全映射到可见正文。post-cleaner 全量门禁通过：11-workspace typecheck/build、Vitest 63 files / 390 tests、release 5/5、renderer 126/126、Oxlint、Prettier、Rust fmt/clippy、Rust 38/38 与 Chromium 32/32；最终独立复核为 code-reviewer `APPROVE`、architect `CLEAR`，无未解决 finding。
+
+## M2/S3 代码块实现与验收记录
+
+- parser/range index 从 Lezer 节点生成 fenced opening/raw-info/language-token/info-suffix/body/closing ranges，以及 indented `bodySegments` / `syntaxIndentRanges` / line fingerprints。`closed`、`unclosed`、`malformed`、`partial` 状态显式冻结并参与 mapping；只有完整 closed block 投影，其他状态 fail open 为原始可编辑源码。
+- `wysiwygProjectionField` 仍是唯一 projection 状态拥有者。代码块只增加 renderer-owned Decoration、toolbar Widget、atomic/protected ranges 与 composition guard；没有嵌套 `.cm-editor`、textarea、独立 history 或 React 控制文档。
+- WYSIWYG 隐藏 fenced fence/info 与 indented structural prefixes；body 保留普通 CM6 文本编辑。source mode 清空 projection 并显示完整源码，mode reconfigure 不替换 view/state epoch。
+- 隐藏结构范围采用严格 transaction 保护。普通 typing、paste、selection delete 和 cut 即使来自覆盖整块的宽选区也会在 WYSIWYG 被拒绝并保留 selection；切到全局 source mode 后才允许结构删除。fenced/indented 单元回归和真实 Chromium 跨块拖选均覆盖该约束。
+- 零长度 fenced body 现在保留一行可见 code-line geometry，并以 closing fence 前的位置作为原生 selection 锚点。直接键入、pointer 进入和 Enter 会把首次内容与必需 LF 写入同一 history 事务；紧接着的 WYSIWYG Backspace 不破坏隐藏 fence。源码模式删除单个 closing backtick 后会 fail open，toolbar/code-line projection 全部清除，下方普通段落不继承缩进。
+- mixed highlighting 使用 CM6 `markdown({ codeLanguages })` 与 20 个 direct `LanguageDescription` loader。exact alias lookup 不做 fuzzy match；未知、pending 和 load failure 使用 plain fallback 且不改写 info source。G0 probe 比较后拒绝 broad `@codemirror/language-data`：最终 18 个 JavaScript chunk、491940 total gzip bytes、364758 boot gzip bytes、excluded parser module 为 0。
+- language command 只修改首个 token 并保留 suffix；Plain 的 suffix 分支、toolbar Select/Copy、clipboard failure feedback、focus restoration、fenced/indented Enter/Tab/Shift+Tab、边界 Backspace/Delete、两段式 Mod-A、多选区、pointer/arrow entry、IME 和 undo/redo 均由 renderer command 层验证。
+- line number 使用 block-local `Decoration.line` 和 CSS counter data，不启用 editor-wide gutter。真实 WebKit 首轮发现 `.cm-line` padding specificity 覆盖导致数字压住首字；selector 提升到 `.cm-content .cm-md-code-line-numbered` 后，light/dark/narrow 原生截图与 geometry assertion 均证明 number 不覆盖首 token，wrapped continuation row 不重复编号。
+- 固定性能 fixture 为 50 个 200 行 fenced block 加一个 20,000 行 fenced block，共 51 blocks / 30,000 body lines。单元 diagnostics 对 body/info/huge-block edit 均证明 `delta fullIndex=0`、`delta fullProjection=0`、`delta dirtyBlock=1`、`delta dirtyCodeBlock=1`；浏览器测试把 CM6 合法的 lazy parse coverage refresh 单独归因，防止把后台解析误算为编辑全量 rebuild。
+- 新鲜自动化：11-workspace typecheck 通过；renderer 18 files / 184 tests、editor-ui 5 files / 20 tests、desktop 27 files / 103 tests、release 5/5 通过；Oxlint、Prettier、Rust fmt/clippy、完整 workspace build 与 Chromium 45/45 均通过。
+- 历史原生证据目录：`/private/tmp/md-editor-m2-s3-code-blocks/20260723T045021Z`。2026-07-23 验收时 `code-block-native-evidence.mjs verify` 确认 N01-N12 全部 PASS、toolbar copied body 115 bytes、saved Markdown 244 bytes、LF-only。该目录中的 `working.md` 于 2026-07-24 被后续空代码块复测继续编辑，当前不再与 `expected-saved.md` byte-equal，因此不能再描述为可重放通过的归档；`notes.md`、copy 产物、expected 文件和截图只保留历史验收记录。
+- Post-fix 原生证据目录：`/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13`。当前 `verify-n13` 可重放确认 N13 PASS，覆盖直接键入、pointer 进入、Enter materialization、单步 undo/redo、WYSIWYG Backspace 保护、源码模式删除一个 closing backtick 后的 fail-open 与下方段落无缩进；保存 Markdown 66 bytes 且 LF-only。
+
+| M2 历史原生项 | 结果 | 观测 |
+| --- | --- | --- |
+| N01-N02 单实例与导航 | 通过 | source/WYSIWYG 共享 history/selection/scroll；指针和箭头可进出 fence |
+| N03-N04 fenced/indented 编辑 | 通过 | Enter/Tab/Shift+Tab、边界 Backspace/Delete 与 undo 符合结构语义 |
+| N05 selection | 通过 | 两段式 Cmd+A、多选区与跨块 source selection 保持 |
+| N06 language | 通过 | known/plain/custom、suffix preservation 与 undo 通过 |
+| N07 visual/accessibility | 通过 | light/dark/narrow 行号、换行和 toolbar 可读，无首 token 覆盖 |
+| N08-N09 clipboard/drag | 通过 | toolbar body-only copy 精确；跨块拖选复制底层 Markdown |
+| N10 系统中文 IME | 通过 | macOS 拼音候选窗、`中文` 单次提交、undo/redo 使用主 history |
+| N11 native save | 通过 | Cmd+S 后磁盘文件与 expected fixture byte-equal、LF-only、保留尾 LF |
+| N12 malformed fallback | 通过 | raw fail-open，无 toolbar；修复后投影，undo 恢复 raw，磁盘未改 |
+| N13 post-fix empty body delta | 通过 | Tauri/WebKit 已验证直接键入、pointer/Enter、单步 undo/redo、隐藏 fence Backspace 保护和单 backtick fail-open；证据目录 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13` |
 
 ## 文档同步记录
 

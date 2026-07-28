@@ -12,13 +12,16 @@ import "./styles.css";
 async function bootstrap(): Promise<void> {
   if (import.meta.env.MODE === "e2e") {
     const search = new URLSearchParams(window.location.search);
+    if (search.get("surface") === "code-block-line-numbers") {
+      const { installCodeBlockLineNumberHarness } =
+        await import("./testing/code-block-line-number-harness");
+      installCodeBlockLineNumberHarness(requireRootElement());
+      return;
+    }
     if (search.get("surface") === "codemirror-editor") {
       const { installCodeMirrorEditorHarness } =
         await import("./testing/codemirror-editor-harness");
-      installCodeMirrorEditorHarness(
-        document.getElementById("root")!,
-        search.get("strict") === "true",
-      );
+      installCodeMirrorEditorHarness(requireRootElement(), search.get("strict") === "true");
       return;
     }
   }

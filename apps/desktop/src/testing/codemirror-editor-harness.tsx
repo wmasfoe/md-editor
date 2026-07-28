@@ -31,7 +31,7 @@ interface SubscriptionDiagnostics {
 interface HarnessControls {
   readonly setEditorMounted: (mounted: boolean) => void;
   readonly setFontSize: (fontSize: number) => void;
-  readonly setLineNumbers: (enabled: boolean) => void;
+  readonly setCodeBlockLineNumbers: (enabled: boolean) => void;
   readonly setPreviewVisible: (visible: boolean) => void;
   readonly rerender: () => void;
 }
@@ -41,6 +41,7 @@ export interface CodeMirrorEditorHarnessDiagnostics {
   readonly rendererAccess: "available" | "unavailable";
   readonly renderer: ReturnType<typeof inspectCodeMirrorEditorForTesting> | null;
   readonly rendererLifecycles: readonly ReturnType<typeof inspectCodeMirrorEditorForTesting>[];
+  readonly copiedText: readonly string[];
   readonly subscriptions: Readonly<SubscriptionDiagnostics>;
   readonly syncErrorCount: number;
   readonly queuedResultCount: number;
@@ -54,12 +55,15 @@ export interface CodeMirrorEditorHarnessBridge {
     mode: EditorMode,
   ): ReturnType<typeof switchEditorModeSafely> | { readonly status: "unavailable" };
   setFontSize(fontSize: number): void;
-  setLineNumbers(enabled: boolean): void;
+  setCodeBlockLineNumbers(enabled: boolean): void;
   setPreviewVisible(visible: boolean): void;
   applyExternalEdit(
     markdown: string,
   ): CodeMirrorEditorExternalEditResult | { readonly status: "unavailable" };
   replaceDocument(markdown: string, mode?: EditorMode): void;
+  getCopiedText(): readonly string[];
+  clearCopiedText(): void;
+  failNextClipboardWrite(message?: string): void;
   unmountEditor(): void;
   mountEditor(): void;
 }
@@ -139,9 +143,11 @@ export function installCodeMirrorEditorHarness(
   const rendererLifecycles: CodeMirrorEditorPorts[] = [];
   const syncErrors: CodeMirrorEditorSyncError[] = [];
   const queuedResults: CodeMirrorEditorExternalEditResult[] = [];
+  const copiedText: string[] = [];
   let actions: EditorUiActionsContextValue | null = null;
   let controls: HarnessControls | null = null;
   let externalSequence = 0;
+  let nextClipboardFailure: Error | null = null;
 
   function requireControls(): HarnessControls {
     if (!controls) throw new Error("The CodeMirror editor harness is not ready.");
@@ -169,6 +175,7 @@ export function installCodeMirrorEditorHarness(
         rendererLifecycles: Object.freeze(
           rendererLifecycles.map((ports) => inspectCodeMirrorEditorForTesting(ports)),
         ),
+        copiedText: Object.freeze([...copiedText]),
         subscriptions: Object.freeze({ ...runtime.diagnostics }),
         syncErrorCount: syncErrors.length,
         queuedResultCount: queuedResults.length,
@@ -188,8 +195,8 @@ export function installCodeMirrorEditorHarness(
     setFontSize(fontSize: number) {
       requireControls().setFontSize(fontSize);
     },
-    setLineNumbers(enabled: boolean) {
-      requireControls().setLineNumbers(enabled);
+    setCodeBlockLineNumbers(enabled: boolean) {
+      requireControls().setCodeBlockLineNumbers(enabled);
     },
     setPreviewVisible(visible: boolean) {
       requireControls().setPreviewVisible(visible);
@@ -213,6 +220,15 @@ export function installCodeMirrorEditorHarness(
         { kind: "command", commandId: "file.open" },
       );
     },
+    getCopiedText() {
+      return Object.freeze([...copiedText]);
+    },
+    clearCopiedText() {
+      copiedText.length = 0;
+    },
+    failNextClipboardWrite(message = "Harness clipboard write failed.") {
+      nextClipboardFailure = new Error(message);
+    },
     unmountEditor() {
       requireControls().setEditorMounted(false);
     },
@@ -224,14 +240,14 @@ export function installCodeMirrorEditorHarness(
   function HarnessApp() {
     const [editorMounted, setEditorMounted] = useState(true);
     const [fontSize, setFontSize] = useState(16);
-    const [lineNumbers, setLineNumbers] = useState(false);
+    const [codeBlockLineNumbers, setCodeBlockLineNumbers] = useState(false);
     const [previewVisible, setPreviewVisible] = useState(false);
     const [, setRenderSequence] = useState(0);
 
     controls = {
       setEditorMounted,
       setFontSize,
-      setLineNumbers,
+      setCodeBlockLineNumbers,
       setPreviewVisible,
       rerender: () => setRenderSequence((sequence) => sequence + 1),
     };
@@ -252,8 +268,16 @@ export function installCodeMirrorEditorHarness(
             <CodeMirrorEditor
               document={runtime.document}
               fontSize={fontSize}
-              lineNumbers={lineNumbers}
+              codeBlockLineNumbers={codeBlockLineNumbers}
               hidden={previewVisible}
+              writeClipboardText={async (text) => {
+                if (nextClipboardFailure) {
+                  const error = nextClipboardFailure;
+                  nextClipboardFailure = null;
+                  throw error;
+                }
+                copiedText.push(text);
+              }}
               onSyncError={(error) => syncErrors.push(error)}
               onQueuedExternalEditResult={(result) => queuedResults.push(result)}
               onRendererPortsChange={(ports) => {

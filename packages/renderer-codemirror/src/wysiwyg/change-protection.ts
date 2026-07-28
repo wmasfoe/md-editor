@@ -1,11 +1,14 @@
 import { EditorState, StateEffect, Transaction, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { editorModeField } from "../mode.ts";
+import { getWysiwygDiagnostics } from "../diagnostics.ts";
+import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import {
   authorizeWysiwygProtectedChange,
   isWysiwygStructuredCommandAuthorized,
 } from "./change-authorization.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
+import { getCodeBlockProtectedRanges } from "./code-block-projection.ts";
 
 export const protectedWysiwygChangeRejectedEffect = StateEffect.define<null>();
 export const WYSIWYG_SOURCE_MODE_REQUIRED_MESSAGE =
@@ -16,6 +19,7 @@ export const wysiwygChangeProtection: Extension = EditorState.transactionFilter.
     if (isWysiwygChangeAllowed(transaction)) {
       return transaction;
     }
+    getWysiwygDiagnostics(transaction.startState)?.recordProtectedChangeRejection();
     // Replace the rejected transaction so its explicit selection cannot move
     // after the document change is removed.
     return {
@@ -46,6 +50,9 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
   if (protectedRanges.length === 0) {
     return true;
   }
+  if (transactionTouchesCodeBlockSyntax(transaction)) {
+    return false;
+  }
 
   let allowed = true;
   transaction.changes.iterChangedRanges((from, to) => {
@@ -70,6 +77,20 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
     }
   });
   return allowed;
+}
+
+function transactionTouchesCodeBlockSyntax(transaction: Transaction): boolean {
+  const protectedCodeRanges = transaction.startState
+    .field(markdownRangeIndexField)
+    .byKind("deferred-code")
+    .flatMap(getCodeBlockProtectedRanges);
+  let touchesCodeSyntax = false;
+  transaction.changes.iterChangedRanges((from, to) => {
+    if (protectedCodeRanges.some((range) => changesTouchRange(from, to, range.from, range.to))) {
+      touchesCodeSyntax = true;
+    }
+  });
+  return touchesCodeSyntax;
 }
 
 function changesTouchRange(from: number, to: number, rangeFrom: number, rangeTo: number): boolean {

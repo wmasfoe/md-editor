@@ -6,6 +6,7 @@ import {
   type EditorState,
   type Extension,
   type Range,
+  type Transaction,
 } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import type { EditorMode } from "@md-editor/editor-core";
@@ -30,6 +31,13 @@ import {
   buildFrontmatterLayoutDecorations,
   getFrontmatterProtectedRanges,
 } from "./frontmatter-projection.ts";
+import {
+  buildCodeBlockAtomicRanges,
+  buildCodeBlockLayoutDecorations,
+  codeBlockLineNumbersField,
+  getCodeBlockProtectedRanges,
+  setCodeBlockLineNumbersEffect,
+} from "./code-block-projection.ts";
 
 export type WysiwygProjectionFeature =
   | "inline-styles"
@@ -107,7 +115,8 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       : compositionGuardRanges;
     const effectsChanged =
       selectedAtomIds !== previous.selectedAtomIds ||
-      mappedCompositionGuardRanges !== previous.compositionGuardRanges;
+      mappedCompositionGuardRanges !== previous.compositionGuardRanges ||
+      transaction.effects.some((effect) => effect.is(setCodeBlockLineNumbersEffect));
 
     if (mode === "source") {
       if (
@@ -120,12 +129,21 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       return compileProjection(transaction.state, [], []);
     }
 
-    if (
-      transaction.docChanged ||
-      index.version !== previous.rangeIndexVersion ||
-      mode !== previous.mode ||
-      effectsChanged
-    ) {
+    if (mode !== previous.mode || effectsChanged) {
+      return compileProjection(transaction.state, selectedAtomIds, mappedCompositionGuardRanges);
+    }
+
+    if (transaction.docChanged) {
+      return updateDocumentProjection(
+        previous,
+        transaction,
+        index,
+        selectedAtomIds,
+        mappedCompositionGuardRanges,
+      );
+    }
+
+    if (index.version !== previous.rangeIndexVersion) {
       return compileProjection(transaction.state, selectedAtomIds, mappedCompositionGuardRanges);
     }
 
@@ -235,7 +253,9 @@ function compileProjection(
   );
   const atomicRanges = buildAtomicRanges(index, activeSyntaxIds, normalizedAtomIds, state);
   const protectedRanges = buildProtectedRanges(index, state);
-  getWysiwygDiagnostics(state)?.recordLayoutDecorationReplace();
+  const diagnostics = getWysiwygDiagnostics(state);
+  diagnostics?.recordLayoutDecorationReplace();
+  diagnostics?.recordFullProjectionBuild();
   return freezeProjectionState({
     mode: "wysiwyg",
     rangeIndexVersion: index.version,
@@ -247,6 +267,88 @@ function compileProjection(
     atomicRanges,
     lastSelectionDeltaIds: [],
   });
+}
+
+function updateDocumentProjection(
+  previous: WysiwygProjectionState,
+  transaction: Transaction,
+  index: MarkdownRangeIndex,
+  selectedAtomIds: readonly string[],
+  compositionGuardRanges: readonly SourceRange[],
+): WysiwygProjectionState {
+  const previousIndex = transaction.startState.field(markdownRangeIndexField);
+  const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection);
+  const changedIds = collectChangedRecordIds(
+    previousIndex,
+    index,
+    previous.activeSyntaxIds,
+    activeSyntaxIds,
+  );
+  const layoutDecorations = updateChangedLayoutDecorations(
+    previous.layoutDecorations.map(transaction.changes),
+    index,
+    changedIds,
+    activeSyntaxIds,
+    selectedAtomIds,
+    compositionGuardRanges,
+    transaction.state,
+  );
+  const atomicRanges = updateChangedAtomicRanges(
+    previous.atomicRanges.map(transaction.changes),
+    index,
+    changedIds,
+    activeSyntaxIds,
+    selectedAtomIds,
+    transaction.state,
+  );
+  const dirtyCodeBlockCount = countDirtyCodeBlocks(previousIndex, index);
+  if (dirtyCodeBlockCount > 0) {
+    getWysiwygDiagnostics(transaction.state)?.recordDirtyCodeBlockRebuild(dirtyCodeBlockCount);
+  }
+  return freezeProjectionState({
+    mode: "wysiwyg",
+    rangeIndexVersion: index.version,
+    activeSyntaxIds,
+    selectedAtomIds,
+    compositionGuardRanges,
+    protectedRanges: buildProtectedRanges(index, transaction.state),
+    layoutDecorations,
+    atomicRanges,
+    lastSelectionDeltaIds: [],
+  });
+}
+
+function collectChangedRecordIds(
+  previousIndex: MarkdownRangeIndex,
+  index: MarkdownRangeIndex,
+  previousActiveIds: readonly string[],
+  activeIds: readonly string[],
+): readonly string[] {
+  const ids = new Set<string>(symmetricDifference(previousActiveIds, activeIds));
+  for (const record of previousIndex.records) {
+    if (!index.get(record.id)) {
+      ids.add(record.id);
+    }
+  }
+  for (const record of index.records) {
+    if (!previousIndex.get(record.id)) {
+      ids.add(record.id);
+    }
+  }
+  return Object.freeze([...ids]);
+}
+
+function countDirtyCodeBlocks(
+  previousIndex: MarkdownRangeIndex,
+  index: MarkdownRangeIndex,
+): number {
+  const removed = previousIndex.records.filter(
+    (record) => record.kind === "deferred-code" && !index.get(record.id),
+  ).length;
+  const added = index.records.filter(
+    (record) => record.kind === "deferred-code" && !previousIndex.get(record.id),
+  ).length;
+  return Math.max(removed, added);
 }
 
 function collectActiveSyntaxIds(
@@ -347,6 +449,14 @@ function buildLayoutDecorationsForRecord(
   ) {
     return buildBlockLayoutDecorations(record, state);
   }
+  if (hasWysiwygProjectionFeature(state, "blocks") && record.kind === "deferred-code") {
+    return buildCodeBlockLayoutDecorations(
+      record,
+      activeSyntaxIds.includes(record.id),
+      state.field(codeBlockLineNumbersField),
+      state,
+    );
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -421,6 +531,9 @@ function buildAtomicRangesForRecord(
   ) {
     return buildBlockAtomicRanges(record, state);
   }
+  if (hasWysiwygProjectionFeature(state, "blocks") && record.kind === "deferred-code") {
+    return buildCodeBlockAtomicRanges(record, state);
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -447,7 +560,7 @@ function buildProtectedRanges(
         return getFrontmatterProtectedRanges(record, state);
       }
       if (hasWysiwygProjectionFeature(state, "blocks")) {
-        return getBlockProtectedRanges(record, state);
+        return [...getBlockProtectedRanges(record, state), ...getCodeBlockProtectedRanges(record)];
       }
       return [];
     }),

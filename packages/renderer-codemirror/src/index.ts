@@ -2,9 +2,9 @@ export {
   createCodeMirrorRenderer,
   type CodeMirrorRenderer,
   type CodeMirrorRendererOptions,
+  type CodeBlockLineNumberPortResult,
   type ExternalEditRequest,
   type ExternalEditResult,
-  type LineNumberPortResult,
 } from "./renderer.ts";
 export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";
 

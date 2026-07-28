@@ -13,11 +13,14 @@ import {
 } from "@md-editor/editor-core";
 import {
   createCodeMirrorRenderer,
+  type CodeMirrorRendererOptions,
+  type CodeBlockLineNumberPortResult,
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
-  type LineNumberPortResult,
 } from "@md-editor/renderer-codemirror";
+
+export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
 
 export type CodeMirrorEditorExternalEditResult =
   | { readonly status: "applied"; readonly receipt: ExternalEditFinalizeReceipt }
@@ -30,7 +33,7 @@ export interface CodeMirrorEditorPorts {
   readonly clientId: string;
   readonly mode: ModeRendererPort;
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
-  setLineNumbers(enabled: boolean): LineNumberPortResult;
+  setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
   focus(): void;
   requestMeasure(): void;
@@ -50,6 +53,7 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
   readonly document: DocumentState;
   readonly resolveImageSrc?: (source: string) => string;
+  readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -60,6 +64,16 @@ export interface CodeMirrorEditorBridge {
 }
 
 const rendererByPorts = new WeakMap<CodeMirrorEditorPorts, CodeMirrorRenderer>();
+
+function defaultWriteClipboardText(text: string): Promise<void> {
+  const writeText = globalThis.navigator?.clipboard?.writeText;
+  if (typeof writeText !== "function") {
+    return Promise.reject(
+      new Error("Clipboard write is unavailable: navigator.clipboard.writeText is not available."),
+    );
+  }
+  return writeText.call(globalThis.navigator.clipboard, text);
+}
 
 function releaseReservation(
   document: DocumentState,
@@ -124,10 +138,11 @@ export function createCodeMirrorEditorBridge(
     }
   };
 
-  const renderer = createCodeMirrorRenderer({
+  const rendererOptions: CodeMirrorRendererOptions = {
     parent: options.parent,
     initialSnapshot: options.document.getSnapshot(),
     resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
+    writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied") {
@@ -141,7 +156,8 @@ export function createCodeMirrorEditorBridge(
     onQueuedExternalEditCancelled(result) {
       options.onQueuedExternalEditResult(result);
     },
-  });
+  };
+  const renderer = createCodeMirrorRenderer(rendererOptions);
 
   const unsubscribeTransitions = options.document.subscribeTransitions((event) => {
     const delivery = synchronizeRendererEvent(options.document, renderer, event);
@@ -158,7 +174,7 @@ export function createCodeMirrorEditorBridge(
     clientId: renderer.clientId,
     mode,
     applyExternalEdit,
-    setLineNumbers: (enabled: boolean) => renderer.setLineNumbers(enabled),
+    setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     focus: () => renderer.focus(),
     requestMeasure: () => renderer.requestMeasure(),

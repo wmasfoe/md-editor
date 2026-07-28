@@ -1,6 +1,6 @@
 # WYSIWYG selection integrity spec
 
-> 状态：CodeMirror 6 当前契约。M1/S2 与 M1-FM 已完成自动化验证，并由用户完成 N01-N10 原生验收；N09 的报告保存路径未被独立观测，结论按用户覆盖记录。
+> 状态：CodeMirror 6 当前契约。M1/S2、M1-FM 与 M2/S3 已验证；M2/S3 当前 renderer 184/184、完整 Chromium 45/45 与 2026-07-24 post-fix Tauri/WebKit N13 均已通过。
 
 ## 用途
 
@@ -49,6 +49,15 @@
 5. source 模式关闭所有 WYSIWYG Decoration、Widget、atomic range 和 protected range，但保留同一 CM6 状态栈；在 source 中产生的编辑可在切回 WYSIWYG 后 undo/redo。
 6. 两种模式都必须启用自动换行；长行不得让编辑区产生水平滚动条。
 
+### 代码块
+
+1. fenced/indented code body 必须继续在主 `EditorState.doc` 中编辑；toolbar、语言菜单和行号不得创建嵌套编辑器或第二份 selection/history。
+2. 只有完整 closed block 进入投影；unclosed、malformed 或 partial block 必须 fail open 为完整可编辑源码。
+3. WYSIWYG 隐藏的 fence、info string 和 indented structural prefixes 必须同时进入 atomic/protected ranges；普通 typing、paste、cut 和 selection delete 不得静默修改这些范围。
+4. 零长度 fenced body 必须保留一行可见原生 CM6 geometry。直接键入、pointer 进入或 Enter 必须在 closing fence 前 materialize 所需 LF，并与首次输入形成一个主 history 事务。
+5. WYSIWYG Backspace/Delete 不得删除隐藏 fence；source 模式删除单个 fence 字符后必须立即清除代码块投影并显示 raw source，下方普通文本不得遗留代码缩进样式。
+6. 代码块的多选区、跨块拖选、IME、undo/redo 和 mode switch 必须继续使用同一 selection/history/scroll owner。
+
 ## 实现边界
 
 - parser 与 range index：`packages/renderer-codemirror/src/markdown/range-index.ts`
@@ -68,6 +77,9 @@
   - 授权不得延续到后续普通 typing、paste 或其他编辑器实例。
 - 结构化命令：`packages/renderer-codemirror/src/wysiwyg/markdown-commands.ts`
   - 列表、任务和 atom 命令统一使用 CM6 transaction，并在多选区下保持全有或全无。
+- 代码块投影与命令：
+  - `packages/renderer-codemirror/src/wysiwyg/code-block-projection.ts` 负责 closed block 投影、结构范围和零长度 body geometry。
+  - `packages/renderer-codemirror/src/wysiwyg/code-block-commands.ts` 负责 body editing、首次 materialization、语言/copy/selection 和边界删除语义。
 - Widget：`packages/renderer-codemirror/src/wysiwyg/widgets/`
   - Widget 只渲染和转发 atom 选择，不直接修改 Markdown，不获得独立可编辑焦点。
 
@@ -96,10 +108,14 @@
   - 列表/任务结构化命令、多光标全有或全无、composition bypass。
 - `packages/renderer-codemirror/src/renderer.test.ts`
   - 单 view/state、mode reconfigure、multi-range 方向、IME、history、scroll 和外部编辑边界。
+- `packages/renderer-codemirror/src/wysiwyg/code-block-commands.test.ts`
+  - fenced/indented 命令、零长度 body 首次 materialization、结构边界保护、多选区、IME 和 history。
 - `apps/desktop/e2e/codemirror-m1-s2-wysiwyg.spec.ts`
   - 图片、失败占位、分割线、自动换行、剪贴板、跨块拖选、默认 atom、模式切换和解析错误降级。
 - `apps/desktop/e2e/codemirror-m1-frontmatter.spec.ts`
   - 单一编辑器内 Frontmatter 投影、YAML 编辑/history、错误态和模式切换。
+- `apps/desktop/e2e/codemirror-m2-code-block-editing.spec.ts`
+  - toolbar、键盘编辑、跨块源码拖选、composition、零长度 fenced body 首次输入和 malformed fence 降级。
 
 ## 原生验收记录
 
@@ -107,7 +123,10 @@
 
 N09 报告保存路径为 `/private/tmp/md-editor-m1-native/saved.md`，收尾检查时该文件未被独立观测；因此 N09 记录为“用户覆盖通过”，不宣称有机器复验产物。
 
+2026-07-24，M2/S3 post-fix N13 在真实 macOS Tauri/WebKit 通过，覆盖空 fenced body 直接键入、pointer/Enter materialization、单步 undo/redo、隐藏 fence Backspace 保护、源码模式单 backtick fail-open 与下方段落无缩进。可重放证据位于 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13`，保存结果为 66 bytes、LF-only。
+
 ## 后续范围
 
-- S3 代码块、S4 GFM 表格与 S5 的 HTML/MDX 技术验证仍未开始。
+- S3 代码块实现、自动化和 post-fix Tauri/WebKit N13 均已完成，M2/S3 标记为已验证。
+- S4 GFM 表格与 S5 的 HTML/MDX 技术验证仍未开始。
 - Frontmatter 是 M1 独立子故事，本阶段只执行 S5 Frontmatter-only spike；不得把 HTML/MDX 映射进 M1 完成状态。

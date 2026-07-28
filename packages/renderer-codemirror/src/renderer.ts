@@ -16,7 +16,7 @@ import {
   type StateEffect,
   type TransactionSpec,
 } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, type ViewUpdate } from "@codemirror/view";
+import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -28,6 +28,10 @@ import type {
   RendererSyncResult,
 } from "@md-editor/editor-core";
 import { normalizeLineEndings, type Markdown } from "@md-editor/shared";
+import {
+  codeBlockTokenHighlighting,
+  createMarkdownLanguageSupport,
+} from "./markdown/code-languages.ts";
 import {
   provideWysiwygDiagnostics,
   WysiwygDiagnostics,
@@ -53,11 +57,16 @@ import {
   startWysiwygCompositionGuardEffect,
   type WysiwygProjectionSnapshot,
 } from "./wysiwyg/projection-state.ts";
+import {
+  initialCodeBlockLineNumbersFacet,
+  setCodeBlockLineNumbersEffect,
+} from "./wysiwyg/code-block-projection.ts";
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
   readonly initialSnapshot: DocumentSnapshot;
   readonly resolveImagePreview?: ImagePreviewResolver;
+  readonly writeClipboardText?: (text: string) => Promise<void>;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {
@@ -99,7 +108,7 @@ export type ExternalEditResult =
     }
   | { readonly status: "reconcile-required" };
 
-export type LineNumberPortResult =
+export type CodeBlockLineNumberPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
 export interface CodeMirrorRenderer {
@@ -109,7 +118,7 @@ export interface CodeMirrorRenderer {
   applyReservedExternalEdit(request: ExternalEditRequest): ExternalEditResult;
   applyMode(request: ModeRequest): ModePortResult;
   rollbackMode(receipt: ModeReceipt): void;
-  setLineNumbers(enabled: boolean): LineNumberPortResult;
+  setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
   focus(): void;
   requestMeasure(): void;
@@ -140,6 +149,10 @@ export interface RendererViewFactoryInput {
 
 export type RendererViewFactory = (input: RendererViewFactoryInput) => RendererViewAdapter;
 
+interface CodeMirrorRendererControllerOptions {
+  readonly useNativeCodeLanguages: boolean;
+}
+
 export interface RendererTestingProbeInternal {
   readonly clientId: string;
   readonly viewId: string;
@@ -161,7 +174,7 @@ export interface RendererTestingProbeInternal {
   readonly focused: boolean;
   readonly undoDepth: number;
   readonly redoDepth: number;
-  readonly lineNumbersEnabled: boolean;
+  readonly codeBlockLineNumbers: boolean;
   readonly viewCreationCount: number;
   readonly viewDestructionCount: number;
   readonly explicitStateCreationCount: number;
@@ -170,7 +183,7 @@ export interface RendererTestingProbeInternal {
   readonly modeTransactionCount: number;
   readonly externalEditTransactionCount: number;
   readonly reconciliationTransactionCount: number;
-  readonly lineNumberTransactionCount: number;
+  readonly codeBlockLineNumberTransactionCount: number;
   readonly measureRequestCount: number;
   readonly highestPublishedRendererSequence: number;
   readonly lastAcknowledgedRendererSequence: number;
@@ -290,7 +303,6 @@ class CodeMirrorRendererController {
   readonly #rootExtensionId: string;
   readonly #options: CodeMirrorRendererOptions;
   readonly #modeCompartment = new Compartment();
-  readonly #lineNumberCompartment = new Compartment();
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
   readonly #wysiwygDiagnostics = new WysiwygDiagnostics();
@@ -301,7 +313,7 @@ class CodeMirrorRendererController {
   #stateRevision: number;
   #contentRevision: number;
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
-  #lineNumbersEnabled = false;
+  #codeBlockLineNumbers = false;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
   #pendingExternalEdit: ExternalEditRequest | null = null;
@@ -316,7 +328,7 @@ class CodeMirrorRendererController {
   #modeTransactionCount = 0;
   #externalEditTransactionCount = 0;
   #reconciliationTransactionCount = 0;
-  #lineNumberTransactionCount = 0;
+  #codeBlockLineNumberTransactionCount = 0;
   #measureRequestCount = 0;
   #lastSyncStatus: RendererSyncResult["status"] | null = null;
   #lastErrorCode: string | null = null;
@@ -325,7 +337,11 @@ class CodeMirrorRendererController {
   #modeScrollRestoreSequence = 0;
   #destroyed = false;
 
-  constructor(options: CodeMirrorRendererOptions, viewFactory: RendererViewFactory) {
+  constructor(
+    options: CodeMirrorRendererOptions,
+    viewFactory: RendererViewFactory,
+    controllerOptions: CodeMirrorRendererControllerOptions,
+  ) {
     const rendererId = nextRendererId++;
     this.clientId = `cm-client-${rendererId}`;
     this.#viewId = `cm-view-${rendererId}`;
@@ -344,21 +360,30 @@ class CodeMirrorRendererController {
       EditorState.allowMultipleSelections.of(true),
       EditorView.lineWrapping,
       keymap.of([...defaultKeymap, ...historyKeymap]),
-      markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      controllerOptions.useNativeCodeLanguages
+        ? createMarkdownLanguageSupport(
+            { extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false },
+            this.#wysiwygDiagnostics,
+          )
+        : markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      codeBlockTokenHighlighting,
       provideWysiwygDiagnostics(this.#wysiwygDiagnostics),
       options.resolveImagePreview ? provideImagePreviewResolver(options.resolveImagePreview) : [],
       editorModeField,
       markdownRangeIndexField,
-      createWysiwygProjectionExtensions([
-        "inline-styles",
-        "headings",
-        "blocks",
-        "links",
-        "images",
-        "thematic-breaks",
-        "default-atoms",
-        "frontmatter",
-      ]),
+      createWysiwygProjectionExtensions(
+        [
+          "inline-styles",
+          "headings",
+          "blocks",
+          "links",
+          "images",
+          "thematic-breaks",
+          "default-atoms",
+          "frontmatter",
+        ],
+        { writeClipboardText: options.writeClipboardText },
+      ),
       EditorView.updateListener.of((update) => this.#handleViewUpdate(update)),
       EditorView.domEventObservers({
         compositionstart: () => this.#startComposition(),
@@ -406,7 +431,7 @@ class CodeMirrorRendererController {
       focused: this.#view.hasFocus(),
       undoDepth: undoDepth(this.#view.state),
       redoDepth: redoDepth(this.#view.state),
-      lineNumbersEnabled: this.#lineNumbersEnabled,
+      codeBlockLineNumbers: this.#codeBlockLineNumbers,
       viewCreationCount: 1,
       viewDestructionCount: this.#viewDestructionCount,
       explicitStateCreationCount: this.#explicitStateCreationCount,
@@ -415,7 +440,7 @@ class CodeMirrorRendererController {
       modeTransactionCount: this.#modeTransactionCount,
       externalEditTransactionCount: this.#externalEditTransactionCount,
       reconciliationTransactionCount: this.#reconciliationTransactionCount,
-      lineNumberTransactionCount: this.#lineNumberTransactionCount,
+      codeBlockLineNumberTransactionCount: this.#codeBlockLineNumberTransactionCount,
       measureRequestCount: this.#measureRequestCount,
       highestPublishedRendererSequence: this.#highestPublishedRendererSequence,
       lastAcknowledgedRendererSequence: this.#lastAcknowledgedRendererSequence,
@@ -754,21 +779,22 @@ class CodeMirrorRendererController {
     this.#pendingModeReceipt = null;
   }
 
-  setLineNumbers(enabled: boolean): LineNumberPortResult {
+  setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult {
     if (this.#destroyed) {
       return { status: "destroyed" };
     }
-    if (enabled === this.#lineNumbersEnabled) {
+    if (enabled === this.#codeBlockLineNumbers) {
       return { status: "noop" };
     }
     this.#view.dispatch({
-      effects: this.#lineNumberCompartment.reconfigure(enabled ? lineNumbers() : []),
+      effects: setCodeBlockLineNumbersEffect.of(enabled),
       annotations: [
         Transaction.addToHistory.of(false),
-        rendererTransactionOrigin.of({ kind: "line-numbers" }),
+        rendererTransactionOrigin.of({ kind: "code-block-line-numbers" }),
       ],
     });
-    this.#lineNumbersEnabled = enabled;
+    this.#codeBlockLineNumbers = enabled;
+    this.#wysiwygDiagnostics.recordCodeBlockLineNumbersToggle();
     return { status: "applied" };
   }
 
@@ -851,8 +877,8 @@ class CodeMirrorRendererController {
       selection: EditorSelection.single(0),
       extensions: [
         ...this.#rootExtensions,
+        initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
-        this.#lineNumberCompartment.of(this.#lineNumbersEnabled ? lineNumbers() : []),
       ],
     });
   }
@@ -915,8 +941,8 @@ class CodeMirrorRendererController {
       case "mode-rollback":
         this.#modeTransactionCount += 1;
         break;
-      case "line-numbers":
-        this.#lineNumberTransactionCount += 1;
+      case "code-block-line-numbers":
+        this.#codeBlockLineNumberTransactionCount += 1;
         break;
     }
   }
@@ -1079,7 +1105,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
       controller.applyReservedExternalEdit(request),
     applyMode: (request: ModeRequest) => controller.applyMode(request),
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
-    setLineNumbers: (enabled: boolean) => controller.setLineNumbers(enabled),
+    setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     focus: () => controller.focus(),
     requestMeasure: () => controller.requestMeasure(),
@@ -1090,15 +1116,22 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
 }
 
 export function createCodeMirrorRenderer(options: CodeMirrorRendererOptions): CodeMirrorRenderer {
-  return createCodeMirrorRendererWithFactory(options, (input) => new DomRendererViewAdapter(input));
+  return createCodeMirrorRendererWithFactory(
+    options,
+    (input) => new DomRendererViewAdapter(input),
+    { useNativeCodeLanguages: true },
+  );
 }
 
 /** @internal Exported only for the package's state-backed protocol test harness. */
 export function createCodeMirrorRendererWithFactory(
   options: CodeMirrorRendererOptions,
   viewFactory: RendererViewFactory,
+  controllerOptions: CodeMirrorRendererControllerOptions = { useNativeCodeLanguages: false },
 ): CodeMirrorRenderer {
-  return createRendererFacade(new CodeMirrorRendererController(options, viewFactory));
+  return createRendererFacade(
+    new CodeMirrorRendererController(options, viewFactory, controllerOptions),
+  );
 }
 
 /** @internal Exported only through `@md-editor/renderer-codemirror/testing`. */

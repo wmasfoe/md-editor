@@ -11,6 +11,7 @@ import { useEditorUiActions } from "../../hooks/useEditorUi";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
+  type CodeMirrorEditorClipboardWriter,
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
@@ -19,13 +20,14 @@ import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
-  readonly lineNumbers?: boolean;
+  readonly codeBlockLineNumbers?: boolean;
   readonly fontSize?: number;
   readonly hidden?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
   readonly ariaLabel?: string;
   readonly resolveImageSrc?: (source: string) => string;
+  readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -33,13 +35,14 @@ export interface CodeMirrorEditorProps {
 
 export function CodeMirrorEditor({
   document,
-  lineNumbers = false,
+  codeBlockLineNumbers = false,
   fontSize,
   hidden = false,
   className,
   style,
   ariaLabel = "Markdown 编辑器",
   resolveImageSrc,
+  writeClipboardText,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -50,14 +53,17 @@ export function CodeMirrorEditor({
     onQueuedExternalEditResult,
     onRendererPortsChange,
     resolveImageSrc,
+    writeClipboardText,
     onSyncError,
   });
   callbacksRef.current = {
     onQueuedExternalEditResult,
     onRendererPortsChange,
     resolveImageSrc,
+    writeClipboardText,
     onSyncError,
   };
+  const hasClipboardWriter = writeClipboardText !== undefined;
   const [syncStatus, setSyncStatus] = useState<"synchronized" | "sync-error">("synchronized");
   const { registerRendererPorts } = useEditorUiActions();
   const subscribeSnapshot = useCallback(
@@ -79,6 +85,15 @@ export function CodeMirrorEditor({
       resolveImageSrc(source) {
         return callbacksRef.current.resolveImageSrc?.(source) ?? source;
       },
+      writeClipboardText: hasClipboardWriter
+        ? (text) => {
+            const writer = callbacksRef.current.writeClipboardText;
+            if (!writer) {
+              throw new Error("CodeMirrorEditor clipboard writer was not initialized.");
+            }
+            return writer(text);
+          }
+        : undefined,
       onSyncError(error) {
         setSyncStatus("sync-error");
         callbacksRef.current.onSyncError?.(error);
@@ -97,11 +112,11 @@ export function CodeMirrorEditor({
       bridge.destroy();
       callbacksRef.current.onRendererPortsChange?.(null);
     };
-  }, [document, registerRendererPorts]);
+  }, [document, hasClipboardWriter, registerRendererPorts]);
 
   useLayoutEffect(() => {
-    bridgeRef.current?.ports.setLineNumbers(lineNumbers);
-  }, [lineNumbers]);
+    bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);
+  }, [codeBlockLineNumbers]);
 
   useLayoutEffect(() => {
     const host = hostRef.current;

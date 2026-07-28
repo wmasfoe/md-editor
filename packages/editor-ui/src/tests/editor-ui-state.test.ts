@@ -110,7 +110,7 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
       rollbackMode: vi.fn(),
     },
     applyExternalEdit: vi.fn(() => ({ status: "noop" as const })),
-    setLineNumbers: vi.fn(() => ({ status: "noop" as const })),
+    setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
     setHostVisibility: vi.fn(),
     focus: vi.fn(),
     requestMeasure: vi.fn(),

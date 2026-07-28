@@ -1,13 +1,14 @@
 import { redo, undo } from "@codemirror/commands";
 import {
   EditorSelection,
+  EditorState,
   StateEffect,
+  StateField,
   Transaction,
-  type EditorState,
   type StateCommand,
   type TransactionSpec,
 } from "@codemirror/state";
-import { EditorView, type ViewUpdate } from "@codemirror/view";
+import { EditorView, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { Markdown } from "@md-editor/shared";
 import {
   createCodeMirrorRendererWithFactory,
@@ -18,6 +19,11 @@ import {
   type RendererViewAdapter,
   type RendererViewFactoryInput,
 } from "./renderer.ts";
+import {
+  codeBlockLineNumberTheme,
+  createCodeBlockLineNumberDecorations,
+  type CodeBlockLogicalLine,
+} from "./wysiwyg/code-block-line-numbers.ts";
 
 const testScrollSnapshotEffect = StateEffect.define<null>();
 
@@ -201,3 +207,42 @@ export function createRendererTestHarness(
 
 export { inspectRendererForTesting };
 export type { RendererTestingProbeInternal as RendererTestingProbe };
+export { getM2CodeBlockPerformanceFixture } from "./markdown/fixtures.ts";
+
+export function installCodeBlockLineNumberGeometryFixture(parent: HTMLElement): EditorView {
+  const document = [
+    "ordinary prelude",
+    "const first = 1;",
+    `const wrapped = "${"wrapped-source ".repeat(18)}";`,
+    "return first;",
+    "ordinary separator",
+    "plain one",
+    `plain wrapped ${"content ".repeat(24)}`,
+    "ordinary tail",
+  ].join("\n");
+
+  const lineNumbers = StateField.define<DecorationSet>({
+    create(state) {
+      const lines: readonly CodeBlockLogicalLine[] = [
+        { from: state.doc.line(2).from, blockId: "typescript", lineNumber: 1, gutterDigits: 1 },
+        { from: state.doc.line(3).from, blockId: "typescript", lineNumber: 2, gutterDigits: 1 },
+        { from: state.doc.line(4).from, blockId: "typescript", lineNumber: 3, gutterDigits: 1 },
+        { from: state.doc.line(6).from, blockId: "plain", lineNumber: 1, gutterDigits: 1 },
+        { from: state.doc.line(7).from, blockId: "plain", lineNumber: 2, gutterDigits: 1 },
+      ];
+      return createCodeBlockLineNumberDecorations(lines);
+    },
+    update(decorations) {
+      return decorations;
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
+
+  return new EditorView({
+    parent,
+    state: EditorState.create({
+      doc: document,
+      extensions: [EditorView.lineWrapping, lineNumbers, codeBlockLineNumberTheme],
+    }),
+  });
+}
