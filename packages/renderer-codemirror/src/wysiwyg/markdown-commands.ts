@@ -18,6 +18,7 @@ import {
 } from "./atom-selection.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
 import { toggleSelectedTasks as toggleSelectedTasksBase } from "./task-toggle.ts";
+import { enterSelectedTableCell } from "./widgets/table-widget.ts";
 
 export { toggleTaskMarkerAt } from "./task-toggle.ts";
 
@@ -33,7 +34,10 @@ export const toggleSelectedTasks: StateCommand = guarded(toggleSelectedTasksBase
 export function createMarkdownStructuredCommandExtensions() {
   return Prec.highest(
     keymap.of([
-      { key: "Enter", run: viewCommand(continueMarkdownMarkup) },
+      {
+        key: "Enter",
+        run: (view) => enterSelectedTableCell(view) || viewCommand(continueMarkdownMarkup)(view),
+      },
       { key: "Backspace", run: viewCommand(deleteMarkdownMarkupBackward) },
       { key: "Delete", run: viewCommand(deleteMarkdownAtomForward) },
       { key: "ArrowLeft", run: viewCommand(selectMarkdownAtomBackward) },
@@ -41,8 +45,14 @@ export function createMarkdownStructuredCommandExtensions() {
       { key: "ArrowUp", run: moveMarkdownAtomUp },
       { key: "ArrowDown", run: moveMarkdownAtomDown },
       { key: "Escape", run: viewCommand(clearMarkdownAtomSelection) },
-      { key: "Tab", run: viewCommand(indentMarkdownList) },
-      { key: "Shift-Tab", run: viewCommand(outdentMarkdownList) },
+      {
+        key: "Tab",
+        run: (view) => enterSelectedTableCell(view) || viewCommand(indentMarkdownList)(view),
+      },
+      {
+        key: "Shift-Tab",
+        run: (view) => enterSelectedTableCell(view) || viewCommand(outdentMarkdownList)(view),
+      },
       { key: "Space", run: viewCommand(toggleSelectedTasks) },
     ]),
   );

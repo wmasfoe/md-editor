@@ -1,10 +1,31 @@
 import type { EditorView } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { DefaultAtomWidget } from "./default-atom-widget.ts";
 import { FrontmatterHeaderWidget } from "./frontmatter-header-widget.ts";
 import { ImageWidget } from "./image-widget.ts";
+import { TableGridWidget } from "./table-widget.ts";
 import { ThematicBreakWidget } from "./thematic-break-widget.ts";
+
+// Node 测试环境没有 DOM 全局类；为 widget 代码中的 instanceof 检查提供最小桩类型。
+class NodeStub {
+  readonly __nodeStub = true;
+}
+class ElementStub extends NodeStub {
+  readonly __elementStub = true;
+}
+class HTMLElementStub extends ElementStub {
+  readonly __htmlElementStub = true;
+}
+if (typeof globalThis.Node === "undefined") {
+  (globalThis as unknown as Record<string, unknown>).Node = NodeStub;
+}
+if (typeof globalThis.Element === "undefined") {
+  (globalThis as unknown as Record<string, unknown>).Element = ElementStub;
+}
+if (typeof globalThis.HTMLElement === "undefined") {
+  (globalThis as unknown as Record<string, unknown>).HTMLElement = HTMLElementStub;
+}
 
 class FakeClassList {
   constructor(private readonly element: FakeElement) {}
@@ -19,28 +40,53 @@ class FakeClassList {
     this.element.className = [...names].join(" ");
   }
 
+  add(...names: string[]): void {
+    const current = new Set(this.element.className.split(/\s+/u).filter(Boolean));
+    for (const name of names) {
+      current.add(name);
+    }
+    this.element.className = [...current].join(" ");
+  }
+
+  remove(...names: string[]): void {
+    const current = new Set(this.element.className.split(/\s+/u).filter(Boolean));
+    for (const name of names) {
+      current.delete(name);
+    }
+    this.element.className = [...current].join(" ");
+  }
+
   contains(name: string): boolean {
     return this.element.className.split(/\s+/u).includes(name);
   }
 }
 
-class FakeElement {
+class FakeElement extends HTMLElementStub {
   readonly dataset: Record<string, string> = {};
   readonly classList = new FakeClassList(this);
   readonly children: FakeElement[] = [];
+  readonly style: Record<string, string> = {};
   readonly #attributes = new Map<string, string>();
   readonly #listeners = new Map<string, Set<EventListener>>();
   className = "";
   textContent = "";
+  innerText = "";
   hidden = false;
   draggable = false;
   alt = "";
   title = "";
+  contentEditable = "";
+  spellcheck = false;
+  scope = "";
+  type = "";
+  parentNode: FakeElement | null = null;
 
   constructor(
     readonly tagName: string,
     readonly ownerDocument: FakeDocument,
-  ) {}
+  ) {
+    super();
+  }
 
   set src(value: string) {
     this.#attributes.set("src", value);
@@ -52,28 +98,119 @@ class FakeElement {
 
   append(...children: FakeElement[]): void {
     this.children.push(...children);
+    for (const child of children) {
+      child.parentNode = this;
+    }
   }
 
   setAttribute(name: string, value: string): void {
     this.#attributes.set(name, value);
+    const dataKey = dataKeyFromAttribute(name);
+    if (dataKey) {
+      this.dataset[dataKey] = value;
+    }
   }
 
   getAttribute(name: string): string | null {
-    return this.#attributes.get(name) ?? null;
+    if (this.#attributes.has(name)) {
+      return this.#attributes.get(name) ?? null;
+    }
+    const dataKey = dataKeyFromAttribute(name);
+    return dataKey ? (this.dataset[dataKey] ?? null) : null;
   }
 
   removeAttribute(name: string): void {
     this.#attributes.delete(name);
+    const dataKey = dataKeyFromAttribute(name);
+    if (dataKey) {
+      delete this.dataset[dataKey];
+    }
+  }
+
+  matches(selector: string): boolean {
+    return selector
+      .split(",")
+      .map((part) => part.trim())
+      .some((part) => this.#matchesSimple(part));
+  }
+
+  #matchesSimple(selector: string): boolean {
+    const tokens = selector.trim().split(/\s+/u);
+    // 自身必须匹配最后一个 token（如 "th"）。
+    if (!this.#matchToken(tokens[tokens.length - 1]!)) {
+      return false;
+    }
+    // 其余 token（如 "thead"）从最近的祖先开始依次向上匹配。
+    let ancestor: FakeElement | null = this.parentNode;
+    for (let index = tokens.length - 2; index >= 0; index -= 1) {
+      while (ancestor && !ancestor.#matchToken(tokens[index]!)) {
+        ancestor = ancestor.parentNode;
+      }
+      if (!ancestor) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  #matchToken(token: string): boolean {
+    if (token.startsWith(".")) {
+      return this.className.split(/\s+/u).includes(token.slice(1));
+    }
+    const attribute = /^\[([\w-]+)(?:="([^"]*)")?\]$/u.exec(token);
+    if (attribute) {
+      const value = this.getAttribute(attribute[1]);
+      return attribute[2] === undefined ? value !== null : value === attribute[2];
+    }
+    return this.tagName === token.toLowerCase();
   }
 
   querySelector<T extends HTMLElement>(selector: string): T | null {
-    const match = this.children.find((child) =>
-      selector.startsWith(".")
-        ? child.className.split(/\s+/u).includes(selector.slice(1))
-        : child.tagName === selector.toLowerCase(),
-    );
-    return (match as unknown as T | undefined) ?? null;
+    const stack = [...this.children];
+    while (stack.length > 0) {
+      const child = stack.shift()!;
+      if (child.matches(selector)) {
+        return child as unknown as T;
+      }
+      stack.push(...child.children);
+    }
+    return null;
   }
+
+  querySelectorAll<T extends HTMLElement>(selector: string): T[] {
+    const matches: FakeElement[] = [];
+    const stack = [...this.children];
+    while (stack.length > 0) {
+      const child = stack.shift()!;
+      if (child.matches(selector)) {
+        matches.push(child);
+      }
+      stack.push(...child.children);
+    }
+    return matches as unknown as T[];
+  }
+
+  closest<T extends HTMLElement>(selector: string): T | null {
+    if (this.matches(selector)) {
+      return this as unknown as T;
+    }
+    return this.parentNode ? this.parentNode.closest(selector) : null;
+  }
+
+  contains(node: FakeElement): boolean {
+    let current: FakeElement | null = node;
+    while (current) {
+      if (current === this) {
+        return true;
+      }
+      current = current.parentNode;
+    }
+    return false;
+  }
+
+  focus(): void {}
+
+  blur(): void {}
 
   addEventListener(name: string, listener: EventListener): void {
     const listeners = this.#listeners.get(name) ?? new Set<EventListener>();
@@ -86,7 +223,7 @@ class FakeElement {
   }
 
   dispatch(name: string, event: Partial<MouseEvent> = {}): void {
-    const value = { preventDefault() {}, ...event } as Event;
+    const value = { preventDefault() {}, target: this, ...event } as Event;
     for (const listener of this.#listeners.get(name) ?? []) {
       listener(value);
     }
@@ -97,6 +234,15 @@ class FakeElement {
   }
 }
 
+/** data-* 属性名转 dataset 驼峰键（data-row-kind → rowKind）。 */
+function dataKeyFromAttribute(name: string): string | null {
+  const match = /^data-([\w-]+)$/u.exec(name);
+  if (!match) {
+    return null;
+  }
+  return match[1].replace(/-([a-z])/gu, (_, letter: string) => letter.toUpperCase());
+}
+
 class FakeDocument {
   createElement(tagName: string): HTMLElement {
     return new FakeElement(tagName.toLowerCase(), this) as unknown as HTMLElement;
@@ -105,7 +251,11 @@ class FakeDocument {
 
 function createView(): { readonly view: EditorView; readonly document: FakeDocument } {
   const document = new FakeDocument();
-  const view = { dom: { ownerDocument: document } } as unknown as EditorView;
+  const view = {
+    dom: { ownerDocument: document },
+    dispatch() {},
+    focus() {},
+  } as unknown as EditorView;
   return { view, document };
 }
 
@@ -303,6 +453,141 @@ describe("media widget DOM lifecycle", () => {
     expect(diagnostics.snapshot().widgetLifecycleCounts.frontmatter).toEqual({
       create: 1,
       update: 1,
+      destroy: 1,
+    });
+  });
+});
+
+describe("table widget DOM lifecycle", () => {
+  function createTableWidget(options?: Partial<ConstructorParameters<typeof TableGridWidget>[0]>) {
+    const diagnostics = new WysiwygDiagnostics();
+    const { view } = createView();
+    const widget = new TableGridWidget({
+      recordId: "table:1",
+      headerCells: ["A", "B"],
+      bodyRows: [
+        ["1", "2"],
+        ["3", "4"],
+      ],
+      alignments: ["none", "right"],
+      selected: false,
+      diagnostics,
+      ...options,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    return { view, dom, widget, diagnostics };
+  }
+
+  it("renders an editable grid with separator hover handles and no toolbar", () => {
+    const { dom } = createTableWidget();
+
+    expect(dom.getAttribute("role")).toBe("group");
+    expect(dom.getAttribute("aria-label")).toBe("Markdown table");
+    expect(dom.getAttribute("data-record-id")).toBe("table:1");
+    expect(dom.getAttribute("aria-selected")).toBe("false");
+    // 顶部工具行已被分隔线悬停手柄取代。
+    expect(dom.querySelector<HTMLElement>(".cm-md-table-widget__toolbar")).toBeNull();
+
+    const headerCells = dom.querySelectorAll<HTMLElement>("thead th") as unknown as FakeElement[];
+    const bodyCells = dom.querySelectorAll<HTMLElement>("tbody td") as unknown as FakeElement[];
+    expect(headerCells).toHaveLength(2);
+    expect(bodyCells).toHaveLength(4);
+
+    // 单元格是原生 contenteditable：左键点击不会被 widget 拦截（见下方 pointerdown 用例）。
+    const firstCell = bodyCells[0];
+    expect(firstCell.contentEditable).toBe("plaintext-only");
+    expect(firstCell.spellcheck).toBe(false);
+    expect(firstCell.getAttribute("data-row-kind")).toBe("body");
+    expect(firstCell.getAttribute("data-row-index")).toBe("0");
+    expect(firstCell.getAttribute("data-col-index")).toBe("0");
+    expect(firstCell.textContent).toBe("1");
+    // 对齐经内联样式应用；表头单元格声明 scope="col"。
+    expect(bodyCells[1].style.textAlign).toBe("right");
+    expect(headerCells[0].scope).toBe("col");
+
+    // 行分隔线手柄：每行第一列顶部；列分隔线手柄：每个表头单元格右缘。
+    const rowHandleCells = bodyCells.filter((cell) =>
+      cell.querySelector<HTMLElement>(".cm-md-table-widget__handle--row"),
+    );
+    expect(rowHandleCells).toHaveLength(2);
+    const colHandleCells = headerCells.filter((cell) =>
+      cell.querySelector<HTMLElement>(".cm-md-table-widget__handle--col"),
+    );
+    expect(colHandleCells).toHaveLength(2);
+
+    // 手柄按钮映射：插入落在分隔线下方/右侧，删除落在分隔线上方/左侧（最末行/列无删除）。
+    const actions = dom.querySelectorAll<HTMLElement>("[data-table-action]").map((button) => {
+      const element = button as unknown as FakeElement;
+      return [element.dataset.tableAction, element.dataset.rowIndex ?? element.dataset.colIndex];
+    });
+    expect(actions.slice(0, 3)).toEqual([
+      ["add-col", "1"],
+      ["del-col", "0"],
+      ["add-col", "2"],
+    ]);
+    expect(actions.slice(3)).toEqual([
+      ["add-row", "-1"],
+      ["add-row", "0"],
+      ["del-row", "0"],
+      ["add-row", "1"],
+    ]);
+  });
+
+  it("does not preventDefault on left-click cells; clears the atom highlight when selected", () => {
+    const { view, dom } = createTableWidget({ selected: true });
+    const cell = dom.querySelector<HTMLElement>("tbody td") as unknown as FakeElement;
+    const preventDefault = vi.fn();
+    const dispatch = vi.fn();
+    (view as unknown as { dispatch: (value: unknown) => void }).dispatch = dispatch;
+
+    // pointerdown 监听器注册在 wrapper 上，冒泡目标为单元格。
+    dom.dispatch("pointerdown", { preventDefault, target: cell } as unknown as MouseEvent);
+
+    // 根因回归：旧实现拦截 pointerdown，导致左键无法把焦点交给 contenteditable。
+    expect(preventDefault).not.toHaveBeenCalled();
+    // 表格处于原子选中态时，单击单元格先清除整表高亮。
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs cell text and selection in place; asks for rebuild when the grid structure changes", () => {
+    const { dom, widget } = createTableWidget();
+
+    const updated = new TableGridWidget({
+      ...widget.value,
+      bodyRows: [
+        ["11", "22"],
+        ["3", "4"],
+      ],
+      selected: true,
+    });
+    expect(updated.eq(widget)).toBe(false);
+    expect(updated.updateDOM(dom as unknown as HTMLElement)).toBe(true);
+    expect((dom.querySelector<HTMLElement>("tbody td") as unknown as FakeElement).textContent).toBe(
+      "11",
+    );
+    expect(dom.getAttribute("aria-selected")).toBe("true");
+
+    // 行列数变化时返回 false，让 CM6 重建 widget。
+    const restructured = new TableGridWidget({
+      ...widget.value,
+      bodyRows: [
+        ["1", "2"],
+        ["3", "4"],
+        ["5", "6"],
+      ],
+    });
+    expect(restructured.updateDOM(dom as unknown as HTMLElement)).toBe(false);
+  });
+
+  it("releases every listener on destroy", () => {
+    const { dom, widget, diagnostics } = createTableWidget();
+    expect(dom.listenerCount()).toBe(5);
+
+    widget.destroy(dom as unknown as HTMLElement);
+    expect(dom.listenerCount()).toBe(0);
+    expect(diagnostics.snapshot().widgetLifecycleCounts.table).toEqual({
+      create: 1,
+      update: 0,
       destroy: 1,
     });
   });

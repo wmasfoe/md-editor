@@ -9,7 +9,7 @@ import {
   type StateCommand,
 } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../markdown/extensions.ts";
 import { editorModeField } from "../mode.ts";
@@ -22,6 +22,7 @@ import {
   toggleTaskMarkerAt,
   toggleSelectedTasks,
 } from "./markdown-commands.ts";
+import { enterSelectedTableCell } from "./widgets/table-widget.ts";
 import {
   configureWysiwygProjectionFeatures,
   startWysiwygCompositionGuardEffect,
@@ -328,5 +329,51 @@ describe("renderer-owned Markdown structured commands", () => {
       transactionCount: 0,
       state: guardedTask,
     });
+  });
+
+  it("enters the first editable cell from a whole-table selection and clears the atom highlight", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const base = createState(doc);
+    const table = base.field(markdownRangeIndexField).byKind("table")[0];
+    const selected = base.update({
+      selection: EditorSelection.range(table.fullRange.from, table.fullRange.to),
+      annotations: Transaction.addToHistory.of(false),
+    }).state;
+    const cell = { focus: () => {}, ownerDocument: {} };
+    const wrapper = { querySelector: vi.fn().mockReturnValue(cell) };
+    const dispatch = vi.fn();
+    const querySelector = vi.fn().mockReturnValue(wrapper);
+    const view = {
+      state: selected,
+      dispatch,
+      dom: { querySelector },
+    } as unknown as EditorView;
+
+    expect(enterSelectedTableCell(view)).toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(querySelector).toHaveBeenCalledWith(`.cm-md-table-widget[data-record-id="${table.id}"]`);
+    // 无记忆单元格时回退到第一个表头单元格并聚焦。
+    expect(wrapper.querySelector).toHaveBeenCalledWith(
+      '.cm-md-table-widget__cell[data-row-kind="header"][data-col-index="0"]',
+    );
+  });
+
+  it("falls through to normal markup commands when the selection is not a whole table", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const view = (selection: EditorSelection | SelectionRange) =>
+      ({
+        state: createState(doc, selection),
+        dispatch: vi.fn(),
+        dom: { querySelector: vi.fn() },
+      }) as unknown as EditorView;
+
+    // 空选区：不进入编辑。
+    expect(enterSelectedTableCell(view(EditorSelection.cursor(0)))).toBe(false);
+    // 光标落在表格文本内部（非整表选区）：不进入编辑。
+    const inside = doc.indexOf("1");
+    expect(enterSelectedTableCell(view(EditorSelection.cursor(inside)))).toBe(false);
+    // 覆盖表格部分范围的选区（不等于整表 fullRange）：不进入编辑。
+    const partial = EditorSelection.range(doc.indexOf("1"), doc.indexOf("2") + 1);
+    expect(enterSelectedTableCell(view(partial))).toBe(false);
   });
 });

@@ -252,15 +252,7 @@ function verticalMovementTarget(
   const atoms = view.state
     .field(markdownRangeIndexField)
     .records.filter((record) => isKeyboardProjectedAtom(record, view.state))
-    .filter(
-      (record) =>
-        !positionIsInside(record, range.head) &&
-        moved.head >= record.fullRange.from &&
-        moved.head <= record.fullRange.to &&
-        (direction === "forward"
-          ? range.head <= record.fullRange.from
-          : range.head >= record.fullRange.to),
-    );
+    .filter((record) => verticalMoveHitsAtom(record, range, moved, direction));
   if (atoms.length !== 1) {
     return { kind: "native", selection: moved };
   }
@@ -307,6 +299,27 @@ function revealedSourceCursor(
 
 function positionIsInside(record: MarkdownRangeRecord, position: number): boolean {
   return position > record.fullRange.from && position < record.fullRange.to;
+}
+
+/**
+ * 判定一次纵向视觉移动是否"进入/跨过"某个投影 atom（表格/图片/分割线）。
+ * 表格是整块 block widget：从上方一行向下移动时，CM6 的视觉落点可能
+ * 直接落在 widget 之后（moved.head > fullRange.to），此时同样视为命中，
+ * 保证 ArrowDown 与 ArrowUp 行为对称（进入即原子选中整表）。
+ */
+function verticalMoveHitsAtom(
+  record: MarkdownRangeRecord,
+  range: SelectionRange,
+  moved: SelectionRange,
+  direction: "backward" | "forward",
+): boolean {
+  if (positionIsInside(record, range.head)) {
+    return false;
+  }
+  if (direction === "forward") {
+    return range.head < record.fullRange.from && moved.head >= record.fullRange.from;
+  }
+  return range.head > record.fullRange.to && moved.head <= record.fullRange.to;
 }
 
 function exactlySelectedAtom(state: EditorState, range: SelectionRange): SelectableAtom | null {

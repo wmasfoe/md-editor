@@ -442,6 +442,56 @@ describe("WYSIWYG atom selection commands", () => {
     });
   });
 
+  it.each([
+    [
+      "forward",
+      "Before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nAfter",
+      "Before",
+      // 表格是整块 block widget：从上方视觉下移的落点会直接越过 fullRange.to。
+      (table: { readonly fullRange: { readonly to: number } }) => table.fullRange.to + 2,
+    ],
+    [
+      "backward",
+      "Before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nAfter",
+      "After",
+      (table: { readonly fullRange: { readonly to: number } }) => table.fullRange.to,
+    ],
+  ] as const)(
+    "selects the whole table atom during %s visual-line movement",
+    (direction, doc, anchorText, nativeTargetOf) => {
+      let state = createStateWithTables(doc);
+      const table = state.field(markdownRangeIndexField).byKind("table")[0];
+      const start =
+        direction === "forward"
+          ? doc.indexOf(anchorText) + anchorText.length
+          : doc.indexOf(anchorText);
+      state = state.update({ selection: EditorSelection.cursor(start) }).state;
+      const nativeTarget = EditorSelection.cursor(nativeTargetOf(table), 0, undefined, 24);
+      const view = {
+        composing: false,
+        get state() {
+          return state;
+        },
+        moveVertically() {
+          return nativeTarget;
+        },
+        dispatch(transaction: ReturnType<EditorState["update"]>) {
+          state = transaction.state;
+        },
+      } as unknown as EditorView;
+
+      expect(moveAtomVertically(view, direction)).toBe(true);
+      expect(state.selection.main).toMatchObject(
+        direction === "forward"
+          ? { anchor: table.fullRange.from, head: table.fullRange.to }
+          : { anchor: table.fullRange.to, head: table.fullRange.from },
+      );
+      expect(inspectWysiwygProjection(state)).toMatchObject({
+        selectedAtomIds: [table.id],
+      });
+    },
+  );
+
   it("selects a table via click and clears the selection with Escape", () => {
     const doc = "Before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nAfter";
     let state = createStateWithTables(doc);

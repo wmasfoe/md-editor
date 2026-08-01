@@ -2,7 +2,7 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-02（M3 表格已升级为"始终网格 + 就地单元格编辑"：renderer 20 files / 213 tests 全绿、typecheck/lint/build 全绿；表格在 WYSIWYG 中恒显示为可编辑网格，单元格 contenteditable 直接编辑并经受保护 transaction 回写 GFM 源码，工具栏支持增删行/列，点击空白原子选中整表、Delete 整表删除，不再有 Arrow 回显源码模式；修复 Tailwind preflight 清零 widget 边框与 range-index 删末行丢表两个 bug）
+> 最后更新：2026-08-02（M3 表格 UX 升级：renderer 20 files / 221 tests 全绿、typecheck/lint/build 全绿；单元格左键单击即编辑（不再需要右键进入），ArrowUp/ArrowDown 从上下方对称进入整表原子选中，Tab/Enter 可从整表选中态进入单元格编辑，工具栏已移除并改为行/列分隔线悬停手柄（悬停行上边界/列右边界显示插入+删除手柄，插入落在分隔线下方/右侧、删除落在分隔线上方/左侧，末行额外提供表尾追加、末列不提供删除）；点击表格空白仍原子选中整表、Delete 整表删除）
 
 ## 当前结论
 
@@ -52,7 +52,7 @@
 | S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
 | S2 核心显隐与选择 | 已验证 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 126/126、完整 Chromium 32/32 和原生 N01-N10 已通过 |
 | S3 代码块 | 已验证 | fenced/indented projection、native mixed highlighting、语言菜单、block-local 行号、copy/keyboard/IME/history、fail-open 与固定大文件增量预算已通过自动化；post-fix 原生 N13 已在 Tauri/WebKit 通过 |
-| S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 就地编辑、Enter/Tab 导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；工具栏增删行/列（body 行、任意列，末列拒删）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；12 个 table-projection 测试 + 5 个 table-editing 测试 + 4 个表格原子选择测试通过；对齐切换、tab 跳格、多单元格拖选仍留待后续 |
+| S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 左键单击即就地编辑、Enter 下移/Tab 右移/Shift-Tab 左移导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；顶部工具栏已移除，改为行/列分隔线悬停手柄：悬停行上边界显示插入行（分隔线下方）+ 删除行（分隔线上方行，表头与首行间只插入），末行下边界额外提供表尾追加；悬停列右边界显示插入列（右侧）+ 删除列（左侧列，最右列只插入）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复；ArrowUp/ArrowDown 从表格上方/下方视觉移动会对称地整表选中（`verticalMoveHitsAtom` 覆盖跳过整块 widget 的情况）；整表选中态下 Tab/Enter 进入最近编辑单元格（记忆 `lastEditingCellByRecordId`，无记忆时聚焦首个表头单元格）；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；21 个 table-projection 测试 + 5 个 table-editing 测试 + 4 个表格原子选择测试 + 4 个表格 widget DOM 生命周期测试 + 2 个整表进入单元格测试通过；对齐切换、多单元格拖选仍留待后续 |
 | S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
 | S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
 | S6 性能基线 | 未开始 | 删除旧引擎前未固化同环境量化结果；必须建立 CM6 fixture/门槛，并把历史对照缺口显式保留 |
@@ -65,7 +65,7 @@
 | M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
-| M3 GFM 表格 | 已验证 | renderer 20 files / 213 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 5 + 表格原子选择 4）、typecheck/lint/build 全绿；表格恒显示为可编辑网格（contenteditable 单元格 + 受保护 transaction 回写 GFM 源码 + 工具栏增删行列 + 整表原子选中/删除），不再回显源码；对齐切换、tab 跳格、多单元格拖选留待后续 |
+| M3 GFM 表格 | 已验证 | renderer 20 files / 221 tests（含 M3-A 元数据基座 + 表格投影 21 + 表格编辑 5 + 表格原子选择 4 + 表格 widget DOM 生命周期 4 + 整表进入单元格 2）、typecheck/lint/build 全绿；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + 分隔线悬停手柄增删行列 + 整表原子选中/删除 + Arrow 对称整表选中 + Tab/Enter 进入单元格），不再回显源码；对齐切换、多单元格拖选留待后续 |
 | M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
 | M5 现有能力迁移 | 未开始 | 不可用 |
 | M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
@@ -110,7 +110,7 @@
 
 ## 当前 Beta 已知缺口
 
-- M3 / S4：表格恒显示为可编辑网格并支持单元格就地编辑、增删行列与整表原子删除；对齐切换、Tab 跳格、多单元格拖拽选区仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
+- M3 / S4：表格恒显示为可编辑网格并支持单元格左键就地编辑、分隔线悬停手柄增删行列、Arrow 对称整表选中与整表原子删除；对齐切换、多单元格拖拽选区仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
 - M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
