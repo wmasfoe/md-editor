@@ -1,6 +1,13 @@
+import { markdown } from "@codemirror/lang-markdown";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
+import { M1_MARKDOWN_EXTENSIONS } from "../../markdown/extensions.ts";
+import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { WysiwygDiagnostics } from "../../diagnostics.ts";
+import { editorModeField } from "../../mode.ts";
+import { configureWysiwygProjectionFeatures, wysiwygProjectionField } from "../projection-state.ts";
+import { wysiwygChangeProtection } from "../change-protection.ts";
 import { DefaultAtomWidget } from "./default-atom-widget.ts";
 import { FrontmatterHeaderWidget } from "./frontmatter-header-widget.ts";
 import { ImageWidget } from "./image-widget.ts";
@@ -70,7 +77,6 @@ class FakeElement extends HTMLElementStub {
   readonly #listeners = new Map<string, Set<EventListener>>();
   className = "";
   textContent = "";
-  innerText = "";
   hidden = false;
   draggable = false;
   alt = "";
@@ -80,6 +86,14 @@ class FakeElement extends HTMLElementStub {
   scope = "";
   type = "";
   parentNode: FakeElement | null = null;
+
+  get innerText(): string {
+    return this.textContent;
+  }
+
+  set innerText(value: string) {
+    this.textContent = value;
+  }
 
   constructor(
     readonly tagName: string,
@@ -590,5 +604,91 @@ describe("table widget DOM lifecycle", () => {
       update: 0,
       destroy: 1,
     });
+  });
+});
+
+describe("table widget select-all inside a cell", () => {
+  // 真实 EditorState（与 table-editing 相同的扩展集）+ Fake DOM，模拟单元格内 keydown。
+  function createRealView(doc: string): {
+    readonly view: EditorView;
+    readonly getState: () => EditorState;
+  } {
+    let state = EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(doc.length),
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+        editorModeField,
+        markdownRangeIndexField,
+        configureWysiwygProjectionFeatures(["tables"]),
+        wysiwygProjectionField,
+        wysiwygChangeProtection,
+      ],
+    });
+    const document = new FakeDocument();
+    const view = {
+      dom: { ownerDocument: document },
+      get state() {
+        return state;
+      },
+      dispatch(spec: Parameters<EditorState["update"]>[0]) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+    } as unknown as EditorView;
+    return { view, getState: () => state };
+  }
+
+  it("Cmd+A inside a cell commits the edit and selects the whole table atom", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createRealView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const cell = dom.querySelector<HTMLElement>("tbody td") as unknown as FakeElement;
+    const preventDefault = vi.fn();
+    const stopPropagation = vi.fn();
+
+    dom.dispatch("keydown", {
+      key: "a",
+      metaKey: true,
+      target: cell,
+      preventDefault,
+      stopPropagation,
+    } as unknown as KeyboardEvent);
+
+    // 浏览器默认行为被拦截，选区切换为整表原子（fresh 读取避免提交造成位移）。
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    const fresh = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(getState().selection.main.from).toBe(fresh.fullRange.from);
+    expect(getState().selection.main.to).toBe(fresh.fullRange.to);
+  });
+
+  it("plain 'a' is not intercepted so the browser keeps cell-level selection", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createRealView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const cell = dom.querySelector<HTMLElement>("tbody td") as unknown as FakeElement;
+    const preventDefault = vi.fn();
+
+    dom.dispatch("keydown", { key: "a", target: cell, preventDefault } as unknown as KeyboardEvent);
+
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });

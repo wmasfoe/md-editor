@@ -215,6 +215,18 @@ export class TableGridWidget extends WidgetType {
         editingCellByDom.delete(wrapper);
         cell.blur();
         view.focus();
+        return;
+      }
+      // 单元格内 Cmd/Ctrl+A：先提交当前单元格编辑，再原子选中整表；
+      // 焦点随之回到 CM6，再次 Cmd+A 由 CM6 默认 selectAll 扩展到全文。
+      // （contenteditable 的浏览器默认只会选中当前单元格文本。）
+      if (keyEvent.key === "a" && (keyEvent.metaKey || keyEvent.ctrlKey)) {
+        flushCellCommit(view, wrapper, cell, this.value.recordId);
+        if (selectWysiwygAtom(view, wrapper.dataset.recordId ?? this.value.recordId)) {
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+        }
+        return;
       }
     };
 
