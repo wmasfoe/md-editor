@@ -364,12 +364,12 @@
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget {
   box-sizing: border-box;
+  position: relative;
   width: fit-content;
   max-width: 100%;
   margin: 0.35rem 0;
   border: 1px solid var(--theme-border, currentColor) !important;
   border-radius: 6px;
-  overflow: auto;
   cursor: default;
 }
 
@@ -377,34 +377,6 @@
   border-color: var(--theme-primary, currentColor) !important;
   outline: 2px solid var(--theme-primary-soft, var(--theme-primary, currentColor));
   outline-offset: 2px;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.28rem 0.35rem;
-  border-bottom: 1px solid var(--theme-border, currentColor) !important;
-  background: var(--theme-bg-muted, var(--theme-surface, transparent));
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0.12rem 0.4rem;
-  border: 1px solid var(--theme-border, currentColor) !important;
-  border-radius: 4px;
-  background: var(--theme-surface, transparent);
-  color: var(--theme-text, currentColor);
-  font: inherit;
-  font-size: 0.78em;
-  line-height: 1.3;
-  cursor: pointer;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn:hover {
-  border-color: var(--theme-primary, currentColor) !important;
-  color: var(--theme-primary, currentColor);
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__grid {
@@ -415,6 +387,7 @@
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell {
   box-sizing: border-box;
+  position: relative;
   min-width: 2.5rem;
   padding: 0.28rem 0.6rem;
   border: 1px solid var(--theme-border, currentColor) !important;
@@ -438,6 +411,62 @@
   th.cm-md-table-widget__cell {
   font-weight: 600;
   background: var(--theme-bg-muted, var(--theme-surface, transparent));
+}
+
+/* 行/列分隔线悬停手柄：默认透明，悬停表格时显示。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  line-height: 1;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-table-widget:hover
+  .cm-md-table-widget__handle {
+  opacity: 1;
+}
+
+/* 行分隔线手柄：贴在单元格顶部边线处（悬停第 i 行上边界）。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle--row {
+  top: -0.6rem;
+  left: 0.15rem;
+}
+
+/* 列分隔线手柄：贴在单元格右侧边线处（悬停第 j 列右边界）。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle--col {
+  top: 0.15rem;
+  right: -0.6rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--theme-border, currentColor) !important;
+  border-radius: 4px;
+  background: var(--theme-surface, transparent);
+  color: var(--theme-text, currentColor);
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn:hover {
+  border-color: var(--theme-primary, currentColor) !important;
+  color: var(--theme-primary, currentColor);
+  background: var(--theme-primary-soft, var(--theme-bg-muted, transparent));
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom {
