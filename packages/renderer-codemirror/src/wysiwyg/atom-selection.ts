@@ -18,7 +18,9 @@ import {
 } from "./projection-state.ts";
 
 type SelectableAtom = MarkdownRangeRecord;
-type DeletableAtom = MarkdownRangeRecord & { readonly kind: "image" | "thematic-break" };
+type DeletableAtom = MarkdownRangeRecord & {
+  readonly kind: "image" | "thematic-break" | "table";
+};
 
 export const deleteSelectedAtomBackward: StateCommand = guarded((target) =>
   deleteExactlySelectedAtoms(target, "delete.backward"),
@@ -221,10 +223,10 @@ function movementTarget(
     return null;
   }
   const atom = atoms[0];
-  if (isKeyboardRevealImage(atom, state)) {
+  if (isKeyboardRevealAtom(atom, state)) {
     return {
       kind: "exit",
-      selection: imageSourceCursor(atom, direction),
+      selection: revealedSourceCursor(atom, direction),
     };
   }
   return {
@@ -264,7 +266,7 @@ function verticalMovementTarget(
   }
 
   const atom = atoms[0];
-  if (!isKeyboardRevealImage(atom, view.state)) {
+  if (!isKeyboardRevealAtom(atom, view.state)) {
     return {
       kind: "select",
       atom,
@@ -276,7 +278,7 @@ function verticalMovementTarget(
   }
   return {
     kind: "reveal-image",
-    selection: imageSourceCursor(
+    selection: revealedSourceCursor(
       atom,
       moved.head <= atom.fullRange.from ? "forward" : "backward",
       moved,
@@ -284,15 +286,22 @@ function verticalMovementTarget(
   };
 }
 
-function imageSourceCursor(
-  image: MarkdownRangeRecord,
+function revealedSourceCursor(
+  atom: MarkdownRangeRecord,
   direction: "backward" | "forward",
   movement?: SelectionRange,
 ): SelectionRange {
-  const minimum = image.fullRange.from + 1;
-  const maximum = image.fullRange.to - 1;
-  const preferred = direction === "forward" ? (image.contentRange?.from ?? minimum) : maximum;
-  const position = Math.max(minimum, Math.min(maximum, preferred));
+  if (atom.kind === "image") {
+    const minimum = atom.fullRange.from + 1;
+    const maximum = atom.fullRange.to - 1;
+    const preferred = direction === "forward" ? (atom.contentRange?.from ?? minimum) : maximum;
+    const position = Math.max(minimum, Math.min(maximum, preferred));
+    return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
+  }
+  // 表格：光标进入表头行首个 cell 内容之后，让源码立即回显。
+  const minimum = atom.fullRange.from + 1;
+  const maximum = Math.max(minimum, atom.fullRange.to - 1);
+  const position = direction === "forward" ? minimum : maximum;
   return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
 }
 
@@ -327,16 +336,16 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
       (record.kind === "image" || record.kind === "thematic-break")) ||
       (hasWysiwygProjectionFeature(state, "default-atoms") &&
         isDefaultAtomRecord(record) &&
-        hasCurrentSourceFingerprint(record, state)))
+        hasCurrentSourceFingerprint(record, state)) ||
+      (hasWysiwygProjectionFeature(state, "tables") &&
+        record.kind === "table" &&
+        record.renderPolicy === "table-widget"))
   );
 }
 
-function isKeyboardRevealImage(record: MarkdownRangeRecord, state: EditorState): boolean {
-  return (
-    record.kind === "image" &&
-    hasWysiwygProjectionFeature(state, "images") &&
-    isSelectableAtom(record, state)
-  );
+function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  // 表格始终显示网格并在单元格内编辑，Arrow 进入时原子选中整表（不回显源码）。
+  return isSelectableAtom(record, state) && record.interactionPolicy === "reveal-source";
 }
 
 function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
@@ -349,13 +358,19 @@ function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState
   if (record.kind === "thematic-break") {
     return hasWysiwygProjectionFeature(state, "thematic-breaks");
   }
+  if (record.kind === "table") {
+    return hasWysiwygProjectionFeature(state, "tables");
+  }
   return true;
 }
 
 function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
   return (
-    record.editPolicy === "atom-delete" &&
-    (record.kind === "image" || record.kind === "thematic-break")
+    (record.editPolicy === "atom-delete" &&
+      (record.kind === "image" || record.kind === "thematic-break")) ||
+    (record.kind === "table" &&
+      record.renderPolicy === "table-widget" &&
+      record.editPolicy === "structured")
   );
 }
 

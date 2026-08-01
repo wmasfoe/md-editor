@@ -102,6 +102,9 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 - M1：CommonMark / GFM、链接、图片、列表、Frontmatter 和选区语义
 - M2：代码块语言、高亮、行号、复制和直接编辑
 - M3：标准 GFM 表格结构化编辑
+  - **M3-A（已完成，2026-08-01）**：range-index 收集 `MarkdownTableBlockMetadata`（header / delimiter / body / 对齐 / 列数 / 行数 / leading-pipes / per-line fingerprint），`tables` feature 接入 projection-state，delimiter row 进入 protected / atomic，行级 decoration 区分 header / delimiter / body；6 fixture + 12 新增测试全绿。M3-A 仍不暴露 cell 投影、对齐切换、tab 跳格、toolbar 与结构化 cell 编辑。
+  - **M3-B（已完成，2026-08-02 升级为可编辑版，取代原只读方案）**：S4 引擎评估无成熟开源方案（`codemirror-markdown-tables` 0 stars/单维护者、live-markdown alpha、Joplin/Zettlr/Nexus 内部实现；CM6 作者 marijn 明确需嵌套编辑器）触发 No-Go 裁剪，不引入嵌套编辑器。按用户验收（表格恒显示网格、单元格就地编辑、一次 Delete 整表删除、可增删行列）落地为**可编辑可视化表格**：整表 `TableGridWidget` 网格恒显示、contenteditable 单元格就地编辑（Enter/Tab/Escape/blur）并经 `authorizeWysiwygProtectedChange` 事务整行回写 GFM 源码（`serializeTableRow` 统一转义、不双重转义）、工具栏增删行/列（末列拒删）、点击空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复、整表恒 atomic + protected、不再回显源码；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；12 个 table-projection 测试 + 5 个 table-editing 测试 + 4 个表格原子测试全绿（renderer 20 files / 213 tests）。
+  - **M3-C（裁剪留待，有成熟引擎后恢复）**：对齐切换、tab 跳格、多单元格拖选、column resize 与 CM6 history 一致性
 - M4：基础 HTML 和官方 MDX 组件
 
 ### M5：现有能力迁移
