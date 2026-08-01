@@ -154,12 +154,12 @@ const POLICIES: Readonly<Record<string, MarkdownNodePolicy>> = Object.freeze({
     contentStrategy: "full",
   }),
   Table: definePolicy({
-    kind: "deferred-table",
-    renderPolicy: "deferred-raw",
-    editPolicy: "native",
-    interactionPolicy: "none",
-    priority: 0,
-    markerNodeNames: [],
+    kind: "table",
+    renderPolicy: "table-widget",
+    editPolicy: "structured",
+    interactionPolicy: "structured-block",
+    priority: 25,
+    markerNodeNames: ["TableDelimiter"],
     contentStrategy: "full",
   }),
   HTMLBlock: definePolicy({

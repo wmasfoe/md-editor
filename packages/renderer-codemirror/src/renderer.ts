@@ -381,6 +381,7 @@ class CodeMirrorRendererController {
           "thematic-breaks",
           "default-atoms",
           "frontmatter",
+          "tables",
         ],
         { writeClipboardText: options.writeClipboardText },
       ),

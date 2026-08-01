@@ -23,6 +23,7 @@ export type MarkdownSyntaxKind =
   | "reference-definition"
   | "footnote"
   | "frontmatter"
+  | "table"
   | "deferred-code"
   | "deferred-table"
   | "deferred-html"
@@ -37,6 +38,7 @@ export type MarkdownRenderPolicy =
   | "thematic-break-widget"
   | "source-only-atom"
   | "frontmatter-panel"
+  | "table-widget"
   | "deferred-raw"
   | "raw-fallback";
 
@@ -53,7 +55,7 @@ export type MarkdownInteractionPolicy =
   | "none";
 
 export type MarkdownRangeSegmentRole =
-  "marker" | "content" | "destination" | "title" | "label" | "body";
+  "marker" | "content" | "destination" | "title" | "label" | "body" | "delimiter";
 
 export interface MarkdownRangeSegment extends SourceRange {
   readonly role: MarkdownRangeSegmentRole;
@@ -93,6 +95,25 @@ export interface MarkdownCodeBlockMetadata {
   readonly languageInfo: MarkdownCodeBlockLanguageInfo;
 }
 
+export type MarkdownTableCellAlignment = "left" | "center" | "right" | "none";
+
+export interface MarkdownTableCellRange extends SourceRange {
+  readonly alignment: MarkdownTableCellAlignment;
+}
+
+export interface MarkdownTableBlockMetadata {
+  readonly sourceBlockRange: SourceRange;
+  readonly sourceFingerprint: string;
+  readonly headerRowRange: SourceRange | null;
+  readonly delimiterRowRange: SourceRange | null;
+  readonly bodyRowRanges: readonly SourceRange[];
+  readonly alignments: readonly MarkdownTableCellAlignment[];
+  readonly columnCount: number;
+  readonly bodyRowCount: number;
+  readonly hasLeadingPipes: boolean;
+  readonly sourceLineFingerprints: readonly MarkdownCodeBlockLineFingerprint[];
+}
+
 export interface MarkdownRangeRecord {
   readonly id: string;
   readonly kind: MarkdownSyntaxKind;
@@ -110,6 +131,7 @@ export interface MarkdownRangeRecord {
   readonly sourceFingerprint: string;
   readonly parserCoverage: "complete" | "partial";
   readonly codeBlock?: MarkdownCodeBlockMetadata;
+  readonly tableBlock?: MarkdownTableBlockMetadata;
 }
 
 export interface MarkdownParseCoverage {

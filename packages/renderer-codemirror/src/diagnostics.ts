@@ -1,7 +1,7 @@
 import { Facet, type EditorState, type Extension } from "@codemirror/state";
 
 export type WysiwygWidgetKind =
-  "task" | "image" | "thematic-break" | "default" | "frontmatter" | "code-block";
+  "task" | "image" | "thematic-break" | "default" | "frontmatter" | "code-block" | "table";
 
 export interface WidgetLifecycleCounts {
   readonly create: number;
@@ -46,6 +46,7 @@ const WIDGET_KINDS: readonly WysiwygWidgetKind[] = [
   "default",
   "frontmatter",
   "code-block",
+  "table",
 ];
 
 function createWidgetCounts(): Record<WysiwygWidgetKind, MutableWidgetLifecycleCounts> {
@@ -56,6 +57,7 @@ function createWidgetCounts(): Record<WysiwygWidgetKind, MutableWidgetLifecycleC
     default: { create: 0, update: 0, destroy: 0 },
     frontmatter: { create: 0, update: 0, destroy: 0 },
     "code-block": { create: 0, update: 0, destroy: 0 },
+    table: { create: 0, update: 0, destroy: 0 },
   };
 }
 

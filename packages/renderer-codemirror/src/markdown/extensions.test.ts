@@ -92,7 +92,7 @@ describe("M1 Markdown parser extensions", () => {
     expect(index.byKind("footnote")).toEqual([]);
     expect(index.byKind("autolink")).toEqual([]);
     expect(index.byKind("deferred-code")).toHaveLength(1);
-    expect(index.byKind("deferred-table")).toHaveLength(1);
+    expect(index.byKind("table")).toHaveLength(1);
     expect(index.byKind("deferred-html").length).toBeGreaterThanOrEqual(1);
     expect(index.records.filter((record) => record.renderPolicy === "source-only-atom")).toEqual(
       [],

@@ -1,5 +1,7 @@
 export type M1MarkdownFixtureKind = "combined" | "malformed" | "partial";
 export type M2CodeBlockFixtureKind = "fenced" | "indented" | "malformed" | "partial";
+export type M3TableFixtureKind =
+  "aligned" | "minimal" | "no-leading-pipes" | "sparse" | "inline-content" | "no-body";
 
 export interface M1MarkdownFixture {
   readonly id: string;
@@ -24,6 +26,16 @@ export interface M2CodeBlockPerformanceFixture {
   readonly hugeBodyLineCount: 20_000;
 }
 
+export interface M3TableFixture {
+  readonly id: string;
+  readonly kind: M3TableFixtureKind;
+  readonly markdown: string;
+  readonly columnCount: number;
+  readonly bodyRowCount: number;
+  readonly hasLeadingPipes: boolean;
+  readonly alignments: readonly ("left" | "center" | "right" | "none")[];
+}
+
 function defineFixture(fixture: M1MarkdownFixture): M1MarkdownFixture {
   return Object.freeze({
     ...fixture,
@@ -34,6 +46,10 @@ function defineFixture(fixture: M1MarkdownFixture): M1MarkdownFixture {
 
 function defineCodeBlockFixture(fixture: M2CodeBlockFixture): M2CodeBlockFixture {
   return Object.freeze({ ...fixture });
+}
+
+function defineTableFixture(fixture: M3TableFixture): M3TableFixture {
+  return Object.freeze({ ...fixture, alignments: Object.freeze([...fixture.alignments]) });
 }
 
 export const M1_MARKDOWN_FIXTURES: readonly M1MarkdownFixture[] = Object.freeze([
@@ -247,6 +263,77 @@ export function getM2CodeBlockFixture(id: string): M2CodeBlockFixture {
   const fixture = M2_CODE_BLOCK_FIXTURES.find((candidate) => candidate.id === id);
   if (!fixture) {
     throw new Error(`Unknown M2 code-block fixture: ${id}`);
+  }
+  return fixture;
+}
+
+export const M3_TABLE_FIXTURES: readonly M3TableFixture[] = Object.freeze([
+  defineTableFixture({
+    id: "M3T-F01",
+    kind: "aligned",
+    markdown: "| left | center | right |\n| :--- | :----: | ---: |\n| a | b | c |\n| d | e | f |\n",
+    columnCount: 3,
+    bodyRowCount: 2,
+    hasLeadingPipes: true,
+    alignments: ["left", "center", "right"],
+  }),
+  defineTableFixture({
+    id: "M3T-F02",
+    kind: "minimal",
+    markdown: "| a | b |\n| - | - |\n| 1 | 2 |\n",
+    columnCount: 2,
+    bodyRowCount: 1,
+    hasLeadingPipes: true,
+    alignments: ["none", "none"],
+  }),
+  defineTableFixture({
+    id: "M3T-F03",
+    kind: "no-leading-pipes",
+    markdown: "left | center | right\n:--- | :----: | ---:\na | b | c\n",
+    columnCount: 3,
+    bodyRowCount: 1,
+    hasLeadingPipes: false,
+    alignments: ["left", "center", "right"],
+  }),
+  defineTableFixture({
+    id: "M3T-F04",
+    kind: "sparse",
+    markdown: "| a | b | c |\n| - | - | - |\n| 1 |\n| 2 | 3 | 4 |\n",
+    columnCount: 3,
+    bodyRowCount: 2,
+    hasLeadingPipes: true,
+    alignments: ["none", "none", "none"],
+  }),
+  defineTableFixture({
+    id: "M3T-F05",
+    kind: "inline-content",
+    markdown: [
+      "| feature | status |",
+      "| --- | --- |",
+      "| **bold** | *italic* |",
+      "| [link](https://example.com) | `code` |",
+      "",
+    ].join("\n"),
+    columnCount: 2,
+    bodyRowCount: 2,
+    hasLeadingPipes: true,
+    alignments: ["none", "none"],
+  }),
+  defineTableFixture({
+    id: "M3T-F06",
+    kind: "no-body",
+    markdown: "| header |\n| --- |\n",
+    columnCount: 1,
+    bodyRowCount: 0,
+    hasLeadingPipes: true,
+    alignments: ["none"],
+  }),
+]);
+
+export function getM3TableFixture(id: string): M3TableFixture {
+  const fixture = M3_TABLE_FIXTURES.find((candidate) => candidate.id === id);
+  if (!fixture) {
+    throw new Error(`Unknown M3 table fixture: ${id}`);
   }
   return fixture;
 }

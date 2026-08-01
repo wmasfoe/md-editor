@@ -11,7 +11,7 @@ import {
 import { setEditorModeEffect } from "../mode.ts";
 import { analyzeFrontmatterYaml, getFrontmatterYamlDiagnostics } from "./frontmatter-yaml.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "./extensions.ts";
-import { getM1MarkdownFixture, getM2CodeBlockFixture } from "./fixtures.ts";
+import { getM1MarkdownFixture, getM2CodeBlockFixture, getM3TableFixture } from "./fixtures.ts";
 import {
   buildMarkdownRangeIndex,
   markdownRangeIndexField,
@@ -431,6 +431,114 @@ describe("M2 code-block parser range index", () => {
       beforeCodeBlock.codeBlock?.sourceFingerprint,
     );
     expect(afterBold.id).toBe(beforeBold.id);
+  });
+});
+
+describe("M3 table parser range index", () => {
+  it("M3T-U01 builds exact header, delimiter, and body row ranges for an aligned table", () => {
+    const fixture = getM3TableFixture("M3T-F01");
+    const { index } = createIndexHarness(fixture.markdown);
+    const record = index.byKind("table")[0];
+    const table = record.tableBlock;
+
+    expect(record).toMatchObject({
+      kind: "table",
+      renderPolicy: "table-widget",
+      editPolicy: "structured",
+      interactionPolicy: "structured-block",
+      parserCoverage: "complete",
+    });
+    expect(table).toBeDefined();
+    expect(fixture.markdown.slice(table?.headerRowRange?.from, table?.headerRowRange?.to)).toBe(
+      "| left | center | right |",
+    );
+    expect(
+      fixture.markdown.slice(table?.delimiterRowRange?.from, table?.delimiterRowRange?.to),
+    ).toBe("| :--- | :----: | ---: |");
+    expect(
+      table?.bodyRowRanges.map((range) => fixture.markdown.slice(range.from, range.to)),
+    ).toEqual(["| a | b | c |", "| d | e | f |"]);
+    expect(table?.alignments).toEqual(["left", "center", "right"]);
+    expect(table?.columnCount).toBe(3);
+    expect(table?.bodyRowCount).toBe(2);
+    expect(table?.hasLeadingPipes).toBe(true);
+    expect(table?.sourceLineFingerprints).toHaveLength(4);
+  });
+
+  it("M3T-U02 handles a no-leading-pipes table and still parses column alignments", () => {
+    const fixture = getM3TableFixture("M3T-F03");
+    const { index } = createIndexHarness(fixture.markdown);
+    const table = index.byKind("table")[0].tableBlock;
+
+    expect(table?.hasLeadingPipes).toBe(false);
+    expect(table?.alignments).toEqual(["left", "center", "right"]);
+    expect(table?.bodyRowCount).toBe(1);
+  });
+
+  it("M3T-U03 keeps cell content raw by stopping recursion into Table cells", () => {
+    const fixture = getM3TableFixture("M3T-F05");
+    const { index } = createIndexHarness(fixture.markdown);
+
+    expect(index.byKind("table")).toHaveLength(1);
+    // Cells hold **bold**, *italic*, [link](), `code`. None of them must be
+    // promoted into standalone range records because the table claims the block.
+    expect(index.byKind("bold")).toEqual([]);
+    expect(index.byKind("italic")).toEqual([]);
+    expect(index.byKind("link")).toEqual([]);
+    expect(index.byKind("inline-code")).toEqual([]);
+  });
+
+  it("M3T-U04 keeps unrelated records stable when only a table cell text is edited", () => {
+    const fixture = getM3TableFixture("M3T-F05");
+    // Trailing blank line keeps the GFM table from extending into the bold paragraph.
+    const harness = createIndexHarness(`${fixture.markdown}\nTail **bold**.\n`);
+    const beforeTable = harness.index.byKind("table")[0];
+    const beforeBold = harness.index.byKind("bold")[0];
+    expect(beforeBold).toBeDefined();
+
+    const editAt = fixture.markdown.indexOf("italic") + 1;
+    const next = harness.state
+      .update({ changes: { from: editAt, insert: "X" } })
+      .state.field(markdownRangeIndexField);
+    const afterTable = next.byKind("table")[0];
+    const afterBold = next.byKind("bold")[0];
+
+    expect(afterTable).toBeDefined();
+    expect(afterBold).toBeDefined();
+    expect(afterTable.id).not.toBe(beforeTable.id);
+    expect(afterTable.sourceFingerprint).not.toBe(beforeTable.sourceFingerprint);
+    expect(afterBold.id).toBe(beforeBold.id);
+  });
+
+  it("M3T-U05 keeps a zero-body table with only header and delimiter rows", () => {
+    const fixture = getM3TableFixture("M3T-F06");
+    const { index } = createIndexHarness(fixture.markdown);
+    const table = index.byKind("table")[0].tableBlock;
+
+    expect(table?.bodyRowCount).toBe(0);
+    expect(table?.bodyRowRanges).toEqual([]);
+    expect(table?.headerRowRange).not.toBeNull();
+    expect(table?.delimiterRowRange).not.toBeNull();
+    expect(table?.sourceLineFingerprints).toHaveLength(2);
+  });
+
+  it("M3T-U06 maps table records across body row edits without changing column count", () => {
+    const fixture = getM3TableFixture("M3T-F01");
+    const harness = createIndexHarness(fixture.markdown);
+    const before = harness.index.byKind("table")[0];
+
+    const editAt = fixture.markdown.indexOf("a | b") + 1;
+    const next = harness.state
+      .update({ changes: { from: editAt, insert: "X" } })
+      .state.field(markdownRangeIndexField);
+    const after = next.byKind("table")[0];
+
+    expect(after.id).not.toBe(before.id);
+    expect(after.tableBlock?.columnCount).toBe(before.tableBlock?.columnCount);
+    expect(after.tableBlock?.alignments).toEqual(before.tableBlock?.alignments);
+    // Body row counts may differ because the edit is inside the first body row,
+    // but column count and alignment metadata must stay stable.
+    expect(after.tableBlock?.bodyRowCount).toBe(before.tableBlock?.bodyRowCount);
   });
 });
 

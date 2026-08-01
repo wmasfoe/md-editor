@@ -52,6 +52,31 @@ function createState(
   });
 }
 
+function createStateWithTables(
+  doc: string,
+  selection: EditorSelection | SelectionRange = EditorSelection.cursor(doc.length),
+): EditorState {
+  return EditorState.create({
+    doc,
+    selection,
+    extensions: [
+      history(),
+      EditorState.allowMultipleSelections.of(true),
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      editorModeField,
+      markdownRangeIndexField,
+      configureWysiwygProjectionFeatures([
+        "links",
+        "images",
+        "thematic-breaks",
+        "default-atoms",
+        "tables",
+      ]),
+      wysiwygProjectionField,
+    ],
+  });
+}
+
 function runCommand(state: EditorState, command: StateCommand): CommandResult {
   let nextState = state;
   let transactionCount = 0;
@@ -375,5 +400,84 @@ describe("WYSIWYG atom selection commands", () => {
       handled: false,
       transactionCount: 0,
     });
+  });
+
+  it.each([
+    ["| a | b |\n| - | - |\n| 1 | 2 |", deleteMarkdownAtomForward],
+    ["| a | b |\n| - | - |\n| 1 | 2 |", deleteMarkdownMarkupBackward],
+  ] as const)(
+    "deletes an exactly selected table atom in one undoable transaction",
+    (doc, command) => {
+      const initial = createStateWithTables(doc);
+      const atom = initial.field(markdownRangeIndexField).byKind("table")[0];
+      const selected = initial.update({
+        selection: EditorSelection.range(atom.fullRange.from, atom.fullRange.to),
+      }).state;
+      const result = runCommand(selected, command);
+
+      expect(result).toMatchObject({ handled: true, transactionCount: 1 });
+      expect(result.state.doc.toString()).toBe("");
+      expect(runCommand(result.state, undo).state.doc.toString()).toBe(doc);
+    },
+  );
+
+  it("selects the whole table atom on Arrow instead of revealing source", () => {
+    const doc = "Before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nAfter";
+    const initial = createStateWithTables(doc);
+    const table = initial.field(markdownRangeIndexField).byKind("table")[0];
+    const before = initial.update({
+      selection: EditorSelection.cursor(table.fullRange.from),
+    }).state;
+    expect(inspectWysiwygProjection(before).activeSyntaxIds).not.toContain(table.id);
+
+    const selected = runCommand(before, selectMarkdownAtomForward);
+    expect(selected).toMatchObject({ handled: true, transactionCount: 1 });
+    expect(selected.state.selection.main).toMatchObject({
+      anchor: table.fullRange.from,
+      head: table.fullRange.to,
+    });
+    expect(inspectWysiwygProjection(selected.state)).toMatchObject({
+      selectedAtomIds: [table.id],
+      activeSyntaxIds: [],
+    });
+  });
+
+  it("selects a table via click and clears the selection with Escape", () => {
+    const doc = "Before\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\nAfter";
+    let state = createStateWithTables(doc);
+    const table = state.field(markdownRangeIndexField).byKind("table")[0];
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch(spec: TransactionSpec) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+    } as unknown as EditorView;
+    expect(selectWysiwygAtom(view, table.id)).toBe(true);
+    expect(inspectWysiwygProjection(state).selectedAtomIds).toEqual([table.id]);
+
+    const cleared = runCommand(state, clearMarkdownAtomSelection);
+    expect(cleared).toMatchObject({ handled: true, transactionCount: 1 });
+    expect(cleared.state.selection.main.head).toBe(table.fullRange.to);
+    expect(inspectWysiwygProjection(cleared.state).selectedAtomIds).toEqual([]);
+  });
+
+  it("deletes mixed table and image atom selections atomically", () => {
+    const doc = "![a](a.png)\n\n| a | b |\n| - | - |\n| 1 | 2 |";
+    const initial = createStateWithTables(doc);
+    const image = initial.field(markdownRangeIndexField).byKind("image")[0];
+    const table = initial.field(markdownRangeIndexField).byKind("table")[0];
+    const mixed = initial.update({
+      selection: EditorSelection.create([
+        EditorSelection.range(image.fullRange.from, image.fullRange.to),
+        EditorSelection.range(table.fullRange.from, table.fullRange.to),
+      ]),
+    }).state;
+    const deleted = runCommand(mixed, deleteMarkdownAtomForward);
+    expect(deleted).toMatchObject({ handled: true, transactionCount: 1 });
+    expect(deleted.state.doc.toString()).toBe("\n\n");
+    expect(runCommand(deleted.state, undo).state.doc.toString()).toBe(doc);
   });
 });

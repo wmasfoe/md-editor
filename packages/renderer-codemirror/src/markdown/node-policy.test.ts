@@ -49,8 +49,21 @@ describe("Markdown node policy registry", () => {
     expect(getMarkdownNodePolicy("URL", "Image")).toBeNull();
   });
 
+  it("claims GFM tables with a structured table-widget policy", () => {
+    expect(getMarkdownNodePolicy("Table")).toMatchObject({
+      kind: "table",
+      renderPolicy: "table-widget",
+      editPolicy: "structured",
+      interactionPolicy: "structured-block",
+    });
+    // TableHeader/Row/Cell/Delimiter are transparent and must not receive policies.
+    for (const nodeName of ["TableHeader", "TableRow", "TableCell", "TableDelimiter"]) {
+      expect(getMarkdownNodePolicy(nodeName)).toBeNull();
+    }
+  });
+
   it("marks deferred scope raw and gives unknown nodes a raw fallback", () => {
-    for (const nodeName of ["FencedCode", "CodeBlock", "Table", "HTMLBlock", "HTMLTag"]) {
+    for (const nodeName of ["FencedCode", "CodeBlock", "HTMLBlock", "HTMLTag"]) {
       expect(isExplicitDeferredNode(nodeName)).toBe(true);
       expect(getMarkdownNodePolicy(nodeName)).toMatchObject({
         renderPolicy: "deferred-raw",

@@ -1,4 +1,4 @@
-import { syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import {
   StateEffect,
   StateField,
@@ -29,6 +29,8 @@ import {
   type MarkdownRangeSegment,
   type MarkdownRangeSegmentRole,
   type MarkdownSyntaxKind,
+  type MarkdownTableBlockMetadata,
+  type MarkdownTableCellAlignment,
   type SourceRange,
 } from "./range-types.ts";
 
@@ -163,6 +165,9 @@ function updateMarkdownRangeIndex(
 ): MarkdownRangeIndex {
   const oldSource = transaction.startState.doc.toString();
   const newSource = transaction.newDoc.toString();
+  // 结构化编辑（如表格增删行）后必须拿到完整语法树，否则 dirty rebuild
+  // 无法识别顶层 Table 节点，导致 range-index 短暂丢表。
+  ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000);
   const tree = syntaxTree(transaction.state);
   const changedRanges = collectChangedRanges(transaction);
   const oldDirty = mergeRanges(
@@ -176,6 +181,17 @@ function updateMarkdownRangeIndex(
       expandNewDirtyRange(transaction.newDoc, newRange, newTopLevelRanges),
     ),
   );
+  // 将 oldDirty 映射到新文档并入 newDirty。删除表格末行时，newRange 可能落在
+  // 剩余 Table 节点之外，若不映射会漏 rebuild，导致 range-index 丢表。
+  for (const range of oldDirty) {
+    const mapped = mapRange(range, transaction.changes);
+    if (mapped) {
+      insertMergedRange(
+        newDirty,
+        expandNewDirtyRange(transaction.newDoc, mapped, newTopLevelRanges),
+      );
+    }
+  }
   expandFrontmatterPriorityRanges(oldSource, newSource, changedRanges, oldDirty, newDirty);
   getWysiwygDiagnostics(transaction.state)?.recordDirtyBlockRebuild(newDirty);
 
@@ -235,7 +251,14 @@ function visitParserNode(
       );
       if (policy) {
         insertRecord(output, createParserRecord(child, childBlockRange, source, policy, coverage));
-        if (policy.renderPolicy === "deferred-raw" || policy.renderPolicy === "raw-fallback") {
+        if (
+          policy.renderPolicy === "deferred-raw" ||
+          policy.renderPolicy === "raw-fallback" ||
+          // Tables claim a structured record but their cell content must not
+          // be promoted to inline atom records. The same deferred boundary
+          // applies to deferred-code and deferred-html blocks.
+          policy.renderPolicy === "table-widget"
+        ) {
           continue;
         }
       }
@@ -260,6 +283,8 @@ function createParserRecord(
     node.name === "FencedCode" || node.name === "CodeBlock"
       ? createCodeBlockMetadata(node, children, source, parserCoverage)
       : undefined;
+  const tableBlock =
+    node.name === "Table" ? createTableBlockMetadata(node, children, source) : undefined;
   const segments: MarkdownRangeSegment[] = markerRanges.map((range) => ({
     ...range,
     role: "marker",
@@ -291,6 +316,7 @@ function createParserRecord(
     sourceFingerprint: fingerprint,
     parserCoverage,
     ...(codeBlock ? { codeBlock } : {}),
+    ...(tableBlock ? { tableBlock } : {}),
   });
 }
 
@@ -386,6 +412,93 @@ function createIndentedCodeBlockMetadata(
       resolvedName: null,
     },
   };
+}
+
+function createTableBlockMetadata(
+  node: SyntaxNode,
+  children: readonly SyntaxNode[],
+  source: string,
+): MarkdownTableBlockMetadata {
+  const fullRange = nodeRange(node);
+  const headerNode = children.find((child) => child.name === "TableHeader") ?? null;
+  const delimiterNode = children.find((child) => child.name === "TableDelimiter") ?? null;
+  const bodyRowNodes = children.filter((child) => child.name === "TableRow");
+  const alignments = delimiterNode
+    ? deriveTableColumnAlignments(source, nodeRange(delimiterNode))
+    : [];
+  const sourceBlockRange = lineRangeForSource(source, {
+    from: headerNode?.from ?? fullRange.from,
+    to: bodyRowNodes.at(-1)?.to ?? delimiterNode?.to ?? fullRange.to,
+  });
+  const bodyRowRanges = bodyRowNodes.map(nodeRange);
+  const headerRowRange = headerNode ? nodeRange(headerNode) : null;
+  const delimiterRowRange = delimiterNode ? nodeRange(delimiterNode) : null;
+  const hasLeadingPipes = hasLeadingPipe(source, headerNode, delimiterNode);
+  return {
+    sourceBlockRange,
+    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
+    headerRowRange,
+    delimiterRowRange,
+    bodyRowRanges: Object.freeze(bodyRowRanges),
+    alignments: Object.freeze(alignments),
+    columnCount: alignments.length,
+    bodyRowCount: bodyRowRanges.length,
+    hasLeadingPipes,
+    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
+  };
+}
+
+function deriveTableColumnAlignments(
+  source: string,
+  delimiterRange: SourceRange,
+): readonly MarkdownTableCellAlignment[] {
+  const line = source.slice(delimiterRange.from, delimiterRange.to);
+  const cellTexts = splitTableDelimiterLine(line);
+  return cellTexts.map((cell) => classifyTableAlignment(cell));
+}
+
+function splitTableDelimiterLine(line: string): readonly string[] {
+  // Drop leading/trailing pipes if present, then split on remaining pipes.
+  const trimmed = line.replace(/^\s*\|/, "").replace(/\|\s*$/, "");
+  if (!trimmed.trim()) {
+    return [];
+  }
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+
+function classifyTableAlignment(cell: string): MarkdownTableCellAlignment {
+  const trimmed = cell.trim();
+  if (!trimmed.includes("-")) {
+    return "none";
+  }
+  const leftColon = trimmed.startsWith(":");
+  const rightColon = trimmed.endsWith(":");
+  if (leftColon && rightColon) {
+    return "center";
+  }
+  if (rightColon) {
+    return "right";
+  }
+  if (leftColon) {
+    return "left";
+  }
+  return "none";
+}
+
+function hasLeadingPipe(
+  source: string,
+  headerNode: SyntaxNode | null,
+  delimiterNode: SyntaxNode | null,
+): boolean {
+  for (const node of [headerNode, delimiterNode]) {
+    if (!node) continue;
+    const slice = source.slice(node.from, Math.min(node.to, node.from + 1));
+    if (slice === "|") {
+      return true;
+    }
+    return false;
+  }
+  return false;
 }
 
 function deriveLanguageInfoRanges(
@@ -634,6 +747,7 @@ function freezeRecord(record: MarkdownRangeRecord): MarkdownRangeRecord {
     markerRanges: Object.freeze(record.markerRanges.map(freezeSourceRange)),
     segments: Object.freeze(record.segments.map((segment) => Object.freeze({ ...segment }))),
     ...(record.codeBlock ? { codeBlock: freezeCodeBlockMetadata(record.codeBlock) } : {}),
+    ...(record.tableBlock ? { tableBlock: freezeTableBlockMetadata(record.tableBlock) } : {}),
   });
 }
 
@@ -669,6 +783,29 @@ function freezeCodeBlockMetadata(metadata: MarkdownCodeBlockMetadata): MarkdownC
   });
 }
 
+function freezeTableBlockMetadata(
+  metadata: MarkdownTableBlockMetadata,
+): MarkdownTableBlockMetadata {
+  return Object.freeze({
+    ...metadata,
+    sourceBlockRange: freezeSourceRange(metadata.sourceBlockRange),
+    headerRowRange: metadata.headerRowRange ? freezeSourceRange(metadata.headerRowRange) : null,
+    delimiterRowRange: metadata.delimiterRowRange
+      ? freezeSourceRange(metadata.delimiterRowRange)
+      : null,
+    bodyRowRanges: Object.freeze(metadata.bodyRowRanges.map(freezeSourceRange)),
+    alignments: Object.freeze([...metadata.alignments]),
+    sourceLineFingerprints: Object.freeze(
+      metadata.sourceLineFingerprints.map((line) =>
+        Object.freeze({
+          ...freezeSourceRange(line),
+          fingerprint: line.fingerprint,
+        }),
+      ),
+    ),
+  });
+}
+
 function mapRecord(
   record: MarkdownRangeRecord,
   changes: ChangeDesc,
@@ -697,11 +834,15 @@ function mapRecord(
   const codeBlock = record.codeBlock
     ? mapCodeBlockMetadata(record.codeBlock, changes, newSource)
     : undefined;
+  const tableBlock = record.tableBlock
+    ? mapTableBlockMetadata(record.tableBlock, changes, newSource)
+    : undefined;
   if (
     (record.contentRange && !contentRange) ||
     markerRanges.some((range) => !range) ||
     segments.some((segment) => !segment) ||
-    (record.codeBlock && !codeBlock)
+    (record.codeBlock && !codeBlock) ||
+    (record.tableBlock && !tableBlock)
   ) {
     return null;
   }
@@ -714,6 +855,7 @@ function mapRecord(
     markerRanges: markerRanges as SourceRange[],
     segments: segments as MarkdownRangeSegment[],
     ...(codeBlock ? { codeBlock } : {}),
+    ...(tableBlock ? { tableBlock } : {}),
   });
 }
 
@@ -766,6 +908,44 @@ function mapCodeBlockMetadata(
     syntaxIndentRanges: syntaxIndentRanges as SourceRange[],
     bodyEnvelopeRange,
     closingFenceRange,
+    sourceLineFingerprints: sourceLineFingerprints as MarkdownCodeBlockLineFingerprint[],
+  };
+}
+
+function mapTableBlockMetadata(
+  metadata: MarkdownTableBlockMetadata,
+  changes: ChangeDesc,
+  newSource: string,
+): MarkdownTableBlockMetadata | null {
+  const sourceBlockRange = mapRange(metadata.sourceBlockRange, changes);
+  const headerRowRange = mapOptionalRange(metadata.headerRowRange, changes);
+  const delimiterRowRange = mapOptionalRange(metadata.delimiterRowRange, changes);
+  const bodyRowRanges = metadata.bodyRowRanges.map((range) => mapRange(range, changes));
+  const sourceLineFingerprints = metadata.sourceLineFingerprints.map((line) => {
+    const range = mapRange(line, changes);
+    return range ? { ...range, fingerprint: line.fingerprint } : null;
+  });
+  if (
+    !sourceBlockRange ||
+    headerRowRange === undefined ||
+    delimiterRowRange === undefined ||
+    bodyRowRanges.some((range) => !range) ||
+    sourceLineFingerprints.some((line) => !line)
+  ) {
+    return null;
+  }
+  if (
+    fingerprintSource(newSource.slice(sourceBlockRange.from, sourceBlockRange.to)) !==
+    metadata.sourceFingerprint
+  ) {
+    return null;
+  }
+  return {
+    ...metadata,
+    sourceBlockRange,
+    headerRowRange,
+    delimiterRowRange,
+    bodyRowRanges: bodyRowRanges as SourceRange[],
     sourceLineFingerprints: sourceLineFingerprints as MarkdownCodeBlockLineFingerprint[],
   };
 }

@@ -38,6 +38,12 @@ import {
   getCodeBlockProtectedRanges,
   setCodeBlockLineNumbersEffect,
 } from "./code-block-projection.ts";
+import {
+  buildTableAtomicRanges,
+  buildTableLayoutDecorations,
+  getTableProtectedRanges,
+  isProjectableTable,
+} from "./table-projection.ts";
 
 export type WysiwygProjectionFeature =
   | "inline-styles"
@@ -47,7 +53,8 @@ export type WysiwygProjectionFeature =
   | "images"
   | "thematic-breaks"
   | "default-atoms"
-  | "frontmatter";
+  | "frontmatter"
+  | "tables";
 
 export interface SelectWysiwygAtomEffect {
   readonly recordId: string;
@@ -177,11 +184,17 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       previous.selectedAtomIds,
       transaction.state,
     );
+    // 表格的 protected 范围依赖 active 状态（非活动整表、活动仅 delimiter 行），
+    // selection 变化同样会改变该集合，必须在此同步重算。
+    const protectedRanges = changedIds.some((id) => index.get(id)?.kind === "table")
+      ? buildProtectedRanges(index, activeSyntaxIds, transaction.state)
+      : previous.protectedRanges;
     return freezeProjectionState({
       ...previous,
       activeSyntaxIds,
       layoutDecorations,
       atomicRanges,
+      protectedRanges,
       lastSelectionDeltaIds: changedIds,
     });
   },
@@ -252,7 +265,7 @@ function compileProjection(
     state,
   );
   const atomicRanges = buildAtomicRanges(index, activeSyntaxIds, normalizedAtomIds, state);
-  const protectedRanges = buildProtectedRanges(index, state);
+  const protectedRanges = buildProtectedRanges(index, activeSyntaxIds, state);
   const diagnostics = getWysiwygDiagnostics(state);
   diagnostics?.recordLayoutDecorationReplace();
   diagnostics?.recordFullProjectionBuild();
@@ -311,7 +324,7 @@ function updateDocumentProjection(
     activeSyntaxIds,
     selectedAtomIds,
     compositionGuardRanges,
-    protectedRanges: buildProtectedRanges(index, transaction.state),
+    protectedRanges: buildProtectedRanges(index, activeSyntaxIds, transaction.state),
     layoutDecorations,
     atomicRanges,
     lastSelectionDeltaIds: [],
@@ -457,6 +470,14 @@ function buildLayoutDecorationsForRecord(
       state,
     );
   }
+  if (hasWysiwygProjectionFeature(state, "tables") && isProjectableTable(record)) {
+    return buildTableLayoutDecorations(
+      record,
+      activeSyntaxIds.includes(record.id),
+      selectedAtomIds.includes(record.id),
+      state,
+    );
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -534,6 +555,9 @@ function buildAtomicRangesForRecord(
   if (hasWysiwygProjectionFeature(state, "blocks") && record.kind === "deferred-code") {
     return buildCodeBlockAtomicRanges(record, state);
   }
+  if (hasWysiwygProjectionFeature(state, "tables") && isProjectableTable(record)) {
+    return buildTableAtomicRanges(record, activeSyntaxIds.includes(record.id));
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -546,23 +570,29 @@ function buildAtomicRangesForRecord(
 
 function buildProtectedRanges(
   index: MarkdownRangeIndex,
+  activeSyntaxIds: readonly string[],
   state: EditorState,
 ): readonly SourceRange[] {
   return freezeRanges(
     index.records.flatMap((record) => {
+      const ranges: SourceRange[] = [];
       if (
         hasWysiwygProjectionFeature(state, "default-atoms") &&
         isRenderableDefaultAtom(record, state)
       ) {
-        return [record.fullRange];
+        ranges.push(record.fullRange);
       }
       if (hasWysiwygProjectionFeature(state, "frontmatter") && record.kind === "frontmatter") {
-        return getFrontmatterProtectedRanges(record, state);
+        ranges.push(...getFrontmatterProtectedRanges(record, state));
       }
       if (hasWysiwygProjectionFeature(state, "blocks")) {
-        return [...getBlockProtectedRanges(record, state), ...getCodeBlockProtectedRanges(record)];
+        ranges.push(...getBlockProtectedRanges(record, state));
+        ranges.push(...getCodeBlockProtectedRanges(record));
       }
-      return [];
+      if (hasWysiwygProjectionFeature(state, "tables") && isProjectableTable(record)) {
+        ranges.push(...getTableProtectedRanges(record, activeSyntaxIds.includes(record.id)));
+      }
+      return ranges;
     }),
   );
 }
@@ -598,6 +628,7 @@ function normalizeSelectedAtomIds(
         record !== null &&
         (record.kind === "image" ||
           record.kind === "thematic-break" ||
+          record.kind === "table" ||
           isRenderableDefaultAtom(record, state)) &&
         selection.ranges.some(
           (range) =>
@@ -699,6 +730,10 @@ function equalStrings(left: readonly string[], right: readonly string[]): boolea
 
 function selectionActivatesRecord(record: MarkdownRangeRecord, from: number, to: number): boolean {
   if (record.kind === "frontmatter") {
+    return false;
+  }
+  if (record.interactionPolicy === "structured-block" && record.kind === "table") {
+    // 表格始终显示网格，不因光标/选区进入而切换到源码态。
     return false;
   }
   if (record.interactionPolicy !== "reveal-source") {

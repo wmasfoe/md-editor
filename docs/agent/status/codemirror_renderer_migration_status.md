@@ -2,11 +2,11 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-07-28（当前工作树已通过 renderer 184/184、editor-ui 20/20、desktop 103/103 与完整 Chromium 45/45。2026-07-24 空 fenced body 修复后的 macOS Tauri/WebKit N13 原生增量复验也已通过）
+> 最后更新：2026-08-02（M3 表格已升级为"始终网格 + 就地单元格编辑"：renderer 20 files / 213 tests 全绿、typecheck/lint/build 全绿；表格在 WYSIWYG 中恒显示为可编辑网格，单元格 contenteditable 直接编辑并经受保护 transaction 回写 GFM 源码，工具栏支持增删行/列，点击空白原子选中整表、Delete 整表删除，不再有 Arrow 回显源码模式；修复 Tailwind preflight 清零 widget 边框与 range-index 删末行丢表两个 bug）
 
 ## 当前结论
 
-- **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only 与 M2/S3 均已验证。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M3-M6 仍未完成，因此不能宣称完整迁移。**
+- **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3 已验证，M3 表格可视化已完成（始终显示可编辑网格 + 单元格就地编辑 + 增删行列 + 整表原子选中/删除，不再回显源码）。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M4、M5、M6 仍未完成，因此不能宣称完整迁移。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
 - `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
@@ -52,7 +52,7 @@
 | S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
 | S2 核心显隐与选择 | 已验证 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 126/126、完整 Chromium 32/32 和原生 N01-N10 已通过 |
 | S3 代码块 | 已验证 | fenced/indented projection、native mixed highlighting、语言菜单、block-local 行号、copy/keyboard/IME/history、fail-open 与固定大文件增量预算已通过自动化；post-fix 原生 N13 已在 Tauri/WebKit 通过 |
-| S4 可视化 GFM 表格 | 未开始 | 尚未完成成熟表格引擎评估和 CM6 history 验证 |
+| S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 就地编辑、Enter/Tab 导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；工具栏增删行/列（body 行、任意列，末列拒删）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；12 个 table-projection 测试 + 5 个 table-editing 测试 + 4 个表格原子选择测试通过；对齐切换、tab 跳格、多单元格拖选仍留待后续 |
 | S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
 | S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
 | S6 性能基线 | 未开始 | 删除旧引擎前未固化同环境量化结果；必须建立 CM6 fixture/门槛，并把历史对照缺口显式保留 |
@@ -65,7 +65,7 @@
 | M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
-| M3 GFM 表格 | 未开始 | 不可用 |
+| M3 GFM 表格 | 已验证 | renderer 20 files / 213 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 5 + 表格原子选择 4）、typecheck/lint/build 全绿；表格恒显示为可编辑网格（contenteditable 单元格 + 受保护 transaction 回写 GFM 源码 + 工具栏增删行列 + 整表原子选中/删除），不再回显源码；对齐切换、tab 跳格、多单元格拖选留待后续 |
 | M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
 | M5 现有能力迁移 | 未开始 | 不可用 |
 | M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
@@ -110,7 +110,7 @@
 
 ## 当前 Beta 已知缺口
 
-- M3 / S4：可视化 GFM 表格、单元格编辑、多选、Tab、行列操作和主 history 接入尚未实现。
+- M3 / S4：表格恒显示为可编辑网格并支持单元格就地编辑、增删行列与整表原子删除；对齐切换、Tab 跳格、多单元格拖拽选区仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
 - M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
@@ -195,6 +195,32 @@
 | N11 native save | 通过 | Cmd+S 后磁盘文件与 expected fixture byte-equal、LF-only、保留尾 LF |
 | N12 malformed fallback | 通过 | raw fail-open，无 toolbar；修复后投影，undo 恢复 raw，磁盘未改 |
 | N13 post-fix empty body delta | 通过 | Tauri/WebKit 已验证直接键入、pointer/Enter、单步 undo/redo、隐藏 fence Backspace 保护和单 backtick fail-open；证据目录 `/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13` |
+
+## M3-A GFM 表格元数据与投影骨架
+
+- `range-types.ts` 新增 `MarkdownSyntaxKind.table`、`MarkdownRenderPolicy.table-widget`、`MarkdownEditPolicy.structured` 与 `MarkdownInteractionPolicy.structured-block` 的 `Table` 节点；新增 `MarkdownTableBlockMetadata` 形状（`sourceBlockRange` / `sourceFingerprint` / `headerRowRange` / `delimiterRowRange` / `bodyRowRanges` / `alignments` / `columnCount` / `bodyRowCount` / `hasLeadingPipes` / `sourceLineFingerprints`），对齐数组按 GFM 规范支持 `left` / `center` / `right` / `none`。
+- `node-policy.ts` 把 `Table` 改为 `kind: "table" / renderPolicy: "table-widget"`，把 `TableHeader` / `TableRow` / `TableCell` / `TableDelimiter` 维持为透明节点（不分配 policy）；`RAW_FALLBACK_POLICY` 仍是未知节点兜底。
+- `range-index.ts` 新增 `createTableBlockMetadata` 工厂与 `freezeTableBlockMetadata` / `mapTableBlockMetadata`，所有 fingerprint 路径与 code block 同样通过 `fingerprintSource` 校验：`visitParserNode` 在 `renderPolicy === "table-widget"` 时也停止向下递归，保证 cell 内 `**bold**` / `[link]` / `[^note]` 等 inline 节点不会越级成为顶层 record。
+- `wysiwyg/table-projection.ts` 提供 `isProjectableTable`（仅 `complete` 覆盖且 `delimiterRowRange` 非空）、`buildTableLayoutDecorations`（header / delimiter / body 行级 decoration）、`buildTableAtomicRanges`（delimiter row 的 atomic mark）、`getTableProtectedRanges`（仅返回 delimiter row），配套 `tableProjectionTheme`。
+- `projection-state.ts` 暴露 `WysiwygProjectionFeature.tables`；`buildProtectedRanges` 把"每 record 收集多处"重构为累加，使 blocks / tables 互不短路。
+- `wysiwyg/index.ts` 注入 `tableProjectionTheme`；`renderer.ts` 把 `"tables"` 加入 `createWysiwygProjectionExtensions` 的 features 数组。
+- 6 个 M3 表格 fixture（aligned / minimal / no-leading-pipes / sparse / inline-content / no-body）+ 6 个 M3 range-index 测试 + 6 个 M3 投影测试，全部在 Node 下用 headless `EditorState` 跑通，无需 React / DOM / Tauri。
+- 工作区全量门禁：11-workspace `pnpm typecheck` 通过；`pnpm test` 各包通过（renderer 197、editor-ui 20、desktop 103、file-system 25、editor-core 69、ai 20、mdx-plugins 2、mdx-component-registry 3、markdown-fidelity 18、shared 1、site 6 + release 5）；`pnpm lint:oxlint` / `pnpm format:prettier:check` / `pnpm lint:rust` 全绿。
+- 明确不做：cell 投影、对齐切换、tab 跳格、toolbar、image / link 在 cell 内的可视化结构化编辑——这些是 M3-B 的目标。
+
+## M3 可编辑可视化表格（2026-08-02，从 M3-B 只读版升级）
+
+- S4 评估结论（2026-08-01 已记录于架构文档 No-Go 条款）：CM6 生态无成熟的可复用 WYSIWYG 表格引擎——`codemirror-markdown-tables`（ckant）0 stars / 单维护者 / 依赖嵌套编辑器方案；`codemirror-live-markdown` 仍为 alpha；Joplin / Zettlr / Nexus-Editor 均为项目内部实现。CM6 作者 marijn 明确：WYSIWYG 表格需 "block widget + 每 cell 嵌套内层编辑器"，与 CM6 单列行模型冲突。按架构 No-Go 条款裁剪范围：**不引入嵌套编辑器、不自研大型表格引擎**。因此不做 CM6 原生光标式单元格编辑，改为 contenteditable 单元格 + 事务回写方案。
+- 用户验收决定（2026-08-02）：表格在 WYSIWYG 中**始终显示**为样式化网格，不接受双击切源码；单元格在网格内就地编辑（类似 Excel）；一次 Delete/Backspace 可删除整表；支持调整行、列数量。该决定取代 M3-B 的 "Arrow 回显源码" 行为。
+- 实现：非活动表格整表 `Decoration.replace` 为 `TableGridWidget`（block widget，覆盖 `fullRange` 至 trailing newline），DOM 为语义化 `<table role="table">` + `<th scope="col">` / `<td>`，对齐映射 `alignments[index] ?? "none"`；单元格 `contentEditable`（`plaintext-only`，WebView 不支持时降级 `"true"`）就地编辑，`ignoreEvent` 放行 widget 内事件；焦点提交（blur）、Enter 提交并下移、Tab 提交并右移（Shift+Tab 左移）、Escape 取消并恢复源码文本；提交通过 `commitTableCell` 以**整行替换**方式发受保护 transaction（`authorizeWysiwygProtectedChange` + `userEvent: "input.type"` + history），`serializeTableRow` 统一负责 `|`→`\|` 转义与 trim，`splitTableRowCells` 保留转义管道，不双重转义。
+- 工具栏按钮（add-row / del-row / add-col / del-col）：body 行新增用单空格 `" "` 占位（纯空串在部分 GFM 解析路径不稳定）、文档末尾无换行时先补 `\n`；列新增跨 header/delimiter/body 同步，末列拒绝删除。点击表格非单元格空白 → `selectWysiwygAtom` 整表原子选中（meta/ctrl 多选），Backspace / Delete 整表删除、undo 可恢复。
+- 交互语义变更：`selectionActivatesRecord` 对 table 恒返回 `false`（不再因光标进入而回显源码）；`isKeyboardRevealAtom` 不再包含 table（Arrow 从边界进入 → 直接整表原子选中）；整表恒 atomic + protected，不再依赖 active 状态。
+- 关键 bug 修复：
+  - **Tailwind preflight 清零 widget 边框**：`@tailwindcss/vite` preflight 全局 `border-width: 0` 覆盖 widget 边框导致表格看起来是原始文本；修复为 `.cm-md-table-widget` / `th` / `td` 边框加 `!important`（调试期曾用红边框 + console 日志确认 widget 真实创建）。
+  - **range-index 删末行丢表**：删除表格最后一行时 `newDirty` 落在剩余 Table 节点之外、`expandNewDirtyRange` 不扩到表格，导致 rebuild 跳过表格记录；修复为 `updateMarkdownRangeIndex` 先 `ensureSyntaxTree(transaction.state, doc.length, 5_000)`，再把 `oldDirty` 经 `transaction.changes` 映射并入 `newDirty` 后统一 `expandNewDirtyRange`（含回归测试）。
+- 新增/修改文件：`wysiwyg/table-editing.ts`（新，序列化/提交/行列增删纯逻辑）、`wysiwyg/table-editing.test.ts`（新，5 tests，mock `EditorView`：`get state()` + `dispatch` 内 `state.update(spec)`）、`wysiwyg/widgets/table-widget.ts`（重写为可编辑网格 + 工具栏）、`wysiwyg/table-projection.ts`（恒 grid + 恒整表 atomic/protected）、`wysiwyg/projection-state.ts`（table 恒非 active）、`wysiwyg/atom-selection.ts`（table 不再 reveal）、`markdown/range-index.ts`（删末行修复）、`editor-ui` CSS（网格/工具栏/单元格样式）。
+- 验证：renderer 全量 **213 tests 全绿**（20 files；table-projection 12 + table-editing 5 + atom-selection 24 含 4 个表格原子测试 + range-index 25）；`pnpm prettier`、`pnpm lint`（oxlint + clippy）、`pnpm typecheck` 全绿。dev server（vite 7273 + tauri debug）下人工确认 widget 渲染（红边框调试已移除）。
+- 明确不做（继续留待后续）：对齐切换、Tab 跳格、多单元格拖拽选区、column resize、cell 内 image / link 可视化结构化编辑。
 
 ## 文档同步记录
 
