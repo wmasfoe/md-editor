@@ -616,7 +616,7 @@ describe("table widget DOM lifecycle", () => {
     expect(menu.hidden).toBe(true);
     expect(document.listenerCount()).toBe(0);
 
-    // 列手柄 → 列菜单：左侧插入 / 右侧插入 / 删除本列（末列也可删）。
+    // 列手柄 → 列菜单：左侧插入 / 右侧插入 / 删除本列（末列也可删）+ 对齐分组（当前列勾选）。
     const colToggle = dom.querySelector<HTMLElement>(
       '[data-table-toggle="col"]',
     ) as unknown as FakeElement;
@@ -629,9 +629,17 @@ describe("table widget DOM lifecycle", () => {
       "insert-col-left",
       "insert-col-right",
       "delete-col",
+      "align-none",
+      "align-left",
+      "align-center",
+      "align-right",
     ]);
     expect(colItems[2]?.dataset.colIndex).toBe("0");
     expect(colItems[2]?.className).toContain("cm-md-table-widget__menu-item--danger");
+    // createTableWidget 的 alignments 是 ["none", "right"]：第 0 列当前对齐为 none → 勾选 align-none。
+    expect(colItems[3]?.className).toContain("cm-md-table-widget__menu-item--active");
+    expect(colItems[3]?.getAttribute("aria-checked")).toBe("true");
+    expect(colItems[4]?.getAttribute("aria-checked")).toBeNull();
   });
 
   it("executes the picked action and closes the menu", () => {
@@ -688,6 +696,63 @@ describe("table widget DOM lifecycle", () => {
 
     // 删除行 1（第 0 行 body）生效；菜单关闭、文档级监听移除。
     expect(state.doc.toString()).toBe("| a | b |\n| - | - |\n| 3 | 4 |");
+    expect(menu.hidden).toBe(true);
+    expect(document.listenerCount()).toBe(0);
+  });
+
+  it("switches column alignment from the column menu", () => {
+    let state = EditorState.create({
+      doc: "| a | b |\n| - | - |\n| 1 | 2 |",
+      selection: EditorSelection.cursor(0),
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+        editorModeField,
+        markdownRangeIndexField,
+        configureWysiwygProjectionFeatures(["tables"]),
+        wysiwygProjectionField,
+        wysiwygChangeProtection,
+      ],
+    });
+    const document = new FakeDocument();
+    const view = {
+      dom: { ownerDocument: document },
+      get state() {
+        return state;
+      },
+      dispatch(spec: Parameters<EditorState["update"]>[0]) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+    } as unknown as EditorView;
+
+    const table = state.field(markdownRangeIndexField).byKind("table")[0]!;
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [["1", "2"]],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const menu = dom.querySelector<HTMLElement>(
+      ".cm-md-table-widget__menu",
+    ) as unknown as FakeElement;
+
+    const colToggle = dom.querySelector<HTMLElement>(
+      '[data-table-toggle="col"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: colToggle } as unknown as MouseEvent);
+    const alignItem = dom.querySelector<HTMLElement>(
+      '[data-table-action="align-right"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: alignItem } as unknown as MouseEvent);
+
+    // 点击的是第 0 列菜单的 align-right：delimiter 第 0 列变为 `---:`，菜单关闭、监听移除。
+    expect(state.doc.toString()).toBe("| a | b |\n| ---: | - |\n| 1 | 2 |");
+    expect(state.field(markdownRangeIndexField).byKind("table")[0]?.tableBlock?.alignments[0]).toBe(
+      "right",
+    );
     expect(menu.hidden).toBe(true);
     expect(document.listenerCount()).toBe(0);
   });

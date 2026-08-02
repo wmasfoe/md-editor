@@ -379,6 +379,24 @@
   outline-offset: 2px;
 }
 
+/* P2-F 整表选中态操作提示：Delete 删除 · Tab 编辑 · Cmd+C 复制。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget[aria-selected="true"]::after {
+  content: "Delete 删除 · Tab 编辑 · Cmd+C 复制";
+  position: absolute;
+  top: -1.9rem;
+  left: 0;
+  z-index: 3;
+  padding: 0.22rem 0.6rem;
+  border-radius: 6px;
+  background: var(--theme-bg-muted, #f1f1f1);
+  color: var(--theme-text-muted, #666);
+  font-size: 0.72em;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__grid {
   border-collapse: collapse;
   font-size: 0.92em;
@@ -510,12 +528,16 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--danger {
   color: var(--theme-danger, #d9534f);
 }
-
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--danger:hover {
   background: color-mix(in srgb, var(--theme-danger, #d9534f) 12%, transparent);
   color: var(--theme-danger, #d9534f);
 }
 
+/* 当前对齐项勾选标记。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--active::before {
+  content: "✓ ";
+  color: var(--theme-primary, currentColor);
+}
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom {
   display: inline-flex;
   box-sizing: border-box;

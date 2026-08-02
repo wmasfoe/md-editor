@@ -4,7 +4,7 @@
 >
 > 涉及代码：`packages/renderer-codemirror/src/wysiwyg/widgets/table-widget.ts`、`atom-selection.ts`、`markdown-commands.ts`、`change-protection.ts`、`projection-state.ts`、`table-editing.ts`、`CodeMirrorEditor.css`。
 >
-> **实施状态（2026-08-02 同日）**：第 5 节三项决策已确认并全部实施——末尾 Enter 退出续写段落（P0-A）、Notion 式固定块手柄 + 菜单（P1-D）、列数 > 1 均可删（P1-C，删除项恒提供、下限由 `deleteTableColumn` 兜底）；P0-B（恰好相等选区替换放行）一并落地；P2-E（危险态红色菜单项）随菜单实现。见第 3 节分级标注。剩余：P2-F（选中态操作提示）、P2-G/M3-C（对齐切换、多单元格拖选）。
+> **实施状态（2026-08-02 同日）**：第 5 节三项决策已确认并全部实施——末尾 Enter 退出续写段落（P0-A）、Notion 式固定块手柄 + 菜单（P1-D）、列数 > 1 均可删（P1-C，删除项恒提供、下限由 `deleteTableColumn` 兜底）；P0-B（恰好相等选区替换放行）一并落地；P2-E（危险态红色菜单项）随菜单实现。**第三阶段补齐**：P2-F（整表选中态操作提示 tooltip）与 P2-G 的对齐切换（列菜单对齐分组：无对齐/左/中/右，当前项 ✓ 勾选，`setTableColumnAlignment` 重写 delimiter 标记）。剩余：多单元格拖选（与"左键单击即编辑"语义冲突，需新决策）、列宽调整、tab 跳格。
 
 ## 1. 当前交互地图
 
@@ -59,8 +59,8 @@
 ### P2 打磨（低优先级）
 
 - **E.（已实施 2026-08-02）删除项危险态**：菜单删除项带 `--menu-item--danger` 类，hover 变红。
-- **F. 整表选中态操作提示**：可在选中时给 wrapper 增加 `aria-label`/tooltip 或在底部状态栏提示可操作项。
-- **G. 对齐切换与列宽**：随列菜单统一设计（对齐左/中/右 + 列宽自适应），留待专项。
+- **F.（已实施 2026-08-02）整表选中态操作提示**：`aria-selected="true"` 时经 CSS `::after` 在表格上方显示提示条（"Delete 删除 · Tab 编辑 · Cmd+C 复制"），纯样式、无 JS、pointer-events 穿透。
+- **G.（对齐部分已实施 2026-08-02）对齐切换与列宽**：列菜单新增对齐分组（无对齐/左/中/右，当前项 ✓ 勾选），`setTableColumnAlignment` 只重写 delimiter 行对应列标记（`---`/`:---`/`:---:`/`---:`），投影解析后经内联样式呈现，undo 可恢复；列宽自适应仍留待专项。
 
 ## 4. 对照参考（成熟产品行为）
 
