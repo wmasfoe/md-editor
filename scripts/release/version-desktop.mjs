@@ -1,20 +1,18 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import readline from "node:readline";
+import {
+  cargoManifestPath,
+  desktopPackagePath,
+  rootPackagePath,
+  readJson,
+  tauriConfigPath,
+  updateCargoManifest,
+  updatePackageJson,
+  updateTauriConfig,
+} from "./version-files.mjs";
 
-const rootPackagePath = "package.json";
-const desktopPackagePath = "apps/desktop/package.json";
-const cargoManifestPath = "apps/desktop/src-tauri/Cargo.toml";
-const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
 const changelogPath = "CHANGELOG.md";
-
-function readJson(path) {
-  return JSON.parse(fs.readFileSync(path, "utf8"));
-}
-
-function writeJson(path, value) {
-  fs.writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-}
 
 function assertSemver(version) {
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
@@ -47,50 +45,6 @@ function bumpVersion(currentVersion, bump) {
   }
 
   return `${major}.${minor}.${patch + 1}`;
-}
-
-function updatePackageJson(path, version) {
-  const packageJson = readJson(path);
-  packageJson.version = version;
-  writeJson(path, packageJson);
-}
-
-function updateTauriConfig(version) {
-  const config = readJson(tauriConfigPath);
-  config.version = version;
-  writeJson(tauriConfigPath, config);
-}
-
-function updateCargoManifest(version) {
-  const contents = fs.readFileSync(cargoManifestPath, "utf8");
-  let inPackageSection = false;
-  let updated = false;
-
-  const nextContents = contents
-    .split(/(?<=\n)/u)
-    .map((line) => {
-      const trimmedLine = line.trim();
-
-      if (/^\[[^\]]+\]$/u.test(trimmedLine)) {
-        inPackageSection = trimmedLine === "[package]";
-      }
-
-      if (!inPackageSection || updated) {
-        return line;
-      }
-
-      return line.replace(/^(\s*version\s*=\s*)"[^"]*"/u, (_match, prefix) => {
-        updated = true;
-        return `${prefix}"${version}"`;
-      });
-    })
-    .join("");
-
-  if (!updated) {
-    throw new Error(`Unable to find [package] version in ${cargoManifestPath}.`);
-  }
-
-  fs.writeFileSync(cargoManifestPath, nextContents);
 }
 
 function updateChangelog(version, changes) {
