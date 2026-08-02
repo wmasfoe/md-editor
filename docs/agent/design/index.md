@@ -5,3 +5,4 @@
 ## 文档
 
 - 设计规范： [DESIGN.md](./DESIGN.md)
+- 表格交互整体梳理（不优雅点清单与改进方案）： [table_interaction_review.md](./table_interaction_review.md)

@@ -260,6 +260,8 @@ describe("WYSIWYG projection StateField", () => {
     );
     expect(undoDepth(blockedTransaction.state)).toBe(0);
 
+    // 恰好等于 protected 范围的选区视为宽选区：整块替换放行
+    // （整表/原子选中后直接打字/粘贴等价于先 Delete 再输入）。
     const exactlySelected = state.update({
       selection: EditorSelection.range(autolink.fullRange.from, autolink.fullRange.to),
     }).state;
@@ -268,8 +270,8 @@ describe("WYSIWYG projection StateField", () => {
       selection: EditorSelection.cursor(autolink.fullRange.from),
       userEvent: "delete.selection",
     });
-    expect(exactDelete.docChanged).toBe(false);
-    expect(exactDelete.state.selection).toEqual(exactlySelected.selection);
+    expect(exactDelete.docChanged).toBe(true);
+    expect(exactDelete.state.doc.toString().includes("https://example.org")).toBe(false);
 
     const broadSelection = state.update({
       selection: EditorSelection.range(autolink.fullRange.from - 1, autolink.fullRange.to + 1),

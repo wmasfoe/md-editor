@@ -10,6 +10,7 @@ import {
   commitTableCell,
   deleteTableBodyRow,
   deleteTableColumn,
+  exitTableWithParagraph,
   insertTableBodyRow,
   insertTableColumn,
 } from "./table-editing.ts";
@@ -105,5 +106,25 @@ describe("table cell / structure editing", () => {
     const table = getState().field(markdownRangeIndexField).byKind("table")[0];
     expect(deleteTableColumn(view, table.id, 0)).toBe(false);
     expect(getState().doc.toString()).toBe(doc);
+  });
+
+  it("exits the table with a new paragraph after the last row (document end)", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(exitTableWithParagraph(view, table.id)).toBe(true);
+    expect(getState().doc.toString()).toBe(`${doc}\n\n`);
+    expect(getState().selection.main.head).toBe(doc.length + 2);
+  });
+
+  it("moves the cursor onto the existing blank separator after the table", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |\n\nnext paragraph";
+    const { view, getState } = createView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(exitTableWithParagraph(view, table.id)).toBe(true);
+    expect(getState().doc.toString()).toBe(doc);
+    expect(getState().selection.main.head).toBe(
+      getState().field(markdownRangeIndexField).byKind("table")[0].fullRange.to + 1,
+    );
   });
 });
