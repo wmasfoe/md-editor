@@ -1,4 +1,4 @@
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import type { Tree, TreeCursor } from "@lezer/common";
@@ -59,7 +59,9 @@ describe("M1 Markdown fixture baseline", () => {
   it("locks the direct CodeMirror, Markdown, Lezer, and YAML parser APIs", () => {
     const combined = getM1MarkdownFixture("combined-m1-document");
     const state = EditorState.create({ doc: combined.markdown, extensions: markdown() });
-    expect(syntaxTree(state).length).toBe(combined.markdown.length);
+    // EditorState.create may leave parsing incremental; CI runners can observe a partial tree.
+    const tree = ensureSyntaxTree(state, combined.markdown.length, 10_000);
+    expect(tree?.length).toBe(combined.markdown.length);
 
     const nodeNames = collectNodeNames(
       markdownParser.configure(M1_MARKDOWN_EXTENSIONS).parse(combined.markdown),
