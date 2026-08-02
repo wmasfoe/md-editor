@@ -1,4 +1,4 @@
-import { Transaction, type EditorState } from "@codemirror/state";
+import { EditorSelection, Transaction, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
@@ -51,6 +51,36 @@ export function commitTableCell(
   }
   view.dispatch({
     changes: { from: change.from, to: change.to, insert: change.insert },
+    annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+    userEvent: "input.type",
+  });
+  return true;
+}
+
+/**
+ * 表格末尾 Enter：退出表格并在下方续写新段落。
+ * - 表格后已有空行分隔 → 光标落到空行，不新增内容；
+ * - 表格后只有单个换行或紧贴正文 → 补足空行后光标落到新段落。
+ */
+export function exitTableWithParagraph(view: EditorView, recordId: string): boolean {
+  const record = view.state.field(markdownRangeIndexField).get(recordId);
+  if (!record) {
+    return false;
+  }
+  const insertAt = record.fullRange.to;
+  const rest = view.state.doc.sliceString(insertAt, insertAt + 2);
+  if (rest.startsWith("\n\n")) {
+    view.dispatch({
+      selection: EditorSelection.cursor(insertAt + 1),
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select",
+    });
+    return true;
+  }
+  const insert = rest.startsWith("\n") ? "\n" : "\n\n";
+  view.dispatch({
+    changes: { from: insertAt, to: insertAt, insert },
+    selection: EditorSelection.cursor(insertAt + insert.length),
     annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
     userEvent: "input.type",
   });

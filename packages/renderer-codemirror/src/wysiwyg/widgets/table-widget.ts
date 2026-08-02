@@ -8,6 +8,7 @@ import {
   commitTableCell,
   deleteTableBodyRow,
   deleteTableColumn,
+  exitTableWithParagraph,
   insertTableBodyRow,
   insertTableColumn,
   type TableCellAddress,
@@ -33,6 +34,7 @@ interface TableWidgetListeners {
   readonly focusout: EventListener;
   readonly keydown: EventListener;
   readonly actionClick: EventListener;
+  readonly documentClick: EventListener;
 }
 
 const listenersByDom = new WeakMap<HTMLElement, TableWidgetListeners>();
@@ -42,11 +44,13 @@ const editingCellByDom = new WeakMap<HTMLElement, TableCellAddress>();
 const lastEditingCellByRecordId = new Map<string, TableCellAddress>();
 
 /**
- * 始终显示的可视化表格（类 Excel）：
+ * 始终显示的可视化表格（类 Excel / Notion）：
  * - 单元格 contenteditable 就地编辑，blur/Enter/Tab 回写 GFM 源码；
  * - 左键单击单元格即进入编辑（不拦截 pointerdown 默认行为）；
+ * - 行/列块手柄（Notion 式 ⋮⋮）：行首/表头固定显隐，点击弹出操作菜单
+ *   （行：上方/下方插入、删除本行；列：左侧/右侧插入、删除本列）；
  * - 点击非单元格区域原子选中整表，Delete/Backspace 整块删除；
- * - 行/列分隔线悬停手柄：插入（分隔线下方/右侧）+ 删除（上方行/左侧列）。
+ * - 整表选中态打字/粘贴等价于替换整表；末尾 Enter 退出表格续写段落。
  *   不引入嵌套 CM6 编辑器。
  */
 export class TableGridWidget extends WidgetType {
@@ -74,7 +78,7 @@ export class TableGridWidget extends WidgetType {
     }
     return Boolean(
       target.closest(
-        ".cm-md-table-widget__cell, .cm-md-table-widget__handle, .cm-md-table-widget__btn",
+        ".cm-md-table-widget__cell, .cm-md-table-widget__btn, .cm-md-table-widget__handle, .cm-md-table-widget__menu",
       ),
     );
   }
@@ -95,8 +99,8 @@ export class TableGridWidget extends WidgetType {
     const headerRow = document.createElement("tr");
     this.value.headerCells.forEach((cellText, colIndex) => {
       const cell = createEditableCell(document, "th", cellText, "header", 0, colIndex, this.value);
-      // 列分隔线手柄：悬停第 colIndex 列右边界 → 删除左侧列 / 在右侧插入列。
-      cell.append(createColumnHandle(document, colIndex, this.value.headerCells.length));
+      // 列块手柄：贴在第 colIndex 列右缘，点击弹出列操作菜单（插入左/右、删除本列）。
+      cell.append(createColumnHandle(document, colIndex));
       headerRow.append(cell);
     });
     tableHead.append(headerRow);
@@ -120,9 +124,9 @@ export class TableGridWidget extends WidgetType {
           colIndex,
           this.value,
         );
-        // 行分隔线手柄放在每行第一列顶部：悬停该行上边界。
+        // 行块手柄：贴在本行第一列左侧，点击弹出行操作菜单（插入上/下、删除本行）。
         if (colIndex === 0) {
-          cell.append(createRowHandle(document, rowIndex, this.value.bodyRows.length));
+          cell.append(createRowHandle(document, rowIndex));
         }
         tr.append(cell);
       }
@@ -130,15 +134,27 @@ export class TableGridWidget extends WidgetType {
     });
     table.append(tableBody);
 
+    // 行/列操作浮层菜单：由行/列块手柄触发，点击菜单项执行增删。
+    const menu = document.createElement("div");
+    menu.className = "cm-md-table-widget__menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "Table actions");
+    menu.hidden = true;
+
     wrapper.append(table);
+    wrapper.append(menu);
 
     const pointerdown: EventListener = (event) => {
       const target = event.target;
       if (!(target instanceof Element)) {
         return;
       }
-      if (target.closest(".cm-md-table-widget__cell, .cm-md-table-widget__btn")) {
-        // 单元格/手柄按钮：不拦截默认行为（让浏览器把焦点交给 contenteditable）；
+      if (
+        target.closest(
+          ".cm-md-table-widget__cell, .cm-md-table-widget__btn, .cm-md-table-widget__menu",
+        )
+      ) {
+        // 单元格/手柄按钮/菜单：不拦截默认行为（让浏览器把焦点交给 contenteditable）；
         // 若表格正处于原子选中态，先清除选中高亮。
         if (this.value.selected) {
           view.dispatch({
@@ -194,6 +210,12 @@ export class TableGridWidget extends WidgetType {
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
         flushCellCommit(view, wrapper, cell, this.value.recordId);
+        // 最后一行 Enter：退出表格并在下方新增段落续写正文（不再卡在单元格里）。
+        const address = addressFromCell(cell, this.value.recordId);
+        if (address?.rowKind === "body" && address.rowIndex === this.value.bodyRows.length - 1) {
+          exitTableWithParagraph(view, wrapper.dataset.recordId ?? this.value.recordId);
+          return;
+        }
         moveCellFocus(wrapper, cell, "down");
         return;
       }
@@ -235,22 +257,54 @@ export class TableGridWidget extends WidgetType {
       if (!(target instanceof HTMLElement)) {
         return;
       }
-      const button = target.closest<HTMLElement>("[data-table-action]");
-      if (!button) {
+      // 行/列块手柄：打开对应操作菜单。
+      const toggle = target.closest<HTMLElement>("[data-table-toggle]");
+      if (toggle) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (toggle.dataset.tableToggle === "row") {
+          openTableMenu(wrapper, menu, documentClick, "row", Number(toggle.dataset.rowIndex ?? -1));
+        } else if (toggle.dataset.tableToggle === "col") {
+          openTableMenu(wrapper, menu, documentClick, "col", Number(toggle.dataset.colIndex ?? -1));
+        }
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
-      const recordId = wrapper.dataset.recordId ?? this.value.recordId;
-      const action = button.dataset.tableAction;
-      if (action === "add-row") {
-        insertTableBodyRow(view, recordId, Number(button.dataset.rowIndex ?? -1));
-      } else if (action === "del-row") {
-        deleteTableBodyRow(view, recordId, Number(button.dataset.rowIndex));
-      } else if (action === "add-col") {
-        insertTableColumn(view, recordId, Number(button.dataset.colIndex));
-      } else if (action === "del-col") {
-        deleteTableColumn(view, recordId, Number(button.dataset.colIndex));
+      // 菜单项：执行行/列增删操作。
+      const button = target.closest<HTMLElement>("[data-table-action]");
+      if (button) {
+        event.preventDefault();
+        event.stopPropagation();
+        const recordId = wrapper.dataset.recordId ?? this.value.recordId;
+        const action = button.dataset.tableAction;
+        const rowIndex = Number(button.dataset.rowIndex ?? -1);
+        const colIndex = Number(button.dataset.colIndex ?? -1);
+        if (action === "insert-row-above") {
+          insertTableBodyRow(view, recordId, rowIndex - 1);
+        } else if (action === "insert-row-below") {
+          insertTableBodyRow(view, recordId, rowIndex);
+        } else if (action === "delete-row") {
+          deleteTableBodyRow(view, recordId, rowIndex);
+        } else if (action === "insert-col-left") {
+          insertTableColumn(view, recordId, colIndex);
+        } else if (action === "insert-col-right") {
+          insertTableColumn(view, recordId, colIndex + 1);
+        } else if (action === "delete-col") {
+          deleteTableColumn(view, recordId, colIndex);
+        }
+        closeTableMenu(wrapper, menu, documentClick, document);
+        return;
+      }
+      // 点击菜单外的表格区域：关闭菜单。
+      if (!menu.hidden && !menu.contains(target)) {
+        closeTableMenu(wrapper, menu, documentClick, document);
+      }
+    };
+
+    // 点击表格外：关闭打开的菜单（capture 阶段先于 wrapper 内 bubble 处理）。
+    const documentClick: EventListener = (event) => {
+      const target = event.target;
+      if (!(target instanceof Node) || !wrapper.contains(target)) {
+        closeTableMenu(wrapper, menu, documentClick, document);
       }
     };
 
@@ -259,7 +313,14 @@ export class TableGridWidget extends WidgetType {
     wrapper.addEventListener("focusout", focusout);
     wrapper.addEventListener("keydown", keydown);
     wrapper.addEventListener("click", actionClick);
-    listenersByDom.set(wrapper, { pointerdown, focusin, focusout, keydown, actionClick });
+    listenersByDom.set(wrapper, {
+      pointerdown,
+      focusin,
+      focusout,
+      keydown,
+      actionClick,
+      documentClick,
+    });
     updateTableGridDom(wrapper, this.value);
     this.value.diagnostics?.recordWidgetLifecycle("table", "create");
     return wrapper;
@@ -314,6 +375,7 @@ export class TableGridWidget extends WidgetType {
       dom.removeEventListener("focusout", listeners.focusout);
       dom.removeEventListener("keydown", listeners.keydown);
       dom.removeEventListener("click", listeners.actionClick);
+      dom.ownerDocument.removeEventListener("click", listeners.documentClick, true);
       listenersByDom.delete(dom);
     }
     editingCellByDom.delete(dom);
@@ -414,66 +476,121 @@ function createEditableCell(
 }
 
 /**
- * 行分隔线手柄：悬停第 rowIndex 行上边界。
- * - 插入：新增行落在分隔线下方（afterBodyIndex = rowIndex - 1，表头下时 -1）；
- * - 删除：删除分隔线上方行（rowIndex - 1）；表头与第一行之间的手柄不提供删除。
+ * 行块手柄：贴在本行第一列左侧（表格外），点击弹出该行操作菜单。
+ * 菜单项：插入上方行（afterBodyIndex = rowIndex - 1）、插入下方行（rowIndex）、删除本行。
  */
-function createRowHandle(document: Document, rowIndex: number, bodyRowCount: number): HTMLElement {
+function createRowHandle(document: Document, rowIndex: number): HTMLElement {
   const handle = document.createElement("span");
   handle.className = "cm-md-table-widget__handle cm-md-table-widget__handle--row";
   handle.setAttribute("aria-hidden", "true");
-  handle.append(createActionButton(document, "add-row", "插入行", String(rowIndex - 1)));
-  // 第 0 行上方是表头（不可删），只提供插入。
-  if (rowIndex > 0) {
-    handle.append(createActionButton(document, "del-row", "删除行", String(rowIndex - 1)));
-  }
-  // 末行下边界额外提供表尾追加。
-  if (rowIndex === bodyRowCount - 1) {
-    handle.append(createActionButton(document, "add-row", "表尾追加行", String(rowIndex)));
-  }
+  handle.append(createHandleButton(document, "row", String(rowIndex)));
   return handle;
 }
 
 /**
- * 列分隔线手柄：悬停第 colIndex 列右边界。
- * - 插入：新增列落在分隔线右侧（atColIndex = colIndex + 1）；
- * - 删除：删除分隔线左侧列（colIndex）；最右列右侧的手柄不提供删除。
+ * 列块手柄：贴在第 colIndex 列表头右缘，点击弹出该列操作菜单。
+ * 菜单项：插入左侧列（colIndex）、插入右侧列（colIndex + 1）、删除本列
+ * （列数 > 1 时可用，含最右列——下限由 deleteTableColumn 校验）。
  */
-function createColumnHandle(
-  document: Document,
-  colIndex: number,
-  columnCount: number,
-): HTMLElement {
+function createColumnHandle(document: Document, colIndex: number): HTMLElement {
   const handle = document.createElement("span");
   handle.className = "cm-md-table-widget__handle cm-md-table-widget__handle--col";
   handle.setAttribute("aria-hidden", "true");
-  handle.append(createActionButton(document, "add-col", "插入列", String(colIndex + 1)));
-  if (colIndex < columnCount - 1) {
-    handle.append(createActionButton(document, "del-col", "删除列", String(colIndex)));
-  }
+  handle.append(createHandleButton(document, "col", String(colIndex)));
   return handle;
 }
 
-function createActionButton(
+function createHandleButton(
   document: Document,
-  action: "add-row" | "del-row" | "add-col" | "del-col",
-  label: string,
+  toggle: "row" | "col",
   index: string,
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "cm-md-table-widget__btn";
-  button.dataset.tableAction = action;
-  button.setAttribute("aria-label", label);
-  button.title = label;
-  const symbol = action === "add-row" || action === "add-col" ? "＋" : "−";
-  button.textContent = symbol;
-  if (action === "add-row" || action === "del-row") {
+  button.className = "cm-md-table-widget__btn cm-md-table-widget__btn--handle";
+  button.dataset.tableToggle = toggle;
+  button.setAttribute(
+    "aria-label",
+    toggle === "row" ? `Row ${Number(index) + 1} actions` : `Column ${Number(index) + 1} actions`,
+  );
+  button.title = toggle === "row" ? "行操作" : "列操作";
+  // ⋮⋮ 竖排省略号：Notion 式块手柄。
+  button.textContent = "⋮⋮";
+  if (toggle === "row") {
     button.dataset.rowIndex = index;
   } else {
     button.dataset.colIndex = index;
   }
   return button;
+}
+
+/** 打开行/列操作菜单：按目标行/列填充菜单项并定位到对应手柄附近。 */
+function openTableMenu(
+  wrapper: HTMLElement,
+  menu: HTMLElement,
+  documentClick: EventListener,
+  toggle: "row" | "col",
+  index: number,
+): void {
+  const document = wrapper.ownerDocument;
+  menu.replaceChildren();
+  if (toggle === "row") {
+    menu.append(createMenuButton(document, "insert-row-above", "在上方插入行", "row", index));
+    menu.append(createMenuButton(document, "insert-row-below", "在下方插入行", "row", index));
+    menu.append(createMenuButton(document, "delete-row", "删除本行", "row", index, true));
+  } else {
+    menu.append(createMenuButton(document, "insert-col-left", "在左侧插入列", "col", index));
+    menu.append(createMenuButton(document, "insert-col-right", "在右侧插入列", "col", index));
+    menu.append(createMenuButton(document, "delete-col", "删除本列", "col", index, true));
+  }
+  // 定位：行菜单从该行第一列左缘向右展开；列菜单从该列表头右缘向右下展开。
+  const anchor = wrapper.querySelector<HTMLElement>(
+    toggle === "row"
+      ? `[data-row-kind="body"][data-row-index="${index}"]`
+      : `[data-row-kind="header"][data-col-index="${index}"]`,
+  );
+  if (anchor) {
+    menu.style.left = `${anchor.offsetLeft + (toggle === "col" ? anchor.offsetWidth : -4)}px`;
+    menu.style.top = `${anchor.offsetTop + 2}px`;
+  }
+  menu.hidden = false;
+  // 点击表格外时关闭（capture 阶段先于 wrapper 内 bubble 的 actionClick 执行）。
+  document.addEventListener("click", documentClick, true);
+}
+
+function createMenuButton(
+  document: Document,
+  action: string,
+  label: string,
+  toggle: "row" | "col",
+  index: number,
+  danger = false,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `cm-md-table-widget__btn cm-md-table-widget__menu-item${danger ? " cm-md-table-widget__menu-item--danger" : ""}`;
+  button.dataset.tableAction = action;
+  button.setAttribute("role", "menuitem");
+  button.textContent = label;
+  if (toggle === "row") {
+    button.dataset.rowIndex = String(index);
+  } else {
+    button.dataset.colIndex = String(index);
+  }
+  return button;
+}
+
+function closeTableMenu(
+  wrapper: HTMLElement,
+  menu: HTMLElement,
+  documentClick: EventListener,
+  document: Document,
+): void {
+  void wrapper;
+  if (!menu.hidden) {
+    menu.hidden = true;
+    document.removeEventListener("click", documentClick, true);
+  }
 }
 
 function flushCellCommit(

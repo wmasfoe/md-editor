@@ -117,6 +117,11 @@ class FakeElement extends HTMLElementStub {
     }
   }
 
+  replaceChildren(...children: FakeElement[]): void {
+    this.children.length = 0;
+    this.append(...children);
+  }
+
   setAttribute(name: string, value: string): void {
     this.#attributes.set(name, value);
     const dataKey = dataKeyFromAttribute(name);
@@ -237,7 +242,12 @@ class FakeElement extends HTMLElementStub {
   }
 
   dispatch(name: string, event: Partial<MouseEvent> = {}): void {
-    const value = { preventDefault() {}, target: this, ...event } as Event;
+    const value = {
+      preventDefault() {},
+      stopPropagation() {},
+      target: this,
+      ...event,
+    } as Event;
     for (const listener of this.#listeners.get(name) ?? []) {
       listener(value);
     }
@@ -258,8 +268,36 @@ function dataKeyFromAttribute(name: string): string | null {
 }
 
 class FakeDocument {
+  readonly #listeners = new Map<string, Set<EventListener>>();
+
   createElement(tagName: string): HTMLElement {
     return new FakeElement(tagName.toLowerCase(), this) as unknown as HTMLElement;
+  }
+
+  addEventListener(name: string, listener: EventListener): void {
+    const listeners = this.#listeners.get(name) ?? new Set<EventListener>();
+    listeners.add(listener);
+    this.#listeners.set(name, listeners);
+  }
+
+  removeEventListener(name: string, listener: EventListener): void {
+    this.#listeners.get(name)?.delete(listener);
+  }
+
+  dispatch(name: string, event: Partial<MouseEvent> = {}): void {
+    const value = {
+      preventDefault() {},
+      stopPropagation() {},
+      target: this,
+      ...event,
+    } as Event;
+    for (const listener of this.#listeners.get(name) ?? []) {
+      listener(value);
+    }
+  }
+
+  listenerCount(): number {
+    return [...this.#listeners.values()].reduce((count, listeners) => count + listeners.size, 0);
   }
 }
 
@@ -475,7 +513,7 @@ describe("media widget DOM lifecycle", () => {
 describe("table widget DOM lifecycle", () => {
   function createTableWidget(options?: Partial<ConstructorParameters<typeof TableGridWidget>[0]>) {
     const diagnostics = new WysiwygDiagnostics();
-    const { view } = createView();
+    const { view, document } = createView();
     const widget = new TableGridWidget({
       recordId: "table:1",
       headerCells: ["A", "B"],
@@ -489,17 +527,17 @@ describe("table widget DOM lifecycle", () => {
       ...options,
     });
     const dom = widget.toDOM(view) as unknown as FakeElement;
-    return { view, dom, widget, diagnostics };
+    return { view, dom, document, widget, diagnostics };
   }
 
-  it("renders an editable grid with separator hover handles and no toolbar", () => {
+  it("renders an editable grid with Notion-style block handles and a lazy action menu", () => {
     const { dom } = createTableWidget();
 
     expect(dom.getAttribute("role")).toBe("group");
     expect(dom.getAttribute("aria-label")).toBe("Markdown table");
     expect(dom.getAttribute("data-record-id")).toBe("table:1");
     expect(dom.getAttribute("aria-selected")).toBe("false");
-    // 顶部工具行已被分隔线悬停手柄取代。
+    // 顶部工具行已被行/列块手柄 + 菜单取代。
     expect(dom.querySelector<HTMLElement>(".cm-md-table-widget__toolbar")).toBeNull();
 
     const headerCells = dom.querySelectorAll<HTMLElement>("thead th") as unknown as FakeElement[];
@@ -519,7 +557,7 @@ describe("table widget DOM lifecycle", () => {
     expect(bodyCells[1].style.textAlign).toBe("right");
     expect(headerCells[0].scope).toBe("col");
 
-    // 行分隔线手柄：每行第一列顶部；列分隔线手柄：每个表头单元格右缘。
+    // 行块手柄：每行第一列；列块手柄：每个表头单元格。每个手柄一个 ⋮⋮ 切换按钮。
     const rowHandleCells = bodyCells.filter((cell) =>
       cell.querySelector<HTMLElement>(".cm-md-table-widget__handle--row"),
     );
@@ -529,22 +567,129 @@ describe("table widget DOM lifecycle", () => {
     );
     expect(colHandleCells).toHaveLength(2);
 
-    // 手柄按钮映射：插入落在分隔线下方/右侧，删除落在分隔线上方/左侧（最末行/列无删除）。
-    const actions = dom.querySelectorAll<HTMLElement>("[data-table-action]").map((button) => {
-      const element = button as unknown as FakeElement;
-      return [element.dataset.tableAction, element.dataset.rowIndex ?? element.dataset.colIndex];
+    const toggles = dom.querySelectorAll<HTMLElement>(
+      "[data-table-toggle]",
+    ) as unknown as FakeElement[];
+    expect(toggles).toHaveLength(4);
+    for (const toggle of toggles) {
+      expect(toggle.textContent).toBe("⋮⋮");
+      expect(toggle.className).toContain("cm-md-table-widget__btn--handle");
+    }
+    // 菜单初始为空（hidden），菜单项在点击手柄时惰性生成。
+    const menu = dom.querySelector<HTMLElement>(
+      ".cm-md-table-widget__menu",
+    ) as unknown as FakeElement;
+    expect(menu).not.toBeNull();
+    expect(menu.hidden).toBe(true);
+    expect(menu.getAttribute("role")).toBe("menu");
+    expect(dom.querySelectorAll<HTMLElement>("[data-table-action]")).toHaveLength(0);
+  });
+
+  it("opens a row/col action menu on handle click and closes it on outside click", () => {
+    const { dom, document } = createTableWidget();
+    const menu = dom.querySelector<HTMLElement>(
+      ".cm-md-table-widget__menu",
+    ) as unknown as FakeElement;
+
+    // 行手柄 → 行菜单：上方插入 / 下方插入 / 删除本行。
+    // （FakeElement.dispatch 不冒泡，需对注册监听器的 wrapper 派发并指定 target。）
+    const rowToggle = dom.querySelector<HTMLElement>(
+      '[data-table-toggle="row"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: rowToggle } as unknown as MouseEvent);
+    expect(menu.hidden).toBe(false);
+    const rowItems = dom.querySelectorAll<HTMLElement>(
+      "[data-table-action]",
+    ) as unknown as FakeElement[];
+    expect(rowItems.map((item) => item.dataset.tableAction)).toEqual([
+      "insert-row-above",
+      "insert-row-below",
+      "delete-row",
+    ]);
+    expect(rowItems[0]?.dataset.rowIndex).toBe("0");
+    // 打开菜单时注册文档级点击监听（点击表格外关闭）。
+    expect(document.listenerCount()).toBe(1);
+
+    // 点击表格外（对 document 派发，命中 capture 阶段的 documentClick）→ 菜单关闭、监听移除。
+    const outside = new FakeElement("div", document);
+    document.dispatch("click", { target: outside } as unknown as MouseEvent);
+    expect(menu.hidden).toBe(true);
+    expect(document.listenerCount()).toBe(0);
+
+    // 列手柄 → 列菜单：左侧插入 / 右侧插入 / 删除本列（末列也可删）。
+    const colToggle = dom.querySelector<HTMLElement>(
+      '[data-table-toggle="col"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: colToggle } as unknown as MouseEvent);
+    expect(menu.hidden).toBe(false);
+    const colItems = dom.querySelectorAll<HTMLElement>(
+      "[data-table-action]",
+    ) as unknown as FakeElement[];
+    expect(colItems.map((item) => item.dataset.tableAction)).toEqual([
+      "insert-col-left",
+      "insert-col-right",
+      "delete-col",
+    ]);
+    expect(colItems[2]?.dataset.colIndex).toBe("0");
+    expect(colItems[2]?.className).toContain("cm-md-table-widget__menu-item--danger");
+  });
+
+  it("executes the picked action and closes the menu", () => {
+    // 真实 EditorState：菜单项点击要真实驱动 table-editing 的增删事务。
+    let state = EditorState.create({
+      doc: "| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |",
+      selection: EditorSelection.cursor(0),
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+        editorModeField,
+        markdownRangeIndexField,
+        configureWysiwygProjectionFeatures(["tables"]),
+        wysiwygProjectionField,
+        wysiwygChangeProtection,
+      ],
     });
-    expect(actions.slice(0, 3)).toEqual([
-      ["add-col", "1"],
-      ["del-col", "0"],
-      ["add-col", "2"],
-    ]);
-    expect(actions.slice(3)).toEqual([
-      ["add-row", "-1"],
-      ["add-row", "0"],
-      ["del-row", "0"],
-      ["add-row", "1"],
-    ]);
+    const document = new FakeDocument();
+    const view = {
+      dom: { ownerDocument: document },
+      get state() {
+        return state;
+      },
+      dispatch(spec: Parameters<EditorState["update"]>[0]) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+    } as unknown as EditorView;
+
+    const table = state.field(markdownRangeIndexField).byKind("table")[0]!;
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [
+        ["1", "2"],
+        ["3", "4"],
+      ],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const menu = dom.querySelector<HTMLElement>(
+      ".cm-md-table-widget__menu",
+    ) as unknown as FakeElement;
+
+    const rowToggle = dom.querySelector<HTMLElement>(
+      '[data-table-toggle="row"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: rowToggle } as unknown as MouseEvent);
+    const deleteItem = dom.querySelector<HTMLElement>(
+      '[data-table-action="delete-row"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: deleteItem } as unknown as MouseEvent);
+
+    // 删除行 1（第 0 行 body）生效；菜单关闭、文档级监听移除。
+    expect(state.doc.toString()).toBe("| a | b |\n| - | - |\n| 3 | 4 |");
+    expect(menu.hidden).toBe(true);
+    expect(document.listenerCount()).toBe(0);
   });
 
   it("does not preventDefault on left-click cells; clears the atom highlight when selected", () => {
@@ -594,11 +739,19 @@ describe("table widget DOM lifecycle", () => {
   });
 
   it("releases every listener on destroy", () => {
-    const { dom, widget, diagnostics } = createTableWidget();
+    const { dom, document, widget, diagnostics } = createTableWidget();
     expect(dom.listenerCount()).toBe(5);
+
+    // 打开菜单（注册文档级点击监听）后再销毁：所有监听都要释放。
+    const rowToggle = dom.querySelector<HTMLElement>(
+      '[data-table-toggle="row"]',
+    ) as unknown as FakeElement;
+    dom.dispatch("click", { target: rowToggle } as unknown as MouseEvent);
+    expect(document.listenerCount()).toBe(1);
 
     widget.destroy(dom as unknown as HTMLElement);
     expect(dom.listenerCount()).toBe(0);
+    expect(document.listenerCount()).toBe(0);
     expect(diagnostics.snapshot().widgetLifecycleCounts.table).toEqual({
       create: 1,
       update: 0,
