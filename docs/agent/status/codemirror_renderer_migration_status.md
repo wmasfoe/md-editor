@@ -2,7 +2,7 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-02（M3 表格交互第三阶段：renderer 20 files / 230 tests 全绿、typecheck/lint/build 全绿；列操作菜单新增对齐分组（无对齐/左/中/右，当前项勾选，经 delimiter 重写 `---`/`:---`/`:---:`/`---:` 切换，投影解析后内联样式呈现）；整表选中态新增操作提示 tooltip（Delete 删除 · Tab 编辑 · Cmd+C 复制，纯 CSS）；此前已完成：Notion 式固定行/列块手柄（⋮⋮ 贴行首/表头，悬停表格显隐，点击弹出操作菜单：行=上方/下方插入+删除本行，列=左侧/右侧插入+删除本列+对齐分组，删除项恒提供、列数>1 由删除逻辑兜底）；表格末尾 Enter 退出表格并在下方新增段落续写正文；整表原子选中态下打字/粘贴等价于替换整表（宽选区放行条件允许恰好相等选区）；单元格左键单击即编辑、ArrowUp/ArrowDown 对称进入整表原子选中、Tab/Enter 从整表选中态进入单元格编辑、单元格内 Cmd+A 先提交再整表原子选中）
+> 最后更新：2026-08-03（G002 M3 浏览器验收收官：B6 末尾 Enter 退出表格续写修复——`exitTableWithParagraph` 依 `fullRange.to` 不含末行换行的几何，`\n\n`/`\n` 分支在 `insertAt+1` 注入、光标恒 `insertAt+2`，新空行恰好落在终止空行之后；Chromium 52/52 全绿、renderer 21 files / 243 tests 全绿、typecheck/lint/build 全绿；`test:browser` 接入 build-macos（PR 门禁，CI 默认 retry 1）/release-macos/release-beta（严格单次 `PLAYWRIGHT_RETRIES=0`，`@quarantine` 隔离排除）；widget-lifecycle 测试 FakeElement 补齐 `cloneNode`/`remove` 消除预存失败。此前：P0-A 回归修复 `protectedRanges` 携带 provenance kind，宽选区放行按 kind 区分——table 允许恰好相等选区替换，默认 atom（footnote/autolink/reference）恢复 source-only 恰好拒绝/strict-wider 放行（G012 语义））。
 
 ## 当前结论
 
@@ -52,7 +52,7 @@
 | S1 单实例与数据同步 | beta 可用 | CM6-only 代码切换、E1-E12、G008 全仓自动化、移除扫描、独立复核及系统 IME/原生 dialog 人工验收均已通过 |
 | S2 核心显隐与选择 | 已验证 | parser/range index、StateField、Decoration/Widget/atomic/protected ranges、自动换行与增量更新已实现；renderer 126/126、完整 Chromium 32/32 和原生 N01-N10 已通过 |
 | S3 代码块 | 已验证 | fenced/indented projection、native mixed highlighting、语言菜单、block-local 行号、copy/keyboard/IME/history、fail-open 与固定大文件增量预算已通过自动化；post-fix 原生 N13 已在 Tauri/WebKit 通过 |
-| S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 左键单击即就地编辑、Enter 下移/Tab 右移/Shift-Tab 左移导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；行/列操作采用 Notion 式固定块手柄（⋮⋮ 贴每行首列左缘/每列表头右缘，悬停表格显隐），点击弹出操作菜单：行=在上方插入/在下方插入/删除本行，列=在左侧插入/在右侧插入/删除本列（删除项恒提供，列数>1 下限由 `deleteTableColumn` 兜底）+ **对齐分组（无对齐/左/中/右，当前项带 ✓ 勾选，`setTableColumnAlignment` 只重写 delimiter 行对应列的 `---`/`:---`/`:---:`/`---:` 标记）**；菜单随表格外点击/菜单项执行/销毁自动关闭并释放 document 级监听；整表选中态显示操作提示 tooltip（Delete 删除 · Tab 编辑 · Cmd+C 复制，`aria-selected` 伪元素纯 CSS）；表格末尾（最后一行 body）Enter 先提交当前单元格再退出表格、在下方新增段落续写正文（已有空行时仅移动光标，受保护 transaction 注入）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复，整表原子选中态打字/粘贴等价于替换整表（宽选区放行条件允许恰好相等选区 `from <= from && to >= to`）；ArrowUp/ArrowDown 从表格上方/下方视觉移动会对称地整表选中（`verticalMoveHitsAtom` 覆盖跳过整块 widget 的情况）；整表选中态下 Tab/Enter 进入最近编辑单元格（记忆 `lastEditingCellByRecordId`，无记忆时聚焦首个表头单元格）；单元格内 Cmd+A 先提交当前编辑再整表原子选中（焦点回 CM6 后再次 Cmd+A 由默认 selectAll 扩展到全文）；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；21 个 table-projection 测试 + 10 个 table-editing 测试（含 3 个退出表格续写段落、2 个对齐切换）+ 4 个表格原子选择测试 + 9 个表格 widget DOM 生命周期测试（含菜单开关/项执行/对齐切换/文档级监听释放）+ 2 个整表进入单元格测试 + 2 个单元格内全选测试通过；多单元格拖选、列宽调整、tab 跳格仍留待后续 |
+| S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 左键单击即就地编辑、Enter 下移/Tab 右移/Shift-Tab 左移导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；行/列操作采用 Notion 式固定块手柄（⋮⋮ 贴每行首列左缘/每列表头右缘，悬停表格显隐），点击弹出操作菜单：行=在上方插入/在下方插入/删除本行，列=在左侧插入/在右侧插入/删除本列（删除项恒提供，列数>1 下限由 `deleteTableColumn` 兜底）+ **对齐分组（无对齐/左/中/右，当前项带 ✓ 勾选，`setTableColumnAlignment` 只重写 delimiter 行对应列的 `---`/`:---`/`:---:`/`---:` 标记）**；菜单随表格外点击/菜单项执行/销毁自动关闭并释放 document 级监听；整表选中态显示操作提示 tooltip（Delete 删除 · Tab 编辑 · Cmd+C 复制，`aria-selected` 伪元素纯 CSS）；表格末尾（最后一行 body）Enter 先提交当前单元格再退出表格、在下方新增段落续写正文（已有空行时仅移动光标，受保护 transaction 注入）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复，整表原子选中态打字/粘贴等价于替换整表（宽选区放行条件允许恰好相等选区 `from <= from && to >= to`）；ArrowUp/ArrowDown 从表格上方/下方视觉移动会对称地整表选中（`verticalMoveHitsAtom` 覆盖跳过整块 widget 的情况）；整表选中态下 Tab/Enter 进入最近编辑单元格（记忆 `lastEditingCellByRecordId`，无记忆时聚焦首个表头单元格）；单元格内 Cmd+A 先提交当前编辑再整表原子选中（焦点回 CM6 后再次 Cmd+A 由默认 selectAll 扩展到全文）；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；12 个 table-projection 测试 + 10 个 table-editing 测试（含 3 个退出表格续写段落、2 个对齐切换）+ 4 个表格原子选择测试 + 9 个表格 widget DOM 生命周期测试（含菜单开关/项执行/对齐切换/文档级监听释放）+ 2 个整表进入单元格测试 + 2 个单元格内全选测试通过；多单元格拖选、列宽调整、tab 跳格仍留待后续 |
 | S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
 | S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
 | S6 性能基线 | 未开始 | 删除旧引擎前未固化同环境量化结果；必须建立 CM6 fixture/门槛，并把历史对照缺口显式保留 |
@@ -65,7 +65,7 @@
 | M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
-| M3 GFM 表格 | 已验证 | renderer 20 files / 230 tests（含 M3-A 元数据基座 + 表格投影 21 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
+| M3 GFM 表格 | 已验证 | renderer 21 files / 243 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；Chromium 浏览器套件 52/52 全绿（2026-08-03，B6 末尾 Enter 续写修复后）；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
 | M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
 | M5 现有能力迁移 | 未开始 | 不可用 |
 | M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
@@ -161,6 +161,18 @@
 | N09 Save/Save As | 通过（用户覆盖） | 用户确认保存语义通过；报告的保存产物未被独立观测 |
 | N10 light/dark theme | 通过 | markers/widgets/selection 清晰且无重叠/位移 |
 
+## P0-A 回归修复：provenance-carrying protected ranges（2026-08-02）
+
+- 背景：M3 表格交互第二阶段（commit `7501b76`）把 `isWysiwygChangeAllowed` 的宽选区放行条件放宽为 `selection.from <= pr.from && selection.to >= pr.to`（"恰好相等选区"），本意是支持整表原子选中后直接打字/粘贴等价替换整表，但对**所有** protected ranges 生效，导致默认 atom（footnote `[^note]`、autolink `<https://...>`、reference）的 source-only 删除保护失效。Chromium 复跑出现 3 项失败（`E13` / `E01-AC14` / `AC14`，均在 `codemirror-m1-s2-wysiwyg.spec.ts`）。
+- 修复（唯一实现，不做几何反查）：`WysiwygProjectionState.protectedRanges` 从 `readonly SourceRange[]` 改为 `readonly ProtectedSourceRange[]`（携带 `kind`：`default-atom` / `frontmatter` / `block-marker` / `code` / `table`），`buildProtectedRanges` 各分支 push 时携带 provenance；判定公式按 kind 区分：
+  - `table`：covers 放行（`selection.from <= pr.from && selection.to >= pr.to`，含恰好相等；容忍拖选含尾随换行 `selection.to` 到 `fullRange.to + 1`，layout decoration 替换范围含尾随换行）；
+  - 其余来源：strict-wider 放行（`selection.from < pr.from || selection.to > pr.to`，G012 语义：恰好拒绝、跨块更宽才放行）；
+  - 同一 change 触及多个 provenance 时，任一非 table 的恰好/部分命中即整体拒绝；跨块宽选区完整覆盖所有 provenance 时按 G012 放行。
+- 契约同步：`projection-state.test.ts` 原"恰好等于 protected 范围的选区视为宽选区"用例（autolink fixture）改为断言 autolink 恰好删除被拒绝，并把整表替换放行语义交由新 `change-protection.test.ts` 的 table fixture 覆盖；既有 protectedRanges shape 断言全部同步为携带 kind 的联合类型。
+- 新增 `wysiwyg/change-protection.test.ts`（12 tests）：footnote/autolink 恰好删除拒绝 + 宣布、strict-wider 放行、table 恰好 typing/paste/Delete 放行、混合部分命中拒绝、跨块严格覆盖放行、尾随换行容忍、无代码块文档 select-all 放行/有代码块 select-all 拒绝（`transactionTouchesCodeBlockSyntax` 兜底）、表格内部普通输入拒绝、provenance kind 快照完整性。
+- 浏览器契约迁移（非掩盖失败）：`E01-AC14` 的 `| [^table] |` 原文可见断言改为 `table[role="grid"]` widget 存在 + 原文不可见（M3 恒网格行为即契约，决策记录 commit `7501b76` / `docs/agent/design/table_interaction_review.md`）；`E13`、`AC14` 的 source-only 宣布断言冻结恢复，未改动。
+- 新鲜验证：renderer 21 files / 242 tests 全绿（230 + 12 新增）、Chromium 45/45 全绿、workspace typecheck/lint/build 全绿、Prettier/Rust fmt/clippy/`git diff --check` 全绿。
+
 ## G012 隐藏 block marker 修改保护
 
 - 独立 code-reviewer 复现 source mode 光标位于隐藏引用、列表或任务 marker 内部时，直接构造的 WYSIWYG typing transaction 可以修改 marker；atomic range 只约束导航，不等同于 transaction 保护。
@@ -220,7 +232,18 @@
   - **range-index 删末行丢表**：删除表格最后一行时 `newDirty` 落在剩余 Table 节点之外、`expandNewDirtyRange` 不扩到表格，导致 rebuild 跳过表格记录；修复为 `updateMarkdownRangeIndex` 先 `ensureSyntaxTree(transaction.state, doc.length, 5_000)`，再把 `oldDirty` 经 `transaction.changes` 映射并入 `newDirty` 后统一 `expandNewDirtyRange`（含回归测试）。
 - 新增/修改文件：`wysiwyg/table-editing.ts`（新，序列化/提交/行列增删纯逻辑）、`wysiwyg/table-editing.test.ts`（新，5 tests，mock `EditorView`：`get state()` + `dispatch` 内 `state.update(spec)`）、`wysiwyg/widgets/table-widget.ts`（重写为可编辑网格 + 工具栏）、`wysiwyg/table-projection.ts`（恒 grid + 恒整表 atomic/protected）、`wysiwyg/projection-state.ts`（table 恒非 active）、`wysiwyg/atom-selection.ts`（table 不再 reveal）、`markdown/range-index.ts`（删末行修复）、`editor-ui` CSS（网格/工具栏/单元格样式）。
 - 验证：renderer 全量 **213 tests 全绿**（20 files；table-projection 12 + table-editing 5 + atom-selection 24 含 4 个表格原子测试 + range-index 25）；`pnpm prettier`、`pnpm lint`（oxlint + clippy）、`pnpm typecheck` 全绿。dev server（vite 7273 + tauri debug）下人工确认 widget 渲染（红边框调试已移除）。
-- 明确不做（继续留待后续）：对齐切换、Tab 跳格、多单元格拖拽选区、column resize、cell 内 image / link 可视化结构化编辑。
+- 后续阶段继续留待：多单元格拖拽选区、column resize、末端 Tab 退出/循环语义、cell 内 image / link 可视化结构化编辑；对齐切换已在第三阶段通过列菜单实现。
+
+## G002 M3 浏览器验收与 CI 门禁（2026-08-03）
+
+- **验收交付**：新增 `apps/desktop/e2e/codemirror-m3-table.spec.ts`（7 个交互面：恒网格、单元格就地编辑/Enter/Tab/Shift+Tab/Escape、行列手柄与菜单增删对齐、整表原子选中/删除/undo、选中态等价替换、末尾 Enter 退出续写、表格内 footnote 与表外保护边界 + a11y 冒烟）。Chromium **52/52 全绿**（含 m1-s2 与 s1 既有用例，全量浏览器套件）。
+- **B6 末尾 Enter 退出续写根因与修复**（`table-editing.ts` `exitTableWithParagraph`）：`MarkdownTableBlockMetadata.fullRange.to` **不含最后一行 body 的末尾换行**，表格后源码为 `\n\n` 时（终止空行 + 正文换行）旧实现在 `insertAt+2` 注入并在 76 落光标，导致新空行落在正文之后、续写文本粘连进正文。经验证几何：`fullRange.to = 73` 处恰为末行文本结尾，`insertAt+2 = 75` 才是终止空行后的首个新空行。修复为 `\n\n` 分支在 `insertAt+1` 注入 `\n\n`、`\n` 分支在 `insertAt+1` 注入 `\n\n\n`、否则在 `insertAt` 注入 `\n\n`，光标恒 `insertAt+2`。新空行恰好落在终止空行之后，续写文本独立成段。单元测试补齐 3 个退出续写场景（含 B6 镜像断言键入后的精确文档），B6 e2e 期望数组同步修正（Enter 后先断言 `\n\n` 注入的中间态，再断言键入续写后的终态）。
+- **预存测试基建缺口**：全量单测曾报 `cell.cloneNode is not a function`（`table-widget.ts` `flushCellCommit` 以 `cloneNode(true)` 克隆单元格剔除块手柄后取 `innerText`）；`widget-lifecycle.test.ts` 的 `FakeElement` 补齐 `cloneNode`（深克隆 attributes/dataset/children/textContent）与 `remove()`（自父节点数组摘除）后 243/243 全绿。
+- **CI 门禁**（三个 workflow 均接入 `test:browser`，浏览器失败即显式失败）：
+  - `build-macos.yml`（PR 门禁 + workflow_dispatch）：完整执行含 `@quarantine` 用例，CI 默认 `retries: 1` 吸收已知 flaky（`playwright.config.ts` 改由 `PLAYWRIGHT_RETRIES` 环境变量控制，本地仍 0）。
+  - `release-macos.yml` / `release-beta.yml`（发布严格单次）：`PLAYWRIGHT_RETRIES=0` 不重试，`--grep-invert "@quarantine"` 排除隔离用例（负向/易变用例只会在 PR 门禁完整执行，符合 B9 负向验证仅在 PR workflow 执行）。
+  - 各 job 内先 `playwright install chromium` 再跑套件；Playwright `webServer` 自起 `dev:e2e`（127.0.0.1:4173），无需预构建。
+
 
 ## 文档同步记录
 

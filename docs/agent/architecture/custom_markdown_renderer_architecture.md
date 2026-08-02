@@ -207,7 +207,7 @@ WYSIWYG 代码块不是源码围栏预览，而是直接可编辑的代码块：
 - 未编辑表格必须保持原始源码；用户编辑后允许按明确的 GFM canonical serializer 格式化该表格。
 - 网格获得焦点时，Mod-Z / Mod-Shift-Z 必须转发到主 CM6 history。
 
-实现状态（M3 2026-08-02）：S4 引擎评估结论为"无符合要求的成熟开源表格模型"（触发第 13 节 No-Go 条款，详见该节），因此不引入嵌套编辑器，也不做 CM6 原生光标式单元格编辑；改由**始终显示的可编辑网格**承担：非活动表格整表 `Decoration.replace` 为 `TableGridWidget`（语义化 `<table role="table">` + `<th scope="col">` / `<td>`、对齐映射 `alignments[index] ?? "none"`），单元格 `contentEditable` 就地编辑（`plaintext-only`，WebView 不支持时降级 `"true"`），Enter 提交并下移 / Tab 提交并右移（Shift 左移）/ Escape 取消恢复源码 / blur 提交，提交经 `authorizeWysiwygProtectedChange` 授权的 transaction 以整行替换回写 GFM 源码（`serializeTableRow` 统一 `|`→`\|` 转义，`splitTableRowCells` 保留转义管道，不双重转义）；工具栏增删行/列（末列拒删，新增 body 行用单空格占位），点击非单元格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复；整表恒 atomic + protected，`selectionActivatesRecord` 对 table 恒 false、`isKeyboardRevealAtom` 不再包含 table（Arrow 从边界进入直接整表原子选中）。表格**始终显示网格**，用户明确不接受"光标进入回显源码"的旧只读交互。range-index 基座仍为 M3-A 已落地的 `MarkdownTableBlockMetadata`；对齐切换、Tab 跳格、多单元格拖选仍留待后续。
+实现状态（M3 2026-08-02）：S4 引擎评估结论为"无符合要求的成熟开源表格模型"（触发第 13 节 No-Go 条款，详见该节），因此不引入嵌套编辑器，也不做 CM6 原生光标式单元格编辑；改由**始终显示的可编辑网格**承担：非活动表格整表 `Decoration.replace` 为 `TableGridWidget`（语义化 `<table role="table">` + `<th scope="col">` / `<td>`、对齐映射 `alignments[index] ?? "none"`），单元格 `contentEditable` 就地编辑（`plaintext-only`，WebView 不支持时降级 `"true"`），Enter 提交并下移 / Tab 提交并右移（Shift 左移）/ Escape 取消恢复源码 / blur 提交，提交经 `authorizeWysiwygProtectedChange` 授权的 transaction 以整行替换回写 GFM 源码（`serializeTableRow` 统一 `|`→`\|` 转义，`splitTableRowCells` 保留转义管道，不双重转义）；行/列通过 Notion 式固定块手柄和操作菜单增删，列菜单支持无对齐/左/中/右切换（重写 delimiter 行并纳入 history），末列在列数大于 1 时可删除；整表选中态显示 Delete/Tab/Cmd+C 操作提示，点击非单元格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复；整表恒 atomic + protected，`selectionActivatesRecord` 对 table 恒 false、`isKeyboardRevealAtom` 不再包含 table（Arrow 从边界进入直接整表原子选中）。表格**始终显示网格**，用户明确不接受"光标进入回显源码"的旧只读交互。range-index 基座仍为 M3-A 已落地的 `MarkdownTableBlockMetadata`；当前仍留待多单元格拖选、列宽调整、末端 Tab 退出/循环语义和 cell 内 image/link 可视化结构化编辑。
 
 ### 4.9 Frontmatter
 
@@ -599,7 +599,7 @@ S3 实现和验证已在同一 CM6 文档和同一 `.cm-content` 内完成，不
 
 - 整表 `Decoration.replace` 为 `TableGridWidget`（语义化 table DOM），表格在 WYSIWYG 中**恒显示**，不接受"光标进入回显源码"的只读交互。
 - 单元格 `contentEditable`（`plaintext-only`，降级 `"true"`）就地编辑；Enter/Tab/Escape/blur 提交或取消，提交以整行替换经受保护 transaction 回写 GFM 源码，走同一 CM6 history。
-- 工具栏增删行/列（末列拒删）；点击非单元格空白原子选中整表（meta/ctrl 多选），Backspace / Delete 整表删除，undo 可恢复。
+- 行/列通过 Notion 式固定块手柄和操作菜单增删，列菜单支持无对齐/左/中/右切换，末列在列数大于 1 时可删除；点击非单元格空白原子选中整表（meta/ctrl 多选），Backspace / Delete 整表删除，undo 可恢复。
 - 整表恒 atomic + protected；Arrow 从边界进入 → 整表原子选中，不再回显源码。
 - 后续若出现成熟引擎，可在 M3-A 元数据基座上替换单元格实现，但当前交互即为产品行为，不再降级为只读。
 
@@ -653,7 +653,7 @@ M0 通过后可以发布功能体验 beta。Beta 允许后续里程碑尚未完�
 - M1 core / S2：核心 projection、G011 图片/编辑面修正与 G012 隐藏 marker 保护已实现，renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，标记为已验证；N09 使用用户明确验收覆盖并保留未独立观测保存产物的 caveat。
 - M1-FM / S5-FM-only：Frontmatter panel、YAML highlight/error、range-only edit、source copy、undo 与原生 N08 已通过，标记为已验证。该结论不包括 HTML/MDX。
 - M2 / S3：代码块实现和当前 renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 已通过；2026-07-24 空 fenced body 修复后的原生 N13 增量复验也已通过，因此标记为“已验证”。
-- M3 / S4 表格：M3-A 元数据基座 + 可编辑可视化表格已完成（2026-08-02，renderer 20 files / 213 tests 全绿）；S4 引擎评估无成熟方案触发 No-Go，以"始终网格 + contenteditable 单元格就地编辑 + 受保护 transaction 回写 GFM 源码 + 工具栏增删行列 + 整表原子选中/删除"落地，不再回显源码；对齐切换 / Tab 跳格 / 多单元格拖选明确裁剪不做。
+- M3 / S4 表格：M3-A 元数据基座 + 可编辑可视化表格已完成（2026-08-02，renderer 20 files / 230 tests 全绿）；S4 引擎评估无成熟方案触发 No-Go，以"始终网格 + contenteditable 单元格就地编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式手柄菜单增删行列/切换对齐 + 整表原子选中/删除"落地，不再回显源码；多单元格拖选、列宽调整、末端 Tab 退出/循环语义和 cell 内 image/link 结构化编辑继续留待后续。
 - M4 / S5：基础 HTML 白名单渲染、最内层标签展开、官方 MDX 真实渲染、原子选择和错误占位尚未实现；MDX 命令当前明确返回 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 命令当前明确返回 typed unsupported。
 - S6：删除旧引擎前没有留下可复现的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
@@ -755,7 +755,7 @@ pnpm build
 - 单实例模式切换无法稳定保留 history / selection / scroll：停止完整迁移，先修复状态所有权。
 - 图片、链接、分割线或 MDX 的 selection 行为破坏跨块拖选或 IME：停止进入下一里程碑。
 - 可视化表格没有符合要求的成熟方案：回报并重新裁剪表格范围，不自行实现大型表格引擎。
-  - **2026-08-01 S4 评估已触发本条款并完成裁剪**：CM6 生态无成熟可复用引擎（`codemirror-markdown-tables` 0 stars/单维护者、`codemirror-live-markdown` alpha、Joplin/Zettlr/Nexus-Editor 为项目内部实现；CM6 作者 marijn 明确 WYSIWYG 表格需 "block widget + 每 cell 嵌套内层编辑器"，与 CM6 单列行模型冲突）。因此不引入嵌套编辑器、不自研大型表格引擎；**2026-08-02 落地为始终显示的可编辑网格**：整表 `Decoration.replace` 为 `TableGridWidget`（语义化 table DOM、对齐映射），单元格 contenteditable 就地编辑并经受保护 transaction 整行回写 GFM 源码（`serializeTableRow` 统一转义、Enter/Tab/Escape/blur 导航与提交）、工具栏增删行列（末列拒删）、点击空白原子选中整表、Backspace/Delete 整表删除；整表恒 atomic + protected，不再有 Arrow 回显源码模式。对齐切换、Tab 跳格、多单元格拖选继续不做。
+  - **2026-08-01 S4 评估已触发本条款并完成裁剪**：CM6 生态无成熟可复用引擎（`codemirror-markdown-tables` 0 stars/单维护者、`codemirror-live-markdown` alpha、Joplin/Zettlr/Nexus-Editor 为项目内部实现；CM6 作者 marijn 明确 WYSIWYG 表格需 "block widget + 每 cell 嵌套内层编辑器"，与 CM6 单列行模型冲突）。因此不引入嵌套编辑器、不自研大型表格引擎；**2026-08-02 落地为始终显示的可编辑网格**：整表 `Decoration.replace` 为 `TableGridWidget`（语义化 table DOM、对齐映射），单元格 contenteditable 就地编辑并经受保护 transaction 整行回写 GFM 源码（`serializeTableRow` 统一转义、Enter/Tab/Escape/blur 导航与提交）、Notion 式手柄菜单增删行列并切换对齐（末列在列数大于 1 时可删）、点击空白原子选中整表、Backspace/Delete 整表删除；整表恒 atomic + protected，不再有 Arrow 回显源码模式。多单元格拖选、列宽调整、末端 Tab 退出/循环语义继续留待后续。
 - MDX parser 或 React Widget 生命周期不稳定：官方组件暂时降级为原子占位块，但源码保真和删除行为必须可用。
 - HTML 可编辑 children 与安全白名单无法同时成立：HTML 降级为安全 raw block，不放宽脚本或事件权限。
 - 大文件基线明显劣于已固化的 Milkdown 基准：beta 中如实记录并限制稳定发布，修复增量索引和 Widget 策略后重新评估。
@@ -774,7 +774,7 @@ pnpm build
 - 图片非活动时由 Widget 替换源码；活动或选中时同时显示完整源码和实时图片预览。
 - 分割线始终渲染并整块删除。
 - 代码块直接编辑，支持语言、高亮、行号和复制。
-- 表格可视化：始终显示的可编辑网格（整表 Widget、contenteditable 单元格就地编辑并经受保护 transaction 回写 GFM 源码、工具栏增删行列、点击原子选中、Delete 整块删除、undo 可恢复），支持对齐映射渲染；对齐切换、Tab 跳格、多单元格拖选裁剪不做（S4 评估无成熟引擎触发 No-Go，不引入嵌套编辑器）。
+- 表格可视化：始终显示的可编辑网格（整表 Widget、contenteditable 单元格就地编辑并经受保护 transaction 回写 GFM 源码、Notion 式手柄菜单增删行列/切换对齐、点击原子选中、Delete 整块删除、undo 可恢复）；多单元格拖选、列宽调整、末端 Tab 退出/循环语义继续留待（S4 评估无成熟引擎触发 No-Go，不引入嵌套编辑器）。
 - 可视化表格只支持标准 GFM 管道表格，其他表格语法保留源码。
 - Frontmatter 使用无卡片标题的可编辑 YAML 元数据块，仅在异常时显示简短状态。
 - 基础 HTML 白名单直接渲染；最内层活动节点原位显示完整标签和属性，控件默认行为不执行。
