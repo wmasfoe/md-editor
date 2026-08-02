@@ -1,7 +1,7 @@
 name: Release Beta (macOS)
 
 # beta 分支 push 即触发 beta 预发布构建：
-# - 版本派生为 <基础版本>-beta.sha<commit短哈希>，release tag 天然唯一；
+# - 版本派生为 <下一个 patch 版本>-beta.sha<commit短哈希>，release tag 天然唯一；
 # - 产物只上传到本仓库 GitHub Release（标记 Pre-release），
 #   不更新 Homebrew cask / curl installer / updater manifest / 网站 changelog，
 #   因此不影响 stable 渠道的 sh、brew 安装；
@@ -116,11 +116,12 @@ jobs:
           RELEASE_TAG: ${{ steps.beta_version.outputs.beta_tag }}
           RELEASE_VERSION: ${{ steps.beta_version.outputs.beta_version }}
           SHORT_SHA: ${{ steps.beta_version.outputs.short_sha }}
+          SOURCE_VERSION: ${{ steps.beta_version.outputs.source_version }}
           BASE_VERSION: ${{ steps.beta_version.outputs.base_version }}
         run: |
           notes="## ⚠️ Beta 预发布构建
 
-          - 来源分支：\`beta\`（commit \`${SHORT_SHA}\`），基础版本 \`${BASE_VERSION}\`
+          - 来源分支：\`beta\`（commit \`${SHORT_SHA}\`），基于稳定版本 \`${SOURCE_VERSION}\` 的下一个 beta 版本 \`${BASE_VERSION}\`
           - 这是**测试版本**，仅通过本 Release 页面下载，**不会**更新 sh / Homebrew 安装渠道
           - 安装方式：下载 DMG 打开并拖入 Applications；macOS 首次打开若提示无法验证开发者，请右键 → 打开
           - 应用内自动更新不适用本版本（updater 指向稳定渠道 manifest，正式版发布后建议升级 stable）
