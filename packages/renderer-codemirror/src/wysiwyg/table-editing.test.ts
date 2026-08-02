@@ -13,6 +13,7 @@ import {
   exitTableWithParagraph,
   insertTableBodyRow,
   insertTableColumn,
+  setTableColumnAlignment,
 } from "./table-editing.ts";
 import { wysiwygChangeProtection } from "./change-protection.ts";
 
@@ -105,6 +106,31 @@ describe("table cell / structure editing", () => {
     const { view, getState } = createView(doc);
     const table = getState().field(markdownRangeIndexField).byKind("table")[0];
     expect(deleteTableColumn(view, table.id, 0)).toBe(false);
+    expect(getState().doc.toString()).toBe(doc);
+  });
+
+  it("switches a column alignment by rewriting its delimiter marker", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(setTableColumnAlignment(view, table.id, 1, "center")).toBe(true);
+    const afterCenter = getState().doc.toString();
+    expect(afterCenter).toBe("| a | b |\n| - | :---: |\n| 1 | 2 |");
+    let fresh = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(fresh.tableBlock?.alignments[1]).toBe("center");
+
+    // 再切回无对齐：`:-:` → `---`（GFM 允许任意 ≥1 个 `-`），其余单元格内容不受影响。
+    expect(setTableColumnAlignment(view, fresh.id, 1, "none")).toBe(true);
+    expect(getState().doc.toString()).toBe("| a | b |\n| - | --- |\n| 1 | 2 |");
+    fresh = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(fresh.tableBlock?.alignments[1]).toBe("none");
+  });
+
+  it("ignores alignment changes for out-of-range columns", () => {
+    const doc = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const { view, getState } = createView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(setTableColumnAlignment(view, table.id, 5, "left")).toBe(false);
     expect(getState().doc.toString()).toBe(doc);
   });
 

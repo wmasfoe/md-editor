@@ -2,7 +2,11 @@ import { EditorSelection, Transaction, type EditorState } from "@codemirror/stat
 import type { EditorView } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
-import type { MarkdownRangeRecord, MarkdownTableBlockMetadata } from "../markdown/range-types.ts";
+import type {
+  MarkdownRangeRecord,
+  MarkdownTableCellAlignment,
+  MarkdownTableBlockMetadata,
+} from "../markdown/range-types.ts";
 import { splitTableRowCells } from "./table-projection.ts";
 
 export type TableRowKind = "header" | "body";
@@ -190,6 +194,47 @@ export function deleteTableColumn(view: EditorView, recordId: string, colIndex: 
     changes,
     annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
     userEvent: "delete.forward",
+  });
+  return true;
+}
+
+/** GFM delimiter 对齐标记：`---`（none）/ `:---`（left）/ `:---:`（center）/ `---:`（right）。 */
+export const TABLE_DELIMITER_ALIGNMENT: Record<MarkdownTableCellAlignment, string> = {
+  none: "---",
+  left: ":---",
+  center: ":---:",
+  right: "---:",
+};
+
+/**
+ * 切换某列对齐：只重写 delimiter 行对应列的分隔标记。
+ * 对齐效果由 projection 解析 delimiter 后经内联样式呈现。
+ */
+export function setTableColumnAlignment(
+  view: EditorView,
+  recordId: string,
+  colIndex: number,
+  alignment: MarkdownTableCellAlignment,
+): boolean {
+  const record = view.state.field(markdownRangeIndexField).get(recordId);
+  const table = record?.tableBlock;
+  if (!record || !table?.delimiterRowRange || colIndex < 0 || colIndex >= table.columnCount) {
+    return false;
+  }
+  const lineText = view.state.sliceDoc(table.delimiterRowRange.from, table.delimiterRowRange.to);
+  const cells = [...splitTableRowCells(lineText, table.hasLeadingPipes)];
+  while (cells.length <= colIndex) {
+    cells.push("");
+  }
+  cells[colIndex] = TABLE_DELIMITER_ALIGNMENT[alignment];
+  view.dispatch({
+    changes: {
+      from: table.delimiterRowRange.from,
+      to: table.delimiterRowRange.to,
+      insert: serializeTableRow(cells, table.hasLeadingPipes),
+    },
+    annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+    userEvent: "input.type",
   });
   return true;
 }

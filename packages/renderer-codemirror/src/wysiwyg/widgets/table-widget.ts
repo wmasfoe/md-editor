@@ -11,6 +11,7 @@ import {
   exitTableWithParagraph,
   insertTableBodyRow,
   insertTableColumn,
+  setTableColumnAlignment,
   type TableCellAddress,
   type TableRowKind,
 } from "../table-editing.ts";
@@ -265,7 +266,14 @@ export class TableGridWidget extends WidgetType {
         if (toggle.dataset.tableToggle === "row") {
           openTableMenu(wrapper, menu, documentClick, "row", Number(toggle.dataset.rowIndex ?? -1));
         } else if (toggle.dataset.tableToggle === "col") {
-          openTableMenu(wrapper, menu, documentClick, "col", Number(toggle.dataset.colIndex ?? -1));
+          openTableMenu(
+            wrapper,
+            menu,
+            documentClick,
+            "col",
+            Number(toggle.dataset.colIndex ?? -1),
+            this.value.alignments[Number(toggle.dataset.colIndex ?? -1)] ?? "none",
+          );
         }
         return;
       }
@@ -290,6 +298,13 @@ export class TableGridWidget extends WidgetType {
           insertTableColumn(view, recordId, colIndex + 1);
         } else if (action === "delete-col") {
           deleteTableColumn(view, recordId, colIndex);
+        } else if (action?.startsWith("align-")) {
+          setTableColumnAlignment(
+            view,
+            recordId,
+            colIndex,
+            action.slice("align-".length) as MarkdownTableCellAlignment,
+          );
         }
         closeTableMenu(wrapper, menu, documentClick, document);
         return;
@@ -531,6 +546,7 @@ function openTableMenu(
   documentClick: EventListener,
   toggle: "row" | "col",
   index: number,
+  currentAlignment?: MarkdownTableCellAlignment,
 ): void {
   const document = wrapper.ownerDocument;
   menu.replaceChildren();
@@ -542,6 +558,24 @@ function openTableMenu(
     menu.append(createMenuButton(document, "insert-col-left", "在左侧插入列", "col", index));
     menu.append(createMenuButton(document, "insert-col-right", "在右侧插入列", "col", index));
     menu.append(createMenuButton(document, "delete-col", "删除本列", "col", index, true));
+    // 对齐分组：当前对齐项带勾选标记，点击经 delimiter 重写切换。
+    const alignmentLabel = {
+      none: "无对齐",
+      left: "左对齐",
+      center: "居中",
+      right: "右对齐",
+    } as const;
+    for (const [alignment, label] of Object.entries(alignmentLabel) as [
+      MarkdownTableCellAlignment,
+      string,
+    ][]) {
+      const item = createMenuButton(document, `align-${alignment}`, label, "col", index);
+      if (alignment === currentAlignment) {
+        item.classList.toggle("cm-md-table-widget__menu-item--active", true);
+        item.setAttribute("aria-checked", "true");
+      }
+      menu.append(item);
+    }
   }
   // 定位：行菜单从该行第一列左缘向右展开；列菜单从该列表头右缘向右下展开。
   const anchor = wrapper.querySelector<HTMLElement>(
