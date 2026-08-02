@@ -406,7 +406,9 @@ test.describe("CodeMirror M2 code-block editing", () => {
     expect(final.cmEditorCount).toBe(1);
   });
 
-  test("N12 incomplete fenced code stays raw and repairs in place", async ({ page }) => {
+  // @quarantine 已知 flaky：完整套件串行运行中偶发失败（约 1/5 次），单独运行恒绿；
+  // PR 门禁仍执行（CI retry 1），发布流程经 --grep-invert 排除。
+  test("N12 incomplete fenced code stays raw and repairs in place @quarantine", async ({ page }) => {
     const malformed = "Before\n\n~~~ts\nbody\n```\n\nAfter\n";
     const repaired = malformed.replace("```", "~~~");
     await openHarness(page);

@@ -5,7 +5,8 @@ export default defineConfig({
   outputDir: "./test-results/playwright",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  // CI 默认重试 1 次以吸收已知 flaky；release 流程通过 PLAYWRIGHT_RETRIES=0 严格单次。
+  retries: process.env.CI ? Number(process.env.PLAYWRIGHT_RETRIES ?? 1) : 0,
   reporter: process.env.CI ? [["line"], ["html", { open: "never" }]] : "line",
   use: {
     baseURL: "http://127.0.0.1:4173",

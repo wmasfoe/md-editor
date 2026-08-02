@@ -752,7 +752,10 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(page.locator(".cm-md-code-toolbar__language")).toHaveValue("markdown");
     await expect(content).not.toContainText("```md");
     await expect(content).toContainText("https://raw.example [^raw]");
-    await expect(content).toContainText("| [^table] |");
+    // M3 契约迁移：表格恒显示为可编辑网格 widget，不再回显源码（决策记录：
+    // commit 7501b76 + docs/agent/design/table_interaction_review.md）。
+    await expect(page.locator('table[role="grid"]')).toHaveCount(1);
+    await expect(content).not.toContainText("| [^table] |");
     await page.locator(".cm-scroller").evaluate((scroller) => {
       scroller.scrollTop = scroller.scrollHeight;
       scroller.dispatchEvent(new Event("scroll"));

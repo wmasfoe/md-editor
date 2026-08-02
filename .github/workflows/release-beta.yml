@@ -81,6 +81,15 @@ jobs:
       - name: Test Rust
         run: pnpm test:rust
 
+      # 发布门禁：浏览器验收严格单次不重试；@quarantine 标记的已知 flaky
+      # 用例在发布流程中排除（PR 流程仍完整执行并重试）。
+      - name: Browser E2E
+        env:
+          PLAYWRIGHT_RETRIES: "0"
+        run: |
+          pnpm --filter @md-editor/desktop exec playwright install chromium
+          pnpm --filter @md-editor/desktop exec playwright test --config playwright.config.ts --grep-invert "@quarantine"
+
       # Distribution note:
       # Tauri updater signing verifies update artifacts and is separate from
       # Apple Developer ID signing/notarization. This workflow still uses macOS
