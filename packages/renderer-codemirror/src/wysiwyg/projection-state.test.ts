@@ -260,8 +260,10 @@ describe("WYSIWYG projection StateField", () => {
     );
     expect(undoDepth(blockedTransaction.state)).toBe(0);
 
-    // 恰好等于 protected 范围的选区视为宽选区：整块替换放行
-    // （整表/原子选中后直接打字/粘贴等价于先 Delete 再输入）。
+    // 恰好等于默认 atom 的选区不是宽选区：footnote/autolink 保持 source-only
+    // 保护（G012 语义：恰好拒绝、严格更宽才放行）。回归锁定：M3 表格改动
+    // （7501b76）曾把恰好相等选区对所有 protected range 放行，导致默认 atom
+    // 被静默删除；现在仅 table provenance 允许恰好相等选区。
     const exactlySelected = state.update({
       selection: EditorSelection.range(autolink.fullRange.from, autolink.fullRange.to),
     }).state;
@@ -270,8 +272,16 @@ describe("WYSIWYG projection StateField", () => {
       selection: EditorSelection.cursor(autolink.fullRange.from),
       userEvent: "delete.selection",
     });
-    expect(exactDelete.docChanged).toBe(true);
-    expect(exactDelete.state.doc.toString().includes("https://example.org")).toBe(false);
+    expect(exactDelete.docChanged).toBe(false);
+    expect(exactDelete.state.doc.toString()).toBe(DOCUMENT);
+    expect(exactDelete.state.selection).toEqual(exactlySelected.selection);
+    expect(
+      exactDelete.effects.some((effect) => effect.is(protectedWysiwygChangeRejectedEffect)),
+    ).toBe(true);
+    expect(exactDelete.effects.find((effect) => effect.is(EditorView.announce))?.value).toBe(
+      WYSIWYG_SOURCE_MODE_REQUIRED_MESSAGE,
+    );
+    expect(undoDepth(exactDelete.state)).toBe(0);
 
     const broadSelection = state.update({
       selection: EditorSelection.range(autolink.fullRange.from - 1, autolink.fullRange.to + 1),
@@ -420,9 +430,9 @@ describe("WYSIWYG projection StateField", () => {
 
     expect(record?.codeBlock?.blockStatus).toBe("closed");
     expect(inspectWysiwygProjection(state).protectedRanges).toEqual([
-      record?.codeBlock?.openingFenceRange,
-      record?.codeBlock?.rawInfoRange,
-      record?.codeBlock?.closingFenceRange,
+      { ...record?.codeBlock?.openingFenceRange, kind: "code" },
+      { ...record?.codeBlock?.rawInfoRange, kind: "code" },
+      { ...record?.codeBlock?.closingFenceRange, kind: "code" },
     ]);
     expect(
       layoutSpecs.some(
@@ -476,7 +486,7 @@ describe("WYSIWYG projection StateField", () => {
 
     expect(record?.codeBlock?.blockKind).toBe("indented");
     expect(inspectWysiwygProjection(state).protectedRanges).toEqual(
-      record?.codeBlock?.syntaxIndentRanges,
+      record?.codeBlock?.syntaxIndentRanges.map((range) => ({ ...range, kind: "code" })),
     );
 
     const blocked = state.update({

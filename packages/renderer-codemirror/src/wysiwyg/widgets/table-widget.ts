@@ -41,6 +41,10 @@ interface TableWidgetListeners {
 const listenersByDom = new WeakMap<HTMLElement, TableWidgetListeners>();
 /** 正在编辑的单元格地址；blur 时提交，避免 updateDOM 打断输入。 */
 const editingCellByDom = new WeakMap<HTMLElement, TableCellAddress>();
+// CM6 会就地复用 widget DOM（updateDOM 返回 true 时），但 toDOM 里绑定的
+// 事件监听闭包仍指向旧 widget 实例（旧 recordId / 旧单元格文本）。
+// 通过 WeakMap 让监听器始终读取“当前”widget 值，避免提交命中旧记录。
+const currentTableGridValueByDom = new WeakMap<HTMLElement, TableGridValue>();
 /** 最近一次退出编辑的单元格地址（按 recordId 记忆），供 Tab/Enter 重新进入。 */
 const lastEditingCellByRecordId = new Map<string, TableCellAddress>();
 
@@ -145,6 +149,10 @@ export class TableGridWidget extends WidgetType {
     wrapper.append(table);
     wrapper.append(menu);
 
+    // 事件监听闭包读取“当前”widget 值：CM6 就地复用 DOM 时（updateDOM 返回 true）
+    // 闭包仍持有旧实例，必须经由 WeakMap 拿最新值，否则提交/取消命中旧 recordId。
+    const currentValue = () => currentTableGridValueByDom.get(wrapper) ?? this.value;
+
     const pointerdown: EventListener = (event) => {
       const target = event.target;
       if (!(target instanceof Element)) {
@@ -157,7 +165,7 @@ export class TableGridWidget extends WidgetType {
       ) {
         // 单元格/手柄按钮/菜单：不拦截默认行为（让浏览器把焦点交给 contenteditable）；
         // 若表格正处于原子选中态，先清除选中高亮。
-        if (this.value.selected) {
+        if (currentValue().selected) {
           view.dispatch({
             effects: clearWysiwygAtomSelectionEffect.of(null),
             userEvent: "select",
@@ -169,7 +177,7 @@ export class TableGridWidget extends WidgetType {
       event.preventDefault();
       selectWysiwygAtom(
         view,
-        wrapper.dataset.recordId ?? this.value.recordId,
+        wrapper.dataset.recordId ?? currentValue().recordId,
         (event as MouseEvent).metaKey || (event as MouseEvent).ctrlKey,
       );
     };
@@ -179,10 +187,10 @@ export class TableGridWidget extends WidgetType {
       if (!cell) {
         return;
       }
-      const address = addressFromCell(cell, this.value.recordId);
+      const address = addressFromCell(cell, currentValue().recordId);
       if (address) {
         editingCellByDom.set(wrapper, address);
-        lastEditingCellByRecordId.set(this.value.recordId, address);
+        lastEditingCellByRecordId.set(currentValue().recordId, address);
       }
       cell.classList.add("cm-md-table-widget__cell--editing");
     };
@@ -198,7 +206,7 @@ export class TableGridWidget extends WidgetType {
       if (next instanceof Node && wrapper.contains(next)) {
         return;
       }
-      flushCellCommit(view, wrapper, cell, this.value.recordId);
+      flushCellCommit(view, wrapper, cell, currentValue().recordId);
     };
 
     const keydown: EventListener = (event) => {
@@ -210,11 +218,16 @@ export class TableGridWidget extends WidgetType {
       if (keyEvent.key === "Enter") {
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
-        flushCellCommit(view, wrapper, cell, this.value.recordId);
+        flushCellCommit(view, wrapper, cell, currentValue().recordId);
         // 最后一行 Enter：退出表格并在下方新增段落续写正文（不再卡在单元格里）。
-        const address = addressFromCell(cell, this.value.recordId);
-        if (address?.rowKind === "body" && address.rowIndex === this.value.bodyRows.length - 1) {
-          exitTableWithParagraph(view, wrapper.dataset.recordId ?? this.value.recordId);
+        const address = addressFromCell(cell, currentValue().recordId);
+        if (
+          address?.rowKind === "body" &&
+          address.rowIndex === currentValue().bodyRows.length - 1
+        ) {
+          exitTableWithParagraph(view, wrapper.dataset.recordId ?? currentValue().recordId);
+          // 恢复编辑器焦点：退出后光标已落在新段落，用户可直接续写正文。
+          view.focus();
           return;
         }
         moveCellFocus(wrapper, cell, "down");
@@ -223,17 +236,18 @@ export class TableGridWidget extends WidgetType {
       if (keyEvent.key === "Tab") {
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
-        flushCellCommit(view, wrapper, cell, keyEvent.shiftKey ? "left" : "right");
+        flushCellCommit(view, wrapper, cell, currentValue().recordId);
+        moveCellFocus(wrapper, cell, keyEvent.shiftKey ? "left" : "right");
         return;
       }
       if (keyEvent.key === "Escape") {
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
         // 取消：恢复源码文本并退出编辑，同时记住退出位置。
-        const address = addressFromCell(cell, this.value.recordId);
+        const address = addressFromCell(cell, currentValue().recordId);
         if (address) {
-          cell.textContent = sourceCellText(this.value, address);
-          lastEditingCellByRecordId.set(this.value.recordId, address);
+          cell.textContent = sourceCellText(currentValue(), address);
+          lastEditingCellByRecordId.set(currentValue().recordId, address);
         }
         editingCellByDom.delete(wrapper);
         cell.blur();
@@ -244,8 +258,8 @@ export class TableGridWidget extends WidgetType {
       // 焦点随之回到 CM6，再次 Cmd+A 由 CM6 默认 selectAll 扩展到全文。
       // （contenteditable 的浏览器默认只会选中当前单元格文本。）
       if (keyEvent.key === "a" && (keyEvent.metaKey || keyEvent.ctrlKey)) {
-        flushCellCommit(view, wrapper, cell, this.value.recordId);
-        if (selectWysiwygAtom(view, wrapper.dataset.recordId ?? this.value.recordId)) {
+        flushCellCommit(view, wrapper, cell, currentValue().recordId);
+        if (selectWysiwygAtom(view, wrapper.dataset.recordId ?? currentValue().recordId)) {
           keyEvent.preventDefault();
           keyEvent.stopPropagation();
         }
@@ -272,7 +286,7 @@ export class TableGridWidget extends WidgetType {
             documentClick,
             "col",
             Number(toggle.dataset.colIndex ?? -1),
-            this.value.alignments[Number(toggle.dataset.colIndex ?? -1)] ?? "none",
+            currentValue().alignments[Number(toggle.dataset.colIndex ?? -1)] ?? "none",
           );
         }
         return;
@@ -282,7 +296,7 @@ export class TableGridWidget extends WidgetType {
       if (button) {
         event.preventDefault();
         event.stopPropagation();
-        const recordId = wrapper.dataset.recordId ?? this.value.recordId;
+        const recordId = wrapper.dataset.recordId ?? currentValue().recordId;
         const action = button.dataset.tableAction;
         const rowIndex = Number(button.dataset.rowIndex ?? -1);
         const colIndex = Number(button.dataset.colIndex ?? -1);
@@ -336,19 +350,18 @@ export class TableGridWidget extends WidgetType {
       actionClick,
       documentClick,
     });
+    currentTableGridValueByDom.set(wrapper, this.value);
     updateTableGridDom(wrapper, this.value);
     this.value.diagnostics?.recordWidgetLifecycle("table", "create");
     return wrapper;
   }
 
   updateDOM(dom: HTMLElement): boolean {
-    // 单元格正在编辑时跳过结构同步，避免打断 IME / 输入。
-    if (editingCellByDom.has(dom) && dom.contains(dom.ownerDocument.activeElement)) {
-      updateTableGridDom(dom, this.value);
-      this.value.diagnostics?.recordWidgetLifecycle("table", "update");
-      return true;
-    }
+    // 先刷新监听器读取的“当前值”：即使就地复用 DOM，后续事件也要命中新记录。
+    currentTableGridValueByDom.set(dom, this.value);
     // 结构变化时返回 false，让 CM6 重建 widget（行列数变化）。
+    // 必须在编辑捷径之前判断：点击行/列手柄后焦点位于单元格内，
+    // 若先命中编辑分支，增删行列只会原地更新而不会重建 DOM。
     const grid = dom.querySelector(".cm-md-table-widget__grid");
     if (!grid) {
       return false;
@@ -360,6 +373,12 @@ export class TableGridWidget extends WidgetType {
       bodyRows.length !== this.value.bodyRows.length
     ) {
       return false;
+    }
+    // 单元格正在编辑时跳过文本同步，避免打断 IME / 输入（结构未变时）。
+    if (editingCellByDom.has(dom) && dom.contains(dom.ownerDocument.activeElement)) {
+      updateTableGridDom(dom, this.value);
+      this.value.diagnostics?.recordWidgetLifecycle("table", "update");
+      return true;
     }
     headerCells.forEach((cell, index) => {
       if (dom.ownerDocument.activeElement !== cell) {
@@ -394,6 +413,7 @@ export class TableGridWidget extends WidgetType {
       listenersByDom.delete(dom);
     }
     editingCellByDom.delete(dom);
+    currentTableGridValueByDom.delete(dom);
     this.value.diagnostics?.recordWidgetLifecycle("table", "destroy");
   }
 }
@@ -498,6 +518,9 @@ function createRowHandle(document: Document, rowIndex: number): HTMLElement {
   const handle = document.createElement("span");
   handle.className = "cm-md-table-widget__handle cm-md-table-widget__handle--row";
   handle.setAttribute("aria-hidden", "true");
+  // 手柄是单元格的子节点，必须声明为非编辑区域：
+  // 否则 End/光标会越过手柄，键入内容会落在手柄之后并混入提交文本。
+  handle.contentEditable = "false";
   handle.append(createHandleButton(document, "row", String(rowIndex)));
   return handle;
 }
@@ -511,6 +534,7 @@ function createColumnHandle(document: Document, colIndex: number): HTMLElement {
   const handle = document.createElement("span");
   handle.className = "cm-md-table-widget__handle cm-md-table-widget__handle--col";
   handle.setAttribute("aria-hidden", "true");
+  handle.contentEditable = "false";
   handle.append(createHandleButton(document, "col", String(colIndex)));
   return handle;
 }
@@ -637,7 +661,11 @@ function flushCellCommit(
   if (!address) {
     return;
   }
-  const text = cell.innerText
+  // 行块手柄（⋮⋮）是单元格 DOM 的子节点，读取文本前必须先剔除，
+  // 否则手柄文字会混入单元格提交内容。
+  const clone = cell.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
+  const text = clone.innerText
     .replace(/\u00a0/g, " ")
     .replace(/\r?\n/g, " ")
     .trim();

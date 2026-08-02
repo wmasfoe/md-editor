@@ -61,13 +61,27 @@ export interface SelectWysiwygAtomEffect {
   readonly extend: boolean;
 }
 
+/**
+ * protected range 的 provenance 来源类型。
+ *
+ * 宽选区放行语义按 kind 区分：table 允许"恰好相等选区"（整表原子选中后
+ * 直接打字/粘贴等价于替换整表）；其余来源必须严格更宽（G012 语义：
+ * 恰好拒绝、跨块更宽才放行）。携带 kind 保证判定不依赖几何形状，
+ * 未来新增来源（如 HTML 块）只增加一个 kind 值。
+ */
+export type ProtectedRangeKind = "default-atom" | "frontmatter" | "block-marker" | "code" | "table";
+
+export interface ProtectedSourceRange extends SourceRange {
+  readonly kind: ProtectedRangeKind;
+}
+
 export interface WysiwygProjectionSnapshot {
   readonly mode: EditorMode;
   readonly rangeIndexVersion: number;
   readonly activeSyntaxIds: readonly string[];
   readonly selectedAtomIds: readonly string[];
   readonly compositionGuardRanges: readonly SourceRange[];
-  readonly protectedRanges: readonly SourceRange[];
+  readonly protectedRanges: readonly ProtectedSourceRange[];
   readonly layoutDecorationCount: number;
   readonly atomicRangeCount: number;
   readonly lastSelectionDeltaIds: readonly string[];
@@ -79,7 +93,7 @@ export interface WysiwygProjectionState {
   readonly activeSyntaxIds: readonly string[];
   readonly selectedAtomIds: readonly string[];
   readonly compositionGuardRanges: readonly SourceRange[];
-  readonly protectedRanges: readonly SourceRange[];
+  readonly protectedRanges: readonly ProtectedSourceRange[];
   readonly layoutDecorations: DecorationSet;
   readonly atomicRanges: DecorationSet;
   readonly lastSelectionDeltaIds: readonly string[];
@@ -572,25 +586,45 @@ function buildProtectedRanges(
   index: MarkdownRangeIndex,
   activeSyntaxIds: readonly string[],
   state: EditorState,
-): readonly SourceRange[] {
+): readonly ProtectedSourceRange[] {
   return freezeRanges(
     index.records.flatMap((record) => {
-      const ranges: SourceRange[] = [];
+      const ranges: ProtectedSourceRange[] = [];
       if (
         hasWysiwygProjectionFeature(state, "default-atoms") &&
         isRenderableDefaultAtom(record, state)
       ) {
-        ranges.push(record.fullRange);
+        ranges.push({ ...record.fullRange, kind: "default-atom" });
       }
       if (hasWysiwygProjectionFeature(state, "frontmatter") && record.kind === "frontmatter") {
-        ranges.push(...getFrontmatterProtectedRanges(record, state));
+        ranges.push(
+          ...getFrontmatterProtectedRanges(record, state).map((range) => ({
+            ...range,
+            kind: "frontmatter" as const,
+          })),
+        );
       }
       if (hasWysiwygProjectionFeature(state, "blocks")) {
-        ranges.push(...getBlockProtectedRanges(record, state));
-        ranges.push(...getCodeBlockProtectedRanges(record));
+        ranges.push(
+          ...getBlockProtectedRanges(record, state).map((range) => ({
+            ...range,
+            kind: "block-marker" as const,
+          })),
+        );
+        ranges.push(
+          ...getCodeBlockProtectedRanges(record).map((range) => ({
+            ...range,
+            kind: "code" as const,
+          })),
+        );
       }
       if (hasWysiwygProjectionFeature(state, "tables") && isProjectableTable(record)) {
-        ranges.push(...getTableProtectedRanges(record, activeSyntaxIds.includes(record.id)));
+        ranges.push(
+          ...getTableProtectedRanges(record, activeSyntaxIds.includes(record.id)).map((range) => ({
+            ...range,
+            kind: "table" as const,
+          })),
+        );
       }
       return ranges;
     }),
@@ -695,7 +729,7 @@ function freezeProjectionState(state: WysiwygProjectionState): WysiwygProjection
   });
 }
 
-function freezeRanges(ranges: readonly SourceRange[]): readonly SourceRange[] {
+function freezeRanges<T extends SourceRange>(ranges: readonly T[]): readonly T[] {
   if (Object.isFrozen(ranges) && ranges.every((range) => Object.isFrozen(range))) {
     return ranges;
   }

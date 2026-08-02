@@ -143,14 +143,51 @@ describe("table cell / structure editing", () => {
     expect(getState().selection.main.head).toBe(doc.length + 2);
   });
 
-  it("moves the cursor onto the existing blank separator after the table", () => {
+  it("inserts a fresh paragraph line after the table's blank separator", () => {
     const doc = "| a | b |\n| - | - |\n| 1 | 2 |\n\nnext paragraph";
     const { view, getState } = createView(doc);
     const table = getState().field(markdownRangeIndexField).byKind("table")[0];
     expect(exitTableWithParagraph(view, table.id)).toBe(true);
-    expect(getState().doc.toString()).toBe(doc);
-    expect(getState().selection.main.head).toBe(
-      getState().field(markdownRangeIndexField).byKind("table")[0].fullRange.to + 1,
+    // 终止空行保留不动（它保护表格不被 GFM 吞并），新空行 + 分隔空行插在其后。
+    expect(getState().doc.toString()).toBe("| a | b |\n| - | - |\n| 1 | 2 |\n\n\n\nnext paragraph");
+    expect(getState().selection.main.head).toBe(31);
+  });
+
+  it("keeps the blank terminator and continues the paragraph on a fresh line below it", () => {
+    const doc = [
+      "Before table.",
+      "",
+      "| Header A | Header B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      "| 3 | 4x |",
+      "",
+      "After table.",
+      "",
+    ].join("\n");
+    const { view, getState } = createView(doc);
+    const table = getState().field(markdownRangeIndexField).byKind("table")[0];
+    expect(exitTableWithParagraph(view, table.id)).toBe(true);
+    const head = getState().selection.main.head;
+    // 光标落在新空行上；打字不再吞掉终止空行，表格范围保持稳定。
+    const typed = getState().update({
+      changes: { from: head, to: head, insert: "Tail" },
+      userEvent: "input.type",
+    }).state;
+    expect(typed.doc.toString()).toBe(
+      [
+        "Before table.",
+        "",
+        "| Header A | Header B |",
+        "| --- | --- |",
+        "| 1 | 2 |",
+        "| 3 | 4x |",
+        "",
+        "Tail",
+        "",
+        "After table.",
+        "",
+      ].join("\n"),
     );
   });
 });

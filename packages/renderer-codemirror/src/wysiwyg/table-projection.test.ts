@@ -50,7 +50,7 @@ describe("M3 table projection", () => {
     expect(table).toBeDefined();
     expect(projection.layoutDecorationCount).toBeGreaterThan(0);
     expect(projection.atomicRangeCount).toBeGreaterThan(0);
-    expect(projection.protectedRanges).toContainEqual(table.fullRange);
+    expect(projection.protectedRanges).toContainEqual({ ...table.fullRange, kind: "table" });
   });
 
   it("keeps the full table protected even when the cursor is inside the table range", () => {
@@ -63,7 +63,7 @@ describe("M3 table projection", () => {
     const projection = inspectWysiwygProjection(inside);
 
     expect(projection.activeSyntaxIds).not.toContain(table.id);
-    expect(projection.protectedRanges).toContainEqual(table.fullRange);
+    expect(projection.protectedRanges).toContainEqual({ ...table.fullRange, kind: "table" });
     expect(projection.layoutDecorationCount).toBeGreaterThan(0);
   });
 
@@ -84,7 +84,7 @@ describe("M3 table projection", () => {
 
     const table = index.byKind("table")[0];
     expect(table).toBeDefined();
-    expect(projection.protectedRanges).toContainEqual(table.fullRange);
+    expect(projection.protectedRanges).toContainEqual({ ...table.fullRange, kind: "table" });
     expect(projection.layoutDecorationCount).toBeGreaterThan(0);
   });
 

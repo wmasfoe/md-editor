@@ -117,6 +117,24 @@ class FakeElement extends HTMLElementStub {
     }
   }
 
+  cloneNode(deep: boolean): FakeElement {
+    const clone = new FakeElement(this.tagName, this.ownerDocument);
+    clone.className = this.className;
+    clone.textContent = deep ? this.textContent : "";
+    for (const [name, value] of this.#attributes) {
+      clone.#attributes.set(name, value);
+    }
+    for (const [key, value] of Object.entries(this.dataset)) {
+      clone.dataset[key] = value;
+    }
+    if (deep) {
+      for (const child of this.children) {
+        clone.append(child.cloneNode(true));
+      }
+    }
+    return clone;
+  }
+
   replaceChildren(...children: FakeElement[]): void {
     this.children.length = 0;
     this.append(...children);
@@ -144,6 +162,17 @@ class FakeElement extends HTMLElementStub {
     if (dataKey) {
       delete this.dataset[dataKey];
     }
+  }
+
+  remove(): void {
+    if (!this.parentNode) {
+      return;
+    }
+    const index = this.parentNode.children.indexOf(this);
+    if (index >= 0) {
+      this.parentNode.children.splice(index, 1);
+    }
+    this.parentNode = null;
   }
 
   matches(selector: string): boolean {

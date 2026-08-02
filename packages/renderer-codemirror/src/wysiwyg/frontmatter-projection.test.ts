@@ -98,7 +98,9 @@ describe("Frontmatter projection", () => {
     expect(layout.some((item) => item.role === "frontmatter-yaml-anchor")).toBe(true);
     expect(layout.some((item) => item.role === "frontmatter-yaml-alias")).toBe(true);
     expect(atomic.filter((item) => item.role === "frontmatter-fence-atomic")).toHaveLength(2);
-    expect(inspectWysiwygProjection(state).protectedRanges).toEqual(record.markerRanges);
+    expect(inspectWysiwygProjection(state).protectedRanges).toEqual(
+      record.markerRanges.map((range) => ({ ...range, kind: "frontmatter" })),
+    );
   });
 
   it("edits only YAML source ranges through native history and preserves every other byte", () => {

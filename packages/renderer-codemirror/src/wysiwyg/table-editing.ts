@@ -63,8 +63,11 @@ export function commitTableCell(
 
 /**
  * 表格末尾 Enter：退出表格并在下方续写新段落。
- * - 表格后已有空行分隔 → 光标落到空行，不新增内容；
- * - 表格后只有单个换行或紧贴正文 → 补足空行后光标落到新段落。
+ * 表格必须以空行终止（GFM 会把紧随表格的非空行并入表格），
+ * 因此续写段落要落在终止空行之后的“新空行”上，而不是终止空行本身
+ * （否则打字会吞掉终止空行，表格范围随之吞掉后续正文）。
+ * record.fullRange.to 是最后一行单元格文本的结尾（行尾换行在记录之外），
+ * 故 insertAt 处的 rest 由“行尾换行 + 终止空行/正文”组成。
  */
 export function exitTableWithParagraph(view: EditorView, recordId: string): boolean {
   const record = view.state.field(markdownRangeIndexField).get(recordId);
@@ -73,18 +76,22 @@ export function exitTableWithParagraph(view: EditorView, recordId: string): bool
   }
   const insertAt = record.fullRange.to;
   const rest = view.state.doc.sliceString(insertAt, insertAt + 2);
+  let changes: { from: number; to: number; insert: string };
   if (rest.startsWith("\n\n")) {
-    view.dispatch({
-      selection: EditorSelection.cursor(insertAt + 1),
-      annotations: Transaction.addToHistory.of(false),
-      userEvent: "select",
-    });
-    return true;
+    // 已有终止空行：在其后补“新空行 + 分隔空行”，光标落到新空行。
+    changes = { from: insertAt + 1, to: insertAt + 1, insert: "\n\n" };
+  } else if (rest.startsWith("\n")) {
+    // 只有行尾换行（其后是正文或文档末尾）：补终止空行 + 新空行 + 分隔空行。
+    changes = { from: insertAt + 1, to: insertAt + 1, insert: "\n\n\n" };
+  } else {
+    // 表格后无换行（文档末尾）：补行尾换行 + 终止空行 + 新空行。
+    changes = { from: insertAt, to: insertAt, insert: "\n\n" };
   }
-  const insert = rest.startsWith("\n") ? "\n" : "\n\n";
   view.dispatch({
-    changes: { from: insertAt, to: insertAt, insert },
-    selection: EditorSelection.cursor(insertAt + insert.length),
+    changes,
+    // 光标统一落在“新空行”上（insertAt+1 与 insertAt+2 之间的那条空行）：
+    // 在此打字后文档为“行、空行、新段落、空行、后续正文”。
+    selection: EditorSelection.cursor(insertAt + 2),
     annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
     userEvent: "input.type",
   });
