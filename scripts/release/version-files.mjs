@@ -7,26 +7,30 @@ import fs from "node:fs";
 export const rootPackagePath = "package.json";
 export const desktopPackagePath = "apps/desktop/package.json";
 export const cargoManifestPath = "apps/desktop/src-tauri/Cargo.toml";
+export const cargoLockPath = "apps/desktop/src-tauri/Cargo.lock";
 export const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
 
 export function readJson(path) {
   return JSON.parse(fs.readFileSync(path, "utf8"));
 }
 
-export function writeJson(path, value) {
-  fs.writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-}
-
 export function updatePackageJson(path, version) {
-  const packageJson = readJson(path);
-  packageJson.version = version;
-  writeJson(path, packageJson);
+  replaceJsonVersion(path, version);
 }
 
 export function updateTauriConfig(version) {
-  const config = readJson(tauriConfigPath);
-  config.version = version;
-  writeJson(tauriConfigPath, config);
+  replaceJsonVersion(tauriConfigPath, version);
+}
+
+function replaceJsonVersion(path, version) {
+  const contents = fs.readFileSync(path, "utf8");
+  const nextContents = contents.replace(/^(\s{2}"version"\s*:\s*)"[^"]*"/mu, `$1"${version}"`);
+
+  if (nextContents === contents) {
+    throw new Error(`Unable to find top-level version in ${path}.`);
+  }
+
+  fs.writeFileSync(path, nextContents);
 }
 
 export function updateCargoManifest(version) {
@@ -59,4 +63,26 @@ export function updateCargoManifest(version) {
   }
 
   fs.writeFileSync(cargoManifestPath, nextContents);
+}
+
+export function updateCargoLock(version) {
+  const manifest = fs.readFileSync(cargoManifestPath, "utf8");
+  const packageName = manifest.match(/^\s*name\s*=\s*"([^"]+)"/m)?.[1];
+  if (!packageName) {
+    throw new Error(`Unable to find [package] name in ${cargoManifestPath}.`);
+  }
+
+  const escapedName = packageName.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const packagePattern = new RegExp(
+    `(\\[\\[package\\]\\]\\s*\\nname\\s*=\\s*"${escapedName}"\\s*\\nversion\\s*=\\s*)"[^"]*"`,
+    "u",
+  );
+  const contents = fs.readFileSync(cargoLockPath, "utf8");
+  const nextContents = contents.replace(packagePattern, `$1"${version}"`);
+
+  if (nextContents === contents) {
+    throw new Error(`Unable to find ${packageName} package version in ${cargoLockPath}.`);
+  }
+
+  fs.writeFileSync(cargoLockPath, nextContents);
 }

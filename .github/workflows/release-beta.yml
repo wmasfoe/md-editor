@@ -1,7 +1,7 @@
 name: Release Beta (macOS)
 
 # beta 分支 push 即触发 beta 预发布构建：
-# - 版本派生为 <基础版本>-beta.<commit短哈希>，release tag 天然唯一；
+# - 版本派生为 <基础版本>-beta.sha<commit短哈希>，release tag 天然唯一；
 # - 产物只上传到本仓库 GitHub Release（标记 Pre-release），
 #   不更新 Homebrew cask / curl installer / updater manifest / 网站 changelog，
 #   因此不影响 stable 渠道的 sh、brew 安装；
@@ -127,6 +127,11 @@ jobs:
           - 反馈问题请附上此版本号 ${RELEASE_VERSION}"
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "[Beta] Markdown Editor $RELEASE_VERSION" \
+              --notes "$notes" \
+              --prerelease
+
             gh release upload "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
               apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \

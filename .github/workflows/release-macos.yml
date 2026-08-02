@@ -343,6 +343,7 @@ jobs:
           git push origin main
 
       - name: Publish website changelog
+        if: steps.release_version.outputs.is_prerelease != 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
