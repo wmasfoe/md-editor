@@ -51,7 +51,9 @@ test.describe("CodeMirror M1 Frontmatter panel", () => {
       header.locator("input, textarea, [contenteditable='true'], .cm-editor"),
     ).toHaveCount(0);
     await expect(page.locator(".cm-content")).not.toContainText("---");
-    await expect(page.locator(".cm-content")).toContainText("<div>HTML stays raw</div>");
+    await expect(page.locator(".cm-md-html-block-widget")).toHaveCount(1);
+    await expect(page.locator(".cm-md-html-block-widget")).toContainText("HTML stays raw");
+    await expect(page.locator(".cm-content")).not.toContainText("<div>HTML stays raw</div>");
     await expect(page.locator(".cm-content")).toContainText('<Component value="MDX stays raw" />');
     expect(before.renderer).toMatchObject({
       markdown: FIXTURE_MARKDOWN,

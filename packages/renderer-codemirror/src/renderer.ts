@@ -382,6 +382,7 @@ class CodeMirrorRendererController {
           "default-atoms",
           "frontmatter",
           "tables",
+          "html",
         ],
         { writeClipboardText: options.writeClipboardText },
       ),

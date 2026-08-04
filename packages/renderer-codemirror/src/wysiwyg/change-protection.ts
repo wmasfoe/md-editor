@@ -69,12 +69,13 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
           selection.from <= protectedRange.from &&
           selection.to >= protectedRange.to &&
           // 按 provenance kind 区分放行语义：
-          // - table：恰好相等选区也放行（整表原子选中后直接打字/粘贴/Delete
+          // - table/html：恰好相等选区也放行（整块原子选中后直接打字/粘贴/Delete
           //   等价于"先删整表再输入"）；同时容忍拖选含尾随换行
           //   （selection.to 到 fullRange.to + 1，layout decoration 替换范围含尾随换行）。
           // - 其他来源：必须严格更宽（G012 语义：恰好拒绝、跨块更宽才放行），
           //   避免默认 atom（footnote/autolink/reference）被恰好选区静默删除。
           (protectedRange.kind === "table" ||
+            protectedRange.kind === "html" ||
             selection.from < protectedRange.from ||
             selection.to > protectedRange.to),
       );

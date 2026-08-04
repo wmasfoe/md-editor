@@ -77,6 +77,25 @@ function createStateWithTables(
   });
 }
 
+function createStateWithHtml(
+  doc: string,
+  selection: EditorSelection | SelectionRange = EditorSelection.cursor(0),
+): EditorState {
+  return EditorState.create({
+    doc,
+    selection,
+    extensions: [
+      history(),
+      EditorState.allowMultipleSelections.of(true),
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      editorModeField,
+      markdownRangeIndexField,
+      configureWysiwygProjectionFeatures(["html"]),
+      wysiwygProjectionField,
+    ],
+  });
+}
+
 function runCommand(state: EditorState, command: StateCommand): CommandResult {
   let nextState = state;
   let transactionCount = 0;
@@ -113,6 +132,39 @@ describe("WYSIWYG atom selection commands", () => {
       expect(runCommand(restored, redo).state.doc.toString()).toBe("");
     },
   );
+
+  it("deletes an exactly selected HTML block in one undoable transaction", () => {
+    const doc = "Before\n\n<div>Safe</div>\n\nAfter";
+    const initial = createStateWithHtml(doc);
+    const html = initial.field(markdownRangeIndexField).byKind("html")[0];
+    const selected = initial.update({
+      selection: EditorSelection.range(html.fullRange.from, html.fullRange.to),
+    }).state;
+    const result = runCommand(selected, deleteMarkdownAtomForward);
+
+    expect(result).toMatchObject({ handled: true, transactionCount: 1 });
+    expect(result.state.doc.toString()).toBe("Before\n\n\n\nAfter");
+    expect(runCommand(result.state, undo).state.doc.toString()).toBe(doc);
+    expect(runCommand(runCommand(result.state, undo).state, redo).state.doc.toString()).toBe(
+      "Before\n\n\n\nAfter",
+    );
+  });
+
+  it("selects an adjacent HTML block with the keyboard instead of revealing its source", () => {
+    const doc = "Before\n\n<div>Safe</div>\n\nAfter";
+    const initial = createStateWithHtml(doc);
+    const html = initial.field(markdownRangeIndexField).byKind("html")[0];
+    const before = initial.update({
+      selection: EditorSelection.cursor(html.fullRange.from),
+    }).state;
+    const result = runCommand(before, selectMarkdownAtomForward);
+
+    expect(result.handled).toBe(true);
+    expect(result.state.selection.main).toEqual(
+      EditorSelection.range(html.fullRange.from, html.fullRange.to),
+    );
+    expect(inspectWysiwygProjection(result.state).activeSyntaxIds).not.toContain(html.id);
+  });
 
   it("does not hijack a broad cross-block deletion", () => {
     const doc = "Before\n\n![alt](image.png)\n\n---\n\nAfter";

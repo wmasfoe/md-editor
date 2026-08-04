@@ -16,6 +16,7 @@ import {
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
 } from "./projection-state.ts";
+import { htmlProjectionTheme } from "./html-projection.ts";
 import { tableProjectionTheme } from "./table-projection.ts";
 import { visibleMarkdownMarksPlugin } from "./visible-marks.ts";
 
@@ -30,6 +31,7 @@ export function createWysiwygProjectionExtensions(
     codeBlockLineNumberTheme,
     codeBlockProjectionTheme,
     tableProjectionTheme,
+    htmlProjectionTheme,
     wysiwygProjectionField,
     visibleMarkdownMarksPlugin,
     wysiwygChangeProtection,

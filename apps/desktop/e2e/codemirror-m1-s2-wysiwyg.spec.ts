@@ -730,7 +730,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
       .toBe(FIXTURE_MARKDOWN);
   });
 
-  test("E01-AC14: supported defaults and code blocks visualize while unsupported syntax stays raw", async ({
+  test("E01-AC14: supported defaults, code blocks, and HTML visualize while unsupported syntax stays raw", async ({
     page,
   }) => {
     const defaults = page.locator(".cm-md-default-atom");
@@ -760,7 +760,9 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
       scroller.scrollTop = scroller.scrollHeight;
       scroller.dispatchEvent(new Event("scroll"));
     });
-    await expect(content).toContainText("<div>[^html]</div>");
+    await expect(page.locator(".cm-md-html-block-widget")).toHaveCount(1);
+    await expect(page.locator(".cm-md-html-block-widget")).toContainText("[^html]");
+    await expect(content).not.toContainText("<div>[^html]</div>");
     await expect(content).toContainText('<Component value="[^mdx]" />');
   });
 

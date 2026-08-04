@@ -163,11 +163,11 @@ const POLICIES: Readonly<Record<string, MarkdownNodePolicy>> = Object.freeze({
     contentStrategy: "full",
   }),
   HTMLBlock: definePolicy({
-    kind: "deferred-html",
-    renderPolicy: "deferred-raw",
-    editPolicy: "native",
-    interactionPolicy: "none",
-    priority: 0,
+    kind: "html",
+    renderPolicy: "html-widget",
+    editPolicy: "structured",
+    interactionPolicy: "structured-block",
+    priority: 20,
     markerNodeNames: [],
     contentStrategy: "full",
   }),
@@ -333,5 +333,5 @@ export function getMarkdownNodePolicy(
 }
 
 export function isExplicitDeferredNode(nodeName: string): boolean {
-  return ["FencedCode", "CodeBlock", "Table", "HTMLBlock", "HTMLTag"].includes(nodeName);
+  return ["FencedCode", "CodeBlock", "Table", "HTMLTag"].includes(nodeName);
 }

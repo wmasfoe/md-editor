@@ -63,13 +63,20 @@ describe("Markdown node policy registry", () => {
   });
 
   it("marks deferred scope raw and gives unknown nodes a raw fallback", () => {
-    for (const nodeName of ["FencedCode", "CodeBlock", "HTMLBlock", "HTMLTag"]) {
+    for (const nodeName of ["FencedCode", "CodeBlock", "HTMLTag"]) {
       expect(isExplicitDeferredNode(nodeName)).toBe(true);
       expect(getMarkdownNodePolicy(nodeName)).toMatchObject({
         renderPolicy: "deferred-raw",
         editPolicy: "native",
       });
     }
+    expect(isExplicitDeferredNode("HTMLBlock")).toBe(false);
+    expect(getMarkdownNodePolicy("HTMLBlock")).toMatchObject({
+      kind: "html",
+      renderPolicy: "html-widget",
+      editPolicy: "structured",
+      interactionPolicy: "structured-block",
+    });
     expect(getMarkdownNodePolicy("FutureExtensionNode")).toMatchObject({
       kind: "raw-fallback",
       renderPolicy: "raw-fallback",

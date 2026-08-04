@@ -254,9 +254,10 @@ function visitParserNode(
         if (
           policy.renderPolicy === "deferred-raw" ||
           policy.renderPolicy === "raw-fallback" ||
+          policy.renderPolicy === "html-widget" ||
           // Tables claim a structured record but their cell content must not
-          // be promoted to inline atom records. The same deferred boundary
-          // applies to deferred-code and deferred-html blocks.
+          // be promoted to inline atom records. The same parse boundary
+          // applies to deferred-code and html-widget blocks.
           policy.renderPolicy === "table-widget"
         ) {
           continue;

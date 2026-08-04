@@ -19,7 +19,7 @@ import {
 
 type SelectableAtom = MarkdownRangeRecord;
 type DeletableAtom = MarkdownRangeRecord & {
-  readonly kind: "image" | "thematic-break" | "table";
+  readonly kind: "image" | "thematic-break" | "table" | "html";
 };
 
 export const deleteSelectedAtomBackward: StateCommand = guarded((target) =>
@@ -352,7 +352,10 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
         hasCurrentSourceFingerprint(record, state)) ||
       (hasWysiwygProjectionFeature(state, "tables") &&
         record.kind === "table" &&
-        record.renderPolicy === "table-widget"))
+        record.renderPolicy === "table-widget") ||
+      (hasWysiwygProjectionFeature(state, "html") &&
+        record.kind === "html" &&
+        record.renderPolicy === "html-widget"))
   );
 }
 
@@ -374,6 +377,9 @@ function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState
   if (record.kind === "table") {
     return hasWysiwygProjectionFeature(state, "tables");
   }
+  if (record.kind === "html") {
+    return hasWysiwygProjectionFeature(state, "html");
+  }
   return true;
 }
 
@@ -383,6 +389,9 @@ function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
       (record.kind === "image" || record.kind === "thematic-break")) ||
     (record.kind === "table" &&
       record.renderPolicy === "table-widget" &&
+      record.editPolicy === "structured") ||
+    (record.kind === "html" &&
+      record.renderPolicy === "html-widget" &&
       record.editPolicy === "structured")
   );
 }

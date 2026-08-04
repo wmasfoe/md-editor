@@ -44,6 +44,12 @@ import {
   getTableProtectedRanges,
   isProjectableTable,
 } from "./table-projection.ts";
+import {
+  buildHtmlAtomicRanges,
+  buildHtmlLayoutDecorations,
+  getHtmlProtectedRanges,
+  isProjectableHtml,
+} from "./html-projection.ts";
 
 export type WysiwygProjectionFeature =
   | "inline-styles"
@@ -54,7 +60,8 @@ export type WysiwygProjectionFeature =
   | "thematic-breaks"
   | "default-atoms"
   | "frontmatter"
-  | "tables";
+  | "tables"
+  | "html";
 
 export interface SelectWysiwygAtomEffect {
   readonly recordId: string;
@@ -64,12 +71,13 @@ export interface SelectWysiwygAtomEffect {
 /**
  * protected range 的 provenance 来源类型。
  *
- * 宽选区放行语义按 kind 区分：table 允许"恰好相等选区"（整表原子选中后
- * 直接打字/粘贴等价于替换整表）；其余来源必须严格更宽（G012 语义：
+ * 宽选区放行语义按 kind 区分：table/html 允许"恰好相等选区"（整块原子选中后
+ * 直接打字/粘贴等价于替换整块）；其余来源必须严格更宽（G012 语义：
  * 恰好拒绝、跨块更宽才放行）。携带 kind 保证判定不依赖几何形状，
- * 未来新增来源（如 HTML 块）只增加一个 kind 值。
+ * 未来新增来源只增加一个 kind 值。
  */
-export type ProtectedRangeKind = "default-atom" | "frontmatter" | "block-marker" | "code" | "table";
+export type ProtectedRangeKind =
+  "default-atom" | "frontmatter" | "block-marker" | "code" | "table" | "html";
 
 export interface ProtectedSourceRange extends SourceRange {
   readonly kind: ProtectedRangeKind;
@@ -492,6 +500,9 @@ function buildLayoutDecorationsForRecord(
       state,
     );
   }
+  if (hasWysiwygProjectionFeature(state, "html") && isProjectableHtml(record)) {
+    return buildHtmlLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -572,6 +583,9 @@ function buildAtomicRangesForRecord(
   if (hasWysiwygProjectionFeature(state, "tables") && isProjectableTable(record)) {
     return buildTableAtomicRanges(record, activeSyntaxIds.includes(record.id));
   }
+  if (hasWysiwygProjectionFeature(state, "html") && isProjectableHtml(record)) {
+    return buildHtmlAtomicRanges(record, _selectedAtomIds.includes(record.id));
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -626,6 +640,14 @@ function buildProtectedRanges(
           })),
         );
       }
+      if (hasWysiwygProjectionFeature(state, "html") && isProjectableHtml(record)) {
+        ranges.push(
+          ...getHtmlProtectedRanges(record).map((range) => ({
+            ...range,
+            kind: "html" as const,
+          })),
+        );
+      }
       return ranges;
     }),
   );
@@ -663,6 +685,7 @@ function normalizeSelectedAtomIds(
         (record.kind === "image" ||
           record.kind === "thematic-break" ||
           record.kind === "table" ||
+          record.kind === "html" ||
           isRenderableDefaultAtom(record, state)) &&
         selection.ranges.some(
           (range) =>
@@ -766,8 +789,11 @@ function selectionActivatesRecord(record: MarkdownRangeRecord, from: number, to:
   if (record.kind === "frontmatter") {
     return false;
   }
-  if (record.interactionPolicy === "structured-block" && record.kind === "table") {
-    // 表格始终显示网格，不因光标/选区进入而切换到源码态。
+  if (
+    record.interactionPolicy === "structured-block" &&
+    (record.kind === "table" || record.kind === "html")
+  ) {
+    // 结构化块始终显示 widget，不因光标/选区进入而切换到源码态。
     return false;
   }
   if (record.interactionPolicy !== "reveal-source") {

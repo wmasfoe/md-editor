@@ -24,6 +24,7 @@ export type MarkdownSyntaxKind =
   | "footnote"
   | "frontmatter"
   | "table"
+  | "html"
   | "deferred-code"
   | "deferred-table"
   | "deferred-html"
@@ -39,6 +40,7 @@ export type MarkdownRenderPolicy =
   | "source-only-atom"
   | "frontmatter-panel"
   | "table-widget"
+  | "html-widget"
   | "deferred-raw"
   | "raw-fallback";
 

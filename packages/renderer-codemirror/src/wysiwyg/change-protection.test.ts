@@ -37,6 +37,17 @@ const MIXED_DOCUMENT = [
   "",
 ].join("\n");
 
+const MIXED_HTML_TABLE_DOCUMENT = [
+  "| name | role |",
+  "| --- | --- |",
+  "| alice | admin |",
+  "",
+  "<div>Safe</div>",
+  "",
+  "Tail",
+  "",
+].join("\n");
+
 interface Harness {
   readonly state: EditorState;
   readonly index: MarkdownRangeIndex;
@@ -179,6 +190,62 @@ describe("wysiwyg change protection provenance semantics", () => {
     expect(deleted.state.doc.toString()).toContain("Tail");
   });
 
+  it("allows an exactly selected HTML block deletion without an authorization annotation", () => {
+    const doc = ["Before", "", "<div>Safe</div>", "", "Tail", ""].join("\n");
+    const { state, index } = createHarness(doc, ["html"]);
+    const html = index.byKind("html")[0];
+    expect(html).toBeDefined();
+
+    const selected = state.update({
+      selection: EditorSelection.range(html.fullRange.from, html.fullRange.to),
+    }).state;
+    const deleted = selected.update({
+      changes: { from: html.fullRange.from, to: html.fullRange.to, insert: "" },
+      selection: EditorSelection.cursor(html.fullRange.from),
+      userEvent: "delete.selection",
+    });
+
+    expect(deleted.docChanged).toBe(true);
+    expect(deleted.state.doc.toString()).not.toContain("<div>Safe</div>");
+    expect(deleted.state.doc.toString()).toContain("Tail");
+  });
+
+  it("keeps table exact-delete behavior when HTML and table provenance coexist", () => {
+    const { state, index } = createHarness(MIXED_HTML_TABLE_DOCUMENT, ["tables", "html"]);
+    const table = index.byKind("table")[0];
+    const html = index.byKind("html")[0];
+    expect(table).toBeDefined();
+    expect(html).toBeDefined();
+
+    const selected = state.update({
+      selection: EditorSelection.range(table.fullRange.from, table.fullRange.to),
+    }).state;
+    const deleted = selected.update({
+      changes: { from: table.fullRange.from, to: table.fullRange.to, insert: "" },
+      selection: EditorSelection.cursor(table.fullRange.from),
+      userEvent: "delete.selection",
+    });
+
+    expect(deleted.docChanged).toBe(true);
+    expect(deleted.state.doc.toString()).not.toContain("| name | role |");
+    expect(deleted.state.doc.toString()).toContain("<div>Safe</div>");
+  });
+
+  it("rejects a partial HTML block change", () => {
+    const doc = ["Before", "", "<div>Safe</div>", "", "Tail", ""].join("\n");
+    const { state, index } = createHarness(doc, ["html"]);
+    const html = index.byKind("html")[0];
+    const inside = html.fullRange.from + 2;
+    const attempted = state.update({
+      changes: { from: inside, insert: "x" },
+      selection: EditorSelection.cursor(inside + 1),
+      userEvent: "input.type",
+    });
+
+    expect(attempted.docChanged).toBe(false);
+    expect(attempted.state.doc.toString()).toBe(doc);
+  });
+
   it("rejects a mixed selection that partially hits a footnote while covering a table", () => {
     const { state, index } = createHarness(MIXED_DOCUMENT);
     const table = index.byKind("table")[0];
@@ -302,7 +369,7 @@ describe("wysiwyg change protection provenance semantics", () => {
     const projection = inspectWysiwygProjection(state);
     expect(projection.protectedRanges.length).toBeGreaterThan(0);
     for (const range of projection.protectedRanges) {
-      expect(range.kind).toMatch(/^(default-atom|frontmatter|block-marker|code|table)$/u);
+      expect(range.kind).toMatch(/^(default-atom|frontmatter|block-marker|code|table|html)$/u);
     }
     const kinds = new Set(projection.protectedRanges.map((range) => range.kind));
     expect(kinds).toContain("table");

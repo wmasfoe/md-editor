@@ -19,6 +19,32 @@ import {
   isDeniedHtmlAttr,
 } from "./html-whitelist";
 
+export const HTML_WHITELIST_VERSION = "m4-d5-v1";
+
+const UNSUPPORTED_HTML_BLOCK_TAGS = new Set([
+  "table",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
+  "caption",
+  "colgroup",
+  "col",
+  "form",
+  "fieldset",
+  "legend",
+  "input",
+  "button",
+  "select",
+  "option",
+  "optgroup",
+  "textarea",
+  "datalist",
+  "output",
+]);
+
 const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: [...ALLOWED_HTML_TAGS],
   allowedAttributes: ALLOWED_HTML_ATTRS as unknown as Record<string, string[]>,
@@ -39,9 +65,31 @@ const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
   },
 };
 
+export interface SanitizedHtmlBlock {
+  readonly html: string;
+  readonly hasUnsupportedBlockTag: boolean;
+}
+
 /** 清洗 HTML 块源码 → 安全字符串；调用方以 isEmptySanitizedHtml 判定空结果（→ 占位） */
 export function sanitizeHtmlBlock(html: string): string {
   return sanitizeHtml(html, SANITIZE_OPTIONS);
+}
+
+/**
+ * 清洗并保留结构性降级元数据。table/form 系标签即使被 sanitize 丢弃，
+ * 也不能把剩余文本拼成看似完整的 HTML widget，因此整块降级占位。
+ */
+export function sanitizeHtmlBlockDetailed(html: string): SanitizedHtmlBlock {
+  let hasUnsupportedBlockTag = false;
+  const sanitized = sanitizeHtml(html, {
+    ...SANITIZE_OPTIONS,
+    onOpenTag: (tagName) => {
+      if (UNSUPPORTED_HTML_BLOCK_TAGS.has(tagName)) {
+        hasUnsupportedBlockTag = true;
+      }
+    },
+  });
+  return Object.freeze({ html: sanitized, hasUnsupportedBlockTag });
 }
 
 /** 清洗结果为空判定（sanitize 为空 → 整块错误占位，fail-closed） */
