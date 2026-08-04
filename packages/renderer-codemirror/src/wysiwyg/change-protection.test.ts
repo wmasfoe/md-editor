@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../markdown/extensions.ts";
 import { getM3TableFixture } from "../markdown/fixtures.ts";
-import { markdownRangeIndexField, mdxModeFacet, type MarkdownRangeIndex } from "../markdown/range-index.ts";
+import {
+  markdownRangeIndexField,
+  mdxModeFacet,
+  type MarkdownRangeIndex,
+} from "../markdown/range-index.ts";
 import { editorModeField } from "../mode.ts";
 import { codeBlockLineNumbersField } from "./code-block-projection.ts";
 import { wysiwygChangeProtection } from "./change-protection.ts";
@@ -386,7 +390,7 @@ describe("wysiwyg change protection provenance semantics", () => {
   });
 
   it("allows an exactly selected MDX component block deletion without an authorization annotation", () => {
-    const doc = ["Before", "", "<Callout type=\"info\">", "body", "</Callout>", "", "Tail", ""].join(
+    const doc = ["Before", "", '<Callout type="info">', "body", "</Callout>", "", "Tail", ""].join(
       "\n",
     );
     const { state, index } = createMdxHarness(doc);
@@ -408,7 +412,7 @@ describe("wysiwyg change protection provenance semantics", () => {
   });
 
   it("rejects a partial MDX component block change", () => {
-    const doc = ["Before", "", "<Callout type=\"info\">", "body", "</Callout>", "", "Tail", ""].join(
+    const doc = ["Before", "", '<Callout type="info">', "body", "</Callout>", "", "Tail", ""].join(
       "\n",
     );
     const { state, index } = createMdxHarness(doc);
