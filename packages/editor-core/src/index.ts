@@ -22,16 +22,37 @@ export interface CommandContext {
 
 export type CommandHandler = (context: CommandContext) => void | Promise<void>;
 
+/**
+ * G007 P3-9:命令的 UI 放置声明(从 registry 统一拉取的入口点)。
+ * 命令面板是首个消费者;斜杠菜单/工具栏后续基于同一数据源扩展。
+ */
+export type CommandPlacement = "toolbar" | "command-palette" | "editor-menu";
+
 export interface CommandDescriptor {
   readonly id: string;
   readonly title: string;
   readonly run: CommandHandler;
+  /** UI 放置声明;缺省/空 = 不进入任何统一 UI */
+  readonly placement?: readonly CommandPlacement[];
+  /** 命令面板搜索关键词(大小写不敏感) */
+  readonly keywords?: readonly string[];
+  /** 命令面板分组 */
+  readonly group?: string;
+  /** 可用性条件;缺省 = 始终可用;抛异常按不可用处理 */
+  readonly when?: (context: CommandContext) => boolean;
 }
 
 export interface CommandRegistry {
   register(command: CommandDescriptor): void;
   dispatch(id: string, context: CommandContext): Promise<boolean>;
   list(): readonly CommandDescriptor[];
+  /** G007:按 UI 放置声明查询(不过滤 when) */
+  listByPlacement(placement: CommandPlacement): readonly CommandDescriptor[];
+  /** G007:按 when 过滤 + 分组排序;placement 缺省 = 全部可用命令 */
+  listAvailable(
+    context: CommandContext,
+    placement?: CommandPlacement,
+  ): readonly CommandDescriptor[];
 }
 
 export interface KeymapDescriptor {
@@ -134,6 +155,39 @@ export function createCommandRegistry(): CommandRegistry {
     list() {
       return [...commands.values()];
     },
+    listByPlacement(placement) {
+      return [...commands.values()].filter(
+        (command) => command.placement?.includes(placement) ?? false,
+      );
+    },
+    listAvailable(context, placement) {
+      const available = [...commands.values()].filter((command) => {
+        // 统一 UI 只服务声明了 placement 的命令;显式 placement 时精确匹配
+        if (placement !== undefined) {
+          if (!(command.placement?.includes(placement) ?? false)) {
+            return false;
+          }
+        } else if ((command.placement?.length ?? 0) === 0) {
+          return false;
+        }
+        if (command.when === undefined) {
+          return true;
+        }
+        try {
+          return command.when(context);
+        } catch {
+          // when 抛异常 = 状态异常,按不可用处理(fail-closed)
+          return false;
+        }
+      });
+      return Object.freeze(
+        [...available].toSorted(
+          (left, right) =>
+            (left.group ?? "").localeCompare(right.group ?? "") ||
+            left.title.localeCompare(right.title),
+        ),
+      );
+    },
   };
 }
 
@@ -186,36 +240,61 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
     id: "editor.built-in",
     title: "Built-in editor commands",
     setup(context) {
-      registerActionCommand(context.commands, "file.new", "New Document", "newDocument");
-      registerActionCommand(context.commands, "file.open", "Open File", "openDocument");
+      registerActionCommand(context.commands, "file.new", "New Document", "newDocument", {
+        group: "文件",
+        keywords: ["新建", "new"],
+      });
+      registerActionCommand(context.commands, "file.open", "Open File", "openDocument", {
+        group: "文件",
+        keywords: ["打开", "open"],
+      });
       registerActionCommand(
         context.commands,
         "file.openRecent",
         "Open Recent File",
         "openRecentDocument",
+        { group: "文件", keywords: ["最近", "recent"] },
       );
-      registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
-      registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
-      registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
-      registerActionCommand(context.commands, "settings.open", "Settings", "openSettings");
+      registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder", {
+        group: "文件",
+        keywords: ["文件夹", "folder"],
+      });
+      registerActionCommand(context.commands, "file.save", "Save", "saveDocument", {
+        group: "文件",
+        keywords: ["保存", "save"],
+      });
+      registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs", {
+        group: "文件",
+        keywords: ["另存为", "save as"],
+      });
+      registerActionCommand(context.commands, "settings.open", "Settings", "openSettings", {
+        group: "设置",
+        keywords: ["设置", "偏好", "settings"],
+      });
       registerActionCommand(
         context.commands,
         "mdx.openComponentMenu",
         "Insert MDX Component",
         "openMdxComponentMenu",
+        { group: "插入", keywords: ["mdx", "组件", "component"] },
       );
       registerActionCommand(
         context.commands,
         "view.toggleSource",
         "Toggle Source Mode",
         "toggleSourceMode",
+        { group: "视图", keywords: ["源码", "source", "toggle"] },
       );
-      registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode");
+      registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode", {
+        group: "视图",
+        keywords: ["编辑", "wysiwyg"],
+      });
       registerActionCommand(
         context.commands,
         "view.toggleSidebarPrimary",
         "Toggle File Tree and Outline",
         "toggleSidebarPrimary",
+        { group: "视图", keywords: ["侧栏", "sidebar", "outline"] },
       );
 
       context.keymaps.register({
@@ -255,6 +334,7 @@ export function createAiWritingFeature(): FeatureDescriptor {
         "ai.continueWriting",
         "Continue Writing with AI",
         "continueAiWriting",
+        { group: "AI", keywords: ["ai", "续写", "写作", "continue"] },
       );
       context.keymaps.register({
         id: "ai.continueWriting",
@@ -270,10 +350,19 @@ function registerActionCommand(
   id: BuiltInCommandId,
   title: string,
   actionName: keyof EditorActionHandlers,
+  options: {
+    readonly group?: string;
+    readonly placement?: readonly CommandPlacement[];
+    readonly keywords?: readonly string[];
+  } = {},
 ): void {
   commands.register({
     id,
     title,
+    // G007:内置命令默认进入命令面板(统一 UI 入口);显式 placement 覆盖
+    placement: options.placement ?? ["command-palette"],
+    group: options.group,
+    keywords: options.keywords,
     async run(context) {
       await context.actions?.[actionName]?.();
     },
