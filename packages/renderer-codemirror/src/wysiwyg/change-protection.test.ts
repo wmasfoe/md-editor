@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../markdown/extensions.ts";
 import { getM3TableFixture } from "../markdown/fixtures.ts";
-import { markdownRangeIndexField, type MarkdownRangeIndex } from "../markdown/range-index.ts";
+import { markdownRangeIndexField, mdxModeFacet, type MarkdownRangeIndex } from "../markdown/range-index.ts";
 import { editorModeField } from "../mode.ts";
 import { codeBlockLineNumbersField } from "./code-block-projection.ts";
 import { wysiwygChangeProtection } from "./change-protection.ts";
@@ -71,6 +71,27 @@ function createHarness(
       markdownRangeIndexField,
       configureWysiwygProjectionFeatures([...features, "headings"]),
       codeBlockLineNumbersField,
+      wysiwygProjectionField,
+      wysiwygChangeProtection,
+    ],
+  });
+  return { state, index: state.field(markdownRangeIndexField), diagnostics };
+}
+
+function createMdxHarness(doc: string): Harness {
+  const diagnostics = new WysiwygDiagnostics();
+  const state = EditorState.create({
+    doc,
+    selection: EditorSelection.cursor(doc.length),
+    extensions: [
+      history(),
+      EditorState.allowMultipleSelections.of(true),
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+      provideWysiwygDiagnostics(diagnostics),
+      editorModeField,
+      markdownRangeIndexField,
+      mdxModeFacet.of(true),
+      configureWysiwygProjectionFeatures(["mdx", "headings"]),
       wysiwygProjectionField,
       wysiwygChangeProtection,
     ],
@@ -362,6 +383,47 @@ describe("wysiwyg change protection provenance semantics", () => {
 
     expect(attempted.docChanged).toBe(false);
     expect(attempted.state.doc.toString()).toBe(fixture.markdown);
+  });
+
+  it("allows an exactly selected MDX component block deletion without an authorization annotation", () => {
+    const doc = ["Before", "", "<Callout type=\"info\">", "body", "</Callout>", "", "Tail", ""].join(
+      "\n",
+    );
+    const { state, index } = createMdxHarness(doc);
+    const mdx = index.byKind("mdx-jsx")[0];
+    expect(mdx).toBeDefined();
+
+    const selected = state.update({
+      selection: EditorSelection.range(mdx.fullRange.from, mdx.fullRange.to),
+    }).state;
+    const deleted = selected.update({
+      changes: { from: mdx.fullRange.from, to: mdx.fullRange.to, insert: "" },
+      selection: EditorSelection.cursor(mdx.fullRange.from),
+      userEvent: "delete.selection",
+    });
+
+    expect(deleted.docChanged).toBe(true);
+    expect(deleted.state.doc.toString()).not.toContain("<Callout");
+    expect(deleted.state.doc.toString()).toContain("Tail");
+  });
+
+  it("rejects a partial MDX component block change", () => {
+    const doc = ["Before", "", "<Callout type=\"info\">", "body", "</Callout>", "", "Tail", ""].join(
+      "\n",
+    );
+    const { state, index } = createMdxHarness(doc);
+    const mdx = index.byKind("mdx-jsx")[0];
+    expect(mdx).toBeDefined();
+
+    const inside = mdx.fullRange.from + 12;
+    const attempted = state.update({
+      changes: { from: inside, insert: "x" },
+      selection: EditorSelection.cursor(inside + 1),
+      userEvent: "input.type",
+    });
+
+    expect(attempted.docChanged).toBe(false);
+    expect(attempted.state.doc.toString()).toBe(doc);
   });
 
   it("tracks provenance kinds on every protected range in the projection snapshot", () => {

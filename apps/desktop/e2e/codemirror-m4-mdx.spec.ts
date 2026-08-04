@@ -67,17 +67,18 @@ test.describe("CodeMirror M4 MDX projection", () => {
     await openHarness(page);
     await replaceDocument(page, CALLOUT_MARKDOWN);
 
-    const content = page.locator(".cm-content");
-    await content.click();
-    // 光标移到组件块开头(全选组件块触发原子选中)
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("Control+Shift+End");
+    // 点击组件块触发原子选中(与 HTML/table widget 同语义,跨平台可靠)
+    const widget = page.locator(".cm-md-mdx-widget");
+    await widget.click();
+    await expect(widget).toHaveAttribute("aria-selected", "true");
+    // 慢环境(并行 worker/CI)下等待 selection 完全生效再删除,避免 Backspace 落空
+    await page.waitForTimeout(100);
     await page.keyboard.press("Backspace");
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .not.toContain("Callout");
 
-    await page.keyboard.press("Control+z");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toContain("<Callout");
@@ -102,8 +103,8 @@ test.describe("CodeMirror M4 MDX projection", () => {
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("source"));
     const content = page.locator(".cm-content");
     await content.click();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("Control+Shift+End");
+    // Control+A 在编辑器内全选(Playwright 在 macOS 自动映射为 Cmd+A,跨平台可靠)
+    await page.keyboard.press("Control+a");
     await page.keyboard.insertText('<Callout type="info">\n新内容\n</Callout>');
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("wysiwyg"));
 

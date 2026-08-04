@@ -77,6 +77,7 @@ export function buildMdxWidgetValue(
       : "";
   void source;
   return {
+    recordId: record.id,
     descriptor,
     componentName,
     attributes,

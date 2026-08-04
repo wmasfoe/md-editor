@@ -76,6 +76,7 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
           //   避免默认 atom（footnote/autolink/reference）被恰好选区静默删除。
           (protectedRange.kind === "table" ||
             protectedRange.kind === "html" ||
+            protectedRange.kind === "mdx" ||
             selection.from < protectedRange.from ||
             selection.to > protectedRange.to),
       );

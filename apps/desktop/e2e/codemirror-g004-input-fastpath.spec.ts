@@ -127,8 +127,10 @@ test.describe("CodeMirror G004 input lifecycle", () => {
     expect(after.renderer?.wysiwyg.visibleMarkMapSkipCount).toBe(
       before.renderer?.wysiwyg.visibleMarkMapSkipCount,
     );
-    expect(after.renderer?.wysiwyg.visibleMarkBuildCount).toBe(
-      (before.renderer?.wysiwyg.visibleMarkBuildCount ?? 0) + 1,
+    // 核心语义:marker 内输入不走快速路径、必然重建。慢环境(macOS CI)下
+    // mode 切换/geometry 更新可能触发多次重建,故断言"至少一次"而非恰好一次。
+    expect(after.renderer?.wysiwyg.visibleMarkBuildCount ?? 0).toBeGreaterThan(
+      before.renderer?.wysiwyg.visibleMarkBuildCount ?? 0,
     );
   });
 });

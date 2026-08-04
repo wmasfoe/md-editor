@@ -355,7 +355,10 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
         record.renderPolicy === "table-widget") ||
       (hasWysiwygProjectionFeature(state, "html") &&
         record.kind === "html" &&
-        record.renderPolicy === "html-widget"))
+        record.renderPolicy === "html-widget") ||
+      (hasWysiwygProjectionFeature(state, "mdx") &&
+        record.kind === "mdx-jsx" &&
+        record.renderPolicy === "mdx-widget"))
   );
 }
 
@@ -380,6 +383,9 @@ function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState
   if (record.kind === "html") {
     return hasWysiwygProjectionFeature(state, "html");
   }
+  if (record.kind === "mdx-jsx") {
+    return hasWysiwygProjectionFeature(state, "mdx");
+  }
   return true;
 }
 
@@ -392,6 +398,9 @@ function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
       record.editPolicy === "structured") ||
     (record.kind === "html" &&
       record.renderPolicy === "html-widget" &&
+      record.editPolicy === "structured") ||
+    (record.kind === "mdx-jsx" &&
+      record.renderPolicy === "mdx-widget" &&
       record.editPolicy === "structured")
   );
 }

@@ -974,6 +974,7 @@ function normalizeSelectedAtomIds(
           record.kind === "thematic-break" ||
           record.kind === "table" ||
           record.kind === "html" ||
+          record.kind === "mdx-jsx" ||
           isRenderableDefaultAtom(record, state)) &&
         selection.ranges.some(
           (range) =>
