@@ -6,6 +6,8 @@ import {
 } from "@md-editor/editor-ui";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
+import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
+import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 
 export interface DesktopCodeMirrorEditorProps {
@@ -20,6 +22,31 @@ export function DesktopCodeMirrorEditor({
   showToast,
 }: DesktopCodeMirrorEditorProps) {
   const { settings } = useAppSettings();
+  const { openDocumentFromTree } = useDesktopEditorActions();
+
+  // 链接打开:内部 markdown 文件在当前应用内打开,其余(资产/外部 URL)走系统打开。
+  // 判定委托给 Rust 侧 inspect_linked_file(相对路径按当前文档目录解析)。
+  const handleOpenLink = (url: string): void => {
+    void (async () => {
+      try {
+        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
+          // 显式协议(http/https/mailto 等)→ 系统浏览器/默认处理
+          await openExternalTarget(url);
+          return;
+        }
+        const documentPath = runtime.document.getSnapshot().filePath ?? "";
+        const target = await inspectLinkedFileTarget(documentPath, url);
+        if (target.kind === "markdown") {
+          await openDocumentFromTree(target.path);
+        } else {
+          await openExternalTarget(target.path);
+        }
+      } catch {
+        // 解析失败不打断编辑器(链接已过渲染层协议白名单,这里只兜底)
+        showToast(`无法打开链接：${url}`);
+      }
+    })();
+  };
 
   return (
     <CodeMirrorEditor
@@ -31,6 +58,7 @@ export function DesktopCodeMirrorEditor({
       resolveImageSrc={(source) =>
         resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, source)
       }
+      openLinkTarget={handleOpenLink}
       onRendererPortsChange={onRendererPortsChange}
       onQueuedExternalEditResult={(result) => reportQueuedEditResult(result, showToast)}
       onSyncError={(error) => reportSyncError(error, showToast)}

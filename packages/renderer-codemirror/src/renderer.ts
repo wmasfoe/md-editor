@@ -46,6 +46,7 @@ import {
   type RendererTransactionOrigin,
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
+import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -73,6 +74,8 @@ export interface CodeMirrorRendererOptions {
   readonly mdxMode?: boolean;
   /** MDX 组件白名单查找(最小接口,不执行组件代码);缺省 null = 一律占位 */
   readonly mdxComponents?: MdxComponentLookup;
+  /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
+  readonly openLinkTarget?: (url: string) => void;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {
@@ -380,6 +383,8 @@ class CodeMirrorRendererController {
       markdownRangeIndexField,
       mdxModeFacet.of(options.mdxMode ?? false),
       mdxComponentRegistryFacet.of(options.mdxComponents ?? null),
+      openLinkTargetFacet.of(options.openLinkTarget ?? null),
+      linkInteractionExtension,
       createWysiwygProjectionExtensions(
         [
           "inline-styles",

@@ -67,6 +67,8 @@ export interface CodeMirrorEditorHarnessBridge {
   replaceDocument(markdown: string, mode?: EditorMode): void;
   getCopiedText(): readonly string[];
   clearCopiedText(): void;
+  /** 链接打开回调收到的 URL 列表(E2E 断言点击/Mod-Enter 打开行为) */
+  getOpenedLinks(): readonly string[];
   failNextClipboardWrite(message?: string): void;
   unmountEditor(): void;
   mountEditor(): void;
@@ -147,6 +149,8 @@ export function installCodeMirrorEditorHarness(
   const runtime = createInstrumentedDocument();
   // MDX E2E 白名单:官方 Callout 组件(纯 metadata,不执行组件代码)
   const mdxRegistry = createBuiltInMdxRegistry([calloutPlugin]);
+  // 链接打开回调的收集器(E2E 断言点击/Mod-Enter 触发)
+  const openedLinks: string[] = [];
   const rendererLifecycles: CodeMirrorEditorPorts[] = [];
   const syncErrors: CodeMirrorEditorSyncError[] = [];
   const queuedResults: CodeMirrorEditorExternalEditResult[] = [];
@@ -240,6 +244,9 @@ export function installCodeMirrorEditorHarness(
     clearCopiedText() {
       copiedText.length = 0;
     },
+    getOpenedLinks() {
+      return Object.freeze([...openedLinks]);
+    },
     failNextClipboardWrite(message = "Harness clipboard write failed.") {
       nextClipboardFailure = new Error(message);
     },
@@ -296,6 +303,7 @@ export function installCodeMirrorEditorHarness(
               onQueuedExternalEditResult={(result) => queuedResults.push(result)}
               mdxMode={mdxMode}
               mdxComponents={mdxRegistry}
+              openLinkTarget={(url) => openedLinks.push(url)}
               onRendererPortsChange={(ports) => {
                 if (ports && rendererLifecycles.at(-1) !== ports) {
                   rendererLifecycles.push(ports);

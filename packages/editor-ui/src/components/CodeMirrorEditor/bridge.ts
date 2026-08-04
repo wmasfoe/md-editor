@@ -69,6 +69,8 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly mdxMode?: boolean;
   /** MDX 组件白名单(透传给 renderer;纯 metadata) */
   readonly mdxComponents?: MdxComponentsLookup;
+  /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
+  readonly openLinkTarget?: (url: string) => void;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -160,6 +162,7 @@ export function createCodeMirrorEditorBridge(
     writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
     mdxMode: options.mdxMode ?? false,
     mdxComponents: options.mdxComponents,
+    openLinkTarget: options.openLinkTarget,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied") {

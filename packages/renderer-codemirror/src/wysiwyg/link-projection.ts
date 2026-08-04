@@ -2,6 +2,7 @@ import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
+import { buildLinkLabelDecoration, linkDestinationFromRecord } from "./link-interaction.ts";
 import { resolveImagePreview } from "./image-resolver.ts";
 import { ImageWidget } from "./widgets/image-widget.ts";
 import { ThematicBreakWidget } from "./widgets/thematic-break-widget.ts";
@@ -16,7 +17,7 @@ export function buildLinkMediaLayoutDecorations(
     return [];
   }
   if (record.kind === "link" && record.renderPolicy === "link-segmented") {
-    return active ? [] : buildHiddenLinkFragments(record, "hidden");
+    return active ? [] : buildHiddenLinkFragments(record, "hidden", state.doc);
   }
   if (record.kind === "image" && record.renderPolicy === "image-widget") {
     return [buildImageDecoration(record, state, active, selected)];
@@ -69,6 +70,7 @@ function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): 
 function buildHiddenLinkFragments(
   record: MarkdownRangeRecord,
   type: "hidden" | "atomic",
+  doc?: { sliceString(from: number, to: number): string },
 ): readonly Range<Decoration>[] {
   const content = record.contentRange;
   if (!content) {
@@ -84,14 +86,12 @@ function buildHiddenLinkFragments(
       to: record.fullRange.to,
     }),
   ].filter((range) => range.from < range.to);
-  if (type === "hidden") {
-    fragments.push(
-      Decoration.mark({
-        class: "cm-md-link-label",
-        wysiwygRecordId: record.id,
-        wysiwygRole: "link-label",
-      }).range(content.from, content.to),
-    );
+  if (type === "hidden" && doc) {
+    const url = linkDestinationFromRecord(record, doc);
+    const label = buildLinkLabelDecoration(record, url);
+    if (label) {
+      fragments.push(label);
+    }
   }
   return fragments;
 }

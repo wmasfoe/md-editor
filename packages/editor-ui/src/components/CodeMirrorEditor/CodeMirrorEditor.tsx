@@ -33,6 +33,8 @@ export interface CodeMirrorEditorProps {
   readonly mdxMode?: boolean;
   /** MDX 组件白名单(最小查找接口,纯 metadata);缺省 = 一律占位 */
   readonly mdxComponents?: MdxComponentsLookup;
+  /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
+  readonly openLinkTarget?: (url: string) => void;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -50,6 +52,7 @@ export function CodeMirrorEditor({
   writeClipboardText,
   mdxMode = false,
   mdxComponents,
+  openLinkTarget,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -63,6 +66,7 @@ export function CodeMirrorEditor({
     writeClipboardText,
     mdxMode,
     mdxComponents,
+    openLinkTarget,
     onSyncError,
   });
   callbacksRef.current = {
@@ -72,6 +76,7 @@ export function CodeMirrorEditor({
     writeClipboardText,
     mdxMode,
     mdxComponents,
+    openLinkTarget,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -114,6 +119,7 @@ export function CodeMirrorEditor({
       },
       mdxMode: callbacksRef.current.mdxMode,
       mdxComponents: callbacksRef.current.mdxComponents,
+      openLinkTarget: callbacksRef.current.openLinkTarget,
     });
     bridgeRef.current = bridge;
     const unregisterRendererPorts = registerRendererPorts(bridge.ports);
