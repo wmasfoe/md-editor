@@ -7,7 +7,13 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { addBlockBelow, moveBlock, readBlockRanges, type BlockRange } from "./block-move.ts";
+import {
+  ATOMIC_WIDGET_KINDS,
+  addBlockBelow,
+  moveBlock,
+  readBlockRanges,
+  type BlockRange,
+} from "./block-move.ts";
 
 /**
  * 块工具栏与拖拽(对齐竞品 WYSIWYG 编辑器的块操作,自研实现):
@@ -83,6 +89,8 @@ class BlockToolbarWidget extends WidgetType {
     add.className = "cm-md-block-add";
     add.title = this.labels.addBlock;
     add.setAttribute("aria-label", this.labels.addBlock);
+    // 不进入 Tab 顺序:工具栏是鼠标辅助,避免打断编辑器的键盘可达性断言
+    add.tabIndex = -1;
     add.textContent = "+";
     add.addEventListener("click", (event) => {
       event.preventDefault();
@@ -94,7 +102,8 @@ class BlockToolbarWidget extends WidgetType {
     drag.className = "cm-md-block-drag-handle";
     drag.setAttribute("role", "button");
     drag.setAttribute("aria-label", this.labels.dragBlock);
-    drag.draggable = true;
+    // 不设 draggable:HTML5 拖拽源会劫持 pointer/鼠标序列,干扰编辑器的
+    // 文本点击与选区(实测会导致列表结构命令失效);拖拽走 pointer 通道。
     for (let index = 0; index < 6; index += 1) {
       const dot = document.createElement("span");
       dot.className = "cm-md-block-drag-dot";
@@ -278,19 +287,25 @@ function blockDecorationsFromRanges(
   blocks: readonly BlockRange[],
   labels: { addBlock: string; dragBlock: string },
 ): DecorationSet {
-  const decorations = blocks.flatMap((block) => [
-    Decoration.line({
-      attributes: {
-        "data-block-from": String(block.from),
-        ...(block.depth !== undefined ? { "data-list-depth": String(block.depth) } : {}),
-      },
-    }).range(block.from),
-    Decoration.widget({
-      // 行首最外层 widget(side:-2),标题 H 控件等若用 side:-1 不会互相覆盖
-      side: -2,
-      widget: new BlockToolbarWidget(block.from, labels),
-    }).range(block.from),
-  ]);
+  const decorations = blocks.flatMap((block) => {
+    // 原子 widget 块(分割线等)不挂工具栏:行级 line 装饰与整块 replace 装饰冲突
+    if (ATOMIC_WIDGET_KINDS.has(block.name)) {
+      return [];
+    }
+    return [
+      Decoration.line({
+        attributes: {
+          "data-block-from": String(block.from),
+          ...(block.depth !== undefined ? { "data-list-depth": String(block.depth) } : {}),
+        },
+      }).range(block.from),
+      Decoration.widget({
+        // 行首最外层 widget(side:-2),标题 H 控件等若用 side:-1 不会互相覆盖
+        side: -2,
+        widget: new BlockToolbarWidget(block.from, labels),
+      }).range(block.from),
+    ];
+  });
   return Decoration.set(decorations, true);
 }
 

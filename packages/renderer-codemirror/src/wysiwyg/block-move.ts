@@ -34,6 +34,18 @@ const BLOCK_KINDS: ReadonlySet<MarkdownSyntaxKind> = new Set([
   "raw-fallback",
 ]);
 
+/**
+ * 不挂块工具栏的原子 widget 块:它们已用整块 replace widget 渲染,
+ * 行首 widget 装饰会与 replace 装饰冲突(同范围装饰互相覆盖,块 widget 消失)。
+ * 块范围仍包含它们(moveBlock 支持整块移动),只是不渲染工具栏。
+ */
+export const ATOMIC_WIDGET_KINDS: ReadonlySet<string> = new Set([
+  "thematic-break",
+  "table",
+  "html",
+  "mdx-jsx",
+]);
+
 export interface BlockRange {
   /** 块起始(行首) */
   readonly from: number;
