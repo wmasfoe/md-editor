@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronRightIcon,
   FolderIcon,
@@ -18,6 +18,7 @@ import {
 } from "@md-editor/editor-ui";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
+import { CommandPalette } from "../components/CommandPalette";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
@@ -129,6 +130,7 @@ function MainApp({
   const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
@@ -145,6 +147,19 @@ function MainApp({
     sidebarResizePreviewWidth === null
       ? null
       : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
+
+  // G007:全局快捷键 Cmd/Ctrl+K 开关命令面板(与文件搜索 Cmd/Ctrl+O 等并列)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const mod = isMacPlatform() ? event.metaKey : event.ctrlKey;
+      if (mod && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
   if (isSettingsOpen) {
@@ -348,6 +363,12 @@ function MainApp({
         </section>
       </div>
       <ConfirmActionDialog confirmation={confirmation} onResolve={resolveConfirmation} />
+      {/* G007 命令面板:统一 UI 入口,执行走宿主 dispatchCommand */}
+      <CommandPalette
+        open={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onRun={(commandId) => void dispatchCommand(commandId)}
+      />
     </main>
   );
 }
