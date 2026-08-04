@@ -36,6 +36,7 @@ export interface CodeMirrorEditorPorts {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
   focus(): void;
+  setSelection(from: number, to: number): void;
   requestMeasure(): void;
 }
 
@@ -193,6 +194,7 @@ export function createCodeMirrorEditorBridge(
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     focus: () => renderer.focus(),
+    setSelection: (from: number, to: number) => renderer.setSelection(from, to),
     requestMeasure: () => renderer.requestMeasure(),
   });
   rendererByPorts.set(ports, renderer);

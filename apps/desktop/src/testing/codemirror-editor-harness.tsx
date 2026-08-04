@@ -62,6 +62,8 @@ export interface CodeMirrorEditorHarnessBridge {
   applyExternalEdit(
     markdown: string,
   ): CodeMirrorEditorExternalEditResult | { readonly status: "unavailable" };
+  /** 直接设置编辑器选区(跨平台可靠;from === to 为光标) */
+  setSelection(from: number, to: number): void;
   replaceDocument(markdown: string, mode?: EditorMode): void;
   getCopiedText(): readonly string[];
   clearCopiedText(): void;
@@ -218,6 +220,13 @@ export function installCodeMirrorEditorHarness(
         expectedContentRevision: snapshot.contentRevision,
         selection: "preserve-offset-clamped",
       });
+    },
+    setSelection(from: number, to: number) {
+      const access = getRendererAccess();
+      if (access.status === "available") {
+        access.ports.focus();
+        access.ports.setSelection(from, to);
+      }
     },
     replaceDocument(markdown: string, mode?: EditorMode) {
       runtime.document.replaceDocument(

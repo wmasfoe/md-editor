@@ -112,11 +112,9 @@ test.describe("CodeMirror G004 input lifecycle", () => {
     await page.evaluate(() => {
       window.__CODEMIRROR_EDITOR_E2E__?.replaceDocument("**bold**", "wysiwyg");
       window.__CODEMIRROR_EDITOR_E2E__?.setMode("source");
+      // 光标直接放到位置 1(第一个 `*` 之后 = marker 内),跨平台可靠
+      window.__CODEMIRROR_EDITOR_E2E__?.setSelection(1, 1);
     });
-    const content = page.locator(".cm-content");
-    await content.click();
-    await page.keyboard.press("Control+Home");
-    await page.keyboard.press("ArrowRight");
     await expect.poll(async () => (await diagnostics(page)).renderer?.selectionHead).toBe(1);
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("wysiwyg"));
     const before = await diagnostics(page);

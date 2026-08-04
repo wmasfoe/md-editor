@@ -113,6 +113,7 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
     setHostVisibility: vi.fn(),
     focus: vi.fn(),
+    setSelection: vi.fn(),
     requestMeasure: vi.fn(),
   };
 }

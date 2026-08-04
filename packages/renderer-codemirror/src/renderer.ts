@@ -127,6 +127,7 @@ export interface CodeMirrorRenderer {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
   focus(): void;
+  setSelection(from: number, to: number): void;
   requestMeasure(): void;
   destroy(): void;
 }
@@ -850,6 +851,29 @@ class CodeMirrorRendererController {
     }
   }
 
+  /**
+   * 设置编辑器选区(编辑器标准能力,供宿主定位/测试)。
+   * from === to 时为光标;范围按文档长度钳制。
+   */
+  setSelection(from: number, to: number): void {
+    if (this.#destroyed) {
+      return;
+    }
+    const length = this.#view.state.doc.length;
+    const clampedFrom = Math.max(0, Math.min(from, length));
+    const clampedTo = Math.max(0, Math.min(to, length));
+    this.#view.dispatch({
+      selection: EditorSelection.create(
+        clampedFrom === clampedTo
+          ? [EditorSelection.cursor(clampedFrom)]
+          : [EditorSelection.range(clampedFrom, clampedTo)],
+      ),
+      scrollIntoView: true,
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select",
+    });
+  }
+
   requestMeasure(): void {
     if (!this.#destroyed) {
       this.#requestMeasure();
@@ -1124,6 +1148,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     focus: () => controller.focus(),
+    setSelection: (from: number, to: number) => controller.setSelection(from, to),
     requestMeasure: () => controller.requestMeasure(),
     destroy: () => controller.destroy(),
   });
