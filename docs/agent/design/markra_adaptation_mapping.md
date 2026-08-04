@@ -109,14 +109,13 @@ StateField.update 每事务执行:
 ### P2-6 代码块 header chrome
 
 - **Markra 做法**(`code-block.ts:167-230` 主题 + header 行):顶部 gap + header 行(语言下拉 `select` + 一键复制按钮)、内容行浅底 + 左右细边框、**行号用 `::before` + `data-code-line-number` 伪元素(min-width 2ch,可开关)**、闭合围栏行高保持可点、整体圆角。
-- **我们现状**:行号已是**同款伪元素方案**(`code-block-line-numbers.ts:23,37` `data-md-code-line-number` + `::before` + CSS 变量宽度)——说明这是共识最优解 ✅。M2 已有语言菜单 + 行号 + 复制(body-only copy)。可对照项:header 是否整合语言下拉与复制按钮为单行 chrome、闭合行可点性。
-- **落地建议**:对照我们的 `code-block-toolbar-widget.ts` 视觉细节,低优先。
+- **我们现状**:行号已是**同款伪元素方案**(`code-block-line-numbers.ts:23,37` `data-md-code-line-number` + `::before` + CSS 变量宽度)——说明这是共识最优解 ✅。**P2-6 已实现并测试**(2026-08-04 核实):`code-block-toolbar-widget.ts` 单行 chrome 整合语言下拉(`<select>` + languageChoices)、复制按钮(带 "Copied"/"Copy failed" 状态 + aria-live)、全选按钮;E2E `codemirror-m2-code-block-editing.spec.ts` G005 用例覆盖语言切换/复制/选区与焦点保持。**状态:完成,无需再动**。
 
 ### P2-7 表格 caret-host 光标定位
 
 - **Markra 做法**(`table.ts:63,613,770-827`):单元格编辑用 `createVisualTableCaretHost`(caret-host + `TABLE_CARET_PLACEHOLDER` ZWSP 占位)+ `replaceVisualTableCell` 精确回写源码;空单元格用 `<br>` 保持 caret 可落点。
 - **我们现状**:M3 已用 contenteditable 单元格 + 受保护 transaction 回写 GFM 源码(`table-editing.ts` `serializeTableRow`),已验证通过。差异:markra 的 caret-host 对"光标落点稳定性"(尤其空单元格、末尾 Enter 后)有专门处理。
-- **落地建议**:仅当出现"空单元格光标跳动/回写后光标漂移"类 bug 时参考 caret-host 技巧;当前不主动改。记录在案。
+- **落地建议**:仅当出现"空单元格光标跳动/回写后光标漂移"类 bug 时参考 caret-host 技巧;当前不主动改。记录在案。**2026-08-04 复核:无此类 bug 报告,维持不主动改。状态:已有等价实现(M3 contenteditable + 受保护回写),观察项**。
 
 ### P2-8 HTML 白名单(维持现状,不放宽)
 
