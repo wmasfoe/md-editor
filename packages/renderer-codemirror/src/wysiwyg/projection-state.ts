@@ -50,6 +50,12 @@ import {
   getHtmlProtectedRanges,
   isProjectableHtml,
 } from "./html-projection.ts";
+import {
+  buildMdxAtomicRanges,
+  buildMdxLayoutDecorations,
+  getMdxProtectedRanges,
+  isProjectableMdx,
+} from "./mdx-projection.ts";
 import { isPlainTextInput } from "./plain-text-input.ts";
 
 export type WysiwygProjectionFeature =
@@ -62,7 +68,8 @@ export type WysiwygProjectionFeature =
   | "default-atoms"
   | "frontmatter"
   | "tables"
-  | "html";
+  | "html"
+  | "mdx";
 
 export interface SelectWysiwygAtomEffect {
   readonly recordId: string;
@@ -78,7 +85,7 @@ export interface SelectWysiwygAtomEffect {
  * 未来新增来源只增加一个 kind 值。
  */
 export type ProtectedRangeKind =
-  "default-atom" | "frontmatter" | "block-marker" | "code" | "table" | "html";
+  "default-atom" | "frontmatter" | "block-marker" | "code" | "table" | "html" | "mdx";
 
 export interface ProtectedSourceRange extends SourceRange {
   readonly kind: ProtectedRangeKind;
@@ -678,6 +685,9 @@ function buildLayoutDecorationsForRecord(
   if (hasWysiwygProjectionFeature(state, "html") && isProjectableHtml(record)) {
     return buildHtmlLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
   }
+  if (hasWysiwygProjectionFeature(state, "mdx") && isProjectableMdx(record)) {
+    return buildMdxLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -761,6 +771,9 @@ function buildAtomicRangesForRecord(
   if (hasWysiwygProjectionFeature(state, "html") && isProjectableHtml(record)) {
     return buildHtmlAtomicRanges(record, _selectedAtomIds.includes(record.id));
   }
+  if (hasWysiwygProjectionFeature(state, "mdx") && isProjectableMdx(record)) {
+    return buildMdxAtomicRanges(record);
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -820,6 +833,14 @@ function buildProtectedRanges(
           ...getHtmlProtectedRanges(record).map((range) => ({
             ...range,
             kind: "html" as const,
+          })),
+        );
+      }
+      if (hasWysiwygProjectionFeature(state, "mdx") && isProjectableMdx(record)) {
+        ranges.push(
+          ...getMdxProtectedRanges(record).map((range) => ({
+            ...range,
+            kind: "mdx" as const,
           })),
         );
       }

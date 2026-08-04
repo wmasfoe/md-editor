@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
+import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import type { DocumentState } from "@md-editor/editor-core";
 import { useEditorUiActions } from "../../hooks/useEditorUi";
 import {
@@ -28,6 +29,10 @@ export interface CodeMirrorEditorProps {
   readonly ariaLabel?: string;
   readonly resolveImageSrc?: (source: string) => string;
   readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
+  /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
+  readonly mdxMode?: boolean;
+  /** MDX 组件白名单(纯 metadata);缺省 = 一律占位 */
+  readonly mdxComponents?: MdxComponentRegistry;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -43,6 +48,8 @@ export function CodeMirrorEditor({
   ariaLabel = "Markdown 编辑器",
   resolveImageSrc,
   writeClipboardText,
+  mdxMode = false,
+  mdxComponents,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -54,6 +61,8 @@ export function CodeMirrorEditor({
     onRendererPortsChange,
     resolveImageSrc,
     writeClipboardText,
+    mdxMode,
+    mdxComponents,
     onSyncError,
   });
   callbacksRef.current = {
@@ -61,6 +70,8 @@ export function CodeMirrorEditor({
     onRendererPortsChange,
     resolveImageSrc,
     writeClipboardText,
+    mdxMode,
+    mdxComponents,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -101,6 +112,8 @@ export function CodeMirrorEditor({
       onQueuedExternalEditResult(result) {
         callbacksRef.current.onQueuedExternalEditResult?.(result);
       },
+      mdxMode: callbacksRef.current.mdxMode,
+      mdxComponents: callbacksRef.current.mdxComponents,
     });
     bridgeRef.current = bridge;
     const unregisterRendererPorts = registerRendererPorts(bridge.ports);

@@ -18,6 +18,7 @@ import {
   type WysiwygProjectionFeature,
 } from "./projection-state.ts";
 import { htmlProjectionTheme } from "./html-projection.ts";
+import { mdxProjectionTheme } from "./mdx-projection.ts";
 import { tableProjectionTheme } from "./table-projection.ts";
 import { visibleMarkdownMarksPlugin } from "./visible-marks.ts";
 
@@ -33,6 +34,7 @@ export function createWysiwygProjectionExtensions(
     codeBlockProjectionTheme,
     tableProjectionTheme,
     htmlProjectionTheme,
+    mdxProjectionTheme,
     wysiwygProjectionField,
     clearWysiwygTypedBoundaryOnBlur,
     visibleMarkdownMarksPlugin,

@@ -1,3 +1,4 @@
+import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import {
   synchronizeRendererEvent,
   type DocumentMutationResult,
@@ -54,6 +55,10 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly document: DocumentState;
   readonly resolveImageSrc?: (source: string) => string;
   readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
+  /** MDX 文件模式(透传给 renderer) */
+  readonly mdxMode?: boolean;
+  /** MDX 组件白名单(透传给 renderer;纯 metadata) */
+  readonly mdxComponents?: MdxComponentRegistry;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -143,6 +148,8 @@ export function createCodeMirrorEditorBridge(
     initialSnapshot: options.document.getSnapshot(),
     resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
     writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
+    mdxMode: options.mdxMode ?? false,
+    mdxComponents: options.mdxComponents,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied") {

@@ -37,7 +37,7 @@ import {
   WysiwygDiagnostics,
   type WysiwygDiagnosticsSnapshot,
 } from "./diagnostics.ts";
-import { markdownRangeIndexField } from "./markdown/range-index.ts";
+import { markdownRangeIndexField, mdxModeFacet } from "./markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "./markdown/extensions.ts";
 import { createModeExtensions, editorModeField, setEditorModeEffect } from "./mode.ts";
 import {
@@ -46,6 +46,8 @@ import {
   type RendererTransactionOrigin,
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
+import { mdxComponentRegistryFacet } from "./wysiwyg/mdx-projection.ts";
+import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
   provideImagePreviewResolver,
@@ -68,6 +70,10 @@ export interface CodeMirrorRendererOptions {
   readonly initialSnapshot: DocumentSnapshot;
   readonly resolveImagePreview?: ImagePreviewResolver;
   readonly writeClipboardText?: (text: string) => Promise<void>;
+  /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
+  readonly mdxMode?: boolean;
+  /** MDX 组件白名单(纯 metadata,不执行组件代码);缺省 null = 一律占位 */
+  readonly mdxComponents?: MdxComponentRegistry;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {
@@ -372,6 +378,8 @@ class CodeMirrorRendererController {
       options.resolveImagePreview ? provideImagePreviewResolver(options.resolveImagePreview) : [],
       editorModeField,
       markdownRangeIndexField,
+      mdxModeFacet.of(options.mdxMode ?? false),
+      mdxComponentRegistryFacet.of(options.mdxComponents ?? null),
       createWysiwygProjectionExtensions(
         [
           "inline-styles",
@@ -384,6 +392,7 @@ class CodeMirrorRendererController {
           "frontmatter",
           "tables",
           "html",
+          "mdx",
         ],
         { writeClipboardText: options.writeClipboardText },
       ),

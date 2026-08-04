@@ -21,7 +21,11 @@ async function bootstrap(): Promise<void> {
     if (search.get("surface") === "codemirror-editor") {
       const { installCodeMirrorEditorHarness } =
         await import("./testing/codemirror-editor-harness");
-      installCodeMirrorEditorHarness(requireRootElement(), search.get("strict") === "true");
+      installCodeMirrorEditorHarness(
+        requireRootElement(),
+        search.get("strict") === "true",
+        search.get("mdx") === "1",
+      );
       return;
     }
   }

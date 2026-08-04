@@ -1,5 +1,6 @@
 import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import {
+  Facet,
   StateEffect,
   StateField,
   type ChangeDesc,
@@ -14,6 +15,7 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import { findCodeBlockLanguage } from "./code-languages.ts";
+import { parseMdxJsxElements, type MdxJsxElement } from "./mdx-parse.ts";
 import { getMarkdownNodePolicy, type MarkdownNodePolicy } from "./node-policy.ts";
 import {
   fingerprintSource,
@@ -25,6 +27,7 @@ import {
   type MarkdownCodeBlockStatus,
   type MarkdownCodeBlockFenceStyle,
   type MarkdownCodeBlockLineFingerprint,
+  type MarkdownMdxBlockMetadata,
   type MarkdownRangeRecord,
   type MarkdownRangeSegment,
   type MarkdownRangeSegmentRole,
@@ -38,6 +41,8 @@ export interface MarkdownRangeIndexBuildOptions {
   readonly coverage?: MarkdownParseCoverage;
   readonly version?: number;
   readonly includeRanges?: readonly SourceRange[];
+  /** MDX 模式下大写标签按组件解析;默认 false(纯 Markdown) */
+  readonly mdxMode?: boolean;
 }
 
 export class MarkdownRangeIndex {
@@ -106,12 +111,22 @@ export class MarkdownRangeIndex {
 
 export const refreshMarkdownParseCoverageEffect = StateEffect.define<null>();
 
+/**
+ * 文档是否为 MDX 文件(renderer 配置注入)。
+ * MDX 模式下大写标签(`<Callout/>`)按组件解析;纯 Markdown 模式下
+ * 大写标签是合法 HTML 标签,保持 HTML 路径,不启用 mdx-jsx 解析。
+ */
+export const mdxModeFacet = Facet.define<boolean, boolean>({
+  combine: (values) => values[0] ?? false,
+});
+
 export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
     const diagnostics = getWysiwygDiagnostics(state);
     diagnostics?.recordFullIndexBuild();
     return buildMarkdownRangeIndex(state.doc.toString(), syntaxTree(state), {
       coverage: readCoverage(state),
+      mdxMode: state.facet(mdxModeFacet),
     });
   },
   update(previous, transaction) {
@@ -126,6 +141,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
       return buildMarkdownRangeIndex(transaction.newDoc.toString(), syntaxTree(transaction.state), {
         coverage: readCoverage(transaction.state),
         version: previous.version + 1,
+        mdxMode: transaction.state.facet(mdxModeFacet),
       });
     }
 
@@ -144,6 +160,12 @@ export function buildMarkdownRangeIndex(
   };
   const frontmatter = findFrontmatterSourceRange(source);
   const records: MarkdownRangeRecord[] = [];
+  // MDX 组件(micromark 无 acorn)优先于 CM6 HTMLBlock/HTMLTag:
+  // `<Callout>` 会被 lang-markdown 当成 HTML 节点,由 mdx-jsx record 接管。
+  // 仅 MDX 模式启用;纯 Markdown 下大写标签是合法 HTML,保持 HTML 路径。
+  const mdxElements = options.mdxMode
+    ? collectMdxElements(source, options.includeRanges ?? null)
+    : [];
   visitParserNode(
     tree.topNode,
     source,
@@ -152,11 +174,77 @@ export function buildMarkdownRangeIndex(
     options.includeRanges ?? null,
     { from: 0, to: Math.min(tree.length, source.length) },
     records,
+    mdxElements,
   );
   if (frontmatter) {
     insertRecord(records, createFrontmatterRecord(frontmatter, source, coverage));
   }
+  for (const element of mdxElements) {
+    insertRecord(records, createMdxRecord(element, source, coverage));
+  }
   return new MarkdownRangeIndex(records, coverage, source.length, options.version ?? 1);
+}
+
+/**
+ * 收集 MDX 组件元素。预筛 `<[A-Z]`(纯文本/普通文档零开销,安全评审
+ * §3.2 允许 isLikelyMdxBlock 类预筛);includeRanges 存在时只保留
+ * 与 dirty 区间相交的元素,支持增量重建。
+ */
+function collectMdxElements(
+  source: string,
+  includeRanges: readonly SourceRange[] | null,
+): readonly MdxJsxElement[] {
+  if (!/<\/?[A-Z]/.test(source)) {
+    return [];
+  }
+  const elements = parseMdxJsxElements(source);
+  if (!includeRanges) {
+    return elements;
+  }
+  return elements.filter((element) =>
+    includeRanges.some((range) =>
+      sourceRangesOverlap(range, { from: element.from, to: element.to }),
+    ),
+  );
+}
+
+function createMdxRecord(
+  element: MdxJsxElement,
+  source: string,
+  coverage: MarkdownParseCoverage,
+): MarkdownRangeRecord {
+  const fullRange = freezeSourceRange({ from: element.from, to: element.to });
+  const fingerprint = fingerprintSource(source.slice(element.from, element.to));
+  const contentRange =
+    element.childrenFrom >= 0
+      ? freezeSourceRange({ from: element.childrenFrom, to: element.childrenTo })
+      : null;
+  const segments: MarkdownRangeSegment[] = contentRange
+    ? [{ ...contentRange, role: "content" }]
+    : [];
+  const mdxBlock: MarkdownMdxBlockMetadata = {
+    componentName: element.name,
+    attributes: element.attributes,
+  };
+  return freezeRecord({
+    id: `mdx-jsx:${element.from}:${element.to}:${fingerprint}`,
+    kind: "mdx-jsx",
+    nodeName: `mdx-jsx:${element.name}`,
+    fullRange,
+    lineRange: lineRangeForSource(source, fullRange),
+    blockRange: fullRange,
+    contentRange,
+    markerRanges: [],
+    segments,
+    // 统一 mdx-widget;投影层按 registry 匹配决定渲染组件还是占位
+    renderPolicy: "mdx-widget",
+    editPolicy: "structured",
+    interactionPolicy: "structured-block",
+    priority: 30,
+    sourceFingerprint: fingerprint,
+    parserCoverage: fullRange.to <= coverage.to ? "complete" : "partial",
+    mdxBlock,
+  });
 }
 
 function updateMarkdownRangeIndex(
@@ -211,6 +299,7 @@ function updateMarkdownRangeIndex(
     coverage,
     version: previous.version + 1,
     includeRanges: newDirty,
+    mdxMode: transaction.state.facet(mdxModeFacet),
   });
   const records = [...mapped];
   for (const record of rebuilt.records) {
@@ -237,11 +326,22 @@ function visitParserNode(
   includeRanges: readonly SourceRange[] | null,
   blockRange: SourceRange,
   output: MarkdownRangeRecord[],
+  mdxElements: readonly MdxJsxElement[],
 ): void {
   for (let child = node.firstChild; child; child = child.nextSibling) {
     const childBlockRange = node.name === "Document" ? nodeRange(child) : blockRange;
     if (includeRanges && !touchesAny(nodeRange(child), includeRanges)) {
       continue;
+    }
+    // MDX 组件接管:<Callout> 等在 CM6 语法树中是 HTMLBlock/HTMLTag,
+    // 若与 mdx-jsx 元素区间重叠,跳过(不产生 html record,避免双重投影)。
+    if (child.name === "HTMLBlock" || child.name === "HTMLTag") {
+      const childRange = nodeRange(child);
+      if (
+        mdxElements.some((element) => childRange.from < element.to && element.from < childRange.to)
+      ) {
+        continue;
+      }
     }
     if (!frontmatter || !sourceRangesOverlap(nodeRange(child), frontmatter.fullRange)) {
       const policy = getMarkdownNodePolicy(
@@ -264,7 +364,16 @@ function visitParserNode(
         }
       }
     }
-    visitParserNode(child, source, frontmatter, coverage, includeRanges, childBlockRange, output);
+    visitParserNode(
+      child,
+      source,
+      frontmatter,
+      coverage,
+      includeRanges,
+      childBlockRange,
+      output,
+      mdxElements,
+    );
   }
 }
 

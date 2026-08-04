@@ -22,6 +22,11 @@ catalog:
   react: ^19.0.0
   react-dom: ^19.0.0
   sanitize-html: ^2.17.6
+  micromark: ^4.0.0
+  micromark-extension-mdx-jsx: ^3.0.0
+  micromark-extension-mdx-md: ^2.0.0
+  mdast-util-mdx-jsx: ^3.0.0
+  mdast-util-from-markdown: ^2.0.0
   tailwindcss: ^4.1.17
   typescript: ^5.7.2
   vercel: ^49.1.0

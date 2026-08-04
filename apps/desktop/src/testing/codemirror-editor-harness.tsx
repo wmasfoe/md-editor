@@ -16,6 +16,8 @@ import {
   type EditorUiActionsContextValue,
 } from "@md-editor/editor-ui";
 import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirrorEditor/testing";
+import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { calloutPlugin } from "@md-editor/mdx-plugins";
 
 interface SubscriptionDiagnostics {
   snapshotActive: number;
@@ -138,8 +140,11 @@ function createInstrumentedDocument(): {
 export function installCodeMirrorEditorHarness(
   rootElement: HTMLElement,
   strictMode: boolean,
+  mdxMode = false,
 ): void {
   const runtime = createInstrumentedDocument();
+  // MDX E2E 白名单:官方 Callout 组件(纯 metadata,不执行组件代码)
+  const mdxRegistry = createBuiltInMdxRegistry([calloutPlugin]);
   const rendererLifecycles: CodeMirrorEditorPorts[] = [];
   const syncErrors: CodeMirrorEditorSyncError[] = [];
   const queuedResults: CodeMirrorEditorExternalEditResult[] = [];
@@ -280,6 +285,8 @@ export function installCodeMirrorEditorHarness(
               }}
               onSyncError={(error) => syncErrors.push(error)}
               onQueuedExternalEditResult={(result) => queuedResults.push(result)}
+              mdxMode={mdxMode}
+              mdxComponents={mdxRegistry}
               onRendererPortsChange={(ports) => {
                 if (ports && rendererLifecycles.at(-1) !== ports) {
                   rendererLifecycles.push(ports);

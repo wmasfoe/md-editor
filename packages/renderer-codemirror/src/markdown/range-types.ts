@@ -25,6 +25,7 @@ export type MarkdownSyntaxKind =
   | "frontmatter"
   | "table"
   | "html"
+  | "mdx-jsx"
   | "deferred-code"
   | "deferred-table"
   | "deferred-html"
@@ -41,6 +42,8 @@ export type MarkdownRenderPolicy =
   | "frontmatter-panel"
   | "table-widget"
   | "html-widget"
+  | "mdx-widget"
+  | "mdx-placeholder"
   | "deferred-raw"
   | "raw-fallback";
 
@@ -116,6 +119,11 @@ export interface MarkdownTableBlockMetadata {
   readonly sourceLineFingerprints: readonly MarkdownCodeBlockLineFingerprint[];
 }
 
+export interface MarkdownMdxBlockMetadata {
+  readonly componentName: string;
+  readonly attributes: readonly { readonly name: string; readonly value: string }[];
+}
+
 export interface MarkdownRangeRecord {
   readonly id: string;
   readonly kind: MarkdownSyntaxKind;
@@ -134,6 +142,7 @@ export interface MarkdownRangeRecord {
   readonly parserCoverage: "complete" | "partial";
   readonly codeBlock?: MarkdownCodeBlockMetadata;
   readonly tableBlock?: MarkdownTableBlockMetadata;
+  readonly mdxBlock?: MarkdownMdxBlockMetadata;
 }
 
 export interface MarkdownParseCoverage {
