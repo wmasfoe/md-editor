@@ -35,9 +35,11 @@
     "@lezer/yaml": "^1.0.4",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@md-editor/shared": "workspace:*"
+    "@md-editor/shared": "workspace:*",
+    "sanitize-html": "catalog:"
   },
   "devDependencies": {
+    "@types/sanitize-html": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
