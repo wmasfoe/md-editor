@@ -100,11 +100,14 @@ test.describe("CodeMirror M4 MDX projection", () => {
     await openHarness(page);
     await replaceDocument(page, CALLOUT_MARKDOWN);
 
-    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("source"));
-    const content = page.locator(".cm-content");
-    await content.click();
-    // Control+A 在编辑器内全选(Playwright 在 macOS 自动映射为 Cmd+A,跨平台可靠)
-    await page.keyboard.press("Control+a");
+    await page.evaluate(
+      ([length]) => {
+        window.__CODEMIRROR_EDITOR_E2E__?.setMode("source");
+        // 程序化全选(跨平台可靠,替代 Control+A 在 macOS 上的映射差异)
+        window.__CODEMIRROR_EDITOR_E2E__?.setSelection(0, length);
+      },
+      [CALLOUT_MARKDOWN.length],
+    );
     await page.keyboard.insertText('<Callout type="info">\n新内容\n</Callout>');
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("wysiwyg"));
 
