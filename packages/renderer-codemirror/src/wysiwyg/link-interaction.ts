@@ -229,7 +229,11 @@ export const linkInteractionExtension: Extension[] = [
         }
         return false;
       }
-      // 普通点击:reveal 源码(光标进 label)
+      // Shift+点击:完全交给 CM 处理(添加选区);光标移动本身会触发 reveal。
+      if (event.shiftKey) {
+        return false;
+      }
+      // 普通点击:reveal 源码(光标进 label)。
       if (!revealLinkSourceAt(view, position)) {
         return false;
       }

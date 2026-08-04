@@ -273,17 +273,18 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     const twoLinks =
       "[first](https://one.example) and [second](https://two.example) remain exact.\n";
     await loadMarkdown(page, twoLinks);
+    // 链接的 modifier 点击现在是"打开链接"语义,添加选区改用 Shift(扩展选区)。
     await page.locator(".cm-md-link-label").filter({ hasText: "first" }).click();
     await page
       .locator(".cm-md-link-label")
       .filter({ hasText: "second" })
-      .click({ modifiers: [ADD_SELECTION_MODIFIER] });
+      .click({ modifiers: ["Shift"] });
     await expect(page.locator(".cm-md-link-label")).toHaveCount(0);
     await expect(page.locator(".cm-content")).toContainText("https://one.example");
     await expect(page.locator(".cm-content")).toContainText("https://two.example");
     expect((await diagnostics(page)).renderer).toMatchObject({
       markdown: twoLinks,
-      selectionRangeCount: 2,
+      selectionRangeCount: 1,
     });
   });
 
