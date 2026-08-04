@@ -1,4 +1,3 @@
-import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import {
   synchronizeRendererEvent,
   type DocumentMutationResult,
@@ -50,6 +49,16 @@ export type CodeMirrorEditorSyncError =
       readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" }>;
     };
 
+/**
+ * MDX 组件白名单最小接口(与 renderer-codemirror 的 MdxComponentLookup 同形状;
+ * 不 import mdx-component-registry,遵守 editor-ui 包边界)。
+ */
+export interface MdxComponentsLookup {
+  getByComponentName(
+    name: string,
+  ): { readonly component: { readonly displayName: string } } | undefined;
+}
+
 export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
   readonly document: DocumentState;
@@ -58,7 +67,7 @@ export interface CodeMirrorEditorBridgeOptions {
   /** MDX 文件模式(透传给 renderer) */
   readonly mdxMode?: boolean;
   /** MDX 组件白名单(透传给 renderer;纯 metadata) */
-  readonly mdxComponents?: MdxComponentRegistry;
+  readonly mdxComponents?: MdxComponentsLookup;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }

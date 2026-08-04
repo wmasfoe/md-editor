@@ -46,8 +46,7 @@ import {
   type RendererTransactionOrigin,
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
-import { mdxComponentRegistryFacet } from "./wysiwyg/mdx-projection.ts";
-import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
+import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
   provideImagePreviewResolver,
@@ -72,8 +71,8 @@ export interface CodeMirrorRendererOptions {
   readonly writeClipboardText?: (text: string) => Promise<void>;
   /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
   readonly mdxMode?: boolean;
-  /** MDX 组件白名单(纯 metadata,不执行组件代码);缺省 null = 一律占位 */
-  readonly mdxComponents?: MdxComponentRegistry;
+  /** MDX 组件白名单查找(最小接口,不执行组件代码);缺省 null = 一律占位 */
+  readonly mdxComponents?: MdxComponentLookup;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {

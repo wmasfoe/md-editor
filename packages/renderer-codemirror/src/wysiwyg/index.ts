@@ -14,6 +14,7 @@ import { markdownParseProgressPlugin } from "./parse-progress.ts";
 import {
   clearWysiwygTypedBoundaryOnBlur,
   configureWysiwygProjectionFeatures,
+  visibleRangesProbePlugin,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
 } from "./projection-state.ts";
@@ -37,6 +38,7 @@ export function createWysiwygProjectionExtensions(
     mdxProjectionTheme,
     wysiwygProjectionField,
     clearWysiwygTypedBoundaryOnBlur,
+    visibleRangesProbePlugin,
     visibleMarkdownMarksPlugin,
     wysiwygChangeProtection,
     markdownParseProgressPlugin,

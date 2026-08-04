@@ -1,9 +1,8 @@
 import { WidgetType } from "@codemirror/view";
-import type { MdxComponentDescriptor } from "@md-editor/mdx-component-registry";
 
 export interface MdxComponentWidgetValue {
-  /** registry 匹配到的组件描述符;未注册组件为 null(占位) */
-  readonly descriptor: MdxComponentDescriptor | null;
+  /** registry 匹配到的组件展示名(未注册组件为 null → 占位) */
+  readonly descriptor: { readonly displayName: string } | null;
   readonly componentName: string;
   /** 解析出的字符串属性(表达式属性已在解析层丢弃) */
   readonly attributes: readonly { readonly name: string; readonly value: string }[];

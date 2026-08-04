@@ -6,12 +6,12 @@ import {
   useSyncExternalStore,
   type CSSProperties,
 } from "react";
-import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import type { DocumentState } from "@md-editor/editor-core";
 import { useEditorUiActions } from "../../hooks/useEditorUi";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
+  type MdxComponentsLookup,
   type CodeMirrorEditorClipboardWriter,
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
@@ -31,8 +31,8 @@ export interface CodeMirrorEditorProps {
   readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
   /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
   readonly mdxMode?: boolean;
-  /** MDX 组件白名单(纯 metadata);缺省 = 一律占位 */
-  readonly mdxComponents?: MdxComponentRegistry;
+  /** MDX 组件白名单(最小查找接口,纯 metadata);缺省 = 一律占位 */
+  readonly mdxComponents?: MdxComponentsLookup;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;

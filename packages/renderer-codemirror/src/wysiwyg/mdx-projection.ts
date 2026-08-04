@@ -1,16 +1,25 @@
 import { Facet, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
-import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import {
   MdxComponentWidget,
   type MdxComponentWidgetValue,
 } from "./widgets/mdx-component-widget.ts";
+/**
+ * 组件白名单的最小查找接口(只依赖 getByComponentName + displayName)。
+ * renderer 层不需要 registry 的注册/枚举能力;editor-ui 等接入层可用
+ * 相同形状的鸭子类型传递,避免把 mdx-component-registry 拖进包边界。
+ */
+export interface MdxComponentLookup {
+  getByComponentName(
+    name: string,
+  ): { readonly component: { readonly displayName: string } } | undefined;
+}
 
 /** 投影层使用的组件白名单(renderer 配置注入;null = 未配置,一律占位) */
 export const mdxComponentRegistryFacet = Facet.define<
-  MdxComponentRegistry | null,
-  MdxComponentRegistry | null
+  MdxComponentLookup | null,
+  MdxComponentLookup | null
 >({
   combine: (values) => values[values.length - 1] ?? null,
 });

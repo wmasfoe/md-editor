@@ -241,9 +241,6 @@ importers:
       '@md-editor/markdown-fidelity':
         specifier: workspace:*
         version: link:../markdown-fidelity
-      '@md-editor/mdx-component-registry':
-        specifier: workspace:*
-        version: link:../mdx-component-registry
       '@md-editor/renderer-codemirror':
         specifier: workspace:*
         version: link:../renderer-codemirror

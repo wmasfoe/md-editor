@@ -87,7 +87,7 @@ describe("MDX projection(白名单求值)", () => {
     const widget = findMdxWidget(state);
     expect(widget).not.toBeNull();
     expect(widget?.value.componentName).toBe("Callout");
-    expect(widget?.value.descriptor?.name).toBe("Callout");
+    expect(widget?.value.descriptor?.displayName).toBe("Callout");
     expect(widget?.value.attributes).toEqual([
       { name: "type", value: "info" },
       { name: "title", value: "提示" },

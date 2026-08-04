@@ -19,6 +19,7 @@ export interface WysiwygDiagnosticsSnapshot {
   readonly projectionMapSkipCount: number;
   readonly compositionMapSkipCount: number;
   readonly visibleMarkMapSkipCount: number;
+  readonly visibleRangeLimitedBuildCount: number;
   readonly dirtyCodeBlockRebuildCount: number;
   readonly lastDirtyBlockRanges: readonly { readonly from: number; readonly to: number }[];
   readonly languageLoadAttemptCount: number;
@@ -77,6 +78,7 @@ export class WysiwygDiagnostics {
   #projectionMapSkipCount = 0;
   #compositionMapSkipCount = 0;
   #visibleMarkMapSkipCount = 0;
+  #visibleRangeLimitedBuildCount = 0;
   #dirtyCodeBlockRebuildCount = 0;
   #lastDirtyBlockRanges: readonly { readonly from: number; readonly to: number }[] = [];
   #languageLoadAttemptCount = 0;
@@ -134,6 +136,10 @@ export class WysiwygDiagnostics {
   /** G004 P0-1:visible-marks 纯文本输入快速路径命中(行内标记装饰只 map 未重建) */
   recordVisibleMarkMapSkip(): void {
     this.#visibleMarkMapSkipCount += 1;
+  }
+
+  recordVisibleRangeLimitedBuild(): void {
+    this.#visibleRangeLimitedBuildCount += 1;
   }
 
   recordDirtyCodeBlockRebuild(count = 1): void {
@@ -209,6 +215,7 @@ export class WysiwygDiagnostics {
       projectionMapSkipCount: this.#projectionMapSkipCount,
       compositionMapSkipCount: this.#compositionMapSkipCount,
       visibleMarkMapSkipCount: this.#visibleMarkMapSkipCount,
+      visibleRangeLimitedBuildCount: this.#visibleRangeLimitedBuildCount,
       dirtyCodeBlockRebuildCount: this.#dirtyCodeBlockRebuildCount,
       lastDirtyBlockRanges: this.#lastDirtyBlockRanges,
       languageLoadAttemptCount: this.#languageLoadAttemptCount,

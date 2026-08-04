@@ -6,9 +6,15 @@ import {
   type EditorState,
   type Extension,
   type Range,
-  type Transaction,
+  Transaction,
 } from "@codemirror/state";
-import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  type DecorationSet,
+  type ViewUpdate,
+} from "@codemirror/view";
 import type { EditorMode } from "@md-editor/editor-core";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import { markdownRangeIndexField, type MarkdownRangeIndex } from "../markdown/range-index.ts";
@@ -115,6 +121,8 @@ export interface WysiwygProjectionState {
   readonly lastSelectionDeltaIds: readonly string[];
   /** 刚由输入事务产生的光标位置;用于 reveal-source 记录闭合符右缘的 reveal 宽松判定 */
   readonly typedBoundary: number | null;
+  /** 最近一次可见区(EditorView 几何采集,effect 注入);空 = 未初始化,全量构建 */
+  readonly visibleRanges: readonly SourceRange[];
 }
 
 const configuredProjectionFeatures = Facet.define<
@@ -130,6 +138,48 @@ export const selectWysiwygAtomEffect = StateEffect.define<SelectWysiwygAtomEffec
 export const clearWysiwygAtomSelectionEffect = StateEffect.define<null>();
 export const startWysiwygCompositionGuardEffect = StateEffect.define<readonly SourceRange[]>();
 export const endWysiwygCompositionGuardEffect = StateEffect.define<null>();
+
+/**
+ * G006 P1-4:EditorView 几何采集(visibleRanges)经此 effect 注入投影层。
+ * 由 visibleRangesProbePlugin 在 viewportChanged 时派发;StateField 缓存并在
+ * 全量重建时过滤 layoutDecorations(原子/保护范围保持全文)。
+ */
+export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceRange[]>();
+
+/**
+ * G006 P1-4 几何采集插件:视口变化时把 view.visibleRanges 注入投影层。
+ * ranges 未变化时不派发(输入引起的文本移动若未改变可见区范围则跳过)。
+ * 首次构造时立即派发一次,保证全量重建有可见区可用。
+ */
+export const visibleRangesProbePlugin = ViewPlugin.fromClass(
+  class VisibleRangesProbe {
+    #lastRanges: readonly SourceRange[] | null = null;
+
+    constructor(view: EditorView) {
+      this.#dispatch(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.viewportChanged || update.geometryChanged) {
+        this.#dispatch(update.view);
+      }
+    }
+
+    #dispatch(view: EditorView): void {
+      const ranges = view.visibleRanges.map((range) =>
+        Object.freeze({ from: range.from, to: range.to }),
+      );
+      if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
+        return;
+      }
+      this.#lastRanges = ranges;
+      view.dispatch({
+        effects: setWysiwygVisibleRangesEffect.of(ranges),
+        annotations: Transaction.addToHistory.of(false),
+      });
+    }
+  },
+);
 
 /**
  * compositionend 后由 renderer 派发:强制投影全量重建一次。
@@ -157,6 +207,26 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
   update(previous, transaction) {
     const index = transaction.state.field(markdownRangeIndexField);
     const mode = transaction.state.field(editorModeField);
+    // G006 P1-4:ViewPlugin 几何采集经 effect 注入;变化时触发限定重建。
+    const visibleRangesEffect = transaction.effects.find((effect) =>
+      effect.is(setWysiwygVisibleRangesEffect),
+    );
+    const nextVisibleRanges =
+      visibleRangesEffect !== undefined
+        ? freezeRanges(visibleRangesEffect.value)
+        : previous.visibleRanges;
+    if (
+      visibleRangesEffect !== undefined &&
+      !rangesEqual(nextVisibleRanges, previous.visibleRanges)
+    ) {
+      return compileProjection(
+        transaction.state,
+        previous.selectedAtomIds,
+        previous.compositionGuardRanges,
+        previous.typedBoundary,
+        nextVisibleRanges,
+      );
+    }
     const selectedAtomIds = normalizeSelectedAtomIds(
       index,
       applyAtomEffects(previous.selectedAtomIds, transaction.effects),
@@ -185,6 +255,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
         selectedAtomIds,
         mappedCompositionGuardRanges,
         typedBoundary,
+        nextVisibleRanges,
       );
     }
 
@@ -196,7 +267,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       ) {
         return previous;
       }
-      return compileProjection(transaction.state, [], [], null);
+      return compileProjection(transaction.state, [], [], null, nextVisibleRanges);
     }
 
     if (mode !== previous.mode || effectsChanged) {
@@ -205,6 +276,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
         selectedAtomIds,
         mappedCompositionGuardRanges,
         typedBoundary,
+        nextVisibleRanges,
       );
     }
 
@@ -240,6 +312,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
         selectedAtomIds,
         mappedCompositionGuardRanges,
         typedBoundary,
+        nextVisibleRanges,
       );
     }
 
@@ -337,6 +410,7 @@ function compileProjection(
   selectedAtomIds: readonly string[],
   compositionGuardRanges: readonly SourceRange[],
   typedBoundary: number | null = null,
+  visibleRanges: readonly SourceRange[] = [],
 ): WysiwygProjectionState {
   const index = state.field(markdownRangeIndexField);
   if (state.field(editorModeField) === "source") {
@@ -351,6 +425,7 @@ function compileProjection(
       atomicRanges: Decoration.none,
       lastSelectionDeltaIds: [],
       typedBoundary: null,
+      visibleRanges,
     });
   }
 
@@ -363,12 +438,16 @@ function compileProjection(
     normalizedAtomIds,
     normalizedGuards,
     state,
+    visibleRanges,
   );
   const atomicRanges = buildAtomicRanges(index, activeSyntaxIds, normalizedAtomIds, state);
   const protectedRanges = buildProtectedRanges(index, activeSyntaxIds, state);
   const diagnostics = getWysiwygDiagnostics(state);
   diagnostics?.recordLayoutDecorationReplace();
   diagnostics?.recordFullProjectionBuild();
+  if (visibleRanges.length > 0) {
+    diagnostics?.recordVisibleRangeLimitedBuild();
+  }
   return freezeProjectionState({
     mode: "wysiwyg",
     rangeIndexVersion: index.version,
@@ -380,6 +459,7 @@ function compileProjection(
     atomicRanges,
     lastSelectionDeltaIds: [],
     typedBoundary,
+    visibleRanges,
   });
 }
 
@@ -449,6 +529,7 @@ function updateDocumentProjection(
     atomicRanges,
     lastSelectionDeltaIds: [],
     typedBoundary,
+    visibleRanges: previous.visibleRanges,
   });
 }
 
@@ -589,8 +670,19 @@ function buildLayoutDecorations(
   selectedAtomIds: readonly string[],
   compositionGuardRanges: readonly SourceRange[],
   state: EditorState,
+  visibleRanges: readonly SourceRange[] = [],
 ): DecorationSet {
-  const ranges = index.records.flatMap((record) =>
+  // G006 P1-4:全量重建时按最近可见区过滤 records——与任一可见区相交即完整
+  // 构建(装饰 range 不裁剪,整块 widget 天然不可截断);无可见区信息则全文。
+  const records =
+    visibleRanges.length > 0
+      ? index.records.filter((record) =>
+          visibleRanges.some(
+            (range) => range.from < record.fullRange.to && record.fullRange.from < range.to,
+          ),
+        )
+      : index.records;
+  const ranges = records.flatMap((record) =>
     buildLayoutDecorationsForRecord(
       record,
       activeSyntaxIds,
@@ -987,6 +1079,7 @@ function freezeProjectionState(state: WysiwygProjectionState): WysiwygProjection
     compositionGuardRanges: freezeRanges(state.compositionGuardRanges),
     protectedRanges: freezeRanges(state.protectedRanges),
     lastSelectionDeltaIds: freezeStrings(state.lastSelectionDeltaIds),
+    visibleRanges: freezeRanges(state.visibleRanges),
   });
 }
 
@@ -995,6 +1088,13 @@ function freezeRanges<T extends SourceRange>(ranges: readonly T[]): readonly T[]
     return ranges;
   }
   return Object.freeze(ranges.map((range) => Object.freeze({ ...range })));
+}
+
+function rangesEqual(left: readonly SourceRange[], right: readonly SourceRange[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((range, index) => range.from === right[index]?.from && range.to === right[index]?.to)
+  );
 }
 
 function freezeStrings(values: readonly string[]): readonly string[] {
