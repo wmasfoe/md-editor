@@ -50,6 +50,7 @@ import {
   getHtmlProtectedRanges,
   isProjectableHtml,
 } from "./html-projection.ts";
+import { isPlainTextInput } from "./plain-text-input.ts";
 
 export type WysiwygProjectionFeature =
   | "inline-styles"
@@ -105,6 +106,8 @@ export interface WysiwygProjectionState {
   readonly layoutDecorations: DecorationSet;
   readonly atomicRanges: DecorationSet;
   readonly lastSelectionDeltaIds: readonly string[];
+  /** 刚由输入事务产生的光标位置;用于 reveal-source 记录闭合符右缘的 reveal 宽松判定 */
+  readonly typedBoundary: number | null;
 }
 
 const configuredProjectionFeatures = Facet.define<
@@ -120,6 +123,25 @@ export const selectWysiwygAtomEffect = StateEffect.define<SelectWysiwygAtomEffec
 export const clearWysiwygAtomSelectionEffect = StateEffect.define<null>();
 export const startWysiwygCompositionGuardEffect = StateEffect.define<readonly SourceRange[]>();
 export const endWysiwygCompositionGuardEffect = StateEffect.define<null>();
+
+/**
+ * compositionend 后由 renderer 派发:强制投影全量重建一次。
+ * composition 期间的输入事务只 map 不重建(见 isCompositionInputTransaction),
+ * 该 effect 保证 IME 提交完成后装饰与最终文档一致。
+ */
+export const refreshWysiwygProjectionEffect = StateEffect.define<null>();
+const clearWysiwygTypedBoundaryEffect = StateEffect.define<null>();
+
+/** 编辑器失焦后清除刚输入边界，避免重新聚焦前继续显示 link/image 源码。 */
+export const clearWysiwygTypedBoundaryOnBlur = EditorView.domEventHandlers({
+  blur(_event, view) {
+    // typedBoundary 已为空时不再派发空事务(失焦低频,避免无谓的 selection-delta 分支)。
+    if (view.state.field(wysiwygProjectionField, false)?.typedBoundary !== null) {
+      view.dispatch({ effects: clearWysiwygTypedBoundaryEffect.of(null) });
+    }
+    return false;
+  },
+});
 
 export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>({
   create(state) {
@@ -142,10 +164,22 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     const mappedCompositionGuardRanges = transaction.docChanged
       ? mapCompositionGuardRanges(compositionGuardRanges, transaction)
       : compositionGuardRanges;
+    const typedBoundary = computeTypedBoundary(previous.typedBoundary, transaction);
     const effectsChanged =
       selectedAtomIds !== previous.selectedAtomIds ||
-      mappedCompositionGuardRanges !== previous.compositionGuardRanges ||
+      compositionGuardRanges !== previous.compositionGuardRanges ||
       transaction.effects.some((effect) => effect.is(setCodeBlockLineNumbersEffect));
+
+    // G004 P0-2:compositionend 后由 renderer 派发空事务 + refresh effect,
+    // 强制投影全量重建一次,保证 IME 提交后装饰与最终文档一致。
+    if (transaction.effects.some((effect) => effect.is(refreshWysiwygProjectionEffect))) {
+      return compileProjection(
+        transaction.state,
+        selectedAtomIds,
+        mappedCompositionGuardRanges,
+        typedBoundary,
+      );
+    }
 
     if (mode === "source") {
       if (
@@ -155,37 +189,71 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       ) {
         return previous;
       }
-      return compileProjection(transaction.state, [], []);
+      return compileProjection(transaction.state, [], [], null);
     }
 
     if (mode !== previous.mode || effectsChanged) {
-      return compileProjection(transaction.state, selectedAtomIds, mappedCompositionGuardRanges);
+      return compileProjection(
+        transaction.state,
+        selectedAtomIds,
+        mappedCompositionGuardRanges,
+        typedBoundary,
+      );
     }
 
     if (transaction.docChanged) {
+      // G004 P0-2:composition 输入事务只 map 不重建(全量重建会取消输入法,
+      // 参考 markra preview.ts update() composition 分支)。
+      if (isCompositionInputTransaction(transaction)) {
+        getWysiwygDiagnostics(transaction.state)?.recordCompositionMapSkip();
+        return freezeProjectionState({
+          ...previous,
+          rangeIndexVersion: index.version,
+          typedBoundary,
+          compositionGuardRanges: mappedCompositionGuardRanges,
+          layoutDecorations: previous.layoutDecorations.map(transaction.changes),
+          atomicRanges: previous.atomicRanges.map(transaction.changes),
+          protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
+          lastSelectionDeltaIds: [],
+        });
+      }
       return updateDocumentProjection(
         previous,
         transaction,
         index,
         selectedAtomIds,
         mappedCompositionGuardRanges,
+        typedBoundary,
       );
     }
 
     if (index.version !== previous.rangeIndexVersion) {
-      return compileProjection(transaction.state, selectedAtomIds, mappedCompositionGuardRanges);
+      return compileProjection(
+        transaction.state,
+        selectedAtomIds,
+        mappedCompositionGuardRanges,
+        typedBoundary,
+      );
     }
 
-    if (!transaction.selection) {
+    if (!transaction.selection && typedBoundary === previous.typedBoundary) {
       return previous;
     }
 
-    const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection);
+    const activeSyntaxIds = collectActiveSyntaxIds(
+      index,
+      transaction.state.selection,
+      typedBoundary,
+    );
     const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
     if (changedIds.length === 0) {
-      return previous.lastSelectionDeltaIds.length === 0
+      return previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary
         ? previous
-        : freezeProjectionState({ ...previous, lastSelectionDeltaIds: [] });
+        : freezeProjectionState({
+            ...previous,
+            typedBoundary,
+            lastSelectionDeltaIds: [],
+          });
     }
 
     getWysiwygDiagnostics(transaction.state)?.recordSelectionDeltaUpdate();
@@ -213,6 +281,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       : previous.protectedRanges;
     return freezeProjectionState({
       ...previous,
+      typedBoundary,
       activeSyntaxIds,
       layoutDecorations,
       atomicRanges,
@@ -260,6 +329,7 @@ function compileProjection(
   state: EditorState,
   selectedAtomIds: readonly string[],
   compositionGuardRanges: readonly SourceRange[],
+  typedBoundary: number | null = null,
 ): WysiwygProjectionState {
   const index = state.field(markdownRangeIndexField);
   if (state.field(editorModeField) === "source") {
@@ -273,10 +343,11 @@ function compileProjection(
       layoutDecorations: Decoration.none,
       atomicRanges: Decoration.none,
       lastSelectionDeltaIds: [],
+      typedBoundary: null,
     });
   }
 
-  const activeSyntaxIds = collectActiveSyntaxIds(index, state.selection);
+  const activeSyntaxIds = collectActiveSyntaxIds(index, state.selection, typedBoundary);
   const normalizedAtomIds = sortStrings(selectedAtomIds.filter((id) => index.get(id) !== null));
   const normalizedGuards = freezeRanges(compositionGuardRanges);
   const layoutDecorations = buildLayoutDecorations(
@@ -301,6 +372,7 @@ function compileProjection(
     layoutDecorations,
     atomicRanges,
     lastSelectionDeltaIds: [],
+    typedBoundary,
   });
 }
 
@@ -310,9 +382,28 @@ function updateDocumentProjection(
   index: MarkdownRangeIndex,
   selectedAtomIds: readonly string[],
   compositionGuardRanges: readonly SourceRange[],
+  typedBoundary: number | null,
 ): WysiwygProjectionState {
+  const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection, typedBoundary);
+
+  // G004 P0-1 纯文本输入快速路径(参考 markra preview.ts plainTextInputCanMapDecorations):
+  // 纯字母/数字插入且光标前后都在纯文本段落(无任何记录重叠)时,装饰不可能变化,
+  // 直接 map 保留全部装饰 DOM,跳过 collectChangedRecordIds 的两次全量遍历。
+  if (plainTextInsertCanMapProjection(transaction, index)) {
+    getWysiwygDiagnostics(transaction.state)?.recordProjectionMapSkip();
+    return freezeProjectionState({
+      ...previous,
+      rangeIndexVersion: index.version,
+      activeSyntaxIds,
+      typedBoundary,
+      layoutDecorations: previous.layoutDecorations.map(transaction.changes),
+      atomicRanges: previous.atomicRanges.map(transaction.changes),
+      protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
+      lastSelectionDeltaIds: [],
+    });
+  }
+
   const previousIndex = transaction.startState.field(markdownRangeIndexField);
-  const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection);
   const changedIds = collectChangedRecordIds(
     previousIndex,
     index,
@@ -350,7 +441,90 @@ function updateDocumentProjection(
     layoutDecorations,
     atomicRanges,
     lastSelectionDeltaIds: [],
+    typedBoundary,
   });
+}
+
+/**
+ * G004 P0-1 快速路径判定:事务是否"只插入纯文本"(字母/组合标记/数字,无结构字符)。
+ * 参考 markra changes.ts updateOnlyInsertsPlainText:fromA === toA(纯插入)且
+ * 插入内容只含 \p{L}\p{M}\p{N}——`*`/`#`/`` ` ``/`[` 等可能产生新语法结构的字符被排除。
+ */
+function transactionOnlyInsertsPlainText(transaction: Transaction): boolean {
+  if (!transaction.docChanged || transaction.reconfigured) {
+    return false;
+  }
+  if (!transaction.isUserEvent("input")) {
+    return false;
+  }
+  let plainInsertion = true;
+  transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    if (fromA !== toA || !isPlainTextInput(inserted.toString())) {
+      plainInsertion = false;
+    }
+  });
+  return plainInsertion;
+}
+
+/**
+ * G004 P0-1 完整判定:纯文本插入 + 单光标空选区 + 输入前后光标都在"纯文本段落"
+ * (光标处无任何 record 重叠——纯文本段落没有语法记录)。
+ */
+function plainTextInsertCanMapProjection(
+  transaction: Transaction,
+  index: MarkdownRangeIndex,
+): boolean {
+  if (!transactionOnlyInsertsPlainText(transaction)) {
+    return false;
+  }
+  const before = transaction.startState.selection.main;
+  const after = transaction.state.selection.main;
+  if (!before.empty || !after.empty) {
+    return false;
+  }
+  if (transaction.startState.selection.ranges.length !== 1) {
+    return false;
+  }
+  if (transaction.state.selection.ranges.length !== 1) {
+    return false;
+  }
+  const previousIndex = transaction.startState.field(markdownRangeIndexField);
+  return (
+    cursorInPlainParagraph(previousIndex, before.head) &&
+    cursorInPlainParagraph(index, after.head) &&
+    // 三审发现:结构记录前的纯文本插入会让后续 record 因绝对偏移获得新 ID
+    // (link:2:13 → link:3:14),而 map 后的 decoration 仍携带旧 wysiwygRecordId,
+    // 导致 selection delta 无法按新 ID 清理旧装饰。快速路径只允许 record ID
+    // 集合完全稳定的场景,任何 ID 变化都回退正常增量重建。
+    recordIdsStable(previousIndex, index)
+  );
+}
+
+/** 事务前后所有 record ID 完全一致(结构记录未被前方插入改变绝对位置) */
+export function recordIdsStable(
+  previousIndex: MarkdownRangeIndex,
+  index: MarkdownRangeIndex,
+): boolean {
+  const previousIds = new Set(previousIndex.records.map((record) => record.id));
+  if (previousIds.size !== index.records.length) {
+    return false;
+  }
+  for (const record of index.records) {
+    if (!previousIds.has(record.id)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** 光标所在位置无任何语法记录重叠 = 纯文本段落 */
+function cursorInPlainParagraph(index: MarkdownRangeIndex, position: number): boolean {
+  return index.overlapping(position, position).length === 0;
+}
+
+/** G004 P0-2 composition 输入事务判定(CM6 IME 事务 userEvent 为 "input.type.compose") */
+function isCompositionInputTransaction(transaction: Transaction): boolean {
+  return transaction.docChanged && transaction.isUserEvent("input.type.compose");
 }
 
 function collectChangedRecordIds(
@@ -389,11 +563,12 @@ function countDirtyCodeBlocks(
 function collectActiveSyntaxIds(
   index: MarkdownRangeIndex,
   selection: EditorSelection,
+  typedBoundary: number | null,
 ): readonly string[] {
   const activeIds = new Set<string>();
   for (const range of selection.ranges) {
     for (const record of index.overlapping(range.from, range.to)) {
-      if (selectionActivatesRecord(record, range.from, range.to)) {
+      if (selectionActivatesRecord(record, range.from, range.to, typedBoundary)) {
         activeIds.add(record.id);
       }
     }
@@ -714,6 +889,31 @@ function applyCompositionEffects(
   return next;
 }
 
+/**
+ * G004 P0-3 typedBoundary 计算(参考 markra preview.ts typedBoundary 状态):
+ * - 用户输入事务(打字)且单光标空选区 → 记录输入后的光标位置;
+ * - 其他 doc 变化(粘贴/删除/外部编辑)或选区变化(用户移动光标)→ 清空;
+ * - 其余保持。
+ * 不需要 renderer 额外 dispatch:输入事务本身就是 typedBoundary 的载体。
+ */
+function computeTypedBoundary(previous: number | null, transaction: Transaction): number | null {
+  if (transaction.effects.some((effect) => effect.is(clearWysiwygTypedBoundaryEffect))) {
+    return null;
+  }
+  if (
+    transaction.docChanged &&
+    transaction.isUserEvent("input") &&
+    transaction.state.selection.ranges.length === 1 &&
+    transaction.state.selection.main.empty
+  ) {
+    return transaction.state.selection.main.head;
+  }
+  if (transaction.docChanged || transaction.selection) {
+    return null;
+  }
+  return previous;
+}
+
 function mapCompositionGuardRanges(
   ranges: readonly SourceRange[],
   transaction: { readonly changes: { mapPos(position: number, association?: number): number } },
@@ -725,6 +925,23 @@ function mapCompositionGuardRanges(
     ranges.map((range) => ({
       from: transaction.changes.mapPos(range.from, -1),
       to: transaction.changes.mapPos(range.to, 1),
+    })),
+  );
+}
+
+/** G004 P0-1 快速路径用:protected 范围整体映射到新文档(字段保留,仅 from/to 重定位) */
+function mapProtectedRanges(
+  ranges: readonly ProtectedSourceRange[],
+  changes: { mapPos(position: number, association?: number): number },
+): readonly ProtectedSourceRange[] {
+  if (ranges.length === 0) {
+    return ranges;
+  }
+  return freezeRanges(
+    ranges.map((range) => ({
+      ...range,
+      from: changes.mapPos(range.from, -1),
+      to: changes.mapPos(range.to, 1),
     })),
   );
 }
@@ -785,7 +1002,12 @@ function equalStrings(left: readonly string[], right: readonly string[]): boolea
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function selectionActivatesRecord(record: MarkdownRangeRecord, from: number, to: number): boolean {
+function selectionActivatesRecord(
+  record: MarkdownRangeRecord,
+  from: number,
+  to: number,
+  typedBoundary: number | null,
+): boolean {
   if (record.kind === "frontmatter") {
     return false;
   }
@@ -800,6 +1022,12 @@ function selectionActivatesRecord(record: MarkdownRangeRecord, from: number, to:
     return true;
   }
   if (from === to) {
+    // G004 P0-3 typedBoundary 宽松判定:刚由输入事务产生的光标恰好落在
+    // reveal-source 记录(link/image)闭合符右缘时,保持 reveal 一瞬间,
+    // 避免"刚打完 [text](url) 的 ) 立即收起"的视觉跳动。
+    if (typedBoundary !== null && from === typedBoundary && record.fullRange.to === typedBoundary) {
+      return true;
+    }
     return from > record.fullRange.from && from < record.fullRange.to;
   }
   return from < record.fullRange.to && to > record.fullRange.from;

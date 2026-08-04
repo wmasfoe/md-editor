@@ -1,8 +1,8 @@
-# CodeMirror 6 渲染器迁移状态
+﻿# CodeMirror 6 渲染器迁移状态
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-03（G002 M3 浏览器验收收官：B6 末尾 Enter 退出表格续写修复——`exitTableWithParagraph` 依 `fullRange.to` 不含末行换行的几何，`\n\n`/`\n` 分支在 `insertAt+1` 注入、光标恒 `insertAt+2`，新空行恰好落在终止空行之后；Chromium 52/52 全绿、renderer 21 files / 243 tests 全绿、typecheck/lint/build 全绿；`test:browser` 接入 build-macos（PR 门禁，CI 默认 retry 1）/release-macos/release-beta（严格单次 `PLAYWRIGHT_RETRIES=0`，`@quarantine` 隔离排除）；widget-lifecycle 测试 FakeElement 补齐 `cloneNode`/`remove` 消除预存失败。此前：P0-A 回归修复 `protectedRanges` 携带 provenance kind，宽选区放行按 kind 区分——table 允许恰好相等选区替换，默认 atom（footnote/autolink/reference）恢复 source-only 恰好拒绝/strict-wider 放行（G012 语义））。
+> 最后更新：2026-08-04（M4 HTML 安全投影边界与 G004 Markra P0 输入路径优化已落地；MDX 解析/Widget 尚未开始。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
 
 ## 当前结论
 
@@ -17,6 +17,7 @@
 - `main.tsx` 在 React 前分流 window surface：main 严格执行 attach -> FileService factory -> render，settings 只加载 `SettingsWindowApp`；一个 main-only `RuntimeFileService` 被注入 App、controllers 与 file tree。unknown/attach failure 均 fail closed。
 - 保存 controller 在第一个 `await` 前同步 `beginSave` + enqueue，typed outcome 只 settle 一次；成功采用实际返回 path，warning/failed/cancel/indeterminate 分别反馈，verification-required 继续阻止无提示放弃。
 - 当前是 **CM6-only beta 可用**：S1/M0、M1 与 M2 已通过对应自动化和原生门禁。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论不代表 M3-M6 已完成。
+- G004（复刻 Markra 渲染层机制 P0 三项，2026-08-04 完成）：① projection 快速路径要求纯 Unicode 字母/组合标记/数字插入且光标前后均在纯文本段落；visible-marks 快速路径另要求光标不在 inline marker、mode 不变、仅一个 docChanged transaction，且新 visibleRanges 与旧 ranges 经 changes 映射后精确一致，否则 fail closed；Variation Selector/emoji/ZWJ/结构字符均回退；② composition guard 存在时仍只 map 并同步映射 guard ranges，compositionend 同时刷新 projection 与 visible-marks；③ typedBoundary 由输入事务推导，快速路径/全量刷新保持状态一致，selection、非输入变更与 blur 清空，link/image 闭合 `)` 右缘保持 reveal。renderer 25 files / 302 tests（15 个 G004 测试）、workspace 569 tests + release 5 tests、E2E G004/M3/M4 15/15 通过；第四轮审查后快速路径要求 record ID 集合稳定，结构记录前的插入回退增量重建，消除 decoration identity 失同步；P1-4 visibleRanges 限定全量重建转后续 PRD。
 - M1/S2 核心投影已在同一 `EditorView` / `EditorState` 上实现 inline marker、活动标题、引用/列表/任务项、链接、图片、分割线和默认可视化；M1-FM/S5-FM-only 又实现了 `.cm-content` 内的 Frontmatter 面板。G011 进一步完成活动图片源码与实时预览并存、成功/失败图片的键盘进入、分割线纵向键盘选择、源码/WYSIWYG 自动换行、失败占位、可读列布局和 Frontmatter 视觉层级；G012 补齐隐藏 block marker 的修改保护。renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，M1/S2 与 M1-FM 标记为已验证；N09 的通过来自用户明确验收覆盖，报告的保存产物未被独立观测。
 - M2/S3 在相同状态栈上实现 fenced/indented code range model、curated native mixed-language loading、WYSIWYG projection、语言菜单、block-local 行号、body-only copy 和 renderer-owned 编辑命令。当前工作树重新验证 renderer 18 files / 184 tests、editor-ui 5 files / 20 tests、desktop 27 files / 103 tests 与完整 Chromium 45/45。真实 Tauri/WebKit N01-N12 于 2026-07-23 在修复前快照通过；2026-07-24 的独立 N13 又验证零长度 fenced body 首次输入、pointer/Enter、undo/redo、WYSIWYG Backspace 保护和单 backtick 删除降级，M2/S3 因此标记为已验证。
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
@@ -54,7 +55,7 @@
 | S3 代码块 | 已验证 | fenced/indented projection、native mixed highlighting、语言菜单、block-local 行号、copy/keyboard/IME/history、fail-open 与固定大文件增量预算已通过自动化；post-fix 原生 N13 已在 Tauri/WebKit 通过 |
 | S4 可视化 GFM 表格 | 已验证（M3 可编辑可视化表格，S4 引擎评估触发 No-Go 后以"始终网格 + 就地编辑"落地，不引入嵌套编辑器） | `MarkdownTableBlockMetadata` 已收集 header/delimiter/body row ranges、对齐、column count、has-leading-pipes 与 per-line fingerprint；`table` kind 恒走 `TableGridWidget` 网格（始终显示，不再回显源码）；单元格 contenteditable 左键单击即就地编辑、Enter 下移/Tab 右移/Shift-Tab 左移导航、Escape 取消，编辑经受保护 transaction 回写 GFM 源码（`serializeTableRow` 负责 `\|` 转义）；行/列操作采用 Notion 式固定块手柄（⋮⋮ 贴每行首列左缘/每列表头右缘，悬停表格显隐），点击弹出操作菜单：行=在上方插入/在下方插入/删除本行，列=在左侧插入/在右侧插入/删除本列（删除项恒提供，列数>1 下限由 `deleteTableColumn` 兜底）+ **对齐分组（无对齐/左/中/右，当前项带 ✓ 勾选，`setTableColumnAlignment` 只重写 delimiter 行对应列的 `---`/`:---`/`:---:`/`---:` 标记）**；菜单随表格外点击/菜单项执行/销毁自动关闭并释放 document 级监听；整表选中态显示操作提示 tooltip（Delete 删除 · Tab 编辑 · Cmd+C 复制，`aria-selected` 伪元素纯 CSS）；表格末尾（最后一行 body）Enter 先提交当前单元格再退出表格、在下方新增段落续写正文（已有空行时仅移动光标，受保护 transaction 注入）；点击表格空白原子选中整表、Backspace/Delete 整表删除、undo 可恢复，整表原子选中态打字/粘贴等价于替换整表（宽选区放行条件允许恰好相等选区 `from <= from && to >= to`）；ArrowUp/ArrowDown 从表格上方/下方视觉移动会对称地整表选中（`verticalMoveHitsAtom` 覆盖跳过整块 widget 的情况）；整表选中态下 Tab/Enter 进入最近编辑单元格（记忆 `lastEditingCellByRecordId`，无记忆时聚焦首个表头单元格）；单元格内 Cmd+A 先提交当前编辑再整表原子选中（焦点回 CM6 后再次 Cmd+A 由默认 selectAll 扩展到全文）；整表恒 atomic + protected；修复 Tailwind preflight 清零 widget 边框（CSS `!important`）与 range-index 删末行丢表（oldDirty→newDirty 映射 + ensureSyntaxTree）；12 个 table-projection 测试 + 10 个 table-editing 测试（含 3 个退出表格续写段落、2 个对齐切换）+ 4 个表格原子选择测试 + 9 个表格 widget DOM 生命周期测试（含菜单开关/项执行/对齐切换/文档级监听释放）+ 2 个整表进入单元格测试 + 2 个单元格内全选测试通过；多单元格拖选、列宽调整、tab 跳格仍留待后续 |
 | S5-FM Frontmatter-only | 已验证 | 精确 top-matter range、YAML panel/highlight/error、主 history、无嵌套 editor 与原生 N08 已通过 |
-| S5 HTML / MDX | 未开始 | Frontmatter-only spike 没有引入 HTML sanitizer、HTML 渲染或 MDX 解析/Widget；这些能力仍不可用 |
+| S5 HTML / MDX | 进行中（HTML 已落地，MDX 未开始） | HTML 已实现严格白名单清洗、双层 DOM 重建、块级 Widget、原子选择/删除/undo 与错误占位；MDX parser、registry 求值和组件 Widget 仍不可用 |
 | S6 性能基线 | 未开始 | 删除旧引擎前未固化同环境量化结果；必须建立 CM6 fixture/门槛，并把历史对照缺口显式保留 |
 
 ## 里程碑状态
@@ -66,7 +67,7 @@
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
 | M3 GFM 表格 | 已验证 | renderer 21 files / 243 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；Chromium 浏览器套件 52/52 全绿（2026-08-03，B6 末尾 Enter 续写修复后）；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
-| M4 基础 HTML / 官方 MDX | 未开始 | 不可用 |
+| M4 基础 HTML / 官方 MDX | 进行中 | 基础 HTML 安全投影已落地并通过 M4-E01~E04；官方 MDX 解析、白名单 registry 求值和组件 Widget 尚未开始，不能标记完成 |
 | M5 现有能力迁移 | 未开始 | 不可用 |
 | M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
 
@@ -111,7 +112,7 @@
 ## 当前 Beta 已知缺口
 
 - M3 / S4：表格恒显示为可编辑网格并支持单元格左键就地编辑、Notion 式行/列块手柄与操作菜单增删行列及列对齐切换、末尾 Enter 退出表格续写段落、整表原子选中/删除与选中态等价替换及操作提示、Arrow 对称整表选中；多单元格拖选、列宽调整、tab 跳格仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
-- M4 / S5：基础 HTML 白名单渲染、官方 MDX 真实渲染、原子选择、整块删除和错误占位尚未实现；MDX 入口当前可见地报告 typed unsupported。
+- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 真实解析/渲染尚未实现，MDX 入口仍可见地报告 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
 - S1/M0 原生人工门禁已通过；环境、覆盖范围和结论见文末“原生人工验收通过记录”。后续里程碑引入 decoration、Widget、表格或 MDX 后，仍须针对新增交互重新执行对应原生验收。

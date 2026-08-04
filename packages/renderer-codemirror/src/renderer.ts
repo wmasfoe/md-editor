@@ -54,6 +54,7 @@ import {
 import {
   endWysiwygCompositionGuardEffect,
   inspectWysiwygProjection,
+  refreshWysiwygProjectionEffect,
   startWysiwygCompositionGuardEffect,
   type WysiwygProjectionSnapshot,
 } from "./wysiwyg/projection-state.ts";
@@ -1081,7 +1082,12 @@ class CodeMirrorRendererController {
     this.#compositionActive = false;
     if (!this.#destroyed) {
       this.#view.dispatch({
-        effects: endWysiwygCompositionGuardEffect.of(null),
+        effects: [
+          endWysiwygCompositionGuardEffect.of(null),
+          // G004 P0-2:composition 期间投影装饰只 map 未重建,结束必须全量重建一次,
+          // 保证装饰与 IME 提交后的最终文档一致。
+          refreshWysiwygProjectionEffect.of(null),
+        ],
         annotations: Transaction.addToHistory.of(false),
       });
     }

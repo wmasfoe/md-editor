@@ -16,6 +16,9 @@ export interface WysiwygDiagnosticsSnapshot {
   readonly selectionDeltaUpdateCount: number;
   readonly layoutDecorationReplaceCount: number;
   readonly fullProjectionBuildCount: number;
+  readonly projectionMapSkipCount: number;
+  readonly compositionMapSkipCount: number;
+  readonly visibleMarkMapSkipCount: number;
   readonly dirtyCodeBlockRebuildCount: number;
   readonly lastDirtyBlockRanges: readonly { readonly from: number; readonly to: number }[];
   readonly languageLoadAttemptCount: number;
@@ -71,6 +74,9 @@ export class WysiwygDiagnostics {
   #selectionDeltaUpdateCount = 0;
   #layoutDecorationReplaceCount = 0;
   #fullProjectionBuildCount = 0;
+  #projectionMapSkipCount = 0;
+  #compositionMapSkipCount = 0;
+  #visibleMarkMapSkipCount = 0;
   #dirtyCodeBlockRebuildCount = 0;
   #lastDirtyBlockRanges: readonly { readonly from: number; readonly to: number }[] = [];
   #languageLoadAttemptCount = 0;
@@ -113,6 +119,21 @@ export class WysiwygDiagnostics {
 
   recordFullProjectionBuild(): void {
     this.#fullProjectionBuildCount += 1;
+  }
+
+  /** G004 P0-1:纯文本输入快速路径命中(投影装饰只 map 未重建) */
+  recordProjectionMapSkip(): void {
+    this.#projectionMapSkipCount += 1;
+  }
+
+  /** G004 P0-2:composition 输入事务装饰只 map 未重建 */
+  recordCompositionMapSkip(): void {
+    this.#compositionMapSkipCount += 1;
+  }
+
+  /** G004 P0-1:visible-marks 纯文本输入快速路径命中(行内标记装饰只 map 未重建) */
+  recordVisibleMarkMapSkip(): void {
+    this.#visibleMarkMapSkipCount += 1;
   }
 
   recordDirtyCodeBlockRebuild(count = 1): void {
@@ -185,6 +206,9 @@ export class WysiwygDiagnostics {
       selectionDeltaUpdateCount: this.#selectionDeltaUpdateCount,
       layoutDecorationReplaceCount: this.#layoutDecorationReplaceCount,
       fullProjectionBuildCount: this.#fullProjectionBuildCount,
+      projectionMapSkipCount: this.#projectionMapSkipCount,
+      compositionMapSkipCount: this.#compositionMapSkipCount,
+      visibleMarkMapSkipCount: this.#visibleMarkMapSkipCount,
       dirtyCodeBlockRebuildCount: this.#dirtyCodeBlockRebuildCount,
       lastDirtyBlockRanges: this.#lastDirtyBlockRanges,
       languageLoadAttemptCount: this.#languageLoadAttemptCount,

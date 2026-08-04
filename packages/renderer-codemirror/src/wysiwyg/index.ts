@@ -12,6 +12,7 @@ import { wysiwygChangeProtection } from "./change-protection.ts";
 import { createMarkdownStructuredCommandExtensions } from "./markdown-commands.ts";
 import { markdownParseProgressPlugin } from "./parse-progress.ts";
 import {
+  clearWysiwygTypedBoundaryOnBlur,
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
@@ -33,6 +34,7 @@ export function createWysiwygProjectionExtensions(
     tableProjectionTheme,
     htmlProjectionTheme,
     wysiwygProjectionField,
+    clearWysiwygTypedBoundaryOnBlur,
     visibleMarkdownMarksPlugin,
     wysiwygChangeProtection,
     markdownParseProgressPlugin,
