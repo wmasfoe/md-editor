@@ -47,6 +47,7 @@ import {
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
+import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -385,6 +386,7 @@ class CodeMirrorRendererController {
       mdxComponentRegistryFacet.of(options.mdxComponents ?? null),
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
+      blockToolbarExtension,
       createWysiwygProjectionExtensions(
         [
           "inline-styles",
