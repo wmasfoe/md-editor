@@ -281,8 +281,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     }
 
     if (transaction.docChanged) {
-      // G004 P0-2:composition 输入事务只 map 不重建(全量重建会取消输入法,
-      // 参考 markra preview.ts update() composition 分支)。
+      // G004 P0-2:composition 输入事务只 map 不重建(全量重建会取消输入法)。
       if (isCompositionInputTransaction(transaction)) {
         getWysiwygDiagnostics(transaction.state)?.recordCompositionMapSkip();
         return freezeProjectionState({
@@ -473,7 +472,7 @@ function updateDocumentProjection(
 ): WysiwygProjectionState {
   const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection, typedBoundary);
 
-  // G004 P0-1 纯文本输入快速路径(参考 markra preview.ts plainTextInputCanMapDecorations):
+  // G004 P0-1 纯文本输入快速路径:
   // 纯字母/数字插入且光标前后都在纯文本段落(无任何记录重叠)时,装饰不可能变化,
   // 直接 map 保留全部装饰 DOM,跳过 collectChangedRecordIds 的两次全量遍历。
   if (plainTextInsertCanMapProjection(transaction, index)) {
@@ -535,8 +534,8 @@ function updateDocumentProjection(
 
 /**
  * G004 P0-1 快速路径判定:事务是否"只插入纯文本"(字母/组合标记/数字,无结构字符)。
- * 参考 markra changes.ts updateOnlyInsertsPlainText:fromA === toA(纯插入)且
- * 插入内容只含 \p{L}\p{M}\p{N}——`*`/`#`/`` ` ``/`[` 等可能产生新语法结构的字符被排除。
+ * 判定条件:fromA === toA(纯插入)且插入内容只含 \p{L}\p{M}\p{N}——
+ * `*`/`#`/`` ` ``/`[` 等可能产生新语法结构的字符被排除。
  */
 function transactionOnlyInsertsPlainText(transaction: Transaction): boolean {
   if (!transaction.docChanged || transaction.reconfigured) {
@@ -1004,7 +1003,7 @@ function applyCompositionEffects(
 }
 
 /**
- * G004 P0-3 typedBoundary 计算(参考 markra preview.ts typedBoundary 状态):
+ * G004 P0-3 typedBoundary 计算:
  * - 用户输入事务(打字)且单光标空选区 → 记录输入后的光标位置;
  * - 其他 doc 变化(粘贴/删除/外部编辑)或选区变化(用户移动光标)→ 清空;
  * - 其余保持。

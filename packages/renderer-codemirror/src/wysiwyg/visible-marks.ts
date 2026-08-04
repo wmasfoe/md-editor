@@ -55,8 +55,7 @@ class VisibleMarkdownMarks {
       return;
     }
 
-    // G004 P0-2:composition 期间只 map 不重建(全量重建会取消输入法,
-    // 参考 markra preview.ts update() composition 分支)。
+    // G004 P0-2:composition 期间只 map 不重建(全量重建会取消输入法)。
     if (update.docChanged && update.view.composing) {
       this.decorations = this.decorations.map(update.changes);
       return;
@@ -107,8 +106,8 @@ export function buildVisibleMarkdownMarks(view: EditorView): DecorationSet {
 
 /**
  * G004 P0-1:事务是否"只插入纯文本"(字母/组合标记/数字,无结构字符)。
- * 参考 markra changes.ts updateOnlyInsertsPlainText:fromA === toA(纯插入)且
- * 插入内容只含 \p{L}\p{M}\p{N}——`*`/`#`/`` ` ``/`[` 等可能产生新语法结构的字符被排除。
+ * 判定条件:fromA === toA(纯插入)且插入内容只含 \p{L}\p{M}\p{N}——
+ * `*`/`#`/`` ` ``/`[` 等可能产生新语法结构的字符被排除。
  */
 function updateOnlyInsertsPlainText(update: ViewUpdate): boolean {
   if (
