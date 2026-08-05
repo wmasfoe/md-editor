@@ -37,29 +37,23 @@ export function createMarkdownStructuredCommandExtensions() {
       {
         key: "Enter",
         run: (view) => {
+          // 列表项行末场景始终用确定性 fallback:官方 insertNewlineContinueMarkup
+          // 在投影模式下行为不稳定(有时抛语法树上下文异常,有时在非行末位置
+          // 插入导致文本拆词),fallback 从 range-index 记录生成续行,插入点固定
+          // 行末,跨平台一致。
+          if (isListContinuationCandidate(view)) {
+            return insertListContinuationFallback(view);
+          }
           let tableResult = false;
           let markupResult = false;
           try {
             tableResult = enterSelectedTableCell(view);
             markupResult = viewCommand(continueMarkdownMarkup)(view);
-          } catch (error) {
-            // 官方命令在投影模式下偶发抛异常(CM 吞掉后走默认换行);
-            // 捕获后仍交给 fallback,保证列表续行语义
-            console.log("[DEBUG-enter-threw]", String(error));
+          } catch {
+            // 官方命令在投影模式下偶发抛异常(语法树上下文栈空);
+            // 非列表场景下静默放行默认换行
           }
-          const fallbackResult = markupResult ? false : insertListContinuationFallback(view);
-          console.log(
-            "[DEBUG-enter-chain]",
-            "table:",
-            tableResult,
-            "markup:",
-            markupResult,
-            "fallback:",
-            fallbackResult,
-            "headAfter:",
-            view.state.selection.main.head,
-          );
-          return tableResult || markupResult || fallbackResult;
+          return tableResult || markupResult;
         },
       },
       { key: "Backspace", run: viewCommand(deleteMarkdownMarkupBackward) },
@@ -190,6 +184,24 @@ export const indentMarkdownList: StateCommand = guarded(indentListItems);
 export const outdentMarkdownList: StateCommand = guarded(outdentListItems);
 
 /**
+ * 判断光标是否处于"列表项行末 Enter 续行"场景:
+ * 光标为空选区、位于列表项行、且在该行行尾(或行末 1 字符内,容忍投影
+ * 模式的选区映射差异)。
+ */
+function isListContinuationCandidate(view: EditorView): boolean {
+  const { head, empty } = view.state.selection.main;
+  if (!empty) {
+    return false;
+  }
+  const line = view.state.doc.lineAt(head);
+  // 行末 1 字符容差覆盖投影模式映射差异(macOS 上光标可能停在文本末字符)
+  if (head < line.to - 1 && !/^\s*$/.test(view.state.sliceDoc(head, line.to))) {
+    return false;
+  }
+  return selectedListTargetOnLine(view.state, line.from, line.to) !== null;
+}
+
+/**
  * 列表项行末 Enter 的兜底续行:官方 insertNewlineContinueMarkup 在
  * wysiwyg 投影模式下偶发判定失败(语法树/语言状态时序差异,macOS
  * headless 上稳定复现),此时手动插入同缩进同 marker 的新列表项,
@@ -198,42 +210,20 @@ export const outdentMarkdownList: StateCommand = guarded(outdentListItems);
 export function insertListContinuationFallback(view: EditorView): boolean {
   const { state, dispatch } = view;
   const { head, empty } = state.selection.main;
-  console.log(
-    "[DEBUG-fb]",
-    "head:",
-    head,
-    "lineTo:",
-    state.doc.lineAt(head).to,
-    "empty:",
-    empty,
-    "line:",
-    JSON.stringify(state.doc.lineAt(head).text),
-    "records:",
-    state.field(markdownRangeIndexField, false)?.records.length ?? "no-field",
-  );
   if (!empty) {
     return false;
   }
   const line = state.doc.lineAt(head);
-  // 光标必须在该行行尾(或行尾空白内):列表中间 Enter 交给默认换行
-  if (head < line.to && !/^\s*$/.test(state.sliceDoc(head, line.to))) {
-    console.log("[DEBUG-fb] mid-line, bailing");
+  // 光标必须在该行行尾(或行末 1 字符内):列表中间 Enter 交给默认换行。
+  // 行末 1 字符容差覆盖投影模式的选区映射差异(macOS 上光标可能停在
+  // 文本末字符而非精确行尾)。
+  if (head < line.to - 1 && !/^\s*$/.test(state.sliceDoc(head, line.to))) {
     return false;
   }
   const target = selectedListTargetOnLine(state, line.from, line.to);
   if (!target) {
-    console.log("[DEBUG-fb] no list target on line");
     return false;
   }
-  console.log(
-    "[DEBUG-fb] target:",
-    "kind:",
-    target.record.kind,
-    "marker:",
-    target.marker.from,
-    "-",
-    target.marker.to,
-  );
   const { record, marker, lineFrom } = target;
   const indentation = state.sliceDoc(lineFrom, marker.from);
   let markerText = state.sliceDoc(marker.from, marker.to);
@@ -262,11 +252,14 @@ export function insertListContinuationFallback(view: EditorView): boolean {
     const afterTask = state.sliceDoc(taskMarker.to, line.to);
     markerText += /^[ \t]*/.exec(afterTask)?.[0] ?? "";
   }
+  // 插入位置固定为行末(不受 head 偏差影响:光标可能停在文本末字符上,
+  // 但续行必须从行末换行,否则会把末字符拆到新行)
+  const insertAt = line.to;
   const insert = `\n${indentation}${markerText}`;
   dispatch(
     state.update({
-      changes: { from: head, insert },
-      selection: EditorSelection.cursor(head + insert.length),
+      changes: { from: insertAt, insert },
+      selection: EditorSelection.cursor(insertAt + insert.length),
       annotations: authorizeWysiwygProtectedChange.of(true),
       userEvent: "input.insertLine",
     }),
