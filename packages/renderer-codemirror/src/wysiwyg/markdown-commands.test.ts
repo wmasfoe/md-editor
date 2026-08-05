@@ -18,6 +18,7 @@ import {
   continueMarkdownMarkup,
   deleteMarkdownMarkupBackward,
   indentMarkdownList,
+  insertListContinuationFallback,
   outdentMarkdownList,
   toggleTaskMarkerAt,
   toggleSelectedTasks,
@@ -375,5 +376,67 @@ describe("renderer-owned Markdown structured commands", () => {
     // 覆盖表格部分范围的选区（不等于整表 fullRange）：不进入编辑。
     const partial = EditorSelection.range(doc.indexOf("1"), doc.indexOf("2") + 1);
     expect(enterSelectedTableCell(view(partial))).toBe(false);
+  });
+
+  describe("insertListContinuationFallback(官方续行命令失败时的兜底)", () => {
+    function runFallback(doc: string, head: number): { handled: boolean; doc: string } {
+      let next: EditorState | null = null;
+      const view = {
+        state: createState(doc, EditorSelection.cursor(head)),
+        dispatch(spec: Parameters<EditorState["update"]>[0]) {
+          next = (next ?? view.state).update(spec as never).state;
+        },
+      } as unknown as EditorView;
+      const handled = insertListContinuationFallback(view);
+      return { handled, doc: (next ?? view.state).doc.toString() };
+    }
+
+    it("无序列表项行末 Enter 插入同级新列表项", () => {
+      const doc = "- 甲\n- 乙\n";
+      const head = doc.indexOf("乙") + 1; // 行尾
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- 甲\n- 乙\n- \n");
+    });
+
+    it("缩进列表项续行保留缩进", () => {
+      const doc = "- 甲\n  - 乙\n";
+      const head = doc.indexOf("乙") + 1;
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- 甲\n  - 乙\n  - \n");
+    });
+
+    it("有序列表续行序号递增", () => {
+      const doc = "1. 甲\n2. 乙\n";
+      const head = doc.indexOf("乙") + 1;
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("1. 甲\n2. 乙\n3. \n");
+    });
+
+    it("任务项续行补 checkbox", () => {
+      const doc = "- [ ] 甲\n- [x] 乙\n";
+      const head = doc.indexOf("乙") + 1;
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- [ ] 甲\n- [x] 乙\n- [ ] \n");
+    });
+
+    it("光标在列表中间(非行尾)不续行", () => {
+      const doc = "- 甲乙丙\n- 乙\n";
+      const head = doc.indexOf("甲") + 1; // "甲" 之后(行中)
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(false);
+      expect(result.doc).toBe(doc);
+    });
+
+    it("非列表项行不续行", () => {
+      const doc = "段落一\n段落二\n";
+      const head = doc.indexOf("段落二") + 3; // 行尾
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(false);
+      expect(result.doc).toBe(doc);
+    });
   });
 });

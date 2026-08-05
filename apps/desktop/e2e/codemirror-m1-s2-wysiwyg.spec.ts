@@ -76,6 +76,12 @@ const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
 test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => {
   test.beforeEach(async ({ context, page }) => {
     await grantClipboard(context);
+    // 转发浏览器侧诊断日志(renderer 的 DEBUG-* console.log)
+    page.on("console", (message) => {
+      if (message.text().startsWith("[DEBUG-")) {
+        console.log(message.text());
+      }
+    });
     await openFixture(page);
   });
 
@@ -209,6 +215,15 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await page.locator(".cm-content").focus();
     await content.press("End");
     await content.press("Enter");
+    const afterEnter = (await diagnostics(page)).renderer!;
+    const firstItemAt = CORE_MARKDOWN.indexOf("First item");
+    console.log(
+      "[DEBUG-e03-after-enter]",
+      "head:",
+      afterEnter.selectionHead,
+      "md:",
+      JSON.stringify(afterEnter.markdown?.slice(Math.max(0, firstItemAt - 15), firstItemAt + 30)),
+    );
     await content.pressSequentially("Added");
     await expect
       .poll(async () => (await diagnostics(page)).renderer!.markdown)

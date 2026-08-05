@@ -1,7 +1,7 @@
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
 import { indentUnit } from "@codemirror/language";
-import { Prec, type EditorState, type StateCommand } from "@codemirror/state";
-import { keymap, type Command } from "@codemirror/view";
+import { EditorSelection, Prec, type EditorState, type StateCommand } from "@codemirror/state";
+import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import {
@@ -36,7 +36,31 @@ export function createMarkdownStructuredCommandExtensions() {
     keymap.of([
       {
         key: "Enter",
-        run: (view) => enterSelectedTableCell(view) || viewCommand(continueMarkdownMarkup)(view),
+        run: (view) => {
+          let tableResult = false;
+          let markupResult = false;
+          try {
+            tableResult = enterSelectedTableCell(view);
+            markupResult = viewCommand(continueMarkdownMarkup)(view);
+          } catch (error) {
+            // 官方命令在投影模式下偶发抛异常(CM 吞掉后走默认换行);
+            // 捕获后仍交给 fallback,保证列表续行语义
+            console.log("[DEBUG-enter-threw]", String(error));
+          }
+          const fallbackResult = markupResult ? false : insertListContinuationFallback(view);
+          console.log(
+            "[DEBUG-enter-chain]",
+            "table:",
+            tableResult,
+            "markup:",
+            markupResult,
+            "fallback:",
+            fallbackResult,
+            "headAfter:",
+            view.state.selection.main.head,
+          );
+          return tableResult || markupResult || fallbackResult;
+        },
       },
       { key: "Backspace", run: viewCommand(deleteMarkdownMarkupBackward) },
       { key: "Delete", run: viewCommand(deleteMarkdownAtomForward) },
@@ -164,6 +188,91 @@ export const moveMarkdownAtomDown: Command = (view) => moveAtomVertically(view, 
 export const clearMarkdownAtomSelection: StateCommand = guarded(clearSelectedAtoms);
 export const indentMarkdownList: StateCommand = guarded(indentListItems);
 export const outdentMarkdownList: StateCommand = guarded(outdentListItems);
+
+/**
+ * 列表项行末 Enter 的兜底续行:官方 insertNewlineContinueMarkup 在
+ * wysiwyg 投影模式下偶发判定失败(语法树/语言状态时序差异,macOS
+ * headless 上稳定复现),此时手动插入同缩进同 marker 的新列表项,
+ * 保证列表编辑语义跨平台一致。
+ */
+export function insertListContinuationFallback(view: EditorView): boolean {
+  const { state, dispatch } = view;
+  const { head, empty } = state.selection.main;
+  console.log(
+    "[DEBUG-fb]",
+    "head:",
+    head,
+    "lineTo:",
+    state.doc.lineAt(head).to,
+    "empty:",
+    empty,
+    "line:",
+    JSON.stringify(state.doc.lineAt(head).text),
+    "records:",
+    state.field(markdownRangeIndexField, false)?.records.length ?? "no-field",
+  );
+  if (!empty) {
+    return false;
+  }
+  const line = state.doc.lineAt(head);
+  // 光标必须在该行行尾(或行尾空白内):列表中间 Enter 交给默认换行
+  if (head < line.to && !/^\s*$/.test(state.sliceDoc(head, line.to))) {
+    console.log("[DEBUG-fb] mid-line, bailing");
+    return false;
+  }
+  const target = selectedListTargetOnLine(state, line.from, line.to);
+  if (!target) {
+    console.log("[DEBUG-fb] no list target on line");
+    return false;
+  }
+  console.log(
+    "[DEBUG-fb] target:",
+    "kind:",
+    target.record.kind,
+    "marker:",
+    target.marker.from,
+    "-",
+    target.marker.to,
+  );
+  const { record, marker, lineFrom } = target;
+  const indentation = state.sliceDoc(lineFrom, marker.from);
+  let markerText = state.sliceDoc(marker.from, marker.to);
+  // marker 后的分隔空白(如 "- " 的空格;ListMark 范围不含分隔符)
+  const afterMarker = state.sliceDoc(marker.to, line.to);
+  const separator = /^[ \t]*/.exec(afterMarker)?.[0] ?? "";
+  markerText += separator;
+  if (record.kind === "list-item-ordered") {
+    // 有序列表:序号递增(只替换数字部分,保留 marker 后的空格)
+    markerText = markerText.replace(
+      /^(\d+)([.)])/,
+      (_match, number: string, suffix: string) => `${Number(number) + 1}${suffix}`,
+    );
+  }
+  // 任务项:续行补 checkbox,保持任务列表语义
+  const taskRecord = state
+    .field(markdownRangeIndexField)
+    .overlapping(line.from, line.to)
+    .find((item) => item.kind === "task" && item.fullRange.from >= lineFrom);
+  const taskMarker = taskRecord?.markerRanges[0];
+  if (taskMarker) {
+    // 新任务行默认未勾选(不沿用原行的勾选状态)
+    const taskText = state.sliceDoc(taskMarker.from, taskMarker.to);
+    markerText += taskText.replace(/\[[ xX]\]/, "[ ]");
+    // checkbox 后的分隔空格
+    const afterTask = state.sliceDoc(taskMarker.to, line.to);
+    markerText += /^[ \t]*/.exec(afterTask)?.[0] ?? "";
+  }
+  const insert = `\n${indentation}${markerText}`;
+  dispatch(
+    state.update({
+      changes: { from: head, insert },
+      selection: EditorSelection.cursor(head + insert.length),
+      annotations: authorizeWysiwygProtectedChange.of(true),
+      userEvent: "input.insertLine",
+    }),
+  );
+  return true;
+}
 
 function selectedListTargets(state: EditorState): readonly ListLineTarget[] | null {
   const targets = new Map<number, ListLineTarget>();
