@@ -32,6 +32,12 @@
 
 .code-mirror-editor-host .cm-line {
   padding-inline: 0;
+  /* 换行兜底:CM 的 white-space: break-spaces 在部分 WebKit 版本
+     (Tauri macOS)不受支持时会退化,连续中文(无空格)因此不断行、
+     右侧溢出被裁;pre-wrap + overflow-wrap 兜底保证任意字符处可断行 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .code-mirror-editor-host .cm-focused {
