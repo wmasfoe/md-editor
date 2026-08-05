@@ -879,6 +879,12 @@ async function clickLineText(page: Page, line: Locator, text: string): Promise<v
     throw new Error(`Editable text must be rendered before clicking: ${text}`);
   }
   await page.mouse.click(point.x, point.y);
+  // 点击后确保编辑器持有焦点:macOS headless 下点击文本后焦点可能丢失,
+  // 导致后续键盘序列(End/Enter/输入)全部落空
+  await page.locator(".cm-content").focus();
+  // 等投影渲染稳定:点击把行标为 active(显示源码)是异步重建,
+  // 立即按键可能在重建中丢失(macOS 慢 runner 上 E03 间歇失败)
+  await page.waitForTimeout(50);
 }
 
 async function dragSelection(
