@@ -330,8 +330,11 @@ export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar": {
     display: "inline-flex",
     gap: "0.15em",
-    marginInlineStart: "-3.2em",
-    marginInlineEnd: "0.45em",
+    // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
+    // 可达 100px+,超出编辑器左 gutter 溢出视口;-4rem ≈ 工具栏自身宽
+    // (≈56px)+ 间隔(≈7px),保证工具栏右缘不越过行文本左缘
+    marginInlineStart: "-4rem",
+    marginInlineEnd: "0.45rem",
     opacity: "0.15",
     verticalAlign: "middle",
   },

@@ -23,7 +23,10 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
+  /* 右侧保持内容居中公式;左侧单独加大,为行首块工具栏(+ 号/拖拽手柄,
+     负边距 -3.2em + 自身宽度)预留 gutter,避免工具栏溢出遮挡文本 */
   padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
+  padding-left: max(5.25rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   caret-color: var(--theme-text, currentColor);
 }
 
