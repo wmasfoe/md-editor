@@ -196,7 +196,17 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await content.press("Shift+Tab");
     await expect.poll(async () => (await diagnostics(page)).renderer!.markdown).toBe(CORE_MARKDOWN);
 
-    await clickLineText(page, lineWithText(page, "First item"), "First item");
+    // 程序化定位到 First item(macOS headless 下点击后焦点/选区竞态会
+    // 使后续键盘序列整体失效;setSelection 是 renderer 标准端口,自带焦点)
+    await page.evaluate(
+      ([from]) => window.__MD_EDITOR_E2E__!.setSelection(from, from),
+      [firstItemFrom],
+    );
+    // 确认选区已落位再按键(组合负载下 setSelection 与按键之间偶发竞态)
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.selectionAnchor)
+      .toBe(firstItemFrom);
+    await page.locator(".cm-content").focus();
     await content.press("End");
     await content.press("Enter");
     await content.pressSequentially("Added");

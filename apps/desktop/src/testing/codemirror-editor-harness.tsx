@@ -72,6 +72,8 @@ export interface CodeMirrorEditorHarnessBridge {
   failNextClipboardWrite(message?: string): void;
   unmountEditor(): void;
   mountEditor(): void;
+  /** harness 完全就绪(React 挂载完成,controls 可用);E2E 轮询避免初始化竞态 */
+  isReady(): boolean;
 }
 
 declare global {
@@ -255,6 +257,9 @@ export function installCodeMirrorEditorHarness(
     },
     mountEditor() {
       requireControls().setEditorMounted(true);
+    },
+    isReady() {
+      return controls !== null;
     },
   });
 

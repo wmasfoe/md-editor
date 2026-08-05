@@ -11,6 +11,10 @@ async function openHarness(page: Page): Promise<void> {
   });
   await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.mountEditor());
   await expect(page.locator(".cm-editor")).toHaveCount(1);
+  // 等 harness 完全就绪(React 并发渲染下 .cm-editor 出现早于 controls 赋值)
+  await expect
+    .poll(() => page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.isReady() ?? false))
+    .toBe(true);
 }
 
 async function replaceDocument(page: Page, markdown: string): Promise<void> {
