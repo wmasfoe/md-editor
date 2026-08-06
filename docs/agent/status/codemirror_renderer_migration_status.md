@@ -72,7 +72,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
 | M3 GFM 表格 | 已验证 | renderer 21 files / 243 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；Chromium 浏览器套件 52/52 全绿（2026-08-03，B6 末尾 Enter 续写修复后）；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
 | M4 基础 HTML / 官方 MDX | 进行中 | 基础 HTML 安全投影已落地并通过 M4-E01~E04；官方 MDX 解析、白名单 registry 求值和组件 Widget 尚未开始，不能标记完成 |
-| M5 现有能力迁移 | 未开始 | 不可用 |
+| M5 现有能力迁移 | 进行中:链接✅ 块拖拽✅ 折叠✅(2026-08-06) | 部分可用 |
 | M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
 
 ## 已有可迁移能力
