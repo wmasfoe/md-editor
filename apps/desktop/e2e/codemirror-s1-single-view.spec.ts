@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const SCROLL_FIXTURE = "/fixtures/s1-scroll.md";
 const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
-const REDO_KEY = process.platform === "darwin" ? "Meta+Shift+z" : "Control+Shift+z";
+const REDO_KEY = process.platform === "darwin" ? "Meta+Shift+z" : "Control+y";
 
 test.describe("CodeMirror S1 desktop product surface", () => {
   test("E1-E3: preserves one view through modes/rerenders and emits no echo", async ({ page }) => {

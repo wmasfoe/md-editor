@@ -90,8 +90,10 @@ class BlockToolbarWidget extends WidgetType {
     add.title = this.labels.addBlock;
     add.setAttribute("aria-label", this.labels.addBlock);
     // 不进入 Tab 顺序:工具栏是鼠标辅助,避免打断编辑器的键盘可达性断言
+    // 加号图标用 CSS ::before 显示:textContent 保持空,避免按钮文本
+    // ("+")进入 .cm-line 的文本流,污染行文本(选择器/测试的严格匹配、
+    // 无障碍阅读、复制都会受影响);aria-label 提供可访问名
     add.tabIndex = -1;
-    add.textContent = "+";
     add.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -347,6 +349,9 @@ export const blockToolbarTheme = EditorView.baseTheme({
     color: "inherit",
     cursor: "pointer",
     padding: "0 0.15em",
+  },
+  ".cm-md-block-toolbar > .cm-md-block-add::before": {
+    content: "+",
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle": {
     cursor: "grab",

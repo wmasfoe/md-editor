@@ -17,6 +17,7 @@ const EDITING_FIXTURE = [
 const COPY_KEY = process.platform === "darwin" ? "Meta+c" : "Control+c";
 const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
 const REDO_KEY = process.platform === "darwin" ? "Meta+Shift+z" : "Control+y";
+const SELECT_ALL_KEY = process.platform === "darwin" ? "Meta+a" : "Control+a";
 
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor");
@@ -72,7 +73,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
 
     await language.press("Escape");
     await expect.poll(async () => (await diagnostics(page)).renderer?.focused).toBe(true);
-    await page.keyboard.press("Meta+z");
+    await page.keyboard.press(UNDO_KEY);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toBe(EDITING_FIXTURE);
@@ -81,7 +82,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
     const plain = EDITING_FIXTURE.replace("```ts meta=1", "```text meta=1");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(plain);
     await language.press("Escape");
-    await page.keyboard.press("Meta+z");
+    await page.keyboard.press(UNDO_KEY);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toBe(EDITING_FIXTURE);
@@ -171,19 +172,19 @@ test.describe("CodeMirror M2 code-block editing", () => {
     await page.keyboard.press("Enter");
     const splitFenced = EDITING_FIXTURE.replace("alpha\nbeta", "alpha\n\nbeta");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(splitFenced);
-    await page.keyboard.press("Meta+z");
+    await page.keyboard.press(UNDO_KEY);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toBe(EDITING_FIXTURE);
 
     await alpha.click();
-    await page.keyboard.press("Meta+a");
+    await page.keyboard.press(SELECT_ALL_KEY);
     const bodySelected = await diagnostics(page);
     expect(bodySelected.renderer).toMatchObject({
       selectionAnchor: EDITING_FIXTURE.indexOf("alpha"),
       selectionHead: EDITING_FIXTURE.indexOf("```", EDITING_FIXTURE.indexOf("alpha")),
     });
-    await page.keyboard.press("Meta+a");
+    await page.keyboard.press(SELECT_ALL_KEY);
     const documentSelected = await diagnostics(page);
     expect(documentSelected.renderer).toMatchObject({
       selectionAnchor: 0,
@@ -215,7 +216,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
       "    second\n    \n\nAfter",
     );
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(splitIndented);
-    await page.keyboard.press("Meta+z");
+    await page.keyboard.press(UNDO_KEY);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toBe(EDITING_FIXTURE);
