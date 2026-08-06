@@ -28,6 +28,7 @@ import type {
   RendererSyncResult,
 } from "@md-editor/editor-core";
 import { normalizeLineEndings, type Markdown } from "@md-editor/shared";
+import { codeFolding } from "@codemirror/language";
 import {
   codeBlockTokenHighlighting,
   createMarkdownLanguageSupport,
@@ -48,6 +49,7 @@ import {
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
+import { foldToggleExtension } from "./wysiwyg/fold-toggle.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -370,6 +372,7 @@ class CodeMirrorRendererController {
       history(),
       EditorState.allowMultipleSelections.of(true),
       EditorView.lineWrapping,
+      codeFolding(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
       controllerOptions.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(
@@ -387,6 +390,7 @@ class CodeMirrorRendererController {
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
       blockToolbarExtension,
+      foldToggleExtension,
       createWysiwygProjectionExtensions(
         [
           "inline-styles",
