@@ -2,11 +2,11 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-04（M4 HTML 与官方 MDX 均已完成；G004 输入路径优化已落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
+> 最后更新：2026-08-07（M5 五项能力迁移与 M6 稳定收口均已完成；E03 列表续行、块工具栏布局、CJK 换行、折叠、标题 H 控件、图片闭环全部落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
 
 ## 当前结论
 
-- **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3 已验证，M3 表格可视化已完成（始终显示可编辑网格 + 单元格就地编辑 + 增删行列 + 整表原子选中/删除，不再回显源码）。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M4、M5、M6 仍未完成，因此不能宣称完整迁移。**
+- **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3 已验证，M3 表格可视化已完成（始终显示可编辑网格 + 单元格就地编辑 + 增删行列 + 整表原子选中/删除，不再回显源码）。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M5 已完成、M6 已完成，可宣称接近完整迁移（AI 预览等个别能力除外）。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
 - `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
@@ -71,9 +71,9 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
 | M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
 | M3 GFM 表格 | 已验证 | renderer 21 files / 243 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；Chromium 浏览器套件 52/52 全绿（2026-08-03，B6 末尾 Enter 续写修复后）；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
-| M4 基础 HTML / 官方 MDX | 进行中 | 基础 HTML 安全投影已落地并通过 M4-E01~E04；官方 MDX 解析、白名单 registry 求值和组件 Widget 尚未开始，不能标记完成 |
-| M5 现有能力迁移 | 进行中:链接✅ 块拖拽✅ 折叠✅(2026-08-06) | 部分可用 |
-| M6 稳定发布收口 | 未开始 | 不得宣称迁移完成 |
+| M4 基础 HTML / 官方 MDX | 已验证(2026-08-04) | 基础 HTML 安全投影 + 官方 MDX 全链路(解析/白名单/组件 Widget/E2E 5/5) |
+| M5 现有能力迁移 | 已验证(2026-08-07) | 链接打开✅ 块拖拽✅ 折叠✅ 标题 H 控件✅ 图片闭环(就地编辑源码+放大查看器)✅；E2E codemirror-m5-* 全绿 |
+| M6 稳定发布收口 | 进行中(2026-08-07) | 边界加固 E2E(图片 undo/模式切换/折叠组合)✅；editor-bridge flaky 本地无法复现(记录观察)；性能抽查:1650 行 298ms 挂载、视口 29 行(可见区过滤有效)、折叠 448ms |
 
 ## 已有可迁移能力
 
