@@ -425,8 +425,14 @@ test.describe("CodeMirror M2 code-block editing", () => {
 
     const closingFence = lineWithText(page, "```");
     await closingFence.click({ position: { x: 6, y: 8 } });
-    await page.keyboard.press("Home");
-    await page.keyboard.press("Shift+End");
+    // 选区程序化:点击后 Home/Shift+End 在 macOS headless 输入注入不稳
+    // (N12 已知 flaky 根因),setSelection 是 renderer 标准端口,精确选中
+    // closing fence 的 3 个反引号,insertText 替换为修复后的围栏
+    const fenceStart = malformed.lastIndexOf("```");
+    await page.evaluate(
+      ([from, to]) => window.__CODEMIRROR_EDITOR_E2E__?.setSelection(from, to),
+      [fenceStart, fenceStart + 3],
+    );
     await page.keyboard.insertText("~~~");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(repaired);
     await expect(page.locator(".cm-md-code-toolbar")).toHaveCount(1);
