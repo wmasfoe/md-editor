@@ -368,9 +368,10 @@ function showImageSource(wrapper: HTMLElement, view: EditorView): void {
     // widget 的 markdownSource 字段只是图片源 URL,不是完整源码)
     const recordId = wrapper.dataset.recordId ?? "";
     const range = view ? recordRangeById(view.state, recordId) : null;
-    state.sourceInput.value = range && view
-      ? view.state.sliceDoc(range.from, range.to)
-      : (wrapper.dataset.markdownSource ?? "");
+    state.sourceInput.value =
+      range && view
+        ? view.state.sliceDoc(range.from, range.to)
+        : (wrapper.dataset.markdownSource ?? "");
     wrapper.classList.remove("cm-md-image-widget--source-invalid");
     wrapper.classList.add("cm-md-image-widget--selected");
     state.sourceRow.hidden = false;
