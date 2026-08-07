@@ -23,11 +23,14 @@ async function openHarness(page: Page): Promise<void> {
   await page.addStyleTag({
     content: ".cm-content { padding-left: 64px !important; }",
   });
-  await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.mountEditor());
-  await expect(page.locator(".cm-editor")).toHaveCount(1);
+  // 先等 harness 就绪再 mountEditor:React 并发渲染下 bridge 对象
+  // 出现早于 controls 赋值,mountEditor 需要 controls,顺序反了会抛
+  // "The CodeMirror editor harness is not ready"(macOS 慢 runner 间歇)
   await expect
     .poll(() => page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.isReady() ?? false))
     .toBe(true);
+  await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.mountEditor());
+  await expect(page.locator(".cm-editor")).toHaveCount(1);
 }
 
 async function replaceDocument(page: Page, markdown: string): Promise<void> {

@@ -15,13 +15,13 @@ const DANGEROUS_DOCUMENT = ["Before", "", "[危险](javascript:alert(1))", "", "
 
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
-  await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.mountEditor());
-  await expect(page.locator(".cm-editor")).toHaveCount(1);
-  // 等 harness 完全就绪:React 并发渲染下 .cm-editor 出现早于 controls 赋值,
-  // 立即 replaceDocument 会抛 "harness is not ready"(CI 慢机器上 L4 偶发)
+  // 先等 harness 就绪再 mountEditor(React 并发渲染下 bridge 对象
+  // 出现早于 controls 赋值,mountEditor 需要 controls;macOS 慢 runner 间歇)
   await expect
     .poll(() => page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.isReady() ?? false))
     .toBe(true);
+  await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.mountEditor());
+  await expect(page.locator(".cm-editor")).toHaveCount(1);
 }
 
 async function replaceDocument(page: Page, markdown: string): Promise<void> {
