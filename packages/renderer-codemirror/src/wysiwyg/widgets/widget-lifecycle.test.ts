@@ -375,7 +375,9 @@ describe("media widget DOM lifecycle", () => {
       active: true,
       selected: true,
     });
-    expect(updated.updateDOM(dom as unknown as HTMLElement)).toBe(true);
+    expect(updated.updateDOM(dom as unknown as HTMLElement, null as unknown as EditorView)).toBe(
+      true,
+    );
     expect(image.getAttribute("src")).toBe("asset://updated.png");
     expect(image.alt).toBe("Updated");
     expect(image.title).toBe("Caption");

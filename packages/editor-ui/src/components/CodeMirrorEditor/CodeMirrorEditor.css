@@ -300,6 +300,91 @@
   margin-left: 0.5rem;
 }
 
+/* 放大查看器按钮(图片右上角,hover 显示) */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__viewer {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.3rem 0.45rem;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  z-index: 2;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget:hover
+  .cm-md-image-widget__viewer {
+  opacity: 1;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__viewer:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* 图片源码编辑行(选中时显示在图片下方) */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source-row {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.4rem;
+  border-top: 1px solid var(--theme-border, currentColor);
+  background: var(--theme-surface, transparent);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source-row[hidden] {
+  display: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-border, currentColor);
+  border-radius: 4px;
+  background: var(--theme-bg, #fff);
+  color: var(--theme-text, currentColor);
+  font-family: var(--theme-mono-font, ui-monospace, monospace);
+  font-size: 0.82em;
+  line-height: 1.4;
+  padding: 0.25rem 0.4rem;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget--source-invalid
+  .cm-md-image-widget__source {
+  border-color: #d33;
+}
+
+/* 放大查看器浮层(全屏遮罩) */
+.code-mirror-editor-host .cm-md-image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+}
+
+.code-mirror-editor-host .cm-md-image-viewer__image {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-alt {
   display: block;
   max-width: 100%;
