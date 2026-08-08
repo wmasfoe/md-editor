@@ -1,18 +1,12 @@
 import { foldable, foldEffect, foldedRanges, unfoldEffect } from "@codemirror/language";
-import type { EditorState, Extension } from "@codemirror/state";
-import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  WidgetType,
-  type DecorationSet,
-  type ViewUpdate,
-} from "@codemirror/view";
+import type { EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
 
 /**
- * M5 折叠:标题/列表项行首折叠按钮(▾/▸),点击折叠/展开内容区。
+ * M5 折叠逻辑(渲染由 block-toolbar 的按钮承担):
+ * 标题/列表项行首折叠按钮(▾/▸),点击折叠/展开内容区。
  *
  * 折叠机制复用 CM6 官方 fold(foldEffect/unfoldEffect/foldedRanges):
  * markdown 默认 foldService 已提供 heading(ATX/Setext)与"有子项
@@ -20,31 +14,17 @@ import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
  * (不读语法树判断类型,与投影模式下的既有铁律一致)。
  */
 
-type FoldToggleKind = "heading" | "list";
+export type FoldToggleKind = "heading" | "list";
 
-interface FoldToggleRange {
+export interface FoldToggleRange {
   readonly from: number;
   readonly to: number;
   readonly lineFrom: number;
   readonly kind: FoldToggleKind;
 }
 
-export interface FoldToggleLabels {
-  readonly collapseHeading: string;
-  readonly expandHeading: string;
-  readonly collapseListItem: string;
-  readonly expandListItem: string;
-}
-
 const HEADING_KINDS = new Set(["heading-atx", "heading-setext"]);
 const LIST_ITEM_KINDS = new Set(["list-item-ordered", "list-item-unordered", "task"]);
-
-const DEFAULT_LABELS: FoldToggleLabels = {
-  collapseHeading: "折叠标题",
-  expandHeading: "展开标题",
-  collapseListItem: "折叠列表项",
-  expandListItem: "展开列表项",
-};
 
 function kindForRecord(record: MarkdownRangeRecord): FoldToggleKind | null {
   if (HEADING_KINDS.has(record.kind)) {
@@ -56,35 +36,33 @@ function kindForRecord(record: MarkdownRangeRecord): FoldToggleKind | null {
   return null;
 }
 
-/**
- * 遍历 range-index 的结构块记录,收集可折叠范围(仅 heading/列表项行,
- * 且官方 foldable 返回范围——无子项的列表项自然被排除)。
- */
-function foldToggleRanges(state: EditorState): readonly FoldToggleRange[] {
+/** 该行是否可折叠;返回折叠范围(仅 heading/有子项 list item) */
+export function foldableToggleAt(state: EditorState, lineFrom: number): FoldToggleRange | null {
   const index = state.field(markdownRangeIndexField);
-  const ranges: FoldToggleRange[] = [];
-  const seen = new Set<number>();
+  let kind: FoldToggleKind | null = null;
   for (const record of index.records) {
-    const kind = kindForRecord(record);
-    if (!kind) {
+    if (state.doc.lineAt(record.fullRange.from).from !== lineFrom) {
       continue;
     }
-    const lineFrom = state.doc.lineAt(record.fullRange.from).from;
-    if (seen.has(lineFrom)) {
-      continue;
+    const recordKind = kindForRecord(record);
+    if (recordKind) {
+      kind = recordKind;
+      break;
     }
-    seen.add(lineFrom);
-    const line = state.doc.lineAt(lineFrom);
-    const range = foldable(state, line.from, line.to);
-    if (!range) {
-      continue;
-    }
-    ranges.push({ from: range.from, to: range.to, lineFrom, kind });
   }
-  return ranges;
+  if (!kind) {
+    return null;
+  }
+  const line = state.doc.lineAt(lineFrom);
+  const range = foldable(state, line.from, line.to);
+  if (!range) {
+    return null;
+  }
+  return { from: range.from, to: range.to, lineFrom, kind };
 }
 
-function rangeIsFolded(state: EditorState, range: FoldToggleRange): boolean {
+/** 折叠范围是否已折叠 */
+export function rangeIsFolded(state: EditorState, range: FoldToggleRange): boolean {
   let folded = false;
   foldedRanges(state).between(range.from, range.to, (from, to) => {
     if (from === range.from && to === range.to) {
@@ -94,11 +72,10 @@ function rangeIsFolded(state: EditorState, range: FoldToggleRange): boolean {
   return folded;
 }
 
-function toggleFold(view: EditorView, lineFrom: number, kind: FoldToggleKind): boolean {
-  const range = foldToggleRanges(view.state).find(
-    (candidate) => candidate.lineFrom === lineFrom && candidate.kind === kind,
-  );
-  if (!range) {
+/** 切换折叠状态(已折叠则展开,否则折叠) */
+export function toggleFold(view: EditorView, lineFrom: number, kind: FoldToggleKind): boolean {
+  const range = foldableToggleAt(view.state, lineFrom);
+  if (!range || range.kind !== kind) {
     return false;
   }
   view.dispatch({
@@ -110,125 +87,40 @@ function toggleFold(view: EditorView, lineFrom: number, kind: FoldToggleKind): b
   return true;
 }
 
-class FoldToggleWidget extends WidgetType {
-  constructor(
-    readonly range: FoldToggleRange,
-    readonly collapsed: boolean,
-    readonly labels: FoldToggleLabels,
-  ) {
-    super();
-  }
-
-  eq(other: FoldToggleWidget): boolean {
-    return (
-      this.range.lineFrom === other.range.lineFrom &&
-      this.range.kind === other.range.kind &&
-      this.collapsed === other.collapsed
-    );
-  }
-
-  ignoreEvent(): boolean {
-    return false;
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const button = view.dom.ownerDocument.createElement("button");
-    const heading = this.range.kind === "heading";
-    const label = heading
-      ? this.collapsed
-        ? this.labels.expandHeading
-        : this.labels.collapseHeading
-      : this.collapsed
-        ? this.labels.expandListItem
-        : this.labels.collapseListItem;
-    button.type = "button";
-    button.className = "cm-md-fold-toggle";
-    button.dataset.collapsed = String(this.collapsed);
-    button.setAttribute("aria-expanded", String(!this.collapsed));
-    button.setAttribute("aria-label", label);
-    button.title = label;
-    // 图标走 CSS ::before(▾/▸),textContent 保持空:不污染 .cm-line
-    // 文本流(718c75f 教训)
-    button.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleFold(view, this.range.lineFrom, this.range.kind);
-    });
-    return button;
-  }
-}
-
-function foldToggleDecorations(state: EditorState, labels: FoldToggleLabels): DecorationSet {
-  const decorations = foldToggleRanges(state).flatMap((range) => {
-    const collapsed = rangeIsFolded(state, range);
-    return [
-      Decoration.line({
-        attributes: { "data-fold-collapsed": String(collapsed) },
-      }).range(range.lineFrom),
-      Decoration.widget({
-        // 行首位:-2 是块工具栏(更左),折叠按钮 -1 在其右侧、紧贴文本
-        side: -1,
-        widget: new FoldToggleWidget(range, collapsed, labels),
-      }).range(range.lineFrom),
-    ];
-  });
-  return Decoration.set(decorations, true);
-}
-
-class FoldToggleViewPlugin {
-  decorations: DecorationSet;
-
-  constructor(
-    view: EditorView,
-    readonly labels: FoldToggleLabels,
-  ) {
-    this.decorations = foldToggleDecorations(view.state, labels);
-  }
-
-  update(update: ViewUpdate): void {
-    if (
-      update.docChanged ||
-      update.transactions.some((transaction) => transaction.effects.length > 0)
-    ) {
-      this.decorations = foldToggleDecorations(update.state, this.labels);
-    }
-  }
-}
-
-/** 折叠按钮主题:低透明度,行 hover 高亮;▾/▸ 图标由伪元素渲染 */
+/** 折叠按钮主题(按钮由 block-toolbar 渲染,样式复用;三角用 CSS border 绘制) */
 export const foldToggleTheme = EditorView.baseTheme({
   ".cm-md-fold-toggle": {
     background: "transparent",
     border: "0",
     color: "inherit",
     cursor: "pointer",
-    display: "inline-block",
-    marginInlineEnd: "0.3em",
-    opacity: "0.35",
-    padding: "0 0.15em",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    // 尺寸用 rem 固定:em 会随块字号缩放(标题行 1.85em 时 1em≈31px,
+    // 0c5ea48 教训),行首控件一律 rem
+    marginInlineEnd: "0.1rem",
+    opacity: "0.4",
+    padding: "0",
+    width: "1rem",
+    height: "1rem",
   },
-  ".cm-line:hover > .cm-md-fold-toggle": {
+  ".cm-md-block-toolbar:hover .cm-md-fold-toggle": {
     opacity: "1",
   },
+  // 展开态:向下三角;折叠态:向右三角(轻量,不依赖字符字形)
   ".cm-md-fold-toggle::before": {
-    content: '"▾"',
+    content: "",
+    display: "block",
+    width: "0",
+    height: "0",
+    borderLeft: "3.5px solid transparent",
+    borderRight: "3.5px solid transparent",
+    borderTop: "5px solid currentColor",
   },
   '.cm-md-fold-toggle[data-collapsed="true"]::before': {
-    content: '"▸"',
+    borderTop: "3.5px solid transparent",
+    borderBottom: "3.5px solid transparent",
+    borderLeft: "5px solid currentColor",
   },
 });
-
-/** 折叠扩展(挂渲染层;范围与状态复用 CM6 fold) */
-export const foldToggleExtension: Extension[] = [
-  ViewPlugin.define<FoldToggleViewPlugin>(
-    (view) => new FoldToggleViewPlugin(view, DEFAULT_LABELS),
-    {
-      decorations: (plugin) => plugin.decorations,
-    },
-  ),
-  foldToggleTheme,
-];

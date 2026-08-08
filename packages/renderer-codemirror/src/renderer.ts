@@ -49,7 +49,6 @@ import {
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
-import { foldToggleExtension } from "./wysiwyg/fold-toggle.ts";
 import { headingLevelControlExtension } from "./wysiwyg/head-level-control.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
@@ -391,7 +390,6 @@ class CodeMirrorRendererController {
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
       blockToolbarExtension,
-      foldToggleExtension,
       headingLevelControlExtension,
       createWysiwygProjectionExtensions(
         [

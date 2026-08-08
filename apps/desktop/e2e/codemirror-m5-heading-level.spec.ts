@@ -5,7 +5,7 @@ const FIXTURE = ["# 标题一", "", "段落甲", "", "## 标题二", "", "段落
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 112px !important; }",
+    content: ".cm-content { padding-left: 88px !important; }",
   });
   // 先等 harness 就绪再 mountEditor(React 并发渲染竞态,本轮 3b55ee1 教训)
   await expect

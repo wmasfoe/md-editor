@@ -7,7 +7,7 @@ async function openHarness(page: Page): Promise<void> {
   // 真实桌面 App 的编辑区有左侧留白;harness 默认无 padding,给 .cm-content
   // 注入等量留白,否则块工具栏的负边距会被推出视口
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 112px !important; }",
+    content: ".cm-content { padding-left: 88px !important; }",
   });
   // 先等 harness 就绪再 mountEditor(React 并发渲染下 bridge 对象
   // 出现早于 controls 赋值,mountEditor 需要 controls;macOS 慢 runner 间歇)

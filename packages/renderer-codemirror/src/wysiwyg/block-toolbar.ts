@@ -1,4 +1,4 @@
-import { Facet, type Extension } from "@codemirror/state";
+import { Facet, type EditorState, type Extension } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -14,6 +14,13 @@ import {
   readBlockRanges,
   type BlockRange,
 } from "./block-move.ts";
+import {
+  foldToggleTheme,
+  foldableToggleAt,
+  rangeIsFolded,
+  toggleFold,
+  type FoldToggleRange,
+} from "./fold-toggle.ts";
 
 /**
  * 块工具栏与拖拽(对齐竞品 WYSIWYG 编辑器的块操作,自研实现):
@@ -63,15 +70,32 @@ function resolveLabels(state: {
 class BlockToolbarWidget extends WidgetType {
   private readonly blockFrom: number;
   private readonly labels: { addBlock: string; dragBlock: string };
+  /** 该块的可折叠范围(仅 heading/有子项 list item;null = 不可折叠) */
+  private readonly fold: FoldToggleRange | null;
+  /** 折叠状态(渲染时);eq 比较它,折叠/展开后按钮才能刷新 ▾/▸ */
+  private readonly foldCollapsed: boolean;
 
-  constructor(blockFrom: number, labels: { addBlock: string; dragBlock: string }) {
+  constructor(
+    blockFrom: number,
+    labels: { addBlock: string; dragBlock: string },
+    fold: FoldToggleRange | null,
+    foldCollapsed: boolean,
+  ) {
     super();
     this.blockFrom = blockFrom;
     this.labels = labels;
+    this.fold = fold;
+    this.foldCollapsed = foldCollapsed;
   }
 
   eq(other: BlockToolbarWidget): boolean {
-    return other instanceof BlockToolbarWidget && other.blockFrom === this.blockFrom;
+    return (
+      other instanceof BlockToolbarWidget &&
+      other.blockFrom === this.blockFrom &&
+      other.fold?.lineFrom === this.fold?.lineFrom &&
+      other.fold?.kind === this.fold?.kind &&
+      other.foldCollapsed === this.foldCollapsed
+    );
   }
 
   ignoreEvent(): boolean {
@@ -99,6 +123,31 @@ class BlockToolbarWidget extends WidgetType {
       event.stopPropagation();
       addBlockBelow(view, this.blockFrom);
     });
+    toolbar.append(add);
+
+    // 折叠按钮(仅可折叠块显示):并入工具栏,避免行首控件过多
+    // 挤占 gutter(原独立 widget 在窄 gutter 下会溢出文本区)
+    if (this.fold) {
+      const collapsed = rangeIsFolded(view.state, this.fold);
+      const fold = document.createElement("button");
+      fold.type = "button";
+      fold.className = "cm-md-fold-toggle";
+      fold.dataset.collapsed = String(collapsed);
+      fold.setAttribute("aria-expanded", String(!collapsed));
+      fold.setAttribute("aria-label", collapsed ? "展开" : "折叠");
+      fold.title = collapsed ? "展开" : "折叠";
+      fold.tabIndex = -1;
+      fold.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      fold.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleFold(view, this.blockFrom, this.fold!.kind);
+      });
+      toolbar.append(fold);
+    }
 
     const drag = document.createElement("span");
     drag.className = "cm-md-block-drag-handle";
@@ -106,16 +155,11 @@ class BlockToolbarWidget extends WidgetType {
     drag.setAttribute("aria-label", this.labels.dragBlock);
     // 不设 draggable:HTML5 拖拽源会劫持 pointer/鼠标序列,干扰编辑器的
     // 文本点击与选区(实测会导致列表结构命令失效);拖拽走 pointer 通道。
-    for (let index = 0; index < 6; index += 1) {
-      const dot = document.createElement("span");
-      dot.className = "cm-md-block-drag-dot";
-      drag.append(dot);
-    }
+    // 视觉:3 条横线由 CSS 渐变绘制(轻量,比 6 点手柄短),不产生子元素
     drag.addEventListener("pointerdown", (event) => {
       startPointerBlockDrag(view, this.blockFrom, drag, event);
     });
-
-    toolbar.append(add, drag);
+    toolbar.append(drag);
     return toolbar;
   }
 }
@@ -286,6 +330,7 @@ function startPointerBlockDrag(
 }
 
 function blockDecorationsFromRanges(
+  state: EditorState,
   blocks: readonly BlockRange[],
   labels: { addBlock: string; dragBlock: string },
 ): DecorationSet {
@@ -304,7 +349,15 @@ function blockDecorationsFromRanges(
       Decoration.widget({
         // 行首最外层 widget(side:-2),标题 H 控件等若用 side:-1 不会互相覆盖
         side: -2,
-        widget: new BlockToolbarWidget(block.from, labels),
+        widget: (() => {
+          const fold = foldableToggleAt(state, block.from);
+          return new BlockToolbarWidget(
+            block.from,
+            labels,
+            fold,
+            fold !== null && rangeIsFolded(state, fold),
+          );
+        })(),
       }).range(block.from),
     ];
   });
@@ -317,12 +370,20 @@ class BlockToolbarViewPlugin {
 
   constructor(view: EditorView) {
     this.labels = resolveLabels(view.state);
-    this.decorations = blockDecorationsFromRanges(readBlockRanges(view.state), this.labels);
+    this.decorations = blockDecorationsFromRanges(
+      view.state,
+      readBlockRanges(view.state),
+      this.labels,
+    );
   }
 
   update(update: ViewUpdate): void {
     if (update.docChanged || update.selectionSet || update.viewportChanged) {
-      this.decorations = blockDecorationsFromRanges(readBlockRanges(update.state), this.labels);
+      this.decorations = blockDecorationsFromRanges(
+        update.state,
+        readBlockRanges(update.state),
+        this.labels,
+      );
     }
   }
 }
@@ -333,9 +394,10 @@ export const blockToolbarTheme = EditorView.baseTheme({
     display: "inline-flex",
     gap: "0.15em",
     // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
-    // 可达 100px+,超出编辑器左 gutter 溢出视口;-4rem ≈ 工具栏自身宽
-    // (≈56px)+ 间隔(≈7px),保证工具栏右缘不越过行文本左缘
-    marginInlineStart: "-4rem",
+    // 可达 100px+,超出编辑器左 gutter 溢出视口;-5.5rem 与左 gutter
+    // (5.5rem = 88px)匹配,把工具栏锚到视口左缘(x≈0),给其后的
+    // 标题 H 控件留出 gutter 内空间
+    marginInlineStart: "-5.5rem",
     marginInlineEnd: "0.45rem",
     opacity: "0.15",
     verticalAlign: "middle",
@@ -356,17 +418,23 @@ export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar > .cm-md-block-drag-handle": {
     cursor: "grab",
     display: "inline-flex",
+    alignItems: "center",
+    // 3 条横线(轻量手柄):repeating-linear-gradient 画 12×10px 的三线;
+    // margin 用 rem 固定(em 随块字号缩放)
+    width: "12px",
+    height: "10px",
+    margin: "0 0.15rem",
+  },
+  ".cm-md-block-toolbar > .cm-md-block-drag-handle::before": {
+    content: "",
+    display: "block",
+    width: "12px",
+    height: "10px",
+    background: "repeating-linear-gradient(to bottom, currentColor 0 1.5px, transparent 1.5px 4px)",
+    opacity: "0.85",
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle[data-dragging]": {
     cursor: "grabbing",
-  },
-  ".cm-md-block-drag-dot": {
-    width: "2px",
-    height: "2px",
-    margin: "0 1px",
-    background: "currentColor",
-    borderRadius: "50%",
-    display: "inline-block",
   },
   ".cm-md-block-drag-ghost": {
     position: "absolute",
@@ -402,4 +470,6 @@ export const blockToolbarExtension: Extension[] = [
     decorations: (plugin) => plugin.decorations,
   }),
   blockToolbarTheme,
+  // 折叠按钮由本工具栏渲染(可折叠块),主题一并提供
+  foldToggleTheme,
 ];

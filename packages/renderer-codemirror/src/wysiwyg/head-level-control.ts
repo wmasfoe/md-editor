@@ -262,7 +262,7 @@ export const headingLevelControlTheme = EditorView.baseTheme({
     contentEditable: "false",
     display: "inline-flex",
     alignItems: "center",
-    marginInlineEnd: "0.3em",
+    marginInlineEnd: "0.1em",
     position: "relative",
   },
   ".cm-md-heading-level-button": {
@@ -272,11 +272,11 @@ export const headingLevelControlTheme = EditorView.baseTheme({
     color: "inherit",
     cursor: "pointer",
     fontFamily: "inherit",
-    fontSize: "0.72em",
+    fontSize: "0.6em",
     fontWeight: "600",
     lineHeight: "1",
     opacity: "0.5",
-    padding: "0.15em 0.3em",
+    padding: "0.08em 0.15em",
   },
   ".cm-line:hover > .cm-md-heading-level-control .cm-md-heading-level-button": {
     opacity: "1",

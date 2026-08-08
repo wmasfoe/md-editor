@@ -21,7 +21,7 @@ const FIXTURE = [
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 112px !important; }",
+    content: ".cm-content { padding-left: 88px !important; }",
   });
   // 先等 harness 就绪再 mountEditor:React 并发渲染下 bridge 对象
   // 出现早于 controls 赋值,mountEditor 需要 controls,顺序反了会抛
@@ -181,18 +181,25 @@ test.describe("M5 折叠(标题/列表项)", () => {
     await expect(page.locator(".cm-line", { hasText: "段落甲" })).toHaveCount(1);
   });
 
-  test("F6: 折叠按钮与块工具栏共存,不重叠", async ({ page }) => {
+  test("F6: 折叠按钮并入块工具栏,可见可点击", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
     const headingLine = page.locator(".cm-line", { hasText: "标题一" }).first();
     await headingLine.hover();
-    const toolbarBox = await headingLine.locator(".cm-md-block-toolbar").first().boundingBox();
-    const toggleBox = await headingLine.locator(".cm-md-fold-toggle").first().boundingBox();
-    expect(toolbarBox).not.toBeNull();
+    const toolbar = headingLine.locator(".cm-md-block-toolbar").first();
+    const toggle = headingLine.locator(".cm-md-fold-toggle");
+    await expect(toolbar).toHaveCount(1);
+    await expect(toggle).toHaveCount(1);
+    // 折叠按钮渲染在工具栏内(并排控件布局由布局诊断覆盖)
+    const toolbarBox = await toolbar.boundingBox();
+    const toggleBox = await toggle.boundingBox();
     expect(toggleBox).not.toBeNull();
-    // 折叠按钮在工具栏右侧(不重叠)
-    expect(toggleBox!.x).toBeGreaterThanOrEqual(toolbarBox!.x + toolbarBox!.width - 1);
+    expect(toolbarBox).not.toBeNull();
+    expect(toggleBox!.x).toBeGreaterThanOrEqual(toolbarBox!.x);
+    expect(toggleBox!.x + toggleBox!.width).toBeLessThanOrEqual(
+      toolbarBox!.x + toolbarBox!.width + 1,
+    );
   });
 
   test("F7: 折叠图标是伪元素,不污染 .cm-line 文本", async ({ page }) => {
