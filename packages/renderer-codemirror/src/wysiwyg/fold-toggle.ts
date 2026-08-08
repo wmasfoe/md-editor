@@ -110,7 +110,9 @@ export const foldToggleTheme = EditorView.baseTheme({
   },
   // 展开态:向下三角;折叠态:向右三角(轻量,不依赖字符字形)
   ".cm-md-fold-toggle::before": {
-    content: "",
+    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
+    // 丢弃无引号 content 值,伪元素不渲染)
+    content: '""',
     display: "block",
     width: "0",
     height: "0",

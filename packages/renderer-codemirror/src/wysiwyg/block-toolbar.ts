@@ -426,7 +426,9 @@ export const blockToolbarTheme = EditorView.baseTheme({
     color: "var(--theme-accent, inherit)",
   },
   ".cm-md-block-toolbar > .cm-md-block-add::before": {
-    content: "+",
+    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
+    // 会丢弃无引号的 content 值,导致 ::before 图标不渲染)
+    content: '"+"',
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle": {
     cursor: "grab",
@@ -441,7 +443,9 @@ export const blockToolbarTheme = EditorView.baseTheme({
     padding: "0 1px",
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle::before": {
-    content: "",
+    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
+    // 丢弃无引号 content 值,伪元素不渲染)
+    content: '""',
     display: "block",
     width: "12px",
     height: "10px",
