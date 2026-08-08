@@ -141,6 +141,9 @@ class HeadingLevelWidget extends WidgetType {
     const control = document.createElement("span");
     const levelLabel = `H${this.heading.level}`;
     control.className = "cm-md-heading-level-control";
+    // widget 仅在"聚焦 + 光标在标题行"时渲染(activeHeading 门控),
+    // 故 data-active 恒为 true,驱动 V2 聚焦高亮样式
+    control.dataset.active = "true";
     control.contentEditable = "false";
 
     const toggle = controlButton(document, "cm-md-heading-level-button", `标题级别 ${levelLabel}`);
@@ -267,20 +270,27 @@ export const headingLevelControlTheme = EditorView.baseTheme({
   },
   ".cm-md-heading-level-button": {
     background: "transparent",
-    border: "0",
-    borderRadius: "3px",
+    border: "1px dashed var(--theme-border-strong, currentColor)",
+    borderRadius: "999px",
     color: "inherit",
     cursor: "pointer",
     fontFamily: "inherit",
     // 字号用 rem 固定(em 随标题字号缩放,0.6em 在 1.85em 标题下 ≈18px,
-    // 0c5ea48 教训):0.7rem 轻量,不随块字号膨胀
-    fontSize: "0.7rem",
+    // 0c5ea48 教训):0.62rem 轻量,不随块字号膨胀
+    fontSize: "0.62rem",
     fontWeight: "600",
     lineHeight: "1",
     opacity: "0.5",
-    padding: "0.1rem 0.15rem",
+    padding: "0.08rem 0.25rem",
   },
   ".cm-line:hover > .cm-md-heading-level-control .cm-md-heading-level-button": {
+    opacity: "1",
+  },
+  // V2:聚焦(光标在标题行)时 H 控件高亮为 accent 淡色胶囊
+  ".cm-md-heading-level-control[data-active='true'] .cm-md-heading-level-button": {
+    background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
+    borderColor: "transparent",
+    color: "var(--theme-accent, inherit)",
     opacity: "1",
   },
   ".cm-md-heading-level-button:hover": {

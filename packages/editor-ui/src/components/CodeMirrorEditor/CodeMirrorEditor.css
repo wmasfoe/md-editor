@@ -24,11 +24,10 @@
   width: 100%;
   min-height: 100%;
   /* 右侧保持内容居中公式;左侧单独加大,为行首块控件预留 gutter:
-     块工具栏(+ 号 + 折叠 + 3 横线拖拽手柄,≈52px)+ 标题 H 控件
-     (≈28px)+ 间隙 ≈ 84px,5.5rem = 88px(控件尺寸均已 rem 固定,
-     不再随块字号膨胀,故可从 6.5rem 缩到 5.5rem) */
+     悬浮胶囊工具栏(≈58px)+ 标题 H 控件(≈24px)+ 锚 16px ≈ 98px,
+     5.75rem = 92px(胶囊视觉紧致,可接受比 88px 略大) */
   padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
-  padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
+  padding-left: max(5.75rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   caret-color: var(--theme-text, currentColor);
 }
 

@@ -392,16 +392,22 @@ class BlockToolbarViewPlugin {
 export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar": {
     display: "inline-flex",
-    gap: "0.15em",
+    gap: "0",
     // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
     // 可达 100px+,超出编辑器左 gutter 溢出视口;-4.5rem(锚 ≈16px)是
     // 安全下限:负边距继续加大使工具栏贴视口左缘(x≤8)会触发 CM6 对
     // 负 margin 行首 widget 的坐标测量 bug(点击块首行光标落错行,
     // G005 回归;锚 ≥16 时安全)
     marginInlineStart: "-4.5rem",
-    marginInlineEnd: "0.2rem",
+    marginInlineEnd: "0.25rem",
     opacity: "0.15",
     verticalAlign: "middle",
+    // V2 分组悬浮胶囊:整体一个视觉单元,hover 显现
+    background: "var(--theme-surface, var(--theme-bg, #ffffff))",
+    border: "1px solid var(--theme-border, currentColor)",
+    borderRadius: "999px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
+    padding: "2px 4px",
   },
   ".cm-line:hover > .cm-md-block-toolbar, .cm-md-block-toolbar:focus-within": {
     opacity: "1",
@@ -409,9 +415,15 @@ export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar > button": {
     background: "transparent",
     border: "0",
+    borderRadius: "999px",
     color: "inherit",
     cursor: "pointer",
-    padding: "0 0.15em",
+    lineHeight: "1",
+    padding: "0 2px",
+  },
+  ".cm-md-block-toolbar > button:hover": {
+    background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
+    color: "var(--theme-accent, inherit)",
   },
   ".cm-md-block-toolbar > .cm-md-block-add::before": {
     content: "+",
@@ -422,9 +434,11 @@ export const blockToolbarTheme = EditorView.baseTheme({
     alignItems: "center",
     // 3 条横线(轻量手柄):repeating-linear-gradient 画 12×10px 的三线;
     // margin 用 rem 固定(em 随块字号缩放)
-    width: "12px",
-    height: "10px",
-    margin: "0 0.15rem",
+    width: "13px",
+    height: "11px",
+    margin: "0 2px",
+    borderRadius: "999px",
+    padding: "0 1px",
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle::before": {
     content: "",
@@ -433,6 +447,10 @@ export const blockToolbarTheme = EditorView.baseTheme({
     height: "10px",
     background: "repeating-linear-gradient(to bottom, currentColor 0 1.5px, transparent 1.5px 4px)",
     opacity: "0.85",
+  },
+  ".cm-md-block-toolbar > .cm-md-block-drag-handle:hover": {
+    background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
+    color: "var(--theme-accent, inherit)",
   },
   ".cm-md-block-toolbar > .cm-md-block-drag-handle[data-dragging]": {
     cursor: "grabbing",

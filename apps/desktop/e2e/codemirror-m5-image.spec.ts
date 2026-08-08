@@ -8,7 +8,7 @@ const FIXTURE_FOLDED = ["# 可折叠标题", "", '![猫](cat.png "一只猫")', 
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 88px !important; }",
+    content: ".cm-content { padding-left: 92px !important; }",
   });
   // 先等 harness 就绪再 mountEditor(React 并发渲染竞态,3b55ee1 教训)
   await expect
