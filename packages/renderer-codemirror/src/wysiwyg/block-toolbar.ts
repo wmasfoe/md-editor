@@ -394,11 +394,12 @@ export const blockToolbarTheme = EditorView.baseTheme({
     display: "inline-flex",
     gap: "0.15em",
     // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
-    // 可达 100px+,超出编辑器左 gutter 溢出视口;-5.5rem 与左 gutter
-    // (5.5rem = 88px)匹配,把工具栏锚到视口左缘(x≈0),给其后的
-    // 标题 H 控件留出 gutter 内空间
-    marginInlineStart: "-5.5rem",
-    marginInlineEnd: "0.45rem",
+    // 可达 100px+,超出编辑器左 gutter 溢出视口;-4.5rem(锚 ≈16px)是
+    // 安全下限:负边距继续加大使工具栏贴视口左缘(x≤8)会触发 CM6 对
+    // 负 margin 行首 widget 的坐标测量 bug(点击块首行光标落错行,
+    // G005 回归;锚 ≥16 时安全)
+    marginInlineStart: "-4.5rem",
+    marginInlineEnd: "0.2rem",
     opacity: "0.15",
     verticalAlign: "middle",
   },

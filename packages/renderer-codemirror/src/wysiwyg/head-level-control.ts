@@ -262,7 +262,7 @@ export const headingLevelControlTheme = EditorView.baseTheme({
     contentEditable: "false",
     display: "inline-flex",
     alignItems: "center",
-    marginInlineEnd: "0.1em",
+    marginInlineEnd: "0.1rem",
     position: "relative",
   },
   ".cm-md-heading-level-button": {
@@ -272,11 +272,13 @@ export const headingLevelControlTheme = EditorView.baseTheme({
     color: "inherit",
     cursor: "pointer",
     fontFamily: "inherit",
-    fontSize: "0.6em",
+    // 字号用 rem 固定(em 随标题字号缩放,0.6em 在 1.85em 标题下 ≈18px,
+    // 0c5ea48 教训):0.7rem 轻量,不随块字号膨胀
+    fontSize: "0.7rem",
     fontWeight: "600",
     lineHeight: "1",
     opacity: "0.5",
-    padding: "0.08em 0.15em",
+    padding: "0.1rem 0.15rem",
   },
   ".cm-line:hover > .cm-md-heading-level-control .cm-md-heading-level-button": {
     opacity: "1",

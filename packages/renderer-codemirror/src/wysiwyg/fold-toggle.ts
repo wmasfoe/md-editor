@@ -98,12 +98,12 @@ export const foldToggleTheme = EditorView.baseTheme({
     alignItems: "center",
     justifyContent: "center",
     // 尺寸用 rem 固定:em 会随块字号缩放(标题行 1.85em 时 1em≈31px,
-    // 0c5ea48 教训),行首控件一律 rem
+    // 0c5ea48 教训),行首控件一律 rem;0.85rem 轻量
     marginInlineEnd: "0.1rem",
     opacity: "0.4",
     padding: "0",
-    width: "1rem",
-    height: "1rem",
+    width: "0.85rem",
+    height: "0.85rem",
   },
   ".cm-md-block-toolbar:hover .cm-md-fold-toggle": {
     opacity: "1",
