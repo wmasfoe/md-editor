@@ -27,7 +27,7 @@
      悬浮胶囊工具栏(≈58px)+ 标题 H 控件(≈24px)+ 锚 16px ≈ 98px,
      5.75rem = 92px(胶囊视觉紧致,可接受比 88px 略大) */
   padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
-  padding-left: max(5.75rem, calc((100% - var(--theme-content-width, 860px)) / 2));
+  padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   caret-color: var(--theme-text, currentColor);
 }
 

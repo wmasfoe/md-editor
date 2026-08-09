@@ -270,26 +270,26 @@ export const headingLevelControlTheme = EditorView.baseTheme({
   },
   ".cm-md-heading-level-button": {
     background: "transparent",
-    border: "1px dashed var(--theme-border-strong, currentColor)",
-    borderRadius: "999px",
+    border: "0",
+    borderRadius: "0",
     color: "inherit",
     cursor: "pointer",
     fontFamily: "inherit",
     // 字号用 rem 固定(em 随标题字号缩放,0.6em 在 1.85em 标题下 ≈18px,
-    // 0c5ea48 教训):0.62rem 轻量,不随块字号膨胀
-    fontSize: "0.62rem",
-    fontWeight: "600",
+    // 0c5ea48 教训):0.6rem 轻量,不随块字号膨胀。
+    // V2 简化:级别是"状态标记"不是按钮——去掉胶囊边框/底色,退化为
+    // 弱灰小字(用户反馈要素过多:H1 胶囊标签与操作胶囊视觉重量并列)
+    fontSize: "0.6rem",
+    fontWeight: "500",
     lineHeight: "1",
-    opacity: "0.5",
-    padding: "0.08rem 0.25rem",
+    opacity: "0.35",
+    padding: "0.05rem 0.15rem",
   },
   ".cm-line:hover > .cm-md-heading-level-control .cm-md-heading-level-button": {
-    opacity: "1",
+    opacity: "0.6",
   },
-  // V2:聚焦(光标在标题行)时 H 控件高亮为 accent 淡色胶囊
+  // 聚焦(光标在标题行)时:H 标记点亮为 accent 文字(无底色,仍轻量)
   ".cm-md-heading-level-control[data-active='true'] .cm-md-heading-level-button": {
-    background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
-    borderColor: "transparent",
     color: "var(--theme-accent, inherit)",
     opacity: "1",
   },

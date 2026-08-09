@@ -21,6 +21,7 @@ import {
   toggleFold,
   type FoldToggleRange,
 } from "./fold-toggle.ts";
+import { setHeadingLevel } from "./head-level-control.ts";
 
 /**
  * 块工具栏与拖拽(对齐竞品 WYSIWYG 编辑器的块操作,自研实现):
@@ -108,22 +109,25 @@ class BlockToolbarWidget extends WidgetType {
     toolbar.className = "cm-md-block-toolbar";
     toolbar.dataset.blockFrom = String(this.blockFrom);
 
-    const add = document.createElement("button");
-    add.type = "button";
-    add.className = "cm-md-block-add";
-    add.title = this.labels.addBlock;
-    add.setAttribute("aria-label", this.labels.addBlock);
-    // 不进入 Tab 顺序:工具栏是鼠标辅助,避免打断编辑器的键盘可达性断言
-    // 加号图标用 CSS ::before 显示:textContent 保持空,避免按钮文本
-    // ("+")进入 .cm-line 的文本流,污染行文本(选择器/测试的严格匹配、
-    // 无障碍阅读、复制都会受影响);aria-label 提供可访问名
-    add.tabIndex = -1;
-    add.addEventListener("click", (event) => {
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "cm-md-block-more";
+    more.title = "块操作";
+    more.setAttribute("aria-label", "块操作");
+    more.setAttribute("aria-haspopup", "menu");
+    more.setAttribute("aria-expanded", "false");
+    // 不进入 Tab 顺序(鼠标辅助);图标用 CSS ::before 显示,
+    // textContent 保持空(718c75f 铁律:不污染 .cm-line 文本流)
+    more.tabIndex = -1;
+    more.addEventListener("pointerdown", (event) => {
+      startPointerBlockDrag(view, this.blockFrom, more, event);
+    });
+    more.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      addBlockBelow(view, this.blockFrom);
+      toggleBlockMenu(view, toolbar, more, this.blockFrom, this.fold);
     });
-    toolbar.append(add);
+    toolbar.append(more);
 
     // 折叠按钮(仅可折叠块显示):并入工具栏,避免行首控件过多
     // 挤占 gutter(原独立 widget 在窄 gutter 下会溢出文本区)
@@ -149,17 +153,6 @@ class BlockToolbarWidget extends WidgetType {
       toolbar.append(fold);
     }
 
-    const drag = document.createElement("span");
-    drag.className = "cm-md-block-drag-handle";
-    drag.setAttribute("role", "button");
-    drag.setAttribute("aria-label", this.labels.dragBlock);
-    // 不设 draggable:HTML5 拖拽源会劫持 pointer/鼠标序列,干扰编辑器的
-    // 文本点击与选区(实测会导致列表结构命令失效);拖拽走 pointer 通道。
-    // 视觉:3 条横线由 CSS 渐变绘制(轻量,比 6 点手柄短),不产生子元素
-    drag.addEventListener("pointerdown", (event) => {
-      startPointerBlockDrag(view, this.blockFrom, drag, event);
-    });
-    toolbar.append(drag);
     return toolbar;
   }
 }
@@ -169,6 +162,141 @@ interface DropTarget {
   readonly from: number;
   readonly side: "before" | "after";
   readonly depth?: number;
+}
+
+/** ⋮ 菜单状态(挂 DOM,toolbar 为键) */
+interface BlockMenuUi {
+  readonly menu: HTMLElement;
+  readonly onDocPointerDown: (event: PointerEvent) => void;
+  readonly onDocKeyDown: (event: KeyboardEvent) => void;
+}
+
+const blockMenuUi = new WeakMap<HTMLElement, BlockMenuUi>();
+
+function closeBlockMenu(toolbar: HTMLElement, more: HTMLElement | null): void {
+  const ui = blockMenuUi.get(toolbar);
+  if (!ui) {
+    return;
+  }
+  ui.menu.remove();
+  more?.setAttribute("aria-expanded", "false");
+  toolbar.ownerDocument.removeEventListener("pointerdown", ui.onDocPointerDown, true);
+  toolbar.ownerDocument.removeEventListener("keydown", ui.onDocKeyDown, true);
+  blockMenuUi.delete(toolbar);
+}
+
+function menuItem(
+  document: Document,
+  icon: string,
+  label: string,
+  className: string,
+): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `cm-md-menu-item ${className}`;
+  button.setAttribute("role", "menuitem");
+  // 菜单是行首浮层(absolute),文字不进入 .cm-line 文本流,
+  // 故 textContent 可用(718c75f 铁律只约束行内按钮)
+  button.textContent = label;
+  if (icon) {
+    const iconEl = document.createElement("span");
+    iconEl.className = "cm-md-menu-icon";
+    iconEl.textContent = icon;
+    button.prepend(iconEl);
+  }
+  return button;
+}
+
+function menuSeparator(document: Document): HTMLElement {
+  const separator = document.createElement("span");
+  separator.className = "cm-md-menu-separator";
+  separator.setAttribute("role", "separator");
+  return separator;
+}
+
+/** 打开/关闭 ⋮ 菜单(方案 B 收敛入口:添加块/折叠/级别切换) */
+function toggleBlockMenu(
+  view: EditorView,
+  toolbar: HTMLElement,
+  more: HTMLElement,
+  blockFrom: number,
+  fold: FoldToggleRange | null,
+): void {
+  if (blockMenuUi.has(toolbar)) {
+    closeBlockMenu(toolbar, more);
+    return;
+  }
+  const document = view.dom.ownerDocument;
+  const menu = document.createElement("span");
+  menu.className = "cm-md-block-menu";
+  menu.contentEditable = "false";
+  menu.setAttribute("role", "menu");
+
+  // 块操作组:添加块(原 + 号按钮收敛于此)
+  const addItem = menuItem(document, "＋", "添加块", "cm-md-menu-add");
+  addItem.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeBlockMenu(toolbar, more);
+    addBlockBelow(view, blockFrom);
+  });
+  menu.append(addItem);
+
+  // 折叠/展开(仅可折叠块)
+  if (fold) {
+    const collapsed = rangeIsFolded(view.state, fold);
+    const foldItem = menuItem(
+      document,
+      collapsed ? "▸" : "▾",
+      collapsed ? "展开" : "折叠",
+      "cm-md-menu-fold",
+    );
+    foldItem.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeBlockMenu(toolbar, more);
+      toggleFold(view, blockFrom, fold.kind);
+    });
+    menu.append(foldItem);
+  }
+
+  // 标题级别组(仅标题行;复用 head-level-control 的 marker 重写)
+  if (fold?.kind === "heading") {
+    menu.append(menuSeparator(document));
+    const labels = ["H1", "H2", "H3", "H4", "H5", "H6", "正文"];
+    for (const label of labels) {
+      const level = label === "正文" ? null : Number(label.slice(1));
+      const item = menuItem(document, "", label, "cm-md-menu-level");
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        closeBlockMenu(toolbar, more);
+        setHeadingLevel(view, blockFrom, level);
+      });
+      menu.append(item);
+    }
+  }
+
+  toolbar.append(menu);
+  more.setAttribute("aria-expanded", "true");
+  // 外部 pointerdown 关闭(捕获阶段;菜单内点击已 stopPropagation)
+  const onDocPointerDown = (event: PointerEvent): void => {
+    const target = event.target instanceof Node ? event.target : null;
+    if (target && toolbar.contains(target)) {
+      return;
+    }
+    closeBlockMenu(toolbar, more);
+  };
+  // Escape 关闭
+  const onDocKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeBlockMenu(toolbar, more);
+    }
+  };
+  document.addEventListener("pointerdown", onDocPointerDown, true);
+  document.addEventListener("keydown", onDocKeyDown, true);
+  blockMenuUi.set(toolbar, { menu, onDocPointerDown, onDocKeyDown });
 }
 
 function eventElement(event: Event): Element | null {
@@ -271,6 +399,13 @@ function startPointerBlockDrag(
   }
   event.preventDefault();
   event.stopPropagation();
+
+  // 拖拽开始时关闭该块的 ⋮ 菜单(菜单挂在本 toolbar 内)
+  const toolbar = handle.closest<HTMLElement>(".cm-md-block-toolbar");
+  if (toolbar) {
+    const more = toolbar.querySelector<HTMLElement>(".cm-md-block-more");
+    closeBlockMenu(toolbar, more);
+  }
 
   const document = view.dom.ownerDocument;
   const pointerId = event.pointerId;
@@ -392,21 +527,20 @@ class BlockToolbarViewPlugin {
 export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar": {
     display: "inline-flex",
-    gap: "0",
+    gap: "2px",
     // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
     // 可达 100px+,超出编辑器左 gutter 溢出视口;-4.5rem(锚 ≈16px)是
     // 安全下限:负边距继续加大使工具栏贴视口左缘(x≤8)会触发 CM6 对
     // 负 margin 行首 widget 的坐标测量 bug(点击块首行光标落错行,
     // G005 回归;锚 ≥16 时安全)
     marginInlineStart: "-4.5rem",
-    marginInlineEnd: "0.25rem",
+    marginInlineEnd: "0.2rem",
     opacity: "0.15",
     verticalAlign: "middle",
-    // V2 分组悬浮胶囊:整体一个视觉单元,hover 显现
-    background: "var(--theme-surface, var(--theme-bg, #ffffff))",
-    border: "1px solid var(--theme-border, currentColor)",
+    position: "relative",
+    background: "var(--theme-surface, #fff)",
+    border: "1px solid var(--theme-border)",
     borderRadius: "999px",
-    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
     padding: "2px 4px",
   },
   ".cm-line:hover > .cm-md-block-toolbar, .cm-md-block-toolbar:focus-within": {
@@ -415,49 +549,83 @@ export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar > button": {
     background: "transparent",
     border: "0",
-    borderRadius: "999px",
+    borderRadius: "4px",
     color: "inherit",
     cursor: "pointer",
     lineHeight: "1",
-    padding: "0 2px",
+    padding: "0",
   },
   ".cm-md-block-toolbar > button:hover": {
     background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
     color: "var(--theme-accent, inherit)",
   },
-  ".cm-md-block-toolbar > .cm-md-block-add::before": {
-    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
-    // 会丢弃无引号的 content 值,导致 ::before 图标不渲染)
-    content: '"+"',
+  // 占位:保持 toolbar 总宽度充足(CM6 行测量对行首 widget 总宽度敏感,
+  // 宽度塌陷会导致 posAtCoords 垂直偏移一行,G005 回归;实测 ≥~40px 安全)
+  ".cm-md-block-toolbar > .cm-md-block-more": {
+    width: "22px",
+    height: "20px",
+    opacity: "0",
   },
-  ".cm-md-block-toolbar > .cm-md-block-drag-handle": {
-    cursor: "grab",
-    display: "inline-flex",
-    alignItems: "center",
-    // 3 条横线(轻量手柄):repeating-linear-gradient 画 12×10px 的三线;
-    // margin 用 rem 固定(em 随块字号缩放)
-    width: "13px",
-    height: "11px",
-    margin: "0 2px",
-    borderRadius: "999px",
-    padding: "0 1px",
-  },
-  ".cm-md-block-toolbar > .cm-md-block-drag-handle::before": {
-    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
-    // 丢弃无引号 content 值,伪元素不渲染)
-    content: '""',
-    display: "block",
-    width: "12px",
-    height: "10px",
-    background: "repeating-linear-gradient(to bottom, currentColor 0 1.5px, transparent 1.5px 4px)",
-    opacity: "0.85",
-  },
-  ".cm-md-block-toolbar > .cm-md-block-drag-handle:hover": {
+  ".cm-line:hover > .cm-md-block-toolbar > .cm-md-block-more, .cm-md-block-more[aria-expanded='true']":
+    {
+      opacity: "0.75",
+    },
+  ".cm-md-block-more[aria-expanded='true']": {
     background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
     color: "var(--theme-accent, inherit)",
   },
-  ".cm-md-block-toolbar > .cm-md-block-drag-handle[data-dragging]": {
-    cursor: "grabbing",
+  ".cm-md-block-toolbar > .cm-md-block-more::before": {
+    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
+    // 丢弃无引号 content 值,伪元素不渲染,3e2ae09)
+    content: '"⋮"',
+    fontSize: "14px",
+    lineHeight: "1",
+  },
+  // 菜单浮层(行首下方)
+  ".cm-md-block-menu": {
+    position: "absolute",
+    left: "0",
+    top: "calc(100% + 6px)",
+    zIndex: "20",
+    background: "var(--theme-surface, var(--theme-bg, #ffffff))",
+    border: "1px solid var(--theme-border, currentColor)",
+    borderRadius: "8px",
+    boxShadow: "0 8px 28px rgba(0, 0, 0, 0.12)",
+    display: "flex",
+    flexDirection: "column",
+    minWidth: "150px",
+    padding: "5px",
+    textAlign: "left",
+  },
+  ".cm-md-menu-item": {
+    background: "transparent",
+    border: "0",
+    borderRadius: "5px",
+    color: "inherit",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    fontFamily: "inherit",
+    fontSize: "13px",
+    gap: "8px",
+    lineHeight: "1.6",
+    padding: "6px 10px",
+    textAlign: "left",
+  },
+  ".cm-md-menu-item:hover": {
+    background: "var(--theme-primary-selected, rgba(9, 105, 218, 0.12))",
+    color: "var(--theme-accent, inherit)",
+  },
+  ".cm-md-menu-icon": {
+    color: "var(--theme-muted, currentColor)",
+    fontSize: "13px",
+    textAlign: "center",
+    width: "14px",
+  },
+  ".cm-md-menu-separator": {
+    background: "var(--theme-border, currentColor)",
+    height: "1px",
+    margin: "5px 8px",
   },
   ".cm-md-block-drag-ghost": {
     position: "absolute",

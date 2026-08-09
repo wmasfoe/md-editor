@@ -21,7 +21,7 @@ const FIXTURE = [
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor&mdx=1");
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 92px !important; }",
+    content: ".cm-content { padding-left: 88px !important; }",
   });
   // 先等 harness 就绪再 mountEditor:React 并发渲染下 bridge 对象
   // 出现早于 controls 赋值,mountEditor 需要 controls,顺序反了会抛

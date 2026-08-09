@@ -100,12 +100,13 @@ export const foldToggleTheme = EditorView.baseTheme({
     // 尺寸用 rem 固定:em 会随块字号缩放(标题行 1.85em 时 1em≈31px,
     // 0c5ea48 教训),行首控件一律 rem;0.85rem 轻量
     marginInlineEnd: "0.1rem",
-    opacity: "0.4",
+    // 方案 B:折叠常驻半透明(高频操作直接可见),自身 hover 全显
+    opacity: "0.35",
     padding: "0",
     width: "0.85rem",
     height: "0.85rem",
   },
-  ".cm-md-block-toolbar:hover .cm-md-fold-toggle": {
+  ".cm-md-fold-toggle:hover": {
     opacity: "1",
   },
   // 展开态:向下三角;折叠态:向右三角(轻量,不依赖字符字形)

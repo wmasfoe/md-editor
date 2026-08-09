@@ -7,7 +7,7 @@ async function openHarness(page: Page): Promise<void> {
   // 真实桌面 App 的编辑区有左侧留白;harness 默认无 padding,给 .cm-content
   // 注入等量留白,否则块工具栏的负边距会被推出视口
   await page.addStyleTag({
-    content: ".cm-content { padding-left: 92px !important; }",
+    content: ".cm-content { padding-left: 88px !important; }",
   });
   // 先等 harness 就绪再 mountEditor(React 并发渲染下 bridge 对象
   // 出现早于 controls 赋值,mountEditor 需要 controls;macOS 慢 runner 间歇)
@@ -29,26 +29,31 @@ async function diagnostics(page: Page): Promise<{ renderer?: { markdown?: string
 }
 
 test.describe("块工具栏与拖拽(块拖拽迁移)", () => {
-  test("B1: 每个块行首渲染工具栏(加号 + 六点手柄)", async ({ page }) => {
+  test("B1: 每个块行首渲染 ⋮ 菜单按钮", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
     const toolbars = page.locator(".cm-md-block-toolbar");
-    // 标题 + 3 段落 = 4 块
+    // 4 段落块
     await expect(toolbars).toHaveCount(4);
-    await expect(page.locator(".cm-md-block-add").first()).toBeVisible();
-    await expect(page.locator(".cm-md-block-drag-handle").first()).toBeVisible();
+    // ⋮ 菜单按钮(hover 显现)
+    const line = page.locator(".cm-line", { hasText: "段落甲" }).first();
+    await line.hover();
+    await expect(line.locator(".cm-md-block-more").first()).toBeVisible();
   });
 
-  test("B2: 加号在块下方插入空行", async ({ page }) => {
+  test("B2: ⋮ 菜单的添加块在块下方插入空行", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
-    // hover 行显示工具栏(opacity 0.15 → 1),再点该行自己的加号
+    // hover 显示 ⋮,点开菜单,选"添加块"
     const line = page.locator(".cm-line", { hasText: "段落甲" }).first();
     await line.hover();
-    const addButton = line.locator(".cm-md-block-add").first();
-    await addButton.click({ force: true });
+    const more = line.locator(".cm-md-block-more").first();
+    await more.click({ force: true });
+    const menu = line.locator(".cm-md-block-menu").first();
+    await expect(menu).toBeVisible();
+    await menu.locator(".cm-md-menu-add").first().click({ force: true });
     // 块下方插入空行:文档新增一个空行(段落甲后出现空行)
     const markdownAfter = (await diagnostics(page)).renderer?.markdown ?? "";
     expect(markdownAfter).toContain("段落甲\n\n\n");
@@ -61,7 +66,7 @@ test.describe("块工具栏与拖拽(块拖拽迁移)", () => {
     // hover 显示工具栏,取"段落甲"手柄与"段落丙"行的实际位置
     const sourceLine = page.locator(".cm-line", { hasText: "段落甲" }).first();
     await sourceLine.hover();
-    const handle = sourceLine.locator(".cm-md-block-drag-handle").first();
+    const handle = sourceLine.locator(".cm-md-block-more").first();
     const handleBox = (await handle.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
     const targetLine = page.locator(".cm-line", { hasText: "段落丙" }).first();
     const targetBox = (await targetLine.boundingBox()) ?? { x: 0, y: 0, width: 0, height: 0 };
