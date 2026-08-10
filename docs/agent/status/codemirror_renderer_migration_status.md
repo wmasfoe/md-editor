@@ -2,7 +2,7 @@
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-07（M5 五项能力迁移与 M6 稳定收口均已完成；E03 列表续行、块工具栏布局、CJK 换行、折叠、标题 H 控件、图片闭环全部落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
+> 最后更新：2026-08-10（在 M5/M6 完成基础上，追加 UI 优化与行首控件重设计：gutter 收紧至 88px、G005 点击回归根因修复（CM6 负 margin 测量）、V2 胶囊→方案 B（折叠常驻 + ⋮ 菜单收敛）、baseTheme content 引号修复、拖拽落点线全宽重设计、残留胶囊背景与控件垂直对齐修复，均经用户截图验收，97 E2E / 641 vitest / 四关 / CI 全绿。历史摘要：E03 列表续行、块工具栏布局、CJK 换行、折叠、标题 H 控件、图片闭环全部落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
 
 ## 当前结论
 
@@ -379,3 +379,28 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - 产品验收确认原生 Save/Save As 排序、取消与编辑期间保存、dialog 打开时窗口响应、settings 窗口隔离、asset preview 状态保持、跨文档边界及相同内容文档边界没有问题。
 - 产品验收确认真实文件保存后为 LF、单一编辑器表面无 engine selector，延后能力会明确显示 unsupported 而不是静默执行。本轮未报告失败项或未测项。
 - 结论：该轮验收确认 S1 单实例与数据同步及 M0 CM6 单编辑器主链路达到功能体验 beta 门槛。其后的 M1/S2 与 M1-FM/S5-FM-only 进展按本文顶部状态表记账；M6 稳定发布收口仍未完成。
+
+## UI 优化与行首控件重设计（2026-08-08 ~ 08-10，用户反馈驱动）
+
+### 背景与目标
+M5/M6 完成后，用户对行首控件区提出三点反馈：`.cm-content` 左 padding 过大、折叠 icon 太大、拖拽手柄（六点）太长。随后通过 claude-design 方法论（Surface 声明 = Operate、从现有主题提取视觉词汇、3 方向变体稿、用户选定）完成行首控件的收敛式重设计。
+
+### 提交链与关键决策
+- `0427757`（style: slimmer row-lead controls）：gutter 104→88px、折叠按钮并入块工具栏、拖拽手柄改 3 横线（CSS 渐变）。**引入 G005 键盘编辑丢字符回归**（CI 失败）。
+- `2ccc80e`（fix: block toolbar negative margin triggers CM6 coord-measure bug）：G005 根因 = 块工具栏 `marginInlineStart` 把工具栏锚到视口左缘（x≤8px）时，CM6 对负 margin 行首 widget 的行坐标测量失准，点击块首行光标落错行。**铁律：锚点 ≥16px（-4.5rem）**。同时压缩控件尺寸（全部 rem 固定）保持布局。
+- `6cd45fe`（V2 pill toolbar）：按 claude-design 变体稿落地 V2 分组悬浮胶囊（折叠+添加+拖拽合并为一个胶囊，hover 整体浮现）。
+- `3e2ae09`（fix: CM6 baseTheme drops unquoted content values）：截图验证（用户要求看效果）暴露 **＋/▼/≡ 图标自 M2 起全部隐形**——CM6 baseTheme 构建器丢弃无引号 content 值，规则注入成空壳 `{ }`。修复：content 一律带引号字面量（`'""'` / `'"+"'`）。**新铁律：视觉类改动必须截图验证；baseTheme 的 content 必须带引号**。
+- `100c27b`（方案 B：fold always visible, ⋮ menu）：用户反馈"要素过多"→ 重设计收敛：折叠（高频）独立常驻半透明；其余操作（添加块/折叠/级别切换 H1-H6）收敛进 ⋮ 菜单（新轻量浮层菜单，外部 pointerdown/Escape 关闭）；拖拽并入 ⋮（按住拖）；H 标记去胶囊化（弱灰小字，保留点击切级别）；gutter 88px。**深坑：toolbar DOM 重构必须同步 theme——残留无样式元素（drag-handle span）使 toolbar 总宽度塌陷，再次触发 CM6 测量 bug**（toolbar 总宽需 ≥~40px）。
+- `fba6876`（drop indicator spans full editor width with left dot anchor）：用户反馈拖拽落点指示线"偏右"→ 根因：指示线取目标行 `.cm-line` rect.left（文本起点 88px 后），左侧空出 gutter。重设计（方案 A）：线从编辑区左缘 0 延伸到文本右缘 + 左端 10px 圆点锚（2px 表面色描边）；指示线与 ghost 定位全部改为相对 view.dom 坐标（修掉客户端坐标直用的潜在错位，桌面分栏场景必现）。
+- `4fa2ce9`（remove leftover pill background）：用户截图发现行首仍残留白色胶囊框（V2 实验 patch 随 WIP 快照混入方案 B theme）。修复后宽度再次塌陷 → ⋮ 22→30px 补足测量宽度。
+- `0f30bfa`（align ⋮ and fold toggle centers）：用户截图发现 ⋮（20px）与折叠三角（13.6px）垂直中心差 3.2px（flex 默认顶对齐）。修复：toolbar `align-items: center`，两控件中心精确对齐。
+
+### 验证证据
+- 布局诊断：锚 16px、H 控件右缘 ≤ 文本起点（88px gutter 内）。
+- 全量 E2E 97 passed、vitest 641/641、oxlint/prettier/typecheck 四关全绿；每轮 push 后 macOS CI 全绿（含 Browser E2E）。
+- 用户截图验收 3 轮（胶囊背景、控件对齐），全部闭环。
+- 测试基线变化：E2E 96→97（B1/B2 适配 ⋮ 菜单）；block-toolbar 单测覆盖菜单/折叠/拖拽。
+
+### 遗留说明
+- Node.js 20 弃用警告（actions 强制跑 Node 24）为 CI 非阻塞提示，可后续升级 workflow。
+- 拖拽 ghost 样式（240px 上限、块文本预览）维持现状，未纳入本轮重设计。
