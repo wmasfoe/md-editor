@@ -556,11 +556,10 @@ export const blockToolbarTheme = EditorView.baseTheme({
     marginInlineEnd: "0.2rem",
     opacity: "0.15",
     verticalAlign: "middle",
+    // 方案 B:无胶囊容器,控件平铺(折叠常驻 + ⋮ hover 显现);
+    // 无 background/border/padding——残留胶囊背景会导致行首
+    // 出现一个白色圆角框,与用户确认的"要素收敛"方向相悖
     position: "relative",
-    background: "var(--theme-surface, #fff)",
-    border: "1px solid var(--theme-border)",
-    borderRadius: "999px",
-    padding: "2px 4px",
   },
   ".cm-line:hover > .cm-md-block-toolbar, .cm-md-block-toolbar:focus-within": {
     opacity: "1",
@@ -581,7 +580,10 @@ export const blockToolbarTheme = EditorView.baseTheme({
   // 占位:保持 toolbar 总宽度充足(CM6 行测量对行首 widget 总宽度敏感,
   // 宽度塌陷会导致 posAtCoords 垂直偏移一行,G005 回归;实测 ≥~40px 安全)
   ".cm-md-block-toolbar > .cm-md-block-more": {
-    width: "22px",
+    // 宽度 30px:CM6 对行首 widget 总宽度敏感(塌陷 → posAtCoords
+    // 垂直偏移一行,G005 回归;实测 toolbar 总宽需 ≥~40px),
+    // fold(13.6)+ more(30)+ gap(2)≈ 46px,无胶囊背景也安全
+    width: "30px",
     height: "20px",
     opacity: "0",
   },
