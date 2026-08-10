@@ -546,6 +546,7 @@ class BlockToolbarViewPlugin {
 export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar": {
     display: "inline-flex",
+    alignItems: "center",
     gap: "2px",
     // 用 rem(固定)而非 em:em 会随块字号缩放,标题行(1.85em+)负边距
     // 可达 100px+,超出编辑器左 gutter 溢出视口;-4.5rem(锚 ≈16px)是
