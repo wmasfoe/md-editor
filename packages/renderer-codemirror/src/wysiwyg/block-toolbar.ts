@@ -353,6 +353,18 @@ function clearBlockDragUi(view: EditorView): void {
   blockDragUi.delete(view);
 }
 
+/** 指示线/ghost 是 view.dom 的 absolute 子元素:定位必须用相对
+ *  view.dom 的坐标(客户端坐标直接赋值会在编辑器不在视口左缘时错位,
+ *  桌面 App 侧边栏/分栏场景必现)。 */
+function toViewCoords(
+  view: EditorView,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } {
+  const viewRect = view.dom.getBoundingClientRect();
+  return { x: clientX - viewRect.left, y: clientY - viewRect.top };
+}
+
 function startBlockDragUi(view: EditorView, sourceFrom: number, event: MouseEvent): void {
   clearBlockDragUi(view);
   const document = view.dom.ownerDocument;
@@ -363,8 +375,9 @@ function startBlockDragUi(view: EditorView, sourceFrom: number, event: MouseEven
   indicator.dataset.show = "false";
   ghost.className = "cm-md-block-drag-ghost";
   ghost.textContent = source?.textContent?.trim() || "块";
-  ghost.style.left = `${event.clientX + 12}px`;
-  ghost.style.top = `${event.clientY + 12}px`;
+  const ghostPos = toViewCoords(view, event.clientX, event.clientY);
+  ghost.style.left = `${ghostPos.x + 12}px`;
+  ghost.style.top = `${ghostPos.y + 12}px`;
   view.dom.append(indicator, ghost);
   view.dom.dataset.blockDragging = "true";
   blockDragUi.set(view, { indicator, ghost });
@@ -378,13 +391,19 @@ function updateBlockDragUi(view: EditorView, target: DropTarget, event: MouseEve
   const element = view.dom.querySelector<HTMLElement>(`.cm-line[data-block-from="${target.from}"]`);
   const rect = element?.getBoundingClientRect();
   if (rect) {
-    ui.indicator.style.left = `${rect.left}px`;
-    ui.indicator.style.top = `${target.side === "before" ? rect.top : rect.bottom}px`;
-    ui.indicator.style.width = `${rect.width}px`;
+    // 方案 A:指示线横跨编辑区(从 view.dom 左缘 0 到目标行文本右缘),
+    // 左端 10px 圆点锚定(theme ::before);不再从文本起点开始,
+    // 避免"偏右/没到头"的视觉(用户反馈)
+    const viewRect = view.dom.getBoundingClientRect();
+    const lineRight = rect.right - viewRect.left;
+    ui.indicator.style.left = "0px";
+    ui.indicator.style.width = `${Math.max(1, lineRight)}px`;
+    ui.indicator.style.top = `${(target.side === "before" ? rect.top : rect.bottom) - viewRect.top}px`;
     ui.indicator.dataset.show = "true";
   }
-  ui.ghost.style.left = `${event.clientX + 12}px`;
-  ui.ghost.style.top = `${event.clientY + 12}px`;
+  const ghostPos = toViewCoords(view, event.clientX, event.clientY);
+  ui.ghost.style.left = `${ghostPos.x + 12}px`;
+  ui.ghost.style.top = `${ghostPos.y + 12}px`;
 }
 
 /** pointer 拖拽状态机:阈值判定开始 → move 计算落点 → up 执行移动 */
@@ -648,6 +667,24 @@ export const blockToolbarTheme = EditorView.baseTheme({
     background: "var(--theme-accent, #4c8dff)",
     pointerEvents: "none",
     display: "none",
+    // 方案 A:线两端加 2px 圆角,质感更精致
+    borderRadius: "2px",
+  },
+  // 方案 A 左端锚点圆点:10px 圆,2px 表面色描边(任意背景可辨);
+  // 圆点中心对齐线起点(left 0),避免滚动容器裁剪负坐标
+  ".cm-md-block-drop-indicator::before": {
+    // content 值必须是"带引号的 CSS 字面量"(CM6 baseTheme 构建器
+    // 丢弃无引号 content 值,伪元素不渲染,3e2ae09)
+    content: '""',
+    position: "absolute",
+    left: "0",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    background: "var(--theme-accent, #4c8dff)",
+    boxShadow: "0 0 0 2px var(--theme-surface, var(--theme-bg, #ffffff))",
   },
   ".cm-md-block-drop-indicator[data-show='true']": {
     display: "block",
