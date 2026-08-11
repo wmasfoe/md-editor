@@ -392,14 +392,15 @@ function CollapsedSidebarReveal({
   return (
     <div
       className={cx(
-        "group absolute bottom-0 left-0 z-[15] w-14",
-        // 只让正文左侧 56px 成为唤起热区，避免覆盖 macOS 标题栏拖拽和红黄绿按钮。
+        // 仅按钮本身参与命中;透明唤起层不能挡住编辑器 gutter 内的 toolbar。
+        "group pointer-events-none absolute bottom-0 left-0 z-[17] w-4",
+        // 左缘窄按钮作为侧栏唤起点,避免透明热区覆盖 toolbar 和 macOS 标题栏拖拽区。
         hasTitleBar ? "top-[34px]" : "top-0",
       )}
     >
       <button
         type="button"
-        className="absolute left-1 top-1/2 grid h-14 w-10 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-7 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
+        className="pointer-events-auto absolute left-0 top-1/2 grid h-14 w-4 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
         aria-label="显示侧栏"
         title="显示侧栏"
         onPointerDown={handlePointerDown}

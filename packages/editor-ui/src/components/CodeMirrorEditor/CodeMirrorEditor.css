@@ -9,6 +9,9 @@
 .code-mirror-editor-host > .cm-editor {
   height: 100%;
   background: transparent;
+  /* 窄窗口侧栏折叠时,编辑器必须位于左侧唤起热区之上才能命中 toolbar;
+     侧栏打开时遮罩 z-index 29 / aside z-index 30 仍会覆盖编辑器。 */
+  z-index: 16;
 }
 
 .code-mirror-editor-host .cm-scroller {
@@ -23,9 +26,8 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
-  /* 右侧保持内容居中公式;左侧单独加大,为行首块控件预留 gutter:
-     悬浮胶囊工具栏(≈58px)+ 标题 H 控件(≈24px)+ 锚 16px ≈ 98px,
-     5.75rem = 92px(胶囊视觉紧致,可接受比 88px 略大) */
+  /* 右侧保持内容居中公式;左侧单独预留行首 toolbar gutter。
+      toolbar 自身统一槽位,正文起点不随块类型改变;负边距锚点仍保持在安全区。 */
   padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
   padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
   caret-color: var(--theme-text, currentColor);

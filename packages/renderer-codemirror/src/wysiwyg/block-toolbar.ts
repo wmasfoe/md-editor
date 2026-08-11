@@ -554,9 +554,14 @@ export const blockToolbarTheme = EditorView.baseTheme({
     // 负 margin 行首 widget 的坐标测量 bug(点击块首行光标落错行,
     // G005 回归;锚 ≥16 时安全)
     marginInlineStart: "-4.5rem",
-    marginInlineEnd: "0.2rem",
+    // 负边距把 toolbar 拉到正文 gutter 外;尾部补回同等占位,避免普通正文
+    // 被拉到 block widget(表格/代码块)的左侧,所有块共享同一正文起点
+    marginInlineEnd: "calc(4.5rem - 0.95rem - 32px)",
     opacity: "0.15",
     verticalAlign: "middle",
+    // 所有块统一预留折叠按钮槽位,避免可折叠标题比普通段落多出一段正文缩进;
+    // 30px more + 0.85rem fold + 0.1rem fold margin + 2px gap
+    minWidth: "calc(30px + 0.95rem + 2px)",
     // 方案 B:无胶囊容器,控件平铺(折叠常驻 + ⋮ hover 显现);
     // 无 background/border/padding——残留胶囊背景会导致行首
     // 出现一个白色圆角框,与用户确认的"要素收敛"方向相悖
@@ -583,7 +588,12 @@ export const blockToolbarTheme = EditorView.baseTheme({
   ".cm-md-block-toolbar > .cm-md-block-more": {
     // 宽度 30px:CM6 对行首 widget 总宽度敏感(塌陷 → posAtCoords
     // 垂直偏移一行,G005 回归;实测 toolbar 总宽需 ≥~40px),
-    // fold(13.6)+ more(30)+ gap(2)≈ 46px,无胶囊背景也安全
+    // fold(13.6)+ fold margin(1.6)+ more(30)+ gap(2)≈ 47px,无胶囊背景也安全
+    // 伪元素是按钮唯一内容;用 flex 居中,避免标题字号继承的 line-height
+    // 让行内字形按基线排版并从固定高度的按钮底部溢出
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
     width: "30px",
     height: "20px",
     opacity: "0",
