@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const sourceRoot = new URL("../src", import.meta.url);
@@ -47,7 +48,7 @@ describe("AI package boundary", () => {
 });
 
 function sourceFiles(root: URL): string[] {
-  return listFiles(root.pathname).filter(
+  return listFiles(fileURLToPath(root)).filter(
     (file) => extname(file) === ".ts" || extname(file) === ".tsx",
   );
 }

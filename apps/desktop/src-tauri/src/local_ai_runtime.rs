@@ -74,6 +74,12 @@ impl LocalAiRuntimeManager {
         if let Some(parent) = sidecar_path.parent() {
             command.current_dir(parent);
         }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
         apply_runtime_library_paths(&mut command, &sidecar_path);
 
         let mut child = command.spawn().map_err(|error| {

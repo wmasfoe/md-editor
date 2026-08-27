@@ -22,9 +22,11 @@ test.describe("M5 大纲跳转 (Outline Jump)", () => {
     // 1. 点击标题栏大纲按钮展开 Popover (hover 激活可见性并点击)
     const titleBarControls = page.locator(".group\\/titlebar-controls");
     await titleBarControls.hover();
-    const outlineButton = page.locator("button[title='大纲']");
-    await expect(outlineButton).toBeAttached();
-    await outlineButton.click({ force: true });
+    const outlineButton = page
+      .getByRole("button", { name: "打开大纲浮层" })
+      .or(page.locator("button[title='大纲']"));
+    await expect(outlineButton).toBeVisible();
+    await outlineButton.click();
 
     // 2. Popover 出现并展示各级标题
     const nav = page.locator("nav[aria-label='文章大纲']");
