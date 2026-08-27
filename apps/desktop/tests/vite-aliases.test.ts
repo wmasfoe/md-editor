@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { resolveConfig } from "vite";
+import { normalizePath, resolveConfig } from "vite";
 import viteConfig from "../vite.config";
 
 const importer = fileURLToPath(
@@ -39,5 +39,5 @@ async function createWorkspaceResolver(): Promise<(id: string) => Promise<string
 }
 
 function workspacePath(path: string): string {
-  return fileURLToPath(new URL(path, import.meta.url));
+  return normalizePath(fileURLToPath(new URL(path, import.meta.url)));
 }
