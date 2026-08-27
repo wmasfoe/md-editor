@@ -19,17 +19,14 @@ export interface ImageWidgetValue {
 export function parseImageMarkdownSource(
   markdown: string,
 ): { readonly alt: string; readonly source: string; readonly title: string | null } | null {
-  // src 支持 <...> 尖括号包裹(可含空格)或普通无空白形式;title 可选双引号
-  const match = /^!\[([^\]]*)\]\(\s*(?:<([^>]+)>|([^)\s]+))(?:\s+"([^"]*)")?\s*\)$/u.exec(
+  // src 支持 <...> 尖括号包裹(可含空格)或普通无空白非引号形式或空;title 可选双引号
+  const match = /^!\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s"]+))?(?:\s+"([^"]*)")?\s*\)$/u.exec(
     markdown.trim(),
   );
   if (!match) {
     return null;
   }
   const source = match[2] ?? match[3] ?? "";
-  if (!source) {
-    return null;
-  }
   return { alt: match[1], source, title: match[4] ?? null };
 }
 

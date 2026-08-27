@@ -157,4 +157,33 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await headingLine.locator(".cm-md-fold-toggle").click({ force: true });
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(1);
   });
+
+  test("I9: 空图片 ![]() 渲染失败占位样式且可就地编辑源码", async ({ page }) => {
+    await openHarness(page);
+    await replaceDocument(page, ["# 标题", "", "![]()", "", "段落", ""].join("\n"));
+
+    const image = page.locator(".cm-md-image-widget");
+    await expect(image).toHaveCount(1);
+    await expect(image).toHaveClass(/cm-md-image-widget--failed/u);
+    await expect(image.locator(".cm-md-image-widget__placeholder-title")).toHaveText(
+      "Image unavailable",
+    );
+
+    // 点击空图片原子选中，显示源码编辑行并预填 ![]()
+    await image.click({ force: true });
+    await expect(image).toHaveAttribute("aria-selected", "true");
+    const sourceRow = image.locator(".cm-md-image-widget__source-row");
+    await expect(sourceRow).toBeVisible();
+    const sourceInput = sourceRow.locator(".cm-md-image-widget__source");
+    await expect(sourceInput).toHaveValue("![]()");
+
+    // 编辑为合法图片并回车提交
+    await sourceInput.fill("![猫](cat.png)");
+    await sourceInput.press("Enter");
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer?.markdown)
+      .toContain("![猫](cat.png)");
+    await expect(page.locator(".cm-md-image-widget")).toHaveCount(1);
+  });
 });
+

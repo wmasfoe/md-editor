@@ -18,6 +18,49 @@ describe("Markdown node policy registry", () => {
       kind: "image",
       editPolicy: "atom-delete",
     });
+    expect(
+      getMarkdownNodePolicy("Image", "Paragraph", [
+        "LinkMark",
+        "LinkMark",
+        "LinkMark",
+        "LinkMark",
+      ]),
+    ).toMatchObject({
+      kind: "image",
+      renderPolicy: "image-widget",
+      editPolicy: "atom-delete",
+    });
+    expect(
+      getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark", "LinkLabel"]),
+    ).toMatchObject({
+      kind: "reference-image",
+      renderPolicy: "source-only-atom",
+    });
+    expect(getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark"])).toMatchObject({
+      kind: "reference-image",
+      renderPolicy: "source-only-atom",
+    });
+    expect(
+      getMarkdownNodePolicy("Link", "Paragraph", [
+        "LinkMark",
+        "LinkMark",
+        "LinkMark",
+        "LinkMark",
+      ]),
+    ).toMatchObject({
+      kind: "link",
+      renderPolicy: "link-segmented",
+    });
+    expect(
+      getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark", "LinkLabel"]),
+    ).toMatchObject({
+      kind: "reference-link",
+      renderPolicy: "source-only-atom",
+    });
+    expect(getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark"])).toMatchObject({
+      kind: "reference-link",
+      renderPolicy: "source-only-atom",
+    });
     expect(getMarkdownNodePolicy("HorizontalRule")).toMatchObject({
       kind: "thematic-break",
       interactionPolicy: "select-atom",

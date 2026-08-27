@@ -26,10 +26,38 @@ describe("parseImageMarkdownSource(图片 markdown 源码解析)", () => {
     });
   });
 
+  it("解析空 source 如 ![]() 和 ![猫]()", () => {
+    expect(parseImageMarkdownSource("![]()")).toEqual({
+      alt: "",
+      source: "",
+      title: null,
+    });
+    expect(parseImageMarkdownSource("![猫]()")).toEqual({
+      alt: "猫",
+      source: "",
+      title: null,
+    });
+    expect(parseImageMarkdownSource("![图](<>)")).toEqual({
+      alt: "图",
+      source: "",
+      title: null,
+    });
+    expect(parseImageMarkdownSource('![猫]( "一只猫")')).toEqual({
+      alt: "猫",
+      source: "",
+      title: "一只猫",
+    });
+  });
+
   it("容忍首尾空白", () => {
     expect(parseImageMarkdownSource("  ![猫](cat.png)  ")).toEqual({
       alt: "猫",
       source: "cat.png",
+      title: null,
+    });
+    expect(parseImageMarkdownSource("  ![]()  ")).toEqual({
+      alt: "",
+      source: "",
       title: null,
     });
   });

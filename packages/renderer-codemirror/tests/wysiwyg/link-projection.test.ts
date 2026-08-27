@@ -237,6 +237,44 @@ describe("link, image, and thematic-break projection", () => {
     expect(state.doc.toString()).toBe(doc);
   });
 
+  it("projects empty image ![]() and ![alt]() to image-widget with editable placeholder", () => {
+    const doc = "Before ![]() and ![alt]() after";
+    const { state, diagnostics } = createState(doc, EditorSelection.cursor(doc.length));
+    const images = state.field(markdownRangeIndexField).byKind("image");
+    expect(images).toHaveLength(2);
+
+    const decorations = collectDecorations(
+      state.field(wysiwygProjectionField).layoutDecorations,
+      state.doc.length,
+    ).filter((item) => item.role === "image-widget");
+    expect(decorations).toHaveLength(2);
+
+    const firstWidget = decorations[0].widget as ImageWidget;
+    expect(firstWidget.value).toMatchObject({
+      markdownSource: "",
+      previewSource: null,
+      alt: "",
+      title: null,
+      active: false,
+      selected: false,
+    });
+
+    const secondWidget = decorations[1].widget as ImageWidget;
+    expect(secondWidget.value).toMatchObject({
+      markdownSource: "",
+      previewSource: null,
+      alt: "alt",
+      title: null,
+      active: false,
+      selected: false,
+    });
+
+    expect(diagnostics.snapshot().safeFallbackDiagnosticCodes).toContain(
+      "IMAGE_PREVIEW_RESOLVE_EMPTY",
+    );
+    expect(inspectWysiwygProjection(state).atomicRangeCount).toBe(2);
+  });
+
   it("keeps thematic breaks visual and atomic while styling explicit atom selection", () => {
     const doc = "Before\n\n---\n\nAfter\n";
     const initial = createState(doc, EditorSelection.cursor(0)).state;
