@@ -3,7 +3,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiSettings } from "@md-editor/ai";
 import { DEFAULT_AI_SETTINGS, normalizeAiSettings } from "@md-editor/ai";
-import { isComposingKeyboardEvent } from "../../lib/keyboard";
+import { isComposingKeyboardEvent, isWindowsPlatform } from "../../lib/keyboard";
 
 export {
   DEFAULT_DEEPSEEK_ENDPOINT,
@@ -146,6 +146,8 @@ export const UPDATE_RELEASES_API_URL =
 export const INSTALL_WITH_CURL_COMMAND =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
 
+export const INSTALL_WITH_POWERSHELL_COMMAND =
+  "irm https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.ps1 | iex";
 export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
   mode: "system",
   light: {
@@ -540,7 +542,9 @@ export function createUpdateStatusFromGitHubReleases(
       releaseUrl: latestRelease.releaseUrl,
       downloadUrl: latestRelease.downloadUrl,
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND,
+      installCommand: isWindowsPlatform()
+        ? INSTALL_WITH_POWERSHELL_COMMAND
+        : INSTALL_WITH_CURL_COMMAND,
     };
   }
 
