@@ -10,6 +10,11 @@ import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsCont
 import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 
+import {
+  resolveCodeFontStack,
+  resolveProseFontStack,
+} from "../app/settings/app-settings";
+
 export interface DesktopCodeMirrorEditorProps {
   readonly hidden?: boolean;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -53,6 +58,8 @@ export function DesktopCodeMirrorEditor({
       document={runtime.document}
       className="min-h-0 flex-1"
       fontSize={settings.editor.wysiwygFontSize}
+      proseFontFamily={resolveProseFontStack(settings.editor.proseFontFamily)}
+      codeFontFamily={resolveCodeFontStack(settings.editor.codeFontFamily)}
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
       resolveImageSrc={(source) =>

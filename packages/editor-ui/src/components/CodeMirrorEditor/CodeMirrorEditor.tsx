@@ -23,6 +23,8 @@ export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
   readonly codeBlockLineNumbers?: boolean;
   readonly fontSize?: number;
+  readonly proseFontFamily?: string;
+  readonly codeFontFamily?: string;
   readonly hidden?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
@@ -44,6 +46,8 @@ export function CodeMirrorEditor({
   document,
   codeBlockLineNumbers = false,
   fontSize,
+  proseFontFamily,
+  codeFontFamily,
   hidden = false,
   className,
   style,
@@ -158,12 +162,19 @@ export function CodeMirrorEditor({
     : undefined;
   const fontSizeStyle: CSSProperties | undefined =
     fontSize !== undefined && Number.isFinite(fontSize) && fontSize > 0 ? { fontSize } : undefined;
+  const fontStyles: CSSProperties | undefined =
+    proseFontFamily || codeFontFamily
+      ? ({
+          ...(proseFontFamily ? { "--theme-font": proseFontFamily } : {}),
+          ...(codeFontFamily ? { "--theme-mono-font": codeFontFamily } : {}),
+        } as CSSProperties)
+      : undefined;
 
   return (
     <div
       ref={hostRef}
       className={["code-mirror-editor-host", className].filter(Boolean).join(" ")}
-      style={{ ...style, ...fontSizeStyle, ...hiddenStyle }}
+      style={{ ...style, ...fontSizeStyle, ...fontStyles, ...hiddenStyle }}
       aria-label={ariaLabel}
       aria-hidden={hidden || undefined}
       data-document-generation={snapshot.documentGeneration}

@@ -17,9 +17,19 @@
 .code-mirror-editor-host .cm-scroller {
   overflow: auto;
   background: transparent;
-  font-family: var(--theme-font, system-ui, sans-serif);
+  font-family: var(
+    --theme-font,
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    system-ui,
+    sans-serif
+  );
   line-height: var(--theme-editor-line-height, 1.78);
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 .code-mirror-editor-host .cm-content {
@@ -647,6 +657,7 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line {
+  box-sizing: border-box;
   font-family: var(
     --theme-mono-font,
     ui-monospace,
@@ -656,6 +667,38 @@
     Consolas,
     monospace
   );
+  font-size: 0.88em;
+  line-height: 1.65;
+  background: var(--theme-code-bg, var(--theme-bg-muted, #f6f8fa));
+  border-left: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  border-right: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  padding-inline: 0.85rem;
+  color: var(--theme-code, var(--theme-text, currentColor));
+  outline: none;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--first {
+  padding-top: 0.45rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--last {
+  border-bottom: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--active {
+  border-left-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+  border-right-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--last.cm-md-code-line--active {
+  border-bottom-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
 }
 
 /* 行/列块手柄（Notion 式 ⋮⋮）：默认透明，悬停表格时显示。 */

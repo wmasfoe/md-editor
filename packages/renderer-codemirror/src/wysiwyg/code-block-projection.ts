@@ -153,11 +153,10 @@ export const codeBlockProjectionTheme: Extension = EditorView.baseTheme({
   },
   ".cm-md-code-line": {
     fontFamily: "var(--md-editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace)",
+    backgroundColor: "var(--theme-code-bg, var(--theme-bg-muted, transparent))",
   },
   ".cm-md-code-line--active": {
-    backgroundColor: "var(--theme-bg-muted, transparent)",
-    outline: "1px solid var(--theme-border, transparent)",
-    outlineOffset: "-1px",
+    backgroundColor: "var(--theme-code-bg, var(--theme-bg-muted, transparent))",
   },
   ".cm-md-code-structural-line-hidden": {
     height: "0",
@@ -212,8 +211,14 @@ function buildBodyLineDecorations(
     return [];
   }
   const logicalLines = collectCodeBlockLogicalLines(record, state);
-  return logicalLines.map((line) => {
+  return logicalLines.map((line, index) => {
     const classes = ["cm-md-code-line"];
+    if (index === 0) {
+      classes.push("cm-md-code-line--first");
+    }
+    if (index === logicalLines.length - 1) {
+      classes.push("cm-md-code-line--last");
+    }
     if (active) {
       classes.push("cm-md-code-line--active");
     }

@@ -1,4 +1,9 @@
-import type { AppThemeSettings, EditorDisplaySettings } from "../../app/settings/app-settings";
+import {
+  CODE_FONT_OPTIONS,
+  PROSE_FONT_OPTIONS,
+  type AppThemeSettings,
+  type EditorDisplaySettings,
+} from "../../app/settings/app-settings";
 import {
   BUILT_IN_DARK_THEME_OPTIONS,
   BUILT_IN_LIGHT_THEME_OPTIONS,
@@ -33,6 +38,14 @@ export function AppearanceSettingsPanel({
   onChooseThemeCss,
   onClearThemeCss,
 }: AppearanceSettingsPanelProps) {
+  const isCustomProse =
+    Boolean(editorSettingsDraft.proseFontFamily) &&
+    !PROSE_FONT_OPTIONS.some((opt) => opt.id === editorSettingsDraft.proseFontFamily);
+
+  const isCustomCode =
+    Boolean(editorSettingsDraft.codeFontFamily) &&
+    !CODE_FONT_OPTIONS.some((opt) => opt.id === editorSettingsDraft.codeFontFamily);
+
   return (
     <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
       <div className="mb-3">
@@ -40,12 +53,93 @@ export function AppearanceSettingsPanel({
           外观设置
         </h2>
         <p className={settingsDescriptionClassName}>
-          为亮色和暗色分别选择内置主题或自定义 CSS，应用默认跟随系统明暗。
+          为亮色和暗色分别选择内置主题或自定义 CSS，并独立配置正文与代码字体排版。
         </p>
       </div>
       <div className="grid gap-4">
-        <fieldset className="grid gap-2.5 border-0 p-0">
-          <legend className={settingsFieldLabelClassName}>编辑显示</legend>
+        <fieldset className="grid gap-3 border-0 p-0">
+          <legend className={settingsFieldLabelClassName}>编辑显示与字体排版</legend>
+
+          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+            <span className={settingsFieldLabelClassName}>正文字体</span>
+            <select
+              className={settingsInputClassName}
+              value={isCustomProse ? "custom" : editorSettingsDraft.proseFontFamily}
+              onChange={(event) => {
+                const val = event.target.value;
+                onChangeEditorSettings({
+                  ...editorSettingsDraft,
+                  proseFontFamily:
+                    val === "custom" ? (editorSettingsDraft.proseFontFamily || "PingFang SC") : val,
+                });
+              }}
+            >
+              {PROSE_FONT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom">自定义字体名称…</option>
+            </select>
+          </label>
+          {isCustomProse ? (
+            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+              <span className={settingsFieldLabelClassName}>自定义正文字体</span>
+              <input
+                type="text"
+                className={settingsInputClassName}
+                placeholder="例如：PingFang SC, LXGW WenKai, Georgia"
+                value={editorSettingsDraft.proseFontFamily}
+                onChange={(event) =>
+                  onChangeEditorSettings({
+                    ...editorSettingsDraft,
+                    proseFontFamily: event.target.value,
+                  })
+                }
+              />
+            </label>
+          ) : null}
+
+          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+            <span className={settingsFieldLabelClassName}>代码字体</span>
+            <select
+              className={settingsInputClassName}
+              value={isCustomCode ? "custom" : editorSettingsDraft.codeFontFamily}
+              onChange={(event) => {
+                const val = event.target.value;
+                onChangeEditorSettings({
+                  ...editorSettingsDraft,
+                  codeFontFamily:
+                    val === "custom" ? (editorSettingsDraft.codeFontFamily || "SF Mono") : val,
+                });
+              }}
+            >
+              {CODE_FONT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+              <option value="custom">自定义等宽字体…</option>
+            </select>
+          </label>
+          {isCustomCode ? (
+            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+              <span className={settingsFieldLabelClassName}>自定义代码字体</span>
+              <input
+                type="text"
+                className={settingsInputClassName}
+                placeholder="例如：JetBrains Mono, SF Mono, Cascadia Code"
+                value={editorSettingsDraft.codeFontFamily}
+                onChange={(event) =>
+                  onChangeEditorSettings({
+                    ...editorSettingsDraft,
+                    codeFontFamily: event.target.value,
+                  })
+                }
+              />
+            </label>
+          ) : null}
+
           <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
             <span className={settingsFieldLabelClassName}>所见即所得字号</span>
             <input

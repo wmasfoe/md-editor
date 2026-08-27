@@ -75,6 +75,13 @@ const GITHUB_LIGHT_THEME_CSS = `
   --theme-del-accent: #cf222e;
   --theme-code-accent: #116329;
   --theme-marker-dim: #6e7781;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
 }
 `;
 
@@ -122,9 +129,13 @@ const GOTHIC_LIGHT_THEME_CSS = `
   --theme-del-accent: #8c2c1a;
   --theme-code-accent: #2e6b3b;
   --theme-marker-dim: #9f9990;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
   --theme-font:
     "Century Gothic", "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial,
     "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
   --theme-content-width: 820px;
 }
 `;
@@ -173,6 +184,13 @@ const NIGHT_DARK_THEME_CSS = `
   --theme-del-accent: #f7768e;
   --theme-code-accent: #9ece6a;
   --theme-marker-dim: #565f89;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
 }
 `;
 
@@ -230,10 +248,14 @@ const PAPER_LIGHT_THEME_CSS = `
   --theme-mark: rgba(255, 205, 80, 0.36);
   /* ── 阴影 ── */
   --theme-shadow: 0 1px 2px rgba(32, 30, 28, 0.04), 0 14px 34px -24px rgba(32, 30, 28, 0.22);
-  /* ── 字体:霞鹜文楷 + 宋体/楷体回退 ── */
+  /* ── 字体体系:正文字体与代码字体分离 ── */
   --theme-font:
-    "LXGW WenKai", "LXGW WenKai GB", "Kaiti SC", "STKaiti",
-    "Songti SC", serif;
+    "LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB",
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
   --theme-content-width: 820px;
   --theme-editor-line-height: 1.88;
   /* ── 动效 Token:纸张阻尼感 ── */
@@ -297,10 +319,14 @@ const CHARCOAL_DARK_THEME_CSS = `
   --theme-mark: rgba(255, 205, 80, 0.26);
   /* ── 阴影 ── */
   --theme-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 34px -24px rgba(0, 0, 0, 0.65), 0 70px 130px -60px rgba(0, 0, 0, 0.7);
-  /* ── 字体 ── */
+  /* ── 字体体系:正文字体与代码字体分离 ── */
   --theme-font:
-    "LXGW WenKai", "LXGW WenKai GB", "Kaiti SC", "STKaiti",
-    "Songti SC", serif;
+    "LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB",
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
   --theme-content-width: 820px;
   --theme-editor-line-height: 1.88;
   /* ── 动效 Token ── */

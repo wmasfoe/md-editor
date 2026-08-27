@@ -108,7 +108,7 @@ function DocumentMetricMenu({
       </MenuButton>
       <MenuItems
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[0_14px_44px_rgba(0,0,0,0.16)] outline-none backdrop-blur-xl"
+        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
       >
         {documentMetricOptions.map((option) => (
           <MenuItem key={option.kind}>
@@ -166,10 +166,10 @@ function OutlinePopover({
           </PopoverButton>
           <PopoverPanel
             anchor={{ to: "bottom end", gap: 12, padding: 12 }}
-            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] text-[var(--theme-text)] shadow-[0_18px_56px_rgba(0,0,0,0.18)] outline-none backdrop-blur-xl"
+            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
           >
             <span
-              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)]"
+              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border)] bg-[var(--theme-surface)]"
               aria-hidden="true"
             />
             <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">

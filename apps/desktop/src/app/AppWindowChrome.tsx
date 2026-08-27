@@ -16,6 +16,7 @@ export function AppTitleBar({
   isVisible,
   titleAlign = "start",
   titleIcon,
+  className,
 }: {
   readonly actions?: ReactNode;
   readonly title?: string;
@@ -24,6 +25,7 @@ export function AppTitleBar({
   readonly isVisible: boolean;
   readonly titleAlign?: "start" | "center";
   readonly titleIcon?: "markdown";
+  readonly className?: string;
 }) {
   if (!isVisible) {
     return null;
@@ -33,7 +35,7 @@ export function AppTitleBar({
     <div
       data-tauri-drag-region
       className={cx(
-        "relative h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
+        "relative h-[34px] shrink-0 select-none border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-title)] transition-colors duration-150",
         titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
         titleAlign === "center"
           ? hasWindowControlsInset
@@ -42,6 +44,7 @@ export function AppTitleBar({
           : hasWindowControlsInset
             ? "pl-[76px]"
             : "pl-3",
+        className,
       )}
       onMouseDown={startTitleBarDrag}
     >
@@ -49,14 +52,14 @@ export function AppTitleBar({
         <span
           data-tauri-drag-region
           className={cx(
-            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
+            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none tracking-tight",
             titleAlign === "center" && "col-start-2 justify-self-center",
           )}
         >
           {titleIcon === "markdown" ? <MarkdownTitleIcon /> : null}
           <span
             data-tauri-drag-region
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--theme-title)]"
           >
             {title}
             {isDirty ? "*" : ""}
@@ -79,11 +82,11 @@ export function AppTitleBar({
 function MarkdownTitleIcon() {
   return (
     <svg
-      className="size-[17px] shrink-0 text-[var(--theme-control-subtle)]"
+      className="size-[16px] shrink-0 text-[var(--theme-primary)] opacity-85"
       viewBox="0 0 24 16"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

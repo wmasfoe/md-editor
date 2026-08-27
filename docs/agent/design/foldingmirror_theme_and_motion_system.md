@@ -16,14 +16,14 @@
 - **底色与表面**：暖宣纸色 `--theme-bg: #f7f5f0`，工具栏 `--theme-chrome: #efede7`
 - **文字层级**：标题浓墨 `--theme-title: #201d19`，正文主体 `--theme-text: #38332c`，次级文本 `--theme-muted: #656057`
 - **印章强调色**：朱砂红 `--theme-primary: #6e1f2c`，柔和悬浮态 `--theme-primary-soft: rgba(110, 31, 44, 0.09)`
-- **字体栈**：霞鹜文楷为主 `"LXGW WenKai", "LXGW WenKai GB", "Kaiti SC", "STKaiti", "Songti SC", serif`
-- **行高与版心**：`--theme-editor-line-height: 1.88`，`--theme-content-width: 820px`
+- **字体栈**：霞鹜文楷 + 苹方/系统高清屏幕回退 `"LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif`
+- **行高与版心**：`--theme-editor-line-height: 1.88`，`--theme-content-width: 820px`，开启 `-webkit-font-smoothing: antialiased` 与 `text-rendering: optimizeLegibility`
 
 ### 2.2 炭焙深色（Charcoal Dark）
 - **底色与表面**：深茶/炭色 `--theme-bg: #1b1815`，侧栏 `--theme-chrome: #221e1a`
 - **文字层级**：宣纸白标题 `--theme-title: #f2ede4`，暖白正文 `--theme-text: #ddd6c9`
 - **印章强调色**：绯红 `--theme-primary: #c9576b`，填充色 `--theme-primary-fill: #a84054`
-- **字体栈**：同上文楷字体栈与 `1.88` 行高
+- **字体栈**：同上文楷 + 苹方高清屏幕回退字体栈与 `1.88` 行高
 
 ---
 
@@ -41,8 +41,10 @@
 
 ## 4. 渲染器组件交互对齐
 
-1. **三段式代码块卡片**：
-   - 顶部 Header（`.cm-md-code-toolbar`）与代码行无缝贴合；
+1. **一体化代码块卡片（Unified Code Block Card）**：
+   - 顶部 Header（`.cm-md-code-toolbar`）提供上圆角与上边框，与代码行无缝贴合；
+   - 代码行主体（`.cm-md-code-line`）提供左右边框与底色，末行（`.cm-md-code-line--last`）提供下圆角与下边框闭环；
+   - **消除行间分隔线**：行激活态（`.cm-md-code-line--active`）不采用行级 `outline`，而是与 Header 一同平滑过渡到 `--theme-border-strong` 外轮廓，保持代码块内部纯净整洁；
    - 语言徽标支持点击切换，悬浮带有 `--theme-primary-soft` 微底色；
    - 复制按钮带有状态文本徽标（`Copied` / `Copy failed`）平滑过渡。
 2. **就地表格（In-Place Table）**：

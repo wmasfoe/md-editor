@@ -94,19 +94,27 @@ describe("app settings", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
       showCodeBlockLineNumbers: false,
       wysiwygFontSize: 17,
+      proseFontFamily: "",
+      codeFontFamily: "",
     });
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
       showCodeBlockLineNumbers: true,
       wysiwygFontSize: 17,
+      proseFontFamily: "",
+      codeFontFamily: "",
     });
     expect(
       normalizeEditorDisplaySettings({
         showCodeBlockLineNumbers: "true",
         wysiwygFontSize: "20",
+        proseFontFamily: "lxgw-wenkai",
+        codeFontFamily: "jetbrains-mono",
       }),
     ).toEqual({
       showCodeBlockLineNumbers: false,
       wysiwygFontSize: 20,
+      proseFontFamily: "lxgw-wenkai",
+      codeFontFamily: "jetbrains-mono",
     });
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 8 }).wysiwygFontSize).toBe(13);
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 40 }).wysiwygFontSize).toBe(22);

@@ -97,6 +97,7 @@ test.describe("CodeMirror M2 code-block accessibility", () => {
           bodyTop: bodyRect.top,
           bodyHeight: bodyRect.height,
           lineHeight: Number.parseFloat(getComputedStyle(firstBodyLine).lineHeight),
+          borderLeftWidth: Number.parseFloat(getComputedStyle(firstBodyLine).borderLeftWidth),
           outlineWidth: Number.parseFloat(getComputedStyle(firstBodyLine).outlineWidth),
           numberContent: pseudo.content,
           numberColor: pseudo.color,
@@ -112,7 +113,8 @@ test.describe("CodeMirror M2 code-block accessibility", () => {
 
       expect(geometry.toolbarBottom).toBeLessThanOrEqual(geometry.bodyTop + 1);
       expect(geometry.bodyHeight).toBeGreaterThan(geometry.lineHeight);
-      expect(geometry.outlineWidth).toBe(1);
+      expect(geometry.borderLeftWidth).toBeGreaterThanOrEqual(1);
+      expect(geometry.outlineWidth).toBe(0);
       expect(geometry.numberContent).toBe('"1"');
       expect(geometry.numberRight).toBeLessThanOrEqual(geometry.firstTokenLeft);
       expect(geometry.horizontalOverflow).toBe(false);
