@@ -66,6 +66,7 @@ class StateBackedViewAdapter implements RendererViewAdapter {
       state: this.#state,
       transactions: [transaction],
       docChanged: transaction.docChanged,
+      selectionSet: transaction.selection !== undefined,
     } as unknown as ViewUpdate;
     for (const listener of this.#state.facet(EditorView.updateListener)) {
       listener(update);

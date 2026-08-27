@@ -37,6 +37,7 @@ export interface CodeMirrorEditorProps {
   readonly mdxComponents?: MdxComponentsLookup;
   /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
   readonly openLinkTarget?: (url: string) => void;
+  readonly onCursorLineChange?: (line: number) => void;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -57,12 +58,14 @@ export function CodeMirrorEditor({
   mdxMode = false,
   mdxComponents,
   openLinkTarget,
+  onCursorLineChange,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
 }: CodeMirrorEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<CodeMirrorEditorBridge | null>(null);
+  const { registerRendererPorts, updateActiveOutlineForLine } = useEditorUiActions();
   const callbacksRef = useRef({
     onQueuedExternalEditResult,
     onRendererPortsChange,
@@ -71,6 +74,7 @@ export function CodeMirrorEditor({
     mdxMode,
     mdxComponents,
     openLinkTarget,
+    onCursorLineChange,
     onSyncError,
   });
   callbacksRef.current = {
@@ -81,11 +85,11 @@ export function CodeMirrorEditor({
     mdxMode,
     mdxComponents,
     openLinkTarget,
+    onCursorLineChange,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
   const [syncStatus, setSyncStatus] = useState<"synchronized" | "sync-error">("synchronized");
-  const { registerRendererPorts } = useEditorUiActions();
   const subscribeSnapshot = useCallback(
     (onStoreChange: () => void) => document.subscribeSnapshot(onStoreChange),
     [document],
@@ -114,6 +118,10 @@ export function CodeMirrorEditor({
             return writer(text);
           }
         : undefined,
+      onCursorLineChange(line) {
+        callbacksRef.current.onCursorLineChange?.(line);
+        updateActiveOutlineForLine(line);
+      },
       onSyncError(error) {
         setSyncStatus("sync-error");
         callbacksRef.current.onSyncError?.(error);
@@ -135,7 +143,7 @@ export function CodeMirrorEditor({
       bridge.destroy();
       callbacksRef.current.onRendererPortsChange?.(null);
     };
-  }, [document, hasClipboardWriter, registerRendererPorts]);
+  }, [document, hasClipboardWriter, registerRendererPorts, updateActiveOutlineForLine]);
 
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);

@@ -143,5 +143,10 @@ export function EditorToast({ toast }: { readonly toast: AppToast | null }) {
 }
 
 export function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes("mac");
+  if (!isTauri()) {
+    return true;
+  }
+  const platform = (navigator.platform || "").toLowerCase();
+  const userAgent = (navigator.userAgent || "").toLowerCase();
+  return platform.includes("mac") || userAgent.includes("mac");
 }

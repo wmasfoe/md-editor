@@ -100,6 +100,33 @@ describe("editor UI instance state policy", () => {
       "useEditorUiState must be used within an EditorUiProvider.",
     );
   });
+
+  it("forwards jumpToTocItem and jumpToMarkdownFragment to registered renderer ports scrollToLine", () => {
+    let actions: EditorUiActionsContextValue | null = null;
+    renderToStaticMarkup(
+      createElement(
+        EditorUiProvider,
+        { markdown: "# Heading 1\n\n## Heading 2\n", showToast: () => {} },
+        createElement(CaptureProbe, {
+          label: "jump",
+          capture: (value) => {
+            actions = value;
+          },
+        }),
+      ),
+    );
+
+    const rendererPorts = createRendererPorts("renderer:jump");
+    const unregister = actions!.registerRendererPorts(rendererPorts);
+
+    actions!.jumpToTocItem({ line: 3, level: 2, text: "Heading 2" });
+    expect(rendererPorts.scrollToLine).toHaveBeenCalledWith(3);
+
+    actions!.jumpToMarkdownFragment("# Heading 1\n\n## Heading 2\n", "heading-2");
+    expect(rendererPorts.scrollToLine).toHaveBeenCalledWith(3);
+
+    unregister();
+  });
 });
 
 function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
@@ -119,6 +146,7 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     getSelectionSnapshot: vi.fn(() => ({ from: 0, to: 0, text: "", head: 0 })),
     focus: vi.fn(),
     setSelection: vi.fn(),
+    scrollToLine: vi.fn(() => true),
     requestMeasure: vi.fn(),
   };
 }

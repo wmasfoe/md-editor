@@ -38,7 +38,11 @@ interface RendererSetup {
 
 function createSetup(
   input: Parameters<typeof createDocumentState>[0] = {},
-  options: { readonly wireTransitions?: boolean; readonly commitLocalChanges?: boolean } = {},
+  options: {
+    readonly wireTransitions?: boolean;
+    readonly commitLocalChanges?: boolean;
+    readonly onCursorLineChange?: (line: number) => void;
+  } = {},
 ): RendererSetup {
   const document = createDocumentState(input);
   const changes: RendererSetup["changes"] = [];
@@ -60,6 +64,7 @@ function createSetup(
 
   const harness = createRendererTestHarness({
     initialSnapshot: document.getSnapshot(),
+    onCursorLineChange: options.onCursorLineChange,
     onEditorChange(change) {
       changes.push(change);
       if (options.commitLocalChanges === false) {
@@ -761,6 +766,36 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
 
     setup.harness.renderer.setHostVisibility(false);
     expect(setup.harness.probe().measureRequestCount).toBe(after.measureRequestCount);
+  });
+
+  it("R19 scrolls to the requested line, positions the cursor at line start, and notifies onCursorLineChange", () => {
+    const cursorLines: number[] = [];
+    const setup = createSetup(
+      { markdown: "# Title\n\nParagraph 1\n\n## Section 2\n\nParagraph 2\n" },
+      {
+        onCursorLineChange: (line) => cursorLines.push(line),
+      },
+    );
+
+    // Line 5 is "## Section 2"
+    const success = setup.harness.renderer.scrollToLine(5);
+    expect(success).toBe(true);
+
+    const probe = setup.harness.probe();
+    // Line 1: "# Title\n" (8 chars)
+    // Line 2: "\n" (1 char)
+    // Line 3: "Paragraph 1\n" (12 chars)
+    // Line 4: "\n" (1 char)
+    // Line 5 starts at offset 22
+    expect(probe.selectionHead).toBe(22);
+    expect(probe.selectionAnchor).toBe(22);
+    expect(probe.focused).toBe(true);
+    expect(cursorLines).toContain(5);
+
+    // Out-of-bounds line is safely clamped to last line (line 7)
+    const clampedSuccess = setup.harness.renderer.scrollToLine(999);
+    expect(clampedSuccess).toBe(true);
+    expect(setup.harness.probe().selectionHead).toBe(48);
   });
 });
 

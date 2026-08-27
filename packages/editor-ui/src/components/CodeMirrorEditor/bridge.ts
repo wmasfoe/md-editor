@@ -48,6 +48,10 @@ export interface CodeMirrorEditorPorts {
   };
   focus(): void;
   setSelection(from: number, to: number): void;
+  scrollToLine(
+    line: number,
+    options?: { readonly select?: boolean; readonly focus?: boolean },
+  ): boolean;
   requestMeasure(): void;
 }
 
@@ -82,6 +86,7 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly mdxComponents?: MdxComponentsLookup;
   /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
   readonly openLinkTarget?: (url: string) => void;
+  readonly onCursorLineChange?: (line: number) => void;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -174,6 +179,7 @@ export function createCodeMirrorEditorBridge(
     mdxMode: options.mdxMode ?? false,
     mdxComponents: options.mdxComponents,
     openLinkTarget: options.openLinkTarget,
+    onCursorLineChange: options.onCursorLineChange,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied") {
@@ -214,6 +220,8 @@ export function createCodeMirrorEditorBridge(
     getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
     focus: () => renderer.focus(),
     setSelection: (from: number, to: number) => renderer.setSelection(from, to),
+    scrollToLine: (line: number, options?: { readonly select?: boolean; readonly focus?: boolean }) =>
+      renderer.scrollToLine(line, options),
     requestMeasure: () => renderer.requestMeasure(),
   });
   rendererByPorts.set(ports, renderer);

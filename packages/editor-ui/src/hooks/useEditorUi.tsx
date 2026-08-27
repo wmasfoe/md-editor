@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
 import type { CodeMirrorEditorPorts } from "../components/CodeMirrorEditor/bridge";
 import type { OutlineItem } from "../components/OutlinePanel";
 import type { TocTarget } from "../types";
@@ -100,6 +101,28 @@ export function EditorUiProvider({ children, markdown, showToast }: EditorUiProv
     return ports === null ? unavailableRendererPorts : { status: "available", ports };
   }, []);
 
+  const jumpToTocItem = useCallback(
+    (target: Omit<TocTarget, "nonce">) => {
+      outline.jumpToTocItem(target);
+      rendererPortsRef.current?.scrollToLine(target.line);
+    },
+    [outline],
+  );
+
+  const jumpToMarkdownFragment = useCallback(
+    (targetMarkdown: string, fragment: string | null) => {
+      outline.jumpToMarkdownFragment(targetMarkdown, fragment);
+      if (fragment) {
+        const nextOutline = extractHeadingOutline(targetMarkdown);
+        const item = nextOutline.find((candidate) => candidate.id === fragment);
+        if (item) {
+          rendererPortsRef.current?.scrollToLine(item.line);
+        }
+      }
+    },
+    [outline],
+  );
+
   const state = useMemo<EditorUiStateContextValue>(
     () => ({
       outline: outline.outline,
@@ -112,16 +135,16 @@ export function EditorUiProvider({ children, markdown, showToast }: EditorUiProv
   const actions = useMemo<EditorUiActionsContextValue>(
     () => ({
       setActiveOutlineId: outline.setActiveOutlineId,
-      jumpToTocItem: outline.jumpToTocItem,
-      jumpToMarkdownFragment: outline.jumpToMarkdownFragment,
+      jumpToTocItem,
+      jumpToMarkdownFragment,
       updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
       registerRendererPorts,
       getRendererPorts,
     }),
     [
       getRendererPorts,
-      outline.jumpToMarkdownFragment,
-      outline.jumpToTocItem,
+      jumpToMarkdownFragment,
+      jumpToTocItem,
       outline.setActiveOutlineId,
       outline.updateActiveOutlineForLine,
       registerRendererPorts,

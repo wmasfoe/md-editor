@@ -283,12 +283,14 @@ function OutlinePopover({
                       title={item.text}
                       aria-current={active ? "location" : undefined}
                       onClick={() => {
-                        onJumpToOutlineItem({
-                          line: item.line,
-                          level: item.level,
-                          text: item.text,
-                        });
                         close();
+                        requestAnimationFrame(() => {
+                          onJumpToOutlineItem({
+                            line: item.line,
+                            level: item.level,
+                            text: item.text,
+                          });
+                        });
                       }}
                     >
                       <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">

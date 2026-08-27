@@ -99,6 +99,8 @@ export interface CodeMirrorRendererOptions {
   readonly onQueuedExternalEditCancelled: (
     result: Extract<ExternalEditResult, { readonly status: "cancelled" }>,
   ) => void;
+  /** 光标所在行号变更回调(1-based)，用于联动大纲等 UI 高亮 */
+  readonly onCursorLineChange?: (line: number) => void;
 }
 
 export interface ExternalEditRequest {
@@ -152,6 +154,10 @@ export interface CodeMirrorRenderer {
   };
   focus(): void;
   setSelection(from: number, to: number): void;
+  scrollToLine(
+    line: number,
+    options?: { readonly select?: boolean; readonly focus?: boolean },
+  ): boolean;
   requestMeasure(): void;
   destroy(): void;
 }
@@ -954,6 +960,40 @@ class CodeMirrorRendererController {
     });
   }
 
+  /**
+   * 滚动到指定行(1-based)并可将光标定位到行首。
+   * line 范围自动按文档总行数钳制。
+   */
+  scrollToLine(
+    line: number,
+    options?: { readonly select?: boolean; readonly focus?: boolean },
+  ): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    const totalLines = this.#view.state.doc.lines;
+    if (totalLines <= 0) {
+      return false;
+    }
+    const clampedLine = Math.max(1, Math.min(Math.floor(line), totalLines));
+    const lineInfo = this.#view.state.doc.line(clampedLine);
+    const pos = lineInfo.from;
+    const select = options?.select ?? true;
+    const focus = options?.focus ?? true;
+
+    this.#view.dispatch({
+      ...(select ? { selection: EditorSelection.cursor(pos) } : {}),
+      effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 40 }),
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select.pointer",
+    });
+
+    if (focus) {
+      this.#view.focus();
+    }
+    return true;
+  }
+
   requestMeasure(): void {
     if (!this.#destroyed) {
       this.#requestMeasure();
@@ -1003,6 +1043,12 @@ class CodeMirrorRendererController {
   }
 
   #handleViewUpdate(update: ViewUpdate): void {
+    if (update.selectionSet || update.docChanged) {
+      const head = update.state.selection.main.head;
+      const line = update.state.doc.lineAt(head).number;
+      this.#options.onCursorLineChange?.(line);
+    }
+
     const documentTransactions = update.transactions.filter(
       (transaction) => transaction.docChanged,
     );
@@ -1234,6 +1280,8 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),
     focus: () => controller.focus(),
     setSelection: (from: number, to: number) => controller.setSelection(from, to),
+    scrollToLine: (line: number, options?: { readonly select?: boolean; readonly focus?: boolean }) =>
+      controller.scrollToLine(line, options),
     requestMeasure: () => controller.requestMeasure(),
     destroy: () => controller.destroy(),
   });
