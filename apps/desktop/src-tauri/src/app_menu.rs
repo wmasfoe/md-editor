@@ -6,18 +6,9 @@ pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
 pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
-    let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
-        .about(None)
-        .separator()
-        .hide()
-        .hide_others()
-        .separator()
-        .quit()
-        .build()?;
-
     let open_recent_menu = recent_files::build_open_recent_menu(app)?;
 
-    let file_menu = SubmenuBuilder::new(app, "File")
+    let file_menu_builder = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
         .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
         .items(&[&open_recent_menu])
@@ -34,8 +25,13 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             "md-editor:save-as",
             "Save As...",
             "CmdOrCtrl+Shift+S",
-        )?)
-        .build()?;
+        )?);
+
+    #[cfg(not(target_os = "macos"))]
+    let file_menu = file_menu_builder.separator().quit().build()?;
+
+    #[cfg(target_os = "macos")]
+    let file_menu = file_menu_builder.build()?;
 
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .undo()
@@ -81,16 +77,33 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    Menu::with_items(
-        app,
-        &[
-            &app_menu,
-            &file_menu,
-            &edit_menu,
-            &view_menu,
-            &settings_menu,
-        ],
-    )
+    #[cfg(target_os = "macos")]
+    {
+        let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
+            .about(None)
+            .separator()
+            .hide()
+            .hide_others()
+            .separator()
+            .quit()
+            .build()?;
+
+        Menu::with_items(
+            app,
+            &[
+                &app_menu,
+                &file_menu,
+                &edit_menu,
+                &view_menu,
+                &settings_menu,
+            ],
+        )
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Menu::with_items(app, &[&file_menu, &edit_menu, &view_menu, &settings_menu])
+    }
 }
 
 #[tauri::command]
