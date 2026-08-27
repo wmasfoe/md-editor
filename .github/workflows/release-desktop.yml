@@ -107,6 +107,9 @@ jobs:
       - name: Prepare llama runtime sidecar
         run: node scripts/release/prepare-llama-runtime.mjs --target x86_64-unknown-linux-gnu
 
+      - name: Build workspace packages
+        run: pnpm -r --sort build
+
       - name: Build Linux app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -158,6 +161,9 @@ jobs:
       - name: Prepare llama runtime sidecar
         run: node scripts/release/prepare-llama-runtime.mjs --target aarch64-unknown-linux-gnu
 
+      - name: Build workspace packages
+        run: pnpm -r --sort build
+
       - name: Build Linux app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -201,6 +207,9 @@ jobs:
 
       - name: Prepare llama runtime sidecar
         run: node scripts/release/prepare-llama-runtime.mjs --target x86_64-pc-windows-msvc
+
+      - name: Build workspace packages
+        run: pnpm -r --sort build
 
       - name: Build Windows app
         env:
