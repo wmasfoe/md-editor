@@ -304,19 +304,15 @@ function listItemPolicy(parentName: string | null): MarkdownNodePolicy {
 }
 
 /**
- * 判断 Link 或 Image 节点是否为引用式（[text][ref]、![alt][ref]、[text][]、[ref] 等）。
- * 内联式链接/图片（[text](url)、![alt](url)、[text]()、![]()、![alt]( "title")）包含圆括号，
- * 在 Lezer 语法树中表现为含有 URL、LinkTitle 或 3 个及以上 LinkMark（包含 [、]、(、)）。
+ * 判断 Link 或 Image 节点是否为内联式（[text](url)、![alt](url)、[text]()、![]()、![alt]( "title") 等）。
+ * 内联式链接/图片包含圆括号，在 Lezer 语法树中表现为含有 URL、LinkTitle 或 3 个及以上 LinkMark（包含 [、]、(、)）。
  */
-function isReferenceLinkOrImage(childNodeNames: readonly string[]): boolean {
+function isInlineLinkOrImage(childNodeNames: readonly string[]): boolean {
   if (childNodeNames.includes("URL") || childNodeNames.includes("LinkTitle")) {
-    return false;
-  }
-  if (childNodeNames.includes("LinkLabel")) {
     return true;
   }
   const linkMarkCount = childNodeNames.filter((name) => name === "LinkMark").length;
-  return linkMarkCount < 3;
+  return linkMarkCount >= 3;
 }
 
 export function getMarkdownNodePolicy(
@@ -339,11 +335,25 @@ export function getMarkdownNodePolicy(
   if (nodeName === "ListItem") {
     return listItemPolicy(parentName);
   }
-  if (nodeName === "Link" && isReferenceLinkOrImage(childNodeNames)) {
-    return REFERENCE_LINK_POLICY;
+  if (nodeName === "Link") {
+    if (childNodeNames.includes("LinkLabel")) {
+      return REFERENCE_LINK_POLICY;
+    }
+    if (isInlineLinkOrImage(childNodeNames)) {
+      return POLICIES["Link"];
+    }
+    // 单括号如 [1] 或 [hello]，没有 URL 也没有 LinkLabel，作为普通文本不干预
+    return null;
   }
-  if (nodeName === "Image" && isReferenceLinkOrImage(childNodeNames)) {
-    return REFERENCE_IMAGE_POLICY;
+  if (nodeName === "Image") {
+    if (childNodeNames.includes("LinkLabel")) {
+      return REFERENCE_IMAGE_POLICY;
+    }
+    if (isInlineLinkOrImage(childNodeNames)) {
+      return POLICIES["Image"];
+    }
+    // 单括号如 ![alt]，在输入完圆括号前作为普通文本不干预
+    return null;
   }
   return POLICIES[nodeName] ?? headingPolicy(nodeName) ?? RAW_FALLBACK_POLICY;
 }

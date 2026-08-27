@@ -117,9 +117,13 @@ describe("Markdown parser range index", () => {
     ).index;
     expect(malformed.byKind("bold")).toHaveLength(0);
     expect(malformed.byKind("link")).toHaveLength(0);
-    expect(malformed.byKind("reference-link")).toHaveLength(1);
-    expect(malformed.byKind("reference-image")).toHaveLength(1);
+    expect(malformed.byKind("reference-link")).toHaveLength(0);
+    expect(malformed.byKind("reference-image")).toHaveLength(0);
     expect(malformed.byKind("inline-code")).toHaveLength(0);
+
+    const singleBracket = createIndexHarness("Here is [1] and [hello] in text.").index;
+    expect(singleBracket.byKind("link")).toHaveLength(0);
+    expect(singleBracket.byKind("reference-link")).toHaveLength(0);
 
     const partial = createIndexHarness(
       getM1MarkdownFixture("partial-typing-states").markdown,
