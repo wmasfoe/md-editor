@@ -65,6 +65,7 @@ tmp/
 temp/
 .omx/
 .omc/
+.agents/
 .codex/*
 !.codex/agents/
 !.codex/agents/**

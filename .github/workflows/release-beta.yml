@@ -1,0 +1,158 @@
+name: Release Beta (macOS)
+
+# beta 分支 push 即触发 beta 预发布构建：
+# - 版本派生为 <下一个 patch 版本>-beta.sha<commit短哈希>，release tag 天然唯一；
+# - 产物只上传到本仓库 GitHub Release（标记 Pre-release），
+#   不更新 Homebrew cask / curl installer / updater manifest / 网站 changelog，
+#   因此不影响 stable 渠道的 sh、brew 安装；
+# - 正式发版仍走 release-macos.yml（手动打 v* tag）。
+on:
+  push:
+    branches:
+      - beta
+
+concurrency:
+  group: release-beta
+  cancel-in-progress: true
+
+jobs:
+  beta:
+    name: Publish beta build from branch
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      # 派生 beta 版本并就地改写四处版本文件（本地文件，不提交回仓库）。
+      - name: Derive beta version
+        id: beta_version
+        run: node scripts/release/derive-beta-version.mjs >> "$GITHUB_OUTPUT"
+
+      - name: Validate updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "Missing TAURI_SIGNING_PRIVATE_KEY. Store the Tauri updater private key content as this secret." >&2
+            exit 1
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: ${{ runner.os }}-cargo-beta-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-beta-
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Test Rust
+        run: pnpm test:rust
+
+      # 发布门禁：浏览器验收严格单次不重试；@quarantine 标记的已知 flaky
+      # 用例在发布流程中排除（PR 流程仍完整执行并重试）。
+      - name: Browser E2E
+        env:
+          PLAYWRIGHT_RETRIES: "0"
+        run: |
+          pnpm --filter @md-editor/desktop exec playwright install chromium
+          pnpm --filter @md-editor/desktop exec playwright test --config playwright.config.ts --grep-invert "@quarantine"
+
+      # Distribution note:
+      # Tauri updater signing verifies update artifacts and is separate from
+      # Apple Developer ID signing/notarization. This workflow still uses macOS
+      # ad-hoc signing, so first-install Gatekeeper behavior is unchanged until
+      # Apple distribution credentials are added later.
+      - name: Build macOS app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm build:macos:release
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-editor-beta-dmg-${{ steps.beta_version.outputs.short_sha }}
+          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Upload updater artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-editor-beta-updater-${{ steps.beta_version.outputs.short_sha }}
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: error
+
+      # Beta 产物只进 GitHub Release 且标记 Pre-release，明确标识版本来源；
+      # 不发布到 Homebrew tap / install 脚本 / updater manifest（stable 渠道不受影响）。
+      - name: Create beta GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.beta_version.outputs.beta_tag }}
+          RELEASE_VERSION: ${{ steps.beta_version.outputs.beta_version }}
+          SHORT_SHA: ${{ steps.beta_version.outputs.short_sha }}
+          SOURCE_VERSION: ${{ steps.beta_version.outputs.source_version }}
+          BASE_VERSION: ${{ steps.beta_version.outputs.base_version }}
+        run: |
+          notes="## ⚠️ Beta 预发布构建
+
+          - 来源分支：\`beta\`（commit \`${SHORT_SHA}\`），基于稳定版本 \`${SOURCE_VERSION}\` 的下一个 beta 版本 \`${BASE_VERSION}\`
+          - 这是**测试版本**，仅通过本 Release 页面下载，**不会**更新 sh / Homebrew 安装渠道
+          - 安装方式：下载 DMG 打开并拖入 Applications；macOS 首次打开若提示无法验证开发者，请右键 → 打开
+          - 应用内自动更新不适用本版本（updater 指向稳定渠道 manifest，正式版发布后建议升级 stable）
+          - 反馈问题请附上此版本号 ${RELEASE_VERSION}"
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "[Beta] Markdown Editor $RELEASE_VERSION" \
+              --notes "$notes" \
+              --prerelease
+
+            gh release upload "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz \
+              apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig \
+              --title "[Beta] Markdown Editor $RELEASE_VERSION" \
+              --notes "$notes" \
+              --prerelease
+          fi

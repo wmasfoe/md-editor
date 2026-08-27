@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useLayoutEffect, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronRightIcon,
   FolderIcon,
   MagnifyingGlassIcon,
   QueueListIcon,
 } from "@heroicons/react/24/outline";
-import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { MarkdownFileTreeNode } from "@md-editor/file-system";
+import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
 import {
   AssetPreview,
   ConfirmActionDialog,
@@ -18,17 +16,19 @@ import {
   useEditorUiState,
   WelcomeState,
 } from "@md-editor/editor-ui";
-import { DesktopMilkdownEditor } from "../components/DesktopMilkdownEditor";
-import { DesktopSourceEditor } from "../components/DesktopSourceEditor";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
+import { CommandPalette } from "../components/CommandPalette";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
-import { isSettingsWindow } from "../desktop/settings-window";
 import { cx } from "../lib/cx";
+import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 import {
   DesktopEditorActionsContext,
   useDesktopEditorActions,
+  type DesktopEditorActions,
 } from "./context/DesktopEditorActionsContext";
 import { useDocumentSnapshot } from "./document-store";
 import { AppSettingsProvider, useAppSettings } from "./settings-context";
@@ -44,22 +44,30 @@ const SIDEBAR_DEFAULT_WIDTH = 272;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 420;
 
-export function App() {
-  if (isSettingsWindow()) {
-    return <SettingsWindowApp />;
-  }
-  return <AppWithProviders />;
+export interface AppProps {
+  readonly fileService: RuntimeFileService;
+  readonly onDesktopActionsChange?: (actions: DesktopEditorActions | null) => void;
+  readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
 }
 
-function AppWithProviders() {
+export function App({ fileService, onDesktopActionsChange, onRendererPortsChange }: AppProps) {
   const { toast, showToast } = useToast();
   return (
     <AppSettingsProvider showToast={showToast} surface="main">
       {/* Keep this provider above both desktop effects and shell consumers so command dispatch, outline, and editor surfaces share one editor-ui instance. */}
       <DesktopEditorUiProvider showToast={showToast}>
         {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
-        <DesktopEditorEffects showToast={showToast}>
-          <MainApp toast={toast} showToast={showToast} />
+        <DesktopEditorEffects
+          fileService={fileService}
+          onDesktopActionsChange={onDesktopActionsChange}
+          showToast={showToast}
+        >
+          <MainApp
+            fileService={fileService}
+            onRendererPortsChange={onRendererPortsChange}
+            toast={toast}
+            showToast={showToast}
+          />
         </DesktopEditorEffects>
       </DesktopEditorUiProvider>
     </AppSettingsProvider>
@@ -75,11 +83,7 @@ function DesktopEditorUiProvider({
 }) {
   const snapshot = useDocumentSnapshot();
   return (
-    <EditorUiProvider
-      filePath={snapshot.filePath}
-      markdown={snapshot.markdown}
-      showToast={showToast}
-    >
+    <EditorUiProvider markdown={snapshot.markdown} showToast={showToast}>
       {children}
     </EditorUiProvider>
   );
@@ -87,19 +91,31 @@ function DesktopEditorUiProvider({
 
 function DesktopEditorEffects({
   children,
+  fileService,
+  onDesktopActionsChange,
   showToast,
 }: {
   readonly children: ReactNode;
+  readonly fileService: RuntimeFileService;
+  readonly onDesktopActionsChange?: (actions: DesktopEditorActions | null) => void;
   readonly showToast: (message: string | null) => void;
 }) {
-  const actions = useDesktopEditorController({ showToast });
+  const actions = useDesktopEditorController({ fileService, showToast });
+  useLayoutEffect(() => {
+    onDesktopActionsChange?.(actions);
+    return () => onDesktopActionsChange?.(null);
+  }, [actions, onDesktopActionsChange]);
   return <DesktopEditorActionsContext value={actions}>{children}</DesktopEditorActionsContext>;
 }
 
 function MainApp({
+  fileService,
+  onRendererPortsChange,
   toast,
   showToast,
 }: {
+  readonly fileService: RuntimeFileService;
+  readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
   readonly toast: { readonly id: number; readonly message: string } | null;
   readonly showToast: (message: string | null) => void;
 }) {
@@ -111,9 +127,10 @@ function MainApp({
   const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
     useDocumentUiStore();
-  const { dispatchCommand, openRecentFile } = useDesktopEditorActions();
+  const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
@@ -131,13 +148,26 @@ function MainApp({
       ? null
       : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
+  // G007:全局快捷键 Cmd/Ctrl+K 开关命令面板(与文件搜索 Cmd/Ctrl+O 等并列)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const mod = isMacPlatform() ? event.metaKey : event.ctrlKey;
+      if (mod && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
   if (isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
         <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SettingsPage surface="main" />
+          <SettingsPage surface="main" onRelaunchAfterUpdate={() => void runEditorUpdateAction()} />
         </div>
       </main>
     );
@@ -156,7 +186,7 @@ function MainApp({
         ) : null}
         <aside
           className={cx(
-            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
+            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
             isSidebarVisible &&
               "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]",
           )}
@@ -170,8 +200,12 @@ function MainApp({
           aria-hidden={!isSidebarVisible}
           inert={!isSidebarVisible}
         >
-          <AppTitleBar isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
-          <div className="grid h-[42px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2">
+          <AppTitleBar
+            isVisible={shouldShowOverlayTitleBar}
+            hasWindowControlsInset
+            className="border-b-0 bg-transparent"
+          />
+          <div className="grid h-[38px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
             <button
               type="button"
               className={sidebarHeaderIconButtonClassName}
@@ -185,7 +219,7 @@ function MainApp({
                 <QueueListIcon aria-hidden="true" />
               )}
             </button>
-            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none text-[var(--theme-title)]">
+            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none tracking-tight text-[var(--theme-title)]">
               {sidebarTitle}
             </strong>
             <button
@@ -207,7 +241,7 @@ function MainApp({
           </div>
           {showFileSearch ? (
             <div
-              className="grid min-h-[38px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+              className="grid min-h-[36px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
               role="search"
             >
               <MagnifyingGlassIcon aria-hidden="true" />
@@ -237,7 +271,10 @@ function MainApp({
           ) : null}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {sidebarMode === "files" ? (
-              <FileTreePanel searchQuery={showFileSearch ? fileSearchQuery : ""} />
+              <FileTreePanel
+                fileService={fileService}
+                searchQuery={showFileSearch ? fileSearchQuery : ""}
+              />
             ) : (
               <OutlinePanel outline={outline} activeId={activeOutlineId} onJump={jumpToTocItem} />
             )}
@@ -281,6 +318,7 @@ function MainApp({
             titleAlign="center"
             titleIcon="markdown"
             actions={<EditorTitleBarControls />}
+            className="bg-[var(--theme-surface)]"
           />
           {!isSidebarVisible ? (
             <CollapsedSidebarReveal
@@ -298,16 +336,25 @@ function MainApp({
                 onOpenFolder={() => void dispatchCommand("file.openFolder")}
                 onOpenRecent={(path) => void openRecentFile(path)}
               />
-            ) : openedAsset ? (
-              <AssetPreview
-                asset={openedAsset}
-                resolveAssetSrc={resolveImageSrc}
-                onBack={closeAssetPreview}
-              />
-            ) : snapshot.mode === "source" ? (
-              <DesktopSourceEditor />
             ) : (
-              <DesktopMilkdownEditor showToast={showToast} />
+              <>
+                {hasActiveDocument ? (
+                  <DesktopCodeMirrorEditor
+                    hidden={openedAsset !== null}
+                    onRendererPortsChange={onRendererPortsChange}
+                    showToast={showToast}
+                  />
+                ) : null}
+                {openedAsset ? (
+                  <div className="absolute inset-0 z-[5] flex min-h-0 flex-col">
+                    <AssetPreview
+                      asset={openedAsset}
+                      resolveAssetSrc={resolveImageSrc}
+                      onBack={closeAssetPreview}
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
             {pendingAction ? (
               <EditorLoadingState
@@ -321,6 +368,12 @@ function MainApp({
         </section>
       </div>
       <ConfirmActionDialog confirmation={confirmation} onResolve={resolveConfirmation} />
+      {/* G007 命令面板:统一 UI 入口,执行走宿主 dispatchCommand */}
+      <CommandPalette
+        open={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onRun={(commandId) => void dispatchCommand(commandId)}
+      />
     </main>
   );
 }
@@ -344,14 +397,15 @@ function CollapsedSidebarReveal({
   return (
     <div
       className={cx(
-        "group absolute bottom-0 left-0 z-[15] w-14",
-        // 只让正文左侧 56px 成为唤起热区，避免覆盖 macOS 标题栏拖拽和红黄绿按钮。
+        // 仅按钮本身参与命中;透明唤起层不能挡住编辑器 gutter 内的 toolbar。
+        "group pointer-events-none absolute bottom-0 left-0 z-[17] w-4",
+        // 左缘窄按钮作为侧栏唤起点,避免透明热区覆盖 toolbar 和 macOS 标题栏拖拽区。
         hasTitleBar ? "top-[34px]" : "top-0",
       )}
     >
       <button
         type="button"
-        className="absolute left-1 top-1/2 grid h-14 w-10 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-7 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
+        className="pointer-events-auto absolute left-0 top-1/2 grid h-14 w-4 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
         aria-label="显示侧栏"
         title="显示侧栏"
         onPointerDown={handlePointerDown}
@@ -359,180 +413,6 @@ function CollapsedSidebarReveal({
       >
         <ChevronRightIcon aria-hidden="true" />
       </button>
-    </div>
-  );
-}
-
-function SettingsWindowApp() {
-  const { toast, showToast } = useToast();
-  return (
-    <AppSettingsProvider showToast={showToast} surface="settings-window">
-      <SettingsWindowContent toast={toast} />
-    </AppSettingsProvider>
-  );
-}
-
-function SettingsWindowContent({
-  toast,
-}: {
-  readonly toast: { readonly id: number; readonly message: string } | null;
-}) {
-  const { hasLoadedSettings } = useAppSettings();
-  const shouldShowOverlayTitleBar = isMacPlatform();
-  useEffect(() => {
-    document.title = "设置";
-  }, []);
-  return (
-    <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-      <AppTitleBar
-        title="设置"
-        isVisible={shouldShowOverlayTitleBar}
-        hasWindowControlsInset
-        titleAlign="center"
-      />
-      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        <EditorToast toast={toast} />
-        {hasLoadedSettings ? (
-          <SettingsPage surface="settings-window" onStartWindowDrag={startTitleBarDrag} />
-        ) : null}
-      </div>
-    </main>
-  );
-}
-
-function AppTitleBar({
-  actions,
-  title,
-  hasWindowControlsInset = false,
-  isDirty = false,
-  isVisible,
-  titleAlign = "start",
-  titleIcon,
-}: {
-  readonly actions?: ReactNode;
-  readonly title?: string;
-  readonly hasWindowControlsInset?: boolean;
-  readonly isDirty?: boolean;
-  readonly isVisible: boolean;
-  readonly titleAlign?: "start" | "center";
-  readonly titleIcon?: "markdown";
-}) {
-  if (!isVisible) {
-    return null;
-  }
-
-  return (
-    <div
-      data-tauri-drag-region
-      className={cx(
-        "relative h-[34px] shrink-0 select-none bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-muted)]",
-        titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
-        titleAlign === "center"
-          ? hasWindowControlsInset
-            ? "grid-cols-[76px_minmax(0,1fr)_76px]"
-            : "grid-cols-[12px_minmax(0,1fr)_12px]"
-          : hasWindowControlsInset
-            ? "pl-[76px]"
-            : "pl-3",
-      )}
-      onMouseDown={startTitleBarDrag}
-    >
-      {title ? (
-        <span
-          data-tauri-drag-region
-          className={cx(
-            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
-            titleAlign === "center" && "col-start-2 justify-self-center",
-          )}
-        >
-          {titleIcon === "markdown" ? <MarkdownTitleIcon /> : null}
-          <span
-            data-tauri-drag-region
-            className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-          >
-            {title}
-            {isDirty ? "*" : ""}
-          </span>
-        </span>
-      ) : null}
-      {actions ? (
-        <div
-          className="absolute right-2 top-1/2 z-10 -translate-y-1/2"
-          onMouseDown={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-        >
-          {actions}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MarkdownTitleIcon() {
-  return (
-    <svg
-      className="size-[17px] shrink-0 text-[var(--theme-control-subtle)]"
-      viewBox="0 0 24 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="1.75" y="1.75" width="20.5" height="12.5" rx="2" />
-      <path d="M5 11V5l2.5 3L10 5v6" />
-      <path d="M16 5v5.5" />
-      <path d="m13.75 8.5 2.25 2.25 2.25-2.25" />
-    </svg>
-  );
-}
-
-function startTitleBarDrag(event: React.MouseEvent<HTMLElement>): void {
-  if (event.button !== 0 || event.detail > 1 || !isTauri()) {
-    return;
-  }
-
-  // Tauri 要求拖拽必须从一次真实的按下事件里启动；WebKit 子窗口有时会把
-  // 首次 mousedown 的 detail 记为 0，所以这里只拦截双击/多击，不强依赖 detail === 1。
-  event.preventDefault();
-  event.stopPropagation();
-  void getCurrentWindow()
-    .startDragging()
-    .catch((error: unknown) => {
-      console.warn("窗口拖拽启动失败", error);
-    });
-}
-
-export function EditorToast({
-  toast,
-}: {
-  readonly toast: { readonly id: number; readonly message: string } | null;
-}) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (!toast) {
-      setIsVisible(false);
-      return;
-    }
-
-    setIsVisible(true);
-    const timer = window.setTimeout(() => setIsVisible(false), 3200);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-
-  if (!toast || !isVisible) {
-    return null;
-  }
-
-  return (
-    <div
-      key={toast.id}
-      className="pointer-events-none absolute left-1/2 top-4 z-20 max-w-[min(520px,calc(100%_-_32px))] -translate-x-1/2 rounded-[10px] border border-white/10 bg-[rgba(38,38,40,0.86)] px-3.5 py-2 text-center text-[13px] font-medium leading-[1.35] text-white shadow-[0_10px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl motion-safe:animate-[toast-in_160ms_ease-out] motion-reduce:animate-none"
-      role="alert"
-    >
-      {toast.message}
     </div>
   );
 }
@@ -633,7 +513,7 @@ function SidebarResizeHandle({
 }
 
 const sidebarHeaderIconButtonClassName =
-  "grid size-[30px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+  "grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
 function clampSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -704,8 +584,4 @@ function countMatchedFiles(root: MarkdownFileTreeNode | null, query: string): nu
 
 function normalizeSearchQuery(query: string): string {
   return query.trim().toLowerCase();
-}
-
-function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes("mac");
 }

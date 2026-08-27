@@ -53,10 +53,11 @@
   --theme-editor-heading-line-height: 1.38;
   --theme-source-line-height: 1.66;
   --theme-font:
-    "Open Sans", "Clear Sans", "Helvetica Neue", Helvetica, Arial, "PingFang SC",
-    "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
   --theme-mono-font:
-    "Lucida Console", Consolas, "Courier", "JetBrains Mono", "Source Code Pro", Monaco, monospace;
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono", "Source Code Pro",
+    Consolas, "Courier New", monospace;
 
   color: var(--theme-text);
   background: var(--theme-bg);
@@ -122,6 +123,9 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {

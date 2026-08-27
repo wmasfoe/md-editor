@@ -20,7 +20,7 @@ export function DocumentBar({
 
   return (
     <header
-      className="flex min-h-[42px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1.5 text-[var(--theme-control-text)]"
+      className="flex min-h-[38px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5 py-1 text-[var(--theme-control-text)]"
       aria-label="编辑视图控制"
     >
       <div className={controlsClassName}>
@@ -73,4 +73,4 @@ function ModeToggleButton({
 }
 
 const iconButtonClassName =
-  "grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+  "grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.3] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";

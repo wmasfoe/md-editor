@@ -59,6 +59,13 @@ jobs:
       - name: Test Rust
         run: pnpm test:rust
 
+      # PR 门禁：浏览器验收完整执行（含 @quarantine 用例），CI 默认重试 1 次
+      # 吸收已知 flaky；release 流程单独配置严格单次（见 release-*.yml）。
+      - name: Browser E2E
+        run: |
+          pnpm --filter @md-editor/desktop exec playwright install chromium
+          pnpm --filter @md-editor/desktop test:browser
+
       - name: Validate release version files
         run: |
           node <<'NODE'

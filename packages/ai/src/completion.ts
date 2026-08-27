@@ -28,9 +28,18 @@ export interface AiPromptContext {
 const DEFAULT_AI_TIMEOUT_MS = 30_000;
 const CONTEXT_WINDOW = 3_000;
 
-export function getAiCompletionReadiness(settings: AiSettings): string | null {
+export function getAiCompletionReadiness(
+  settings: AiSettings,
+  intent: "continuation" | "editing" | "both" = "both",
+): string | null {
   if (!settings.enabled) {
     return "请先在设置中开启 AI 功能。";
+  }
+  if (intent === "continuation" && !settings.features.continuation) {
+    return "请先在设置中开启 AI 续写功能。";
+  }
+  if (intent === "editing" && !settings.features.editing) {
+    return "请先在设置中开启语法标点修复功能。";
   }
   if (!settings.features.continuation && !settings.features.editing) {
     return "请先开启 AI 续写或语法标点修复。";
@@ -41,7 +50,7 @@ export function getAiCompletionReadiness(settings: AiSettings): string | null {
       return "请先在设置中启用本地模型。";
     }
     if (settings.localModel.status !== "available") {
-      return "本地模型尚未下载，当前还不能续写。";
+      return "本地模型尚未下载，当前还不能使用 AI。";
     }
     return null;
   }
@@ -64,7 +73,7 @@ export async function requestAiContinuation(
   context: AiContextSnapshot,
   options: AiContinuationRequestOptions = {},
 ): Promise<AiWritingSuggestion> {
-  const readiness = getAiCompletionReadiness(settings);
+  const readiness = getAiCompletionReadiness(settings, options.intent ?? "both");
   if (readiness) {
     throw new Error(readiness);
   }
@@ -79,13 +88,18 @@ export async function requestAiContinuation(
 export function createOpenAiCompatibleRequestBody(
   settings: AiSettings,
   context: AiContextSnapshot,
+  options: AiContinuationRequestOptions = {},
 ): unknown {
   const promptContext = createAiPromptContext(context);
+  const intent = options.intent ?? "both";
+  const allowContinuation = intent !== "editing" && settings.features.continuation;
+  const allowEditing = intent !== "continuation" && settings.features.editing;
+
   return {
     model: settings.openAiCompatible.model.trim(),
     stream: false,
-    temperature: 0.7,
-    max_tokens: 220,
+    temperature: allowContinuation ? 0.7 : 0.3,
+    max_tokens: 300,
     ...(shouldDisableDeepSeekThinking(settings)
       ? { extra_body: { thinking: { type: "disabled" } } }
       : {}),
@@ -93,16 +107,16 @@ export function createOpenAiCompatibleRequestBody(
       {
         role: "system",
         content: [
-          "你是 Markdown 写作助手，需要同时给出光标处续写建议和当前句子的语法/标点修复建议。",
+          "你是专业的 Markdown 写作与润色助手，提供光标处续写建议与语法/错别字/标点修复建议。",
           "只返回 JSON，不要解释，不要添加代码围栏。",
           'JSON schema: {"continuation":"string","edit":{"original":"string","replacement":"string","reason":"string"}}。',
-          settings.features.continuation
-            ? "continuation 是要插入到光标处的续写内容，可以为空字符串。"
-            : "continuation 必须返回空字符串，因为用户关闭了 AI 续写。",
-          settings.features.editing
-            ? "edit.original 必须是光标附近上下文中逐字存在的原文片段；没有明确问题时 edit 设为 null。"
-            : "edit 必须返回 null，因为用户关闭了语法、标点修复。",
-          "edit.replacement 只能修复语法、错别字、标点或轻微表达，不要改写整段。",
+          allowContinuation
+            ? "continuation 是要插入到光标处的续写内容（自然流畅、紧扣前文），可以为空字符串。"
+            : "continuation 必须返回空字符串。",
+          allowEditing
+            ? "edit.original 必须是选区或光标附近上下文中逐字存在的原文片段；没有明确错误或无需润色时 edit 设为 null。"
+            : "edit 必须返回 null。",
+          "edit.replacement 只能修复语法、错别字、标点或轻微表达润色，不要改写整段。",
           "保持原文语言、语气和 Markdown/MDX 格式边界。",
         ].join("\n"),
       },
@@ -181,7 +195,7 @@ async function requestOpenAiCompatibleContinuation(
         "Content-Type": "application/json",
         Authorization: `Bearer ${settings.openAiCompatible.apiKey}`,
       },
-      body: JSON.stringify(createOpenAiCompatibleRequestBody(settings, context)),
+      body: JSON.stringify(createOpenAiCompatibleRequestBody(settings, context, options)),
       signal: controller.signal,
     });
     const body = await readOpenAiResponse(response);

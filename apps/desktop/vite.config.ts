@@ -16,14 +16,6 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@md-editor/editor-ui/milkdown-editor",
-        replacement: workspacePath("../../packages/editor-ui/src/components/MilkdownEditor.tsx"),
-      },
-      {
-        find: "@md-editor/editor-ui/source-editor",
-        replacement: workspacePath("../../packages/editor-ui/src/components/SourceEditor.tsx"),
-      },
-      {
         find: "@md-editor/editor-ui/hooks",
         replacement: workspacePath("../../packages/editor-ui/src/hooks/index.ts"),
       },
@@ -54,38 +46,6 @@ export default defineConfig({
       {
         find: /^@md-editor\/mdx-plugins$/,
         replacement: workspacePath("../../packages/mdx-plugins/src/index.ts"),
-      },
-      {
-        find: /^@codemirror\/lang-markdown$/,
-        replacement: workspacePath("../../node_modules/@codemirror/lang-markdown/dist/index.js"),
-      },
-      {
-        find: /^@milkdown\/kit\/core$/,
-        replacement: workspacePath("../../node_modules/@milkdown/kit/lib/core.js"),
-      },
-      {
-        find: /^@milkdown\/kit\/plugin\/listener$/,
-        replacement: workspacePath("../../node_modules/@milkdown/kit/lib/plugin/listener.js"),
-      },
-      {
-        find: /^@milkdown\/kit\/plugin\/history$/,
-        replacement: workspacePath("../../node_modules/@milkdown/kit/lib/plugin/history.js"),
-      },
-      {
-        find: /^@milkdown\/kit\/preset\/commonmark$/,
-        replacement: workspacePath("../../node_modules/@milkdown/kit/lib/preset/commonmark.js"),
-      },
-      {
-        find: /^@milkdown\/kit\/preset\/gfm$/,
-        replacement: workspacePath("../../node_modules/@milkdown/kit/lib/preset/gfm.js"),
-      },
-      {
-        find: /^@milkdown\/react$/,
-        replacement: workspacePath("../../node_modules/@milkdown/react/lib/index.js"),
-      },
-      {
-        find: /^@uiw\/react-codemirror$/,
-        replacement: workspacePath("../../node_modules/@uiw/react-codemirror/esm/index.js"),
       },
     ],
   },

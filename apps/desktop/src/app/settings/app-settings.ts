@@ -54,7 +54,8 @@ export interface UpdateStatus {
 
 export type ThemeColorScheme = "system" | "light" | "dark";
 export type ThemeSourceType = "builtin" | "custom";
-export type BuiltInThemeId = "github-light" | "gothic-light" | "night-dark";
+export type BuiltInThemeId =
+  "github-light" | "gothic-light" | "night-dark" | "paper-light" | "charcoal-dark";
 
 export interface ThemeSchemeSettings {
   readonly source: ThemeSourceType;
@@ -87,6 +88,8 @@ export interface AppThemePreviewCoordinator {
 export interface EditorDisplaySettings {
   readonly showCodeBlockLineNumbers: boolean;
   readonly wysiwygFontSize: number;
+  readonly proseFontFamily: string;
+  readonly codeFontFamily: string;
 }
 
 export interface AppUpdateSettings {
@@ -124,8 +127,14 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
   {
     id: "ai.continueWriting",
     commandId: "ai.continueWriting",
-    label: "AI 写作建议",
+    label: "AI 续写",
     defaultKey: "Mod-Shift-A",
+  },
+  {
+    id: "ai.fixGrammar",
+    commandId: "ai.fixGrammar",
+    label: "AI 语法与润色修复",
+    defaultKey: "Mod-Shift-G",
   },
 ];
 
@@ -151,9 +160,86 @@ export const DEFAULT_THEME_SETTINGS: AppThemeSettings = {
   },
 };
 
+export const PROSE_FONT_OPTIONS: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly stack: string;
+}[] = [
+  { id: "", label: "跟随主题默认", stack: "" },
+  {
+    id: "system-sans",
+    label: "系统无衬线 (苹方 / San Francisco)",
+    stack: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif`,
+  },
+  {
+    id: "lxgw-wenkai",
+    label: "霞鹜文楷 (LXGW WenKai)",
+    stack: `"LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB", "LXGWWenKai-Regular", "LXGWWenKai", "霞鹜文楷", "霞鹜文楷 屏幕阅读版", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif`,
+  },
+  {
+    id: "songti",
+    label: "经典宋体 (Songti SC / SimSun)",
+    stack: `"Songti SC", "STSong", "SimSun", "宋体", "Source Han Serif SC", "Noto Serif CJK SC", serif`,
+  },
+  {
+    id: "kaiti",
+    label: "传统楷体 (Kaiti SC / KaiTi)",
+    stack: `"Kaiti SC", "STKaiti", "KaiTi", "楷体", "Source Han Serif SC", serif`,
+  },
+];
+
+export const CODE_FONT_OPTIONS: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly stack: string;
+}[] = [
+  { id: "", label: "跟随主题默认", stack: "" },
+  {
+    id: "system-mono",
+    label: "系统等宽 (SF Mono / Menlo / Consolas)",
+    stack: `ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", Consolas, monospace`,
+  },
+  {
+    id: "jetbrains-mono",
+    label: "JetBrains Mono",
+    stack: `"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+  },
+  {
+    id: "fira-code",
+    label: "Fira Code",
+    stack: `"Fira Code", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+  },
+  {
+    id: "cascadia-code",
+    label: "Cascadia Code",
+    stack: `"Cascadia Code", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+  },
+  {
+    id: "source-code-pro",
+    label: "Source Code Pro",
+    stack: `"Source Code Pro", ui-monospace, "SF Mono", Menlo, Consolas, monospace`,
+  },
+];
+
+export function resolveProseFontStack(fontKey: string): string {
+  if (!fontKey) return "";
+  const matched = PROSE_FONT_OPTIONS.find((opt) => opt.id === fontKey);
+  if (matched) return matched.stack;
+  return `${fontKey}, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif`;
+}
+
+export function resolveCodeFontStack(fontKey: string): string {
+  if (!fontKey) return "";
+  const matched = CODE_FONT_OPTIONS.find((opt) => opt.id === fontKey);
+  if (matched) return matched.stack;
+  return `${fontKey}, ui-monospace, "SF Mono", Menlo, Consolas, monospace`;
+}
+
 export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
   showCodeBlockLineNumbers: false,
   wysiwygFontSize: 17,
+  proseFontFamily: "",
+  codeFontFamily: "",
 };
 
 export const DEFAULT_UPDATE_SETTINGS: AppUpdateSettings = {
@@ -820,6 +906,8 @@ export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySet
   return {
     showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true,
     wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize),
+    proseFontFamily: typeof input.proseFontFamily === "string" ? input.proseFontFamily.trim() : "",
+    codeFontFamily: typeof input.codeFontFamily === "string" ? input.codeFontFamily.trim() : "",
   };
 }
 
@@ -909,7 +997,11 @@ function normalizeThemeScheme(
 }
 
 function normalizeBuiltInTheme(input: unknown, fallback: BuiltInThemeId): BuiltInThemeId {
-  return input === "github-light" || input === "gothic-light" || input === "night-dark"
+  return input === "github-light" ||
+    input === "gothic-light" ||
+    input === "night-dark" ||
+    input === "paper-light" ||
+    input === "charcoal-dark"
     ? input
     : fallback;
 }

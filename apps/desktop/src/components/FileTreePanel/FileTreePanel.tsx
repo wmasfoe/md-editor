@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MarkdownFileTreeNode } from "@md-editor/file-system";
+import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
 import { findFirstMarkdownPath } from "../../app/files/file-tree-mutations";
 import { createDefaultCollapsedDirectoryPaths } from "../../app/files/file-tree-view-state";
 import {
@@ -31,10 +31,11 @@ import {
 import "./FileTreePanel.css";
 
 export interface FileTreePanelProps {
+  readonly fileService: RuntimeFileService;
   readonly searchQuery?: string;
 }
 
-export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
+export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelProps) {
   const { folder, createTreeItem, renameTreeItem, deleteTreeItem } = useFileTreeStore();
   const { openAssetFromTree } = useDocumentUiStore();
   const { dispatchCommand, openDocumentFromTree } = useDesktopEditorActions();
@@ -55,16 +56,16 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
   );
   const onCreateTreeItem = useCallback(
     (parentPath: string, kind: TreeItemKind, name: string) =>
-      void createTreeItem(parentPath, kind, name),
-    [createTreeItem],
+      void createTreeItem(fileService, parentPath, kind, name),
+    [createTreeItem, fileService],
   );
   const onRenameTreeItem = useCallback(
-    (node: MarkdownFileTreeNode, name: string) => void renameTreeItem(node, name),
-    [renameTreeItem],
+    (node: MarkdownFileTreeNode, name: string) => void renameTreeItem(fileService, node, name),
+    [fileService, renameTreeItem],
   );
   const onDeleteTreeItem = useCallback(
-    (node: MarkdownFileTreeNode) => void deleteTreeItem(node),
-    [deleteTreeItem],
+    (node: MarkdownFileTreeNode) => void deleteTreeItem(fileService, node),
+    [deleteTreeItem, fileService],
   );
   const onContextMenuError = showFileActionError;
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
@@ -285,10 +286,10 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
 
   if (!folder) {
     return (
-      <div className="min-h-0 flex-1 bg-[var(--theme-surface)] p-3 text-[13px] text-[var(--theme-control-subtle)]">
+      <div className="min-h-0 flex-1 bg-transparent p-3 text-[13px] text-[var(--theme-control-subtle)]">
         <button
           type="button"
-          className="w-full rounded-sm border border-transparent bg-transparent px-2 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
+          className="w-full rounded-[6px] border border-transparent bg-transparent px-2.5 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
           onClick={onOpenFolder}
         >
           打开文件夹
@@ -300,7 +301,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
   if (normalizedSearchQuery) {
     return (
       <div
-        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-[var(--theme-surface)] pb-4 pt-1"
+        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent pb-4 pt-1"
         onContextMenu={(event) => openContextMenu(event, null)}
       >
         {searchResults.length > 0 ? (
@@ -333,7 +334,7 @@ export function FileTreePanel({ searchQuery = "" }: FileTreePanelProps) {
 
   return (
     <div
-      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-[var(--theme-surface)] pb-4"
+      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent pb-4"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
       <FileTreeNodeView

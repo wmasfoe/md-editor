@@ -5,7 +5,11 @@
     "rootDir": "../..",
     "paths": {
       "@md-editor/editor-core": ["../../packages/editor-core/src/index.ts"],
-      "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"]
+      "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"],
+      "@md-editor/renderer-codemirror": ["../../packages/renderer-codemirror/src/index.ts"],
+      "@md-editor/renderer-codemirror/testing": [
+        "../../packages/renderer-codemirror/src/testing.ts"
+      ]
     }
   },
   "include": ["src"]

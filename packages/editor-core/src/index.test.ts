@@ -37,10 +37,11 @@ describe("editor-core M0 skeleton", () => {
     expect(describeEditorCoreSpike()).toBe("editor-core-m0");
   });
 
-  it("registers the AI writing command and keymap as a built-in feature", async () => {
+  it("registers the AI writing commands and keymaps as a built-in feature", async () => {
     const commands = createCommandRegistry();
     const keymaps = createKeymapRegistry();
-    let called = false;
+    let continueCalled = false;
+    let fixCalled = false;
 
     createAiWritingFeature().setup({ commands, keymaps });
 
@@ -49,17 +50,34 @@ describe("editor-core M0 skeleton", () => {
       key: "Mod-Shift-A",
       commandId: "ai.continueWriting",
     });
+    expect(keymaps.list()).toContainEqual({
+      id: "ai.fixGrammar",
+      key: "Mod-Shift-G",
+      commandId: "ai.fixGrammar",
+    });
     expect(
       await commands.dispatch("ai.continueWriting", {
         document: createDocumentState(),
         actions: {
           continueAiWriting: () => {
-            called = true;
+            continueCalled = true;
           },
         },
       }),
     ).toBe(true);
-    expect(called).toBe(true);
+    expect(continueCalled).toBe(true);
+
+    expect(
+      await commands.dispatch("ai.fixGrammar", {
+        document: createDocumentState(),
+        actions: {
+          fixAiGrammar: () => {
+            fixCalled = true;
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(fixCalled).toBe(true);
   });
 });
 

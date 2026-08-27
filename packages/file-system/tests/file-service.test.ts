@@ -80,42 +80,16 @@ describe("FileService", () => {
     });
   });
 
-  it("saves to the existing path without forcing the dialog", async () => {
+  it("normalizes opened Markdown to canonical LF", async () => {
     const adapter = fakeAdapter({
-      saveResult: { filePath: "/Users/me/post.md", markdown: "# Saved" },
+      openResult: { filePath: "/Users/me/open.md", markdown: "open\r\nline\r" },
+      readResult: { filePath: "/Users/me/read.md", markdown: "read\r\nline\r" },
     });
     const service = createFileService(adapter);
 
-    await expect(
-      service.saveDocument({ filePath: "/Users/me/post.md", markdown: "# Saved" }),
-    ).resolves.toEqual({
-      filePath: "/Users/me/post.md",
-      markdown: "# Saved",
-    });
-    expect(adapter.saveMarkdownFile).toHaveBeenCalledWith({
-      filePath: "/Users/me/post.md",
-      markdown: "# Saved",
-    });
-  });
-
-  it("keeps cancellation explicit so callers do not mark the document saved", async () => {
-    const service = createFileService(fakeAdapter({ saveResult: null }));
-
-    await expect(service.saveDocument({ filePath: null, markdown: "# Draft" })).resolves.toBeNull();
-  });
-
-  it("forces a dialog for Save As even when the document already has a path", async () => {
-    const adapter = fakeAdapter({
-      saveResult: { filePath: "/Users/me/copy.md", markdown: "# Copy" },
-    });
-    const service = createFileService(adapter);
-
-    await service.saveDocumentAs({ filePath: "/Users/me/post.md", markdown: "# Copy" });
-
-    expect(adapter.saveMarkdownFile).toHaveBeenCalledWith({
-      filePath: "/Users/me/post.md",
-      markdown: "# Copy",
-      forceDialog: true,
+    await expect(service.openDocument()).resolves.toMatchObject({ markdown: "open\nline\n" });
+    await expect(service.openDocumentAtPath("/Users/me/read.md")).resolves.toMatchObject({
+      markdown: "read\nline\n",
     });
   });
 
@@ -169,7 +143,6 @@ function fakeAdapter(
     readonly openResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFile"]>>;
     readonly folderResult?: Awaited<ReturnType<FileServiceAdapter["openMarkdownFolder"]>>;
     readonly readResult?: Awaited<ReturnType<FileServiceAdapter["readMarkdownFile"]>>;
-    readonly saveResult?: Awaited<ReturnType<FileServiceAdapter["saveMarkdownFile"]>>;
   } = {},
 ): FileServiceAdapter {
   const fallbackFolder = options.folderResult ?? {
@@ -187,7 +160,6 @@ function fakeAdapter(
     openMarkdownFile: vi.fn(async () => options.openResult ?? null),
     openMarkdownFolder: vi.fn(async () => options.folderResult ?? null),
     readMarkdownFile: vi.fn(async () => options.readResult ?? { filePath: "", markdown: "" }),
-    saveMarkdownFile: vi.fn(async () => options.saveResult ?? null),
     refreshMarkdownFolder: vi.fn(async () => fallbackFolder),
     createMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),
     renameMarkdownTreeItem: vi.fn(async () => ({ folder: fallbackFolder, affectedPath: null })),

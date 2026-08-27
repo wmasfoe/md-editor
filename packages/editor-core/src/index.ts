@@ -1,75 +1,19 @@
 import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
-import type { Markdown } from "@md-editor/shared";
+import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
 export const editorCoreSpikeName = "editor-core-m0";
 
 export * from "./callout.ts";
 export * from "./content.ts";
+export * from "./document-state.ts";
 export * from "./file-lifecycle.ts";
 export * from "./markdown.ts";
-export * from "./markdown-format-commands.ts";
 export * from "./raw-fragments.ts";
 export * from "./recent-files.ts";
 
 export function describeEditorCoreSpike(): string {
   return editorCoreSpikeName;
 }
-
-export type EditorMode = "wysiwyg" | "source";
-
-export interface DocumentSnapshot {
-  readonly markdown: Markdown;
-  readonly savedMarkdown: Markdown;
-  readonly filePath: string | null;
-  readonly mode: EditorMode;
-  readonly isDirty: boolean;
-}
-
-export interface DocumentStateInput {
-  readonly markdown?: Markdown;
-  readonly savedMarkdown?: Markdown;
-  readonly filePath?: string | null;
-  readonly mode?: EditorMode;
-}
-
-export interface DocumentState {
-  subscribe(listener: () => void): () => void;
-  getSnapshot(): DocumentSnapshot;
-  updateMarkdown(markdown: Markdown): DocumentSnapshot;
-  markSaved(input?: {
-    readonly markdown?: Markdown;
-    readonly filePath?: string | null;
-  }): DocumentSnapshot;
-  updateSavedBaseline(input: {
-    readonly markdown: Markdown;
-    readonly filePath?: string | null;
-  }): DocumentSnapshot;
-  setMode(mode: EditorMode): DocumentSnapshot;
-}
-
-export type ModeSwitchError = "MODE_SWITCH_FAILED";
-
-export interface ModeSwitchAdapter {
-  readonly beforeSwitch?: (
-    snapshot: DocumentSnapshot,
-    nextMode: EditorMode,
-  ) => Markdown | Promise<Markdown>;
-  readonly afterSwitch?: (snapshot: DocumentSnapshot) => void | Promise<void>;
-}
-
-export interface ModeSwitchOk {
-  readonly ok: true;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export interface ModeSwitchFailure {
-  readonly ok: false;
-  readonly error: ModeSwitchError;
-  readonly message: string;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export type ModeSwitchResult = ModeSwitchOk | ModeSwitchFailure;
 
 export interface CommandContext {
   readonly document: DocumentState;
@@ -78,16 +22,37 @@ export interface CommandContext {
 
 export type CommandHandler = (context: CommandContext) => void | Promise<void>;
 
+/**
+ * G007 P3-9:命令的 UI 放置声明(从 registry 统一拉取的入口点)。
+ * 命令面板是首个消费者;斜杠菜单/工具栏后续基于同一数据源扩展。
+ */
+export type CommandPlacement = "toolbar" | "command-palette" | "editor-menu";
+
 export interface CommandDescriptor {
   readonly id: string;
   readonly title: string;
   readonly run: CommandHandler;
+  /** UI 放置声明;缺省/空 = 不进入任何统一 UI */
+  readonly placement?: readonly CommandPlacement[];
+  /** 命令面板搜索关键词(大小写不敏感) */
+  readonly keywords?: readonly string[];
+  /** 命令面板分组 */
+  readonly group?: string;
+  /** 可用性条件;缺省 = 始终可用;抛异常按不可用处理 */
+  readonly when?: (context: CommandContext) => boolean;
 }
 
 export interface CommandRegistry {
   register(command: CommandDescriptor): void;
   dispatch(id: string, context: CommandContext): Promise<boolean>;
   list(): readonly CommandDescriptor[];
+  /** G007:按 UI 放置声明查询(不过滤 when) */
+  listByPlacement(placement: CommandPlacement): readonly CommandDescriptor[];
+  /** G007:按 when 过滤 + 分组排序;placement 缺省 = 全部可用命令 */
+  listAvailable(
+    context: CommandContext,
+    placement?: CommandPlacement,
+  ): readonly CommandDescriptor[];
 }
 
 export interface KeymapDescriptor {
@@ -131,7 +96,8 @@ export type BuiltInCommandId =
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary"
-  | "ai.continueWriting";
+  | "ai.continueWriting"
+  | "ai.fixGrammar";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -146,6 +112,7 @@ export interface EditorActionHandlers {
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
   readonly continueAiWriting?: () => void | Promise<void>;
+  readonly fixAiGrammar?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -163,75 +130,6 @@ export interface EditorRuntimeInput {
   readonly commands?: CommandRegistry;
   readonly keymaps?: KeymapRegistry;
   readonly features?: FeatureRegistry;
-}
-
-export function createDocumentState(input: DocumentStateInput = {}): DocumentState {
-  // 只保留一份 Markdown 字符串作为跨模式事实源。
-  // WYSIWYG 和 Source Mode 适配层都必须通过这里同步，避免各自持有副本。
-  let markdown = input.markdown ?? "";
-  let savedMarkdown = input.savedMarkdown ?? markdown;
-  let filePath = input.filePath ?? null;
-  let mode = input.mode ?? "wysiwyg";
-
-  // useSyncExternalStore 所需的订阅机制：每次 mutation 后通知所有 React 订阅者。
-  const listeners = new Set<() => void>();
-  // useSyncExternalStore 要求 getSnapshot 返回稳定引用：相同状态必须返回同一对象。
-  // 缓存上一次快照，mutation 时置 null 失效，下次调用再重建。
-  let cachedSnapshot: DocumentSnapshot | null = null;
-
-  function notify() {
-    listeners.forEach((l) => l());
-  }
-
-  function snapshot(): DocumentSnapshot {
-    if (cachedSnapshot === null) {
-      cachedSnapshot = {
-        markdown,
-        savedMarkdown,
-        filePath,
-        mode,
-        isDirty: markdown !== savedMarkdown,
-      };
-    }
-    return cachedSnapshot;
-  }
-
-  return {
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    getSnapshot: snapshot,
-    updateMarkdown(nextMarkdown) {
-      markdown = nextMarkdown;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    markSaved(next = {}) {
-      markdown = next.markdown ?? markdown;
-      savedMarkdown = markdown;
-      filePath = next.filePath === undefined ? filePath : next.filePath;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    updateSavedBaseline(next) {
-      savedMarkdown = next.markdown;
-      filePath = next.filePath === undefined ? filePath : next.filePath;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-    setMode(nextMode) {
-      mode = nextMode;
-      cachedSnapshot = null;
-      notify();
-      return snapshot();
-    },
-  };
 }
 
 export function createCommandRegistry(): CommandRegistry {
@@ -258,6 +156,39 @@ export function createCommandRegistry(): CommandRegistry {
     },
     list() {
       return [...commands.values()];
+    },
+    listByPlacement(placement) {
+      return [...commands.values()].filter(
+        (command) => command.placement?.includes(placement) ?? false,
+      );
+    },
+    listAvailable(context, placement) {
+      const available = [...commands.values()].filter((command) => {
+        // 统一 UI 只服务声明了 placement 的命令;显式 placement 时精确匹配
+        if (placement !== undefined) {
+          if (!(command.placement?.includes(placement) ?? false)) {
+            return false;
+          }
+        } else if ((command.placement?.length ?? 0) === 0) {
+          return false;
+        }
+        if (command.when === undefined) {
+          return true;
+        }
+        try {
+          return command.when(context);
+        } catch {
+          // when 抛异常 = 状态异常,按不可用处理(fail-closed)
+          return false;
+        }
+      });
+      return Object.freeze(
+        [...available].toSorted(
+          (left, right) =>
+            (left.group ?? "").localeCompare(right.group ?? "") ||
+            left.title.localeCompare(right.title),
+        ),
+      );
     },
   };
 }
@@ -311,36 +242,61 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
     id: "editor.built-in",
     title: "Built-in editor commands",
     setup(context) {
-      registerActionCommand(context.commands, "file.new", "New Document", "newDocument");
-      registerActionCommand(context.commands, "file.open", "Open File", "openDocument");
+      registerActionCommand(context.commands, "file.new", "New Document", "newDocument", {
+        group: "文件",
+        keywords: ["新建", "new"],
+      });
+      registerActionCommand(context.commands, "file.open", "Open File", "openDocument", {
+        group: "文件",
+        keywords: ["打开", "open"],
+      });
       registerActionCommand(
         context.commands,
         "file.openRecent",
         "Open Recent File",
         "openRecentDocument",
+        { group: "文件", keywords: ["最近", "recent"] },
       );
-      registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder");
-      registerActionCommand(context.commands, "file.save", "Save", "saveDocument");
-      registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs");
-      registerActionCommand(context.commands, "settings.open", "Settings", "openSettings");
+      registerActionCommand(context.commands, "file.openFolder", "Open Folder", "openFolder", {
+        group: "文件",
+        keywords: ["文件夹", "folder"],
+      });
+      registerActionCommand(context.commands, "file.save", "Save", "saveDocument", {
+        group: "文件",
+        keywords: ["保存", "save"],
+      });
+      registerActionCommand(context.commands, "file.saveAs", "Save As", "saveDocumentAs", {
+        group: "文件",
+        keywords: ["另存为", "save as"],
+      });
+      registerActionCommand(context.commands, "settings.open", "Settings", "openSettings", {
+        group: "设置",
+        keywords: ["设置", "偏好", "settings"],
+      });
       registerActionCommand(
         context.commands,
         "mdx.openComponentMenu",
         "Insert MDX Component",
         "openMdxComponentMenu",
+        { group: "插入", keywords: ["mdx", "组件", "component"] },
       );
       registerActionCommand(
         context.commands,
         "view.toggleSource",
         "Toggle Source Mode",
         "toggleSourceMode",
+        { group: "视图", keywords: ["源码", "source", "toggle"] },
       );
-      registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode");
+      registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode", {
+        group: "视图",
+        keywords: ["编辑", "wysiwyg"],
+      });
       registerActionCommand(
         context.commands,
         "view.toggleSidebarPrimary",
         "Toggle File Tree and Outline",
         "toggleSidebarPrimary",
+        { group: "视图", keywords: ["侧栏", "sidebar", "outline"] },
       );
 
       context.keymaps.register({
@@ -380,11 +336,24 @@ export function createAiWritingFeature(): FeatureDescriptor {
         "ai.continueWriting",
         "Continue Writing with AI",
         "continueAiWriting",
+        { group: "AI", keywords: ["ai", "续写", "写作", "continue"] },
+      );
+      registerActionCommand(
+        context.commands,
+        "ai.fixGrammar",
+        "Fix Grammar and Polish with AI",
+        "fixAiGrammar",
+        { group: "AI", keywords: ["ai", "修复", "纠错", "语法", "润色", "fix", "grammar"] },
       );
       context.keymaps.register({
         id: "ai.continueWriting",
         key: "Mod-Shift-A",
         commandId: "ai.continueWriting",
+      });
+      context.keymaps.register({
+        id: "ai.fixGrammar",
+        key: "Mod-Shift-G",
+        commandId: "ai.fixGrammar",
       });
     },
   };
@@ -395,10 +364,19 @@ function registerActionCommand(
   id: BuiltInCommandId,
   title: string,
   actionName: keyof EditorActionHandlers,
+  options: {
+    readonly group?: string;
+    readonly placement?: readonly CommandPlacement[];
+    readonly keywords?: readonly string[];
+  } = {},
 ): void {
   commands.register({
     id,
     title,
+    // G007:内置命令默认进入命令面板(统一 UI 入口);显式 placement 覆盖
+    placement: options.placement ?? ["command-palette"],
+    group: options.group,
+    keywords: options.keywords,
     async run(context) {
       await context.actions?.[actionName]?.();
     },
@@ -423,40 +401,4 @@ export function createEditorRuntime(input: EditorRuntimeInput): EditorRuntime {
       return input.document.getSnapshot();
     },
   };
-}
-
-export async function switchEditorModeSafely(
-  document: DocumentState,
-  nextMode: EditorMode,
-  adapter: ModeSwitchAdapter = {},
-): Promise<ModeSwitchResult> {
-  const previous = document.getSnapshot();
-
-  if (previous.mode === nextMode) {
-    return { ok: true, snapshot: previous };
-  }
-
-  try {
-    // 切换前允许当前模式把自己的编辑内容序列化回 Markdown；
-    // 如果这里失败，必须保持原模式和原内容，避免静默丢稿。
-    const nextMarkdown = adapter.beforeSwitch
-      ? await adapter.beforeSwitch(previous, nextMode)
-      : previous.markdown;
-
-    document.updateMarkdown(nextMarkdown);
-    const snapshot = document.setMode(nextMode);
-    await adapter.afterSwitch?.(snapshot);
-
-    return { ok: true, snapshot };
-  } catch (error) {
-    document.updateMarkdown(previous.markdown);
-    document.setMode(previous.mode);
-
-    return {
-      ok: false,
-      error: "MODE_SWITCH_FAILED",
-      message: error instanceof Error ? error.message : "Failed to switch editor mode.",
-      snapshot: document.getSnapshot(),
-    };
-  }
 }

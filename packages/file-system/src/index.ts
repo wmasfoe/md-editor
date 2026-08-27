@@ -1,4 +1,13 @@
-import { err, ok, type Result } from "@md-editor/shared";
+import { err, normalizeLineEndings, ok, type Result } from "@md-editor/shared";
+import {
+  createFileSaveScheduler,
+  type FileSaveScheduler,
+  type FileSaveSchedulerOptions,
+  type NativeSaveAdapter,
+  type NativeSaveRuntimeRegistration,
+} from "./save-scheduler";
+
+export * from "./save-scheduler";
 
 export interface MarkdownDocumentFile {
   readonly filePath: string;
@@ -16,12 +25,6 @@ export interface MarkdownFolder {
   readonly rootPath: string;
   readonly rootName: string;
   readonly tree: MarkdownFileTreeNode;
-}
-
-export interface SaveMarkdownInput {
-  readonly filePath: string | null;
-  readonly markdown: string;
-  readonly forceDialog?: boolean;
 }
 
 export interface CreateTreeItemInput {
@@ -51,7 +54,6 @@ export interface FileServiceAdapter {
   openMarkdownFile(): Promise<MarkdownDocumentFile | null>;
   openMarkdownFolder(): Promise<MarkdownFolder | null>;
   readMarkdownFile(path: string): Promise<MarkdownDocumentFile>;
-  saveMarkdownFile(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
   refreshMarkdownFolder(rootPath: string): Promise<MarkdownFolder>;
   createMarkdownTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult>;
   renameMarkdownTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult>;
@@ -68,15 +70,13 @@ export interface FileService {
   openDocument(): Promise<MarkdownDocumentFile | null>;
   openFolder(): Promise<MarkdownFolder | null>;
   openDocumentAtPath(path: string): Promise<MarkdownDocumentFile>;
-  saveDocument(input: SaveMarkdownInput): Promise<MarkdownDocumentFile | null>;
-  saveDocumentAs(
-    input: Omit<SaveMarkdownInput, "forceDialog">,
-  ): Promise<MarkdownDocumentFile | null>;
   refreshFolder(rootPath: string): Promise<MarkdownFolder>;
   createTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult>;
   renameTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult>;
   deleteTreeItem(input: DeleteTreeItemInput): Promise<FileTreeMutationResult>;
 }
+
+export type RuntimeFileService = FileService & FileSaveScheduler;
 
 export interface ImagePasteInput {
   readonly documentPath: string | null;
@@ -124,20 +124,14 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
         filePath: null,
       };
     },
-    openDocument() {
-      return adapter.openMarkdownFile();
+    async openDocument() {
+      return normalizeDocumentFile(await adapter.openMarkdownFile());
     },
     openFolder() {
       return adapter.openMarkdownFolder();
     },
-    openDocumentAtPath(path) {
-      return adapter.readMarkdownFile(path);
-    },
-    saveDocument(input) {
-      return adapter.saveMarkdownFile(input);
-    },
-    saveDocumentAs(input) {
-      return adapter.saveMarkdownFile({ ...input, forceDialog: true });
+    async openDocumentAtPath(path) {
+      return normalizeRequiredDocumentFile(await adapter.readMarkdownFile(path));
     },
     refreshFolder(rootPath) {
       return adapter.refreshMarkdownFolder(rootPath);
@@ -151,6 +145,37 @@ export function createFileService(adapter: FileServiceAdapter): FileService {
     deleteTreeItem(input) {
       return adapter.deleteMarkdownTreeItem(input);
     },
+  };
+}
+
+function normalizeDocumentFile(document: MarkdownDocumentFile | null): MarkdownDocumentFile | null {
+  return document ? normalizeRequiredDocumentFile(document) : null;
+}
+
+function normalizeRequiredDocumentFile(document: MarkdownDocumentFile): MarkdownDocumentFile {
+  return Object.freeze({
+    filePath: document.filePath,
+    markdown: normalizeLineEndings(document.markdown),
+  });
+}
+
+export function createRuntimeFileService(
+  adapter: FileServiceAdapter,
+  nativeSaveAdapter: NativeSaveAdapter,
+  registration: NativeSaveRuntimeRegistration,
+  options?: FileSaveSchedulerOptions,
+): RuntimeFileService {
+  const files = createFileService(adapter);
+  return {
+    newDocument: files.newDocument,
+    openDocument: files.openDocument,
+    openFolder: files.openFolder,
+    openDocumentAtPath: files.openDocumentAtPath,
+    refreshFolder: files.refreshFolder,
+    createTreeItem: files.createTreeItem,
+    renameTreeItem: files.renameTreeItem,
+    deleteTreeItem: files.deleteTreeItem,
+    ...createFileSaveScheduler(nativeSaveAdapter, registration, options),
   };
 }
 

@@ -73,6 +73,7 @@ export interface AiWritingSuggestion {
 }
 
 export interface AiContinuationRequestOptions {
+  readonly intent?: "continuation" | "editing" | "both";
   readonly fetchImpl?: typeof fetch;
   readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   readonly timeoutMs?: number;

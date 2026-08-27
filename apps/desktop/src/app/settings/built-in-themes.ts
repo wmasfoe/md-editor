@@ -6,11 +6,13 @@ export interface BuiltInThemeOption {
 }
 
 export const BUILT_IN_LIGHT_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
+  { id: "paper-light", label: "宣纸" },
   { id: "github-light", label: "GitHub" },
   { id: "gothic-light", label: "Gothic" },
 ];
 
 export const BUILT_IN_DARK_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
+  { id: "charcoal-dark", label: "炭焙" },
   { id: "night-dark", label: "Night" },
 ];
 
@@ -22,6 +24,10 @@ export function builtInThemeCss(themeId: BuiltInThemeId): string {
       return GOTHIC_LIGHT_THEME_CSS;
     case "night-dark":
       return NIGHT_DARK_THEME_CSS;
+    case "paper-light":
+      return PAPER_LIGHT_THEME_CSS;
+    case "charcoal-dark":
+      return CHARCOAL_DARK_THEME_CSS;
   }
 }
 
@@ -69,6 +75,13 @@ const GITHUB_LIGHT_THEME_CSS = `
   --theme-del-accent: #cf222e;
   --theme-code-accent: #116329;
   --theme-marker-dim: #6e7781;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
 }
 `;
 
@@ -116,9 +129,13 @@ const GOTHIC_LIGHT_THEME_CSS = `
   --theme-del-accent: #8c2c1a;
   --theme-code-accent: #2e6b3b;
   --theme-marker-dim: #9f9990;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
   --theme-font:
     "Century Gothic", "Avenir Next", Avenir, "Helvetica Neue", Helvetica, Arial,
     "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
   --theme-content-width: 820px;
 }
 `;
@@ -167,5 +184,154 @@ const NIGHT_DARK_THEME_CSS = `
   --theme-del-accent: #f7768e;
   --theme-code-accent: #9ece6a;
   --theme-marker-dim: #565f89;
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
+}
+`;
+
+const PAPER_LIGHT_THEME_CSS = `
+:root {
+  color-scheme: light;
+  /* ── 纸张与画布 ── */
+  --theme-bg: #f7f5f0;
+  --theme-bg-muted: #efede7;
+  --theme-chrome: #efede7;
+  --theme-surface: #f7f5f0;
+  --theme-chrome-soft: var(--theme-surface);
+  /* ── 文字体系:由浓至淡 ── */
+  --theme-text: #38332c;
+  --theme-title: #201d19;
+  --theme-muted: #656057;
+  --theme-control-text: #5a544a;
+  --theme-control-subtle: #736e64;
+  --theme-disabled: #9e988f;
+  /* ── 边框 ── */
+  --theme-border: rgba(32, 30, 28, 0.08);
+  --theme-border-strong: rgba(32, 30, 28, 0.14);
+  /* ── 朱砂红强调色 ── */
+  --theme-primary: #6e1f2c;
+  --theme-primary-fill: var(--theme-primary);
+  --theme-primary-soft: rgba(110, 31, 44, 0.09);
+  --theme-primary-selected: rgba(110, 31, 44, 0.14);
+  /* ── 控件交互态 ── */
+  --theme-control-hover: rgba(110, 31, 44, 0.06);
+  --theme-control-active: rgba(110, 31, 44, 0.1);
+  --theme-danger-bg: rgba(165, 52, 42, 0.1);
+  --theme-danger-text: #a62f2a;
+  /* ── 代码块 ── */
+  --theme-code: #38332c;
+  --theme-code-bg: #f0ede6;
+  --theme-code-border: #e2ded5;
+  --theme-code-gutter-bg: #ece8e0;
+  --theme-code-gutter-text: #8a857a;
+  --theme-code-keyword: #8c3f63;
+  --theme-code-string: #587139;
+  --theme-code-comment: #9e988f;
+  --theme-code-number: #a05a2c;
+  --theme-code-tag: #3f6f7a;
+  --theme-code-attribute: #8c3f63;
+  --theme-code-variable: #6e1f2c;
+  --theme-inline-code-bg: rgba(110, 31, 44, 0.07);
+  /* ── 行内语义强调色 ── */
+  --theme-heading-accent: #6e1f2c;
+  --theme-strong-accent: #6e1f2c;
+  --theme-em-accent: #5a4420;
+  --theme-del-accent: #a62f2a;
+  --theme-code-accent: #2e6b3b;
+  --theme-marker-dim: #9e988f;
+  /* ── 荧光高亮 ── */
+  --theme-mark: rgba(255, 205, 80, 0.36);
+  /* ── 阴影 ── */
+  --theme-shadow: 0 1px 2px rgba(32, 30, 28, 0.04), 0 14px 34px -24px rgba(32, 30, 28, 0.22);
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    "LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB",
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
+  --theme-content-width: 820px;
+  --theme-editor-line-height: 1.88;
+  /* ── 动效 Token:纸张阻尼感 ── */
+  --cm-transition-fast: 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  --cm-transition-base: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  --cm-transition-enter: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+`;
+
+const CHARCOAL_DARK_THEME_CSS = `
+:root {
+  color-scheme: dark;
+  /* ── 纸张与画布:炭焙深色 ── */
+  --theme-bg: #1b1815;
+  --theme-bg-muted: #221e1a;
+  --theme-chrome: #221e1a;
+  --theme-surface: #1b1815;
+  --theme-chrome-soft: var(--theme-surface);
+  /* ── 文字体系:由白至灰 ── */
+  --theme-text: #ddd6c9;
+  --theme-title: #f2ede4;
+  --theme-muted: #a39b8f;
+  --theme-control-text: #bab3a7;
+  --theme-control-subtle: #8a8277;
+  --theme-disabled: #6b635a;
+  /* ── 边框 ── */
+  --theme-border: rgba(242, 237, 228, 0.1);
+  --theme-border-strong: rgba(242, 237, 228, 0.18);
+  /* ── 绯红强调色 ── */
+  --theme-primary: #c9576b;
+  --theme-primary-fill: #a84054;
+  --theme-primary-soft: rgba(201, 87, 107, 0.12);
+  --theme-primary-selected: rgba(201, 87, 107, 0.22);
+  /* ── 控件交互态 ── */
+  --theme-control-hover: rgba(201, 87, 107, 0.08);
+  --theme-control-active: rgba(201, 87, 107, 0.14);
+  --theme-danger-bg: rgba(255, 92, 118, 0.13);
+  --theme-danger-text: #ff8a9e;
+  /* ── 代码块 ── */
+  --theme-code: #ddd6c9;
+  --theme-code-bg: #151210;
+  --theme-code-border: #2e2923;
+  --theme-code-gutter-bg: #120f0c;
+  --theme-code-gutter-text: #7a726a;
+  --theme-code-keyword: #c9576b;
+  --theme-code-string: #9dba7c;
+  --theme-code-comment: #7a726a;
+  --theme-code-number: #d4a76a;
+  --theme-code-tag: #7dabbf;
+  --theme-code-attribute: #c9a0dc;
+  --theme-code-variable: #c9576b;
+  --theme-inline-code-bg: rgba(201, 87, 107, 0.1);
+  /* ── 行内语义强调色 ── */
+  --theme-heading-accent: #c9576b;
+  --theme-strong-accent: #c9576b;
+  --theme-em-accent: #c9a0dc;
+  --theme-del-accent: #edaba0;
+  --theme-code-accent: #9dba7c;
+  --theme-marker-dim: #6b635a;
+  /* ── 荧光高亮 ── */
+  --theme-mark: rgba(255, 205, 80, 0.26);
+  /* ── 阴影 ── */
+  --theme-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 14px 34px -24px rgba(0, 0, 0, 0.65), 0 70px 130px -60px rgba(0, 0, 0, 0.7);
+  /* ── 字体体系:正文字体与代码字体分离 ── */
+  --theme-font:
+    "LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB",
+    -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --theme-mono-font:
+    ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
+    Consolas, monospace;
+  --theme-content-width: 820px;
+  --theme-editor-line-height: 1.88;
+  /* ── 动效 Token ── */
+  --cm-transition-fast: 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  --cm-transition-base: 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  --cm-transition-enter: 280ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 `;

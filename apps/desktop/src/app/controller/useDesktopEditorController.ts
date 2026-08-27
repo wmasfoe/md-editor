@@ -2,14 +2,12 @@ import { useCallback, useEffect } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
+import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
 import { useAppSettings } from "../settings-context";
 import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events/command-bindings";
-import { bindDropImageListener } from "../events/drop-image-listener";
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
-import { bindPasteImageListener } from "../events/paste-image-listener";
-import { fileService } from "../../desktop/file-service";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
 import {
   isExternalSchemeLink,
@@ -19,8 +17,10 @@ import {
 } from "../../lib/link-target";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
+import { getAiCompletionReadiness, requestAiContinuation } from "@md-editor/ai";
+import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { useEditorUiActions } from "@md-editor/editor-ui";
+import { unsupportedEditorUiCommandSlots, useEditorUiActions } from "@md-editor/editor-ui";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 import { useFileActionStore } from "../stores/file-action-store";
@@ -30,10 +30,12 @@ import { isUpdateActionBusy, shouldShowEditorUpdateAction } from "../updates/upd
 import type { DesktopEditorActions } from "../context/DesktopEditorActionsContext";
 
 export interface UseDesktopEditorControllerInput {
+  readonly fileService: RuntimeFileService;
   readonly showToast: (message: string | null) => void;
 }
 
 export function useDesktopEditorController({
+  fileService,
   showToast,
 }: UseDesktopEditorControllerInput): DesktopEditorActions {
   const {
@@ -45,13 +47,7 @@ export function useDesktopEditorController({
     applyDownloadedUpdate,
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const {
-    clearModeScrollTarget,
-    getEditorCommands,
-    jumpToMarkdownFragment,
-    setDocumentRevision: setEditorRevision,
-    startModeScrollTarget,
-  } = useEditorUiActions();
+  const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
 
   const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
     useSidebarStore.setState((state) => ({
@@ -65,24 +61,26 @@ export function useDesktopEditorController({
   const setOpenedAsset = useDocumentUiStore((state) => state.setOpenedAsset);
   const openAssetPath = useDocumentUiStore((state) => state.openAssetPath);
   const runFileAction = useFileActionStore((state) => state.runFileAction);
-  const refreshFolderForDocumentPath = useFileTreeStore(
+  const refreshFolderForDocumentPathWithService = useFileTreeStore(
     (state) => state.refreshFolderForDocumentPath,
   );
-  const refreshOpenedFolder = useFileTreeStore((state) => state.refreshOpenedFolder);
   const showOpenedFolder = useFileTreeStore((state) => state.showOpenedFolder);
-
+  const refreshFolderForDocumentPath = useCallback(
+    (documentPath: string) => refreshFolderForDocumentPathWithService(fileService, documentPath),
+    [fileService, refreshFolderForDocumentPathWithService],
+  );
   const docActions = useDocumentActionsController({
+    fileService,
+    getRendererPorts,
     refreshFolderForDocumentPath,
     requestConfirmation,
     runFileAction,
-    setEditorRevision,
     setHasActiveDocument,
     setOpenedAsset,
     showOpenedFolder,
     showToast,
   });
   const {
-    applyProgrammaticMarkdown,
     createNewDocument,
     ensureDiscardAllowed,
     openDocument,
@@ -97,16 +95,9 @@ export function useDesktopEditorController({
 
   const switchMode = useCallback(
     async (mode: EditorMode) => {
-      const currentMode = runtime.document.getSnapshot().mode;
-      if (currentMode !== mode) {
-        startModeScrollTarget(mode);
-      }
       await switchDocumentMode(mode);
-      if (runtime.document.getSnapshot().mode !== mode) {
-        clearModeScrollTarget();
-      }
     },
-    [clearModeScrollTarget, startModeScrollTarget, switchDocumentMode],
+    [switchDocumentMode],
   );
 
   const toggleSourceMode = useCallback(async () => {
@@ -118,7 +109,6 @@ export function useDesktopEditorController({
   const dispatchCommand = useCallback(
     async (id: string) => {
       if (hasPendingConfirmation()) return;
-      const editorCommands = getEditorCommands();
       await runtime.commands.dispatch(id, {
         document: runtime.document,
         actions: {
@@ -126,11 +116,145 @@ export function useDesktopEditorController({
           openDocument,
           openRecentDocument,
           openFolder,
-          saveDocument: () => saveDocument(false),
-          saveDocumentAs: () => saveDocument(true),
+          saveDocument: async () => {
+            await saveDocument(false);
+          },
+          saveDocumentAs: async () => {
+            await saveDocument(true);
+          },
           openSettings,
-          openMdxComponentMenu: editorCommands.openMdxComponentMenu,
-          continueAiWriting: editorCommands.continueAiWriting,
+          openMdxComponentMenu: async () => {
+            const result = unsupportedEditorUiCommandSlots.openMdxComponentMenu();
+            if (result?.status === "unsupported") {
+              showToast("当前编辑器暂不支持插入 MDX 组件。");
+            }
+          },
+          continueAiWriting: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              showToast("当前编辑器未就绪。");
+              return;
+            }
+            const readiness = getAiCompletionReadiness(settings.ai, "continuation");
+            if (readiness) {
+              showToast(readiness);
+              return;
+            }
+            const selection = portsAccess.ports.getSelectionSnapshot();
+            const markdown = snapshot.markdown;
+            const before = markdown.slice(0, selection.from);
+            const after = markdown.slice(selection.to);
+            const selectedText = selection.text;
+
+            try {
+              showToast("AI 续写思考中...");
+              const suggestion = await requestAiContinuation(
+                settings.ai,
+                {
+                  before,
+                  after,
+                  selectedText,
+                  mode: snapshot.mode,
+                  document: {
+                    filePath: snapshot.filePath,
+                  },
+                },
+                { intent: "continuation" },
+              );
+
+              if (suggestion.continuation) {
+                portsAccess.ports.showSuggestion({
+                  from: selection.from,
+                  to: selection.to,
+                  text: suggestion.continuation,
+                });
+                showToast("AI 续写建议已就绪，按 Tab 接受，Esc 取消。");
+              } else {
+                showToast("未能生成有效续写建议。");
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              showToast(message);
+            }
+          },
+          fixAiGrammar: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              showToast("当前编辑器未就绪。");
+              return;
+            }
+            const readiness = getAiCompletionReadiness(settings.ai, "editing");
+            if (readiness) {
+              showToast(readiness);
+              return;
+            }
+            const selection = portsAccess.ports.getSelectionSnapshot();
+            const markdown = snapshot.markdown;
+            let targetFrom = selection.from;
+            let targetTo = selection.to;
+            let selectedText = selection.text;
+
+            // 若未选中文本，则自动选取光标所在的当前句子/整行进行分析
+            if (targetFrom === targetTo) {
+              const lineStart = markdown.lastIndexOf("\n", targetFrom - 1) + 1;
+              const lineEndIndex = markdown.indexOf("\n", targetFrom);
+              const lineEnd = lineEndIndex === -1 ? markdown.length : lineEndIndex;
+              if (lineEnd > lineStart) {
+                targetFrom = lineStart;
+                targetTo = lineEnd;
+                selectedText = markdown.slice(lineStart, lineEnd);
+              }
+            }
+
+            const before = markdown.slice(0, targetFrom);
+            const after = markdown.slice(targetTo);
+
+            try {
+              showToast("AI 语法修复分析中...");
+              const suggestion = await requestAiContinuation(
+                settings.ai,
+                {
+                  before,
+                  after,
+                  selectedText,
+                  mode: snapshot.mode,
+                  document: {
+                    filePath: snapshot.filePath,
+                  },
+                },
+                { intent: "editing" },
+              );
+
+              if (suggestion.edit) {
+                // 如果 LLM 返回的原文字段与选区匹配，则精确绑定范围
+                let editFrom = targetFrom;
+                let editTo = targetTo;
+                if (suggestion.edit.original && selectedText.includes(suggestion.edit.original)) {
+                  const offset = selectedText.indexOf(suggestion.edit.original);
+                  editFrom = targetFrom + offset;
+                  editTo = editFrom + suggestion.edit.original.length;
+                }
+
+                portsAccess.ports.showSuggestion({
+                  from: editFrom,
+                  to: editTo,
+                  text: suggestion.edit.replacement,
+                  originalText: suggestion.edit.original,
+                  explanation: suggestion.edit.reason,
+                });
+                showToast(
+                  suggestion.edit.reason
+                    ? `AI 建议：${suggestion.edit.reason}（Tab 接受 · Esc 取消）`
+                    : "AI 修复建议已就绪，按 Tab 接受，Esc 取消。",
+                );
+              } else {
+                showToast("未发现明显语法、错别字或标点问题。");
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              showToast(message);
+            }
+          },
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
           toggleSidebarPrimary: () => setIsSidebarVisible((v) => !v),
@@ -139,14 +263,17 @@ export function useDesktopEditorController({
     },
     [
       createNewDocument,
-      getEditorCommands,
+      getRendererPorts,
       hasPendingConfirmation,
       openDocument,
       openFolder,
       openRecentDocument,
       openSettings,
       saveDocument,
+      settings.ai,
       setIsSidebarVisible,
+      showToast,
+      snapshot,
       switchMode,
       toggleSourceMode,
     ],
@@ -161,12 +288,19 @@ export function useDesktopEditorController({
     let nextStatus = updateStatus;
 
     const ensureSavedBeforeApply = async () => {
-      if (!runtime.document.getSnapshot().isDirty) {
+      const current = runtime.document.getSnapshot();
+      if (!isDiscardProtectionRequired(current)) {
         return true;
       }
       await requestConfirmation({
-        title: "请先保存文档",
-        description: "当前文档还有未保存的更改。请先保存，再继续更新 App。",
+        title:
+          current.persistenceStatus.kind === "verification-required"
+            ? "保存结果仍需确认"
+            : "请先保存文档",
+        description:
+          current.persistenceStatus.kind === "verification-required"
+            ? "上一次保存结果无法确认。请再次保存并确认成功，再继续更新 App。"
+            : "当前文档还有未保存的更改。请先保存，再继续更新 App。",
         confirmLabel: "知道了",
       });
       return false;
@@ -259,6 +393,7 @@ export function useDesktopEditorController({
     },
     [
       ensureDiscardAllowed,
+      fileService,
       jumpToMarkdownFragment,
       openAssetPath,
       refreshFolderForDocumentPath,
@@ -281,42 +416,6 @@ export function useDesktopEditorController({
         ensureDiscardAllowed("关闭应用前，你可以保存当前文档，或放弃尚未保存的更改。"),
       ),
     [ensureDiscardAllowed],
-  );
-
-  useEffect(
-    () =>
-      bindPasteImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory,
-      }),
-    [
-      applyProgrammaticMarkdown,
-      refreshOpenedFolder,
-      replaceDocument,
-      runFileAction,
-      settings.assetsDirectory,
-    ],
-  );
-
-  useEffect(
-    () =>
-      bindDropImageListener({
-        replaceDocument,
-        runFileAction,
-        applyMarkdown: applyProgrammaticMarkdown,
-        afterSaveImage: refreshOpenedFolder,
-        assetsDirectory: settings.assetsDirectory,
-      }),
-    [
-      applyProgrammaticMarkdown,
-      refreshOpenedFolder,
-      replaceDocument,
-      runFileAction,
-      settings.assetsDirectory,
-    ],
   );
 
   useEffect(

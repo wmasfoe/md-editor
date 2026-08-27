@@ -1,5 +1,7 @@
 # AI Markdown 编辑器需求沟通记录
 
+> 状态说明：第 2、3、7、8、10、11、12 节保留历史讨论；与 Milkdown、独立 SourceEditor、合成 serializer 或第三方 MDX 相关的结论均已被第 13 节覆盖。
+
 ## 1. 项目背景
 
 用户希望开发一个面向技术写作者、程序员、博客作者的 Markdown 编辑器。产品整体方向类似 Typora，强调单视图、所见即所得的 Markdown 编辑体验，但相比 Typora 需要具备两个核心增强能力：
@@ -177,7 +179,9 @@ interface Exporter {
 
 ---
 
-## 7. 源码模式讨论
+## 7. 源码模式讨论（历史，已被第 13 节覆盖）
+
+> 本节保留当时选择独立 CodeMirror SourceEditor 的讨论记录。当前方案使用同一个 CM6 `EditorView` 切换 WYSIWYG / source mode，不再序列化、重建或映射两个编辑器实例。
 
 用户明确：
 
@@ -193,7 +197,9 @@ interface Exporter {
 
 ---
 
-## 8. MDX 自定义组件讨论
+## 8. MDX 自定义组件讨论（历史，已被第 13 节覆盖）
+
+> 本节保留曾考虑第三方 MDX 组件注册的讨论记录。当前只支持官方内置组件，不提供用户导入或第三方组件运行时。
 
 用户提出：
 
@@ -279,7 +285,7 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 
 ---
 
-## 10. 当前阶段共识
+## 10. 当时阶段共识（历史，已被第 13 节覆盖）
 
 最终形成的阶段性共识：
 
@@ -296,7 +302,9 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 
 ---
 
-## 11. 技术方案审阅后的调整
+## 11. 技术方案审阅后的调整（历史，部分结论已被第 13 节覆盖）
+
+> raw 源码保真、文件边界和测试原则继续有效；ProseMirror、合成 serializer 和旧 MDX 展示方式不再是后续实现方向。
 
 本次根据技术方案审阅，确认整体方向不需要推翻，但需要收窄若干高风险点的边界。
 
@@ -313,7 +321,7 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 
 ---
 
-## 12. Milkdown 核心状态与交互讨论
+## 12. Milkdown 核心状态与交互讨论（历史，已被第 13 节覆盖）
 
 本次进一步确认：Milkdown 不是普通 UI 组件，而是编辑器产品的交互内核。文件状态、源码模式、MDX、AI、图片和导出都需要围绕 Editor Runtime 建立边界。
 
@@ -329,3 +337,21 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 8. 交互状态需要分层：`DocumentState` 管内容和文件生命周期，`EditorRuntimeState` 管初始化和模式切换，`EditorInteractionState` 管选区、焦点、输入法和浮层，`FeatureState` 管大纲、MDX registry、图片和导出等功能状态。
 9. React 不应承接所有编辑器高频状态，高频编辑状态优先留在 ProseMirror transaction 和 plugin state 中。
 10. Milestone 0 需要把 EditorRuntime 内容接口、raw fragment collector、dirty 标记和合成 serializer 做成可验证尖刺。
+
+---
+
+## 13. CodeMirror 6 单编辑器迁移决策（2026-07-17）
+
+第 2、3、7、8、10、11、12 节记录的是此前的阶段性讨论；其中 Milkdown、独立 SourceEditor、合成 serializer 和第三方 MDX 路线已经被本节覆盖，未冲突的产品目标与保真原则继续有效。后续实现证明，为了让 Markdown marker 保持为可直接编辑的真实文本，需要持续禁用 Milkdown / ProseMirror 原生语义并重建解析、schema 和 serializer 行为，因此产品路线改为 CM6 source-text-first 可视化编辑器。
+
+最新共识：
+
+1. WYSIWYG 和源码模式复用一个 CM6 `EditorView`、history、selection 和 scroll 状态。
+2. 迁移 feature 分支只维护 CM6，不提供 Milkdown / CM6 双运行时或用户切换开关。
+3. 可以发布功能不完整但明确记录缺口的 beta；完整迁移仍需通过全部功能、保真和性能门槛。
+4. WYSIWYG 默认可视化渲染标准 CommonMark / GFM；没有专用编辑交互的语法在全局源码模式修改。
+5. MDX 仅支持官方内置组件，真实渲染后作为原子块选择和删除，组件内部交互全部拦截。
+6. 不建设第三方 Markdown 插件运行时，也不支持用户导入第三方 MDX 组件。
+7. 架构、产品需求、状态和测试文档必须与真实代码进度同步，不得提前声明能力或里程碑完成。
+
+完整产品和技术契约见 [`custom_markdown_renderer_architecture.md`](../architecture/custom_markdown_renderer_architecture.md)。

@@ -1,85 +1,119 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
-import type { ConfirmationChoice, ConfirmationState, RunFileAction } from "@md-editor/editor-ui";
-import type { MarkdownDocumentFile, MarkdownFolder } from "@md-editor/file-system";
-import { fileService } from "../../desktop/file-service";
+import type {
+  ConfirmationChoice,
+  ConfirmationState,
+  EditorUiActionsContextValue,
+  RunFileAction,
+} from "@md-editor/editor-ui";
+import type {
+  MarkdownDocumentFile,
+  MarkdownFolder,
+  RuntimeFileService,
+} from "@md-editor/file-system";
 import type { OpenedAsset } from "../../types";
 import { findFirstMarkdownPath } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
+import { executeDocumentSave, getSaveFeedback, isDiscardProtectionRequired } from "./document-save";
 
 interface UseDocumentActionsControllerOptions {
+  readonly fileService: RuntimeFileService;
+  readonly getRendererPorts: EditorUiActionsContextValue["getRendererPorts"];
   readonly refreshFolderForDocumentPath: (documentPath: string) => Promise<void>;
   readonly requestConfirmation: (confirmation: ConfirmationState) => Promise<ConfirmationChoice>;
   readonly runFileAction: RunFileAction;
   readonly setHasActiveDocument: Dispatch<SetStateAction<boolean>>;
   readonly setOpenedAsset: Dispatch<SetStateAction<OpenedAsset | null>>;
-  readonly setEditorRevision: Dispatch<SetStateAction<number>>;
   readonly showOpenedFolder: (folder: MarkdownFolder) => void;
   readonly showToast: (message: string | null) => void;
 }
 
+let nextDesktopOperationSequence = 1;
+
+function createDesktopOperationId(kind: "external-edit" | "mode"): string {
+  const sequence = nextDesktopOperationSequence;
+  nextDesktopOperationSequence += 1;
+  return `desktop:${kind}:${sequence}`;
+}
+
 export function useDocumentActionsController({
+  fileService,
+  getRendererPorts,
   refreshFolderForDocumentPath,
   requestConfirmation,
   runFileAction,
-  setEditorRevision,
   setHasActiveDocument,
   setOpenedAsset,
   showOpenedFolder,
   showToast,
 }: UseDocumentActionsControllerOptions) {
-  const rememberRecentDocument = useCallback(
-    (document: MarkdownDocumentFile) => {
-      // 最近文件菜单和欢迎页共享同一个 store；文档打开/保存成功后统一在这里登记。
-      const fileName = document.filePath.split("/").pop() || "Untitled";
-      void recentFilesStore
-        .add({
-          path: document.filePath,
-          name: fileName,
-        })
-        .catch((error: unknown) => {
-          showToast(error instanceof Error ? error.message : "最近文件保存失败。");
-        });
+  const rememberRecentPath = useCallback(
+    (filePath: string) => {
+      const fileName = filePath.split("/").pop() || "Untitled";
+      void recentFilesStore.add({ path: filePath, name: fileName }).catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : "最近文件保存失败。");
+      });
     },
     [showToast],
   );
 
-  const commitMarkdown = useCallback(
-    (markdown: string) => {
-      // runtime.document.subscribe 订阅者（useDocumentSnapshot）会自动感知变化
-      runtime.document.updateMarkdown(markdown);
-      setHasActiveDocument(true);
-      showToast(null);
-      setOpenedAsset(null);
-    },
-    [setHasActiveDocument, setOpenedAsset, showToast],
+  const rememberRecentDocument = useCallback(
+    (document: MarkdownDocumentFile) => rememberRecentPath(document.filePath),
+    [rememberRecentPath],
   );
 
   const applyProgrammaticMarkdown = useCallback(
     (markdown: string) => {
-      runtime.document.updateMarkdown(markdown);
-      showToast(null);
-      setOpenedAsset(null);
-      setEditorRevision((current) => current + 1);
+      const access = getRendererPorts();
+      if (access.status !== "available") {
+        showToast("编辑器尚未准备好，无法应用这次修改。");
+        return;
+      }
+
+      const current = runtime.document.getSnapshot();
+      const result = access.ports.applyExternalEdit({
+        operationId: createDesktopOperationId("external-edit"),
+        markdown,
+        expectedGeneration: current.documentGeneration,
+        expectedContentRevision: current.contentRevision,
+        selection: "preserve-offset-clamped",
+      });
+
+      if (
+        result.status === "applied" ||
+        result.status === "noop" ||
+        result.status === "queued-composition"
+      ) {
+        setHasActiveDocument(true);
+        setOpenedAsset(null);
+        showToast(null);
+        return;
+      }
+
+      showToast(`编辑器未能应用修改：${result.status}。`);
     },
-    [setEditorRevision, setOpenedAsset, showToast],
+    [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
   );
 
   const switchMode = useCallback(
     async (mode: EditorMode) => {
-      // switchEditorModeSafely 内部会调用 document.setMode，触发 notify()
-      const result = await switchEditorModeSafely(runtime.document, mode);
+      const access = getRendererPorts();
+      if (access.status !== "available") {
+        showToast("编辑器尚未准备好，无法切换模式。");
+        return;
+      }
+
+      const result = switchEditorModeSafely(runtime.document, mode, {
+        operationId: createDesktopOperationId("mode"),
+        renderer: access.ports.mode,
+        origin: { kind: "command", commandId: "view.toggleSource" },
+      });
       showToast(result.ok ? null : result.message);
     },
-    [showToast],
+    [getRendererPorts, showToast],
   );
-
-  const toggleSourceMode = useCallback(async () => {
-    const currentMode = runtime.document.getSnapshot().mode;
-    await switchMode(currentMode === "source" ? "wysiwyg" : "source");
-  }, [switchMode]);
 
   const replaceDocument = useCallback(
     (document: MarkdownDocumentFile | null) => {
@@ -87,95 +121,92 @@ export function useDocumentActionsController({
         return;
       }
 
-      runtime.document.updateMarkdown(document.markdown);
-      runtime.document.markSaved({
-        markdown: document.markdown,
-        filePath: document.filePath,
-      });
-      setEditorRevision((current) => current + 1);
+      runtime.document.replaceDocument(
+        {
+          markdown: document.markdown,
+          savedMarkdown: document.markdown,
+          filePath: document.filePath,
+        },
+        { kind: "command", commandId: "file.open" },
+      );
       showToast(null);
       setOpenedAsset(null);
       setHasActiveDocument(true);
       rememberRecentDocument(document);
     },
-    [rememberRecentDocument, setEditorRevision, setHasActiveDocument, setOpenedAsset, showToast],
+    [rememberRecentDocument, setHasActiveDocument, setOpenedAsset, showToast],
   );
 
   const startBlankDocument = useCallback(() => {
-    const markdown = "";
-    runtime.document.updateMarkdown(markdown);
-    runtime.document.markSaved({ markdown, filePath: null });
-    setEditorRevision((current) => current + 1);
+    runtime.document.replaceDocument(
+      { markdown: "", savedMarkdown: "", filePath: null },
+      { kind: "command", commandId: "file.new" },
+    );
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
-  }, [setEditorRevision, setHasActiveDocument, setOpenedAsset, showToast]);
-
-  const markCurrentDocumentSaved = useCallback(
-    (document: MarkdownDocumentFile) => {
-      const latest = runtime.document.getSnapshot();
-      if (latest.markdown === document.markdown) {
-        runtime.document.markSaved({
-          markdown: document.markdown,
-          filePath: document.filePath,
-        });
-      } else {
-        runtime.document.updateSavedBaseline({
-          markdown: document.markdown,
-          filePath: document.filePath,
-        });
-      }
-      showToast(null);
-      setOpenedAsset(null);
-      rememberRecentDocument(document);
-    },
-    [rememberRecentDocument, setOpenedAsset, showToast],
-  );
+  }, [setHasActiveDocument, setOpenedAsset, showToast]);
 
   const saveDocument = useCallback(
-    async (forceDialog = false) => {
+    async (forceDialog = false): Promise<boolean> => {
+      let savedCurrentDocument = false;
       await runFileAction(
         forceDialog ? "正在另存为" : "正在保存",
         async () => {
-          const current = runtime.document.getSnapshot();
-          const saved = forceDialog
-            ? await fileService.saveDocumentAs({
-                filePath: current.filePath,
-                markdown: current.markdown,
-              })
-            : await fileService.saveDocument({
-                filePath: current.filePath,
-                markdown: current.markdown,
-              });
+          const execution = await executeDocumentSave(runtime.document, fileService, forceDialog);
+          const { checkpoint, outcome, previousPath, settlement } = execution;
+          const feedback = getSaveFeedback(outcome, settlement);
+          if (feedback) {
+            showToast(feedback);
+          }
 
-          if (saved) {
-            // 只有原生保存确认成功后才清除 dirty；取消弹窗或写入失败都保持未保存状态。
-            markCurrentDocumentSaved(saved);
+          const latest = runtime.document.getSnapshot();
+          savedCurrentDocument =
+            latest.documentGeneration === checkpoint.documentGeneration &&
+            latest.persistenceStatus.kind === "verified" &&
+            !latest.isDirty;
+
+          const authoritativePath = latest.filePath;
+          if (
+            authoritativePath &&
+            (settlement.status === "applied" || settlement.status === "promoted")
+          ) {
+            rememberRecentPath(authoritativePath);
             if (
               shouldRefreshFolderAfterSave({
-                previousPath: current.filePath,
-                savedPath: saved.filePath,
+                previousPath,
+                savedPath: authoritativePath,
               })
             ) {
-              await refreshFolderForDocumentPath(saved.filePath);
+              await refreshFolderForDocumentPath(authoritativePath);
             }
           }
         },
         { feedback: "quiet" },
       );
+      return savedCurrentDocument;
     },
-    [markCurrentDocumentSaved, refreshFolderForDocumentPath, runFileAction],
+    [fileService, refreshFolderForDocumentPath, rememberRecentPath, runFileAction, showToast],
   );
 
   const ensureDiscardAllowed = useCallback(
     async (description?: string) => {
-      if (!runtime.document.getSnapshot().isDirty) {
+      const current = runtime.document.getSnapshot();
+      const requiresProtection = isDiscardProtectionRequired(current);
+      if (!requiresProtection) {
         return true;
       }
 
       const choice = await requestConfirmation({
-        title: "保存当前文档的更改？",
-        description: description ?? "继续后将切换到其他文档。你可以先保存，或放弃尚未保存的更改。",
+        title:
+          current.persistenceStatus.kind === "verification-required"
+            ? "保存结果仍需确认"
+            : "保存当前文档的更改？",
+        description:
+          description ??
+          (current.persistenceStatus.kind === "verification-required"
+            ? "上一次保存结果无法确认。请再次保存并确认成功，或明确放弃后再继续。"
+            : "继续后将切换到其他文档。你可以先保存，或放弃尚未保存的更改。"),
         confirmLabel: "保存并继续",
         secondaryLabel: "不保存",
       });
@@ -188,7 +219,8 @@ export function useDocumentActionsController({
       }
 
       await saveDocument(false);
-      return !runtime.document.getSnapshot().isDirty;
+      const latest = runtime.document.getSnapshot();
+      return !latest.isDirty && latest.persistenceStatus.kind === "verified";
     },
     [requestConfirmation, saveDocument],
   );
@@ -199,16 +231,18 @@ export function useDocumentActionsController({
     }
 
     const nextDocument = fileService.newDocument("");
-    runtime.document.updateMarkdown(nextDocument.markdown);
-    runtime.document.markSaved({
-      markdown: nextDocument.markdown,
-      filePath: nextDocument.filePath,
-    });
-    setEditorRevision((current) => current + 1);
+    runtime.document.replaceDocument(
+      {
+        markdown: nextDocument.markdown,
+        savedMarkdown: nextDocument.markdown,
+        filePath: nextDocument.filePath,
+      },
+      { kind: "command", commandId: "file.new" },
+    );
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
-  }, [ensureDiscardAllowed, setEditorRevision, setHasActiveDocument, setOpenedAsset, showToast]);
+  }, [ensureDiscardAllowed, fileService, setHasActiveDocument, setOpenedAsset, showToast]);
 
   const openDocument = useCallback(async () => {
     if (!(await ensureDiscardAllowed())) {
@@ -222,7 +256,13 @@ export function useDocumentActionsController({
         await refreshFolderForDocumentPath(document.filePath);
       }
     });
-  }, [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction]);
+  }, [
+    ensureDiscardAllowed,
+    fileService,
+    refreshFolderForDocumentPath,
+    replaceDocument,
+    runFileAction,
+  ]);
 
   const openRecentFile = useCallback(
     async (filePath: string) => {
@@ -236,23 +276,25 @@ export function useDocumentActionsController({
           replaceDocument(document);
           await refreshFolderForDocumentPath(document.filePath);
         } catch (error) {
-          // 文件可能已被删除或移动，从最近列表中移除。
           await recentFilesStore.remove(filePath);
           throw error;
         }
       });
     },
-    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction],
+    [
+      ensureDiscardAllowed,
+      fileService,
+      refreshFolderForDocumentPath,
+      replaceDocument,
+      runFileAction,
+    ],
   );
 
   const openRecentDocument = useCallback(async () => {
     const recentFiles = recentFilesStore.list();
-
-    if (recentFiles.length === 0) {
-      showToast("没有最近打开的文件");
-      return;
-    }
-    showToast(`请从“最近文件”菜单中选择要打开的文件。`);
+    showToast(
+      recentFiles.length === 0 ? "没有最近打开的文件" : "请从“最近文件”菜单中选择要打开的文件。",
+    );
   }, [showToast]);
 
   const openFolder = useCallback(async () => {
@@ -273,11 +315,17 @@ export function useDocumentActionsController({
       if (firstDocument) {
         replaceDocument(firstDocument);
       } else {
-        // 文件夹没有 Markdown 时仍然展示文件树，并启动一个保存时会弹位置选择的空白文档。
         startBlankDocument();
       }
     });
-  }, [ensureDiscardAllowed, replaceDocument, runFileAction, showOpenedFolder, startBlankDocument]);
+  }, [
+    ensureDiscardAllowed,
+    fileService,
+    replaceDocument,
+    runFileAction,
+    showOpenedFolder,
+    startBlankDocument,
+  ]);
 
   const openDocumentFromTree = useCallback(
     async (filePath: string) => {
@@ -291,18 +339,18 @@ export function useDocumentActionsController({
         await refreshFolderForDocumentPath(document.filePath);
       });
     },
-    [ensureDiscardAllowed, refreshFolderForDocumentPath, replaceDocument, runFileAction],
+    [
+      ensureDiscardAllowed,
+      fileService,
+      refreshFolderForDocumentPath,
+      replaceDocument,
+      runFileAction,
+    ],
   );
 
-  const getRecentFiles = useCallback(() => {
-    return recentFilesStore.list();
-  }, []);
-
   return {
-    commitMarkdown,
     applyProgrammaticMarkdown,
     switchMode,
-    toggleSourceMode,
     replaceDocument,
     saveDocument,
     ensureDiscardAllowed,
@@ -312,7 +360,6 @@ export function useDocumentActionsController({
     openRecentDocument,
     openFolder,
     openDocumentFromTree,
-    getRecentFiles,
   };
 }
 

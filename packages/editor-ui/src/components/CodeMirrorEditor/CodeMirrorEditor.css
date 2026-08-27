@@ -1,0 +1,996 @@
+.code-mirror-editor-host {
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--theme-surface, var(--theme-bg, transparent));
+}
+
+.code-mirror-editor-host > .cm-editor {
+  height: 100%;
+  background: transparent;
+  /* 窄窗口侧栏折叠时,编辑器必须位于左侧唤起热区之上才能命中 toolbar;
+     侧栏打开时遮罩 z-index 29 / aside z-index 30 仍会覆盖编辑器。 */
+  z-index: 16;
+}
+
+.code-mirror-editor-host .cm-scroller {
+  overflow: auto;
+  background: transparent;
+  font-family: var(
+    --theme-font,
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    system-ui,
+    sans-serif
+  );
+  line-height: var(--theme-editor-line-height, 1.78);
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.code-mirror-editor-host .cm-content {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  /* 右侧保持内容居中公式;左侧单独预留行首 toolbar gutter。
+      toolbar 自身统一槽位,正文起点不随块类型改变;负边距锚点仍保持在安全区。 */
+  padding: 3.25rem max(1.25rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 30vh;
+  padding-left: max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2));
+  caret-color: var(--theme-text, currentColor);
+}
+
+.code-mirror-editor-host .cm-line {
+  padding-inline: 0;
+  /* 换行兜底:CM 的 white-space: break-spaces 在部分 WebKit 版本
+     (Tauri macOS)不受支持时会退化,连续中文(无空格)因此不断行、
+     右侧溢出被裁;pre-wrap + overflow-wrap 兜底保证任意字符处可断行 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.code-mirror-editor-host .cm-focused {
+  outline: none;
+}
+
+.code-mirror-editor-host .cm-selectionBackground,
+.code-mirror-editor-host .cm-content ::selection {
+  background: var(--theme-primary-selected, rgba(9, 105, 218, 0.24));
+}
+
+@media (max-width: 760px) {
+  .code-mirror-editor-host .cm-content {
+    padding-top: 2rem;
+    padding-bottom: 24vh;
+  }
+}
+
+.code-mirror-editor-host .cm-md-editor--source .cm-scroller {
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  line-height: var(--theme-source-line-height, 1.66);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker {
+  color: var(--theme-marker-dim, currentColor);
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.88em;
+  font-style: normal;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold {
+  color: var(--theme-strong-accent, currentColor);
+  font-weight: 700;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-italic {
+  color: var(--theme-em-accent, currentColor);
+  font-style: italic;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-strikethrough {
+  color: var(--theme-del-accent, currentColor);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-inline-code {
+  border-radius: 3px;
+  background: var(--theme-inline-code-bg, transparent);
+  color: var(--theme-code-accent, currentColor);
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading {
+  color: var(--theme-title, currentColor);
+  font-weight: 650;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1 {
+  font-size: 1.85em;
+  line-height: 1.35;
+  border-bottom: 1px solid var(--theme-border, rgba(110, 31, 44, 0.14));
+  padding-bottom: 0.28rem;
+  margin-bottom: 0.4rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
+  font-size: 1.55em;
+  line-height: 1.4;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 {
+  font-size: 1.32em;
+  line-height: 1.45;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 {
+  font-size: 1.16em;
+  line-height: 1.5;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5 {
+  font-size: 1.05em;
+  line-height: 1.55;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 {
+  color: var(--theme-muted, currentColor);
+  font-size: 1em;
+  line-height: 1.6;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--source-only {
+  text-decoration-color: var(--theme-heading-accent, currentColor);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-line--quote {
+  border-left: 3px solid
+    var(--theme-primary, var(--theme-blockquote-border, var(--theme-border, currentColor)));
+  padding-left: 0.85rem;
+  background: var(--theme-primary-soft, transparent);
+  border-radius: 0 4px 4px 0;
+  color: var(--theme-blockquote-text, var(--theme-muted, currentColor));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-marker {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 1.25em;
+  height: 1em;
+  align-items: center;
+  justify-content: flex-start;
+  color: var(--theme-list-marker, var(--theme-muted, currentColor));
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-marker--quote {
+  justify-content: center;
+  color: var(--theme-blockquote-border, var(--theme-border, currentColor));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-marker--list-item-ordered {
+  min-width: 2em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox {
+  display: inline-flex;
+  box-sizing: border-box;
+  width: 0.95em;
+  height: 0.95em;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-checkbox-border, var(--theme-border, currentColor));
+  border-radius: 3px;
+  margin-right: 0.35em;
+  background: var(--theme-checkbox-bg, transparent);
+  color: var(--theme-checkbox-check, var(--theme-primary, currentColor));
+  cursor: pointer;
+  line-height: 1;
+  vertical-align: -0.08em;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox:hover {
+  border-color: var(--theme-primary, currentColor);
+  background: var(--theme-primary-soft, rgba(110, 31, 44, 0.08));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox:active {
+  transform: scale(0.92);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox--checked {
+  background: var(--theme-primary-fill, var(--theme-primary, #6e1f2c));
+  border-color: var(--theme-primary, #6e1f2c);
+  color: var(--theme-bg, #ffffff);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox--checked::after {
+  content: "\2713";
+  font-size: 0.78em;
+  font-weight: 700;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-link-label {
+  color: var(--theme-link, var(--theme-accent, currentColor));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget {
+  display: inline-flex;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  min-width: min(12rem, 100%);
+  min-height: 4rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--theme-border, currentColor);
+  border-radius: 6px;
+  margin: 0.2em 0;
+  background: var(--theme-bg-muted, var(--theme-surface, transparent));
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget--active {
+  display: flex;
+  margin-top: 0.7rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget--selected {
+  border-color: var(--theme-primary, currentColor);
+  outline: 2px solid var(--theme-primary-soft, var(--theme-primary, currentColor));
+  outline-offset: 2px;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 22rem;
+  object-fit: contain;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  padding: 0.2rem 0;
+  overflow: hidden;
+  color: var(--theme-muted, currentColor);
+  font-size: 0.84em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder[hidden] {
+  display: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-title {
+  color: var(--theme-muted, currentColor);
+  font-family: var(--theme-ui-font, var(--theme-font, system-ui, sans-serif));
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-title::after {
+  content: "\00b7";
+  margin-left: 0.5rem;
+}
+
+/* 放大查看器按钮(图片右上角,hover 显示) */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__viewer {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.3rem 0.45rem;
+  opacity: 0;
+  transition:
+    opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+  z-index: 2;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget:hover
+  .cm-md-image-widget__viewer {
+  opacity: 1;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__viewer:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* 图片源码编辑行(选中时显示在图片下方) */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source-row {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3rem 0.4rem;
+  border-top: 1px solid var(--theme-border, currentColor);
+  background: var(--theme-surface, transparent);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source-row[hidden] {
+  display: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__source {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-border, currentColor);
+  border-radius: 4px;
+  background: var(--theme-bg, #fff);
+  color: var(--theme-text, currentColor);
+  font-family: var(--theme-mono-font, ui-monospace, monospace);
+  font-size: 0.82em;
+  line-height: 1.4;
+  padding: 0.25rem 0.4rem;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget--source-invalid
+  .cm-md-image-widget__source {
+  border-color: #d33;
+}
+
+/* 放大查看器浮层(全屏遮罩) */
+.code-mirror-editor-host .cm-md-image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+}
+
+.code-mirror-editor-host .cm-md-image-viewer__image {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-alt {
+  display: block;
+  max-width: 100%;
+  align-self: center;
+  overflow: hidden;
+  color: var(--theme-text, currentColor);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-source {
+  display: block;
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 0;
+  padding-top: 0;
+  overflow: hidden;
+  color: var(--theme-control-subtle, var(--theme-muted, currentColor));
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.88em;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget--failed {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget--failed.cm-md-image-widget--selected {
+  outline: 0;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-image-widget--failed.cm-md-image-widget--selected
+  .cm-md-image-widget__placeholder {
+  padding-left: 0.65rem;
+  border-left: 2px solid var(--theme-primary, currentColor);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-thematic-break-widget {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 1.25rem;
+  border-top: 1px solid var(--theme-border, currentColor);
+  margin-top: 0.62rem;
+  cursor: pointer;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-thematic-break-widget--selected {
+  border-top-color: var(--theme-accent, currentColor);
+  outline: 2px solid var(--theme-focus-ring, var(--theme-accent, currentColor));
+  outline-offset: 1px;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget {
+  box-sizing: border-box;
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.35rem 0;
+  border: 1px solid var(--theme-border, currentColor) !important;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget--selected {
+  border-color: var(--theme-primary, currentColor) !important;
+  outline: 2px solid var(--theme-primary-soft, var(--theme-primary, currentColor));
+  outline-offset: 2px;
+}
+
+/* P2-F 整表选中态操作提示：Delete 删除 · Tab 编辑 · Cmd+C 复制。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget[aria-selected="true"]::after {
+  content: "Delete 删除 · Tab 编辑 · Cmd+C 复制";
+  position: absolute;
+  top: -1.9rem;
+  left: 0;
+  z-index: 3;
+  padding: 0.22rem 0.6rem;
+  border-radius: 6px;
+  background: var(--theme-bg-muted, #f1f1f1);
+  color: var(--theme-text-muted, #666);
+  font-size: 0.72em;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__grid {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  width: 100%;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell {
+  box-sizing: border-box;
+  position: relative;
+  min-width: 2.5rem;
+  padding: 0.32rem 0.65rem;
+  border: 1px solid var(--theme-border, currentColor) !important;
+  vertical-align: top;
+  outline: none;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell--editing,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--theme-primary, currentColor);
+  background: var(--theme-surface, transparent);
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-table-widget__grid
+  th.cm-md-table-widget__cell {
+  font-weight: 600;
+  background: var(--theme-bg-muted, var(--theme-surface, transparent));
+}
+
+/* ── 代码块卡片与三段式 Header ── */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.28rem 0.65rem;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: var(--theme-code-gutter-bg, var(--theme-bg-muted, #f6f8fa));
+  border: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  border-bottom: 1px solid var(--theme-border, rgba(0, 0, 0, 0.06));
+  color: var(--theme-control-subtle, var(--theme-muted, #6e7781));
+  font-size: 0.76rem;
+  user-select: none;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar--active {
+  color: var(--theme-text, currentColor);
+  border-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__language {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-title, var(--theme-text, currentColor));
+  font-family: var(--theme-mono-font, ui-monospace, monospace);
+  font-size: 0.82em;
+  font-weight: 600;
+  padding: 0.12rem 0.35rem;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__language:hover,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__language:focus-visible {
+  background: var(--theme-primary-soft, rgba(0, 0, 0, 0.05));
+  border-color: var(--theme-border, currentColor);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__select,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-control-subtle, var(--theme-muted, currentColor));
+  font-size: 0.78em;
+  padding: 0.12rem 0.45rem;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__select:hover,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__copy:hover {
+  background: var(--theme-primary-soft, rgba(0, 0, 0, 0.06));
+  color: var(--theme-primary, var(--theme-text, currentColor));
+  border-color: var(--theme-border, currentColor);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__select:active,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__copy:active {
+  transform: scale(0.95);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-toolbar__status {
+  font-size: 0.78em;
+  color: var(--theme-primary, currentColor);
+  font-weight: 500;
+  transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line {
+  box-sizing: border-box;
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.88em;
+  line-height: 1.65;
+  background: var(--theme-code-bg, var(--theme-bg-muted, #f6f8fa));
+  border-left: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  border-right: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  padding-inline: 0.85rem;
+  color: var(--theme-code, var(--theme-text, currentColor));
+  outline: 0 !important;
+  outline-width: 0px !important;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--first {
+  padding-top: 0.45rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--last {
+  border-bottom: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--active {
+  border-left-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+  border-right-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--last.cm-md-code-line--active {
+  border-bottom-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+/* 行/列块手柄（Notion 式 ⋮⋮）：默认透明，悬停表格时显示。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+  line-height: 1;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-table-widget:hover
+  .cm-md-table-widget__handle {
+  opacity: 1;
+}
+
+/* 行手柄：贴在本行第一列左缘（表格外）。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle--row {
+  top: 0.15rem;
+  left: -1.35rem;
+}
+
+/* 列手柄：贴在表头右缘。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__handle--col {
+  top: 0.15rem;
+  right: -0.65rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--theme-border, currentColor) !important;
+  border-radius: 4px;
+  background: var(--theme-surface, transparent);
+  color: var(--theme-text, currentColor);
+  font: inherit;
+  font-size: 0.72em;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    transform var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn:hover {
+  border-color: var(--theme-primary, currentColor) !important;
+  color: var(--theme-primary, currentColor);
+  background: var(--theme-primary-soft, var(--theme-bg-muted, transparent));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__btn:active {
+  transform: scale(0.94);
+}
+
+/* 行/列操作浮层菜单。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  min-width: 8.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--theme-border, currentColor) !important;
+  border-radius: 6px;
+  background: var(--theme-surface, var(--theme-bg, #ffffff));
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.14);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu[hidden] {
+  display: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  padding: 0.3rem 0.55rem;
+  border: none !important;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 0.82em;
+  text-align: left;
+  white-space: nowrap;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item:hover {
+  background: var(--theme-primary-soft, var(--theme-bg-muted, transparent));
+  color: var(--theme-primary, currentColor);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--danger {
+  color: var(--theme-danger, #d9534f);
+}
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--danger:hover {
+  background: color-mix(in srgb, var(--theme-danger, #d9534f) 12%, transparent);
+  color: var(--theme-danger, #d9534f);
+}
+
+/* 当前对齐项勾选标记。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__menu-item--active::before {
+  content: "✓ ";
+  color: var(--theme-primary, currentColor);
+}
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.38em;
+  border-radius: 3px;
+  color: var(--theme-text, currentColor);
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--block {
+  display: flex;
+  width: 100%;
+  padding: 0.12em 0;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom__primary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom__secondary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--theme-muted, currentColor);
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.82em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--heading-setext {
+  color: var(--theme-title, currentColor);
+  font-weight: 650;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-default-atom--heading-setext[aria-level="1"] {
+  font-size: 1.85em;
+  line-height: 1.35;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-default-atom--heading-setext[aria-level="2"] {
+  font-size: 1.55em;
+  line-height: 1.4;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--autolink,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--reference-link {
+  color: var(--theme-link, var(--theme-accent, currentColor));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.14em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--reference-definition,
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-default-atom--footnote.cm-md-default-atom--block {
+  border-left: 2px solid var(--theme-border, currentColor);
+  padding-left: 0.6em;
+}
+
+.code-mirror-editor-host
+  .cm-md-editor--wysiwyg
+  .cm-md-default-atom--footnote:not(.cm-md-default-atom--block) {
+  position: relative;
+  top: -0.28em;
+  color: var(--theme-link, var(--theme-accent, currentColor));
+  font-size: 0.78em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-default-atom--selected {
+  outline: 2px solid var(--theme-focus-ring, var(--theme-accent, currentColor));
+  outline-offset: 1px;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-line {
+  box-sizing: border-box;
+  padding-right: 0;
+  padding-left: 0.8rem;
+  border-left: 1px solid var(--theme-border, currentColor);
+  background: transparent;
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.88em;
+  line-height: 1.65;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-line--header {
+  min-height: 0.72rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-family: var(--theme-ui-font, inherit);
+  font-size: 0.76em;
+  line-height: 0.72rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-line--footer {
+  min-height: 0.72rem;
+  line-height: 0.72rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-line--error {
+  border-left-color: var(--theme-danger-text, #cf222e);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-header {
+  display: inline-flex;
+  align-items: center;
+  color: var(--theme-danger-text, #cf222e);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-header[hidden] {
+  display: none;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-frontmatter-header__status {
+  font-size: 0.78rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-key {
+  color: var(--theme-title, currentColor);
+  font-weight: 600;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-string {
+  color: var(--theme-string, var(--theme-accent, currentColor));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-scalar {
+  color: var(--theme-number, var(--theme-link, currentColor));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-anchor,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-alias {
+  color: var(--theme-keyword, var(--theme-accent, currentColor));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-comment {
+  color: var(--theme-muted, currentColor);
+  font-style: italic;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-yaml-error {
+  text-decoration-color: var(--theme-danger, #c43d4b);
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}

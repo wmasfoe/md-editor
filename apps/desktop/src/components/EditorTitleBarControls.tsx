@@ -8,7 +8,12 @@ import {
   PopoverButton,
   PopoverPanel,
 } from "@headlessui/react";
-import { ChevronUpDownIcon, ListBulletIcon, RectangleGroupIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronUpDownIcon,
+  ListBulletIcon,
+  RectangleGroupIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
 import {
   calculateDocumentMetrics,
   getDocumentMetricLabel,
@@ -37,11 +42,11 @@ const documentMetricOptions: readonly {
 ];
 
 export function EditorTitleBarControls() {
-  const { updateStatus } = useAppSettings();
+  const { updateStatus, openSettings } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument } = useDocumentUiStore();
-  const { runEditorUpdateAction } = useDesktopEditorActions();
+  const { runEditorUpdateAction, dispatchCommand } = useDesktopEditorActions();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
 
   const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);
@@ -66,6 +71,11 @@ export function EditorTitleBarControls() {
       ) : null}
       {hasActiveDocument ? (
         <>
+          <AiWritingMenu
+            onFixGrammar={() => void dispatchCommand("ai.fixGrammar")}
+            onContinueWriting={() => void dispatchCommand("ai.continueWriting")}
+            onOpenSettings={openSettings}
+          />
           <DocumentMetricMenu
             metricKind={metricKind}
             metrics={metrics}
@@ -91,6 +101,78 @@ export function EditorTitleBarControls() {
   );
 }
 
+function AiWritingMenu({
+  onFixGrammar,
+  onContinueWriting,
+  onOpenSettings,
+}: {
+  readonly onFixGrammar: () => void;
+  readonly onContinueWriting: () => void;
+  readonly onOpenSettings: () => void;
+}) {
+  return (
+    <Menu as="div" className="relative">
+      <MenuButton
+        className={cx(titleBarSecondaryButtonClassName, "focus-visible:opacity-100")}
+        aria-label="AI 写作助手"
+        title="AI 写作助手"
+      >
+        <SparklesIcon aria-hidden="true" />
+      </MenuButton>
+      <MenuItems
+        anchor={{ to: "bottom end", gap: 6, padding: 8 }}
+        className="z-[70] min-w-[200px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
+      >
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onFixGrammar}
+            >
+              <span>AI 语法与润色修复</span>
+              <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘G</kbd>
+            </button>
+          )}
+        </MenuItem>
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onContinueWriting}
+            >
+              <span>AI 续写</span>
+              <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘A</kbd>
+            </button>
+          )}
+        </MenuItem>
+        <div className="my-1 border-t border-[var(--theme-border)]" />
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-muted)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onOpenSettings}
+            >
+              <span>AI 设置...</span>
+            </button>
+          )}
+        </MenuItem>
+      </MenuItems>
+    </Menu>
+  );
+}
+
 function DocumentMetricMenu({
   metricKind,
   metrics,
@@ -108,7 +190,7 @@ function DocumentMetricMenu({
       </MenuButton>
       <MenuItems
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[0_14px_44px_rgba(0,0,0,0.16)] outline-none backdrop-blur-xl"
+        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
       >
         {documentMetricOptions.map((option) => (
           <MenuItem key={option.kind}>
@@ -166,10 +248,10 @@ function OutlinePopover({
           </PopoverButton>
           <PopoverPanel
             anchor={{ to: "bottom end", gap: 12, padding: 12 }}
-            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)] text-[var(--theme-text)] shadow-[0_18px_56px_rgba(0,0,0,0.18)] outline-none backdrop-blur-xl"
+            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
           >
             <span
-              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border-strong)] bg-[color-mix(in_oklab,var(--theme-surface)_96%,white)]"
+              className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border)] bg-[var(--theme-surface)]"
               aria-hidden="true"
             />
             <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
@@ -201,12 +283,14 @@ function OutlinePopover({
                       title={item.text}
                       aria-current={active ? "location" : undefined}
                       onClick={() => {
-                        onJumpToOutlineItem({
-                          line: item.line,
-                          level: item.level,
-                          text: item.text,
-                        });
                         close();
+                        requestAnimationFrame(() => {
+                          onJumpToOutlineItem({
+                            line: item.line,
+                            level: item.level,
+                            text: item.text,
+                          });
+                        });
                       }}
                     >
                       <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
