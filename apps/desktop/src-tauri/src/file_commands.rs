@@ -142,7 +142,7 @@ pub(crate) async fn open_markdown_document(
         .map_err(|error| format!("Selected file path is not readable: {error}"))?;
     let markdown = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
-    allow_asset_directory_for_file(&app, &path)?;
+    let _ = allow_asset_directory_for_file(&app, &path);
 
     Ok(Some(MarkdownDocumentFile {
         file_path: path_to_string(&path),
@@ -198,7 +198,7 @@ pub(crate) async fn open_markdown_document_at_path(
     let path = PathBuf::from(path);
     let markdown = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
-    allow_asset_directory_for_file(&app, &path)?;
+    let _ = allow_asset_directory_for_file(&app, &path);
 
     Ok(MarkdownDocumentFile {
         file_path: path_to_string(&path),
@@ -223,7 +223,7 @@ pub(crate) async fn open_markdown_folder(
     let path = folder_path
         .into_path()
         .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
-    allow_asset_directory(&app, &path)?;
+    let _ = allow_asset_directory(&app, &path);
     Ok(Some(build_markdown_folder(&path)?))
 }
 
@@ -782,7 +782,7 @@ fn allow_asset_directory_for_file(app: &tauri::AppHandle, path: &Path) -> Result
 
 fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
     // Tauri 的 file-src 转换只允许已授权路径；打开文件夹/文档时放开读权限用于图片预览。
-    app.state::<tauri::scope::Scopes>()
+    app.asset_protocol_scope()
         .allow_directory(path, true)
         .map_err(|error| {
             format!(
@@ -878,8 +878,10 @@ fn open_with_system_default(target: &str) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     let mut command = {
+        use std::os::windows::process::CommandExt;
         let mut command = Command::new("cmd");
         command.args(["/C", "start", "", target]);
+        command.creation_flags(0x08000000);
         command
     };
 
