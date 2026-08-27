@@ -11,6 +11,7 @@ mod save_runtime;
 mod settings;
 mod settings_window;
 mod text_substitutions;
+#[cfg(target_os = "macos")]
 mod window_chrome;
 
 use app_menu::MENU_ACTION_EVENT;
