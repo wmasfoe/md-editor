@@ -24,6 +24,9 @@ src-tauri/gen/
 src-tauri/.cargo/
 **/src-tauri/gen/
 **/src-tauri/.cargo/
+**/src-tauri/binaries/llama-server-*
+!**/src-tauri/binaries/llama-server-aarch64-apple-darwin
+**/src-tauri/binaries/tmp-llama-*
 
 # Package manager logs
 npm-debug.log*

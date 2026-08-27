@@ -2,7 +2,7 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -1155,6 +1155,8 @@ fn reveal_target_path(path: &Path) -> PathBuf {
 
 #[cfg(target_os = "macos")]
 fn copy_text_to_clipboard(text: &str) -> Result<(), String> {
+    use std::process::Stdio;
+
     let mut child = Command::new("pbcopy")
         .stdin(Stdio::piped())
         .spawn()
