@@ -127,8 +127,14 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
   {
     id: "ai.continueWriting",
     commandId: "ai.continueWriting",
-    label: "AI 写作建议",
+    label: "AI 续写",
     defaultKey: "Mod-Shift-A",
+  },
+  {
+    id: "ai.fixGrammar",
+    commandId: "ai.fixGrammar",
+    label: "AI 语法与润色修复",
+    defaultKey: "Mod-Shift-G",
   },
 ];
 

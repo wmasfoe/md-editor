@@ -22,7 +22,11 @@ const implementedCommands = [
 ] as const;
 
 const legacyModeCommands = ["view.toggleSource", "view.showWysiwyg"] as const;
-const deferredLegacyCommands = ["mdx.openComponentMenu", "ai.continueWriting"] as const;
+const deferredLegacyCommands = [
+  "mdx.openComponentMenu",
+  "ai.continueWriting",
+  "ai.fixGrammar",
+] as const;
 const silentNoopCommands = [
   "format.bold",
   "format.italic",

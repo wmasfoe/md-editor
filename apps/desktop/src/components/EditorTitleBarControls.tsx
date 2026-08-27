@@ -8,7 +8,12 @@ import {
   PopoverButton,
   PopoverPanel,
 } from "@headlessui/react";
-import { ChevronUpDownIcon, ListBulletIcon, RectangleGroupIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronUpDownIcon,
+  ListBulletIcon,
+  RectangleGroupIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
 import {
   calculateDocumentMetrics,
   getDocumentMetricLabel,
@@ -37,11 +42,11 @@ const documentMetricOptions: readonly {
 ];
 
 export function EditorTitleBarControls() {
-  const { updateStatus } = useAppSettings();
+  const { updateStatus, openSettings } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument } = useDocumentUiStore();
-  const { runEditorUpdateAction } = useDesktopEditorActions();
+  const { runEditorUpdateAction, dispatchCommand } = useDesktopEditorActions();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
 
   const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);
@@ -66,6 +71,11 @@ export function EditorTitleBarControls() {
       ) : null}
       {hasActiveDocument ? (
         <>
+          <AiWritingMenu
+            onFixGrammar={() => void dispatchCommand("ai.fixGrammar")}
+            onContinueWriting={() => void dispatchCommand("ai.continueWriting")}
+            onOpenSettings={openSettings}
+          />
           <DocumentMetricMenu
             metricKind={metricKind}
             metrics={metrics}
@@ -88,6 +98,78 @@ export function EditorTitleBarControls() {
         <RectangleGroupIcon aria-hidden="true" />
       </button>
     </div>
+  );
+}
+
+function AiWritingMenu({
+  onFixGrammar,
+  onContinueWriting,
+  onOpenSettings,
+}: {
+  readonly onFixGrammar: () => void;
+  readonly onContinueWriting: () => void;
+  readonly onOpenSettings: () => void;
+}) {
+  return (
+    <Menu as="div" className="relative">
+      <MenuButton
+        className={cx(titleBarSecondaryButtonClassName, "focus-visible:opacity-100")}
+        aria-label="AI 写作助手"
+        title="AI 写作助手"
+      >
+        <SparklesIcon aria-hidden="true" />
+      </MenuButton>
+      <MenuItems
+        anchor={{ to: "bottom end", gap: 6, padding: 8 }}
+        className="z-[70] min-w-[200px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
+      >
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onFixGrammar}
+            >
+              <span>AI 语法与润色修复</span>
+              <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘G</kbd>
+            </button>
+          )}
+        </MenuItem>
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onContinueWriting}
+            >
+              <span>AI 续写</span>
+              <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘A</kbd>
+            </button>
+          )}
+        </MenuItem>
+        <div className="my-1 border-t border-[var(--theme-border)]" />
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-muted)]",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onOpenSettings}
+            >
+              <span>AI 设置...</span>
+            </button>
+          )}
+        </MenuItem>
+      </MenuItems>
+    </Menu>
   );
 }
 

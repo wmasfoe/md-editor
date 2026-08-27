@@ -58,6 +58,7 @@ describe("app settings", () => {
       "settings.open",
       "mdx.openComponentMenu",
       "ai.continueWriting",
+      "ai.fixGrammar",
     ]);
   });
 

@@ -96,7 +96,8 @@ export type BuiltInCommandId =
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary"
-  | "ai.continueWriting";
+  | "ai.continueWriting"
+  | "ai.fixGrammar";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -111,6 +112,7 @@ export interface EditorActionHandlers {
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
   readonly continueAiWriting?: () => void | Promise<void>;
+  readonly fixAiGrammar?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -336,10 +338,22 @@ export function createAiWritingFeature(): FeatureDescriptor {
         "continueAiWriting",
         { group: "AI", keywords: ["ai", "续写", "写作", "continue"] },
       );
+      registerActionCommand(
+        context.commands,
+        "ai.fixGrammar",
+        "Fix Grammar and Polish with AI",
+        "fixAiGrammar",
+        { group: "AI", keywords: ["ai", "修复", "纠错", "语法", "润色", "fix", "grammar"] },
+      );
       context.keymaps.register({
         id: "ai.continueWriting",
         key: "Mod-Shift-A",
         commandId: "ai.continueWriting",
+      });
+      context.keymaps.register({
+        id: "ai.fixGrammar",
+        key: "Mod-Shift-G",
+        commandId: "ai.fixGrammar",
       });
     },
   };

@@ -135,7 +135,7 @@ export function useDesktopEditorController({
               showToast("当前编辑器未就绪。");
               return;
             }
-            const readiness = getAiCompletionReadiness(settings.ai);
+            const readiness = getAiCompletionReadiness(settings.ai, "continuation");
             if (readiness) {
               showToast(readiness);
               return;
@@ -147,27 +147,22 @@ export function useDesktopEditorController({
             const selectedText = selection.text;
 
             try {
-              showToast("AI 思考中...");
-              const suggestion = await requestAiContinuation(settings.ai, {
-                before,
-                after,
-                selectedText,
-                mode: snapshot.mode,
-                document: {
-                  filePath: snapshot.filePath,
+              showToast("AI 续写思考中...");
+              const suggestion = await requestAiContinuation(
+                settings.ai,
+                {
+                  before,
+                  after,
+                  selectedText,
+                  mode: snapshot.mode,
+                  document: {
+                    filePath: snapshot.filePath,
+                  },
                 },
-              });
+                { intent: "continuation" },
+              );
 
-              if (suggestion.edit) {
-                portsAccess.ports.showSuggestion({
-                  from: selection.from,
-                  to: selection.to,
-                  text: suggestion.edit.replacement,
-                  originalText: suggestion.edit.original,
-                  explanation: suggestion.edit.reason,
-                });
-                showToast("AI 修改建议已就绪，按 Tab 接受，Esc 取消。");
-              } else if (suggestion.continuation) {
+              if (suggestion.continuation) {
                 portsAccess.ports.showSuggestion({
                   from: selection.from,
                   to: selection.to,
@@ -175,7 +170,85 @@ export function useDesktopEditorController({
                 });
                 showToast("AI 续写建议已就绪，按 Tab 接受，Esc 取消。");
               } else {
-                showToast("未能生成有效建议。");
+                showToast("未能生成有效续写建议。");
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              showToast(message);
+            }
+          },
+          fixAiGrammar: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              showToast("当前编辑器未就绪。");
+              return;
+            }
+            const readiness = getAiCompletionReadiness(settings.ai, "editing");
+            if (readiness) {
+              showToast(readiness);
+              return;
+            }
+            const selection = portsAccess.ports.getSelectionSnapshot();
+            const markdown = snapshot.markdown;
+            let targetFrom = selection.from;
+            let targetTo = selection.to;
+            let selectedText = selection.text;
+
+            // 若未选中文本，则自动选取光标所在的当前句子/整行进行分析
+            if (targetFrom === targetTo) {
+              const lineStart = markdown.lastIndexOf("\n", targetFrom - 1) + 1;
+              const lineEndIndex = markdown.indexOf("\n", targetFrom);
+              const lineEnd = lineEndIndex === -1 ? markdown.length : lineEndIndex;
+              if (lineEnd > lineStart) {
+                targetFrom = lineStart;
+                targetTo = lineEnd;
+                selectedText = markdown.slice(lineStart, lineEnd);
+              }
+            }
+
+            const before = markdown.slice(0, targetFrom);
+            const after = markdown.slice(targetTo);
+
+            try {
+              showToast("AI 语法修复分析中...");
+              const suggestion = await requestAiContinuation(
+                settings.ai,
+                {
+                  before,
+                  after,
+                  selectedText,
+                  mode: snapshot.mode,
+                  document: {
+                    filePath: snapshot.filePath,
+                  },
+                },
+                { intent: "editing" },
+              );
+
+              if (suggestion.edit) {
+                // 如果 LLM 返回的原文字段与选区匹配，则精确绑定范围
+                let editFrom = targetFrom;
+                let editTo = targetTo;
+                if (suggestion.edit.original && selectedText.includes(suggestion.edit.original)) {
+                  const offset = selectedText.indexOf(suggestion.edit.original);
+                  editFrom = targetFrom + offset;
+                  editTo = editFrom + suggestion.edit.original.length;
+                }
+
+                portsAccess.ports.showSuggestion({
+                  from: editFrom,
+                  to: editTo,
+                  text: suggestion.edit.replacement,
+                  originalText: suggestion.edit.original,
+                  explanation: suggestion.edit.reason,
+                });
+                showToast(
+                  suggestion.edit.reason
+                    ? `AI 建议：${suggestion.edit.reason}（Tab 接受 · Esc 取消）`
+                    : "AI 修复建议已就绪，按 Tab 接受，Esc 取消。",
+                );
+              } else {
+                showToast("未发现明显语法、错别字或标点问题。");
               }
             } catch (error) {
               const message = error instanceof Error ? error.message : "AI 请求失败。";

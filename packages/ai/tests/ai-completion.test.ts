@@ -104,7 +104,29 @@ describe("AI completion settings", () => {
           status: "not-downloaded",
         },
       }),
-    ).toBe("本地模型尚未下载，当前还不能续写。");
+    ).toBe("本地模型尚未下载，当前还不能使用 AI。");
+  });
+
+  it("checks intent-specific feature readiness", () => {
+    expect(
+      getAiCompletionReadiness(
+        {
+          ...baseSettings,
+          features: { continuation: false, editing: true },
+        },
+        "continuation",
+      ),
+    ).toBe("请先在设置中开启 AI 续写功能。");
+
+    expect(
+      getAiCompletionReadiness(
+        {
+          ...baseSettings,
+          features: { continuation: true, editing: false },
+        },
+        "editing",
+      ),
+    ).toBe("请先在设置中开启语法标点修复功能。");
   });
 
   it("builds a non-streaming OpenAI-compatible chat completion request", () => {
