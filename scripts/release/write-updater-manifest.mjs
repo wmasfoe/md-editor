@@ -30,10 +30,21 @@ if (!/^(linux|darwin|windows)-(x86_64|aarch64|i686|armv7)$/u.test(platform)) {
   throw new Error(`Unsupported updater platform key: ${platform}`);
 }
 
+let existingManifest = {};
+if (fs.existsSync(outputPath)) {
+  try {
+    const content = fs.readFileSync(outputPath, "utf-8");
+    existingManifest = JSON.parse(content);
+  } catch (error) {
+    console.warn(`Failed to read existing manifest at ${outputPath}: ${error}`);
+  }
+}
+
 const manifest = {
   version,
   notes: `Markdown Editor ${version}`,
   platforms: {
+    ...(existingManifest.version === version ? existingManifest.platforms : {}),
     [platform]: {
       signature,
       url: downloadUrl,

@@ -48,11 +48,12 @@ export async function copyNativeFileTreePath(input: {
     return;
   }
 
-  await invoke("copy_file_tree_path", {
+  const text = await invoke<string>("copy_file_tree_path", {
     rootPath: input.rootPath,
     path: input.path,
     relative: input.relative,
   });
+  await navigator.clipboard.writeText(text);
 }
 
 export async function revealNativeFileTreeItemInFinder(input: {

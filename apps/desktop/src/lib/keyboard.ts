@@ -1,3 +1,12 @@
+export function isWindowsPlatform(): boolean {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+  const platform = (navigator.platform || "").toLowerCase();
+  const userAgent = (navigator.userAgent || "").toLowerCase();
+  return platform.includes("win") || userAgent.includes("win");
+}
+
 function isPrimaryShortcut(event: KeyboardEvent) {
   return event.metaKey || event.ctrlKey;
 }

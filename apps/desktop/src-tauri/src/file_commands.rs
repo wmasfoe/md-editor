@@ -430,7 +430,7 @@ pub(crate) fn copy_file_tree_path(
     root_path: String,
     path: String,
     relative: bool,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let root = canonicalize_existing_path(&root_path, "root folder")?;
     let target = canonicalize_existing_path(&path, "tree item")?;
     ensure_path_inside_root(&root, &target)?;
@@ -441,7 +441,7 @@ pub(crate) fn copy_file_tree_path(
         path_to_string(&target)
     };
 
-    copy_text_to_clipboard(&text)
+    Ok(text)
 }
 
 #[tauri::command]
@@ -1151,39 +1151,6 @@ fn reveal_target_path(path: &Path) -> PathBuf {
             .map(Path::to_path_buf)
             .unwrap_or_else(|| path.to_path_buf())
     }
-}
-
-#[cfg(target_os = "macos")]
-fn copy_text_to_clipboard(text: &str) -> Result<(), String> {
-    use std::process::Stdio;
-
-    let mut child = Command::new("pbcopy")
-        .stdin(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("Failed to start pbcopy: {error}"))?;
-
-    let mut stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "Failed to open pbcopy stdin.".to_string())?;
-    stdin
-        .write_all(text.as_bytes())
-        .map_err(|error| format!("Failed to write text to clipboard: {error}"))?;
-    drop(stdin);
-
-    let status = child
-        .wait()
-        .map_err(|error| format!("Failed to wait for pbcopy: {error}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("pbcopy exited with status {status}."))
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn copy_text_to_clipboard(_text: &str) -> Result<(), String> {
-    Err("Copying file tree paths is only supported on macOS for now.".to_string())
 }
 
 fn canonicalize_existing_path(path: &str, label: &str) -> Result<PathBuf, String> {
