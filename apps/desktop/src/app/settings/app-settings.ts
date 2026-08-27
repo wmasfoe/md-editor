@@ -54,7 +54,8 @@ export interface UpdateStatus {
 
 export type ThemeColorScheme = "system" | "light" | "dark";
 export type ThemeSourceType = "builtin" | "custom";
-export type BuiltInThemeId = "github-light" | "gothic-light" | "night-dark";
+export type BuiltInThemeId =
+  "github-light" | "gothic-light" | "night-dark" | "paper-light" | "charcoal-dark";
 
 export interface ThemeSchemeSettings {
   readonly source: ThemeSourceType;
@@ -909,7 +910,11 @@ function normalizeThemeScheme(
 }
 
 function normalizeBuiltInTheme(input: unknown, fallback: BuiltInThemeId): BuiltInThemeId {
-  return input === "github-light" || input === "gothic-light" || input === "night-dark"
+  return input === "github-light" ||
+    input === "gothic-light" ||
+    input === "night-dark" ||
+    input === "paper-light" ||
+    input === "charcoal-dark"
     ? input
     : fallback;
 }
