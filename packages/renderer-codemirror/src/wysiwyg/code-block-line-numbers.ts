@@ -33,6 +33,7 @@ export const codeBlockLineNumberTheme: Extension = EditorView.baseTheme({
   ".cm-content .cm-md-code-line-numbered": {
     position: "relative",
     paddingInlineStart: "calc(var(--md-code-line-number-width) + 1.25rem)",
+    outline: "none",
   },
   ".cm-content .cm-md-code-line-numbered::before": {
     content: "attr(data-md-code-line-number)",

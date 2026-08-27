@@ -433,7 +433,7 @@ test.describe("CodeMirror S1 desktop product surface", () => {
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.dispatchCommand("mdx.openComponentMenu"));
     await expect(page.getByRole("alert")).toContainText("暂不支持插入 MDX 组件");
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.dispatchCommand("ai.continueWriting"));
-    await expect(page.getByRole("alert")).toContainText("暂不支持 AI 续写");
+    await expect(page.getByRole("alert")).toContainText("请先配置 AI 模型名称。");
   });
 });
 

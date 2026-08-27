@@ -152,11 +152,14 @@ export const codeBlockProjectionTheme: Extension = EditorView.baseTheme({
     minWidth: "5.5rem",
   },
   ".cm-md-code-line": {
-    fontFamily: "var(--md-editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace)",
+    fontFamily:
+      "var(--theme-mono-font, var(--md-editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace))",
     backgroundColor: "var(--theme-code-bg, var(--theme-bg-muted, transparent))",
+    outline: "none",
   },
   ".cm-md-code-line--active": {
     backgroundColor: "var(--theme-code-bg, var(--theme-bg-muted, transparent))",
+    outline: "none",
   },
   ".cm-md-code-structural-line-hidden": {
     height: "0",

@@ -674,7 +674,8 @@
   border-right: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
   padding-inline: 0.85rem;
   color: var(--theme-code, var(--theme-text, currentColor));
-  outline: none;
+  outline: 0 !important;
+  outline-width: 0px !important;
   transition:
     background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
     border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));

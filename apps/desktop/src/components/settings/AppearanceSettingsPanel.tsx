@@ -70,7 +70,7 @@ export function AppearanceSettingsPanel({
                 onChangeEditorSettings({
                   ...editorSettingsDraft,
                   proseFontFamily:
-                    val === "custom" ? (editorSettingsDraft.proseFontFamily || "PingFang SC") : val,
+                    val === "custom" ? editorSettingsDraft.proseFontFamily || "PingFang SC" : val,
                 });
               }}
             >
@@ -110,7 +110,7 @@ export function AppearanceSettingsPanel({
                 onChangeEditorSettings({
                   ...editorSettingsDraft,
                   codeFontFamily:
-                    val === "custom" ? (editorSettingsDraft.codeFontFamily || "SF Mono") : val,
+                    val === "custom" ? editorSettingsDraft.codeFontFamily || "SF Mono" : val,
                 });
               }}
             >

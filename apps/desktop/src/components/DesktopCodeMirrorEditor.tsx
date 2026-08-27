@@ -10,10 +10,7 @@ import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsCont
 import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 
-import {
-  resolveCodeFontStack,
-  resolveProseFontStack,
-} from "../app/settings/app-settings";
+import { resolveCodeFontStack, resolveProseFontStack } from "../app/settings/app-settings";
 
 export interface DesktopCodeMirrorEditorProps {
   readonly hidden?: boolean;
