@@ -36,10 +36,7 @@ describe("Markdown node policy registry", () => {
       kind: "reference-image",
       renderPolicy: "source-only-atom",
     });
-    expect(getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark"])).toMatchObject({
-      kind: "reference-image",
-      renderPolicy: "source-only-atom",
-    });
+    expect(getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark"])).toBeNull();
     expect(
       getMarkdownNodePolicy("Link", "Paragraph", [
         "LinkMark",
@@ -57,10 +54,7 @@ describe("Markdown node policy registry", () => {
       kind: "reference-link",
       renderPolicy: "source-only-atom",
     });
-    expect(getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark"])).toMatchObject({
-      kind: "reference-link",
-      renderPolicy: "source-only-atom",
-    });
+    expect(getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark"])).toBeNull();
     expect(getMarkdownNodePolicy("HorizontalRule")).toMatchObject({
       kind: "thematic-break",
       interactionPolicy: "select-atom",

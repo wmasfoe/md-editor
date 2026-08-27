@@ -787,6 +787,18 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(content).toContainText('<Component value="[^mdx]" />');
   });
 
+  test("single bracket [1] remains normal editable text and does not degrade into locked atom", async ({
+    page,
+  }) => {
+    await replaceFixture(page, ["# Test", "", "Item [1] in paragraph", ""].join("\n"));
+    const content = page.locator(".cm-content");
+    await expect(content).toContainText("Item [1] in paragraph");
+    await expect(
+      page.locator('.cm-md-default-atom[data-syntax-kind="reference-link"]'),
+    ).toHaveCount(0);
+    await expect(content).not.toContainText("1[1]");
+  });
+
   test("AC14: exact default edits are announced and source mode remains editable and undoable", async ({
     page,
   }) => {
