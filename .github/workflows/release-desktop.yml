@@ -288,7 +288,7 @@ jobs:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
           IS_PRERELEASE: ${{ steps.release_version.outputs.is_prerelease }}
         run: |
-          files=( $(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \)) )
+          mapfile -t files < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \))
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             if [[ "$IS_PRERELEASE" == "true" ]]; then
@@ -320,7 +320,7 @@ jobs:
           RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          files=( $(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \)) )
+          mapfile -t files < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \))
           if gh release view "$RELEASE_TAG" --repo wmasfoe/homebrew-tap >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "${files[@]}" --repo wmasfoe/homebrew-tap --clobber
           else
