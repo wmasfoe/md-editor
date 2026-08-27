@@ -93,6 +93,7 @@ function useAutomaticAiEditing({
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portsRef = useRef<CodeMirrorEditorPorts | null>(ports);
+  const lastAnalyzedTextRef = useRef<string>("");
   portsRef.current = ports;
 
   useEffect(() => {
@@ -104,6 +105,12 @@ function useAutomaticAiEditing({
     }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
+      // 换文档或重置文档时清除缓存
+      if (event.transition.kind === "document-replace") {
+        lastAnalyzedTextRef.current = "";
+        return;
+      }
+
       // 仅响应编辑器直接输入变更
       if (event.transition.kind !== "content" || event.transition.origin.kind !== "renderer") {
         return;
@@ -155,6 +162,11 @@ function useAutomaticAiEditing({
           return;
         }
 
+        // 内容指纹去重：若当前文本与最近分析成功的文本完全一致，直接跳过，避免重复调用
+        if (lastAnalyzedTextRef.current === lineText) {
+          return;
+        }
+
         const abortController = new AbortController();
         abortControllerRef.current = abortController;
 
@@ -179,6 +191,9 @@ function useAutomaticAiEditing({
           if (abortController.signal.aborted) {
             return;
           }
+
+          // 记录已分析内容指纹
+          lastAnalyzedTextRef.current = lineText;
 
           if (suggestion.edit && suggestion.edit.original) {
             const rawLine = markdown.slice(lineStart, lineEnd);
