@@ -41,8 +41,10 @@ pnpm build
 # Tauri CLI 命令
 pnpm tauri [command]
 
-# macOS 构建 (生成 .dmg)
-pnpm build:macos
+# 构建不同平台安装包
+pnpm build:macos    # macOS (.dmg)
+pnpm build:linux    # Linux (.AppImage, .deb)
+pnpm build:windows  # Windows (.exe NSIS)
 
 # 版本发布
 pnpm release:version
