@@ -1,4 +1,4 @@
-﻿# CodeMirror 6 渲染器迁移状态
+# CodeMirror 6 渲染器迁移状态
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
@@ -404,3 +404,23 @@ M5/M6 完成后，用户对行首控件区提出三点反馈：`.cm-content` 左
 ### 遗留说明
 - Node.js 20 弃用警告（actions 强制跑 Node 24）为 CI 非阻塞提示，可后续升级 workflow。
 - 拖拽 ghost 样式（240px 上限、块文本预览）维持现状，未纳入本轮重设计。
+
+## 折镜排版与 AI 审批式建议系统（2026-08-27）
+
+### 背景与能力交付
+结合折镜（FoldingMirror）纸上排版、12 项动效设计原则与能力边界设计原则，落地 AI 写作与审批式建议系统：
+1. **纸质主题与微交互**：新增 `paper-light`（宣纸）与 `charcoal-dark`（炭焙）双模内置主题，配置霞鹜文楷字体栈、朱砂红印章强调色与 1.88 行高；代码块三段式 Header 卡片与就地微发光表格。
+2. **AI 审批式建议内核（Approval-First Diff Stream）**：
+   - `packages/renderer-codemirror/src/wysiwyg/suggestion.ts`：实现 `aiSuggestionField`、`aiSuggestionDecorations`、`setAiSuggestionEffect`；
+   - 续写（Continuation）：光标处渲染幽灵文本卡片（Ghost Text）及 `[Tab 接受 · Esc 取消]` 徽标；
+   - 重写/语法修复（Rewrite/Edit）：原内容删除线高亮 + 绿色新增候选词；
+   - 快捷键交互：`Tab` / `Cmd+Enter` 接受建议并以单次事务写入撤销历史（`isolateHistory`），`Escape` 驳回建议，光标移出或普通键入自动失效。
+3. **架构解耦与接入**：
+   - `@md-editor/ai` 负责模型请求与结果归一化；
+   - `@md-editor/renderer-codemirror` 负责 suggestion 展示、选区和快捷键；
+   - `useDesktopEditorController` 提取选区与文档快照调用 AI 并注入 suggestion。
+
+### 验证证据
+- 全仓类型检查：11 个 workspace 模块 `tsc --noEmit` 全部通过。
+- 全仓单测：86 个测试文件、649 项 Vitest 单测 100% Pass（新增 5 项 `suggestion.test.ts`）。
+- 静态检查：`oxlint --deny-warnings` 与 `prettier` 全部通过。

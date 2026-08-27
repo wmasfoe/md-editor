@@ -18,6 +18,7 @@ import {
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
+  type AiSuggestionValue,
 } from "@md-editor/renderer-codemirror";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
@@ -35,6 +36,16 @@ export interface CodeMirrorEditorPorts {
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
+  showSuggestion(suggestion: AiSuggestionValue): void;
+  acceptSuggestion(): boolean;
+  dismissSuggestion(): boolean;
+  getSuggestion(): AiSuggestionValue | null;
+  getSelectionSnapshot(): {
+    readonly from: number;
+    readonly to: number;
+    readonly text: string;
+    readonly head: number;
+  };
   focus(): void;
   setSelection(from: number, to: number): void;
   requestMeasure(): void;
@@ -196,6 +207,11 @@ export function createCodeMirrorEditorBridge(
     applyExternalEdit,
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
+    showSuggestion: (suggestion: AiSuggestionValue) => renderer.showSuggestion(suggestion),
+    acceptSuggestion: () => renderer.acceptSuggestion(),
+    dismissSuggestion: () => renderer.dismissSuggestion(),
+    getSuggestion: () => renderer.getSuggestion(),
+    getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
     focus: () => renderer.focus(),
     setSelection: (from: number, to: number) => renderer.setSelection(from, to),
     requestMeasure: () => renderer.requestMeasure(),

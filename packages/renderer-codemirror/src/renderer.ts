@@ -67,6 +67,14 @@ import {
   initialCodeBlockLineNumbersFacet,
   setCodeBlockLineNumbersEffect,
 } from "./wysiwyg/code-block-projection.ts";
+import {
+  acceptAiSuggestion,
+  aiSuggestionExtension,
+  aiSuggestionField,
+  dismissAiSuggestion,
+  setAiSuggestionEffect,
+  type AiSuggestionValue,
+} from "./wysiwyg/suggestion.ts";
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
@@ -132,6 +140,16 @@ export interface CodeMirrorRenderer {
   rollbackMode(receipt: ModeReceipt): void;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
+  showSuggestion(suggestion: AiSuggestionValue): void;
+  acceptSuggestion(): boolean;
+  dismissSuggestion(): boolean;
+  getSuggestion(): AiSuggestionValue | null;
+  getSelectionSnapshot(): {
+    readonly from: number;
+    readonly to: number;
+    readonly text: string;
+    readonly head: number;
+  };
   focus(): void;
   setSelection(from: number, to: number): void;
   requestMeasure(): void;
@@ -391,6 +409,7 @@ class CodeMirrorRendererController {
       linkInteractionExtension,
       blockToolbarExtension,
       headingLevelControlExtension,
+      aiSuggestionExtension,
       createWysiwygProjectionExtensions(
         [
           "inline-styles",
@@ -856,6 +875,55 @@ class CodeMirrorRendererController {
     });
   }
 
+  showSuggestion(suggestion: AiSuggestionValue): void {
+    if (this.#destroyed) {
+      return;
+    }
+    this.#view.dispatch({
+      effects: setAiSuggestionEffect.of(suggestion),
+    });
+  }
+
+  acceptSuggestion(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return acceptAiSuggestion(this.#view as unknown as EditorView);
+  }
+
+  dismissSuggestion(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return dismissAiSuggestion(this.#view as unknown as EditorView);
+  }
+
+  getSuggestion(): AiSuggestionValue | null {
+    if (this.#destroyed) {
+      return null;
+    }
+    return this.#view.state.field(aiSuggestionField, false) ?? null;
+  }
+
+  getSelectionSnapshot(): {
+    readonly from: number;
+    readonly to: number;
+    readonly text: string;
+    readonly head: number;
+  } {
+    if (this.#destroyed) {
+      return { from: 0, to: 0, text: "", head: 0 };
+    }
+    const selection = this.#view.state.selection.main;
+    const text = this.#view.state.doc.sliceString(selection.from, selection.to);
+    return {
+      from: selection.from,
+      to: selection.to,
+      text,
+      head: selection.head,
+    };
+  }
+
   focus(): void {
     if (!this.#destroyed) {
       this.#view.focus();
@@ -1158,6 +1226,11 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
+    showSuggestion: (suggestion: AiSuggestionValue) => controller.showSuggestion(suggestion),
+    acceptSuggestion: () => controller.acceptSuggestion(),
+    dismissSuggestion: () => controller.dismissSuggestion(),
+    getSuggestion: () => controller.getSuggestion(),
+    getSelectionSnapshot: () => controller.getSelectionSnapshot(),
     focus: () => controller.focus(),
     setSelection: (from: number, to: number) => controller.setSelection(from, to),
     requestMeasure: () => controller.requestMeasure(),

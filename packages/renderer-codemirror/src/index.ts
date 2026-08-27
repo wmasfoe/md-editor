@@ -6,6 +6,15 @@ export {
   type ExternalEditRequest,
   type ExternalEditResult,
 } from "./renderer.ts";
+export {
+  aiSuggestionExtension,
+  acceptAiSuggestion,
+  dismissAiSuggestion,
+  setAiSuggestionEffect,
+  clearAiSuggestionEffect,
+  aiSuggestionField,
+  type AiSuggestionValue,
+} from "./wysiwyg/suggestion.ts";
 export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";
 
 export type {

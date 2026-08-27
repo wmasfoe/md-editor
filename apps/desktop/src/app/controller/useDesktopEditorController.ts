@@ -17,6 +17,7 @@ import {
 } from "../../lib/link-target";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
+import { getAiCompletionReadiness, requestAiContinuation } from "@md-editor/ai";
 import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { unsupportedEditorUiCommandSlots, useEditorUiActions } from "@md-editor/editor-ui";
@@ -129,9 +130,56 @@ export function useDesktopEditorController({
             }
           },
           continueAiWriting: async () => {
-            const result = await unsupportedEditorUiCommandSlots.continueAiWriting();
-            if (result?.status === "unsupported") {
-              showToast("当前编辑器暂不支持 AI 续写。");
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              showToast("当前编辑器未就绪。");
+              return;
+            }
+            const readiness = getAiCompletionReadiness(settings.ai);
+            if (readiness) {
+              showToast(readiness);
+              return;
+            }
+            const selection = portsAccess.ports.getSelectionSnapshot();
+            const markdown = snapshot.markdown;
+            const before = markdown.slice(0, selection.from);
+            const after = markdown.slice(selection.to);
+            const selectedText = selection.text;
+
+            try {
+              showToast("AI 思考中...");
+              const suggestion = await requestAiContinuation(settings.ai, {
+                before,
+                after,
+                selectedText,
+                mode: snapshot.mode,
+                document: {
+                  filePath: snapshot.filePath,
+                },
+              });
+
+              if (suggestion.edit) {
+                portsAccess.ports.showSuggestion({
+                  from: selection.from,
+                  to: selection.to,
+                  text: suggestion.edit.replacement,
+                  originalText: suggestion.edit.original,
+                  explanation: suggestion.edit.reason,
+                });
+                showToast("AI 修改建议已就绪，按 Tab 接受，Esc 取消。");
+              } else if (suggestion.continuation) {
+                portsAccess.ports.showSuggestion({
+                  from: selection.from,
+                  to: selection.to,
+                  text: suggestion.continuation,
+                });
+                showToast("AI 续写建议已就绪，按 Tab 接受，Esc 取消。");
+              } else {
+                showToast("未能生成有效建议。");
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              showToast(message);
             }
           },
           toggleSourceMode,
@@ -142,14 +190,17 @@ export function useDesktopEditorController({
     },
     [
       createNewDocument,
+      getRendererPorts,
       hasPendingConfirmation,
       openDocument,
       openFolder,
       openRecentDocument,
       openSettings,
       saveDocument,
+      settings.ai,
       setIsSidebarVisible,
       showToast,
+      snapshot,
       switchMode,
       toggleSourceMode,
     ],
