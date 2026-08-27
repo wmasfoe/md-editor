@@ -19,12 +19,7 @@ describe("Markdown node policy registry", () => {
       editPolicy: "atom-delete",
     });
     expect(
-      getMarkdownNodePolicy("Image", "Paragraph", [
-        "LinkMark",
-        "LinkMark",
-        "LinkMark",
-        "LinkMark",
-      ]),
+      getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark", "LinkMark", "LinkMark"]),
     ).toMatchObject({
       kind: "image",
       renderPolicy: "image-widget",
@@ -38,12 +33,7 @@ describe("Markdown node policy registry", () => {
     });
     expect(getMarkdownNodePolicy("Image", "Paragraph", ["LinkMark", "LinkMark"])).toBeNull();
     expect(
-      getMarkdownNodePolicy("Link", "Paragraph", [
-        "LinkMark",
-        "LinkMark",
-        "LinkMark",
-        "LinkMark",
-      ]),
+      getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark", "LinkMark", "LinkMark"]),
     ).toMatchObject({
       kind: "link",
       renderPolicy: "link-segmented",
