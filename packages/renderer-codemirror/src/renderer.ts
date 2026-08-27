@@ -882,6 +882,7 @@ class CodeMirrorRendererController {
     this.#view.dispatch({
       effects: setAiSuggestionEffect.of(suggestion),
     });
+    this.#view.focus();
   }
 
   acceptSuggestion(): boolean {

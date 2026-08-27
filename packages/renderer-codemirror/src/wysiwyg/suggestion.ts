@@ -1,4 +1,4 @@
-import { StateEffect, StateField, type Extension } from "@codemirror/state";
+import { Prec, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 
@@ -246,6 +246,6 @@ export const aiSuggestionTheme = EditorView.baseTheme({
 export const aiSuggestionExtension: Extension[] = [
   aiSuggestionField,
   aiSuggestionDecorations,
-  aiSuggestionKeymap,
+  Prec.highest(aiSuggestionKeymap),
   aiSuggestionTheme,
 ];
