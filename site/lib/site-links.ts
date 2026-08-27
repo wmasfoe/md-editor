@@ -28,6 +28,37 @@ export function buildMacosDmgUrl(version: string): string {
   return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
 }
 
+/**
+ * 根据语义化版本构造 Linux AppImage 直链。
+ */
+export function buildLinuxAppImageUrl(
+  version: string,
+  arch: "x86_64" | "aarch64" = "x86_64",
+): string {
+  const normalized = normalizeVersion(version);
+  if (!normalized) {
+    throw new Error(`Invalid Linux version: ${version}`);
+  }
+
+  const tag = `md-editor-v${normalized}`;
+  const fileName = `Markdown.Editor_${normalized}_${arch}.AppImage`;
+  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+}
+
+/**
+ * 根据语义化版本构造 Windows Setup.exe 直链。
+ */
+export function buildWindowsSetupUrl(version: string, arch: "x64" | "arm64" = "x64"): string {
+  const normalized = normalizeVersion(version);
+  if (!normalized) {
+    throw new Error(`Invalid Windows version: ${version}`);
+  }
+
+  const tag = `md-editor-v${normalized}`;
+  const fileName = `Markdown.Editor_${normalized}_${arch}-setup.exe`;
+  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+}
+
 /** 去掉可选 v 前缀；空串视为无效。 */
 export function normalizeVersion(version: string): string | null {
   const value = version.trim().replace(/^v/iu, "");

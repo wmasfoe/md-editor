@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { InstallCommand } from "../components/install-command";
 import { getChangelogEntries } from "../lib/changelog";
-import { buildMacosDmgUrl, GITHUB_RELEASES_URL } from "../lib/site-links";
+import {
+  buildLinuxAppImageUrl,
+  buildMacosDmgUrl,
+  buildWindowsSetupUrl,
+  GITHUB_RELEASES_URL,
+} from "../lib/site-links";
 
-const installCommand =
+const installCommandMacAndLinux =
   "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
+
+const installCommandWindows =
+  "irm https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.ps1 | iex";
 
 // 手动安装 DMG 时移除隔离标记；安装脚本会默认处理，此命令给手动下载用户备用。
 const quarantineCommand = "xattr -dr com.apple.quarantine /Applications/Markdown\\ Editor.app";
@@ -27,6 +35,8 @@ const features = [
 export default function HomePage() {
   const [latest] = getChangelogEntries();
   const dmgUrl = latest ? buildMacosDmgUrl(latest.version) : GITHUB_RELEASES_URL;
+  const linuxUrl = latest ? buildLinuxAppImageUrl(latest.version) : GITHUB_RELEASES_URL;
+  const windowsUrl = latest ? buildWindowsSetupUrl(latest.version) : GITHUB_RELEASES_URL;
 
   return (
     <main>
@@ -50,38 +60,60 @@ export default function HomePage() {
           <div className="mt-8 flex flex-col items-stretch gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center">
             <a
               href={dmgUrl}
-              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
               download={latest ? `Markdown.Editor_${latest.version}_aarch64.dmg` : undefined}
               className="inline-flex h-12 items-center justify-center rounded-full bg-ink px-6 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:h-11"
             >
-              下载 macOS 版本
+              下载 macOS (Apple Silicon)
+            </a>
+            <a
+              href={linuxUrl}
+              download={latest ? `Markdown.Editor_${latest.version}_x86_64.AppImage` : undefined}
+              className="inline-flex h-12 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-ink-soft transition-colors hover:border-ink/20 hover:text-ink sm:h-11"
+            >
+              下载 Linux (AppImage)
+            </a>
+            <a
+              href={windowsUrl}
+              download={latest ? `Markdown.Editor_${latest.version}_x64-setup.exe` : undefined}
+              className="inline-flex h-12 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-ink-soft transition-colors hover:border-ink/20 hover:text-ink sm:h-11"
+            >
+              下载 Windows (Setup)
             </a>
             <a
               href={GITHUB_RELEASES_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-12 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-ink-soft transition-colors hover:border-ink/20 hover:text-ink sm:h-11"
+              className="inline-flex h-12 items-center justify-center rounded-full border border-line-strong bg-surface px-6 text-sm font-medium text-muted transition-colors hover:border-ink/20 hover:text-ink sm:h-11"
             >
-              历史版本
+              全部安装包
             </a>
           </div>
 
-          {/* 次要入口：版本说明 + 源码，保持一行不抢主 CTA。 */}
+          {/* 次要入口：版本说明 + 支持架构 */}
           <p className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-muted">
             {latest ? (
               <span>
                 最新 v{latest.version}
                 <span className="mx-1.5 text-line-strong">·</span>
-                Apple Silicon
               </span>
             ) : null}
-            <span className="text-ink-soft transition-colors">Windows 版本敬请期待</span>
+            <span className="text-ink-soft transition-colors">
+              支持 macOS (arm64) · Linux (x64/arm64) · Windows (x64/arm64)
+            </span>
           </p>
         </div>
 
         <div className="mx-auto mt-10 flex max-w-2xl flex-col gap-3 sm:mt-14 sm:gap-4">
-          <InstallCommand command={installCommand} recommended />
-          <InstallCommand title="若提示「已损坏」· 移除隔离标记" command={quarantineCommand} />
+          <InstallCommand
+            title="终端一键安装 · macOS / Linux"
+            command={installCommandMacAndLinux}
+            recommended
+          />
+          <InstallCommand title="PowerShell 一键安装 · Windows" command={installCommandWindows} />
+          <InstallCommand
+            title="macOS 若提示「已损坏」· 移除隔离标记"
+            command={quarantineCommand}
+          />
         </div>
       </section>
 
@@ -126,7 +158,21 @@ export default function HomePage() {
                   download={`Markdown.Editor_${latest.version}_aarch64.dmg`}
                   className="inline-flex min-h-10 items-center text-sm font-medium text-ink transition-opacity hover:opacity-80 sm:min-h-0"
                 >
-                  下载 DMG
+                  macOS (DMG)
+                </a>
+                <a
+                  href={linuxUrl}
+                  download={`Markdown.Editor_${latest.version}_x86_64.AppImage`}
+                  className="inline-flex min-h-10 items-center text-sm font-medium text-ink transition-opacity hover:opacity-80 sm:min-h-0"
+                >
+                  Linux (AppImage)
+                </a>
+                <a
+                  href={windowsUrl}
+                  download={`Markdown.Editor_${latest.version}_x64-setup.exe`}
+                  className="inline-flex min-h-10 items-center text-sm font-medium text-ink transition-opacity hover:opacity-80 sm:min-h-0"
+                >
+                  Windows (Setup)
                 </a>
                 <a
                   href={GITHUB_RELEASES_URL}
