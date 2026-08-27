@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isWindowsPlatform } from "../src/lib/keyboard";
 import {
   compareReleaseVersions,
   createAppThemePreviewSession,
@@ -9,6 +10,7 @@ import {
   DEFAULT_THEME_SETTINGS,
   DEFAULT_UPDATE_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
+  INSTALL_WITH_POWERSHELL_COMMAND,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
   normalizeAppTheme,
@@ -373,7 +375,9 @@ describe("app settings", () => {
       downloadUrl:
         "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
       installKind: "manual",
-      installCommand: INSTALL_WITH_CURL_COMMAND,
+      installCommand: isWindowsPlatform()
+        ? INSTALL_WITH_POWERSHELL_COMMAND
+        : INSTALL_WITH_CURL_COMMAND,
     });
   });
 
