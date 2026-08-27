@@ -7,4 +7,6 @@
 ## 文档
 
 - macOS DMG、GitHub Release、Homebrew tap 与官网 CLI 发版流程： [release_workflow.md](./release_workflow.md)
+- Linux / Windows / ARM 多平台构建、发布与一键安装方案： [../architecture/cross_platform_support_plan.md](../architecture/cross_platform_support_plan.md)
 - 公开仓库后可恢复的 macOS workflow 备份： [build_macos_workflow_public_repo_backup.md](./build_macos_workflow_public_repo_backup.md)
+
