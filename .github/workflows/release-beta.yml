@@ -223,7 +223,10 @@ jobs:
           - 这是**测试版本**，包含 macOS、Linux、Windows 构建产物，仅通过本 Release 页面下载，**不会**更新 stable sh / Homebrew / tap 安装渠道
           - 反馈问题请附上此版本号 ${RELEASE_VERSION}"
 
-          mapfile -t files < <(find beta-release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \))
+          files=()
+          while IFS= read -r file; do
+            [[ -n "$file" ]] && files+=("$file")
+          done <<< "$(find beta-release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.exe' -o -name '*.zip' -o -name '*.app.tar.gz*' \))"
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" \
