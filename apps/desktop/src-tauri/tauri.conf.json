@@ -38,7 +38,7 @@
     "targets": "all",
     "externalBin": ["binaries/llama-server"],
     "resources": [],
-    "category": "Office;Utility;TextEditor;",
+    "category": "Productivity",
     "shortDescription": "Daily-usable Markdown and MDX desktop editor",
     "longDescription": "A sleek, daily-usable Markdown and MDX desktop editor with local-first file workflows.",
     "icon": [
