@@ -22,7 +22,7 @@ jobs:
             artifact_name: markdown-editor-macos-dmg
             artifact_path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
           - name: Linux
-            os: ubuntu-24.04
+            os: ubuntu-22.04
             build_cmd: pnpm build:linux
             artifact_name: markdown-editor-linux
             artifact_path: |
