@@ -186,4 +186,3 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(1);
   });
 });
-
