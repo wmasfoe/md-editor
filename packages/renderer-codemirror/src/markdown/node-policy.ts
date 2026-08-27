@@ -303,6 +303,22 @@ function listItemPolicy(parentName: string | null): MarkdownNodePolicy {
   });
 }
 
+/**
+ * 判断 Link 或 Image 节点是否为引用式（[text][ref]、![alt][ref]、[text][]、[ref] 等）。
+ * 内联式链接/图片（[text](url)、![alt](url)、[text]()、![]()、![alt]( "title")）包含圆括号，
+ * 在 Lezer 语法树中表现为含有 URL、LinkTitle 或 3 个及以上 LinkMark（包含 [、]、(、)）。
+ */
+function isReferenceLinkOrImage(childNodeNames: readonly string[]): boolean {
+  if (childNodeNames.includes("URL") || childNodeNames.includes("LinkTitle")) {
+    return false;
+  }
+  if (childNodeNames.includes("LinkLabel")) {
+    return true;
+  }
+  const linkMarkCount = childNodeNames.filter((name) => name === "LinkMark").length;
+  return linkMarkCount < 3;
+}
+
 export function getMarkdownNodePolicy(
   nodeName: string,
   parentName: string | null = null,
@@ -323,10 +339,10 @@ export function getMarkdownNodePolicy(
   if (nodeName === "ListItem") {
     return listItemPolicy(parentName);
   }
-  if (nodeName === "Link" && !childNodeNames.includes("URL")) {
+  if (nodeName === "Link" && isReferenceLinkOrImage(childNodeNames)) {
     return REFERENCE_LINK_POLICY;
   }
-  if (nodeName === "Image" && !childNodeNames.includes("URL")) {
+  if (nodeName === "Image" && isReferenceLinkOrImage(childNodeNames)) {
     return REFERENCE_IMAGE_POLICY;
   }
   return POLICIES[nodeName] ?? headingPolicy(nodeName) ?? RAW_FALLBACK_POLICY;
