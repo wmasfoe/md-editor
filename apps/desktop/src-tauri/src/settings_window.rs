@@ -32,6 +32,7 @@ pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), St
         return window.set_focus().map_err(tauri_error_to_string);
     }
 
+    #[allow(unused_mut)]
     let mut builder = WebviewWindowBuilder::new(
         &app,
         SETTINGS_WINDOW_LABEL,

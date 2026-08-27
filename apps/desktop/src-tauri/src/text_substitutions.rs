@@ -10,10 +10,13 @@
 //! 编辑器层 `straightQuotesPlugin` 已改为默认不挂载，仅作可选兜底保留代码。
 
 /// AppKit / WebKit 读取的自动替换偏好 key。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) const AUTOMATIC_QUOTE_SUBSTITUTION_KEY: &str = "NSAutomaticQuoteSubstitutionEnabled";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) const AUTOMATIC_DASH_SUBSTITUTION_KEY: &str = "NSAutomaticDashSubstitutionEnabled";
 
 /// 为 Markdown 保真而强制关闭的 key 列表。
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) const DISABLED_TEXT_SUBSTITUTION_KEYS: [&str; 2] = [
     AUTOMATIC_QUOTE_SUBSTITUTION_KEY,
     AUTOMATIC_DASH_SUBSTITUTION_KEY,
