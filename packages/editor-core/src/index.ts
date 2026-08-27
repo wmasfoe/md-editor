@@ -320,8 +320,26 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         commandId: "mdx.openComponentMenu",
       });
 
-      // 注意：file.new, file.open, file.save, file.saveAs 的快捷键
-      // 由平台菜单直接处理，不在这里注册，避免冲突
+      context.keymaps.register({
+        id: "file.save",
+        key: "Mod-s",
+        commandId: "file.save",
+      });
+      context.keymaps.register({
+        id: "file.saveAs",
+        key: "Mod-Shift-S",
+        commandId: "file.saveAs",
+      });
+      context.keymaps.register({
+        id: "file.new",
+        key: "Mod-n",
+        commandId: "file.new",
+      });
+      context.keymaps.register({
+        id: "file.open",
+        key: "Mod-o",
+        commandId: "file.open",
+      });
     },
   };
 }
