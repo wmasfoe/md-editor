@@ -4,18 +4,18 @@
 
 ## 目标
 
-- PR：由 `.github/workflows/build-macos.yml` 执行 lint、typecheck、test、Rust test 和版本一致性校验，不默认构建 DMG。
-- 手动触发 `.github/workflows/build-macos.yml`：执行同样校验后构建 macOS DMG，并上传 workflow artifact。普通构建不生成 updater artifact，因此不依赖 Tauri updater 私钥。
-- `v*` tag push：由 `.github/workflows/release-macos.yml` 先校验版本、tag 和 updater signing secret，再执行校验与 release-only 构建；release 构建会先生成 DMG，再单独生成 signed updater artifact。校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。app 发布成功后，workflow 会通过共享的 `pnpm deploy:site` 入口发布官网 changelog。
-- `beta` 分支 push：由 `.github/workflows/release-beta.yml` 自动触发 beta 预发布构建。版本由 `scripts/release/derive-beta-version.mjs` 将当前稳定版本的 patch 加一后派生为 `<下一个 patch 版本>-beta.sha<commit短哈希>`（例如 `0.3.19` → `0.3.20-beta.shaabc1234`；增加 `sha` 前缀以保证 Cargo SemVer 合法，就地改写四处版本文件和 Cargo.lock，不提交回仓库），产物只上传到本仓库 GitHub Release 且标记 Pre-release（页面明确标识 [Beta] 与来源分支/commit）；不更新 Homebrew cask、install 脚本、updater manifest 与官网 changelog，因此不影响 stable 渠道的 sh、brew 安装。日常流程：把 main 合并到 beta 分支即触发；正式发版仍走 `v*` tag（release-macos.yml）。
+- PR：由 `.github/workflows/build-desktop.yml` 执行 lint、typecheck、test、Rust test 和版本一致性校验，不默认构建 DMG。
+- 手动触发 `.github/workflows/build-desktop.yml`：执行同样校验后构建 macOS DMG，并上传 workflow artifact。普通构建不生成 updater artifact，因此不依赖 Tauri updater 私钥。
+- `v*` tag push：由 `.github/workflows/release-desktop.yml` 先校验版本、tag 和 updater signing secret，再执行校验与 release-only 构建；release 构建会先生成 DMG，再单独生成 signed updater artifact。校验通过后创建或更新 GitHub Release。stable 版本继续把 DMG 和 signed updater artifact 复制到公开 `wmasfoe/homebrew-tap` Release，并同步 tap cask、`curl | sh` 安装脚本和 `md-editor-latest.json` 应用内更新 manifest；beta / prerelease 版本只保留 GitHub prerelease，不发布到 Homebrew tap。app 发布成功后，workflow 会通过共享的 `pnpm deploy:site` 入口发布官网 changelog。
+- `beta` 分支 push：由 `.github/workflows/release-beta.yml` 自动触发 beta 预发布构建。版本由 `scripts/release/derive-beta-version.mjs` 将当前稳定版本的 patch 加一后派生为 `<下一个 patch 版本>-beta.sha<commit短哈希>`（例如 `0.3.19` → `0.3.20-beta.shaabc1234`；增加 `sha` 前缀以保证 Cargo SemVer 合法，就地改写四处版本文件和 Cargo.lock，不提交回仓库），产物只上传到本仓库 GitHub Release 且标记 Pre-release（页面明确标识 [Beta] 与来源分支/commit）；不更新 Homebrew cask、install 脚本、updater manifest 与官网 changelog，因此不影响 stable 渠道的 sh、brew 安装。日常流程：把 main 合并到 beta 分支即触发；正式发版仍走 `v*` tag（release-desktop.yml）。
 - main 分支 push 不发 Release。Release 和 Homebrew 同步只允许由 `v*` tag 触发。
 - Release 版本号以 `apps/desktop/src-tauri/tauri.conf.json` 的 `version` 为准，并要求 root package、desktop package、Cargo manifest 与它一致。
 - tag 名必须匹配版本号生成的 `v{version}`，例如版本 `0.2.1` 必须推送 `v0.2.1`。
 
 ## 相关文件
 
-- `.github/workflows/build-macos.yml`: PR 和手动触发的 macOS 校验构建入口。
-- `.github/workflows/release-macos.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
+- `.github/workflows/build-desktop.yml`: PR 和手动触发的跨平台校验构建入口。
+- `.github/workflows/release-desktop.yml`: `v*` tag 触发的 GitHub Release 和 Homebrew tap 同步入口。
 - `.github/workflows/release-beta.yml`: `beta` 分支 push 触发的 beta 预发布构建入口（只进 GitHub Prerelease，不动 stable 渠道）。
 - `scripts/release/derive-beta-version.mjs`: beta CI 专用，将当前版本 patch 加一后派生 `<下一个 patch 版本>-beta.sha<commit短哈希>`，并同步四处版本文件与 Cargo.lock（root package、desktop package、Tauri config、Cargo manifest）。
 - `scripts/release/version-files.mjs`: 版本文件读写共享模块（`version-desktop.mjs` 与 `derive-beta-version.mjs` 共用）。

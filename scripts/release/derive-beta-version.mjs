@@ -9,7 +9,7 @@
  *   不同提交天然产生不同 release tag，互不冲突。
  *
  * 改写是 checkout 后本地文件操作，不提交回仓库；版本文件与 Cargo.lock 保持一致，
- * 满足 release-macos.yml 与 build-macos.yml 的版本一致性校验。
+ * 满足 release-desktop.yml 与 build-desktop.yml 的版本一致性校验。
  *
  * 输出（写入 GITHUB_OUTPUT）：
  *   source_version / base_version / beta_version / beta_tag / short_sha
