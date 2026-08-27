@@ -790,7 +790,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
   test("single bracket [1] remains normal editable text and does not degrade into locked atom", async ({
     page,
   }) => {
-    await replaceFixture(page, ["# Test", "", "Item [1] in paragraph", ""].join("\n"));
+    await loadMarkdown(page, ["# Test", "", "Item [1] in paragraph", ""].join("\n"));
     const content = page.locator(".cm-content");
     await expect(content).toContainText("Item [1] in paragraph");
     await expect(
