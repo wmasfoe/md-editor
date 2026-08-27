@@ -174,18 +174,27 @@ async function prepareLlamaRuntime() {
           if (config.isExecutable) {
             fs.chmodSync(outputPath, 0o755);
           }
-          console.log(`[prepare-llama-runtime] Successfully installed ${config.binaryName} to ${outputPath}`);
-          
+          console.log(
+            `[prepare-llama-runtime] Successfully installed ${config.binaryName} to ${outputPath}`,
+          );
+
           // Also copy all shared libraries so linuxdeploy / bundlers can resolve them
           const binDir = path.dirname(foundPath);
           const entries = fs.readdirSync(binDir, { withFileTypes: true });
           for (const entry of entries) {
             if (!entry.isDirectory()) {
               const ext = path.extname(entry.name).toLowerCase();
-              if (ext === ".so" || ext === ".dll" || ext === ".dylib" || entry.name.includes(".so.")) {
+              if (
+                ext === ".so" ||
+                ext === ".dll" ||
+                ext === ".dylib" ||
+                entry.name.includes(".so.")
+              ) {
                 const libOut = path.join(BINARIES_DIR, entry.name);
                 fs.copyFileSync(path.join(binDir, entry.name), libOut);
-                console.log(`[prepare-llama-runtime] Copied shared library ${entry.name} to ${libOut}`);
+                console.log(
+                  `[prepare-llama-runtime] Copied shared library ${entry.name} to ${libOut}`,
+                );
               }
             }
           }
