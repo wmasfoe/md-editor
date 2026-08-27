@@ -120,10 +120,7 @@ jobs:
         run: node scripts/release/prepare-llama-runtime.mjs --target x86_64-unknown-linux-gnu
 
       - name: Build Linux app
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm build:linux:release
+        run: pnpm build:linux
 
       - name: Upload Linux x64 artifacts
         uses: actions/upload-artifact@v4
@@ -167,10 +164,7 @@ jobs:
         run: node scripts/release/prepare-llama-runtime.mjs --target x86_64-pc-windows-msvc
 
       - name: Build Windows app
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm build:windows:release
+        run: pnpm build:windows
 
       - name: Upload Windows x64 artifacts
         uses: actions/upload-artifact@v4
