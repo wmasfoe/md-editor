@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseMdxJsxElements, type MdxJsxElement } from "../../src/../src/markdown/mdx-parse.ts";
+import { parseMdxJsxElements, type MdxJsxElement } from "../../src/markdown/mdx-parse.ts";
 
 function elementNames(elements: readonly MdxJsxElement[]): readonly string[] {
   return elements.map((element) => `${element.name}@${element.from}-${element.to}`);
@@ -74,7 +74,7 @@ describe("MdxJsxElement 解析(micromark 无 acorn 模式)", () => {
 
   it("C1: import/export 语句不产生组件节点", () => {
     const source =
-      'import x from "../../src/../src/markdown/evil"\n\nexport default x\n\n<Callout>x</Callout>';
+      'import x from "../../src/markdown/evil"\n\nexport default x\n\n<Callout>x</Callout>';
     const elements = parseMdxJsxElements(source);
     expect(elements).toHaveLength(1);
     expect(elements[0]?.name).toBe("Callout");

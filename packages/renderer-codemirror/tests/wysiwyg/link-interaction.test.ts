@@ -4,7 +4,7 @@ import {
   buildLinkLabelDecoration,
   isSafeLinkTarget,
   linkDestinationFromRecord,
-} from "../../src/../src/wysiwyg/link-interaction.ts";
+} from "../../src/wysiwyg/link-interaction.ts";
 
 const TEXT = { sliceString: (from: number, to: number): string => source.slice(from, to) };
 let source = "";

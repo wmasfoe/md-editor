@@ -13,9 +13,9 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
-import { mdxComponentRegistryFacet } from "../../src/../src/wysiwyg/mdx-projection.ts";
-import type { MdxComponentWidget } from "../../src/../src/wysiwyg/widgets/mdx-component-widget.ts";
+} from "../../src/wysiwyg/projection-state.ts";
+import { mdxComponentRegistryFacet } from "../../src/wysiwyg/mdx-projection.ts";
+import type { MdxComponentWidget } from "../../src/wysiwyg/widgets/mdx-component-widget.ts";
 
 const CALLOUT_DESCRIPTOR: MdxComponentDescriptor = {
   name: "Callout",

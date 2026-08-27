@@ -1,7 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
-import { WysiwygDiagnostics } from "../../../src/../src/wysiwyg/../diagnostics.ts";
-import { HtmlBlockWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/html-block-widget.ts";
+import { WysiwygDiagnostics } from "../../../src/wysiwyg/../diagnostics.ts";
+import { HtmlBlockWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/html-block-widget.ts";
 
 class FakeElement {
   readonly dataset: Record<string, string> = {};

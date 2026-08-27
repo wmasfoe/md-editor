@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseImageMarkdownSource } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/image-widget.ts";
+import { parseImageMarkdownSource } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/image-widget.ts";
 
 describe("parseImageMarkdownSource(图片 markdown 源码解析)", () => {
   it("解析基础 alt+src", () => {

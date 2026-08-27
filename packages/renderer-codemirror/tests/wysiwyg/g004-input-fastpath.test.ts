@@ -7,7 +7,7 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { codeBlockLineNumbersField } from "../../src/../src/wysiwyg/code-block-projection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
@@ -15,8 +15,8 @@ import {
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/../src/wysiwyg/projection-state.ts";
-import { plainTextInputCanMapVisibleMarks } from "../../src/../src/wysiwyg/visible-marks.ts";
+} from "../../src/wysiwyg/projection-state.ts";
+import { plainTextInputCanMapVisibleMarks } from "../../src/wysiwyg/visible-marks.ts";
 
 const WYSIWYG_FEATURES: readonly WysiwygProjectionFeature[] = [
   "inline-styles",

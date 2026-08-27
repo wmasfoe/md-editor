@@ -13,7 +13,7 @@ import {
   inspectWysiwygProjection,
   setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 import type { SourceRange } from "../../src/markdown/range-types.ts";
 
 function createHarness(doc: string): { state: EditorState; diagnostics: WysiwygDiagnostics } {

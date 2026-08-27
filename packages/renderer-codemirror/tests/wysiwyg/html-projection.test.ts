@@ -6,16 +6,16 @@ import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import type { MarkdownRangeIndex } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import type { HtmlBlockWidget } from "../../src/../src/wysiwyg/widgets/html-block-widget.ts";
+import type { HtmlBlockWidget } from "../../src/wysiwyg/widgets/html-block-widget.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,
-} from "../../src/../src/wysiwyg/html-projection.ts";
+} from "../../src/wysiwyg/html-projection.ts";
 
 interface ProjectionHarness {
   readonly state: EditorState;

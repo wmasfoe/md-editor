@@ -17,7 +17,7 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   protectedWysiwygChangeRejectedEffect,
   wysiwygChangeProtection,
-} from "../../src/../src/wysiwyg/change-protection.ts";
+} from "../../src/wysiwyg/change-protection.ts";
 import {
   codeBlockBackspace,
   codeBlockDelete,
@@ -29,13 +29,13 @@ import {
   provideCodeBlockClipboard,
   readCodeBlockBodyText,
   setCodeBlockLanguageById,
-} from "../../src/../src/wysiwyg/code-block-commands.ts";
-import { codeBlockLineNumbersField } from "../../src/../src/wysiwyg/code-block-projection.ts";
+} from "../../src/wysiwyg/code-block-commands.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 
 class CommandHarness {
   transactions: Transaction[] = [];

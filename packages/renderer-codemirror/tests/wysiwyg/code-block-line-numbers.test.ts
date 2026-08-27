@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createCodeBlockLineNumberDecorations,
   type CodeBlockLogicalLine,
-} from "../../src/../src/wysiwyg/code-block-line-numbers.ts";
+} from "../../src/wysiwyg/code-block-line-numbers.ts";
 
 describe("code-block line-number decorations", () => {
   it("decorates semantic line starts without introducing a global gutter", () => {

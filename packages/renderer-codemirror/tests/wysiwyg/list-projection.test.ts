@@ -6,12 +6,12 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
-import { BlockMarkerWidget, TaskCheckboxWidget } from "../../src/../src/wysiwyg/list-projection.ts";
+import { BlockMarkerWidget, TaskCheckboxWidget } from "../../src/wysiwyg/list-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 
 interface DecorationSummary {
   readonly from: number;

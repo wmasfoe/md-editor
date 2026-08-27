@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from "vitest";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { wysiwygChangeProtection } from "../../src/../src/wysiwyg/change-protection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
 import {
   continueMarkdownMarkup,
   deleteMarkdownMarkupBackward,
@@ -22,13 +22,13 @@ import {
   outdentMarkdownList,
   toggleTaskMarkerAt,
   toggleSelectedTasks,
-} from "../../src/../src/wysiwyg/markdown-commands.ts";
-import { enterSelectedTableCell } from "../../src/../src/wysiwyg/widgets/table-widget.ts";
+} from "../../src/wysiwyg/markdown-commands.ts";
+import { enterSelectedTableCell } from "../../src/wysiwyg/widgets/table-widget.ts";
 import {
   configureWysiwygProjectionFeatures,
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 
 interface CommandResult {
   readonly handled: boolean;

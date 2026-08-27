@@ -9,14 +9,14 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   buildDefaultAtomAtomicRanges,
   buildDefaultAtomLayoutDecorations,
-} from "../../src/../src/wysiwyg/default-visualization.ts";
+} from "../../src/wysiwyg/default-visualization.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   selectWysiwygAtomEffect,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
-import { DefaultAtomWidget } from "../../src/../src/wysiwyg/widgets/default-atom-widget.ts";
+} from "../../src/wysiwyg/projection-state.ts";
+import { DefaultAtomWidget } from "../../src/wysiwyg/widgets/default-atom-widget.ts";
 
 const DEFAULT_SOURCE = [
   "Setext title",

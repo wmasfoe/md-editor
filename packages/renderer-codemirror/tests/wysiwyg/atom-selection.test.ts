@@ -12,20 +12,20 @@ import { describe, expect, it } from "vitest";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
-import { moveAtomVertically, selectWysiwygAtom } from "../../src/../src/wysiwyg/atom-selection.ts";
+import { moveAtomVertically, selectWysiwygAtom } from "../../src/wysiwyg/atom-selection.ts";
 import {
   clearMarkdownAtomSelection,
   deleteMarkdownAtomForward,
   deleteMarkdownMarkupBackward,
   selectMarkdownAtomBackward,
   selectMarkdownAtomForward,
-} from "../../src/../src/wysiwyg/markdown-commands.ts";
+} from "../../src/wysiwyg/markdown-commands.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 
 interface CommandResult {
   readonly handled: boolean;

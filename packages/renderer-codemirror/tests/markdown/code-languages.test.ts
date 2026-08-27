@@ -12,7 +12,7 @@ import {
   createMarkdownLanguageSupport,
   findCodeBlockLanguage,
   observeCodeBlockLanguageLoads,
-} from "../../src/../src/markdown/code-languages.ts";
+} from "../../src/markdown/code-languages.ts";
 
 describe("code-block language registry", () => {
   it.each([

@@ -1,7 +1,7 @@
 import { parser as markdownParser } from "@lezer/markdown";
 import { describe, expect, it } from "vitest";
-import { M1_MARKDOWN_EXTENSIONS } from "../../src/../src/markdown/extensions.ts";
-import { buildMarkdownRangeIndex } from "../../src/../src/markdown/range-index.ts";
+import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
+import { buildMarkdownRangeIndex } from "../../src/markdown/range-index.ts";
 
 function sourceForKind(
   source: string,

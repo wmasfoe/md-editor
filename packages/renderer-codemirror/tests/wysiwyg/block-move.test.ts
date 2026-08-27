@@ -5,7 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
-import { addBlockBelow, moveBlock, readBlockRanges } from "../../src/../src/wysiwyg/block-move.ts";
+import { addBlockBelow, moveBlock, readBlockRanges } from "../../src/wysiwyg/block-move.ts";
 
 function createView(doc: string): { view: EditorView; getState: () => EditorState } {
   let state = EditorState.create({

@@ -8,7 +8,7 @@ import {
   aiSuggestionField,
   dismissAiSuggestion,
   setAiSuggestionEffect,
-} from "../../src/../src/wysiwyg/suggestion.ts";
+} from "../../src/wysiwyg/suggestion.ts";
 
 function createTestView(doc: string, cursor = 0): EditorView {
   let state = EditorState.create({

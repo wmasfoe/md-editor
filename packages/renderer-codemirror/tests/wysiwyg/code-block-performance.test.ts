@@ -16,12 +16,12 @@ import {
 } from "../../src/markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../../src/markdown/range-types.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { codeBlockLineNumbersField } from "../../src/../src/wysiwyg/code-block-projection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 
 function createPerformanceState(markdownSource: string, diagnostics: WysiwygDiagnostics) {
   return EditorState.create({

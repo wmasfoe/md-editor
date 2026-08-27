@@ -8,7 +8,7 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/projection-state.ts";
 import {
   commitTableCell,
   deleteTableBodyRow,
@@ -17,8 +17,8 @@ import {
   insertTableBodyRow,
   insertTableColumn,
   setTableColumnAlignment,
-} from "../../src/../src/wysiwyg/table-editing.ts";
-import { wysiwygChangeProtection } from "../../src/../src/wysiwyg/change-protection.ts";
+} from "../../src/wysiwyg/table-editing.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
 
 function createView(doc: string): { view: EditorView; getState: () => EditorState } {
   let state = EditorState.create({

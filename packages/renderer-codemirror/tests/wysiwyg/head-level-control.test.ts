@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headingMarkerEdit } from "../../src/../src/wysiwyg/head-level-control.ts";
+import { headingMarkerEdit } from "../../src/wysiwyg/head-level-control.ts";
 
 describe("headingMarkerEdit(标题 H 控件 marker 重写)", () => {
   it("提升级别:## -> ####", () => {

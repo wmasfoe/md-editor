@@ -124,7 +124,8 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
     const diagnostics = getWysiwygDiagnostics(state);
     diagnostics?.recordFullIndexBuild();
-    return buildMarkdownRangeIndex(state.doc.toString(), syntaxTree(state), {
+    const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
+    return buildMarkdownRangeIndex(state.doc.toString(), tree, {
       coverage: readCoverage(state),
       mdxMode: state.facet(mdxModeFacet),
     });
@@ -138,7 +139,10 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     if (transaction.effects.some((effect) => effect.is(refreshMarkdownParseCoverageEffect))) {
       diagnostics?.recordParseCoverageRefresh();
       diagnostics?.recordFullIndexBuild();
-      return buildMarkdownRangeIndex(transaction.newDoc.toString(), syntaxTree(transaction.state), {
+      const tree =
+        ensureSyntaxTree(transaction.state, transaction.state.doc.length, 5_000) ??
+        syntaxTree(transaction.state);
+      return buildMarkdownRangeIndex(transaction.newDoc.toString(), tree, {
         coverage: readCoverage(transaction.state),
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
@@ -310,11 +314,11 @@ function updateMarkdownRangeIndex(
 }
 
 function readCoverage(state: EditorState): MarkdownParseCoverage {
-  const tree = syntaxTree(state);
+  const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
   const to = Math.min(tree.length, state.doc.length);
   return Object.freeze({
     to,
-    complete: syntaxTreeAvailable(state, state.doc.length),
+    complete: to >= state.doc.length || syntaxTreeAvailable(state, state.doc.length),
   });
 }
 

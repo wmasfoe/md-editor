@@ -19,8 +19,8 @@ import {
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/../src/wysiwyg/projection-state.ts";
-import { buildVisibleMarkdownMarks } from "../../src/../src/wysiwyg/visible-marks.ts";
+} from "../../src/wysiwyg/projection-state.ts";
+import { buildVisibleMarkdownMarks } from "../../src/wysiwyg/visible-marks.ts";
 
 interface DecorationSummary {
   readonly from: number;

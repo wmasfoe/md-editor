@@ -2,20 +2,20 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
-import { M1_MARKDOWN_EXTENSIONS } from "../../../src/../src/wysiwyg/../markdown/extensions.ts";
-import { markdownRangeIndexField } from "../../../src/../src/wysiwyg/../markdown/range-index.ts";
-import { WysiwygDiagnostics } from "../../../src/../src/wysiwyg/../diagnostics.ts";
-import { editorModeField } from "../../../src/../src/wysiwyg/../mode.ts";
+import { M1_MARKDOWN_EXTENSIONS } from "../../../src/wysiwyg/../markdown/extensions.ts";
+import { markdownRangeIndexField } from "../../../src/wysiwyg/../markdown/range-index.ts";
+import { WysiwygDiagnostics } from "../../../src/wysiwyg/../diagnostics.ts";
+import { editorModeField } from "../../../src/wysiwyg/../mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../../src/../src/wysiwyg/projection-state.ts";
-import { wysiwygChangeProtection } from "../../../src/../src/wysiwyg/change-protection.ts";
-import { DefaultAtomWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/default-atom-widget.ts";
-import { FrontmatterHeaderWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
-import { ImageWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/image-widget.ts";
-import { TableGridWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/table-widget.ts";
-import { ThematicBreakWidget } from "../../../src/../src/wysiwyg/../../src/wysiwyg/widgets/thematic-break-widget.ts";
+} from "../../../src/wysiwyg/projection-state.ts";
+import { wysiwygChangeProtection } from "../../../src/wysiwyg/change-protection.ts";
+import { DefaultAtomWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/default-atom-widget.ts";
+import { FrontmatterHeaderWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
+import { ImageWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/image-widget.ts";
+import { TableGridWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/table-widget.ts";
+import { ThematicBreakWidget } from "../../../src/wysiwyg/../../src/wysiwyg/widgets/thematic-break-widget.ts";
 
 // Node 测试环境没有 DOM 全局类；为 widget 代码中的 instanceof 检查提供最小桩类型。
 class NodeStub {

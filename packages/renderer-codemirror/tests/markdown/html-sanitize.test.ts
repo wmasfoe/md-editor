@@ -16,8 +16,8 @@ import {
   isAllowedImageSrc,
   isAllowedLinkProtocol,
   isDeniedHtmlAttr,
-} from "../../src/../src/markdown/html-whitelist";
-import { isEmptySanitizedHtml, sanitizeHtmlBlock } from "../../src/../src/markdown/html-sanitize";
+} from "../../src/markdown/html-whitelist";
+import { isEmptySanitizedHtml, sanitizeHtmlBlock } from "../../src/markdown/html-sanitize";
 
 describe("U-SANITIZE 白名单常量精确匹配 D5 清单", () => {
   it("tags 清单与 D5 逐项一致", () => {

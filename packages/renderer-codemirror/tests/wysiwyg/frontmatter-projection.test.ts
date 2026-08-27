@@ -7,13 +7,13 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
-import { wysiwygChangeProtection } from "../../src/../src/wysiwyg/change-protection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/../src/wysiwyg/projection-state.ts";
-import { FrontmatterHeaderWidget } from "../../src/../src/wysiwyg/widgets/frontmatter-header-widget.ts";
+} from "../../src/wysiwyg/projection-state.ts";
+import { FrontmatterHeaderWidget } from "../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
 
 const DOCUMENT = [
   "---",

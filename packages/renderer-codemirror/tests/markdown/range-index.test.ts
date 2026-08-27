@@ -12,19 +12,19 @@ import { setEditorModeEffect } from "../../src/mode.ts";
 import {
   analyzeFrontmatterYaml,
   getFrontmatterYamlDiagnostics,
-} from "../../src/../src/markdown/frontmatter-yaml.ts";
-import { M1_MARKDOWN_EXTENSIONS } from "../../src/../src/markdown/extensions.ts";
+} from "../../src/markdown/frontmatter-yaml.ts";
+import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import {
   getM1MarkdownFixture,
   getM2CodeBlockFixture,
   getM3TableFixture,
-} from "../../src/../src/markdown/fixtures.ts";
+} from "../../src/markdown/fixtures.ts";
 import {
   buildMarkdownRangeIndex,
   markdownRangeIndexField,
   refreshMarkdownParseCoverageEffect,
   type MarkdownRangeIndex,
-} from "../../src/../src/markdown/range-index.ts";
+} from "../../src/markdown/range-index.ts";
 
 interface IndexHarness {
   readonly state: EditorState;

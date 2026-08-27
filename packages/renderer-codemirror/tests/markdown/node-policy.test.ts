@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getMarkdownNodePolicy,
-  isExplicitDeferredNode,
-} from "../../src/../src/markdown/node-policy.ts";
+import { getMarkdownNodePolicy, isExplicitDeferredNode } from "../../src/markdown/node-policy.ts";
 
 describe("Markdown node policy registry", () => {
   it("maps every M1 semantic node to an explicit policy", () => {
