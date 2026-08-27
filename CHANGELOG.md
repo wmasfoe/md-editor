@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2 - 2026-08-27
+
+- 支持 Linux (x86_64 / aarch64) 平台，提供 AppImage 与 DEB 安装包
+- 支持 Windows (x64 / arm64) 平台，提供 NSIS Setup 安装包
+- 新增终端一键安装脚本（macOS/Linux curl 与 Windows PowerShell irm）
+- 官网与安装文档支持多平台下载与架构导航
+- 完善跨平台多架构 CI 自动化构建、验证与 Release 发布工作流
+
 ## 0.4.1 - 2026-08-27
 
 - 修复在所见即所得模式下输入空图片 ![]() 无法就地编辑源码的问题
