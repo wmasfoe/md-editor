@@ -78,3 +78,6 @@ temp/
 !.codex/prompts/
 !.codex/prompts/**
 *.bkup
+**/src-tauri/binaries/*.so
+**/src-tauri/binaries/*.dll
+**/src-tauri/binaries/*.dylib
