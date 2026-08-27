@@ -220,8 +220,10 @@ export function createCodeMirrorEditorBridge(
     getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
     focus: () => renderer.focus(),
     setSelection: (from: number, to: number) => renderer.setSelection(from, to),
-    scrollToLine: (line: number, options?: { readonly select?: boolean; readonly focus?: boolean }) =>
-      renderer.scrollToLine(line, options),
+    scrollToLine: (
+      line: number,
+      scrollOptions?: { readonly select?: boolean; readonly focus?: boolean },
+    ) => renderer.scrollToLine(line, scrollOptions),
     requestMeasure: () => renderer.requestMeasure(),
   });
   rendererByPorts.set(ports, renderer);

@@ -1280,8 +1280,10 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),
     focus: () => controller.focus(),
     setSelection: (from: number, to: number) => controller.setSelection(from, to),
-    scrollToLine: (line: number, options?: { readonly select?: boolean; readonly focus?: boolean }) =>
-      controller.scrollToLine(line, options),
+    scrollToLine: (
+      line: number,
+      options?: { readonly select?: boolean; readonly focus?: boolean },
+    ) => controller.scrollToLine(line, options),
     requestMeasure: () => controller.requestMeasure(),
     destroy: () => controller.destroy(),
   });

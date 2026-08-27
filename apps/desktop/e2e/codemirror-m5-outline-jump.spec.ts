@@ -54,7 +54,9 @@ test.describe("M5 大纲跳转 (Outline Jump)", () => {
     await openFixture(page, SCROLL_FIXTURE);
 
     // 1. 切换侧栏到大纲视图
-    const outlineTabButton = page.getByRole("tab", { name: "大纲" }).or(page.getByRole("button", { name: "大纲" }));
+    const outlineTabButton = page
+      .getByRole("tab", { name: "大纲" })
+      .or(page.getByRole("button", { name: "大纲" }));
     if (await outlineTabButton.isVisible()) {
       await outlineTabButton.click();
     }
