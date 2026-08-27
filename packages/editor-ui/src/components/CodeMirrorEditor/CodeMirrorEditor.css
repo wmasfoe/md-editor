@@ -128,6 +128,9 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1 {
   font-size: 1.85em;
   line-height: 1.35;
+  border-bottom: 1px solid var(--theme-border, rgba(110, 31, 44, 0.14));
+  padding-bottom: 0.28rem;
+  margin-bottom: 0.4rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
@@ -164,8 +167,11 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-line--quote {
-  border-left: 2px solid var(--theme-blockquote-border, var(--theme-border, currentColor));
-  padding-left: 0.72rem;
+  border-left: 3px solid
+    var(--theme-primary, var(--theme-blockquote-border, var(--theme-border, currentColor)));
+  padding-left: 0.85rem;
+  background: var(--theme-primary-soft, transparent);
+  border-radius: 0 4px 4px 0;
   color: var(--theme-blockquote-text, var(--theme-muted, currentColor));
 }
 
@@ -210,9 +216,9 @@
   justify-content: center;
   border: 1px solid var(--theme-checkbox-border, var(--theme-border, currentColor));
   border-radius: 3px;
-  margin-right: 0.28em;
+  margin-right: 0.35em;
   background: var(--theme-checkbox-bg, transparent);
-  color: var(--theme-checkbox-check, var(--theme-accent, currentColor));
+  color: var(--theme-checkbox-check, var(--theme-primary, currentColor));
   cursor: pointer;
   line-height: 1;
   vertical-align: -0.08em;
@@ -222,8 +228,19 @@
     transform var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
 }
 
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox:hover {
+  border-color: var(--theme-primary, currentColor);
+  background: var(--theme-primary-soft, rgba(110, 31, 44, 0.08));
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox:active {
   transform: scale(0.92);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox--checked {
+  background: var(--theme-primary-fill, var(--theme-primary, #6e1f2c));
+  border-color: var(--theme-primary, #6e1f2c);
+  color: var(--theme-bg, #ffffff);
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-task-checkbox--checked::after {
