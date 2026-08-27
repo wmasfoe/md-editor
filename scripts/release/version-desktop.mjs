@@ -179,6 +179,24 @@ async function inputChangelogEntries() {
 // 主流程
 async function main() {
   const currentVersion = readJson(tauriConfigPath).version;
+  const argTarget = process.argv[2];
+
+  if (argTarget) {
+    const nextVersion = bumpVersion(currentVersion, argTarget);
+    updatePackageJson(rootPackagePath, nextVersion);
+    updatePackageJson(desktopPackagePath, nextVersion);
+    updateTauriConfig(nextVersion);
+    updateCargoManifest(nextVersion);
+    try {
+      execFileSync("cargo", ["update", "--manifest-path", cargoManifestPath, "-w"], {
+        stdio: "inherit",
+      });
+    } catch {
+      // cargo update fallback
+    }
+    console.log(`\n✅ 版本文件更新完成: ${currentVersion} -> ${nextVersion}`);
+    return;
+  }
 
   // 1. 选择版本类型
   const versionType = await selectVersionType(currentVersion);
