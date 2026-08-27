@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 - 2026-08-27
+
+- 修复 Windows 平台启动时弹出命令行黑窗口的问题
+- 修复 Windows 平台打开与保存文件时因 Tauri v2 Scope 状态异常导致报错的问题
+
 ## 0.4.2 - 2026-08-27
 
 - 支持 Linux (x86_64 / aarch64) 平台，提供 AppImage 与 DEB 安装包
