@@ -1,6 +1,6 @@
 {
   "name": "md-editor",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "private": true,
   "description": "Inkpoint — a daily-usable Markdown and MDX-compatible desktop editor.",
   "type": "module",

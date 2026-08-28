@@ -1,11 +1,11 @@
 .file-tree-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--theme-control-subtle) 44%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--theme-control-subtle) 30%, transparent) transparent;
 }
 
 .file-tree-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 .file-tree-scrollbar::-webkit-scrollbar-track {
@@ -13,23 +13,23 @@
 }
 
 .file-tree-scrollbar::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--theme-control-subtle) 44%, transparent);
+  background: color-mix(in srgb, var(--theme-control-subtle) 30%, transparent);
   background-clip: padding-box;
 }
 
 .file-tree-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--theme-control-subtle) 64%, transparent);
+  background: color-mix(in srgb, var(--theme-control-subtle) 55%, transparent);
   background-clip: padding-box;
 }
 
 .file-tree-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.35;
+  stroke-width: 1.6;
 }

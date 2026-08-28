@@ -12,6 +12,9 @@ export interface FileTreeContextMenuProps {
   readonly onRunAction: (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => void;
 }
 
+/**
+ * 苹果风格毛玻璃右键上下文菜单
+ */
 export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeContextMenuProps) {
   const run = useCallback(
     (action: FileTreeContextMenuAction) => {
@@ -23,7 +26,7 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
 
   return (
     <div
-      className="fixed z-50 min-w-37.5 rounded-md border border-(--theme-border) bg-(--theme-surface) p-1 shadow-[0_12px_30px_rgba(51,51,51,0.14)]"
+      className="fixed z-50 min-w-44 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)]/95 p-1.5 shadow-[0_12px_32px_rgba(20,18,15,0.12),0_0_0_1px_rgba(20,18,15,0.04)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
       style={{ left: menu.x, top: menu.y }}
       onClick={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
@@ -39,9 +42,9 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
       </ContextMenuItem>
       {menu.node ? (
         <>
-          <div className="m-1 h-px bg-(--theme-border)" />
+          <div className="my-1 h-px bg-[var(--theme-border)]/60" />
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyRelativePath)}>
-            复制路径
+            复制相对路径
           </ContextMenuItem>
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyAbsolutePath)}>
             复制绝对路径
@@ -49,7 +52,7 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.revealInFinder)}>
             在 Finder 中显示
           </ContextMenuItem>
-          <div className="m-1 h-px bg-(--theme-border)" />
+          <div className="my-1 h-px bg-[var(--theme-border)]/60" />
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.rename)}>
             重命名
           </ContextMenuItem>

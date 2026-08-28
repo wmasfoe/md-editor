@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FolderIcon } from "@heroicons/react/24/outline";
 import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
 import { findFirstMarkdownPath } from "../../app/files/file-tree-mutations";
 import { createDefaultCollapsedDirectoryPaths } from "../../app/files/file-tree-view-state";
@@ -286,13 +287,26 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
 
   if (!folder) {
     return (
-      <div className="min-h-0 flex-1 bg-transparent p-3 text-[13px] text-[var(--theme-control-subtle)]">
+      <div className="flex min-h-0 flex-1 select-none flex-col items-center justify-center p-5 text-center">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--theme-border)]/60 bg-[var(--theme-surface)] shadow-xs">
+          <FolderIcon
+            className="size-5 stroke-[1.75] text-[var(--theme-primary)]"
+            aria-hidden="true"
+          />
+        </div>
+        <p className="mb-1 text-[13px] font-semibold text-[var(--theme-title)]">未打开工作区</p>
+        <p className="mb-4 max-w-[190px] text-[11px] leading-relaxed text-[var(--theme-control-subtle)]">
+          选择一个本地文件夹，开始专注写作与文件管理。
+        </p>
         <button
           type="button"
-          className="w-full rounded-[6px] border border-transparent bg-transparent px-2.5 py-1.5 text-left text-[13px] leading-[1.4] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
+          className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] shadow-xs transition-all duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
           onClick={onOpenFolder}
         >
-          打开文件夹
+          <span>打开文件夹</span>
+          <kbd className="rounded border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1 py-0.2 font-mono text-[10px] text-[var(--theme-control-subtle)] group-hover:text-[var(--theme-title)]">
+            ⌘O
+          </kbd>
         </button>
       </div>
     );
@@ -301,7 +315,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
   if (normalizedSearchQuery) {
     return (
       <div
-        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent pb-4 pt-1"
+        className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent py-1.5"
         onContextMenu={(event) => openContextMenu(event, null)}
       >
         {searchResults.length > 0 ? (
@@ -317,7 +331,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
             />
           ))
         ) : (
-          <p className="m-0 px-3 py-2 text-[13px] text-[var(--theme-control-subtle)]">
+          <p className="m-0 px-4 py-3 text-[13px] text-[var(--theme-control-subtle)]">
             没有匹配的文件。
           </p>
         )}
@@ -334,7 +348,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
 
   return (
     <div
-      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent pb-4"
+      className="file-tree-scrollbar min-h-0 flex-1 overflow-auto bg-transparent py-1.5"
       onContextMenu={(event) => openContextMenu(event, null)}
     >
       <FileTreeNodeView
