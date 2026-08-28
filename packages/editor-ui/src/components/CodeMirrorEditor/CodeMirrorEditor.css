@@ -106,18 +106,6 @@
   user-select: none;
 }
 
-.code-mirror-editor-host .cm-md-heading-level-control,
-.code-mirror-editor-host .cm-md-heading-level-button {
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  line-height: 1 !important;
-  letter-spacing: 0 !important;
-  color: var(--theme-muted, #656d76) !important;
-  vertical-align: 0.08em;
-  opacity: 0.6;
-  padding: 1px 3px;
-}
-
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold,
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold * {
   color: var(--theme-title, var(--theme-strong-accent, #111827)) !important;
