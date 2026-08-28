@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { getPrimaryDownload, type DownloadCatalog } from "../lib/downloads";
+import type { DownloadCatalog } from "../lib/downloads";
 import { useI18n } from "../lib/i18n/context";
 import { GITHUB_REPO_URL } from "../lib/site-links";
 import { HeaderDownloadButton } from "./header-download-button";

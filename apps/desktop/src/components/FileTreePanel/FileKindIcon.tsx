@@ -65,9 +65,7 @@ export function FileKindIcon({ kind, name = "", isActive = false }: FileKindIcon
             d="M9.75 1v3a.75.75 0 0 0 .75.75h3"
             className={cx(
               "stroke-current stroke-[1.2]",
-              isActive
-                ? "fill-[var(--theme-primary-soft)]"
-                : "fill-[var(--theme-control-hover)]",
+              isActive ? "fill-[var(--theme-primary-soft)]" : "fill-[var(--theme-control-hover)]",
             )}
           />
           <path

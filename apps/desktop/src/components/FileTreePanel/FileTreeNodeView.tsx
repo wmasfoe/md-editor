@@ -190,10 +190,7 @@ function FolderNodeIcon({ isCollapsed }: { isCollapsed: boolean }) {
           className="fill-[var(--theme-surface)] stroke-current stroke-[1.15]"
         />
       ) : (
-        <path
-          d="M2 5.5h12"
-          className="stroke-current stroke-[1.15]"
-        />
+        <path d="M2 5.5h12" className="stroke-current stroke-[1.15]" />
       )}
     </svg>
   );

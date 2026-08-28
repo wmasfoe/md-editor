@@ -29,7 +29,9 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
   // 水墨装饰层大幅度差速
   const splashesOffset = prefersReducedMotion ? 0 : calculateParallaxOffset(scrollY, 0.35, -90, 90);
   const sealOffset = prefersReducedMotion ? 0 : calculateParallaxOffset(scrollY, 0.18, -50, 50);
-  const ambientBgOffset = prefersReducedMotion ? 0 : calculateParallaxOffset(scrollY, 0.25, -120, 120);
+  const ambientBgOffset = prefersReducedMotion
+    ? 0
+    : calculateParallaxOffset(scrollY, 0.25, -120, 120);
 
   // 特性 Bento 卡片大幅度交错视差位移 (Staggered Bento Lift)
   const card0Y = prefersReducedMotion ? 0 : interpolate(scrollY, [200, 850], [50, -30]);
@@ -80,17 +82,11 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
               {t.hero.subtitle}
             </p>
 
-            <DownloadPanel
-              initialPlatform={initialPlatform}
-              version={latest?.version}
-            />
+            <DownloadPanel initialPlatform={initialPlatform} version={latest?.version} />
           </div>
 
           {/* Apple 官网级 3D 视差展开的桌面端实物窗口展示舞台 */}
-          <EditorPreviewStage
-            scrollY={scrollY}
-            prefersReducedMotion={prefersReducedMotion}
-          />
+          <EditorPreviewStage scrollY={scrollY} prefersReducedMotion={prefersReducedMotion} />
         </div>
       </section>
 
@@ -124,8 +120,18 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
 
                 {/* 装饰性徽标微预览 */}
                 <div className="mt-6 pt-4 border-t border-line/50 text-[11px] text-muted flex items-center justify-between">
-                  <span>{idx === 0 ? (isZh ? "本地磁盘" : "Local Disk") : idx === 1 ? "MDX & React" : "macOS / Win / Linux"}</span>
-                  <span className="font-mono text-ink/70">{idx === 0 ? "0 Cloud" : idx === 1 ? "100% Fidelity" : "⌘ Keymaps"}</span>
+                  <span>
+                    {idx === 0
+                      ? isZh
+                        ? "本地磁盘"
+                        : "Local Disk"
+                      : idx === 1
+                        ? "MDX & React"
+                        : "macOS / Win / Linux"}
+                  </span>
+                  <span className="font-mono text-ink/70">
+                    {idx === 0 ? "0 Cloud" : idx === 1 ? "100% Fidelity" : "⌘ Keymaps"}
+                  </span>
                 </div>
               </div>
             ))}
@@ -190,10 +196,10 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
           className="rounded-3xl border border-line bg-surface p-6 shadow-[0_4px_20px_rgba(20,18,15,0.03)] transition-all duration-300 hover:border-line-strong hover:shadow-[0_12px_32px_rgba(20,18,15,0.08)] sm:p-8"
         >
           <h2 className="text-sm font-medium tracking-wide text-muted">{t.status.webAppTitle}</h2>
-          <p className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{t.status.webAppStatus}</p>
-          <p className="mt-4 text-sm leading-relaxed text-ink-soft">
-            {t.status.webAppDescription}
+          <p className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+            {t.status.webAppStatus}
           </p>
+          <p className="mt-4 text-sm leading-relaxed text-ink-soft">{t.status.webAppDescription}</p>
           <span className="mt-6 inline-flex rounded-full border border-line bg-surface-soft px-3 py-1 text-xs font-medium text-muted">
             {t.status.notOpenYet}
           </span>

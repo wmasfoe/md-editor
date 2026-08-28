@@ -33,9 +33,7 @@ export function LanguageSwitcher() {
         aria-hidden
         className="h-3.5 w-3.5 shrink-0 text-muted transition-colors duration-200 group-hover:text-ink"
       />
-      <span className="font-semibold text-ink transition-colors duration-200">
-        {displayLabel}
-      </span>
+      <span className="font-semibold text-ink transition-colors duration-200">{displayLabel}</span>
     </button>
   );
 }

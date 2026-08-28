@@ -50,7 +50,9 @@ export function SearchResultRow({
           <span
             className={cx(
               "block overflow-hidden text-ellipsis whitespace-nowrap",
-              isActive ? "font-semibold text-[var(--theme-primary)]" : "font-medium text-[var(--theme-title)]",
+              isActive
+                ? "font-semibold text-[var(--theme-primary)]"
+                : "font-medium text-[var(--theme-title)]",
             )}
           >
             {node.name}

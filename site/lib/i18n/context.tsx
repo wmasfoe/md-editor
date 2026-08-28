@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { detectClientLocale, STORAGE_KEY_LOCALE } from "./detect";
 import { translations } from "./index";
 import type { Locale, TranslationSchema } from "./types";
@@ -31,9 +24,7 @@ export function I18nProvider({ initialLocale, children }: I18nProviderProps) {
   // 客户端挂载后校准：检查 localStorage 中的历史设置或实际浏览器语言
   useEffect(() => {
     const clientLocale = detectClientLocale();
-    if (clientLocale !== locale) {
-      setLocaleState(clientLocale);
-    }
+    setLocaleState((prev) => (prev !== clientLocale ? clientLocale : prev));
     document.documentElement.lang = clientLocale === "zh" ? "zh-CN" : "en";
   }, []);
 
@@ -51,11 +42,7 @@ export function I18nProvider({ initialLocale, children }: I18nProviderProps) {
 
   const t = translations[locale] ?? translations.en;
 
-  return (
-    <I18nContext.Provider value={{ locale, setLocale, t }}>
-      {children}
-    </I18nContext.Provider>
-  );
+  return <I18nContext.Provider value={{ locale, setLocale, t }}>{children}</I18nContext.Provider>;
 }
 
 /**

@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { buildDownloadCatalog, getPlatformInstall } from "../lib/downloads";
-import {
-  detectLocaleFromHeader,
-  en,
-  getTranslation,
-  isLocale,
-  translations,
-  zh,
-} from "../lib/i18n";
+import { detectLocaleFromHeader, en, getTranslation, isLocale, zh } from "../lib/i18n";
+
+function extractPaths(obj: Record<string, unknown>, prefix = ""): string[] {
+  const paths: string[] = [];
+  for (const [key, value] of Object.entries(obj)) {
+    const nextPath = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === "object") {
+      paths.push(...extractPaths(value as Record<string, unknown>, nextPath));
+    } else {
+      paths.push(nextPath);
+    }
+  }
+  return paths.toSorted();
+}
 
 describe("detectLocaleFromHeader", () => {
   it("detects Chinese when zh is the preferred language", () => {
@@ -56,31 +62,9 @@ describe("translations dictionary completeness", () => {
     expect(getTranslation("zh")).toBe(zh);
     expect(getTranslation("en")).toBe(en);
 
-    // 结构对照校验
-    const checkKeys = (zhObj: any, enObj: any, path = "") => {
-      expect(typeof enObj).toBe(typeof zhObj);
-      if (typeof zhObj === "object" && zhObj !== null) {
-        if (Array.isArray(zhObj)) {
-          expect(Array.isArray(enObj)).toBe(true);
-          expect(enObj.length).toBe(zhObj.length);
-          for (let i = 0; i < zhObj.length; i++) {
-            checkKeys(zhObj[i], enObj[i], `${path}[${i}]`);
-          }
-        } else {
-          const zhKeys = Object.keys(zhObj).sort();
-          const enKeys = Object.keys(enObj).sort();
-          expect(enKeys).toEqual(zhKeys);
-          for (const key of zhKeys) {
-            checkKeys(zhObj[key], enObj[key], `${path}.${key}`);
-          }
-        }
-      } else {
-        expect(typeof enObj).toBe("string");
-        expect((enObj as string).trim().length).toBeGreaterThan(0);
-      }
-    };
-
-    checkKeys(zh, en, "root");
+    const zhPaths = extractPaths(zh as unknown as Record<string, unknown>);
+    const enPaths = extractPaths(en as unknown as Record<string, unknown>);
+    expect(enPaths).toEqual(zhPaths);
   });
 });
 

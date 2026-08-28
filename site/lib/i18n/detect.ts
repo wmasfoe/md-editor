@@ -44,7 +44,7 @@ export function detectLocaleFromHeader(acceptLanguage?: string | null): Locale {
       return { lang: lang.trim().toLowerCase(), q };
     })
     .filter((item) => item.lang.length > 0 && item.q > 0)
-    .sort((a, b) => b.q - a.q);
+    .toSorted((a, b) => b.q - a.q);
 
   if (parsed.length === 0) {
     return DEFAULT_NON_CHINESE_LOCALE;

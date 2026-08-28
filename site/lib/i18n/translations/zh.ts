@@ -59,7 +59,8 @@ export const zh: TranslationSchema = {
     noChangelog: "暂无更新记录",
     webAppTitle: "Web App",
     webAppStatus: "计划中",
-    webAppDescription: "第一版官网只保留入口状态，不提供在线编辑器。完整产品形态仍是桌面端 Inkpoint。",
+    webAppDescription:
+      "第一版官网只保留入口状态，不提供在线编辑器。完整产品形态仍是桌面端 Inkpoint。",
     notOpenYet: "暂未开放",
   },
   changelog: {

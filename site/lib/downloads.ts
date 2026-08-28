@@ -70,7 +70,7 @@ const INSTALL_BY_PLATFORM_EN: Record<SitePlatform, PlatformInstall> = {
     command: UNIX_INSTALL_COMMAND,
     recommended: true,
     extra: {
-      title: "If prompted \"damaged\", remove quarantine attribute",
+      title: 'If prompted "damaged", remove quarantine attribute',
       command: MACOS_QUARANTINE_COMMAND,
     },
   },

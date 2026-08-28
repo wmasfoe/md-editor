@@ -15,10 +15,7 @@ interface EditorPreviewStageProps {
  * 3. 浮动视差挂件 (Satellite Badges)：3 枚功能徽标以大幅度差速在窗口四周浮动位移；
  * 4. 编辑器实例文档：以霞鹜文楷呈现逼真的 Markdown / MDX 写作与代码高亮排版。
  */
-export function EditorPreviewStage({
-  scrollY,
-  prefersReducedMotion,
-}: EditorPreviewStageProps) {
+export function EditorPreviewStage({ scrollY, prefersReducedMotion }: EditorPreviewStageProps) {
   const { locale } = useI18n();
   const isZh = locale === "zh";
 
@@ -52,9 +49,7 @@ export function EditorPreviewStage({
           📁
         </span>
         <div>
-          <p className="text-xs font-semibold text-ink">
-            {isZh ? "本地优先" : "Local-First"}
-          </p>
+          <p className="text-xs font-semibold text-ink">{isZh ? "本地优先" : "Local-First"}</p>
           <p className="text-[11px] text-muted">
             {isZh ? "磁盘直读，零云依赖" : "Saved on disk, zero cloud"}
           </p>
@@ -187,12 +182,15 @@ export function EditorPreviewStage({
                   <span className="text-accent">Live Preview</span>
                 </div>
                 <div className="border-t border-line/60 pt-2 text-ink">
-                  <span className="text-accent">export const</span> meta = &#123; author: <span className="text-seal">&quot;Inkpoint&quot;</span> &#125;;
+                  <span className="text-accent">export const</span> meta = &#123; author:{" "}
+                  <span className="text-seal">&quot;Inkpoint&quot;</span> &#125;;
                   <br />
                   <span className="text-muted">&#60;</span>
                   <span className="text-blot font-semibold">Callout</span>
                   <span className="text-muted">&#62;</span>
-                  {isZh ? " 极简、本地、专注于长文排版。" : " Distraction-free, local-first typography."}
+                  {isZh
+                    ? " 极简、本地、专注于长文排版。"
+                    : " Distraction-free, local-first typography."}
                   <span className="text-muted">&#60;/</span>
                   <span className="text-blot font-semibold">Callout</span>
                   <span className="text-muted">&#62;</span>

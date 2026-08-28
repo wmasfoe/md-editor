@@ -14,7 +14,8 @@ export const en: TranslationSchema = {
   },
   hero: {
     tagline: "Focus on Writing",
-    subtitle: "A local-first desktop editor. Files stay safely on disk for everyday writing, MDX content, and desktop workflows.",
+    subtitle:
+      "A local-first desktop editor. Files stay safely on disk for everyday writing, MDX content, and desktop workflows.",
     latestPrefix: "Latest",
     allPackages: "All Releases",
   },
@@ -26,7 +27,7 @@ export const en: TranslationSchema = {
     secondaryLinuxArm64: "ARM64 AppImage",
     secondaryWindowsArm64: "ARM64 Setup",
     installMacosTitle: "One-line Terminal Install",
-    installMacosExtra: "If prompted \"damaged\", remove quarantine attribute",
+    installMacosExtra: 'If prompted "damaged", remove quarantine attribute',
     installLinuxTitle: "One-line Terminal Install",
     installWindowsTitle: "PowerShell One-line Install",
     recommendedTag: "Recommended",
@@ -39,15 +40,18 @@ export const en: TranslationSchema = {
     items: [
       {
         title: "Local-First",
-        description: "Your files stay directly on your disk. No account required, zero cloud dependency.",
+        description:
+          "Your files stay directly on your disk. No account required, zero cloud dependency.",
       },
       {
         title: "Markdown / MDX",
-        description: "A seamless editing experience for everyday writing and componentized content.",
+        description:
+          "A seamless editing experience for everyday writing and componentized content.",
       },
       {
         title: "Desktop Workflow",
-        description: "Built-in file tree, recent documents, image pasting, and native menus out of the box.",
+        description:
+          "Built-in file tree, recent documents, image pasting, and native menus out of the box.",
       },
     ],
   },
@@ -59,7 +63,8 @@ export const en: TranslationSchema = {
     noChangelog: "No release records available",
     webAppTitle: "Web App",
     webAppStatus: "Planned",
-    webAppDescription: "The first website version only acts as an entry point without an online editor. The core product remains the desktop Inkpoint.",
+    webAppDescription:
+      "The first website version only acts as an entry point without an online editor. The core product remains the desktop Inkpoint.",
     notOpenYet: "Coming Soon",
   },
   changelog: {
