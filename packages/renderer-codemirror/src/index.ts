@@ -36,6 +36,16 @@ export {
   setHeading6,
   createMarkdownFormattingKeymap,
 } from "./wysiwyg/markdown-formatting.ts";
+export {
+  search,
+  searchKeymap,
+  openSearchPanel,
+  closeSearchPanel,
+  findNext,
+  findPrevious,
+  replaceNext,
+  replaceAll,
+} from "@codemirror/search";
 export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/smart-paste.ts";
 export { smartPairsExtension } from "./wysiwyg/smart-pairs.ts";
 export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";

@@ -212,4 +212,26 @@ describe("Smart Link Paste & Smart Pairs", () => {
     expect(currentState.selection.main.from).toBe(1);
     expect(currentState.selection.main.to).toBe(6);
   });
+
+  it("supports search and replace query execution on document", async () => {
+    const { SearchQuery } = await import("@codemirror/search");
+    const state = createState("The quick brown fox jumps over the lazy fox");
+    const query = new SearchQuery({
+      search: "fox",
+      replace: "dog",
+      caseSensitive: false,
+    });
+
+    const cursor = query.getCursor(state.doc);
+    const matches: { from: number; to: number }[] = [];
+    let item = cursor.next();
+    while (!item.done) {
+      matches.push({ from: item.value.from, to: item.value.to });
+      item = cursor.next();
+    }
+
+    expect(matches.length).toBe(2);
+    expect(matches[0]).toEqual({ from: 16, to: 19 });
+    expect(matches[1]).toEqual({ from: 40, to: 43 });
+  });
 });

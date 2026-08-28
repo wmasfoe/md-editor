@@ -13,8 +13,16 @@ export interface PasteImageRuntime {
   readonly ensureDocumentSaved: () => Promise<boolean>;
   readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
   readonly applyMarkdown: (markdown: string) => void;
+  readonly getCursorPosition?: () => number | null;
   readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
   readonly assetsDirectory?: string;
+  readonly storageProvider?: {
+    save(input: {
+      bytes: Uint8Array;
+      mimeType: string;
+      context: { documentPath: string; defaultAssetsDir: string; preferredName?: string };
+    }): Promise<{ src: string; targetPath: string }>;
+  };
 }
 
 export function getPastedImage(data: DataTransfer): PastedImageInput | null {
@@ -68,7 +76,8 @@ export async function pasteImageInput(
       throw new Error("Save the document before pasting images.");
     }
 
-    const savedImage = await imageStorageProvider.save({
+    const provider = runtimeActions.storageProvider ?? imageStorageProvider;
+    const savedImage = await provider.save({
       bytes: new Uint8Array(await image.file.arrayBuffer()),
       mimeType: image.mimeType,
       context: {
@@ -78,11 +87,24 @@ export async function pasteImageInput(
         preferredName: image.preferredName,
       },
     });
-    const nextMarkdown = appendImageMarkdown(
-      current.markdown,
-      savedImage.src,
-      imageAltTextFromFileName(image.preferredName),
-    );
+
+    const altText = imageAltTextFromFileName(image.preferredName);
+    const imageTag = `![${altText}](${savedImage.src})`;
+    const cursorPos = runtimeActions.getCursorPosition?.();
+
+    let nextMarkdown: string;
+    if (
+      cursorPos !== undefined &&
+      cursorPos !== null &&
+      cursorPos >= 0 &&
+      cursorPos <= current.markdown.length
+    ) {
+      const before = current.markdown.slice(0, cursorPos);
+      const after = current.markdown.slice(cursorPos);
+      nextMarkdown = `${before}${imageTag}${after}`;
+    } else {
+      nextMarkdown = appendImageMarkdown(current.markdown, savedImage.src, altText);
+    }
 
     // 图片文件已经落盘，但 Markdown 引用仍是未保存编辑；保持 dirty 状态直到用户保存文档。
     runtimeActions.applyMarkdown(nextMarkdown);
