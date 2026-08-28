@@ -234,4 +234,109 @@ describe("Smart Link Paste & Smart Pairs", () => {
     expect(matches[0]).toEqual({ from: 16, to: 19 });
     expect(matches[1]).toEqual({ from: 40, to: 43 });
   });
+
+  it("instantiates createLiquidSearchPanel with Apple Liquid Glass structure", async () => {
+    // Provide minimal mock document in Node test environment
+    const originalDocument = globalThis.document;
+    class MockElement {
+      className = "";
+      placeholder = "";
+      value = "";
+      title = "";
+      type = "";
+      textContent = "";
+      #innerHTML = "";
+      get innerHTML() {
+        return this.#innerHTML;
+      }
+      set innerHTML(val: string) {
+        this.#innerHTML = val;
+        if (val) {
+          const child = new MockElement();
+          this.children = [child];
+        }
+      }
+      get firstElementChild(): MockElement | null {
+        return this.children[0] ?? null;
+      }
+      style: Record<string, string> = { display: "" };
+      classList = {
+        contains: (c: string) => this.className.includes(c),
+        add: (c: string) => {
+          this.className += ` ${c}`;
+        },
+        remove: (c: string) => {
+          this.className = this.className.replace(c, "").trim();
+        },
+        toggle: (c: string, force?: boolean) => {
+          const has = this.className.includes(c);
+          const next = force !== undefined ? force : !has;
+          if (next && !has) this.classList.add(c);
+          if (!next && has) this.classList.remove(c);
+          return next;
+        },
+      };
+      children: MockElement[] = [];
+      appendChild(child: MockElement) {
+        this.children.push(child);
+        return child;
+      }
+      querySelector(sel: string): MockElement | null {
+        if (sel.startsWith(".")) {
+          const cls = sel.slice(1);
+          if (this.className.includes(cls)) return this;
+          for (const child of this.children) {
+            const found = child.querySelector(sel);
+            if (found) return found;
+          }
+        }
+        return null;
+      }
+      querySelectorAll(sel: string): MockElement[] {
+        const results: MockElement[] = [];
+        if (sel.startsWith(".")) {
+          const cls = sel.slice(1);
+          if (this.className.includes(cls)) results.push(this);
+          for (const child of this.children) {
+            results.push(...child.querySelectorAll(sel));
+          }
+        }
+        return results;
+      }
+      addEventListener() {}
+      focus() {}
+      select() {}
+    }
+
+    if (typeof globalThis.document === "undefined") {
+      (globalThis as unknown as { document: unknown }).document = {
+        createElement: () => new MockElement(),
+      };
+    }
+
+    try {
+      const { createLiquidSearchPanel } = await import("../../src/wysiwyg/search-panel.ts");
+      const state = createState("Hello Search");
+      const mockView = {
+        state,
+        dispatch: () => {},
+        focus: () => {},
+      } as unknown as EditorView;
+
+      const panel = createLiquidSearchPanel(mockView);
+      expect(panel.dom).toBeDefined();
+      expect(panel.dom.classList.contains("cm-search-liquid-panel")).toBe(true);
+
+      const searchInput = panel.dom.querySelector(".cm-search-input");
+      expect(searchInput).not.toBeNull();
+
+      const replaceRow = panel.dom.querySelector(".cm-replace-row");
+      expect(replaceRow).not.toBeNull();
+
+      const filterButtons = panel.dom.querySelectorAll(".cm-search-filter-btn");
+      expect(filterButtons.length).toBe(3); // Aa, \b, .*
+    } finally {
+      globalThis.document = originalDocument;
+    }
+  });
 });

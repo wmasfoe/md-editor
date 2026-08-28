@@ -18,6 +18,7 @@ import {
 } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
 import { search, searchKeymap } from "@codemirror/search";
+import { createLiquidSearchPanel } from "./wysiwyg/search-panel.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -398,7 +399,7 @@ class CodeMirrorRendererController {
       EditorState.allowMultipleSelections.of(true),
       EditorView.lineWrapping,
       codeFolding(),
-      search({ top: true }),
+      search({ top: true, createPanel: createLiquidSearchPanel }),
       keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
       controllerOptions.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(

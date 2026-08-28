@@ -46,6 +46,7 @@ export {
   replaceNext,
   replaceAll,
 } from "@codemirror/search";
+export { createLiquidSearchPanel } from "./wysiwyg/search-panel.ts";
 export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/smart-paste.ts";
 export { smartPairsExtension } from "./wysiwyg/smart-pairs.ts";
 export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";

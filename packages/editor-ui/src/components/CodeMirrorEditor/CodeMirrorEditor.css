@@ -996,14 +996,14 @@
 }
 
 /* ==========================================================================
-   CodeMirror Search & Replace Panel (Apple Liquid Glass Style)
+   CodeMirror Search & Replace Panel (Apple Liquid Glass HUD)
    ========================================================================== */
 
 .code-mirror-editor-host .cm-panels {
   position: sticky;
   left: 0;
   right: 0;
-  z-index: 25;
+  z-index: 40;
   background: transparent;
   border: none;
 }
@@ -1013,37 +1013,38 @@
   border-bottom: none;
   display: flex;
   justify-content: flex-end;
-  padding: 0.75rem 1.25rem 0 0;
+  padding: 0.85rem 1.5rem 0 0;
   pointer-events: none;
 }
 
-.code-mirror-editor-host .cm-panel.cm-search {
+.code-mirror-editor-host .cm-search-liquid-panel {
   pointer-events: auto;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.5rem;
-  padding: 0.55rem 0.75rem;
-  min-width: 320px;
-  max-width: 90vw;
-  border-radius: 12px;
-  background: var(--theme-surface-glass, rgba(255, 255, 255, 0.82));
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.65rem;
+  min-width: 380px;
+  max-width: min(540px, 92vw);
+  border-radius: 14px;
+  background: var(--theme-surface-glass, rgba(255, 255, 255, 0.85));
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
   border: 1px solid var(--theme-glass-border, rgba(0, 0, 0, 0.08));
   box-shadow:
-    0 4px 20px -2px rgba(0, 0, 0, 0.12),
-    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+    0 10px 30px -4px rgba(0, 0, 0, 0.14),
+    0 2px 8px -2px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.6);
   color: var(--theme-text, #1f2328);
-  font-family: var(--theme-font, system-ui, sans-serif);
+  font-family: var(--theme-font, system-ui, -apple-system, sans-serif);
   font-size: 13px;
-  animation: cm-search-appear 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: cm-search-appear 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes cm-search-appear {
   from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.98);
+    transform: translateY(-8px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -1051,30 +1052,175 @@
   }
 }
 
-.code-mirror-editor-host .cm-search input.cm-textfield {
-  height: 26px;
+.code-mirror-editor-host .cm-search-row,
+.code-mirror-editor-host .cm-replace-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.code-mirror-editor-host .cm-search-icon-slot {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--theme-muted, #8c959f);
+  flex-shrink: 0;
+}
+
+.code-mirror-editor-host .cm-search-input {
+  flex: 1 1 auto;
+  min-width: 100px;
+  height: 28px;
   padding: 0 0.55rem;
-  border-radius: 6px;
-  border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.12));
-  background: var(--theme-input-bg, rgba(255, 255, 255, 0.9));
+  border-radius: 7px;
+  border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.1));
+  background: var(--theme-input-bg, rgba(255, 255, 255, 0.8));
   color: var(--theme-text, inherit);
   font-size: 12.5px;
   font-family: inherit;
   outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
   transition:
     border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.code-mirror-editor-host .cm-search input.cm-textfield:focus {
+.code-mirror-editor-host .cm-search-input:focus {
   border-color: var(--theme-primary, #0969da);
-  box-shadow: 0 0 0 2px var(--theme-primary-soft, rgba(9, 105, 218, 0.15));
+  background: var(--theme-input-focus-bg, #ffffff);
+  box-shadow:
+    0 0 0 2.5px var(--theme-primary-soft, rgba(9, 105, 218, 0.18)),
+    inset 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
-.code-mirror-editor-host .cm-search button.cm-button {
+.code-mirror-editor-host .cm-search-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.12rem 0.45rem;
+  height: 18px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--theme-muted, #656d76);
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.05));
+  border-radius: 9999px;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.code-mirror-editor-host .cm-search-badge.no-match {
+  color: var(--theme-danger-text, #cf222e);
+  background: var(--theme-danger-soft, rgba(207, 34, 46, 0.1));
+}
+
+.code-mirror-editor-host .cm-search-icon-button {
+  display: grid;
+  place-items: center;
+  width: 24px;
   height: 24px;
-  padding: 0 0.5rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--theme-control-text, #57606a);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.code-mirror-editor-host .cm-search-icon-button:hover {
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.06));
+  color: var(--theme-title, #1f2328);
+}
+
+.code-mirror-editor-host .cm-search-icon-button:active {
+  background: var(--theme-control-active, rgba(0, 0, 0, 0.1));
+}
+
+.code-mirror-editor-host .cm-search-icon-button.active {
+  background: var(--theme-primary-soft, rgba(9, 105, 218, 0.12));
+  color: var(--theme-primary, #0969da);
+}
+
+.code-mirror-editor-host .cm-search-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--theme-glass-border, rgba(0, 0, 0, 0.1));
+  margin: 0 0.1rem;
+  flex-shrink: 0;
+}
+
+.code-mirror-editor-host .cm-search-filter-group {
+  display: flex;
+  align-items: center;
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.04));
+  padding: 2px;
+  border-radius: 7px;
+  border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.06));
+  flex-shrink: 0;
+}
+
+.code-mirror-editor-host .cm-search-filter-btn {
+  display: grid;
+  place-items: center;
+  height: 20px;
+  padding: 0 0.4rem;
   border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--theme-muted, #656d76);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--theme-mono-font, monospace);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.12s ease;
+}
+
+.code-mirror-editor-host .cm-search-filter-btn:hover {
+  color: var(--theme-title, #1f2328);
+}
+
+.code-mirror-editor-host .cm-search-filter-btn.active {
+  background: var(--theme-surface, #ffffff);
+  color: var(--theme-primary, #0969da);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.code-mirror-editor-host .cm-search-close-button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: 0.15rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--theme-muted, #8c959f);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.code-mirror-editor-host .cm-search-close-button:hover {
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.08));
+  color: var(--theme-title, #1f2328);
+}
+
+.code-mirror-editor-host .cm-search-pill-button {
+  height: 26px;
+  padding: 0 0.65rem;
+  border-radius: 6px;
   border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.1));
   background: var(--theme-control-bg, rgba(0, 0, 0, 0.04));
   color: var(--theme-text, inherit);
@@ -1084,51 +1230,32 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     background-color 0.12s ease,
-    border-color 0.12s ease;
+    border-color 0.12s ease,
+    transform 0.08s ease;
 }
 
-.code-mirror-editor-host .cm-search button.cm-button:hover {
+.code-mirror-editor-host .cm-search-pill-button:hover {
   background: var(--theme-control-hover, rgba(0, 0, 0, 0.08));
   border-color: var(--theme-control-border, rgba(0, 0, 0, 0.16));
 }
 
-.code-mirror-editor-host .cm-search button.cm-button:active {
-  background: var(--theme-control-active, rgba(0, 0, 0, 0.12));
+.code-mirror-editor-host .cm-search-pill-button:active {
+  transform: scale(0.98);
 }
 
-.code-mirror-editor-host .cm-search button[name="close"] {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  margin-left: auto;
-  border-radius: 50%;
-  border: none;
-  background: transparent;
-  color: var(--theme-muted, #656d76);
-  font-size: 14px;
-  line-height: 1;
+.code-mirror-editor-host .cm-search-pill-button--primary {
+  background: var(--theme-primary, #0969da);
+  color: #ffffff;
+  border-color: var(--theme-primary, #0969da);
 }
 
-.code-mirror-editor-host .cm-search button[name="close"]:hover {
-  background: var(--theme-control-hover, rgba(0, 0, 0, 0.08));
-  color: var(--theme-title, #1f2328);
-}
-
-.code-mirror-editor-host .cm-search label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 11.5px;
-  color: var(--theme-muted, #656d76);
-  cursor: pointer;
-  user-select: none;
-}
-
-.code-mirror-editor-host .cm-search label input[type="checkbox"] {
-  accent-color: var(--theme-primary, #0969da);
-  margin: 0;
+.code-mirror-editor-host .cm-search-pill-button--primary:hover {
+  background: var(--theme-primary-hover, #085cc0);
+  border-color: var(--theme-primary-hover, #085cc0);
 }
 
 .code-mirror-editor-host .cm-search-match {
@@ -1138,6 +1265,6 @@
 
 .code-mirror-editor-host .cm-search-match-selected {
   background-color: var(--theme-search-match-active, rgba(255, 150, 0, 0.65));
-  outline: 1px solid var(--theme-search-match-outline, rgba(255, 120, 0, 0.9));
+  outline: 1.5px solid var(--theme-search-match-outline, rgba(255, 120, 0, 0.9));
   border-radius: 2px;
 }
