@@ -9,6 +9,7 @@ import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
+import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
   isExternalSchemeLink,
   isHttpLink,
@@ -309,7 +310,7 @@ export function useDesktopEditorController({
     if (nextStatus.state === "available") {
       const choice = await requestConfirmation({
         title: "下载更新",
-        description: `发现 Markdown Editor ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。`,
+        description: `发现 ${APP_DISPLAY_NAME} ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。`,
         confirmLabel: "下载更新",
       });
       if (choice !== "confirm") return;
@@ -332,7 +333,7 @@ export function useDesktopEditorController({
 
     const choice = await requestConfirmation({
       title: "退出并更新",
-      description: `Markdown Editor ${nextStatus.latestVersion ?? "新版本"} 已准备好。继续后会退出 App 并进行更新。`,
+      description: `${APP_DISPLAY_NAME} ${nextStatus.latestVersion ?? "新版本"} 已准备好。继续后会退出 App 并进行更新。`,
       confirmLabel: "退出并更新",
     });
     if (choice !== "confirm") return;

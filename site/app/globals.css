@@ -1,10 +1,14 @@
 @import "tailwindcss";
+@import "lxgw-wenkai-webfont/lxgwwenkai-regular.css";
+@import "lxgw-wenkai-webfont/lxgwwenkai-bold.css";
 
 /* 官网主题：偏暖的石色基调，留白优先，强调克制。 */
 @theme {
   --font-sans:
-    var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    var(--font-inter), "LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB", "霞鹜文楷",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-fraunces), "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
   --font-mono:
     "SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
 
@@ -17,6 +21,10 @@
   --color-surface: #ffffff;
   --color-surface-soft: #f3f1eb;
   --color-accent: #1f6feb;
+  /* 词标墨点，贴近暹罗猫面部棕，而不是链接蓝 */
+  --color-blot: #5a4336;
+  /* 落款朱文印 */
+  --color-seal: #b23b2c;
 }
 
 @layer base {
@@ -59,5 +67,36 @@
   button,
   [role="button"] {
     touch-action: manipulation;
+  }
+}
+
+@layer components {
+  /* Fraunces 可变轴：SOFT 做出一点墨晕，opsz 随词标尺寸走。 */
+  .inkpoint-wordmark {
+    font-variation-settings:
+      "SOFT" 50,
+      "WONK" 0,
+      "opsz" 28;
+  }
+
+  .inkpoint-wordmark[data-size="hero"] {
+    font-variation-settings:
+      "SOFT" 72,
+      "WONK" 1,
+      "opsz" 144;
+  }
+
+  /* 水墨洇开只加在字母上，中间那滴 o 不套滤镜。 */
+  .ink-wash {
+    filter: url("#inkpoint-ink-wash");
+    color: color-mix(in srgb, var(--color-ink) 88%, var(--color-blot));
+  }
+
+  .ink-hero {
+    background-image:
+      radial-gradient(ellipse 70% 50% at 50% 6%, rgb(90 67 54 / 0.08), transparent 62%),
+      radial-gradient(ellipse 40% 30% at 88% 18%, rgb(178 59 44 / 0.04), transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.42 0 0 0 0 0.38 0 0 0 0 0.32 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
+    background-blend-mode: multiply, multiply, multiply;
   }
 }

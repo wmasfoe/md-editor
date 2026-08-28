@@ -11,7 +11,7 @@ test("generateWindowsInstallScript generates PowerShell installer for Windows", 
     winArm64Sha256: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   });
 
-  assert.ok(script.includes("$AppName = 'Markdown Editor'"));
+  assert.ok(script.includes("$AppName = 'Inkpoint'"));
   assert.ok(script.includes("$Version = '0.4.0'"));
   assert.ok(script.includes("$WinX64Url = 'https://example.com/md-editor-setup-x64.exe'"));
   assert.ok(script.includes("$WinArm64Url = 'https://example.com/md-editor-setup-arm64.exe'"));

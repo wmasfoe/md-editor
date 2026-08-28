@@ -168,7 +168,7 @@ Beta / prerelease 版本不会生成或更新 Homebrew cask。
 下载 URL 形如：
 
 ```ruby
-url "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v#{version}/Markdown.Editor_#{version}_aarch64.dmg"
+url "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v#{version}/Inkpoint_#{version}_aarch64.dmg"
 ```
 
 安装命令：
@@ -196,7 +196,7 @@ curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-m
 1. 只允许在 macOS 执行。
 2. 用 `curl` 下载公开 tap Release 中的 DMG。
 3. 用 `shasum -a 256` 校验 DMG。
-4. 挂载 DMG，复制 `Markdown Editor.app` 到 `/Applications`。
+4. 挂载 DMG，复制 `Inkpoint.app` 到 `/Applications`。
 5. 默认移除 `com.apple.quarantine`，避免未签名/未公证 DMG 下载安装后直接被 Gatekeeper 拦截；如需保留隔离标记，可设置 `MD_EDITOR_KEEP_QUARANTINE=1`。
 
 可选环境变量：

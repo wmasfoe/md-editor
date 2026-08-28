@@ -1,4 +1,4 @@
-# Markdown Editor
+# Inkpoint
 
 一个基于 Tauri 的跨平台 Markdown/MDX 桌面编辑器，提供 Typora-like 的所见即所得编辑体验。
 
@@ -42,7 +42,7 @@ brew install --cask wmasfoe/tap/md-editor
 
 > **macOS 说明**：安装脚本会默认移除 macOS 下载隔离标记。如果你是手动下载 DMG 或复制 App，macOS 提示“App 已损坏”或无法打开，可以在确认来源可信后执行：
 > ```bash
-> xattr -dr com.apple.quarantine /Applications/Markdown\ Editor.app
+> xattr -dr com.apple.quarantine /Applications/Inkpoint.app
 > ```
 
 ## 快速开始

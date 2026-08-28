@@ -3,7 +3,11 @@
 ## 事实来源
 
 - 状态：持续维护
-- 最后更新：2026-07-18
+- 最后更新：2026-08-28
+- 产品名：Inkpoint（仓库、bundle id 与 Homebrew cask token 仍为 md-editor）
+- 中文意象：墨点。官网可用作副标或释义；不要写成「Inkpoint / 墨点」双商标，界面词标只保留 Inkpoint。
+- 官网词标：Fraunces；`Ink` 斜体、`Point` 正体；`o` 是固定墨点（`--color-blot`，外形与暹罗猫棕呼应，不要改）。水墨洇开、淡墨和朱文印只加在字母与落款上，不要套到这滴 o 上。
+- 官网中文：霞鹜文楷（`LXGW WenKai`）。拉丁正文仍走 Inter，词标拉丁仍走 Fraunces。
 - 主要产品界面：macOS 桌面外壳、可收起文件/大纲侧栏、文档栏、单一 CodeMirror 6 编辑器、资源预览、欢迎状态和原生菜单。
 - 已审阅证据：`README.md`、产品与迁移状态文档、`apps/desktop/src/app/App.tsx`、桌面组件与样式、`packages/editor-ui/src/components/CodeMirrorEditor/`、`packages/renderer-codemirror/src/wysiwyg/` 以及桌面 Playwright 用例。
 - 证据边界：当前事实来自仓库实现、自动化用例和 1280 x 720 / 760 x 520 产品截图；仓库内仍没有用户研究或产品分析数据。

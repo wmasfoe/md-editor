@@ -21,10 +21,10 @@ export function generateInstallScript({
   return `#!/bin/sh
 set -eu
 
-APP_NAME='Markdown Editor'
-APP_BUNDLE='Markdown Editor.app'
+APP_NAME='Inkpoint'
+APP_BUNDLE='Inkpoint.app'
 APP_BIN_NAME='md-editor'
-APPIMAGE_FILE='Markdown_Editor.AppImage'
+APPIMAGE_FILE='Inkpoint.AppImage'
 VERSION=${shQuote(version)}
 
 DMG_URL=${shQuote(dmgUrl)}
@@ -203,7 +203,7 @@ install_linux() {
   desktop_entry="$DESKTOP_DIR/md-editor.desktop"
   cat << DESKTOP_FILE > "$desktop_entry"
 [Desktop Entry]
-Name=Markdown Editor
+Name=Inkpoint
 Comment=Daily-usable Markdown and MDX desktop editor
 Exec=$target_appimage %F
 Terminal=false

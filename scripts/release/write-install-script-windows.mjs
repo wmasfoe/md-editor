@@ -16,10 +16,10 @@ export function generateWindowsInstallScript({
     throw new Error("Missing required parameter: version");
   }
 
-  return `# Markdown Editor Windows Installer
+  return `# Inkpoint Windows Installer
 $ErrorActionPreference = 'Stop'
 
-$AppName = 'Markdown Editor'
+$AppName = 'Inkpoint'
 $Version = ${psQuote(version)}
 
 $WinX64Url = ${psQuote(winX64Url)}

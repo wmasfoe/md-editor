@@ -124,9 +124,11 @@ flowchart TD
     - 触发官网 changelog 发布。
 
 ### 3.6 官网展示适配 (`site/`)
-- 更新 `site/app/page.tsx`：
-  - 增加多平台一键安装切换器（macOS/Linux 的 `curl | sh` 与 Windows 的 `irm | iex`）。
-  - 增加多平台下载直链（macOS DMG、Linux AppImage/Deb、Windows Setup/Zip）。
+- 首页下载区用**平台切换器**收敛入口，不要把 macOS / Linux / Windows 的主按钮和安装命令并排铺开。
+- 根据请求 `User-Agent` 预选平台，只展示一个主下载按钮；次要架构（如 ARM64）和「全部安装包」用文字链。
+- 一键安装命令与平台切换共用状态：macOS/Linux 用 `curl | sh`，Windows 用 `irm | iex`；macOS 隔离标记命令收入折叠区。
+- 页头「下载」按 UA 指向当前平台主安装包，不再写死 macOS DMG。
+- Deb 等其余格式不在首页展开，统一走公开 Releases 列表。
 
 ---
 

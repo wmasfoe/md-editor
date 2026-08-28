@@ -79,7 +79,7 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
 
     #[cfg(target_os = "macos")]
     {
-        let app_menu = SubmenuBuilder::new(app, "Markdown Editor")
+        let app_menu = SubmenuBuilder::new(app, "Inkpoint")
             .about(None)
             .separator()
             .hide()

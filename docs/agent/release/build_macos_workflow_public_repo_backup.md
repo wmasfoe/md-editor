@@ -89,7 +89,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" \
               apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg \
-              --title "Markdown Editor $RELEASE_TAG" \
+              --title "Inkpoint $RELEASE_TAG" \
               --notes "Automated macOS DMG build for $RELEASE_VERSION."
           fi
 

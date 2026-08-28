@@ -3,6 +3,7 @@ import {
   SETTINGS_WINDOW_LABEL,
   type DesktopWindowSurface,
 } from "../desktop/window-labels";
+import { APP_DISPLAY_NAME } from "../lib/app-name";
 
 export interface MainPlatformServices<TFileService> {
   readonly fileService: TFileService;
@@ -61,7 +62,7 @@ export async function bootstrapDesktopPlatform<TRegistration, TFileService>(
     input.renderInitializationError(
       new DesktopPlatformInitializationError(
         "MAIN_INITIALIZATION_FAILED",
-        "Markdown Editor could not initialize the desktop file runtime.",
+        `${APP_DISPLAY_NAME} could not initialize the desktop file runtime.`,
         { cause },
       ),
     );

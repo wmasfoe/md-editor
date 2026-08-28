@@ -25,6 +25,9 @@ test("generateInstallScript generates shell script supporting macOS and Linux", 
   assert.ok(script.includes("x86_64|amd64)"));
   assert.ok(script.includes("aarch64|arm64)"));
   assert.ok(script.includes(".desktop"));
+  assert.ok(script.includes("APP_NAME='Inkpoint'"));
+  assert.ok(script.includes("APP_BUNDLE='Inkpoint.app'"));
+  assert.ok(script.includes("Name=Inkpoint"));
 });
 
 test("generateInstallScript throws on missing version", () => {

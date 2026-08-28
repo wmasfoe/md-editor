@@ -42,7 +42,7 @@ if (fs.existsSync(outputPath)) {
 
 const manifest = {
   version,
-  notes: `Markdown Editor ${version}`,
+  notes: `Inkpoint ${version}`,
   platforms: {
     ...(existingManifest.version === version ? existingManifest.platforms : {}),
     [platform]: {

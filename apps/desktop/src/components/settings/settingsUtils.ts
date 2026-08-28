@@ -7,6 +7,7 @@ import type {
   UpdateStatus,
 } from "../../app/settings/app-settings";
 import type { BuiltInThemeOption } from "../../app/settings/built-in-themes";
+import { APP_DISPLAY_NAME } from "../../lib/app-name";
 
 export {
   isRemoteAiProvider,
@@ -84,13 +85,13 @@ export function updateStatusMessage(updateStatus: UpdateStatus): string {
     case "available":
       return `发现新版本 ${latestVersion}，当前版本 ${updateStatus.currentVersion}。`;
     case "downloading":
-      return `正在下载 Markdown Editor ${latestVersion}...`;
+      return `正在下载 ${APP_DISPLAY_NAME} ${latestVersion}...`;
     case "downloaded":
-      return `Markdown Editor ${latestVersion} 已下载，退出并更新后生效。`;
+      return `${APP_DISPLAY_NAME} ${latestVersion} 已下载，退出并更新后生效。`;
     case "installing":
       return "更新下载完成，正在安装...";
     case "installed":
-      return `Markdown Editor ${latestVersion} 已安装，重启应用后生效。`;
+      return `${APP_DISPLAY_NAME} ${latestVersion} 已安装，重启应用后生效。`;
     case "unconfigured":
       return "应用内更新暂不可用，请确认 Release workflow 已完成。";
     case "error":

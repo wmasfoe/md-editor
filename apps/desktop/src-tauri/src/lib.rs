@@ -95,5 +95,5 @@ pub fn run() {
             open_external_target
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Markdown Editor");
+        .expect("error while running Inkpoint");
 }

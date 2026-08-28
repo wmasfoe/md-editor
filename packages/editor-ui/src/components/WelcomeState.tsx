@@ -7,6 +7,8 @@ export interface WelcomeStateProps {
   readonly onOpenDocument: () => void;
   readonly onOpenFolder: () => void;
   readonly onOpenRecent: (path: string) => void;
+  /** 欢迎页品牌图；缺省时回退为字母标记 */
+  readonly logoSrc?: string;
 }
 
 export function WelcomeState({
@@ -15,18 +17,30 @@ export function WelcomeState({
   onOpenDocument,
   onOpenFolder,
   onOpenRecent,
+  logoSrc,
 }: WelcomeStateProps) {
   return (
     <section
       className="m-auto w-[min(620px,calc(100%_-_48px))] px-0 pb-[72px] pt-12"
       aria-labelledby="welcome-title"
     >
-      <div
-        className="grid size-10 place-items-center rounded-[10px] border border-[var(--theme-border-strong)] font-mono font-bold text-[var(--theme-primary)]"
-        aria-hidden="true"
-      >
-        M
-      </div>
+      {logoSrc ? (
+        <img
+          src={logoSrc}
+          alt=""
+          width={40}
+          height={40}
+          aria-hidden
+          className="size-10 rounded-[10px]"
+        />
+      ) : (
+        <div
+          className="grid size-10 place-items-center rounded-[10px] border border-[var(--theme-border-strong)] font-mono font-bold text-[var(--theme-primary)]"
+          aria-hidden="true"
+        >
+          M
+        </div>
+      )}
       <div className="mb-[26px] mt-[22px]">
         <p className="mb-1 mt-0 text-[13px] text-[var(--theme-muted)]">
           本地优先的 Markdown 写作工具

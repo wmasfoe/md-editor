@@ -22,6 +22,7 @@ import { CommandPalette } from "../components/CommandPalette";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
+import { APP_DISPLAY_NAME } from "../lib/app-name";
 import { cx } from "../lib/cx";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
@@ -311,7 +312,7 @@ function MainApp({
           aria-label="Markdown 编辑器"
         >
           <AppTitleBar
-            title={snapshot.filePath?.split(/[\\/]/u).pop() || "Markdown Editor"}
+            title={snapshot.filePath?.split(/[\\/]/u).pop() || APP_DISPLAY_NAME}
             isDirty={snapshot.isDirty}
             isVisible={shouldShowOverlayTitleBar}
             hasWindowControlsInset={!isSidebarVisible}
@@ -331,6 +332,7 @@ function MainApp({
             {!hasActiveDocument && !openedAsset ? (
               <WelcomeState
                 recentFiles={getRecentFiles()}
+                logoSrc="/logo.png"
                 onNewDocument={() => void dispatchCommand("file.new")}
                 onOpenDocument={() => void dispatchCommand("file.open")}
                 onOpenFolder={() => void dispatchCommand("file.openFolder")}

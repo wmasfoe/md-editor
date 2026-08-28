@@ -36,11 +36,11 @@ const cask = `cask "md-editor" do
   sha256 "${sha256}"
 
   url "${assetUrl}"
-  name "Markdown Editor"
+  name "Inkpoint"
   desc "Markdown and MDX-compatible desktop editor"
   homepage "https://github.com/wmasfoe/md-editor"
 
-  app "Markdown Editor.app"
+  app "Inkpoint.app"
 end
 `;
 

@@ -1,10 +1,19 @@
-import Link from "next/link";
-import { getChangelogEntries } from "../lib/changelog";
-import { buildMacosDmgUrl, GITHUB_REPO_URL } from "../lib/site-links";
+"use client";
 
-export function SiteHeader() {
-  const [latest] = getChangelogEntries();
-  const dmgUrl = latest ? buildMacosDmgUrl(latest.version) : null;
+import Link from "next/link";
+import { getPrimaryDownload, type DownloadCatalog } from "../lib/downloads";
+import { useI18n } from "../lib/i18n/context";
+import { GITHUB_REPO_URL } from "../lib/site-links";
+import { HeaderDownloadButton } from "./header-download-button";
+import { InkpointWordmark } from "./inkpoint-wordmark";
+import { LanguageSwitcher } from "./language-switcher";
+
+type SiteHeaderProps = {
+  catalog: DownloadCatalog | null;
+};
+
+export function SiteHeader({ catalog }: SiteHeaderProps) {
+  const { t } = useI18n();
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/80 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]">
@@ -13,24 +22,24 @@ export function SiteHeader() {
           href="/"
           className="group flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-ink sm:gap-2.5"
         >
-          <span
+          <img
+            src="/logo.png"
+            alt=""
+            width={28}
+            height={28}
             aria-hidden
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ink text-[11px] font-bold tracking-tight text-white transition-transform group-hover:scale-[1.03]"
-          >
-            M
-          </span>
-          {/* 极窄屏只显示缩写，避免与右侧导航抢宽度 */}
-          <span className="truncate max-[360px]:hidden">Markdown Editor</span>
-          <span className="truncate min-[361px]:hidden">MD Editor</span>
+            className="h-7 w-7 shrink-0 rounded-lg transition-transform group-hover:scale-[1.03]"
+          />
+          <InkpointWordmark className="min-w-0" />
         </Link>
 
-        <nav className="flex shrink-0 items-center gap-0.5 sm:gap-2" aria-label="主导航">
+        <nav className="flex shrink-0 items-center gap-1.5 sm:gap-2.5" aria-label="主导航">
           <Link
             href="/changelog"
             className="inline-flex min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            <span className="sm:hidden">更新</span>
-            <span className="hidden sm:inline">更新记录</span>
+            <span className="sm:hidden">{t.header.changelogShort}</span>
+            <span className="hidden sm:inline">{t.header.changelog}</span>
           </Link>
           <a
             href={GITHUB_REPO_URL}
@@ -38,18 +47,10 @@ export function SiteHeader() {
             rel="noreferrer"
             className="hidden min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:inline-flex sm:min-h-0 sm:px-3 sm:text-sm"
           >
-            GitHub
+            {t.header.github}
           </a>
-          {dmgUrl ? (
-            <a
-              href={dmgUrl}
-              // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
-              download
-              className="ml-0.5 inline-flex min-h-10 items-center rounded-full bg-ink px-3 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-1 sm:min-h-0 sm:px-3.5 sm:text-sm"
-            >
-              下载
-            </a>
-          ) : null}
+          {catalog ? <HeaderDownloadButton catalog={catalog} /> : null}
+          <LanguageSwitcher />
         </nav>
       </div>
     </header>
