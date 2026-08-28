@@ -10,6 +10,9 @@ import { codeBlockLineNumbersField, codeBlockProjectionTheme } from "./code-bloc
 import { codeBlockLineNumberTheme } from "./code-block-line-numbers.ts";
 import { wysiwygChangeProtection } from "./change-protection.ts";
 import { createMarkdownStructuredCommandExtensions } from "./markdown-commands.ts";
+import { createMarkdownFormattingKeymap } from "./markdown-formatting.ts";
+import { smartLinkPasteExtension } from "./smart-paste.ts";
+import { smartPairsExtension } from "./smart-pairs.ts";
 import { markdownParseProgressPlugin } from "./parse-progress.ts";
 import {
   clearWysiwygTypedBoundaryOnBlur,
@@ -46,5 +49,8 @@ export function createWysiwygProjectionExtensions(
     codeBlockEmptyBodyPointerHandler,
     codeBlockKeymap,
     createMarkdownStructuredCommandExtensions(),
+    createMarkdownFormattingKeymap(),
+    smartLinkPasteExtension,
+    smartPairsExtension,
   ];
 }

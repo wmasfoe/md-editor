@@ -15,6 +15,29 @@ export {
   aiSuggestionField,
   type AiSuggestionValue,
 } from "./wysiwyg/suggestion.ts";
+export {
+  toggleBold,
+  toggleItalic,
+  toggleStrikethrough,
+  toggleInlineCode,
+  toggleHighlight,
+  insertOrWrapLink,
+  insertCodeBlock,
+  toggleBlockquote,
+  toggleBulletList,
+  toggleOrderedList,
+  toggleTaskList,
+  setParagraph,
+  setHeading1,
+  setHeading2,
+  setHeading3,
+  setHeading4,
+  setHeading5,
+  setHeading6,
+  createMarkdownFormattingKeymap,
+} from "./wysiwyg/markdown-formatting.ts";
+export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/smart-paste.ts";
+export { smartPairsExtension } from "./wysiwyg/smart-pairs.ts";
 export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";
 
 export type {
