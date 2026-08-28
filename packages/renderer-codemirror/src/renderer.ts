@@ -17,6 +17,7 @@ import {
   type TransactionSpec,
 } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
+import { search, searchKeymap } from "@codemirror/search";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -397,7 +398,8 @@ class CodeMirrorRendererController {
       EditorState.allowMultipleSelections.of(true),
       EditorView.lineWrapping,
       codeFolding(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      search({ top: true }),
+      keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
       controllerOptions.useNativeCodeLanguages
         ? createMarkdownLanguageSupport(
             { extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false },

@@ -994,3 +994,150 @@
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
 }
+
+/* ==========================================================================
+   CodeMirror Search & Replace Panel (Apple Liquid Glass Style)
+   ========================================================================== */
+
+.code-mirror-editor-host .cm-panels {
+  position: sticky;
+  left: 0;
+  right: 0;
+  z-index: 25;
+  background: transparent;
+  border: none;
+}
+
+.code-mirror-editor-host .cm-panels-top {
+  top: 0;
+  border-bottom: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.25rem 0 0;
+  pointer-events: none;
+}
+
+.code-mirror-editor-host .cm-panel.cm-search {
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.55rem 0.75rem;
+  min-width: 320px;
+  max-width: 90vw;
+  border-radius: 12px;
+  background: var(--theme-surface-glass, rgba(255, 255, 255, 0.82));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--theme-glass-border, rgba(0, 0, 0, 0.08));
+  box-shadow:
+    0 4px 20px -2px rgba(0, 0, 0, 0.12),
+    0 1px 3px 0 rgba(0, 0, 0, 0.06);
+  color: var(--theme-text, #1f2328);
+  font-family: var(--theme-font, system-ui, sans-serif);
+  font-size: 13px;
+  animation: cm-search-appear 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cm-search-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.code-mirror-editor-host .cm-search input.cm-textfield {
+  height: 26px;
+  padding: 0 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.12));
+  background: var(--theme-input-bg, rgba(255, 255, 255, 0.9));
+  color: var(--theme-text, inherit);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.code-mirror-editor-host .cm-search input.cm-textfield:focus {
+  border-color: var(--theme-primary, #0969da);
+  box-shadow: 0 0 0 2px var(--theme-primary-soft, rgba(9, 105, 218, 0.15));
+}
+
+.code-mirror-editor-host .cm-search button.cm-button {
+  height: 24px;
+  padding: 0 0.5rem;
+  border-radius: 5px;
+  border: 1px solid var(--theme-control-border, rgba(0, 0, 0, 0.1));
+  background: var(--theme-control-bg, rgba(0, 0, 0, 0.04));
+  color: var(--theme-text, inherit);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.code-mirror-editor-host .cm-search button.cm-button:hover {
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.08));
+  border-color: var(--theme-control-border, rgba(0, 0, 0, 0.16));
+}
+
+.code-mirror-editor-host .cm-search button.cm-button:active {
+  background: var(--theme-control-active, rgba(0, 0, 0, 0.12));
+}
+
+.code-mirror-editor-host .cm-search button[name="close"] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin-left: auto;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--theme-muted, #656d76);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.code-mirror-editor-host .cm-search button[name="close"]:hover {
+  background: var(--theme-control-hover, rgba(0, 0, 0, 0.08));
+  color: var(--theme-title, #1f2328);
+}
+
+.code-mirror-editor-host .cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 11.5px;
+  color: var(--theme-muted, #656d76);
+  cursor: pointer;
+  user-select: none;
+}
+
+.code-mirror-editor-host .cm-search label input[type="checkbox"] {
+  accent-color: var(--theme-primary, #0969da);
+  margin: 0;
+}
+
+.code-mirror-editor-host .cm-search-match {
+  background-color: var(--theme-search-match, rgba(255, 212, 0, 0.35));
+  border-radius: 2px;
+}
+
+.code-mirror-editor-host .cm-search-match-selected {
+  background-color: var(--theme-search-match-active, rgba(255, 150, 0, 0.65));
+  outline: 1px solid var(--theme-search-match-outline, rgba(255, 120, 0, 0.9));
+  border-radius: 2px;
+}

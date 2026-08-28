@@ -11,6 +11,9 @@ import { useAppSettings } from "../app/settings-context";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
+import { bindDropImageListener } from "../app/events/drop-image-listener";
+import { bindPasteImageListener } from "../app/events/paste-image-listener";
+import type { PasteImageRuntime } from "../lib/paste-image";
 import {
   resolveCodeFontStack,
   resolveProseFontStack,
@@ -29,7 +32,7 @@ export function DesktopCodeMirrorEditor({
   showToast,
 }: DesktopCodeMirrorEditorProps) {
   const { settings } = useAppSettings();
-  const { openDocumentFromTree } = useDesktopEditorActions();
+  const { openDocumentFromTree, dispatchCommand } = useDesktopEditorActions();
   const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
 
   const handlePortsChange = (newPorts: CodeMirrorEditorPorts | null) => {
@@ -38,6 +41,44 @@ export function DesktopCodeMirrorEditor({
   };
 
   useAutomaticAiEditing({ ports, settings });
+
+  // 绑定图片粘贴与拖拽导入监听器
+  useEffect(() => {
+    const pasteRuntime: PasteImageRuntime = {
+      ensureDocumentSaved: async () => {
+        if (!runtime.document.getSnapshot().filePath) {
+          await dispatchCommand("file.save");
+        }
+        return Boolean(runtime.document.getSnapshot().filePath);
+      },
+      runFileAction: async (_label, action) => {
+        await action();
+      },
+      applyMarkdown: (nextMarkdown) => {
+        const current = runtime.document.getSnapshot();
+        runtime.document.replaceDocument(
+          {
+            markdown: nextMarkdown,
+            savedMarkdown: current.savedMarkdown,
+            filePath: current.filePath,
+          },
+          { kind: "command", commandId: "editor.pasteImage" },
+        );
+      },
+      getCursorPosition: () => {
+        return ports?.getSelectionSnapshot().head ?? null;
+      },
+      assetsDirectory: settings.assetsDirectory,
+    };
+
+    const cleanupDrop = bindDropImageListener(pasteRuntime);
+    const cleanupPaste = bindPasteImageListener(pasteRuntime);
+
+    return () => {
+      cleanupDrop();
+      cleanupPaste();
+    };
+  }, [settings.assetsDirectory, dispatchCommand, ports]);
 
   // 链接打开:内部 markdown 文件在当前应用内打开,其余(资产/外部 URL)走系统打开。
   // 判定委托给 Rust 侧 inspect_linked_file(相对路径按当前文档目录解析)。
@@ -63,6 +104,8 @@ export function DesktopCodeMirrorEditor({
     })();
   };
 
+  const isMdxDocument = runtime.document.getSnapshot().filePath?.endsWith(".mdx") ?? false;
+
   return (
     <CodeMirrorEditor
       document={runtime.document}
@@ -72,6 +115,8 @@ export function DesktopCodeMirrorEditor({
       codeFontFamily={resolveCodeFontStack(settings.editor.codeFontFamily)}
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
+      mdxMode={isMdxDocument}
+      mdxComponents={runtime.mdxComponents}
       resolveImageSrc={(source) =>
         resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, source)
       }
