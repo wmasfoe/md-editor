@@ -82,8 +82,10 @@
   line-height: var(--theme-source-line-height, 1.66);
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker {
-  color: var(--theme-marker-dim, currentColor);
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker--heading-atx,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading-prefix-visible {
+  color: var(--theme-marker-dim, rgba(140, 149, 159, 0.4)) !important;
   font-family: var(
     --theme-mono-font,
     ui-monospace,
@@ -92,11 +94,28 @@
     Monaco,
     Consolas,
     monospace
-  );
-  font-size: 0.88em;
+  ) !important;
+  font-size: 0.76em !important;
   font-style: normal;
-  font-weight: 500;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  margin-inline-end: 0.25em;
+  opacity: 0.6;
   text-decoration: none;
+  vertical-align: 0.08em;
+  user-select: none;
+}
+
+.code-mirror-editor-host .cm-md-heading-level-control,
+.code-mirror-editor-host .cm-md-heading-level-button {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  color: var(--theme-muted, #8c959f) !important;
+  vertical-align: 0.12em;
+  opacity: 0.45;
+  padding: 1px 3px;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold,
@@ -132,95 +151,70 @@
   );
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading * {
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading {
   color: var(--theme-title, #111827);
   -webkit-font-smoothing: antialiased;
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1 * {
-  font-size: 1.45em;
-  line-height: 1.35;
-  font-weight: 750 !important;
-  letter-spacing: -0.015em;
-}
-
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1 {
+  font-size: 1.32em;
+  line-height: 1.35;
+  font-weight: 750;
+  letter-spacing: -0.015em;
   border-bottom: 1px solid var(--theme-border, rgba(0, 0, 0, 0.08));
-  padding-top: 0.6em;
-  padding-bottom: 0.25rem;
-  margin-bottom: 0.35rem;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 * {
-  font-size: 1.3em;
-  line-height: 1.38;
-  font-weight: 700 !important;
-  letter-spacing: -0.012em;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
   padding-top: 0.5em;
-  padding-bottom: 0.18rem;
+  padding-bottom: 0.2rem;
   margin-bottom: 0.3rem;
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 * {
-  font-size: 1.18em;
-  line-height: 1.42;
-  font-weight: 680 !important;
-  letter-spacing: -0.008em;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 {
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
+  font-size: 1.2em;
+  line-height: 1.38;
+  font-weight: 700;
+  letter-spacing: -0.012em;
   padding-top: 0.45em;
   padding-bottom: 0.15rem;
   margin-bottom: 0.25rem;
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 * {
-  font-size: 1.08em;
-  line-height: 1.45;
-  font-weight: 650 !important;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 {
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 {
+  font-size: 1.12em;
+  line-height: 1.42;
+  font-weight: 680;
+  letter-spacing: -0.008em;
   padding-top: 0.4em;
   padding-bottom: 0.12rem;
   margin-bottom: 0.2rem;
 }
 
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5 * {
-  font-size: 1em;
-  line-height: 1.5;
-  font-weight: 600 !important;
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 {
+  font-size: 1.05em;
+  line-height: 1.45;
+  font-weight: 650;
+  padding-top: 0.35em;
+  padding-bottom: 0.1rem;
+  margin-bottom: 0.18rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5 {
-  padding-top: 0.35em;
-  padding-bottom: 0.1rem;
-  margin-bottom: 0.15rem;
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 * {
-  font-size: 0.92em;
-  line-height: 1.55;
-  font-weight: 600 !important;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--theme-muted, #656d76);
-}
-
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 {
+  font-size: 1em;
+  line-height: 1.5;
+  font-weight: 600;
   padding-top: 0.3em;
   padding-bottom: 0.08rem;
   margin-bottom: 0.15rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 {
+  font-size: 0.92em;
+  line-height: 1.55;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-muted, #656d76);
+  padding-top: 0.25em;
+  padding-bottom: 0.06rem;
+  margin-bottom: 0.12rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--source-only {
