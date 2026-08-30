@@ -515,6 +515,8 @@ export function createMarkdownFormattingKeymap() {
     { key: "Mod-b", run: viewFormattingCommand(toggleBold) },
     { key: "Mod-i", run: viewFormattingCommand(toggleItalic) },
     { key: "Mod-k", run: viewFormattingCommand(insertOrWrapLink) },
+    { key: "Mod-l", run: viewFormattingCommand(insertOrWrapLink) },
+    { key: "Mod-Shift-l", run: viewFormattingCommand(insertOrWrapLink) },
     { key: "Mod-e", run: viewFormattingCommand(toggleInlineCode) },
     { key: "Mod-`", run: viewFormattingCommand(toggleInlineCode) },
     { key: "Mod-Shift-s", run: viewFormattingCommand(toggleStrikethrough) },

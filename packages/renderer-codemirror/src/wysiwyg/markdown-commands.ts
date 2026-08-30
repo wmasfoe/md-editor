@@ -44,6 +44,9 @@ export function createMarkdownStructuredCommandExtensions() {
           if (isListContinuationCandidate(view)) {
             return insertListContinuationFallback(view);
           }
+          if (isBlockquoteCandidate(view)) {
+            return handleBlockquoteEnter(view);
+          }
           let tableResult = false;
           let markupResult = false;
           try {
@@ -202,10 +205,71 @@ function isListContinuationCandidate(view: EditorView): boolean {
 }
 
 /**
+ * 判断光标是否处于引用行末 Enter 场景
+ */
+function isBlockquoteCandidate(view: EditorView): boolean {
+  const { head, empty } = view.state.selection.main;
+  if (!empty) {
+    return false;
+  }
+  const line = view.state.doc.lineAt(head);
+  if (head < line.to - 1 && !/^\s*$/.test(view.state.sliceDoc(head, line.to))) {
+    return false;
+  }
+  return /^\s*>\s*/.test(line.text);
+}
+
+/**
+ * 引用行 Enter 处理：
+ * - 空引用行（仅有 > 前缀，无正文）：清除引用标记，退出引用块回到普通空行；
+ * - 非空引用行行末：自动续行（插入 \n> ）。
+ */
+function handleBlockquoteEnter(view: EditorView): boolean {
+  const { state, dispatch } = view;
+  const { head } = state.selection.main;
+  const line = state.doc.lineAt(head);
+  const match = /^(\s*> ?)(.*)$/.exec(line.text);
+  if (!match) {
+    return false;
+  }
+  const prefix = match[1];
+  const content = match[2].trim();
+
+  // 空引用行：清除引用前缀，退出引用块
+  if (content.length === 0) {
+    dispatch(
+      state.update({
+        changes: { from: line.from, to: line.to, insert: "" },
+        selection: EditorSelection.cursor(line.from),
+        annotations: authorizeWysiwygProtectedChange.of(true),
+        userEvent: "delete.dedent",
+      }),
+    );
+    return true;
+  }
+
+  // 非空引用行行末：自动续行
+  const insert = `\n${prefix}`;
+  const insertAt = line.to;
+  dispatch(
+    state.update({
+      changes: { from: insertAt, insert },
+      selection: EditorSelection.cursor(insertAt + insert.length),
+      annotations: authorizeWysiwygProtectedChange.of(true),
+      userEvent: "input.insertLine",
+    }),
+  );
+  return true;
+}
+
+/**
  * 列表项行末 Enter 的兜底续行:官方 insertNewlineContinueMarkup 在
  * wysiwyg 投影模式下偶发判定失败(语法树/语言状态时序差异,macOS
  * headless 上稳定复现),此时手动插入同缩进同 marker 的新列表项,
  * 保证列表编辑语义跨平台一致。
+ *
+ * 若当前列表项内容为空（连续两次 Enter），则清除该行列表 marker（或缩进降级），
+ * 退出列表回到普通段落，避免列表死锁。
  */
 export function insertListContinuationFallback(view: EditorView): boolean {
   const { state, dispatch } = view;
@@ -225,6 +289,43 @@ export function insertListContinuationFallback(view: EditorView): boolean {
     return false;
   }
   const { record, marker, lineFrom } = target;
+
+  const taskRecord = state
+    .field(markdownRangeIndexField)
+    .overlapping(line.from, line.to)
+    .find((item) => item.kind === "task" && item.fullRange.from >= lineFrom);
+  const taskMarker = taskRecord?.markerRanges[0];
+
+  // 检查列表项是否有正文内容
+  const contentStart = taskMarker ? taskMarker.to : marker.to;
+  const itemContent = state.sliceDoc(contentStart, line.to).trim();
+
+  // 空列表项回车（两次回车退出列表）：
+  // 若有缩进则缩进降级，若为顶层列表项则清除 marker 回到普通段落
+  if (itemContent.length === 0) {
+    const indentRemoval = removableListIndent(state, target);
+    if (indentRemoval) {
+      dispatch(
+        state.update({
+          changes: { from: indentRemoval.from, to: indentRemoval.to, insert: "" },
+          annotations: authorizeWysiwygProtectedChange.of(true),
+          userEvent: "delete.dedent",
+        }),
+      );
+      return true;
+    }
+    // 无缩进可降：清除整行列表 marker 与前缀，退出列表
+    dispatch(
+      state.update({
+        changes: { from: lineFrom, to: line.to, insert: "" },
+        selection: EditorSelection.cursor(lineFrom),
+        annotations: authorizeWysiwygProtectedChange.of(true),
+        userEvent: "delete.dedent",
+      }),
+    );
+    return true;
+  }
+
   const indentation = state.sliceDoc(lineFrom, marker.from);
   let markerText = state.sliceDoc(marker.from, marker.to);
   // marker 后的分隔空白(如 "- " 的空格;ListMark 范围不含分隔符)
@@ -239,11 +340,6 @@ export function insertListContinuationFallback(view: EditorView): boolean {
     );
   }
   // 任务项:续行补 checkbox,保持任务列表语义
-  const taskRecord = state
-    .field(markdownRangeIndexField)
-    .overlapping(line.from, line.to)
-    .find((item) => item.kind === "task" && item.fullRange.from >= lineFrom);
-  const taskMarker = taskRecord?.markerRanges[0];
   if (taskMarker) {
     // 新任务行默认未勾选(不沿用原行的勾选状态)
     const taskText = state.sliceDoc(taskMarker.from, taskMarker.to);

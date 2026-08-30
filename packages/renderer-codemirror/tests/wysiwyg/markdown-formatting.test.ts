@@ -31,7 +31,7 @@ import {
   toggleTaskList,
 } from "../../src/wysiwyg/markdown-formatting.ts";
 import { isValidUrl } from "../../src/wysiwyg/smart-paste.ts";
-import { smartPairsExtension } from "../../src/wysiwyg/smart-pairs.ts";
+import { smartPairsInputHandler } from "../../src/wysiwyg/smart-pairs.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
@@ -206,11 +206,29 @@ describe("Smart Link Paste & Smart Pairs", () => {
     } as unknown as EditorView;
 
     // @ts-expect-error input handler testing
-    const handled = smartPairsExtension.value(mockView, 0, 5, "*");
+    const handled = smartPairsInputHandler.value(mockView, 0, 5, "*");
     expect(handled).toBe(true);
     expect(currentState.doc.toString()).toBe("*hello* world");
     expect(currentState.selection.main.from).toBe(1);
     expect(currentState.selection.main.to).toBe(6);
+  });
+
+  it("smart pairs auto-closes empty brackets and quotes", () => {
+    let currentState = createState("", EditorSelection.cursor(0));
+    const mockView = {
+      state: currentState,
+      composing: false,
+      dispatch: (tr: { changes: unknown; selection: EditorSelection }) => {
+        currentState = currentState.update(tr as TransactionSpec).state;
+      },
+    } as unknown as EditorView;
+
+    // @ts-expect-error input handler testing
+    const handled = smartPairsInputHandler.value(mockView, 0, 0, "[");
+    expect(handled).toBe(true);
+    expect(currentState.doc.toString()).toBe("[]");
+    expect(currentState.selection.main.from).toBe(1);
+    expect(currentState.selection.main.to).toBe(1);
   });
 
   it("supports search and replace query execution on document", async () => {

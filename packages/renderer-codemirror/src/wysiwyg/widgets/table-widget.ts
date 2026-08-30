@@ -237,6 +237,33 @@ export class TableGridWidget extends WidgetType {
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
         flushCellCommit(view, wrapper, cell, currentValue().recordId);
+        if (!keyEvent.shiftKey) {
+          const address = addressFromCell(cell, currentValue().recordId);
+          const isLastRow =
+            address?.rowKind === "body" && address.rowIndex === currentValue().bodyRows.length - 1;
+          const isLastCol = address?.colIndex === currentValue().headerCells.length - 1;
+          if (isLastRow && isLastCol) {
+            const recordId = wrapper.dataset.recordId ?? currentValue().recordId;
+            const newRowIndex = address.rowIndex + 1;
+            insertTableBodyRow(view, recordId, address.rowIndex);
+            lastEditingCellByRecordId.set(recordId, {
+              recordId,
+              rowKind: "body",
+              rowIndex: newRowIndex,
+              colIndex: 0,
+            });
+            setTimeout(() => {
+              const newCell = wrapper.querySelector<HTMLElement>(
+                `[data-row-kind="body"][data-row-index="${newRowIndex}"][data-col-index="0"]`,
+              );
+              if (newCell) {
+                newCell.focus();
+                selectElementContents(newCell);
+              }
+            }, 0);
+            return;
+          }
+        }
         moveCellFocus(wrapper, cell, keyEvent.shiftKey ? "left" : "right");
         return;
       }
