@@ -1,9 +1,12 @@
-import { EditorSelection, Transaction } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorSelection, Prec, Transaction, type Extension } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
 
-const PAIR_MAP: Record<string, [string, string]> = {
+/**
+ * 选区包裹定界符映射表
+ */
+const SELECTION_PAIR_MAP: Record<string, [string, string]> = {
   "*": ["*", "*"],
   _: ["_", "_"],
   "`": ["`", "`"],
@@ -17,18 +20,43 @@ const PAIR_MAP: Record<string, [string, string]> = {
 };
 
 /**
- * 选区定界符自动包裹扩展（Auto-wrapping selection with punctuation / markdown pairs）：
- * 当选中一段文本时输入成对符号（如 *、_、`、~、[、(、"、'），自动将选中文本包裹，
- * 并保留选中内容，极大提升 Markdown 写作流畅度。
+ * 空光标自动闭合配对表
  */
-export const smartPairsExtension = EditorView.inputHandler.of((view, from, to, text) => {
-  if (view.composing) {
-    return false;
-  }
+const AUTO_CLOSE_PAIRS: Record<string, [string, string]> = {
+  "(": ["(", ")"],
+  "[": ["[", "]"],
+  "{": ["{", "}"],
+  '"': ['"', '"'],
+  "'": ["'", "'"],
+  "`": ["`", "`"],
+  "<": ["<", ">"],
+};
 
-  // 仅在输入单字符且存在对应配对规则时生效
-  const pair = PAIR_MAP[text];
-  if (!pair) {
+/**
+ * 闭合字符列表（用于输入闭合字符时的光标跳过 step-over）
+ */
+const CLOSING_CHARS = new Set([")", "]", "}", '"', "'", "`", ">"]);
+
+/**
+ * 判断两个相邻字符是否构成成对符号
+ */
+function isMatchingPair(before: string, after: string): boolean {
+  return (
+    (before === "(" && after === ")") ||
+    (before === "[" && after === "]") ||
+    (before === "{" && after === "}") ||
+    (before === '"' && after === '"') ||
+    (before === "'" && after === "'") ||
+    (before === "`" && after === "`") ||
+    (before === "<" && after === ">")
+  );
+}
+
+/**
+ * 输入处理器：负责选区包裹、空光标成对自动闭合、以及输入闭合符号时的 step-over 跳过。
+ */
+export const smartPairsInputHandler = EditorView.inputHandler.of((view, from, to, text) => {
+  if (view.composing) {
     return false;
   }
 
@@ -38,8 +66,57 @@ export const smartPairsExtension = EditorView.inputHandler.of((view, from, to, t
     return false;
   }
 
-  // 必须有非空选区
-  if (from === to && state.selection.main.empty) {
+  const isSelectionEmpty = state.selection.main.empty && from === to;
+
+  // 1. 空光标状态下的处理
+  if (isSelectionEmpty) {
+    // 1.1 Step-over 机制：当光标紧跟闭合符号且用户键入了相同的闭合符号时，直接跳过而不重复输入
+    if (CLOSING_CHARS.has(text)) {
+      const nextChar = state.sliceDoc(from, from + text.length);
+      if (nextChar === text) {
+        view.dispatch({
+          selection: EditorSelection.cursor(from + text.length),
+          userEvent: "select",
+        });
+        return true;
+      }
+    }
+
+    // 1.2 自动闭合机制：输入开符号自动补全对应闭合符号并将光标置于中间
+    const autoPair = AUTO_CLOSE_PAIRS[text];
+    if (autoPair) {
+      const [openChar, closeChar] = autoPair;
+
+      // 单引号保护：若光标前是字母/数字（如 don't），视作缩写撇号，不自动闭合
+      if (text === "'") {
+        const prevChar = from > 0 ? state.sliceDoc(from - 1, from) : "";
+        if (/\w/u.test(prevChar)) {
+          return false;
+        }
+      }
+
+      // 若光标后紧跟单词字符，不自动闭合（避免干扰在单词中间打字）
+      const nextChar = state.sliceDoc(to, to + 1);
+      if (/\w/u.test(nextChar)) {
+        return false;
+      }
+
+      const insert = `${openChar}${closeChar}`;
+      view.dispatch({
+        changes: { from, to, insert },
+        selection: EditorSelection.cursor(from + openChar.length),
+        annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+        userEvent: "input.type",
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  // 2. 非空选区状态下的处理（选区包裹）
+  const pair = SELECTION_PAIR_MAP[text];
+  if (!pair) {
     return false;
   }
 
@@ -82,3 +159,45 @@ export const smartPairsExtension = EditorView.inputHandler.of((view, from, to, t
 
   return true;
 });
+
+/**
+ * 成对符号 Backspace 联动删除快捷键：
+ * 当光标位于空配对符号中间（如 (|)、[|]、{|}、""、''、``）时，按 Backspace 同时删除左右两边的符号。
+ */
+const smartPairsBackspaceKeymap = Prec.high(
+  keymap.of([
+    {
+      key: "Backspace",
+      run: (view) => {
+        const { state, dispatch } = view;
+        const { main } = state.selection;
+        if (!main.empty || main.head === 0 || main.head >= state.doc.length) {
+          return false;
+        }
+        const pos = main.head;
+        const before = state.sliceDoc(pos - 1, pos);
+        const after = state.sliceDoc(pos, pos + 1);
+        if (isMatchingPair(before, after)) {
+          dispatch(
+            state.update({
+              changes: { from: pos - 1, to: pos + 1, insert: "" },
+              selection: EditorSelection.cursor(pos - 1),
+              annotations: [
+                Transaction.addToHistory.of(true),
+                authorizeWysiwygProtectedChange.of(true),
+              ],
+              userEvent: "delete.backward",
+            }),
+          );
+          return true;
+        }
+        return false;
+      },
+    },
+  ]),
+);
+
+/**
+ * 智能符号配对扩展（支持选区包裹、空光标自动闭合、闭合符 step-over 与 Backspace 成对删除）
+ */
+export const smartPairsExtension: Extension = [smartPairsInputHandler, smartPairsBackspaceKeymap];

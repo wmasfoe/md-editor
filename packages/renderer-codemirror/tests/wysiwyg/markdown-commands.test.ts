@@ -423,6 +423,30 @@ describe("renderer-owned Markdown structured commands", () => {
       expect(result.doc).toBe("- [ ] 甲\n- [x] 乙\n- [ ] \n");
     });
 
+    it("光标在空列表项行末 Enter 清除 marker 退出列表", () => {
+      const doc = "- 甲\n- \n";
+      const head = doc.indexOf("- \n") + 2; // 空列表项末尾
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- 甲\n\n");
+    });
+
+    it("光标在空任务项行末 Enter 清除 marker 退出列表", () => {
+      const doc = "- [ ] 甲\n- [ ] \n";
+      const head = doc.indexOf("- [ ] \n") + 6; // 空任务项末尾
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- [ ] 甲\n\n");
+    });
+
+    it("光标在带缩进的空列表项行末 Enter 缩进降级", () => {
+      const doc = "- 甲\n  - \n";
+      const head = doc.indexOf("  - \n") + 4; // 缩进空列表项末尾
+      const result = runFallback(doc, head);
+      expect(result.handled).toBe(true);
+      expect(result.doc).toBe("- 甲\n- \n");
+    });
+
     it("光标在列表中间(非行尾)不续行", () => {
       const doc = "- 甲乙丙\n- 乙\n";
       const head = doc.indexOf("甲") + 1; // "甲" 之后(行中)
