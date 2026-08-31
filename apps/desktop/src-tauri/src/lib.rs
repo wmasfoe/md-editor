@@ -10,6 +10,7 @@ mod recent_files;
 mod save_runtime;
 mod settings;
 mod settings_window;
+mod system_info;
 mod text_substitutions;
 #[cfg(target_os = "macos")]
 mod window_chrome;
@@ -26,12 +27,13 @@ use file_commands::{
 use local_ai_completion::request_local_ai_continuation;
 use local_ai_model::{
     cancel_local_ai_model_download, delete_local_ai_model, download_local_ai_model,
-    get_local_ai_model_status,
+    get_all_local_ai_models_status, get_local_ai_model_status,
 };
 use recent_files::{load_recent_files, save_recent_files};
 use save_runtime::SaveCommitGate;
 use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
+use system_info::get_system_specs;
 
 pub fn run() {
     // 在 WKWebView 启动前关闭本进程的 AppKit 智能引号 / 破折号替换。
@@ -83,7 +85,9 @@ pub fn run() {
             reveal_file_tree_item_in_finder,
             load_recent_files,
             load_app_settings,
+            get_system_specs,
             get_local_ai_model_status,
+            get_all_local_ai_models_status,
             download_local_ai_model,
             cancel_local_ai_model_download,
             delete_local_ai_model,

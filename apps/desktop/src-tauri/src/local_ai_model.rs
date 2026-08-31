@@ -6,52 +6,90 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 
-use crate::settings;
+use crate::{local_ai_runtime::LocalAiRuntimeState, settings};
 
 const LOCAL_AI_MODEL_PROGRESS_EVENT: &str = "local-ai-model-progress";
-const DEFAULT_MODEL_ID: &str = "md-editor-writer-small-v1";
+const DEFAULT_MODEL_ID: &str = "md-editor-writer-standard";
+const LEGACY_MODEL_ID: &str = "md-editor-writer-small-v1";
+const LITE_MODEL_ID: &str = "md-editor-writer-lite";
+const STANDARD_MODEL_ID: &str = "md-editor-writer-standard";
+const PRO_MODEL_ID: &str = "md-editor-writer-pro";
+
 const DOWNLOAD_TEMP_FILE_NAME: &str = "download.tmp";
 const DOWNLOAD_CANCEL_FILE_NAME: &str = "download.cancel";
 const LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE: &str = "本地模型下载已取消。";
 
 #[derive(Clone, Copy)]
-struct LocalAiModelManifest {
-    id: &'static str,
-    display_name: &'static str,
-    version: &'static str,
-    filename: &'static str,
-    download_url: &'static str,
-    size_bytes: u64,
-    sha256: &'static str,
-    context_size: u32,
-    default_max_tokens: u16,
+pub(crate) struct LocalAiModelManifest {
+    pub(crate) id: &'static str,
+    pub(crate) display_name: &'static str,
+    pub(crate) version: &'static str,
+    pub(crate) filename: &'static str,
+    pub(crate) download_url: &'static str,
+    pub(crate) size_bytes: u64,
+    pub(crate) sha256: &'static str,
+    pub(crate) context_size: u32,
+    pub(crate) default_max_tokens: u16,
+    pub(crate) is_available: bool,
 }
 
-const DEFAULT_MODEL: LocalAiModelManifest = LocalAiModelManifest {
-    id: DEFAULT_MODEL_ID,
-    display_name: "md-editor Writer Small",
-    version: "Qwen2.5-0.5B-Instruct-GGUF@9217f5d",
+pub(crate) const LITE_MODEL: LocalAiModelManifest = LocalAiModelManifest {
+    id: LITE_MODEL_ID,
+    display_name: "Lite (0.5B)",
+    version: "v0.0.0-beta",
     filename: "model.gguf",
     download_url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=1",
     size_bytes: 491_400_032,
     sha256: "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
     context_size: 4096,
     default_max_tokens: 220,
+    is_available: true,
 };
+
+pub(crate) const STANDARD_MODEL: LocalAiModelManifest = LocalAiModelManifest {
+    id: STANDARD_MODEL_ID,
+    display_name: "Standard (1.5B)",
+    version: "v0.0.0-beta",
+    filename: "model.gguf",
+    download_url: "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf?download=1",
+    size_bytes: 1_050_000_000,
+    sha256: "",
+    context_size: 4096,
+    default_max_tokens: 260,
+    is_available: true,
+};
+
+pub(crate) const PRO_MODEL: LocalAiModelManifest = LocalAiModelManifest {
+    id: PRO_MODEL_ID,
+    display_name: "Pro",
+    version: "v0.0.0-beta",
+    filename: "model.gguf",
+    download_url: "",
+    size_bytes: 0,
+    sha256: "",
+    context_size: 8192,
+    default_max_tokens: 400,
+    is_available: false,
+};
+
+const ALL_MANIFESTS: &[LocalAiModelManifest] = &[LITE_MODEL, STANDARD_MODEL, PRO_MODEL];
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalAiModelStatus {
-    model_id: String,
-    display_name: String,
-    version: Option<String>,
-    status: String,
-    downloaded_bytes: u64,
-    total_bytes: u64,
-    path: Option<String>,
-    error: Option<String>,
+    pub(crate) model_id: String,
+    pub(crate) display_name: String,
+    pub(crate) version: Option<String>,
+    pub(crate) latest_version: String,
+    pub(crate) has_update: bool,
+    pub(crate) is_available_tier: bool,
+    pub(crate) status: String,
+    pub(crate) downloaded_bytes: u64,
+    pub(crate) total_bytes: u64,
+    pub(crate) path: Option<String>,
+    pub(crate) error: Option<String>,
 }
 
 impl LocalAiModelStatus {
@@ -70,7 +108,7 @@ pub(crate) struct LocalAiModelFile {
     pub(crate) default_max_tokens: u16,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PersistedLocalAiModelManifest {
     id: String,
@@ -90,11 +128,22 @@ pub(crate) fn get_local_ai_model_status(
 }
 
 #[tauri::command]
+pub(crate) fn get_all_local_ai_models_status() -> Result<Vec<LocalAiModelStatus>, String> {
+    Ok(ALL_MANIFESTS
+        .iter()
+        .map(|manifest| read_model_status(*manifest))
+        .collect())
+}
+
+#[tauri::command]
 pub(crate) async fn download_local_ai_model(
     app: AppHandle,
     model_id: Option<String>,
 ) -> Result<LocalAiModelStatus, String> {
     let manifest = resolve_manifest(model_id.as_deref())?;
+    if !manifest.is_available {
+        return Err(format!("{} 尚未发布，敬请期待。", manifest.display_name));
+    }
     let result = download_model(&app, manifest).await;
     if let Err(error) = &result {
         if error != LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE {
@@ -105,6 +154,7 @@ pub(crate) async fn download_local_ai_model(
                     "failed",
                     0,
                     manifest.size_bytes,
+                    None,
                     None,
                     Some(error.clone()),
                 ),
@@ -138,6 +188,7 @@ pub(crate) fn cancel_local_ai_model_download(
         downloaded_bytes,
         manifest.size_bytes,
         None,
+        None,
         Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
     );
     emit_status(&app, status.clone());
@@ -147,9 +198,16 @@ pub(crate) fn cancel_local_ai_model_download(
 #[tauri::command]
 pub(crate) fn delete_local_ai_model(
     app: AppHandle,
+    runtime: State<'_, LocalAiRuntimeState>,
     model_id: Option<String>,
 ) -> Result<LocalAiModelStatus, String> {
     let manifest = resolve_manifest(model_id.as_deref())?;
+
+    // 如果当前正在运行该模型，先优雅停止进程
+    if let Ok(mut manager) = runtime.manager().lock() {
+        manager.stop_runtime_if_model(manifest.id);
+    }
+
     let directory = model_directory(manifest)?;
     if directory.exists() {
         fs::remove_dir_all(&directory).map_err(|error| {
@@ -168,6 +226,9 @@ pub(crate) fn get_available_local_ai_model(
     model_id: Option<&str>,
 ) -> Result<LocalAiModelFile, String> {
     let manifest = resolve_manifest(model_id)?;
+    if !manifest.is_available {
+        return Err(format!("{} 尚未发布，敬请期待。", manifest.display_name));
+    }
     let status = read_model_status(manifest);
     if !status.is_available() {
         return Err(local_model_unavailable_message(&status));
@@ -175,13 +236,15 @@ pub(crate) fn get_available_local_ai_model(
 
     let path = model_file_path(manifest)?;
     if !path.exists() {
-        return Err("本地模型文件不存在，请重新下载。".to_string());
+        return Err("本地模型文件不存在，请先下载。".to_string());
     }
 
     Ok(LocalAiModelFile {
         model_id: manifest.id.to_string(),
         display_name: manifest.display_name.to_string(),
-        version: manifest.version.to_string(),
+        version: status
+            .version
+            .unwrap_or_else(|| manifest.version.to_string()),
         path,
         context_size: manifest.context_size,
         default_max_tokens: manifest.default_max_tokens,
@@ -194,9 +257,6 @@ async fn download_model(
 ) -> Result<LocalAiModelStatus, String> {
     if manifest.download_url.trim().is_empty() {
         return Err("本地模型下载源尚未配置。".to_string());
-    }
-    if manifest.sha256.trim().is_empty() {
-        return Err("本地模型校验 hash 尚未配置。".to_string());
     }
 
     let app = app.clone();
@@ -249,7 +309,7 @@ fn download_model_blocking(
     let total_bytes = manifest.size_bytes;
     emit_status(
         app,
-        build_status(manifest, "downloading", 0, total_bytes, None, None),
+        build_status(manifest, "downloading", 0, total_bytes, None, None, None),
     );
 
     let mut buffer = [0_u8; 64 * 1024];
@@ -266,6 +326,7 @@ fn download_model_blocking(
                     "not-downloaded",
                     downloaded_bytes,
                     total_bytes,
+                    None,
                     None,
                     Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
                 ),
@@ -292,6 +353,7 @@ fn download_model_blocking(
                 total_bytes,
                 None,
                 None,
+                None,
             ),
         );
     }
@@ -313,6 +375,7 @@ fn download_model_blocking(
                 "not-downloaded",
                 downloaded_bytes,
                 total_bytes,
+                None,
                 None,
                 Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
             ),
@@ -347,6 +410,7 @@ fn download_model_blocking(
             total_bytes,
             None,
             None,
+            None,
         ),
     );
     if cancel_path.exists() {
@@ -360,16 +424,20 @@ fn download_model_blocking(
                 downloaded_bytes,
                 total_bytes,
                 None,
+                None,
                 Some(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string()),
             ),
         );
         return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
     }
-    let actual_sha256 = compute_sha256_hex(&temp_path)?;
-    if actual_sha256 != manifest.sha256.to_ascii_lowercase() {
-        let _ = fs::remove_file(&temp_path);
-        let _ = fs::remove_file(&cancel_path);
-        return Err("本地模型校验失败，已删除未通过校验的下载文件。".to_string());
+
+    if !manifest.sha256.trim().is_empty() {
+        let actual_sha256 = compute_sha256_hex(&temp_path)?;
+        if actual_sha256 != manifest.sha256.to_ascii_lowercase() {
+            let _ = fs::remove_file(&temp_path);
+            let _ = fs::remove_file(&cancel_path);
+            return Err("本地模型校验失败，已删除未通过校验的下载文件。".to_string());
+        }
     }
 
     if model_path.exists() {
@@ -433,18 +501,18 @@ fn compute_sha256_hex_windows(path: &Path) -> Result<String, String> {
 fn compute_sha256_hex_unix(path: &Path) -> Result<String, String> {
     for command in ["shasum", "sha256sum", "openssl"] {
         let output = match command {
-            "shasum" => Command::new(command)
+            "shasum" => Command::new("shasum")
                 .arg("-a")
                 .arg("256")
                 .arg(path)
                 .output(),
-            "sha256sum" => Command::new(command).arg(path).output(),
-            "openssl" => Command::new(command)
+            "sha256sum" => Command::new("sha256sum").arg(path).output(),
+            "openssl" => Command::new("openssl")
                 .arg("dgst")
                 .arg("-sha256")
                 .arg(path)
                 .output(),
-            _ => unreachable!(),
+            _ => continue,
         };
 
         match output {
@@ -472,18 +540,33 @@ fn extract_first_hex_hash(output: &str) -> Option<String> {
 
 fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelManifest, String> {
     match model_id.unwrap_or(DEFAULT_MODEL_ID) {
-        DEFAULT_MODEL_ID => Ok(DEFAULT_MODEL),
+        STANDARD_MODEL_ID => Ok(STANDARD_MODEL),
+        LITE_MODEL_ID | LEGACY_MODEL_ID => Ok(LITE_MODEL),
+        PRO_MODEL_ID => Ok(PRO_MODEL),
         other => Err(format!("未知的本地模型：{other}")),
     }
 }
 
 fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
+    if !manifest.is_available {
+        return build_status(
+            manifest,
+            "not-downloaded",
+            0,
+            manifest.size_bytes,
+            None,
+            None,
+            None,
+        );
+    }
+
     let Ok(model_path) = model_file_path(manifest) else {
         return build_status(
             manifest,
             "failed",
             0,
             manifest.size_bytes,
+            None,
             None,
             Some("无法解析本地模型目录。".to_string()),
         );
@@ -499,6 +582,19 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
             .map(|directory| directory.join("model.gguf.sha256"))
             .and_then(|path| fs::read_to_string(path).ok())
             .map(|value| value.trim().to_string());
+        let current_version = model_path
+            .parent()
+            .and_then(|dir| fs::read_to_string(dir.join("manifest.json")).ok())
+            .and_then(|json| serde_json::from_str::<PersistedLocalAiModelManifest>(&json).ok())
+            .map(|meta| meta.version);
+
+        // 若已有完整模型文件但缺失 manifest.json，自动补齐当前版本元数据，避免出现误报更新
+        if current_version.is_none() {
+            let _ = write_model_metadata(manifest);
+        }
+
+        let effective_version = current_version.or_else(|| Some(manifest.version.to_string()));
+
         if manifest.sha256.trim().is_empty() || checksum_record.as_deref() == Some(manifest.sha256)
         {
             return build_status(
@@ -507,6 +603,7 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
                 downloaded_bytes,
                 manifest.size_bytes.max(downloaded_bytes),
                 Some(model_path),
+                effective_version,
                 None,
             );
         }
@@ -516,6 +613,7 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
             downloaded_bytes,
             manifest.size_bytes.max(downloaded_bytes),
             Some(model_path),
+            effective_version,
             Some("本地模型校验记录不匹配，请重新下载。".to_string()),
         );
     }
@@ -528,6 +626,7 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
             downloaded_bytes,
             manifest.size_bytes.max(downloaded_bytes),
             None,
+            None,
             Some("上次下载未完成，请重试。".to_string()),
         );
     }
@@ -537,6 +636,7 @@ fn read_model_status(manifest: LocalAiModelManifest) -> LocalAiModelStatus {
         "not-downloaded",
         0,
         manifest.size_bytes,
+        None,
         None,
         None,
     )
@@ -566,12 +666,26 @@ fn build_status(
     downloaded_bytes: u64,
     total_bytes: u64,
     path: Option<PathBuf>,
+    current_version: Option<String>,
     error: Option<String>,
 ) -> LocalAiModelStatus {
+    let is_available_status = status == "available";
+    let has_update = is_available_status
+        && current_version
+            .as_deref()
+            .is_some_and(|cv| cv != manifest.version);
+
     LocalAiModelStatus {
         model_id: manifest.id.to_string(),
         display_name: manifest.display_name.to_string(),
-        version: (status == "available").then(|| manifest.version.to_string()),
+        version: if is_available_status {
+            current_version.or_else(|| Some(manifest.version.to_string()))
+        } else {
+            None
+        },
+        latest_version: manifest.version.to_string(),
+        has_update,
+        is_available_tier: manifest.is_available,
         status: status.to_string(),
         downloaded_bytes,
         total_bytes,
@@ -626,6 +740,26 @@ fn safe_model_id(model_id: &str) -> Result<&str, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolves_builtin_models() {
+        assert_eq!(
+            resolve_manifest(Some(LITE_MODEL_ID)).unwrap().id,
+            LITE_MODEL_ID
+        );
+        assert_eq!(
+            resolve_manifest(Some(STANDARD_MODEL_ID)).unwrap().id,
+            STANDARD_MODEL_ID
+        );
+        assert_eq!(
+            resolve_manifest(Some(PRO_MODEL_ID)).unwrap().id,
+            PRO_MODEL_ID
+        );
+        assert_eq!(
+            resolve_manifest(Some(LEGACY_MODEL_ID)).unwrap().id,
+            LITE_MODEL_ID
+        );
+    }
 
     #[test]
     fn rejects_unknown_model_ids() {

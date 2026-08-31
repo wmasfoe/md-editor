@@ -31,11 +31,6 @@ class GhostTextWidget extends WidgetType {
     span.className = "cm-md-ai-ghost-text";
     span.textContent = this.text;
 
-    const badge = doc.createElement("span");
-    badge.className = "cm-md-ai-badge";
-    badge.textContent = "Tab 接受 · Esc 取消";
-    span.append(badge);
-
     return span;
   }
 

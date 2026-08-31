@@ -1,14 +1,49 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  BUILTIN_LOCAL_MODELS,
   DEFAULT_LOCAL_MODEL_ID,
   LOCAL_AI_MODEL_PROGRESS_EVENT,
   toLocalAiModelCommandStatus,
   type LocalAiModelCommandStatus,
+  type SystemSpecs,
 } from "./local-ai-model-state";
 
-export type { LocalAiModelCommandStatus } from "./local-ai-model-state";
-export { mergeLocalAiModelStatus } from "./local-ai-model-state";
+export type { LocalAiModelCommandStatus, SystemSpecs } from "./local-ai-model-state";
+export {
+  BUILTIN_LOCAL_MODELS,
+  formatSystemSpecsLabel,
+  getRecommendedModelId,
+  mergeLocalAiModelStatus,
+} from "./local-ai-model-state";
+
+export const desktopLocalAiInvokeImpl = async (
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<unknown> => {
+  if (!isTauri()) {
+    throw new Error("Web 预览模式不支持本地模型推理，请在桌面端使用。");
+  }
+  return await invoke(command, args);
+};
+
+export async function readSystemSpecs(): Promise<SystemSpecs | null> {
+  if (!isTauri()) {
+    return {
+      totalMemoryBytes: 16 * 1024 * 1024 * 1024,
+      cpuArch: "aarch64",
+      os: "macos",
+      cpuCores: 8,
+    };
+  }
+
+  try {
+    return await invoke<SystemSpecs>("get_system_specs");
+  } catch (error) {
+    console.warn("读取系统硬件配置失败", error);
+    return null;
+  }
+}
 
 export async function readLocalAiModelStatus(
   modelId = DEFAULT_LOCAL_MODEL_ID,
@@ -20,6 +55,29 @@ export async function readLocalAiModelStatus(
   return toLocalAiModelCommandStatus(
     await invoke<Partial<LocalAiModelCommandStatus>>("get_local_ai_model_status", { modelId }),
   );
+}
+
+export async function readAllLocalAiModelsStatus(): Promise<LocalAiModelCommandStatus[]> {
+  if (!isTauri()) {
+    return BUILTIN_LOCAL_MODELS.map((descriptor) =>
+      toLocalAiModelCommandStatus({
+        modelId: descriptor.id,
+        displayName: descriptor.displayName,
+        isAvailableTier: descriptor.isAvailable,
+        totalBytes: descriptor.downloadSizeBytes,
+      }),
+    );
+  }
+
+  try {
+    const statuses = await invoke<Array<Partial<LocalAiModelCommandStatus>>>(
+      "get_all_local_ai_models_status",
+    );
+    return statuses.map((status) => toLocalAiModelCommandStatus(status));
+  } catch {
+    const fallback = await readLocalAiModelStatus(DEFAULT_LOCAL_MODEL_ID);
+    return [fallback];
+  }
 }
 
 export async function downloadLocalAiModel(

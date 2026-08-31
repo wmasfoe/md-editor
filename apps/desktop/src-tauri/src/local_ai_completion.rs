@@ -23,6 +23,7 @@ pub(crate) struct LocalAiCompletionContext {
 pub(crate) struct LocalAiContinuationOptions {
     model_id: Option<String>,
     max_tokens: Option<u16>,
+    intent: Option<String>,
 }
 
 #[tauri::command]
@@ -38,7 +39,8 @@ pub(crate) async fn request_local_ai_continuation(
         .as_ref()
         .and_then(|value| value.max_tokens)
         .unwrap_or(model.default_max_tokens);
-    let prompt = build_local_ai_prompt(&context, max_tokens);
+    let intent = options.as_ref().and_then(|value| value.intent.as_deref());
+    let prompt = build_local_ai_prompt(&context, intent, max_tokens);
     let request = build_local_ai_request(&model, &prompt, max_tokens);
     let runtime_manager = runtime.manager();
     let app_handle = app.clone();
@@ -62,16 +64,36 @@ pub(crate) async fn request_local_ai_continuation(
     extract_local_ai_completion_content(&response_body)
 }
 
-fn build_local_ai_prompt(context: &LocalAiCompletionContext, max_tokens: u16) -> String {
+fn build_local_ai_prompt(
+    context: &LocalAiCompletionContext,
+    intent: Option<&str>,
+    max_tokens: u16,
+) -> String {
+    let is_editing = intent.is_none() || intent == Some("editing") || intent == Some("both");
+    let is_continuation =
+        intent.is_none() || intent == Some("continuation") || intent == Some("both");
+
+    let instruction = match (is_editing, is_continuation) {
+        (true, false) => "你是一个精通中文写作与审校的编辑。请仔细检查【当前选中文本/待检行】或【光标前】句子中的错别字、标点错误、语病并给出修改建议。若有修改需求则 hasEdit 设为 true 并填写 edit，否则 hasEdit 设为 false 且 edit 设为 null。hasContinuation 设为 false 且 continuation 设为空字符串。",
+        (false, true) => "你是一个 Markdown 写作助手。请根据【光标前】内容在光标位置提供自然连贯的续写。hasContinuation 设为 true 并填写 continuation，hasEdit 设为 false 且 edit 设为 null。",
+        _ => "你是一个专业的 Markdown 写作与修改润色助手。请检查【当前选中文本/待检行】或【光标前】句子是否存在错别字、标点误用或语病，若有请设置 hasEdit 为 true 并给出 edit；若无需修改则 hasEdit 为 false 且 edit 为 null。同时可在光标处提供续写并设置 hasContinuation 与 continuation。",
+    };
+
     format!(
-        "你是 Markdown 写作助手，需要根据上下文返回续写建议。\n\
-         约束：只返回 JSON，不要解释，不要代码围栏。\n\
-         JSON schema: {{\"continuation\":\"string\",\"edit\":null}}。\n\
+        "{instruction}\n\
+         约束：只返回 JSON，不要任何解释，不要代码围栏。\n\
+         JSON schema: {{\"hasEdit\":boolean,\"edit\":{{\"original\":\"string\",\"replacement\":\"string\",\"reason\":\"string\"}},\"hasContinuation\":boolean,\"continuation\":\"string\"}}。\n\
+         说明：\n\
+         1. hasEdit: true 时，edit.original 必须是上下文中真实存在的待修改原文片段，edit.replacement 是修改后内容，edit.reason 是简短修改理由。\n\
+         2. hasEdit: false 时，edit 设为 null。\n\
+         3. hasContinuation: true 时，continuation 是光标处连贯自然的后续文本；否则为 false 且为空字符串。\n\
          目标 token 上限：{max_tokens}\n\
          模式：{mode}\n\n\
          【光标前】\n{before}\n\n\
-         【当前选中文本】\n{selected_text}\n\n\
+         【当前选中文本/待检行】\n{selected_text}\n\n\
          【光标后】\n{after}\n",
+        instruction = instruction,
+        max_tokens = max_tokens,
         mode = context.mode.as_str(),
         before = context.before.as_str(),
         selected_text = context.selected_text.as_str(),
@@ -89,7 +111,7 @@ fn build_local_ai_request(
         "messages": [
             {
                 "role": "system",
-                "content": "你是 Markdown 写作助手，只返回 JSON，不要解释，不要代码围栏。"
+                "content": "你是 Markdown 写作助手，只返回严格符合 JSON Schema 的建议，不要解释，不要代码围栏。"
             },
             {
                 "role": "user",
@@ -100,7 +122,25 @@ fn build_local_ai_request(
         "temperature": 0.2,
         "stream": false,
         "response_format": {
-            "type": "json_object"
+            "type": "json_object",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "hasContinuation": { "type": "boolean" },
+                    "continuation": { "type": "string" },
+                    "hasEdit": { "type": "boolean" },
+                    "edit": {
+                        "type": ["object", "null"],
+                        "properties": {
+                            "original": { "type": "string" },
+                            "replacement": { "type": "string" },
+                            "reason": { "type": "string" }
+                        },
+                        "required": ["original", "replacement"]
+                    }
+                },
+                "required": ["hasContinuation", "continuation", "hasEdit", "edit"]
+            }
         }
     })
 }

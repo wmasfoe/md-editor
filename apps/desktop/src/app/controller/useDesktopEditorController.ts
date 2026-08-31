@@ -19,6 +19,7 @@ import {
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { getAiCompletionReadiness, requestAiContinuation } from "@md-editor/ai";
+import { desktopLocalAiInvokeImpl } from "../ai/local-ai-model";
 import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { unsupportedEditorUiCommandSlots, useEditorUiActions } from "@md-editor/editor-ui";
@@ -160,7 +161,10 @@ export function useDesktopEditorController({
                     filePath: snapshot.filePath,
                   },
                 },
-                { intent: "continuation" },
+                {
+                  intent: "continuation",
+                  localInvokeImpl: desktopLocalAiInvokeImpl,
+                },
               );
 
               if (suggestion.continuation) {
@@ -169,7 +173,7 @@ export function useDesktopEditorController({
                   to: selection.to,
                   text: suggestion.continuation,
                 });
-                showToast("AI 续写建议已就绪，按 Tab 接受，Esc 取消。");
+                showToast(null);
               } else {
                 showToast("未能生成有效续写建议。");
               }
@@ -223,24 +227,29 @@ export function useDesktopEditorController({
                     filePath: snapshot.filePath,
                   },
                 },
-                { intent: "editing" },
+                {
+                  intent: "editing",
+                  localInvokeImpl: desktopLocalAiInvokeImpl,
+                },
               );
 
-              if (suggestion.edit) {
-                // 如果 LLM 返回的原文字段与选区匹配，则精确绑定范围
+              if (suggestion.hasEdit && suggestion.edit && suggestion.edit.replacement) {
+                // 如果 LLM 返回的原文字段与选区匹配，则精确绑定范围；否则兜底使用当前句子选区
                 let editFrom = targetFrom;
                 let editTo = targetTo;
+                let originalText = selectedText;
                 if (suggestion.edit.original && selectedText.includes(suggestion.edit.original)) {
                   const offset = selectedText.indexOf(suggestion.edit.original);
                   editFrom = targetFrom + offset;
                   editTo = editFrom + suggestion.edit.original.length;
+                  originalText = suggestion.edit.original;
                 }
 
                 portsAccess.ports.showSuggestion({
                   from: editFrom,
                   to: editTo,
                   text: suggestion.edit.replacement,
-                  originalText: suggestion.edit.original,
+                  originalText,
                   explanation: suggestion.edit.reason,
                 });
                 showToast(

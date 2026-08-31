@@ -46,8 +46,10 @@ describe("app settings", () => {
     });
     expect(settings.ai.localModel).toEqual({
       enabled: false,
-      modelId: "md-editor-writer-small-v1",
+      modelId: "md-editor-writer-standard",
       version: null,
+      latestVersion: null,
+      hasUpdate: false,
       status: "not-downloaded",
       downloadedBytes: 0,
       totalBytes: 0,

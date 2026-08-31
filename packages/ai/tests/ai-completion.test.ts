@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AiCompletionContext, AiSettings } from "../src/index.ts";
 import {
+  BUILTIN_LOCAL_MODELS,
   createAiContextCacheSeed,
   createAiPromptContext,
   createOpenAiCompatibleRequestBody,
   getAiCompletionReadiness,
+  normalizeLocalAiModelSettings,
   parseAiWritingSuggestion,
   requestAiContinuation,
 } from "../src/index.ts";
@@ -216,7 +218,9 @@ describe("AI completion settings", () => {
     expect(
       parseAiWritingSuggestion(
         JSON.stringify({
+          hasContinuation: true,
           continuation: " and keeps writing.",
+          hasEdit: true,
           edit: {
             original: "This are wrong",
             replacement: "This is wrong",
@@ -225,7 +229,9 @@ describe("AI completion settings", () => {
         }),
       ),
     ).toEqual({
+      hasContinuation: true,
       continuation: "and keeps writing.",
+      hasEdit: true,
       edit: {
         original: "This are wrong",
         replacement: "This is wrong",
@@ -238,19 +244,28 @@ describe("AI completion settings", () => {
     expect(
       parseAiWritingSuggestion(
         JSON.stringify({
+          hasContinuation: true,
           continuation: "\n\n### 需求分析\n\n1. 审核触发条件",
+          hasEdit: false,
           edit: null,
         }),
       ),
     ).toEqual({
+      hasContinuation: true,
       continuation: "\n\n### 需求分析\n\n1. 审核触发条件",
+      hasEdit: false,
+      edit: null,
     });
   });
 
   it("treats an empty model response as no suggestion instead of a user-facing error", async () => {
     await expect(
       requestAiContinuation(baseSettings, context, { fetchImpl: emptyOpenAiResponse }),
-    ).resolves.toEqual({});
+    ).resolves.toEqual({
+      hasContinuation: false,
+      hasEdit: false,
+      edit: null,
+    });
   });
 
   it("routes local completion through the injected local model command", async () => {
@@ -260,12 +275,22 @@ describe("AI completion settings", () => {
     }> = [];
     const localInvokeImpl = async (command: string, args?: Record<string, unknown>) => {
       localInvokeCalls.push({ command, args });
-      return JSON.stringify({ continuation: "本地续写。", edit: null });
+      return JSON.stringify({
+        hasContinuation: true,
+        continuation: "本地续写。",
+        hasEdit: false,
+        edit: null,
+      });
     };
 
     await expect(
       requestAiContinuation(localReadySettings(), context, { localInvokeImpl }),
-    ).resolves.toEqual({ continuation: "本地续写。" });
+    ).resolves.toEqual({
+      hasContinuation: true,
+      continuation: "本地续写。",
+      hasEdit: false,
+      edit: null,
+    });
 
     expect(localInvokeCalls).toEqual([
       {
@@ -275,6 +300,7 @@ describe("AI completion settings", () => {
           options: {
             modelId: "md-editor-writer-small-v1",
             maxTokens: 220,
+            intent: "both",
           },
         },
       },
@@ -316,5 +342,21 @@ describe("AI completion settings", () => {
     ).rejects.toThrow("AI 续写超时，请稍后重试。");
 
     expect(localInvokeCalled).toBe(false);
+  });
+
+  it("provides built-in local model descriptors for Lite, Standard, and Pro tier", () => {
+    expect(BUILTIN_LOCAL_MODELS.map((m) => m.tier)).toEqual(["lite", "standard", "pro"]);
+    expect(BUILTIN_LOCAL_MODELS.find((m) => m.tier === "pro")?.isAvailable).toBe(false);
+    expect(BUILTIN_LOCAL_MODELS.find((m) => m.tier === "standard")?.isAvailable).toBe(true);
+
+    const normalizedLegacy = normalizeLocalAiModelSettings({
+      modelId: "md-editor-writer-small-v1",
+      version: "v1.0.0",
+      latestVersion: "v1.1.0",
+      hasUpdate: true,
+    });
+    expect(normalizedLegacy.modelId).toBe("md-editor-writer-lite");
+    expect(normalizedLegacy.latestVersion).toBe("v1.1.0");
+    expect(normalizedLegacy.hasUpdate).toBe(true);
   });
 });

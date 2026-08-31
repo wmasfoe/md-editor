@@ -27,19 +27,34 @@ export interface AiOpenAiCompatibleSettings {
   readonly apiKey: string;
 }
 
-export interface AiLocalModelSettings {
-  readonly enabled: boolean;
-  readonly modelId: string;
-  readonly version: string | null;
-  readonly status: AiLocalModelStatus;
-  readonly downloadedBytes: number;
-  readonly totalBytes: number;
-  readonly error: string | null;
+export type LocalModelTier = "lite" | "standard" | "pro";
+
+export interface AiLocalModelDescriptor {
+  readonly id: string;
+  readonly tier: LocalModelTier;
+  readonly displayName: string;
+  readonly parameterSize: string;
+  readonly downloadSizeBytes: number;
+  readonly recommendedMemoryGb: number;
+  readonly description: string;
+  readonly isAvailable: boolean;
 }
 
 export interface AiFeatureSettings {
   readonly continuation: boolean;
   readonly editing: boolean;
+}
+
+export interface AiLocalModelSettings {
+  readonly enabled: boolean;
+  readonly modelId: string;
+  readonly version: string | null;
+  readonly latestVersion?: string | null;
+  readonly hasUpdate?: boolean;
+  readonly status: AiLocalModelStatus;
+  readonly downloadedBytes: number;
+  readonly totalBytes: number;
+  readonly error: string | null;
 }
 
 export interface AiSettings {
@@ -62,14 +77,17 @@ export interface AiContextSnapshot {
 export type AiCompletionContext = AiContextSnapshot;
 
 export interface AiWritingEditSuggestion {
+  readonly hasEdit?: boolean;
   readonly original: string;
   readonly replacement: string;
   readonly reason?: string;
 }
 
 export interface AiWritingSuggestion {
+  readonly hasContinuation?: boolean;
   readonly continuation?: string;
-  readonly edit?: AiWritingEditSuggestion;
+  readonly hasEdit?: boolean;
+  readonly edit?: AiWritingEditSuggestion | null;
 }
 
 export interface AiContinuationRequestOptions {
