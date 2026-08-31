@@ -1,487 +1,126 @@
 # 本地小模型接入方案
 
-用途：记录 AI 本地小模型的产品边界、技术架构、模块拆分和分阶段落地计划。后续实现 `provider: "local"`、模型下载器、sidecar 推理进程、本地 AI 调用链路时先读本文件。
+用途：记录 AI 本地小模型的产品边界、技术架构、多档位规划、硬件检测、模型生命周期管理（下载/更新/删除）、GBNF 结构化约束解码及后续二次开发微调方案。后续实现 `provider: "local"`、模型管理器、sidecar 推理进程、本地 AI 调用链路时先读本文件。
 
 ## 1. 目标与边界
 
 目标是在 md-editor 内提供一个用户可直接启用的本地小模型能力：
 
 1. 用户不需要安装 Ollama、Python、Conda、Node 服务或其他外部 runtime。
-2. 用户在 App 设置页主动点击下载模型，模型文件保存到本机应用数据目录。
-3. App 自己管理模型下载、校验、状态展示、删除和本地推理进程。
-4. AI 续写和语法标点修复可以走本地模型，不把当前文章上下文发到远程 provider。
-5. 远程 OpenAI-compatible provider 继续保留，作为另一种 provider，不影响本地模型链路。
+2. 用户在 App 设置页选择适合自己电脑配置的模型档位（Lite / Standard / Pro），主动点击下载，模型文件保存到本机应用数据目录。
+3. App 自动检测本机硬件配置（CPU 架构与物理内存），智能给出推荐档位（如 16GB 推荐 Standard 1.5B，8GB 推荐 Lite 0.5B）。
+4. App 自身管理各模型的下载、SHA256 校验、版本比对、在线更新、状态展示、删除和本地推理进程生命周期。
+5. AI 续写和语法标点修复走本地模型，不把当前文章上下文发到远程 provider，支持完全离线工作。
+6. 推理层通过 GBNF / 严格 JSON Schema 采样约束，确保小模型 100% 输出符合格式要求的 JSON，杜绝输出代码围栏或多余闲聊。
+7. 远程 OpenAI-compatible / DeepSeek provider 继续保留，作为可切换的 provider。
 
 非目标：
 
-- 首版不做用户文章风格训练。
-- 首版不做跨文档索引和检索增强。
-- 首版不允许用户选择任意本地可执行文件或任意模型路径。
-- 首版不把模型文件打进默认安装包，避免安装包体积膨胀。
-- 首版不依赖 Ollama 作为后台服务。
+- 不把模型文件打进默认安装包，避免安装包体积膨胀。
+- 首版不依赖 Ollama 或任何全局守护进程。
+- 模型微调训练工程不放在客户端 Monorepo 仓库中，而是建立独立仓库。
 
-这里的“专属小模型”在 v0.1 阶段指 md-editor 选择、固定、校验和调优过的写作小模型包，不代表已经基于用户历史文章完成个性化训练。用户风格学习应作为后续能力，并且仍然只走本地数据与本地模型。
+---
 
-## 2. 当前代码基础
-
-当前代码已经接入本地模型的主要链路：
-
-- `packages/ai/src/types.ts` 已定义 `AiProviderType = "openai-compatible" | "deepseek" | "local"`。
-- `AiLocalModelSettings` 已有 `enabled` 和 `status`。
-- `apps/desktop/src/app/settings/app-settings.ts` 默认状态为 `localModel.enabled = false`、`status = "not-downloaded"`。
-- `apps/desktop/src/components/settings/AiSettingsPanel.tsx` 已有“本地模型”、下载、取消下载和删除模型入口；下载按钮仅在本地模型操作进行中禁用。
-- `@md-editor/ai` 在 `provider === "local"` 时会做 readiness 检查，并通过桌面端注入的 `localInvokeImpl` 调用 `request_local_ai_continuation`。
-- `apps/desktop/src/app/ai/ai-continuation-adapter.ts` 负责把 Tauri `invoke` 注入到 `@md-editor/ai` 的本地模型请求中。
-- Rust 侧 `request_local_ai_continuation` 已接入 bundled `llama-server` sidecar runtime 和本机 `/v1/chat/completions` 转发。
-
-因此后续改造重点不是从零实现 local provider，而是完善跨平台 sidecar 资产、下载可靠性、错误恢复和体验打磨。
-
-2026-06-25 进度：
-
-- Rust 侧已接入本地模型状态查询、下载和删除命令。
-- Desktop 设置页已能显示本地模型状态、进度和删除入口，并同步下载事件。
-- `request_local_ai_continuation` 已接入 bundled `llama-server` sidecar runtime 和本机 `/v1/chat/completions` 转发。
-- 默认模型下载源已配置为 `Qwen/Qwen2.5-0.5B-Instruct-GGUF` 的 `q4_k_m` 文件。
-- 当前 runtime 先覆盖 macOS arm64 预编译包，其他平台还需要补齐对应 sidecar 资产。
-
-## 3. 总体架构
-
-建议采用三层结构：
+## 2. 总体架构与数据流
 
 ```txt
-React / editor-ui
-  ├── 设置页：下载、启用、状态、删除
-  ├── 编辑器：触发 AI suggestion
-  └── 通过 callback 消费 AI suggestion
+React / editor-ui (Claude & Open Design 规范)
+  ├── 系统硬件概览卡片 (get_system_specs 硬件检测 + 智能推荐徽标)
+  ├── 三档位模型卡片网格 (Lite 0.5B / Standard 1.5B / Pro 3B 占位)
+  ├── 独立模型生命周期操作 (下载 / 更新模型 / 删除模型 / 取消下载)
+  └── 编辑器 Inline Ghost Text / Diff Widget
 
 @md-editor/ai
-  ├── provider 路由
-  ├── 请求构建与结果解析
-  └── 本地/远程模型策略
+  ├── provider 路由与 readiness 检查
+  ├── 多模型 Manifest 与设置类型归一化
+  └── 请求体构造与建议结果解析
 
 Tauri Rust
-  ├── local_ai_model.rs：模型 manifest、下载、校验、状态
-  ├── local_ai_runtime.rs：sidecar 生命周期、端口、健康检查
-  ├── local_ai_completion.rs：本地请求转发与响应清洗
-  └── settings.rs：持久化本地模型配置
+  ├── system_info.rs：CPU 架构、核心数与物理内存大小采集
+  ├── local_ai_model.rs：多模型 Manifest、版本检测 (has_update)、下载/更新、校验、删除
+  ├── local_ai_runtime.rs：llama-server sidecar 生命周期、端口管理、空闲释放、删除时优雅终止
+  └── local_ai_completion.rs：GBNF / 严格 JSON Schema 请求构造与响应解析
 
-Bundled sidecar + downloaded model
-  ├── llama-server sidecar：随 App 打包，按平台区分二进制
-  └── GGUF model：用户主动下载到 app data dir
+Bundled sidecar + downloaded models
+  ├── llama-server sidecar：随 App 打包二进制
+  └── GGUF models：用户下载至 <app-data>/ai/models/<model-id>/model.gguf
 ```
 
-调用链：
+---
 
-```txt
-用户触发 AI 写作建议
-  -> requestAiContinuation(settings, context)
-  -> provider === "local"
-  -> invoke("request_local_ai_continuation", { context, options })
-  -> Rust ensure_local_ai_ready()
-  -> 如未启动，spawn llama-server sidecar
-  -> HTTP POST 127.0.0.1:<port>/v1/chat/completions
-  -> Rust 返回 content
-  -> TypeScript 复用 parseAiWritingSuggestion / filterAiSuggestionBySettings
-  -> CM6 renderer inline suggestion 展示
-```
+## 3. 模型三档位体系与选型设计
 
-## 4. 技术选型
+| 档位 | 参数量 | 默认底座 | Q4_K_M 体积 | 推荐配置 | 适用场景 | 当前状态 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Lite** | **0.5B** | `Qwen2.5-0.5B-Instruct` | ~491 MB | 内存 4GB+ | 极速轻量，秒级响应，适合轻薄本与低内存设备 | **已就绪** |
+| **Standard** | **1.5B** | `Qwen2.5-Coder-1.5B-Instruct` | ~1.05 GB | 内存 8GB+ (推荐 16GB+ M系列 Mac) | 连贯写作、精准错别字/标点修复，Markdown/MDX 边界保护 | **已就绪 (推荐)** |
+| **Pro** | **3B** | `Qwen2.5-3B-Instruct` / 自研微调 | ~2.10 GB | 内存 16GB+ | 旗舰级深度长文创作、论文润色与逻辑重构 | **即将推出 (占位)** |
 
-### 4.1 推理 runtime
+### 硬件检测与推荐算法：
+- 物理内存 $\ge$ 7.5 GB：推荐 **Standard (1.5B)**；
+- 物理内存 $<$ 7.5 GB：推荐 **Lite (0.5B)**。
 
-首版建议使用 `llama.cpp` 的 server/sidecar 方式：
+---
 
-- 支持 GGUF 量化模型，适合小模型本地分发。
-- 可使用 CPU，也可在 macOS 上利用 Metal 构建优化。
-- server 提供 OpenAI-compatible `/v1/chat/completions`，可以复用现有 OpenAI-compatible prompt 和响应解析思路。
-- 作为独立进程运行，崩溃时不直接拖垮 Tauri 主进程。
-- Tauri 支持打包 external binaries 作为 sidecar。
+## 4. 模型生命周期管理：删除与版本更新规范
 
-暂不建议首版直接接入 `candle`、`ort`、`transformers` 或 Rust 原生推理库。它们可以减少本地 HTTP 进程，但首版会增加模型格式、tokenizer、chat template、跨平台性能和构建复杂度。先用 sidecar 打通闭环，后续如果需要更深集成再替换 runtime。
+### 4.1 核心语义：无“重新下载”，统一为【更新模型】
+1. **未下载状态**：展示【下载模型】按钮，直接拉取当前 Manifest 指定的最新版本。
+2. **已下载且为最新版本**：展示【更新模型】（用于重新校验覆盖）与【删除模型】。
+3. **已下载且检测到新版本（`currentVersion != latestVersion`）**：
+   - 卡片突出展示蓝色徽标 `发现新版本 vX.Y.Z`；
+   - 主按钮高亮显示为【更新模型】；
+   - 点击后后台下载 `download.tmp`，SHA256 校验通过后，先调用 `stop_runtime_if_model` 终止旧模型进程，再原子重命名覆盖 `model.gguf` 并更新本地 `manifest.json`。
+4. **删除模型**：
+   - 终止正在运行该模型的 sidecar 进程，释放文件句柄；
+   - 彻底删除 `<app-data>/ai/models/<model-id>` 目录，释放磁盘空间；
+   - 状态重置为 `not-downloaded`。
+5. **手动检查更新**：
+   - 设置面板提供【检查模型更新】按钮，触发全量模型 Manifest 版本对比。
 
-### 4.2 模型格式
+---
 
-首版使用单文件 GGUF：
+## 5. 推理层 GBNF 语法与 JSON Schema 约束解码
 
-- 文件容易下载、校验和迁移。
-- 适配 llama.cpp。
-- 可以发布多个量化档位，例如 `Q4_K_M` 和更小的 `Q4_0`。
-
-### 4.3 模型候选
-
-首选候选：
-
-- `md-editor-writer-small-v1`
-- 底座候选：Qwen3 1.7B Instruct / Chat 的 GGUF 量化版本
-- 量化建议：优先 `Q4_K_M`，低配 fallback 可考虑 0.6B 或更低量化
-- 上下文：首版运行参数可先设 4096 或 8192，避免内存占用过高
-- 输出：继续沿用当前 `max_tokens: 220` 左右的小建议模式
-
-选择理由：
-
-- 中文能力和英文写作能力都相对均衡。
-- 1B 级别模型在本地小模型里体积和效果较平衡。
-- 适合当前 AI suggestion 的短上下文、短输出场景。
-
-落地前必须确认：
-
-- 具体 GGUF artifact 的许可证和再分发条件。
-- 量化文件的来源、hash、大小和目标平台性能。
-- macOS Intel、macOS Apple Silicon、Windows 的最低可用内存。
-
-## 5. 模型 manifest
-
-不要把下载 URL、hash 和版本散落在 UI 或 Rust 逻辑里。建议用一个模型 manifest 描述：
+为解决小模型（尤其是 0.5B / 1.5B）不遵守 Prompt 指令、带出 Markdown 围栏或废话的问题，在 `local_ai_completion.rs` 请求体中传入严格受限的 JSON Schema：
 
 ```json
 {
-  "schemaVersion": 1,
-  "models": [
-    {
-      "id": "md-editor-writer-small-v1",
-      "displayName": "md-editor Writer Small",
-      "version": "2026.06.25",
-      "runtime": "llama.cpp",
-      "format": "gguf",
-      "filename": "md-editor-writer-small-v1-q4_k_m.gguf",
-      "downloadUrl": "https://download.example.com/models/md-editor-writer-small-v1-q4_k_m.gguf",
-      "sizeBytes": 1200000000,
-      "sha256": "<sha256>",
-      "license": "Apache-2.0 or model-specific license",
-      "recommendedContextSize": 4096,
-      "recommendedMaxTokens": 220,
-      "memoryTier": "standard"
-    }
-  ]
-}
-```
-
-首版可以把 manifest 内置到 App；后续可支持从我们的服务拉取 manifest，但必须做签名或 hash 校验，避免下载源被替换后执行未验证模型。
-
-## 6. 文件存储布局
-
-模型和运行状态应放在应用数据目录，不放在项目目录或用户文档目录。
-
-macOS 示例：
-
-```txt
-~/Library/Application Support/md-editor/
-  settings.json
-  ai/
-    models/
-      md-editor-writer-small-v1/
-        manifest.json
-        model.gguf
-        model.gguf.sha256
-        download.tmp
-    runtime/
-      state.json
-```
-
-约束：
-
-- `download.tmp` 校验成功后再原子 rename 为 `model.gguf`。
-- `manifest.json` 记录实际下载版本，避免后续 manifest 更新后误判。
-- 删除模型只删除 `ai/models/<model-id>`，不能递归删除用户可配置路径。
-- 不记录文章内容、prompt 或生成内容到持久日志。
-
-## 7. 下载流程
-
-用户操作：
-
-1. 设置页选择 Provider：本地模型。
-2. 点击“下载模型”。
-3. UI 展示下载大小、进度、速度和剩余状态。
-4. 下载完成后进入“校验中”。
-5. SHA256 校验成功后状态变为“可用”。
-6. 用户可启用本地模型并触发 AI 写作建议。
-
-Rust command 建议：
-
-```txt
-get_local_ai_model_status(model_id) -> LocalAiModelStatus
-download_local_ai_model(model_id) -> starts async download
-cancel_local_ai_model_download(model_id)
-delete_local_ai_model(model_id)
-```
-
-事件建议：
-
-```txt
-local-ai-model-progress
-  modelId
-  status: not-downloaded | downloading | verifying | available | failed
-  downloadedBytes
-  totalBytes
-  error
-```
-
-下载实现要求：
-
-- 只允许下载 manifest 中声明的 URL。
-- 使用临时文件，支持失败后清理或继续。
-- 校验 SHA256，不通过则删除临时文件并标记 failed。
-- 下载状态不要只存在 React state，Rust 侧应能从文件系统恢复。
-- 设置页重新打开时要能重新读取真实模型状态。
-
-## 8. 本地推理进程
-
-Rust 侧维护一个 `LocalAiRuntimeManager`：
-
-```txt
-LocalAiRuntimeManager
-  current_model_id
-  child_process
-  port
-  started_at
-  last_used_at
-```
-
-启动策略：
-
-1. 用户第一次触发本地 AI 请求时懒启动。
-2. 随机选择本机可用端口，仅绑定 `127.0.0.1`。
-3. 启动 sidecar：
-
-```txt
-llama-server
-  --host 127.0.0.1
-  --port <port>
-  --model <app-data>/ai/models/<model-id>/model.gguf
-  --ctx-size 4096
-  --parallel 1
-  --alias md-editor-writer-small-v1
-```
-
-4. 轮询 `/v1/models` 或健康接口确认模型可用。
-5. 请求完成后更新 `last_used_at`。
-6. 空闲一段时间后自动关闭，例如 5 到 10 分钟。
-7. App 退出时关闭 sidecar。
-
-失败处理：
-
-- 模型文件不存在：返回“本地模型尚未下载”。
-- sidecar 启动失败：返回“本地模型启动失败”，并记录 stderr 摘要。
-- 健康检查超时：kill 子进程并返回“本地模型加载超时”。
-- 生成超时：中断请求，必要时重启 runtime。
-
-## 9. AI 请求与 prompt
-
-本地模型首版不需要独立一套 UI，但建议独立一层请求函数：
-
-```txt
-requestAiContinuation()
-  provider remote -> requestOpenAiCompatibleContinuation()
-  provider local  -> requestLocalAiContinuation()
-```
-
-本地请求体可复用现有 JSON 输出协议：
-
-```json
-{
-  "continuation": "string",
-  "edit": {
-    "original": "string",
-    "replacement": "string",
-    "reason": "string"
+  "type": "json_object",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "continuation": { "type": "string" },
+      "edit": {
+        "type": ["object", "null"],
+        "properties": {
+          "original": { "type": "string" },
+          "replacement": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "required": ["original", "replacement"]
+      }
+    },
+    "required": ["continuation", "edit"]
   }
 }
 ```
+结合 GBNF 采样器，在 Logit 采样时通过状态机屏蔽非法 Token，数学级保障输出合法。
 
-本地模型更容易输出不稳定 JSON，因此建议增强约束：
+---
 
-- 加 `response_format: { "type": "json_object" }`，如果 runtime 支持。
-- system prompt 更短，避免小模型被复杂指令稀释。
-- 解析失败时保底只作为 `continuation`，沿用当前解析逻辑。
-- 对 `edit.original` 继续做“必须存在于上下文”的校验，避免误改。
+## 6. 二次开发专属模型工程方案（路线 B）
 
-本地 prompt 重点：
+为构建专属于 `md-editor` 的本地写作模型壁垒：
+1. **独立仓库**：建立 `md-editor-models` 仓库，隔离 Python/PyTorch/CUDA/Unsloth 庞大环境与几十 GB 的训练权重；
+2. **专用数据集**：构建 50k~80k 条中英文 Markdown 语料（续写、错别字纠错、Pangu 标点空格规范、MDX 边界保护、负样本）；
+3. **微调与发布**：基于 `Qwen2.5-Coder-1.5B` 进行 SFT 训练，使用 `llama.cpp` 量化为 `Q4_K_M` GGUF，托管在 Hugging Face / CDN，客户端通过 Manifest 版本更新机制无感推送到用户端。
 
-- 保持原文语言和语气。
-- 只输出 JSON。
-- `edit` 只修复语法、标点、错别字和轻微表达。
-- 不要重写整段，不要扩写选区之外内容。
-- MDX / Markdown 语法边界不能被破坏。
+---
 
-## 10. 设置与 UI
+## 7. 编辑器输入停顿智能触发流水线
 
-现有设置页可以保留结构，但本地模型区域需要从占位变成可操作：
-
-- Provider 选择“本地模型”时显示模型卡片。
-- 状态：未下载、下载中、校验中、可用、失败。
-- 按钮：
-  - 未下载：下载模型
-  - 下载中：取消
-  - 失败：重试
-  - 可用：删除模型 / 重新下载
-- 展示模型大小和磁盘占用。
-- 启用本地模型前，如果未下载，给出明确提示。
-- 下载期间不要阻塞编辑器。
-
-文案边界：
-
-- “模型和推理都在本机运行。”
-- “下载模型会占用约 X GB 磁盘空间。”
-- “历史文章不会被上传到远程 provider。”
-- 不要宣称“绝对隐私”或“永不联网”，因为下载模型本身需要联网。
-
-## 11. 类型与持久化改造
-
-建议扩展类型：
-
-```ts
-export type AiLocalModelStatus =
-  | "not-downloaded"
-  | "downloading"
-  | "verifying"
-  | "available"
-  | "failed";
-
-export interface AiLocalModelSettings {
-  readonly enabled: boolean;
-  readonly modelId: string;
-  readonly version: string | null;
-  readonly status: AiLocalModelStatus;
-  readonly downloadedBytes: number;
-  readonly totalBytes: number;
-  readonly error: string | null;
-}
-```
-
-注意：
-
-- `status` 不应只依赖 settings.json；启动时要由 Rust 根据文件系统真实状态归一化。
-- `downloadedBytes` 和 `totalBytes` 属于运行状态，可进入 React state，不一定全部写入 settings。
-- `modelId` 默认值应来自内置 manifest。
-- settings 里只保存用户选择和启用状态，模型实际可用性由 Rust 状态命令确认。
-
-## 12. 安全与隐私
-
-必须满足：
-
-- sidecar 只绑定 `127.0.0.1`。
-- 只允许启动 App 打包的 sidecar，不接受用户输入的可执行文件路径。
-- sidecar 参数由 Rust 构造，动态参数要限制为模型路径、端口、上下文大小等安全值。
-- 模型下载 URL 来自 manifest，且下载后必须 hash 校验。
-- 不在日志里记录文章上下文、选区、prompt 或生成内容。
-- 远程 provider 和本地 provider 的数据边界在 UI 上明确说明。
-- 后续用户风格学习只能读取本地文件并在本机保存索引或画像。
-
-## 13. 测试策略
-
-TypeScript 单元测试：
-
-- `normalizeAiSettings` 能兼容旧 settings，没有 `modelId` 时填默认值。
-- `getAiCompletionReadiness` 覆盖未下载、下载中、可用、失败。
-- `requestAiContinuation` 在 local provider 下调用本地 Tauri adapter，而不是 remote fetch。
-- local provider 的错误文案不会吞掉真实失败原因。
-
-Rust 单元测试：
-
-- manifest 解析和 hash 校验。
-- app data 模型路径只能落在允许目录下。
-- 下载状态从文件系统恢复。
-- 删除模型不会越界删除。
-- runtime 参数构造不接受危险路径或任意参数注入。
-
-集成测试：
-
-- 用 mock sidecar 验证本地请求链路。
-- 模拟下载成功、hash 失败、下载中断和重试。
-- 模拟 sidecar 启动超时和生成超时。
-
-手动验证：
-
-- 设置页下载进度展示。
-- 下载期间编辑器可继续使用。
-- 本地模型可用后，显式 AI 写作建议能出现并可 Tab 接受。
-- App 退出后 sidecar 进程被清理。
-- 断网状态下，已下载模型仍可继续推理。
-
-## 14. 分阶段落地
-
-### Phase 1：模型状态与下载器
-
-目标：设置页里的本地模型从占位变成真实下载和状态管理。
-
-范围：
-
-- 扩展 AI local settings 类型。
-- 新增 manifest。
-- Rust 实现模型状态、下载、校验、删除。
-- UI 打开“下载模型”按钮。
-- 不接入推理。
-
-验收：
-
-- 能下载模型到 app data dir。
-- hash 校验成功后状态变为 available。
-- 删除模型后状态回到 not-downloaded。
-- 失败可重试。
-
-### Phase 2：sidecar runtime
-
-目标：App 能启动内置推理进程并完成健康检查。
-
-范围：
-
-- 引入 llama-server sidecar。
-- 配置 Tauri externalBin 和 shell capability。
-- Rust 管理进程生命周期、端口、健康检查、退出清理。
-- 用 mock 或真实小模型验证 `/v1/models`。
-
-验收：
-
-- 不安装 Ollama 也能启动本地推理服务。
-- 只监听 127.0.0.1。
-- App 退出后进程清理。
-
-### Phase 3：local provider 调用闭环
-
-目标：AI 写作建议可以走本地模型。
-
-范围：
-
-- `requestAiContinuation` 的 local provider 改为 Tauri invoke。
-- Rust 转发 `/v1/chat/completions`。
-- 复用现有 suggestion 展示和接受逻辑。
-- 增加本地模型 prompt 和 JSON 解析容错。
-
-验收：
-
-- provider 选本地模型后，显式 AI 建议可用。
-- 断网但模型已下载时仍可生成。
-- 未下载、加载失败、超时都有清晰提示。
-
-### Phase 4：模型质量与性能优化
-
-目标：让本地模型达到可用写作体验。
-
-范围：
-
-- 选择最终默认模型和 fallback 模型。
-- 调整 prompt、上下文长度、max tokens、temperature。
-- 支持空闲释放和预热提示。
-- 收集非隐私的性能指标，例如加载耗时和生成耗时，不记录文本内容。
-
-验收：
-
-- 低配机器有明确 fallback 或禁用提示。
-- 常见中文/英文 Markdown 写作场景可用。
-- AI suggestion 不明显阻塞编辑器输入。
-
-## 15. 未决问题
-
-1. 默认模型最终选型：Qwen3 1.7B GGUF 是否满足体积、速度、许可证和中文写作质量要求。
-2. 模型下载源：是否使用自己的 CDN，还是首期直接使用第三方模型仓库。
-3. sidecar 构建策略：macOS Apple Silicon、macOS Intel、Windows 是否都进入首版。
-4. 低配设备策略：是否提供更小模型，还是提示设备不满足推荐配置。
-5. 模型更新策略：是否自动提示更新，还是只在设置页手动更新。
-6. 是否需要提供“完全离线安装包”，把模型作为可选额外下载包而不是 App 内下载。
-
-## 16. 参考资料
-
-- Tauri sidecar / external binaries: https://v2.tauri.app/develop/sidecar/
-- llama.cpp server OpenAI-compatible API: https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md
-- Hugging Face Hub download concepts: https://huggingface.co/docs/huggingface_hub/guides/download
-- Qwen3 1.7B model card: https://huggingface.co/Qwen/Qwen3-1.7B
+当用户输入停止（防抖 1000ms）后，编辑器执行两阶段智能流水线：
+1. **阶段 1（优先语法与润色）**：发起 `intent: "editing"` 审校请求。若检测出错别字、标点错误或语病，立即在行内以 Diff 形式高亮呈现【修改建议】，并**终止**后续续写流程；
+2. **阶段 2（无误触发续写）**：若阶段 1 语法检查完全通过（`edit` 为 null），且用户开启了【AI 续写】功能，紧接着在光标处发起 `intent: "continuation"` 请求，以低饱和度灰色 Ghost Text 呈现连贯的后续写作建议。

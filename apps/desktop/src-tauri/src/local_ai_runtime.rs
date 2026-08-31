@@ -151,6 +151,16 @@ impl LocalAiRuntimeManager {
         }
     }
 
+    pub(crate) fn stop_runtime_if_model(&mut self, model_id: &str) {
+        if self
+            .process
+            .as_ref()
+            .is_some_and(|process| process.model_id == model_id)
+        {
+            self.stop_runtime();
+        }
+    }
+
     fn stop_runtime_if_idle(&mut self, max_idle: Duration) {
         let Some(process) = self.process.as_ref() else {
             return;

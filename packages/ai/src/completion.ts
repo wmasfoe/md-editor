@@ -109,26 +109,25 @@ export function createOpenAiCompatibleRequestBody(
         content: [
           "你是专业的 Markdown 写作与润色助手，提供光标处续写建议与语法/错别字/标点修复建议。",
           "只返回 JSON，不要解释，不要添加代码围栏。",
-          'JSON schema: {"continuation":"string","edit":{"original":"string","replacement":"string","reason":"string"}}。',
-          allowContinuation
-            ? "continuation 是要插入到光标处的续写内容（自然流畅、紧扣前文），可以为空字符串。"
-            : "continuation 必须返回空字符串。",
+          'JSON schema: {"hasEdit":boolean,"edit":{"original":"string","replacement":"string","reason":"string"},"hasContinuation":boolean,"continuation":"string"}。',
           allowEditing
-            ? "edit.original 必须是选区或光标附近上下文中逐字存在的原文片段；没有明确错误或无需润色时 edit 设为 null。"
-            : "edit 必须返回 null。",
-          "edit.replacement 只能修复语法、错别字、标点或轻微表达润色，不要改写整段。",
+            ? '若检测到语法、错别字、标点或语病：设置 "hasEdit": true，并在 edit.original/replacement/reason 中填写修改内容；若无错误则 "hasEdit": false, "edit": null。'
+            : '"hasEdit": false, "edit": null。',
+          allowContinuation
+            ? '若需要提供光标处续写内容：设置 "hasContinuation": true，并在 continuation 中填写续写文本；若无续写则 "hasContinuation": false, "continuation": ""。'
+            : '"hasContinuation": false, "continuation": ""。',
           "保持原文语言、语气和 Markdown/MDX 格式边界。",
         ].join("\n"),
       },
       {
         role: "user",
         content: [
-          "请根据以下上下文返回 JSON 建议。",
+          "请根据以下上下文返回严格符合上述 JSON Schema 的 JSON 建议。",
           "",
           "【光标前】",
           promptContext.before,
           "",
-          promptContext.selectedText ? "【当前选中文本】" : "",
+          promptContext.selectedText ? "【当前选中文本/待检行】" : "",
           promptContext.selectedText ? promptContext.selectedText : "",
           "",
           "【光标后】",
@@ -250,6 +249,7 @@ async function requestLocalAiContinuation(
         options: {
           modelId: settings.localModel.modelId,
           maxTokens: 220,
+          intent: options.intent ?? "both",
         },
       }),
       controller.signal,
@@ -308,26 +308,44 @@ function filterAiSuggestionBySettings(
   suggestion: AiWritingSuggestion,
   settings: AiSettings,
 ): AiWritingSuggestion {
+  const allowContinuation = settings.features.continuation && Boolean(suggestion.hasContinuation);
+  const allowEditing = settings.features.editing && Boolean(suggestion.hasEdit);
+
   return {
-    ...(settings.features.continuation && suggestion.continuation
+    hasContinuation: allowContinuation,
+    ...(allowContinuation && suggestion.continuation
       ? { continuation: suggestion.continuation }
       : {}),
-    ...(settings.features.editing && suggestion.edit ? { edit: suggestion.edit } : {}),
+    hasEdit: allowEditing,
+    ...(allowEditing && suggestion.edit ? { edit: suggestion.edit } : { edit: null }),
   };
 }
 
 export function parseAiWritingSuggestion(content: string): AiWritingSuggestion {
   const parsed = parseJsonObject(extractJsonObject(content));
   if (!parsed) {
-    return { continuation: normalizeContinuationText(content) };
+    const text = normalizeContinuationText(content);
+    return text
+      ? { hasContinuation: true, continuation: text, hasEdit: false, edit: null }
+      : { hasContinuation: false, hasEdit: false, edit: null };
   }
+
+  const rawHasEdit = parsed.hasEdit;
+  const rawHasContinuation = parsed.hasContinuation;
 
   const continuation = normalizeContinuationText(readStringProperty(parsed, "continuation"));
   const editInput = readObjectProperty(parsed, "edit");
   const edit = editInput ? normalizeEditSuggestion(editInput) : undefined;
+
+  const hasEdit = typeof rawHasEdit === "boolean" ? rawHasEdit : Boolean(edit);
+  const hasContinuation =
+    typeof rawHasContinuation === "boolean" ? rawHasContinuation : Boolean(continuation);
+
   return {
+    hasContinuation,
     ...(continuation ? { continuation } : {}),
-    ...(edit ? { edit } : {}),
+    hasEdit,
+    edit: edit ?? null,
   };
 }
 

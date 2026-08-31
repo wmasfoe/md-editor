@@ -5,7 +5,8 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "@md-editor/editor-ui";
-import { requestAiContinuation, getAiCompletionReadiness } from "@md-editor/ai";
+import { requestAiContinuation } from "@md-editor/ai";
+import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
@@ -142,11 +143,23 @@ function useAutomaticAiEditing({
   portsRef.current = ports;
 
   useEffect(() => {
-    if (!settings.ai.enabled || !settings.ai.features.editing) {
+    // 若 AI 未启用，或未开启任何 AI 特性，则不启动后台监听
+    if (
+      !settings.ai.enabled ||
+      (!settings.ai.features.editing && !settings.ai.features.continuation)
+    ) {
+      if (import.meta.env.DEV) {
+        console.debug("[AI Auto] AI 功能未启用，跳过自动检测。");
+      }
       return;
     }
-    if (getAiCompletionReadiness(settings.ai, "editing") !== null) {
-      return;
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[AI Auto] 成功注册输入完成自动建议流水线 (优先语法润色 -> 无误触发续写, provider:",
+        settings.ai.provider,
+        ")",
+      );
     }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
@@ -175,7 +188,7 @@ function useAutomaticAiEditing({
         return;
       }
 
-      // 用户停止输入后防抖 1200ms
+      // 用户停止输入后防抖 1000ms 触发流水线
       timerRef.current = setTimeout(async () => {
         const activePorts = portsRef.current;
         if (!activePorts) {
@@ -183,6 +196,9 @@ function useAutomaticAiEditing({
         }
         // 如果当前已有建议展示，暂不覆盖
         if (activePorts.getSuggestion() !== null) {
+          if (import.meta.env.DEV) {
+            console.debug("[AI Auto] 当前已有展示中的建议，跳过本次自动检测。");
+          }
           return;
         }
 
@@ -196,19 +212,25 @@ function useAutomaticAiEditing({
         const markdown = snapshot.markdown;
         const cursorPos = selection.from;
 
-        // 定位当前句子/行范围
+        // 获取光标前后的上下文
+        const before = markdown.slice(0, cursorPos);
+        const after = markdown.slice(cursorPos);
+
+        // 定位光标所在的当前行/当前待审校句子
         const lineStart = markdown.lastIndexOf("\n", cursorPos - 1) + 1;
         const lineEndIndex = markdown.indexOf("\n", cursorPos);
         const lineEnd = lineEndIndex === -1 ? markdown.length : lineEndIndex;
-        const lineText = markdown.slice(lineStart, lineEnd).trim();
+        const rawLine = markdown.slice(lineStart, lineEnd);
+        const currentLineText = rawLine.trim();
 
-        // 忽略过短或空内容
-        if (lineText.length < 4) {
+        // 忽略完全空白或过短前文
+        if (before.trim().length < 2) {
           return;
         }
 
-        // 内容指纹去重：若当前文本与最近分析成功的文本完全一致，直接跳过，避免重复调用
-        if (lastAnalyzedTextRef.current === lineText) {
+        // 去重：若当前输入位置与前文完全相同则跳过
+        const cacheKey = `${cursorPos}:${before}`;
+        if (lastAnalyzedTextRef.current === cacheKey) {
           return;
         }
 
@@ -216,54 +238,158 @@ function useAutomaticAiEditing({
         abortControllerRef.current = abortController;
 
         try {
-          const suggestion = await requestAiContinuation(
-            settings.ai,
-            {
-              before: markdown.slice(0, lineStart),
-              after: markdown.slice(lineEnd),
-              selectedText: markdown.slice(lineStart, lineEnd),
-              mode: snapshot.mode,
-              document: {
-                filePath: snapshot.filePath,
+          // =========================================================
+          // 阶段 1：优先触发「AI 语法与润色修复」
+          // =========================================================
+          let hasRenderedEditSuggestion = false;
+
+          if (settings.ai.features.editing && currentLineText.length >= 3) {
+            if (import.meta.env.DEV) {
+              console.debug("[AI Auto] 阶段 1: 触发语法与润色审校...", {
+                cursorPos,
+                currentLineText,
+              });
+            }
+
+            const editResult = await requestAiContinuation(
+              settings.ai,
+              {
+                before,
+                after,
+                selectedText: currentLineText,
+                mode: snapshot.mode,
+                document: {
+                  filePath: snapshot.filePath,
+                },
               },
-            },
-            {
-              intent: "editing",
-              signal: abortController.signal,
-            },
-          );
+              {
+                intent: "editing",
+                signal: abortController.signal,
+                localInvokeImpl: desktopLocalAiInvokeImpl,
+              },
+            );
 
-          if (abortController.signal.aborted) {
-            return;
-          }
+            if (abortController.signal.aborted) {
+              return;
+            }
 
-          // 记录已分析内容指纹
-          lastAnalyzedTextRef.current = lineText;
+            if (import.meta.env.DEV) {
+              console.debug("[AI Auto] 阶段 1 审校结果:", editResult);
+            }
 
-          if (suggestion.edit && suggestion.edit.original) {
-            const rawLine = markdown.slice(lineStart, lineEnd);
-            if (rawLine.includes(suggestion.edit.original)) {
-              const offset = rawLine.indexOf(suggestion.edit.original);
-              const editFrom = lineStart + offset;
-              const editTo = editFrom + suggestion.edit.original.length;
+            if (editResult.hasEdit && editResult.edit && editResult.edit.replacement) {
+              const original = editResult.edit.original;
+              const replacement = editResult.edit.replacement;
+              const searchFrom = Math.max(0, lineStart - 60);
+              const searchTo = Math.min(markdown.length, lineEnd + 60);
+              const searchSlice = markdown.slice(searchFrom, searchTo);
+
+              let editFrom = lineStart;
+              let editTo = lineEnd;
+              let originalText = currentLineText;
+
+              if (original && searchSlice.includes(original)) {
+                const offset = searchSlice.indexOf(original);
+                editFrom = searchFrom + offset;
+                editTo = editFrom + original.length;
+                originalText = original;
+              }
+
+              if (import.meta.env.DEV) {
+                console.debug("[AI Auto] hasEdit === true，渲染修改建议并终止阶段 2 续写:", {
+                  editResult,
+                  editFrom,
+                  editTo,
+                  originalText,
+                  replacement,
+                });
+              }
 
               activePorts.showSuggestion({
                 from: editFrom,
                 to: editTo,
-                text: suggestion.edit.replacement,
-                originalText: suggestion.edit.original,
-                explanation: suggestion.edit.reason,
+                text: replacement,
+                originalText,
+                explanation: editResult.edit.reason,
+              });
+              hasRenderedEditSuggestion = true;
+              lastAnalyzedTextRef.current = cacheKey;
+              return; // 存在语法/润色问题并已展示修改建议，结束流程（不触发续写）
+            }
+          }
+
+          // =========================================================
+          // 阶段 2：语法检查无误（或未开启语法审校），紧接着触发「AI 续写」
+          // =========================================================
+          if (!hasRenderedEditSuggestion && settings.ai.features.continuation) {
+            // 确认光标依然没有展示中的建议
+            if (activePorts.getSuggestion() !== null) {
+              return;
+            }
+
+            if (import.meta.env.DEV) {
+              console.debug(
+                "[AI Auto] 阶段 2: 语法检查无误 (hasEdit === false)，触发光标处 AI 续写...",
+                {
+                  cursorPos,
+                  beforeLength: before.length,
+                },
+              );
+            }
+
+            const continuationResult = await requestAiContinuation(
+              settings.ai,
+              {
+                before,
+                after,
+                selectedText: "",
+                mode: snapshot.mode,
+                document: {
+                  filePath: snapshot.filePath,
+                },
+              },
+              {
+                intent: "continuation",
+                signal: abortController.signal,
+                localInvokeImpl: desktopLocalAiInvokeImpl,
+              },
+            );
+
+            if (abortController.signal.aborted) {
+              return;
+            }
+
+            if (import.meta.env.DEV) {
+              console.debug("[AI Auto] 阶段 2 续写结果:", continuationResult);
+            }
+
+            if (continuationResult.hasContinuation && continuationResult.continuation) {
+              if (import.meta.env.DEV) {
+                console.debug(
+                  "[AI Auto] hasContinuation === true，渲染 Ghost Text 续写建议:",
+                  continuationResult.continuation,
+                );
+              }
+
+              activePorts.showSuggestion({
+                from: cursorPos,
+                to: cursorPos,
+                text: continuationResult.continuation,
               });
             }
           }
-        } catch {
-          // 后台自动检查静默忽略错误，不打扰写作
+
+          lastAnalyzedTextRef.current = cacheKey;
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.warn("[AI Auto] 自动建议流水线发生异常:", error);
+          }
         } finally {
           if (abortControllerRef.current === abortController) {
             abortControllerRef.current = null;
           }
         }
-      }, 1200);
+      }, 1000);
     });
 
     return () => {

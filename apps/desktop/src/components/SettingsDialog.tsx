@@ -99,10 +99,14 @@ export function SettingsPage({
           <AiSettingsPanel
             aiSettingsDraft={ctrl.aiSettingsDraft}
             isLocalModelActionPending={ctrl.isLocalModelActionPending}
+            allModelStatuses={ctrl.allModelStatuses}
+            systemSpecs={ctrl.systemSpecs}
+            isCheckingModelUpdates={ctrl.isCheckingModelUpdates}
             onChangeAiSettings={ctrl.setAiSettingsDraft}
             onDownloadLocalModel={ctrl.downloadLocalModel}
             onCancelLocalModelDownload={ctrl.cancelLocalModelDownload}
             onDeleteLocalModel={ctrl.deleteLocalModel}
+            onCheckModelUpdates={ctrl.checkLocalModelUpdates}
           />
         ),
       },

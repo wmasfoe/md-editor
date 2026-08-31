@@ -1,4 +1,5 @@
 import type {
+  AiLocalModelDescriptor,
   AiLocalModelSettings,
   AiLocalModelStatus,
   AiProviderType,
@@ -7,12 +8,51 @@ import type {
 
 export const DEFAULT_OPENAI_COMPATIBLE_ENDPOINT = "https://api.openai.com/v1";
 export const DEFAULT_DEEPSEEK_ENDPOINT = "https://api.deepseek.com";
-export const DEFAULT_LOCAL_MODEL_ID = "md-editor-writer-small-v1";
+export const DEFAULT_LOCAL_MODEL_ID = "md-editor-writer-standard";
+export const LEGACY_LOCAL_MODEL_ID = "md-editor-writer-small-v1";
+export const LITE_LOCAL_MODEL_ID = "md-editor-writer-lite";
+export const STANDARD_LOCAL_MODEL_ID = "md-editor-writer-standard";
+export const PRO_LOCAL_MODEL_ID = "md-editor-writer-pro";
+
+export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
+  {
+    id: "md-editor-writer-lite",
+    tier: "lite",
+    displayName: "Lite (0.5B)",
+    parameterSize: "0.5B",
+    downloadSizeBytes: 491_400_032,
+    recommendedMemoryGb: 4,
+    description: "极速轻量，秒级响应，适合低内存或轻薄设备。",
+    isAvailable: true,
+  },
+  {
+    id: "md-editor-writer-standard",
+    tier: "standard",
+    displayName: "Standard (1.5B)",
+    parameterSize: "1.5B",
+    downloadSizeBytes: 1_050_000_000,
+    recommendedMemoryGb: 8,
+    description: "连贯写作与精准纠错，Markdown/MDX 语法边界更佳。",
+    isAvailable: true,
+  },
+  {
+    id: "md-editor-writer-pro",
+    tier: "pro",
+    displayName: "Pro",
+    parameterSize: "",
+    downloadSizeBytes: 0,
+    recommendedMemoryGb: 0,
+    description: "旗舰级深度长文创作、论文润色与逻辑重构（敬请期待）。",
+    isAvailable: false,
+  },
+] as const;
 
 export const DEFAULT_LOCAL_MODEL_SETTINGS: AiLocalModelSettings = {
   enabled: false,
   modelId: DEFAULT_LOCAL_MODEL_ID,
   version: null,
+  latestVersion: null,
+  hasUpdate: false,
   status: "not-downloaded",
   downloadedBytes: 0,
   totalBytes: 0,
@@ -70,6 +110,8 @@ export function normalizeLocalAiModelSettings(
     enabled: Boolean(input?.enabled),
     modelId: normalizeModelId(input?.modelId),
     version: normalizeNullableString(input?.version),
+    latestVersion: normalizeNullableString(input?.latestVersion),
+    hasUpdate: Boolean(input?.hasUpdate),
     status: normalizeLocalModelStatus(input?.status),
     downloadedBytes: normalizeByteCount(input?.downloadedBytes),
     totalBytes: normalizeByteCount(input?.totalBytes),
@@ -143,6 +185,15 @@ function normalizeAiBaseUrl(input: string | undefined, provider: AiProviderType)
 
 function normalizeModelId(input: unknown): string {
   const value = typeof input === "string" ? input.trim() : "";
+  if (value === LEGACY_LOCAL_MODEL_ID || value === LITE_LOCAL_MODEL_ID) {
+    return LITE_LOCAL_MODEL_ID;
+  }
+  if (value === PRO_LOCAL_MODEL_ID) {
+    return PRO_LOCAL_MODEL_ID;
+  }
+  if (value === STANDARD_LOCAL_MODEL_ID) {
+    return STANDARD_LOCAL_MODEL_ID;
+  }
   return value || DEFAULT_LOCAL_MODEL_ID;
 }
 

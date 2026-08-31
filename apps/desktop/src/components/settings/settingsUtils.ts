@@ -17,14 +17,20 @@ export {
   updateAiProvider,
 } from "@md-editor/ai";
 
-export function localModelStatusLabel(status: AiSettings["localModel"]["status"]): string {
+export function localModelStatusLabel(
+  status: AiSettings["localModel"]["status"],
+  hasUpdate?: boolean,
+): string {
+  if (status === "available" && hasUpdate) {
+    return "发现新版本";
+  }
   switch (status) {
     case "downloading":
       return "下载中";
     case "verifying":
       return "校验中";
     case "available":
-      return "可用";
+      return "已就绪";
     case "failed":
       return "下载失败";
     case "not-downloaded":
@@ -44,14 +50,33 @@ export function localModelProgressLabel(localModel: AiSettings["localModel"]): s
   }
 
   if (localModel.status === "not-downloaded") {
-    return `模型 ${localModel.modelId}，${versionLabel}。`;
+    return `${versionLabel}。`;
   }
 
   if (localModel.status === "available") {
-    return `模型 ${localModel.modelId}，${versionLabel}，文件 ${progressLabel}。`;
+    if (localModel.hasUpdate && localModel.latestVersion) {
+      return `当前版本 ${localModel.version ?? "未知"}，可更新至 ${localModel.latestVersion}。`;
+    }
+    return `已就绪 (${versionLabel}，占用 ${progressLabel})。`;
   }
 
-  return `模型 ${localModel.modelId}，${versionLabel}，${progressLabel}。`;
+  return `${versionLabel}，${progressLabel}。`;
+}
+
+export function formatByteSize(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 B";
+  }
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  if (value < 1024 * 1024 * 1024) {
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 export function updateProgressLabel(updateStatus: UpdateStatus): string | null {
@@ -144,20 +169,4 @@ function readBuiltInTheme(
   return builtInOptions.some((option) => option.id === input)
     ? (input as BuiltInThemeId)
     : fallback;
-}
-
-function formatByteSize(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "0 B";
-  }
-  if (value < 1024) {
-    return `${value} B`;
-  }
-  if (value < 1024 * 1024) {
-    return `${(value / 1024).toFixed(1)} KB`;
-  }
-  if (value < 1024 * 1024 * 1024) {
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

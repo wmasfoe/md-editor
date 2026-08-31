@@ -8,6 +8,7 @@
 - 迁移前 M0 技术尖刺结论： [markdown_editor_m0_spike_findings.md](./markdown_editor_m0_spike_findings.md)
 - 迁移前 v0.1 侧栏、Runtime 托管和 Raw 编辑状态： [markdown_editor_v0_1_sidebar_runtime_mdx_status.md](./markdown_editor_v0_1_sidebar_runtime_mdx_status.md)
 - 迁移前 v0.1 打磨改进记录： [v0_1_polish_improvements.md](./v0_1_polish_improvements.md)
+- 本地小模型多档位、硬件检测与生命周期管理状态记录： [local_ai_model_multi_tier_and_lifecycle_status.md](./local_ai_model_multi_tier_and_lifecycle_status.md)
 
 ## 使用规则
 

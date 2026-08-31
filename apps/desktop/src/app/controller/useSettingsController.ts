@@ -6,7 +6,10 @@ import {
   downloadLocalAiModel,
   listenToLocalAiModelProgress,
   mergeLocalAiModelStatus,
+  readAllLocalAiModelsStatus,
+  readSystemSpecs,
   type LocalAiModelCommandStatus,
+  type SystemSpecs,
 } from "../ai/local-ai-model";
 import {
   destroyCurrentSettingsWindow,
@@ -93,9 +96,33 @@ export function useSettingsController({
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
+  const [systemSpecs, setSystemSpecs] = useState<SystemSpecs | null>(null);
+  const [allModelStatuses, setAllModelStatuses] = useState<
+    Record<string, LocalAiModelCommandStatus>
+  >({});
+  const [isCheckingModelUpdates, setIsCheckingModelUpdates] = useState(false);
   const hasInitialized = useRef(false);
   const hasRevealedSettingsWindow = useRef(false);
   const [themePreviewSession] = useState(() => createAppThemePreviewSession());
+
+  useEffect(() => {
+    let cancelled = false;
+    void readSystemSpecs().then((specs) => {
+      if (!cancelled && specs) setSystemSpecs(specs);
+    });
+    void readAllLocalAiModelsStatus().then((statuses) => {
+      if (!cancelled) {
+        const map: Record<string, LocalAiModelCommandStatus> = {};
+        for (const s of statuses) {
+          map[s.modelId] = s;
+        }
+        setAllModelStatuses(map);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const syncDrafts = useCallback((next: AppSettings) => {
     setShortcutDrafts(createShortcutDrafts(next.shortcuts));
@@ -122,13 +149,20 @@ export function useSettingsController({
   }, [surface, syncDrafts]);
 
   const applyLocalModelStatus = useCallback((status: LocalAiModelCommandStatus) => {
-    // 模型状态从命令结果和进度事件两路进入，需同步到已保存设置和草稿
-    // 注意：已保存设置的更新通过 listenToAppSettingsChanged 广播机制处理，
-    // 此处只更新 AI 草稿以保持弹窗实时显示正确状态
-    setAiSettingsDraft((current) => ({
-      ...current,
-      localModel: mergeLocalAiModelStatus(current.localModel, status),
+    // 模型状态从命令结果和进度事件两路进入，同步到全量字典与当前选中草稿
+    setAllModelStatuses((prev) => ({
+      ...prev,
+      [status.modelId]: status,
     }));
+    setAiSettingsDraft((current) => {
+      if (current.localModel.modelId === status.modelId) {
+        return {
+          ...current,
+          localModel: mergeLocalAiModelStatus(current.localModel, status),
+        };
+      }
+      return current;
+    });
   }, []);
 
   // 设置窗口主题草稿实时广播给主窗口预览
@@ -313,54 +347,95 @@ export function useSettingsController({
     );
   }, []);
 
-  const downloadLocalModel = useCallback(async () => {
-    setSettingsErrorMessage(null);
-    applyLocalModelStatus({
-      ...loadedSettings.ai.localModel,
-      displayName: "md-editor Writer Small",
-      path: null,
-      status: "downloading",
-      downloadedBytes: 0,
-      error: null,
-    });
-    try {
-      const status = await downloadLocalAiModel(loadedSettings.ai.localModel.modelId);
-      applyLocalModelStatus(status);
-    } catch (error) {
-      if (isLocalModelDownloadCancel(error)) {
-        setSettingsErrorMessage(null);
-        return;
+  const downloadLocalModel = useCallback(
+    async (targetModelId?: string) => {
+      const modelId = targetModelId || aiSettingsDraft.localModel.modelId;
+      setSettingsErrorMessage(null);
+      const existingStatus = allModelStatuses[modelId] || loadedSettings.ai.localModel;
+      applyLocalModelStatus({
+        ...existingStatus,
+        modelId,
+        status: "downloading",
+        downloadedBytes: 0,
+        error: null,
+      });
+      try {
+        const status = await downloadLocalAiModel(modelId);
+        applyLocalModelStatus(status);
+      } catch (error) {
+        if (isLocalModelDownloadCancel(error)) {
+          setSettingsErrorMessage(null);
+          return;
+        }
+        setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
       }
-      setSettingsErrorMessage(formatActionError(error, "本地模型下载失败。"));
-    }
-  }, [applyLocalModelStatus, loadedSettings.ai.localModel]);
+    },
+    [
+      aiSettingsDraft.localModel.modelId,
+      allModelStatuses,
+      applyLocalModelStatus,
+      loadedSettings.ai.localModel,
+    ],
+  );
 
-  const cancelLocalModelDownload = useCallback(async () => {
-    setIsLocalModelActionPending(true);
-    setSettingsErrorMessage(null);
-    try {
-      const status = await cancelLocalAiModelDownload(loadedSettings.ai.localModel.modelId);
-      applyLocalModelStatus(status);
-      showToast(LOCAL_MODEL_CANCEL_MESSAGE);
-    } catch (error) {
-      setSettingsErrorMessage(formatActionError(error, "取消本地模型下载失败。"));
-    } finally {
-      setIsLocalModelActionPending(false);
-    }
-  }, [applyLocalModelStatus, loadedSettings.ai.localModel.modelId, showToast]);
+  const cancelLocalModelDownload = useCallback(
+    async (targetModelId?: string) => {
+      const modelId = targetModelId || aiSettingsDraft.localModel.modelId;
+      setIsLocalModelActionPending(true);
+      setSettingsErrorMessage(null);
+      try {
+        const status = await cancelLocalAiModelDownload(modelId);
+        applyLocalModelStatus(status);
+        showToast(LOCAL_MODEL_CANCEL_MESSAGE);
+      } catch (error) {
+        setSettingsErrorMessage(formatActionError(error, "取消本地模型下载失败。"));
+      } finally {
+        setIsLocalModelActionPending(false);
+      }
+    },
+    [aiSettingsDraft.localModel.modelId, applyLocalModelStatus, showToast],
+  );
 
-  const deleteLocalModel = useCallback(async () => {
-    setIsLocalModelActionPending(true);
-    setSettingsErrorMessage(null);
+  const deleteLocalModel = useCallback(
+    async (targetModelId?: string) => {
+      const modelId = targetModelId || aiSettingsDraft.localModel.modelId;
+      setIsLocalModelActionPending(true);
+      setSettingsErrorMessage(null);
+      try {
+        const status = await deleteLocalAiModel(modelId);
+        applyLocalModelStatus(status);
+        showToast("本地模型已删除，已释放磁盘空间。");
+      } catch (error) {
+        setSettingsErrorMessage(formatActionError(error, "本地模型删除失败。"));
+      } finally {
+        setIsLocalModelActionPending(false);
+      }
+    },
+    [aiSettingsDraft.localModel.modelId, applyLocalModelStatus, showToast],
+  );
+
+  const checkLocalModelUpdates = useCallback(async () => {
+    setIsCheckingModelUpdates(true);
     try {
-      const status = await deleteLocalAiModel(loadedSettings.ai.localModel.modelId);
-      applyLocalModelStatus(status);
-    } catch (error) {
-      setSettingsErrorMessage(formatActionError(error, "本地模型删除失败。"));
+      const statuses = await readAllLocalAiModelsStatus();
+      const map: Record<string, LocalAiModelCommandStatus> = {};
+      let updateCount = 0;
+      for (const s of statuses) {
+        map[s.modelId] = s;
+        if (s.hasUpdate) updateCount += 1;
+      }
+      setAllModelStatuses(map);
+      if (updateCount > 0) {
+        showToast(`发现 ${updateCount} 个模型有新版本，可点击「下载新版本」进行更新。`);
+      } else {
+        showToast("当前已是最新模型，暂无可用更新。");
+      }
+    } catch {
+      showToast("检查模型更新失败，请稍后重试。");
     } finally {
-      setIsLocalModelActionPending(false);
+      setIsCheckingModelUpdates(false);
     }
-  }, [applyLocalModelStatus, loadedSettings.ai.localModel.modelId]);
+  }, [showToast]);
 
   const runUpdateCheck = useCallback(async () => {
     setSettingsErrorMessage(null);
@@ -388,6 +463,9 @@ export function useSettingsController({
     aiSettingsDraft,
     updateSettingsDraft,
     isLocalModelActionPending,
+    systemSpecs,
+    allModelStatuses,
+    isCheckingModelUpdates,
     settingsErrorMessage,
     isSavingSettings,
     setAssetsDirectoryDraft,
@@ -405,6 +483,7 @@ export function useSettingsController({
     downloadLocalModel,
     cancelLocalModelDownload,
     deleteLocalModel,
+    checkLocalModelUpdates,
     runUpdateCheck,
     downloadUpdate,
     applyDownloadedUpdate,
