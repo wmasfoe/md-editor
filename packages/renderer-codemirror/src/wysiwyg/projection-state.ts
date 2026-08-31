@@ -1014,7 +1014,6 @@ function computeTypedBoundary(previous: number | null, transaction: Transaction)
     return null;
   }
   if (
-    transaction.docChanged &&
     transaction.isUserEvent("input") &&
     transaction.state.selection.ranges.length === 1 &&
     transaction.state.selection.main.empty
