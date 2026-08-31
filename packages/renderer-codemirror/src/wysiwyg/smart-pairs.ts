@@ -76,7 +76,7 @@ export const smartPairsInputHandler = EditorView.inputHandler.of((view, from, to
       if (nextChar === text) {
         view.dispatch({
           selection: EditorSelection.cursor(from + text.length),
-          userEvent: "select",
+          userEvent: "input.type",
         });
         return true;
       }
