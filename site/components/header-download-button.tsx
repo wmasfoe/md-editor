@@ -25,9 +25,13 @@ export function HeaderDownloadButton({ catalog }: HeaderDownloadButtonProps) {
       href={asset.href}
       // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
       download={asset.fileName}
-      className="ml-0.5 inline-flex min-h-10 items-center rounded-full bg-ink px-3 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 sm:ml-1 sm:min-h-0 sm:px-3.5 sm:text-sm"
+      className="liquid-glass-button-dark group relative ml-0.5 inline-flex min-h-9 cursor-pointer items-center justify-center overflow-hidden rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white sm:ml-1 sm:min-h-0 sm:px-4 sm:text-sm"
     >
-      {t.header.download}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
+      />
+      <span className="relative z-10 font-semibold tracking-tight">{t.header.download}</span>
     </a>
   );
 }

@@ -111,7 +111,7 @@ function CopyButton({ value }: { value: string }) {
       type="button"
       onClick={handleCopy}
       aria-label={copied ? t.download.copiedButton : t.download.copyButton}
-      className="inline-flex min-h-10 shrink-0 items-center rounded-md px-2.5 text-xs font-medium text-ink-soft transition-colors hover:bg-white hover:text-ink sm:min-h-0 sm:py-1"
+      className="liquid-glass-button-light inline-flex min-h-8 shrink-0 cursor-pointer items-center rounded-lg px-2.5 text-xs font-medium text-ink-soft sm:min-h-0 sm:py-1"
     >
       {copied ? t.download.copiedButton : t.download.copyButton}
     </button>

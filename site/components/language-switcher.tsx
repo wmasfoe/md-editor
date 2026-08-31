@@ -27,7 +27,7 @@ export function LanguageSwitcher() {
       onClick={toggleLocale}
       aria-label={t.header.langSwitchAria}
       title={title}
-      className="group relative inline-flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-full border border-line/80 bg-surface/75 px-2.5 text-[12px] font-medium tracking-tight text-ink-soft shadow-[0_1px_2px_rgba(0,0,0,0.03),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-md transition-all duration-200 ease-out hover:border-line-strong hover:bg-surface hover:text-ink hover:shadow-[0_2px_6px_rgba(0,0,0,0.06)] active:scale-[0.96] active:bg-surface-soft/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-canvas sm:h-8 sm:px-3 sm:text-[13px]"
+      className="liquid-glass-button-light group relative inline-flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium tracking-tight text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-canvas sm:h-8 sm:px-3 sm:text-[13px]"
     >
       <GlobeAltIcon
         aria-hidden
