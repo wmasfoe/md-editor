@@ -38,12 +38,12 @@ pub(crate) struct LocalAiModelManifest {
 pub(crate) const LITE_MODEL: LocalAiModelManifest = LocalAiModelManifest {
     id: LITE_MODEL_ID,
     display_name: "Lite (0.5B)",
-    version: "v0.0.0-beta",
+    version: "v1.0.0",
     filename: "model.gguf",
-    download_url: "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf?download=1",
-    size_bytes: 491_400_032,
-    sha256: "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
-    context_size: 4096,
+    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.0.0/qwen2.5-0.5b-editor-v1.0.0-Q4_K_M.gguf",
+    size_bytes: 397_552_032,
+    sha256: "eda69b3628916c009306d9b6260623c71bd25d18dab2a51b2d9c687b51304e0b",
+    context_size: 8192,
     default_max_tokens: 220,
     is_available: true,
 };
@@ -51,12 +51,12 @@ pub(crate) const LITE_MODEL: LocalAiModelManifest = LocalAiModelManifest {
 pub(crate) const STANDARD_MODEL: LocalAiModelManifest = LocalAiModelManifest {
     id: STANDARD_MODEL_ID,
     display_name: "Standard (1.5B)",
-    version: "v0.0.0-beta",
+    version: "v1.0.0",
     filename: "model.gguf",
-    download_url: "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf?download=1",
-    size_bytes: 1_050_000_000,
-    sha256: "",
-    context_size: 4096,
+    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.0.0/qwen2.5-1.5b-editor-v1.0.0-Q4_K_M.gguf",
+    size_bytes: 985_711_904,
+    sha256: "cd7d83d9a891c1488f6579417a7039acfb9648e046b89d286e5422c2e00e4eab",
+    context_size: 8192,
     default_max_tokens: 260,
     is_available: true,
 };
@@ -540,8 +540,8 @@ fn extract_first_hex_hash(output: &str) -> Option<String> {
 
 fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelManifest, String> {
     match model_id.unwrap_or(DEFAULT_MODEL_ID) {
-        STANDARD_MODEL_ID => Ok(STANDARD_MODEL),
-        LITE_MODEL_ID | LEGACY_MODEL_ID => Ok(LITE_MODEL),
+        STANDARD_MODEL_ID | "qwen2.5-1.5b-editor" => Ok(STANDARD_MODEL),
+        LITE_MODEL_ID | LEGACY_MODEL_ID | "qwen2.5-0.5b-editor" => Ok(LITE_MODEL),
         PRO_MODEL_ID => Ok(PRO_MODEL),
         other => Err(format!("未知的本地模型：{other}")),
     }

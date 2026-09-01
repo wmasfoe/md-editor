@@ -20,9 +20,9 @@ export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
     tier: "lite",
     displayName: "Lite (0.5B)",
     parameterSize: "0.5B",
-    downloadSizeBytes: 491_400_032,
+    downloadSizeBytes: 397_552_032,
     recommendedMemoryGb: 4,
-    description: "极速轻量，秒级响应，适合低内存或轻薄设备。",
+    description: "自研微调小模型，极速轻量（TTFT <30ms），支持多语种语法纠错与行内 FIM 续写。",
     isAvailable: true,
   },
   {
@@ -30,9 +30,10 @@ export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
     tier: "standard",
     displayName: "Standard (1.5B)",
     parameterSize: "1.5B",
-    downloadSizeBytes: 1_050_000_000,
+    downloadSizeBytes: 985_711_904,
     recommendedMemoryGb: 8,
-    description: "连贯写作与精准纠错，Markdown/MDX 语法边界更佳。",
+    description:
+      "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力，推荐 M 系列 Mac 或高配 PC。",
     isAvailable: true,
   },
   {

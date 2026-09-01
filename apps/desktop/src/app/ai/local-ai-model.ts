@@ -24,7 +24,43 @@ export const desktopLocalAiInvokeImpl = async (
   if (!isTauri()) {
     throw new Error("Web 预览模式不支持本地模型推理，请在桌面端使用。");
   }
-  return await invoke(command, args);
+  const isDev = import.meta.env.DEV;
+  const isCompletion = command === "request_local_ai_continuation";
+  const startTime = isDev && isCompletion ? performance.now() : 0;
+
+  const options = (args?.options as Record<string, unknown>) || {};
+  const intent = String(options.intent ?? "unknown");
+  const taskLabel =
+    intent === "editing"
+      ? "【阶段 1：语法修复审校 (GEC)】"
+      : intent === "continuation"
+        ? "【阶段 2：行内续写补全 (FIM)】"
+        : `【综合分析 (${intent})】`;
+
+  if (isDev && isCompletion) {
+    console.groupCollapsed(`🤖 [Local LLM 发起请求] ${taskLabel}`);
+    console.log("模型 ID:", options.modelId);
+    console.log("任务类型 (Intent):", intent);
+    console.log("停用词 (Stop Tokens):", options.stop);
+    console.log("输入 Prompt:\n" + String(options.prompt ?? ""));
+    console.groupEnd();
+  }
+
+  const result = await invoke(command, args);
+
+  if (isDev && isCompletion) {
+    const elapsedMs = (performance.now() - startTime).toFixed(1);
+    console.group(`✨ [Local LLM 响应结果] ${taskLabel} (${elapsedMs}ms)`);
+    console.log("【LLM 原样返回 (Raw Output)】:\n", result);
+    console.debug("调用详情:", {
+      modelId: options.modelId,
+      intent,
+      elapsedMs: `${elapsedMs}ms`,
+    });
+    console.groupEnd();
+  }
+
+  return result;
 };
 
 export async function readSystemSpecs(): Promise<SystemSpecs | null> {

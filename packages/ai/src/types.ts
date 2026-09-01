@@ -76,11 +76,40 @@ export interface AiContextSnapshot {
 
 export type AiCompletionContext = AiContextSnapshot;
 
+export type CompactTupleDiff = readonly [
+  start: number,
+  end: number,
+  original: string,
+  replacement: string,
+];
+
+export interface ValidatedDiffItem {
+  readonly start: number;
+  readonly end: number;
+  readonly utf16From: number;
+  readonly utf16To: number;
+  readonly original: string;
+  readonly replacement: string;
+  readonly wasAdjusted?: boolean;
+}
+
+export interface UserStyleProfile {
+  readonly language?: string;
+  readonly punctuation?: string;
+  readonly preferredTerms?: readonly string[];
+  readonly tone?: string;
+}
+
 export interface AiWritingEditSuggestion {
   readonly hasEdit?: boolean;
   readonly original: string;
   readonly replacement: string;
   readonly reason?: string;
+  readonly start?: number;
+  readonly end?: number;
+  readonly utf16From?: number;
+  readonly utf16To?: number;
+  readonly diffs?: readonly ValidatedDiffItem[];
 }
 
 export interface AiWritingSuggestion {
@@ -96,4 +125,7 @@ export interface AiContinuationRequestOptions {
   readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
+  readonly profile?: UserStyleProfile;
+  readonly isGhostText?: boolean;
+  readonly language?: string;
 }

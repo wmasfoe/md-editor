@@ -13,6 +13,8 @@ export {
   setAiSuggestionEffect,
   clearAiSuggestionEffect,
   aiSuggestionField,
+  type AiSuggestionItem,
+  type AiSuggestionInput,
   type AiSuggestionValue,
 } from "./wysiwyg/suggestion.ts";
 export {

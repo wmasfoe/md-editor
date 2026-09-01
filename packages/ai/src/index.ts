@@ -1,4 +1,6 @@
 export * from "./completion.ts";
+export * from "./slm-protocol.ts";
+export * from "./tuple-diff-parser.ts";
 export * from "./cache.ts";
 export * from "./settings.ts";
 export type * from "./agent.ts";

@@ -208,6 +208,17 @@ pub(crate) fn post_chat_completion(
     Ok(response.body)
 }
 
+pub(crate) fn post_raw_completion(
+    port: u16,
+    request: &Value,
+    timeout: Duration,
+) -> Result<String, String> {
+    let body = serde_json::to_string(request)
+        .map_err(|error| format!("序列化本地模型请求失败：{error}"))?;
+    let response = send_localhost_http_request("POST", "/completion", port, Some(&body), timeout)?;
+    Ok(response.body)
+}
+
 pub(crate) fn schedule_idle_shutdown(manager: Arc<Mutex<LocalAiRuntimeManager>>) {
     thread::spawn(move || {
         thread::sleep(LOCAL_AI_IDLE_TIMEOUT);
