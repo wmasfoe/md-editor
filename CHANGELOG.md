@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 - 2026-09-01
+
+- 正式接入端侧专属微调小模型（md-editor-models v1.0.0：Lite 0.5B 与 Standard 1.5B），支持完全离线脱机极速推理
+- 支持 ChatML 指令模板与自定义任务控制 Token（<|task_gec_zh|>、<|task_gec_en|>、<|task_punc|>、<|fim_prefix|>）
+- 实现紧凑元组 JSON Diff 解析器与 Unicode Code Point 绝对坐标转换体系
+- 建立三重防御定位纠偏体系（精确匹配 -> 滑动窗口 Fuzzy Anchor 纠偏 -> 静默丢弃），自动过滤原文与替换词相同的无效项
+- 实现多处 Diff 建议全量并发渲染与队列式逐项 Tab 接受 / Esc 拒绝流转交互，接受时自动对后续待办项进行差量坐标平移
+- 交互期间严格隔离 AI 请求触发，并优化输入停顿防抖时间（本地 650ms，云端 1000ms）
+- 修复多次 Tab 接受或无变动编辑时偶发的 noop 同步失败弹窗问题
+- 加固 CodeMirror 6 悬浮 Widget 事件穿透与无障碍属性，防止行树结构指针异常
+
 ## 0.5.0 - 2026-08-31
 
 - 新增离线本地 AI 写作支持：内置 Lite (0.5B)、Standard (1.5B) 与 Pro 旗舰占位多档位本地模型，支持完全断网脱机运行
