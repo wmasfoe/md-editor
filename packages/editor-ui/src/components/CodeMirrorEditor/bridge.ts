@@ -18,6 +18,7 @@ import {
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
+  type AiSuggestionInput,
   type AiSuggestionValue,
 } from "@md-editor/renderer-codemirror";
 
@@ -36,7 +37,7 @@ export interface CodeMirrorEditorPorts {
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
-  showSuggestion(suggestion: AiSuggestionValue): void;
+  showSuggestion(suggestion: AiSuggestionInput): void;
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
@@ -62,7 +63,7 @@ export type CodeMirrorEditorSyncError =
     }
   | {
       readonly kind: "local-change-rejected";
-      readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" }>;
+      readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" | "noop" }>;
     };
 
 /**
@@ -182,7 +183,7 @@ export function createCodeMirrorEditorBridge(
     onCursorLineChange: options.onCursorLineChange,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
-      if (result.status !== "applied") {
+      if (result.status !== "applied" && result.status !== "noop") {
         renderer.reconcile(options.document.getSnapshot());
         reportSyncError({ kind: "local-change-rejected", result });
       }

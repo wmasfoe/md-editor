@@ -1,3 +1,9 @@
+import { buildSlmPrompt, getSlmStopTokens } from "./slm-protocol.ts";
+import {
+  locateCloudEditSuggestion,
+  parseTupleDiffOutput,
+  resolveTripleDefenseDiffs,
+} from "./tuple-diff-parser.ts";
 import type {
   AiContextSnapshot,
   AiContinuationRequestOptions,
@@ -234,6 +240,15 @@ async function requestLocalAiContinuation(
     options.signal?.addEventListener("abort", abortFromParent, { once: true });
   }
 
+  const intent = options.intent ?? "both";
+  const prompt = buildSlmPrompt(context, intent, {
+    profile: options.profile,
+    language: options.language || context.document?.language,
+  });
+  const stopTokens = getSlmStopTokens(intent, {
+    isGhostText: options.isGhostText !== false,
+  });
+
   try {
     if (!options.localInvokeImpl) {
       throw new Error("本地模型请求需要由平台注入 localInvokeImpl。");
@@ -248,8 +263,10 @@ async function requestLocalAiContinuation(
         context,
         options: {
           modelId: settings.localModel.modelId,
-          maxTokens: 220,
-          intent: options.intent ?? "both",
+          maxTokens: intent === "continuation" ? 64 : 220,
+          intent,
+          prompt,
+          stop: stopTokens,
         },
       }),
       controller.signal,
@@ -260,10 +277,74 @@ async function requestLocalAiContinuation(
         : typeof response === "object" && response !== null && "content" in response
           ? String((response as { content?: unknown }).content ?? "")
           : "";
-    const suggestion = filterAiSuggestionBySettings(parseAiWritingSuggestion(content), settings);
-    if (Object.keys(suggestion).length === 0 && settings.localModel.status === "available") {
-      throw new Error("本地模型未返回可用建议。");
+
+    let rawSuggestion: AiWritingSuggestion;
+
+    if (intent === "continuation") {
+      const continuation = normalizeContinuationText(content);
+      rawSuggestion = {
+        hasContinuation: Boolean(continuation),
+        ...(continuation ? { continuation } : {}),
+        hasEdit: false,
+        edit: null,
+      };
+    } else if (intent === "editing") {
+      const targetText = context.selectedText || context.before;
+      const diffs = parseTupleDiffOutput(content);
+      const validated = resolveTripleDefenseDiffs(targetText, diffs);
+
+      if (validated.length > 0) {
+        const primary = validated[0];
+        rawSuggestion = {
+          hasContinuation: false,
+          hasEdit: true,
+          edit: {
+            hasEdit: true,
+            original: primary.original,
+            replacement: primary.replacement,
+            start: primary.start,
+            end: primary.end,
+            utf16From: primary.utf16From,
+            utf16To: primary.utf16To,
+            diffs: validated,
+          },
+        };
+      } else {
+        rawSuggestion = {
+          hasContinuation: false,
+          hasEdit: false,
+          edit: null,
+        };
+      }
+    } else {
+      // intent === "both"
+      const targetText = context.selectedText || context.before;
+      const diffs = parseTupleDiffOutput(content);
+      if (diffs.length > 0) {
+        const validated = resolveTripleDefenseDiffs(targetText, diffs);
+        const primary = validated[0];
+        rawSuggestion = {
+          hasContinuation: false,
+          hasEdit: true,
+          edit: primary
+            ? {
+                hasEdit: true,
+                original: primary.original,
+                replacement: primary.replacement,
+                start: primary.start,
+                end: primary.end,
+                utf16From: primary.utf16From,
+                utf16To: primary.utf16To,
+                diffs: validated,
+              }
+            : null,
+        };
+      } else {
+        rawSuggestion = parseAiWritingSuggestion(content, targetText);
+      }
     }
+
+    const suggestion = filterAiSuggestionBySettings(rawSuggestion, settings);
     return suggestion;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
@@ -321,7 +402,10 @@ function filterAiSuggestionBySettings(
   };
 }
 
-export function parseAiWritingSuggestion(content: string): AiWritingSuggestion {
+export function parseAiWritingSuggestion(
+  content: string,
+  targetText?: string,
+): AiWritingSuggestion {
   const parsed = parseJsonObject(extractJsonObject(content));
   if (!parsed) {
     const text = normalizeContinuationText(content);
@@ -335,7 +419,7 @@ export function parseAiWritingSuggestion(content: string): AiWritingSuggestion {
 
   const continuation = normalizeContinuationText(readStringProperty(parsed, "continuation"));
   const editInput = readObjectProperty(parsed, "edit");
-  const edit = editInput ? normalizeEditSuggestion(editInput) : undefined;
+  const edit = editInput ? normalizeEditSuggestion(editInput, targetText) : undefined;
 
   const hasEdit = typeof rawHasEdit === "boolean" ? rawHasEdit : Boolean(edit);
   const hasContinuation =
@@ -373,6 +457,7 @@ function trimAfterContext(value: string): string {
 
 function normalizeEditSuggestion(
   input: Record<string, unknown>,
+  targetText?: string,
 ): AiWritingEditSuggestion | undefined {
   const original = normalizeSuggestionText(readStringProperty(input, "original"));
   const replacement = normalizeSuggestionText(readStringProperty(input, "replacement"));
@@ -381,10 +466,38 @@ function normalizeEditSuggestion(
   }
 
   const reason = normalizeSuggestionText(readStringProperty(input, "reason"));
+  const rawStart = typeof input.start === "number" ? input.start : undefined;
+  const rawEnd = typeof input.end === "number" ? input.end : undefined;
+
+  if (targetText) {
+    const located = locateCloudEditSuggestion(targetText, {
+      original,
+      replacement,
+      start: rawStart,
+      end: rawEnd,
+      reason,
+    });
+
+    if (located) {
+      return {
+        original: located.original,
+        replacement: located.replacement,
+        ...(reason ? { reason } : {}),
+        start: located.start,
+        end: located.end,
+        utf16From: located.utf16From,
+        utf16To: located.utf16To,
+        diffs: [located],
+      };
+    }
+  }
+
   return {
     original,
     replacement,
     ...(reason ? { reason } : {}),
+    ...(typeof rawStart === "number" ? { start: rawStart } : {}),
+    ...(typeof rawEnd === "number" ? { end: rawEnd } : {}),
   };
 }
 

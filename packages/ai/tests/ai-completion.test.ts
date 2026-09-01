@@ -292,19 +292,42 @@ describe("AI completion settings", () => {
       edit: null,
     });
 
-    expect(localInvokeCalls).toEqual([
-      {
-        command: "request_local_ai_continuation",
-        args: {
-          context,
-          options: {
-            modelId: "md-editor-writer-small-v1",
-            maxTokens: 220,
-            intent: "both",
-          },
-        },
+    expect(localInvokeCalls).toHaveLength(1);
+    expect(localInvokeCalls[0].command).toBe("request_local_ai_continuation");
+    expect(localInvokeCalls[0].args?.context).toEqual(context);
+    expect(localInvokeCalls[0].args?.options).toMatchObject({
+      modelId: "md-editor-writer-small-v1",
+      maxTokens: 220,
+      intent: "both",
+    });
+    expect((localInvokeCalls[0].args?.options as { prompt?: string })?.prompt).toContain(
+      "<|task_gec_zh|>",
+    );
+  });
+
+  it("handles SLM tuple JSON diff output for editing intent", async () => {
+    const editContext = {
+      ...context,
+      selectedText: "今天天气很好，但是我想出去玩。",
+    };
+
+    const result = await requestAiContinuation(localReadySettings(), editContext, {
+      localInvokeImpl: async () => '[[7, 9, "但是", "所以"]]',
+      intent: "editing",
+    });
+
+    expect(result).toMatchObject({
+      hasContinuation: false,
+      hasEdit: true,
+      edit: {
+        original: "但是",
+        replacement: "所以",
+        start: 7,
+        end: 9,
+        utf16From: 7,
+        utf16To: 9,
       },
-    ]);
+    });
   });
 
   it("requires platform injection for local completion instead of importing runtime APIs", async () => {

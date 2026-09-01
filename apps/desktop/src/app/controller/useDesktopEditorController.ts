@@ -233,12 +233,27 @@ export function useDesktopEditorController({
                 },
               );
 
+              if (import.meta.env.DEV) {
+                console.debug("[AI Manual Fix] 审校结果:", suggestion);
+              }
+
               if (suggestion.hasEdit && suggestion.edit && suggestion.edit.replacement) {
-                // 如果 LLM 返回的原文字段与选区匹配，则精确绑定范围；否则兜底使用当前句子选区
+                // 优先使用模型/自适应定位器计算出的精确 UTF-16 偏移；否则兜底回退
                 let editFrom = targetFrom;
                 let editTo = targetTo;
                 let originalText = selectedText;
-                if (suggestion.edit.original && selectedText.includes(suggestion.edit.original)) {
+
+                if (
+                  typeof suggestion.edit.utf16From === "number" &&
+                  typeof suggestion.edit.utf16To === "number"
+                ) {
+                  editFrom = targetFrom + suggestion.edit.utf16From;
+                  editTo = targetFrom + suggestion.edit.utf16To;
+                  originalText = suggestion.edit.original;
+                } else if (
+                  suggestion.edit.original &&
+                  selectedText.includes(suggestion.edit.original)
+                ) {
                   const offset = selectedText.indexOf(suggestion.edit.original);
                   editFrom = targetFrom + offset;
                   editTo = editFrom + suggestion.edit.original.length;

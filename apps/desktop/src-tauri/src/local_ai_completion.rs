@@ -6,7 +6,9 @@ use tauri::{AppHandle, State};
 
 use crate::{
     local_ai_model::get_available_local_ai_model,
-    local_ai_runtime::{post_chat_completion, schedule_idle_shutdown, LocalAiRuntimeState},
+    local_ai_runtime::{
+        post_chat_completion, post_raw_completion, schedule_idle_shutdown, LocalAiRuntimeState,
+    },
 };
 
 #[derive(Deserialize)]
@@ -24,6 +26,9 @@ pub(crate) struct LocalAiContinuationOptions {
     model_id: Option<String>,
     max_tokens: Option<u16>,
     intent: Option<String>,
+    prompt: Option<String>,
+    stop: Option<Vec<String>>,
+    temperature: Option<f32>,
 }
 
 #[tauri::command]
@@ -40,11 +45,44 @@ pub(crate) async fn request_local_ai_continuation(
         .and_then(|value| value.max_tokens)
         .unwrap_or(model.default_max_tokens);
     let intent = options.as_ref().and_then(|value| value.intent.as_deref());
-    let prompt = build_local_ai_prompt(&context, intent, max_tokens);
-    let request = build_local_ai_request(&model, &prompt, max_tokens);
+
+    let (is_raw, request) = if let Some(prompt) = options.as_ref().and_then(|o| o.prompt.as_deref())
+    {
+        let stop = options
+            .as_ref()
+            .and_then(|o| o.stop.clone())
+            .unwrap_or_default();
+        let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.0);
+        (
+            true,
+            json!({
+                "prompt": prompt,
+                "n_predict": max_tokens,
+                "temperature": temp,
+                "top_p": 1.0,
+                "stop": stop,
+                "cache_prompt": true,
+                "stream": false
+            }),
+        )
+    } else {
+        let prompt = build_local_ai_prompt(&context, intent, max_tokens);
+        (false, build_local_ai_request(&model, &prompt, max_tokens))
+    };
+
     let runtime_manager = runtime.manager();
     let app_handle = app.clone();
     let model_for_runtime = model.clone();
+
+    #[cfg(debug_assertions)]
+    {
+        eprintln!(
+            "[Local AI] 发起推理 (model={}, raw={}):\n--- PROMPT ---\n{}\n--------------",
+            model.model_id,
+            is_raw,
+            request.get("prompt").and_then(Value::as_str).unwrap_or("")
+        );
+    }
 
     let response_body = tauri::async_runtime::spawn_blocking(move || {
         let idle_manager = Arc::clone(&runtime_manager);
@@ -52,7 +90,11 @@ pub(crate) async fn request_local_ai_continuation(
             .lock()
             .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
         let endpoint = runtime.ensure_ready(&app_handle, &model_for_runtime)?;
-        let response = post_chat_completion(endpoint.port, &request, Duration::from_secs(120));
+        let response = if is_raw {
+            post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
+        } else {
+            post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
+        };
         runtime.mark_used();
         drop(runtime);
         schedule_idle_shutdown(idle_manager);
@@ -61,7 +103,17 @@ pub(crate) async fn request_local_ai_continuation(
     .await
     .map_err(|error| format!("本地推理 runtime 任务失败：{error}"))??;
 
-    extract_local_ai_completion_content(&response_body)
+    let content = extract_local_ai_completion_content(&response_body)?;
+
+    #[cfg(debug_assertions)]
+    {
+        eprintln!(
+            "[Local AI] 模型返回结果:\n--- OUTPUT ---\n{}\n--------------",
+            content
+        );
+    }
+
+    Ok(content)
 }
 
 fn build_local_ai_prompt(
@@ -158,8 +210,13 @@ fn extract_local_ai_completion_content(response_body: &str) -> Result<String, St
     }
 
     let content = response
-        .pointer("/choices/0/message/content")
+        .pointer("/content")
         .and_then(Value::as_str)
+        .or_else(|| {
+            response
+                .pointer("/choices/0/message/content")
+                .and_then(Value::as_str)
+        })
         .or_else(|| response.pointer("/choices/0/text").and_then(Value::as_str))
         .ok_or_else(|| {
             format!(
