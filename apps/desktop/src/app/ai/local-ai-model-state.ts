@@ -16,6 +16,9 @@ export const LOCAL_AI_MODEL_PROGRESS_EVENT = "local-ai-model-progress";
 
 export interface LocalAiModelCommandStatus extends AiLocalModelSettings {
   readonly displayName: string;
+  readonly description: string;
+  readonly tier: "lite" | "standard" | "pro";
+  readonly isRecommended: boolean;
   readonly latestVersion: string | null;
   readonly hasUpdate: boolean;
   readonly isAvailableTier: boolean;
@@ -67,9 +70,21 @@ export function toLocalAiModelCommandStatus(
   input: Partial<LocalAiModelCommandStatus> | null | undefined,
 ): LocalAiModelCommandStatus {
   const settings = normalizeLocalAiModelSettings(input);
+  const displayName = normalizeString(input?.displayName, "Standard (1.5B)");
+  const fallbackTier = displayName.toLowerCase().includes("lite") ? "lite" : "standard";
+  const fallbackDescription =
+    fallbackTier === "lite"
+      ? "自研微调轻量模型，极速响应，适合轻薄本与日常流畅写作。"
+      : "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力。";
   return {
     ...settings,
-    displayName: normalizeString(input?.displayName, "Standard (1.5B)"),
+    displayName,
+    description: normalizeString(input?.description, fallbackDescription),
+    tier:
+      input?.tier === "pro" || input?.tier === "standard" || input?.tier === "lite"
+        ? input.tier
+        : fallbackTier,
+    isRecommended: Boolean(input?.isRecommended),
     latestVersion: normalizeNullableString(input?.latestVersion),
     hasUpdate: Boolean(input?.hasUpdate),
     isAvailableTier: input?.isAvailableTier !== false,

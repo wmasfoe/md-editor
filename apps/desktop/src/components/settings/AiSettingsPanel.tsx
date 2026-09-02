@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { AiSettings } from "@md-editor/ai";
 import {
   BUILTIN_LOCAL_MODELS,
@@ -223,8 +224,13 @@ function LocalAiSettings({
   onCheckModelUpdates,
 }: LocalAiSettingsProps) {
   const recommendedId = getRecommendedModelId(systemSpecs);
+  // 动态模型目录：以后端 catalog（远程 manifest）返回的档位为准，
+  // 内置目录只用于兜底排序与缺失元数据，不再作为渲染的唯一来源。
+  const catalogCards = useMemo(() => buildModelCatalogCards(allModelStatuses), [allModelStatuses]);
+  const modelCards =
+    catalogCards.length > 0 ? catalogCards : builtinFallbackCards(allModelStatuses);
   const recommendedTierName =
-    recommendedId === "md-editor-writer-standard" ? "Standard (1.5B)" : "Lite (0.5B)";
+    modelCards.find((card) => card.id === recommendedId)?.displayName ?? "Standard (1.5B)";
 
   return (
     <div className="grid gap-3.5">
@@ -260,12 +266,15 @@ function LocalAiSettings({
         </div>
       </div>
 
-      {/* 三档位模型选择卡片网格 */}
+      {/* 动态模型档位选择卡片网格（来源：后端 Model Catalog，内置目录仅兜底） */}
       <div className="grid grid-cols-3 gap-3 max-[980px]:grid-cols-2 max-[640px]:grid-cols-1">
-        {BUILTIN_LOCAL_MODELS.map((descriptor) => {
+        {modelCards.map((descriptor) => {
           const status = allModelStatuses[descriptor.id] || {
             modelId: descriptor.id,
             displayName: descriptor.displayName,
+            description: descriptor.description,
+            tier: descriptor.tier,
+            isRecommended: descriptor.isRecommended,
             version: null,
             latestVersion: null,
             hasUpdate: false,
@@ -279,7 +288,7 @@ function LocalAiSettings({
           };
 
           const isSelected = aiSettingsDraft.localModel.modelId === descriptor.id;
-          const isRecommended = descriptor.id === recommendedId;
+          const isRecommended = descriptor.isRecommended || descriptor.id === recommendedId;
           const isBusy =
             isLocalModelActionPending ||
             status.status === "downloading" ||
@@ -535,4 +544,62 @@ function formatModelVersionTag(version: string | null | undefined): string | nul
   const clean = version.trim();
   if (!clean) return null;
   return clean.startsWith("v") || clean.startsWith("V") ? clean : `v${clean}`;
+}
+
+// ---------------------------------------------------------------------------
+// 动态模型目录渲染辅助
+// ---------------------------------------------------------------------------
+
+interface LocalModelCatalogCard {
+  readonly id: string;
+  readonly tier: "lite" | "standard" | "pro";
+  readonly displayName: string;
+  readonly description: string;
+  readonly isAvailable: boolean;
+  readonly isRecommended: boolean;
+  readonly downloadSizeBytes: number;
+  readonly recommendedMemoryGb: number;
+}
+
+const TIER_ORDER: Record<string, number> = { lite: 0, standard: 1, pro: 2 };
+
+/** 以后端（远程 manifest）返回的状态为主构建动态卡片；后端元数据缺失时用内置目录补齐展示字段。 */
+function buildModelCatalogCards(
+  allModelStatuses: Record<string, LocalAiModelCommandStatus>,
+): LocalModelCatalogCard[] {
+  return Object.values(allModelStatuses)
+    .filter((status) => status && status.modelId)
+    .map((status) => {
+      const builtin = BUILTIN_LOCAL_MODELS.find((model) => model.id === status.modelId);
+      return {
+        id: status.modelId,
+        tier: status.tier,
+        displayName: status.displayName || builtin?.displayName || status.modelId,
+        description: status.description || builtin?.description || status.displayName || "",
+        isAvailable: status.isAvailableTier !== false,
+        isRecommended: status.isRecommended,
+        downloadSizeBytes: status.totalBytes || builtin?.downloadSizeBytes || 0,
+        recommendedMemoryGb: builtin?.recommendedMemoryGb ?? 0,
+      };
+    })
+    .toSorted((a, b) => (TIER_ORDER[a.tier] ?? 99) - (TIER_ORDER[b.tier] ?? 99));
+}
+
+/** 后端 catalog 尚未返回时，用内置目录渲染兜底（离线/加载中）。 */
+function builtinFallbackCards(
+  allModelStatuses: Record<string, LocalAiModelCommandStatus>,
+): LocalModelCatalogCard[] {
+  return BUILTIN_LOCAL_MODELS.map((model) => {
+    const status = allModelStatuses[model.id];
+    return {
+      id: model.id,
+      tier: model.tier,
+      displayName: status?.displayName || model.displayName,
+      description: status?.description || model.description,
+      isAvailable: model.isAvailable && status?.isAvailableTier !== false,
+      isRecommended: status?.isRecommended ?? false,
+      downloadSizeBytes: status?.totalBytes || model.downloadSizeBytes,
+      recommendedMemoryGb: model.recommendedMemoryGb,
+    };
+  });
 }
