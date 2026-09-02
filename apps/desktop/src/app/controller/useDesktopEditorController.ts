@@ -18,7 +18,11 @@ import {
 } from "../../lib/link-target";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
-import { getAiCompletionReadiness, requestAiContinuation } from "@md-editor/ai";
+import {
+  getAiCompletionReadiness,
+  requestAiContinuation,
+  documentContextManager,
+} from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../ai/local-ai-model";
 import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
@@ -148,6 +152,9 @@ export function useDesktopEditorController({
             const after = markdown.slice(selection.to);
             const selectedText = selection.text;
 
+            const docKey = snapshot.filePath || "untitled";
+            const docContext = documentContextManager.getOrExtract(docKey, markdown);
+
             try {
               showToast("AI 续写思考中...");
               const suggestion = await requestAiContinuation(
@@ -160,10 +167,12 @@ export function useDesktopEditorController({
                   document: {
                     filePath: snapshot.filePath,
                   },
+                  documentContext: docContext,
                 },
                 {
                   intent: "continuation",
                   localInvokeImpl: desktopLocalAiInvokeImpl,
+                  documentContext: docContext,
                 },
               );
 
@@ -213,6 +222,8 @@ export function useDesktopEditorController({
 
             const before = markdown.slice(0, targetFrom);
             const after = markdown.slice(targetTo);
+            const docKey = snapshot.filePath || "untitled";
+            const docContext = documentContextManager.getOrExtract(docKey, markdown);
 
             try {
               showToast("AI 语法修复分析中...");
@@ -226,12 +237,15 @@ export function useDesktopEditorController({
                   document: {
                     filePath: snapshot.filePath,
                   },
+                  documentContext: docContext,
                 },
                 {
                   intent: "editing",
                   localInvokeImpl: desktopLocalAiInvokeImpl,
+                  documentContext: docContext,
                 },
               );
+
 
               if (import.meta.env.DEV) {
                 console.debug("[AI Manual Fix] 审校结果:", suggestion);

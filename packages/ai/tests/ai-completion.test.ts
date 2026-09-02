@@ -301,8 +301,9 @@ describe("AI completion settings", () => {
       intent: "both",
     });
     expect((localInvokeCalls[0].args?.options as { prompt?: string })?.prompt).toContain(
-      "<|task_gec_zh|>",
+      "<|task_gec_en|>",
     );
+
   });
 
   it("handles SLM tuple JSON diff output for editing intent", async () => {

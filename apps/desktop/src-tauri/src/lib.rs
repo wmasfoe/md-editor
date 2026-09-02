@@ -26,8 +26,8 @@ use file_commands::{
 };
 use local_ai_completion::request_local_ai_continuation;
 use local_ai_model::{
-    cancel_local_ai_model_download, delete_local_ai_model, download_local_ai_model,
-    get_all_local_ai_models_status, get_local_ai_model_status,
+    cancel_local_ai_model_download, check_local_ai_model_updates, delete_local_ai_model,
+    download_local_ai_model, get_all_local_ai_models_status, get_local_ai_model_status,
 };
 use recent_files::{load_recent_files, save_recent_files};
 use save_runtime::SaveCommitGate;
@@ -88,6 +88,7 @@ pub fn run() {
             get_system_specs,
             get_local_ai_model_status,
             get_all_local_ai_models_status,
+            check_local_ai_model_updates,
             download_local_ai_model,
             cancel_local_ai_model_download,
             delete_local_ai_model,
@@ -98,6 +99,7 @@ pub fn run() {
             inspect_linked_file,
             open_external_target
         ])
+
         .run(tauri::generate_context!())
         .expect("error while running Inkpoint");
 }

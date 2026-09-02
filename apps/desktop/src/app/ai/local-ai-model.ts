@@ -116,6 +116,22 @@ export async function readAllLocalAiModelsStatus(): Promise<LocalAiModelCommandS
   }
 }
 
+export async function checkLocalAiModelsRemoteUpdate(): Promise<LocalAiModelCommandStatus[]> {
+  if (!isTauri()) {
+    return readAllLocalAiModelsStatus();
+  }
+
+  try {
+    const statuses = await invoke<Array<Partial<LocalAiModelCommandStatus>>>(
+      "check_local_ai_model_updates",
+    );
+    return statuses.map((status) => toLocalAiModelCommandStatus(status));
+  } catch {
+    return readAllLocalAiModelsStatus();
+  }
+}
+
+
 export async function downloadLocalAiModel(
   modelId = DEFAULT_LOCAL_MODEL_ID,
 ): Promise<LocalAiModelCommandStatus> {

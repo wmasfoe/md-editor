@@ -5,7 +5,7 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "@md-editor/editor-ui";
-import { requestAiContinuation } from "@md-editor/ai";
+import { requestAiContinuation, documentContextManager } from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
@@ -163,9 +163,32 @@ function useAutomaticAiEditing({
     }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
-      // 换文档或重置文档时清除缓存
+      // 换文档或重置文档时清除缓存并触发新文档的确定性大纲提取与后台提炼
       if (event.transition.kind === "document-replace") {
         lastAnalyzedTextRef.current = "";
+        const snap = runtime.document.getSnapshot();
+        const docKey = snap.filePath || "untitled";
+        if (snap.markdown.trim()) {
+          documentContextManager.getOrExtract(docKey, snap.markdown);
+          if (
+            settings.ai.enabled &&
+            settings.ai.provider === "local" &&
+            settings.ai.localModel.enabled &&
+            settings.ai.localModel.status === "available"
+          ) {
+            documentContextManager
+              .scheduleDistillation(docKey, snap.markdown, {
+                settings: settings.ai,
+                localInvokeImpl: desktopLocalAiInvokeImpl,
+                onUpdate: (ctx) => {
+                  if (import.meta.env.DEV) {
+                    console.debug("[AI DocContext] 后台提炼已更新:", ctx);
+                  }
+                },
+              })
+              .catch(() => {});
+          }
+        }
         return;
       }
 
@@ -188,7 +211,7 @@ function useAutomaticAiEditing({
         return;
       }
 
-      // 用户停止输入后防抖 1000ms 触发流水线
+      // 用户停止输入后防抖 650ms (本地) / 1000ms (云端) 触发流水线
       timerRef.current = setTimeout(
         async () => {
           const activePorts = portsRef.current;
@@ -235,6 +258,9 @@ function useAutomaticAiEditing({
             return;
           }
 
+          const docKey = snapshot.filePath || "untitled";
+          const docContext = documentContextManager.getOrExtract(docKey, markdown);
+
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
 
@@ -262,11 +288,13 @@ function useAutomaticAiEditing({
                   document: {
                     filePath: snapshot.filePath,
                   },
+                  documentContext: docContext,
                 },
                 {
                   intent: "editing",
                   signal: abortController.signal,
                   localInvokeImpl: desktopLocalAiInvokeImpl,
+                  documentContext: docContext,
                 },
               );
 
@@ -378,12 +406,14 @@ function useAutomaticAiEditing({
                   document: {
                     filePath: snapshot.filePath,
                   },
+                  documentContext: docContext,
                 },
                 {
                   intent: "continuation",
                   isGhostText: true,
                   signal: abortController.signal,
                   localInvokeImpl: desktopLocalAiInvokeImpl,
+                  documentContext: docContext,
                 },
               );
 
@@ -425,6 +455,7 @@ function useAutomaticAiEditing({
         settings.ai.provider === "local" ? 650 : 1000,
       );
     });
+
 
     return () => {
       unsubscribe();

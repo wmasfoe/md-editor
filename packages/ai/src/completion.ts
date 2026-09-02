@@ -36,11 +36,25 @@ const CONTEXT_WINDOW = 3_000;
 
 export function getAiCompletionReadiness(
   settings: AiSettings,
-  intent: "continuation" | "editing" | "both" = "both",
+  intent: "continuation" | "editing" | "both" | "distill" = "both",
 ): string | null {
   if (!settings.enabled) {
     return "请先在设置中开启 AI 功能。";
   }
+
+  if (intent === "distill") {
+    if (settings.provider === "local") {
+      if (!settings.localModel.enabled) {
+        return "请先在设置中启用本地模型。";
+      }
+      if (settings.localModel.status !== "available") {
+        return "本地模型尚未下载，当前还不能使用 AI。";
+      }
+      return null;
+    }
+    return null;
+  }
+
   if (intent === "continuation" && !settings.features.continuation) {
     return "请先在设置中开启 AI 续写功能。";
   }
@@ -73,6 +87,7 @@ export function getAiCompletionReadiness(
 
   return null;
 }
+
 
 export async function requestAiContinuation(
   settings: AiSettings,
@@ -244,6 +259,8 @@ async function requestLocalAiContinuation(
   const prompt = buildSlmPrompt(context, intent, {
     profile: options.profile,
     language: options.language || context.document?.language,
+    documentContext: options.documentContext || context.documentContext,
+    previousSummary: options.previousSummary,
   });
   const stopTokens = getSlmStopTokens(intent, {
     isGhostText: options.isGhostText !== false,
@@ -258,12 +275,14 @@ async function requestLocalAiContinuation(
       throw createAbortError();
     }
 
+    const maxTokens = intent === "continuation" ? 64 : intent === "distill" ? 180 : 220;
+
     const response = await waitForAbort(
       options.localInvokeImpl("request_local_ai_continuation", {
         context,
         options: {
           modelId: settings.localModel.modelId,
-          maxTokens: intent === "continuation" ? 64 : 220,
+          maxTokens,
           intent,
           prompt,
           stop: stopTokens,
@@ -280,6 +299,16 @@ async function requestLocalAiContinuation(
 
     let rawSuggestion: AiWritingSuggestion;
 
+    if (intent === "distill") {
+      const topic = content.trim();
+      return {
+        hasContinuation: Boolean(topic),
+        ...(topic ? { continuation: topic } : {}),
+        hasEdit: false,
+        edit: null,
+      };
+    }
+
     if (intent === "continuation") {
       const continuation = normalizeContinuationText(content);
       rawSuggestion = {
@@ -289,6 +318,7 @@ async function requestLocalAiContinuation(
         edit: null,
       };
     } else if (intent === "editing") {
+
       const targetText = context.selectedText || context.before;
       const diffs = parseTupleDiffOutput(content);
       const validated = resolveTripleDefenseDiffs(targetText, diffs);

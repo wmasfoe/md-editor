@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { AiSettings } from "@md-editor/ai";
 import {
   cancelLocalAiModelDownload,
+  checkLocalAiModelsRemoteUpdate,
   deleteLocalAiModel,
   downloadLocalAiModel,
   listenToLocalAiModelProgress,
@@ -11,6 +12,7 @@ import {
   type LocalAiModelCommandStatus,
   type SystemSpecs,
 } from "../ai/local-ai-model";
+
 import {
   destroyCurrentSettingsWindow,
   revealCurrentSettingsWindow,
@@ -417,19 +419,21 @@ export function useSettingsController({
   const checkLocalModelUpdates = useCallback(async () => {
     setIsCheckingModelUpdates(true);
     try {
-      const statuses = await readAllLocalAiModelsStatus();
+      const statuses = await checkLocalAiModelsRemoteUpdate();
       const map: Record<string, LocalAiModelCommandStatus> = {};
       let updateCount = 0;
+
       for (const s of statuses) {
         map[s.modelId] = s;
         if (s.hasUpdate) updateCount += 1;
       }
       setAllModelStatuses(map);
       if (updateCount > 0) {
-        showToast(`发现 ${updateCount} 个模型有新版本，可点击「下载新版本」进行更新。`);
+        showToast(`发现 ${updateCount} 个模型有新版本，可点击「更新模型」进行更新。`);
       } else {
         showToast("当前已是最新模型，暂无可用更新。");
       }
+
     } catch {
       showToast("检查模型更新失败，请稍后重试。");
     } finally {

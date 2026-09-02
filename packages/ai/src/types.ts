@@ -65,6 +65,22 @@ export interface AiSettings {
   readonly localModel: AiLocalModelSettings;
 }
 
+export interface AiDocumentContext {
+  readonly title?: string;
+  readonly outline?: readonly string[];
+  readonly topic?: string;
+  readonly domain?: string;
+  readonly tags?: readonly string[];
+  readonly isDistilled?: boolean;
+}
+
+export interface MarkdownSectionChunk {
+  readonly heading?: string;
+  readonly level: number;
+  readonly content: string;
+  readonly charCount: number;
+}
+
 export interface AiContextSnapshot {
   readonly before: string;
   readonly after: string;
@@ -72,6 +88,7 @@ export interface AiContextSnapshot {
   readonly mode: AiEditorMode;
   readonly cursor?: AiCursorSnapshot;
   readonly document?: AiDocumentSnapshot;
+  readonly documentContext?: AiDocumentContext;
 }
 
 export type AiCompletionContext = AiContextSnapshot;
@@ -120,7 +137,7 @@ export interface AiWritingSuggestion {
 }
 
 export interface AiContinuationRequestOptions {
-  readonly intent?: "continuation" | "editing" | "both";
+  readonly intent?: "continuation" | "editing" | "both" | "distill";
   readonly fetchImpl?: typeof fetch;
   readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   readonly timeoutMs?: number;
@@ -128,4 +145,7 @@ export interface AiContinuationRequestOptions {
   readonly profile?: UserStyleProfile;
   readonly isGhostText?: boolean;
   readonly language?: string;
+  readonly documentContext?: AiDocumentContext;
+  readonly previousSummary?: string;
 }
+
