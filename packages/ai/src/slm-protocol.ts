@@ -235,14 +235,26 @@ export function buildSlmPrompt(
   }
 
   // 4. GEC 语法或标点纠错任务
+  // 注意：GEC 训练数据严格使用不带 system prompt 的纯 user 指令格式，禁止混入 systemBlock，避免将语法审校带偏为全局续写
   const targetText = context.selectedText || context.before;
   const taskToken = options.isPunctuationOnly
     ? TASK_PUNC
     : detectGecTaskToken(targetText, options.language || context.document?.language);
 
   const userBlock = `<|im_start|>user\n${taskToken}${targetText}<|im_end|>\n`;
-  return `${systemBlock}${userBlock}<|im_start|>assistant\n`;
+  return `${userBlock}<|im_start|>assistant\n`;
 }
+
+/**
+ * 专为紧凑元组 JSON Diff 设计的 GBNF Grammar 强约束
+ * 强制 llama.cpp 采样状态机只能输出 [] 或 [[<start>, <end>, "<orig>", "<repl>"], ...]，绝不产生自然语言跑题
+ */
+export const SLM_GEC_TUPLE_GRAMMAR = [
+  'root ::= "[]" | "[" item (", " item)* "]"',
+  'item ::= "[" [0-9]+ ", " [0-9]+ ", " string ", " string "]"',
+  'string ::= "\\"" [^"\\\\\r\n]* "\\""',
+].join("\n");
+
 
 /**
  * 获取针对不同任务的推荐 Stop Tokens
