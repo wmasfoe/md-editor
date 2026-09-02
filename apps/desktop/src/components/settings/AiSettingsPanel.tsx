@@ -343,9 +343,10 @@ function LocalAiSettings({
                     ) : null}
                     {hasUpdate ? (
                       <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
-                        有更新
+                        {status.latestVersion ? `新版本 ${formatModelVersionTag(status.latestVersion)}` : "有更新"}
                       </span>
                     ) : null}
+
                   </div>
 
                   {isAvailable ? (
@@ -476,9 +477,10 @@ function LocalAiSettings({
                         }}
                         disabled={isBusy}
                       >
-                        下载新版本
+                        更新模型
                       </button>
                     ) : (
+
                       <div className="flex items-center gap-1 text-[11px]">
                         {isEnabled ? (
                           <span className="font-semibold text-[var(--theme-primary)]">
