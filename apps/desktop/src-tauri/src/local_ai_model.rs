@@ -1,4 +1,4 @@
-use std::{
+﻿use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -28,60 +28,68 @@ const LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE: &str = "本地模型下载已取消�
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalAiModelManifest {
-    pub(crate) id: &'static str,
-    pub(crate) display_name: &'static str,
+    pub(crate) id: String,
+    pub(crate) display_name: String,
+    pub(crate) description: String,
     pub(crate) version: String,
-    pub(crate) filename: &'static str,
+    pub(crate) filename: String,
     pub(crate) download_url: String,
     pub(crate) size_bytes: u64,
     pub(crate) sha256: String,
     pub(crate) context_size: u32,
     pub(crate) default_max_tokens: u16,
     pub(crate) is_available: bool,
+    pub(crate) is_recommended: bool,
 }
 
 pub(crate) fn default_lite_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
-        id: LITE_MODEL_ID,
-        display_name: "Lite (0.5B)",
+        id: LITE_MODEL_ID.to_string(),
+        display_name: "Lite (0.5B)".to_string(),
+        description: "自研微调轻量模型，极速响应，适合轻薄本与日常流畅写作。".to_string(),
         version: "v1.1.0".to_string(),
-        filename: "model.gguf",
+        filename: "model.gguf".to_string(),
         download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.1.0/qwen2.5-0.5b-editor-v1.1.0-Q4_K_M.gguf".to_string(),
         size_bytes: 397_554_976,
         sha256: "9f90196672209bbb311d689495d7ff696100543d6a270c59c8071c8c9bfd7a04".to_string(),
         context_size: 8192,
         default_max_tokens: 220,
         is_available: true,
+        is_recommended: true,
     }
 }
 
 pub(crate) fn default_standard_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
-        id: STANDARD_MODEL_ID,
-        display_name: "Standard (1.5B)",
+        id: STANDARD_MODEL_ID.to_string(),
+        display_name: "Standard (1.5B)".to_string(),
+        description: "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力。".to_string(),
         version: "v1.1.0".to_string(),
-        filename: "model.gguf",
+        filename: "model.gguf".to_string(),
         download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.1.0/qwen2.5-1.5b-editor-v1.1.0-Q4_K_M.gguf".to_string(),
         size_bytes: 397_554_976,
         sha256: "9f90196672209bbb311d689495d7ff696100543d6a270c59c8071c8c9bfd7a04".to_string(),
         context_size: 8192,
         default_max_tokens: 260,
         is_available: true,
+        is_recommended: false,
     }
 }
 
 pub(crate) fn default_pro_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
-        id: PRO_MODEL_ID,
-        display_name: "Pro",
+        id: PRO_MODEL_ID.to_string(),
+        display_name: "Pro".to_string(),
+        description: "旗舰级深度长文创作、论文润色与逻辑重构（敬请期待）。".to_string(),
         version: "v0.0.0-beta".to_string(),
-        filename: "model.gguf",
+        filename: "model.gguf".to_string(),
         download_url: String::new(),
         size_bytes: 0,
         sha256: String::new(),
         context_size: 8192,
         default_max_tokens: 400,
         is_available: false,
+        is_recommended: false,
     }
 }
 
@@ -93,6 +101,31 @@ pub(crate) fn default_manifests() -> Vec<LocalAiModelManifest> {
     ]
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+struct RemoteModelAsset {
+    version: Option<String>,
+    filename: Option<String>,
+    size_bytes: Option<u64>,
+    sha256: Option<String>,
+    download_url: Option<String>,
+    quant: Option<String>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+struct RemoteModelCapability {
+    #[serde(flatten)]
+    asset: RemoteModelAsset,
+    adapter_id: Option<String>,
+    task: Option<String>,
+    base_model_id: Option<String>,
+    base_model_version: Option<String>,
+    base_sha256: Option<String>,
+    prompt_protocol: Option<String>,
+    grammar: Option<String>,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RemoteModelEntry {
@@ -100,16 +133,22 @@ struct RemoteModelEntry {
     tier: Option<String>,
     display_name: Option<String>,
     description: Option<String>,
+    is_available: Option<bool>,
+    recommended: Option<bool>,
+    // v1 平铺完整模型字段（兼容历史 manifest）
     filename: Option<String>,
     size_bytes: Option<u64>,
     sha256: Option<String>,
     download_url: Option<String>,
-    recommended: Option<bool>,
+    // v2 分档资产：Base + capabilities
+    base: Option<RemoteModelAsset>,
+    capabilities: Option<std::collections::BTreeMap<String, RemoteModelCapability>>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RemoteManifest {
+    schema_version: Option<u32>,
     version: String,
     models: Vec<RemoteModelEntry>,
     context_size: Option<u32>,
@@ -143,9 +182,11 @@ fn save_cached_remote_manifest(manifest: &RemoteManifest) -> Result<(), String> 
 }
 
 fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
+    // Release 资产是发布脚本真正上传的位置（raw 分支文件长期 404），优先拉取 release。
     let urls = [
-        "https://raw.githubusercontent.com/wmasfoe/md-editor-models/main/manifest.json",
         "https://github.com/wmasfoe/md-editor-models/releases/latest/download/manifest.json",
+        "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/manifest.json",
+        "https://raw.githubusercontent.com/wmasfoe/md-editor-models/main/manifest.json",
     ];
 
     for url in urls {
@@ -174,66 +215,168 @@ fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
     Err("无法获取远程模型清单，请检查网络连接。".to_string())
 }
 
-fn apply_remote_manifest_to_list(manifests: &mut [LocalAiModelManifest], remote: &RemoteManifest) {
-    let remote_version = if remote.version.starts_with('v') || remote.version.starts_with('V') {
-        remote.version.clone()
+fn normalize_remote_version(version: &str) -> String {
+    if version.starts_with('v') || version.starts_with('V') {
+        version.to_string()
     } else {
-        format!("v{}", remote.version)
-    };
-
-    for model_entry in &remote.models {
-        for manifest in manifests.iter_mut() {
-            let matches_tier = model_entry.tier.as_deref().is_some_and(|tier| {
-                (tier == "lite" && manifest.id == LITE_MODEL_ID)
-                    || (tier == "standard" && manifest.id == STANDARD_MODEL_ID)
-                    || (tier == "pro" && manifest.id == PRO_MODEL_ID)
-            });
-            let matches_id = model_entry.model_id.as_deref().is_some_and(|id| {
-                id == manifest.id
-                    || (id == "qwen2.5-0.5b-editor" && manifest.id == LITE_MODEL_ID)
-                    || (id == "qwen2.5-1.5b-editor" && manifest.id == STANDARD_MODEL_ID)
-            });
-
-            if matches_tier || matches_id {
-                manifest.version = remote_version.clone();
-                if let Some(url) = &model_entry.download_url {
-                    if !url.is_empty() {
-                        manifest.download_url = url.clone();
-                    }
-                }
-                if let Some(size) = model_entry.size_bytes {
-                    if size > 0 {
-                        manifest.size_bytes = size;
-                    }
-                }
-                if let Some(sha) = &model_entry.sha256 {
-                    if !sha.is_empty() {
-                        manifest.sha256 = sha.clone();
-                    }
-                }
-                if let Some(ctx) = remote.context_size {
-                    if ctx > 0 {
-                        manifest.context_size = ctx;
-                    }
-                }
-            }
-        }
+        format!("v{version}")
     }
 }
 
-pub(crate) fn resolve_all_manifests() -> Vec<LocalAiModelManifest> {
-    let mut manifests = default_manifests();
-    if let Some(remote) = load_cached_remote_manifest() {
-        apply_remote_manifest_to_list(&mut manifests, &remote);
+/// 将远端逻辑档位/模型 id 归一化为客户端内置逻辑 id，保证旧存档 modelId 兼容。
+fn resolve_logical_model_id(tier: Option<&str>, model_id: Option<&str>) -> Option<&'static str> {
+    if let Some(id) = model_id {
+        match id {
+            LEGACY_MODEL_ID => return Some(LITE_MODEL_ID),
+            LITE_MODEL_ID | STANDARD_MODEL_ID | PRO_MODEL_ID => {
+                return Some(match id {
+                    LITE_MODEL_ID => LITE_MODEL_ID,
+                    STANDARD_MODEL_ID => STANDARD_MODEL_ID,
+                    _ => PRO_MODEL_ID,
+                })
+            }
+            "qwen2.5-0.5b-editor" | "qwen2.5-0.6b-editor" | "qwen3-0.6b-editor" => {
+                return Some(LITE_MODEL_ID);
+            }
+            "qwen2.5-1.5b-editor" | "qwen3-1.5b-editor" => return Some(STANDARD_MODEL_ID),
+            _ => {}
+        }
     }
-    manifests
+    match tier {
+        Some("lite") => Some(LITE_MODEL_ID),
+        Some("standard") => Some(STANDARD_MODEL_ID),
+        Some("pro") => Some(PRO_MODEL_ID),
+        _ => None,
+    }
+}
+
+/// v2 逻辑档位中，主模型文件 = base 资产；v1 平铺完整模型则直接用平铺字段。
+fn entry_primary_asset(entry: &RemoteModelEntry) -> RemoteModelAsset {
+    entry.base.clone().unwrap_or(RemoteModelAsset {
+        version: None,
+        filename: entry.filename.clone(),
+        size_bytes: entry.size_bytes,
+        sha256: entry.sha256.clone(),
+        download_url: entry.download_url.clone(),
+        quant: None,
+    })
+}
+
+/// 基于远端 manifest 动态构建完整 Model Catalog（唯一事实来源）。
+/// 无法获得远端 catalog 时回退到内置默认列表，保证离线可用。
+fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifest> {
+    let remote_version = normalize_remote_version(&remote.version);
+    let context_size = remote.context_size.unwrap_or(8192);
+    let mut catalog: Vec<LocalAiModelManifest> = Vec::new();
+
+    for entry in &remote.models {
+        let Some(logical_id) =
+            resolve_logical_model_id(entry.tier.as_deref(), entry.model_id.as_deref())
+        else {
+            continue;
+        };
+        let asset = entry_primary_asset(entry);
+        // v2 base 资产按真实文件名落盘；v1 完整模型沿用历史固定名 model.gguf，
+        // 保证已下载用户的本地文件路径不因 manifest 升级而失效。
+        let local_filename = if entry.base.is_some() {
+            asset
+                .filename
+                .clone()
+                .unwrap_or_else(|| "model.gguf".to_string())
+        } else {
+            "model.gguf".to_string()
+        };
+        let is_available = entry.is_available.unwrap_or(true)
+            && asset
+                .download_url
+                .as_deref()
+                .is_some_and(|url| !url.is_empty());
+        let is_recommended = entry.recommended.unwrap_or(false);
+
+        // 保持 catalog 稳定顺序：lite / standard / pro，且同档位只保留最新一条
+        if let Some(existing) = catalog.iter_mut().find(|m| m.id == logical_id) {
+            existing.version = remote_version.clone();
+            existing.display_name = entry
+                .display_name
+                .clone()
+                .unwrap_or_else(|| existing.display_name.clone());
+            existing.description = entry
+                .description
+                .clone()
+                .unwrap_or_else(|| existing.description.clone());
+            existing.is_available = is_available;
+            existing.is_recommended = is_recommended;
+            if !local_filename.is_empty() {
+                existing.filename = local_filename.clone();
+            }
+            if let Some(url) = &asset.download_url {
+                if !url.is_empty() {
+                    existing.download_url = url.clone();
+                }
+            }
+            if let Some(size) = asset.size_bytes {
+                if size > 0 {
+                    existing.size_bytes = size;
+                }
+            }
+            if let Some(sha) = &asset.sha256 {
+                if !sha.is_empty() {
+                    existing.sha256 = sha.clone();
+                }
+            }
+            if let Some(quant) = &asset.quant {
+                if !quant.is_empty() {
+                    let _ = quant;
+                }
+            }
+            existing.context_size = context_size;
+            continue;
+        }
+
+        catalog.push(LocalAiModelManifest {
+            id: logical_id.to_string(),
+            display_name: entry
+                .display_name
+                .clone()
+                .unwrap_or_else(|| logical_id.to_string()),
+            description: entry.description.clone().unwrap_or_default(),
+            version: remote_version.clone(),
+            filename: local_filename,
+            download_url: asset.download_url.clone().unwrap_or_default(),
+            size_bytes: asset.size_bytes.unwrap_or(0),
+            sha256: asset.sha256.clone().unwrap_or_default(),
+            context_size,
+            default_max_tokens: match logical_id {
+                LITE_MODEL_ID => 220,
+                STANDARD_MODEL_ID => 260,
+                _ => 400,
+            },
+            is_available,
+            is_recommended,
+        });
+    }
+
+    if catalog.is_empty() {
+        return default_manifests();
+    }
+    catalog
+}
+
+pub(crate) fn resolve_all_manifests() -> Vec<LocalAiModelManifest> {
+    if let Some(remote) = load_cached_remote_manifest() {
+        let catalog = build_catalog_from_remote(&remote);
+        if !catalog.is_empty() {
+            return catalog;
+        }
+    }
+    default_manifests()
 }
 
 pub(crate) fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelManifest, String> {
     let target = model_id.unwrap_or(DEFAULT_MODEL_ID);
     let all = resolve_all_manifests();
     for m in all {
-        if m.id == target
+        if m.id.as_str() == target
             || (target == LEGACY_MODEL_ID && m.id == LITE_MODEL_ID)
             || (target == "qwen2.5-0.5b-editor" && m.id == LITE_MODEL_ID)
             || (target == "qwen2.5-1.5b-editor" && m.id == STANDARD_MODEL_ID)
@@ -244,11 +387,53 @@ pub(crate) fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelMan
     Err(format!("未知的本地模型：{target}"))
 }
 
+/// 任务能力路由：从远端 catalog 的 capabilities 中解析某任务对应的 Adapter 资产。
+/// 返回 (adapter 文件名, 下载 URL, SHA256)。v2 尚未发布/无该能力时返回明确错误。
+pub(crate) fn resolve_capability_asset(
+    model_id: &str,
+    task: &str,
+) -> Result<(String, String, String), String> {
+    let target = match model_id {
+        LEGACY_MODEL_ID => LITE_MODEL_ID,
+        _ => model_id,
+    };
+    let remote = load_cached_remote_manifest()
+        .ok_or_else(|| format!("远程模型清单尚未加载，无法解析 {model_id} 的任务能力。"))?;
+    let entry = remote
+        .models
+        .iter()
+        .find(|entry| {
+            resolve_logical_model_id(entry.tier.as_deref(), entry.model_id.as_deref())
+                == Some(target)
+        })
+        .ok_or_else(|| format!("未知的本地模型：{target}"))?;
+    let capability = entry
+        .capabilities
+        .as_ref()
+        .and_then(|caps| caps.get(task))
+        .ok_or_else(|| format!("{target} 不支持任务：{task}"))?;
+    let filename = capability
+        .asset
+        .filename
+        .clone()
+        .ok_or_else(|| format!("{target} 的任务 {task} 缺少 Adapter 文件名"))?;
+    let url = capability
+        .asset
+        .download_url
+        .clone()
+        .ok_or_else(|| format!("{target} 的任务 {task} 缺少 Adapter 下载地址"))?;
+    let sha256 = capability.asset.sha256.clone().unwrap_or_default();
+    Ok((filename, url, sha256))
+}
+
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalAiModelStatus {
     pub(crate) model_id: String,
     pub(crate) display_name: String,
+    pub(crate) description: String,
+    pub(crate) tier: String,
+    pub(crate) is_recommended: bool,
     pub(crate) version: Option<String>,
     pub(crate) latest_version: String,
     pub(crate) has_update: bool,
@@ -308,8 +493,7 @@ pub(crate) async fn check_local_ai_model_updates() -> Result<Vec<LocalAiModelSta
     let remote_res = tauri::async_runtime::spawn_blocking(fetch_remote_manifest).await;
     match remote_res {
         Ok(Ok(remote)) => {
-            let mut manifests = default_manifests();
-            apply_remote_manifest_to_list(&mut manifests, &remote);
+            let manifests = build_catalog_from_remote(&remote);
             Ok(manifests.iter().map(read_model_status).collect())
         }
         _ => {
@@ -372,7 +556,7 @@ pub(crate) fn delete_local_ai_model(
 
     // 如果当前正在运行该模型，先优雅停止进程
     if let Ok(mut manager) = runtime.manager().lock() {
-        manager.stop_runtime_if_model(manifest.id);
+        manager.stop_runtime_if_model(&manifest.id);
     }
 
     let directory = model_directory(&manifest)?;
@@ -407,8 +591,8 @@ pub(crate) fn get_available_local_ai_model(
     }
 
     Ok(LocalAiModelFile {
-        model_id: manifest.id.to_string(),
-        display_name: manifest.display_name.to_string(),
+        model_id: manifest.id.clone(),
+        display_name: manifest.display_name.clone(),
         version: status.version.unwrap_or_else(|| manifest.version.clone()),
         path,
         context_size: manifest.context_size,
@@ -432,7 +616,7 @@ async fn download_model(
         )
     })?;
 
-    let model_path = directory.join(manifest.filename);
+    let model_path = directory.join(&manifest.filename);
     let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
     let cancel_path = directory.join(DOWNLOAD_CANCEL_FILE_NAME);
     let _ = fs::remove_file(&cancel_path);
@@ -730,7 +914,7 @@ fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModelStatus {
                 let valid = persisted.sha256.trim().is_empty()
                     || checksum_record.as_deref() == Some(&persisted.sha256)
                     || checksum_record.as_deref() == Some(&manifest.sha256)
-                    || (manifest.id == LITE_MODEL_ID
+                    || (manifest.id.as_str() == LITE_MODEL_ID
                         && checksum_record.as_deref() == Some(LEGACY_V100_LITE_SHA256))
                     || (manifest.id == STANDARD_MODEL_ID
                         && checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256));
@@ -802,8 +986,8 @@ fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModelStatus {
 fn write_model_metadata(manifest: &LocalAiModelManifest) -> Result<(), String> {
     let directory = model_directory(manifest)?;
     let metadata = PersistedLocalAiModelManifest {
-        id: manifest.id.to_string(),
-        display_name: manifest.display_name.to_string(),
+        id: manifest.id.clone(),
+        display_name: manifest.display_name.clone(),
         version: manifest.version.clone(),
         filename: manifest.filename.to_string(),
         size_bytes: manifest.size_bytes,
@@ -819,6 +1003,15 @@ fn write_model_metadata(manifest: &LocalAiModelManifest) -> Result<(), String> {
 
 fn normalize_version(v: &str) -> &str {
     v.trim().trim_start_matches('v').trim_start_matches('V')
+}
+
+fn manifest_tier(model_id: &str) -> String {
+    match model_id {
+        LITE_MODEL_ID => "lite".to_string(),
+        STANDARD_MODEL_ID => "standard".to_string(),
+        PRO_MODEL_ID => "pro".to_string(),
+        _ => "standard".to_string(),
+    }
 }
 
 fn build_status(
@@ -837,8 +1030,11 @@ fn build_status(
             .is_some_and(|cv| normalize_version(cv) != normalize_version(&manifest.version));
 
     LocalAiModelStatus {
-        model_id: manifest.id.to_string(),
-        display_name: manifest.display_name.to_string(),
+        model_id: manifest.id.clone(),
+        display_name: manifest.display_name.clone(),
+        description: manifest.description.clone(),
+        tier: manifest_tier(&manifest.id),
+        is_recommended: manifest.is_recommended,
         version: if is_available_status {
             current_version.or_else(|| Some(manifest.version.clone()))
         } else {
@@ -860,7 +1056,7 @@ fn emit_status(app: &AppHandle, status: LocalAiModelStatus) {
 }
 
 fn model_file_path(manifest: &LocalAiModelManifest) -> Result<PathBuf, String> {
-    Ok(model_directory(manifest)?.join(manifest.filename))
+    Ok(model_directory(manifest)?.join(&manifest.filename))
 }
 
 fn model_directory(manifest: &LocalAiModelManifest) -> Result<PathBuf, String> {
@@ -869,7 +1065,7 @@ fn model_directory(manifest: &LocalAiModelManifest) -> Result<PathBuf, String> {
     Ok(data_dir
         .join("ai")
         .join("models")
-        .join(safe_model_id(manifest.id)?))
+        .join(safe_model_id(&manifest.id)?))
 }
 
 fn local_model_unavailable_message(status: &LocalAiModelStatus) -> String {
@@ -906,19 +1102,19 @@ mod tests {
     fn resolves_builtin_models() {
         assert_eq!(
             resolve_manifest(Some(LITE_MODEL_ID)).unwrap().id,
-            LITE_MODEL_ID
+            LITE_MODEL_ID.to_string()
         );
         assert_eq!(
             resolve_manifest(Some(STANDARD_MODEL_ID)).unwrap().id,
-            STANDARD_MODEL_ID
+            STANDARD_MODEL_ID.to_string()
         );
         assert_eq!(
             resolve_manifest(Some(PRO_MODEL_ID)).unwrap().id,
-            PRO_MODEL_ID
+            PRO_MODEL_ID.to_string()
         );
         assert_eq!(
             resolve_manifest(Some(LEGACY_MODEL_ID)).unwrap().id,
-            LITE_MODEL_ID
+            LITE_MODEL_ID.to_string()
         );
     }
 
@@ -935,7 +1131,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_and_applies_remote_manifest() {
+    fn parses_and_builds_catalog_from_v1_remote_manifest() {
         let json = r#"{
             "version": "1.1.0",
             "models": [
@@ -950,12 +1146,69 @@ mod tests {
             ]
         }"#;
         let remote: RemoteManifest = serde_json::from_str(json).unwrap();
-        let mut list = default_manifests();
-        apply_remote_manifest_to_list(&mut list, &remote);
+        let list = build_catalog_from_remote(&remote);
         let lite = list.iter().find(|m| m.id == LITE_MODEL_ID).unwrap();
         assert_eq!(lite.version, "v1.1.0");
         assert_eq!(lite.download_url, "https://example.com/lite.gguf");
         assert_eq!(lite.size_bytes, 397554976);
+        // v1 完整模型沿用历史固定本地文件名，避免破坏已下载用户
+        assert_eq!(lite.filename, "model.gguf");
+        assert_eq!(list.len(), 1);
+    }
+
+    #[test]
+    fn parses_v2_manifest_with_base_and_capabilities() {
+        let json = r#"{
+            "schemaVersion": 2,
+            "version": "1.2.0",
+            "models": [
+                {
+                    "modelId": "md-editor-writer-lite",
+                    "tier": "lite",
+                    "displayName": "Lite (0.6B)",
+                    "description": "轻量极速版",
+                    "recommended": true,
+                    "isAvailable": true,
+                    "base": {
+                        "version": "v1.2.0",
+                        "filename": "lite-base-qwen3-0.6b-v1.2.0-Q4_K_M.gguf",
+                        "sizeBytes": 123456,
+                        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "downloadUrl": "https://example.com/lite-base.gguf"
+                    },
+                    "capabilities": {
+                        "gec": {
+                            "adapterId": "md-editor-writer-lite-gec",
+                            "task": "gec",
+                            "baseModelId": "md-editor-writer-lite",
+                            "baseModelVersion": "v1.2.0",
+                            "baseSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "filename": "lite-gec-v1.2.0-Q4_K_M.gguf",
+                            "sizeBytes": 22222,
+                            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                            "downloadUrl": "https://example.com/lite-gec.gguf",
+                            "promptProtocol": "gec-v2",
+                            "grammar": "tuple-diff"
+                        }
+                    }
+                }
+            ]
+        }"#;
+        let remote: RemoteManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(remote.schema_version, Some(2));
+        assert!(remote.models[0].base.is_some());
+        assert!(remote.models[0].capabilities.is_some());
+
+        let list = build_catalog_from_remote(&remote);
+        let lite = list.iter().find(|m| m.id == LITE_MODEL_ID).unwrap();
+        assert_eq!(lite.version, "v1.2.0");
+        assert_eq!(lite.filename, "lite-base-qwen3-0.6b-v1.2.0-Q4_K_M.gguf");
+        assert_eq!(
+            lite.sha256,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+        assert_eq!(lite.display_name, "Lite (0.6B)");
+        assert_eq!(lite.description, "轻量极速版");
     }
 
     #[test]
