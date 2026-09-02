@@ -70,7 +70,6 @@ pub(crate) async fn request_local_ai_continuation(
         }
         (true, payload)
     } else {
-
         let prompt = build_local_ai_prompt(&context, intent, max_tokens);
         (false, build_local_ai_request(&model, &prompt, max_tokens))
     };

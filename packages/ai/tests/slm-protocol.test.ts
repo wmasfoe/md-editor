@@ -30,7 +30,9 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     // 三态动态识别
     expect(detectGecTaskToken("今天天气很好，但是我想出去玩。")).toBe(TASK_GEC_ZH);
     expect(detectGecTaskToken("The quick brown fox jumps over the lazy dog.")).toBe(TASK_GEC_EN);
-    expect(detectGecTaskToken("今天学习了 this is a apple，并调用了 Tauri invoke")).toBe(TASK_GEC_MIXED);
+    expect(detectGecTaskToken("今天学习了 this is a apple，并调用了 Tauri invoke")).toBe(
+      TASK_GEC_MIXED,
+    );
   });
 
   it("构造结构化的 [Document Context] 前缀", () => {
@@ -83,7 +85,6 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(prompt).toBe(
       `<|im_start|>user\n${TASK_GEC_MIXED}今天学习了 this is a apple，并调用了 Tauri 的 inovke 方法<|im_end|>\n<|im_start|>assistant\n`,
     );
-
   });
 
   it("拼装文档提炼 Prompt (Single-Pass 与 Rolling Refine)", () => {
@@ -127,4 +128,3 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(getSlmStopTokens("editing")).toContain("\n");
   });
 });
-

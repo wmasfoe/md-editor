@@ -148,4 +148,3 @@ export interface AiContinuationRequestOptions {
   readonly documentContext?: AiDocumentContext;
   readonly previousSummary?: string;
 }
-

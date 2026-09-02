@@ -89,7 +89,6 @@ export function getAiCompletionReadiness(
   return null;
 }
 
-
 export async function requestAiContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
@@ -322,7 +321,6 @@ async function requestLocalAiContinuation(
         edit: null,
       };
     } else if (intent === "editing") {
-
       const targetText = context.selectedText || context.before;
       const diffs = parseTupleDiffOutput(content);
       const validated = resolveTripleDefenseDiffs(targetText, diffs);

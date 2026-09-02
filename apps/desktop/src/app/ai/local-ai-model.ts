@@ -131,7 +131,6 @@ export async function checkLocalAiModelsRemoteUpdate(): Promise<LocalAiModelComm
   }
 }
 
-
 export async function downloadLocalAiModel(
   modelId = DEFAULT_LOCAL_MODEL_ID,
 ): Promise<LocalAiModelCommandStatus> {

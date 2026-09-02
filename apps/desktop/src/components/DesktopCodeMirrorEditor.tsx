@@ -456,7 +456,6 @@ function useAutomaticAiEditing({
       );
     });
 
-
     return () => {
       unsubscribe();
       if (timerRef.current) {

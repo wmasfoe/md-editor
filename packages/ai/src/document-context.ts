@@ -40,10 +40,16 @@ function parseFrontmatterMetadata(markdown: string): { title?: string; tags?: st
   for (const line of rawFm.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.startsWith("title:")) {
-      title = trimmed.slice(6).trim().replace(/^["']|["']$/g, "");
+      title = trimmed
+        .slice(6)
+        .trim()
+        .replace(/^["']|["']$/g, "");
     } else if (trimmed.startsWith("tags:") || trimmed.startsWith("keywords:")) {
       const rawTags = trimmed.replace(/^(tags|keywords):\s*/, "").replace(/^\[|\]$/g, "");
-      const splitTags = rawTags.split(",").map((t) => t.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+      const splitTags = rawTags
+        .split(",")
+        .map((t) => t.trim().replace(/^["']|["']$/g, ""))
+        .filter(Boolean);
       tags.push(...splitTags);
     }
   }
@@ -62,7 +68,8 @@ export function extractDeterministicDocContext(
 ): AiDocumentContext {
   const trimmed = markdown.trim();
   if (!trimmed) {
-    const fallbackTitle = title || (filePath ? filePath.split("/").pop()?.replace(/\.md$/i, "") : "未命名文档");
+    const fallbackTitle =
+      title || (filePath ? filePath.split("/").pop()?.replace(/\.md$/i, "") : "未命名文档");
     return {
       title: fallbackTitle,
       outline: [],
@@ -98,7 +105,10 @@ export function extractDeterministicDocContext(
     const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
     if (headingMatch && headingMatch[1] && headingMatch[2]) {
       const level = headingMatch[1].length;
-      const headingText = headingMatch[2].trim().replace(/[#*`_]/g, "").trim();
+      const headingText = headingMatch[2]
+        .trim()
+        .replace(/[#*`_]/g, "")
+        .trim();
       if (headingText) {
         headings.push({ level, text: headingText });
       }
@@ -268,7 +278,8 @@ export async function distillDocumentProgressive(options: {
   readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
   readonly fetchImpl?: typeof fetch;
 }): Promise<AiDocumentContext> {
-  const { settings, markdown, title, filePath, onProgress, signal, localInvokeImpl, fetchImpl } = options;
+  const { settings, markdown, title, filePath, onProgress, signal, localInvokeImpl, fetchImpl } =
+    options;
   const baseContext = extractDeterministicDocContext(markdown, title, filePath);
 
   // 若文档过短或空白，直接返回确定性上下文
@@ -421,7 +432,10 @@ export class DocumentContextManager {
       readonly settings: AiSettings;
       readonly title?: string;
       readonly onUpdate?: (context: AiDocumentContext) => void;
-      readonly localInvokeImpl?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+      readonly localInvokeImpl?: (
+        command: string,
+        args?: Record<string, unknown>,
+      ) => Promise<unknown>;
       readonly fetchImpl?: typeof fetch;
     },
   ): Promise<AiDocumentContext> {
@@ -471,7 +485,6 @@ export class DocumentContextManager {
       }
     }
   }
-
 
   /**
    * 取消某个文件的在途提炼任务
