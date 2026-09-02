@@ -29,6 +29,7 @@ pub(crate) struct LocalAiContinuationOptions {
     prompt: Option<String>,
     stop: Option<Vec<String>>,
     temperature: Option<f32>,
+    grammar: Option<String>,
 }
 
 #[tauri::command]
@@ -53,19 +54,23 @@ pub(crate) async fn request_local_ai_continuation(
             .and_then(|o| o.stop.clone())
             .unwrap_or_default();
         let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.0);
-        (
-            true,
-            json!({
-                "prompt": prompt,
-                "n_predict": max_tokens,
-                "temperature": temp,
-                "top_p": 1.0,
-                "stop": stop,
-                "cache_prompt": true,
-                "stream": false
-            }),
-        )
+        let mut payload = json!({
+            "prompt": prompt,
+            "n_predict": max_tokens,
+            "temperature": temp,
+            "top_p": 1.0,
+            "stop": stop,
+            "cache_prompt": true,
+            "stream": false
+        });
+        if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
+            if !grammar.trim().is_empty() {
+                payload["grammar"] = json!(grammar);
+            }
+        }
+        (true, payload)
     } else {
+
         let prompt = build_local_ai_prompt(&context, intent, max_tokens);
         (false, build_local_ai_request(&model, &prompt, max_tokens))
     };

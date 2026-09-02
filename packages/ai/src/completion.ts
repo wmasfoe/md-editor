@@ -1,4 +1,5 @@
-import { buildSlmPrompt, getSlmStopTokens } from "./slm-protocol.ts";
+import { buildSlmPrompt, getSlmStopTokens, SLM_GEC_TUPLE_GRAMMAR } from "./slm-protocol.ts";
+
 import {
   locateCloudEditSuggestion,
   parseTupleDiffOutput,
@@ -276,6 +277,7 @@ async function requestLocalAiContinuation(
     }
 
     const maxTokens = intent === "continuation" ? 64 : intent === "distill" ? 180 : 220;
+    const grammar = intent === "editing" ? SLM_GEC_TUPLE_GRAMMAR : undefined;
 
     const response = await waitForAbort(
       options.localInvokeImpl("request_local_ai_continuation", {
@@ -286,10 +288,12 @@ async function requestLocalAiContinuation(
           intent,
           prompt,
           stop: stopTokens,
+          grammar,
         },
       }),
       controller.signal,
     );
+
     const content =
       typeof response === "string"
         ? response

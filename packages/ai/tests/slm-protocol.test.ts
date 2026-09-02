@@ -78,10 +78,12 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
       selectedText: "今天学习了 this is a apple，并调用了 Tauri 的 inovke 方法",
     };
     const prompt = buildSlmPrompt(editContext, "editing");
-    expect(prompt).toContain("<|im_start|>system\n");
-    expect(prompt).toContain(
+    // GEC 训练数据集严格不包含 system prompt，避免小模型发生目标漂移
+    expect(prompt).not.toContain("<|im_start|>system\n");
+    expect(prompt).toBe(
       `<|im_start|>user\n${TASK_GEC_MIXED}今天学习了 this is a apple，并调用了 Tauri 的 inovke 方法<|im_end|>\n<|im_start|>assistant\n`,
     );
+
   });
 
   it("拼装文档提炼 Prompt (Single-Pass 与 Rolling Refine)", () => {
