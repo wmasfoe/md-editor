@@ -15,12 +15,12 @@ export const TASK_DISTILL = "<|task_distill|>";
 
 /** 语法纠错控制符 (GEC 三态与多语种) */
 export const TASK_GEC_MIXED = "<|task_gec_mixed|>"; // 中英文混排专项
-export const TASK_GEC_ZH = "<|task_gec_zh|>";       // 纯中文语境
-export const TASK_GEC_EN = "<|task_gec_en|>";       // 纯英文语境
-export const TASK_GEC_JA = "<|task_gec_ja|>";       // 日文
-export const TASK_GEC_KO = "<|task_gec_ko|>";       // 韩文
-export const TASK_GEC_RU = "<|task_gec_ru|>";       // 俄文
-export const TASK_GEC_FR = "<|task_gec_fr|>";       // 法文
+export const TASK_GEC_ZH = "<|task_gec_zh|>"; // 纯中文语境
+export const TASK_GEC_EN = "<|task_gec_en|>"; // 纯英文语境
+export const TASK_GEC_JA = "<|task_gec_ja|>"; // 日文
+export const TASK_GEC_KO = "<|task_gec_ko|>"; // 韩文
+export const TASK_GEC_RU = "<|task_gec_ru|>"; // 俄文
+export const TASK_GEC_FR = "<|task_gec_fr|>"; // 法文
 
 /** 标点与排版规范控制符 (盘古之白/全半角) */
 export const TASK_PUNC = "<|task_punc|>";
@@ -83,7 +83,13 @@ export function buildDocumentContextPrefix(
   const domain = docContext?.domain;
   const tags = docContext?.tags;
 
-  if (!title && (!outline || outline.length === 0) && !topic && !domain && (!tags || tags.length === 0)) {
+  if (
+    !title &&
+    (!outline || outline.length === 0) &&
+    !topic &&
+    !domain &&
+    (!tags || tags.length === 0)
+  ) {
     return "";
   }
 
@@ -175,9 +181,10 @@ export function buildSlmPrompt(
   if (intent === "distill") {
     const docContext = options.documentContext || context.documentContext;
     const title = docContext?.title || context.document?.title || "未命名文档";
-    const outlineStr = docContext?.outline && docContext.outline.length > 0
-      ? docContext.outline.join(" > ")
-      : "无结构大纲";
+    const outlineStr =
+      docContext?.outline && docContext.outline.length > 0
+        ? docContext.outline.join(" > ")
+        : "无结构大纲";
     const targetContent = context.selectedText || context.before;
 
     if (options.previousSummary) {
@@ -224,9 +231,10 @@ export function buildSlmPrompt(
     systemSections.push(docContextPrefix);
   }
 
-  const systemBlock = systemSections.length > 0
-    ? `<|im_start|>system\n${systemSections.join("\n\n")}<|im_end|>\n`
-    : "";
+  const systemBlock =
+    systemSections.length > 0
+      ? `<|im_start|>system\n${systemSections.join("\n\n")}<|im_end|>\n`
+      : "";
 
   // 3. FIM 行内续写补全任务
   if (intent === "continuation") {
@@ -254,7 +262,6 @@ export const SLM_GEC_TUPLE_GRAMMAR = [
   'item ::= "[" [0-9]+ ", " [0-9]+ ", " string ", " string "]"',
   'string ::= "\\"" [^"\\\\\r\n]* "\\""',
 ].join("\n");
-
 
 /**
  * 获取针对不同任务的推荐 Stop Tokens

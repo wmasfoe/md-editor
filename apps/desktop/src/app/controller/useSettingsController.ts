@@ -433,7 +433,6 @@ export function useSettingsController({
       } else {
         showToast("当前已是最新模型，暂无可用更新。");
       }
-
     } catch {
       showToast("检查模型更新失败，请稍后重试。");
     } finally {

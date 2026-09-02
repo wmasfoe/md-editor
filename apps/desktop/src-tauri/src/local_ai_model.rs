@@ -118,7 +118,10 @@ struct RemoteManifest {
 fn remote_manifest_cache_path() -> Result<PathBuf, String> {
     let data_dir =
         settings::app_data_dir().ok_or_else(|| "Cannot resolve app data directory".to_string())?;
-    Ok(data_dir.join("ai").join("models").join("remote_manifest.json"))
+    Ok(data_dir
+        .join("ai")
+        .join("models")
+        .join("remote_manifest.json"))
 }
 
 fn load_cached_remote_manifest() -> Option<RemoteManifest> {
@@ -171,10 +174,7 @@ fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
     Err("无法获取远程模型清单，请检查网络连接。".to_string())
 }
 
-fn apply_remote_manifest_to_list(
-    manifests: &mut [LocalAiModelManifest],
-    remote: &RemoteManifest,
-) {
+fn apply_remote_manifest_to_list(manifests: &mut [LocalAiModelManifest], remote: &RemoteManifest) {
     let remote_version = if remote.version.starts_with('v') || remote.version.starts_with('V') {
         remote.version.clone()
     } else {
@@ -356,7 +356,7 @@ pub(crate) fn cancel_local_ai_model_download(
     let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
     let _ = fs::write(&cancel_path, b"cancel");
     let _ = fs::remove_file(&temp_path);
-    
+
     let status = read_model_status(&manifest);
     emit_status(&app, status.clone());
     Ok(status)
@@ -409,9 +409,7 @@ pub(crate) fn get_available_local_ai_model(
     Ok(LocalAiModelFile {
         model_id: manifest.id.to_string(),
         display_name: manifest.display_name.to_string(),
-        version: status
-            .version
-            .unwrap_or_else(|| manifest.version.clone()),
+        version: status.version.unwrap_or_else(|| manifest.version.clone()),
         path,
         context_size: manifest.context_size,
         default_max_tokens: manifest.default_max_tokens,
@@ -732,8 +730,10 @@ fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModelStatus {
                 let valid = persisted.sha256.trim().is_empty()
                     || checksum_record.as_deref() == Some(&persisted.sha256)
                     || checksum_record.as_deref() == Some(&manifest.sha256)
-                    || (manifest.id == LITE_MODEL_ID && checksum_record.as_deref() == Some(LEGACY_V100_LITE_SHA256))
-                    || (manifest.id == STANDARD_MODEL_ID && checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256));
+                    || (manifest.id == LITE_MODEL_ID
+                        && checksum_record.as_deref() == Some(LEGACY_V100_LITE_SHA256))
+                    || (manifest.id == STANDARD_MODEL_ID
+                        && checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256));
                 (persisted.version, valid)
             }
             None => {
@@ -742,7 +742,9 @@ fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModelStatus {
                     || checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256)
                 {
                     ("v1.0.0".to_string(), true)
-                } else if checksum_record.as_deref() == Some(&manifest.sha256) || manifest.sha256.is_empty() {
+                } else if checksum_record.as_deref() == Some(&manifest.sha256)
+                    || manifest.sha256.is_empty()
+                {
                     (manifest.version.clone(), true)
                 } else {
                     ("v1.0.0".to_string(), true)

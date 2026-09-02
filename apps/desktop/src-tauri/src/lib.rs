@@ -99,7 +99,6 @@ pub fn run() {
             inspect_linked_file,
             open_external_target
         ])
-
         .run(tauri::generate_context!())
         .expect("error while running Inkpoint");
 }
