@@ -204,7 +204,17 @@ export function useDesktopEditorController({
                 showToast("未能生成有效续写建议。");
               }
             } catch (error) {
-              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              if (import.meta.env.DEV) {
+                console.error("AI 续写请求失败:", error);
+              }
+              const message =
+                typeof error === "string"
+                  ? error
+                  : error instanceof Error
+                    ? error.message
+                    : typeof error === "object" && error !== null && "message" in error
+                      ? String((error as { message: unknown }).message)
+                      : "AI 请求失败。";
               showToast(message);
             }
           },
@@ -316,7 +326,17 @@ export function useDesktopEditorController({
                 showToast("未发现明显语法、错别字或标点问题。");
               }
             } catch (error) {
-              const message = error instanceof Error ? error.message : "AI 请求失败。";
+              if (import.meta.env.DEV) {
+                console.error("AI 语法修复请求失败:", error);
+              }
+              const message =
+                typeof error === "string"
+                  ? error
+                  : error instanceof Error
+                    ? error.message
+                    : typeof error === "object" && error !== null && "message" in error
+                      ? String((error as { message: unknown }).message)
+                      : "AI 请求失败。";
               showToast(message);
             }
           },

@@ -46,21 +46,48 @@ export const desktopLocalAiInvokeImpl = async (
     console.groupEnd();
   }
 
-  const result = await invoke(command, args);
+  try {
+    const result = await invoke(command, args);
 
-  if (isDev && isCompletion) {
-    const elapsedMs = (performance.now() - startTime).toFixed(1);
-    console.group(`✨ [Local LLM 响应结果] ${taskLabel} (${elapsedMs}ms)`);
-    console.log("【LLM 原样返回 (Raw Output)】:\n", result);
-    console.debug("调用详情:", {
-      modelId: options.modelId,
-      intent,
-      elapsedMs: `${elapsedMs}ms`,
-    });
-    console.groupEnd();
+    if (isDev && isCompletion) {
+      const elapsedMs = (performance.now() - startTime).toFixed(1);
+      console.group(`✨ [Local LLM 响应结果] ${taskLabel} (${elapsedMs}ms)`);
+      console.log("【LLM 原样返回 (Raw Output)】:\n", result);
+      console.debug("调用详情:", {
+        modelId: options.modelId,
+        intent,
+        elapsedMs: `${elapsedMs}ms`,
+      });
+      console.groupEnd();
+    }
+
+    return result;
+  } catch (rawError) {
+    const elapsedMs = isDev && isCompletion ? (performance.now() - startTime).toFixed(1) : "0";
+    const errorMessage =
+      typeof rawError === "string"
+        ? rawError
+        : rawError instanceof Error
+          ? rawError.message
+          : typeof rawError === "object" && rawError !== null && "message" in rawError
+            ? String((rawError as { message: unknown }).message)
+            : String(rawError);
+
+    if (isDev && isCompletion) {
+      console.group(`❌ [Local LLM 请求失败] ${taskLabel} (${elapsedMs}ms)`);
+      console.error("错误详情:", rawError);
+      console.debug("调用参数:", {
+        command,
+        modelId: options.modelId,
+        intent,
+        args,
+      });
+      console.groupEnd();
+    }
+
+    // 始终归一化包装为标准 Error 对象，确保外层能够直接获取具体的错误消息，避免被降级成通用提示
+    throw new Error(errorMessage, { cause: rawError });
   }
-
-  return result;
 };
 
 export async function readSystemSpecs(): Promise<SystemSpecs | null> {

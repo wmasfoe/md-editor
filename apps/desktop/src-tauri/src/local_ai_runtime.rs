@@ -1,5 +1,5 @@
 use std::{
-    env,
+    env, fs,
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
@@ -65,13 +65,14 @@ impl LocalAiRuntimeManager {
 
         let port = pick_available_localhost_port()?;
         let sidecar_path = resolve_llama_server_path(app)?;
+        ensure_runtime_dependencies(&sidecar_path);
         let args = build_llama_server_args(model, port);
         let mut command = Command::new(&sidecar_path);
         command
             .args(args)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         if let Some(parent) = sidecar_path.parent() {
             command.current_dir(parent);
         }
@@ -357,7 +358,20 @@ fn wait_until_runtime_ready(child: &mut Child, port: u16) -> Result<(), String> 
         match child.try_wait() {
             Ok(None) => {}
             Ok(Some(status)) => {
-                return Err(format!("本地推理 runtime 启动失败，进程已退出：{status}"));
+                let mut stderr_detail = String::new();
+                if let Some(mut stderr) = child.stderr.take() {
+                    let mut buf = Vec::new();
+                    if stderr.read_to_end(&mut buf).is_ok() && !buf.is_empty() {
+                        stderr_detail = String::from_utf8_lossy(&buf).trim().to_string();
+                    }
+                }
+                let err_msg = if stderr_detail.is_empty() {
+                    format!("本地推理 runtime 启动失败，进程已退出：{status}")
+                } else {
+                    format!("本地推理 runtime 启动失败，进程已退出：{status}。错误日志：{stderr_detail}")
+                };
+                eprintln!("[Local AI Runtime Error] {err_msg}");
+                return Err(err_msg);
             }
             Err(error) => return Err(format!("检查本地推理 runtime 启动状态失败：{error}")),
         }
@@ -425,15 +439,84 @@ fn sidecar_resource_file_name() -> String {
     }
 }
 
+/// 自动保证 llama-server 的同级依赖动态库齐备。
+/// 在 macOS/Linux 上，二进制执行文件若依赖 @rpath / @loader_path，
+/// 必须确保动态库直接存在于 sidecar 所在同级目录以防止 SIP 环境变量清洗或路径缺失。
+fn ensure_runtime_dependencies(sidecar_path: &Path) {
+    let Some(parent) = sidecar_path.parent() else {
+        return;
+    };
+
+    #[cfg(target_os = "macos")]
+    let primary_dylib = "libllama-server-impl.dylib";
+    #[cfg(target_os = "linux")]
+    let primary_dylib = "libllama.so";
+    #[cfg(target_os = "windows")]
+    let primary_dylib = "llama.dll";
+
+    if parent.join(primary_dylib).is_file() {
+        return;
+    }
+
+    let candidate_dirs = [
+        parent.join("llama-runtime-macos-arm64"),
+        parent.join("binaries").join("llama-runtime-macos-arm64"),
+        parent
+            .join("..")
+            .join("..")
+            .join("binaries")
+            .join("llama-runtime-macos-arm64"),
+        parent
+            .join("..")
+            .join("..")
+            .join("src-tauri")
+            .join("binaries")
+            .join("llama-runtime-macos-arm64"),
+    ];
+
+    for source_dir in candidate_dirs {
+        if let Ok(entries) = fs::read_dir(&source_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    let target_file = parent.join(entry.file_name());
+                    if !target_file.exists() {
+                        let _ = fs::copy(&path, &target_file);
+                    }
+                }
+            }
+            if parent.join(primary_dylib).is_file() {
+                break;
+            }
+        }
+    }
+}
+
 fn apply_runtime_library_paths(command: &mut Command, sidecar_path: &Path) {
     let Some(parent) = sidecar_path.parent() else {
         return;
     };
 
     let mut library_dirs = vec![parent.to_path_buf()];
-    let sibling_runtime_dir = parent.join("llama-runtime-macos-arm64");
-    if sibling_runtime_dir.is_dir() {
-        library_dirs.push(sibling_runtime_dir);
+    let candidate_subdirs = [
+        parent.join("llama-runtime-macos-arm64"),
+        parent.join("binaries").join("llama-runtime-macos-arm64"),
+        parent
+            .join("..")
+            .join("..")
+            .join("binaries")
+            .join("llama-runtime-macos-arm64"),
+        parent
+            .join("..")
+            .join("..")
+            .join("src-tauri")
+            .join("binaries")
+            .join("llama-runtime-macos-arm64"),
+    ];
+    for dir in candidate_subdirs {
+        if dir.is_dir() {
+            library_dirs.push(dir);
+        }
     }
 
     let Ok(joined_paths) = env::join_paths(library_dirs) else {
