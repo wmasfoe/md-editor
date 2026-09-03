@@ -4,6 +4,7 @@ import {
   buildSlmPrompt,
   detectGecTaskToken,
   getSlmStopTokens,
+  resolveCapabilityProfile,
   resolveGecTaskToken,
   TASK_DISTILL,
   TASK_GEC_EN,
@@ -50,7 +51,7 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(prefix).toContain("- Outline: 1. 核心概念 > 2. 调度器实现");
     expect(prefix).toContain("- Topic: 解析 Rust 异步运行时调度原理与高并发调优实践");
     expect(prefix).toContain("- Domain: 系统编程 / 技术实战");
-    expect(prefix).toContain("- Tags: rust, async, runtime");
+    expect(prefix).toContain("- Tags: async, runtime, rust");
   });
 
   it("拼装结构 A+B 的 FIM 续写 Prompt (System Prompt 注入)", () => {
@@ -126,5 +127,51 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(getSlmStopTokens("continuation", { isGhostText: false })).not.toContain("\n");
     // 语法纠错必须遇到换行立即终止
     expect(getSlmStopTokens("editing")).toContain("\n");
+  });
+
+  it("P1: 静态前缀稳定化与字典序排序保证 KV Cache 确定性命中", () => {
+    // 乱序 preferredTerms 应被规范化排序
+    const prefix1 = buildDocumentContextPrefix({
+      tags: ["zebra", "alpha", "middle"],
+      title: "Doc",
+    });
+    const prefix2 = buildDocumentContextPrefix({
+      tags: ["alpha", "middle", "zebra"],
+      title: "Doc",
+    });
+    expect(prefix1).toBe(prefix2);
+    expect(prefix1).toContain("- Tags: alpha, middle, zebra");
+  });
+
+  it("P2: 统一 Capability Profile 契约生成与参数收敛", () => {
+    // 1. GEC Editing Profile
+    const gecProfile = resolveCapabilityProfile(mockContext, "editing");
+    expect(gecProfile.task).toBe("editing");
+    expect(gecProfile.adapterTask).toBe("gec");
+    expect(gecProfile.grammar).toBeDefined();
+    expect(gecProfile.temperature).toBe(0.0);
+    expect(gecProfile.maxTokens).toBe(220);
+    expect(gecProfile.cachePrompt).toBe(true);
+    expect(gecProfile.affinityKey).toBe("gec");
+
+    // 2. Continuation Profile
+    const contProfile = resolveCapabilityProfile(mockContext, "continuation", {
+      isGhostText: true,
+    });
+    expect(contProfile.task).toBe("continuation");
+    expect(contProfile.adapterTask).toBe("completion");
+    expect(contProfile.grammar).toBeUndefined();
+    expect(contProfile.temperature).toBe(0.3);
+    expect(contProfile.maxTokens).toBe(64);
+    expect(contProfile.stop).toContain("\n");
+
+    // 3. Distill Profile
+    const distillProfile = resolveCapabilityProfile(mockContext, "distill");
+    expect(distillProfile.task).toBe("distill");
+    expect(distillProfile.adapterTask).toBe("distill");
+    expect(distillProfile.grammar).toBeUndefined();
+    expect(distillProfile.temperature).toBe(0.2);
+    expect(distillProfile.maxTokens).toBe(180);
+    expect(distillProfile.stop).not.toContain("\n");
   });
 });

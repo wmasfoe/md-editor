@@ -1,4 +1,4 @@
-import { buildSlmPrompt, getSlmStopTokens, SLM_GEC_TUPLE_GRAMMAR } from "./slm-protocol.ts";
+import { resolveCapabilityProfile } from "./slm-protocol.ts";
 
 import {
   locateCloudEditSuggestion,
@@ -256,13 +256,11 @@ async function requestLocalAiContinuation(
   }
 
   const intent = options.intent ?? "both";
-  const prompt = buildSlmPrompt(context, intent, {
+  const profile = resolveCapabilityProfile(context, intent, {
     profile: options.profile,
     language: options.language || context.document?.language,
     documentContext: options.documentContext || context.documentContext,
     previousSummary: options.previousSummary,
-  });
-  const stopTokens = getSlmStopTokens(intent, {
     isGhostText: options.isGhostText !== false,
   });
 
@@ -275,19 +273,17 @@ async function requestLocalAiContinuation(
       throw createAbortError();
     }
 
-    const maxTokens = intent === "continuation" ? 64 : intent === "distill" ? 180 : 220;
-    const grammar = intent === "editing" ? SLM_GEC_TUPLE_GRAMMAR : undefined;
-
     const response = await waitForAbort(
       options.localInvokeImpl("request_local_ai_continuation", {
         context,
         options: {
           modelId: settings.localModel.modelId,
-          maxTokens,
-          intent,
-          prompt,
-          stop: stopTokens,
-          grammar,
+          maxTokens: profile.maxTokens,
+          temperature: profile.temperature,
+          intent: profile.task,
+          prompt: profile.prompt,
+          stop: profile.stop,
+          grammar: profile.grammar,
         },
       }),
       controller.signal,

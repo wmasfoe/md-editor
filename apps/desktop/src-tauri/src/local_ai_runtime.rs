@@ -270,7 +270,7 @@ pub(crate) fn build_llama_server_args(model: &LocalAiModelFile, port: u16) -> Ve
         "--ctx-size".to_string(),
         model.context_size.to_string(),
         "--parallel".to_string(),
-        "1".to_string(),
+        "2".to_string(),
         "--alias".to_string(),
         model.model_id.clone(),
         "--offline".to_string(),
