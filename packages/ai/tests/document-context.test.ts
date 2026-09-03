@@ -160,4 +160,49 @@ def add(a, b):
     // 取消后依然优雅返回保底 AST 上下文
     expect(result.title).toBe("Tauri 2.0 深度实操指南");
   });
+
+  it("scheduleDistillation: 并发相同内容的提炼请求共享进行中的 Promise，杜绝重复调用底层模型", async () => {
+    const manager = new DocumentContextManager();
+    const filePath = "test/doc.md";
+    const settings: AiSettings = {
+      enabled: true,
+      provider: "local",
+      features: { continuation: true, editing: true },
+      openAiCompatible: { baseUrl: "", model: "", apiKey: "" },
+      localModel: {
+        enabled: true,
+        modelId: "md-editor-writer-lite",
+        version: "1.0.0",
+        status: "available",
+        downloadedBytes: 0,
+        totalBytes: 0,
+        error: null,
+      },
+    };
+
+    const mockInvoke = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve("主题：完成并发提炼"), 30);
+        }),
+    );
+
+    // 模拟 React StrictMode 或多处生命周期同时触发调度
+    const p1 = manager.scheduleDistillation(filePath, sampleMarkdown, {
+      settings,
+      localInvokeImpl: mockInvoke,
+    });
+    const p2 = manager.scheduleDistillation(filePath, sampleMarkdown, {
+      settings,
+      localInvokeImpl: mockInvoke,
+    });
+
+    expect(p1).toBe(p2); // 引用严格相同
+
+    const [res1, res2] = await Promise.all([p1, p2]);
+    expect(res1.topic).toBe("主题：完成并发提炼");
+    expect(res2.topic).toBe("主题：完成并发提炼");
+    // 底层 LLM 推理只被真正触发了 1 次！
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+  });
 });
