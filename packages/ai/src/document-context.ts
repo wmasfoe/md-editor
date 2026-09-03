@@ -384,6 +384,10 @@ export async function distillDocumentProgressive(options: {
 export class DocumentContextManager {
   private readonly cache = new Map<string, { context: AiDocumentContext; contentHash: string }>();
   private readonly abortControllers = new Map<string, AbortController>();
+  private readonly inFlightDistillations = new Map<
+    string,
+    { readonly contentHash: string; readonly promise: Promise<AiDocumentContext> }
+  >();
   private readonly maxCacheEntries = 50;
 
   /**
@@ -431,7 +435,7 @@ export class DocumentContextManager {
   /**
    * 异步调度后台滚动提炼（自动打断并替换该文件之前的提炼任务）
    */
-  public async scheduleDistillation(
+  public scheduleDistillation(
     filePath: string,
     markdown: string,
     options: {
@@ -448,48 +452,67 @@ export class DocumentContextManager {
     const currentHash = simpleTextHash(markdown);
     const cached = this.cache.get(filePath);
 
-    // 如果内容未发生任何改变且已经提炼过，直接返回缓存
+    // 1. 如果内容未发生任何改变且已经提炼过，直接返回缓存
     if (cached && cached.contentHash === currentHash && cached.context.isDistilled) {
-      return cached.context;
+      return Promise.resolve(cached.context);
     }
 
-    // 取消之前的提炼任务
+    // 2. 如果当前文件已有相同内容的提炼任务正在进行，直接复用正在进行的 Promise，避免并发重复请求
+    const active = this.inFlightDistillations.get(filePath);
+    if (active && active.contentHash === currentHash) {
+      return active.promise;
+    }
+
+    // 3. 取消旧内容的提炼任务
     this.cancelDistillation(filePath);
 
     const abortController = new AbortController();
     this.abortControllers.set(filePath, abortController);
 
-    try {
-      const distilled = await distillDocumentProgressive({
-        settings: options.settings,
-        markdown,
-        title: options.title,
-        filePath,
-        signal: abortController.signal,
-        localInvokeImpl: options.localInvokeImpl,
-        fetchImpl: options.fetchImpl,
-        onProgress: (interim) => {
-          this.set(filePath, interim, currentHash);
-          options.onUpdate?.(interim);
-        },
-      });
+    const taskPromise = (async () => {
+      try {
+        const distilled = await distillDocumentProgressive({
+          settings: options.settings,
+          markdown,
+          title: options.title,
+          filePath,
+          signal: abortController.signal,
+          localInvokeImpl: options.localInvokeImpl,
+          fetchImpl: options.fetchImpl,
+          onProgress: (interim) => {
+            this.set(filePath, interim, currentHash);
+            options.onUpdate?.(interim);
+          },
+        });
 
-      if (!abortController.signal.aborted) {
-        this.set(filePath, distilled, currentHash);
-        options.onUpdate?.(distilled);
-      }
+        if (!abortController.signal.aborted) {
+          this.set(filePath, distilled, currentHash);
+          options.onUpdate?.(distilled);
+        }
 
-      return distilled;
-    } catch (error) {
-      if (abortController.signal.aborted) {
-        return this.getOrExtract(filePath, markdown, options.title);
+        return distilled;
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          return this.getOrExtract(filePath, markdown, options.title);
+        }
+        throw error;
+      } finally {
+        if (this.abortControllers.get(filePath) === abortController) {
+          this.abortControllers.delete(filePath);
+        }
+        const currentActive = this.inFlightDistillations.get(filePath);
+        if (currentActive?.contentHash === currentHash) {
+          this.inFlightDistillations.delete(filePath);
+        }
       }
-      throw error;
-    } finally {
-      if (this.abortControllers.get(filePath) === abortController) {
-        this.abortControllers.delete(filePath);
-      }
-    }
+    })();
+
+    this.inFlightDistillations.set(filePath, {
+      contentHash: currentHash,
+      promise: taskPromise,
+    });
+
+    return taskPromise;
   }
 
   /**
@@ -501,6 +524,7 @@ export class DocumentContextManager {
       controller.abort();
       this.abortControllers.delete(filePath);
     }
+    this.inFlightDistillations.delete(filePath);
   }
 
   /**
