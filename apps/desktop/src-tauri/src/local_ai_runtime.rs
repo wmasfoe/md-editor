@@ -47,6 +47,7 @@ struct LocalAiRuntimeProcess {
     model_id: String,
     port: u16,
     last_used_at: Instant,
+    active_lora_task: Option<String>,
 }
 
 impl LocalAiRuntimeManager {
@@ -97,6 +98,7 @@ impl LocalAiRuntimeManager {
             model_id: model.model_id.clone(),
             port,
             last_used_at: Instant::now(),
+            active_lora_task: None,
         });
 
         Ok(LocalAiRuntimeEndpoint { port })
@@ -161,6 +163,86 @@ impl LocalAiRuntimeManager {
         }
     }
 
+    pub(crate) fn activate_lora_adapter(
+        &mut self,
+        port: u16,
+        intent: Option<&str>,
+    ) -> Result<(), String> {
+        let Some(process) = self.process.as_mut() else {
+            return Ok(());
+        };
+        if process.port != port {
+            return Ok(());
+        }
+
+        let target_task = match intent {
+            Some("editing") => "gec",
+            Some("continuation") => "completion",
+            Some("distill") => "distill",
+            _ => "gec",
+        };
+
+        if process.active_lora_task.as_deref() == Some(target_task) {
+            return Ok(());
+        }
+
+        let get_res = send_localhost_http_request(
+            "GET",
+            "/lora-adapters",
+            port,
+            None,
+            Duration::from_secs(2),
+        );
+        let Ok(resp) = get_res else {
+            return Ok(());
+        };
+
+        #[derive(serde::Deserialize)]
+        struct LoraAdapterInfo {
+            id: u32,
+            path: String,
+            #[serde(default)]
+            #[allow(dead_code)]
+            scale: f32,
+        }
+
+        let Ok(adapters) = serde_json::from_str::<Vec<LoraAdapterInfo>>(&resp.body) else {
+            return Ok(());
+        };
+
+        if adapters.is_empty() {
+            return Ok(());
+        }
+
+        let mut update_payload = Vec::new();
+        for adapter in &adapters {
+            let path_lower = adapter.path.to_ascii_lowercase();
+            let matches = match target_task {
+                "gec" => path_lower.contains("gec"),
+                "completion" => path_lower.contains("completion"),
+                "distill" => path_lower.contains("distill"),
+                _ => false,
+            };
+            let scale = if matches { 1.0 } else { 0.0 };
+            update_payload.push(serde_json::json!({
+                "id": adapter.id,
+                "scale": scale,
+            }));
+        }
+
+        let post_body = serde_json::to_string(&update_payload).map_err(|e| e.to_string())?;
+        let _ = send_localhost_http_request(
+            "POST",
+            "/lora-adapters",
+            port,
+            Some(&post_body),
+            Duration::from_secs(2),
+        );
+
+        process.active_lora_task = Some(target_task.to_string());
+        Ok(())
+    }
+
     fn stop_runtime_if_idle(&mut self, max_idle: Duration) {
         let Some(process) = self.process.as_ref() else {
             return;
@@ -178,13 +260,13 @@ impl Drop for LocalAiRuntimeManager {
 }
 
 pub(crate) fn build_llama_server_args(model: &LocalAiModelFile, port: u16) -> Vec<String> {
-    vec![
+    let mut args = vec![
         "--host".to_string(),
         LOCAL_AI_HOST.to_string(),
         "--port".to_string(),
         port.to_string(),
         "--model".to_string(),
-        model.path.to_string_lossy().into_owned(),
+        model.base_path.to_string_lossy().into_owned(),
         "--ctx-size".to_string(),
         model.context_size.to_string(),
         "--parallel".to_string(),
@@ -193,7 +275,36 @@ pub(crate) fn build_llama_server_args(model: &LocalAiModelFile, port: u16) -> Ve
         model.model_id.clone(),
         "--offline".to_string(),
         "--no-webui".to_string(),
-    ]
+    ];
+
+    let mut has_lora = false;
+    if let Some(path) = &model.gec_adapter_path {
+        if path.is_file() {
+            args.push("--lora".to_string());
+            args.push(path.to_string_lossy().into_owned());
+            has_lora = true;
+        }
+    }
+    if let Some(path) = &model.completion_adapter_path {
+        if path.is_file() {
+            args.push("--lora".to_string());
+            args.push(path.to_string_lossy().into_owned());
+            has_lora = true;
+        }
+    }
+    if let Some(path) = &model.distill_adapter_path {
+        if path.is_file() {
+            args.push("--lora".to_string());
+            args.push(path.to_string_lossy().into_owned());
+            has_lora = true;
+        }
+    }
+
+    if has_lora {
+        args.push("--lora-init-without-apply".to_string());
+    }
+
+    args
 }
 
 pub(crate) fn post_chat_completion(
@@ -479,7 +590,10 @@ mod tests {
             model_id: "md-editor-writer-small-v1".to_string(),
             display_name: "Writer Small".to_string(),
             version: "2026.06.25".to_string(),
-            path: PathBuf::from("/tmp/model.gguf"),
+            base_path: PathBuf::from("/tmp/model.gguf"),
+            gec_adapter_path: None,
+            completion_adapter_path: None,
+            distill_adapter_path: None,
             context_size: 4096,
             default_max_tokens: 220,
         };

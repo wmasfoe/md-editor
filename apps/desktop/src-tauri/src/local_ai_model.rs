@@ -17,14 +17,17 @@ const LITE_MODEL_ID: &str = "md-editor-writer-lite";
 const STANDARD_MODEL_ID: &str = "md-editor-writer-standard";
 const PRO_MODEL_ID: &str = "md-editor-writer-pro";
 
-const LEGACY_V100_LITE_SHA256: &str =
-    "eda69b3628916c009306d9b6260623c71bd25d18dab2a51b2d9c687b51304e0b";
-const LEGACY_V100_STANDARD_SHA256: &str =
-    "cd7d83d9a891c1488f6579417a7039acfb9648e046b89d286e5422c2e00e4eab";
-
 const DOWNLOAD_TEMP_FILE_NAME: &str = "download.tmp";
 const DOWNLOAD_CANCEL_FILE_NAME: &str = "download.cancel";
 const LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE: &str = "本地模型下载已取消。";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LocalAiFileSpec {
+    pub(crate) filename: String,
+    pub(crate) download_url: String,
+    pub(crate) size_bytes: u64,
+    pub(crate) sha256: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalAiModelManifest {
@@ -40,39 +43,128 @@ pub(crate) struct LocalAiModelManifest {
     pub(crate) default_max_tokens: u16,
     pub(crate) is_available: bool,
     pub(crate) is_recommended: bool,
+    pub(crate) adapters: Vec<(String, LocalAiFileSpec)>,
+}
+
+impl LocalAiModelManifest {
+    pub(crate) fn total_download_bytes(&self) -> u64 {
+        self.size_bytes + self.adapters.iter().map(|(_, a)| a.size_bytes).sum::<u64>()
+    }
+
+    pub(crate) fn all_download_specs(&self) -> Vec<(String, LocalAiFileSpec)> {
+        let mut specs = Vec::new();
+        if !self.download_url.is_empty() {
+            let base_tag = if self.adapters.is_empty() {
+                "model"
+            } else {
+                "base"
+            };
+            specs.push((
+                base_tag.to_string(),
+                LocalAiFileSpec {
+                    filename: self.filename.clone(),
+                    download_url: self.download_url.clone(),
+                    size_bytes: self.size_bytes,
+                    sha256: self.sha256.clone(),
+                },
+            ));
+        }
+        for (task, adapter) in &self.adapters {
+            specs.push((task.clone(), adapter.clone()));
+        }
+        specs
+    }
 }
 
 pub(crate) fn default_lite_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: LITE_MODEL_ID.to_string(),
-        display_name: "Lite (0.5B)".to_string(),
-        description: "自研微调轻量模型，极速响应，适合轻薄本与日常流畅写作。".to_string(),
-        version: "v1.1.0".to_string(),
-        filename: "model.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.1.0/qwen2.5-0.5b-editor-v1.1.0-Q4_K_M.gguf".to_string(),
-        size_bytes: 397_554_976,
-        sha256: "9f90196672209bbb311d689495d7ff696100543d6a270c59c8071c8c9bfd7a04".to_string(),
+        display_name: "Lite (0.6B)".to_string(),
+        description: "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。".to_string(),
+        version: "v1.3.0".to_string(),
+        filename: "lite-base-qwen3-0.6b-v1.3.0-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-base-qwen3-0.6b-v1.3.0-Q8_0.gguf".to_string(),
+        size_bytes: 639_446_688,
+        sha256: "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031".to_string(),
         context_size: 8192,
         default_max_tokens: 220,
         is_available: true,
         is_recommended: true,
+        adapters: vec![
+            (
+                "gec".to_string(),
+                LocalAiFileSpec {
+                    filename: "lite-gec-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-gec-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 40_397_472,
+                    sha256: "c3ef5140e7da7cb2f70d0bec65e3116d715683532cec7f5ab6f1e702f581d473".to_string(),
+                },
+            ),
+            (
+                "completion".to_string(),
+                LocalAiFileSpec {
+                    filename: "lite-completion-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-completion-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 40_397_472,
+                    sha256: "eaef8dc00b5220c8f5379b1df0975618f0376d8b0222a768f59d57a2d744f4bf".to_string(),
+                },
+            ),
+            (
+                "distill".to_string(),
+                LocalAiFileSpec {
+                    filename: "lite-distill-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-distill-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 40_397_472,
+                    sha256: "b0068a529b5521db331771fe6ba292881cf69c57d76ee1fa1a113bc70fe5a5ae".to_string(),
+                },
+            ),
+        ],
     }
 }
 
 pub(crate) fn default_standard_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: STANDARD_MODEL_ID.to_string(),
-        display_name: "Standard (1.5B)".to_string(),
-        description: "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力。".to_string(),
-        version: "v1.1.0".to_string(),
-        filename: "model.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.1.0/qwen2.5-1.5b-editor-v1.1.0-Q4_K_M.gguf".to_string(),
-        size_bytes: 397_554_976,
-        sha256: "9f90196672209bbb311d689495d7ff696100543d6a270c59c8071c8c9bfd7a04".to_string(),
+        display_name: "Standard (1.7B)".to_string(),
+        description: "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。".to_string(),
+        version: "v1.3.0".to_string(),
+        filename: "standard-base-qwen3-1.7b-v1.3.0-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-base-qwen3-1.7b-v1.3.0-Q8_0.gguf".to_string(),
+        size_bytes: 1_832_684_160,
+        sha256: "8e860bc00f2eef8e5d3fc39c87849e7b4618fbbe868be5a07cb15591cbe65c19".to_string(),
         context_size: 8192,
         default_max_tokens: 260,
         is_available: true,
         is_recommended: false,
+        adapters: vec![
+            (
+                "gec".to_string(),
+                LocalAiFileSpec {
+                    filename: "standard-gec-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-gec-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 70_338_218,
+                    sha256: "5d0137ff71f654b455097bc87ddfa6351b668f44ff53e5e49f874c7cf6551b80".to_string(),
+                },
+            ),
+            (
+                "completion".to_string(),
+                LocalAiFileSpec {
+                    filename: "standard-completion-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-completion-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 70_338_218,
+                    sha256: "1e1493cf032a843bb5c5970c91dc572bc8cb3f7fb359c19ea2b54bc360f06830".to_string(),
+                },
+            ),
+            (
+                "distill".to_string(),
+                LocalAiFileSpec {
+                    filename: "standard-distill-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-distill-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
+                    size_bytes: 70_338_218,
+                    sha256: "5251a37c569f4cb02c9a96e9ae1064ff3f25d97f26742b6a22fdfc4375b4f620".to_string(),
+                },
+            ),
+        ],
     }
 }
 
@@ -90,6 +182,7 @@ pub(crate) fn default_pro_model() -> LocalAiModelManifest {
         default_max_tokens: 400,
         is_available: false,
         is_recommended: false,
+        adapters: Vec::new(),
     }
 }
 
@@ -293,6 +386,23 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
                 .is_some_and(|url| !url.is_empty());
         let is_recommended = entry.recommended.unwrap_or(false);
 
+        let mut adapters = Vec::new();
+        if let Some(caps) = &entry.capabilities {
+            for (task, cap) in caps {
+                if let (Some(fn_name), Some(url)) = (&cap.asset.filename, &cap.asset.download_url) {
+                    adapters.push((
+                        task.clone(),
+                        LocalAiFileSpec {
+                            filename: fn_name.clone(),
+                            download_url: url.clone(),
+                            size_bytes: cap.asset.size_bytes.unwrap_or(0),
+                            sha256: cap.asset.sha256.clone().unwrap_or_default(),
+                        },
+                    ));
+                }
+            }
+        }
+
         // 保持 catalog 稳定顺序：lite / standard / pro，且同档位只保留最新一条
         if let Some(existing) = catalog.iter_mut().find(|m| m.id == logical_id) {
             existing.version = remote_version.clone();
@@ -329,6 +439,9 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
                     let _ = quant;
                 }
             }
+            if !adapters.is_empty() {
+                existing.adapters = adapters;
+            }
             existing.context_size = context_size;
             continue;
         }
@@ -353,6 +466,7 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
             },
             is_available,
             is_recommended,
+            adapters,
         });
     }
 
@@ -375,7 +489,16 @@ pub(crate) fn resolve_all_manifests() -> Vec<LocalAiModelManifest> {
 pub(crate) fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelManifest, String> {
     let target = model_id.unwrap_or(DEFAULT_MODEL_ID);
     let all = resolve_all_manifests();
-    for m in all {
+    for m in &all {
+        if m.id.as_str() == target
+            || (target == LEGACY_MODEL_ID && m.id == LITE_MODEL_ID)
+            || (target == "qwen2.5-0.5b-editor" && m.id == LITE_MODEL_ID)
+            || (target == "qwen2.5-1.5b-editor" && m.id == STANDARD_MODEL_ID)
+        {
+            return Ok(m.clone());
+        }
+    }
+    for m in default_manifests() {
         if m.id.as_str() == target
             || (target == LEGACY_MODEL_ID && m.id == LITE_MODEL_ID)
             || (target == "qwen2.5-0.5b-editor" && m.id == LITE_MODEL_ID)
@@ -462,20 +585,44 @@ pub(crate) struct LocalAiModelFile {
     pub(crate) model_id: String,
     pub(crate) display_name: String,
     pub(crate) version: String,
-    pub(crate) path: PathBuf,
+    pub(crate) base_path: PathBuf,
+    pub(crate) gec_adapter_path: Option<PathBuf>,
+    pub(crate) completion_adapter_path: Option<PathBuf>,
+    pub(crate) distill_adapter_path: Option<PathBuf>,
     pub(crate) context_size: u32,
     pub(crate) default_max_tokens: u16,
 }
 
-#[derive(Serialize, serde::Deserialize)]
+#[derive(Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 struct PersistedLocalAiModelManifest {
     id: String,
     display_name: String,
     version: String,
-    filename: String,
-    size_bytes: u64,
-    sha256: String,
+    #[serde(default)]
+    base_filename: Option<String>,
+    #[serde(default)]
+    base_sha256: Option<String>,
+    #[serde(default)]
+    gec_filename: Option<String>,
+    #[serde(default)]
+    gec_sha256: Option<String>,
+    #[serde(default)]
+    completion_filename: Option<String>,
+    #[serde(default)]
+    completion_sha256: Option<String>,
+    #[serde(default)]
+    distill_filename: Option<String>,
+    #[serde(default)]
+    distill_sha256: Option<String>,
+    #[serde(default)]
+    total_size_bytes: u64,
+    #[serde(default)]
+    filename: Option<String>,
+    #[serde(default)]
+    size_bytes: Option<u64>,
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 #[tauri::command]
@@ -544,8 +691,10 @@ pub(crate) fn cancel_local_ai_model_download(
     })?;
     let cancel_path = directory.join(DOWNLOAD_CANCEL_FILE_NAME);
     let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
+    let staging_dir = directory.join("staging.tmp");
     let _ = fs::write(&cancel_path, b"cancel");
     let _ = fs::remove_file(&temp_path);
+    let _ = fs::remove_dir_all(&staging_dir);
 
     let status = read_model_status(&manifest);
     emit_status(&app, status.clone());
@@ -591,26 +740,62 @@ pub(crate) fn get_available_local_ai_model(
         return Err(local_model_unavailable_message(&status));
     }
 
-    let path = model_file_path(&manifest)?;
-    if !path.exists() {
-        return Err("本地模型文件不存在，请先下载。".to_string());
+    let directory = model_directory(&manifest)?;
+    let base_path = directory.join("base.gguf");
+    if base_path.is_file() {
+        let gec_path = directory.join("gec.gguf");
+        let comp_path = directory.join("completion.gguf");
+        let dist_path = directory.join("distill.gguf");
+
+        return Ok(LocalAiModelFile {
+            model_id: manifest.id.to_string(),
+            display_name: manifest.display_name.to_string(),
+            version: status.version.unwrap_or_else(|| manifest.version.clone()),
+            base_path,
+            gec_adapter_path: if gec_path.is_file() {
+                Some(gec_path)
+            } else {
+                None
+            },
+            completion_adapter_path: if comp_path.is_file() {
+                Some(comp_path)
+            } else {
+                None
+            },
+            distill_adapter_path: if dist_path.is_file() {
+                Some(dist_path)
+            } else {
+                None
+            },
+            context_size: manifest.context_size,
+            default_max_tokens: manifest.default_max_tokens,
+        });
     }
 
-    Ok(LocalAiModelFile {
-        model_id: manifest.id.clone(),
-        display_name: manifest.display_name.clone(),
-        version: status.version.unwrap_or_else(|| manifest.version.clone()),
-        path,
-        context_size: manifest.context_size,
-        default_max_tokens: manifest.default_max_tokens,
-    })
+    let legacy_path = directory.join("model.gguf");
+    if legacy_path.is_file() {
+        return Ok(LocalAiModelFile {
+            model_id: manifest.id.to_string(),
+            display_name: manifest.display_name.to_string(),
+            version: status.version.unwrap_or_else(|| manifest.version.clone()),
+            base_path: legacy_path,
+            gec_adapter_path: None,
+            completion_adapter_path: None,
+            distill_adapter_path: None,
+            context_size: manifest.context_size,
+            default_max_tokens: manifest.default_max_tokens,
+        });
+    }
+
+    Err("本地模型文件不存在，请先下载。".to_string())
 }
 
 async fn download_model(
     app: &AppHandle,
     manifest: &LocalAiModelManifest,
 ) -> Result<LocalAiModelStatus, String> {
-    if manifest.download_url.trim().is_empty() {
+    let specs = manifest.all_download_specs();
+    if specs.is_empty() || specs.iter().any(|(_, s)| s.download_url.trim().is_empty()) {
         return Err("本地模型下载源尚未配置。".to_string());
     }
 
@@ -622,182 +807,229 @@ async fn download_model(
         )
     })?;
 
-    let model_path = directory.join(&manifest.filename);
-    let temp_path = directory.join(DOWNLOAD_TEMP_FILE_NAME);
+    let staging_dir = directory.join("staging.tmp");
+    if staging_dir.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+    }
+    fs::create_dir_all(&staging_dir).map_err(|e| format!("Failed to create staging dir: {e}"))?;
+
     let cancel_path = directory.join(DOWNLOAD_CANCEL_FILE_NAME);
     let _ = fs::remove_file(&cancel_path);
 
-    let output = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&temp_path)
-        .map_err(|error| format!("Failed to create local AI model temp file: {error}"))?;
+    let total_bytes = manifest.total_download_bytes();
+    let mut accumulated_bytes: u64 = 0;
 
-    let mut curl = Command::new("curl")
-        .arg("-L")
-        .arg("--fail")
-        .arg("--silent")
-        .arg("--show-error")
-        .arg(&manifest.download_url)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("本地模型下载器启动失败：{error}"))?;
-
-    let mut stdout = curl
-        .stdout
-        .take()
-        .ok_or_else(|| "本地模型下载器没有输出流。".to_string())?;
-    let mut downloaded_bytes = 0_u64;
-    let total_bytes = manifest.size_bytes;
     emit_status(
         app,
         build_status(manifest, "downloading", 0, total_bytes, None, None, None),
     );
 
-    let mut mut_output = output;
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
+    for (tag, spec) in specs {
+        let temp_file_path = staging_dir.join(format!("{tag}.tmp"));
+        let final_staged_path = staging_dir.join(format!("{tag}.gguf"));
+
+        let output = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&temp_file_path)
+            .map_err(|error| {
+                format!(
+                    "Failed to create staging file {}: {error}",
+                    temp_file_path.display()
+                )
+            })?;
+
+        let mut curl = Command::new("curl")
+            .arg("-L")
+            .arg("--fail")
+            .arg("--silent")
+            .arg("--show-error")
+            .arg(&spec.download_url)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| format!("本地模型下载器启动失败：{error}"))?;
+
+        let mut stdout = curl
+            .stdout
+            .take()
+            .ok_or_else(|| "本地模型下载器没有输出流。".to_string())?;
+
+        let mut mut_output = output;
+        let mut buffer = [0_u8; 64 * 1024];
+
+        loop {
+            if cancel_path.exists() {
+                let _ = curl.kill();
+                let _ = curl.wait();
+                drop(mut_output);
+                let _ = fs::remove_dir_all(&staging_dir);
+                let _ = fs::remove_file(&cancel_path);
+                let status = read_model_status(manifest);
+                emit_status(app, status.clone());
+                return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+            }
+
+            let read = stdout
+                .read(&mut buffer)
+                .map_err(|error| format!("读取本地模型下载流失败：{error}"))?;
+            if read == 0 {
+                break;
+            }
+            mut_output
+                .write_all(&buffer[..read])
+                .map_err(|error| format!("写入本地模型失败：{error}"))?;
+            accumulated_bytes += read as u64;
+            emit_status(
+                app,
+                build_status(
+                    manifest,
+                    "downloading",
+                    accumulated_bytes,
+                    total_bytes,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+        }
+
+        mut_output
+            .flush()
+            .map_err(|error| format!("保存本地模型临时文件失败：{error}"))?;
+        drop(mut_output);
+
         if cancel_path.exists() {
             let _ = curl.kill();
             let _ = curl.wait();
-            drop(mut_output);
-            return handle_download_cancelled(app, manifest, &temp_path, &cancel_path);
-        }
-
-        let read = stdout
-            .read(&mut buffer)
-            .map_err(|error| format!("读取本地模型下载流失败：{error}"))?;
-        if read == 0 {
-            break;
-        }
-        mut_output
-            .write_all(&buffer[..read])
-            .map_err(|error| format!("写入本地模型失败：{error}"))?;
-        downloaded_bytes += read as u64;
-        emit_status(
-            app,
-            build_status(
-                manifest,
-                "downloading",
-                downloaded_bytes,
-                total_bytes,
-                None,
-                None,
-                None,
-            ),
-        );
-    }
-
-    mut_output
-        .flush()
-        .map_err(|error| format!("保存本地模型失败：{error}"))?;
-    drop(mut_output);
-
-    if cancel_path.exists() {
-        let _ = curl.kill();
-        let _ = curl.wait();
-        return handle_download_cancelled(app, manifest, &temp_path, &cancel_path);
-    }
-
-    let status = curl
-        .wait()
-        .map_err(|error| format!("等待本地模型下载完成时失败：{error}"))?;
-    let mut stderr_output = String::new();
-    if let Some(mut stderr) = curl.stderr.take() {
-        let _ = stderr.read_to_string(&mut stderr_output);
-    }
-    if !status.success() {
-        let _ = fs::remove_file(&temp_path);
-        let _ = fs::remove_file(&cancel_path);
-        let message = stderr_output.trim();
-        return Err(if message.is_empty() {
-            "本地模型下载失败。".to_string()
-        } else {
-            format!("本地模型下载失败：{message}")
-        });
-    }
-
-    emit_status(
-        app,
-        build_status(
-            manifest,
-            "verifying",
-            downloaded_bytes,
-            total_bytes,
-            None,
-            None,
-            None,
-        ),
-    );
-    if cancel_path.exists() {
-        return handle_download_cancelled(app, manifest, &temp_path, &cancel_path);
-    }
-
-    if !manifest.sha256.trim().is_empty() {
-        let actual_sha256 = compute_sha256_hex(&temp_path)?;
-        if actual_sha256 != manifest.sha256.to_ascii_lowercase() {
-            let _ = fs::remove_file(&temp_path);
+            let _ = fs::remove_dir_all(&staging_dir);
             let _ = fs::remove_file(&cancel_path);
-            return Err("本地模型校验失败，已删除未通过校验的下载文件。".to_string());
+            let status = read_model_status(manifest);
+            emit_status(app, status.clone());
+            return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
         }
-    }
 
-    // --- 原子安全替换流水线 ---
-    let backup_path = directory.join("model.gguf.old");
-    if backup_path.exists() {
-        let _ = fs::remove_file(&backup_path);
-    }
+        let status = curl
+            .wait()
+            .map_err(|error| format!("等待本地模型下载完成时失败：{error}"))?;
+        if !status.success() {
+            let mut stderr_output = String::new();
+            if let Some(mut stderr) = curl.stderr.take() {
+                let _ = stderr.read_to_string(&mut stderr_output);
+            }
+            let _ = fs::remove_dir_all(&staging_dir);
+            let _ = fs::remove_file(&cancel_path);
+            let message = stderr_output.trim();
+            return Err(if message.is_empty() {
+                format!("下载组件 {tag} 失败。")
+            } else {
+                format!("下载组件 {tag} 失败：{message}")
+            });
+        }
 
-    // 1. 如果旧模型存在，先重命名为 backup_path (model.gguf.old)
-    if model_path.exists() {
-        fs::rename(&model_path, &backup_path).map_err(|error| {
+        // SHA256 校验
+        if !spec.sha256.trim().is_empty() {
+            emit_status(
+                app,
+                build_status(
+                    manifest,
+                    "verifying",
+                    accumulated_bytes,
+                    total_bytes,
+                    None,
+                    None,
+                    None,
+                ),
+            );
+            let actual_sha = compute_sha256_hex(&temp_file_path)?;
+            if actual_sha.to_ascii_lowercase() != spec.sha256.to_ascii_lowercase() {
+                let _ = fs::remove_dir_all(&staging_dir);
+                let _ = fs::remove_file(&cancel_path);
+                return Err(format!(
+                    "本地模型组件 {tag} 校验失败，已清理未通过校验的文件。"
+                ));
+            }
+        }
+
+        // 在 staging_dir 中将 .tmp 重命名为 .gguf
+        fs::rename(&temp_file_path, &final_staged_path).map_err(|e| {
             format!(
-                "Failed to backup existing local AI model {}: {error}",
-                model_path.display()
+                "Failed to finalize staged component {}: {e}",
+                final_staged_path.display()
             )
         })?;
     }
 
-    // 2. 将新下载已校验的文件原子替换为 model.gguf
-    if let Err(error) = fs::rename(&temp_path, &model_path) {
-        // 如果移动新模型发生错误，安全回滚旧模型
-        if backup_path.exists() {
-            let _ = fs::rename(&backup_path, &model_path);
-        }
-        return Err(format!(
-            "Failed to replace model with new file from {} to {}: {error}",
-            temp_path.display(),
-            model_path.display()
-        ));
+    if cancel_path.exists() {
+        let _ = fs::remove_dir_all(&staging_dir);
+        let _ = fs::remove_file(&cancel_path);
+        let status = read_model_status(manifest);
+        emit_status(app, status.clone());
+        return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
     }
 
-    // 3. 写入最新模型元数据与校验和
+    // --- 原子安全替换流水线 ---
+    let backup_files = [
+        "base.gguf",
+        "gec.gguf",
+        "completion.gguf",
+        "distill.gguf",
+        "model.gguf",
+    ];
+    for name in &backup_files {
+        let target = directory.join(name);
+        if target.is_file() {
+            let backup = directory.join(format!("{name}.old"));
+            if backup.exists() {
+                let _ = fs::remove_file(&backup);
+            }
+            let _ = fs::rename(&target, &backup);
+        }
+    }
+
+    // 将 staging_dir 中的所有 .gguf 移动到 directory
+    let entries =
+        fs::read_dir(&staging_dir).map_err(|e| format!("Failed to read staging dir: {e}"))?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_file() && p.extension().is_some_and(|ext| ext == "gguf") {
+            if let Some(file_name) = p.file_name() {
+                let dest = directory.join(file_name);
+                if let Err(e) = fs::rename(&p, &dest) {
+                    // 回滚
+                    for name in &backup_files {
+                        let backup = directory.join(format!("{name}.old"));
+                        if backup.is_file() {
+                            let orig = directory.join(name);
+                            let _ = fs::rename(&backup, &orig);
+                        }
+                    }
+                    let _ = fs::remove_dir_all(&staging_dir);
+                    return Err(format!(
+                        "Failed to move {file_name:?} into target directory: {e}"
+                    ));
+                }
+            }
+        }
+    }
+
+    // 写入 metadata
     write_model_metadata(manifest)?;
 
-    // 4. 【关键保障】：新模型替换成功后，立即删除旧模型备份文件，彻底释放磁盘空间！
-    if backup_path.exists() {
-        let _ = fs::remove_file(&backup_path);
+    // 删除旧备份文件和 staging 目录，彻底释放磁盘空间
+    for name in &backup_files {
+        let backup = directory.join(format!("{name}.old"));
+        if backup.exists() {
+            let _ = fs::remove_file(&backup);
+        }
     }
+    let _ = fs::remove_dir_all(&staging_dir);
     let _ = fs::remove_file(&cancel_path);
 
     let status = read_model_status(manifest);
     emit_status(app, status.clone());
     Ok(status)
-}
-
-fn handle_download_cancelled(
-    app: &AppHandle,
-    manifest: &LocalAiModelManifest,
-    temp_path: &Path,
-    cancel_path: &Path,
-) -> Result<LocalAiModelStatus, String> {
-    let _ = fs::remove_file(temp_path);
-    let _ = fs::remove_file(cancel_path);
-    let status = read_model_status(manifest);
-    emit_status(app, status.clone());
-    Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string())
 }
 
 fn compute_sha256_hex(path: &Path) -> Result<String, String> {
@@ -876,128 +1108,196 @@ fn extract_first_hex_hash(output: &str) -> Option<String> {
 }
 
 fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModelStatus {
+    let total_bytes = manifest.total_download_bytes();
     if !manifest.is_available {
-        return build_status(
-            manifest,
-            "not-downloaded",
-            0,
-            manifest.size_bytes,
-            None,
-            None,
-            None,
-        );
+        return build_status(manifest, "not-downloaded", 0, total_bytes, None, None, None);
     }
 
-    let Ok(model_path) = model_file_path(manifest) else {
+    let Ok(directory) = model_directory(manifest) else {
         return build_status(
             manifest,
             "failed",
             0,
-            manifest.size_bytes,
+            total_bytes,
             None,
             None,
             Some("无法解析本地模型目录。".to_string()),
         );
     };
-    let temp_path = model_path
-        .parent()
-        .map(|directory| directory.join(DOWNLOAD_TEMP_FILE_NAME));
 
-    if model_path.exists() {
-        let downloaded_bytes = model_path.metadata().map(|meta| meta.len()).unwrap_or(0);
-        let checksum_record = model_path
-            .parent()
-            .map(|directory| directory.join("model.gguf.sha256"))
-            .and_then(|path| fs::read_to_string(path).ok())
-            .map(|value| value.trim().to_string());
-        let persisted_manifest = model_path
-            .parent()
-            .and_then(|dir| fs::read_to_string(dir.join("manifest.json")).ok())
-            .and_then(|json| serde_json::from_str::<PersistedLocalAiModelManifest>(&json).ok());
+    let manifest_path = directory.join("manifest.json");
+    let staging_dir = directory.join("staging.tmp");
+    let legacy_temp = directory.join(DOWNLOAD_TEMP_FILE_NAME);
 
-        let (effective_version, is_valid_checksum) = match persisted_manifest {
-            Some(persisted) => {
-                let valid = persisted.sha256.trim().is_empty()
-                    || checksum_record.as_deref() == Some(&persisted.sha256)
-                    || checksum_record.as_deref() == Some(&manifest.sha256)
-                    || (manifest.id.as_str() == LITE_MODEL_ID
-                        && checksum_record.as_deref() == Some(LEGACY_V100_LITE_SHA256))
-                    || (manifest.id == STANDARD_MODEL_ID
-                        && checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256));
-                (persisted.version, valid)
-            }
-            None => {
-                // 如果本地有模型文件但未写 manifest.json，通过 checksum 判定版本
-                if checksum_record.as_deref() == Some(LEGACY_V100_LITE_SHA256)
-                    || checksum_record.as_deref() == Some(LEGACY_V100_STANDARD_SHA256)
-                {
-                    ("v1.0.0".to_string(), true)
-                } else if checksum_record.as_deref() == Some(&manifest.sha256)
-                    || manifest.sha256.is_empty()
-                {
-                    (manifest.version.clone(), true)
-                } else {
-                    ("v1.0.0".to_string(), true)
+    // 1. 尝试从已持久化的 manifest.json 读取
+    if manifest_path.is_file() {
+        if let Ok(json) = fs::read_to_string(&manifest_path) {
+            if let Ok(persisted) = serde_json::from_str::<PersistedLocalAiModelManifest>(&json) {
+                if let Some(base_file) = &persisted.base_filename {
+                    let base_path = directory.join(base_file);
+                    if base_path.is_file() {
+                        let mut downloaded = base_path.metadata().map(|m| m.len()).unwrap_or(0);
+                        if let Some(gec) = &persisted.gec_filename {
+                            let p = directory.join(gec);
+                            if p.is_file() {
+                                downloaded += p.metadata().map(|m| m.len()).unwrap_or(0);
+                            }
+                        }
+                        if let Some(comp) = &persisted.completion_filename {
+                            let p = directory.join(comp);
+                            if p.is_file() {
+                                downloaded += p.metadata().map(|m| m.len()).unwrap_or(0);
+                            }
+                        }
+                        if let Some(dist) = &persisted.distill_filename {
+                            let p = directory.join(dist);
+                            if p.is_file() {
+                                downloaded += p.metadata().map(|m| m.len()).unwrap_or(0);
+                            }
+                        }
+
+                        return build_status(
+                            manifest,
+                            "available",
+                            downloaded,
+                            total_bytes.max(downloaded),
+                            Some(base_path),
+                            Some(persisted.version),
+                            None,
+                        );
+                    }
+                } else if let Some(filename) = &persisted.filename {
+                    let single_path = directory.join(filename);
+                    if single_path.is_file() {
+                        let downloaded = single_path.metadata().map(|m| m.len()).unwrap_or(0);
+                        return build_status(
+                            manifest,
+                            "available",
+                            downloaded,
+                            total_bytes.max(downloaded),
+                            Some(single_path),
+                            Some(persisted.version),
+                            None,
+                        );
+                    }
                 }
             }
-        };
-
-        if is_valid_checksum {
-            return build_status(
-                manifest,
-                "available",
-                downloaded_bytes,
-                manifest.size_bytes.max(downloaded_bytes),
-                Some(model_path),
-                Some(effective_version),
-                None,
-            );
         }
+    }
 
+    // 2. 检查本地是否有已就绪的文件（base.gguf 或 model.gguf）
+    let base_path = directory.join("base.gguf");
+    if base_path.is_file() {
+        let mut downloaded = base_path.metadata().map(|m| m.len()).unwrap_or(0);
+        for tag in &["gec.gguf", "completion.gguf", "distill.gguf"] {
+            let p = directory.join(tag);
+            if p.is_file() {
+                downloaded += p.metadata().map(|m| m.len()).unwrap_or(0);
+            }
+        }
         return build_status(
             manifest,
-            "failed",
-            downloaded_bytes,
-            manifest.size_bytes.max(downloaded_bytes),
-            Some(model_path),
-            Some(effective_version),
-            Some("本地模型校验记录不匹配，请重新下载。".to_string()),
+            "available",
+            downloaded,
+            total_bytes.max(downloaded),
+            Some(base_path),
+            Some(manifest.version.clone()),
+            None,
         );
     }
 
-    if let Some(temp_path) = temp_path.filter(|path| path.exists()) {
-        let downloaded_bytes = temp_path.metadata().map(|meta| meta.len()).unwrap_or(0);
+    let legacy_model_path = directory.join("model.gguf");
+    if legacy_model_path.is_file() {
+        let downloaded = legacy_model_path.metadata().map(|m| m.len()).unwrap_or(0);
+        return build_status(
+            manifest,
+            "available",
+            downloaded,
+            total_bytes.max(downloaded),
+            Some(legacy_model_path),
+            Some("v1.0.0".to_string()),
+            None,
+        );
+    }
+
+    // 3. 检查是否有未完成的临时文件
+    if staging_dir.is_dir() || legacy_temp.is_file() {
         return build_status(
             manifest,
             "failed",
-            downloaded_bytes,
-            manifest.size_bytes.max(downloaded_bytes),
+            0,
+            total_bytes,
             None,
             None,
             Some("上次下载未完成，请重试。".to_string()),
         );
     }
 
-    build_status(
-        manifest,
-        "not-downloaded",
-        0,
-        manifest.size_bytes,
-        None,
-        None,
-        None,
-    )
+    build_status(manifest, "not-downloaded", 0, total_bytes, None, None, None)
 }
 
 fn write_model_metadata(manifest: &LocalAiModelManifest) -> Result<(), String> {
     let directory = model_directory(manifest)?;
-    let metadata = PersistedLocalAiModelManifest {
-        id: manifest.id.clone(),
-        display_name: manifest.display_name.clone(),
-        version: manifest.version.clone(),
-        filename: manifest.filename.to_string(),
-        size_bytes: manifest.size_bytes,
-        sha256: manifest.sha256.clone(),
+    let metadata = if !manifest.adapters.is_empty() {
+        PersistedLocalAiModelManifest {
+            id: manifest.id.to_string(),
+            display_name: manifest.display_name.to_string(),
+            version: manifest.version.clone(),
+            base_filename: Some("base.gguf".to_string()),
+            base_sha256: Some(manifest.sha256.clone()),
+            gec_filename: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "gec")
+                .map(|_| "gec.gguf".to_string()),
+            gec_sha256: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "gec")
+                .map(|(_, a)| a.sha256.clone()),
+            completion_filename: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "completion")
+                .map(|_| "completion.gguf".to_string()),
+            completion_sha256: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "completion")
+                .map(|(_, a)| a.sha256.clone()),
+            distill_filename: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "distill")
+                .map(|_| "distill.gguf".to_string()),
+            distill_sha256: manifest
+                .adapters
+                .iter()
+                .find(|(t, _)| t == "distill")
+                .map(|(_, a)| a.sha256.clone()),
+            total_size_bytes: manifest.total_download_bytes(),
+            filename: None,
+            size_bytes: None,
+            sha256: None,
+        }
+    } else {
+        PersistedLocalAiModelManifest {
+            id: manifest.id.clone(),
+            display_name: manifest.display_name.clone(),
+            version: manifest.version.clone(),
+            base_filename: None,
+            base_sha256: None,
+            gec_filename: None,
+            gec_sha256: None,
+            completion_filename: None,
+            completion_sha256: None,
+            distill_filename: None,
+            distill_sha256: None,
+            total_size_bytes: manifest.size_bytes,
+            filename: Some(manifest.filename.clone()),
+            size_bytes: Some(manifest.size_bytes),
+            sha256: Some(manifest.sha256.clone()),
+        }
     };
     let manifest_json = serde_json::to_string_pretty(&metadata)
         .map_err(|error| format!("Failed to serialize local AI model manifest: {error}"))?;
@@ -1061,6 +1361,7 @@ fn emit_status(app: &AppHandle, status: LocalAiModelStatus) {
     let _ = app.emit(LOCAL_AI_MODEL_PROGRESS_EVENT, status);
 }
 
+#[allow(dead_code)]
 fn model_file_path(manifest: &LocalAiModelManifest) -> Result<PathBuf, String> {
     Ok(model_directory(manifest)?.join(&manifest.filename))
 }
@@ -1238,7 +1539,7 @@ mod tests {
         );
         assert_eq!(status.status, "available");
         assert_eq!(status.version, Some("v1.0.0".to_string()));
-        assert_eq!(status.latest_version, "v1.1.0");
+        assert_eq!(status.latest_version, "v1.3.0");
         assert!(status.has_update);
     }
 }
