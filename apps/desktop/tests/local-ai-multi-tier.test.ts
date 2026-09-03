@@ -12,7 +12,7 @@ import {
 } from "../src/components/settings/settingsUtils";
 
 describe("local AI multi-tier models and system specs", () => {
-  it("includes Lite (0.5B), Standard (1.5B), and Pro (placeholder) descriptors", () => {
+  it("includes Lite (0.6B), Standard (1.7B), and Pro (placeholder) descriptors", () => {
     expect(BUILTIN_LOCAL_MODELS.map((m) => m.id)).toEqual([
       "md-editor-writer-lite",
       "md-editor-writer-standard",
