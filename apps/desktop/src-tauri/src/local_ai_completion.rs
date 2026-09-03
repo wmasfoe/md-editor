@@ -93,13 +93,22 @@ pub(crate) async fn request_local_ai_continuation(
         let mut runtime = runtime_manager
             .lock()
             .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
-        let endpoint = runtime.ensure_ready(&app_handle, &model_for_runtime)?;
+        let endpoint = match runtime.ensure_ready(&app_handle, &model_for_runtime) {
+            Ok(ep) => ep,
+            Err(err) => {
+                eprintln!("[Local AI Error] ensure_ready 启动服务失败: {err}");
+                return Err(err);
+            }
+        };
         let _ = runtime.activate_lora_adapter(endpoint.port, intent_for_runtime.as_deref());
         let response = if is_raw {
             post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
         } else {
             post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
         };
+        if let Err(err) = &response {
+            eprintln!("[Local AI Error] 请求本地推理服务接口失败: {err}");
+        }
         runtime.mark_used();
         drop(runtime);
         schedule_idle_shutdown(idle_manager);
