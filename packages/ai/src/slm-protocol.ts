@@ -60,7 +60,9 @@ export function buildUserStyleProfilePrefix(
     lines.push(`- Punctuation: ${profile.punctuation}`);
   }
   if (profile.preferredTerms && profile.preferredTerms.length > 0) {
-    lines.push(`- Preferred: ${profile.preferredTerms.join(", ")}`);
+    // 排序保证字典序确定性，避免跨请求因数组元素顺序变动破坏 KV Cache 前缀
+    const sortedTerms = profile.preferredTerms.toSorted();
+    lines.push(`- Preferred: ${sortedTerms.join(", ")}`);
   }
   if (profile.tone) {
     lines.push(`- Tone: ${profile.tone}`);
@@ -81,7 +83,8 @@ export function buildDocumentContextPrefix(
   const outline = docContext?.outline;
   const topic = docContext?.topic;
   const domain = docContext?.domain;
-  const tags = docContext?.tags;
+  const tags =
+    docContext?.tags && docContext.tags.length > 0 ? docContext.tags.toSorted() : undefined;
 
   if (
     !title &&
@@ -286,4 +289,93 @@ export function getSlmStopTokens(
 
   // GEC 语法或标点纠错任务
   return ["\n", "<|im_end|>", "<|endoftext|>", FIM_PREFIX];
+}
+
+/** 逻辑任务类型枚举 */
+export type AiCapabilityTask = "editing" | "continuation" | "distill" | "both";
+
+/**
+ * 统一能力画像 (Capability Profile) 契约
+ * 将散落在各层（前端调用、Tauri 传输、Runtime 参数、Grammar 语法约束）的配置收敛至单一数据结构。
+ */
+export interface CapabilityProfile {
+  /** 业务逻辑任务类型 */
+  readonly task: AiCapabilityTask;
+  /** 映射的底层 LoRA 适配器标识 ("gec" | "completion" | "distill" | null) */
+  readonly adapterTask: "gec" | "completion" | "distill" | null;
+  /** 标准化组装的 Prompt (前缀严格按静态->动态分层以实现 KV Cache 命中) */
+  readonly prompt: string;
+  /** 严格输出文法 (GBNF)，杜绝模型幻觉与跑题 */
+  readonly grammar?: string;
+  /** 任务推荐 Stop Tokens */
+  readonly stop: string[];
+  /** 任务推荐最大生成 Token 数 */
+  readonly maxTokens: number;
+  /** 采样温度 (GEC 为 0.0 确定性输出，续写为 0.3，提炼为 0.2) */
+  readonly temperature: number;
+  /** 是否启用底层 Prompt KV Cache 缓存复用 (默认为 true) */
+  readonly cachePrompt: boolean;
+  /** 调度器亲和度与分组聚合 Key */
+  readonly affinityKey: string;
+}
+
+export interface CapabilityProfileOptions {
+  readonly profile?: UserStyleProfile;
+  readonly language?: string;
+  readonly isPunctuationOnly?: boolean;
+  readonly documentContext?: AiDocumentContext;
+  readonly previousSummary?: string;
+  readonly isGhostText?: boolean;
+  readonly maxTokens?: number;
+  readonly temperature?: number;
+}
+
+/**
+ * 解析并生成完整的端侧小模型能力画像 (Capability Profile)
+ */
+export function resolveCapabilityProfile(
+  context: AiContextSnapshot,
+  task: AiCapabilityTask = "both",
+  options: CapabilityProfileOptions = {},
+): CapabilityProfile {
+  const adapterTask =
+    task === "editing"
+      ? "gec"
+      : task === "continuation"
+        ? "completion"
+        : task === "distill"
+          ? "distill"
+          : null;
+
+  const prompt = buildSlmPrompt(context, task, options);
+  const stop = getSlmStopTokens(task, {
+    isGhostText: options.isGhostText !== false,
+  });
+
+  const grammar = task === "editing" || task === "both" ? SLM_GEC_TUPLE_GRAMMAR : undefined;
+
+  const defaultMaxTokens =
+    task === "continuation"
+      ? options.isGhostText !== false
+        ? 64
+        : 128
+      : task === "distill"
+        ? 180
+        : 220;
+  const maxTokens = options.maxTokens ?? defaultMaxTokens;
+
+  const defaultTemperature = task === "editing" ? 0.0 : task === "continuation" ? 0.3 : 0.2;
+  const temperature = options.temperature ?? defaultTemperature;
+
+  return {
+    task,
+    adapterTask,
+    prompt,
+    grammar,
+    stop,
+    maxTokens,
+    temperature,
+    cachePrompt: true,
+    affinityKey: adapterTask ?? "base",
+  };
 }

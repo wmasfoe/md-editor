@@ -55,10 +55,10 @@ export function useDesktopEditorController({
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
   const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
-  // 当前 llama-server 仍是 --parallel 1；调度器封装优先级、同作用域替换与 AbortSignal。
+  // 接入多 Slot 并发调度器（--parallel 2），支持 LoRA 分组感知调度与高优先级抢占。
   const aiSchedulerRef = useRef<AiRequestScheduler | null>(null);
   if (!aiSchedulerRef.current) {
-    aiSchedulerRef.current = new AiRequestScheduler(1);
+    aiSchedulerRef.current = new AiRequestScheduler(2);
   }
   const aiScheduler = aiSchedulerRef.current;
 
