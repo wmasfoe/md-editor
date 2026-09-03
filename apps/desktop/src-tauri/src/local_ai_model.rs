@@ -943,7 +943,7 @@ async fn download_model(
                 ),
             );
             let actual_sha = compute_sha256_hex(&temp_file_path)?;
-            if actual_sha.to_ascii_lowercase() != spec.sha256.to_ascii_lowercase() {
+            if !actual_sha.eq_ignore_ascii_case(&spec.sha256) {
                 let _ = fs::remove_dir_all(&staging_dir);
                 let _ = fs::remove_file(&cancel_path);
                 return Err(format!(
