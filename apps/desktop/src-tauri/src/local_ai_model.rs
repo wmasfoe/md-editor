@@ -1,4 +1,4 @@
-﻿use std::{
+use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -389,6 +389,12 @@ pub(crate) fn resolve_manifest(model_id: Option<&str>) -> Result<LocalAiModelMan
 
 /// 任务能力路由：从远端 catalog 的 capabilities 中解析某任务对应的 Adapter 资产。
 /// 返回 (adapter 文件名, 下载 URL, SHA256)。v2 尚未发布/无该能力时返回明确错误。
+///
+/// 当前 Runtime 尚未启动 `llama-server --lora`；待 v2 资产发布后由 Runtime 调用。
+#[expect(
+    dead_code,
+    reason = "等待 v2 Adapter Release 后接入 llama-server --lora Runtime"
+)]
 pub(crate) fn resolve_capability_asset(
     model_id: &str,
     task: &str,

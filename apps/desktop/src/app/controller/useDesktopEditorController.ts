@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
@@ -19,9 +19,10 @@ import {
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import {
+  AiRequestScheduler,
+  documentContextManager,
   getAiCompletionReadiness,
   requestAiContinuation,
-  documentContextManager,
 } from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../ai/local-ai-model";
 import { isDiscardProtectionRequired } from "./document-save";
@@ -54,6 +55,12 @@ export function useDesktopEditorController({
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
   const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
+  // 当前 llama-server 仍是 --parallel 1；调度器封装优先级、同作用域替换与 AbortSignal。
+  const aiSchedulerRef = useRef<AiRequestScheduler | null>(null);
+  if (!aiSchedulerRef.current) {
+    aiSchedulerRef.current = new AiRequestScheduler(1);
+  }
+  const aiScheduler = aiSchedulerRef.current;
 
   const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
     useSidebarStore.setState((state) => ({
@@ -157,24 +164,34 @@ export function useDesktopEditorController({
 
             try {
               showToast("AI 续写思考中...");
-              const suggestion = await requestAiContinuation(
-                settings.ai,
-                {
-                  before,
-                  after,
-                  selectedText,
-                  mode: snapshot.mode,
-                  document: {
-                    filePath: snapshot.filePath,
-                  },
-                  documentContext: docContext,
+              const suggestion = await aiScheduler.schedule({
+                scope: {
+                  documentId: docKey,
+                  task: "completion",
+                  anchor: selection.from,
                 },
-                {
-                  intent: "continuation",
-                  localInvokeImpl: desktopLocalAiInvokeImpl,
-                  documentContext: docContext,
-                },
-              );
+                priority: "urgent",
+                run: ({ signal }) =>
+                  requestAiContinuation(
+                    settings.ai,
+                    {
+                      before,
+                      after,
+                      selectedText,
+                      mode: snapshot.mode,
+                      document: {
+                        filePath: snapshot.filePath,
+                      },
+                      documentContext: docContext,
+                    },
+                    {
+                      intent: "continuation",
+                      localInvokeImpl: desktopLocalAiInvokeImpl,
+                      documentContext: docContext,
+                      signal,
+                    },
+                  ),
+              }).promise;
 
               if (suggestion.continuation) {
                 portsAccess.ports.showSuggestion({
@@ -227,24 +244,34 @@ export function useDesktopEditorController({
 
             try {
               showToast("AI 语法修复分析中...");
-              const suggestion = await requestAiContinuation(
-                settings.ai,
-                {
-                  before,
-                  after,
-                  selectedText,
-                  mode: snapshot.mode,
-                  document: {
-                    filePath: snapshot.filePath,
-                  },
-                  documentContext: docContext,
+              const suggestion = await aiScheduler.schedule({
+                scope: {
+                  documentId: docKey,
+                  task: "gec",
+                  anchor: targetFrom,
                 },
-                {
-                  intent: "editing",
-                  localInvokeImpl: desktopLocalAiInvokeImpl,
-                  documentContext: docContext,
-                },
-              );
+                priority: "urgent",
+                run: ({ signal }) =>
+                  requestAiContinuation(
+                    settings.ai,
+                    {
+                      before,
+                      after,
+                      selectedText,
+                      mode: snapshot.mode,
+                      document: {
+                        filePath: snapshot.filePath,
+                      },
+                      documentContext: docContext,
+                    },
+                    {
+                      intent: "editing",
+                      localInvokeImpl: desktopLocalAiInvokeImpl,
+                      documentContext: docContext,
+                      signal,
+                    },
+                  ),
+              }).promise;
 
               if (import.meta.env.DEV) {
                 console.debug("[AI Manual Fix] 审校结果:", suggestion);
@@ -300,6 +327,7 @@ export function useDesktopEditorController({
       });
     },
     [
+      aiScheduler,
       createNewDocument,
       getRendererPorts,
       hasPendingConfirmation,
