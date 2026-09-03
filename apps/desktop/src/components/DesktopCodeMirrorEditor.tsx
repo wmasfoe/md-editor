@@ -138,6 +138,7 @@ function useAutomaticAiEditing({
 }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const distillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portsRef = useRef<CodeMirrorEditorPorts | null>(ports);
   const lastAnalyzedTextRef = useRef<string>("");
   portsRef.current = ports;
@@ -162,6 +163,33 @@ function useAutomaticAiEditing({
       );
     }
 
+    const triggerDistillationIfEligible = (markdown: string, filePath?: string | null) => {
+      if (
+        markdown.trim().length >= 50 &&
+        settings.ai.enabled &&
+        settings.ai.provider === "local" &&
+        settings.ai.localModel.enabled &&
+        settings.ai.localModel.status === "available"
+      ) {
+        const docKey = filePath || "untitled";
+        documentContextManager
+          .scheduleDistillation(docKey, markdown, {
+            settings: settings.ai,
+            localInvokeImpl: desktopLocalAiInvokeImpl,
+            onUpdate: (ctx) => {
+              if (import.meta.env.DEV) {
+                console.debug("[AI DocContext] 后台文档提炼已完成:", ctx);
+              }
+            },
+          })
+          .catch(() => {});
+      }
+    };
+
+    // 组件挂载时，若当前文档已具备足够长度，在后台低优先级异步触发宏观提炼
+    const initialSnap = runtime.document.getSnapshot();
+    triggerDistillationIfEligible(initialSnap.markdown, initialSnap.filePath);
+
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
       // 换文档或重置文档时清除缓存并触发新文档的确定性大纲提取与后台提炼
       if (event.transition.kind === "document-replace") {
@@ -170,24 +198,7 @@ function useAutomaticAiEditing({
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
           documentContextManager.getOrExtract(docKey, snap.markdown);
-          if (
-            settings.ai.enabled &&
-            settings.ai.provider === "local" &&
-            settings.ai.localModel.enabled &&
-            settings.ai.localModel.status === "available"
-          ) {
-            documentContextManager
-              .scheduleDistillation(docKey, snap.markdown, {
-                settings: settings.ai,
-                localInvokeImpl: desktopLocalAiInvokeImpl,
-                onUpdate: (ctx) => {
-                  if (import.meta.env.DEV) {
-                    console.debug("[AI DocContext] 后台提炼已更新:", ctx);
-                  }
-                },
-              })
-              .catch(() => {});
-          }
+          triggerDistillationIfEligible(snap.markdown, snap.filePath);
         }
         return;
       }
@@ -196,6 +207,15 @@ function useAutomaticAiEditing({
       if (event.transition.kind !== "content" || event.transition.origin.kind !== "renderer") {
         return;
       }
+
+      // 敲字过程中，如果内容发生累计，在用户停顿 2.5 秒后低频调度全篇滚动总结提炼
+      if (distillTimerRef.current) {
+        clearTimeout(distillTimerRef.current);
+      }
+      distillTimerRef.current = setTimeout(() => {
+        const snap = runtime.document.getSnapshot();
+        triggerDistillationIfEligible(snap.markdown, snap.filePath);
+      }, 2500);
 
       // 清除上一次未触发的定时器与未完成的请求
       if (timerRef.current) {
@@ -460,6 +480,9 @@ function useAutomaticAiEditing({
       unsubscribe();
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+      }
+      if (distillTimerRef.current) {
+        clearTimeout(distillTimerRef.current);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();

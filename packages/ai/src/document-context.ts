@@ -413,13 +413,19 @@ export class DocumentContextManager {
    * 瞬时获取或基于 AST 生成确定性上下文（0ms）
    */
   public getOrExtract(filePath: string, markdown: string, title?: string): AiDocumentContext {
-    const existing = this.get(filePath);
-    if (existing) {
-      return existing;
+    const currentHash = simpleTextHash(markdown);
+    const cached = this.cache.get(filePath);
+    if (cached && cached.contentHash === currentHash) {
+      return cached.context;
     }
     const extracted = extractDeterministicDocContext(markdown, title, filePath);
-    this.set(filePath, extracted, simpleTextHash(markdown));
-    return extracted;
+    const result: AiDocumentContext = {
+      ...extracted,
+      ...(cached?.context.topic ? { topic: cached.context.topic } : {}),
+      ...(cached?.context.isDistilled ? { isDistilled: cached.context.isDistilled } : {}),
+    };
+    this.set(filePath, result, currentHash);
+    return result;
   }
 
   /**
