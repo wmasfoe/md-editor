@@ -119,14 +119,17 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
   });
 
   it("根据任务动态返回 Stop Tokens", () => {
-    // 提炼任务允许多行
-    expect(getSlmStopTokens("distill")).toEqual(["<|im_end|>", "<|endoftext|>"]);
-    // 行内极速 Ghost Text 必须包含 \n
+    // 提炼任务允许多行，且拦截思考标签
+    expect(getSlmStopTokens("distill")).toEqual(["<|im_end|>", "<|endoftext|>", "<think>"]);
+    // 行内极速 Ghost Text 必须包含 \n，且拦截思考标签
     expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain("\n");
+    expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain("<think>");
     // 主动段落续写允许换行
     expect(getSlmStopTokens("continuation", { isGhostText: false })).not.toContain("\n");
+    expect(getSlmStopTokens("continuation", { isGhostText: false })).toContain("<think>");
     // 语法纠错必须遇到换行立即终止
     expect(getSlmStopTokens("editing")).toContain("\n");
+    expect(getSlmStopTokens("editing")).toContain("<think>");
   });
 
   it("P1: 静态前缀稳定化与字典序排序保证 KV Cache 确定性命中", () => {
