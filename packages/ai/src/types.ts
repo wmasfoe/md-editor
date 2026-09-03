@@ -1,5 +1,8 @@
 export type AiProviderType = "openai-compatible" | "deepseek" | "local";
 
+/** App 业务层使用的稳定任务名；具体 Base/Adapter 由本地 Model Catalog 解析。 */
+export type AiTaskKind = "gec" | "completion" | "distill" | "style-analysis";
+
 export type AiLocalModelStatus =
   "not-downloaded" | "downloading" | "verifying" | "available" | "failed";
 

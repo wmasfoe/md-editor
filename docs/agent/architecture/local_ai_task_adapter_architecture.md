@@ -345,6 +345,17 @@ llama-server 不负责根据文本猜测任务，也不负责判断结果是否�
 | 不同任务独立 KV Cache | llama-server 请求天然有独立上下文，但 App 未建模 | 明确约束 | 不跨 Adapter 复用 |
 | 端云协作 | 非本阶段 | 仅保留扩展点 | 不影响当前本地实现 |
 
+## 10.1 请求调度实现状态（2026-09-03）
+
+`packages/ai/src/request-scheduler.ts` 已实现并接入桌面端用户主动触发的 GEC 与 Completion：
+
+- `Urgent / Normal / Background` 三层队列；当前默认并发 `1`，匹配 llama-server `--parallel 1`。
+- `requestId + (documentId, task, anchor)` scope；同 scope 新请求自动取消旧请求。
+- `AbortSignal` 传入原有 `requestAiContinuation`，请求结束时检查是否仍为最新有效请求。
+- 调度器单测覆盖优先级、同 scope 覆盖取消、跨文档隔离和显式取消。
+
+文档总结、风格分析仍可复用同一调度器，但当前尚未在桌面调用点触发。
+
 ## 11. 实施顺序
 
 1. 先在 `md-editor-models` 训练并发布 Qwen3-0.6B Lite 的基座/Adapter 产物，建立真实 manifest。
