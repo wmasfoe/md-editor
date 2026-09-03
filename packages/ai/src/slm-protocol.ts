@@ -234,6 +234,12 @@ export function buildSlmPrompt(
     systemSections.push(docContextPrefix);
   }
 
+  if (intent === "continuation") {
+    systemSections.push(
+      "- Generation: Direct continuation text only. Never output reasoning thoughts or <think> tags.",
+    );
+  }
+
   const systemBlock =
     systemSections.length > 0
       ? `<|im_start|>system\n${systemSections.join("\n\n")}<|im_end|>\n`
@@ -274,21 +280,21 @@ export function getSlmStopTokens(
   options: { readonly isGhostText?: boolean } = {},
 ): string[] {
   if (intent === "distill") {
-    // 提炼任务允许多行要点输出，遇到 <|im_end|> 或 <|endoftext|> 结束
-    return ["<|im_end|>", "<|endoftext|>"];
+    // 提炼任务允许多行要点输出，遇到 <|im_end|> 或 <|endoftext|> 结束，阻断思考标签
+    return ["<|im_end|>", "<|endoftext|>", "<think>"];
   }
 
   if (intent === "continuation") {
     if (options.isGhostText !== false) {
-      // 行内极速单行 Ghost Text 遇换行立即截断
-      return ["\n", FIM_END, "<|im_end|>", "<|endoftext|>"];
+      // 行内极速单行 Ghost Text 遇换行立即截断，遇 <think> 立即阻断
+      return ["\n", FIM_END, "<|im_end|>", "<|endoftext|>", "<think>"];
     }
     // 主动块级/段落续写
-    return [FIM_END, "<|im_end|>", "<|endoftext|>"];
+    return [FIM_END, "<|im_end|>", "<|endoftext|>", "<think>"];
   }
 
   // GEC 语法或标点纠错任务
-  return ["\n", "<|im_end|>", "<|endoftext|>", FIM_PREFIX];
+  return ["\n", "<|im_end|>", "<|endoftext|>", FIM_PREFIX, "<think>"];
 }
 
 /** 逻辑任务类型枚举 */

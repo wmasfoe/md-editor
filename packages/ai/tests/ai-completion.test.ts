@@ -9,6 +9,7 @@ import {
   normalizeLocalAiModelSettings,
   parseAiWritingSuggestion,
   requestAiContinuation,
+  stripThinkingTags,
 } from "../src/index.ts";
 
 const baseSettings: AiSettings = {
@@ -381,5 +382,22 @@ describe("AI completion settings", () => {
     expect(normalizedLegacy.modelId).toBe("md-editor-writer-lite");
     expect(normalizedLegacy.latestVersion).toBe("v1.1.0");
     expect(normalizedLegacy.hasUpdate).toBe(true);
+  });
+
+  it("strips thinking / reasoning tags completely from model output", () => {
+    // 1. 孤立的未闭合 <think> 截断标签
+    expect(stripThinkingTags("<think>")).toBe("");
+    expect(stripThinkingTags("<think>\n正在思考续写内容...")).toBe("");
+
+    // 2. 闭合的完整思考块
+    expect(stripThinkingTags("<think>\n一些深思熟虑过程\n</think>\n最终正文续写")).toBe(
+      "\n最终正文续写",
+    );
+
+    // 3. 多余孤立的结束标签或变体
+    expect(stripThinkingTags("</think>直接正文")).toBe("直接正文");
+
+    // 4. 无思考标签的正常内容保持原样
+    expect(stripThinkingTags("正常 Markdown 文本")).toBe("正常 Markdown 文本");
   });
 });

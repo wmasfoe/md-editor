@@ -299,7 +299,7 @@ async function requestLocalAiContinuation(
     let rawSuggestion: AiWritingSuggestion;
 
     if (intent === "distill") {
-      const topic = content.trim();
+      const topic = stripThinkingTags(content).trim();
       return {
         hasContinuation: Boolean(topic),
         ...(topic ? { continuation: topic } : {}),
@@ -318,7 +318,7 @@ async function requestLocalAiContinuation(
       };
     } else if (intent === "editing") {
       const targetText = context.selectedText || context.before;
-      const diffs = parseTupleDiffOutput(content);
+      const diffs = parseTupleDiffOutput(stripThinkingTags(content));
       const validated = resolveTripleDefenseDiffs(targetText, diffs);
 
       if (validated.length > 0) {
@@ -529,12 +529,29 @@ function normalizeEditSuggestion(
   };
 }
 
+/**
+ * 过滤或剥离模型可能输出的思维链（Reasoning / Thinking）标签与思考文本
+ */
+export function stripThinkingTags(text: string): string {
+  // 1. 去除完整的 <think>...</think> 块（包括跨行）
+  let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  // 2. 如果文本包含未闭合的 <think>，说明后续全是思考过程被截断，直接截断
+  if (/<think>/i.test(cleaned) && !/<\/think>/i.test(cleaned)) {
+    cleaned = cleaned.replace(/<think>[\s\S]*/gi, "");
+  }
+  // 3. 去除残留的孤立标签
+  cleaned = cleaned.replace(/<\/?think>/gi, "");
+  return cleaned;
+}
+
 function normalizeSuggestionText(value: string): string {
-  return value.trim();
+  return stripThinkingTags(value).trim();
 }
 
 function normalizeContinuationText(value: string): string {
-  return value.replace(/^[\t ]+/u, "").trimEnd();
+  return stripThinkingTags(value)
+    .replace(/^[\t ]+/u, "")
+    .trimEnd();
 }
 
 function extractJsonObject(content: string): string {
