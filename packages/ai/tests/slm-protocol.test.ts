@@ -6,6 +6,7 @@ import {
   getSlmStopTokens,
   resolveCapabilityProfile,
   resolveGecTaskToken,
+  SLM_ASSISTANT_THINKING_DISABLED_PREFIX,
   TASK_DISTILL,
   TASK_GEC_EN,
   TASK_GEC_MIXED,
@@ -84,7 +85,7 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     // GEC 训练数据集严格不包含 system prompt，避免小模型发生目标漂移
     expect(prompt).not.toContain("<|im_start|>system\n");
     expect(prompt).toBe(
-      `<|im_start|>user\n${TASK_GEC_MIXED}今天学习了 this is a apple，并调用了 Tauri 的 inovke 方法<|im_end|>\n<|im_start|>assistant\n`,
+      `<|im_start|>user\n${TASK_GEC_MIXED}今天学习了 this is a apple，并调用了 Tauri 的 inovke 方法<|im_end|>\n${SLM_ASSISTANT_THINKING_DISABLED_PREFIX}`,
     );
   });
 
@@ -121,11 +122,13 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
   it("根据任务动态返回 Stop Tokens", () => {
     // 提炼任务允许多行
     expect(getSlmStopTokens("distill")).toEqual(["<|im_end|>", "<|endoftext|>"]);
-    // 续写任务包含结束符与 completion 任务标记，允许思维链标签顺利闭合后在业务层截断
-    expect(getSlmStopTokens("continuation")).toContain("<|task_completion|>");
-    expect(getSlmStopTokens("continuation")).toContain("<|im_end|>");
-    expect(getSlmStopTokens("continuation")).not.toContain("\n");
-    expect(getSlmStopTokens("continuation")).not.toContain("<think>");
+    // 预填充关闭思考模式后，行内极速 Ghost Text 必须包含 \n，以便在单行补全结束时立即由引擎终止
+    expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain("\n");
+    expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain(
+      "<|task_completion|>",
+    );
+    // 主动段落续写允许跨行
+    expect(getSlmStopTokens("continuation", { isGhostText: false })).not.toContain("\n");
     // 语法纠错必须遇到结束符立即终止
     expect(getSlmStopTokens("editing")).toContain("<|im_end|>");
     expect(getSlmStopTokens("editing")).not.toContain("<think>");
@@ -166,7 +169,7 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(contProfile.temperature).toBe(0.3);
     expect(contProfile.maxTokens).toBe(64);
     expect(contProfile.stop).toContain("<|task_completion|>");
-    expect(contProfile.stop).not.toContain("\n");
+    expect(contProfile.stop).toContain("\n");
 
     // 3. Distill Profile
     const distillProfile = resolveCapabilityProfile(mockContext, "distill");

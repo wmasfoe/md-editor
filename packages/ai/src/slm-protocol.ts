@@ -34,6 +34,17 @@ export const FIM_END = "<|fim_end|>";
 /** 格式硬保真控制符 (LaTeX / 表格 / Frontmatter) */
 export const TASK_PRESERVE_FORMAT = "<|task_preserve_format|>";
 
+/**
+ * Qwen3 等具备思考模式的模型在官方 Chat Template 中约定的“关闭思考模式” Assistant 预填充前缀。
+ * 依据模型内嵌 GGUF tokenizer.chat_template:
+ *   {%- if enable_thinking is defined and enable_thinking is false %}
+ *       {{- '<think>\n\n</think>\n\n' }}
+ *   {%- endif %}
+ * 在 Prompt 尾部预填充已闭合的思考标签，模型在解码首个 Token 时即刻进入正文输出，彻底禁止模型开启思考模式。
+ */
+export const SLM_ASSISTANT_THINKING_DISABLED_PREFIX =
+  "<|im_start|>assistant\n<think>\n\n</think>\n\n";
+
 export type { UserStyleProfile, AiDocumentContext };
 
 /** 默认前缀风格画像 */
@@ -206,7 +217,7 @@ export function buildSlmPrompt(
         "请将当前章节融合进前文要点，输出更新后的全篇概要（80~150字）：",
       ].join("\n");
 
-      return `<|im_start|>user\n${userContent}<|im_end|>\n<|im_start|>assistant\n`;
+      return `<|im_start|>user\n${userContent}<|im_end|>\n${SLM_ASSISTANT_THINKING_DISABLED_PREFIX}`;
     }
 
     // 单次全篇直投模式 (Single-Pass)
@@ -218,7 +229,7 @@ export function buildSlmPrompt(
       targetContent,
     ].join("\n");
 
-    return `<|im_start|>user\n${userContent}<|im_end|>\n<|im_start|>assistant\n`;
+    return `<|im_start|>user\n${userContent}<|im_end|>\n${SLM_ASSISTANT_THINKING_DISABLED_PREFIX}`;
   }
 
   // 2. 组装通用的 System Prompt (注入 User Style Profile 与 Document Context)
@@ -248,7 +259,7 @@ export function buildSlmPrompt(
   // 3. FIM 行内续写补全任务
   if (intent === "continuation") {
     const userBlock = `<|im_start|>user\n${FIM_PREFIX}${context.before}${FIM_SUFFIX}${context.after}${FIM_MIDDLE}<|im_end|>\n`;
-    return `${systemBlock}${userBlock}<|im_start|>assistant\n`;
+    return `${systemBlock}${userBlock}${SLM_ASSISTANT_THINKING_DISABLED_PREFIX}`;
   }
 
   // 4. GEC 语法或标点纠错任务
@@ -259,7 +270,7 @@ export function buildSlmPrompt(
     : detectGecTaskToken(targetText, options.language || context.document?.language);
 
   const userBlock = `<|im_start|>user\n${taskToken}${targetText}<|im_end|>\n`;
-  return `${userBlock}<|im_start|>assistant\n`;
+  return `${userBlock}${SLM_ASSISTANT_THINKING_DISABLED_PREFIX}`;
 }
 
 /**
@@ -277,7 +288,7 @@ export const SLM_GEC_TUPLE_GRAMMAR = [
  */
 export function getSlmStopTokens(
   intent: "continuation" | "editing" | "both" | "distill",
-  _options: { readonly isGhostText?: boolean } = {},
+  options: { readonly isGhostText?: boolean } = {},
 ): string[] {
   if (intent === "distill") {
     // 提炼任务允许多行要点输出，遇到 <|im_end|> 或 <|endoftext|> 结束
@@ -285,9 +296,11 @@ export function getSlmStopTokens(
   }
 
   if (intent === "continuation") {
-    // 注意：Qwen3 等模型在输出正文前会输出极简思维链结构 <think>\n\n</think>\n\n，
-    // 底层 llama-server 的 stop 词绝不能包含 "\n" 或 "<think>"，否则模型刚吐出思考标签就被提前截断导致输出为空。
-    // 单行截断统一在客户端规范化处理层 (normalizeContinuationText) 执行。
+    if (options.isGhostText !== false) {
+      // 预填充关闭思考模式后，单行幽灵文本遇换行立即由引擎终止生成，极速返回并节省算力
+      return ["\n", FIM_END, "<|im_end|>", "<|endoftext|>", "<|task_completion|>"];
+    }
+    // 主动段落/块级续写允许跨行
     return [FIM_END, "<|im_end|>", "<|endoftext|>", "<|task_completion|>"];
   }
 
