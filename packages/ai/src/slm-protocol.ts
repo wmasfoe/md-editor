@@ -277,24 +277,22 @@ export const SLM_GEC_TUPLE_GRAMMAR = [
  */
 export function getSlmStopTokens(
   intent: "continuation" | "editing" | "both" | "distill",
-  options: { readonly isGhostText?: boolean } = {},
+  _options: { readonly isGhostText?: boolean } = {},
 ): string[] {
   if (intent === "distill") {
-    // 提炼任务允许多行要点输出，遇到 <|im_end|> 或 <|endoftext|> 结束，阻断思考标签
-    return ["<|im_end|>", "<|endoftext|>", "<think>"];
+    // 提炼任务允许多行要点输出，遇到 <|im_end|> 或 <|endoftext|> 结束
+    return ["<|im_end|>", "<|endoftext|>"];
   }
 
   if (intent === "continuation") {
-    if (options.isGhostText !== false) {
-      // 行内极速单行 Ghost Text 遇换行立即截断，遇 <think> 立即阻断
-      return ["\n", FIM_END, "<|im_end|>", "<|endoftext|>", "<think>"];
-    }
-    // 主动块级/段落续写
-    return [FIM_END, "<|im_end|>", "<|endoftext|>", "<think>"];
+    // 注意：Qwen3 等模型在输出正文前会输出极简思维链结构 <think>\n\n</think>\n\n，
+    // 底层 llama-server 的 stop 词绝不能包含 "\n" 或 "<think>"，否则模型刚吐出思考标签就被提前截断导致输出为空。
+    // 单行截断统一在客户端规范化处理层 (normalizeContinuationText) 执行。
+    return [FIM_END, "<|im_end|>", "<|endoftext|>", "<|task_completion|>"];
   }
 
   // GEC 语法或标点纠错任务
-  return ["\n", "<|im_end|>", "<|endoftext|>", FIM_PREFIX, "<think>"];
+  return ["<|im_end|>", "<|endoftext|>", FIM_PREFIX];
 }
 
 /** 逻辑任务类型枚举 */

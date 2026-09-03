@@ -309,7 +309,7 @@ async function requestLocalAiContinuation(
     }
 
     if (intent === "continuation") {
-      const continuation = normalizeContinuationText(content);
+      const continuation = normalizeContinuationText(content, options.isGhostText !== false);
       rawSuggestion = {
         hasContinuation: Boolean(continuation),
         ...(continuation ? { continuation } : {}),
@@ -539,8 +539,13 @@ export function stripThinkingTags(text: string): string {
   if (/<think>/i.test(cleaned) && !/<\/think>/i.test(cleaned)) {
     cleaned = cleaned.replace(/<think>[\s\S]*/gi, "");
   }
-  // 3. 去除残留的孤立标签
+  // 3. 去除残留的孤立标签与模型特殊控制符
   cleaned = cleaned.replace(/<\/?think>/gi, "");
+  cleaned = cleaned.replace(/<\|task_[a-z_]+\|>/gi, "");
+  cleaned = cleaned.replace(/<\|fim_[a-z_]+\|>/gi, "");
+  cleaned = cleaned.replace(/<LM\|fim_end\|>/gi, "");
+  cleaned = cleaned.replace(/<\|im_end\|>/gi, "");
+  cleaned = cleaned.replace(/<\|endoftext\|>/gi, "");
   return cleaned;
 }
 
@@ -548,10 +553,17 @@ function normalizeSuggestionText(value: string): string {
   return stripThinkingTags(value).trim();
 }
 
-function normalizeContinuationText(value: string): string {
-  return stripThinkingTags(value)
-    .replace(/^[\t ]+/u, "")
-    .trimEnd();
+function normalizeContinuationText(value: string, isGhostText = false): string {
+  let text = stripThinkingTags(value);
+  if (isGhostText) {
+    // 行内幽灵文本剥离开头的换行，并仅截取第一行
+    text = text.replace(/^[\r\n]+/, "");
+    const firstLineEnd = text.search(/[\r\n]/);
+    if (firstLineEnd !== -1) {
+      text = text.slice(0, firstLineEnd);
+    }
+  }
+  return text.replace(/^[\t ]+/u, "").trimEnd();
 }
 
 function extractJsonObject(content: string): string {
