@@ -81,7 +81,7 @@ pub(crate) async fn request_local_ai_continuation(
     #[cfg(debug_assertions)]
     {
         eprintln!(
-            "[Local AI] 发起推理 (model={}, raw={}):\n--- PROMPT ---\n{}\n--------------",
+            "[Local AI] 📤 发起推理请求 (model={}, raw={}):\n--- [PROMPT 输入] ---\n{}\n--- [PROMPT 结束] ---",
             model.model_id,
             is_raw,
             request.get("prompt").and_then(Value::as_str).unwrap_or("")
@@ -122,7 +122,7 @@ pub(crate) async fn request_local_ai_continuation(
     #[cfg(debug_assertions)]
     {
         eprintln!(
-            "[Local AI] 模型返回结果:\n--- OUTPUT ---\n{}\n--------------",
+            "[Local AI] 📥 模型生成返回:\n--- [OUTPUT 输出] ---\n{}\n--- [OUTPUT 结束] ---",
             content
         );
     }
