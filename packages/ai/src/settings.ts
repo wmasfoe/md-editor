@@ -18,23 +18,22 @@ export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
   {
     id: "md-editor-writer-lite",
     tier: "lite",
-    displayName: "Lite (0.5B)",
-    parameterSize: "0.5B",
-    downloadSizeBytes: 397_554_976,
+    displayName: "Lite (0.6B)",
+    parameterSize: "0.6B",
+    downloadSizeBytes: 760_639_104,
     recommendedMemoryGb: 4,
-    description: "自研微调小模型，极速轻量（TTFT <30ms），支持多语种语法纠错与行内 FIM 续写。",
+    description: "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量，支持独立调度。",
     isAvailable: true,
   },
 
   {
     id: "md-editor-writer-standard",
     tier: "standard",
-    displayName: "Standard (1.5B)",
-    parameterSize: "1.5B",
-    downloadSizeBytes: 397_554_976,
+    displayName: "Standard (1.7B)",
+    parameterSize: "1.7B",
+    downloadSizeBytes: 2_043_698_816,
     recommendedMemoryGb: 8,
-    description:
-      "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力，推荐 M 系列 Mac 或高配 PC。",
+    description: "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。",
     isAvailable: true,
   },
 

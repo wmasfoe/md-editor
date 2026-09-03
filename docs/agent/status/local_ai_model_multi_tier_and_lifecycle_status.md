@@ -23,6 +23,14 @@
   - [x] 实现三档位响应式卡片网格（Lite / Standard / Pro 占位卡片）。
   - [x] 动态平滑进度条、状态圆点与危险操作防误触样式。
 
+- [x] **v1.3.0 组合包架构与动态多任务 LoRA 矩阵升级（Schema Version 2）**
+  - [x] 模型基座升级为 Qwen3（Lite 0.6B / Standard 1.7B），下载清单引入 Schema Version 2 多文件 Spec。
+  - [x] 每个档位支持 Base GGUF + 3 个专用 LoRA Adapter（`gec` 语法纠错、`completion` 行内续写、`distill` 上下文提炼）。
+  - [x] 下载流水线支持多文件分段 staging 下载、累加进度条与单文件 SHA256 独立校验，保障原子无损替换。
+  - [x] `llama-server` 启动参数注入 `--lora <path>` 与 `--lora-init-without-apply`。
+  - [x] `local_ai_completion` 与 `local_ai_runtime` 支持按任务 intent（`editing` / `continuation` / `distill`）在运行时热切换 LoRA scale（1.0 vs 0.0），避免重启服务。
+  - [x] 向下兼容 Schema Version 1 单文件模型（`model.gguf`）。
+
 ## 2. 验证与回归记录
 
 - 单元测试覆盖：

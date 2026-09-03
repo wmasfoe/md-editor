@@ -45,7 +45,7 @@ pub(crate) async fn request_local_ai_continuation(
         .as_ref()
         .and_then(|value| value.max_tokens)
         .unwrap_or(model.default_max_tokens);
-    let intent = options.as_ref().and_then(|value| value.intent.as_deref());
+    let intent = options.as_ref().and_then(|value| value.intent.clone());
 
     let (is_raw, request) = if let Some(prompt) = options.as_ref().and_then(|o| o.prompt.as_deref())
     {
@@ -58,7 +58,6 @@ pub(crate) async fn request_local_ai_continuation(
             "prompt": prompt,
             "n_predict": max_tokens,
             "temperature": temp,
-            "top_p": 1.0,
             "stop": stop,
             "cache_prompt": true,
             "stream": false
@@ -70,13 +69,14 @@ pub(crate) async fn request_local_ai_continuation(
         }
         (true, payload)
     } else {
-        let prompt = build_local_ai_prompt(&context, intent, max_tokens);
+        let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
         (false, build_local_ai_request(&model, &prompt, max_tokens))
     };
 
     let runtime_manager = runtime.manager();
     let app_handle = app.clone();
     let model_for_runtime = model.clone();
+    let intent_for_runtime = intent.clone();
 
     #[cfg(debug_assertions)]
     {
@@ -94,6 +94,7 @@ pub(crate) async fn request_local_ai_continuation(
             .lock()
             .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
         let endpoint = runtime.ensure_ready(&app_handle, &model_for_runtime)?;
+        let _ = runtime.activate_lora_adapter(endpoint.port, intent_for_runtime.as_deref());
         let response = if is_raw {
             post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
         } else {
