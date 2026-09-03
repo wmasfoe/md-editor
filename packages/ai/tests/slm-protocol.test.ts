@@ -119,17 +119,16 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
   });
 
   it("根据任务动态返回 Stop Tokens", () => {
-    // 提炼任务允许多行，且拦截思考标签
-    expect(getSlmStopTokens("distill")).toEqual(["<|im_end|>", "<|endoftext|>", "<think>"]);
-    // 行内极速 Ghost Text 必须包含 \n，且拦截思考标签
-    expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain("\n");
-    expect(getSlmStopTokens("continuation", { isGhostText: true })).toContain("<think>");
-    // 主动段落续写允许换行
-    expect(getSlmStopTokens("continuation", { isGhostText: false })).not.toContain("\n");
-    expect(getSlmStopTokens("continuation", { isGhostText: false })).toContain("<think>");
-    // 语法纠错必须遇到换行立即终止
-    expect(getSlmStopTokens("editing")).toContain("\n");
-    expect(getSlmStopTokens("editing")).toContain("<think>");
+    // 提炼任务允许多行
+    expect(getSlmStopTokens("distill")).toEqual(["<|im_end|>", "<|endoftext|>"]);
+    // 续写任务包含结束符与 completion 任务标记，允许思维链标签顺利闭合后在业务层截断
+    expect(getSlmStopTokens("continuation")).toContain("<|task_completion|>");
+    expect(getSlmStopTokens("continuation")).toContain("<|im_end|>");
+    expect(getSlmStopTokens("continuation")).not.toContain("\n");
+    expect(getSlmStopTokens("continuation")).not.toContain("<think>");
+    // 语法纠错必须遇到结束符立即终止
+    expect(getSlmStopTokens("editing")).toContain("<|im_end|>");
+    expect(getSlmStopTokens("editing")).not.toContain("<think>");
   });
 
   it("P1: 静态前缀稳定化与字典序排序保证 KV Cache 确定性命中", () => {
@@ -166,7 +165,8 @@ describe("slm-protocol: Prompt 拼装与 Token 映射", () => {
     expect(contProfile.grammar).toBeUndefined();
     expect(contProfile.temperature).toBe(0.3);
     expect(contProfile.maxTokens).toBe(64);
-    expect(contProfile.stop).toContain("\n");
+    expect(contProfile.stop).toContain("<|task_completion|>");
+    expect(contProfile.stop).not.toContain("\n");
 
     // 3. Distill Profile
     const distillProfile = resolveCapabilityProfile(mockContext, "distill");

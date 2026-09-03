@@ -272,10 +272,6 @@ pub(crate) fn build_llama_server_args(model: &LocalAiModelFile, port: u16) -> Ve
         model.context_size.to_string(),
         "--parallel".to_string(),
         "2".to_string(),
-        "--reasoning".to_string(),
-        "off".to_string(),
-        "--reasoning-budget".to_string(),
-        "0".to_string(),
         "--alias".to_string(),
         model.model_id.clone(),
         "--offline".to_string(),
@@ -698,10 +694,6 @@ mod tests {
         assert!(args
             .windows(2)
             .any(|pair| pair == ["--alias", "md-editor-writer-small-v1"]));
-        assert!(args.windows(2).any(|pair| pair == ["--reasoning", "off"]));
-        assert!(args
-            .windows(2)
-            .any(|pair| pair == ["--reasoning-budget", "0"]));
         assert!(args.iter().any(|arg| arg == "--offline"));
         assert!(args.iter().any(|arg| arg == "--no-webui"));
     }
