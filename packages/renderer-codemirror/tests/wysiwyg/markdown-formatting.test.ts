@@ -213,7 +213,7 @@ describe("Smart Link Paste & Smart Pairs", () => {
     expect(currentState.selection.main.to).toBe(6);
   });
 
-  it("smart pairs auto-closes empty brackets and quotes", () => {
+  it("smart pairs does not auto-close empty brackets, quotes, or backticks", () => {
     let currentState = createState("", EditorSelection.cursor(0));
     const mockView = {
       state: currentState,
@@ -223,12 +223,17 @@ describe("Smart Link Paste & Smart Pairs", () => {
       },
     } as unknown as EditorView;
 
+    // 空光标键入 "[" 不进行自动闭合，直接返回 false 交由原生输入
     // @ts-expect-error input handler testing
-    const handled = smartPairsInputHandler.value(mockView, 0, 0, "[");
-    expect(handled).toBe(true);
-    expect(currentState.doc.toString()).toBe("[]");
-    expect(currentState.selection.main.from).toBe(1);
-    expect(currentState.selection.main.to).toBe(1);
+    const handledBracket = smartPairsInputHandler.value(mockView, 0, 0, "[");
+    expect(handledBracket).toBe(false);
+    expect(currentState.doc.toString()).toBe("");
+
+    // 空光标键入 "`" 不进行自动闭合，保证连续输入 ``` 创建代码块不受阻
+    // @ts-expect-error input handler testing
+    const handledBacktick = smartPairsInputHandler.value(mockView, 0, 0, "`");
+    expect(handledBacktick).toBe(false);
+    expect(currentState.doc.toString()).toBe("");
   });
 
   it("supports search and replace query execution on document", async () => {

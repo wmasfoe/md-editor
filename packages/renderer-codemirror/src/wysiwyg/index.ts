@@ -54,3 +54,5 @@ export function createWysiwygProjectionExtensions(
     smartPairsExtension,
   ];
 }
+
+export { codeBlockSelectionExtension, codeBlockSelectionLayer } from "./code-block-selection.ts";

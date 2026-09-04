@@ -119,7 +119,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
     const selected = await diagnostics(page);
     expect(selected.renderer).toMatchObject({
       selectionAnchor: EDITING_FIXTURE.indexOf("alpha"),
-      selectionHead: EDITING_FIXTURE.indexOf("```", EDITING_FIXTURE.indexOf("alpha")),
+      selectionHead: EDITING_FIXTURE.indexOf("beta") + "beta".length,
       focused: true,
       viewId: initial.renderer?.viewId,
       stateEpochId: initial.renderer?.stateEpochId,
@@ -182,7 +182,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
     const bodySelected = await diagnostics(page);
     expect(bodySelected.renderer).toMatchObject({
       selectionAnchor: EDITING_FIXTURE.indexOf("alpha"),
-      selectionHead: EDITING_FIXTURE.indexOf("```", EDITING_FIXTURE.indexOf("alpha")),
+      selectionHead: EDITING_FIXTURE.indexOf("beta") + "beta".length,
     });
     await page.keyboard.press(SELECT_ALL_KEY);
     const documentSelected = await diagnostics(page);
@@ -253,7 +253,7 @@ test.describe("CodeMirror M2 code-block editing", () => {
     expect(final.cmEditorCount).toBe(1);
   });
 
-  test("N09 cross-block drag copies exact Markdown and protects hidden syntax", async ({
+  test("N09 cross-block drag copies exact Markdown and allows deleting covered code blocks", async ({
     context,
     page,
   }) => {
@@ -278,22 +278,26 @@ test.describe("CodeMirror M2 code-block editing", () => {
     const rejectionCount = copied.renderer?.wysiwyg.protectedChangeRejectionCount ?? 0;
 
     await page.keyboard.press("Backspace");
-    await expect
-      .poll(async () => (await diagnostics(page)).renderer?.markdown)
-      .toBe(EDITING_FIXTURE);
+    const afterDelete =
+      EDITING_FIXTURE.slice(0, selection.from) + EDITING_FIXTURE.slice(selection.to);
+    await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(afterDelete);
     await page.keyboard.insertText("replacement");
+    const afterReplacement =
+      EDITING_FIXTURE.slice(0, selection.from) +
+      "replacement" +
+      EDITING_FIXTURE.slice(selection.to);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
-      .toBe(EDITING_FIXTURE);
+      .toBe(afterReplacement);
 
     const final = await diagnostics(page);
     expect(final).toMatchObject({ cmEditorCount: 1 });
     expect(final.renderer).toMatchObject({
       viewId: initial.renderer?.viewId,
       stateEpochId: initial.renderer?.stateEpochId,
-      markdown: EDITING_FIXTURE,
+      markdown: afterReplacement,
     });
-    expect(final.renderer?.wysiwyg.protectedChangeRejectionCount).toBe(rejectionCount + 2);
+    expect(final.renderer?.wysiwyg.protectedChangeRejectionCount).toBe(rejectionCount);
   });
 
   test("N10 code-body composition preserves one history and selection", async ({ page }) => {

@@ -496,10 +496,19 @@ function codeBlockBodySelection(
   record: MarkdownRangeRecord,
 ): EditorSelection | null {
   const metadata = requireCodeBlock(record);
-  const fencedRange =
-    metadata.blockKind === "fenced" ? getFencedCodeBlockBodyRange(state, record) : null;
-  if (fencedRange) {
-    return EditorSelection.single(fencedRange.from, fencedRange.to);
+  if (metadata.blockKind === "fenced") {
+    const fencedRange = getFencedCodeBlockBodyRange(state, record);
+    if (!fencedRange) return null;
+    if (fencedRange.from === fencedRange.to) {
+      return EditorSelection.single(fencedRange.from);
+    }
+    // 围栏代码块主体非空。fencedRange 跨越从 openingLine.to + 1 至 closingFenceLine.from。
+    // closingFenceLine.from 前一个字符为最后一行代码的换行符 \n。
+    // 为了使全选精确收敛在代码文本内、避免选区跨入隐藏的闭合标记行导致 drawSelection 在底部外边距残留蓝色选区条，
+    // 选区终点截断在最后一行代码的文本末尾（lastBodyLine.to）。
+    const closingLine = state.doc.lineAt(fencedRange.to);
+    const lastBodyLine = state.doc.line(closingLine.number - 1);
+    return EditorSelection.single(fencedRange.from, lastBodyLine.to);
   }
   if (metadata.bodySegments.length === 0) {
     const position = metadata.bodyEnvelopeRange?.from ?? metadata.sourceBlockRange.from;
@@ -564,11 +573,23 @@ function isAtSemanticBoundary(
   position: number,
   direction: "backward" | "forward",
 ): boolean {
-  const selection = codeBlockBodySelection(state, record);
-  if (!selection) return false;
-  return direction === "backward"
-    ? position === selection.main.from
-    : position === selection.main.to;
+  const metadata = requireCodeBlock(record);
+  if (direction === "backward") {
+    const from =
+      metadata.blockKind === "fenced"
+        ? getFencedCodeBlockBodyRange(state, record)?.from
+        : metadata.bodySegments[0]?.from;
+    return from !== undefined && position === from;
+  }
+  if (metadata.blockKind === "fenced") {
+    const fencedRange = getFencedCodeBlockBodyRange(state, record);
+    if (!fencedRange) return false;
+    const closingLine = state.doc.lineAt(fencedRange.to);
+    const lastBodyLine = state.doc.line(closingLine.number - 1);
+    return position === lastBodyLine.to || position === fencedRange.to;
+  }
+  const lastSegment = metadata.bodySegments.at(-1);
+  return lastSegment !== undefined && position === lastSegment.to;
 }
 
 function requireCodeBlock(record: MarkdownRangeRecord): MarkdownCodeBlockMetadata {

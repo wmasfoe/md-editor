@@ -6,7 +6,7 @@ import {
   type Extension,
   type Range,
 } from "@codemirror/state";
-import { Decoration, EditorView } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type {
   MarkdownCodeBlockMetadata,
@@ -102,7 +102,34 @@ export function buildCodeBlockLayoutDecorations(
       side: -1,
       wysiwygRecordId: record.id,
     }).range(record.codeBlock.sourceBlockRange.from),
+    ...(record.codeBlock.blockKind === "fenced"
+      ? [
+          Decoration.widget({
+            widget: new CodeBlockSpacerWidget(),
+            block: true,
+            side: 1,
+            wysiwygRecordId: record.id,
+          }).range(record.codeBlock.sourceBlockRange.to),
+        ]
+      : []),
   ];
+}
+
+export class CodeBlockSpacerWidget extends WidgetType {
+  eq(): boolean {
+    return true;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const spacer = view.dom.ownerDocument.createElement("div");
+    spacer.className = "cm-md-code-block-spacer";
+    spacer.setAttribute("aria-hidden", "true");
+    return spacer;
+  }
+
+  override get estimatedHeight(): number {
+    return 10;
+  }
 }
 
 export function buildCodeBlockAtomicRanges(
@@ -166,6 +193,10 @@ export const codeBlockProjectionTheme: Extension = EditorView.baseTheme({
     lineHeight: "0",
     overflow: "hidden",
     paddingBlock: "0",
+  },
+  ".cm-md-code-block-spacer": {
+    height: "0.65rem",
+    pointerEvents: "none",
   },
 });
 

@@ -278,7 +278,7 @@ describe("renderer code-block commands", () => {
 
     expect(codeBlockSelectAll(harness.view)).toBe(true);
     expect(harness.state.selection.main.from).toBe(doc.indexOf("one"));
-    expect(harness.state.selection.main.to).toBe(doc.indexOf("```", doc.indexOf("one")));
+    expect(harness.state.selection.main.to).toBe(doc.indexOf("two") + "two".length);
     expect(codeBlockSelectAll(harness.view)).toBe(false);
 
     const multi = createHarness(
@@ -297,13 +297,43 @@ describe("renderer code-block commands", () => {
     ["delete.selection", ""],
     ["delete.cut", ""],
   ] as const)(
-    "I16 rejects broad %s changes that touch fenced or indented structural syntax",
+    "allows broad %s changes when selection covers the code block",
     (userEvent, insert) => {
       for (const doc of [
         "before\n\n```ts\nbody\n```\n\nafter\n",
         "before\n\n    alpha\n      beta\n\nafter\n",
       ]) {
         const selection = EditorSelection.single(0, doc.length);
+        const harness = createHarness(doc, selection);
+        const transaction = harness.state.update({
+          changes: { from: selection.main.from, to: selection.main.to, insert },
+          userEvent,
+        });
+
+        expect(transaction.docChanged).toBe(true);
+        expect(transaction.state.doc.toString()).toBe(insert);
+      }
+    },
+  );
+
+  it.each([
+    ["input.type", "typed\n"],
+    ["input.paste", "pasted\n"],
+    ["delete.selection", ""],
+    ["delete.cut", ""],
+  ] as const)(
+    "I16 rejects partial %s changes that touch fenced or indented structural syntax without covering the block",
+    (userEvent, insert) => {
+      for (const { doc, selection } of [
+        {
+          doc: "before\n\n```ts\nbody\n```\n\nafter\n",
+          selection: EditorSelection.single(8, 11),
+        },
+        {
+          doc: "before\n\n    alpha\n      beta\n\nafter\n",
+          selection: EditorSelection.single(8, 10),
+        },
+      ]) {
         const harness = createHarness(doc, selection);
         const transaction = harness.state.update({
           changes: { from: selection.main.from, to: selection.main.to, insert },
