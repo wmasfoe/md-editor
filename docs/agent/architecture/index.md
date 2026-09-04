@@ -19,3 +19,5 @@
 
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
+- uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
+  记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与便签持久化、AI 免责机制与导流规范。

@@ -66,6 +66,9 @@ catalogs:
     typescript:
       specifier: ^5.7.2
       version: 5.9.3
+    utools-api-types:
+      specifier: ^7.5.1
+      version: 7.5.1
     vercel:
       specifier: ^49.1.0
       version: 49.2.0
@@ -198,6 +201,55 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
+
+  apps/utools:
+    dependencies:
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
+      '@md-editor/editor-ui':
+        specifier: workspace:*
+        version: link:../../packages/editor-ui
+      '@md-editor/file-system':
+        specifier: workspace:*
+        version: link:../../packages/file-system
+      '@md-editor/markdown-fidelity':
+        specifier: workspace:*
+        version: link:../../packages/markdown-fidelity
+      '@md-editor/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2))
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 4.7.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2))
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      utools-api-types:
+        specifier: 'catalog:'
+        version: 7.5.1
+      vite:
+        specifier: 'catalog:'
+        version: 6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2)
 
   packages/ai:
     devDependencies:
@@ -2441,6 +2493,9 @@ packages:
   '@types/sanitize-html@2.16.1':
     resolution: {integrity: sha512-n9wjs8bCOTyN/ynwD8s/nTcTreIHB1vf31vhLMGqUPNHaweKC4/fAl4Dj+hUlCTKYgm4P3k83fmiFfzkZ6sgMA==}
 
+  '@types/sharp@0.31.1':
+    resolution: {integrity: sha512-5nWwamN9ZFHXaYEincMSuza8nNfOof8nmO+mcI+Agx1uMUk4/pQnNIcix+9rLPXzKrm1pS34+6WRDbDV0Jn7ag==}
+
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
 
@@ -4048,6 +4103,9 @@ packages:
     resolution: {integrity: sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  utools-api-types@7.5.1:
+    resolution: {integrity: sha512-R7l7P/+c9g4sDlifxq6wrg+3p7Uc7L5XNOkk+xLGqm2EIk4zL16zwG5taxM3hbb5luK0yOBrqrN1zTzCl+h6rw==}
 
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
@@ -5711,6 +5769,10 @@ snapshots:
   '@types/sanitize-html@2.16.1':
     dependencies:
       htmlparser2: 10.1.0
+
+  '@types/sharp@0.31.1':
+    dependencies:
+      '@types/node': 22.19.21
 
   '@types/unist@2.0.11': {}
 
@@ -7637,6 +7699,10 @@ snapshots:
   use-sync-external-store@1.6.0(react@19.2.7):
     dependencies:
       react: 19.2.7
+
+  utools-api-types@7.5.1:
+    dependencies:
+      '@types/sharp': 0.31.1
 
   v8-compile-cache-lib@3.0.1: {}
 
