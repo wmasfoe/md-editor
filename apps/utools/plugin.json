@@ -1,0 +1,43 @@
+{
+  "main": "dist/index.html",
+  "logo": "logo.png",
+  "preload": "preload/index.cjs",
+  "development": {
+    "main": "http://127.0.0.1:5174/index.html"
+  },
+  "pluginSetting": {
+    "single": true,
+    "height": 544
+  },
+  "features": [
+    {
+      "code": "scratchpad",
+      "explain": "Inkpoint 快速便签",
+      "cmds": ["md", "markdown", "便签", "记事"]
+    },
+    {
+      "code": "open-file",
+      "explain": "用 Inkpoint 打开 Markdown 文件",
+      "cmds": [
+        {
+          "type": "files",
+          "fileType": "file",
+          "extensions": ["md", "markdown", "mdx", "txt"],
+          "label": "编辑 Markdown"
+        }
+      ]
+    },
+    {
+      "code": "selection-edit",
+      "explain": "在 Inkpoint 中编辑选中文本",
+      "cmds": [
+        {
+          "type": "over",
+          "label": "Markdown 编辑/润色",
+          "minLength": 1,
+          "maxLength": 10000
+        }
+      ]
+    }
+  ]
+}

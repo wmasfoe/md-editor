@@ -1,0 +1,32 @@
+{
+  "name": "@md-editor/utools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@md-editor/editor-core": "workspace:*",
+    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/file-system": "workspace:*",
+    "@md-editor/markdown-fidelity": "workspace:*",
+    "@md-editor/shared": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "utools-api-types": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
