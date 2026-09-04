@@ -50,9 +50,12 @@ test.describe("CodeMirror 选区渲染与边界裁剪规范", () => {
     expect(clipPath).toContain("polygon");
 
     // 验证正文统一行高为 1.62
-    const lineHeight = await page.locator(".cm-line").first().evaluate((el) => {
-      return window.getComputedStyle(el).lineHeight;
-    });
+    const lineHeight = await page
+      .locator(".cm-line")
+      .first()
+      .evaluate((el) => {
+        return window.getComputedStyle(el).lineHeight;
+      });
     // 1.62 在计算样式中可能返回绝对像素（如 16px * 1.62 = 25.92px），验证其计算比例贴合
     expect(parseFloat(lineHeight)).toBeGreaterThan(0);
   });

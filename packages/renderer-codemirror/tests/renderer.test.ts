@@ -844,5 +844,3 @@ describe("CodeMirror renderer selection handling", () => {
     expect(probe.selectionRangeCount).toBe(1);
   });
 });
-
-
