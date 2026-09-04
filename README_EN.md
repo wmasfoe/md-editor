@@ -32,7 +32,7 @@
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
-    <img src="https://img.shields.io/badge/editor-Milkdown_%2B_CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
+    <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/version-v0.4.6-brightgreen?style=flat-square" alt="Version">
@@ -46,9 +46,9 @@
 
 ### 🎨 Typora-like WYSIWYG Editing
 
-- **Instant Rendering**: Powered by Milkdown and ProseMirror, Markdown syntax markers disappear as you type and instantly render as formatted rich text.
-- **Intuitive Interactions**: Features block drag handles, quick slash commands (`/` to insert elements), and floating formatting toolbars.
-- **Seamless Dual Modes**: Switch instantly to source mode powered by CodeMirror 6 with bidirectional, lossless real-time synchronization.
+- **Instant Rendering**: Powered by CodeMirror 6's deep projection layer, Markdown syntax markers disappear as you type and render as clean formatting while retaining 100% pure Markdown truth.
+- **Single-Editor Homomorphism**: Both WYSIWYG and source modes share a single CodeMirror 6 `EditorView` instance, delivering zero-latency switching with preserved selection and undo history.
+- **Intuitive Interactions**: Features line-level fold toggles, block drag handles, quick slash commands (`/` to insert elements), and floating formatting toolbars.
 
 ### 🧩 Native MDX & Interactive Components
 
@@ -176,7 +176,8 @@ md-editor/
 │   ├── desktop/                 # Tauri 2 desktop application (Rust + React Shell)
 │   └── site/                    # Inkpoint official website and web documentation
 ├── packages/
-│   ├── editor-core/             # Core editor engine (Milkdown + ProseMirror state/plugins/parsers)
+│   ├── editor-core/             # Core editor engine (document state flow, mode switching & history)
+│   ├── renderer-codemirror/     # CodeMirror 6 renderer (WYSIWYG projections, decorations & widgets)
 │   ├── editor-ui/               # Editor UI components, floating toolbars, file tree & outline
 │   ├── mdx-component-registry/  # MDX component protocol specifications & runtime registry
 │   ├── mdx-plugins/             # Built-in MDX components (Alert, Mermaid, KaTeX, Tabs, etc.)
@@ -196,8 +197,7 @@ md-editor/
 | :--- | :--- | :--- |
 | **Desktop Runtime** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | Lightweight, secure, low-resource cross-platform desktop framework |
 | **Frontend Architecture**| [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern declarative UI and robust static typing |
-| **WYSIWYG Engine** | [Milkdown](https://milkdown.dev/) + [ProseMirror](https://prosemirror.net/) | Extensible plugin-driven rich-text engine with syntax AST flow |
-| **Source Code Editor** | [CodeMirror 6](https://codemirror.net/) | High-performance next-generation code and Markdown source engine |
+| **Editor Core Engine** | [CodeMirror 6](https://codemirror.net/) | High-performance unified single-EditorView WYSIWYG and source editor |
 | **Styling & Icons** | [Tailwind CSS](https://tailwindcss.com/) + [Lucide Icons](https://lucide.dev/) | Modern utility-first CSS framework and crisp icon set |
 | **Monorepo Tooling** | [Vite 6](https://vitejs.dev/) + [pnpm Workspace](https://pnpm.io/) | Lightning-fast HMR and efficient workspace dependency sharing |
 | **Testing & Quality** | [Vitest](https://vitest.dev/) + [Oxlint](https://oxc.rs/) + [Prettier](https://prettier.io/) | Comprehensive test runner and ultra-fast code quality linter |
