@@ -58,9 +58,14 @@
   outline: none;
 }
 
-/* CodeMirror drawSelection() 自绘选区背景与光标 */
-.code-mirror-editor-host .cm-selectionLayer {
+/* CodeMirror 自绘选区背景（支持代码块文本列垂直对齐）与光标 */
+.code-mirror-editor-host .cm-selectionLayer,
+.code-mirror-editor-host .cm-md-selectionLayer {
   width: 100%;
+  /* 提升选区层至内容层（.cm-content）之上，避免被代码块等带有不透明背景的块级行（.cm-md-code-line）遮挡 */
+  z-index: 1 !important;
+  /* 确保选区层绝不拦截任何鼠标与指针交互事件，点击与划选事件无损透传至内容层 */
+  pointer-events: none !important;
   /* 严格约束选区背景的水平范围与正文内容对齐，杜绝跨行选区向左击穿至 Gutter 或向右溢出 */
   clip-path: polygon(
     max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) -99999px,
@@ -114,12 +119,9 @@
   font-size: 0.88em !important;
   font-style: normal;
   font-weight: 550 !important;
-  letter-spacing: 0 !important;
-  margin-inline-end: 0.3em;
   opacity: 0.75;
   text-decoration: none;
   vertical-align: 0.04em;
-  user-select: none;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold,
@@ -165,10 +167,13 @@
   line-height: 1.32;
   font-weight: 750;
   letter-spacing: -0.016em;
-  border-bottom: 1px solid var(--theme-border, rgba(0, 0, 0, 0.08));
+  background: linear-gradient(
+      var(--theme-border, rgba(0, 0, 0, 0.08)),
+      var(--theme-border, rgba(0, 0, 0, 0.08))
+    )
+    bottom 0.4rem left 0 / 100% 1px no-repeat;
   padding-top: 0.7em;
-  padding-bottom: 0.3rem;
-  margin-bottom: 0.4rem;
+  padding-bottom: 0.7rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
@@ -177,8 +182,7 @@
   font-weight: 700;
   letter-spacing: -0.012em;
   padding-top: 0.6em;
-  padding-bottom: 0.22rem;
-  margin-bottom: 0.35rem;
+  padding-bottom: 0.57rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 {
@@ -187,8 +191,7 @@
   font-weight: 680;
   letter-spacing: -0.008em;
   padding-top: 0.5em;
-  padding-bottom: 0.18rem;
-  margin-bottom: 0.3rem;
+  padding-bottom: 0.48rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 {
@@ -196,8 +199,7 @@
   line-height: 1.45;
   font-weight: 650;
   padding-top: 0.4em;
-  padding-bottom: 0.12rem;
-  margin-bottom: 0.22rem;
+  padding-bottom: 0.34rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5 {
@@ -205,8 +207,7 @@
   line-height: 1.5;
   font-weight: 600;
   padding-top: 0.35em;
-  padding-bottom: 0.1rem;
-  margin-bottom: 0.18rem;
+  padding-bottom: 0.28rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 {
@@ -217,8 +218,7 @@
   letter-spacing: 0.04em;
   color: var(--theme-muted, #656d76);
   padding-top: 0.3em;
-  padding-bottom: 0.08rem;
-  margin-bottom: 0.15rem;
+  padding-bottom: 0.23rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--source-only {
@@ -742,7 +742,11 @@
   border-bottom-left-radius: 6px;
   border-bottom-right-radius: 6px;
   padding-bottom: 0.45rem;
-  margin-bottom: 0.65rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-block-spacer {
+  height: 0.65rem;
+  pointer-events: none;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--active {

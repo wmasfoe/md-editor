@@ -77,6 +77,7 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
           (protectedRange.kind === "table" ||
             protectedRange.kind === "html" ||
             protectedRange.kind === "mdx" ||
+            protectedRange.kind === "code" ||
             selection.from < protectedRange.from ||
             selection.to > protectedRange.to),
       );
@@ -90,17 +91,34 @@ export function isWysiwygChangeAllowed(transaction: Transaction): boolean {
 }
 
 function transactionTouchesCodeBlockSyntax(transaction: Transaction): boolean {
-  const protectedCodeRanges = transaction.startState
-    .field(markdownRangeIndexField)
-    .byKind("deferred-code")
-    .flatMap(getCodeBlockProtectedRanges);
-  let touchesCodeSyntax = false;
+  const codeBlocks = transaction.startState.field(markdownRangeIndexField).byKind("deferred-code");
+  if (codeBlocks.length === 0) {
+    return false;
+  }
+
+  let touchesUncoveredCodeSyntax = false;
   transaction.changes.iterChangedRanges((from, to) => {
-    if (protectedCodeRanges.some((range) => changesTouchRange(from, to, range.from, range.to))) {
-      touchesCodeSyntax = true;
+    if (touchesUncoveredCodeSyntax) {
+      return;
+    }
+    for (const record of codeBlocks) {
+      const protectedCodeRanges = getCodeBlockProtectedRanges(record);
+      if (!protectedCodeRanges.some((range) => changesTouchRange(from, to, range.from, range.to))) {
+        continue;
+      }
+      const sourceRange = record.codeBlock?.sourceBlockRange ?? record.fullRange;
+      const coveredBySelection = transaction.startState.selection.ranges.some(
+        (selection) =>
+          !selection.empty && selection.from <= sourceRange.from && selection.to >= sourceRange.to,
+      );
+      const coveredByChange = from <= sourceRange.from && to >= sourceRange.to;
+      if (!coveredBySelection && !coveredByChange) {
+        touchesUncoveredCodeSyntax = true;
+        return;
+      }
     }
   });
-  return touchesCodeSyntax;
+  return touchesUncoveredCodeSyntax;
 }
 
 function changesTouchRange(from: number, to: number, rangeFrom: number, rangeTo: number): boolean {

@@ -355,7 +355,7 @@ describe("wysiwyg change protection provenance semantics", () => {
     expect(attempted.state.doc.toString()).toBe("");
   });
 
-  it("rejects select-all deletion when the document contains fenced code syntax", () => {
+  it("allows select-all deletion when the document contains fenced code syntax", () => {
     const doc = ["Before", "", "[^note]", "", "```md", "code", "```", "", "Tail", ""].join("\n");
     const { state } = createHarness(doc);
     const selected = state.update({
@@ -364,6 +364,23 @@ describe("wysiwyg change protection provenance semantics", () => {
     const attempted = selected.update({
       changes: { from: 0, to: doc.length, insert: "" },
       selection: EditorSelection.cursor(0),
+      userEvent: "delete.selection",
+    });
+
+    expect(attempted.docChanged).toBe(true);
+    expect(attempted.state.doc.toString()).toBe("");
+  });
+
+  it("rejects partial deletion touching fenced code syntax when not covering the code block", () => {
+    const doc = ["Before", "", "```md", "code", "```", "", "Tail", ""].join("\n");
+    const { state } = createHarness(doc);
+    const fenceIndex = doc.indexOf("```", doc.indexOf("```") + 1);
+    const selected = state.update({
+      selection: EditorSelection.range(fenceIndex, fenceIndex + 3),
+    }).state;
+    const attempted = selected.update({
+      changes: { from: fenceIndex, to: fenceIndex + 3, insert: "" },
+      selection: EditorSelection.cursor(fenceIndex),
       userEvent: "delete.selection",
     });
 
