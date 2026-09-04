@@ -1,5 +1,6 @@
 import { EditorSelection, Transaction, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { editorModeField } from "../mode.ts";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
 
@@ -29,6 +30,9 @@ export const smartPairsInputHandler = EditorView.inputHandler.of((view, from, to
   }
 
   const { state } = view;
+  if (state.field(editorModeField, false) === "source") {
+    return false;
+  }
   const projection = state.field(wysiwygProjectionField, false);
   if (projection && projection.compositionGuardRanges.length > 0) {
     return false;

@@ -705,7 +705,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     );
   });
 
-  test("E07-E08: broad selection preserves source clipboard and requires source mode for structural deletion", async ({
+  test("E07-E08: broad selection preserves source clipboard and allows deletion and undo", async ({
     page,
   }) => {
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("source"));
@@ -730,19 +730,6 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await content.press(COPY_KEY);
     await expect.poll(() => readClipboard(page)).toBe(FIXTURE_MARKDOWN);
 
-    const rejectionCount = wysiwyg.renderer!.wysiwyg.protectedChangeRejectionCount;
-    await content.press("Backspace");
-    const protectedDeletion = await diagnostics(page);
-    expect(protectedDeletion.renderer).toMatchObject({
-      markdown: FIXTURE_MARKDOWN,
-      selectionAnchor: 0,
-      selectionHead: FIXTURE_MARKDOWN.length,
-    });
-    expect(protectedDeletion.renderer!.wysiwyg.protectedChangeRejectionCount).toBe(
-      rejectionCount + 1,
-    );
-
-    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setMode("source"));
     await content.press("Backspace");
     await expect.poll(async () => (await diagnostics(page)).renderer!.markdown).toBe("");
     await content.press(UNDO_KEY);

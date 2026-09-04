@@ -106,34 +106,30 @@ test.describe("UX Fixes Verification", () => {
   });
 
   // ==========================================
-  // Test 4: Smart Pairs Auto-close & Step-over & Pair Backspace
+  // Test 4: Smart Pairs No Auto-close & Selection Wrapping
   // ==========================================
-  test("Smart pairs auto-close, step-over and Backspace pair deletion", async ({ page }) => {
+  test("Smart pairs does not auto-close on empty cursor and wraps non-empty selection", async ({
+    page,
+  }) => {
     await openApp(page);
     const content = page.locator(".cm-content");
     await content.click();
 
-    // Type '(' -> auto closes to '()'
+    // Type '(' -> does NOT auto close, enters single '('
     await page.keyboard.type("(");
     let md = await getMarkdown(page);
-    expect(md.trim()).toBe("()");
+    expect(md.trim()).toBe("(");
 
-    // Type ')' -> steps over to after ')'
-    await page.keyboard.type(")");
-    await page.keyboard.type("!");
+    // Type '`' -> enters single '`' (allows typing ``` for code blocks)
+    await page.keyboard.type("`");
     md = await getMarkdown(page);
-    expect(md.trim()).toBe("()!");
+    expect(md.trim()).toBe("(`");
 
-    // Clear and test Backspace on pair
-    await setMarkdown(page, "");
-    await content.click();
-    await page.keyboard.type("[");
+    // Clear and test selection wrapping: select 'hello' and type '(' -> '(hello)'
+    await setMarkdown(page, "hello");
+    await setCaret(page, 0, 5);
+    await page.keyboard.type("(");
     md = await getMarkdown(page);
-    expect(md.trim()).toBe("[]");
-
-    // Press Backspace -> deletes both '[' and ']'
-    await page.keyboard.press("Backspace");
-    md = await getMarkdown(page);
-    expect(md.trim()).toBe("");
+    expect(md.trim()).toBe("(hello)");
   });
 });
