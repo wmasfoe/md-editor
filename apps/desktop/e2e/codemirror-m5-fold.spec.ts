@@ -181,25 +181,16 @@ test.describe("M5 折叠(标题/列表项)", () => {
     await expect(page.locator(".cm-line", { hasText: "段落甲" })).toHaveCount(1);
   });
 
-  test("F6: 折叠按钮并入块工具栏,可见可点击", async ({ page }) => {
+  test("F6: 折叠按钮独立挂载,可见可点击", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
     const headingLine = page.locator(".cm-line", { hasText: "标题一" }).first();
     await headingLine.hover();
-    const toolbar = headingLine.locator(".cm-md-block-toolbar").first();
     const toggle = headingLine.locator(".cm-md-fold-toggle");
-    await expect(toolbar).toHaveCount(1);
     await expect(toggle).toHaveCount(1);
-    // 折叠按钮渲染在工具栏内(并排控件布局由布局诊断覆盖)
-    const toolbarBox = await toolbar.boundingBox();
     const toggleBox = await toggle.boundingBox();
     expect(toggleBox).not.toBeNull();
-    expect(toolbarBox).not.toBeNull();
-    expect(toggleBox!.x).toBeGreaterThanOrEqual(toolbarBox!.x);
-    expect(toggleBox!.x + toggleBox!.width).toBeLessThanOrEqual(
-      toolbarBox!.x + toolbarBox!.width + 1,
-    );
   });
 
   test("F7: 折叠图标是伪元素,不污染 .cm-line 文本", async ({ page }) => {
