@@ -16,7 +16,7 @@ import {
   type StateEffect,
   type TransactionSpec,
 } from "@codemirror/state";
-import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
+import { EditorView, drawSelection, keymap, type ViewUpdate } from "@codemirror/view";
 import { search, searchKeymap } from "@codemirror/search";
 import { createLiquidSearchPanel } from "./wysiwyg/search-panel.ts";
 import type {
@@ -416,6 +416,7 @@ class CodeMirrorRendererController {
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
       blockToolbarExtension,
+      drawSelection(),
       aiSuggestionExtension,
       createWysiwygProjectionExtensions(
         [

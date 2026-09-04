@@ -257,7 +257,7 @@ const PAPER_LIGHT_THEME_CSS = `
     ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
     Consolas, monospace;
   --theme-content-width: 820px;
-  --theme-editor-line-height: 1.88;
+  --theme-editor-line-height: 1.62;
   /* ── 动效 Token:纸张阻尼感 ── */
   --cm-transition-fast: 120ms cubic-bezier(0.22, 1, 0.36, 1);
   --cm-transition-base: 200ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -328,7 +328,7 @@ const CHARCOAL_DARK_THEME_CSS = `
     ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono",
     Consolas, monospace;
   --theme-content-width: 820px;
-  --theme-editor-line-height: 1.88;
+  --theme-editor-line-height: 1.62;
   /* ── 动效 Token ── */
   --cm-transition-fast: 120ms cubic-bezier(0.22, 1, 0.36, 1);
   --cm-transition-base: 200ms cubic-bezier(0.22, 1, 0.36, 1);
