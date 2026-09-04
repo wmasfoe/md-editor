@@ -827,3 +827,22 @@ describe("CodeMirror renderer failure recovery", () => {
     );
   });
 });
+
+describe("CodeMirror renderer selection handling", () => {
+  it("updates selection ranges across multiple lines via harness", () => {
+    const setup = createSetup(
+      { markdown: "段落一：测试 CodeMirror drawSelection。\n段落二：跨行选区绘制验证。" },
+      { wireTransitions: false, commitLocalChanges: false },
+    );
+
+    // 设置跨行多字符选区
+    setup.harness.setSelection(0, 30);
+
+    const probe = setup.harness.probe();
+    expect(probe.selectionAnchor).toBe(0);
+    expect(probe.selectionHead).toBe(30);
+    expect(probe.selectionRangeCount).toBe(1);
+  });
+});
+
+

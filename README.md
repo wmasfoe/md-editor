@@ -32,7 +32,7 @@
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
-    <img src="https://img.shields.io/badge/editor-Milkdown_%2B_CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
+    <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/version-v0.4.6-brightgreen?style=flat-square" alt="Version">
@@ -46,9 +46,9 @@
 
 ### 🎨 Typora-like 所见即所得
 
-- **即打即显**：基于 Milkdown 与 ProseMirror 打造，输入 Markdown 标记即时隐去并渲染为富文本排版。
-- **直观交互**：提供块级拖拽手柄（Block Handle）、斜杠快捷命令（`/` 快捷插入）及悬浮格式化菜单。
-- **双模秒切**：内置高性能源码编辑模式（CodeMirror 6 驱动），支持富文本与源码实时无损双向同步。
+- **即打即显**：基于 CodeMirror 6 投影层深度打造，输入 Markdown 标记即时隐去并渲染为精美排版，保持 100% 纯粹 Markdown 文本事实。
+- **单编辑器同构**：所见即所得与源码编辑共享同一个 CodeMirror 6 `EditorView` 实例，模式切换零开销、零延迟、选区与撤销历史无缝保持。
+- **直观交互**：提供行首折叠（Fold Toggle）、块级拖拽手柄、斜杠快捷命令（`/` 快捷插入）及悬浮格式化菜单。
 
 ### 🧩 原生 MDX 与交互式组件
 
@@ -176,7 +176,8 @@ md-editor/
 │   ├── desktop/                 # Tauri 2 桌面应用主工程 (Rust + React Shell)
 │   └── site/                    # Inkpoint 官方网站与在线文档
 ├── packages/
-│   ├── editor-core/             # 编辑器核心（Milkdown + ProseMirror 状态/插件/解析）
+│   ├── editor-core/             # 编辑器核心（文档状态流、模式切换、撤销历史与通用协议）
+│   ├── renderer-codemirror/     # CodeMirror 6 渲染层（WYSIWYG 投影、装饰器、代码块/表格/折叠）
 │   ├── editor-ui/               # 编辑器 UI 视图组件、悬浮工具栏、文件树与大纲
 │   ├── mdx-component-registry/  # MDX 组件协议规范与运行时注册表
 │   ├── mdx-plugins/             # 官方内置 MDX 组件（Alert, Mermaid, KaTeX, Tabs 等）
@@ -196,8 +197,7 @@ md-editor/
 | :--- | :--- | :--- |
 | **桌面运行时** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | 轻量、安全、低资源消耗的跨平台桌面应用方案 |
 | **前端架构** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | 现代化声明式 UI 开发与严谨的类型系统 |
-| **所见即所得核心** | [Milkdown](https://milkdown.dev/) + [ProseMirror](https://prosemirror.net/) | 可扩展的插件化富文本引擎与语法树状态流 |
-| **源码编辑器** | [CodeMirror 6](https://codemirror.net/) | 高性能的下一代代码与 Markdown 源码编辑引擎 |
+| **编辑器核心** | [CodeMirror 6](https://codemirror.net/) | 基于单 EditorView 的高性能下一代所见即所得与源码统一编辑器 |
 | **样式与视觉** | [Tailwind CSS](https://tailwindcss.com/) + [Lucide Icons](https://lucide.dev/) | 实用原子化样式与现代化图标库 |
 | **Monorepo 构建** | [Vite 6](https://vitejs.dev/) + [pnpm Workspace](https://pnpm.io/) | 极速热重载开发体验与高效依赖复用 |
 | **测试与规范** | [Vitest](https://vitest.dev/) + [Oxlint](https://oxc.rs/) + [Prettier](https://prettier.io/) | 极速单测运行与代码质量保障工具链 |
