@@ -78,11 +78,28 @@ export interface TranslationSchema {
   changelog: {
     title: string;
     badge: string;
+    tabsAria: string;
+    clientTab: string;
+    modelTab: string;
     descriptionPrefix: string;
     descriptionSuffix: string;
+    modelDescriptionPrefix: string;
+    modelDescriptionSuffix: string;
+    modelOriginalLanguage: string;
     empty: string;
+    modelEmpty: string;
     listAria: string;
+    modelListAria: string;
     latestBadge: string;
+    importantBadge: string;
+    itemTypes: {
+      feat: string;
+      perf: string;
+      fix: string;
+      refactor: string;
+      breaking: string;
+      other: string;
+    };
     backHome: string;
   };
   footer: {
