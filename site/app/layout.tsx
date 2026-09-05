@@ -8,6 +8,7 @@ import { getChangelogEntries } from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
 import { detectLocaleFromHeader } from "../lib/i18n";
 import { I18nProvider } from "../lib/i18n/context";
+import { OFFICIAL_SITE_URL } from "../lib/site-links";
 import "./globals.css";
 
 const inter = Inter({
@@ -28,6 +29,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(OFFICIAL_SITE_URL),
   title: {
     default: "Inkpoint",
     template: "%s · Inkpoint",

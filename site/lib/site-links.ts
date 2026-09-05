@@ -5,6 +5,12 @@
  * 历史版本页也指向同一公开 Release 列表，便于用户浏览全部安装包。
  */
 
+/** 官网域名 */
+export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
+
+/** 官网完整 URL */
+export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
+
 /** 本项目源码仓库 */
 export const GITHUB_REPO_URL = "https://github.com/wmasfoe/md-editor";
 
