@@ -12,6 +12,16 @@ import { CompactHeader } from "./CompactHeader";
 import { ReferralBanner } from "./ReferralBanner";
 import { DisclaimerModal } from "./DisclaimerModal";
 
+function syncUtoolsTheme(): void {
+  if (typeof window !== "undefined" && typeof window.utools !== "undefined") {
+    if (window.utools.isDarkColors()) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }
+}
+
 export function UtoolsApp() {
   const [mode, setMode] = useState<EditorMode>("scratchpad");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -46,6 +56,34 @@ export function UtoolsApp() {
     }
   }, []);
 
+  // 同步 uTools 主题设置
+  useEffect(() => {
+    syncUtoolsTheme();
+  }, []);
+
+  // 快捷键监听 (Cmd+S / Ctrl+S 立即主动写盘)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        const current = snapshotRef.current;
+        if (modeRef.current === "scratchpad") {
+          saveScratchpadToDb(current.markdown);
+          showToast("便签已保存");
+        } else if (modeRef.current === "file" && current.filePath && window.inkpointNodeBridge) {
+          try {
+            window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
+            showToast("文件已保存");
+          } catch (err) {
+            showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showToast]);
+
   // 1. 自动防抖保存逻辑
   useEffect(() => {
     const currentMode = modeRef.current;
@@ -71,6 +109,8 @@ export function UtoolsApp() {
   // 2. 注册 uTools 生命周期监听
   useEffect(() => {
     const handleEnter = (detail: PluginEnterDetail) => {
+      syncUtoolsTheme();
+
       // 场景 A: 匹配文件 (打开本地 Markdown)
       if (detail.code === "open-file" || detail.type === "file") {
         const fileList = detail.payload;
