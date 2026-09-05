@@ -12,17 +12,17 @@ export interface ScratchpadDoc {
   updatedAt: number;
 }
 
-const DEFAULT_SCRATCHPAD_MARKDOWN = `# 随时记事
+const DEFAULT_SCRATCHPAD_MARKDOWN = `# Inkpoint Markdown 编辑器
 
-记录瞬时灵感、临时 Markdown 文本或代码片段。
-本便签自动保存，并通过 uTools 账号在多设备间同步。
+欢迎使用 Inkpoint。支持所见即所得排版、本地文件秒开与全局选词编辑。
+当前草稿自动保存，并通过 uTools 账号在多设备间同步。
 
 > [!TIP]
-> 点击顶部「前往官网」可下载 InkPoint 原生桌面版，体验完全本地小模型与完整文件树管理。
+> 点击顶部「前往官网」可获取 Inkpoint 原生桌面版，体验独家本地专属小模型与完整多窗口工作区。
 `;
 
 /**
- * 保存便签内容到 utools.db
+ * 保存草稿内容到 utools.db
  */
 export function saveScratchpadToDb(markdown: string): void {
   if (typeof window === "undefined" || typeof window.utools === "undefined") {
@@ -39,7 +39,7 @@ export function saveScratchpadToDb(markdown: string): void {
   const doc: ScratchpadDoc = {
     _id: SCRATCHPAD_DOC_ID,
     _rev: existing?._rev,
-    title: "快速便签",
+    title: "草稿文档",
     markdown,
     updatedAt: Date.now(),
   };

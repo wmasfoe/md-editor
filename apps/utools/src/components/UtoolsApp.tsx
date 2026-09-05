@@ -69,7 +69,7 @@ export function UtoolsApp() {
         const current = snapshotRef.current;
         if (modeRef.current === "scratchpad") {
           saveScratchpadToDb(current.markdown);
-          showToast("便签已保存");
+          showToast("草稿已保存");
         } else if (modeRef.current === "file" && current.filePath && window.inkpointNodeBridge) {
           try {
             window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
@@ -206,7 +206,7 @@ export function UtoolsApp() {
       { kind: "command", commandId: "utools.switchScratchpad" },
     );
     setMode("scratchpad");
-    showToast("已切换到随手便签");
+    showToast("已切换到草稿文档");
   }, [docState, mode, showToast, snapshot.filePath, snapshot.markdown]);
 
   // 4. 用户点击打开本地文件
@@ -281,7 +281,7 @@ export function UtoolsApp() {
             codeBlockLineNumbers={false}
             fontSize={15}
             className="h-full w-full overflow-auto"
-            ariaLabel="Inkpoint 随手记"
+            ariaLabel="Inkpoint Markdown 编辑器"
           />
         </EditorUiProvider>
       </main>
@@ -289,7 +289,7 @@ export function UtoolsApp() {
       {/* 底部微型状态栏与桌面端卖点提示 */}
       <footer className="px-3 py-1 bg-[var(--theme-surface)] border-t border-[var(--theme-border)] text-xs text-[var(--theme-muted)] flex items-center justify-between shrink-0 select-none">
         <div className="flex items-center gap-3">
-          <span>{mode === "scratchpad" ? "便签自动云漫游" : "本地文件已连接"}</span>
+          <span>{mode === "scratchpad" ? "草稿云同步" : "本地文件已连接"}</span>
           <span>{snapshot.markdown.length} 字符</span>
         </div>
         <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 {
-  "pluginName": "Inkpoint 墨点便签",
+  "pluginName": "Inkpoint Markdown 编辑器",
   "version": "1.0.0",
-  "description": "简洁高效的随手便签与 Markdown 编辑器，支持云漫游与超级面板划词编辑。",
+  "description": "轻量级所见即所得 Markdown 编辑器，支持快速编辑、本地文件秒开与全局划词润色。",
   "author": "Inkpoint Team",
   "homepage": "https://editor.justdev.cn",
   "main": "dist/index.html",
@@ -17,8 +17,8 @@
   "features": [
     {
       "code": "scratchpad",
-      "explain": "Inkpoint 快速便签",
-      "cmds": ["md", "markdown", "便签", "记事"]
+      "explain": "Inkpoint Markdown 编辑器",
+      "cmds": ["md", "markdown", "编辑器", "Inkpoint", "墨点"]
     },
     {
       "code": "open-file",

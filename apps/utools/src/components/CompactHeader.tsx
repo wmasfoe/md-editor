@@ -21,7 +21,7 @@ export function CompactHeader({
   onPasteBackToApp,
   onCopyAll,
 }: CompactHeaderProps) {
-  const fileName = filePath ? (filePath.split(/[/\\]/).pop() ?? "本地文件") : "快速便签";
+  const fileName = filePath ? (filePath.split(/[/\\]/).pop() ?? "本地文件") : "未命名草稿";
 
   return (
     <header className="flex items-center justify-between px-3 py-2 bg-[var(--theme-chrome)] border-b border-[var(--theme-border)] shrink-0 select-none">
@@ -42,7 +42,7 @@ export function CompactHeader({
                 : "bg-transparent text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
             }`}
           >
-            便签 (同步)
+            草稿 (同步)
           </button>
           <button
             type="button"
