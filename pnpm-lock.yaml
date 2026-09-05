@@ -199,6 +199,67 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
 
+  apps/web:
+    dependencies:
+      '@headlessui/react':
+        specifier: 'catalog:'
+        version: 2.2.10(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@heroicons/react':
+        specifier: 'catalog:'
+        version: 2.2.0(react@19.2.7)
+      '@md-editor/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
+      '@md-editor/editor-ui':
+        specifier: workspace:*
+        version: link:../../packages/editor-ui
+      '@md-editor/markdown-fidelity':
+        specifier: workspace:*
+        version: link:../../packages/markdown-fidelity
+      '@md-editor/mdx-component-registry':
+        specifier: workspace:*
+        version: link:../../packages/mdx-component-registry
+      '@md-editor/mdx-plugins':
+        specifier: workspace:*
+        version: link:../../packages/mdx-plugins
+      '@md-editor/renderer-codemirror':
+        specifier: workspace:*
+        version: link:../../packages/renderer-codemirror
+      '@md-editor/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.3.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2))
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 4.7.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2))
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vite:
+        specifier: 'catalog:'
+        version: 6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2)
+
   packages/ai:
     devDependencies:
       typescript:

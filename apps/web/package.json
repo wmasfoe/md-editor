@@ -1,0 +1,37 @@
+{
+  "name": "@md-editor/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@headlessui/react": "catalog:",
+    "@heroicons/react": "catalog:",
+    "@md-editor/ai": "workspace:*",
+    "@md-editor/editor-core": "workspace:*",
+    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/markdown-fidelity": "workspace:*",
+    "@md-editor/mdx-component-registry": "workspace:*",
+    "@md-editor/mdx-plugins": "workspace:*",
+    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/shared": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
