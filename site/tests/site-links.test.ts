@@ -8,9 +8,16 @@ import {
   GITHUB_RELEASES_URL,
   GITHUB_REPO_URL,
   normalizeVersion,
+  OFFICIAL_SITE_DOMAIN,
+  OFFICIAL_SITE_URL,
 } from "../lib/site-links";
 
 describe("site-links", () => {
+  it("exposes official site domain and url", () => {
+    expect(OFFICIAL_SITE_DOMAIN).toBe("editor.justdev.cn");
+    expect(OFFICIAL_SITE_URL).toBe("https://editor.justdev.cn");
+  });
+
   it("exposes project and public release URLs", () => {
     expect(GITHUB_REPO_URL).toBe("https://github.com/wmasfoe/md-editor");
     expect(GITHUB_RELEASES_URL).toBe("https://github.com/wmasfoe/homebrew-tap/releases");

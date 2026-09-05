@@ -50,7 +50,7 @@
 
 ### 3.1 导流通道设计
 - **顶部横幅 (`ReferralBanner`)**：展示“Inkpoint 桌面版已发布，支持无限多窗口、完整侧栏与独家本地专属小模型”，引导访问官网。
-- **操作栏与状态栏**：常驻官网跳转入口，统一调用 `utools.shellOpenExternal("https://inkpoint.app/?utm_source=utools&utm_medium=plugin&utm_campaign=...")` 附带精确的 UTM 溯源参数。
+- **操作栏与状态栏**：常驻官网跳转入口，统一调用 `utools.shellOpenExternal("https://editor.justdev.cn/?utm_source=utools&utm_medium=plugin&utm_campaign=...")` 附带精确的 UTM 溯源参数。
 
 ### 3.2 AI 与模型能力边界
 - **本地微调专属小模型 (SLM)**：
