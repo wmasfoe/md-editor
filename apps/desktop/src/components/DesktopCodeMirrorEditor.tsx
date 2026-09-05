@@ -5,6 +5,7 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "@md-editor/editor-ui";
+import { containerDirectivePlugin } from "@md-editor/syntax-plugins";
 import { requestAiContinuation, documentContextManager } from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
 import { runtime } from "../app/runtime/editor-runtime";
@@ -26,6 +27,8 @@ export interface DesktopCodeMirrorEditorProps {
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
   readonly showToast: (message: string | null) => void;
 }
+
+const DESKTOP_SYNTAX_PLUGINS = [containerDirectivePlugin];
 
 export function DesktopCodeMirrorEditor({
   hidden = false,
@@ -110,6 +113,7 @@ export function DesktopCodeMirrorEditor({
   return (
     <CodeMirrorEditor
       document={runtime.document}
+      plugins={DESKTOP_SYNTAX_PLUGINS}
       className="min-h-0 flex-1"
       fontSize={settings.editor.wysiwygFontSize}
       proseFontFamily={resolveProseFontStack(settings.editor.proseFontFamily)}

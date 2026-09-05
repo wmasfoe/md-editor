@@ -98,11 +98,18 @@ describe("quote, list, and task projection", () => {
       ["quote", "list-item-unordered", "list-item-ordered", "task"].includes(record.kind),
     );
     const markerCount = records.reduce((count, record) => count + record.markerRanges.length, 0);
+    const atomicRecords = records.filter((record) => record.kind !== "quote");
+    const atomicMarkerCount = atomicRecords.reduce(
+      (count, record) => count + record.markerRanges.length,
+      0,
+    );
 
     expect(layout.filter((item) => item.role.endsWith("-marker-hidden"))).toHaveLength(markerCount);
     expect(layout.filter((item) => item.role.endsWith("-line"))).toHaveLength(markerCount);
-    expect(atomic.filter((item) => item.role.endsWith("-marker-atomic"))).toHaveLength(markerCount);
-    expect(inspectWysiwygProjection(state).atomicRangeCount).toBe(markerCount);
+    expect(atomic.filter((item) => item.role.endsWith("-marker-atomic"))).toHaveLength(
+      atomicMarkerCount,
+    );
+    expect(inspectWysiwygProjection(state).atomicRangeCount).toBe(atomicMarkerCount);
     expect(state.doc.toString()).toBe(doc);
 
     const unorderedWidgets = layout

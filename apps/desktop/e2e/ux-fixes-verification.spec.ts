@@ -132,4 +132,176 @@ test.describe("UX Fixes Verification", () => {
     md = await getMarkdown(page);
     expect(md.trim()).toBe("(hello)");
   });
+
+  // ==========================================
+  // Test 5: GFM Alert mode switch from source to wysiwyg
+  // ==========================================
+  test("reproduces alert mode switch error when switching from source to wysiwyg", async ({
+    page,
+  }) => {
+    await openApp(page);
+    const modeButton = page.getByRole("button", { name: "切换到源码" });
+    await modeButton.click();
+    await expect(page.locator(".cm-editor")).toHaveAttribute("data-editor-mode", "source");
+
+    const content = page.locator(".cm-content");
+    const sourceModeButton = page.getByRole("button", { name: "切换到所见即所得" });
+
+    const variations = ["> [!NOTE]\n>\n> 123", "> [!NOTE]\n\n> 123", "> [!NOTE]\n> \n> 123"];
+
+    for (const text of variations) {
+      // Test caret at beginning, middle, and end
+      const testPositions = [0, 5, text.length];
+
+      for (const pos of testPositions) {
+        // Reset to source mode
+        await content.click();
+        await page.keyboard.press("Meta+a");
+        await page.keyboard.press("Backspace");
+
+        await page.evaluate(async (t) => {
+          await navigator.clipboard.writeText(t);
+        }, text);
+        await page.keyboard.press("Meta+v");
+        await page.waitForTimeout(50);
+
+        // Set caret to pos
+        await setCaret(page, pos);
+        await page.waitForTimeout(50);
+
+        await sourceModeButton.click();
+        await page.waitForTimeout(100);
+
+        const toast = page.locator("[role='alert']");
+        if ((await toast.count()) > 0) {
+          const toastTexts = await toast.allTextContents();
+          expect(toastTexts.join(" ")).not.toContain("Renderer mode change failed");
+        }
+
+        await expect(page.locator(".cm-editor")).toHaveAttribute("data-editor-mode", "wysiwyg");
+
+        // Switch back to source for next test
+        await modeButton.click();
+        await page.waitForTimeout(100);
+      }
+    }
+  });
+
+  // ==========================================
+  // Test 6: Blockquote marker (>) invisibility in WYSIWYG mode
+  // ==========================================
+  test("Blockquote does not render small > marker in wysiwyg mode", async ({ page }) => {
+    await openApp(page);
+    await expect(page.locator(".cm-editor")).toHaveAttribute("data-editor-mode", "wysiwyg");
+
+    const content = page.locator(".cm-content");
+    await content.click();
+    await page.keyboard.press("Meta+a");
+    await page.keyboard.press("Backspace");
+
+    const quoteMarkdown = "> 这是一个引用段落\n>\n> 这是第二行引用";
+    await setMarkdown(page, quoteMarkdown);
+    await page.waitForTimeout(200);
+
+    // 1. 验证行级引用块装饰存在
+    const quoteLines = page.locator(".cm-md-block-line--quote");
+    await expect(quoteLines).toHaveCount(3);
+
+    // 2. 验证小 > 或 › 标记完全不可见（数量为 0）
+    const quoteMarkers = page.locator(".cm-md-block-marker--quote");
+    await expect(quoteMarkers).toHaveCount(0);
+
+    // 3. 验证行内文本直接展示正文，不包含 > 或 › 字符
+    const firstLineText = await quoteLines.first().innerText();
+    expect(firstLineText).toBe("这是一个引用段落");
+    expect(firstLineText).not.toContain(">");
+    expect(firstLineText).not.toContain("›");
+  });
+
+  // ==========================================
+  // Test 7: Cursor ArrowUp from below blockquote enters last content line
+  // ==========================================
+  test("ArrowUp from empty line below blockquote moves into last content line", async ({
+    page,
+  }) => {
+    await openApp(page);
+
+    const doc = "> Quote line 1\n> Quote line 2\n";
+    await setMarkdown(page, doc);
+    await page.waitForTimeout(200);
+
+    // Place caret at empty line below quote (e.g. after double enter to exit quote)
+    await setCaret(page, doc.length);
+
+    // Press ArrowUp
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(100);
+
+    const diag = await page.evaluate(() => window.__MD_EDITOR_E2E__?.getDiagnostics());
+    const pos = diag?.renderer?.selectionAnchor ?? -1;
+    const md = diag?.renderer?.markdown ?? "";
+
+    // 验证光标进入了 "Quote line 2" 所在行（第 2 行），而不是越过引用块跑到上方
+    const line2Start = md.indexOf("> Quote line 2");
+    const line2End = md.indexOf("\n", line2Start);
+    expect(pos).toBeGreaterThanOrEqual(line2Start);
+    expect(pos).toBeLessThanOrEqual(line2End);
+  });
+
+  // ==========================================
+  // Test 8: Cursor ArrowUp from below GFM alert enters last content line
+  // ==========================================
+  test("ArrowUp from empty line below GFM alert enters last content line", async ({ page }) => {
+    await openApp(page);
+
+    const doc = "# 标题\n\n> [!NOTE]\n>\n> 123\n";
+    await setMarkdown(page, doc);
+    await page.waitForTimeout(200);
+
+    // Place caret at empty line below alert
+    await setCaret(page, doc.length);
+
+    // Press ArrowUp
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(100);
+
+    const diag = await page.evaluate(() => window.__MD_EDITOR_E2E__?.getDiagnostics());
+    const pos = diag?.renderer?.selectionAnchor ?? -1;
+    const md = diag?.renderer?.markdown ?? "";
+
+    // 验证光标准确进入了 Alert 内容区的最后一行 "> 123"
+    const contentLineStart = md.indexOf("> 123");
+    const contentLineEnd = md.indexOf("\n", contentLineStart);
+    expect(pos).toBeGreaterThanOrEqual(contentLineStart);
+    expect(pos).toBeLessThanOrEqual(contentLineEnd);
+  });
+
+  // ==========================================
+  // Test 9: GFM Alert Header never reveals source code
+  // ==========================================
+  test("GFM Alert Header never reveals raw [!NOTE] source code", async ({ page }) => {
+    await openApp(page);
+
+    const doc = "> [!NOTE]\n> 123";
+    await setMarkdown(page, doc);
+    await page.waitForTimeout(200);
+
+    // 1. 验证 Header 渲染为卡片头部
+    const headerWidget = page.locator(".cm-md-directive__header-content");
+    await expect(headerWidget).toBeVisible();
+
+    // 2. 点击 Header 区域
+    await headerWidget.click();
+    await page.waitForTimeout(100);
+
+    // 3. 验证 Header 依然保持卡片渲染，绝不展开回显 [!NOTE] 原文
+    await expect(headerWidget).toBeVisible();
+    const contentText = await page.locator(".cm-content").innerText();
+    expect(contentText).not.toContain("[!NOTE]");
+
+    // 4. 验证光标位于内容行
+    const diag = await page.evaluate(() => window.__MD_EDITOR_E2E__?.getDiagnostics());
+    const pos = diag?.renderer?.selectionAnchor ?? -1;
+    expect(pos).toBeGreaterThanOrEqual(doc.indexOf("> 123"));
+  });
 });

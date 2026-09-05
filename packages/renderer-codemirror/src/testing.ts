@@ -208,6 +208,8 @@ export function createRendererTestHarness(
 
 export { inspectRendererForTesting };
 export type { RendererTestingProbeInternal as RendererTestingProbe };
+export { createCodeMirrorRendererWithFactory } from "./renderer.ts";
+export { provideWysiwygDiagnostics, WysiwygDiagnostics } from "./diagnostics.ts";
 export { getM2CodeBlockPerformanceFixture } from "./markdown/fixtures.ts";
 
 export function installCodeBlockLineNumberGeometryFixture(parent: HTMLElement): EditorView {

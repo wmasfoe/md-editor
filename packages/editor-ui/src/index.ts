@@ -25,3 +25,4 @@ export * from "./hooks";
 export * from "./themes/built-in-themes";
 export * from "./keyboard";
 export type { TocTarget } from "./types";
+export { type MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";

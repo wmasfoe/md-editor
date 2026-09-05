@@ -26,6 +26,7 @@ export type MarkdownSyntaxKind =
   | "table"
   | "html"
   | "mdx-jsx"
+  | "directive"
   | "deferred-code"
   | "deferred-table"
   | "deferred-html"
@@ -44,6 +45,7 @@ export type MarkdownRenderPolicy =
   | "html-widget"
   | "mdx-widget"
   | "mdx-placeholder"
+  | "directive-panel"
   | "deferred-raw"
   | "raw-fallback";
 
@@ -124,6 +126,23 @@ export interface MarkdownMdxBlockMetadata {
   readonly attributes: readonly { readonly name: string; readonly value: string }[];
 }
 
+export interface MarkdownDirectiveMetadata {
+  readonly directiveType: string;
+  readonly title: string;
+  readonly openingMarkerRange: SourceRange;
+  readonly closingMarkerRange: SourceRange | null;
+  readonly headerRange: SourceRange;
+}
+
+export type MarkdownAlertType = "note" | "tip" | "important" | "warning" | "caution";
+
+export interface MarkdownAlertMetadata {
+  readonly alertType: MarkdownAlertType;
+  readonly title: string;
+  readonly markerRange: SourceRange;
+  readonly headerLineRange: SourceRange;
+}
+
 export interface MarkdownRangeRecord {
   readonly id: string;
   readonly kind: MarkdownSyntaxKind;
@@ -143,6 +162,9 @@ export interface MarkdownRangeRecord {
   readonly codeBlock?: MarkdownCodeBlockMetadata;
   readonly tableBlock?: MarkdownTableBlockMetadata;
   readonly mdxBlock?: MarkdownMdxBlockMetadata;
+  readonly directive?: MarkdownDirectiveMetadata;
+  readonly alert?: MarkdownAlertMetadata;
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 export interface MarkdownParseCoverage {

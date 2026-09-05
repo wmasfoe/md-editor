@@ -69,9 +69,23 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
 const STORAGE_KEY = "md-editor:web:settings";
 const DRAFT_KEY = "md-editor:web:draft";
 
+function getStorage(): Storage | null {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      return window.localStorage;
+    }
+    if (typeof localStorage !== "undefined") {
+      return localStorage;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function loadWebSettings(): WebSettings {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = getStorage()?.getItem(STORAGE_KEY);
     if (!raw) {
       return DEFAULT_WEB_SETTINGS;
     }
@@ -93,7 +107,7 @@ export function loadWebSettings(): WebSettings {
 
 export function saveWebSettings(settings: WebSettings): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    getStorage()?.setItem(STORAGE_KEY, JSON.stringify(settings));
   } catch (err) {
     console.error("保存设置失败:", err);
   }
@@ -101,7 +115,7 @@ export function saveWebSettings(settings: WebSettings): void {
 
 export function loadSavedDraft(): string | null {
   try {
-    return localStorage.getItem(DRAFT_KEY);
+    return getStorage()?.getItem(DRAFT_KEY) ?? null;
   } catch {
     return null;
   }
@@ -109,7 +123,7 @@ export function loadSavedDraft(): string | null {
 
 export function saveDraft(markdown: string): void {
   try {
-    localStorage.setItem(DRAFT_KEY, markdown);
+    getStorage()?.setItem(DRAFT_KEY, markdown);
   } catch (err) {
     console.warn("草稿本地持久化失败:", err);
   }
@@ -117,7 +131,7 @@ export function saveDraft(markdown: string): void {
 
 export function clearSavedDraft(): void {
   try {
-    localStorage.removeItem(DRAFT_KEY);
+    getStorage()?.removeItem(DRAFT_KEY);
   } catch (err) {
     console.warn("清除本地草稿失败:", err);
   }

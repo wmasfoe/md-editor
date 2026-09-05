@@ -24,6 +24,7 @@
     "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/shared": "workspace:*",
+    "@md-editor/syntax-plugins": "workspace:*",
     "@tauri-apps/api": "catalog:",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-process": "^2.3.1",

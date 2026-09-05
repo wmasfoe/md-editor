@@ -1,6 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { DEFAULT_SHOWCASE_MARKDOWN } from "../src/presets/showcase";
-import { DEFAULT_WEB_SETTINGS, PRESET_PROVIDERS } from "../src/lib/web-settings";
+import {
+  DEFAULT_WEB_SETTINGS,
+  PRESET_PROVIDERS,
+  saveDraft,
+  loadSavedDraft,
+  clearSavedDraft,
+} from "../src/lib/web-settings";
 import {
   BUILT_IN_LIGHT_THEME_OPTIONS,
   BUILT_IN_DARK_THEME_OPTIONS,
@@ -10,12 +16,47 @@ import { resolveEffectiveColorScheme } from "../src/lib/theme-manager";
 import { bindWebKeyboardShortcuts, handleWebKeyboardEvent } from "../src/lib/keyboard-shortcuts";
 
 describe("Web App Presets and Settings", () => {
-  it("provides rich default showcase markdown with MDX callouts", () => {
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    const mockStorage = {
+      getItem: vi.fn((key: string) => store.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => {
+        store.set(key, String(value));
+      }),
+      removeItem: vi.fn((key: string) => {
+        store.delete(key);
+      }),
+      clear: vi.fn(() => {
+        store.clear();
+      }),
+      get length() {
+        return store.size;
+      },
+      key: vi.fn((_index: number) => null),
+    };
+    vi.stubGlobal("localStorage", mockStorage);
+    vi.stubGlobal("window", { localStorage: mockStorage });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("provides rich default showcase markdown with MDX callouts and GFM alerts", () => {
     expect(DEFAULT_SHOWCASE_MARKDOWN).toContain(":::tip");
     expect(DEFAULT_SHOWCASE_MARKDOWN).toContain(":::info");
     expect(DEFAULT_SHOWCASE_MARKDOWN).toContain(":::warning");
     expect(DEFAULT_SHOWCASE_MARKDOWN).toContain(":::danger");
+    expect(DEFAULT_SHOWCASE_MARKDOWN).toContain("> [!NOTE]");
     expect(DEFAULT_SHOWCASE_MARKDOWN).toContain("Inkpoint");
+  });
+
+  it("supports saving, loading, and clearing draft markdown in localStorage", () => {
+    saveDraft("## Test Draft Content");
+    expect(loadSavedDraft()).toBe("## Test Draft Content");
+
+    clearSavedDraft();
+    expect(loadSavedDraft()).toBeNull();
   });
 
   it("defines supported AI preset providers", () => {
@@ -72,7 +113,7 @@ function createKeyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
 }
 
 describe("Web Keyboard Shortcuts System", () => {
-  it("handles shortcuts for mode toggle, outline, settings, export, and AI", () => {
+  it("handles shortcuts for mode toggle, outline, settings, save to storage, and AI", () => {
     const onToggleMode = vi.fn();
     const onToggleOutline = vi.fn();
     const onOpenSettings = vi.fn();
@@ -107,7 +148,7 @@ describe("Web Keyboard Shortcuts System", () => {
     );
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
 
-    // 4. Mod-s (Save / Export)
+    // 4. Mod-s (Save to localStorage)
     expect(handleWebKeyboardEvent(createKeyEvent({ code: "KeyS", key: "s" }), handlers)).toBe(true);
     expect(onSave).toHaveBeenCalledTimes(1);
 

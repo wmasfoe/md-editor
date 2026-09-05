@@ -6,27 +6,31 @@ export const DEFAULT_SHOWCASE_MARKDOWN = `# 欢迎体验 Inkpoint 编辑器 ✨
 
 Inkpoint 是一款轻量、优雅且功能完备的 Markdown 与 MDX 编辑器。在纯浏览器环境中，你即可享受丝滑的所见即所得编辑体验！
 
-:::tip 体验提示
-点击顶部的 **「所见即所得」** 与 **「源码模式」** 胶囊按钮，感受零延迟、无抖动的双模式无缝切换！
+:::tip 快捷键体验提示
+按下快捷键 **Mod-/ (⌘/)**，感受零延迟、无抖动的「所见即所得」与「源码模式」无缝切换！
 :::
 
 ---
 
 ## 🎨 核心特性演示
 
-### 1. MDX 官方 Callout 提示块
-Inkpoint 原生支持富文本 Callout 渲染，输入即见精美卡片：
+### 1. MDX 容器指令与 GFM 官方 Alert
+
+Inkpoint 原生支持富文本 Callout 与 GitHub 警示块渲染，输入即见精美卡片：
+
+> [!NOTE] GFM 官方 Alert 警示块
+> 编辑器原生支持 GitHub Flavored Markdown 警示块（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`），完美兼容 GitHub 与 Obsidian 事实标准。
 
 :::info 架构优势
 编辑器渲染基于 CodeMirror 6，核心模块完全平台无关，桌面端与 Web 端共用同一套高保真解析与装饰管线。
 :::
 
 :::warning 注意事项
-你可以随时编辑提示块内部的文字，也可以切换为源码模式查看标准语法。
+你可以随时编辑提示块内部的文字，光标聚焦时自动展开源码供原地修改。
 :::
 
 :::danger 严谨保真
-所有未知的 MDX 语法标签均会以 Raw 模式严谨保真，绝不破坏原有文档结构！
+所有未知的语法标签均会以 Raw 模式严谨保真，绝不破坏原有文档结构！
 :::
 
 ---

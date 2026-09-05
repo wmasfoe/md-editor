@@ -17,7 +17,11 @@ import {
 } from "@codemirror/view";
 import type { EditorMode } from "@md-editor/editor-core";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
-import { markdownRangeIndexField, type MarkdownRangeIndex } from "../markdown/range-index.ts";
+import {
+  markdownRangeIndexField,
+  syntaxPluginRegistryFacet,
+  type MarkdownRangeIndex,
+} from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import { editorModeField } from "../mode.ts";
 import { buildHeadingLayoutDecorations } from "./inline-heading.ts";
@@ -75,7 +79,8 @@ export type WysiwygProjectionFeature =
   | "frontmatter"
   | "tables"
   | "html"
-  | "mdx";
+  | "mdx"
+  | "directives";
 
 export interface SelectWysiwygAtomEffect {
   readonly recordId: string;
@@ -154,28 +159,44 @@ export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceR
 export const visibleRangesProbePlugin = ViewPlugin.fromClass(
   class VisibleRangesProbe {
     #lastRanges: readonly SourceRange[] | null = null;
+    #scheduled = false;
+    #destroyed = false;
 
     constructor(view: EditorView) {
-      this.#dispatch(view);
+      this.#scheduleDispatch(view);
     }
 
     update(update: ViewUpdate) {
       if (update.viewportChanged || update.geometryChanged) {
-        this.#dispatch(update.view);
+        this.#scheduleDispatch(update.view);
       }
     }
 
-    #dispatch(view: EditorView): void {
-      const ranges = view.visibleRanges.map((range) =>
-        Object.freeze({ from: range.from, to: range.to }),
-      );
-      if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
+    destroy() {
+      this.#destroyed = true;
+    }
+
+    #scheduleDispatch(view: EditorView): void {
+      if (this.#scheduled) {
         return;
       }
-      this.#lastRanges = ranges;
-      view.dispatch({
-        effects: setWysiwygVisibleRangesEffect.of(ranges),
-        annotations: Transaction.addToHistory.of(false),
+      this.#scheduled = true;
+      queueMicrotask(() => {
+        this.#scheduled = false;
+        if (this.#destroyed) {
+          return;
+        }
+        const ranges = view.visibleRanges.map((range) =>
+          Object.freeze({ from: range.from, to: range.to }),
+        );
+        if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
+          return;
+        }
+        this.#lastRanges = ranges;
+        view.dispatch({
+          effects: setWysiwygVisibleRangesEffect.of(ranges),
+          annotations: Transaction.addToHistory.of(false),
+        });
       });
     }
   },
@@ -324,7 +345,26 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       transaction.state.selection,
       typedBoundary,
     );
-    const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
+    const changedIdSet = new Set(symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds));
+    if (transaction.selection) {
+      const prevSel = transaction.startState.selection.main;
+      const curSel = transaction.state.selection.main;
+      for (const record of index.records) {
+        const headerRange =
+          record.directive?.headerRange ??
+          (record.metadata?.directive as { headerRange?: SourceRange } | undefined)?.headerRange ??
+          record.alert?.headerLineRange;
+        if (!headerRange) {
+          continue;
+        }
+        const wasActive = prevSel.from <= headerRange.to && prevSel.to >= headerRange.from;
+        const isActive = curSel.from <= headerRange.to && curSel.to >= headerRange.from;
+        if (wasActive !== isActive) {
+          changedIdSet.add(record.id);
+        }
+      }
+    }
+    const changedIds = Object.freeze([...changedIdSet]);
     if (changedIds.length === 0) {
       return previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary
         ? previous
@@ -779,6 +819,14 @@ function buildLayoutDecorationsForRecord(
   if (hasWysiwygProjectionFeature(state, "mdx") && isProjectableMdx(record)) {
     return buildMdxLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
   }
+  const pluginRegistry = state.facet(syntaxPluginRegistryFacet);
+  const pluginDecorations = pluginRegistry.buildDecorations(record, state, {
+    active: activeSyntaxIds.includes(record.id),
+    selected: selectedAtomIds.includes(record.id),
+  });
+  if (pluginDecorations.length > 0) {
+    return pluginDecorations;
+  }
   if (
     (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
@@ -846,8 +894,7 @@ function buildAtomicRangesForRecord(
   }
   if (
     hasWysiwygProjectionFeature(state, "blocks") &&
-    (record.kind === "quote" ||
-      record.kind === "list-item-unordered" ||
+    (record.kind === "list-item-unordered" ||
       record.kind === "list-item-ordered" ||
       record.kind === "task")
   ) {

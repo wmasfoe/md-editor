@@ -3,6 +3,7 @@ import { Decoration, WidgetType, type EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics, type WysiwygDiagnostics } from "../diagnostics.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import { toggleTaskMarkerAt } from "./task-toggle.ts";
+import { CalloutHeaderWidget } from "./callout-widget.ts";
 
 const taskWidgetListeners = new WeakMap<HTMLElement, readonly EventListener[]>();
 
@@ -26,26 +27,112 @@ export function buildBlockLayoutDecorations(
   }
 
   const decorations: Range<Decoration>[] = [];
+  const doc = state.doc;
+
+  // GFM Alert / Callout 警示框处理（> [!NOTE] 等）
+  if (record.alert) {
+    const alert = record.alert;
+    const startLine = doc.lineAt(record.fullRange.from);
+    const safeTo =
+      record.fullRange.to > record.fullRange.from &&
+      doc.sliceString(record.fullRange.to - 1, record.fullRange.to) === "\n"
+        ? record.fullRange.to - 1
+        : record.fullRange.to;
+    const endLine = doc.lineAt(safeTo);
+
+    // 1. 为 Alert 内部各行挂载 Line Decoration（设置强调边框、浅色背景与圆角）
+    for (let lineNo = startLine.number; lineNo <= endLine.number; lineNo++) {
+      const curLine = doc.line(lineNo);
+      const isFirst = lineNo === startLine.number;
+      const isLast = lineNo === endLine.number;
+      const isEmptyQuoteLine = /^\s*>\s*$/.test(curLine.text);
+
+      const classNames = [
+        "cm-md-block-line",
+        "cm-md-block-line--quote",
+        "cm-md-alert",
+        `cm-md-alert--${alert.alertType}`,
+        isFirst ? "cm-md-alert--first" : "",
+        isLast ? "cm-md-alert--last" : "",
+        isEmptyQuoteLine ? "cm-md-alert--empty" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      decorations.push(
+        Decoration.line({
+          class: classNames,
+          attributes: {
+            "data-markdown-kind": "quote",
+            "data-alert-type": alert.alertType,
+          },
+          wysiwygRecordId: record.id,
+          wysiwygRole: "alert-line",
+        }).range(curLine.from),
+      );
+    }
+
+    // 2. 挂载 Marker 与 Widget Replace 装饰
+    for (const marker of record.markerRanges) {
+      const markerLine = doc.lineAt(marker.from);
+      if (markerLine.number === startLine.number) {
+        // 首行：始终用 CalloutHeaderWidget 替换首行整行文本（纯视觉只读卡片，绝不展开源码）
+        decorations.push(
+          Decoration.replace({
+            widget: new CalloutHeaderWidget(alert.alertType, alert.title, record.id),
+            inclusive: false,
+            wysiwygRecordId: record.id,
+            wysiwygRole: "alert-header-widget",
+          }).range(markerLine.from, markerLine.to),
+        );
+      } else {
+        // 后续行：标准隐藏 `>` 标记（所见即所得模式下不可见）
+        const replacement = markerReplacementRange(state, record.kind, marker);
+        decorations.push(
+          Decoration.replace({
+            inclusive: false,
+            wysiwygRecordId: record.id,
+            wysiwygRole: "quote-marker-hidden",
+          }).range(replacement.from, replacement.to),
+        );
+      }
+    }
+
+    return decorations;
+  }
+
+  // 普通 Blockquote 或 List / Task
   for (const marker of record.markerRanges) {
     const replacement = markerReplacementRange(state, record.kind, marker);
-    const widget =
-      record.kind === "task"
-        ? new TaskCheckboxWidget({
-            recordId: record.id,
-            from: marker.from,
-            to: marker.to,
-            checked: isCheckedTaskMarker(state.sliceDoc(marker.from, marker.to)),
-            diagnostics: getWysiwygDiagnostics(state),
-          })
-        : new BlockMarkerWidget(record.kind, visibleMarker(state, record, marker));
-    decorations.push(
-      Decoration.replace({
-        widget,
-        inclusive: false,
-        wysiwygRecordId: record.id,
-        wysiwygRole: `${record.kind}-marker-hidden`,
-      }).range(replacement.from, replacement.to),
-    );
+    if (record.kind === "quote") {
+      // 引用块在所见即所得模式下完全隐藏 `>` 标记（由行级左边框与背景提供视觉层次）
+      decorations.push(
+        Decoration.replace({
+          inclusive: false,
+          wysiwygRecordId: record.id,
+          wysiwygRole: "quote-marker-hidden",
+        }).range(replacement.from, replacement.to),
+      );
+    } else {
+      const widget =
+        record.kind === "task"
+          ? new TaskCheckboxWidget({
+              recordId: record.id,
+              from: marker.from,
+              to: marker.to,
+              checked: isCheckedTaskMarker(state.sliceDoc(marker.from, marker.to)),
+              diagnostics: getWysiwygDiagnostics(state),
+            })
+          : new BlockMarkerWidget(record.kind, visibleMarker(state, record, marker));
+      decorations.push(
+        Decoration.replace({
+          widget,
+          inclusive: false,
+          wysiwygRecordId: record.id,
+          wysiwygRole: `${record.kind}-marker-hidden`,
+        }).range(replacement.from, replacement.to),
+      );
+    }
     decorations.push(
       Decoration.line({
         class: blockLineClass(record.kind),
@@ -81,12 +168,28 @@ export function getBlockProtectedRanges(
   ) {
     return [];
   }
+
+  // GFM Alert 首行作为纯视觉只读卡片，整行 [startLine.from, startLine.to] 纳入受保护区间，
+  // 禁止误编辑破坏 Alert 语法；后续行正常将其 `>` 标记纳入受保护区间
+  if (record.alert) {
+    const doc = state.doc;
+    const startLine = doc.lineAt(record.fullRange.from);
+    const ranges: SourceRange[] = [{ from: startLine.from, to: startLine.to }];
+
+    for (const marker of record.markerRanges) {
+      if (doc.lineAt(marker.from).number !== startLine.number) {
+        ranges.push(markerReplacementRange(state, record.kind, marker));
+      }
+    }
+    return ranges;
+  }
+
   return record.markerRanges.map((marker) => markerReplacementRange(state, record.kind, marker));
 }
 
 export class BlockMarkerWidget extends WidgetType {
   constructor(
-    readonly kind: Exclude<BlockRecord["kind"], "task">,
+    readonly kind: Exclude<BlockRecord["kind"], "quote" | "task">,
     readonly label: string,
   ) {
     super();
@@ -177,7 +280,7 @@ function updateTaskCheckboxDom(dom: HTMLElement, value: TaskCheckboxWidgetValue)
   dom.classList.toggle("cm-md-task-checkbox--checked", value.checked);
 }
 
-function markerReplacementRange(
+export function markerReplacementRange(
   state: EditorState,
   kind: BlockRecord["kind"],
   marker: SourceRange,
@@ -208,12 +311,9 @@ function isCheckedTaskMarker(marker: string): boolean {
 
 function visibleMarker(
   state: { sliceDoc(from: number, to: number): string },
-  record: BlockRecord,
+  record: Exclude<BlockRecord, { kind: "quote" | "task" }>,
   marker: SourceRange,
 ): string {
-  if (record.kind === "quote") {
-    return "›";
-  }
   if (record.kind === "list-item-unordered") {
     return "•";
   }
