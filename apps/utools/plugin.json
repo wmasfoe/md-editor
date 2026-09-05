@@ -1,4 +1,9 @@
 {
+  "pluginName": "Inkpoint 墨点便签",
+  "version": "1.0.0",
+  "description": "简洁高效的随手便签与 Markdown 编辑器，支持云漫游与超级面板划词编辑。",
+  "author": "Inkpoint Team",
+  "homepage": "https://editor.justdev.cn",
   "main": "dist/index.html",
   "logo": "logo.png",
   "preload": "preload/index.cjs",
