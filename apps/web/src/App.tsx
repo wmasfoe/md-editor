@@ -102,6 +102,13 @@ export function App() {
     saveWebSettings(nextSettings);
   };
 
+  // 保存当前文档至本地存储 (localStorage)
+  const handleSaveToStorage = useCallback(() => {
+    const snap = documentState.getSnapshot();
+    saveDraft(snap.markdown);
+    showToast("文档已保存至本地存储");
+  }, [documentState, showToast]);
+
   // 导出 Markdown 文件
   const handleExport = useCallback(() => {
     exportMarkdown(currentMarkdown, "inkpoint-document.md");
@@ -197,7 +204,7 @@ export function App() {
   const handleTriggerAiRef = useRef(handleTriggerAi);
   handleTriggerAiRef.current = handleTriggerAi;
 
-  // 绑定 Web 快捷键系统（Mod-/ 模式切换、Mod-Shift-B 大纲、Mod-, 设置、Mod-s 导出、Mod-Shift-A / Mod-j AI 续写、Escape 关闭）
+  // 绑定 Web 快捷键系统（Mod-/ 模式切换、Mod-Shift-B 大纲、Mod-, 设置、Mod-s 保存草稿、Mod-Shift-A / Mod-j AI 续写、Escape 关闭）
   useEffect(() => {
     return bindWebKeyboardShortcuts({
       onToggleMode: () => {
@@ -210,7 +217,7 @@ export function App() {
         setIsSettingsOpen(true);
       },
       onSave: () => {
-        handleExport();
+        handleSaveToStorage();
       },
       onTriggerAi: () => {
         void handleTriggerAiRef.current();
@@ -225,7 +232,7 @@ export function App() {
         }
       },
     });
-  }, [mode, isSettingsOpen, isOutlineOpen, ports, handleExport, handleChangeMode]);
+  }, [mode, isSettingsOpen, isOutlineOpen, ports, handleSaveToStorage, handleChangeMode]);
 
   return (
     <EditorUiProvider markdown={currentMarkdown} showToast={showToast}>

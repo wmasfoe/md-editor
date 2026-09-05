@@ -21,6 +21,7 @@
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/renderer-codemirror": "workspace:*",
     "@md-editor/shared": "workspace:*",
+    "@md-editor/syntax-plugins": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

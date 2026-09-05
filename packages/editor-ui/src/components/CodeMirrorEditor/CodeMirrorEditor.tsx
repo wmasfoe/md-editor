@@ -17,6 +17,7 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "./bridge";
+import type { MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
 import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {
@@ -38,6 +39,10 @@ export interface CodeMirrorEditorProps {
   /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
+  /** 可选语法扩展插件列表（纯增量加载） */
+  readonly plugins?: readonly MarkdownSyntaxPlugin[];
+  /** 兼容别名：同 plugins */
+  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -59,6 +64,8 @@ export function CodeMirrorEditor({
   mdxComponents,
   openLinkTarget,
   onCursorLineChange,
+  plugins,
+  syntaxPlugins,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -75,6 +82,8 @@ export function CodeMirrorEditor({
     mdxComponents,
     openLinkTarget,
     onCursorLineChange,
+    plugins,
+    syntaxPlugins,
     onSyncError,
   });
   callbacksRef.current = {
@@ -86,6 +95,8 @@ export function CodeMirrorEditor({
     mdxComponents,
     openLinkTarget,
     onCursorLineChange,
+    plugins,
+    syntaxPlugins,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -132,6 +143,7 @@ export function CodeMirrorEditor({
       mdxMode: callbacksRef.current.mdxMode,
       mdxComponents: callbacksRef.current.mdxComponents,
       openLinkTarget: callbacksRef.current.openLinkTarget,
+      plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
     });
     bridgeRef.current = bridge;
     const unregisterRendererPorts = registerRendererPorts(bridge.ports);

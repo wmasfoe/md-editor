@@ -261,8 +261,7 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-marker--quote {
-  justify-content: center;
-  color: var(--theme-blockquote-border, var(--theme-border, currentColor));
+  display: none;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-marker--list-item-ordered {
@@ -1323,4 +1322,116 @@
   background-color: var(--theme-search-match-active, rgba(255, 150, 0, 0.65));
   outline: 1.5px solid var(--theme-search-match-outline, rgba(255, 120, 0, 0.9));
   border-radius: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Container Directive (Admonition) Styling
+   ───────────────────────────────────────────────────────────── */
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive-line,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert {
+  padding-left: 1rem;
+  border-left: 3.5px solid var(--directive-border, var(--theme-primary, #0969da));
+  background-color: var(--directive-bg, var(--theme-primary-soft, rgba(9, 105, 218, 0.06)));
+  box-sizing: border-box;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive-line--first,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--first {
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  padding-top: 0.35rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive-line--last,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--last {
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--empty {
+  min-height: 0.4rem;
+  line-height: 0.8;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--info,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--note,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--info {
+  --directive-border: #0969da;
+  --directive-bg: rgba(9, 105, 218, 0.07);
+  --directive-color: #0969da;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--tip,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--note,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--tip {
+  --directive-border: #1a7f37;
+  --directive-bg: rgba(26, 127, 55, 0.07);
+  --directive-color: #1a7f37;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--important,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--important {
+  --directive-border: #8250df;
+  --directive-bg: rgba(130, 80, 223, 0.08);
+  --directive-color: #8250df;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--warning,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--warning {
+  --directive-border: #d97706;
+  --directive-bg: rgba(217, 119, 6, 0.08);
+  --directive-color: #d97706;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--danger,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive--caution,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--danger,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--caution {
+  --directive-border: #d1242f;
+  --directive-bg: rgba(209, 36, 47, 0.08);
+  --directive-color: #d1242f;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive__header-content {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--directive-color, var(--theme-primary, #0969da));
+  user-select: none;
+  padding-bottom: 0;
+  margin-bottom: 0.15rem;
+  min-height: 1.25rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  flex-shrink: 0;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive__title {
+  color: currentColor;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker--directive {
+  color: var(--theme-marker-dim, var(--theme-muted, #8c959f));
+  font-family: var(--theme-mono-font, monospace);
+  font-size: 0.9em;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive__footer-placeholder {
+  display: inline-block;
+  height: 0;
+  width: 0;
 }

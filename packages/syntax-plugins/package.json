@@ -1,0 +1,28 @@
+{
+  "name": "@md-editor/syntax-plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./directive": "./src/directive/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.1",
+    "@lezer/common": "^1.5.2",
+    "@lezer/markdown": "^1.6.4",
+    "@md-editor/renderer-codemirror": "workspace:*"
+  },
+  "devDependencies": {
+    "@codemirror/lang-markdown": "catalog:",
+    "@md-editor/editor-core": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

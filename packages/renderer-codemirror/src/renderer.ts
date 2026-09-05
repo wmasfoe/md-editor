@@ -41,7 +41,11 @@ import {
   WysiwygDiagnostics,
   type WysiwygDiagnosticsSnapshot,
 } from "./diagnostics.ts";
-import { markdownRangeIndexField, mdxModeFacet } from "./markdown/range-index.ts";
+import {
+  markdownRangeIndexField,
+  mdxModeFacet,
+  syntaxPluginRegistryFacet,
+} from "./markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "./markdown/extensions.ts";
 import { createModeExtensions, editorModeField, setEditorModeEffect } from "./mode.ts";
 import {
@@ -58,6 +62,8 @@ import {
   provideImagePreviewResolver,
   type ImagePreviewResolver,
 } from "./wysiwyg/image-resolver.ts";
+import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
+import { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
 import {
   endWysiwygCompositionGuardEffect,
   inspectWysiwygProjection,
@@ -103,6 +109,10 @@ export interface CodeMirrorRendererOptions {
   ) => void;
   /** 光标所在行号变更回调(1-based)，用于联动大纲等 UI 高亮 */
   readonly onCursorLineChange?: (line: number) => void;
+  /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
+  readonly plugins?: readonly MarkdownSyntaxPlugin[];
+  /** 兼容别名：同 plugins */
+  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
 }
 
 export interface ExternalEditRequest {
@@ -161,6 +171,8 @@ export interface CodeMirrorRenderer {
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean;
   requestMeasure(): void;
+  /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
+  use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
   destroy(): void;
 }
 
@@ -341,7 +353,11 @@ class CodeMirrorRendererController {
   readonly #viewId: string;
   readonly #rootExtensionId: string;
   readonly #options: CodeMirrorRendererOptions;
+  readonly #controllerOptions: CodeMirrorRendererControllerOptions;
   readonly #modeCompartment = new Compartment();
+  readonly #markdownLanguageCompartment = new Compartment();
+  readonly #syntaxRegistryCompartment = new Compartment();
+  readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
   readonly #wysiwygDiagnostics = new WysiwygDiagnostics();
@@ -387,12 +403,18 @@ class CodeMirrorRendererController {
     this.#rootExtensionId = `cm-root-${rendererId}`;
     this.#stateEpochId = `cm-state-${rendererId}-${this.#stateEpochSequence}`;
     this.#options = options;
+    this.#controllerOptions = controllerOptions;
 
     const initialSnapshot = options.initialSnapshot;
     this.#documentGeneration = initialSnapshot.documentGeneration;
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
+
+    const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
+    this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
+    const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
+    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
 
     this.#rootExtensions = Object.freeze([
       history(),
@@ -401,12 +423,15 @@ class CodeMirrorRendererController {
       codeFolding(),
       search({ top: true, createPanel: createLiquidSearchPanel }),
       keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
-      controllerOptions.useNativeCodeLanguages
-        ? createMarkdownLanguageSupport(
-            { extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false },
-            this.#wysiwygDiagnostics,
-          )
-        : markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+      this.#markdownLanguageCompartment.of(
+        controllerOptions.useNativeCodeLanguages
+          ? createMarkdownLanguageSupport(
+              { extensions: markdownExtensions, addKeymap: false },
+              this.#wysiwygDiagnostics,
+            )
+          : markdown({ extensions: markdownExtensions, addKeymap: false }),
+      ),
+      this.#syntaxRegistryCompartment.of(syntaxPluginRegistryFacet.of(this.#syntaxRegistry)),
       codeBlockTokenHighlighting,
       provideWysiwygDiagnostics(this.#wysiwygDiagnostics),
       options.resolveImagePreview ? provideImagePreviewResolver(options.resolveImagePreview) : [],
@@ -432,6 +457,7 @@ class CodeMirrorRendererController {
           "tables",
           "html",
           "mdx",
+          "directives",
         ],
         { writeClipboardText: options.writeClipboardText },
       ),
@@ -804,7 +830,8 @@ class CodeMirrorRendererController {
         kind: "mode",
         operationId: request.operationId,
       });
-    } catch {
+    } catch (error) {
+      console.error("[applyMode dispatch failed]", error);
       this.#pendingModeReceipt = null;
       this.#lastErrorCode = "MODE_DISPATCH_FAILED";
       return { status: "failed", errorCode: "MODE_DISPATCH_FAILED" };
@@ -1263,6 +1290,45 @@ class CodeMirrorRendererController {
       this.#lastErrorCode = "QUEUED_READY_CALLBACK_FAILED";
     }
   }
+
+  use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this {
+    if (this.#destroyed) {
+      return this;
+    }
+    const flattened: MarkdownSyntaxPlugin[] = [];
+    for (const plugin of plugins) {
+      if (Array.isArray(plugin)) {
+        for (const p of plugin) {
+          flattened.push(p);
+        }
+      } else if (plugin && typeof plugin === "object" && "id" in plugin) {
+        flattened.push(plugin);
+      }
+    }
+    if (flattened.length === 0) {
+      return this;
+    }
+    this.#syntaxRegistry.registerAll(flattened);
+    const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
+    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
+    this.#view.dispatch({
+      effects: [
+        this.#markdownLanguageCompartment.reconfigure(
+          this.#controllerOptions.useNativeCodeLanguages
+            ? createMarkdownLanguageSupport(
+                { extensions: markdownExtensions, addKeymap: false },
+                this.#wysiwygDiagnostics,
+              )
+            : markdown({ extensions: markdownExtensions, addKeymap: false }),
+        ),
+        this.#syntaxRegistryCompartment.reconfigure(
+          syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
+        ),
+        refreshWysiwygProjectionEffect.of(null),
+      ],
+    });
+    return this;
+  }
 }
 
 function createRendererFacade(controller: CodeMirrorRendererController): CodeMirrorRenderer {
@@ -1288,6 +1354,10 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
       options?: { readonly select?: boolean; readonly focus?: boolean },
     ) => controller.scrollToLine(line, options),
     requestMeasure: () => controller.requestMeasure(),
+    use: (...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]) => {
+      controller.use(...plugins);
+      return renderer;
+    },
     destroy: () => controller.destroy(),
   });
   controllerByRenderer.set(renderer, controller);

@@ -143,6 +143,9 @@ importers:
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../../packages/syntax-plugins
       '@tauri-apps/api':
         specifier: 'catalog:'
         version: 2.11.0
@@ -231,6 +234,9 @@ importers:
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../../packages/syntax-plugins
       react:
         specifier: 'catalog:'
         version: 19.2.7
@@ -259,6 +265,9 @@ importers:
       vite:
         specifier: 'catalog:'
         version: 6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2)
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
 
   packages/ai:
     devDependencies:
@@ -484,6 +493,37 @@ importers:
 
   packages/shared:
     devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
+
+  packages/syntax-plugins:
+    dependencies:
+      '@codemirror/state':
+        specifier: ^6.6.0
+        version: 6.6.0
+      '@codemirror/view':
+        specifier: ^6.43.1
+        version: 6.43.1
+      '@lezer/common':
+        specifier: ^1.5.2
+        version: 1.5.2
+      '@lezer/markdown':
+        specifier: ^1.6.4
+        version: 1.6.4
+      '@md-editor/renderer-codemirror':
+        specifier: workspace:*
+        version: link:../renderer-codemirror
+    devDependencies:
+      '@codemirror/lang-markdown':
+        specifier: 'catalog:'
+        version: 6.5.0
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../editor-core
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

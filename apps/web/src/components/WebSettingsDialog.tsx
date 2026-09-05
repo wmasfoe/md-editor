@@ -125,8 +125,8 @@ export function WebSettingsDialog({
         keyLabel: "Escape",
       },
       {
-        id: "file.export",
-        label: "导出 Markdown 文件",
+        id: "file.save",
+        label: "保存文档至本地存储",
         keyLabel: `${modKey}+S`,
       },
       {

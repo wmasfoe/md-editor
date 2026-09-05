@@ -20,6 +20,7 @@ import {
   type ExternalEditResult,
   type AiSuggestionInput,
   type AiSuggestionValue,
+  type MarkdownSyntaxPlugin,
 } from "@md-editor/renderer-codemirror";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
@@ -88,6 +89,10 @@ export interface CodeMirrorEditorBridgeOptions {
   /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
+  /** 可选语法扩展插件列表 */
+  readonly plugins?: readonly MarkdownSyntaxPlugin[];
+  /** 兼容别名：同 plugins */
+  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -181,6 +186,7 @@ export function createCodeMirrorEditorBridge(
     mdxComponents: options.mdxComponents,
     openLinkTarget: options.openLinkTarget,
     onCursorLineChange: options.onCursorLineChange,
+    plugins: options.plugins ?? options.syntaxPlugins,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied" && result.status !== "noop") {

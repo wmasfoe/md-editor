@@ -90,8 +90,8 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(page.locator(".cm-md-marker--strikethrough")).toHaveCount(2);
     await expect(page.locator(".cm-md-marker--inline-code")).toHaveCount(2);
     await expect(page.locator(".cm-md-heading--level-1")).toContainText("Heading");
-    await expect(page.locator(".cm-md-marker--heading-atx")).toHaveCount(0);
-    await expect(page.locator(".cm-md-block-marker--quote")).toHaveCount(1);
+    await expect(page.locator(".cm-md-block-marker--quote")).toHaveCount(0);
+    await expect(page.locator(".cm-md-block-line--quote")).toHaveCount(1);
     await expect(page.locator(".cm-md-block-marker--list-item-unordered")).toHaveCount(3);
     await expect(page.locator(".cm-md-block-marker--list-item-ordered")).toHaveCount(1);
     await expect(page.locator(".cm-md-task-checkbox")).toHaveCount(1);

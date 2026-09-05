@@ -62,7 +62,7 @@ export function handleWebKeyboardEvent(
     return true;
   }
 
-  // 4. Mod-s : 导出 / 保存当前 Markdown
+  // 4. Mod-s : 保存当前文档至本地存储 (localStorage)
   if (matchesRuntimeKeymap(event, "Mod-s")) {
     event.preventDefault?.();
     handlers.onSave();

@@ -319,7 +319,12 @@ export function getMarkdownNodePolicy(
   nodeName: string,
   parentName: string | null = null,
   childNodeNames: readonly string[] = [],
+  pluginRegistry?: { getNodePolicy(name: string): MarkdownNodePolicy | null },
 ): MarkdownNodePolicy | null {
+  const pluginPolicy = pluginRegistry?.getNodePolicy(nodeName);
+  if (pluginPolicy) {
+    return pluginPolicy;
+  }
   if (
     nodeName === "URL" &&
     parentName !== "Autolink" &&

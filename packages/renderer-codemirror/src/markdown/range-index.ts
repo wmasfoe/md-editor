@@ -17,16 +17,21 @@ import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import { findCodeBlockLanguage } from "./code-languages.ts";
 import { parseMdxJsxElements, type MdxJsxElement } from "./mdx-parse.ts";
 import { getMarkdownNodePolicy, type MarkdownNodePolicy } from "./node-policy.ts";
+import { defaultCalloutTitle } from "../wysiwyg/callout-widget.ts";
+import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
 import {
   fingerprintSource,
   freezeSourceRange,
   sourceRangeContains,
   sourceRangesOverlap,
   type MarkdownParseCoverage,
+  type MarkdownAlertMetadata,
+  type MarkdownAlertType,
   type MarkdownCodeBlockMetadata,
   type MarkdownCodeBlockStatus,
   type MarkdownCodeBlockFenceStyle,
   type MarkdownCodeBlockLineFingerprint,
+  type MarkdownDirectiveMetadata,
   type MarkdownMdxBlockMetadata,
   type MarkdownRangeRecord,
   type MarkdownRangeSegment,
@@ -43,6 +48,8 @@ export interface MarkdownRangeIndexBuildOptions {
   readonly includeRanges?: readonly SourceRange[];
   /** MDX 模式下大写标签按组件解析;默认 false(纯 Markdown) */
   readonly mdxMode?: boolean;
+  /** 外部语法插件注册中心 */
+  readonly pluginRegistry?: SyntaxPluginRegistry;
 }
 
 export class MarkdownRangeIndex {
@@ -120,6 +127,13 @@ export const mdxModeFacet = Facet.define<boolean, boolean>({
   combine: (values) => values[0] ?? false,
 });
 
+/**
+ * 语法插件注册中心 Facet，用于向 Range Index 注入自定义节点策略与元数据解析器。
+ */
+export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, SyntaxPluginRegistry>({
+  combine: (values) => values[0] ?? new SyntaxPluginRegistry(),
+});
+
 export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
     const diagnostics = getWysiwygDiagnostics(state);
@@ -128,6 +142,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
     return buildMarkdownRangeIndex(state.doc.toString(), tree, {
       coverage: readCoverage(state),
       mdxMode: state.facet(mdxModeFacet),
+      pluginRegistry: state.facet(syntaxPluginRegistryFacet),
     });
   },
   update(previous, transaction) {
@@ -146,6 +161,7 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
         coverage: readCoverage(transaction.state),
         version: previous.version + 1,
         mdxMode: transaction.state.facet(mdxModeFacet),
+        pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
       });
     }
 
@@ -179,6 +195,7 @@ export function buildMarkdownRangeIndex(
     { from: 0, to: Math.min(tree.length, source.length) },
     records,
     mdxElements,
+    options.pluginRegistry,
   );
   if (frontmatter) {
     insertRecord(records, createFrontmatterRecord(frontmatter, source, coverage));
@@ -304,6 +321,7 @@ function updateMarkdownRangeIndex(
     version: previous.version + 1,
     includeRanges: newDirty,
     mdxMode: transaction.state.facet(mdxModeFacet),
+    pluginRegistry: transaction.state.facet(syntaxPluginRegistryFacet),
   });
   const records = [...mapped];
   for (const record of rebuilt.records) {
@@ -331,6 +349,7 @@ function visitParserNode(
   blockRange: SourceRange,
   output: MarkdownRangeRecord[],
   mdxElements: readonly MdxJsxElement[],
+  pluginRegistry?: SyntaxPluginRegistry,
 ): void {
   for (let child = node.firstChild; child; child = child.nextSibling) {
     const childBlockRange = node.name === "Document" ? nodeRange(child) : blockRange;
@@ -352,9 +371,13 @@ function visitParserNode(
         child.name,
         child.parent?.name ?? null,
         directChildren(child).map((directChild) => directChild.name),
+        pluginRegistry,
       );
       if (policy) {
-        insertRecord(output, createParserRecord(child, childBlockRange, source, policy, coverage));
+        insertRecord(
+          output,
+          createParserRecord(child, childBlockRange, source, policy, coverage, pluginRegistry),
+        );
         if (
           policy.renderPolicy === "deferred-raw" ||
           policy.renderPolicy === "raw-fallback" ||
@@ -377,8 +400,52 @@ function visitParserNode(
       childBlockRange,
       output,
       mdxElements,
+      pluginRegistry,
     );
   }
+}
+
+const GFM_ALERT_REGEX = /^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s+([^\r\n]*))?/i;
+
+function resolveAlertMetadata(node: SyntaxNode, source: string): MarkdownAlertMetadata | undefined {
+  const firstLineEnd = source.indexOf("\n", node.from);
+  let lineEnd = firstLineEnd === -1 ? node.to : Math.min(firstLineEnd, node.to);
+  if (lineEnd > node.from && source.charCodeAt(lineEnd - 1) === 13) {
+    lineEnd -= 1;
+  }
+  const lineText = source.slice(node.from, lineEnd);
+
+  const match = GFM_ALERT_REGEX.exec(lineText);
+  if (!match) {
+    return undefined;
+  }
+
+  const rawType = match[1].toLowerCase() as MarkdownAlertType;
+  const rawTitle = match[2]?.trim() ?? "";
+  const title = rawTitle.length > 0 ? rawTitle : defaultCalloutTitle(rawType);
+
+  const markerIndex = lineText.indexOf("[!");
+  const markerEndIndex = lineText.indexOf("]", markerIndex);
+  if (markerIndex === -1 || markerEndIndex === -1) {
+    return undefined;
+  }
+
+  const markerRange: SourceRange = {
+    from: node.from + markerIndex,
+    to: node.from + markerEndIndex + 1,
+  };
+
+  const headerLineRange: SourceRange = {
+    from: node.from,
+    to: lineEnd,
+  };
+
+  return {
+    alertType: rawType,
+    title,
+    markerRange,
+    headerLineRange,
+  };
 }
 
 function createParserRecord(
@@ -387,11 +454,18 @@ function createParserRecord(
   source: string,
   policy: MarkdownNodePolicy,
   coverage: MarkdownParseCoverage,
+  pluginRegistry?: SyntaxPluginRegistry,
 ): MarkdownRangeRecord {
   const fullRange = nodeRange(node);
   const children = directChildren(node);
   const markerRanges = collectMarkerRanges(node, children, policy);
-  const contentRange = resolveContentRange(node, children, markerRanges, policy, source);
+  const customMetadata = pluginRegistry?.extractMetadata(node.name, node, source, children);
+  const directive =
+    (customMetadata?.directive as MarkdownDirectiveMetadata | undefined) ?? undefined;
+  const alert = policy.kind === "quote" ? resolveAlertMetadata(node, source) : undefined;
+  const contentRange =
+    pluginRegistry?.resolveContentRange(node.name, node, source, children, markerRanges) ??
+    resolveContentRange(node, children, markerRanges, policy, source);
   const parserCoverage = fullRange.to <= coverage.to ? "complete" : "partial";
   const codeBlock =
     node.name === "FencedCode" || node.name === "CodeBlock"
@@ -431,6 +505,9 @@ function createParserRecord(
     parserCoverage,
     ...(codeBlock ? { codeBlock } : {}),
     ...(tableBlock ? { tableBlock } : {}),
+    ...(directive ? { directive } : {}),
+    ...(alert ? { alert } : {}),
+    ...(customMetadata ? { metadata: customMetadata } : {}),
   });
 }
 
@@ -862,6 +939,19 @@ function freezeRecord(record: MarkdownRangeRecord): MarkdownRangeRecord {
     segments: Object.freeze(record.segments.map((segment) => Object.freeze({ ...segment }))),
     ...(record.codeBlock ? { codeBlock: freezeCodeBlockMetadata(record.codeBlock) } : {}),
     ...(record.tableBlock ? { tableBlock: freezeTableBlockMetadata(record.tableBlock) } : {}),
+    ...(record.directive ? { directive: freezeDirectiveMetadata(record.directive) } : {}),
+    ...(record.metadata ? { metadata: Object.freeze({ ...record.metadata }) } : {}),
+  });
+}
+
+function freezeDirectiveMetadata(metadata: MarkdownDirectiveMetadata): MarkdownDirectiveMetadata {
+  return Object.freeze({
+    ...metadata,
+    openingMarkerRange: freezeSourceRange(metadata.openingMarkerRange),
+    closingMarkerRange: metadata.closingMarkerRange
+      ? freezeSourceRange(metadata.closingMarkerRange)
+      : null,
+    headerRange: freezeSourceRange(metadata.headerRange),
   });
 }
 

@@ -186,12 +186,129 @@ type AtomMovementTarget =
 
 type VerticalMovementTarget =
   | { readonly kind: "native"; readonly selection: SelectionRange }
+  | { readonly kind: "navigate"; readonly selection: SelectionRange }
   | { readonly kind: "reveal-image"; readonly selection: SelectionRange }
   | {
       readonly kind: "select";
       readonly atom: SelectableAtom;
       readonly selection: SelectionRange;
     };
+
+function quoteBoundaryMovementTarget(
+  view: EditorView,
+  range: SelectionRange,
+  direction: "backward" | "forward",
+): SelectionRange | null {
+  if (!range.empty) {
+    return null;
+  }
+
+  const doc = view.state.doc;
+  const currentLine = doc.lineAt(range.head);
+  const index = view.state.field(markdownRangeIndexField, false);
+  if (!index) {
+    return null;
+  }
+
+  // 场景 1：方向向后（ArrowUp 向上移动）
+  if (direction === "backward") {
+    // 场景 1A：当前处于 Alert 首个内容行，向上移动时自动跳过只读 Header，退出至 Alert 上方行
+    const currentAlertRecord = index.records.find((r) => {
+      if (r.kind !== "quote" || !r.alert) {
+        return false;
+      }
+      const startLine = doc.lineAt(r.fullRange.from);
+      return currentLine.number === startLine.number + 1;
+    });
+
+    if (currentAlertRecord) {
+      const startLine = doc.lineAt(currentAlertRecord.fullRange.from);
+      if (startLine.number > 1) {
+        const lineAbove = doc.line(startLine.number - 1);
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.min(lineAbove.to, lineAbove.from + colOffset);
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+      return EditorSelection.cursor(0);
+    }
+
+    // 场景 1B：当前处于引用块或 Alert 下方行，按 ArrowUp 必须精确移入上方引用块/Alert 内容区的最后一行
+    if (currentLine.number > 1) {
+      const prevLine = doc.line(currentLine.number - 1);
+      const quoteAbove = index.records.find((r) => {
+        if (r.kind !== "quote") {
+          return false;
+        }
+        const safeTo =
+          r.fullRange.to > r.fullRange.from &&
+          doc.sliceString(r.fullRange.to - 1, r.fullRange.to) === "\n"
+            ? r.fullRange.to - 1
+            : r.fullRange.to;
+        return (
+          prevLine.from >= r.fullRange.from && prevLine.from <= safeTo && currentLine.from > safeTo
+        );
+      });
+
+      if (quoteAbove) {
+        const startLine = doc.lineAt(quoteAbove.fullRange.from);
+        const safeTo =
+          quoteAbove.fullRange.to > quoteAbove.fullRange.from &&
+          doc.sliceString(quoteAbove.fullRange.to - 1, quoteAbove.fullRange.to) === "\n"
+            ? quoteAbove.fullRange.to - 1
+            : quoteAbove.fullRange.to;
+        const endLine = doc.lineAt(safeTo);
+
+        // 如果是 Alert 且只有 Header 行，定位到 startLine.from
+        if (quoteAbove.alert && startLine.number === endLine.number) {
+          return EditorSelection.cursor(startLine.from);
+        }
+
+        const match = /^(\s*> ?)/.exec(endLine.text);
+        const prefixLen = match ? match[1].length : 0;
+        const contentStart = endLine.from + prefixLen;
+        const contentEnd = endLine.to;
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.max(contentStart, Math.min(contentEnd, contentStart + colOffset));
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+    }
+  }
+
+  // 场景 2：方向向前（ArrowDown 向下移动）
+  if (direction === "forward") {
+    // 场景 2A：当前处于 Alert 上方行，向下移动时自动跳过只读 Header，直接落入 Alert 首个内容行
+    const alertBelow = index.records.find((r) => {
+      if (r.kind !== "quote" || !r.alert) {
+        return false;
+      }
+      const startLine = doc.lineAt(r.fullRange.from);
+      return currentLine.number + 1 === startLine.number;
+    });
+
+    if (alertBelow) {
+      const startLine = doc.lineAt(alertBelow.fullRange.from);
+      const safeTo =
+        alertBelow.fullRange.to > alertBelow.fullRange.from &&
+        doc.sliceString(alertBelow.fullRange.to - 1, alertBelow.fullRange.to) === "\n"
+          ? alertBelow.fullRange.to - 1
+          : alertBelow.fullRange.to;
+      const endLine = doc.lineAt(safeTo);
+
+      if (startLine.number < endLine.number) {
+        const firstContentLine = doc.line(startLine.number + 1);
+        const match = /^(\s*> ?)/.exec(firstContentLine.text);
+        const prefixLen = match ? match[1].length : 0;
+        const contentStart = firstContentLine.from + prefixLen;
+        const contentEnd = firstContentLine.to;
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.max(contentStart, Math.min(contentEnd, contentStart + colOffset));
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+    }
+  }
+
+  return null;
+}
 
 function movementTarget(
   state: EditorState,
@@ -246,6 +363,12 @@ function verticalMovementTarget(
 ): VerticalMovementTarget | null {
   if (!range.empty) {
     return null;
+  }
+
+  // 优先处理 Quote / Alert 边界导航（进入内容区最后一行、跳过只读 Header 等）
+  const quoteTarget = quoteBoundaryMovementTarget(view, range, direction);
+  if (quoteTarget) {
+    return { kind: "navigate", selection: quoteTarget };
   }
 
   const moved = view.moveVertically(range, direction === "forward");
