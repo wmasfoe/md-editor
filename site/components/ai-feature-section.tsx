@@ -1,24 +1,55 @@
 "use client";
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
+import type { AiShowcaseEditorHandle, AiShowcaseFlowState } from "./ai-showcase-editor";
 
 interface AiFeatureSectionProps {
   scrollY: number;
   prefersReducedMotion: boolean;
 }
 
-export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSectionProps) {
-  const { locale } = useI18n();
-  const isZh = locale === "zh";
+function AiEditorSkeleton({ isZh }: { isZh: boolean }) {
+  return (
+    <div className="flex min-h-[140px] sm:min-h-[160px] w-full items-center justify-center py-8 text-muted">
+      <div className="flex items-center gap-2 text-xs">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-accent" />
+        <span>{isZh ? "正在加载端侧 AI 画布..." : "Loading On-Device AI Canvas..."}</span>
+      </div>
+    </div>
+  );
+}
 
-  // 交互式行内幽灵文本模拟器 3 态机（待采纳 / 已采纳 / 已忽略）
-  type AiStatus = "suggesting" | "accepted" | "dismissed";
-  const [status, setStatus] = useState<AiStatus>("suggesting");
+const DynamicAiShowcaseEditor = dynamic(
+  () => import("./ai-showcase-editor").then((mod) => mod.AiShowcaseEditor),
+  {
+    ssr: false,
+    loading: () => <AiEditorSkeleton isZh={true} />,
+  },
+);
+
+export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSectionProps) {
+  const { locale, t } = useI18n();
+  const isZh = locale === "zh";
+  const aiText = t.aiShowcase;
+
+  const editorRef = useRef<AiShowcaseEditorHandle | null>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // 两阶段流转状态
+  const [aiState, setAiState] = useState<AiShowcaseFlowState>({
+    stage: "grammar",
+    grammarIndex: 0,
+    grammarTotal: 3,
+    continuationIndex: 0,
+    continuationTotal: 3,
+    isFinished: false,
+    isDismissed: false,
+  });
+
   const [isHovered, setIsHovered] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  const cardRef = React.useRef<HTMLDivElement | null>(null);
 
   // 视差位移计算：滚动经过 AI 展区时整体微升与微透视缩放
   const sectionY = prefersReducedMotion ? 0 : interpolate(scrollY, [600, 1300], [40, -15]);
@@ -30,73 +61,49 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
   const card2Y = prefersReducedMotion ? 0 : interpolate(scrollY, [750, 1450], [55, -15]);
   const cardOffsets = [card0Y, card1Y, card2Y];
 
-  const handleAccept = useCallback(() => {
-    setStatus("accepted");
-  }, []);
-
-  const handleDismiss = useCallback(() => {
-    setStatus("dismissed");
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setStatus("suggesting");
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (status === "suggesting") {
-          setStatus("accepted");
-        } else if (status === "dismissed") {
-          setStatus("suggesting");
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (status === "suggesting") {
-          setStatus("dismissed");
-        } else if (status === "accepted" || status === "dismissed") {
-          setStatus("suggesting");
-        }
-      }
-    },
-    [status],
-  );
-
-  // 全局键盘监听：当鼠标悬停于演示卡片或卡片内部获取焦点时，无论光标在何处均响应 Tab 与 Esc
+  // 全局/卡片悬停键盘拦截：当悬停于卡片但焦点未处于 CodeMirror 内部时，将 Tab / Escape 无缝转入编辑器
   React.useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      // 若用户正聚焦在输入框、文本域或 CodeMirror 编辑器中，切勿截获
       const target = e.target as HTMLElement | null;
       if (
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.isContentEditable ||
-          Boolean(target.closest(".cm-editor")))
+          Boolean(target.closest(".site-live-editor-cm")))
       ) {
         return;
       }
 
-      if (isHovered || isFocused) {
-        if (e.key === "Tab") {
+      const isTargetInAiCard = Boolean(
+        target && cardRef.current && cardRef.current.contains(target),
+      );
+      const isCardActive = isHovered || isTargetInAiCard;
+
+      if (!isCardActive) {
+        return;
+      }
+
+      // 1. 若光标处于 CodeMirror 内部，未完成态下的 Tab 和 Esc 由 AiShowcaseEditor 内部捕获处理
+      if (target?.closest(".site-ai-codemirror")) {
+        return;
+      }
+
+      // 2. 若光标在卡片非编辑器区域（如头部或底部按钮区），将 Tab/Esc 转发给编辑器
+      if (e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        editorRef.current?.focus();
+        if (aiState.isDismissed) {
+          editorRef.current?.retrigger();
+        } else if (!aiState.isFinished) {
+          editorRef.current?.accept();
+        }
+      } else if (e.key === "Escape") {
+        if (!aiState.isFinished && !aiState.isDismissed) {
           e.preventDefault();
           e.stopPropagation();
-          if (status === "suggesting") {
-            setStatus("accepted");
-          } else if (status === "dismissed") {
-            setStatus("suggesting");
-          }
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          if (status === "suggesting") {
-            setStatus("dismissed");
-          } else if (status === "accepted" || status === "dismissed") {
-            setStatus("suggesting");
-          }
+          editorRef.current?.dismiss();
         }
       }
     };
@@ -105,7 +112,7 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
     return () => {
       window.removeEventListener("keydown", handleGlobalKeyDown, { capture: true });
     };
-  }, [isHovered, isFocused, status]);
+  }, [isHovered, aiState.isDismissed, aiState.isFinished]);
 
   const bentoItems = isZh
     ? [
@@ -117,9 +124,9 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
         },
         {
           icon: "🎯",
-          title: "非侵入行内续写",
-          desc: "拒绝突兀弹窗与冗余对话侧栏。灵感化作淡雅幽灵文字，轻敲 Tab 瞬息采纳。",
-          tag: "⇥ Tab to Accept",
+          title: "先审校后续写 · 一气呵成",
+          desc: "连续轻敲 Tab，从标点病句纠错自然过渡到灵犀续写，篇章落笔成章。",
+          tag: "⇥ Flow In-Sync",
         },
         {
           icon: "🧠",
@@ -137,9 +144,9 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
         },
         {
           icon: "🎯",
-          title: "Ambient Ghost Text",
-          desc: "No distracting modals or sidebars. Thoughtful suggestions emerge inline, accepted via Tab.",
-          tag: "⇥ Tab to Accept",
+          title: "Polish & Continue in Flow",
+          desc: "Press Tab continuously: flow seamlessly from grammar polish to inspired continuation.",
+          tag: "⇥ Flow In-Sync",
         },
         {
           icon: "🧠",
@@ -148,6 +155,12 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
           tag: "Context Aware",
         },
       ];
+
+  const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
+    // 阻止浏览器将 DOM 焦点转移给头部元素，保证 CodeMirror 编辑器捕获键盘
+    e.preventDefault();
+    editorRef.current?.focus();
+  }, []);
 
   return (
     <section
@@ -158,21 +171,19 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
       <div className="mx-auto max-w-2xl text-center">
         <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft shadow-xs">
           <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-          <span>{isZh ? "端侧智能 · 灵犀相契" : "AMBIENT LOCAL AI · IN-FLOW"}</span>
+          <span>{aiText.sectionBadge}</span>
         </div>
 
         <h2 className="mt-4 font-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">
-          {isZh ? "灵犀相通，润物无声" : "Ambient Intelligence, Whisper-Quiet"}
+          {aiText.sectionTitle}
         </h2>
 
         <p className="mx-auto mt-4 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:text-base">
-          {isZh
-            ? "端侧小语言模型静默运行，无需联网。在你沉思停笔的瞬间，恰如其分地送上灵感延续。"
-            : "Lightweight on-device models whisper inline suggestions the moment you pause, with zero cloud dependency."}
+          {aiText.sectionSubtitle}
         </p>
       </div>
 
-      {/* 核心舞台：交互式行内幽灵文本模拟器 */}
+      {/* 核心舞台：真实 @md-editor/editor-ui 承载的交互式 AI 模拟器 */}
       <div
         style={{
           transform: `translate3d(0, ${sectionY}px, 0) scale(${sectionScale})`,
@@ -182,35 +193,128 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
       >
         <div
           ref={cardRef}
-          tabIndex={0}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onMouseDown={() => {
-            cardRef.current?.focus();
-          }}
-          onKeyDown={handleKeyDown}
-          className={`group relative overflow-hidden rounded-3xl border bg-surface p-6 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all focus:outline-none sm:p-10 ${
-            isHovered || isFocused
-              ? "border-accent/60 ring-2 ring-accent/25"
-              : "border-line-strong/80"
+          className={`group relative overflow-hidden rounded-3xl border bg-surface p-6 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all sm:p-8 ${
+            isHovered ? "border-accent/60 ring-2 ring-accent/25" : "border-line-strong/80"
           }`}
         >
-          {/* 顶部模拟状态条 */}
-          <div className="flex items-center justify-between border-b border-line pb-4">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <span className="text-xs font-medium text-ink-soft">
-                {isZh ? "本地端侧 SLM · 极速推理就绪" : "On-Device SLM · Ready"}
-              </span>
+          {/* 顶部状态与两阶段流转链：点红框区域自动引导焦点至 CodeMirror，tabIndex={-1} 彻底杜绝切焦 */}
+          <div
+            onMouseDown={handleHeaderMouseDown}
+            className="flex flex-col gap-4 border-b border-line pb-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            {/* 左侧：SLM 就绪指示与两阶段直达胶囊 */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-xs font-medium text-ink-soft">{aiText.statusSlmReady}</span>
+              </div>
+
+              {/* 连贯流阶段指示条：tabIndex={-1} 阻止键盘 Tab 切入按钮 */}
+              <div
+                role="tablist"
+                aria-label="AI Sequential Stages"
+                className="inline-flex items-center rounded-xl border border-line bg-surface-soft/80 p-0.5 shadow-inner"
+              >
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    editorRef.current?.jumpToStage("grammar");
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                    aiState.stage === "grammar"
+                      ? "bg-surface text-ink shadow-xs border border-line-strong/60"
+                      : "text-muted hover:text-ink"
+                  }`}
+                >
+                  <span>{aiText.tabGrammar}</span>
+                  <span className="ml-1 font-mono text-[10px] opacity-70">
+                    {aiState.stage === "grammar"
+                      ? `(${Math.min(aiState.grammarIndex + 1, aiState.grammarTotal)}/${aiState.grammarTotal})`
+                      : "✓"}
+                  </span>
+                </button>
+
+                <span className="select-none px-1 text-xs text-muted/40">→</span>
+
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    editorRef.current?.jumpToStage("continuation");
+                  }}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                    aiState.stage === "continuation" || aiState.stage === "completed"
+                      ? "bg-surface text-ink shadow-xs border border-line-strong/60"
+                      : "text-muted hover:text-ink"
+                  }`}
+                >
+                  <span>{aiText.tabContinuation}</span>
+                  <span className="ml-1 font-mono text-[10px] opacity-70">
+                    {aiState.stage === "continuation"
+                      ? `(${Math.min(aiState.continuationIndex + 1, aiState.continuationTotal)}/${aiState.continuationTotal})`
+                      : aiState.stage === "completed"
+                        ? "✓"
+                        : ""}
+                  </span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {status === "accepted" ? (
+            {/* 右侧：状态指示徽标与步骤小圆点 */}
+            <div className="flex items-center gap-3">
+              {/* 步骤进度指示 */}
+              <div className="flex items-center gap-1.5">
+                {aiState.stage === "grammar" &&
+                  Array.from({ length: aiState.grammarTotal }).map((_, idx) => {
+                    const isDone = idx < aiState.grammarIndex;
+                    const isCurrent = idx === aiState.grammarIndex;
+                    return (
+                      <span
+                        key={idx}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          isDone
+                            ? "w-4 bg-accent"
+                            : isCurrent
+                              ? "w-4 bg-accent/60 animate-pulse"
+                              : "w-1.5 bg-line-strong/60"
+                        }`}
+                      />
+                    );
+                  })}
+
+                {aiState.stage === "continuation" &&
+                  Array.from({ length: aiState.continuationTotal }).map((_, idx) => {
+                    const isDone = idx < aiState.continuationIndex;
+                    const isCurrent = idx === aiState.continuationIndex;
+                    return (
+                      <span
+                        key={idx}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          isDone
+                            ? "w-4 bg-accent"
+                            : isCurrent
+                              ? "w-4 bg-accent/60 animate-pulse"
+                              : "w-1.5 bg-line-strong/60"
+                        }`}
+                      />
+                    );
+                  })}
+
+                {aiState.stage === "completed" && (
+                  <span className="h-1.5 w-6 rounded-full bg-emerald-500 transition-all duration-300" />
+                )}
+              </div>
+
+              {/* 状态 Badge */}
+              {aiState.isFinished ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-600/20">
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -220,146 +324,134 @@ export function AiFeatureSection({ scrollY, prefersReducedMotion }: AiFeatureSec
                       d="M5 13l4 4L19 7"
                     />
                   </svg>
-                  {isZh ? "已融入正文" : "Accepted"}
+                  {aiText.statusAllCompleted}
                 </span>
-              ) : status === "dismissed" ? (
+              ) : aiState.isDismissed ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-surface-soft px-2.5 py-0.5 text-[11px] font-medium text-muted ring-1 ring-line">
-                  {isZh ? "已忽略建议" : "Dismissed"}
+                  {aiText.statusDismissed}
+                </span>
+              ) : aiState.stage === "grammar" ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-medium text-accent ring-1 ring-accent/20">
+                  {aiText.statusGrammarReady} (
+                  {Math.min(aiState.grammarIndex + 1, aiState.grammarTotal)}/{aiState.grammarTotal})
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-medium text-accent ring-1 ring-accent/20">
-                  {isZh ? "行内建议就绪" : "Suggestion Ready"}
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50/80 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-600/20">
+                  {aiText.statusContinuationReady} (
+                  {Math.min(aiState.continuationIndex + 1, aiState.continuationTotal)}/
+                  {aiState.continuationTotal})
                 </span>
               )}
             </div>
           </div>
 
-          {/* 沉浸式宣纸文本交互工作区 */}
-          <div className="py-8 sm:py-10">
-            <p className="text-lg leading-[1.85] text-ink sm:text-2xl sm:leading-[1.9]">
-              <span>
-                {isZh
-                  ? "写作本是一场沉静的对话。"
-                  : "Writing is a quiet conversation with oneself. "}
-              </span>
-
-              {/* 光标与幽灵文本 */}
-              {status !== "accepted" && (
-                <span
-                  aria-hidden
-                  className="inline-block h-5 w-[2px] translate-y-0.5 animate-pulse bg-ink align-baseline sm:h-6"
-                />
-              )}
-
-              {status === "accepted" && (
-                <span className="font-normal text-ink transition-all duration-300">
-                  {isZh
-                    ? "在宣纸方寸之间，任思绪流淌，重拾落笔成文的纯粹愉悦。"
-                    : "Between quiet margins, thoughts crystallize into lasting words with pure focus."}
-                </span>
-              )}
-
-              {status === "suggesting" && (
-                <span
-                  onClick={handleAccept}
-                  title={isZh ? "点击或按 Tab 采纳续写" : "Click or press Tab to accept suggestion"}
-                  className="italic text-ink/40 font-serif selection:bg-accent/20 cursor-pointer hover:text-ink/65 hover:underline decoration-accent/40 decoration-wavy underline-offset-4 transition-all duration-300"
-                >
-                  {isZh
-                    ? "在宣纸方寸之间，任思绪流淌，重拾落笔成文的纯粹愉悦。"
-                    : "Between quiet margins, thoughts crystallize into lasting words with pure focus."}
-                </span>
-              )}
-
-              {status === "dismissed" && (
-                <span
-                  onClick={handleReset}
-                  title={isZh ? "点击或按 Tab 重新获取建议" : "Click or press Tab to retry"}
-                  className="cursor-pointer text-xs text-muted/60 italic hover:text-accent transition-colors ml-2"
-                >
-                  {isZh
-                    ? "（建议已忽略，轻敲 Tab 重新唤起）"
-                    : "(Suggestion dismissed. Press Tab to retry)"}
-                </span>
-              )}
-            </p>
+          {/* 沉浸式宣纸文本交互工作区：真实 CodeMirror WYSIWYG 编辑器 */}
+          <div className="py-6 sm:py-8" onMouseDown={() => editorRef.current?.focus()}>
+            <DynamicAiShowcaseEditor ref={editorRef} isZh={isZh} onStateChange={setAiState} />
           </div>
 
-          {/* 拟物 Keycap 交互控制面板 */}
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line/70 pt-5">
+          {/* 拟物 Keycap 交互控制面板：所有按钮设置 tabIndex={-1}，避免抢占 Tab 键 */}
+          <div
+            onMouseDown={(e) => {
+              // 阻止点击底部按钮栏时移出 CodeMirror 焦点
+              e.preventDefault();
+            }}
+            className="flex flex-wrap items-center justify-between gap-4 border-t border-line/70 pt-5"
+          >
             <div className="flex items-center gap-2">
-              {status === "suggesting" && (
+              {!aiState.isFinished && !aiState.isDismissed ? (
                 <>
                   <button
                     type="button"
-                    onClick={handleAccept}
+                    tabIndex={-1}
+                    onClick={() => editorRef.current?.accept()}
                     className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
                   >
-                    <kbd className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                    <kbd
+                      tabIndex={-1}
+                      className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted"
+                    >
                       ⇥ Tab
                     </kbd>
-                    <span>{isZh ? "采纳建议" : "Accept Suggestion"}</span>
+                    <span>
+                      {aiState.stage === "grammar"
+                        ? `${aiText.acceptButton} (${Math.min(aiState.grammarIndex + 1, aiState.grammarTotal)}/${aiState.grammarTotal})`
+                        : `${aiText.acceptButton} (${Math.min(aiState.continuationIndex + 1, aiState.continuationTotal)}/${aiState.continuationTotal})`}
+                    </span>
                   </button>
                   <button
                     type="button"
-                    onClick={handleDismiss}
+                    tabIndex={-1}
+                    onClick={() => editorRef.current?.dismiss()}
                     className="inline-flex items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-xs text-muted transition-colors hover:text-ink"
                   >
-                    <kbd className="rounded-md border border-line/60 bg-surface-soft px-1.5 py-0.5 font-mono text-[10px]">
+                    <kbd
+                      tabIndex={-1}
+                      className="rounded-md border border-line/60 bg-surface-soft px-1.5 py-0.5 font-mono text-[10px]"
+                    >
                       ⎋ Esc
                     </kbd>
-                    <span>{isZh ? "忽略" : "Dismiss"}</span>
+                    <span>{aiText.dismissButton}</span>
                   </button>
                 </>
-              )}
-
-              {status === "accepted" && (
+              ) : aiState.isDismissed ? (
+                <>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => editorRef.current?.retrigger()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
+                  >
+                    <kbd
+                      tabIndex={-1}
+                      className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted"
+                    >
+                      ⇥ Tab
+                    </kbd>
+                    <span>{aiText.retriggerButton}</span>
+                  </button>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => editorRef.current?.reset()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-line/60 bg-surface-soft px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-ink hover:bg-surface"
+                  >
+                    <span>{aiText.resetButton}</span>
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
-                  onClick={handleReset}
+                  tabIndex={-1}
+                  onClick={() => editorRef.current?.reset()}
                   className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
                 >
-                  <kbd className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                    ⎋ Esc
-                  </kbd>
-                  <span>{isZh ? "重置演示" : "Reset Demo"}</span>
-                </button>
-              )}
-
-              {status === "dismissed" && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
-                >
-                  <kbd className="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                    ⇥ Tab
-                  </kbd>
-                  <span>{isZh ? "重新获取建议" : "Re-trigger"}</span>
+                  <span>{aiText.resetButton}</span>
                 </button>
               )}
             </div>
 
+            {/* 辅助提示 */}
             <p
               className={`text-[11px] transition-colors duration-200 ${
-                isHovered || isFocused ? "font-medium text-accent" : "text-muted"
+                isHovered ? "font-medium text-accent" : "text-muted"
               }`}
             >
-              {isHovered || isFocused
-                ? status === "suggesting"
-                  ? isZh
-                    ? "✨ 快捷键已就绪：轻敲 Tab 采纳建议，Esc 忽略"
-                    : "✨ Shortcuts active: Press Tab to accept, Esc to dismiss"
-                  : status === "accepted"
-                    ? isZh
-                      ? "✨ 已采纳：轻敲 Esc 随时重置演示"
-                      : "✨ Accepted: Press Esc to reset demo"
+              {aiState.isDismissed
+                ? aiText.tipDismissed
+                : aiState.isFinished
+                  ? aiText.tipCompleted
+                  : isHovered
+                    ? aiState.stage === "grammar"
+                      ? isZh
+                        ? "✨ 阶段 ① 审校中：轻敲 Tab 逐项修正，Esc 跳过当前项"
+                        : "✨ Phase 1 Polish: Press Tab to accept fix, Esc to skip"
+                      : isZh
+                        ? "✨ 阶段 ② 续写中：轻敲 Tab 逐段融入，体验行云流水"
+                        : "✨ Phase 2 Continuation: Press Tab to accept inspired ghost text"
                     : isZh
-                      ? "💡 已忽略：轻敲 Tab 重新唤起行内灵感续写"
-                      : "💡 Dismissed: Press Tab to re-trigger suggestion"
-                : isZh
-                  ? "💡 提示：将光标悬停于卡片或点击卡片，直接轻敲 Tab 采纳、Esc 忽略"
-                  : "💡 Tip: Hover or click card, then press Tab to accept or Esc to dismiss"}
+                      ? "💡 提示：将手放在键盘上，一路轻敲 Tab 即可完成从「草稿纠错」到「落笔成章」的全过程"
+                      : "💡 Tip: Rest hands on keyboard: press Tab continuously to polish & continue prose"}
             </p>
           </div>
         </div>

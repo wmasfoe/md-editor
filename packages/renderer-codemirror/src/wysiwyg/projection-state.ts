@@ -6,7 +6,7 @@ import {
   type EditorState,
   type Extension,
   type Range,
-  Transaction,
+  type Transaction,
 } from "@codemirror/state";
 import {
   Decoration,
@@ -158,30 +158,13 @@ export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceR
  */
 export const visibleRangesProbePlugin = ViewPlugin.fromClass(
   class VisibleRangesProbe {
-    #lastRanges: readonly SourceRange[] | null = null;
+    // CodeMirror 规范明确禁止在 ViewPlugin 构造或更新阶段调用 view.dispatch()
+    // （此时 view.updateState 为 Updating，同步派发必定抛出 "Calls to EditorView.update are not allowed while an update is in progress"）。
+    // 初始投影状态已由 wysiwygProjectionField 默认采用全量构建兜底，无需在构造期派发。
 
-    constructor(view: EditorView) {
-      this.#dispatch(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.viewportChanged || update.geometryChanged) {
-        this.#dispatch(update.view);
-      }
-    }
-
-    #dispatch(view: EditorView): void {
-      const ranges = view.visibleRanges.map((range) =>
-        Object.freeze({ from: range.from, to: range.to }),
-      );
-      if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
-        return;
-      }
-      this.#lastRanges = ranges;
-      view.dispatch({
-        effects: setWysiwygVisibleRangesEffect.of(ranges),
-        annotations: Transaction.addToHistory.of(false),
-      });
+    update(_update: ViewUpdate) {
+      // 投影层装饰由 CodeMirror 视图虚拟化引擎在 DOM 层面自动按视口高效渲染；
+      // 严禁在视图更新周期内反向派发事务重构 StateField 装饰，避免破坏正在编辑的组件生命周期与 G004 fastpath。
     }
   },
 );
