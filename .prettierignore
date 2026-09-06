@@ -14,3 +14,4 @@ pnpm-lock.yaml
 *.min.js
 *.snap
 **/*.md
+**/extensions/quicklook/Resources/
