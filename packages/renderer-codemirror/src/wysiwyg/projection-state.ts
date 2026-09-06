@@ -159,44 +159,28 @@ export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceR
 export const visibleRangesProbePlugin = ViewPlugin.fromClass(
   class VisibleRangesProbe {
     #lastRanges: readonly SourceRange[] | null = null;
-    #scheduled = false;
-    #destroyed = false;
 
     constructor(view: EditorView) {
-      this.#scheduleDispatch(view);
+      this.#dispatch(view);
     }
 
     update(update: ViewUpdate) {
       if (update.viewportChanged || update.geometryChanged) {
-        this.#scheduleDispatch(update.view);
+        this.#dispatch(update.view);
       }
     }
 
-    destroy() {
-      this.#destroyed = true;
-    }
-
-    #scheduleDispatch(view: EditorView): void {
-      if (this.#scheduled) {
+    #dispatch(view: EditorView): void {
+      const ranges = view.visibleRanges.map((range) =>
+        Object.freeze({ from: range.from, to: range.to }),
+      );
+      if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
         return;
       }
-      this.#scheduled = true;
-      queueMicrotask(() => {
-        this.#scheduled = false;
-        if (this.#destroyed) {
-          return;
-        }
-        const ranges = view.visibleRanges.map((range) =>
-          Object.freeze({ from: range.from, to: range.to }),
-        );
-        if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
-          return;
-        }
-        this.#lastRanges = ranges;
-        view.dispatch({
-          effects: setWysiwygVisibleRangesEffect.of(ranges),
-          annotations: Transaction.addToHistory.of(false),
-        });
+      this.#lastRanges = ranges;
+      view.dispatch({
+        effects: setWysiwygVisibleRangesEffect.of(ranges),
+        annotations: Transaction.addToHistory.of(false),
       });
     }
   },
@@ -345,26 +329,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       transaction.state.selection,
       typedBoundary,
     );
-    const changedIdSet = new Set(symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds));
-    if (transaction.selection) {
-      const prevSel = transaction.startState.selection.main;
-      const curSel = transaction.state.selection.main;
-      for (const record of index.records) {
-        const headerRange =
-          record.directive?.headerRange ??
-          (record.metadata?.directive as { headerRange?: SourceRange } | undefined)?.headerRange ??
-          record.alert?.headerLineRange;
-        if (!headerRange) {
-          continue;
-        }
-        const wasActive = prevSel.from <= headerRange.to && prevSel.to >= headerRange.from;
-        const isActive = curSel.from <= headerRange.to && curSel.to >= headerRange.from;
-        if (wasActive !== isActive) {
-          changedIdSet.add(record.id);
-        }
-      }
-    }
-    const changedIds = Object.freeze([...changedIdSet]);
+    const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
     if (changedIds.length === 0) {
       return previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary
         ? previous
