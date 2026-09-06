@@ -165,6 +165,11 @@ v0.1 策略: MDX 组件作为 raw block 保留，不执行
 - 不在 WYSIWYG 和 Source 模式中各自持有副本
 - dirty 状态通过 `markdown !== savedMarkdown` 计算
 
+**Git 提交与发布规范 (必须严格遵守)**:
+- **Commit 规范**: 严格遵循 Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `test:`, `chore:`)，建议带 scope，如 `feat(plugins): ...`。严禁随意句式或 Lore 格式。
+- **Push 前验证**: 必须执行并通过 `pnpm lint`、`pnpm test`（单元测试通过，不强制要求 e2e）、`pnpm typecheck`。
+- **Push 后 CI 监控**: 若存在关联 PR，push 完成后必须运行 `gh pr checks --watch` 监控 CI 状态并汇报。
+
 ## 详细文档
 
 项目完整文档位于 `docs/` 目录:

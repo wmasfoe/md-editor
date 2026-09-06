@@ -1,0 +1,47 @@
+#!/bin/sh
+# Git commit-msg hook: Enforce Conventional Commits
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+
+# Allow merge, squash, or revert commits generated automatically by git
+if echo "$FIRST_LINE" | grep -qE '^(Merge|Revert) '; then
+  exit 0
+fi
+
+# Regex pattern for Conventional Commits:
+# <type>(<scope>): <subject>
+# Allowed types: feat, fix, perf, refactor, docs, test, chore, style, ci, build, revert
+PATTERN="^(feat|fix|perf|refactor|docs|test|chore|style|ci|build|revert)(\([a-zA-Z0-9_\.\/-]+\))?!?: .+"
+
+if ! echo "$FIRST_LINE" | grep -qE "$PATTERN"; then
+  echo ""
+  echo "❌ \033[31m[Commit Rejected]\033[0m Commit message does not adhere to Conventional Commits!"
+  echo "--------------------------------------------------"
+  echo "Current commit title:"
+  echo "  \033[33m$FIRST_LINE\033[0m"
+  echo ""
+  echo "Required format:"
+  echo "  \033[32m<type>(<scope>): <subject>\033[0m"
+  echo ""
+  echo "Allowed types:"
+  echo "  feat      - New feature or capability"
+  echo "  fix       - Bug fix"
+  echo "  perf      - Performance optimization"
+  echo "  refactor  - Code refactoring without behavior change"
+  echo "  docs      - Documentation only changes"
+  echo "  test      - Adding or correcting tests"
+  echo "  chore     - Build process, tooling, dependencies"
+  echo "  style     - Formatting, whitespace, etc."
+  echo "  ci        - CI/CD workflow configuration"
+  echo ""
+  echo "Valid examples:"
+  echo "  feat(renderer): add dynamic plugin registration"
+  echo "  fix(wysiwyg): resolve caret jump in callouts"
+  echo "  docs: update plugin development guide"
+  echo "--------------------------------------------------"
+  echo ""
+  exit 1
+fi
+
+exit 0

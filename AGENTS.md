@@ -13,7 +13,13 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
 2. 如果 GitHub / NPM 上有成熟的开源方案，直接复用，不要自己实现；
 3. 分析 bug 的时候，要从第一性原理出发；
 4. 所有实现必须易维护、易扩展，不允许为了当前需求硬编码；
-5. 遇到不确定的信息，不要猜测，优先查官方文档或明确指出需要确认的地方。
+5. 遇到不确定的信息，不要猜测，优先查官方文档或明确指出需要确认的地方；
+6. **Commit 规范**：严格采用 **Conventional Commits** 规范（格式为 `<type>(<scope>): <subject>`，全小写动词短语）。允许的 type 包括：`feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `chore`, `style`, `ci`, `build`。严禁自由发挥或使用任何 Lore 格式；
+7. **Push 前验证规范**：每次执行 `git push` 前，必须在本地依次执行并通过：
+   - `pnpm lint`（包含 oxlint、prettier 格式化检查、cargo fmt/clippy）；
+   - `pnpm test`（运行所有 package 单元测试，必须 100% 通过；不强制要求 e2e 测试）；
+   - `pnpm typecheck`（确保所有 workspace 无 TypeScript 类型错误）；
+8. **Push 后 CI 监控规范**：如果当前分支存在关联的 Pull Request，在 `git push` 成功后，必须自动执行 CI 状态监控（如 `gh pr checks` 或 `gh run watch`），观察并向用户汇报 CI 构建与测试结果，确保未引入远程破坏。
 
 ## 架构边界设计
 
@@ -110,36 +116,43 @@ The workspace now uses pnpm workspaces with a Tauri + React desktop app. Useful 
 - Keep diffs small, reviewable, and reversible.
 - Verify with lint, typecheck, tests, and static analysis after changes; final reports include changed files, simplifications, and remaining risks.
 
-<lore_commit_protocol>
+<conventional_commit_protocol>
 
-## Lore Commit Protocol
+## Commit & Verification Protocol
 
-Every commit message must follow the Lore protocol: a concise decision record using git-native trailers.
+Every commit message in this repository must strictly follow **Conventional Commits**:
 
 ### Format
 
 ```
-<intent line: why the change was made, not what changed>
+<type>(<scope>): <short description in imperative mood>
 
-<optional concise body: constraints and approach rationale>
+[optional body explaining motivation and context]
 
-Constraint: <external constraint that shaped the decision>
-Rejected: <alternative considered> | <reason for rejection>
-Confidence: <low|medium|high>
-Scope-risk: <narrow|moderate|broad>
-Directive: <forward-looking warning for future modifiers>
-Tested: <what was verified>
-Not-tested: <known gaps in verification>
+[optional footer(s), e.g., Fixes #123]
 ```
 
-### Rules
+### Allowed Types
+- `feat`: New feature or capability
+- `fix`: Bug fix
+- `perf`: Performance improvement
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `docs`: Documentation only changes
+- `test`: Adding or correcting tests
+- `chore`: Build process, dependencies, tooling changes
+- `style`: Formatting, missing semi colons, etc.
 
-- Intent line first; describe why, not what.
-- Use trailers only when they add decision context.
-- Use `Rejected:` for alternatives future agents should not re-explore.
-- Use `Directive:` for warnings, `Constraint:` for external forces, and `Not-tested:` for known verification gaps.
-- Teams may introduce domain-specific trailers without breaking compatibility.
-</lore_commit_protocol>
+### Pre-push Verification (Mandatory)
+Before pushing to remote, always execute and ensure passes:
+1. `pnpm lint`
+2. `pnpm test`
+3. `pnpm typecheck`
+
+### Post-push CI Watch (Mandatory if PR exists)
+If a Pull Request is open for the branch, monitor its CI status after push:
+`gh pr checks --watch`
+Report the final CI status clearly to the user.
+</conventional_commit_protocol>
 
 ---
 
