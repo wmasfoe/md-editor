@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { AiFeatureSection } from "./ai-feature-section";
 import { DownloadPanel } from "./download-panel";
+import { EditorFeatureSection } from "./editor-feature-section";
 import { EditorPreviewStage } from "./editor-preview-stage";
+import { HeroCta } from "./hero-cta";
 import { InkpointWordmark } from "./inkpoint-wordmark";
 import type { ChangelogEntry } from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
@@ -17,7 +20,6 @@ interface HomeContentProps {
 
 export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
   const { locale, t } = useI18n();
-  const isZh = locale === "zh";
   const { scrollY, prefersReducedMotion } = useParallaxScroll();
   const catalog = buildDownloadCatalog(latest?.version, locale);
 
@@ -33,15 +35,9 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
     ? 0
     : calculateParallaxOffset(scrollY, 0.25, -120, 120);
 
-  // 特性 Bento 卡片大幅度交错视差位移 (Staggered Bento Lift)
-  const card0Y = prefersReducedMotion ? 0 : interpolate(scrollY, [200, 850], [50, -30]);
-  const card1Y = prefersReducedMotion ? 0 : interpolate(scrollY, [200, 850], [90, 15]);
-  const card2Y = prefersReducedMotion ? 0 : interpolate(scrollY, [200, 850], [40, -40]);
-  const cardOffsets = [card0Y, card1Y, card2Y];
-
   // 状态与规划卡片视差位移
-  const statusLeftY = prefersReducedMotion ? 0 : interpolate(scrollY, [550, 1200], [45, -25]);
-  const statusRightY = prefersReducedMotion ? 0 : interpolate(scrollY, [550, 1200], [25, -35]);
+  const statusLeftY = prefersReducedMotion ? 0 : interpolate(scrollY, [2600, 3600], [45, -25]);
+  const statusRightY = prefersReducedMotion ? 0 : interpolate(scrollY, [2600, 3600], [25, -35]);
 
   return (
     <main className="relative overflow-hidden">
@@ -52,21 +48,21 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
           transform: `translate3d(0, ${ambientBgOffset}px, 0)`,
           willChange: "transform",
         }}
-        className="pointer-events-none absolute -top-36 left-1/2 -z-10 h-[820px] w-[1140px] -translate-x-1/2 rounded-full opacity-70 blur-3xl transition-transform duration-100 ease-out"
+        className="pointer-events-none absolute -top-36 left-1/2 -z-10 h-[820px] w-[1140px] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
       >
         <div className="h-full w-full bg-radial from-accent/15 via-blot/8 to-transparent" />
       </div>
 
-      {/* Hero 区域：词标、标语与下载组件 */}
+      {/* Hero 区域：词标、标语与极简 CTA */}
       <section className="ink-hero relative pt-8 sm:pt-16">
-        <div className="mx-auto max-w-5xl px-4 pb-10 sm:px-8 sm:pb-14">
+        <div className="mx-auto max-w-5xl px-4 pb-8 sm:px-8 sm:pb-12">
           <div
             style={{
               transform: `translate3d(0, ${heroTextY}px, 0) scale(${heroTextScale})`,
               opacity: heroTextOpacity,
               willChange: "transform, opacity",
             }}
-            className="mx-auto max-w-2xl text-center transition-all duration-75 ease-out"
+            className="mx-auto max-w-2xl text-center"
           >
             <h1 className="flex flex-col items-center">
               <InkpointWordmark
@@ -82,60 +78,44 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
               {t.hero.subtitle}
             </p>
 
-            <DownloadPanel initialPlatform={initialPlatform} version={latest?.version} />
+            {/* 极简双行动组：纯粹的探索与导航引导 */}
+            <HeroCta />
           </div>
 
-          {/* Apple 官网级 3D 视差展开的桌面端实物窗口展示舞台 */}
+          {/* 3D Parallax Desktop Preview Stage */}
           <EditorPreviewStage scrollY={scrollY} prefersReducedMotion={prefersReducedMotion} />
         </div>
       </section>
 
-      {/* 能力要点：Bento 网格与大幅度交错视差 */}
+      {/* Feature 展区 1：轻量无标题栏真实 Live 编辑器体验区 */}
+      <EditorFeatureSection scrollY={scrollY} prefersReducedMotion={prefersReducedMotion} />
+
+      {/* Feature 展区 2：端侧本地 AI 智能赋能区 */}
+      <AiFeatureSection scrollY={scrollY} prefersReducedMotion={prefersReducedMotion} />
+
+      {/* 底部专门的终极转化区（Download Section） */}
       <section
-        aria-label={t.features.sectionAria}
-        className="border-y border-line/80 bg-surface/50 py-12 backdrop-blur-md sm:py-20"
+        id="download"
+        aria-label={t.download.sectionTitle}
+        className="relative scroll-mt-16 border-t border-line/80 bg-surface/40 py-16 backdrop-blur-xs sm:scroll-mt-20 sm:py-24"
       >
         <div className="mx-auto max-w-5xl px-4 sm:px-8">
-          <div className="grid gap-5 sm:grid-cols-3 sm:gap-6">
-            {t.features.items.map((feature, idx) => (
-              <div
-                key={feature.title}
-                style={{
-                  transform: `translate3d(0, ${cardOffsets[idx] ?? 0}px, 0)`,
-                  willChange: "transform",
-                }}
-                className="group relative flex flex-col justify-between rounded-3xl border border-line bg-canvas p-6 shadow-[0_4px_20px_rgba(20,18,15,0.03)] transition-all duration-300 hover:border-line-strong hover:bg-surface hover:shadow-[0_12px_32px_rgba(20,18,15,0.08)] sm:p-8"
-              >
-                <div>
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-2xl border border-line bg-surface-soft/80 text-lg shadow-xs">
-                    {idx === 0 ? "💾" : idx === 1 ? "⚡️" : "⌨️"}
-                  </div>
-                  <h2 className="text-base font-semibold tracking-tight text-ink transition-colors group-hover:text-accent sm:text-lg">
-                    {feature.title}
-                  </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-muted transition-colors group-hover:text-ink-soft sm:text-[15px]">
-                    {feature.description}
-                  </p>
-                </div>
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft shadow-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              <span>{t.download.sectionBadge}</span>
+            </div>
 
-                {/* 装饰性徽标微预览 */}
-                <div className="mt-6 pt-4 border-t border-line/50 text-[11px] text-muted flex items-center justify-between">
-                  <span>
-                    {idx === 0
-                      ? isZh
-                        ? "本地磁盘"
-                        : "Local Disk"
-                      : idx === 1
-                        ? "MDX & React"
-                        : "macOS / Win / Linux"}
-                  </span>
-                  <span className="font-mono text-ink/70">
-                    {idx === 0 ? "0 Cloud" : idx === 1 ? "100% Fidelity" : "⌘ Keymaps"}
-                  </span>
-                </div>
-              </div>
-            ))}
+            <h2 className="mt-4 font-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">
+              {t.download.sectionTitle}
+            </h2>
+
+            <p className="mx-auto mt-4 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:text-base">
+              {t.download.sectionSubtitle}
+            </p>
           </div>
+
+          <DownloadPanel initialPlatform={initialPlatform} version={latest?.version} />
         </div>
       </section>
 

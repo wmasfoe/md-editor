@@ -33,7 +33,8 @@ export function EditorPreviewStage({ scrollY, prefersReducedMotion }: EditorPrev
 
   return (
     <div
-      className="relative mx-auto mt-12 w-full max-w-5xl px-4 sm:mt-16 sm:px-6"
+      id="preview-stage"
+      className="relative mx-auto mt-10 w-full max-w-5xl scroll-mt-20 px-4 sm:mt-14 sm:scroll-mt-24 sm:px-6"
       style={{ perspective: "1200px" }}
     >
       {/* 浮动视差挂件 1：左上角本地优先 */}
@@ -43,7 +44,7 @@ export function EditorPreviewStage({ scrollY, prefersReducedMotion }: EditorPrev
           transform: `translate3d(0, ${badgeLeftY}px, 0) rotate(-2deg)`,
           willChange: "transform",
         }}
-        className="pointer-events-none absolute -left-2 top-8 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md transition-transform duration-100 ease-out md:flex md:items-center md:gap-2.5"
+        className="pointer-events-none absolute -left-2 top-8 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md md:flex md:items-center md:gap-2.5"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-accent/10 text-sm">
           📁
@@ -63,7 +64,7 @@ export function EditorPreviewStage({ scrollY, prefersReducedMotion }: EditorPrev
           transform: `translate3d(0, ${badgeRightY}px, 0) rotate(2.5deg)`,
           willChange: "transform",
         }}
-        className="pointer-events-none absolute -right-2 top-24 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md transition-transform duration-100 ease-out md:flex md:items-center md:gap-2.5"
+        className="pointer-events-none absolute -right-2 top-24 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md md:flex md:items-center md:gap-2.5"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blot/10 text-sm">
           ⚡️
@@ -85,7 +86,7 @@ export function EditorPreviewStage({ scrollY, prefersReducedMotion }: EditorPrev
           transform: `translate3d(0, ${badgeBottomY}px, 0) rotate(-1deg)`,
           willChange: "transform",
         }}
-        className="pointer-events-none absolute bottom-6 left-12 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md transition-transform duration-100 ease-out lg:flex lg:items-center lg:gap-2.5"
+        className="pointer-events-none absolute bottom-6 left-12 z-20 hidden rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md lg:flex lg:items-center lg:gap-2.5"
       >
         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-seal/10 text-sm">
           ✒️

@@ -1,30 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getPrimaryDownload, type DownloadCatalog } from "../lib/downloads";
+import type { DownloadCatalog } from "../lib/downloads";
 import { useI18n } from "../lib/i18n/context";
-import { detectSitePlatform, type SitePlatform } from "../lib/platform";
 
 type HeaderDownloadButtonProps = {
   catalog: DownloadCatalog;
 };
 
-/** 页头「下载」保持单按钮；按 UA 指向当前平台主安装包，避免永远链到 macOS。 */
-export function HeaderDownloadButton({ catalog }: HeaderDownloadButtonProps) {
-  const [platform, setPlatform] = useState<SitePlatform>("macos");
+/** 页头「下载」作为全局快捷跳转，平滑滚动至页面底部的专属下载大厅 */
+export function HeaderDownloadButton({ catalog: _catalog }: HeaderDownloadButtonProps) {
   const { t } = useI18n();
-
-  useEffect(() => {
-    setPlatform(detectSitePlatform(navigator.userAgent));
-  }, []);
-
-  const asset = getPrimaryDownload(catalog, platform);
 
   return (
     <a
-      href={asset.href}
-      // 跨域时 download 属性可能被浏览器忽略；GitHub asset 仍会以 attachment 触发下载。
-      download={asset.fileName}
+      href="#download"
       className="liquid-glass-button-dark group relative ml-0.5 inline-flex min-h-9 cursor-pointer items-center justify-center overflow-hidden rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white sm:ml-1 sm:min-h-0 sm:px-4 sm:text-sm"
     >
       <span

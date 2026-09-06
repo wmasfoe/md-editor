@@ -536,6 +536,15 @@ importers:
       '@heroicons/react':
         specifier: 'catalog:'
         version: 2.2.0(react@19.2.7)
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../packages/editor-core
+      '@md-editor/editor-ui':
+        specifier: workspace:*
+        version: link:../packages/editor-ui
+      '@md-editor/renderer-codemirror':
+        specifier: workspace:*
+        version: link:../packages/renderer-codemirror
       '@samasante/liquid-glass':
         specifier: ^0.1.1
         version: 0.1.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

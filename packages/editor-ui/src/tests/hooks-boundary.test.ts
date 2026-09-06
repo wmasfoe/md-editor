@@ -53,6 +53,7 @@ describe("editor-ui hooks and package boundary", () => {
   it("exposes an explicit provider instead of a module-level singleton store", () => {
     expect(editorUiProviderSource).toContain("export function EditorUiProvider");
     expect(editorUiProviderSource).toContain("export function useEditorUiState");
+    expect(editorUiProviderSource).toContain("export function useOptionalEditorUiActions");
     expect(editorUiProviderSource).toContain("export function useEditorUiActions");
     expect(editorUiProviderSource).toContain("export function useEditorUi");
     expect(editorUiProviderSource).toContain(

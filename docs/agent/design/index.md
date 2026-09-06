@@ -9,3 +9,4 @@
 - 表格交互整体梳理（不优雅点清单与改进方案）： [table_interaction_review.md](./table_interaction_review.md)
 - G003 M4 HTML/MDX 安全评审（sanitize-html、MDX parser、webview 端点与 CSP）： [m4_html_mdx_security_review.md](./m4_html_mdx_security_review.md)
 - Apple Liquid Glass 设计规范与接入指南（物理光学原理、Token 契约与组件落地）： [liquid_glass_design_specifications.md](./liquid_glass_design_specifications.md)
+- 官网双 Feature 展区视觉与交互设计规范（Claude & Open Design，基础编辑与端侧 AI 视差展区）： [site_feature_sections_design_spec.md](./site_feature_sections_design_spec.md)

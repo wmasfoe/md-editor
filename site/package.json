@@ -12,6 +12,9 @@
   },
   "dependencies": {
     "@heroicons/react": "catalog:",
+    "@md-editor/editor-core": "workspace:*",
+    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/renderer-codemirror": "workspace:*",
     "@samasante/liquid-glass": "^0.1.1",
     "lxgw-wenkai-webfont": "^1.7.0",
     "next": "catalog:",

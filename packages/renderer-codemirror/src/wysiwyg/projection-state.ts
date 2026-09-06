@@ -159,28 +159,60 @@ export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceR
 export const visibleRangesProbePlugin = ViewPlugin.fromClass(
   class VisibleRangesProbe {
     #lastRanges: readonly SourceRange[] | null = null;
+    #scheduled = false;
+    #destroyed = false;
 
     constructor(view: EditorView) {
-      this.#dispatch(view);
+      // 首次构造时 view 处于 updating 状态，禁止同步 dispatch，安排在 microtask 中调度
+      this.#scheduleDispatch(view);
     }
 
     update(update: ViewUpdate) {
+      // 自身派发的 setWysiwygVisibleRangesEffect 不重复触发调度，防止级联循环
+      if (
+        update.transactions.some((tr) =>
+          tr.effects.some((e) => e.is(setWysiwygVisibleRangesEffect)),
+        )
+      ) {
+        return;
+      }
+
       if (update.viewportChanged || update.geometryChanged) {
-        this.#dispatch(update.view);
+        const currentRanges = update.view.visibleRanges.map((range) =>
+          Object.freeze({ from: range.from, to: range.to }),
+        );
+        if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, currentRanges)) {
+          return;
+        }
+        this.#scheduleDispatch(update.view);
       }
     }
 
-    #dispatch(view: EditorView): void {
-      const ranges = view.visibleRanges.map((range) =>
-        Object.freeze({ from: range.from, to: range.to }),
-      );
-      if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
+    destroy() {
+      this.#destroyed = true;
+    }
+
+    #scheduleDispatch(view: EditorView): void {
+      if (this.#scheduled || this.#destroyed) {
         return;
       }
-      this.#lastRanges = ranges;
-      view.dispatch({
-        effects: setWysiwygVisibleRangesEffect.of(ranges),
-        annotations: Transaction.addToHistory.of(false),
+      this.#scheduled = true;
+      queueMicrotask(() => {
+        this.#scheduled = false;
+        if (this.#destroyed) {
+          return;
+        }
+        const ranges = view.visibleRanges.map((range) =>
+          Object.freeze({ from: range.from, to: range.to }),
+        );
+        if (this.#lastRanges !== null && rangesEqual(this.#lastRanges, ranges)) {
+          return;
+        }
+        this.#lastRanges = ranges;
+        view.dispatch({
+          effects: setWysiwygVisibleRangesEffect.of(ranges),
+          annotations: Transaction.addToHistory.of(false),
+        });
       });
     }
   },

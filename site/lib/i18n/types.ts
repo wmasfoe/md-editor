@@ -43,8 +43,14 @@ export interface TranslationSchema {
     subtitle: string;
     latestPrefix: string;
     allPackages: string;
+    exploreFeatures: string;
+    getClient: string;
+    allDownloadOptions: string;
   };
   download: {
+    sectionBadge: string;
+    sectionTitle: string;
+    sectionSubtitle: string;
     tablistAria: string;
     primaryMacos: string;
     primaryLinux: string;

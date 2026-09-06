@@ -27,7 +27,7 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
   const platforms = listSitePlatforms();
 
   return (
-    <div id="download">
+    <div className="w-full">
       {/* 平台切换与单一主按钮：支持鼠标拖拽滑块与白底延迟吸附 */}
       <div className="mx-auto mt-8 w-full max-w-sm sm:mt-10">
         <LiquidGlassSegmentedControl
@@ -38,7 +38,7 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
           ariaLabel={t.download.tablistAria}
         />
 
-        <div id="download-panel" role="tabpanel" aria-labelledby={`download-tab-${platform}`}>
+        <div id="download-panel" role="tabpanel" aria-labelledby={`download-tab-${platform}`} className="flex justify-center">
           <a
             href={current.primary.href}
             download={current.primary.fileName}
