@@ -60,6 +60,7 @@ test.describe("CodeMirror code-block selection visibility and boundary containme
     });
 
     // 验证选区 DOM 图层层级、事件穿透属性以及多行垂直对齐
+    await expect(page.locator(".cm-selectionBackground").first()).toBeVisible();
     const layerMetrics = await page.evaluate(() => {
       const selLayer =
         document.querySelector(".cm-md-selectionLayer") ??
@@ -143,6 +144,7 @@ test.describe("CodeMirror code-block selection visibility and boundary containme
     expect(range?.anchor).toBeLessThan(range?.head ?? 0);
 
     // 验证有高亮矩形渲染
+    await expect(page.locator(".cm-selectionBackground").first()).toBeVisible();
     const selCount = await page.locator(".cm-selectionBackground").count();
     expect(selCount).toBeGreaterThan(0);
   });
