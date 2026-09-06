@@ -74,6 +74,8 @@ describe("macOS Quick Look App Extension", () => {
     );
     expect(mdAssoc).toBeDefined();
     expect(mdAssoc.ext).toContain("markdown");
+    expect(mdAssoc.contentTypes).toContain("net.daringfireball.markdown");
+    expect(mdAssoc.contentTypes).toContain("public.markdown");
   });
 
   it("should configure macOS.files in tauri.macos.conf.json to bundle the appex into PlugIns", () => {

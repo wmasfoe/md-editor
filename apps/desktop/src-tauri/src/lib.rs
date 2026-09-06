@@ -6,6 +6,8 @@ mod local_ai_completion;
 mod local_ai_model;
 mod local_ai_runtime;
 mod platform_contract;
+#[cfg(target_os = "macos")]
+mod quicklook;
 mod recent_files;
 mod save_runtime;
 mod settings;
@@ -58,6 +60,9 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             window_chrome::install_initial_main_window_traffic_light_refresh(_app.handle());
+
+            #[cfg(target_os = "macos")]
+            quicklook::register_quicklook_extension_if_needed();
 
             Ok(())
         })

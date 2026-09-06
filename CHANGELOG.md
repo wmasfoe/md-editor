@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2 - 2026-09-07
+
+- 完善 macOS Quick Look 扩展的自动关联与无感启用：
+  - 在文件类型关联中补齐标准 Markdown UTI 映射声明（`net.daringfireball.markdown` 等），使系统在安装或更新后能自动将 Markdown 文档定向至 Quick Look 扩展
+  - 增加应用启动时的后台静默注册与保底激活机制，用户更新后首次打开应用即可自动就绪，无需手动前往“系统设置 -> 登录项与扩展”配置
+
 ## 0.7.1 - 2026-09-07
 
 - 新增 macOS 原生 Quick Look 快速预览支持：
