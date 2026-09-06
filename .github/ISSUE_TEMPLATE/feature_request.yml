@@ -1,0 +1,62 @@
+name: "✨ 特性建议 (Feature Request)"
+description: "为 Inkpoint 提出新功能、新交互或新语法支持建议"
+title: "[Feature]: "
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你为 Inkpoint 提出宝贵的功能建议！请尽量详细地描述使用场景与用户价值。
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 目标模块 (Target Scope)
+      description: 该特性主要影响哪个模块？
+      options:
+        - "Desktop App (Tauri 桌面端应用/窗口/工作区管理)"
+        - "Editor & Renderer (编辑器渲染/CodeMirror 交互/排版)"
+        - "Syntax Plugins (Markdown 语法扩展/自定义容器/数学/图表)"
+        - "AI Capabilities (智能补全/生成/改写)"
+        - "Web Playground (在线演练场)"
+        - "Ecosystem & Plugins (插件系统与开放生态)"
+        - "Other (其他)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 解决的问题或痛点 (Problem Statement)
+      description: 你的需求背景是什么？遇到了什么不便？
+      placeholder: 例如：在撰写包含大量公式的技术笔记时，现有的渲染方式无法...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案 (Proposed Solution)
+      description: 你期望具体如何设计或实现该功能？
+      placeholder: 提供清晰的用户操作路径、界面交互草案或 API 设计想法。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案 (Alternatives Considered)
+      description: 你是否尝试过其他工具或现有的变通办法？它们为什么不够理想？
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 额外补充信息 (Additional Context)
+      description: 参考产品截图（如 Obsidian、Typora、VS Code）、规范链接或示例文档
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 参与贡献 (Contribution)
+      options:
+        - label: 我愿意参与该特性的代码实现或 PR 贡献

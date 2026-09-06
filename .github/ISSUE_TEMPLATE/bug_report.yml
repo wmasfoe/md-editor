@@ -1,0 +1,96 @@
+name: "🐛 Bug 报告 (Bug Report)"
+description: "提交一个关于 Inkpoint / @md-editor 的缺陷或异常行为"
+title: "[Bug]: "
+labels: ["type: bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你帮助我们改进 Inkpoint！在提交之前，请确保搜索现有 Issue，以避免重复提交。
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 发生问题的模块 (Affected Component)
+      description: 请选择问题发生的具体模块
+      options:
+        - "Desktop (Tauri 桌面端应用)"
+        - "Web Playground (在线演练场)"
+        - "Renderer (CodeMirror 6 渲染层/分词/选区/光标)"
+        - "Syntax Plugins (Callout / Directive / 语法插件)"
+        - "Core (数据模型/协议/底层契约)"
+        - "AI Assistant (AI 交互/流式生成)"
+        - "Other / Unsure (其他 / 不确定)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 (Description)
+      description: 清晰扼要地描述发生了什么异常
+      placeholder: 例如：在 macOS 下使用 :::note 容器语法时，若内部包含代码块，退出编辑时光标跳动异常...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤 (Steps to Reproduce)
+      description: 提供能够稳定复现该问题的具体步骤
+      placeholder: |
+        1. 打开桌面端或 Web Playground
+        2. 输入以下 Markdown 内容
+        3. 按 Enter 换行并移动光标
+        4. 观察到编辑器报错/状态异常
+    validations:
+      required: true
+
+  - type: textarea
+    id: markdown-sample
+    attributes:
+      label: 最小复现 Markdown 文本 (Minimal Markdown Example)
+      description: 如果问题与特定 Markdown 文本语法渲染相关，请在此粘贴
+      render: markdown
+      placeholder: |
+        :::info
+        这里是导致问题的示例文本
+        :::
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 (Expected Behavior)
+      description: 描述在正常情况下你期望看到的正确行为
+      placeholder: 期望卡片正常折叠，光标平滑移动至下一行。
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 运行环境 (Environment)
+      description: 请提供操作系统、应用版本等环境信息
+      value: |
+        - **OS**: macOS / Windows / Linux (具体版本)
+        - **Inkpoint Version**: (例如 v0.1.0 或 commit hash)
+        - **Node / Pnpm Version** (若从源码运行): 
+        - **Browser** (若为 Web 端): Chrome / Safari / Firefox 版本
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 屏幕截图或录屏 (Screenshots / Logs)
+      description: 如有开发者控制台报错日志（Console Logs）或录屏，可直接拖拽至此处上传
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 检查清单 (Checklist)
+      options:
+        - label: 我已在 Issues 中检索过，确认目前没有相同或相关的 Bug 报告
+          required: true
+        - label: 我确认提供的信息足够完整，他人能够据此独立复现
+          required: true

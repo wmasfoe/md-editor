@@ -1,0 +1,40 @@
+name: "📚 文档改进 (Documentation)"
+description: "提出文档修正、教程补充、API 参考完善等建议"
+title: "[Docs]: "
+labels: ["type: docs"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        良好的文档是开源项目成功的关键。感谢你对 Inkpoint 文档的贡献！
+
+  - type: textarea
+    id: target-doc
+    attributes:
+      label: 涉及的文档 (Target Document)
+      description: 指出需要修改或补充的文档路径或在线链接
+      placeholder: 例如：docs/human/plugin_development_guide.md 中的装饰器策略章节
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: 存在的问题 (Issue Description)
+      description: 该文档存在什么问题？（如拼写错误、示例失效、描述含糊、缺少关键章节等）
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-changes
+    attributes:
+      label: 建议的修改内容 (Suggested Improvement)
+      description: 请给出你建议的修改方案或 Markdown 草稿
+      render: markdown
+
+  - type: checkboxes
+    id: pr-ready
+    attributes:
+      label: 贡献意向 (Contribution)
+      options:
+        - label: 我愿意直接提交 Pull Request 来完善此文档

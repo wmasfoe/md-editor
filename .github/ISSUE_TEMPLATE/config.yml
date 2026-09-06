@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 GitHub Discussions
+    url: https://github.com/wmasfoe/md-editor/discussions
+    about: 欢迎在 Discussions 中进行提问、分享灵感、或讨论非缺陷类的通用建议。
+  - name: 📖 开发与贡献文档
+    url: https://github.com/wmasfoe/md-editor/tree/main/docs
+    about: 查看 Inkpoint 架构设计原则、插件开发指南等官方文档。
