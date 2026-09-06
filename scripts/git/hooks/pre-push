@@ -1,0 +1,28 @@
+#!/bin/sh
+# Git pre-push hook: Enforce lint and test verification before pushing
+
+echo "🔍 [Pre-push Hook] Verifying code quality before pushing..."
+
+echo "▶ 1/3 Running lint checks (pnpm lint)..."
+pnpm lint
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-push Rejected] 'pnpm lint' failed. Please fix lint/format errors before pushing."
+  exit 1
+fi
+
+echo "▶ 2/3 Running unit tests (pnpm test)..."
+pnpm test
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-push Rejected] 'pnpm test' failed. Please fix failing tests before pushing."
+  exit 1
+fi
+
+echo "▶ 3/3 Running typecheck (pnpm typecheck)..."
+pnpm typecheck
+if [ $? -ne 0 ]; then
+  echo "❌ [Pre-push Rejected] 'pnpm typecheck' failed. Please fix TypeScript errors before pushing."
+  exit 1
+fi
+
+echo "✅ [Pre-push Passed] All verification checks passed!"
+exit 0
