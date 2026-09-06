@@ -6,6 +6,7 @@
 
 - 动机与项目背景：[project](./project.md)
 - 发版指南（桌面端 App + 官网 site）：[release](./release.md)
+- 插件开发指南（语法扩展与 UI 装饰插件）：[plugin_development_guide](./plugin_development_guide.md)
 
 ## 相关（agent / 备份）
 

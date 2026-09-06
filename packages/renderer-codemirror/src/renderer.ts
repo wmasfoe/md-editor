@@ -44,6 +44,7 @@ import {
 import {
   markdownRangeIndexField,
   mdxModeFacet,
+  refreshMarkdownParseCoverageEffect,
   syntaxPluginRegistryFacet,
 } from "./markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "./markdown/extensions.ts";
@@ -1308,11 +1309,23 @@ class CodeMirrorRendererController {
     if (flattened.length === 0) {
       return this;
     }
+
+    // 判断是否有真正扩展 Lezer Markdown 语法/词法分析器的插件（带 markdownExtension）
+    const isSyntaxPlugin = flattened.some((plugin) => Boolean(plugin.markdownExtension));
+
     this.#syntaxRegistry.registerAll(flattened);
-    const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
-    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
-    this.#view.dispatch({
-      effects: [
+
+    const effects: StateEffect<unknown>[] = [
+      this.#syntaxRegistryCompartment.reconfigure(
+        syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
+      ),
+    ];
+
+    if (isSyntaxPlugin) {
+      // 语法层面插件：需要重配 Lezer 语言分析器，并调度 AST RangeIndex 全量重新解析
+      const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
+      const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
+      effects.push(
         this.#markdownLanguageCompartment.reconfigure(
           this.#controllerOptions.useNativeCodeLanguages
             ? createMarkdownLanguageSupport(
@@ -1321,12 +1334,14 @@ class CodeMirrorRendererController {
               )
             : markdown({ extensions: markdownExtensions, addKeymap: false }),
         ),
-        this.#syntaxRegistryCompartment.reconfigure(
-          syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
-        ),
-        refreshWysiwygProjectionEffect.of(null),
-      ],
-    });
+        refreshMarkdownParseCoverageEffect.of(null),
+      );
+    }
+
+    // 无论 UI 层面还是 AST 层面，均派发 refreshWysiwygProjectionEffect 触发投影层重新编译
+    effects.push(refreshWysiwygProjectionEffect.of(null));
+
+    this.#view.dispatch({ effects });
     return this;
   }
 }

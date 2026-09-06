@@ -113,4 +113,81 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     const index = (viewState as unknown as EditorState).field(markdownRangeIndexField);
     expect(index.records.length).toBeGreaterThan(0);
   });
+
+  it("differentiates AST syntax plugin from UI plugin during dynamic use()", () => {
+    const parent = (
+      typeof document !== "undefined" ? document.createElement("div") : {}
+    ) as HTMLElement;
+    const docState = createDocumentState({
+      markdown: "Line 1\nLine 2",
+    });
+
+    let viewState: EditorState | null = null;
+    const renderer = createCodeMirrorRendererWithFactory(
+      {
+        parent,
+        initialSnapshot: docState.getSnapshot(),
+        onEditorChange: () => {},
+        onQueuedExternalEditReady: () => {},
+        onQueuedExternalEditCancelled: () => {},
+      },
+      (input: RendererViewFactoryInput): RendererViewAdapter => {
+        viewState = input.state;
+        return {
+          get state() {
+            return viewState!;
+          },
+          isComposing: false,
+          dispatch: (spec) => {
+            const tr = viewState!.update(spec);
+            viewState = tr.state;
+          },
+          dispatchTransaction: (tr) => {
+            viewState = tr.state;
+          },
+          setState: (nextState: EditorState) => {
+            viewState = nextState;
+          },
+          scrollSnapshot: () => ({}) as unknown as StateEffect<unknown>,
+          getScrollTop: () => 0,
+          setScrollTop: () => {},
+          hasFocus: () => false,
+          focus: () => {},
+          requestMeasure: () => {},
+          destroy: () => {},
+        };
+      },
+    );
+
+    const initialIndex = viewState!.field(markdownRangeIndexField);
+    const initialVersion = initialIndex.version;
+
+    // 1. 注册纯 UI 装饰型插件（无 markdownExtension）：不触发 AST 全量重新解析
+    const uiPlugin: MarkdownSyntaxPlugin = {
+      id: "plugin.ui.highlight",
+      name: "UI Highlight Plugin",
+      buildDecorations: () => [],
+    };
+
+    renderer.use(uiPlugin);
+
+    const afterUiIndex = viewState!.field(markdownRangeIndexField);
+    // 纯 UI 插件未包含 markdownExtension，AST RangeIndex 版本号保持不变，零重构开销
+    expect(afterUiIndex.version).toBe(initialVersion);
+
+    // 2. 注册语法扩展型插件（包含 markdownExtension）：触发 AST RangeIndex 重新解析
+    const syntaxPlugin: MarkdownSyntaxPlugin = {
+      id: "plugin.syntax.custom",
+      name: "Syntax Custom Plugin",
+      markdownExtension: {
+        defineNodes: ["CustomNode"],
+      },
+    };
+
+    renderer.use(syntaxPlugin);
+
+    const afterSyntaxIndex = viewState!.field(markdownRangeIndexField);
+    // 语法插件包含 markdownExtension，成功调度 AST 重新解析，RangeIndex 版本号递增
+    expect(afterSyntaxIndex.version).toBeGreaterThan(initialVersion);
+  });
 });
