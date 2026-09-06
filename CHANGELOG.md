@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1 - 2026-09-07
+
+- 新增 macOS 原生 Quick Look 快速预览支持：
+  - 在 Finder 中选中 Markdown 文件（`.md` / `.markdown`）并按下空格键，即可即时唤起与 Inkpoint 编辑器完全对齐的高质量离线预览
+  - 预览基于纯原生 App Extension (`InkpointQuickLook.appex`) 与独立轻量渲染引擎构建，毫秒级打开，内置 2MB 尺寸保护与防卡死截断
+  - 视觉效果完全遵循 Inkpoint 所见即所得排版规范：呈现标志性的浅色内联语法标记（如加粗、斜体、删除线）、矢量提示卡片（Callout/Admonition）与代码语法高亮
+- 核心渲染能力解耦与统一复用：
+  - 在 `@md-editor/renderer-codemirror` 中下沉统一的静态文档渲染子包（`./static`），为 Quick Look 预览以及后续文档静态导出（PDF/图片）提供标准化渲染基建
+  - 将提示卡片（Callout）矢量图标字典与代码块语言映射抽离为无 DOM 依赖的纯数据模块，确保在 Headless / JSC / Node.js 等脱机环境下安全稳定运行
+
 ## 0.7.0 - 2026-09-06
 
 - 新增 Web Playground 在线演练场：无需下载安装桌面客户端，打开浏览器即可直接体验 Inkpoint 的所见即所得 Markdown 编辑与主题渲染，支持与桌面端完全对齐的快捷键与设置面板
