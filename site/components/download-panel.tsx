@@ -38,7 +38,12 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
           ariaLabel={t.download.tablistAria}
         />
 
-        <div id="download-panel" role="tabpanel" aria-labelledby={`download-tab-${platform}`} className="flex justify-center">
+        <div
+          id="download-panel"
+          role="tabpanel"
+          aria-labelledby={`download-tab-${platform}`}
+          className="flex justify-center"
+        >
           <a
             href={current.primary.href}
             download={current.primary.fileName}
