@@ -18,6 +18,8 @@
 - Linux 与 Windows 平台支持、ARM 架构与终端一键安装方案： [cross_platform_support_plan.md](./cross_platform_support_plan.md)
 - Web 端（Playground 体验版）架构方案： [web_app_architecture_plan.md](./web_app_architecture_plan.md)
 - Markdown 语法插件架构与容器指令方案： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
+- macOS Quick Look 快速预览扩展架构方案： [macos_quicklook_preview_architecture.md](./macos_quicklook_preview_architecture.md)
+  记录系统接入边界、JavaScriptCore 离线渲染沙箱、与 @md-editor/renderer-codemirror/static 共享静态渲染能力的复用设计以及构建流水线规范。
 
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。

@@ -30,6 +30,7 @@
     "**/target/**",
     "**/src-tauri/gen/**",
     "**/coverage/**",
-    ".vercel/**"
+    ".vercel/**",
+    "**/extensions/quicklook/Resources/**"
   ]
 }

@@ -4,6 +4,11 @@
     "resources": [
       "binaries/llama-runtime-macos-arm64/*.dylib",
       "binaries/llama-runtime-macos-arm64/LICENSE.llama.cpp"
-    ]
+    ],
+    "macOS": {
+      "files": {
+        "PlugIns/InkpointQuickLook.appex": "target/quicklook/InkpointQuickLook.appex"
+      }
+    }
   }
 }
