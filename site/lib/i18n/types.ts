@@ -112,4 +112,24 @@ export interface TranslationSchema {
     summary: string;
     github: string;
   };
+  aiShowcase: {
+    sectionBadge: string;
+    sectionTitle: string;
+    sectionSubtitle: string;
+    tabGrammar: string;
+    tabContinuation: string;
+    statusSlmReady: string;
+    statusGrammarReady: string;
+    statusContinuationReady: string;
+    statusAllCompleted: string;
+    statusDismissed: string;
+    acceptButton: string;
+    dismissButton: string;
+    retriggerButton: string;
+    resetButton: string;
+    stepFormat: string;
+    tipInteractive: string;
+    tipCompleted: string;
+    tipDismissed: string;
+  };
 }

@@ -222,6 +222,24 @@
     clip-path: none !important;
   }
 
+  /* 官网 AI 展区 CodeMirror 编辑器样式：极简宣纸无边框，优雅行高，原生融入卡片 */
+  .site-ai-codemirror {
+    background: transparent !important;
+    border: none !important;
+  }
+  .site-ai-codemirror .cm-editor {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+  }
+  .site-ai-codemirror .cm-content {
+    padding: 0 !important;
+    caret-color: var(--color-ink);
+  }
+  .site-ai-codemirror .cm-scroller {
+    overflow: hidden !important;
+  }
+
   /* 代码块语法 Token 样式增强 */
   .tok-keyword,
   .tok-atom,

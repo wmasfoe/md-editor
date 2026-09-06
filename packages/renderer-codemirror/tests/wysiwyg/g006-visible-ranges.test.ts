@@ -8,10 +8,12 @@ import {
   type MarkdownRangeIndex,
 } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
+import type { EditorView } from "@codemirror/view";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   setWysiwygVisibleRangesEffect,
+  visibleRangesProbePlugin,
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
 import type { SourceRange } from "../../src/markdown/range-types.ts";
@@ -211,5 +213,51 @@ describe("G006 P1-4 visibleRanges 限定全量重建", () => {
     // 2000 行可见 ~3 行:限定构建应缩减到全文的 10% 以下
     expect(full).toBeGreaterThan(0);
     expect(limited).toBeLessThan(full / 10);
+  });
+
+  it("VisibleRangesProbe 构造与更新时不进行同步 dispatch，避免违背 EditorView.update 运行中契约", async () => {
+    let updating = true;
+    let dispatched = false;
+    const fakeView = {
+      get visibleRanges() {
+        return [{ from: 0, to: 100 }];
+      },
+      dispatch() {
+        if (updating) {
+          throw new Error(
+            "Calls to EditorView.update are not allowed while an update is in progress",
+          );
+        }
+        dispatched = true;
+      },
+    } as unknown as EditorView;
+
+    interface ViewPluginWithCreate {
+      create: (view: EditorView) => {
+        update: (update: unknown) => void;
+        destroy?: () => void;
+      };
+    }
+    const plugin = visibleRangesProbePlugin as unknown as ViewPluginWithCreate;
+
+    // 模拟 EditorView 构造期间（updating = true）初始化 ViewPlugin
+    const probe = plugin.create(fakeView);
+    // 构造期间绝对不调用 view.dispatch
+    expect(dispatched).toBe(false);
+
+    // 模拟视图更新期间（updating = true）触发 update
+    probe.update({
+      view: fakeView,
+      viewportChanged: true,
+      geometryChanged: true,
+      transactions: [],
+    });
+    // 更新期间绝对不调用 view.dispatch
+    expect(dispatched).toBe(false);
+
+    updating = false;
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(dispatched).toBe(false);
+    probe.destroy?.();
   });
 });
