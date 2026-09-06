@@ -7,7 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { DocumentState } from "@md-editor/editor-core";
-import { useEditorUiActions } from "../../hooks/useEditorUi";
+import { useOptionalEditorUiActions } from "../../hooks/useEditorUi";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
@@ -72,7 +72,9 @@ export function CodeMirrorEditor({
 }: CodeMirrorEditorProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const bridgeRef = useRef<CodeMirrorEditorBridge | null>(null);
-  const { registerRendererPorts, updateActiveOutlineForLine } = useEditorUiActions();
+  const uiActions = useOptionalEditorUiActions();
+  const uiActionsRef = useRef(uiActions);
+  uiActionsRef.current = uiActions;
   const callbacksRef = useRef({
     onQueuedExternalEditResult,
     onRendererPortsChange,
@@ -131,7 +133,7 @@ export function CodeMirrorEditor({
         : undefined,
       onCursorLineChange(line) {
         callbacksRef.current.onCursorLineChange?.(line);
-        updateActiveOutlineForLine(line);
+        uiActionsRef.current?.updateActiveOutlineForLine(line);
       },
       onSyncError(error) {
         setSyncStatus("sync-error");
@@ -146,16 +148,23 @@ export function CodeMirrorEditor({
       plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
     });
     bridgeRef.current = bridge;
-    const unregisterRendererPorts = registerRendererPorts(bridge.ports);
     callbacksRef.current.onRendererPortsChange?.(bridge.ports);
 
     return () => {
-      unregisterRendererPorts();
       bridgeRef.current = null;
       bridge.destroy();
       callbacksRef.current.onRendererPortsChange?.(null);
     };
-  }, [document, hasClipboardWriter, registerRendererPorts, updateActiveOutlineForLine]);
+  }, [document, hasClipboardWriter]);
+
+  // ports 注册独立于 bridge 生命周期，即便外部 actions 发生引用变动也绝不销毁重建编辑器 DOM
+  useLayoutEffect(() => {
+    const bridge = bridgeRef.current;
+    if (!bridge || !uiActions) {
+      return;
+    }
+    return uiActions.registerRendererPorts(bridge.ports);
+  }, [uiActions]);
 
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);

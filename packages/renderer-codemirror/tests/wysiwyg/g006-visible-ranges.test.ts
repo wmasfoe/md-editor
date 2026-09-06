@@ -1,5 +1,6 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, Transaction } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -12,6 +13,7 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   setWysiwygVisibleRangesEffect,
+  visibleRangesProbePlugin,
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
 import type { SourceRange } from "../../src/markdown/range-types.ts";
@@ -211,5 +213,82 @@ describe("G006 P1-4 visibleRanges 限定全量重建", () => {
     // 2000 行可见 ~3 行:限定构建应缩减到全文的 10% 以下
     expect(full).toBeGreaterThan(0);
     expect(limited).toBeLessThan(full / 10);
+  });
+
+  it("VisibleRangesProbe 构造时不进行同步 dispatch，避免违背 EditorView.update 运行中契约", async () => {
+    let updating = true;
+    let dispatched = false;
+    const fakeView = {
+      get visibleRanges() {
+        return [{ from: 0, to: 100 }];
+      },
+      dispatch() {
+        if (updating) {
+          throw new Error(
+            "Calls to EditorView.update are not allowed while an update is in progress",
+          );
+        }
+        dispatched = true;
+      },
+    } as unknown as EditorView;
+
+    interface ViewPluginWithCreate {
+      create: (view: EditorView) => {
+        update: (update: unknown) => void;
+        destroy?: () => void;
+      };
+    }
+    const plugin = visibleRangesProbePlugin as unknown as ViewPluginWithCreate;
+
+    // 模拟 EditorView 构造期间（updating = true）初始化 ViewPlugin
+    const probe = plugin.create(fakeView);
+    expect(dispatched).toBe(false);
+
+    // 视图构造完成，updating 标志解除
+    updating = false;
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(dispatched).toBe(true);
+    probe.destroy?.();
+  });
+
+  it("VisibleRangesProbe 过滤自身派发的 setWysiwygVisibleRangesEffect，防止无限递归调度", async () => {
+    let dispatchCount = 0;
+    const fakeView = {
+      get visibleRanges() {
+        return [{ from: 0, to: 100 }];
+      },
+      dispatch() {
+        dispatchCount++;
+      },
+    } as unknown as EditorView;
+
+    interface ViewPluginWithCreate {
+      create: (view: EditorView) => {
+        update: (update: unknown) => void;
+        destroy?: () => void;
+      };
+    }
+    const plugin = visibleRangesProbePlugin as unknown as ViewPluginWithCreate;
+
+    const probe = plugin.create(fakeView);
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    expect(dispatchCount).toBe(1);
+
+    // 模拟视图更新包含自身派发的 setWysiwygVisibleRangesEffect
+    probe.update({
+      view: fakeView,
+      viewportChanged: true,
+      geometryChanged: true,
+      transactions: [
+        {
+          effects: [setWysiwygVisibleRangesEffect.of([{ from: 0, to: 100 }])],
+        },
+      ],
+    });
+
+    await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
+    // 绝不触发二次调度
+    expect(dispatchCount).toBe(1);
+    probe.destroy?.();
   });
 });

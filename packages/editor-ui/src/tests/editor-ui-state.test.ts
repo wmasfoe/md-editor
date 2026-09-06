@@ -6,6 +6,7 @@ import {
   EditorUiProvider,
   unsupportedEditorUiCommandSlots,
   useEditorUiActions,
+  useOptionalEditorUiActions,
   useEditorUiState,
   type EditorUiActionsContextValue,
 } from "../hooks/useEditorUi";
@@ -99,6 +100,17 @@ describe("editor UI instance state policy", () => {
     expect(() => renderToStaticMarkup(createElement(OutsideProviderProbe))).toThrow(
       "useEditorUiState must be used within an EditorUiProvider.",
     );
+  });
+
+  it("returns null when optional actions are read outside EditorUiProvider", () => {
+    let actions: EditorUiActionsContextValue | null = undefined as unknown as null;
+    renderToStaticMarkup(
+      createElement(function Probe() {
+        actions = useOptionalEditorUiActions();
+        return null;
+      }),
+    );
+    expect(actions).toBeNull();
   });
 
   it("forwards jumpToTocItem and jumpToMarkdownFragment to registered renderer ports scrollToLine", () => {

@@ -80,3 +80,8 @@ export type {
   MarkdownSyntaxKind,
   SourceRange,
 } from "./markdown/range-types.ts";
+export {
+  CODE_BLOCK_LANGUAGES,
+  findCodeBlockLanguage,
+  type CodeBlockLanguageLoadObserver,
+} from "./markdown/code-languages.ts";

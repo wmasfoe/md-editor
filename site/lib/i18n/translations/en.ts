@@ -18,8 +18,15 @@ export const en: TranslationSchema = {
       "A local-first desktop editor. Files stay safely on disk for everyday writing, MDX content, and desktop workflows.",
     latestPrefix: "Latest",
     allPackages: "All Releases",
+    exploreFeatures: "Explore Features",
+    getClient: "Get Inkpoint",
+    allDownloadOptions: "All Platforms & CLI",
   },
   download: {
+    sectionBadge: "GET INKPOINT · BEGIN YOUR FLOW",
+    sectionTitle: "Start Writing with Focus and Clarity",
+    sectionSubtitle:
+      "No accounts, zero telemetry. Download Inkpoint desktop for a quiet, focused craft.",
     tablistAria: "Select download platform",
     primaryMacos: "Download for macOS",
     primaryLinux: "Download for Linux",

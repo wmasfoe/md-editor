@@ -208,4 +208,55 @@
       inset 0 1px 1px 0 rgba(255, 255, 255, 0.6),
       0 1px 4px -1px rgba(0, 0, 0, 0.04);
   }
+
+  /* 官网 Live 编辑器紧凑排版与代码高亮适配 */
+  .site-live-editor-cm .cm-content {
+    padding-top: 0.85rem !important;
+    padding-bottom: 2rem !important;
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+  }
+
+  .site-live-editor-cm .cm-selectionLayer,
+  .site-live-editor-cm .cm-md-selectionLayer {
+    clip-path: none !important;
+  }
+
+  /* 代码块语法 Token 样式增强 */
+  .tok-keyword,
+  .tok-atom,
+  .tok-bool {
+    color: var(--theme-code-keyword, #8c3f63) !important;
+    font-weight: 600;
+  }
+  .tok-string,
+  .tok-string2,
+  .tok-url {
+    color: var(--theme-code-string, #466e2c) !important;
+  }
+  .tok-comment,
+  .tok-meta {
+    color: var(--theme-code-comment, #8a857a) !important;
+    font-style: italic;
+  }
+  .tok-number,
+  .tok-literal {
+    color: var(--theme-code-number, #b45309) !important;
+  }
+  .tok-tagName,
+  .tok-typeName,
+  .tok-className,
+  .tok-namespace {
+    color: var(--theme-code-tag, #2a6877) !important;
+    font-weight: 600;
+  }
+  .tok-attributeName,
+  .tok-propertyName {
+    color: var(--theme-code-attribute, #7c3aed) !important;
+  }
+  .tok-variableName,
+  .tok-variableName2,
+  .tok-labelName {
+    color: var(--theme-code-variable, #14120f) !important;
+  }
 }

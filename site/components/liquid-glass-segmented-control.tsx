@@ -267,7 +267,7 @@ export function LiquidGlassSegmentedControl<T extends string>({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      className={`liquid-glass-track relative h-12 touch-none select-none overflow-hidden rounded-full p-1 ${
+      className={`liquid-glass-track relative h-12 touch-pan-y select-none overflow-hidden rounded-full p-1 ${
         isDragging ? "cursor-grabbing" : "cursor-default"
       } ${className}`}
     >

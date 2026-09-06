@@ -77,6 +77,8 @@ const EditorUiActionsContext = createContext<EditorUiActionsContextValue | null>
 export function EditorUiProvider({ children, markdown, showToast }: EditorUiProviderProps) {
   const rendererPortsRef = useRef<CodeMirrorEditorPorts | null>(null);
   const outline = useOutlineController({ markdown, showToast });
+  const outlineRef = useRef(outline);
+  outlineRef.current = outline;
 
   const registerRendererPorts = useCallback((ports: CodeMirrorEditorPorts) => {
     if (rendererPortsRef.current !== null) {
@@ -101,27 +103,21 @@ export function EditorUiProvider({ children, markdown, showToast }: EditorUiProv
     return ports === null ? unavailableRendererPorts : { status: "available", ports };
   }, []);
 
-  const jumpToTocItem = useCallback(
-    (target: Omit<TocTarget, "nonce">) => {
-      outline.jumpToTocItem(target);
-      rendererPortsRef.current?.scrollToLine(target.line);
-    },
-    [outline],
-  );
+  const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
+    outlineRef.current.jumpToTocItem(target);
+    rendererPortsRef.current?.scrollToLine(target.line);
+  }, []);
 
-  const jumpToMarkdownFragment = useCallback(
-    (targetMarkdown: string, fragment: string | null) => {
-      outline.jumpToMarkdownFragment(targetMarkdown, fragment);
-      if (fragment) {
-        const nextOutline = extractHeadingOutline(targetMarkdown);
-        const item = nextOutline.find((candidate) => candidate.id === fragment);
-        if (item) {
-          rendererPortsRef.current?.scrollToLine(item.line);
-        }
+  const jumpToMarkdownFragment = useCallback((targetMarkdown: string, fragment: string | null) => {
+    outlineRef.current.jumpToMarkdownFragment(targetMarkdown, fragment);
+    if (fragment) {
+      const nextOutline = extractHeadingOutline(targetMarkdown);
+      const item = nextOutline.find((candidate) => candidate.id === fragment);
+      if (item) {
+        rendererPortsRef.current?.scrollToLine(item.line);
       }
-    },
-    [outline],
-  );
+    }
+  }, []);
 
   const state = useMemo<EditorUiStateContextValue>(
     () => ({
@@ -134,21 +130,14 @@ export function EditorUiProvider({ children, markdown, showToast }: EditorUiProv
 
   const actions = useMemo<EditorUiActionsContextValue>(
     () => ({
-      setActiveOutlineId: outline.setActiveOutlineId,
+      setActiveOutlineId: (id) => outlineRef.current.setActiveOutlineId(id),
       jumpToTocItem,
       jumpToMarkdownFragment,
-      updateActiveOutlineForLine: outline.updateActiveOutlineForLine,
+      updateActiveOutlineForLine: (line) => outlineRef.current.updateActiveOutlineForLine(line),
       registerRendererPorts,
       getRendererPorts,
     }),
-    [
-      getRendererPorts,
-      jumpToMarkdownFragment,
-      jumpToTocItem,
-      outline.setActiveOutlineId,
-      outline.updateActiveOutlineForLine,
-      registerRendererPorts,
-    ],
+    [getRendererPorts, jumpToMarkdownFragment, jumpToTocItem, registerRendererPorts],
   );
 
   return (
@@ -164,6 +153,10 @@ export function useEditorUiState(): EditorUiStateContextValue {
     throw new Error("useEditorUiState must be used within an EditorUiProvider.");
   }
   return state;
+}
+
+export function useOptionalEditorUiActions(): EditorUiActionsContextValue | null {
+  return useContext(EditorUiActionsContext);
 }
 
 export function useEditorUiActions(): EditorUiActionsContextValue {

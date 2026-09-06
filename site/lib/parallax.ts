@@ -31,7 +31,7 @@ export function useParallaxScroll() {
       if (rafId !== null) return;
       rafId = window.requestAnimationFrame(() => {
         const currentY = window.scrollY;
-        if (Math.abs(currentY - lastScrollY) >= 0.5) {
+        if (Math.abs(currentY - lastScrollY) >= 2) {
           lastScrollY = currentY;
           setScrollY(currentY);
         }
