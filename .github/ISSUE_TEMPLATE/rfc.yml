@@ -1,0 +1,70 @@
+name: "📐 架构与设计提案 (RFC / Architecture Proposal)"
+description: "提出重大架构演进、核心 API 变更或生态系统设计提案"
+title: "[RFC]: "
+labels: ["type: rfc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        RFC (Request for Comments) 适用于对项目产生深远影响的重大特性、底层架构重构、公共 API 变动或生态标准。
+        在编写前，请确保从第一性原理出发，厘清架构边界。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: 1. 简要概述 (Summary)
+      description: 用一两句话概括该提案的核心内容与目标
+      placeholder: 例如：本提案旨在为 Inkpoint 引入社区插件分发与沙箱加载机制...
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 2. 动机与背景 (Motivation)
+      description: 为什么需要这个提案？现有架构存在哪些限制或痛点？
+    validations:
+      required: true
+
+  - type: textarea
+    id: detailed-design
+    attributes:
+      label: 3. 详细架构设计 (Detailed Design)
+      description: 给出具体的模块职责划分、公共 API 契约、状态流转图或数据结构定义
+      render: markdown
+      placeholder: |
+        ### 架构边界 (Architecture Boundaries)
+        - 核心职责归属：...
+        - 接入层协议适配：...
+    validations:
+      required: true
+
+  - type: textarea
+    id: drawbacks
+    attributes:
+      label: 4. 劣势与取舍 (Drawbacks & Trade-offs)
+      description: 实施该方案会带来哪些潜在成本或妥协？（例如性能开销、内存占用、向后兼容负担）
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 5. 备选方案 (Alternatives Considered)
+      description: 有没有其他可替代的设计路线？为什么放弃了它们？
+
+  - type: textarea
+    id: unresolved-questions
+    attributes:
+      label: 6. 待决议问题 (Unresolved Questions)
+      description: 还有哪些未确定的技术细节需要社区共同探讨？
+
+  - type: checkboxes
+    id: alignment
+    attributes:
+      label: 架构原则自查 (Principles Self-Check)
+      options:
+        - label: 该设计遵循「稳定能力收敛至核心、接入层只做适配」的架构边界原则
+          required: true
+        - label: 该设计支持优雅降级与纯增量扩展，不破坏现有稳定性
+          required: true
