@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangelogEntry, ChangelogItem } from "../lib/changelog";
 import { useI18n } from "../lib/i18n/context";
 import type { TranslationSchema } from "../lib/i18n/types";
@@ -40,8 +40,37 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
   const modelTabRef = useRef<HTMLButtonElement>(null);
   const isClient = source === "client";
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncFromLocation = () => {
+      const url = new URL(window.location.href);
+      const tabParam = url.searchParams.get("tab") ?? url.searchParams.get("source");
+      if (tabParam === "model" || window.location.hash === "#model") {
+        setSource("model");
+      } else if (tabParam === "client" || window.location.hash === "#client") {
+        setSource("client");
+      }
+    };
+
+    syncFromLocation();
+    window.addEventListener("hashchange", syncFromLocation);
+    window.addEventListener("popstate", syncFromLocation);
+    return () => {
+      window.removeEventListener("hashchange", syncFromLocation);
+      window.removeEventListener("popstate", syncFromLocation);
+    };
+  }, []);
+
   function selectSource(nextSource: ChangelogSource, moveFocus = false) {
     setSource(nextSource);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("tab");
+      url.searchParams.delete("source");
+      url.hash = nextSource === "model" ? "#model" : "#client";
+      window.history.replaceState(null, "", url.toString());
+    }
     if (moveFocus) {
       const target = nextSource === "client" ? clientTabRef : modelTabRef;
       requestAnimationFrame(() => target.current?.focus());
@@ -125,18 +154,27 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
         </div>
       </header>
 
-      {isClient ? (
-        <section id="client-changelog-panel" role="tabpanel" aria-labelledby="client-changelog-tab">
-          <ClientChangelogTimeline entries={entries} labels={t.changelog} />
-        </section>
-      ) : (
-        <section id="model-changelog-panel" role="tabpanel" aria-labelledby="model-changelog-tab">
-          {t.changelog.modelOriginalLanguage ? (
-            <p className="mb-5 text-sm text-muted">{t.changelog.modelOriginalLanguage}</p>
-          ) : null}
-          <ModelChangelogTimeline payload={modelChangelog} labels={t.changelog} />
-        </section>
-      )}
+      <section
+        id="client-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="client-changelog-tab"
+        hidden={!isClient}
+        className={isClient ? undefined : "hidden"}
+      >
+        <ClientChangelogTimeline entries={entries} labels={t.changelog} />
+      </section>
+      <section
+        id="model-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="model-changelog-tab"
+        hidden={isClient}
+        className={!isClient ? undefined : "hidden"}
+      >
+        {t.changelog.modelOriginalLanguage ? (
+          <p className="mb-5 text-sm text-muted">{t.changelog.modelOriginalLanguage}</p>
+        ) : null}
+        <ModelChangelogTimeline payload={modelChangelog} labels={t.changelog} />
+      </section>
 
       <div className="mt-10 sm:mt-12">
         <Link

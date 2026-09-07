@@ -32,11 +32,12 @@ describe("getModelChangelog", () => {
     });
   });
 
-  it("returns no model content when the remote response cannot be read", async () => {
+  it("returns fallback model content when the remote response cannot be read", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
 
-    await expect(getModelChangelog()).resolves.toBeNull();
+    const result = await getModelChangelog();
+    expect(result).not.toBeNull();
   });
 });
 
