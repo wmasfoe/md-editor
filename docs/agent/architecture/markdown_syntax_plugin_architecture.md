@@ -1,6 +1,6 @@
 # Markdown 语法扩展插件体系与容器指令方案
 
-用途：记录基于 CodeMirror 6 与 Lezer AST 的 Markdown 插件扩展规范（`MarkdownSyntaxPlugin`）、独立子包 `@md-editor/syntax-plugins`，以及首个官方插件 `containerDirectivePlugin` 的实现契约与设计决策。
+用途：记录基于 CodeMirror 6 与 Lezer AST 的 Markdown 插件扩展规范（`MarkdownSyntaxPlugin`）、独立子包 `@md-editor/syntax-plugins`，以及官方插件 `containerDirectivePlugin`、`mathPlugin`（KaTeX）和 `mermaidPlugin`（Mermaid.js）的实现契约与设计决策。
 
 ---
 
@@ -12,28 +12,28 @@
 +-------------------------------------------------------------+
 |                  消费端 (apps/desktop, apps/web)             |
 |  - 自主在外部按需导入并组装插件                                   |
-|  - 例如: renderer.use(containerDirectivePlugin)              |
+|  - 例如: renderer.use(containerDirectivePlugin, mathPlugin) |
 +-------------------------------------------------------------+
                               |
        +----------------------+----------------------+
        |                                             |
        v                                             v
 +-----------------------------+       +-----------------------------+
-|  @md-editor/renderer-core   |       | @md-editor/syntax-plugins   |
+|@md-editor/renderer-codemirror|       | @md-editor/syntax-plugins   |
 |  - SyntaxPluginRegistry     |       | (独立语法插件子包)            |
 |  - MarkdownSyntaxPlugin 接口 |       | - containerDirectivePlugin  |
-|  - 链式 .use(...) 方法       |       | - Lezer BlockParser 状态机  |
-|  - 动态 Compartment 重配机制 |       | - 专用装饰构建器              |
-|  - 0% 具体语法硬编码分支       |       | - 独立测试套件               |
+|  - 链式 .use(...) 方法       |       | - mathPlugin (KaTeX)        |
+|  - 动态 Compartment 重配机制 |       | - mermaidPlugin (Mermaid.js)|
+|  - 0% 具体语法硬编码分支       |       | - Lezer 解析扩展与装饰器     |
 +-----------------------------+       +-----------------------------+
 ```
 
 ### 1.1 核心渲染器纯净性
-- `@md-editor/renderer-codemirror` 核心源码（`node-policy.ts`、`range-index.ts`、`projection-state.ts`）内**严禁出现任何特定插件的硬编码节点名称或分支逻辑**（例如无 `ContainerDirective`、无 `record.kind === "directive"` 硬编码分支）。
+- `@md-editor/renderer-codemirror` 核心源码（`node-policy.ts`、`range-index.ts`、`projection-state.ts`）内**严禁出现任何特定插件的硬编码节点名称或分支逻辑**（例如无 `ContainerDirective`、无 `InlineMath`、无 `MermaidBlock` 硬编码分支）。
 - 所有扩展节点的解析策略、元数据提取和所见即所得装饰均由 `SyntaxPluginRegistry` 委派给已注册的插件。
 
 ### 1.2 独立插件子包 `@md-editor/syntax-plugins`
-- 存放各种非标准或特定语法的插件（如 Generic Directive、未来的数学公式扩展等）。
+- 存放各种非标准或特定语法的插件（如 Generic Directive、LaTeX 数学公式、Mermaid 图表等）。
 - 提供 Lezer parser 扩展、节点策略（`nodePolicies`）、元数据提取器（`extractMetadata`）、装饰构建器（`buildDecorations`）。
 - 拥有独立的单元测试（覆盖代码块隔离、嵌套防踩坑、属性解析、WYSIWYG 激活与非激活渲染等）。
 
@@ -128,4 +128,48 @@ renderer
 - AST 同一性：底层保持标准 `Blockquote` 节点，无需单独侵入语法解析树；
 - Range Index 扫描首行 `^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s+([^\r\n]*))?$` 提取 `alert` 元数据；
 - 视觉与交互复用：与 `containerDirectivePlugin` 共享 CSS 变量、16px 矢量 SVG 图标库及 `CalloutHeaderWidget`，光标移入首行原位展开源码，破坏标记时平滑退化为普通引用块。
+
+---
+
+## 5. LaTeX 数学公式插件规范 (`mathPlugin`)
+
+### 5.1 语法范畴与防误触定界符规则
+- **行内公式**：`$math$`，遵循 remark-math 经典防误触策略（左定界符后不可紧贴空白字符，右定界符前不可紧贴空白字符，且右定界符后不能为数字，杜绝 `$100 and $200` 货币符号被误判为公式）；
+- **块级公式**：`$$math$$`（支持单行或跨行独立公式块）；
+- **AST 纯净度**：通过 Lezer `parseInline` 与 `parseBlock` 独立扩展注入 `InlineMath`、`BlockMath` 与 `MathMark`。未安装插件时自然降级为纯文本与普通段落，核心渲染器零硬编码。
+
+### 5.2 异步加载与 LRU 缓存
+- **按需加载**：KaTeX 核心库与字体通过 `loadKatex()` 动态 `import("katex")` 异步加载，不增加主包初次加载体积；
+- **渲染缓存**：使用容量为 500 的 LRU 缓存结构（`mathCache`），对相同 LaTeX 表达式与 displayMode 组合命中缓存，极大减少视图滚动与重排时的解析与 DOM 创建开销；
+- **样式装配**：在各平台入口（`apps/desktop` 与 `apps/web`）全局引入 KaTeX 官方样式 `@import "katex/dist/katex.min.css"`，确保离线与打包自包含。
+
+### 5.3 所见即所得就地编辑契约
+- **非激活状态**：
+  - 行内公式：由 `MathInlineWidget` 替换渲染为排版数学公式；
+  - 块级公式：由 `MathBlockWidget` 替换整个公式块居中渲染，保留数学排版边距；
+- **激活状态**：光标移入公式范围时，立即原位恢复完整的 LaTeX 源码与 `$` / `$$` 标记，供用户高速输入编辑；光标移出后即时重渲染。
+
+### 5.4 容错降级（Graceful Fallback）
+- 公式语法错误时捕获 KaTeX 异常，在行内或块级原位高亮错误片段并提供清晰的报错信息提示，防止渲染中断。
+
+---
+
+## 6. Mermaid 图表插件规范 (`mermaidPlugin`)
+
+### 6.1 语法契约与 AST 拦截
+- **语法范畴**：标准 Fenced Code Block 代码块，以 ` ```mermaid ` 作为开头定界符；
+- **Lezer Block 拦截**：在 `before: "FencedCode"` 位置挂载解析器，仅当代码块 info 标签以 `mermaid` 开头时提升为 `MermaidBlock` 语法树节点；未加载插件或破坏标记时天然保持为普通代码块（`FencedCode`），零破坏、零丢失。
+
+### 6.2 异步渲染与错误隔离
+- **按需加载**：Mermaid.js 体积较大（约 2.2MB - 2.5MB），采用 `loadMermaid()` 动态 `import("mermaid")` 异步加载，杜绝阻断主渲染线程；
+- **异步占位**：在模块加载与 SVG 编译期间，由 `MermaidBlockWidget` 呈现优雅的骨架/Loading 占位态，加载完成后平滑淡入展示；
+- **多主题无缝适配**：初始化时检测应用暗黑模式（`.dark` / `data-theme="dark"`），动态注入 `dark` 或 `neutral` 主题变量；
+- **错误卡片隔离**：捕获 Mermaid 解析与渲染过程中的所有语法异常，就地渲染友好的错误诊断卡片（包含错误行号与提示），严禁未捕获异常冒泡至全局。
+
+### 6.3 所见即所得交互与未来架构兼容性
+- **就地编辑体验**：光标在 Mermaid 块外部时光滑呈现图表 SVG；光标移入代码块时原位暴露原始 Markdown 代码，支持快捷修改；
+- **画布扩展兼容性（Forward-Compatible Design）**：
+  - 遵循“以 Markdown 文本为 Single Source of Truth”的一贯设计哲学；
+  - 当前 `MermaidBlockWidget` 充当 Display Adapter；未来如引入交互式可视化设计器（拖拽节点、修改连线），将通过统一的 Adapter 接口向底层 CodeMirror 文档写回 DSL 代码，无需变更 AST 节点结构或打破现有契约。
+
 

@@ -5,7 +5,7 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "@md-editor/editor-ui";
-import { containerDirectivePlugin } from "@md-editor/syntax-plugins";
+import { containerDirectivePlugin, mathPlugin, mermaidPlugin } from "@md-editor/syntax-plugins";
 import { requestAiContinuation, documentContextManager } from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
 import { runtime } from "../app/runtime/editor-runtime";
@@ -28,7 +28,7 @@ export interface DesktopCodeMirrorEditorProps {
   readonly showToast: (message: string | null) => void;
 }
 
-const DESKTOP_SYNTAX_PLUGINS = [containerDirectivePlugin];
+const DESKTOP_SYNTAX_PLUGINS = [containerDirectivePlugin, mathPlugin, mermaidPlugin];
 
 export function DesktopCodeMirrorEditor({
   hidden = false,
