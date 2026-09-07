@@ -13,13 +13,40 @@ export const zh: TranslationSchema = {
     langSwitchAria: "切换语言",
   },
   hero: {
-    tagline: "写得更专注",
+    tagline: "纸上烟云，笔下惊鸿",
     subtitle: "本地优先的桌面编辑器。文件留在磁盘上，用来处理日常写作、MDX 内容和桌面文件流。",
     latestPrefix: "最新",
     allPackages: "全部安装包",
     exploreFeatures: "探索核心特性",
     getClient: "获取客户端",
     allDownloadOptions: "全部平台与终端安装",
+  },
+  previewBadges: {
+    editor: {
+      title: "即开即写",
+      description: "让文字回归纯粹",
+    },
+    ai: {
+      title: "灵犀相通",
+      description: "润物无声",
+    },
+    mdx: {
+      title: "MDX 组件",
+      description: "文字与组件同屏",
+    },
+  },
+  mdxShowcase: {
+    sectionBadge: "MDX · 组件即文档",
+    sectionTitle: "文中生组件，编排自成章",
+    sectionSubtitle: "在 Markdown 长文里直接写入 React 组件。向下滚动，同一篇文档从排版切到源码。",
+    sourceLabel: "源码",
+    previewLabel: "预览",
+    calloutTitle: "本地优先",
+    calloutBody: "文档与组件都留在磁盘上，源码始终可还原，不必把思路交给云端。",
+    heading: "架构手记",
+    lead: "在同一篇 Markdown 里写入组件，不必离开书写流。",
+    body: "标题、列表、引用与 MDX 组件共享同一画布。切换源码时，排版语义完整保留。",
+    sourceFilename: "architecture.mdx",
   },
   download: {
     sectionBadge: "即刻启程 · 纯粹写作",
@@ -121,5 +148,6 @@ export const zh: TranslationSchema = {
     tipInteractive: "✨ 快捷键已就绪：轻敲 Tab 采纳并推进，Esc 跳过或退出",
     tipCompleted: "🎉 已连贯推进完成：点击「重新演示」随时再次体验",
     tipDismissed: "💡 已跳过：轻敲 Tab 重新获取建议",
+    tabHint: "按下 Tab，直接体验审校与续写",
   },
 };

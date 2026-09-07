@@ -11,7 +11,7 @@ export function HeroCta() {
       <div className="flex flex-wrap items-center justify-center gap-3.5 sm:gap-4">
         {/* 主行动点：平滑滚动深入探索 3D 舞台与 Live 编辑器 */}
         <a
-          href="#preview-stage"
+          href="#features"
           className="liquid-glass-button-dark group relative inline-flex h-12 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-full px-7 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(20,18,15,0.12)] transition-all hover:shadow-[0_12px_36px_rgba(20,18,15,0.2)] active:translate-y-[1px]"
         >
           {/* 顶层液态镜面微光扫掠 */}

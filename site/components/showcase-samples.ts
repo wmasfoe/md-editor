@@ -31,7 +31,7 @@ export const SHOWCASE_SAMPLES: readonly ShowcaseSample[] = Object.freeze([
       "- **纯文本之魂**：底层依然是纯粹洁净的 CommonMark / GFM 语法",
       "- **纸上呼吸感**：特别调校的行高与字距，让长篇写作不再疲劳",
       "",
-      "试着点击此处，直接敲入你的文字，感受落笔生辉的质感...",
+      "==试着点击此处，直接敲入你的文字，感受落笔生辉的质感...==",
     ].join("\n"),
     markdownEn: [
       "# The Art of Quiet Writing",
@@ -93,3 +93,41 @@ export const SHOWCASE_SAMPLES: readonly ShowcaseSample[] = Object.freeze([
     ].join("\n"),
   },
 ]);
+
+/** MDX 展区专用样例：WYSIWYG 与源码模式切换都落在同一篇文档上 */
+export const MDX_SHOWCASE_SAMPLE: ShowcaseSample = Object.freeze({
+  id: "architecture",
+  filenameZh: "架构手记.mdx",
+  filenameEn: "architecture.mdx",
+  titleZh: "架构手记",
+  titleEn: "Architecture Notes",
+  icon: "⚡️",
+  markdownZh: [
+    "# 架构手记",
+    "",
+    "在同一篇 Markdown 里写入组件，不必离开书写流。",
+    "",
+    '<Callout type="info" title="本地优先">',
+    "文档与组件都留在磁盘上，源码始终可还原，不必把思路交给云端。",
+    "</Callout>",
+    "",
+    "标题、列表、引用与 MDX 组件共享同一画布。",
+    "",
+    "- **所见即所得**：组件以真实排版呈现",
+    "- **源码保真**：切回源码时标签完整可还原",
+  ].join("\n"),
+  markdownEn: [
+    "# Architecture Notes",
+    "",
+    "Write components in the same Markdown file — never leave the flow.",
+    "",
+    '<Callout type="info" title="Local-First">',
+    "Documents and components stay on disk. Source is always recoverable.",
+    "</Callout>",
+    "",
+    "Headings, lists, quotes, and MDX components share one canvas.",
+    "",
+    "- **WYSIWYG**: Components render as real typography",
+    "- **Source fidelity**: Switch back and the tags remain intact",
+  ].join("\n"),
+});

@@ -13,7 +13,7 @@ export const en: TranslationSchema = {
     langSwitchAria: "Switch language",
   },
   hero: {
-    tagline: "Focus on Writing",
+    tagline: "Mist on paper, lightning in the stroke",
     subtitle:
       "A local-first desktop editor. Files stay safely on disk for everyday writing, MDX content, and desktop workflows.",
     latestPrefix: "Latest",
@@ -21,6 +21,34 @@ export const en: TranslationSchema = {
     exploreFeatures: "Explore Features",
     getClient: "Get Inkpoint",
     allDownloadOptions: "All Platforms & CLI",
+  },
+  previewBadges: {
+    editor: {
+      title: "Instant Writing",
+      description: "Words, uncluttered",
+    },
+    ai: {
+      title: "Ambient AI",
+      description: "Whisper-quiet assist",
+    },
+    mdx: {
+      title: "MDX Components",
+      description: "Prose and components",
+    },
+  },
+  mdxShowcase: {
+    sectionBadge: "MDX · COMPONENTS IN PROSE",
+    sectionTitle: "Components Live Inside the Writing",
+    sectionSubtitle:
+      "Drop React components into Markdown. Scroll to switch the same document from preview into source.",
+    sourceLabel: "Source",
+    previewLabel: "Preview",
+    calloutTitle: "Local-First",
+    calloutBody: "Documents and components stay on disk. Source is always recoverable.",
+    heading: "Architecture Notes",
+    lead: "Write components in the same Markdown file — never leave the flow.",
+    body: "Headings, lists, quotes, and MDX components share one canvas. Switch to source and the semantics remain intact.",
+    sourceFilename: "architecture.mdx",
   },
   download: {
     sectionBadge: "GET INKPOINT · BEGIN YOUR FLOW",
@@ -126,5 +154,6 @@ export const en: TranslationSchema = {
     tipInteractive: "✨ Shortcuts active: Press Tab to accept & advance, Esc to skip or exit",
     tipCompleted: "🎉 All steps completed: Click Reset Demo to replay anytime",
     tipDismissed: "💡 Dismissed: Press Tab to re-trigger suggestions",
+    tabHint: "Press Tab to try polish and continuation",
   },
 };

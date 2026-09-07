@@ -131,7 +131,24 @@
 
 ---
 
-## 五、 响应式与可访问性 (Responsive & Accessibility)
+## 五、 Apple 式钉住滚动契约 (Pinned Scene Scroll)
+
+官网首页不再使用「整页跟着滚动条一起走」的长文档流。桌面宽屏且未开启「减弱动态效果」时，Hero / 即开即写 / 灵犀相通 / MDX 四个展区各自占用钉住行程，内层 `position: sticky; height: 100dvh`：
+
+1. **滚动只改区块内部**：3D 翻转、挂件差速、编辑区覆盖标题、MDX 原文切源码、AI 说明卡轮转等全部由场景进度 `progress ∈ [0, 1]` 驱动。
+2. **切块而不是推走**：进度走到 1 后，当前场景才把视口让给下一场景覆盖接棒。
+3. **浮动视差挂件**：舞台四周 3 枚挂件保持原有磨砂纸面样式，分别指向 `#features`、`#ai`、`#mdx`。
+4. **MDX 源码**：右侧不透明源码层随滚动盖住左侧所见即所得；两份 DocumentState 各持一种模式，编辑任一端通过 `content` 事件实时同步。
+5. **AI 展区**：说明卡在补全区上方按滚动切换（更明显的横向滑入）；场景激活时弹出「按下 Tab」提示并自动聚焦。
+6. **Hero**：行程约 155vh。窗口在区块内做 rotateX 向内翻转（透视打在无 transform 的父级上）；仅「纸上烟云，笔下惊鸿」保留呼吸漂浮。
+7. **即开即写**：编辑画布随进度上移覆盖标题，宽度保持 `max-w-5xl`，不拉满视口。
+8. **降级**：`prefers-reduced-motion: reduce` 或窄屏/矮屏时取消加长行程与 sticky。
+
+实现入口：`site/components/pinned-scene.tsx`、`site/lib/parallax.ts` 的 `sceneProgressFromRect`，样式见 `site/app/globals.css` 的 `.pinned-scene-*` 与 `.ink-float-gentle*`。
+
+---
+
+## 六、 响应式与可访问性 (Responsive & Accessibility)
 
 1. **移动端适配 (< 768px)**：
    - 基础编辑区假侧栏自动隐藏，编辑工作面占满 100% 容器宽度；

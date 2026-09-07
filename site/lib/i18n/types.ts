@@ -47,6 +47,24 @@ export interface TranslationSchema {
     getClient: string;
     allDownloadOptions: string;
   };
+  previewBadges: {
+    editor: FeatureItem;
+    ai: FeatureItem;
+    mdx: FeatureItem;
+  };
+  mdxShowcase: {
+    sectionBadge: string;
+    sectionTitle: string;
+    sectionSubtitle: string;
+    sourceLabel: string;
+    previewLabel: string;
+    calloutTitle: string;
+    calloutBody: string;
+    heading: string;
+    lead: string;
+    body: string;
+    sourceFilename: string;
+  };
   download: {
     sectionBadge: string;
     sectionTitle: string;
@@ -132,5 +150,6 @@ export interface TranslationSchema {
     tipInteractive: string;
     tipCompleted: string;
     tipDismissed: string;
+    tabHint: string;
   };
 }

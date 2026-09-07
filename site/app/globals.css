@@ -277,4 +277,208 @@
   .tok-labelName {
     color: var(--theme-code-variable, #14120f) !important;
   }
+
+  /*
+   * Apple 式钉住场景：桌面且未开启减弱动态效果时，外层拉长滚动行程，内层 sticky 占满视口。
+   * 媒体条件必须与 `PINNED_SCENE_MEDIA` 保持一致。
+   */
+  .pinned-scene-track {
+    position: relative;
+  }
+
+  .pinned-scene-frame {
+    position: relative;
+  }
+
+  @media (min-width: 768px) and (min-height: 700px) {
+    @media (prefers-reduced-motion: no-preference) {
+      .pinned-scene-track {
+        height: var(--pinned-scene-height, 220vh);
+      }
+
+      .pinned-scene-frame {
+        position: sticky;
+        top: 0;
+        height: 100dvh;
+        overflow: hidden;
+      }
+    }
+  }
+
+  /* 首屏轻感：小幅度位移叠一点呼吸缩放，周期略快，避免坠感 */
+  @keyframes ink-float-light {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -5px, 0) scale(1.012);
+    }
+  }
+
+  @keyframes ink-float-y-soft {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -4px, 0);
+    }
+  }
+
+  .ink-float-gentle {
+    animation: ink-float-light 5.1s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+
+  .ink-float-gentle-slow {
+    animation: ink-float-y-soft 5.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ink-float-gentle,
+    .ink-float-gentle-slow {
+      animation: none;
+    }
+  }
+}
+
+/* AI Tab 提示放在 layer 外，避免被 Tailwind 工具层盖掉入场动画 */
+@keyframes ai-tab-hint-squeeze {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) scale(0.55, 0.08);
+    filter: blur(2px);
+  }
+  42% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(-50%) translateY(-72%) scale(1.14, 1.22);
+  }
+  58% {
+    transform: translateX(-50%) translateY(-42%) scale(0.94, 0.9);
+  }
+  72% {
+    transform: translateX(-50%) translateY(-56%) scale(1.06, 1.08);
+  }
+  84% {
+    transform: translateX(-50%) translateY(-48%) scale(0.99, 0.98);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(-50%) translateY(-50%) scale(1, 1);
+  }
+}
+
+@keyframes ai-tab-hint-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 10px 28px rgba(20, 18, 15, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+  50% {
+    box-shadow:
+      0 14px 36px rgba(20, 18, 15, 0.2),
+      0 0 0 6px rgba(20, 18, 15, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+}
+
+@keyframes ai-tab-hint-keypress {
+  0%,
+  12%,
+  100% {
+    transform: translateY(-4px);
+  }
+  22%,
+  48% {
+    transform: translateY(0);
+  }
+  58% {
+    transform: translateY(-5px);
+  }
+  68% {
+    transform: translateY(-3.5px);
+  }
+}
+
+@keyframes ai-tab-hint-keybase {
+  0%,
+  12%,
+  100% {
+    box-shadow: 0 4px 0 rgb(20 18 15 / 0.22);
+  }
+  22%,
+  48% {
+    box-shadow: 0 1px 0 rgb(20 18 15 / 0.16);
+  }
+  58% {
+    box-shadow: 0 5px 0 rgb(20 18 15 / 0.2);
+  }
+}
+
+.ai-tab-hint {
+  transform: translateX(-50%) translateY(18px) scale(0.55, 0.08);
+  transform-origin: 50% 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ai-tab-hint.is-visible {
+  animation: ai-tab-hint-squeeze 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.ai-tab-hint.is-visible > p {
+  animation: ai-tab-hint-glow 1.15s ease-in-out 0.95s 3;
+}
+
+.ai-tab-hint-key {
+  display: inline-flex;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-ink) 16%, var(--color-line-strong));
+  box-shadow: 0 4px 0 rgb(20 18 15 / 0.22);
+  padding: 0;
+  line-height: 1;
+}
+
+.ai-tab-hint-key-cap {
+  display: block;
+  border-radius: 7px;
+  background: var(--color-canvas);
+  padding: 4px 9px 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  transform: translateY(-4px);
+}
+
+.ai-tab-hint.is-visible .ai-tab-hint-key {
+  animation: ai-tab-hint-keybase 1.15s ease-in-out 1.05s infinite;
+}
+
+.ai-tab-hint.is-visible .ai-tab-hint-key-cap {
+  animation: ai-tab-hint-keypress 1.15s ease-in-out 1.05s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-tab-hint.is-visible {
+    animation: none;
+    opacity: 1;
+    transform: translateX(-50%) translateY(-50%);
+  }
+
+  .ai-tab-hint.is-visible > p,
+  .ai-tab-hint.is-visible .ai-tab-hint-key,
+  .ai-tab-hint.is-visible .ai-tab-hint-key-cap {
+    animation: none;
+  }
+
+  .ai-tab-hint-key-cap {
+    transform: translateY(-4px);
+  }
 }
