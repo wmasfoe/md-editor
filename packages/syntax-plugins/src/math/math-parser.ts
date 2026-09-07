@@ -60,20 +60,28 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
         const startPos = cx.lineStart + pos;
 
         // 3. 单行独立 $$ 公式（如 $$E=mc^2$$）
+        // 遵循 remark-math / CommonMark 规范：单行独立块级公式必须整行独占（闭合后除空白外无其他文本），
+        // 若同行有其他文字（如 "$$E=mc^2$$ and explanation"），应作为普通段落由行内公式或文本解析，防止吞掉尾随文字。
         if (isDollarMath) {
           const restOfLine = text.slice(pos + 2);
           const closeIndexInRest = restOfLine.indexOf("$$");
 
           if (closeIndexInRest !== -1) {
-            const closePos = pos + 2 + closeIndexInRest;
-            const endPos = cx.lineStart + closePos + 2;
-            const marks = [
-              cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
-              cx.elt(MATH_NODES.MathMark, cx.lineStart + closePos, endPos),
-            ];
-            cx.nextLine();
-            cx.addElement(cx.elt(MATH_NODES.BlockMath, startPos, endPos, marks));
-            return true;
+            const trailingAfterClose = restOfLine.slice(closeIndexInRest + 2).trim();
+            if (trailingAfterClose === "") {
+              const closePos = pos + 2 + closeIndexInRest;
+              const endPos = cx.lineStart + closePos + 2;
+              const marks = [
+                cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
+                cx.elt(MATH_NODES.MathMark, cx.lineStart + closePos, endPos),
+              ];
+              cx.nextLine();
+              cx.addElement(cx.elt(MATH_NODES.BlockMath, startPos, endPos, marks));
+              return true;
+            }
+            // 同行已存在闭合 $$ 但后附其他文字（如 "$$E=mc^2$$ and explanation"），
+            // 属于段落行内公式与正文混排，不应作为独立块级公式，直接退出块解析
+            return false;
           }
         }
 
@@ -84,6 +92,9 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
             : cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
         ];
         let closed = false;
+        // Lezer 复合块（如 Blockquote / List）内部字段：
+        // depth 与 stack 维系当前行所属的复合块深度；markers 携带当前行的引用符号等复合标记。
+        // 此处采用可选安全检查，保证解析器在复合块结束时正常退出，且在不同 Lezer 版本下平滑回退。
         const internalLine = line as unknown as { depth?: number; markers?: Element[] };
         const internalCx = cx as unknown as { stack?: unknown[] };
 
@@ -116,8 +127,11 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
                 break;
               }
             } else {
-              const closeIndex = curText.indexOf("$$", curPos);
-              if (closeIndex !== -1) {
+              // 遵循 remark-math / CommonMark 规范：闭合行必须只包含 $$ 与可选空白字符
+              // 若行尾带有其他文字（如 "$$ and trailing words"），不视为有效闭合行，防止吞噬尾随文字
+              const curRest = curText.slice(curPos).trim();
+              if (curRest === "$$") {
+                const closeIndex = curText.indexOf("$$", curPos);
                 marks.push(
                   cx.elt(
                     MATH_NODES.MathMark,
@@ -176,7 +190,7 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
                   cx.elt(MATH_NODES.MathMark, pos, pos + 2),
                   cx.elt(MATH_NODES.MathMark, searchPos, endPos),
                 ];
-                cx.addElement(cx.elt(MATH_NODES.BlockMath, pos, endPos, marks));
+                cx.addElement(cx.elt(MATH_NODES.InlineMath, pos, endPos, marks));
                 return endPos;
               }
             }

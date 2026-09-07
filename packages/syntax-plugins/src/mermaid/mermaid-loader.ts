@@ -6,6 +6,7 @@ let mermaidPromise: Promise<typeof MermaidType> | null = null;
 const mermaidSvgCache = new Map<string, { svg: string; error?: string }>();
 const MAX_CACHE_SIZE = 200;
 let globalDiagramCounter = 0;
+let currentTheme: "dark" | "default" | null = null;
 
 /**
  * 动态按需加载 Mermaid 运行时模块（单例与并发去重）。
@@ -60,12 +61,16 @@ export async function renderMermaidSvg(
   const id = `cm-mermaid-${Date.now()}-${++globalDiagramCounter}`;
 
   try {
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      theme: isDark ? "dark" : "default",
-      suppressErrorRendering: true,
-    });
+    const targetTheme = isDark ? "dark" : "default";
+    if (currentTheme !== targetTheme) {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: "strict",
+        theme: targetTheme,
+        suppressErrorRendering: true,
+      });
+      currentTheme = targetTheme;
+    }
 
     const { svg } = await mermaid.render(id, trimmed);
     const result = { svg };

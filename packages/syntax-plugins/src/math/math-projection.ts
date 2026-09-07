@@ -98,12 +98,12 @@ export class MathBlockWidget extends WidgetType {
       });
     }
 
-    // 点击进入块级公式编辑态
+    // 点击进入块级公式编辑态：光标定位在公式正文开头
     div.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
       view.dispatch({
-        selection: { anchor: Math.min(this.anchorPos + 2, view.state.doc.length) },
+        selection: { anchor: Math.min(this.anchorPos, view.state.doc.length) },
         scrollIntoView: true,
       });
       view.focus();
@@ -194,9 +194,10 @@ export function buildMathLayoutDecorations(
       }
     } else {
       // 非激活态：整块替换为居中排版的独立数学公式
+      const clickAnchor = meta.contentRange?.from ?? record.fullRange.from + 2;
       decorations.push(
         Decoration.replace({
-          widget: new MathBlockWidget(record.id, meta.expression, record.fullRange.from),
+          widget: new MathBlockWidget(record.id, meta.expression, clickAnchor),
           inclusive: false,
           wysiwygRecordId: record.id,
           wysiwygRole: "math-block-widget",

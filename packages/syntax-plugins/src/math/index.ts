@@ -80,13 +80,24 @@ export const mathPlugin: MarkdownSyntaxPlugin = Object.freeze({
         curr = curr.parent;
       }
 
-      if (quoteDepth > 0) {
+      // 计算围栏行首的结构缩进（如在列表项内），遵循 CommonMark 4.5 规范：内容行剥离至多与开围栏行相同的缩进空格数
+      const prevNl = source.lastIndexOf("\n", node.from);
+      const lineStart = prevNl === -1 ? 0 : prevNl + 1;
+      const leadingOnLine = source.slice(lineStart, node.from);
+      const leadingWithoutQuotes = leadingOnLine.replace(/^[ \t]*(>[ \t]?)+/, "");
+      const fenceIndent = leadingWithoutQuotes.length;
+
+      if (quoteDepth > 0 || fenceIndent > 0) {
+        const indentRegex = fenceIndent > 0 ? new RegExp(`^[ \\t]{1,${fenceIndent}}`) : null;
         const lines = rawExpression.split("\n");
         rawExpression = lines
           .map((line) => {
             let cleaned = line;
             for (let d = 0; d < quoteDepth; d++) {
               cleaned = cleaned.replace(/^[ \t]*>[ \t]?/, "");
+            }
+            if (indentRegex) {
+              cleaned = cleaned.replace(indentRegex, "");
             }
             return cleaned;
           })

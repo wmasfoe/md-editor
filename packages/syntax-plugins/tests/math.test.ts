@@ -233,6 +233,75 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
       expect(quoteRecord).toBeDefined();
       expect(quoteRecord?.markerRanges.length).toBe(3);
     });
+
+    it("does not parse single-line $$ as BlockMath when trailing text exists on the same line", () => {
+      const doc = "$$E=mc^2$$ and explanation\n";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      // 同行存在尾随文字时不应作为独立块级公式解析，防止吞掉同行普通段落文字
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeUndefined();
+      const inlineMath = index.records.find((r) => r.nodeName === MATH_NODES.InlineMath);
+      expect(inlineMath).toBeDefined();
+    });
+
+    it("does not treat closing line with trailing words as valid multiline block closure", () => {
+      const doc = "$$\na+b\n$$ and trailing words\n$$\n";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+      // 第一处带有尾随文字的行不应提前闭合，公式继续推进直到独占闭合行
+      expect(blockMath?.metadata?.math).toEqual(
+        expect.objectContaining({
+          mathKind: "block",
+        }),
+      );
+    });
+
+    it("strips list-item structural indentation for fenced math block per CommonMark 4.5", () => {
+      const doc = "- 列表项\n  ```math\n  x + y\n  ```";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+      expect(blockMath?.metadata?.math).toEqual(
+        expect.objectContaining({
+          mathKind: "block",
+          expression: "x + y",
+        }),
+      );
+    });
   });
 
   describe("WYSIWYG layout decorations", () => {
@@ -268,6 +337,32 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
         selected: false,
       });
       expect(activeDecos).toHaveLength(2); // opening and closing MathMark
+    });
+
+    it("produces block widget with click anchor at content start for fenced math block", () => {
+      const doc = "```math\n\\frac{1}{2}\n```";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+
+      const decos = registry.buildDecorations(blockMath!, state, {
+        active: false,
+        selected: false,
+      });
+      expect(decos).toHaveLength(1);
+      const widget = (decos[0].value as unknown as { widget: { anchorPos: number } }).widget;
+      // 必须落在第一行换行之后（即 contentRange.from），防止光标插在 ``` 围栏字符之间
+      expect(widget.anchorPos).toBe(doc.indexOf("\n") + 1);
     });
   });
 
