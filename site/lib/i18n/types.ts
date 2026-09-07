@@ -41,6 +41,7 @@ export interface TranslationSchema {
   hero: {
     tagline: string;
     subtitle: string;
+    previewHeading: string;
     latestPrefix: string;
     allPackages: string;
     exploreFeatures: string;

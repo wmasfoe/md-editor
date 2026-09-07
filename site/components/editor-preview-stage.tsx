@@ -94,7 +94,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
           <div className="min-h-0 overflow-hidden p-6 md:col-span-9 md:p-8">
             <div className="prose max-w-none text-ink">
               <h1 className="font-sans text-xl font-bold tracking-tight text-ink sm:text-2xl">
-                {t.hero.tagline}
+                {t.hero.previewHeading}
               </h1>
 
               <blockquote className="my-3 border-l-2 border-accent/60 pl-3.5 text-sm italic text-muted">

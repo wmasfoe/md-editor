@@ -15,6 +15,7 @@ export const zh: TranslationSchema = {
   hero: {
     tagline: "纸上烟云，笔下惊鸿",
     subtitle: "本地优先的桌面编辑器。文件留在磁盘上，用来处理日常写作、MDX 内容和桌面文件流。",
+    previewHeading: "静水流深，字字生香",
     latestPrefix: "最新",
     allPackages: "全部安装包",
     exploreFeatures: "探索核心特性",

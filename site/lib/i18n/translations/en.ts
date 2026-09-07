@@ -16,6 +16,7 @@ export const en: TranslationSchema = {
     tagline: "Mist on paper, lightning in the stroke",
     subtitle:
       "A local-first desktop editor. Files stay safely on disk for everyday writing, MDX content, and desktop workflows.",
+    previewHeading: "The Art of Quiet Writing",
     latestPrefix: "Latest",
     allPackages: "All Releases",
     exploreFeatures: "Explore Features",
