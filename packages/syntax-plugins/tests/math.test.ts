@@ -302,6 +302,25 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
         }),
       );
     });
+
+    it("does not parse unclosed $$ block as BlockMath and preserves subsequent document text", () => {
+      const doc = "$$\n\\int_0^1 x dx\n\nThen normal prose continues here...\n";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      // 未闭合的 $$ 不应生成 BlockMath 节点，防止把整篇文档折叠吞并为公式
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeUndefined();
+    });
   });
 
   describe("WYSIWYG layout decorations", () => {

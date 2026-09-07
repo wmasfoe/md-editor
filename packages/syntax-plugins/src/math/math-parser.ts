@@ -86,6 +86,31 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
         }
 
         // 4. 多行公式块：逐行推进直到找到闭合标记或文档结尾
+        // 对于 $$ 独立公式块，遵循 remark-math / LaTeX 规范：未闭合的 $$ 属于普通段落文本，
+        // 必须预扫描闭合行后再消费，未闭合时直接退出块解析回退段落，防止吞噬文档后续全部正文。
+        // （对于 ```math 围栏代码块，CommonMark 规范允许未闭合时包含到 EOF，由 fenced 语义保持一致）。
+        if (isDollarMath) {
+          const internalCx = cx as unknown as {
+            input?: { read?: (from: number, to: number) => string };
+            to?: number;
+          };
+          if (internalCx.input?.read) {
+            const docRest = internalCx.input.read(startPos, internalCx.to ?? startPos + 200000);
+            const firstNl = docRest.indexOf("\n");
+            if (firstNl === -1) {
+              return false;
+            }
+            const restLines = docRest.slice(firstNl + 1);
+            // 预扫描后续文档是否包含有效闭合行（仅含可选引用标记、可选空白与 $$）
+            const hasClosingLine = /(?:^|\n)[ \t]*(?:>[ \t]?)*\$\$[ \t]*(?=\r?\n|$)/.test(
+              restLines,
+            );
+            if (!hasClosingLine) {
+              return false;
+            }
+          }
+        }
+
         const marks: Element[] = [
           isFencedMath
             ? cx.elt(MATH_NODES.MathMark, startPos, cx.lineStart + text.length)
@@ -145,6 +170,10 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
               }
             }
           }
+        }
+
+        if (isDollarMath && !closed) {
+          return false;
         }
 
         const endPos = closed ? cx.prevLineEnd() : cx.lineStart + line.text.length;

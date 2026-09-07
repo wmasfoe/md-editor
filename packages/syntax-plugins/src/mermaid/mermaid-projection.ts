@@ -39,35 +39,45 @@ export class MermaidBlockWidget extends WidgetType {
         Boolean(view.dom.closest(".dark")) ||
         window.matchMedia?.("(prefers-color-scheme: dark)").matches);
 
-    // 异步拉取并渲染 SVG
-    void renderMermaidSvg(this.code, isDark).then(({ svg, error }) => {
+    const renderError = (errorMsg: string) => {
       container.innerHTML = "";
-      if (error) {
-        container.classList.add("cm-md-mermaid--has-error");
-        const errorCard = view.dom.ownerDocument.createElement("div");
-        errorCard.className = "cm-md-mermaid-error";
+      container.classList.add("cm-md-mermaid--has-error");
+      const errorCard = view.dom.ownerDocument.createElement("div");
+      errorCard.className = "cm-md-mermaid-error";
 
-        const title = view.dom.ownerDocument.createElement("div");
-        title.className = "cm-md-mermaid-error__title";
-        title.textContent = "Mermaid 图表解析错误";
+      const title = view.dom.ownerDocument.createElement("div");
+      title.className = "cm-md-mermaid-error__title";
+      title.textContent = "Mermaid 图表解析错误";
 
-        const msg = view.dom.ownerDocument.createElement("pre");
-        msg.className = "cm-md-mermaid-error__message";
-        msg.textContent = error;
+      const msg = view.dom.ownerDocument.createElement("pre");
+      msg.className = "cm-md-mermaid-error__message";
+      msg.textContent = errorMsg;
 
-        const hint = view.dom.ownerDocument.createElement("div");
-        hint.className = "cm-md-mermaid-error__hint";
-        hint.textContent = "点击卡片进入源码编辑";
+      const hint = view.dom.ownerDocument.createElement("div");
+      hint.className = "cm-md-mermaid-error__hint";
+      hint.textContent = "点击卡片进入源码编辑";
 
-        errorCard.appendChild(title);
-        errorCard.appendChild(msg);
-        errorCard.appendChild(hint);
-        container.appendChild(errorCard);
-      } else {
-        container.classList.remove("cm-md-mermaid--has-error");
-        container.innerHTML = svg;
-      }
-    });
+      errorCard.appendChild(title);
+      errorCard.appendChild(msg);
+      errorCard.appendChild(hint);
+      container.appendChild(errorCard);
+    };
+
+    // 异步拉取并渲染 SVG
+    void renderMermaidSvg(this.code, isDark)
+      .then(({ svg, error }) => {
+        if (error) {
+          renderError(error);
+        } else {
+          container.innerHTML = "";
+          container.classList.remove("cm-md-mermaid--has-error");
+          container.innerHTML = svg;
+        }
+      })
+      .catch((err) => {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        renderError(`模块加载失败: ${errorMsg}`);
+      });
 
     // 点击图表原位展开源码：将光标移动到首行 fence 之后
     container.addEventListener("mousedown", (e) => {
