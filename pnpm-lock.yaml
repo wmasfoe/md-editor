@@ -557,12 +557,24 @@ importers:
       '@md-editor/editor-ui':
         specifier: workspace:*
         version: link:../packages/editor-ui
+      '@md-editor/mdx-component-registry':
+        specifier: workspace:*
+        version: link:../packages/mdx-component-registry
+      '@md-editor/mdx-plugins':
+        specifier: workspace:*
+        version: link:../packages/mdx-plugins
       '@md-editor/renderer-codemirror':
         specifier: workspace:*
         version: link:../packages/renderer-codemirror
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../packages/syntax-plugins
       '@samasante/liquid-glass':
         specifier: ^0.1.1
         version: 0.1.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      katex:
+        specifier: ^0.18.6
+        version: 0.18.6
       lxgw-wenkai-webfont:
         specifier: ^1.7.0
         version: 1.7.0

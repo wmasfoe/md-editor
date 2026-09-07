@@ -12,7 +12,15 @@ import {
   EditorUiProvider,
   type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
-import { findCodeBlockLanguage } from "@md-editor/renderer-codemirror";
+import { findCodeBlockLanguage, type MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+import {
+  containerDirectivePlugin,
+  highlightPlugin,
+  mathPlugin,
+  mermaidPlugin,
+} from "@md-editor/syntax-plugins";
+import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 import { useI18n } from "../lib/i18n/context";
 import { SHOWCASE_SAMPLES, type ShowcaseSample } from "./showcase-samples";
 
@@ -36,7 +44,20 @@ export interface SiteLiveEditorProps {
   chrome?: boolean;
   /** 是否带外层卡片描边；擦除层叠时由外框统一承担 */
   framed?: boolean;
+  /** 可选语法扩展插件列表；缺省时默认搭载全部官方语法插件 */
+  plugins?: readonly MarkdownSyntaxPlugin[];
 }
+
+/** 官网展示编辑器所挂载的全部官方语法扩展插件（高亮、容器指令、LaTeX 数学公式与 Mermaid 图表） */
+const SITE_SYNTAX_PLUGINS: readonly MarkdownSyntaxPlugin[] = Object.freeze([
+  highlightPlugin,
+  containerDirectivePlugin,
+  mathPlugin,
+  mermaidPlugin,
+]);
+
+/** 官方 MDX 内置组件注册表（支持 Callout 等组件在画布中以排版渲染） */
+const SITE_MDX_REGISTRY = createBuiltInMdxRegistry(officialMdxPlugins);
 
 const EDITOR_THEME = {
   "--theme-surface": "#ffffff",
@@ -48,6 +69,8 @@ const EDITOR_THEME = {
   "--theme-primary": "#1f6feb",
   "--theme-primary-fill": "#1f6feb",
   "--theme-primary-soft": "rgba(31, 111, 235, 0.08)",
+  "--theme-highlight-bg": "rgba(253, 224, 71, 0.42)",
+  "--theme-highlight-text": "#14120f",
   "--theme-code": "#2e2a25",
   "--theme-code-bg": "#f5f3ec",
   "--theme-code-border": "#e4e0d7",
@@ -78,6 +101,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
   modeLabel,
   chrome = true,
   framed = true,
+  plugins: userPlugins,
 }: SiteLiveEditorProps) {
   const { locale } = useI18n();
   const isZh = locale === "zh";
@@ -86,6 +110,9 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
   const [liveMode, setLiveMode] = useState<EditorMode>(requestedMode ?? "wysiwyg");
   const portsRef = useRef<CodeMirrorEditorPorts | null>(null);
   const [portsGeneration, setPortsGeneration] = useState(0);
+
+  // 默认挂载所有官方语法插件（高亮、容器、公式、Mermaid），支持外部灵活重载
+  const activePlugins = useMemo(() => userPlugins ?? SITE_SYNTAX_PLUGINS, [userPlugins]);
 
   useEffect(() => {
     ["ts", "js", "json", "python", "css", "yaml"].forEach((lang) => {
@@ -188,9 +215,11 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
             <div className="min-h-0 flex-1 p-3.5 sm:p-4">
               <CodeMirrorEditor
                 document={documentState}
+                plugins={activePlugins}
                 fontSize={15}
                 codeBlockLineNumbers={true}
                 mdxMode={mdxMode}
+                mdxComponents={mdxMode ? SITE_MDX_REGISTRY : undefined}
                 className="site-live-editor-cm"
                 onRendererPortsChange={(ports) => {
                   const wasEmpty = portsRef.current === null;
@@ -281,9 +310,11 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               <div className="min-h-0 flex-1">
                 <CodeMirrorEditor
                   document={documentState}
+                  plugins={activePlugins}
                   fontSize={15}
                   codeBlockLineNumbers={true}
                   mdxMode={mdxMode}
+                  mdxComponents={mdxMode ? SITE_MDX_REGISTRY : undefined}
                   className="site-live-editor-cm"
                   onRendererPortsChange={(ports) => {
                     const wasEmpty = portsRef.current === null;

@@ -5,8 +5,11 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@md-editor/editor-core",
     "@md-editor/editor-ui",
+    "@md-editor/mdx-component-registry",
+    "@md-editor/mdx-plugins",
     "@md-editor/renderer-codemirror",
     "@md-editor/shared",
+    "@md-editor/syntax-plugins",
   ],
 };
 

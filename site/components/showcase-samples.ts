@@ -47,7 +47,7 @@ export const SHOWCASE_SAMPLES: readonly ShowcaseSample[] = Object.freeze([
       "- **Pure Markdown Soul**: Underneath remains 100% faithful, standard CommonMark / GFM",
       "- **Generous Breath**: Thoughtfully tuned line heights and margins for effortless long-form essays",
       "",
-      "Click anywhere here to type, edit, or craft your next thought...",
+      "==Click anywhere here to type, edit, or craft your next thought...==",
     ].join("\n"),
   },
   {
