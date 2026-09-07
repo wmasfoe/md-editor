@@ -172,4 +172,22 @@ renderer
   - 遵循“以 Markdown 文本为 Single Source of Truth”的一贯设计哲学；
   - 当前 `MermaidBlockWidget` 充当 Display Adapter；未来如引入交互式可视化设计器（拖拽节点、修改连线），将通过统一的 Adapter 接口向底层 CodeMirror 文档写回 DSL 代码，无需变更 AST 节点结构或打破现有契约。
 
+---
+
+## 7. 插件启用/禁用与动态热重载体系 (`setPlugins`)
+
+### 7.1 核心交互层零破坏重配
+- **第一性原理**：用户在设置菜单切换插件开启/关闭时，严禁通过销毁重建 CodeMirror Editor DOM 节点实现。
+- **Compartment 动态重配**：
+  - 通过 `renderer.setPlugins(plugins)` 原子化替换 `SyntaxPluginRegistry` 内部已注册的插件列表；
+  - 触发 `markdownLanguageCompartment.reconfigure(...)` 注入重新组装的 Lezer Markdown 语法扩展，以及 `syntaxPluginRegistryCompartment.reconfigure(...)` 更新 Facet 映射；
+  - 派发 `refreshMarkdownParseCoverageEffect` 触发底层 AST RangeIndex 增量重新解析，派发 `refreshWysiwygProjectionEffect` 即时原位重绘投影；
+  - 彻底保留用户当前选区、光标位置与历史撤销记录。
+- **幂等性守卫**：比对前后插件 ID 清单，相同清单不发起冗余重配与重排。
+
+### 7.2 元数据规范与设置接入
+- `@md-editor/syntax-plugins/metadata` 导出 `OFFICIAL_SYNTAX_PLUGINS_METADATA` 与类型契约，清晰标明官方出品标识、特性标签与语法提示；
+- 桌面端设置（`AppSettings.plugins`）通过 Tauri 与本地 JSON 持久化，利用 `APP_SETTINGS_CHANGED_EVENT` 跨窗口即时广播；
+- UI 交互采用 Claude Design 与 OpenDesign 风格设计：高精纯矢量 SVG 图标（零 Emoji）、平滑圆润 Switch 滑块动效与“更多插件开发中”未来探索卡片。
+
 

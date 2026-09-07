@@ -29,6 +29,7 @@ import {
   type EditorDisplaySettings,
   type AppThemeSettings,
   type AppUpdateSettings,
+  type PluginSettings,
   type ShortcutSetting,
 } from "../settings/app-settings";
 import {
@@ -95,6 +96,7 @@ export function useSettingsController({
   const [updateSettingsDraft, setUpdateSettingsDraft] = useState<AppUpdateSettings>(
     loadedSettings.update,
   );
+  const [pluginsDraft, setPluginsDraft] = useState<PluginSettings>(loadedSettings.plugins);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
@@ -133,6 +135,17 @@ export function useSettingsController({
     setThemeDraft(next.theme);
     setAiSettingsDraft(next.ai);
     setUpdateSettingsDraft(next.update);
+    setPluginsDraft(next.plugins);
+  }, []);
+
+  const togglePluginDraft = useCallback((pluginId: string, enabled: boolean) => {
+    setPluginsDraft((current) => ({
+      ...current,
+      enabled: {
+        ...current.enabled,
+        [pluginId]: enabled,
+      },
+    }));
   }, []);
 
   // 设置窗口首次挂载时对齐草稿（主窗口内嵌模式每次打开时调用 syncDrafts）
@@ -293,6 +306,7 @@ export function useSettingsController({
         theme: themeDraft,
         ai: normalizeAiSettings(aiSettingsDraft),
         update: updateSettingsDraft,
+        plugins: pluginsDraft,
       });
       await themePreviewSession.publish(null);
       // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
@@ -317,6 +331,7 @@ export function useSettingsController({
     closeEmbedded,
     editorSettingsDraft,
     loadedSettings.shortcuts,
+    pluginsDraft,
     shortcutDrafts,
     showToast,
     surface,
@@ -465,6 +480,7 @@ export function useSettingsController({
     themeDraft,
     aiSettingsDraft,
     updateSettingsDraft,
+    pluginsDraft,
     isLocalModelActionPending,
     systemSpecs,
     allModelStatuses,
@@ -476,6 +492,8 @@ export function useSettingsController({
     setThemeDraft,
     setAiSettingsDraft,
     setUpdateSettingsDraft,
+    setPluginsDraft,
+    togglePluginDraft,
     chooseThemeCss,
     clearThemeCss,
     closeSettings,

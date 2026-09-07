@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CodeMirrorEditor,
   type CodeMirrorEditorExternalEditResult,
@@ -110,10 +110,14 @@ export function DesktopCodeMirrorEditor({
 
   const isMdxDocument = runtime.document.getSnapshot().filePath?.endsWith(".mdx") ?? false;
 
+  const activePlugins = useMemo(() => {
+    return DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true);
+  }, [settings.plugins]);
+
   return (
     <CodeMirrorEditor
       document={runtime.document}
-      plugins={DESKTOP_SYNTAX_PLUGINS}
+      plugins={activePlugins}
       className="min-h-0 flex-1"
       fontSize={settings.editor.wysiwygFontSize}
       proseFontFamily={resolveProseFontStack(settings.editor.proseFontFamily)}

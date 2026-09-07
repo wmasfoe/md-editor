@@ -171,6 +171,13 @@ export function CodeMirrorEditor({
   }, [codeBlockLineNumbers]);
 
   useLayoutEffect(() => {
+    const activePlugins = plugins ?? syntaxPlugins;
+    if (activePlugins !== undefined) {
+      bridgeRef.current?.ports.setPlugins(activePlugins);
+    }
+  }, [plugins, syntaxPlugins]);
+
+  useLayoutEffect(() => {
     const host = hostRef.current;
     const bridge = bridgeRef.current;
     if (!host || !bridge) {

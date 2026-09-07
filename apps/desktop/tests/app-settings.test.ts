@@ -7,12 +7,14 @@ import {
   createDefaultSettings,
   DEFAULT_DEEPSEEK_ENDPOINT,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
+  DEFAULT_PLUGIN_SETTINGS,
   DEFAULT_THEME_SETTINGS,
   DEFAULT_UPDATE_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
   INSTALL_WITH_POWERSHELL_COMMAND,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
+  normalizePluginSettings,
   normalizeAppTheme,
   normalizeUpdateSettings,
   normalizeShortcutKey,
@@ -56,6 +58,7 @@ describe("app settings", () => {
       error: null,
     });
     expect(settings.update).toEqual(DEFAULT_UPDATE_SETTINGS);
+    expect(settings.plugins).toEqual(DEFAULT_PLUGIN_SETTINGS);
     expect(settings.shortcuts.map((shortcut) => shortcut.id)).toEqual([
       "editor.find",
       "editor.replace",
@@ -483,5 +486,25 @@ describe("app settings", () => {
         installKind: "app",
       }),
     ).toBe(true);
+  });
+
+  it("normalizes plugin settings with fallback defaults and respects boolean flags", () => {
+    expect(normalizePluginSettings(null)).toEqual(DEFAULT_PLUGIN_SETTINGS);
+    expect(normalizePluginSettings({})).toEqual(DEFAULT_PLUGIN_SETTINGS);
+    expect(normalizePluginSettings({ enabled: "invalid" })).toEqual(DEFAULT_PLUGIN_SETTINGS);
+
+    const custom = normalizePluginSettings({
+      enabled: {
+        "markdown.math": false,
+        "markdown.mermaid": true,
+        "markdown.directive": false,
+        "unknown.plugin": true,
+      },
+    });
+
+    expect(custom.enabled["markdown.math"]).toBe(false);
+    expect(custom.enabled["markdown.mermaid"]).toBe(true);
+    expect(custom.enabled["markdown.directive"]).toBe(false);
+    expect(custom.enabled["unknown.plugin"]).toBe(true);
   });
 });

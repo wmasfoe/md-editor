@@ -59,6 +59,26 @@ export class SyntaxPluginRegistry {
     return this;
   }
 
+  /**
+   * 清空注册中心内全部已注册的插件、语法扩展与节点策略映射。
+   */
+  clear(): this {
+    this.#plugins.clear();
+    this.#nodePolicies.clear();
+    this.#nodeToPlugin.clear();
+    return this;
+  }
+
+  /**
+   * 全量替换/重设当前注册中心的插件集合。
+   * 常用于用户在设置中动态启用或禁用插件时的原子化重配。
+   */
+  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
+    this.clear();
+    this.registerAll(plugins);
+    return this;
+  }
+
   get plugins(): readonly MarkdownSyntaxPlugin[] {
     return Object.freeze(Array.from(this.#plugins.values()));
   }

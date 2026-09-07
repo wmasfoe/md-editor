@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./directive": "./src/directive/index.ts",
     "./math": "./src/math/index.ts",
-    "./mermaid": "./src/mermaid/index.ts"
+    "./mermaid": "./src/mermaid/index.ts",
+    "./metadata": "./src/metadata.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

@@ -190,4 +190,144 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     // 语法插件包含 markdownExtension，成功调度 AST 重新解析，RangeIndex 版本号递增
     expect(afterSyntaxIndex.version).toBeGreaterThan(initialVersion);
   });
+
+  it("supports clear() and setPlugins() on SyntaxPluginRegistry", () => {
+    const registry = new SyntaxPluginRegistry();
+    const p1: MarkdownSyntaxPlugin = {
+      id: "p1",
+      name: "P1",
+      nodePolicies: {
+        Node1: {
+          kind: "directive",
+          renderPolicy: "directive-panel",
+          editPolicy: "structured",
+          interactionPolicy: "structured-block",
+          priority: 20,
+          markerNodeNames: [],
+          contentStrategy: "full",
+        },
+      },
+    };
+    const p2: MarkdownSyntaxPlugin = {
+      id: "p2",
+      name: "P2",
+      nodePolicies: {
+        Node2: {
+          kind: "raw-fallback",
+          renderPolicy: "inline-visible-markers",
+          editPolicy: "native",
+          interactionPolicy: "active-line",
+          priority: 20,
+          markerNodeNames: [],
+          contentStrategy: "between-markers",
+        },
+      },
+    };
+
+    registry.registerAll([p1, p2]);
+    expect(registry.plugins).toHaveLength(2);
+    expect(registry.getNodePolicy("Node1")).not.toBeNull();
+    expect(registry.getNodePolicy("Node2")).not.toBeNull();
+
+    // 验证 clear()
+    registry.clear();
+    expect(registry.plugins).toHaveLength(0);
+    expect(registry.getNodePolicy("Node1")).toBeNull();
+    expect(registry.getNodePolicy("Node2")).toBeNull();
+
+    // 验证 setPlugins() 重新设为仅包含 p2
+    registry.setPlugins([p2]);
+    expect(registry.plugins).toHaveLength(1);
+    expect(registry.plugins[0].id).toBe("p2");
+    expect(registry.getNodePolicy("Node1")).toBeNull();
+    expect(registry.getNodePolicy("Node2")).not.toBeNull();
+  });
+
+  it("dynamically enables and disables plugins via renderer.setPlugins() with full idempotency", () => {
+    const parent = (
+      typeof document !== "undefined" ? document.createElement("div") : {}
+    ) as HTMLElement;
+    const docState = createDocumentState({
+      markdown: "Line 1\nLine 2",
+    });
+
+    let viewState: EditorState | null = null;
+    const dispatchedEffects: StateEffect<unknown>[] = [];
+
+    const renderer = createCodeMirrorRendererWithFactory(
+      {
+        parent,
+        initialSnapshot: docState.getSnapshot(),
+        onEditorChange: () => {},
+        onQueuedExternalEditReady: () => {},
+        onQueuedExternalEditCancelled: () => {},
+      },
+      (input: RendererViewFactoryInput): RendererViewAdapter => {
+        viewState = input.state;
+        return {
+          get state() {
+            return viewState!;
+          },
+          isComposing: false,
+          dispatch: (spec) => {
+            const tr = viewState!.update(spec);
+            viewState = tr.state;
+            if (spec.effects) {
+              const effects = Array.isArray(spec.effects) ? spec.effects : [spec.effects];
+              dispatchedEffects.push(...effects);
+            }
+          },
+          dispatchTransaction: (tr) => {
+            viewState = tr.state;
+          },
+          setState: (nextState: EditorState) => {
+            viewState = nextState;
+          },
+          scrollSnapshot: () => ({}) as unknown as StateEffect<unknown>,
+          getScrollTop: () => 0,
+          setScrollTop: () => {},
+          hasFocus: () => false,
+          focus: () => {},
+          requestMeasure: () => {},
+          destroy: () => {},
+        };
+      },
+    );
+
+    const pluginMath: MarkdownSyntaxPlugin = {
+      id: "markdown.math",
+      name: "Math Plugin",
+      markdownExtension: { defineNodes: ["MathBlock"] },
+    };
+    const pluginMermaid: MarkdownSyntaxPlugin = {
+      id: "markdown.mermaid",
+      name: "Mermaid Plugin",
+      markdownExtension: { defineNodes: ["MermaidBlock"] },
+    };
+
+    // 1. 初始化安装 2 个插件
+    renderer.setPlugins([pluginMath, pluginMermaid]);
+    expect(viewState).toBeDefined();
+
+    const dispatchCount1 = dispatchedEffects.length;
+    expect(dispatchCount1).toBeGreaterThan(0);
+
+    // 2. 幂等性测试：传入完全相同清单，不重复 dispatch
+    renderer.setPlugins([pluginMath, pluginMermaid]);
+    expect(dispatchedEffects.length).toBe(dispatchCount1);
+
+    // 3. 禁用 Mermaid 插件（仅保留 Math 插件）：触发重配
+    renderer.setPlugins([pluginMath]);
+    expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount1);
+
+    // 4. 清空所有插件（全部禁用）：触发重配
+    const dispatchCount3 = dispatchedEffects.length;
+    renderer.setPlugins([]);
+    expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount3);
+
+    // 5. 重新全部启用：安全恢复
+    const dispatchCount4 = dispatchedEffects.length;
+    renderer.setPlugins([pluginMath, pluginMermaid]);
+    expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount4);
+  });
 });

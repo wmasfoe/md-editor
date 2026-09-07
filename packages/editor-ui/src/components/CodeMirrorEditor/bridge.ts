@@ -55,6 +55,8 @@ export interface CodeMirrorEditorPorts {
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean;
   requestMeasure(): void;
+  /** 全量替换并热重载 Markdown 语法扩展插件列表 */
+  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
 }
 
 export type CodeMirrorEditorSyncError =
@@ -232,6 +234,7 @@ export function createCodeMirrorEditorBridge(
       scrollOptions?: { readonly select?: boolean; readonly focus?: boolean },
     ) => renderer.scrollToLine(line, scrollOptions),
     requestMeasure: () => renderer.requestMeasure(),
+    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
   });
   rendererByPorts.set(ports, renderer);
 
