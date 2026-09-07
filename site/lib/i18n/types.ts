@@ -98,6 +98,7 @@ export interface TranslationSchema {
     modelListAria: string;
     latestBadge: string;
     importantBadge: string;
+    pullRequestAria: string;
     itemTypes: {
       feat: string;
       perf: string;

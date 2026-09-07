@@ -91,6 +91,7 @@ export const en: TranslationSchema = {
     modelListAria: "Model changelog timeline",
     latestBadge: "Latest",
     importantBadge: "Major Update",
+    pullRequestAria: "View associated Pull Request #{number}",
     itemTypes: {
       feat: "Added",
       perf: "Improved",

@@ -4,7 +4,17 @@ export function hasVersionSection(contents, version) {
   return versionSectionPattern(version).test(contents);
 }
 
-export function updateChangelogContents(contents, { version, notes, date, mode }) {
+export function formatPrSuffix(pr) {
+  if (!pr) return "";
+  if (Array.isArray(pr)) {
+    const valid = pr.map((p) => String(p).replace(/^#/u, "").trim()).filter(Boolean);
+    return valid.length > 0 ? ` (#${valid.join(", #")})` : "";
+  }
+  const clean = String(pr).replace(/^#/u, "").trim();
+  return clean ? ` (#${clean})` : "";
+}
+
+export function updateChangelogContents(contents, { version, notes, date, mode, pr }) {
   if (!version) {
     throw new Error("Expected a release version for changelog update.");
   }
@@ -25,7 +35,7 @@ export function updateChangelogContents(contents, { version, notes, date, mode }
     );
   }
 
-  const nextSection = formatChangelogSection({ version, notes, date });
+  const nextSection = formatChangelogSection({ version, notes, date, pr });
   const trimmed = contents.trim();
 
   if (!trimmed) {
@@ -50,9 +60,10 @@ export function updateChangelogFile({
   date = today(),
   mode = "normal",
   dryRun = false,
+  pr,
 }) {
   const current = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "";
-  const next = updateChangelogContents(current, { version, notes, date, mode });
+  const next = updateChangelogContents(current, { version, notes, date, mode, pr });
 
   if (!dryRun && next !== current) {
     fs.writeFileSync(path, next);
@@ -65,9 +76,10 @@ export function updateChangelogFile({
   };
 }
 
-function formatChangelogSection({ version, notes, date }) {
+function formatChangelogSection({ version, notes, date, pr }) {
   const items = formatNotes(notes);
-  return [`## ${version} - ${date}`, "", ...items].join("\n");
+  const prSuffix = formatPrSuffix(pr);
+  return [`## ${version} - ${date}${prSuffix}`, "", ...items].join("\n");
 }
 
 function formatNotes(notes) {

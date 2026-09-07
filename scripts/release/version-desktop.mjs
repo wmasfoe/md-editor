@@ -11,6 +11,7 @@ import {
   updatePackageJson,
   updateTauriConfig,
 } from "./version-files.mjs";
+import { formatPrSuffix } from "./changelog.mjs";
 
 const changelogPath = "CHANGELOG.md";
 
@@ -47,12 +48,15 @@ function bumpVersion(currentVersion, bump) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-function updateChangelog(version, changes) {
+function updateChangelog(version, changes, pr) {
   const changelog = fs.readFileSync(changelogPath, "utf8");
   const today = new Date().toISOString().split("T")[0];
+  const prSuffix = formatPrSuffix(pr);
 
-  const changeList = changes.map((line) => `- ${line}`).join("\n");
-  const newEntry = `## ${version} - ${today}\n\n${changeList}\n\n`;
+  const changeList = changes
+    .map((line) => (line.match(/^[-*]\s+/u) ? line : `- ${line}`))
+    .join("\n");
+  const newEntry = `## ${version} - ${today}${prSuffix}\n\n${changeList}\n\n`;
 
   // 在第一个 ## 之前插入新条目
   const firstVersionIndex = changelog.indexOf("## ");
@@ -176,10 +180,28 @@ async function inputChangelogEntries() {
   });
 }
 
+// 输入关联 PR 编号
+async function inputPr() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question("\n请输入关联 PR 编号 (例如 49，留空跳过): ", (answer) => {
+      rl.close();
+      const trimmed = answer?.trim();
+      resolve(trimmed ? trimmed.replace(/^#/u, "") : undefined);
+    });
+  });
+}
+
 // 主流程
 async function main() {
   const currentVersion = readJson(tauriConfigPath).version;
-  const argTarget = process.argv[2];
+  const prArgIndex = process.argv.indexOf("--pr");
+  const prArg = prArgIndex !== -1 ? process.argv[prArgIndex + 1] : undefined;
+  const argTarget = process.argv[2] && process.argv[2] !== "--pr" ? process.argv[2] : undefined;
 
   if (argTarget) {
     const nextVersion = bumpVersion(currentVersion, argTarget);
@@ -210,9 +232,15 @@ async function main() {
   // 3. 输入更新内容
   const changes = await inputChangelogEntries();
 
-  // 4. 确认信息
+  // 4. 输入关联 PR
+  const pr = prArg ?? (await inputPr());
+
+  // 5. 确认信息
   console.log("\n=== 发布信息确认 ===");
   console.log(`版本: ${currentVersion} -> ${nextVersion}`);
+  if (pr) {
+    console.log(`关联 PR: #${pr}`);
+  }
   console.log(`更新内容:`);
   changes.forEach((change, index) => {
     console.log(`  ${index + 1}. ${change}`);
@@ -250,7 +278,7 @@ async function main() {
   updatePackageJson(desktopPackagePath, nextVersion);
   updateTauriConfig(nextVersion);
   updateCargoManifest(nextVersion);
-  updateChangelog(nextVersion, changes);
+  updateChangelog(nextVersion, changes, pr);
 
   execFileSync("cargo", ["update", "--manifest-path", cargoManifestPath, "-w"], {
     stdio: "inherit",

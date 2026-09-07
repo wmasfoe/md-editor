@@ -8,6 +8,11 @@
 /** 本项目源码仓库 */
 export const GITHUB_REPO_URL = "https://github.com/wmasfoe/md-editor";
 
+/** 根据 PR 编号构造 App 源码仓库 PR 页面链接 */
+export function buildAppPrUrl(prNumber: number): string {
+  return `${GITHUB_REPO_URL}/pull/${prNumber}`;
+}
+
 /** 公开 release / 历史版本列表（含 DMG） */
 export const GITHUB_RELEASES_URL = "https://github.com/wmasfoe/homebrew-tap/releases";
 

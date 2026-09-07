@@ -1,7 +1,30 @@
 export const MODEL_CHANGELOG_URL =
   "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/changelog.json";
 
+export const MODEL_REPO_URL = "https://github.com/wmasfoe/md-editor-models";
+
+/** 根据 PR 编号构建 md-editor-models 仓库的 Pull Request 页面直链 */
+export function buildModelPrUrl(prNumber: number): string {
+  return `${MODEL_REPO_URL}/pull/${prNumber}`;
+}
+
 export type JsonRecord = Record<string, unknown>;
+
+/** 提取发布记录中的 PR 编号数组，优先读取 sourcePR，兼容历史或备选 sourcePr */
+export function asPrNumbers(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    const numbers = value
+      .map((item) => (typeof item === "number" ? item : Number.parseInt(String(item), 10)))
+      .filter((num) => Number.isInteger(num) && num > 0);
+    return Array.from(new Set(numbers));
+  }
+
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return [value];
+  }
+
+  return [];
+}
 
 /** 将未知值收窄为页面可安全读取的普通对象。 */
 export function asJsonRecord(value: unknown): JsonRecord | null {

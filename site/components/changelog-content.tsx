@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import type { ChangelogEntry } from "../lib/changelog";
+import type { ChangelogEntry, ChangelogItem } from "../lib/changelog";
 import { useI18n } from "../lib/i18n/context";
 import type { TranslationSchema } from "../lib/i18n/types";
 import {
   asDisplayText,
   asJsonRecord,
   asJsonRecordArray,
+  asPrNumbers,
+  buildModelPrUrl,
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
+import { buildAppPrUrl } from "../lib/site-links";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
@@ -203,21 +206,25 @@ function ClientChangelogTimeline({
         >
           <TimelineMarker latest={index === 0} />
           <article>
-            <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-4">
-              <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
-                v{entry.version}
-              </h2>
-              <time className="text-sm text-muted" dateTime={entry.date}>
-                {entry.date}
-              </time>
-              {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
+            <header className="mb-3.5 sm:mb-4">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                  v{entry.version}
+                </h2>
+                <time className="text-sm text-muted" dateTime={entry.date}>
+                  {entry.date}
+                </time>
+                {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
+              </div>
+              <PullRequestLine
+                prs={entry.sourcePR ?? []}
+                buildUrl={buildAppPrUrl}
+                labels={labels}
+              />
             </header>
-            <ul className="space-y-2.5">
-              {entry.items.map((item) => (
-                <li key={item} className="flex gap-2.5 text-[15px] leading-relaxed text-ink-soft">
-                  <Bullet />
-                  <span className="min-w-0 text-pretty break-words">{item}</span>
-                </li>
+            <ul className="space-y-3">
+              {entry.items.map((item, itemIndex) => (
+                <ClientChangelogItemView key={itemIndex} item={item} />
               ))}
             </ul>
           </article>
@@ -249,6 +256,7 @@ function ModelChangelogTimeline({
         const date = asDisplayText(release.date);
         const summary = asDisplayText(release.summary);
         const impact = asDisplayText(release.impact);
+        const sourcePR = asPrNumbers(release.sourcePR ?? release.sourcePr);
         const sections = asJsonRecordArray(release.sections);
         const isLatest = declaredLatestVersion
           ? version === declaredLatestVersion
@@ -261,21 +269,24 @@ function ModelChangelogTimeline({
           >
             <TimelineMarker latest={isLatest} />
             <article>
-              <header className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 sm:mb-4">
-                {version ? (
-                  <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
-                    v{version}
-                  </h2>
-                ) : null}
-                {date ? (
-                  <time className="text-sm text-muted" dateTime={date}>
-                    {date}
-                  </time>
-                ) : null}
-                {isLatest ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
-                {impact === "major" ? (
-                  <StatusBadge tone="important">{labels.importantBadge}</StatusBadge>
-                ) : null}
+              <header className="mb-3.5 sm:mb-4">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  {version ? (
+                    <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                      v{version}
+                    </h2>
+                  ) : null}
+                  {date ? (
+                    <time className="text-sm text-muted" dateTime={date}>
+                      {date}
+                    </time>
+                  ) : null}
+                  {isLatest ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
+                  {impact === "major" ? (
+                    <StatusBadge tone="important">{labels.importantBadge}</StatusBadge>
+                  ) : null}
+                </div>
+                <PullRequestLine prs={sourcePR} buildUrl={buildModelPrUrl} labels={labels} />
               </header>
 
               {summary ? (
@@ -414,6 +425,173 @@ function StatusBadge({
   );
 }
 
-function Bullet() {
-  return <span aria-hidden className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-muted/50" />;
+function Bullet({ active = false }: { active?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={`mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full ${
+        active ? "bg-accent/85" : "bg-muted/60"
+      }`}
+    />
+  );
+}
+
+function ClientChangelogItemView({ item }: { item: ChangelogItem }) {
+  const hasChildren = Boolean(item.items && item.items.length > 0);
+
+  return (
+    <li className="space-y-2">
+      <div className="flex gap-2.5 text-[15px] leading-relaxed text-ink-soft">
+        <Bullet active={hasChildren} />
+        <span
+          className={`min-w-0 flex-1 text-pretty break-words ${
+            hasChildren ? "font-medium text-ink" : ""
+          }`}
+        >
+          {renderInlineMarkdown(item.text)}
+        </span>
+      </div>
+      {hasChildren ? (
+        <ul className="mt-2 ml-4.5 space-y-2 border-l border-line/80 pl-3.5 sm:ml-5 sm:pl-4">
+          {item.items!.map((child, childIndex) => (
+            <ClientChangelogSubItemView key={childIndex} item={child} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function ClientChangelogSubItemView({ item }: { item: ChangelogItem }) {
+  const hasChildren = Boolean(item.items && item.items.length > 0);
+
+  return (
+    <li className="space-y-1.5">
+      <div className="flex gap-2.5 text-[14px] leading-relaxed text-ink-soft/90">
+        <span
+          aria-hidden
+          className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full border border-muted/70 bg-surface"
+        />
+        <span
+          className={`min-w-0 flex-1 text-pretty break-words ${
+            hasChildren ? "font-medium text-ink" : ""
+          }`}
+        >
+          {renderInlineMarkdown(item.text)}
+        </span>
+      </div>
+      {hasChildren ? (
+        <ul className="mt-1.5 ml-3 space-y-1.5 border-l border-line/60 pl-2.5">
+          {item.items!.map((child, childIndex) => (
+            <ClientChangelogSubItemView key={childIndex} item={child} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function PullRequestLine({
+  prs,
+  buildUrl,
+  labels,
+}: {
+  prs: number[];
+  buildUrl: (pr: number) => string;
+  labels: ChangelogLabels;
+}) {
+  if (!prs || prs.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1 text-xs text-muted">
+      <span className="font-medium text-muted/80">PR:</span>
+      <div className="inline-flex flex-wrap items-center">
+        {prs.map((prNumber, idx) => (
+          <span key={prNumber} className="inline-flex items-center">
+            <a
+              href={buildUrl(prNumber)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={labels.pullRequestAria.replace("{number}", String(prNumber))}
+              className="group inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[12.5px] font-medium text-accent transition-colors hover:bg-accent/10"
+            >
+              <PullRequestIcon className="h-3.5 w-3.5 text-accent/80 transition-transform group-hover:scale-110" />
+              <span className="underline decoration-accent/40 underline-offset-2 group-hover:decoration-accent">
+                #{prNumber}
+              </span>
+            </a>
+            {idx < prs.length - 1 ? <span className="text-muted/60 select-none">、</span> : null}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PullRequestIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.5 5.396V7.5a.75.75 0 0 1-1.5 0V5.707L6.823 4.53a.75.75 0 0 1 .354-1.457Zm4.573 5.304a2.25 2.25 0 1 1 1.5 0v2.246a2.25 2.25 0 1 1-1.5 0V8.377ZM3 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm0 9.5a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm9.5-4.123a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 4.123a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" />
+    </svg>
+  );
+}
+
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const tokenRegex =
+    /((?<!`)`([^`\n]+)`(?!`)|(?<!`)\*\*([^*]+)\*\*(?!\*)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/gu;
+
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(text.slice(lastIndex, match.index));
+    }
+
+    const fullMatch = match[0];
+    const codeMatch = match[2];
+    const boldMatch = match[3];
+    const linkText = match[4];
+    const linkUrl = match[5];
+
+    if (codeMatch !== undefined) {
+      result.push(
+        <code
+          key={match.index}
+          className="rounded-md border border-line/70 bg-surface-soft px-1.5 py-0.5 font-mono text-[13px] text-ink"
+        >
+          {codeMatch}
+        </code>,
+      );
+    } else if (boldMatch !== undefined) {
+      result.push(
+        <strong key={match.index} className="font-semibold text-ink">
+          {boldMatch}
+        </strong>,
+      );
+    } else if (linkText !== undefined && linkUrl !== undefined) {
+      result.push(
+        <a
+          key={match.index}
+          href={linkUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-accent underline underline-offset-2 hover:opacity-80"
+        >
+          {linkText}
+        </a>,
+      );
+    }
+
+    lastIndex = match.index + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : [text];
 }
