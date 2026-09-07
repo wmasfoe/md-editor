@@ -383,7 +383,7 @@ function assertTagAvailable(tag) {
 
 function commitMessage(tag, notes) {
   return [
-    `Prepare ${tag} for distribution`,
+    `chore: release ${tag}`,
     `Release notes: ${notes}`,
     "Constraint: GitHub Actions release workflow triggers from pushed v* tags.",
     "Rejected: Manual version, commit, tag, and push sequence | scripted orchestration prevents skipped steps.",
