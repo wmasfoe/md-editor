@@ -1,6 +1,7 @@
 use std::{cmp::Reverse, fs, path::Path};
 
 use serde::{Deserialize, Serialize};
+#[cfg(target_os = "macos")]
 use tauri::menu::{MenuItemBuilder, Submenu, SubmenuBuilder};
 
 const MAX_RECENT_FILES: usize = 10;
@@ -32,6 +33,7 @@ pub(crate) fn save_recent_files(recent_files: Vec<RecentFile>) -> Result<(), Str
     write_recent_files(&data_dir.join("recent-files.json"), &recent_files)
 }
 
+#[cfg(target_os = "macos")]
 pub(crate) fn build_open_recent_menu(app: &tauri::AppHandle) -> tauri::Result<Submenu<tauri::Wry>> {
     let recent_files = load_recent_files();
     let mut submenu = SubmenuBuilder::new(app, "Open Recent");
@@ -53,6 +55,7 @@ pub(crate) fn build_open_recent_menu(app: &tauri::AppHandle) -> tauri::Result<Su
     submenu.build()
 }
 
+#[cfg(target_os = "macos")]
 fn menu_item(
     app: &tauri::AppHandle,
     id: &str,

@@ -17,8 +17,11 @@ mod text_substitutions;
 #[cfg(target_os = "macos")]
 mod window_chrome;
 
+#[cfg(target_os = "macos")]
+use app_menu::build_app_menu;
+#[cfg(target_os = "macos")]
 use app_menu::MENU_ACTION_EVENT;
-use app_menu::{build_app_menu, save_app_settings_and_update_menu, update_recent_files_menu};
+use app_menu::{save_app_settings_and_update_menu, update_recent_files_menu};
 use file_commands::{
     attach_save_runtime, copy_file_tree_path, create_markdown_tree_item, delete_markdown_tree_item,
     inspect_linked_file, open_external_target, open_markdown_document,
@@ -42,15 +45,20 @@ pub fn run() {
     text_substitutions::disable_automatic_text_substitutions();
 
     // Rust 只保留桌面能力边界：菜单、弹窗、文件访问授权和持久化；Markdown 编辑语义在 TS 层。
-    tauri::Builder::default()
-        .menu(build_app_menu)
-        .on_menu_event(|app, event| {
-            let action = event.id().as_ref();
-            if action.starts_with("md-editor:") {
-                // Tauri v2 这里广播给所有 webview，避免依赖固定窗口 label。
-                let _ = app.emit(MENU_ACTION_EVENT, action);
-            }
-        })
+    // 在 macOS 上使用原生应用菜单（显示在屏幕顶部系统栏）；Windows / Linux 不挂载原生窗口菜单栏，
+    // 保持极简一体化现代化窗口布局，操作均由命令面板、快捷键与编辑器内控件承接。
+    let builder = tauri::Builder::default();
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(build_app_menu).on_menu_event(|app, event| {
+        let action = event.id().as_ref();
+        if action.starts_with("md-editor:") {
+            // Tauri v2 这里广播给所有 webview，避免依赖固定窗口 label。
+            let _ = app.emit(MENU_ACTION_EVENT, action);
+        }
+    });
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())

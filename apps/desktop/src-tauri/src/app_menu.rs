@@ -1,14 +1,19 @@
+#[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItemBuilder, SubmenuBuilder};
 
-use crate::{recent_files, settings};
+#[cfg(target_os = "macos")]
+use crate::recent_files;
+use crate::settings;
 
+#[cfg(target_os = "macos")]
 pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
+#[cfg(target_os = "macos")]
 pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
     let open_recent_menu = recent_files::build_open_recent_menu(app)?;
 
-    let file_menu_builder = SubmenuBuilder::new(app, "File")
+    let file_menu = SubmenuBuilder::new(app, "File")
         .item(&menu_item(app, "md-editor:new", "New", "CmdOrCtrl+N")?)
         .item(&menu_item(app, "md-editor:open", "Open...", "CmdOrCtrl+O")?)
         .items(&[&open_recent_menu])
@@ -25,13 +30,8 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             "md-editor:save-as",
             "Save As...",
             "CmdOrCtrl+Shift+S",
-        )?);
-
-    #[cfg(not(target_os = "macos"))]
-    let file_menu = file_menu_builder.separator().quit().build()?;
-
-    #[cfg(target_os = "macos")]
-    let file_menu = file_menu_builder.build()?;
+        )?)
+        .build()?;
 
     let edit_menu = SubmenuBuilder::new(app, "Edit")
         .undo()
@@ -77,42 +77,40 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    #[cfg(target_os = "macos")]
-    {
-        let app_menu = SubmenuBuilder::new(app, "Inkpoint")
-            .about(None)
-            .separator()
-            .hide()
-            .hide_others()
-            .separator()
-            .quit()
-            .build()?;
+    let app_menu = SubmenuBuilder::new(app, "Inkpoint")
+        .about(None)
+        .separator()
+        .hide()
+        .hide_others()
+        .separator()
+        .quit()
+        .build()?;
 
-        Menu::with_items(
-            app,
-            &[
-                &app_menu,
-                &file_menu,
-                &edit_menu,
-                &view_menu,
-                &settings_menu,
-            ],
-        )
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Menu::with_items(app, &[&file_menu, &edit_menu, &view_menu, &settings_menu])
-    }
+    Menu::with_items(
+        app,
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &view_menu,
+            &settings_menu,
+        ],
+    )
 }
 
 #[tauri::command]
 pub(crate) fn update_recent_files_menu(app: tauri::AppHandle) -> Result<(), String> {
-    let new_menu =
-        build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
+    #[cfg(target_os = "macos")]
+    {
+        let new_menu =
+            build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
 
-    app.set_menu(new_menu)
-        .map_err(|error| format!("Failed to set menu: {error}"))?;
+        app.set_menu(new_menu)
+            .map_err(|error| format!("Failed to set menu: {error}"))?;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 
     Ok(())
 }
@@ -123,15 +121,23 @@ pub(crate) fn save_app_settings_and_update_menu(
     settings: settings::AppSettings,
 ) -> Result<(), String> {
     settings::save_app_settings(settings)?;
-    let new_menu =
-        build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
 
-    app.set_menu(new_menu)
-        .map_err(|error| format!("Failed to set menu: {error}"))?;
+    #[cfg(target_os = "macos")]
+    {
+        let new_menu =
+            build_app_menu(&app).map_err(|error| format!("Failed to build menu: {error}"))?;
+
+        app.set_menu(new_menu)
+            .map_err(|error| format!("Failed to set menu: {error}"))?;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
 
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn menu_item(
     app: &tauri::AppHandle,
     id: &str,
@@ -143,6 +149,7 @@ fn menu_item(
         .build(app)
 }
 
+#[cfg(target_os = "macos")]
 fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
     // 前端 keymap 使用 ProseMirror 风格的 Mod；Tauri 菜单加速键使用 CmdOrCtrl。
     shortcut.replace("Mod", "CmdOrCtrl").replace('-', "+")
