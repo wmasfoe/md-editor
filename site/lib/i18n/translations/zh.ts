@@ -86,6 +86,7 @@ export const zh: TranslationSchema = {
     modelListAria: "模型更新记录列表",
     latestBadge: "最新",
     importantBadge: "重点更新",
+    pullRequestAria: "查看关联 Pull Request #{number}",
     itemTypes: {
       feat: "新增",
       perf: "优化",

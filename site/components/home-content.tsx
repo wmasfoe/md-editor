@@ -145,7 +145,10 @@ export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
                 v{latest.version}
               </p>
               <p className="mt-1 text-sm text-muted">{latest.date}</p>
-              <p className="mt-4 text-sm leading-relaxed text-ink-soft">{latest.items[0]}</p>
+              <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+                {latest.items[0]?.text ??
+                  (typeof latest.items[0] === "string" ? latest.items[0] : "")}
+              </p>
               <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2">
                 <a
                   href="#download"

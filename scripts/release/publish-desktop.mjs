@@ -26,6 +26,7 @@ function parseArgs(argv) {
     allowAnyBranch: false,
     branch: releaseBranchDefault,
     notes: undefined,
+    pr: undefined,
     kind: undefined,
   };
 
@@ -47,6 +48,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--notes") {
       options.notes = readOptionValue(argv, index, arg);
+      index += 1;
+    } else if (arg === "--pr") {
+      options.pr = readOptionValue(argv, index, arg);
       index += 1;
     } else if (arg === "--help" || arg === "-h") {
       options.help = true;
@@ -85,6 +89,7 @@ Options:
   --resume             Continue after release:version already changed version files.
   --no-push            Commit and tag locally, but do not push.
   --notes <text>       Release notes used in the commit and annotated tag.
+  --pr <number>        Associated Pull Request number for the release changelog.
   --yes, -y            Skip the final interactive confirmation.`;
 }
 
@@ -271,10 +276,26 @@ async function promptForRelease(options, currentVersion) {
     // 3. 输入更新内容（多行）
     const notes = options.notes ?? (await promptNotes(rl));
 
-    return { kind: resolvedKind, nextVersion, notes };
+    // 4. 输入关联 PR（可选）
+    const pr = options.pr ?? (await promptPr(rl));
+
+    return { kind: resolvedKind, nextVersion, notes, pr };
   } finally {
     rl.close();
   }
+}
+
+async function promptPr(rl) {
+  if (!input.isTTY) {
+    return undefined;
+  }
+
+  return new Promise((resolve) => {
+    rl.question("\n请输入关联 PR 编号 (例如 49，留空跳过): ", (answer) => {
+      const trimmed = answer?.trim();
+      resolve(trimmed ? trimmed.replace(/^#/u, "") : undefined);
+    });
+  });
 }
 
 async function promptNotes(rl) {
@@ -401,6 +422,9 @@ async function main() {
   console.log(`Tag:             ${plan.tag}`);
   console.log(`Branch:          ${plan.branch}`);
   console.log(`Notes:           ${plan.notes}`);
+  if (plan.pr) {
+    console.log(`PR:              #${plan.pr}`);
+  }
 
   await confirmRelease(options, plan);
 
@@ -421,6 +445,7 @@ async function main() {
     path: changelogPath,
     version: plan.nextVersion,
     notes: plan.notes,
+    pr: plan.pr,
     mode: options.resume ? "resume" : "normal",
     dryRun: options.dryRun,
   });

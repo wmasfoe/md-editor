@@ -3,6 +3,8 @@ import {
   asDisplayText,
   asJsonRecord,
   asJsonRecordArray,
+  asPrNumbers,
+  buildModelPrUrl,
   MODEL_CHANGELOG_URL,
 } from "../lib/model-changelog";
 import {
@@ -51,5 +53,20 @@ describe("permissive model changelog rendering helpers", () => {
     expect(asDisplayText("  模型更新  ")).toBe("模型更新");
     expect(asDisplayText("   ")).toBeNull();
     expect(asDisplayText({ text: "unsupported" })).toBeNull();
+  });
+
+  it("extracts valid PR numbers from sourcePR array or integer", () => {
+    expect(asPrNumbers([1])).toEqual([1]);
+    expect(asPrNumbers([1, 2])).toEqual([1, 2]);
+    expect(asPrNumbers([1, 1])).toEqual([1]);
+    expect(asPrNumbers(["1", "2"])).toEqual([1, 2]);
+    expect(asPrNumbers(1)).toEqual([1]);
+    expect(asPrNumbers(null)).toEqual([]);
+    expect(asPrNumbers(undefined)).toEqual([]);
+    expect(asPrNumbers([-1, 0, "abc"])).toEqual([]);
+  });
+
+  it("builds the correct model pull request url", () => {
+    expect(buildModelPrUrl(1)).toBe("https://github.com/wmasfoe/md-editor-models/pull/1");
   });
 });
