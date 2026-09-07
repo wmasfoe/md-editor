@@ -70,6 +70,31 @@ function createStaticMarked(): Marked {
   marked.use({
     gfm: true,
     breaks: false,
+    extensions: [
+      {
+        name: "highlight",
+        level: "inline",
+        start(src: string) {
+          return src.indexOf("==");
+        },
+        tokenizer(src: string) {
+          const match = /^==((?:[^\s=]|(?:\s+[^\s=]))*?)==/.exec(src);
+          if (match && match[1]) {
+            return {
+              type: "highlight",
+              raw: match[0],
+              text: match[1],
+              tokens: this.lexer.inlineTokens(match[1]),
+            };
+          }
+          return undefined;
+        },
+        renderer(token: Tokens.Generic) {
+          const inner = token.tokens ? this.parser.parseInline(token.tokens) : (token.text ?? "");
+          return `<span class="cm-md-marker cm-md-marker--highlight">==</span><mark class="cm-md-inline cm-md-highlight">${inner}</mark><span class="cm-md-marker cm-md-marker--highlight">==</span>`;
+        },
+      },
+    ],
     renderer: {
       strong({ text }: { text: string }) {
         return `<span class="cm-md-marker cm-md-marker--bold">**</span><strong class="cm-md-inline cm-md-bold">${text}</strong><span class="cm-md-marker cm-md-marker--bold">**</span>`;

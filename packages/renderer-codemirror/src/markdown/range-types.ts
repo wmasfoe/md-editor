@@ -8,6 +8,7 @@ export type MarkdownSyntaxKind =
   | "italic"
   | "strikethrough"
   | "inline-code"
+  | "highlight"
   | "heading-atx"
   | "heading-setext"
   | "quote"

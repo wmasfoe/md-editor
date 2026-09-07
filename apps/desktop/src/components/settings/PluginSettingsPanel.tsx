@@ -21,6 +21,23 @@ interface PluginSettingsPanelProps {
  */
 function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode {
   switch (id) {
+    case "markdown.highlight":
+      return (
+        <svg
+          className="size-4 text-amber-500 dark:text-amber-400"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {/* 荧光高亮笔 Highlighter 图标 */}
+          <path d="m9 11-6 6v3h3l6-6" />
+          <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
+        </svg>
+      );
     case "markdown.math":
       return (
         <svg

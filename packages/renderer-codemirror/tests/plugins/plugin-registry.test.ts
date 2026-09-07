@@ -330,4 +330,86 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     renderer.setPlugins([pluginMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount4);
   });
+
+  it("indexes inline highlight plugin with kind 'highlight' and inline-visible-markers policy", () => {
+    const parent = (
+      typeof document !== "undefined" ? document.createElement("div") : {}
+    ) as HTMLElement;
+
+    const HighlightDelim = { resolve: "Highlight", mark: "HighlightMark" };
+    const inlineHighlightPlugin: MarkdownSyntaxPlugin = {
+      id: "markdown.highlight",
+      name: "Highlight Plugin",
+      markdownExtension: {
+        defineNodes: ["Highlight", "HighlightMark"],
+        parseInline: [
+          {
+            name: "Highlight",
+            parse(cx, next, pos) {
+              if (next !== 61 || cx.char(pos + 1) !== 61) return -1;
+              return cx.addDelimiter(HighlightDelim, pos, pos + 2, true, true);
+            },
+          },
+        ],
+      },
+      nodePolicies: {
+        Highlight: {
+          kind: "highlight",
+          renderPolicy: "inline-visible-markers",
+          editPolicy: "native",
+          interactionPolicy: "text",
+          priority: 42,
+          markerNodeNames: ["HighlightMark"],
+          contentStrategy: "between-markers",
+        },
+      },
+    };
+
+    let viewState: EditorState | null = null;
+    const renderer = createCodeMirrorRendererWithFactory(
+      {
+        parent,
+        initialSnapshot: createDocumentState({
+          markdown: "Hello ==highlight== world",
+        }).getSnapshot(),
+        plugins: [inlineHighlightPlugin],
+        onEditorChange: () => {},
+        onQueuedExternalEditReady: () => {},
+        onQueuedExternalEditCancelled: () => {},
+      },
+      (input: RendererViewFactoryInput): RendererViewAdapter => {
+        viewState = input.state;
+        return {
+          get state() {
+            return viewState!;
+          },
+          isComposing: false,
+          dispatch: (spec) => {
+            const tr = viewState!.update(spec);
+            viewState = tr.state;
+          },
+          dispatchTransaction: (tr) => {
+            viewState = tr.state;
+          },
+          setState: (nextState: EditorState) => {
+            viewState = nextState;
+          },
+          scrollSnapshot: () => ({}) as unknown as StateEffect<unknown>,
+          getScrollTop: () => 0,
+          setScrollTop: () => {},
+          hasFocus: () => false,
+          focus: () => {},
+          requestMeasure: () => {},
+          destroy: () => {},
+        };
+      },
+    );
+
+    const index = viewState!.field(markdownRangeIndexField);
+    const highlightRecords = index.byKind("highlight");
+    expect(highlightRecords).toHaveLength(1);
+    expect(highlightRecords[0].renderPolicy).toBe("inline-visible-markers");
+    expect(highlightRecords[0].kind).toBe("highlight");
+    renderer.destroy();
+  });
 });

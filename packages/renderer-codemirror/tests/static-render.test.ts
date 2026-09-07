@@ -4,7 +4,7 @@ import { renderStaticHtml, renderStaticDocument } from "../src/static/index.ts";
 describe("@md-editor/renderer-codemirror/static", () => {
   it("renders basic Markdown elements with Inkpoint dimmed inline markers", () => {
     const md =
-      "# Hello World\n\nThis is a **bold** and *italic* text with ~~strikethrough~~ and `code`.";
+      "# Hello World\n\nThis is a **bold** and *italic* text with ~~strikethrough~~, `code`, and ==highlight==.";
     const result = renderStaticHtml(md);
 
     expect(result.title).toBe("Hello World");
@@ -22,6 +22,8 @@ describe("@md-editor/renderer-codemirror/static", () => {
     );
     expect(result.html).toContain('<span class="cm-md-marker cm-md-marker--inline-code">`</span>');
     expect(result.html).toContain('<code class="cm-md-inline cm-md-inline-code">code</code>');
+    expect(result.html).toContain('<span class="cm-md-marker cm-md-marker--highlight">==</span>');
+    expect(result.html).toContain('<mark class="cm-md-inline cm-md-highlight">highlight</mark>');
   });
 
   it("renders GFM tables properly", () => {

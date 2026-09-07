@@ -5,12 +5,14 @@ import {
   containerDirectivePlugin,
   mathPlugin,
   mermaidPlugin,
+  highlightPlugin,
 } from "../src/index.ts";
 
 describe("syntax-plugins metadata", () => {
-  it("defines metadata for all 3 official syntax plugins", () => {
-    expect(OFFICIAL_SYNTAX_PLUGINS_METADATA).toHaveLength(3);
+  it("defines metadata for all 4 official syntax plugins", () => {
+    expect(OFFICIAL_SYNTAX_PLUGINS_METADATA).toHaveLength(4);
     const ids = OFFICIAL_SYNTAX_PLUGINS_METADATA.map((p) => p.id);
+    expect(ids).toContain(highlightPlugin.id);
     expect(ids).toContain(mathPlugin.id);
     expect(ids).toContain(mermaidPlugin.id);
     expect(ids).toContain(containerDirectivePlugin.id);
