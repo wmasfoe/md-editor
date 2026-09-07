@@ -29,3 +29,10 @@ export {
   getLoadedMermaid,
   renderMermaidSvg,
 } from "./mermaid/index.ts";
+
+export {
+  OFFICIAL_SYNTAX_PLUGINS_METADATA,
+  getOfficialPluginMetadata,
+  type OfficialSyntaxPluginDescriptor,
+  type OfficialSyntaxPluginId,
+} from "./metadata.ts";

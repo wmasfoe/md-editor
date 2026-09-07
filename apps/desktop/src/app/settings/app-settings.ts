@@ -26,6 +26,7 @@ export interface AppSettings {
   readonly theme: AppThemeSettings;
   readonly ai: AiSettings;
   readonly update: AppUpdateSettings;
+  readonly plugins: PluginSettings;
 }
 
 export interface UpdateStatus {
@@ -96,6 +97,18 @@ export interface AppUpdateSettings {
   readonly automaticCheck: boolean;
   readonly automaticDownload: boolean;
 }
+
+export interface PluginSettings {
+  readonly enabled: Readonly<Record<string, boolean>>;
+}
+
+export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = Object.freeze({
+  enabled: Object.freeze({
+    "markdown.math": true,
+    "markdown.mermaid": true,
+    "markdown.directive": true,
+  }),
+});
 
 export const DEFAULT_ASSETS_DIRECTORY = "assets";
 
@@ -377,6 +390,7 @@ export function createDefaultSettings(): AppSettings {
     theme: DEFAULT_THEME_SETTINGS,
     ai: DEFAULT_AI_SETTINGS,
     update: DEFAULT_UPDATE_SETTINGS,
+    plugins: DEFAULT_PLUGIN_SETTINGS,
   };
 }
 
@@ -971,6 +985,7 @@ interface PersistedSettings {
   readonly theme?: unknown;
   readonly ai?: Partial<AiSettings>;
   readonly update?: unknown;
+  readonly plugins?: unknown;
 }
 
 function readLocalSettings(): Partial<PersistedSettings> {
@@ -1005,6 +1020,7 @@ function normalizeSettings(
     theme: normalizeAppTheme(input?.theme),
     ai: normalizeAiSettings(input?.ai),
     update: normalizeUpdateSettings(input?.update),
+    plugins: normalizePluginSettings(input?.plugins),
   };
 }
 
@@ -1019,6 +1035,27 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
     theme: settings.theme,
     ai: settings.ai,
     update: settings.update,
+    plugins: settings.plugins,
+  };
+}
+
+export function normalizePluginSettings(input: unknown): PluginSettings {
+  if (!isRecord(input) || !isRecord(input.enabled)) {
+    return DEFAULT_PLUGIN_SETTINGS;
+  }
+
+  const enabledRecord: Record<string, boolean> = {
+    ...DEFAULT_PLUGIN_SETTINGS.enabled,
+  };
+
+  for (const [key, val] of Object.entries(input.enabled)) {
+    if (typeof val === "boolean") {
+      enabledRecord[key] = val;
+    }
+  }
+
+  return {
+    enabled: Object.freeze(enabledRecord),
   };
 }
 

@@ -10,6 +10,7 @@ import { useToast } from "../app/controller/useToast";
 import { EditorToast } from "../app/AppWindowChrome";
 import { AiSettingsPanel } from "./settings/AiSettingsPanel";
 import { AppearanceSettingsPanel } from "./settings/AppearanceSettingsPanel";
+import { PluginSettingsPanel } from "./settings/PluginSettingsPanel";
 import { OtherSettingsPanel } from "./settings/OtherSettingsPanel";
 import { ShortcutSettingsPanel } from "./settings/ShortcutSettingsPanel";
 import { settingsDescriptionClassName } from "./settings/settingsStyles";
@@ -122,6 +123,17 @@ export function SettingsPage({
             onChangeTheme={ctrl.setThemeDraft}
             onChooseThemeCss={ctrl.chooseThemeCss}
             onClearThemeCss={ctrl.clearThemeCss}
+          />
+        ),
+      },
+      {
+        id: "plugins",
+        label: "插件设置",
+        description: "官方与扩展插件",
+        panel: (
+          <PluginSettingsPanel
+            pluginsDraft={ctrl.pluginsDraft}
+            onTogglePlugin={ctrl.togglePluginDraft}
           />
         ),
       },

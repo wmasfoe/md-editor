@@ -16,6 +16,8 @@ pub(crate) struct AppSettings {
     pub(crate) theme: Option<Value>,
     pub(crate) ai: Option<AiSettings>,
     pub(crate) update: Option<UpdateSettings>,
+    #[serde(default, deserialize_with = "deserialize_object_settings")]
+    pub(crate) plugins: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -106,6 +108,7 @@ fn default_settings() -> AppSettings {
         theme: None,
         ai: None,
         update: None,
+        plugins: None,
     }
 }
 
@@ -208,6 +211,13 @@ mod tests {
                 automatic_check: Some(true),
                 automatic_download: Some(false),
             }),
+            plugins: Some(serde_json::json!({
+                "enabled": {
+                    "markdown.math": true,
+                    "markdown.mermaid": false,
+                    "markdown.directive": true
+                }
+            })),
         };
 
         write_settings(&path, &settings).unwrap();

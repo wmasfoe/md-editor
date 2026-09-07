@@ -174,6 +174,8 @@ export interface CodeMirrorRenderer {
   requestMeasure(): void;
   /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
   use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
+  /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
+  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
   destroy(): void;
 }
 
@@ -1344,6 +1346,67 @@ class CodeMirrorRendererController {
     this.#view.dispatch({ effects });
     return this;
   }
+
+  /**
+   * 动态全量替换当前已激活的 Markdown 语法插件集合。
+   *
+   * 核心交互与生命周期契约：
+   * 1. 幂等性守卫：比对新旧插件 ID 清单，若完全一致则直接跳过，避免无谓的 Compartment 重配与重排开销；
+   * 2. 原子化 Compartment 重构：
+   *    - 同步更新内部 SyntaxPluginRegistry；
+   *    - 重新提取 Lezer markdownExtension 并通过 markdownLanguageCompartment.reconfigure 注入新解析器；
+   *    - 通过 syntaxPluginRegistryCompartment.reconfigure 注入最新 Facet 策略；
+   *    - 派发 refreshMarkdownParseCoverageEffect 与 refreshWysiwygProjectionEffect 重绘投影；
+   * 3. 异步 AST 调度：调度 scheduleFullParse 保证文档 RangeIndex 准确感知新的/卸载的语法规则；
+   * 4. 零侵入保证：全程绝不销毁或替换 DOM 树，选区与历史栈完整无损。
+   */
+  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
+    if (this.#destroyed) {
+      return this;
+    }
+
+    const flattened: MarkdownSyntaxPlugin[] = [];
+    for (const plugin of plugins) {
+      if (plugin && typeof plugin === "object" && "id" in plugin) {
+        flattened.push(plugin);
+      }
+    }
+
+    // 检查是否与当前注册表已有的插件一致（按 id 顺序与内容比较）
+    const currentPlugins = this.#syntaxRegistry.plugins;
+    if (
+      currentPlugins.length === flattened.length &&
+      currentPlugins.every((curr, idx) => curr.id === flattened[idx]?.id)
+    ) {
+      return this;
+    }
+
+    // 全量原子替换注册中心插件
+    this.#syntaxRegistry.setPlugins(flattened);
+
+    // 组装新的 Lezer Markdown 语法扩展（内置基础扩展 + 已启用插件扩展）
+    const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
+    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
+
+    const effects: StateEffect<unknown>[] = [
+      this.#syntaxRegistryCompartment.reconfigure(
+        syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
+      ),
+      this.#markdownLanguageCompartment.reconfigure(
+        this.#controllerOptions.useNativeCodeLanguages
+          ? createMarkdownLanguageSupport(
+              { extensions: markdownExtensions, addKeymap: false },
+              this.#wysiwygDiagnostics,
+            )
+          : markdown({ extensions: markdownExtensions, addKeymap: false }),
+      ),
+      refreshMarkdownParseCoverageEffect.of(null),
+      refreshWysiwygProjectionEffect.of(null),
+    ];
+
+    this.#view.dispatch({ effects });
+    return this;
+  }
 }
 
 function createRendererFacade(controller: CodeMirrorRendererController): CodeMirrorRenderer {
@@ -1371,6 +1434,10 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     requestMeasure: () => controller.requestMeasure(),
     use: (...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]) => {
       controller.use(...plugins);
+      return renderer;
+    },
+    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => {
+      controller.setPlugins(plugins);
       return renderer;
     },
     destroy: () => controller.destroy(),

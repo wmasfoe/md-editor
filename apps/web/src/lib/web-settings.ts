@@ -20,12 +20,25 @@ export interface WebAiConfig {
   readonly model: string;
 }
 
+export interface PluginSettings {
+  readonly enabled: Readonly<Record<string, boolean>>;
+}
+
+export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = Object.freeze({
+  enabled: Object.freeze({
+    "markdown.math": true,
+    "markdown.mermaid": true,
+    "markdown.directive": true,
+  }),
+});
+
 export interface WebSettings {
   readonly theme: WebTheme;
   readonly lightTheme: BuiltInThemeId;
   readonly darkTheme: BuiltInThemeId;
   readonly fontSize: number;
   readonly ai: WebAiConfig;
+  readonly plugins: PluginSettings;
 }
 
 export const PRESET_PROVIDERS = [
@@ -64,6 +77,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     apiKey: "",
     model: "deepseek-chat",
   },
+  plugins: DEFAULT_PLUGIN_SETTINGS,
 };
 
 const STORAGE_KEY = "md-editor:web:settings";
@@ -99,6 +113,7 @@ export function loadWebSettings(): WebSettings {
         ...DEFAULT_WEB_SETTINGS.ai,
         ...parsed.ai,
       },
+      plugins: parsed.plugins ?? DEFAULT_WEB_SETTINGS.plugins,
     };
   } catch {
     return DEFAULT_WEB_SETTINGS;
