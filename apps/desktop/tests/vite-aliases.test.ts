@@ -16,6 +16,12 @@ describe("desktop Vite aliases", () => {
     await expect(resolveId("@md-editor/editor-core")).resolves.toBe(
       workspacePath("../../../packages/editor-core/src/index.ts"),
     );
+    await expect(resolveId("@md-editor/renderer-codemirror")).resolves.toBe(
+      workspacePath("../../../packages/renderer-codemirror/src/index.ts"),
+    );
+    await expect(resolveId("@md-editor/syntax-plugins")).resolves.toBe(
+      workspacePath("../../../packages/syntax-plugins/src/index.ts"),
+    );
     await expect(resolveId("@md-editor/ai")).resolves.toBe(
       workspacePath("../../../packages/ai/src/index.ts"),
     );

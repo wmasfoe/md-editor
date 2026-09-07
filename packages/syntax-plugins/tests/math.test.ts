@@ -182,6 +182,57 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
         }),
       );
     });
+
+    it("parses ```math fenced code block as BlockMath", () => {
+      const doc = "```math\n\\frac{a}{b} = c\n```";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+      expect(blockMath?.metadata?.math).toEqual(
+        expect.objectContaining({
+          mathKind: "block",
+          expression: "\\frac{a}{b} = c",
+        }),
+      );
+    });
+
+    it("parses ```latex fenced code block nested in blockquote", () => {
+      const doc = "> ```latex\n> \\int_0^1 x dx\n> ```";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+      expect(blockMath?.metadata?.math).toEqual(
+        expect.objectContaining({
+          mathKind: "block",
+          expression: "\\int_0^1 x dx",
+        }),
+      );
+      const quoteRecord = index.records.find((r) => r.nodeName === "Blockquote");
+      expect(quoteRecord).toBeDefined();
+      expect(quoteRecord?.markerRanges.length).toBe(3);
+    });
   });
 
   describe("WYSIWYG layout decorations", () => {

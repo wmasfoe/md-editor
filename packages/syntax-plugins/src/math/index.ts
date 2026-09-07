@@ -58,7 +58,15 @@ export const mathPlugin: MarkdownSyntaxPlugin = Object.freeze({
     const openMarker = markers[0];
     const closeMarker = markers.length > 1 ? markers[markers.length - 1] : null;
 
-    const contentFrom = openMarker ? openMarker.to : node.from;
+    let contentFrom = openMarker ? openMarker.to : node.from;
+    const isFenced =
+      openMarker &&
+      (source.slice(openMarker.from, openMarker.to).startsWith("`") ||
+        source.slice(openMarker.from, openMarker.to).startsWith("~"));
+    if (isFenced) {
+      const nextNewline = source.indexOf("\n", openMarker.to);
+      contentFrom = nextNewline === -1 ? openMarker.to : nextNewline + 1;
+    }
     const contentTo = closeMarker ? closeMarker.from : node.to;
     let rawExpression = source.slice(contentFrom, contentTo);
 
@@ -104,15 +112,24 @@ export const mathPlugin: MarkdownSyntaxPlugin = Object.freeze({
   },
   resolveContentRange(
     node: SyntaxNode,
-    _source: string,
+    source: string,
     children: readonly SyntaxNode[],
   ): SourceRange | null {
     const markers = children.filter((c) => c.name === MATH_NODES.MathMark);
     if (markers.length < 2) {
       return null;
     }
+    const openMarker = markers[0];
+    let contentFrom = openMarker.to;
+    const isFenced =
+      source.slice(openMarker.from, openMarker.to).startsWith("`") ||
+      source.slice(openMarker.from, openMarker.to).startsWith("~");
+    if (isFenced) {
+      const nextNewline = source.indexOf("\n", openMarker.to);
+      contentFrom = nextNewline === -1 ? openMarker.to : nextNewline + 1;
+    }
     return Object.freeze({
-      from: markers[0].to,
+      from: contentFrom,
       to: markers[markers.length - 1].from,
     });
   },
