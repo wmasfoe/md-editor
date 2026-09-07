@@ -17,7 +17,8 @@
 - CodeMirror 6 Markdown 可视化编辑器架构方案（权威目标；S1/M0 beta，M1/S2、M1-FM/S5-FM-only 与 M2/S3 已验证；M3-M6 仍未完成）： [custom_markdown_renderer_architecture.md](./custom_markdown_renderer_architecture.md)
 - Linux 与 Windows 平台支持、ARM 架构与终端一键安装方案： [cross_platform_support_plan.md](./cross_platform_support_plan.md)
 - Web 端（Playground 体验版）架构方案： [web_app_architecture_plan.md](./web_app_architecture_plan.md)
-- Markdown 语法插件架构与容器指令方案： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
+- Markdown 语法插件架构（容器指令、LaTeX 数学公式与 Mermaid 图表方案）： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
+  记录 Markdown 扩展语法插件规范（MarkdownSyntaxPlugin）、@md-editor/syntax-plugins 架构、containerDirectivePlugin、mathPlugin（KaTeX）与 mermaidPlugin 的异步按需加载、Lezer 语法拦截、所见即所得就地编辑契约与降级隔离设计。
 - macOS Quick Look 快速预览扩展架构方案： [macos_quicklook_preview_architecture.md](./macos_quicklook_preview_architecture.md)
   记录系统接入边界、JavaScriptCore 离线渲染沙箱、与 @md-editor/renderer-codemirror/static 共享静态渲染能力的复用设计以及构建流水线规范。
 

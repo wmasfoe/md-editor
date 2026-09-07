@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
-import { containerDirectivePlugin } from "@md-editor/syntax-plugins";
+import { containerDirectivePlugin, mathPlugin, mermaidPlugin } from "@md-editor/syntax-plugins";
 import type { DocumentState } from "@md-editor/editor-core";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
@@ -15,8 +15,8 @@ export interface WebEditorProps {
 export function WebEditor({ document, settings, onRendererPortsChange }: WebEditorProps) {
   // 注入官方 MDX 组件（支持 Callout 等）
   const mdxComponents = useMemo(() => createBuiltInMdxRegistry(officialMdxPlugins), []);
-  // 注入 Markdown 语法扩展插件（如 :::info 容器指令）
-  const plugins = useMemo(() => [containerDirectivePlugin], []);
+  // 注入 Markdown 语法扩展插件（如 :::info 容器指令、LaTeX 数学公式与 Mermaid 图表）
+  const plugins = useMemo(() => [containerDirectivePlugin, mathPlugin, mermaidPlugin], []);
 
   return (
     <div className="relative flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]">

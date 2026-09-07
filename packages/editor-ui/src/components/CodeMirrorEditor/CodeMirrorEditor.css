@@ -1435,3 +1435,122 @@
   height: 0;
   width: 0;
 }
+
+/* ==========================================================================
+   LaTeX Math Widgets & Markers (KaTeX)
+   ========================================================================== */
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-math-inline {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.05em 0.25em;
+  margin: 0 0.1em;
+  line-height: normal;
+  transition: background 0.15s ease;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-math-inline:hover {
+  background: var(--theme-primary-soft, rgba(9, 105, 218, 0.1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-math-block {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow-x: auto;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-math-block:hover {
+  background: var(--theme-primary-soft, rgba(9, 105, 218, 0.05));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-math--has-error {
+  color: var(--theme-danger-text, #cf222e);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker--math,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker--math-block {
+  color: var(--theme-marker-dim, var(--theme-muted, #8c959f));
+  font-family: var(--theme-mono-font, monospace);
+  font-size: 0.9em;
+}
+
+/* ==========================================================================
+   Mermaid Diagram Widgets & Error Cards
+   ========================================================================== */
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.25rem;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #d8dee4);
+  background: var(--theme-surface, #ffffff);
+  cursor: pointer;
+  min-height: 90px;
+  overflow-x: auto;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-container:hover {
+  border-color: var(--theme-primary, #0969da);
+  box-shadow: var(--theme-shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-loading {
+  font-size: 0.85rem;
+  color: var(--theme-muted, #6e7781);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-error {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--theme-danger-bg, rgba(207, 34, 46, 0.08));
+  border-left: 3px solid var(--theme-danger-text, #cf222e);
+  border-radius: 4px;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-error__title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--theme-danger-text, #cf222e);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-error__message {
+  font-size: 0.75rem;
+  font-family: var(--theme-mono-font, monospace);
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--theme-text, #24292f);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-error__hint {
+  font-size: 0.75rem;
+  color: var(--theme-muted, #6e7781);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-marker--mermaid {
+  color: var(--theme-marker-dim, var(--theme-muted, #8c959f));
+  font-family: var(--theme-mono-font, monospace);
+  font-size: 0.9em;
+}

@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./directive": "./src/directive/index.ts"
+    "./directive": "./src/directive/index.ts",
+    "./math": "./src/math/index.ts",
+    "./mermaid": "./src/mermaid/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -17,11 +19,14 @@
     "@codemirror/view": "^6.43.1",
     "@lezer/common": "^1.5.2",
     "@lezer/markdown": "^1.6.4",
-    "@md-editor/renderer-codemirror": "workspace:*"
+    "@md-editor/renderer-codemirror": "workspace:*",
+    "katex": "^0.18.6",
+    "mermaid": "^11.17.2"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",
     "@md-editor/editor-core": "workspace:*",
+    "@types/katex": "^0.16.8",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
