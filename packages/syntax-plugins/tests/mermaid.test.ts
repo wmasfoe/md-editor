@@ -111,6 +111,30 @@ describe("mermaidPlugin (@md-editor/syntax-plugins)", () => {
       expect(quoteRecord).toBeDefined();
       expect(quoteRecord?.markerRanges.length).toBe(4);
     });
+
+    it("strips list-item structural indentation for mermaid block per CommonMark 4.5", () => {
+      const doc = "- 列表项\n  ```mermaid\n  graph TD\n    A --> B\n  ```";
+      const registry = new SyntaxPluginRegistry([mermaidPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mermaidMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const mermaidRecord = index.records.find((r) => r.nodeName === MERMAID_NODES.MermaidBlock);
+      expect(mermaidRecord).toBeDefined();
+      // 结构缩进 2 格被剔除，但图表内部相对缩进保留
+      expect(mermaidRecord?.metadata?.mermaid).toEqual(
+        expect.objectContaining({
+          code: "graph TD\n  A --> B",
+        }),
+      );
+    });
   });
 
   describe("WYSIWYG layout decorations", () => {

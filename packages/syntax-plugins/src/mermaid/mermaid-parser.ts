@@ -48,6 +48,9 @@ export const mermaidMarkdownExtension: MarkdownConfig = Object.freeze({
 
         // 4. 逐行向下推进，寻找对应的闭合 fence
         let closed = false;
+        // Lezer 复合块（如 Blockquote / List）内部字段：
+        // depth 与 stack 维系当前行所属的复合块深度；markers 携带当前行的引用符号等复合标记。
+        // 此处采用可选安全检查，保证解析器在复合块结束时正常退出，且在不同 Lezer 版本下平滑回退。
         const internalLine = line as unknown as { depth?: number; markers?: Element[] };
         const internalCx = cx as unknown as { stack?: unknown[] };
 
