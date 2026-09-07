@@ -57,10 +57,10 @@ export async function renderMermaidSvg(
     return cached;
   }
 
-  const mermaid = await loadMermaid();
   const id = `cm-mermaid-${Date.now()}-${++globalDiagramCounter}`;
 
   try {
+    const mermaid = await loadMermaid();
     const targetTheme = isDark ? "dark" : "default";
     if (currentTheme !== targetTheme) {
       mermaid.initialize({
