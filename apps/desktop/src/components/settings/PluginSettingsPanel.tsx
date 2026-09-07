@@ -24,7 +24,7 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
     case "markdown.math":
       return (
         <svg
-          className="size-5 text-[var(--theme-primary)]"
+          className="size-4 text-[var(--theme-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -40,7 +40,7 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
     case "markdown.mermaid":
       return (
         <svg
-          className="size-5 text-emerald-600 dark:text-emerald-400"
+          className="size-4 text-emerald-600 dark:text-emerald-400"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -60,7 +60,7 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
     case "markdown.directive":
       return (
         <svg
-          className="size-5 text-sky-600 dark:text-sky-400"
+          className="size-4 text-sky-600 dark:text-sky-400"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -78,7 +78,7 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
     default:
       return (
         <svg
-          className="size-5 text-[var(--theme-muted)]"
+          className="size-4 text-[var(--theme-muted)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -114,7 +114,7 @@ function OfficialBadgeIcon(): ReactNode {
 function PuzzleIcon(): ReactNode {
   return (
     <svg
-      className="size-5 shrink-0 text-amber-500/90"
+      className="size-4 shrink-0 text-emerald-600/90 dark:text-emerald-400/90"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -156,7 +156,7 @@ function ClaudeSwitch({
           onChange(!checked);
         }
       }}
-      className={`group relative inline-flex h-[22px] w-[38px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-surface)] ${
+      className={`group relative inline-flex h-[20px] w-[34px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-surface)] ${
         checked
           ? "bg-[var(--theme-primary)] shadow-inner"
           : "bg-[var(--theme-border-strong)] hover:bg-[var(--theme-border-strong)]/80"
@@ -164,8 +164,8 @@ function ClaudeSwitch({
     >
       <span
         aria-hidden="true"
-        className={`pointer-events-none inline-block size-[18px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.12)] ring-0 transition-transform duration-200 ease-in-out ${
-          checked ? "translate-x-4" : "translate-x-0"
+        className={`pointer-events-none inline-block size-[16px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.12)] ring-0 transition-transform duration-200 ease-in-out ${
+          checked ? "translate-x-3.5" : "translate-x-0"
         }`}
       />
     </button>
@@ -173,7 +173,7 @@ function ClaudeSwitch({
 }
 
 /**
- * 单个插件设置卡片（Claude Design 精致风格）
+ * 单个插件设置卡片（Claude Design 精致紧凑风格）
  */
 function PluginItemCard({
   descriptor,
@@ -186,17 +186,17 @@ function PluginItemCard({
 }) {
   return (
     <div
-      className={`relative flex flex-col justify-between gap-3 rounded-xl border p-4 transition-all duration-200 ${
+      className={`relative flex flex-col justify-between gap-2.5 rounded-lg border px-3.5 py-3 transition-all duration-200 ${
         isEnabled
-          ? "border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-sm hover:border-[var(--theme-border-strong)]"
+          ? "border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-xs hover:border-[var(--theme-border-strong)]"
           : "border-[var(--theme-border)]/60 bg-[var(--theme-chrome)]/40 opacity-80 hover:opacity-100 hover:border-[var(--theme-border)]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         {/* 左侧：图标 + 标题 + 官方徽章 */}
-        <div className="flex items-start gap-3.5 min-w-0">
+        <div className="flex items-start gap-3 min-w-0">
           <div
-            className={`flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+            className={`flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
               isEnabled
                 ? "border-[var(--theme-border)] bg-[var(--theme-chrome)]"
                 : "border-[var(--theme-border)]/50 bg-[var(--theme-chrome)]/30 opacity-70"
@@ -206,31 +206,31 @@ function PluginItemCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[14px] font-semibold text-[var(--theme-title)]">
+              <span className="text-[13.5px] font-semibold text-[var(--theme-title)]">
                 {descriptor.name}
               </span>
 
-              {/* 官方认证徽章 (OpenDesign & Claude 风格微胶囊) */}
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              {/* 官方认证徽章：绿色高质感徽标 */}
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
                 <OfficialBadgeIcon />
                 <span>官方</span>
               </span>
             </div>
 
             {/* 描述信息 */}
-            <p className="mb-2 mt-1 text-[12px] leading-relaxed text-[var(--theme-muted)]">
+            <p className="mb-1.5 mt-0.5 text-[12px] leading-relaxed text-[var(--theme-muted)]">
               {descriptor.description}
             </p>
 
             {/* 语法提示与特性标签 */}
-            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-              <span className="rounded bg-[var(--theme-chrome)] px-2 py-0.5 font-mono text-[11px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
                 {descriptor.syntaxHint}
               </span>
               {descriptor.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[11px] text-[var(--theme-muted)]"
+                  className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[10.5px] text-[var(--theme-muted)]"
                 >
                   {tag}
                 </span>
@@ -242,7 +242,7 @@ function PluginItemCard({
         {/* 右侧：精美 Switch 滑块 */}
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <span
-            className={`text-[12px] font-medium transition-colors ${
+            className={`text-[11.5px] font-medium transition-colors ${
               isEnabled ? "text-[var(--theme-primary)]" : "text-[var(--theme-muted)]"
             }`}
           >
@@ -262,7 +262,7 @@ function PluginItemCard({
 export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSettingsPanelProps) {
   return (
     <section className={settingsModuleClassName} aria-labelledby="plugin-settings-title">
-      <div className="mb-4">
+      <div className="mb-3">
         <h2 id="plugin-settings-title" className={settingsSectionTitleClassName}>
           插件管理
         </h2>
@@ -272,7 +272,7 @@ export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSett
         </p>
       </div>
 
-      <div className="grid gap-3.5">
+      <div className="grid gap-2.5">
         {/* 官方插件列表 */}
         {OFFICIAL_SYNTAX_PLUGINS_METADATA.map((descriptor) => {
           const isEnabled = pluginsDraft.enabled[descriptor.id] ?? descriptor.defaultEnabled;
@@ -287,21 +287,21 @@ export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSett
         })}
 
         {/* 更多插件开发中卡片（Claude / OpenDesign 风格虚线探索预告） */}
-        <div className="mt-1 flex items-center justify-between gap-3.5 rounded-xl border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/35 p-4 transition-colors">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)]">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-3.5 py-2.5 transition-colors">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)]">
               <PuzzleIcon />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] font-semibold text-[var(--theme-title)]">
+                <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
                   更多插件正在持续研发中
                 </span>
-                <span className="rounded-full bg-[var(--theme-primary-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--theme-primary)]">
+                <span className="rounded-full bg-[var(--theme-primary-soft)] px-1.5 py-0.2 text-[10px] font-medium text-[var(--theme-primary)]">
                   敬请期待
                 </span>
               </div>
-              <p className="m-0 mt-0.5 text-[12px] leading-relaxed text-[var(--theme-muted)]">
+              <p className="m-0 mt-0.5 text-[11.5px] leading-normal text-[var(--theme-muted)]">
                 思维导图 (Mindmap)、流程图画板
                 (Excalidraw)、甘特图强化与图床扩展等功能正在紧锣密鼓开发中。
               </p>
