@@ -190,4 +190,31 @@ renderer
 - 桌面端设置（`AppSettings.plugins`）通过 Tauri 与本地 JSON 持久化，利用 `APP_SETTINGS_CHANGED_EVENT` 跨窗口即时广播；
 - UI 交互采用 Claude Design 与 OpenDesign 风格设计：高精纯矢量 SVG 图标（零 Emoji）、平滑圆润 Switch 滑块动效与“更多插件开发中”未来探索卡片。
 
+---
+
+## 8. 文本高亮插件规范 (`highlightPlugin`)
+
+### 8.1 语法范畴与 CommonMark Delimiter Run 规则
+- **语法范畴**：`==高亮文本==`，遵循 Obsidian 与 Typora 事实标准（映射为 HTML `<mark>` 标签）；
+- **定界符防误触与解析算法**：
+  - 定界符为连续的两个等号 `==`（ASCII 61）；
+  - 连续 3 个及以上等号（如 `===`）不解析为高亮标记，防止破坏标题底线或自定义分隔；
+  - 遵循 CommonMark 强调（Emphasis）空白与标点环视规则（开定界符后不可紧贴空白，闭定界符前不可紧贴空白）；
+  - 配置 `after: "Emphasis"`，原生参与 Lezer 行内定界符配对树，自洽支持与粗体、斜体嵌套（如 `==**粗体高亮**==` 或 `**==高亮粗体==**`）；
+  - 反斜杠转义 `\==` 安全保持纯文本。
+
+### 8.2 所见即所得就地编辑契约
+- **节点策略**：
+  - `Highlight` 节点采用 `renderPolicy: "inline-visible-markers"`，`editPolicy: "native"`，`interactionPolicy: "text"`；
+  - 标记节点为 `HighlightMark`，区间策略为 `between-markers`；
+- **装饰与渲染**：
+  - 内容区间由核心 `buildInlineStyleDecorations` 自动赋予 `cm-md-inline cm-md-highlight`；
+  - 定界符区间赋予 `cm-md-marker cm-md-marker--highlight`，在未聚焦时光滑浅显半透明显示，光标移入时即时原位编辑；
+  - CSS 自适应明亮模式（柔和黄色荧光）与暗黑模式（柔和琥珀黄）；
+- **快捷键联动**：
+  - 与 `@md-editor/renderer-codemirror` 现有的 `toggleHighlight`（`toggleInlineMarkup("==")`) 与 `Mod-Shift-h` 快捷键完全闭环；
+- **静态渲染一致性**：
+  - 在 `packages/renderer-codemirror/src/static/render.ts` 中同步配置 `marked` 的 inline highlight 扩展，使静态导出与 QuickLook 快速预览保持 100% 视觉一致。
+
+
 

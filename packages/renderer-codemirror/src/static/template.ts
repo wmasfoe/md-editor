@@ -145,6 +145,13 @@ h6 { font-size: 0.95em; color: var(--theme-muted); }
   text-decoration-thickness: 1px;
 }
 
+.cm-md-highlight {
+  background: var(--theme-highlight-bg, rgba(253, 224, 71, 0.38));
+  color: var(--theme-highlight-text, inherit);
+  border-radius: 3px;
+  padding: 0.08em 0.2em;
+}
+
 .cm-md-inline-code {
   border-radius: 4px;
   background: var(--theme-inline-code-bg, var(--theme-code-bg));

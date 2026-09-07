@@ -31,6 +31,13 @@ export {
 } from "./mermaid/index.ts";
 
 export {
+  highlightPlugin,
+  HIGHLIGHT_NODES,
+  highlightMarkdownExtension,
+  type HighlightMetadata,
+} from "./highlight/index.ts";
+
+export {
   OFFICIAL_SYNTAX_PLUGINS_METADATA,
   getOfficialPluginMetadata,
   type OfficialSyntaxPluginDescriptor,

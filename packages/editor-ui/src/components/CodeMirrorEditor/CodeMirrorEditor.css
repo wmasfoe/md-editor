@@ -142,6 +142,18 @@
   text-decoration-thickness: 1px;
 }
 
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-highlight {
+  background-color: var(--theme-highlight-bg, rgba(253, 224, 71, 0.38));
+  color: var(--theme-highlight-text, inherit);
+  border-radius: 3px;
+  padding: 0.08em 0.2em;
+}
+
+:root.dark .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-highlight,
+.dark .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-highlight {
+  background-color: var(--theme-highlight-bg, rgba(234, 179, 8, 0.28));
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-inline-code {
   border-radius: 3px;
   background: var(--theme-inline-code-bg, transparent);

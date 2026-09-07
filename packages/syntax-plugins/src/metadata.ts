@@ -3,7 +3,8 @@
  * 用于设置面板展示、状态管理以及插件清单归一化
  */
 
-export type OfficialSyntaxPluginId = "markdown.math" | "markdown.mermaid" | "markdown.directive";
+export type OfficialSyntaxPluginId =
+  "markdown.math" | "markdown.mermaid" | "markdown.directive" | "markdown.highlight";
 
 export interface OfficialSyntaxPluginDescriptor {
   readonly id: OfficialSyntaxPluginId;
@@ -25,6 +26,17 @@ export interface OfficialSyntaxPluginDescriptor {
 
 export const OFFICIAL_SYNTAX_PLUGINS_METADATA: readonly OfficialSyntaxPluginDescriptor[] =
   Object.freeze([
+    Object.freeze({
+      id: "markdown.highlight",
+      name: "文本高亮",
+      category: "syntax",
+      description:
+        "支持 ==高亮== 语法标记，以醒目明亮的背景色衬托重点文本，支持 Typora 与 Obsidian 事实标准与快捷键（Mod-Shift-h）。",
+      syntaxHint: "==高亮文本==",
+      isOfficial: true,
+      defaultEnabled: true,
+      tags: Object.freeze(["高亮", "Obsidian", "Typora", "所见即所得"]),
+    }),
     Object.freeze({
       id: "markdown.math",
       name: "LaTeX 数学公式",
