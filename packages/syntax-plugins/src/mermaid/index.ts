@@ -48,8 +48,30 @@ export const mermaidPlugin: MarkdownSyntaxPlugin = Object.freeze({
     const nextNewline = source.indexOf("\n", openTo);
     const codeStart = nextNewline === -1 ? openTo : nextNewline + 1;
     const codeEnd = closeMarker ? closeMarker.from : node.to;
+    let rawCode = source.slice(codeStart, codeEnd);
+    let quoteDepth = 0;
+    let curr: SyntaxNode | null = node.parent;
+    while (curr) {
+      if (curr.name === "Blockquote") {
+        quoteDepth++;
+      }
+      curr = curr.parent;
+    }
 
-    const code = source.slice(codeStart, codeEnd).trim();
+    if (quoteDepth > 0) {
+      const lines = rawCode.split("\n");
+      rawCode = lines
+        .map((line) => {
+          let cleaned = line;
+          for (let d = 0; d < quoteDepth; d++) {
+            cleaned = cleaned.replace(/^[ \t]*>[ \t]?/, "");
+          }
+          return cleaned;
+        })
+        .join("\n");
+    }
+
+    const code = rawCode.trim();
 
     const mermaid: MermaidMetadata = Object.freeze({
       code,

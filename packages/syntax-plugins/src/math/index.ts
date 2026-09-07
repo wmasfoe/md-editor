@@ -60,7 +60,33 @@ export const mathPlugin: MarkdownSyntaxPlugin = Object.freeze({
 
     const contentFrom = openMarker ? openMarker.to : node.from;
     const contentTo = closeMarker ? closeMarker.from : node.to;
-    const expression = source.slice(contentFrom, contentTo).trim();
+    let rawExpression = source.slice(contentFrom, contentTo);
+
+    if (!isInline) {
+      let quoteDepth = 0;
+      let curr: SyntaxNode | null = node.parent;
+      while (curr) {
+        if (curr.name === "Blockquote") {
+          quoteDepth++;
+        }
+        curr = curr.parent;
+      }
+
+      if (quoteDepth > 0) {
+        const lines = rawExpression.split("\n");
+        rawExpression = lines
+          .map((line) => {
+            let cleaned = line;
+            for (let d = 0; d < quoteDepth; d++) {
+              cleaned = cleaned.replace(/^[ \t]*>[ \t]?/, "");
+            }
+            return cleaned;
+          })
+          .join("\n");
+      }
+    }
+
+    const expression = rawExpression.trim();
 
     const math: MathMetadata = Object.freeze({
       mathKind: isInline ? "inline" : "block",

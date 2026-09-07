@@ -139,7 +139,6 @@ export function buildMermaidLayoutDecorations(
     decorations.push(
       Decoration.replace({
         widget: new MermaidBlockWidget(record.id, meta.code, record.fullRange.from),
-        block: true,
         inclusive: false,
         wysiwygRecordId: record.id,
         wysiwygRole: "mermaid-block-widget",

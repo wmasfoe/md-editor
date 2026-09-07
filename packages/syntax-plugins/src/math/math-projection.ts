@@ -197,7 +197,6 @@ export function buildMathLayoutDecorations(
       decorations.push(
         Decoration.replace({
           widget: new MathBlockWidget(record.id, meta.expression, record.fullRange.from),
-          block: true,
           inclusive: false,
           wysiwygRecordId: record.id,
           wysiwygRole: "math-block-widget",
