@@ -32,35 +32,57 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
         const text = line.text;
         const pos = line.pos;
 
-        // 2. 必须以 $$ 开头（字符码 36 为 '$'）
-        if (
-          pos + 2 > text.length ||
-          text.charCodeAt(pos) !== 36 ||
-          text.charCodeAt(pos + 1) !== 36
-        ) {
+        // 2. 检查是否以 $$ 开头，或者以 ```math / ```latex 代码块开头
+        const rest = text.slice(pos);
+        const isDollarMath =
+          pos + 2 <= text.length && text.charCodeAt(pos) === 36 && text.charCodeAt(pos + 1) === 36;
+
+        const fenceMatch = !isDollarMath ? /^(```+|~~~+)/.exec(rest) : null;
+        let isFencedMath = false;
+        let fenceChar = "";
+        let fenceLen = 0;
+
+        if (fenceMatch) {
+          const fence = fenceMatch[1];
+          const infoString = rest.slice(fence.length).trim();
+          const lang = infoString.split(/\s+/)[0]?.toLowerCase();
+          if (lang === "math" || lang === "latex" || lang === "katex") {
+            isFencedMath = true;
+            fenceChar = fence[0];
+            fenceLen = fence.length;
+          }
+        }
+
+        if (!isDollarMath && !isFencedMath) {
           return false;
         }
 
         const startPos = cx.lineStart + pos;
 
-        // 3. 检查是否在同一行闭合（单行独立块公式，如 $$E=mc^2$$）
-        const restOfLine = text.slice(pos + 2);
-        const closeIndexInRest = restOfLine.indexOf("$$");
+        // 3. 单行独立 $$ 公式（如 $$E=mc^2$$）
+        if (isDollarMath) {
+          const restOfLine = text.slice(pos + 2);
+          const closeIndexInRest = restOfLine.indexOf("$$");
 
-        if (closeIndexInRest !== -1) {
-          const closePos = pos + 2 + closeIndexInRest;
-          const endPos = cx.lineStart + closePos + 2;
-          const marks = [
-            cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
-            cx.elt(MATH_NODES.MathMark, cx.lineStart + closePos, endPos),
-          ];
-          cx.nextLine();
-          cx.addElement(cx.elt(MATH_NODES.BlockMath, startPos, endPos, marks));
-          return true;
+          if (closeIndexInRest !== -1) {
+            const closePos = pos + 2 + closeIndexInRest;
+            const endPos = cx.lineStart + closePos + 2;
+            const marks = [
+              cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
+              cx.elt(MATH_NODES.MathMark, cx.lineStart + closePos, endPos),
+            ];
+            cx.nextLine();
+            cx.addElement(cx.elt(MATH_NODES.BlockMath, startPos, endPos, marks));
+            return true;
+          }
         }
 
-        // 4. 多行公式块：逐行推进直到找到闭合 $$ 或文档结尾
-        const marks: Element[] = [cx.elt(MATH_NODES.MathMark, startPos, startPos + 2)];
+        // 4. 多行公式块：逐行推进直到找到闭合标记或文档结尾
+        const marks: Element[] = [
+          isFencedMath
+            ? cx.elt(MATH_NODES.MathMark, startPos, cx.lineStart + text.length)
+            : cx.elt(MATH_NODES.MathMark, startPos, startPos + 2),
+        ];
         let closed = false;
         const internalLine = line as unknown as { depth?: number; markers?: Element[] };
         const internalCx = cx as unknown as { stack?: unknown[] };
@@ -80,18 +102,33 @@ export const mathMarkdownExtension: MarkdownConfig = Object.freeze({
           const curPos = line.pos;
 
           if (line.indent - line.baseIndent < 4) {
-            const closeIndex = curText.indexOf("$$", curPos);
-            if (closeIndex !== -1) {
-              marks.push(
-                cx.elt(
-                  MATH_NODES.MathMark,
-                  cx.lineStart + closeIndex,
-                  cx.lineStart + closeIndex + 2,
-                ),
-              );
-              closed = true;
-              cx.nextLine();
-              break;
+            if (isFencedMath) {
+              const curRest = curText.slice(curPos).trim();
+              if (
+                curRest.startsWith(fenceChar) &&
+                new RegExp(`^\\${fenceChar}{${fenceLen},}$`).test(curRest)
+              ) {
+                marks.push(
+                  cx.elt(MATH_NODES.MathMark, cx.lineStart + curPos, cx.lineStart + curText.length),
+                );
+                closed = true;
+                cx.nextLine();
+                break;
+              }
+            } else {
+              const closeIndex = curText.indexOf("$$", curPos);
+              if (closeIndex !== -1) {
+                marks.push(
+                  cx.elt(
+                    MATH_NODES.MathMark,
+                    cx.lineStart + closeIndex,
+                    cx.lineStart + closeIndex + 2,
+                  ),
+                );
+                closed = true;
+                cx.nextLine();
+                break;
+              }
             }
           }
         }

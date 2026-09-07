@@ -32,6 +32,10 @@ export default defineConfig({
         replacement: workspacePath("../../packages/renderer-codemirror/src/index.ts"),
       },
       {
+        find: /^@md-editor\/syntax-plugins$/,
+        replacement: workspacePath("../../packages/syntax-plugins/src/index.ts"),
+      },
+      {
         find: /^@md-editor\/markdown-fidelity$/,
         replacement: workspacePath("../../packages/markdown-fidelity/src/index.ts"),
       },
