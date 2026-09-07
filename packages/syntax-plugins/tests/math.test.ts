@@ -153,6 +153,35 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
         }),
       );
     });
+
+    it("parses block math nested inside blockquote", () => {
+      const doc =
+        "> ### 标题\n>\n> 欧拉公式：\n>\n> $$\n> \\zeta(s) = \\sum_{n=1}^\\infty \\frac{1}{n^s}\n> $$\n";
+      const registry = new SyntaxPluginRegistry([mathPlugin]);
+
+      const state = EditorState.create({
+        doc,
+        extensions: [
+          markdown({ extensions: [mathMarkdownExtension] }),
+          syntaxPluginRegistryFacet.of(registry),
+          markdownRangeIndexField,
+        ],
+      });
+
+      const index = state.field(markdownRangeIndexField);
+      const quoteRecord = index.records.find((r) => r.nodeName === "Blockquote");
+      expect(quoteRecord).toBeDefined();
+      expect(quoteRecord?.markerRanges.length).toBe(7);
+
+      const blockMath = index.records.find((r) => r.nodeName === MATH_NODES.BlockMath);
+      expect(blockMath).toBeDefined();
+      expect(blockMath?.metadata?.math).toEqual(
+        expect.objectContaining({
+          mathKind: "block",
+          expression: "\\zeta(s) = \\sum_{n=1}^\\infty \\frac{1}{n^s}",
+        }),
+      );
+    });
   });
 
   describe("WYSIWYG layout decorations", () => {

@@ -1,4 +1,4 @@
-import type { BlockContext, Line, MarkdownConfig } from "@lezer/markdown";
+import type { BlockContext, Element, Line, MarkdownConfig } from "@lezer/markdown";
 import { MERMAID_NODES } from "./mermaid-types.ts";
 
 /**
@@ -42,12 +42,26 @@ export const mermaidMarkdownExtension: MarkdownConfig = Object.freeze({
         }
 
         const startPos = cx.lineStart + pos;
-        const marks = [cx.elt(MERMAID_NODES.MermaidMarker, startPos, cx.lineStart + text.length)];
+        const marks: Element[] = [
+          cx.elt(MERMAID_NODES.MermaidMarker, startPos, cx.lineStart + text.length),
+        ];
 
         // 4. 逐行向下推进，寻找对应的闭合 fence
         let closed = false;
+        const internalLine = line as unknown as { depth?: number; markers?: Element[] };
+        const internalCx = cx as unknown as { stack?: unknown[] };
 
-        while (cx.nextLine()) {
+        while (
+          cx.nextLine() &&
+          (internalLine.depth === undefined ||
+            internalCx.stack === undefined ||
+            internalLine.depth >= internalCx.stack.length)
+        ) {
+          if (internalLine.markers) {
+            for (const m of internalLine.markers) {
+              marks.push(m);
+            }
+          }
           const curText = line.text;
           const curPos = line.pos;
 
