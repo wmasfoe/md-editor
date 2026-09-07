@@ -27,7 +27,8 @@ import {
 import { desktopLocalAiInvokeImpl } from "../ai/local-ai-model";
 import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { unsupportedEditorUiCommandSlots, useEditorUiActions } from "@md-editor/editor-ui";
+import { useEditorUiActions } from "@md-editor/editor-ui";
+import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 import { useFileActionStore } from "../stores/file-action-store";
@@ -137,10 +138,12 @@ export function useDesktopEditorController({
           },
           openSettings,
           openMdxComponentMenu: async () => {
-            const result = unsupportedEditorUiCommandSlots.openMdxComponentMenu();
-            if (result?.status === "unsupported") {
-              showToast("当前编辑器暂不支持插入 MDX 组件。");
+            const insertable = runtime.mdxComponents.listInsertable();
+            if (insertable.length === 0) {
+              showToast("当前暂无可插入的 MDX 组件。");
+              return;
             }
+            useDocumentUiStore.getState().openMdxComponentMenu();
           },
           continueAiWriting: async () => {
             const portsAccess = getRendererPorts();
@@ -536,11 +539,73 @@ export function useDesktopEditorController({
     }
   }, [snapshot.filePath, snapshot.isDirty]);
 
+  // --- insertMdxComponent ---
+  const insertMdxComponent = useCallback(
+    (plugin: MdxComponentPlugin) => {
+      const snippet = plugin.insert?.createSnippet();
+      if (!snippet) {
+        showToast("该 MDX 组件没有可插入模板。");
+        return;
+      }
+      const portsAccess = getRendererPorts();
+      if (portsAccess.status !== "available") {
+        showToast("当前编辑器未就绪。");
+        return;
+      }
+      const ports = portsAccess.ports;
+      const selection = ports.getSelectionSnapshot();
+      const currentSnapshot = runtime.document.getSnapshot();
+      const markdown = currentSnapshot.markdown;
+
+      const before = markdown.slice(0, selection.from);
+      const after = markdown.slice(selection.to);
+
+      // 规范块级组件换行，确保与上下文独立成块
+      let prefix = "";
+      if (before.length > 0 && !before.endsWith("\n\n")) {
+        prefix = before.endsWith("\n") ? "\n" : "\n\n";
+      }
+
+      let suffix = "";
+      if (after.length > 0 && !after.startsWith("\n\n")) {
+        suffix = after.startsWith("\n") ? "\n" : "\n\n";
+      }
+
+      const insertText = `${prefix}${snippet}${suffix}`;
+      const nextMarkdown = `${before}${insertText}${after}`;
+
+      const result = ports.applyExternalEdit({
+        operationId: `desktop:insert-mdx:${Date.now()}`,
+        markdown: nextMarkdown,
+        expectedGeneration: currentSnapshot.documentGeneration,
+        expectedContentRevision: currentSnapshot.contentRevision,
+        selection: "preserve-offset-clamped",
+      });
+
+      if (
+        result.status === "applied" ||
+        result.status === "noop" ||
+        result.status === "queued-composition"
+      ) {
+        setHasActiveDocument(true);
+        setOpenedAsset(null);
+        showToast(null);
+        const cursor = before.length + prefix.length + snippet.length;
+        ports.setSelection(cursor, cursor);
+        ports.focus();
+      } else {
+        showToast(`未能插入 MDX 组件：${result.status}。`);
+      }
+    },
+    [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
+  );
+
   return {
     dispatchCommand,
     openDocumentFromTree,
     openRecentFile,
     openWysiwygLink,
     runEditorUpdateAction,
+    insertMdxComponent,
   };
 }

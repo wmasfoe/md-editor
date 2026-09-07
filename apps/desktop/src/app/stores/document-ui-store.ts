@@ -13,8 +13,11 @@ type StoreStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 export interface DocumentUiStore {
   hasActiveDocument: boolean;
   openedAsset: OpenedAsset | null;
+  isMdxComponentMenuOpen: boolean;
   setHasActiveDocument: StoreStateSetter<boolean>;
   setOpenedAsset: StoreStateSetter<OpenedAsset | null>;
+  openMdxComponentMenu: () => void;
+  closeMdxComponentMenu: () => void;
   resolveImageSrc: (src: string) => string;
   openAssetPath: (path: string, name?: string) => void;
   closeAssetPreview: () => void;
@@ -25,6 +28,7 @@ export interface DocumentUiStore {
 export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   hasActiveDocument: false,
   openedAsset: null,
+  isMdxComponentMenuOpen: false,
   setHasActiveDocument: (value) =>
     set((state) => ({
       hasActiveDocument: typeof value === "function" ? value(state.hasActiveDocument) : value,
@@ -33,6 +37,12 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
     set((state) => ({
       openedAsset: typeof value === "function" ? value(state.openedAsset) : value,
     })),
+  openMdxComponentMenu: () => {
+    set({ isMdxComponentMenuOpen: true });
+  },
+  closeMdxComponentMenu: () => {
+    set({ isMdxComponentMenuOpen: false });
+  },
   resolveImageSrc: (src) => resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, src),
   openAssetPath: (path, name = basename(path)) => {
     useToastStore.getState().showToast(null);

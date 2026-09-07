@@ -19,9 +19,11 @@ import {
 import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
 import { CommandPalette } from "../components/CommandPalette";
+import { MdxComponentMenu } from "../components/MdxComponentMenu";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
+import { runtime } from "./runtime/editor-runtime";
 import { APP_DISPLAY_NAME } from "../lib/app-name";
 import { cx } from "../lib/cx";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
@@ -126,9 +128,17 @@ function MainApp({
   const { pendingAction } = useFileActionStore();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
-  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
-    useDocumentUiStore();
-  const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
+  const {
+    hasActiveDocument,
+    openedAsset,
+    resolveImageSrc,
+    closeAssetPreview,
+    getRecentFiles,
+    isMdxComponentMenuOpen,
+    closeMdxComponentMenu,
+  } = useDocumentUiStore();
+  const { dispatchCommand, openRecentFile, runEditorUpdateAction, insertMdxComponent } =
+    useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -375,6 +385,13 @@ function MainApp({
         open={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onRun={(commandId) => void dispatchCommand(commandId)}
+      />
+      {/* MDX 组件插入面板 */}
+      <MdxComponentMenu
+        open={isMdxComponentMenuOpen}
+        plugins={runtime.mdxComponents.listInsertable()}
+        onClose={closeMdxComponentMenu}
+        onInsert={insertMdxComponent}
       />
     </main>
   );

@@ -1,4 +1,5 @@
 import { createContext, use } from "react";
+import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 
 export interface DesktopEditorActions {
   readonly dispatchCommand: (id: string) => Promise<void>;
@@ -6,6 +7,7 @@ export interface DesktopEditorActions {
   readonly openRecentFile: (path: string) => Promise<void>;
   readonly openWysiwygLink: (href: string) => Promise<void>;
   readonly runEditorUpdateAction: () => Promise<void>;
+  readonly insertMdxComponent: (plugin: MdxComponentPlugin) => void;
 }
 
 export const DesktopEditorActionsContext = createContext<DesktopEditorActions | null>(null);

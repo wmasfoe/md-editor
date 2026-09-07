@@ -15,6 +15,7 @@ import { requestAiContinuation, documentContextManager } from "@md-editor/ai";
 import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
+import { useDocumentSnapshot } from "../app/document-store";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
@@ -46,6 +47,7 @@ export function DesktopCodeMirrorEditor({
   showToast,
 }: DesktopCodeMirrorEditorProps) {
   const { settings } = useAppSettings();
+  const snapshot = useDocumentSnapshot();
   const { openDocumentFromTree, dispatchCommand } = useDesktopEditorActions();
   const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
 
@@ -118,7 +120,10 @@ export function DesktopCodeMirrorEditor({
     })();
   };
 
-  const isMdxDocument = runtime.document.getSnapshot().filePath?.endsWith(".mdx") ?? false;
+  const isMdxDocument =
+    snapshot.filePath?.endsWith(".mdx") ||
+    !snapshot.filePath ||
+    /<\/?[A-Z]/.test(snapshot.markdown);
 
   const activePlugins = useMemo(() => {
     return DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true);
