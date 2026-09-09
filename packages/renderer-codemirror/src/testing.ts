@@ -33,6 +33,7 @@ class StateBackedViewAdapter implements RendererViewAdapter {
   #focused = false;
   #composing = false;
   #destroyed = false;
+  #clearDomSelectionCount = 0;
   readonly #onCompositionStart: () => void;
   readonly #onCompositionEnd: () => void;
 
@@ -102,6 +103,14 @@ class StateBackedViewAdapter implements RendererViewAdapter {
     afterMeasure?.();
   }
 
+  get clearDomSelectionCount(): number {
+    return this.#clearDomSelectionCount;
+  }
+
+  clearDomSelection(): void {
+    this.#clearDomSelectionCount += 1;
+  }
+
   destroy(): void {
     if (this.#destroyed) {
       throw new Error("The state-backed view was destroyed twice.");
@@ -164,6 +173,7 @@ export interface RendererTestHarness {
   redo(): boolean;
   startComposition(): void;
   endComposition(): void;
+  clearDomSelectionCount(): number;
 }
 
 export type RendererTestHarnessOptions = Omit<CodeMirrorRendererOptions, "parent"> & {
@@ -203,6 +213,7 @@ export function createRendererTestHarness(
     redo: () => requireView().run(redo),
     startComposition: () => requireView().startComposition(),
     endComposition: () => requireView().endComposition(),
+    clearDomSelectionCount: () => requireView().clearDomSelectionCount,
   });
 }
 

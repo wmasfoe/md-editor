@@ -438,11 +438,46 @@ test.describe("CodeMirror S1 desktop product surface", () => {
     await page.evaluate(() => window.__MD_EDITOR_E2E__!.dispatchCommand("ai.fixGrammar"));
     await expect(page.getByRole("alert")).toContainText("请先配置 AI 模型名称。");
   });
+
+  test("E14: clears residual DOM selection on document replacement and places collapsed cursor on subsequent click", async ({
+    page,
+  }) => {
+    await openFixture(page, SCROLL_FIXTURE);
+    const lines = page.locator(".cm-line");
+    await expect(lines.first()).toBeVisible();
+    await lines.nth(15).click();
+
+    const beforeSwitch = await diagnostics(page);
+    expect(beforeSwitch.renderer?.selectionAnchor).toBe(beforeSwitch.renderer?.selectionHead);
+
+    const mediaButton = page.locator("aside button").filter({ hasText: "m1-s2-media.md" });
+    await mediaButton.click();
+
+    await expect
+      .poll(async () => (await diagnostics(page)).snapshot.filePath)
+      .toBe("/fixtures/m1-s2-media.md");
+
+    const domSelAfterSwitch = await page.evaluate(() => {
+      const sel = window.getSelection();
+      return {
+        rangeCount: sel?.rangeCount ?? 0,
+        hasAnchor: Boolean(sel?.anchorNode),
+      };
+    });
+    expect(domSelAfterSwitch.hasAnchor).toBe(false);
+
+    const doc2Lines = page.locator(".cm-line");
+    await doc2Lines.nth(5).click();
+
+    const afterClick = await diagnostics(page);
+    expect(afterClick.renderer?.selectionAnchor).toBe(afterClick.renderer?.selectionHead);
+    expect(afterClick.renderer?.selectionRanges).toHaveLength(1);
+  });
 });
 
 async function openFixture(page: Page, path: string): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate((fixturePath) => window.__MD_EDITOR_E2E__!.openFixture(fixturePath), path);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
   await expect

@@ -90,6 +90,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
           hasFocus: () => false,
           focus: () => {},
           requestMeasure: () => {},
+          clearDomSelection: () => {},
           destroy: () => {},
         };
       },
@@ -154,6 +155,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
           hasFocus: () => false,
           focus: () => {},
           requestMeasure: () => {},
+          clearDomSelection: () => {},
           destroy: () => {},
         };
       },
@@ -289,6 +291,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
           hasFocus: () => false,
           focus: () => {},
           requestMeasure: () => {},
+          clearDomSelection: () => {},
           destroy: () => {},
         };
       },
@@ -400,6 +403,7 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
           hasFocus: () => false,
           focus: () => {},
           requestMeasure: () => {},
+          clearDomSelection: () => {},
           destroy: () => {},
         };
       },
