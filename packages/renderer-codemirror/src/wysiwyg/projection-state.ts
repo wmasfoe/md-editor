@@ -1145,5 +1145,9 @@ function selectionActivatesRecord(
     }
     return from > record.fullRange.from && from < record.fullRange.to;
   }
+  // 范围选区（from !== to）：行内数学公式保持原子 Widget 渲染，避免鼠标拖选经过时打碎 DOM 破坏拖拽锚点与行高
+  if (record.kind === "inline-math" || record.nodeName === "InlineMath") {
+    return false;
+  }
   return from < record.fullRange.to && to > record.fullRange.from;
 }

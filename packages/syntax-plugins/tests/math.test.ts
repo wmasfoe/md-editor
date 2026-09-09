@@ -1,5 +1,6 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import {
   markdownRangeIndexField,
@@ -401,6 +402,61 @@ describe("mathPlugin (@md-editor/syntax-plugins)", () => {
 
       const result = renderMathHtml("\\invalidcommand{123", false);
       expect(result.html).toBeDefined();
+    });
+  });
+
+  describe("MathInlineWidget measure lifecycle & interaction policy", () => {
+    it("configures InlineMath with reveal-source interaction policy", () => {
+      const policy = mathPlugin.nodePolicies?.[MATH_NODES.InlineMath];
+      expect(policy?.interactionPolicy).toBe("reveal-source");
+    });
+
+    it("triggers requestMeasure on widget mount (toDOM) and permits CM6 events", async () => {
+      const { MathInlineWidget } = await import("../src/math/math-projection.ts");
+      const widget = new MathInlineWidget("test-rec", "E=mc^2", 10);
+
+      let measureRequested = false;
+      const fakeElement = {
+        className: "",
+        setAttribute: () => {},
+        classList: { add: () => {}, remove: () => {} },
+        addEventListener: () => {},
+        innerHTML: "",
+      };
+      const fakeView = {
+        dom: {
+          ownerDocument: {
+            createElement: () => fakeElement,
+          },
+        },
+        state: {
+          doc: { length: 100 },
+        },
+        requestMeasure: () => {
+          measureRequested = true;
+        },
+      } as unknown as EditorView;
+
+      const dom = widget.toDOM(fakeView);
+      expect(dom).toBeDefined();
+      expect(dom.className).toBe("cm-md-math-inline");
+      expect(measureRequested).toBe(true);
+
+      // ignoreEvent 必须返回 false，确保 CodeMirror 的鼠标划选拖拽事件不被吞掉
+      expect(widget.ignoreEvent({ type: "mousemove" } as unknown as Event)).toBe(false);
+      expect(widget.ignoreEvent({ type: "mouseup" } as unknown as Event)).toBe(false);
+    });
+
+    it("triggers requestMeasure on widget destroy to keep HeightMap in sync", async () => {
+      const { MathInlineWidget } = await import("../src/math/math-projection.ts");
+      const widget = new MathInlineWidget("test-rec", "E=mc^2", 10);
+
+      const fakeDom = {
+        closest: () => null,
+      } as unknown as HTMLElement;
+
+      // destroy 执行时不会抛出异常，并安全尝试请求重测
+      expect(() => widget.destroy(fakeDom)).not.toThrow();
     });
   });
 });

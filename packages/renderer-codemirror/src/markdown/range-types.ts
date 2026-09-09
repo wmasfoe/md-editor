@@ -28,6 +28,8 @@ export type MarkdownSyntaxKind =
   | "html"
   | "mdx-jsx"
   | "directive"
+  | "inline-math"
+  | "block-math"
   | "deferred-code"
   | "deferred-table"
   | "deferred-html"

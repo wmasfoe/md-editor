@@ -27,6 +27,13 @@ export async function loadKatex(): Promise<typeof KatexType> {
   return katexPromise;
 }
 
+// 浏览器/客户端环境下尽早预加载 KaTeX，避免文档加载时异步排版跳变
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  void loadKatex().catch(() => {
+    // 静默处理预加载失败，由后续实际渲染环节安全兜底
+  });
+}
+
 /**
  * 同步尝试获取已加载的 KaTeX 实例。
  */

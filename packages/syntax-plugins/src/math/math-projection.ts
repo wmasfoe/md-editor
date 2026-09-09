@@ -1,8 +1,20 @@
 import type { EditorState, Range } from "@codemirror/state";
-import { Decoration, type EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import type { MarkdownRangeRecord } from "@md-editor/renderer-codemirror";
 import { getLoadedKatex, loadKatex, renderMathHtml } from "./math-loader.ts";
 import { MATH_NODES, type MathMetadata } from "./math-types.ts";
+
+function scheduleHeightMeasure(view: EditorView, key: string): void {
+  view.requestMeasure({
+    read(v) {
+      const stateObj = (v as unknown as { viewState?: { mustMeasureContent?: boolean } }).viewState;
+      if (stateObj) {
+        stateObj.mustMeasureContent = true;
+      }
+    },
+    key,
+  });
+}
 
 /**
  * 行内数学公式 Widget（Typora 风格原位渲染）。
@@ -34,16 +46,28 @@ export class MathInlineWidget extends WidgetType {
       span.classList.add("cm-md-math--has-error");
     }
 
-    // 若未加载 KaTeX，发起后台加载并在加载后调度重排
+    // 无论 KaTeX 是否已预加载，渲染完成后均通过 mustMeasureContent 调度 HeightMap 重测，
+    // 杜绝公式挂载引起的视口垂直坐标脱节
     if (!getLoadedKatex()) {
       void loadKatex().then(() => {
         const rendered = renderMathHtml(this.expression, false);
         span.innerHTML = rendered.html;
+        if (rendered.error) {
+          span.classList.add("cm-md-math--has-error");
+        } else {
+          span.classList.remove("cm-md-math--has-error");
+        }
+        scheduleHeightMeasure(view, `math-inline-${this.recordId}`);
       });
+    } else {
+      scheduleHeightMeasure(view, `math-inline-${this.recordId}`);
     }
 
     // 点击原位激活编辑模式：光标移入 $ 标记之后，立即展开源码
     span.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       view.dispatch({
@@ -56,8 +80,22 @@ export class MathInlineWidget extends WidgetType {
     return span;
   }
 
-  override ignoreEvent(event: Event): boolean {
-    return event.type !== "mousedown";
+  override destroy(dom: HTMLElement): void {
+    if (!dom || typeof dom.querySelector !== "function") {
+      return;
+    }
+    const view =
+      EditorView.findFromDOM(dom) ??
+      (typeof dom.closest === "function" && dom.closest(".cm-editor")
+        ? EditorView.findFromDOM(dom.closest(".cm-editor") as HTMLElement)
+        : null);
+    if (view) {
+      scheduleHeightMeasure(view, `math-inline-destroy-${this.recordId}`);
+    }
+  }
+
+  override ignoreEvent(_event: Event): boolean {
+    return false;
   }
 }
 
@@ -95,11 +133,22 @@ export class MathBlockWidget extends WidgetType {
       void loadKatex().then(() => {
         const rendered = renderMathHtml(this.expression, true);
         div.innerHTML = rendered.html;
+        if (rendered.error) {
+          div.classList.add("cm-md-math--has-error");
+        } else {
+          div.classList.remove("cm-md-math--has-error");
+        }
+        scheduleHeightMeasure(view, `math-block-${this.recordId}`);
       });
+    } else {
+      scheduleHeightMeasure(view, `math-block-${this.recordId}`);
     }
 
     // 点击进入块级公式编辑态：光标定位在公式正文开头
     div.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       view.dispatch({
@@ -112,12 +161,26 @@ export class MathBlockWidget extends WidgetType {
     return div;
   }
 
+  override destroy(dom: HTMLElement): void {
+    if (!dom || typeof dom.querySelector !== "function") {
+      return;
+    }
+    const view =
+      EditorView.findFromDOM(dom) ??
+      (typeof dom.closest === "function" && dom.closest(".cm-editor")
+        ? EditorView.findFromDOM(dom.closest(".cm-editor") as HTMLElement)
+        : null);
+    if (view) {
+      scheduleHeightMeasure(view, `math-block-destroy-${this.recordId}`);
+    }
+  }
+
   override get estimatedHeight(): number {
     return 48;
   }
 
-  override ignoreEvent(event: Event): boolean {
-    return event.type !== "mousedown";
+  override ignoreEvent(_event: Event): boolean {
+    return false;
   }
 }
 
@@ -199,6 +262,7 @@ export function buildMathLayoutDecorations(
         Decoration.replace({
           widget: new MathBlockWidget(record.id, meta.expression, clickAnchor),
           inclusive: false,
+          block: true,
           wysiwygRecordId: record.id,
           wysiwygRole: "math-block-widget",
         }).range(record.fullRange.from, record.fullRange.to),
