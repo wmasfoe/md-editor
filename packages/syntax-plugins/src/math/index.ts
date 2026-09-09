@@ -33,7 +33,7 @@ export const mathPlugin: MarkdownSyntaxPlugin = Object.freeze({
       kind: "inline-math" as MarkdownSyntaxKind,
       renderPolicy: "inline-visible-markers",
       editPolicy: "native",
-      interactionPolicy: "active-line",
+      interactionPolicy: "reveal-source",
       priority: 30,
       markerNodeNames: Object.freeze([MATH_NODES.MathMark]),
       contentStrategy: "between-markers",

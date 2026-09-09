@@ -1,8 +1,20 @@
 import type { EditorState, Range } from "@codemirror/state";
-import { Decoration, type EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import type { MarkdownRangeRecord } from "@md-editor/renderer-codemirror";
 import { renderMermaidSvg } from "./mermaid-loader.ts";
 import type { MermaidMetadata } from "./mermaid-types.ts";
+
+function scheduleHeightMeasure(view: EditorView, key: string): void {
+  view.requestMeasure({
+    read(v) {
+      const stateObj = (v as unknown as { viewState?: { mustMeasureContent?: boolean } }).viewState;
+      if (stateObj) {
+        stateObj.mustMeasureContent = true;
+      }
+    },
+    key,
+  });
+}
 
 /**
  * Mermaid 块级图表渲染 Widget（Typora 式所见即所得原位切换）。
@@ -23,25 +35,19 @@ export class MermaidBlockWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const container = view.dom.ownerDocument.createElement("div");
     container.className = "cm-md-mermaid-container";
-    container.setAttribute("role", "figure");
+    container.setAttribute("role", "graphics-document");
     container.setAttribute("aria-label", "Mermaid Diagram");
     container.setAttribute("data-record-id", this.recordId);
 
-    // 默认展示骨架占位
-    const skeleton = view.dom.ownerDocument.createElement("div");
-    skeleton.className = "cm-md-mermaid-loading";
-    skeleton.textContent = "正在渲染图表...";
-    container.appendChild(skeleton);
+    const isDark = view.dom.ownerDocument.documentElement.classList.contains("dark");
 
-    const isDark =
-      typeof document !== "undefined" &&
-      (document.documentElement.classList.contains("dark") ||
-        Boolean(view.dom.closest(".dark")) ||
-        window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+    // 渲染加载中骨架屏占位
+    container.innerHTML = `<div class="cm-md-mermaid-loading"><div class="cm-md-mermaid-loading__spinner"></div><span>正在渲染图表...</span></div>`;
 
     const renderError = (errorMsg: string) => {
       container.innerHTML = "";
       container.classList.add("cm-md-mermaid--has-error");
+
       const errorCard = view.dom.ownerDocument.createElement("div");
       errorCard.className = "cm-md-mermaid-error";
 
@@ -73,10 +79,12 @@ export class MermaidBlockWidget extends WidgetType {
           container.classList.remove("cm-md-mermaid--has-error");
           container.innerHTML = svg;
         }
+        scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
       })
       .catch((err) => {
         const errorMsg = err instanceof Error ? err.message : String(err);
         renderError(`模块加载失败: ${errorMsg}`);
+        scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
       });
 
     // 点击图表原位展开源码：将光标移动到首行 fence 之后
@@ -97,12 +105,26 @@ export class MermaidBlockWidget extends WidgetType {
     return container;
   }
 
+  override destroy(dom: HTMLElement): void {
+    if (!dom || typeof dom.querySelector !== "function") {
+      return;
+    }
+    const view =
+      EditorView.findFromDOM(dom) ??
+      (typeof dom.closest === "function" && dom.closest(".cm-editor")
+        ? EditorView.findFromDOM(dom.closest(".cm-editor") as HTMLElement)
+        : null);
+    if (view) {
+      scheduleHeightMeasure(view, `mermaid-destroy-${this.recordId}`);
+    }
+  }
+
   override get estimatedHeight(): number {
     return 180;
   }
 
-  override ignoreEvent(event: Event): boolean {
-    return event.type !== "mousedown";
+  override ignoreEvent(_event: Event): boolean {
+    return false;
   }
 }
 
@@ -150,6 +172,7 @@ export function buildMermaidLayoutDecorations(
       Decoration.replace({
         widget: new MermaidBlockWidget(record.id, meta.code, record.fullRange.from),
         inclusive: false,
+        block: true,
         wysiwygRecordId: record.id,
         wysiwygRole: "mermaid-block-widget",
       }).range(record.fullRange.from, record.fullRange.to),
