@@ -1,6 +1,7 @@
 import type { ThemeSchemeSettings } from "../../app/settings/app-settings";
 import type { BuiltInThemeOption } from "../../app/settings/built-in-themes";
 import { readThemeSelection } from "./settingsUtils";
+import { useTranslation } from "@md-editor/i18n";
 import {
   settingsFieldLabelClassName,
   settingsInputClassName,
@@ -24,6 +25,7 @@ export function ThemeCssPicker({
   onChoose,
   onClear,
 }: ThemeCssPickerProps) {
+  const { t } = useTranslation();
   const customCssPath = theme.customCssPath;
   const shouldShowCustomCss = theme.source === "custom" || customCssPath !== null;
 
@@ -43,25 +45,25 @@ export function ThemeCssPicker({
               {option.label}
             </option>
           ))}
-          <option value="custom">自定义 CSS</option>
+          <option value="custom">{t("settings.appearance.customCss")}</option>
         </select>
         {shouldShowCustomCss ? (
           <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 max-[760px]:grid-cols-1">
             <input
               className={settingsInputClassName}
               value={customCssPath ?? ""}
-              placeholder="未选择 CSS 文件"
+              placeholder={t("settings.appearance.noCssSelected")}
               readOnly
               spellCheck={false}
-              aria-label={`${label}自定义 CSS 路径`}
-              title={customCssPath ?? "未选择 CSS 文件"}
+              aria-label={`${label}${t("settings.appearance.customCss")}`}
+              title={customCssPath ?? t("settings.appearance.noCssSelected")}
             />
             <button
               type="button"
               className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
               onClick={onChoose}
             >
-              选择
+              {t("common.select")}
             </button>
             {customCssPath ? (
               <button
@@ -69,7 +71,7 @@ export function ThemeCssPicker({
                 className={`${settingsSmallButtonClassName} max-[760px]:w-max`}
                 onClick={onClear}
               >
-                清除
+                {t("common.clear")}
               </button>
             ) : null}
           </div>

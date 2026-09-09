@@ -7,6 +7,7 @@ import {
   loadAppSettings,
   listenToAppSettingsChanged,
   listenToAppThemePreviewChanged,
+  listenToAppLanguagePreviewChanged,
   type AppSettings,
   type UpdateStatus,
 } from "./settings/app-settings";
@@ -20,6 +21,7 @@ import {
 import { isUpdateActionBusy, isUpdateReadyToApply } from "./updates/update-status";
 import { openSettingsWindow } from "../desktop/settings-window";
 import { mergeLocalAiModelStatus, readLocalAiModelStatus } from "./ai/local-ai-model";
+import { changeLanguage } from "@md-editor/i18n";
 
 const AUTO_UPDATE_INITIAL_CHECK_DELAY_MS = 30_000;
 const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -111,6 +113,19 @@ export function AppSettingsProvider({
 
   // 跨窗口设置同步（另一窗口保存后广播）
   useEffect(() => listenToAppSettingsChanged(setSettings), []);
+
+  // 语言环境与持久化设置同步
+  useEffect(() => {
+    void changeLanguage(settings.language);
+  }, [settings.language]);
+
+  // 主窗口接收设置窗口的语言即时预览
+  useEffect(() => {
+    if (surface !== "main") return;
+    return listenToAppLanguagePreviewChanged((lang) => {
+      void changeLanguage(lang ?? settings.language);
+    });
+  }, [settings.language, surface]);
 
   // 主窗口接收设置窗口的主题预览
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "@md-editor/i18n";
 
 export interface AssetPreviewInput {
   readonly name: string;
@@ -16,6 +17,7 @@ export function AssetPreview({
   resolveAssetSrc = (path) => path,
   onBack,
 }: AssetPreviewProps) {
+  const { t } = useTranslation();
   const [failedPath, setFailedPath] = useState<string | null>(null);
   const assetUrl = useMemo(() => resolveAssetSrc(asset.path), [asset.path, resolveAssetSrc]);
 
@@ -32,7 +34,7 @@ export function AssetPreview({
             className="rounded px-2 py-1 text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]"
             onClick={onBack}
           >
-            返回文档
+            {t("editor.assetPreview.backToDoc")}
           </button>
         ) : null}
         <div
@@ -45,7 +47,7 @@ export function AssetPreview({
       <div className="grid min-h-0 flex-1 place-items-center overflow-auto p-7">
         {failedPath ? (
           <div className="grid max-w-[min(520px,100%)] gap-2 rounded border border-[rgba(227,15,46,0.18)] bg-[var(--theme-danger-bg)] px-4 py-3.5 text-[13px] leading-[1.45] text-[var(--theme-danger-text)]">
-            <strong>图片加载失败</strong>
+            <strong>{t("editor.assetPreview.imageLoadError")}</strong>
             <span className="[overflow-wrap:anywhere] font-mono text-[var(--theme-control-text)]">
               {failedPath}
             </span>

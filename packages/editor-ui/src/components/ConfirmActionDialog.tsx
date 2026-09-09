@@ -1,4 +1,5 @@
 import { Description, Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
+import { useTranslation } from "@md-editor/i18n";
 
 export type ConfirmationChoice = "confirm" | "secondary" | "cancel";
 
@@ -16,6 +17,7 @@ export interface ConfirmActionDialogProps {
 }
 
 export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDialogProps) {
+  const { t } = useTranslation();
   const confirmButtonClass = confirmation?.destructive
     ? `${primaryDialogButtonClassName} border-[var(--theme-danger-text)] bg-[var(--theme-danger-text)]`
     : primaryDialogButtonClassName;
@@ -42,7 +44,7 @@ export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDi
               onClick={() => onResolve("cancel")}
               autoFocus={confirmation?.destructive === true}
             >
-              取消
+              {t("common.cancel")}
             </button>
             {confirmation?.secondaryLabel ? (
               <button

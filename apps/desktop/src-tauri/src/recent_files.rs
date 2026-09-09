@@ -34,22 +34,38 @@ pub(crate) fn save_recent_files(recent_files: Vec<RecentFile>) -> Result<(), Str
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn build_open_recent_menu(app: &tauri::AppHandle) -> tauri::Result<Submenu<tauri::Wry>> {
+pub(crate) fn build_open_recent_menu(
+    app: &tauri::AppHandle,
+    is_zh: bool,
+) -> tauri::Result<Submenu<tauri::Wry>> {
     let recent_files = load_recent_files();
-    let mut submenu = SubmenuBuilder::new(app, "Open Recent");
+    let menu_title = if is_zh {
+        "打开最近文件"
+    } else {
+        "Open Recent"
+    };
+    let mut submenu = SubmenuBuilder::new(app, menu_title);
 
     if recent_files.is_empty() {
-        submenu = submenu.item(&menu_item(app, "md-editor:no-recent", "No Recent Files")?);
+        let empty_label = if is_zh {
+            "暂无最近文件"
+        } else {
+            "No Recent Files"
+        };
+        submenu = submenu.item(&menu_item(app, "md-editor:no-recent", empty_label)?);
     } else {
         for (index, file) in recent_files.iter().take(MAX_RECENT_FILES).enumerate() {
             let id = format!("md-editor:open-recent:{index}");
             submenu = submenu.item(&menu_item(app, &id, &file.name)?);
         }
-        submenu = submenu.separator().item(&menu_item(
-            app,
-            "md-editor:clear-recent",
-            "Clear Recent Files",
-        )?);
+        let clear_label = if is_zh {
+            "清除最近文件"
+        } else {
+            "Clear Recent Files"
+        };
+        submenu = submenu
+            .separator()
+            .item(&menu_item(app, "md-editor:clear-recent", clear_label)?);
     }
 
     submenu.build()

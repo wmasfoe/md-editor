@@ -5,6 +5,7 @@ import {
   type OfficialSyntaxPluginId,
 } from "@md-editor/syntax-plugins";
 import type { PluginSettings } from "../../app/settings/app-settings";
+import { useTranslation } from "@md-editor/i18n";
 import {
   settingsDescriptionClassName,
   settingsModuleClassName,
@@ -189,6 +190,21 @@ function ClaudeSwitch({
   );
 }
 
+const TAG_TRANSLATION_KEYS: Record<string, string> = {
+  高亮: "settings.plugins.tags.highlight",
+  Obsidian: "settings.plugins.tags.obsidian",
+  Typora: "settings.plugins.tags.typora",
+  所见即所得: "settings.plugins.tags.wysiwyg",
+  KaTeX: "settings.plugins.tags.katex",
+  数学排版: "settings.plugins.tags.mathTypesetting",
+  "Mermaid.js": "settings.plugins.tags.mermaidJs",
+  矢量图表: "settings.plugins.tags.vectorDiagram",
+  异步加载: "settings.plugins.tags.asyncLoading",
+  "CommonMark 扩展": "settings.plugins.tags.commonmarkExt",
+  提示卡片: "settings.plugins.tags.calloutCards",
+  主题适配: "settings.plugins.tags.themeAdaptive",
+};
+
 /**
  * 单个插件设置卡片（Claude Design 精致紧凑风格）
  */
@@ -201,6 +217,15 @@ function PluginItemCard({
   readonly isEnabled: boolean;
   readonly onToggle: (enabled: boolean) => void;
 }) {
+  const { t } = useTranslation();
+  const nameKey = `settings.plugins.items.${descriptor.id}.name`;
+  const descKey = `settings.plugins.items.${descriptor.id}.description`;
+  const hintKey = `settings.plugins.items.${descriptor.id}.syntaxHint`;
+
+  const translatedName = t(nameKey, { defaultValue: descriptor.name });
+  const translatedDesc = t(descKey, { defaultValue: descriptor.description });
+  const translatedHint = t(hintKey, { defaultValue: descriptor.syntaxHint });
+
   return (
     <div
       className={`relative flex flex-col justify-between gap-2.5 rounded-lg border px-3.5 py-3 transition-all duration-200 ${
@@ -224,34 +249,38 @@ function PluginItemCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[13.5px] font-semibold text-[var(--theme-title)]">
-                {descriptor.name}
+                {translatedName}
               </span>
 
               {/* 官方认证徽章：绿色高质感徽标 */}
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
                 <OfficialBadgeIcon />
-                <span>官方</span>
+                <span>{t("settings.plugins.officialBadge")}</span>
               </span>
             </div>
 
             {/* 描述信息 */}
             <p className="mb-1.5 mt-0.5 text-[12px] leading-relaxed text-[var(--theme-muted)]">
-              {descriptor.description}
+              {translatedDesc}
             </p>
 
             {/* 语法提示与特性标签 */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
-                {descriptor.syntaxHint}
+                {translatedHint}
               </span>
-              {descriptor.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[10.5px] text-[var(--theme-muted)]"
-                >
-                  {tag}
-                </span>
-              ))}
+              {descriptor.tags.map((tag) => {
+                const tagKey = TAG_TRANSLATION_KEYS[tag];
+                const translatedTag = tagKey ? t(tagKey, { defaultValue: tag }) : tag;
+                return (
+                  <span
+                    key={tag}
+                    className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[10.5px] text-[var(--theme-muted)]"
+                  >
+                    {translatedTag}
+                  </span>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -263,12 +292,12 @@ function PluginItemCard({
               isEnabled ? "text-[var(--theme-primary)]" : "text-[var(--theme-muted)]"
             }`}
           >
-            {isEnabled ? "已启用" : "已停用"}
+            {isEnabled ? t("settings.plugins.enabledStatus") : t("settings.plugins.disabledStatus")}
           </span>
           <ClaudeSwitch
             checked={isEnabled}
             onChange={onToggle}
-            ariaLabel={`切换 ${descriptor.name} 启用状态`}
+            ariaLabel={t("settings.plugins.toggleAria", { name: translatedName })}
           />
         </div>
       </div>
@@ -277,16 +306,14 @@ function PluginItemCard({
 }
 
 export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSettingsPanelProps) {
+  const { t } = useTranslation();
   return (
     <section className={settingsModuleClassName} aria-labelledby="plugin-settings-title">
       <div className="mb-3">
         <h2 id="plugin-settings-title" className={settingsSectionTitleClassName}>
-          插件管理
+          {t("settings.plugins.title")}
         </h2>
-        <p className={settingsDescriptionClassName}>
-          管理编辑器内置的高级语法与图表渲染插件。启用后即可享受原位所见即所得交互，停用则安全降级为标准
-          CommonMark 代码呈现。
-        </p>
+        <p className={settingsDescriptionClassName}>{t("settings.plugins.desc")}</p>
       </div>
 
       <div className="grid gap-2.5">
@@ -312,15 +339,14 @@ export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSett
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
-                  更多插件正在持续研发中
+                  {t("settings.plugins.moreComingTitle")}
                 </span>
                 <span className="rounded-full bg-[var(--theme-primary-soft)] px-1.5 py-0.2 text-[10px] font-medium text-[var(--theme-primary)]">
-                  敬请期待
+                  {t("settings.plugins.moreComingBadge")}
                 </span>
               </div>
               <p className="m-0 mt-0.5 text-[11.5px] leading-normal text-[var(--theme-muted)]">
-                思维导图 (Mindmap)、流程图画板
-                (Excalidraw)、甘特图强化与图床扩展等功能正在紧锣密鼓开发中。
+                {t("settings.plugins.moreComingDesc")}
               </p>
             </div>
           </div>

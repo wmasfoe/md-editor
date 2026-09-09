@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import type { TocTarget } from "../types";
 import "./OutlinePanel.css";
 
@@ -16,6 +17,7 @@ export interface OutlinePanelProps {
 }
 
 export function OutlinePanel({ outline, activeId = null, onJump }: OutlinePanelProps) {
+  const { t } = useTranslation();
   const activeItemRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -30,14 +32,16 @@ export function OutlinePanel({ outline, activeId = null, onJump }: OutlinePanelP
 
   if (outline.length === 0) {
     return (
-      <div className="p-3 text-[13px] text-[var(--theme-control-subtle)]">当前文档没有标题。</div>
+      <div className="p-3 text-[13px] text-[var(--theme-control-subtle)]">
+        {t("editor.outline.empty")}
+      </div>
     );
   }
 
   return (
     <nav
       className="outline-panel-scrollbar min-h-0 flex-1 overflow-auto pb-4 pt-2"
-      aria-label="大纲目录"
+      aria-label={t("editor.outline.navAria")}
     >
       {outline.map((item) => {
         const active = item.id === activeId;

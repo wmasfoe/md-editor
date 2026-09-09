@@ -10,6 +10,7 @@ import {
 } from "../../app/settings/built-in-themes";
 import { ThemeCssPicker } from "./ThemeCssPicker";
 import { readThemeColorScheme } from "./settingsUtils";
+import { useTranslation } from "@md-editor/i18n";
 import {
   settingsDescriptionClassName,
   settingsFieldLabelClassName,
@@ -38,6 +39,7 @@ export function AppearanceSettingsPanel({
   onChooseThemeCss,
   onClearThemeCss,
 }: AppearanceSettingsPanelProps) {
+  const { t } = useTranslation();
   const isCustomProse =
     Boolean(editorSettingsDraft.proseFontFamily) &&
     !PROSE_FONT_OPTIONS.some((opt) => opt.id === editorSettingsDraft.proseFontFamily);
@@ -50,18 +52,20 @@ export function AppearanceSettingsPanel({
     <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
       <div className="mb-3">
         <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>
-          外观设置
+          {t("settings.appearance.title")}
         </h2>
-        <p className={settingsDescriptionClassName}>
-          为亮色和暗色分别选择内置主题或自定义 CSS，并独立配置正文与代码字体排版。
-        </p>
+        <p className={settingsDescriptionClassName}>{t("settings.appearance.desc")}</p>
       </div>
       <div className="grid gap-4">
         <fieldset className="grid gap-3 border-0 p-0">
-          <legend className={settingsFieldLabelClassName}>编辑显示与字体排版</legend>
+          <legend className={settingsFieldLabelClassName}>
+            {t("settings.appearance.fontTitle")}
+          </legend>
 
           <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={settingsFieldLabelClassName}>正文字体</span>
+            <span className={settingsFieldLabelClassName}>
+              {t("settings.appearance.proseFont")}
+            </span>
             <select
               className={settingsInputClassName}
               value={isCustomProse ? "custom" : editorSettingsDraft.proseFontFamily}
@@ -79,16 +83,18 @@ export function AppearanceSettingsPanel({
                   {opt.label}
                 </option>
               ))}
-              <option value="custom">自定义字体名称…</option>
+              <option value="custom">{t("settings.appearance.customFontOption")}</option>
             </select>
           </label>
           {isCustomProse ? (
             <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={settingsFieldLabelClassName}>自定义正文字体</span>
+              <span className={settingsFieldLabelClassName}>
+                {t("settings.appearance.customProseFont")}
+              </span>
               <input
                 type="text"
                 className={settingsInputClassName}
-                placeholder="例如：PingFang SC, LXGW WenKai, Georgia"
+                placeholder={t("settings.appearance.customProsePlaceholder")}
                 value={editorSettingsDraft.proseFontFamily}
                 onChange={(event) =>
                   onChangeEditorSettings({
@@ -101,7 +107,7 @@ export function AppearanceSettingsPanel({
           ) : null}
 
           <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={settingsFieldLabelClassName}>代码字体</span>
+            <span className={settingsFieldLabelClassName}>{t("settings.appearance.codeFont")}</span>
             <select
               className={settingsInputClassName}
               value={isCustomCode ? "custom" : editorSettingsDraft.codeFontFamily}
@@ -119,16 +125,18 @@ export function AppearanceSettingsPanel({
                   {opt.label}
                 </option>
               ))}
-              <option value="custom">自定义等宽字体…</option>
+              <option value="custom">{t("settings.appearance.customCodeOption")}</option>
             </select>
           </label>
           {isCustomCode ? (
             <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={settingsFieldLabelClassName}>自定义代码字体</span>
+              <span className={settingsFieldLabelClassName}>
+                {t("settings.appearance.customCodeFont")}
+              </span>
               <input
                 type="text"
                 className={settingsInputClassName}
-                placeholder="例如：JetBrains Mono, SF Mono, Cascadia Code"
+                placeholder={t("settings.appearance.customCodePlaceholder")}
                 value={editorSettingsDraft.codeFontFamily}
                 onChange={(event) =>
                   onChangeEditorSettings({
@@ -141,14 +149,14 @@ export function AppearanceSettingsPanel({
           ) : null}
 
           <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
-            <span className={settingsFieldLabelClassName}>所见即所得字号</span>
+            <span className={settingsFieldLabelClassName}>{t("settings.appearance.fontSize")}</span>
             <input
               type="range"
               min={WYSIWYG_FONT_SIZE_MIN}
               max={WYSIWYG_FONT_SIZE_MAX}
               step={1}
               value={editorSettingsDraft.wysiwygFontSize}
-              aria-label="所见即所得字号"
+              aria-label={t("settings.appearance.fontSize")}
               onChange={(event) =>
                 onChangeEditorSettings({
                   ...editorSettingsDraft,
@@ -172,13 +180,15 @@ export function AppearanceSettingsPanel({
                 })
               }
             />
-            <span>显示代码块行号</span>
+            <span>{t("settings.appearance.showLineNumbers")}</span>
           </label>
         </fieldset>
         <div className="grid gap-2.5">
-          <h3 className={settingsFieldLabelClassName}>主题</h3>
+          <h3 className={settingsFieldLabelClassName}>{t("settings.appearance.themeTitle")}</h3>
           <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={settingsFieldLabelClassName}>应用方式</span>
+            <span className={settingsFieldLabelClassName}>
+              {t("settings.appearance.applyMode")}
+            </span>
             <select
               className={settingsInputClassName}
               value={themeDraft.mode}
@@ -186,13 +196,13 @@ export function AppearanceSettingsPanel({
                 onChangeTheme({ ...themeDraft, mode: readThemeColorScheme(event.target.value) })
               }
             >
-              <option value="system">跟随系统</option>
-              <option value="light">使用亮色 CSS</option>
-              <option value="dark">使用暗色 CSS</option>
+              <option value="system">{t("settings.appearance.modeSystem")}</option>
+              <option value="light">{t("settings.appearance.modeLight")}</option>
+              <option value="dark">{t("settings.appearance.modeDark")}</option>
             </select>
           </label>
           <ThemeCssPicker
-            label="亮色主题"
+            label={t("settings.appearance.lightTheme")}
             theme={themeDraft.light}
             builtInOptions={BUILT_IN_LIGHT_THEME_OPTIONS}
             onChange={(light) => onChangeTheme({ ...themeDraft, light })}
@@ -200,7 +210,7 @@ export function AppearanceSettingsPanel({
             onClear={() => onClearThemeCss("light")}
           />
           <ThemeCssPicker
-            label="暗色主题"
+            label={t("settings.appearance.darkTheme")}
             theme={themeDraft.dark}
             builtInOptions={BUILT_IN_DARK_THEME_OPTIONS}
             onChange={(dark) => onChangeTheme({ ...themeDraft, dark })}

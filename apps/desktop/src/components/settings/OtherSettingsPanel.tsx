@@ -1,4 +1,9 @@
-import type { AppUpdateSettings, UpdateStatus } from "../../app/settings/app-settings";
+import type {
+  AppUpdateSettings,
+  LanguageSetting,
+  UpdateStatus,
+} from "../../app/settings/app-settings";
+import { useTranslation } from "@md-editor/i18n";
 import { updateProgressLabel, updateStatusMessage } from "./settingsUtils";
 import {
   settingsDescriptionClassName,
@@ -10,10 +15,12 @@ import {
 } from "./settingsStyles";
 
 interface OtherSettingsPanelProps {
+  readonly languageDraft: LanguageSetting;
   readonly assetsDirectoryDraft: string;
   readonly updateStatus: UpdateStatus;
   readonly updateSettingsDraft: AppUpdateSettings;
   readonly isCheckingForUpdates: boolean;
+  readonly onChangeLanguage: (value: LanguageSetting) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
   readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
@@ -22,16 +29,19 @@ interface OtherSettingsPanelProps {
 }
 
 export function OtherSettingsPanel({
+  languageDraft,
   assetsDirectoryDraft,
   updateStatus,
   updateSettingsDraft,
   isCheckingForUpdates,
+  onChangeLanguage,
   onChangeAssetsDirectory,
   onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
   onRelaunchAfterUpdate,
 }: OtherSettingsPanelProps) {
+  const { t } = useTranslation();
   const isUpdateBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
@@ -43,17 +53,36 @@ export function OtherSettingsPanel({
 
   return (
     <div className="grid gap-5">
+      <section className={settingsModuleClassName} aria-labelledby="language-settings-title">
+        <div className="mb-3">
+          <h2 id="language-settings-title" className={settingsSectionTitleClassName}>
+            {t("settings.general.languageTitle")}
+          </h2>
+          <p className={settingsDescriptionClassName}>{t("settings.general.languageDesc")}</p>
+        </div>
+        <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+          <span className={settingsFieldLabelClassName}>{t("settings.general.languageField")}</span>
+          <select
+            className={settingsInputClassName}
+            value={languageDraft}
+            onChange={(event) => onChangeLanguage(event.target.value as LanguageSetting)}
+          >
+            <option value="system">{t("settings.general.languageSystem")}</option>
+            <option value="zh">{t("settings.general.languageZh")}</option>
+            <option value="en">{t("settings.general.languageEn")}</option>
+          </select>
+        </label>
+      </section>
+
       <section className={settingsModuleClassName} aria-labelledby="assets-settings-title">
         <div className="mb-3">
           <h2 id="assets-settings-title" className={settingsSectionTitleClassName}>
-            图片设置
+            {t("settings.general.assetsTitle")}
           </h2>
-          <p className={settingsDescriptionClassName}>
-            粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。
-          </p>
+          <p className={settingsDescriptionClassName}>{t("settings.general.assetsDesc")}</p>
         </div>
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-          <span className={settingsFieldLabelClassName}>图片资源目录</span>
+          <span className={settingsFieldLabelClassName}>{t("settings.general.assetsField")}</span>
           <input
             className={settingsInputClassName}
             value={assetsDirectoryDraft}
@@ -67,12 +96,14 @@ export function OtherSettingsPanel({
       <section className={settingsModuleClassName} aria-labelledby="update-settings-title">
         <div className="mb-3">
           <h2 id="update-settings-title" className={settingsSectionTitleClassName}>
-            版本
+            {t("settings.general.updateTitle")}
           </h2>
           <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
           {updateStatus.state === "available" && updateStatus.installCommand ? (
             <div className="mt-2 grid gap-1">
-              <span className={settingsFieldLabelClassName}>手动安装命令</span>
+              <span className={settingsFieldLabelClassName}>
+                {t("settings.general.manualInstallCommand")}
+              </span>
               <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
                 {updateStatus.installCommand}
               </code>
@@ -97,7 +128,7 @@ export function OtherSettingsPanel({
                 });
               }}
             />
-            <span>自动检测更新</span>
+            <span>{t("settings.general.autoCheck")}</span>
           </label>
           <label className="flex min-h-[28px] items-center gap-2 text-[13px] text-[var(--theme-control-text)]">
             <input
@@ -112,12 +143,12 @@ export function OtherSettingsPanel({
                 });
               }}
             />
-            <span>自动下载更新</span>
+            <span>{t("settings.general.autoDownload")}</span>
           </label>
         </div>
         <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
           <span className={settingsFieldLabelClassName}>
-            当前版本 {updateStatus.currentVersion}
+            {t("settings.general.currentVersion", { version: updateStatus.currentVersion })}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -126,7 +157,9 @@ export function OtherSettingsPanel({
               onClick={onCheckForUpdates}
               disabled={isUpdateBusy}
             >
-              {isCheckingForUpdates ? "检查中" : "检查更新"}
+              {isCheckingForUpdates
+                ? t("settings.general.checking")
+                : t("settings.general.checkUpdates")}
             </button>
             {canInstallUpdate ? (
               <button
@@ -134,7 +167,7 @@ export function OtherSettingsPanel({
                 className={settingsSmallButtonClassName}
                 onClick={onInstallUpdate}
               >
-                安装更新
+                {t("settings.general.installUpdate")}
               </button>
             ) : null}
             {canRelaunchAfterUpdate && onRelaunchAfterUpdate ? (
@@ -143,7 +176,7 @@ export function OtherSettingsPanel({
                 className={settingsSmallButtonClassName}
                 onClick={onRelaunchAfterUpdate}
               >
-                重启应用
+                {t("settings.general.relaunchApp")}
               </button>
             ) : null}
           </div>

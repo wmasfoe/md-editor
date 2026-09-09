@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import { SettingsPage } from "../components/SettingsDialog";
 import {
   AppTitleBar,
@@ -20,17 +21,18 @@ export function SettingsWindowApp() {
 }
 
 function SettingsWindowContent({ toast }: { readonly toast: AppToast | null }) {
+  const { t } = useTranslation();
   const { hasLoadedSettings } = useAppSettings();
   const shouldShowOverlayTitleBar = isMacPlatform();
 
   useEffect(() => {
-    document.title = "设置";
-  }, []);
+    document.title = t("settings.title");
+  }, [t]);
 
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
       <AppTitleBar
-        title="设置"
+        title={t("settings.title")}
         isVisible={shouldShowOverlayTitleBar}
         hasWindowControlsInset
         titleAlign="center"

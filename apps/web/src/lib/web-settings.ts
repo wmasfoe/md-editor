@@ -32,6 +32,8 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = Object.freeze({
   }),
 });
 
+import type { LanguageSetting } from "@md-editor/i18n";
+
 export interface WebSettings {
   readonly theme: WebTheme;
   readonly lightTheme: BuiltInThemeId;
@@ -39,6 +41,7 @@ export interface WebSettings {
   readonly fontSize: number;
   readonly ai: WebAiConfig;
   readonly plugins: PluginSettings;
+  readonly language: LanguageSetting;
 }
 
 export const PRESET_PROVIDERS = [
@@ -78,6 +81,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     model: "deepseek-chat",
   },
   plugins: DEFAULT_PLUGIN_SETTINGS,
+  language: "system",
 };
 
 const STORAGE_KEY = "md-editor:web:settings";
@@ -114,6 +118,7 @@ export function loadWebSettings(): WebSettings {
         ...parsed.ai,
       },
       plugins: parsed.plugins ?? DEFAULT_WEB_SETTINGS.plugins,
+      language: parsed.language ?? DEFAULT_WEB_SETTINGS.language,
     };
   } catch {
     return DEFAULT_WEB_SETTINGS;

@@ -20,6 +20,7 @@ import {
   type WebTheme,
 } from "../lib/web-settings";
 import { testAiConnection, type AiTestResult } from "../lib/web-ai-client";
+import { changeLanguage, useTranslation, type LanguageSetting } from "@md-editor/i18n";
 
 // 对齐 Desktop 端设置模块样式类名
 const settingsModuleClassName = "py-1";
@@ -56,10 +57,30 @@ export function WebSettingsDialog({
   isCopied,
   onReset,
 }: WebSettingsDialogProps) {
+  const { t } = useTranslation();
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const [localSettings, setLocalSettings] = useState<WebSettings>(settings);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<AiTestResult | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setLocalSettings(settings);
+    }
+  }, [open, settings]);
+
+  const handleLanguageChange = (value: LanguageSetting) => {
+    setLocalSettings((prev) => ({ ...prev, language: value }));
+    void changeLanguage(value);
+  };
+
+  const handleClose = useCallback(() => {
+    if (localSettings.language !== settings.language) {
+      void changeLanguage(settings.language);
+    }
+    setLocalSettings(settings);
+    onClose();
+  }, [localSettings.language, onClose, settings]);
 
   const isMac =
     typeof navigator !== "undefined" &&
@@ -101,41 +122,41 @@ export function WebSettingsDialog({
     () => [
       {
         id: "view.toggleMode",
-        label: "切换编辑模式 (所见即所得 / 源码)",
+        label: t("web.shortcuts.toggleMode"),
         keyLabel: `${modKey}+/`,
       },
       {
         id: "view.toggleOutline",
-        label: "大纲目录抽屉展开 / 收起",
+        label: t("web.shortcuts.toggleOutline"),
         keyLabel: `${shiftKey}${modKey}+B`,
       },
       {
         id: "ai.trigger",
-        label: "AI 智能续写",
+        label: t("web.shortcuts.aiTrigger"),
         keyLabel: `${modKey}+J`,
       },
       {
         id: "ai.accept",
-        label: "采纳 AI 续写建议",
+        label: t("web.shortcuts.aiAccept"),
         keyLabel: "Tab",
       },
       {
         id: "view.closeOverlay",
-        label: "放弃建议 / 关闭弹窗",
+        label: t("web.shortcuts.closeOverlay"),
         keyLabel: "Escape",
       },
       {
         id: "file.save",
-        label: "保存文档至本地存储",
+        label: t("web.shortcuts.saveDocument"),
         keyLabel: `${modKey}+S`,
       },
       {
         id: "app.settings",
-        label: "打开偏好设置",
+        label: t("web.shortcuts.openSettings"),
         keyLabel: `${modKey}+,`,
       },
     ],
-    [modKey, shiftKey],
+    [modKey, shiftKey, t],
   );
 
   // 四个标准 Tab，完全对齐 Desktop 的架构
@@ -143,17 +164,15 @@ export function WebSettingsDialog({
     () => [
       {
         id: "shortcuts",
-        label: "快捷键设置",
-        description: "命令键位",
+        label: t("settings.tabs.shortcuts"),
+        description: t("settings.tabs.shortcutsDesc"),
         panel: (
           <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
             <div className="mb-3">
               <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>
-                快捷键设置
+                {t("settings.shortcuts.title")}
               </h2>
-              <p className={settingsDescriptionClassName}>
-                预置全局常用快捷键，在编辑时可随时直接调用。
-              </p>
+              <p className={settingsDescriptionClassName}>{t("web.shortcutsDesc")}</p>
             </div>
             <div className="grid gap-2.5">
               {shortcutsList.map((shortcut) => (
@@ -164,7 +183,7 @@ export function WebSettingsDialog({
                   <span className="min-w-0">
                     <strong className={settingsFieldLabelClassName}>{shortcut.label}</strong>
                     <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">
-                      默认 {shortcut.keyLabel}
+                      {t("settings.shortcuts.defaultShortcut", { key: shortcut.keyLabel })}
                     </small>
                   </span>
                   <input
@@ -173,7 +192,7 @@ export function WebSettingsDialog({
                     value={shortcut.keyLabel}
                     readOnly
                     spellCheck={false}
-                    aria-label={`${shortcut.label}快捷键`}
+                    aria-label={t("settings.shortcuts.ariaShortcut", { name: shortcut.label })}
                   />
                 </div>
               ))}
@@ -183,17 +202,15 @@ export function WebSettingsDialog({
       },
       {
         id: "ai",
-        label: "AI 设置",
-        description: "续写、修复和模型",
+        label: t("settings.tabs.ai"),
+        description: t("settings.tabs.aiDesc"),
         panel: (
           <section className={settingsModuleClassName} aria-labelledby="ai-settings-title">
             <div className="mb-3">
               <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>
-                AI 设置
+                {t("settings.ai.title")}
               </h2>
-              <p className={settingsDescriptionClassName}>
-                AI 只会在你主动触发续写时请求；API Key 会保存在浏览器本地设置中。
-              </p>
+              <p className={settingsDescriptionClassName}>{t("web.aiDesc")}</p>
             </div>
             <div className="grid gap-3.5">
               <label className="flex min-h-[30px] items-center gap-2">
@@ -208,11 +225,11 @@ export function WebSettingsDialog({
                     }))
                   }
                 />
-                <span className={settingsFieldLabelClassName}>启用 AI 续写辅助</span>
+                <span className={settingsFieldLabelClassName}>{t("web.enableAi")}</span>
               </label>
 
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>Provider</span>
+                <span className={settingsFieldLabelClassName}>{t("settings.ai.provider")}</span>
                 <select
                   className={settingsInputClassName}
                   value={localSettings.ai.provider}
@@ -231,13 +248,13 @@ export function WebSettingsDialog({
                 >
                   <option value="openai-compatible">OpenAI-compatible</option>
                   <option value="deepseek">DeepSeek</option>
-                  <option value="ollama">Ollama (本地 / 远程端点)</option>
+                  <option value="ollama">Ollama</option>
                 </select>
               </label>
 
               <div>
                 <label className="block text-xs font-medium text-[var(--theme-muted)] mb-1.5">
-                  快捷选择推荐服务商
+                  {t("web.recommendedProviders")}
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {PRESET_PROVIDERS.map((preset) => (
@@ -258,7 +275,7 @@ export function WebSettingsDialog({
               </div>
 
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>API 端点 (Base URL)</span>
+                <span className={settingsFieldLabelClassName}>{t("web.endpointBaseUrl")}</span>
                 <input
                   type="text"
                   className={settingsInputClassName}
@@ -274,7 +291,7 @@ export function WebSettingsDialog({
               </label>
 
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>API Key</span>
+                <span className={settingsFieldLabelClassName}>{t("settings.ai.apiKey")}</span>
                 <input
                   type="password"
                   className={settingsInputClassName}
@@ -290,7 +307,7 @@ export function WebSettingsDialog({
               </label>
 
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>模型名称 (Model)</span>
+                <span className={settingsFieldLabelClassName}>{t("web.modelName")}</span>
                 <input
                   type="text"
                   className={settingsInputClassName}
@@ -314,7 +331,7 @@ export function WebSettingsDialog({
                 >
                   <span className="flex items-center gap-1.5">
                     <SparklesIcon className="size-3.5" />
-                    {isTesting ? "测试中..." : "测试连接连通性"}
+                    {isTesting ? t("web.testingConnection") : t("web.testConnection")}
                   </span>
                 </button>
 
@@ -334,7 +351,9 @@ export function WebSettingsDialog({
                     <div>
                       <div>{testResult.message}</div>
                       {testResult.latencyMs && (
-                        <div className="mt-0.5 opacity-80">响应延迟: {testResult.latencyMs} ms</div>
+                        <div className="mt-0.5 opacity-80">
+                          {t("web.latency", { ms: testResult.latencyMs })}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -346,45 +365,49 @@ export function WebSettingsDialog({
       },
       {
         id: "appearance",
-        label: "外观设置",
-        description: "主题和编辑显示",
+        label: t("settings.tabs.appearance"),
+        description: t("settings.tabs.appearanceDesc"),
         panel: (
           <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
             <div className="mb-3">
               <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>
-                外观设置
+                {t("settings.appearance.title")}
               </h2>
-              <p className={settingsDescriptionClassName}>
-                为亮色和暗色分别选择内置主题，并配置所见即所得字号。
-              </p>
+              <p className={settingsDescriptionClassName}>{t("web.appearanceDesc")}</p>
             </div>
             <div className="grid gap-4">
               <fieldset className="grid gap-3 border-0 p-0">
-                <legend className={settingsFieldLabelClassName}>编辑显示与字体排版</legend>
+                <legend className={settingsFieldLabelClassName}>
+                  {t("settings.appearance.fontTitle")}
+                </legend>
 
                 {onChangeMode && (
                   <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                    <span className={settingsFieldLabelClassName}>当前编辑模式</span>
+                    <span className={settingsFieldLabelClassName}>
+                      {t("web.currentEditorMode")}
+                    </span>
                     <select
                       className={settingsInputClassName}
                       value={mode ?? "wysiwyg"}
                       onChange={(e) => onChangeMode(e.target.value as "wysiwyg" | "source")}
                     >
-                      <option value="wysiwyg">所见即所得 (WYSIWYG)</option>
-                      <option value="source">源码模式 (Source)</option>
+                      <option value="wysiwyg">{t("web.wysiwygMode")}</option>
+                      <option value="source">{t("web.sourceMode")}</option>
                     </select>
                   </label>
                 )}
 
                 <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
-                  <span className={settingsFieldLabelClassName}>所见即所得字号</span>
+                  <span className={settingsFieldLabelClassName}>
+                    {t("settings.appearance.fontSize")}
+                  </span>
                   <input
                     type="range"
                     min={13}
                     max={22}
                     step={1}
                     value={localSettings.fontSize}
-                    aria-label="所见即所得字号"
+                    aria-label={t("settings.appearance.fontSize")}
                     className="accent-[var(--theme-primary)]"
                     onChange={(event) =>
                       setLocalSettings((prev) => ({
@@ -400,9 +423,13 @@ export function WebSettingsDialog({
               </fieldset>
 
               <div className="grid gap-2.5">
-                <h3 className={settingsFieldLabelClassName}>主题</h3>
+                <h3 className={settingsFieldLabelClassName}>
+                  {t("settings.appearance.themeTitle")}
+                </h3>
                 <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>应用方式</span>
+                  <span className={settingsFieldLabelClassName}>
+                    {t("settings.appearance.applyMode")}
+                  </span>
                   <select
                     className={settingsInputClassName}
                     value={localSettings.theme}
@@ -413,14 +440,16 @@ export function WebSettingsDialog({
                       }))
                     }
                   >
-                    <option value="system">跟随系统</option>
-                    <option value="light">使用亮色 CSS</option>
-                    <option value="dark">使用暗色 CSS</option>
+                    <option value="system">{t("settings.appearance.modeSystem")}</option>
+                    <option value="light">{t("settings.appearance.modeLight")}</option>
+                    <option value="dark">{t("settings.appearance.modeDark")}</option>
                   </select>
                 </label>
 
                 <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>亮色主题</span>
+                  <span className={settingsFieldLabelClassName}>
+                    {t("settings.appearance.lightTheme")}
+                  </span>
                   <select
                     className={settingsInputClassName}
                     value={localSettings.lightTheme}
@@ -440,7 +469,9 @@ export function WebSettingsDialog({
                 </label>
 
                 <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>暗色主题</span>
+                  <span className={settingsFieldLabelClassName}>
+                    {t("settings.appearance.darkTheme")}
+                  </span>
                   <select
                     className={settingsInputClassName}
                     value={localSettings.darkTheme}
@@ -465,25 +496,46 @@ export function WebSettingsDialog({
       },
       {
         id: "other",
-        label: "其他设置",
-        description: "文档、重置和关于",
+        label: t("settings.tabs.other"),
+        description: t("settings.tabs.otherDesc"),
         panel: (
           <div className="grid gap-5">
+            <section className={settingsModuleClassName} aria-labelledby="language-settings-title">
+              <div className="mb-3">
+                <h2 id="language-settings-title" className={settingsSectionTitleClassName}>
+                  {t("settings.general.languageTitle")}
+                </h2>
+                <p className={settingsDescriptionClassName}>{t("settings.general.languageDesc")}</p>
+              </div>
+              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
+                <span className={settingsFieldLabelClassName}>
+                  {t("settings.general.languageField")}
+                </span>
+                <select
+                  className={settingsInputClassName}
+                  value={localSettings.language}
+                  onChange={(event) => handleLanguageChange(event.target.value as LanguageSetting)}
+                >
+                  <option value="system">{t("settings.general.languageSystem")}</option>
+                  <option value="zh">{t("settings.general.languageZh")}</option>
+                  <option value="en">{t("settings.general.languageEn")}</option>
+                </select>
+              </label>
+            </section>
+
             <section className={settingsModuleClassName} aria-labelledby="document-settings-title">
               <div className="mb-3">
                 <h2 id="document-settings-title" className={settingsSectionTitleClassName}>
-                  文档输出
+                  {t("web.documentOutput")}
                 </h2>
-                <p className={settingsDescriptionClassName}>
-                  将当前编辑内容保存到本地文件或复制到系统剪贴板。
-                </p>
+                <p className={settingsDescriptionClassName}>{t("web.documentOutputDesc")}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {onExport && (
                   <button type="button" className={settingsSmallButtonClassName} onClick={onExport}>
                     <span className="flex items-center gap-1.5">
                       <ArrowDownTrayIcon className="size-3.5 text-[var(--theme-muted)]" />
-                      <span>导出为 .md 文件</span>
+                      <span>{t("web.exportMarkdown")}</span>
                     </span>
                   </button>
                 )}
@@ -493,12 +545,12 @@ export function WebSettingsDialog({
                       {isCopied ? (
                         <>
                           <ClipboardDocumentCheckIcon className="size-3.5 text-green-500" />
-                          <span className="text-green-500">已复制到剪贴板</span>
+                          <span className="text-green-500">{t("web.copied")}</span>
                         </>
                       ) : (
                         <>
                           <ClipboardDocumentIcon className="size-3.5 text-[var(--theme-muted)]" />
-                          <span>复制 Markdown 内容</span>
+                          <span>{t("web.copyMarkdown")}</span>
                         </>
                       )}
                     </span>
@@ -511,12 +563,9 @@ export function WebSettingsDialog({
               <section className={settingsModuleClassName} aria-labelledby="reset-settings-title">
                 <div className="mb-3">
                   <h2 id="reset-settings-title" className={settingsSectionTitleClassName}>
-                    重置演示内容
+                    {t("web.resetDemo")}
                   </h2>
-                  <p className={settingsDescriptionClassName}>
-                    若您希望重新体验 Inkpoint 官方特性演示（MDX
-                    Callout、表格、代码块等），可一键恢复初始内容。当前编辑的草稿将被替换。
-                  </p>
+                  <p className={settingsDescriptionClassName}>{t("web.resetDemoDesc")}</p>
                 </div>
                 <button
                   type="button"
@@ -528,7 +577,7 @@ export function WebSettingsDialog({
                 >
                   <span className="flex items-center gap-1.5">
                     <ArrowPathIcon className="size-3.5" />
-                    <span>恢复初始演示内容</span>
+                    <span>{t("web.resetDemoButton")}</span>
                   </span>
                 </button>
               </section>
@@ -537,12 +586,9 @@ export function WebSettingsDialog({
             <section className={settingsModuleClassName} aria-labelledby="about-settings-title">
               <div className="mb-3">
                 <h2 id="about-settings-title" className={settingsSectionTitleClassName}>
-                  关于 Inkpoint
+                  {t("web.aboutTitle")}
                 </h2>
-                <p className={settingsDescriptionClassName}>
-                  Inkpoint Playground（Web 体验版）• 基于 CodeMirror 6 Markdown 可视化引擎与 MDX
-                  官方保真语法支持。
-                </p>
+                <p className={settingsDescriptionClassName}>{t("web.aboutDesc")}</p>
               </div>
             </section>
           </div>
@@ -561,6 +607,7 @@ export function WebSettingsDialog({
       onExport,
       onReset,
       shortcutsList,
+      t,
       testResult,
     ],
   );
@@ -581,14 +628,14 @@ export function WebSettingsDialog({
               id="settings-title"
               className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]"
             >
-              设置
+              {t("settings.title")}
             </h1>
-            <p className={settingsDescriptionClassName}>调整编辑器偏好和 Web 端行为。</p>
+            <p className={settingsDescriptionClassName}>{t("web.settingsDescription")}</p>
           </div>
           <button
             type="button"
             className="rounded-lg p-1.5 text-[var(--theme-muted)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-            onClick={onClose}
+            onClick={handleClose}
           >
             <XMarkIcon className="size-5" />
           </button>
@@ -605,7 +652,7 @@ export function WebSettingsDialog({
             <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
               <TabList
                 className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto"
-                aria-label="设置分类"
+                aria-label={t("web.settingsNavAria")}
               >
                 {tabs.map((tab) => (
                   <Tab
@@ -643,11 +690,11 @@ export function WebSettingsDialog({
 
           {/* 底部保存与取消按钮，完全对齐 Desktop */}
           <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-3.5">
-            <button type="button" className={dialogButtonClassName} onClick={onClose}>
-              取消
+            <button type="button" className={dialogButtonClassName} onClick={handleClose}>
+              {t("common.cancel")}
             </button>
             <button type="button" className={primaryDialogButtonClassName} onClick={handleSave}>
-              保存
+              {t("common.save")}
             </button>
           </footer>
         </div>

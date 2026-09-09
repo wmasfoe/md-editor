@@ -1,4 +1,5 @@
 import type { RecentFile } from "@md-editor/editor-core";
+import { useTranslation } from "@md-editor/i18n";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "./ConfirmActionDialog";
 
 export interface WelcomeStateProps {
@@ -19,6 +20,8 @@ export function WelcomeState({
   onOpenRecent,
   logoSrc,
 }: WelcomeStateProps) {
+  const { t } = useTranslation();
+
   return (
     <section
       className="m-auto w-[min(620px,calc(100%_-_48px))] px-0 pb-[72px] pt-12"
@@ -43,30 +46,30 @@ export function WelcomeState({
       )}
       <div className="mb-[26px] mt-[22px]">
         <p className="mb-1 mt-0 text-[13px] text-[var(--theme-muted)]">
-          本地优先的 Markdown 写作工具
+          {t("editor.welcome.tagline")}
         </p>
         <h1
           id="welcome-title"
           className="m-0 text-[28px] leading-[1.3] tracking-normal text-[var(--theme-title)]"
         >
-          从一篇文档开始
+          {t("editor.welcome.title")}
         </h1>
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={primaryActionClassName} onClick={onNewDocument}>
-          新建文档
+          {t("editor.welcome.newDoc")}
         </button>
         <button type="button" className={secondaryActionClassName} onClick={onOpenDocument}>
-          打开文件
+          {t("editor.welcome.openFile")}
         </button>
         <button type="button" className={secondaryActionClassName} onClick={onOpenFolder}>
-          打开文件夹
+          {t("editor.welcome.openFolder")}
         </button>
       </div>
       {recentFiles.length > 0 ? (
         <div className="mt-[34px]">
           <h2 className="mb-2 mt-0 text-xs font-semibold uppercase tracking-[0.04em] text-[var(--theme-muted)]">
-            最近文件
+            {t("editor.welcome.recentFiles")}
           </h2>
           <ul className="m-0 list-none p-0">
             {recentFiles.slice(0, 5).map((file) => (
@@ -90,7 +93,7 @@ export function WelcomeState({
         </div>
       ) : (
         <p className="mt-[30px] text-xs text-[var(--theme-control-subtle)]">
-          你打开的文件只保存在本机。
+          {t("editor.welcome.localOnlyHint")}
         </p>
       )}
     </section>
