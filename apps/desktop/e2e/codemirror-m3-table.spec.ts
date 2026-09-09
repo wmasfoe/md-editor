@@ -41,7 +41,7 @@ test.describe("CodeMirror M3 table interaction surface", () => {
   test.beforeEach(async ({ context, page }) => {
     await grantClipboard(context);
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+    await expect(page.locator("#welcome-title")).toBeVisible();
   });
 
   async function loadTable(page: Page, markdown: string): Promise<void> {

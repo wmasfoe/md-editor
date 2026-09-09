@@ -385,7 +385,8 @@ export const en: TranslationSchema = {
   },
   commandPalette: {
     placeholder: "Type a command or keyword...",
-    empty: "No matching commands found",
+    searchAria: "Command search",
+    empty: "No matching commands",
     navigate: "↑↓ Navigate",
     run: "Enter Run",
     commandCount: "{{count}} commands",

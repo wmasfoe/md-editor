@@ -827,7 +827,7 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
 
 async function openFixture(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate((path) => window.__MD_EDITOR_E2E__!.openFixture(path), FIXTURE_PATH);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
   await expect

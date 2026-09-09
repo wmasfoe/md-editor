@@ -195,7 +195,7 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
               }}
               onKeyDown={handleKeyDown}
               placeholder={t("commandPalette.placeholder")}
-              aria-label={t("commandPalette.placeholder")}
+              aria-label={t("commandPalette.searchAria", { defaultValue: "命令搜索" })}
               className="w-full bg-transparent text-sm text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-muted)]"
             />
             <span className="shrink-0 rounded border border-[var(--theme-border)] px-1.5 py-0.5 text-[10px] text-[var(--theme-muted)]">

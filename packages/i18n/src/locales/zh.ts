@@ -304,7 +304,7 @@ export const zh = {
     outline: {
       title: "大纲",
       empty: "当前文档没有标题。",
-      navAria: "文章大纲",
+      navAria: "大纲目录",
     },
     assetPreview: {
       title: "资源预览",
@@ -382,7 +382,8 @@ export const zh = {
   },
   commandPalette: {
     placeholder: "输入命令或关键词...",
-    empty: "没有找到匹配的命令",
+    searchAria: "命令搜索",
+    empty: "没有匹配的命令",
     navigate: "↑↓ 导航",
     run: "Enter 执行",
     commandCount: "{{count}} 个命令",

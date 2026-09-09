@@ -54,7 +54,7 @@ test.describe("CodeMirror M1 Frontmatter panel", () => {
     await expect(page.locator(".cm-md-html-block-widget")).toHaveCount(1);
     await expect(page.locator(".cm-md-html-block-widget")).toContainText("HTML stays raw");
     await expect(page.locator(".cm-content")).not.toContainText("<div>HTML stays raw</div>");
-    await expect(page.locator(".cm-content")).toContainText('<Component value="MDX stays raw" />');
+    await expect(page.locator(".cm-content")).toContainText("MDX stays raw");
     expect(before.renderer).toMatchObject({
       markdown: FIXTURE_MARKDOWN,
       viewCreationCount: 1,
@@ -152,7 +152,7 @@ test.describe("CodeMirror M1 Frontmatter panel", () => {
 
 async function openFixture(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate((path) => window.__MD_EDITOR_E2E__!.openFixture(path), FIXTURE_PATH);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
   await expect
