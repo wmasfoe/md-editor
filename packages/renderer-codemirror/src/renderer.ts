@@ -191,6 +191,7 @@ export interface RendererViewAdapter {
   hasFocus(): boolean;
   focus(): void;
   requestMeasure(afterMeasure?: () => void): void;
+  clearDomSelection(): void;
   destroy(): void;
 }
 
@@ -308,6 +309,41 @@ class DomRendererViewAdapter implements RendererViewAdapter {
       } else {
         queueMicrotask(afterMeasure);
       }
+    }
+  }
+
+  clearDomSelection(): void {
+    const dom = this.#view.contentDOM;
+    const win = dom.ownerDocument?.defaultView;
+    const sel = win?.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      sel.removeAllRanges();
+    }
+    const internalView = this.#view as unknown as {
+      observer?: {
+        clearSelectionRange?: () => void;
+        clear?: () => void;
+      };
+      inputState?: {
+        mouseSelection?: { destroy?: () => void } | null;
+        draggedContent?: unknown;
+        lastSelectionTime?: number;
+        lastSelectionOrigin?: unknown;
+      };
+    };
+    internalView.observer?.clearSelectionRange?.();
+    internalView.observer?.clear?.();
+    if (internalView.inputState?.mouseSelection) {
+      internalView.inputState.mouseSelection.destroy?.();
+      internalView.inputState.mouseSelection = null;
+    }
+    if (internalView.inputState) {
+      internalView.inputState.draggedContent = null;
+      internalView.inputState.lastSelectionTime = 0;
+      internalView.inputState.lastSelectionOrigin = null;
+    }
+    if (this.#view.hasFocus) {
+      this.#view.focus();
     }
   }
 
@@ -1189,6 +1225,7 @@ class CodeMirrorRendererController {
     this.#clearPendingProtocolState();
     const nextState = this.#createState(snapshot);
     this.#view.setState(nextState);
+    this.#view.clearDomSelection();
     this.#view.setScrollTop(0);
     this.#stateReplacementCount += 1;
     this.#stateEpochSequence += 1;

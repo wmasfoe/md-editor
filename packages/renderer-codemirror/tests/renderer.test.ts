@@ -411,6 +411,32 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     });
   });
 
+  it("clears DOM selection and resets observer state on document boundary replacement", () => {
+    const setup = createSetup({ markdown: "alpha\n" });
+    expect(setup.harness.clearDomSelectionCount()).toBe(0);
+
+    const nextDoc = cloneSnapshot(setup.document.getSnapshot(), {
+      markdown: "beta\n",
+      savedMarkdown: "beta\n",
+      mode: "wysiwyg",
+      documentGeneration: 2,
+      stateRevision: 1,
+      contentRevision: 0,
+    });
+
+    expect(setup.harness.renderer.sync(documentReplaceEvent(nextDoc))).toEqual({
+      status: "applied",
+      transactionCount: 1,
+    });
+    expect(setup.harness.clearDomSelectionCount()).toBe(1);
+    expect(setup.harness.probe()).toMatchObject({
+      documentGeneration: 2,
+      markdown: "beta\n",
+      selectionAnchor: 0,
+      selectionHead: 0,
+    });
+  });
+
   it("R10 switches mode atomically without changing document-owned view state", () => {
     const setup = createSetup({ markdown: "alpha\n" });
     setup.harness.replaceAsUser("alpha beta\n");

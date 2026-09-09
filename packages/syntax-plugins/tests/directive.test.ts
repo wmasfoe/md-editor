@@ -240,6 +240,7 @@ describe("containerDirectivePlugin (@md-editor/syntax-plugins)", () => {
             hasFocus: () => false,
             focus: () => {},
             requestMeasure: () => {},
+            clearDomSelection: () => {},
             destroy: () => {},
           };
         },
