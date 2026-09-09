@@ -5,14 +5,14 @@ const FIXTURE_PATH = "/fixtures/s1-scroll.md";
 
 async function openFixture(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate((path) => window.__MD_EDITOR_E2E__!.openFixture(path), FIXTURE_PATH);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
 }
 
 async function openPalette(page: Page): Promise<void> {
   await page.keyboard.press(`${MOD_KEY}+k`);
-  await expect(page.getByLabel("命令搜索")).toBeVisible();
+  await expect(page.getByLabel(/命令搜索|Command search/)).toBeVisible();
 }
 
 test.describe("G007 command palette (P3-9 unified UI entry)", () => {
@@ -25,37 +25,37 @@ test.describe("G007 command palette (P3-9 unified UI entry)", () => {
     // 内置命令按组展示(文件/视图/设置/插入/AI)
     const palette = page.getByRole("dialog");
     await expect(palette).toBeVisible();
-    await expect(page.getByLabel("命令搜索")).toBeFocused();
+    await expect(page.getByLabel(/命令搜索|Command search/)).toBeFocused();
     // 至少包含文件组与保存命令(registry 元数据驱动,非硬编码)
-    await expect(palette.getByText("文件", { exact: true })).toBeVisible();
-    await expect(palette.getByRole("button", { name: /Save/ }).first()).toBeVisible();
+    await expect(palette.locator("div", { hasText: /^文件$|^File$/ })).toBeVisible();
+    await expect(palette.getByRole("button", { name: /save|保存/i }).first()).toBeVisible();
   });
 
   test("E02: typing filters by title and keywords with an empty state", async ({ page }) => {
     await openFixture(page);
     await openPalette(page);
 
-    const search = page.getByLabel("命令搜索");
+    const search = page.getByLabel(/命令搜索|Command search/);
     await search.fill("save");
     // title 命中:Save / Save As
-    await expect(page.getByRole("button", { name: /Save/ })).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /save|保存/i })).toHaveCount(2);
 
     // keywords 命中:中文 "保存" 只对应 file.save("另存为" 归 file.saveAs)
     await search.fill("保存");
-    await expect(page.getByRole("button", { name: /^Save file/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /save|保存/i })).toHaveCount(1);
     await search.fill("另存为");
-    await expect(page.getByRole("button", { name: /Save As/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: /save as|另存为/i })).toHaveCount(1);
 
     // 无匹配 → 空态
     await search.fill("zzzz-no-such-command");
-    await expect(page.getByText("没有匹配的命令")).toBeVisible();
+    await expect(page.getByText(/没有匹配的命令|No matching commands/)).toBeVisible();
   });
 
   test("E03: Enter executes the selected command through dispatchCommand", async ({ page }) => {
     await openFixture(page);
     await openPalette(page);
 
-    const search = page.getByLabel("命令搜索");
+    const search = page.getByLabel(/命令搜索|Command search/);
     await search.fill("toggle source");
     await page.keyboard.press("Enter");
 
@@ -69,7 +69,7 @@ test.describe("G007 command palette (P3-9 unified UI entry)", () => {
     await openFixture(page);
     await openPalette(page);
 
-    const search = page.getByLabel("命令搜索");
+    const search = page.getByLabel(/命令搜索|Command search/);
     // 过滤后 ↑/↓ 导航不越界(选中项始终存在)
     await search.fill("settings");
     await page.keyboard.press("ArrowDown");

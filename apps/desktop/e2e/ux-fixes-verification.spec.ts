@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function openApp(page: Page): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate(() => window.__MD_EDITOR_E2E__?.createNewDocument());
   await expect(page.locator(".cm-editor")).toHaveCount(1);
 }

@@ -4,7 +4,7 @@ const SCROLL_FIXTURE = "/fixtures/s1-scroll.md";
 
 async function openFixture(page: Page, path: string): Promise<void> {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从一篇文档开始" })).toBeVisible();
+  await expect(page.locator("#welcome-title")).toBeVisible();
   await page.evaluate((fixturePath) => window.__MD_EDITOR_E2E__!.openFixture(fixturePath), path);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
   await expect
@@ -24,12 +24,15 @@ test.describe("M5 大纲跳转 (Outline Jump)", () => {
     await titleBarControls.hover();
     const outlineButton = page
       .getByRole("button", { name: "打开大纲浮层" })
-      .or(page.locator("button[title='大纲']"));
+      .or(page.locator("button[title='大纲']"))
+      .or(page.locator("button[title='Outline']"));
     await expect(outlineButton).toBeVisible();
     await outlineButton.click();
 
     // 2. Popover 出现并展示各级标题
-    const nav = page.locator("nav[aria-label='文章大纲']");
+    const nav = page.locator(
+      "nav[aria-label='大纲目录'], nav[aria-label='Document outline'], nav[aria-label='文章大纲']",
+    );
     await expect(nav).toBeVisible();
 
     // 3. 点击第 10 节标题 "Section 10" (exact match)
@@ -57,13 +60,13 @@ test.describe("M5 大纲跳转 (Outline Jump)", () => {
 
     // 1. 切换侧栏到大纲视图
     const outlineTabButton = page
-      .getByRole("tab", { name: "大纲" })
-      .or(page.getByRole("button", { name: "大纲" }));
+      .getByRole("tab", { name: /大纲|Outline/ })
+      .or(page.getByRole("button", { name: /大纲|Outline/ }));
     if (await outlineTabButton.isVisible()) {
       await outlineTabButton.click();
     }
 
-    const sidebarNav = page.locator("nav[aria-label='大纲目录']");
+    const sidebarNav = page.locator("nav.outline-panel-scrollbar");
     await expect(sidebarNav).toBeVisible();
 
     // 2. 点击第 5 节标题 (exact match)
