@@ -1,3 +1,5 @@
+import { t } from "@md-editor/i18n";
+
 export type DocumentMetricKind = "words" | "lines" | "characters";
 
 export interface DocumentMetrics {
@@ -17,11 +19,11 @@ export function calculateDocumentMetrics(markdown: string): DocumentMetrics {
 export function getDocumentMetricLabel(kind: DocumentMetricKind, metrics: DocumentMetrics): string {
   switch (kind) {
     case "words":
-      return `${metrics.words} 词`;
+      return t("editor.metrics.wordsCount", { count: metrics.words });
     case "lines":
-      return `${metrics.lines} 行`;
+      return t("editor.metrics.linesCount", { count: metrics.lines });
     case "characters":
-      return `${metrics.characters} 字符`;
+      return t("editor.metrics.charactersCount", { count: metrics.characters });
   }
 }
 

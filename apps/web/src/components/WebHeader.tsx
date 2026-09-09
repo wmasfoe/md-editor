@@ -1,5 +1,6 @@
 import React from "react";
 import { Cog6ToothIcon, MoonIcon, SunIcon } from "@heroicons/react/24/outline";
+import { useTranslation } from "@md-editor/i18n";
 
 export interface WebHeaderProps {
   readonly theme: "light" | "dark" | "system";
@@ -8,6 +9,7 @@ export interface WebHeaderProps {
 }
 
 export function WebHeader({ theme, onToggleTheme, onOpenSettings }: WebHeaderProps) {
+  const { t } = useTranslation();
   const isMac =
     typeof navigator !== "undefined" &&
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -25,7 +27,7 @@ export function WebHeader({ theme, onToggleTheme, onOpenSettings }: WebHeaderPro
             Inkpoint
           </span>
           <span className="rounded bg-[var(--theme-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-primary)]">
-            Playground
+            {t("web.tagline")}
           </span>
         </div>
       </div>
@@ -36,7 +38,7 @@ export function WebHeader({ theme, onToggleTheme, onOpenSettings }: WebHeaderPro
         <button
           type="button"
           className="grid size-8 place-items-center rounded-md text-[var(--theme-muted)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-          title={theme === "dark" ? "切换为浅色模式" : "切换为深色模式"}
+          title={theme === "dark" ? t("web.toggleLight") : t("web.toggleDark")}
           onClick={onToggleTheme}
         >
           {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
@@ -46,7 +48,7 @@ export function WebHeader({ theme, onToggleTheme, onOpenSettings }: WebHeaderPro
         <button
           type="button"
           className="grid size-8 place-items-center rounded-md text-[var(--theme-muted)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-          title={`设置与快捷键指南 (${modKey},)`}
+          title={t("web.openSettingsWithShortcut", { modKey })}
           onClick={onOpenSettings}
         >
           <Cog6ToothIcon className="size-4" />

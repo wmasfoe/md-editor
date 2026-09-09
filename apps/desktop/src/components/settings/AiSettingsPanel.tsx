@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import type { AiSettings } from "@md-editor/ai";
 import {
   BUILTIN_LOCAL_MODELS,
@@ -50,15 +51,14 @@ export function AiSettingsPanel({
   onDeleteLocalModel,
   onCheckModelUpdates,
 }: AiSettingsPanelProps) {
+  const { t } = useTranslation();
   return (
     <section className={settingsModuleClassName} aria-labelledby="ai-settings-title">
       <div className="mb-3">
         <h2 id="ai-settings-title" className={settingsSectionTitleClassName}>
-          AI 设置
+          {t("settings.ai.title")}
         </h2>
-        <p className={settingsDescriptionClassName}>
-          AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。
-        </p>
+        <p className={settingsDescriptionClassName}>{t("settings.ai.desc")}</p>
       </div>
       <div className="grid gap-3.5">
         <div className="flex flex-wrap items-center gap-4">
@@ -73,7 +73,7 @@ export function AiSettingsPanel({
                 )
               }
             />
-            <span className={settingsFieldLabelClassName}>语法、标点修复</span>
+            <span className={settingsFieldLabelClassName}>{t("settings.ai.featureEditing")}</span>
           </label>
           <label className="flex min-h-[30px] items-center gap-2">
             <input
@@ -86,12 +86,14 @@ export function AiSettingsPanel({
                 )
               }
             />
-            <span className={settingsFieldLabelClassName}>AI 续写</span>
+            <span className={settingsFieldLabelClassName}>
+              {t("settings.ai.featureContinuation")}
+            </span>
           </label>
         </div>
 
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-          <span className={settingsFieldLabelClassName}>Provider</span>
+          <span className={settingsFieldLabelClassName}>{t("settings.ai.provider")}</span>
           <select
             className={settingsInputClassName}
             value={aiSettingsDraft.provider}
@@ -103,7 +105,7 @@ export function AiSettingsPanel({
           >
             <option value="openai-compatible">OpenAI-compatible</option>
             <option value="deepseek">DeepSeek</option>
-            <option value="local">本地模型</option>
+            <option value="local">{t("settings.ai.providerLocal")}</option>
           </select>
         </label>
 
@@ -223,6 +225,7 @@ function LocalAiSettings({
   onDeleteLocalModel,
   onCheckModelUpdates,
 }: LocalAiSettingsProps) {
+  const { t } = useTranslation();
   const recommendedId = getRecommendedModelId(systemSpecs);
   // 动态模型目录：以后端 catalog（远程 manifest）返回的档位为准，
   // 内置目录只用于兜底排序与缺失元数据，不再作为渲染的唯一来源。
@@ -245,13 +248,13 @@ function LocalAiSettings({
               {formatSystemSpecsLabel(systemSpecs)}
             </span>
             <p className="m-0 text-[11px] text-[var(--theme-muted)]">
-              基于设备硬件自动适配最佳模型档位
+              {t("settings.ai.hardwareSpecs")}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center rounded-full bg-[var(--theme-primary-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--theme-primary)]">
-            ⚡️ 推荐：{recommendedTierName}
+            {t("settings.ai.recommendedTier", { tier: recommendedTierName })}
           </span>
           {onCheckModelUpdates ? (
             <button
@@ -260,7 +263,9 @@ function LocalAiSettings({
               onClick={onCheckModelUpdates}
               disabled={isCheckingModelUpdates || isLocalModelActionPending}
             >
-              {isCheckingModelUpdates ? "检查中..." : "检查更新"}
+              {isCheckingModelUpdates
+                ? t("settings.ai.checkingUpdates")
+                : t("settings.ai.checkUpdates")}
             </button>
           ) : null}
         </div>
@@ -342,19 +347,21 @@ function LocalAiSettings({
                     </span>
                     {isRecommended ? (
                       <span className="shrink-0 rounded bg-[var(--theme-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-primary)]">
-                        ★推荐
+                        {t("settings.ai.recommendedBadge")}
                       </span>
                     ) : null}
                     {!descriptor.isAvailable ? (
                       <span className="shrink-0 rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 text-[10px] text-[var(--theme-muted)]">
-                        即将推出
+                        {t("settings.ai.comingSoon")}
                       </span>
                     ) : null}
                     {hasUpdate ? (
                       <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
                         {status.latestVersion
-                          ? `新版本 ${formatModelVersionTag(status.latestVersion)}`
-                          : "有更新"}
+                          ? t("settings.ai.newVersion", {
+                              version: formatModelVersionTag(status.latestVersion) ?? "",
+                            })
+                          : t("settings.ai.hasUpdate")}
                       </span>
                     ) : null}
                   </div>
@@ -362,7 +369,7 @@ function LocalAiSettings({
                   {isAvailable ? (
                     <label
                       className="relative inline-flex cursor-pointer items-center gap-1.5 shrink-0"
-                      title={isEnabled ? "已启用此模型（点击关闭）" : "点击开启此模型"}
+                      title={isEnabled ? t("settings.ai.enabled") : t("settings.ai.disabled")}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <span
@@ -370,7 +377,7 @@ function LocalAiSettings({
                           isEnabled ? "text-[var(--theme-primary)]" : "text-[var(--theme-muted)]"
                         }`}
                       >
-                        {isEnabled ? "开启" : "关闭"}
+                        {isEnabled ? t("settings.ai.enabled") : t("settings.ai.disabled")}
                       </span>
                       <input
                         type="checkbox"
@@ -422,7 +429,10 @@ function LocalAiSettings({
                     <span>📦 {formatByteSize(descriptor.downloadSizeBytes)}</span>
                   ) : null}
                   {descriptor.recommendedMemoryGb > 0 ? (
-                    <span>🧠 {descriptor.recommendedMemoryGb}GB+ 内存</span>
+                    <span>
+                      🧠{" "}
+                      {t("settings.ai.memoryRequirement", { gb: descriptor.recommendedMemoryGb })}
+                    </span>
                   ) : null}
                   {status.version ? <span>🏷 {formatModelVersionTag(status.version)}</span> : null}
                 </div>
@@ -434,7 +444,7 @@ function LocalAiSettings({
                   <div className="grid gap-1.5">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-medium text-[var(--theme-primary)]">
-                        {status.version ? "正在更新模型..." : "正在下载模型..."}
+                        {status.version ? t("settings.ai.updatingModel") : t("loading.reading")}
                       </span>
                       <span className="text-[10px] text-[var(--theme-muted)]">
                         {progressPercent}%
@@ -459,13 +469,19 @@ function LocalAiSettings({
                           onCancelLocalModelDownload(descriptor.id);
                         }}
                       >
-                        {status.version ? "取消更新" : "取消下载"}
+                        {status.version
+                          ? t("settings.ai.cancelUpdate")
+                          : t("settings.ai.cancelDownload")}
                       </button>
                     </div>
                   </div>
                 ) : isVerifying ? (
                   <div className="flex items-center justify-center py-1 text-[11px] text-[var(--theme-muted)]">
-                    <span>{status.version ? "新版本校验中..." : "校验中..."}</span>
+                    <span>
+                      {status.version
+                        ? t("settings.ai.verifyingUpdate")
+                        : t("settings.ai.verifying")}
+                    </span>
                   </div>
                 ) : !descriptor.isAvailable ? (
                   <button
@@ -473,7 +489,7 @@ function LocalAiSettings({
                     disabled
                     className="w-full rounded-[5px] border border-[var(--theme-border)] py-1 text-center text-xs text-[var(--theme-muted)] opacity-60"
                   >
-                    即将推出
+                    {t("settings.ai.comingSoon")}
                   </button>
                 ) : isAvailable ? (
                   <div className="flex items-center justify-between gap-1.5">
@@ -487,16 +503,18 @@ function LocalAiSettings({
                         }}
                         disabled={isBusy}
                       >
-                        更新模型
+                        {t("settings.ai.updateModel")}
                       </button>
                     ) : (
                       <div className="flex items-center gap-1 text-[11px]">
                         {isEnabled ? (
                           <span className="font-semibold text-[var(--theme-primary)]">
-                            ✓ 当前模型生效中
+                            {t("settings.ai.modelActive")}
                           </span>
                         ) : (
-                          <span className="text-[var(--theme-muted)]">已就绪</span>
+                          <span className="text-[var(--theme-muted)]">
+                            {t("settings.ai.modelReady")}
+                          </span>
                         )}
                       </div>
                     )}
@@ -509,7 +527,7 @@ function LocalAiSettings({
                       }}
                       disabled={isBusy}
                     >
-                      删除
+                      {t("common.delete")}
                     </button>
                   </div>
                 ) : (
@@ -522,7 +540,9 @@ function LocalAiSettings({
                     }}
                     disabled={isBusy}
                   >
-                    {status.status === "failed" ? "重试下载" : "下载模型"}
+                    {status.status === "failed"
+                      ? t("settings.ai.retryDownload")
+                      : t("settings.ai.downloadModel")}
                   </button>
                 )}
               </div>
@@ -532,8 +552,7 @@ function LocalAiSettings({
       </div>
 
       <p className="m-0 text-[11px] text-[var(--theme-muted)]">
-        🔒
-        本地模型与推理完全在您的电脑本机运行，文档内容不会上传至任何云端服务器。下载后支持完全断网离线使用。
+        🔒 {t("settings.ai.privacyNotice")}
       </p>
     </div>
   );

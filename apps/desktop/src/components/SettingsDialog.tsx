@@ -1,5 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
+import { useTranslation } from "@md-editor/i18n";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -77,12 +78,14 @@ export function SettingsPage({
     return () => window.removeEventListener("keydown", closeOnEscape, { capture: true });
   }, [closeSettings]);
 
+  const { t } = useTranslation();
+
   const tabs = useMemo(
     () => [
       {
         id: "shortcuts",
-        label: "快捷键设置",
-        description: "命令键位",
+        label: t("settings.tabs.shortcuts"),
+        description: t("settings.tabs.shortcutsDesc"),
         panel: (
           <ShortcutSettingsPanel
             shortcuts={settings.shortcuts}
@@ -94,8 +97,8 @@ export function SettingsPage({
       },
       {
         id: "ai",
-        label: "AI 设置",
-        description: "续写、修复和模型",
+        label: t("settings.tabs.ai"),
+        description: t("settings.tabs.aiDesc"),
         panel: (
           <AiSettingsPanel
             aiSettingsDraft={ctrl.aiSettingsDraft}
@@ -113,8 +116,8 @@ export function SettingsPage({
       },
       {
         id: "appearance",
-        label: "外观设置",
-        description: "主题和编辑显示",
+        label: t("settings.tabs.appearance"),
+        description: t("settings.tabs.appearanceDesc"),
         panel: (
           <AppearanceSettingsPanel
             editorSettingsDraft={ctrl.editorSettingsDraft}
@@ -128,8 +131,8 @@ export function SettingsPage({
       },
       {
         id: "plugins",
-        label: "插件设置",
-        description: "官方与扩展插件",
+        label: t("settings.tabs.plugins"),
+        description: t("settings.tabs.pluginsDesc"),
         panel: (
           <PluginSettingsPanel
             pluginsDraft={ctrl.pluginsDraft}
@@ -139,14 +142,16 @@ export function SettingsPage({
       },
       {
         id: "other",
-        label: "其他设置",
-        description: "图片目录和版本",
+        label: t("settings.tabs.general"),
+        description: t("settings.tabs.generalDesc"),
         panel: (
           <OtherSettingsPanel
+            languageDraft={ctrl.languageDraft}
             assetsDirectoryDraft={ctrl.assetsDirectoryDraft}
             updateStatus={updateStatus}
             updateSettingsDraft={ctrl.updateSettingsDraft}
             isCheckingForUpdates={updateStatus.state === "checking"}
+            onChangeLanguage={ctrl.setLanguageDraft}
             onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
             onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
             onCheckForUpdates={() => void ctrl.runUpdateCheck()}
@@ -156,7 +161,7 @@ export function SettingsPage({
         ),
       },
     ],
-    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, updateStatus],
+    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, t, updateStatus],
   );
 
   return (
@@ -177,9 +182,9 @@ export function SettingsPage({
             id="settings-title"
             className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]"
           >
-            设置
+            {t("settings.title")}
           </h1>
-          <p className={settingsDescriptionClassName}>调整编辑器偏好和桌面端行为。</p>
+          <p className={settingsDescriptionClassName}>{t("settings.title")}</p>
         </div>
       </header>
 
@@ -193,7 +198,7 @@ export function SettingsPage({
           <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
             <TabList
               className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto"
-              aria-label="设置分类"
+              aria-label={t("settings.title")}
             >
               {tabs.map((tab) => (
                 <Tab
@@ -240,7 +245,7 @@ export function SettingsPage({
 
         <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-3.5">
           <button type="button" className={dialogButtonClassName} onClick={ctrl.closeSettings}>
-            取消
+            {t("common.cancel")}
           </button>
           <button
             type="button"
@@ -248,7 +253,7 @@ export function SettingsPage({
             onClick={() => void ctrl.saveSettings()}
             disabled={ctrl.isSavingSettings}
           >
-            {ctrl.isSavingSettings ? "保存中" : "保存"}
+            {ctrl.isSavingSettings ? t("common.loading") : t("common.save")}
           </button>
         </footer>
       </div>

@@ -11,6 +11,7 @@ import type {
   MarkdownFolder,
   RuntimeFileService,
 } from "@md-editor/file-system";
+import { t } from "@md-editor/i18n";
 import type { OpenedAsset } from "../../types";
 import { findFirstMarkdownPath } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
@@ -53,7 +54,7 @@ export function useDocumentActionsController({
     (filePath: string) => {
       const fileName = filePath.split("/").pop() || "Untitled";
       void recentFilesStore.add({ path: filePath, name: fileName }).catch((error: unknown) => {
-        showToast(error instanceof Error ? error.message : "最近文件保存失败。");
+        showToast(error instanceof Error ? error.message : t("toasts.recentFilesFailed"));
       });
     },
     [showToast],
@@ -68,7 +69,7 @@ export function useDocumentActionsController({
     (markdown: string) => {
       const access = getRendererPorts();
       if (access.status !== "available") {
-        showToast("编辑器尚未准备好，无法应用这次修改。");
+        showToast(t("toasts.editorNotReady"));
         return;
       }
 
@@ -92,7 +93,7 @@ export function useDocumentActionsController({
         return;
       }
 
-      showToast(`编辑器未能应用修改：${result.status}。`);
+      showToast(t("toasts.editorApplyFailed", { status: result.status }));
     },
     [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
   );
@@ -101,7 +102,7 @@ export function useDocumentActionsController({
     async (mode: EditorMode) => {
       const access = getRendererPorts();
       if (access.status !== "available") {
-        showToast("编辑器尚未准备好，无法切换模式。");
+        showToast(t("toasts.switchModeFailed"));
         return;
       }
 
@@ -200,15 +201,15 @@ export function useDocumentActionsController({
       const choice = await requestConfirmation({
         title:
           current.persistenceStatus.kind === "verification-required"
-            ? "保存结果仍需确认"
-            : "保存当前文档的更改？",
+            ? t("dialogs.saveUnconfirmedTitle")
+            : t("dialogs.unsavedTitle"),
         description:
           description ??
           (current.persistenceStatus.kind === "verification-required"
-            ? "上一次保存结果无法确认。请再次保存并确认成功，或明确放弃后再继续。"
-            : "继续后将切换到其他文档。你可以先保存，或放弃尚未保存的更改。"),
-        confirmLabel: "保存并继续",
-        secondaryLabel: "不保存",
+            ? t("dialogs.saveUnconfirmedDesc")
+            : t("dialogs.saveDiscardDesc")),
+        confirmLabel: t("dialogs.saveAndContinue"),
+        secondaryLabel: t("dialogs.dontSave"),
       });
 
       if (choice === "secondary") {
@@ -293,7 +294,7 @@ export function useDocumentActionsController({
   const openRecentDocument = useCallback(async () => {
     const recentFiles = recentFilesStore.list();
     showToast(
-      recentFiles.length === 0 ? "没有最近打开的文件" : "请从“最近文件”菜单中选择要打开的文件。",
+      recentFiles.length === 0 ? t("toasts.noRecentFiles") : t("toasts.chooseFromRecentMenu"),
     );
   }, [showToast]);
 

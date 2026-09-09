@@ -17,6 +17,7 @@ import {
   WelcomeState,
 } from "@md-editor/editor-ui";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { useTranslation } from "@md-editor/i18n";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
 import { CommandPalette } from "../components/CommandPalette";
 import { MdxComponentMenu } from "../components/MdxComponentMenu";
@@ -36,7 +37,7 @@ import {
 import { useDocumentSnapshot } from "./document-store";
 import { AppSettingsProvider, useAppSettings } from "./settings-context";
 import { useToast } from "./controller/useToast";
-import { getLoadingDescription, GLOBAL_LOADING_TITLE } from "./loading-state";
+import { getLoadingDescription } from "./loading-state";
 import { useConfirmationStore } from "./stores/confirmation-store";
 import { useDocumentUiStore } from "./stores/document-ui-store";
 import { useFileActionStore } from "./stores/file-action-store";
@@ -122,6 +123,7 @@ function MainApp({
   readonly toast: { readonly id: number; readonly message: string } | null;
   readonly showToast: (message: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const { isSettingsOpen } = useAppSettings();
   const snapshot = useDocumentSnapshot();
   const { isSidebarVisible, sidebarMode, setIsSidebarVisible, setSidebarMode } = useSidebarStore();
@@ -151,7 +153,7 @@ function MainApp({
     () => countMatchedFiles(folderTree, fileSearchQuery),
     [folderTree, fileSearchQuery],
   );
-  const sidebarTitle = sidebarMode === "files" ? "文件" : "大纲";
+  const sidebarTitle = sidebarMode === "files" ? t("sidebar.files") : t("sidebar.outline");
   const showFileSearch = sidebarMode === "files" && isFileSearchOpen;
   const pendingActionDescription = getLoadingDescription(pendingAction);
   const sidebarResizePreviewOffset =
@@ -176,7 +178,11 @@ function MainApp({
   if (isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
-        <AppTitleBar title="设置" isVisible={shouldShowOverlayTitleBar} hasWindowControlsInset />
+        <AppTitleBar
+          title={t("settings.title")}
+          isVisible={shouldShowOverlayTitleBar}
+          hasWindowControlsInset
+        />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <SettingsPage surface="main" onRelaunchAfterUpdate={() => void runEditorUpdateAction()} />
         </div>
@@ -191,7 +197,7 @@ function MainApp({
           <button
             type="button"
             className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
-            aria-label="关闭侧栏"
+            aria-label={t("sidebar.closeSidebar")}
             onClick={() => setIsSidebarVisible(false)}
           />
         ) : null}
@@ -207,7 +213,9 @@ function MainApp({
               borderRightWidth: isSidebarVisible ? 1 : 0,
             } as React.CSSProperties
           }
-          aria-label={sidebarMode === "files" ? "文件树" : "大纲目录"}
+          aria-label={
+            sidebarMode === "files" ? t("sidebar.fileTreeAria") : t("sidebar.outlineAria")
+          }
           aria-hidden={!isSidebarVisible}
           inert={!isSidebarVisible}
         >
@@ -220,8 +228,12 @@ function MainApp({
             <button
               type="button"
               className={sidebarHeaderIconButtonClassName}
-              aria-label={sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
-              title={sidebarMode === "files" ? "切换到大纲" : "切换到文件"}
+              aria-label={
+                sidebarMode === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")
+              }
+              title={
+                sidebarMode === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")
+              }
               onClick={() => setSidebarMode(sidebarMode === "files" ? "outline" : "files")}
             >
               {sidebarMode === "files" ? (
@@ -239,9 +251,11 @@ function MainApp({
                 sidebarHeaderIconButtonClassName,
                 isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]",
               )}
-              aria-label={isFileSearchOpen ? "关闭文件搜索" : "搜索文件"}
+              aria-label={
+                isFileSearchOpen ? t("sidebar.closeFileSearch") : t("sidebar.searchFiles")
+              }
               aria-pressed={isFileSearchOpen}
-              title="搜索文件"
+              title={t("sidebar.searchFiles")}
               onClick={() => {
                 setSidebarMode("files");
                 setIsFileSearchOpen((current) => !current);
@@ -261,8 +275,8 @@ function MainApp({
                 className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
                 value={fileSearchQuery}
                 autoFocus
-                placeholder="搜索文件"
-                aria-label="搜索当前打开文件夹下的文件"
+                placeholder={t("sidebar.searchFilesPlaceholder")}
+                aria-label={t("sidebar.searchFilesAria")}
                 onChange={(event) => setFileSearchQuery(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Escape") {
@@ -274,7 +288,7 @@ function MainApp({
               <span
                 className="min-w-4 text-right text-[11px] leading-none text-[var(--theme-control-subtle)]"
                 aria-live="polite"
-                title="匹配数量"
+                title={t("sidebar.matchCount")}
               >
                 {fileSearchQuery.trim() ? fileSearchResultCount : ""}
               </span>
@@ -319,7 +333,7 @@ function MainApp({
         ) : null}
         <section
           className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
-          aria-label="Markdown 编辑器"
+          aria-label={t("sidebar.editorAria")}
         >
           <AppTitleBar
             title={snapshot.filePath?.split(/[\\/]/u).pop() || APP_DISPLAY_NAME}
@@ -370,7 +384,7 @@ function MainApp({
             )}
             {pendingAction ? (
               <EditorLoadingState
-                title={GLOBAL_LOADING_TITLE}
+                title={t("loading.title")}
                 description={pendingActionDescription}
                 ariaLabel={pendingAction}
                 isOverlay
@@ -404,6 +418,7 @@ function CollapsedSidebarReveal({
   readonly hasTitleBar: boolean;
   readonly onReveal: () => void;
 }) {
+  const { t } = useTranslation();
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) {
       return;
@@ -425,8 +440,8 @@ function CollapsedSidebarReveal({
       <button
         type="button"
         className="pointer-events-auto absolute left-0 top-1/2 grid h-14 w-4 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
-        aria-label="显示侧栏"
-        title="显示侧栏"
+        aria-label={t("sidebar.showSidebar")}
+        title={t("sidebar.showSidebar")}
         onPointerDown={handlePointerDown}
         onClick={onReveal}
       >
@@ -479,11 +494,12 @@ function SidebarResizeHandle({
   readonly onPreview: (width: number) => void;
   readonly width: number;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className="group col-start-1 row-start-1 grid h-full w-1.5 -translate-x-1/2 cursor-col-resize touch-none place-items-center"
       role="separator"
-      aria-label="调整侧栏宽度"
+      aria-label={t("sidebar.resizeSidebarAria")}
       aria-orientation="vertical"
       aria-valuemin={SIDEBAR_MIN_WIDTH}
       aria-valuemax={SIDEBAR_MAX_WIDTH}

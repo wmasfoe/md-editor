@@ -24,3 +24,5 @@
 
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
+- 国际化 (i18n) 架构与多语言扩展方案： [i18n_architecture.md](./i18n_architecture.md)
+  记录 `@md-editor/i18n` 独立包设计、Type-Safe 字典、全应用多语言接入方案及后续新增语言指南。

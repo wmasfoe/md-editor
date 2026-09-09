@@ -1,5 +1,6 @@
 import type { AiSettings } from "@md-editor/ai";
 import { normalizeAiProvider } from "@md-editor/ai";
+import { t } from "@md-editor/i18n";
 import type {
   BuiltInThemeId,
   ThemeColorScheme,
@@ -22,19 +23,19 @@ export function localModelStatusLabel(
   hasUpdate?: boolean,
 ): string {
   if (status === "available" && hasUpdate) {
-    return "发现新版本";
+    return t("editor.titleBar.updateAvailable");
   }
   switch (status) {
     case "downloading":
-      return "下载中";
+      return t("settings.general.checking");
     case "verifying":
-      return "校验中";
+      return t("common.loading");
     case "available":
-      return "已就绪";
+      return t("settings.ai.modelDownloaded");
     case "failed":
-      return "下载失败";
+      return t("common.error");
     case "not-downloaded":
-      return "未下载";
+      return t("settings.ai.modelNotDownloaded");
   }
 }
 
@@ -127,13 +128,13 @@ export function updateStatusMessage(updateStatus: UpdateStatus): string {
 export function editorUpdateActionLabel(updateStatus: UpdateStatus): string {
   switch (updateStatus.state) {
     case "downloading":
-      return "下载中";
+      return t("editor.titleBar.updateDownloading");
     case "installing":
-      return "安装中";
+      return t("editor.titleBar.updateReady");
     case "installed":
-      return "重启 App";
+      return t("editor.titleBar.updateRelaunch");
     default:
-      return "更新 App";
+      return t("editor.titleBar.updateAvailable");
   }
 }
 

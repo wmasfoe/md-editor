@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import {
   Menu,
   MenuButton,
@@ -32,16 +33,10 @@ import { cx } from "../lib/cx";
 const titleBarSecondaryButtonClassName =
   "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
-const documentMetricOptions: readonly {
-  readonly kind: DocumentMetricKind;
-  readonly label: string;
-}[] = [
-  { kind: "words", label: "词数" },
-  { kind: "lines", label: "行数" },
-  { kind: "characters", label: "字符数" },
-];
+const documentMetricKinds: readonly DocumentMetricKind[] = ["words", "lines", "characters"];
 
 export function EditorTitleBarControls() {
+  const { t } = useTranslation();
   const { updateStatus, openSettings } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
@@ -91,8 +86,12 @@ export function EditorTitleBarControls() {
       <button
         type="button"
         className={titleBarSecondaryButtonClassName}
-        aria-label={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
-        title={isSidebarVisible ? "隐藏侧栏" : "显示侧栏"}
+        aria-label={
+          isSidebarVisible ? t("editor.titleBar.hideSidebar") : t("editor.titleBar.showSidebar")
+        }
+        title={
+          isSidebarVisible ? t("editor.titleBar.hideSidebar") : t("editor.titleBar.showSidebar")
+        }
         onClick={() => setIsSidebarVisible(!isSidebarVisible)}
       >
         <RectangleGroupIcon aria-hidden="true" />
@@ -110,12 +109,14 @@ function AiWritingMenu({
   readonly onContinueWriting: () => void;
   readonly onOpenSettings: () => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Menu as="div" className="relative">
       <MenuButton
         className={cx(titleBarSecondaryButtonClassName, "focus-visible:opacity-100")}
-        aria-label="AI 写作助手"
-        title="AI 写作助手"
+        aria-label={t("editor.titleBar.aiAssistant")}
+        title={t("editor.titleBar.aiAssistant")}
       >
         <SparklesIcon aria-hidden="true" />
       </MenuButton>
@@ -133,7 +134,7 @@ function AiWritingMenu({
               )}
               onClick={onFixGrammar}
             >
-              <span>AI 语法与润色修复</span>
+              <span>{t("editor.titleBar.aiFixGrammar")}</span>
               <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘G</kbd>
             </button>
           )}
@@ -148,7 +149,7 @@ function AiWritingMenu({
               )}
               onClick={onContinueWriting}
             >
-              <span>AI 续写</span>
+              <span>{t("editor.titleBar.aiContinueWriting")}</span>
               <kbd className="text-[11px] font-sans text-[var(--theme-muted)]">⇧⌘A</kbd>
             </button>
           )}
@@ -164,7 +165,7 @@ function AiWritingMenu({
               )}
               onClick={onOpenSettings}
             >
-              <span>AI 设置...</span>
+              <span>{t("editor.titleBar.aiSettings")}</span>
             </button>
           )}
         </MenuItem>
@@ -182,6 +183,13 @@ function DocumentMetricMenu({
   readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
   readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
 }) {
+  const { t } = useTranslation();
+  const metricLabels: Record<DocumentMetricKind, string> = {
+    words: t("editor.metrics.words"),
+    lines: t("editor.metrics.lines"),
+    characters: t("editor.metrics.characters"),
+  };
+
   return (
     <Menu as="div" className="relative">
       <MenuButton className="flex h-[28px] min-w-[76px] items-center justify-center gap-1 rounded-[5px] border-0 bg-transparent px-2 text-[13px] font-medium leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]">
@@ -192,21 +200,21 @@ function DocumentMetricMenu({
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
         className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
       >
-        {documentMetricOptions.map((option) => (
-          <MenuItem key={option.kind}>
+        {documentMetricKinds.map((kind) => (
+          <MenuItem key={kind}>
             {({ focus }) => (
               <button
                 type="button"
                 className={cx(
                   "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
                   focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
-                  metricKind === option.kind && "font-[560] text-[var(--theme-title)]",
+                  metricKind === kind && "font-[560] text-[var(--theme-title)]",
                 )}
-                onClick={() => onMetricKindChange(option.kind)}
+                onClick={() => onMetricKindChange(kind)}
               >
-                <span>{option.label}</span>
+                <span>{metricLabels[kind]}</span>
                 <span className="text-[12px] text-[var(--theme-muted)]">
-                  {getDocumentMetricLabel(option.kind, metrics)}
+                  {getDocumentMetricLabel(kind, metrics)}
                 </span>
               </button>
             )}
@@ -235,14 +243,16 @@ function OutlinePopover({
     readonly text: string;
   }) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <Popover className="relative">
       {({ close }) => (
         <>
           <PopoverButton
             className={titleBarSecondaryButtonClassName}
-            aria-label="打开大纲浮层"
-            title="大纲"
+            aria-label={t("editor.outline.title")}
+            title={t("editor.outline.title")}
           >
             <ListBulletIcon aria-hidden="true" />
           </PopoverButton>
@@ -256,17 +266,17 @@ function OutlinePopover({
             />
             <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
               <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">
-                大纲
+                {t("editor.outline.title")}
               </h2>
             </div>
             {outline.length === 0 ? (
               <p className="m-0 px-4 py-5 text-[13px] leading-5 text-[var(--theme-control-subtle)]">
-                当前文档没有标题。
+                {t("editor.outline.empty")}
               </p>
             ) : (
               <nav
                 className="max-h-[min(420px,calc(100vh_-_120px))] overflow-auto p-2"
-                aria-label="文章大纲"
+                aria-label={t("editor.outline.navAria")}
               >
                 {outline.map((item) => {
                   const active = item.id === activeOutlineId;

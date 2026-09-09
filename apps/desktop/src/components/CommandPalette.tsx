@@ -1,5 +1,6 @@
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import type { CommandDescriptor } from "@md-editor/editor-core";
 import { runtime } from "../app/runtime/editor-runtime";
 
@@ -14,6 +15,7 @@ export interface CommandPaletteProps {
 
 interface PaletteItem {
   readonly command: CommandDescriptor;
+  readonly title: string;
   readonly group: string;
 }
 
@@ -28,6 +30,7 @@ interface PaletteItem {
  * Escape 关闭(HeadlessUI Dialog 内置)、点击执行、空态提示。
  */
 export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLUListElement | null>(null);
@@ -56,23 +59,53 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
     [],
   );
 
+  const getCommandTitle = useCallback(
+    (command: CommandDescriptor): string => {
+      const translate = t as (key: string, options?: { defaultValue?: string }) => string;
+      return translate(`commands.titles.${command.id}`, { defaultValue: command.title });
+    },
+    [t],
+  );
+
+  const getCommandGroup = useCallback(
+    (rawGroup?: string): string => {
+      if (!rawGroup) return t("commands.groups.other");
+      const groupKeyMap: Record<string, string> = {
+        文件: "file",
+        编辑: "edit",
+        视图: "view",
+        插入: "insert",
+        AI: "ai",
+        设置: "settings",
+      };
+      const key = groupKeyMap[rawGroup] ?? rawGroup.toLowerCase();
+      const translate = t as (key: string, options?: { defaultValue?: string }) => string;
+      return translate(`commands.groups.${key}`, { defaultValue: rawGroup });
+    },
+    [t],
+  );
+
   // 按 title + keywords 过滤(大小写不敏感)
   const items = useMemo<readonly PaletteItem[]>(() => {
     const needle = query.trim().toLowerCase();
+    const mapped = allCommands.map((command) => ({
+      command,
+      title: getCommandTitle(command),
+      group: getCommandGroup(command.group),
+    }));
+
     if (!needle) {
-      return allCommands.map((command) => ({
-        command,
-        group: command.group ?? "其他",
-      }));
+      return mapped;
     }
-    return allCommands
-      .filter(
-        (command) =>
-          command.title.toLowerCase().includes(needle) ||
-          (command.keywords ?? []).some((keyword) => keyword.toLowerCase().includes(needle)),
-      )
-      .map((command) => ({ command, group: command.group ?? "其他" }));
-  }, [allCommands, query]);
+
+    return mapped.filter(
+      ({ command, title }) =>
+        title.toLowerCase().includes(needle) ||
+        command.title.toLowerCase().includes(needle) ||
+        command.id.toLowerCase().includes(needle) ||
+        (command.keywords ?? []).some((keyword) => keyword.toLowerCase().includes(needle)),
+    );
+  }, [allCommands, getCommandGroup, getCommandTitle, query]);
 
   // 选中项越界保护(过滤结果变少时回退到最后一项)
   useEffect(() => {
@@ -161,8 +194,8 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
                 setActiveIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="输入命令或关键词…"
-              aria-label="命令搜索"
+              placeholder={t("commandPalette.placeholder")}
+              aria-label={t("commandPalette.placeholder")}
               className="w-full bg-transparent text-sm text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-muted)]"
             />
             <span className="shrink-0 rounded border border-[var(--theme-border)] px-1.5 py-0.5 text-[10px] text-[var(--theme-muted)]">
@@ -174,7 +207,7 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
           <ul ref={listRef} className="max-h-[min(52vh,420px)] overflow-y-auto py-2">
             {groups.length === 0 ? (
               <li className="px-4 py-6 text-center text-[13px] text-[var(--theme-muted)]">
-                没有匹配的命令
+                {t("commandPalette.empty")}
               </li>
             ) : (
               groups.map(({ group, groupItems, start }) => (
@@ -199,7 +232,7 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
                             onMouseEnter={() => setActiveIndex(flat)}
                             onClick={() => handleRun(item.command.id)}
                           >
-                            <span className="truncate">{item.command.title}</span>
+                            <span className="truncate">{item.title}</span>
                             {/* 关键词命中时展示命令 id,帮助用户熟悉命令标识 */}
                             <span className="shrink-0 text-[11px] text-[var(--theme-muted)]">
                               {item.command.id}
@@ -216,9 +249,11 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
 
           {/* 底部提示 */}
           <div className="flex items-center gap-3 border-t border-[var(--theme-border)] px-4 py-2 text-[11px] text-[var(--theme-muted)]">
-            <span>↑↓ 导航</span>
-            <span>Enter 执行</span>
-            <span className="ml-auto">{allCommands.length} 个命令</span>
+            <span>{t("commandPalette.navigate")}</span>
+            <span>{t("commandPalette.run")}</span>
+            <span className="ml-auto">
+              {t("commandPalette.commandCount", { count: allCommands.length })}
+            </span>
           </div>
         </DialogPanel>
       </div>

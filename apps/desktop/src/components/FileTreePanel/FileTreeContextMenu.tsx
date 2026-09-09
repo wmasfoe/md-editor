@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "@md-editor/i18n";
 import type { FileTreeContextMenuState } from "../../types";
 import {
   FILE_TREE_CONTEXT_MENU_ACTION,
@@ -16,6 +17,7 @@ export interface FileTreeContextMenuProps {
  * 苹果风格毛玻璃右键上下文菜单
  */
 export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeContextMenuProps) {
+  const { t } = useTranslation();
   const run = useCallback(
     (action: FileTreeContextMenuAction) => {
       onClose();
@@ -23,6 +25,11 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
     },
     [menu, onClose, onRunAction],
   );
+
+  const isMac =
+    typeof navigator !== "undefined" &&
+    (navigator.platform?.toLowerCase().includes("mac") ||
+      navigator.userAgent?.toLowerCase().includes("mac"));
 
   return (
     <div
@@ -32,32 +39,34 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
       onContextMenu={(event) => event.preventDefault()}
     >
       <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newMarkdown)}>
-        新建文件
+        {t("fileTree.contextMenu.newFile")}
       </ContextMenuItem>
       <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newMdx)}>
-        新建 MDX 文件
+        {t("fileTree.contextMenu.newMdxFile")}
       </ContextMenuItem>
       <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.newFolder)}>
-        新建文件夹
+        {t("fileTree.contextMenu.newFolder")}
       </ContextMenuItem>
       {menu.node ? (
         <>
           <div className="my-1 h-px bg-[var(--theme-border)]/60" />
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyRelativePath)}>
-            复制相对路径
+            {t("fileTree.contextMenu.copyRelativePath")}
           </ContextMenuItem>
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.copyAbsolutePath)}>
-            复制绝对路径
+            {t("fileTree.contextMenu.copyAbsolutePath")}
           </ContextMenuItem>
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.revealInFinder)}>
-            在 Finder 中显示
+            {isMac
+              ? t("fileTree.contextMenu.revealInFinder")
+              : t("fileTree.contextMenu.revealInExplorer")}
           </ContextMenuItem>
           <div className="my-1 h-px bg-[var(--theme-border)]/60" />
           <ContextMenuItem onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.rename)}>
-            重命名
+            {t("fileTree.contextMenu.rename")}
           </ContextMenuItem>
           <ContextMenuItem danger onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.delete)}>
-            删除
+            {t("fileTree.contextMenu.delete")}
           </ContextMenuItem>
         </>
       ) : null}

@@ -19,6 +19,7 @@
     "@headlessui/react": "catalog:",
     "@heroicons/react": "catalog:",
     "@md-editor/editor-core": "workspace:*",
+    "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/renderer-codemirror": "workspace:*"
   },

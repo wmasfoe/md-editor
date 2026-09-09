@@ -23,8 +23,10 @@ import {
 import { requestWebAiContinuation } from "./lib/web-ai-client";
 import { applyDesktopTheme } from "./lib/theme-manager";
 import { bindWebKeyboardShortcuts } from "./lib/keyboard-shortcuts";
+import { useTranslation, changeLanguage } from "@md-editor/i18n";
 
 export function App() {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<WebSettings>(() => loadWebSettings());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isOutlineOpen, setIsOutlineOpen] = useState(false);
@@ -70,6 +72,11 @@ export function App() {
     return () => unsubscribe();
   }, [documentState]);
 
+  // 同步多语言设置
+  useEffect(() => {
+    changeLanguage(settings.language);
+  }, [settings.language]);
+
   // 复用桌面端真实主题 CSS 变量与色彩模式
   useEffect(() => {
     return applyDesktopTheme(settings);
@@ -106,24 +113,24 @@ export function App() {
   const handleSaveToStorage = useCallback(() => {
     const snap = documentState.getSnapshot();
     saveDraft(snap.markdown);
-    showToast("文档已保存至本地存储");
-  }, [documentState, showToast]);
+    showToast(t("toasts.docSavedToStorage"));
+  }, [documentState, showToast, t]);
 
   // 导出 Markdown 文件
   const handleExport = useCallback(() => {
     exportMarkdown(currentMarkdown, "inkpoint-document.md");
-    showToast("已成功导出为 inkpoint-document.md");
-  }, [currentMarkdown, showToast]);
+    showToast(t("toasts.exportedDoc", { filename: "inkpoint-document.md" }));
+  }, [currentMarkdown, showToast, t]);
 
   // 复制 Markdown 到剪贴板
   const handleCopy = async () => {
     const ok = await copyMarkdown(currentMarkdown);
     if (ok) {
       setIsCopied(true);
-      showToast("Markdown 内容已复制到剪贴板");
+      showToast(t("toasts.copySuccess"));
       setTimeout(() => setIsCopied(false), 2000);
     } else {
-      showToast("复制失败，请手动选择复制");
+      showToast(t("toasts.copyFailed"));
     }
   };
 
@@ -138,29 +145,29 @@ export function App() {
       },
       { kind: "command", commandId: "web.reset" },
     );
-    showToast("已恢复初始特性演示内容");
+    showToast(t("toasts.demoReset"));
   };
 
   // 主动触发 AI 智能续写
   const handleTriggerAi = async () => {
     if (!settings.ai.enabled) {
-      showToast("AI 助手尚未启用，请在右上角设置中开启");
+      showToast(t("toasts.aiNotEnabled"));
       setIsSettingsOpen(true);
       return;
     }
     if (!settings.ai.baseUrl) {
-      showToast("请在设置中配置 API 端点 (Base URL)");
+      showToast(t("toasts.aiConfigureBaseUrl"));
       setIsSettingsOpen(true);
       return;
     }
     if (!settings.ai.apiKey && settings.ai.provider !== "ollama") {
-      showToast("请在设置中配置 API Key");
+      showToast(t("toasts.aiConfigureApiKey"));
       setIsSettingsOpen(true);
       return;
     }
 
     if (!ports) {
-      showToast("编辑器初始化中，请稍候");
+      showToast(t("toasts.editorInitializing"));
       return;
     }
 
@@ -169,13 +176,13 @@ export function App() {
     const before = currentMarkdown.slice(0, cursorPos);
     const after = currentMarkdown.slice(cursorPos);
 
-    showToast("AI 正在思考续写中...");
+    showToast(t("toasts.aiThinking"));
 
     try {
       const continuation = await requestWebAiContinuation(settings.ai, before, after);
 
       if (!continuation) {
-        showToast("未获得有效续写建议，请检查端点配置或重试");
+        showToast(t("toasts.aiNoSuggestion"));
         return;
       }
 
@@ -194,10 +201,10 @@ export function App() {
         text: continuation,
       });
 
-      showToast("已生成续写建议，按 Tab 采纳，按 Esc 放弃");
+      showToast(t("toasts.aiSuggestionGenerated"));
     } catch (err) {
       console.error(err);
-      showToast("AI 请求失败，请检查网络或设置");
+      showToast(t("toasts.aiRequestFailed"));
     }
   };
 
@@ -271,7 +278,7 @@ export function App() {
           onSaveSettings={(newSettings) => {
             setSettings(newSettings);
             saveWebSettings(newSettings);
-            showToast("设置已保存");
+            showToast(t("settings.saveSuccessToast"));
           }}
           mode={mode}
           onChangeMode={handleChangeMode}

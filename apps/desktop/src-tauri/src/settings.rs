@@ -18,6 +18,7 @@ pub(crate) struct AppSettings {
     pub(crate) update: Option<UpdateSettings>,
     #[serde(default, deserialize_with = "deserialize_object_settings")]
     pub(crate) plugins: Option<Value>,
+    pub(crate) language: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -109,6 +110,7 @@ fn default_settings() -> AppSettings {
         ai: None,
         update: None,
         plugins: None,
+        language: None,
     }
 }
 
@@ -218,6 +220,7 @@ mod tests {
                     "markdown.directive": true
                 }
             })),
+            language: Some("zh".to_string()),
         };
 
         write_settings(&path, &settings).unwrap();

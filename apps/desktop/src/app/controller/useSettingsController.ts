@@ -23,6 +23,7 @@ import {
   listenToAppSettingsChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
+  publishAppLanguagePreview,
   saveAppSettings,
   validateAssetsDirectory,
   type AppSettings,
@@ -39,6 +40,7 @@ import {
   rememberThemeCssFile,
 } from "../settings/theme-css";
 import { formatActionError } from "@md-editor/editor-ui";
+import { changeLanguage } from "@md-editor/i18n";
 import { useAppSettings } from "../settings-context";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
@@ -97,6 +99,9 @@ export function useSettingsController({
     loadedSettings.update,
   );
   const [pluginsDraft, setPluginsDraft] = useState<PluginSettings>(loadedSettings.plugins);
+  const [languageDraft, setLanguageDraft] = useState<AppSettings["language"]>(
+    loadedSettings.language,
+  );
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
@@ -136,6 +141,7 @@ export function useSettingsController({
     setAiSettingsDraft(next.ai);
     setUpdateSettingsDraft(next.update);
     setPluginsDraft(next.plugins);
+    setLanguageDraft(next.language);
   }, []);
 
   const togglePluginDraft = useCallback((pluginId: string, enabled: boolean) => {
@@ -228,6 +234,17 @@ export function useSettingsController({
     });
   }, [applyLocalModelStatus]);
 
+  const changeLanguageDraft = useCallback(
+    (nextLang: AppSettings["language"]) => {
+      setLanguageDraft(nextLang);
+      void changeLanguage(nextLang);
+      if (surface === "settings-window") {
+        void publishAppLanguagePreview(nextLang);
+      }
+    },
+    [surface],
+  );
+
   const restoreSavedThemePreview = useCallback(async () => {
     await themePreviewSession.publish(null);
   }, [themePreviewSession]);
@@ -235,7 +252,11 @@ export function useSettingsController({
   const closeSettings = useCallback(() => {
     if (surface === "settings-window") {
       void restoreSavedThemePreview()
-        .then(() => destroyCurrentSettingsWindow())
+        .then(() => {
+          void changeLanguage(loadedSettings.language);
+          void publishAppLanguagePreview(null);
+          return destroyCurrentSettingsWindow();
+        })
         .catch((error: unknown) => {
           setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
         });
@@ -244,6 +265,7 @@ export function useSettingsController({
     closeEmbedded();
     setSettingsErrorMessage(null);
     syncDrafts(loadedSettings);
+    void changeLanguage(loadedSettings.language);
     void restoreSavedThemePreview().catch((error: unknown) => {
       console.warn("主题预览回滚失败", error);
     });
@@ -251,8 +273,10 @@ export function useSettingsController({
 
   const destroySettingsWindowAfterRollback = useCallback(async () => {
     await restoreSavedThemePreview();
+    await changeLanguage(loadedSettings.language);
+    await publishAppLanguagePreview(null);
     await destroyCurrentSettingsWindow();
-  }, [restoreSavedThemePreview]);
+  }, [loadedSettings.language, restoreSavedThemePreview]);
 
   const captureShortcutDraft = useCallback((id: string, key: string) => {
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
@@ -307,8 +331,12 @@ export function useSettingsController({
         ai: normalizeAiSettings(aiSettingsDraft),
         update: updateSettingsDraft,
         plugins: pluginsDraft,
+        language: languageDraft,
       });
       await themePreviewSession.publish(null);
+      if (surface === "settings-window") {
+        void publishAppLanguagePreview(null);
+      }
       // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
       try {
         await closeSettingsSurfaceAfterSave({
@@ -330,6 +358,7 @@ export function useSettingsController({
     assetsDirectoryDraft,
     closeEmbedded,
     editorSettingsDraft,
+    languageDraft,
     loadedSettings.shortcuts,
     pluginsDraft,
     shortcutDrafts,
@@ -481,6 +510,7 @@ export function useSettingsController({
     aiSettingsDraft,
     updateSettingsDraft,
     pluginsDraft,
+    languageDraft,
     isLocalModelActionPending,
     systemSpecs,
     allModelStatuses,
@@ -493,6 +523,7 @@ export function useSettingsController({
     setAiSettingsDraft,
     setUpdateSettingsDraft,
     setPluginsDraft,
+    setLanguageDraft: changeLanguageDraft,
     togglePluginDraft,
     chooseThemeCss,
     clearThemeCss,

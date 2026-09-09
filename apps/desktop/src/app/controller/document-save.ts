@@ -6,6 +6,7 @@ import type {
   SettleSaveResult,
 } from "@md-editor/editor-core";
 import type { RuntimeFileService } from "@md-editor/file-system";
+import { t } from "@md-editor/i18n";
 
 export interface DocumentSaveExecution {
   readonly checkpoint: DocumentSaveCheckpoint;
@@ -63,15 +64,15 @@ export function getSaveFeedback(outcome: SaveOutcome, settlement: SettleSaveResu
     return null;
   }
   if (outcome.status === "indeterminate") {
-    return "无法确认保存是否完成。请验证磁盘文件后再次保存。";
+    return t("toasts.saveUncertain");
   }
   if (outcome.status === "failed") {
-    return `保存失败：${outcome.errorCode}`;
+    return t("toasts.saveFailed", { error: outcome.errorCode });
   }
   if (settlement.status !== "applied" && settlement.status !== "promoted") {
     return null;
   }
 
   const warning = outcome.warnings.map((entry) => entry.message).join("；");
-  return warning ? `已保存。附加操作警告：${warning}` : "已保存。";
+  return warning ? t("toasts.saveWarning", { warning }) : t("toasts.saved");
 }

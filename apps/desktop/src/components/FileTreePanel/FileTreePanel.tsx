@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderIcon } from "@heroicons/react/24/outline";
+import { useTranslation } from "@md-editor/i18n";
 import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
 import { findFirstMarkdownPath } from "../../app/files/file-tree-mutations";
 import { createDefaultCollapsedDirectoryPaths } from "../../app/files/file-tree-view-state";
@@ -37,6 +38,7 @@ export interface FileTreePanelProps {
 }
 
 export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelProps) {
+  const { t } = useTranslation();
   const { folder, createTreeItem, renameTreeItem, deleteTreeItem } = useFileTreeStore();
   const { openAssetFromTree } = useDocumentUiStore();
   const { dispatchCommand, openDocumentFromTree } = useDesktopEditorActions();
@@ -294,16 +296,18 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
             aria-hidden="true"
           />
         </div>
-        <p className="mb-1 text-[13px] font-semibold text-[var(--theme-title)]">未打开工作区</p>
+        <p className="mb-1 text-[13px] font-semibold text-[var(--theme-title)]">
+          {t("fileTree.emptyWorkspaceTitle")}
+        </p>
         <p className="mb-4 max-w-[190px] text-[11px] leading-relaxed text-[var(--theme-control-subtle)]">
-          选择一个本地文件夹，开始专注写作与文件管理。
+          {t("fileTree.emptyWorkspaceDesc")}
         </p>
         <button
           type="button"
           className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] shadow-xs transition-all duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
           onClick={onOpenFolder}
         >
-          <span>打开文件夹</span>
+          <span>{t("fileTree.openFolder")}</span>
           <kbd className="rounded border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1 py-0.2 font-mono text-[10px] text-[var(--theme-control-subtle)] group-hover:text-[var(--theme-title)]">
             ⌘O
           </kbd>
@@ -332,7 +336,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
           ))
         ) : (
           <p className="m-0 px-4 py-3 text-[13px] text-[var(--theme-control-subtle)]">
-            没有匹配的文件。
+            {t("fileTree.noResults")}
           </p>
         )}
         {contextMenu ? (

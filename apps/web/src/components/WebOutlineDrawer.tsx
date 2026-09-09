@@ -1,6 +1,7 @@
 import React from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { OutlinePanel, useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
+import { useTranslation } from "@md-editor/i18n";
 
 export interface WebOutlineDrawerProps {
   readonly open: boolean;
@@ -8,6 +9,7 @@ export interface WebOutlineDrawerProps {
 }
 
 export function WebOutlineDrawer({ open, onClose }: WebOutlineDrawerProps) {
+  const { t } = useTranslation();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
 
@@ -16,14 +18,16 @@ export function WebOutlineDrawer({ open, onClose }: WebOutlineDrawerProps) {
   return (
     <aside
       className="fixed inset-y-12 right-0 z-30 flex w-72 flex-col border-l border-[var(--theme-border)] bg-[var(--theme-chrome)]/95 shadow-xl backdrop-blur-md transition-transform duration-200 animate-in slide-in-from-right"
-      aria-label="大纲抽屉"
+      aria-label={t("web.outlineDrawerAria")}
     >
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--theme-border)] px-3.5">
-        <span className="text-xs font-semibold text-[var(--theme-title)]">文档大纲</span>
+        <span className="text-xs font-semibold text-[var(--theme-title)]">
+          {t("web.documentOutline")}
+        </span>
         <button
           type="button"
           className="rounded p-1 text-[var(--theme-muted)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-          title="关闭大纲"
+          title={t("web.closeOutline")}
           onClick={onClose}
         >
           <XMarkIcon className="size-4" />

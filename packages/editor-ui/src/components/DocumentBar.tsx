@@ -1,4 +1,5 @@
 import type { EditorMode } from "@md-editor/editor-core";
+import { useTranslation } from "@md-editor/i18n";
 import { CodeBracketIcon, Cog6ToothIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 
 export interface DocumentBarProps {
@@ -14,6 +15,7 @@ export function DocumentBar({
   onChangeMode,
   onOpenSettings,
 }: DocumentBarProps) {
+  const { t } = useTranslation();
   const controlsClassName = hasActiveDocument
     ? "flex w-full min-w-0 items-center justify-between gap-1.5"
     : "flex w-full min-w-0 items-center justify-end gap-1.5";
@@ -21,7 +23,7 @@ export function DocumentBar({
   return (
     <header
       className="flex min-h-[38px] shrink-0 items-center border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5 py-1 text-[var(--theme-control-text)]"
-      aria-label="编辑视图控制"
+      aria-label={t("editor.documentBar.viewControlsAria")}
     >
       <div className={controlsClassName}>
         {hasActiveDocument ? (
@@ -33,8 +35,8 @@ export function DocumentBar({
         <button
           type="button"
           className={iconButtonClassName}
-          aria-label="打开设置"
-          title="设置"
+          aria-label={t("editor.documentBar.openSettings")}
+          title={t("editor.documentBar.openSettings")}
           onClick={onOpenSettings}
         >
           <Cog6ToothIcon aria-hidden="true" />
@@ -51,8 +53,11 @@ function ModeToggleButton({
   readonly mode: EditorMode;
   readonly onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const isSourceMode = mode === "source";
-  const label = isSourceMode ? "切换到所见即所得" : "切换到源码";
+  const label = isSourceMode
+    ? t("editor.documentBar.switchToWysiwyg")
+    : t("editor.documentBar.switchToSource");
 
   return (
     <button

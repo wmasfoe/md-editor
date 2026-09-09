@@ -3,7 +3,10 @@ import { emit, listen } from "@tauri-apps/api/event";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiSettings } from "@md-editor/ai";
 import { DEFAULT_AI_SETTINGS, normalizeAiSettings } from "@md-editor/ai";
+import type { LanguageSetting } from "@md-editor/i18n";
 import { isComposingKeyboardEvent, isWindowsPlatform } from "../../lib/keyboard";
+
+export type { LanguageSetting } from "@md-editor/i18n";
 
 export {
   DEFAULT_DEEPSEEK_ENDPOINT,
@@ -27,6 +30,7 @@ export interface AppSettings {
   readonly ai: AiSettings;
   readonly update: AppUpdateSettings;
   readonly plugins: PluginSettings;
+  readonly language: LanguageSetting;
 }
 
 export interface UpdateStatus {
@@ -274,6 +278,7 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
 const LOCAL_STORAGE_KEY = "md-editor-app-settings";
 export const APP_SETTINGS_CHANGED_EVENT = "md-editor-app-settings-changed";
 export const APP_THEME_PREVIEW_CHANGED_EVENT = "md-editor-app-theme-preview-changed";
+export const APP_LANGUAGE_PREVIEW_CHANGED_EVENT = "md-editor-app-language-preview-changed";
 export const UPDATE_RELEASES_API_URL =
   "https://api.github.com/repos/wmasfoe/homebrew-tap/releases?per_page=20";
 export const INSTALL_WITH_CURL_COMMAND =
@@ -382,6 +387,8 @@ export const DEFAULT_UPDATE_SETTINGS: AppUpdateSettings = {
   automaticDownload: true,
 };
 
+export const DEFAULT_LANGUAGE: LanguageSetting = "system";
+
 export function createDefaultSettings(): AppSettings {
   return {
     shortcuts: SHORTCUTS.map((shortcut) => ({ ...shortcut, key: shortcut.defaultKey })),
@@ -391,6 +398,7 @@ export function createDefaultSettings(): AppSettings {
     ai: DEFAULT_AI_SETTINGS,
     update: DEFAULT_UPDATE_SETTINGS,
     plugins: DEFAULT_PLUGIN_SETTINGS,
+    language: DEFAULT_LANGUAGE,
   };
 }
 
@@ -483,6 +491,54 @@ export function listenToAppThemePreviewChanged(
   };
   window.addEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
   return () => window.removeEventListener(APP_THEME_PREVIEW_CHANGED_EVENT, listener);
+}
+
+export async function publishAppLanguagePreview(
+  language: AppSettings["language"] | null,
+): Promise<void> {
+  if (isTauri()) {
+    await emit(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, { language });
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, { detail: { language } }),
+  );
+}
+
+export function listenToAppLanguagePreviewChanged(
+  handler: (language: AppSettings["language"] | null) => void,
+): (() => void) | undefined {
+  if (isTauri()) {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    void listen<{ language: AppSettings["language"] | null }>(
+      APP_LANGUAGE_PREVIEW_CHANGED_EVENT,
+      (event) => {
+        handler(event.payload?.language ?? null);
+      },
+    ).then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
+      unlisten = dispose;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+      unlisten = undefined;
+    };
+  }
+
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<{ language: AppSettings["language"] | null }>).detail;
+    handler(detail?.language ?? null);
+  };
+  window.addEventListener(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, listener);
+  return () => window.removeEventListener(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, listener);
 }
 
 async function publishAppSettingsChanged(settings: AppSettings): Promise<void> {
@@ -986,6 +1042,7 @@ interface PersistedSettings {
   readonly ai?: Partial<AiSettings>;
   readonly update?: unknown;
   readonly plugins?: unknown;
+  readonly language?: unknown;
 }
 
 function readLocalSettings(): Partial<PersistedSettings> {
@@ -1021,6 +1078,7 @@ function normalizeSettings(
     ai: normalizeAiSettings(input?.ai),
     update: normalizeUpdateSettings(input?.update),
     plugins: normalizePluginSettings(input?.plugins),
+    language: normalizeLanguageSetting(input?.language),
   };
 }
 
@@ -1036,7 +1094,12 @@ function toPersistedSettings(settings: AppSettings): PersistedSettings {
     ai: settings.ai,
     update: settings.update,
     plugins: settings.plugins,
+    language: settings.language,
   };
+}
+
+export function normalizeLanguageSetting(input: unknown): LanguageSetting {
+  return input === "zh" || input === "en" ? input : "system";
 }
 
 export function normalizePluginSettings(input: unknown): PluginSettings {
