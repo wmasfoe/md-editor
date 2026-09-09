@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use tauri::Emitter;
 
 mod app_menu;

@@ -89,6 +89,7 @@ pub(crate) fn save_app_settings(settings: AppSettings) -> Result<(), String> {
     write_settings(&data_dir.join(SETTINGS_FILE_NAME), &settings)
 }
 
+#[allow(dead_code)]
 pub(crate) fn shortcut_key(id: &str, fallback: &str) -> String {
     // 原生菜单在 React 外部重建，因此必须读取同一份持久化快捷键配置。
     let settings = load_app_settings();
