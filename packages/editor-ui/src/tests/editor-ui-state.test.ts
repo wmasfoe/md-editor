@@ -160,6 +160,7 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     setSelection: vi.fn(),
     scrollToLine: vi.fn(() => true),
     requestMeasure: vi.fn(),
+    flushPendingEdits: vi.fn(() => false),
     setPlugins: vi.fn(),
   };
 }

@@ -579,14 +579,17 @@ describe("table widget DOM lifecycle", () => {
     expect(headerCells).toHaveLength(2);
     expect(bodyCells).toHaveLength(4);
 
-    // 单元格是原生 contenteditable：左键点击不会被 widget 拦截（见下方 pointerdown 用例）。
+    // 单元格内嵌独立的 contenteditable cell-editor：解耦块手柄并保持全单元格原生可编辑。
     const firstCell = bodyCells[0];
-    expect(firstCell.contentEditable).toBe("plaintext-only");
-    expect(firstCell.spellcheck).toBe(false);
+    const editor = firstCell.querySelector<HTMLElement>(
+      ".cm-md-table-widget__cell-editor",
+    ) as unknown as FakeElement;
+    expect(editor.contentEditable).toBe("plaintext-only");
+    expect(editor.spellcheck).toBe(false);
     expect(firstCell.getAttribute("data-row-kind")).toBe("body");
     expect(firstCell.getAttribute("data-row-index")).toBe("0");
     expect(firstCell.getAttribute("data-col-index")).toBe("0");
-    expect(firstCell.textContent).toBe("1");
+    expect(editor.textContent).toBe("1");
     // 对齐经内联样式应用；表头单元格声明 scope="col"。
     expect(bodyCells[1].style.textAlign).toBe("right");
     expect(headerCells[0].scope).toBe("col");
@@ -820,9 +823,13 @@ describe("table widget DOM lifecycle", () => {
     });
     expect(updated.eq(widget)).toBe(false);
     expect(updated.updateDOM(dom as unknown as HTMLElement)).toBe(true);
-    expect((dom.querySelector<HTMLElement>("tbody td") as unknown as FakeElement).textContent).toBe(
-      "11",
-    );
+    expect(
+      (
+        dom.querySelector<HTMLElement>(
+          "tbody td .cm-md-table-widget__cell-editor",
+        ) as unknown as FakeElement
+      ).textContent,
+    ).toBe("11");
     expect(dom.getAttribute("aria-selected")).toBe("true");
 
     // 行列数变化时返回 false，让 CM6 重建 widget。

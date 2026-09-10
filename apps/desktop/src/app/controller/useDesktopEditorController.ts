@@ -124,6 +124,10 @@ export function useDesktopEditorController({
   const dispatchCommand = useCallback(
     async (id: string) => {
       if (hasPendingConfirmation()) return;
+      const access = getRendererPorts();
+      if (access.status === "available") {
+        access.ports.flushPendingEdits?.();
+      }
       await runtime.commands.dispatch(id, {
         document: runtime.document,
         actions: {

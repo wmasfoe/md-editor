@@ -78,11 +78,11 @@ export class TableGridWidget extends WidgetType {
   /** 允许单元格与手柄自行处理指针/键盘事件，不被 CM6 吞掉。 */
   ignoreEvent(event: Event): boolean {
     const target = event.target;
-    if (!(target instanceof Element)) {
+    if (!target || (typeof Element !== "undefined" && !(target instanceof Element))) {
       return false;
     }
     return Boolean(
-      target.closest(
+      (target as Element).closest?.(
         ".cm-md-table-widget__cell, .cm-md-table-widget__btn, .cm-md-table-widget__handle, .cm-md-table-widget__menu",
       ),
     );
@@ -155,11 +155,11 @@ export class TableGridWidget extends WidgetType {
 
     const pointerdown: EventListener = (event) => {
       const target = event.target;
-      if (!(target instanceof Element)) {
+      if (!target || (typeof Element !== "undefined" && !(target instanceof Element))) {
         return;
       }
       if (
-        target.closest(
+        (target as Element).closest?.(
           ".cm-md-table-widget__cell, .cm-md-table-widget__btn, .cm-md-table-widget__menu",
         )
       ) {
@@ -170,6 +170,18 @@ export class TableGridWidget extends WidgetType {
             effects: clearWysiwygAtomSelectionEffect.of(null),
             userEvent: "select",
           });
+        }
+        const cell = (target as HTMLElement).closest?.<HTMLElement>(".cm-md-table-widget__cell");
+        if (
+          cell &&
+          !(target as HTMLElement).closest?.(
+            ".cm-md-table-widget__btn, .cm-md-table-widget__handle, .cm-md-table-widget__menu",
+          )
+        ) {
+          const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor");
+          if (editor && target !== editor) {
+            editor.focus();
+          }
         }
         return;
       }
@@ -200,12 +212,16 @@ export class TableGridWidget extends WidgetType {
       if (!cell) {
         return;
       }
-      cell.classList.remove("cm-md-table-widget__cell--editing");
-      // relatedTarget 仍在同一表格内时，由 keydown 导航负责提交；否则 blur 提交。
+      // 如果焦点仍在当前单元格内部（例如子元素之间转移），不触发提交
       const next = (event as FocusEvent).relatedTarget;
-      if (next instanceof Node && wrapper.contains(next)) {
+      if (
+        next &&
+        (typeof Node === "undefined" || next instanceof Node) &&
+        cell.contains(next as Node)
+      ) {
         return;
       }
+      cell.classList.remove("cm-md-table-widget__cell--editing");
       flushCellCommit(view, wrapper, cell, currentValue().recordId);
     };
 
@@ -257,8 +273,10 @@ export class TableGridWidget extends WidgetType {
                 `[data-row-kind="body"][data-row-index="${newRowIndex}"][data-col-index="0"]`,
               );
               if (newCell) {
-                newCell.focus();
-                selectElementContents(newCell);
+                const editor =
+                  newCell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? newCell;
+                editor.focus();
+                selectElementContents(editor);
               }
             }, 0);
             return;
@@ -273,11 +291,18 @@ export class TableGridWidget extends WidgetType {
         // 取消：恢复源码文本并退出编辑，同时记住退出位置。
         const address = addressFromCell(cell, currentValue().recordId);
         if (address) {
-          cell.textContent = sourceCellText(currentValue(), address);
+          const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor");
+          const originalText = sourceCellText(currentValue(), address);
+          if (editor) {
+            editor.textContent = originalText;
+          } else {
+            cell.textContent = originalText;
+          }
           lastEditingCellByRecordId.set(currentValue().recordId, address);
         }
         editingCellByDom.delete(wrapper);
-        cell.blur();
+        const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
+        editor.blur();
         view.focus();
         return;
       }
@@ -296,11 +321,11 @@ export class TableGridWidget extends WidgetType {
 
     const actionClick: EventListener = (event) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement)) {
+      if (!target || (typeof HTMLElement !== "undefined" && !(target instanceof HTMLElement))) {
         return;
       }
       // 行/列块手柄：打开对应操作菜单。
-      const toggle = target.closest<HTMLElement>("[data-table-toggle]");
+      const toggle = (target as HTMLElement).closest?.<HTMLElement>("[data-table-toggle]");
       if (toggle) {
         event.preventDefault();
         event.stopPropagation();
@@ -319,7 +344,7 @@ export class TableGridWidget extends WidgetType {
         return;
       }
       // 菜单项：执行行/列增删操作。
-      const button = target.closest<HTMLElement>("[data-table-action]");
+      const button = (target as HTMLElement).closest?.<HTMLElement>("[data-table-action]");
       if (button) {
         event.preventDefault();
         event.stopPropagation();
@@ -351,7 +376,7 @@ export class TableGridWidget extends WidgetType {
         return;
       }
       // 点击菜单外的表格区域：关闭菜单。
-      if (!menu.hidden && !menu.contains(target)) {
+      if (!menu.hidden && !menu.contains(target as Node)) {
         closeTableMenu(wrapper, menu, documentClick, document);
       }
     };
@@ -359,7 +384,11 @@ export class TableGridWidget extends WidgetType {
     // 点击表格外：关闭打开的菜单（capture 阶段先于 wrapper 内 bubble 处理）。
     const documentClick: EventListener = (event) => {
       const target = event.target;
-      if (!(target instanceof Node) || !wrapper.contains(target)) {
+      if (
+        !target ||
+        (typeof Node !== "undefined" && !(target instanceof Node)) ||
+        !wrapper.contains(target as Node)
+      ) {
         closeTableMenu(wrapper, menu, documentClick, document);
       }
     };
@@ -408,7 +437,10 @@ export class TableGridWidget extends WidgetType {
       return true;
     }
     headerCells.forEach((cell, index) => {
-      if (dom.ownerDocument.activeElement !== cell) {
+      const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor");
+      if (editor && dom.ownerDocument.activeElement !== editor) {
+        editor.textContent = this.value.headerCells[index] ?? "";
+      } else if (!editor && dom.ownerDocument.activeElement !== cell) {
         cell.textContent = this.value.headerCells[index] ?? "";
       }
     });
@@ -416,7 +448,10 @@ export class TableGridWidget extends WidgetType {
       const cells = [...row.querySelectorAll("td")];
       const sourceRow = this.value.bodyRows[rowIndex] ?? [];
       cells.forEach((cell, colIndex) => {
-        if (dom.ownerDocument.activeElement !== cell) {
+        const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor");
+        if (editor && dom.ownerDocument.activeElement !== editor) {
+          editor.textContent = sourceRow[colIndex] ?? "";
+        } else if (!editor && dom.ownerDocument.activeElement !== cell) {
           cell.textContent = sourceRow[colIndex] ?? "";
         }
         const alignment = this.value.alignments[colIndex] ?? "none";
@@ -469,8 +504,9 @@ export function focusTableCellForRecord(view: EditorView, recordId: string): HTM
   if (!target) {
     return null;
   }
-  target.focus();
-  selectElementContents(target);
+  const editor = target.querySelector?.<HTMLElement>(".cm-md-table-widget__cell-editor") ?? target;
+  editor.focus?.();
+  selectElementContents(editor);
   return target;
 }
 
@@ -517,16 +553,9 @@ function createEditableCell(
 ): HTMLElement {
   const cell = document.createElement(tag);
   cell.className = "cm-md-table-widget__cell";
-  cell.contentEditable = "plaintext-only";
-  // 兼容不支持 plaintext-only 的 WebView。
-  if (cell.contentEditable !== "plaintext-only") {
-    cell.contentEditable = "true";
-  }
-  cell.spellcheck = false;
   cell.dataset.rowKind = rowKind;
   cell.dataset.rowIndex = String(rowIndex);
   cell.dataset.colIndex = String(colIndex);
-  cell.textContent = text;
   if (tag === "th") {
     cell.scope = "col";
   }
@@ -534,6 +563,18 @@ function createEditableCell(
   if (alignment !== "none") {
     cell.style.textAlign = alignment;
   }
+
+  const editor = document.createElement("div");
+  editor.className = "cm-md-table-widget__cell-editor";
+  editor.contentEditable = "plaintext-only";
+  // 兼容不支持 plaintext-only 的 WebView。
+  if (editor.contentEditable !== "plaintext-only") {
+    editor.contentEditable = "true";
+  }
+  editor.spellcheck = false;
+  editor.textContent = text;
+  cell.append(editor);
+
   return cell;
 }
 
@@ -688,17 +729,55 @@ function flushCellCommit(
   if (!address) {
     return;
   }
-  // 行块手柄（⋮⋮）是单元格 DOM 的子节点，读取文本前必须先剔除，
-  // 否则手柄文字会混入单元格提交内容。
-  const clone = cell.cloneNode(true) as HTMLElement;
+  const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
+  const clone = editor.cloneNode(true) as HTMLElement;
   clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
-  const text = clone.innerText
+  const text = (clone.innerText || clone.textContent || "")
     .replace(/\u00a0/g, " ")
     .replace(/\r?\n/g, " ")
     .trim();
   commitTableCell(view, address, text);
   lastEditingCellByRecordId.set(recordId, address);
   editingCellByDom.delete(wrapper);
+}
+
+/**
+ * 立即刷写当前正在编辑的所有表格单元格（用于模式切换、文档保存或外部命令触发前）。
+ */
+export function flushActiveTableCell(view: EditorView): boolean {
+  if (!view.dom) {
+    return false;
+  }
+  const editingCells = [
+    ...view.dom.querySelectorAll<HTMLElement>(".cm-md-table-widget__cell--editing"),
+  ];
+
+  const activeElement = view.dom.ownerDocument?.activeElement;
+  if (
+    activeElement &&
+    (typeof HTMLElement === "undefined" || activeElement instanceof HTMLElement)
+  ) {
+    const activeCell = (activeElement as HTMLElement).closest<HTMLElement>(
+      ".cm-md-table-widget__cell",
+    );
+    if (activeCell && !editingCells.includes(activeCell)) {
+      editingCells.push(activeCell);
+    }
+  }
+
+  let flushed = false;
+  for (const cell of editingCells) {
+    const wrapper = cell.closest<HTMLElement>(".cm-md-table-widget");
+    if (wrapper) {
+      const recordId = wrapper.dataset.recordId;
+      if (recordId) {
+        flushCellCommit(view, wrapper, cell, recordId);
+        cell.classList.remove("cm-md-table-widget__cell--editing");
+        flushed = true;
+      }
+    }
+  }
+  return flushed;
 }
 
 function addressFromCell(cell: HTMLElement, recordId: string): TableCellAddress | null {
@@ -724,10 +803,10 @@ function sourceCellText(value: TableGridValue, address: TableCellAddress): strin
 
 function cellElementFromEvent(event: Event): HTMLElement | null {
   const target = event.target;
-  if (!(target instanceof Element)) {
+  if (!target || (typeof Element !== "undefined" && !(target instanceof Element))) {
     return null;
   }
-  return target.closest(".cm-md-table-widget__cell");
+  return (target as Element).closest?.(".cm-md-table-widget__cell") ?? null;
 }
 
 function moveCellFocus(
@@ -751,20 +830,24 @@ function moveCellFocus(
   }
   const next = cells[nextIndex];
   if (next) {
-    next.focus();
-    selectElementContents(next);
+    const editor = next.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? next;
+    editor.focus();
+    selectElementContents(editor);
   }
 }
 
 function selectElementContents(element: HTMLElement): void {
-  const selection = element.ownerDocument.defaultView?.getSelection();
+  const selection = element.ownerDocument?.defaultView?.getSelection?.();
   if (!selection) {
     return;
   }
-  const range = element.ownerDocument.createRange();
+  const range = element.ownerDocument?.createRange?.();
+  if (!range) {
+    return;
+  }
   range.selectNodeContents(element);
-  selection.removeAllRanges();
-  selection.addRange(range);
+  selection.removeAllRanges?.();
+  selection.addRange?.(range);
 }
 
 function updateTableGridDom(dom: HTMLElement, value: TableGridValue): void {

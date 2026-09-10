@@ -106,6 +106,8 @@ export function useDocumentActionsController({
         return;
       }
 
+      access.ports.flushPendingEdits?.();
+
       const result = switchEditorModeSafely(runtime.document, mode, {
         operationId: createDesktopOperationId("mode"),
         renderer: access.ports.mode,
@@ -151,6 +153,10 @@ export function useDocumentActionsController({
   const saveDocument = useCallback(
     async (forceDialog = false): Promise<boolean> => {
       let savedCurrentDocument = false;
+      const access = getRendererPorts();
+      if (access.status === "available") {
+        access.ports.flushPendingEdits?.();
+      }
       await runFileAction(
         forceDialog ? "正在另存为" : "正在保存",
         async () => {
@@ -187,7 +193,14 @@ export function useDocumentActionsController({
       );
       return savedCurrentDocument;
     },
-    [fileService, refreshFolderForDocumentPath, rememberRecentPath, runFileAction, showToast],
+    [
+      fileService,
+      getRendererPorts,
+      refreshFolderForDocumentPath,
+      rememberRecentPath,
+      runFileAction,
+      showToast,
+    ],
   );
 
   const ensureDiscardAllowed = useCallback(

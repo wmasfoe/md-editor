@@ -113,13 +113,13 @@ function buildTableGridValue(
  */
 export function splitTableRowCells(line: string, hasLeadingPipes: boolean): readonly string[] {
   let trimmed = line.trim();
+  if (!trimmed) {
+    return [];
+  }
   if (hasLeadingPipes) {
     trimmed = trimmed.replace(/^\|/, "");
   }
   trimmed = trimmed.replace(/\|$/, "");
-  if (!trimmed.trim()) {
-    return [];
-  }
   const cells: string[] = [];
   let buffer = "";
   let escaped = false;
