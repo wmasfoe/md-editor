@@ -9,6 +9,10 @@ const desktopControllerSource = readFileSync(
   new URL("../src/app/controller/useDesktopEditorController.ts", import.meta.url),
   "utf8",
 );
+const desktopEditorSource = readFileSync(
+  new URL("../src/components/DesktopCodeMirrorEditor.tsx", import.meta.url),
+  "utf8",
+);
 const runtimeSource = readFileSync(
   new URL("../src/app/runtime/editor-runtime.ts", import.meta.url),
   "utf8",
@@ -99,5 +103,39 @@ describe("desktop document controller boundaries", () => {
     ]) {
       expect(storeGraph).not.toContain(retiredMutation);
     }
+  });
+
+  it("invokes flushPendingEdits before mode switch, document save, and command dispatch", () => {
+    // switchMode must flush pending edits inside try block
+    expect(documentActionsSource).toMatch(
+      /const switchMode = useCallback\([\s\S]{0,400}access\.ports\.flushPendingEdits\?\.[\s\S]{0,100}switchEditorModeSafely/u,
+    );
+
+    // saveDocument must flush pending edits before executing save
+    expect(documentActionsSource).toMatch(
+      /const saveDocument = useCallback\([\s\S]{0,500}access\.ports\.flushPendingEdits\?\.[\s\S]{0,300}executeDocumentSave/u,
+    );
+
+    // dispatchCommand must flush pending edits before dispatching runtime commands
+    expect(desktopControllerSource).toMatch(
+      /const dispatchCommand = useCallback\([\s\S]{0,250}access\.ports\.flushPendingEdits\?\.[\s\S]{0,120}runtime\.commands\.dispatch/u,
+    );
+  });
+
+  it("guards mode switch against concurrent re-entrancy and aborts in-flight AI continuation", () => {
+    const switchModeSlice = documentActionsSource.slice(
+      documentActionsSource.indexOf("const switchMode = useCallback"),
+      documentActionsSource.indexOf("const replaceDocument = useCallback"),
+    );
+
+    // Re-entrancy guard
+    expect(switchModeSlice).toContain("if (isSwitchingModeRef.current)");
+    expect(switchModeSlice).toContain("isSwitchingModeRef.current = true;");
+    expect(switchModeSlice).toContain("isSwitchingModeRef.current = false;");
+
+    // Active AI continuation abort on mode transition
+    expect(desktopEditorSource).toMatch(
+      /if \(event\.transition\.kind === "mode"\) \{[\s\S]{0,300}abortControllerRef\.current\.abort\(\);/u,
+    );
   });
 });
