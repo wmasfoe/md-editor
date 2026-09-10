@@ -532,6 +532,8 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
   it("R11b switches mode cleanly when an AI suggestion is active, clearing the suggestion and succeeding", () => {
     const setup = createSetup({ markdown: "alpha beta\n" });
     setup.harness.renderer.showSuggestion({
+      items: [{ from: 5, to: 5, text: "gamma " }],
+      activeIndex: 0,
       from: 5,
       to: 5,
       text: "gamma ",

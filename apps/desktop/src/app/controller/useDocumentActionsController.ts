@@ -113,8 +113,6 @@ export function useDocumentActionsController({
 
       isSwitchingModeRef.current = true;
       try {
-        access.ports.flushPendingEdits?.();
-
         const result = switchEditorModeSafely(runtime.document, mode, {
           operationId: createDesktopOperationId("mode"),
           renderer: access.ports.mode,
