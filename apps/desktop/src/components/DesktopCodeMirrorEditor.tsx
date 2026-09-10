@@ -49,7 +49,8 @@ export function DesktopCodeMirrorEditor({
 }: DesktopCodeMirrorEditorProps) {
   const { settings } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const { openDocumentFromTree, dispatchCommand } = useDesktopEditorActions();
+  const { openDocumentFromTree, dispatchCommand, refreshFolderForDocumentPath } =
+    useDesktopEditorActions();
   const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
 
   const handlePortsChange = (newPorts: CodeMirrorEditorPorts | null) => {
@@ -87,6 +88,11 @@ export function DesktopCodeMirrorEditor({
       },
       assetsDirectory: settings.assetsDirectory,
       requestConfirmation: (state) => useConfirmationStore.getState().requestConfirmation(state),
+      afterSaveImage: async (documentPath) => {
+        if (documentPath) {
+          await refreshFolderForDocumentPath(documentPath);
+        }
+      },
     };
 
     const cleanupDrop = bindDropImageListener(pasteRuntime);
@@ -96,7 +102,7 @@ export function DesktopCodeMirrorEditor({
       cleanupDrop();
       cleanupPaste();
     };
-  }, [settings.assetsDirectory, dispatchCommand, ports]);
+  }, [settings.assetsDirectory, dispatchCommand, ports, refreshFolderForDocumentPath]);
 
   // 链接打开:内部 markdown 文件在当前应用内打开,其余(资产/外部 URL)走系统打开。
   // 判定委托给 Rust 侧 inspect_linked_file(相对路径按当前文档目录解析)。

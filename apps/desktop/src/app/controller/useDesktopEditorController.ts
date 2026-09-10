@@ -9,6 +9,7 @@ import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
+import { listenToFolderChanged } from "../../desktop/folder-watcher-events";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
   isExternalSchemeLink,
@@ -521,6 +522,12 @@ export function useDesktopEditorController({
   );
 
   useEffect(() => {
+    return listenToFolderChanged(() => {
+      void useFileTreeStore.getState().refreshOpenedFolder(fileService);
+    });
+  }, [fileService]);
+
+  useEffect(() => {
     const media = window.matchMedia("(max-width: 959px)");
     const collapse = (event: MediaQueryListEvent) => {
       if (event.matches) setIsSidebarVisible(false);
@@ -665,6 +672,7 @@ export function useDesktopEditorController({
     runEditorUpdateAction,
     insertMdxComponent,
     insertTable,
+    refreshFolderForDocumentPath,
   };
 }
 
