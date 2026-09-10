@@ -68,6 +68,11 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .build()?;
 
     let edit_title = if is_zh { "编辑" } else { "Edit" };
+    let insert_table_title = if is_zh {
+        "插入表格..."
+    } else {
+        "Insert Table..."
+    };
     let edit_menu = SubmenuBuilder::new(app, edit_title)
         .undo()
         .redo()
@@ -76,6 +81,13 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .copy()
         .paste()
         .select_all()
+        .separator()
+        .item(&menu_item(
+            app,
+            "md-editor:insert-table",
+            insert_table_title,
+            &menu_accelerator_for_shortcut(&settings::shortcut_key("table.insert", "Mod-Alt-T")),
+        )?)
         .build()?;
 
     let view_title = if is_zh { "视图" } else { "View" };

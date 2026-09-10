@@ -29,6 +29,38 @@ describe("matchesRuntimeKeymap", () => {
     expect(matchesRuntimeKeymap(keyboardEvent({ altKey: false }), "Mod-Shift-Alt-B")).toBe(false);
   });
 
+  it("matches Mod-Alt-T even when macOS translates Option+T into special character †", () => {
+    expect(
+      matchesRuntimeKeymap(
+        keyboardEvent({
+          code: "KeyT",
+          key: "†",
+          altKey: true,
+          metaKey: true,
+          shiftKey: false,
+          ctrlKey: false,
+        }),
+        "Mod-Alt-T",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches Mod-Alt-1 even when macOS translates Option+1 into special character ¡", () => {
+    expect(
+      matchesRuntimeKeymap(
+        keyboardEvent({
+          code: "Digit1",
+          key: "¡",
+          altKey: true,
+          metaKey: true,
+          shiftKey: false,
+          ctrlKey: false,
+        }),
+        "Mod-Alt-1",
+      ),
+    ).toBe(true);
+  });
+
   it("matches the slash key by key or code", () => {
     expect(
       matchesRuntimeKeymap(keyboardEvent({ code: "Slash", key: "/", shiftKey: false }), "Mod-/"),

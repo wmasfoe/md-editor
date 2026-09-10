@@ -4,7 +4,12 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { AiSettings } from "@md-editor/ai";
 import { DEFAULT_AI_SETTINGS, normalizeAiSettings } from "@md-editor/ai";
 import type { LanguageSetting } from "@md-editor/i18n";
-import { isComposingKeyboardEvent, isWindowsPlatform } from "../../lib/keyboard";
+import {
+  getOperatingSystem,
+  isComposingKeyboardEvent,
+  isWindowsPlatform,
+  type OperatingSystem,
+} from "../../lib/keyboard";
 
 export type { LanguageSetting } from "@md-editor/i18n";
 
@@ -781,10 +786,70 @@ export function compareReleaseVersions(left: string, right: string): number {
   return comparePrerelease(leftVersion.prerelease, rightVersion.prerelease);
 }
 
-export function keyboardShortcutLabel(key: string): string {
-  return key
-    .replace(/^Mod/u, navigator.platform.toLowerCase().includes("mac") ? "Command" : "Ctrl")
-    .replace(/-/gu, "+");
+export function keyboardShortcutLabel(
+  key: string,
+  os: OperatingSystem = getOperatingSystem(),
+): string {
+  if (!key) return "";
+
+  const parts = key
+    .split(/[-+]/u)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+
+  const rawKeyName = parts.at(-1)!;
+  const keyName = normalizeKeyName(rawKeyName);
+  const modParts = parts.slice(0, -1).map((p) => p.toLowerCase());
+
+  const hasMod = modParts.includes("mod");
+  const hasCommand = modParts.includes("cmd") || modParts.includes("command");
+  const hasCtrl = modParts.includes("ctrl") || modParts.includes("control");
+  const hasAlt = modParts.includes("alt") || modParts.includes("option");
+  const hasShift = modParts.includes("shift");
+  const hasWin =
+    modParts.includes("win") || modParts.includes("meta") || modParts.includes("super");
+
+  const ordered: string[] = [];
+
+  if (os === "mac") {
+    // macOS 规范：control -> option -> command -> shift
+    if (hasCtrl) ordered.push("Control");
+    if (hasAlt) ordered.push("Option");
+    if (hasMod || hasCommand) ordered.push("Command");
+    if (hasShift) ordered.push("Shift");
+  } else if (os === "windows") {
+    // Windows 规范：ctrl -> win -> alt -> shift
+    if (hasMod || hasCtrl) ordered.push("Ctrl");
+    if (hasWin) ordered.push("Win");
+    if (hasAlt) ordered.push("Alt");
+    if (hasShift) ordered.push("Shift");
+  } else {
+    // Linux 规范：ctrl -> super -> alt -> shift
+    if (hasMod || hasCtrl) ordered.push("Ctrl");
+    if (hasWin) ordered.push("Super");
+    if (hasAlt) ordered.push("Alt");
+    if (hasShift) ordered.push("Shift");
+  }
+
+  if (ordered.length === 0 && parts.length > 1) {
+    return parts
+      .map((part) => {
+        const lower = part.toLowerCase();
+        if (lower === "mod") return os === "mac" ? "Command" : "Ctrl";
+        if (lower === "alt" || lower === "option") return os === "mac" ? "Option" : "Alt";
+        if (lower === "ctrl" || lower === "control") return os === "mac" ? "Control" : "Ctrl";
+        if (lower === "win" || lower === "meta" || lower === "super") {
+          if (os === "mac") return "Command";
+          if (os === "windows") return "Win";
+          return "Super";
+        }
+        return part;
+      })
+      .join("+");
+  }
+
+  return [...ordered, keyName].join("+");
 }
 
 export function shortcutKeyFromKeyboardEvent(
@@ -815,7 +880,7 @@ export function shortcutKeyFromKeyboardEvent(
 }
 
 export function normalizeShortcutKey(input: string): string | null {
-  // 用户输入面向产品文案（Command+Shift+B），内部统一成 keymap 字符串（Mod-Shift-B）。
+  // 用户输入面向产品文案（Option+Command+T 或 Command+Shift+B），内部统一成 keymap 字符串（Mod-Shift-B）。
   const internalKey = normalizeInternalShortcutKey(input);
   if (internalKey) {
     return internalKey;
@@ -843,7 +908,9 @@ export function normalizeShortcutKey(input: string): string | null {
       part === "command" ||
       part === "ctrl" ||
       part === "control" ||
-      part === "mod"
+      part === "mod" ||
+      part === "win" ||
+      part === "super"
     ) {
       wantsMod = true;
       continue;
@@ -873,16 +940,24 @@ export function normalizeShortcutKey(input: string): string | null {
 
 function normalizeInternalShortcutKey(input: string): string | null {
   const parts = input.trim().split("-").filter(Boolean);
-  if (parts[0] !== "Mod" || parts.length < 2) {
+  if (parts[0]?.toLowerCase() !== "mod" || parts.length < 2) {
     return null;
   }
 
   const modifiers = parts.slice(1, -1);
-  if (modifiers.some((modifier) => modifier !== "Shift" && modifier !== "Alt")) {
-    return null;
+  const normalizedModifiers: string[] = [];
+  for (const modifier of modifiers) {
+    const lower = modifier.toLowerCase();
+    if (lower === "shift") {
+      normalizedModifiers.push("Shift");
+    } else if (lower === "alt" || lower === "option") {
+      normalizedModifiers.push("Alt");
+    } else {
+      return null;
+    }
   }
 
-  return ["Mod", ...modifiers, normalizeKeyName(parts.at(-1) ?? "")].join("-");
+  return ["Mod", ...normalizedModifiers, normalizeKeyName(parts.at(-1) ?? "")].join("-");
 }
 
 export function validateAssetsDirectory(input: string): string | null {
