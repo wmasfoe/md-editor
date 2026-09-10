@@ -13,6 +13,7 @@ import { recentFilesStore } from "../controller/recent-files-store";
 import { useConfirmationStore } from "./confirmation-store";
 import { useFileActionStore } from "./file-action-store";
 import { useSidebarStore } from "./sidebar-store";
+import { watchFolder } from "../../desktop/file-adapter";
 
 export interface FileTreeStore {
   folder: MarkdownFolder | null;
@@ -81,22 +82,33 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
         ? folder.rootPath
         : dirname(documentPath);
 
-    set({ folder: await fileService.refreshFolder(nextRootPath) });
+    const nextFolder = await fileService.refreshFolder(nextRootPath);
+    set({ folder: nextFolder });
     useSidebarStore.getState().setSidebarMode("files");
+    void watchFolder(nextFolder.rootPath);
   },
   refreshOpenedFolder: async (fileService, documentPath) => {
-    const currentPath = documentPath ?? runtime.document.getSnapshot().filePath;
-    if (!currentPath) {
+    const folder = get().folder;
+    const targetPath = documentPath ?? folder?.rootPath ?? runtime.document.getSnapshot().filePath;
+    if (!targetPath) {
       return;
     }
 
-    await get().refreshFolderForDocumentPath(fileService, currentPath);
+    if (folder?.rootPath && (!documentPath || isSameOrChildPath(documentPath, folder.rootPath))) {
+      const refreshed = await fileService.refreshFolder(folder.rootPath);
+      set({ folder: refreshed });
+      void watchFolder(refreshed.rootPath);
+      return;
+    }
+
+    await get().refreshFolderForDocumentPath(fileService, targetPath);
   },
   showOpenedFolder: (folder) => {
     set({ folder });
     const sidebar = useSidebarStore.getState();
     sidebar.setSidebarMode("files");
     sidebar.setIsSidebarVisible(true);
+    void watchFolder(folder.rootPath);
   },
   createTreeItem: async (fileService, parentPath, kind, name) => {
     const folder = get().folder;

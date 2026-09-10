@@ -177,4 +177,48 @@ describe("paste-image helpers", () => {
     expect(saveCalled).toBe(true);
     expect(appliedMarkdown).toContain("![logo](./imgs/logo.png)");
   });
+
+  it("calls afterSaveImage callback with document path after image is saved", async () => {
+    runtime.document.replaceDocument(
+      {
+        markdown: "Content",
+        savedMarkdown: "Content",
+        filePath: "/Users/test/docs/intro.md",
+      },
+      { kind: "command", commandId: "test.setup" },
+    );
+
+    let afterSaveDocumentPath = "";
+    const fakeFile = new File(["dummy bytes"], "logo.png", { type: "image/png" });
+
+    const pasteRuntime: PasteImageRuntime = {
+      ensureDocumentSaved: async () => true,
+      runFileAction: async (_label, action) => {
+        await action();
+      },
+      applyMarkdown: () => {},
+      assetsDirectory: "assets",
+      checkDirectoryExists: async () => true,
+      afterSaveImage: async (filePath) => {
+        afterSaveDocumentPath = filePath;
+      },
+      storageProvider: {
+        save: async () => ({
+          src: "./assets/logo.png",
+          targetPath: "/Users/test/docs/assets/logo.png",
+        }),
+      },
+    };
+
+    await pasteImageInput(
+      {
+        file: fakeFile,
+        mimeType: "image/png",
+        preferredName: "logo.png",
+      },
+      pasteRuntime,
+    );
+
+    expect(afterSaveDocumentPath).toBe("/Users/test/docs/intro.md");
+  });
 });

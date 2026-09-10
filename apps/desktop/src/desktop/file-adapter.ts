@@ -98,6 +98,28 @@ export async function checkPathExists(path: string): Promise<boolean> {
   return invoke<boolean>("check_path_exists", { path });
 }
 
+export async function watchFolder(path: string): Promise<void> {
+  if (!isTauri()) {
+    return;
+  }
+  try {
+    await invoke("watch_folder", { path });
+  } catch (error) {
+    console.warn("Failed to watch folder:", path, error);
+  }
+}
+
+export async function unwatchFolder(): Promise<void> {
+  if (!isTauri()) {
+    return;
+  }
+  try {
+    await invoke("unwatch_folder");
+  } catch (error) {
+    console.warn("Failed to unwatch folder:", error);
+  }
+}
+
 export function assertDesktopRuntime() {
   if (!isTauri()) {
     throw new Error("File operations are available in the Tauri desktop app.");

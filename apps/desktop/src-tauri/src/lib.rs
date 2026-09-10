@@ -3,6 +3,7 @@ use tauri::Emitter;
 
 mod app_menu;
 mod file_commands;
+mod folder_watcher;
 mod local_ai_completion;
 mod local_ai_model;
 mod local_ai_runtime;
@@ -30,6 +31,7 @@ use file_commands::{
     refresh_markdown_folder, rename_markdown_tree_item, reveal_file_tree_item_in_finder,
     save_markdown_document_ordered, save_pasted_image, show_file_tree_context_menu,
 };
+use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
 use local_ai_completion::request_local_ai_continuation;
 use local_ai_model::{
     cancel_local_ai_model_download, check_local_ai_model_updates, delete_local_ai_model,
@@ -65,6 +67,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SaveCommitGate::default())
+        .manage(FolderWatcherState::default())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
         .setup(|_app| {
             #[cfg(target_os = "macos")]
@@ -84,6 +87,8 @@ pub fn run() {
             open_markdown_document_at_path,
             open_markdown_folder,
             refresh_markdown_folder,
+            watch_folder,
+            unwatch_folder,
             create_markdown_tree_item,
             rename_markdown_tree_item,
             delete_markdown_tree_item,
