@@ -124,4 +124,21 @@ describe("local AI multi-tier models and system specs", () => {
     expect(unDownloadedStatus.status).toBe("not-downloaded");
     expect(localModelStatusLabel(unDownloadedStatus.status)).toBe("未下载");
   });
+
+  it("preserves current version and update flag during download progress", () => {
+    const updatingDownloadStatus = toLocalAiModelCommandStatus({
+      modelId: "md-editor-writer-standard",
+      version: "v1.3.0",
+      latestVersion: "v1.3.1",
+      hasUpdate: true,
+      status: "downloading",
+      downloadedBytes: 18_000_000,
+      totalBytes: 209_000_000,
+    });
+
+    expect(updatingDownloadStatus.status).toBe("downloading");
+    expect(updatingDownloadStatus.version).toBe("v1.3.0");
+    expect(updatingDownloadStatus.hasUpdate).toBe(true);
+    expect(localModelProgressLabel(updatingDownloadStatus)).toContain("17.2 MB");
+  });
 });

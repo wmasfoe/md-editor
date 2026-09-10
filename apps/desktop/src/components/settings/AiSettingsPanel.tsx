@@ -444,7 +444,9 @@ function LocalAiSettings({
                   <div className="grid gap-1.5">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-medium text-[var(--theme-primary)]">
-                        {status.version ? t("settings.ai.updatingModel") : t("loading.reading")}
+                        {status.version || hasUpdate
+                          ? t("settings.ai.updatingModel")
+                          : t("settings.ai.modelDownloading", { progress: progressPercent })}
                       </span>
                       <span className="text-[10px] text-[var(--theme-muted)]">
                         {progressPercent}%
@@ -469,7 +471,7 @@ function LocalAiSettings({
                           onCancelLocalModelDownload(descriptor.id);
                         }}
                       >
-                        {status.version
+                        {status.version || hasUpdate
                           ? t("settings.ai.cancelUpdate")
                           : t("settings.ai.cancelDownload")}
                       </button>
@@ -478,7 +480,7 @@ function LocalAiSettings({
                 ) : isVerifying ? (
                   <div className="flex items-center justify-center py-1 text-[11px] text-[var(--theme-muted)]">
                     <span>
-                      {status.version
+                      {status.version || hasUpdate
                         ? t("settings.ai.verifyingUpdate")
                         : t("settings.ai.verifying")}
                     </span>
@@ -590,11 +592,18 @@ function buildModelCatalogCards(
     .filter((status) => status && status.modelId)
     .map((status) => {
       const builtin = BUILTIN_LOCAL_MODELS.find((model) => model.id === status.modelId);
+      const rawDescription = status.description?.trim();
+      const isCorruptedDesc =
+        !rawDescription ||
+        rawDescription.includes("任务专用 LoRA") ||
+        rawDescription.includes("LoRA Adapter");
       return {
         id: status.modelId,
         tier: status.tier,
         displayName: status.displayName || builtin?.displayName || status.modelId,
-        description: status.description || builtin?.description || status.displayName || "",
+        description: isCorruptedDesc
+          ? builtin?.description || status.displayName || ""
+          : rawDescription,
         isAvailable: status.isAvailableTier !== false,
         isRecommended: status.isRecommended,
         downloadSizeBytes: status.totalBytes || builtin?.downloadSizeBytes || 0,
@@ -610,11 +619,16 @@ function builtinFallbackCards(
 ): LocalModelCatalogCard[] {
   return BUILTIN_LOCAL_MODELS.map((model) => {
     const status = allModelStatuses[model.id];
+    const rawDescription = status?.description?.trim();
+    const isCorruptedDesc =
+      !rawDescription ||
+      rawDescription.includes("任务专用 LoRA") ||
+      rawDescription.includes("LoRA Adapter");
     return {
       id: model.id,
       tier: model.tier,
       displayName: status?.displayName || model.displayName,
-      description: status?.description || model.description,
+      description: isCorruptedDesc ? model.description : rawDescription,
       isAvailable: model.isAvailable && status?.isAvailableTier !== false,
       isRecommended: status?.isRecommended ?? false,
       downloadSizeBytes: status?.totalBytes || model.downloadSizeBytes,
