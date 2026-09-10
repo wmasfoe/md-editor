@@ -262,6 +262,12 @@ const SHORTCUTS: readonly Omit<ShortcutSetting, "key">[] = [
     defaultKey: "Mod-Shift-M",
   },
   {
+    id: "table.insert",
+    commandId: "table.insert",
+    label: "插入表格",
+    defaultKey: "Mod-Alt-T",
+  },
+  {
     id: "ai.continueWriting",
     commandId: "ai.continueWriting",
     label: "AI 续写",
@@ -880,23 +886,26 @@ function normalizeInternalShortcutKey(input: string): string | null {
 }
 
 export function validateAssetsDirectory(input: string): string | null {
-  // v0.1 只允许当前 Markdown 所在目录下的相对目录，避免图片写到任意文件系统位置。
-  const value = input
-    .trim()
-    .replace(/\\/gu, "/")
-    .replace(/^\.\/+/u, "");
+  const value = input.trim().replace(/\\/gu, "/");
 
   if (!value || value === "." || value === "..") {
     return null;
   }
-  if (value.startsWith("/") || value.includes("../") || value.split("/").includes("..")) {
+  // 必须为相对路径，禁止以 / 或 Windows 盘符开头
+  if (value.startsWith("/") || /^[a-zA-Z]:/u.test(value)) {
     return null;
   }
-  if (value.split("/").some((segment) => segment.trim().length === 0)) {
+  // 排除非法文件名字符（${filename} 占位符除外）
+  const testPattern = value.replace(/\$\{filename\}/gu, "filename");
+  if (/[<>:"|?*]/u.test(testPattern)) {
+    return null;
+  }
+  const segments = value.split("/");
+  if (segments.some((segment) => segment.trim().length === 0)) {
     return null;
   }
 
-  return value;
+  return value.replace(/\/+$/u, "");
 }
 
 interface PublishedRelease {

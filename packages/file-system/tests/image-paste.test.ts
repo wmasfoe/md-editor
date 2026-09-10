@@ -7,6 +7,8 @@ import {
   joinPath,
   nextAssetFileName,
   planImagePasteTarget,
+  resolveAssetsDirectoryForDocument,
+  documentStem,
 } from "../src";
 
 describe("path helpers", () => {
@@ -68,6 +70,70 @@ describe("image paste target planning", () => {
     expect(defaultAssetsDirectoryForDocument("/Users/me/docs/post.md")).toBe(
       "/Users/me/docs/assets",
     );
+  });
+
+  it("resolves custom assets directory with ./ and ../ prefixes", () => {
+    expect(resolveAssetsDirectoryForDocument("/Users/me/docs/post.md", "./imgs")).toEqual({
+      assetsDirectory: "/Users/me/docs/imgs",
+      markdownDirectory: "./imgs",
+    });
+
+    expect(resolveAssetsDirectoryForDocument("/Users/me/docs/post.md", "../imgs")).toEqual({
+      assetsDirectory: "/Users/me/imgs",
+      markdownDirectory: "../imgs",
+    });
+  });
+
+  it("resolves ${filename} variable in custom assets directory", () => {
+    expect(documentStem("/Users/me/docs/my-post.md")).toBe("my-post");
+
+    expect(
+      resolveAssetsDirectoryForDocument("/Users/me/docs/my-post.md", "${filename}.assets"),
+    ).toEqual({
+      assetsDirectory: "/Users/me/docs/my-post.assets",
+      markdownDirectory: "my-post.assets",
+    });
+
+    expect(
+      resolveAssetsDirectoryForDocument("/Users/me/docs/my-post.md", "./${filename}.assets"),
+    ).toEqual({
+      assetsDirectory: "/Users/me/docs/my-post.assets",
+      markdownDirectory: "./my-post.assets",
+    });
+
+    expect(
+      resolveAssetsDirectoryForDocument("/Users/me/docs/my-post.md", "../${filename}-images"),
+    ).toEqual({
+      assetsDirectory: "/Users/me/my-post-images",
+      markdownDirectory: "../my-post-images",
+    });
+  });
+
+  it("resolves cross-platform Windows paths correctly", () => {
+    expect(resolveAssetsDirectoryForDocument("C:\\Users\\me\\docs\\post.md", "./imgs")).toEqual({
+      assetsDirectory: "C:/Users/me/docs/imgs",
+      markdownDirectory: "./imgs",
+    });
+
+    expect(
+      resolveAssetsDirectoryForDocument("C:/Users/me/docs/post.md", "../${filename}.assets"),
+    ).toEqual({
+      assetsDirectory: "C:/Users/me/post.assets",
+      markdownDirectory: "../post.assets",
+    });
+  });
+
+  it("plans custom assets path and Markdown relative path with ./, ../, and ${filename}", () => {
+    const result = planImagePasteTarget({
+      documentPath: "/Users/me/docs/article.md",
+      mimeType: "image/png",
+      assetsDirectory: "./${filename}.assets",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("Expected ok");
+    expect(result.value.assetsDirectory).toBe("/Users/me/docs/article.assets");
+    expect(result.value.markdownPath).toMatch(/^\.\/article\.assets\/.+\.png$/);
   });
 });
 

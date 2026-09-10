@@ -145,6 +145,9 @@ export function useDesktopEditorController({
             }
             useDocumentUiStore.getState().openMdxComponentMenu();
           },
+          openInsertTableDialog: async () => {
+            useDocumentUiStore.getState().openInsertTableDialog();
+          },
           continueAiWriting: async () => {
             const portsAccess = getRendererPorts();
             if (portsAccess.status !== "available") {
@@ -600,6 +603,60 @@ export function useDesktopEditorController({
     [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
   );
 
+  // --- insertTable ---
+  const insertTable = useCallback(
+    (cols: number, rows: number) => {
+      const snippet = createTableMarkdown(cols, rows);
+      const portsAccess = getRendererPorts();
+      if (portsAccess.status !== "available") {
+        showToast("当前编辑器未就绪。");
+        return;
+      }
+      const ports = portsAccess.ports;
+      const selection = ports.getSelectionSnapshot();
+      const currentSnapshot = runtime.document.getSnapshot();
+      const markdown = currentSnapshot.markdown;
+
+      const before = markdown.slice(0, selection.from);
+      const after = markdown.slice(selection.to);
+
+      let prefix = "";
+      if (before.length > 0 && !before.endsWith("\n\n")) {
+        prefix = before.endsWith("\n") ? "\n" : "\n\n";
+      }
+
+      let suffix = "";
+      if (after.length > 0 && !after.startsWith("\n\n")) {
+        suffix = after.startsWith("\n") ? "\n" : "\n\n";
+      }
+
+      const insertText = `${prefix}${snippet}${suffix}`;
+      const nextMarkdown = `${before}${insertText}${after}`;
+
+      const result = ports.applyExternalEdit({
+        operationId: `desktop:insert-table:${Date.now()}`,
+        markdown: nextMarkdown,
+        expectedGeneration: currentSnapshot.documentGeneration,
+        expectedContentRevision: currentSnapshot.contentRevision,
+        selection: "preserve-offset-clamped",
+      });
+
+      if (
+        result.status === "applied" ||
+        result.status === "noop" ||
+        result.status === "queued-composition"
+      ) {
+        setHasActiveDocument(true);
+        setOpenedAsset(null);
+        showToast(null);
+        ports.focus();
+      } else {
+        showToast(`未能插入表格：${result.status}。`);
+      }
+    },
+    [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
+  );
+
   return {
     dispatchCommand,
     openDocumentFromTree,
@@ -607,5 +664,20 @@ export function useDesktopEditorController({
     openWysiwygLink,
     runEditorUpdateAction,
     insertMdxComponent,
+    insertTable,
   };
+}
+
+export function createTableMarkdown(cols: number, rows: number): string {
+  const safeCols = Math.max(1, Math.min(100, Math.floor(cols) || 1));
+  const safeRows = Math.max(1, Math.min(100, Math.floor(rows) || 1));
+
+  const headerRow = `| ${Array(safeCols).fill("   ").join(" | ")} |`;
+  const delimiterRow = `| ${Array(safeCols).fill("---").join(" | ")} |`;
+  const bodyRowCount = safeRows - 1;
+  const bodyRows = Array.from({ length: bodyRowCount }, () => {
+    return `| ${Array(safeCols).fill("   ").join(" | ")} |`;
+  });
+
+  return [headerRow, delimiterRow, ...bodyRows].join("\n");
 }

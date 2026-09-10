@@ -83,6 +83,7 @@ export interface ImagePasteInput {
   readonly mimeType: string;
   readonly preferredName?: string;
   readonly existingAssetNames?: readonly string[];
+  readonly assetsDirectory?: string;
 }
 
 export interface ImagePasteTarget {
@@ -200,8 +201,11 @@ export function planImagePasteTarget(
     return err("UNSUPPORTED_IMAGE_TYPE", `Unsupported image type: ${input.mimeType}`);
   }
 
-  const documentDirectory = dirname(input.documentPath);
-  const assetsDirectory = joinPath(documentDirectory, "assets");
+  const resolved = resolveAssetsDirectoryForDocument(
+    input.documentPath,
+    input.assetsDirectory ?? "assets",
+  );
+  const assetsDirectory = resolved.assetsDirectory;
   const fileName = nextAssetFileName(
     extension,
     input.existingAssetNames ?? [],
@@ -212,7 +216,7 @@ export function planImagePasteTarget(
     assetsDirectory,
     fileName,
     absolutePath: joinPath(assetsDirectory, fileName),
-    markdownPath: `assets/${fileName}`,
+    markdownPath: `${resolved.markdownDirectory}/${fileName}`,
   });
 }
 
@@ -260,14 +264,104 @@ export function imageAltTextFromFileName(name?: string): string {
   );
 }
 
+export interface ResolvedAssetsDirectory {
+  readonly assetsDirectory: string;
+  readonly markdownDirectory: string;
+}
+
+export function basename(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const index = normalized.lastIndexOf("/");
+  return index >= 0 ? normalized.slice(index + 1) : normalized;
+}
+
+export function documentStem(documentPath: string): string {
+  const name = basename(documentPath);
+  const dotIndex = name.lastIndexOf(".");
+  return dotIndex > 0 ? name.slice(0, dotIndex) : name;
+}
+
+export function resolveAssetsDirectoryForDocument(
+  documentPath: string,
+  pattern = "assets",
+): ResolvedAssetsDirectory {
+  const normalizedDocPath = documentPath.replace(/\\/g, "/");
+  const isWindowsAbsolute = /^[a-zA-Z]:\//i.test(normalizedDocPath);
+  const docDir = dirname(normalizedDocPath);
+  const stem = documentStem(normalizedDocPath);
+
+  // 变量替换 ${filename} 为当前文档基础文件名（无后缀）
+  const rawPattern = (pattern || "assets").trim().replace(/\\/g, "/");
+  const interpolated = rawPattern.replace(/\$\{filename\}/g, stem);
+
+  // 计算 Markdown 相对路径目录前缀（强制全平台一律正斜杠 /）
+  const startsWithDotDot = interpolated.startsWith("../");
+  const startsWithDot = interpolated.startsWith("./");
+
+  let markdownDirectory: string;
+  if (startsWithDotDot) {
+    markdownDirectory = interpolated.replace(/\/+/g, "/");
+  } else if (startsWithDot) {
+    markdownDirectory = `./${interpolated.replace(/^\.\/+/g, "").replace(/\/+/g, "/")}`;
+  } else {
+    markdownDirectory = interpolated.replace(/^\.\/+/g, "").replace(/\/+/g, "/");
+  }
+  markdownDirectory = markdownDirectory.replace(/\/+$/, "");
+
+  // 计算目标目录在操作系统中的绝对路径
+  const isAbsolute = interpolated.startsWith("/") || /^[a-zA-Z]:\//i.test(interpolated);
+  let resolvedAbsDir: string;
+  if (isAbsolute) {
+    resolvedAbsDir = interpolated.replace(/\/+/g, "/");
+  } else {
+    // 相对路径：基于 docDir 进行路径合并与 .. / . 计算
+    const docParts = docDir.split("/").filter(Boolean);
+    const patternParts = interpolated.split("/").filter((p) => Boolean(p) && p !== ".");
+    const merged = isWindowsAbsolute ? [docDir.slice(0, 2), ...docParts.slice(1)] : [...docParts];
+
+    for (const part of patternParts) {
+      if (part === "..") {
+        if (isWindowsAbsolute) {
+          if (merged.length > 1) {
+            merged.pop();
+          }
+        } else {
+          if (merged.length > 0) {
+            merged.pop();
+          }
+        }
+      } else {
+        merged.push(part);
+      }
+    }
+
+    if (isWindowsAbsolute) {
+      const drive = docDir.slice(0, 2);
+      const rest = merged.slice(1).join("/");
+      resolvedAbsDir = rest ? `${drive}/${rest}` : `${drive}/`;
+    } else {
+      resolvedAbsDir = `/${merged.join("/")}`;
+    }
+  }
+
+  return {
+    assetsDirectory: resolvedAbsDir.replace(/\/+/g, "/"),
+    markdownDirectory,
+  };
+}
+
 export function defaultAssetsDirectoryForDocument(documentPath: string): string {
-  return joinPath(dirname(documentPath), "assets");
+  return resolveAssetsDirectoryForDocument(documentPath, "assets").assetsDirectory;
 }
 
 export function dirname(path: string): string {
   const normalized = path.replace(/\\/g, "/");
   const index = normalized.lastIndexOf("/");
-  return index <= 0 ? "." : normalized.slice(0, index);
+  if (index <= 0) {
+    return ".";
+  }
+  const prefix = normalized.slice(0, index);
+  return /^[a-zA-Z]:$/.test(prefix) ? `${prefix}/` : prefix;
 }
 
 export function joinPath(...segments: readonly string[]): string {

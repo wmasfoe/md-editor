@@ -622,6 +622,11 @@ where
 }
 
 #[tauri::command]
+pub(crate) fn check_path_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
+#[tauri::command]
 pub(crate) fn save_pasted_image(
     app: tauri::AppHandle,
     document_path: String,
@@ -633,11 +638,17 @@ pub(crate) fn save_pasted_image(
     // 粘贴图片写入当前文档旁边的资源目录，返回给 Markdown 的路径必须保持相对路径。
     let extension = image_extension(&mime_type)
         .ok_or_else(|| format!("Unsupported image type: {mime_type}"))?;
-    let document_directory = Path::new(&document_path)
+    let doc_path = Path::new(&document_path);
+    let document_directory = doc_path
         .parent()
         .ok_or_else(|| format!("Cannot resolve parent directory for {document_path}"))?;
+    let file_stem = doc_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("document");
+
     let assets_directory =
-        normalize_child_assets_directory(document_directory, &default_assets_dir)?;
+        resolve_assets_directory(document_directory, file_stem, &default_assets_dir)?;
     fs::create_dir_all(&assets_directory).map_err(|error| {
         format!(
             "Failed to create image assets directory {}: {error}",
@@ -649,8 +660,14 @@ pub(crate) fn save_pasted_image(
     write_atomically(&image_path, &bytes)?;
     allow_asset_directory(&app, &assets_directory)?;
 
+    let md_path = markdown_relative_path_with_preference(
+        document_directory,
+        &image_path,
+        &default_assets_dir,
+    )?;
+
     Ok(PastedImageFile {
-        markdown_path: markdown_relative_path(document_directory, &image_path)?,
+        markdown_path: md_path,
     })
 }
 
@@ -908,42 +925,74 @@ fn image_extension(mime_type: &str) -> Option<&'static str> {
     }
 }
 
-fn normalize_child_assets_directory(
+fn resolve_assets_directory(
     document_directory: &Path,
+    file_stem: &str,
     assets_dir: &str,
 ) -> Result<PathBuf, String> {
-    let requested = PathBuf::from(assets_dir);
+    let interpolated = assets_dir.replace("${filename}", file_stem);
+    let requested = PathBuf::from(&interpolated);
     let directory = if requested.is_absolute() {
         requested
     } else {
         document_directory.join(requested)
     };
-    let normalized_document_directory = normalize_path_without_fs(document_directory);
-    let normalized_directory = normalize_path_without_fs(&directory);
-
-    if !normalized_directory.starts_with(&normalized_document_directory) {
-        return Err(format!(
-            "Image assets directory must be inside {}",
-            document_directory.display()
-        ));
-    }
-
-    Ok(normalized_directory)
+    Ok(normalize_path_without_fs(&directory))
 }
 
-fn markdown_relative_path(root: &Path, path: &Path) -> Result<String, String> {
-    let relative = path.strip_prefix(root).map_err(|error| {
-        format!(
-            "Failed to derive relative image path from {}: {error}",
-            path.display()
-        )
-    })?;
+fn relative_path_between(base: &Path, target: &Path) -> PathBuf {
+    let base_norm = normalize_path_without_fs(base);
+    let target_norm = normalize_path_without_fs(target);
+    let base_comps: Vec<_> = base_norm.components().collect();
+    let target_comps: Vec<_> = target_norm.components().collect();
 
-    Ok(relative
+    // 如果前缀或根不同（如 Windows 上不同盘符 C: vs D:），直接返回 target_norm
+    if !base_comps.is_empty() && !target_comps.is_empty() && base_comps[0] != target_comps[0] {
+        return target_norm;
+    }
+
+    let mut common = 0;
+    while common < base_comps.len()
+        && common < target_comps.len()
+        && base_comps[common] == target_comps[common]
+    {
+        common += 1;
+    }
+
+    let mut rel = PathBuf::new();
+    for _ in common..base_comps.len() {
+        rel.push("..");
+    }
+    for comp in &target_comps[common..] {
+        rel.push(comp.as_os_str());
+    }
+    rel
+}
+
+#[allow(dead_code)]
+fn markdown_relative_path(root: &Path, path: &Path) -> Result<String, String> {
+    markdown_relative_path_with_preference(root, path, "")
+}
+
+fn markdown_relative_path_with_preference(
+    root: &Path,
+    path: &Path,
+    pattern: &str,
+) -> Result<String, String> {
+    let rel = relative_path_between(root, path);
+    let joined = rel
         .components()
         .map(|component| component.as_os_str().to_string_lossy())
         .collect::<Vec<_>>()
-        .join("/"))
+        .join("/");
+
+    // 如果用户显式配置以 ./ 开头，且相对路径没有以 ./ 或 ../ 开头，则保留 ./ 前缀
+    let clean_pattern = pattern.replace('\\', "/");
+    if clean_pattern.starts_with("./") && !joined.starts_with("./") && !joined.starts_with("../") {
+        Ok(format!("./{joined}"))
+    } else {
+        Ok(joined)
+    }
 }
 
 fn normalize_path_without_fs(path: &Path) -> PathBuf {
@@ -1264,6 +1313,21 @@ mod tests {
         assert_eq!(
             markdown_relative_path(root, &image).unwrap(),
             "images/pasted.png"
+        );
+        assert_eq!(
+            markdown_relative_path_with_preference(root, &image, "./images").unwrap(),
+            "./images/pasted.png"
+        );
+    }
+
+    #[test]
+    fn markdown_relative_path_handles_parent_directory() {
+        let root = Path::new("/notes/post");
+        let image = Path::new("/notes/images/pasted.png");
+
+        assert_eq!(
+            markdown_relative_path_with_preference(root, image, "../images").unwrap(),
+            "../images/pasted.png"
         );
     }
 

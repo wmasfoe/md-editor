@@ -21,6 +21,7 @@ import { useTranslation } from "@md-editor/i18n";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
 import { CommandPalette } from "../components/CommandPalette";
 import { MdxComponentMenu } from "../components/MdxComponentMenu";
+import { InsertTableDialog } from "../components/InsertTableDialog";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
@@ -138,9 +139,16 @@ function MainApp({
     getRecentFiles,
     isMdxComponentMenuOpen,
     closeMdxComponentMenu,
+    isInsertTableDialogOpen,
+    closeInsertTableDialog,
   } = useDocumentUiStore();
-  const { dispatchCommand, openRecentFile, runEditorUpdateAction, insertMdxComponent } =
-    useDesktopEditorActions();
+  const {
+    dispatchCommand,
+    openRecentFile,
+    runEditorUpdateAction,
+    insertMdxComponent,
+    insertTable,
+  } = useDesktopEditorActions();
   const { confirmation, resolveConfirmation } = useConfirmationStore();
   const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -406,6 +414,12 @@ function MainApp({
         plugins={runtime.mdxComponents.listInsertable()}
         onClose={closeMdxComponentMenu}
         onInsert={insertMdxComponent}
+      />
+      {/* 插入表格对话框 */}
+      <InsertTableDialog
+        open={isInsertTableDialogOpen}
+        onClose={closeInsertTableDialog}
+        onConfirm={insertTable}
       />
     </main>
   );

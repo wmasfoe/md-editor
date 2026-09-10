@@ -82,4 +82,99 @@ describe("paste-image helpers", () => {
     expect(appliedMarkdown).toContain("Hello![logo](./assets/");
     expect(appliedMarkdown).toContain("world!");
   });
+
+  it("aborts pasting if the target directory does not exist and user cancels confirmation", async () => {
+    runtime.document.replaceDocument(
+      {
+        markdown: "Content",
+        savedMarkdown: "Content",
+        filePath: "/Users/test/docs/intro.md",
+      },
+      { kind: "command", commandId: "test.setup" },
+    );
+
+    let saveCalled = false;
+    let confirmationDescription = "";
+    const fakeFile = new File(["dummy bytes"], "logo.png", { type: "image/png" });
+
+    const pasteRuntime: PasteImageRuntime = {
+      ensureDocumentSaved: async () => true,
+      runFileAction: async (_label, action) => {
+        await action();
+      },
+      applyMarkdown: () => {},
+      assetsDirectory: "./imgs",
+      checkDirectoryExists: async () => false,
+      requestConfirmation: async (options) => {
+        confirmationDescription = options.description ?? "";
+        return "cancel";
+      },
+      storageProvider: {
+        save: async () => {
+          saveCalled = true;
+          return { src: "./imgs/logo.png", targetPath: "/Users/test/docs/imgs/logo.png" };
+        },
+      },
+    };
+
+    await pasteImageInput(
+      {
+        file: fakeFile,
+        mimeType: "image/png",
+        preferredName: "logo.png",
+      },
+      pasteRuntime,
+    );
+
+    expect(saveCalled).toBe(false);
+    expect(confirmationDescription).toBe(
+      "尝试将新插入的图片复制到目录 /Users/test/docs/imgs。但该目录不存在，是否立即创建？",
+    );
+  });
+
+  it("proceeds with pasting if the target directory does not exist and user confirms", async () => {
+    runtime.document.replaceDocument(
+      {
+        markdown: "Content",
+        savedMarkdown: "Content",
+        filePath: "/Users/test/docs/intro.md",
+      },
+      { kind: "command", commandId: "test.setup" },
+    );
+
+    let saveCalled = false;
+    let appliedMarkdown = "";
+    const fakeFile = new File(["dummy bytes"], "logo.png", { type: "image/png" });
+
+    const pasteRuntime: PasteImageRuntime = {
+      ensureDocumentSaved: async () => true,
+      runFileAction: async (_label, action) => {
+        await action();
+      },
+      applyMarkdown: (md) => {
+        appliedMarkdown = md;
+      },
+      assetsDirectory: "./imgs",
+      checkDirectoryExists: async () => false,
+      requestConfirmation: async () => "confirm",
+      storageProvider: {
+        save: async () => {
+          saveCalled = true;
+          return { src: "./imgs/logo.png", targetPath: "/Users/test/docs/imgs/logo.png" };
+        },
+      },
+    };
+
+    await pasteImageInput(
+      {
+        file: fakeFile,
+        mimeType: "image/png",
+        preferredName: "logo.png",
+      },
+      pasteRuntime,
+    );
+
+    expect(saveCalled).toBe(true);
+    expect(appliedMarkdown).toContain("![logo](./imgs/logo.png)");
+  });
 });

@@ -8,6 +8,7 @@ export interface DesktopEditorActions {
   readonly openWysiwygLink: (href: string) => Promise<void>;
   readonly runEditorUpdateAction: () => Promise<void>;
   readonly insertMdxComponent: (plugin: MdxComponentPlugin) => void;
+  readonly insertTable: (cols: number, rows: number) => void;
 }
 
 export const DesktopEditorActionsContext = createContext<DesktopEditorActions | null>(null);

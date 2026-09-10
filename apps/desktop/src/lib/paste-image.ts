@@ -1,9 +1,10 @@
 import {
   appendImageMarkdown,
-  defaultAssetsDirectoryForDocument,
   imageAltTextFromFileName,
+  resolveAssetsDirectoryForDocument,
 } from "@md-editor/file-system";
-import { createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
+import { checkPathExists, createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
+import type { ConfirmationChoice, ConfirmationState } from "@md-editor/editor-ui";
 import { runtime } from "../app/runtime/editor-runtime";
 import type { PastedImageInput } from "../types";
 
@@ -16,12 +17,14 @@ export interface PasteImageRuntime {
   readonly getCursorPosition?: () => number | null;
   readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
   readonly assetsDirectory?: string;
+  readonly requestConfirmation?: (state: ConfirmationState) => Promise<ConfirmationChoice>;
+  readonly checkDirectoryExists?: (path: string) => Promise<boolean>;
   readonly storageProvider?: {
     save(input: {
       bytes: Uint8Array;
       mimeType: string;
       context: { documentPath: string; defaultAssetsDir: string; preferredName?: string };
-    }): Promise<{ src: string; targetPath: string }>;
+    }): Promise<{ src: string; targetPath?: string }>;
   };
 }
 
@@ -76,14 +79,32 @@ export async function pasteImageInput(
       throw new Error("Save the document before pasting images.");
     }
 
+    const pattern = runtimeActions.assetsDirectory ?? "assets";
+    const resolved = resolveAssetsDirectoryForDocument(current.filePath, pattern);
+    const targetDir = resolved.assetsDirectory;
+
+    const existsChecker = runtimeActions.checkDirectoryExists ?? checkPathExists;
+    const exists = await existsChecker(targetDir);
+    if (!exists) {
+      if (runtimeActions.requestConfirmation) {
+        const choice = await runtimeActions.requestConfirmation({
+          title: "创建目录",
+          description: `尝试将新插入的图片复制到目录 ${targetDir}。但该目录不存在，是否立即创建？`,
+          confirmLabel: "立即创建",
+        });
+        if (choice !== "confirm") {
+          return;
+        }
+      }
+    }
+
     const provider = runtimeActions.storageProvider ?? imageStorageProvider;
     const savedImage = await provider.save({
       bytes: new Uint8Array(await image.file.arrayBuffer()),
       mimeType: image.mimeType,
       context: {
         documentPath: current.filePath,
-        defaultAssetsDir:
-          runtimeActions.assetsDirectory ?? defaultAssetsDirectoryForDocument(current.filePath),
+        defaultAssetsDir: pattern,
         preferredName: image.preferredName,
       },
     });
