@@ -84,6 +84,7 @@ import {
   setAiSuggestionEffect,
   type AiSuggestionValue,
 } from "./wysiwyg/suggestion.ts";
+import { flushActiveTableCell } from "./wysiwyg/widgets/table-widget.ts";
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
@@ -172,6 +173,8 @@ export interface CodeMirrorRenderer {
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean;
   requestMeasure(): void;
+  /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
+  flushPendingEdits(): boolean;
   /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
   use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
   /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
@@ -192,6 +195,7 @@ export interface RendererViewAdapter {
   focus(): void;
   requestMeasure(afterMeasure?: () => void): void;
   clearDomSelection(): void;
+  flushPendingEdits?(): boolean;
   destroy(): void;
 }
 
@@ -345,6 +349,10 @@ class DomRendererViewAdapter implements RendererViewAdapter {
     if (this.#view.hasFocus) {
       this.#view.focus();
     }
+  }
+
+  flushPendingEdits(): boolean {
+    return flushActiveTableCell(this.#view);
   }
 
   destroy(): void {
@@ -1069,6 +1077,13 @@ class CodeMirrorRendererController {
     }
   }
 
+  flushPendingEdits(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return this.#view.flushPendingEdits?.() ?? false;
+  }
+
   destroy(): void {
     if (this.#destroyed) {
       return;
@@ -1469,6 +1484,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
       options?: { readonly select?: boolean; readonly focus?: boolean },
     ) => controller.scrollToLine(line, options),
     requestMeasure: () => controller.requestMeasure(),
+    flushPendingEdits: () => controller.flushPendingEdits(),
     use: (...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]) => {
       controller.use(...plugins);
       return renderer;

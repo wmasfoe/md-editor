@@ -129,6 +129,12 @@ describe("M3 table row cell splitting", () => {
   it("trims surrounding whitespace from cells", () => {
     expect(splitTableRowCells("|  a  |  b  |", true)).toEqual(["a", "b"]);
   });
+
+  it("preserves empty cells in row splitting", () => {
+    expect(splitTableRowCells("|  |  |", true)).toEqual(["", ""]);
+    expect(splitTableRowCells("| |", true)).toEqual([""]);
+    expect(splitTableRowCells("| a | | b |", true)).toEqual(["a", "", "b"]);
+  });
 });
 
 describe("M3 table editing serialization", () => {

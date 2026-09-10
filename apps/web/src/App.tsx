@@ -86,6 +86,7 @@ export function App() {
   const handleChangeMode = useCallback(
     (newMode: "wysiwyg" | "source") => {
       if (ports) {
+        ports.flushPendingEdits?.();
         const res = switchEditorModeSafely(documentState, newMode, {
           operationId: `web:mode:${Date.now()}`,
           renderer: ports.mode,

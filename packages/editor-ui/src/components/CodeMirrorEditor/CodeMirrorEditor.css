@@ -624,10 +624,20 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell--editing,
-.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell:focus {
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell:focus,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell:focus-within {
   outline: none;
   box-shadow: inset 0 0 0 1.5px var(--theme-primary, currentColor);
   background: var(--theme-surface, transparent);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-table-widget__cell-editor {
+  min-height: 1.35em;
+  width: 100%;
+  outline: none;
+  cursor: text;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .code-mirror-editor-host
