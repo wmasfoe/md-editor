@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createCommandRegistry,
   createDocumentState,
@@ -149,6 +149,58 @@ describe("DocumentState", () => {
       markdown: "# Safe",
       mode: "wysiwyg",
     });
+  });
+
+  it("commits document mode safely when the renderer port returns noop", async () => {
+    const document = createDocumentState({ markdown: "# Title" });
+
+    const result = await switchEditorModeSafely(document, "source", {
+      renderer: {
+        applyMode: () => ({ status: "noop" }),
+        rollbackMode: () => {
+          throw new Error("rollback must not run on noop");
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      snapshot: {
+        markdown: "# Title",
+        mode: "source",
+      },
+    });
+    expect(document.getSnapshot().mode).toBe("source");
+  });
+
+  it("handles core CAS failure without rolling back renderer when renderer returns noop", async () => {
+    const document = createDocumentState({ markdown: "# Title" });
+    const rollback = vi.fn();
+
+    const result = await switchEditorModeSafely(document, "source", {
+      renderer: {
+        applyMode: () => {
+          // 在 applyMode 执行期间改变文档路径导致 stateRevision 递增，触发随后的 commitMode CAS 失败
+          document.setDocumentPath({
+            filePath: "/changed.md",
+            expectedGeneration: 1,
+            expectedStateRevision: 0,
+            origin: { kind: "command", commandId: "test" },
+          });
+          return { status: "noop" };
+        },
+        rollbackMode: rollback,
+      },
+      operationId: "mode:test",
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "MODE_SWITCH_FAILED",
+      message: "Core mode compare-and-swap failed: stale",
+    });
+    expect(rollback).not.toHaveBeenCalled();
+    expect(document.getSnapshot().mode).toBe("wysiwyg");
   });
 });
 

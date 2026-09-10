@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
 import type {
   ConfirmationChoice,
@@ -98,22 +98,32 @@ export function useDocumentActionsController({
     [getRendererPorts, setHasActiveDocument, setOpenedAsset, showToast],
   );
 
+  const isSwitchingModeRef = useRef(false);
+
   const switchMode = useCallback(
     async (mode: EditorMode) => {
+      if (isSwitchingModeRef.current) {
+        return;
+      }
       const access = getRendererPorts();
       if (access.status !== "available") {
         showToast(t("toasts.switchModeFailed"));
         return;
       }
 
-      access.ports.flushPendingEdits?.();
+      isSwitchingModeRef.current = true;
+      try {
+        access.ports.flushPendingEdits?.();
 
-      const result = switchEditorModeSafely(runtime.document, mode, {
-        operationId: createDesktopOperationId("mode"),
-        renderer: access.ports.mode,
-        origin: { kind: "command", commandId: "view.toggleSource" },
-      });
-      showToast(result.ok ? null : result.message);
+        const result = switchEditorModeSafely(runtime.document, mode, {
+          operationId: createDesktopOperationId("mode"),
+          renderer: access.ports.mode,
+          origin: { kind: "command", commandId: "view.toggleSource" },
+        });
+        showToast(result.ok ? null : result.message);
+      } finally {
+        isSwitchingModeRef.current = false;
+      }
     },
     [getRendererPorts, showToast],
   );
