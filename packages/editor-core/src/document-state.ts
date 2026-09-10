@@ -964,6 +964,21 @@ export function switchEditorModeSafely(
     expectedStateRevision: previous.stateRevision,
   };
   const rendererResult = options.renderer.applyMode(request);
+  if (rendererResult.status === "noop") {
+    const commitResult = document.commitMode({
+      ...request,
+      origin: options.origin ?? { kind: "command", commandId: "view.toggleSource" },
+    });
+    if (commitResult.status === "applied" || commitResult.status === "noop") {
+      return { ok: true, snapshot: commitResult.snapshot };
+    }
+    return {
+      ok: false,
+      error: "MODE_SWITCH_FAILED",
+      message: `Core mode compare-and-swap failed: ${commitResult.status}`,
+      snapshot: document.getSnapshot(),
+    };
+  }
   if (rendererResult.status !== "applied") {
     return {
       ok: false,

@@ -234,6 +234,20 @@ function useAutomaticAiEditing({
         return;
       }
 
+      // 模式切换时：立即取消未触发的自动续写定时器并中断在途的网络/本地模型推理请求
+      if (event.transition.kind === "mode") {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
+        lastAnalyzedTextRef.current = "";
+        return;
+      }
+
       // 仅响应编辑器直接输入变更
       if (event.transition.kind !== "content" || event.transition.origin.kind !== "renderer") {
         return;

@@ -9,6 +9,7 @@ import {
   dismissAiSuggestion,
   setAiSuggestionEffect,
 } from "../../src/wysiwyg/suggestion.ts";
+import { setEditorModeEffect } from "../../src/mode.ts";
 
 function createTestView(doc: string, cursor = 0): EditorView {
   let state = EditorState.create({
@@ -77,6 +78,23 @@ describe("AI Suggestion: Ghost Text Continuation", () => {
 
     expect(dismissAiSuggestion(view)).toBe(true);
     expect(view.state.doc.toString()).toBe("人工智能正在");
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
+
+  it("在派发 setEditorModeEffect 时自动清除幽灵文本建议", () => {
+    const view = createTestView("人工智能正在", 6);
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 6,
+        to: 6,
+        text: "改变世界。",
+      }),
+    });
+    expect(view.state.field(aiSuggestionField)).not.toBeNull();
+
+    view.dispatch({
+      effects: setEditorModeEffect.of("source"),
+    });
     expect(view.state.field(aiSuggestionField)).toBeNull();
   });
 });
