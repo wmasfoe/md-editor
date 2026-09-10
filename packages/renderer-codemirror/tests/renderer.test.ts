@@ -529,6 +529,32 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.scrollTop).toBe(before.scrollTop);
   });
 
+  it("R11b switches mode cleanly when an AI suggestion is active, clearing the suggestion and succeeding", () => {
+    const setup = createSetup({ markdown: "alpha beta\n" });
+    setup.harness.renderer.showSuggestion({
+      from: 5,
+      to: 5,
+      text: "gamma ",
+    });
+    expect(setup.harness.renderer.getSuggestion()).not.toBeNull();
+
+    const result = switchEditorModeSafely(setup.document, "source", {
+      operationId: "mode:r11b:1",
+      renderer: setup.harness.renderer,
+    });
+    expect(result.ok).toBe(true);
+    expect(setup.harness.renderer.getSuggestion()).toBeNull();
+
+    // 再次从 source 模式切回 wysiwyg 模式，验证切换流畅且建议依然为 null
+    const switchBack = switchEditorModeSafely(setup.document, "wysiwyg", {
+      operationId: "mode:r11b:2",
+      renderer: setup.harness.renderer,
+    });
+    expect(switchBack.ok).toBe(true);
+    expect(setup.document.getSnapshot().mode).toBe("wysiwyg");
+    expect(setup.harness.renderer.getSuggestion()).toBeNull();
+  });
+
   it("R12 acknowledges metadata and persistence events without CM transactions", () => {
     const setup = createSetup({ markdown: "alpha\n", savedMarkdown: "older\n" });
     const before = setup.harness.probe();

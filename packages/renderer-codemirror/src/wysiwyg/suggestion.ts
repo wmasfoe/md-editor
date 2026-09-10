@@ -1,6 +1,7 @@
 import { Prec, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
+import { setEditorModeEffect } from "../mode.ts";
 
 export interface AiSuggestionItem {
   readonly from: number;
@@ -183,6 +184,9 @@ export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
         return normalizeAiSuggestionValue(effect.value);
       }
       if (effect.is(clearAiSuggestionEffect)) {
+        return null;
+      }
+      if (effect.is(setEditorModeEffect)) {
         return null;
       }
     }
