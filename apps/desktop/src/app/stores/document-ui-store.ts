@@ -14,10 +14,13 @@ export interface DocumentUiStore {
   hasActiveDocument: boolean;
   openedAsset: OpenedAsset | null;
   isMdxComponentMenuOpen: boolean;
+  isInsertTableDialogOpen: boolean;
   setHasActiveDocument: StoreStateSetter<boolean>;
   setOpenedAsset: StoreStateSetter<OpenedAsset | null>;
   openMdxComponentMenu: () => void;
   closeMdxComponentMenu: () => void;
+  openInsertTableDialog: () => void;
+  closeInsertTableDialog: () => void;
   resolveImageSrc: (src: string) => string;
   openAssetPath: (path: string, name?: string) => void;
   closeAssetPreview: () => void;
@@ -29,6 +32,7 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   hasActiveDocument: false,
   openedAsset: null,
   isMdxComponentMenuOpen: false,
+  isInsertTableDialogOpen: false,
   setHasActiveDocument: (value) =>
     set((state) => ({
       hasActiveDocument: typeof value === "function" ? value(state.hasActiveDocument) : value,
@@ -42,6 +46,12 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   },
   closeMdxComponentMenu: () => {
     set({ isMdxComponentMenuOpen: false });
+  },
+  openInsertTableDialog: () => {
+    set({ isInsertTableDialogOpen: true });
+  },
+  closeInsertTableDialog: () => {
+    set({ isInsertTableDialogOpen: false });
   },
   resolveImageSrc: (src) => resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, src),
   openAssetPath: (path, name = basename(path)) => {

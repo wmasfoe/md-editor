@@ -22,6 +22,7 @@ import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 import { bindDropImageListener } from "../app/events/drop-image-listener";
 import { bindPasteImageListener } from "../app/events/paste-image-listener";
 import type { PasteImageRuntime } from "../lib/paste-image";
+import { useConfirmationStore } from "../app/stores/confirmation-store";
 import {
   resolveCodeFontStack,
   resolveProseFontStack,
@@ -85,6 +86,7 @@ export function DesktopCodeMirrorEditor({
         return ports?.getSelectionSnapshot().head ?? null;
       },
       assetsDirectory: settings.assetsDirectory,
+      requestConfirmation: (state) => useConfirmationStore.getState().requestConfirmation(state),
     };
 
     const cleanupDrop = bindDropImageListener(pasteRuntime);

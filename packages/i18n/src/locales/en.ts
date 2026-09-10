@@ -73,9 +73,9 @@ export const en: TranslationSchema = {
       languageEn: "English",
       assetsTitle: "Image Assets",
       assetsDesc:
-        "When pasting or dropping images, they will be saved into this subfolder within the current Markdown file's directory.",
+        "Relative path for pasted or dropped images. Supports starting with ./ or ../, and ${filename} for document name (e.g. ./assets, ../imgs, ${filename}.assets).",
       assetsField: "Assets Directory",
-      assetsPlaceholder: "assets",
+      assetsPlaceholder: "./assets or ${filename}.assets",
       updateTitle: "Version",
       autoCheck: "Automatically check for updates",
       autoDownload: "Automatically download updates",
@@ -336,6 +336,11 @@ export const en: TranslationSchema = {
       linesCount: "{{count}} lines",
       charactersCount: "{{count}} chars",
     },
+    insertTable: {
+      title: "Insert Table",
+      columns: "Columns",
+      rows: "Rows",
+    },
   },
   commands: {
     groups: {
@@ -356,6 +361,7 @@ export const en: TranslationSchema = {
       "file.saveAs": "Save As...",
       "settings.open": "Open Settings",
       "mdx.openComponentMenu": "Insert MDX Component",
+      "table.insert": "Insert Table",
       "view.toggleSource": "Toggle Source Mode",
       "view.modeWysiwyg": "Edit Mode",
       "view.toggleSidebarPrimary": "Toggle File Tree / Outline",

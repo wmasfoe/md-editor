@@ -70,9 +70,10 @@ export const zh = {
       languageZh: "简体中文",
       languageEn: "English",
       assetsTitle: "图片设置",
-      assetsDesc: "粘贴或拖拽图片时，图片会保存到当前 Markdown 文件所在目录下的这个子目录。",
+      assetsDesc:
+        "粘贴或拖拽图片时保存的相对路径，支持以 ./ 或 ../ 开头，支持使用 ${filename} 代表当前文档名（如 ./assets、../imgs、${filename}.assets）。",
       assetsField: "图片资源目录",
-      assetsPlaceholder: "assets",
+      assetsPlaceholder: "./assets 或 ${filename}.assets",
       updateTitle: "版本",
       autoCheck: "自动检测更新",
       autoDownload: "自动下载更新",
@@ -333,6 +334,11 @@ export const zh = {
       linesCount: "{{count}} 行",
       charactersCount: "{{count}} 字符",
     },
+    insertTable: {
+      title: "插入表格",
+      columns: "列",
+      rows: "行",
+    },
   },
   commands: {
     groups: {
@@ -353,6 +359,7 @@ export const zh = {
       "file.saveAs": "另存为...",
       "settings.open": "打开设置",
       "mdx.openComponentMenu": "插入 MDX 组件",
+      "table.insert": "插入表格",
       "view.toggleSource": "切换源码模式",
       "view.modeWysiwyg": "编辑模式",
       "view.toggleSidebarPrimary": "切换文件树 / 大纲",

@@ -93,6 +93,7 @@ export type BuiltInCommandId =
   | "file.saveAs"
   | "settings.open"
   | "mdx.openComponentMenu"
+  | "table.insert"
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary"
@@ -108,6 +109,7 @@ export interface EditorActionHandlers {
   readonly saveDocumentAs?: () => void | Promise<void>;
   readonly openSettings?: () => void | Promise<void>;
   readonly openMdxComponentMenu?: () => void | Promise<void>;
+  readonly openInsertTableDialog?: () => void | Promise<void>;
   readonly toggleSourceMode?: () => void | Promise<void>;
   readonly showWysiwygMode?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
@@ -282,6 +284,13 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       );
       registerActionCommand(
         context.commands,
+        "table.insert",
+        "Insert Table",
+        "openInsertTableDialog",
+        { group: "插入", keywords: ["表格", "table", "insert"] },
+      );
+      registerActionCommand(
+        context.commands,
         "view.toggleSource",
         "Toggle Source Mode",
         "toggleSourceMode",
@@ -318,6 +327,11 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         id: "mdx.openComponentMenu",
         key: "Mod-Shift-M",
         commandId: "mdx.openComponentMenu",
+      });
+      context.keymaps.register({
+        id: "table.insert",
+        key: "Mod-Alt-T",
+        commandId: "table.insert",
       });
 
       context.keymaps.register({

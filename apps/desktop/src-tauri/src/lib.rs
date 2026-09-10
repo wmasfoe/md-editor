@@ -24,8 +24,8 @@ use app_menu::build_app_menu;
 use app_menu::MENU_ACTION_EVENT;
 use app_menu::{save_app_settings_and_update_menu, update_recent_files_menu};
 use file_commands::{
-    attach_save_runtime, copy_file_tree_path, create_markdown_tree_item, delete_markdown_tree_item,
-    inspect_linked_file, open_external_target, open_markdown_document,
+    attach_save_runtime, check_path_exists, copy_file_tree_path, create_markdown_tree_item,
+    delete_markdown_tree_item, inspect_linked_file, open_external_target, open_markdown_document,
     open_markdown_document_at_path, open_markdown_folder, pick_theme_css_file, read_theme_css_file,
     refresh_markdown_folder, rename_markdown_tree_item, reveal_file_tree_item_in_finder,
     save_markdown_document_ordered, save_pasted_image, show_file_tree_context_menu,
@@ -90,6 +90,7 @@ pub fn run() {
             attach_save_runtime,
             save_markdown_document_ordered,
             save_pasted_image,
+            check_path_exists,
             save_recent_files,
             update_recent_files_menu,
             pick_theme_css_file,

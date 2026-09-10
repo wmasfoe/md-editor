@@ -91,6 +91,13 @@ export function createLocalAssetsImageStorageProvider(): ImageStorageProvider {
   };
 }
 
+export async function checkPathExists(path: string): Promise<boolean> {
+  if (!isTauri()) {
+    return true;
+  }
+  return invoke<boolean>("check_path_exists", { path });
+}
+
 export function assertDesktopRuntime() {
   if (!isTauri()) {
     throw new Error("File operations are available in the Tauri desktop app.");

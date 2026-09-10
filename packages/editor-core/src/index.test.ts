@@ -458,6 +458,7 @@ describe("built-in feature registry", () => {
       "file.saveAs",
       "settings.open",
       "mdx.openComponentMenu",
+      "table.insert",
       "view.toggleSource",
       "view.showWysiwyg",
       "view.toggleSidebarPrimary",
@@ -471,6 +472,18 @@ describe("built-in feature registry", () => {
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Shift-M:mdx.openComponentMenu",
     );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Mod-Alt-T:table.insert",
+    );
+
+    await commands.dispatch("table.insert", {
+      document: createDocumentState(),
+      actions: {
+        openInsertTableDialog: () => {
+          calls.push("insert-table");
+        },
+      },
+    });
 
     await commands.dispatch("mdx.openComponentMenu", {
       document: createDocumentState(),
@@ -481,6 +494,6 @@ describe("built-in feature registry", () => {
       },
     });
 
-    expect(calls).toEqual(["mdx-menu"]);
+    expect(calls).toEqual(["insert-table", "mdx-menu"]);
   });
 });

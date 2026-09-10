@@ -84,6 +84,7 @@ describe("app settings", () => {
       "view.toggleSidebarPrimary",
       "settings.open",
       "mdx.openComponentMenu",
+      "table.insert",
       "ai.continueWriting",
       "ai.fixGrammar",
     ]);
@@ -211,11 +212,16 @@ describe("app settings", () => {
     ).toBeNull();
   });
 
-  it("keeps custom asset directories inside the markdown folder", () => {
+  it("allows relative asset directories with ./, ../, and ${filename}", () => {
     expect(validateAssetsDirectory("images/posts")).toBe("images/posts");
-    expect(validateAssetsDirectory("./assets")).toBe("assets");
-    expect(validateAssetsDirectory("../outside")).toBeNull();
+    expect(validateAssetsDirectory("./assets")).toBe("./assets");
+    expect(validateAssetsDirectory("./imgs")).toBe("./imgs");
+    expect(validateAssetsDirectory("../imgs")).toBe("../imgs");
+    expect(validateAssetsDirectory("./${filename}.assets")).toBe("./${filename}.assets");
     expect(validateAssetsDirectory("/tmp/assets")).toBeNull();
+    expect(validateAssetsDirectory("C:/assets")).toBeNull();
+    expect(validateAssetsDirectory(".")).toBeNull();
+    expect(validateAssetsDirectory("..")).toBeNull();
   });
 
   it("normalizes persisted theme choices", () => {
