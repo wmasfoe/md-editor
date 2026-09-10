@@ -12,6 +12,7 @@ import {
   DEFAULT_UPDATE_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
   INSTALL_WITH_POWERSHELL_COMMAND,
+  keyboardShortcutLabel,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
   normalizePluginSettings,
@@ -154,7 +155,37 @@ describe("app settings", () => {
     expect(normalizeShortcutKey("Command+Shift+B")).toBe("Mod-Shift-B");
     expect(normalizeShortcutKey("Ctrl+/")).toBe("Mod-/");
     expect(normalizeShortcutKey("Command+Option+Space")).toBe("Mod-Alt-Space");
+    expect(normalizeShortcutKey("Option+Command+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Ctrl+Alt+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Super+Alt+T")).toBe("Mod-Alt-T");
     expect(normalizeShortcutKey("Mod-Shift-B")).toBe("Mod-Shift-B");
+    expect(normalizeShortcutKey("Mod-Alt-T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("mod-alt-t")).toBe("Mod-Alt-T");
+  });
+
+  it("formats keyboard shortcut labels correctly for macOS, Windows, and Linux", () => {
+    // macOS: Control -> Option -> Command -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "mac")).toBe("Option+Command+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "mac")).toBe("Command+Shift+B");
+    expect(keyboardShortcutLabel("Mod-Shift-Alt-B", "mac")).toBe("Option+Command+Shift+B");
+    expect(keyboardShortcutLabel("Mod-/", "mac")).toBe("Command+/");
+    expect(keyboardShortcutLabel("Control-Mod-Alt-T", "mac")).toBe("Control+Option+Command+T");
+
+    // Windows: Ctrl -> Win -> Alt -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "windows")).toBe("Ctrl+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "windows")).toBe("Ctrl+Shift+B");
+    expect(keyboardShortcutLabel("Ctrl-Win-Alt-T", "windows")).toBe("Ctrl+Win+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-Alt-T", "windows")).toBe("Ctrl+Alt+Shift+T");
+
+    // Linux: Ctrl -> Super -> Alt -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "linux")).toBe("Ctrl+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "linux")).toBe("Ctrl+Shift+B");
+    expect(keyboardShortcutLabel("Ctrl-Super-Alt-T", "linux")).toBe("Ctrl+Super+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-Alt-T", "linux")).toBe("Ctrl+Alt+Shift+T");
+
+    // Single keys and edge cases
+    expect(keyboardShortcutLabel("F11", "mac")).toBe("F11");
+    expect(keyboardShortcutLabel("", "mac")).toBe("");
   });
 
   it("rejects shortcuts without a primary modifier", () => {
@@ -183,6 +214,16 @@ describe("app settings", () => {
         shiftKey: false,
       } as KeyboardEvent),
     ).toBe("Mod-/");
+    expect(
+      shortcutKeyFromKeyboardEvent({
+        altKey: true,
+        code: "KeyT",
+        ctrlKey: false,
+        key: "†",
+        metaKey: true,
+        shiftKey: false,
+      } as KeyboardEvent),
+    ).toBe("Mod-Alt-T");
   });
 
   it("does not capture shortcut text while the IME is composing text", () => {

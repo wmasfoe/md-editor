@@ -18,6 +18,7 @@ const MENU_COMMANDS: Record<string, string> = {
   "md-editor:mode-wysiwyg": "view.showWysiwyg",
   "md-editor:toggle-source": "view.toggleSource",
   "md-editor:toggle-sidebar-primary": "view.toggleSidebarPrimary",
+  "md-editor:insert-table": "table.insert",
 };
 
 export function createRuntimeKeyboardShortcuts(
