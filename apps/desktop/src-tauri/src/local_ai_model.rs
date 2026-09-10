@@ -6,7 +6,7 @@ use std::{
 };
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::{local_ai_runtime::LocalAiRuntimeState, settings};
 
@@ -355,6 +355,35 @@ fn entry_primary_asset(entry: &RemoteModelEntry) -> RemoteModelAsset {
     })
 }
 
+fn canonical_description_for_tier(logical_id: &str) -> String {
+    match logical_id {
+        LITE_MODEL_ID => {
+            "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。".to_string()
+        }
+        STANDARD_MODEL_ID => {
+            "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。"
+                .to_string()
+        }
+        PRO_MODEL_ID => "旗舰级深度长文创作、论文润色与逻辑重构（敬请期待）。".to_string(),
+        _ => String::new(),
+    }
+}
+
+/// 清洗远端 manifest 模型描述。
+/// 防止发版流水线误将子任务 LoRA 描述（如 "任务专用 LoRA Adapter（distill）"）覆盖到整机模型档位。
+fn sanitize_model_description(logical_id: &str, raw_desc: Option<&str>) -> String {
+    let fallback = canonical_description_for_tier(logical_id);
+    let Some(desc) = raw_desc else {
+        return fallback;
+    };
+    let trimmed = desc.trim();
+    if trimmed.is_empty() || trimmed.contains("任务专用 LoRA") || trimmed.contains("LoRA Adapter")
+    {
+        return fallback;
+    }
+    trimmed.to_string()
+}
+
 /// 基于远端 manifest 动态构建完整 Model Catalog（唯一事实来源）。
 /// 无法获得远端 catalog 时回退到内置默认列表，保证离线可用。
 fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifest> {
@@ -403,6 +432,8 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
             }
         }
 
+        let description = sanitize_model_description(logical_id, entry.description.as_deref());
+
         // 保持 catalog 稳定顺序：lite / standard / pro，且同档位只保留最新一条
         if let Some(existing) = catalog.iter_mut().find(|m| m.id == logical_id) {
             existing.version = remote_version.clone();
@@ -410,10 +441,7 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
                 .display_name
                 .clone()
                 .unwrap_or_else(|| existing.display_name.clone());
-            existing.description = entry
-                .description
-                .clone()
-                .unwrap_or_else(|| existing.description.clone());
+            existing.description = description;
             existing.is_available = is_available;
             existing.is_recommended = is_recommended;
             if !local_filename.is_empty() {
@@ -452,7 +480,7 @@ fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiModelManifes
                 .display_name
                 .clone()
                 .unwrap_or_else(|| logical_id.to_string()),
-            description: entry.description.clone().unwrap_or_default(),
+            description,
             version: remote_version.clone(),
             filename: local_filename,
             download_url: asset.download_url.clone().unwrap_or_default(),
@@ -790,6 +818,59 @@ pub(crate) fn get_available_local_ai_model(
     Err("本地模型文件不存在，请先下载。".to_string())
 }
 
+/// 检查本地已存在的组件是否与目标规格匹配（SHA256 一致且尺寸相符），支持毫秒级无损复用。
+fn can_reuse_local_component(
+    local_path: &Path,
+    spec: &LocalAiFileSpec,
+    persisted_sha: Option<&str>,
+) -> bool {
+    if !local_path.is_file() {
+        return false;
+    }
+
+    let Ok(metadata) = local_path.metadata() else {
+        return false;
+    };
+
+    if metadata.len() != spec.size_bytes || spec.sha256.trim().is_empty() {
+        return false;
+    }
+
+    // 1. 优先比对本地 manifest.json 记录的 SHA256（已在落盘时校验通过，0 开销快速命中）
+    if let Some(sha) = persisted_sha {
+        if !sha.is_empty() && sha.eq_ignore_ascii_case(&spec.sha256) {
+            return true;
+        }
+    }
+
+    // 2. 若 persisted 未记录或不匹配，现场计算本地文件 SHA256 兜底校验
+    if let Ok(actual_sha) = compute_sha256_hex(local_path) {
+        if actual_sha.eq_ignore_ascii_case(&spec.sha256) {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// 将复用的本地组件置入 staging 目录。
+/// 优先使用硬链接（0 耗时、0 磁盘占用）；跨卷或不支持时回退至复制。
+fn stage_reused_component(source: &Path, dest: &Path) -> Result<(), String> {
+    if dest.exists() {
+        let _ = fs::remove_file(dest);
+    }
+    if fs::hard_link(source, dest).is_err() {
+        fs::copy(source, dest).map_err(|e| {
+            format!(
+                "复用本地组件失败（{} -> {}）：{e}",
+                source.display(),
+                dest.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
 async fn download_model(
     app: &AppHandle,
     manifest: &LocalAiModelManifest,
@@ -798,6 +879,10 @@ async fn download_model(
     if specs.is_empty() || specs.iter().any(|(_, s)| s.download_url.trim().is_empty()) {
         return Err("本地模型下载源尚未配置。".to_string());
     }
+
+    // 读取当前状态与持久化版本，保留版本上下文
+    let initial_status = read_model_status(manifest);
+    let current_version = initial_status.version.clone();
 
     let directory = model_directory(manifest)?;
     fs::create_dir_all(&directory).map_err(|error| {
@@ -816,54 +901,140 @@ async fn download_model(
     let cancel_path = directory.join(DOWNLOAD_CANCEL_FILE_NAME);
     let _ = fs::remove_file(&cancel_path);
 
-    let total_bytes = manifest.total_download_bytes();
-    let mut accumulated_bytes: u64 = 0;
+    // 读取本地持久化清单以快速比对组件 SHA256
+    let manifest_path = directory.join("manifest.json");
+    let persisted_manifest = if manifest_path.is_file() {
+        fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|json| serde_json::from_str::<PersistedLocalAiModelManifest>(&json).ok())
+    } else {
+        None
+    };
 
-    emit_status(
-        app,
-        build_status(manifest, "downloading", 0, total_bytes, None, None, None),
-    );
+    // 分离出：可复用组件（0 网络下载）与待下载组件
+    let mut download_specs: Vec<(String, LocalAiFileSpec)> = Vec::new();
+    let mut reused_specs: Vec<(String, LocalAiFileSpec)> = Vec::new();
 
     for (tag, spec) in specs {
-        let temp_file_path = staging_dir.join(format!("{tag}.tmp"));
-        let final_staged_path = staging_dir.join(format!("{tag}.gguf"));
+        let local_file = directory.join(format!("{tag}.gguf"));
+        let persisted_sha = persisted_manifest
+            .as_ref()
+            .and_then(|p| match tag.as_str() {
+                "base" => p.base_sha256.as_deref().or(p.sha256.as_deref()),
+                "gec" => p.gec_sha256.as_deref(),
+                "completion" => p.completion_sha256.as_deref(),
+                "distill" => p.distill_sha256.as_deref(),
+                "model" => p.sha256.as_deref(),
+                _ => None,
+            });
 
-        let output = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&temp_file_path)
-            .map_err(|error| {
-                format!(
-                    "Failed to create staging file {}: {error}",
-                    temp_file_path.display()
-                )
-            })?;
+        if can_reuse_local_component(&local_file, &spec, persisted_sha) {
+            let final_staged_path = staging_dir.join(format!("{tag}.gguf"));
+            if stage_reused_component(&local_file, &final_staged_path).is_ok() {
+                reused_specs.push((tag, spec));
+                continue;
+            }
+        }
 
-        let mut curl = Command::new("curl")
-            .arg("-L")
-            .arg("--fail")
-            .arg("--silent")
-            .arg("--show-error")
-            .arg(&spec.download_url)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("本地模型下载器启动失败：{error}"))?;
+        download_specs.push((tag, spec));
+    }
 
-        let mut stdout = curl
-            .stdout
-            .take()
-            .ok_or_else(|| "本地模型下载器没有输出流。".to_string())?;
+    let network_total_bytes: u64 = download_specs.iter().map(|(_, s)| s.size_bytes).sum();
+    let mut accumulated_bytes: u64 = 0;
 
-        let mut mut_output = output;
-        let mut buffer = [0_u8; 64 * 1024];
+    if !download_specs.is_empty() {
+        emit_status(
+            app,
+            build_status(
+                manifest,
+                "downloading",
+                0,
+                network_total_bytes,
+                None,
+                current_version.clone(),
+                None,
+            ),
+        );
 
-        loop {
+        for (tag, spec) in download_specs {
+            let temp_file_path = staging_dir.join(format!("{tag}.tmp"));
+            let final_staged_path = staging_dir.join(format!("{tag}.gguf"));
+
+            let output = fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(&temp_file_path)
+                .map_err(|error| {
+                    format!(
+                        "Failed to create staging file {}: {error}",
+                        temp_file_path.display()
+                    )
+                })?;
+
+            let mut curl = Command::new("curl")
+                .arg("-L")
+                .arg("--fail")
+                .arg("--silent")
+                .arg("--show-error")
+                .arg(&spec.download_url)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .map_err(|error| format!("本地模型下载器启动失败：{error}"))?;
+
+            let mut stdout = curl
+                .stdout
+                .take()
+                .ok_or_else(|| "本地模型下载器没有输出流。".to_string())?;
+
+            let mut mut_output = output;
+            let mut buffer = [0_u8; 64 * 1024];
+
+            loop {
+                if cancel_path.exists() {
+                    let _ = curl.kill();
+                    let _ = curl.wait();
+                    drop(mut_output);
+                    let _ = fs::remove_dir_all(&staging_dir);
+                    let _ = fs::remove_file(&cancel_path);
+                    let status = read_model_status(manifest);
+                    emit_status(app, status.clone());
+                    return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+                }
+
+                let read = stdout
+                    .read(&mut buffer)
+                    .map_err(|error| format!("读取本地模型下载流失败：{error}"))?;
+                if read == 0 {
+                    break;
+                }
+                mut_output
+                    .write_all(&buffer[..read])
+                    .map_err(|error| format!("写入本地模型失败：{error}"))?;
+                accumulated_bytes += read as u64;
+                emit_status(
+                    app,
+                    build_status(
+                        manifest,
+                        "downloading",
+                        accumulated_bytes,
+                        network_total_bytes,
+                        None,
+                        current_version.clone(),
+                        None,
+                    ),
+                );
+            }
+
+            mut_output
+                .flush()
+                .map_err(|error| format!("保存本地模型临时文件失败：{error}"))?;
+            drop(mut_output);
+
             if cancel_path.exists() {
                 let _ = curl.kill();
                 let _ = curl.wait();
-                drop(mut_output);
                 let _ = fs::remove_dir_all(&staging_dir);
                 let _ = fs::remove_file(&cancel_path);
                 let status = read_model_status(manifest);
@@ -871,94 +1042,70 @@ async fn download_model(
                 return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
             }
 
-            let read = stdout
-                .read(&mut buffer)
-                .map_err(|error| format!("读取本地模型下载流失败：{error}"))?;
-            if read == 0 {
-                break;
-            }
-            mut_output
-                .write_all(&buffer[..read])
-                .map_err(|error| format!("写入本地模型失败：{error}"))?;
-            accumulated_bytes += read as u64;
-            emit_status(
-                app,
-                build_status(
-                    manifest,
-                    "downloading",
-                    accumulated_bytes,
-                    total_bytes,
-                    None,
-                    None,
-                    None,
-                ),
-            );
-        }
-
-        mut_output
-            .flush()
-            .map_err(|error| format!("保存本地模型临时文件失败：{error}"))?;
-        drop(mut_output);
-
-        if cancel_path.exists() {
-            let _ = curl.kill();
-            let _ = curl.wait();
-            let _ = fs::remove_dir_all(&staging_dir);
-            let _ = fs::remove_file(&cancel_path);
-            let status = read_model_status(manifest);
-            emit_status(app, status.clone());
-            return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
-        }
-
-        let status = curl
-            .wait()
-            .map_err(|error| format!("等待本地模型下载完成时失败：{error}"))?;
-        if !status.success() {
-            let mut stderr_output = String::new();
-            if let Some(mut stderr) = curl.stderr.take() {
-                let _ = stderr.read_to_string(&mut stderr_output);
-            }
-            let _ = fs::remove_dir_all(&staging_dir);
-            let _ = fs::remove_file(&cancel_path);
-            let message = stderr_output.trim();
-            return Err(if message.is_empty() {
-                format!("下载组件 {tag} 失败。")
-            } else {
-                format!("下载组件 {tag} 失败：{message}")
-            });
-        }
-
-        // SHA256 校验
-        if !spec.sha256.trim().is_empty() {
-            emit_status(
-                app,
-                build_status(
-                    manifest,
-                    "verifying",
-                    accumulated_bytes,
-                    total_bytes,
-                    None,
-                    None,
-                    None,
-                ),
-            );
-            let actual_sha = compute_sha256_hex(&temp_file_path)?;
-            if !actual_sha.eq_ignore_ascii_case(&spec.sha256) {
+            let status = curl
+                .wait()
+                .map_err(|error| format!("等待本地模型下载完成时失败：{error}"))?;
+            if !status.success() {
+                let mut stderr_output = String::new();
+                if let Some(mut stderr) = curl.stderr.take() {
+                    let _ = stderr.read_to_string(&mut stderr_output);
+                }
                 let _ = fs::remove_dir_all(&staging_dir);
                 let _ = fs::remove_file(&cancel_path);
-                return Err(format!(
-                    "本地模型组件 {tag} 校验失败，已清理未通过校验的文件。"
-                ));
+                let message = stderr_output.trim();
+                return Err(if message.is_empty() {
+                    format!("下载组件 {tag} 失败。")
+                } else {
+                    format!("下载组件 {tag} 失败：{message}")
+                });
             }
-        }
 
-        // 在 staging_dir 中将 .tmp 重命名为 .gguf
-        fs::rename(&temp_file_path, &final_staged_path).map_err(|e| {
-            format!(
-                "Failed to finalize staged component {}: {e}",
-                final_staged_path.display()
-            )
-        })?;
+            // SHA256 校验
+            if !spec.sha256.trim().is_empty() {
+                emit_status(
+                    app,
+                    build_status(
+                        manifest,
+                        "verifying",
+                        accumulated_bytes,
+                        network_total_bytes,
+                        None,
+                        current_version.clone(),
+                        None,
+                    ),
+                );
+                let actual_sha = compute_sha256_hex(&temp_file_path)?;
+                if !actual_sha.eq_ignore_ascii_case(&spec.sha256) {
+                    let _ = fs::remove_dir_all(&staging_dir);
+                    let _ = fs::remove_file(&cancel_path);
+                    return Err(format!(
+                        "本地模型组件 {tag} 校验失败，已清理未通过校验的文件。"
+                    ));
+                }
+            }
+
+            // 在 staging_dir 中将 .tmp 重命名为 .gguf
+            fs::rename(&temp_file_path, &final_staged_path).map_err(|e| {
+                format!(
+                    "Failed to finalize staged component {}: {e}",
+                    final_staged_path.display()
+                )
+            })?;
+        }
+    } else {
+        // 全部组件本地复用（0 网络下载），发出校验提示完成平滑过渡
+        emit_status(
+            app,
+            build_status(
+                manifest,
+                "verifying",
+                0,
+                0,
+                None,
+                current_version.clone(),
+                None,
+            ),
+        );
     }
 
     if cancel_path.exists() {
@@ -967,6 +1114,13 @@ async fn download_model(
         let status = read_model_status(manifest);
         emit_status(app, status.clone());
         return Err(LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE.to_string());
+    }
+
+    // 替换文件前，若当前运行时持有该模型句柄，先优雅停机
+    if let Some(runtime) = app.try_state::<LocalAiRuntimeState>() {
+        if let Ok(mut manager) = runtime.manager().lock() {
+            manager.stop_runtime_if_model(&manifest.id);
+        }
     }
 
     // --- 原子安全替换流水线 ---
@@ -1330,10 +1484,9 @@ fn build_status(
     error: Option<String>,
 ) -> LocalAiModelStatus {
     let is_available_status = status == "available";
-    let has_update = is_available_status
-        && current_version
-            .as_deref()
-            .is_some_and(|cv| normalize_version(cv) != normalize_version(&manifest.version));
+    let has_update = current_version
+        .as_deref()
+        .is_some_and(|cv| normalize_version(cv) != normalize_version(&manifest.version));
 
     LocalAiModelStatus {
         model_id: manifest.id.clone(),
@@ -1344,7 +1497,7 @@ fn build_status(
         version: if is_available_status {
             current_version.or_else(|| Some(manifest.version.clone()))
         } else {
-            None
+            current_version
         },
         latest_version: manifest.version.clone(),
         has_update,
@@ -1541,5 +1694,92 @@ mod tests {
         assert_eq!(status.version, Some("v1.0.0".to_string()));
         assert_eq!(status.latest_version, "v1.3.0");
         assert!(status.has_update);
+    }
+
+    #[test]
+    fn sanitizes_corrupted_lora_task_description_to_canonical() {
+        assert_eq!(
+            sanitize_model_description(STANDARD_MODEL_ID, Some("任务专用 LoRA Adapter（distill）")),
+            "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。"
+        );
+        assert_eq!(
+            sanitize_model_description(LITE_MODEL_ID, Some("任务专用 LoRA Adapter (gec)")),
+            "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。"
+        );
+        assert_eq!(
+            sanitize_model_description(STANDARD_MODEL_ID, Some("自定义标准版模型描述")),
+            "自定义标准版模型描述"
+        );
+    }
+
+    #[test]
+    fn downloading_status_preserves_current_version_for_updates() {
+        let manifest = default_standard_model();
+        let status = build_status(
+            &manifest,
+            "downloading",
+            10_000,
+            200_000_000,
+            None,
+            Some("v1.0.0".to_string()),
+            None,
+        );
+        assert_eq!(status.status, "downloading");
+        assert_eq!(status.version, Some("v1.0.0".to_string()));
+        assert!(status.has_update);
+        assert_eq!(status.total_bytes, 200_000_000);
+
+        // 未下载全新安装时，version 为 None，has_update 为 false
+        let fresh = build_status(
+            &manifest,
+            "downloading",
+            10_000,
+            200_000_000,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(fresh.version, None);
+        assert!(!fresh.has_update);
+    }
+
+    #[test]
+    fn can_reuse_local_component_checks_sha256_and_size() {
+        let temp_dir = std::env::temp_dir().join(format!("md_editor_test_{}", std::process::id()));
+        let _ = fs::create_dir_all(&temp_dir);
+        let test_file = temp_dir.join("test_base.gguf");
+        let content = b"mock gguf model weights content 123456";
+        fs::write(&test_file, content).unwrap();
+
+        let sha = compute_sha256_hex(&test_file).unwrap();
+        let spec = LocalAiFileSpec {
+            filename: "base.gguf".to_string(),
+            download_url: "https://example.com/base.gguf".to_string(),
+            size_bytes: content.len() as u64,
+            sha256: sha.clone(),
+        };
+
+        // 1. 命中持久化 manifest SHA 快速通道
+        assert!(can_reuse_local_component(&test_file, &spec, Some(&sha)));
+
+        // 2. 命中物理计算 SHA 兜底通道
+        assert!(can_reuse_local_component(&test_file, &spec, None));
+
+        // 3. 尺寸不匹配则拒绝复用
+        let mut mismatch_size = spec.clone();
+        mismatch_size.size_bytes += 1;
+        assert!(!can_reuse_local_component(
+            &test_file,
+            &mismatch_size,
+            Some(&sha)
+        ));
+
+        // 4. SHA 不匹配则拒绝复用
+        let mut mismatch_sha = spec.clone();
+        mismatch_sha.sha256 =
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+        assert!(!can_reuse_local_component(&test_file, &mismatch_sha, None));
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }

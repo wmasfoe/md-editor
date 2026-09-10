@@ -30,6 +30,11 @@
   - [x] `llama-server` 启动参数注入 `--lora <path>` 与 `--lora-init-without-apply`。
   - [x] `local_ai_completion` 与 `local_ai_runtime` 支持按任务 intent（`editing` / `continuation` / `distill`）在运行时热切换 LoRA scale（1.0 vs 0.0），避免重启服务。
   - [x] 向下兼容 Schema Version 1 单文件模型（`model.gguf`）。
+  - [x] **组件级 SHA256 差量增量复用与元数据防御自愈**：
+    - [x] 客户端在下载前先比对本地已有组件与目标规格的 SHA256 与文件大小。
+    - [x] 当基座或组件哈希未变时，直接通过硬链接/复制置入 staging，免除网络下载（例如 1.3.0 升级 1.3.1 仅下载 ~210MB 变更的 LoRA，跳过 1.83GB 基座）。
+    - [x] 流量进度动态对齐真实网络字节数，避免虚高进度；下载期间保留已安装版本上下文，杜绝文案 fallback 到“正在读取文件”。
+    - [x] 前后端防御性清洗远端 manifest 中泄漏的子任务 LoRA 描述，自动回退到官方基座档位介绍。
 
 ## 2. 验证与回归记录
 
@@ -37,7 +42,7 @@
   - [x] `@md-editor/ai` 模型多档位与设置归一化测试 (`packages/ai/tests/ai-completion.test.ts`)。
   - [x] `apps/desktop` 本地模型状态管理与硬件推荐逻辑测试 (`apps/desktop/tests/local-ai-multi-tier.test.ts`)。
   - [x] `apps/desktop` 默认设置与快捷键对齐测试 (`apps/desktop/tests/app-settings.test.ts`)。
-  - [x] Rust 后端 Manifest 解析与硬件信息测试 (`system_info.rs`、`local_ai_model.rs` 内置测试用例)。
+  - [x] Rust 后端 Manifest 解析、组件复用与硬件信息测试 (`system_info.rs`、`local_ai_model.rs` 内置测试用例)。
 - 手动与交互验证：
   - [x] 设置面板视觉还原度与响应式测试（宽屏 3 列 / 窄屏响应式折叠）。
   - [x] Lite / Standard 下载、更新与删除流转。
