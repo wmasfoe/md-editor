@@ -1,11 +1,11 @@
 ---
 name: git-workflow
-description: "Standard Git commit, verification, push, and CI watch workflow for md-editor"
+description: "Standard Git commit, verification, push, CI watch, and multi-platform release workflow for md-editor"
 ---
 
-# Git Workflow & Release Protocol
+# Git Workflow & Multi-Platform Release Protocol
 
-This skill guides agents through the mandatory lifecycle for committing, verifying, pushing code, and monitoring CI checks in the `md-editor` workspace.
+This skill guides agents through the mandatory lifecycle for committing, verifying, pushing code, monitoring CI checks, and executing multi-platform releases in the `md-editor` workspace.
 
 ## 1. Commit Protocol (Mandatory Conventional Commits)
 
@@ -48,7 +48,7 @@ pnpm lint
 # 2. Run unit tests across all workspaces (unit tests must pass 100%; e2e is optional)
 pnpm test
 
-# 3. Verify TypeScript types across all 13 packages
+# 3. Verify TypeScript types across all 14 packages
 pnpm typecheck
 ```
 
@@ -78,9 +78,43 @@ If the current branch has an associated open Pull Request, the agent MUST automa
 ```bash
 pnpm pr:watch
 # or:
-gh pr checks --watch
+gh pr checks <pr_number> --watch
 ```
 
 ### Reporting
 - If all checks pass: Report the success and active PR link to the user.
 - If any check fails: Inspect the failed step log (`gh run view --log-failed`), identify the failure reason, and either fix it or provide a detailed diagnostic report.
+
+---
+
+## 4. Multi-Platform Release & Changelog Protocol
+
+All release and deployment commands are strictly scoped under the `release:*` namespace to ensure platform symmetry and zero legacy alias baggage.
+
+| Platform / Target | Full Release (Interactive) | Version Bump Only | Git Tag Pattern | CI/CD Workflow | Changelog File |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.10.2`) | `.github/workflows/release-desktop.yml` | `apps/desktop/CHANGELOG.md`<br>(root `CHANGELOG.md` mirrored) |
+| **Web Playground** | `pnpm release:web` | `pnpm release:web:version` | `web-v*` (e.g. `web-v0.2.0`) | `.github/workflows/release-web.yml` | `apps/web/CHANGELOG.md` |
+| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from both Desktop & Web changelogs |
+
+### Platform-Specific Rules
+
+1. **Desktop App (`apps/desktop`)**:
+   - `pnpm release:desktop` updates version across `package.json`, `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml`.
+   - Appends release notes to both `apps/desktop/CHANGELOG.md` and root `CHANGELOG.md`.
+   - Pushes commit and annotated tag `v<version>`, triggering multi-platform builds (macOS DMG, Linux AppImage/deb, Windows NSIS).
+
+2. **Web Playground (`apps/web`)**:
+   - `pnpm release:web` updates `apps/web/package.json`.
+   - Appends release notes to `apps/web/CHANGELOG.md`.
+   - Runs `pnpm build:web` validation.
+   - Pushes commit and annotated tag `web-v<version>`, triggering `.github/workflows/release-web.yml` bundle packaging and GitHub Release.
+
+3. **Official Site (`site`)**:
+   - Runs `pnpm release:site` via `scripts/site/deploy-site.mjs`.
+   - The `/changelog` page dynamically supports Desktop and Web tab switching.
+
+### Removed / Deprecated Commands (Do NOT Use)
+- ❌ `pnpm release` → Replaced by `pnpm release:desktop`
+- ❌ `pnpm release:version` → Replaced by `pnpm release:desktop:version`
+- ❌ `pnpm deploy:site` → Replaced by `pnpm release:site`
