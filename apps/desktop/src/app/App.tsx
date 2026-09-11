@@ -1,33 +1,24 @@
-import { useLayoutEffect, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  ChevronRightIcon,
-  FolderIcon,
-  MagnifyingGlassIcon,
-  QueueListIcon,
-} from "@heroicons/react/24/outline";
-import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
+import { useLayoutEffect, useState, type ReactNode } from "react";
+import type { RuntimeFileService } from "@md-editor/file-system";
 import {
   AssetPreview,
-  ConfirmActionDialog,
-  DocumentBar,
   EditorUiProvider,
-  OutlinePanel,
-  useEditorUiActions,
-  useEditorUiState,
   WelcomeState,
+  type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
 import { useTranslation } from "@md-editor/i18n";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
-import { CommandPalette } from "../components/CommandPalette";
-import { MdxComponentMenu } from "../components/MdxComponentMenu";
-import { InsertTableDialog } from "../components/InsertTableDialog";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
-import { FileTreePanel } from "../components/FileTreePanel";
 import { SettingsPage } from "../components/SettingsDialog";
-import { runtime } from "./runtime/editor-runtime";
+import { EditorLoadingState } from "../components/EditorLoadingState";
+import { DesktopModals } from "../components/DesktopModals";
+import {
+  AppSidebar,
+  SidebarResizer,
+  CollapsedSidebarReveal,
+  SIDEBAR_DEFAULT_WIDTH,
+} from "../components/AppSidebar";
 import { APP_DISPLAY_NAME } from "../lib/app-name";
-import { cx } from "../lib/cx";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 import {
@@ -39,15 +30,9 @@ import { useDocumentSnapshot } from "./document-store";
 import { AppSettingsProvider, useAppSettings } from "./settings-context";
 import { useToast } from "./controller/useToast";
 import { getLoadingDescription } from "./loading-state";
-import { useConfirmationStore } from "./stores/confirmation-store";
 import { useDocumentUiStore } from "./stores/document-ui-store";
 import { useFileActionStore } from "./stores/file-action-store";
-import { useFileTreeStore } from "./stores/file-tree-store";
 import { useSidebarStore } from "./stores/sidebar-store";
-
-const SIDEBAR_DEFAULT_WIDTH = 272;
-const SIDEBAR_MIN_WIDTH = 220;
-const SIDEBAR_MAX_WIDTH = 420;
 
 export interface AppProps {
   readonly fileService: RuntimeFileService;
@@ -55,13 +40,28 @@ export interface AppProps {
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
 }
 
+/**
+ * 桌面端主应用入口与顶层布局容器。
+ *
+ * 核心架构分层：
+ * 1. AppSettingsProvider: 提供全局偏好设置上下文（外观主题、字体大小、更新检查等）；
+ * 2. DesktopEditorUiProvider: 架构适配层，从桌面端 document-store 读取当前活动文档的 snapshot.markdown，
+ *    桥接给跨包通用的 EditorUiProvider，为大纲提取、目录跳转和渲染器端口通信提供统一上下文；
+ * 3. DesktopEditorEffects: 纯副作用控制器层，挂载键盘快捷键、菜单绑定、文件监视与窗口防丢守卫，
+ *    并将控制器动作注入 DesktopEditorActionsContext，本身不订阅任何 UI store 以免产生死循环；
+ * 4. MainApp: 组装侧边栏（AppSidebar）、侧栏调宽手柄（SidebarResizer）、主编辑器工作区与全局模态弹窗（DesktopModals）。
+ */
 export function App({ fileService, onDesktopActionsChange, onRendererPortsChange }: AppProps) {
   const { toast, showToast } = useToast();
   return (
     <AppSettingsProvider showToast={showToast} surface="main">
-      {/* Keep this provider above both desktop effects and shell consumers so command dispatch, outline, and editor surfaces share one editor-ui instance. */}
+      {/*
+        DesktopEditorUiProvider 置于 DesktopEditorEffects 与消费组件之上：
+        - 使得 useDesktopEditorController 内部能正常调用 useEditorUiActions() 注册端口和执行锚点跳转；
+        - 将 useDocumentSnapshot() 引起的重渲染范围限制在当前分支，避免根组件 App 及 AppSettingsProvider 每次输入都发生重绘。
+      */}
       <DesktopEditorUiProvider showToast={showToast}>
-        {/* DesktopEditorEffects 只跑副作用，不订阅任何 store，避免 store 写入 -> 重渲 -> 再写入的循环 */}
+        {/* DesktopEditorEffects 只执行控制器生命周期副作用，不订阅 UI store */}
         <DesktopEditorEffects
           fileService={fileService}
           onDesktopActionsChange={onDesktopActionsChange}
@@ -79,6 +79,15 @@ export function App({ fileService, onDesktopActionsChange, onRendererPortsChange
   );
 }
 
+/**
+ * 桌面端编辑器 UI 上下文适配器。
+ *
+ * 为什么存在 DesktopEditorUiProvider 并在此注入 snapshot = useDocumentSnapshot()？
+ * 1. 架构解耦：@md-editor/editor-ui 是通用包，其 EditorUiProvider 只接收纯 markdown 属性，不感知桌面端的状态管理；
+ * 2. 大纲响应计算：EditorUiProvider 内部封装了 useOutlineController，必须实时获得最新 markdown 才能解析 TOC 与目录树；
+ * 3. 上下文层级保障：DesktopEditorEffects 内部需要调用 useEditorUiActions()，故必须被包裹在 EditorUiProvider 内；
+ * 4. 渲染范围隔离：在子组件中订阅 snapshot，避免在打字时引发最外层的 App 与 AppSettingsProvider 重绘。
+ */
 function DesktopEditorUiProvider({
   children,
   showToast,
@@ -94,6 +103,11 @@ function DesktopEditorUiProvider({
   );
 }
 
+/**
+ * 桌面端副作用控制器包装组件。
+ *
+ * 运行全局快捷键、窗口关闭确认守卫、目录监视等系统级副作用，并通过 Context 向子树分发 actions。
+ */
 function DesktopEditorEffects({
   children,
   fileService,
@@ -113,6 +127,9 @@ function DesktopEditorEffects({
   return <DesktopEditorActionsContext value={actions}>{children}</DesktopEditorActionsContext>;
 }
 
+/**
+ * 桌面端主界面布局组件。
+ */
 function MainApp({
   fileService,
   onRendererPortsChange,
@@ -127,62 +144,17 @@ function MainApp({
   const { t } = useTranslation();
   const { isSettingsOpen } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const { isSidebarVisible, sidebarMode, setIsSidebarVisible, setSidebarMode } = useSidebarStore();
+  const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
   const { pendingAction } = useFileActionStore();
-  const { outline, activeOutlineId } = useEditorUiState();
-  const { jumpToTocItem } = useEditorUiActions();
-  const {
-    hasActiveDocument,
-    openedAsset,
-    resolveImageSrc,
-    closeAssetPreview,
-    getRecentFiles,
-    isMdxComponentMenuOpen,
-    closeMdxComponentMenu,
-    isInsertTableDialogOpen,
-    closeInsertTableDialog,
-  } = useDocumentUiStore();
-  const {
-    dispatchCommand,
-    openRecentFile,
-    runEditorUpdateAction,
-    insertMdxComponent,
-    insertTable,
-  } = useDesktopEditorActions();
-  const { confirmation, resolveConfirmation } = useConfirmationStore();
-  const [isFileSearchOpen, setIsFileSearchOpen] = useState(false);
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
+    useDocumentUiStore();
+  const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
+
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
-  const [sidebarResizePreviewWidth, setSidebarResizePreviewWidth] = useState<number | null>(null);
   const shouldShowOverlayTitleBar = isMacPlatform();
-  const folderTree = useFileTreeStore((s) => s.folder?.tree ?? null);
-  const fileSearchResultCount = useMemo(
-    () => countMatchedFiles(folderTree, fileSearchQuery),
-    [folderTree, fileSearchQuery],
-  );
-  const sidebarTitle = sidebarMode === "files" ? t("sidebar.files") : t("sidebar.outline");
-  const showFileSearch = sidebarMode === "files" && isFileSearchOpen;
   const pendingActionDescription = getLoadingDescription(pendingAction);
-  const sidebarResizePreviewOffset =
-    sidebarResizePreviewWidth === null
-      ? null
-      : clampSidebarPreviewWidth(sidebarResizePreviewWidth) - sidebarWidth;
 
-  // G007:全局快捷键 Cmd/Ctrl+K 开关命令面板(与文件搜索 Cmd/Ctrl+O 等并列)
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const mod = isMacPlatform() ? event.metaKey : event.ctrlKey;
-      if (mod && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setIsCommandPaletteOpen((open) => !open);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
-
-  // Web/Vite 预览没有原生子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 设置窗口。
+  // Web/Vite 预览没有原生独立子窗口，保留内嵌设置页只作为开发 fallback；桌面端走 Tauri 原生设置子窗口。
   if (isSettingsOpen) {
     return (
       <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
@@ -201,148 +173,28 @@ function MainApp({
   return (
     <main className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[var(--theme-bg)]">
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        {/* 左侧抽屉/分栏侧边栏（包含文件树、大纲与文档模式栏） */}
+        <AppSidebar
+          fileService={fileService}
+          sidebarWidth={sidebarWidth}
+          shouldShowOverlayTitleBar={shouldShowOverlayTitleBar}
+        />
+
+        {/* 侧边栏宽度调节器（含拖拽虚线预览与指针跟踪） */}
         {isSidebarVisible ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-[29] hidden border-0 bg-[rgba(20,27,35,0.12)] max-[959px]:block"
-            aria-label={t("sidebar.closeSidebar")}
-            onClick={() => setIsSidebarVisible(false)}
-          />
-        ) : null}
-        <aside
-          className={cx(
-            "relative flex min-h-0 w-0 min-w-0 flex-[0_0_0] select-none flex-col overflow-hidden border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[var(--theme-control-text)] opacity-0 transition-[width,flex-basis,opacity] duration-300 ease-out max-[959px]:fixed max-[959px]:inset-y-0 max-[959px]:left-0 max-[959px]:z-30 max-[959px]:shadow-[var(--theme-shadow)] motion-reduce:transition-none",
-            isSidebarVisible &&
-              "w-[var(--app-sidebar-width,272px)] min-w-[220px] max-w-[420px] flex-[0_0_var(--app-sidebar-width,272px)] opacity-100 max-[959px]:w-[min(var(--app-sidebar-width,272px),calc(100vw_-_64px))] max-[959px]:min-w-[min(220px,calc(100vw_-_64px))] max-[959px]:max-w-[calc(100vw_-_64px)] max-[959px]:flex-[0_0_min(var(--app-sidebar-width,272px),calc(100vw_-_64px))]",
-          )}
-          style={
-            {
-              "--app-sidebar-width": `${sidebarWidth}px`,
-              borderRightWidth: isSidebarVisible ? 1 : 0,
-            } as React.CSSProperties
-          }
-          aria-label={
-            sidebarMode === "files" ? t("sidebar.fileTreeAria") : t("sidebar.outlineAria")
-          }
-          aria-hidden={!isSidebarVisible}
-          inert={!isSidebarVisible}
-        >
-          <AppTitleBar
-            isVisible={shouldShowOverlayTitleBar}
-            hasWindowControlsInset
-            className="border-b-0 bg-transparent"
-          />
-          <div className="grid h-[38px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
-            <button
-              type="button"
-              className={sidebarHeaderIconButtonClassName}
-              aria-label={
-                sidebarMode === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")
-              }
-              title={
-                sidebarMode === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")
-              }
-              onClick={() => setSidebarMode(sidebarMode === "files" ? "outline" : "files")}
-            >
-              {sidebarMode === "files" ? (
-                <FolderIcon aria-hidden="true" />
-              ) : (
-                <QueueListIcon aria-hidden="true" />
-              )}
-            </button>
-            <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none tracking-tight text-[var(--theme-title)]">
-              {sidebarTitle}
-            </strong>
-            <button
-              type="button"
-              className={cx(
-                sidebarHeaderIconButtonClassName,
-                isFileSearchOpen && "bg-[var(--theme-control-active)] text-[var(--theme-title)]",
-              )}
-              aria-label={
-                isFileSearchOpen ? t("sidebar.closeFileSearch") : t("sidebar.searchFiles")
-              }
-              aria-pressed={isFileSearchOpen}
-              title={t("sidebar.searchFiles")}
-              onClick={() => {
-                setSidebarMode("files");
-                setIsFileSearchOpen((current) => !current);
-              }}
-            >
-              <MagnifyingGlassIcon aria-hidden="true" />
-            </button>
-          </div>
-          {showFileSearch ? (
-            <div
-              className="grid min-h-[36px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
-              role="search"
-            >
-              <MagnifyingGlassIcon aria-hidden="true" />
-              <input
-                type="search"
-                className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
-                value={fileSearchQuery}
-                autoFocus
-                placeholder={t("sidebar.searchFilesPlaceholder")}
-                aria-label={t("sidebar.searchFilesAria")}
-                onChange={(event) => setFileSearchQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    setFileSearchQuery("");
-                    setIsFileSearchOpen(false);
-                  }
-                }}
-              />
-              <span
-                className="min-w-4 text-right text-[11px] leading-none text-[var(--theme-control-subtle)]"
-                aria-live="polite"
-                title={t("sidebar.matchCount")}
-              >
-                {fileSearchQuery.trim() ? fileSearchResultCount : ""}
-              </span>
-            </div>
-          ) : null}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {sidebarMode === "files" ? (
-              <FileTreePanel
-                fileService={fileService}
-                searchQuery={showFileSearch ? fileSearchQuery : ""}
-              />
-            ) : (
-              <OutlinePanel outline={outline} activeId={activeOutlineId} onJump={jumpToTocItem} />
-            )}
-          </div>
-          <DocumentBar
-            hasActiveDocument={hasActiveDocument}
-            mode={snapshot.mode}
-            onChangeMode={(mode) => {
-              if (mode !== snapshot.mode) {
-                void dispatchCommand(mode === "source" ? "view.toggleSource" : "view.showWysiwyg");
-              }
-            }}
-            onOpenSettings={() => void dispatchCommand("settings.open")}
-          />
-        </aside>
-        {isSidebarVisible ? (
-          <SidebarResizeBoundary
+          <SidebarResizer
             width={sidebarWidth}
-            previewOffset={sidebarResizePreviewOffset}
-            onPreview={setSidebarResizePreviewWidth}
-            onCommit={(width) => {
-              setSidebarResizePreviewWidth(null);
-              if (width < SIDEBAR_MIN_WIDTH) {
-                setIsSidebarVisible(false);
-                return;
-              }
-              setSidebarWidth(clampSidebarWidth(width));
-            }}
-            onCancel={() => setSidebarResizePreviewWidth(null)}
+            onCommitWidth={setSidebarWidth}
+            onCollapse={() => setIsSidebarVisible(false)}
           />
         ) : null}
+
+        {/* 主编辑工作区 */}
         <section
           className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]"
           aria-label={t("sidebar.editorAria")}
         >
+          {/* 编辑区窗口顶部标题栏（含文件名称、未保存脏标记及控制按钮） */}
           <AppTitleBar
             title={snapshot.filePath?.split(/[\\/]/u).pop() || APP_DISPLAY_NAME}
             isDirty={snapshot.isDirty}
@@ -353,14 +205,19 @@ function MainApp({
             actions={<EditorTitleBarControls />}
             className="bg-[var(--theme-surface)]"
           />
+
+          {/* 侧栏收起状态下的左边缘快捷悬浮展开按钮 */}
           {!isSidebarVisible ? (
             <CollapsedSidebarReveal
               hasTitleBar={shouldShowOverlayTitleBar}
               onReveal={() => setIsSidebarVisible(true)}
             />
           ) : null}
+
+          {/* 核心视图区域：未打开文档欢迎页、CodeMirror 编辑器、图片资源预览与加载状态 */}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             <EditorToast toast={toast} />
+
             {!hasActiveDocument && !openedAsset ? (
               <WelcomeState
                 recentFiles={getRecentFiles()}
@@ -390,6 +247,8 @@ function MainApp({
                 ) : null}
               </>
             )}
+
+            {/* 异步动作加载中指示浮层 */}
             {pendingAction ? (
               <EditorLoadingState
                 title={t("loading.title")}
@@ -401,236 +260,9 @@ function MainApp({
           </div>
         </section>
       </div>
-      <ConfirmActionDialog confirmation={confirmation} onResolve={resolveConfirmation} />
-      {/* G007 命令面板:统一 UI 入口,执行走宿主 dispatchCommand */}
-      <CommandPalette
-        open={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        onRun={(commandId) => void dispatchCommand(commandId)}
-      />
-      {/* MDX 组件插入面板 */}
-      <MdxComponentMenu
-        open={isMdxComponentMenuOpen}
-        plugins={runtime.mdxComponents.listInsertable()}
-        onClose={closeMdxComponentMenu}
-        onInsert={insertMdxComponent}
-      />
-      {/* 插入表格对话框 */}
-      <InsertTableDialog
-        open={isInsertTableDialogOpen}
-        onClose={closeInsertTableDialog}
-        onConfirm={insertTable}
-      />
+
+      {/* 全局模态弹窗层（操作确认、命令面板 Cmd+K、MDX 组件、表格插入） */}
+      <DesktopModals />
     </main>
   );
-}
-
-function CollapsedSidebarReveal({
-  hasTitleBar,
-  onReveal,
-}: {
-  readonly hasTitleBar: boolean;
-  readonly onReveal: () => void;
-}) {
-  const { t } = useTranslation();
-  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    onReveal();
-  };
-
-  return (
-    <div
-      className={cx(
-        // 仅按钮本身参与命中;透明唤起层不能挡住编辑器 gutter 内的 toolbar。
-        "group pointer-events-none absolute bottom-0 left-0 z-[17] w-4",
-        // 左缘窄按钮作为侧栏唤起点,避免透明热区覆盖 toolbar 和 macOS 标题栏拖拽区。
-        hasTitleBar ? "top-[34px]" : "top-0",
-      )}
-    >
-      <button
-        type="button"
-        className="pointer-events-auto absolute left-0 top-1/2 grid h-14 w-4 -translate-y-1/2 touch-none place-items-center border-0 bg-transparent p-0 text-[var(--theme-control-text)] opacity-0 transition-[opacity,transform,color] duration-150 ease-out hover:text-[var(--theme-title)] hover:opacity-90 active:scale-95 group-hover:opacity-60 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.25]"
-        aria-label={t("sidebar.showSidebar")}
-        title={t("sidebar.showSidebar")}
-        onPointerDown={handlePointerDown}
-        onClick={onReveal}
-      >
-        <ChevronRightIcon aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
-
-function SidebarResizeBoundary({
-  onCancel,
-  onCommit,
-  onPreview,
-  previewOffset,
-  width,
-}: {
-  readonly onCancel: () => void;
-  readonly onCommit: (width: number) => void;
-  readonly onPreview: (width: number) => void;
-  readonly previewOffset: number | null;
-  readonly width: number;
-}) {
-  return (
-    <div className="z-20 hidden h-full w-0 shrink-0 min-[960px]:grid">
-      {previewOffset !== null ? (
-        <div
-          className="pointer-events-none col-start-1 row-start-1 h-full w-0 border-l border-dashed border-[var(--theme-primary)]"
-          style={{ transform: `translateX(${previewOffset}px)` }}
-          aria-hidden="true"
-        />
-      ) : null}
-      <SidebarResizeHandle
-        width={width}
-        onPreview={onPreview}
-        onCommit={onCommit}
-        onCancel={onCancel}
-      />
-    </div>
-  );
-}
-
-function SidebarResizeHandle({
-  onCancel,
-  onCommit,
-  onPreview,
-  width,
-}: {
-  readonly onCancel: () => void;
-  readonly onCommit: (width: number) => void;
-  readonly onPreview: (width: number) => void;
-  readonly width: number;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div
-      className="group col-start-1 row-start-1 grid h-full w-1.5 -translate-x-1/2 cursor-col-resize touch-none place-items-center"
-      role="separator"
-      aria-label={t("sidebar.resizeSidebarAria")}
-      aria-orientation="vertical"
-      aria-valuemin={SIDEBAR_MIN_WIDTH}
-      aria-valuemax={SIDEBAR_MAX_WIDTH}
-      aria-valuenow={width}
-      onPointerDown={(event) => {
-        event.preventDefault();
-        const pointerId = event.pointerId;
-        const target = event.currentTarget;
-        event.currentTarget.setPointerCapture(pointerId);
-        onPreview(event.clientX);
-
-        const handlePointerMove = (moveEvent: PointerEvent) => {
-          onPreview(moveEvent.clientX);
-        };
-
-        const stopTracking = () => {
-          if (target.hasPointerCapture(pointerId)) {
-            target.releasePointerCapture(pointerId);
-          }
-          window.removeEventListener("pointermove", handlePointerMove);
-          window.removeEventListener("pointerup", handlePointerUp);
-          window.removeEventListener("pointercancel", handlePointerCancel);
-        };
-
-        const handlePointerUp = (upEvent: PointerEvent) => {
-          stopTracking();
-          onCommit(upEvent.clientX);
-        };
-
-        const handlePointerCancel = () => {
-          stopTracking();
-          onCancel();
-        };
-
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-        window.addEventListener("pointercancel", handlePointerCancel);
-      }}
-    >
-      <span
-        className="pointer-events-none h-full w-px bg-transparent group-hover:bg-[var(--theme-primary)]"
-        aria-hidden="true"
-      />
-    </div>
-  );
-}
-
-const sidebarHeaderIconButtonClassName =
-  "grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
-
-function clampSidebarWidth(width: number): number {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
-}
-
-function clampSidebarPreviewWidth(width: number): number {
-  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(0, width));
-}
-
-function EditorLoadingState({
-  title,
-  description,
-  ariaLabel,
-  isOverlay = false,
-}: {
-  readonly title: string;
-  readonly description?: string;
-  readonly ariaLabel?: string;
-  readonly isOverlay?: boolean;
-}) {
-  return (
-    <div
-      className={cx(
-        "pointer-events-none flex items-center justify-center bg-[color-mix(in_oklab,var(--theme-surface)_72%,transparent)] backdrop-blur-[2px]",
-        isOverlay ? "absolute inset-0 z-10" : "min-h-0 flex-1",
-      )}
-      role="status"
-      aria-live="polite"
-      aria-label={ariaLabel ?? title}
-    >
-      <div className="flex min-w-[180px] max-w-[240px] flex-col items-center gap-3 rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_94%,white)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
-        <span
-          className="block size-5 animate-spin rounded-full border-2 border-[var(--theme-border-strong)] border-t-[var(--theme-primary)]"
-          aria-hidden="true"
-        />
-        <div className="space-y-1">
-          <p className="m-0 text-[13px] font-medium leading-5 text-[var(--theme-title)]">{title}</p>
-          {description ? (
-            <p className="m-0 text-[12px] leading-5 text-[var(--theme-muted)]">{description}</p>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function countMatchedFiles(root: MarkdownFileTreeNode | null, query: string): number {
-  const normalizedQuery = normalizeSearchQuery(query);
-  if (!root || !normalizedQuery) {
-    return 0;
-  }
-
-  let count = 0;
-  const visit = (node: MarkdownFileTreeNode) => {
-    if (node.kind !== "directory") {
-      const haystack = `${node.name}\n${node.path}`.toLowerCase();
-      if (haystack.includes(normalizedQuery)) {
-        count += 1;
-      }
-      return;
-    }
-    node.children?.forEach(visit);
-  };
-
-  visit(root);
-  return count;
-}
-
-function normalizeSearchQuery(query: string): string {
-  return query.trim().toLowerCase();
 }
