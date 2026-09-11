@@ -1,3 +1,9 @@
+/**
+ * @file link-projection.ts
+ * @description 链接、图像及分割线（ThematicBreak）的视觉投影与原子选区构建器。
+ * 包含链接分段隐藏、图像挂件（ImageWidget）渲染、以及水平分割线（ThematicBreakWidget）装饰。
+ */
+
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
@@ -7,6 +13,14 @@ import { resolveImagePreview } from "./image-resolver.ts";
 import { ImageWidget } from "./widgets/image-widget.ts";
 import { ThematicBreakWidget } from "./widgets/thematic-break-widget.ts";
 
+/**
+ * 为链接、图像及水平分割线构建视觉投影装饰集（Layout Decorations）。
+ *
+ * @param record - 范围索引记录
+ * @param active - 当前光标是否落入该记录范围（是否激活源码显示）
+ * @param selected - 是否处于原子选中态
+ * @param state - 编辑器状态对象
+ */
 export function buildLinkMediaLayoutDecorations(
   record: MarkdownRangeRecord,
   active: boolean,

@@ -1,3 +1,10 @@
+/**
+ * @file html-projection.ts
+ * @description HTML 块级内容安全清洗与可视化挂件渲染。
+ * 针对 Markdown 文档中的原生 HTML 块（HTMLBlock/HTMLTag），通过严格的白名单清洗器
+ * 剔除 XSS 危险标签与脚本，并渲染为沙箱化安全的视觉挂件。
+ */
+
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
@@ -13,10 +20,16 @@ import { HtmlBlockWidget, type HtmlBlockWidgetValue } from "./widgets/html-block
 const HTML_SANITIZE_CACHE_LIMIT = 128;
 const sanitizeCache = new Map<string, SanitizedHtmlBlock>();
 
+/**
+ * 判断指定记录是否为可进行 HTML 视觉投影的完整解析块。
+ */
 export function isProjectableHtml(record: MarkdownRangeRecord): boolean {
   return record.kind === "html" && record.parserCoverage === "complete";
 }
 
+/**
+ * 构建 HTML 块的安全 Replace 挂件装饰。
+ */
 export function buildHtmlLayoutDecorations(
   record: MarkdownRangeRecord,
   selected: boolean,

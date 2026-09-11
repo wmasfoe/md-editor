@@ -1,3 +1,17 @@
+/**
+ * @file range-index.ts
+ * @description Markdown 文档语法范围索引（Range Index）核心模块。
+ *
+ * ## 架构角色
+ * Range Index 是 WYSIWYG 渲染管道的结构化骨架：
+ * 1. 在 Lezer AST 解析树之上构建块级与内联语法范围记录（`MarkdownRangeRecord`）；
+ * 2. 维护区间前缀最大值数组（`#prefixMaximumEnds`），通过二分查找实现 O(log N + K) 的点查与重叠查询；
+ * 3. 作为 CodeMirror `StateField` 运行，并在文档发生编辑时，通过脏区间合并（Dirty Blocks）
+ *    与不可变映射（`mapRecord`）提供毫秒级的高效增量重建。
+ *
+ * 各语法类型的深度提取逻辑已拆分至 `extractors/` 子模块（代码块、表格、警示块、Frontmatter、MDX 等）。
+ */
+
 import { ensureSyntaxTree, syntaxTree, syntaxTreeAvailable } from "@codemirror/language";
 import {
   Facet,
@@ -14,50 +28,78 @@ import {
   type FrontmatterSourceRange,
 } from "@md-editor/markdown-fidelity";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
-import { findCodeBlockLanguage } from "./code-languages.ts";
-import { parseMdxJsxElements, type MdxJsxElement } from "./mdx-parse.ts";
+import type { MdxJsxElement } from "./mdx-parse.ts";
 import { getMarkdownNodePolicy, type MarkdownNodePolicy } from "./node-policy.ts";
-import { defaultCalloutTitle } from "../wysiwyg/callout-widget.ts";
 import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
 import {
   fingerprintSource,
-  freezeSourceRange,
   sourceRangeContains,
   sourceRangesOverlap,
   type MarkdownParseCoverage,
-  type MarkdownAlertMetadata,
-  type MarkdownAlertType,
-  type MarkdownCodeBlockMetadata,
-  type MarkdownCodeBlockStatus,
-  type MarkdownCodeBlockFenceStyle,
-  type MarkdownCodeBlockLineFingerprint,
   type MarkdownDirectiveMetadata,
-  type MarkdownMdxBlockMetadata,
   type MarkdownRangeRecord,
   type MarkdownRangeSegment,
-  type MarkdownRangeSegmentRole,
   type MarkdownSyntaxKind,
-  type MarkdownTableBlockMetadata,
-  type MarkdownTableCellAlignment,
   type SourceRange,
 } from "./range-types.ts";
+import {
+  collectMarkerRanges,
+  directChildren,
+  freezeRecord,
+  insertMergedRange,
+  insertRecord,
+  lineRangeForDocument,
+  lineRangeForSource,
+  mapRange,
+  mergeRanges,
+  metadataRole,
+  nodeRange,
+  rangesTouch,
+  resolveContentRange,
+  touchesAny,
+  unionRanges,
+} from "./extractors/common.ts";
+import { resolveAlertMetadata } from "./extractors/alert.ts";
+import { createCodeBlockMetadata, mapCodeBlockMetadata } from "./extractors/code-block.ts";
+import { createTableBlockMetadata, mapTableBlockMetadata } from "./extractors/table.ts";
+import {
+  createFrontmatterRecord,
+  expandFrontmatterPriorityRanges,
+} from "./extractors/frontmatter.ts";
+import { collectMdxElements, createMdxRecord } from "./extractors/mdx.ts";
 
+/**
+ * 构建 Markdown 范围索引的配置选项。
+ */
 export interface MarkdownRangeIndexBuildOptions {
+  /** 语法树解析覆盖范围与完整度标记 */
   readonly coverage?: MarkdownParseCoverage;
+  /** 索引版本号（单调递增） */
   readonly version?: number;
+  /** 仅针对指定的脏区间执行局部重解析（增量构建时使用） */
   readonly includeRanges?: readonly SourceRange[];
-  /** MDX 模式下大写标签按组件解析;默认 false(纯 Markdown) */
+  /** MDX 模式：大写 JSX 标签（如 `<Callout/>`）按组件解析，纯 Markdown 下作为普通 HTML */
   readonly mdxMode?: boolean;
-  /** 外部语法插件注册中心 */
+  /** 外部语法扩展插件注册中心 */
   readonly pluginRegistry?: SyntaxPluginRegistry;
 }
 
+/**
+ * Markdown 文档结构化范围索引。
+ * 维护全文档所有语法块及原子标记的有序记录，提供快速空间范围查找。
+ */
 export class MarkdownRangeIndex {
+  /** 所有解析生成的语法范围记录（已排序并冻结） */
   readonly records: readonly MarkdownRangeRecord[];
+  /** 解析覆盖情况 */
   readonly coverage: MarkdownParseCoverage;
+  /** 构建时文档的总长度 */
   readonly documentLength: number;
+  /** 索引版本号 */
   readonly version: number;
+  /** 用于二分搜索的前缀最大右边界数组 */
   readonly #prefixMaximumEnds: readonly number[];
+  /** ID 到记录的快速映射表 */
   readonly #recordsById: ReadonlyMap<string, MarkdownRangeRecord>;
 
   constructor(
@@ -83,10 +125,24 @@ export class MarkdownRangeIndex {
     Object.freeze(this);
   }
 
+  /**
+   * 查询包含指定字符偏移量的所有记录。
+   *
+   * @param position - 文档中的字符偏移位置
+   * @returns 覆盖该位置的记录列表
+   */
   at(position: number): readonly MarkdownRangeRecord[] {
     return this.overlapping(position, position);
   }
 
+  /**
+   * 空间区间重叠查询：检索与指定 [from, to] 区间存在重叠的所有语法记录。
+   * 利用二分查找定位首个可能相交的记录，实现次线性时间开销。
+   *
+   * @param from - 查询区间起始点
+   * @param to - 查询区间结束点
+   * @returns 相交记录数组
+   */
   overlapping(from: number, to: number): readonly MarkdownRangeRecord[] {
     const query = { from, to };
     const records: MarkdownRangeRecord[] = [];
@@ -107,21 +163,31 @@ export class MarkdownRangeIndex {
     return Object.freeze(records);
   }
 
+  /**
+   * 按语法种类（kind）过滤记录。
+   *
+   * @param kind - 语法种类（如 'code-block', 'table', 'frontmatter' 等）
+   */
   byKind(kind: MarkdownSyntaxKind): readonly MarkdownRangeRecord[] {
     return Object.freeze(this.records.filter((record) => record.kind === kind));
   }
 
+  /**
+   * 根据唯一 record ID 检索单条记录。
+   */
   get(id: string): MarkdownRangeRecord | null {
     return this.#recordsById.get(id) ?? null;
   }
 }
 
+/**
+ * 触发强制刷新 Markdown 语法树覆盖度的 StateEffect。
+ */
 export const refreshMarkdownParseCoverageEffect = StateEffect.define<null>();
 
 /**
- * 文档是否为 MDX 文件(renderer 配置注入)。
- * MDX 模式下大写标签(`<Callout/>`)按组件解析;纯 Markdown 模式下
- * 大写标签是合法 HTML 标签,保持 HTML 路径,不启用 mdx-jsx 解析。
+ * 文档是否为 MDX 模式的 Facet。
+ * MDX 模式下大写标签(`<Callout/>`)按组件解析；纯 Markdown 模式下大写标签保持 HTML 路径。
  */
 export const mdxModeFacet = Facet.define<boolean, boolean>({
   combine: (values) => values[0] ?? false,
@@ -134,6 +200,10 @@ export const syntaxPluginRegistryFacet = Facet.define<SyntaxPluginRegistry, Synt
   combine: (values) => values[0] ?? new SyntaxPluginRegistry(),
 });
 
+/**
+ * CodeMirror StateField：维护当前编辑器状态的 `MarkdownRangeIndex` 单例。
+ * 在文档修改或语法树覆盖度刷新时自动更新。
+ */
 export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   create(state) {
     const diagnostics = getWysiwygDiagnostics(state);
@@ -169,6 +239,14 @@ export const markdownRangeIndexField = StateField.define<MarkdownRangeIndex>({
   },
 });
 
+/**
+ * 全量或指定区间构建 MarkdownRangeIndex。
+ *
+ * @param source - Markdown 文档源文本
+ * @param tree - Lezer 语法分析树
+ * @param options - 构建选项
+ * @returns 构造完成的不可变索引对象
+ */
 export function buildMarkdownRangeIndex(
   source: string,
   tree: Tree,
@@ -207,67 +285,11 @@ export function buildMarkdownRangeIndex(
 }
 
 /**
- * 收集 MDX 组件元素。预筛 `<[A-Z]`(纯文本/普通文档零开销,安全评审
- * §3.2 允许 isLikelyMdxBlock 类预筛);includeRanges 存在时只保留
- * 与 dirty 区间相交的元素,支持增量重建。
+ * 增量更新 MarkdownRangeIndex：
+ * 1. 搜集变更区间并扩展旧/新脏区间（dirty ranges）；
+ * 2. 复用未变动的历史记录（通过 `mapRecord` 进行偏移调整并验证指纹）；
+ * 3. 仅对脏区间进行语法节点重解析并合并。
  */
-function collectMdxElements(
-  source: string,
-  includeRanges: readonly SourceRange[] | null,
-): readonly MdxJsxElement[] {
-  if (!/<\/?[A-Z]/.test(source)) {
-    return [];
-  }
-  const elements = parseMdxJsxElements(source);
-  if (!includeRanges) {
-    return elements;
-  }
-  return elements.filter((element) =>
-    includeRanges.some((range) =>
-      sourceRangesOverlap(range, { from: element.from, to: element.to }),
-    ),
-  );
-}
-
-function createMdxRecord(
-  element: MdxJsxElement,
-  source: string,
-  coverage: MarkdownParseCoverage,
-): MarkdownRangeRecord {
-  const fullRange = freezeSourceRange({ from: element.from, to: element.to });
-  const fingerprint = fingerprintSource(source.slice(element.from, element.to));
-  const contentRange =
-    element.childrenFrom >= 0
-      ? freezeSourceRange({ from: element.childrenFrom, to: element.childrenTo })
-      : null;
-  const segments: MarkdownRangeSegment[] = contentRange
-    ? [{ ...contentRange, role: "content" }]
-    : [];
-  const mdxBlock: MarkdownMdxBlockMetadata = {
-    componentName: element.name,
-    attributes: element.attributes,
-  };
-  return freezeRecord({
-    id: `mdx-jsx:${element.from}:${element.to}:${fingerprint}`,
-    kind: "mdx-jsx",
-    nodeName: `mdx-jsx:${element.name}`,
-    fullRange,
-    lineRange: lineRangeForSource(source, fullRange),
-    blockRange: fullRange,
-    contentRange,
-    markerRanges: [],
-    segments,
-    // 统一 mdx-widget;投影层按 registry 匹配决定渲染组件还是占位
-    renderPolicy: "mdx-widget",
-    editPolicy: "structured",
-    interactionPolicy: "structured-block",
-    priority: 30,
-    sourceFingerprint: fingerprint,
-    parserCoverage: fullRange.to <= coverage.to ? "complete" : "partial",
-    mdxBlock,
-  });
-}
-
 function updateMarkdownRangeIndex(
   previous: MarkdownRangeIndex,
   transaction: Transaction,
@@ -331,6 +353,9 @@ function updateMarkdownRangeIndex(
   return new MarkdownRangeIndex(records, coverage, newSource.length, previous.version + 1);
 }
 
+/**
+ * 计算语法树的解析覆盖深度与完成状态。
+ */
 function readCoverage(state: EditorState): MarkdownParseCoverage {
   const tree = ensureSyntaxTree(state, state.doc.length, 5_000) ?? syntaxTree(state);
   const to = Math.min(tree.length, state.doc.length);
@@ -340,6 +365,9 @@ function readCoverage(state: EditorState): MarkdownParseCoverage {
   });
 }
 
+/**
+ * 递归遍历 AST 语法树节点并匹配策略生成范围记录。
+ */
 function visitParserNode(
   node: SyntaxNode,
   source: string,
@@ -405,49 +433,9 @@ function visitParserNode(
   }
 }
 
-const GFM_ALERT_REGEX = /^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s+([^\r\n]*))?/i;
-
-function resolveAlertMetadata(node: SyntaxNode, source: string): MarkdownAlertMetadata | undefined {
-  const firstLineEnd = source.indexOf("\n", node.from);
-  let lineEnd = firstLineEnd === -1 ? node.to : Math.min(firstLineEnd, node.to);
-  if (lineEnd > node.from && source.charCodeAt(lineEnd - 1) === 13) {
-    lineEnd -= 1;
-  }
-  const lineText = source.slice(node.from, lineEnd);
-
-  const match = GFM_ALERT_REGEX.exec(lineText);
-  if (!match) {
-    return undefined;
-  }
-
-  const rawType = match[1].toLowerCase() as MarkdownAlertType;
-  const rawTitle = match[2]?.trim() ?? "";
-  const title = rawTitle.length > 0 ? rawTitle : defaultCalloutTitle(rawType);
-
-  const markerIndex = lineText.indexOf("[!");
-  const markerEndIndex = lineText.indexOf("]", markerIndex);
-  if (markerIndex === -1 || markerEndIndex === -1) {
-    return undefined;
-  }
-
-  const markerRange: SourceRange = {
-    from: node.from + markerIndex,
-    to: node.from + markerEndIndex + 1,
-  };
-
-  const headerLineRange: SourceRange = {
-    from: node.from,
-    to: lineEnd,
-  };
-
-  return {
-    alertType: rawType,
-    title,
-    markerRange,
-    headerLineRange,
-  };
-}
-
+/**
+ * 将匹配到策略的单个语法节点转换为 MarkdownRangeRecord。
+ */
 function createParserRecord(
   node: SyntaxNode,
   blockRange: SourceRange,
@@ -511,505 +499,9 @@ function createParserRecord(
   });
 }
 
-function createCodeBlockMetadata(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  source: string,
-  parserCoverage: "complete" | "partial",
-): MarkdownCodeBlockMetadata {
-  return node.name === "FencedCode"
-    ? createFencedCodeBlockMetadata(node, children, source, parserCoverage)
-    : createIndentedCodeBlockMetadata(node, children, source, parserCoverage);
-}
-
-function createFencedCodeBlockMetadata(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  source: string,
-  parserCoverage: "complete" | "partial",
-): MarkdownCodeBlockMetadata {
-  const fullRange = nodeRange(node);
-  const codeMarks = children.filter((child) => child.name === "CodeMark").map(nodeRange);
-  const openingFenceRange = codeMarks[0] ?? null;
-  const closingFenceRange = codeMarks.length >= 2 ? (codeMarks.at(-1) ?? null) : null;
-  const rawInfoRange = children.find((child) => child.name === "CodeInfo");
-  const bodySegments = children.filter((child) => child.name === "CodeText").map(nodeRange);
-  const sourceBlockRange = lineRangeForSource(source, fullRange);
-  const languageRanges = rawInfoRange
-    ? deriveLanguageInfoRanges(source, nodeRange(rawInfoRange))
-    : { languageTokenRange: null, infoSuffixRange: null };
-  const languageToken = languageRanges.languageTokenRange
-    ? source.slice(languageRanges.languageTokenRange.from, languageRanges.languageTokenRange.to)
-    : "";
-  const resolvedLanguage = findCodeBlockLanguage(languageToken);
-  const stableStatus = validateFencedCodeBlockMarks(source, openingFenceRange, closingFenceRange);
-  const status = resolveCodeBlockStatus(parserCoverage, stableStatus);
-  return {
-    blockKind: "fenced",
-    fenceStyle: openingFenceRange
-      ? fenceStyleFor(source.slice(openingFenceRange.from, openingFenceRange.to))
-      : "none",
-    blockStatus: status,
-    sourceBlockRange,
-    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
-    openingFenceRange,
-    rawInfoRange: rawInfoRange ? nodeRange(rawInfoRange) : null,
-    languageTokenRange: languageRanges.languageTokenRange,
-    infoSuffixRange: languageRanges.infoSuffixRange,
-    bodySegments,
-    syntaxIndentRanges: [],
-    bodyEnvelopeRange: envelopeRange(bodySegments),
-    closingFenceRange,
-    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
-    languageInfo: {
-      raw: rawInfoRange ? source.slice(rawInfoRange.from, rawInfoRange.to) : "",
-      token: languageToken,
-      resolvedName: resolvedLanguage?.name ?? null,
-    },
-  };
-}
-
-function createIndentedCodeBlockMetadata(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  source: string,
-  parserCoverage: "complete" | "partial",
-): MarkdownCodeBlockMetadata {
-  const fullRange = nodeRange(node);
-  const bodySegments = children.filter((child) => child.name === "CodeText").map(nodeRange);
-  const sourceBlockRange = lineRangeForSource(source, {
-    from: bodySegments[0]?.from ?? fullRange.from,
-    to: bodySegments.at(-1)?.to ?? fullRange.to,
-  });
-  const syntaxIndentRanges = collectIndentedSyntaxRanges(source, bodySegments);
-  return {
-    blockKind: "indented",
-    fenceStyle: "none",
-    blockStatus: resolveCodeBlockStatus(parserCoverage, "closed"),
-    sourceBlockRange,
-    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
-    openingFenceRange: null,
-    rawInfoRange: null,
-    languageTokenRange: null,
-    infoSuffixRange: null,
-    bodySegments,
-    syntaxIndentRanges,
-    bodyEnvelopeRange: envelopeRange(bodySegments),
-    closingFenceRange: null,
-    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
-    languageInfo: {
-      raw: "",
-      token: "",
-      resolvedName: null,
-    },
-  };
-}
-
-function createTableBlockMetadata(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  source: string,
-): MarkdownTableBlockMetadata {
-  const fullRange = nodeRange(node);
-  const headerNode = children.find((child) => child.name === "TableHeader") ?? null;
-  const delimiterNode = children.find((child) => child.name === "TableDelimiter") ?? null;
-  const bodyRowNodes = children.filter((child) => child.name === "TableRow");
-  const alignments = delimiterNode
-    ? deriveTableColumnAlignments(source, nodeRange(delimiterNode))
-    : [];
-  const sourceBlockRange = lineRangeForSource(source, {
-    from: headerNode?.from ?? fullRange.from,
-    to: bodyRowNodes.at(-1)?.to ?? delimiterNode?.to ?? fullRange.to,
-  });
-  const bodyRowRanges = bodyRowNodes.map(nodeRange);
-  const headerRowRange = headerNode ? nodeRange(headerNode) : null;
-  const delimiterRowRange = delimiterNode ? nodeRange(delimiterNode) : null;
-  const hasLeadingPipes = hasLeadingPipe(source, headerNode, delimiterNode);
-  return {
-    sourceBlockRange,
-    sourceFingerprint: fingerprintSource(source.slice(sourceBlockRange.from, sourceBlockRange.to)),
-    headerRowRange,
-    delimiterRowRange,
-    bodyRowRanges: Object.freeze(bodyRowRanges),
-    alignments: Object.freeze(alignments),
-    columnCount: alignments.length,
-    bodyRowCount: bodyRowRanges.length,
-    hasLeadingPipes,
-    sourceLineFingerprints: fingerprintSourceLines(source, sourceBlockRange),
-  };
-}
-
-function deriveTableColumnAlignments(
-  source: string,
-  delimiterRange: SourceRange,
-): readonly MarkdownTableCellAlignment[] {
-  const line = source.slice(delimiterRange.from, delimiterRange.to);
-  const cellTexts = splitTableDelimiterLine(line);
-  return cellTexts.map((cell) => classifyTableAlignment(cell));
-}
-
-function splitTableDelimiterLine(line: string): readonly string[] {
-  // Drop leading/trailing pipes if present, then split on remaining pipes.
-  const trimmed = line.replace(/^\s*\|/, "").replace(/\|\s*$/, "");
-  if (!trimmed.trim()) {
-    return [];
-  }
-  return trimmed.split("|").map((cell) => cell.trim());
-}
-
-function classifyTableAlignment(cell: string): MarkdownTableCellAlignment {
-  const trimmed = cell.trim();
-  if (!trimmed.includes("-")) {
-    return "none";
-  }
-  const leftColon = trimmed.startsWith(":");
-  const rightColon = trimmed.endsWith(":");
-  if (leftColon && rightColon) {
-    return "center";
-  }
-  if (rightColon) {
-    return "right";
-  }
-  if (leftColon) {
-    return "left";
-  }
-  return "none";
-}
-
-function hasLeadingPipe(
-  source: string,
-  headerNode: SyntaxNode | null,
-  delimiterNode: SyntaxNode | null,
-): boolean {
-  for (const node of [headerNode, delimiterNode]) {
-    if (!node) continue;
-    const slice = source.slice(node.from, Math.min(node.to, node.from + 1));
-    if (slice === "|") {
-      return true;
-    }
-    return false;
-  }
-  return false;
-}
-
-function deriveLanguageInfoRanges(
-  source: string,
-  rawInfoRange: SourceRange,
-): Pick<MarkdownCodeBlockMetadata, "languageTokenRange" | "infoSuffixRange"> {
-  let tokenFrom = rawInfoRange.from;
-  while (tokenFrom < rawInfoRange.to && isHorizontalSpace(source[tokenFrom] ?? "")) {
-    tokenFrom += 1;
-  }
-  let tokenTo = tokenFrom;
-  while (tokenTo < rawInfoRange.to && !isHorizontalSpace(source[tokenTo] ?? "")) {
-    tokenTo += 1;
-  }
-  if (tokenFrom === tokenTo) {
-    return { languageTokenRange: null, infoSuffixRange: rawInfoRange };
-  }
-  return {
-    languageTokenRange: { from: tokenFrom, to: tokenTo },
-    infoSuffixRange: { from: tokenTo, to: rawInfoRange.to },
-  };
-}
-
-function collectIndentedSyntaxRanges(
-  source: string,
-  bodySegments: readonly SourceRange[],
-): SourceRange[] {
-  const ranges: SourceRange[] = [];
-  for (const segment of bodySegments) {
-    let lineStart = source.lastIndexOf("\n", Math.max(0, segment.from - 1)) + 1;
-    while (lineStart < segment.to) {
-      const lineEnd = source.indexOf("\n", lineStart);
-      const to = lineEnd === -1 ? segment.to : Math.min(lineEnd + 1, segment.to);
-      const bodyStart =
-        lineStart === source.lastIndexOf("\n", Math.max(0, segment.from - 1)) + 1
-          ? segment.from
-          : lineStart;
-      if (lineStart < bodyStart) {
-        ranges.push({ from: lineStart, to: bodyStart });
-      }
-      lineStart = to;
-    }
-  }
-  return ranges;
-}
-
-function envelopeRange(ranges: readonly SourceRange[]): SourceRange | null {
-  if (ranges.length === 0) {
-    return null;
-  }
-  return { from: ranges[0].from, to: ranges.at(-1)?.to ?? ranges[0].to };
-}
-
-function resolveCodeBlockStatus(
-  parserCoverage: "complete" | "partial",
-  stableStatus: Exclude<MarkdownCodeBlockStatus, "partial">,
-): MarkdownCodeBlockStatus {
-  return parserCoverage === "partial" ? "partial" : stableStatus;
-}
-
-function validateFencedCodeBlockMarks(
-  source: string,
-  openingFenceRange: SourceRange | null,
-  closingFenceRange: SourceRange | null,
-): Exclude<MarkdownCodeBlockStatus, "partial"> {
-  if (!openingFenceRange) {
-    return "malformed";
-  }
-  const openingMark = source.slice(openingFenceRange.from, openingFenceRange.to);
-  const openingStyle = fenceStyleFor(openingMark);
-  if (openingStyle === "none" || openingMark.length < 3) {
-    return "malformed";
-  }
-  if (!closingFenceRange) {
-    return "unclosed";
-  }
-  const closingMark = source.slice(closingFenceRange.from, closingFenceRange.to);
-  if (fenceStyleFor(closingMark) !== openingStyle || closingMark.length < openingMark.length) {
-    return "malformed";
-  }
-  return "closed";
-}
-
-function fenceStyleFor(mark: string): MarkdownCodeBlockFenceStyle {
-  if (mark.startsWith("`")) {
-    return "backtick";
-  }
-  if (mark.startsWith("~")) {
-    return "tilde";
-  }
-  return "none";
-}
-
-function fingerprintSourceLines(
-  source: string,
-  sourceBlockRange: SourceRange,
-): MarkdownCodeBlockLineFingerprint[] {
-  const fingerprints: MarkdownCodeBlockLineFingerprint[] = [];
-  let from = sourceBlockRange.from;
-  while (from <= sourceBlockRange.to && from < source.length) {
-    const newline = source.indexOf("\n", from);
-    const to = newline === -1 || newline > sourceBlockRange.to ? sourceBlockRange.to : newline;
-    fingerprints.push({
-      from,
-      to,
-      fingerprint: fingerprintSource(source.slice(from, to)),
-    });
-    if (newline === -1 || newline >= sourceBlockRange.to) {
-      break;
-    }
-    from = newline + 1;
-  }
-  if (sourceBlockRange.from === sourceBlockRange.to) {
-    fingerprints.push({
-      ...sourceBlockRange,
-      fingerprint: fingerprintSource(""),
-    });
-  }
-  return fingerprints;
-}
-
-function collectMarkerRanges(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  policy: MarkdownNodePolicy,
-): SourceRange[] {
-  if (policy.kind !== "quote") {
-    return children.filter((child) => policy.markerNodeNames.includes(child.name)).map(nodeRange);
-  }
-
-  // A blockquote marker on a continued list line is nested below ListItem in
-  // Lezer's tree. Keep it with the nearest Blockquote, while leaving nested
-  // Blockquote markers to their own records.
-  const markers: SourceRange[] = [];
-  const visit = (parent: SyntaxNode): void => {
-    for (let child = parent.firstChild; child; child = child.nextSibling) {
-      if (child.name === "Blockquote") {
-        continue;
-      }
-      if (child.name === "QuoteMark") {
-        markers.push(nodeRange(child));
-      } else {
-        visit(child);
-      }
-    }
-  };
-  visit(node);
-  return markers;
-}
-
-function createFrontmatterRecord(
-  frontmatter: FrontmatterSourceRange,
-  source: string,
-  coverage: MarkdownParseCoverage,
-): MarkdownRangeRecord {
-  const markerRanges = [
-    frontmatter.openingFenceRange,
-    ...(frontmatter.closingFenceRange ? [frontmatter.closingFenceRange] : []),
-  ];
-  const segments: MarkdownRangeSegment[] = [
-    ...markerRanges.map((range) => ({ ...range, role: "marker" as const })),
-    { ...frontmatter.contentRange, role: "body" },
-  ];
-  const fingerprint = fingerprintSource(
-    source.slice(frontmatter.fullRange.from, frontmatter.fullRange.to),
-  );
-  return freezeRecord({
-    id: `frontmatter:${frontmatter.status}:${fingerprint}`,
-    kind: "frontmatter",
-    nodeName: frontmatter.status === "closed" ? "Frontmatter" : "FrontmatterUnterminated",
-    fullRange: frontmatter.fullRange,
-    lineRange: lineRangeForSource(source, frontmatter.fullRange),
-    blockRange: frontmatter.fullRange,
-    contentRange: frontmatter.contentRange,
-    markerRanges,
-    segments,
-    renderPolicy: frontmatter.status === "closed" ? "frontmatter-panel" : "raw-fallback",
-    editPolicy: "native",
-    interactionPolicy: frontmatter.status === "closed" ? "structured-block" : "none",
-    priority: 100,
-    sourceFingerprint: fingerprint,
-    parserCoverage: frontmatter.fullRange.to <= coverage.to ? "complete" : "partial",
-  });
-}
-
-function resolveContentRange(
-  node: SyntaxNode,
-  children: readonly SyntaxNode[],
-  markers: readonly SourceRange[],
-  policy: MarkdownNodePolicy,
-  source: string,
-): SourceRange | null {
-  const fullRange = nodeRange(node);
-  switch (policy.contentStrategy) {
-    case "between-markers": {
-      if (markers.length === 0) {
-        return fullRange;
-      }
-      const from = skipHorizontalSpace(source, markers[0].to, fullRange.to);
-      const to = markers.length > 1 ? (markers.at(-1)?.from ?? fullRange.to) : fullRange.to;
-      return from <= to ? { from, to } : null;
-    }
-    case "after-first-marker": {
-      const from = skipHorizontalSpace(source, markers[0]?.to ?? fullRange.from, fullRange.to);
-      return { from, to: fullRange.to };
-    }
-    case "before-last-marker": {
-      const marker = markers.at(-1);
-      const to = trimTrailingLineBreak(source, marker?.from ?? fullRange.to, fullRange.from);
-      return { from: fullRange.from, to };
-    }
-    case "link-label": {
-      return markers.length >= 2 ? { from: markers[0].to, to: markers[1].from } : null;
-    }
-    case "url": {
-      const url = children.find((child) => child.name === "URL");
-      return url ? nodeRange(url) : null;
-    }
-    case "full":
-      return fullRange;
-    case "none":
-      return null;
-  }
-}
-
-function metadataRole(nodeName: string): MarkdownRangeSegmentRole | null {
-  if (nodeName === "URL") {
-    return "destination";
-  }
-  if (nodeName === "LinkTitle") {
-    return "title";
-  }
-  if (nodeName === "LinkLabel") {
-    return "label";
-  }
-  return null;
-}
-
-function freezeRecord(record: MarkdownRangeRecord): MarkdownRangeRecord {
-  return Object.freeze({
-    ...record,
-    fullRange: freezeSourceRange(record.fullRange),
-    lineRange: freezeSourceRange(record.lineRange),
-    blockRange: freezeSourceRange(record.blockRange),
-    contentRange: record.contentRange ? freezeSourceRange(record.contentRange) : null,
-    markerRanges: Object.freeze(record.markerRanges.map(freezeSourceRange)),
-    segments: Object.freeze(record.segments.map((segment) => Object.freeze({ ...segment }))),
-    ...(record.codeBlock ? { codeBlock: freezeCodeBlockMetadata(record.codeBlock) } : {}),
-    ...(record.tableBlock ? { tableBlock: freezeTableBlockMetadata(record.tableBlock) } : {}),
-    ...(record.directive ? { directive: freezeDirectiveMetadata(record.directive) } : {}),
-    ...(record.metadata ? { metadata: Object.freeze({ ...record.metadata }) } : {}),
-  });
-}
-
-function freezeDirectiveMetadata(metadata: MarkdownDirectiveMetadata): MarkdownDirectiveMetadata {
-  return Object.freeze({
-    ...metadata,
-    openingMarkerRange: freezeSourceRange(metadata.openingMarkerRange),
-    closingMarkerRange: metadata.closingMarkerRange
-      ? freezeSourceRange(metadata.closingMarkerRange)
-      : null,
-    headerRange: freezeSourceRange(metadata.headerRange),
-  });
-}
-
-function freezeCodeBlockMetadata(metadata: MarkdownCodeBlockMetadata): MarkdownCodeBlockMetadata {
-  return Object.freeze({
-    ...metadata,
-    sourceBlockRange: freezeSourceRange(metadata.sourceBlockRange),
-    openingFenceRange: metadata.openingFenceRange
-      ? freezeSourceRange(metadata.openingFenceRange)
-      : null,
-    rawInfoRange: metadata.rawInfoRange ? freezeSourceRange(metadata.rawInfoRange) : null,
-    languageTokenRange: metadata.languageTokenRange
-      ? freezeSourceRange(metadata.languageTokenRange)
-      : null,
-    infoSuffixRange: metadata.infoSuffixRange ? freezeSourceRange(metadata.infoSuffixRange) : null,
-    bodySegments: Object.freeze(metadata.bodySegments.map(freezeSourceRange)),
-    syntaxIndentRanges: Object.freeze(metadata.syntaxIndentRanges.map(freezeSourceRange)),
-    bodyEnvelopeRange: metadata.bodyEnvelopeRange
-      ? freezeSourceRange(metadata.bodyEnvelopeRange)
-      : null,
-    closingFenceRange: metadata.closingFenceRange
-      ? freezeSourceRange(metadata.closingFenceRange)
-      : null,
-    sourceLineFingerprints: Object.freeze(
-      metadata.sourceLineFingerprints.map((line) =>
-        Object.freeze({
-          ...freezeSourceRange(line),
-          fingerprint: line.fingerprint,
-        }),
-      ),
-    ),
-    languageInfo: Object.freeze({ ...metadata.languageInfo }),
-  });
-}
-
-function freezeTableBlockMetadata(
-  metadata: MarkdownTableBlockMetadata,
-): MarkdownTableBlockMetadata {
-  return Object.freeze({
-    ...metadata,
-    sourceBlockRange: freezeSourceRange(metadata.sourceBlockRange),
-    headerRowRange: metadata.headerRowRange ? freezeSourceRange(metadata.headerRowRange) : null,
-    delimiterRowRange: metadata.delimiterRowRange
-      ? freezeSourceRange(metadata.delimiterRowRange)
-      : null,
-    bodyRowRanges: Object.freeze(metadata.bodyRowRanges.map(freezeSourceRange)),
-    alignments: Object.freeze([...metadata.alignments]),
-    sourceLineFingerprints: Object.freeze(
-      metadata.sourceLineFingerprints.map((line) =>
-        Object.freeze({
-          ...freezeSourceRange(line),
-          fingerprint: line.fingerprint,
-        }),
-      ),
-    ),
-  });
-}
-
+/**
+ * 增量映射单条记录：检查位置映射后源码文本指纹是否保持一致。
+ */
 function mapRecord(
   record: MarkdownRangeRecord,
   changes: ChangeDesc,
@@ -1063,110 +555,9 @@ function mapRecord(
   });
 }
 
-function mapCodeBlockMetadata(
-  metadata: MarkdownCodeBlockMetadata,
-  changes: ChangeDesc,
-  newSource: string,
-): MarkdownCodeBlockMetadata | null {
-  const sourceBlockRange = mapRange(metadata.sourceBlockRange, changes);
-  const openingFenceRange = mapOptionalRange(metadata.openingFenceRange, changes);
-  const rawInfoRange = mapOptionalRange(metadata.rawInfoRange, changes);
-  const languageTokenRange = mapOptionalRange(metadata.languageTokenRange, changes);
-  const infoSuffixRange = mapOptionalRange(metadata.infoSuffixRange, changes);
-  const bodySegments = metadata.bodySegments.map((range) => mapRange(range, changes));
-  const syntaxIndentRanges = metadata.syntaxIndentRanges.map((range) => mapRange(range, changes));
-  const bodyEnvelopeRange = mapOptionalRange(metadata.bodyEnvelopeRange, changes);
-  const closingFenceRange = mapOptionalRange(metadata.closingFenceRange, changes);
-  const sourceLineFingerprints = metadata.sourceLineFingerprints.map((line) => {
-    const range = mapRange(line, changes);
-    return range ? { ...range, fingerprint: line.fingerprint } : null;
-  });
-  if (
-    !sourceBlockRange ||
-    openingFenceRange === undefined ||
-    rawInfoRange === undefined ||
-    languageTokenRange === undefined ||
-    infoSuffixRange === undefined ||
-    bodySegments.some((range) => !range) ||
-    syntaxIndentRanges.some((range) => !range) ||
-    bodyEnvelopeRange === undefined ||
-    closingFenceRange === undefined ||
-    sourceLineFingerprints.some((line) => !line)
-  ) {
-    return null;
-  }
-  if (
-    fingerprintSource(newSource.slice(sourceBlockRange.from, sourceBlockRange.to)) !==
-    metadata.sourceFingerprint
-  ) {
-    return null;
-  }
-  return {
-    ...metadata,
-    sourceBlockRange,
-    openingFenceRange,
-    rawInfoRange,
-    languageTokenRange,
-    infoSuffixRange,
-    bodySegments: bodySegments as SourceRange[],
-    syntaxIndentRanges: syntaxIndentRanges as SourceRange[],
-    bodyEnvelopeRange,
-    closingFenceRange,
-    sourceLineFingerprints: sourceLineFingerprints as MarkdownCodeBlockLineFingerprint[],
-  };
-}
-
-function mapTableBlockMetadata(
-  metadata: MarkdownTableBlockMetadata,
-  changes: ChangeDesc,
-  newSource: string,
-): MarkdownTableBlockMetadata | null {
-  const sourceBlockRange = mapRange(metadata.sourceBlockRange, changes);
-  const headerRowRange = mapOptionalRange(metadata.headerRowRange, changes);
-  const delimiterRowRange = mapOptionalRange(metadata.delimiterRowRange, changes);
-  const bodyRowRanges = metadata.bodyRowRanges.map((range) => mapRange(range, changes));
-  const sourceLineFingerprints = metadata.sourceLineFingerprints.map((line) => {
-    const range = mapRange(line, changes);
-    return range ? { ...range, fingerprint: line.fingerprint } : null;
-  });
-  if (
-    !sourceBlockRange ||
-    headerRowRange === undefined ||
-    delimiterRowRange === undefined ||
-    bodyRowRanges.some((range) => !range) ||
-    sourceLineFingerprints.some((line) => !line)
-  ) {
-    return null;
-  }
-  if (
-    fingerprintSource(newSource.slice(sourceBlockRange.from, sourceBlockRange.to)) !==
-    metadata.sourceFingerprint
-  ) {
-    return null;
-  }
-  return {
-    ...metadata,
-    sourceBlockRange,
-    headerRowRange,
-    delimiterRowRange,
-    bodyRowRanges: bodyRowRanges as SourceRange[],
-    sourceLineFingerprints: sourceLineFingerprints as MarkdownCodeBlockLineFingerprint[],
-  };
-}
-
-function mapOptionalRange(
-  range: SourceRange | null,
-  changes: ChangeDesc,
-): SourceRange | null | undefined {
-  return range ? (mapRange(range, changes) ?? undefined) : null;
-}
-
-function mapRange(range: SourceRange, changes: ChangeDesc): SourceRange | null {
-  const from = changes.mapPos(range.from, 1);
-  const to = changes.mapPos(range.to, -1);
-  return from <= to ? { from, to } : null;
-}
-
+/**
+ * 搜集编辑事务中所有变更的起止范围对。
+ */
 function collectChangedRanges(
   transaction: Transaction,
 ): readonly { readonly oldRange: SourceRange; readonly newRange: SourceRange }[] {
@@ -1177,6 +568,9 @@ function collectChangedRanges(
   return ranges;
 }
 
+/**
+ * 结合旧文档及旧记录边界扩展旧脏区间。
+ */
 function expandOldDirtyRange(
   document: Text,
   changed: SourceRange,
@@ -1191,6 +585,9 @@ function expandOldDirtyRange(
   return expanded;
 }
 
+/**
+ * 结合新文档及顶层语法块边界扩展新脏区间。
+ */
 function expandNewDirtyRange(
   document: Text,
   changed: SourceRange,
@@ -1205,29 +602,9 @@ function expandNewDirtyRange(
   return expanded;
 }
 
-function expandFrontmatterPriorityRanges(
-  oldSource: string,
-  newSource: string,
-  changes: readonly { readonly oldRange: SourceRange; readonly newRange: SourceRange }[],
-  oldDirty: SourceRange[],
-  newDirty: SourceRange[],
-): void {
-  const oldFrontmatter = findFrontmatterSourceRange(oldSource);
-  const newFrontmatter = findFrontmatterSourceRange(newSource);
-  const oldBoundary = oldFrontmatter?.fullRange.to ?? Math.min(4, oldSource.length);
-  const touchesPriorityBoundary = changes.some(({ oldRange }) =>
-    rangesTouch(oldRange, { from: 0, to: oldBoundary }),
-  );
-  if (!touchesPriorityBoundary && oldFrontmatter?.status === newFrontmatter?.status) {
-    return;
-  }
-  insertMergedRange(oldDirty, { from: 0, to: oldBoundary });
-  insertMergedRange(newDirty, {
-    from: 0,
-    to: newFrontmatter?.fullRange.to ?? Math.min(4, newSource.length),
-  });
-}
-
+/**
+ * 提取语法树顶层子节点范围。
+ */
 function getTopLevelRanges(tree: Tree): readonly SourceRange[] {
   const ranges: SourceRange[] = [];
   for (let child = tree.topNode.firstChild; child; child = child.nextSibling) {
@@ -1236,111 +613,9 @@ function getTopLevelRanges(tree: Tree): readonly SourceRange[] {
   return ranges;
 }
 
-function mergeRanges(ranges: readonly SourceRange[]): SourceRange[] {
-  const merged: SourceRange[] = [];
-  for (const range of ranges) {
-    insertMergedRange(merged, range);
-  }
-  return merged;
-}
-
-function insertMergedRange(ranges: SourceRange[], incoming: SourceRange): void {
-  let from = incoming.from;
-  let to = incoming.to;
-  let index = 0;
-  while (index < ranges.length && ranges[index].to < from) {
-    index += 1;
-  }
-  while (index < ranges.length && ranges[index].from <= to) {
-    from = Math.min(from, ranges[index].from);
-    to = Math.max(to, ranges[index].to);
-    ranges.splice(index, 1);
-  }
-  ranges.splice(index, 0, { from, to });
-}
-
-function insertRecord(records: MarkdownRangeRecord[], record: MarkdownRangeRecord): void {
-  let index = 0;
-  while (index < records.length && compareRecords(records[index], record) <= 0) {
-    index += 1;
-  }
-  records.splice(index, 0, record);
-}
-
-function compareRecords(left: MarkdownRangeRecord, right: MarkdownRangeRecord): number {
-  return (
-    left.fullRange.from - right.fullRange.from ||
-    right.fullRange.to - left.fullRange.to ||
-    right.priority - left.priority ||
-    left.id.localeCompare(right.id)
-  );
-}
-
-function directChildren(node: SyntaxNode): readonly SyntaxNode[] {
-  const children: SyntaxNode[] = [];
-  for (let child = node.firstChild; child; child = child.nextSibling) {
-    children.push(child);
-  }
-  return children;
-}
-
-function nodeRange(node: SyntaxNode): SourceRange {
-  return { from: node.from, to: node.to };
-}
-
-function lineRangeForSource(source: string, range: SourceRange): SourceRange {
-  const from = source.lastIndexOf("\n", Math.max(0, range.from - 1)) + 1;
-  const newline = source.indexOf("\n", range.to);
-  return { from, to: newline === -1 ? source.length : newline };
-}
-
-function lineRangeForDocument(document: Text, range: SourceRange): SourceRange {
-  const fromPosition = Math.min(range.from, document.length);
-  const toPosition = Math.min(Math.max(range.from, range.to), document.length);
-  return {
-    from: document.lineAt(fromPosition).from,
-    to: document.lineAt(toPosition).to,
-  };
-}
-
-function skipHorizontalSpace(source: string, from: number, to: number): number {
-  let position = from;
-  while (position < to && (source[position] === " " || source[position] === "\t")) {
-    position += 1;
-  }
-  return position;
-}
-
-function isHorizontalSpace(character: string): boolean {
-  return character === " " || character === "\t";
-}
-
-function trimTrailingLineBreak(source: string, from: number, minimum: number): number {
-  let position = from;
-  while (position > minimum && (source[position - 1] === "\n" || source[position - 1] === "\r")) {
-    position -= 1;
-  }
-  return position;
-}
-
-function rangesTouch(left: SourceRange, right: SourceRange): boolean {
-  if (left.from === left.to) {
-    return sourceRangeContains(right, left.from);
-  }
-  if (right.from === right.to) {
-    return sourceRangeContains(left, right.from);
-  }
-  return sourceRangesOverlap(left, right);
-}
-
-function touchesAny(range: SourceRange, candidates: readonly SourceRange[]): boolean {
-  return candidates.some((candidate) => rangesTouch(range, candidate));
-}
-
-function unionRanges(left: SourceRange, right: SourceRange): SourceRange {
-  return { from: Math.min(left.from, right.from), to: Math.max(left.to, right.to) };
-}
-
+/**
+ * 二分查找定位满足 prefixMaximumEnds[index] >= position 的最小下标。
+ */
 function findFirstCandidate(prefixMaximumEnds: readonly number[], position: number): number {
   let low = 0;
   let high = prefixMaximumEnds.length;

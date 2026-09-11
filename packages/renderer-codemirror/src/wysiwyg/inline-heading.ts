@@ -1,7 +1,16 @@
+/**
+ * @file inline-heading.ts
+ * @description 行内样式（粗体、斜体、删除线、行内代码）与标题（ATX / Setext）视觉装饰构造器。
+ * 支持光标激活时的 `#` 标记隐显控制与输入法合成保护。
+ */
+
 import type { Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 
+/**
+ * 为行内标记（如 `**粗体**`, `*斜体*`, `` `代码` ``）构建内容与标记样式装饰。
+ */
 export function buildInlineStyleDecorations(
   record: MarkdownRangeRecord,
 ): readonly Range<Decoration>[] {

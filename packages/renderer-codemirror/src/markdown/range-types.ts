@@ -1,8 +1,21 @@
+/**
+ * @file range-types.ts
+ * @description Markdown 语法范围索引核心类型定义与常用区间操作工具。
+ * 定义了源文本范围、语法种类、渲染/编辑/交互策略枚举、结构化代码块/表格/警示块元数据、
+ * 以及单条语法范围记录 MarkdownRangeRecord 数据契约。
+ */
+
+/**
+ * 源码字符起止闭区间（0-indexed, [from, to]）。
+ */
 export interface SourceRange {
   readonly from: number;
   readonly to: number;
 }
 
+/**
+ * Markdown 语法节点分类。
+ */
 export type MarkdownSyntaxKind =
   | "bold"
   | "italic"
@@ -35,6 +48,9 @@ export type MarkdownSyntaxKind =
   | "deferred-html"
   | "raw-fallback";
 
+/**
+ * 投影渲染策略，决定视觉层如何装饰或替换语法节点。
+ */
 export type MarkdownRenderPolicy =
   | "inline-visible-markers"
   | "heading-active-marker"
@@ -52,8 +68,14 @@ export type MarkdownRenderPolicy =
   | "deferred-raw"
   | "raw-fallback";
 
+/**
+ * 编辑保护策略，决定直接键盘输入、删除或粘贴如何处理。
+ */
 export type MarkdownEditPolicy = "native" | "structured" | "atom-delete" | "source-mode-only";
 
+/**
+ * 交互语义策略，决定光标移动、点击展开、块选择等行为。
+ */
 export type MarkdownInteractionPolicy =
   | "text"
   | "active-line"
