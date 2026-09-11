@@ -7,7 +7,7 @@ on:
       - "site/**"
       - "scripts/site/**"
       - "scripts/release/**"
-      - "CHANGELOG.md"
+      - "apps/**/CHANGELOG*.md"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"

@@ -7,14 +7,10 @@ import { updateChangelogFile } from "./changelog.mjs";
 const defaultNotes = "修复了一些已知问题，添加了一些新功能";
 const releaseBranchDefault = "main";
 const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
-const changelogPath = "CHANGELOG.md";
 const desktopChangelogPath = "apps/desktop/CHANGELOG.md";
-const changelogEnPath = "CHANGELOG_EN.md";
 const desktopChangelogEnPath = "apps/desktop/CHANGELOG_EN.md";
 const releaseFiles = [
-  changelogPath,
   desktopChangelogPath,
-  changelogEnPath,
   desktopChangelogEnPath,
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
@@ -449,14 +445,6 @@ async function main() {
   }
 
   const changelogResult = updateChangelogFile({
-    path: changelogPath,
-    version: plan.nextVersion,
-    notes: plan.notes,
-    pr: plan.pr,
-    mode: options.resume ? "resume" : "normal",
-    dryRun: options.dryRun,
-  });
-  updateChangelogFile({
     path: desktopChangelogPath,
     version: plan.nextVersion,
     notes: plan.notes,
@@ -467,7 +455,7 @@ async function main() {
 
   if (options.dryRun) {
     const action = changelogResult.changed ? "would update" : "would reuse";
-    console.log(`${action} ${changelogPath} and ${desktopChangelogPath} for ${plan.nextVersion}`);
+    console.log(`${action} ${desktopChangelogPath} for ${plan.nextVersion}`);
   }
 
   if (options.dryRun) {

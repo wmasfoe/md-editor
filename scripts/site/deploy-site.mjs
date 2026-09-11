@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../..");
 const siteDir = path.join(repoRoot, "site");
-const rootChangelogPath = path.join(repoRoot, "CHANGELOG.md");
+const desktopChangelogPath = path.join(repoRoot, "apps/desktop/CHANGELOG.md");
 // 约定：.vercel 只放在 monorepo 根。Vercel Root Directory=site，CLI cwd=仓库根。
 const rootVercelDir = path.join(repoRoot, ".vercel");
 const legacySiteVercelDir = path.join(siteDir, ".vercel");
@@ -21,8 +21,8 @@ if (isCi) {
   }
 }
 
-if (!fs.existsSync(rootChangelogPath)) {
-  throw new Error(`Missing ${rootChangelogPath}; website changelog cannot be built.`);
+if (!fs.existsSync(desktopChangelogPath)) {
+  throw new Error(`Missing ${desktopChangelogPath}; website changelog cannot be built.`);
 }
 
 migrateLegacySiteVercelLink();

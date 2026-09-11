@@ -25,7 +25,7 @@ pnpm release:desktop
 脚本会引导选择 `patch` / `minor` / `major` / `beta` 或具体版本号，并填写本次更新说明，然后自动：
 
 1. 调用 `pnpm release:desktop:version` 同步版本文件（desktop、Tauri、Cargo；根目录 package.json 固定为 0.0.0 容器占位）。
-2. 把本次说明同时写入根目录 `CHANGELOG.md` 与 `apps/desktop/CHANGELOG.md`（新版本 section；已存在则失败，避免覆盖）。
+2. 把本次说明写入 `apps/desktop/CHANGELOG.md`（新版本 section；已存在则失败，避免覆盖）。
 3. 本地构建自检并创建版本 commit。
 4. 创建 `v版本号` tag（例如 `v0.10.2`）。
 5. push 当前分支和 tag，触发 GitHub Release 跨平台工作流。
@@ -50,13 +50,13 @@ pnpm release:desktop 0.10.2
 pnpm release:desktop --resume
 ```
 
-`--resume` 要求 `CHANGELOG.md` 里**已经存在**目标版本 section，且不会改写该 section。
+`--resume` 要求 `apps/desktop/CHANGELOG.md` 里**已经存在**目标版本 section，且不会改写该 section。
 
 ### 2. 手动分步发版（仅应急）
 
 ```bash
 pnpm release:desktop:version patch   # 或 minor / major / 0.10.2
-# 检查 apps/desktop/CHANGELOG.md 与根目录 CHANGELOG.md
+# 检查 apps/desktop/CHANGELOG.md
 git add .
 git commit -m "chore: release v0.10.2"
 git push origin main

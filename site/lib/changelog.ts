@@ -4,7 +4,7 @@
  * @description
  * 官网更新日志解析与加载模块。
  *
- * 支持分别读取并解析 Desktop 桌面客户端（apps/desktop/CHANGELOG.md 或根 CHANGELOG.md）
+ * 支持分别读取并解析 Desktop 桌面客户端（apps/desktop/CHANGELOG.md）
  * 与 Web 在线版（apps/web/CHANGELOG.md）的版本发布记录，支持嵌套列表项与关联 PR 提取。
  */
 
@@ -26,15 +26,11 @@ export interface ChangelogEntry {
 const defaultDesktopChangelogCandidates = [
   path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG.md"),
   path.join(process.cwd(), "apps", "desktop", "CHANGELOG.md"),
-  path.join(process.cwd(), "..", "CHANGELOG.md"),
-  path.join(process.cwd(), "CHANGELOG.md"),
 ];
 
 const defaultDesktopEnChangelogCandidates = [
   path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG_EN.md"),
   path.join(process.cwd(), "apps", "desktop", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "..", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "CHANGELOG_EN.md"),
 ];
 
 const defaultWebChangelogCandidates = [
