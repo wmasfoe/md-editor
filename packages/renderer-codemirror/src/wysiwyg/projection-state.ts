@@ -1,3 +1,29 @@
+/**
+ * @file projection-state.ts
+ * @description WYSIWYG 视觉投影状态机（Projection State Machine）。
+ *
+ * ## 核心职责
+ * 本模块是富文本所见即所得渲染与不可见结构化保护的中枢。
+ * 1. **视图投影（Layout Decorations）**：根据当前光标位置、活跃范围及折叠状态，
+ *    为标题、列表、代码块、表格、Frontmatter、MDX、自定义指令等构建视觉投影装饰集；
+ * 2. **原子选区（Atomic Ranges）**：为需要整体选择/删除的语法块（例如单选块、特殊标记）提供边界锁定；
+ * 3. **受保护区间（Protected Ranges）**：供 `change-protection.ts` 拦截非法的结构性直接键盘修改，
+ *    按 kind 区分放行规则（如整表原子选中后替换 vs 行内标记严格拒绝）；
+ * 4. **快速路径优化（Fast-Path）**：集成 G004 纯文本快速输入路径与 G006 视口可见区间过滤。
+ *
+ * ```text
+ * [Editor Transaction]
+ *         │
+ *         ▼
+ * [markdownRangeIndexField] ───► [WysiwygProjectionState Field]
+ *                                     │
+ *         ┌───────────────────────────┼───────────────────────────┐
+ *         ▼                           ▼                           ▼
+ * [layoutDecorations]         [atomicRanges]             [protectedRanges]
+ * (视觉 Widget/Replace)       (CodeMirror 选区锁定)      (改动保护与结构校验)
+ * ```
+ */
+
 import {
   Facet,
   StateEffect,

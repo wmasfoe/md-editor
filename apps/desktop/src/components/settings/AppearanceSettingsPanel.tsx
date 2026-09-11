@@ -1,3 +1,13 @@
+/**
+ * @file AppearanceSettingsPanel.tsx
+ * @module apps/desktop/components/settings/AppearanceSettingsPanel
+ * @description
+ * 外观与排版配置面板（Appearance Settings Panel）。
+ *
+ * 提供正文字体（Prose Font）、代码字体（Code Font）、字号滑块、代码行号开关、
+ * 色彩主题模式（跟随系统 / 浅色 / 深色）以及内置与自定义 CSS 主题选择器的交互设置。
+ */
+
 import {
   CODE_FONT_OPTIONS,
   PROSE_FONT_OPTIONS,
@@ -19,18 +29,32 @@ import {
   settingsSectionTitleClassName,
 } from "./settingsStyles";
 
+/**
+ * 外观设置面板组件属性接口。
+ */
 interface AppearanceSettingsPanelProps {
+  /** 当前编辑中的排版设置草稿 */
   readonly editorSettingsDraft: EditorDisplaySettings;
+  /** 当前编辑中的主题设置草稿 */
   readonly themeDraft: AppThemeSettings;
+  /** 排版设置变更回调 */
   readonly onChangeEditorSettings: (value: EditorDisplaySettings) => void;
+  /** 主题设置变更回调 */
   readonly onChangeTheme: (value: AppThemeSettings) => void;
+  /** 点击选择自定义 CSS 文件回调 */
   readonly onChooseThemeCss: (scheme: "light" | "dark") => void;
+  /** 清除自定义 CSS 文件恢复内置主题回调 */
   readonly onClearThemeCss: (scheme: "light" | "dark") => void;
 }
 
+/** 所见即所得编辑区正文字号最小值（像素） */
 const WYSIWYG_FONT_SIZE_MIN = 13;
+/** 所见即所得编辑区正文字号最大值（像素） */
 const WYSIWYG_FONT_SIZE_MAX = 22;
 
+/**
+ * 外观设置面板组件。
+ */
 export function AppearanceSettingsPanel({
   editorSettingsDraft,
   themeDraft,

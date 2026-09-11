@@ -1,3 +1,38 @@
+/**
+ * @file table-widget.ts
+ * @description 所见即所得可视化交互表格 Widget（Notion / Excel 级交互体验）。
+ *
+ * ## 架构与交互设计
+ * 本模块实现了 Markdown GFM 管道表格的原生 DOM 级可视化交互：
+ * 1. **就地编辑（In-place contenteditable）**：每个单元格为独立的 `contenteditable` 容器，
+ *    用户点击直接打字，并在 blur / Tab / Enter 时经 `table-editing.ts` 精确回写源文档 Markdown；
+ * 2. **Notion 式行列操作手柄（Actions Menu）**：表头与每行首提供悬停操作把手，
+ *    支持在上方/下方插入行、左侧/右侧插入列、删除行/列、设置文本对齐等操作；
+ * 3. **整表原子选择（Atomic Block Selection）**：点击表格边缘或拖拽选择时原子选中整张表格，
+ *    支持直接按 Delete/Backspace 整体清除，或直接输入新字符整体覆盖；
+ * 4. **生命周期与 WeakMap 状态解耦**：利用 `WeakMap` 将 DOM 节点与当前 `TableGridValue` 及活跃
+ *    编辑单元格解耦，确保 CodeMirror 增量 DOM 复用时不会产生内存泄漏或闭包陈旧状态。
+ *
+ * ```text
+ * [User DOM Event: Edit Cell / Click Action]
+ *                    │
+ *                    ▼
+ *       [table-widget.ts Listeners]
+ *                    │
+ *                    ▼
+ *       [table-editing.ts Operations]
+ *                    │
+ *                    ▼
+ *         [CM6 Transaction Dispatch]
+ *                    │
+ *                    ▼
+ *       [range-index Incremental Update]
+ *                    │
+ *                    ▼
+ *       [table-widget.ts updateDOM Sync]
+ * ```
+ */
+
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";

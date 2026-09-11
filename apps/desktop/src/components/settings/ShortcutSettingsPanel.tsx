@@ -1,3 +1,13 @@
+/**
+ * @file ShortcutSettingsPanel.tsx
+ * @module apps/desktop/components/settings/ShortcutSettingsPanel
+ * @description
+ * 快捷键配置面板组件（Shortcut Settings Panel）。
+ *
+ * 允许用户浏览系统内置与自定义按键绑定（Keybindings），
+ * 点击输入框按下物理按键实时捕获新组合键，并支持单项一键重置为默认值。
+ */
+
 import type { KeyboardEvent } from "react";
 import { useTranslation } from "@md-editor/i18n";
 import type { AppSettings } from "../../app/settings/app-settings";
@@ -14,13 +24,23 @@ import {
   settingsSmallButtonClassName,
 } from "./settingsStyles";
 
+/**
+ * 快捷键配置面板组件属性接口。
+ */
 interface ShortcutSettingsPanelProps {
+  /** 快捷键完整配置列表 */
   readonly shortcuts: AppSettings["shortcuts"];
+  /** 当前暂存未持久化的快捷键草稿映射表（id -> formattedKey） */
   readonly shortcutDrafts: Readonly<Record<string, string>>;
+  /** 捕获并更新指定快捷键草稿回调 */
   readonly onCaptureShortcut: (id: string, key: string) => void;
+  /** 重置指定快捷键为系统默认值回调 */
   readonly onResetShortcut: (id: string) => void;
 }
 
+/**
+ * 快捷键设置面板组件。
+ */
 export function ShortcutSettingsPanel({
   shortcuts,
   shortcutDrafts,
@@ -29,6 +49,9 @@ export function ShortcutSettingsPanel({
 }: ShortcutSettingsPanelProps) {
   const { t } = useTranslation();
 
+  /**
+   * 拦截输入框按键事件并将其转换为标准格式快捷键字符（如 "Mod-Shift-P"）。
+   */
   const captureShortcut = (id: string, event: KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault();
     event.stopPropagation();

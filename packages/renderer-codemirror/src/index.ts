@@ -1,3 +1,10 @@
+/**
+ * @file index.ts
+ * @description `@md-editor/renderer-codemirror` 公开 API 统一导出。
+ * 包含 CodeMirror 6 编辑器适配器、所见即所得交互命令、格式化按键绑定、
+ * AI 补全提示扩展、搜索面板、语法扩展插件机制与范围索引核心。
+ */
+
 export {
   createCodeMirrorRenderer,
   type CodeMirrorRenderer,

@@ -1,3 +1,14 @@
+//! # Save Runtime Concurrency Gate
+//!
+//! 提供文档保存事务的跨线程/跨进程代际（Epoch）与序列号（Sequence）并发协调保证：
+//! - **代际隔离（Epoch Isolation）**：每次文档切换或运行时重新附加（Attach）时单调递增 `current_epoch`，
+//!   并自动使所有前代尚未完成的落后写入请求作废（`RetiredEpoch`）；
+//! - **单调水位线（Monotonic Watermark）**：记录 `highest_admitted_sequence` 与 `highest_committed_sequence`，
+//!   拦截任何延迟到达或乱序到达的旧保存请求（`SupersededBeforeCommit`），防止旧内容覆盖新内容；
+//! - **毒化恢复（Poison Recovery）**：当并发线程发生 panic 时，安全捕获并恢复锁状态，
+//!   保证单例运行时不会永久死锁；
+//! - **关键区追踪（Critical Jobs Tracking）**：追踪正在执行文件落盘的关键区作业，确保原子提交与诊断。
+
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
@@ -11,6 +22,8 @@ use crate::platform_contract::is_main_webview;
 const MAX_JS_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 const TOKEN_ID_SEED_MODULUS: u64 = u32::MAX as u64;
 
+/// 线程安全的文档保存提交闸门。
+/// 跨前端 Webview 与 Tauri 原生保存作业协调并发与代际顺序。
 #[derive(Clone)]
 pub(crate) struct SaveCommitGate {
     inner: Arc<Mutex<SaveGateState>>,

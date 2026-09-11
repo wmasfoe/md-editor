@@ -1,3 +1,10 @@
+/**
+ * @file default-visualization.ts
+ * @description 兜底原子块（Default Atom）视觉投影与原子选区构造。
+ * 对于未定制专用富交互组件的语法块（如 Setext 标题、数学公式、自定义指令等），
+ * 以安全的降级挂件（DefaultAtomWidget）与完整选区保护呈现。
+ */
+
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
@@ -5,6 +12,9 @@ import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
 import { DefaultAtomWidget, type DefaultAtomWidgetValue } from "./widgets/default-atom-widget.ts";
 
+/**
+ * 构建降级兜底原子块的 Replace 装饰挂件。
+ */
 export function buildDefaultAtomLayoutDecorations(
   record: MarkdownRangeRecord,
   selected: boolean,

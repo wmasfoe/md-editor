@@ -1,3 +1,10 @@
+/**
+ * @file code-languages.ts
+ * @description Markdown 代码块语法高亮语言注册表与按需加载器。
+ * 包含主流编程语言（JavaScript, TypeScript, Python, Rust, Go, CSS 等）的动态导入配置、
+ * 别名匹配查询、加载状态观察者以及代码块基础高亮主题。
+ */
+
 import {
   LanguageDescription,
   LanguageSupport,
@@ -12,16 +19,28 @@ import { classHighlighter } from "@lezer/highlight";
 
 type MarkdownConfig = NonNullable<Parameters<typeof markdown>[0]>;
 
+/**
+ * 代码块语言加载过程观察者接口，用于性能监控与加载诊断。
+ */
 export interface CodeBlockLanguageLoadObserver {
+  /** 记录尝试加载语言包的次数 */
   recordLanguageLoadAttempt(): void;
+  /** 记录成功加载语言包的次数 */
   recordLanguageLoadSuccess(): void;
+  /** 记录语言包加载失败的次数 */
   recordLanguageLoadFailure(): void;
 }
 
+/**
+ * 包装基于 StreamParser 的经典 Legacy 语言支持。
+ */
 function loadLegacyLanguage<State>(parser: StreamParser<State>): LanguageSupport {
   return new LanguageSupport(StreamLanguage.define(parser));
 }
 
+/**
+ * 默认支持的 Markdown 代码块语言定义列表（动态延迟加载）。
+ */
 export const CODE_BLOCK_LANGUAGES: readonly LanguageDescription[] = Object.freeze([
   LanguageDescription.of({
     name: "Bash",
@@ -142,6 +161,13 @@ export const CODE_BLOCK_LANGUAGES: readonly LanguageDescription[] = Object.freez
   }),
 ]);
 
+/**
+ * 根据语言标记（如 "ts", "python", "sh"）检索对应的 LanguageDescription。
+ *
+ * @param token - 代码块首行的语言名称或别名
+ * @param languages - 可供查找的语言集合（默认 CODE_BLOCK_LANGUAGES）
+ * @returns 匹配的语言描述符，或未找到时返回 null
+ */
 export function findCodeBlockLanguage(
   token: string,
   languages: readonly LanguageDescription[] = CODE_BLOCK_LANGUAGES,
@@ -152,6 +178,12 @@ export function findCodeBlockLanguage(
   return languages.find((language) => language.alias.includes(normalizedAlias)) ?? null;
 }
 
+/**
+ * 包装语言描述符集合，在动态触发语言包异步加载时通知 observer 记录性能与异常。
+ *
+ * @param languages - 原始语言列表
+ * @param observer - 观察者实例
+ */
 export function observeCodeBlockLanguageLoads(
   languages: readonly LanguageDescription[],
   observer: CodeBlockLanguageLoadObserver,
@@ -179,6 +211,9 @@ export function observeCodeBlockLanguageLoads(
   );
 }
 
+/**
+ * 代码块 Token 语法高亮扩展（结合主题 CSS 变量）。
+ */
 export const codeBlockTokenHighlighting: Extension = [
   syntaxHighlighting(classHighlighter),
   EditorView.baseTheme({
@@ -202,6 +237,12 @@ export const codeBlockTokenHighlighting: Extension = [
   }),
 ];
 
+/**
+ * 创建集成了代码块动态语言解析的 CodeMirror Markdown 语言支持扩展。
+ *
+ * @param config - 基础 Markdown 配置
+ * @param languageLoadObserver - 可选的语言包加载观察器
+ */
 export function createMarkdownLanguageSupport(
   config: Omit<MarkdownConfig, "codeLanguages"> = {},
   languageLoadObserver?: CodeBlockLanguageLoadObserver,
