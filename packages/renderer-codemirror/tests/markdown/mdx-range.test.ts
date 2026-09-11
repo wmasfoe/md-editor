@@ -1,6 +1,6 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { buildMarkdownRangeIndex, mdxModeFacet } from "../../src/markdown/range-index.ts";
@@ -11,7 +11,8 @@ function buildRecords(source: string): readonly MarkdownRangeRecord[] {
     doc: source,
     extensions: [markdown({ extensions: M1_MARKDOWN_EXTENSIONS }), mdxModeFacet.of(true)],
   });
-  return buildMarkdownRangeIndex(source, syntaxTree(state), { mdxMode: true }).records;
+  const tree = ensureSyntaxTree(state, source.length, 5000) ?? syntaxTree(state);
+  return buildMarkdownRangeIndex(source, tree, { mdxMode: true }).records;
 }
 
 function byKind(
