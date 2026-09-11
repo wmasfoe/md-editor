@@ -8,7 +8,7 @@
 
 | 端标识 | 对应工作区 | 版本管理与发版命令 | Git Tag 触发契约 | 关联更新日志 | CI/CD 工作流 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*`<br>(例: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md`<br>（根目录同名镜像） | `.github/workflows/release-desktop.yml` |
+| **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*` / `desktop-v*`<br>(基线: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md`<br>（根目录同名镜像） | `.github/workflows/release-desktop.yml` |
 | **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version` | `web-v*`<br>(例: `web-v0.2.0`) | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
 | **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取双端中英文 Changelog 并在官网支持双语切换展示 | 静态部署 / Vercel CLI |
 
@@ -19,14 +19,14 @@
 ### 2.1 脚本说明
 - **`pnpm release:desktop:version`** (`scripts/release/version-desktop.mjs`)：
   - 仅自增版本号（支持 patch/minor/major/beta/custom）并生成更新日志条目；
-  - 同步更新根目录 `package.json`、`apps/desktop/package.json`、`tauri.conf.json`、`Cargo.toml`；
+  - 同步更新桌面端核心文件（`apps/desktop/package.json`、`tauri.conf.json`、`Cargo.toml`；根目录 `package.json` 保持为 `0.0.0` 容器占位不耦合各端）；
   - 同步写入 `CHANGELOG.md` 与 `apps/desktop/CHANGELOG.md`（英文对照维护于同级 `CHANGELOG_EN.md`）；
   - **不**创建 commit 或推送 tag。
 - **`pnpm release:desktop`** (`scripts/release/publish-desktop.mjs`)：
   - 包含上述版本号自增与日志记录；
   - 本地运行构建自检；
   - 自动创建 `chore: release vX.Y.Z` 提交；
-  - 自动打带附注的 `vX.Y.Z` tag；
+  - 自动打带附注的 `vX.Y.Z` tag（工作流与客户端同时具备对 `desktop-v*` 的向前兼容）；
   - 推送至远程主干触发 `.github/workflows/release-desktop.yml` 跨平台多架构打包与发布。
 
 ### 2.2 常用指令

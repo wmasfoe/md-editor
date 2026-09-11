@@ -24,7 +24,7 @@ pnpm release:desktop
 
 脚本会引导选择 `patch` / `minor` / `major` / `beta` 或具体版本号，并填写本次更新说明，然后自动：
 
-1. 调用 `pnpm release:desktop:version` 同步版本文件（root package、desktop、Tauri、Cargo）。
+1. 调用 `pnpm release:desktop:version` 同步版本文件（desktop、Tauri、Cargo；根目录 package.json 固定为 0.0.0 容器占位）。
 2. 把本次说明同时写入根目录 `CHANGELOG.md` 与 `apps/desktop/CHANGELOG.md`（新版本 section；已存在则失败，避免覆盖）。
 3. 本地构建自检并创建版本 commit。
 4. 创建 `v版本号` tag（例如 `v0.10.2`）。

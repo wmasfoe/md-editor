@@ -16,7 +16,6 @@ const releaseFiles = [
   desktopChangelogPath,
   changelogEnPath,
   desktopChangelogEnPath,
-  "package.json",
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
   "apps/desktop/src-tauri/Cargo.toml",

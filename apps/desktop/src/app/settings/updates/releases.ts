@@ -193,19 +193,43 @@ function findLatestMdEditorRelease(payload: unknown): PublishedRelease | null {
   return null;
 }
 
-function parsePublishedVersionTag(tagName: string | null): string | null {
+/**
+ * 解析桌面端 Release 的 Tag 名称并提取纯 SemVer 版本号。
+ *
+ * 兼容模式：
+ * 1. Homebrew Tap 格式: md-editor-vX.Y.Z 或 md-editor-desktop-vX.Y.Z
+ * 2. 桌面端规范格式（前瞻支持）: desktop-vX.Y.Z 或 desktop-X.Y.Z
+ * 3. 桌面端传统格式（当前基线）: vX.Y.Z
+ *
+ * 严格过滤：
+ * - 排除 web-v*、mobile-v*、site-v* 等非桌面客户端 Tag
+ * - 确保提取出的版本号符合语义化版本（SemVer）
+ */
+export function parsePublishedVersionTag(tagName: string | null): string | null {
   const value = tagName?.trim();
   if (!value) {
     return null;
   }
 
-  const tapReleaseMatch = value.match(/^md-editor-v(.+)$/u);
-  if (tapReleaseMatch) {
-    return tapReleaseMatch[1] ?? null;
+  // 1. 匹配 Tap Release: md-editor-desktop-v1.0.0 / md-editor-v1.0.0
+  const tapReleaseMatch = value.match(/^md-editor-(?:desktop-)?v?(.+)$/u);
+  if (tapReleaseMatch && parseSemver(tapReleaseMatch[1])) {
+    return tapReleaseMatch[1];
   }
 
+  // 2. 匹配未来规范的桌面端 Release: desktop-v1.0.0 / desktop-1.0.0
+  const desktopReleaseMatch = value.match(/^desktop-v?(.+)$/u);
+  if (desktopReleaseMatch && parseSemver(desktopReleaseMatch[1])) {
+    return desktopReleaseMatch[1];
+  }
+
+  // 3. 匹配当前常规 Release: v1.0.0 (排除 web-v* / mobile-v* 等)
   const sourceReleaseMatch = value.match(/^v(.+)$/u);
-  return sourceReleaseMatch?.[1] ?? null;
+  if (sourceReleaseMatch && parseSemver(sourceReleaseMatch[1])) {
+    return sourceReleaseMatch[1];
+  }
+
+  return null;
 }
 
 function readDmgDownloadUrl(input: unknown): string | undefined {

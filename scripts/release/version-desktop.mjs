@@ -4,7 +4,6 @@ import readline from "node:readline";
 import {
   cargoManifestPath,
   desktopPackagePath,
-  rootPackagePath,
   readJson,
   tauriConfigPath,
   updateCargoManifest,
@@ -214,7 +213,6 @@ async function main() {
 
   if (argTarget) {
     const nextVersion = bumpVersion(currentVersion, argTarget);
-    updatePackageJson(rootPackagePath, nextVersion);
     updatePackageJson(desktopPackagePath, nextVersion);
     updateTauriConfig(nextVersion);
     updateCargoManifest(nextVersion);
@@ -283,7 +281,6 @@ async function main() {
     },
   );
 
-  updatePackageJson(rootPackagePath, nextVersion);
   updatePackageJson(desktopPackagePath, nextVersion);
   updateTauriConfig(nextVersion);
   updateCargoManifest(nextVersion);
