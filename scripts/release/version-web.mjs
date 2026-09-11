@@ -1,28 +1,22 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import readline from "node:readline";
-import {
-  cargoManifestPath,
-  desktopPackagePath,
-  rootPackagePath,
-  readJson,
-  tauriConfigPath,
-  updateCargoManifest,
-  updatePackageJson,
-  updateTauriConfig,
-} from "./version-files.mjs";
-import { formatPrSuffix } from "./changelog.mjs";
+import { updateChangelogFile } from "./changelog.mjs";
 
-const changelogPath = "CHANGELOG.md";
-const desktopChangelogPath = "apps/desktop/CHANGELOG.md";
+const webPackagePath = "apps/web/package.json";
+const webChangelogPath = "apps/web/CHANGELOG.md";
 
-function assertSemver(version) {
+export function readWebVersion() {
+  const pkg = JSON.parse(fs.readFileSync(webPackagePath, "utf8"));
+  return pkg.version;
+}
+
+export function assertSemver(version) {
   if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
     throw new Error(`Expected a semver version, got "${version}".`);
   }
 }
 
-function bumpVersion(currentVersion, bump) {
+export function bumpWebVersion(currentVersion, bump) {
   if (!["major", "minor", "patch", "beta"].includes(bump)) {
     assertSemver(bump);
     return bump;
@@ -49,36 +43,15 @@ function bumpVersion(currentVersion, bump) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
-function updateSingleChangelog(filePath, version, changes, pr) {
-  if (!fs.existsSync(filePath)) {
-    return;
+export function updateWebPackageJson(version) {
+  const contents = fs.readFileSync(webPackagePath, "utf8");
+  const nextContents = contents.replace(/^(\s{2}"version"\s*:\s*)"[^"]*"/mu, `$1"${version}"`);
+
+  if (nextContents === contents) {
+    throw new Error(`Unable to find top-level version in ${webPackagePath}.`);
   }
-  const changelog = fs.readFileSync(filePath, "utf8");
-  const today = new Date().toISOString().split("T")[0];
-  const prSuffix = formatPrSuffix(pr);
 
-  const changeList = changes
-    .map((line) => (line.match(/^[-*]\s+/u) ? line : `- ${line}`))
-    .join("\n");
-  const newEntry = `## ${version} - ${today}${prSuffix}\n\n${changeList}\n\n`;
-
-  // 在第一个 ## 之前插入新条目
-  const firstVersionIndex = changelog.indexOf("## ");
-  if (firstVersionIndex === -1) {
-    // 如果没有找到版本条目，在 "# Changelog" 后插入
-    const headerEnd = changelog.indexOf("\n") + 1;
-    const updated = changelog.slice(0, headerEnd) + "\n" + newEntry + changelog.slice(headerEnd);
-    fs.writeFileSync(filePath, updated);
-  } else {
-    const updated =
-      changelog.slice(0, firstVersionIndex) + newEntry + changelog.slice(firstVersionIndex);
-    fs.writeFileSync(filePath, updated);
-  }
-}
-
-function updateChangelog(version, changes, pr) {
-  updateSingleChangelog(changelogPath, version, changes, pr);
-  updateSingleChangelog(desktopChangelogPath, version, changes, pr);
+  fs.writeFileSync(webPackagePath, nextContents);
 }
 
 // 交互式选择版本类型
@@ -91,15 +64,14 @@ async function selectVersionType(currentVersion) {
   const options = ["patch", "minor", "major", "beta", "custom"];
   let selectedIndex = 0;
 
-  // 计算预览版本
   const previewVersions = options.map((opt) => {
     if (opt === "custom") return "x.y.z";
-    return bumpVersion(currentVersion, opt);
+    return bumpWebVersion(currentVersion, opt);
   });
 
   const renderMenu = () => {
     console.clear();
-    console.log(`\n当前版本: ${currentVersion}\n`);
+    console.log(`\n当前 Web 端版本: ${currentVersion}\n`);
     console.log("请选择版本类型 (使用 ↑/↓ 方向键选择, Enter 确认):\n");
 
     options.forEach((option, index) => {
@@ -162,7 +134,7 @@ async function inputChangelogEntries() {
     output: process.stdout,
   });
 
-  console.log("\n请输入本次更新内容 (每行一条，空行结束):\n");
+  console.log("\n请输入本次 Web 端更新内容 (每行一条，空行结束):\n");
 
   const changes = [];
 
@@ -207,25 +179,15 @@ async function inputPr() {
 
 // 主流程
 async function main() {
-  const currentVersion = readJson(tauriConfigPath).version;
+  const currentVersion = readWebVersion();
   const prArgIndex = process.argv.indexOf("--pr");
   const prArg = prArgIndex !== -1 ? process.argv[prArgIndex + 1] : undefined;
   const argTarget = process.argv[2] && process.argv[2] !== "--pr" ? process.argv[2] : undefined;
 
   if (argTarget) {
-    const nextVersion = bumpVersion(currentVersion, argTarget);
-    updatePackageJson(rootPackagePath, nextVersion);
-    updatePackageJson(desktopPackagePath, nextVersion);
-    updateTauriConfig(nextVersion);
-    updateCargoManifest(nextVersion);
-    try {
-      execFileSync("cargo", ["update", "--manifest-path", cargoManifestPath, "-w"], {
-        stdio: "inherit",
-      });
-    } catch {
-      // cargo update fallback
-    }
-    console.log(`\n✅ 版本文件更新完成: ${currentVersion} -> ${nextVersion}`);
+    const nextVersion = bumpWebVersion(currentVersion, argTarget);
+    updateWebPackageJson(nextVersion);
+    console.log(`\n✅ Web 版本文件更新完成: ${currentVersion} -> ${nextVersion}`);
     return;
   }
 
@@ -235,8 +197,8 @@ async function main() {
   // 2. 如果选择 custom，输入自定义版本号
   const nextVersion =
     versionType === "custom"
-      ? bumpVersion(currentVersion, await inputCustomVersion())
-      : bumpVersion(currentVersion, versionType);
+      ? bumpWebVersion(currentVersion, await inputCustomVersion())
+      : bumpWebVersion(currentVersion, versionType);
 
   // 3. 输入更新内容
   const changes = await inputChangelogEntries();
@@ -245,7 +207,7 @@ async function main() {
   const pr = prArg ?? (await inputPr());
 
   // 5. 确认信息
-  console.log("\n=== 发布信息确认 ===");
+  console.log("\n=== Web 发布信息确认 ===");
   console.log(`版本: ${currentVersion} -> ${nextVersion}`);
   if (pr) {
     console.log(`关联 PR: #${pr}`);
@@ -272,37 +234,30 @@ async function main() {
     process.exit(0);
   }
 
-  // 5. 执行更新
-  console.log("\n开始更新版本...");
-
-  execFileSync(
-    "cargo",
-    ["metadata", "--manifest-path", cargoManifestPath, "--no-deps", "--format-version", "1"],
-    {
-      stdio: "ignore",
-    },
-  );
-
-  updatePackageJson(rootPackagePath, nextVersion);
-  updatePackageJson(desktopPackagePath, nextVersion);
-  updateTauriConfig(nextVersion);
-  updateCargoManifest(nextVersion);
-  updateChangelog(nextVersion, changes, pr);
-
-  execFileSync("cargo", ["update", "--manifest-path", cargoManifestPath, "-w"], {
-    stdio: "inherit",
+  // 6. 执行更新
+  console.log("\n开始更新 Web 版本...");
+  updateWebPackageJson(nextVersion);
+  updateChangelogFile({
+    path: webChangelogPath,
+    version: nextVersion,
+    notes: changes.join("\n"),
+    pr,
   });
 
-  console.log(`\n✅ 版本更新完成: ${currentVersion} -> ${nextVersion}`);
-  console.log(`✅ CHANGELOG.md 与 apps/desktop/CHANGELOG.md 已更新`);
+  console.log(`\n✅ Web 版本更新完成: ${currentVersion} -> ${nextVersion}`);
+  console.log(`✅ apps/web/CHANGELOG.md 已更新`);
   console.log(`\n下一步:`);
   console.log(`  1. 检查更改: git diff`);
-  console.log(`  2. 提交更改: git add . && git commit -m "chore: release v${nextVersion}"`);
+  console.log(
+    `  2. 提交更改: git add . && git commit -m "chore(web): release web-v${nextVersion}"`,
+  );
   console.log(`  3. 推送到远程: git push origin main`);
-  console.log(`  4. 打标签: git tag v${nextVersion} && git push origin v${nextVersion}`);
+  console.log(`  4. 打标签: git tag web-v${nextVersion} && git push origin web-v${nextVersion}`);
 }
 
-main().catch((error) => {
-  console.error("\n❌ 错误:", error.message);
-  process.exit(1);
-});
+if (process.argv[1] && process.argv[1].endsWith("version-web.mjs")) {
+  main().catch((error) => {
+    console.error("\n❌ 错误:", error.message);
+    process.exit(1);
+  });
+}

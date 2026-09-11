@@ -26,3 +26,5 @@
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
 - 国际化 (i18n) 架构与多语言扩展方案： [i18n_architecture.md](./i18n_architecture.md)
   记录 `@md-editor/i18n` 独立包设计、Type-Safe 字典、全应用多语言接入方案及后续新增语言指南。
+- 代码库模块化拆分、并发保序保存调度与多端发版架构方案： [codebase_modularization_and_concurrency_architecture.md](./codebase_modularization_and_concurrency_architecture.md)
+  记录巨型单体文件拆解与全量注释规范、串行异步保存调度器（防抖/手动并发保护）以及桌面端与 Web 端发版解耦架构。
