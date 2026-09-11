@@ -4,7 +4,6 @@ import readline from "node:readline";
 import {
   cargoManifestPath,
   desktopPackagePath,
-  rootPackagePath,
   readJson,
   tauriConfigPath,
   updateCargoManifest,
@@ -13,7 +12,6 @@ import {
 } from "./version-files.mjs";
 import { formatPrSuffix } from "./changelog.mjs";
 
-const changelogPath = "CHANGELOG.md";
 const desktopChangelogPath = "apps/desktop/CHANGELOG.md";
 
 function assertSemver(version) {
@@ -77,7 +75,6 @@ function updateSingleChangelog(filePath, version, changes, pr) {
 }
 
 function updateChangelog(version, changes, pr) {
-  updateSingleChangelog(changelogPath, version, changes, pr);
   updateSingleChangelog(desktopChangelogPath, version, changes, pr);
 }
 
@@ -214,7 +211,6 @@ async function main() {
 
   if (argTarget) {
     const nextVersion = bumpVersion(currentVersion, argTarget);
-    updatePackageJson(rootPackagePath, nextVersion);
     updatePackageJson(desktopPackagePath, nextVersion);
     updateTauriConfig(nextVersion);
     updateCargoManifest(nextVersion);
@@ -283,7 +279,6 @@ async function main() {
     },
   );
 
-  updatePackageJson(rootPackagePath, nextVersion);
   updatePackageJson(desktopPackagePath, nextVersion);
   updateTauriConfig(nextVersion);
   updateCargoManifest(nextVersion);
@@ -294,7 +289,7 @@ async function main() {
   });
 
   console.log(`\n✅ 版本更新完成: ${currentVersion} -> ${nextVersion}`);
-  console.log(`✅ CHANGELOG.md 与 apps/desktop/CHANGELOG.md 已更新`);
+  console.log(`✅ apps/desktop/CHANGELOG.md 已更新`);
   console.log(`\n下一步:`);
   console.log(`  1. 检查更改: git diff`);
   console.log(`  2. 提交更改: git add . && git commit -m "chore: release v${nextVersion}"`);

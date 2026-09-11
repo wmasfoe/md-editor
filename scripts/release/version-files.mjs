@@ -4,7 +4,6 @@
  */
 import fs from "node:fs";
 
-export const rootPackagePath = "package.json";
 export const desktopPackagePath = "apps/desktop/package.json";
 export const cargoManifestPath = "apps/desktop/src-tauri/Cargo.toml";
 export const cargoLockPath = "apps/desktop/src-tauri/Cargo.lock";

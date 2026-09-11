@@ -19,7 +19,6 @@ import {
   cargoManifestPath,
   updateCargoLock,
   desktopPackagePath,
-  rootPackagePath,
   readJson,
   tauriConfigPath,
   updateCargoManifest,
@@ -44,18 +43,16 @@ const baseVersion = `${versionMatch[1]}.${versionMatch[2]}.${Number.parseInt(ver
 // 例如 `beta.0123456` 不是合法的 Cargo SemVer prerelease。
 const betaVersion = `${baseVersion}-beta.sha${shortSha}`;
 
-updatePackageJson(rootPackagePath, betaVersion);
 updatePackageJson(desktopPackagePath, betaVersion);
 updateTauriConfig(betaVersion);
 updateCargoManifest(betaVersion);
 updateCargoLock(betaVersion);
 
-// 写回后校验四处一致，防止部分更新导致 Tauri 打包失败。
+// 写回后校验桌面端三处一致，防止部分更新导致 Tauri 打包失败。
 const cargoVersion = fs
   .readFileSync(cargoManifestPath, "utf8")
   .match(/^\s*version\s*=\s*"([^"]+)"/m)?.[1];
 const versions = [
-  readJson(rootPackagePath).version,
   readJson(desktopPackagePath).version,
   readJson(tauriConfigPath).version,
   cargoVersion,

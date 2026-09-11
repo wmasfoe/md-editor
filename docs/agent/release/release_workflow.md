@@ -23,8 +23,8 @@
 
 | 命令 | 对应脚本 | 说明 |
 | :--- | :--- | :--- |
-| `pnpm release:desktop` | `scripts/release/publish-desktop.mjs` | 桌面端完整发版流程（版本更新、双 Changelog 写入、commit、`v*` tag 与 push） |
-| `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端版本文件（root package, desktop package, Tauri, Cargo）与 Changelog |
+| `pnpm release:desktop` | `scripts/release/publish-desktop.mjs` | 桌面端完整发版流程（版本更新、Changelog 写入、commit、`v*` tag 与 push，同时支持 `desktop-v*`） |
+| `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端核心版本文件（desktop package, Tauri, Cargo；root package 固定为 `0.0.0` 容器占位）与 `apps/desktop/CHANGELOG.md` |
 | `pnpm release:web` | `scripts/release/publish-web.mjs` | Web 端完整发版流程（版本更新、`apps/web/CHANGELOG.md` 写入、构建自检、commit、`web-v*` tag 与 push） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
 | `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口 |
@@ -32,16 +32,16 @@
 ## 相关文件索引
 
 - `.github/workflows/build-desktop.yml`: PR 和手动触发的跨平台校验构建入口。
-- `.github/workflows/release-desktop.yml`: `v*` tag 触发的桌面端 GitHub Release 和 Homebrew tap 同步入口。
+- `.github/workflows/release-desktop.yml`: `v*` / `desktop-v*` tag 触发的桌面端 GitHub Release 和 Homebrew tap 同步入口。
 - `.github/workflows/release-web.yml`: `web-v*` tag 触发的 Web 端 GitHub Release 工作流。
 - `.github/workflows/release-beta.yml`: `beta` 分支 push 触发的桌面端 beta 预发布构建入口。
-- `scripts/release/version-desktop.mjs`: 同步更新 root package、desktop package、Tauri config、Cargo manifest 的版本号，并同步更新 `CHANGELOG.md` 与 `apps/desktop/CHANGELOG.md`。
+- `scripts/release/version-desktop.mjs`: 同步更新 desktop package、Tauri config、Cargo manifest 的版本号（root package 保持 `0.0.0` 容器占位），并更新 `apps/desktop/CHANGELOG.md`。
 - `scripts/release/publish-desktop.mjs`: 交互式桌面端发版编排脚本。
 - `scripts/release/version-web.mjs`: 更新 `apps/web/package.json` 与 `apps/web/CHANGELOG.md`。
 - `scripts/release/publish-web.mjs`: 交互式 Web 端发版编排脚本。
 - `scripts/release/changelog.mjs`: Changelog 解析与更新共享工具模块。
 - `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；由 `pnpm release:site` 触发。
-- `CHANGELOG.md` & `apps/desktop/CHANGELOG.md`: 桌面端更新历史（双向保持一致）。
+- `apps/desktop/CHANGELOG.md`: 桌面端更新历史。
 - `apps/web/CHANGELOG.md`: Web 在线端更新历史。
 
 ## 必需 Secret
