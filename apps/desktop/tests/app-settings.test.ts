@@ -554,4 +554,32 @@ describe("app settings", () => {
     expect(custom.enabled["markdown.directive"]).toBe(false);
     expect(custom.enabled["unknown.plugin"]).toBe(true);
   });
+
+  it("formats keyboardShortcutLabel according to platform modifier conventions", () => {
+    // macOS: Control -> Option -> Command -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "mac")).toBe("Option+Command+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "mac")).toBe("Command+Shift+B");
+    expect(keyboardShortcutLabel("Ctrl-Alt-Mod-Shift-B", "mac")).toBe(
+      "Control+Option+Command+Shift+B",
+    );
+
+    // Windows: Ctrl -> Win -> Alt -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "windows")).toBe("Ctrl+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "windows")).toBe("Ctrl+Shift+B");
+    expect(keyboardShortcutLabel("Ctrl-Win-Alt-Shift-B", "windows")).toBe("Ctrl+Win+Alt+Shift+B");
+
+    // Linux: Ctrl -> Super -> Alt -> Shift
+    expect(keyboardShortcutLabel("Mod-Alt-T", "linux")).toBe("Ctrl+Alt+T");
+    expect(keyboardShortcutLabel("Mod-Shift-B", "linux")).toBe("Ctrl+Shift+B");
+    expect(keyboardShortcutLabel("Ctrl-Win-Alt-Shift-B", "linux")).toBe("Ctrl+Super+Alt+Shift+B");
+  });
+
+  it("normalizes user-facing shortcut strings into canonical keymap format", () => {
+    expect(normalizeShortcutKey("Option+Command+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Command+Option+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Ctrl+Alt+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Alt+Ctrl+T")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Command+Shift+B")).toBe("Mod-Shift-B");
+    expect(normalizeShortcutKey("Ctrl+Shift+B")).toBe("Mod-Shift-B");
+  });
 });
