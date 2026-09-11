@@ -1,3 +1,13 @@
+/**
+ * @file completion.ts
+ * @module @md-editor/ai
+ * @description
+ * AI 智能写作、行内续写与语法修复调度器。
+ *
+ * 负责组装光标上下文 Prompt、调度远端（OpenAI 兼容 / DeepSeek）或本地 GGUF SLM 模型推理、
+ * 并将模型返回的原始输出（JSON 或 Tuple-Diff 协议）解析校验为编辑器易于呈现的结构化建议。
+ */
+
 import { resolveCapabilityProfile } from "./slm-protocol.ts";
 
 import {
@@ -13,6 +23,9 @@ import type {
   AiWritingSuggestion,
 } from "./types.ts";
 
+/**
+ * OpenAI 兼容 Chat Completion API 响应接口定义。
+ */
 interface OpenAiChatCompletionResponse {
   readonly choices?: Array<{
     readonly message?: {
@@ -24,17 +37,35 @@ interface OpenAiChatCompletionResponse {
   };
 }
 
+/**
+ * 送入模型 Prompt 的结构化上下文数据。
+ */
 export interface AiPromptContext {
+  /** 光标前的上下文文本（已按窗口截断） */
   readonly before: string;
+  /** 当前用户选中的文本或待检行 */
   readonly selectedText: string;
+  /** 光标后的上下文文本（已按窗口截断） */
   readonly after: string;
+  /** 当前编辑模式 */
   readonly mode: AiContextSnapshot["mode"];
+  /** 当前文档路径（若存在） */
   readonly filePath?: string | null;
 }
 
+/** 默认网络请求超时时间（毫秒） */
 const DEFAULT_AI_TIMEOUT_MS = 30_000;
+
+/** 发送给模型的上下文截断窗口大小（字符数） */
 const CONTEXT_WINDOW = 3_000;
 
+/**
+ * 检查当前 AI 环境是否已就绪可发起推理请求。
+ *
+ * @param settings 当前 AI 配置
+ * @param intent 推理意图 ("continuation" 续写, "editing" 纠错, "distill" 总结提炼, "both" 两者兼顾)
+ * @returns 若未就绪返回具体的用户友好提示信息；若就绪则返回 null
+ */
 export function getAiCompletionReadiness(
   settings: AiSettings,
   intent: "continuation" | "editing" | "both" | "distill" = "both",
@@ -89,6 +120,16 @@ export function getAiCompletionReadiness(
   return null;
 }
 
+/**
+ * 发起 AI 智能写作建议请求。
+ *
+ * 统一调度入口：根据当前的 `settings.provider` 路由到本地模型或云端 API。
+ *
+ * @param settings AI 设置
+ * @param context 当前编辑器的光标上下文快照
+ * @param options 请求控制选项（信号量、超时、意图等）
+ * @returns 解析与过滤后的结构化 AI 建议对象
+ */
 export async function requestAiContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
@@ -106,6 +147,13 @@ export async function requestAiContinuation(
   return requestOpenAiCompatibleContinuation(settings, context, options);
 }
 
+/**
+ * 构造用于 OpenAI 兼容端点的 HTTP POST 请求体。
+ *
+ * @param settings AI 设置
+ * @param context 光标上下文快照
+ * @param options 请求选项
+ */
 export function createOpenAiCompatibleRequestBody(
   settings: AiSettings,
   context: AiContextSnapshot,
@@ -163,6 +211,9 @@ export function createOpenAiCompatibleRequestBody(
   };
 }
 
+/**
+ * 根据快照截取受限上下文窗口以注入 Prompt。
+ */
 export function createAiPromptContext(snapshot: AiContextSnapshot): AiPromptContext {
   return {
     before: trimBeforeContext(snapshot.before),
@@ -175,6 +226,9 @@ export function createAiPromptContext(snapshot: AiContextSnapshot): AiPromptCont
   };
 }
 
+/**
+ * 构造用于建议缓存查找的哈希特征种子串。
+ */
 export function createAiContextCacheSeed(snapshot: AiContextSnapshot): string {
   return JSON.stringify({
     before: trimBeforeContext(snapshot.before),
@@ -190,6 +244,9 @@ function shouldDisableDeepSeekThinking(settings: AiSettings): boolean {
   return settings.provider === "deepseek";
 }
 
+/**
+ * 向 OpenAI 兼容协议服务端发起网络请求。
+ */
 async function requestOpenAiCompatibleContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
@@ -238,6 +295,9 @@ async function requestOpenAiCompatibleContinuation(
   }
 }
 
+/**
+ * 向本地 GGUF SLM 运行时发起推理请求（通过平台注入的 invoke 桥接）。
+ */
 async function requestLocalAiContinuation(
   settings: AiSettings,
   context: AiContextSnapshot,
@@ -385,6 +445,9 @@ async function requestLocalAiContinuation(
   }
 }
 
+/**
+ * 包装异步操作以响应 AbortSignal 取消。
+ */
 function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
     return Promise.reject(createAbortError());
@@ -413,6 +476,9 @@ function createAbortError(): DOMException {
   return new DOMException("AI continuation aborted.", "AbortError");
 }
 
+/**
+ * 根据用户配置的功能开关过滤建议内容（防止配置关闭的功能依然回显）。
+ */
 function filterAiSuggestionBySettings(
   suggestion: AiWritingSuggestion,
   settings: AiSettings,
@@ -430,6 +496,12 @@ function filterAiSuggestionBySettings(
   };
 }
 
+/**
+ * 解析云端或兼容格式模型返回的建议文本（支持裸 JSON 或嵌入 Markdown 代码围栏）。
+ *
+ * @param content 原始文本内容
+ * @param targetText 目标原文（用于校准精确字符偏移）
+ */
 export function parseAiWritingSuggestion(
   content: string,
   targetText?: string,
@@ -530,7 +602,7 @@ function normalizeEditSuggestion(
 }
 
 /**
- * 过滤或剥离模型可能输出的思维链（Reasoning / Thinking）标签与思考文本
+ * 过滤或剥离模型可能输出的思维链（Reasoning / Thinking）标签与思考文本。
  */
 export function stripThinkingTags(text: string): string {
   // 1. 去除完整的 <think>...</think> 块（包括跨行）

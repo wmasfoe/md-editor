@@ -1,3 +1,17 @@
+/**
+ * @file EditorTitleBarControls.tsx
+ * @module apps/desktop/components/EditorTitleBarControls
+ * @description
+ * macOS 风格编辑器自定义标题栏控制区组件。
+ *
+ * 位于主窗口右上角，包含：
+ * 1. 软件更新提示与快速升级触发按钮；
+ * 2. AI 智能写作快捷助手菜单（语法纠错、行内续写、AI 设置）；
+ * 3. 实时文档统计信息微件（字数、行数、字符数切换）；
+ * 4. 大纲导航 Popover 弹窗（点击跳转到文档各级标题）；
+ * 5. 工作空间侧边栏显隐切换按钮。
+ */
+
 import { useMemo, useState } from "react";
 import { useTranslation } from "@md-editor/i18n";
 import {
@@ -30,11 +44,16 @@ import { useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
 import { editorUpdateActionLabel } from "./settings/settingsUtils";
 import { cx } from "../lib/cx";
 
+/** 标题栏次要图标按钮通用 CSS 类 */
 const titleBarSecondaryButtonClassName =
   "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
+/** 支持的文档度量指标列表 */
 const documentMetricKinds: readonly DocumentMetricKind[] = ["words", "lines", "characters"];
 
+/**
+ * 编辑器标题栏控制组件。
+ */
 export function EditorTitleBarControls() {
   const { t } = useTranslation();
   const { updateStatus, openSettings } = useAppSettings();
@@ -100,13 +119,19 @@ export function EditorTitleBarControls() {
   );
 }
 
+/**
+ * AI 智能写作快捷助手菜单微件。
+ */
 function AiWritingMenu({
   onFixGrammar,
   onContinueWriting,
   onOpenSettings,
 }: {
+  /** 触发语法纠错指令 */
   readonly onFixGrammar: () => void;
+  /** 触发续写指令 */
   readonly onContinueWriting: () => void;
+  /** 打开设置面板 */
   readonly onOpenSettings: () => void;
 }) {
   const { t } = useTranslation();
@@ -174,13 +199,19 @@ function AiWritingMenu({
   );
 }
 
+/**
+ * 文档度量指标切换微件（词数、行数、字符数）。
+ */
 function DocumentMetricMenu({
   metricKind,
   metrics,
   onMetricKindChange,
 }: {
+  /** 当前选中的度量指标类别 */
   readonly metricKind: DocumentMetricKind;
+  /** 文档实时度量数值集合 */
   readonly metrics: ReturnType<typeof calculateDocumentMetrics>;
+  /** 指标切换回调 */
   readonly onMetricKindChange: (kind: DocumentMetricKind) => void;
 }) {
   const { t } = useTranslation();
@@ -225,18 +256,24 @@ function DocumentMetricMenu({
   );
 }
 
+/**
+ * 文档大纲（TOC）气泡微件。
+ */
 function OutlinePopover({
   outline,
   activeOutlineId,
   onJumpToOutlineItem,
 }: {
+  /** 提取的大纲条目列表 */
   readonly outline: readonly {
     readonly id: string;
     readonly level: number;
     readonly text: string;
     readonly line: number;
   }[];
+  /** 当前阅读位置对应的活跃标题 ID */
   readonly activeOutlineId: string | null;
+  /** 点击标题跳转回调 */
   readonly onJumpToOutlineItem: (target: {
     readonly line: number;
     readonly level: number;
