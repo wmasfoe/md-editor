@@ -97,3 +97,17 @@ describe("extractPrNumbers", () => {
     expect(extractPrNumbers(undefined)).toEqual([]);
   });
 });
+
+describe("getDesktopChangelogEntries & getWebChangelogEntries", () => {
+  it("reads desktop and web changelogs correctly", async () => {
+    const { getDesktopChangelogEntries, getWebChangelogEntries } = await import("../lib/changelog");
+    const desktopEntries = getDesktopChangelogEntries();
+    const webEntries = getWebChangelogEntries();
+
+    expect(desktopEntries.length).toBeGreaterThan(0);
+    expect(desktopEntries[0].version).toBeDefined();
+
+    expect(webEntries.length).toBeGreaterThan(0);
+    expect(webEntries[0].version).toBe("0.1.0");
+  });
+});

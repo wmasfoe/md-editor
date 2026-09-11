@@ -8,8 +8,10 @@ const defaultNotes = "修复了一些已知问题，添加了一些新功能";
 const releaseBranchDefault = "main";
 const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
 const changelogPath = "CHANGELOG.md";
+const desktopChangelogPath = "apps/desktop/CHANGELOG.md";
 const releaseFiles = [
   changelogPath,
+  desktopChangelogPath,
   "package.json",
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
@@ -74,19 +76,19 @@ function readOptionValue(argv, index, optionName) {
 
 function usage() {
   return `Usage:
-  pnpm release [patch|minor|major|beta|x.y.z[-beta.n]] [--notes "..."] [--dry-run] [--yes]
+  pnpm release:desktop [patch|minor|major|beta|x.y.z[-beta.n]] [--notes "..."] [--dry-run] [--yes]
 
 Examples:
-  pnpm release
-  pnpm release patch
-  pnpm release beta
-  pnpm release 0.3.0-beta.1 --notes "测试新版编辑器"
+  pnpm release:desktop
+  pnpm release:desktop patch
+  pnpm release:desktop beta
+  pnpm release:desktop 0.3.0-beta.1 --notes "测试新版编辑器"
 
 Options:
   --branch <name>       Require the current branch to match this name. Default: main.
   --allow-any-branch   Skip the release branch check.
   --dry-run            Print the release plan without changing files.
-  --resume             Continue after release:version already changed version files.
+  --resume             Continue after release:desktop:version already changed version files.
   --no-push            Commit and tag locally, but do not push.
   --notes <text>       Release notes used in the commit and annotated tag.
   --pr <number>        Associated Pull Request number for the release changelog.
@@ -433,12 +435,14 @@ async function main() {
   }
 
   if (!options.resume) {
-    run("pnpm", ["release:version", plan.nextVersion], {
+    run("pnpm", ["release:desktop:version", plan.nextVersion], {
       dryRun: options.dryRun,
       stdio: "inherit",
     });
   } else if (options.dryRun) {
-    console.log("resume: skip pnpm release:version because version files are already changed");
+    console.log(
+      "resume: skip pnpm release:desktop:version because version files are already changed",
+    );
   }
 
   const changelogResult = updateChangelogFile({
@@ -449,10 +453,18 @@ async function main() {
     mode: options.resume ? "resume" : "normal",
     dryRun: options.dryRun,
   });
+  updateChangelogFile({
+    path: desktopChangelogPath,
+    version: plan.nextVersion,
+    notes: plan.notes,
+    pr: plan.pr,
+    mode: options.resume ? "resume" : "normal",
+    dryRun: options.dryRun,
+  });
 
   if (options.dryRun) {
     const action = changelogResult.changed ? "would update" : "would reuse";
-    console.log(`${action} ${changelogPath} for ${plan.nextVersion}`);
+    console.log(`${action} ${changelogPath} and ${desktopChangelogPath} for ${plan.nextVersion}`);
   }
 
   if (options.dryRun) {

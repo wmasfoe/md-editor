@@ -1,3 +1,13 @@
+/**
+ * @file changelog.ts
+ * @module site/lib/changelog
+ * @description
+ * 官网更新日志解析与加载模块。
+ *
+ * 支持分别读取并解析 Desktop 桌面客户端（apps/desktop/CHANGELOG.md 或根 CHANGELOG.md）
+ * 与 Web 在线版（apps/web/CHANGELOG.md）的版本发布记录，支持嵌套列表项与关联 PR 提取。
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -13,10 +23,16 @@ export interface ChangelogEntry {
   items: ChangelogItem[];
 }
 
-// monorepo 根优先；site 目录内副本次之（预留给打包工具只带 site 子树的场景）。
-const defaultChangelogCandidates = [
+const defaultDesktopChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG.md"),
+  path.join(process.cwd(), "apps", "desktop", "CHANGELOG.md"),
   path.join(process.cwd(), "..", "CHANGELOG.md"),
   path.join(process.cwd(), "CHANGELOG.md"),
+];
+
+const defaultWebChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "web", "CHANGELOG.md"),
+  path.join(process.cwd(), "apps", "web", "CHANGELOG.md"),
 ];
 
 /**
@@ -37,6 +53,9 @@ export function extractPrNumbers(text?: string | null): number[] {
   return Array.from(new Set(numbers));
 }
 
+/**
+ * 解析 Markdown 格式的 Changelog 文本，生成结构化版本条目集合。
+ */
 export function parseChangelog(markdown: string): ChangelogEntry[] {
   const lines = markdown.split(/\r?\n/u);
   const entries: ChangelogEntry[] = [];
@@ -44,7 +63,7 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
   let itemStack: { indent: number; item: ChangelogItem }[] = [];
 
   for (const line of lines) {
-    // 官网只消费根 CHANGELOG.md 的二级版本标题，匹配版本、日期及可选 PR 编号。
+    // 匹配二级版本标题：## 0.10.1 - 2026-09-10 (#56, #57)
     const heading = line.match(/^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u);
     if (heading) {
       const version = heading[1].trim();
@@ -98,19 +117,39 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
   return entries.filter((entry) => entry.version && entry.items.length > 0);
 }
 
-export function getChangelogEntries(filePath?: string): ChangelogEntry[] {
-  const resolved = resolveChangelogPath(filePath);
+/**
+ * 获取 Desktop 桌面客户端的更新日志列表。
+ */
+export function getDesktopChangelogEntries(filePath?: string): ChangelogEntry[] {
+  const resolved = resolveChangelogPath(filePath, defaultDesktopChangelogCandidates);
   if (!resolved) {
     return [];
   }
-
   return parseChangelog(fs.readFileSync(resolved, "utf8"));
 }
 
-function resolveChangelogPath(filePath?: string): string | null {
+/**
+ * 获取 Web 在线版的更新日志列表。
+ */
+export function getWebChangelogEntries(filePath?: string): ChangelogEntry[] {
+  const resolved = resolveChangelogPath(filePath, defaultWebChangelogCandidates);
+  if (!resolved) {
+    return [];
+  }
+  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+/**
+ * 默认更新日志获取函数（对齐 Desktop 客户端日志）。
+ */
+export function getChangelogEntries(filePath?: string): ChangelogEntry[] {
+  return getDesktopChangelogEntries(filePath);
+}
+
+function resolveChangelogPath(filePath: string | undefined, candidates: string[]): string | null {
   if (filePath) {
     return fs.existsSync(filePath) ? filePath : null;
   }
 
-  return defaultChangelogCandidates.find((candidate) => fs.existsSync(candidate)) ?? null;
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 }

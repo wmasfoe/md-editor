@@ -105,13 +105,16 @@ export interface TranslationSchema {
     badge: string;
     tabsAria: string;
     clientTab: string;
+    webTab: string;
     modelTab: string;
     descriptionPrefix: string;
     descriptionSuffix: string;
+    webDescriptionPrefix: string;
     modelDescriptionPrefix: string;
     modelDescriptionSuffix: string;
     modelOriginalLanguage: string;
     empty: string;
+    webEmpty: string;
     modelEmpty: string;
     listAria: string;
     modelListAria: string;

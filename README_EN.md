@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://github.com/wmasfoe/homebrew-tap/releases">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux-blue?style=flat-square" alt="Platforms">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
@@ -35,7 +35,7 @@
     <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/version-v0.4.6-brightgreen?style=flat-square" alt="Version">
+    <img src="https://img.shields.io/badge/version-v0.10.1-brightgreen?style=flat-square" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
 </p>
@@ -142,10 +142,13 @@ pnpm install
 # 3. Start desktop development server (Vite + Tauri)
 pnpm dev
 
-# 4. Start documentation website (Optional)
+# 4. Start Web online playground development server
+pnpm dev:web
+
+# 5. Start documentation website (Optional)
 pnpm dev:site
 
-# 5. Run tests and code linters
+# 6. Run tests and code linters
 pnpm test        # Run unit tests
 pnpm typecheck   # TypeScript type checks
 pnpm lint        # Oxlint + Prettier + Cargo Clippy
@@ -154,14 +157,31 @@ pnpm lint        # Oxlint + Prettier + Cargo Clippy
 ### Production Build
 
 ```bash
-# macOS build (Generates .dmg and updater package)
-pnpm build:macos
+# Web online playground build
+pnpm build:web
 
-# Linux build (Generates .AppImage and .deb)
-pnpm build:linux
+# Documentation website build
+pnpm build:site
 
-# Windows build (Generates NSIS installer)
-pnpm build:windows
+# Cross-platform desktop builds
+pnpm build:macos    # macOS (.dmg and updater package)
+pnpm build:linux    # Linux (.AppImage and .deb)
+pnpm build:windows  # Windows (NSIS installer)
+```
+
+### Multi-Platform Releases
+
+All release workflows are unified under the `release:*` namespace:
+
+```bash
+# Desktop cross-platform release (interactive version bump, dual changelogs, v* tag)
+pnpm release:desktop
+
+# Web online playground release (creates web-v* tag & GitHub Release)
+pnpm release:web
+
+# Website production deployment
+pnpm release:site
 ```
 
 ---
@@ -174,19 +194,22 @@ This project is organized as a modular Monorepo using `pnpm workspace`:
 md-editor/
 ├── apps/
 │   ├── desktop/                 # Tauri 2 desktop application (Rust + React Shell)
-│   └── site/                    # Inkpoint official website and web documentation
+│   └── web/                     # Web online playground editor (Vite + React)
+├── site/                        # Inkpoint official website and web documentation (Next.js)
 ├── packages/
-│   ├── editor-core/             # Core editor engine (document state flow, mode switching & history)
+│   ├── editor-core/             # Core editor engine (document state flow, serialized save queue, mode switching)
 │   ├── renderer-codemirror/     # CodeMirror 6 renderer (WYSIWYG projections, decorations & widgets)
 │   ├── editor-ui/               # Editor UI components, floating toolbars, file tree & outline
-│   ├── mdx-component-registry/  # MDX component protocol specifications & runtime registry
+│   ├── syntax-plugins/          # Markdown syntax extensions (highlights, strikethrough, footnotes, etc.)
+│   ├── mdx-component-registry/  # MDX component protocol specifications & runtime sandbox registry
 │   ├── mdx-plugins/             # Built-in MDX components (Alert, Mermaid, KaTeX, Tabs, etc.)
 │   ├── markdown-fidelity/       # Markdown / MDX fidelity serializer & AST bidirectional mapping
 │   ├── file-system/             # Cross-platform local file system and asset management abstraction
+│   ├── i18n/                    # Modular internationalization system (ZH/EN translations & protocol)
 │   ├── ai/                      # AI provider abstraction, streaming parser & prompt protocols
 │   └── shared/                  # Common utilities and cross-package type definitions
 ├── docs/                        # Technical proposals, design docs, and release guidelines
-└── scripts/                     # Release automation, Homebrew Cask generator & CI scripts
+└── scripts/                     # Release automation (release:*), Homebrew Cask generator & CI scripts
 ```
 
 ---

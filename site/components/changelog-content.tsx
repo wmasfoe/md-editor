@@ -18,10 +18,11 @@ import { buildAppPrUrl } from "../lib/site-links";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
+  webEntries?: ChangelogEntry[];
   modelChangelog: unknown;
 }
 
-type ChangelogSource = "client" | "model";
+type ChangelogSource = "desktop" | "web" | "model";
 type ChangelogLabels = TranslationSchema["changelog"];
 
 const ITEM_TYPE_STYLES: Record<string, string> = {
@@ -33,12 +34,19 @@ const ITEM_TYPE_STYLES: Record<string, string> = {
   other: "border-line-strong bg-surface-soft text-muted",
 };
 
-export function ChangelogContent({ entries, modelChangelog }: ChangelogContentProps) {
+export function ChangelogContent({
+  entries,
+  webEntries = [],
+  modelChangelog,
+}: ChangelogContentProps) {
   const { t } = useI18n();
-  const [source, setSource] = useState<ChangelogSource>("client");
-  const clientTabRef = useRef<HTMLButtonElement>(null);
+  const [source, setSource] = useState<ChangelogSource>("desktop");
+  const desktopTabRef = useRef<HTMLButtonElement>(null);
+  const webTabRef = useRef<HTMLButtonElement>(null);
   const modelTabRef = useRef<HTMLButtonElement>(null);
-  const isClient = source === "client";
+  const isDesktop = source === "desktop";
+  const isWeb = source === "web";
+  const isModel = source === "model";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -48,8 +56,15 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
       const tabParam = url.searchParams.get("tab") ?? url.searchParams.get("source");
       if (tabParam === "model" || window.location.hash === "#model") {
         setSource("model");
-      } else if (tabParam === "client" || window.location.hash === "#client") {
-        setSource("client");
+      } else if (tabParam === "web" || window.location.hash === "#web") {
+        setSource("web");
+      } else if (
+        tabParam === "desktop" ||
+        tabParam === "client" ||
+        window.location.hash === "#desktop" ||
+        window.location.hash === "#client"
+      ) {
+        setSource("desktop");
       }
     };
 
@@ -68,11 +83,12 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
       const url = new URL(window.location.href);
       url.searchParams.delete("tab");
       url.searchParams.delete("source");
-      url.hash = nextSource === "model" ? "#model" : "#client";
+      url.hash = nextSource === "model" ? "#model" : nextSource === "web" ? "#web" : "#desktop";
       window.history.replaceState(null, "", url.toString());
     }
     if (moveFocus) {
-      const target = nextSource === "client" ? clientTabRef : modelTabRef;
+      const target =
+        nextSource === "desktop" ? desktopTabRef : nextSource === "web" ? webTabRef : modelTabRef;
       requestAnimationFrame(() => target.current?.focus());
     }
   }
@@ -83,15 +99,21 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
     }
 
     event.preventDefault();
-    const nextSource =
-      event.key === "Home"
-        ? "client"
-        : event.key === "End"
-          ? "model"
-          : source === "client"
-            ? "model"
-            : "client";
-    selectSource(nextSource, true);
+    const order: ChangelogSource[] = ["desktop", "web", "model"];
+    const currentIndex = order.indexOf(source);
+    let nextIndex: number;
+
+    if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = order.length - 1;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + order.length) % order.length;
+    } else {
+      nextIndex = (currentIndex + 1) % order.length;
+    }
+
+    selectSource(order[nextIndex], true);
   }
 
   return (
@@ -104,11 +126,19 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
           {t.changelog.title}
         </h1>
 
-        {isClient ? (
+        {isDesktop ? (
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.descriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              CHANGELOG.md
+              apps/desktop/CHANGELOG.md
+            </code>
+            {t.changelog.descriptionSuffix}
+          </p>
+        ) : isWeb ? (
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
+            {t.changelog.webDescriptionPrefix}{" "}
+            <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
+              apps/web/CHANGELOG.md
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -134,16 +164,25 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
           onKeyDown={handleTabKeyDown}
         >
           <ChangelogTab
-            active={isClient}
-            buttonRef={clientTabRef}
-            controls="client-changelog-panel"
-            id="client-changelog-tab"
-            onSelect={() => selectSource("client")}
+            active={isDesktop}
+            buttonRef={desktopTabRef}
+            controls="desktop-changelog-panel"
+            id="desktop-changelog-tab"
+            onSelect={() => selectSource("desktop")}
           >
             {t.changelog.clientTab}
           </ChangelogTab>
           <ChangelogTab
-            active={!isClient}
+            active={isWeb}
+            buttonRef={webTabRef}
+            controls="web-changelog-panel"
+            id="web-changelog-tab"
+            onSelect={() => selectSource("web")}
+          >
+            {t.changelog.webTab}
+          </ChangelogTab>
+          <ChangelogTab
+            active={isModel}
             buttonRef={modelTabRef}
             controls="model-changelog-panel"
             id="model-changelog-tab"
@@ -155,20 +194,32 @@ export function ChangelogContent({ entries, modelChangelog }: ChangelogContentPr
       </header>
 
       <section
-        id="client-changelog-panel"
+        id="desktop-changelog-panel"
         role="tabpanel"
-        aria-labelledby="client-changelog-tab"
-        hidden={!isClient}
-        className={isClient ? undefined : "hidden"}
+        aria-labelledby="desktop-changelog-tab"
+        hidden={!isDesktop}
+        className={isDesktop ? undefined : "hidden"}
       >
         <ClientChangelogTimeline entries={entries} labels={t.changelog} />
+      </section>
+      <section
+        id="web-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="web-changelog-tab"
+        hidden={!isWeb}
+        className={isWeb ? undefined : "hidden"}
+      >
+        <ClientChangelogTimeline
+          entries={webEntries}
+          labels={{ ...t.changelog, empty: t.changelog.webEmpty }}
+        />
       </section>
       <section
         id="model-changelog-panel"
         role="tabpanel"
         aria-labelledby="model-changelog-tab"
-        hidden={isClient}
-        className={!isClient ? undefined : "hidden"}
+        hidden={!isModel}
+        className={isModel ? undefined : "hidden"}
       >
         {t.changelog.modelOriginalLanguage ? (
           <p className="mb-5 text-sm text-muted">{t.changelog.modelOriginalLanguage}</p>

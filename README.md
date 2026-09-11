@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://github.com/wmasfoe/homebrew-tap/releases">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux-blue?style=flat-square" alt="Platforms">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
@@ -35,7 +35,7 @@
     <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/version-v0.4.6-brightgreen?style=flat-square" alt="Version">
+    <img src="https://img.shields.io/badge/version-v0.10.1-brightgreen?style=flat-square" alt="Version">
   </a>
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
 </p>
@@ -142,10 +142,13 @@ pnpm install
 # 3. 启动桌面端开发模式 (Vite + Tauri)
 pnpm dev
 
-# 4. 启动官网开发模式 (可选)
+# 4. 启动 Web 在线 Playground 开发模式
+pnpm dev:web
+
+# 5. 启动官网开发模式 (可选)
 pnpm dev:site
 
-# 5. 执行测试与代码检查
+# 6. 执行测试与代码检查
 pnpm test        # 运行单元测试
 pnpm typecheck   # 类型检查
 pnpm lint        # Oxlint + Prettier + Cargo Clippy 检查
@@ -154,14 +157,31 @@ pnpm lint        # Oxlint + Prettier + Cargo Clippy 检查
 ### 生产构建
 
 ```bash
-# macOS 构建（生成 .dmg 与 updater 更新包）
-pnpm build:macos
+# Web 在线端静态构建
+pnpm build:web
 
-# Linux 构建（生成 .AppImage 与 .deb）
-pnpm build:linux
+# 官网 Next.js 构建
+pnpm build:site
 
-# Windows 构建（生成 NSIS 安装包）
-pnpm build:windows
+# 跨平台桌面端构建
+pnpm build:macos    # macOS (.dmg 与 updater 更新包)
+pnpm build:linux    # Linux (.AppImage 与 .deb)
+pnpm build:windows  # Windows (NSIS 安装包)
+```
+
+### 多端发版与发布
+
+所有发版命令收敛于统一的 `release:*` 命名空间：
+
+```bash
+# 桌面端跨平台发版（交互式更新版本、双 Changelog 写入并创建 v* tag）
+pnpm release:desktop
+
+# Web 在线版发版（创建 web-v* tag 并发布 GitHub Release）
+pnpm release:web
+
+# 官网部署上线
+pnpm release:site
 ```
 
 ---
@@ -173,20 +193,23 @@ pnpm build:windows
 ```
 md-editor/
 ├── apps/
-│   ├── desktop/                 # Tauri 2 桌面应用主工程 (Rust + React Shell)
-│   └── site/                    # Inkpoint 官方网站与在线文档
+│   ├── desktop/                 # Tauri 2 跨平台桌面客户端 (Rust + React Shell)
+│   └── web/                     # Web 在线 Playground 编辑器应用 (Vite + React)
+├── site/                        # Inkpoint 官方展示网站与更新日志 (Next.js)
 ├── packages/
-│   ├── editor-core/             # 编辑器核心（文档状态流、模式切换、撤销历史与通用协议）
+│   ├── editor-core/             # 编辑器核心（文档状态流、并发保序保存调度器、模式切换）
 │   ├── renderer-codemirror/     # CodeMirror 6 渲染层（WYSIWYG 投影、装饰器、代码块/表格/折叠）
-│   ├── editor-ui/               # 编辑器 UI 视图组件、悬浮工具栏、文件树与大纲
+│   ├── editor-ui/               # 编辑器 UI 视图组件、悬浮工具栏、文件树与大纲导航
+│   ├── syntax-plugins/          # Markdown 语法扩展插件（高亮、删除线、脚注等扩展）
 │   ├── mdx-component-registry/  # MDX 组件协议规范与运行时注册表
 │   ├── mdx-plugins/             # 官方内置 MDX 组件（Alert, Mermaid, KaTeX, Tabs 等）
 │   ├── markdown-fidelity/       # Markdown / MDX 格式保真转换与 AST 双向映射
-│   ├── file-system/             # 跨平台本地文件系统读写与图片资产管理抽象
+│   ├── file-system/             # 跨平台本地文件系统读写、持久化与图片资产管理抽象
+│   ├── i18n/                    # 多语言国际化系统（中/英本地化文案与切换协议）
 │   ├── ai/                      # AI Provider 抽象、写作建议流式解析与提示词协议
 │   └── shared/                  # 通用工具函数库与跨包共享类型定义
 ├── docs/                        # 项目设计、技术方案与发版说明文档
-└── scripts/                     # 自动化发版、Homebrew Cask 生成与 CI 辅助脚本
+└── scripts/                     # 自动化发版（release:*）、Homebrew Cask 生成与 CI 辅助脚本
 ```
 
 ---

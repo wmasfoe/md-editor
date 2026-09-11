@@ -1,0 +1,75 @@
+name: Release Web App
+
+on:
+  push:
+    tags:
+      - "web-v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build & Release Web App
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Read Web version
+        id: web_version
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require("fs");
+          const webPackage = JSON.parse(fs.readFileSync("apps/web/package.json", "utf8"));
+          const version = webPackage.version;
+          const expectedTag = `web-v${version}`;
+          console.log(`version=${version}`);
+          console.log(`tag=${expectedTag}`);
+          NODE
+
+      - name: Typecheck
+        run: pnpm --filter @md-editor/web typecheck
+
+      - name: Test
+        run: pnpm --filter @md-editor/web test
+
+      - name: Build Web app
+        run: pnpm build:web
+
+      - name: Package Web bundle
+        run: |
+          cd apps/web/dist && zip -r ../../../md-editor-web-${{ steps.web_version.outputs.version }}.zip . && cd ../../..
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.web_version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.web_version.outputs.version }}
+        run: |
+          ZIP_FILE="md-editor-web-${RELEASE_VERSION}.zip"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$ZIP_FILE" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$ZIP_FILE" \
+              --title "Markdown Editor Web $RELEASE_TAG" \
+              --notes "Web release $RELEASE_VERSION for online preview and self-hosting."
+          fi
