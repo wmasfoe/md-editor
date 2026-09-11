@@ -91,28 +91,28 @@ gh pr checks <pr_number> --watch
 
 All release and deployment commands are strictly scoped under the `release:*` namespace to ensure platform symmetry and zero legacy alias baggage.
 
-| Platform / Target | Full Release (Interactive) | Version Bump Only | Git Tag Pattern | CI/CD Workflow | Changelog File |
+| Platform / Target | Full Release (Interactive) | Version Bump Only | Git Tag Pattern | CI/CD Workflow | Changelog Files |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.10.2`) | `.github/workflows/release-desktop.yml` | `apps/desktop/CHANGELOG.md`<br>(root `CHANGELOG.md` mirrored) |
-| **Web Playground** | `pnpm release:web` | `pnpm release:web:version` | `web-v*` (e.g. `web-v0.2.0`) | `.github/workflows/release-web.yml` | `apps/web/CHANGELOG.md` |
-| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from both Desktop & Web changelogs |
+| **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.10.2`) | `.github/workflows/release-desktop.yml` | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md`<br>(root `CHANGELOG.md` & `CHANGELOG_EN.md` mirrored) |
+| **Web Playground** | `pnpm release:web` | `pnpm release:web:version` | `web-v*` (e.g. `web-v0.2.0`) | `.github/workflows/release-web.yml` | `apps/web/CHANGELOG.md` & `apps/web/CHANGELOG_EN.md` |
+| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop & Web changelogs (bilingual zh/en) |
 
 ### Platform-Specific Rules
 
 1. **Desktop App (`apps/desktop`)**:
    - `pnpm release:desktop` updates version across `package.json`, `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml`.
-   - Appends release notes to both `apps/desktop/CHANGELOG.md` and root `CHANGELOG.md`.
+   - Appends release notes to `apps/desktop/CHANGELOG.md` and root `CHANGELOG.md` (English entries maintained in `apps/desktop/CHANGELOG_EN.md` and root `CHANGELOG_EN.md`).
    - Pushes commit and annotated tag `v<version>`, triggering multi-platform builds (macOS DMG, Linux AppImage/deb, Windows NSIS).
 
 2. **Web Playground (`apps/web`)**:
    - `pnpm release:web` updates `apps/web/package.json`.
-   - Appends release notes to `apps/web/CHANGELOG.md`.
+   - Appends release notes to `apps/web/CHANGELOG.md` (English entries maintained in `apps/web/CHANGELOG_EN.md`).
    - Runs `pnpm build:web` validation.
    - Pushes commit and annotated tag `web-v<version>`, triggering `.github/workflows/release-web.yml` bundle packaging and GitHub Release.
 
 3. **Official Site (`site`)**:
    - Runs `pnpm release:site` via `scripts/site/deploy-site.mjs`.
-   - The `/changelog` page dynamically supports Desktop and Web tab switching.
+   - The `/changelog` page dynamically supports Desktop and Web tab switching as well as seamless Chinese/English bilingual language toggling.
 
 ### Removed / Deprecated Commands (Do NOT Use)
 - ❌ `pnpm release` → Replaced by `pnpm release:desktop`

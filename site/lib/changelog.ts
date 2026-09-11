@@ -30,9 +30,21 @@ const defaultDesktopChangelogCandidates = [
   path.join(process.cwd(), "CHANGELOG.md"),
 ];
 
+const defaultDesktopEnChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "apps", "desktop", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "..", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "CHANGELOG_EN.md"),
+];
+
 const defaultWebChangelogCandidates = [
   path.join(process.cwd(), "..", "apps", "web", "CHANGELOG.md"),
   path.join(process.cwd(), "apps", "web", "CHANGELOG.md"),
+];
+
+const defaultWebEnChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "web", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "apps", "web", "CHANGELOG_EN.md"),
 ];
 
 /**
@@ -120,9 +132,17 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
 /**
  * 获取 Desktop 桌面客户端的更新日志列表。
  */
-export function getDesktopChangelogEntries(filePath?: string): ChangelogEntry[] {
-  const resolved = resolveChangelogPath(filePath, defaultDesktopChangelogCandidates);
+export function getDesktopChangelogEntries(
+  locale: "zh" | "en" = "zh",
+  filePath?: string,
+): ChangelogEntry[] {
+  const candidates =
+    locale === "en" ? defaultDesktopEnChangelogCandidates : defaultDesktopChangelogCandidates;
+  const resolved = resolveChangelogPath(filePath, candidates);
   if (!resolved) {
+    if (locale === "en") {
+      return getDesktopChangelogEntries("zh", filePath);
+    }
     return [];
   }
   return parseChangelog(fs.readFileSync(resolved, "utf8"));
@@ -131,9 +151,17 @@ export function getDesktopChangelogEntries(filePath?: string): ChangelogEntry[] 
 /**
  * 获取 Web 在线版的更新日志列表。
  */
-export function getWebChangelogEntries(filePath?: string): ChangelogEntry[] {
-  const resolved = resolveChangelogPath(filePath, defaultWebChangelogCandidates);
+export function getWebChangelogEntries(
+  locale: "zh" | "en" = "zh",
+  filePath?: string,
+): ChangelogEntry[] {
+  const candidates =
+    locale === "en" ? defaultWebEnChangelogCandidates : defaultWebChangelogCandidates;
+  const resolved = resolveChangelogPath(filePath, candidates);
   if (!resolved) {
+    if (locale === "en") {
+      return getWebChangelogEntries("zh", filePath);
+    }
     return [];
   }
   return parseChangelog(fs.readFileSync(resolved, "utf8"));
@@ -143,7 +171,7 @@ export function getWebChangelogEntries(filePath?: string): ChangelogEntry[] {
  * 默认更新日志获取函数（对齐 Desktop 客户端日志）。
  */
 export function getChangelogEntries(filePath?: string): ChangelogEntry[] {
-  return getDesktopChangelogEntries(filePath);
+  return getDesktopChangelogEntries("zh", filePath);
 }
 
 function resolveChangelogPath(filePath: string | undefined, candidates: string[]): string | null {

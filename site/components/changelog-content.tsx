@@ -18,7 +18,9 @@ import { buildAppPrUrl } from "../lib/site-links";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
+  entriesEn?: ChangelogEntry[];
   webEntries?: ChangelogEntry[];
+  webEntriesEn?: ChangelogEntry[];
   modelChangelog: unknown;
 }
 
@@ -36,10 +38,15 @@ const ITEM_TYPE_STYLES: Record<string, string> = {
 
 export function ChangelogContent({
   entries,
+  entriesEn = [],
   webEntries = [],
+  webEntriesEn = [],
   modelChangelog,
 }: ChangelogContentProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const isEn = locale === "en";
+  const activeDesktopEntries = isEn && entriesEn.length > 0 ? entriesEn : entries;
+  const activeWebEntries = isEn && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
   const webTabRef = useRef<HTMLButtonElement>(null);
@@ -130,7 +137,7 @@ export function ChangelogContent({
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.descriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              apps/desktop/CHANGELOG.md
+              {isEn ? "apps/desktop/CHANGELOG_EN.md" : "apps/desktop/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -138,7 +145,7 @@ export function ChangelogContent({
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.webDescriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              apps/web/CHANGELOG.md
+              {isEn ? "apps/web/CHANGELOG_EN.md" : "apps/web/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -200,7 +207,7 @@ export function ChangelogContent({
         hidden={!isDesktop}
         className={isDesktop ? undefined : "hidden"}
       >
-        <ClientChangelogTimeline entries={entries} labels={t.changelog} />
+        <ClientChangelogTimeline entries={activeDesktopEntries} labels={t.changelog} />
       </section>
       <section
         id="web-changelog-panel"
@@ -210,7 +217,7 @@ export function ChangelogContent({
         className={isWeb ? undefined : "hidden"}
       >
         <ClientChangelogTimeline
-          entries={webEntries}
+          entries={activeWebEntries}
           labels={{ ...t.changelog, empty: t.changelog.webEmpty }}
         />
       </section>

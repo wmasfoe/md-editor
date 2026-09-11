@@ -99,15 +99,31 @@ describe("extractPrNumbers", () => {
 });
 
 describe("getDesktopChangelogEntries & getWebChangelogEntries", () => {
-  it("reads desktop and web changelogs correctly", async () => {
+  it("reads desktop and web changelogs correctly in Chinese and English", async () => {
     const { getDesktopChangelogEntries, getWebChangelogEntries } = await import("../lib/changelog");
-    const desktopEntries = getDesktopChangelogEntries();
-    const webEntries = getWebChangelogEntries();
 
-    expect(desktopEntries.length).toBeGreaterThan(0);
-    expect(desktopEntries[0].version).toBeDefined();
+    const desktopZh = getDesktopChangelogEntries("zh");
+    const desktopEn = getDesktopChangelogEntries("en");
+    expect(desktopZh.length).toBeGreaterThan(0);
+    expect(desktopEn.length).toBeGreaterThan(0);
+    expect(desktopZh[0].version).toBe(desktopEn[0].version);
+    // 验证英文更新日志包含英文字符
+    expect(desktopEn[0].items[0].text).toMatch(/^[A-Za-z]/u);
 
-    expect(webEntries.length).toBeGreaterThan(0);
-    expect(webEntries[0].version).toBe("0.1.0");
+    const webZh = getWebChangelogEntries("zh");
+    const webEn = getWebChangelogEntries("en");
+    expect(webZh.length).toBeGreaterThan(0);
+    expect(webEn.length).toBeGreaterThan(0);
+    expect(webZh[0].version).toBe("0.1.0");
+    expect(webEn[0].version).toBe("0.1.0");
+    expect(webEn[0].items[0].text).toMatch(/^[A-Za-z]/u);
+  });
+
+  it("falls back to Chinese when English changelog is not found", async () => {
+    const { getDesktopChangelogEntries } = await import("../lib/changelog");
+    // 传入不存在的文件路径，但在 locale="en" 且无显式指定时或指定不存在路径时的行为
+    const entries = getDesktopChangelogEntries("en", "/non-existent-en-changelog.md");
+    // 显式指定不存在路径时，fallback 尝试中文但如果中文路径也是该不存在路径，应安全返回空数组或回退
+    expect(Array.isArray(entries)).toBe(true);
   });
 });

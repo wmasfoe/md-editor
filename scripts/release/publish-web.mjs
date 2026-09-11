@@ -8,7 +8,8 @@ const defaultNotes = "修复了一些已知问题，优化了 Web 端编辑体�
 const releaseBranchDefault = "main";
 const webPackagePath = "apps/web/package.json";
 const webChangelogPath = "apps/web/CHANGELOG.md";
-const releaseFiles = [webPackagePath, webChangelogPath];
+const webChangelogEnPath = "apps/web/CHANGELOG_EN.md";
+const releaseFiles = [webPackagePath, webChangelogPath, webChangelogEnPath];
 
 function parseArgs(argv) {
   const options = {

@@ -9,9 +9,13 @@ const releaseBranchDefault = "main";
 const tauriConfigPath = "apps/desktop/src-tauri/tauri.conf.json";
 const changelogPath = "CHANGELOG.md";
 const desktopChangelogPath = "apps/desktop/CHANGELOG.md";
+const changelogEnPath = "CHANGELOG_EN.md";
+const desktopChangelogEnPath = "apps/desktop/CHANGELOG_EN.md";
 const releaseFiles = [
   changelogPath,
   desktopChangelogPath,
+  changelogEnPath,
+  desktopChangelogEnPath,
   "package.json",
   "apps/desktop/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",

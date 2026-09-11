@@ -8,14 +8,18 @@ export const metadata: Metadata = {
 };
 
 export default async function ChangelogPage() {
-  const desktopEntries = getDesktopChangelogEntries();
-  const webEntries = getWebChangelogEntries();
+  const desktopEntries = getDesktopChangelogEntries("zh");
+  const desktopEntriesEn = getDesktopChangelogEntries("en");
+  const webEntries = getWebChangelogEntries("zh");
+  const webEntriesEn = getWebChangelogEntries("en");
   const modelChangelog = await getModelChangelog();
 
   return (
     <ChangelogContent
       entries={desktopEntries}
+      entriesEn={desktopEntriesEn}
       webEntries={webEntries}
+      webEntriesEn={webEntriesEn}
       modelChangelog={modelChangelog}
     />
   );
