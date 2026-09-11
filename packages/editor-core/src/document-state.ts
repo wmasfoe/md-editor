@@ -1,384 +1,50 @@
+/**
+ * @fileoverview 核心文档状态机实现 (DocumentState)
+ *
+ * 本模块是编辑器的权威状态协调中心（Single Source of Truth）。
+ * 承担职责：
+ * 1. 维护不可变文档快照 (DocumentSnapshot) 与只读单向数据流。
+ * 2. 协调本地用户输入、外部命令、AI 自动补全及富文本模式切换的乐观并发锁。
+ * 3. 维护外部编辑独占预留令牌 (ExternalEditReservation)，保障编辑事务原子性。
+ * 4. 创建落盘保存检查点 (DocumentSaveCheckpoint) 并与原生文件系统安全结算。
+ * 5. 防范重入漏洞 (Reentrancy Guard) 与隔离订阅者异常。
+ */
+
 import { normalizeLineEndings, type Markdown } from "@md-editor/shared";
+import {
+  externalEditReservationBrand,
+  type DocumentListenerErrorContext,
+  type DocumentMutationOrigin,
+  type DocumentMutationResult,
+  type DocumentSaveCheckpoint,
+  type DocumentSnapshot,
+  type DocumentState,
+  type DocumentStateEvent,
+  type DocumentStateInput,
+  type DocumentTransition,
+  type EditorMode,
+  type ExternalEditReservation,
+  type ModeRequest,
+  type ModeSwitchOptions,
+  type ModeSwitchResult,
+  type MutationBusyResult,
+  type MutationRejectedResult,
+  type MutationStaleResult,
+  type PersistenceStatus,
+  type RendererMutationOrigin,
+  type RendererSyncDeliveryResult,
+  type RendererSyncPort,
+  type SaveDestination,
+  type SettleSaveResult,
+} from "./types/index.ts";
 
-export type EditorMode = "wysiwyg" | "source";
-export type Unsubscribe = () => void;
+// 重新导出所有核心类型，保持对外部调用者的 100% 向后兼容
+export * from "./types/index.ts";
 
-export type PersistenceStatus =
-  | {
-      readonly kind: "verified";
-      readonly checkpointId: string | null;
-      readonly sequence: number | null;
-    }
-  | {
-      readonly kind: "verification-required";
-      readonly checkpointId: string;
-      readonly sequence: number;
-      readonly candidatePath?: string;
-    };
-
-export interface DocumentSnapshot {
-  readonly markdown: Markdown;
-  readonly savedMarkdown: Markdown;
-  readonly filePath: string | null;
-  readonly mode: EditorMode;
-  readonly isDirty: boolean;
-  readonly documentGeneration: number;
-  readonly stateRevision: number;
-  readonly contentRevision: number;
-  readonly persistenceStatus: PersistenceStatus;
-}
-
-export type RendererMutationOrigin = {
-  readonly kind: "renderer";
-  readonly clientId: string;
-  readonly sequence: number;
-};
-
-export type CommandMutationOrigin = {
-  readonly kind: "command";
-  readonly commandId: string;
-};
-
-export type DocumentMutationOrigin = RendererMutationOrigin | CommandMutationOrigin;
-
-export type DocumentTransition =
-  | {
-      readonly kind: "content";
-      readonly origin: DocumentMutationOrigin;
-      readonly operationId: string;
-      readonly sync: "already-applied";
-    }
-  | {
-      readonly kind: "document-replace";
-      readonly origin: DocumentMutationOrigin;
-    }
-  | {
-      readonly kind: "mode";
-      readonly origin: DocumentMutationOrigin;
-      readonly operationId: string;
-    }
-  | {
-      readonly kind: "metadata";
-      readonly fields: readonly ["filePath"];
-    }
-  | {
-      readonly kind: "save-settled";
-      readonly checkpointId: string;
-      readonly sequence: number;
-      readonly filePath: string;
-      readonly fields: readonly ("savedMarkdown" | "filePath")[];
-      readonly rendererDisposition: "noop";
-    }
-  | {
-      readonly kind: "save-verification-required";
-      readonly checkpointId: string;
-      readonly sequence: number;
-      readonly rendererDisposition: "noop";
-    };
-
-export interface DocumentStateEvent {
-  readonly snapshot: DocumentSnapshot;
-  readonly transition: DocumentTransition;
-}
-
-export interface DocumentListenerErrorContext {
-  readonly channel: "transition" | "snapshot";
-  readonly event: DocumentStateEvent;
-}
-
-export interface DocumentStateInput {
-  readonly markdown?: Markdown;
-  readonly savedMarkdown?: Markdown;
-  readonly filePath?: string | null;
-  readonly mode?: EditorMode;
-  readonly onListenerError?: (error: unknown, context: DocumentListenerErrorContext) => void;
-}
-
-export type MutationBusyResult = {
-  readonly status: "busy";
-  readonly activeOperationId: string;
-};
-
-export type MutationRejectedResult = {
-  readonly status: "rejected";
-  readonly reason: "listener-reentrancy";
-};
-
-export type MutationStaleResult = {
-  readonly status: "stale";
-  readonly actualGeneration: number;
-  readonly actualStateRevision: number;
-  readonly actualContentRevision: number;
-};
-
-export type DocumentMutationResult =
-  | {
-      readonly status: "applied";
-      readonly snapshot: DocumentSnapshot;
-      readonly event: DocumentStateEvent;
-    }
-  | { readonly status: "noop"; readonly snapshot: DocumentSnapshot }
-  | MutationBusyResult
-  | MutationRejectedResult
-  | MutationStaleResult;
-
-const externalEditReservationBrand: unique symbol = Symbol("ExternalEditReservation");
-
-export interface ExternalEditReservation {
-  readonly [externalEditReservationBrand]: true;
-  readonly operationId: string;
-  readonly documentGeneration: number;
-  readonly contentRevision: number;
-}
-
-export type ExternalEditReservationResult =
-  | { readonly status: "reserved"; readonly reservation: ExternalEditReservation }
-  | {
-      readonly status: "stale";
-      readonly actualGeneration: number;
-      readonly actualContentRevision: number;
-    }
-  | MutationBusyResult
-  | MutationRejectedResult;
-
-export interface RendererExternalEditReceipt {
-  readonly operationId: string;
-  readonly markdown: Markdown;
-  readonly viewId: string;
-  readonly stateEpochId: string;
-  readonly transactionSequence: number;
-}
-
-export interface ExternalEditFinalizeReceipt {
-  readonly status: "finalized";
-  readonly operationId: string;
-  readonly documentGeneration: number;
-  readonly previousContentRevision: number;
-  readonly contentRevision: number;
-  readonly stateRevision: number;
-}
-
-export type ExternalEditReleaseReason =
-  "renderer-noop" | "renderer-failed" | "composition-deferred" | "cancelled";
-
-export interface ReplaceDocumentInput {
-  readonly markdown: Markdown;
-  readonly savedMarkdown?: Markdown;
-  readonly filePath?: string | null;
-  readonly mode?: EditorMode;
-}
-
-export interface SetDocumentPathInput {
-  readonly filePath: string | null;
-  readonly expectedGeneration: number;
-  readonly expectedStateRevision: number;
-  readonly origin: DocumentMutationOrigin;
-}
-
-export interface ModeRequest {
-  readonly operationId: string;
-  readonly mode: EditorMode;
-  readonly expectedGeneration: number;
-  readonly expectedStateRevision: number;
-}
-
-export interface ModeReceipt {
-  readonly operationId: string;
-  readonly clientId: string;
-  readonly documentGeneration: number;
-  readonly expectedStateRevision: number;
-  readonly previousMode: EditorMode;
-  readonly appliedMode: EditorMode;
-  readonly viewId: string;
-  readonly stateEpochId: string;
-}
-
-export type ModePortResult =
-  | { readonly status: "applied"; readonly receipt: ModeReceipt }
-  | { readonly status: "noop" }
-  | {
-      readonly status: "stale";
-      readonly actualGeneration: number;
-      readonly actualStateRevision: number;
-    }
-  | { readonly status: "reconcile-required" }
-  | { readonly status: "failed"; readonly errorCode: string };
-
-export interface ModeRendererPort {
-  applyMode(request: ModeRequest): ModePortResult;
-  rollbackMode(receipt: ModeReceipt): void;
-}
-
-export interface CommitModeInput extends ModeRequest {
-  readonly origin: DocumentMutationOrigin;
-}
-
-export type ModeSwitchError = "MODE_SWITCH_FAILED";
-
-export interface ModeSwitchOptions {
-  readonly operationId?: string;
-  readonly renderer: ModeRendererPort;
-  readonly origin?: CommandMutationOrigin;
-}
-
-export interface ModeSwitchOk {
-  readonly ok: true;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export interface ModeSwitchFailure {
-  readonly ok: false;
-  readonly error: ModeSwitchError;
-  readonly message: string;
-  readonly snapshot: DocumentSnapshot;
-}
-
-export type ModeSwitchResult = ModeSwitchOk | ModeSwitchFailure;
-
-export type SaveDestination =
-  | { readonly kind: "current-path"; readonly path: string }
-  | { readonly kind: "prompt"; readonly suggestedPath?: string };
-
-export interface DocumentSaveCheckpoint {
-  readonly id: string;
-  readonly sequence: number;
-  readonly documentGeneration: number;
-  readonly contentRevision: number;
-  readonly markdownLf: Markdown;
-  readonly destination: SaveDestination;
-}
-
-export interface SaveWarning {
-  readonly code: "asset-directory-registration-failed";
-  readonly message: string;
-}
-
-export type SaveOutcome =
-  | {
-      readonly status: "succeeded";
-      readonly commit: "committed" | "committed-with-warning";
-      readonly filePath: string;
-      readonly warnings: readonly SaveWarning[];
-    }
-  | {
-      readonly status: "failed";
-      readonly commit: "not-committed";
-      readonly phase: "validation" | "dialog" | "temp-write" | "temp-sync" | "rename";
-      readonly errorCode: string;
-    }
-  | {
-      readonly status: "cancelled";
-      readonly commit: "not-committed";
-      readonly phase: "dialog";
-      readonly reason: "dialog-cancelled";
-    }
-  | {
-      readonly status: "indeterminate";
-      readonly commit: "unknown";
-      readonly candidatePath?: string;
-      readonly errorCode: string;
-      readonly verificationRequired: true;
-    }
-  | {
-      readonly status: "superseded-before-commit";
-      readonly commit: "not-committed";
-      readonly runtimeSequence: number;
-      readonly supersededByRuntimeSequence: number;
-    };
-
-export type SettleSaveResult =
-  | { readonly status: "applied"; readonly authoritativeCheckpointId: string }
-  | {
-      readonly status: "promoted";
-      readonly authoritativeCheckpointId: string;
-      readonly triggeredByCheckpointId: string;
-    }
-  | { readonly status: "deferred"; readonly blockedBySequence: number }
-  | { readonly status: "superseded"; readonly authoritativeSequence: number }
-  | { readonly status: "verification-required"; readonly checkpointId: string }
-  | {
-      readonly status: "stale-generation" | "duplicate" | "settled-no-state-change";
-    }
-  | MutationBusyResult
-  | MutationRejectedResult;
-
-export type RendererSyncResult =
-  | { readonly status: "applied"; readonly transactionCount: 1 }
-  | { readonly status: "acknowledged"; readonly transactionCount: 0 }
-  | { readonly status: "duplicate"; readonly transactionCount: 0 }
-  | {
-      readonly status: "reconciled";
-      readonly strategy: "revision-only" | "isolated-transaction" | "document-boundary";
-    }
-  | {
-      readonly status: "reconcile-required";
-      readonly expectedStateRevision: number;
-      readonly receivedStateRevision: number;
-    }
-  | {
-      readonly status: "stale-generation";
-      readonly rendererGeneration: number;
-      readonly eventGeneration: number;
-    };
-
-export interface RendererSyncPort {
-  sync(event: DocumentStateEvent): RendererSyncResult;
-  reconcile(snapshot: DocumentSnapshot): RendererSyncResult;
-}
-
-export type RendererSyncDeliveryResult =
-  | {
-      readonly status: "synchronized";
-      readonly initial: RendererSyncResult;
-      readonly reconciliation?: RendererSyncResult;
-    }
-  | {
-      readonly status: "sync-error";
-      readonly initial: Extract<RendererSyncResult, { readonly status: "reconcile-required" }>;
-      readonly reconciliation: Extract<
-        RendererSyncResult,
-        { readonly status: "reconcile-required" }
-      >;
-    };
-
-export interface DocumentState {
-  /** @deprecated Use subscribeSnapshot during the S1 migration. */
-  subscribe(listener: () => void): Unsubscribe;
-  subscribeSnapshot(listener: () => void): Unsubscribe;
-  subscribeTransitions(listener: (event: DocumentStateEvent) => void): Unsubscribe;
-  getSnapshot(): DocumentSnapshot;
-  applyEditorChange(markdown: Markdown, origin: RendererMutationOrigin): DocumentMutationResult;
-  reserveExternalEdit(request: {
-    readonly operationId: string;
-    readonly expectedGeneration: number;
-    readonly expectedContentRevision: number;
-  }): ExternalEditReservationResult;
-  finalizeExternalEdit(
-    reservation: ExternalEditReservation,
-    rendererReceipt: RendererExternalEditReceipt,
-  ): ExternalEditFinalizeReceipt;
-  releaseExternalEdit(
-    reservation: ExternalEditReservation,
-    reason: ExternalEditReleaseReason,
-  ): void;
-  replaceDocument(
-    input: ReplaceDocumentInput,
-    origin: DocumentMutationOrigin,
-  ): DocumentMutationResult;
-  setDocumentPath(input: SetDocumentPathInput): DocumentMutationResult;
-  commitMode(input: CommitModeInput): DocumentMutationResult;
-  beginSave(destination: SaveDestination): DocumentSaveCheckpoint;
-  settleSave(checkpoint: DocumentSaveCheckpoint, outcome: SaveOutcome): SettleSaveResult;
-}
-
-interface SaveRecord {
-  readonly checkpoint: DocumentSaveCheckpoint;
-  settled: boolean;
-  candidate?: {
-    readonly filePath: string;
-  };
-}
-
+/**
+ * 协议不变性违规异常
+ * 当检测到底层状态机违反时序因果序、重复消费令牌或无效状态转移时抛出
+ */
 class DocumentProtocolInvariantError extends Error {
   constructor(message: string) {
     super(message);
@@ -389,14 +55,23 @@ class DocumentProtocolInvariantError extends Error {
 let nextDocumentStateInstanceId = 1;
 let nextModeOperationSequence = 1;
 
+/**
+ * 深度冻结变更来源对象，确保不可变性
+ */
 function freezeOrigin<T extends DocumentMutationOrigin>(origin: T): T {
   return Object.freeze({ ...origin }) as T;
 }
 
+/**
+ * 冻结持久化状态对象
+ */
 function freezePersistenceStatus(status: PersistenceStatus): PersistenceStatus {
   return Object.freeze({ ...status });
 }
 
+/**
+ * 创建不可变快照对象并自动计算 isDirty 脏标记
+ */
 function createSnapshot(input: Omit<DocumentSnapshot, "isDirty">): DocumentSnapshot {
   return Object.freeze({
     ...input,
@@ -405,6 +80,9 @@ function createSnapshot(input: Omit<DocumentSnapshot, "isDirty">): DocumentSnaps
   });
 }
 
+/**
+ * 深度冻结状态跃迁事件描述
+ */
 function freezeTransition(transition: DocumentTransition): DocumentTransition {
   if (transition.kind === "content" || transition.kind === "mode") {
     return Object.freeze({ ...transition, origin: freezeOrigin(transition.origin) });
@@ -424,10 +102,16 @@ function freezeTransition(transition: DocumentTransition): DocumentTransition {
   return Object.freeze({ ...transition });
 }
 
+/**
+ * 冻结目标落盘位置对象
+ */
 function freezeDestination(destination: SaveDestination): SaveDestination {
   return Object.freeze({ ...destination });
 }
 
+/**
+ * 根据渲染器客户端来源构造唯一操作 ID
+ */
 function mutationOriginOperationId(origin: RendererMutationOrigin): string {
   if (
     origin.clientId.length === 0 ||
@@ -441,6 +125,23 @@ function mutationOriginOperationId(origin: RendererMutationOrigin): string {
   return `cm:${origin.clientId}:${origin.sequence}`;
 }
 
+/**
+ * 保存请求在核心状态机内部的跟踪记录
+ */
+interface SaveRecord {
+  readonly checkpoint: DocumentSaveCheckpoint;
+  settled: boolean;
+  candidate?: {
+    readonly filePath: string;
+  };
+}
+
+/**
+ * 创建新的文档状态机实例
+ *
+ * @param input 初始 Markdown 内容、文件路径与异常回调
+ * @returns 符合 DocumentState 契约的单向数据流协调器
+ */
 export function createDocumentState(input: DocumentStateInput = {}): DocumentState {
   const instanceId = nextDocumentStateInstanceId++;
   const transitionListeners = new Set<(event: DocumentStateEvent) => void>();
@@ -469,14 +170,20 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     },
   });
 
+  /**
+   * 安全隔离并上报订阅者内部抛出的错误
+   */
   function reportListenerError(error: unknown, context: DocumentListenerErrorContext): void {
     try {
       input.onListenerError?.(error, context);
     } catch {
-      // Listener error reporting must never interrupt committed notification delivery.
+      // 监听器错误上报失败不可打断已提交事务的主事件派发通道
     }
   }
 
+  /**
+   * 广播快照变动通知
+   */
   function notifySnapshotListeners(event: DocumentStateEvent): void {
     for (const listener of Array.from(snapshotListeners)) {
       if (!snapshotListeners.has(listener)) {
@@ -490,6 +197,12 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     }
   }
 
+  /**
+   * 提交新快照并分发事件
+   *
+   * 采用 notifying 标志提供重入守卫：
+   * 禁止任何监听器在同步通知阶段再次触发文档变更，避免循环死锁
+   */
   function commit(
     nextSnapshot: DocumentSnapshot,
     transition: DocumentTransition,
@@ -519,6 +232,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return event;
   }
 
+  /**
+   * 检查当前状态机是否阻断新的变更
+   */
   function blockedMutation(): MutationBusyResult | MutationRejectedResult | null {
     if (notifying) {
       return { status: "rejected", reason: "listener-reentrancy" };
@@ -529,6 +245,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return null;
   }
 
+  /**
+   * 构造版本过期冲突响应
+   */
   function staleMutation(): MutationStaleResult {
     return {
       status: "stale",
@@ -538,6 +257,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     };
   }
 
+  /**
+   * 应用文本内容变动
+   */
   function applyContent(
     markdown: Markdown,
     origin: DocumentMutationOrigin,
@@ -566,6 +288,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return { status: "applied", snapshot: nextSnapshot, event };
   }
 
+  /**
+   * 将已落盘的候选保存记录提升为权威快照
+   */
   function applyAuthoritativeCandidate(
     record: SaveRecord,
     triggeredByCheckpointId?: string,
@@ -628,6 +353,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return { status: "applied", authoritativeCheckpointId: checkpoint.id };
   }
 
+  /**
+   * 查询指定序号之后是否仍有未结算的保存请求
+   */
   function highestPendingSequenceAfter(sequence: number): number | null {
     let highest: number | null = null;
     for (const record of saveRecords.values()) {
@@ -645,6 +373,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     return highest;
   }
 
+  /**
+   * 获取当前可被提升为权威版本的最高已落盘保存记录
+   */
   function highestPromotableCandidate(): SaveRecord | null {
     let selected: SaveRecord | null = null;
     for (const record of saveRecords.values()) {
@@ -749,9 +480,10 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
         operationId: rendererReceipt.operationId,
         sync: "already-applied",
       });
+
       return Object.freeze({
-        status: "finalized" as const,
-        operationId: rendererReceipt.operationId,
+        status: "finalized",
+        operationId: reservation.operationId,
         documentGeneration: nextSnapshot.documentGeneration,
         previousContentRevision,
         contentRevision: nextSnapshot.contentRevision,
@@ -766,20 +498,20 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
       }
       activeReservation = null;
     },
-    replaceDocument(next, origin) {
+    replaceDocument(replaceInput, origin) {
       const blocked = blockedMutation();
       if (blocked) {
         return blocked;
       }
-      const markdown = normalizeLineEndings(next.markdown);
-      const savedMarkdown = normalizeLineEndings(next.savedMarkdown ?? markdown);
+      const markdownLf = normalizeLineEndings(replaceInput.markdown);
+      const savedMarkdownLf = normalizeLineEndings(replaceInput.savedMarkdown ?? markdownLf);
       authoritativeSaveSequence = 0;
       verificationBarrierSequence = null;
       const nextSnapshot = createSnapshot({
-        markdown,
-        savedMarkdown,
-        filePath: next.filePath ?? null,
-        mode: next.mode ?? currentSnapshot.mode,
+        markdown: markdownLf,
+        savedMarkdown: savedMarkdownLf,
+        filePath: replaceInput.filePath ?? null,
+        mode: replaceInput.mode ?? currentSnapshot.mode,
         documentGeneration: currentSnapshot.documentGeneration + 1,
         stateRevision: currentSnapshot.stateRevision + 1,
         contentRevision: 0,
@@ -789,54 +521,60 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
           sequence: null,
         },
       });
-      const event = commit(nextSnapshot, { kind: "document-replace", origin });
+      const event = commit(nextSnapshot, {
+        kind: "document-replace",
+        origin,
+      });
       return { status: "applied", snapshot: nextSnapshot, event };
     },
-    setDocumentPath(next) {
+    setDocumentPath(pathInput) {
       const blocked = blockedMutation();
       if (blocked) {
         return blocked;
       }
       if (
-        next.expectedGeneration !== currentSnapshot.documentGeneration ||
-        next.expectedStateRevision !== currentSnapshot.stateRevision
+        pathInput.expectedGeneration !== currentSnapshot.documentGeneration ||
+        pathInput.expectedStateRevision !== currentSnapshot.stateRevision
       ) {
         return staleMutation();
       }
-      if (next.filePath === currentSnapshot.filePath) {
+      if (pathInput.filePath === currentSnapshot.filePath) {
         return { status: "noop", snapshot: currentSnapshot };
       }
       const nextSnapshot = createSnapshot({
         ...currentSnapshot,
-        filePath: next.filePath,
+        filePath: pathInput.filePath,
         stateRevision: currentSnapshot.stateRevision + 1,
       });
-      const event = commit(nextSnapshot, { kind: "metadata", fields: ["filePath"] });
+      const event = commit(nextSnapshot, {
+        kind: "metadata",
+        fields: ["filePath"],
+      });
       return { status: "applied", snapshot: nextSnapshot, event };
     },
-    commitMode(next) {
+    commitMode(modeInput) {
       const blocked = blockedMutation();
       if (blocked) {
         return blocked;
       }
       if (
-        next.expectedGeneration !== currentSnapshot.documentGeneration ||
-        next.expectedStateRevision !== currentSnapshot.stateRevision
+        modeInput.expectedGeneration !== currentSnapshot.documentGeneration ||
+        modeInput.expectedStateRevision !== currentSnapshot.stateRevision
       ) {
         return staleMutation();
       }
-      if (next.mode === currentSnapshot.mode) {
+      if (modeInput.mode === currentSnapshot.mode) {
         return { status: "noop", snapshot: currentSnapshot };
       }
       const nextSnapshot = createSnapshot({
         ...currentSnapshot,
-        mode: next.mode,
+        mode: modeInput.mode,
         stateRevision: currentSnapshot.stateRevision + 1,
       });
       const event = commit(nextSnapshot, {
         kind: "mode",
-        origin: next.origin,
-        operationId: next.operationId,
+        origin: modeInput.origin,
+        operationId: modeInput.operationId,
       });
       return { status: "applied", snapshot: nextSnapshot, event };
     },
@@ -847,7 +585,7 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
         );
       }
       saveSequence += 1;
-      const checkpoint = Object.freeze({
+      const checkpoint: DocumentSaveCheckpoint = Object.freeze({
         id: `document:${instanceId}:save:${saveSequence}`,
         sequence: saveSequence,
         documentGeneration: currentSnapshot.documentGeneration,
@@ -946,6 +684,12 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
   return state;
 }
 
+/**
+ * 执行安全的编辑器模式切换
+ *
+ * 采用两阶段切换协议（准备校验 -> 渲染器执行 -> 核心状态提交 -> 失败自动回滚），
+ * 确保视图与内核状态强一致。
+ */
 export function switchEditorModeSafely(
   document: DocumentState,
   nextMode: EditorMode,
@@ -1021,6 +765,10 @@ export function switchEditorModeSafely(
   };
 }
 
+/**
+ * 协调派发状态机变更事件至挂载的渲染器客户端
+ * 若检测到事件乱序或代际冲突，自动触发 reconcile 快照对齐
+ */
 export function synchronizeRendererEvent(
   document: DocumentState,
   renderer: RendererSyncPort,

@@ -1,13 +1,28 @@
+/**
+ * @fileoverview MDX Callout 提示框组件 AST 解析与序列化协议
+ *
+ * 规范 <Callout type="..." title="...">...</Callout> 标签在 editor-core 内的保真解析。
+ */
+
 import type { CalloutNode, RawFragment } from "./content.ts";
 
+/**
+ * 提示框语气类型
+ */
 export type CalloutTone = "info" | "warning" | "success" | "danger";
 
+/**
+ * Callout 组件扩展适配器接口
+ */
 export interface CalloutExtensionAdapter {
   readonly name: string;
   readonly canRepresentCalloutNode: boolean;
   readonly canSerializeCalloutNode: boolean;
 }
 
+/**
+ * Callout 扩展探测烟测结果
+ */
 export type CalloutExtensionSmokeResult =
   | {
       readonly status: "passed";
@@ -18,6 +33,12 @@ export type CalloutExtensionSmokeResult =
       readonly blocker: string;
     };
 
+/**
+ * 从保真切片中解析 Callout 结构化节点
+ *
+ * @param fragment 来源切片
+ * @returns 结构化节点，非 Callout 时返回 undefined
+ */
 export function parseCalloutFragment(fragment: RawFragment): CalloutNode | undefined {
   if (fragment.kind !== "registeredMdxComponent") {
     return undefined;
@@ -43,6 +64,9 @@ export function parseCalloutFragment(fragment: RawFragment): CalloutNode | undef
   };
 }
 
+/**
+ * 标记 Callout 节点已被用户编辑变动
+ */
 export function markCalloutDirty(
   node: CalloutNode,
   updates: Partial<Pick<CalloutNode, "props" | "childrenMarkdown">>,
@@ -54,6 +78,9 @@ export function markCalloutDirty(
   };
 }
 
+/**
+ * 将 Callout 节点序列化为 MDX JSX 标签文本
+ */
 export function serializeCalloutNode(node: CalloutNode, rawFragment?: RawFragment): string {
   if (!node.dirty && rawFragment !== undefined) {
     return rawFragment.rawSource;
@@ -68,6 +95,9 @@ export function serializeCalloutNode(node: CalloutNode, rawFragment?: RawFragmen
   return `<Callout${props}>${node.childrenMarkdown}</Callout>`;
 }
 
+/**
+ * 烟测验证 Callout 扩展适配器的兼容性
+ */
 export function smokeCalloutExtension(
   adapter?: CalloutExtensionAdapter,
 ): CalloutExtensionSmokeResult {
@@ -102,17 +132,14 @@ function parseCalloutProps(propsSource: string): Readonly<Record<string, string>
     }
   }
 
-  return props;
+  return Object.freeze(props);
 }
 
 function serializeCalloutProps(props: Readonly<Record<string, string>>): string {
-  const entries = Object.entries(props);
+  const serialized = Object.entries(props)
+    .toSorted(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${key}="${value}"`)
+    .join(" ");
 
-  if (entries.length === 0) {
-    return "";
-  }
-
-  return ` ${entries
-    .map(([name, value]) => `${name}="${value.replace(/"/g, "&quot;")}"`)
-    .join(" ")}`;
+  return serialized.length === 0 ? "" : ` ${serialized}`;
 }
