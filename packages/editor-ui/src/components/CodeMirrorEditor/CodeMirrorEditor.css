@@ -763,6 +763,34 @@
     border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
 }
 
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line.cm-md-code-line-numbered {
+  position: relative;
+  padding-inline-start: calc(var(--md-code-line-number-width, 1ch) + 1.6rem);
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line.cm-md-code-line-numbered::before {
+  content: attr(data-md-code-line-number);
+  position: absolute;
+  inset-inline-start: 0.65rem;
+  width: var(--md-code-line-number-width, 1ch);
+  color: var(--theme-control-subtle, var(--theme-muted, #6e7781));
+  font-family: var(
+    --theme-mono-font,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace
+  );
+  font-size: 0.88em;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  user-select: none;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--first {
   padding-top: 0.45rem;
 }
