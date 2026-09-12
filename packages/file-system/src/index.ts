@@ -8,6 +8,7 @@ import {
 } from "./save-scheduler";
 
 export * from "./save-scheduler";
+export * from "./tree-view-state";
 
 export interface MarkdownDocumentFile {
   readonly filePath: string;

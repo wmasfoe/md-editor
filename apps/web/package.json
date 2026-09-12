@@ -16,6 +16,7 @@
     "@md-editor/ai": "workspace:*",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/mdx-component-registry": "workspace:*",

@@ -30,6 +30,10 @@ export default defineConfig({
         replacement: workspacePath("../../packages/editor-core/src/index.ts"),
       },
       {
+        find: /^@md-editor\/file-system$/,
+        replacement: workspacePath("../../packages/file-system/src/index.ts"),
+      },
+      {
         find: /^@md-editor\/renderer-codemirror$/,
         replacement: workspacePath("../../packages/renderer-codemirror/src/index.ts"),
       },

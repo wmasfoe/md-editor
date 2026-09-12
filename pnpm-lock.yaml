@@ -286,6 +286,9 @@ importers:
       '@md-editor/editor-ui':
         specifier: workspace:*
         version: link:../../packages/editor-ui
+      '@md-editor/file-system':
+        specifier: workspace:*
+        version: link:../../packages/file-system
       '@md-editor/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

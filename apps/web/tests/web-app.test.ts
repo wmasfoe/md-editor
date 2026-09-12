@@ -161,6 +161,56 @@ describe("Web Keyboard Shortcuts System", () => {
       handleWebKeyboardEvent(createKeyEvent({ key: "Escape", metaKey: false }), handlers),
     ).toBe(true);
     expect(onCloseOverlay).toHaveBeenCalledTimes(1);
+
+    // 7. Mod-b (Toggle Sidebar)
+    const onToggleSidebar = vi.fn();
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyB", key: "b" }), {
+        ...handlers,
+        onToggleSidebar,
+      }),
+    ).toBe(true);
+    expect(onToggleSidebar).toHaveBeenCalledTimes(1);
+
+    // 8. Mod-n (New Document)
+    const onNewDocument = vi.fn();
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyN", key: "n" }), {
+        ...handlers,
+        onNewDocument,
+      }),
+    ).toBe(true);
+    expect(onNewDocument).toHaveBeenCalledTimes(1);
+
+    // 9. Mod-o (Open Document)
+    const onOpenDocument = vi.fn();
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyO", key: "o" }), {
+        ...handlers,
+        onOpenDocument,
+      }),
+    ).toBe(true);
+    expect(onOpenDocument).toHaveBeenCalledTimes(1);
+
+    // 10. Mod-Shift-O (Open Folder)
+    const onOpenFolder = vi.fn();
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyO", key: "o", shiftKey: true }), {
+        ...handlers,
+        onOpenFolder,
+      }),
+    ).toBe(true);
+    expect(onOpenFolder).toHaveBeenCalledTimes(1);
+
+    // 11. Mod-Shift-S (Export Document)
+    const onExport = vi.fn();
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyS", key: "s", shiftKey: true }), {
+        ...handlers,
+        onExport,
+      }),
+    ).toBe(true);
+    expect(onExport).toHaveBeenCalledTimes(1);
   });
 
   it("binds and unbinds listener cleanly using target object", () => {
