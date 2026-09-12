@@ -3,13 +3,13 @@
 ## 事实来源
 
 - 状态：持续维护
-- 最后更新：2026-08-28
+- 最后更新：2026-09-12
 - 产品名：Inkpoint（仓库、bundle id 与 Homebrew cask token 仍为 md-editor）
 - 中文意象：墨点。官网可用作副标或释义；不要写成「Inkpoint / 墨点」双商标，界面词标只保留 Inkpoint。
 - 官网词标：Fraunces；`Ink` 斜体、`Point` 正体；`o` 是固定墨点（`--color-blot`，外形与暹罗猫棕呼应，不要改）。水墨洇开、淡墨和朱文印只加在字母与落款上，不要套到这滴 o 上。
 - 官网中文：霞鹜文楷（`LXGW WenKai`）。拉丁正文仍走 Inter，词标拉丁仍走 Fraunces。
-- 主要产品界面：macOS 桌面外壳、可收起文件/大纲侧栏、文档栏、单一 CodeMirror 6 编辑器、资源预览、欢迎状态和原生菜单。
-- 已审阅证据：`README.md`、产品与迁移状态文档、`apps/desktop/src/app/App.tsx`、桌面组件与样式、`packages/editor-ui/src/components/CodeMirrorEditor/`、`packages/renderer-codemirror/src/wysiwyg/` 以及桌面 Playwright 用例。
+- 主要产品界面：macOS 桌面外壳、uTools 轻量插件外壳、可收起文件/大纲侧栏、文档栏、单一 CodeMirror 6 编辑器、资源预览、欢迎状态和原生菜单。
+- 已审阅证据：`README.md`、产品与迁移状态文档、`apps/desktop/src/app/App.tsx`、桌面组件与样式、`apps/utools/src/components/UtoolsApp.tsx`、`apps/utools/src/components/SettingsModal.tsx`、`apps/utools/src/styles.css`、`packages/editor-ui/src/components/CodeMirrorEditor/`、`packages/renderer-codemirror/src/wysiwyg/` 以及桌面自动化用例。
 - 证据边界：当前事实来自仓库实现、自动化用例和 1280 x 720 / 760 x 520 产品截图；仓库内仍没有用户研究或产品分析数据。
 
 ## 品牌
@@ -125,9 +125,10 @@
 
 - 框架与样式：React 19、Tauri 2、CodeMirror 6、Tailwind 工具类、`apps/desktop/src/styles.css` 和 `packages/editor-ui` 内容样式；生产路径不再包含 Milkdown/ProseMirror。
 - 设计变量：优先扩展现有 `--theme-*`，不得另建第二套变量系统；修改相关界面时逐步替换硬编码颜色。
+- 平台一致性：uTools 设置页复用桌面端的信息架构、控件密度和主题变量，只排除 Tauri 专属能力；平台层负责读取和保存设置，字体测量、编辑指针与代码高亮等编辑语义由共享编辑器组件承担。
 - 性能：输入更新保持局部；大纲和字数等派生计算需要防抖；保存状态或界面外壳更新不得重新挂载 CodeMirror；只有测量证明必要时才虚拟化大型目录或文档。
 - 兼容性：macOS 优先，但命令 ID 和交互语义必须可移植到 Web 和 Windows；Markdown/MDX 原始内容保真不可妥协。
-- 测试与截图：为状态转换和键盘流程增加组件测试；为打开、编辑、模式切换、保存/放弃以及完整源码搜索键盘闭环增加集成测试；在 1280 × 720 和 760 × 520 下保留欢迎页、编辑、活动/失败图片、Frontmatter、打开源码搜索、侧栏覆盖层、对话框和错误状态截图。最小窗口下不得出现水平溢出，搜索面板不得遮挡当前匹配内容且必须完整可操作。
+- 测试与截图：为状态转换和键盘流程增加组件测试；为打开、编辑、模式切换、保存/放弃以及完整源码搜索键盘闭环增加集成测试；在 1280 × 720 和 760 × 520 下保留欢迎页、编辑、活动/失败图片、Frontmatter、打开源码搜索、侧栏覆盖层、对话框和错误状态截图。uTools 设置回归需覆盖浅色/深色即时预览、字体与字号生效、代码语法着色和编辑画布文本指针。最小窗口下不得出现水平溢出，搜索面板不得遮挡当前匹配内容且必须完整可操作。
 
 ## 推荐实施顺序
 

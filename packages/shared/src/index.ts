@@ -1,5 +1,11 @@
 export const sharedSpikeName = "shared-m0";
 
+/** 官网域名 */
+export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
+
+/** 官网完整 URL */
+export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
+
 export type Markdown = string;
 
 export interface ResultOk<T> {

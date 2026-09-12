@@ -1,0 +1,64 @@
+{
+  "pluginName": "Inkpoint Markdown 编辑器",
+  "version": "0.1.0",
+  "description": "轻量级所见即所得 Markdown 编辑器，支持快速编辑、本地文件秒开与全局划词润色。",
+  "author": "Inkpoint Team",
+  "homepage": "https://editor.justdev.cn",
+  "main": "dist/index.html",
+  "logo": "logo.png",
+  "preload": "preload/index.js",
+  "development": {
+    "main": "http://127.0.0.1:5174/index.html"
+  },
+  "pluginSetting": {
+    "single": true,
+    "height": 544
+  },
+  "features": [
+    {
+      "code": "workspace",
+      "explain": "Inkpoint Markdown 完整工作区 (文件树)",
+      "cmds": ["Markdown 编辑器", "编辑器", "文档库"]
+    },
+    {
+      "code": "scratchpad",
+      "explain": "新建 Markdown 文档",
+      "cmds": ["md", "markdown", "新建", "草稿", "note"]
+    },
+    {
+      "code": "open-file",
+      "explain": "用 Inkpoint 打开 Markdown 文件",
+      "cmds": [
+        {
+          "type": "files",
+          "fileType": "file",
+          "extensions": ["md", "markdown", "mdx", "txt"],
+          "label": "编辑 Markdown"
+        }
+      ]
+    },
+    {
+      "code": "selection-edit",
+      "explain": "在 Inkpoint 中编辑选中文本",
+      "cmds": [
+        {
+          "type": "over",
+          "label": "Markdown 编辑/润色",
+          "minLength": 1,
+          "maxLength": 10000
+        }
+      ]
+    },
+    {
+      "code": "open-folder",
+      "explain": "用 Inkpoint 打开 Markdown 文件夹/工作区",
+      "cmds": [
+        {
+          "type": "files",
+          "fileType": "directory",
+          "label": "打开 Markdown 文件夹"
+        }
+      ]
+    }
+  ]
+}

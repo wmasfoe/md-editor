@@ -28,3 +28,6 @@
   记录 `@md-editor/i18n` 独立包设计、Type-Safe 字典、全应用多语言接入方案及后续新增语言指南。
 - 代码库模块化拆分、并发保序保存调度与多端发版架构方案： [codebase_modularization_and_concurrency_architecture.md](./codebase_modularization_and_concurrency_architecture.md)
   记录巨型单体文件拆解与全量注释规范、串行异步保存调度器（防抖/手动并发保护）以及桌面端与 Web 端发版解耦架构。
+- uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
+  记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与便签持久化、AI 免责机制与导流规范。
+
