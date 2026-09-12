@@ -26,6 +26,7 @@
     "release:desktop:version": "node scripts/release/version-desktop.mjs",
     "release:web": "node scripts/release/publish-web.mjs",
     "release:web:version": "node scripts/release/version-web.mjs",
+    "deploy:web": "node scripts/release/deploy-web.mjs",
     "release:site": "node scripts/site/deploy-site.mjs",
     "smoke:editor-core": "node --experimental-strip-types scripts/smoke-editor-core.mjs",
     "build": "pnpm -r --sort build",

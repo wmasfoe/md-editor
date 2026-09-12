@@ -13,8 +13,11 @@
   - desktop 发布成功后，workflow 会通过 `pnpm release:site` 自动触发官网 changelog 发布。
 - **Web 发版（`web-v*` tag）**：
   - 由 `.github/workflows/release-web.yml` 触发；
+  - `apps/web/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`，关闭 PR 合并与 push 触发的自动部署；
   - 校验 `apps/web` 类型检查与单元测试，执行 `pnpm build:web`；
-  - 将产物压缩为 `md-editor-web-${version}.zip` 并创建对应 GitHub Release。
+  - 将产物压缩为 `md-editor-web-${version}.zip` 并创建对应 GitHub Release；
+  - 若配置了 `VERCEL_TOKEN`，工作流还会自动调用 `pnpm deploy:web` 完成生产环境预构建部署；
+  - 本地亦可通过 `pnpm release:web` 交互式发版或 `pnpm deploy:web` 独立部署。
 - **uTools 发版（`utools-v*` tag）**：
   - 由 `.github/workflows/release-utools.yml` 触发，首发版本为 `0.1.0`；
   - 校验 package、源码/构建 plugin manifest 与 tag 版本完全一致，并拒绝包含开发地址或缺少关键文件的产物；
@@ -22,6 +25,7 @@
   - uTools 市场没有公开发布 API/CLI，版本说明、截图、提交审核仍由维护者在官方开发者工具中完成。
 - **官网部署**：
   - 唯一入口为 `pnpm release:site`（`scripts/site/deploy-site.mjs`）；
+  - `site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
   - 聚合读取 `apps/desktop/CHANGELOG.md` 与 `apps/web/CHANGELOG.md`，并在页面以多 Tab 方式展示。
 
 ## 核心发版命令速查
@@ -30,21 +34,23 @@
 | :--- | :--- | :--- |
 | `pnpm release:desktop` | `scripts/release/publish-desktop.mjs` | 桌面端完整发版流程（版本更新、Changelog 写入、commit、`v*` tag 与 push，同时支持 `desktop-v*`） |
 | `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端核心版本文件（desktop package, Tauri, Cargo；root package 固定为 `0.0.0` 容器占位）与 `apps/desktop/CHANGELOG.md` |
-| `pnpm release:web` | `scripts/release/publish-web.mjs` | Web 端完整发版流程（版本更新、`apps/web/CHANGELOG.md` 写入、构建自检、commit、`web-v*` tag 与 push） |
+| `pnpm release:web` | `scripts/release/publish-web.mjs` | Web 端完整发版流程（版本更新、`apps/web/CHANGELOG.md` 写入、构建自检、commit、`web-v*` tag 与 push，支持可选即时上线） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
+| `pnpm deploy:web` | `scripts/release/deploy-web.mjs` | Web 端 Vercel CLI 预构建发布入口 |
 | `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口 |
 
 ## 相关文件索引
 
 - `.github/workflows/build-desktop.yml`: PR 和手动触发的跨平台校验构建入口。
 - `.github/workflows/release-desktop.yml`: `v*` / `desktop-v*` tag 触发的桌面端 GitHub Release 和 Homebrew tap 同步入口。
-- `.github/workflows/release-web.yml`: `web-v*` tag 触发的 Web 端 GitHub Release 工作流。
+- `.github/workflows/release-web.yml`: `web-v*` tag 触发的 Web 端 GitHub Release 与部署工作流。
 - `.github/workflows/release-utools.yml`: uTools PR 构建产物和 `utools-v*` tag GitHub Release 工作流。
 - `.github/workflows/release-beta.yml`: `beta` 分支 push 触发的桌面端 beta 预发布构建入口。
 - `scripts/release/version-desktop.mjs`: 同步更新 desktop package、Tauri config、Cargo manifest 的版本号（root package 保持 `0.0.0` 容器占位），并更新 `apps/desktop/CHANGELOG.md`。
 - `scripts/release/publish-desktop.mjs`: 交互式桌面端发版编排脚本。
 - `scripts/release/version-web.mjs`: 更新 `apps/web/package.json` 与 `apps/web/CHANGELOG.md`。
 - `scripts/release/publish-web.mjs`: 交互式 Web 端发版编排脚本。
+- `scripts/release/deploy-web.mjs`: Web 端唯一 Vercel CLI 发布入口；由 `pnpm deploy:web` 触发。
 - `scripts/release/validate-utools-release.mjs`: 校验 uTools 版本、tag、正式 manifest 和构建目录完整性。
 - `scripts/release/changelog.mjs`: Changelog 解析与更新共享工具模块。
 - `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；由 `pnpm release:site` 触发。

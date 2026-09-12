@@ -22,6 +22,7 @@ function parseArgs(argv) {
     notes: undefined,
     pr: undefined,
     kind: undefined,
+    deploy: undefined,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -35,6 +36,10 @@ function parseArgs(argv) {
       options.yes = true;
     } else if (arg === "--no-push") {
       options.noPush = true;
+    } else if (arg === "--deploy") {
+      options.deploy = true;
+    } else if (arg === "--no-deploy") {
+      options.deploy = false;
     } else if (arg === "--allow-any-branch") {
       options.allowAnyBranch = true;
     } else if (arg === "--branch") {
@@ -82,6 +87,8 @@ Options:
   --dry-run            Print the release plan without changing files.
   --resume             Continue after release:web:version already changed version files.
   --no-push            Commit and tag locally, but do not push.
+  --deploy             Deploy to Vercel production after pushing release commit and tag.
+  --no-deploy          Skip Vercel production deployment.
   --notes <text>       Release notes used in the commit and annotated tag.
   --pr <number>        Associated Pull Request number for the release changelog.
   --yes, -y            Skip the final interactive confirmation.`;
@@ -278,6 +285,29 @@ async function confirmRelease(options, plan) {
   });
 }
 
+async function shouldDeploy(options) {
+  if (options.deploy === false || options.noPush) {
+    return false;
+  }
+  if (options.deploy === true) {
+    return true;
+  }
+  if (options.yes) {
+    return true;
+  }
+  if (!input.isTTY) {
+    return false;
+  }
+
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input, output });
+    rl.question("\n是否立即将新版本部署到 Vercel 生产环境? [Y/n]: ", (answer) => {
+      rl.close();
+      resolve(!answer || /^y(?:es)?$/iu.test(answer.trim()));
+    });
+  });
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -367,6 +397,14 @@ async function main() {
 
   run("git", ["push", "origin", plan.branch], { dryRun: options.dryRun, stdio: "inherit" });
   run("git", ["push", "origin", plan.tag], { dryRun: options.dryRun, stdio: "inherit" });
+
+  const deployNow = await shouldDeploy(options);
+  if (deployNow) {
+    console.log("\n正在部署 Web 应用至 Vercel 生产环境...");
+    run("node", ["scripts/release/deploy-web.mjs", ...(options.dryRun ? ["--dry-run"] : [])], {
+      stdio: "inherit",
+    });
+  }
 
   if (options.dryRun) {
     console.log("\nDry run complete. No files were changed and nothing was pushed.");

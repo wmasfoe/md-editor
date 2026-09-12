@@ -73,3 +73,11 @@ jobs:
               --title "Markdown Editor Web $RELEASE_TAG" \
               --notes "Web release $RELEASE_VERSION for online preview and self-hosting."
           fi
+
+      - name: Deploy Web app to Vercel production
+        if: env.VERCEL_TOKEN != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_WEB_PROJECT_ID: ${{ secrets.VERCEL_WEB_PROJECT_ID }}
+        run: pnpm deploy:web

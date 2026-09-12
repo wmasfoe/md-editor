@@ -97,9 +97,21 @@ pnpm release:web
 3. 执行 `pnpm build:web` 验证打包与类型检查；
 4. 创建 `chore(web): release web-vX.Y.Z` 提交；
 5. 创建 `web-vX.Y.Z` tag（如 `web-v0.2.0`）；
-6. 推送至远程，触发 `.github/workflows/release-web.yml` 构建打包并创建 GitHub Release。
+6. 推送至远程，触发 `.github/workflows/release-web.yml` 构建打包、创建 GitHub Release 并自动部署；
+7. （可选）在本地提示时直接执行 `deploy:web` 立即将新版本通过 Vercel CLI 发布到生产环境。
 
-### 2. 仅更新版本号（分步）
+> [!IMPORTANT]
+> `apps/web/vercel.json` 已显式设置 `"git": { "deploymentEnabled": false }`。合并 PR 或推送到 `main` 分支**绝不会**自动触发 Web 生产部署，所有发布均由 `pnpm release:web` 或 `pnpm deploy:web` 严格受控。
+
+### 2. 单独部署上线（无需升级版本）
+
+若需要将当前已构建产物直接发布到生产环境：
+
+```bash
+pnpm deploy:web
+```
+
+### 3. 仅更新版本号（分步）
 
 ```bash
 pnpm release:web:version patch
@@ -168,6 +180,7 @@ pnpm release:desktop patch --dry-run
 # Web 端 (Web)
 pnpm release:web                 # 交互式发版（推荐）
 pnpm release:web:version         # 仅更新版本文件与日志
+pnpm deploy:web                  # 仅执行 Vercel CLI 生产环境部署
 
 # uTools 插件
 pnpm build:utools
