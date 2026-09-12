@@ -74,7 +74,7 @@
 
 ---
 
-## 4. 生产编译与离线包打包 (UPX)
+## 4. 生产编译与发布
 
 1. **执行编译**：
    ```bash
@@ -85,7 +85,17 @@
    - `dist/logo.png`
    - `dist/preload/index.js`（保持未混淆、清晰可读的 CommonJS 规范）
    - `dist/plugin.json`（已自动将 `main` 重定向至 `index.html`，并移除了开发配置）
+   - uTools 专用图标位于 `apps/utools/logo.png`，尺寸不得超过 `256x256`；发布校验会检查构建产物，桌面端与网站图标不受影响。
 
-2. **生成 UPX 离线安装包**：
+2. **CI 发布目录**：
+   - Pull Request 和手动运行 `.github/workflows/release-utools.yml` 时，CI 会执行类型检查、单测、生产构建和发布清单校验，并上传 `inkpoint-utools-<version>.zip`。
+   - 推送与版本一致的 `utools-v*` 标签（首个标签为 `utools-v0.1.0`）后，CI 会自动创建对应 GitHub Release。
+   - `apps/utools/package.json`、源码 `plugin.json`、构建后的 `dist/plugin.json` 和 Git tag 必须使用同一版本。
+   - 构建产物不得包含 `.map`、`.js.gz`、`.css.gz` 等调试或预压缩文件；CI 会递归检查整个 `apps/utools/dist` 并阻止不合规产物发布。
+
+3. **提交 uTools 市场审核或生成 UPXS 离线包**：
    - 在 uTools 开发者工具中，项目目录选择 `apps/utools/dist`。
-   - 点击“打包”，填写版本号与说明，即可一键导出 `.upx` 离线安装包。
+   - 点击“打包”可生成 `.upxs` 离线安装包；点击“发布”可填写版本说明、介绍和截图并提交审核。
+   - uTools 官方目前没有公开的市场发布 API 或 CLI，因此市场提交仍需在开发者工具中完成，CI 不保存 uTools 账号凭证，也不自动化 GUI。
+
+官方流程参见 [发布到应用市场](https://www.u-tools.cn/docs/developer/basic/publish-plugin.html) 与 [打包为离线安装包](https://www.u-tools.cn/docs/developer/basic/offline-plugin.html)。

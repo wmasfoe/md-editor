@@ -2,7 +2,7 @@
 
 All notable changes to the Inkpoint uTools plugin will be documented in this file.
 
-## 1.0.0 - 2026-09-05
+## 0.1.0 - 2026-09-05
 
 - Initial public release of the Inkpoint uTools platform plugin (`apps/utools`), serving as a lightweight editor and traffic bridge to the desktop app
 - Instant keyword invocation: quick launch via `md`, `markdown`, `编辑器`, `Inkpoint`, and `墨点`

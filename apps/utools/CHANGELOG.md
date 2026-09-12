@@ -2,7 +2,7 @@
 
 All notable changes to the Inkpoint uTools plugin will be documented in this file.
 
-## 1.0.0 - 2026-09-05
+## 0.1.0 - 2026-09-05
 
 - 首次发布 Inkpoint uTools 平台插件（`apps/utools`），定位轻量随手编辑与导流跳板
 - 关键字即时呼出：支持 `md`、`markdown`、`编辑器`、`Inkpoint`、`墨点` 快速唤起

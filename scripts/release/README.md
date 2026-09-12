@@ -1,6 +1,6 @@
 # 多端发布与版本管理指南
 
-本项目已对桌面端（Desktop）、Web 在线端（Web Playground）与官网展示端（Site）的发版与上线流程全面解耦。所有发版命令统一收敛至 `release:*` 命名空间，消除历史兼容别名包袱，保持命令工整与职责对称。
+本项目已对桌面端（Desktop）、Web 在线端（Web Playground）、uTools 插件与官网展示端（Site）的发版与上线流程全面解耦。所有发版命令统一收敛至 `release:*` 命名空间，消除历史兼容别名包袱，保持命令工整与职责对称。
 
 ---
 
@@ -10,6 +10,7 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*` / `desktop-v*`<br>(基线: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-desktop.yml` |
 | **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version` | `web-v*`<br>(例: `web-v0.2.0`) | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
+| **uTools** | `apps/utools` | `pnpm build:utools` | `utools-v*`<br>(基线: `utools-v0.1.0`) | `apps/utools/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-utools.yml` |
 | **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取双端中英文 Changelog 并在官网支持双语切换展示 | 静态部署 / Vercel CLI |
 
 ---
@@ -72,7 +73,20 @@ pnpm release:web:version
 
 ---
 
-## 4. 官网更新与部署 (Site)
+## 4. uTools 插件发布
+
+uTools 插件通过 `utools-v*` 标签自动构建并创建 GitHub Release。CI 会校验 tag、`apps/utools/package.json`、源码与构建后的 `plugin.json` 版本一致，并检查正式包不含 `development` 配置。uTools 市场仍要求使用官方开发者工具提交审核，不能由当前公开 API 自动完成。
+
+```bash
+pnpm build:utools
+node scripts/release/validate-utools-release.mjs --dist apps/utools/dist
+git tag utools-v0.1.0
+git push origin utools-v0.1.0
+```
+
+---
+
+## 5. 官网更新与部署 (Site)
 
 官网 `site` 采用 Next.js 构建，内嵌更新日志展示页面（`/changelog`），并支持「桌面客户端」与「Web 在线版」双端日志 Tab 动态切换。
 

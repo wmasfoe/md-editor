@@ -1,6 +1,6 @@
 {
   "pluginName": "Inkpoint Markdown 编辑器",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "轻量级所见即所得 Markdown 编辑器，支持快速编辑、本地文件秒开与全局划词润色。",
   "author": "Inkpoint Team",
   "homepage": "https://editor.justdev.cn",
@@ -18,16 +18,7 @@
     {
       "code": "workspace",
       "explain": "Inkpoint Markdown 完整工作区 (文件树)",
-      "cmds": [
-        "Inkpoint",
-        "Inkpoint Markdown 编辑器",
-        "编辑器",
-        "墨点",
-        "工作区",
-        "workspace",
-        "项目",
-        "文档库"
-      ]
+      "cmds": ["Markdown 编辑器", "编辑器", "文档库"]
     },
     {
       "code": "scratchpad",
