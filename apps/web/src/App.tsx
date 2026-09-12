@@ -1,13 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createDocumentState,
   switchEditorModeSafely,
   type DocumentState,
 } from "@md-editor/editor-core";
-import { EditorUiProvider, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import {
+  EditorUiProvider,
+  AssetPreview,
+  useEditorUiState,
+  useEditorUiActions,
+  type CodeMirrorEditorPorts,
+} from "@md-editor/editor-ui";
+import { useTranslation, changeLanguage } from "@md-editor/i18n";
+import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { WebHeader } from "./components/WebHeader";
 import { WebEditor } from "./components/WebEditor";
-import { WebOutlineDrawer } from "./components/WebOutlineDrawer";
+import { WebSidebar } from "./components/WebSidebar";
+import { SidebarResizer, SIDEBAR_DEFAULT_WIDTH } from "./components/SidebarResizer";
+import { CollapsedSidebarReveal } from "./components/CollapsedSidebarReveal";
 import { WebSettingsDialog } from "./components/WebSettingsDialog";
 import { DEFAULT_SHOWCASE_MARKDOWN } from "./presets/showcase";
 import { exportMarkdown, copyMarkdown } from "./lib/export-helper";
@@ -23,16 +33,12 @@ import {
 import { requestWebAiContinuation } from "./lib/web-ai-client";
 import { applyDesktopTheme } from "./lib/theme-manager";
 import { bindWebKeyboardShortcuts } from "./lib/keyboard-shortcuts";
-import { useTranslation, changeLanguage } from "@md-editor/i18n";
+import { webFileSystem } from "./lib/web-file-system";
+import { useImagePaste } from "./lib/use-image-paste";
 
 export function App() {
-  const { t } = useTranslation();
   const [settings, setSettings] = useState<WebSettings>(() => loadWebSettings());
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isOutlineOpen, setIsOutlineOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isCopied, setIsCopied] = useState(false);
-  const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
 
   // 初始化 DocumentState
   const initialMarkdown = useMemo(() => {
@@ -44,7 +50,6 @@ export function App() {
   );
 
   const [currentMarkdown, setCurrentMarkdown] = useState(initialMarkdown);
-  const [mode, setMode] = useState<"wysiwyg" | "source">("wysiwyg");
 
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const showToast = useCallback((msg: string | null) => {
@@ -59,20 +64,7 @@ export function App() {
     }
   }, []);
 
-  // 监听文档变更，防抖暂存至 localStorage
-  useEffect(() => {
-    const unsubscribe = documentState.subscribeTransitions((event) => {
-      const snap = documentState.getSnapshot();
-      setCurrentMarkdown(snap.markdown);
-      setMode(snap.mode);
-      if (event.transition.kind === "content") {
-        saveDraft(snap.markdown);
-      }
-    });
-    return () => unsubscribe();
-  }, [documentState]);
-
-  // 同步多语言设置
+  // 监听多语言设置
   useEffect(() => {
     changeLanguage(settings.language);
   }, [settings.language]);
@@ -82,7 +74,126 @@ export function App() {
     return applyDesktopTheme(settings);
   }, [settings]);
 
-  // 模式切换
+  return (
+    <EditorUiProvider markdown={currentMarkdown} showToast={showToast}>
+      <MainWebEditorApp
+        settings={settings}
+        setSettings={setSettings}
+        documentState={documentState}
+        currentMarkdown={currentMarkdown}
+        setCurrentMarkdown={setCurrentMarkdown}
+        toastMessage={toastMessage}
+        showToast={showToast}
+      />
+    </EditorUiProvider>
+  );
+}
+
+interface MainWebEditorAppProps {
+  settings: WebSettings;
+  setSettings: React.Dispatch<React.SetStateAction<WebSettings>>;
+  documentState: DocumentState;
+  currentMarkdown: string;
+  setCurrentMarkdown: (val: string) => void;
+  toastMessage: string | null;
+  showToast: (msg: string | null) => void;
+}
+
+function findFirstMd(node: MarkdownFileTreeNode): string | null {
+  if (node.kind === "markdown") return node.path;
+  for (const child of node.children || []) {
+    const found = findFirstMd(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function MainWebEditorApp({
+  settings,
+  setSettings,
+  documentState,
+  currentMarkdown,
+  setCurrentMarkdown,
+  toastMessage,
+  showToast,
+}: MainWebEditorAppProps) {
+  const { t } = useTranslation();
+  const { outline, activeOutlineId } = useEditorUiState();
+  const { jumpToTocItem } = useEditorUiActions();
+
+  const [mode, setMode] = useState<"wysiwyg" | "source">("wysiwyg");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
+
+  // 文件系统与工作区状态
+  const [folder, setFolder] = useState<MarkdownFolder | null>(() =>
+    webFileSystem.getOpenedFolder(),
+  );
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const [openedAsset, setOpenedAsset] = useState<{ name: string; url: string } | null>(null);
+
+  // 侧栏状态
+  const [isSidebarVisible, setIsSidebarVisible] = useState(
+    typeof window !== "undefined" ? window.innerWidth >= 960 : true,
+  );
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+
+  // 监听文档状态变更
+  useEffect(() => {
+    const unsubscribe = documentState.subscribeTransitions((event) => {
+      const snap = documentState.getSnapshot();
+      setCurrentMarkdown(snap.markdown);
+      setMode(snap.mode);
+      setIsDirty(snap.isDirty);
+      if (event.transition.kind === "content") {
+        if (!activeFilePath) {
+          saveDraft(snap.markdown);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [documentState, activeFilePath, setCurrentMarkdown]);
+
+  // 监听异步资源图片缓存就绪事件，触发视图与测量刷新
+  const [, setAssetRevision] = useState(0);
+  useEffect(() => {
+    return webFileSystem.onAssetCacheChange(() => {
+      setAssetRevision((v) => v + 1);
+      ports?.requestMeasure();
+    });
+  }, [ports]);
+
+  // 监听工作区目录文件树变更（粘贴图片、落盘、新建、删除等触发的重新扫描）
+  useEffect(() => {
+    return webFileSystem.onFolderChange((nextFolder) => {
+      setFolder(nextFolder);
+    });
+  }, []);
+
+  // 图片复制粘贴与拖拽落盘系统
+  useImagePaste({
+    ports,
+    currentMarkdown,
+    onUpdateMarkdown: (nextMarkdown) => {
+      documentState.replaceDocument(
+        {
+          markdown: nextMarkdown,
+          savedMarkdown: documentState.getSnapshot().savedMarkdown,
+          filePath: activeFilePath,
+        },
+        { kind: "command", commandId: "image.paste" },
+      );
+    },
+    showToast,
+  });
+
+  // 编辑器模式切换
   const handleChangeMode = useCallback(
     (newMode: "wysiwyg" | "source") => {
       if (ports) {
@@ -110,18 +221,194 @@ export function App() {
     saveWebSettings(nextSettings);
   };
 
-  // 保存当前文档至本地存储 (localStorage)
-  const handleSaveToStorage = useCallback(() => {
-    const snap = documentState.getSnapshot();
-    saveDraft(snap.markdown);
-    showToast(t("toasts.docSavedToStorage"));
-  }, [documentState, showToast, t]);
+  // 在 MainWebEditorApp 内部：
+  // 打开本地文件夹
+  const handleOpenFolder = useCallback(async () => {
+    try {
+      showToast("正在打开本地文件夹...");
+      const opened = await webFileSystem.openDirectory();
+      if (!opened) return;
+      setFolder(opened);
+      setIsSidebarVisible(true);
+      showToast(`已加载工作区目录: ${opened.rootName}`);
+
+      const firstMd = findFirstMd(opened.tree);
+      if (firstMd) {
+        const text = await webFileSystem.readFile(firstMd);
+        documentState.replaceDocument(
+          { markdown: text, savedMarkdown: text, filePath: firstMd },
+          { kind: "command", commandId: "file.openFirst" },
+        );
+        setActiveFilePath(firstMd);
+        setOpenedAsset(null);
+      }
+    } catch (err: unknown) {
+      console.error(err);
+      showToast(getErrorMessage(err) || "打开文件夹失败");
+    }
+  }, [documentState, showToast]);
+
+  // 刷新当前文件夹
+  const handleRefreshFolder = useCallback(async () => {
+    try {
+      const refreshed = await webFileSystem.refreshDirectory();
+      if (refreshed) {
+        setFolder(refreshed);
+        showToast("已刷新文件树");
+      }
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err) || "刷新文件树失败");
+    }
+  }, [showToast]);
+
+  // 打开单个 Markdown 文件
+  const handleOpenSingleFile = useCallback(async () => {
+    try {
+      const res = await webFileSystem.openSingleFile();
+      if (!res) return;
+      documentState.replaceDocument(
+        { markdown: res.content, savedMarkdown: res.content, filePath: res.name },
+        { kind: "command", commandId: "file.openSingle" },
+      );
+      setActiveFilePath(res.name);
+      setOpenedAsset(null);
+      showToast(`已打开文档: ${res.name}`);
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err) || "打开文件失败");
+    }
+  }, [documentState, showToast]);
+
+  // 在工作区树中点击打开文件
+  const handleOpenFile = useCallback(
+    async (path: string) => {
+      try {
+        const text = await webFileSystem.readFile(path);
+        documentState.replaceDocument(
+          { markdown: text, savedMarkdown: text, filePath: path },
+          { kind: "command", commandId: "file.openTreeItem" },
+        );
+        setActiveFilePath(path);
+        setOpenedAsset(null);
+      } catch (err: unknown) {
+        showToast(getErrorMessage(err) || "读取文件失败");
+      }
+    },
+    [documentState, showToast],
+  );
+
+  // 点击打开图片资源预览
+  const handleOpenAsset = useCallback(
+    async (path: string) => {
+      const fileName = path.split("/").pop() || "Image";
+      showToast(`正在预览图片: ${fileName}`);
+      const assetUrl = await webFileSystem.getAssetUrl(path);
+      setOpenedAsset({
+        name: fileName,
+        url: assetUrl ?? path,
+      });
+    },
+    [showToast],
+  );
+
+  // 新建草稿文档
+  const handleNewDraft = useCallback(() => {
+    clearSavedDraft();
+    documentState.replaceDocument(
+      {
+        markdown: "# Untitled\n\n",
+        savedMarkdown: "# Untitled\n\n",
+        filePath: null,
+      },
+      { kind: "command", commandId: "file.newDraft" },
+    );
+    setActiveFilePath(null);
+    setOpenedAsset(null);
+    showToast("已新建草稿文档");
+  }, [documentState, showToast]);
+
+  // 保存文档（有本地文件则原子写盘，无则保存至草稿）
+  const handleSave = useCallback(async () => {
+    if (activeFilePath && webFileSystem.hasOpenedFolder()) {
+      try {
+        const checkpoint = documentState.beginSave({
+          kind: "current-path",
+          path: activeFilePath,
+        });
+        await webFileSystem.writeFile(activeFilePath, currentMarkdown);
+        documentState.settleSave(checkpoint, {
+          status: "succeeded",
+          commit: "committed",
+          filePath: activeFilePath,
+          warnings: [],
+        });
+        showToast("已成功保存并落盘至本地文件");
+      } catch (err: unknown) {
+        console.error(err);
+        showToast(`保存文件失败: ${getErrorMessage(err)}`);
+      }
+    } else {
+      saveDraft(currentMarkdown);
+      showToast(t("toasts.docSavedToStorage"));
+    }
+  }, [activeFilePath, currentMarkdown, documentState, showToast, t]);
+
+  // 新建文件或文件夹
+  const handleCreateItem = useCallback(
+    async (parentPath: string, name: string, kind: "markdown" | "directory") => {
+      try {
+        const newPath = await webFileSystem.createItem(parentPath, name, kind);
+        setFolder(webFileSystem.getOpenedFolder());
+        if (kind === "markdown") {
+          await handleOpenFile(newPath);
+        }
+        showToast(`已成功创建 ${kind === "directory" ? "文件夹" : "文件"}: ${name}`);
+      } catch (err: unknown) {
+        showToast(`创建失败: ${getErrorMessage(err)}`);
+      }
+    },
+    [handleOpenFile, showToast],
+  );
+
+  // 重命名文件或目录
+  const handleRenameItem = useCallback(
+    async (node: MarkdownFileTreeNode, newName: string) => {
+      try {
+        const newPath = await webFileSystem.renameItem(node.path, newName);
+        setFolder(webFileSystem.getOpenedFolder());
+        if (activeFilePath === node.path) {
+          setActiveFilePath(newPath);
+        }
+        showToast(`已重命名为: ${newName}`);
+      } catch (err: unknown) {
+        showToast(`重命名失败: ${getErrorMessage(err)}`);
+      }
+    },
+    [activeFilePath, showToast],
+  );
+
+  // 删除文件或目录
+  const handleDeleteItem = useCallback(
+    async (node: MarkdownFileTreeNode) => {
+      try {
+        await webFileSystem.deleteItem(node.path);
+        setFolder(webFileSystem.getOpenedFolder());
+        if (activeFilePath === node.path) {
+          handleNewDraft();
+        }
+        showToast(`已删除: ${node.name}`);
+      } catch (err: unknown) {
+        showToast(`删除失败: ${getErrorMessage(err)}`);
+      }
+    },
+    [activeFilePath, handleNewDraft, showToast],
+  );
 
   // 导出 Markdown 文件
   const handleExport = useCallback(() => {
-    exportMarkdown(currentMarkdown, "inkpoint-document.md");
-    showToast(t("toasts.exportedDoc", { filename: "inkpoint-document.md" }));
-  }, [currentMarkdown, showToast, t]);
+    const filename = activeFilePath ? activeFilePath.split("/").pop()! : "inkpoint-document.md";
+    exportMarkdown(currentMarkdown, filename);
+    showToast(t("toasts.exportedDoc", { filename }));
+  }, [activeFilePath, currentMarkdown, showToast, t]);
 
   // 复制 Markdown 到剪贴板
   const handleCopy = async () => {
@@ -135,7 +422,7 @@ export function App() {
     }
   };
 
-  // 恢复为默认演示内容
+  // 重置为默认展示文档
   const handleReset = () => {
     clearSavedDraft();
     documentState.replaceDocument(
@@ -146,10 +433,12 @@ export function App() {
       },
       { kind: "command", commandId: "web.reset" },
     );
+    setActiveFilePath(null);
+    setOpenedAsset(null);
     showToast(t("toasts.demoReset"));
   };
 
-  // 主动触发 AI 智能续写
+  // 触发 AI 智能续写
   const handleTriggerAi = async () => {
     if (!settings.ai.enabled) {
       showToast(t("toasts.aiNotEnabled"));
@@ -166,7 +455,6 @@ export function App() {
       setIsSettingsOpen(true);
       return;
     }
-
     if (!ports) {
       showToast(t("toasts.editorInitializing"));
       return;
@@ -181,27 +469,17 @@ export function App() {
 
     try {
       const continuation = await requestWebAiContinuation(settings.ai, before, after);
-
       if (!continuation) {
         showToast(t("toasts.aiNoSuggestion"));
         return;
       }
-
-      // 将建议注入 CM6 渲染层（呈现浅灰色 Ghost Text）
       ports.showSuggestion({
-        items: [
-          {
-            from: cursorPos,
-            to: cursorPos,
-            text: continuation,
-          },
-        ],
+        items: [{ from: cursorPos, to: cursorPos, text: continuation }],
         activeIndex: 0,
         from: cursorPos,
         to: cursorPos,
         text: continuation,
       });
-
       showToast(t("toasts.aiSuggestionGenerated"));
     } catch (err) {
       console.error(err);
@@ -212,20 +490,31 @@ export function App() {
   const handleTriggerAiRef = useRef(handleTriggerAi);
   handleTriggerAiRef.current = handleTriggerAi;
 
-  // 绑定 Web 快捷键系统（Mod-/ 模式切换、Mod-Shift-B 大纲、Mod-, 设置、Mod-s 保存草稿、Mod-Shift-A / Mod-j AI 续写、Escape 关闭）
+  // 绑定全局键盘快捷键
   useEffect(() => {
     return bindWebKeyboardShortcuts({
       onToggleMode: () => {
         handleChangeMode(mode === "wysiwyg" ? "source" : "wysiwyg");
       },
+      onToggleSidebar: () => {
+        setIsSidebarVisible((prev) => !prev);
+      },
       onToggleOutline: () => {
-        setIsOutlineOpen((prev) => !prev);
+        setIsSidebarVisible(true);
       },
       onOpenSettings: () => {
         setIsSettingsOpen(true);
       },
       onSave: () => {
-        handleSaveToStorage();
+        void handleSave();
+      },
+      onExport: handleExport,
+      onNewDocument: handleNewDraft,
+      onOpenDocument: () => {
+        void handleOpenSingleFile();
+      },
+      onOpenFolder: () => {
+        void handleOpenFolder();
       },
       onTriggerAi: () => {
         void handleTriggerAiRef.current();
@@ -233,62 +522,128 @@ export function App() {
       onCloseOverlay: () => {
         if (isSettingsOpen) {
           setIsSettingsOpen(false);
-        } else if (isOutlineOpen) {
-          setIsOutlineOpen(false);
         } else {
           ports?.dismissSuggestion();
         }
       },
     });
-  }, [mode, isSettingsOpen, isOutlineOpen, ports, handleSaveToStorage, handleChangeMode]);
+  }, [
+    mode,
+    isSettingsOpen,
+    ports,
+    handleSave,
+    handleExport,
+    handleNewDraft,
+    handleOpenSingleFile,
+    handleOpenFolder,
+    handleChangeMode,
+  ]);
 
   return (
-    <EditorUiProvider markdown={currentMarkdown} showToast={showToast}>
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--theme-bg)] text-[var(--theme-text)]">
-        {/* 顶部导航栏（无文件树，仅 Logo、明暗与设置） */}
-        <WebHeader
-          theme={settings.theme}
-          onToggleTheme={handleToggleTheme}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--theme-bg)] text-[var(--theme-text)]">
+      {/* 顶部导航栏 */}
+      <WebHeader
+        theme={settings.theme}
+        isSidebarVisible={isSidebarVisible}
+        activeFilePath={activeFilePath}
+        isDirty={isDirty}
+        mode={mode}
+        isCopied={isCopied}
+        onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
+        onToggleMode={handleChangeMode}
+        onToggleTheme={handleToggleTheme}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onTriggerAi={() => void handleTriggerAi()}
+        onCopy={handleCopy}
+        onExport={handleExport}
+      />
 
-        {/* 主编辑区域（全宽沉浸式无文件树界面） */}
-        <main className="relative flex min-h-0 flex-1 overflow-hidden">
-          <WebEditor
-            document={documentState}
-            settings={settings}
-            onRendererPortsChange={setPorts}
-          />
-
-          {/* 右侧大纲抽屉 */}
-          <WebOutlineDrawer open={isOutlineOpen} onClose={() => setIsOutlineOpen(false)} />
-        </main>
-
-        {/* 浮动 Toast 提示 */}
-        {toastMessage && (
-          <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-2 text-xs font-medium text-[var(--theme-title)] shadow-lg backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-2">
-            {toastMessage}
-          </div>
-        )}
-
-        {/* 弹窗设置面板（包含 AI 助手配置、外观主题、模式切换、快捷键速查与文档输出） */}
-        <WebSettingsDialog
-          open={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          settings={settings}
-          onSaveSettings={(newSettings) => {
-            setSettings(newSettings);
-            saveWebSettings(newSettings);
-            showToast(t("settings.saveSuccessToast"));
-          }}
+      {/* 主工作区（左侧栏 + 拖拽调宽 + 编辑器） */}
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {/* 左侧可折叠侧边栏 */}
+        <WebSidebar
+          isVisible={isSidebarVisible}
+          sidebarWidth={sidebarWidth}
+          folder={folder}
+          activeFilePath={activeFilePath}
           mode={mode}
+          outline={outline}
+          activeOutlineId={activeOutlineId}
+          onSelectOutlineItem={jumpToTocItem}
           onChangeMode={handleChangeMode}
-          onExport={handleExport}
-          onCopy={handleCopy}
-          isCopied={isCopied}
-          onReset={handleReset}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onCloseSidebar={() => setIsSidebarVisible(false)}
+          onOpenFile={(path) => void handleOpenFile(path)}
+          onOpenAsset={(path) => void handleOpenAsset(path)}
+          onOpenFolder={() => void handleOpenFolder()}
+          onOpenSingleFile={() => void handleOpenSingleFile()}
+          onNewDraft={handleNewDraft}
+          onRefreshFolder={() => void handleRefreshFolder()}
+          onCreateItem={handleCreateItem}
+          onRenameItem={handleRenameItem}
+          onDeleteItem={handleDeleteItem}
         />
+
+        {/* 侧栏调宽手柄 */}
+        {isSidebarVisible ? (
+          <SidebarResizer
+            width={sidebarWidth}
+            onCommitWidth={setSidebarWidth}
+            onCollapse={() => setIsSidebarVisible(false)}
+          />
+        ) : null}
+
+        {/* 编辑区 */}
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]">
+          {/* 侧栏收起悬浮唤起手柄 */}
+          {!isSidebarVisible && (
+            <CollapsedSidebarReveal onReveal={() => setIsSidebarVisible(true)} />
+          )}
+
+          {/* 图片资源预览 或 CodeMirror 编辑器 */}
+          {openedAsset ? (
+            <div className="absolute inset-0 z-10 flex min-h-0 flex-col">
+              <AssetPreview
+                asset={{ name: openedAsset.name, path: openedAsset.url }}
+                resolveAssetSrc={(p) => webFileSystem.resolveImageSrc(p, null)}
+                onBack={() => setOpenedAsset(null)}
+              />
+            </div>
+          ) : (
+            <WebEditor
+              document={documentState}
+              settings={settings}
+              activeFilePath={activeFilePath}
+              onRendererPortsChange={setPorts}
+            />
+          )}
+        </main>
       </div>
-    </EditorUiProvider>
+
+      {/* 浮动胶囊 Toast 提示 */}
+      {toastMessage && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-2 text-xs font-medium text-[var(--theme-title)] shadow-lg backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-2">
+          {toastMessage}
+        </div>
+      )}
+
+      {/* 设置面板 */}
+      <WebSettingsDialog
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        onSaveSettings={(newSettings) => {
+          setSettings(newSettings);
+          saveWebSettings(newSettings);
+          showToast(t("settings.saveSuccessToast"));
+        }}
+        mode={mode}
+        onChangeMode={handleChangeMode}
+        onExport={handleExport}
+        onCopy={handleCopy}
+        isCopied={isCopied}
+        onReset={handleReset}
+      />
+    </div>
   );
 }
