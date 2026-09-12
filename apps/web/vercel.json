@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/playground/assets/:match*",
+      "destination": "/assets/:match*"
+    },
+    {
+      "source": "/playground/favicon.svg",
+      "destination": "/favicon.svg"
+    },
+    {
+      "source": "/playground",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/playground/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/playground/:match*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

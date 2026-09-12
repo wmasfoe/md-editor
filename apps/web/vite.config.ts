@@ -8,6 +8,8 @@ function workspacePath(path: string): string {
 }
 
 export default defineConfig({
+  // Web 应用作为子路由挂载在官网的 /playground 路径下
+  base: process.env.VITE_BASE_PATH || "/playground/",
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: [
