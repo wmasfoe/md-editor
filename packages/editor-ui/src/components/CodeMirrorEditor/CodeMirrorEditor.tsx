@@ -171,6 +171,11 @@ export function CodeMirrorEditor({
   }, [codeBlockLineNumbers]);
 
   useLayoutEffect(() => {
+    // 字体与字号会改变行高和字符宽度，通知 CodeMirror 丢弃旧测量缓存。
+    bridgeRef.current?.ports.requestMeasure();
+  }, [fontSize, proseFontFamily, codeFontFamily]);
+
+  useLayoutEffect(() => {
     const activePlugins = plugins ?? syntaxPlugins;
     if (activePlugins !== undefined) {
       bridgeRef.current?.ports.setPlugins(activePlugins);

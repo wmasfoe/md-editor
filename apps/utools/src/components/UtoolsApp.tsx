@@ -32,6 +32,7 @@ import {
 } from "../utools/db-storage";
 import { resolveCodeFontStack, resolveProseFontStack } from "../utools/fonts";
 import { registerUtoolsLifecycle, type PluginEnterDetail } from "../utools/lifecycle";
+import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "../utools/theme";
 import type { EditorMode } from "../utools/types";
 import { ReferralBanner } from "./ReferralBanner";
 import { DisclaimerModal } from "./DisclaimerModal";
@@ -122,6 +123,7 @@ export function UtoolsApp() {
   snapshotRef.current = snapshot;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const settingsBeforeDialogRef = useRef(settings);
   const folderRef = useRef(folder);
   folderRef.current = folder;
 
@@ -132,17 +134,32 @@ export function UtoolsApp() {
     }
   }, []);
 
-  // 更新并持久化设置
+  // 设置窗口内先即时预览，保存时再持久化，取消则回滚到打开前状态。
   const handleUpdateSettings = useCallback(
     (updater: Partial<UtoolsSettings> | ((prev: UtoolsSettings) => UtoolsSettings)) => {
       setSettings((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
-        saveUtoolsSettings(next);
-        return next;
+        return typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
       });
     },
     [],
   );
+
+  const handleOpenSettings = useCallback(() => {
+    settingsBeforeDialogRef.current = settingsRef.current;
+    setIsSettingsOpen(true);
+  }, []);
+
+  const handleCancelSettings = useCallback(() => {
+    setSettings(settingsBeforeDialogRef.current);
+    setIsSettingsOpen(false);
+  }, []);
+
+  const handleSaveSettings = useCallback(() => {
+    const next = settingsRef.current;
+    saveUtoolsSettings(next);
+    settingsBeforeDialogRef.current = next;
+    setIsSettingsOpen(false);
+  }, []);
 
   // 主题应用逻辑
   const applyTheme = useCallback((theme: "system" | "light" | "dark") => {
@@ -159,11 +176,7 @@ export function UtoolsApp() {
         isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       }
     }
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    applyResolvedUtoolsTheme(document.documentElement, resolveUtoolsTheme(theme, isDark));
   }, []);
 
   // 响应主题切换
@@ -881,7 +894,7 @@ export function UtoolsApp() {
       // Escape: 关闭设置弹窗或免责声明浮层
       if (e.key === "Escape") {
         if (isSettingsOpen) {
-          setIsSettingsOpen(false);
+          handleCancelSettings();
           return;
         }
         if (isDisclaimerOpen) {
@@ -900,7 +913,7 @@ export function UtoolsApp() {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        setIsSettingsOpen(true);
+        handleOpenSettings();
         return;
       }
 
@@ -985,6 +998,8 @@ export function UtoolsApp() {
     handleOpenFolder,
     handlePasteBackToApp,
     handleSaveDocument,
+    handleCancelSettings,
+    handleOpenSettings,
     isDisclaimerOpen,
     isSettingsOpen,
     toggleSourceMode,
@@ -1048,7 +1063,7 @@ export function UtoolsApp() {
         onOpenFile={handleOpenFile}
         onOpenFolder={handleOpenFolder}
         onToggleSourceMode={toggleSourceMode}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={handleOpenSettings}
       />
 
       {/* 轻量 Toast 提示 */}
@@ -1064,7 +1079,8 @@ export function UtoolsApp() {
       {/* 设置菜单与偏好弹窗（整合外观排版、快捷键速查与 uTools 全局指南） */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onCancel={handleCancelSettings}
+        onSave={handleSaveSettings}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
       />
