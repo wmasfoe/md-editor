@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 @source "../../../packages/editor-ui/src";
 
 :root {
@@ -19,7 +20,14 @@
   --theme-primary: #0969da;
   --theme-primary-fill: var(--theme-primary);
   --theme-primary-soft: rgba(9, 105, 218, 0.1);
-  --theme-primary-selected: rgba(9, 105, 218, 0.24);
+  --theme-primary-selected: rgba(9, 105, 218, 0.28);
+  --theme-content-width: 860px;
+  --theme-editor-font-size: 15px;
+  --theme-editor-line-height: 1.62;
+  --theme-editor-line-height-em: 1.62em;
+  --theme-editor-paragraph-spacing: 1.02em;
+  --theme-editor-heading-line-height: 1.38;
+  --theme-source-line-height: 1.66;
   --theme-control-hover: #f3f4f6;
   --theme-control-active: #eaeef2;
   --theme-danger-bg: rgba(207, 34, 46, 0.1);
@@ -58,7 +66,7 @@
     --theme-primary: #7aa2f7;
     --theme-primary-fill: #4774ca;
     --theme-primary-soft: rgba(122, 162, 247, 0.16);
-    --theme-primary-selected: rgba(122, 162, 247, 0.32);
+    --theme-primary-selected: rgba(122, 162, 247, 0.36);
     --theme-control-hover: #1c222b;
     --theme-control-active: #252d38;
     --theme-danger-bg: rgba(255, 92, 118, 0.13);
@@ -89,7 +97,7 @@
   --theme-primary: #7aa2f7;
   --theme-primary-fill: #4774ca;
   --theme-primary-soft: rgba(122, 162, 247, 0.16);
-  --theme-primary-selected: rgba(122, 162, 247, 0.32);
+  --theme-primary-selected: rgba(122, 162, 247, 0.36);
   --theme-control-hover: #1c222b;
   --theme-control-active: #252d38;
   --theme-danger-bg: rgba(255, 92, 118, 0.13);
@@ -112,4 +120,78 @@ body,
   margin: 0;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 全局与编辑器选区高亮完全对齐桌面端与原生系统体验 */
+::selection {
+  background-color: var(--theme-primary-selected, rgba(9, 105, 218, 0.28));
+  color: inherit;
+}
+
+/* 确保编辑器区域及内部文本可正常划选与拖拽 */
+.code-mirror-editor-host {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+.code-mirror-editor-host .cm-editor,
+.code-mirror-editor-host .cm-content {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* 覆盖 CodeMirror hideNativeSelection，确保在任何拖选、划词与原生选区阶段背景色清晰可见 */
+.code-mirror-editor-host ::selection,
+.code-mirror-editor-host *::selection,
+.code-mirror-editor-host .cm-line ::selection,
+.code-mirror-editor-host .cm-line::selection,
+.code-mirror-editor-host .cm-content ::selection,
+.code-mirror-editor-host .cm-content *::selection {
+  background-color: var(--theme-primary-selected, rgba(9, 105, 218, 0.28)) !important;
+  color: inherit !important;
+}
+
+/* CodeMirror 自绘选区背景高亮 */
+.code-mirror-editor-host .cm-selectionBackground,
+.code-mirror-editor-host.cm-focused .cm-selectionBackground,
+.code-mirror-editor-host .cm-focused .cm-selectionBackground {
+  background: var(--theme-primary-selected, rgba(9, 105, 218, 0.28)) !important;
+  opacity: 1 !important;
+}
+
+/* 文件树原生细致滚动条 */
+.file-tree-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-control-subtle) 30%, transparent) transparent;
+}
+
+.file-tree-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.file-tree-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.file-tree-scrollbar::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-control-subtle) 30%, transparent);
+  background-clip: padding-box;
+}
+
+.file-tree-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--theme-control-subtle) 55%, transparent);
+  background-clip: padding-box;
+}
+
+.file-tree-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
 }

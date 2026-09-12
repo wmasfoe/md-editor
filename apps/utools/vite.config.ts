@@ -26,7 +26,11 @@ function utoolsDistBundlePlugin() {
       // 2. 复制 preload/ 目录
       const preloadDir = path.join(outDir, "preload");
       fs.mkdirSync(preloadDir, { recursive: true });
-      fs.copyFileSync(workspacePath("preload/index.cjs"), path.join(preloadDir, "index.cjs"));
+      fs.copyFileSync(workspacePath("preload/index.js"), path.join(preloadDir, "index.js"));
+      const preloadPkgJson = workspacePath("preload/package.json");
+      if (fs.existsSync(preloadPkgJson)) {
+        fs.copyFileSync(preloadPkgJson, path.join(preloadDir, "package.json"));
+      }
 
       // 3. 生成发布版 plugin.json (main 指向 index.html，去除开发配置)
       const pluginJsonPath = workspacePath("plugin.json");
@@ -77,9 +81,14 @@ export default defineConfig({
         find: /^@md-editor\/shared$/,
         replacement: workspacePath("../../packages/shared/src/index.ts"),
       },
+      {
+        find: /^@md-editor\/syntax-plugins$/,
+        replacement: workspacePath("../../packages/syntax-plugins/src/index.ts"),
+      },
     ],
   },
   server: {
+    host: "0.0.0.0",
     port: 5174,
     strictPort: true,
   },

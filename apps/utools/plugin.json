@@ -6,7 +6,7 @@
   "homepage": "https://editor.justdev.cn",
   "main": "dist/index.html",
   "logo": "logo.png",
-  "preload": "preload/index.cjs",
+  "preload": "preload/index.js",
   "development": {
     "main": "http://127.0.0.1:5174/index.html"
   },
@@ -16,9 +16,23 @@
   },
   "features": [
     {
+      "code": "workspace",
+      "explain": "Inkpoint Markdown 完整工作区 (文件树)",
+      "cmds": [
+        "Inkpoint",
+        "Inkpoint Markdown 编辑器",
+        "编辑器",
+        "墨点",
+        "工作区",
+        "workspace",
+        "项目",
+        "文档库"
+      ]
+    },
+    {
       "code": "scratchpad",
-      "explain": "Inkpoint Markdown 编辑器",
-      "cmds": ["md", "markdown", "编辑器", "Inkpoint", "墨点"]
+      "explain": "新建 Markdown 文档",
+      "cmds": ["md", "markdown", "新建", "草稿", "note"]
     },
     {
       "code": "open-file",
@@ -41,6 +55,17 @@
           "label": "Markdown 编辑/润色",
           "minLength": 1,
           "maxLength": 10000
+        }
+      ]
+    },
+    {
+      "code": "open-folder",
+      "explain": "用 Inkpoint 打开 Markdown 文件夹/工作区",
+      "cmds": [
+        {
+          "type": "files",
+          "fileType": "directory",
+          "label": "打开 Markdown 文件夹"
         }
       ]
     }

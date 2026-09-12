@@ -4,6 +4,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { UtoolsApp } from "./components/UtoolsApp";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import "./styles.css";
 
 function bootstrap(): void {
@@ -14,7 +15,9 @@ function bootstrap(): void {
 
   createRoot(rootElement).render(
     <React.StrictMode>
-      <UtoolsApp />
+      <ErrorBoundary>
+        <UtoolsApp />
+      </ErrorBoundary>
     </React.StrictMode>,
   );
 }

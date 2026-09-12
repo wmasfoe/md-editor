@@ -231,6 +231,9 @@ importers:
       '@md-editor/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../../packages/syntax-plugins
       react:
         specifier: 'catalog:'
         version: 19.2.7

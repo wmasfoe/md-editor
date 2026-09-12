@@ -5,12 +5,17 @@
 
 import {
   createRuntimeFileService,
+  type CreateTreeItemInput,
+  type DeleteTreeItemInput,
   type FileSaveSchedulerOptions,
   type FileServiceAdapter,
+  type FileTreeMutationResult,
   type MarkdownDocumentFile,
+  type MarkdownFolder,
   type NativeFileSaveJob,
   type NativeSaveAdapter,
   type NativeSaveRuntimeRegistration,
+  type RenameTreeItemInput,
   type RuntimeFileService,
 } from "@md-editor/file-system";
 import type { InkpointNodeBridge } from "./types";
@@ -50,21 +55,44 @@ export function createUtoolsFileAdapter(): FileServiceAdapter {
       return { filePath, markdown };
     },
 
-    // 轻量模式下不开启复杂多级目录树扫描与文件树节点增删，保证极速启动与资源轻量
-    async openMarkdownFolder() {
-      return null;
+    async openMarkdownFolder(): Promise<MarkdownFolder | null> {
+      if (typeof window === "undefined" || typeof window.utools === "undefined") {
+        return null;
+      }
+      const paths = window.utools.showOpenDialog({
+        properties: ["openDirectory"],
+      });
+      if (!paths || paths.length === 0) {
+        return null;
+      }
+      const bridge = getNodeBridge();
+      return bridge.scanFolder(paths[0]);
     },
-    async refreshMarkdownFolder() {
-      throw new Error("uTools 插件轻量模式不支持文件夹大纲扫描");
+
+    async refreshMarkdownFolder(rootPath: string): Promise<MarkdownFolder> {
+      const bridge = getNodeBridge();
+      return bridge.scanFolder(rootPath);
     },
-    async createMarkdownTreeItem() {
-      throw new Error("uTools 插件轻量模式不支持文件树节点创建");
+
+    async createMarkdownTreeItem(input: CreateTreeItemInput): Promise<FileTreeMutationResult> {
+      const bridge = getNodeBridge();
+      const affectedPath = bridge.createTreeItem(input.parentPath, input.name, input.kind);
+      const folder = bridge.scanFolder(input.rootPath);
+      return { folder, affectedPath };
     },
-    async renameMarkdownTreeItem() {
-      throw new Error("uTools 插件轻量模式不支持文件树重命名");
+
+    async renameMarkdownTreeItem(input: RenameTreeItemInput): Promise<FileTreeMutationResult> {
+      const bridge = getNodeBridge();
+      const affectedPath = bridge.renameTreeItem(input.path, input.name);
+      const folder = bridge.scanFolder(input.rootPath);
+      return { folder, affectedPath };
     },
-    async deleteMarkdownTreeItem() {
-      throw new Error("uTools 插件轻量模式不支持文件树节点删除");
+
+    async deleteMarkdownTreeItem(input: DeleteTreeItemInput): Promise<FileTreeMutationResult> {
+      const bridge = getNodeBridge();
+      bridge.deleteTreeItem(input.path);
+      const folder = bridge.scanFolder(input.rootPath);
+      return { folder, affectedPath: null };
     },
   };
 }

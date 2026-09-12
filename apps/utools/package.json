@@ -15,6 +15,7 @@
     "@md-editor/file-system": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/shared": "workspace:*",
+    "@md-editor/syntax-plugins": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

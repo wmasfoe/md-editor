@@ -3,6 +3,7 @@
 
 import { AI_DISCLAIMER_CONTENT, acceptAiDisclaimer } from "../utools/ai-disclaimer";
 import { openOfficialSite } from "../utools/referral";
+import { ExternalLinkIcon } from "./Icons";
 
 export interface DisclaimerModalProps {
   isOpen: boolean;
@@ -61,7 +62,10 @@ export function DisclaimerModal({ isOpen, onAccept, onClose }: DisclaimerModalPr
             onClick={() => openOfficialSite("ai_disclaimer")}
             className="w-full py-2 px-3 rounded bg-[var(--theme-control-active)] text-[var(--theme-primary)] font-medium text-xs hover:bg-[var(--theme-control-hover)] cursor-pointer border-0"
           >
-            {AI_DISCLAIMER_CONTENT.buttonDownloadDesktop} ↗
+            <span className="flex items-center justify-center gap-1">
+              <span>{AI_DISCLAIMER_CONTENT.buttonDownloadDesktop}</span>
+              <ExternalLinkIcon className="size-3.5" />
+            </span>
           </button>
 
           <button
