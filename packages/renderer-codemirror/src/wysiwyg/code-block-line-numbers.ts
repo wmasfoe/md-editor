@@ -40,7 +40,7 @@ export const codeBlockLineNumberTheme: Extension = EditorView.baseTheme({
     position: "absolute",
     insetInlineStart: "0.65rem",
     width: "var(--md-code-line-number-width, 1ch)",
-    color: "var(--theme-control-subtle, var(--theme-muted, currentColor))",
+    color: "var(--theme-muted, currentColor)",
     fontFamily:
       "var(--theme-mono-font, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)",
     fontSize: "0.88em",
@@ -48,6 +48,5 @@ export const codeBlockLineNumberTheme: Extension = EditorView.baseTheme({
     textAlign: "end",
     userSelect: "none",
     pointerEvents: "none",
-    opacity: "0.75",
   },
 });
