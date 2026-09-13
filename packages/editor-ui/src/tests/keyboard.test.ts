@@ -104,17 +104,47 @@ describe("editor-ui keyboard platform detection", () => {
 
   it("falls back to process.platform when navigator has no match", () => {
     const originalNavigator = globalThis.navigator;
+    const originalPlatform = process.platform;
     try {
       Object.defineProperty(globalThis, "navigator", {
         value: { platform: "", userAgent: "" },
         configurable: true,
       });
-      // In this Node environment, process.platform is "win32"
+
+      // 验证当 navigator 无有效平台信息时，能够根据 process.platform 准确推断当前操作系统
+      Object.defineProperty(process, "platform", {
+        value: "win32",
+        configurable: true,
+      });
       expect(getOperatingSystem()).toBe("windows");
       expect(isWindowsPlatform()).toBe(true);
+      expect(isMacPlatform()).toBe(false);
+      expect(isLinuxPlatform()).toBe(false);
+
+      Object.defineProperty(process, "platform", {
+        value: "darwin",
+        configurable: true,
+      });
+      expect(getOperatingSystem()).toBe("mac");
+      expect(isMacPlatform()).toBe(true);
+      expect(isWindowsPlatform()).toBe(false);
+      expect(isLinuxPlatform()).toBe(false);
+
+      Object.defineProperty(process, "platform", {
+        value: "linux",
+        configurable: true,
+      });
+      expect(getOperatingSystem()).toBe("linux");
+      expect(isLinuxPlatform()).toBe(true);
+      expect(isMacPlatform()).toBe(false);
+      expect(isWindowsPlatform()).toBe(false);
     } finally {
       Object.defineProperty(globalThis, "navigator", {
         value: originalNavigator,
+        configurable: true,
+      });
+      Object.defineProperty(process, "platform", {
+        value: originalPlatform,
         configurable: true,
       });
     }
