@@ -2,6 +2,14 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.10.2 - 2026-09-13 (#68)
+
+- Fixed root directory switching and path separator compatibility in Windows file tree, supporting folder/file creation, renaming, and path copying on Windows.
+- Fixed asset image preview protocol authorization and drive letter resolution on Windows.
+- Added silent subprocess wrappers with CREATE_NO_WINDOW on Windows to prevent console window popups during external command execution.
+- Aligned built-in local AI model manifests to official v1.3.1 releases with calibrated 64-bit SHA-256 integrity contracts.
+- Improved Windows platform detection, supporting Windows installer download packages and PowerShell fallback update commands.
+
 ## 0.10.1 - 2026-09-10 (#56, #57, #58)
 
 - Fixed an underlying DOM structure defect in WYSIWYG mode where the first header cell and first column cell in newly created tables could not be focused or edited, decoupling cell edit containers from atomic control handles.
