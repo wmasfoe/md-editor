@@ -8,7 +8,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
-use tauri::{State, WebviewWindow};
+use tauri::{Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::save_runtime::{
@@ -18,7 +18,10 @@ use crate::save_runtime::{
 };
 
 use super::{
-    path_utils::{ensure_markdown_extension, path_to_string},
+    path_utils::{
+        canonicalize_existing_path, ensure_markdown_extension, path_to_string,
+        strip_verbatim_prefix,
+    },
     tree::allow_asset_directory,
     types::MarkdownDocumentFile,
 };
@@ -42,6 +45,7 @@ pub(crate) async fn open_markdown_document(
     let path = file_path
         .into_path()
         .map_err(|error| format!("Selected file path is not readable: {error}"))?;
+    let path = canonicalize_existing_path(&path_to_string(&path), "document").unwrap_or(path);
     let markdown = fs::read_to_string(&path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
     let _ = allow_asset_directory_for_file(&app, &path);
@@ -58,13 +62,14 @@ pub(crate) async fn open_markdown_document_at_path(
     app: tauri::AppHandle,
     path: String,
 ) -> Result<MarkdownDocumentFile, String> {
-    let path = PathBuf::from(path);
-    let markdown = fs::read_to_string(&path)
-        .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
-    let _ = allow_asset_directory_for_file(&app, &path);
+    let path_buf = PathBuf::from(&path);
+    let path_buf = canonicalize_existing_path(&path, "document").unwrap_or(path_buf);
+    let markdown = fs::read_to_string(&path_buf)
+        .map_err(|error| format!("Failed to read {}: {error}", path_buf.display()))?;
+    let _ = allow_asset_directory_for_file(&app, &path_buf);
 
     Ok(MarkdownDocumentFile {
-        file_path: path_to_string(&path),
+        file_path: path_to_string(&path_buf),
         markdown,
     })
 }
@@ -314,7 +319,9 @@ pub(crate) fn allow_asset_directory_for_file(
     app: &tauri::AppHandle,
     path: &Path,
 ) -> Result<(), String> {
-    let Some(parent) = path.parent() else {
+    let clean_path = strip_verbatim_prefix(path);
+    let _ = app.asset_protocol_scope().allow_file(&clean_path);
+    let Some(parent) = clean_path.parent() else {
         return Ok(());
     };
 

@@ -22,51 +22,78 @@ const SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET: f64 =
 pub(crate) async fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     // 设置必须是单例窗口：菜单、快捷键和主窗口按钮都可能同时触发打开动作。
     if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
-        // 新窗口在前端应用持久化主题前保持隐藏；重复打开不能提前暴露 WKWebView 的白色首帧。
-        if !window.is_visible().map_err(tauri_error_to_string)? {
-            return Ok(());
+        match window.is_visible() {
+            Ok(true) => {
+                if window.is_minimized().unwrap_or(false) {
+                    let _ = window.unminimize();
+                }
+                let _ = window.show();
+                let _ = window.set_focus();
+                return Ok(());
+            }
+            Ok(false) => {
+                // 如果窗口已存在但不可见（可能正处于初次渲染或被隐藏），尝试重新展示并聚焦
+                let _ = window.show();
+                let _ = window.set_focus();
+                return Ok(());
+            }
+            Err(_) => {
+                // 原窗口 handle 已失效或处于销毁中，清理并重新构建
+                let _ = window.destroy();
+            }
         }
-        if window.is_minimized().unwrap_or(false) {
-            window.unminimize().map_err(tauri_error_to_string)?;
-        }
-        return window.set_focus().map_err(tauri_error_to_string);
     }
 
-    #[allow(unused_mut)]
-    let mut builder = WebviewWindowBuilder::new(
-        &app,
-        SETTINGS_WINDOW_LABEL,
-        WebviewUrl::App("index.html?window=settings".into()),
-    )
-    // 设置窗口是桌面偏好设置面板，不占用主编辑器布局，也不绑定主窗口文件菜单行为。
-    .title("设置")
-    .inner_size(840.0, 620.0)
-    .min_inner_size(680.0, 460.0)
-    .visible(SETTINGS_WINDOW_STARTS_VISIBLE)
-    .center()
-    .resizable(true);
+    let build_window = |app: &tauri::AppHandle| {
+        #[allow(unused_mut)]
+        let mut builder = WebviewWindowBuilder::new(
+            app,
+            SETTINGS_WINDOW_LABEL,
+            WebviewUrl::App("index.html?window=settings".into()),
+        )
+        // 设置窗口是桌面偏好设置面板，不占用主编辑器布局，也不绑定主窗口文件菜单行为。
+        .title("设置")
+        .inner_size(840.0, 620.0)
+        .min_inner_size(680.0, 460.0)
+        .visible(SETTINGS_WINDOW_STARTS_VISIBLE)
+        .center()
+        .resizable(true);
 
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder
-            .title_bar_style(tauri::TitleBarStyle::Overlay)
-            .hidden_title(true)
-            // 动态 WebviewWindow 和 tauri.conf 主窗口的同一 y 值视觉上不同；这里补偿到主窗口观感。
-            .traffic_light_position(tauri::LogicalPosition::new(
-                SETTINGS_TRAFFIC_LIGHT_LEFT,
-                SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
-            ));
+        #[cfg(target_os = "macos")]
+        {
+            builder = builder
+                .title_bar_style(tauri::TitleBarStyle::Overlay)
+                .hidden_title(true)
+                .traffic_light_position(tauri::LogicalPosition::new(
+                    SETTINGS_TRAFFIC_LIGHT_LEFT,
+                    SETTINGS_TRAFFIC_LIGHT_VERTICAL_INSET,
+                ));
+        }
+
+        builder.build()
+    };
+
+    match build_window(&app) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            // 如果因上一窗口异步销毁延迟导致重名报错，尝试销毁旧句柄并重试一次
+            if let Some(existing) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
+                let _ = existing.destroy();
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                build_window(&app).map_err(tauri_error_to_string)?;
+                Ok(())
+            } else {
+                Err(tauri_error_to_string(error))
+            }
+        }
     }
-
-    builder.build().map_err(tauri_error_to_string)?;
-    Ok(())
 }
 
 #[tauri::command]
 pub(crate) async fn close_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     // 取消按钮从前端走命令关闭设置窗口，避免 JS window.close 受能力配置或窗口上下文差异影响。
     if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
-        window.close().map_err(tauri_error_to_string)?;
+        let _ = window.close();
     }
 
     Ok(())

@@ -5,7 +5,6 @@ use tauri::menu::{Menu, MenuItemBuilder, SubmenuBuilder};
 use crate::recent_files;
 use crate::settings;
 
-#[cfg(target_os = "macos")]
 pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
 #[cfg(target_os = "macos")]

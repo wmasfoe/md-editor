@@ -39,6 +39,38 @@ export async function showNativeFileTreeContextMenu(input: {
   });
 }
 
+export async function writeTextToClipboard(text: string): Promise<void> {
+  if (typeof window !== "undefined") {
+    window.focus();
+  }
+
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // 在 Windows 原生菜单关闭后，WebView2 短暂失去焦点可能导致 writeText 异常，降级回退
+    }
+  }
+
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }
+}
+
 export async function copyNativeFileTreePath(input: {
   readonly rootPath: string;
   readonly path: string;
@@ -53,7 +85,7 @@ export async function copyNativeFileTreePath(input: {
     path: input.path,
     relative: input.relative,
   });
-  await navigator.clipboard.writeText(text);
+  await writeTextToClipboard(text);
 }
 
 export async function revealNativeFileTreeItemInFinder(input: {

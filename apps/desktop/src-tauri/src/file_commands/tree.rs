@@ -10,7 +10,7 @@ use tauri_plugin_dialog::DialogExt;
 use super::{
     path_utils::{
         canonicalize_existing_path, folder_name, is_image_asset_path, is_markdown_path,
-        path_to_string,
+        path_to_string, strip_verbatim_prefix,
     },
     types::{MarkdownFileTreeNode, MarkdownFileTreeNodeKind, MarkdownFolder},
 };
@@ -23,7 +23,7 @@ pub(crate) async fn open_markdown_folder(
     let selected = app
         .dialog()
         .file()
-        .set_title("Open Folder")
+        .set_title("Open Markdown Folder")
         .blocking_pick_folder();
 
     let Some(folder_path) = selected else {
@@ -33,25 +33,31 @@ pub(crate) async fn open_markdown_folder(
     let path = folder_path
         .into_path()
         .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
+    let path = canonicalize_existing_path(&path_to_string(&path), "root folder").unwrap_or(path);
     let _ = allow_asset_directory(&app, &path);
     Ok(Some(build_markdown_folder(&path)?))
 }
 
 /// 重新扫描已打开的 Markdown 根目录并返回最新的目录树。
 #[tauri::command]
-pub(crate) fn refresh_markdown_folder(root_path: String) -> Result<MarkdownFolder, String> {
+pub(crate) fn refresh_markdown_folder(
+    app: tauri::AppHandle,
+    root_path: String,
+) -> Result<MarkdownFolder, String> {
     let root = canonicalize_existing_path(&root_path, "root folder")?;
+    let _ = allow_asset_directory(&app, &root);
     build_markdown_folder(&root)
 }
 
 /// 授予 Tauri asset 协议对指定目录的访问权限（供 webview 加载图片预览）。
 pub(crate) fn allow_asset_directory(app: &tauri::AppHandle, path: &Path) -> Result<(), String> {
+    let clean_path = strip_verbatim_prefix(path);
     app.asset_protocol_scope()
-        .allow_directory(path, true)
+        .allow_directory(&clean_path, true)
         .map_err(|error| {
             format!(
                 "Failed to allow image preview access for {}: {error}",
-                path.display()
+                clean_path.display()
             )
         })
 }

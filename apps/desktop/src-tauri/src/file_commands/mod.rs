@@ -21,7 +21,8 @@ mod tests;
 
 // Re-export all Tauri command entry points so lib.rs can use them unchanged
 pub(crate) use assets::{
-    inspect_linked_file, pick_theme_css_file, read_theme_css_file, save_pasted_image,
+    allow_asset_path, inspect_linked_file, pick_theme_css_file, read_theme_css_file,
+    save_pasted_image,
 };
 pub(crate) use context_menu::show_file_tree_context_menu;
 pub(crate) use document::{

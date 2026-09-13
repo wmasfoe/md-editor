@@ -83,6 +83,9 @@ export const zh = {
       installUpdate: "安装更新",
       relaunchApp: "重启应用",
       manualInstallCommand: "手动安装命令",
+      downloadInstaller: "下载安装包",
+      copyCommand: "复制命令",
+      copied: "已复制",
       updateStatus: {
         upToDate: "已是最新版本。",
         available: "发现新版本 {{version}}。",

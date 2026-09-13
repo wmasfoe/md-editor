@@ -6,7 +6,6 @@ use serde::Serialize;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 use tauri::{AppHandle, Emitter, State};
 
@@ -14,7 +13,7 @@ use super::manifest::{
     build_catalog_from_remote, fetch_remote_manifest, resolve_all_manifests, resolve_manifest,
     LocalAiFileSpec, LocalAiModelManifest, LITE_MODEL_ID, PRO_MODEL_ID, STANDARD_MODEL_ID,
 };
-use crate::{local_ai_runtime::LocalAiRuntimeState, settings};
+use crate::{local_ai_runtime::LocalAiRuntimeState, process_utils::silent_command, settings};
 
 pub(crate) const LOCAL_AI_MODEL_PROGRESS_EVENT: &str = "local-ai-model-progress";
 pub(crate) const DOWNLOAD_TEMP_FILE_NAME: &str = "download.tmp";
@@ -279,7 +278,7 @@ pub(crate) fn compute_sha256_hex(path: &Path) -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 fn compute_sha256_hex_windows(path: &Path) -> Result<String, String> {
-    let output = Command::new("certutil")
+    let output = silent_command("certutil")
         .arg("-hashfile")
         .arg(path)
         .arg("SHA256")
@@ -303,13 +302,13 @@ fn compute_sha256_hex_windows(path: &Path) -> Result<String, String> {
 fn compute_sha256_hex_unix(path: &Path) -> Result<String, String> {
     for command in ["shasum", "sha256sum", "openssl"] {
         let output = match command {
-            "shasum" => Command::new("shasum")
+            "shasum" => silent_command("shasum")
                 .arg("-a")
                 .arg("256")
                 .arg(path)
                 .output(),
-            "sha256sum" => Command::new("sha256sum").arg(path).output(),
-            "openssl" => Command::new("openssl")
+            "sha256sum" => silent_command("sha256sum").arg(path).output(),
+            "openssl" => silent_command("openssl")
                 .arg("dgst")
                 .arg("-sha256")
                 .arg(path)

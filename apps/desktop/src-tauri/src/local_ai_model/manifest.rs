@@ -2,8 +2,9 @@
 //!
 //! 定义本地 AI 模型的规格模型、内置模型清单、远程 manifest 动态拉取与解析。
 
+use crate::process_utils::silent_command;
 use crate::settings;
-use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 pub(crate) const DEFAULT_MODEL_ID: &str = "md-editor-writer-standard";
 pub(crate) const LEGACY_MODEL_ID: &str = "md-editor-writer-small-v1";
@@ -76,9 +77,9 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
         id: LITE_MODEL_ID.to_string(),
         display_name: "Lite (0.6B)".to_string(),
         description: "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。".to_string(),
-        version: "v1.3.0".to_string(),
-        filename: "lite-base-qwen3-0.6b-v1.3.0-Q8_0.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-base-qwen3-0.6b-v1.3.0-Q8_0.gguf".to_string(),
+        version: "v1.3.1".to_string(),
+        filename: "lite-base-qwen3-0.6b-v1.3.1-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-base-qwen3-0.6b-v1.3.1-Q8_0.gguf".to_string(),
         size_bytes: 639_446_688,
         sha256: "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031".to_string(),
         context_size: 8192,
@@ -89,28 +90,28 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
             (
                 "gec".to_string(),
                 LocalAiFileSpec {
-                    filename: "lite-gec-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-gec-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    filename: "lite-gec-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-gec-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
                     size_bytes: 40_397_472,
-                    sha256: "c3ef5140e7da7cb2f70d0bec65e3116d715683532cec7f5ab6f1e702f581d473".to_string(),
+                    sha256: "0547dcf4e629e6747c4a7ef9bef485562de83590543bf459aff25ee379fc331a".to_string(),
                 },
             ),
             (
                 "completion".to_string(),
                 LocalAiFileSpec {
-                    filename: "lite-completion-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-completion-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    filename: "lite-completion-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-completion-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
                     size_bytes: 40_397_472,
-                    sha256: "eaef8dc00b5220c8f5379b1df0975618f0376d8b0222a768f59d57a2d744f4bf".to_string(),
+                    sha256: "aa6e806b1ad802d8d3a1dacd382826891e76810cf5e9eff85f1472919e8ec7a8".to_string(),
                 },
             ),
             (
                 "distill".to_string(),
                 LocalAiFileSpec {
-                    filename: "lite-distill-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/lite-distill-qwen3-0.6b-v1.3.0-lora-f16.gguf".to_string(),
+                    filename: "lite-distill-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-distill-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
                     size_bytes: 40_397_472,
-                    sha256: "b0068a529b5521db331771fe6ba292881cf69c57d76ee1fa1a113bc70fe5a5ae".to_string(),
+                    sha256: "347e34a26df1bd11f23d0d1afc8e292efcbeb51c2782f393a22ae29bac970b09".to_string(),
                 },
             ),
         ],
@@ -123,11 +124,11 @@ pub(crate) fn default_standard_model() -> LocalAiModelManifest {
         id: STANDARD_MODEL_ID.to_string(),
         display_name: "Standard (1.7B)".to_string(),
         description: "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。".to_string(),
-        version: "v1.3.0".to_string(),
-        filename: "standard-base-qwen3-1.7b-v1.3.0-Q8_0.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-base-qwen3-1.7b-v1.3.0-Q8_0.gguf".to_string(),
-        size_bytes: 1_832_684_160,
-        sha256: "8e860bc00f2eef8e5d3fc39c87849e7b4618fbbe868be5a07cb15591cbe65c19".to_string(),
+        version: "v1.3.1".to_string(),
+        filename: "standard-base-qwen3-1.7b-v1.3.1-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-base-qwen3-1.7b-v1.3.1-Q8_0.gguf".to_string(),
+        size_bytes: 1_834_426_016,
+        sha256: "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a".to_string(),
         context_size: 8192,
         default_max_tokens: 260,
         is_available: true,
@@ -136,28 +137,28 @@ pub(crate) fn default_standard_model() -> LocalAiModelManifest {
             (
                 "gec".to_string(),
                 LocalAiFileSpec {
-                    filename: "standard-gec-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-gec-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    size_bytes: 70_338_218,
-                    sha256: "5d0137ff71f654b455097bc87ddfa6351b668f44ff53e5e49f874c7cf6551b80".to_string(),
+                    filename: "standard-gec-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-gec-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    size_bytes: 69_757_600,
+                    sha256: "06acb8e8bc92c19e84c02fa36ac19c282f58d4bb3a0262ce361914aa219e91db".to_string(),
                 },
             ),
             (
                 "completion".to_string(),
                 LocalAiFileSpec {
-                    filename: "standard-completion-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-completion-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    size_bytes: 70_338_218,
-                    sha256: "1e1493cf032a843bb5c5970c91dc572bc8cb3f7fb359c19ea2b54bc360f06830".to_string(),
+                    filename: "standard-completion-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-completion-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    size_bytes: 69_757_600,
+                    sha256: "f8391f9b4e01ede76fc2f74e502996bde31445ec799cd3a24683d4b7b5241ac2".to_string(),
                 },
             ),
             (
                 "distill".to_string(),
                 LocalAiFileSpec {
-                    filename: "standard-distill-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.0/standard-distill-qwen3-1.7b-v1.3.0-lora-f16.gguf".to_string(),
-                    size_bytes: 70_338_218,
-                    sha256: "5251a37c569f4cb02c9a96e9ae1064ff3f25d97f26742b6a22fdfc4375b4f620".to_string(),
+                    filename: "standard-distill-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-distill-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
+                    size_bytes: 69_757_600,
+                    sha256: "7da6e7770360238508f7ac0d6aba03787ec9f0b5439644a0d86f064287f5af88".to_string(),
                 },
             ),
         ],
@@ -274,12 +275,13 @@ pub(crate) fn save_cached_remote_manifest(manifest: &RemoteManifest) -> Result<(
 pub(crate) fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
     let urls = [
         "https://github.com/wmasfoe/md-editor-models/releases/latest/download/manifest.json",
+        "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/manifest.json",
         "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/manifest.json",
         "https://raw.githubusercontent.com/wmasfoe/md-editor-models/main/manifest.json",
     ];
 
     for url in urls {
-        let output = Command::new("curl")
+        let output = silent_command("curl")
             .arg("-sL")
             .arg("--connect-timeout")
             .arg("8")

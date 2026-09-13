@@ -7,6 +7,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 use super::{
@@ -14,6 +15,7 @@ use super::{
     path_utils::{
         canonicalize_existing_path, is_css_path, is_image_asset_path, is_markdown_path,
         markdown_relative_path_with_preference, normalize_path_without_fs, path_to_string,
+        strip_verbatim_prefix,
     },
     tree::allow_asset_directory,
     types::{LinkedFileKind, LinkedFileTarget, PastedImageFile, ThemeCssFile},
@@ -129,6 +131,16 @@ pub(crate) fn inspect_linked_file(
         path: path_to_string(&target),
         kind,
     })
+}
+
+/// 授予 Tauri asset 协议对指定图片或文件的访问权限（供 webview 预览）。
+#[tauri::command]
+pub(crate) fn allow_asset_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let path_buf = canonicalize_existing_path(&path, "asset file")
+        .unwrap_or_else(|_| strip_verbatim_prefix(PathBuf::from(&path)));
+    let _ = allow_asset_directory_for_file(&app, &path_buf);
+    let _ = app.asset_protocol_scope().allow_file(&path_buf);
+    Ok(())
 }
 
 pub(crate) fn resolve_linked_file_path(document_path: &str, href: &str) -> Result<PathBuf, String> {

@@ -453,6 +453,37 @@ describe("app settings", () => {
     });
   });
 
+  it("selects platform-specific installer download URL when multiple assets exist", () => {
+    const status = createUpdateStatusFromGitHubReleases("0.2.8", [
+      {
+        tag_name: "v0.2.9",
+        prerelease: false,
+        draft: false,
+        assets: [
+          {
+            name: "Inkpoint_0.2.9_aarch64.dmg",
+            browser_download_url: "https://example.com/Inkpoint_0.2.9_aarch64.dmg",
+          },
+          {
+            name: "Inkpoint_0.2.9_x64-setup.exe",
+            browser_download_url: "https://example.com/Inkpoint_0.2.9_x64-setup.exe",
+          },
+        ],
+      },
+    ]);
+
+    expect(status.state).toBe("available");
+    const isWin = isWindowsPlatform();
+    expect(status.downloadUrl).toBe(
+      isWin
+        ? "https://example.com/Inkpoint_0.2.9_x64-setup.exe"
+        : "https://example.com/Inkpoint_0.2.9_aarch64.dmg",
+    );
+    expect(status.installCommand).toBe(
+      isWin ? INSTALL_WITH_POWERSHELL_COMMAND : INSTALL_WITH_CURL_COMMAND,
+    );
+  });
+
   it("reports up-to-date when the installed version matches the latest public release", () => {
     expect(
       createUpdateStatusFromGitHubReleases("0.2.9", [

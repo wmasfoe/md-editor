@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import type { RecentFile } from "@md-editor/editor-core";
 import type { OpenedAsset } from "../../types";
@@ -56,6 +57,9 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   resolveImageSrc: (src) => resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, src),
   openAssetPath: (path, name = basename(path)) => {
     useToastStore.getState().showToast(null);
+    if (isTauri()) {
+      void invoke("allow_asset_path", { path }).catch(() => {});
+    }
     set({ openedAsset: { name, path } });
   },
   closeAssetPreview: () => {

@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import type {
   AppUpdateSettings,
   LanguageSetting,
@@ -42,6 +44,7 @@ export function OtherSettingsPanel({
   onRelaunchAfterUpdate,
 }: OtherSettingsPanelProps) {
   const { t } = useTranslation();
+  const [hasCopiedCommand, setHasCopiedCommand] = useState(false);
   const isUpdateBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
@@ -50,6 +53,23 @@ export function OtherSettingsPanel({
     (updateStatus.state === "available" || updateStatus.state === "downloaded") &&
     updateStatus.installKind === "app";
   const canRelaunchAfterUpdate = updateStatus.state === "installed";
+
+  const handleCopyCommand = () => {
+    if (!updateStatus.installCommand) return;
+    void navigator.clipboard.writeText(updateStatus.installCommand).then(() => {
+      setHasCopiedCommand(true);
+      setTimeout(() => setHasCopiedCommand(false), 2000);
+    });
+  };
+
+  const handleDownloadInstaller = () => {
+    if (!updateStatus.downloadUrl) return;
+    if (isTauri()) {
+      void invoke("open_external_target", { target: updateStatus.downloadUrl });
+    } else {
+      window.open(updateStatus.downloadUrl, "_blank");
+    }
+  };
 
   return (
     <div className="grid gap-5">
@@ -101,9 +121,20 @@ export function OtherSettingsPanel({
           <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
           {updateStatus.state === "available" && updateStatus.installCommand ? (
             <div className="mt-2 grid gap-1">
-              <span className={settingsFieldLabelClassName}>
-                {t("settings.general.manualInstallCommand")}
-              </span>
+              <div className="flex items-center justify-between">
+                <span className={settingsFieldLabelClassName}>
+                  {t("settings.general.manualInstallCommand")}
+                </span>
+                <button
+                  type="button"
+                  className="rounded px-2 py-0.5 text-xs text-[var(--theme-primary)] hover:bg-[var(--theme-control-hover)]"
+                  onClick={handleCopyCommand}
+                >
+                  {hasCopiedCommand
+                    ? t("settings.general.copied")
+                    : t("settings.general.copyCommand")}
+                </button>
+              </div>
               <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-xs leading-normal text-[var(--theme-text)]">
                 {updateStatus.installCommand}
               </code>
@@ -168,6 +199,14 @@ export function OtherSettingsPanel({
                 onClick={onInstallUpdate}
               >
                 {t("settings.general.installUpdate")}
+              </button>
+            ) : updateStatus.state === "available" && updateStatus.downloadUrl ? (
+              <button
+                type="button"
+                className={settingsSmallButtonClassName}
+                onClick={handleDownloadInstaller}
+              >
+                {t("settings.general.downloadInstaller")}
               </button>
             ) : null}
             {canRelaunchAfterUpdate && onRelaunchAfterUpdate ? (
