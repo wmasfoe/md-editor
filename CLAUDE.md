@@ -49,7 +49,8 @@ pnpm build:windows  # Windows (.exe NSIS)
 # 版本发布
 pnpm release:desktop            # 发布桌面端（commit、tag v* 并推送）
 pnpm release:desktop:version    # 仅更新桌面端版本文件
-pnpm release:web                # 发布 Web 端（commit、tag web-v* 并推送）
+pnpm release:web                # 本地部署 Web 端至 Vercel 生产环境
+pnpm release:web:publish        # Web 端版本升级、CHANGELOG 记录与 tag 归档
 pnpm release:site               # 部署官网
 ```
 

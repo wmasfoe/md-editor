@@ -177,7 +177,7 @@ pnpm build:windows  # Windows (NSIS 安装包)
 # 桌面端跨平台发版（交互式更新版本、双 Changelog 写入并创建 v* tag）
 pnpm release:desktop
 
-# Web 在线版发版（创建 web-v* tag 并发布 GitHub Release）
+# Web 在线版部署（本地构建并一键发布至 Vercel 生产环境）
 pnpm release:web
 
 # 官网部署上线

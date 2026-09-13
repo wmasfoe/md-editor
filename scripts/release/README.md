@@ -9,7 +9,7 @@
 | 端标识 | 对应工作区 | 版本管理与发版命令 | Git Tag 触发契约 | 关联更新日志 | CI/CD 工作流 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*` / `desktop-v*`<br>(基线: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-desktop.yml` |
-| **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version` | `web-v*`<br>(例: `web-v0.2.0`) | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
+| **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*`（标签归档，不污染 GitHub Release） | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
 | **uTools** | `apps/utools` | `pnpm build:utools` | `utools-v*`<br>(基线: `utools-v0.1.0`) | `apps/utools/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-utools.yml` |
 | **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取双端中英文 Changelog 并在官网支持双语切换展示 | 静态部署 / Vercel CLI |
 
@@ -47,28 +47,25 @@ pnpm release:desktop:version
 
 ## 3. Web 在线版发版 (Web)
 
-### 3.1 脚本说明
-- **`pnpm release:web:version`** (`scripts/release/version-web.mjs`)：
-  - 自增 `apps/web/package.json` 版本号；
-  - 追加记录至 `apps/web/CHANGELOG.md`（英文对照维护于 `apps/web/CHANGELOG_EN.md`）。
-- **`pnpm release:web`** (`scripts/release/publish-web.mjs`)：
-  - 自增版本并在 `apps/web/CHANGELOG.md` 写入更新说明；
-  - 触发 `pnpm build:web` 执行前端产物构建与类型自检；
-  - 自动创建 `chore(web): release web-vX.Y.Z` 提交；
-  - 自动打附注标签 `web-vX.Y.Z`；
-  - 推送后触发 `.github/workflows/release-web.yml` 打包 Web 产物并发布 GitHub Release。
+### 3.1 架构与发布机制 (方案 A)
+- **独立发布，不占 Release 页面**：Web 端为持续在线 Web 服务，不生成 GitHub Release，确保 GitHub Releases 专用于桌面客户端安装包，保持 `Latest` 徽标纯净；
+- **禁用 Git 自动触发**：`apps/web/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`，合并 PR 或主干更新不会触发 Web 生产上线；
+- **本地一键发布 (类似 release:site)**：通过 `pnpm release:web` 运行 `scripts/web/deploy-web.mjs`，本地完成构建与 Vercel 生产部署；
+- **可选版本归档**：如需记录大版本更新日志，通过 `pnpm release:web:publish` 更新日志并打 `web-v*` tag 归档。
 
 ### 3.2 常用指令
 ```bash
-# 交互式发布 Web 在线版
+# 1. 本地一键构建并发布至 Vercel 生产环境（推荐）
 pnpm release:web
 
-# 命令行快速发布
-pnpm release:web patch --notes "新增 MDX 动态沙盒预览支持"
-pnpm release:web 0.2.0
+# 仅预览部署指令（不执行实际上传）
+pnpm release:web --dry-run
 
-# 仅更新版本号
-pnpm release:web:version
+# 2. 仅更新版本号与 CHANGELOG
+pnpm release:web:version patch
+
+# 3. 完整发布（版本升级 + CHANGELOG + 打 tag 归档）
+pnpm release:web:publish patch --notes "新增 MDX 动态沙盒预览支持"
 ```
 
 ---
