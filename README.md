@@ -7,7 +7,7 @@
 # Inkpoint
 
 <p align="center">
-  现代化的跨平台 Markdown & MDX 桌面编辑器 —— 提供 <b>Typora-like 所见即所得</b> 编辑体验与 <b>原生 MDX 交互组件</b> 支持。
+  一个跨平台 Markdown & MDX 桌面编辑器 —— 提供 <b>所见即所得</b> 的编辑体验与 <b>原生 MDX 交互组件</b> 支持。
 </p>
 
 <p align="center">
