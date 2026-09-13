@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "../lib/i18n/context";
-import { APP_DISPLAY_NAME, GITHUB_REPO_URL } from "../lib/site-links";
+import { APP_DISPLAY_NAME, GITHUB_REPO_URL, PLAYGROUND_PATH } from "../lib/site-links";
 
 export function SiteFooter() {
   const { t } = useI18n();
@@ -11,6 +11,14 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:py-10">
         <p className="text-pretty">{t.footer.summary}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <a
+            href={PLAYGROUND_PATH}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center text-ink-soft transition-colors hover:text-ink sm:min-h-0"
+          >
+            {t.footer.playground}
+          </a>
           <a
             href={GITHUB_REPO_URL}
             target="_blank"

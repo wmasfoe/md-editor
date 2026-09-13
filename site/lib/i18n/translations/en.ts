@@ -8,6 +8,8 @@ export const en: TranslationSchema = {
   header: {
     changelog: "Changelog",
     changelogShort: "Log",
+    playground: "Playground",
+    playgroundShort: "Play",
     github: "GitHub",
     download: "Download",
     langSwitchAria: "Switch language",
@@ -21,6 +23,7 @@ export const en: TranslationSchema = {
     allPackages: "All Releases",
     exploreFeatures: "Explore Features",
     getClient: "Get Inkpoint",
+    tryOnline: "Try Online",
     allDownloadOptions: "All Platforms & CLI",
   },
   previewBadges: {
@@ -136,6 +139,7 @@ export const en: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint, a local-first Markdown / MDX desktop editor",
+    playground: "Playground",
     github: "GitHub",
   },
   aiShowcase: {

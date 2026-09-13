@@ -10,12 +10,19 @@ import {
   normalizeVersion,
   OFFICIAL_SITE_DOMAIN,
   OFFICIAL_SITE_URL,
+  PLAYGROUND_PATH,
+  PLAYGROUND_URL,
 } from "../lib/site-links";
 
 describe("site-links", () => {
   it("exposes official site domain and url", () => {
     expect(OFFICIAL_SITE_DOMAIN).toBe("editor.justdev.cn");
     expect(OFFICIAL_SITE_URL).toBe("https://editor.justdev.cn");
+  });
+
+  it("exposes playground path and url", () => {
+    expect(PLAYGROUND_PATH).toBe("/playground");
+    expect(PLAYGROUND_URL).toBe("https://editor.justdev.cn/playground");
   });
 
   it("exposes project and public release URLs", () => {
