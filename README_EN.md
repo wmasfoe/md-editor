@@ -177,7 +177,7 @@ All release workflows are unified under the `release:*` namespace:
 # Desktop cross-platform release (interactive version bump, dual changelogs, v* tag)
 pnpm release:desktop
 
-# Web online playground release (creates web-v* tag & GitHub Release)
+# Web online playground deployment (builds locally & deploys directly to Vercel)
 pnpm release:web
 
 # Website production deployment

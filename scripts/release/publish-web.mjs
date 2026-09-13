@@ -73,13 +73,13 @@ function readOptionValue(argv, index, optionName) {
 
 function usage() {
   return `Usage:
-  pnpm release:web [patch|minor|major|x.y.z] [--notes "..."] [--dry-run] [--yes]
+  pnpm release:web:publish [patch|minor|major|x.y.z] [--notes "..."] [--dry-run] [--yes]
 
 Examples:
-  pnpm release:web
-  pnpm release:web patch
-  pnpm release:web minor --notes "上线 MDX 组件沙盒"
-  pnpm release:web 0.2.0
+  pnpm release:web:publish
+  pnpm release:web:publish patch
+  pnpm release:web:publish minor --notes "上线 MDX 组件沙盒"
+  pnpm release:web:publish 0.2.0
 
 Options:
   --branch <name>       Require the current branch to match this name. Default: main.

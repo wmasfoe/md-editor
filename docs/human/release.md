@@ -5,7 +5,7 @@
 | 产物 | 推荐命令 | Git Tag 触发契约 | 用户拿到什么 / 发布目标 |
 |------|----------|-----------------|------------------------|
 | **桌面端 App** | `pnpm release:desktop` | `v*`（例: `v0.10.2`） | DMG、AppImage、DEB、EXE、Homebrew、应用内自动更新 |
-| **Web 在线端** | `pnpm release:web` | `web-v*`（例: `web-v0.2.0`） | 独立打包产物 `md-editor-web-*.zip`、GitHub Release 与在线部署 |
+| **Web 在线端** | `pnpm release:web` | 本地执行即可上线（无 Tag 干扰） | 生产环境预构建部署（Vercel）；不建 GitHub Release，保持 Release 纯净 |
 | **uTools 插件** | `pnpm build:utools` | `utools-v*`（首版: `utools-v0.1.0`） | 经校验的发布目录 zip 与 GitHub Release；市场审核需在 uTools 开发者工具提交 |
 | **官网** | `pnpm release:site` | App release 成功后自动触发；也可手动执行 | 首页与更新记录页（同时展示桌面端与 Web 端双日志 Tab） |
 
@@ -81,40 +81,44 @@ Beta 会生成 GitHub **prerelease**，**不会**更新公开 Homebrew tap、cas
 
 ## 二、Web 在线版发版
 
-Web 端作为独立前端应用，拥有独立的更新日志与发布节奏。
+Web 端作为部署在 Vercel 上的在线服务（Playground），发布模式对标**官网（site）**，采用 **Vercel CLI 预构建发布**。
 
-### 1. 推荐流程
+### 1. 为什么不发布 GitHub Release？
 
-在干净的 `main` 分支上：
+- **纯净性保障**：GitHub Releases 页面与仓库首页的 `Latest` 徽标**永远只属于桌面客户端 App**，避免用户在下载客户端时被 Web 端离线包干扰；
+- **即开即用**：Web 用户直接通过浏览器访问在线地址（如 `/playground`），无需在 GitHub 下载压缩包；
+- **更新日志分离**：Web 端的功能演进记录在 `apps/web/CHANGELOG.md` 中，官网更新日志页有专门的「Web 在线版」Tab 展示。
+
+### 2. 推荐发布流程（本地一键上线）
+
+在本地终端执行：
 
 ```bash
 pnpm release:web
 ```
 
-脚本会引导选择版本类型（patch / minor / major），输入更新日志，并执行：
-1. 更新 `apps/web/package.json` 中的版本号；
-2. 在 `apps/web/CHANGELOG.md` 写入新版本更新说明；
-3. 执行 `pnpm build:web` 验证打包与类型检查；
-4. 创建 `chore(web): release web-vX.Y.Z` 提交；
-5. 创建 `web-vX.Y.Z` tag（如 `web-v0.2.0`）；
-6. 推送至远程，触发 `.github/workflows/release-web.yml` 构建打包、创建 GitHub Release 并自动部署；
-7. （可选）在本地提示时直接执行 `deploy:web` 立即将新版本通过 Vercel CLI 发布到生产环境。
+该命令将执行 `scripts/web/deploy-web.mjs`：
+1. 本地拉取 `md-editor-web` 的生产配置；
+2. 在本地执行生产构建（`build --prod`）；
+3. 将预构建产物上传至 Vercel 生产环境并即时生效；
+4. 部署完成后自动还原根目录配置，不影响官网的发布上下文。
 
-> [!IMPORTANT]
-> `apps/web/vercel.json` 已显式设置 `"git": { "deploymentEnabled": false }`。合并 PR 或推送到 `main` 分支**绝不会**自动触发 Web 生产部署，所有发布均由 `pnpm release:web` 或 `pnpm deploy:web` 严格受控。
-
-### 2. 单独部署上线（无需升级版本）
-
-若需要将当前已构建产物直接发布到生产环境：
-
+预览部署命令（不执行实际上传）：
 ```bash
-pnpm deploy:web
+pnpm release:web --dry-run
 ```
 
-### 3. 仅更新版本号（分步）
+### 3. 更新版本号与更新日志（可选）
+
+当 Web 端有重要功能上线、需要向用户公布更新日志时：
 
 ```bash
+# 升级 patch / minor / major 版本，并自动更新 apps/web/CHANGELOG.md
 pnpm release:web:version patch
+```
+
+> [!IMPORTANT]
+> `apps/web/vercel.json` 已显式设置 `"git": { "deploymentEnabled": false }`。合并 PR 或推送到 `main` 分支**绝不会**自动触发 Web 生产部署，所有发布均由本地 `pnpm release:web` 严格受控。
 ```
 
 ---
@@ -178,9 +182,9 @@ pnpm release:desktop:version     # 仅更新版本文件与日志
 pnpm release:desktop patch --dry-run
 
 # Web 端 (Web)
-pnpm release:web                 # 交互式发版（推荐）
+pnpm release:web                 # 本地构建并一键发布至 Vercel（推荐）
 pnpm release:web:version         # 仅更新版本文件与日志
-pnpm deploy:web                  # 仅执行 Vercel CLI 生产环境部署
+pnpm release:web --dry-run       # 仅预览发布命令，不执行上传
 
 # uTools 插件
 pnpm build:utools
