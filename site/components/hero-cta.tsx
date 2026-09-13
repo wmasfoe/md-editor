@@ -1,7 +1,6 @@
 "use client";
 
 import { useI18n } from "../lib/i18n/context";
-import { PLAYGROUND_PATH } from "../lib/site-links";
 
 export function HeroCta() {
   const { t } = useI18n();
@@ -30,29 +29,6 @@ export function HeroCta() {
             stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </a>
-
-        {/* 在线试用行动点：新标签页直达 Web Playground */}
-        <a
-          href={PLAYGROUND_PATH}
-          target="_blank"
-          rel="noreferrer"
-          className="group inline-flex h-12 items-center justify-center gap-2 rounded-full border border-line-strong/80 bg-surface/80 px-6 text-sm font-medium text-ink shadow-xs backdrop-blur-sm transition-all hover:border-line-strong hover:bg-surface hover:text-accent active:translate-y-[1px]"
-        >
-          <span>{t.hero.tryOnline}</span>
-          <svg
-            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
           </svg>
         </a>
 
