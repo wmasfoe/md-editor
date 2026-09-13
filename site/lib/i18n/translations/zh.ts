@@ -8,6 +8,8 @@ export const zh: TranslationSchema = {
   header: {
     changelog: "更新记录",
     changelogShort: "更新",
+    playground: "在线体验",
+    playgroundShort: "体验",
     github: "GitHub",
     download: "下载",
     langSwitchAria: "切换语言",
@@ -20,6 +22,7 @@ export const zh: TranslationSchema = {
     allPackages: "全部安装包",
     exploreFeatures: "探索核心特性",
     getClient: "获取客户端",
+    tryOnline: "在线试用",
     allDownloadOptions: "全部平台与终端安装",
   },
   previewBadges: {
@@ -130,6 +133,7 @@ export const zh: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint，本地优先的 Markdown / MDX 桌面编辑器",
+    playground: "在线体验",
     github: "GitHub",
   },
   aiShowcase: {

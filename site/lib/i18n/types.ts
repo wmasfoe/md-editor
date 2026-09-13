@@ -34,6 +34,8 @@ export interface TranslationSchema {
   header: {
     changelog: string;
     changelogShort: string;
+    playground: string;
+    playgroundShort: string;
     github: string;
     download: string;
     langSwitchAria: string;
@@ -46,6 +48,7 @@ export interface TranslationSchema {
     allPackages: string;
     exploreFeatures: string;
     getClient: string;
+    tryOnline: string;
     allDownloadOptions: string;
   };
   previewBadges: {
@@ -133,6 +136,7 @@ export interface TranslationSchema {
   };
   footer: {
     summary: string;
+    playground: string;
     github: string;
   };
   aiShowcase: {

@@ -11,6 +11,12 @@ export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
 /** 官网完整 URL */
 export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
 
+/** Web Playground 相对路径 */
+export const PLAYGROUND_PATH = "/playground";
+
+/** Web Playground 完整 URL */
+export const PLAYGROUND_URL = `${OFFICIAL_SITE_URL}${PLAYGROUND_PATH}`;
+
 /** 本项目源码仓库 */
 export const GITHUB_REPO_URL = "https://github.com/wmasfoe/md-editor";
 
