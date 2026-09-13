@@ -94,7 +94,7 @@ function run(command, args, options = {}) {
 }
 
 function deployWeb(options = {}) {
-  if (isCi) {
+  if (isCi && !options.dryRun) {
     if (!process.env.VERCEL_TOKEN) {
       throw new Error("Missing VERCEL_TOKEN in CI environment; deployment requires Vercel token.");
     }
