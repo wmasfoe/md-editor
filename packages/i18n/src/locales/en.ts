@@ -85,6 +85,9 @@ export const en: TranslationSchema = {
       installUpdate: "Install Update",
       relaunchApp: "Relaunch App",
       manualInstallCommand: "Manual Install Command",
+      downloadInstaller: "Download Installer",
+      copyCommand: "Copy Command",
+      copied: "Copied",
       updateStatus: {
         upToDate: "You're up to date.",
         available: "New version {{version}} available.",

@@ -6,7 +6,7 @@
 use std::{
     fs,
     io::{Read, Write},
-    process::{Command, Stdio},
+    process::Stdio,
 };
 use tauri::{AppHandle, Manager};
 
@@ -19,6 +19,7 @@ use super::{
     },
 };
 use crate::local_ai_runtime::LocalAiRuntimeState;
+use crate::process_utils::silent_command;
 
 pub(crate) const DOWNLOAD_CANCEL_FILE_NAME: &str = "download.cancel";
 pub(crate) const LOCAL_AI_DOWNLOAD_CANCELLED_MESSAGE: &str = "本地模型下载已取消。";
@@ -171,7 +172,7 @@ pub(crate) async fn download_model(
                     )
                 })?;
 
-            let mut curl = Command::new("curl")
+            let mut curl = silent_command("curl")
                 .arg("-L")
                 .arg("--fail")
                 .arg("--silent")

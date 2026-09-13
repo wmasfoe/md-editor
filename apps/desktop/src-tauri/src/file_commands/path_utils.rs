@@ -52,17 +52,62 @@ pub(crate) fn path_to_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+/// 去除 Windows 路径中的 UNC 扩展长度前缀（`\\?\` 或 `\\?\UNC\`），转换为标准 DOS/UNC 路径。
+pub(crate) fn strip_verbatim_prefix<P: AsRef<Path>>(path: P) -> PathBuf {
+    let path = path.as_ref();
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        path.to_path_buf()
+    }
+}
+
 /// 计算目标路径相对于工作区根目录的相对路径。
 pub(crate) fn file_tree_relative_path(root: &Path, path: &Path) -> Result<String, String> {
-    path.strip_prefix(root)
-        .map(path_to_string)
-        .map_err(|error| {
-            format!(
-                "Failed to compute path for {} relative to {}: {error}",
-                path.display(),
-                root.display()
-            )
-        })
+    let root = strip_verbatim_prefix(root);
+    let path = strip_verbatim_prefix(path);
+
+    #[cfg(target_os = "windows")]
+    {
+        let root_components: Vec<_> = root.components().collect();
+        let path_components: Vec<_> = path.components().collect();
+        if path_components.len() >= root_components.len() {
+            let is_prefix = root_components
+                .iter()
+                .zip(path_components.iter())
+                .all(|(r, p)| {
+                    r.as_os_str()
+                        .to_string_lossy()
+                        .eq_ignore_ascii_case(&p.as_os_str().to_string_lossy())
+                });
+            if is_prefix {
+                let remaining_comps = &path_components[root_components.len()..];
+                let joined = remaining_comps
+                    .iter()
+                    .map(|component| component.as_os_str().to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join("/");
+                return Ok(joined);
+            }
+        }
+    }
+
+    let rel = path.strip_prefix(&root).map_err(|error| {
+        format!(
+            "Failed to compute path for {} relative to {}: {error}",
+            path.display(),
+            root.display()
+        )
+    })?;
+
+    Ok(rel
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/"))
 }
 
 /// 计算在文件管理器中定位时的目标路径（如果是文件则定位到其父目录）。
@@ -76,15 +121,43 @@ pub(crate) fn reveal_target_path(path: &Path) -> PathBuf {
     }
 }
 
-/// 将给定路径规范化解析为存在且合法的绝对路径。
+/// 将给定路径规范化解析为存在且合法的绝对路径，并去除 Windows 平台的 `\\?\` 扩展前缀。
 pub(crate) fn canonicalize_existing_path(path: &str, label: &str) -> Result<PathBuf, String> {
-    fs::canonicalize(path).map_err(|error| format!("Failed to resolve {label} {path}: {error}"))
+    let canonical = fs::canonicalize(path)
+        .map_err(|error| format!("Failed to resolve {label} {path}: {error}"))?;
+    Ok(strip_verbatim_prefix(canonical))
 }
 
 /// 安全审计：确保目标路径位于已打开的工作区根目录内，防止路径遍历攻击。
 pub(crate) fn ensure_path_inside_root(root: &Path, path: &Path) -> Result<(), String> {
-    if path.starts_with(root) {
-        return Ok(());
+    let root = strip_verbatim_prefix(root);
+    let path = strip_verbatim_prefix(path);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::ffi::OsStr;
+        let root_components: Vec<&OsStr> = root.components().map(|c| c.as_os_str()).collect();
+        let path_components: Vec<&OsStr> = path.components().map(|c| c.as_os_str()).collect();
+
+        if path_components.len() >= root_components.len() {
+            let matches = root_components
+                .iter()
+                .zip(path_components.iter())
+                .all(|(r, p)| {
+                    r.to_string_lossy()
+                        .eq_ignore_ascii_case(&p.to_string_lossy())
+                });
+            if matches {
+                return Ok(());
+            }
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if path.starts_with(&root) {
+            return Ok(());
+        }
     }
 
     Err(format!(

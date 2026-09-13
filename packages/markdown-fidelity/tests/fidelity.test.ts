@@ -201,6 +201,20 @@ describe("local Markdown image preview sources", () => {
     );
   });
 
+  it("resolves absolute image paths even without an active document", () => {
+    const resolveImageSrc = createMarkdownImageSrcResolver(null, {
+      hasTauriRuntime: true,
+      convertFileSrc: (path) => `asset://${path}`,
+    });
+
+    expect(resolveImageSrc("/Users/me/pictures/banner.png")).toBe(
+      "asset:///Users/me/pictures/banner.png",
+    );
+    expect(resolveImageSrc("C:\\Users\\me\\pictures\\banner.png")).toBe(
+      "asset://C:\\Users\\me\\pictures\\banner.png",
+    );
+  });
+
   it("leaves remote, embedded, and non-desktop image sources unchanged", () => {
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/docs/today.md", {
       hasTauriRuntime: true,

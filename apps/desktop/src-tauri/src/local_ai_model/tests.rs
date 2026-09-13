@@ -136,7 +136,7 @@ fn legacy_v100_installed_model_marked_available_with_update() {
     );
     assert_eq!(status.status, "available");
     assert_eq!(status.version, Some("v1.0.0".to_string()));
-    assert_eq!(status.latest_version, "v1.3.0");
+    assert_eq!(status.latest_version, "v1.3.1");
     assert!(status.has_update);
 }
 
@@ -225,4 +225,39 @@ fn can_reuse_local_component_checks_sha256_and_size() {
     assert!(!can_reuse_local_component(&test_file, &mismatch_sha, None));
 
     let _ = fs::remove_dir_all(&temp_dir);
+}
+
+#[test]
+fn default_manifests_have_valid_integrity_specs() {
+    for manifest in [default_lite_model(), default_standard_model()] {
+        assert_eq!(manifest.version, "v1.3.1");
+        assert!(manifest.is_available);
+        assert!(!manifest.filename.is_empty());
+        assert!(manifest.download_url.starts_with("https://"));
+        assert_eq!(manifest.sha256.len(), 64);
+        assert!(manifest.sha256.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(manifest.size_bytes > 0);
+
+        for (task, adapter) in &manifest.adapters {
+            assert!(!task.is_empty());
+            assert!(!adapter.filename.is_empty());
+            assert!(adapter.download_url.starts_with("https://"));
+            assert_eq!(
+                adapter.sha256.len(),
+                64,
+                "Adapter {task} in {} must have 64-char hex SHA256",
+                manifest.id
+            );
+            assert!(
+                adapter.sha256.chars().all(|c| c.is_ascii_hexdigit()),
+                "Adapter {task} in {} must have valid hex SHA256",
+                manifest.id
+            );
+            assert!(
+                adapter.size_bytes > 0,
+                "Adapter {task} in {} must have positive size",
+                manifest.id
+            );
+        }
+    }
 }

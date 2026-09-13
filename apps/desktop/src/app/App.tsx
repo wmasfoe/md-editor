@@ -19,6 +19,7 @@ import {
   SIDEBAR_DEFAULT_WIDTH,
 } from "../components/AppSidebar";
 import { APP_DISPLAY_NAME } from "../lib/app-name";
+import { toAssetUrl } from "../lib/markdown-preview";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
 import {
@@ -146,7 +147,7 @@ function MainApp({
   const snapshot = useDocumentSnapshot();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
   const { pendingAction } = useFileActionStore();
-  const { hasActiveDocument, openedAsset, resolveImageSrc, closeAssetPreview, getRecentFiles } =
+  const { hasActiveDocument, openedAsset, closeAssetPreview, getRecentFiles } =
     useDocumentUiStore();
   const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
 
@@ -240,7 +241,7 @@ function MainApp({
                   <div className="absolute inset-0 z-[5] flex min-h-0 flex-col">
                     <AssetPreview
                       asset={openedAsset}
-                      resolveAssetSrc={resolveImageSrc}
+                      resolveAssetSrc={toAssetUrl}
                       onBack={closeAssetPreview}
                     />
                   </div>

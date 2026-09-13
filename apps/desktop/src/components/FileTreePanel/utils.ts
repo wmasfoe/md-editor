@@ -1,4 +1,5 @@
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
+import { isSameOrChildPath, normalizePath } from "../../lib/path";
 import type { SearchResultNode } from "./types";
 
 const COLLAPSED_PATHS_STORAGE_PREFIX = "md-editor:file-tree:collapsed:";
@@ -33,11 +34,23 @@ export function isSearchResultNode(node: MarkdownFileTreeNode): node is SearchRe
 }
 
 export function relativePathFromRoot(rootPath: string, path: string): string {
-  const normalizedRoot = rootPath.replace(/\\/g, "/").replace(/\/$/u, "");
-  const normalizedPath = path.replace(/\\/g, "/");
-  return normalizedPath.startsWith(`${normalizedRoot}/`)
-    ? normalizedPath.slice(normalizedRoot.length + 1)
-    : normalizedPath;
+  const normalizedRoot = normalizePath(rootPath);
+  const normalizedPath = normalizePath(path);
+
+  if (normalizedPath.startsWith(`${normalizedRoot}/`)) {
+    return normalizedPath.slice(normalizedRoot.length + 1);
+  }
+
+  // Windows 大小写不敏感容差匹配
+  if (/^[A-Z]:/i.test(normalizedRoot) && /^[A-Z]:/i.test(normalizedPath)) {
+    const lowerRoot = normalizedRoot.toLowerCase();
+    const lowerPath = normalizedPath.toLowerCase();
+    if (lowerPath.startsWith(`${lowerRoot}/`)) {
+      return normalizedPath.slice(normalizedRoot.length + 1);
+    }
+  }
+
+  return normalizedPath;
 }
 
 export function storageKeyForRoot(rootPath: string): string {
@@ -73,5 +86,5 @@ export function writeCollapsedPaths(rootPath: string, collapsedPaths: ReadonlySe
 }
 
 export function isPathInsideRoot(path: string, rootPath: string): boolean {
-  return path === rootPath || path.startsWith(`${rootPath}/`);
+  return isSameOrChildPath(path, rootPath);
 }

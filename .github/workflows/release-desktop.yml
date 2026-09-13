@@ -230,7 +230,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-windows-x64
-          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.zip
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.sig
 
   publish-release:
     name: Publish tagged release & update tap
@@ -392,6 +395,17 @@ jobs:
             export UPDATER_DOWNLOAD_URL="$updater_url"
             export UPDATER_SIGNATURE="$(cat "$updater_file.sig")"
             export UPDATER_PLATFORM="darwin-aarch64"
+            export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
+            node scripts/release/write-updater-manifest.mjs
+          fi
+
+          win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
+          win_updater_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("x64") and (endswith(".nsis.zip") or endswith(".zip"))) | .browser_download_url' | head -n 1)"
+
+          if [ -n "$win_updater_file" ] && [ -f "$win_updater_file.sig" ]; then
+            export UPDATER_DOWNLOAD_URL="$win_updater_url"
+            export UPDATER_SIGNATURE="$(cat "$win_updater_file.sig")"
+            export UPDATER_PLATFORM="windows-x86_64"
             export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
             node scripts/release/write-updater-manifest.mjs
           fi

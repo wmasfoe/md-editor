@@ -126,7 +126,7 @@ export function createMarkdownImageSrcResolver(
   options: MarkdownImageSrcResolverOptions = {},
 ) {
   return (src: string): string => {
-    if (!documentPath || isRemoteOrEmbeddedImageSrc(src) || src.startsWith("#")) {
+    if (isRemoteOrEmbeddedImageSrc(src) || src.startsWith("#")) {
       return src;
     }
 
@@ -134,7 +134,14 @@ export function createMarkdownImageSrcResolver(
       return src;
     }
 
-    return options.convertFileSrc(resolveLocalImagePath(src, documentPath));
+    const decodedSrc = decodeMarkdownImagePath(src);
+    const isAbsolute = decodedSrc.startsWith("/") || /^[a-zA-Z]:[\\/]/u.test(decodedSrc);
+    if (!isAbsolute && !documentPath) {
+      return src;
+    }
+
+    const targetPath = isAbsolute ? decodedSrc : resolveLocalImagePath(src, documentPath!);
+    return options.convertFileSrc(targetPath);
   };
 }
 

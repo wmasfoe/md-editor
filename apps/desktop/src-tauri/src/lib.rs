@@ -1,4 +1,3 @@
-#[cfg(target_os = "macos")]
 use tauri::Emitter;
 
 mod app_menu;
@@ -8,6 +7,7 @@ mod local_ai_completion;
 mod local_ai_model;
 mod local_ai_runtime;
 mod platform_contract;
+mod process_utils;
 #[cfg(target_os = "macos")]
 mod quicklook;
 mod recent_files;
@@ -21,15 +21,15 @@ mod window_chrome;
 
 #[cfg(target_os = "macos")]
 use app_menu::build_app_menu;
-#[cfg(target_os = "macos")]
 use app_menu::MENU_ACTION_EVENT;
 use app_menu::{save_app_settings_and_update_menu, update_recent_files_menu};
 use file_commands::{
-    attach_save_runtime, check_path_exists, copy_file_tree_path, create_markdown_tree_item,
-    delete_markdown_tree_item, inspect_linked_file, open_external_target, open_markdown_document,
-    open_markdown_document_at_path, open_markdown_folder, pick_theme_css_file, read_theme_css_file,
-    refresh_markdown_folder, rename_markdown_tree_item, reveal_file_tree_item_in_finder,
-    save_markdown_document_ordered, save_pasted_image, show_file_tree_context_menu,
+    allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
+    create_markdown_tree_item, delete_markdown_tree_item, inspect_linked_file,
+    open_external_target, open_markdown_document, open_markdown_document_at_path,
+    open_markdown_folder, pick_theme_css_file, read_theme_css_file, refresh_markdown_folder,
+    rename_markdown_tree_item, reveal_file_tree_item_in_finder, save_markdown_document_ordered,
+    save_pasted_image, show_file_tree_context_menu,
 };
 use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
 use local_ai_completion::request_local_ai_continuation;
@@ -53,7 +53,9 @@ pub fn run() {
     let builder = tauri::Builder::default();
 
     #[cfg(target_os = "macos")]
-    let builder = builder.menu(build_app_menu).on_menu_event(|app, event| {
+    let builder = builder.menu(build_app_menu);
+
+    let builder = builder.on_menu_event(|app, event| {
         let action = event.id().as_ref();
         if action.starts_with("md-editor:") {
             // Tauri v2 这里广播给所有 webview，避免依赖固定窗口 label。
@@ -87,6 +89,7 @@ pub fn run() {
             open_markdown_document_at_path,
             open_markdown_folder,
             refresh_markdown_folder,
+            allow_asset_path,
             watch_folder,
             unwatch_folder,
             create_markdown_tree_item,

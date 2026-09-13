@@ -1,21 +1,51 @@
 export type OperatingSystem = "mac" | "windows" | "linux" | "other";
 
 export function getOperatingSystem(): OperatingSystem {
-  if (typeof navigator === "undefined") {
-    return "other";
-  }
-  const platform = (navigator.platform || "").toLowerCase();
-  const userAgent = (navigator.userAgent || "").toLowerCase();
+  if (typeof navigator !== "undefined") {
+    const userAgentDataPlatform =
+      // @ts-expect-error userAgentData is experimental in standard lib DOM
+      typeof navigator.userAgentData?.platform === "string"
+        ? // @ts-expect-error userAgentData is experimental in standard lib DOM
+          (navigator.userAgentData.platform as string).toLowerCase()
+        : "";
+    const platform = (navigator.platform || "").toLowerCase();
+    const userAgent = (navigator.userAgent || "").toLowerCase();
 
-  if (platform.includes("mac") || userAgent.includes("mac")) {
-    return "mac";
+    if (
+      platform.includes("win") ||
+      userAgent.includes("win") ||
+      userAgentDataPlatform.includes("win")
+    ) {
+      return "windows";
+    }
+    if (
+      platform.includes("mac") ||
+      userAgent.includes("mac") ||
+      userAgentDataPlatform.includes("mac")
+    ) {
+      return "mac";
+    }
+    if (
+      platform.includes("linux") ||
+      userAgent.includes("linux") ||
+      userAgentDataPlatform.includes("linux")
+    ) {
+      return "linux";
+    }
   }
-  if (platform.includes("win") || userAgent.includes("win")) {
-    return "windows";
+
+  if (typeof process !== "undefined" && typeof process.platform === "string") {
+    if (process.platform === "win32") {
+      return "windows";
+    }
+    if (process.platform === "darwin") {
+      return "mac";
+    }
+    if (process.platform === "linux") {
+      return "linux";
+    }
   }
-  if (platform.includes("linux") || userAgent.includes("linux")) {
-    return "linux";
-  }
+
   return "other";
 }
 

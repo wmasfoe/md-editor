@@ -2,7 +2,7 @@
  * @fileoverview GitHub Releases 解析与语义化版本比较 (Releases Parser)
  */
 
-import { isWindowsPlatform } from "../../../lib/keyboard";
+import { isLinuxPlatform, isMacPlatform, isWindowsPlatform } from "../../../lib/keyboard";
 import {
   DEFAULT_UPDATE_SETTINGS,
   INSTALL_WITH_CURL_COMMAND,
@@ -186,7 +186,7 @@ function findLatestMdEditorRelease(payload: unknown): PublishedRelease | null {
     return {
       version,
       releaseUrl: readString(release.html_url) ?? undefined,
-      downloadUrl: readDmgDownloadUrl(release.assets),
+      downloadUrl: readPlatformDownloadUrl(release.assets),
     };
   }
 
@@ -232,18 +232,54 @@ export function parsePublishedVersionTag(tagName: string | null): string | null 
   return null;
 }
 
-function readDmgDownloadUrl(input: unknown): string | undefined {
+function readPlatformDownloadUrl(input: unknown): string | undefined {
   if (!Array.isArray(input)) {
     return undefined;
   }
 
+  const isWin = isWindowsPlatform();
+  const isMac = isMacPlatform();
+  const isLinux = isLinuxPlatform();
+
+  // 优先匹配当前操作系统对应的原生安装包
   for (const asset of input) {
     if (!isRecord(asset)) {
       continue;
     }
-    const name = readString(asset.name);
+    const name = readString(asset.name)?.toLowerCase();
     const downloadUrl = readString(asset.browser_download_url);
-    if (name?.toLowerCase().endsWith(".dmg") && downloadUrl) {
+    if (!name || !downloadUrl) {
+      continue;
+    }
+
+    if (isWin && (name.endsWith(".exe") || name.endsWith(".msi"))) {
+      return downloadUrl;
+    }
+    if (isMac && name.endsWith(".dmg")) {
+      return downloadUrl;
+    }
+    if (isLinux && (name.endsWith(".appimage") || name.endsWith(".deb"))) {
+      return downloadUrl;
+    }
+  }
+
+  // 兜底：若未精确匹配操作系统，回退至常见安装包类型
+  for (const asset of input) {
+    if (!isRecord(asset)) {
+      continue;
+    }
+    const name = readString(asset.name)?.toLowerCase();
+    const downloadUrl = readString(asset.browser_download_url);
+    if (!name || !downloadUrl) {
+      continue;
+    }
+    if (
+      name.endsWith(".dmg") ||
+      name.endsWith(".exe") ||
+      name.endsWith(".msi") ||
+      name.endsWith(".appimage") ||
+      name.endsWith(".deb")
+    ) {
       return downloadUrl;
     }
   }

@@ -62,6 +62,27 @@ describe("editor-ui keyboard platform detection", () => {
     }
   });
 
+  it("detects windows platform correctly from userAgentData", () => {
+    const originalNavigator = globalThis.navigator;
+    try {
+      Object.defineProperty(globalThis, "navigator", {
+        value: {
+          platform: "",
+          userAgent: "",
+          userAgentData: { platform: "Windows" },
+        },
+        configurable: true,
+      });
+      expect(getOperatingSystem()).toBe("windows");
+      expect(isWindowsPlatform()).toBe(true);
+    } finally {
+      Object.defineProperty(globalThis, "navigator", {
+        value: originalNavigator,
+        configurable: true,
+      });
+    }
+  });
+
   it("detects linux platform correctly", () => {
     const originalNavigator = globalThis.navigator;
     try {
@@ -73,6 +94,24 @@ describe("editor-ui keyboard platform detection", () => {
       expect(isLinuxPlatform()).toBe(true);
       expect(isMacPlatform()).toBe(false);
       expect(isWindowsPlatform()).toBe(false);
+    } finally {
+      Object.defineProperty(globalThis, "navigator", {
+        value: originalNavigator,
+        configurable: true,
+      });
+    }
+  });
+
+  it("falls back to process.platform when navigator has no match", () => {
+    const originalNavigator = globalThis.navigator;
+    try {
+      Object.defineProperty(globalThis, "navigator", {
+        value: { platform: "", userAgent: "" },
+        configurable: true,
+      });
+      // In this Node environment, process.platform is "win32"
+      expect(getOperatingSystem()).toBe("windows");
+      expect(isWindowsPlatform()).toBe(true);
     } finally {
       Object.defineProperty(globalThis, "navigator", {
         value: originalNavigator,

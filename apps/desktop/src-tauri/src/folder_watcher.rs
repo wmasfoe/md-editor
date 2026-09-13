@@ -53,7 +53,7 @@ pub(crate) fn watch_folder(
         return Err(format!("Path does not exist or is not a directory: {path}"));
     }
 
-    let canonical = std::fs::canonicalize(&target)
+    let canonical = crate::file_commands::path_utils::canonicalize_existing_path(&path, "folder")
         .map_err(|error| format!("Failed to canonicalize {path}: {error}"))?;
 
     let mut watched_lock = state
