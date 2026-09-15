@@ -4,6 +4,8 @@ let mermaidInstance: typeof MermaidType | null = null;
 let mermaidPromise: Promise<typeof MermaidType> | null = null;
 
 const mermaidSvgCache = new Map<string, { svg: string; error?: string }>();
+// 模块级并发渲染 Promise 缓存池，避免组件重绘或并发水合时触发重复渲染竞争
+const inFlightPromises = new Map<string, Promise<{ svg: string; error?: string }>>();
 const MAX_CACHE_SIZE = 200;
 let globalDiagramCounter = 0;
 let currentTheme: "dark" | "default" | null = null;
@@ -42,67 +44,80 @@ export function getLoadedMermaid(): typeof MermaidType | null {
  * 异步将 Mermaid 源码渲染为 SVG 矢量图。
  * 具备并发缓存、语法错误隔离与暗黑模式适配。
  */
-export async function renderMermaidSvg(
+export function renderMermaidSvg(
   code: string,
   isDark = false,
 ): Promise<{ svg: string; error?: string }> {
   const trimmed = code.trim();
   if (!trimmed) {
-    return { svg: "" };
+    return Promise.resolve({ svg: "" });
   }
 
   const cacheKey = `${isDark ? "dark" : "light"}:${trimmed}`;
   const cached = mermaidSvgCache.get(cacheKey);
   if (cached) {
-    return cached;
+    return Promise.resolve(cached);
   }
 
-  const id = `cm-mermaid-${Date.now()}-${++globalDiagramCounter}`;
+  // 并发请求复用：若该图表已在渲染中，直接复用其 Promise，避免重复调用 mermaid.render 产生竞态
+  const inFlight = inFlightPromises.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
 
-  try {
-    const mermaid = await loadMermaid();
-    const targetTheme = isDark ? "dark" : "default";
-    if (currentTheme !== targetTheme) {
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme: targetTheme,
-        suppressErrorRendering: true,
-      });
-      currentTheme = targetTheme;
-    }
+  const renderPromise = (async () => {
+    const id = `cm-mermaid-${Date.now()}-${++globalDiagramCounter}`;
 
-    const { svg } = await mermaid.render(id, trimmed);
-    const result = { svg };
-
-    if (mermaidSvgCache.size >= MAX_CACHE_SIZE) {
-      const firstKey = mermaidSvgCache.keys().next().value;
-      if (firstKey !== undefined) {
-        mermaidSvgCache.delete(firstKey);
+    try {
+      const mermaid = await loadMermaid();
+      const targetTheme = isDark ? "dark" : "default";
+      if (currentTheme !== targetTheme) {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: targetTheme,
+          suppressErrorRendering: true,
+        });
+        currentTheme = targetTheme;
       }
-    }
-    mermaidSvgCache.set(cacheKey, result);
-    return result;
-  } catch (err) {
-    // 清理可能残留在 DOM 中的临时 mermaid 容器
-    const tempNode =
-      typeof document !== "undefined" && typeof document.getElementById === "function"
-        ? document.getElementById(id)
-        : null;
-    if (tempNode && tempNode.parentElement) {
-      tempNode.parentElement.removeChild(tempNode);
-    }
-    const tempContainer =
-      typeof document !== "undefined" && typeof document.getElementById === "function"
-        ? document.getElementById(`d${id}`)
-        : null;
-    if (tempContainer && tempContainer.parentElement) {
-      tempContainer.parentElement.removeChild(tempContainer);
-    }
 
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    const result = { svg: "", error: errorMsg };
-    mermaidSvgCache.set(cacheKey, result);
-    return result;
-  }
+      const { svg } = await mermaid.render(id, trimmed);
+      const result = { svg };
+
+      if (mermaidSvgCache.size >= MAX_CACHE_SIZE) {
+        const firstKey = mermaidSvgCache.keys().next().value;
+        if (firstKey !== undefined) {
+          mermaidSvgCache.delete(firstKey);
+        }
+      }
+      mermaidSvgCache.set(cacheKey, result);
+      return result;
+    } catch (err) {
+      // 清理可能残留在 DOM 中的临时 mermaid 容器
+      const tempNode =
+        typeof document !== "undefined" && typeof document.getElementById === "function"
+          ? document.getElementById(id)
+          : null;
+      if (tempNode && tempNode.parentElement) {
+        tempNode.parentElement.removeChild(tempNode);
+      }
+      const tempContainer =
+        typeof document !== "undefined" && typeof document.getElementById === "function"
+          ? document.getElementById(`d${id}`)
+          : null;
+      if (tempContainer && tempContainer.parentElement) {
+        tempContainer.parentElement.removeChild(tempContainer);
+      }
+
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const result = { svg: "", error: errorMsg };
+      mermaidSvgCache.set(cacheKey, result);
+      return result;
+    } finally {
+      inFlightPromises.delete(cacheKey);
+    }
+  })();
+
+  inFlightPromises.set(cacheKey, renderPromise);
+  return renderPromise;
 }

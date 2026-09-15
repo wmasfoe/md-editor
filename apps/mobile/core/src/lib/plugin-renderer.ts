@@ -125,6 +125,15 @@ export async function hydrateMermaid(container: HTMLElement, isDark: boolean): P
     try {
       const { svg, error } = await renderMermaidSvg(rawCode, isDark);
       if (svg && !error) {
+        // 安全保护：若在异步加载期间页面已触发重绘使得该 pre 节点脱离了容器，则安全跳过（兼容 node mock 测试环境）
+        if (
+          preEl.isConnected === false &&
+          typeof container.contains === "function" &&
+          !container.contains(preEl)
+        ) {
+          continue;
+        }
+
         const wrapper = document.createElement("div");
         wrapper.className = "cm-md-mermaid-container my-4";
         wrapper.setAttribute("data-mermaid-code", rawCode);

@@ -127,6 +127,83 @@ describe("Mobile Web Rendering Contract Tests", () => {
     }
   });
 
+  it("should gracefully skip replacing detached pre elements if disconnected during async render", async () => {
+    const { hydrateMermaid } = await import("../src/lib/plugin-renderer.ts");
+
+    interface MockElement {
+      tagName: string;
+      className: string;
+      innerHTML: string;
+      setAttribute(k: string, v: string): void;
+      getAttribute(k: string): string | null;
+    }
+
+    const mockElements: MockElement[] = [];
+    const mockPre = {
+      isConnected: false, // 模拟在异步渲染期间节点已被 React 重绘卸载
+      attributes: {} as Record<string, string>,
+      getAttribute(k: string) {
+        return this.attributes[k] || null;
+      },
+      setAttribute(k: string, v: string) {
+        this.attributes[k] = v;
+      },
+      replaceWith(newNode: unknown) {
+        mockElements.push(newNode as MockElement);
+      },
+    };
+    const mockCode = {
+      textContent: "graph TD\n  A --> B",
+      parentElement: mockPre,
+    };
+    const mockContainer = {
+      contains(_node: unknown) {
+        return false; // 容器已不再包含该节点
+      },
+      querySelectorAll(selector: string) {
+        if (selector.includes("language-mermaid")) {
+          return [mockCode];
+        }
+        return [];
+      },
+    };
+
+    const globalScope = globalThis as unknown as { document?: unknown };
+    const originalDoc = globalScope.document;
+    globalScope.document = {
+      createElement(tag: string): MockElement {
+        const attrs: Record<string, string> = {};
+        return {
+          tagName: tag.toUpperCase(),
+          className: "",
+          innerHTML: "",
+          setAttribute(k: string, v: string) {
+            attrs[k] = v;
+          },
+          getAttribute(k: string) {
+            return attrs[k] || null;
+          },
+        };
+      },
+    };
+
+    const syntaxPlugins = await import("@md-editor/syntax-plugins");
+    const renderSpy = vi.spyOn(syntaxPlugins, "renderMermaidSvg").mockResolvedValue({
+      svg: "<svg class='mermaid-svg'>mock</svg>",
+    });
+
+    try {
+      await hydrateMermaid(mockContainer as unknown as HTMLElement, false);
+      // 标记过已尝试水合
+      expect(mockPre.getAttribute("data-mermaid-hydrated")).toBe("true");
+      // 但由于已脱离 DOM，replaceWith 不应被调用，避免操作失效节点
+      expect(mockElements).toHaveLength(0);
+    } finally {
+      renderSpy.mockRestore();
+      globalScope.document = originalDoc;
+    }
+  });
+
   it("should extract structured outline with correct levels and IDs", async () => {
     const { extractOutline } = await import("../src/lib/plugin-renderer.ts");
     const markdown = `# 主标题

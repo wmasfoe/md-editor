@@ -183,5 +183,16 @@ describe("mermaidPlugin (@md-editor/syntax-plugins)", () => {
       // 语法错误时应返回 error 说明，不抛出异常
       expect(result.error).toBeDefined();
     });
+
+    it("deduplicates concurrent in-flight requests for the same diagram and theme", async () => {
+      const code = "graph TD\n  X --> Y";
+      // 并发触发两个相同的渲染请求
+      const p1 = renderMermaidSvg(code, false);
+      const p2 = renderMermaidSvg(code, false);
+      // 应复用同一个进行中的 Promise 实例，彻底避免并发竞争
+      expect(p1).toBe(p2);
+      const [res1, res2] = await Promise.all([p1, p2]);
+      expect(res1).toEqual(res2);
+    });
   });
 });
