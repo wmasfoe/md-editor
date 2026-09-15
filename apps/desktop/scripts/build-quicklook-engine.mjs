@@ -4,13 +4,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const desktopDir = path.resolve(__dirname, "..");
-const entryFile = path.resolve(
-  desktopDir,
-  "../../packages/renderer-codemirror/src/static/index.ts",
-);
+const entryFile = path.resolve(desktopDir, "../../packages/compiler/src/index.ts");
 const outDir = path.resolve(desktopDir, "src-tauri/extensions/quicklook/Resources");
 
-console.log("==> Building Quick Look Engine bundle from @md-editor/renderer-codemirror/static...");
+console.log("==> Building Quick Look Engine bundle from @md-editor/compiler...");
 
 await build({
   configFile: false,

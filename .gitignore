@@ -19,6 +19,18 @@ target/
 src-tauri/target/
 **/src-tauri/target/
 
+# Swift / iOS / Android build output
+.build/
+**/.build/
+**/*.xcodeproj/project.xcworkspace/
+**/*.xcodeproj/xcuserdata/
+**/*.xcworkspace/xcuserdata/
+**/xcuserdata/
+**/.gradle/
+**/build/
+**/assets/editor/
+**/Resources/editor/
+
 # Tauri generated files and local config
 src-tauri/gen/
 src-tauri/.cargo/

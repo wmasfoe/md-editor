@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./static": "./src/static/index.ts",
     "./testing": "./src/testing.ts"
   },
   "scripts": {
@@ -39,8 +38,6 @@
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/shared": "workspace:*",
-    "highlight.js": "^11.12.0",
-    "marked": "^18.0.11",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-mdx-jsx": "^3.2.0",
     "micromark": "^4.0.2",

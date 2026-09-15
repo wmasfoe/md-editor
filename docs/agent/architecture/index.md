@@ -20,7 +20,9 @@
 - Markdown 语法插件架构（文本高亮、容器指令、LaTeX 数学公式与 Mermaid 图表方案）： [markdown_syntax_plugin_architecture.md](./markdown_syntax_plugin_architecture.md)
   记录 Markdown 扩展语法插件规范（MarkdownSyntaxPlugin）、@md-editor/syntax-plugins 架构、highlightPlugin（==高亮==）、containerDirectivePlugin、mathPlugin（KaTeX）与 mermaidPlugin 的按需/异步加载、Lezer 语法拦截、所见即所得就地编辑契约与降级隔离设计。
 - macOS Quick Look 快速预览扩展架构方案： [macos_quicklook_preview_architecture.md](./macos_quicklook_preview_architecture.md)
-  记录系统接入边界、JavaScriptCore 离线渲染沙箱、与 @md-editor/renderer-codemirror/static 共享静态渲染能力的复用设计以及构建流水线规范。
+  记录系统接入边界、JavaScriptCore 离线渲染沙箱、基于独立子包 @md-editor/compiler 的纯静态渲染能力复用设计以及构建流水线规范。
+- 独立无头编译器架构方案： [compiler_architecture.md](./compiler_architecture.md)
+  记录纯 Headless 编译器子包 @md-editor/compiler 架构、结构化 Token 流抽取 (compileToTokens)、语义 HTML 发射、KaTeX 离线公式与容器指令渲染，以及开放 StaticCustomRenderer 接口设计。
 
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
@@ -30,4 +32,6 @@
   记录巨型单体文件拆解与全量注释规范、串行异步保存调度器（防抖/手动并发保护）以及桌面端与 Web 端发版解耦架构。
 - uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
   记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与便签持久化、AI 免责机制与导流规范。
+- 移动端 (iOS & Android) 原生外壳与离线内核架构方案： [mobile_support_architecture.md](./mobile_support_architecture.md)
+  记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入与 CI/CD 自动化流水线。
 
