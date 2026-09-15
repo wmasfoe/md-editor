@@ -96,14 +96,8 @@ async function main() {
 
   // 1. 同步与构建前端离线资源
   if (!skipSync) {
-    const distHtml = path.join(ROOT_DIR, "apps/mobile/core/dist/index.html");
-    if (!fs.existsSync(distHtml)) {
-      log("构建前端移动端离线资源包...");
-      runCommand("pnpm run build:mobile");
-    } else {
-      log("同步前端移动端静态产物到 Android assets...");
-      runCommand("node scripts/mobile/sync-mobile-web.mjs");
-    }
+    log("构建前端移动端离线资源包并同步至各原生工程...");
+    runCommand("pnpm run build:mobile");
   }
 
   // 2. 如果指定了 --open，调用系统 open 打开 Android Studio

@@ -42,6 +42,10 @@ public struct EditorWebView: UIViewRepresentable {
         // 加载离线前端页面
         loadEditorBundle(in: webView)
 
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
+
         return webView
     }
 

@@ -33,7 +33,7 @@ export const ReaderCanvas: React.FC<ReaderCanvasProps> = ({ content, onEnterEdit
     if (!containerRef.current) return;
     const dark = isDark ?? document.documentElement.classList.contains("dark");
     void hydrateMermaid(containerRef.current, dark);
-  }, [html, isDark]);
+  }, [content, html, isDark]);
 
   // 处理双击就地激活编辑
   const handleDoubleClick = (e: React.MouseEvent) => {

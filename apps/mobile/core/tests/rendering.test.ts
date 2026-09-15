@@ -204,6 +204,106 @@ describe("Mobile Web Rendering Contract Tests", () => {
     }
   });
 
+  it("should re-bind and replace newly rendered pre element when container re-rendered during async render", async () => {
+    const { hydrateMermaid } = await import("../src/lib/plugin-renderer.ts");
+
+    interface MockElement {
+      tagName: string;
+      className: string;
+      innerHTML: string;
+      setAttribute(k: string, v: string): void;
+      getAttribute(k: string): string | null;
+    }
+
+    const mockElements: MockElement[] = [];
+    const detachedPre = {
+      isConnected: false,
+      attributes: {} as Record<string, string>,
+      getAttribute(k: string) {
+        return this.attributes[k] || null;
+      },
+      setAttribute(k: string, v: string) {
+        this.attributes[k] = v;
+      },
+      replaceWith() {
+        throw new Error("Should not call replaceWith on detached element");
+      },
+    };
+    const detachedCode = {
+      textContent: "graph TD\n  A --> B",
+      parentElement: detachedPre,
+    };
+
+    const newPre = {
+      isConnected: true,
+      attributes: {} as Record<string, string>,
+      getAttribute(k: string) {
+        return this.attributes[k] || null;
+      },
+      setAttribute(k: string, v: string) {
+        this.attributes[k] = v;
+      },
+      replaceWith(newNode: unknown) {
+        mockElements.push(newNode as MockElement);
+      },
+    };
+    const newCode = {
+      textContent: "graph TD\n  A --> B",
+      parentElement: newPre,
+    };
+
+    let initialQuery = true;
+    const mockContainer = {
+      contains(node: unknown) {
+        return node === newPre;
+      },
+      querySelectorAll(selector: string) {
+        if (selector.includes("language-mermaid")) {
+          if (initialQuery) {
+            initialQuery = false;
+            return [detachedCode];
+          }
+          return [newCode];
+        }
+        return [];
+      },
+    };
+
+    const globalScope = globalThis as unknown as { document?: unknown };
+    const originalDoc = globalScope.document;
+    globalScope.document = {
+      createElement(tag: string): MockElement {
+        const attrs: Record<string, string> = {};
+        return {
+          tagName: tag.toUpperCase(),
+          className: "",
+          innerHTML: "",
+          setAttribute(k: string, v: string) {
+            attrs[k] = v;
+          },
+          getAttribute(k: string) {
+            return attrs[k] || null;
+          },
+        };
+      },
+    };
+
+    const syntaxPlugins = await import("@md-editor/syntax-plugins");
+    const renderSpy = vi.spyOn(syntaxPlugins, "renderMermaidSvg").mockResolvedValue({
+      svg: "<svg class='mermaid-svg'>mock</svg>",
+    });
+
+    try {
+      await hydrateMermaid(mockContainer as unknown as HTMLElement, false);
+      expect(mockElements).toHaveLength(1);
+      expect(mockElements[0].className).toBe("cm-md-mermaid-container my-4");
+      expect(mockElements[0].innerHTML).toContain("mermaid-svg");
+    } finally {
+      renderSpy.mockRestore();
+      globalScope.document = originalDoc;
+    }
+  });
+
   it("should extract structured outline with correct levels and IDs", async () => {
     const { extractOutline } = await import("../src/lib/plugin-renderer.ts");
     const markdown = `# 主标题

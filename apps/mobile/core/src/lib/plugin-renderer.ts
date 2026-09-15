@@ -125,24 +125,49 @@ export async function hydrateMermaid(container: HTMLElement, isDark: boolean): P
     try {
       const { svg, error } = await renderMermaidSvg(rawCode, isDark);
       if (svg && !error) {
-        // 安全保护：若在异步加载期间页面已触发重绘使得该 pre 节点脱离了容器，则安全跳过（兼容 node mock 测试环境）
+        let targetPre: HTMLElement = preEl;
+        // 安全保护与重绘重绑：若在异步加载期间页面触发重绘使得原 pre 节点脱离了容器
         if (
-          preEl.isConnected === false &&
+          targetPre.isConnected === false &&
           typeof container.contains === "function" &&
-          !container.contains(preEl)
+          !container.contains(targetPre)
         ) {
-          continue;
+          // 尝试在当前容器中找回尚未完成水合且源码匹配的目标 pre 元素
+          const candidates = container.querySelectorAll(
+            "pre code.language-mermaid, pre code[class*='language-mermaid'], pre code[class*='mermaid']",
+          );
+          let foundCandidate: HTMLElement | null = null;
+          for (const cand of Array.from(candidates)) {
+            const parent = cand.parentElement;
+            if (
+              parent &&
+              (cand.textContent || "").trim() === rawCode &&
+              !parent.getAttribute("data-mermaid-hydrated")
+            ) {
+              foundCandidate = parent;
+              break;
+            }
+          }
+          if (foundCandidate) {
+            targetPre = foundCandidate;
+          } else {
+            // 如果容器内也未找到对应代码块（可能该块已被删除），则安全跳过
+            continue;
+          }
         }
 
         const wrapper = document.createElement("div");
         wrapper.className = "cm-md-mermaid-container my-4";
         wrapper.setAttribute("data-mermaid-code", rawCode);
         wrapper.innerHTML = svg;
-        preEl.replaceWith(wrapper);
+        targetPre.replaceWith(wrapper);
       } else if (error) {
+        // 渲染异常时移除已水合标记，避免后续重绘时永久阻塞水合
+        preEl.removeAttribute("data-mermaid-hydrated");
         console.warn("[hydrateMermaid] render error:", error);
       }
     } catch (err) {
+      preEl.removeAttribute("data-mermaid-hydrated");
       console.warn("[hydrateMermaid] execution failed:", err);
     }
   }
@@ -159,8 +184,8 @@ export async function hydrateMermaid(container: HTMLElement, isDark: boolean): P
       if (svg && !error) {
         wrapper.innerHTML = svg;
       }
-    } catch {
-      // 忽略重新渲染错误
+    } catch (err) {
+      console.warn("[hydrateMermaid] theme update failed:", err);
     }
   }
 }
