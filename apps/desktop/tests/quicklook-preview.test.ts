@@ -44,17 +44,18 @@ describe("macOS Quick Look App Extension", () => {
     expect(content).toContain("public.plain-text");
   });
 
-  it("should contain bundled quicklook-engine.js compiled from @md-editor/renderer-codemirror/static", () => {
+  it("should contain bundled quicklook-engine.js compiled from @md-editor/compiler", () => {
     const engineJs = path.join(resourcesDir, "quicklook-engine.js");
     expect(fs.existsSync(engineJs)).toBe(true);
 
     const stat = fs.statSync(engineJs);
-    expect(stat.size).toBeGreaterThan(100000); // Bundled engine with marked and highlight.js
+    expect(stat.size).toBeGreaterThan(100000); // Bundled engine with compiler, KaTeX, marked, and highlight.js
 
     const content = fs.readFileSync(engineJs, "utf-8");
     expect(content).toContain("InkpointStaticRenderer");
     expect(content).toContain("renderStaticDocument");
     expect(content).toContain("prefers-color-scheme: dark");
+    expect(content).toContain("katex");
   });
 
   it("should have executable build-quicklook.sh targeting arm64-apple-macos12.0", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { renderStaticHtml, renderStaticDocument } from "../src/static/index.ts";
+import { renderStaticHtml, renderStaticDocument, type StaticCustomRenderer } from "../src/index.ts";
 
-describe("@md-editor/renderer-codemirror/static", () => {
+describe("@md-editor/compiler renderStaticHtml", () => {
   it("renders basic Markdown elements with Inkpoint dimmed inline markers", () => {
     const md =
       "# Hello World\n\nThis is a **bold** and *italic* text with ~~strikethrough~~, `code`, and ==highlight==.";
@@ -24,6 +24,14 @@ describe("@md-editor/renderer-codemirror/static", () => {
     expect(result.html).toContain('<code class="cm-md-inline cm-md-inline-code">code</code>');
     expect(result.html).toContain('<span class="cm-md-marker cm-md-marker--highlight">==</span>');
     expect(result.html).toContain('<mark class="cm-md-inline cm-md-highlight">highlight</mark>');
+  });
+
+  it("can disable syntax markers for clean HTML output", () => {
+    const md = "**pure bold** and *pure italic*";
+    const result = renderStaticHtml(md, { includeMarkers: false });
+    expect(result.html).not.toContain("cm-md-marker");
+    expect(result.html).toContain("<strong>pure bold</strong>");
+    expect(result.html).toContain("<em>pure italic</em>");
   });
 
   it("renders GFM tables properly", () => {
@@ -77,13 +85,26 @@ fn main() {
     expect(result.html).toContain("This is an important note for Inkpoint.");
   });
 
-  it("renders Callouts with custom titles", () => {
-    const customCalloutMd = `> [!WARNING] Custom Alert Title
-> Watch out!`;
-    const result = renderStaticHtml(customCalloutMd);
-    expect(result.html).toContain('class="cm-callout cm-callout--warning"');
-    expect(result.html).toContain('class="cm-callout__title">Custom Alert Title</strong>');
-    expect(result.html).toContain("Watch out!");
+  it("renders Container Directives :::tip [custom title]", () => {
+    const directiveMd = `:::tip Pro Tip
+Make sure to drink water.
+:::`;
+    const result = renderStaticHtml(directiveMd);
+    expect(result.html).toContain('class="cm-callout cm-callout--tip"');
+    expect(result.html).toContain('class="cm-callout__title">Pro Tip</strong>');
+    expect(result.html).toContain("Make sure to drink water.");
+  });
+
+  it("supports StaticCustomRenderer for intercepting AST output", () => {
+    const md = "# Custom Heading\n\nParagraph text.";
+    const customRenderer: StaticCustomRenderer = {
+      heading: (token, next) => `<section class="custom-sec">${next()}</section>`,
+      paragraph: (token) => `<p class="custom-lead">${token.text}</p>\n`,
+    };
+
+    const result = renderStaticHtml(md, { customRenderer });
+    expect(result.html).toContain('<section class="custom-sec">');
+    expect(result.html).toContain('<p class="custom-lead">Paragraph text.</p>');
   });
 
   it("extracts frontmatter at document offset 0", () => {
@@ -115,5 +136,16 @@ Body here.`;
     expect(doc).toContain("@media (prefers-color-scheme: dark)");
     expect(doc).toContain('<div id="content">');
     expect(doc).toContain("Document Title</h1>");
+  });
+
+  it("preserves explicit language identifier like mermaid without auto-detection overwrite", () => {
+    const mermaidMd = `\`\`\`mermaid
+graph TD
+  A --> B
+\`\`\``;
+    const result = renderStaticHtml(mermaidMd);
+    expect(result.html).toContain('<pre><code class="hljs language-mermaid">');
+    expect(result.html).toContain("graph TD");
+    expect(result.html).toContain("A --&gt; B");
   });
 });

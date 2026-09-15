@@ -85,12 +85,17 @@ export async function renderMermaidSvg(
     return result;
   } catch (err) {
     // 清理可能残留在 DOM 中的临时 mermaid 容器
-    const tempNode = typeof document !== "undefined" ? document.getElementById(id) : null;
+    const tempNode =
+      typeof document !== "undefined" && typeof document.getElementById === "function"
+        ? document.getElementById(id)
+        : null;
     if (tempNode && tempNode.parentElement) {
       tempNode.parentElement.removeChild(tempNode);
     }
     const tempContainer =
-      typeof document !== "undefined" ? document.getElementById(`d${id}`) : null;
+      typeof document !== "undefined" && typeof document.getElementById === "function"
+        ? document.getElementById(`d${id}`)
+        : null;
     if (tempContainer && tempContainer.parentElement) {
       tempContainer.parentElement.removeChild(tempContainer);
     }

@@ -5,7 +5,7 @@ import JavaScriptCore
 
 /// Inkpoint Quick Look Preview Provider
 /// Conforms to macOS 12+ QLPreviewProvider protocol to deliver instant, high-fidelity
-/// Markdown previews in Finder via our shared static renderer engine (packages/renderer-codemirror/static).
+/// Markdown previews in Finder via our shared static renderer engine (packages/compiler).
 @objc(PreviewProvider)
 final class PreviewProvider: QLPreviewProvider, QLPreviewingController {
 

@@ -19,7 +19,8 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
    - `pnpm lint`（包含 oxlint、prettier 格式化检查、cargo fmt/clippy）；
    - `pnpm test`（运行所有 package 单元测试，必须 100% 通过；不强制要求 e2e 测试）；
    - `pnpm typecheck`（确保所有 workspace 无 TypeScript 类型错误）；
-8. **Push 后 CI 监控规范**：如果当前分支存在关联的 Pull Request，在 `git push` 成功后，必须自动执行 CI 状态监控（如 `gh pr checks` 或 `gh run watch`），观察并向用户汇报 CI 构建与测试结果，确保未引入远程破坏。
+8. **Push 后 CI 监控规范**：如果当前分支存在关联的 Pull Request，在 `git push` 成功后，必须自动执行 CI 状态监控（如 `gh pr checks` 或 `gh run watch`），观察并向用户汇报 CI 构建与测试结果，确保未引入远程破坏；
+9. **严禁无意义的兼容性 Re-export（杜绝代码臃肿）**：当抽取、拆解或新增独立子包/模块时，严禁在旧模块或旧包中为了所谓的“向后兼容”保留无意义的 `re-export` 转发代码。一旦拆出新包，必须直接修改所有历史调用方直接从新包导入，并彻底清理旧模块与无用导出，严防历史包袱累积导致代码库日益臃肿。
 
 ## 架构边界设计
 
