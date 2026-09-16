@@ -139,6 +139,58 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(body.app).toBe("inkpoint");
   });
 
+  it("should proxy and rewrite updater manifest URLs to edge proxy", async () => {
+    const mockUpstreamManifest = {
+      version: "v0.10.2",
+      notes: "Inkpoint v0.10.2 release notes",
+      platforms: {
+        "darwin-aarch64": {
+          signature: "sig-arm64",
+          url: "https://github.com/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_aarch64.app.tar.gz",
+        },
+        "windows-x86_64": {
+          signature: "sig-win",
+          url: "https://github.com/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_x64-setup.nsis.zip",
+        },
+      },
+    };
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input: RequestInfo | URL) => {
+      const urlStr =
+        typeof input === "string" ? input : input instanceof Request ? input.url : input.toString();
+      if (urlStr.includes("md-editor-latest.json")) {
+        return new Response(JSON.stringify(mockUpstreamManifest), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return originalFetch(input);
+    };
+
+    try {
+      const req = new Request("https://download.justdev.cn/inkpoint/desktop/updater.json");
+      const env: Env = {
+        DEFAULT_APP: "inkpoint",
+        GITHUB_REPO: "wmasfoe/md-editor",
+      };
+
+      const res = await handleRequest(req, env);
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as typeof mockUpstreamManifest;
+      expect(data.version).toBe("v0.10.2");
+      expect(data.platforms["darwin-aarch64"].url).toBe(
+        "https://download.justdev.cn/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_aarch64.app.tar.gz",
+      );
+      expect(data.platforms["windows-x86_64"].url).toBe(
+        "https://download.justdev.cn/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_x64-setup.nsis.zip",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("should return 404 on unrecognized route", async () => {
     const req = new Request("https://download.justdev.cn/unknown/invalid/path/test");
     const env: Env = {};

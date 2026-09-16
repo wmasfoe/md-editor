@@ -88,6 +88,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI2QUMyRTJFMkRDNDkxM0MKUldROGtjUXRMaTZzdHVyK3MxLzRyN3VTOFBSM2tmNTFPa2dLNm5yS2lrQ3BmcGttOSs4U2NFK0EK",
       "endpoints": [
+        "https://download.justdev.cn/inkpoint/desktop/updater.json",
         "https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/md-editor-latest.json"
       ]
     }

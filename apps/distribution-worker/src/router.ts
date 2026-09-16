@@ -174,6 +174,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
           repo: githubRepo,
           routes: {
             versionManifest: "/api/:app/version.json",
+            desktopUpdater: "/:app/desktop/updater.json",
             desktopLatest: "/:app/desktop/:platform/latest",
             androidLatest: "/:app/android/latest",
             versionedDownload: "/:app/:platform/:version/:filename",
@@ -313,7 +314,62 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     return proxyGitHubAsset(rawTarget, request);
   }
 
-  // 4. Android 最新版直链: /:app/android/latest 或 /android/latest
+  // 4. 桌面端应用内自动更新清单加速: /:app/desktop/updater.json 或 /desktop/updater.json
+  const updaterMatch = path.match(/^(?:\/([^/]+))?\/desktop\/updater(?:\.json)?$/);
+  if (updaterMatch) {
+    try {
+      const upstream = await fetch(
+        "https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/md-editor-latest.json",
+        { headers: { "User-Agent": "Inkpoint-Distribution-Worker/1.0" } },
+      );
+
+      if (!upstream.ok) {
+        return new Response(
+          JSON.stringify({
+            error: "Failed to fetch updater manifest",
+            status: upstream.status,
+          }),
+          {
+            status: upstream.status,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const rawText = await upstream.text();
+      const manifest = JSON.parse(rawText) as {
+        version: string;
+        notes?: string;
+        platforms: Record<string, { signature: string; url: string }>;
+      };
+
+      // 智能将 GitHub 原始下载链接重写为 Worker 边缘加速链接
+      if (manifest.platforms) {
+        for (const key of Object.keys(manifest.platforms)) {
+          const item = manifest.platforms[key];
+          if (item?.url && item.url.startsWith("https://github.com/")) {
+            item.url = `${url.origin}/gh/${item.url.replace("https://github.com/", "")}`;
+          }
+        }
+      }
+
+      return new Response(JSON.stringify(manifest, null, 2), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "public, max-age=300, s-maxage=300",
+        },
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return new Response(
+        JSON.stringify({ error: "Failed to process updater manifest", details: message }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
+
+  // 5. Android 最新版直链: /:app/android/latest 或 /android/latest
   const androidMatch = path.match(/^(?:\/([^/]+))?\/android\/(?:latest|latest\.apk)$/);
   if (androidMatch) {
     const app = androidMatch[1] || defaultApp;
