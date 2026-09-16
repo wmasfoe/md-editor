@@ -182,13 +182,18 @@ pre code {
 
 /* Lists */
 ul, ol { margin-top: 0.5em; margin-bottom: 1em; padding-left: 1.7em; }
+ul.contains-task-list, ol.contains-task-list { list-style-type: none; padding-left: 0.25em; }
 li { margin-bottom: 0.35em; }
-li.task-list-item { list-style-type: none; margin-left: -1.4em; }
-input[type="checkbox"] {
-  margin-right: 0.5em;
+li.task-list-item { list-style-type: none; position: relative; padding-left: 1.6em; }
+li.task-list-item > input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 0.25em;
+  margin: 0;
   accent-color: var(--theme-accent);
   vertical-align: middle;
 }
+li.task-list-item > p:first-of-type { display: inline; }
 
 /* Blockquotes */
 blockquote {

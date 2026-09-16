@@ -238,6 +238,36 @@ body {
   margin: 0.75rem 0;
 }
 
+/* 任务清单 (Task Lists / GFM Checklist) */
+.markdown-body ul.contains-task-list,
+.markdown-body ol.contains-task-list {
+  list-style-type: none;
+  padding-left: 0.25rem;
+}
+
+.markdown-body li.task-list-item {
+  list-style-type: none;
+  position: relative;
+  padding-left: 1.6rem;
+  margin: 0.35rem 0;
+}
+
+.markdown-body li.task-list-item > input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 0.28rem;
+  margin: 0;
+  accent-color: var(--theme-accent);
+  width: 1.05rem;
+  height: 1.05rem;
+  cursor: default;
+}
+
+.markdown-body li.task-list-item > p:first-of-type {
+  display: inline;
+  margin: 0;
+}
+
 /* ==========================================================================
    官方插件与扩展排版规范（Callout 提示框、容器指令、KaTeX 公式与 Mermaid 图表）
    ========================================================================== */

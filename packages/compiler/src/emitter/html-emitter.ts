@@ -19,6 +19,21 @@ export interface EmitHtmlOptions {
   customRenderer?: StaticCustomRenderer;
 }
 
+function isBlockToken(token: StaticToken): token is BlockToken {
+  return (
+    "level" in token ||
+    "items" in token ||
+    token.type === "code_block" ||
+    token.type === "paragraph" ||
+    token.type === "blockquote" ||
+    token.type === "callout" ||
+    token.type === "table" ||
+    token.type === "thematic_break" ||
+    token.type === "math_block" ||
+    token.type === "html_block"
+  );
+}
+
 /**
  * Emits semantic, style-aware HTML from structured tokens
  */
@@ -231,8 +246,10 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
           const tag = token.ordered ? "ol" : "ul";
           const startAttr =
             token.ordered && token.start && token.start !== 1 ? ` start="${token.start}"` : "";
+          const isTaskList = token.items.some((item) => item.task);
+          const classAttr = isTaskList ? ' class="contains-task-list"' : "";
           const itemsHtml = token.items.map((item) => renderListItem(item)).join("");
-          return `<${tag}${startAttr}>\n${itemsHtml}</${tag}>\n`;
+          return `<${tag}${classAttr}${startAttr}>\n${itemsHtml}</${tag}>\n`;
         };
         return custom?.list ? custom.list(token, next) : next();
       }
@@ -252,11 +269,19 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
     }
   }
 
+  function renderToken(token: StaticToken): string {
+    if (isBlockToken(token)) {
+      return renderBlock(token);
+    }
+    return renderInline(token as InlineToken);
+  }
+
   function renderListItem(item: ListItemToken): string {
     const next = () => {
-      const inner = item.tokens
-        ? item.tokens.map((t) => renderBlock(t as BlockToken)).join("")
-        : escapeHtml(item.text);
+      const inner =
+        item.tokens && item.tokens.length > 0
+          ? item.tokens.map(renderToken).join("")
+          : escapeHtml(item.text);
 
       if (item.task) {
         const checkedAttr = item.checked ? ' checked="" disabled=""' : ' disabled=""';
@@ -267,23 +292,5 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
     return custom?.listItem ? custom.listItem(item, next) : next();
   }
 
-  return tokens
-    .map((token) => {
-      if (
-        "level" in token ||
-        "items" in token ||
-        token.type === "code_block" ||
-        token.type === "paragraph" ||
-        token.type === "blockquote" ||
-        token.type === "callout" ||
-        token.type === "table" ||
-        token.type === "thematic_break" ||
-        token.type === "math_block" ||
-        token.type === "html_block"
-      ) {
-        return renderBlock(token as BlockToken);
-      }
-      return renderInline(token as InlineToken);
-    })
-    .join("");
+  return tokens.map(renderToken).join("");
 }

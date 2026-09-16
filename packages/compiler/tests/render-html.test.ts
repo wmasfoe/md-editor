@@ -50,17 +50,23 @@ describe("@md-editor/compiler renderStaticHtml", () => {
     expect(result.html).toContain("Supported");
   });
 
-  it("renders GFM task lists with disabled checkboxes", () => {
+  it("renders GFM task lists with disabled checkboxes without redundant [x] text or paragraph linebreaks", () => {
     const taskMd = `
-- [x] Completed task
+- [x] Completed task with **bold** text
 - [ ] Incomplete task
 `;
     const result = renderStaticHtml(taskMd);
+    expect(result.html).toContain('class="contains-task-list"');
     expect(result.html).toContain('class="task-list-item"');
-    expect(result.html).toContain('<input type="checkbox" checked="" disabled=""');
-    expect(result.html).toContain('<input type="checkbox" disabled=""');
-    expect(result.html).toContain("Completed task");
+    expect(result.html).toContain('<input type="checkbox" checked="" disabled="">');
+    expect(result.html).toContain('<input type="checkbox" disabled="">');
+    expect(result.html).toContain("Completed task with");
     expect(result.html).toContain("Incomplete task");
+    // Ensure no raw [x] or [ ] tokens leaked into the output
+    expect(result.html).not.toContain("[x]");
+    expect(result.html).not.toContain("[ ]");
+    // Ensure tight list items are rendered inline without breaking into <p> tags
+    expect(result.html).not.toContain("<p>");
   });
 
   it("renders code blocks with syntax highlighting", () => {

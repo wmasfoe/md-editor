@@ -23,6 +23,23 @@ describe("Mobile Web Rendering Contract Tests", () => {
     expect(result.html).toContain('class="cm-md-inline cm-md-strikethrough">删除线文本</del>');
   });
 
+  it("should render GFM task list items with checkbox and inline text without redundant [x] text", () => {
+    const markdown = `- [x] CodeMirror 6 移动端极速自绘选区
+- [x] 官方插件全面接入（高亮、容器指令、KaTeX、Mermaid）
+- [ ] 跨端本地局域网点对点实时协作`;
+    const result = renderStaticHtml(markdown);
+
+    expect(result.html).toContain('class="contains-task-list"');
+    expect(result.html).toContain('class="task-list-item"');
+    expect(result.html).toContain('<input type="checkbox" checked="" disabled="">');
+    expect(result.html).toContain('<input type="checkbox" disabled="">');
+    expect(result.html).toContain("CodeMirror 6 移动端极速自绘选区");
+    expect(result.html).toContain("跨端本地局域网点对点实时协作");
+    expect(result.html).not.toContain("[x]");
+    expect(result.html).not.toContain("[ ]");
+    expect(result.html).not.toContain("<p>");
+  });
+
   it("should preprocess container directives into GFM alerts with correct title and icon", () => {
     const markdown = "::: tip 效率指南\n这是提示内容\n:::";
     const withDirectives = preprocessDirectives(markdown);

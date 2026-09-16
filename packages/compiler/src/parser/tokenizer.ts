@@ -4,6 +4,7 @@ import type {
   CompileResult,
   InlineToken,
   ListItemToken,
+  StaticToken,
   TableCellToken,
 } from "../tokens/types.ts";
 import { defaultCalloutTitle } from "../data/callout-data.ts";
@@ -236,6 +237,58 @@ function convertInlineTokens(tokens?: Token[]): InlineToken[] | undefined {
 }
 
 /**
+ * Converts Marked list item tokens to StaticToken[]
+ */
+function convertListItemTokens(tokens: Token[], loose?: boolean): StaticToken[] {
+  const result: StaticToken[] = [];
+
+  for (const t of tokens) {
+    // 1. 任务列表复选框标记符：已由 ListItemToken 的 task/checked 属性全权托管，此处跳过以避免被降级为额外段落文本
+    if (t.type === "checkbox") {
+      continue;
+    }
+    // 2. 纯空白节点跳过
+    if (t.type === "space") {
+      continue;
+    }
+    // 3. 紧凑列表文本行：marked 在紧凑模式下会将行内标记包装于 Tokens.Text 中
+    if (t.type === "text") {
+      const txt = t as Tokens.Text;
+      const inlines = convertInlineTokens(txt.tokens);
+      if (inlines && inlines.length > 0) {
+        result.push(...inlines);
+      } else {
+        result.push({
+          type: "text",
+          raw: txt.raw,
+          text: txt.text,
+        });
+      }
+      continue;
+    }
+    // 4. 其他块级节点（如 paragraph, list, code, blockquote, table 等）走常规块转换
+    const blocks = convertBlockTokens([t]);
+    // 若当前列表项为紧凑模式且块仅为单个普通段落，将其展开为纯内联 token，防止在 <li> 中产生多余 <p> 标签引发换行和边距
+    if (!loose && blocks.length === 1 && blocks[0].type === "paragraph") {
+      const p = blocks[0];
+      if (p.tokens && p.tokens.length > 0) {
+        result.push(...p.tokens);
+      } else {
+        result.push({
+          type: "text",
+          raw: p.raw,
+          text: p.text,
+        });
+      }
+    } else {
+      result.push(...blocks);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Converts Marked block tokens to StaticToken[]
  */
 function convertBlockTokens(tokens: Token[]): BlockToken[] {
@@ -363,8 +416,9 @@ function convertBlockTokens(tokens: Token[]): BlockToken[] {
           raw: item.raw,
           task: item.task,
           checked: item.checked,
+          loose: item.loose,
           text: item.text,
-          tokens: item.tokens ? convertBlockTokens(item.tokens) : undefined,
+          tokens: item.tokens ? convertListItemTokens(item.tokens, item.loose) : undefined,
         }));
         result.push({
           type: "list",

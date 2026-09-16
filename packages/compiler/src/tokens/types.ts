@@ -97,6 +97,7 @@ export interface ListItemToken extends BaseToken {
   type: "list_item";
   task?: boolean;
   checked?: boolean;
+  loose?: boolean;
   text: string;
   tokens?: StaticToken[];
 }
