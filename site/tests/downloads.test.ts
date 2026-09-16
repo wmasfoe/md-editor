@@ -47,13 +47,15 @@ describe("getPlatformInstall", () => {
       recommended: true,
       extra: { command: MACOS_QUARANTINE_COMMAND },
     });
-    expect(getPlatformInstall("linux").command).toBe(UNIX_INSTALL_COMMAND);
-    expect(getPlatformInstall("linux").extra).toBeUndefined();
+    expect(getPlatformInstall("linux")?.command).toBe(UNIX_INSTALL_COMMAND);
+    expect(getPlatformInstall("linux")?.extra).toBeUndefined();
     expect(getPlatformInstall("windows")).toEqual({
       title: "PowerShell 一键安装",
       command: WINDOWS_INSTALL_COMMAND,
       recommended: false,
     });
+    expect(getPlatformInstall("android")).toBeNull();
+    expect(getPlatformInstall("ios")).toBeNull();
   });
 
   it("builds mobile download catalog with Android APK and iOS TestFlight", () => {
@@ -62,12 +64,24 @@ describe("getPlatformInstall", () => {
       "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
     );
     expect(zh.android.primary.label).toBe("下载 Android 安装包 (APK)");
-    expect(zh.android.format).toBe("Android 8.0+ · APK");
+    expect(zh.android.format).toBe("Android 8.0+ · APK · 测试版");
     expect(zh.ios.primary.href).toContain("testflight.apple.com");
-    expect(zh.ios.format).toBe("iOS 16.0+ · TestFlight");
+    expect(zh.ios.format).toBe("iOS 16.0+ · TestFlight · 测试版");
 
     const en = getMobileDownloadCatalog("en");
-    expect(en.android.primary.label).toBe("Download Android APK");
-    expect(en.ios.primary.label).toBe("Join iOS TestFlight");
+    expect(en.android.primary.label).toBe("Download Android APK (Beta)");
+    expect(en.ios.primary.label).toBe("Join iOS TestFlight (Beta)");
+    expect(en.android.format).toBe("Android 8.0+ · APK · Beta");
+    expect(en.ios.format).toBe("iOS 16.0+ · TestFlight · Beta");
+  });
+
+  it("includes mobile beta platforms in buildDownloadCatalog", () => {
+    const catalog = buildDownloadCatalog("0.10.2", "zh");
+    expect(catalog.android.isBeta).toBe(true);
+    expect(catalog.android.version).toBe("0.1.0");
+    expect(catalog.android.format).toBe("Android 8.0+ · APK · 测试版");
+    expect(catalog.ios.isBeta).toBe(true);
+    expect(catalog.ios.version).toBe("0.1.0");
+    expect(catalog.ios.format).toBe("iOS 16.0+ · TestFlight · 测试版");
   });
 });
