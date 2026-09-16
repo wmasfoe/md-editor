@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Inkpoint</string>
+    <string name="welcome_title">Welcome.md</string>
+    <string name="save_document">保存文档</string>
+    <string name="open_document">打开文档</string>
+    <string name="document_outline">文档大纲</string>
+    <string name="mode_read">阅读</string>
+    <string name="mode_edit">编辑</string>
+</resources>

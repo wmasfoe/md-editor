@@ -24,7 +24,7 @@ fi
 
 echo "==> Building Inkpoint Quick Look App Extension (arm64)..."
 
-# 3. Build static renderer engine bundle from @md-editor/renderer-codemirror/static
+# 3. Build static renderer engine bundle from @md-editor/compiler
 echo "==> Bundling static renderer engine (quicklook-engine.js)..."
 node "${DESKTOP_DIR}/scripts/build-quicklook-engine.mjs"
 

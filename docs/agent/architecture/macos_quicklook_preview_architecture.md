@@ -1,6 +1,6 @@
 # macOS Quick Look Preview Extension 架构与规范
 
-用途：记录 macOS 系统级 Quick Look (快速查看 / 空格预览) App Extension 的系统接入边界、基于 JavaScriptCore 的离线渲染沙盒架构、与 `@md-editor/renderer-codemirror/static` 共享静态渲染能力的复用设计以及构建流水线规范。
+用途：记录 macOS 系统级 Quick Look (快速查看 / 空格预览) App Extension 的系统接入边界、基于 JavaScriptCore 的离线渲染沙盒架构、与 `@md-editor/compiler` 共享静态渲染能力的复用设计以及构建流水线规范。
 
 ---
 
@@ -10,7 +10,7 @@ Quick Look 扩展属于 **macOS 操作系统平台接入层**（Platform Integra
 1. **职责单一性**：仅负责响应系统 `quicklookd` 进程的预览请求，通过沙盒离线管道将 Markdown 文本渲染为高保真、只读的静态 HTML。
 2. **零运行时依赖**：不唤起 Inkpoint 编辑器主进程，不引入重型 Webview 或 Node.js 运行时，保证内存开销极小且 <30ms 秒级弹出。
 3. **沙盒安全性**：扩展运行在受限的系统沙盒中，100% 离线自包含，不发起任何外部网络请求，不执行任何未知/不受信任的客户端脚本。
-4. **渲染能力收敛**：渲染规则不硬编码在 Swift 扩展中，而是复用 `@md-editor/renderer-codemirror/static` 导出的静态渲染流水线，与主 App 共享同一套 Markdown 语法与排版事实源。
+4. **渲染能力收敛**：渲染规则不硬编码在 Swift 扩展中，而是复用独立子包 `@md-editor/compiler` 导出的静态渲染流水线，与主 App 共享同一套 Markdown 语法与排版事实源。
 
 ---
 
@@ -18,18 +18,19 @@ Quick Look 扩展属于 **macOS 操作系统平台接入层**（Platform Integra
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ packages/renderer-codemirror/ (统一渲染层)                       │
-├────────────────────────────────┬────────────────────────────────┤
-│ 交互式编辑器 (Interactive CM6) │ 静态渲染流水线 (Static Headless)│
-│ - ./src/renderer.ts            │ - ./src/static/index.ts        │
-│ - 双向光标、Undo栈、Transaction │ - 纯函数: renderStaticHtml     │
-│                                │ - 纯函数: renderStaticDocument │
-├────────────────────────────────┴────────────────────────────────┤
-│ 公共基础设施（直接复用）：                                       │
+│ packages/compiler/ (@md-editor/compiler 独立无头编译器)          │
+├─────────────────────────────────────────────────────────────────┤
+│ 静态渲染与 Token 流水线 (Static Headless)                       │
+│ - ./src/index.ts                                                │
+│ - 纯函数: compileToTokens (抽取结构化 AST)                       │
+│ - 纯函数: renderStaticHtml (语义 HTML 发射)                      │
+│ - 纯函数: renderStaticDocument (自包含完整 HTML 骨架)            │
+├─────────────────────────────────────────────────────────────────┤
+│ 离线原生能力（直接内置）：                                       │
 │ - language-names.ts (代码高亮语言与别名)                         │
 │ - callout-data.ts (Callout 提示框图标与默认标题)                 │
-│ - html-sanitize.ts (HTML 安全白名单过滤)                         │
-│ - frontmatter-yaml.ts (YAML Frontmatter 解析)                   │
+│ - math-render.ts (纯 JS 离线 KaTeX 公式渲染)                     │
+│ - styles.ts (内联 Light/Dark 模式 60+ 主题变量与 KaTeX 排版样式)  │
 └────────────────────────────────┬────────────────────────────────┘
                                  │
                    (构建时 Vite lib iife 打包为自包含单文件)
@@ -37,14 +38,15 @@ Quick Look 扩展属于 **macOS 操作系统平台接入层**（Platform Integra
                                  ▼
        apps/desktop/src-tauri/extensions/quicklook/
        ├── Resources/
-       │   └── quicklook-engine.js     <-- 由 ./static 编译输出的轻量无依赖 JS 引擎
+       │   └── quicklook-engine.js     <-- 由 @md-editor/compiler 编译输出的轻量无依赖 JS 引擎
        └── PreviewProvider.swift       <-- 纯原生接入：
                                            读取文件 -> engine.renderDocument() -> 写入 temp preview.html -> QLPreviewReply
 ```
 
 ### 复用收益与应用场景
-`@md-editor/renderer-codemirror/static` 是所有**非交互式 Markdown 消费场景**的基石：
+`@md-editor/compiler` 是所有**非交互式 Markdown 消费场景**的基石：
 - **macOS Quick Look 快速预览**：直接以静态 HTML 响应 Finder 空格预览；
+- **移动端沉浸即览**：移动端以纯静态 HTML 快速展示首屏，轻量省电；
 - **导出为 HTML**：保存为带完整样式的自包含 `.html` 文件；
 - **导出为 PDF / 图片**：送入无头打印或离线 Canvas 绘制；
 - **复制为富文本**：渲染为可粘贴至外部富文本编辑器的语义 HTML。

@@ -1,0 +1,301 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1001 /* InkpointApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2001 /* InkpointApp.swift */; };
+		1002 /* BridgeContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2002 /* BridgeContracts.swift */; };
+		1003 /* InkpointBridgeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2003 /* InkpointBridgeController.swift */; };
+		1004 /* DocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2004 /* DocumentModel.swift */; };
+		1005 /* EditorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2005 /* EditorWebView.swift */; };
+		1006 /* KeyboardAccessoryBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2006 /* KeyboardAccessoryBar.swift */; };
+		1007 /* OutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2007 /* OutlineView.swift */; };
+		1008 /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2008 /* DocumentPicker.swift */; };
+		1009 /* DocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2009 /* DocumentView.swift */; };
+		1010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2010 /* Assets.xcassets */; };
+		1011 /* editor in Resources */ = {isa = PBXBuildFile; fileRef = 2011 /* editor */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0001 /* Inkpoint.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Inkpoint.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2001 /* InkpointApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkpointApp.swift; sourceTree = "<group>"; };
+		2002 /* BridgeContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge/BridgeContracts.swift; sourceTree = "<group>"; };
+		2003 /* InkpointBridgeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bridge/InkpointBridgeController.swift; sourceTree = "<group>"; };
+		2004 /* DocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/DocumentModel.swift; sourceTree = "<group>"; };
+		2005 /* EditorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/EditorWebView.swift; sourceTree = "<group>"; };
+		2006 /* KeyboardAccessoryBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/KeyboardAccessoryBar.swift; sourceTree = "<group>"; };
+		2007 /* OutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/OutlineView.swift; sourceTree = "<group>"; };
+		2008 /* DocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DocumentPicker.swift; sourceTree = "<group>"; };
+		2009 /* DocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DocumentView.swift; sourceTree = "<group>"; };
+		2010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2011 /* editor */ = {isa = PBXFileReference; lastKnownFileType = folder; path = editor; sourceTree = "<group>"; };
+		2012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4001 = {
+			isa = PBXGroup;
+			children = (
+				4002 /* Inkpoint */,
+				4003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		4002 /* Inkpoint */ = {
+			isa = PBXGroup;
+			children = (
+				2001 /* InkpointApp.swift */,
+				4004 /* Core */,
+				2010 /* Assets.xcassets */,
+				4005 /* Resources */,
+				2012 /* Info.plist */,
+			);
+			path = Inkpoint;
+			sourceTree = "<group>";
+		};
+		4003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0001 /* Inkpoint.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4004 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				2002 /* BridgeContracts.swift */,
+				2003 /* InkpointBridgeController.swift */,
+				2004 /* DocumentModel.swift */,
+				2005 /* EditorWebView.swift */,
+				2006 /* KeyboardAccessoryBar.swift */,
+				2007 /* OutlineView.swift */,
+				2008 /* DocumentPicker.swift */,
+				2009 /* DocumentView.swift */,
+			);
+			name = Core;
+			path = Sources/InkpointCore;
+			sourceTree = SOURCE_ROOT;
+		};
+		4005 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				2011 /* editor */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5001 /* Inkpoint */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6001 /* Build configuration list for PBXNativeTarget "Inkpoint" */;
+			buildPhases = (
+				7001 /* Sources */,
+				3001 /* Frameworks */,
+				7002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Inkpoint;
+			productName = Inkpoint;
+			productReference = 0001 /* Inkpoint.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					5001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 6002 /* Build configuration list for PBXProject "Inkpoint" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 4001;
+			productRefGroup = 4003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5001 /* Inkpoint */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1010 /* Assets.xcassets in Resources */,
+				1011 /* editor in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1001 /* InkpointApp.swift in Sources */,
+				1002 /* BridgeContracts.swift in Sources */,
+				1003 /* InkpointBridgeController.swift in Sources */,
+				1004 /* DocumentModel.swift in Sources */,
+				1005 /* EditorWebView.swift in Sources */,
+				1006 /* KeyboardAccessoryBar.swift in Sources */,
+				1007 /* OutlineView.swift in Sources */,
+				1008 /* DocumentPicker.swift in Sources */,
+				1009 /* DocumentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		9002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		9003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Inkpoint/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.inkpoint.editor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Inkpoint/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.inkpoint.editor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		6001 /* Build configuration list for PBXNativeTarget "Inkpoint" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9003 /* Debug */,
+				9004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6002 /* Build configuration list for PBXProject "Inkpoint" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9001 /* Debug */,
+				9002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 8001 /* Project object */;
+}

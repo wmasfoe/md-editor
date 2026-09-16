@@ -1,12 +1,5 @@
-import { renderStaticHtml, type StaticRenderOptions } from "./render.ts";
-
-export interface StaticDocumentOptions extends StaticRenderOptions {
-  /** Optional custom CSS string to inject into the document */
-  customCss?: string;
-}
-
 /**
- * Standard CSS rules aligning with Inkpoint design tokens and typography
+ * Standard CSS rules aligning with Inkpoint design tokens, typography, and KaTeX offline rendering
  */
 export const STATIC_DOCUMENT_BASE_CSS = `
 :root {
@@ -189,13 +182,18 @@ pre code {
 
 /* Lists */
 ul, ol { margin-top: 0.5em; margin-bottom: 1em; padding-left: 1.7em; }
+ul.contains-task-list, ol.contains-task-list { list-style-type: none; padding-left: 0.25em; }
 li { margin-bottom: 0.35em; }
-li.task-list-item { list-style-type: none; margin-left: -1.4em; }
-input[type="checkbox"] {
-  margin-right: 0.5em;
+li.task-list-item { list-style-type: none; position: relative; padding-left: 1.6em; }
+li.task-list-item > input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 0.25em;
+  margin: 0;
   accent-color: var(--theme-accent);
   vertical-align: middle;
 }
+li.task-list-item > p:first-of-type { display: inline; }
 
 /* Blockquotes */
 blockquote {
@@ -207,7 +205,7 @@ blockquote {
 }
 blockquote > p:last-child { margin-bottom: 0; }
 
-/* Callout / Alerts */
+/* Callout / Alerts / Directives */
 .cm-callout {
   margin: 1.2em 0;
   border-radius: 8px;
@@ -257,6 +255,75 @@ tr:nth-child(even) td { background-color: var(--theme-table-stripe); }
 hr { border: none; border-top: 1px solid var(--theme-border); margin: 2em 0; }
 img { max-width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--theme-border-subtle); margin: 1em 0; }
 
+/* KaTeX Offline Math Display */
+.cm-md-math-block {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  text-align: center;
+  padding: 8px 0;
+}
+.cm-md-math-inline {
+  display: inline-block;
+  vertical-align: middle;
+}
+.katex {
+  font: normal 1.15em KaTeX_Main, Times New Roman, serif;
+  line-height: 1.2;
+  text-indent: 0;
+  text-rendering: auto;
+  border-color: currentColor;
+}
+.katex-display {
+  display: block;
+  margin: 0.5em 0;
+  text-align: center;
+}
+.katex-display > .katex {
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+}
+.katex .katex-html {
+  display: inline-block;
+}
+.katex .base {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+  width: min-content;
+}
+.katex .mord, .katex .mbin, .katex .mrel, .katex .mopen, .katex .mclose, .katex .mpunct {
+  position: relative;
+}
+.katex .mbin { margin-left: 0.2222em; margin-right: 0.2222em; }
+.katex .mrel { margin-left: 0.2778em; margin-right: 0.2778em; }
+.katex .mopen, .katex .mclose { margin: 0; }
+.katex .vlist-t {
+  display: inline-table;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.katex .vlist-r {
+  display: table-row;
+}
+.katex .vlist {
+  display: table-cell;
+  vertical-align: bottom;
+  position: relative;
+  height: 100%;
+}
+.katex .frac-line {
+  display: block;
+  width: 100%;
+  border-bottom-style: solid;
+}
+.katex-error {
+  color: #cf222e;
+  background-color: rgba(207, 34, 46, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
 /* Highlight.js Syntax Theme */
 pre code.hljs { background: #f6f8fa; color: #24292f; border: 1px solid rgba(27, 31, 36, 0.08); border-radius: 8px; }
 .hljs-comment, .hljs-punctuation { color: #6e7781; font-style: italic; }
@@ -276,42 +343,3 @@ pre code.hljs { background: #f6f8fa; color: #24292f; border: 1px solid rgba(27, 
   .hljs-variable { color: #ffa657; }
 }
 `;
-
-/**
- * Escapes unsafe characters for HTML titles
- */
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Renders Markdown into a standalone, complete HTML document suitable for Quick Look,
- * HTML Export, Print, or Headless PDF/Image generation.
- */
-export function renderStaticDocument(
-  markdown: string,
-  options: StaticDocumentOptions = {},
-): string {
-  const result = renderStaticHtml(markdown, options);
-  const title = escapeHtml(result.title);
-  const extraCss = options.customCss ?? "";
-
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <title>${title}</title>
-    <style>
-${STATIC_DOCUMENT_BASE_CSS}
-${extraCss}
-    </style>
-  </head>
-  <body>
-    <div id="content">
-${result.html}
-    </div>
-  </body>
-</html>`;
-}
