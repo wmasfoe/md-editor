@@ -130,23 +130,23 @@ jobs:
             console.log("✓ Generated dist-mobile/version.json");
           '
 
-      - name: Note missing Cloudflare credentials
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' }}
-        run: |
-          echo "::warning ::CLOUDFLARE_API_TOKEN secret is not configured. Artifacts will be archived in GitHub Actions artifacts only."
-
       - name: Upload APK & Manifest to Cloudflare R2
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME || 'inkpoint-releases' }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          echo "🚀 Uploading Android release artifacts to Cloudflare R2 bucket: ${R2_BUCKET_NAME}..."
-          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/android/${VERSION}/Inkpoint_${VERSION}.apk" --file "dist-mobile/Inkpoint_${VERSION}.apk"
-          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/android/latest.apk" --file "dist-mobile/Inkpoint_latest.apk"
-          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/version.json" --file "dist-mobile/version.json"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning ::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured. Skipping R2 upload. Artifacts will still be archived in GitHub Actions artifacts."
+            exit 0
+          fi
+
+          BUCKET="${R2_BUCKET_NAME:-inkpoint-releases}"
+          echo "🚀 Uploading Android release artifacts to Cloudflare R2 bucket: ${BUCKET}..."
+          npx wrangler r2 object put "${BUCKET}/inkpoint/android/${VERSION}/Inkpoint_${VERSION}.apk" --file "dist-mobile/Inkpoint_${VERSION}.apk"
+          npx wrangler r2 object put "${BUCKET}/inkpoint/android/latest.apk" --file "dist-mobile/Inkpoint_latest.apk"
+          npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-mobile/version.json"
           echo "✅ All artifacts successfully deployed to Cloudflare R2!"
 
       - name: Archive Android Artifacts in GitHub Actions
