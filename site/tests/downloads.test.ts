@@ -7,28 +7,28 @@ import {
   UNIX_INSTALL_COMMAND,
   WINDOWS_INSTALL_COMMAND,
 } from "../lib/downloads";
-import { GITHUB_RELEASES_URL } from "../lib/site-links";
+import { GITHUB_RELEASES_URL, RELEASES_PORTAL_URL } from "../lib/site-links";
 
 describe("buildDownloadCatalog", () => {
   it("builds per-platform primary assets for a stable version", () => {
     const catalog = buildDownloadCatalog("v0.4.4");
 
     expect(catalog.macos.primary).toEqual({
-      href: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_aarch64.dmg",
+      href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.dmg",
       fileName: "Inkpoint_0.4.4_aarch64.dmg",
       label: "下载 macOS",
     });
     expect(catalog.linux.primary.fileName).toBe("Inkpoint_0.4.4_x86_64.AppImage");
     expect(catalog.linux.secondary).toEqual([
       {
-        href: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
+        href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
         fileName: "Inkpoint_0.4.4_aarch64.AppImage",
         label: "ARM64 AppImage",
       },
     ]);
     expect(catalog.windows.primary.fileName).toBe("Inkpoint_0.4.4_x64-setup.exe");
     expect(catalog.windows.secondary[0]?.fileName).toBe("Inkpoint_0.4.4_arm64-setup.exe");
-    expect(catalog.allPackagesUrl).toBe(GITHUB_RELEASES_URL);
+    expect(catalog.allPackagesUrl).toBe(RELEASES_PORTAL_URL);
   });
 
   it("falls back to the public releases list when version is missing", () => {

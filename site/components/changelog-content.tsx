@@ -14,7 +14,7 @@ import {
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
-import { buildAppPrUrl } from "../lib/site-links";
+import { buildAppPrUrl, buildVersionPackageLinks, RELEASES_PORTAL_URL } from "../lib/site-links";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
@@ -207,7 +207,12 @@ export function ChangelogContent({
         hidden={!isDesktop}
         className={isDesktop ? undefined : "hidden"}
       >
-        <ClientChangelogTimeline entries={activeDesktopEntries} labels={t.changelog} />
+        <ClientChangelogTimeline
+          entries={activeDesktopEntries}
+          labels={t.changelog}
+          isDesktop
+          isEn={isEn}
+        />
       </section>
       <section
         id="web-changelog-panel"
@@ -282,12 +287,109 @@ function ChangelogTab({
   );
 }
 
+function VersionDownloadDropdown({ version, isEn }: { version: string; isEn: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const links = buildVersionPackageLinks(version);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  if (!links) return null;
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong/80 bg-surface/80 px-2.5 py-1 text-xs font-medium text-ink-soft shadow-xs backdrop-blur-sm transition-all hover:border-accent/40 hover:bg-surface-raised hover:text-ink"
+        aria-expanded={isOpen}
+      >
+        <svg
+          className="h-3.5 w-3.5 text-accent"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        <span>{isEn ? "Download" : "下载此版本"}</span>
+        <svg
+          className={`h-3 w-3 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 z-30 mt-1.5 w-56 origin-top-right rounded-xl border border-line-strong/80 bg-surface-raised/95 p-1.5 shadow-xl backdrop-blur-md">
+          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+            v{version} {isEn ? "Edge Downloads" : "边缘直链下载"}
+          </div>
+          <a
+            href={links.macos.url}
+            download={links.macos.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>macOS (Apple Silicon)</span>
+            <span className="text-[10px] text-muted">DMG</span>
+          </a>
+          <a
+            href={links.windows.url}
+            download={links.windows.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Windows (x64)</span>
+            <span className="text-[10px] text-muted">Setup.exe</span>
+          </a>
+          <a
+            href={links.linux.url}
+            download={links.linux.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Linux (x86_64)</span>
+            <span className="text-[10px] text-muted">AppImage</span>
+          </a>
+          <div className="my-1 border-t border-line/60" />
+          <a
+            href={`${RELEASES_PORTAL_URL}#v${version}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
+          >
+            <span>{isEn ? "All Architectures & Portal" : "查看分发中心全部架构"}</span>
+            <span>→</span>
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClientChangelogTimeline({
   entries,
   labels,
+  isDesktop = false,
+  isEn = false,
 }: {
   entries: ChangelogEntry[];
   labels: ChangelogLabels;
+  isDesktop?: boolean;
+  isEn?: boolean;
 }) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted">{labels.empty}</p>;
@@ -303,14 +405,17 @@ function ClientChangelogTimeline({
           <TimelineMarker latest={index === 0} />
           <article>
             <header className="mb-3.5 sm:mb-4">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
-                  v{entry.version}
-                </h2>
-                <time className="text-sm text-muted" dateTime={entry.date}>
-                  {entry.date}
-                </time>
-                {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                    v{entry.version}
+                  </h2>
+                  <time className="text-sm text-muted" dateTime={entry.date}>
+                    {entry.date}
+                  </time>
+                  {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
+                </div>
+                {isDesktop ? <VersionDownloadDropdown version={entry.version} isEn={isEn} /> : null}
               </div>
               <PullRequestLine
                 prs={entry.sourcePR ?? []}

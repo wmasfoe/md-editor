@@ -138,6 +138,7 @@ export interface TranslationSchema {
     summary: string;
     playground: string;
     github: string;
+    releases: string;
   };
   aiShowcase: {
     sectionBadge: string;

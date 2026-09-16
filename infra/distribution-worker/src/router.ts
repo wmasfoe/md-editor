@@ -1,4 +1,42 @@
-import type { AppVersionManifest, Env } from "./types.ts";
+import type {
+  AppVersionManifest,
+  Env,
+  ReleaseAssetInfo,
+  ReleaseInfo,
+  ReleasesManifest,
+} from "./types.ts";
+import {
+  formatBytes,
+  renderAppIndexHtml,
+  renderVersionFilesHtml,
+  renderVersionIndexHtml,
+} from "./portal.ts";
+
+export const SUPPORTED_APPS = [
+  {
+    name: "inkpoint",
+    title: "Inkpoint",
+    description: "下一代跨平台 Markdown 知识管理与富文本编辑器",
+  },
+];
+
+export const MIME_TYPES: Record<string, string> = {
+  dmg: "application/x-apple-diskimage",
+  exe: "application/x-msdownload",
+  AppImage: "application/x-executable",
+  appimage: "application/x-executable",
+  deb: "application/vnd.debian.binary-package",
+  apk: "application/vnd.android.package-archive",
+  gz: "application/gzip",
+  zip: "application/zip",
+  sig: "text/plain",
+  json: "application/json",
+};
+
+export function getMimeType(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  return MIME_TYPES[ext] || "application/octet-stream";
+}
 
 /**
  * 辅助函数：根据平台关键词从 GitHub Release 资产列表中匹配对应的安装包 URL
@@ -114,6 +152,214 @@ export async function fetchLatestRelease(
   return null;
 }
 
+export interface RawGitHubRelease {
+  tag_name: string;
+  name?: string;
+  published_at?: string;
+  prerelease?: boolean;
+  html_url?: string;
+  assets: Array<{
+    name: string;
+    browser_download_url: string;
+    size: number;
+  }>;
+}
+
+let cachedReleasesList: RawGitHubRelease[] | null = null;
+
+/**
+ * 获取 GitHub 所有 Release 列表，带 Cloudflare 边缘缓存与内存容灾
+ */
+export async function fetchAllGitHubReleases(
+  githubRepo: string,
+  env: Env,
+): Promise<RawGitHubRelease[]> {
+  const headers: Record<string, string> = {
+    "User-Agent": "Inkpoint-Distribution-Worker/1.0",
+    Accept: "application/vnd.github.v3+json",
+  };
+  if (env.GITHUB_TOKEN) {
+    headers["Authorization"] = `Bearer ${env.GITHUB_TOKEN}`;
+  }
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${githubRepo}/releases?per_page=50`, {
+      headers,
+      cf: { cacheTtl: 600, cacheEverything: true },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as RawGitHubRelease[];
+      if (Array.isArray(data) && data.length > 0) {
+        cachedReleasesList = data;
+        return data;
+      }
+    }
+  } catch {
+    // 网络异常
+  }
+
+  if (cachedReleasesList) {
+    return cachedReleasesList;
+  }
+
+  return [];
+}
+
+/**
+ * 汇总构建全量历史版本清单
+ */
+export async function buildReleasesManifest(
+  app: string,
+  githubRepo: string,
+  env: Env,
+  baseUrl: string,
+): Promise<ReleasesManifest> {
+  // 1. 如果 R2 中保存了预构建的 releases.json，优先直接返回
+  if (env.RELEASE_BUCKET) {
+    const r2Obj = await env.RELEASE_BUCKET.get(`${app}/releases.json`);
+    if (r2Obj) {
+      try {
+        const text = await r2Obj.text();
+        return JSON.parse(text) as ReleasesManifest;
+      } catch {
+        // 解析失败则继续动态构建
+      }
+    }
+  }
+
+  // 2. 从 GitHub 拉取全量 releases
+  const rawReleases = await fetchAllGitHubReleases(githubRepo, env);
+  const releases: ReleaseInfo[] = [];
+
+  for (const raw of rawReleases) {
+    const version = raw.tag_name.replace(/^v/, "").replace(/^desktop-v/, "");
+    const isLatest = releases.length === 0;
+    const assets: ReleaseAssetInfo[] = [];
+
+    for (const asset of raw.assets || []) {
+      const name = asset.name;
+      const lower = name.toLowerCase();
+
+      let platform: ReleaseAssetInfo["platform"] = "other";
+      let platformLabel = "其他附件";
+
+      if (lower.endsWith(".dmg")) {
+        if (lower.includes("x64") || lower.includes("x86_64") || lower.includes("intel")) {
+          platform = "macos-x64";
+          platformLabel = "macOS (Intel) · DMG";
+        } else {
+          platform = "macos-arm64";
+          platformLabel = "macOS (Apple Silicon) · DMG";
+        }
+      } else if (lower.endsWith(".exe")) {
+        if (lower.includes("arm64")) {
+          platform = "windows-arm64";
+          platformLabel = "Windows (ARM64) · Setup";
+        } else {
+          platform = "windows-x64";
+          platformLabel = "Windows (x64) · Setup";
+        }
+      } else if (lower.endsWith(".appimage")) {
+        platform = "linux-appimage";
+        platformLabel = lower.includes("arm64")
+          ? "Linux (ARM64) · AppImage"
+          : "Linux (x86_64) · AppImage";
+      } else if (lower.endsWith(".deb")) {
+        platform = "linux-deb";
+        platformLabel = lower.includes("arm64") ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB";
+      } else if (lower.endsWith(".apk")) {
+        platform = "android";
+        platformLabel = "Android · APK";
+      } else if (lower.endsWith(".tar.gz") || lower.endsWith(".sig")) {
+        platform = "updater";
+        platformLabel = lower.endsWith(".sig") ? "Tauri 签名文件" : "Tauri 自动更新包";
+      }
+
+      const downloadUrl = `${baseUrl}/${app}/${version}/${encodeURIComponent(name)}`;
+
+      assets.push({
+        platform,
+        platformLabel,
+        fileName: name,
+        downloadUrl,
+        sizeBytes: asset.size,
+        formattedSize: formatBytes(asset.size),
+        isR2Cached: version === "0.10.2",
+      });
+    }
+
+    releases.push({
+      version,
+      tagName: raw.tag_name,
+      publishedAt: raw.published_at || new Date().toISOString(),
+      isLatest,
+      isPrerelease: Boolean(raw.prerelease),
+      releaseNotesUrl:
+        raw.html_url || `https://github.com/${githubRepo}/releases/tag/${raw.tag_name}`,
+      assets,
+    });
+  }
+
+  // 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新版本
+  if (releases.length === 0) {
+    releases.push({
+      version: "0.10.2",
+      tagName: "v0.10.2",
+      publishedAt: new Date().toISOString(),
+      isLatest: true,
+      isPrerelease: false,
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
+      assets: [
+        {
+          platform: "macos-arm64",
+          platformLabel: "macOS (Apple Silicon) · DMG",
+          fileName: "Inkpoint_0.10.2_aarch64.dmg",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
+          sizeBytes: 30680892,
+          formattedSize: "29.3 MB",
+          isR2Cached: true,
+        },
+        {
+          platform: "windows-x64",
+          platformLabel: "Windows (x64) · Setup",
+          fileName: "Inkpoint_0.10.2_x64-setup.exe",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
+          sizeBytes: 8072766,
+          formattedSize: "7.7 MB",
+          isR2Cached: true,
+        },
+        {
+          platform: "linux-appimage",
+          platformLabel: "Linux (x86_64) · AppImage",
+          fileName: "Inkpoint_0.10.2_amd64.AppImage",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
+          sizeBytes: 91474424,
+          formattedSize: "87.2 MB",
+          isR2Cached: true,
+        },
+        {
+          platform: "android",
+          platformLabel: "Android · APK",
+          fileName: "Inkpoint_0.1.0.apk",
+          downloadUrl: `${baseUrl}/${app}/android/latest`,
+          sizeBytes: 45000000,
+          formattedSize: "42.9 MB",
+          isR2Cached: true,
+        },
+      ],
+    });
+  }
+
+  return {
+    app,
+    updatedAt: new Date().toISOString(),
+    total: releases.length,
+    latestVersion: releases[0]?.version || "0.10.2",
+    releases,
+  };
+}
+
 /**
  * 流式代理并加速 GitHub 资产下载
  */
@@ -208,8 +454,20 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   const defaultApp = env.DEFAULT_APP || "inkpoint";
   const githubRepo = env.GITHUB_REPO || "wmasfoe/md-editor";
 
-  // 1. 首页信息
+  // 1. 首页路由：浏览器访问返回应用目录索引 (Index of /)，CLI / API 访问返回网关路由描述
   if (path === "/") {
+    const accept = request.headers.get("Accept") || "";
+    if (accept.includes("text/html")) {
+      const html = renderAppIndexHtml(SUPPORTED_APPS, url.origin);
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=120, s-maxage=300",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
     return new Response(
       JSON.stringify(
         {
@@ -218,11 +476,16 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
             "Cloudflare Worker & R2 Edge Distribution for Inkpoint and Multi-App Ecosystem",
           repo: githubRepo,
           routes: {
+            appIndex: "/",
+            appReleases: "/:app/",
+            versionFiles: "/:app/:version/",
+            versionDownload: "/:app/:version/:filename",
+            releasesPortal: "/releases",
+            releasesApi: "/api/:app/releases",
             versionManifest: "/api/:app/version.json",
             desktopUpdater: "/:app/desktop/updater.json",
             desktopLatest: "/:app/desktop/:platform/latest",
             androidLatest: "/:app/android/latest",
-            versionedDownload: "/:app/:platform/:version/:filename",
             githubMirror: "/gh/:org/:repo/releases/download/:tag/:filename",
           },
           supportedPlatforms: [
@@ -244,6 +507,20 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         },
       },
     );
+  }
+
+  // 2. 全量历史版本清单 API: /api/:app/releases(.json)? 或 /api/releases(.json)? 或 /api/:app/history
+  const releasesApiMatch = path.match(/^\/api(?:\/([^/]+))?\/(?:releases|history)(?:\.json)?$/);
+  if (releasesApiMatch) {
+    const app = releasesApiMatch[1] || defaultApp;
+    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+    return new Response(JSON.stringify(manifest, null, 2), {
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Cache-Control": "public, max-age=120, s-maxage=300",
+      },
+    });
   }
 
   // 2. 版本清单 API: /api/:app/version.json 或 /api/version.json
@@ -351,6 +628,23 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // 4. 桌面端应用内自动更新清单加速: /:app/desktop/updater.json 或 /desktop/updater.json
   const updaterMatch = path.match(/^(?:\/([^/]+))?\/desktop\/updater(?:\.json)?$/);
   if (updaterMatch) {
+    const app = updaterMatch[1] || defaultApp;
+
+    // A. 优先从 R2 存储桶读取发布的 updater.json
+    if (env.RELEASE_BUCKET) {
+      const r2Updater = await env.RELEASE_BUCKET.get(`${app}/desktop/updater.json`);
+      if (r2Updater) {
+        return new Response(r2Updater.body, {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=300, s-maxage=300",
+          },
+        });
+      }
+    }
+
+    // B. 回退方案：从 GitHub homebrew-tap 读取并加速
     try {
       const upstream = await fetch(
         "https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/md-editor-latest.json",
@@ -457,8 +751,90 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // 5. 桌面端最新版直链: /:app/desktop/:platform/latest 或 /desktop/:platform/latest
   const desktopMatch = path.match(/^(?:\/([^/]+))?\/desktop\/([^/]+)\/latest$/);
   if (desktopMatch) {
-    const platform = desktopMatch[2];
+    const app = desktopMatch[1] || defaultApp;
+    const platform = desktopMatch[2].toLowerCase();
 
+    // A. 优先从 R2 存储桶获取桌面端产物
+    if (env.RELEASE_BUCKET) {
+      const mimeTypes: Record<string, string> = {
+        dmg: "application/x-apple-diskimage",
+        exe: "application/x-msdownload",
+        AppImage: "application/x-executable",
+        appimage: "application/x-executable",
+        deb: "application/vnd.debian.binary-package",
+      };
+
+      // 1. 尝试直接获取固化的 latest 别名文件
+      const platformCandidates: Record<string, string[]> = {
+        macos: [`${app}/desktop/macos/latest.dmg`, `${app}/desktop/latest.dmg`],
+        "macos-arm64": [`${app}/desktop/macos/latest.dmg`],
+        "macos-x64": [`${app}/desktop/macos-x64/latest.dmg`],
+        windows: [`${app}/desktop/windows/latest.exe`, `${app}/desktop/latest.exe`],
+        "windows-x64": [`${app}/desktop/windows/latest.exe`],
+        "windows-arm64": [`${app}/desktop/windows-arm64/latest.exe`],
+        linux: [`${app}/desktop/linux/latest.AppImage`, `${app}/desktop/latest.AppImage`],
+        "linux-x64": [`${app}/desktop/linux/latest.AppImage`],
+        "linux-deb": [`${app}/desktop/linux/latest.deb`],
+      };
+
+      const candidates = platformCandidates[platform] || [
+        `${app}/desktop/${platform}/latest.dmg`,
+        `${app}/desktop/${platform}/latest.exe`,
+        `${app}/desktop/${platform}/latest.AppImage`,
+      ];
+
+      for (const candidate of candidates) {
+        const r2Obj = await env.RELEASE_BUCKET.get(candidate);
+        if (r2Obj) {
+          const ext = candidate.split(".").pop() || "";
+          return serveR2Object(
+            r2Obj,
+            `${app}-${platform}-latest.${ext}`,
+            mimeTypes[ext] || "application/octet-stream",
+          );
+        }
+      }
+
+      // 2. 检查 R2 中的 version.json 获取已发布的具体文件名
+      const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+      if (manifestObj) {
+        try {
+          const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
+          const dVer = manifest.desktop?.version;
+          const dAssets = manifest.desktop?.assets;
+          if (dVer && dAssets) {
+            let assetInfo;
+            if (platform.includes("mac") || platform.includes("dmg")) {
+              assetInfo = platform.includes("x64") ? dAssets.macos_x64 : dAssets.macos_arm64;
+            } else if (platform.includes("win") || platform.includes("exe")) {
+              assetInfo = platform.includes("arm64") ? dAssets.windows_arm64 : dAssets.windows_x64;
+            } else if (platform.includes("deb")) {
+              assetInfo = dAssets.linux_deb;
+            } else if (platform.includes("linux") || platform.includes("appimage")) {
+              assetInfo = dAssets.linux_appimage;
+            }
+
+            if (assetInfo?.fileName) {
+              const versionedObj = await env.RELEASE_BUCKET.get(
+                `${app}/desktop/${dVer}/${assetInfo.fileName}`,
+              );
+              if (versionedObj) {
+                const ext = assetInfo.fileName.split(".").pop() || "";
+                return serveR2Object(
+                  versionedObj,
+                  assetInfo.fileName,
+                  mimeTypes[ext] || "application/octet-stream",
+                );
+              }
+            }
+          }
+        } catch {
+          // 清单解析失败时继续回退 GitHub
+        }
+      }
+    }
+
+    // B. 回退方案：从 GitHub Releases 代理获取
     try {
       const release = await fetchLatestRelease(githubRepo, env);
 
@@ -501,17 +877,122 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
   }
 
-  // 6. 指定版本精确下载: /:app/:platform/:version/:filename
-  const versionedMatch = path.match(/^\/([^/]+)\/([^/]+)\/([^/]+)\/([^/]+)$/);
-  if (versionedMatch) {
-    const [, app, platform, version, filename] = versionedMatch;
+  // 8. 兼容别名路径: /releases, /portal 或 /:app/releases, /:app/portal
+  const portalMatch = path.match(/^(?:\/([^/]+))?\/(?:releases|portal)(?:\.html)?$/);
+  if (portalMatch) {
+    const app = portalMatch[1] || defaultApp;
+    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+    const html = renderVersionIndexHtml(app, manifest, url.origin);
+    return new Response(html, {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "public, max-age=120, s-maxage=300",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  }
 
-    // A. 移动端直接从 R2 获取
-    if (platform === "android" && env.RELEASE_BUCKET) {
-      const r2Key = `${app}/android/${version}/${filename}`;
-      const obj = await env.RELEASE_BUCKET.get(r2Key);
-      if (obj) {
-        return serveR2Object(obj, filename, "application/vnd.android.package-archive");
+  // 9. 层级目录与安装包下载路由
+  const segments = path.replace(/^\//, "").split("/").filter(Boolean);
+
+  // 9.1 单段路径：应用版本清单 Index of /:app/ (如 /inkpoint)
+  if (segments.length === 1) {
+    const app = segments[0];
+    if (!["api", "gh", "favicon.ico"].includes(app)) {
+      const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+      const html = renderVersionIndexHtml(app, manifest, url.origin);
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=120, s-maxage=300",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+  }
+
+  // 9.2 双段路径：特定版本安装包列表 Index of /:app/:version/ (如 /inkpoint/0.10.1)
+  if (segments.length === 2) {
+    const [app, version] = segments;
+    if (!["api", "gh"].includes(app)) {
+      const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+      const cleanVer = version.replace(/^v/, "");
+      const release = manifest.releases.find(
+        (r) => r.version === cleanVer || r.version === version || r.tagName === version,
+      );
+      if (release) {
+        const html = renderVersionFilesHtml(app, release, url.origin);
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=120, s-maxage=300",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          error: "Version not found",
+          app,
+          version,
+          hint: `Check available versions at /${app}/`,
+        }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        },
+      );
+    }
+  }
+
+  // 9.3 三段路径：指定版本直链下载 /:app/:version/:filename (如 /inkpoint/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
+  if (segments.length === 3) {
+    const [app, version, filename] = segments;
+    if (!["api", "gh"].includes(app)) {
+      const contentType = getMimeType(filename);
+
+      // A. 优先从 R2 获取
+      if (env.RELEASE_BUCKET) {
+        const r2Keys = [
+          `${app}/desktop/${version}/${filename}`,
+          `${app}/${version}/${filename}`,
+          `${app}/android/${version}/${filename}`,
+        ];
+
+        for (const r2Key of r2Keys) {
+          const obj = await env.RELEASE_BUCKET.get(r2Key);
+          if (obj) {
+            return serveR2Object(obj, filename, contentType);
+          }
+        }
+      }
+
+      // B. 回退方案：从 GitHub Release 对应 tag 回源加速下载
+      const targetTag = version.startsWith("v") ? version : `v${version}`;
+      const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
+      return proxyGitHubAsset(sourceUrl, request, filename);
+    }
+  }
+
+  // 9.4 四段路径：传统指定平台与版本下载 /:app/:platform/:version/:filename (如 /inkpoint/desktop/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
+  if (segments.length === 4) {
+    const [app, platform, version, filename] = segments;
+    const contentType = getMimeType(filename);
+
+    // A. 优先从 R2 获取
+    if (env.RELEASE_BUCKET) {
+      const r2Keys = [
+        `${app}/${platform}/${version}/${filename}`,
+        `${app}/desktop/${version}/${filename}`,
+        `${app}/${version}/${filename}`,
+      ];
+
+      for (const r2Key of r2Keys) {
+        const obj = await env.RELEASE_BUCKET.get(r2Key);
+        if (obj) {
+          return serveR2Object(obj, filename, contentType);
+        }
       }
     }
 

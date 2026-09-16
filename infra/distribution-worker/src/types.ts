@@ -40,3 +40,40 @@ export interface AppVersionManifest {
     appStoreUrl?: string;
   };
 }
+
+export interface ReleaseAssetInfo {
+  platform:
+    | "macos-arm64"
+    | "macos-x64"
+    | "windows-x64"
+    | "windows-arm64"
+    | "linux-appimage"
+    | "linux-deb"
+    | "android"
+    | "updater"
+    | "other";
+  platformLabel: string;
+  fileName: string;
+  downloadUrl: string;
+  sizeBytes: number;
+  formattedSize: string;
+  isR2Cached?: boolean;
+}
+
+export interface ReleaseInfo {
+  version: string;
+  tagName: string;
+  publishedAt: string;
+  isLatest: boolean;
+  isPrerelease: boolean;
+  releaseNotesUrl: string;
+  assets: ReleaseAssetInfo[];
+}
+
+export interface ReleasesManifest {
+  app: string;
+  updatedAt: string;
+  total: number;
+  latestVersion: string;
+  releases: ReleaseInfo[];
+}

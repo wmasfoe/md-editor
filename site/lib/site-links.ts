@@ -37,8 +37,6 @@ export const APP_NAME_ZH = "墨点";
 /** Tauri 安装包文件名前缀，与 productName 一致。 */
 export const ARTIFACT_NAME_PREFIX = "Inkpoint";
 
-const TAP_RELEASE_REPO = "wmasfoe/homebrew-tap";
-
 /** 官方全球分发与边缘加速域名（基于 Cloudflare Worker & R2） */
 export const DISTRIBUTION_DOMAIN =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_DISTRIBUTION_DOMAIN) ||
@@ -46,6 +44,38 @@ export const DISTRIBUTION_DOMAIN =
 
 /** 官方全球分发加速基础 URL */
 export const DISTRIBUTION_URL = `https://${DISTRIBUTION_DOMAIN}`;
+
+/** 官方全球版本分发中心与历史安装包归档 Web 页面 */
+export const RELEASES_PORTAL_URL = `${DISTRIBUTION_URL}/releases`;
+
+/** 官方历史全量版本清单 API */
+export const RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/releases`;
+
+/**
+ * 根据语义化版本构造各主流平台安装包直链对象（供历史版本下载与更新日志使用）
+ */
+export function buildVersionPackageLinks(version: string) {
+  const normalized = normalizeVersion(version);
+  if (!normalized) return null;
+  return {
+    version: normalized,
+    macos: {
+      label: "macOS (Apple Silicon)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`)}`,
+    },
+    windows: {
+      label: "Windows (x64)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_x64-setup.exe`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_x64-setup.exe`)}`,
+    },
+    linux: {
+      label: "Linux (AppImage)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`)}`,
+    },
+  };
+}
 
 /**
  * 构造基于 Cloudflare Worker 边缘加速的最新桌面安装包直链
@@ -74,7 +104,7 @@ export function buildVersionApiUrl(app = "inkpoint"): string {
 
 /**
  * 根据语义化版本构造最新 macOS DMG 直链。
- * 文件名与 release workflow / cask 约定一致：Inkpoint_{version}_aarch64.dmg
+ * 优先走官方全球边缘分发网关（Cloudflare R2 直出 / 智能代理），避免国内访问 GitHub Release 失败。
  */
 export function buildMacosDmgUrl(version: string): string {
   const normalized = normalizeVersion(version);
@@ -82,9 +112,8 @@ export function buildMacosDmgUrl(version: string): string {
     throw new Error(`Invalid macOS DMG version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /**
@@ -99,9 +128,8 @@ export function buildLinuxAppImageUrl(
     throw new Error(`Invalid Linux version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_${arch}.AppImage`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /**
@@ -113,9 +141,8 @@ export function buildWindowsSetupUrl(version: string, arch: "x64" | "arm64" = "x
     throw new Error(`Invalid Windows version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_${arch}-setup.exe`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /** 去掉可选 v 前缀；空串视为无效。 */

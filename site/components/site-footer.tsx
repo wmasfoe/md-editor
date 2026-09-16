@@ -1,7 +1,12 @@
 "use client";
 
 import { useI18n } from "../lib/i18n/context";
-import { APP_DISPLAY_NAME, GITHUB_REPO_URL, PLAYGROUND_PATH } from "../lib/site-links";
+import {
+  APP_DISPLAY_NAME,
+  GITHUB_REPO_URL,
+  PLAYGROUND_PATH,
+  RELEASES_PORTAL_URL,
+} from "../lib/site-links";
 
 export function SiteFooter() {
   const { t } = useI18n();
@@ -18,6 +23,14 @@ export function SiteFooter() {
             className="inline-flex min-h-10 items-center text-ink-soft transition-colors hover:text-ink sm:min-h-0"
           >
             {t.footer.playground}
+          </a>
+          <a
+            href={RELEASES_PORTAL_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-10 items-center text-ink-soft transition-colors hover:text-ink sm:min-h-0"
+          >
+            {t.footer.releases}
           </a>
           <a
             href={GITHUB_REPO_URL}

@@ -135,6 +135,7 @@ export const zh: TranslationSchema = {
     summary: "Inkpoint，本地优先的 Markdown / MDX 桌面编辑器",
     playground: "在线体验",
     github: "GitHub",
+    releases: "版本分发中心",
   },
   aiShowcase: {
     sectionBadge: "端侧智能 · 灵犀相契",
