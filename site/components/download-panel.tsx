@@ -9,6 +9,7 @@ import {
   listSitePlatforms,
   type DownloadCatalog,
 } from "../lib/downloads";
+import { useDistribution } from "../lib/distribution/context";
 import { useI18n } from "../lib/i18n/context";
 import { isMobilePlatform, SITE_PLATFORM_LABELS, type SitePlatform } from "../lib/platform";
 import { InstallCommand } from "./install-command";
@@ -30,7 +31,7 @@ function PlatformGlyph({ platform, className }: { platform: SitePlatform; classN
   return null;
 }
 
-function renderPlatformLabel(platform: SitePlatform) {
+function renderPlatformLabel(platform: SitePlatform, comingSoonText = "敬请期待") {
   if (platform === "android") {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
@@ -46,7 +47,7 @@ function renderPlatformLabel(platform: SitePlatform) {
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
         <span>iOS</span>
         <span className="rounded-full bg-line-strong/25 px-1.5 py-0.5 text-[9px] font-medium text-muted/75 leading-none">
-          敬请期待
+          {comingSoonText}
         </span>
       </span>
     );
@@ -72,10 +73,11 @@ type DownloadPanelProps = {
 
 export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) {
   const { locale, t } = useI18n();
+  const { domain } = useDistribution();
   const [platform, setPlatform] = useState<SitePlatform>(
     initialPlatform === "ios" ? "macos" : initialPlatform,
   );
-  const catalog = buildDownloadCatalog(version, locale);
+  const catalog = buildDownloadCatalog(version, locale, domain);
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
   const platforms = listSitePlatforms();
@@ -90,7 +92,7 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
           items={platforms}
           value={platform}
           onChange={setPlatform}
-          getLabel={renderPlatformLabel}
+          getLabel={(p) => renderPlatformLabel(p, t.download.comingSoon)}
           getAriaLabel={(p) => getPlatformAriaLabel(p, locale === "en")}
           disabledItems={["ios"]}
           ariaLabel={t.download.tablistAria}

@@ -84,6 +84,11 @@ describe("buildDownloadCatalog with i18n", () => {
     expect(catalogEn.windows.primary.label).toBe("Download for Windows");
     expect(catalogEn.windows.secondary[0].label).toBe("ARM64 Setup");
   });
+
+  it("provides localized coming soon label for iOS", () => {
+    expect(zh.download.comingSoon).toBe("敬请期待");
+    expect(en.download.comingSoon).toBe("Coming Soon");
+  });
 });
 
 describe("getPlatformInstall with i18n", () => {

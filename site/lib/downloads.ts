@@ -91,19 +91,25 @@ const INSTALL_BY_PLATFORM_EN: Record<"macos" | "linux" | "windows", PlatformInst
 };
 
 /** 按版本和语言构造多平台主下载与次要架构入口；移动端排在最后并标明测试版状态。 */
-export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): DownloadCatalog {
+export function buildDownloadCatalog(
+  version?: string,
+  locale: Locale = "zh",
+  domain?: string,
+): DownloadCatalog {
   const normalized = version ? normalizeVersion(version) : null;
   const isEn = locale === "en";
-  const mobile = getMobileDownloadCatalog(locale);
+  const mobile = getMobileDownloadCatalog(locale, domain);
 
   if (!normalized) {
-    return fallbackCatalog(locale);
+    return fallbackCatalog(locale, domain);
   }
+
+  const allPackagesUrl = domain ? `https://${domain}/releases` : RELEASES_PORTAL_URL;
 
   return {
     macos: {
       primary: {
-        href: buildMacosDmgUrl(normalized),
+        href: buildMacosDmgUrl(normalized, domain),
         fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`,
         label: isEn ? "Download for macOS" : "下载 macOS",
       },
@@ -114,14 +120,14 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
     },
     linux: {
       primary: {
-        href: buildLinuxAppImageUrl(normalized, "x86_64"),
+        href: buildLinuxAppImageUrl(normalized, "x86_64", domain),
         fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_x86_64.AppImage`,
         label: isEn ? "Download for Linux" : "下载 Linux",
       },
       format: "x86_64 · AppImage",
       secondary: [
         {
-          href: buildLinuxAppImageUrl(normalized, "aarch64"),
+          href: buildLinuxAppImageUrl(normalized, "aarch64", domain),
           fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.AppImage`,
           label: "ARM64 AppImage",
         },
@@ -131,14 +137,14 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
     },
     windows: {
       primary: {
-        href: buildWindowsSetupUrl(normalized, "x64"),
+        href: buildWindowsSetupUrl(normalized, "x64", domain),
         fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_x64-setup.exe`,
         label: isEn ? "Download for Windows" : "下载 Windows",
       },
       format: "x64 · Setup",
       secondary: [
         {
-          href: buildWindowsSetupUrl(normalized, "arm64"),
+          href: buildWindowsSetupUrl(normalized, "arm64", domain),
           fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_arm64-setup.exe`,
           label: isEn ? "ARM64 Setup" : "ARM64 安装包",
         },
@@ -160,7 +166,7 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
       version: mobile.ios.version,
       isBeta: true,
     },
-    allPackagesUrl: RELEASES_PORTAL_URL,
+    allPackagesUrl,
   };
 }
 
@@ -189,9 +195,10 @@ function fallbackPrimary(label: string, format: string): PlatformDownload {
   };
 }
 
-function fallbackCatalog(locale: Locale = "zh"): DownloadCatalog {
+function fallbackCatalog(locale: Locale = "zh", domain?: string): DownloadCatalog {
   const isEn = locale === "en";
-  const mobile = getMobileDownloadCatalog(locale);
+  const mobile = getMobileDownloadCatalog(locale, domain);
+  const allPackagesUrl = domain ? `https://${domain}/releases` : RELEASES_PORTAL_URL;
   return {
     macos: fallbackPrimary(isEn ? "Download for macOS" : "下载 macOS", "Apple Silicon · DMG"),
     linux: fallbackPrimary(isEn ? "Download for Linux" : "下载 Linux", "x86_64 · AppImage"),
@@ -210,7 +217,7 @@ function fallbackCatalog(locale: Locale = "zh"): DownloadCatalog {
       version: mobile.ios.version,
       isBeta: true,
     },
-    allPackagesUrl: RELEASES_PORTAL_URL,
+    allPackagesUrl,
   };
 }
 
@@ -236,19 +243,22 @@ export interface MobilePlatformDownload {
 /**
  * 构造移动端（Android / iOS）下载目录，标明测试版状态
  */
-export function getMobileDownloadCatalog(locale: Locale = "zh"): MobilePlatformDownload {
+export function getMobileDownloadCatalog(
+  locale: Locale = "zh",
+  domain?: string,
+): MobilePlatformDownload {
   const isEn = locale === "en";
   return {
     android: {
       primary: {
-        href: buildAndroidApkUrl("0.1.0"),
+        href: buildAndroidApkUrl("0.1.0", domain),
         fileName: "Inkpoint_0.1.0.apk",
         label: isEn ? "Download Android APK (Beta)" : "下载 Android 安装包 (APK)",
       },
       format: isEn ? "Android 8.0+ · APK · Beta" : "Android 8.0+ · APK · 测试版",
       secondary: [
         {
-          href: buildAndroidApkUrl(),
+          href: buildAndroidApkUrl(undefined, domain),
           label: isEn ? "Latest APK Link" : "最新版直链",
         },
       ],

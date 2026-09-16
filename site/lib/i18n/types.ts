@@ -87,6 +87,7 @@ export interface TranslationSchema {
     copyButton: string;
     copiedButton: string;
     copyCommandAria: string;
+    comingSoon: string;
   };
   features: {
     sectionAria: string;

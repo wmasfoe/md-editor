@@ -1,5 +1,10 @@
 #!/bin/sh
-# Git pre-push hook: Enforce lint and test verification before pushing
+# Git pre-push hook: Enforce lint and test verification before pushing (only for AI Agent or opt-in)
+
+# 开发者日常手动 push 时自动跳过耗时校验，秒推不阻塞；仅在 Agent 或显式开启时执行
+if [ -z "$AGENT_ENV" ] && [ -z "$AI_AGENT" ] && [ -z "$ANTIGRAVITY_CLI" ] && [ -z "$CODEX_AGENT" ] && [ -z "$FORCE_PRE_PUSH" ]; then
+  exit 0
+fi
 
 echo "🔍 [Pre-push Hook] Verifying code quality before pushing..."
 

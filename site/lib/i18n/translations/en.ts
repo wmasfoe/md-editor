@@ -73,6 +73,7 @@ export const en: TranslationSchema = {
     copyButton: "Copy",
     copiedButton: "Copied",
     copyCommandAria: "Copy install command",
+    comingSoon: "Coming Soon",
   },
   features: {
     sectionAria: "Key Features",

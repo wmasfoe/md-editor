@@ -70,6 +70,7 @@ export const zh: TranslationSchema = {
     copyButton: "复制",
     copiedButton: "已复制",
     copyCommandAria: "复制安装命令",
+    comingSoon: "敬请期待",
   },
   features: {
     sectionAria: "主要能力",

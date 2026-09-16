@@ -14,7 +14,8 @@ import {
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
-import { buildAppPrUrl, buildVersionPackageLinks, RELEASES_PORTAL_URL } from "../lib/site-links";
+import { buildAppPrUrl, buildVersionPackageLinks } from "../lib/site-links";
+import { useDistribution } from "../lib/distribution/context";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
@@ -290,7 +291,8 @@ function ChangelogTab({
 function VersionDownloadDropdown({ version, isEn }: { version: string; isEn: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const links = buildVersionPackageLinks(version);
+  const { domain, releasesPortalUrl } = useDistribution();
+  const links = buildVersionPackageLinks(version, domain);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -366,7 +368,7 @@ function VersionDownloadDropdown({ version, isEn }: { version: string; isEn: boo
           </a>
           <div className="my-1 border-t border-line/60" />
           <a
-            href={`${RELEASES_PORTAL_URL}#v${version}`}
+            href={`${releasesPortalUrl}#v${version}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
