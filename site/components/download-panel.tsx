@@ -1,5 +1,6 @@
 "use client";
 
+import { FaAndroid, FaApple, FaLinux, FaWindows } from "react-icons/fa6";
 import { useState } from "react";
 import {
   buildDownloadCatalog,
@@ -15,43 +16,16 @@ import { LiquidGlassSegmentedControl } from "./liquid-glass-segmented-control";
 
 function PlatformGlyph({ platform, className }: { platform: SitePlatform; className?: string }) {
   if (platform === "macos" || platform === "ios") {
-    return (
-      <svg viewBox="0 0 170 170" className={className} fill="currentColor" aria-hidden>
-        <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.7-7.83-12-14.37-6.09-9.24-10.98-19.8-14.67-31.69-3.69-11.89-5.54-22.95-5.54-33.19 0-14.35 3.8-26.06 11.41-35.13 7.61-9.07 17.1-13.68 28.47-13.84 4.8 0 10.3 1.34 16.51 4.02 6.21 2.68 10.12 4.06 11.73 4.14 1.3.08 5.43-1.4 12.39-4.44 6.96-3.04 12.87-4.4 17.72-4.08 13.27.87 23.8 5.76 31.6 14.67-11.53 7.07-17.18 16.85-16.96 29.35.22 9.68 3.91 17.88 11.08 24.6 7.17 6.72 15.76 10.65 25.77 11.79-2.18 6.96-4.9 14.03-8.16 21.21zM119.22 33.5c0-7.39 2.65-14.24 7.95-20.55 5.3-6.31 11.74-10.33 19.32-12.05.65 3.04.98 5.76.98 8.16 0 7.28-2.72 14.24-8.16 20.88-5.44 6.64-12.07 10.59-19.89 11.85-.11-2.61-.2-5.38-.2-8.29z" />
-      </svg>
-    );
+    return <FaApple className={className} aria-hidden />;
   }
   if (platform === "windows") {
-    return (
-      <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
-        <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4h-13.051M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801" />
-      </svg>
-    );
+    return <FaWindows className={className} aria-hidden />;
   }
   if (platform === "linux") {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        className={className}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.2}
-        aria-hidden
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M8 9l3 3-3 3m5 0h3M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z"
-        />
-      </svg>
-    );
+    return <FaLinux className={className} aria-hidden />;
   }
   if (platform === "android") {
-    return (
-      <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
-        <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.551 0 .9993.4482.9993.9993.0001.5511-.4483.9997-.9993.9997m-11.046 0c-.5511 0-.9993-.4486-.9993-.9997s.4482-.9993.9993-.9993c.5511 0 .9993.4482.9993.9993 0 .5511-.4482.9997-.9993.9997m11.4045-6.02l1.996-3.4572c.1561-.2705.0635-.6159-.207-.772-.2715-.1561-.6158-.0636-.772.2069l-2.0253 3.5082a13.3 13.3 0 0 0-4.8732-.9168c-1.7487 0-3.4095.3347-4.8733.9168L5.1044 5.3088c-.1562-.2705-.5005-.363-772-.2069-.2705.1561-.3631.5015-.207.772l1.996 3.4572C2.868 11.233 1 14.3913 1 17.989h22c0-3.5977-1.868-6.756-5.1185-8.6676" />
-      </svg>
-    );
+    return <FaAndroid className={className} aria-hidden />;
   }
   return null;
 }
@@ -144,20 +118,6 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
             <span className="relative z-10 inline-flex items-center gap-2.5 font-semibold tracking-tight">
               <PlatformGlyph platform={platform} className="h-4 w-4 shrink-0 opacity-90" />
               <span>{current.primary.label}</span>
-              <svg
-                className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-y-0.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                />
-              </svg>
             </span>
           </a>
         </div>
