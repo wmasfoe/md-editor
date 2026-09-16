@@ -98,9 +98,10 @@ describe("extractPrNumbers", () => {
   });
 });
 
-describe("getDesktopChangelogEntries & getWebChangelogEntries", () => {
-  it("reads desktop and web changelogs correctly in Chinese and English", async () => {
-    const { getDesktopChangelogEntries, getWebChangelogEntries } = await import("../lib/changelog");
+describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangelogEntries", () => {
+  it("reads desktop, web and android changelogs correctly in Chinese and English", async () => {
+    const { getDesktopChangelogEntries, getWebChangelogEntries, getAndroidChangelogEntries } =
+      await import("../lib/changelog");
 
     const desktopZh = getDesktopChangelogEntries("zh");
     const desktopEn = getDesktopChangelogEntries("en");
@@ -117,6 +118,14 @@ describe("getDesktopChangelogEntries & getWebChangelogEntries", () => {
     expect(webZh[0].version).toBe("0.1.0");
     expect(webEn[0].version).toBe("0.1.0");
     expect(webEn[0].items[0].text).toMatch(/^[A-Za-z]/u);
+
+    const androidZh = getAndroidChangelogEntries("zh");
+    const androidEn = getAndroidChangelogEntries("en");
+    expect(androidZh.length).toBeGreaterThan(0);
+    expect(androidEn.length).toBeGreaterThan(0);
+    expect(androidZh[0].version).toBe("0.1.0");
+    expect(androidEn[0].version).toBe("0.1.0");
+    expect(androidEn[0].items[0].text).toMatch(/^[*A-Za-z]/u);
   });
 
   it("falls back to Chinese when English changelog is not found", async () => {

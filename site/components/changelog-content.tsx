@@ -20,12 +20,14 @@ import { useDistribution } from "../lib/distribution/context";
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
   entriesEn?: ChangelogEntry[];
+  androidEntries?: ChangelogEntry[];
+  androidEntriesEn?: ChangelogEntry[];
   webEntries?: ChangelogEntry[];
   webEntriesEn?: ChangelogEntry[];
   modelChangelog: unknown;
 }
 
-type ChangelogSource = "desktop" | "web" | "model";
+type ChangelogSource = "desktop" | "android" | "web" | "model";
 type ChangelogLabels = TranslationSchema["changelog"];
 
 const ITEM_TYPE_STYLES: Record<string, string> = {
@@ -40,6 +42,8 @@ const ITEM_TYPE_STYLES: Record<string, string> = {
 export function ChangelogContent({
   entries,
   entriesEn = [],
+  androidEntries = [],
+  androidEntriesEn = [],
   webEntries = [],
   webEntriesEn = [],
   modelChangelog,
@@ -47,12 +51,16 @@ export function ChangelogContent({
   const { locale, t } = useI18n();
   const isEn = locale === "en";
   const activeDesktopEntries = isEn && entriesEn.length > 0 ? entriesEn : entries;
+  const activeAndroidEntries =
+    isEn && androidEntriesEn.length > 0 ? androidEntriesEn : androidEntries;
   const activeWebEntries = isEn && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
+  const androidTabRef = useRef<HTMLButtonElement>(null);
   const webTabRef = useRef<HTMLButtonElement>(null);
   const modelTabRef = useRef<HTMLButtonElement>(null);
   const isDesktop = source === "desktop";
+  const isAndroid = source === "android";
   const isWeb = source === "web";
   const isModel = source === "model";
 
@@ -64,6 +72,13 @@ export function ChangelogContent({
       const tabParam = url.searchParams.get("tab") ?? url.searchParams.get("source");
       if (tabParam === "model" || window.location.hash === "#model") {
         setSource("model");
+      } else if (
+        tabParam === "android" ||
+        tabParam === "mobile" ||
+        window.location.hash === "#android" ||
+        window.location.hash === "#mobile"
+      ) {
+        setSource("android");
       } else if (tabParam === "web" || window.location.hash === "#web") {
         setSource("web");
       } else if (
@@ -91,12 +106,25 @@ export function ChangelogContent({
       const url = new URL(window.location.href);
       url.searchParams.delete("tab");
       url.searchParams.delete("source");
-      url.hash = nextSource === "model" ? "#model" : nextSource === "web" ? "#web" : "#desktop";
+      url.hash =
+        nextSource === "model"
+          ? "#model"
+          : nextSource === "android"
+            ? "#android"
+            : nextSource === "web"
+              ? "#web"
+              : "#desktop";
       window.history.replaceState(null, "", url.toString());
     }
     if (moveFocus) {
       const target =
-        nextSource === "desktop" ? desktopTabRef : nextSource === "web" ? webTabRef : modelTabRef;
+        nextSource === "desktop"
+          ? desktopTabRef
+          : nextSource === "android"
+            ? androidTabRef
+            : nextSource === "web"
+              ? webTabRef
+              : modelTabRef;
       requestAnimationFrame(() => target.current?.focus());
     }
   }
@@ -107,7 +135,7 @@ export function ChangelogContent({
     }
 
     event.preventDefault();
-    const order: ChangelogSource[] = ["desktop", "web", "model"];
+    const order: ChangelogSource[] = ["desktop", "android", "web", "model"];
     const currentIndex = order.indexOf(source);
     let nextIndex: number;
 
@@ -139,6 +167,14 @@ export function ChangelogContent({
             {t.changelog.descriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
               {isEn ? "apps/desktop/CHANGELOG_EN.md" : "apps/desktop/CHANGELOG.md"}
+            </code>
+            {t.changelog.descriptionSuffix}
+          </p>
+        ) : isAndroid ? (
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
+            {t.changelog.androidDescriptionPrefix}{" "}
+            <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
+              {isEn ? "apps/mobile/android/CHANGELOG_EN.md" : "apps/mobile/android/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -181,6 +217,15 @@ export function ChangelogContent({
             {t.changelog.clientTab}
           </ChangelogTab>
           <ChangelogTab
+            active={isAndroid}
+            buttonRef={androidTabRef}
+            controls="android-changelog-panel"
+            id="android-changelog-tab"
+            onSelect={() => selectSource("android")}
+          >
+            {t.changelog.androidTab}
+          </ChangelogTab>
+          <ChangelogTab
             active={isWeb}
             buttonRef={webTabRef}
             controls="web-changelog-panel"
@@ -212,6 +257,20 @@ export function ChangelogContent({
           entries={activeDesktopEntries}
           labels={t.changelog}
           isDesktop
+          isEn={isEn}
+        />
+      </section>
+      <section
+        id="android-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="android-changelog-tab"
+        hidden={!isAndroid}
+        className={isAndroid ? undefined : "hidden"}
+      >
+        <ClientChangelogTimeline
+          entries={activeAndroidEntries}
+          labels={{ ...t.changelog, empty: t.changelog.androidEmpty }}
+          isAndroid
           isEn={isEn}
         />
       </section>
@@ -288,7 +347,15 @@ function ChangelogTab({
   );
 }
 
-function VersionDownloadDropdown({ version, isEn }: { version: string; isEn: boolean }) {
+function VersionDownloadDropdown({
+  version,
+  isEn,
+  isAndroid = false,
+}: {
+  version: string;
+  isEn: boolean;
+  isAndroid?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { domain, releasesPortalUrl } = useDistribution();
@@ -342,33 +409,46 @@ function VersionDownloadDropdown({ version, isEn }: { version: string; isEn: boo
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
             v{version} {isEn ? "Edge Downloads" : "边缘直链下载"}
           </div>
-          <a
-            href={links.macos.url}
-            download={links.macos.fileName}
-            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-          >
-            <span>macOS (Apple Silicon)</span>
-            <span className="text-[10px] text-muted">DMG</span>
-          </a>
-          <a
-            href={links.windows.url}
-            download={links.windows.fileName}
-            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-          >
-            <span>Windows (x64)</span>
-            <span className="text-[10px] text-muted">Setup.exe</span>
-          </a>
-          <a
-            href={links.linux.url}
-            download={links.linux.fileName}
-            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-          >
-            <span>Linux (x86_64)</span>
-            <span className="text-[10px] text-muted">AppImage</span>
-          </a>
+          {isAndroid && links.android ? (
+            <a
+              href={links.android.url}
+              download={links.android.fileName}
+              className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+            >
+              <span>Android (APK)</span>
+              <span className="text-[10px] text-muted">APK</span>
+            </a>
+          ) : (
+            <>
+              <a
+                href={links.macos.url}
+                download={links.macos.fileName}
+                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+              >
+                <span>macOS (Apple Silicon)</span>
+                <span className="text-[10px] text-muted">DMG</span>
+              </a>
+              <a
+                href={links.windows.url}
+                download={links.windows.fileName}
+                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+              >
+                <span>Windows (x64)</span>
+                <span className="text-[10px] text-muted">Setup.exe</span>
+              </a>
+              <a
+                href={links.linux.url}
+                download={links.linux.fileName}
+                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+              >
+                <span>Linux (x86_64)</span>
+                <span className="text-[10px] text-muted">AppImage</span>
+              </a>
+            </>
+          )}
           <div className="my-1 border-t border-line/60" />
           <a
-            href={`${releasesPortalUrl}#v${version}`}
+            href={isAndroid ? `${releasesPortalUrl}/android` : `${releasesPortalUrl}#v${version}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
@@ -386,11 +466,13 @@ function ClientChangelogTimeline({
   entries,
   labels,
   isDesktop = false,
+  isAndroid = false,
   isEn = false,
 }: {
   entries: ChangelogEntry[];
   labels: ChangelogLabels;
   isDesktop?: boolean;
+  isAndroid?: boolean;
   isEn?: boolean;
 }) {
   if (entries.length === 0) {
@@ -417,7 +499,13 @@ function ClientChangelogTimeline({
                   </time>
                   {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
                 </div>
-                {isDesktop ? <VersionDownloadDropdown version={entry.version} isEn={isEn} /> : null}
+                {isDesktop || isAndroid ? (
+                  <VersionDownloadDropdown
+                    version={entry.version}
+                    isEn={isEn}
+                    isAndroid={isAndroid}
+                  />
+                ) : null}
               </div>
               <PullRequestLine
                 prs={entry.sourcePR ?? []}

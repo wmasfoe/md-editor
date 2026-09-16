@@ -126,6 +126,11 @@ export function buildVersionPackageLinks(version: string, domain?: string) {
       fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`,
       url: `${baseUrl}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`)}`,
     },
+    android: {
+      label: "Android (APK)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}.apk`,
+      url: `${baseUrl}/inkpoint/android/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}.apk`)}`,
+    },
   };
 }
 

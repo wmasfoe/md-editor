@@ -68,6 +68,15 @@ export interface ReleaseInfo {
   isPrerelease: boolean;
   releaseNotesUrl: string;
   assets: ReleaseAssetInfo[];
+  category?: "desktop" | "android" | "all";
+}
+
+export interface PlatformLatestSummary {
+  version: string;
+  downloadUrl?: string;
+  fileName?: string;
+  formattedSize?: string;
+  assets?: ReleaseAssetInfo[];
 }
 
 export interface ReleasesManifest {
@@ -75,5 +84,11 @@ export interface ReleasesManifest {
   updatedAt: string;
   total: number;
   latestVersion: string;
+  latestDesktopVersion?: string;
+  latestAndroidVersion?: string;
+  latestReleases?: {
+    desktop?: PlatformLatestSummary;
+    android?: PlatformLatestSummary;
+  };
   releases: ReleaseInfo[];
 }

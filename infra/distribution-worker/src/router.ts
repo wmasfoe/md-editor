@@ -289,73 +289,180 @@ export async function buildReleasesManifest(
       });
     }
 
+    const hasAndroid = assets.some((a) => a.platform === "android");
+    const hasDesktop = assets.some(
+      (a) =>
+        a.platform.includes("macos") ||
+        a.platform.includes("windows") ||
+        a.platform.includes("linux"),
+    );
+    const category: ReleaseInfo["category"] = hasAndroid && !hasDesktop ? "android" : "desktop";
+
     releases.push({
       version,
       tagName: raw.tag_name,
       publishedAt: raw.published_at || new Date().toISOString(),
       isLatest,
       isPrerelease: Boolean(raw.prerelease),
+      category,
       releaseNotesUrl:
         raw.html_url || `https://github.com/${githubRepo}/releases/tag/${raw.tag_name}`,
       assets,
     });
   }
 
-  // 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新版本
-  if (releases.length === 0) {
+  // 3. 动态补全移动端（Android）最新发布条目，解决跨端版本号不一致导致翻找历史记录的问题
+  let androidVersion = "0.1.0";
+  let androidFileName = `Inkpoint_${androidVersion}.apk`;
+  let androidSizeBytes = 45000000;
+  let androidPublishedAt = "2026-09-16T12:00:00Z";
+
+  if (env.RELEASE_BUCKET) {
+    const versionJsonObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+    if (versionJsonObj) {
+      try {
+        const vData = JSON.parse(await versionJsonObj.text()) as AppVersionManifest;
+        if (vData.android?.version) {
+          androidVersion = vData.android.version;
+          if (vData.android.apk?.fileName) {
+            androidFileName = vData.android.apk.fileName;
+          }
+          if (vData.android.apk?.sizeBytes) {
+            androidSizeBytes = vData.android.apk.sizeBytes;
+          }
+          if (vData.updatedAt) {
+            androidPublishedAt = vData.updatedAt;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 确保清单中包含专属 Android Release
+  const existingAndroid = releases.find(
+    (r) =>
+      r.category === "android" ||
+      (r.version === androidVersion && r.assets.some((a) => a.platform === "android")),
+  );
+
+  if (!existingAndroid) {
     releases.push({
-      version: "0.10.2",
-      tagName: "v0.10.2",
-      publishedAt: new Date().toISOString(),
+      version: androidVersion,
+      tagName: `android-v${androidVersion}`,
+      publishedAt: androidPublishedAt,
       isLatest: true,
-      isPrerelease: false,
-      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
+      isPrerelease: true,
+      category: "android",
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${androidVersion}`,
       assets: [
         {
-          platform: "macos-arm64",
-          platformLabel: "macOS (Apple Silicon) · DMG",
-          fileName: "Inkpoint_0.10.2_aarch64.dmg",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
-          sizeBytes: 30680892,
-          formattedSize: "29.3 MB",
-          isR2Cached: true,
-        },
-        {
-          platform: "windows-x64",
-          platformLabel: "Windows (x64) · Setup",
-          fileName: "Inkpoint_0.10.2_x64-setup.exe",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
-          sizeBytes: 8072766,
-          formattedSize: "7.7 MB",
-          isR2Cached: true,
-        },
-        {
-          platform: "linux-appimage",
-          platformLabel: "Linux (x86_64) · AppImage",
-          fileName: "Inkpoint_0.10.2_amd64.AppImage",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
-          sizeBytes: 91474424,
-          formattedSize: "87.2 MB",
-          isR2Cached: true,
-        },
-        {
           platform: "android",
-          platformLabel: "Android · APK",
-          fileName: "Inkpoint_0.1.0.apk",
-          downloadUrl: `${baseUrl}/${app}/android/latest`,
-          sizeBytes: 45000000,
-          formattedSize: "42.9 MB",
+          platformLabel: "Android · APK (Beta)",
+          fileName: androidFileName,
+          downloadUrl: `${baseUrl}/${app}/android/${androidVersion}/${androidFileName}`,
+          sizeBytes: androidSizeBytes,
+          formattedSize: formatBytes(androidSizeBytes),
           isR2Cached: true,
         },
       ],
     });
   }
 
+  // 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新版本
+  if (releases.length === 0) {
+    releases.push(
+      {
+        version: "0.10.2",
+        tagName: "v0.10.2",
+        publishedAt: new Date().toISOString(),
+        isLatest: true,
+        isPrerelease: false,
+        category: "desktop",
+        releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
+        assets: [
+          {
+            platform: "macos-arm64",
+            platformLabel: "macOS (Apple Silicon) · DMG",
+            fileName: "Inkpoint_0.10.2_aarch64.dmg",
+            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
+            sizeBytes: 30680892,
+            formattedSize: "29.3 MB",
+            isR2Cached: true,
+          },
+          {
+            platform: "windows-x64",
+            platformLabel: "Windows (x64) · Setup",
+            fileName: "Inkpoint_0.10.2_x64-setup.exe",
+            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
+            sizeBytes: 8072766,
+            formattedSize: "7.7 MB",
+            isR2Cached: true,
+          },
+          {
+            platform: "linux-appimage",
+            platformLabel: "Linux (x86_64) · AppImage",
+            fileName: "Inkpoint_0.10.2_amd64.AppImage",
+            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
+            sizeBytes: 91474424,
+            formattedSize: "87.2 MB",
+            isR2Cached: true,
+          },
+        ],
+      },
+      {
+        version: androidVersion,
+        tagName: `android-v${androidVersion}`,
+        publishedAt: androidPublishedAt,
+        isLatest: true,
+        isPrerelease: true,
+        category: "android",
+        releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${androidVersion}`,
+        assets: [
+          {
+            platform: "android",
+            platformLabel: "Android · APK (Beta)",
+            fileName: androidFileName,
+            downloadUrl: `${baseUrl}/${app}/android/${androidVersion}/${androidFileName}`,
+            sizeBytes: androidSizeBytes,
+            formattedSize: formatBytes(androidSizeBytes),
+            isR2Cached: true,
+          },
+        ],
+      },
+    );
+  }
+
+  // 4. 计算各端最新版本与直达摘要
+  const desktopRelease = releases.find((r) => r.category === "desktop");
+  const androidRelease = releases.find(
+    (r) => r.category === "android" || r.assets.some((a) => a.platform === "android"),
+  );
+
+  const latestDesktopVersion = desktopRelease?.version || releases[0]?.version || "0.10.2";
+  const latestAndroidVersion = androidRelease?.version || androidVersion;
+
   return {
     app,
     updatedAt: new Date().toISOString(),
     total: releases.length,
-    latestVersion: releases[0]?.version || "0.10.2",
+    latestVersion: latestDesktopVersion,
+    latestDesktopVersion,
+    latestAndroidVersion,
+    latestReleases: {
+      desktop: {
+        version: latestDesktopVersion,
+        downloadUrl: `${baseUrl}/${app}/${latestDesktopVersion}/`,
+        assets: desktopRelease?.assets || [],
+      },
+      android: {
+        version: latestAndroidVersion,
+        downloadUrl: `${baseUrl}/${app}/android/latest`,
+        fileName: androidFileName,
+        formattedSize: formatBytes(androidSizeBytes),
+      },
+    },
     releases,
   };
 }
@@ -877,12 +984,18 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
   }
 
-  // 8. 兼容别名路径: /releases, /portal 或 /:app/releases, /:app/portal
-  const portalMatch = path.match(/^(?:\/([^/]+))?\/(?:releases|portal)(?:\.html)?$/);
+  // 8. 兼容别名路径: /releases, /portal 或 /:app/releases, /:app/portal (支持 /releases/android, /releases/desktop)
+  const portalMatch = path.match(
+    /^(?:\/([^/]+))?\/(?:releases|portal)(?:\/(android|desktop|mobile))?(?:\.html)?$/,
+  );
   if (portalMatch) {
     const app = portalMatch[1] || defaultApp;
+    const catParam =
+      portalMatch[2] === "mobile"
+        ? "android"
+        : (portalMatch[2] as "android" | "desktop" | undefined);
     const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-    const html = renderVersionIndexHtml(app, manifest, url.origin);
+    const html = renderVersionIndexHtml(app, manifest, url.origin, catParam || "all");
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
@@ -911,17 +1024,45 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
   }
 
-  // 9.2 双段路径：特定版本安装包列表 Index of /:app/:version/ (如 /inkpoint/0.10.1)
+  // 9.2 双段路径：特定版本安装包列表 Index of /:app/:version/ (如 /inkpoint/0.10.1) 或分类列表 (如 /inkpoint/android)
   if (segments.length === 2) {
     const [app, version] = segments;
     if (!["api", "gh"].includes(app)) {
       const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+
+      // 分类快捷直达入口：/inkpoint/android 或 /inkpoint/desktop
+      if (version === "android" || version === "mobile") {
+        const html = renderVersionIndexHtml(app, manifest, url.origin, "android");
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=120, s-maxage=300",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+      if (version === "desktop") {
+        const html = renderVersionIndexHtml(app, manifest, url.origin, "desktop");
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=120, s-maxage=300",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+
       const cleanVer = version.replace(/^v/, "");
       const release = manifest.releases.find(
-        (r) => r.version === cleanVer || r.version === version || r.tagName === version,
+        (r) =>
+          r.version === cleanVer ||
+          r.version === version ||
+          r.tagName === version ||
+          r.tagName === `android-v${cleanVer}`,
       );
       if (release) {
-        const html = renderVersionFilesHtml(app, release, url.origin);
+        const latestAndroidVer = manifest.latestAndroidVersion || "0.1.0";
+        const html = renderVersionFilesHtml(app, release, url.origin, latestAndroidVer);
         return new Response(html, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
