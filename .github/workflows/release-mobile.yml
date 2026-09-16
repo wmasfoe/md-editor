@@ -1,0 +1,157 @@
+name: Release Mobile Apps (Android APK to Cloudflare R2)
+
+on:
+  push:
+    tags:
+      - "android-v*"
+      - "mobile-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0, without prefix)"
+        required: false
+        default: ""
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish-android:
+    name: Build & Publish Android APK to R2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine Release Version
+        id: release_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Strip 'android-v' or 'mobile-v' prefix
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#android-v}"
+            VERSION="${VERSION#mobile-v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build & Sync Mobile Web Bundle
+        run: pnpm run build:mobile
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Run Android Unit Tests
+        working-directory: apps/mobile/android
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build Android APK (Progressive Signing)
+        id: build_apk
+        working-directory: apps/mobile/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          mkdir -p ../../../dist-mobile
+
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "🔑 Production keystore secret detected. Building signed release APK..."
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            ./gradlew assembleRelease
+            APK_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          else
+            echo "ℹ️ No production keystore secret configured. Building universal self-signed APK (assembleDebug)..."
+            ./gradlew assembleDebug
+            APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
+          fi
+
+          VERSION="${{ steps.release_version.outputs.version }}"
+          TARGET_APK="../../../dist-mobile/Inkpoint_${VERSION}.apk"
+          LATEST_APK="../../../dist-mobile/Inkpoint_latest.apk"
+
+          cp "$APK_SRC" "$TARGET_APK"
+          cp "$APK_SRC" "$LATEST_APK"
+          echo "target_apk=${TARGET_APK}" >> "$GITHUB_OUTPUT"
+          echo "latest_apk=${LATEST_APK}" >> "$GITHUB_OUTPUT"
+          echo "✓ Created: ${TARGET_APK}"
+
+      - name: Generate Multi-App version.json Manifest
+        env:
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          UPDATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          node -e '
+            const fs = require("fs");
+            const version = process.env.VERSION;
+            const manifest = {
+              app: "inkpoint",
+              updatedAt: process.env.UPDATED_AT,
+              android: {
+                version: version,
+                apk: {
+                  version: version,
+                  fileName: `Inkpoint_${version}.apk`,
+                  downloadUrl: "https://download.justdev.cn/inkpoint/android/latest"
+                }
+              },
+              ios: {
+                version: version,
+                testFlightUrl: "https://testflight.apple.com/join/placeholder"
+              }
+            };
+            fs.writeFileSync("dist-mobile/version.json", JSON.stringify(manifest, null, 2));
+            console.log("✓ Generated dist-mobile/version.json");
+          '
+
+      - name: Note missing Cloudflare credentials
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' }}
+        run: |
+          echo "::warning ::CLOUDFLARE_API_TOKEN secret is not configured. Artifacts will be archived in GitHub Actions artifacts only."
+
+      - name: Upload APK & Manifest to Cloudflare R2
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME || 'inkpoint-releases' }}
+          VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          echo "🚀 Uploading Android release artifacts to Cloudflare R2 bucket: ${R2_BUCKET_NAME}..."
+          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/android/${VERSION}/Inkpoint_${VERSION}.apk" --file "dist-mobile/Inkpoint_${VERSION}.apk"
+          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/android/latest.apk" --file "dist-mobile/Inkpoint_latest.apk"
+          npx wrangler r2 object put "${R2_BUCKET_NAME}/inkpoint/version.json" --file "dist-mobile/version.json"
+          echo "✅ All artifacts successfully deployed to Cloudflare R2!"
+
+      - name: Archive Android Artifacts in GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkpoint-android-${{ steps.release_version.outputs.version }}-apk
+          path: dist-mobile/*
+          retention-days: 30

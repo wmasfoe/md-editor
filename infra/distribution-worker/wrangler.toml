@@ -1,0 +1,13 @@
+name = "inkpoint-distribution"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+
+[vars]
+GITHUB_REPO = "wmasfoe/md-editor"
+DEFAULT_APP = "inkpoint"
+PUBLIC_DOMAIN = "download.justdev.cn"
+
+[[r2_buckets]]
+binding = "RELEASE_BUCKET"
+bucket_name = "inkpoint-releases"
+preview_bucket_name = "inkpoint-releases-preview"

@@ -2,6 +2,7 @@ import type { Locale } from "./i18n/types";
 import { SITE_PLATFORMS, type SitePlatform } from "./platform";
 import {
   ARTIFACT_NAME_PREFIX,
+  buildAndroidApkUrl,
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
   buildWindowsSetupUrl,
@@ -170,4 +171,43 @@ function fallbackCatalog(locale: Locale = "zh"): DownloadCatalog {
 
 export function listSitePlatforms(): SitePlatform[] {
   return [...SITE_PLATFORMS];
+}
+
+export interface MobilePlatformDownload {
+  android: {
+    primary: DownloadAsset;
+    format: string;
+    version: string;
+  };
+  ios: {
+    primary: DownloadAsset;
+    format: string;
+    version: string;
+  };
+}
+
+/**
+ * 构造移动端（Android / iOS）下载目录
+ */
+export function getMobileDownloadCatalog(locale: Locale = "zh"): MobilePlatformDownload {
+  const isEn = locale === "en";
+  return {
+    android: {
+      primary: {
+        href: buildAndroidApkUrl("0.1.0"),
+        fileName: "Inkpoint_0.1.0.apk",
+        label: isEn ? "Download Android APK" : "下载 Android 安装包 (APK)",
+      },
+      format: "Android 8.0+ · APK",
+      version: "0.1.0",
+    },
+    ios: {
+      primary: {
+        href: "https://testflight.apple.com/join/placeholder",
+        label: isEn ? "Join iOS TestFlight" : "加入 iOS TestFlight 公测",
+      },
+      format: "iOS 16.0+ · TestFlight",
+      version: "0.1.0",
+    },
+  };
 }

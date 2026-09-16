@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "apps/mobile/*"
+  - "infra/*"
   - "packages/*"
   - "site"
 
