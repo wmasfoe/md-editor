@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
+import {
+  buildReleasesManifest,
+  getStaticHtmlR2Keys,
+  handleRequest,
+  matchDesktopAsset,
+} from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -477,5 +482,76 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(
       true,
     );
+  });
+
+  it("should resolve static HTML R2 keys correctly", () => {
+    expect(getStaticHtmlR2Keys("/")).toEqual(["index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint")).toEqual(["inkpoint/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/desktop")).toEqual(["inkpoint/desktop/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/android")).toEqual(["inkpoint/android/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/desktop/0.10.2")).toEqual([
+      "inkpoint/desktop/0.10.2/index.html",
+    ]);
+    expect(getStaticHtmlR2Keys("/releases")).toEqual([
+      "inkpoint/index.html",
+      "releases/index.html",
+    ]);
+  });
+
+  it("should serve pre-rendered static HTML directly from R2 when present", async () => {
+    const staticHtmlContent = "<!DOCTYPE html><html><body>Static R2 HTML</body></html>";
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/index.html") {
+          return {
+            body: new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(staticHtmlContent));
+                controller.close();
+              },
+            }),
+            httpEtag: "etag-static-html",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toBe(staticHtmlContent);
+  });
+
+  it("should serve static asset directly from ASSETS fetcher when present", async () => {
+    const staticHtmlContent = "<!DOCTYPE html><html><body>Static Edge Asset</body></html>";
+    const mockAssets = {
+      fetch: async (_req: Request) => {
+        return new Response(staticHtmlContent, {
+          status: 200,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/android");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      ASSETS: mockAssets as unknown as Fetcher,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toBe(staticHtmlContent);
   });
 });

@@ -5,8 +5,11 @@
   "description": "Cloudflare Worker edge gateway for Inkpoint and multi-app installer distribution",
   "type": "module",
   "scripts": {
+    "build": "node --experimental-strip-types scripts/build-static-portal.ts",
+    "predev": "node --experimental-strip-types scripts/build-static-portal.ts",
+    "predeploy": "node --experimental-strip-types scripts/build-static-portal.ts",
     "dev": "npx wrangler dev",
-    "deploy": "npx wrangler deploy",
+    "deploy": "pnpm build && npx wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

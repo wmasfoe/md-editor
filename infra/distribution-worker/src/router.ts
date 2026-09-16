@@ -540,6 +540,41 @@ export async function serveR2Object(
 }
 
 /**
+ * 获取路径对应的 R2 预渲染静态 HTML 文件键名列表
+ */
+export function getStaticHtmlR2Keys(path: string, defaultApp = "inkpoint"): string[] {
+  const clean = path.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!clean) {
+    return ["index.html"];
+  }
+  if (clean === "releases" || clean === "portal") {
+    return [`${defaultApp}/index.html`, "releases/index.html"];
+  }
+  if (clean === "releases/desktop") {
+    return [`${defaultApp}/desktop/index.html`, "releases/desktop/index.html"];
+  }
+  if (clean === "releases/android" || clean === "releases/mobile") {
+    return [`${defaultApp}/android/index.html`, "releases/android/index.html"];
+  }
+  const parts = clean.split("/").filter(Boolean);
+  if (parts.length === 1) {
+    return [`${parts[0]}/index.html`];
+  }
+  if (parts.length === 2) {
+    if (parts[1] === "desktop" || parts[1] === "android") {
+      return [`${parts[0]}/${parts[1]}/index.html`];
+    }
+    // 兼容历史旧路由 /:app/:version
+    return [`${parts[0]}/desktop/${parts[1]}/index.html`, `${parts[0]}/${parts[1]}/index.html`];
+  }
+  if (parts.length === 3) {
+    // /:app/:device/:version
+    return [`${parts[0]}/${parts[1]}/${parts[2]}/index.html`];
+  }
+  return [];
+}
+
+/**
  * 核心请求处理器
  */
 export async function handleRequest(
@@ -585,6 +620,32 @@ export async function handleRequest(
       ctx.waitUntil(cache.put(request, response.clone()));
     }
     return response;
+  }
+
+  // 1.1 静态资产层 (Cloudflare Workers ASSETS): 优先从预构建静态资产直接响应，免去 Worker 运算
+  if (env.ASSETS && (request.method === "GET" || request.method === "HEAD")) {
+    try {
+      const assetRes = await env.ASSETS.fetch(request);
+      if (assetRes.status !== 404) {
+        return respond(assetRes, false);
+      }
+    } catch {
+      // 忽略静态资产异常，降级回退
+    }
+  }
+
+  // 1.2 边缘存储静态化层 (R2 预渲染 HTML): 优先从 R2 获取静态页面，避免实时计算
+  if (env.RELEASE_BUCKET && (request.method === "GET" || request.method === "HEAD")) {
+    const accept = request.headers.get("Accept") || "";
+    if (accept.includes("text/html") || !path.includes(".")) {
+      const staticR2Keys = getStaticHtmlR2Keys(path, defaultApp);
+      for (const key of staticR2Keys) {
+        const obj = await env.RELEASE_BUCKET.get(key);
+        if (obj) {
+          return serveR2Object(obj, "index.html", "text/html; charset=utf-8", false);
+        }
+      }
+    }
   }
 
   // 1. 首页路由：浏览器访问返回应用目录索引 (Index of /)，CLI / API 访问返回网关路由描述

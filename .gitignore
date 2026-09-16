@@ -9,6 +9,7 @@ build/
 *.tsbuildinfo
 .vite/
 .turbo/
+infra/distribution-worker/public/
 # Vercel CLI link：只允许 monorepo 根 .vercel/（不要 site/.vercel）
 .vercel/*
 !.vercel/project.json
