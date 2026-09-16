@@ -1,5 +1,5 @@
 import type { Locale } from "./i18n/types";
-import { SITE_PLATFORMS, type SitePlatform } from "./platform";
+import { SITE_PLATFORMS, type DesktopPlatform, type SitePlatform } from "./platform";
 import {
   ARTIFACT_NAME_PREFIX,
   buildAndroidApkUrl,
@@ -30,6 +30,8 @@ export type PlatformDownload = {
   /** 按钮下方的格式说明，例如 "Apple Silicon · DMG" */
   format: string;
   secondary: DownloadAsset[];
+  version?: string;
+  isBeta?: boolean;
 };
 
 export type DownloadCatalog = Record<SitePlatform, PlatformDownload> & {
@@ -43,7 +45,7 @@ export type PlatformInstall = {
   extra?: { title: string; command: string };
 };
 
-const INSTALL_BY_PLATFORM_ZH: Record<SitePlatform, PlatformInstall> = {
+const INSTALL_BY_PLATFORM_ZH: Record<"macos" | "linux" | "windows", PlatformInstall> = {
   macos: {
     title: "终端一键安装",
     command: UNIX_INSTALL_COMMAND,
@@ -65,7 +67,7 @@ const INSTALL_BY_PLATFORM_ZH: Record<SitePlatform, PlatformInstall> = {
   },
 };
 
-const INSTALL_BY_PLATFORM_EN: Record<SitePlatform, PlatformInstall> = {
+const INSTALL_BY_PLATFORM_EN: Record<"macos" | "linux" | "windows", PlatformInstall> = {
   macos: {
     title: "One-line Terminal Install",
     command: UNIX_INSTALL_COMMAND,
@@ -87,14 +89,15 @@ const INSTALL_BY_PLATFORM_EN: Record<SitePlatform, PlatformInstall> = {
   },
 };
 
-/** 按版本和语言构造三平台主下载与次要架构入口；无效版本一律回退到 Releases 列表。 */
+/** 按版本和语言构造多平台主下载与次要架构入口；移动端排在最后并标明测试版状态。 */
 export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): DownloadCatalog {
   const normalized = version ? normalizeVersion(version) : null;
+  const isEn = locale === "en";
+  const mobile = getMobileDownloadCatalog(locale);
+
   if (!normalized) {
     return fallbackCatalog(locale);
   }
-
-  const isEn = locale === "en";
 
   return {
     macos: {
@@ -105,6 +108,8 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
       },
       format: "Apple Silicon · DMG",
       secondary: [],
+      version: normalized,
+      isBeta: false,
     },
     linux: {
       primary: {
@@ -120,6 +125,8 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
           label: "ARM64 AppImage",
         },
       ],
+      version: normalized,
+      isBeta: false,
     },
     windows: {
       primary: {
@@ -135,13 +142,35 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
           label: isEn ? "ARM64 Setup" : "ARM64 安装包",
         },
       ],
+      version: normalized,
+      isBeta: false,
+    },
+    android: {
+      primary: mobile.android.primary,
+      format: mobile.android.format,
+      secondary: mobile.android.secondary,
+      version: mobile.android.version,
+      isBeta: true,
+    },
+    ios: {
+      primary: mobile.ios.primary,
+      format: mobile.ios.format,
+      secondary: mobile.ios.secondary,
+      version: mobile.ios.version,
+      isBeta: true,
     },
     allPackagesUrl: GITHUB_RELEASES_URL,
   };
 }
 
-export function getPlatformInstall(platform: SitePlatform, locale: Locale = "zh"): PlatformInstall {
-  return locale === "en" ? INSTALL_BY_PLATFORM_EN[platform] : INSTALL_BY_PLATFORM_ZH[platform];
+export function getPlatformInstall(platform: DesktopPlatform, locale?: Locale): PlatformInstall;
+export function getPlatformInstall(platform: SitePlatform, locale?: Locale): PlatformInstall | null;
+export function getPlatformInstall(
+  platform: SitePlatform,
+  locale: Locale = "zh",
+): PlatformInstall | null {
+  const table = locale === "en" ? INSTALL_BY_PLATFORM_EN : INSTALL_BY_PLATFORM_ZH;
+  return (table as Record<string, PlatformInstall>)[platform] ?? null;
 }
 
 export function getPrimaryDownload(
@@ -161,10 +190,25 @@ function fallbackPrimary(label: string, format: string): PlatformDownload {
 
 function fallbackCatalog(locale: Locale = "zh"): DownloadCatalog {
   const isEn = locale === "en";
+  const mobile = getMobileDownloadCatalog(locale);
   return {
     macos: fallbackPrimary(isEn ? "Download for macOS" : "下载 macOS", "Apple Silicon · DMG"),
     linux: fallbackPrimary(isEn ? "Download for Linux" : "下载 Linux", "x86_64 · AppImage"),
     windows: fallbackPrimary(isEn ? "Download for Windows" : "下载 Windows", "x64 · Setup"),
+    android: {
+      primary: mobile.android.primary,
+      format: mobile.android.format,
+      secondary: mobile.android.secondary,
+      version: mobile.android.version,
+      isBeta: true,
+    },
+    ios: {
+      primary: mobile.ios.primary,
+      format: mobile.ios.format,
+      secondary: mobile.ios.secondary,
+      version: mobile.ios.version,
+      isBeta: true,
+    },
     allPackagesUrl: GITHUB_RELEASES_URL,
   };
 }
@@ -177,17 +221,19 @@ export interface MobilePlatformDownload {
   android: {
     primary: DownloadAsset;
     format: string;
+    secondary: DownloadAsset[];
     version: string;
   };
   ios: {
     primary: DownloadAsset;
     format: string;
+    secondary: DownloadAsset[];
     version: string;
   };
 }
 
 /**
- * 构造移动端（Android / iOS）下载目录
+ * 构造移动端（Android / iOS）下载目录，标明测试版状态
  */
 export function getMobileDownloadCatalog(locale: Locale = "zh"): MobilePlatformDownload {
   const isEn = locale === "en";
@@ -196,18 +242,76 @@ export function getMobileDownloadCatalog(locale: Locale = "zh"): MobilePlatformD
       primary: {
         href: buildAndroidApkUrl("0.1.0"),
         fileName: "Inkpoint_0.1.0.apk",
-        label: isEn ? "Download Android APK" : "下载 Android 安装包 (APK)",
+        label: isEn ? "Download Android APK (Beta)" : "下载 Android 安装包 (APK)",
       },
-      format: "Android 8.0+ · APK",
+      format: isEn ? "Android 8.0+ · APK · Beta" : "Android 8.0+ · APK · 测试版",
+      secondary: [
+        {
+          href: buildAndroidApkUrl(),
+          label: isEn ? "Latest APK Link" : "最新版直链",
+        },
+      ],
       version: "0.1.0",
     },
     ios: {
       primary: {
         href: "https://testflight.apple.com/join/placeholder",
-        label: isEn ? "Join iOS TestFlight" : "加入 iOS TestFlight 公测",
+        label: isEn ? "Join iOS TestFlight (Beta)" : "加入 iOS TestFlight 公测",
       },
-      format: "iOS 16.0+ · TestFlight",
+      format: isEn ? "iOS 16.0+ · TestFlight · Beta" : "iOS 16.0+ · TestFlight · 测试版",
+      secondary: [],
       version: "0.1.0",
     },
+  };
+}
+
+export interface MobilePlatformGuide {
+  badge: string;
+  title: string;
+  requirements: string;
+  description: string;
+  tips: string;
+  feedback: string;
+}
+
+export function getMobilePlatformGuide(
+  platform: "android" | "ios",
+  locale: Locale = "zh",
+): MobilePlatformGuide {
+  const isEn = locale === "en";
+  if (platform === "android") {
+    return {
+      badge: isEn ? "Public Beta" : "公测中 · Beta",
+      title: isEn ? "Android Beta Guide" : "Android 客户端公测说明",
+      requirements: isEn
+        ? "Requires Android 8.0 (API 26) or later (Phones & Tablets)"
+        : "适用于 Android 8.0 (API 26) 及更高版本的手机与平板设备",
+      description: isEn
+        ? "Inkpoint Mobile is currently in public beta. Featuring the native CodeMirror 6 engine, bidirectional links, and offline local editing."
+        : "Inkpoint 移动端当前处于公测（Beta）阶段，采用原生 CodeMirror 6 编辑引擎，具备离线 Markdown 读写与双向链接能力。",
+      tips: isEn
+        ? "Open the APK directly after downloading. If prompted with 'Unknown sources', allow install from this browser in system settings."
+        : "下载 APK 后可直接点击安装。若系统提示「来源未知的应用」，请在系统设置中允许来自此浏览器的应用安装。",
+      feedback: isEn
+        ? "Encountered any rendering issues or input glitches? Feel free to report them via GitHub."
+        : "公测阶段功能正持续迭代，如遇排版渲染或输入法兼容问题，欢迎前往 GitHub 提交 Issue 反馈。",
+    };
+  }
+
+  return {
+    badge: isEn ? "Public Beta" : "公测中 · Beta",
+    title: isEn ? "iOS TestFlight Beta Guide" : "iOS 客户端公测说明",
+    requirements: isEn
+      ? "Requires iOS 16.0 or later on iPhone and iPad"
+      : "适用于 iOS 16.0 及更高版本的 iPhone 与 iPad 设备",
+    description: isEn
+      ? "Inkpoint for iOS is distributed via Apple TestFlight public beta — official, secure, and easy to install."
+      : "Inkpoint iOS 版目前通过 Apple 官方 TestFlight 进行公测体验，免签名、更稳定、体验丝滑。",
+    tips: isEn
+      ? "Please install the Apple 'TestFlight' app from the App Store first, then tap the button above to join the Beta."
+      : "请先在 App Store 下载安装 Apple 官方「TestFlight」应用，随后点击上方按钮加入 Inkpoint 公测。",
+    feedback: isEn
+      ? "You can share screenshots directly inside TestFlight or report issues via GitHub."
+      : "可直接在 TestFlight 应用中截屏并反馈体验建议，或在 GitHub 提交反馈。",
   };
 }

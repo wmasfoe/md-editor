@@ -23,7 +23,8 @@ export interface LiquidGlassSegmentedControlProps<T extends string> {
   items: T[];
   value: T;
   onChange: (value: T) => void;
-  getLabel: (item: T) => string;
+  getLabel: (item: T) => React.ReactNode;
+  getAriaLabel?: (item: T) => string;
   ariaLabel?: string;
   className?: string;
 }
@@ -36,6 +37,7 @@ export function LiquidGlassSegmentedControl<T extends string>({
   value,
   onChange,
   getLabel,
+  getAriaLabel,
   ariaLabel,
   className = "",
 }: LiquidGlassSegmentedControlProps<T>) {
@@ -341,7 +343,13 @@ export function LiquidGlassSegmentedControl<T extends string>({
               onClick={() => handleItemClick(idx)}
               className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
             >
-              <span className="sr-only">{getLabel(item)}</span>
+              <span className="sr-only">
+                {getAriaLabel
+                  ? getAriaLabel(item)
+                  : typeof getLabel(item) === "string"
+                    ? (getLabel(item) as string)
+                    : item}
+              </span>
             </button>
           );
         })}
