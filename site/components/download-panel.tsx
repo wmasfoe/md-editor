@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   buildDownloadCatalog,
+  getMobileDownloadCatalog,
   getPlatformInstall,
   listSitePlatforms,
   type DownloadCatalog,
@@ -25,6 +26,7 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
   const platforms = listSitePlatforms();
+  const mobileDownloads = getMobileDownloadCatalog(locale);
 
   return (
     <div className="w-full">
@@ -92,6 +94,27 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
           {t.hero.allPackages}
         </a>
       </p>
+
+      {/* 移动端 (Android APK / iOS) 快速接入通道 */}
+      <div className="mt-3 flex items-center justify-center gap-x-3 text-xs text-muted">
+        <span>{locale === "en" ? "Mobile apps:" : "移动客户端："}</span>
+        <a
+          href={mobileDownloads.android.primary.href}
+          download={mobileDownloads.android.primary.fileName}
+          className="text-ink-soft underline decoration-dotted transition-colors hover:text-ink"
+        >
+          {locale === "en" ? "Android APK (v0.1.0)" : "Android APK (v0.1.0)"}
+        </a>
+        <span className="text-line-strong">·</span>
+        <a
+          href={mobileDownloads.ios.primary.href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-ink-soft underline decoration-dotted transition-colors hover:text-ink"
+        >
+          {locale === "en" ? "iOS TestFlight" : "iOS TestFlight 公测"}
+        </a>
+      </div>
 
       <div className="mx-auto mt-8 max-w-2xl text-left sm:mt-10">
         <InstallCommand

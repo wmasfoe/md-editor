@@ -39,6 +39,39 @@ export const ARTIFACT_NAME_PREFIX = "Inkpoint";
 
 const TAP_RELEASE_REPO = "wmasfoe/homebrew-tap";
 
+/** 官方全球分发与边缘加速域名（基于 Cloudflare Worker & R2） */
+export const DISTRIBUTION_DOMAIN =
+  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_DISTRIBUTION_DOMAIN) ||
+  "download.justdev.cn";
+
+/** 官方全球分发加速基础 URL */
+export const DISTRIBUTION_URL = `https://${DISTRIBUTION_DOMAIN}`;
+
+/**
+ * 构造基于 Cloudflare Worker 边缘加速的最新桌面安装包直链
+ */
+export function buildAcceleratedDesktopUrl(platform: "macos" | "windows" | "linux"): string {
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${platform}/latest`;
+}
+
+/**
+ * 构造基于 Cloudflare R2 全球分发的 Android APK 安装包直链
+ */
+export function buildAndroidApkUrl(version?: string): string {
+  if (version) {
+    const normalized = normalizeVersion(version);
+    return `${DISTRIBUTION_URL}/inkpoint/android/${normalized}/Inkpoint_${normalized}.apk`;
+  }
+  return `${DISTRIBUTION_URL}/inkpoint/android/latest`;
+}
+
+/**
+ * 构造通用多端版本清单接口 URL
+ */
+export function buildVersionApiUrl(app = "inkpoint"): string {
+  return `${DISTRIBUTION_URL}/api/${app}/version.json`;
+}
+
 /**
  * 根据语义化版本构造最新 macOS DMG 直链。
  * 文件名与 release workflow / cask 约定一致：Inkpoint_{version}_aarch64.dmg

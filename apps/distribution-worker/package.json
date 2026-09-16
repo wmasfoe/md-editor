@@ -1,0 +1,18 @@
+{
+  "name": "@md-editor/distribution-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker edge gateway for Inkpoint and multi-app installer distribution",
+  "type": "module",
+  "scripts": {
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

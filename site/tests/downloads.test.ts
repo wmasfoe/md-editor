@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDownloadCatalog,
+  getMobileDownloadCatalog,
   getPlatformInstall,
   MACOS_QUARANTINE_COMMAND,
   UNIX_INSTALL_COMMAND,
@@ -53,5 +54,20 @@ describe("getPlatformInstall", () => {
       command: WINDOWS_INSTALL_COMMAND,
       recommended: false,
     });
+  });
+
+  it("builds mobile download catalog with Android APK and iOS TestFlight", () => {
+    const zh = getMobileDownloadCatalog("zh");
+    expect(zh.android.primary.href).toBe(
+      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+    );
+    expect(zh.android.primary.label).toBe("下载 Android 安装包 (APK)");
+    expect(zh.android.format).toBe("Android 8.0+ · APK");
+    expect(zh.ios.primary.href).toContain("testflight.apple.com");
+    expect(zh.ios.format).toBe("iOS 16.0+ · TestFlight");
+
+    const en = getMobileDownloadCatalog("en");
+    expect(en.android.primary.label).toBe("Download Android APK");
+    expect(en.ios.primary.label).toBe("Join iOS TestFlight");
   });
 });

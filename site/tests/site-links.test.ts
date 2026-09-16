@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   APP_DISPLAY_NAME,
   APP_NAME_ZH,
+  buildAcceleratedDesktopUrl,
+  buildAndroidApkUrl,
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
+  buildVersionApiUrl,
   buildWindowsSetupUrl,
+  DISTRIBUTION_DOMAIN,
+  DISTRIBUTION_URL,
   GITHUB_RELEASES_URL,
   GITHUB_REPO_URL,
   normalizeVersion,
@@ -72,5 +77,25 @@ describe("site-links", () => {
     expect(buildWindowsSetupUrl("v0.4.4", "arm64")).toBe(
       "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_arm64-setup.exe",
     );
+  });
+
+  it("exposes Cloudflare Worker distribution CDN domain and URLs", () => {
+    expect(DISTRIBUTION_DOMAIN).toBe("download.justdev.cn");
+    expect(DISTRIBUTION_URL).toBe("https://download.justdev.cn");
+    expect(buildAcceleratedDesktopUrl("macos")).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+    );
+    expect(buildAcceleratedDesktopUrl("windows")).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/windows/latest",
+    );
+    expect(buildAcceleratedDesktopUrl("linux")).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/linux/latest",
+    );
+    expect(buildAndroidApkUrl()).toBe("https://download.justdev.cn/inkpoint/android/latest");
+    expect(buildAndroidApkUrl("0.1.0")).toBe(
+      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+    );
+    expect(buildVersionApiUrl()).toBe("https://download.justdev.cn/api/inkpoint/version.json");
+    expect(buildVersionApiUrl("app2")).toBe("https://download.justdev.cn/api/app2/version.json");
   });
 });
