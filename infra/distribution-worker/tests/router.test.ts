@@ -191,6 +191,97 @@ describe("Distribution Worker Router & Matcher", () => {
     }
   });
 
+  it("should read desktop updater.json directly from R2 bucket when available", async () => {
+    const mockR2Updater = {
+      version: "0.10.2",
+      notes: "Inkpoint 0.10.2",
+      platforms: {
+        "darwin-aarch64": {
+          signature: "r2-sig-mac",
+          url: "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
+        },
+      },
+    };
+
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/updater.json") {
+          return {
+            body: JSON.stringify(mockR2Updater),
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop/updater.json");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as typeof mockR2Updater;
+    expect(data.version).toBe("0.10.2");
+    expect(data.platforms["darwin-aarch64"].url).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
+    );
+  });
+
+  it("should serve desktop latest artifact directly from R2 when available", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/macos/latest.dmg") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-dmg",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop/macos/latest");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/x-apple-diskimage");
+  });
+
+  it("should serve desktop versioned artifact directly from R2 when available", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-versioned-dmg",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request(
+      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
+    );
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/x-apple-diskimage");
+    expect(res.headers.get("Content-Disposition")).toContain("Inkpoint_0.10.2_aarch64.dmg");
+  });
+
   it("should return 404 on unrecognized route", async () => {
     const req = new Request("https://download.justdev.cn/unknown/invalid/path/test");
     const env: Env = {};

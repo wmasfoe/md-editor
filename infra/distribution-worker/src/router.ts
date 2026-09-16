@@ -351,6 +351,23 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // 4. 桌面端应用内自动更新清单加速: /:app/desktop/updater.json 或 /desktop/updater.json
   const updaterMatch = path.match(/^(?:\/([^/]+))?\/desktop\/updater(?:\.json)?$/);
   if (updaterMatch) {
+    const app = updaterMatch[1] || defaultApp;
+
+    // A. 优先从 R2 存储桶读取发布的 updater.json
+    if (env.RELEASE_BUCKET) {
+      const r2Updater = await env.RELEASE_BUCKET.get(`${app}/desktop/updater.json`);
+      if (r2Updater) {
+        return new Response(r2Updater.body, {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=300, s-maxage=300",
+          },
+        });
+      }
+    }
+
+    // B. 回退方案：从 GitHub homebrew-tap 读取并加速
     try {
       const upstream = await fetch(
         "https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/md-editor-latest.json",
@@ -457,8 +474,90 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   // 5. 桌面端最新版直链: /:app/desktop/:platform/latest 或 /desktop/:platform/latest
   const desktopMatch = path.match(/^(?:\/([^/]+))?\/desktop\/([^/]+)\/latest$/);
   if (desktopMatch) {
-    const platform = desktopMatch[2];
+    const app = desktopMatch[1] || defaultApp;
+    const platform = desktopMatch[2].toLowerCase();
 
+    // A. 优先从 R2 存储桶获取桌面端产物
+    if (env.RELEASE_BUCKET) {
+      const mimeTypes: Record<string, string> = {
+        dmg: "application/x-apple-diskimage",
+        exe: "application/x-msdownload",
+        AppImage: "application/x-executable",
+        appimage: "application/x-executable",
+        deb: "application/vnd.debian.binary-package",
+      };
+
+      // 1. 尝试直接获取固化的 latest 别名文件
+      const platformCandidates: Record<string, string[]> = {
+        macos: [`${app}/desktop/macos/latest.dmg`, `${app}/desktop/latest.dmg`],
+        "macos-arm64": [`${app}/desktop/macos/latest.dmg`],
+        "macos-x64": [`${app}/desktop/macos-x64/latest.dmg`],
+        windows: [`${app}/desktop/windows/latest.exe`, `${app}/desktop/latest.exe`],
+        "windows-x64": [`${app}/desktop/windows/latest.exe`],
+        "windows-arm64": [`${app}/desktop/windows-arm64/latest.exe`],
+        linux: [`${app}/desktop/linux/latest.AppImage`, `${app}/desktop/latest.AppImage`],
+        "linux-x64": [`${app}/desktop/linux/latest.AppImage`],
+        "linux-deb": [`${app}/desktop/linux/latest.deb`],
+      };
+
+      const candidates = platformCandidates[platform] || [
+        `${app}/desktop/${platform}/latest.dmg`,
+        `${app}/desktop/${platform}/latest.exe`,
+        `${app}/desktop/${platform}/latest.AppImage`,
+      ];
+
+      for (const candidate of candidates) {
+        const r2Obj = await env.RELEASE_BUCKET.get(candidate);
+        if (r2Obj) {
+          const ext = candidate.split(".").pop() || "";
+          return serveR2Object(
+            r2Obj,
+            `${app}-${platform}-latest.${ext}`,
+            mimeTypes[ext] || "application/octet-stream",
+          );
+        }
+      }
+
+      // 2. 检查 R2 中的 version.json 获取已发布的具体文件名
+      const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+      if (manifestObj) {
+        try {
+          const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
+          const dVer = manifest.desktop?.version;
+          const dAssets = manifest.desktop?.assets;
+          if (dVer && dAssets) {
+            let assetInfo;
+            if (platform.includes("mac") || platform.includes("dmg")) {
+              assetInfo = platform.includes("x64") ? dAssets.macos_x64 : dAssets.macos_arm64;
+            } else if (platform.includes("win") || platform.includes("exe")) {
+              assetInfo = platform.includes("arm64") ? dAssets.windows_arm64 : dAssets.windows_x64;
+            } else if (platform.includes("deb")) {
+              assetInfo = dAssets.linux_deb;
+            } else if (platform.includes("linux") || platform.includes("appimage")) {
+              assetInfo = dAssets.linux_appimage;
+            }
+
+            if (assetInfo?.fileName) {
+              const versionedObj = await env.RELEASE_BUCKET.get(
+                `${app}/desktop/${dVer}/${assetInfo.fileName}`,
+              );
+              if (versionedObj) {
+                const ext = assetInfo.fileName.split(".").pop() || "";
+                return serveR2Object(
+                  versionedObj,
+                  assetInfo.fileName,
+                  mimeTypes[ext] || "application/octet-stream",
+                );
+              }
+            }
+          }
+        } catch {
+          // 清单解析失败时继续回退 GitHub
+        }
+      }
+    }
+
+    // B. 回退方案：从 GitHub Releases 代理获取
     try {
       const release = await fetchLatestRelease(githubRepo, env);
 
@@ -506,12 +605,33 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   if (versionedMatch) {
     const [, app, platform, version, filename] = versionedMatch;
 
-    // A. 移动端直接从 R2 获取
-    if (platform === "android" && env.RELEASE_BUCKET) {
-      const r2Key = `${app}/android/${version}/${filename}`;
-      const obj = await env.RELEASE_BUCKET.get(r2Key);
-      if (obj) {
-        return serveR2Object(obj, filename, "application/vnd.android.package-archive");
+    const mimeTypes: Record<string, string> = {
+      dmg: "application/x-apple-diskimage",
+      exe: "application/x-msdownload",
+      AppImage: "application/x-executable",
+      appimage: "application/x-executable",
+      deb: "application/vnd.debian.binary-package",
+      apk: "application/vnd.android.package-archive",
+      gz: "application/gzip",
+      zip: "application/zip",
+      sig: "text/plain",
+      json: "application/json",
+    };
+    const ext = filename.split(".").pop() || "";
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+
+    // A. 优先从 R2 获取
+    if (env.RELEASE_BUCKET) {
+      const r2Keys = [
+        `${app}/${platform}/${version}/${filename}`,
+        `${app}/desktop/${version}/${filename}`,
+      ];
+
+      for (const r2Key of r2Keys) {
+        const obj = await env.RELEASE_BUCKET.get(r2Key);
+        if (obj) {
+          return serveR2Object(obj, filename, contentType);
+        }
       }
     }
 

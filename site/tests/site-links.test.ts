@@ -50,10 +50,10 @@ describe("site-links", () => {
 
   it("builds stable DMG download URL matching cask naming", () => {
     expect(buildMacosDmgUrl("0.3.16")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Inkpoint_0.3.16_aarch64.dmg",
+      "https://download.justdev.cn/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
     );
     expect(buildMacosDmgUrl("v0.3.16")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.3.16/Inkpoint_0.3.16_aarch64.dmg",
+      "https://download.justdev.cn/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
     );
   });
 
@@ -63,19 +63,19 @@ describe("site-links", () => {
 
   it("builds Linux AppImage URLs for x86_64 and aarch64", () => {
     expect(buildLinuxAppImageUrl("0.4.4")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_x86_64.AppImage",
+      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x86_64.AppImage",
     );
     expect(buildLinuxAppImageUrl("v0.4.4", "aarch64")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
+      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
     );
   });
 
   it("builds Windows Setup URLs for x64 and arm64", () => {
     expect(buildWindowsSetupUrl("0.4.4")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_x64-setup.exe",
+      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x64-setup.exe",
     );
     expect(buildWindowsSetupUrl("v0.4.4", "arm64")).toBe(
-      "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_arm64-setup.exe",
+      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_arm64-setup.exe",
     );
   });
 

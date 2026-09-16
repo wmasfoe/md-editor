@@ -37,8 +37,6 @@ export const APP_NAME_ZH = "墨点";
 /** Tauri 安装包文件名前缀，与 productName 一致。 */
 export const ARTIFACT_NAME_PREFIX = "Inkpoint";
 
-const TAP_RELEASE_REPO = "wmasfoe/homebrew-tap";
-
 /** 官方全球分发与边缘加速域名（基于 Cloudflare Worker & R2） */
 export const DISTRIBUTION_DOMAIN =
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_DISTRIBUTION_DOMAIN) ||
@@ -74,7 +72,7 @@ export function buildVersionApiUrl(app = "inkpoint"): string {
 
 /**
  * 根据语义化版本构造最新 macOS DMG 直链。
- * 文件名与 release workflow / cask 约定一致：Inkpoint_{version}_aarch64.dmg
+ * 优先走官方全球边缘分发网关（Cloudflare R2 直出 / 智能代理），避免国内访问 GitHub Release 失败。
  */
 export function buildMacosDmgUrl(version: string): string {
   const normalized = normalizeVersion(version);
@@ -82,9 +80,8 @@ export function buildMacosDmgUrl(version: string): string {
     throw new Error(`Invalid macOS DMG version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /**
@@ -99,9 +96,8 @@ export function buildLinuxAppImageUrl(
     throw new Error(`Invalid Linux version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_${arch}.AppImage`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /**
@@ -113,9 +109,8 @@ export function buildWindowsSetupUrl(version: string, arch: "x64" | "arm64" = "x
     throw new Error(`Invalid Windows version: ${version}`);
   }
 
-  const tag = `md-editor-v${normalized}`;
   const fileName = `${ARTIFACT_NAME_PREFIX}_${normalized}_${arch}-setup.exe`;
-  return `https://github.com/${TAP_RELEASE_REPO}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(fileName)}`;
+  return `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(fileName)}`;
 }
 
 /** 去掉可选 v 前缀；空串视为无效。 */

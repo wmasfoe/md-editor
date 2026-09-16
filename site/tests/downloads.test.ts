@@ -14,14 +14,14 @@ describe("buildDownloadCatalog", () => {
     const catalog = buildDownloadCatalog("v0.4.4");
 
     expect(catalog.macos.primary).toEqual({
-      href: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_aarch64.dmg",
+      href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.dmg",
       fileName: "Inkpoint_0.4.4_aarch64.dmg",
       label: "下载 macOS",
     });
     expect(catalog.linux.primary.fileName).toBe("Inkpoint_0.4.4_x86_64.AppImage");
     expect(catalog.linux.secondary).toEqual([
       {
-        href: "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
+        href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
         fileName: "Inkpoint_0.4.4_aarch64.AppImage",
         label: "ARM64 AppImage",
       },

@@ -430,6 +430,115 @@ jobs:
           git commit -m "Update md-editor multi-platform assets to ${{ steps.release_version.outputs.tag }}"
           git push origin main
 
+      - name: Upload Desktop Artifacts & Manifests to Cloudflare R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          IS_PRERELEASE: ${{ steps.release_version.outputs.is_prerelease }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning ::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured. Skipping R2 desktop upload."
+            exit 0
+          fi
+
+          BUCKET="${R2_BUCKET_NAME:-inkpoint-releases}"
+          VERSION="${RELEASE_VERSION}"
+          echo "🚀 Preparing Desktop release artifacts for Cloudflare R2 bucket: ${BUCKET} (v${VERSION})..."
+
+          mkdir -p dist-desktop
+
+          dmg_file="$(find release-artifacts -type f -name '*.dmg' -print -quit)"
+          linux_x64_file="$(find release-artifacts -type f -name '*amd64.AppImage' -o -name '*x86_64.AppImage' -print -quit)"
+          linux_arm64_file="$(find release-artifacts -type f -name '*arm64.AppImage' -o -name '*aarch64.AppImage' -print -quit)"
+          linux_deb_x64="$(find release-artifacts -type f -name '*amd64.deb' -print -quit)"
+          linux_deb_arm64="$(find release-artifacts -type f -name '*arm64.deb' -print -quit)"
+          win_x64_file="$(find release-artifacts -type f -name '*x64-setup.exe' -o -name '*x64*.exe' -print -quit)"
+          win_arm64_file="$(find release-artifacts -type f -name '*arm64-setup.exe' -o -name '*arm64*.exe' -print -quit)"
+          mac_updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
+          win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
+
+          # 1. 上传各架构安装包
+          if [ -n "$dmg_file" ]; then
+            dmg_name="$(basename "$dmg_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${dmg_name}" --file "$dmg_file" --remote
+            if [[ "$IS_PRERELEASE" != "true" ]]; then
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/macos/latest.dmg" --file "$dmg_file" --remote
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/latest.dmg" --file "$dmg_file" --remote
+            fi
+          fi
+
+          if [ -n "$linux_x64_file" ]; then
+            linux_name="$(basename "$linux_x64_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${linux_name}" --file "$linux_x64_file" --remote
+            if [[ "$IS_PRERELEASE" != "true" ]]; then
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/linux/latest.AppImage" --file "$linux_x64_file" --remote
+            fi
+          fi
+
+          if [ -n "$linux_arm64_file" ]; then
+            linux_arm_name="$(basename "$linux_arm64_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${linux_arm_name}" --file "$linux_arm64_file" --remote
+          fi
+
+          if [ -n "$linux_deb_x64" ]; then
+            deb_name="$(basename "$linux_deb_x64")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${deb_name}" --file "$linux_deb_x64" --remote
+          fi
+
+          if [ -n "$linux_deb_arm64" ]; then
+            deb_arm_name="$(basename "$linux_deb_arm64")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${deb_arm_name}" --file "$linux_deb_arm64" --remote
+          fi
+
+          if [ -n "$win_x64_file" ]; then
+            win_name="$(basename "$win_x64_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_name}" --file "$win_x64_file" --remote
+            if [[ "$IS_PRERELEASE" != "true" ]]; then
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/windows/latest.exe" --file "$win_x64_file" --remote
+            fi
+          fi
+
+          if [ -n "$win_arm64_file" ]; then
+            win_arm_name="$(basename "$win_arm64_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_arm_name}" --file "$win_arm64_file" --remote
+          fi
+
+          # 2. 上传更新包与签名到 R2
+          if [ -n "$mac_updater_file" ]; then
+            mac_tar_name="$(basename "$mac_updater_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${mac_tar_name}" --file "$mac_updater_file" --remote
+            if [ -f "${mac_updater_file}.sig" ]; then
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${mac_tar_name}.sig" --file "${mac_updater_file}.sig" --remote
+            fi
+          fi
+
+          if [ -n "$win_updater_file" ]; then
+            win_zip_name="$(basename "$win_updater_file")"
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_zip_name}" --file "$win_updater_file" --remote
+            if [ -f "${win_updater_file}.sig" ]; then
+              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_zip_name}.sig" --file "${win_updater_file}.sig" --remote
+            fi
+          fi
+
+          # 3. 生成专供 R2 边缘直链的 updater.json 清单
+          node scripts/release/write-r2-updater-manifest.mjs
+
+          if [ -f "dist-desktop/updater.json" ] && [[ "$IS_PRERELEASE" != "true" ]]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/updater.json" --file "dist-desktop/updater.json" --remote
+          fi
+
+          # 4. 合并并更新 R2 中的 inkpoint/version.json
+          node scripts/release/update-r2-version-manifest.mjs
+
+          if [ -f "dist-desktop/version.json" ] && [[ "$IS_PRERELEASE" != "true" ]]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-desktop/version.json" --remote
+          fi
+
+          echo "✅ Desktop release artifacts & manifests successfully deployed to Cloudflare R2!"
+
       - name: Publish website changelog
         if: steps.release_version.outputs.is_prerelease != 'true'
         env:
