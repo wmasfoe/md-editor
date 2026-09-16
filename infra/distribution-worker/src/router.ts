@@ -340,7 +340,49 @@ export async function buildReleasesManifest(
     }
   }
 
-  // 确保清单中包含专属 Android Release
+  // 3. 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新桌面版本
+  if (releases.length === 0) {
+    releases.push({
+      version: "0.10.2",
+      tagName: "v0.10.2",
+      publishedAt: new Date().toISOString(),
+      isLatest: true,
+      isPrerelease: false,
+      category: "desktop",
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
+      assets: [
+        {
+          platform: "macos-arm64",
+          platformLabel: "macOS (Apple Silicon) · DMG",
+          fileName: "Inkpoint_0.10.2_aarch64.dmg",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
+          sizeBytes: 30680892,
+          formattedSize: "29.3 MB",
+          isR2Cached: true,
+        },
+        {
+          platform: "windows-x64",
+          platformLabel: "Windows (x64) · Setup",
+          fileName: "Inkpoint_0.10.2_x64-setup.exe",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
+          sizeBytes: 8072766,
+          formattedSize: "7.7 MB",
+          isR2Cached: true,
+        },
+        {
+          platform: "linux-appimage",
+          platformLabel: "Linux (x86_64) · AppImage",
+          fileName: "Inkpoint_0.10.2_amd64.AppImage",
+          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
+          sizeBytes: 91474424,
+          formattedSize: "87.2 MB",
+          isR2Cached: true,
+        },
+      ],
+    });
+  }
+
+  // 4. 确保清单中包含专属 Android Release
   const existingAndroid = releases.find(
     (r) =>
       r.category === "android" ||
@@ -368,70 +410,6 @@ export async function buildReleasesManifest(
         },
       ],
     });
-  }
-
-  // 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新版本
-  if (releases.length === 0) {
-    releases.push(
-      {
-        version: "0.10.2",
-        tagName: "v0.10.2",
-        publishedAt: new Date().toISOString(),
-        isLatest: true,
-        isPrerelease: false,
-        category: "desktop",
-        releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
-        assets: [
-          {
-            platform: "macos-arm64",
-            platformLabel: "macOS (Apple Silicon) · DMG",
-            fileName: "Inkpoint_0.10.2_aarch64.dmg",
-            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
-            sizeBytes: 30680892,
-            formattedSize: "29.3 MB",
-            isR2Cached: true,
-          },
-          {
-            platform: "windows-x64",
-            platformLabel: "Windows (x64) · Setup",
-            fileName: "Inkpoint_0.10.2_x64-setup.exe",
-            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
-            sizeBytes: 8072766,
-            formattedSize: "7.7 MB",
-            isR2Cached: true,
-          },
-          {
-            platform: "linux-appimage",
-            platformLabel: "Linux (x86_64) · AppImage",
-            fileName: "Inkpoint_0.10.2_amd64.AppImage",
-            downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
-            sizeBytes: 91474424,
-            formattedSize: "87.2 MB",
-            isR2Cached: true,
-          },
-        ],
-      },
-      {
-        version: androidVersion,
-        tagName: `android-v${androidVersion}`,
-        publishedAt: androidPublishedAt,
-        isLatest: true,
-        isPrerelease: true,
-        category: "android",
-        releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${androidVersion}`,
-        assets: [
-          {
-            platform: "android",
-            platformLabel: "Android · APK (Beta)",
-            fileName: androidFileName,
-            downloadUrl: `${baseUrl}/${app}/android/${androidVersion}/${androidFileName}`,
-            sizeBytes: androidSizeBytes,
-            formattedSize: formatBytes(androidSizeBytes),
-            isR2Cached: true,
-          },
-        ],
-      },
-    );
   }
 
   // 4. 计算各端最新版本与直达摘要

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handleRequest, matchDesktopAsset } from "../src/router.ts";
+import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -435,5 +435,24 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("Route not found");
+  });
+
+  it("should provide both fallback desktop and android releases when upstream is unavailable", async () => {
+    const env: Env = {};
+    const manifest = await buildReleasesManifest(
+      "inkpoint",
+      "non-existent/non-existent-repo-for-testing",
+      env,
+      "https://download.justdev.cn",
+    );
+
+    expect(manifest.latestDesktopVersion).toBe("0.10.2");
+    expect(manifest.latestAndroidVersion).toBe("0.1.0");
+    expect(manifest.releases.some((r) => r.category === "desktop" && r.version === "0.10.2")).toBe(
+      true,
+    );
+    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(
+      true,
+    );
   });
 });
