@@ -40,7 +40,7 @@
 
 ---
 
-## 3. Worker 工程设计 (`apps/distribution-worker`)
+## 3. Worker 工程设计 (`infra/distribution-worker`)
 
 ### 3.1 路由契约规范
 
