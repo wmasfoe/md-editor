@@ -130,8 +130,13 @@ jobs:
             console.log("✓ Generated dist-mobile/version.json");
           '
 
+      - name: Note missing Cloudflare credentials
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN == '' }}
+        run: |
+          echo "::warning ::CLOUDFLARE_API_TOKEN secret is not configured. Artifacts will be archived in GitHub Actions artifacts only."
+
       - name: Upload APK & Manifest to Cloudflare R2
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
