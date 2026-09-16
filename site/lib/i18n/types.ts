@@ -165,4 +165,38 @@ export interface TranslationSchema {
     tipDismissed: string;
     tabHint: string;
   };
+  releases: {
+    title: string;
+    subtitle: string;
+    backHome: string;
+    breadcrumbRoot: string;
+    breadcrumbApp: string;
+    overviewTitle: string;
+    colDevice: string;
+    colLatest: string;
+    colCoverage: string;
+    deviceDesktop: string;
+    deviceDesktopCoverage: string;
+    deviceAndroid: string;
+    deviceAndroidCoverage: string;
+    deviceIos: string;
+    deviceIosCoverage: string;
+    iosStatus: string;
+    iosNotice: string;
+    colVersion: string;
+    colDate: string;
+    colPackages: string;
+    latestBadge: string;
+    betaBadge: string;
+    viewNotes: string;
+    macArm: string;
+    macIntel: string;
+    windows: string;
+    linuxAppImage: string;
+    linuxDeb: string;
+    androidApk: string;
+    allVersions: string;
+    colAction: string;
+    viewHistory: string;
+  };
 }
