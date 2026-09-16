@@ -43,6 +43,16 @@ const defaultWebEnChangelogCandidates = [
   path.join(process.cwd(), "apps", "web", "CHANGELOG_EN.md"),
 ];
 
+const defaultAndroidChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "mobile", "android", "CHANGELOG.md"),
+  path.join(process.cwd(), "apps", "mobile", "android", "CHANGELOG.md"),
+];
+
+const defaultAndroidEnChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "mobile", "android", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "apps", "mobile", "android", "CHANGELOG_EN.md"),
+];
+
 /**
  * 从文本中提取所有合法的正整数 PR 编号。
  * 支持形如 "(#49)", "(PR #49)", "(#48, #49)" 或纯数组等。
@@ -157,6 +167,25 @@ export function getWebChangelogEntries(
   if (!resolved) {
     if (locale === "en") {
       return getWebChangelogEntries("zh", filePath);
+    }
+    return [];
+  }
+  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+/**
+ * 获取 Android 移动端的更新日志列表。
+ */
+export function getAndroidChangelogEntries(
+  locale: "zh" | "en" = "zh",
+  filePath?: string,
+): ChangelogEntry[] {
+  const candidates =
+    locale === "en" ? defaultAndroidEnChangelogCandidates : defaultAndroidChangelogCandidates;
+  const resolved = resolveChangelogPath(filePath, candidates);
+  if (!resolved) {
+    if (locale === "en") {
+      return getAndroidChangelogEntries("zh", filePath);
     }
     return [];
   }

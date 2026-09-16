@@ -109,15 +109,18 @@ export interface TranslationSchema {
     badge: string;
     tabsAria: string;
     clientTab: string;
+    androidTab: string;
     webTab: string;
     modelTab: string;
     descriptionPrefix: string;
     descriptionSuffix: string;
+    androidDescriptionPrefix: string;
     webDescriptionPrefix: string;
     modelDescriptionPrefix: string;
     modelDescriptionSuffix: string;
     modelOriginalLanguage: string;
     empty: string;
+    androidEmpty: string;
     webEmpty: string;
     modelEmpty: string;
     listAria: string;

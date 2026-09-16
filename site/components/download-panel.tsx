@@ -154,7 +154,9 @@ export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) 
         ))}
         <span className="text-line-strong">·</span>
         <a
-          href={catalog.allPackagesUrl}
+          href={
+            platform === "android" ? `${catalog.allPackagesUrl}/android` : catalog.allPackagesUrl
+          }
           target="_blank"
           rel="noreferrer"
           className="text-ink-soft transition-colors hover:text-ink"

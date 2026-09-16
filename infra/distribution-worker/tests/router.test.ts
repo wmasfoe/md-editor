@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handleRequest, matchDesktopAsset } from "../src/router.ts";
+import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -351,6 +351,52 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("Inkpoint_0.10.2_aarch64.dmg");
     expect(html).toContain("[R2 Edge]");
     expect(html).toContain("../ (Parent Directory)");
+    expect(html).toContain("正在寻找 Android 移动端？");
+  });
+
+  it("should render category-specific android portal on /inkpoint/android and /releases/android", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    // 1. /inkpoint/android
+    const req1 = new Request("https://download.justdev.cn/inkpoint/android");
+    const res1 = await handleRequest(req1, env);
+    expect(res1.status).toBe(200);
+    const html1 = await res1.text();
+    expect(html1).toContain("Android 移动端");
+    expect(html1).toContain("一键下载 APK");
+    expect(html1).toContain('class="cat-btn active" data-cat="android"');
+
+    // 2. /releases/android
+    const req2 = new Request("https://download.justdev.cn/releases/android");
+    const res2 = await handleRequest(req2, env);
+    expect(res2.status).toBe(200);
+    const html2 = await res2.text();
+    expect(html2).toContain('class="cat-btn active" data-cat="android"');
+  });
+
+  it("should provide latestDesktopVersion and latestAndroidVersion in releases manifest API", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const req = new Request("https://download.justdev.cn/api/inkpoint/releases");
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      latestDesktopVersion?: string;
+      latestAndroidVersion?: string;
+      latestReleases?: {
+        android?: { version: string; downloadUrl: string };
+      };
+    };
+
+    expect(data.latestDesktopVersion).toBe("0.10.2");
+    expect(data.latestAndroidVersion).toBe("0.1.0");
+    expect(data.latestReleases?.android?.version).toBe("0.1.0");
   });
 
   it("should serve 3-segment versioned artifact directly from R2 when available", async () => {
@@ -389,5 +435,24 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe("Route not found");
+  });
+
+  it("should provide both fallback desktop and android releases when upstream is unavailable", async () => {
+    const env: Env = {};
+    const manifest = await buildReleasesManifest(
+      "inkpoint",
+      "non-existent/non-existent-repo-for-testing",
+      env,
+      "https://download.justdev.cn",
+    );
+
+    expect(manifest.latestDesktopVersion).toBe("0.10.2");
+    expect(manifest.latestAndroidVersion).toBe("0.1.0");
+    expect(manifest.releases.some((r) => r.category === "desktop" && r.version === "0.10.2")).toBe(
+      true,
+    );
+    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(
+      true,
+    );
   });
 });

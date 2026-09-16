@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { ChangelogContent } from "../../components/changelog-content";
-import { getDesktopChangelogEntries, getWebChangelogEntries } from "../../lib/changelog";
+import {
+  getAndroidChangelogEntries,
+  getDesktopChangelogEntries,
+  getWebChangelogEntries,
+} from "../../lib/changelog";
 import { getModelChangelog } from "../../lib/model-changelog-source";
 
 export const metadata: Metadata = {
@@ -10,6 +14,8 @@ export const metadata: Metadata = {
 export default async function ChangelogPage() {
   const desktopEntries = getDesktopChangelogEntries("zh");
   const desktopEntriesEn = getDesktopChangelogEntries("en");
+  const androidEntries = getAndroidChangelogEntries("zh");
+  const androidEntriesEn = getAndroidChangelogEntries("en");
   const webEntries = getWebChangelogEntries("zh");
   const webEntriesEn = getWebChangelogEntries("en");
   const modelChangelog = await getModelChangelog();
@@ -18,6 +24,8 @@ export default async function ChangelogPage() {
     <ChangelogContent
       entries={desktopEntries}
       entriesEn={desktopEntriesEn}
+      androidEntries={androidEntries}
+      androidEntriesEn={androidEntriesEn}
       webEntries={webEntries}
       webEntriesEn={webEntriesEn}
       modelChangelog={modelChangelog}
