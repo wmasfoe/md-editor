@@ -8,6 +8,7 @@ import {
   buildWindowsSetupUrl,
   GITHUB_RELEASES_URL,
   normalizeVersion,
+  RELEASES_PORTAL_URL,
 } from "./site-links";
 
 export const UNIX_INSTALL_COMMAND =
@@ -159,7 +160,7 @@ export function buildDownloadCatalog(version?: string, locale: Locale = "zh"): D
       version: mobile.ios.version,
       isBeta: true,
     },
-    allPackagesUrl: GITHUB_RELEASES_URL,
+    allPackagesUrl: RELEASES_PORTAL_URL,
   };
 }
 
@@ -209,7 +210,7 @@ function fallbackCatalog(locale: Locale = "zh"): DownloadCatalog {
       version: mobile.ios.version,
       isBeta: true,
     },
-    allPackagesUrl: GITHUB_RELEASES_URL,
+    allPackagesUrl: RELEASES_PORTAL_URL,
   };
 }
 

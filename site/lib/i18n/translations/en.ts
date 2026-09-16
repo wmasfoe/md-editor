@@ -141,6 +141,7 @@ export const en: TranslationSchema = {
     summary: "Inkpoint, a local-first Markdown / MDX desktop editor",
     playground: "Playground",
     github: "GitHub",
+    releases: "Releases",
   },
   aiShowcase: {
     sectionBadge: "AMBIENT LOCAL AI · IN-FLOW",

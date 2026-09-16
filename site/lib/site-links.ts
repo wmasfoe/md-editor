@@ -45,6 +45,38 @@ export const DISTRIBUTION_DOMAIN =
 /** 官方全球分发加速基础 URL */
 export const DISTRIBUTION_URL = `https://${DISTRIBUTION_DOMAIN}`;
 
+/** 官方全球版本分发中心与历史安装包归档 Web 页面 */
+export const RELEASES_PORTAL_URL = `${DISTRIBUTION_URL}/releases`;
+
+/** 官方历史全量版本清单 API */
+export const RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/releases`;
+
+/**
+ * 根据语义化版本构造各主流平台安装包直链对象（供历史版本下载与更新日志使用）
+ */
+export function buildVersionPackageLinks(version: string) {
+  const normalized = normalizeVersion(version);
+  if (!normalized) return null;
+  return {
+    version: normalized,
+    macos: {
+      label: "macOS (Apple Silicon)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_aarch64.dmg`)}`,
+    },
+    windows: {
+      label: "Windows (x64)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_x64-setup.exe`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_x64-setup.exe`)}`,
+    },
+    linux: {
+      label: "Linux (AppImage)",
+      fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`,
+      url: `${DISTRIBUTION_URL}/inkpoint/desktop/${normalized}/${encodeURIComponent(`${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`)}`,
+    },
+  };
+}
+
 /**
  * 构造基于 Cloudflare Worker 边缘加速的最新桌面安装包直链
  */

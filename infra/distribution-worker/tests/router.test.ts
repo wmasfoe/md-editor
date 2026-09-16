@@ -282,6 +282,57 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(res.headers.get("Content-Disposition")).toContain("Inkpoint_0.10.2_aarch64.dmg");
   });
 
+  it("should return releases manifest JSON on /api/inkpoint/releases", async () => {
+    const req = new Request("https://download.justdev.cn/api/inkpoint/releases");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+
+    const manifest = (await res.json()) as { app: string; releases: Array<{ version: string }> };
+    expect(manifest.app).toBe("inkpoint");
+    expect(manifest.releases.length).toBeGreaterThan(0);
+    expect(manifest.releases[0].version).toBe("0.10.2");
+  });
+
+  it("should render releases portal HTML on /releases", async () => {
+    const req = new Request("https://download.justdev.cn/releases");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await res.text();
+    expect(html).toContain("版本分发中心 · 安装包归档");
+    expect(html).toContain("Inkpoint · 墨点");
+    expect(html).toContain("v0.10.2");
+  });
+
+  it("should render releases portal HTML on / when Accept header is text/html", async () => {
+    const req = new Request("https://download.justdev.cn/", {
+      headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+    });
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await res.text();
+    expect(html).toContain("版本分发中心");
+  });
+
   it("should return 404 on unrecognized route", async () => {
     const req = new Request("https://download.justdev.cn/unknown/invalid/path/test");
     const env: Env = {};
