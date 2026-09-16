@@ -1,15 +1,12 @@
 "use client";
 
+import { useDistribution } from "../lib/distribution/context";
 import { useI18n } from "../lib/i18n/context";
-import {
-  APP_DISPLAY_NAME,
-  GITHUB_REPO_URL,
-  PLAYGROUND_PATH,
-  RELEASES_PORTAL_URL,
-} from "../lib/site-links";
+import { APP_DISPLAY_NAME, GITHUB_REPO_URL, PLAYGROUND_PATH } from "../lib/site-links";
 
 export function SiteFooter() {
   const { t } = useI18n();
+  const { releasesPortalUrl } = useDistribution();
 
   return (
     <footer className="mt-auto border-t border-line/80 pb-[env(safe-area-inset-bottom,0px)]">
@@ -25,7 +22,7 @@ export function SiteFooter() {
             {t.footer.playground}
           </a>
           <a
-            href={RELEASES_PORTAL_URL}
+            href={releasesPortalUrl}
             target="_blank"
             rel="noreferrer"
             className="inline-flex min-h-10 items-center text-ink-soft transition-colors hover:text-ink sm:min-h-0"

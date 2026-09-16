@@ -8,7 +8,8 @@ import { getChangelogEntries } from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
 import { detectLocaleFromHeader } from "../lib/i18n";
 import { I18nProvider } from "../lib/i18n/context";
-import { OFFICIAL_SITE_URL } from "../lib/site-links";
+import { DistributionProvider } from "../lib/distribution/context";
+import { OFFICIAL_SITE_URL, resolveDistributionDomain } from "../lib/site-links";
 import "./globals.css";
 
 const inter = Inter({
@@ -50,10 +51,15 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const acceptLanguage = (await headers()).get("accept-language") ?? "";
+  const headerList = await headers();
+  const acceptLanguage = headerList.get("accept-language") ?? "";
+  const host = headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "";
+  const initialDomain = resolveDistributionDomain(host);
   const initialLocale = detectLocaleFromHeader(acceptLanguage);
   const [latest] = getChangelogEntries();
-  const catalog = latest ? buildDownloadCatalog(latest.version, initialLocale) : null;
+  const catalog = latest
+    ? buildDownloadCatalog(latest.version, initialLocale, initialDomain)
+    : null;
 
   return (
     // 浏览器扩展可能会给根节点注入属性；这里只屏蔽外部属性噪声。
@@ -64,10 +70,12 @@ export default async function RootLayout({
     >
       <body className="flex min-h-dvh flex-col font-sans">
         <I18nProvider initialLocale={initialLocale}>
-          <InkWashFilter />
-          <SiteHeader catalog={catalog} />
-          <div className="flex-1">{children}</div>
-          <SiteFooter />
+          <DistributionProvider initialDomain={initialDomain}>
+            <InkWashFilter />
+            <SiteHeader catalog={catalog} />
+            <div className="flex-1">{children}</div>
+            <SiteFooter />
+          </DistributionProvider>
         </I18nProvider>
       </body>
     </html>

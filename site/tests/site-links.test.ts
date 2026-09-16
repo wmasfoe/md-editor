@@ -7,6 +7,7 @@ import {
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
   buildVersionApiUrl,
+  buildVersionPackageLinks,
   buildWindowsSetupUrl,
   DISTRIBUTION_DOMAIN,
   DISTRIBUTION_URL,
@@ -17,6 +18,9 @@ import {
   OFFICIAL_SITE_URL,
   PLAYGROUND_PATH,
   PLAYGROUND_URL,
+  resolveDistributionDomain,
+  resolveDistributionUrl,
+  resolveReleasesPortalUrl,
 } from "../lib/site-links";
 
 describe("site-links", () => {
@@ -97,5 +101,49 @@ describe("site-links", () => {
     );
     expect(buildVersionApiUrl()).toBe("https://download.justdev.cn/api/inkpoint/version.json");
     expect(buildVersionApiUrl("app2")).toBe("https://download.justdev.cn/api/app2/version.json");
+  });
+
+  it("resolves distribution domain and portal URLs based on host context", () => {
+    // editor.jiaqi.im -> download.jiaqi.im
+    expect(resolveDistributionDomain("editor.jiaqi.im")).toBe("download.jiaqi.im");
+    expect(resolveDistributionDomain("site.jiaqi.im")).toBe("download.jiaqi.im");
+    expect(resolveDistributionUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im");
+    expect(resolveReleasesPortalUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im/releases");
+
+    // editor.justdev.cn -> download.justdev.cn
+    expect(resolveDistributionDomain("editor.justdev.cn")).toBe("download.justdev.cn");
+    expect(resolveDistributionUrl("editor.justdev.cn")).toBe("https://download.justdev.cn");
+    expect(resolveReleasesPortalUrl("editor.justdev.cn")).toBe(
+      "https://download.justdev.cn/releases",
+    );
+
+    // generic editor.<domain> mapping
+    expect(resolveDistributionDomain("editor.custom.org")).toBe("download.custom.org");
+
+    // default fallback
+    expect(resolveDistributionDomain()).toBe("download.justdev.cn");
+    expect(resolveDistributionDomain("localhost")).toBe("download.justdev.cn");
+  });
+
+  it("supports domain parameter in URL builder functions", () => {
+    const customDomain = "download.jiaqi.im";
+    expect(buildMacosDmgUrl("0.10.2", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
+    );
+    expect(buildWindowsSetupUrl("0.10.2", "x64", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x64-setup.exe",
+    );
+    expect(buildLinuxAppImageUrl("0.10.2", "x86_64", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x86_64.AppImage",
+    );
+    expect(buildAndroidApkUrl("0.1.0", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+    );
+    expect(buildAcceleratedDesktopUrl("macos", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/macos/latest",
+    );
+
+    const versionLinks = buildVersionPackageLinks("0.10.2", customDomain);
+    expect(versionLinks?.macos.url).toContain("https://download.jiaqi.im/");
   });
 });
