@@ -299,24 +299,7 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.releases[0].version).toBe("0.10.2");
   });
 
-  it("should render releases portal HTML on /releases", async () => {
-    const req = new Request("https://download.justdev.cn/releases");
-    const env: Env = {
-      DEFAULT_APP: "inkpoint",
-      GITHUB_REPO: "wmasfoe/md-editor",
-    };
-
-    const res = await handleRequest(req, env);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
-
-    const html = await res.text();
-    expect(html).toContain("版本分发中心 · 安装包归档");
-    expect(html).toContain("Inkpoint · 墨点");
-    expect(html).toContain("v0.10.2");
-  });
-
-  it("should render releases portal HTML on / when Accept header is text/html", async () => {
+  it("should render app index HTML on / when Accept header is text/html", async () => {
     const req = new Request("https://download.justdev.cn/", {
       headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
     });
@@ -330,7 +313,72 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(res.headers.get("Content-Type")).toContain("text/html");
 
     const html = await res.text();
-    expect(html).toContain("版本分发中心");
+    expect(html).toContain("Index of /");
+    expect(html).toContain("/inkpoint/");
+    expect(html).toContain("Inkpoint");
+  });
+
+  it("should render version index HTML on /releases or /inkpoint/", async () => {
+    const req = new Request("https://download.justdev.cn/releases");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await res.text();
+    expect(html).toContain("Index of /inkpoint/");
+    expect(html).toContain("[Root]");
+    expect(html).toContain("0.10.2/");
+  });
+
+  it("should render version package detail HTML on /inkpoint/0.10.2/", async () => {
+    const req = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await res.text();
+    expect(html).toContain("Index of /inkpoint/0.10.2/");
+    expect(html).toContain("Inkpoint_0.10.2_aarch64.dmg");
+    expect(html).toContain("[R2 Edge]");
+    expect(html).toContain("../ (Parent Directory)");
+  });
+
+  it("should serve 3-segment versioned artifact directly from R2 when available", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-3seg-dmg",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request(
+      "https://download.justdev.cn/inkpoint/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
+    );
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/x-apple-diskimage");
+    expect(res.headers.get("Content-Disposition")).toContain("Inkpoint_0.10.2_aarch64.dmg");
   });
 
   it("should return 404 on unrecognized route", async () => {
