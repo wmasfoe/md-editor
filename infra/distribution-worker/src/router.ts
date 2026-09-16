@@ -69,6 +69,51 @@ export function matchDesktopAsset(
   return null;
 }
 
+export interface GitHubReleasePayload {
+  tag_name: string;
+  assets: Array<{ name: string; browser_download_url: string; size: number }>;
+}
+
+let cachedReleasePayload: GitHubReleasePayload | null = null;
+
+/**
+ * 获取 GitHub 最新 Release，并通过 Cloudflare 边缘强缓存与内存容灾避免 API 频控 (403 Rate Limit)
+ */
+export async function fetchLatestRelease(
+  githubRepo: string,
+  env: Env,
+): Promise<GitHubReleasePayload | null> {
+  const headers: Record<string, string> = {
+    "User-Agent": "Inkpoint-Distribution-Worker/1.0",
+    Accept: "application/vnd.github.v3+json",
+  };
+  if (env.GITHUB_TOKEN) {
+    headers["Authorization"] = `Bearer ${env.GITHUB_TOKEN}`;
+  }
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
+      headers,
+      cf: { cacheTtl: 300, cacheEverything: true },
+    });
+
+    if (res.ok) {
+      const data = (await res.json()) as GitHubReleasePayload;
+      cachedReleasePayload = data;
+      return data;
+    }
+  } catch {
+    // 捕获网络异常
+  }
+
+  // 触发频控 (403) 或网络故障时，优先回退到内存缓存的最新发布
+  if (cachedReleasePayload) {
+    return cachedReleasePayload;
+  }
+
+  return null;
+}
+
 /**
  * 流式代理并加速 GitHub 资产下载
  */
@@ -221,78 +266,67 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     // B. 回退方案：动态从 GitHub Releases 提取最新桌面版并结合已知移动版返回基础清单
-    try {
-      const ghRes = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
-        headers: { "User-Agent": "Inkpoint-Distribution-Worker/1.0" },
+    const release = await fetchLatestRelease(githubRepo, env);
+    if (release) {
+      const version = release.tag_name.replace(/^v/, "");
+      const macArm = matchDesktopAsset(release.assets, "macos");
+      const winX64 = matchDesktopAsset(release.assets, "windows");
+      const linuxApp = matchDesktopAsset(release.assets, "linux");
+
+      const dynamicManifest: AppVersionManifest = {
+        app,
+        updatedAt: new Date().toISOString(),
+        desktop: {
+          version,
+          releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/${release.tag_name}`,
+          assets: {
+            macos_arm64: macArm
+              ? {
+                  version,
+                  fileName: macArm.name,
+                  downloadUrl: `${url.origin}/${app}/desktop/macos/latest`,
+                  sizeBytes: macArm.size,
+                }
+              : undefined,
+            windows_x64: winX64
+              ? {
+                  version,
+                  fileName: winX64.name,
+                  downloadUrl: `${url.origin}/${app}/desktop/windows/latest`,
+                  sizeBytes: winX64.size,
+                }
+              : undefined,
+            linux_appimage: linuxApp
+              ? {
+                  version,
+                  fileName: linuxApp.name,
+                  downloadUrl: `${url.origin}/${app}/desktop/linux/latest`,
+                  sizeBytes: linuxApp.size,
+                }
+              : undefined,
+          },
+        },
+        android: {
+          version: "0.1.0",
+          apk: {
+            version: "0.1.0",
+            fileName: "inkpoint-v0.1.0.apk",
+            downloadUrl: `${url.origin}/${app}/android/latest`,
+          },
+        },
+        ios: {
+          version: "0.1.0",
+          testFlightUrl: "https://testflight.apple.com/join/placeholder",
+        },
+      };
+
+      return new Response(JSON.stringify(dynamicManifest, null, 2), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "public, max-age=300, s-maxage=300",
+        },
       });
-
-      if (ghRes.ok) {
-        const release = (await ghRes.json()) as {
-          tag_name: string;
-          assets: Array<{ name: string; browser_download_url: string; size: number }>;
-        };
-        const version = release.tag_name.replace(/^v/, "");
-        const macArm = matchDesktopAsset(release.assets, "macos");
-        const winX64 = matchDesktopAsset(release.assets, "windows");
-        const linuxApp = matchDesktopAsset(release.assets, "linux");
-
-        const dynamicManifest: AppVersionManifest = {
-          app,
-          updatedAt: new Date().toISOString(),
-          desktop: {
-            version,
-            releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/${release.tag_name}`,
-            assets: {
-              macos_arm64: macArm
-                ? {
-                    version,
-                    fileName: macArm.name,
-                    downloadUrl: `${url.origin}/${app}/desktop/macos/latest`,
-                    sizeBytes: macArm.size,
-                  }
-                : undefined,
-              windows_x64: winX64
-                ? {
-                    version,
-                    fileName: winX64.name,
-                    downloadUrl: `${url.origin}/${app}/desktop/windows/latest`,
-                    sizeBytes: winX64.size,
-                  }
-                : undefined,
-              linux_appimage: linuxApp
-                ? {
-                    version,
-                    fileName: linuxApp.name,
-                    downloadUrl: `${url.origin}/${app}/desktop/linux/latest`,
-                    sizeBytes: linuxApp.size,
-                  }
-                : undefined,
-            },
-          },
-          android: {
-            version: "0.1.0",
-            apk: {
-              version: "0.1.0",
-              fileName: "inkpoint-v0.1.0.apk",
-              downloadUrl: `${url.origin}/${app}/android/latest`,
-            },
-          },
-          ios: {
-            version: "0.1.0",
-            testFlightUrl: "https://testflight.apple.com/join/placeholder",
-          },
-        };
-
-        return new Response(JSON.stringify(dynamicManifest, null, 2), {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "public, max-age=300, s-maxage=300",
-          },
-        });
-      }
-    } catch {
-      // 忽略 GitHub API 临时失败
     }
 
     return new Response(
@@ -426,23 +460,14 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     const platform = desktopMatch[2];
 
     try {
-      const ghRes = await fetch(`https://api.github.com/repos/${githubRepo}/releases/latest`, {
-        headers: { "User-Agent": "Inkpoint-Distribution-Worker/1.0" },
-      });
+      const release = await fetchLatestRelease(githubRepo, env);
 
-      if (!ghRes.ok) {
-        return new Response(
-          JSON.stringify({ error: "Failed to query GitHub Releases API", status: ghRes.status }),
-          { status: 502, headers: { "Content-Type": "application/json" } },
-        );
-      }
+      if (release) {
+        const matched = matchDesktopAsset(release.assets, platform);
+        if (matched) {
+          return proxyGitHubAsset(matched.url, request, matched.name);
+        }
 
-      const release = (await ghRes.json()) as {
-        assets: Array<{ name: string; browser_download_url: string; size: number }>;
-      };
-      const matched = matchDesktopAsset(release.assets, platform);
-
-      if (!matched) {
         return new Response(
           JSON.stringify({
             error: `No asset found matching platform '${platform}'`,
@@ -452,7 +477,21 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         );
       }
 
-      return proxyGitHubAsset(matched.url, request, matched.name);
+      // 如果 GitHub API 频控 (403) 且无本地缓存，直接代理至 GitHub latest/download 约定命名直链，避免 502
+      let fallbackFileName = "Inkpoint_aarch64.dmg";
+      const p = platform.toLowerCase();
+      if (p.includes("mac") || p.includes("dmg")) {
+        fallbackFileName = p.includes("x64") ? "Inkpoint_x64.dmg" : "Inkpoint_aarch64.dmg";
+      } else if (p.includes("win") || p.includes("exe")) {
+        fallbackFileName = p.includes("arm64")
+          ? "Inkpoint_arm64-setup.exe"
+          : "Inkpoint_x64-setup.exe";
+      } else if (p.includes("linux") || p.includes("appimage")) {
+        fallbackFileName = "Inkpoint_amd64.AppImage";
+      }
+
+      const fallbackUrl = `https://github.com/${githubRepo}/releases/latest/download/${fallbackFileName}`;
+      return proxyGitHubAsset(fallbackUrl, request, fallbackFileName);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return new Response(JSON.stringify({ error: "Internal Gateway Error", details: message }), {
