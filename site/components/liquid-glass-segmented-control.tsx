@@ -2,22 +2,12 @@
 
 import React, {
   useCallback,
-  useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import {
-  Glass,
-  animateGlassValue,
-  cubicBezier,
-  glassValue,
-  type GlassMotionValue,
-  type GlassOptics,
-} from "@samasante/liquid-glass";
 
 export interface LiquidGlassSegmentedControlProps<T extends string> {
   items: T[];
@@ -25,19 +15,59 @@ export interface LiquidGlassSegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   getLabel: (item: T) => React.ReactNode;
   getAriaLabel?: (item: T) => string;
+  disabledItems?: T[];
   ariaLabel?: string;
   className?: string;
 }
 
-// Apple 弹性流体缓动曲线
-const EASE = cubicBezier(0.16, 1, 0.3, 1);
+/**
+ * 寻找距离目标位置最近的可用项索引
+ */
+function findNearestEnabledIndex<T extends string>(
+  targetIdx: number,
+  items: T[],
+  disabledItems?: T[],
+): number {
+  if (!disabledItems || disabledItems.length === 0) {
+    return Math.max(0, Math.min(items.length - 1, targetIdx));
+  }
 
+  if (!disabledItems.includes(items[targetIdx])) {
+    return targetIdx;
+  }
+
+  let left = targetIdx - 1;
+  let right = targetIdx + 1;
+  while (left >= 0 || right < items.length) {
+    if (left >= 0 && !disabledItems.includes(items[left])) {
+      return left;
+    }
+    if (right < items.length && !disabledItems.includes(items[right])) {
+      return right;
+    }
+    left--;
+    right++;
+  }
+
+  return targetIdx;
+}
+
+/**
+ * Apple 物理液态光学玻璃分段控制器 (Liquid Glass Segmented Control)
+ *
+ * 核心设计原则：
+ * 1. 物理真实性：底层为通透晶莹的悬浮水滴药丸（Liquid Glass Pill），带顶部钻石镜面高光弧与多层柔和悬浮阴影；
+ * 2. 保证字体绝对清晰：文字层独立居于光学滤镜之上，杜绝色散拉伸、杂色边缘与模糊锯齿；
+ * 3. 丝滑阻尼物理滑动：采用 Apple fluid deceleration 缓动曲线与连续拖拽跟随；
+ * 4. 原生支持项目置灰禁用（例如 iOS 待发布状态）：不可点击、键盘自动跳过、半透明置灰。
+ */
 export function LiquidGlassSegmentedControl<T extends string>({
   items,
   value,
   onChange,
   getLabel,
   getAriaLabel,
+  disabledItems = [],
   ariaLabel,
   className = "",
 }: LiquidGlassSegmentedControlProps<T>) {
@@ -45,25 +75,13 @@ export function LiquidGlassSegmentedControl<T extends string>({
   const activeIndex = items.indexOf(value);
   const count = items.length;
 
-  // 容器像素尺寸
-  const [trackW, setTrackW] = useState(0);
-  const [trackH, setTrackH] = useState(0);
+  // 容器像素宽度
+  const [, setTrackW] = useState(0);
   const trackWRef = useRef(0);
-  const trackHRef = useRef(0);
 
-  const [isDragging, setIsDragging] = useState(false);
+  // 连续位置状态（用于拖拽跟随）
+  const [dragPos, setDragPos] = useState<number | null>(null);
   const isDraggingRef = useRef(false);
-
-  // 连续位置 [0, count-1]
-  const positionRef = useRef<number>(activeIndex >= 0 ? activeIndex : 0);
-
-  // glassValue motion value：命令式驱动透镜中心 center.x
-  const centerX = useMemo<GlassMotionValue>(
-    () => glassValue(activeIndex >= 0 ? (activeIndex + 0.5) / count : 0.5 / count),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   const isPointerDownRef = useRef(false);
   const dragCtx = useRef<{ startX: number; hasMoved: boolean; targetIdxOnDown: number }>({
     startX: 0,
@@ -71,20 +89,17 @@ export function LiquidGlassSegmentedControl<T extends string>({
     targetIdxOnDown: -1,
   });
 
-  // ResizeObserver：测量容器实际 px 尺寸
+  // 测量容器实际尺寸
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const measure = () => {
       const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) {
+      if (r.width > 0) {
         const w = Math.round(r.width);
-        const h = Math.round(r.height);
-        if (w !== trackWRef.current || h !== trackHRef.current) {
+        if (w !== trackWRef.current) {
           trackWRef.current = w;
-          trackHRef.current = h;
           setTrackW(w);
-          setTrackH(h);
         }
       }
     };
@@ -94,56 +109,29 @@ export function LiquidGlassSegmentedControl<T extends string>({
     return () => ro.disconnect();
   }, []);
 
-  // 滑动过渡动画：从当前位置滑到目标 index
   const transitionTo = useCallback(
     (targetIndex: number) => {
       const targetItem = items[targetIndex];
-      if (!targetItem) return;
+      if (!targetItem || disabledItems.includes(targetItem)) return;
       onChange(targetItem);
-      positionRef.current = targetIndex;
-      const targetCenterX = (targetIndex + 0.5) / count;
-      animateGlassValue(centerX, targetCenterX, {
-        duration: 0.38,
-        ease: EASE,
-      });
     },
-    [items, onChange, count, centerX],
+    [items, disabledItems, onChange],
   );
 
-  // 外部 value 变化时平滑滑向新选项
-  useEffect(() => {
-    if (!isDraggingRef.current && !isPointerDownRef.current && activeIndex >= 0) {
-      if (positionRef.current !== activeIndex) {
-        positionRef.current = activeIndex;
-        const targetCenterX = (activeIndex + 0.5) / count;
-        animateGlassValue(centerX, targetCenterX, {
-          duration: 0.38,
-          ease: EASE,
-        });
-      }
-    }
-  }, [activeIndex, count, centerX]);
-
-  /**
-   * 从 clientX 计算连续位置并更新 center.x
-   */
+  // 指针拖拽计算连续位置
   const applyPointerX = useCallback(
     (clientX: number) => {
       const el = containerRef.current;
       if (!el) return 0;
       const rect = el.getBoundingClientRect();
-      const pad = 4; // p-1 = 4px
+      const pad = 4;
       const slot = (rect.width - pad * 2) / count;
       const raw = (clientX - rect.left - pad - slot / 2) / slot;
       const pos = Math.max(0, Math.min(count - 1, raw));
-      positionRef.current = pos;
-      const w = trackWRef.current;
-      if (w > 0) {
-        centerX.set(Math.max(0, Math.min(1, (pad + slot * pos + slot / 2) / w)));
-      }
+      setDragPos(pos);
       return pos;
     },
-    [count, centerX],
+    [count],
   );
 
   const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -158,6 +146,10 @@ export function LiquidGlassSegmentedControl<T extends string>({
       clickedIdx = Math.max(0, Math.min(count - 1, Math.floor(raw)));
     }
 
+    if (clickedIdx >= 0 && disabledItems.includes(items[clickedIdx])) {
+      return;
+    }
+
     dragCtx.current = { startX: e.clientX, hasMoved: false, targetIdxOnDown: clickedIdx };
     isPointerDownRef.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -168,7 +160,6 @@ export function LiquidGlassSegmentedControl<T extends string>({
     if (!dragCtx.current.hasMoved && Math.abs(e.clientX - dragCtx.current.startX) > 4) {
       dragCtx.current.hasMoved = true;
       isDraggingRef.current = true;
-      setIsDragging(true);
     }
     if (dragCtx.current.hasMoved) {
       applyPointerX(e.clientX);
@@ -186,78 +177,66 @@ export function LiquidGlassSegmentedControl<T extends string>({
 
     if (dragCtx.current.hasMoved) {
       isDraggingRef.current = false;
-      setIsDragging(false);
-      const target = Math.max(0, Math.min(count - 1, Math.round(positionRef.current)));
-      const targetItem = items[target];
-      if (targetItem) {
-        onChange(targetItem);
-        positionRef.current = target;
-        const targetCenterX = (target + 0.5) / count;
-        animateGlassValue(centerX, targetCenterX, {
-          duration: 0.32,
-          ease: EASE,
-        });
+      if (dragPos !== null) {
+        const rawTarget = Math.round(dragPos);
+        const enabledTarget = findNearestEnabledIndex(rawTarget, items, disabledItems);
+        transitionTo(enabledTarget);
       }
+      setDragPos(null);
     } else {
       const clickedIdx = dragCtx.current.targetIdxOnDown;
-      if (clickedIdx >= 0 && clickedIdx !== activeIndex) {
+      if (
+        clickedIdx >= 0 &&
+        clickedIdx !== activeIndex &&
+        !disabledItems.includes(items[clickedIdx])
+      ) {
         transitionTo(clickedIdx);
       }
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") {
+      return;
+    }
     e.preventDefault();
-    const delta = e.key === "ArrowRight" ? 1 : -1;
-    const next = Math.max(0, Math.min(count - 1, activeIndex + delta));
-    if (next !== activeIndex) {
-      transitionTo(next);
-      const nextItem = items[next];
+
+    let targetIdx = activeIndex;
+    if (e.key === "ArrowRight") {
+      let next = activeIndex + 1;
+      while (next < count && disabledItems.includes(items[next])) {
+        next++;
+      }
+      if (next < count) targetIdx = next;
+    } else if (e.key === "ArrowLeft") {
+      let prev = activeIndex - 1;
+      while (prev >= 0 && disabledItems.includes(items[prev])) {
+        prev--;
+      }
+      if (prev >= 0) targetIdx = prev;
+    } else if (e.key === "Home") {
+      let first = 0;
+      while (first < count && disabledItems.includes(items[first])) {
+        first++;
+      }
+      if (first < count) targetIdx = first;
+    } else if (e.key === "End") {
+      let last = count - 1;
+      while (last >= 0 && disabledItems.includes(items[last])) {
+        last--;
+      }
+      if (last >= 0) targetIdx = last;
+    }
+
+    if (targetIdx !== activeIndex) {
+      transitionTo(targetIdx);
+      const nextItem = items[targetIdx];
       containerRef.current?.querySelector<HTMLButtonElement>(`[data-item="${nextItem}"]`)?.focus();
     }
   };
 
-  const handleItemClick = (idx: number) => {
-    if (idx !== activeIndex) {
-      transitionTo(idx);
-    }
-  };
-
-  // 透镜物理尺寸
-  const pad = 4;
-  const slotW = trackW > 0 ? (trackW - pad * 2) / count : 0;
-  const pillW = slotW > 0 ? Math.round(slotW) : 0;
-  const pillH = trackH > 0 ? trackH - pad * 2 : 0;
-
-  // 严格调校的 Apple 物理光学参数（浅色背景控件标准）
-  const optics: Partial<GlassOptics> = {
-    mapSize: 256,
-    depth: 0.25, // 浅水滴透镜：中心完全平坦，保持文字清晰锐利
-    curvature: 0.3, // 轻柔曲率
-    dispersion: 0.6, // 细腻微色散
-    scaleX: 0.25, // 横向轻度物理折射
-    scaleY: 0.08, // 纵向微折射，消除上下边缘切边黑线
-    clipToShape: false,
-    softEdge: true,
-    splay: 0.5,
-    bend: 0.06,
-    bendWidth: 0.04,
-    brightness: 0.01,
-    specular: 1.5,
-    sheenAngle: 45,
-    sheenDark: false,
-    sheen: 0.5,
-    sheenWidth: 2,
-    sheenFalloff: 1.5,
-    glow: 0.04,
-    glowSpread: 0.5,
-    glowFalloff: 1.5,
-    // 静止与移动阴影
-    restEdgeShadow: "0 1px 3px rgba(0,0,0,0.16), 0 3px 8px rgba(0,0,0,0.08)",
-    edgeShadow: "0 6px 18px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.06)",
-    edgeInsetShadow: "0 -2px 6px rgba(0,0,0,0.04)",
-  };
+  const effectivePos = dragPos !== null ? dragPos : Math.max(0, activeIndex);
+  const isDragging = dragPos !== null;
 
   return (
     <div
@@ -274,63 +253,66 @@ export function LiquidGlassSegmentedControl<T extends string>({
       } ${className}`}
     >
       {/*
-        Glass 透镜层（唯一文字内容来源，避免色散鬼影）
+        Apple Liquid Glass 底层滑块透镜：
+        纯净、高通透物理水滴卡片，居于文字下层，杜绝文字锯齿与色散拉伸
       */}
-      {pillW > 0 && pillH > 0 && (
-        <Glass
-          style={{ position: "absolute", inset: 0, width: trackW, height: trackH }}
-          width={pillW}
-          height={pillH}
-          radius={pillH / 2}
-          center={{ x: centerX, y: 0.5 }}
-          optics={optics}
-          filterResolution={2}
+      {activeIndex >= 0 && (
+        <div
+          aria-hidden
+          className={`liquid-glass-pill absolute top-1 bottom-1 z-0 rounded-full ${
+            isDragging
+              ? "transition-none shadow-[0_8px_24px_-2px_rgba(28,25,23,0.16),0_3px_8px_rgba(28,25,23,0.08)] scale-[1.02]"
+              : "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          }`}
+          style={{
+            left: `calc(4px + ${effectivePos} * (100% - 8px) / ${count})`,
+            width: `calc((100% - 8px) / ${count})`,
+          }}
         >
-          {/* 被透镜折射的单一文字层 */}
-          <div
-            className="grid h-full w-full items-center p-1"
-            style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
-          >
-            {items.map((item, idx) => (
-              <div
-                key={item}
-                className={`flex items-center justify-center text-[13px] font-medium transition-colors sm:text-sm ${
-                  idx === activeIndex ? "font-semibold text-ink" : "text-muted"
-                }`}
-              >
-                {getLabel(item)}
-              </div>
-            ))}
-          </div>
-        </Glass>
+          {/* 顶层钻石镜面反射微光弧 */}
+          <span className="pointer-events-none absolute inset-x-3 top-0 h-[1px] bg-gradient-to-r from-transparent via-white to-transparent" />
+        </div>
       )}
 
-      {/* SSR / 尺寸就绪前降级 */}
-      {pillW === 0 && (
-        <div
-          className="grid h-full w-full items-center p-1"
-          style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
-        >
-          {items.map((item, idx) => (
+      {/* 
+        中间高保真无畸变排版文字层
+      */}
+      <div
+        className="relative z-10 grid h-full w-full pointer-events-none items-center"
+        style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
+      >
+        {items.map((item, idx) => {
+          const isActive = idx === activeIndex;
+          const isDisabled = disabledItems.includes(item);
+
+          return (
             <div
               key={item}
-              className={`flex items-center justify-center text-[13px] font-medium sm:text-sm ${
-                idx === activeIndex ? "font-semibold text-ink" : "text-muted"
+              className={`flex items-center justify-center text-[13px] transition-colors sm:text-sm ${
+                isDisabled
+                  ? "opacity-40 text-muted/60 cursor-not-allowed select-none"
+                  : isActive
+                    ? "font-semibold text-ink"
+                    : "font-medium text-muted"
               }`}
             >
               {getLabel(item)}
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* 无障碍透明按钮层 */}
+      {/* 
+        顶层无障碍与交互透明按钮层
+      */}
       <div
         className="absolute inset-1 z-20 grid"
         style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
       >
         {items.map((item, idx) => {
           const isActive = idx === activeIndex;
+          const isDisabled = disabledItems.includes(item);
+
           return (
             <button
               key={item}
@@ -338,10 +320,14 @@ export function LiquidGlassSegmentedControl<T extends string>({
               role="tab"
               id={`segmented-tab-${item}`}
               data-item={item}
+              disabled={isDisabled}
+              aria-disabled={isDisabled}
               aria-selected={isActive}
               tabIndex={isActive ? 0 : -1}
-              onClick={() => handleItemClick(idx)}
-              className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              onClick={() => !isDisabled && transitionTo(idx)}
+              className={`inline-flex h-full w-full items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                isDisabled ? "cursor-not-allowed" : "cursor-pointer"
+              }`}
             >
               <span className="sr-only">
                 {getAriaLabel

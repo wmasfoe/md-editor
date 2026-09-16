@@ -30,11 +30,11 @@ describe("detectSitePlatform", () => {
     ).toBe("android");
   });
 
-  it("detects iOS mobile browsers", () => {
+  it("defaults iOS mobile browsers to macos while iOS tab is inactive", () => {
     expect(detectSitePlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe(
-      "ios",
+      "macos",
     );
-    expect(detectSitePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)")).toBe("ios");
+    expect(detectSitePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)")).toBe("macos");
   });
 
   it("defaults macOS and unknown agents to macos", () => {
