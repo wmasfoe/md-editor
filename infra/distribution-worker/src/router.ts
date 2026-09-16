@@ -7,9 +7,10 @@ import type {
 } from "./types.ts";
 import {
   formatBytes,
+  renderAppDevicesHtml,
   renderAppIndexHtml,
+  renderDeviceVersionsHtml,
   renderVersionFilesHtml,
-  renderVersionIndexHtml,
 } from "./portal.ts";
 
 export const SUPPORTED_APPS = [
@@ -510,13 +511,21 @@ export async function serveR2Object(
   object: R2ObjectBody,
   customFileName?: string,
   contentType = "application/octet-stream",
+  isImmutable = true,
 ): Promise<Response> {
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set("etag", object.httpEtag);
   headers.set("Content-Type", contentType);
   headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Cache-Control", "public, max-age=86400, s-maxage=604800");
+  if (isImmutable) {
+    headers.set("Cache-Control", "public, max-age=2592000, s-maxage=31536000, immutable");
+  } else {
+    headers.set(
+      "Cache-Control",
+      "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    );
+  }
 
   if (customFileName) {
     headers.set(
@@ -533,24 +542,63 @@ export async function serveR2Object(
 /**
  * 核心请求处理器
  */
-export async function handleRequest(request: Request, env: Env): Promise<Response> {
+export async function handleRequest(
+  request: Request,
+  env: Env,
+  ctx?: ExecutionContext,
+): Promise<Response> {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
   const defaultApp = env.DEFAULT_APP || "inkpoint";
   const githubRepo = env.GITHUB_REPO || "wmasfoe/md-editor";
+
+  // 1. 边缘静态缓存命中检查（只缓存 GET / HEAD 请求，大幅削减 Worker 计费与额度消耗）
+  const cache =
+    typeof caches !== "undefined" && "default" in caches
+      ? (caches as unknown as { default: Cache }).default
+      : null;
+  if (cache && (request.method === "GET" || request.method === "HEAD")) {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+  }
+
+  function respond(response: Response, isStatic = false): Response {
+    if (!response.headers.has("Access-Control-Allow-Origin")) {
+      response.headers.set("Access-Control-Allow-Origin", "*");
+    }
+    if (!response.headers.has("Cache-Control")) {
+      if (isStatic) {
+        response.headers.set(
+          "Cache-Control",
+          "public, max-age=2592000, s-maxage=31536000, immutable",
+        );
+      } else {
+        response.headers.set(
+          "Cache-Control",
+          "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+        );
+      }
+    }
+    if (cache && ctx && response.ok && (request.method === "GET" || request.method === "HEAD")) {
+      ctx.waitUntil(cache.put(request, response.clone()));
+    }
+    return response;
+  }
 
   // 1. 首页路由：浏览器访问返回应用目录索引 (Index of /)，CLI / API 访问返回网关路由描述
   if (path === "/") {
     const accept = request.headers.get("Accept") || "";
     if (accept.includes("text/html")) {
       const html = renderAppIndexHtml(SUPPORTED_APPS, url.origin);
-      return new Response(html, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "public, max-age=120, s-maxage=300",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
+      return respond(
+        new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+          },
+        }),
+      );
     }
 
     return new Response(
@@ -973,89 +1021,100 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
         ? "android"
         : (portalMatch[2] as "android" | "desktop" | undefined);
     const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-    const html = renderVersionIndexHtml(app, manifest, url.origin, catParam || "all");
-    return new Response(html, {
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "public, max-age=120, s-maxage=300",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    const html = catParam
+      ? renderDeviceVersionsHtml(app, catParam, manifest, url.origin)
+      : renderAppDevicesHtml(app, manifest, url.origin);
+    return respond(
+      new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+        },
+      }),
+    );
   }
 
   // 9. 层级目录与安装包下载路由
   const segments = path.replace(/^\//, "").split("/").filter(Boolean);
 
-  // 9.1 单段路径：应用版本清单 Index of /:app/ (如 /inkpoint)
+  // 9.1 单段路径：应用设备目录 Index of /:app/ (如 /inkpoint)
   if (segments.length === 1) {
     const app = segments[0];
-    if (!["api", "gh", "favicon.ico"].includes(app)) {
+    if (!["api", "gh", "favicon.ico", "releases"].includes(app)) {
       const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-      const html = renderVersionIndexHtml(app, manifest, url.origin);
-      return new Response(html, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "public, max-age=120, s-maxage=300",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
+      const html = renderAppDevicesHtml(app, manifest, url.origin);
+      return respond(
+        new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+          },
+        }),
+      );
     }
   }
 
-  // 9.2 双段路径：特定版本安装包列表 Index of /:app/:version/ (如 /inkpoint/0.10.1) 或分类列表 (如 /inkpoint/android)
+  // 9.2 双段路径：
+  // a) /:app/desktop 或 /:app/android: 设备专属版本列表 Index of /:app/:device/
+  // b) /:app/:version (兼容旧路由): 具体版本安装包详情
   if (segments.length === 2) {
-    const [app, version] = segments;
-    if (!["api", "gh"].includes(app)) {
+    const [app, sub] = segments;
+    if (!["api", "gh", "favicon.ico"].includes(app)) {
       const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
 
-      // 分类快捷直达入口：/inkpoint/android 或 /inkpoint/desktop
-      if (version === "android" || version === "mobile") {
-        const html = renderVersionIndexHtml(app, manifest, url.origin, "android");
-        return new Response(html, {
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "public, max-age=120, s-maxage=300",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
+      // 设备分类目录
+      if (sub === "desktop") {
+        const html = renderDeviceVersionsHtml(app, "desktop", manifest, url.origin);
+        return respond(
+          new Response(html, {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          }),
+        );
       }
-      if (version === "desktop") {
-        const html = renderVersionIndexHtml(app, manifest, url.origin, "desktop");
-        return new Response(html, {
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "public, max-age=120, s-maxage=300",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
+      if (sub === "android" || sub === "mobile") {
+        const html = renderDeviceVersionsHtml(app, "android", manifest, url.origin);
+        return respond(
+          new Response(html, {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          }),
+        );
       }
 
-      const cleanVer = version.replace(/^v/, "");
+      // 兼容历史直接访问版本号 /:app/:version/
+      const cleanVer = sub.replace(/^v/, "");
       const release = manifest.releases.find(
         (r) =>
           r.version === cleanVer ||
-          r.version === version ||
-          r.tagName === version ||
-          r.tagName === `android-v${cleanVer}`,
+          r.version === sub ||
+          r.tagName === sub ||
+          r.tagName === `android-v${cleanVer}` ||
+          r.tagName === `v${cleanVer}`,
       );
+
       if (release) {
-        const latestAndroidVer = manifest.latestAndroidVersion || "0.1.0";
-        const html = renderVersionFilesHtml(app, release, url.origin, latestAndroidVer);
-        return new Response(html, {
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "public, max-age=120, s-maxage=300",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
+        const device =
+          release.category === "android" ||
+          (release.assets.length > 0 && release.assets.every((a) => a.platform === "android"))
+            ? "android"
+            : "desktop";
+        const html = renderVersionFilesHtml(app, device, release, url.origin);
+        return respond(
+          new Response(html, {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          }),
+        );
       }
 
       return new Response(
         JSON.stringify({
-          error: "Version not found",
+          error: "Version or device not found",
           app,
-          version,
-          hint: `Check available versions at /${app}/`,
+          sub,
+          hint: `Check available directories at /${app}/`,
         }),
         {
           status: 404,
@@ -1065,64 +1124,123 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
   }
 
-  // 9.3 三段路径：指定版本直链下载 /:app/:version/:filename (如 /inkpoint/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
+  // 9.3 三段路径：
+  // a) /:app/:device/:version: 设备具体版本详情 (如 /inkpoint/desktop/0.10.2/)
+  // b) /:app/:version/:filename: 历史旧下载链接
   if (segments.length === 3) {
-    const [app, version, filename] = segments;
+    const [app, part2, part3] = segments;
     if (!["api", "gh"].includes(app)) {
+      if (part2 === "desktop" || part2 === "android") {
+        const device = part2;
+        const version = part3;
+        const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+        const cleanVer = version.replace(/^v/, "");
+        const release = manifest.releases.find(
+          (r) =>
+            (r.category === device ||
+              (device === "android"
+                ? r.assets.some((a) => a.platform === "android")
+                : r.assets.some(
+                    (a) =>
+                      a.platform.includes("macos") ||
+                      a.platform.includes("windows") ||
+                      a.platform.includes("linux"),
+                  ))) &&
+            (r.version === cleanVer ||
+              r.version === version ||
+              r.tagName === version ||
+              r.tagName === `android-v${cleanVer}` ||
+              r.tagName === `v${cleanVer}`),
+        );
+
+        if (release) {
+          const html = renderVersionFilesHtml(app, device, release, url.origin);
+          return respond(
+            new Response(html, {
+              headers: {
+                "Content-Type": "text/html; charset=utf-8",
+              },
+            }),
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            error: "Version not found for device",
+            app,
+            device,
+            version,
+            hint: `Check available versions at /${app}/${device}/`,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          },
+        );
+      }
+
+      // b) 兼容旧三段路径下载: /:app/:version/:filename (要求 part2 为版本号且 part3 包含扩展名)
+      if (part2.match(/^v?\d+\.\d+/) && part3.includes(".")) {
+        const version = part2;
+        const filename = part3;
+        const contentType = getMimeType(filename);
+
+        // A. 优先从 R2 获取
+        if (env.RELEASE_BUCKET) {
+          const r2Keys = [
+            `${app}/desktop/${version}/${filename}`,
+            `${app}/${version}/${filename}`,
+            `${app}/android/${version}/${filename}`,
+          ];
+
+          for (const r2Key of r2Keys) {
+            const obj = await env.RELEASE_BUCKET.get(r2Key);
+            if (obj) {
+              return serveR2Object(obj, filename, contentType, true);
+            }
+          }
+        }
+
+        // B. 回退 GitHub Releases
+        const targetTag = version.startsWith("v") ? version : `v${version}`;
+        const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
+        return proxyGitHubAsset(sourceUrl, request, filename);
+      }
+    }
+  }
+
+  // 9.4 四段路径：规范层级下载 /:app/:device/:version/:filename (如 /inkpoint/desktop/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
+  if (segments.length === 4) {
+    const [app, device, version, filename] = segments;
+    const knownDevices = ["desktop", "android", "macos", "windows", "linux", "mobile"];
+
+    if (knownDevices.includes(device) && filename.includes(".")) {
       const contentType = getMimeType(filename);
 
       // A. 优先从 R2 获取
       if (env.RELEASE_BUCKET) {
         const r2Keys = [
+          `${app}/${device}/${version}/${filename}`,
           `${app}/desktop/${version}/${filename}`,
-          `${app}/${version}/${filename}`,
           `${app}/android/${version}/${filename}`,
+          `${app}/${version}/${filename}`,
         ];
 
         for (const r2Key of r2Keys) {
           const obj = await env.RELEASE_BUCKET.get(r2Key);
           if (obj) {
-            return serveR2Object(obj, filename, contentType);
+            return serveR2Object(obj, filename, contentType, true);
           }
         }
       }
 
-      // B. 回退方案：从 GitHub Release 对应 tag 回源加速下载
-      const targetTag = version.startsWith("v") ? version : `v${version}`;
-      const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
-      return proxyGitHubAsset(sourceUrl, request, filename);
-    }
-  }
-
-  // 9.4 四段路径：传统指定平台与版本下载 /:app/:platform/:version/:filename (如 /inkpoint/desktop/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
-  if (segments.length === 4) {
-    const [app, platform, version, filename] = segments;
-    const contentType = getMimeType(filename);
-
-    // A. 优先从 R2 获取
-    if (env.RELEASE_BUCKET) {
-      const r2Keys = [
-        `${app}/${platform}/${version}/${filename}`,
-        `${app}/desktop/${version}/${filename}`,
-        `${app}/${version}/${filename}`,
-      ];
-
-      for (const r2Key of r2Keys) {
-        const obj = await env.RELEASE_BUCKET.get(r2Key);
-        if (obj) {
-          return serveR2Object(obj, filename, contentType);
-        }
-      }
-    }
-
-    // B. 桌面端从 GitHub Release 对应 tag 回源
-    if (
-      platform === "desktop" ||
-      platform === "macos" ||
-      platform === "windows" ||
-      platform === "linux"
-    ) {
-      const targetTag = version.startsWith("v") ? version : `v${version}`;
+      // B. 桌面端或安卓端从 GitHub Release 对应 tag 回源
+      const targetTag =
+        device === "android"
+          ? `android-v${version.replace(/^android-v/, "").replace(/^v/, "")}`
+          : version.startsWith("v")
+            ? version
+            : `v${version}`;
       const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
       return proxyGitHubAsset(sourceUrl, request, filename);
     }

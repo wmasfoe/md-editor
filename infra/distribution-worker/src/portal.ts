@@ -1,12 +1,13 @@
 import type { ReleaseInfo, ReleasesManifest } from "./types.ts";
 
 /**
- * 基础 CSS 样式：极简目录索引风格，支持深色自适应，无 emoji，排版清晰规范
+ * 基础 CSS 样式：极简目录索引风格，深色自适应，无 emoji，排版清晰规范
  */
 const BASE_STYLES = `
   :root {
     --bg: #0d1117;
     --surface: #161b22;
+    --surface-raised: #1c2128;
     --border: #30363d;
     --border-subtle: #21262d;
     --text: #e6edf3;
@@ -71,6 +72,15 @@ const BASE_STYLES = `
     gap: 12px;
     margin-bottom: 16px;
   }
+  .parent-link {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--link);
+    text-decoration: none;
+  }
+  .parent-link:hover {
+    text-decoration: underline;
+  }
   .search-input {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -85,17 +95,6 @@ const BASE_STYLES = `
   .search-input:focus {
     border-color: var(--link);
     box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
-  }
-  .badge-latest {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #2ea043;
-    background: rgba(46, 160, 67, 0.15);
-    border: 1px solid rgba(46, 160, 67, 0.3);
-    padding: 1px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    vertical-align: middle;
   }
 
   /* 目录表格 */
@@ -170,67 +169,17 @@ const BASE_STYLES = `
     font-weight: 600;
   }
 
-  .parent-link {
-    font-family: var(--font-mono);
+  /* 徽章样式 */
+  .badge-latest {
+    font-size: 0.72rem;
     font-weight: 600;
-  }
-
-  /* 最新版本快捷直达面板 */
-  .latest-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 16px;
-    margin-bottom: 20px;
-  }
-  .latest-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-  .latest-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .latest-desc {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-  }
-  .latest-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 12px;
-  }
-  .latest-card {
-    background: #11151c;
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    padding: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .latest-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .platform-title {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text);
-  }
-  .version-tag {
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    color: var(--text-muted);
+    color: #2ea043;
+    background: rgba(46, 160, 67, 0.15);
+    border: 1px solid rgba(46, 160, 67, 0.3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
   }
   .badge-beta {
     font-size: 0.7rem;
@@ -240,37 +189,61 @@ const BASE_STYLES = `
     border: 1px solid rgba(227, 179, 65, 0.3);
     padding: 1px 6px;
     border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
   }
-  .badge-tag {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 500;
-    padding: 1px 6px;
-    border-radius: 4px;
+
+  /* 设备板块容器 */
+  .device-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 22px;
   }
-  .badge-tag-desktop {
+  .device-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .device-title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .device-code-title {
+    font-family: var(--font-mono);
+    font-size: 1.15rem;
+    font-weight: 700;
     color: var(--link);
-    background: var(--badge-bg);
-    border: 1px solid rgba(88, 166, 255, 0.25);
+    text-decoration: none;
   }
-  .badge-tag-android {
-    color: #2ea043;
-    background: rgba(46, 160, 67, 0.15);
-    border: 1px solid rgba(46, 160, 67, 0.3);
+  .device-code-title:hover {
+    text-decoration: underline;
+  }
+  .device-label {
+    font-size: 0.9rem;
+    color: var(--text-muted);
   }
   .quick-buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
+    margin-bottom: 14px;
   }
   .btn-quick {
     display: inline-block;
     background: #21262d;
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 5px 10px;
+    padding: 5px 12px;
     border-radius: 4px;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     text-decoration: none;
     transition: all 0.15s;
   }
@@ -291,43 +264,15 @@ const BASE_STYLES = `
     border-color: #2ea043;
     color: #ffffff;
   }
-  .card-more {
-    font-size: 0.8rem;
+  .device-footer-link {
+    display: inline-block;
+    margin-top: 12px;
+    font-size: 0.85rem;
     color: var(--link);
     text-decoration: none;
-    align-self: flex-start;
   }
-  .card-more:hover {
+  .device-footer-link:hover {
     text-decoration: underline;
-  }
-
-  /* 分类切换 Tab 按钮 */
-  .category-filter {
-    display: inline-flex;
-    background: #11151c;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2px;
-    gap: 2px;
-  }
-  .cat-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    font-family: inherit;
-    padding: 5px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .cat-btn:hover {
-    color: var(--text);
-  }
-  .cat-btn.active {
-    background: #21262d;
-    color: var(--text);
-    font-weight: 600;
   }
 
   /* 跨端友好提示条 */
@@ -431,7 +376,7 @@ export function renderAppIndexHtml(
               ${app.description ? `<span style="color:var(--text-muted); font-size:0.8rem;"> - ${app.description}</span>` : ""}
             </td>
             <td style="text-align:right;">
-              <a href="/${app.name}/" class="btn-download">进入版本目录</a>
+              <a href="/${app.name}/" class="btn-download">进入应用目录</a>
             </td>
           </tr>
           `,
@@ -453,19 +398,21 @@ export function renderAppIndexHtml(
 }
 
 /**
- * 2. 应用版本索引页：列出所有版本链接 (Index of /:app/)
- * 增加“全平台最新稳定版直达”卡片、平台分类切换（全部 / 桌面端 / 安卓端）与直达导航
+ * 2. 应用设备层级索引页：第一层区分设备类型 (Index of /:app/)
+ * 结构：
+ * Inkpoint
+ *  -- desktop/
+ *     -- v0.10.2
+ *     -- v0.10.1
+ *  -- android/
+ *     -- v0.1.0
  */
-export function renderVersionIndexHtml(
+export function renderAppDevicesHtml(
   app: string,
   manifest: ReleasesManifest,
   currentOrigin: string,
-  initialCategory: "all" | "desktop" | "android" = "all",
 ): string {
-  const latestVersion = manifest.latestVersion;
-
-  // 1. 提取最新桌面版与最新 Android 版
-  const desktopRelease = manifest.releases.find(
+  const desktopReleases = manifest.releases.filter(
     (r) =>
       r.category === "desktop" ||
       r.assets.some(
@@ -476,25 +423,28 @@ export function renderVersionIndexHtml(
       ),
   );
 
-  const androidRelease = manifest.releases.find(
+  const androidReleases = manifest.releases.filter(
     (r) => r.category === "android" || r.assets.some((a) => a.platform === "android"),
   );
 
   const latestDesktopVersion =
-    manifest.latestDesktopVersion || desktopRelease?.version || latestVersion;
-  const latestAndroidVersion = manifest.latestAndroidVersion || androidRelease?.version || "0.1.0";
+    manifest.latestDesktopVersion || desktopReleases[0]?.version || manifest.latestVersion;
+  const latestAndroidVersion =
+    manifest.latestAndroidVersion || androidReleases[0]?.version || "0.1.0";
 
-  const macArmAsset = desktopRelease?.assets.find(
+  const latestDesktop = desktopReleases[0];
+  const macArmAsset = latestDesktop?.assets.find(
     (a) => a.platform === "macos-arm64" || a.fileName.toLowerCase().includes("aarch64.dmg"),
   );
-  const winX64Asset = desktopRelease?.assets.find(
+  const winX64Asset = latestDesktop?.assets.find(
     (a) => a.platform === "windows-x64" || a.fileName.toLowerCase().includes("x64-setup.exe"),
   );
-  const linuxAppAsset = desktopRelease?.assets.find(
+  const linuxAppAsset = latestDesktop?.assets.find(
     (a) => a.platform === "linux-appimage" || a.fileName.toLowerCase().includes("appimage"),
   );
 
-  const androidApkAsset = androidRelease?.assets.find(
+  const latestAndroid = androidReleases[0];
+  const androidApkAsset = latestAndroid?.assets.find(
     (a) => a.platform === "android" || a.fileName.toLowerCase().endsWith(".apk"),
   );
   const androidDownloadUrl =
@@ -507,7 +457,7 @@ export function renderVersionIndexHtml(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Index of /${app}/ · 版本清单</title>
+  <title>Index of /${app}/ · 设备目录与版本归档</title>
   <style>${BASE_STYLES}</style>
 </head>
 <body>
@@ -516,79 +466,259 @@ export function renderVersionIndexHtml(
       <div class="breadcrumb">
         <a href="/">[Root]</a> / <span>${app}</span> /
       </div>
-      <div class="subtitle">共 ${manifest.total} 个已发布版本 · 支持分类筛选与直链高速下载</div>
+      <div class="subtitle">设备分类目录 · 桌面端与移动端独立版本通道 · 全球边缘加速</div>
     </header>
 
-    <!-- 各端最新稳定版快捷直达区 (免下翻寻找) -->
-    <section class="latest-section">
-      <div class="latest-header">
-        <span class="latest-title">最新版本直达通道</span>
-        <span class="latest-desc">常用客户端推荐，无需下翻历史记录即可一键下载</span>
-      </div>
-      <div class="latest-grid">
-        <!-- 桌面端最新卡片 -->
-        <div class="latest-card">
-          <div class="latest-card-header">
-            <div>
-              <span class="platform-title">Desktop 桌面端</span>
-              <span class="version-tag">v${latestDesktopVersion}</span>
-            </div>
-            <span class="badge-latest">LATEST</span>
-          </div>
-          <div class="quick-buttons">
-            ${
-              macArmAsset
-                ? `<a href="${macArmAsset.downloadUrl}" download="${macArmAsset.fileName}" class="btn-quick">macOS (Apple Silicon)</a>`
-                : `<a href="/${app}/${latestDesktopVersion}/" class="btn-quick">macOS (DMG)</a>`
-            }
-            ${
-              winX64Asset
-                ? `<a href="${winX64Asset.downloadUrl}" download="${winX64Asset.fileName}" class="btn-quick">Windows (x64)</a>`
-                : `<a href="/${app}/${latestDesktopVersion}/" class="btn-quick">Windows (Setup)</a>`
-            }
-            ${
-              linuxAppAsset
-                ? `<a href="${linuxAppAsset.downloadUrl}" download="${linuxAppAsset.fileName}" class="btn-quick">Linux (AppImage)</a>`
-                : `<a href="/${app}/${latestDesktopVersion}/" class="btn-quick">Linux (AppImage)</a>`
-            }
-          </div>
-          <a href="/${app}/${latestDesktopVersion}/" class="card-more">进入该版本全部安装包 &rarr;</a>
-        </div>
-
-        <!-- Android 移动端最新卡片 -->
-        <div class="latest-card">
-          <div class="latest-card-header">
-            <div>
-              <span class="platform-title">Android 移动端</span>
-              <span class="version-tag">v${latestAndroidVersion}</span>
-            </div>
-            <span class="badge-beta">PUBLIC BETA</span>
-          </div>
-          <div class="quick-buttons">
-            <a href="${androidDownloadUrl}" download="${androidFileName}" class="btn-quick btn-accent">
-              一键下载 APK (${androidSize})
-            </a>
-            <a href="/${app}/android/latest" download="${androidFileName}" class="btn-quick">
-              最新固化直链
-            </a>
-          </div>
-          <a href="/${app}/${latestAndroidVersion}/" class="card-more">查看 Android 版本详情 &rarr;</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- 操作栏：分类过滤 Tab + 搜索过滤 -->
     <div class="toolbar">
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <a href="/" class="parent-link" style="color:var(--link); text-decoration:none;">../ (Parent Directory)</a>
-        <div class="category-filter">
-          <button type="button" class="cat-btn ${initialCategory === "all" ? "active" : ""}" data-cat="all" onclick="setCategory('all')">全部版本</button>
-          <button type="button" class="cat-btn ${initialCategory === "desktop" ? "active" : ""}" data-cat="desktop" onclick="setCategory('desktop')">桌面端 (Desktop)</button>
-          <button type="button" class="cat-btn ${initialCategory === "android" ? "active" : ""}" data-cat="android" onclick="setCategory('android')">安卓移动端 (Android)</button>
-        </div>
+      <div>
+        <a href="/" class="parent-link">../ (Parent Directory)</a>
       </div>
       <div>
-        <input type="text" id="filterInput" class="search-input" placeholder="按版本号过滤 (如 0.10, 0.1)..." oninput="handleSearch(this.value)">
+        <input type="text" id="filterInput" class="search-input" placeholder="按版本号或文件过滤 (如 0.10, apk)..." oninput="filterReleases(this.value)">
+      </div>
+    </div>
+
+    <main>
+      <!-- 第一列按设备类型区分的目录列表 -->
+      <table class="index-table" style="margin-bottom: 24px;">
+        <thead>
+          <tr>
+            <th>Directory (设备类型)</th>
+            <th>Platform Coverage</th>
+            <th>Latest Version</th>
+            <th>Total Releases</th>
+            <th style="text-align:right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="file-name">
+              <a href="/${app}/desktop/">desktop/</a>
+            </td>
+            <td class="file-platform">macOS (Apple Silicon / Intel), Windows (x64), Linux (AppImage / DEB)</td>
+            <td>
+              <strong>v${latestDesktopVersion}</strong>
+              <span class="badge-latest">LATEST</span>
+            </td>
+            <td class="file-size">${desktopReleases.length} versions</td>
+            <td style="text-align:right;">
+              <a href="/${app}/desktop/" class="btn-download">进入 desktop/ 目录</a>
+            </td>
+          </tr>
+          <tr>
+            <td class="file-name">
+              <a href="/${app}/android/">android/</a>
+            </td>
+            <td class="file-platform">Android (APK · ARM64 / x86_64)</td>
+            <td>
+              <strong>v${latestAndroidVersion}</strong>
+              <span class="badge-beta">PUBLIC BETA</span>
+            </td>
+            <td class="file-size">${androidReleases.length} versions</td>
+            <td style="text-align:right;">
+              <a href="/${app}/android/" class="btn-download">进入 android/ 目录</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 1. desktop/ 桌面端分块 -->
+      <div class="device-block" id="desktopBlock">
+        <div class="device-block-header">
+          <div class="device-title-wrap">
+            <a href="/${app}/desktop/" class="device-code-title">desktop/</a>
+            <span class="device-label">桌面端版本列表 (macOS, Windows, Linux)</span>
+          </div>
+          <div>
+            <span class="badge-latest">LATEST: v${latestDesktopVersion}</span>
+          </div>
+        </div>
+
+        <div class="quick-buttons">
+          ${
+            macArmAsset
+              ? `<a href="${macArmAsset.downloadUrl}" download="${macArmAsset.fileName}" class="btn-quick">macOS (Apple Silicon)</a>`
+              : `<a href="/${app}/desktop/${latestDesktopVersion}/" class="btn-quick">macOS (Apple Silicon)</a>`
+          }
+          ${
+            winX64Asset
+              ? `<a href="${winX64Asset.downloadUrl}" download="${winX64Asset.fileName}" class="btn-quick">Windows (x64)</a>`
+              : `<a href="/${app}/desktop/${latestDesktopVersion}/" class="btn-quick">Windows (x64)</a>`
+          }
+          ${
+            linuxAppAsset
+              ? `<a href="${linuxAppAsset.downloadUrl}" download="${linuxAppAsset.fileName}" class="btn-quick">Linux (AppImage)</a>`
+              : `<a href="/${app}/desktop/${latestDesktopVersion}/" class="btn-quick">Linux (AppImage)</a>`
+          }
+        </div>
+
+        <table class="index-table">
+          <thead>
+            <tr>
+              <th>Desktop Version</th>
+              <th>Release Date</th>
+              <th>Packages</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${desktopReleases
+              .map(
+                (r, idx) => `
+            <tr class="release-row" data-version="${r.version}" data-device="desktop">
+              <td class="file-name">
+                <a href="/${app}/desktop/${r.version}/">${r.version}/</a>
+                ${idx === 0 ? '<span class="badge-latest">LATEST</span>' : ""}
+              </td>
+              <td class="file-date">${r.publishedAt.slice(0, 10)}</td>
+              <td class="file-size">${r.assets.length} files</td>
+              <td style="text-align:right;">
+                <a href="/${app}/desktop/${r.version}/" class="btn-download">查看安装包</a>
+              </td>
+            </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <div>
+          <a href="/${app}/desktop/" class="device-footer-link">进入完整桌面端目录 desktop/ (共 ${desktopReleases.length} 个版本) &rarr;</a>
+        </div>
+      </div>
+
+      <!-- 2. android/ 安卓移动端分块 -->
+      <div class="device-block" id="androidBlock">
+        <div class="device-block-header">
+          <div class="device-title-wrap">
+            <a href="/${app}/android/" class="device-code-title">android/</a>
+            <span class="device-label">安卓移动端版本列表 (APK)</span>
+          </div>
+          <div>
+            <span class="badge-beta">PUBLIC BETA: v${latestAndroidVersion}</span>
+          </div>
+        </div>
+
+        <div class="quick-buttons">
+          <a href="${androidDownloadUrl}" download="${androidFileName}" class="btn-quick btn-accent">
+            一键下载 APK (${androidSize})
+          </a>
+          <a href="/${app}/android/latest" download="${androidFileName}" class="btn-quick">
+            最新固化直链
+          </a>
+        </div>
+
+        <table class="index-table">
+          <thead>
+            <tr>
+              <th>Android Version</th>
+              <th>Release Date</th>
+              <th>Package Name</th>
+              <th style="text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${androidReleases
+              .map(
+                (r, idx) => `
+            <tr class="release-row" data-version="${r.version}" data-device="android">
+              <td class="file-name">
+                <a href="/${app}/android/${r.version}/">${r.version}/</a>
+                ${idx === 0 ? '<span class="badge-beta">LATEST</span>' : ""}
+              </td>
+              <td class="file-date">${r.publishedAt.slice(0, 10)}</td>
+              <td class="file-platform">${androidFileName}</td>
+              <td style="text-align:right;">
+                <a href="/${app}/android/${r.version}/" class="btn-download">查看安装包</a>
+              </td>
+            </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <div>
+          <a href="/${app}/android/" class="device-footer-link">进入完整安卓移动端目录 android/ (共 ${androidReleases.length} 个版本) &rarr;</a>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <div>Application: ${app} · Desktop: ${desktopReleases.length} releases · Android: ${androidReleases.length} releases</div>
+      <div>
+        <a href="${currentOrigin}/api/${app}/releases">JSON API</a> ·
+        <a href="${currentOrigin}/api/${app}/version.json">Version API</a>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    function filterReleases(q) {
+      const query = (q || '').trim().toLowerCase();
+      const rows = document.querySelectorAll('.release-row');
+      rows.forEach(row => {
+        const ver = (row.getAttribute('data-version') || '').toLowerCase();
+        if (!query || ver.includes(query)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * 3. 设备专属版本列表页 (Index of /:app/:device/) 如 /inkpoint/desktop/ 或 /inkpoint/android/
+ */
+export function renderDeviceVersionsHtml(
+  app: string,
+  device: "desktop" | "android",
+  manifest: ReleasesManifest,
+  currentOrigin: string,
+): string {
+  const isAndroid = device === "android";
+  const deviceTitle = isAndroid ? "Android 移动端" : "Desktop 桌面端";
+
+  const releases = manifest.releases.filter((r) => {
+    if (isAndroid) {
+      return r.category === "android" || r.assets.some((a) => a.platform === "android");
+    }
+    return (
+      r.category === "desktop" ||
+      r.assets.some(
+        (a) =>
+          a.platform.includes("macos") ||
+          a.platform.includes("windows") ||
+          a.platform.includes("linux"),
+      )
+    );
+  });
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Index of /${app}/${device}/ · ${deviceTitle}版本列表</title>
+  <style>${BASE_STYLES}</style>
+</head>
+<body>
+  <div class="wrapper">
+    <header>
+      <div class="breadcrumb">
+        <a href="/">[Root]</a> / <a href="/${app}/">${app}</a> / <span>${device}</span> /
+      </div>
+      <div class="subtitle">${deviceTitle}全量版本归档 · 共 ${releases.length} 个版本</div>
+    </header>
+
+    <div class="toolbar">
+      <div>
+        <a href="/${app}/" class="parent-link">../ (Parent Directory)</a>
+      </div>
+      <div>
+        <input type="text" id="filterInput" class="search-input" placeholder="按版本号过滤 (如 ${isAndroid ? "0.1" : "0.10"})..." oninput="filterVersions(this.value)">
       </div>
     </div>
 
@@ -597,199 +727,104 @@ export function renderVersionIndexHtml(
         <thead>
           <tr>
             <th>Version</th>
-            <th>Platform</th>
             <th>Release Date</th>
-            <th>Assets Count</th>
-            <th style="text-align:right;">Notes / Action</th>
+            <th>Assets</th>
+            <th style="text-align:right;">Action</th>
           </tr>
         </thead>
-        <tbody id="versionTableBody">
-          ${manifest.releases
-            .map((r) => {
-              const isAndroidOnly =
-                r.category === "android" ||
-                (r.assets.length > 0 && r.assets.every((a) => a.platform === "android"));
-              const hasAndroid = r.assets.some((a) => a.platform === "android");
-              const hasDesktop = r.assets.some(
-                (a) =>
-                  a.platform.includes("macos") ||
-                  a.platform.includes("windows") ||
-                  a.platform.includes("linux"),
-              );
-              const category = isAndroidOnly
-                ? "android"
-                : hasAndroid && !hasDesktop
-                  ? "android"
-                  : "desktop";
-
-              return `
-          <tr class="version-row" data-version="${r.version}" data-category="${category}">
+        <tbody>
+          ${releases
+            .map(
+              (r, idx) => `
+          <tr class="version-row" data-version="${r.version}">
             <td class="file-name">
-              <a href="/${app}/${r.version}/">${r.version}/</a>
+              <a href="/${app}/${device}/${r.version}/">${r.version}/</a>
               ${
-                r.version === latestDesktopVersion && !isAndroidOnly
-                  ? '<span class="badge-latest">LATEST DESKTOP</span>'
-                  : r.version === latestAndroidVersion && isAndroidOnly
-                    ? '<span class="badge-beta">LATEST ANDROID</span>'
-                    : ""
-              }
-            </td>
-            <td>
-              ${
-                isAndroidOnly
-                  ? '<span class="badge-tag badge-tag-android">Android</span>'
-                  : hasAndroid && hasDesktop
-                    ? '<span class="badge-tag badge-tag-desktop">Desktop</span><span class="badge-tag badge-tag-android">Android</span>'
-                    : '<span class="badge-tag badge-tag-desktop">Desktop</span>'
+                idx === 0
+                  ? isAndroid
+                    ? '<span class="badge-beta">LATEST</span>'
+                    : '<span class="badge-latest">LATEST</span>'
+                  : ""
               }
             </td>
             <td class="file-date">${r.publishedAt.slice(0, 10)}</td>
             <td class="file-size">${r.assets.length} files</td>
             <td style="text-align:right;">
-              ${
-                r.releaseNotesUrl
-                  ? `<a href="${r.releaseNotesUrl}" target="_blank" style="color:var(--text-muted); font-size:0.8rem; margin-right:10px; text-decoration:none;">Release Notes</a>`
-                  : ""
-              }
-              <a href="/${app}/${r.version}/" class="btn-download">查看安装包</a>
+              <a href="/${app}/${device}/${r.version}/" class="btn-download">查看安装包</a>
             </td>
           </tr>
-          `;
-            })
+          `,
+            )
             .join("")}
         </tbody>
       </table>
     </main>
 
     <footer>
-      <div>Application: ${app} · Total: ${manifest.total} versions</div>
+      <div>Application: ${app} · Device: ${device} · Total: ${releases.length} versions</div>
       <div>
-        <a href="${currentOrigin}/api/${app}/releases">JSON API</a> ·
-        <a href="${currentOrigin}/api/${app}/version.json">Latest Version API</a>
+        <a href="${currentOrigin}/api/${app}/releases">JSON API</a>
       </div>
     </footer>
   </div>
 
   <script>
-    let currentCategory = "${initialCategory}";
-    let currentQuery = "";
-
-    function setCategory(cat) {
-      currentCategory = cat;
-      document.querySelectorAll('.cat-btn').forEach(btn => {
-        if (btn.getAttribute('data-cat') === cat) {
-          btn.classList.add('active');
-        } else {
-          btn.classList.remove('active');
-        }
-      });
-      applyFilter();
-
-      // 同步 URL hash
-      if (history.replaceState) {
-        const hash = cat === 'all' ? '' : '#' + cat;
-        const newUrl = window.location.pathname + window.location.search + hash;
-        history.replaceState(null, '', newUrl);
-      }
-    }
-
-    function handleSearch(q) {
-      currentQuery = (q || '').trim().toLowerCase();
-      applyFilter();
-    }
-
-    function applyFilter() {
+    function filterVersions(query) {
+      const q = (query || '').trim().toLowerCase();
       const rows = document.querySelectorAll('.version-row');
       rows.forEach(row => {
         const ver = (row.getAttribute('data-version') || '').toLowerCase();
-        const cat = row.getAttribute('data-category') || 'desktop';
-
-        const matchCategory = (currentCategory === 'all') || (cat === currentCategory);
-        const matchQuery = !currentQuery || ver.includes(currentQuery);
-
-        if (matchCategory && matchQuery) {
+        if (!q || ver.includes(q)) {
           row.style.display = '';
         } else {
           row.style.display = 'none';
         }
       });
     }
-
-    // 页面载入时根据 URL hash 或 search 参数初始化分类
-    (function initFromLocation() {
-      const hash = (window.location.hash || '').replace(/^#/, '').toLowerCase();
-      const params = new URLSearchParams(window.location.search);
-      const catParam = (params.get('category') || params.get('tab') || '').toLowerCase();
-      const target = hash || catParam;
-
-      if (target === 'android' || target === 'mobile') {
-        setCategory('android');
-      } else if (target === 'desktop') {
-        setCategory('desktop');
-      }
-    })();
   </script>
 </body>
 </html>`;
 }
 
 /**
- * 3. 具体版本安装包详情页 (Index of /:app/:version/)
- * 列出该版本包含的所有各平台安装包、文件大小及直链下载，并在顶部提供跨端友好引导
+ * 4. 具体版本安装包详情页 (Index of /:app/:device/:version/ 或 /:app/:version/)
  */
 export function renderVersionFilesHtml(
   app: string,
+  device: "desktop" | "android",
   release: ReleaseInfo,
   currentOrigin: string,
-  latestAndroidVersion = "0.1.0",
 ): string {
-  const isAndroid =
-    release.category === "android" ||
-    (release.assets.length > 0 && release.assets.every((a) => a.platform === "android"));
+  const parentUrl = `/${app}/${device}/`;
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Index of /${app}/${release.version}/ · 安装包列表</title>
+  <title>Index of /${app}/${device}/${release.version}/ · 安装包列表</title>
   <style>${BASE_STYLES}</style>
 </head>
 <body>
   <div class="wrapper">
     <header>
       <div class="breadcrumb">
-        <a href="/">[Root]</a> / <a href="/${app}/">${app}</a> / <span>${release.version}</span> /
+        <a href="/">[Root]</a> / <a href="/${app}/">${app}</a> / <a href="${parentUrl}">${device}</a> / <span>${release.version}</span> /
       </div>
       <div class="subtitle">
         发布日期: ${release.publishedAt.slice(0, 10)}
         ${release.isLatest ? ' · <span class="badge-latest">LATEST</span>' : ""}
         ${
           release.releaseNotesUrl
-            ? ` · <a href="${release.releaseNotesUrl}" target="_blank" style="color:var(--link); text-decoration:none;">查看 GitHub Release Notes</a>`
+            ? ` · <a href="${release.releaseNotesUrl}" target="_blank" style="color:var(--link); text-decoration:none;">查看 Release Notes</a>`
             : ""
         }
       </div>
     </header>
 
-    ${
-      !isAndroid
-        ? `
-    <!-- 跨端友好提示条：桌面版本页面引导直达 Android -->
-    <div class="cross-notice">
-      <span>正在寻找 Android 移动端？最新版本为 v${latestAndroidVersion}</span>
-      <div>
-        <a href="/${app}/android/latest" style="margin-right:12px;">直接下载最新 APK</a>
-        <a href="/${app}/#android">查看 Android 版本记录 &rarr;</a>
-      </div>
-    </div>
-    `
-        : ""
-    }
-
     <div class="toolbar">
       <div>
-        <a href="/${app}/" class="parent-link" style="color:var(--link); text-decoration:none;">../ (Parent Directory)</a>
+        <a href="${parentUrl}" class="parent-link">../ (Parent Directory)</a>
       </div>
       <div>
         <input type="text" id="fileFilterInput" class="search-input" placeholder="过滤文件 (如 dmg, exe, apk)..." oninput="filterFiles(this.value)">
@@ -801,12 +836,12 @@ export function renderVersionFilesHtml(
         <thead>
           <tr>
             <th>File Name</th>
-            <th>Platform / Type</th>
+            <th>Platform / Format</th>
             <th>Size</th>
             <th style="text-align:right;">Download</th>
           </tr>
         </thead>
-        <tbody id="filesTableBody">
+        <tbody>
           ${release.assets
             .map(
               (asset) => `
@@ -831,7 +866,7 @@ export function renderVersionFilesHtml(
     </main>
 
     <footer>
-      <div>Application: ${app} · Version: ${release.version}</div>
+      <div>Application: ${app} · Device: ${device} · Version: ${release.version}</div>
       <div>
         <a href="${currentOrigin}/api/${app}/releases">Releases API</a>
       </div>
@@ -855,4 +890,19 @@ export function renderVersionFilesHtml(
   </script>
 </body>
 </html>`;
+}
+
+/**
+ * 保持向后兼容的旧接口转发（供旧代码或测试调用）
+ */
+export function renderVersionIndexHtml(
+  app: string,
+  manifest: ReleasesManifest,
+  currentOrigin: string,
+  initialCategory: "all" | "desktop" | "android" = "all",
+): string {
+  if (initialCategory === "desktop" || initialCategory === "android") {
+    return renderDeviceVersionsHtml(app, initialCategory, manifest, currentOrigin);
+  }
+  return renderAppDevicesHtml(app, manifest, currentOrigin);
 }

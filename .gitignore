@@ -61,6 +61,8 @@ test-results/
 .cache/
 .parcel-cache/
 .eslintcache
+.wrangler/
+**/.wrangler/
 
 # OS files
 .DS_Store

@@ -335,26 +335,33 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.10.2/");
   });
 
-  it("should render version package detail HTML on /inkpoint/0.10.2/", async () => {
-    const req = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+  it("should render version package detail HTML on /inkpoint/0.10.2/ and /inkpoint/desktop/0.10.2/", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const res = await handleRequest(req, env);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
+    // 1. 兼容路由 /inkpoint/0.10.2/
+    const req1 = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+    const res1 = await handleRequest(req1, env);
+    expect(res1.status).toBe(200);
+    expect(res1.headers.get("Content-Type")).toContain("text/html");
+    const html1 = await res1.text();
+    expect(html1).toContain("Index of /inkpoint/desktop/0.10.2/");
+    expect(html1).toContain("Inkpoint_0.10.2_aarch64.dmg");
+    expect(html1).toContain("[R2 Edge]");
+    expect(html1).toContain("../ (Parent Directory)");
 
-    const html = await res.text();
-    expect(html).toContain("Index of /inkpoint/0.10.2/");
-    expect(html).toContain("Inkpoint_0.10.2_aarch64.dmg");
-    expect(html).toContain("[R2 Edge]");
-    expect(html).toContain("../ (Parent Directory)");
-    expect(html).toContain("正在寻找 Android 移动端？");
+    // 2. 规范层级路由 /inkpoint/desktop/0.10.2/
+    const req2 = new Request("https://download.justdev.cn/inkpoint/desktop/0.10.2/");
+    const res2 = await handleRequest(req2, env);
+    expect(res2.status).toBe(200);
+    const html2 = await res2.text();
+    expect(html2).toContain("Index of /inkpoint/desktop/0.10.2/");
+    expect(html2).toContain("Inkpoint_0.10.2_aarch64.dmg");
   });
 
-  it("should render category-specific android portal on /inkpoint/android and /releases/android", async () => {
+  it("should render device-specific portal on /inkpoint/android and /releases/android", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -365,16 +372,32 @@ describe("Distribution Worker Router & Matcher", () => {
     const res1 = await handleRequest(req1, env);
     expect(res1.status).toBe(200);
     const html1 = await res1.text();
+    expect(html1).toContain("Index of /inkpoint/android/");
     expect(html1).toContain("Android 移动端");
-    expect(html1).toContain("一键下载 APK");
-    expect(html1).toContain('class="cat-btn active" data-cat="android"');
+    expect(html1).toContain("0.1.0/");
 
     // 2. /releases/android
     const req2 = new Request("https://download.justdev.cn/releases/android");
     const res2 = await handleRequest(req2, env);
     expect(res2.status).toBe(200);
     const html2 = await res2.text();
-    expect(html2).toContain('class="cat-btn active" data-cat="android"');
+    expect(html2).toContain("Index of /inkpoint/android/");
+    expect(html2).toContain("0.1.0/");
+  });
+
+  it("should render device-specific portal on /inkpoint/desktop and /releases/desktop", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Index of /inkpoint/desktop/");
+    expect(html).toContain("Desktop 桌面端");
+    expect(html).toContain("0.10.2/");
   });
 
   it("should provide latestDesktopVersion and latestAndroidVersion in releases manifest API", async () => {
