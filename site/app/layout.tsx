@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { InkWashFilter } from "../components/ink-wash-filter";
 import { SiteFooter } from "../components/site-footer";
 import { SiteHeader } from "../components/site-header";
-import { getChangelogEntries } from "../lib/changelog";
+import { getAndroidChangelogEntries, getChangelogEntries } from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
 import { detectLocaleFromHeader } from "../lib/i18n";
 import { I18nProvider } from "../lib/i18n/context";
@@ -57,8 +57,9 @@ export default async function RootLayout({
   const initialDomain = resolveDistributionDomain(host);
   const initialLocale = detectLocaleFromHeader(acceptLanguage);
   const [latest] = getChangelogEntries();
+  const [latestAndroid] = getAndroidChangelogEntries();
   const catalog = latest
-    ? buildDownloadCatalog(latest.version, initialLocale, initialDomain)
+    ? buildDownloadCatalog(latest.version, initialLocale, initialDomain, latestAndroid?.version)
     : null;
 
   return (

@@ -90,18 +90,21 @@ const INSTALL_BY_PLATFORM_EN: Record<"macos" | "linux" | "windows", PlatformInst
   },
 };
 
+export const DEFAULT_ANDROID_VERSION = "0.1.1";
+
 /** 按版本和语言构造多平台主下载与次要架构入口；移动端排在最后并标明测试版状态。 */
 export function buildDownloadCatalog(
   version?: string,
   locale: Locale = "zh",
   domain?: string,
+  androidVersion?: string,
 ): DownloadCatalog {
   const normalized = version ? normalizeVersion(version) : null;
   const isEn = locale === "en";
-  const mobile = getMobileDownloadCatalog(locale, domain);
+  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion);
 
   if (!normalized) {
-    return fallbackCatalog(locale, domain);
+    return fallbackCatalog(locale, domain, androidVersion);
   }
 
   const allPackagesUrl = RELEASES_PORTAL_URL;
@@ -195,9 +198,13 @@ function fallbackPrimary(label: string, format: string): PlatformDownload {
   };
 }
 
-function fallbackCatalog(locale: Locale = "zh", domain?: string): DownloadCatalog {
+function fallbackCatalog(
+  locale: Locale = "zh",
+  domain?: string,
+  androidVersion?: string,
+): DownloadCatalog {
   const isEn = locale === "en";
-  const mobile = getMobileDownloadCatalog(locale, domain);
+  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion);
   const allPackagesUrl = RELEASES_PORTAL_URL;
   return {
     macos: fallbackPrimary(isEn ? "Download for macOS" : "下载 macOS", "Apple Silicon · DMG"),
@@ -246,13 +253,15 @@ export interface MobilePlatformDownload {
 export function getMobileDownloadCatalog(
   locale: Locale = "zh",
   domain?: string,
+  androidVersion = DEFAULT_ANDROID_VERSION,
 ): MobilePlatformDownload {
   const isEn = locale === "en";
+  const normalizedAndroidVer = normalizeVersion(androidVersion) || DEFAULT_ANDROID_VERSION;
   return {
     android: {
       primary: {
-        href: buildAndroidApkUrl("0.1.0", domain),
-        fileName: "Inkpoint_0.1.0.apk",
+        href: buildAndroidApkUrl(normalizedAndroidVer, domain),
+        fileName: `Inkpoint_${normalizedAndroidVer}.apk`,
         label: isEn ? "Download Android APK (Beta)" : "下载 Android 安装包 (APK)",
       },
       format: isEn ? "Android 8.0+ · APK · Beta" : "Android 8.0+ · APK · 测试版",
@@ -262,7 +271,7 @@ export function getMobileDownloadCatalog(
           label: isEn ? "Latest APK Link" : "最新版直链",
         },
       ],
-      version: "0.1.0",
+      version: normalizedAndroidVer,
     },
     ios: {
       primary: {

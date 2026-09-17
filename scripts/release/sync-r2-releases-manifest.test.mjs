@@ -67,4 +67,81 @@ describe("sync-r2-releases-manifest", () => {
     assert.equal(android.category, "android");
     assert.equal(android.assets[0].platform, "android");
   });
+
+  it("merges and preserves historical Android releases alongside newly discovered versions", () => {
+    const rawDesktopMock = [
+      {
+        tag_name: "v0.10.2",
+        published_at: "2026-09-15T12:00:00Z",
+        prerelease: false,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.10.2",
+        assets: [{ name: "Inkpoint_0.10.2_aarch64.dmg", size: 10000000 }],
+      },
+    ];
+
+    const existingAndroidReleases = [
+      {
+        version: "0.1.0",
+        tagName: "android-v0.1.0",
+        publishedAt: "2026-09-16T12:00:00Z",
+        isLatest: true,
+        isPrerelease: true,
+        category: "android",
+        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.0",
+        assets: [
+          {
+            platform: "android",
+            platformLabel: "Android · APK (Beta)",
+            fileName: "Inkpoint_0.1.0.apk",
+            downloadUrl: "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+            sizeBytes: 45000000,
+            formattedSize: "43 MB",
+            isR2Cached: true,
+          },
+        ],
+      },
+    ];
+
+    const extraAndroidReleases = [
+      {
+        version: "0.1.1",
+        tagName: "android-v0.1.1",
+        publishedAt: "2026-09-17T12:00:00Z",
+        isLatest: false,
+        isPrerelease: true,
+        category: "android",
+        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.1",
+        assets: [
+          {
+            platform: "android",
+            platformLabel: "Android · APK (Beta)",
+            fileName: "Inkpoint_0.1.1.apk",
+            downloadUrl: "https://download.justdev.cn/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+            sizeBytes: 46000000,
+            formattedSize: "44 MB",
+            isR2Cached: true,
+          },
+        ],
+      },
+    ];
+
+    const manifest = transformGitHubReleases(
+      rawDesktopMock,
+      "inkpoint",
+      "https://download.justdev.cn",
+      {
+        existingReleases: existingAndroidReleases,
+        extraAndroidReleases,
+      },
+    );
+
+    assert.equal(manifest.latestAndroidVersion, "0.1.1");
+    assert.equal(manifest.latestReleases.android.version, "0.1.1");
+    const androidList = manifest.releases.filter((r) => r.category === "android");
+    assert.equal(androidList.length, 2);
+    assert.equal(androidList[0].version, "0.1.1");
+    assert.equal(androidList[0].isLatest, true);
+    assert.equal(androidList[1].version, "0.1.0");
+    assert.equal(androidList[1].isLatest, false);
+  });
 });

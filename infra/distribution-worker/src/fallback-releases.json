@@ -1,10 +1,10 @@
 {
   "app": "inkpoint",
-  "updatedAt": "2026-09-17T06:13:01.488Z",
-  "total": 68,
+  "updatedAt": "2026-09-17T09:05:10.147Z",
+  "total": 70,
   "latestVersion": "0.10.2",
   "latestDesktopVersion": "0.10.2",
-  "latestAndroidVersion": "0.1.0",
+  "latestAndroidVersion": "0.1.1",
   "latestReleases": {
     "desktop": {
       "version": "0.10.2",
@@ -85,9 +85,9 @@
       ]
     },
     "android": {
-      "version": "0.1.0",
+      "version": "0.1.1",
       "downloadUrl": "https://download.justdev.cn/inkpoint/android/latest",
-      "fileName": "Inkpoint_0.1.0.apk",
+      "fileName": "Inkpoint_0.1.1.apk",
       "formattedSize": "43 MB"
     }
   },
@@ -3322,6 +3322,46 @@
       "category": "desktop",
       "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.1.0",
       "assets": []
+    },
+    {
+      "version": "0.1.1",
+      "tagName": "android-v0.1.1",
+      "publishedAt": "2026-09-17T09:05:10.145Z",
+      "isLatest": true,
+      "isPrerelease": true,
+      "category": "android",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.1",
+      "assets": [
+        {
+          "platform": "android",
+          "platformLabel": "Android · APK (Beta)",
+          "fileName": "Inkpoint_0.1.1.apk",
+          "downloadUrl": "https://download.justdev.cn/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+          "sizeBytes": 45000000,
+          "formattedSize": "43 MB",
+          "isR2Cached": true
+        }
+      ]
+    },
+    {
+      "version": "0.1.0",
+      "tagName": "android-v0.1.0",
+      "publishedAt": "2026-09-17T09:05:10.145Z",
+      "isLatest": false,
+      "isPrerelease": true,
+      "category": "android",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.0",
+      "assets": [
+        {
+          "platform": "android",
+          "platformLabel": "Android · APK (Beta)",
+          "fileName": "Inkpoint_0.1.0.apk",
+          "downloadUrl": "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+          "sizeBytes": 45000000,
+          "formattedSize": "43 MB",
+          "isR2Cached": true
+        }
+      ]
     }
   ]
 }

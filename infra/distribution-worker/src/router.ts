@@ -208,6 +208,26 @@ export async function fetchAllGitHubReleases(
   return [];
 }
 
+function parseSemverComponents(v: string): number[] {
+  return v
+    .replace(/^v/i, "")
+    .replace(/^android-v/i, "")
+    .replace(/^mobile-v/i, "")
+    .split(".")
+    .map((num) => parseInt(num, 10) || 0);
+}
+
+export function compareSemver(a: string, b: string): number {
+  const pa = parseSemverComponents(a);
+  const pb = parseSemverComponents(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na !== nb) return na - nb;
+  }
+  return 0;
+}
+
 /**
  * 汇总构建全量历史版本清单
  */
@@ -476,19 +496,71 @@ export async function buildReleasesManifest(
     }
   }
 
-  // 4. 确保清单中包含专属 Android Release
-  const existingAndroid = releases.find(
-    (r) =>
-      r.category === "android" ||
-      (r.version === androidVersion && r.assets.some((a) => a.platform === "android")),
-  );
+  // 4. 枚举与合并全量 Android Release 列表（从 R2 Bucket、version.json 与已存在清单汇总）
+  const androidMap = new Map<string, ReleaseInfo>();
 
-  if (!existingAndroid) {
-    releases.push({
+  // A. 首先保留当前 releases 列表中已有的 Android 记录
+  for (const r of releases) {
+    if (r.category === "android" || r.assets.some((a) => a.platform === "android")) {
+      androidMap.set(r.version, {
+        ...r,
+        category: "android",
+      });
+    }
+  }
+
+  // B. 扫描 R2 存储桶中物理存在的所有 Android APK 版本
+  if (env.RELEASE_BUCKET && typeof env.RELEASE_BUCKET.list === "function") {
+    try {
+      const listRes = await env.RELEASE_BUCKET.list({ prefix: `${app}/android/` });
+      if (Array.isArray(listRes?.objects)) {
+        for (const obj of listRes.objects) {
+          const match = obj.key.match(new RegExp(`^${app}/android/([^/]+)/([^/]+\\.apk)$`));
+          if (match) {
+            const v = match[1];
+            const fileName = match[2];
+            if (v !== "latest" && !fileName.includes("unaligned")) {
+              const asset: ReleaseAssetInfo = {
+                platform: "android",
+                platformLabel: "Android · APK (Beta)",
+                fileName,
+                downloadUrl: `${baseUrl}/${app}/android/${v}/${fileName}`,
+                sizeBytes: obj.size,
+                formattedSize: formatBytes(obj.size),
+                isR2Cached: true,
+              };
+
+              const existing = androidMap.get(v);
+              if (!existing) {
+                androidMap.set(v, {
+                  version: v,
+                  tagName: `android-v${v}`,
+                  publishedAt: obj.uploaded ? obj.uploaded.toISOString() : new Date().toISOString(),
+                  isLatest: false,
+                  isPrerelease: true,
+                  category: "android",
+                  releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${v}`,
+                  assets: [asset],
+                });
+              } else if (!existing.assets.some((a) => a.fileName === fileName)) {
+                existing.assets.push(asset);
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      // 容灾忽略
+    }
+  }
+
+  // C. 确保 version.json 中指定的最新 Android 版本也在 map 中
+  if (androidVersion && !androidMap.has(androidVersion)) {
+    androidMap.set(androidVersion, {
       version: androidVersion,
       tagName: `android-v${androidVersion}`,
       publishedAt: androidPublishedAt,
-      isLatest: true,
+      isLatest: false,
       isPrerelease: true,
       category: "android",
       releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${androidVersion}`,
@@ -506,14 +578,27 @@ export async function buildReleasesManifest(
     });
   }
 
-  // 4. 计算各端最新版本与直达摘要
-  const desktopRelease = releases.find((r) => r.category === "desktop");
-  const androidRelease = releases.find(
-    (r) => r.category === "android" || r.assets.some((a) => a.platform === "android"),
+  // D. 排序并标记最新版本
+  const sortedAndroid = Array.from(androidMap.values()).toSorted((a, b) =>
+    compareSemver(b.version, a.version),
   );
 
+  for (let i = 0; i < sortedAndroid.length; i++) {
+    sortedAndroid[i].isLatest = i === 0;
+  }
+
+  // E. 从 releases 中剔除旧的 Android 项，并将有序的全部 Android 版本追加进去
+  releases = releases.filter(
+    (r) => r.category !== "android" && !r.assets.some((a) => a.platform === "android"),
+  );
+  releases.push(...sortedAndroid);
+
+  // 5. 计算各端最新版本与直达摘要
+  const desktopRelease = releases.find((r) => r.category === "desktop");
+  const topAndroid = sortedAndroid[0];
+
   const latestDesktopVersion = desktopRelease?.version || releases[0]?.version || "0.10.2";
-  const latestAndroidVersion = androidRelease?.version || androidVersion;
+  const latestAndroidVersion = topAndroid?.version || androidVersion;
 
   return {
     app,
@@ -531,8 +616,8 @@ export async function buildReleasesManifest(
       android: {
         version: latestAndroidVersion,
         downloadUrl: `${baseUrl}/${app}/android/latest`,
-        fileName: androidFileName,
-        formattedSize: formatBytes(androidSizeBytes),
+        fileName: topAndroid?.assets?.[0]?.fileName || androidFileName,
+        formattedSize: topAndroid?.assets?.[0]?.formattedSize || formatBytes(androidSizeBytes),
       },
     },
     releases,

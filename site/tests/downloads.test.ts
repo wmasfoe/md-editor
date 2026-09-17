@@ -61,12 +61,19 @@ describe("getPlatformInstall", () => {
   it("builds mobile download catalog with Android APK and iOS TestFlight", () => {
     const zh = getMobileDownloadCatalog("zh");
     expect(zh.android.primary.href).toBe(
-      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+      "https://download.justdev.cn/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
     );
     expect(zh.android.primary.label).toBe("下载 Android 安装包 (APK)");
     expect(zh.android.format).toBe("Android 8.0+ · APK · 测试版");
+    expect(zh.android.version).toBe("0.1.1");
     expect(zh.ios.primary.href).toContain("testflight.apple.com");
     expect(zh.ios.format).toBe("iOS 16.0+ · TestFlight · 测试版");
+
+    const custom = getMobileDownloadCatalog("zh", undefined, "0.1.0");
+    expect(custom.android.primary.href).toBe(
+      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+    );
+    expect(custom.android.version).toBe("0.1.0");
 
     const en = getMobileDownloadCatalog("en");
     expect(en.android.primary.label).toBe("Download Android APK (Beta)");
@@ -76,9 +83,10 @@ describe("getPlatformInstall", () => {
   });
 
   it("includes mobile beta platforms in buildDownloadCatalog", () => {
-    const catalog = buildDownloadCatalog("0.10.2", "zh");
+    const catalog = buildDownloadCatalog("0.10.2", "zh", undefined, "0.1.1");
     expect(catalog.android.isBeta).toBe(true);
-    expect(catalog.android.version).toBe("0.1.0");
+    expect(catalog.android.version).toBe("0.1.1");
+    expect(catalog.android.primary.fileName).toBe("Inkpoint_0.1.1.apk");
     expect(catalog.android.format).toBe("Android 8.0+ · APK · 测试版");
     expect(catalog.ios.isBeta).toBe(true);
     expect(catalog.ios.version).toBe("0.1.0");

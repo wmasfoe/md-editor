@@ -193,6 +193,30 @@ export function getAndroidChangelogEntries(
 }
 
 /**
+ * 获取当前最新的 Android 版本号。
+ * 优先从 Android 更新日志首条提取，兜底解析 build.gradle.kts 或回退 0.1.1。
+ */
+export function getLatestAndroidVersion(): string {
+  const entries = getAndroidChangelogEntries("zh");
+  if (entries.length > 0 && entries[0].version) {
+    return entries[0].version;
+  }
+  const gradleCandidates = [
+    path.join(process.cwd(), "..", "apps", "mobile", "android", "app", "build.gradle.kts"),
+    path.join(process.cwd(), "apps", "mobile", "android", "app", "build.gradle.kts"),
+  ];
+  for (const candidate of gradleCandidates) {
+    if (fs.existsSync(candidate)) {
+      const match = fs.readFileSync(candidate, "utf8").match(/versionName\s*=\s*"([^"]+)"/);
+      if (match?.[1]) {
+        return match[1];
+      }
+    }
+  }
+  return "0.1.1";
+}
+
+/**
  * 默认更新日志获取函数（对齐 Desktop 客户端日志）。
  */
 export function getChangelogEntries(filePath?: string): ChangelogEntry[] {

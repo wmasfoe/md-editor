@@ -2,6 +2,10 @@
 
 All notable changes to the Inkpoint Android application will be documented in this file.
 
+## 0.1.1 - 2026-09-17 (#81)
+
+- **Fix crash when entering editor state**: Resolved occasional crash when transitioning into the editing state on mobile, improving bridge communication stability between WebView and Compose (#81).
+
 ## 0.1.0 - 2026-09-16 (#69)
 
 - **Initial release of the native Android client**: Modern Material Design 3 mobile client built with Jetpack Compose and AndroidX WebView.

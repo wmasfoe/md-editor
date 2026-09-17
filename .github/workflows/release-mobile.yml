@@ -144,3 +144,11 @@ jobs:
           name: inkpoint-android-${{ steps.release_version.outputs.version }}-apk
           path: dist-mobile/*
           retention-days: 30
+
+      - name: Publish website changelog
+        if: env.VERCEL_TOKEN != ''
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: pnpm release:site
