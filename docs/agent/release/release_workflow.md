@@ -26,18 +26,45 @@
 - **官网部署**：
   - 唯一入口为 `pnpm release:site`（`scripts/site/deploy-site.mjs`）；
   - `site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
-  - 聚合读取 `apps/desktop/CHANGELOG.md` 与 `apps/web/CHANGELOG.md`，并在页面以多 Tab 方式展示。
+  - 承载主站首页、Next.js ISR 全平台版本分发中心（`/releases`）、更新日志（`/changelog`）等；
+  - 对应域名：`editor.justdev.cn` 与 `editor.jiaqi.im`。
+- **全球边缘分发网关与 R2 存储（Cloudflare Worker）**：
+  - 唯一入口为 `pnpm deploy:worker`（`infra/distribution-worker`）；
+  - 负责各平台安装包大文件直连（`/inkpoint/desktop/...`、`/inkpoint/android/...`）、版本清单 API（`/api/inkpoint/releases`）、应用内自动更新检查（`/desktop/updater.json`）与静态目录预渲染；
+  - 对应域名：`download.justdev.cn` 与 `download.jiaqi.im`。
 
-## 核心发版命令速查
+## 核心发版与部署命令速查
 
-| 命令 | 对应脚本 | 说明 |
+| 命令 | 对应脚本 / 目录 | 说明 |
 | :--- | :--- | :--- |
 | `pnpm release:desktop` | `scripts/release/publish-desktop.mjs` | 桌面端完整发版流程（版本更新、Changelog 写入、commit、`v*` tag 与 push，同时支持 `desktop-v*`） |
 | `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端核心版本文件（desktop package, Tauri, Cargo；root package 固定为 `0.0.0` 容器占位）与 `apps/desktop/CHANGELOG.md` |
 | `pnpm release:web` | `scripts/web/deploy-web.mjs` | Web 端本地 Vercel CLI 预构建极速上线入口（对标 `release:site`） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
 | `pnpm deploy:web` | `scripts/web/deploy-web.mjs` | Web 端部署别名入口 |
-| `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口 |
+| `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口（发布至 `editor.justdev.cn` / `editor.jiaqi.im`） |
+| `pnpm deploy:worker` | `infra/distribution-worker` | Cloudflare Worker 边缘分发网关发布入口（发布至 `download.justdev.cn` / `download.jiaqi.im`） |
+| `pnpm dev:site` | `site` | 本地启动官网 Next.js 开发环境（端口 3000） |
+| `pnpm dev:worker` | `infra/distribution-worker` | 本地启动 Cloudflare Worker 边缘网关调试环境（Wrangler） |
+
+## 合并 PR 后的线上部署决策矩阵
+
+当一个 PR 合并入 `main` 分支后，维护者或 Agent 应先执行 `git checkout main && git pull`，并根据本次 PR 涉及的修改范围决定执行哪项上线命令：
+
+1. **若修改了 `site/` 目录**（如官网文案、Next.js ISR 版本中心 `/releases`、更新日志 UI、样式等）：
+   - 执行：`pnpm release:site`
+   - 验证：检查 `https://editor.justdev.cn/` 和 `https://editor.jiaqi.im/` 是否正常生效。
+2. **若修改了 `infra/distribution-worker/` 目录**（如分发网关路由、R2 代理策略、静态目录模板等）：
+   - 执行：`pnpm deploy:worker`
+   - 验证：检查 `https://download.justdev.cn/` 和 `https://download.jiaqi.im/` 是否正常生效。
+3. **若同时修改了 `site/` 和 `infra/distribution-worker/`**：
+   - 先执行：`pnpm release:site`
+   - 再执行：`pnpm deploy:worker`
+4. **若修改了 `apps/web/` 目录**（Web 在线 Playground）：
+   - 执行：`pnpm release:web`
+   - 验证：检查 `https://editor.justdev.cn/playground` 是否正常生效。
+5. **若是桌面端客户端版本发布**：
+   - 走标准客户端发布命令：`pnpm release:desktop`（由 GitHub Actions 构建多端二进制并自动同步至 R2 与公开 Tap）。
 
 ## 相关文件索引
 

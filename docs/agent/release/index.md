@@ -6,7 +6,7 @@
 
 ## 文档
 
-- macOS DMG、GitHub Release、Homebrew tap 与官网 CLI 发版流程： [release_workflow.md](./release_workflow.md)
+- macOS DMG、GitHub Release、Homebrew tap、官网与 Cloudflare Worker 边缘网关发版流程： [release_workflow.md](./release_workflow.md)
 - Linux / Windows / ARM 多平台构建、发布与一键安装方案： [../architecture/cross_platform_support_plan.md](../architecture/cross_platform_support_plan.md)
 - 多平台分发、Cloudflare R2 存储与 Worker 边缘加速方案： [../architecture/multi_platform_distribution_architecture.md](../architecture/multi_platform_distribution_architecture.md)
 - 公开仓库后可恢复的 macOS workflow 备份： [build_macos_workflow_public_repo_backup.md](./build_macos_workflow_public_repo_backup.md)
