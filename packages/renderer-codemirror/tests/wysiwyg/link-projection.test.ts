@@ -309,4 +309,32 @@ describe("link, image, and thematic-break projection", () => {
     });
     expect(source.doc.toString()).toBe(doc);
   });
+
+  it("projects thematic break as an inclusive block replacement without synthetic line", () => {
+    const doc = "\n\n---\n\n";
+    const initial = createState(doc, EditorSelection.cursor(0)).state;
+    const thematicBreak = initial.field(markdownRangeIndexField).byKind("thematic-break")[0];
+    expect(thematicBreak).toBeDefined();
+
+    let decorationSpec: Record<string, unknown> | null = null;
+    let decoFrom = -1;
+    let decoTo = -1;
+    initial
+      .field(wysiwygProjectionField)
+      .layoutDecorations.between(0, doc.length, (from, to, value) => {
+        if (value.spec.wysiwygRole === "thematic-break-widget") {
+          decorationSpec = value.spec as Record<string, unknown>;
+          decoFrom = from;
+          decoTo = to;
+        }
+      });
+
+    expect(decorationSpec).not.toBeNull();
+    expect(decorationSpec!.block).toBe(true);
+    expect(decorationSpec!.inclusiveStart).toBe(true);
+    expect(decorationSpec!.inclusiveEnd).toBe(false);
+    expect(decoFrom).toBe(thematicBreak.fullRange.from);
+    // 覆盖整行并吞并末尾换行符
+    expect(decoTo).toBe(thematicBreak.fullRange.to + 1);
+  });
 });
