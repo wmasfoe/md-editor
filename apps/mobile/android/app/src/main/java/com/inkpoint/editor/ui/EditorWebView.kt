@@ -1,6 +1,7 @@
 package com.inkpoint.editor.ui
 
 import android.annotation.SuppressLint
+import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.view.ViewGroup
 import android.webkit.WebResourceRequest
@@ -26,6 +27,10 @@ fun EditorWebView(
 ) {
     AndroidView(
         factory = { context ->
+            if (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+                WebView.setWebContentsDebuggingEnabled(true)
+            }
+
             val assetLoader = WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context))
                 .build()

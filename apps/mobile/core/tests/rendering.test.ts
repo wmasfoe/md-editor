@@ -354,4 +354,24 @@ describe("Mobile Web Rendering Contract Tests", () => {
       id: "架构设计",
     });
   });
+
+  it("should render code blocks with syntax highlighting classes for TypeScript and Swift", () => {
+    const markdown = `\`\`\`typescript
+export interface Bridge {
+  send(action: string): void;
+}
+\`\`\`
+
+\`\`\`swift
+let message = "hello"
+\`\`\``;
+
+    const result = renderStaticHtml(markdown);
+    expect(result.html).toContain('class="hljs language-typescript"');
+    expect(result.html).toContain('class="hljs-keyword"');
+    expect(result.html).toContain("export");
+    expect(result.html).toContain("interface");
+    expect(result.html).toContain('class="hljs language-swift"');
+    expect(result.html).toContain("let");
+  });
 });
