@@ -191,6 +191,19 @@ export interface RendererViewAdapter {
   scrollSnapshot(): StateEffect<unknown>;
   getScrollTop(): number;
   setScrollTop(value: number): void;
+  getCursorCoordinates?(pos: number): {
+    readonly top: number;
+    readonly bottom: number;
+    readonly left: number;
+    readonly right: number;
+  } | null;
+  getViewportRect?(): {
+    readonly top: number;
+    readonly bottom: number;
+    readonly left: number;
+    readonly right: number;
+  } | null;
+  getLineBlockTop?(pos: number): number | null;
   hasFocus(): boolean;
   focus(): void;
   requestMeasure(afterMeasure?: () => void): void;
@@ -294,6 +307,51 @@ class DomRendererViewAdapter implements RendererViewAdapter {
 
   setScrollTop(value: number): void {
     this.#view.scrollDOM.scrollTop = value;
+  }
+
+  getCursorCoordinates(pos: number): {
+    readonly top: number;
+    readonly bottom: number;
+    readonly left: number;
+    readonly right: number;
+  } | null {
+    const coords = this.#view.coordsAtPos(pos);
+    if (!coords) {
+      return null;
+    }
+    return {
+      top: coords.top,
+      bottom: coords.bottom,
+      left: coords.left,
+      right: coords.right,
+    };
+  }
+
+  getViewportRect(): {
+    readonly top: number;
+    readonly bottom: number;
+    readonly left: number;
+    readonly right: number;
+  } | null {
+    const rect = this.#view.scrollDOM.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+    };
+  }
+
+  getLineBlockTop(pos: number): number | null {
+    try {
+      const clampedPos = Math.max(0, Math.min(pos, this.#view.state.doc.length));
+      return this.#view.lineBlockAt(clampedPos).top;
+    } catch {
+      return null;
+    }
   }
 
   hasFocus(): boolean {
@@ -437,6 +495,8 @@ class CodeMirrorRendererController {
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
   #visibilityRestoreSequence = 0;
   #modeScrollRestoreSequence = 0;
+  readonly #modeScrollTopsByMode = new Map<EditorMode, number>();
+  readonly #modeCursorPosByMode = new Map<EditorMode, number>();
   #destroyed = false;
 
   constructor(
@@ -1093,6 +1153,8 @@ class CodeMirrorRendererController {
     this.#compositionActive = false;
     this.#hiddenViewState = null;
     this.#visibilityRestoreSequence += 1;
+    this.#modeScrollTopsByMode.clear();
+    this.#modeCursorPosByMode.clear();
     this.#destroyed = true;
     this.#view.destroy();
     this.#viewDestructionCount += 1;
@@ -1193,7 +1255,39 @@ class CodeMirrorRendererController {
   }
 
   #dispatchModeChange(mode: EditorMode, origin: RendererTransactionOrigin): void {
-    const scrollTop = this.#view.getScrollTop();
+    const previousMode = this.#currentMode();
+    const previousScrollTop = this.#view.getScrollTop();
+    const cursorPos = this.#view.state.selection.main.head;
+    const initialCoords = this.#view.getCursorCoordinates?.(cursorPos) ?? null;
+    const initialViewport = this.#view.getViewportRect?.() ?? null;
+
+    // 记录切换前模式的滚动位置与光标位置
+    this.#modeScrollTopsByMode.set(previousMode, previousScrollTop);
+    this.#modeCursorPosByMode.set(previousMode, cursorPos);
+
+    // 检测光标在切换前是否处于当前可视视口内部：
+    // 若处于视口内，记录光标相对于视口顶部的相对偏移量（用于模式切换后像素级几何对齐）；
+    // 若光标在视口外（如用户滚动至其他段落阅读），则不强行吸附光标，维持原视口阅读位置。
+    let cursorOffsetPx: number | null = null;
+    if (
+      initialCoords !== null &&
+      initialViewport !== null &&
+      initialViewport.bottom > initialViewport.top
+    ) {
+      if (
+        initialCoords.bottom >= initialViewport.top &&
+        initialCoords.top <= initialViewport.bottom
+      ) {
+        cursorOffsetPx = initialCoords.top - initialViewport.top;
+      }
+    }
+
+    // 判断目标模式是否已有精确记录且光标未发生位移（例如 WYSIWYG -> Source -> WYSIWYG 原路切回）
+    const hasPriorModeRecord = this.#modeScrollTopsByMode.has(mode);
+    const cursorUnchanged = this.#modeCursorPosByMode.get(mode) === cursorPos;
+    const priorScrollTop =
+      hasPriorModeRecord && cursorUnchanged ? this.#modeScrollTopsByMode.get(mode)! : null;
+
     const scrollSnapshot = this.#view.scrollSnapshot();
     this.#view.dispatch({
       effects: [
@@ -1203,7 +1297,13 @@ class CodeMirrorRendererController {
       ],
       annotations: [Transaction.addToHistory.of(false), rendererTransactionOrigin.of(origin)],
     });
-    this.#view.setScrollTop(scrollTop);
+
+    if (priorScrollTop !== null) {
+      this.#view.setScrollTop(priorScrollTop);
+    } else if (cursorOffsetPx === null) {
+      this.#view.setScrollTop(previousScrollTop);
+    }
+
     const generation = this.#documentGeneration;
     const restoreSequence = ++this.#modeScrollRestoreSequence;
     this.#requestMeasure(() => {
@@ -1213,7 +1313,38 @@ class CodeMirrorRendererController {
         this.#currentMode() === mode &&
         this.#modeScrollRestoreSequence === restoreSequence
       ) {
-        this.#view.setScrollTop(scrollTop);
+        if (priorScrollTop !== null) {
+          this.#view.setScrollTop(priorScrollTop);
+          return;
+        }
+
+        if (cursorOffsetPx !== null) {
+          const currentHead = this.#view.state.selection.main.head;
+          const newCoords = this.#view.getCursorCoordinates?.(currentHead) ?? null;
+          const newViewport = this.#view.getViewportRect?.() ?? null;
+          if (newCoords !== null && newViewport !== null) {
+            const currentOffset = newCoords.top - newViewport.top;
+            const delta = currentOffset - cursorOffsetPx;
+            if (Math.abs(delta) >= 1) {
+              const currentScroll = this.#view.getScrollTop();
+              const targetScroll = Math.max(0, currentScroll + delta);
+              this.#view.setScrollTop(targetScroll);
+              this.#modeScrollTopsByMode.set(mode, targetScroll);
+            } else {
+              this.#modeScrollTopsByMode.set(mode, this.#view.getScrollTop());
+            }
+            return;
+          }
+          const blockTop = this.#view.getLineBlockTop?.(currentHead);
+          if (typeof blockTop === "number") {
+            const targetScrollTop = Math.max(0, blockTop - cursorOffsetPx);
+            this.#view.setScrollTop(targetScrollTop);
+            this.#modeScrollTopsByMode.set(mode, targetScrollTop);
+            return;
+          }
+        }
+
+        this.#view.setScrollTop(previousScrollTop);
       }
     });
   }
@@ -1237,6 +1368,8 @@ class CodeMirrorRendererController {
     this.#compositionActive = false;
     this.#hiddenViewState = null;
     this.#visibilityRestoreSequence += 1;
+    this.#modeScrollTopsByMode.clear();
+    this.#modeCursorPosByMode.clear();
     this.#clearPendingProtocolState();
     const nextState = this.#createState(snapshot);
     this.#view.setState(nextState);
