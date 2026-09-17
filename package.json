@@ -1,7 +1,7 @@
 {
   "name": "md-editor",
   "version": "0.0.0",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "description": "Inkpoint — a daily-usable Markdown and MDX-compatible desktop editor.",
   "type": "module",
