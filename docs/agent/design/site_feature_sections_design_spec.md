@@ -148,13 +148,35 @@
 
 ---
 
-## 六、 响应式与可访问性 (Responsive & Accessibility)
+## 六、 响应式与移动端适配契约 (Mobile Responsive & Accessibility)
 
-1. **移动端适配 (< 768px)**：
-   - 基础编辑区假侧栏自动隐藏，编辑工作面占满 100% 容器宽度；
-   - AI 展区 3 枚 Bento 卡片平滑变为单列卡片网格，视差位移自动收敛（Reduced Motion 模式位移归零）；
-   - 触控高度均保持 `>= 44px`，确保移动端顺畅点按。
-2. **可访问性 (WCAG AA)**：
-   - 所有文本与背景对比度保持 `>= 4.5:1`（正文 `#14120f` vs `#ffffff` 对比度高达 18.5:1）；
-   - 幽灵文字提供 `aria-label="建议续写内容"` 辅助朗诵说明；
-   - 所有交互按钮均有语义化 `role="button"` 与键盘操作支持。
+### 1. 钉住场景平滑降级 (PinnedScene Graceful Downgrade)
+- 媒体查询断点：`(min-width: 768px) and (min-height: 700px)`（详见 `site/lib/parallax.ts` 的 `PINNED_SCENE_MEDIA`）。
+- **移动端/小屏降级行为**：
+  - 取消 `sticky` 锁定和加长虚拟行程，恢复自然垂直文档流；
+  - `SceneRenderState` 自动注入 `isPinned: false`、`progress: 1`、`isActive: true`；
+  - 各展区彻底避免在父级高度为 0 时发生绝对定位折叠或内容不可见。
+
+### 2. 各展区移动端精细化适配
+1. **基础编辑展区 (Core Live Editor)**：
+   - 假侧栏转为顶部水平横向滚动文稿标签栏（`overflow-x-auto`，隐藏滚动条）；
+   - 编辑器内边距与外层容器内边距在手机端自适应缩减（`px-2 sm:px-8`，编辑器内部 `p-4 sm:p-6`），最大化可用书写空间。
+2. **AI 智能展区 (Ambient AI)**：
+   - 3 枚 Bento 特性卡片转为单卡片 + 底部 3 分段滑动切换指示器（Bento Indicator Switcher），支持点击指示器随时切卡查看；
+   - 续写操作按钮在移动端切换为大触控区流式布局（`flex-1 min-h-[42px]`），底部操作提示自动切为触控友好的文字引导。
+3. **MDX 源码展区 (MDX Split/Wipe)**：
+   - 顶栏新增快速切换胶囊（`[预览 (Preview) | 源码 (MDX Source)]`），支持一键在手机窄屏上全宽查看，同时保留滑动分屏交互。
+4. **下载控制面板 (Download Panel)**：
+   - 分段控制器在手机窄屏（如 360px~390px）自适应精简文字（如 `Windows` -> `Win`、Android 呼吸微标、iOS 期待标签精简），杜绝文字折行重叠；
+   - 客户端下载主按钮自适应为居中大按钮（`w-full max-w-xs`），次级架构与校验码链接优化触摸行高。
+5. **更新日志 (Changelog)**：
+   - 多版本 Tab 栏改造为横向平滑滚动容器，单个 Tab 设为 `shrink-0 whitespace-nowrap`；版本产物下拉菜单添加视口防溢出限制。
+6. **分发网关下载中心 (Distribution Worker Download Portal)**：
+   - 视口宽度 $\le$ 680px 时自动转为流式卡片排版（`.responsive-table`），保留完整 SHA256 校验码展示并提供触控友好的一键下载按钮；
+   - 顶栏引入 Inkpoint 品牌导航与层次化面包屑。
+
+### 3. 可访问性规范 (WCAG AA & Touch Targets)
+- **触控靶区**：移动端所有可交互组件（按钮、Tab、分段项）尺寸均保持 $\ge 44 \times 44\text{px}$；
+- **文本对比度**：正文 `#14120f` vs `#ffffff` 对比度达 18.5:1，暗色与亮色模式下均满足 WCAG AA；
+- **辅助说明**：幽灵文字包含 `aria-label="建议续写内容"`，并为屏幕阅读器保留完整语义结构。
+
