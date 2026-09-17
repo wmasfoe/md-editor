@@ -2,9 +2,9 @@ import { handleRequest } from "./router.ts";
 import type { Env } from "./types.ts";
 
 export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     try {
-      return await handleRequest(request, env);
+      return await handleRequest(request, env, ctx);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return new Response(

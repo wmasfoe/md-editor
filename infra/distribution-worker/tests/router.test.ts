@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
+import {
+  buildReleasesManifest,
+  getStaticHtmlR2Keys,
+  handleRequest,
+  matchDesktopAsset,
+} from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -335,26 +340,33 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.10.2/");
   });
 
-  it("should render version package detail HTML on /inkpoint/0.10.2/", async () => {
-    const req = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+  it("should render version package detail HTML on /inkpoint/0.10.2/ and /inkpoint/desktop/0.10.2/", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const res = await handleRequest(req, env);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
+    // 1. 兼容路由 /inkpoint/0.10.2/
+    const req1 = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+    const res1 = await handleRequest(req1, env);
+    expect(res1.status).toBe(200);
+    expect(res1.headers.get("Content-Type")).toContain("text/html");
+    const html1 = await res1.text();
+    expect(html1).toContain("Index of /inkpoint/desktop/0.10.2/");
+    expect(html1).toContain("Inkpoint_0.10.2_aarch64.dmg");
+    expect(html1).toContain("[R2 Edge]");
+    expect(html1).toContain("../ (Parent Directory)");
 
-    const html = await res.text();
-    expect(html).toContain("Index of /inkpoint/0.10.2/");
-    expect(html).toContain("Inkpoint_0.10.2_aarch64.dmg");
-    expect(html).toContain("[R2 Edge]");
-    expect(html).toContain("../ (Parent Directory)");
-    expect(html).toContain("正在寻找 Android 移动端？");
+    // 2. 规范层级路由 /inkpoint/desktop/0.10.2/
+    const req2 = new Request("https://download.justdev.cn/inkpoint/desktop/0.10.2/");
+    const res2 = await handleRequest(req2, env);
+    expect(res2.status).toBe(200);
+    const html2 = await res2.text();
+    expect(html2).toContain("Index of /inkpoint/desktop/0.10.2/");
+    expect(html2).toContain("Inkpoint_0.10.2_aarch64.dmg");
   });
 
-  it("should render category-specific android portal on /inkpoint/android and /releases/android", async () => {
+  it("should render device-specific portal on /inkpoint/android and /releases/android", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -365,16 +377,32 @@ describe("Distribution Worker Router & Matcher", () => {
     const res1 = await handleRequest(req1, env);
     expect(res1.status).toBe(200);
     const html1 = await res1.text();
+    expect(html1).toContain("Index of /inkpoint/android/");
     expect(html1).toContain("Android 移动端");
-    expect(html1).toContain("一键下载 APK");
-    expect(html1).toContain('class="cat-btn active" data-cat="android"');
+    expect(html1).toContain("0.1.0/");
 
     // 2. /releases/android
     const req2 = new Request("https://download.justdev.cn/releases/android");
     const res2 = await handleRequest(req2, env);
     expect(res2.status).toBe(200);
     const html2 = await res2.text();
-    expect(html2).toContain('class="cat-btn active" data-cat="android"');
+    expect(html2).toContain("Index of /inkpoint/android/");
+    expect(html2).toContain("0.1.0/");
+  });
+
+  it("should render device-specific portal on /inkpoint/desktop and /releases/desktop", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Index of /inkpoint/desktop/");
+    expect(html).toContain("Desktop 桌面端");
+    expect(html).toContain("0.10.2/");
   });
 
   it("should provide latestDesktopVersion and latestAndroidVersion in releases manifest API", async () => {
@@ -454,5 +482,76 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(
       true,
     );
+  });
+
+  it("should resolve static HTML R2 keys correctly", () => {
+    expect(getStaticHtmlR2Keys("/")).toEqual(["index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint")).toEqual(["inkpoint/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/desktop")).toEqual(["inkpoint/desktop/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/android")).toEqual(["inkpoint/android/index.html"]);
+    expect(getStaticHtmlR2Keys("/inkpoint/desktop/0.10.2")).toEqual([
+      "inkpoint/desktop/0.10.2/index.html",
+    ]);
+    expect(getStaticHtmlR2Keys("/releases")).toEqual([
+      "inkpoint/index.html",
+      "releases/index.html",
+    ]);
+  });
+
+  it("should serve pre-rendered static HTML directly from R2 when present", async () => {
+    const staticHtmlContent = "<!DOCTYPE html><html><body>Static R2 HTML</body></html>";
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/index.html") {
+          return {
+            body: new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode(staticHtmlContent));
+                controller.close();
+              },
+            }),
+            httpEtag: "etag-static-html",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toBe(staticHtmlContent);
+  });
+
+  it("should serve static asset directly from ASSETS fetcher when present", async () => {
+    const staticHtmlContent = "<!DOCTYPE html><html><body>Static Edge Asset</body></html>";
+    const mockAssets = {
+      fetch: async (_req: Request) => {
+        return new Response(staticHtmlContent, {
+          status: 200,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      },
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/android");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      ASSETS: mockAssets as unknown as Fetcher,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toBe(staticHtmlContent);
   });
 });

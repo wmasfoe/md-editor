@@ -104,7 +104,7 @@ export function buildDownloadCatalog(
     return fallbackCatalog(locale, domain);
   }
 
-  const allPackagesUrl = domain ? `https://${domain}/releases` : RELEASES_PORTAL_URL;
+  const allPackagesUrl = RELEASES_PORTAL_URL;
 
   return {
     macos: {
@@ -198,7 +198,7 @@ function fallbackPrimary(label: string, format: string): PlatformDownload {
 function fallbackCatalog(locale: Locale = "zh", domain?: string): DownloadCatalog {
   const isEn = locale === "en";
   const mobile = getMobileDownloadCatalog(locale, domain);
-  const allPackagesUrl = domain ? `https://${domain}/releases` : RELEASES_PORTAL_URL;
+  const allPackagesUrl = RELEASES_PORTAL_URL;
   return {
     macos: fallbackPrimary(isEn ? "Download for macOS" : "下载 macOS", "Apple Silicon · DMG"),
     linux: fallbackPrimary(isEn ? "Download for Linux" : "下载 Linux", "x86_64 · AppImage"),
