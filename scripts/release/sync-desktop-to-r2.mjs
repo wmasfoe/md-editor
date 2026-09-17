@@ -167,6 +167,14 @@ async function main() {
     { stdio: "inherit" },
   );
 
+  // 同步全量历史版本清单到 R2
+  console.log(`📋 Syncing full releases manifest to R2...`);
+  try {
+    execSync(`node scripts/release/sync-r2-releases-manifest.mjs --upload`, { stdio: "inherit" });
+  } catch (syncErr) {
+    console.warn("Could not sync releases manifest:", syncErr.message);
+  }
+
   // 刷新全网边缘缓存，使动态渲染最新版本即时生效
   console.log(`🧹 Purging download edge cache...`);
   try {

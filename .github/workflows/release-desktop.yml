@@ -539,7 +539,12 @@ jobs:
             npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-desktop/version.json" --remote
           fi
 
-          # 5. 刷新全网边缘缓存，使动态渲染最新版本即时生效
+          # 5. 同步全量历史版本清单到 R2
+          if [[ "$IS_PRERELEASE" != "true" ]]; then
+            node scripts/release/sync-r2-releases-manifest.mjs --upload
+          fi
+
+          # 6. 刷新全网边缘缓存，使动态渲染最新版本即时生效
           echo "🧹 Purging download edge cache..."
           node scripts/release/purge-download-cache.mjs
 

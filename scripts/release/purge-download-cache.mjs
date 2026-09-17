@@ -1,3 +1,4 @@
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const DEFAULT_DOMAINS = ["https://download.justdev.cn", "https://download.jiaqi.im"];
@@ -130,11 +131,9 @@ export async function runCli() {
 }
 
 const isDirectRun =
-  process.argv[1] && fileURLToPath(import.meta.url) === pathToFileURL(process.argv[1]).href;
-
-function pathToFileURL(pathStr) {
-  return new URL(`file://${pathStr.startsWith("/") ? "" : "/"}${pathStr}`);
-}
+  process.argv[1] &&
+  (import.meta.url.endsWith(process.argv[1]) ||
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
 
 if (isDirectRun) {
   runCli().catch((err) => {

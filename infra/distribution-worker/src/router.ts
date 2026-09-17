@@ -12,6 +12,7 @@ import {
   renderDeviceVersionsHtml,
   renderVersionFilesHtml,
 } from "./portal.ts";
+import fallbackManifest from "./fallback-releases.json";
 
 export const SUPPORTED_APPS = [
   {
@@ -216,100 +217,113 @@ export async function buildReleasesManifest(
   env: Env,
   baseUrl: string,
 ): Promise<ReleasesManifest> {
-  // 1. 如果 R2 中保存了预构建的 releases.json，优先直接返回
+  let releases: ReleaseInfo[] = [];
+
+  // 1. 如果 R2 中保存了预构建的 releases.json，优先直接读取
   if (env.RELEASE_BUCKET) {
     const r2Obj = await env.RELEASE_BUCKET.get(`${app}/releases.json`);
     if (r2Obj) {
       try {
         const text = await r2Obj.text();
-        return JSON.parse(text) as ReleasesManifest;
+        const parsed = JSON.parse(text) as ReleasesManifest;
+        if (Array.isArray(parsed.releases) && parsed.releases.length > 0) {
+          releases = parsed.releases;
+        }
       } catch {
         // 解析失败则继续动态构建
       }
     }
   }
 
-  // 2. 从 GitHub 拉取全量 releases
-  const rawReleases = await fetchAllGitHubReleases(githubRepo, env);
-  const releases: ReleaseInfo[] = [];
+  // 2. 如果 R2 未命中，尝试从 GitHub 拉取全量 releases
+  if (releases.length === 0) {
+    const rawReleases = await fetchAllGitHubReleases(githubRepo, env);
+    for (const raw of rawReleases) {
+      const version = raw.tag_name.replace(/^v/, "").replace(/^desktop-v/, "");
+      const isLatest = releases.length === 0;
+      const assets: ReleaseAssetInfo[] = [];
 
-  for (const raw of rawReleases) {
-    const version = raw.tag_name.replace(/^v/, "").replace(/^desktop-v/, "");
-    const isLatest = releases.length === 0;
-    const assets: ReleaseAssetInfo[] = [];
+      for (const asset of raw.assets || []) {
+        const name = asset.name;
+        const lower = name.toLowerCase();
 
-    for (const asset of raw.assets || []) {
-      const name = asset.name;
-      const lower = name.toLowerCase();
+        let platform: ReleaseAssetInfo["platform"] = "other";
+        let platformLabel = "其他附件";
 
-      let platform: ReleaseAssetInfo["platform"] = "other";
-      let platformLabel = "其他附件";
-
-      if (lower.endsWith(".dmg")) {
-        if (lower.includes("x64") || lower.includes("x86_64") || lower.includes("intel")) {
-          platform = "macos-x64";
-          platformLabel = "macOS (Intel) · DMG";
-        } else {
-          platform = "macos-arm64";
-          platformLabel = "macOS (Apple Silicon) · DMG";
+        if (lower.endsWith(".dmg")) {
+          if (lower.includes("x64") || lower.includes("x86_64") || lower.includes("intel")) {
+            platform = "macos-x64";
+            platformLabel = "macOS (Intel) · DMG";
+          } else {
+            platform = "macos-arm64";
+            platformLabel = "macOS (Apple Silicon) · DMG";
+          }
+        } else if (lower.endsWith(".exe")) {
+          if (lower.includes("arm64")) {
+            platform = "windows-arm64";
+            platformLabel = "Windows (ARM64) · Setup";
+          } else {
+            platform = "windows-x64";
+            platformLabel = "Windows (x64) · Setup";
+          }
+        } else if (lower.endsWith(".appimage")) {
+          platform = "linux-appimage";
+          platformLabel = lower.includes("arm64")
+            ? "Linux (ARM64) · AppImage"
+            : "Linux (x86_64) · AppImage";
+        } else if (lower.endsWith(".deb")) {
+          platform = "linux-deb";
+          platformLabel = lower.includes("arm64") ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB";
+        } else if (lower.endsWith(".apk")) {
+          platform = "android";
+          platformLabel = "Android · APK";
+        } else if (lower.endsWith(".tar.gz") || lower.endsWith(".sig")) {
+          platform = "updater";
+          platformLabel = lower.endsWith(".sig") ? "Tauri 签名文件" : "Tauri 自动更新包";
         }
-      } else if (lower.endsWith(".exe")) {
-        if (lower.includes("arm64")) {
-          platform = "windows-arm64";
-          platformLabel = "Windows (ARM64) · Setup";
-        } else {
-          platform = "windows-x64";
-          platformLabel = "Windows (x64) · Setup";
-        }
-      } else if (lower.endsWith(".appimage")) {
-        platform = "linux-appimage";
-        platformLabel = lower.includes("arm64")
-          ? "Linux (ARM64) · AppImage"
-          : "Linux (x86_64) · AppImage";
-      } else if (lower.endsWith(".deb")) {
-        platform = "linux-deb";
-        platformLabel = lower.includes("arm64") ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB";
-      } else if (lower.endsWith(".apk")) {
-        platform = "android";
-        platformLabel = "Android · APK";
-      } else if (lower.endsWith(".tar.gz") || lower.endsWith(".sig")) {
-        platform = "updater";
-        platformLabel = lower.endsWith(".sig") ? "Tauri 签名文件" : "Tauri 自动更新包";
+
+        const downloadUrl = `${baseUrl}/${app}/${version}/${encodeURIComponent(name)}`;
+
+        assets.push({
+          platform,
+          platformLabel,
+          fileName: name,
+          downloadUrl,
+          sizeBytes: asset.size,
+          formattedSize: formatBytes(asset.size),
+          isR2Cached: version === "0.10.2",
+        });
       }
 
-      const downloadUrl = `${baseUrl}/${app}/${version}/${encodeURIComponent(name)}`;
+      const hasAndroid = assets.some((a) => a.platform === "android");
+      const hasDesktop = assets.some(
+        (a) =>
+          a.platform.includes("macos") ||
+          a.platform.includes("windows") ||
+          a.platform.includes("linux"),
+      );
+      const category: ReleaseInfo["category"] = hasAndroid && !hasDesktop ? "android" : "desktop";
 
-      assets.push({
-        platform,
-        platformLabel,
-        fileName: name,
-        downloadUrl,
-        sizeBytes: asset.size,
-        formattedSize: formatBytes(asset.size),
-        isR2Cached: version === "0.10.2",
+      releases.push({
+        version,
+        tagName: raw.tag_name,
+        publishedAt: raw.published_at || new Date().toISOString(),
+        isLatest,
+        isPrerelease: Boolean(raw.prerelease),
+        category,
+        releaseNotesUrl:
+          raw.html_url || `https://github.com/${githubRepo}/releases/tag/${raw.tag_name}`,
+        assets,
       });
     }
+  }
 
-    const hasAndroid = assets.some((a) => a.platform === "android");
-    const hasDesktop = assets.some(
-      (a) =>
-        a.platform.includes("macos") ||
-        a.platform.includes("windows") ||
-        a.platform.includes("linux"),
-    );
-    const category: ReleaseInfo["category"] = hasAndroid && !hasDesktop ? "android" : "desktop";
-
-    releases.push({
-      version,
-      tagName: raw.tag_name,
-      publishedAt: raw.published_at || new Date().toISOString(),
-      isLatest,
-      isPrerelease: Boolean(raw.prerelease),
-      category,
-      releaseNotesUrl:
-        raw.html_url || `https://github.com/${githubRepo}/releases/tag/${raw.tag_name}`,
-      assets,
-    });
+  // 3. 如果 GitHub API 失败或被限流，使用内置全量历史版本清单作为底座
+  if (releases.length === 0) {
+    const fallback = fallbackManifest as unknown as ReleasesManifest;
+    if (fallback && Array.isArray(fallback.releases) && fallback.releases.length > 0) {
+      releases = [...fallback.releases];
+    }
   }
 
   // 3. 动态补全移动端（Android）最新发布条目，解决跨端版本号不一致导致翻找历史记录的问题
