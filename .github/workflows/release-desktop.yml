@@ -462,22 +462,15 @@ jobs:
           mac_updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
           win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
 
-          # 1. 上传各架构安装包
+          # 1. 上传各架构安装包（唯一版本化存储，latest 别名由 Worker 基于 version.json 动态路由，无需物理重复存储）
           if [ -n "$dmg_file" ]; then
             dmg_name="$(basename "$dmg_file")"
             npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${dmg_name}" --file "$dmg_file" --remote
-            if [[ "$IS_PRERELEASE" != "true" ]]; then
-              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/macos/latest.dmg" --file "$dmg_file" --remote
-              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/latest.dmg" --file "$dmg_file" --remote
-            fi
           fi
 
           if [ -n "$linux_x64_file" ]; then
             linux_name="$(basename "$linux_x64_file")"
             npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${linux_name}" --file "$linux_x64_file" --remote
-            if [[ "$IS_PRERELEASE" != "true" ]]; then
-              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/linux/latest.AppImage" --file "$linux_x64_file" --remote
-            fi
           fi
 
           if [ -n "$linux_arm64_file" ]; then
@@ -498,9 +491,6 @@ jobs:
           if [ -n "$win_x64_file" ]; then
             win_name="$(basename "$win_x64_file")"
             npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_name}" --file "$win_x64_file" --remote
-            if [[ "$IS_PRERELEASE" != "true" ]]; then
-              npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/windows/latest.exe" --file "$win_x64_file" --remote
-            fi
           fi
 
           if [ -n "$win_arm64_file" ]; then

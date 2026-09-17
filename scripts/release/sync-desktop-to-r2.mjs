@@ -55,38 +55,6 @@ async function main() {
     });
   }
 
-  // 上传最新别名
-  const dmgFile = path.join(tmpDir, `Inkpoint_${version}_aarch64.dmg`);
-  if (fs.existsSync(dmgFile)) {
-    console.log(`  Uploading latest aliases for macOS DMG...`);
-    execSync(
-      `npx wrangler r2 object put "${BUCKET}/${APP_NAME}/desktop/macos/latest.dmg" --file "${dmgFile}" --remote`,
-      { stdio: "inherit" },
-    );
-    execSync(
-      `npx wrangler r2 object put "${BUCKET}/${APP_NAME}/desktop/latest.dmg" --file "${dmgFile}" --remote`,
-      { stdio: "inherit" },
-    );
-  }
-
-  const exeFile = path.join(tmpDir, `Inkpoint_${version}_x64-setup.exe`);
-  if (fs.existsSync(exeFile)) {
-    console.log(`  Uploading latest alias for Windows Setup...`);
-    execSync(
-      `npx wrangler r2 object put "${BUCKET}/${APP_NAME}/desktop/windows/latest.exe" --file "${exeFile}" --remote`,
-      { stdio: "inherit" },
-    );
-  }
-
-  const appImageFile = path.join(tmpDir, `Inkpoint_${version}_amd64.AppImage`);
-  if (fs.existsSync(appImageFile)) {
-    console.log(`  Uploading latest alias for Linux AppImage...`);
-    execSync(
-      `npx wrangler r2 object put "${BUCKET}/${APP_NAME}/desktop/linux/latest.AppImage" --file "${appImageFile}" --remote`,
-      { stdio: "inherit" },
-    );
-  }
-
   // 生成并上传 updater.json
   const sigFile = path.join(tmpDir, "Inkpoint.app.tar.gz.sig");
   const macSig = fs.existsSync(sigFile) ? fs.readFileSync(sigFile, "utf-8") : undefined;

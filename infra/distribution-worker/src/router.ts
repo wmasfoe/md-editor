@@ -326,7 +326,7 @@ export async function buildReleasesManifest(
         ...rel,
         assets: (rel.assets || []).map((a) => ({
           ...a,
-          isR2Cached: a.isR2Cached ?? (rel.version === "0.10.2"),
+          isR2Cached: a.isR2Cached ?? rel.version === "0.10.2",
         })),
       }));
     }

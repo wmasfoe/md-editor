@@ -3,10 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DEFAULT_APP = process.env.APP_NAME || "inkpoint";
-const GITHUB_REPO = process.env.GITHUB_REPO || "wmasfoe/md-editor";
-const DISTRIBUTION_URL = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
-const BUCKET = process.env.R2_BUCKET_NAME || "inkpoint-releases";
+export const DEFAULT_APP = process.env.APP_NAME || "inkpoint";
+export const GITHUB_REPO = process.env.GITHUB_REPO || "wmasfoe/md-editor";
+export const DISTRIBUTION_URL = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
+export const BUCKET = process.env.R2_BUCKET_NAME || "inkpoint-releases";
 
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B";

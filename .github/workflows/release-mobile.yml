@@ -127,7 +127,6 @@ jobs:
           BUCKET="${R2_BUCKET_NAME:-inkpoint-releases}"
           echo "🚀 Uploading Android release artifacts to Cloudflare R2 bucket: ${BUCKET}..."
           npx wrangler r2 object put "${BUCKET}/inkpoint/android/${VERSION}/Inkpoint_${VERSION}.apk" --file "dist-mobile/Inkpoint_${VERSION}.apk" --remote
-          npx wrangler r2 object put "${BUCKET}/inkpoint/android/latest.apk" --file "dist-mobile/Inkpoint_latest.apk" --remote
           npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-mobile/version.json" --remote
 
           # 同步全量历史版本清单到 R2
