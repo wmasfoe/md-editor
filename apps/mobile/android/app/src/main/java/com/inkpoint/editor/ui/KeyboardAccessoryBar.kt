@@ -34,6 +34,7 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -175,15 +176,21 @@ private fun ToolbarTextButton(
 private fun ToolbarIconButton(
     icon: ImageVector,
     contentDescription: String,
-    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+    containerColor: Color = Color.Unspecified,
     onClick: () -> Unit
 ) {
+    val resolvedColor = if (containerColor != Color.Unspecified) {
+        containerColor
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+    }
+
     FilledTonalIconButton(
         onClick = onClick,
         modifier = Modifier.size(36.dp),
         shape = RoundedCornerShape(8.dp),
         colors = IconButtonDefaults.filledTonalIconButtonColors(
-            containerColor = containerColor
+            containerColor = resolvedColor
         )
     ) {
         Icon(
