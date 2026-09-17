@@ -543,13 +543,6 @@
 
 .code-mirror-editor-host
   .cm-md-editor--wysiwyg
-  .cm-md-image-widget--failed
-  .cm-md-image-widget__viewer {
-  display: none;
-}
-
-.code-mirror-editor-host
-  .cm-md-editor--wysiwyg
   .cm-md-image-widget--failed.cm-md-image-widget--selected
   .cm-md-image-widget__placeholder {
   padding-left: 0.65rem;

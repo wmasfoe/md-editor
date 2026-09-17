@@ -445,16 +445,12 @@ function updateImageDom(dom: HTMLElement, value: ImageWidgetValue, view: EditorV
 function setImageFailure(dom: HTMLElement, failed: boolean): void {
   const image = dom.querySelector<HTMLElement>("img");
   const placeholder = dom.querySelector<HTMLElement>(".cm-md-image-widget__placeholder");
-  const viewerButton = dom.querySelector<HTMLElement>(".cm-md-image-widget__viewer");
   dom.classList.toggle("cm-md-image-widget--failed", failed);
   if (image) {
     image.hidden = failed;
   }
   if (placeholder) {
     placeholder.hidden = !failed;
-  }
-  if (viewerButton) {
-    viewerButton.hidden = failed;
   }
 }
 
