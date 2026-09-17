@@ -1,3 +1,54 @@
+Inkpoint Multi-Licensing Scheme
+===============================
+
+Inkpoint is an open source project licensed under a multi-licensing model
+designed to protect end-user applications from proprietary commercial wrapping
+while maximizing the reuse and adoption of its underlying libraries and engines.
+
+--------------------------------------------------------------------------------
+1. Applications & Presentation Layer: GNU General Public License v3.0 (GPL-3.0)
+--------------------------------------------------------------------------------
+
+All client applications and presentation services located under:
+- `apps/desktop/`
+- `apps/mobile/` (including `core`, `android`, and `ios`)
+- `apps/web/`
+- `site/`
+
+are licensed under the GNU General Public License, Version 3.0 (or, at your option,
+any later version) as published by the Free Software Foundation.
+
+See the full text in `LICENSE-GPL` or below.
+
+### Apple App Store Exception (for iOS):
+
+As a special exception to the GNU General Public License v3.0, the copyright
+holders of Inkpoint give permission to distribute the Inkpoint application
+through Apple's App Store under the terms of the Apple App Store Terms of Service,
+notwithstanding anything to the contrary in Section 6 of the GNU General Public
+License v3.0.
+
+--------------------------------------------------------------------------------
+2. Core Libraries, Plugins & Utilities: MIT License
+--------------------------------------------------------------------------------
+
+All core packages, extensions, and integration modules located under:
+- `packages/*` (including `editor-core`, `renderer-codemirror`, `editor-ui`,
+  `compiler`, `syntax-plugins`, `mdx-component-registry`, `mdx-plugins`,
+  `markdown-fidelity`, `file-system`, `i18n`, `ai`, and `shared`)
+- `apps/utools/`
+- `infra/distribution-worker/`
+
+are licensed under the permissive MIT License. You are free to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of these libraries
+without copyleft restrictions.
+
+See the full text in `LICENSE-MIT` or below.
+
+================================================================================
+APPENDIX A: MIT LICENSE TEXT
+================================================================================
+
 MIT License
 
 Copyright (c) 2026 Inkpoint
@@ -19,3 +70,10 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+================================================================================
+APPENDIX B: GNU GENERAL PUBLIC LICENSE v3.0 TEXT
+================================================================================
+
+Please refer to the accompanying `LICENSE-GPL` file for the complete, verbatim
+terms and conditions of the GNU General Public License, Version 3.0.
