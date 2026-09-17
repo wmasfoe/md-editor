@@ -322,7 +322,13 @@ export async function buildReleasesManifest(
   if (releases.length === 0) {
     const fallback = fallbackManifest as unknown as ReleasesManifest;
     if (fallback && Array.isArray(fallback.releases) && fallback.releases.length > 0) {
-      releases = [...fallback.releases];
+      releases = fallback.releases.map((rel) => ({
+        ...rel,
+        assets: (rel.assets || []).map((a) => ({
+          ...a,
+          isR2Cached: a.isR2Cached ?? (rel.version === "0.10.2"),
+        })),
+      }));
     }
   }
 

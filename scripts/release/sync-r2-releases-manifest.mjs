@@ -119,6 +119,7 @@ export function transformGitHubReleases(
         downloadUrl: `${baseUrl}/${app}/${cleanVer}/${encodeURIComponent(asset.name)}`,
         sizeBytes: asset.size,
         formattedSize: formatBytes(asset.size),
+        isR2Cached: cleanVer === "0.10.2",
       });
     }
 
