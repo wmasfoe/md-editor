@@ -187,8 +187,21 @@ export function transformGitHubReleases(
   };
 }
 
+export function getGitHubTokenSafe() {
+  if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+  if (process.env.GH_TOKEN) return process.env.GH_TOKEN;
+  try {
+    return execSync("gh auth token", {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
 export async function runCli() {
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const token = getGitHubTokenSafe();
   console.log(`📦 Fetching full release history from GitHub repo: ${GITHUB_REPO}...`);
   const rawReleases = await fetchAllGitHubReleases(GITHUB_REPO, token);
   console.log(`✓ Fetched ${rawReleases.length} releases from GitHub.`);

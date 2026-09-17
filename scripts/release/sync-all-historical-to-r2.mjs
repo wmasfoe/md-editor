@@ -2,7 +2,12 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_APP, GITHUB_REPO, fetchAllGitHubReleases } from "./sync-r2-releases-manifest.mjs";
+import {
+  DEFAULT_APP,
+  GITHUB_REPO,
+  fetchAllGitHubReleases,
+  getGitHubTokenSafe,
+} from "./sync-r2-releases-manifest.mjs";
 
 const BUCKET = process.env.R2_BUCKET_NAME || "inkpoint-releases";
 const APP_NAME = process.env.APP_NAME || DEFAULT_APP || "inkpoint";
@@ -89,7 +94,7 @@ export async function syncSingleAssetToR2({
  * 主执行函数
  */
 export async function runSyncHistory(options = {}) {
-  const token = options.token || process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const token = options.token || getGitHubTokenSafe();
   const repo = options.repo || GITHUB_REPO;
   const bucket = options.bucket || BUCKET;
   const dryRun = Boolean(options.dryRun);
