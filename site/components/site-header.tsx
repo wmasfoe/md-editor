@@ -17,10 +17,10 @@ export function SiteHeader({ catalog }: SiteHeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/80 bg-canvas/80 backdrop-blur-md pt-[env(safe-area-inset-top,0px)]">
-      <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-3 px-4 sm:h-14 sm:px-8">
+      <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-2 px-3 sm:h-14 sm:gap-3 sm:px-8">
         <Link
           href="/"
-          className="group flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-ink sm:gap-2.5"
+          className="group flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight text-ink sm:gap-2.5"
         >
           <img
             src="/logo.png"
@@ -28,12 +28,12 @@ export function SiteHeader({ catalog }: SiteHeaderProps) {
             width={28}
             height={28}
             aria-hidden
-            className="h-7 w-7 shrink-0 rounded-lg transition-transform group-hover:scale-[1.03]"
+            className="h-6 w-6 shrink-0 rounded-lg transition-transform group-hover:scale-[1.03] sm:h-7 sm:w-7"
           />
-          <InkpointWordmark className="min-w-0" />
+          <InkpointWordmark className="min-w-0 max-sm:text-[0.95rem]" />
         </Link>
 
-        <nav className="flex shrink-0 items-center gap-1.5 sm:gap-2.5" aria-label="主导航">
+        <nav className="flex shrink-0 items-center gap-1 sm:gap-2.5" aria-label="主导航">
           <Link
             href="/changelog"
             className="inline-flex min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:min-h-0 sm:px-3 sm:text-sm"

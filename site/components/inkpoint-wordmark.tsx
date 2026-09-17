@@ -25,7 +25,7 @@ export function InkpointWordmark({
       className={[
         "inkpoint-wordmark inline-flex items-baseline text-ink",
         isHero
-          ? "text-[2.75rem] leading-none sm:text-7xl"
+          ? "text-[2.25rem] leading-none sm:text-[2.75rem] md:text-7xl"
           : "text-[1.0625rem] leading-none sm:text-[1.125rem]",
         className ?? "",
       ].join(" ")}

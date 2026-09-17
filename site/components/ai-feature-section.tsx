@@ -200,6 +200,8 @@ export function AiFeatureSection() {
     editorRef.current?.focus();
   }, []);
 
+  const [mobileCardIndex, setMobileCardIndex] = useState(0);
+
   return (
     <PinnedScene
       id="ai"
@@ -207,19 +209,33 @@ export function AiFeatureSection() {
       heightVh={200}
       frameClassName="bg-canvas z-[3]"
     >
-      {({ progress, isActive, prefersReducedMotion }) => {
+      {({ progress, isActive, prefersReducedMotion, isPinned }) => {
         isActiveRef.current = isActive;
-        const headerOpacity = prefersReducedMotion
+        const headerOpacity = !isPinned
           ? 1
-          : interpolate(progress, [0, 0.14], [0.78, 1]);
-        const headerY = prefersReducedMotion ? 0 : interpolate(progress, [0, 0.16], [14, 0]);
-        const cardIndex = prefersReducedMotion
+          : prefersReducedMotion
+            ? 1
+            : interpolate(progress, [0, 0.14], [0.78, 1]);
+        const headerY = !isPinned
           ? 0
-          : Math.min(2, Math.floor(interpolate(progress, [0.08, 0.92], [0, 2.999])));
+          : prefersReducedMotion
+            ? 0
+            : interpolate(progress, [0, 0.16], [14, 0]);
+        const cardIndex = !isPinned
+          ? mobileCardIndex
+          : prefersReducedMotion
+            ? 0
+            : Math.min(2, Math.floor(interpolate(progress, [0.08, 0.92], [0, 2.999])));
         const tabReady = isActive || isHovered;
 
         return (
-          <div className="mx-auto flex h-full max-w-5xl flex-col px-4 pb-4 pt-14 sm:px-8 sm:pb-6 sm:pt-16">
+          <div
+            className={
+              isPinned
+                ? "mx-auto flex h-full max-w-5xl flex-col px-4 pb-4 pt-14 sm:px-8 sm:pb-6 sm:pt-16"
+                : "mx-auto flex max-w-5xl flex-col px-3 py-10 sm:px-8 sm:py-14"
+            }
+          >
             <AutoFocusWhenActive active={isActive} onActivate={focusEditor} />
             <div
               style={{
@@ -242,7 +258,28 @@ export function AiFeatureSection() {
               </p>
             </div>
 
-            <div className="relative mt-4 shrink-0">
+            {/* 移动端快捷卡片指示切换器 */}
+            {!isPinned && (
+              <div className="mt-4 flex items-center justify-center gap-1.5 sm:hidden">
+                {bentoItems.map((item, idx) => (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => setMobileCardIndex(idx)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                      idx === cardIndex
+                        ? "bg-surface font-semibold text-ink shadow-xs border border-line-strong"
+                        : "text-muted hover:text-ink"
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span>{idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="relative mt-3 shrink-0 sm:mt-4">
               {bentoItems.map((item, idx) => {
                 const visible = idx === cardIndex;
                 return (
@@ -282,7 +319,11 @@ export function AiFeatureSection() {
               })}
             </div>
 
-            <div className="relative mt-3 min-h-0 flex-1 sm:mt-4">
+            <div
+              className={
+                isPinned ? "relative mt-3 min-h-0 flex-1 sm:mt-4" : "relative mt-4 sm:mt-6 w-full"
+              }
+            >
               <AiTabHintBadge
                 active={isActive}
                 prefersReducedMotion={prefersReducedMotion}
@@ -292,7 +333,9 @@ export function AiFeatureSection() {
                 ref={cardRef}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`group relative flex h-full min-h-0 flex-col overflow-hidden rounded-3xl border bg-surface p-5 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all sm:p-6 ${
+                className={`group relative flex ${
+                  isPinned ? "h-full min-h-0" : "min-h-[360px]"
+                } flex-col overflow-hidden rounded-3xl border bg-surface p-4 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all sm:p-6 ${
                   tabReady ? "border-line-strong ring-1 ring-ink/8" : "border-line-strong/80"
                 }`}
               >
@@ -464,16 +507,16 @@ export function AiFeatureSection() {
                     // 阻止点击底部按钮栏时移出 CodeMirror 焦点
                     e.preventDefault();
                   }}
-                  className="flex flex-wrap items-center justify-between gap-4 border-t border-line/70 pt-5"
+                  className="flex flex-col gap-3 border-t border-line/70 pt-4 sm:flex-row sm:items-center sm:justify-between sm:pt-5"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
                     {!aiState.isFinished && !aiState.isDismissed ? (
                       <>
                         <button
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.accept()}
-                          className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
+                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                         >
                           <kbd
                             tabIndex={-1}
@@ -491,7 +534,7 @@ export function AiFeatureSection() {
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.dismiss()}
-                          className="inline-flex items-center gap-2 rounded-xl border border-transparent px-3 py-2 text-xs text-muted transition-colors hover:text-ink"
+                          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2 text-xs text-muted transition-colors hover:text-ink"
                         >
                           <kbd
                             tabIndex={-1}
@@ -508,7 +551,7 @@ export function AiFeatureSection() {
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.retrigger()}
-                          className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
+                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                         >
                           <kbd
                             tabIndex={-1}
@@ -522,7 +565,7 @@ export function AiFeatureSection() {
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.reset()}
-                          className="inline-flex items-center gap-2 rounded-xl border border-line/60 bg-surface-soft px-3 py-2 text-xs font-medium text-muted transition-colors hover:text-ink hover:bg-surface"
+                          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-xl border border-line/60 bg-surface-soft px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-ink"
                         >
                           <span>{aiText.resetButton}</span>
                         </button>
@@ -532,7 +575,7 @@ export function AiFeatureSection() {
                         type="button"
                         tabIndex={-1}
                         onClick={() => editorRef.current?.reset()}
-                        className="inline-flex items-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                       >
                         <span>{aiText.resetButton}</span>
                       </button>
@@ -558,8 +601,8 @@ export function AiFeatureSection() {
                               ? "✨ 阶段 ② 续写中：轻敲 Tab 逐段融入，体验行云流水"
                               : "✨ Phase 2 Continuation: Press Tab to accept inspired ghost text"
                           : isZh
-                            ? "💡 提示：将手放在键盘上，一路轻敲 Tab 即可完成从「草稿纠错」到「落笔成章」的全过程"
-                            : "💡 Tip: Rest hands on keyboard: press Tab continuously to polish & continue prose"}
+                            ? "💡 提示：轻敲上方按钮，即可在画布中体验「草稿纠错」与「落笔成章」"
+                            : "💡 Tip: Tap buttons above to experience instant grammar polish & continuation"}
                   </p>
                 </div>
               </div>
