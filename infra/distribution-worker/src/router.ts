@@ -749,11 +749,22 @@ export async function handleRequest(
   const githubRepo = env.GITHUB_REPO || "wmasfoe/md-editor";
 
   // 1. 边缘静态缓存命中检查（只缓存 GET / HEAD 请求，大幅削减 Worker 计费与额度消耗）
+  // 本地开发环境 (localhost / 127.0.0.1) 或客户端携带 no-cache 时跳过缓存，确保开发热更与调试实时生效
+  const isDevHost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  const clientBypassCache =
+    request.headers.get("Cache-Control")?.includes("no-cache") ||
+    request.headers.get("Pragma")?.includes("no-cache");
+
   const cache =
     typeof caches !== "undefined" && "default" in caches
       ? (caches as unknown as { default: Cache }).default
       : null;
-  if (cache && (request.method === "GET" || request.method === "HEAD")) {
+  if (
+    cache &&
+    !isDevHost &&
+    !clientBypassCache &&
+    (request.method === "GET" || request.method === "HEAD")
+  ) {
     const cachedResponse = await cache.match(request);
     if (cachedResponse) {
       return cachedResponse;
@@ -764,7 +775,9 @@ export async function handleRequest(
     if (!response.headers.has("Access-Control-Allow-Origin")) {
       response.headers.set("Access-Control-Allow-Origin", "*");
     }
-    if (!response.headers.has("Cache-Control")) {
+    if (isDevHost) {
+      response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    } else if (!response.headers.has("Cache-Control")) {
       if (isStatic) {
         response.headers.set(
           "Cache-Control",
@@ -777,7 +790,13 @@ export async function handleRequest(
         );
       }
     }
-    if (cache && ctx && response.ok && (request.method === "GET" || request.method === "HEAD")) {
+    if (
+      cache &&
+      ctx &&
+      !isDevHost &&
+      response.ok &&
+      (request.method === "GET" || request.method === "HEAD")
+    ) {
       ctx.waitUntil(cache.put(request, response.clone()));
     }
     return response;
