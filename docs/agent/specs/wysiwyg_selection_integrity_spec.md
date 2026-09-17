@@ -39,6 +39,7 @@
 3. 精确选中的分割线由 `Backspace` / `Delete` 整块删除，一次 undo 必须完整恢复。
 4. 未提供专用编辑交互的 CommonMark/GFM 语法作为默认 atom 自动可视化。WYSIWYG 中允许选择和跨越，不允许精确修改或整块删除；编辑必须切到全局源码模式。
 5. 多选区 atom 操作必须全有或全无：所有 range 都兼容才派发一次 transaction，任何一个 range 不兼容则不产生部分修改。
+6. **CM6 块级替换 Decoration (`block: true`) Inclusivity 契约**：整行块级替换组件（如 `ThematicBreakWidget`）必须设置 `inclusiveStart: true` 避免 CodeMirror 因判定起点未被块级覆盖而在上方合成幽灵空行（消除视觉行数多出一行及光标向上漂移错位）；同时必须设置 `inclusiveEnd: false` 避免吞并紧随其后的换行符（确保下方空行数量完全精确）。
 
 ### 结构化编辑、IME 与模式
 
