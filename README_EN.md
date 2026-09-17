@@ -40,7 +40,9 @@
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/android-v0.1.1-brightgreen?style=flat-square" alt="Android Version">
   </a>
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <a href="#license">
+    <img src="https://img.shields.io/badge/license-GPL--3.0%20%2F%20MIT-blue?style=flat-square" alt="License">
+  </a>
 </p>
 
 ---
@@ -287,7 +289,12 @@ For code conventions and Git workflows, please refer to [CLAUDE.md](CLAUDE.md) a
 
 ## License
 
-This project is open source under the [MIT License](LICENSE).
+Inkpoint is released under a **multi-licensing model** to safeguard end-user products while empowering developer ecosystem adoption:
+
+- 📱 **Applications & Presentation (`apps/desktop`, `apps/mobile`, `apps/web`, `site`)**: Licensed under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE-GPL) with an [Apple App Store Exception](LICENSE) for iOS distribution. This prevents unauthorized proprietary repackaging, white-labeling, or closed-source resale.
+- 🧩 **Core Libraries & Extensions (`packages/*`, `infra/distribution-worker`, `apps/utools`)**: Licensed under the permissive [MIT License](LICENSE-MIT). Community developers and organizations are free to integrate the compiler, rendering projection, fidelity AST engine, and components into their own open source or commercial projects.
+
+See the root [LICENSE](LICENSE) file for full licensing terms and details.
 
 ---
 

@@ -1,6 +1,6 @@
 # @md-editor/site - Inkpoint 官方网站与下载门户
 
-基于 [Next.js (App Router)](https://nextjs.org/) + [React 19](https://react.dev/) + [Tailwind CSS](https://tailwindcss.com/) 构建的 Inkpoint 官方展示网站与版本发布中心（线上域名 `editor.justdev.cn`）。
+基于 [Next.js (App Router)](https://nextjs.org/) + [React 19](https://react.dev/) + [Tailwind CSS](https://tailwindcss.com/) 构建的 Inkpoint 官方展示网站与版本发布中心。
 
 ---
 

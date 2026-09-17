@@ -40,7 +40,9 @@
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/android-v0.1.1-brightgreen?style=flat-square" alt="Android Version">
   </a>
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License">
+  <a href="#license">
+    <img src="https://img.shields.io/badge/license-GPL--3.0%20%2F%20MIT-blue?style=flat-square" alt="License">
+  </a>
 </p>
 
 ---
@@ -287,7 +289,12 @@ md-editor/
 
 ## License
 
-本项目遵循 [MIT License](LICENSE) 开源协议。
+本项目采用**多轨拆分式开源许可模式（Multi-Licensing Scheme）**，兼顾完整产品保护与底层技术生态开放：
+
+- 📱 **终端应用程序 (`apps/desktop`、`apps/mobile`、`apps/web`、`site`)**：遵循 [GNU General Public License v3.0 (GPL-3.0)](LICENSE-GPL) 开源协议（针对 iOS 客户端包含 [Apple App Store 豁免条款](LICENSE)）。严格防止第三方闭源套壳、恶意改名与商业转售。
+- 🧩 **核心基础库与扩展 (`packages/*`、`infra/distribution-worker`、`apps/utools`)**：遵循宽松的 [MIT License](LICENSE-MIT) 开源协议。鼓励社区开发者将编译器、渲染投影层、格式保真引擎与多语言模块自由集成至个人或商业项目中。
+
+详见根目录完整 [LICENSE](LICENSE) 协议说明文件。
 
 ---
 
