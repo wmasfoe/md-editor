@@ -299,6 +299,74 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.releases[0].version).toBe("0.10.2");
   });
 
+  it("should return android releases on /api/android/releases alias", async () => {
+    const req = new Request("https://download.justdev.cn/api/android/releases");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+
+    const manifest = (await res.json()) as {
+      app: string;
+      releases: Array<{ version: string; category: string; isLatest: boolean }>;
+    };
+    expect(manifest.app).toBe("inkpoint");
+    expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
+    expect(manifest.releases.every((r) => r.category === "android")).toBe(true);
+    expect(manifest.releases[0].version).toBe("0.1.1");
+    expect(manifest.releases[0].isLatest).toBe(true);
+    expect(manifest.releases[1].version).toBe("0.1.0");
+    expect(manifest.releases[1].isLatest).toBe(false);
+  });
+
+  it("should return android releases on /api/releases/android route", async () => {
+    const req = new Request("https://download.justdev.cn/api/releases/android");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const manifest = (await res.json()) as {
+      releases: Array<{ version: string; category: string }>;
+    };
+    expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
+    expect(manifest.releases[0].version).toBe("0.1.1");
+  });
+
+  it("should handle /api/android/version.json by mapping to default app", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/version.json") {
+          return {
+            body: JSON.stringify({
+              app: "inkpoint",
+              desktop: { version: "0.10.2" },
+              android: { version: "0.1.1" },
+            }),
+          };
+        }
+        return null;
+      },
+    };
+    const req = new Request("https://download.justdev.cn/api/android/version.json");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { app: string };
+    expect(data.app).toBe("inkpoint");
+  });
+
   it("should render app index HTML on / when Accept header is text/html", async () => {
     const req = new Request("https://download.justdev.cn/", {
       headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
@@ -418,8 +486,8 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     expect(data.latestDesktopVersion).toBe("0.10.2");
-    expect(data.latestAndroidVersion).toBe("0.1.0");
-    expect(data.latestReleases?.android?.version).toBe("0.1.0");
+    expect(data.latestAndroidVersion).toBe("0.1.1");
+    expect(data.latestReleases?.android?.version).toBe("0.1.1");
   });
 
   it("should serve 3-segment versioned artifact directly from R2 when available", async () => {
@@ -470,8 +538,11 @@ describe("Distribution Worker Router & Matcher", () => {
     );
 
     expect(manifest.latestDesktopVersion).toBe("0.10.2");
-    expect(manifest.latestAndroidVersion).toBe("0.1.0");
+    expect(manifest.latestAndroidVersion).toBe("0.1.1");
     expect(manifest.releases.some((r) => r.category === "desktop" && r.version === "0.10.2")).toBe(
+      true,
+    );
+    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.1")).toBe(
       true,
     );
     expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(

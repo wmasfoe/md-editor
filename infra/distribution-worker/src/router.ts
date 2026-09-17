@@ -22,6 +22,8 @@ export const SUPPORTED_APPS = [
   },
 ];
 
+export const KNOWN_PLATFORM_CATEGORIES = new Set(["android", "desktop", "mobile"]);
+
 export const MIME_TYPES: Record<string, string> = {
   dmg: "application/x-apple-diskimage",
   exe: "application/x-msdownload",
@@ -509,6 +511,22 @@ export async function buildReleasesManifest(
     }
   }
 
+  // A2. 从内置 fallback 清单补充已知 Android 发布
+  const fallback = fallbackManifest as unknown as ReleasesManifest;
+  if (Array.isArray(fallback?.releases)) {
+    for (const r of fallback.releases) {
+      if (
+        (r.category === "android" || r.assets?.some((a) => a.platform === "android")) &&
+        !androidMap.has(r.version)
+      ) {
+        androidMap.set(r.version, {
+          ...r,
+          category: "android",
+        });
+      }
+    }
+  }
+
   // B. 扫描 R2 存储桶中物理存在的所有 Android APK 版本
   if (env.RELEASE_BUCKET && typeof env.RELEASE_BUCKET.list === "function") {
     try {
@@ -898,13 +916,68 @@ export async function handleRequest(
     );
   }
 
-  // 2. 全量历史版本清单 API: /api/:app/releases(.json)? 或 /api/releases(.json)? 或 /api/:app/history
-  const releasesApiMatch = path.match(/^\/api(?:\/([^/]+))?\/(?:releases|history)(?:\.json)?$/);
-  if (releasesApiMatch) {
-    const app = releasesApiMatch[1] || defaultApp;
+  // 2. 全量历史版本清单 API:
+  // 支持:
+  // - /api/:app/releases(.json)? 或 /api/releases(.json)? 或 /api/:app/history
+  // - /api/:category/releases(.json)? (如 /api/android/releases, /api/desktop/releases)
+  // - /api/releases/:category(.json)? (如 /api/releases/android, /api/releases/desktop)
+  // - /api/:app/releases/:category(.json)? (如 /api/inkpoint/releases/android)
+  let matchedReleasesApi: { app: string; category?: "android" | "desktop" } | null = null;
+
+  const releasesSubCategoryMatch = path.match(
+    /^\/api(?:\/([^/]+))?\/releases\/(android|desktop|mobile)(?:\.json)?$/,
+  );
+  if (releasesSubCategoryMatch) {
+    const rawApp = releasesSubCategoryMatch[1];
+    const cat = releasesSubCategoryMatch[2];
+    const category = cat === "mobile" ? "android" : (cat as "android" | "desktop");
+    const app = rawApp && !KNOWN_PLATFORM_CATEGORIES.has(rawApp) ? rawApp : defaultApp;
+    matchedReleasesApi = { app, category };
+  } else {
+    const releasesApiMatch = path.match(/^\/api(?:\/([^/]+))?\/(?:releases|history)(?:\.json)?$/);
+    if (releasesApiMatch) {
+      const firstSegment = releasesApiMatch[1];
+      if (firstSegment && KNOWN_PLATFORM_CATEGORIES.has(firstSegment)) {
+        const category =
+          firstSegment === "mobile" ? "android" : (firstSegment as "android" | "desktop");
+        matchedReleasesApi = { app: defaultApp, category };
+      } else {
+        matchedReleasesApi = { app: firstSegment || defaultApp };
+      }
+    }
+  }
+
+  if (matchedReleasesApi) {
+    const { app, category } = matchedReleasesApi;
     const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+    let releases = manifest.releases;
+    if (category) {
+      releases = releases.filter(
+        (r) =>
+          r.category === category ||
+          (category === "android" && r.assets.some((a) => a.platform === "android")) ||
+          (category === "desktop" &&
+            r.assets.some(
+              (a) =>
+                a.platform.includes("macos") ||
+                a.platform.includes("windows") ||
+                a.platform.includes("linux"),
+            )),
+      );
+
+      releases = releases.map((r, index) => ({
+        ...r,
+        isLatest: index === 0,
+      }));
+    }
+
+    const resultManifest: ReleasesManifest = {
+      ...manifest,
+      releases,
+    };
+
     return respond(
-      new Response(JSON.stringify(manifest, null, 2), {
+      new Response(JSON.stringify(resultManifest, null, 2), {
         headers: {
           "Content-Type": "application/json",
         },
@@ -915,7 +988,10 @@ export async function handleRequest(
   // 2. 版本清单 API: /api/:app/version.json 或 /api/version.json
   const apiMatch = path.match(/^\/api(?:\/([^/]+))?\/version(?:\.json)?$/);
   if (apiMatch) {
-    const app = apiMatch[1] || defaultApp;
+    let app = apiMatch[1] || defaultApp;
+    if (KNOWN_PLATFORM_CATEGORIES.has(app)) {
+      app = defaultApp;
+    }
 
     // A. 尝试从 R2 存储桶读取已发布的 version.json
     if (env.RELEASE_BUCKET) {
