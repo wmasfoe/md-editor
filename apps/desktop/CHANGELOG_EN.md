@@ -2,6 +2,13 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.10.3 - 2026-09-18 (#88, #89)
+
+- Fixed severe viewport jumps and cursor loss when toggling between WYSIWYG and Source modes in scrolled documents, implementing screen offset anchoring and post-layout delta compensation for pixel-stable transitions and zero-drift round-trip memory.
+- Fixed a phantom extra empty line rendered visually above thematic breaks (`---`) and cursor vertical drift, enforcing asymmetrical inclusivity contracts on block widget replacements.
+- Fixed image zoom viewer button escaping to the top-right corner of the editor viewport by anchoring widget positioning, and hidden the button when image preview fails or is absent.
+- Fixed an unwanted blue text selection background rectangle rendered above thematic break block widgets during atom selection.
+
 ## 0.10.2 - 2026-09-13 (#68)
 
 - Fixed root directory switching and path separator compatibility in Windows file tree, supporting folder/file creation, renaming, and path copying on Windows.

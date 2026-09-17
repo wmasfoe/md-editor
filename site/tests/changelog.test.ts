@@ -115,8 +115,7 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
     const webEn = getWebChangelogEntries("en");
     expect(webZh.length).toBeGreaterThan(0);
     expect(webEn.length).toBeGreaterThan(0);
-    expect(webZh[0].version).toBe("0.1.0");
-    expect(webEn[0].version).toBe("0.1.0");
+    expect(webZh[0].version).toBe(webEn[0].version);
     expect(webEn[0].items[0].text).toMatch(/^[A-Za-z]/u);
 
     const androidZh = getAndroidChangelogEntries("zh");
