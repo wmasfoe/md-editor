@@ -394,6 +394,10 @@ describe("media widget DOM lifecycle", () => {
     expect(dom.getAttribute("aria-label")).toBe("Updated: preview unavailable");
     expect(image.hidden).toBe(true);
     expect(placeholder.hidden).toBe(false);
+    const viewerButton = dom.querySelector<HTMLElement>(
+      ".cm-md-image-widget__viewer",
+    ) as unknown as FakeElement;
+    expect(viewerButton.hidden).toBe(true);
     expect(
       (
         placeholder.querySelector<HTMLElement>(

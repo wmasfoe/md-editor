@@ -1,4 +1,11 @@
-import { EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
+import {
+  EditorSelection,
+  EditorState,
+  Prec,
+  type SelectionRange,
+  Transaction,
+  type Extension,
+} from "@codemirror/state";
 import {
   Direction,
   EditorView,
@@ -10,6 +17,7 @@ import { editorModeField } from "../mode.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
 import { getFencedCodeBlockBodyRange, isProjectableCodeBlock } from "./code-block-projection.ts";
+import { wysiwygProjectionField } from "./projection-state.ts";
 
 /**
  * 计算 view.scrollDOM 的基准偏移量（与 CodeMirror 内部 getBase 逻辑一致）
@@ -158,49 +166,104 @@ function computeCodeBlockMarkers(
 }
 
 /**
+ * 检查当前选区是否精确对应某个整块原子选区（如水平分割线、整表、HTML块、MDX等）。
+ *
+ * 背景与第一性原理 (wysiwyg_selection_integrity_spec & codemirror_selection_draw_and_overflow_spec):
+ * 1. 当用户点击或键盘移动进入分割线/表格等原子节点时，selectWysiwygAtom 必须保持精准的底层 CM6 offset 选区
+ *    （以支持 Backspace/Delete 整块删除、Cmd+C 复制底层 Markdown 源码、方向键跳出等核心契约）；
+ * 2. 分割线、表格等在视觉上由 block replacement widget 整体替换，文档流中该位置不存在普通排版文本节点；
+ *    CodeMirror 原生 coordsAtPos 无法在块级 widget 内部取字，会回退到上方行末，导致在组件上方错误绘制一行空白选区背景；
+ * 3. 此类原子组件自身通过 CSS outline/border（如 .cm-md-thematic-break-widget--selected）专属呈现选中状态，
+ *    因此在自绘选区层应当跳过生成 .cm-selectionBackground 矩形，消除多余的蓝色横条，保持界面纯净。
+ */
+export function isAtomSelection(state: EditorState, range: SelectionRange): boolean {
+  const projection = state.field(wysiwygProjectionField, false);
+  if (!projection || projection.mode !== "wysiwyg") {
+    return false;
+  }
+  const index = state.field(markdownRangeIndexField, false);
+  if (!index) {
+    return false;
+  }
+
+  // 1. 若当前 projection 已记录选中的原子记录，检查 range 是否完全吻合某个选中的原子
+  if (projection.selectedAtomIds.length > 0) {
+    for (const atomId of projection.selectedAtomIds) {
+      const record = index.get(atomId);
+      if (
+        record !== null &&
+        record.fullRange.from === range.from &&
+        record.fullRange.to === range.to
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // 2. 兜底检查：若选区精确匹配分割线等全替换块级原子（自身无文本节点且有独立选中框），跳过绘制选区矩形
+  const matchingRecord = index.records.find(
+    (record) =>
+      record.kind === "thematic-break" &&
+      record.fullRange.from === range.from &&
+      record.fullRange.to === range.to,
+  );
+  if (matchingRecord !== undefined) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 计算选区标记集，对代码块多行边界进行校准，并对原子组件选区跳过文本背景绘制
+ */
+export function computeSelectionMarkers(view: EditorView): readonly RectangleMarker[] {
+  const markers: RectangleMarker[] = [];
+  const base = getBase(view);
+  const { ranges } = view.state.selection;
+
+  for (const range of ranges) {
+    if (range.empty) continue;
+
+    // 若该选区对应整块原子选区（如水平分割线），其选中态由组件自身外框呈现，跳过绘制文本选区背景
+    if (isAtomSelection(view.state, range)) {
+      continue;
+    }
+
+    const codeBlocks = findIntersectingCodeBlocks(view.state, range.from, range.to);
+    if (codeBlocks.length === 0) {
+      for (const marker of RectangleMarker.forRange(view, "cm-selectionBackground", range)) {
+        markers.push(marker);
+      }
+      continue;
+    }
+
+    const partitions = partitionRangeByCodeBlocks(range.from, range.to, codeBlocks);
+    for (const part of partitions) {
+      if (part.from >= part.to) continue;
+      if (part.isCodeBlock) {
+        const codeMarkers = computeCodeBlockMarkers(view, part.from, part.to, base);
+        for (const marker of codeMarkers) {
+          markers.push(marker);
+        }
+      } else {
+        const partRange = EditorSelection.range(part.from, part.to);
+        for (const marker of RectangleMarker.forRange(view, "cm-selectionBackground", partRange)) {
+          markers.push(marker);
+        }
+      }
+    }
+  }
+
+  return markers;
+}
+
+/**
  * 具有代码块感知与多行对齐能力的选区渲染图层
  */
 export const codeBlockSelectionLayer = layer({
   above: false,
-  markers(view) {
-    const markers: RectangleMarker[] = [];
-    const base = getBase(view);
-    const { ranges } = view.state.selection;
-
-    for (const range of ranges) {
-      if (range.empty) continue;
-
-      const codeBlocks = findIntersectingCodeBlocks(view.state, range.from, range.to);
-      if (codeBlocks.length === 0) {
-        for (const marker of RectangleMarker.forRange(view, "cm-selectionBackground", range)) {
-          markers.push(marker);
-        }
-        continue;
-      }
-
-      const partitions = partitionRangeByCodeBlocks(range.from, range.to, codeBlocks);
-      for (const part of partitions) {
-        if (part.from >= part.to) continue;
-        if (part.isCodeBlock) {
-          const codeMarkers = computeCodeBlockMarkers(view, part.from, part.to, base);
-          for (const marker of codeMarkers) {
-            markers.push(marker);
-          }
-        } else {
-          const partRange = EditorSelection.range(part.from, part.to);
-          for (const marker of RectangleMarker.forRange(
-            view,
-            "cm-selectionBackground",
-            partRange,
-          )) {
-            markers.push(marker);
-          }
-        }
-      }
-    }
-
-    return markers;
-  },
+  markers: computeSelectionMarkers,
   update(update) {
     return update.docChanged || update.selectionSet || update.geometryChanged;
   },
