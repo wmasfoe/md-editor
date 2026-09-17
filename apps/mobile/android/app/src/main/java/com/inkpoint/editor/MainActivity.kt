@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -88,29 +89,33 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun performHaptic(type: HapticFeedbackType) {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = getSystemService(VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-            vibratorManager?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(VIBRATOR_SERVICE) as? Vibrator
-        } ?: return
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(VIBRATOR_SERVICE) as? Vibrator
+            } ?: return
 
-        if (!vibrator.hasVibrator()) return
+            if (!vibrator.hasVibrator()) return
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val effect = when (type) {
-                HapticFeedbackType.IMPACT_LIGHT -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-                HapticFeedbackType.IMPACT_MEDIUM -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
-                HapticFeedbackType.IMPACT_HEAVY -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-                HapticFeedbackType.SELECTION -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-                HapticFeedbackType.NOTIFICATION_SUCCESS -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
-                HapticFeedbackType.NOTIFICATION_ERROR -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val effect = when (type) {
+                    HapticFeedbackType.IMPACT_LIGHT -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                    HapticFeedbackType.IMPACT_MEDIUM -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+                    HapticFeedbackType.IMPACT_HEAVY -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+                    HapticFeedbackType.SELECTION -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                    HapticFeedbackType.NOTIFICATION_SUCCESS -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+                    HapticFeedbackType.NOTIFICATION_ERROR -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+                }
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(20)
             }
-            vibrator.vibrate(effect)
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(20)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Haptic feedback unavailable or failed: ${e.message}", e)
         }
     }
 }

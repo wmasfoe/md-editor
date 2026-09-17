@@ -15,7 +15,8 @@ pnpm-lock.yaml
 *.snap
 **/*.md
 **/extensions/quicklook/Resources/
-apps/ios/Inkpoint/Resources/editor/
-apps/android/app/src/main/assets/editor/
+**/Resources/editor/**
+**/assets/editor/**
+/inkpoint/
 **/.build/
 *.xcodeproj/

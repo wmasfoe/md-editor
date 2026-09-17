@@ -30,6 +30,17 @@
   --theme-table-header: rgba(0, 0, 0, 0.03);
   --theme-table-stripe: rgba(0, 0, 0, 0.015);
   --theme-accent: #0969da;
+  --theme-code: #24292f;
+  --theme-code-border: #d8dee4;
+  --theme-code-gutter-bg: #f6f8fa;
+  --theme-code-gutter-text: #6e7781;
+  --theme-code-keyword: #cf222e;
+  --theme-code-string: #0a3069;
+  --theme-code-comment: #6e7781;
+  --theme-code-number: #0550ae;
+  --theme-code-tag: #116329;
+  --theme-code-attribute: #8250df;
+  --theme-code-variable: #0550ae;
   --theme-editor-font-size: 16px;
   --theme-editor-line-height: 1.68;
   --theme-font:
@@ -55,6 +66,17 @@
   --theme-code-accent: #7ee787;
   --theme-marker-dim: #6e7681;
   --theme-code-bg: #161b22;
+  --theme-code: #dce3ea;
+  --theme-code-border: #2b313a;
+  --theme-code-gutter-bg: #12161c;
+  --theme-code-gutter-text: #737d8a;
+  --theme-code-keyword: #ff7b72;
+  --theme-code-string: #a5d6ff;
+  --theme-code-comment: #8b949e;
+  --theme-code-number: #79c0ff;
+  --theme-code-tag: #7ee787;
+  --theme-code-attribute: #d2a8ff;
+  --theme-code-variable: #79c0ff;
   --theme-inline-code-bg: rgba(110, 118, 129, 0.3);
   --theme-quote-bg: rgba(47, 129, 247, 0.08);
   --theme-quote-border: #2f81f7;
@@ -224,6 +246,136 @@ body {
   font-size: 0.875rem;
   background-color: var(--theme-code-bg);
   border: 1px solid var(--theme-border-subtle);
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  font-family: var(--theme-mono-font) !important;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+/* ==========================================================================
+   代码块语法高亮规范 (ReaderCanvas highlight.js & CodeMirror classHighlighter)
+   ========================================================================== */
+
+pre code.hljs {
+  display: block;
+  background-color: transparent;
+  color: var(--theme-text);
+}
+
+.hljs-comment,
+.hljs-punctuation {
+  color: var(--theme-code-comment, #6e7781);
+  font-style: italic;
+}
+
+.hljs-tag,
+.hljs-subst {
+  color: var(--theme-text, #24292f);
+}
+
+.hljs-keyword,
+.hljs-selector-tag {
+  color: var(--theme-code-keyword, #cf222e);
+  font-weight: 600;
+}
+
+.hljs-string,
+.hljs-type,
+.hljs-literal {
+  color: var(--theme-code-string, #0a3069);
+}
+
+.hljs-number {
+  color: var(--theme-code-number, #0550ae);
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-function {
+  color: var(--theme-code-attribute, #8250df);
+  font-weight: 600;
+}
+
+.hljs-title.class_ {
+  color: var(--theme-code-tag, #116329);
+}
+
+.hljs-property {
+  color: var(--theme-code-attribute, #8250df);
+}
+
+.hljs-operator {
+  color: var(--theme-code-keyword, #cf222e);
+}
+
+.hljs-variable,
+.hljs-params,
+.hljs-attr {
+  color: var(--theme-code-variable, #0550ae);
+}
+
+.hljs-built_in,
+.hljs-class,
+.hljs-meta {
+  color: var(--theme-code-tag, #116329);
+}
+
+/* CodeMirror 6 编辑态 Token 语法高亮对齐增强 */
+.tok-keyword,
+.tok-atom,
+.tok-bool {
+  color: var(--theme-code-keyword, #cf222e) !important;
+  font-weight: 600;
+}
+
+.tok-string,
+.tok-string2,
+.tok-url {
+  color: var(--theme-code-string, #0a3069) !important;
+}
+
+.tok-comment,
+.tok-meta {
+  color: var(--theme-code-comment, #6e7781) !important;
+  font-style: italic;
+}
+
+.tok-number,
+.tok-literal {
+  color: var(--theme-code-number, #0550ae) !important;
+}
+
+.tok-tagName,
+.tok-typeName,
+.tok-className,
+.tok-namespace {
+  color: var(--theme-code-tag, #116329) !important;
+  font-weight: 600;
+}
+
+.tok-attributeName,
+.tok-propertyName {
+  color: var(--theme-code-attribute, #8250df) !important;
+}
+
+.tok-variableName,
+.tok-variableName2,
+.tok-labelName {
+  color: var(--theme-code-variable, #0550ae) !important;
+}
+
+.tok-operator {
+  color: var(--theme-code-keyword, #cf222e) !important;
+}
+
+.tok-punctuation {
+  color: var(--theme-muted, #57606a) !important;
 }
 
 .markdown-body ul {

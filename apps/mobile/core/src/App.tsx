@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ReaderCanvas } from "./components/ReaderCanvas.tsx";
 import { EditorCanvas } from "./components/EditorCanvas.tsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.tsx";
 import {
   bridge,
   type LoadDocumentPayload,
@@ -195,7 +196,9 @@ export const App: React.FC = () => {
         {mode === "read" ? (
           <ReaderCanvas content={content} onEnterEdit={() => setMode("edit")} isDark={isDark} />
         ) : (
-          <EditorCanvas initialContent={content} onContentChange={setContent} />
+          <ErrorBoundary fallbackTitle="编辑器初始化出现异常" onReset={() => setMode("read")}>
+            <EditorCanvas initialContent={content} onContentChange={setContent} />
+          </ErrorBoundary>
         )}
       </main>
 

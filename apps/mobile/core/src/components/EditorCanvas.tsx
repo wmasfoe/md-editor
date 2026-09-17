@@ -114,7 +114,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
   // 3. 订阅 DocumentState 的快照变化，同步至移动端 Bridge 与原生大纲
   useEffect(() => {
     // 首次挂载通知大纲
-    bridge.notifyOutline(extractOutline(initialContent));
+    bridge.notifyOutline(extractOutline(contentRef.current));
 
     const unsubscribe = docState.subscribeSnapshot(() => {
       const currentMarkdown = docState.getSnapshot().markdown;
@@ -131,7 +131,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
     return () => {
       unsubscribe();
     };
-  }, [docState, initialContent]);
+  }, [docState]);
 
   // 4. 注册执行原生端发来的格式化命令
   useEffect(() => {
@@ -197,7 +197,14 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
         onRendererPortsChange={(ports) => {
           portsRef.current = ports;
           if (ports) {
-            ports.focus();
+            // 在动画帧微任务中延迟安全执行 focus，避免 DOM layout 未完成时强制聚焦引起异常
+            requestAnimationFrame(() => {
+              try {
+                ports.focus();
+              } catch (err) {
+                console.warn("[EditorCanvas] Safe focus failed:", err);
+              }
+            });
           }
         }}
       />

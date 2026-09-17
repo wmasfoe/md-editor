@@ -53,6 +53,7 @@ md-editor/
 - `haptic(type)`: 触发原生振动马达（impactLight, impactMedium, selection 等）
 - `outlineExtracted(headings)`: 提炼文档各级标题列表，供原生侧滑抽屉/大纲导航使用
 - `openUrl(url)`: 拦截外部超链接，交由系统默认浏览器打开
+- `error(message, stack, componentStack)`: 前端 ErrorBoundary 捕获未处理异常并上报原生日志与调试系统
 
 ---
 
@@ -74,7 +75,7 @@ md-editor/
    - 通过 `takePersistableUriPermission` 保持长久读写权限；
    - 原地通过 `contentResolver.openOutputStream(uri, "wt")` 安全保存，无需申请危险的全局存储权限；
 3. **IME Insets 响应式软键盘栏**：使用 Compose `WindowInsets.ime` 与 `AnimatedVisibility(slideInVertically)` 实现工具栏与输入法无缝吸附；
-4. **VibratorManager 触感反馈**：针对 Android 10+ 适配 `VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK / EFFECT_CLICK)`。
+4. **VibratorManager 触感反馈与安全容灾**：声明 `android.permission.VIBRATE` 权限；针对 Android 10+ 适配 `VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK / EFFECT_CLICK)`，并通过全局异常兜底确保硬件受限或系统无震动马达时不引发 Crash。
 
 ---
 
