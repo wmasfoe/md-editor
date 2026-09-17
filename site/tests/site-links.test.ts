@@ -20,6 +20,7 @@ import {
   PLAYGROUND_URL,
   resolveDistributionDomain,
   resolveDistributionUrl,
+  resolveDevicePortalUrl,
   resolveReleasesPortalUrl,
 } from "../lib/site-links";
 
@@ -108,12 +109,26 @@ describe("site-links", () => {
     expect(resolveDistributionDomain("editor.jiaqi.im")).toBe("download.jiaqi.im");
     expect(resolveDistributionDomain("site.jiaqi.im")).toBe("download.jiaqi.im");
     expect(resolveDistributionUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im");
-    expect(resolveReleasesPortalUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im");
+    expect(resolveReleasesPortalUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im/inkpoint/");
+    expect(resolveDevicePortalUrl("android", "editor.jiaqi.im")).toBe(
+      "https://download.jiaqi.im/inkpoint/android/",
+    );
+    expect(resolveDevicePortalUrl("desktop", "editor.jiaqi.im")).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/",
+    );
 
     // editor.justdev.cn -> download.justdev.cn
     expect(resolveDistributionDomain("editor.justdev.cn")).toBe("download.justdev.cn");
     expect(resolveDistributionUrl("editor.justdev.cn")).toBe("https://download.justdev.cn");
-    expect(resolveReleasesPortalUrl("editor.justdev.cn")).toBe("https://download.justdev.cn");
+    expect(resolveReleasesPortalUrl("editor.justdev.cn")).toBe(
+      "https://download.justdev.cn/inkpoint/",
+    );
+    expect(resolveDevicePortalUrl("android", "editor.justdev.cn")).toBe(
+      "https://download.justdev.cn/inkpoint/android/",
+    );
+    expect(resolveDevicePortalUrl("desktop", "editor.justdev.cn")).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/",
+    );
 
     // generic editor.<domain> mapping
     expect(resolveDistributionDomain("editor.custom.org")).toBe("download.custom.org");

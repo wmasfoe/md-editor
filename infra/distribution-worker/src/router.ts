@@ -916,60 +916,61 @@ export async function handleRequest(
     );
   }
 
-  // 2. 全量历史版本清单 API:
-  // 支持:
-  // - /api/:app/releases(.json)? 或 /api/releases(.json)? 或 /api/:app/history
-  // - /api/:category/releases(.json)? (如 /api/android/releases, /api/desktop/releases)
-  // - /api/releases/:category(.json)? (如 /api/releases/android, /api/releases/desktop)
-  // - /api/:app/releases/:category(.json)? (如 /api/inkpoint/releases/android)
-  let matchedReleasesApi: { app: string; category?: "android" | "desktop" } | null = null;
+  // 2. 版本清单 API 路由体系 (Strict /api/:app/... Hierarchy)
+  // 规范主路径：
+  // - /api/:app/:device/releases (如 /api/inkpoint/android/releases, /api/inkpoint/desktop/releases)
+  // - /api/:app/releases/:device (如 /api/inkpoint/releases/android)
+  // - /api/:app/releases (如 /api/inkpoint/releases)
+  // - /api/:app/version.json (如 /api/inkpoint/version.json)
+  // 快捷别名重定向（302 重定向至带 :app 的规范路径，保持生态严谨一致）：
+  // - /api/:device/releases 或 /api/releases/:device -> /api/:defaultApp/:device/releases
+  // - /api/releases -> /api/:defaultApp/releases
 
-  const releasesSubCategoryMatch = path.match(
-    /^\/api(?:\/([^/]+))?\/releases\/(android|desktop|mobile)(?:\.json)?$/,
-  );
-  if (releasesSubCategoryMatch) {
-    const rawApp = releasesSubCategoryMatch[1];
-    const cat = releasesSubCategoryMatch[2];
-    const category = cat === "mobile" ? "android" : (cat as "android" | "desktop");
-    const app = rawApp && !KNOWN_PLATFORM_CATEGORIES.has(rawApp) ? rawApp : defaultApp;
-    matchedReleasesApi = { app, category };
-  } else {
-    const releasesApiMatch = path.match(/^\/api(?:\/([^/]+))?\/(?:releases|history)(?:\.json)?$/);
-    if (releasesApiMatch) {
-      const firstSegment = releasesApiMatch[1];
-      if (firstSegment && KNOWN_PLATFORM_CATEGORIES.has(firstSegment)) {
-        const category =
-          firstSegment === "mobile" ? "android" : (firstSegment as "android" | "desktop");
-        matchedReleasesApi = { app: defaultApp, category };
-      } else {
-        matchedReleasesApi = { app: firstSegment || defaultApp };
-      }
-    }
+  // A. 缺少 :app 名称的平台版本请求 -> 302 重定向到包含 :app 的规范路径
+  const noAppDeviceReleasesMatch =
+    path.match(/^\/api\/(android|desktop|mobile)\/releases(?:\.json)?$/) ||
+    path.match(/^\/api\/releases\/(android|desktop|mobile)(?:\.json)?$/);
+
+  if (noAppDeviceReleasesMatch) {
+    const rawCat = noAppDeviceReleasesMatch[1];
+    const category = rawCat === "mobile" ? "android" : rawCat;
+    return Response.redirect(`${url.origin}/api/${defaultApp}/${category}/releases`, 302);
   }
 
-  if (matchedReleasesApi) {
-    const { app, category } = matchedReleasesApi;
-    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-    let releases = manifest.releases;
-    if (category) {
-      releases = releases.filter(
-        (r) =>
-          r.category === category ||
-          (category === "android" && r.assets.some((a) => a.platform === "android")) ||
-          (category === "desktop" &&
-            r.assets.some(
-              (a) =>
-                a.platform.includes("macos") ||
-                a.platform.includes("windows") ||
-                a.platform.includes("linux"),
-            )),
-      );
+  // B. 缺少 :app 名称的根 releases API -> 302 重定向到规范路径
+  if (path === "/api/releases" || path === "/api/releases.json") {
+    return Response.redirect(`${url.origin}/api/${defaultApp}/releases`, 302);
+  }
 
-      releases = releases.map((r, index) => ({
-        ...r,
-        isLatest: index === 0,
-      }));
-    }
+  // C. 规范的专属端版本清单 API: /api/:app/:device/releases 或 /api/:app/releases/:device
+  const appDeviceReleasesMatch =
+    path.match(/^\/api\/([^/]+)\/(android|desktop|mobile)\/releases(?:\.json)?$/) ||
+    path.match(/^\/api\/([^/]+)\/releases\/(android|desktop|mobile)(?:\.json)?$/);
+
+  if (appDeviceReleasesMatch) {
+    const rawApp = appDeviceReleasesMatch[1];
+    const cat = appDeviceReleasesMatch[2];
+    const category = cat === "mobile" ? "android" : (cat as "android" | "desktop");
+    const app = rawApp && !KNOWN_PLATFORM_CATEGORIES.has(rawApp) ? rawApp : defaultApp;
+
+    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+    let releases = manifest.releases.filter(
+      (r) =>
+        r.category === category ||
+        (category === "android" && r.assets.some((a) => a.platform === "android")) ||
+        (category === "desktop" &&
+          r.assets.some(
+            (a) =>
+              a.platform.includes("macos") ||
+              a.platform.includes("windows") ||
+              a.platform.includes("linux"),
+          )),
+    );
+
+    releases = releases.map((r, index) => ({
+      ...r,
+      isLatest: index === 0,
+    }));
 
     const resultManifest: ReleasesManifest = {
       ...manifest,
@@ -985,7 +986,22 @@ export async function handleRequest(
     );
   }
 
-  // 2. 版本清单 API: /api/:app/version.json 或 /api/version.json
+  // D. 规范的应用全量版本清单 API: /api/:app/releases(.json)? 或 /api/:app/history
+  const appReleasesMatch = path.match(/^\/api\/([^/]+)\/(?:releases|history)(?:\.json)?$/);
+  if (appReleasesMatch) {
+    const rawApp = appReleasesMatch[1];
+    const app = rawApp && !KNOWN_PLATFORM_CATEGORIES.has(rawApp) ? rawApp : defaultApp;
+    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
+    return respond(
+      new Response(JSON.stringify(manifest, null, 2), {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    );
+  }
+
+  // E. 版本元数据 API: /api/:app/version.json 或 /api/version.json
   const apiMatch = path.match(/^\/api(?:\/([^/]+))?\/version(?:\.json)?$/);
   if (apiMatch) {
     let app = apiMatch[1] || defaultApp;
@@ -1342,27 +1358,31 @@ export async function handleRequest(
     }
   }
 
-  // 8. 兼容别名路径: /releases, /portal 或 /:app/releases, /:app/portal (支持 /releases/android, /releases/desktop)
-  const portalMatch = path.match(
-    /^(?:\/([^/]+))?\/(?:releases|portal)(?:\/(android|desktop|mobile))?(?:\.html)?$/,
-  );
-  if (portalMatch) {
-    const app = portalMatch[1] || defaultApp;
-    const catParam =
-      portalMatch[2] === "mobile"
-        ? "android"
-        : (portalMatch[2] as "android" | "desktop" | undefined);
-    const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-    const html = catParam
-      ? renderDeviceVersionsHtml(app, catParam, manifest, url.origin)
-      : renderAppDevicesHtml(app, manifest, url.origin);
-    return respond(
-      new Response(html, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-        },
-      }),
-    );
+  // 8. 规范 HTML 别名与快捷重定向（302 重定向至规范 /:app/:device/ 层级，严格消除平台名冒充应用名的歧义）
+  if (
+    path === "/android" ||
+    path === "/android/" ||
+    path === "/releases/android" ||
+    path === "/releases/android/" ||
+    path === "/releases/mobile" ||
+    path === "/releases/mobile/" ||
+    path === "/mobile" ||
+    path === "/mobile/"
+  ) {
+    return Response.redirect(`${url.origin}/${defaultApp}/android/`, 302);
+  }
+
+  if (
+    path === "/desktop" ||
+    path === "/desktop/" ||
+    path === "/releases/desktop" ||
+    path === "/releases/desktop/"
+  ) {
+    return Response.redirect(`${url.origin}/${defaultApp}/desktop/`, 302);
+  }
+
+  if (path === "/releases" || path === "/releases/" || path === "/portal" || path === "/portal/") {
+    return Response.redirect(`${url.origin}/${defaultApp}/`, 302);
   }
 
   // 9. 层级目录与安装包下载路由
@@ -1371,7 +1391,7 @@ export async function handleRequest(
   // 9.1 单段路径：应用设备目录 Index of /:app/ (如 /inkpoint)
   if (segments.length === 1) {
     const app = segments[0];
-    if (!["api", "gh", "favicon.ico", "releases"].includes(app)) {
+    if (!["api", "gh", "favicon.ico", "releases", "android", "desktop", "mobile"].includes(app)) {
       const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
       const html = renderAppDevicesHtml(app, manifest, url.origin);
       return respond(

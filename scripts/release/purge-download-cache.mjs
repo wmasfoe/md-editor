@@ -18,6 +18,8 @@ export const PURGE_PATHS = [
   "/api/inkpoint/version.json",
   "/api/inkpoint/releases",
   "/api/inkpoint/releases.json",
+  "/api/inkpoint/android/releases",
+  "/api/inkpoint/desktop/releases",
   "/inkpoint/desktop/updater.json",
 ];
 
