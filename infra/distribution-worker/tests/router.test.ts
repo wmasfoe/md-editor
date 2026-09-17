@@ -575,4 +575,42 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(body.success).toBe(true);
     expect(body.message).toContain("purged successfully");
   });
+
+  it("should discover and list multiple Android versions from R2 bucket list and keep historical versions", async () => {
+    const mockObjects = [
+      {
+        key: "inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+        size: 45000000,
+        uploaded: new Date("2026-09-16T12:00:00Z"),
+      },
+      {
+        key: "inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+        size: 46000000,
+        uploaded: new Date("2026-09-17T12:00:00Z"),
+      },
+    ];
+
+    const mockBucket = {
+      list: async ({ prefix }: { prefix?: string }) => {
+        if (prefix === "inkpoint/android/") {
+          return { objects: mockObjects };
+        }
+        return { objects: [] };
+      },
+      get: async () => null,
+    };
+
+    const req = new Request("https://download.justdev.cn/inkpoint/android");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("0.1.1/");
+    expect(html).toContain("0.1.0/");
+    expect(html).toContain("共 2 个版本");
+  });
 });

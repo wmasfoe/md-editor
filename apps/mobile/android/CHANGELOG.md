@@ -2,6 +2,10 @@
 
 All notable changes to the Inkpoint Android application will be documented in this file.
 
+## 0.1.1 - 2026-09-17 (#81)
+
+- **修复编辑器启动状态崩溃**：修复移动端进入编辑状态时的偶发崩溃问题，提升 WebView 与 Compose 通信稳定性 (#81)
+
 ## 0.1.0 - 2026-09-16 (#69)
 
 - **原生 Android 客户端首次发布**：基于 Jetpack Compose 与 AndroidX WebView 构建现代 Material Design 3 风格移动客户端

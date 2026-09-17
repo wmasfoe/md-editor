@@ -69,15 +69,16 @@ type DownloadPanelProps = {
   catalog?: DownloadCatalog;
   initialPlatform: SitePlatform;
   version?: string;
+  androidVersion?: string;
 };
 
-export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) {
+export function DownloadPanel({ initialPlatform, version, androidVersion }: DownloadPanelProps) {
   const { locale, t } = useI18n();
   const { domain } = useDistribution();
   const [platform, setPlatform] = useState<SitePlatform>(
     initialPlatform === "ios" ? "macos" : initialPlatform,
   );
-  const catalog = buildDownloadCatalog(version, locale, domain);
+  const catalog = buildDownloadCatalog(version, locale, domain, androidVersion);
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
   const platforms = listSitePlatforms();

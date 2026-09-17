@@ -90,6 +90,41 @@ export async function fetchAllGitHubReleases(repo, token) {
   return all;
 }
 
+function parseSemverComponents(v) {
+  return String(v)
+    .replace(/^v/i, "")
+    .replace(/^android-v/i, "")
+    .replace(/^mobile-v/i, "")
+    .split(".")
+    .map((num) => parseInt(num, 10) || 0);
+}
+
+export function compareSemver(a, b) {
+  const pa = parseSemverComponents(a);
+  const pb = parseSemverComponents(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na !== nb) return na - nb;
+  }
+  return 0;
+}
+
+export function getAndroidGitTags() {
+  try {
+    const stdout = execSync('git tag -l "android-v*"', {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    return stdout
+      .split("\n")
+      .map((t) => t.trim())
+      .filter((t) => t.startsWith("android-v"));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * 构建完整的 ReleasesManifest
  */
@@ -97,8 +132,28 @@ export function transformGitHubReleases(
   rawReleases,
   app = DEFAULT_APP,
   baseUrl = DISTRIBUTION_URL,
+  options = {},
 ) {
   const releases = [];
+  const androidMap = new Map();
+
+  // 1. 如果传入了已有的 Android releases 或历史清单，先载入
+  if (Array.isArray(options.existingReleases)) {
+    for (const r of options.existingReleases) {
+      if (r.category === "android" || r.assets?.some((a) => a.platform === "android")) {
+        androidMap.set(r.version, { ...r, category: "android" });
+      }
+    }
+  }
+
+  // 2. 如果传入了显式的 extraAndroidReleases，合并入 androidMap
+  if (Array.isArray(options.extraAndroidReleases)) {
+    for (const r of options.extraAndroidReleases) {
+      if (r.version) {
+        androidMap.set(r.version, { ...r, category: "android" });
+      }
+    }
+  }
 
   for (const raw of rawReleases) {
     const tag = raw.tag_name || "";
@@ -137,31 +192,52 @@ export function transformGitHubReleases(
 
     const category = hasAndroid && !hasDesktop ? "android" : "desktop";
 
-    releases.push({
-      version: cleanVer,
-      tagName: tag,
-      publishedAt: raw.published_at || new Date().toISOString(),
-      isLatest: false,
-      isPrerelease: Boolean(raw.prerelease),
-      category,
-      releaseNotesUrl: raw.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
-      assets,
-    });
+    if (category === "android") {
+      androidMap.set(cleanVer, {
+        version: cleanVer,
+        tagName: tag,
+        publishedAt: raw.published_at || new Date().toISOString(),
+        isLatest: false,
+        isPrerelease: Boolean(raw.prerelease),
+        category: "android",
+        releaseNotesUrl: raw.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+        assets,
+      });
+    } else {
+      releases.push({
+        version: cleanVer,
+        tagName: tag,
+        publishedAt: raw.published_at || new Date().toISOString(),
+        isLatest: false,
+        isPrerelease: Boolean(raw.prerelease),
+        category: "desktop",
+        releaseNotesUrl: raw.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+        assets,
+      });
+    }
   }
+
+  // 排序并合并 Android Releases
+  const sortedAndroid = Array.from(androidMap.values()).toSorted((a, b) =>
+    compareSemver(b.version, a.version),
+  );
+
+  for (let i = 0; i < sortedAndroid.length; i++) {
+    sortedAndroid[i].isLatest = i === 0;
+  }
+
+  releases.push(...sortedAndroid);
 
   // 计算最新桌面与移动端
   const desktopRelease = releases.find((r) => r.category === "desktop");
-  const androidRelease = releases.find((r) => r.category === "android");
+  const androidRelease = sortedAndroid[0];
 
   if (desktopRelease) {
     desktopRelease.isLatest = true;
   }
-  if (androidRelease && !desktopRelease) {
-    androidRelease.isLatest = true;
-  }
 
   const latestDesktopVersion = desktopRelease?.version || "0.10.2";
-  const latestAndroidVersion = androidRelease?.version || "0.1.0";
+  const latestAndroidVersion = androidRelease?.version || "0.1.1";
 
   return {
     app,
@@ -206,10 +282,51 @@ export async function runCli() {
   const rawReleases = await fetchAllGitHubReleases(GITHUB_REPO, token);
   console.log(`✓ Fetched ${rawReleases.length} releases from GitHub.`);
 
-  const manifest = transformGitHubReleases(rawReleases, DEFAULT_APP, DISTRIBUTION_URL);
+  // 读取现有 fallback-releases.json 中的历史记录
+  const fallbackPath = path.resolve("infra/distribution-worker/src/fallback-releases.json");
+  let existingReleases = [];
+  if (fs.existsSync(fallbackPath)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(fallbackPath, "utf8"));
+      if (Array.isArray(prev.releases)) {
+        existingReleases = prev.releases;
+      }
+    } catch {}
+  }
+
+  // 自动从本地 git tags 发现所有 Android tags (android-v*)
+  const gitTags = getAndroidGitTags();
+  const gitAndroidReleases = gitTags.map((tag) => {
+    const cleanVer = tag.replace(/^android-v/, "");
+    const fileName = `Inkpoint_${cleanVer}.apk`;
+    return {
+      version: cleanVer,
+      tagName: tag,
+      publishedAt: new Date().toISOString(),
+      isLatest: false,
+      isPrerelease: true,
+      category: "android",
+      releaseNotesUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+      assets: [
+        {
+          platform: "android",
+          platformLabel: "Android · APK (Beta)",
+          fileName,
+          downloadUrl: `${DISTRIBUTION_URL}/${DEFAULT_APP}/android/${cleanVer}/${fileName}`,
+          sizeBytes: 45000000,
+          formattedSize: "43 MB",
+          isR2Cached: true,
+        },
+      ],
+    };
+  });
+
+  const manifest = transformGitHubReleases(rawReleases, DEFAULT_APP, DISTRIBUTION_URL, {
+    existingReleases,
+    extraAndroidReleases: gitAndroidReleases,
+  });
 
   // 1. 保存到本地快照（作为 Worker 的安全 fallback）
-  const fallbackPath = path.resolve("infra/distribution-worker/src/fallback-releases.json");
   fs.writeFileSync(fallbackPath, JSON.stringify(manifest, null, 2));
   console.log(`✓ Saved fallback manifest to: ${fallbackPath}`);
 
