@@ -3,21 +3,21 @@ import fs from "node:fs";
 import path from "node:path";
 
 export function computeSha256(filePath) {
-  if (!fs.existsSync(filePath)) return undefined;
+  if (!filePath || !fs.existsSync(filePath)) return undefined;
   const buffer = fs.readFileSync(filePath);
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
-export function mergeVersionManifest(existingManifest = {}, desktopData = {}) {
-  const app = desktopData.app || existingManifest.app || "inkpoint";
+export function mergeVersionManifest(existingManifest = {}, updateData = {}) {
+  const app = updateData.app || existingManifest.app || "inkpoint";
   const updatedAt = new Date().toISOString();
 
   return {
     app,
     updatedAt,
-    desktop: desktopData.desktop || existingManifest.desktop,
-    android: existingManifest.android,
-    ios: existingManifest.ios,
+    desktop: updateData.desktop !== undefined ? updateData.desktop : existingManifest.desktop,
+    android: updateData.android !== undefined ? updateData.android : existingManifest.android,
+    ios: updateData.ios !== undefined ? updateData.ios : existingManifest.ios,
   };
 }
 
@@ -43,14 +43,21 @@ export async function runCli() {
     process.exit(1);
   }
 
-  const normalizedVersion = version.replace(/^v/, "");
-  const artifactsDir = process.env.ARTIFACTS_DIR || "release-artifacts";
-  const outputPath = process.env.OUTPUT_PATH || "dist-desktop/version.json";
+  const normalizedVersion = version
+    .replace(/^v/, "")
+    .replace(/^android-v/, "")
+    .replace(/^mobile-v/, "");
+  const platform = process.env.RELEASE_PLATFORM || "desktop";
+  const artifactsDir =
+    process.env.ARTIFACTS_DIR || (platform === "android" ? "dist-mobile" : "release-artifacts");
+  const outputPath =
+    process.env.OUTPUT_PATH ||
+    (platform === "android" ? "dist-mobile/version.json" : "dist-desktop/version.json");
   const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
   const appName = process.env.APP_NAME || "inkpoint";
   const githubRepo = process.env.GITHUB_REPO || "wmasfoe/md-editor";
 
-  // 1. 尝试拉取当前线上 version.json 以保留 android/ios 节点
+  // 1. 尝试拉取当前线上 version.json 以保留其他端的节点
   let existingManifest = {};
   try {
     const res = await fetch(`${distributionUrl}/api/${appName}/version.json`, {
@@ -66,8 +73,41 @@ export async function runCli() {
     console.warn(`Could not fetch remote version.json: ${err.message}. Using local baseline.`);
   }
 
-  // 2. 扫描 artifacts 收集桌面产物信息
+  if (platform === "android") {
+    // 移动端 Manifest 生成与合并
+    const apkFile = findFile(
+      artifactsDir,
+      (n) => n.endsWith(".apk") && !n.includes("unaligned") && !n.includes("latest"),
+    );
 
+    const fileName = apkFile ? path.basename(apkFile) : `Inkpoint_${normalizedVersion}.apk`;
+    const sizeBytes = apkFile ? fs.statSync(apkFile).size : undefined;
+    const sha256 = apkFile ? computeSha256(apkFile) : undefined;
+
+    const android = {
+      version: normalizedVersion,
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${normalizedVersion}`,
+      apk: {
+        version: normalizedVersion,
+        fileName,
+        downloadUrl: `${distributionUrl}/${appName}/android/latest`,
+        sizeBytes,
+        sha256,
+      },
+    };
+
+    const updatedManifest = mergeVersionManifest(existingManifest, {
+      app: appName,
+      android,
+    });
+
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
+    console.log(`✓ Updated Android version manifest: ${outputPath}`);
+    return;
+  }
+
+  // 2. 桌面端 Manifest 生成与合并
   const macArmDmg = findFile(
     artifactsDir,
     (n) =>

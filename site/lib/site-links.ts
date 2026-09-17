@@ -48,9 +48,8 @@ export const DISTRIBUTION_DOMAIN =
 /** 官方全球分发加速基础 URL */
 export const DISTRIBUTION_URL = `https://${DISTRIBUTION_DOMAIN}`;
 
-/** 官方全球版本分发中心与历史安装包归档 Web 页面相对路径（由 Next.js ISR 渲染） */
-export const RELEASES_PORTAL_PATH = "/releases";
-export const RELEASES_PORTAL_URL = RELEASES_PORTAL_PATH;
+/** 官方全球版本分发中心与历史安装包归档 Web 页面 URL */
+export const RELEASES_PORTAL_URL = DISTRIBUTION_URL;
 
 /** 官方历史全量版本清单 API */
 export const RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/releases`;
@@ -92,8 +91,8 @@ export function resolveDistributionUrl(hostname?: string): string {
 /**
  * 根据当前域名解析版本分发中心 Web 页面 URL
  */
-export function resolveReleasesPortalUrl(_hostname?: string): string {
-  return RELEASES_PORTAL_PATH;
+export function resolveReleasesPortalUrl(hostname?: string): string {
+  return resolveDistributionUrl(hostname);
 }
 
 function resolveBaseUrl(domain?: string): string {

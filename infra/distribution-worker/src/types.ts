@@ -1,10 +1,10 @@
 export interface Env {
   RELEASE_BUCKET?: R2Bucket;
-  ASSETS?: Fetcher;
   GITHUB_REPO?: string;
   GITHUB_TOKEN?: string;
   DEFAULT_APP?: string;
   PUBLIC_DOMAIN?: string;
+  PURGE_TOKEN?: string;
 }
 
 export interface PlatformAssetInfo {
