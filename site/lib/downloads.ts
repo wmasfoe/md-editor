@@ -1,14 +1,18 @@
 import type { Locale } from "./i18n/types";
 import { SITE_PLATFORMS, type DesktopPlatform, type SitePlatform } from "./platform";
 import {
+  ANDROID_PORTAL_URL,
   ARTIFACT_NAME_PREFIX,
   buildAndroidApkUrl,
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
   buildWindowsSetupUrl,
+  DESKTOP_PORTAL_URL,
   GITHUB_RELEASES_URL,
   normalizeVersion,
   RELEASES_PORTAL_URL,
+  resolveDevicePortalUrl,
+  resolveReleasesPortalUrl,
 } from "./site-links";
 
 export const UNIX_INSTALL_COMMAND =
@@ -37,6 +41,8 @@ export type PlatformDownload = {
 
 export type DownloadCatalog = Record<SitePlatform, PlatformDownload> & {
   allPackagesUrl: string;
+  desktopPackagesUrl: string;
+  androidPackagesUrl: string;
 };
 
 export type PlatformInstall = {
@@ -107,7 +113,13 @@ export function buildDownloadCatalog(
     return fallbackCatalog(locale, domain, androidVersion);
   }
 
-  const allPackagesUrl = RELEASES_PORTAL_URL;
+  const allPackagesUrl = domain ? resolveReleasesPortalUrl(domain) : RELEASES_PORTAL_URL;
+  const desktopPackagesUrl = domain
+    ? resolveDevicePortalUrl("desktop", domain)
+    : DESKTOP_PORTAL_URL;
+  const androidPackagesUrl = domain
+    ? resolveDevicePortalUrl("android", domain)
+    : ANDROID_PORTAL_URL;
 
   return {
     macos: {
@@ -170,6 +182,8 @@ export function buildDownloadCatalog(
       isBeta: true,
     },
     allPackagesUrl,
+    desktopPackagesUrl,
+    androidPackagesUrl,
   };
 }
 
@@ -205,7 +219,13 @@ function fallbackCatalog(
 ): DownloadCatalog {
   const isEn = locale === "en";
   const mobile = getMobileDownloadCatalog(locale, domain, androidVersion);
-  const allPackagesUrl = RELEASES_PORTAL_URL;
+  const allPackagesUrl = domain ? resolveReleasesPortalUrl(domain) : RELEASES_PORTAL_URL;
+  const desktopPackagesUrl = domain
+    ? resolveDevicePortalUrl("desktop", domain)
+    : DESKTOP_PORTAL_URL;
+  const androidPackagesUrl = domain
+    ? resolveDevicePortalUrl("android", domain)
+    : ANDROID_PORTAL_URL;
   return {
     macos: fallbackPrimary(isEn ? "Download for macOS" : "下载 macOS", "Apple Silicon · DMG"),
     linux: fallbackPrimary(isEn ? "Download for Linux" : "下载 Linux", "x86_64 · AppImage"),
@@ -225,6 +245,8 @@ function fallbackCatalog(
       isBeta: true,
     },
     allPackagesUrl,
+    desktopPackagesUrl,
+    androidPackagesUrl,
   };
 }
 

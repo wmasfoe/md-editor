@@ -49,10 +49,22 @@ export const DISTRIBUTION_DOMAIN =
 export const DISTRIBUTION_URL = `https://${DISTRIBUTION_DOMAIN}`;
 
 /** 官方全球版本分发中心与历史安装包归档 Web 页面 URL */
-export const RELEASES_PORTAL_URL = DISTRIBUTION_URL;
+export const RELEASES_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/`;
+
+/** 官方 Android 平台版本中心页面 URL */
+export const ANDROID_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/android/`;
+
+/** 官方 Desktop 平台版本中心页面 URL */
+export const DESKTOP_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/desktop/`;
 
 /** 官方历史全量版本清单 API */
 export const RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/releases`;
+
+/** 官方 Android 版本清单 API URL */
+export const ANDROID_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/android/releases`;
+
+/** 官方 Desktop 版本清单 API URL */
+export const DESKTOP_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/desktop/releases`;
 
 /**
  * 根据当前运行上下文（浏览器 window.location.hostname 或传入的 hostname）智能解析分发加速域名。
@@ -92,7 +104,24 @@ export function resolveDistributionUrl(hostname?: string): string {
  * 根据当前域名解析版本分发中心 Web 页面 URL
  */
 export function resolveReleasesPortalUrl(hostname?: string): string {
-  return resolveDistributionUrl(hostname);
+  return `${resolveDistributionUrl(hostname)}/inkpoint/`;
+}
+
+/**
+ * 根据当前域名解析特定平台版本分发中心 Web 页面 URL
+ */
+export function resolveDevicePortalUrl(
+  platform: "desktop" | "android" | "all" = "all",
+  hostname?: string,
+): string {
+  const base = resolveDistributionUrl(hostname);
+  if (platform === "android") {
+    return `${base}/inkpoint/android/`;
+  }
+  if (platform === "desktop") {
+    return `${base}/inkpoint/desktop/`;
+  }
+  return `${base}/inkpoint/`;
 }
 
 function resolveBaseUrl(domain?: string): string {

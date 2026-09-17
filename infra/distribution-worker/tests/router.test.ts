@@ -299,6 +299,103 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.releases[0].version).toBe("0.10.2");
   });
 
+  it("should return android releases on canonical /api/inkpoint/android/releases", async () => {
+    const req = new Request("https://download.justdev.cn/api/inkpoint/android/releases");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+
+    const manifest = (await res.json()) as {
+      app: string;
+      releases: Array<{ version: string; category: string; isLatest: boolean }>;
+    };
+    expect(manifest.app).toBe("inkpoint");
+    expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
+    expect(manifest.releases.every((r) => r.category === "android")).toBe(true);
+    expect(manifest.releases[0].version).toBe("0.1.1");
+    expect(manifest.releases[0].isLatest).toBe(true);
+    expect(manifest.releases[1].version).toBe("0.1.0");
+    expect(manifest.releases[1].isLatest).toBe(false);
+  });
+
+  it("should return android releases on RESTful /api/inkpoint/releases/android", async () => {
+    const req = new Request("https://download.justdev.cn/api/inkpoint/releases/android");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const manifest = (await res.json()) as {
+      releases: Array<{ version: string; category: string }>;
+    };
+    expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
+    expect(manifest.releases[0].version).toBe("0.1.1");
+  });
+
+  it("should 302 redirect non-app release APIs /api/android/releases and /api/releases/android to canonical path", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res1 = await handleRequest(
+      new Request("https://download.justdev.cn/api/android/releases"),
+      env,
+    );
+    expect(res1.status).toBe(302);
+    expect(res1.headers.get("Location")).toBe(
+      "https://download.justdev.cn/api/inkpoint/android/releases",
+    );
+
+    const res2 = await handleRequest(
+      new Request("https://download.justdev.cn/api/releases/android"),
+      env,
+    );
+    expect(res2.status).toBe(302);
+    expect(res2.headers.get("Location")).toBe(
+      "https://download.justdev.cn/api/inkpoint/android/releases",
+    );
+
+    const res3 = await handleRequest(new Request("https://download.justdev.cn/api/releases"), env);
+    expect(res3.status).toBe(302);
+    expect(res3.headers.get("Location")).toBe("https://download.justdev.cn/api/inkpoint/releases");
+  });
+
+  it("should handle /api/android/version.json by mapping to default app", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/version.json") {
+          return {
+            body: JSON.stringify({
+              app: "inkpoint",
+              desktop: { version: "0.10.2" },
+              android: { version: "0.1.1" },
+            }),
+          };
+        }
+        return null;
+      },
+    };
+    const req = new Request("https://download.justdev.cn/api/android/version.json");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { app: string };
+    expect(data.app).toBe("inkpoint");
+  });
+
   it("should render app index HTML on / when Accept header is text/html", async () => {
     const req = new Request("https://download.justdev.cn/", {
       headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
@@ -318,21 +415,27 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("Inkpoint");
   });
 
-  it("should render version index HTML on /releases or /inkpoint/", async () => {
-    const req = new Request("https://download.justdev.cn/releases");
+  it("should render version index HTML on /inkpoint/ and 302 redirect /releases", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const res = await handleRequest(req, env);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
-
-    const html = await res.text();
+    // 1. /inkpoint/ (canonical 200)
+    const reqApp = new Request("https://download.justdev.cn/inkpoint/");
+    const resApp = await handleRequest(reqApp, env);
+    expect(resApp.status).toBe(200);
+    expect(resApp.headers.get("Content-Type")).toContain("text/html");
+    const html = await resApp.text();
     expect(html).toContain("Index of /inkpoint/");
     expect(html).toContain("[Root]");
     expect(html).toContain("0.10.2/");
+
+    // 2. /releases (302 redirect to /inkpoint/)
+    const reqReleases = new Request("https://download.justdev.cn/releases");
+    const resReleases = await handleRequest(reqReleases, env);
+    expect(resReleases.status).toBe(302);
+    expect(resReleases.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/");
   });
 
   it("should render version package detail HTML on /inkpoint/0.10.2/ and /inkpoint/desktop/0.10.2/", async () => {
@@ -361,31 +464,37 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html2).toContain("Inkpoint_0.10.2_aarch64.dmg");
   });
 
-  it("should render device-specific portal on /inkpoint/android and /releases/android", async () => {
+  it("should render device-specific portal on /inkpoint/android and 302 redirect /releases/android", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    // 1. /inkpoint/android
+    // 1. /inkpoint/android (canonical 200)
     const req1 = new Request("https://download.justdev.cn/inkpoint/android");
     const res1 = await handleRequest(req1, env);
     expect(res1.status).toBe(200);
     const html1 = await res1.text();
     expect(html1).toContain("Index of /inkpoint/android/");
     expect(html1).toContain("Android 移动端");
+    expect(html1).toContain("0.1.1/");
     expect(html1).toContain("0.1.0/");
+    expect(html1).toContain("/api/inkpoint/android/releases");
 
-    // 2. /releases/android
+    // 2. /releases/android (302 redirect to canonical)
     const req2 = new Request("https://download.justdev.cn/releases/android");
     const res2 = await handleRequest(req2, env);
-    expect(res2.status).toBe(200);
-    const html2 = await res2.text();
-    expect(html2).toContain("Index of /inkpoint/android/");
-    expect(html2).toContain("0.1.0/");
+    expect(res2.status).toBe(302);
+    expect(res2.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/android/");
+
+    // 3. /android shortcut (302 redirect to canonical)
+    const req3 = new Request("https://download.justdev.cn/android");
+    const res3 = await handleRequest(req3, env);
+    expect(res3.status).toBe(302);
+    expect(res3.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/android/");
   });
 
-  it("should render device-specific portal on /inkpoint/desktop and /releases/desktop", async () => {
+  it("should render device-specific portal on /inkpoint/desktop and 302 redirect /releases/desktop and /desktop", async () => {
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -398,6 +507,14 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("Index of /inkpoint/desktop/");
     expect(html).toContain("Desktop 桌面端");
     expect(html).toContain("0.10.2/");
+    expect(html).toContain("/api/inkpoint/desktop/releases");
+
+    const reqDesktop = new Request("https://download.justdev.cn/desktop");
+    const resDesktop = await handleRequest(reqDesktop, env);
+    expect(resDesktop.status).toBe(302);
+    expect(resDesktop.headers.get("Location")).toBe(
+      "https://download.justdev.cn/inkpoint/desktop/",
+    );
   });
 
   it("should provide latestDesktopVersion and latestAndroidVersion in releases manifest API", async () => {
@@ -418,8 +535,8 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     expect(data.latestDesktopVersion).toBe("0.10.2");
-    expect(data.latestAndroidVersion).toBe("0.1.0");
-    expect(data.latestReleases?.android?.version).toBe("0.1.0");
+    expect(data.latestAndroidVersion).toBe("0.1.1");
+    expect(data.latestReleases?.android?.version).toBe("0.1.1");
   });
 
   it("should serve 3-segment versioned artifact directly from R2 when available", async () => {
@@ -470,8 +587,11 @@ describe("Distribution Worker Router & Matcher", () => {
     );
 
     expect(manifest.latestDesktopVersion).toBe("0.10.2");
-    expect(manifest.latestAndroidVersion).toBe("0.1.0");
+    expect(manifest.latestAndroidVersion).toBe("0.1.1");
     expect(manifest.releases.some((r) => r.category === "desktop" && r.version === "0.10.2")).toBe(
+      true,
+    );
+    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.1")).toBe(
       true,
     );
     expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(

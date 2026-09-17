@@ -357,7 +357,7 @@ export function renderDeviceVersionsHtml(
     </tbody>
   </table>
   <hr>
-  <address>Application: ${app} · Device: ${device} · Total: ${releases.length} versions · <a href="${currentOrigin}/api/${app}/releases">JSON API</a></address>
+  <address>Application: ${app} · Device: ${device} · Total: ${releases.length} versions · <a href="${currentOrigin}/api/${app}/${device}/releases">JSON API</a></address>
 </body>
 </html>`;
 }
@@ -415,7 +415,7 @@ export function renderVersionFilesHtml(
     </tbody>
   </table>
   <hr>
-  <address>Application: ${app} · Device: ${device} · Version: ${release.version} · <a href="${currentOrigin}/api/${app}/releases">Releases API</a></address>
+  <address>Application: ${app} · Device: ${device} · Version: ${release.version} · <a href="${currentOrigin}/api/${app}/${device}/releases">Device Releases API</a> · <a href="${currentOrigin}/api/${app}/releases">All Releases API</a></address>
 </body>
 </html>`;
 }

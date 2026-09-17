@@ -29,6 +29,8 @@ describe("buildDownloadCatalog", () => {
     expect(catalog.windows.primary.fileName).toBe("Inkpoint_0.4.4_x64-setup.exe");
     expect(catalog.windows.secondary[0]?.fileName).toBe("Inkpoint_0.4.4_arm64-setup.exe");
     expect(catalog.allPackagesUrl).toBe(RELEASES_PORTAL_URL);
+    expect(catalog.desktopPackagesUrl).toBe("https://download.justdev.cn/inkpoint/desktop/");
+    expect(catalog.androidPackagesUrl).toBe("https://download.justdev.cn/inkpoint/android/");
   });
 
   it("falls back to the public releases list when version is missing", () => {

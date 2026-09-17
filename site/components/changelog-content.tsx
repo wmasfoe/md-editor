@@ -448,7 +448,11 @@ function VersionDownloadDropdown({
           )}
           <div className="my-1 border-t border-line/60" />
           <a
-            href={isAndroid ? `${releasesPortalUrl}/android` : `${releasesPortalUrl}#v${version}`}
+            href={
+              isAndroid
+                ? `${releasesPortalUrl.replace(/\/+$/, "")}/android/`
+                : `${releasesPortalUrl.replace(/\/+$/, "")}/desktop/#v${version}`
+            }
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
