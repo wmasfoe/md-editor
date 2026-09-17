@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildReleasesManifest,
-  getStaticHtmlR2Keys,
-  handleRequest,
-  matchDesktopAsset,
-} from "../src/router.ts";
+import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -484,41 +479,54 @@ describe("Distribution Worker Router & Matcher", () => {
     );
   });
 
-  it("should resolve static HTML R2 keys correctly", () => {
-    expect(getStaticHtmlR2Keys("/")).toEqual(["index.html"]);
-    expect(getStaticHtmlR2Keys("/inkpoint")).toEqual(["inkpoint/index.html"]);
-    expect(getStaticHtmlR2Keys("/inkpoint/desktop")).toEqual(["inkpoint/desktop/index.html"]);
-    expect(getStaticHtmlR2Keys("/inkpoint/android")).toEqual(["inkpoint/android/index.html"]);
-    expect(getStaticHtmlR2Keys("/inkpoint/desktop/0.10.2")).toEqual([
-      "inkpoint/desktop/0.10.2/index.html",
-    ]);
-    expect(getStaticHtmlR2Keys("/releases")).toEqual([
-      "inkpoint/index.html",
-      "releases/index.html",
-    ]);
+  it("should return edge ISR Cache-Control headers on HTML and API responses", async () => {
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop", {
+      headers: { Accept: "text/html" },
+    });
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe(
+      "public, max-age=60, s-maxage=600, stale-while-revalidate=86400",
+    );
   });
 
-  it("should serve pre-rendered static HTML directly from R2 when present", async () => {
-    const staticHtmlContent = "<!DOCTYPE html><html><body>Static R2 HTML</body></html>";
+  it("should dynamically render newly updated version from R2 version.json without static rebuild", async () => {
+    const updatedManifest = {
+      app: "inkpoint",
+      updatedAt: "2026-09-17T12:00:00Z",
+      desktop: {
+        version: "0.11.0",
+        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/v0.11.0",
+        assets: {
+          macos_arm64: {
+            version: "0.11.0",
+            fileName: "Inkpoint_0.11.0_aarch64.dmg",
+            downloadUrl: "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+            sizeBytes: 88000000,
+          },
+        },
+      },
+    };
+
     const mockBucket = {
       get: async (key: string) => {
-        if (key === "inkpoint/desktop/index.html") {
+        if (key === "inkpoint/version.json") {
           return {
-            body: new ReadableStream({
-              start(controller) {
-                controller.enqueue(new TextEncoder().encode(staticHtmlContent));
-                controller.close();
-              },
-            }),
-            httpEtag: "etag-static-html",
-            writeHttpMetadata: (_headers: Headers) => {},
+            text: async () => JSON.stringify(updatedManifest),
+            body: new ReadableStream(),
           } as unknown as R2ObjectBody;
         }
         return null;
       },
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const req = new Request("https://download.justdev.cn/inkpoint/desktop", {
+      headers: { Accept: "text/html" },
+    });
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -526,32 +534,45 @@ describe("Distribution Worker Router & Matcher", () => {
 
     const res = await handleRequest(req, env);
     expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
-    const text = await res.text();
-    expect(text).toBe(staticHtmlContent);
+    const html = await res.text();
+    expect(html).toContain("0.11.0");
+    expect(html).toContain("Index of /inkpoint/desktop/");
   });
 
-  it("should serve static asset directly from ASSETS fetcher when present", async () => {
-    const staticHtmlContent = "<!DOCTYPE html><html><body>Static Edge Asset</body></html>";
-    const mockAssets = {
-      fetch: async (_req: Request) => {
-        return new Response(staticHtmlContent, {
-          status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8" },
-        });
-      },
-    };
+  it("should handle /api/purge-cache endpoint correctly", async () => {
+    // 1. Method not allowed for GET
+    const getReq = new Request("https://download.justdev.cn/api/purge-cache", { method: "GET" });
+    const resGet = await handleRequest(getReq, { DEFAULT_APP: "inkpoint" });
+    expect(resGet.status).toBe(405);
 
-    const req = new Request("https://download.justdev.cn/inkpoint/android");
-    const env: Env = {
+    // 2. Unauthorized when PURGE_TOKEN is configured but missing/invalid
+    const postUnauthorized = new Request("https://download.justdev.cn/api/purge-cache", {
+      method: "POST",
+    });
+    const resUnauthorized = await handleRequest(postUnauthorized, {
       DEFAULT_APP: "inkpoint",
-      ASSETS: mockAssets as unknown as Fetcher,
-    };
+      PURGE_TOKEN: "secret-token",
+    });
+    expect(resUnauthorized.status).toBe(401);
 
-    const res = await handleRequest(req, env);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Type")).toContain("text/html");
-    const text = await res.text();
-    expect(text).toBe(staticHtmlContent);
+    // 3. Authorized cache purge
+    const postAuthorized = new Request("https://download.justdev.cn/api/purge-cache", {
+      method: "POST",
+      headers: {
+        "X-Purge-Token": "secret-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        urls: ["https://download.justdev.cn/inkpoint/desktop"],
+      }),
+    });
+    const resAuthorized = await handleRequest(postAuthorized, {
+      DEFAULT_APP: "inkpoint",
+      PURGE_TOKEN: "secret-token",
+    });
+    expect(resAuthorized.status).toBe(200);
+    const body = (await resAuthorized.json()) as { success: boolean; message: string };
+    expect(body.success).toBe(true);
+    expect(body.message).toContain("purged successfully");
   });
 });

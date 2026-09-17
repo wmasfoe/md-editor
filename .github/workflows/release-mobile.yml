@@ -102,38 +102,20 @@ jobs:
           echo "latest_apk=${LATEST_APK}" >> "$GITHUB_OUTPUT"
           echo "✓ Created: ${TARGET_APK}"
 
-      - name: Generate Multi-App version.json Manifest
+      - name: Generate and Merge Multi-App version.json Manifest
         env:
-          VERSION: ${{ steps.release_version.outputs.version }}
-        run: |
-          UPDATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          node -e '
-            const fs = require("fs");
-            const version = process.env.VERSION;
-            const manifest = {
-              app: "inkpoint",
-              updatedAt: process.env.UPDATED_AT,
-              android: {
-                version: version,
-                apk: {
-                  version: version,
-                  fileName: `Inkpoint_${version}.apk`,
-                  downloadUrl: "https://download.justdev.cn/inkpoint/android/latest"
-                }
-              },
-              ios: {
-                version: version,
-                testFlightUrl: "https://testflight.apple.com/join/placeholder"
-              }
-            };
-            fs.writeFileSync("dist-mobile/version.json", JSON.stringify(manifest, null, 2));
-            console.log("✓ Generated dist-mobile/version.json");
-          '
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          RELEASE_PLATFORM: android
+          OUTPUT_PATH: dist-mobile/version.json
+          ARTIFACTS_DIR: dist-mobile
+        run: node scripts/release/update-r2-version-manifest.mjs
 
       - name: Upload APK & Manifest to Cloudflare R2
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          PURGE_TOKEN: ${{ secrets.PURGE_TOKEN }}
           R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
           VERSION: ${{ steps.release_version.outputs.version }}
         run: |
@@ -147,7 +129,12 @@ jobs:
           npx wrangler r2 object put "${BUCKET}/inkpoint/android/${VERSION}/Inkpoint_${VERSION}.apk" --file "dist-mobile/Inkpoint_${VERSION}.apk" --remote
           npx wrangler r2 object put "${BUCKET}/inkpoint/android/latest.apk" --file "dist-mobile/Inkpoint_latest.apk" --remote
           npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-mobile/version.json" --remote
-          echo "✅ All artifacts successfully deployed to Cloudflare R2!"
+
+          # 刷新全网边缘缓存，使动态渲染最新版本即时生效
+          echo "🧹 Purging download edge cache..."
+          node scripts/release/purge-download-cache.mjs
+
+          echo "✅ All artifacts successfully deployed to Cloudflare R2 and cache purged!"
 
       - name: Archive Android Artifacts in GitHub Actions
         uses: actions/upload-artifact@v4

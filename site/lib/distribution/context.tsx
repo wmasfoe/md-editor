@@ -12,7 +12,7 @@ interface DistributionContextValue {
 const DistributionContext = createContext<DistributionContextValue>({
   domain: DEFAULT_DISTRIBUTION_DOMAIN,
   url: `https://${DEFAULT_DISTRIBUTION_DOMAIN}`,
-  releasesPortalUrl: "/releases",
+  releasesPortalUrl: `https://${DEFAULT_DISTRIBUTION_DOMAIN}`,
 });
 
 export interface DistributionProviderProps {
@@ -35,7 +35,7 @@ export function DistributionProvider({
   }, []);
 
   const url = `https://${domain}`;
-  const releasesPortalUrl = "/releases";
+  const releasesPortalUrl = url;
 
   return (
     <DistributionContext.Provider value={{ domain, url, releasesPortalUrl }}>

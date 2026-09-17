@@ -167,40 +167,15 @@ async function main() {
     { stdio: "inherit" },
   );
 
-  // 生成并上传静态门户网页到 R2 (确保纯静态化直出)
-  console.log(`🌐 Building and uploading static HTML portal to R2...`);
+  // 刷新全网边缘缓存，使动态渲染最新版本即时生效
+  console.log(`🧹 Purging download edge cache...`);
   try {
-    execSync(
-      `node --experimental-strip-types infra/distribution-worker/scripts/build-static-portal.ts`,
-      { stdio: "inherit" },
-    );
-    const publicDir = path.resolve("infra/distribution-worker/public");
-    if (fs.existsSync(publicDir)) {
-      const filesToUpload = [
-        "index.html",
-        `${APP_NAME}/index.html`,
-        `${APP_NAME}/desktop/index.html`,
-        `${APP_NAME}/android/index.html`,
-        `${APP_NAME}/desktop/${version}/index.html`,
-        `${APP_NAME}/${version}/index.html`,
-      ];
-      for (const rel of filesToUpload) {
-        const full = path.join(publicDir, rel);
-        if (fs.existsSync(full)) {
-          execSync(
-            `npx wrangler r2 object put "${BUCKET}/${rel}" --file "${full}" --content-type "text/html; charset=utf-8" --remote`,
-            { stdio: "inherit" },
-          );
-        }
-      }
-    }
-  } catch (portalErr) {
-    console.warn("Could not upload static portal to R2:", portalErr.message);
+    execSync(`node scripts/release/purge-download-cache.mjs`, { stdio: "inherit" });
+  } catch (purgeErr) {
+    console.warn("Could not purge download cache:", purgeErr.message);
   }
 
-  console.log(
-    "🎉 Successfully synchronized all Desktop artifacts, static portal and manifests to R2!",
-  );
+  console.log("🎉 Successfully synchronized all Desktop artifacts, manifests and purged cache!");
 }
 
 main().catch((err) => {

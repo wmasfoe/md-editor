@@ -108,12 +108,12 @@ describe("site-links", () => {
     expect(resolveDistributionDomain("editor.jiaqi.im")).toBe("download.jiaqi.im");
     expect(resolveDistributionDomain("site.jiaqi.im")).toBe("download.jiaqi.im");
     expect(resolveDistributionUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im");
-    expect(resolveReleasesPortalUrl("editor.jiaqi.im")).toBe("/releases");
+    expect(resolveReleasesPortalUrl("editor.jiaqi.im")).toBe("https://download.jiaqi.im");
 
     // editor.justdev.cn -> download.justdev.cn
     expect(resolveDistributionDomain("editor.justdev.cn")).toBe("download.justdev.cn");
     expect(resolveDistributionUrl("editor.justdev.cn")).toBe("https://download.justdev.cn");
-    expect(resolveReleasesPortalUrl("editor.justdev.cn")).toBe("/releases");
+    expect(resolveReleasesPortalUrl("editor.justdev.cn")).toBe("https://download.justdev.cn");
 
     // generic editor.<domain> mapping
     expect(resolveDistributionDomain("editor.custom.org")).toBe("download.custom.org");

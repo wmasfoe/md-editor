@@ -318,11 +318,68 @@ export async function buildReleasesManifest(
   let androidSizeBytes = 45000000;
   let androidPublishedAt = "2026-09-16T12:00:00Z";
 
+  let desktopVersion = "0.10.2";
+  let desktopAssets: ReleaseAssetInfo[] = [];
+
   if (env.RELEASE_BUCKET) {
     const versionJsonObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
     if (versionJsonObj) {
       try {
         const vData = JSON.parse(await versionJsonObj.text()) as AppVersionManifest;
+        if (vData.desktop?.version) {
+          desktopVersion = vData.desktop.version;
+          const dAssets = vData.desktop.assets;
+          if (dAssets) {
+            const list: ReleaseAssetInfo[] = [];
+            if (dAssets.macos_arm64) {
+              list.push({
+                platform: "macos-arm64",
+                platformLabel: "macOS (Apple Silicon) · DMG",
+                fileName: dAssets.macos_arm64.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/macos/latest`,
+                sizeBytes: dAssets.macos_arm64.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.macos_arm64.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
+            if (dAssets.windows_x64) {
+              list.push({
+                platform: "windows-x64",
+                platformLabel: "Windows (x64) · Setup",
+                fileName: dAssets.windows_x64.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/windows/latest`,
+                sizeBytes: dAssets.windows_x64.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.windows_x64.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
+            if (dAssets.linux_appimage) {
+              list.push({
+                platform: "linux-appimage",
+                platformLabel: "Linux (x86_64) · AppImage",
+                fileName: dAssets.linux_appimage.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/linux/latest`,
+                sizeBytes: dAssets.linux_appimage.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.linux_appimage.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
+            if (dAssets.linux_deb) {
+              list.push({
+                platform: "linux-deb",
+                platformLabel: "Linux · DEB",
+                fileName: dAssets.linux_deb.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/${desktopVersion}/${dAssets.linux_deb.fileName}`,
+                sizeBytes: dAssets.linux_deb.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.linux_deb.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
+            if (list.length > 0) {
+              desktopAssets = list;
+            }
+          }
+        }
         if (vData.android?.version) {
           androidVersion = vData.android.version;
           if (vData.android.apk?.fileName) {
@@ -341,46 +398,62 @@ export async function buildReleasesManifest(
     }
   }
 
-  // 3. 兜底策略：在离线单测或 GitHub API 失败时，返回已知最新桌面版本
-  if (releases.length === 0) {
-    releases.push({
-      version: "0.10.2",
-      tagName: "v0.10.2",
+  // 3. 检查并确保清单中包含 R2 version.json 指定的桌面版本
+  const existingDesktop = releases.find(
+    (r) =>
+      r.version === desktopVersion ||
+      r.tagName === `v${desktopVersion}` ||
+      r.tagName === `desktop-v${desktopVersion}`,
+  );
+
+  if (!existingDesktop) {
+    releases.unshift({
+      version: desktopVersion,
+      tagName: `v${desktopVersion}`,
       publishedAt: new Date().toISOString(),
       isLatest: true,
       isPrerelease: false,
       category: "desktop",
-      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v0.10.2`,
-      assets: [
-        {
-          platform: "macos-arm64",
-          platformLabel: "macOS (Apple Silicon) · DMG",
-          fileName: "Inkpoint_0.10.2_aarch64.dmg",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_aarch64.dmg`,
-          sizeBytes: 30680892,
-          formattedSize: "29.3 MB",
-          isR2Cached: true,
-        },
-        {
-          platform: "windows-x64",
-          platformLabel: "Windows (x64) · Setup",
-          fileName: "Inkpoint_0.10.2_x64-setup.exe",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_x64-setup.exe`,
-          sizeBytes: 8072766,
-          formattedSize: "7.7 MB",
-          isR2Cached: true,
-        },
-        {
-          platform: "linux-appimage",
-          platformLabel: "Linux (x86_64) · AppImage",
-          fileName: "Inkpoint_0.10.2_amd64.AppImage",
-          downloadUrl: `${baseUrl}/${app}/0.10.2/Inkpoint_0.10.2_amd64.AppImage`,
-          sizeBytes: 91474424,
-          formattedSize: "87.2 MB",
-          isR2Cached: true,
-        },
-      ],
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/v${desktopVersion}`,
+      assets:
+        desktopAssets.length > 0
+          ? desktopAssets
+          : [
+              {
+                platform: "macos-arm64",
+                platformLabel: "macOS (Apple Silicon) · DMG",
+                fileName: `Inkpoint_${desktopVersion}_aarch64.dmg`,
+                downloadUrl: `${baseUrl}/${app}/desktop/macos/latest`,
+                sizeBytes: 30680892,
+                formattedSize: "29.3 MB",
+                isR2Cached: true,
+              },
+              {
+                platform: "windows-x64",
+                platformLabel: "Windows (x64) · Setup",
+                fileName: `Inkpoint_${desktopVersion}_x64-setup.exe`,
+                downloadUrl: `${baseUrl}/${app}/desktop/windows/latest`,
+                sizeBytes: 8072766,
+                formattedSize: "7.7 MB",
+                isR2Cached: true,
+              },
+              {
+                platform: "linux-appimage",
+                platformLabel: "Linux (x86_64) · AppImage",
+                fileName: `Inkpoint_${desktopVersion}_amd64.AppImage`,
+                downloadUrl: `${baseUrl}/${app}/desktop/linux/latest`,
+                sizeBytes: 91474424,
+                formattedSize: "87.2 MB",
+                isR2Cached: true,
+              },
+            ],
     });
+
+    for (let i = 1; i < releases.length; i++) {
+      if (releases[i].category === "desktop") {
+        releases[i].isLatest = false;
+      }
+    }
   }
 
   // 4. 确保清单中包含专属 Android Release
@@ -540,41 +613,6 @@ export async function serveR2Object(
 }
 
 /**
- * 获取路径对应的 R2 预渲染静态 HTML 文件键名列表
- */
-export function getStaticHtmlR2Keys(path: string, defaultApp = "inkpoint"): string[] {
-  const clean = path.replace(/^\/+/, "").replace(/\/+$/, "");
-  if (!clean) {
-    return ["index.html"];
-  }
-  if (clean === "releases" || clean === "portal") {
-    return [`${defaultApp}/index.html`, "releases/index.html"];
-  }
-  if (clean === "releases/desktop") {
-    return [`${defaultApp}/desktop/index.html`, "releases/desktop/index.html"];
-  }
-  if (clean === "releases/android" || clean === "releases/mobile") {
-    return [`${defaultApp}/android/index.html`, "releases/android/index.html"];
-  }
-  const parts = clean.split("/").filter(Boolean);
-  if (parts.length === 1) {
-    return [`${parts[0]}/index.html`];
-  }
-  if (parts.length === 2) {
-    if (parts[1] === "desktop" || parts[1] === "android") {
-      return [`${parts[0]}/${parts[1]}/index.html`];
-    }
-    // 兼容历史旧路由 /:app/:version
-    return [`${parts[0]}/desktop/${parts[1]}/index.html`, `${parts[0]}/${parts[1]}/index.html`];
-  }
-  if (parts.length === 3) {
-    // /:app/:device/:version
-    return [`${parts[0]}/${parts[1]}/${parts[2]}/index.html`];
-  }
-  return [];
-}
-
-/**
  * 核心请求处理器
  */
 export async function handleRequest(
@@ -612,7 +650,7 @@ export async function handleRequest(
       } else {
         response.headers.set(
           "Cache-Control",
-          "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+          "public, max-age=60, s-maxage=600, stale-while-revalidate=86400",
         );
       }
     }
@@ -622,30 +660,82 @@ export async function handleRequest(
     return response;
   }
 
-  // 1.1 静态资产层 (Cloudflare Workers ASSETS): 优先从预构建静态资产直接响应，免去 Worker 运算
-  if (env.ASSETS && (request.method === "GET" || request.method === "HEAD")) {
+  // 1.0 缓存清理端点: POST /api/purge-cache
+  if (path === "/api/purge-cache") {
+    if (request.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
+        status: 405,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    if (env.PURGE_TOKEN) {
+      const authHeader = request.headers.get("Authorization");
+      const tokenHeader = request.headers.get("X-Purge-Token");
+      const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      const token = tokenHeader || bearer || url.searchParams.get("token");
+      if (token !== env.PURGE_TOKEN) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
+    let purgeUrls: string[] = [];
     try {
-      const assetRes = await env.ASSETS.fetch(request);
-      if (assetRes.status !== 404) {
-        return respond(assetRes, false);
+      const body = (await request.json().catch(() => ({}))) as { urls?: string[] };
+      if (Array.isArray(body.urls) && body.urls.length > 0) {
+        purgeUrls = body.urls;
       }
     } catch {
-      // 忽略静态资产异常，降级回退
+      // ignore
     }
-  }
 
-  // 1.2 边缘存储静态化层 (R2 预渲染 HTML): 优先从 R2 获取静态页面，避免实时计算
-  if (env.RELEASE_BUCKET && (request.method === "GET" || request.method === "HEAD")) {
-    const accept = request.headers.get("Accept") || "";
-    if (accept.includes("text/html") || !path.includes(".")) {
-      const staticR2Keys = getStaticHtmlR2Keys(path, defaultApp);
-      for (const key of staticR2Keys) {
-        const obj = await env.RELEASE_BUCKET.get(key);
-        if (obj) {
-          return serveR2Object(obj, "index.html", "text/html; charset=utf-8", false);
+    if (purgeUrls.length === 0) {
+      purgeUrls = [
+        `${url.origin}/`,
+        `${url.origin}/${defaultApp}/`,
+        `${url.origin}/${defaultApp}`,
+        `${url.origin}/${defaultApp}/desktop/`,
+        `${url.origin}/${defaultApp}/desktop`,
+        `${url.origin}/${defaultApp}/android/`,
+        `${url.origin}/${defaultApp}/android`,
+        `${url.origin}/releases`,
+        `${url.origin}/releases/desktop`,
+        `${url.origin}/releases/android`,
+        `${url.origin}/api/${defaultApp}/version.json`,
+        `${url.origin}/api/${defaultApp}/releases`,
+        `${url.origin}/api/${defaultApp}/releases.json`,
+        `${url.origin}/${defaultApp}/desktop/updater.json`,
+      ];
+    }
+
+    const purged: string[] = [];
+    if (cache) {
+      for (const purgeUrl of purgeUrls) {
+        try {
+          await cache.delete(new Request(purgeUrl, { method: "GET" }));
+          await cache.delete(new Request(purgeUrl, { method: "HEAD" }));
+          purged.push(purgeUrl);
+        } catch {
+          // ignore
         }
       }
     }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Cache purged successfully",
+        purgedCount: purged.length,
+        purgedUrls: purged,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      },
+    );
   }
 
   // 1. 首页路由：浏览器访问返回应用目录索引 (Index of /)，CLI / API 访问返回网关路由描述
@@ -708,13 +798,13 @@ export async function handleRequest(
   if (releasesApiMatch) {
     const app = releasesApiMatch[1] || defaultApp;
     const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
-    return new Response(JSON.stringify(manifest, null, 2), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=120, s-maxage=300",
-      },
-    });
+    return respond(
+      new Response(JSON.stringify(manifest, null, 2), {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+    );
   }
 
   // 2. 版本清单 API: /api/:app/version.json 或 /api/version.json
@@ -726,13 +816,13 @@ export async function handleRequest(
     if (env.RELEASE_BUCKET) {
       const r2Manifest = await env.RELEASE_BUCKET.get(`${app}/version.json`);
       if (r2Manifest) {
-        return new Response(r2Manifest.body, {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "public, max-age=300, s-maxage=300",
-          },
-        });
+        return respond(
+          new Response(r2Manifest.body, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }),
+        );
       }
     }
 
@@ -791,13 +881,13 @@ export async function handleRequest(
         },
       };
 
-      return new Response(JSON.stringify(dynamicManifest, null, 2), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=300, s-maxage=300",
-        },
-      });
+      return respond(
+        new Response(JSON.stringify(dynamicManifest, null, 2), {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
     }
 
     return new Response(
@@ -828,13 +918,13 @@ export async function handleRequest(
     if (env.RELEASE_BUCKET) {
       const r2Updater = await env.RELEASE_BUCKET.get(`${app}/desktop/updater.json`);
       if (r2Updater) {
-        return new Response(r2Updater.body, {
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "public, max-age=300, s-maxage=300",
-          },
-        });
+        return respond(
+          new Response(r2Updater.body, {
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }),
+        );
       }
     }
 
@@ -875,13 +965,13 @@ export async function handleRequest(
         }
       }
 
-      return new Response(JSON.stringify(manifest, null, 2), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "public, max-age=300, s-maxage=300",
-        },
-      });
+      return respond(
+        new Response(JSON.stringify(manifest, null, 2), {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }),
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return new Response(
