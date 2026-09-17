@@ -1,7 +1,7 @@
 {
   "name": "@md-editor/distribution-worker",
   "version": "0.1.0",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "private": true,
   "description": "Cloudflare Worker edge gateway for Inkpoint and multi-app installer distribution",
   "type": "module",
