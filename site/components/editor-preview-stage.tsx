@@ -33,7 +33,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
   return (
     <div
       id="preview-stage"
-      className="relative mx-auto w-full max-w-5xl px-8 sm:px-16"
+      className="relative mx-auto w-full max-w-5xl px-2 sm:px-8 md:px-16"
       style={{ perspective: "1200px", transformStyle: "preserve-3d" }}
     >
       {/* 主应用视窗先绘制；挂件后置并抬到 z=64，避免 3D 翻转把浮块压住 */}
@@ -91,7 +91,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
             </ul>
           </div>
 
-          <div className="min-h-0 overflow-hidden p-6 md:col-span-9 md:p-8">
+          <div className="min-h-0 overflow-hidden p-4 sm:p-6 md:col-span-9 md:p-8">
             <div className="prose max-w-none text-ink">
               <h1 className="font-sans text-xl font-bold tracking-tight text-ink sm:text-2xl">
                 {t.hero.previewHeading}

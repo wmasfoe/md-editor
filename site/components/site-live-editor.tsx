@@ -283,8 +283,8 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
             </aside>
 
             <div className="relative flex min-h-[280px] flex-col p-3.5 sm:p-4 md:col-span-9 md:p-5">
-              <div className="mb-3 flex items-center gap-2 border-b border-line pb-2.5 md:hidden">
-                <span className="text-[11px] font-semibold text-muted">
+              <div className="mb-3 flex items-center gap-2 overflow-x-auto border-b border-line pb-2.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <span className="shrink-0 text-[11px] font-semibold text-muted">
                   {isZh ? "示例文档:" : "Sample:"}
                 </span>
                 {samples.map((sample) => {
@@ -295,7 +295,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
                       key={sample.id}
                       type="button"
                       onClick={() => handleSelectSample(sample)}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
                         isActive
                           ? "bg-surface-soft text-ink shadow-xs"
                           : "text-muted hover:text-ink-soft"

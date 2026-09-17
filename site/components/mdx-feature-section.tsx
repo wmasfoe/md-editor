@@ -39,18 +39,34 @@ export function MdxFeatureSection() {
       heightVh={200}
       frameClassName="bg-canvas z-[4]"
     >
-      {({ progress, prefersReducedMotion }) => {
-        const headerOpacity = prefersReducedMotion
+      {({ progress, prefersReducedMotion, isPinned }) => {
+        const headerOpacity = !isPinned
           ? 1
-          : interpolate(progress, [0, 0.16], [0.75, 1]);
-        const headerY = prefersReducedMotion ? 0 : interpolate(progress, [0, 0.2], [16, 0]);
-        const stageY = prefersReducedMotion ? 0 : interpolate(progress, [0, 0.28], [22, 0]);
+          : prefersReducedMotion
+            ? 1
+            : interpolate(progress, [0, 0.16], [0.75, 1]);
+        const headerY = !isPinned
+          ? 0
+          : prefersReducedMotion
+            ? 0
+            : interpolate(progress, [0, 0.2], [16, 0]);
+        const stageY = !isPinned
+          ? 0
+          : prefersReducedMotion
+            ? 0
+            : interpolate(progress, [0, 0.28], [22, 0]);
         const sourceReveal = prefersReducedMotion
           ? 100
           : interpolate(progress, [0.16, 0.82], [18, 100]);
 
         return (
-          <div className="mx-auto flex h-full max-w-5xl flex-col px-4 pb-6 pt-16 sm:px-8 sm:pb-8 sm:pt-[4.5rem]">
+          <div
+            className={
+              isPinned
+                ? "mx-auto flex h-full max-w-5xl flex-col px-4 pb-6 pt-16 sm:px-8 sm:pb-8 sm:pt-[4.5rem]"
+                : "mx-auto flex max-w-5xl flex-col px-3 py-10 sm:px-8 sm:py-14"
+            }
+          >
             <div
               style={{
                 opacity: headerOpacity,
@@ -62,10 +78,10 @@ export function MdxFeatureSection() {
                 <span className="h-1.5 w-1.5 rounded-full bg-seal" />
                 <span>{copy.sectionBadge}</span>
               </div>
-              <h2 className="mt-4 font-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">
+              <h2 className="mt-3 font-sans text-2xl font-bold tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
                 {copy.sectionTitle}
               </h2>
-              <p className="mx-auto mt-3 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:text-base">
+              <p className="mx-auto mt-2.5 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:mt-3 sm:text-base">
                 {copy.sectionSubtitle}
               </p>
             </div>
@@ -74,7 +90,9 @@ export function MdxFeatureSection() {
               style={{
                 transform: `translate3d(0, ${stageY}px, 0)`,
               }}
-              className="mt-5 min-h-0 flex-1 sm:mt-6"
+              className={
+                isPinned ? "mt-5 min-h-0 flex-1 sm:mt-6" : "mt-6 min-h-[380px] h-[460px] w-full"
+              }
             >
               <DynamicMdxWipeCanvas
                 sourceReveal={sourceReveal}
