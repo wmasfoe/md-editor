@@ -172,8 +172,8 @@
 5. **更新日志 (Changelog)**：
    - 多版本 Tab 栏改造为横向平滑滚动容器，单个 Tab 设为 `shrink-0 whitespace-nowrap`；版本产物下拉菜单添加视口防溢出限制。
 6. **分发网关下载中心 (Distribution Worker Download Portal)**：
-   - 视口宽度 $\le$ 680px 时自动转为流式卡片排版（`.responsive-table`），保留完整 SHA256 校验码展示并提供触控友好的一键下载按钮；
-   - 顶栏引入 Inkpoint 品牌导航与层次化面包屑。
+   - 保持经典极简的开发者文件目录索引风格（Apache / Nginx / GitHub 极简等宽排版），无多余装饰与营销元素；
+   - 移动端适配：视口宽度 $\le$ 640px 时页边距自动收敛至 16px，标题路径自动换行防撑宽，宽表格包裹于 `.table-wrap` 容器内支持原生平滑横向滚动，保留舒适点按靶区。
 
 ### 3. 可访问性规范 (WCAG AA & Touch Targets)
 - **触控靶区**：移动端所有可交互组件（按钮、Tab、分段项）尺寸均保持 $\ge 44 \times 44\text{px}$；
