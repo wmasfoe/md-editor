@@ -1,3 +1,9 @@
+# Changelog
+
+## 0.1.2 - 2026-09-18 (#90)
+
+- 常规操作成功静默 Toast，优化沉浸式写作体验
+
 # Changelog - Web Playground
 
 All notable changes to the Inkpoint Web Playground will be documented in this file.
