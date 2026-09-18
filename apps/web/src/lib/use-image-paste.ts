@@ -25,12 +25,11 @@ export function useImagePaste({
   useEffect(() => {
     const handleImageFile = async (file: File) => {
       try {
-        showToast("正在处理图片...");
         const bytes = new Uint8Array(await file.arrayBuffer());
         const mimeType = file.type || "image/png";
         const altText = imageAltTextFromFileName(file.name);
 
-        const { src, isLocalDisk } = await webFileSystem.saveAssetImage(bytes, mimeType, file.name);
+        const { src } = await webFileSystem.saveAssetImage(bytes, mimeType, file.name);
 
         const imageTag = `![${altText}](${src})`;
 
@@ -47,7 +46,6 @@ export function useImagePaste({
         }
 
         onUpdateMarkdown(nextMarkdown);
-        showToast(isLocalDisk ? "图片已落盘至本地 assets/ 目录" : "图片已成功插入文档");
       } catch (err) {
         console.error("Failed to process image paste:", err);
         showToast("图片插入失败");
