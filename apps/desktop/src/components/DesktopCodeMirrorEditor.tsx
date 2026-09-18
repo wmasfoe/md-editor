@@ -74,6 +74,22 @@ export function DesktopCodeMirrorEditor({
       },
       applyMarkdown: (nextMarkdown) => {
         const current = runtime.document.getSnapshot();
+        if (ports) {
+          const res = ports.applyExternalEdit({
+            operationId: `desktop:paste-image:${Date.now()}`,
+            markdown: nextMarkdown,
+            expectedGeneration: current.documentGeneration,
+            expectedContentRevision: current.contentRevision,
+            selection: "preserve-offset-clamped",
+          });
+          if (
+            res.status === "applied" ||
+            res.status === "noop" ||
+            res.status === "queued-composition"
+          ) {
+            return;
+          }
+        }
         runtime.document.replaceDocument(
           {
             markdown: nextMarkdown,

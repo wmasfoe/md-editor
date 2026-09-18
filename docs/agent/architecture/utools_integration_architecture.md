@@ -93,4 +93,32 @@
      Electron/Chromium 严格禁止从 `http://` 页面直接使用 `file:///` 协议加载本地图片资源。
      **修复方案**：Node 预加载桥接脚本（`preload/index.js` 中的 `resolveImageSrc`）对 URI 编码、尖括号包裹、Query 参数与 Hash 锚点进行解析规范化，通过 Node.js 原生 `fs.readFileSync` 将目标图片直接转为 Base64 Data URL（`data:image/...;base64,...`）。零网络开销、无跨域协议限制、瞬间秒开预览。
 
+---
+
+## 5. 保存与图片插入防跳顶机制（Anti-Jump First-Principles Architecture）
+
+### 5.1 故障现象与第一性原理分析
+- **故障现象**：在 uTools 平台中，当按下 `Cmd/Ctrl + S` 保存、触发 600ms 自动保存或粘贴/拖拽图片时，页面视口会突然强制滚动回顶部（scrollTop 归零），光标丢失，撤销栈被破坏。
+- **根因分析（从第一性原理出发）**：
+  - `docState.replaceDocument(...)` 是**文档级代际边界（Generation Boundary）**，专用于新建文档、打开外部文件或切换文件树文件。每次调用均会递增 `documentGeneration`。
+  - CodeMirror 渲染器收到 `snapshot.documentGeneration > this.#documentGeneration` 时，必须视作整篇文档完全换源，从而调用私有方法 `#installDocumentBoundary(snapshot)` 执行全量重置：
+    ```ts
+    this.#view.setState(nextState);
+    this.#view.clearDomSelection();
+    this.#view.setScrollTop(0); // 导致视口跳回顶部！
+    ```
+  - 原实现在 `handleSaveDocument`、自动防抖保存 `useEffect` 以及 `handleInsertImageFile` 中错误地直接调用了 `replaceDocument`，导致每次保存与每次图片粘贴均强行触发代际重置与视口跳顶。
+
+### 5.2 解决方案与契约对齐
+1. **保存流程（手动保存与防抖保存）**：
+   - 遵循核心状态机保存检查点与结算协议（`beginSave` + `settleSave`）；
+   - 保存时同步调用 `docState.beginSave(destination)` 锁定检查点，写入磁盘后同步调用 `docState.settleSave(checkpoint, { status: "succeeded", ... })`；
+   - 状态机提交 `save-settled` 事件，渲染器只进行元数据簿记（`#acceptSnapshotBookkeeping`），完全不重建 `EditorView`，保持原有 `scrollTop`、选区与撤销栈不变。
+2. **图片插入流程（粘贴与拖拽）**：
+   - 遵循架构设计原则 6.3：“同文档程序化修改只通过 renderer `applyExternalEdit` port”；
+   - 获取 `rendererPorts.applyExternalEdit(...)` 发起 CM6 原生原子事务，保留现有选区偏移并记录撤销历史；
+   - 插入完成后调用 `rendererPorts.setSelection(nextCursorPos, nextCursorPos)` 将光标与新插入图片平滑聚焦，杜绝视口跳顶。
+3. **文件与工作区重命名**：
+   - 采用 `docState.setDocumentPath(...)` 替代 `replaceDocument`，通过乐观锁仅更新物理路径元数据，不重置脏标记、代际或视口。
+
 
