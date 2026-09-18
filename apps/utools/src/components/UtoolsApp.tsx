@@ -205,9 +205,7 @@ export function UtoolsApp() {
       renderer: rendererPorts.mode,
       origin: { kind: "command", commandId: "view.toggleSource" },
     });
-    if (result.ok) {
-      showToast(nextMode === "source" ? "已切换至源码模式" : "已切换至所见即所得");
-    } else {
+    if (!result.ok) {
       showToast(`切换失败: ${result.message}`);
     }
   }, [docState, rendererPorts, showToast, snapshot.mode]);
@@ -261,7 +259,6 @@ export function UtoolsApp() {
           }
         }
 
-        showToast("文件已保存");
         return true;
       } catch (err) {
         docState.settleSave(checkpoint, {
@@ -330,8 +327,7 @@ export function UtoolsApp() {
     );
     clearLastOpenedFile();
     setMode("file");
-    showToast("已新建空白文档");
-  }, [docState, showToast]);
+  }, [docState]);
 
   // 4. 注册 uTools 生命周期监听
   useEffect(() => {
@@ -372,7 +368,6 @@ export function UtoolsApp() {
               );
               saveLastOpenedFile(targetFile);
             }
-            showToast(`已恢复工作区: ${scanned.rootName}`);
             return;
           } catch (err) {
             console.error("恢复工作区异常:", err);
@@ -408,7 +403,6 @@ export function UtoolsApp() {
                 );
                 saveLastOpenedFile(firstMd.path);
               }
-              showToast(`已加载工作区: ${scanned.rootName}`);
               return;
             } catch (err) {
               console.error("加载文件夹异常:", err);
@@ -451,7 +445,6 @@ export function UtoolsApp() {
                 }
               }
 
-              showToast(`已打开文件: ${targetPath.split(/[/\\]/).pop()}`);
               return;
             } catch (err) {
               console.error("打开本地文件异常:", err);
@@ -475,7 +468,6 @@ export function UtoolsApp() {
           );
           setMode("selection");
           setIsSidebarOpen(false);
-          showToast("已导入选中文字");
           return;
         }
       }
@@ -499,7 +491,7 @@ export function UtoolsApp() {
     });
 
     return cleanup;
-  }, [applyTheme, docState, showToast]);
+  }, [applyTheme, docState]);
 
   // 4. 用户点击打开本地文件
   const handleOpenFile = useCallback(() => {
@@ -540,8 +532,6 @@ export function UtoolsApp() {
             // 忽略
           }
         }
-
-        showToast(`已加载本地文件`);
       } catch (err) {
         showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -580,7 +570,6 @@ export function UtoolsApp() {
             { kind: "command", commandId: "utools.openFolderPicker" },
           );
         }
-        showToast(`已打开文件夹: ${scanned.rootName}`);
       } catch (err) {
         showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -632,7 +621,6 @@ export function UtoolsApp() {
         if (kind === "markdown") {
           handleSelectTreeFile(createdPath);
         }
-        showToast(`已创建 ${name}`);
       } catch (err) {
         showToast(`创建失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -655,7 +643,6 @@ export function UtoolsApp() {
         ) {
           handleNewFile();
         }
-        showToast("已删除");
       } catch (err) {
         showToast(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -691,7 +678,6 @@ export function UtoolsApp() {
           });
           saveLastOpenedFile(newDocPath);
         }
-        showToast(`已重命名为 ${newName}`);
       } catch (err) {
         showToast(`重命名失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -705,7 +691,6 @@ export function UtoolsApp() {
     try {
       const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
       setFolder(updated);
-      showToast("目录树已刷新");
     } catch (err) {
       showToast(`刷新失败: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -812,8 +797,6 @@ export function UtoolsApp() {
             { kind: "command", commandId: "editor.insertImage" },
           );
         }
-
-        showToast(`图片已保存至 ${res.markdownPath}`);
 
         // 刷新目录树以显示新生成的 assets 资产
         const activeFolder = folderRef.current;

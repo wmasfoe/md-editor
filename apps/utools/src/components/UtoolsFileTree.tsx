@@ -653,21 +653,27 @@ export function UtoolsFileTree({
             <>
               <div className="my-1 h-px bg-[var(--theme-border)]/60" />
               <ContextMenuItem
-                onClick={() => {
+                onClick={async () => {
                   const node = contextMenu.node!;
                   const rel = getRelativePath(folder.rootPath, node.path);
-                  void copyToClipboard(rel);
-                  onToast?.("已复制相对路径");
+                  try {
+                    await copyToClipboard(rel);
+                  } catch (err) {
+                    onToast?.(`复制失败: ${err instanceof Error ? err.message : String(err)}`);
+                  }
                   setContextMenu(null);
                 }}
               >
                 复制相对路径
               </ContextMenuItem>
               <ContextMenuItem
-                onClick={() => {
+                onClick={async () => {
                   const node = contextMenu.node!;
-                  void copyToClipboard(node.path);
-                  onToast?.("已复制绝对路径");
+                  try {
+                    await copyToClipboard(node.path);
+                  } catch (err) {
+                    onToast?.(`复制失败: ${err instanceof Error ? err.message : String(err)}`);
+                  }
                   setContextMenu(null);
                 }}
               >
