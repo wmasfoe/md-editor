@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { describeSharedSpike, OFFICIAL_SITE_DOMAIN, OFFICIAL_SITE_URL } from "./index.ts";
+import { err, normalizeLineEndings, ok } from "./index.ts";
 
-describe("shared M0 skeleton", () => {
-  it("loads the shared package", () => {
-    expect(describeSharedSpike()).toBe("shared-m0");
+describe("shared utilities", () => {
+  it("normalizeLineEndings converts CRLF and CR to LF", () => {
+    expect(normalizeLineEndings("a\r\nb\rc")).toBe("a\nb\nc");
+    expect(normalizeLineEndings("already\nlf")).toBe("already\nlf");
   });
 
-  it("exposes the official site domain and url constants", () => {
-    expect(OFFICIAL_SITE_DOMAIN).toBe("editor.justdev.cn");
-    expect(OFFICIAL_SITE_URL).toBe("https://editor.justdev.cn");
+  it("ok creates a successful Result", () => {
+    const result = ok(42);
+    expect(result).toEqual({ ok: true, value: 42 });
+  });
+
+  it("err creates a failed Result", () => {
+    const result = err("not-found", "File missing");
+    expect(result).toEqual({ ok: false, error: "not-found", message: "File missing" });
   });
 });
