@@ -12,10 +12,6 @@ const codeMirrorEditorSource = readFileSync(
   new URL("../components/CodeMirrorEditor/CodeMirrorEditor.tsx", import.meta.url),
   "utf8",
 );
-const codeMirrorBridgeSource = readFileSync(
-  new URL("../components/CodeMirrorEditor/bridge.ts", import.meta.url),
-  "utf8",
-);
 const codeMirrorEditorStyles = readFileSync(
   new URL("../components/CodeMirrorEditor/CodeMirrorEditor.css", import.meta.url),
   "utf8",
@@ -41,8 +37,6 @@ describe("editor-ui public editor entrypoints", () => {
     expect(codeMirrorEditorSource).toContain("createCodeMirrorEditorBridge");
     expect(codeMirrorEditorSource).toContain("useSyncExternalStore");
     expect(codeMirrorEditorSource).toContain("registerRendererPorts");
-    expect(codeMirrorBridgeSource).toContain("subscribeTransitions");
-    expect(codeMirrorBridgeSource).toContain("synchronizeRendererEvent");
     expect(codeMirrorEditorSource).not.toMatch(/\bvalue\s*=/u);
     expect(codeMirrorEditorSource).not.toContain("snapshot.markdown");
   });
@@ -94,8 +88,6 @@ describe("editor-ui public editor entrypoints", () => {
 
   it("keeps image resolution injected while renderer-owned media projection uses stable classes", () => {
     expect(codeMirrorEditorSource).toContain("resolveImageSrc");
-    expect(codeMirrorBridgeSource).toContain("resolveImagePreview");
-    expect(codeMirrorBridgeSource).not.toContain("convertFileSrc");
     for (const className of [
       "cm-md-link-label",
       "cm-md-image-widget",

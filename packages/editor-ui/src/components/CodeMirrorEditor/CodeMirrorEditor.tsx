@@ -16,8 +16,8 @@ import {
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
-} from "./bridge";
-import type { MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+  type MarkdownSyntaxPlugin,
+} from "@md-editor/renderer-codemirror";
 import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {
