@@ -34,6 +34,8 @@
   记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与便签持久化、AI 免责机制与导流规范。
 - 移动端 (iOS & Android) 原生外壳与离线内核架构方案： [mobile_support_architecture.md](./mobile_support_architecture.md)
   记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入与 CI/CD 自动化流水线。
+- HarmonyOS (鸿蒙 NEXT) 原生外壳与混合架构技术方案： [harmonyos_hybrid_architecture.md](./harmonyos_hybrid_architecture.md)
+  记录鸿蒙端基于 ArkTS + ArkUI 的原生外壳设计、全套原生交互控件（顶栏、软键盘工具栏、大纲抽屉）、ArkWeb 离线内核嵌入、双向类型安全通信协议与 GitHub Actions (harmony-ci) 自动化流水线。
 - 多平台分发与边缘加速架构方案： [multi_platform_distribution_architecture.md](./multi_platform_distribution_architecture.md)
   记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计与 CI/CD 自动化流水线。
 
