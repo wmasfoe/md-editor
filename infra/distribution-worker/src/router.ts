@@ -116,15 +116,16 @@ export interface GitHubReleasePayload {
   assets: Array<{ name: string; browser_download_url: string; size: number }>;
 }
 
-let cachedReleasePayload: GitHubReleasePayload | null = null;
+const cachedReleasePayloadByRepo = new Map<string, GitHubReleasePayload>();
 
 /**
- * 获取 GitHub 最新 Release，并通过 Cloudflare 边缘强缓存与内存容灾避免 API 频控 (403 Rate Limit)
+ * 获取 GitHub 最新桌面端 Release，并通过 Cloudflare 边缘强缓存与内存容灾避免 API 频控 (403 Rate Limit)
  */
 export async function fetchLatestRelease(
   githubRepo: string,
   env: Env,
 ): Promise<GitHubReleasePayload | null> {
+  const repoKey = githubRepo || "default";
   const headers: Record<string, string> = {
     "User-Agent": "Inkpoint-Distribution-Worker/1.0",
     Accept: "application/vnd.github.v3+json",
@@ -141,16 +142,64 @@ export async function fetchLatestRelease(
 
     if (res.ok) {
       const data = (await res.json()) as GitHubReleasePayload;
-      cachedReleasePayload = data;
-      return data;
+      const tagName = data.tag_name || "";
+      const isDesktopTag = tagName.startsWith("desktop-v") || /^v\d/.test(tagName);
+      const hasDesktopAssets =
+        Array.isArray(data.assets) &&
+        data.assets.some((a) => {
+          const lower = a.name.toLowerCase();
+          return (
+            lower.endsWith(".dmg") ||
+            lower.endsWith(".exe") ||
+            lower.endsWith(".appimage") ||
+            lower.endsWith(".deb")
+          );
+        });
+
+      if (isDesktopTag || hasDesktopAssets) {
+        cachedReleasePayloadByRepo.set(repoKey, data);
+        return data;
+      }
     }
   } catch {
     // 捕获网络异常
   }
 
+  // 若 /releases/latest 被非桌面端（如 utools-v* / web-v*）占据，回退到从全量列表中寻找最新桌面发布
+  const allReleases = await fetchAllGitHubReleases(githubRepo, env);
+  for (const raw of allReleases) {
+    const tagName = raw.tag_name || "";
+    const isDesktopTag = tagName.startsWith("desktop-v") || /^v\d/.test(tagName);
+    const hasDesktopAssets =
+      Array.isArray(raw.assets) &&
+      raw.assets.some((a) => {
+        const lower = a.name.toLowerCase();
+        return (
+          lower.endsWith(".dmg") ||
+          lower.endsWith(".exe") ||
+          lower.endsWith(".appimage") ||
+          lower.endsWith(".deb")
+        );
+      });
+
+    if (isDesktopTag || hasDesktopAssets) {
+      const payload: GitHubReleasePayload = {
+        tag_name: raw.tag_name,
+        assets: (raw.assets || []).map((a) => ({
+          name: a.name,
+          browser_download_url: a.browser_download_url,
+          size: a.size,
+        })),
+      };
+      cachedReleasePayloadByRepo.set(repoKey, payload);
+      return payload;
+    }
+  }
+
   // 触发频控 (403) 或网络故障时，优先回退到内存缓存的最新发布
-  if (cachedReleasePayload) {
-    return cachedReleasePayload;
+  const cached = cachedReleasePayloadByRepo.get(repoKey);
+  if (cached) {
+    return cached;
   }
 
   return null;
@@ -169,7 +218,15 @@ export interface RawGitHubRelease {
   }>;
 }
 
-let cachedReleasesList: RawGitHubRelease[] | null = null;
+const cachedReleasesByRepo = new Map<string, RawGitHubRelease[]>();
+
+/**
+ * 清除内存中的 GitHub 发布缓存（主要用于单测隔离与缓存清理）
+ */
+export function clearReleaseCache(): void {
+  cachedReleasePayloadByRepo.clear();
+  cachedReleasesByRepo.clear();
+}
 
 /**
  * 获取 GitHub 所有 Release 列表，带 Cloudflare 边缘缓存与内存容灾
@@ -178,6 +235,7 @@ export async function fetchAllGitHubReleases(
   githubRepo: string,
   env: Env,
 ): Promise<RawGitHubRelease[]> {
+  const repoKey = githubRepo || "default";
   const headers: Record<string, string> = {
     "User-Agent": "Inkpoint-Distribution-Worker/1.0",
     Accept: "application/vnd.github.v3+json",
@@ -195,7 +253,7 @@ export async function fetchAllGitHubReleases(
     if (res.ok) {
       const data = (await res.json()) as RawGitHubRelease[];
       if (Array.isArray(data) && data.length > 0) {
-        cachedReleasesList = data;
+        cachedReleasesByRepo.set(repoKey, data);
         return data;
       }
     }
@@ -203,8 +261,9 @@ export async function fetchAllGitHubReleases(
     // 网络异常
   }
 
-  if (cachedReleasesList) {
-    return cachedReleasesList;
+  const cached = cachedReleasesByRepo.get(repoKey);
+  if (cached) {
+    return cached;
   }
 
   return [];
@@ -213,6 +272,7 @@ export async function fetchAllGitHubReleases(
 function parseSemverComponents(v: string): number[] {
   return v
     .replace(/^v/i, "")
+    .replace(/^desktop-v/i, "")
     .replace(/^android-v/i, "")
     .replace(/^mobile-v/i, "")
     .split(".")
@@ -261,8 +321,10 @@ export async function buildReleasesManifest(
   if (releases.length === 0) {
     const rawReleases = await fetchAllGitHubReleases(githubRepo, env);
     for (const raw of rawReleases) {
-      const version = raw.tag_name.replace(/^v/, "").replace(/^desktop-v/, "");
-      const isLatest = releases.length === 0;
+      const tagName = raw.tag_name || "";
+      const isAndroidTag = tagName.startsWith("android-v") || tagName.startsWith("mobile-v");
+      const isDesktopTag = tagName.startsWith("desktop-v") || /^v\d/.test(tagName);
+
       const assets: ReleaseAssetInfo[] = [];
 
       for (const asset of raw.assets || []) {
@@ -304,7 +366,10 @@ export async function buildReleasesManifest(
           platformLabel = lower.endsWith(".sig") ? "Tauri 签名文件" : "Tauri 自动更新包";
         }
 
-        const downloadUrl = `${baseUrl}/${app}/${version}/${encodeURIComponent(name)}`;
+        const rawVersionForAsset = tagName
+          .replace(/^(?:desktop-)?v/i, "")
+          .replace(/^(?:android|mobile)-v?/i, "");
+        const downloadUrl = `${baseUrl}/${app}/${rawVersionForAsset}/${encodeURIComponent(name)}`;
 
         assets.push({
           platform,
@@ -313,7 +378,7 @@ export async function buildReleasesManifest(
           downloadUrl,
           sizeBytes: asset.size,
           formattedSize: formatBytes(asset.size),
-          isR2Cached: version === "0.10.2",
+          isR2Cached: rawVersionForAsset === "0.10.2",
         });
       }
 
@@ -324,19 +389,39 @@ export async function buildReleasesManifest(
           a.platform.includes("windows") ||
           a.platform.includes("linux"),
       );
-      const category: ReleaseInfo["category"] = hasAndroid && !hasDesktop ? "android" : "desktop";
+
+      const isAndroidRelease = isAndroidTag || (hasAndroid && !hasDesktop);
+      const isDesktopRelease = !isAndroidRelease && (isDesktopTag || hasDesktop);
+
+      // 仅保留桌面客户端与 Android 移动端发行版本，过滤 utools-v*、web-v* 或未知仓库 tag
+      if (!isAndroidRelease && !isDesktopRelease) {
+        continue;
+      }
+
+      const category: ReleaseInfo["category"] = isAndroidRelease ? "android" : "desktop";
+      const version = isAndroidRelease
+        ? tagName.replace(/^(?:android|mobile)-v?/i, "")
+        : tagName.replace(/^(?:desktop-)?v/i, "");
 
       releases.push({
         version,
         tagName: raw.tag_name,
         publishedAt: raw.published_at || new Date().toISOString(),
-        isLatest,
+        isLatest: false,
         isPrerelease: Boolean(raw.prerelease),
         category,
         releaseNotesUrl:
           raw.html_url || `https://github.com/${githubRepo}/releases/tag/${raw.tag_name}`,
         assets,
       });
+    }
+
+    let seenDesktop = false;
+    for (const r of releases) {
+      if (r.category === "desktop") {
+        r.isLatest = !seenDesktop;
+        seenDesktop = true;
+      }
     }
   }
 
@@ -1045,7 +1130,7 @@ export async function handleRequest(
     // B. 回退方案：动态从 GitHub Releases 提取最新桌面版并结合已知移动版返回基础清单
     const release = await fetchLatestRelease(githubRepo, env);
     if (release) {
-      const version = release.tag_name.replace(/^v/, "");
+      const version = release.tag_name.replace(/^(?:desktop-)?v/, "");
       const macArm = matchDesktopAsset(release.assets, "macos");
       const winX64 = matchDesktopAsset(release.assets, "windows");
       const linuxApp = matchDesktopAsset(release.assets, "linux");

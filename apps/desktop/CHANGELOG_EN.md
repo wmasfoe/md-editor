@@ -2,6 +2,10 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.10.4 - 2026-09-18 (#90)
+
+- Silenced success toast notifications on document save and optimized external transaction scheduling for editor image pasting.
+
 ## 0.10.3 - 2026-09-18 (#88, #89)
 
 - Fixed severe viewport jumps and cursor loss when toggling between WYSIWYG and Source modes in scrolled documents, implementing screen offset anchoring and post-layout delta compensation for pixel-stable transitions and zero-drift round-trip memory.

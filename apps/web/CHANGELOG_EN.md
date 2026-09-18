@@ -2,6 +2,10 @@
 
 All notable changes to the Inkpoint Web Playground will be documented in this file.
 
+## 0.1.2 - 2026-09-18 (#90)
+
+- Silenced success toast notifications for ordinary operations to optimize the immersive writing experience.
+
 ## 0.1.1 - 2026-09-18 (#88, #89)
 
 - Fixed severe viewport jumps and cursor loss when toggling between WYSIWYG and Source modes in scrolled documents, achieving pixel-stable transitions.

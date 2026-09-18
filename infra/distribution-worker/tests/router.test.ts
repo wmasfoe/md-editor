@@ -731,4 +731,28 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.1.0/");
     expect(html).toContain("共 2 个版本");
   });
+
+  it("should filter out non-desktop and non-android releases (e.g. utools-v*, web-v*) from manifest", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const manifest = await buildReleasesManifest(
+      "inkpoint",
+      "wmasfoe/md-editor",
+      env,
+      "https://download.justdev.cn",
+    );
+
+    expect(manifest.releases.length).toBeGreaterThan(0);
+    expect(
+      manifest.releases.every((r) => r.category === "desktop" || r.category === "android"),
+    ).toBe(true);
+    expect(
+      manifest.releases.some((r) => r.version.includes("utools") || r.version.includes("web")),
+    ).toBe(false);
+    expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(manifest.releases[0].version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
 });
