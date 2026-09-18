@@ -212,7 +212,7 @@ export function UtoolsApp() {
     }
   }, [docState, rendererPorts, showToast, snapshot.mode]);
 
-  // 1. 本地文件保存操作（对齐桌面端 file.save）
+  // 1. 本地文件保存操作（对齐桌面端 file.save，通过 beginSave/settleSave 保持选区与滚动位置）
   const handleSaveDocument = useCallback(async (): Promise<boolean> => {
     const current = docState.getSnapshot();
     let targetPath = current.filePath;
@@ -235,17 +235,19 @@ export function UtoolsApp() {
     }
 
     if (window.inkpointNodeBridge) {
+      const destination = current.filePath
+        ? ({ kind: "current-path" as const, path: current.filePath } as const)
+        : ({ kind: "prompt" as const, suggestedPath: targetPath } as const);
+      const checkpoint = docState.beginSave(destination);
+
       try {
-        window.inkpointNodeBridge.writeFile(targetPath, current.markdown);
-        docState.replaceDocument(
-          {
-            markdown: current.markdown,
-            savedMarkdown: current.markdown,
-            filePath: targetPath,
-            mode: current.mode,
-          },
-          { kind: "command", commandId: "file.save" },
-        );
+        window.inkpointNodeBridge.writeFile(targetPath, checkpoint.markdownLf);
+        docState.settleSave(checkpoint, {
+          status: "succeeded",
+          commit: "committed",
+          filePath: targetPath,
+          warnings: [],
+        });
         saveLastOpenedFile(targetPath);
 
         // 若当前工作区包含该文件，刷新工作区目录树
@@ -262,6 +264,12 @@ export function UtoolsApp() {
         showToast("文件已保存");
         return true;
       } catch (err) {
+        docState.settleSave(checkpoint, {
+          status: "failed",
+          commit: "not-committed",
+          phase: "temp-write",
+          errorCode: err instanceof Error ? err.message : String(err),
+        });
         showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
         return false;
       }
@@ -269,23 +277,30 @@ export function UtoolsApp() {
     return false;
   }, [docState, showToast]);
 
-  // 2. 本地文件自动防抖保存逻辑（当已关联本地文件且内容修改时自动刷盘）
+  // 2. 本地文件自动防抖保存逻辑（当已关联本地文件且内容修改时自动刷盘，使用 beginSave/settleSave 杜绝跳顶）
   useEffect(() => {
     const timer = setTimeout(() => {
       const current = docState.getSnapshot();
       if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
+        const checkpoint = docState.beginSave({
+          kind: "current-path",
+          path: current.filePath,
+        });
         try {
-          window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-          docState.replaceDocument(
-            {
-              markdown: current.markdown,
-              savedMarkdown: current.markdown,
-              filePath: current.filePath,
-              mode: current.mode,
-            },
-            { kind: "command", commandId: "file.autoSave" },
-          );
+          window.inkpointNodeBridge.writeFile(current.filePath, checkpoint.markdownLf);
+          docState.settleSave(checkpoint, {
+            status: "succeeded",
+            commit: "committed",
+            filePath: current.filePath,
+            warnings: [],
+          });
         } catch (err) {
+          docState.settleSave(checkpoint, {
+            status: "failed",
+            commit: "not-committed",
+            phase: "temp-write",
+            errorCode: err instanceof Error ? err.message : String(err),
+          });
           console.error("自动保存文件失败:", err);
         }
       }
@@ -657,29 +672,23 @@ export function UtoolsApp() {
         const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
         setFolder(updated);
         const currentSnap = docState.getSnapshot();
-        // 若当前打开的文件被重命名，或所在目录被重命名，同步更新文档状态与最近打开文件
+        // 若当前打开的文件被重命名，或所在目录被重命名，通过 setDocumentPath 同步更新文档路径（不改变代际与滚动）
         if (currentSnap.filePath === oldPath) {
-          docState.replaceDocument(
-            {
-              markdown: currentSnap.markdown,
-              savedMarkdown: currentSnap.savedMarkdown,
-              filePath: newPath,
-              mode: currentSnap.mode,
-            },
-            { kind: "command", commandId: "file.rename" },
-          );
+          docState.setDocumentPath({
+            filePath: newPath,
+            expectedGeneration: currentSnap.documentGeneration,
+            expectedStateRevision: currentSnap.stateRevision,
+            origin: { kind: "command", commandId: "file.rename" },
+          });
           saveLastOpenedFile(newPath);
         } else if (currentSnap.filePath && currentSnap.filePath.startsWith(oldPath + "/")) {
           const newDocPath = newPath + currentSnap.filePath.slice(oldPath.length);
-          docState.replaceDocument(
-            {
-              markdown: currentSnap.markdown,
-              savedMarkdown: currentSnap.savedMarkdown,
-              filePath: newDocPath,
-              mode: currentSnap.mode,
-            },
-            { kind: "command", commandId: "file.rename" },
-          );
+          docState.setDocumentPath({
+            filePath: newDocPath,
+            expectedGeneration: currentSnap.documentGeneration,
+            expectedStateRevision: currentSnap.stateRevision,
+            origin: { kind: "command", commandId: "file.rename" },
+          });
           saveLastOpenedFile(newDocPath);
         }
         showToast(`已重命名为 ${newName}`);
@@ -743,6 +752,7 @@ export function UtoolsApp() {
         const cursorPos = rendererPorts?.getSelectionSnapshot().head;
         const tag = `![${altText}](${targetSrc})`;
         let nextMarkdown: string;
+        let nextCursorPos: number;
         if (
           cursorPos !== undefined &&
           cursorPos !== null &&
@@ -753,20 +763,55 @@ export function UtoolsApp() {
           const after = current.markdown.slice(cursorPos);
           const needsPrefixNewline = before.length > 0 && !before.endsWith("\n");
           const needsSuffixNewline = after.length > 0 && !after.startsWith("\n");
-          nextMarkdown = `${before}${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}${after}`;
+          const insertedText = `${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}`;
+          nextMarkdown = `${before}${insertedText}${after}`;
+          nextCursorPos = before.length + insertedText.length;
         } else {
           nextMarkdown = appendImageMarkdown(current.markdown, targetSrc, altText);
+          nextCursorPos = nextMarkdown.length;
         }
 
-        docState.replaceDocument(
-          {
+        // 核心原则：同文档程序化修改只通过 renderer applyExternalEdit port（对齐架构原则），
+        // 保留现有选区与滚动位置，杜绝跳回文档顶部
+        if (rendererPorts) {
+          const editResult = rendererPorts.applyExternalEdit({
+            operationId: `utools:insert-image:${Date.now()}`,
             markdown: nextMarkdown,
-            savedMarkdown: current.savedMarkdown,
-            filePath: current.filePath,
-            mode: current.mode,
-          },
-          { kind: "command", commandId: "editor.insertImage" },
-        );
+            expectedGeneration: current.documentGeneration,
+            expectedContentRevision: current.contentRevision,
+            selection: "preserve-offset-clamped",
+          });
+
+          if (
+            editResult.status === "applied" ||
+            editResult.status === "noop" ||
+            editResult.status === "queued-composition"
+          ) {
+            rendererPorts.setSelection(nextCursorPos, nextCursorPos);
+            rendererPorts.focus();
+          } else {
+            // 降级兜底：若 externalEdit 状态异常（如陈旧代际），通过 replaceDocument 保证内容不丢失
+            docState.replaceDocument(
+              {
+                markdown: nextMarkdown,
+                savedMarkdown: current.savedMarkdown,
+                filePath: current.filePath,
+                mode: current.mode,
+              },
+              { kind: "command", commandId: "editor.insertImage" },
+            );
+          }
+        } else {
+          docState.replaceDocument(
+            {
+              markdown: nextMarkdown,
+              savedMarkdown: current.savedMarkdown,
+              filePath: current.filePath,
+              mode: current.mode,
+            },
+            { kind: "command", commandId: "editor.insertImage" },
+          );
+        }
 
         showToast(`图片已保存至 ${res.markdownPath}`);
 
