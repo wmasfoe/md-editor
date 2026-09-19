@@ -118,7 +118,7 @@ describe("desktop document save orchestration", () => {
 
   it("classifies success, warning, failure, and cancellation feedback", () => {
     const applied = { status: "applied", authoritativeCheckpointId: "save:1" } as const;
-    expect(getSaveFeedback(committed("/doc.md"), applied)).toBe("已保存。");
+    expect(getSaveFeedback(committed("/doc.md"), applied)).toBeNull();
     expect(
       getSaveFeedback(
         {

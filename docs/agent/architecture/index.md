@@ -31,7 +31,7 @@
 - 代码库模块化拆分、并发保序保存调度与多端发版架构方案： [codebase_modularization_and_concurrency_architecture.md](./codebase_modularization_and_concurrency_architecture.md)
   记录巨型单体文件拆解与全量注释规范、串行异步保存调度器（防抖/手动并发保护）以及桌面端与 Web 端发版解耦架构。
 - uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
-  记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与便签持久化、AI 免责机制与导流规范。
+  记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与数据持久化机制、保存与图片插入防跳顶机制（beginSave/settleSave/applyExternalEdit）及 AI 免责规范。
 - 移动端 (iOS & Android) 原生外壳与离线内核架构方案： [mobile_support_architecture.md](./mobile_support_architecture.md)
   记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入与 CI/CD 自动化流水线。
 - 多平台分发与边缘加速架构方案： [multi_platform_distribution_architecture.md](./multi_platform_distribution_architecture.md)

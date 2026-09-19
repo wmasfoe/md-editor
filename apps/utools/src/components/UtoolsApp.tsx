@@ -205,14 +205,12 @@ export function UtoolsApp() {
       renderer: rendererPorts.mode,
       origin: { kind: "command", commandId: "view.toggleSource" },
     });
-    if (result.ok) {
-      showToast(nextMode === "source" ? "已切换至源码模式" : "已切换至所见即所得");
-    } else {
+    if (!result.ok) {
       showToast(`切换失败: ${result.message}`);
     }
   }, [docState, rendererPorts, showToast, snapshot.mode]);
 
-  // 1. 本地文件保存操作（对齐桌面端 file.save）
+  // 1. 本地文件保存操作（对齐桌面端 file.save，通过 beginSave/settleSave 保持选区与滚动位置）
   const handleSaveDocument = useCallback(async (): Promise<boolean> => {
     const current = docState.getSnapshot();
     let targetPath = current.filePath;
@@ -235,17 +233,19 @@ export function UtoolsApp() {
     }
 
     if (window.inkpointNodeBridge) {
+      const destination = current.filePath
+        ? ({ kind: "current-path" as const, path: current.filePath } as const)
+        : ({ kind: "prompt" as const, suggestedPath: targetPath } as const);
+      const checkpoint = docState.beginSave(destination);
+
       try {
-        window.inkpointNodeBridge.writeFile(targetPath, current.markdown);
-        docState.replaceDocument(
-          {
-            markdown: current.markdown,
-            savedMarkdown: current.markdown,
-            filePath: targetPath,
-            mode: current.mode,
-          },
-          { kind: "command", commandId: "file.save" },
-        );
+        window.inkpointNodeBridge.writeFile(targetPath, checkpoint.markdownLf);
+        docState.settleSave(checkpoint, {
+          status: "succeeded",
+          commit: "committed",
+          filePath: targetPath,
+          warnings: [],
+        });
         saveLastOpenedFile(targetPath);
 
         // 若当前工作区包含该文件，刷新工作区目录树
@@ -259,9 +259,14 @@ export function UtoolsApp() {
           }
         }
 
-        showToast("文件已保存");
         return true;
       } catch (err) {
+        docState.settleSave(checkpoint, {
+          status: "failed",
+          commit: "not-committed",
+          phase: "temp-write",
+          errorCode: err instanceof Error ? err.message : String(err),
+        });
         showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
         return false;
       }
@@ -269,23 +274,30 @@ export function UtoolsApp() {
     return false;
   }, [docState, showToast]);
 
-  // 2. 本地文件自动防抖保存逻辑（当已关联本地文件且内容修改时自动刷盘）
+  // 2. 本地文件自动防抖保存逻辑（当已关联本地文件且内容修改时自动刷盘，使用 beginSave/settleSave 杜绝跳顶）
   useEffect(() => {
     const timer = setTimeout(() => {
       const current = docState.getSnapshot();
       if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
+        const checkpoint = docState.beginSave({
+          kind: "current-path",
+          path: current.filePath,
+        });
         try {
-          window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-          docState.replaceDocument(
-            {
-              markdown: current.markdown,
-              savedMarkdown: current.markdown,
-              filePath: current.filePath,
-              mode: current.mode,
-            },
-            { kind: "command", commandId: "file.autoSave" },
-          );
+          window.inkpointNodeBridge.writeFile(current.filePath, checkpoint.markdownLf);
+          docState.settleSave(checkpoint, {
+            status: "succeeded",
+            commit: "committed",
+            filePath: current.filePath,
+            warnings: [],
+          });
         } catch (err) {
+          docState.settleSave(checkpoint, {
+            status: "failed",
+            commit: "not-committed",
+            phase: "temp-write",
+            errorCode: err instanceof Error ? err.message : String(err),
+          });
           console.error("自动保存文件失败:", err);
         }
       }
@@ -315,8 +327,7 @@ export function UtoolsApp() {
     );
     clearLastOpenedFile();
     setMode("file");
-    showToast("已新建空白文档");
-  }, [docState, showToast]);
+  }, [docState]);
 
   // 4. 注册 uTools 生命周期监听
   useEffect(() => {
@@ -357,7 +368,6 @@ export function UtoolsApp() {
               );
               saveLastOpenedFile(targetFile);
             }
-            showToast(`已恢复工作区: ${scanned.rootName}`);
             return;
           } catch (err) {
             console.error("恢复工作区异常:", err);
@@ -393,7 +403,6 @@ export function UtoolsApp() {
                 );
                 saveLastOpenedFile(firstMd.path);
               }
-              showToast(`已加载工作区: ${scanned.rootName}`);
               return;
             } catch (err) {
               console.error("加载文件夹异常:", err);
@@ -436,7 +445,6 @@ export function UtoolsApp() {
                 }
               }
 
-              showToast(`已打开文件: ${targetPath.split(/[/\\]/).pop()}`);
               return;
             } catch (err) {
               console.error("打开本地文件异常:", err);
@@ -460,7 +468,6 @@ export function UtoolsApp() {
           );
           setMode("selection");
           setIsSidebarOpen(false);
-          showToast("已导入选中文字");
           return;
         }
       }
@@ -484,7 +491,7 @@ export function UtoolsApp() {
     });
 
     return cleanup;
-  }, [applyTheme, docState, showToast]);
+  }, [applyTheme, docState]);
 
   // 4. 用户点击打开本地文件
   const handleOpenFile = useCallback(() => {
@@ -525,8 +532,6 @@ export function UtoolsApp() {
             // 忽略
           }
         }
-
-        showToast(`已加载本地文件`);
       } catch (err) {
         showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -565,7 +570,6 @@ export function UtoolsApp() {
             { kind: "command", commandId: "utools.openFolderPicker" },
           );
         }
-        showToast(`已打开文件夹: ${scanned.rootName}`);
       } catch (err) {
         showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -617,7 +621,6 @@ export function UtoolsApp() {
         if (kind === "markdown") {
           handleSelectTreeFile(createdPath);
         }
-        showToast(`已创建 ${name}`);
       } catch (err) {
         showToast(`创建失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -640,7 +643,6 @@ export function UtoolsApp() {
         ) {
           handleNewFile();
         }
-        showToast("已删除");
       } catch (err) {
         showToast(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -657,32 +659,25 @@ export function UtoolsApp() {
         const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
         setFolder(updated);
         const currentSnap = docState.getSnapshot();
-        // 若当前打开的文件被重命名，或所在目录被重命名，同步更新文档状态与最近打开文件
+        // 若当前打开的文件被重命名，或所在目录被重命名，通过 setDocumentPath 同步更新文档路径（不改变代际与滚动）
         if (currentSnap.filePath === oldPath) {
-          docState.replaceDocument(
-            {
-              markdown: currentSnap.markdown,
-              savedMarkdown: currentSnap.savedMarkdown,
-              filePath: newPath,
-              mode: currentSnap.mode,
-            },
-            { kind: "command", commandId: "file.rename" },
-          );
+          docState.setDocumentPath({
+            filePath: newPath,
+            expectedGeneration: currentSnap.documentGeneration,
+            expectedStateRevision: currentSnap.stateRevision,
+            origin: { kind: "command", commandId: "file.rename" },
+          });
           saveLastOpenedFile(newPath);
         } else if (currentSnap.filePath && currentSnap.filePath.startsWith(oldPath + "/")) {
           const newDocPath = newPath + currentSnap.filePath.slice(oldPath.length);
-          docState.replaceDocument(
-            {
-              markdown: currentSnap.markdown,
-              savedMarkdown: currentSnap.savedMarkdown,
-              filePath: newDocPath,
-              mode: currentSnap.mode,
-            },
-            { kind: "command", commandId: "file.rename" },
-          );
+          docState.setDocumentPath({
+            filePath: newDocPath,
+            expectedGeneration: currentSnap.documentGeneration,
+            expectedStateRevision: currentSnap.stateRevision,
+            origin: { kind: "command", commandId: "file.rename" },
+          });
           saveLastOpenedFile(newDocPath);
         }
-        showToast(`已重命名为 ${newName}`);
       } catch (err) {
         showToast(`重命名失败: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -696,7 +691,6 @@ export function UtoolsApp() {
     try {
       const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
       setFolder(updated);
-      showToast("目录树已刷新");
     } catch (err) {
       showToast(`刷新失败: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -743,6 +737,7 @@ export function UtoolsApp() {
         const cursorPos = rendererPorts?.getSelectionSnapshot().head;
         const tag = `![${altText}](${targetSrc})`;
         let nextMarkdown: string;
+        let nextCursorPos: number;
         if (
           cursorPos !== undefined &&
           cursorPos !== null &&
@@ -753,22 +748,55 @@ export function UtoolsApp() {
           const after = current.markdown.slice(cursorPos);
           const needsPrefixNewline = before.length > 0 && !before.endsWith("\n");
           const needsSuffixNewline = after.length > 0 && !after.startsWith("\n");
-          nextMarkdown = `${before}${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}${after}`;
+          const insertedText = `${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}`;
+          nextMarkdown = `${before}${insertedText}${after}`;
+          nextCursorPos = before.length + insertedText.length;
         } else {
           nextMarkdown = appendImageMarkdown(current.markdown, targetSrc, altText);
+          nextCursorPos = nextMarkdown.length;
         }
 
-        docState.replaceDocument(
-          {
+        // 核心原则：同文档程序化修改只通过 renderer applyExternalEdit port（对齐架构原则），
+        // 保留现有选区与滚动位置，杜绝跳回文档顶部
+        if (rendererPorts) {
+          const editResult = rendererPorts.applyExternalEdit({
+            operationId: `utools:insert-image:${Date.now()}`,
             markdown: nextMarkdown,
-            savedMarkdown: current.savedMarkdown,
-            filePath: current.filePath,
-            mode: current.mode,
-          },
-          { kind: "command", commandId: "editor.insertImage" },
-        );
+            expectedGeneration: current.documentGeneration,
+            expectedContentRevision: current.contentRevision,
+            selection: "preserve-offset-clamped",
+          });
 
-        showToast(`图片已保存至 ${res.markdownPath}`);
+          if (
+            editResult.status === "applied" ||
+            editResult.status === "noop" ||
+            editResult.status === "queued-composition"
+          ) {
+            rendererPorts.setSelection(nextCursorPos, nextCursorPos);
+            rendererPorts.focus();
+          } else {
+            // 降级兜底：若 externalEdit 状态异常（如陈旧代际），通过 replaceDocument 保证内容不丢失
+            docState.replaceDocument(
+              {
+                markdown: nextMarkdown,
+                savedMarkdown: current.savedMarkdown,
+                filePath: current.filePath,
+                mode: current.mode,
+              },
+              { kind: "command", commandId: "editor.insertImage" },
+            );
+          }
+        } else {
+          docState.replaceDocument(
+            {
+              markdown: nextMarkdown,
+              savedMarkdown: current.savedMarkdown,
+              filePath: current.filePath,
+              mode: current.mode,
+            },
+            { kind: "command", commandId: "editor.insertImage" },
+          );
+        }
 
         // 刷新目录树以显示新生成的 assets 资产
         const activeFolder = folderRef.current;

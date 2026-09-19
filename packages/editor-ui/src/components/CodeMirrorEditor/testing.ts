@@ -2,7 +2,7 @@ import {
   inspectRendererForTesting,
   installCodeBlockLineNumberGeometryFixture,
 } from "@md-editor/renderer-codemirror/testing";
-import { getRendererForTesting, type CodeMirrorEditorPorts } from "./bridge";
+import { getRendererForTesting, type CodeMirrorEditorPorts } from "@md-editor/renderer-codemirror";
 
 export function inspectCodeMirrorEditorForTesting(ports: CodeMirrorEditorPorts) {
   return inspectRendererForTesting(getRendererForTesting(ports));

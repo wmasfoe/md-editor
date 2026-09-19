@@ -2,6 +2,7 @@
 // uTools 适配层单元测试
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createDocumentState } from "@md-editor/editor-core";
 import { createUtoolsFileAdapter, createUtoolsNativeSaveAdapter } from "../file-adapter";
 import {
   saveLastOpenedFile,
@@ -389,6 +390,63 @@ describe("uTools Platform Adapters", () => {
       expect(url).toContain("utm_source=utools");
       expect(url).toContain("utm_medium=plugin");
       expect(url).toContain("utm_campaign=top_banner");
+    });
+  });
+
+  describe("Document State Save & Path Operations (Anti-Jump Regression)", () => {
+    it("settles save without incrementing documentGeneration, preserving editor view state", () => {
+      const doc = createDocumentState({
+        markdown: "# Initial",
+        filePath: "/mock/doc.md",
+      });
+      const initialSnap = doc.getSnapshot();
+      expect(initialSnap.documentGeneration).toBe(1);
+
+      // Simulate edit
+      doc.applyEditorChange("# Initial modified", {
+        kind: "renderer",
+        clientId: "test-client",
+        sequence: 1,
+      });
+      expect(doc.getSnapshot().isDirty).toBe(true);
+      expect(doc.getSnapshot().documentGeneration).toBe(1);
+
+      // Save using beginSave + settleSave
+      const checkpoint = doc.beginSave({
+        kind: "current-path",
+        path: "/mock/doc.md",
+      });
+      const settleResult = doc.settleSave(checkpoint, {
+        status: "succeeded",
+        commit: "committed",
+        filePath: "/mock/doc.md",
+        warnings: [],
+      });
+
+      expect(settleResult.status).toBe("applied");
+      const postSaveSnap = doc.getSnapshot();
+      expect(postSaveSnap.isDirty).toBe(false);
+      // documentGeneration MUST stay the same to avoid triggering #installDocumentBoundary (which resets scrollTop to 0)
+      expect(postSaveSnap.documentGeneration).toBe(initialSnap.documentGeneration);
+      expect(postSaveSnap.savedMarkdown).toBe("# Initial modified");
+    });
+
+    it("renames file via setDocumentPath without incrementing documentGeneration", () => {
+      const doc = createDocumentState({
+        markdown: "# Note",
+        filePath: "/mock/old.md",
+      });
+      const snap = doc.getSnapshot();
+      const result = doc.setDocumentPath({
+        filePath: "/mock/new.md",
+        expectedGeneration: snap.documentGeneration,
+        expectedStateRevision: snap.stateRevision,
+        origin: { kind: "command", commandId: "file.rename" },
+      });
+
+      expect(result.status).toBe("applied");
+      expect(doc.getSnapshot().filePath).toBe("/mock/new.md");
+      expect(doc.getSnapshot().documentGeneration).toBe(snap.documentGeneration);
     });
   });
 });

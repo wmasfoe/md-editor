@@ -2,6 +2,13 @@
 
 All notable changes to the Inkpoint uTools plugin will be documented in this file.
 
+## 0.1.1 - 2026-09-18
+
+- Fix critical issue where saving documents or pasting/dropping local images caused unexpected viewport jumps to top, selection loss, and undo history disruption (#90)
+- Adopt checkpoint-and-settlement protocol (`beginSave` / `settleSave`) for document saves, ensuring generation stability without resetting scroll position
+- Route programmatic image insertions through the editor atomic transaction port (`applyExternalEdit`), keeping scroll position intact
+- Suppress redundant success toast notifications across saving, image pasting, mode toggle, and file management to provide a distraction-free writing experience
+
 ## 0.1.0 - 2026-09-05
 
 - Initial public release of the Inkpoint uTools platform plugin (`apps/utools`), serving as a lightweight editor and traffic bridge to the desktop app

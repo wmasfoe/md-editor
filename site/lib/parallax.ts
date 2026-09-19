@@ -74,6 +74,29 @@ export function usePrefersReducedMotion(): boolean {
 }
 
 /**
+ * 桌面钉住场景媒体查询订阅。用于区分移动端流式布局与桌面钉住视差体验。
+ */
+export function useIsDesktopPinned(): boolean {
+  const [isDesktopPinned, setIsDesktopPinned] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mq = window.matchMedia(PINNED_SCENE_MEDIA);
+    setIsDesktopPinned(mq.matches);
+
+    const handleMediaChange = (event: MediaQueryListEvent) => {
+      setIsDesktopPinned(event.matches);
+    };
+
+    mq.addEventListener("change", handleMediaChange);
+    return () => mq.removeEventListener("change", handleMediaChange);
+  }, []);
+
+  return isDesktopPinned;
+}
+
+/**
  * 计算视差偏移值（支持最大/最小界限裁剪，防止大幅滚动时元素出格）
  */
 export function calculateParallaxOffset(

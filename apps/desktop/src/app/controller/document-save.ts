@@ -114,5 +114,5 @@ export function getSaveFeedback(outcome: SaveOutcome, settlement: SettleSaveResu
   }
 
   const warning = outcome.warnings.map((entry) => entry.message).join("；");
-  return warning ? t("toasts.saveWarning", { warning }) : t("toasts.saved");
+  return warning ? t("toasts.saveWarning", { warning }) : null;
 }

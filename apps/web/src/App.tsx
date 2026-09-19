@@ -225,12 +225,10 @@ function MainWebEditorApp({
   // 打开本地文件夹
   const handleOpenFolder = useCallback(async () => {
     try {
-      showToast("正在打开本地文件夹...");
       const opened = await webFileSystem.openDirectory();
       if (!opened) return;
       setFolder(opened);
       setIsSidebarVisible(true);
-      showToast(`已加载工作区目录: ${opened.rootName}`);
 
       const firstMd = findFirstMd(opened.tree);
       if (firstMd) {
@@ -254,7 +252,6 @@ function MainWebEditorApp({
       const refreshed = await webFileSystem.refreshDirectory();
       if (refreshed) {
         setFolder(refreshed);
-        showToast("已刷新文件树");
       }
     } catch (err: unknown) {
       showToast(getErrorMessage(err) || "刷新文件树失败");
@@ -272,7 +269,6 @@ function MainWebEditorApp({
       );
       setActiveFilePath(res.name);
       setOpenedAsset(null);
-      showToast(`已打开文档: ${res.name}`);
     } catch (err: unknown) {
       showToast(getErrorMessage(err) || "打开文件失败");
     }
@@ -297,18 +293,14 @@ function MainWebEditorApp({
   );
 
   // 点击打开图片资源预览
-  const handleOpenAsset = useCallback(
-    async (path: string) => {
-      const fileName = path.split("/").pop() || "Image";
-      showToast(`正在预览图片: ${fileName}`);
-      const assetUrl = await webFileSystem.getAssetUrl(path);
-      setOpenedAsset({
-        name: fileName,
-        url: assetUrl ?? path,
-      });
-    },
-    [showToast],
-  );
+  const handleOpenAsset = useCallback(async (path: string) => {
+    const fileName = path.split("/").pop() || "Image";
+    const assetUrl = await webFileSystem.getAssetUrl(path);
+    setOpenedAsset({
+      name: fileName,
+      url: assetUrl ?? path,
+    });
+  }, []);
 
   // 新建草稿文档
   const handleNewDraft = useCallback(() => {
@@ -323,8 +315,7 @@ function MainWebEditorApp({
     );
     setActiveFilePath(null);
     setOpenedAsset(null);
-    showToast("已新建草稿文档");
-  }, [documentState, showToast]);
+  }, [documentState]);
 
   // 保存文档（有本地文件则原子写盘，无则保存至草稿）
   const handleSave = useCallback(async () => {
@@ -341,16 +332,14 @@ function MainWebEditorApp({
           filePath: activeFilePath,
           warnings: [],
         });
-        showToast("已成功保存并落盘至本地文件");
       } catch (err: unknown) {
         console.error(err);
         showToast(`保存文件失败: ${getErrorMessage(err)}`);
       }
     } else {
       saveDraft(currentMarkdown);
-      showToast(t("toasts.docSavedToStorage"));
     }
-  }, [activeFilePath, currentMarkdown, documentState, showToast, t]);
+  }, [activeFilePath, currentMarkdown, documentState, showToast]);
 
   // 新建文件或文件夹
   const handleCreateItem = useCallback(
@@ -361,7 +350,6 @@ function MainWebEditorApp({
         if (kind === "markdown") {
           await handleOpenFile(newPath);
         }
-        showToast(`已成功创建 ${kind === "directory" ? "文件夹" : "文件"}: ${name}`);
       } catch (err: unknown) {
         showToast(`创建失败: ${getErrorMessage(err)}`);
       }
@@ -378,7 +366,6 @@ function MainWebEditorApp({
         if (activeFilePath === node.path) {
           setActiveFilePath(newPath);
         }
-        showToast(`已重命名为: ${newName}`);
       } catch (err: unknown) {
         showToast(`重命名失败: ${getErrorMessage(err)}`);
       }
@@ -395,7 +382,6 @@ function MainWebEditorApp({
         if (activeFilePath === node.path) {
           handleNewDraft();
         }
-        showToast(`已删除: ${node.name}`);
       } catch (err: unknown) {
         showToast(`删除失败: ${getErrorMessage(err)}`);
       }

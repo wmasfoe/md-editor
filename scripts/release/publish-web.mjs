@@ -169,12 +169,7 @@ function assertTagAvailable(tag) {
 }
 
 function commitMessage(tag, notes) {
-  return [
-    `chore(web): release ${tag}`,
-    `Release notes: ${notes}`,
-    "Constraint: GitHub Actions release workflow triggers from pushed web-v* tags.",
-    "Scope: apps/web",
-  ];
+  return [`chore(web): release ${tag}`, `Release notes: ${notes}`];
 }
 
 async function promptForRelease(options, currentVersion) {

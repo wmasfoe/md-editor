@@ -46,6 +46,11 @@ export interface EditorE2eBridge {
   setAssetPreviewVisible(visible: boolean): void;
   /** 程序化设置编辑器选区(renderer 标准端口,自带焦点;E2E 定位不依赖点击时序) */
   setSelection(from: number, to: number): void;
+  /** 程序化滚动至指定行(renderer 标准端口,支持自动选中与聚焦) */
+  scrollToLine(
+    line: number,
+    options?: { readonly select?: boolean; readonly focus?: boolean },
+  ): boolean;
   save(forceDialog?: boolean): Promise<void>;
   enqueueSaveBehavior(behavior: E2eSaveBehavior): void;
   readPersistedMarkdown(path: string): string | null;
@@ -171,6 +176,12 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
       // 与 renderer 的键盘输入语义一致:先聚焦,选区才接收后续按键
       ports.focus();
       ports.setSelection(from, to);
+    },
+    scrollToLine(line: number, options?: { readonly select?: boolean; readonly focus?: boolean }) {
+      if (!ports) {
+        throw new Error("Desktop editor ports are not mounted.");
+      }
+      return ports.scrollToLine(line, options);
     },
     async save(forceDialog = false) {
       await requireActions().dispatchCommand(forceDialog ? "file.saveAs" : "file.save");

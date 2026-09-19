@@ -111,9 +111,16 @@ function deployWeb(options = {}) {
   const vercelBin = resolveVercelBin();
   const tokenArgs = process.env.VERCEL_TOKEN ? ["--token", process.env.VERCEL_TOKEN] : [];
 
-  const projectId = process.env.VERCEL_WEB_PROJECT_ID || DEFAULT_WEB_PROJECT_ID;
+  const projectId =
+    process.env.VERCEL_WEB_PROJECT_ID || process.env.VERCEL_PROJECT_ID || DEFAULT_WEB_PROJECT_ID;
   const orgId = process.env.VERCEL_ORG_ID || DEFAULT_VERCEL_ORG_ID;
   const projectName = DEFAULT_WEB_PROJECT_NAME;
+
+  const deployEnv = {
+    ...process.env,
+    VERCEL_ORG_ID: orgId,
+    VERCEL_PROJECT_ID: projectId,
+  };
 
   const webProjectConfig = {
     projectId,
@@ -145,16 +152,19 @@ function deployWeb(options = {}) {
     console.log("\n1. 拉取 md-editor-web 生产环境配置 (Vercel pull)...");
     run(vercelBin, ["pull", "--yes", "--environment", "production", ...tokenArgs], {
       dryRun: options.dryRun,
+      env: deployEnv,
     });
 
     console.log("\n2. 构建 Web 端生产环境产物 (Vercel build --prod)...");
     run(vercelBin, ["build", "--prod", ...tokenArgs], {
       dryRun: options.dryRun,
+      env: deployEnv,
     });
 
     console.log("\n3. 部署预构建产物至 Vercel 生产环境 (Vercel deploy --prebuilt)...");
     run(vercelBin, ["deploy", "--prebuilt", "--prod", "--yes", ...tokenArgs], {
       dryRun: options.dryRun,
+      env: deployEnv,
     });
 
     console.log("\n🎉 Web 在线端已成功发布至 Vercel 生产环境！");

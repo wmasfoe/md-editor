@@ -77,14 +77,46 @@ export function MdxWipeCanvas({
     };
   }, [sourceDocument, wysiwygDocument]);
 
-  const rightWidth = Math.min(Math.max(sourceReveal, 0.5), 100);
+  const [mobileMode, setMobileMode] = useState<"split" | "preview" | "source">("split");
+
+  const effectiveReveal =
+    mobileMode === "preview" ? 0.01 : mobileMode === "source" ? 100 : sourceReveal;
+
+  const rightWidth = Math.min(Math.max(effectiveReveal, 0.5), 100);
   const leftWidth = 100 - rightWidth;
 
   return (
     <div className="relative flex h-full min-h-[280px] flex-col overflow-hidden rounded-3xl border border-line-strong/80 bg-surface shadow-[0_24px_64px_-12px_rgba(20,18,15,0.12),0_0_0_1px_rgba(20,18,15,0.04),inset_0_1px_0_rgba(255,255,255,0.9)]">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-line bg-surface-soft/80 px-4">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-line bg-surface-soft/80 px-3 sm:px-4">
         <span className="truncate font-mono text-[11px] text-muted">{filename}</span>
-        <span className="text-[11px] text-muted">
+
+        {/* 移动端模式快速切换胶囊 */}
+        <div className="flex items-center gap-1.5 sm:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileMode((m) => (m === "preview" ? "split" : "preview"))}
+            className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              mobileMode === "preview"
+                ? "bg-surface font-semibold text-accent shadow-xs border border-line"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            {previewLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileMode((m) => (m === "source" ? "split" : "source"))}
+            className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
+              mobileMode === "source"
+                ? "bg-surface font-semibold text-seal shadow-xs border border-line"
+                : "text-muted hover:text-ink"
+            }`}
+          >
+            {sourceLabel}
+          </button>
+        </div>
+
+        <span className="hidden text-[11px] text-muted sm:inline-flex sm:items-center">
           {previewLabel}
           <span className="mx-1.5 text-line-strong">→</span>
           {sourceLabel}

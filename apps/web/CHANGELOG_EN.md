@@ -2,6 +2,17 @@
 
 All notable changes to the Inkpoint Web Playground will be documented in this file.
 
+## 0.1.2 - 2026-09-18 (#90)
+
+- Silenced success toast notifications for ordinary operations to optimize the immersive writing experience.
+
+## 0.1.1 - 2026-09-18 (#88, #89)
+
+- Fixed severe viewport jumps and cursor loss when toggling between WYSIWYG and Source modes in scrolled documents, achieving pixel-stable transitions.
+- Fixed a phantom extra empty line rendered visually above thematic breaks (`---`) and cursor vertical drift.
+- Fixed image zoom viewer button escaping to the top-right corner of the editor viewport, and hidden when preview is absent.
+- Fixed unwanted blue text selection background rendered above thematic break block widgets.
+
 ## 0.1.0 - 2026-09-09
 
 - Initial public release of Inkpoint Web Playground

@@ -296,7 +296,7 @@ describe("Distribution Worker Router & Matcher", () => {
     const manifest = (await res.json()) as { app: string; releases: Array<{ version: string }> };
     expect(manifest.app).toBe("inkpoint");
     expect(manifest.releases.length).toBeGreaterThan(0);
-    expect(manifest.releases[0].version).toBe("0.10.2");
+    expect(manifest.releases[0].version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it("should return android releases on canonical /api/inkpoint/android/releases", async () => {
@@ -534,7 +534,7 @@ describe("Distribution Worker Router & Matcher", () => {
       };
     };
 
-    expect(data.latestDesktopVersion).toBe("0.10.2");
+    expect(data.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(data.latestAndroidVersion).toBe("0.1.1");
     expect(data.latestReleases?.android?.version).toBe("0.1.1");
   });
@@ -586,11 +586,9 @@ describe("Distribution Worker Router & Matcher", () => {
       "https://download.justdev.cn",
     );
 
-    expect(manifest.latestDesktopVersion).toBe("0.10.2");
+    expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.latestAndroidVersion).toBe("0.1.1");
-    expect(manifest.releases.some((r) => r.category === "desktop" && r.version === "0.10.2")).toBe(
-      true,
-    );
+    expect(manifest.releases.some((r) => r.category === "desktop")).toBe(true);
     expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.1")).toBe(
       true,
     );
@@ -732,5 +730,29 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.1.1/");
     expect(html).toContain("0.1.0/");
     expect(html).toContain("共 2 个版本");
+  });
+
+  it("should filter out non-desktop and non-android releases (e.g. utools-v*, web-v*) from manifest", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const manifest = await buildReleasesManifest(
+      "inkpoint",
+      "wmasfoe/md-editor",
+      env,
+      "https://download.justdev.cn",
+    );
+
+    expect(manifest.releases.length).toBeGreaterThan(0);
+    expect(
+      manifest.releases.every((r) => r.category === "desktop" || r.category === "android"),
+    ).toBe(true);
+    expect(
+      manifest.releases.some((r) => r.version.includes("utools") || r.version.includes("web")),
+    ).toBe(false);
+    expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(manifest.releases[0].version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

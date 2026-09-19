@@ -2,6 +2,13 @@
 
 All notable changes to the Inkpoint uTools plugin will be documented in this file.
 
+## 0.1.1 - 2026-09-18
+
+- 修复在保存文档与粘贴/拖入本地图片时，页面视口突然跳顶、选区丢失与撤销栈失效的严重缺陷 (#90)
+- 优化保存流程，采用底层检查点与结算协议（`beginSave` / `settleSave`），确保同文档代际不递增与视口稳定
+- 优化图片插入，采用编辑器原子事务端口（`applyExternalEdit`），平滑聚焦光标且保持当前视口滚动
+- 遵循沉浸式编辑器交互原则，全面静默保存成功、贴图成功、模式切换及文件树常规操作的冗余 Toast，仅保留失败报错与必要前置拦截警示
+
 ## 0.1.0 - 2026-09-05
 
 - 首次发布 Inkpoint uTools 平台插件（`apps/utools`），定位轻量随手编辑与导流跳板

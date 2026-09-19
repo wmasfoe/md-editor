@@ -38,6 +38,8 @@ export function buildLinkMediaLayoutDecorations(
   }
   if (record.kind === "thematic-break" && record.renderPolicy === "thematic-break-widget") {
     const replacementTo = trailingLineBreakEnd(record, state);
+    // CM6 块级替换：设置 inclusiveStart: true 避免起点生成幽灵空行（消除上方多出一行及光标上浮错位）；
+    // 同时设置 inclusiveEnd: false 避免吞并紧随其后的换行（保持下方空行数量完全精确）。
     return [
       Decoration.replace({
         widget: new ThematicBreakWidget({
@@ -45,8 +47,9 @@ export function buildLinkMediaLayoutDecorations(
           selected,
           diagnostics: getWysiwygDiagnostics(state),
         }),
-        inclusive: false,
         block: true,
+        inclusiveStart: true,
+        inclusiveEnd: false,
         wysiwygRecordId: record.id,
         wysiwygRole: "thematic-break-widget",
       }).range(record.fullRange.from, replacementTo),

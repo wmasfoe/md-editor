@@ -1,9 +1,22 @@
 /**
  * @file index.ts
  * @description `@md-editor/renderer-codemirror` 公开 API 统一导出。
- * 包含 CodeMirror 6 编辑器适配器、所见即所得交互命令、格式化按键绑定、
- * AI 补全提示扩展、搜索面板、语法扩展插件机制与范围索引核心。
+ * 包含 CodeMirror 6 编辑器适配器、DocumentState ↔ Renderer 绑定层（bridge）、
+ * 所见即所得交互命令、格式化按键绑定、AI 补全提示扩展、搜索面板、
+ * 语法扩展插件机制与范围索引核心。
  */
+
+export {
+  createCodeMirrorEditorBridge,
+  getRendererForTesting,
+  type CodeMirrorEditorBridge,
+  type CodeMirrorEditorBridgeOptions,
+  type CodeMirrorEditorPorts,
+  type CodeMirrorEditorSyncError,
+  type CodeMirrorEditorExternalEditResult,
+  type CodeMirrorEditorClipboardWriter,
+  type MdxComponentsLookup,
+} from "./bridge.ts";
 
 export {
   createCodeMirrorRenderer,

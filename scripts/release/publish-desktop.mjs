@@ -383,17 +383,7 @@ function assertTagAvailable(tag) {
 }
 
 function commitMessage(tag, notes) {
-  return [
-    `chore: release ${tag}`,
-    `Release notes: ${notes}`,
-    "Constraint: GitHub Actions release workflow triggers from pushed v* tags.",
-    "Rejected: Manual version, commit, tag, and push sequence | scripted orchestration prevents skipped steps.",
-    "Confidence: high",
-    "Scope-risk: narrow",
-    "Directive: Keep release version files, git tag, GitHub Release tag, and Homebrew cask version aligned.",
-    "Tested: pnpm release:version updates package, Tauri, and Cargo version files before commit.",
-    "Not-tested: GitHub-hosted macOS release workflow before the tag is pushed.",
-  ];
+  return [`chore(release): release ${tag}`, `Release notes: ${notes}`];
 }
 
 async function main() {

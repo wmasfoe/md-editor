@@ -18,10 +18,9 @@ import {
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
-  type AiSuggestionInput,
-  type AiSuggestionValue,
-  type MarkdownSyntaxPlugin,
-} from "@md-editor/renderer-codemirror";
+} from "./renderer.ts";
+import type { AiSuggestionInput, AiSuggestionValue } from "./wysiwyg/suggestion.ts";
+import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
 
@@ -73,7 +72,7 @@ export type CodeMirrorEditorSyncError =
 
 /**
  * MDX 组件白名单最小接口(与 renderer-codemirror 的 MdxComponentLookup 同形状;
- * 不 import mdx-component-registry,遵守 editor-ui 包边界)。
+ * 不 import mdx-component-registry,遵守包边界)。
  */
 export interface MdxComponentsLookup {
   getByComponentName(

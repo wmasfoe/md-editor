@@ -1,9 +1,6 @@
 import { createDocumentState } from "@md-editor/editor-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  createCodeMirrorEditorBridge,
-  type CodeMirrorEditorClipboardWriter,
-} from "../components/CodeMirrorEditor/bridge";
+import { createCodeMirrorEditorBridge, type CodeMirrorEditorClipboardWriter } from "../src/bridge";
 
 const rendererMock = vi.hoisted(() => {
   const calls: unknown[] = [];
@@ -28,7 +25,7 @@ const rendererMock = vi.hoisted(() => {
   };
 });
 
-vi.mock("@md-editor/renderer-codemirror", () => rendererMock);
+vi.mock("../src/renderer", () => rendererMock);
 
 describe("CodeMirrorEditor clipboard bridge", () => {
   beforeEach(() => {

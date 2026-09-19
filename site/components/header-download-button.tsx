@@ -14,7 +14,7 @@ export function HeaderDownloadButton({ catalog: _catalog }: HeaderDownloadButton
   return (
     <a
       href="#download"
-      className="liquid-glass-button-dark group relative ml-0.5 inline-flex min-h-9 cursor-pointer items-center justify-center overflow-hidden rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white sm:ml-1 sm:min-h-0 sm:px-4 sm:text-sm"
+      className="liquid-glass-button-dark group relative ml-0.5 inline-flex min-h-8 cursor-pointer items-center justify-center overflow-hidden rounded-full px-3 py-1 text-[12px] font-medium text-white sm:ml-1 sm:min-h-9 sm:px-4 sm:py-1.5 sm:text-sm"
     >
       <span
         aria-hidden

@@ -202,7 +202,7 @@ export function ChangelogContent({
         )}
 
         <div
-          className="mt-6 inline-flex rounded-lg border border-line bg-surface-soft p-1"
+          className="mt-6 flex w-full max-w-full overflow-x-auto rounded-lg border border-line bg-surface-soft p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:inline-flex sm:w-auto"
           role="tablist"
           aria-label={t.changelog.tabsAria}
           onKeyDown={handleTabKeyDown}
@@ -338,7 +338,7 @@ function ChangelogTab({
       tabIndex={active ? 0 : -1}
       onClick={onSelect}
       className={[
-        "min-h-9 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+        "shrink-0 min-h-9 rounded-md px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm",
         active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
       ].join(" ")}
     >
@@ -405,7 +405,7 @@ function VersionDownloadDropdown({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-30 mt-1.5 w-56 origin-top-right rounded-xl border border-line-strong/80 bg-surface-raised/95 p-1.5 shadow-xl backdrop-blur-md">
+        <div className="absolute right-0 z-30 mt-1.5 w-56 max-w-[calc(100vw-32px)] origin-top-right rounded-xl border border-line-strong/80 bg-surface-raised/95 p-1.5 shadow-xl backdrop-blur-md">
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
             v{version} {isEn ? "Edge Downloads" : "边缘直链下载"}
           </div>

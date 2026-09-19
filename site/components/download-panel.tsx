@@ -35,8 +35,10 @@ function renderPlatformLabel(platform: SitePlatform, comingSoonText = "敬请期
   if (platform === "android") {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
-        <span>Android</span>
-        <span className="rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none">
+        <span className="text-[12px] sm:text-sm">Android</span>
+        {/* 窄屏保留微呼吸圆点，宽屏展示完整测试版 Badge */}
+        <span className="h-1.5 w-1.5 rounded-full bg-accent sm:hidden" />
+        <span className="hidden rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none sm:inline-block">
           Beta
         </span>
       </span>
@@ -45,14 +47,22 @@ function renderPlatformLabel(platform: SitePlatform, comingSoonText = "敬请期
   if (platform === "ios") {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
-        <span>iOS</span>
-        <span className="rounded-full bg-line-strong/25 px-1.5 py-0.5 text-[9px] font-medium text-muted/75 leading-none">
+        <span className="text-[12px] sm:text-sm">iOS</span>
+        <span className="hidden rounded-full bg-line-strong/25 px-1.5 py-0.5 text-[9px] font-medium text-muted/75 leading-none sm:inline-block">
           {comingSoonText}
         </span>
       </span>
     );
   }
-  return SITE_PLATFORM_LABELS[platform];
+  if (platform === "windows") {
+    return (
+      <span className="text-[12px] sm:text-sm">
+        <span className="sm:hidden">Win</span>
+        <span className="hidden sm:inline">Windows</span>
+      </span>
+    );
+  }
+  return <span className="text-[12px] sm:text-sm">{SITE_PLATFORM_LABELS[platform]}</span>;
 }
 
 function getPlatformAriaLabel(platform: SitePlatform, isEn: boolean): string {
@@ -103,7 +113,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
           id="download-panel"
           role="tabpanel"
           aria-labelledby={`download-tab-${platform}`}
-          className="flex justify-center"
+          className="flex justify-center px-2"
         >
           <a
             href={current.primary.href}
@@ -111,7 +121,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
             target={platform === "ios" ? "_blank" : undefined}
             rel={platform === "ios" ? "noreferrer" : undefined}
             aria-label={`${current.primary.label}，${current.format}`}
-            className="liquid-glass-button-dark group relative mt-4 inline-flex h-12 w-fit cursor-pointer items-center justify-center overflow-hidden rounded-full px-6 text-sm font-medium text-white sm:h-12 sm:px-7"
+            className="liquid-glass-button-dark group relative mt-4 inline-flex h-12 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-full px-5 text-sm font-medium text-white sm:h-12 sm:w-fit sm:px-7"
           >
             {/* 顶层液态镜面微光扫掠 */}
             <span
@@ -126,7 +136,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
         </div>
       </div>
 
-      <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-sm text-muted">
+      <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-3 text-center text-xs text-muted sm:gap-x-2.5 sm:text-sm">
         {current.isBeta ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-accent">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
@@ -142,7 +152,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
         {current.version || version ? <span className="text-line-strong">·</span> : null}
         <span>{current.format}</span>
         {current.secondary.map((asset) => (
-          <span key={asset.href} className="inline-flex items-center gap-x-2.5">
+          <span key={asset.href} className="inline-flex items-center gap-x-2 sm:gap-x-2.5">
             <span className="text-line-strong">·</span>
             <a
               href={asset.href}

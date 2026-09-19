@@ -3,8 +3,10 @@ import {
   calculateParallaxOffset,
   clamp,
   interpolate,
+  PINNED_SCENE_MEDIA,
   sceneIsActiveFromRect,
   sceneProgressFromRect,
+  useIsDesktopPinned,
 } from "../lib/parallax";
 
 describe("calculateParallaxOffset", () => {
@@ -85,5 +87,12 @@ describe("sceneIsActiveFromRect", () => {
 
   it("is false after the scene has left the viewport", () => {
     expect(sceneIsActiveFromRect(-1300, 2000, 800)).toBe(false);
+  });
+});
+
+describe("pinned media query contract", () => {
+  it("defines desktop pinned scene media query targeting md screens with adequate height", () => {
+    expect(PINNED_SCENE_MEDIA).toBe("(min-width: 768px) and (min-height: 700px)");
+    expect(typeof useIsDesktopPinned).toBe("function");
   });
 });
