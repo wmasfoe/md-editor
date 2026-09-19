@@ -473,6 +473,9 @@ importers:
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../editor-core
+      '@md-editor/file-system':
+        specifier: workspace:*
+        version: link:../file-system
       '@md-editor/i18n':
         specifier: workspace:*
         version: link:../i18n

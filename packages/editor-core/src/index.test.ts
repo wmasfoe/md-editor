@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { calloutPlugin } from "@md-editor/mdx-plugins/metadata";
 
 import {
   computeDirtyState,
@@ -10,23 +9,14 @@ import {
   createDocumentState,
   createEditorContent,
   createFeatureRegistry,
-  createInMemoryMarkdownFileStore,
   createKeymapRegistry,
   getRawFragmentSaveSource,
-  loadMarkdownFile,
   markSaved,
-  markCalloutDirty,
   normalizeMarkdownForComparison,
-  parseCalloutFragment,
-  persistMarkdownFile,
   RawFragmentRangeError,
-  reloadMarkdownFile,
   roundTripMarkdownFixture,
-  serializeCalloutNode,
   serializeWithRawFragments,
   serializeEditorContent,
-  smokeCalloutExtension,
-  updateFileSessionRawMarkdown,
   updateRawMarkdown,
   type RawFragment,
 } from "./index.ts";
@@ -221,148 +211,6 @@ describe("raw fragment preservation", () => {
   });
 });
 
-describe("internal Callout minimum slice", () => {
-  it("consumes the official Callout plugin metadata outside editor-core", () => {
-    expect(calloutPlugin.component).toMatchObject({
-      name: "Callout",
-      packageName: "@md-editor/mdx-plugins",
-      acceptsChildren: true,
-    });
-    expect(calloutPlugin.component.props.map((prop) => prop.name)).toEqual(["type", "title"]);
-  });
-
-  it("maps a registered Callout raw fragment to a structured node", () => {
-    const markdown = '<Callout title="Heads up" type="warning">Read **this**.</Callout>\n';
-    const result = collectRawFragments(markdown);
-    const fragment = result.rawFragments[0];
-
-    if (fragment === undefined) {
-      throw new Error("Expected registered Callout fragment");
-    }
-
-    expect(fragment.kind).toBe("registeredMdxComponent");
-    expect(parseCalloutFragment(fragment)).toMatchObject({
-      type: "callout",
-      name: "Callout",
-      props: {
-        title: "Heads up",
-        type: "warning",
-      },
-      childrenMarkdown: "Read **this**.",
-      dirty: false,
-    });
-  });
-
-  it("maps an indented Callout raw fragment to a structured node", () => {
-    const markdown = '  <Callout type="info">Indented</Callout>\n';
-    const fragment = collectRawFragments(markdown).rawFragments[0];
-
-    if (fragment === undefined) {
-      throw new Error("Expected registered Callout fragment");
-    }
-
-    expect(fragment.kind).toBe("registeredMdxComponent");
-    expect(parseCalloutFragment(fragment)).toMatchObject({
-      type: "callout",
-      props: {
-        type: "info",
-      },
-      childrenMarkdown: "Indented",
-    });
-  });
-
-  it("preserves untouched Callout props, whitespace, and children", () => {
-    const markdown = '<Callout  type = "info" title="Original">Keep  spacing</Callout>\n';
-    const fragment = collectRawFragments(markdown).rawFragments[0];
-
-    if (fragment === undefined) {
-      throw new Error("Expected registered Callout fragment");
-    }
-
-    const node = parseCalloutFragment(fragment);
-
-    if (node === undefined) {
-      throw new Error("Expected Callout node");
-    }
-
-    expect(serializeCalloutNode(node, fragment)).toBe(fragment.rawSource);
-  });
-
-  it("uses serializer output after a structured Callout edit", () => {
-    const markdown = '<Callout type="info">Old</Callout>\n';
-    const fragment = collectRawFragments(markdown).rawFragments[0];
-
-    if (fragment === undefined) {
-      throw new Error("Expected registered Callout fragment");
-    }
-
-    const node = parseCalloutFragment(fragment);
-
-    if (node === undefined) {
-      throw new Error("Expected Callout node");
-    }
-
-    const dirtyNode = markCalloutDirty(node, {
-      props: { type: "warning" },
-      childrenMarkdown: "New",
-    });
-
-    expect(serializeCalloutNode(dirtyNode, fragment)).toBe('<Callout type="warning">New</Callout>');
-  });
-
-  it("records an explicit blocker when editor extension APIs are unavailable", () => {
-    expect(smokeCalloutExtension()).toMatchObject({
-      status: "blocked",
-    });
-    expect(
-      smokeCalloutExtension({
-        name: "headless-test-adapter",
-        canRepresentCalloutNode: true,
-        canSerializeCalloutNode: true,
-      }),
-    ).toEqual({
-      status: "passed",
-      adapterName: "headless-test-adapter",
-    });
-  });
-});
-
-describe("file lifecycle seam", () => {
-  it("loads, updates, persists, reloads, and resets dirty against savedRawMarkdown", async () => {
-    const store = createInMemoryMarkdownFileStore({
-      "/notes/example.md": "# Saved\n",
-    });
-
-    const loaded = await loadMarkdownFile(store, "/notes/example.md");
-    const edited = updateFileSessionRawMarkdown(loaded, "# Saved\n\nNew paragraph.\n");
-
-    expect(loaded.content).toMatchObject({
-      rawMarkdown: "# Saved\n",
-      savedRawMarkdown: "# Saved\n",
-      dirty: false,
-    });
-    expect(edited.content).toMatchObject({
-      rawMarkdown: "# Saved\n\nNew paragraph.\n",
-      savedRawMarkdown: "# Saved\n",
-      dirty: true,
-    });
-
-    const saved = await persistMarkdownFile(store, edited);
-    const reloaded = await reloadMarkdownFile(store, saved);
-
-    expect(saved.content).toMatchObject({
-      rawMarkdown: "# Saved\n\nNew paragraph.\n",
-      savedRawMarkdown: "# Saved\n\nNew paragraph.\n",
-      dirty: false,
-    });
-    expect(reloaded.content).toMatchObject({
-      rawMarkdown: "# Saved\n\nNew paragraph.\n",
-      savedRawMarkdown: "# Saved\n\nNew paragraph.\n",
-      dirty: false,
-    });
-  });
-});
-
 describe("content authority contracts", () => {
   it("derives dirty state from rawMarkdown and savedRawMarkdown only", () => {
     const content = createEditorContent({
@@ -423,14 +271,14 @@ describe("content authority contracts", () => {
 
   it("accepts serializer output only for dirty raw fragments", () => {
     const fragment: RawFragment = {
-      id: "callout-1",
-      kind: "registeredMdxComponent",
-      rawSource: '<Callout type="info">Old</Callout>',
+      id: "mdx-1",
+      kind: "unknownMdxFlow",
+      rawSource: '<Widget type="info">Old</Widget>',
       dirty: true,
-      serializedMarkdown: '<Callout type="warning">New</Callout>',
+      serializedMarkdown: '<Widget type="warning">New</Widget>',
     };
 
-    expect(getRawFragmentSaveSource(fragment)).toBe('<Callout type="warning">New</Callout>');
+    expect(getRawFragmentSaveSource(fragment)).toBe('<Widget type="warning">New</Widget>');
   });
 });
 

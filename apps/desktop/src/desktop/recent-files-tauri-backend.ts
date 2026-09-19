@@ -1,4 +1,4 @@
-import type { RecentFile, RecentFilesBackend } from "@md-editor/editor-core";
+import type { RecentFile, RecentFilesBackend } from "@md-editor/file-system";
 
 export function createTauriRecentFilesBackend(): RecentFilesBackend | null {
   if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {

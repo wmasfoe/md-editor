@@ -158,15 +158,7 @@ function collectLineBlocks(rawMarkdown: string, rawFragments: RawFragment[]): vo
       continue;
     }
 
-    // 5. 已注册的 MDX Callout 组件
-    if (isRegisteredCalloutStart(line)) {
-      const end = findMdxComponentBlockEnd(lines, index, "Callout");
-      rawFragments.push(createRawFragment("registeredMdxComponent", rawMarkdown, { start, end }));
-      index = findLineIndexAtOffset(lines, end);
-      continue;
-    }
-
-    // 6. 其他未知的大写 MDX 块级组件
+    // 5. 未知的大写 MDX 块级组件（含自闭合标签）
     if (isUnknownMdxFlowStart(line)) {
       rawFragments.push(
         createRawFragment("unknownMdxFlow", rawMarkdown, { start, end: start + line.length }),
@@ -296,13 +288,6 @@ function isHtmlBlockStart(line: string): boolean {
 }
 
 /**
- * 判定行是否为已注册的 Callout 组件起始
- */
-function isRegisteredCalloutStart(line: string): boolean {
-  return /^\s*<Callout(?:\s|>|\/>)/.test(line);
-}
-
-/**
  * 判定行是否为未知大写 MDX 组件流起始
  */
 function isUnknownMdxFlowStart(line: string): boolean {
@@ -349,31 +334,6 @@ function findHtmlBlockEnd(lines: readonly RegExpMatchArray[], startIndex: number
     const line = lines[index]?.[0] ?? "";
 
     if (line.includes(`</${tagName}>`)) {
-      return (lines[index]?.index ?? 0) + line.length;
-    }
-  }
-
-  return (lines[startIndex]?.index ?? 0) + openingLine.length;
-}
-
-/**
- * 寻找 MDX 组件的闭合标签偏移量
- */
-function findMdxComponentBlockEnd(
-  lines: readonly RegExpMatchArray[],
-  startIndex: number,
-  componentName: string,
-): number {
-  const openingLine = lines[startIndex]?.[0] ?? "";
-
-  if (openingLine.includes(`</${componentName}>`) || /\/>\s*$/.test(openingLine)) {
-    return (lines[startIndex]?.index ?? 0) + openingLine.length;
-  }
-
-  for (let index = startIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index]?.[0] ?? "";
-
-    if (line.includes(`</${componentName}>`)) {
       return (lines[index]?.index ?? 0) + line.length;
     }
   }

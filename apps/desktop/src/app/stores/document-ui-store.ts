@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { MarkdownFileTreeNode } from "@md-editor/file-system";
-import type { RecentFile } from "@md-editor/editor-core";
+import type { MarkdownFileTreeNode, RecentFile } from "@md-editor/file-system";
 import type { OpenedAsset } from "../../types";
 import { basename } from "../../lib/link-target";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";

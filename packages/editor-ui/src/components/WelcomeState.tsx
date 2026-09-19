@@ -1,4 +1,4 @@
-import type { RecentFile } from "@md-editor/editor-core";
+import type { RecentFile } from "@md-editor/file-system";
 import { useTranslation } from "@md-editor/i18n";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "./ConfirmActionDialog";
 
