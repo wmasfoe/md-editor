@@ -1,7 +1,7 @@
 /**
  * @fileoverview 编辑器核心数据模型与 AST 节点协议 (Editor Content & Nodes)
  *
- * 定义切片类型 (RawFragmentKind)、源范围 (SourceRange) 以及 EditorContent 基础数据结构。
+ * 定义切片类型 (RawFragmentKind)、源范围 (SourceRange) 以及 EditorContent 数据结构。
  */
 
 /**
@@ -14,8 +14,7 @@ export type RawFragmentKind =
   | "unknownMdxText"
   | "mdxEsm"
   | "mdxExpression"
-  | "codeFence"
-  | "registeredMdxComponent";
+  | "codeFence";
 
 /**
  * 文本源范围区间 (左闭右开区间 [start, end))
@@ -46,23 +45,6 @@ export interface RawFragment {
 }
 
 /**
- * MDX Callout 提示框组件节点
- */
-export interface CalloutNode {
-  readonly type: "callout";
-  readonly name: "Callout";
-  readonly props: Readonly<Record<string, string>>;
-  readonly childrenMarkdown: string;
-  readonly rawFragmentId?: string;
-  readonly dirty: boolean;
-}
-
-/**
- * 编辑器结构化节点联合类型
- */
-export type EditorNode = CalloutNode | RawFragment;
-
-/**
  * 编辑器内容状态聚合对象
  */
 export interface EditorContent {
@@ -72,8 +54,6 @@ export interface EditorContent {
   readonly savedRawMarkdown: string;
   /** 当前捕获的保真切片列表 */
   readonly rawFragments: readonly RawFragment[];
-  /** 结构化抽象语法树节点列表 */
-  readonly nodes: readonly EditorNode[];
   /** 脏标记 */
   readonly dirty: boolean;
 }
@@ -95,7 +75,6 @@ export interface CreateEditorContentInput {
   readonly rawMarkdown: string;
   readonly savedRawMarkdown?: string;
   readonly rawFragments?: readonly RawFragment[];
-  readonly nodes?: readonly EditorNode[];
 }
 
 /**
@@ -117,7 +96,6 @@ export function createEditorContent(input: CreateEditorContentInput): EditorCont
     rawMarkdown: input.rawMarkdown,
     savedRawMarkdown,
     rawFragments: input.rawFragments ?? [],
-    nodes: input.nodes ?? [],
     dirty: computeDirtyState({ rawMarkdown: input.rawMarkdown, savedRawMarkdown }),
   };
 }
@@ -130,7 +108,6 @@ export function updateRawMarkdown(content: EditorContent, rawMarkdown: string): 
     rawMarkdown,
     savedRawMarkdown: content.savedRawMarkdown,
     rawFragments: content.rawFragments,
-    nodes: content.nodes,
   });
 }
 
@@ -142,7 +119,6 @@ export function markSaved(content: EditorContent): EditorContent {
     rawMarkdown: content.rawMarkdown,
     savedRawMarkdown: content.rawMarkdown,
     rawFragments: content.rawFragments,
-    nodes: content.nodes,
   });
 }
 

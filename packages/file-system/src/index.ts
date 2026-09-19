@@ -7,6 +7,7 @@ import {
   type NativeSaveRuntimeRegistration,
 } from "./save-scheduler";
 
+export * from "./recent-files.ts";
 export * from "./save-scheduler";
 export * from "./tree-view-state";
 

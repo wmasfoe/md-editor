@@ -1,4 +1,4 @@
-import type { RecentFile, RecentFilesStore } from "@md-editor/editor-core";
+import type { RecentFile, RecentFilesStore } from "@md-editor/file-system";
 
 interface RecentFileEventStore {
   listAuthoritative(): Promise<readonly RecentFile[]>;
