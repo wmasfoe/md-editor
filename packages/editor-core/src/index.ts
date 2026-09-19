@@ -1,8 +1,6 @@
 import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
-export const editorCoreSpikeName = "editor-core-m0";
-
 export * from "./callout.ts";
 export * from "./content.ts";
 export * from "./document-state.ts";
@@ -10,10 +8,6 @@ export * from "./file-lifecycle.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
 export * from "./recent-files.ts";
-
-export function describeEditorCoreSpike(): string {
-  return editorCoreSpikeName;
-}
 
 export interface CommandContext {
   readonly document: DocumentState;

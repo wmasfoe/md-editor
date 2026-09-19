@@ -1,9 +1,13 @@
 // apps/utools/src/utools/referral.ts
 // 官网与原生桌面端导流模块
 
-import { OFFICIAL_SITE_URL } from "@md-editor/shared";
+/** 官网域名 */
+export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
 
-/** 官网基础 URL（统一收敛自 @md-editor/shared 常量） */
+/** 官网完整 URL */
+export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
+
+/** 官网基础 URL */
 export const OFFICIAL_SITE_BASE_URL = OFFICIAL_SITE_URL;
 
 export type ReferralSource =

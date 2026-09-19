@@ -1,11 +1,3 @@
-export const sharedSpikeName = "shared-m0";
-
-/** 官网域名 */
-export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
-
-/** 官网完整 URL */
-export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
-
 export type Markdown = string;
 
 export interface ResultOk<T> {
@@ -31,9 +23,4 @@ export function err<E extends string>(error: E, message: string): ResultErr<E> {
 
 export function normalizeLineEndings(value: string): string {
   return value.replace(/\r\n?/g, "\n");
-}
-
-// M0 spike marker used by the editor-core smoke harness.
-export function describeSharedSpike(): string {
-  return sharedSpikeName;
 }

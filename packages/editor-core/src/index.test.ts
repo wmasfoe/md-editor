@@ -10,7 +10,6 @@ import {
   createDocumentState,
   createEditorContent,
   createFeatureRegistry,
-  describeEditorCoreSpike,
   createInMemoryMarkdownFileStore,
   createKeymapRegistry,
   getRawFragmentSaveSource,
@@ -32,11 +31,7 @@ import {
   type RawFragment,
 } from "./index.ts";
 
-describe("editor-core M0 skeleton", () => {
-  it("loads the headless editor-core package", () => {
-    expect(describeEditorCoreSpike()).toBe("editor-core-m0");
-  });
-
+describe("editor-core AI writing feature", () => {
   it("registers the AI writing commands and keymaps as a built-in feature", async () => {
     const commands = createCommandRegistry();
     const keymaps = createKeymapRegistry();
