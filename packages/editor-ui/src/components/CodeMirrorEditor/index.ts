@@ -4,4 +4,4 @@ export type {
   CodeMirrorEditorExternalEditResult,
   CodeMirrorEditorPorts,
   CodeMirrorEditorSyncError,
-} from "./bridge";
+} from "@md-editor/renderer-codemirror";

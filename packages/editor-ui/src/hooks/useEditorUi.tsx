@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
 import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
-import type { CodeMirrorEditorPorts } from "../components/CodeMirrorEditor/bridge";
+import type { CodeMirrorEditorPorts } from "@md-editor/renderer-codemirror";
 import type { OutlineItem } from "../components/OutlinePanel";
 import type { TocTarget } from "../types";
 import { useOutlineController } from "./useOutlineController";
