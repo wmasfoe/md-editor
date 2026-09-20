@@ -129,7 +129,9 @@ export function OtherSettingsPanel({
             updateStatus.state === "downloaded") &&
           updateStatus.releaseNotes ? (
             <div className="mt-2 max-h-[180px] overflow-y-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
-              <p className="mb-1 text-[12px] font-medium text-[var(--theme-title)]">更新内容</p>
+              <p className="mb-1 text-[12px] font-medium text-[var(--theme-title)]">
+                {t("settings.general.releaseNotes")}
+              </p>
               <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--theme-text)]">
                 {updateStatus.releaseNotes}
               </p>
@@ -241,12 +243,9 @@ export function OtherSettingsPanel({
       <section className={settingsModuleClassName} aria-labelledby="error-reporting-title">
         <div className="mb-3">
           <h2 id="error-reporting-title" className={settingsSectionTitleClassName}>
-            错误上报
+            {t("settings.general.errorReportingTitle")}
           </h2>
-          <p className={settingsDescriptionClassName}>
-            启用后，应用会匿名上报 JS 异常和崩溃信息（含设备型号、系统版本、App
-            版本），帮助改进稳定性。不会采集文档内容或个人数据。
-          </p>
+          <p className={settingsDescriptionClassName}>{t("settings.general.errorReportingDesc")}</p>
         </div>
         <label className="flex min-h-[28px] items-center gap-2 text-[13px] text-[var(--theme-control-text)]">
           <input
@@ -255,7 +254,7 @@ export function OtherSettingsPanel({
             checked={errorReportingDraft.enabled}
             onChange={(event) => onChangeErrorReporting({ enabled: event.target.checked })}
           />
-          <span>启用匿名错误上报</span>
+          <span>{t("settings.general.errorReportingEnable")}</span>
         </label>
       </section>
     </div>

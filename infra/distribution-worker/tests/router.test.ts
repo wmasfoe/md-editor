@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { inferPlatformFromPath } from "../src/analytics.ts";
 import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
@@ -752,5 +753,139 @@ describe("Distribution Worker Router & Matcher", () => {
     ).toBe(false);
     expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
     expect(manifest.releases[0].version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("should serve install.sh and install.ps1 from R2 or upstream fallback", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/install.sh") {
+          return {
+            body: new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode("#!/bin/sh\necho test"));
+                controller.close();
+              },
+            }),
+            httpEtag: "etag-install-sh",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const resSh = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/desktop/install.sh"),
+      env,
+    );
+    expect(resSh.status).toBe(200);
+    expect(resSh.headers.get("Content-Type")).toContain("text/x-shellscript");
+    expect(await resSh.text()).toContain("#!/bin/sh");
+
+    // Fallback to upstream GitHub raw for install.ps1 when not in R2
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async (input: RequestInfo | URL) => {
+        const urlStr = String(input);
+        if (urlStr.includes("install-md-editor.ps1")) {
+          return new Response("# Windows install script", {
+            status: 200,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        }
+        return originalFetch(input);
+      };
+
+      const resPs1 = await handleRequest(
+        new Request("https://download.jiaqi.im/inkpoint/desktop/install.ps1"),
+        env,
+      );
+      expect(resPs1.status).toBe(200);
+      expect(resPs1.headers.get("Content-Type")).toContain("text/plain");
+      expect(await resPs1.text()).toContain("Windows install script");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("should accurately infer platform from various installer and updater filenames", () => {
+    // macOS
+    expect(
+      inferPlatformFromPath("/inkpoint/desktop/0.10.4/Inkpoint.app.tar.gz", "Inkpoint.app.tar.gz"),
+    ).toBe("macos");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_aarch64.app.tar.gz",
+        "Inkpoint_aarch64.app.tar.gz",
+      ),
+    ).toBe("macos-arm64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_aarch64.dmg",
+        "Inkpoint_0.10.4_aarch64.dmg",
+      ),
+    ).toBe("macos-arm64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_x64.dmg",
+        "Inkpoint_0.10.4_x64.dmg",
+      ),
+    ).toBe("macos-x64");
+
+    // Windows
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_x64-setup.exe",
+        "Inkpoint_0.10.4_x64-setup.exe",
+      ),
+    ).toBe("windows-x64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_arm64-setup.exe",
+        "Inkpoint_0.10.4_arm64-setup.exe",
+      ),
+    ).toBe("windows-arm64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_x64-setup.nsis.zip",
+        "Inkpoint_0.10.4_x64-setup.nsis.zip",
+      ),
+    ).toBe("windows-x64");
+
+    // Linux
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_x86_64.AppImage",
+        "Inkpoint_0.10.4_x86_64.AppImage",
+      ),
+    ).toBe("linux-x64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_aarch64.AppImage",
+        "Inkpoint_0.10.4_aarch64.AppImage",
+      ),
+    ).toBe("linux-arm64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_amd64.deb",
+        "Inkpoint_0.10.4_amd64.deb",
+      ),
+    ).toBe("linux-deb-x64");
+    expect(
+      inferPlatformFromPath(
+        "/inkpoint/desktop/0.10.4/Inkpoint_0.10.4_arm64.deb",
+        "Inkpoint_0.10.4_arm64.deb",
+      ),
+    ).toBe("linux-deb-arm64");
+
+    // Android
+    expect(inferPlatformFromPath("/inkpoint/android/latest", "Inkpoint_latest.apk")).toBe(
+      "android",
+    );
   });
 });

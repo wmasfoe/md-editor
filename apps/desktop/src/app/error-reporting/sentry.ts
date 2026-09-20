@@ -16,68 +16,63 @@ const SENTRY_DSN =
   "https://1376e8b5c3e71f8643ab61077a5eb48b@o4505284194074624.ingest.us.sentry.io/4512117887008768";
 
 let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+let isErrorReportingEnabled = true;
 
 /**
  * 根据用户设置启用或禁用 Sentry 错误上报。
  * 应在应用启动和设置变更时调用。
  */
 export function syncSentryWithSettings(settings: ErrorReportingSettings): void {
+  isErrorReportingEnabled = settings.enabled;
   if (settings.enabled) {
-    enableSentry();
-  } else {
-    disableSentry();
+    void ensureSentryInitialized();
   }
 }
 
-async function enableSentry(): Promise<void> {
+async function ensureSentryInitialized(): Promise<void> {
   if (isInitialized) return;
+  if (initPromise) return initPromise;
 
-  try {
-    const Sentry = await import("@sentry/react");
+  initPromise = (async () => {
+    try {
+      const Sentry = await import("@sentry/react");
 
-    Sentry.init({
-      dsn: SENTRY_DSN,
-      release: `inkpoint@${__APP_VERSION__}`,
-      environment: isTauri() ? "desktop" : "web",
-      // 采样率：100% 捕获（免费额度 5K/月，小团队足够）
-      tracesSampleRate: 0,
-      // 不采集 PII（IP、cookies 等）
-      sendDefaultPii: false,
-      // 上下文标记，区分平台
-      initialScope: (scope) => {
-        scope.setTag("platform", isTauri() ? "desktop" : "web");
-        return scope;
-      },
-      // 过滤敏感信息：不发送文档内容
-      beforeSend(event) {
-        // 移除可能包含文档内容的 breadcrumbs
-        if (event.breadcrumbs) {
-          event.breadcrumbs = event.breadcrumbs.filter(
-            (bc) => bc.category !== "console" || bc.level !== "log",
-          );
-        }
-        return event;
-      },
-    });
+      Sentry.init({
+        dsn: SENTRY_DSN,
+        release: `inkpoint@${__APP_VERSION__}`,
+        environment: isTauri() ? "desktop" : "web",
+        // 采样率：100% 捕获（免费额度 5K/月，小团队足够）
+        tracesSampleRate: 0,
+        // 不采集 PII（IP、cookies 等）
+        sendDefaultPii: false,
+        // 上下文标记，区分平台
+        initialScope: (scope) => {
+          scope.setTag("platform", isTauri() ? "desktop" : "web");
+          return scope;
+        },
+        // 过滤敏感信息并支持动态启停
+        beforeSend(event) {
+          if (!isErrorReportingEnabled) {
+            return null;
+          }
+          // 移除可能包含文档内容的 breadcrumbs
+          if (event.breadcrumbs) {
+            event.breadcrumbs = event.breadcrumbs.filter(
+              (bc) => bc.category !== "console" || bc.level !== "log",
+            );
+          }
+          return event;
+        },
+      });
 
-    isInitialized = true;
-  } catch {
-    // Sentry SDK 加载失败不影响应用运行
-  }
-}
+      isInitialized = true;
+    } catch {
+      // Sentry SDK 加载失败不影响应用运行
+    } finally {
+      initPromise = null;
+    }
+  })();
 
-function disableSentry(): void {
-  if (!isInitialized) return;
-
-  try {
-    // 动态 import 以获取 client 并关闭
-    import("@sentry/react")
-      .then((Sentry) => {
-        Sentry.close().catch(() => undefined);
-        isInitialized = false;
-      })
-      .catch(() => undefined);
-  } catch {
-    // 忽略
-  }
+  return initPromise;
 }

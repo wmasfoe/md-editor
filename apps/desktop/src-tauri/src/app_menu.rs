@@ -148,8 +148,8 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .version(Some(env!("CARGO_PKG_VERSION")))
         .comments(Some(about_desc))
         .license(Some("GPL-3.0"))
-        .website(Some("https://inkpoint.dev"))
-        .website_label(Some("inkpoint.dev"))
+        .website(Some("https://editor.jiaqi.im"))
+        .website_label(Some("editor.jiaqi.im"))
         .build();
 
     let app_menu = SubmenuBuilder::new(app, "Inkpoint")

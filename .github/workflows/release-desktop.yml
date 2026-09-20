@@ -402,7 +402,7 @@ jobs:
           fi
 
           win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
-          win_updater_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("x64") and (endswith(".nsis.zip") or endswith(".zip"))) | .browser_download_url' | head -n 1)"
+          win_updater_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$win_updater_file" ] && basename "$win_updater_file" || echo "" )"
 
           if [ -n "$win_updater_file" ] && [ -f "$win_updater_file.sig" ]; then
             export UPDATER_DOWNLOAD_URL="$win_updater_url"
@@ -515,6 +515,14 @@ jobs:
             if [ -f "${win_updater_file}.sig" ]; then
               npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_zip_name}.sig" --file "${win_updater_file}.sig" --remote
             fi
+          fi
+
+          # 2.5 上传一键安装脚本到 R2
+          if [ -f "homebrew-tap/install-md-editor.sh" ]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/install.sh" --file "homebrew-tap/install-md-editor.sh" --remote
+          fi
+          if [ -f "homebrew-tap/install-md-editor.ps1" ]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/install.ps1" --file "homebrew-tap/install-md-editor.ps1" --remote
           fi
 
           # 3. 生成专供 R2 边缘直链的 updater.json 清单

@@ -75,18 +75,26 @@ export async function recordDownload(
 /**
  * 从 URL 路径和文件名推断平台类型
  */
-function inferPlatformFromPath(pathname: string, fileName: string): string {
+export function inferPlatformFromPath(pathname: string, fileName: string): string {
   const lower = pathname.toLowerCase() + " " + fileName.toLowerCase();
 
   if (lower.includes("android") || lower.endsWith(".apk")) return "android";
   if (lower.includes("aarch64") || lower.includes("arm64")) {
-    if (lower.includes(".dmg")) return "macos-arm64";
-    if (lower.includes(".exe")) return "windows-arm64";
+    if (lower.includes(".dmg") || lower.includes(".app.tar.gz")) return "macos-arm64";
+    if (lower.includes(".exe") || lower.includes(".nsis.zip") || lower.includes(".zip"))
+      return "windows-arm64";
+    if (lower.includes(".deb")) return "linux-deb-arm64";
+    if (lower.includes(".appimage")) return "linux-arm64";
   }
-  if (lower.includes("x64") || lower.includes("x86_64")) {
-    if (lower.includes(".dmg")) return "macos-x64";
-    if (lower.includes(".exe")) return "windows-x64";
+  if (lower.includes("x64") || lower.includes("x86_64") || lower.includes("amd64")) {
+    if (lower.includes(".dmg") || lower.includes(".app.tar.gz")) return "macos-x64";
+    if (lower.includes(".exe") || lower.includes(".nsis.zip") || lower.includes(".zip"))
+      return "windows-x64";
+    if (lower.includes(".deb")) return "linux-deb-x64";
+    if (lower.includes(".appimage")) return "linux-x64";
   }
+  if (lower.includes(".app.tar.gz") || lower.includes("darwin")) return "macos";
+  if (lower.includes(".nsis.zip")) return "windows";
   if (lower.includes(".dmg")) return "macos";
   if (lower.includes(".exe")) return "windows";
   if (lower.includes(".deb")) return "linux-deb";

@@ -43,7 +43,7 @@ import {
   rememberThemeCssFile,
 } from "../settings/theme-css";
 import { formatActionError } from "@md-editor/editor-ui";
-import { changeLanguage } from "@md-editor/i18n";
+import { changeLanguage, useTranslation } from "@md-editor/i18n";
 import { useAppSettings } from "../settings-context";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
@@ -87,6 +87,7 @@ export function useSettingsController({
     downloadUpdate,
     applyDownloadedUpdate,
   } = useAppSettings();
+  const { t } = useTranslation();
 
   // 草稿状态：用已加载设置初始化，对齐 loadedSettings 变化
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
@@ -506,10 +507,16 @@ export function useSettingsController({
           );
     if (result.state !== "installed") return;
 
-    // 检查是否有未保存的文档，提示用户保存后再重启
+    // 独立设置窗口无法获取主窗口的真实文档保存状态，不能自动重启，以防丢弃主窗口未保存内容
+    if (surface === "settings-window") {
+      showToast(t("settings.general.updateInstalledRestartApp"));
+      return;
+    }
+
+    // 主窗口环境：检查是否有未保存的文档，提示用户保存后再重启
     const snapshot = runtime.document.getSnapshot();
     if (isDiscardProtectionRequired(snapshot)) {
-      showToast("更新已安装。请先保存所有文档，然后手动重启应用以完成更新。");
+      showToast(t("settings.general.updateInstalledSaveFirst"));
       return;
     }
 
@@ -517,9 +524,9 @@ export function useSettingsController({
     try {
       await relaunchAfterUpdate();
     } catch {
-      showToast("更新已安装，重启应用后生效。");
+      showToast(t("settings.general.updateInstalledRestartApp"));
     }
-  }, [applyDownloadedUpdate, downloadUpdate, showToast, updateStatus.state]);
+  }, [applyDownloadedUpdate, downloadUpdate, showToast, surface, t, updateStatus.state]);
 
   return {
     shortcutDrafts,

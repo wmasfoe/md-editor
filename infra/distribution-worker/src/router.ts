@@ -837,6 +837,10 @@ export async function handleRequest(
   /** 非阻塞记录下载统计（通过 ctx.waitUntil 异步执行，不影响响应延迟） */
   function trackDownload(app: string, version: string, fileName: string): void {
     if (!ctx || request.method !== "GET") return;
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith(".sig") || lower.endsWith(".sha256") || lower.endsWith(".json")) {
+      return;
+    }
     const event = inferDownloadEvent(request, app, version, fileName);
     ctx.waitUntil(recordDownload(ctx, env, event));
   }
@@ -1343,6 +1347,71 @@ export async function handleRequest(
     );
   }
 
+  // 4.5 一键安装脚本路由: /:app/desktop/install.(sh|ps1), /desktop/install.(sh|ps1), /install.(sh|ps1)
+  const installScriptMatch = path.match(/^(?:\/([^/]+))?(?:\/desktop)?\/(install\.(?:sh|ps1))$/);
+  if (installScriptMatch) {
+    const app = installScriptMatch[1] || defaultApp;
+    const scriptFile = installScriptMatch[2];
+    const isPowerShell = scriptFile.endsWith(".ps1");
+    const contentType = isPowerShell
+      ? "text/plain; charset=utf-8"
+      : "text/x-shellscript; charset=utf-8";
+
+    // A. 优先从 R2 存储桶读取
+    if (env.RELEASE_BUCKET) {
+      const candidates = [
+        `${app}/desktop/${scriptFile}`,
+        `${app}/${scriptFile}`,
+        `desktop/${scriptFile}`,
+        scriptFile,
+      ];
+      for (const candidate of candidates) {
+        const r2Obj = await env.RELEASE_BUCKET.get(candidate);
+        if (r2Obj) {
+          return serveR2Object(r2Obj, scriptFile, contentType, false);
+        }
+      }
+    }
+
+    // B. 回退代理 GitHub 上游 raw 脚本
+    const githubRawFileName = isPowerShell ? "install-md-editor.ps1" : "install-md-editor.sh";
+    const rawUrls = [
+      `https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/${githubRawFileName}`,
+      `https://raw.githubusercontent.com/${githubRepo}/main/${scriptFile}`,
+    ];
+
+    for (const rawUrl of rawUrls) {
+      try {
+        const rawRes = await fetch(rawUrl, {
+          headers: { "User-Agent": "Inkpoint-Distribution-Worker/1.0" },
+        });
+        if (rawRes.ok) {
+          const content = await rawRes.text();
+          return respond(
+            new Response(content, {
+              status: 200,
+              headers: {
+                "Content-Type": contentType,
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=300, s-maxage=600",
+              },
+            }),
+          );
+        }
+      } catch {
+        // try next fallback
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "Install script not found",
+        script: scriptFile,
+      }),
+      { status: 404, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   // 5. 桌面端最新版直链: /:app/desktop/:platform/latest 或 /desktop/:platform/latest
   const desktopMatch = path.match(/^(?:\/([^/]+))?\/desktop\/([^/]+)\/latest$/);
   if (desktopMatch) {
@@ -1466,8 +1535,11 @@ export async function handleRequest(
       }
 
       const fallbackUrl = `https://github.com/${githubRepo}/releases/latest/download/${fallbackFileName}`;
-      trackDownload(app, "latest", fallbackFileName);
-      return proxyGitHubAsset(fallbackUrl, request, fallbackFileName);
+      const proxyRes = await proxyGitHubAsset(fallbackUrl, request, fallbackFileName);
+      if (proxyRes.ok || proxyRes.status === 206) {
+        trackDownload(app, "latest", fallbackFileName);
+      }
+      return proxyRes;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return new Response(JSON.stringify({ error: "Internal Gateway Error", details: message }), {
@@ -1676,8 +1748,11 @@ export async function handleRequest(
         // B. 回退 GitHub Releases
         const targetTag = version.startsWith("v") ? version : `v${version}`;
         const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
-        trackDownload(app, version, filename);
-        return proxyGitHubAsset(sourceUrl, request, filename);
+        const proxyRes = await proxyGitHubAsset(sourceUrl, request, filename);
+        if (proxyRes.ok || proxyRes.status === 206) {
+          trackDownload(app, version, filename);
+        }
+        return proxyRes;
       }
     }
   }
@@ -1716,8 +1791,11 @@ export async function handleRequest(
             ? version
             : `v${version}`;
       const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
-      trackDownload(app, version, filename);
-      return proxyGitHubAsset(sourceUrl, request, filename);
+      const proxyRes = await proxyGitHubAsset(sourceUrl, request, filename);
+      if (proxyRes.ok || proxyRes.status === 206) {
+        trackDownload(app, version, filename);
+      }
+      return proxyRes;
     }
   }
 
