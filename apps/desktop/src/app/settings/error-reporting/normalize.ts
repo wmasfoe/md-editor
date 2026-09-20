@@ -14,7 +14,11 @@ export function normalizeErrorReportingSettings(input: unknown): ErrorReportingS
   }
 
   const record = input as Record<string, unknown>;
+  // 字段缺失时沿用默认值（开启），仅在用户显式传入 false 时关闭
   return {
-    enabled: record.enabled === true,
+    enabled:
+      record.enabled === undefined
+        ? DEFAULT_ERROR_REPORTING_SETTINGS.enabled
+        : record.enabled === true,
   };
 }

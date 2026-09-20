@@ -5,8 +5,8 @@
 import type { ErrorReportingSettings } from "./types.ts";
 
 /**
- * 默认错误上报设置：关闭，需用户主动开启
+ * 默认错误上报设置：默认开启，用户可在设置中关闭
  */
 export const DEFAULT_ERROR_REPORTING_SETTINGS: ErrorReportingSettings = {
-  enabled: false,
+  enabled: true,
 };

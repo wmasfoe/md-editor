@@ -12,7 +12,8 @@ import type { ErrorReportingSettings } from "../settings/error-reporting/types.t
 declare const __APP_VERSION__: string;
 
 /** Sentry DSN — 替换为实际项目的 DSN */
-const SENTRY_DSN = "https://1376e8b5c3e71f8643ab61077a5eb48b@o4505284194074624.ingest.us.sentry.io/4512117887008768";
+const SENTRY_DSN =
+  "https://1376e8b5c3e71f8643ab61077a5eb48b@o4505284194074624.ingest.us.sentry.io/4512117887008768";
 
 let isInitialized = false;
 

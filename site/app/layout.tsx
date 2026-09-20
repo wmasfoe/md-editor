@@ -78,12 +78,6 @@ export default async function RootLayout({
             <SiteFooter />
           </DistributionProvider>
         </I18nProvider>
-        {/* Cloudflare Web Analytics — 替换 YOUR_TOKEN 为实际的 CF Web Analytics token */}
-        <script
-          defer
-          src="https://static.cloudflareinsights.com/beacon.min.js"
-          data-cf-beacon='{"token": "YOUR_TOKEN"}'
-        />
       </body>
     </html>
   );
