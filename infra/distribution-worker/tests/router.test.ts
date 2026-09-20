@@ -512,9 +512,7 @@ describe("Distribution Worker Router & Matcher", () => {
     const reqDesktop = new Request("https://download.jiaqi.im/desktop");
     const resDesktop = await handleRequest(reqDesktop, env);
     expect(resDesktop.status).toBe(302);
-    expect(resDesktop.headers.get("Location")).toBe(
-      "https://download.jiaqi.im/inkpoint/desktop/",
-    );
+    expect(resDesktop.headers.get("Location")).toBe("https://download.jiaqi.im/inkpoint/desktop/");
   });
 
   it("should provide latestDesktopVersion and latestAndroidVersion in releases manifest API", async () => {
