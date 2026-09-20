@@ -29,6 +29,7 @@
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
+    "@sentry/react": "^10.75.0",
     "@tauri-apps/api": "catalog:",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-process": "^2.3.1",
@@ -40,8 +41,8 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
-    "@playwright/test": "catalog:",
     "@md-editor/renderer-codemirror": "workspace:*",
+    "@playwright/test": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/react": "catalog:",

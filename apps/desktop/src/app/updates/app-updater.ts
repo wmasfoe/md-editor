@@ -41,7 +41,7 @@ export async function checkForInstallableUpdate(
     }
 
     pendingUpdate = update;
-    return createAvailableUpdateStatus(update.version, currentVersion);
+    return createAvailableUpdateStatus(update.version, currentVersion, update.body ?? undefined);
   } catch (error) {
     // Manifest 尚未发布或 updater 配置异常时，退回现有公开 release 检查，保留手动安装路径。
     const fallbackStatus = await checkForUpdates(currentVersion);
@@ -72,10 +72,12 @@ export async function downloadPendingUpdate(
 
   let downloadedBytes = 0;
   let totalBytes = 0;
+  const releaseNotes = update.body ?? undefined;
   const baseStatus = {
     currentVersion,
     latestVersion: update.version,
     installKind: "app" as const,
+    releaseNotes,
   };
 
   try {
@@ -172,12 +174,17 @@ export async function relaunchAfterUpdate(): Promise<void> {
   await relaunch();
 }
 
-function createAvailableUpdateStatus(version: string, currentVersion: string): UpdateStatus {
+function createAvailableUpdateStatus(
+  version: string,
+  currentVersion: string,
+  releaseNotes?: string,
+): UpdateStatus {
   return {
     currentVersion,
     state: "available",
     latestVersion: version,
     installKind: "app",
+    releaseNotes,
   };
 }
 

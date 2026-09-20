@@ -20,4 +20,5 @@ export * from "./shortcuts/index.ts";
 export * from "./theme/index.ts";
 export * from "./updates/index.ts";
 export * from "./editor/index.ts";
+export * from "./error-reporting/index.ts";
 export * from "./persistence/index.ts";

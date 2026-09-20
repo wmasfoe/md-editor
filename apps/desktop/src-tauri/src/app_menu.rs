@@ -1,5 +1,5 @@
 #[cfg(target_os = "macos")]
-use tauri::menu::{Menu, MenuItemBuilder, SubmenuBuilder};
+use tauri::menu::{AboutMetadataBuilder, Menu, MenuItemBuilder, SubmenuBuilder};
 
 #[cfg(target_os = "macos")]
 use crate::recent_files;
@@ -138,8 +138,22 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
+    let about_desc = if is_zh {
+        "简洁的本地 Markdown 和 MDX 桌面编辑器"
+    } else {
+        "A sleek, local-first Markdown and MDX desktop editor"
+    };
+    let about_metadata = AboutMetadataBuilder::new()
+        .name(Some("Inkpoint"))
+        .version(Some(env!("CARGO_PKG_VERSION")))
+        .comments(Some(about_desc))
+        .license(Some("GPL-3.0"))
+        .website(Some("https://inkpoint.dev"))
+        .website_label(Some("inkpoint.dev"))
+        .build();
+
     let app_menu = SubmenuBuilder::new(app, "Inkpoint")
-        .about(None)
+        .about(Some(about_metadata))
         .separator()
         .hide()
         .hide_others()

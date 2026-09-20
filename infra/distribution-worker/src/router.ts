@@ -1,3 +1,4 @@
+import { inferDownloadEvent, recordDownload } from "./analytics.ts";
 import type {
   AppVersionManifest,
   Env,
@@ -833,6 +834,13 @@ export async function handleRequest(
   const defaultApp = env.DEFAULT_APP || "inkpoint";
   const githubRepo = env.GITHUB_REPO || "wmasfoe/md-editor";
 
+  /** 非阻塞记录下载统计（通过 ctx.waitUntil 异步执行，不影响响应延迟） */
+  function trackDownload(app: string, version: string, fileName: string): void {
+    if (!ctx || request.method !== "GET") return;
+    const event = inferDownloadEvent(request, app, version, fileName);
+    ctx.waitUntil(recordDownload(ctx, env, event));
+  }
+
   // 1. 边缘静态缓存命中检查（只缓存 GET / HEAD 请求，大幅削减 Worker 计费与额度消耗）
   // 本地开发环境 (localhost / 127.0.0.1) 或客户端携带 no-cache 时跳过缓存，确保开发热更与调试实时生效
   const isDevHost = url.hostname === "localhost" || url.hostname === "127.0.0.1";
@@ -1291,6 +1299,7 @@ export async function handleRequest(
       // 优先找最新版软链/定名文件
       const latestObj = await env.RELEASE_BUCKET.get(`${app}/android/latest.apk`);
       if (latestObj) {
+        trackDownload(app, "latest", `${app}-latest.apk`);
         return serveR2Object(
           latestObj,
           `${app}-latest.apk`,
@@ -1310,6 +1319,7 @@ export async function handleRequest(
               (await env.RELEASE_BUCKET.get(`${app}/android/${version}/app-debug.apk`)) ||
               (await env.RELEASE_BUCKET.get(`${app}/android/${version}/inkpoint-${version}.apk`));
             if (versionObj) {
+              trackDownload(app, version, `Inkpoint_${version}.apk`);
               return serveR2Object(
                 versionObj,
                 `Inkpoint_${version}.apk`,
@@ -1372,6 +1382,7 @@ export async function handleRequest(
         const r2Obj = await env.RELEASE_BUCKET.get(candidate);
         if (r2Obj) {
           const ext = candidate.split(".").pop() || "";
+          trackDownload(app, "latest", `${app}-${platform}-latest.${ext}`);
           return serveR2Object(
             r2Obj,
             `${app}-${platform}-latest.${ext}`,
@@ -1405,6 +1416,7 @@ export async function handleRequest(
               );
               if (versionedObj) {
                 const ext = assetInfo.fileName.split(".").pop() || "";
+                trackDownload(app, dVer, assetInfo.fileName);
                 return serveR2Object(
                   versionedObj,
                   assetInfo.fileName,
@@ -1426,6 +1438,8 @@ export async function handleRequest(
       if (release) {
         const matched = matchDesktopAsset(release.assets, platform);
         if (matched) {
+          const v = release.tag_name.replace(/^(?:desktop-)?v/, "");
+          trackDownload(app, v, matched.name);
           return proxyGitHubAsset(matched.url, request, matched.name);
         }
 
@@ -1452,6 +1466,7 @@ export async function handleRequest(
       }
 
       const fallbackUrl = `https://github.com/${githubRepo}/releases/latest/download/${fallbackFileName}`;
+      trackDownload(app, "latest", fallbackFileName);
       return proxyGitHubAsset(fallbackUrl, request, fallbackFileName);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1652,6 +1667,7 @@ export async function handleRequest(
           for (const r2Key of r2Keys) {
             const obj = await env.RELEASE_BUCKET.get(r2Key);
             if (obj) {
+              trackDownload(app, version, filename);
               return serveR2Object(obj, filename, contentType, true);
             }
           }
@@ -1660,6 +1676,7 @@ export async function handleRequest(
         // B. 回退 GitHub Releases
         const targetTag = version.startsWith("v") ? version : `v${version}`;
         const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
+        trackDownload(app, version, filename);
         return proxyGitHubAsset(sourceUrl, request, filename);
       }
     }
@@ -1685,6 +1702,7 @@ export async function handleRequest(
         for (const r2Key of r2Keys) {
           const obj = await env.RELEASE_BUCKET.get(r2Key);
           if (obj) {
+            trackDownload(app, version, filename);
             return serveR2Object(obj, filename, contentType, true);
           }
         }
@@ -1698,6 +1716,7 @@ export async function handleRequest(
             ? version
             : `v${version}`;
       const sourceUrl = `https://github.com/${githubRepo}/releases/download/${targetTag}/${filename}`;
+      trackDownload(app, version, filename);
       return proxyGitHubAsset(sourceUrl, request, filename);
     }
   }

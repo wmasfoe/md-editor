@@ -4,6 +4,7 @@
 
 import type { AiSettings } from "@md-editor/ai";
 import type { LanguageSetting } from "@md-editor/i18n";
+import type { ErrorReportingSettings } from "../error-reporting/types.ts";
 import type { EditorDisplaySettings, PluginSettings } from "../editor/types.ts";
 import type { ShortcutSetting } from "../shortcuts/types.ts";
 import type { AppThemeSettings } from "../theme/types.ts";
@@ -29,4 +30,6 @@ export interface AppSettings {
   readonly plugins: PluginSettings;
   /** 界面本土化语言 */
   readonly language: LanguageSetting;
+  /** 匿名错误上报偏好 */
+  readonly errorReporting: ErrorReportingSettings;
 }

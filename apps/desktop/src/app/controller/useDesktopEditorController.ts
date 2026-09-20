@@ -404,9 +404,12 @@ export function useDesktopEditorController({
     };
 
     if (nextStatus.state === "available") {
+      const releaseNotesText = nextStatus.releaseNotes
+        ? `\n\n更新内容：\n${nextStatus.releaseNotes}`
+        : "";
       const choice = await requestConfirmation({
         title: "下载更新",
-        description: `发现 ${APP_DISPLAY_NAME} ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。`,
+        description: `发现 ${APP_DISPLAY_NAME} ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。${releaseNotesText}`,
         confirmLabel: "下载更新",
       });
       if (choice !== "confirm") return;

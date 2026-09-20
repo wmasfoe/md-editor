@@ -17,6 +17,9 @@ import {
   destroyCurrentSettingsWindow,
   revealCurrentSettingsWindow,
 } from "../../desktop/settings-window";
+import { runtime } from "../runtime/editor-runtime";
+import { isDiscardProtectionRequired } from "./document-save";
+import { relaunchAfterUpdate } from "../updates/app-updater";
 import {
   keyboardShortcutLabel,
   createAppThemePreviewSession,
@@ -102,6 +105,7 @@ export function useSettingsController({
   const [languageDraft, setLanguageDraft] = useState<AppSettings["language"]>(
     loadedSettings.language,
   );
+  const [errorReportingDraft, setErrorReportingDraft] = useState(loadedSettings.errorReporting);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
@@ -142,6 +146,7 @@ export function useSettingsController({
     setUpdateSettingsDraft(next.update);
     setPluginsDraft(next.plugins);
     setLanguageDraft(next.language);
+    setErrorReportingDraft(next.errorReporting);
   }, []);
 
   const togglePluginDraft = useCallback((pluginId: string, enabled: boolean) => {
@@ -332,6 +337,7 @@ export function useSettingsController({
         update: updateSettingsDraft,
         plugins: pluginsDraft,
         language: languageDraft,
+        errorReporting: errorReportingDraft,
       });
       await themePreviewSession.publish(null);
       if (surface === "settings-window") {
@@ -358,6 +364,7 @@ export function useSettingsController({
     assetsDirectoryDraft,
     closeEmbedded,
     editorSettingsDraft,
+    errorReportingDraft,
     languageDraft,
     loadedSettings.shortcuts,
     pluginsDraft,
@@ -497,7 +504,19 @@ export function useSettingsController({
         : await downloadUpdate().then((downloaded) =>
             downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded,
           );
-    if (result.state === "installed") {
+    if (result.state !== "installed") return;
+
+    // 检查是否有未保存的文档，提示用户保存后再重启
+    const snapshot = runtime.document.getSnapshot();
+    if (isDiscardProtectionRequired(snapshot)) {
+      showToast("更新已安装。请先保存所有文档，然后手动重启应用以完成更新。");
+      return;
+    }
+
+    // 无未保存内容，自动重启以应用更新
+    try {
+      await relaunchAfterUpdate();
+    } catch {
       showToast("更新已安装，重启应用后生效。");
     }
   }, [applyDownloadedUpdate, downloadUpdate, showToast, updateStatus.state]);
@@ -511,6 +530,7 @@ export function useSettingsController({
     updateSettingsDraft,
     pluginsDraft,
     languageDraft,
+    errorReportingDraft,
     isLocalModelActionPending,
     systemSpecs,
     allModelStatuses,
@@ -524,6 +544,7 @@ export function useSettingsController({
     setUpdateSettingsDraft,
     setPluginsDraft,
     setLanguageDraft: changeLanguageDraft,
+    setErrorReportingDraft,
     togglePluginDraft,
     chooseThemeCss,
     clearThemeCss,

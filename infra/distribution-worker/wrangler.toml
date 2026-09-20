@@ -12,3 +12,8 @@ PUBLIC_DOMAIN = "download.justdev.cn"
 binding = "RELEASE_BUCKET"
 bucket_name = "inkpoint-releases"
 preview_bucket_name = "inkpoint-releases-preview"
+
+[[d1_databases]]
+binding = "DOWNLOAD_ANALYTICS"
+database_name = "inkpoint-download-analytics"
+database_id = "placeholder-replace-with-real-id"

@@ -151,12 +151,14 @@ export function SettingsPage({
             updateStatus={updateStatus}
             updateSettingsDraft={ctrl.updateSettingsDraft}
             isCheckingForUpdates={updateStatus.state === "checking"}
+            errorReportingDraft={ctrl.errorReportingDraft}
             onChangeLanguage={ctrl.setLanguageDraft}
             onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
             onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
             onCheckForUpdates={() => void ctrl.runUpdateCheck()}
             onInstallUpdate={() => void ctrl.installUpdate()}
             onRelaunchAfterUpdate={onRelaunchAfterUpdate}
+            onChangeErrorReporting={ctrl.setErrorReportingDraft}
           />
         ),
       },

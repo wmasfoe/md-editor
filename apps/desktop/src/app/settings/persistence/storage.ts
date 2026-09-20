@@ -14,6 +14,10 @@ import {
   normalizePluginSettings,
   validateAssetsDirectory,
 } from "../editor/index.ts";
+import {
+  DEFAULT_ERROR_REPORTING_SETTINGS,
+  normalizeErrorReportingSettings,
+} from "../error-reporting/index.ts";
 import { DEFAULT_SHORTCUT_TEMPLATES, normalizeShortcutKey } from "../shortcuts/index.ts";
 import { DEFAULT_THEME_SETTINGS, normalizeAppTheme } from "../theme/index.ts";
 import { DEFAULT_UPDATE_SETTINGS, normalizeUpdateSettings } from "../updates/index.ts";
@@ -36,6 +40,7 @@ export interface PersistedSettings {
   readonly update?: unknown;
   readonly plugins?: unknown;
   readonly language?: unknown;
+  readonly errorReporting?: unknown;
 }
 
 /**
@@ -54,6 +59,7 @@ export function createDefaultSettings(): AppSettings {
     update: DEFAULT_UPDATE_SETTINGS,
     plugins: DEFAULT_PLUGIN_SETTINGS,
     language: DEFAULT_LANGUAGE,
+    errorReporting: DEFAULT_ERROR_REPORTING_SETTINGS,
   };
 }
 
@@ -201,6 +207,7 @@ export function normalizeSettings(
     update: normalizeUpdateSettings(input?.update),
     plugins: normalizePluginSettings(input?.plugins),
     language: normalizeLanguageSetting(input?.language),
+    errorReporting: normalizeErrorReportingSettings(input?.errorReporting),
   };
 }
 
@@ -217,6 +224,7 @@ export function toPersistedSettings(settings: AppSettings): PersistedSettings {
     update: settings.update,
     plugins: settings.plugins,
     language: settings.language,
+    errorReporting: settings.errorReporting,
   };
 }
 

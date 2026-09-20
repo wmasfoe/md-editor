@@ -1,5 +1,6 @@
 export interface Env {
   RELEASE_BUCKET?: R2Bucket;
+  DOWNLOAD_ANALYTICS?: D1Database;
   GITHUB_REPO?: string;
   GITHUB_TOKEN?: string;
   DEFAULT_APP?: string;

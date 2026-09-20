@@ -24,6 +24,7 @@ interface PublishedRelease {
   readonly version: string;
   readonly releaseUrl?: string;
   readonly downloadUrl?: string;
+  readonly releaseNotes?: string;
 }
 
 function isRecord(input: unknown): input is Record<string, unknown> {
@@ -97,6 +98,7 @@ export function createUpdateStatusFromGitHubReleases(
       latestVersion: latestRelease.version,
       releaseUrl: latestRelease.releaseUrl,
       downloadUrl: latestRelease.downloadUrl,
+      releaseNotes: latestRelease.releaseNotes,
       installKind: "manual",
       installCommand: isWindowsPlatform()
         ? INSTALL_WITH_POWERSHELL_COMMAND
@@ -110,6 +112,7 @@ export function createUpdateStatusFromGitHubReleases(
     latestVersion: latestRelease.version,
     releaseUrl: latestRelease.releaseUrl,
     downloadUrl: latestRelease.downloadUrl,
+    releaseNotes: latestRelease.releaseNotes,
   };
 }
 
@@ -187,6 +190,7 @@ function findLatestMdEditorRelease(payload: unknown): PublishedRelease | null {
       version,
       releaseUrl: readString(release.html_url) ?? undefined,
       downloadUrl: readPlatformDownloadUrl(release.assets),
+      releaseNotes: readString(release.body) ?? undefined,
     };
   }
 
