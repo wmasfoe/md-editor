@@ -53,7 +53,7 @@ export async function runCli() {
   const outputPath =
     process.env.OUTPUT_PATH ||
     (platform === "android" ? "dist-mobile/version.json" : "dist-desktop/version.json");
-  const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
+  const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
   const appName = process.env.APP_NAME || "inkpoint";
   const githubRepo = process.env.GITHUB_REPO || "wmasfoe/md-editor";
 

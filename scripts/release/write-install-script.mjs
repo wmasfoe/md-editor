@@ -242,9 +242,13 @@ if (
 ) {
   const version = process.env.RELEASE_VERSION?.trim();
   const dmgSha256 = (process.env.DMG_SHA256 ?? "").trim();
-  const dmgUrl = (process.env.DMG_DOWNLOAD_URL ?? process.env.CASK_DOWNLOAD_URL)?.trim() || "";
+  const distributionBase = process.env.DISTRIBUTION_URL?.trim() || "https://download.jiaqi.im";
+  const dmgUrl =
+    (process.env.DMG_DOWNLOAD_URL ?? process.env.CASK_DOWNLOAD_URL)?.trim() ||
+    `${distributionBase}/inkpoint/desktop/macos/latest`;
   const linuxX64Url =
-    (process.env.LINUX_X64_DOWNLOAD_URL ?? process.env.LINUX_APPIMAGE_DOWNLOAD_URL)?.trim() || "";
+    (process.env.LINUX_X64_DOWNLOAD_URL ?? process.env.LINUX_APPIMAGE_DOWNLOAD_URL)?.trim() ||
+    `${distributionBase}/inkpoint/desktop/linux/latest`;
   const linuxX64Sha256 =
     (process.env.LINUX_X64_SHA256 ?? process.env.LINUX_APPIMAGE_SHA256)?.trim() || "";
   const linuxArm64Url = process.env.LINUX_ARM64_DOWNLOAD_URL?.trim() || "";

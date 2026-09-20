@@ -47,7 +47,7 @@ describe("sync-r2-releases-manifest", () => {
       },
     ];
 
-    const manifest = transformGitHubReleases(rawMock, "inkpoint", "https://download.justdev.cn");
+    const manifest = transformGitHubReleases(rawMock, "inkpoint", "https://download.jiaqi.im");
 
     assert.equal(manifest.app, "inkpoint");
     assert.equal(manifest.total, 2);
@@ -93,7 +93,7 @@ describe("sync-r2-releases-manifest", () => {
             platform: "android",
             platformLabel: "Android · APK (Beta)",
             fileName: "Inkpoint_0.1.0.apk",
-            downloadUrl: "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
             sizeBytes: 45000000,
             formattedSize: "43 MB",
             isR2Cached: true,
@@ -116,7 +116,7 @@ describe("sync-r2-releases-manifest", () => {
             platform: "android",
             platformLabel: "Android · APK (Beta)",
             fileName: "Inkpoint_0.1.1.apk",
-            downloadUrl: "https://download.justdev.cn/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
             sizeBytes: 46000000,
             formattedSize: "44 MB",
             isR2Cached: true,
@@ -128,7 +128,7 @@ describe("sync-r2-releases-manifest", () => {
     const manifest = transformGitHubReleases(
       rawDesktopMock,
       "inkpoint",
-      "https://download.justdev.cn",
+      "https://download.jiaqi.im",
       {
         existingReleases: existingAndroidReleases,
         extraAndroidReleases,

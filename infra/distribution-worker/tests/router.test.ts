@@ -65,7 +65,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return gateway info JSON on root path /", async () => {
-    const req = new Request("https://download.justdev.cn/");
+    const req = new Request("https://download.jiaqi.im/");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -90,7 +90,7 @@ describe("Distribution Worker Router & Matcher", () => {
         apk: {
           version: "0.1.0",
           fileName: "Inkpoint_0.1.0.apk",
-          downloadUrl: "https://download.justdev.cn/inkpoint/android/latest",
+          downloadUrl: "https://download.jiaqi.im/inkpoint/android/latest",
         },
       },
     };
@@ -111,7 +111,7 @@ describe("Distribution Worker Router & Matcher", () => {
       },
     };
 
-    const req = new Request("https://download.justdev.cn/api/inkpoint/version.json");
+    const req = new Request("https://download.jiaqi.im/api/inkpoint/version.json");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -124,7 +124,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return 404 with helpful error when Android APK is not in R2", async () => {
-    const req = new Request("https://download.justdev.cn/inkpoint/android/latest");
+    const req = new Request("https://download.jiaqi.im/inkpoint/android/latest");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: {
@@ -169,7 +169,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     try {
-      const req = new Request("https://download.justdev.cn/inkpoint/desktop/updater.json");
+      const req = new Request("https://download.jiaqi.im/inkpoint/desktop/updater.json");
       const env: Env = {
         DEFAULT_APP: "inkpoint",
         GITHUB_REPO: "wmasfoe/md-editor",
@@ -181,10 +181,10 @@ describe("Distribution Worker Router & Matcher", () => {
       const data = (await res.json()) as typeof mockUpstreamManifest;
       expect(data.version).toBe("v0.10.2");
       expect(data.platforms["darwin-aarch64"].url).toBe(
-        "https://download.justdev.cn/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_aarch64.app.tar.gz",
+        "https://download.jiaqi.im/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_aarch64.app.tar.gz",
       );
       expect(data.platforms["windows-x86_64"].url).toBe(
-        "https://download.justdev.cn/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_x64-setup.nsis.zip",
+        "https://download.jiaqi.im/gh/wmasfoe/md-editor/releases/download/v0.10.2/Inkpoint_x64-setup.nsis.zip",
       );
     } finally {
       globalThis.fetch = originalFetch;
@@ -198,7 +198,7 @@ describe("Distribution Worker Router & Matcher", () => {
       platforms: {
         "darwin-aarch64": {
           signature: "r2-sig-mac",
-          url: "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
+          url: "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
         },
       },
     };
@@ -214,7 +214,7 @@ describe("Distribution Worker Router & Matcher", () => {
       },
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop/updater.json");
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop/updater.json");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -225,7 +225,7 @@ describe("Distribution Worker Router & Matcher", () => {
     const data = (await res.json()) as typeof mockR2Updater;
     expect(data.version).toBe("0.10.2");
     expect(data.platforms["darwin-aarch64"].url).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
     );
   });
 
@@ -243,7 +243,7 @@ describe("Distribution Worker Router & Matcher", () => {
       },
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop/macos/latest");
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop/macos/latest");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -269,7 +269,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const req = new Request(
-      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
     );
     const env: Env = {
       DEFAULT_APP: "inkpoint",
@@ -283,7 +283,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return releases manifest JSON on /api/inkpoint/releases", async () => {
-    const req = new Request("https://download.justdev.cn/api/inkpoint/releases");
+    const req = new Request("https://download.jiaqi.im/api/inkpoint/releases");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -300,7 +300,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return android releases on canonical /api/inkpoint/android/releases", async () => {
-    const req = new Request("https://download.justdev.cn/api/inkpoint/android/releases");
+    const req = new Request("https://download.jiaqi.im/api/inkpoint/android/releases");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -324,7 +324,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return android releases on RESTful /api/inkpoint/releases/android", async () => {
-    const req = new Request("https://download.justdev.cn/api/inkpoint/releases/android");
+    const req = new Request("https://download.jiaqi.im/api/inkpoint/releases/android");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -346,26 +346,26 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const res1 = await handleRequest(
-      new Request("https://download.justdev.cn/api/android/releases"),
+      new Request("https://download.jiaqi.im/api/android/releases"),
       env,
     );
     expect(res1.status).toBe(302);
     expect(res1.headers.get("Location")).toBe(
-      "https://download.justdev.cn/api/inkpoint/android/releases",
+      "https://download.jiaqi.im/api/inkpoint/android/releases",
     );
 
     const res2 = await handleRequest(
-      new Request("https://download.justdev.cn/api/releases/android"),
+      new Request("https://download.jiaqi.im/api/releases/android"),
       env,
     );
     expect(res2.status).toBe(302);
     expect(res2.headers.get("Location")).toBe(
-      "https://download.justdev.cn/api/inkpoint/android/releases",
+      "https://download.jiaqi.im/api/inkpoint/android/releases",
     );
 
-    const res3 = await handleRequest(new Request("https://download.justdev.cn/api/releases"), env);
+    const res3 = await handleRequest(new Request("https://download.jiaqi.im/api/releases"), env);
     expect(res3.status).toBe(302);
-    expect(res3.headers.get("Location")).toBe("https://download.justdev.cn/api/inkpoint/releases");
+    expect(res3.headers.get("Location")).toBe("https://download.jiaqi.im/api/inkpoint/releases");
   });
 
   it("should handle /api/android/version.json by mapping to default app", async () => {
@@ -383,7 +383,7 @@ describe("Distribution Worker Router & Matcher", () => {
         return null;
       },
     };
-    const req = new Request("https://download.justdev.cn/api/android/version.json");
+    const req = new Request("https://download.jiaqi.im/api/android/version.json");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
@@ -397,7 +397,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should render app index HTML on / when Accept header is text/html", async () => {
-    const req = new Request("https://download.justdev.cn/", {
+    const req = new Request("https://download.jiaqi.im/", {
       headers: { Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
     });
     const env: Env = {
@@ -422,7 +422,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     // 1. /inkpoint/ (canonical 200)
-    const reqApp = new Request("https://download.justdev.cn/inkpoint/");
+    const reqApp = new Request("https://download.jiaqi.im/inkpoint/");
     const resApp = await handleRequest(reqApp, env);
     expect(resApp.status).toBe(200);
     expect(resApp.headers.get("Content-Type")).toContain("text/html");
@@ -432,10 +432,10 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.10.2/");
 
     // 2. /releases (302 redirect to /inkpoint/)
-    const reqReleases = new Request("https://download.justdev.cn/releases");
+    const reqReleases = new Request("https://download.jiaqi.im/releases");
     const resReleases = await handleRequest(reqReleases, env);
     expect(resReleases.status).toBe(302);
-    expect(resReleases.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/");
+    expect(resReleases.headers.get("Location")).toBe("https://download.jiaqi.im/inkpoint/");
   });
 
   it("should render version package detail HTML on /inkpoint/0.10.2/ and /inkpoint/desktop/0.10.2/", async () => {
@@ -445,7 +445,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     // 1. 兼容路由 /inkpoint/0.10.2/
-    const req1 = new Request("https://download.justdev.cn/inkpoint/0.10.2/");
+    const req1 = new Request("https://download.jiaqi.im/inkpoint/0.10.2/");
     const res1 = await handleRequest(req1, env);
     expect(res1.status).toBe(200);
     expect(res1.headers.get("Content-Type")).toContain("text/html");
@@ -456,7 +456,7 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html1).toContain("../ (Parent Directory)");
 
     // 2. 规范层级路由 /inkpoint/desktop/0.10.2/
-    const req2 = new Request("https://download.justdev.cn/inkpoint/desktop/0.10.2/");
+    const req2 = new Request("https://download.jiaqi.im/inkpoint/desktop/0.10.2/");
     const res2 = await handleRequest(req2, env);
     expect(res2.status).toBe(200);
     const html2 = await res2.text();
@@ -471,7 +471,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     // 1. /inkpoint/android (canonical 200)
-    const req1 = new Request("https://download.justdev.cn/inkpoint/android");
+    const req1 = new Request("https://download.jiaqi.im/inkpoint/android");
     const res1 = await handleRequest(req1, env);
     expect(res1.status).toBe(200);
     const html1 = await res1.text();
@@ -482,16 +482,16 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html1).toContain("/api/inkpoint/android/releases");
 
     // 2. /releases/android (302 redirect to canonical)
-    const req2 = new Request("https://download.justdev.cn/releases/android");
+    const req2 = new Request("https://download.jiaqi.im/releases/android");
     const res2 = await handleRequest(req2, env);
     expect(res2.status).toBe(302);
-    expect(res2.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/android/");
+    expect(res2.headers.get("Location")).toBe("https://download.jiaqi.im/inkpoint/android/");
 
     // 3. /android shortcut (302 redirect to canonical)
-    const req3 = new Request("https://download.justdev.cn/android");
+    const req3 = new Request("https://download.jiaqi.im/android");
     const res3 = await handleRequest(req3, env);
     expect(res3.status).toBe(302);
-    expect(res3.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/android/");
+    expect(res3.headers.get("Location")).toBe("https://download.jiaqi.im/inkpoint/android/");
   });
 
   it("should render device-specific portal on /inkpoint/desktop and 302 redirect /releases/desktop and /desktop", async () => {
@@ -500,7 +500,7 @@ describe("Distribution Worker Router & Matcher", () => {
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop");
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop");
     const res = await handleRequest(req, env);
     expect(res.status).toBe(200);
     const html = await res.text();
@@ -509,11 +509,11 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("0.10.2/");
     expect(html).toContain("/api/inkpoint/desktop/releases");
 
-    const reqDesktop = new Request("https://download.justdev.cn/desktop");
+    const reqDesktop = new Request("https://download.jiaqi.im/desktop");
     const resDesktop = await handleRequest(reqDesktop, env);
     expect(resDesktop.status).toBe(302);
     expect(resDesktop.headers.get("Location")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/",
+      "https://download.jiaqi.im/inkpoint/desktop/",
     );
   });
 
@@ -523,7 +523,7 @@ describe("Distribution Worker Router & Matcher", () => {
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const req = new Request("https://download.justdev.cn/api/inkpoint/releases");
+    const req = new Request("https://download.jiaqi.im/api/inkpoint/releases");
     const res = await handleRequest(req, env);
     expect(res.status).toBe(200);
     const data = (await res.json()) as {
@@ -554,7 +554,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const req = new Request(
-      "https://download.justdev.cn/inkpoint/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
+      "https://download.jiaqi.im/inkpoint/0.10.2/Inkpoint_0.10.2_aarch64.dmg",
     );
     const env: Env = {
       DEFAULT_APP: "inkpoint",
@@ -568,7 +568,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return 404 on unrecognized route", async () => {
-    const req = new Request("https://download.justdev.cn/unknown/invalid/path/test");
+    const req = new Request("https://download.jiaqi.im/unknown/invalid/path/test");
     const env: Env = {};
 
     const res = await handleRequest(req, env);
@@ -583,7 +583,7 @@ describe("Distribution Worker Router & Matcher", () => {
       "inkpoint",
       "non-existent/non-existent-repo-for-testing",
       env,
-      "https://download.justdev.cn",
+      "https://download.jiaqi.im",
     );
 
     expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
@@ -598,7 +598,7 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return edge ISR Cache-Control headers on HTML and API responses", async () => {
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop", {
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop", {
       headers: { Accept: "text/html" },
     });
     const env: Env = {
@@ -623,7 +623,7 @@ describe("Distribution Worker Router & Matcher", () => {
           macos_arm64: {
             version: "0.11.0",
             fileName: "Inkpoint_0.11.0_aarch64.dmg",
-            downloadUrl: "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/macos/latest",
             sizeBytes: 88000000,
           },
         },
@@ -642,7 +642,7 @@ describe("Distribution Worker Router & Matcher", () => {
       },
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/desktop", {
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop", {
       headers: { Accept: "text/html" },
     });
     const env: Env = {
@@ -659,12 +659,12 @@ describe("Distribution Worker Router & Matcher", () => {
 
   it("should handle /api/purge-cache endpoint correctly", async () => {
     // 1. Method not allowed for GET
-    const getReq = new Request("https://download.justdev.cn/api/purge-cache", { method: "GET" });
+    const getReq = new Request("https://download.jiaqi.im/api/purge-cache", { method: "GET" });
     const resGet = await handleRequest(getReq, { DEFAULT_APP: "inkpoint" });
     expect(resGet.status).toBe(405);
 
     // 2. Unauthorized when PURGE_TOKEN is configured but missing/invalid
-    const postUnauthorized = new Request("https://download.justdev.cn/api/purge-cache", {
+    const postUnauthorized = new Request("https://download.jiaqi.im/api/purge-cache", {
       method: "POST",
     });
     const resUnauthorized = await handleRequest(postUnauthorized, {
@@ -674,14 +674,14 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(resUnauthorized.status).toBe(401);
 
     // 3. Authorized cache purge
-    const postAuthorized = new Request("https://download.justdev.cn/api/purge-cache", {
+    const postAuthorized = new Request("https://download.jiaqi.im/api/purge-cache", {
       method: "POST",
       headers: {
         "X-Purge-Token": "secret-token",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        urls: ["https://download.justdev.cn/inkpoint/desktop"],
+        urls: ["https://download.jiaqi.im/inkpoint/desktop"],
       }),
     });
     const resAuthorized = await handleRequest(postAuthorized, {
@@ -718,7 +718,7 @@ describe("Distribution Worker Router & Matcher", () => {
       get: async () => null,
     };
 
-    const req = new Request("https://download.justdev.cn/inkpoint/android");
+    const req = new Request("https://download.jiaqi.im/inkpoint/android");
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -742,7 +742,7 @@ describe("Distribution Worker Router & Matcher", () => {
       "inkpoint",
       "wmasfoe/md-editor",
       env,
-      "https://download.justdev.cn",
+      "https://download.jiaqi.im",
     );
 
     expect(manifest.releases.length).toBeGreaterThan(0);

@@ -10,7 +10,7 @@ describe("generateR2UpdaterManifest", () => {
   it("generates correct updater manifest with macOS signature", () => {
     const manifest = generateR2UpdaterManifest({
       version: "v0.10.2",
-      distributionUrl: "https://download.justdev.cn",
+      distributionUrl: "https://download.jiaqi.im",
       appName: "inkpoint",
       macTarName: "Inkpoint.app.tar.gz",
       macSignature: "test-mac-sig",
@@ -22,14 +22,14 @@ describe("generateR2UpdaterManifest", () => {
     assert.equal(manifest.platforms["darwin-aarch64"].signature, "test-mac-sig");
     assert.equal(
       manifest.platforms["darwin-aarch64"].url,
-      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
     );
   });
 
   it("generates correct updater manifest with both mac and windows", () => {
     const manifest = generateR2UpdaterManifest({
       version: "0.10.2",
-      distributionUrl: "https://download.justdev.cn",
+      distributionUrl: "https://download.jiaqi.im",
       appName: "inkpoint",
       macTarName: "Inkpoint.app.tar.gz",
       macSignature: "test-mac-sig",
@@ -39,7 +39,7 @@ describe("generateR2UpdaterManifest", () => {
 
     assert.equal(
       manifest.platforms["windows-x86_64"].url,
-      "https://download.justdev.cn/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x64-setup.nsis.zip",
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x64-setup.nsis.zip",
     );
     assert.equal(manifest.platforms["windows-x86_64"].signature, "test-win-sig");
   });
