@@ -102,8 +102,10 @@ if (
   path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
 ) {
   const version = process.env.RELEASE_VERSION?.trim();
+  const distributionBase = process.env.DISTRIBUTION_URL?.trim() || "https://download.jiaqi.im";
   const winX64Url =
-    (process.env.WIN_X64_DOWNLOAD_URL ?? process.env.WINDOWS_DOWNLOAD_URL)?.trim() || "";
+    (process.env.WIN_X64_DOWNLOAD_URL ?? process.env.WINDOWS_DOWNLOAD_URL)?.trim() ||
+    `${distributionBase}/inkpoint/desktop/windows/latest`;
   const winX64Sha256 = (process.env.WIN_X64_SHA256 ?? process.env.WINDOWS_SHA256)?.trim() || "";
   const winArm64Url = process.env.WIN_ARM64_DOWNLOAD_URL?.trim() || "";
   const winArm64Sha256 = process.env.WIN_ARM64_SHA256?.trim() || "";

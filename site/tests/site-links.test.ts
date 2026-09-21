@@ -55,10 +55,10 @@ describe("site-links", () => {
 
   it("builds stable DMG download URL matching cask naming", () => {
     expect(buildMacosDmgUrl("0.3.16")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
+      "https://download.jiaqi.im/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
     );
     expect(buildMacosDmgUrl("v0.3.16")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
+      "https://download.jiaqi.im/inkpoint/desktop/0.3.16/Inkpoint_0.3.16_aarch64.dmg",
     );
   });
 
@@ -68,40 +68,40 @@ describe("site-links", () => {
 
   it("builds Linux AppImage URLs for x86_64 and aarch64", () => {
     expect(buildLinuxAppImageUrl("0.4.4")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x86_64.AppImage",
+      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x86_64.AppImage",
     );
     expect(buildLinuxAppImageUrl("v0.4.4", "aarch64")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
+      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
     );
   });
 
   it("builds Windows Setup URLs for x64 and arm64", () => {
     expect(buildWindowsSetupUrl("0.4.4")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x64-setup.exe",
+      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x64-setup.exe",
     );
     expect(buildWindowsSetupUrl("v0.4.4", "arm64")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_arm64-setup.exe",
+      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_arm64-setup.exe",
     );
   });
 
   it("exposes Cloudflare Worker distribution CDN domain and URLs", () => {
-    expect(DISTRIBUTION_DOMAIN).toBe("download.justdev.cn");
-    expect(DISTRIBUTION_URL).toBe("https://download.justdev.cn");
+    expect(DISTRIBUTION_DOMAIN).toBe("download.jiaqi.im");
+    expect(DISTRIBUTION_URL).toBe("https://download.jiaqi.im");
     expect(buildAcceleratedDesktopUrl("macos")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+      "https://download.jiaqi.im/inkpoint/desktop/macos/latest",
     );
     expect(buildAcceleratedDesktopUrl("windows")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/windows/latest",
+      "https://download.jiaqi.im/inkpoint/desktop/windows/latest",
     );
     expect(buildAcceleratedDesktopUrl("linux")).toBe(
-      "https://download.justdev.cn/inkpoint/desktop/linux/latest",
+      "https://download.jiaqi.im/inkpoint/desktop/linux/latest",
     );
-    expect(buildAndroidApkUrl()).toBe("https://download.justdev.cn/inkpoint/android/latest");
+    expect(buildAndroidApkUrl()).toBe("https://download.jiaqi.im/inkpoint/android/latest");
     expect(buildAndroidApkUrl("0.1.0")).toBe(
-      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+      "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
     );
-    expect(buildVersionApiUrl()).toBe("https://download.justdev.cn/api/inkpoint/version.json");
-    expect(buildVersionApiUrl("app2")).toBe("https://download.justdev.cn/api/app2/version.json");
+    expect(buildVersionApiUrl()).toBe("https://download.jiaqi.im/api/inkpoint/version.json");
+    expect(buildVersionApiUrl("app2")).toBe("https://download.jiaqi.im/api/app2/version.json");
   });
 
   it("resolves distribution domain and portal URLs based on host context", () => {
@@ -134,8 +134,8 @@ describe("site-links", () => {
     expect(resolveDistributionDomain("editor.custom.org")).toBe("download.custom.org");
 
     // default fallback
-    expect(resolveDistributionDomain()).toBe("download.justdev.cn");
-    expect(resolveDistributionDomain("localhost")).toBe("download.justdev.cn");
+    expect(resolveDistributionDomain()).toBe("download.jiaqi.im");
+    expect(resolveDistributionDomain("localhost")).toBe("download.jiaqi.im");
   });
 
   it("supports domain parameter in URL builder functions", () => {

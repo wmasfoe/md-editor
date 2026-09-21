@@ -12,7 +12,7 @@ describe("mergeVersionManifest", () => {
         apk: {
           version: "0.1.0",
           fileName: "Inkpoint_0.1.0.apk",
-          downloadUrl: "https://download.justdev.cn/inkpoint/android/latest",
+          downloadUrl: "https://download.jiaqi.im/inkpoint/android/latest",
         },
       },
       ios: {
@@ -29,7 +29,7 @@ describe("mergeVersionManifest", () => {
           macos_arm64: {
             version: "0.10.2",
             fileName: "Inkpoint_0.10.2_aarch64.dmg",
-            downloadUrl: "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/macos/latest",
           },
         },
       },
@@ -43,7 +43,7 @@ describe("mergeVersionManifest", () => {
     assert.equal(merged.desktop.version, "0.10.2");
     assert.equal(
       merged.desktop.assets.macos_arm64.downloadUrl,
-      "https://download.justdev.cn/inkpoint/desktop/macos/latest",
+      "https://download.jiaqi.im/inkpoint/desktop/macos/latest",
     );
   });
 
@@ -66,7 +66,7 @@ describe("mergeVersionManifest", () => {
         apk: {
           version: "0.2.0",
           fileName: "Inkpoint_0.2.0.apk",
-          downloadUrl: "https://download.justdev.cn/inkpoint/android/latest",
+          downloadUrl: "https://download.jiaqi.im/inkpoint/android/latest",
         },
       },
     };

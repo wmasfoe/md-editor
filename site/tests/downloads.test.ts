@@ -14,14 +14,14 @@ describe("buildDownloadCatalog", () => {
     const catalog = buildDownloadCatalog("v0.4.4");
 
     expect(catalog.macos.primary).toEqual({
-      href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.dmg",
+      href: "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.dmg",
       fileName: "Inkpoint_0.4.4_aarch64.dmg",
       label: "下载 macOS",
     });
     expect(catalog.linux.primary.fileName).toBe("Inkpoint_0.4.4_x86_64.AppImage");
     expect(catalog.linux.secondary).toEqual([
       {
-        href: "https://download.justdev.cn/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
+        href: "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
         fileName: "Inkpoint_0.4.4_aarch64.AppImage",
         label: "ARM64 AppImage",
       },
@@ -29,8 +29,8 @@ describe("buildDownloadCatalog", () => {
     expect(catalog.windows.primary.fileName).toBe("Inkpoint_0.4.4_x64-setup.exe");
     expect(catalog.windows.secondary[0]?.fileName).toBe("Inkpoint_0.4.4_arm64-setup.exe");
     expect(catalog.allPackagesUrl).toBe(RELEASES_PORTAL_URL);
-    expect(catalog.desktopPackagesUrl).toBe("https://download.justdev.cn/inkpoint/desktop/");
-    expect(catalog.androidPackagesUrl).toBe("https://download.justdev.cn/inkpoint/android/");
+    expect(catalog.desktopPackagesUrl).toBe("https://download.jiaqi.im/inkpoint/desktop/");
+    expect(catalog.androidPackagesUrl).toBe("https://download.jiaqi.im/inkpoint/android/");
   });
 
   it("falls back to the public releases list when version is missing", () => {
@@ -63,7 +63,7 @@ describe("getPlatformInstall", () => {
   it("builds mobile download catalog with Android APK and iOS TestFlight", () => {
     const zh = getMobileDownloadCatalog("zh");
     expect(zh.android.primary.href).toBe(
-      "https://download.justdev.cn/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+      "https://download.jiaqi.im/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
     );
     expect(zh.android.primary.label).toBe("下载 Android 安装包 (APK)");
     expect(zh.android.format).toBe("Android 8.0+ · APK · 测试版");
@@ -73,7 +73,7 @@ describe("getPlatformInstall", () => {
 
     const custom = getMobileDownloadCatalog("zh", undefined, "0.1.0");
     expect(custom.android.primary.href).toBe(
-      "https://download.justdev.cn/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
+      "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
     );
     expect(custom.android.version).toBe("0.1.0");
 

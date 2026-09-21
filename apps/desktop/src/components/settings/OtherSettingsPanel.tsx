@@ -2,6 +2,7 @@ import { useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type {
   AppUpdateSettings,
+  ErrorReportingSettings,
   LanguageSetting,
   UpdateStatus,
 } from "../../app/settings/app-settings";
@@ -22,12 +23,14 @@ interface OtherSettingsPanelProps {
   readonly updateStatus: UpdateStatus;
   readonly updateSettingsDraft: AppUpdateSettings;
   readonly isCheckingForUpdates: boolean;
+  readonly errorReportingDraft: ErrorReportingSettings;
   readonly onChangeLanguage: (value: LanguageSetting) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
   readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
   readonly onInstallUpdate: () => void;
   readonly onRelaunchAfterUpdate?: () => void;
+  readonly onChangeErrorReporting: (value: ErrorReportingSettings) => void;
 }
 
 export function OtherSettingsPanel({
@@ -36,12 +39,14 @@ export function OtherSettingsPanel({
   updateStatus,
   updateSettingsDraft,
   isCheckingForUpdates,
+  errorReportingDraft,
   onChangeLanguage,
   onChangeAssetsDirectory,
   onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
   onRelaunchAfterUpdate,
+  onChangeErrorReporting,
 }: OtherSettingsPanelProps) {
   const { t } = useTranslation();
   const [hasCopiedCommand, setHasCopiedCommand] = useState(false);
@@ -119,6 +124,19 @@ export function OtherSettingsPanel({
             {t("settings.general.updateTitle")}
           </h2>
           <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
+          {(updateStatus.state === "available" ||
+            updateStatus.state === "downloading" ||
+            updateStatus.state === "downloaded") &&
+          updateStatus.releaseNotes ? (
+            <div className="mt-2 max-h-[180px] overflow-y-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
+              <p className="mb-1 text-[12px] font-medium text-[var(--theme-title)]">
+                {t("settings.general.releaseNotes")}
+              </p>
+              <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--theme-text)]">
+                {updateStatus.releaseNotes}
+              </p>
+            </div>
+          ) : null}
           {updateStatus.state === "available" && updateStatus.installCommand ? (
             <div className="mt-2 grid gap-1">
               <div className="flex items-center justify-between">
@@ -220,6 +238,24 @@ export function OtherSettingsPanel({
             ) : null}
           </div>
         </div>
+      </section>
+
+      <section className={settingsModuleClassName} aria-labelledby="error-reporting-title">
+        <div className="mb-3">
+          <h2 id="error-reporting-title" className={settingsSectionTitleClassName}>
+            {t("settings.general.errorReportingTitle")}
+          </h2>
+          <p className={settingsDescriptionClassName}>{t("settings.general.errorReportingDesc")}</p>
+        </div>
+        <label className="flex min-h-[28px] items-center gap-2 text-[13px] text-[var(--theme-control-text)]">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--theme-primary)]"
+            checked={errorReportingDraft.enabled}
+            onChange={(event) => onChangeErrorReporting({ enabled: event.target.checked })}
+          />
+          <span>{t("settings.general.errorReportingEnable")}</span>
+        </label>
       </section>
     </div>
   );

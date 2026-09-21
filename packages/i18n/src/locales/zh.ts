@@ -96,6 +96,13 @@ export const zh = {
         unconfigured: "未配置自动更新通道。",
         error: "更新检查失败: {{error}}",
       },
+      releaseNotes: "更新内容",
+      updateInstalledRestartApp: "更新已安装，重启应用后生效。",
+      updateInstalledSaveFirst: "更新已安装。请先保存所有文档，然后手动重启应用以完成更新。",
+      errorReportingTitle: "错误上报",
+      errorReportingDesc:
+        "启用后，应用会匿名上报 JS 异常和崩溃信息（含设备型号、系统版本、App 版本），帮助改进稳定性。不会采集文档内容或个人数据。",
+      errorReportingEnable: "启用匿名错误上报",
     },
     appearance: {
       title: "外观设置",

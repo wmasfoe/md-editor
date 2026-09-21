@@ -22,6 +22,7 @@ import { isUpdateActionBusy, isUpdateReadyToApply } from "./updates/update-statu
 import { openSettingsWindow } from "../desktop/settings-window";
 import { mergeLocalAiModelStatus, readLocalAiModelStatus } from "./ai/local-ai-model";
 import { changeLanguage } from "@md-editor/i18n";
+import { syncSentryWithSettings } from "./error-reporting/sentry";
 
 const AUTO_UPDATE_INITIAL_CHECK_DELAY_MS = 30_000;
 const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -118,6 +119,11 @@ export function AppSettingsProvider({
   useEffect(() => {
     void changeLanguage(settings.language);
   }, [settings.language]);
+
+  // Sentry 错误上报与用户设置同步
+  useEffect(() => {
+    syncSentryWithSettings(settings.errorReporting);
+  }, [settings.errorReporting]);
 
   // 主窗口接收设置窗口的语言即时预览
   useEffect(() => {

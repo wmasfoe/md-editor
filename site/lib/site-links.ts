@@ -38,7 +38,7 @@ export const APP_NAME_ZH = "墨点";
 export const ARTIFACT_NAME_PREFIX = "Inkpoint";
 
 /** 官方默认全球分发与边缘加速域名 */
-export const DEFAULT_DISTRIBUTION_DOMAIN = "download.justdev.cn";
+export const DEFAULT_DISTRIBUTION_DOMAIN = "download.jiaqi.im";
 
 /** 官方全球分发与边缘加速域名（基于 Cloudflare Worker & R2） */
 export const DISTRIBUTION_DOMAIN =
@@ -72,7 +72,7 @@ export const DESKTOP_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/deskto
  * - editor.jiaqi.im -> download.jiaqi.im
  * - editor.justdev.cn -> download.justdev.cn
  * - 任意 editor.<domain> -> download.<domain>
- * - 本地开发或未知主机 -> 回退默认 download.justdev.cn
+ * - 本地开发或未知主机 -> 回退默认 download.jiaqi.im
  */
 export function resolveDistributionDomain(hostname?: string): string {
   if (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_DISTRIBUTION_DOMAIN) {

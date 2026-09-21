@@ -6,9 +6,15 @@ compatibility_date = "2024-09-01"
 [vars]
 GITHUB_REPO = "wmasfoe/md-editor"
 DEFAULT_APP = "inkpoint"
-PUBLIC_DOMAIN = "download.justdev.cn"
+PUBLIC_DOMAIN = "download.jiaqi.im"
+# HMAC_SALT should be set via: wrangler secret put HMAC_SALT
 
 [[r2_buckets]]
 binding = "RELEASE_BUCKET"
 bucket_name = "inkpoint-releases"
 preview_bucket_name = "inkpoint-releases-preview"
+
+[[d1_databases]]
+binding = "DOWNLOAD_ANALYTICS"
+database_name = "inkpoint-download-analytics"
+database_id = "e8886ad5-358d-49dc-9c6d-2c092dc321d8"

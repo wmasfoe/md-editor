@@ -17,6 +17,9 @@ import {
   destroyCurrentSettingsWindow,
   revealCurrentSettingsWindow,
 } from "../../desktop/settings-window";
+import { runtime } from "../runtime/editor-runtime";
+import { isDiscardProtectionRequired } from "./document-save";
+import { relaunchAfterUpdate } from "../updates/app-updater";
 import {
   keyboardShortcutLabel,
   createAppThemePreviewSession,
@@ -40,7 +43,7 @@ import {
   rememberThemeCssFile,
 } from "../settings/theme-css";
 import { formatActionError } from "@md-editor/editor-ui";
-import { changeLanguage } from "@md-editor/i18n";
+import { changeLanguage, useTranslation } from "@md-editor/i18n";
 import { useAppSettings } from "../settings-context";
 
 const LOCAL_MODEL_CANCEL_MESSAGE = "本地模型下载已取消。";
@@ -84,6 +87,7 @@ export function useSettingsController({
     downloadUpdate,
     applyDownloadedUpdate,
   } = useAppSettings();
+  const { t } = useTranslation();
 
   // 草稿状态：用已加载设置初始化，对齐 loadedSettings 变化
   const [shortcutDrafts, setShortcutDrafts] = useState<Readonly<Record<string, string>>>(() =>
@@ -102,6 +106,7 @@ export function useSettingsController({
   const [languageDraft, setLanguageDraft] = useState<AppSettings["language"]>(
     loadedSettings.language,
   );
+  const [errorReportingDraft, setErrorReportingDraft] = useState(loadedSettings.errorReporting);
   const [settingsErrorMessage, setSettingsErrorMessage] = useState<string | null>(null);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isLocalModelActionPending, setIsLocalModelActionPending] = useState(false);
@@ -142,6 +147,7 @@ export function useSettingsController({
     setUpdateSettingsDraft(next.update);
     setPluginsDraft(next.plugins);
     setLanguageDraft(next.language);
+    setErrorReportingDraft(next.errorReporting);
   }, []);
 
   const togglePluginDraft = useCallback((pluginId: string, enabled: boolean) => {
@@ -332,6 +338,7 @@ export function useSettingsController({
         update: updateSettingsDraft,
         plugins: pluginsDraft,
         language: languageDraft,
+        errorReporting: errorReportingDraft,
       });
       await themePreviewSession.publish(null);
       if (surface === "settings-window") {
@@ -358,6 +365,7 @@ export function useSettingsController({
     assetsDirectoryDraft,
     closeEmbedded,
     editorSettingsDraft,
+    errorReportingDraft,
     languageDraft,
     loadedSettings.shortcuts,
     pluginsDraft,
@@ -497,10 +505,28 @@ export function useSettingsController({
         : await downloadUpdate().then((downloaded) =>
             downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded,
           );
-    if (result.state === "installed") {
-      showToast("更新已安装，重启应用后生效。");
+    if (result.state !== "installed") return;
+
+    // 独立设置窗口无法获取主窗口的真实文档保存状态，不能自动重启，以防丢弃主窗口未保存内容
+    if (surface === "settings-window") {
+      showToast(t("settings.general.updateInstalledRestartApp"));
+      return;
     }
-  }, [applyDownloadedUpdate, downloadUpdate, showToast, updateStatus.state]);
+
+    // 主窗口环境：检查是否有未保存的文档，提示用户保存后再重启
+    const snapshot = runtime.document.getSnapshot();
+    if (isDiscardProtectionRequired(snapshot)) {
+      showToast(t("settings.general.updateInstalledSaveFirst"));
+      return;
+    }
+
+    // 无未保存内容，自动重启以应用更新
+    try {
+      await relaunchAfterUpdate();
+    } catch {
+      showToast(t("settings.general.updateInstalledRestartApp"));
+    }
+  }, [applyDownloadedUpdate, downloadUpdate, showToast, surface, t, updateStatus.state]);
 
   return {
     shortcutDrafts,
@@ -511,6 +537,7 @@ export function useSettingsController({
     updateSettingsDraft,
     pluginsDraft,
     languageDraft,
+    errorReportingDraft,
     isLocalModelActionPending,
     systemSpecs,
     allModelStatuses,
@@ -524,6 +551,7 @@ export function useSettingsController({
     setUpdateSettingsDraft,
     setPluginsDraft,
     setLanguageDraft: changeLanguageDraft,
+    setErrorReportingDraft,
     togglePluginDraft,
     chooseThemeCss,
     clearThemeCss,

@@ -29,6 +29,8 @@ export interface UpdateStatus {
   readonly downloadedBytes?: number;
   readonly totalBytes?: number;
   readonly error?: string;
+  /** 最新版本的更新日志（Markdown 格式，来自 Tauri updater manifest 或 GitHub Release body） */
+  readonly releaseNotes?: string;
 }
 
 /**

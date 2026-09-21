@@ -16,10 +16,10 @@ import {
 } from "./site-links";
 
 export const UNIX_INSTALL_COMMAND =
-  "curl -fsSL https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.sh | sh";
+  "curl -fsSL https://download.jiaqi.im/inkpoint/desktop/install.sh | sh";
 
 export const WINDOWS_INSTALL_COMMAND =
-  "irm https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.ps1 | iex";
+  "irm https://download.jiaqi.im/inkpoint/desktop/install.ps1 | iex";
 
 /** 手动安装 DMG 时移除隔离标记；安装脚本会默认处理。 */
 export const MACOS_QUARANTINE_COMMAND = "xattr -dr com.apple.quarantine /Applications/Inkpoint.app";

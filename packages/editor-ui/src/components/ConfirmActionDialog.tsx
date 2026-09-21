@@ -34,7 +34,7 @@ export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDi
           <DialogTitle className="m-0 text-base font-[650] leading-[1.4] text-[var(--theme-title)]">
             {confirmation?.title}
           </DialogTitle>
-          <Description className="mb-5 mt-2 text-[13px] leading-[1.55] text-[var(--theme-muted)]">
+          <Description className="mb-5 mt-2 max-h-[240px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-[1.55] text-[var(--theme-muted)]">
             {confirmation?.description}
           </Description>
           <div className="flex justify-end gap-2">

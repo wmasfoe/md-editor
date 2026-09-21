@@ -358,12 +358,14 @@ jobs:
           win_arm64_file="$(find release-artifacts -type f -name '*arm64-setup.exe' -o -name '*arm64*.exe' -print -quit)"
           updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
 
-          dmg_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | endswith(".dmg")) | .browser_download_url' | head -n 1)"
-          linux_x64_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("x86_64|amd64") and endswith(".AppImage")) | .browser_download_url' | head -n 1)"
-          linux_arm64_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("aarch64|arm64") and endswith(".AppImage")) | .browser_download_url' | head -n 1)"
-          win_x64_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("x64") and endswith(".exe")) | .browser_download_url' | head -n 1)"
-          win_arm64_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("arm64") and endswith(".exe")) | .browser_download_url' | head -n 1)"
-          updater_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | endswith(".app.tar.gz")) | .browser_download_url' | head -n 1)"
+          distribution_base="https://download.jiaqi.im/inkpoint/desktop"
+
+          dmg_url="${distribution_base}/${RELEASE_VERSION}/$(basename "$dmg_file")"
+          linux_x64_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$linux_x64_file" ] && basename "$linux_x64_file" || echo "" )"
+          linux_arm64_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$linux_arm64_file" ] && basename "$linux_arm64_file" || echo "" )"
+          win_x64_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$win_x64_file" ] && basename "$win_x64_file" || echo "" )"
+          win_arm64_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$win_arm64_file" ] && basename "$win_arm64_file" || echo "" )"
+          updater_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$updater_file" ] && basename "$updater_file" || echo "" )"
 
           export DMG_DOWNLOAD_URL="$dmg_url"
           export DMG_SHA256="$(shasum -a 256 "$dmg_file" | awk '{print $1}')"
@@ -400,7 +402,7 @@ jobs:
           fi
 
           win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
-          win_updater_url="$(gh api "repos/wmasfoe/homebrew-tap/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name | test("x64") and (endswith(".nsis.zip") or endswith(".zip"))) | .browser_download_url' | head -n 1)"
+          win_updater_url="${distribution_base}/${RELEASE_VERSION}/$( [ -n "$win_updater_file" ] && basename "$win_updater_file" || echo "" )"
 
           if [ -n "$win_updater_file" ] && [ -f "$win_updater_file.sig" ]; then
             export UPDATER_DOWNLOAD_URL="$win_updater_url"
@@ -513,6 +515,14 @@ jobs:
             if [ -f "${win_updater_file}.sig" ]; then
               npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/${VERSION}/${win_zip_name}.sig" --file "${win_updater_file}.sig" --remote
             fi
+          fi
+
+          # 2.5 上传一键安装脚本到 R2
+          if [ -f "homebrew-tap/install-md-editor.sh" ]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/install.sh" --file "homebrew-tap/install-md-editor.sh" --remote
+          fi
+          if [ -f "homebrew-tap/install-md-editor.ps1" ]; then
+            npx wrangler r2 object put "${BUCKET}/inkpoint/desktop/install.ps1" --file "homebrew-tap/install-md-editor.ps1" --remote
           fi
 
           # 3. 生成专供 R2 边缘直链的 updater.json 清单

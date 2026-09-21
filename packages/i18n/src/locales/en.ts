@@ -98,6 +98,14 @@ export const en: TranslationSchema = {
         unconfigured: "Update channel unconfigured.",
         error: "Update check failed: {{error}}",
       },
+      releaseNotes: "Release Notes",
+      updateInstalledRestartApp: "Update installed successfully. Restart the application to apply.",
+      updateInstalledSaveFirst:
+        "Update installed. Please save all documents first, then restart the application manually.",
+      errorReportingTitle: "Error Reporting",
+      errorReportingDesc:
+        "When enabled, anonymous JS exceptions and crash reports (including device model, OS version, and app version) are sent to help improve stability. No document contents or personal data are collected.",
+      errorReportingEnable: "Enable anonymous error reporting",
     },
     appearance: {
       title: "Appearance",
