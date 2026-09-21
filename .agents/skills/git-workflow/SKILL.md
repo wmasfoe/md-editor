@@ -7,7 +7,27 @@ description: "Standard Git commit, verification, push, CI watch, and multi-platf
 
 This skill guides agents through the mandatory lifecycle for committing, verifying, pushing code, monitoring CI checks, and executing multi-platform releases in the `md-editor` workspace.
 
-## 1. Commit Protocol (Mandatory Conventional Commits)
+## 1. Branch Naming Protocol (Mandatory)
+
+All git branches MUST follow the `<category>/<kebab-case-description>` pattern:
+- **Features**: `feature/<name>` (⚠️ **STRICTLY FORBIDDEN to use `feat/<name>`**; `feat` is for commit types, while branches must use `feature/`)
+- **Bug Fixes**: `fix/<name>` or `hotfix/<name>`
+- **Refactoring**: `refactor/<name>`
+- **Documentation**: `docs/<name>`
+- **Performance**: `perf/<name>`
+- **CI / Build**: `ci/<name>` or `chore/<name>`
+
+### Examples
+- ✅ `feature/desktop-r2-distribution`
+- ✅ `feature/mobile-editor-core`
+- ✅ `fix/table-cell-editing`
+- ✅ `refactor/split-desktop-view`
+- ❌ `feat/desktop-r2-distribution` (Do NOT abbreviate to `feat/`)
+- ❌ `update-something` (Missing category prefix)
+
+---
+
+## 2. Commit Protocol (Mandatory Conventional Commits)
 
 All commit messages MUST strictly adhere to the Conventional Commits specification:
 
@@ -37,7 +57,7 @@ All commit messages MUST strictly adhere to the Conventional Commits specificati
 
 ---
 
-## 2. Pre-Push Verification (Mandatory)
+## 3. Pre-Push Verification (Mandatory)
 
 Before executing `git push`, the agent MUST run and ensure the following checks pass:
 
@@ -64,7 +84,7 @@ If ANY of these commands fail:
 
 ---
 
-## 3. Push and Post-Push CI Monitoring (Mandatory)
+## 4. Push and Post-Push CI Monitoring (Mandatory)
 
 After pushing changes to the remote branch:
 
@@ -87,22 +107,22 @@ gh pr checks <pr_number> --watch
 
 ---
 
-## 4. Multi-Platform Release & Changelog Protocol
+## 5. Multi-Platform Release & Changelog Protocol
 
 All release and deployment commands are strictly scoped under the `release:*` namespace to ensure platform symmetry and zero legacy alias baggage.
 
 | Platform / Target | Full Release (Interactive) | Version Bump Only | Git Tag Pattern | CI/CD Workflow | Changelog Files |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.10.2`) | `.github/workflows/release-desktop.yml` | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md`<br>(root `CHANGELOG.md` & `CHANGELOG_EN.md` mirrored) |
+| **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` / `desktop-v*` (baseline `v*`) | `.github/workflows/release-desktop.yml` | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md` |
 | **Web Playground** | `pnpm release:web` | `pnpm release:web:version` | `web-v*` (e.g. `web-v0.2.0`) | `.github/workflows/release-web.yml` | `apps/web/CHANGELOG.md` & `apps/web/CHANGELOG_EN.md` |
 | **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop & Web changelogs (bilingual zh/en) |
 
 ### Platform-Specific Rules
 
 1. **Desktop App (`apps/desktop`)**:
-   - `pnpm release:desktop` updates version across `package.json`, `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml`.
-   - Appends release notes to `apps/desktop/CHANGELOG.md` and root `CHANGELOG.md` (English entries maintained in `apps/desktop/CHANGELOG_EN.md` and root `CHANGELOG_EN.md`).
-   - Pushes commit and annotated tag `v<version>`, triggering multi-platform builds (macOS DMG, Linux AppImage/deb, Windows NSIS).
+   - `pnpm release:desktop` updates version across `apps/desktop/package.json`, `tauri.conf.json`, `Cargo.toml` (root `package.json` stays `0.0.0` as monorepo container).
+   - Appends release notes to `apps/desktop/CHANGELOG.md` (English entries maintained in `apps/desktop/CHANGELOG_EN.md`).
+   - Pushes commit and annotated tag `v<version>`, triggering multi-platform builds (macOS DMG, Linux AppImage/deb, Windows NSIS). CI and client in-app updater also forward-support `desktop-v*` tags.
 
 2. **Web Playground (`apps/web`)**:
    - `pnpm release:web` updates `apps/web/package.json`.
