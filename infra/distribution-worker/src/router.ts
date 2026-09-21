@@ -842,7 +842,7 @@ export async function handleRequest(
       return;
     }
     const event = inferDownloadEvent(request, app, version, fileName);
-    ctx.waitUntil(recordDownload(ctx, env, event));
+    ctx.waitUntil(recordDownload(ctx, env, request, event));
   }
 
   // 1. 边缘静态缓存命中检查（只缓存 GET / HEAD 请求，大幅削减 Worker 计费与额度消耗）

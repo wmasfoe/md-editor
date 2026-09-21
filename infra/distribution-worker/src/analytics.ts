@@ -40,17 +40,76 @@ export function inferDownloadEvent(
 }
 
 /**
- * 将下载事件异步写入 D1（通过 ctx.waitUntil 不阻塞响应）
+ * 获取客户端真实 IP（Cloudflare 提供的 CF-Connecting-IP header）
+ */
+function getClientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP") || "unknown";
+}
+
+/**
+ * 基于 HMAC-SHA256(IP + Salt + YYYYMMDD) 计算隐私安全的去重指纹。
+ * 同一 IP 同一天生成相同指纹，不泄露原始 IP（符合 GDPR / PII 要求）。
+ */
+async function computeDedupFingerprint(data: string, salt: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(salt),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * 通过 Cloudflare Cache API 在边缘做 24h 去重检查，完全不消耗 D1 读取配额。
+ * 返回 true 表示该指纹已记录过（重复请求），应跳过写入。
+ */
+async function isDuplicateDownload(fingerprint: string): Promise<boolean> {
+  const cacheUrl = `https://dl-dedup.inkpoint/${fingerprint}`;
+  const cache = (caches as unknown as { default: Cache }).default;
+  const cached = await cache.match(new Request(cacheUrl));
+  return cached !== undefined;
+}
+
+/**
+ * 在边缘缓存中标记指纹已记录（24h TTL）
+ */
+async function markDownloadRecorded(fingerprint: string): Promise<void> {
+  const cacheUrl = `https://dl-dedup.inkpoint/${fingerprint}`;
+  const cache = (caches as unknown as { default: Cache }).default;
+  const response = new Response("1", {
+    headers: { "Cache-Control": "public, max-age=86400" },
+  });
+  await cache.put(new Request(cacheUrl), response);
+}
+
+/**
+ * 将下载事件异步写入 D1（通过 ctx.waitUntil 不阻塞响应）。
+ * 写入前通过 Cache API 边缘去重：同一 IP 同一天同一 app+version 只记录一次。
  */
 export async function recordDownload(
   ctx: ExecutionContext,
   env: Env,
+  request: Request,
   event: DownloadEvent,
 ): Promise<void> {
   const db = env.DOWNLOAD_ANALYTICS;
   if (!db) return;
 
   try {
+    // 边缘去重：同一 IP 同一天同一 app+version 只记录一次
+    const ip = getClientIp(request);
+    const salt = env.HMAC_SALT || "inkpoint-default-salt";
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const dedupKey = `${ip}:${event.app}:${event.version}:${date}`;
+    const fingerprint = await computeDedupFingerprint(dedupKey, salt);
+
+    if (await isDuplicateDownload(fingerprint)) return;
+
     await db
       .prepare(
         `INSERT INTO downloads (app, platform, version, file_name, country, source, user_agent, timestamp)
@@ -67,6 +126,8 @@ export async function recordDownload(
         new Date().toISOString(),
       )
       .run();
+
+    await markDownloadRecorded(fingerprint);
   } catch {
     // 分析写入不应影响下载体验，静默忽略
   }

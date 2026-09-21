@@ -6,6 +6,8 @@ export interface Env {
   DEFAULT_APP?: string;
   PUBLIC_DOMAIN?: string;
   PURGE_TOKEN?: string;
+  /** HMAC salt for privacy-safe IP deduplication */
+  HMAC_SALT?: string;
 }
 
 export interface PlatformAssetInfo {
