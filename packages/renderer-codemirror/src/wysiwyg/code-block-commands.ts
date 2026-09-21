@@ -18,6 +18,7 @@ import type {
 import { editorModeField } from "../mode.ts";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
+import { resolveCodeBlockIndentPlan, stripCodeBlockIndent } from "./code-block-indent.ts";
 import {
   getEmptyFencedCodeBlockBodyAnchor,
   getFencedCodeBlockBodyRange,
@@ -459,10 +460,12 @@ function selectionIntersectsBody(
 function readFencedBodyText(state: EditorState, record: MarkdownRangeRecord): string {
   const metadata = requireCodeBlock(record);
   const bodyRange = getFencedCodeBlockBodyRange(state, record);
-  if (bodyRange) {
-    return state.sliceDoc(bodyRange.from, bodyRange.to);
-  }
-  return metadata.bodySegments.map((segment) => state.sliceDoc(segment.from, segment.to)).join("");
+  // 复制文本与所见即所得显示保持一致：结构性缩进（围栏自身缩进 / 容器缩进）不进剪贴板。
+  const { stripColumns } = resolveCodeBlockIndentPlan(record, state);
+  const raw = bodyRange
+    ? state.sliceDoc(bodyRange.from, bodyRange.to)
+    : metadata.bodySegments.map((segment) => state.sliceDoc(segment.from, segment.to)).join("");
+  return stripCodeBlockIndent(raw, stripColumns);
 }
 
 function readIndentedBodyText(state: EditorState, metadata: MarkdownCodeBlockMetadata): string {
