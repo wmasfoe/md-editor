@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { assertDownloadUrl, assertSha256 } from "./validate-download-url.mjs";
 
 function shQuote(value) {
   return `'${String(value ?? "").replace(/'/gu, "'\\''")}'`;
@@ -18,6 +19,21 @@ export function generateInstallScript({
     throw new Error("Missing required parameter: version");
   }
 
+  const validatedDmgUrl = assertDownloadUrl("DMG_DOWNLOAD_URL", dmgUrl);
+  const validatedDmgSha256 = assertSha256("DMG_SHA256", validatedDmgUrl, dmgSha256);
+  const validatedLinuxX64Url = assertDownloadUrl("LINUX_X64_DOWNLOAD_URL", linuxX64Url);
+  const validatedLinuxX64Sha256 = assertSha256(
+    "LINUX_X64_SHA256",
+    validatedLinuxX64Url,
+    linuxX64Sha256,
+  );
+  const validatedLinuxArm64Url = assertDownloadUrl("LINUX_ARM64_DOWNLOAD_URL", linuxArm64Url);
+  const validatedLinuxArm64Sha256 = assertSha256(
+    "LINUX_ARM64_SHA256",
+    validatedLinuxArm64Url,
+    linuxArm64Sha256,
+  );
+
   return `#!/bin/sh
 set -eu
 
@@ -27,14 +43,14 @@ APP_BIN_NAME='md-editor'
 APPIMAGE_FILE='Inkpoint.AppImage'
 VERSION=${shQuote(version)}
 
-DMG_URL=${shQuote(dmgUrl)}
-DMG_SHA256=${shQuote(dmgSha256.toLowerCase())}
+DMG_URL=${shQuote(validatedDmgUrl)}
+DMG_SHA256=${shQuote(validatedDmgSha256)}
 
-LINUX_X64_URL=${shQuote(linuxX64Url)}
-LINUX_X64_SHA256=${shQuote(linuxX64Sha256.toLowerCase())}
+LINUX_X64_URL=${shQuote(validatedLinuxX64Url)}
+LINUX_X64_SHA256=${shQuote(validatedLinuxX64Sha256)}
 
-LINUX_ARM64_URL=${shQuote(linuxArm64Url)}
-LINUX_ARM64_SHA256=${shQuote(linuxArm64Sha256.toLowerCase())}
+LINUX_ARM64_URL=${shQuote(validatedLinuxArm64Url)}
+LINUX_ARM64_SHA256=${shQuote(validatedLinuxArm64Sha256)}
 
 log() {
   printf '%s\\n' "$*"
