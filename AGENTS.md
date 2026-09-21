@@ -56,7 +56,7 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
 You are running with oh-my-codex (OMX), a coordination layer for Codex CLI.
 This AGENTS.md is the top-level operating contract for the workspace.
 Role prompts under `prompts/*.md` are narrower execution surfaces. They must follow this file, not override it.
-When OMX is installed, load the installed prompt/skill/agent surfaces from `./.codex/prompts`, `./.codex/skills`, and `./.codex/agents` (or the project-local `./.codex/...` equivalents when project scope is active).
+When OMX is installed, load prompts from `./.codex/prompts`, skills from `./.agents/skills`, and native agents from `./.codex/agents`.
 
 <guidance_schema_contract>
 Canonical guidance schema for this template is embedded in this `AGENTS.md` contract.
