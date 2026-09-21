@@ -15,6 +15,17 @@ const CLOSED = [
   "",
 ].join("\n");
 
+const INDENTED_FENCE = [
+  "Before",
+  "",
+  "  ```ts",
+  "  const indented = 1;",
+  "  ```",
+  "",
+  "After",
+  "",
+].join("\n");
+
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor");
   await expect(page.locator(".cm-editor")).toHaveCount(1);
@@ -134,5 +145,42 @@ test.describe("CodeMirror M2 code-block projection", () => {
       codeBlockLineNumbers: true,
     });
     expect(final.renderer?.wysiwyg.widgetLifecycleCounts["code-block"].create).toBeGreaterThan(0);
+  });
+
+  test("anchors indented fence lines to the line start so the card stays continuous", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 620, height: 520 });
+    await openHarness(page);
+    await page.evaluate((markdown) => {
+      window.__CODEMIRROR_EDITOR_E2E__?.replaceDocument(markdown, "wysiwyg");
+    }, INDENTED_FENCE);
+
+    await expect(page.locator(".cm-md-code-toolbar")).toHaveCount(1);
+    await expect(page.locator(".cm-md-code-line")).toHaveCount(1);
+    await expect(page.locator(".cm-md-code-structural-line-hidden")).toHaveCount(2);
+
+    const geometry = await page.evaluate(() => {
+      const toolbar = document.querySelector<HTMLElement>(".cm-md-code-toolbar");
+      const bodyLine = document.querySelector<HTMLElement>(".cm-md-code-line");
+      const structuralLines = [
+        ...document.querySelectorAll<HTMLElement>(".cm-md-code-structural-line-hidden"),
+      ];
+      if (!toolbar || !bodyLine) {
+        throw new Error("Indented code-block projection geometry is unavailable.");
+      }
+      return {
+        structuralHeights: structuralLines.map((line) =>
+          Math.round(line.getBoundingClientRect().height),
+        ),
+        toolbarToBodyGap: Math.round(
+          bodyLine.getBoundingClientRect().top - toolbar.getBoundingClientRect().bottom,
+        ),
+      };
+    });
+    // 行装饰若挂在围栏字符位置而非行首，CM6 会静默丢弃、围栏行按全高渲染，
+    // 断层高度恰好等于一行。
+    expect(geometry.structuralHeights).toEqual([0, 0]);
+    expect(geometry.toolbarToBodyGap).toBe(0);
   });
 });

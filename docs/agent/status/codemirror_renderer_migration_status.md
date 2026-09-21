@@ -1,8 +1,8 @@
-# CodeMirror 6 渲染器迁移状态
+﻿# CodeMirror 6 渲染器迁移状态
 
 > 用途：记录 CM6 单编辑器迁移的真实代码进度、beta 可用性、缺口、降级和验证证据。
 >
-> 最后更新：2026-08-10（在 M5/M6 完成基础上，追加 UI 优化与行首控件重设计：gutter 收紧至 88px、G005 点击回归根因修复（CM6 负 margin 测量）、V2 胶囊→方案 B（折叠常驻 + ⋮ 菜单收敛）、baseTheme content 引号修复、拖拽落点线全宽重设计、残留胶囊背景与控件垂直对齐修复，均经用户截图验收，97 E2E / 641 vitest / 四关 / CI 全绿。历史摘要：E03 列表续行、块工具栏布局、CJK 换行、折叠、标题 H 控件、图片闭环全部落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
+> 最后更新：2026-09-21（围栏代码块行装饰锚点修复：结构行隐藏与语义行起点此前直接使用语法子范围偏移，围栏行带前置缩进或围栏位于列表/引用容器内时该位置晚于物理行首，CM6 会静默丢弃 `Decoration.line`，导致围栏行按全高渲染、工具栏与代码正文之间出现一行高度的断层、嵌套容器代码行卡片样式整体丢失、空体缩进围栏的可见代码行消失；修法为行首锚定 `doc.lineAt(range.from).from`、空体排除改按行首粒度比较、语义行起点恒取 `line.from`；新增单测 4 条（暂存修复后 3 条失败）与 E2E 缩进围栏几何断言；renderer 42 files / 445 tests、workspace 1071 tests + release 35 tests、E2E 116 passed 全绿）。历史摘要：2026-08-10（在 M5/M6 完成基础上，追加 UI 优化与行首控件重设计：gutter 收紧至 88px、G005 点击回归根因修复（CM6 负 margin 测量）、V2 胶囊→方案 B（折叠常驻 + ⋮ 菜单收敛）、baseTheme content 引号修复、拖拽落点线全宽重设计、残留胶囊背景与控件垂直对齐修复，均经用户截图验收，97 E2E / 641 vitest / 四关 / CI 全绿。历史摘要：E03 列表续行、块工具栏布局、CJK 换行、折叠、标题 H 控件、图片闭环全部落地。G004 多轮独立审查后修复 typedBoundary 状态保存/失焦清理、composition guard 快速路径、visible-marks compositionend 刷新，以及 viewport/mode/聚合事务 fail-closed 与 Unicode variation-selector 边界。新鲜验证：全仓 typecheck、workspace 569 tests + release 5 tests、build 通过，G004/M3/M4 Chromium 15/15 通过；Oxlint/Prettier/`git diff --check` 通过。Linux ARM64 Rust tests 32/32 通过；Clippy 仍有 6 个既有 Linux cfg unused warning。）
 
 ## 当前结论
 
@@ -27,6 +27,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
 - 迁移开始后只维护 CM6 编辑器路径，不增加 Milkdown / CM6 功能开关或双向同步层。
 
+- **围栏代码块行装饰锚点修复（2026-09-21）**：`code-block-projection.ts` 的结构行隐藏装饰（`buildStructuralLineDecorations`）与语义行起点（`collectSemanticLineStarts`）此前直接使用语法子范围偏移（`openingFenceRange.from` / `closingFenceRange.from`，fenced 分支用 `CodeText.from`）。这些位置在围栏行带前置缩进（CommonMark 允许 1~3 空格）、围栏位于列表容器内（lezer 已从 `CodeText` 剔除容器缩进）或引用块内时晚于物理行首，而 CM6 的行装饰只在行首生效、晚到的 `Decoration.line` 被**静默丢弃**，症状为：围栏行按全高渲染并与工具栏之间留出一行高度的断层（实测 26px，非缩进场景为 0px）、列表/引用内代码块的正文行卡片样式整体丢失（只剩孤立工具栏）、空体缩进围栏连唯一可见代码行都消失。修复：结构行锚定 `state.doc.lineAt(range.from).from`；空体排除 `emptyBodyAnchor` 改按行首粒度比较（否则空块唯一可见代码行会被错误折叠）；语义行起点恒取 `line.from`。回归证据：新增 `tests/wysiwyg/code-block-fence-line-anchor.test.ts`（4 条，暂存修复后 3 条失败：结构行位置 `[10,33]` vs 期望 `[8,31]`）、E2E `codemirror-m2-code-block-projection.spec.ts` 新增缩进围栏几何断言（structural 高度 `[0,0]`、工具栏到正文间隙 0）。验证：renderer 42 files / 445 tests、workspace 1071 tests + release 35 tests 全绿；`pnpm lint`（oxlint + prettier + cargo fmt/clippy）与全仓 `pnpm typecheck` 通过；apps/desktop 全量 E2E 116 passed（5 项既有失败：G007 命令面板 ×4 与 S1 ×1，已在改动前基线复现，与本修复无关）。
 代码证据：
 
 - [`App.tsx`](../../../apps/desktop/src/app/App.tsx) 只挂载持久 [`DesktopCodeMirrorEditor.tsx`](../../../apps/desktop/src/components/DesktopCodeMirrorEditor.tsx)，preview 为 sibling overlay。

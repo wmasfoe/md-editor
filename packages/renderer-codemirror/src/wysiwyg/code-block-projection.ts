@@ -219,20 +219,26 @@ function buildStructuralLineDecorations(
     return [];
   }
   const emptyBodyAnchor = getEmptyFencedCodeBlockBodyAnchor(state, record);
-  return [record.codeBlock.openingFenceRange, record.codeBlock.closingFenceRange]
-    .filter((range): range is SourceRange => range !== null)
-    .filter((range) => range.from !== emptyBodyAnchor)
-    .map((range) =>
-      Decoration.line({
-        attributes: {
-          class: "cm-md-code-structural-line-hidden",
-          "aria-hidden": "true",
-          "data-md-code-block-id": record.id,
-          "data-md-code-structural-line": "fence",
-        },
-        wysiwygRecordId: record.id,
-      }).range(range.from),
-    );
+  return (
+    [record.codeBlock.openingFenceRange, record.codeBlock.closingFenceRange]
+      .filter((range): range is SourceRange => range !== null)
+      // 行装饰必须挂在行首：围栏字符可能不在行首（前置缩进、容器去缩进），
+      // 晚于行首的 LineDecoration 会被 CM6 静默丢弃，导致该行按全高渲染。
+      .map((range) => state.doc.lineAt(range.from).from)
+      // 空体围栏代码块的闭合围栏行同时是可见代码行，按行首粒度排除折叠。
+      .filter((from) => from !== emptyBodyAnchor)
+      .map((from) =>
+        Decoration.line({
+          attributes: {
+            class: "cm-md-code-structural-line-hidden",
+            "aria-hidden": "true",
+            "data-md-code-block-id": record.id,
+            "data-md-code-structural-line": "fence",
+          },
+          wysiwygRecordId: record.id,
+        }).range(from),
+      )
+  );
 }
 
 function buildBodyLineDecorations(
@@ -308,7 +314,7 @@ function collectSemanticLineStarts(
     metadata.bodySegments.length === 0 &&
     metadata.closingFenceRange
   ) {
-    starts.add(metadata.closingFenceRange.from);
+    starts.add(state.doc.lineAt(metadata.closingFenceRange.from).from);
   }
   for (const segment of metadata.bodySegments) {
     if (segment.from > segment.to) {
@@ -317,8 +323,8 @@ function collectSemanticLineStarts(
     let position = segment.from;
     while (position <= segment.to && position <= state.doc.length) {
       const line = state.doc.lineAt(Math.min(position, state.doc.length));
-      const lineStart = metadata.blockKind === "indented" ? line.from : position;
-      starts.add(lineStart);
+      // 语义行起点恒为物理行首：bodySegments 的 from 会被容器（列表/引用）去缩进而落在行中。
+      starts.add(line.from);
       if (line.to >= segment.to || line.to === state.doc.length) {
         break;
       }
