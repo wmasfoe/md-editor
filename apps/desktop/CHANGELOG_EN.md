@@ -2,6 +2,15 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.11.0 - 2026-09-22 (#91, #92, #93, #94, #95, #96, #98)
+
+- Fixed a one-line-height rendering gap between the toolbar and the code body of indented fenced code blocks (fence line prefixed with spaces, e.g. a ts language tag) in WYSIWYG mode, together with lost code card styling for code blocks nested in lists and blockquotes and a collapsed last visible code line in empty indented code blocks.
+- Code block bodies no longer render structural indentation (fence indentation and list container indentation) and are left-aligned inside the card; when a code block is a child of an unordered/ordered list item the whole card is now inset to express nesting, and toolbar copy output matches what is displayed.
+- Added installer download analytics: the Worker records application, platform, version, country and source, written asynchronously so downloads are never blocked.
+- Improved the update flow: the app relaunches automatically after installing an update (with unsaved-document checks) and shows the release notes as soon as a new version is detected.
+- Added Sentry error reporting, enabled by default and disableable in settings, collecting no PII and filtering document contents.
+- Added application name, version, description, license and website links to the macOS About menu.
+
 ## 0.10.4 - 2026-09-18 (#90)
 
 - Silenced success toast notifications on document save and optimized external transaction scheduling for editor image pasting.

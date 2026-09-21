@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/desktop",
-  "version": "0.10.4",
+  "version": "0.11.0",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
