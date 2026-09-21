@@ -14,6 +14,8 @@ export interface CodeBlockToolbarWidgetValue {
   readonly languageLabel: string;
   readonly active: boolean;
   readonly diagnostics: WysiwygDiagnostics | null;
+  /** 卡片右移列数：大于 0 时工具栏随代码行一起右移到容器内容列。 */
+  readonly insetColumns: number;
 }
 
 const cleanupByDom = new WeakMap<HTMLElement, readonly (() => void)[]>();
@@ -32,12 +34,16 @@ export class CodeBlockToolbarWidget extends WidgetType {
       this.value.recordId === other.value.recordId &&
       this.value.blockKind === other.value.blockKind &&
       this.value.languageLabel === other.value.languageLabel &&
-      this.value.active === other.value.active
+      this.value.active === other.value.active &&
+      this.value.insetColumns === other.value.insetColumns
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
+    const row = view.dom.ownerDocument.createElement("div");
+    row.className = "cm-md-code-toolbar-row";
     const toolbar = view.dom.ownerDocument.createElement("div");
+    toolbar.className = "cm-md-code-toolbar";
     const selectButton = view.dom.ownerDocument.createElement("button");
     const copyButton = view.dom.ownerDocument.createElement("button");
     const cleanups: Array<() => void> = [];
@@ -108,11 +114,12 @@ export class CodeBlockToolbarWidget extends WidgetType {
       () => copyButton.removeEventListener("click", onCopyBody),
       () => toolbar.removeEventListener("keydown", onKeyDown),
     );
-    cleanupByDom.set(toolbar, cleanups);
+    cleanupByDom.set(row, cleanups);
     toolbar.append(selectButton, copyButton, status);
-    updateCodeBlockToolbarDom(toolbar, this.value);
+    row.append(toolbar);
+    updateCodeBlockToolbarDom(row, this.value);
     this.value.diagnostics?.recordWidgetLifecycle("code-block", "create");
-    return toolbar;
+    return row;
   }
 
   updateDOM(dom: HTMLElement): boolean {
@@ -134,16 +141,29 @@ export class CodeBlockToolbarWidget extends WidgetType {
 }
 
 function updateCodeBlockToolbarDom(dom: HTMLElement, value: CodeBlockToolbarWidgetValue): void {
-  const language = dom.querySelector<HTMLSelectElement>(".cm-md-code-toolbar__language");
-  dom.className = "cm-md-code-toolbar";
-  dom.classList.toggle("cm-md-code-toolbar--active", value.active);
-  dom.dataset.recordId = value.recordId;
-  dom.dataset.codeBlockKind = value.blockKind;
-  dom.setAttribute("role", "toolbar");
-  dom.setAttribute("aria-label", `${value.blockKind} code block actions`);
+  // dom 既可能是承载缩进的行容器（widget 根），也可能是工具栏本身。
+  const toolbar = resolveToolbarElement(dom);
+  if (toolbar !== dom) {
+    dom.className = "cm-md-code-toolbar-row";
+    dom.style.setProperty("--md-code-inset", String(value.insetColumns));
+  }
+  const language = toolbar.querySelector<HTMLSelectElement>(".cm-md-code-toolbar__language");
+  toolbar.className = "cm-md-code-toolbar";
+  toolbar.classList.toggle("cm-md-code-toolbar--active", value.active);
+  toolbar.dataset.recordId = value.recordId;
+  toolbar.dataset.codeBlockKind = value.blockKind;
+  toolbar.setAttribute("role", "toolbar");
+  toolbar.setAttribute("aria-label", `${value.blockKind} code block actions`);
   if (language) {
     language.value = languageValueForLabel(value.languageLabel);
   }
+}
+
+function resolveToolbarElement(dom: HTMLElement): HTMLElement {
+  if (dom.classList.contains("cm-md-code-toolbar")) {
+    return dom;
+  }
+  return dom.querySelector<HTMLElement>(".cm-md-code-toolbar") ?? dom;
 }
 
 function languageChoices(

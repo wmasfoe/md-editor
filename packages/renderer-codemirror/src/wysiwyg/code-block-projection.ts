@@ -14,6 +14,11 @@ import type {
   SourceRange,
 } from "../markdown/range-types.ts";
 import { type CodeBlockLogicalLine } from "./code-block-line-numbers.ts";
+import {
+  type CodeBlockIndentPlan,
+  resolveCodeBlockIndentPlan,
+  resolveHiddenIndentRange,
+} from "./code-block-indent.ts";
 import { CodeBlockToolbarWidget } from "./widgets/code-block-toolbar-widget.ts";
 
 export const setCodeBlockLineNumbersEffect = StateEffect.define<boolean>();
@@ -84,10 +89,14 @@ export function buildCodeBlockLayoutDecorations(
     return [];
   }
 
+  // 结构性缩进（围栏自身缩进 + 容器缩进）从正文文本里剥离，卡片是否整体右移由容器决定。
+  const indentPlan = resolveCodeBlockIndentPlan(record, state);
+
   return [
     ...buildHiddenSyntaxDecorations(record),
     ...buildStructuralLineDecorations(record, state),
-    ...buildBodyLineDecorations(record, active, lineNumbers, state),
+    ...buildHiddenIndentDecorations(record, indentPlan, state),
+    ...buildBodyLineDecorations(record, active, lineNumbers, indentPlan, state),
     Decoration.widget({
       widget: new CodeBlockToolbarWidget({
         recordId: record.id,
@@ -97,6 +106,7 @@ export function buildCodeBlockLayoutDecorations(
           (record.codeBlock.languageInfo.token || "Plain"),
         active,
         diagnostics: getWysiwygDiagnostics(state),
+        insetColumns: indentPlan.cardInsetColumns,
       }),
       block: true,
       side: -1,
@@ -134,9 +144,19 @@ export class CodeBlockSpacerWidget extends WidgetType {
 
 export function buildCodeBlockAtomicRanges(
   record: MarkdownRangeRecord,
-  _state: EditorState,
+  state: EditorState,
 ): readonly Range<Decoration>[] {
-  return getCodeBlockProtectedRanges(record).map((range) =>
+  // 隐藏的结构性缩进前缀也纳入原子范围：光标不会停在隐藏缩进内部，
+  // Home/方向键直接落到代码起点，避免"在不可见位置输入"的错觉。
+  // 注意：它不进入 protectedRanges——否则在代码起点输入会被判为触碰禁用区而静默拒绝。
+  const indentPlan = resolveCodeBlockIndentPlan(record, state);
+  const indentRanges =
+    indentPlan.stripColumns > 0
+      ? collectCodeBlockLogicalLines(record, state)
+          .map((line) => resolveHiddenIndentRange(state, line.from, indentPlan.stripColumns))
+          .filter((range): range is SourceRange => range !== null)
+      : [];
+  return [...getCodeBlockProtectedRanges(record), ...indentRanges].map((range) =>
     Decoration.replace({
       inclusive: true,
       wysiwygRecordId: record.id,
@@ -160,6 +180,14 @@ export function getCodeBlockProtectedRanges(record: MarkdownRangeRecord): readon
 }
 
 export const codeBlockProjectionTheme: Extension = EditorView.baseTheme({
+  ".cm-md-code-toolbar-row": {
+    // 承载结构性缩进：字体与代码行保持一致（等宽 + 同字号），使 1ch 精确等于一个空格的宽度。
+    // 该容器只包含块级工具栏，不产生行框，因此字号/行高不参与布局测量。
+    fontFamily:
+      "var(--theme-mono-font, var(--md-editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace))",
+    fontSize: "0.88em",
+    marginInlineStart: "calc(var(--md-code-inset, 0) * 1ch)",
+  },
   ".cm-md-code-toolbar": {
     display: "flex",
     gap: "0.375rem",
@@ -182,6 +210,8 @@ export const codeBlockProjectionTheme: Extension = EditorView.baseTheme({
     fontFamily:
       "var(--theme-mono-font, var(--md-editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace))",
     backgroundColor: "var(--theme-code-bg, var(--theme-bg-muted, transparent))",
+    // 列表/任务子项的层级由卡片整体右移表达；该元素字体为等宽，1ch 即一个空格宽度。
+    marginInlineStart: "calc(var(--md-code-inset, 0) * 1ch)",
     outline: "none",
   },
   ".cm-md-code-line--active": {
@@ -241,10 +271,42 @@ function buildStructuralLineDecorations(
   );
 }
 
+/**
+ * 隐藏正文行的结构性缩进前缀（围栏自身缩进 + 容器缩进）。
+ *
+ * 隐藏后代码在卡片内左对齐；列表/任务子项的缩进改由卡片整体右移（`--md-code-inset`）表达，
+ * 因此不会丢失层级信息。代码内容自身的缩进（超出 `stripColumns` 的部分）不受影响。
+ */
+function buildHiddenIndentDecorations(
+  record: MarkdownRangeRecord,
+  indentPlan: CodeBlockIndentPlan,
+  state: EditorState,
+): readonly Range<Decoration>[] {
+  if (indentPlan.stripColumns <= 0) {
+    return [];
+  }
+  const ranges: Range<Decoration>[] = [];
+  for (const line of collectCodeBlockLogicalLines(record, state)) {
+    const hidden = resolveHiddenIndentRange(state, line.from, indentPlan.stripColumns);
+    if (!hidden) {
+      continue;
+    }
+    ranges.push(
+      Decoration.replace({
+        inclusive: true,
+        wysiwygRecordId: record.id,
+        hiddenCodeBlockIndent: true,
+      }).range(hidden.from, hidden.to),
+    );
+  }
+  return ranges;
+}
+
 function buildBodyLineDecorations(
   record: MarkdownRangeRecord,
   active: boolean,
   lineNumbers: boolean,
+  indentPlan: CodeBlockIndentPlan,
   state: EditorState,
 ): readonly Range<Decoration>[] {
   if (!record.codeBlock) {
@@ -266,16 +328,18 @@ function buildBodyLineDecorations(
     if (numbered) {
       classes.push("cm-md-code-line-numbered");
     }
+    const inlineStyle = [
+      numbered ? `--md-code-line-number-width: ${String(numbered.gutterDigits)}ch` : null,
+      indentPlan.cardInsetColumns > 0
+        ? `--md-code-inset: ${String(indentPlan.cardInsetColumns)}`
+        : null,
+    ].filter((value): value is string => value !== null);
     return Decoration.line({
       attributes: {
         class: classes.join(" "),
         "data-md-code-block-id": record.id,
-        ...(numbered
-          ? {
-              "data-md-code-line-number": String(numbered.lineNumber),
-              style: `--md-code-line-number-width: ${String(numbered.gutterDigits)}ch`,
-            }
-          : {}),
+        ...(numbered ? { "data-md-code-line-number": String(numbered.lineNumber) } : {}),
+        ...(inlineStyle.length > 0 ? { style: inlineStyle.join("; ") } : {}),
       },
       wysiwygRecordId: record.id,
     }).range(line.from);
