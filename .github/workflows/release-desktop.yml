@@ -352,10 +352,10 @@ jobs:
           RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
         run: |
           dmg_file="$(find release-artifacts -type f -name '*.dmg' -print -quit)"
-          linux_x64_file="$(find release-artifacts -type f -name '*amd64.AppImage' -o -name '*x86_64.AppImage' -print -quit)"
-          linux_arm64_file="$(find release-artifacts -type f -name '*arm64.AppImage' -o -name '*aarch64.AppImage' -print -quit)"
-          win_x64_file="$(find release-artifacts -type f -name '*x64-setup.exe' -o -name '*x64*.exe' -print -quit)"
-          win_arm64_file="$(find release-artifacts -type f -name '*arm64-setup.exe' -o -name '*arm64*.exe' -print -quit)"
+          linux_x64_file="$(find release-artifacts -type f \( -name '*amd64.AppImage' -o -name '*x86_64.AppImage' \) -print -quit)"
+          linux_arm64_file="$(find release-artifacts -type f \( -name '*arm64.AppImage' -o -name '*aarch64.AppImage' \) -print -quit)"
+          win_x64_file="$(find release-artifacts -type f \( -name '*x64-setup.exe' -o -name '*x64*.exe' \) -print -quit)"
+          win_arm64_file="$(find release-artifacts -type f \( -name '*arm64-setup.exe' -o -name '*arm64*.exe' \) -print -quit)"
           updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
 
           distribution_base="https://download.jiaqi.im/inkpoint/desktop"
@@ -455,12 +455,12 @@ jobs:
           mkdir -p dist-desktop
 
           dmg_file="$(find release-artifacts -type f -name '*.dmg' -print -quit)"
-          linux_x64_file="$(find release-artifacts -type f -name '*amd64.AppImage' -o -name '*x86_64.AppImage' -print -quit)"
-          linux_arm64_file="$(find release-artifacts -type f -name '*arm64.AppImage' -o -name '*aarch64.AppImage' -print -quit)"
+          linux_x64_file="$(find release-artifacts -type f \( -name '*amd64.AppImage' -o -name '*x86_64.AppImage' \) -print -quit)"
+          linux_arm64_file="$(find release-artifacts -type f \( -name '*arm64.AppImage' -o -name '*aarch64.AppImage' \) -print -quit)"
           linux_deb_x64="$(find release-artifacts -type f -name '*amd64.deb' -print -quit)"
           linux_deb_arm64="$(find release-artifacts -type f -name '*arm64.deb' -print -quit)"
-          win_x64_file="$(find release-artifacts -type f -name '*x64-setup.exe' -o -name '*x64*.exe' -print -quit)"
-          win_arm64_file="$(find release-artifacts -type f -name '*arm64-setup.exe' -o -name '*arm64*.exe' -print -quit)"
+          win_x64_file="$(find release-artifacts -type f \( -name '*x64-setup.exe' -o -name '*x64*.exe' \) -print -quit)"
+          win_arm64_file="$(find release-artifacts -type f \( -name '*arm64-setup.exe' -o -name '*arm64*.exe' \) -print -quit)"
           mac_updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
           win_updater_file="$(find release-artifacts -type f \( -name '*x64*.nsis.zip' -o -name '*x64*.zip' \) -print -quit)"
 

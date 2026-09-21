@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { assertDownloadUrl, assertSha256 } from "./validate-download-url.mjs";
 
 function psQuote(value) {
   return `'${String(value ?? "").replace(/'/gu, "''")}'`;
@@ -16,17 +17,26 @@ export function generateWindowsInstallScript({
     throw new Error("Missing required parameter: version");
   }
 
+  const validatedWinX64Url = assertDownloadUrl("WIN_X64_DOWNLOAD_URL", winX64Url);
+  const validatedWinX64Sha256 = assertSha256("WIN_X64_SHA256", validatedWinX64Url, winX64Sha256);
+  const validatedWinArm64Url = assertDownloadUrl("WIN_ARM64_DOWNLOAD_URL", winArm64Url);
+  const validatedWinArm64Sha256 = assertSha256(
+    "WIN_ARM64_SHA256",
+    validatedWinArm64Url,
+    winArm64Sha256,
+  );
+
   return `# Inkpoint Windows Installer
 $ErrorActionPreference = 'Stop'
 
 $AppName = 'Inkpoint'
 $Version = ${psQuote(version)}
 
-$WinX64Url = ${psQuote(winX64Url)}
-$WinX64Sha256 = ${psQuote(winX64Sha256.toLowerCase())}
+$WinX64Url = ${psQuote(validatedWinX64Url)}
+$WinX64Sha256 = ${psQuote(validatedWinX64Sha256)}
 
-$WinArm64Url = ${psQuote(winArm64Url)}
-$WinArm64Sha256 = ${psQuote(winArm64Sha256.toLowerCase())}
+$WinArm64Url = ${psQuote(validatedWinArm64Url)}
+$WinArm64Sha256 = ${psQuote(validatedWinArm64Sha256)}
 
 function Log-Info($msg) {
     Write-Host "md-editor install: $msg" -ForegroundColor Cyan
