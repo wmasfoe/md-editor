@@ -68,7 +68,6 @@ describe("app settings", () => {
       "format.strikethrough",
       "format.inlineCode",
       "format.highlight",
-      "format.link",
       "format.codeBlock",
       "format.blockquote",
       "format.bulletList",

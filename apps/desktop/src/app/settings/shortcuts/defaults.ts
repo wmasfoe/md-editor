@@ -51,12 +51,6 @@ export const DEFAULT_SHORTCUT_TEMPLATES: readonly Omit<ShortcutSetting, "key">[]
     defaultKey: "Mod-Shift-H",
   },
   {
-    id: "format.link",
-    commandId: "format.link",
-    label: "插入 / 包裹链接",
-    defaultKey: "Mod-K",
-  },
-  {
     id: "format.codeBlock",
     commandId: "format.codeBlock",
     label: "插入代码块",

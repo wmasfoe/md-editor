@@ -18,6 +18,8 @@ const MENU_COMMANDS: Record<string, string> = {
   "md-editor:mode-wysiwyg": "view.showWysiwyg",
   "md-editor:toggle-source": "view.toggleSource",
   "md-editor:toggle-sidebar-primary": "view.toggleSidebarPrimary",
+  "md-editor:toggle-focus-mode": "view.toggleFocusMode",
+  "md-editor:toggle-typewriter-mode": "view.toggleTypewriterMode",
   "md-editor:insert-table": "table.insert",
 };
 

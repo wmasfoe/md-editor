@@ -1,4 +1,5 @@
 import type { EditorView } from "@codemirror/view";
+import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 
 /**
  * 标题层级重写辅助函数（供块操作菜单 block-toolbar 等模块复用）：
@@ -35,6 +36,9 @@ export function setHeadingLevel(view: EditorView, lineFrom: number, level: numbe
   view.dispatch({
     changes: { from: lineFrom + edit.from, to: lineFrom + edit.to, insert: edit.insert },
     userEvent: "input.heading-level",
+    // 轮1 architect WATCH（concern-2）：重写受保护的 heading marker 必须授权
+    //（本 helper 现无生产调用方，注解使其被接线时不会静默拒绝 —— 而非留地雷）。
+    annotations: [authorizeWysiwygProtectedChange.of(true)],
   });
   view.focus();
   return true;
