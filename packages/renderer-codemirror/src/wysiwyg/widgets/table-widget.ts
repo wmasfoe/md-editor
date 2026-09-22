@@ -37,7 +37,10 @@ import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { selectWysiwygAtom } from "../atom-selection.ts";
-import { clearWysiwygAtomSelectionEffect } from "../projection-state.ts";
+import { clearWysiwygAtomSelectionEffect, wysiwygProjectionField } from "../projection-state.ts";
+import { acceptAiSuggestion, aiSuggestionField } from "../suggestion.ts";
+import { dispatchTabActions } from "../tab-arbiter.ts";
+import { escapeBracketInCellDom } from "./cell-caret.ts";
 import type { MarkdownTableCellAlignment } from "../../markdown/range-types.ts";
 import {
   commitTableCell,
@@ -285,6 +288,82 @@ export class TableGridWidget extends WidgetType {
         return;
       }
       if (keyEvent.key === "Tab") {
+        // D2 铁律第 1 步：**IME 组合期放行原生** —— 不仲裁、不 preventDefault。
+        // M6：`acceptAiSuggestion` 已有 composing 门控（D-1b），但表格单元格的
+        // **DOM 腿**此前没有 —— 而这正是本批最该生效的那条腿，否则组合期按 Tab
+        // 会被括号跳出抢走，违反「瞬时模态态 > 结构语义」。
+        // M6 → 三闸（E19 取证）：`keyEvent.isComposing` = 真实浏览器 IME 键事件标志；
+        // `view.composing` = CM6 组合态；**compositionGuardRanges** = 渲染层
+        // domEventObservers(compositionstart) → startWysiwygCompositionGuardEffect
+        // 设的选区护栏（E19 的 setCompositionActive seam 正是走这条路径）——
+        // 三者与 CM6 腿 `canEscapeBracket` 对称（评审原文：“and the cell equivalent of
+        // compositionGuardRanges”）。
+        const projection = view.state.field(wysiwygProjectionField, false);
+        const compositionGuarded = (projection?.compositionGuardRanges.length ?? 0) > 0;
+        if (keyEvent.isComposing || view.composing || compositionGuarded) {
+          // 放行原生（不 preventDefault → IME/浏览器默认键为不受阻），但**阻断我方链**：
+          // Tab 不得再冒泡进 CM6 keymap（轮1 concern-6 的 dispatch 级契约的前置保障）。
+          keyEvent.stopPropagation();
+          return;
+        }
+        // ── D-1 单元格内 Tab 仲裁（必须在任何 preventDefault / flushCellCommit 之前）──
+        //
+        // 背景：本 DOM `keydown` 对 Tab 直接 `preventDefault()+stopPropagation()`，
+        // **任何 keymap `Prec` 都够不着**（`ignoreEvent` 已把 cell 事件排除在 CM6 之外）。
+        // 这是共识评审 pass-1/pass-2 定位的**唯一真实 AI-Tab 缺陷点**。
+        //
+        // 仲裁顺序（deep-interview D2）：AI 接受 → 单元格内括号/link 跳出 → 跳下一格。
+        //
+        // 🔴 PM-4 / T20-cell 硬契约：**括号跳出必须先于 `flushCellCommit`**。
+        // `flushCellCommit` 会产生**文档变更**（`table-editing.ts:249-278` 的
+        // `buildCellReplacement` 会整行重序列化并规范化空白），
+        // 若先 commit 再跳出，T20「零文本变更」会在单元格语境被破坏。
+        if (!keyEvent.shiftKey) {
+          // D-MB：本处是统一 Tab arbiter 的**表格薄派发器** ——
+          // 序列不在此写死，由纯决策函数 `decideTabActions` 给出
+          // （表格上下文：accept-suggestion → escape-bracket → table-next-cell，
+          // 跳过 code-block），与 CM6 腿**语义单一**，杜绝两套仲裁漂移。
+          // 轮1 concern-7：迭代归共享 runner（dispatchTabActions）；本处只供给「动作→执行器」映射
+          const outcome = dispatchTabActions(
+            {
+              // 上面已对 isComposing 早退，此处恒 false；保留字段以显式对齐铁律第 1 步
+              composing: keyEvent.isComposing,
+              suggestionActive: view.state.field(aiSuggestionField, false) !== null,
+              inTableCell: true,
+            },
+            {
+              "accept-suggestion": () => {
+                // MEDIUM-4：cell 有未提交输入时**不得先走接受** —— accept 的 doc 变更会触发
+                // widget 重渲染、未提交 DOM 输入静默丢失；跳过接受 → 尾动作 flushCellCommit
+                // 落盘输入（suggestion 随 commit 的 docChanged 自清，无陈旧坐标风险）。
+                if (hasUncommittedCellInput(cell, currentValue())) {
+                  return false;
+                }
+                if (!acceptAiSuggestion(view)) {
+                  return false;
+                }
+                keyEvent.preventDefault();
+                keyEvent.stopPropagation();
+                return true;
+              },
+              "escape-bracket": () => {
+                // 🔴 PM-4 / T20-cell：跳出先于任何 flushCellCommit（零文本变更）
+                if (!escapeBracketInCellDom(cell)) {
+                  return false;
+                }
+                keyEvent.preventDefault();
+                keyEvent.stopPropagation();
+                return true;
+              },
+              // 尾动作：不在此执行 —— fallthrough 到下方既有跳格 / flush 逻辑
+              //（**表格腿尾语义**；尾契约全文见 tab-arbiter.ts 的 dispatchTabActions）
+              "table-next-cell": () => false,
+            },
+          );
+          if (outcome === "handled") {
+            return;
+          }
+        }
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
         flushCellCommit(view, wrapper, cell, currentValue().recordId);
@@ -754,6 +833,39 @@ function closeTableMenu(
   }
 }
 
+/**
+ * 从 cell 编辑器抽取待提交文本（flushCellCommit 与 M4 pending 判定**共用**，防提取逻辑漂移）。
+ */
+function extractCellEditorText(cell: HTMLElement): string {
+  const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
+  const clone = editor.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
+  return (clone.innerText || clone.textContent || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
+/**
+ * MEDIUM-4：cell 是否有**未提交输入**（编辑器抽取文本 ≠ 记录中的已提交文本）。
+ * 无此判定时，带建议按 Tab → accept 腿先跑 → doc 变更触发 widget 重渲染 →
+ * 未提交的 cell DOM 输入静默丢失；E18 无输入故套件不绿不了（评审批次新边）。
+ */
+function hasUncommittedCellInput(cell: HTMLElement, value: TableGridValue): boolean {
+  const address = addressFromCell(cell, value.recordId);
+  if (!address) {
+    return false;
+  }
+  const committed =
+    address.rowKind === "header"
+      ? value.headerCells[address.colIndex]
+      : value.bodyRows[address.rowIndex]?.[address.colIndex];
+  if (committed === undefined) {
+    return false;
+  }
+  return extractCellEditorText(cell) !== committed;
+}
+
 function flushCellCommit(
   view: EditorView,
   wrapper: HTMLElement,
@@ -764,13 +876,7 @@ function flushCellCommit(
   if (!address) {
     return;
   }
-  const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
-  const clone = editor.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
-  const text = (clone.innerText || clone.textContent || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\r?\n/g, " ")
-    .trim();
+  const text = extractCellEditorText(cell);
   commitTableCell(view, address, text);
   lastEditingCellByRecordId.set(recordId, address);
   editingCellByDom.delete(wrapper);

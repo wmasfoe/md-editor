@@ -31,6 +31,14 @@ const deleteMarkdownMarkupBackwardAuthorized =
 export const continueMarkdownMarkup: StateCommand = guarded(continueMarkdownMarkupAuthorized);
 export const toggleSelectedTasks: StateCommand = guarded(toggleSelectedTasksBase);
 
+/**
+ * 结构尾动作（D2 全序第 5 步的 CM6 腿）：表格跳格 → 列表层级缩进。
+ * 原为结构化 keymap 的内联 Tab lambda；收敛到统一 Tab arbiter 后由其按序调用。
+ */
+export function structuredTab(view: EditorView): boolean {
+  return enterSelectedTableCell(view) || viewCommand(indentMarkdownList)(view);
+}
+
 export function createMarkdownStructuredCommandExtensions() {
   return Prec.highest(
     keymap.of([
@@ -66,10 +74,8 @@ export function createMarkdownStructuredCommandExtensions() {
       { key: "ArrowUp", run: moveMarkdownAtomUp },
       { key: "ArrowDown", run: moveMarkdownAtomDown },
       { key: "Escape", run: viewCommand(clearMarkdownAtomSelection) },
-      {
-        key: "Tab",
-        run: (view) => enterSelectedTableCell(view) || viewCommand(indentMarkdownList)(view),
-      },
+      // D-MB：Tab 已收敛到统一 Tab arbiter（tab-arbiter-command.ts）——
+      // 「表格跳格 / 列表层级」作为结构尾动作由纯决策函数按 D2 全序调度。
       {
         key: "Shift-Tab",
         run: (view) => enterSelectedTableCell(view) || viewCommand(outdentMarkdownList)(view),

@@ -61,7 +61,8 @@ export function provideCodeBlockClipboard(writeClipboardText?: WriteClipboardTex
 export const codeBlockKeymap = Prec.highest(
   keymap.of([
     { key: "Enter", run: codeBlockEnter },
-    { key: "Tab", run: codeBlockTab },
+    // D-MB：Tab 已收敛到统一 Tab arbiter（tab-arbiter-command.ts），
+    // 由纯决策函数决定「代码块 → 跳出 → 结构化」的次序；Shift-Tab 无竞争，保持原绑定。
     { key: "Shift-Tab", run: codeBlockShiftTab },
     { key: "Backspace", run: codeBlockBackspace },
     { key: "Delete", run: codeBlockDelete },
@@ -266,6 +267,11 @@ export function codeBlockTab(view: EditorView): boolean {
     view.state.update({
       changes: sortChanges(changes),
       userEvent: "input.indent",
+      // 轮1 architect WATCH：与 :244 同款条件注解 —— 缩进行首插入触碰
+      // indented 代码块的 syntaxIndentRanges 时必须授权，否则静默拒绝。
+      annotations: targets.some((target) => target.record.codeBlock?.blockKind === "indented")
+        ? authorizeWysiwygProtectedChange.of(true)
+        : undefined,
     }),
   );
   return true;
@@ -283,6 +289,11 @@ export function codeBlockShiftTab(view: EditorView): boolean {
     view.state.update({
       changes: sortChanges(removals.map((range) => ({ from: range.from, to: range.to }))),
       userEvent: "delete.dedent",
+      // 轮1 architect WATCH（concern-1）：去缩进**移除** indented 块的前导 syntaxIndent，
+      // 与 :244 同款条件注解，否则对缩进块 Shift-Tab 静默拒绝。
+      annotations: targets.some((target) => target.record.codeBlock?.blockKind === "indented")
+        ? authorizeWysiwygProtectedChange.of(true)
+        : undefined,
     }),
   );
   return true;

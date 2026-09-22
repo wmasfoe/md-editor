@@ -514,7 +514,10 @@ export function createMarkdownFormattingKeymap() {
   return keymap.of([
     { key: "Mod-b", run: viewFormattingCommand(toggleBold) },
     { key: "Mod-i", run: viewFormattingCommand(toggleItalic) },
-    { key: "Mod-k", run: viewFormattingCommand(insertOrWrapLink) },
+    // 注：编辑器侧不再绑 Mod-k —— 全局命令面板拥有该 chord（桌面惯例），
+    // 且曾在双层注册时每次唤面板都额外插入 `[](url)`（E2E 探针实证）。
+    // 分工决议见 docs/agent/review/ux_interaction_audit_and_bugs.md 问题#4：
+    // 编辑器内插链接用 Mod-l / Mod-Shift-l（本表已有）。
     { key: "Mod-l", run: viewFormattingCommand(insertOrWrapLink) },
     { key: "Mod-Shift-l", run: viewFormattingCommand(insertOrWrapLink) },
     { key: "Mod-e", run: viewFormattingCommand(toggleInlineCode) },
