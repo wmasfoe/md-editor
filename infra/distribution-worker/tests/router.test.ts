@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { inferPlatformFromPath } from "../src/analytics.ts";
 import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   const sampleAssets = [
     {
       name: "Inkpoint_0.10.2_aarch64.dmg",
@@ -122,6 +126,113 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data).toEqual(mockManifest);
+  });
+
+  it("should attribute Android latest aliases to the concrete manifest version", async () => {
+    const waitUntilCalls: Promise<unknown>[] = [];
+    const insertedRows: unknown[][] = [];
+    vi.stubGlobal("caches", {
+      default: { match: async () => undefined, put: async () => undefined },
+    });
+    const manifest = {
+      app: "inkpoint",
+      updatedAt: "2026-09-22T00:00:00Z",
+      android: {
+        version: "0.1.1",
+        apk: {
+          version: "0.1.1",
+          fileName: "Inkpoint_0.1.1.apk",
+          downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+        },
+      },
+    };
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/android/latest.apk") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-apk",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        if (key === "inkpoint/version.json") {
+          return { text: async () => JSON.stringify(manifest) } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const mockDb = {
+      prepare: () => ({
+        bind: (...values: unknown[]) => ({
+          run: async () => insertedRows.push(values),
+        }),
+      }),
+    } as unknown as D1Database;
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => waitUntilCalls.push(promise),
+    } as unknown as ExecutionContext;
+
+    const res = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/android/latest", {
+        headers: { "CF-Connecting-IP": "203.0.113.2" },
+      }),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+        DOWNLOAD_ANALYTICS: mockDb,
+        HMAC_SALT: "test-salt",
+      },
+      ctx,
+    );
+    await Promise.all(waitUntilCalls);
+
+    expect(res.status).toBe(200);
+    expect(insertedRows[0]?.slice(0, 4)).toEqual([
+      "inkpoint",
+      "android",
+      "0.1.1",
+      "Inkpoint_0.1.1.apk",
+    ]);
+  });
+
+  it("should not record Android latest when manifest cannot identify its version", async () => {
+    const waitUntilCalls: Promise<unknown>[] = [];
+    vi.stubGlobal("caches", {
+      default: { match: async () => undefined, put: async () => undefined },
+    });
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/android/latest.apk") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-apk",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const mockDb = {
+      prepare: () => {
+        throw new Error("analytics must not be called");
+      },
+    } as unknown as D1Database;
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => waitUntilCalls.push(promise),
+    } as unknown as ExecutionContext;
+
+    const res = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/android/latest"),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+        DOWNLOAD_ANALYTICS: mockDb,
+      },
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    expect(waitUntilCalls).toHaveLength(0);
   });
 
   it("should return 404 with helpful error when Android APK is not in R2", async () => {
@@ -253,6 +364,117 @@ describe("Distribution Worker Router & Matcher", () => {
     const res = await handleRequest(req, env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("application/x-apple-diskimage");
+  });
+
+  it("should attribute desktop latest aliases to the concrete manifest version", async () => {
+    const waitUntilCalls: Promise<unknown>[] = [];
+    const insertedRows: unknown[][] = [];
+    vi.stubGlobal("caches", {
+      default: {
+        match: async () => undefined,
+        put: async () => undefined,
+      },
+    });
+
+    const manifest = {
+      app: "inkpoint",
+      updatedAt: "2026-09-22T00:00:00Z",
+      desktop: {
+        version: "0.11.0",
+        assets: {
+          macos_arm64: {
+            version: "0.11.0",
+            fileName: "Inkpoint_0.11.0_aarch64.dmg",
+            downloadUrl:
+              "https://download.jiaqi.im/inkpoint/desktop/0.11.0/Inkpoint_0.11.0_aarch64.dmg",
+          },
+        },
+      },
+    };
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/macos/latest.dmg") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-dmg",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        if (key === "inkpoint/version.json") {
+          return {
+            text: async () => JSON.stringify(manifest),
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const mockDb = {
+      prepare: () => ({
+        bind: (...values: unknown[]) => ({
+          run: async () => {
+            insertedRows.push(values);
+          },
+        }),
+      }),
+    } as unknown as D1Database;
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => waitUntilCalls.push(promise),
+    } as unknown as ExecutionContext;
+
+    const res = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/desktop/macos/latest", {
+        headers: { "CF-Connecting-IP": "203.0.113.1" },
+      }),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+        DOWNLOAD_ANALYTICS: mockDb,
+        HMAC_SALT: "test-salt",
+      },
+      ctx,
+    );
+    await Promise.all(waitUntilCalls);
+
+    expect(res.status).toBe(200);
+    expect(insertedRows).toHaveLength(1);
+    expect(insertedRows[0]?.slice(0, 4)).toEqual([
+      "inkpoint",
+      "macos-arm64",
+      "0.11.0",
+      "Inkpoint_0.11.0_aarch64.dmg",
+    ]);
+  });
+
+  it("should ignore analytics for unsupported app path segments", async () => {
+    const waitUntilCalls: Promise<unknown>[] = [];
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "sitemap.xml/desktop/0.11.0/Inkpoint.app.tar.gz") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-invalid-app",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => waitUntilCalls.push(promise),
+    } as unknown as ExecutionContext;
+
+    const res = await handleRequest(
+      new Request("https://download.jiaqi.im/sitemap.xml/desktop/0.11.0/Inkpoint.app.tar.gz"),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+        DOWNLOAD_ANALYTICS: {} as D1Database,
+      },
+      ctx,
+    );
+
+    expect(res.status).toBe(200);
+    expect(waitUntilCalls).toHaveLength(0);
   });
 
   it("should serve desktop versioned artifact directly from R2 when available", async () => {

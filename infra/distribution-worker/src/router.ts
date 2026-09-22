@@ -2,6 +2,7 @@ import { inferDownloadEvent, recordDownload } from "./analytics.ts";
 import type {
   AppVersionManifest,
   Env,
+  PlatformAssetInfo,
   ReleaseAssetInfo,
   ReleaseInfo,
   ReleasesManifest,
@@ -821,6 +822,27 @@ export async function serveR2Object(
   });
 }
 
+/** 根据请求平台从版本清单选择对应的桌面安装包。 */
+function selectDesktopManifestAsset(
+  manifest: AppVersionManifest | null,
+  platform: string,
+): PlatformAssetInfo | undefined {
+  const assets = manifest?.desktop?.assets;
+  if (!assets) return undefined;
+
+  if (platform.includes("mac") || platform.includes("dmg")) {
+    return platform.includes("x64") ? assets.macos_x64 : assets.macos_arm64;
+  }
+  if (platform.includes("win") || platform.includes("exe")) {
+    return platform.includes("arm64") ? assets.windows_arm64 : assets.windows_x64;
+  }
+  if (platform.includes("deb")) return assets.linux_deb;
+  if (platform.includes("linux") || platform.includes("appimage")) {
+    return assets.linux_appimage;
+  }
+  return undefined;
+}
+
 /**
  * 核心请求处理器
  */
@@ -833,15 +855,17 @@ export async function handleRequest(
   const path = url.pathname.replace(/\/+$/, "") || "/";
   const defaultApp = env.DEFAULT_APP || "inkpoint";
   const githubRepo = env.GITHUB_REPO || "wmasfoe/md-editor";
+  const analyticsApps = new Set(SUPPORTED_APPS.map(({ name }) => name.toLowerCase()));
 
   /** 非阻塞记录下载统计（通过 ctx.waitUntil 异步执行，不影响响应延迟） */
   function trackDownload(app: string, version: string, fileName: string): void {
-    if (!ctx || request.method !== "GET") return;
+    const canonicalApp = app.trim().toLowerCase();
+    if (!ctx || request.method !== "GET" || !analyticsApps.has(canonicalApp)) return;
     const lower = fileName.toLowerCase();
     if (lower.endsWith(".sig") || lower.endsWith(".sha256") || lower.endsWith(".json")) {
       return;
     }
-    const event = inferDownloadEvent(request, app, version, fileName);
+    const event = inferDownloadEvent(request, canonicalApp, version, fileName);
     ctx.waitUntil(recordDownload(ctx, env, request, event));
   }
 
@@ -1303,7 +1327,19 @@ export async function handleRequest(
       // 优先找最新版软链/定名文件
       const latestObj = await env.RELEASE_BUCKET.get(`${app}/android/latest.apk`);
       if (latestObj) {
-        trackDownload(app, "latest", `${app}-latest.apk`);
+        const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+        if (manifestObj) {
+          try {
+            const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
+            const version = manifest.android?.version;
+            const fileName = manifest.android?.apk.fileName;
+            if (version && fileName && manifest.android?.apk.version === version) {
+              trackDownload(app, version, fileName);
+            }
+          } catch {
+            // 清单不可用时不写入无法归属具体版本的统计。
+          }
+        }
         return serveR2Object(
           latestObj,
           `${app}-latest.apk`,
@@ -1427,6 +1463,15 @@ export async function handleRequest(
         appimage: "application/x-executable",
         deb: "application/vnd.debian.binary-package",
       };
+      let r2Manifest: AppVersionManifest | null = null;
+      const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+      if (manifestObj) {
+        try {
+          r2Manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
+        } catch {
+          // 清单不可用时仍允许下载 latest 别名，但统计只能保留 latest。
+        }
+      }
 
       // 1. 尝试直接获取固化的 latest 别名文件
       const platformCandidates: Record<string, string[]> = {
@@ -1451,7 +1496,15 @@ export async function handleRequest(
         const r2Obj = await env.RELEASE_BUCKET.get(candidate);
         if (r2Obj) {
           const ext = candidate.split(".").pop() || "";
-          trackDownload(app, "latest", `${app}-${platform}-latest.${ext}`);
+          const manifestAsset = selectDesktopManifestAsset(r2Manifest, platform);
+          const analyticsVersion = r2Manifest?.desktop?.version;
+          if (
+            analyticsVersion &&
+            manifestAsset?.fileName &&
+            manifestAsset.version === analyticsVersion
+          ) {
+            trackDownload(app, analyticsVersion, manifestAsset.fileName);
+          }
           return serveR2Object(
             r2Obj,
             `${app}-${platform}-latest.${ext}`,
@@ -1460,42 +1513,21 @@ export async function handleRequest(
         }
       }
 
-      // 2. 检查 R2 中的 version.json 获取已发布的具体文件名
-      const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
-      if (manifestObj) {
-        try {
-          const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
-          const dVer = manifest.desktop?.version;
-          const dAssets = manifest.desktop?.assets;
-          if (dVer && dAssets) {
-            let assetInfo;
-            if (platform.includes("mac") || platform.includes("dmg")) {
-              assetInfo = platform.includes("x64") ? dAssets.macos_x64 : dAssets.macos_arm64;
-            } else if (platform.includes("win") || platform.includes("exe")) {
-              assetInfo = platform.includes("arm64") ? dAssets.windows_arm64 : dAssets.windows_x64;
-            } else if (platform.includes("deb")) {
-              assetInfo = dAssets.linux_deb;
-            } else if (platform.includes("linux") || platform.includes("appimage")) {
-              assetInfo = dAssets.linux_appimage;
-            }
-
-            if (assetInfo?.fileName) {
-              const versionedObj = await env.RELEASE_BUCKET.get(
-                `${app}/desktop/${dVer}/${assetInfo.fileName}`,
-              );
-              if (versionedObj) {
-                const ext = assetInfo.fileName.split(".").pop() || "";
-                trackDownload(app, dVer, assetInfo.fileName);
-                return serveR2Object(
-                  versionedObj,
-                  assetInfo.fileName,
-                  mimeTypes[ext] || "application/octet-stream",
-                );
-              }
-            }
-          }
-        } catch {
-          // 清单解析失败时继续回退 GitHub
+      // 2. 根据同一份版本清单查找具体版本文件
+      const dVer = r2Manifest?.desktop?.version;
+      const assetInfo = selectDesktopManifestAsset(r2Manifest, platform);
+      if (dVer && assetInfo?.fileName) {
+        const versionedObj = await env.RELEASE_BUCKET.get(
+          `${app}/desktop/${dVer}/${assetInfo.fileName}`,
+        );
+        if (versionedObj) {
+          const ext = assetInfo.fileName.split(".").pop() || "";
+          trackDownload(app, dVer, assetInfo.fileName);
+          return serveR2Object(
+            versionedObj,
+            assetInfo.fileName,
+            mimeTypes[ext] || "application/octet-stream",
+          );
         }
       }
     }
@@ -1536,9 +1568,7 @@ export async function handleRequest(
 
       const fallbackUrl = `https://github.com/${githubRepo}/releases/latest/download/${fallbackFileName}`;
       const proxyRes = await proxyGitHubAsset(fallbackUrl, request, fallbackFileName);
-      if (proxyRes.ok || proxyRes.status === 206) {
-        trackDownload(app, "latest", fallbackFileName);
-      }
+      // 无法从固定 latest 直链确认具体版本时，不写入无法归属版本的统计。
       return proxyRes;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

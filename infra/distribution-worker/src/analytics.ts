@@ -88,8 +88,16 @@ async function markDownloadRecorded(fingerprint: string): Promise<void> {
 }
 
 /**
+ * 构造下载去重键。
+ * 平台与文件名必须参与去重，避免同一用户下载同版本的不同安装包时被错误合并。
+ */
+export function buildDownloadDedupKey(ip: string, event: DownloadEvent, date: string): string {
+  return `${ip}:${event.app}:${event.platform}:${event.version}:${event.fileName}:${date}`;
+}
+
+/**
  * 将下载事件异步写入 D1（通过 ctx.waitUntil 不阻塞响应）。
- * 写入前通过 Cache API 边缘去重：同一 IP 同一天同一 app+version 只记录一次。
+ * 写入前通过 Cache API 边缘去重：同一 IP 同一天同一安装包只记录一次。
  */
 export async function recordDownload(
   ctx: ExecutionContext,
@@ -101,11 +109,11 @@ export async function recordDownload(
   if (!db) return;
 
   try {
-    // 边缘去重：同一 IP 同一天同一 app+version 只记录一次
+    // 边缘去重：同一 IP 同一天重复下载同一安装包只记录一次
     const ip = getClientIp(request);
     const salt = env.HMAC_SALT || "inkpoint-default-salt";
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const dedupKey = `${ip}:${event.app}:${event.version}:${date}`;
+    const dedupKey = buildDownloadDedupKey(ip, event, date);
     const fingerprint = await computeDedupFingerprint(dedupKey, salt);
 
     if (await isDuplicateDownload(fingerprint)) return;
