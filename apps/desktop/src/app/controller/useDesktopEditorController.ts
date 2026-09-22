@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { isTauri } from "@tauri-apps/api/core";
+import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { RuntimeFileService } from "@md-editor/file-system";
@@ -144,6 +144,46 @@ export function useDesktopEditorController({
             await saveDocument(true);
           },
           openSettings,
+          // D-3 块操作：host→renderer 接线（view 在 renderer 侧，故经 ports 回调）。
+          // ports 不可用时静默 no-op，与本文件既有 `flushPendingEdits` 同款 fail-closed 语义。
+          // LOW 处置：ports 返回的 boolean **不再静默丢弃** —— false（目标不可操作，
+          // 如已在文档边界）与成功可区分，toast 告知而非无声吞掉。
+          moveBlockUp: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            if (!portsAccess.ports.moveBlockUp()) {
+              showToast("块移动未执行（可能已在文档边界）。");
+            }
+          },
+          moveBlockDown: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            if (!portsAccess.ports.moveBlockDown()) {
+              showToast("块移动未执行（可能已在文档边界）。");
+            }
+          },
+          duplicateBlock: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            if (!portsAccess.ports.duplicateBlock()) {
+              showToast("块复制未执行。");
+            }
+          },
+          deleteBlock: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            if (!portsAccess.ports.deleteBlock()) {
+              showToast("块删除未执行。");
+            }
+          },
           openMdxComponentMenu: async () => {
             const insertable = runtime.mdxComponents.listInsertable();
             if (insertable.length === 0) {
@@ -355,6 +395,61 @@ export function useDesktopEditorController({
           },
           toggleSourceMode,
           showWysiwygMode: () => switchMode("wysiwyg"),
+          // D-2 视图模式：host→renderer 接线（mode 存于 renderer StateField，经 ports），
+          // 并把权威状态镜像到 macOS View 菜单勾选项（Rust 侧按状态重建菜单）。
+          toggleFocusMode: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              // LOW-3：菜单点击已自旋勾选，但 renderer 不可用无法写镜像 →
+              // 重建菜单读回镜像，让原生勾选回退到真实状态（不误导用户）。
+              if (isTauri()) {
+                void invoke("reapply_app_menu").catch((error: unknown) => {
+                  console.warn("reapply_app_menu failed:", error);
+                });
+              }
+              return;
+            }
+            const next = portsAccess.ports.toggleFocusMode();
+            if (isTauri()) {
+              void invoke("set_mode_menu_checked", { mode: "focus", checked: next }).catch(
+                (error: unknown) => {
+                  // 尽力镜像（renderer 单一事实源，勾选滞后会在下次切换自愈），
+                  // 但失败必须留痕 —— 不静默吞（ai-slop-cleaner Pass 3）。
+                  console.warn("set_mode_menu_checked(focus) failed:", error);
+                  // 轮2 architect WATCH② 全闭：state 未写入 → 重建菜单读回旧镜像，
+                  // 让自旋勾选立即回真值（不再悬置到下次切换）；兑底失败同样留痕。
+                  void invoke("reapply_app_menu").catch((reapplyError: unknown) => {
+                    console.warn("reapply_app_menu fallback failed:", reapplyError);
+                  });
+                },
+              );
+            }
+          },
+          toggleTypewriterMode: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              // LOW-3：同 toggleFocusMode —— 重建菜单回读镜像（失败留痕，不静默）
+              if (isTauri()) {
+                void invoke("reapply_app_menu").catch((error: unknown) => {
+                  console.warn("reapply_app_menu failed:", error);
+                });
+              }
+              return;
+            }
+            const next = portsAccess.ports.toggleTypewriterMode();
+            if (isTauri()) {
+              void invoke("set_mode_menu_checked", { mode: "typewriter", checked: next }).catch(
+                (error: unknown) => {
+                  // 同上：best-effort 镜像 + 失败留痕（ai-slop-cleaner Pass 3）
+                  console.warn("set_mode_menu_checked(typewriter) failed:", error);
+                  // 轮2 architect WATCH② 全闭：同 focus 分支 —— 失败即重建回读镜像
+                  void invoke("reapply_app_menu").catch((reapplyError: unknown) => {
+                    console.warn("reapply_app_menu fallback failed:", reapplyError);
+                  });
+                },
+              );
+            }
+          },
           toggleSidebarPrimary: () => setIsSidebarVisible((v) => !v),
         },
       });

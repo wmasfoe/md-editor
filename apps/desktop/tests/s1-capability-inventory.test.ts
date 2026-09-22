@@ -28,7 +28,11 @@ describe("S1 capability inventory", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(
       S1_CAPABILITY_INVENTORY.every((entry) =>
-        ["retained", "removed-disabled", "typed-unsupported"].includes(entry.s1Disposition),
+        // new-capability：S1 基线之后新增（D-3 块操作 / D-2 视图模式）——
+        // “retained” 暗示基线已存在，对新能力是失实来源（code-review LOW）
+        ["retained", "removed-disabled", "typed-unsupported", "new-capability"].includes(
+          entry.s1Disposition,
+        ),
       ),
     ).toBe(true);
   });

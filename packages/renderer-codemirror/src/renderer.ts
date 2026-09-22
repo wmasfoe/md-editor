@@ -57,6 +57,9 @@ import {
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
+import { deleteBlock, duplicateBlock, moveBlockDown, moveBlockUp } from "./wysiwyg/block-move.ts";
+import { focusModeField, focusDimOpacityFacet, setFocusModeEffect } from "./wysiwyg/focus-mode.ts";
+import { typewriterModeField, setTypewriterModeEffect } from "./wysiwyg/typewriter-mode.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -111,6 +114,9 @@ export interface CodeMirrorRendererOptions {
   ) => void;
   /** 光标所在行号变更回调(1-based)，用于联动大纲等 UI 高亮 */
   readonly onCursorLineChange?: (line: number) => void;
+  /** D-2 可配 dim 强度（轮1 architect WATCH concern-8）：宿主注入通道，缺省走 facet 默认 0.38；
+   * 读取时按 spec 区间 [0.30, 0.50] 硬夹（resolveDimOpacity）。 */
+  readonly focusDimOpacity?: number;
   /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -160,6 +166,14 @@ export interface CodeMirrorRenderer {
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
+  moveBlockUp(): boolean;
+  moveBlockDown(): boolean;
+  duplicateBlock(): boolean;
+  deleteBlock(): boolean;
+  /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
+  toggleFocusMode(): boolean;
+  /** D-2：切换打字机模式，返回切换后状态 */
+  toggleTypewriterMode(): boolean;
   getSelectionSnapshot(): {
     readonly from: number;
     readonly to: number;
@@ -545,6 +559,10 @@ class CodeMirrorRendererController {
       editorModeField,
       markdownRangeIndexField,
       mdxModeFacet.of(options.mdxMode ?? false),
+      // 轮1 architect WATCH concern-8：renderer 选项 → facet 的宿主注入路径（通道端到端可行使）
+      ...(options.focusDimOpacity === undefined
+        ? []
+        : [focusDimOpacityFacet.of(options.focusDimOpacity)]),
       mdxComponentRegistryFacet.of(options.mdxComponents ?? null),
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
@@ -1033,6 +1051,61 @@ class CodeMirrorRendererController {
       return false;
     }
     return acceptAiSuggestion(this.#view as unknown as EditorView);
+  }
+
+  moveBlockUp(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return moveBlockUp(this.#view as unknown as EditorView);
+  }
+
+  moveBlockDown(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return moveBlockDown(this.#view as unknown as EditorView);
+  }
+
+  toggleFocusMode(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    const view = this.#view as unknown as EditorView | null;
+    if (!view) {
+      return false;
+    }
+    // 纯视图态：dispatch effect 改 StateField，零文档变更（S2 同源契约）
+    const next = !view.state.field(focusModeField, false);
+    view.dispatch({ effects: setFocusModeEffect.of(next) });
+    return next;
+  }
+
+  toggleTypewriterMode(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    const view = this.#view as unknown as EditorView | null;
+    if (!view) {
+      return false;
+    }
+    const next = !view.state.field(typewriterModeField, false);
+    view.dispatch({ effects: setTypewriterModeEffect.of(next) });
+    return next;
+  }
+
+  duplicateBlock(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return duplicateBlock(this.#view as unknown as EditorView);
+  }
+
+  deleteBlock(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return deleteBlock(this.#view as unknown as EditorView);
   }
 
   dismissSuggestion(): boolean {
@@ -1607,6 +1680,12 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionValue) => controller.showSuggestion(suggestion),
     acceptSuggestion: () => controller.acceptSuggestion(),
+    moveBlockUp: () => controller.moveBlockUp(),
+    moveBlockDown: () => controller.moveBlockDown(),
+    duplicateBlock: () => controller.duplicateBlock(),
+    deleteBlock: () => controller.deleteBlock(),
+    toggleFocusMode: () => controller.toggleFocusMode(),
+    toggleTypewriterMode: () => controller.toggleTypewriterMode(),
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),

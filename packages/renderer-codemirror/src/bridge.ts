@@ -47,6 +47,18 @@ export interface CodeMirrorEditorPorts {
     readonly text: string;
     readonly head: number;
   };
+  /** D-3 块操作：上移块 */
+  moveBlockUp(): boolean;
+  /** D-3 块操作：下移块 */
+  moveBlockDown(): boolean;
+  /** D-3 块操作：复制块 */
+  duplicateBlock(): boolean;
+  /** D-3 块操作：删除块 */
+  deleteBlock(): boolean;
+  /** D-2 视图模式：切换专注模式，返回切换后状态 */
+  toggleFocusMode(): boolean;
+  /** D-2 视图模式：切换打字机模式，返回切换后状态 */
+  toggleTypewriterMode(): boolean;
   focus(): void;
   setSelection(from: number, to: number): void;
   scrollToLine(
@@ -221,6 +233,12 @@ export function createCodeMirrorEditorBridge(
     clientId: renderer.clientId,
     mode,
     applyExternalEdit,
+    moveBlockUp: () => renderer.moveBlockUp(),
+    moveBlockDown: () => renderer.moveBlockDown(),
+    duplicateBlock: () => renderer.duplicateBlock(),
+    deleteBlock: () => renderer.deleteBlock(),
+    toggleFocusMode: () => renderer.toggleFocusMode(),
+    toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionValue) => renderer.showSuggestion(suggestion),
