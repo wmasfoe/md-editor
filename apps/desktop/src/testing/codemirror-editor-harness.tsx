@@ -64,6 +64,18 @@ export interface CodeMirrorEditorHarnessBridge {
   ): CodeMirrorEditorExternalEditResult | { readonly status: "unavailable" };
   /** 直接设置编辑器选区(跨平台可靠;from === to 为光标) */
   setSelection(from: number, to: number): void;
+  /** 当前选区快照(renderer 标准端口) —— M9/T2 表格腿注入建议需要光标坐标 */
+  getSelectionSnapshot(): { readonly from: number; readonly to: number; readonly head: number };
+  /** 测试专用：注入 AI 建议(M9/T2 表格腿 E18) */
+  showSuggestion(suggestion: {
+    readonly from: number;
+    readonly to: number;
+    readonly text: string;
+  }): void;
+  /** 测试专用：读取当前建议状态(断言是否被接受) */
+  getSuggestion(): unknown | null;
+  /** 测试专用：合成 IME 组合期(E19/表格 DOM 腿 composition 门控) */
+  setCompositionActive(active: boolean): void;
   replaceDocument(markdown: string, mode?: EditorMode): void;
   getCopiedText(): readonly string[];
   clearCopiedText(): void;
@@ -233,6 +245,38 @@ export function installCodeMirrorEditorHarness(
         access.ports.focus();
         access.ports.setSelection(from, to);
       }
+    },
+    getSelectionSnapshot() {
+      const access = getRendererAccess();
+      if (access.status !== "available") {
+        return { from: 0, to: 0, head: 0 };
+      }
+      return access.ports.getSelectionSnapshot();
+    },
+    showSuggestion(suggestion: {
+      readonly from: number;
+      readonly to: number;
+      readonly text: string;
+    }) {
+      const access = getRendererAccess();
+      if (access.status === "available") {
+        access.ports.showSuggestion(suggestion as never);
+      }
+    },
+    getSuggestion() {
+      const access = getRendererAccess();
+      return access.status === "available" ? access.ports.getSuggestion() : null;
+    },
+    setCompositionActive(active: boolean) {
+      // 与 EditorE2eBridge 同款实现（e2e-bridge.ts:152-160）：
+      // 派发 compositionstart/compositionend 驱动 CM6 的 `view.composing`。
+      const content = document.querySelector<HTMLElement>(".cm-content");
+      if (!content) {
+        throw new Error("CodeMirror content is not mounted.");
+      }
+      content.dispatchEvent(
+        new CompositionEvent(active ? "compositionstart" : "compositionend", { bubbles: true }),
+      );
     },
     replaceDocument(markdown: string, mode?: EditorMode) {
       runtime.document.replaceDocument(
