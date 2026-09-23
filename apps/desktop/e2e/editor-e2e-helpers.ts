@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import type { DocumentReplaceIntent } from "@md-editor/editor-core";
 
 /**
  * E2E 共享 helper（ai-slop-cleaner Pass 2 去重）：
@@ -26,8 +27,21 @@ export async function openFullApp(page: Page): Promise<void> {
 }
 
 /** 用真实 app 桥替换文档内容，并轮询读回直至一致（自证挂载成功） */
-export async function loadDoc(page: Page, markdown: string): Promise<void> {
-  await page.evaluate((m) => window.__MD_EDITOR_E2E__!.replaceDocument(m), markdown);
+/**
+ * 装载文档（默认声明为「换文档」，即视口归零）。
+ *
+ * 传入 `replaceIntent: "same"` 表示这是**同一篇文档的重新装载**（保存往返/外部改动/快照重发），
+ * 渲染层应保留阅读位置（S7 / architect 终审驱动项 ①：身份由宿主显式声明，渲染层不推断）。
+ */
+export async function loadDoc(
+  page: Page,
+  markdown: string,
+  replaceIntent: DocumentReplaceIntent = "different",
+): Promise<void> {
+  await page.evaluate(
+    ({ m, intent }) => window.__MD_EDITOR_E2E__!.replaceDocument(m, null, undefined, intent),
+    { m: markdown, intent: replaceIntent },
+  );
   await expect.poll(() => readDoc(page, "app")).toBe(markdown);
 }
 

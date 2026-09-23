@@ -802,8 +802,9 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.wysiwygProjection.rangeIndexVersion).toBe(1);
   });
 
-  it("R17c preserves the viewport for a same-path reload of a LONG document", () => {
-    // 覆盖后评审 HIGH-1/MED-1：路径信号必须真的生效，且前缀判据对 >5120 字符可满足。
+  it("R17c preserves the viewport for a declared same-document reload of a LONG document", () => {
+    // 覆盖后评审 HIGH-1/MED-1，并改为**显式身份声明**（architect 终审驱动项 ①）：
+    // 长文档夹具仍保留（>5120 字符），用于证明身份声明与文档长度无关。
     const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
     expect(body.length, "夹具必须超过 5120 字符才具判别力").toBeGreaterThan(5120);
     const setup = createSetup({ markdown: body, filePath: "/doc.md" });
@@ -811,13 +812,13 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     const before = setup.harness.probe();
 
     setup.document.replaceDocument(
-      { markdown: body + "\n", filePath: "/doc.md", mode: "wysiwyg" },
+      { markdown: body + "\n", filePath: "/doc.md", mode: "wysiwyg", replaceIntent: "same" },
       { kind: "command", commandId: "file.save" },
     );
     const after = setup.harness.probe();
 
     expect(after.stateReplacementCount).toBe(before.stateReplacementCount + 1);
-    expect(after.scrollTop, "同路径长文档重装载必须保留视口").toBe(512);
+    expect(after.scrollTop, "声明为同一文档的重装载必须保留视口").toBe(512);
   });
 
   it("R17d resets the viewport when a DIFFERENT path replaces the document", () => {
@@ -837,14 +838,14 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
 
   it("R17b preserves the viewport when the SAME document is re-loaded with a trivial difference", () => {
     // S7：同一文档重装载（保存往返/外部改动/快照重发）不得把正在阅读的用户弹回顶部。
-    // 判据 = 内容共享长前缀（本用例 = 仅追加一个换行）。
+    // 判据 = **宿主的显式声明**（本用例故意不传 filePath：证明判据不再依赖路径/内容前缀）。
     const source = `${Array.from({ length: 40 }, (_u, i) => `line ${i}`).join("\n")}\n`;
     const setup = createSetup({ markdown: source });
     setup.harness.setScrollTop(512);
     const before = setup.harness.probe();
 
     setup.document.replaceDocument(
-      { markdown: `${source}\n`, mode: "wysiwyg" },
+      { markdown: `${source}\n`, mode: "wysiwyg", replaceIntent: "same" },
       { kind: "command", commandId: "file.save" },
     );
     const after = setup.harness.probe();
@@ -853,6 +854,74 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       before.stateReplacementCount + 1,
     );
     expect(after.scrollTop, "同一文档重装载必须保留视口").toBe(512);
+  });
+
+  it("R17e resets the viewport when the host does NOT declare identity (no inference)", () => {
+    // architect 终审驱动项 ①：以前「同路径」会被自动判为同一文档（旧式 pathKnown
+    // 分支会保留视口，故本用例在改动前为**红**）；现在身份只认宿主声明，
+    // 未声明 ⇒ 归零（fail-safe：宁可归零，也不保留错位的阅读位置）。
+    const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
+    const setup = createSetup({ markdown: body, filePath: "/doc.md" });
+    setup.harness.setScrollTop(512);
+
+    setup.document.replaceDocument(
+      { markdown: body + "\n", filePath: "/doc.md", mode: "wysiwyg" },
+      { kind: "command", commandId: "file.save" },
+    );
+
+    expect(setup.harness.probe().scrollTop, "未声明身份必须归零（不推断）").toBe(0);
+  });
+
+  it("R17f resets the viewport when identical content is declared a DIFFERENT document", () => {
+    // 旧前缀启发式的漏洞（architect 终审边缘情形）：模板复制出的新文档内容与被替换文档
+    // **完全一致** ⇒ 旧式 sharesLongPrefix 会判为同一文档并保留视口（本用例在改动前为**红**）。
+    const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
+    const setup = createSetup({ markdown: body });
+    setup.harness.setScrollTop(512);
+
+    setup.document.replaceDocument(
+      { markdown: body, mode: "wysiwyg", replaceIntent: "different" },
+      { kind: "command", commandId: "file.open" },
+    );
+
+    expect(setup.harness.probe().scrollTop, "声明为换文档就必须归零").toBe(0);
+  });
+
+  it("R19 视图轴（专注/打字机）跨文档边界继承：与文档轴正交，不随换文档重置", () => {
+    // S1(b)/MED-4 根因：文档边界重建 EditorState 时，视图轴开关若归默认值，
+    // ① 用户的视图偏好会被静默关掉；② 宿主原生菜单镜像（只记「最近一次请求」）会与真实状态发散。
+    const setup = createSetup({ markdown: "line 1\nline 2\nline 3\n" });
+    expect(setup.harness.renderer.toggleFocusMode(), "开启专注").toBe(true);
+    expect(setup.harness.renderer.toggleTypewriterMode(), "叠加打字机（视图轴可叠加）").toBe(true);
+
+    setup.document.replaceDocument(
+      { markdown: "另一个文档\n", mode: "wysiwyg", replaceIntent: "different" },
+      { kind: "command", commandId: "file.open" },
+    );
+
+    expect(setup.harness.renderer.getViewModeState(), "换文档后视图轴必须继承").toEqual({
+      focus: true,
+      typewriter: true,
+    });
+  });
+
+  it("R19b 视图轴默认关闭；同一文档重装载同样继承，且文档轴（mode）仍由快照决定", () => {
+    const setup = createSetup({ markdown: "line 1\n" });
+    expect(setup.harness.renderer.getViewModeState(), "默认两轴均关").toEqual({
+      focus: false,
+      typewriter: false,
+    });
+
+    expect(setup.harness.renderer.toggleFocusMode()).toBe(true);
+    setup.document.replaceDocument(
+      { markdown: "line 1\n", mode: "wysiwyg", replaceIntent: "same" },
+      { kind: "command", commandId: "file.save" },
+    );
+
+    expect(setup.harness.renderer.getViewModeState().focus, "同文档重装载也继承视图轴").toBe(true);
+    expect(setup.harness.renderer.getViewModeState().typewriter, "未开启的轴不凭空打开").toBe(
+      false,
+    );
   });
 
   it("R18 restores focus-owned scroll after a hidden host is revealed", () => {

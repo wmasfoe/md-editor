@@ -42,8 +42,9 @@ test.describe("S7 滚动位置保持（属主复现文档）", () => {
     const scrolled = await scrollDown(page, 8);
     expect(scrolled, "前置：滚轮确实把视口下移了").toBeGreaterThan(300);
 
-    // 重新装载「同一文档」但内容存在微小差异 —— 等价于保存往返/外部改动后的快照重发
-    await loadDoc(page, `${DEMO}\n`);
+    // 重新装载「同一文档」但内容存在微小差异 —— 等价于保存往返/外部改动后的快照重发。
+    // 身份由宿主显式声明（architect 终审驱动项 ①）：渲染层不再从路径/内容前缀反推。
+    await loadDoc(page, `${DEMO}\n`, "same");
     await page.waitForTimeout(500);
 
     const after = await page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);

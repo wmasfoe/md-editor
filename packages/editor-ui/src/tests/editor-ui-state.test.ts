@@ -147,6 +147,8 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     // D-2 视图模式 ports（返回切换后状态）
     toggleFocusMode: vi.fn(() => false),
     toggleTypewriterMode: vi.fn(() => false),
+    // S1(b)：回读视图轴真实状态（供宿主核对菜单镜像一致性）
+    getViewModeState: vi.fn(() => ({ focus: false, typewriter: false })),
     mode: {
       applyMode: vi.fn(() => ({ status: "failed" as const, errorCode: "TEST" })),
       rollbackMode: vi.fn(),

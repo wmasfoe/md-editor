@@ -89,6 +89,8 @@ describe("DocumentState S1 protocol", () => {
       mode: "wysiwyg",
       isDirty: false,
       documentGeneration: 1,
+      // 初始文档无「上一次替换」⇒ fail-safe 的 "different"（S7/architect 驱动项 ①）
+      replaceIntent: "different",
       stateRevision: 0,
       contentRevision: 0,
       persistenceStatus: { kind: "verified", checkpointId: null, sequence: null },

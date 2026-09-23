@@ -617,6 +617,8 @@ describe("TableGridWidget DOM structure and pending edits flush", () => {
           savedMarkdown: "# Test",
           filePath: null,
           mode: "wysiwyg",
+          // 初始快照的 replaceIntent 必填（S7/architect 驱动项 ①）：无「上一次替换」⇒ different
+          replaceIntent: "different",
           isDirty: false,
           persistenceStatus: { kind: "verified", checkpointId: null, sequence: null },
         },

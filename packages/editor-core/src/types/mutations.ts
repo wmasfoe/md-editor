@@ -5,7 +5,7 @@
  * 以及乐观并发锁判定结果（成功、繁忙、陈旧冲突、重入拒绝）。
  */
 
-import type { DocumentSnapshot, EditorMode } from "./snapshot.ts";
+import type { DocumentReplaceIntent, DocumentSnapshot, EditorMode } from "./snapshot.ts";
 import type { DocumentStateEvent } from "./transitions.ts";
 import type { Markdown } from "@md-editor/shared";
 
@@ -83,6 +83,11 @@ export interface ReplaceDocumentInput {
   readonly savedMarkdown?: Markdown;
   readonly filePath?: string | null;
   readonly mode?: EditorMode;
+  /**
+   * 本次替换的文档身份声明；缺省视为 `"different"`（fail-safe，宁归零不保留错位视口）。
+   * 只有宿主确知「这是同一篇文档的重新装载」时才可声明 `"same"`。
+   */
+  readonly replaceIntent?: DocumentReplaceIntent;
 }
 
 /**

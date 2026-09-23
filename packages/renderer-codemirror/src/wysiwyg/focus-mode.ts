@@ -71,9 +71,22 @@ import {
 /** 专注模式开关（零文档变更，纯视图态） */
 export const setFocusModeEffect = StateEffect.define<boolean>();
 
+/**
+ * 专注模式**初始值**通道（S1(b)/MED-4 根因修复）
+ *
+ * 文档边界会重建 `EditorState`；若让 StateField 归默认值，就会把用户的视图偏好静默关掉，
+ * 并使原生菜单镜像（宿主记录的「最近一次请求态」）与渲染层真实状态发散。
+ * 专注属于**视图轴**状态（与文档正交），故由渲染层在重建时**继承**。
+ * 用 facet 提供初值（CodeMirror 标准做法），避免「先建成默认值再 dispatch 打开」
+ * 这种会产生额外副作用（例如打字机模式在切换瞬间触发一次居中滚动）的写法。
+ */
+export const focusModeInitialFacet = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
+
 export const focusModeField = StateField.define<boolean>({
-  create() {
-    return false;
+  create(state) {
+    return state.facet(focusModeInitialFacet);
   },
   update(value, transaction) {
     for (const effect of transaction.effects) {

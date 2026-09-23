@@ -427,4 +427,35 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     });
     expect(await fastScroll(), "打字机模式：快速滚动不得回到顶部").toBeGreaterThan(200);
   });
+
+  test("E36/AC-S1-b：文档边界后专注仍生效，且菜单镜像与 DOM 真实状态一致", async ({ page }) => {
+    // 审计 ④「S1(b) 未证明（镜像只写不读；文档边界后可能分歧）」的直接反证：
+    // ① 真实状态（DOM 根 class）在文档边界后必须仍然成立（视图轴与文档轴正交）；
+    // ② 宿主镜像必须与真实状态一致（旧行为：真实状态归 false 而镜像停在 true ⇒ 发散）。
+    await openApp(page);
+    await loadDoc(page, FOCUS_DOC);
+    await setCaret(page, FOCUS_DOC.indexOf("段落甲"));
+    await runCommand(page, "Focus Mode");
+    await expect(page.locator(".cm-md-focus-mode"), "前置：专注已生效").toHaveCount(1);
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.__MD_EDITOR_E2E__?.getModeMenuChecks?.().focus ?? null),
+      )
+      .toBe(true);
+
+    // 文档边界：换成另一篇文档（声明为 different，即“真·换文档”）
+    const OTHER_DOC = "# 另一篇文档\n\n正文段落。\n";
+    await loadDoc(page, OTHER_DOC, "different");
+    await setCaret(page, OTHER_DOC.indexOf("正文段落"));
+
+    await expect(page.locator(".cm-md-focus-mode"), "换文档后专注仍生效（真实状态）").toHaveCount(
+      1,
+    );
+    await expect(page.locator(".cm-md-focus-active"), "活动块按真实状态重算").toHaveCount(1);
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.__MD_EDITOR_E2E__?.getModeMenuChecks?.().focus ?? null),
+      )
+      .toBe(true);
+  });
 });

@@ -59,6 +59,13 @@ export interface CodeMirrorEditorPorts {
   toggleFocusMode(): boolean;
   /** D-2 视图模式：切换打字机模式，返回切换后状态 */
   toggleTypewriterMode(): boolean;
+  /**
+   * D-2/S1(b) 视图模式：**回读**视图轴（专注/打字机）真实开关态。
+   *
+   * 渲染层的 `focusModeField` / `typewriterModeField` 是单一事实源；
+   * 宿主菜单镜像只记「最近一次请求」，文档边界等事件后必须用它校对（MED-4）。
+   */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
   focus(): void;
   setSelection(from: number, to: number): void;
   scrollToLine(
@@ -239,6 +246,7 @@ export function createCodeMirrorEditorBridge(
     deleteBlock: () => renderer.deleteBlock(),
     toggleFocusMode: () => renderer.toggleFocusMode(),
     toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
+    getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionValue) => renderer.showSuggestion(suggestion),

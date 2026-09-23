@@ -180,11 +180,19 @@ export function useDocumentActionsController({
         return;
       }
 
+      const currentFilePath = runtime.document.getSnapshot().filePath;
       runtime.document.replaceDocument(
         {
           markdown: document.markdown,
           savedMarkdown: document.markdown,
           filePath: document.filePath,
+          // S7（architect 终审驱动项 ①）：**文档身份由宿主显式声明**，渲染层不再推断。
+          // 重开当前已打开的**同一文件**（Recent/重复打开）⇒ 同一篇文档 ⇒ 保留阅读位置；
+          // 其余情况（换文件、未命名文档）交由缺省 `"different"` 归零。
+          replaceIntent:
+            document.filePath !== null && document.filePath === currentFilePath
+              ? "same"
+              : "different",
         },
         { kind: "command", commandId: "file.open" },
       );

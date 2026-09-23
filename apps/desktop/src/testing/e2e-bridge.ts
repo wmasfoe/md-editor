@@ -1,4 +1,8 @@
-import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
+import {
+  switchEditorModeSafely,
+  type DocumentReplaceIntent,
+  type EditorMode,
+} from "@md-editor/editor-core";
 import type {
   CodeMirrorEditorExternalEditResult,
   CodeMirrorEditorPorts,
@@ -35,7 +39,12 @@ export interface EditorE2eBridge {
   openFixture(path: string): Promise<void>;
   openFolder(): Promise<void>;
   setFolderEmpty(empty: boolean): void;
-  replaceDocument(markdown: string, filePath?: string | null, mode?: EditorMode): void;
+  replaceDocument(
+    markdown: string,
+    filePath?: string | null,
+    mode?: EditorMode,
+    replaceIntent?: DocumentReplaceIntent,
+  ): void;
   createNewDocument(): Promise<void>;
   dispatchCommand(id: string): Promise<void>;
   setMode(mode: EditorMode): Promise<void>;
@@ -109,9 +118,14 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
     setFolderEmpty(empty: boolean) {
       setE2eFolderEmpty(empty);
     },
-    replaceDocument(markdown: string, filePath: string | null = null, mode?: EditorMode) {
+    replaceDocument(
+      markdown: string,
+      filePath: string | null = null,
+      mode?: EditorMode,
+      replaceIntent?: DocumentReplaceIntent,
+    ) {
       runtime.document.replaceDocument(
-        { markdown, savedMarkdown: markdown, filePath, mode },
+        { markdown, savedMarkdown: markdown, filePath, mode, replaceIntent },
         { kind: "command", commandId: "e2e.replaceDocument" },
       );
       useDocumentUiStore.getState().setHasActiveDocument(true);

@@ -26,7 +26,7 @@
  * - **异步渲染后重校正**：图表/公式渲染会改变块高度，故 `geometryChanged` 也触发重算。
  */
 
-import { StateEffect, StateField, type Extension } from "@codemirror/state";
+import { Facet, StateEffect, StateField, type Extension } from "@codemirror/state";
 import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
 
 /** 开关打字机模式 */
@@ -44,8 +44,21 @@ export const CENTER_EPSILON_PX = 1.5;
 export const CENTER_ANIMATION_MS = 140;
 
 /** 打字机模式状态（纯视图状态） */
+
+/**
+ * 打字机模式**初始值**通道（S1(b)/MED-4 根因修复，与 `focusModeInitialFacet` 同源）
+ *
+ * 打字机同样属于**视图轴**状态（与文档正交）：文档边界重建 `EditorState` 时必须继承，
+ * 否则视图偏好被静默关掉，且宿主菜单镜像与真实状态发散。
+ * 用 facet 给初值（而非建成默认值后再 dispatch）也避开了
+ * 「切换瞬间触发一次居中滚动」这种副作用。
+ */
+export const typewriterModeInitialFacet = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
+
 export const typewriterModeField = StateField.define<boolean>({
-  create: () => false,
+  create: (state) => state.facet(typewriterModeInitialFacet),
   update(previous, transaction) {
     let next = previous;
     for (const effect of transaction.effects) {

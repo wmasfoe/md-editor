@@ -58,8 +58,17 @@ import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
 import { deleteBlock, duplicateBlock, moveBlockDown, moveBlockUp } from "./wysiwyg/block-move.ts";
-import { focusModeField, focusDimOpacityFacet, setFocusModeEffect } from "./wysiwyg/focus-mode.ts";
-import { typewriterModeField, setTypewriterModeEffect } from "./wysiwyg/typewriter-mode.ts";
+import {
+  focusDimOpacityFacet,
+  focusModeField,
+  focusModeInitialFacet,
+  setFocusModeEffect,
+} from "./wysiwyg/focus-mode.ts";
+import {
+  setTypewriterModeEffect,
+  typewriterModeField,
+  typewriterModeInitialFacet,
+} from "./wysiwyg/typewriter-mode.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -172,6 +181,8 @@ export interface CodeMirrorRenderer {
   deleteBlock(): boolean;
   /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
   toggleFocusMode(): boolean;
+  /** 回读视图轴（专注/打字机）真实开关态，供宿主核对菜单镜像一致性（S1(b)/MED-4） */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
   /** D-2：切换打字机模式，返回切换后状态 */
   toggleTypewriterMode(): boolean;
   getSelectionSnapshot(): {
@@ -196,21 +207,16 @@ export interface CodeMirrorRenderer {
   destroy(): void;
 }
 
-/** 两段文本是否共享「长前缀」（S7：判断是否同一文档的重装载而非换文档） */
-function sharesLongPrefix(previous: string, next: string): boolean {
-  const shorter = Math.min(previous.length, next.length);
-  // 文档过短时不足以判定同一性（避免把「都写了 3 行」误判为同一文档）
-  if (shorter < 200) {
-    return false;
-  }
-  const sample = Math.min(shorter, 4096);
-  let matched = 0;
-  while (matched < sample && previous.charCodeAt(matched) === next.charCodeAt(matched)) {
-    matched += 1;
-  }
-  // 判据 = **整段被比较前缀完全一致**（原式 matched >= shorter × 0.8 在 shorter > 5120 时
-  // 因 sample 上限 4096 而数学上不可满足；后评审 MED-1）。
-  return matched === sample;
+/**
+ * 视图轴（专注/打字机）开关快照。
+ *
+ * 视图轴与文档轴**正交**：文档边界（换文档 / 同一文档重装载）重建 `EditorState` 时，
+ * 视图轴开关必须由渲染层**继承**，不能随文档重置 —— 否则用户的视图偏好被静默关掉，
+ * 且宿主原生菜单镜像会与渲染层真实状态发散（S1(b) / MED-4 根因）。
+ */
+interface ViewAxisState {
+  readonly focus: boolean;
+  readonly typewriter: boolean;
 }
 
 export interface RendererViewAdapter {
@@ -528,8 +534,6 @@ class CodeMirrorRendererController {
   #modeScrollRestoreSequence = 0;
   /** S7：快照重装载后的滚动恢复序列（防过期回调覆盖用户滚动） */
   #reconcileScrollRestoreSequence = 0;
-  /** 当前装载的文档路径（S7：用于判断是「换文档」还是「同文档重装载」） */
-  #stateFilePath: string | null = null;
   readonly #modeScrollTopsByMode = new Map<EditorMode, number>();
   readonly #modeCursorPosByMode = new Map<EditorMode, number>();
   #destroyed = false;
@@ -552,8 +556,6 @@ class CodeMirrorRendererController {
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
-    // S7：必须播种当前文档路径（否则会话首个边界 pathSame 恒 false；后评审 HIGH-1）
-    this.#stateFilePath = initialSnapshot.filePath ?? null;
 
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
@@ -620,7 +622,8 @@ class CodeMirrorRendererController {
       }),
     ]);
 
-    const initialState = this.#createState(initialSnapshot);
+    // 会话初始：尚无「上一次视图轴状态」⇒ 两开关均关（宿主持久化偏好不属本批范围）
+    const initialState = this.#createState(initialSnapshot, { focus: false, typewriter: false });
     this.#view = viewFactory({
       parent: options.parent,
       state: initialState,
@@ -1135,6 +1138,20 @@ class CodeMirrorRendererController {
     return next;
   }
 
+  /**
+   * 读取**视图轴**（专注/打字机）当前开关态。
+   *
+   * 权威来源是渲染层的两个 StateField（见 docs/agent/product/editor_view_modes.md）。
+   * 宿主菜单镜像只记「最近一次请求」，所以需要一条「回读真实状态」的通道来核对一致性：
+   * 镜像不能被当成事实源（S1(b)/MED-4）。
+   */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
+    return {
+      focus: this.#view.state.field(focusModeField, false) === true,
+      typewriter: this.#view.state.field(typewriterModeField, false) === true,
+    };
+  }
+
   duplicateBlock(): boolean {
     if (this.#destroyed) {
       return false;
@@ -1285,7 +1302,7 @@ class CodeMirrorRendererController {
     this.#view.requestMeasure(afterMeasure);
   }
 
-  #createState(snapshot: DocumentSnapshot): EditorState {
+  #createState(snapshot: DocumentSnapshot, viewAxisAlignment: ViewAxisState): EditorState {
     this.#explicitStateCreationCount += 1;
     return EditorState.create({
       doc: normalizeLineEndings(snapshot.markdown),
@@ -1294,6 +1311,9 @@ class CodeMirrorRendererController {
         ...this.#rootExtensions,
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
+        // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
+        focusModeInitialFacet.of(viewAxisAlignment.focus),
+        typewriterModeInitialFacet.of(viewAxisAlignment.typewriter),
       ],
     });
   }
@@ -1487,25 +1507,22 @@ class CodeMirrorRendererController {
     this.#clearPendingProtocolState();
     // S7：**区分「换文档」与「同一文档重装载」**。
     // 换文档回顶部是对的；但同一文档的重装载（保存往返、外部改动、设置变更后的快照重发）
-    // 若无条件归零，就会把正在阅读的用户**弹回顶部** —— 属主复现（E34，夹具为其逐字文档）：
-    // 滚动到 2560 → 装载后 0。此处按 filePath 是否相同判定。
-    const previousFilePath = this.#stateFilePath;
+    // 若无条件归零，就会把正在阅读的用户**弹回顶部** —— 属主复现（E34，夹具为其逐字文档）。
+    //
+    // 身份判据**只认宿主声明**（`snapshot.replaceIntent`），渲染层不做任何推断
+    //（architect 终审驱动项 ①）：从路径/内容前缀反推会重复宿主的领域知识
+    //（宿主本就拥有 `documentGeneration` 与重装载意图），并悄悄成为视口语义的隐性事实源。
+    // 未声明时按 `"different"` 归零（fail-safe：宁归零，不保留错位阅读位置）——见 R17/R17e/R17f。
     const previousScrollTop = this.#view.getScrollTop();
-    const previousMarkdown = this.#view.state.doc.toString();
-    // 「同一文档重装载」判定用**双信号**：
-    //  ① 路径相同且都非空 —— 打开同一文件的保存往返/外部改动；
-    //  ② 内容共享**整段被比较前缀**（较短者须 ≥200 字符）—— 未命名文档的保存往返/快照重发，
-    //     以及带微小归一差异（换行/尾空白）的同一文档。
-    // 二者皆不满足 = **换文档**（如 file.open/file.new）⇒ 按原契约归零（见 R17）。
-    const pathKnown = typeof snapshot.filePath === "string" && snapshot.filePath.length > 0;
-    // 路径已知 ⇒ 以路径为权威（同路径保留 / 不同路径归零，即使内容相同）；未知才回落内容前缀。
-    const sameDocument = pathKnown
-      ? previousFilePath === snapshot.filePath
-      : sharesLongPrefix(previousMarkdown, snapshot.markdown);
-    const nextState = this.#createState(snapshot);
+    const sameDocument = snapshot.replaceIntent === "same";
+    // 视图轴（专注/打字机）与文档轴正交：跨边界继承，不随文档重置（S1(b)/MED-4 根因修复）。
+    const viewAxisAlignment: ViewAxisState = {
+      focus: this.#view.state.field(focusModeField, false) === true,
+      typewriter: this.#view.state.field(typewriterModeField, false) === true,
+    };
+    const nextState = this.#createState(snapshot, viewAxisAlignment);
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
-    this.#stateFilePath = snapshot.filePath ?? null;
     if (sameDocument) {
       // 与 setHostVisibility 同款：先写一次，再在 measure 回调复核（CM 可能调整滚动锚点）
       const restoreSequence = ++this.#reconcileScrollRestoreSequence;
@@ -1535,9 +1552,6 @@ class CodeMirrorRendererController {
   }
 
   #acceptSnapshotBookkeeping(snapshot: DocumentSnapshot): void {
-    // S7（终审 MED 处方）：**在此单一汇聚点刷新文档身份** —— 元数据路径（重命名/save-as 提升）
-    // 与 reconcile 路径都会经过这里，否则紧随其后的重装载会被误判为「换文档」而把视口归零。
-    this.#stateFilePath = snapshot.filePath ?? this.#stateFilePath;
     this.#documentGeneration = snapshot.documentGeneration;
     this.#stateRevision = snapshot.stateRevision;
     this.#contentRevision = snapshot.contentRevision;
@@ -1758,6 +1772,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     duplicateBlock: () => controller.duplicateBlock(),
     deleteBlock: () => controller.deleteBlock(),
     toggleFocusMode: () => controller.toggleFocusMode(),
+    getViewModeState: () => controller.getViewModeState(),
     toggleTypewriterMode: () => controller.toggleTypewriterMode(),
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
