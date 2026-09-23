@@ -107,4 +107,30 @@ test.describe("块操作（真实 desktop app · G007 命令面板路径）", ()
     await expect(page.getByRole("dialog")).toBeHidden();
     expect(await readDoc(page), "回归锁：唤面板曾在光标处插入 [](url)（双发缺陷）").toBe(doc);
   });
+
+  test("E28/AC-S8：块操作快捷键（Mod-Alt+↓ 下移 / Mod-Alt+D 复制 / Mod-Alt+Backspace 删除）", async ({
+    page,
+  }) => {
+    await openApp(page);
+    const doc = ["段落甲", "", "段落乙", "", "段落丙", ""].join("\n");
+    await loadDoc(page, doc);
+
+    // 下移：段落乙 与 段落丙 交换位置（用顺序断言，不耦合空行归一细节）
+    await setCaret(page, doc.indexOf("段落乙"));
+    await page.keyboard.press(`${MOD_KEY}+Alt+ArrowDown`);
+    const moved = await readDoc(page);
+    expect(moved.indexOf("段落丙"), "Mod-Alt+↓ 应触发下移块").toBeLessThan(moved.indexOf("段落乙"));
+
+    // 复制：段落乙 出现两次
+    await setCaret(page, moved.indexOf("段落乙"));
+    await page.keyboard.press(`${MOD_KEY}+Alt+d`);
+    const duplicated = await readDoc(page);
+    expect(duplicated.split("段落乙").length - 1, "Mod-Alt+D 应触发复制块").toBe(2);
+
+    // 删除：回到一次
+    await setCaret(page, duplicated.indexOf("段落乙"));
+    await page.keyboard.press(`${MOD_KEY}+Alt+Backspace`);
+    const deleted = await readDoc(page);
+    expect(deleted.split("段落乙").length - 1, "Mod-Alt+Backspace 应触发删除块").toBe(1);
+  });
 });

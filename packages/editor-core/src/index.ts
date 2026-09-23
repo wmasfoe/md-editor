@@ -448,6 +448,29 @@ export function createBlockCommandsFeature(): FeatureDescriptor {
         group: "Blocks",
         keywords: ["block", "delete", "remove", "块", "删除"],
       });
+
+      // S8（编辑器交互 bug 批，属主 #7）：块操作快捷键。
+      // 默认键可在设置里改（defaults.ts 同名 id 行）；占用盘点与守卫测试见该文件注释。
+      context.keymaps.register({
+        id: "block.moveUp",
+        key: "Mod-Alt-ArrowUp",
+        commandId: "block.moveUp",
+      });
+      context.keymaps.register({
+        id: "block.moveDown",
+        key: "Mod-Alt-ArrowDown",
+        commandId: "block.moveDown",
+      });
+      context.keymaps.register({
+        id: "block.duplicate",
+        key: "Mod-Alt-D",
+        commandId: "block.duplicate",
+      });
+      context.keymaps.register({
+        id: "block.delete",
+        key: "Mod-Alt-Backspace",
+        commandId: "block.delete",
+      });
     },
   };
 }

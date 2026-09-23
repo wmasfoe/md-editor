@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_SHORTCUT_TEMPLATES } from "../src/app/settings/shortcuts/defaults";
 import { isWindowsPlatform } from "../src/lib/keyboard";
 import {
   compareReleaseVersions,
@@ -87,6 +88,11 @@ describe("app settings", () => {
       "table.insert",
       "ai.continueWriting",
       "ai.fixGrammar",
+      // S8：块操作快捷键（与 defaults.ts 顺序一致）
+      "block.moveUp",
+      "block.moveDown",
+      "block.duplicate",
+      "block.delete",
     ]);
   });
 
@@ -611,5 +617,35 @@ describe("app settings", () => {
     expect(normalizeShortcutKey("Alt+Ctrl+T")).toBe("Mod-Alt-T");
     expect(normalizeShortcutKey("Command+Shift+B")).toBe("Mod-Shift-B");
     expect(normalizeShortcutKey("Ctrl+Shift+B")).toBe("Mod-Shift-B");
+  });
+});
+
+/**
+ * S8（编辑器交互 bug 批）：快捷键**占用守卫**。
+ *
+ * 原生菜单侧由 Rust 的 `menu_accelerator_collision_tests` 锁定（含大小写不敏感自证）；
+ * 此处锁定 JS keymap 侧 —— 同一教训：**大小写差异不构成区分**
+ *（用户看到的键位一样，且原生加速键解析会 to_uppercase）。
+ */
+describe("默认快捷键占用守卫（S8）", () => {
+  it("默认键按大小写不敏感归一后必须两两不同", () => {
+    const seen = new Map<string, string>();
+    for (const template of DEFAULT_SHORTCUT_TEMPLATES) {
+      const normalized = template.defaultKey.toUpperCase();
+      const previous = seen.get(normalized);
+      expect(
+        previous,
+        `快捷键冲突：${template.id} 与 ${previous} 都用 ${template.defaultKey}`,
+      ).toBeUndefined();
+      seen.set(normalized, template.id);
+    }
+  });
+
+  it("id 唯一且与 commandId 同名（Rust 菜单加速键按同 id 读取设置）", () => {
+    const ids = DEFAULT_SHORTCUT_TEMPLATES.map((template) => template.id);
+    expect(new Set(ids).size, "id 必须唯一").toBe(ids.length);
+    for (const template of DEFAULT_SHORTCUT_TEMPLATES) {
+      expect(template.commandId, `${template.id} 的 commandId 应与 id 同名`).toBe(template.id);
+    }
   });
 });
