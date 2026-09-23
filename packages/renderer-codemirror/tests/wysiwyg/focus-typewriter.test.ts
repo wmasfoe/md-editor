@@ -16,7 +16,6 @@ import {
   focusDimDecorationsField,
   focusModeExtension,
   focusModeField,
-  isAtomicWidgetBlock,
   resolveActiveBlock,
   setFocusModeEffect,
 } from "../../src/wysiwyg/focus-mode.ts";
@@ -66,18 +65,128 @@ describe("U19 活动块 = 光标所在 block record（跟随光标，非悬停�
   });
 });
 
-describe("F5 原子 widget 块识别（走 class 切换，不走 decoration）", () => {
-  it("ATOMIC_WIDGET_KINDS 成员被识别为原子块", () => {
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "table" })).toBe(true);
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "thematic-break" })).toBe(true);
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "html" })).toBe(true);
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "mdx-jsx" })).toBe(true);
+describe("U19b 活动块二分查找（readBlockRanges 保证升序不嵌套）", () => {
+  const many: readonly BlockRange[] = Array.from({ length: 500 }, (_unused, index) => ({
+    from: index * 10,
+    to: index * 10 + 4,
+    name: "paragraph",
+  }));
+
+  it("大列表下的命中与边界（含端点）", () => {
+    expect(resolveActiveBlock(many, 0)?.from).toBe(0);
+    expect(resolveActiveBlock(many, 4)?.from).toBe(0);
+    expect(resolveActiveBlock(many, 2504)?.from).toBe(2500);
+    expect(resolveActiveBlock(many, 4994)?.from).toBe(4990);
   });
 
-  it("普通块（段落/列表/标题）不是原子块", () => {
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "paragraph" })).toBe(false);
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "list-item" })).toBe(false);
-    expect(isAtomicWidgetBlock({ from: 0, to: 1, name: "heading-atx" })).toBe(false);
+  it("块间空隙 → null", () => {
+    expect(resolveActiveBlock(many, 5)).toBeNull();
+    expect(resolveActiveBlock(many, 4995)).toBeNull();
+  });
+});
+
+describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰", () => {
+  // 判据取自**投影层渲染契约**（layoutDecorations 中 spec.block === true），
+  // 故 setext 标题 / 引用定义 / 脚注定义 / 表格这些「非 ATOMIC_WIDGET_KINDS」的
+  // 整块 replace widget 也必须在跳过名单内（否则同位置线装饰造幻影行/块消失）。
+  const doc = [
+    "Setext 标题",
+    "===========",
+    "",
+    "普通段落甲，应被线装饰覆盖。",
+    "",
+    "[ref]: https://example.com/only",
+    "",
+    "脚注引用示例。[^1]",
+    "",
+    "[^1]: 脚注定义内容",
+    "",
+    "普通段落乙，应被线装饰覆盖。",
+    "",
+    "| 列一 | 列二 |",
+    "| --- | --- |",
+    "| 单元 | 数据 |",
+    "",
+  ].join("\n");
+
+  function projectedState(source: string): EditorState {
+    return stateWith(source, 0, [
+      markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+      provideWysiwygDiagnostics(new WysiwygDiagnostics()),
+      editorModeField,
+      markdownRangeIndexField,
+      configureWysiwygProjectionFeatures([
+        "inline-styles",
+        "headings",
+        "blocks",
+        "links",
+        "images",
+        "thematic-breaks",
+        "default-atoms",
+        "frontmatter",
+        "tables",
+        "html",
+        "mdx",
+      ]),
+      wysiwygProjectionField,
+      focusModeExtension,
+    ]);
+  }
+
+  it("整块 replace widget 的行被跳过，普通段落仍被覆盖（对照组）", () => {
+    let state = projectedState(doc);
+    state = state.update({ effects: setFocusModeEffect.of(true) }).state;
+    const decorated = new Set(focusDecorationPositions(state));
+
+    const skipped: readonly [string, string][] = [
+      ["setext 标题", "Setext 标题"],
+      ["引用定义", "[ref]: https://example.com/only"],
+      ["脚注定义", "[^1]: 脚注定义内容"],
+      ["表格", "| 列一 | 列二 |"],
+    ];
+    for (const [label, text] of skipped) {
+      const line = state.doc.lineAt(doc.indexOf(text));
+      expect(
+        decorated.has(line.from),
+        `${label} 所在行不得挂 focus 线装饰（否则与块 widget 同位置 → 幻影行/块消失）`,
+      ).toBe(false);
+    }
+
+    // 对照组：普通段落必须仍被覆盖（证明不是把所有行都跳过了）
+    for (const text of ["普通段落甲，应被线装饰覆盖。", "普通段落乙，应被线装饰覆盖。"]) {
+      const line = state.doc.lineAt(doc.indexOf(text));
+      expect(decorated.has(line.from), `${text} 应被 focus 线装饰覆盖`).toBe(true);
+    }
+  });
+});
+
+describe("C：装饰集只对可见区注入 effect 重建（无关 effect 不得触发全量重建）", () => {
+  const unrelatedEffect = StateEffect.define<number>();
+  const source = Array.from({ length: 60 }, (_unused, index) => `# Line ${index} content`).join(
+    "\n",
+  );
+
+  it("无关 effect → 同一装饰集对象；可见区 effect → 新对象", () => {
+    let state = stateWith(source, 0, [
+      markdownRangeIndexField,
+      editorModeField,
+      configureWysiwygProjectionFeatures(["blocks", "headings"]),
+      wysiwygProjectionField,
+      focusModeExtension,
+    ]);
+    state = state.update({ effects: setFocusModeEffect.of(true) }).state;
+    const before = state.field(focusDimDecorationsField);
+
+    state = state.update({ effects: unrelatedEffect.of(1) }).state;
+    expect(
+      state.field(focusDimDecorationsField),
+      "无关 effect（如解析进度/原子选区）不得触发专注装饰重建",
+    ).toBe(before);
+
+    state = state.update({
+      effects: setWysiwygVisibleRangesEffect.of([{ from: 0, to: 50 }]),
+    }).state;
+    expect(state.field(focusDimDecorationsField), "可见区注入必须重建").not.toBe(before);
   });
 });
 
@@ -196,7 +305,8 @@ describe("OB1 / T-F7 🔴 PM-1 硬闸门：专注模式不得改变投影重建�
     const off = runPlainInsert(false);
     const on = runPlainInsert(true);
     // PM-1 的精确契约：专注模式不得改变投影重建路径分类。
-    // F-C 变体零 decoration，故 map-vs-rebuild 判定根本看不到它。
+    // F-C 装饰集是**独立** StateField（`focusDimDecorationsField`），不参与
+    // `wysiwygProjectionField` 的 map-vs-rebuild 判定，故该分类看不到它。
     expect(on, "开启专注模式后路径分类不得变化").toEqual(off);
     expect(on.fullBuild, "PM-1：不得因专注模式退化为全量重建").toBe(0);
   });
@@ -213,8 +323,6 @@ function focusDecorationPositions(state: EditorState): readonly number[] {
 }
 
 describe("F6/OB2（G006 方案 b）：专注装饰走视口过滤 + 生产全文构建明说", () => {
-  /** 读出 focus 装饰行位置 */
-
   it("2000 行夹具 + effect 注入可见区 → 只构建可见区（G006 视口过滤）；未注入 = 全文构建", () => {
     // ⚠️ 方案(b) 明说（PRD R-6）：生产当前是**全文构建** —— probe 有意 no-op，生产不派发
     // setWysiwygVisibleRangesEffect；本测试走 effect 注入路径驱动 G006（F6/OB2 改写约定）。
@@ -251,13 +359,6 @@ describe("F6/OB2（G006 方案 b）：专注装饰走视口过滤 + 生产全文
     state = state.update({
       effects: setWysiwygVisibleRangesEffect.of([{ from: 1000, to: 1100 }]),
     }).state;
-    console.log(
-      "DBG projRanges:",
-      JSON.stringify(
-        (state.field(wysiwygProjectionField) as unknown as { visibleRanges?: unknown })
-          .visibleRanges ?? null,
-      ),
-    );
     const limited = focusDecorationPositions(state);
     expect(limited.length, "限定构建：装饰数远少于全文").toBeGreaterThan(0);
     expect(limited.length).toBeLessThan(full.length / 10);

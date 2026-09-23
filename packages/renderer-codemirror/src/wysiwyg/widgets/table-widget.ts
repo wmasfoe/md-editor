@@ -300,7 +300,11 @@ export class TableGridWidget extends WidgetType {
         // compositionGuardRanges”）。
         const projection = view.state.field(wysiwygProjectionField, false);
         const compositionGuarded = (projection?.compositionGuardRanges.length ?? 0) > 0;
-        if (keyEvent.isComposing || view.composing || compositionGuarded) {
+        // 三闸合一的**真实值**：既用于早退，也作为 arbiter 的 composing 输入。
+        // 不得只传 `keyEvent.isComposing`：早退之后它恒为 false，会丢掉
+        // `view.composing` / `compositionGuardRanges` 两条闸的信息（信息丢失型 smell）。
+        const composing = keyEvent.isComposing || view.composing || compositionGuarded;
+        if (composing) {
           // 放行原生（不 preventDefault → IME/浏览器默认键为不受阻），但**阻断我方链**：
           // Tab 不得再冒泡进 CM6 keymap（轮1 concern-6 的 dispatch 级契约的前置保障）。
           keyEvent.stopPropagation();
@@ -326,8 +330,9 @@ export class TableGridWidget extends WidgetType {
           // 轮1 concern-7：迭代归共享 runner（dispatchTabActions）；本处只供给「动作→执行器」映射
           const outcome = dispatchTabActions(
             {
-              // 上面已对 isComposing 早退，此处恒 false；保留字段以显式对齐铁律第 1 步
-              composing: keyEvent.isComposing,
+              // 三闸合一的真实值（此处恒 false，因为上面已对 composing 早退；
+              // 传真实值而非 keyEvent.isComposing 可保证将来早退条件收窄时语义不丢）
+              composing,
               suggestionActive: view.state.field(aiSuggestionField, false) !== null,
               inTableCell: true,
             },

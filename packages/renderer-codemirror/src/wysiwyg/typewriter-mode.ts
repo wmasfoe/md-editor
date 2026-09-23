@@ -77,7 +77,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
     destroy(): void {
       if (this.frame !== 0) {
-        cancelAnimationFrame(this.frame);
+        cancelFrame(this.frame);
         this.frame = 0;
       }
     }
@@ -94,11 +94,12 @@ const typewriterPlugin = ViewPlugin.fromClass(
         this.recenter(view, immediate);
       };
       // ViewPlugin 只在真实 DOM 环境实例化（node 单测只用 typewriterModeField，
-      // 不构造本插件），故 **直接用 requestAnimationFrame** ——
-      // 删掉此前的 `typeof` + `setTimeout` 充降分支：它是投机性死代码，
-      // 且与 `destroy()` 里无守卫的 `cancelAnimationFrame` 自相矛盾
-      // （后者会在该分支假想要防护的环境里直接抛错）。
-      this.frame = requestAnimationFrame(run);
+      // 不构造本插件），故走原生 `requestAnimationFrame` —— 但保留**最小环境守卫**：
+      // 非浏览器环境（jsdom/SSR/纯 node）无 rAF，直接返回 0 = 不排程。
+      // 注：先前删掉的是「`typeof` + `setTimeout` 充降」分支 —— 投机的是 **setTimeout 语义**
+      //（凭空发明定时重校行为），而非守卫本身；守卫只避免崩溃、不改变任何浏览器语义，
+      // 并与 `destroy()` 的 `cancelFrame` 对称（后者同样带守卫）。
+      this.frame = scheduleFrame(run);
     }
 
     private recenter(view: EditorView, immediate: boolean): void {
@@ -127,4 +128,19 @@ const typewriterPlugin = ViewPlugin.fromClass(
 );
 
 /** 打字机模式扩展 */
+/** 环境守卫：非浏览器（jsdom/SSR/纯 node）无 rAF → 返回 0 表示「不排程」，不抛错 */
+function scheduleFrame(run: () => void): number {
+  if (typeof requestAnimationFrame !== "function") {
+    return 0;
+  }
+  return requestAnimationFrame(run);
+}
+
+/** 与 `scheduleFrame` 对称的取消（同样带守卫，避免无 rAF 环境下 destroy 抛错） */
+function cancelFrame(frame: number): void {
+  if (frame !== 0 && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(frame);
+  }
+}
+
 export const typewriterModeExtension: Extension = [typewriterModeField, typewriterPlugin];

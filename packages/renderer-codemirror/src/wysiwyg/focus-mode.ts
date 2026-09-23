@@ -2,18 +2,34 @@
  * @file focus-mode.ts
  * @description D-2 专注模式（**F-C 机制**，brief 指定）。
  *
- * ## 机制（brief 原文落地）
+ * ## 机制
  * - **普通块 dim**：独立 StateField 装饰集（`focusDimDecorationsField`，`Decoration.line`）
  *   负责非活动块 `cm-md-focus-dim`、活动块 `cm-md-focus-active`；
- * - **ATOMIC_WIDGET_KINDS**（thematic-break/table/html/mdx-jsx）：ViewPlugin 切换
- *   **widget 根 class**（`cm-md-focus-active-atomic` 等）——
- *   严禁在 replace widget 同范围叠加 `Decoration.line`（F5 回归重点：同范围线装饰
- *   被覆盖会让块消失，装饰集对原子块**一律跳过**，由构造避开该坑）；
- * - 严禁耦合进投影 builder（本模块零投影 builder 触点，G004 map-vs-rebuild 无关）。
+ * - **块 widget dim**：`focusWidgetClassPlugin` 切换**块根元素**（整块 replace widget 根，
+ *   如表格 / HTML / MDX / 分割线 / setext 标题 / 引用定义 / 脚注定义 / 代码块）上的同名根类。
+ *
+ * ## 所有权契约（两者**不得互相写对方的 DOM**）
+ * 1. `.cm-line` 元素上的 focus 类**只**由 StateField 装饰集写；
+ * 2. 非 `.cm-line` 的块根元素上的 focus 类**只**由 ViewPlugin 写；
+ * 3. 装饰集对**块 widget 覆盖的行**一律跳过。
+ *
+ * 契约 1 是硬约束：CodeMirror 的 ViewPlugin 在 docView 之前更新
+ *（`@codemirror/view` 的 `updatePlugins` 先于 `docView.update`），且行元素的 attrs
+ * 仅在 tile 标记 `AttrsDirty` 时才重放、`observeOptions` 不观察 `attributes` 变化 ——
+ * 因此插件若 `remove()` 装饰集写下的行类，该类在后续更新中会被静默抹掉且难以自愈。
+ *
+ * ## 契约 3 的判据来自**投影层的渲染契约**，而非块工具栏的 kind 名单
+ * 判据 = `wysiwygProjectionField.layoutDecorations` 中 `spec.block === true` 的 replace
+ * 装饰所覆盖的行。理由：`ATOMIC_WIDGET_KINDS`（`block-move.ts`）是**块工具栏**关心的
+ * 4 个 kind（thematic-break/table/html/mdx-jsx），而 setext 标题、引用定义、脚注定义、
+ * 代码块同样以整块 replace widget 渲染（见 `default-visualization.ts`、
+ * `code-block-projection.ts`、`link-projection.ts`）。在块 widget 同位置挂
+ * `Decoration.line` 会触发 CM 的 `addLineStartIfNotCovered` → 幻影行 / 块消失（F5）。
+ * 用渲染契约做判据可让**将来新增的块 widget kind 自动被覆盖**，不再依赖「记得登记名单」。
  *
  * ## G006 视口过滤（F6，方案 (b)）
  * `visibleRanges` 注入（`setWysiwygVisibleRangesEffect`）非空时，装饰集只构建
- * 与可见区相交的块（可见区外不构建）。
+ * 与可见区相交的**行**（可见区外不构建）。
  *
  * ⚠️ **生产当前是全文构建**（PRD R-6 明说，方案 (b) 约定）：`visibleRangesProbePlugin`
  * 有意 no-op（update 周期禁 dispatch 的 CM 规范约束），生产**不派发**
@@ -37,8 +53,13 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { ATOMIC_WIDGET_KINDS, readBlockRanges, type BlockRange } from "./block-move.ts";
-import { wysiwygProjectionField } from "./projection-state.ts";
+import { readBlockRanges, type BlockRange } from "./block-move.ts";
+import {
+  setWysiwygVisibleRangesEffect,
+  wysiwygProjectionField,
+  type WysiwygProjectionState,
+} from "./projection-state.ts";
+import type { SourceRange } from "../markdown/range-types.ts";
 
 /** 专注模式开关（零文档变更，纯视图态） */
 export const setFocusModeEffect = StateEffect.define<boolean>();
@@ -67,44 +88,83 @@ export const DEFAULT_DIM_OPACITY = 0.38;
  */
 export const focusDimOpacityFacet = Facet.define<number>();
 
+/** 解析并**硬夹** dim 强度到 spec 区间 [0.30, 0.50]；非有限值回落到默认值 */
 export function resolveDimOpacity(state: EditorState): number {
   const raw = state.facet(focusDimOpacityFacet)[0] ?? DEFAULT_DIM_OPACITY;
+  if (!Number.isFinite(raw)) {
+    return DEFAULT_DIM_OPACITY;
+  }
   return Math.min(0.5, Math.max(0.3, raw));
 }
 
+const ACTIVE_CLASS = "cm-md-focus-active";
+const DIM_CLASS = "cm-md-focus-dim";
+/** CodeMirror 行元素类：装饰集的所有权标志 */
+const LINE_ELEMENT_CLASS = "cm-line";
+
 /**
- * 活动块 = **光标**所在块（不是选区端点、不是鼠标悬停）。
+ * 命中 pos 所在块（端点 `from`/`to` 均含）。
+ *
+ * 二分查找：`readBlockRanges` 的输出**保证按 from 升序且互不嵌套**（`computeBlockRanges`
+ * 每个分支都把 `lineNumber` 推进到所推范围的末行之后），故可安全二分。
  * 无光标块命中时返回 null（例如光标落在块间空行）。
  */
-export function resolveActiveBlock(blocks: readonly BlockRange[], head: number): BlockRange | null {
-  for (const block of blocks) {
-    if (block.from <= head && head <= block.to) {
+export function resolveActiveBlock(blocks: readonly BlockRange[], pos: number): BlockRange | null {
+  let low = 0;
+  let high = blocks.length - 1;
+  while (low <= high) {
+    const middle = (low + high) >>> 1;
+    const block = blocks[middle] as BlockRange;
+    if (pos < block.from) {
+      high = middle - 1;
+    } else if (pos > block.to) {
+      low = middle + 1;
+    } else {
       return block;
     }
   }
   return null;
 }
 
-function blockAtPos(blocks: readonly BlockRange[], pos: number): BlockRange | null {
-  for (const block of blocks) {
-    if (block.from <= pos && pos <= block.to) {
-      return block;
-    }
-  }
-  return null;
-}
+/**
+ * 块 widget 覆盖范围缓存（按 `layoutDecorations` 的**对象身份**记忆）。
+ *
+ * 与 `readBlockRanges` 的 M11 缓存同理由：该推导处在每键热路径上，且
+ * `layoutDecorations` 在同一投影状态下恒等 —— 身份未变 ⇒ 渲染契约未变。
+ * 键取 `layoutDecorations` 而非投影状态对象：后者在 `visibleRanges` 变化时也会换新，
+ * 但块 widget 范围与可见区无关，无需重扫。
+ */
+let cachedLayoutDecorations: unknown = null;
+let cachedWidgetRanges: readonly SourceRange[] = [];
 
-/** 原子 widget 块判定（F5 的 dim 走 widget 外层 class，不用线装饰） */
-export function isAtomicWidgetBlock(block: BlockRange): boolean {
-  return ATOMIC_WIDGET_KINDS.has(block.name);
+const NO_RANGES: readonly SourceRange[] = [];
+
+function blockWidgetRanges(
+  projection: WysiwygProjectionState,
+  docLength: number,
+): readonly SourceRange[] {
+  if (projection.layoutDecorations === cachedLayoutDecorations) {
+    return cachedWidgetRanges;
+  }
+  const ranges: SourceRange[] = [];
+  projection.layoutDecorations.between(0, docLength, (from, to, value) => {
+    // 块 widget 的唯一可靠标志：投影层自己写的 block replace 装饰
+    if (value.spec?.block === true) {
+      ranges.push({ from, to });
+    }
+  });
+  cachedLayoutDecorations = projection.layoutDecorations;
+  cachedWidgetRanges = ranges;
+  return ranges;
 }
 
 /**
  * 普通块 dim 装饰集（brief 指定的「独立 StateField 装饰集」）。
  *
  * - 活动块 → `cm-md-focus-active`；其余普通块 → `cm-md-focus-dim`；
- * - **原子块跳过**（F5：widget 根 class 归 ViewPlugin，同范围叠加线装饰会让块消失）；
- * - **G006 视口过滤（F6）**：`visibleRanges` 非空时只构建与可见区相交的块。
+ * - **块 widget 覆盖的行一律跳过**（F5：同位置线装饰会造幻影行 / 让块消失），
+ *   这些块的 dim 由 `focusWidgetClassPlugin` 在块根元素上切换类；
+ * - **G006 视口过滤（F6）**：`visibleRanges` 非空时只构建与可见区相交的**行**。
  *   生产当前是全文构建（见文件头 ⚠️ 注）；测试经 `setWysiwygVisibleRangesEffect` 注入驱动。
  */
 export const focusDimDecorationsField = StateField.define<DecorationSet>({
@@ -114,10 +174,16 @@ export const focusDimDecorationsField = StateField.define<DecorationSet>({
   update(value, transaction) {
     if (
       transaction.docChanged ||
-      transaction.selection ||
-      // 任一 effect 即重建：避免 StateEffect.is 的跨模块身份判定（实测失配致
-      // setWysiwygVisibleRangesEffect 触发不达）；重建本体廉价（M11 缓存 + 按可见区过滤）
-      transaction.effects.length > 0
+      // 光标移动 → 活动块变化 → 类必须迁移
+      transaction.selection !== undefined ||
+      // 只对本装饰集**真正相关**的两条 effect 重建：
+      //  - `setWysiwygVisibleRangesEffect`：可见区注入（G006/F6）；
+      //  - `setFocusModeEffect`：开关切换 —— 否则字段会保留 create() 时（关闭态）
+      //    算出的空集，正是「窄触发看似失效」的真实原因（早前误记为 effect 身份失配）。
+      // 其余 effect（原子选区、组合门控、解析进度等）与本装饰集无关，不得触发全量重建。
+      transaction.effects.some(
+        (effect) => effect.is(setWysiwygVisibleRangesEffect) || effect.is(setFocusModeEffect),
+      )
     ) {
       return buildFocusDecorations(transaction.state);
     }
@@ -129,28 +195,33 @@ export const focusDimDecorationsField = StateField.define<DecorationSet>({
 });
 
 function buildFocusDecorations(state: EditorState): DecorationSet {
-  const enabled = state.field(focusModeField, false) === true;
-  if (!enabled) {
+  if (state.field(focusModeField, false) !== true) {
     return Decoration.none;
   }
   const head = state.selection.main.head;
   const blocks = readBlockRanges(state);
   const active = resolveActiveBlock(blocks, head);
   const projection = state.field(wysiwygProjectionField, false);
-  const visibleRanges = projection?.visibleRanges ?? [];
+  const visibleRanges = projection?.visibleRanges ?? NO_RANGES;
+  const widgetRanges =
+    projection === undefined ? NO_RANGES : blockWidgetRanges(projection, state.doc.length);
 
-  const decorations: { pos: number; deco: Range<Decoration> }[] = [];
+  const decorations: Range<Decoration>[] = [];
+  let widgetIndex = 0;
   for (const block of blocks) {
-    // F5：原子 widget 块（replace widget 同范围）一律跳过 —— 归 ViewPlugin 的 widget 根 class
-    if (isAtomicWidgetBlock(block)) {
-      continue;
-    }
-    const isActive = active !== null && block.from === active.from;
-    const className = isActive ? "cm-md-focus-active" : "cm-md-focus-dim";
+    const className = active !== null && block.from === active.from ? ACTIVE_CLASS : DIM_CLASS;
     const firstLine = state.doc.lineAt(block.from).number;
     const lastLine = state.doc.lineAt(block.to).number;
     for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
       const line = state.doc.line(lineNumber);
+      // 契约 3：块 widget 覆盖的行交回 widget 根 class 机制。
+      // 行与 widget 范围都按位置升序，故用单调游标（O(lines + widgets)）。
+      while (widgetIndex < widgetRanges.length && widgetRanges[widgetIndex].to <= line.from) {
+        widgetIndex += 1;
+      }
+      if (widgetIndex < widgetRanges.length && widgetRanges[widgetIndex].from < line.to) {
+        continue;
+      }
       // F6 / G006（**行级**过滤，贴「可见区外不构建」）：visibleRanges 非空时
       // 只构建与可见区相交的行（生产当前全空 → 全文构建，见文件头）。
       if (
@@ -159,43 +230,49 @@ function buildFocusDecorations(state: EditorState): DecorationSet {
       ) {
         continue;
       }
-      decorations.push({
-        pos: line.from,
-        deco: Decoration.line({ class: className }).range(line.from),
-      });
+      decorations.push(Decoration.line({ class: className }).range(line.from));
     }
   }
-  return Decoration.set(decorations.toSorted((a, b) => a.pos - b.pos).map((entry) => entry.deco));
+  // blocks 与其中的行均按 from 升序 ⇒ 结果已有序（`Decoration.set` 要求有序输入，
+  // 若上游破坏了升序/不嵌套前提会在此**显式抛错**而非静默错位）
+  return Decoration.set(decorations);
 }
 
 /**
- * ViewPlugin：只负责 **ATOMIC widget 根 class**（F5）+ root 开关类 + dim 强度 CSS 变量。
- * 普通块的 dim/active **不在此处触碰**（装饰集负责）—— 防止与线装饰类互相覆盖。
+ * 块 widget 根元素的类切换器。
+ *
+ * **只**处理非 `.cm-line` 的块根元素（契约 1/2）；普通行的类归装饰集，此处绝不触碰。
+ * 关闭态若已完成清理则零工作（不遍历 contentDOM.children）。
  */
 const focusWidgetClassPlugin = ViewPlugin.fromClass(
   class FocusWidgetClassPlugin {
-    constructor(view: EditorView) {
-      this.apply(view);
-    }
+    /** 上一次是否处于「已施加」状态（开启态，或关闭态但已完成清理） */
+    private applied = false;
 
     update(update: ViewUpdate): void {
+      const enabled = update.state.field(focusModeField, false) === true;
       if (
-        update.docChanged ||
-        update.selectionSet ||
-        update.viewportChanged ||
-        update.geometryChanged ||
-        update.startState.field(focusModeField, false) !== update.state.field(focusModeField, false)
+        !enabled &&
+        !this.applied &&
+        !update.docChanged &&
+        !update.viewportChanged &&
+        !update.geometryChanged
       ) {
-        this.apply(update.view);
+        // 关闭且已清理且无 DOM 变动 → 无需工作（typewriter-mode 同款早退）。
+        // 注：无需额外看 reconfigure/effects —— 开启态**每次都**重算并重新施加，
+        // 故 widget DOM 重建（reconfigure、effect-only 更新等）已被覆盖；
+        // 关闭态则本就不存在插件写入的类需要回收。
+        return;
       }
+      this.apply(update.view, enabled);
+      this.applied = enabled;
     }
 
-    private apply(view: EditorView): void {
+    private apply(view: EditorView, enabled: boolean): void {
       const root = view.contentDOM as HTMLElement | null;
       if (root === null) {
         return;
       }
-      const enabled = view.state.field(focusModeField, false) === true;
       root.classList.toggle("cm-md-focus-mode", enabled);
       if (enabled) {
         root.style.setProperty("--cm-md-focus-dim-opacity", String(resolveDimOpacity(view.state)));
@@ -203,11 +280,20 @@ const focusWidgetClassPlugin = ViewPlugin.fromClass(
         root.style.removeProperty("--cm-md-focus-dim-opacity");
       }
 
-      const head = view.state.selection.main.head;
-      const blocks = readBlockRanges(view.state);
-      const active = resolveActiveBlock(blocks, head);
+      // 开启态每次都重算并重新施加：widget DOM 会被复用/重建（viewport、reconfigure、
+      // effect-only 更新），一次性施加不足以保证正确；这也是插件不依赖自身缓存的理由。
+      const blocks = enabled ? readBlockRanges(view.state) : NO_BLOCKS;
+      const active = enabled ? resolveActiveBlock(blocks, view.state.selection.main.head) : null;
       for (const child of Array.from(root.children)) {
         const element = child as HTMLElement;
+        // 契约 1：行元素的 focus 类归装饰集所有，插件绝不 remove/toggle
+        if (element.classList.contains(LINE_ELEMENT_CLASS)) {
+          continue;
+        }
+        if (!enabled) {
+          element.classList.remove(ACTIVE_CLASS, DIM_CLASS);
+          continue;
+        }
         let pos: number;
         try {
           pos = view.posAtDOM(element);
@@ -215,28 +301,21 @@ const focusWidgetClassPlugin = ViewPlugin.fromClass(
           // 回收/非内容节点：grounded DOM 边界，跳过即可（评审已确认该 catch 有据）
           continue;
         }
-        const block = blockAtPos(blocks, pos);
-        // F5：只管原子 widget 根；普通块归装饰集，这里不得触碰（防覆盖线装饰类）
-        if (!enabled || block === null || !isAtomicWidgetBlock(block)) {
-          element.classList.remove(
-            "cm-md-focus-active",
-            "cm-md-focus-dim",
-            "cm-md-focus-active-atomic",
-          );
+        const block = resolveActiveBlock(blocks, pos);
+        if (block === null) {
+          // 无法归属任何块的块根：保守清理（不误 dim 非块节点）
+          element.classList.remove(ACTIVE_CLASS, DIM_CLASS);
           continue;
         }
         const isActive = active !== null && block.from === active.from;
-        element.classList.toggle("cm-md-focus-active", isActive);
-        element.classList.toggle("cm-md-focus-dim", !isActive);
-        element.classList.toggle("cm-md-focus-active-atomic", isActive);
+        element.classList.toggle(ACTIVE_CLASS, isActive);
+        element.classList.toggle(DIM_CLASS, !isActive);
       }
-    }
-
-    destroy(): void {
-      // 类装饰随 DOM 一起销毁；无外部资源需要释放
     }
   },
 );
+
+const NO_BLOCKS: readonly BlockRange[] = [];
 
 /**
  * 专注模式主题。
@@ -261,7 +340,7 @@ export const focusTheme = EditorView.baseTheme({
     },
 });
 
-/** 专注模式扩展：开关字段 + 普通块装饰集 + 原子 widget class 插件 + 主题 */
+/** 专注模式扩展：开关字段 + 普通块装饰集 + 块 widget 根类插件 + 主题 */
 export const focusModeExtension: Extension = [
   focusModeField,
   focusDimDecorationsField,

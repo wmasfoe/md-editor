@@ -54,7 +54,6 @@ impl ModeMenuState {
 #[cfg(test)]
 mod mode_menu_tests {
     use super::ModeMenuState;
-
     #[test]
     fn mirrors_focus_and_typewriter_independently() {
         let state = ModeMenuState::default();
@@ -74,6 +73,71 @@ mod mode_menu_tests {
 
         // 未知 mode 显式报错（不静默）
         assert!(state.apply("nope", true).is_err());
+    }
+}
+
+#[cfg(test)]
+mod menu_accelerator_collision_tests {
+    use super::{
+        menu_accelerator_for_shortcut, MENU_ACCELERATOR_LITERALS, MENU_ACCELERATOR_SHORTCUTS,
+    };
+
+    /// muda 解析时对键名 `to_uppercase()` 后匹配，故归一必须大小写不敏感。
+    fn normalize(accelerator: &str) -> String {
+        accelerator.to_uppercase()
+    }
+
+    fn menu_accelerators() -> Vec<(String, String)> {
+        let mut entries: Vec<(String, String)> = MENU_ACCELERATOR_SHORTCUTS
+            .iter()
+            .map(|(id, fallback)| {
+                (
+                    (*id).to_string(),
+                    normalize(&menu_accelerator_for_shortcut(fallback)),
+                )
+            })
+            .collect();
+        entries.extend(
+            MENU_ACCELERATOR_LITERALS
+                .iter()
+                .map(|(id, accelerator)| ((*id).to_string(), normalize(accelerator))),
+        );
+        entries
+    }
+
+    /// 守卫自证：归一必须真的能抓住大小写碰撞，否则下面的“两两不同”是假保证。
+    #[test]
+    fn normalization_treats_uppercase_and_lowercase_as_the_same_accelerator() {
+        assert_eq!(
+            normalize(&menu_accelerator_for_shortcut("Mod-Alt-t")),
+            normalize(&menu_accelerator_for_shortcut("Mod-Alt-T")),
+            "归一自证：Mod-Alt-t 与 Mod-Alt-T 必须被判为同一 OS 级加速键",
+        );
+    }
+
+    #[test]
+    fn all_menu_accelerators_are_pairwise_distinct() {
+        let entries = menu_accelerators();
+        for (index, (id, accelerator)) in entries.iter().enumerate() {
+            for (other_id, other) in entries.iter().skip(index + 1) {
+                assert_ne!(
+                    accelerator, other,
+                    "菜单加速键碰撞：{id} 与 {other_id} 归一后相同（{accelerator}）",
+                );
+            }
+        }
+    }
+
+    /// 回归锁：打字机模式曾用 `Mod-Alt-t`，与既有表格 `Mod-Alt-T` 碰撞。
+    #[test]
+    fn typewriter_mode_does_not_collide_with_table_insert() {
+        let typewriter = MENU_ACCELERATOR_SHORTCUTS
+            .iter()
+            .find(|(id, _)| *id == "view.toggleTypewriterMode")
+            .map(|(_, fallback)| normalize(&menu_accelerator_for_shortcut(fallback)))
+            .expect("打字机模式必须在加速键表内登记");
+        let table = normalize(&menu_accelerator_for_shortcut("Mod-Alt-T"));
+        assert_ne!(typewriter, table, "打字机模式不得与表格插入共用加速键");
     }
 }
 
@@ -150,7 +214,7 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             app,
             "md-editor:insert-table",
             insert_table_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key("table.insert", "Mod-Alt-T")),
+            &shortcut_accelerator("table.insert"),
         )?)
         .build()?;
 
@@ -178,42 +242,38 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             app,
             "md-editor:mode-wysiwyg",
             mode_wysiwyg_title,
-            "CmdOrCtrl+1",
+            literal_accelerator("md-editor:mode-wysiwyg"),
         )?)
         .item(&menu_item(
             app,
             "md-editor:toggle-source",
             toggle_source_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key("view.toggleSource", "Mod-/")),
+            &shortcut_accelerator("view.toggleSource"),
         )?)
         .separator()
         .item(&menu_item(
             app,
             "md-editor:toggle-sidebar-primary",
             toggle_sidebar_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key(
-                "view.toggleSidebarPrimary",
-                "Mod-Shift-B",
-            )),
+            &shortcut_accelerator("view.toggleSidebarPrimary"),
         )?)
         .separator()
         // D-2：两个独立勾选项（A1 已压测：两模式可叠加，单一 item 无法表达）。
-        // 键位 = 属主从全量占用盘点选定的 ①：Mod-Alt-f / Mod-Alt-t（与表格 Mod-Alt-T 区分大小写不冲突）。
+        // 键位 = 属主从全量占用盘点选定的 ①；其中打字机模式因与既有表格 `Mod-Alt-T`
+        // 在 muda 归一后**同一加速键**（键名 `to_uppercase()` 后匹配，`T` 与 `t` 等价）
+        // 而改选 `Mod-Alt-y` —— 见 MENU_ACCELERATOR_SHORTCUTS 的说明与碰撞守卫测试。
         .item(&check_menu_item(
             app,
             "md-editor:toggle-focus-mode",
             focus_mode_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key("view.focusMode", "Mod-Alt-f")),
+            &shortcut_accelerator("view.toggleFocusMode"),
             mode_checks.focus,
         )?)
         .item(&check_menu_item(
             app,
             "md-editor:toggle-typewriter-mode",
             typewriter_mode_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key(
-                "view.typewriterMode",
-                "Mod-Alt-t",
-            )),
+            &shortcut_accelerator("view.toggleTypewriterMode"),
             mode_checks.typewriter,
         )?)
         .build()?;
@@ -225,7 +285,7 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             app,
             "md-editor:settings",
             settings_item_title,
-            &menu_accelerator_for_shortcut(&settings::shortcut_key("settings.open", "Mod-,")),
+            &shortcut_accelerator("settings.open"),
         )?)
         .build()?;
 
@@ -377,4 +437,47 @@ fn menu_item(
 fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
     // 前端 keymap 使用 ProseMirror 风格的 Mod；Tauri 菜单加速键使用 CmdOrCtrl。
     shortcut.replace("Mod", "CmdOrCtrl").replace('-', "+")
+}
+
+/// 设置驱动的菜单加速键：`(settings 快捷键 id, 内联默认值)`。
+///
+/// **id 必须与 JS 侧真实快捷键/命令 id 同名**（如 `view.toggleSource` ↔ `defaults.ts` 行 id），
+/// 否则 `settings::shortcut_key` 永远命中不到用户配置、只能走内联默认值（曾经的缺陷：
+/// 用了 `view.focusMode` 而真实 id 是 `view.toggleFocusMode`）。
+///
+/// ⚠️ **碰撞判定必须大小写不敏感**：muda 解析加速键时对键名做 `to_uppercase()`
+///（`muda/src/accelerator.rs` 的 `parse_code`，`"KEYT" | "T" => KeyT`），
+/// 故 `Mod-Alt-T` 与 `Mod-Alt-t` 是**同一个** OS 级加速键，不能靠大小写区分。
+/// 该表由 `menu_accelerator_collision_tests` 锁定两两不同。
+const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
+    ("table.insert", "Mod-Alt-T"),
+    ("view.toggleSource", "Mod-/"),
+    ("view.toggleSidebarPrimary", "Mod-Shift-B"),
+    ("view.toggleFocusMode", "Mod-Alt-f"),
+    ("view.toggleTypewriterMode", "Mod-Alt-y"),
+    ("settings.open", "Mod-,"),
+];
+
+/// 菜单中不读设置的字面量加速键（同样参与碰撞判定，并由 `literal_accelerator` 在构建时取用）
+const MENU_ACCELERATOR_LITERALS: &[(&str, &str)] = &[("md-editor:mode-wysiwyg", "CmdOrCtrl+1")];
+
+/// 取字面量菜单加速键（与 `shortcut_accelerator` 同为「表 + 显式失败」形态，
+/// 使该表在非测试构建中亦被使用，从而与碰撞守卫看到的是**同一份事实**）。
+fn literal_accelerator(id: &str) -> &'static str {
+    MENU_ACCELERATOR_LITERALS
+        .iter()
+        .find(|(candidate, _)| *candidate == id)
+        .map(|(_, accelerator)| *accelerator)
+        .unwrap_or_else(|| panic!("menu accelerator literal table is missing id: {id}"))
+}
+
+/// 取某菜单项的加速键：设置里若有同 id 配置则用用户键，否则用表内默认值。
+/// 未登记 id 直接 panic（程序错误应当显式失败，不静默产出空加速键）。
+fn shortcut_accelerator(id: &str) -> String {
+    let fallback = MENU_ACCELERATOR_SHORTCUTS
+        .iter()
+        .find(|(candidate, _)| *candidate == id)
+        .map(|(_, fallback)| *fallback)
+        .unwrap_or_else(|| panic!("menu accelerator table is missing shortcut id: {id}"));
+    menu_accelerator_for_shortcut(&settings::shortcut_key(id, fallback))
 }

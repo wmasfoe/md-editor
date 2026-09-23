@@ -8,6 +8,9 @@ import { openFullApp as openApp, loadDoc, runCommand, setCaret } from "./editor-
  *  - E14 / F5    ：原子 widget（表格）在专注模式下**不消失**（F-C 根 class 机制的正面证据）
  *  - E15 / W1+W2 ：打字机阈值防抖（≤0.35×视口高不滚动）+ 超阈值校正到 50%
  *  - E15 / W3    ：输入路径**即时**跟随（禁 smooth —— 单次大输入后短窗内光标即居中）
+ *  - E20 / 所有权 ：开启专注后**移动光标**，非活动块仍保持 dim（HIGH-1 回归锁）
+ *  - E21 / F5    ：非 `ATOMIC_WIDGET_KINDS` 的整块 widget（setext/引用定义/脚注定义/表格）
+ *                  在专注模式下不消失、不产生幻影行（块级 DOM 结构不变量）
  *
  * 两个模式均经 **G007 命令面板**触发（AC-D2-2 顺带取证：命令面板可搜可执行）。
  * F3（搜索命中对比度）按 §4 降级、W4 显式延期、W5 拆半（滚动校正在本文件 W1/W2 覆盖）。
@@ -30,6 +33,41 @@ const FOCUS_DOC = [
   ),
   "",
 ].join("\n");
+
+/** E21 夹具：四种整块 replace widget，其中三种**不在** `ATOMIC_WIDGET_KINDS` 名单内 */
+const WIDGET_DOC = [
+  "Setext 标题",
+  "===========",
+  "",
+  "普通段落，专注模式下应被 dim。",
+  "",
+  "[ref]: https://example.com/only",
+  "",
+  "脚注引用示例。[^1]",
+  "",
+  "[^1]: 脚注定义内容",
+  "",
+  "| 列一 | 列二 |",
+  "| --- | --- |",
+  "| 单元 | 数据 |",
+  "",
+].join("\n");
+
+/** contentDOM 的块级结构快照（行 / 非行子元素）——「专注模式不得改变块级 DOM 结构」不变量的观测量 */
+function blockStructure(page: Page): Promise<{ total: number; lines: number; widgets: number }> {
+  return page.evaluate(() => {
+    const content = document.querySelector(".cm-content");
+    if (!content) {
+      return { total: -1, lines: -1, widgets: -1 };
+    }
+    const children = Array.from(content.children);
+    return {
+      total: children.length,
+      lines: children.filter((element) => element.classList.contains("cm-line")).length,
+      widgets: children.filter((element) => !element.classList.contains("cm-line")).length,
+    };
+  });
+}
 
 /** 光标与视口中心的偏差（按 scroller 高度归一化）；光标不可见时返回 999 */
 function cursorCenterDelta(page: Page): Promise<number> {
@@ -122,5 +160,65 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     await expect
       .poll(() => cursorCenterDelta(page), { timeout: 350, intervals: [30, 40, 50] })
       .toBeLessThan(0.15);
+  });
+
+  test("E20/所有权契约：开启专注后移动光标，非活动块仍保持 dim（HIGH-1 回归锁）", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await loadDoc(page, FOCUS_DOC);
+    await setCaret(page, FOCUS_DOC.indexOf("段落甲"));
+    await runCommand(page, "Focus Mode");
+
+    const heading = page.locator(".cm-md-focus-dim").filter({ hasText: "标题块" }).first();
+    await expect(heading, "开启后非活动标题块应被 dim").toHaveCount(1);
+
+    // 关键步骤：移动光标 = 仅 selection 变化的一次更新（ViewPlugin.apply() 会重跑）。
+    // 修复前该分支对**普通行**也 remove() 装饰集写下的 cm-md-focus-dim/active，
+    // 而 CM 的 tile attrs 不会重放 → 非活动块整片静默失去压暗（HIGH-1）。
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(page.locator(".cm-md-focus-active"), "活动块应迁移到段落乙").toContainText(
+      "段落乙",
+    );
+
+    await expect(heading, "HIGH-1：光标移动后非活动块不得丢失 dim 类").toHaveCount(1);
+    await expect
+      .poll(() => heading.evaluate((el) => Number(getComputedStyle(el).opacity)), {
+        timeout: 2000,
+        intervals: [60, 60, 60, 60],
+      })
+      .toBeLessThanOrEqual(0.5);
+  });
+
+  test("E21/F5：整块 widget（setext/引用定义/脚注定义/表格）不消失且无幻影行", async ({ page }) => {
+    await openApp(page);
+    await loadDoc(page, WIDGET_DOC);
+    await setCaret(page, WIDGET_DOC.indexOf("普通段落"));
+
+    const before = await blockStructure(page);
+    expect(
+      before.widgets,
+      "基线：至少 4 个整块 widget（setext 标题 / 引用定义 / 脚注定义 / 表格）",
+    ).toBeGreaterThanOrEqual(4);
+
+    await runCommand(page, "Focus Mode");
+    await expect(page.locator(".cm-md-focus-mode")).toHaveCount(1);
+
+    // 不变量：开启专注模式**不得**改变块级 DOM 结构 —— 既不多出行（幻影行），也不丢 widget。
+    // 该断言直接否定「同位置线装饰 + block widget 共存」导致的 addLineStartIfNotCovered 现象。
+    const after = await blockStructure(page);
+    expect(after, "F5：专注模式不得改变块级 DOM 结构").toEqual(before);
+
+    // 整块 widget 仍可见，且根元素承载 focus 类（dim 由 widget 根类承担）
+    await expect(page.locator(".cm-md-table-widget")).toBeVisible();
+    const blockAtoms = page.locator(".cm-md-default-atom--block");
+    expect(
+      await blockAtoms.count(),
+      "setext 标题 / 引用定义 / 脚注定义 = 3 个 block 形态 default atom",
+    ).toBeGreaterThanOrEqual(3);
+    for (const widget of await blockAtoms.all()) {
+      await expect(widget).toHaveClass(/cm-md-focus-(active|dim)/);
+    }
   });
 });
