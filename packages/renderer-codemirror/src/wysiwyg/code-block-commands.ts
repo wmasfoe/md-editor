@@ -256,19 +256,40 @@ export function codeBlockTab(view: EditorView): boolean {
   if (emptyBodies) return materializeEmptyFencedBodies(view, emptyBodies, unit);
   const targets = selectedCodeBlockLineTargets(view.state);
   if (!targets) return false;
-  const changes = view.state.selection.ranges.every((selection) => selection.empty)
-    ? view.state.selection.ranges.map((selection) => ({
-        from: selection.from,
-        to: selection.to,
-        insert: unit,
-      }))
-    : uniqueLineStarts(targets).map((from) => ({ from, insert: unit }));
+
+  // S5（编辑器交互 bug 批）：**折叠光标**必须用 `changeByRange` 显式给出新光标位置。
+  //
+  // 原实现在光标处直接 insert 且不带 selection —— CM 默认 `assoc = -1` 会把光标留在
+  // 插入文本**之前**，于是行首缩进“长在光标左边”（属主 #5：`|console.log(123)` 按 Tab 后
+  // 光标仍在原位，缩进出现在它左侧）。
+  //
+  // 注：两处 dispatch 均保持**内联**授权注解形式 —— 结构性护栏
+  //（dispatch-annotation-convention.test.ts）按语法扫描字面量，抽成变量会失去可识别性。
+  if (view.state.selection.ranges.every((selection) => selection.empty)) {
+    const spec = view.state.changeByRange((range) => ({
+      changes: { from: range.from, to: range.to, insert: unit },
+      range: EditorSelection.cursor(range.from + unit.length),
+    }));
+    view.dispatch(
+      view.state.update({
+        ...spec,
+        userEvent: "input.indent",
+        // 轮1 architect WATCH：与下方同款条件注解 —— 缩进行首插入触碰
+        // indented 代码块的 syntaxIndentRanges 时必须授权，否则静默拒绝。
+        annotations: targets.some((target) => target.record.codeBlock?.blockKind === "indented")
+          ? authorizeWysiwygProtectedChange.of(true)
+          : undefined,
+      }),
+    );
+    return true;
+  }
+
   view.dispatch(
     view.state.update({
-      changes: sortChanges(changes),
+      changes: sortChanges(uniqueLineStarts(targets).map((from) => ({ from, insert: unit }))),
       userEvent: "input.indent",
-      // 轮1 architect WATCH：与 :244 同款条件注解 —— 缩进行首插入触碰
-      // indented 代码块的 syntaxIndentRanges 时必须授权，否则静默拒绝。
+      // 轮1 architect WATCH：缩进行首插入触碰 indented 代码块的 syntaxIndentRanges
+      // 时必须授权，否则静默拒绝。
       annotations: targets.some((target) => target.record.codeBlock?.blockKind === "indented")
         ? authorizeWysiwygProtectedChange.of(true)
         : undefined,

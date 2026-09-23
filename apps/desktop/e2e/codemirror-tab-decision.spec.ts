@@ -28,6 +28,9 @@ const OWNER_REPRO = [
 const PARAGRAPH = "前文\n\nfoo()\n\n后文\n";
 const INSIDE_PARENS = 8;
 
+/** 代码块夹具（S5）：光标置于正文行行首 */
+const CODE_BLOCK = ["```js", "console.log(123)", "```", ""].join("\n");
+
 async function openApp(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.locator("#welcome-title")).toBeVisible();
@@ -84,6 +87,12 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
     const cell = page.locator(".cm-md-table-widget td, .cm-md-table-widget th").first();
     await expect(cell).toHaveCount(1);
     await cell.click();
+    // 关键：真实用户随后会**点回正文**（焦点回到 .cm-content）。
+    // 若焦点仍在单元格，Tab 走的是表格自己的「跳下一格」逻辑（那是正确行为，不是本 bug）。
+    // 注意不能点 `.cm-content` 的几何中心 —— 本夹具表格占文档顶部，中心可能落在表格上。
+    // 也不能用 hasText 匹配 `($a$)`：该行的数学原子 `$a$` 渲染后 textContent 不再是 `$a$`。
+    // 文档以 `($a$)\n` 结尾，故最后一个 `.cm-line` 就是目标行。
+    await page.locator(".cm-line").last().click();
 
     // 再把光标放回末行 `($a$)` 内
     const lineStart = OWNER_REPRO.lastIndexOf("($a$)");
@@ -134,5 +143,23 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
       INSIDE_PARENS + 1,
     );
     expect(await readDoc(page), "跳出必须零文本变更").toBe(PARAGRAPH);
+  });
+
+  test("E27/AC-S5：代码块内 Tab 后光标必须落在缩进之后（不得“长在光标左边”）", async ({ page }) => {
+    await openApp(page);
+    await setDoc(page, CODE_BLOCK, "wysiwyg");
+
+    const bodyStart = CODE_BLOCK.indexOf("console.log");
+    await setCaret(page, bodyStart);
+    expect(await readCaret(page)).toBe(bodyStart);
+
+    await page.keyboard.press("Tab");
+
+    expect(await readDoc(page), "缩进应落在代码行行首").toBe(
+      ["```js", "  console.log(123)", "```", ""].join("\n"),
+    );
+    expect(await readCaret(page), "光标必须随缩进右移（否则插入的空白会“长在光标左边”）").toBe(
+      bodyStart + 2,
+    );
   });
 });
