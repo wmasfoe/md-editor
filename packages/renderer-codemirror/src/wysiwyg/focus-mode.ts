@@ -19,13 +19,21 @@
  * 因此插件若 `remove()` 装饰集写下的行类，该类在后续更新中会被静默抹掉且难以自愈。
  *
  * ## 契约 3 的判据来自**投影层的渲染契约**，而非块工具栏的 kind 名单
- * 判据 = `wysiwygProjectionField.layoutDecorations` 中 `spec.block === true` 的 replace
- * 装饰所覆盖的行。理由：`ATOMIC_WIDGET_KINDS`（`block-move.ts`）是**块工具栏**关心的
- * 4 个 kind（thematic-break/table/html/mdx-jsx），而 setext 标题、引用定义、脚注定义、
- * 代码块同样以整块 replace widget 渲染（见 `default-visualization.ts`、
- * `code-block-projection.ts`、`link-projection.ts`）。在块 widget 同位置挂
+ * 判据 = `wysiwygProjectionField.layoutDecorations` 中 `spec.block === true` 且**跨文本**
+ *（`to > from`）的 replace 装饰所覆盖的行。理由：`ATOMIC_WIDGET_KINDS`（`block-move.ts`）
+ * 是**块工具栏**关心的 4 个 kind（thematic-break/table/html/mdx-jsx），而 setext 标题、
+ * 引用定义、脚注定义同样以整块 replace widget 渲染（见 `default-visualization.ts`、
+ * `link-projection.ts`）；而代码块是**行基**渲染，只在块首挂**零长度**工具栏 / spacer
+ * 点 widget（`code-block-projection.ts`）—— 其代码行本身仍由本装饰集 dim，
+ * 因为点 widget 并不构成“行覆盖”（这正是 `to > from` 过滤的意义）。在块 widget 同位置挂
  * `Decoration.line` 会触发 CM 的 `addLineStartIfNotCovered` → 幻影行 / 块消失（F5）。
  * 用渲染契约做判据可让**将来新增的块 widget kind 自动被覆盖**，不再依赖「记得登记名单」。
+ *
+ * ⚠️ 两个边界（均有回归锁）：
+ * - **零长度点 widget 不算**（`to > from`）：代码块工具栏是 `Decoration.widget({block:true})`
+ *   的点装饰，若把它当作「覆盖该行」会让缩进代码块的首个正文行失去 dim；
+ * - **`spec.block` 是本模块依赖的投影契约**：若投影层改变该字段语义，必须同步 F5 用例
+ *   （focus 层不拥有该值，只能依赖它 —— 已知的跨层依赖，非隐藏耦合）。
  *
  * ## G006 视口过滤（F6，方案 (b)）
  * `visibleRanges` 注入（`setWysiwygVisibleRangesEffect`）非空时，装饰集只构建
@@ -54,12 +62,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { readBlockRanges, type BlockRange } from "./block-move.ts";
-import {
-  setWysiwygVisibleRangesEffect,
-  wysiwygProjectionField,
-  type WysiwygProjectionState,
-} from "./projection-state.ts";
-import type { SourceRange } from "../markdown/range-types.ts";
+import { blockWidgetCoveredRanges, wysiwygProjectionField } from "./projection-state.ts";
 
 /** 专注模式开关（零文档变更，纯视图态） */
 export const setFocusModeEffect = StateEffect.define<boolean>();
@@ -126,37 +129,7 @@ export function resolveActiveBlock(blocks: readonly BlockRange[], pos: number): 
   return null;
 }
 
-/**
- * 块 widget 覆盖范围缓存（按 `layoutDecorations` 的**对象身份**记忆）。
- *
- * 与 `readBlockRanges` 的 M11 缓存同理由：该推导处在每键热路径上，且
- * `layoutDecorations` 在同一投影状态下恒等 —— 身份未变 ⇒ 渲染契约未变。
- * 键取 `layoutDecorations` 而非投影状态对象：后者在 `visibleRanges` 变化时也会换新，
- * 但块 widget 范围与可见区无关，无需重扫。
- */
-let cachedLayoutDecorations: unknown = null;
-let cachedWidgetRanges: readonly SourceRange[] = [];
-
-const NO_RANGES: readonly SourceRange[] = [];
-
-function blockWidgetRanges(
-  projection: WysiwygProjectionState,
-  docLength: number,
-): readonly SourceRange[] {
-  if (projection.layoutDecorations === cachedLayoutDecorations) {
-    return cachedWidgetRanges;
-  }
-  const ranges: SourceRange[] = [];
-  projection.layoutDecorations.between(0, docLength, (from, to, value) => {
-    // 块 widget 的唯一可靠标志：投影层自己写的 block replace 装饰
-    if (value.spec?.block === true) {
-      ranges.push({ from, to });
-    }
-  });
-  cachedLayoutDecorations = projection.layoutDecorations;
-  cachedWidgetRanges = ranges;
-  return ranges;
-}
+const EMPTY_VISIBLE_RANGES: readonly { readonly from: number; readonly to: number }[] = [];
 
 /**
  * 普通块 dim 装饰集（brief 指定的「独立 StateField 装饰集」）。
@@ -172,18 +145,24 @@ export const focusDimDecorationsField = StateField.define<DecorationSet>({
     return buildFocusDecorations(state);
   },
   update(value, transaction) {
+    // 失效条件跟随**真实依赖**，而非枚举 effect。本装饰集从投影状态派生**两样**东西：
+    // `visibleRanges`（行级过滤）与 `layoutDecorations`（块 widget 覆盖行），
+    // 因此正确的判据是**投影状态对象身份**是否变化：
+    //  - 文档/光标变化 → 活动块与行集合变化；
+    //  - 开关 effect → 否则字段会保留 create() 时（关闭态）算出的空集；
+    //  - 投影状态变化 → 覆盖可见区注入、解析覆盖率刷新、投影刷新等**所有**重建投影的 effect。
+    // ⚠️ 实测教训：只比 `layoutDecorations` 身份**不够** —— 当投影没有 layout 装饰时，
+    // 前后都是 `Decoration.none` 单例，但 `visibleRanges` 已变（F6 视口过滤会静默失效）。
+    // 该判据也无需逐一登记 effect：遗漏一条就会留下陈旧装饰集，使行装饰与块 widget
+    // 同位置共存（幻影行回归）。范式同 `visible-marks.ts` 的 `indexChanged` 身份比较。
+    const projectionChanged =
+      transaction.startState.field(wysiwygProjectionField, false) !==
+      transaction.state.field(wysiwygProjectionField, false);
     if (
       transaction.docChanged ||
-      // 光标移动 → 活动块变化 → 类必须迁移
       transaction.selection !== undefined ||
-      // 只对本装饰集**真正相关**的两条 effect 重建：
-      //  - `setWysiwygVisibleRangesEffect`：可见区注入（G006/F6）；
-      //  - `setFocusModeEffect`：开关切换 —— 否则字段会保留 create() 时（关闭态）
-      //    算出的空集，正是「窄触发看似失效」的真实原因（早前误记为 effect 身份失配）。
-      // 其余 effect（原子选区、组合门控、解析进度等）与本装饰集无关，不得触发全量重建。
-      transaction.effects.some(
-        (effect) => effect.is(setWysiwygVisibleRangesEffect) || effect.is(setFocusModeEffect),
-      )
+      projectionChanged ||
+      transaction.effects.some((effect) => effect.is(setFocusModeEffect))
     ) {
       return buildFocusDecorations(transaction.state);
     }
@@ -202,9 +181,10 @@ function buildFocusDecorations(state: EditorState): DecorationSet {
   const blocks = readBlockRanges(state);
   const active = resolveActiveBlock(blocks, head);
   const projection = state.field(wysiwygProjectionField, false);
-  const visibleRanges = projection?.visibleRanges ?? NO_RANGES;
-  const widgetRanges =
-    projection === undefined ? NO_RANGES : blockWidgetRanges(projection, state.doc.length);
+  const visibleRanges = projection?.visibleRanges ?? EMPTY_VISIBLE_RANGES;
+  // 块 widget 覆盖行集合来自**投影层拥有的渲染契约**（`projection-state.ts` 的同名函数）：
+  // 本模块不再自维护 kind 名单，新增块 widget kind 自动覆盖。
+  const widgetRanges = blockWidgetCoveredRanges(state);
 
   const decorations: Range<Decoration>[] = [];
   let widgetIndex = 0;
@@ -246,22 +226,27 @@ function buildFocusDecorations(state: EditorState): DecorationSet {
  */
 const focusWidgetClassPlugin = ViewPlugin.fromClass(
   class FocusWidgetClassPlugin {
-    /** 上一次是否处于「已施加」状态（开启态，或关闭态但已完成清理） */
-    private applied = false;
+    /**
+     * 上一次是否处于「已施加」状态；`null` = **未知**（刚构造，例如 `view.setState()`
+     * 重建插件实例时 —— 此时 `contentDOM` 可能带着上一实例留下的根类，必须对账一次）。
+     */
+    private applied: boolean | null = null;
 
     update(update: ViewUpdate): void {
       const enabled = update.state.field(focusModeField, false) === true;
       if (
         !enabled &&
-        !this.applied &&
+        this.applied === false &&
         !update.docChanged &&
         !update.viewportChanged &&
         !update.geometryChanged
       ) {
         // 关闭且已清理且无 DOM 变动 → 无需工作（typewriter-mode 同款早退）。
-        // 注：无需额外看 reconfigure/effects —— 开启态**每次都**重算并重新施加，
-        // 故 widget DOM 重建（reconfigure、effect-only 更新等）已被覆盖；
-        // 关闭态则本就不存在插件写入的类需要回收。
+        // ⚠️ 精确口径：本早退只把**仅选区变化**的更新降为真正零工作；
+        // `docChanged` / `viewportChanged` / `geometryChanged` 仍会进入 `apply()`
+        // （即每次输入仍会遍历一次 contentDOM.children 做一次 classList.remove）。
+        // 开启态则**每次都**重算并重新施加（故意取 DOM 影响面的超集），
+        // 故 widget DOM 重建（reconfigure、effect-only 更新等）已被覆盖。
         return;
       }
       this.apply(update.view, enabled);

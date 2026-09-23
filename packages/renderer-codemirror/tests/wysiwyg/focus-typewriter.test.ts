@@ -2,12 +2,18 @@ import { EditorSelection, EditorState, StateEffect } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 import { markdown } from "@codemirror/lang-markdown";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
-import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
+import {
+  markdownRangeIndexField,
+  refreshMarkdownParseCoverageEffect,
+} from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
 import { WysiwygDiagnostics, provideWysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
 import {
+  blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
+  refreshWysiwygProjectionEffect,
   setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
@@ -107,6 +113,9 @@ describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰"
     "| --- | --- |",
     "| 单元 | 数据 |",
     "",
+    "    indented code line one",
+    "    indented code line two",
+    "",
   ].join("\n");
 
   function projectedState(source: string): EditorState {
@@ -115,6 +124,10 @@ describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰"
       provideWysiwygDiagnostics(new WysiwygDiagnostics()),
       editorModeField,
       markdownRangeIndexField,
+      // 投影构建在读 code 块 record 时会取该字段（`projection-state.ts` 的
+      // `buildLayoutDecorationsForRecord`），故含代码块的夹具必须注册它，
+      // 否则一旦惰性求值投影就会抛 “Field is not present in this state”。
+      codeBlockLineNumbersField,
       configureWysiwygProjectionFeatures([
         "inline-styles",
         "headings",
@@ -157,6 +170,43 @@ describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰"
       const line = state.doc.lineAt(doc.indexOf(text));
       expect(decorated.has(line.from), `${text} 应被 focus 线装饰覆盖`).toBe(true);
     }
+
+    // 零长度**点 widget** 回归锁：代码块工具栏是 `Decoration.widget({block: true})` 的点装饰，
+    // 不“覆盖该行” ⇒ 不得因此把该行排除在 dim 之外（缩进代码块的首个正文行必须仍被覆盖）。
+    const codeLine = state.doc.lineAt(doc.indexOf("indented code line one"));
+    expect(
+      decorated.has(codeLine.from),
+      "缩进代码块首行必须仍被 focus 线装饰覆盖（点 widget 不构成行覆盖）",
+    ).toBe(true);
+  });
+
+  it("投影层共享判据 blockWidgetCoveredRanges 覆盖四类整块 widget，且排除零长度点 widget", () => {
+    const state = projectedState(doc);
+    const covered = blockWidgetCoveredRanges(state);
+    const texts = covered.map((range) =>
+      state.sliceDoc(range.from, Math.min(range.to, range.from + 16)),
+    );
+    expect(
+      texts.some((text) => text.startsWith("Setext 标题")),
+      "setext 标题",
+    ).toBe(true);
+    expect(
+      texts.some((text) => text.startsWith("[ref]:")),
+      "引用定义",
+    ).toBe(true);
+    expect(
+      texts.some((text) => text.startsWith("[^1]:")),
+      "脚注定义",
+    ).toBe(true);
+    expect(
+      texts.some((text) => text.includes("| 列一 |")),
+      "表格",
+    ).toBe(true);
+    // 零长度点 widget（代码块工具栏/spacer）不得进入覆盖集合
+    expect(
+      covered.every((range) => range.to > range.from),
+      "零长度点 widget 不得算行覆盖",
+    ).toBe(true);
   });
 });
 
@@ -187,6 +237,35 @@ describe("C：装饰集只对可见区注入 effect 重建（无关 effect 不�
       effects: setWysiwygVisibleRangesEffect.of([{ from: 0, to: 50 }]),
     }).state;
     expect(state.field(focusDimDecorationsField), "可见区注入必须重建").not.toBe(before);
+  });
+
+  it("投影渲染契约变化（无文档/选区变化）必须与专注装饰集同步失效", () => {
+    // 不枚举 effect，而断言**依赖耦合**本身：只要投影的 layoutDecorations 身份变了，
+    // 专注装饰集就必须换新（否则留下陈旧装饰集，行装饰与块 widget 同位置共存 → 幻影行回归）。
+    // 该不变量对**任何**重建投影的 effect 成立，无需逐个登记；
+    // 旧实现（枚举两条 effect）会漏掉解析覆盖率刷新 / 投影刷新这类 effect。
+    let state = stateWith(source, 0, [
+      markdownRangeIndexField,
+      editorModeField,
+      configureWysiwygProjectionFeatures(["blocks", "headings"]),
+      wysiwygProjectionField,
+      focusModeExtension,
+    ]);
+    state = state.update({ effects: setFocusModeEffect.of(true) }).state;
+
+    for (const effect of [
+      refreshWysiwygProjectionEffect.of(null),
+      refreshMarkdownParseCoverageEffect.of(null),
+    ]) {
+      const beforeProjection = state.field(wysiwygProjectionField);
+      const beforeFocus = state.field(focusDimDecorationsField);
+      state = state.update({ effects: effect }).state;
+      const projectionChanged = state.field(wysiwygProjectionField) !== beforeProjection;
+      expect(
+        state.field(focusDimDecorationsField) !== beforeFocus,
+        "专注装饰集必须与投影渲染契约同步失效（依赖耦合不变量）",
+      ).toBe(projectionChanged);
+    }
   });
 });
 

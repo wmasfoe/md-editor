@@ -7,7 +7,8 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { ATOMIC_WIDGET_KINDS, readBlockRanges, type BlockRange } from "./block-move.ts";
+import { readBlockRanges, type BlockRange } from "./block-move.ts";
+import { blockWidgetCoveredRanges } from "./projection-state.ts";
 import {
   foldToggleTheme,
   foldableToggleAt,
@@ -92,9 +93,18 @@ function blockDecorationsFromRanges(
   state: EditorState,
   blocks: readonly BlockRange[],
 ): DecorationSet {
+  // 块 widget 覆盖的源范围 —— 判据来自**投影层拥有的渲染契约**（`spec.block === true` 且跨文本），
+  // 不再用块工具栏自己的 `ATOMIC_WIDGET_KINDS` kind 名单。
+  // 真实缺陷：该名单只含 4 个 kind，漏掉 setext 标题 / 引用定义 / 脚注定义（三者同为
+  // 整块 replace widget），于是在块 widget 同位置挂 `Decoration.line` 与 replace 装饰冲突
+  // → 幻影行 / 块消失（与专注模式同一类错误，同一判据修复）。
+  const widgetCoveredRanges = blockWidgetCoveredRanges(state);
+  const isWidgetCovered = (pos: number): boolean =>
+    widgetCoveredRanges.some((range) => range.from <= pos && pos < range.to);
+
   const decorations = blocks.flatMap((block) => {
-    // 原子 widget 块(分割线等)不挂行装饰:行级 line 装饰与整块 replace 装饰冲突
-    if (ATOMIC_WIDGET_KINDS.has(block.name)) {
+    // 整块 widget 渲染的块不挂行装饰（行级 line 装饰与整块 replace 装饰冲突）
+    if (isWidgetCovered(block.from)) {
       return [];
     }
 

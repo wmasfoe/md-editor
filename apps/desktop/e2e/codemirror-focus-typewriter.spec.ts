@@ -1,5 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openFullApp as openApp, loadDoc, runCommand, setCaret } from "./editor-e2e-helpers";
+import {
+  openFullApp as openApp,
+  loadDoc,
+  readDoc,
+  runCommand,
+  setCaret,
+} from "./editor-e2e-helpers";
 
 /**
  * E13–E15：D-2 专注模式 / 打字机模式 的 desktop Playwright E2E（test-spec §3）。
@@ -201,6 +207,18 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       before.widgets,
       "基线：至少 4 个整块 widget（setext 标题 / 引用定义 / 脚注定义 / 表格）",
     ).toBeGreaterThanOrEqual(4);
+
+    // 基线幻影行检查：`.cm-line` 数不得**超过**源文档行数。
+    // 同位置 line 装饰与块 widget 共存会经 addLineStartIfNotCovered 插入额外行，
+    // 使渲染行数超过源行数 —— 该断言因此能看见「before/after 对比看不见」的基线幻影行
+    //（若两个快照都带着同一条幻影行，对比会认为无变化）。
+    // 注：此处用 split("\n") 的计数，比 CM 的 doc.lines 多出末尾换行的余量，属**宽松界**，
+    // 但足以拦截每个块 widget 各多一行的量级（实测旧行为为 +4 行）。
+    const sourceLines = (await readDoc(page)).split("\n").length;
+    expect(
+      before.lines,
+      `基线不得有幻影行（渲染 ${before.lines} 行 ≤ 源 ${sourceLines} 行）`,
+    ).toBeLessThanOrEqual(sourceLines);
 
     await runCommand(page, "Focus Mode");
     await expect(page.locator(".cm-md-focus-mode")).toHaveCount(1);

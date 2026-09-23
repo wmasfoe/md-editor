@@ -87,7 +87,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
      */
     private schedule(view: EditorView, immediate: boolean): void {
       if (this.frame !== 0) {
-        cancelAnimationFrame(this.frame);
+        // 与 scheduleFrame 对称地走带守卫的 cancelFrame（避免「有 rAF 但无 cAF」的环境抛错）
+        cancelFrame(this.frame);
       }
       const run = (): void => {
         this.frame = 0;
