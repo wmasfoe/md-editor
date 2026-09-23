@@ -94,6 +94,9 @@ class FoldToggleWidget extends WidgetType {
  *
  * 导出供单测：该函数对 state 纯函数化（不触 DOM，widget 只在 `toDOM` 时才需 DOM），
  * 因此可在 node 环境下锁定「块 widget 覆盖行不得挂行装饰」这一契约。
+ *
+ * ⚠️ **调用前提**：`blocks` 必须是 `readBlockRanges(state)` 的**升序**输出
+ *（内部单调游标依赖 `pos` 非递减）；如需用于非升序输入，应先自行排序。
  */
 export function blockDecorationsFromRanges(
   state: EditorState,
@@ -108,10 +111,11 @@ export function blockDecorationsFromRanges(
   // blocks 与覆盖范围均按 from 升序 ⇒ 单调游标 O(blocks + ranges)，不用逐块 some()
   let widgetIndex = 0;
   const isWidgetCovered = (pos: number): boolean => {
-    while (
-      widgetIndex < widgetCoveredRanges.length &&
-      (widgetCoveredRanges[widgetIndex] as { to: number }).to <= pos
-    ) {
+    for (;;) {
+      const candidate = widgetCoveredRanges[widgetIndex];
+      if (candidate === undefined || candidate.to > pos) {
+        break;
+      }
       widgetIndex += 1;
     }
     const range = widgetCoveredRanges[widgetIndex];

@@ -24,9 +24,10 @@ import {
  * 漏掉 setext 标题 / 引用定义 / 脚注定义；现与专注模式共用**投影层渲染契约**。
  *
  * 覆盖边界（如实声明）：`blockDecorationsFromRanges` 是 state 纯函数（widget 仅在 `toDOM`
- * 时才需 DOM），故可在 node 环境直接验证装饰集内容与共享失效契约；
- * **ViewPlugin 的装配/重建接线**（`projectionStateChanged(update)` 触发重算）需要真实 DOM，
- * 由 desktop E2E 与共享 helper 的单测共同覆盖，本文件不伪装成覆盖了它。
+ * 时才需 DOM），故可在 node 环境直接验证装饰集内容与共享失效契约。
+ * **未覆盖**：ViewPlugin 的装配/重建接线（`projectionStateChanged(update)` 触发重算）需真实 DOM。
+ * 该接线的保障是**结构性**的 —— 两个消费者共用同一个 helper 与同一个判据，且守卫项只是一次调用；
+ * 本文件不声称 E2E 覆盖了它（E20/E21 覆盖的是**专注模式**路径的 DOM 不变量，不是工具栏插件的重算）。
  */
 
 const doc = [

@@ -13,6 +13,7 @@ import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts"
 import {
   blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
+  projectionStateChangedBetween,
   refreshWysiwygProjectionEffect,
   setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
@@ -240,7 +241,7 @@ describe("C：装饰集只对可见区注入 effect 重建（无关 effect 不�
   });
 
   it("投影渲染契约变化（无文档/选区变化）必须与专注装饰集同步失效", () => {
-    // 不枚举 effect，而断言**依赖耦合**本身：只要投影的 layoutDecorations 身份变了，
+    // 不枚举 effect，而断言**依赖耦合**本身：只要投影状态对象变了，
     // 专注装饰集就必须换新（否则留下陈旧装饰集，行装饰与块 widget 同位置共存 → 幻影行回归）。
     // 该不变量对**任何**重建投影的 effect 成立，无需逐个登记；
     // 旧实现（枚举两条 effect）会漏掉解析覆盖率刷新 / 投影刷新这类 effect。
@@ -266,6 +267,32 @@ describe("C：装饰集只对可见区注入 effect 重建（无关 effect 不�
         "专注装饰集必须与投影渲染契约同步失效（依赖耦合不变量）",
       ).toBe(projectionChanged);
     }
+  });
+
+  it("对象身份比较严格强于 layoutDecorations 比较（无 layout 装饰时仍须判为变化）", () => {
+    // 本 harness 无 markdown 语言 ⇒ 投影不产出 layout 装饰（两侧均为 `Decoration.none` 单例）。
+    // 若把共享失效契约退化成只比 `layoutDecorations` 身份，本用例会失败 —— 这正是实测到的
+    // 静默失效场景（`visibleRanges` 已变但 F6 视口过滤不重建）。此断言即该教训的回归锁。
+    let state = stateWith(source, 0, [
+      markdownRangeIndexField,
+      editorModeField,
+      configureWysiwygProjectionFeatures(["blocks", "headings"]),
+      wysiwygProjectionField,
+      focusModeExtension,
+    ]);
+    state = state.update({ effects: setFocusModeEffect.of(true) }).state;
+    const beforeLayout = state.field(wysiwygProjectionField).layoutDecorations;
+    const after = state.update({
+      effects: setWysiwygVisibleRangesEffect.of([{ from: 0, to: 50 }]),
+    }).state;
+    expect(
+      after.field(wysiwygProjectionField).layoutDecorations,
+      "前提：该夹具下 layout 装饰身份**不变**（否则本用例证明不了什么）",
+    ).toBe(beforeLayout);
+    expect(
+      projectionStateChangedBetween(state, after),
+      "对象身份比较必须判为变化（退化为 layoutDecorations 比较会让 F6 静默失效）",
+    ).toBe(true);
   });
 });
 
