@@ -71,6 +71,29 @@ const STALE_DOC = [
   "",
 ].join("\n");
 
+/** E31 夹具：形似属主复现文档的长文（多标题 + 表格 + 代码块 + 长段），用于滚动位置回归锁 */
+const SCROLL_DOC = Array.from({ length: 24 }, (_unused, index) => {
+  const section = [
+    `### 3.${index + 1} 小节：滚动测试 ${index + 1}`,
+    "",
+    `这是第 ${index + 1} 节的说明段，用于把文档撑长并让快速滚动跨越多个块。`,
+    "",
+  ];
+  if (index % 3 === 0) {
+    section.push(
+      "| 列一 | 列二 |",
+      "| --- | --- |",
+      "| 单元 | 数据 |",
+      "",
+      "```js",
+      `console.log("section ${index + 1}");`,
+      "```",
+      "",
+    );
+  }
+  return section.join("\n");
+}).join("\n");
+
 /** contentDOM 的块级结构快照（行 / 非行子元素）——「专注模式不得改变块级 DOM 结构」不变量的观测量 */
 function blockStructure(page: Page): Promise<{ total: number; lines: number; widgets: number }> {
   return page.evaluate(() => {
@@ -156,19 +179,22 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
   });
 
-  test("E29/AC-S6-a：手动滚动不抢、不自动归位（A1）", async ({ page }) => {
+  test("E29/AC-S6-a：手动滚动不抢、不自动归位（A1，**真实滚轮**）", async ({ page }) => {
     await openApp(page);
     await loadDoc(page, FOCUS_DOC);
     await runCommand(page, "Typewriter Mode");
     await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 10"));
     await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
 
-    // 用户手动滚动（模拟滚轮/拖条）
-    const scrolled = await page.evaluate(() => {
-      const scroller = document.querySelector(".cm-scroller")!;
-      scroller.scrollTop = scroller.scrollTop + 120;
-      return scroller.scrollTop;
-    });
+    // 真实滚轮（关键：直接写 scrollTop 不触发 CM 更新，测不到本路径 —— 属主 #3 就是这个机制）
+    const scroller = page.locator(".cm-scroller");
+    await scroller.hover();
+    for (let index = 0; index < 5; index += 1) {
+      await page.mouse.wheel(0, 220);
+      await page.waitForTimeout(40);
+    }
+    const scrolled = await page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);
+    expect(scrolled, "前提：滚轮确实滚动了").toBeGreaterThan(0);
 
     // 等待远超缓动时长（140ms）与 rAF 节流的窗口：若实现会「拉回」，这里就会被观测到
     await page.waitForTimeout(700);
@@ -313,5 +339,40 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     await page.locator(".cm-md-table-widget td, .cm-md-table-widget th").first().click();
 
     await expect(heading, "叠加模式下活动块也不得残留").not.toHaveClass(/cm-md-focus-active/);
+  });
+
+  test("E31/AC-S7：快速滚轮滚动不得把视口弹回顶部（默认 / 专注 / 打字机 三态）", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await loadDoc(page, SCROLL_DOC);
+
+    const scroller = page.locator(".cm-scroller");
+    const fastScroll = async (): Promise<number> => {
+      await scroller.hover();
+      for (let index = 0; index < 12; index += 1) {
+        await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(20); // 快速连续滚动
+      }
+      await page.waitForTimeout(400); // 让“若存在拉回机制”有机会显现
+      return page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);
+    };
+
+    // ① 默认态（无视图模式）
+    expect(await fastScroll(), "默认态：快速滚动不得回到顶部").toBeGreaterThan(200);
+
+    // ② 专注模式
+    await runCommand(page, "Focus Mode");
+    await page.evaluate(() => {
+      document.querySelector(".cm-scroller")!.scrollTop = 0;
+    });
+    expect(await fastScroll(), "专注模式：快速滚动不得回到顶部").toBeGreaterThan(200);
+
+    // ③ 打字机模式（属主 #3 的会话很可能开着它）
+    await runCommand(page, "Typewriter Mode");
+    await page.evaluate(() => {
+      document.querySelector(".cm-scroller")!.scrollTop = 0;
+    });
+    expect(await fastScroll(), "打字机模式：快速滚动不得回到顶部").toBeGreaterThan(200);
   });
 });

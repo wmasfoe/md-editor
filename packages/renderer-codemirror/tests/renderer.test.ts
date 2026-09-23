@@ -802,6 +802,59 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.wysiwygProjection.rangeIndexVersion).toBe(1);
   });
 
+  it("R17c preserves the viewport for a same-path reload of a LONG document", () => {
+    // 覆盖后评审 HIGH-1/MED-1：路径信号必须真的生效，且前缀判据对 >5120 字符可满足。
+    const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
+    expect(body.length, "夹具必须超过 5120 字符才具判别力").toBeGreaterThan(5120);
+    const setup = createSetup({ markdown: body, filePath: "/doc.md" });
+    setup.harness.setScrollTop(512);
+    const before = setup.harness.probe();
+
+    setup.document.replaceDocument(
+      { markdown: body + "\n", filePath: "/doc.md", mode: "wysiwyg" },
+      { kind: "command", commandId: "file.save" },
+    );
+    const after = setup.harness.probe();
+
+    expect(after.stateReplacementCount).toBe(before.stateReplacementCount + 1);
+    expect(after.scrollTop, "同路径长文档重装载必须保留视口").toBe(512);
+  });
+
+  it("R17d resets the viewport when a DIFFERENT path replaces the document", () => {
+    // 路径已知时以路径为准：内容完全相同但换文档也必须归零。
+    const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
+    const setup = createSetup({ markdown: body, filePath: "/a.md" });
+    setup.harness.setScrollTop(512);
+
+    setup.document.replaceDocument(
+      { markdown: body, filePath: "/b.md", mode: "wysiwyg" },
+      { kind: "command", commandId: "file.open" },
+    );
+    const after = setup.harness.probe();
+
+    expect(after.scrollTop, "换文档（不同路径）必须归零").toBe(0);
+  });
+
+  it("R17b preserves the viewport when the SAME document is re-loaded with a trivial difference", () => {
+    // S7：同一文档重装载（保存往返/外部改动/快照重发）不得把正在阅读的用户弹回顶部。
+    // 判据 = 内容共享长前缀（本用例 = 仅追加一个换行）。
+    const source = `${Array.from({ length: 40 }, (_u, i) => `line ${i}`).join("\n")}\n`;
+    const setup = createSetup({ markdown: source });
+    setup.harness.setScrollTop(512);
+    const before = setup.harness.probe();
+
+    setup.document.replaceDocument(
+      { markdown: `${source}\n`, mode: "wysiwyg" },
+      { kind: "command", commandId: "file.save" },
+    );
+    const after = setup.harness.probe();
+
+    expect(after.stateReplacementCount, "仍是一次完整重装载").toBe(
+      before.stateReplacementCount + 1,
+    );
+    expect(after.scrollTop, "同一文档重装载必须保留视口").toBe(512);
+  });
+
   it("R18 restores focus-owned scroll after a hidden host is revealed", () => {
     const setup = createSetup({ markdown: "line 1\nline 2\nline 3\n" });
     setup.harness.focus();

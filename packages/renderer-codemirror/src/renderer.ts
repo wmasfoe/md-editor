@@ -196,6 +196,23 @@ export interface CodeMirrorRenderer {
   destroy(): void;
 }
 
+/** 两段文本是否共享「长前缀」（S7：判断是否同一文档的重装载而非换文档） */
+function sharesLongPrefix(previous: string, next: string): boolean {
+  const shorter = Math.min(previous.length, next.length);
+  // 文档过短时不足以判定同一性（避免把「都写了 3 行」误判为同一文档）
+  if (shorter < 200) {
+    return false;
+  }
+  const sample = Math.min(shorter, 4096);
+  let matched = 0;
+  while (matched < sample && previous.charCodeAt(matched) === next.charCodeAt(matched)) {
+    matched += 1;
+  }
+  // 判据 = **整段被比较前缀完全一致**（原式 matched >= shorter × 0.8 在 shorter > 5120 时
+  // 因 sample 上限 4096 而数学上不可满足；后评审 MED-1）。
+  return matched === sample;
+}
+
 export interface RendererViewAdapter {
   readonly state: EditorState;
   readonly isComposing: boolean;
@@ -509,6 +526,10 @@ class CodeMirrorRendererController {
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
   #visibilityRestoreSequence = 0;
   #modeScrollRestoreSequence = 0;
+  /** S7：快照重装载后的滚动恢复序列（防过期回调覆盖用户滚动） */
+  #reconcileScrollRestoreSequence = 0;
+  /** 当前装载的文档路径（S7：用于判断是「换文档」还是「同文档重装载」） */
+  #stateFilePath: string | null = null;
   readonly #modeScrollTopsByMode = new Map<EditorMode, number>();
   readonly #modeCursorPosByMode = new Map<EditorMode, number>();
   #destroyed = false;
@@ -531,6 +552,8 @@ class CodeMirrorRendererController {
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
+    // S7：必须播种当前文档路径（否则会话首个边界 pathSame 恒 false；后评审 HIGH-1）
+    this.#stateFilePath = initialSnapshot.filePath ?? null;
 
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
@@ -811,6 +834,13 @@ class CodeMirrorRendererController {
       );
     }
     const nextSelection = this.#clampedSelection(markdownLf.length);
+    // S7：**全量替换文档时必须保留视口位置**。
+    //
+    // 宿主与应用自身在会话中会重新装载当前文档（保存往返、外部改动、设置变更后的快照同步
+    // 都走本路径）。只要重发内容与编辑器当前内容存在**任何微小差异**（换行/尾空白归一即足够），
+    // 下面就是一次全量替换 —— 若不恢复滚动，正在阅读的用户会被**弹回顶部**。
+    // 属主复现（E34，夹具为其逐字文档）：滚动到 2560 → 装载后 0；修复后保持原位。
+    const preservedScrollTop = markdownLf === currentMarkdown ? null : this.#view.getScrollTop();
     this.#view.dispatch({
       ...(markdownLf === currentMarkdown
         ? {}
@@ -826,6 +856,17 @@ class CodeMirrorRendererController {
         rendererTransactionOrigin.of({ kind: "reconcile" }),
       ],
     });
+    if (preservedScrollTop !== null) {
+      // CodeMirror 可能在随后的 measure 中调整滚动锚点（与 setHostVisibility 同款处置）：
+      // 先在本次写入恢复一次，再在 measure 回调里复核一次。
+      this.#view.setScrollTop(preservedScrollTop);
+      const restoreSequence = ++this.#reconcileScrollRestoreSequence;
+      this.#requestMeasure(() => {
+        if (!this.#destroyed && this.#reconcileScrollRestoreSequence === restoreSequence) {
+          this.#view.setScrollTop(preservedScrollTop);
+        }
+      });
+    }
     this.#clearPendingProtocolState();
     this.#acceptSnapshotBookkeeping(snapshot);
     return this.#recordSyncResult({
@@ -1444,10 +1485,39 @@ class CodeMirrorRendererController {
     this.#modeScrollTopsByMode.clear();
     this.#modeCursorPosByMode.clear();
     this.#clearPendingProtocolState();
+    // S7：**区分「换文档」与「同一文档重装载」**。
+    // 换文档回顶部是对的；但同一文档的重装载（保存往返、外部改动、设置变更后的快照重发）
+    // 若无条件归零，就会把正在阅读的用户**弹回顶部** —— 属主复现（E34，夹具为其逐字文档）：
+    // 滚动到 2560 → 装载后 0。此处按 filePath 是否相同判定。
+    const previousFilePath = this.#stateFilePath;
+    const previousScrollTop = this.#view.getScrollTop();
+    const previousMarkdown = this.#view.state.doc.toString();
+    // 「同一文档重装载」判定用**双信号**：
+    //  ① 路径相同且都非空 —— 打开同一文件的保存往返/外部改动；
+    //  ② 内容共享**整段被比较前缀**（较短者须 ≥200 字符）—— 未命名文档的保存往返/快照重发，
+    //     以及带微小归一差异（换行/尾空白）的同一文档。
+    // 二者皆不满足 = **换文档**（如 file.open/file.new）⇒ 按原契约归零（见 R17）。
+    const pathKnown = typeof snapshot.filePath === "string" && snapshot.filePath.length > 0;
+    // 路径已知 ⇒ 以路径为权威（同路径保留 / 不同路径归零，即使内容相同）；未知才回落内容前缀。
+    const sameDocument = pathKnown
+      ? previousFilePath === snapshot.filePath
+      : sharesLongPrefix(previousMarkdown, snapshot.markdown);
     const nextState = this.#createState(snapshot);
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
-    this.#view.setScrollTop(0);
+    this.#stateFilePath = snapshot.filePath ?? null;
+    if (sameDocument) {
+      // 与 setHostVisibility 同款：先写一次，再在 measure 回调复核（CM 可能调整滚动锚点）
+      const restoreSequence = ++this.#reconcileScrollRestoreSequence;
+      this.#view.setScrollTop(previousScrollTop);
+      this.#requestMeasure(() => {
+        if (!this.#destroyed && this.#reconcileScrollRestoreSequence === restoreSequence) {
+          this.#view.setScrollTop(previousScrollTop);
+        }
+      });
+    } else {
+      this.#view.setScrollTop(0);
+    }
     this.#stateReplacementCount += 1;
     this.#stateEpochSequence += 1;
     this.#stateEpochId = `${this.#viewId.replace("view", "state")}-${this.#stateEpochSequence}`;
@@ -1465,6 +1535,9 @@ class CodeMirrorRendererController {
   }
 
   #acceptSnapshotBookkeeping(snapshot: DocumentSnapshot): void {
+    // S7（终审 MED 处方）：**在此单一汇聚点刷新文档身份** —— 元数据路径（重命名/save-as 提升）
+    // 与 reconcile 路径都会经过这里，否则紧随其后的重装载会被误判为「换文档」而把视口归零。
+    this.#stateFilePath = snapshot.filePath ?? this.#stateFilePath;
     this.#documentGeneration = snapshot.documentGeneration;
     this.#stateRevision = snapshot.stateRevision;
     this.#contentRevision = snapshot.contentRevision;
