@@ -458,4 +458,101 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       )
       .toBe(true);
   });
+
+  test("E37/AC-S6-b：打字机「移动光标平滑归位」是缓动动画而非瞬时跳变（逐帧采样）", async ({
+    page,
+  }) => {
+    // 审计 ①「AC-S6-b 只有结构级动画锁」的行为级证据。
+    //
+    // 关键设计（探针实测后定下）：**光标移动必须落在当前视野内**。
+    // 若做大幅跳转，CodeMirror 自己会先把光标「滚入视野」（一次瞬时跳变，实测 1169px），
+    // 打字机缓动只负责其后的尾段 —— 那种序列无法区分「缓动」与「跳变」。
+    // 视野内移动时，滚动完全由打字机居中驱动，于是整条采样序列就是缓动曲线。
+    //
+    // 采样用 `scroll` 事件（动画每帧写 scrollTop 都触发一次），而非 rAF 循环：
+    // rAF 循环的首帧可能被光标移动的同步工作推迟到动画中段，把已完成的部分误计为单帧位移。
+    //
+    // 探针实测（同一夹具，视野内下移 10 行）：series=[588,635,676,711,742,768,791,809,824,836,…]
+    // ⇒ distinct=22 · span=276 · maxStep=47（仅占 17%）—— 衰减型缓动特征，阈值留 ~3 倍余量。
+    //
+    // 红向对照（**同一夹具、同一 276px 位移，唯一差别是关闭打字机模式**）：
+    // series=[260,536] ⇒ distinct=2（瞬时跳变）⇒ 本用例的 distinct ≥ 6 会失败。
+    // 即：无缓动则无中间帧，该断言真正区分了「缓动」与「一步到位」。
+    const LONG_DOC = [
+      "# 标题块",
+      "",
+      "段落甲。",
+      "",
+      ...Array.from({ length: 80 }, (_u, i) => `滚动段落 ${i + 1}：打字机平滑动画的逐帧采样夹具。`),
+      "",
+    ].join("\n");
+    const lineOffset = (lineNo: number): number => {
+      const docLines = LONG_DOC.split("\n");
+      let offset = 0;
+      for (let i = 0; i < lineNo; i += 1) {
+        offset += docLines[i].length + 1;
+      }
+      return offset;
+    };
+
+    await openApp(page);
+    await loadDoc(page, LONG_DOC);
+    await runCommand(page, "Typewriter Mode");
+
+    // 先定位到文档中段，让 CM 的可见性滚动与打字机居中都已稳定
+    await setCaret(page, lineOffset(30));
+    await page.waitForTimeout(600);
+
+    await page.evaluate(
+      (at) => {
+        const scroller = document.querySelector(".cm-scroller")!;
+        const holder = window as unknown as {
+          __scrollSamples: number[];
+          __stopScrollProbe?: () => void;
+        };
+        holder.__scrollSamples = [Math.round(scroller.scrollTop)];
+        const onScroll = () => {
+          holder.__scrollSamples.push(Math.round(scroller.scrollTop));
+        };
+        scroller.addEventListener("scroll", onScroll, { passive: true });
+        holder.__stopScrollProbe = () => scroller.removeEventListener("scroll", onScroll);
+        // 与采样同一次 evaluate 内触发光标移动（不隔 CDP 往返）
+        window.__MD_EDITOR_E2E__!.setSelection(at, at);
+      },
+      lineOffset(40), // 视野内下移 10 行 ⇒ 滚动只由打字机居中驱动
+    );
+
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __scrollSamples: number[] }).__scrollSamples.length,
+        ),
+      )
+      .toBeGreaterThan(5);
+    await page.waitForTimeout(400);
+    await page.evaluate(() =>
+      (window as unknown as { __stopScrollProbe?: () => void }).__stopScrollProbe?.(),
+    );
+
+    const samples = await page.evaluate(
+      () => (window as unknown as { __scrollSamples: number[] }).__scrollSamples,
+    );
+    const distinct = new Set(samples).size;
+    const span = Math.max(...samples) - Math.min(...samples);
+    const maxStep = samples.reduce(
+      (max, value, index) =>
+        index === 0 ? max : Math.max(max, Math.abs(value - samples[index - 1])),
+      0,
+    );
+
+    expect(span, "前置：确实发生了滚动（否则动画无从谈起）").toBeGreaterThan(150);
+    expect(
+      distinct,
+      "缓动必须产生多个中间帧（瞬时跳变只会有 1~2 个不同值）",
+    ).toBeGreaterThanOrEqual(6);
+    expect(
+      maxStep,
+      `单帧最大位移（${maxStep}）必须小于总位移（${span}）的一半 —— 证明是缓动而非一步到位`,
+    ).toBeLessThan(span * 0.5);
+  });
 });
