@@ -77,6 +77,7 @@ mod mode_menu_tests {
 }
 
 #[cfg(test)]
+#[cfg(target_os = "macos")]
 mod menu_accelerator_collision_tests {
     use super::{
         menu_accelerator_for_shortcut, MENU_ACCELERATOR_LITERALS, MENU_ACCELERATOR_SHORTCUTS,
@@ -441,6 +442,11 @@ fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
 
 /// 设置驱动的菜单加速键：`(settings 快捷键 id, 内联默认值)`。
 ///
+/// 仅在 macOS 编译：原生菜单本体（`build_app_menu`）与 `menu_accelerator_for_shortcut`
+/// 均为 `cfg(target_os = "macos")`，故本表与两个取用函数一并按平台门控，
+/// 否则在 Linux/Windows 构建里会成为未使用项而被 `-D warnings` 判错（CI 实测）。
+/// 碰撞守卫测试同样限 macOS —— 加速键只在 macOS 菜单上真实生效。
+///
 /// **id 必须与 JS 侧真实快捷键/命令 id 同名**（如 `view.toggleSource` ↔ `defaults.ts` 行 id），
 /// 否则 `settings::shortcut_key` 永远命中不到用户配置、只能走内联默认值（曾经的缺陷：
 /// 用了 `view.focusMode` 而真实 id 是 `view.toggleFocusMode`）。
@@ -449,6 +455,7 @@ fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
 ///（`muda/src/accelerator.rs` 的 `parse_code`，`"KEYT" | "T" => KeyT`），
 /// 故 `Mod-Alt-T` 与 `Mod-Alt-t` 是**同一个** OS 级加速键，不能靠大小写区分。
 /// 该表由 `menu_accelerator_collision_tests` 锁定两两不同。
+#[cfg(target_os = "macos")]
 const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
     ("table.insert", "Mod-Alt-T"),
     ("view.toggleSource", "Mod-/"),
@@ -459,10 +466,12 @@ const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
 ];
 
 /// 菜单中不读设置的字面量加速键（同样参与碰撞判定，并由 `literal_accelerator` 在构建时取用）
+#[cfg(target_os = "macos")]
 const MENU_ACCELERATOR_LITERALS: &[(&str, &str)] = &[("md-editor:mode-wysiwyg", "CmdOrCtrl+1")];
 
 /// 取字面量菜单加速键（与 `shortcut_accelerator` 同为「表 + 显式失败」形态，
 /// 使该表在非测试构建中亦被使用，从而与碰撞守卫看到的是**同一份事实**）。
+#[cfg(target_os = "macos")]
 fn literal_accelerator(id: &str) -> &'static str {
     MENU_ACCELERATOR_LITERALS
         .iter()
@@ -473,6 +482,7 @@ fn literal_accelerator(id: &str) -> &'static str {
 
 /// 取某菜单项的加速键：设置里若有同 id 配置则用用户键，否则用表内默认值。
 /// 未登记 id 直接 panic（程序错误应当显式失败，不静默产出空加速键）。
+#[cfg(target_os = "macos")]
 fn shortcut_accelerator(id: &str) -> String {
     let fallback = MENU_ACCELERATOR_SHORTCUTS
         .iter()
