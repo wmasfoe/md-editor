@@ -79,9 +79,7 @@ mod mode_menu_tests {
 #[cfg(test)]
 #[cfg(target_os = "macos")]
 mod menu_accelerator_collision_tests {
-    use super::{
-        menu_accelerator_for_shortcut, MENU_ACCELERATOR_LITERALS, MENU_ACCELERATOR_SHORTCUTS,
-    };
+    use super::{menu_accelerator_for_shortcut, MENU_ACCELERATOR_SHORTCUTS};
 
     /// muda 解析时对键名 `to_uppercase()` 后匹配，故归一必须大小写不敏感。
     fn normalize(accelerator: &str) -> String {
@@ -89,7 +87,7 @@ mod menu_accelerator_collision_tests {
     }
 
     fn menu_accelerators() -> Vec<(String, String)> {
-        let mut entries: Vec<(String, String)> = MENU_ACCELERATOR_SHORTCUTS
+        MENU_ACCELERATOR_SHORTCUTS
             .iter()
             .map(|(id, fallback)| {
                 (
@@ -97,13 +95,18 @@ mod menu_accelerator_collision_tests {
                     normalize(&menu_accelerator_for_shortcut(fallback)),
                 )
             })
-            .collect();
-        entries.extend(
-            MENU_ACCELERATOR_LITERALS
+            .collect()
+    }
+
+    /// S1 回归锁：已删除的「编辑模式 (Cmd+1)」菜单项不得被重新加回加速键表。
+    #[test]
+    fn removed_edit_mode_menu_item_stays_removed() {
+        assert!(
+            MENU_ACCELERATOR_SHORTCUTS
                 .iter()
-                .map(|(id, accelerator)| ((*id).to_string(), normalize(accelerator))),
+                .all(|(id, _)| *id != "md-editor:mode-wysiwyg"),
+            "「编辑模式」菜单项已按 S1 删除（编辑轴与视图轴正交；源码双向切换由 Mod-/ 覆盖），不得重新加入",
         );
-        entries
     }
 
     /// 守卫自证：归一必须真的能抓住大小写碰撞，否则下面的“两两不同”是假保证。
@@ -220,7 +223,6 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .build()?;
 
     let view_title = if is_zh { "视图" } else { "View" };
-    let mode_wysiwyg_title = if is_zh { "编辑模式" } else { "Edit Mode" };
     let toggle_source_title = if is_zh {
         "切换源码模式"
     } else {
@@ -239,12 +241,11 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
     };
 
     let view_menu = SubmenuBuilder::new(app, view_title)
-        .item(&menu_item(
-            app,
-            "md-editor:mode-wysiwyg",
-            mode_wysiwyg_title,
-            literal_accelerator("md-editor:mode-wysiwyg"),
-        )?)
+        // S1（编辑器交互 bug 批）：**删除「编辑模式 (Cmd+1)」菜单项**。
+        //
+        // 理由（属主确认的模型）：编辑轴（源码 ↔ 所见即所得）与视图轴（专注/打字机）**正交**，
+        // 不在同一组里；源码模式的**双向**切换已由下方 `Mod-/` 一项覆盖，
+        // 故不再单列“只回所见即所得”的菜单项（命令 `view.showWysiwyg` 仍供侧栏/命令面板使用）。
         .item(&menu_item(
             app,
             "md-editor:toggle-source",
@@ -464,21 +465,6 @@ const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
     ("view.toggleTypewriterMode", "Mod-Alt-y"),
     ("settings.open", "Mod-,"),
 ];
-
-/// 菜单中不读设置的字面量加速键（同样参与碰撞判定，并由 `literal_accelerator` 在构建时取用）
-#[cfg(target_os = "macos")]
-const MENU_ACCELERATOR_LITERALS: &[(&str, &str)] = &[("md-editor:mode-wysiwyg", "CmdOrCtrl+1")];
-
-/// 取字面量菜单加速键（与 `shortcut_accelerator` 同为「表 + 显式失败」形态，
-/// 使该表在非测试构建中亦被使用，从而与碰撞守卫看到的是**同一份事实**）。
-#[cfg(target_os = "macos")]
-fn literal_accelerator(id: &str) -> &'static str {
-    MENU_ACCELERATOR_LITERALS
-        .iter()
-        .find(|(candidate, _)| *candidate == id)
-        .map(|(_, accelerator)| *accelerator)
-        .unwrap_or_else(|| panic!("menu accelerator literal table is missing id: {id}"))
-}
 
 /// 取某菜单项的加速键：设置里若有同 id 配置则用用户键，否则用表内默认值。
 /// 未登记 id 直接 panic（程序错误应当显式失败，不静默产出空加速键）。

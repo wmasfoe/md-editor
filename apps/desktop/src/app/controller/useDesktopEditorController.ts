@@ -33,6 +33,7 @@ import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import { useTranslation } from "@md-editor/i18n";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
+import { recordModeMenuChecked } from "../stores/mode-menu-store";
 import { useFileActionStore } from "../stores/file-action-store";
 import { useFileTreeStore } from "../stores/file-tree-store";
 import { useSidebarStore } from "../stores/sidebar-store";
@@ -410,6 +411,9 @@ export function useDesktopEditorController({
               return;
             }
             const next = portsAccess.ports.toggleFocusMode();
+            // S1(b)：**勾选态请求的记录与 Tauri 可用性无关** —— 浏览器内 E2E 必须能断言
+            // 「两条切换路径都请求了同一个勾选态」；真实 `invoke` 仍仅在 Tauri 下执行。
+            recordModeMenuChecked("focus", next);
             if (isTauri()) {
               void invoke("set_mode_menu_checked", { mode: "focus", checked: next }).catch(
                 (error: unknown) => {
@@ -437,6 +441,8 @@ export function useDesktopEditorController({
               return;
             }
             const next = portsAccess.ports.toggleTypewriterMode();
+            // S1(b)：同上 —— 记录与 Tauri 可用性无关
+            recordModeMenuChecked("typewriter", next);
             if (isTauri()) {
               void invoke("set_mode_menu_checked", { mode: "typewriter", checked: next }).catch(
                 (error: unknown) => {

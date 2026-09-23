@@ -7,6 +7,7 @@ import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirr
 import type { RuntimeFileService } from "@md-editor/file-system";
 import type { DesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";
+import { getModeMenuChecks } from "../app/stores/mode-menu-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useToastStore } from "../app/stores/toast-store";
 import { getS1CapabilityInventory } from "../app/s1-capability-inventory";
@@ -42,6 +43,8 @@ export interface EditorE2eBridge {
     markdown: string,
   ): CodeMirrorEditorExternalEditResult | { readonly status: "unavailable" };
   setCompositionActive(active: boolean): void;
+  /** S1(b)：读取最近一次菜单勾选态请求（镜像可验证性 seam） */
+  getModeMenuChecks(): { focus: boolean; typewriter: boolean };
   triggerParentRerender(): void;
   setAssetPreviewVisible(visible: boolean): void;
   /** 程序化设置编辑器选区(renderer 标准端口,自带焦点;E2E 定位不依赖点击时序) */
@@ -148,6 +151,9 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
         expectedContentRevision: snapshot.contentRevision,
         selection: "preserve-offset-clamped",
       });
+    },
+    getModeMenuChecks() {
+      return getModeMenuChecks();
     },
     setCompositionActive(active: boolean) {
       const content = document.querySelector<HTMLElement>(".cm-content");
