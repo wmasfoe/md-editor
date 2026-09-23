@@ -62,7 +62,7 @@ test.describe("D-1 Tab 跳出括号/link（真实 desktop app）", () => {
     await replaceDocument(page, PARAGRAPH);
     const before = await readDoc(page);
 
-    await setCaret(page, 7); // 已在 `)` 之后
+    await setCaret(page, 9); // foo()| = `)` 之后（UTF-16：前文占 2 单元，foo() 位于 4..8，不动点=9）
     await page.keyboard.press("Tab");
 
     // 零文本变更；且光标不是被「跳出」推走（仍在原位或按后续逻辑移动）
@@ -227,5 +227,116 @@ test.describe("E10/T20-cell 🔴 PM-4 硬闸门：单元格内跳出先于 flush
     expect(afterTab, "联合断言：接受腿被护栏正确跳过（AI 文本不得插入）").not.toContain(
       "AI 续写。",
     );
+  });
+});
+
+/**
+ * E1–E8 / T3–T10：括号与 link 跳出的**桌面级**语义（S1b 补全，闭合审计缺口）。
+ * 语义与集成层 tab-arbitration-repro.test.ts（T3–T9）单一来源；桌面层验证真实 app 派发。
+ */
+async function head(page: Page): Promise<number> {
+  return page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__!.getSelectionSnapshot().head);
+}
+
+/** 跳出成功：文本逐字符不变（T20）+ 光标精确落位 */
+async function expectJump(page: Page, doc: string, cursor: number, target: number): Promise<void> {
+  await openHarness(page);
+  await replaceDocument(page, doc);
+  await setCaret(page, cursor);
+  await page.keyboard.press("Tab");
+  expect(await readDoc(page), "T20 零文本变更").toBe(doc);
+  expect(await head(page), `光标应精确跳到 ${target}`).toBe(target);
+}
+
+/** 不跳出（fail closed / 不动点）：括号结构逐字符不变（后续 handler 的缩进属空白增量） */
+async function expectNoJump(
+  page: Page,
+  doc: string,
+  cursor: number,
+  forbidden: number,
+): Promise<void> {
+  await openHarness(page);
+  await replaceDocument(page, doc);
+  await setCaret(page, cursor);
+  await page.keyboard.press("Tab");
+  const after = await readDoc(page);
+  expect(after.replace(/[ \t]/g, ""), "括号结构逐字符不变（不得跳出）").toBe(doc);
+  expect(await head(page), `escape 层不得消费 Tab（目标 ${forbidden} 是禁区）`).not.toBe(forbidden);
+}
+
+test.describe("E1–E8 / T3–T10 括号与 link 跳出（真实 desktop app）", () => {
+  test("E1/T3: foo(|) → 光标跳到 ) 之后", async ({ page }) => {
+    await expectJump(page, "foo()", 4, 5);
+  });
+
+  test("E2/T4: foo|() → 跳过整对", async ({ page }) => {
+    await expectJump(page, "foo()", 3, 5);
+  });
+
+  test("E3/T5: foo()| → 不动点（escape 不吞 Tab，交还责任链）", async ({ page }) => {
+    await openHarness(page);
+    await replaceDocument(page, "foo()");
+    await setCaret(page, 5);
+    await page.keyboard.press("Tab");
+    const after = await readDoc(page);
+    // 不动点契约：escape 层 return false（不吞 Tab）→ 括号结构逐字符不变
+    expect(after.replace(/[ \t]/g, "")).toBe("foo()");
+    // 光标不得被回推进括号内（escape 若误吞会推到 5 而这是正确位；故断言不回跳到 <5）
+    expect(await head(page)).toBeGreaterThanOrEqual(5);
+  });
+
+  test("E4/T6: foo(xxx|xxx) → 非空对也跳，内容逐字符不变", async ({ page }) => {
+    await expectJump(page, "foo(xxxxxx)", 7, 11);
+  });
+
+  test("E5/T7: 嵌套取最内层", async ({ page }) => {
+    await expectJump(page, "foo(bar(baz)qux)", 11, 12);
+  });
+
+  test("E6/T8: 不平衡 → fail closed 不跳", async ({ page }) => {
+    await expectNoJump(page, "foo(bar(baz", 11, 12);
+  });
+
+  test("E7/T9: link 当整体跳到右边界", async ({ page }) => {
+    await expectJump(page, "见 [文本](./x.md) 结束", 5, 14);
+  });
+
+  test("E8/T10: 行内代码内括号不配对（fail closed）", async ({ page }) => {
+    await expectNoJump(page, "`code(x|y)`尾文", 7, 9);
+  });
+});
+
+/**
+ * E12 / T2 三上下文：代码块与列表腿（表格腿 = E18）。
+ * 语义与集成层 I2a/I2b 回归锁单一来源；建议注入走 harness `showSuggestion` seam（N-2）。
+ */
+async function expectAccepted(page: Page, doc: string, cursor: number): Promise<void> {
+  await openHarness(page);
+  await replaceDocument(page, doc);
+  await setCaret(page, cursor);
+  await page.evaluate(
+    (pos) =>
+      window.__CODEMIRROR_EDITOR_E2E__!.showSuggestion({ from: pos, to: pos, text: "AI 续写。" }),
+    cursor,
+  );
+  expect(
+    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__!.getSuggestion()),
+    "前置：建议在场",
+  ).not.toBeNull();
+  await page.keyboard.press("Tab");
+  expect(await readDoc(page), "回归锁：建议应被接受并落字").toContain("AI 续写。");
+  expect(
+    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__!.getSuggestion()),
+    "接受后建议清空",
+  ).toBeNull();
+}
+
+test.describe("E12 / T2 代码块与列表腿（真实 desktop app）", () => {
+  test("T2-code: 代码块内建议被 Tab 接受（回归锁绿）", async ({ page }) => {
+    await expectAccepted(page, "```\ncode\n```", 6);
+  });
+
+  test("T2-list: 列表项内建议被 Tab 接受（回归锁绿）", async ({ page }) => {
+    await expectAccepted(page, "- item", 6);
   });
 });
