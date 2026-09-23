@@ -246,6 +246,10 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       await page.locator(".cm-md-focus-dim").count(),
       "源码模式下仍应有 dim 行装饰",
     ).toBeGreaterThan(0);
+
+    // 打字机半（评审 M-3）：源码模式下也必须真的居中（不得被静默忽略）
+    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 30"));
+    await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
   });
 
   test("E30/AC-S6-c：静置后不得自激滚动（无无限居中循环，与 W5 同源）", async ({ page }) => {

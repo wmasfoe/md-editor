@@ -133,12 +133,19 @@ test.describe("块操作（真实 desktop app · G007 命令面板路径）", ()
     const deleted = await readDoc(page);
     expect(deleted.split("段落乙").length - 1, "Mod-Alt+Backspace 应触发删除块").toBe(1);
 
-    // 上移（评审 L-4：上移键位此前未覆盖）—— 放在最后，避免打乱前面各步的前置顺序
-    await setCaret(page, deleted.indexOf("段落丙"));
+    // 上移（评审 L-4 + 空转修正）：此前断言 `丙 在 乙 之前` 在该前置状态下**本就成立**（空转）。
+    // 现在改为「把**最后一个**段落上移」，并用**前置自证**保证断言真的有判别力。
+    const beforeUp = await readDoc(page);
+    const tailIndex = beforeUp.indexOf("段落乙");
+    expect(tailIndex, "前置：段落乙这时应位于段落丙之后（否则上移断言会空转）").toBeGreaterThan(
+      beforeUp.indexOf("段落丙"),
+    );
+
+    await setCaret(page, tailIndex);
     await page.keyboard.press(`${MOD_KEY}+Alt+ArrowUp`);
     const movedUp = await readDoc(page);
-    expect(movedUp.indexOf("段落丙"), "Mod-Alt+↑ 应触发上移块").toBeLessThan(
-      movedUp.indexOf("段落乙"),
+    expect(movedUp.indexOf("段落乙"), "Mod-Alt+↑ 应把段落乙移到段落丙之前").toBeLessThan(
+      movedUp.indexOf("段落丙"),
     );
   });
 });

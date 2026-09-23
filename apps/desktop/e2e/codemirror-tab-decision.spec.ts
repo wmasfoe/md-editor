@@ -204,7 +204,10 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
       if (!content) {
         return ["<缺少 .cm-content>"];
       }
-      const selector = 'button, select, input, textarea, [contenteditable="true"], [tabindex]';
+      // 必须同时覆盖 `contenteditable="plaintext-only"` —— CM 的单元格编辑器用的就是它，
+      // 而它正是不变量要拦的「#2 真凶」元素（评审 NEW-1：只匹配 "true" 会让护栏看不见它）。
+      const selector =
+        'button, select, input, textarea, [contenteditable], [contenteditable="plaintext-only"], [tabindex]';
       return Array.from(content.querySelectorAll<HTMLElement>(selector))
         .filter(
           (element) =>
