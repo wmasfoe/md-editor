@@ -15,7 +15,7 @@ import {
  *  - E15 / W1+W2 ：打字机阈值防抖（≤0.35×视口高不滚动）+ 超阈值校正到 50%
  *  - E15 / W3    ：输入路径**即时**跟随（禁 smooth —— 单次大输入后短窗内光标即居中）
  *  - E20 / 所有权 ：开启专注后**移动光标**，非活动块仍保持 dim（HIGH-1 回归锁）
- *  - E21 / F5    ：非 `ATOMIC_WIDGET_KINDS` 的整块 widget（setext/引用定义/脚注定义/表格）
+ *  - E21 / F5    ：不在旧 kind 名单内的整块 widget（setext/引用定义/脚注定义/表格）
  *                  在专注模式下不消失、不产生幻影行（块级 DOM 结构不变量）
  *
  * 两个模式均经 **G007 命令面板**触发（AC-D2-2 顺带取证：命令面板可搜可执行）。
@@ -40,7 +40,7 @@ const FOCUS_DOC = [
   "",
 ].join("\n");
 
-/** E21 夹具：四种整块 replace widget，其中三种**不在** `ATOMIC_WIDGET_KINDS` 名单内 */
+/** E21 夹具：四种整块 replace widget，其中三种**不在**旧 kind 名单内（后者已删除） */
 const WIDGET_DOC = [
   "Setext 标题",
   "===========",

@@ -93,7 +93,7 @@ describe("U19b 活动块二分查找（readBlockRanges 保证升序不嵌套）"
 
 describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰", () => {
   // 判据取自**投影层渲染契约**（layoutDecorations 中 spec.block === true），
-  // 故 setext 标题 / 引用定义 / 脚注定义 / 表格这些「非 ATOMIC_WIDGET_KINDS」的
+  // 故 setext 标题 / 引用定义 / 脚注定义 / 表格这些「不在旧 kind 名单内」的
   // 整块 replace widget 也必须在跳过名单内（否则同位置线装饰造幻影行/块消失）。
   const doc = [
     "Setext 标题",

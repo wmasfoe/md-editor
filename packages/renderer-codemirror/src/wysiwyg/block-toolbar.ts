@@ -8,7 +8,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { readBlockRanges, type BlockRange } from "./block-move.ts";
-import { blockWidgetCoveredRanges } from "./projection-state.ts";
+import { blockWidgetCoveredRanges, projectionStateChanged } from "./projection-state.ts";
 import {
   foldToggleTheme,
   foldableToggleAt,
@@ -89,18 +89,34 @@ class FoldToggleWidget extends WidgetType {
   }
 }
 
-function blockDecorationsFromRanges(
+/**
+ * 构建块工具栏 / 折叠控件的行装饰集。
+ *
+ * 导出供单测：该函数对 state 纯函数化（不触 DOM，widget 只在 `toDOM` 时才需 DOM），
+ * 因此可在 node 环境下锁定「块 widget 覆盖行不得挂行装饰」这一契约。
+ */
+export function blockDecorationsFromRanges(
   state: EditorState,
   blocks: readonly BlockRange[],
 ): DecorationSet {
   // 块 widget 覆盖的源范围 —— 判据来自**投影层拥有的渲染契约**（`spec.block === true` 且跨文本），
-  // 不再用块工具栏自己的 `ATOMIC_WIDGET_KINDS` kind 名单。
-  // 真实缺陷：该名单只含 4 个 kind，漏掉 setext 标题 / 引用定义 / 脚注定义（三者同为
+  // 不再用块工具栏自己的 kind 名单（该名单已随本次迁移删除）。
+  // 真实缺陷：旧名单只含 4 个 kind，漏掉 setext 标题 / 引用定义 / 脚注定义（三者同为
   // 整块 replace widget），于是在块 widget 同位置挂 `Decoration.line` 与 replace 装饰冲突
   // → 幻影行 / 块消失（与专注模式同一类错误，同一判据修复）。
   const widgetCoveredRanges = blockWidgetCoveredRanges(state);
-  const isWidgetCovered = (pos: number): boolean =>
-    widgetCoveredRanges.some((range) => range.from <= pos && pos < range.to);
+  // blocks 与覆盖范围均按 from 升序 ⇒ 单调游标 O(blocks + ranges)，不用逐块 some()
+  let widgetIndex = 0;
+  const isWidgetCovered = (pos: number): boolean => {
+    while (
+      widgetIndex < widgetCoveredRanges.length &&
+      (widgetCoveredRanges[widgetIndex] as { to: number }).to <= pos
+    ) {
+      widgetIndex += 1;
+    }
+    const range = widgetCoveredRanges[widgetIndex];
+    return range !== undefined && range.from <= pos;
+  };
 
   const decorations = blocks.flatMap((block) => {
     // 整块 widget 渲染的块不挂行装饰（行级 line 装饰与整块 replace 装饰冲突）
@@ -140,7 +156,15 @@ class BlockToolbarViewPlugin {
   }
 
   update(update: ViewUpdate): void {
-    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+    // 失效契约与专注模式**同一份**：投影派生值（块 widget 覆盖范围）必须随投影变化重算，
+    // 否则解析覆盖率刷新这类「无 doc/selection/viewport 变化」的投影重建会留下陈旧装饰集，
+    // 使行装饰与块 widget 同位置共存（幻影行回归）。
+    if (
+      update.docChanged ||
+      update.selectionSet ||
+      update.viewportChanged ||
+      projectionStateChanged(update)
+    ) {
       this.decorations = blockDecorationsFromRanges(update.state, readBlockRanges(update.state));
     }
   }

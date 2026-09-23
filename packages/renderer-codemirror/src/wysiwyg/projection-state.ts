@@ -1198,7 +1198,7 @@ let cachedBlockWidgetRanges: readonly SourceRange[] = EMPTY_BLOCK_WIDGET_RANGES;
  * 为什么把判据放在投影层：`spec.block` 是**投影层拥有的渲染契约**。集中在拥有者处，
  * 消费方（专注模式的行装饰、块工具栏的行装饰）就不必各自维护 kind 名单 ——
  * 否则新增块 widget kind 时必然出现「一处改了、另一处忘了」的静默漂移。
- * 真实缺陷（本文件所在批次修复）：`ATOMIC_WIDGET_KINDS` 只含 4 个 kind，
+ * 真实缺陷（本批次修复）：曾经的块工具栏 kind 名单（只含 4 个 kind，已随本次迁移删除）
  * 漏掉 setext 标题 / 引用定义 / 脚注定义（三者同为整块 replace widget），
  * 于是同位置 `Decoration.line` 与块 widget 冲突 → 幻影行 / 块消失（F5）。
  *
@@ -1226,4 +1226,24 @@ export function blockWidgetCoveredRanges(state: EditorState): readonly SourceRan
   cachedBlockWidgetSource = projection.layoutDecorations;
   cachedBlockWidgetRanges = ranges;
   return ranges;
+}
+
+/**
+ * 投影状态是否在两次状态之间变化 —— **投影派生消费者共用的唯一失效契约**。
+ *
+ * 为什么必须共用：一旦消费者从「自维护 kind 名单」改为「读投影派生值」（块 widget 覆盖范围），
+ * 其失效条件就必须同步跟上。两个消费者用两套失效契约正是漂移温床 —— 投影变了而消费者没重算，
+ * 就会留下陈旧装饰集，使行装饰与块 widget 同位置共存（幻影行 / 块消失，F5）。
+ *
+ * 判据 = 投影状态对象的**身份**：投影层真正重建时返回新的冻结对象，无关事务返回 `previous`。
+ * ⚠️ 不要退化成只比 `layoutDecorations` 身份 —— 投影没有 layout 装饰时前后都是
+ * `Decoration.none` 单例，而 `visibleRanges` 可能已变（G006 视口过滤会静默失效）。
+ */
+export function projectionStateChangedBetween(before: EditorState, after: EditorState): boolean {
+  return before.field(wysiwygProjectionField, false) !== after.field(wysiwygProjectionField, false);
+}
+
+/** `projectionStateChangedBetween` 的 ViewUpdate 适配（ViewPlugin 消费者使用） */
+export function projectionStateChanged(update: ViewUpdate): boolean {
+  return projectionStateChangedBetween(update.startState, update.state);
 }

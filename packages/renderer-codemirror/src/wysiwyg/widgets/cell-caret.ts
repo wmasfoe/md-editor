@@ -3,7 +3,7 @@
  * @description 表格单元格（contenteditable）内的 DOM 光标读写 —— bracket-escape 的**表格 DOM 适配器**。
  *
  * ## 为什么需要单独一层
- * 表格是 `ATOMIC_WIDGET_KINDS` 里的 **replace widget**，单元格是 `contenteditable` 的
+ * 表格是**整块 replace widget**（投影渲染契约：`spec.block === true`），单元格是 `contenteditable` 的
  * **未提交 DOM 文本**，不是文档坐标空间。`markdown/range-index.ts:410-418` 明确在
  * table-widget 记录处停止下钻（"cell content must not be promoted to inline atom records"），
  * 因此 `link-projection.ts` 的 link range **无法**服务单元格内 link。

@@ -20,8 +20,8 @@
  *
  * ## 契约 3 的判据来自**投影层的渲染契约**，而非块工具栏的 kind 名单
  * 判据 = `wysiwygProjectionField.layoutDecorations` 中 `spec.block === true` 且**跨文本**
- *（`to > from`）的 replace 装饰所覆盖的行。理由：`ATOMIC_WIDGET_KINDS`（`block-move.ts`）
- * 是**块工具栏**关心的 4 个 kind（thematic-break/table/html/mdx-jsx），而 setext 标题、
+ *（`to > from`）的 replace 装饰所覆盖的行。理由：曾经的块工具栏 kind 名单只含 4 个 kind
+ *（thematic-break/table/html/mdx-jsx，已随本次迁移删除），而 setext 标题、
  * 引用定义、脚注定义同样以整块 replace widget 渲染（见 `default-visualization.ts`、
  * `link-projection.ts`）；而代码块是**行基**渲染，只在块首挂**零长度**工具栏 / spacer
  * 点 widget（`code-block-projection.ts`）—— 其代码行本身仍由本装饰集 dim，
@@ -62,7 +62,11 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { readBlockRanges, type BlockRange } from "./block-move.ts";
-import { blockWidgetCoveredRanges, wysiwygProjectionField } from "./projection-state.ts";
+import {
+  blockWidgetCoveredRanges,
+  projectionStateChangedBetween,
+  wysiwygProjectionField,
+} from "./projection-state.ts";
 
 /** 专注模式开关（零文档变更，纯视图态） */
 export const setFocusModeEffect = StateEffect.define<boolean>();
@@ -155,9 +159,10 @@ export const focusDimDecorationsField = StateField.define<DecorationSet>({
     // 前后都是 `Decoration.none` 单例，但 `visibleRanges` 已变（F6 视口过滤会静默失效）。
     // 该判据也无需逐一登记 effect：遗漏一条就会留下陈旧装饰集，使行装饰与块 widget
     // 同位置共存（幻影行回归）。范式同 `visible-marks.ts` 的 `indexChanged` 身份比较。
-    const projectionChanged =
-      transaction.startState.field(wysiwygProjectionField, false) !==
-      transaction.state.field(wysiwygProjectionField, false);
+    const projectionChanged = projectionStateChangedBetween(
+      transaction.startState,
+      transaction.state,
+    );
     if (
       transaction.docChanged ||
       transaction.selection !== undefined ||
