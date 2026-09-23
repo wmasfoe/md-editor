@@ -85,17 +85,24 @@ test.describe("Thematic Break (---) WYSIWYG rendering and cursor fidelity", () =
     await expect(thematicBreak).toHaveAttribute("aria-selected", "true");
     await expect(thematicBreak).toHaveClass(/cm-md-thematic-break-widget--selected/u);
 
-    // When the thematic break is selected, cursor must NOT be rendered on the line above
-    const isCursorAbove = await page.evaluate(() => {
-      const cursor = document.querySelector(".cm-cursor");
-      const hr = document.querySelector(".cm-md-thematic-break-widget");
-      if (!cursor || !hr) return false;
-      const cursorRect = cursor.getBoundingClientRect();
-      const hrRect = hr.getBoundingClientRect();
-      // If cursor bottom is above hr top, cursor is placed on previous line
-      return cursorRect.bottom < hrRect.top;
-    });
-    expect(isCursorAbove).toBe(false);
+    // When the thematic break is selected, cursor must NOT be rendered on the line above.
+    // 游标层（drawSelection）在 rAF 帧上落位：一次性取几何会读到上一帧旧位置（慢 CI 实证），
+    // 改为短窗轮询；断言语义不变（真漂移会持续为 true → 轮询超时判失败）。
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const cursor = document.querySelector(".cm-cursor");
+            const hr = document.querySelector(".cm-md-thematic-break-widget");
+            if (!cursor || !hr) return false;
+            const cursorRect = cursor.getBoundingClientRect();
+            const hrRect = hr.getBoundingClientRect();
+            // If cursor bottom is above hr top, cursor is placed on previous line
+            return cursorRect.bottom < hrRect.top;
+          }),
+        { timeout: 2000, intervals: [50, 50, 100] },
+      )
+      .toBe(false);
 
     // ArrowDown again unselects thematic break (position collapses to 5)
     await page.keyboard.press("ArrowDown");
