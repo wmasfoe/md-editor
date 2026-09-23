@@ -19,6 +19,7 @@
  * 2. `accept-suggestion`（有激活建议时；执行器自门控覆盖范围）
  * 3. `code-block`（仅非表格上下文；执行器自门控是否在代码块内）
  * 4. `escape-bracket`（执行器自门控：位置分流 / 边界 fail closed / 多光标切片）
+ *    —— **源码模式下不出场**（S3：编辑轴与视图轴正交，但源码模式不参与括号/链接跳出）
  * 5. 尾部：CM6 → `structured`（表格跳格 / 列表层级），表格 → `table-next-cell`
  *
  * 执行器（acceptAiSuggestion / codeBlockTab / escapeBracket / structuredTab）**保留
@@ -42,6 +43,14 @@ export interface TabArbiterContext {
   readonly suggestionActive: boolean;
   /** 表格单元格上下文（DOM keydown 腿）；CM6 腿恒为 false（DOM 拦截先于 keymap） */
   readonly inTableCell: boolean;
+  /**
+   * 编辑轴事实：当前处于**源码模式**（`editorModeField === "source"`）。
+   *
+   * S3：源码模式下 `escape-bracket` **不出场**（只保留代码块/列表等结构尾动作）——
+   * 括号/链接跳出属所见即所得的编辑语义；源码模式应由普通缩进处理 Tab。
+   * 注意这是**编辑轴**事实，与专注/打字机（视图轴）无关，二者正交。
+   */
+  readonly sourceMode: boolean;
 }
 
 /**
@@ -64,7 +73,10 @@ export function decideTabActions(context: TabArbiterContext): readonly TabAction
   if (!context.inTableCell) {
     actions.push("code-block");
   }
-  actions.push("escape-bracket");
+  // S3：源码模式跳过括号/链接跳出（编辑轴门控；次序本身不变）
+  if (!context.sourceMode) {
+    actions.push("escape-bracket");
+  }
   actions.push(context.inTableCell ? "table-next-cell" : "structured");
   return actions;
 }

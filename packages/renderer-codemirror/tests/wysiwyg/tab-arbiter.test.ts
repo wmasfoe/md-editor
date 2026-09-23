@@ -36,9 +36,36 @@ function subsequencesOfCanonical(actions: readonly TabAction[]): boolean {
 }
 
 describe("decideTabActions：D2 全序属性测试", () => {
+  it("S3：源码模式下 escape-bracket 不出场（编辑轴门控），其余动作与次序不变", () => {
+    const wysiwyg = decideTabActions({
+      composing: false,
+      suggestionActive: false,
+      inTableCell: false,
+      sourceMode: false,
+    });
+    const source = decideTabActions({
+      composing: false,
+      suggestionActive: false,
+      inTableCell: false,
+      sourceMode: true,
+    });
+    expect(wysiwyg, "所见即所得下括号跳出必须在场").toContain("escape-bracket");
+    expect(source, "源码模式不得调度括号/链接跳出").not.toContain("escape-bracket");
+    // 其余动作（代码块 / 结构尾）保持在场，且相对次序仍是规范子序列
+    expect(source).toContain("code-block");
+    expect(source).toContain("structured");
+    expect(subsequencesOfCanonical(source)).toBe(true);
+  });
   const allContexts = [false, true].flatMap((composing) =>
     [false, true].flatMap((suggestionActive) =>
-      [false, true].map((inTableCell) => ({ composing, suggestionActive, inTableCell })),
+      [false, true].flatMap((inTableCell) =>
+        [false, true].map((sourceMode) => ({
+          composing,
+          suggestionActive,
+          inTableCell,
+          sourceMode,
+        })),
+      ),
     ),
   );
 
@@ -56,7 +83,7 @@ describe("decideTabActions：D2 全序属性测试", () => {
     for (const suggestionActive of [false, true]) {
       for (const inTableCell of [false, true]) {
         expect(
-          decideTabActions({ composing: true, suggestionActive, inTableCell }),
+          decideTabActions({ composing: true, suggestionActive, inTableCell, sourceMode: false }),
           "IME 组合期不得调度任何 Tab 执行器",
         ).toEqual([]);
       }
@@ -65,19 +92,41 @@ describe("decideTabActions：D2 全序属性测试", () => {
 
   it("建议激活时 accept-suggestion 必为第一动作；未激活时不得出现", () => {
     expect(
-      decideTabActions({ composing: false, suggestionActive: true, inTableCell: false })[0],
+      decideTabActions({
+        composing: false,
+        suggestionActive: true,
+        inTableCell: false,
+        sourceMode: false,
+      })[0],
     ).toBe("accept-suggestion");
     expect(
-      decideTabActions({ composing: false, suggestionActive: true, inTableCell: true })[0],
+      decideTabActions({
+        composing: false,
+        suggestionActive: true,
+        inTableCell: true,
+        sourceMode: false,
+      })[0],
     ).toBe("accept-suggestion");
     expect(
-      decideTabActions({ composing: false, suggestionActive: false, inTableCell: false }),
+      decideTabActions({
+        composing: false,
+        suggestionActive: false,
+        inTableCell: false,
+        sourceMode: false,
+      }),
     ).not.toContain("accept-suggestion");
   });
 
   it("🔴 CM6 腿（非表格）恒为 code-block → escape-bracket → structured（T13 全序）", () => {
     for (const suggestionActive of [false, true]) {
-      expect(decideTabActions({ composing: false, suggestionActive, inTableCell: false })).toEqual(
+      expect(
+        decideTabActions({
+          composing: false,
+          suggestionActive,
+          inTableCell: false,
+          sourceMode: false,
+        }),
+      ).toEqual(
         suggestionActive
           ? ["accept-suggestion", "code-block", "escape-bracket", "structured"]
           : ["code-block", "escape-bracket", "structured"],
@@ -87,7 +136,12 @@ describe("decideTabActions：D2 全序属性测试", () => {
 
   it("🔴 表格腿：剔除 code-block，尾动作 = table-next-cell，且 escape 仍在跳格之前（PM-4 顺序契约）", () => {
     for (const suggestionActive of [false, true]) {
-      const actions = decideTabActions({ composing: false, suggestionActive, inTableCell: true });
+      const actions = decideTabActions({
+        composing: false,
+        suggestionActive,
+        inTableCell: true,
+        sourceMode: false,
+      });
       expect(actions, "表格上下文无围栏代码块语义").not.toContain("code-block");
       expect(actions[actions.length - 1], "尾动作必须是跳下一格").toBe("table-next-cell");
       expect(
@@ -102,7 +156,7 @@ describe("dispatchTabActions 共享 runner（轮1 architect concern-7）", () =>
   it("按 decideTabActions 序列调用，首个 true 即停 → handled", () => {
     const calls: string[] = [];
     const outcome = dispatchTabActions(
-      { composing: false, suggestionActive: true, inTableCell: false },
+      { composing: false, suggestionActive: true, inTableCell: false, sourceMode: false },
       {
         "accept-suggestion": () => {
           calls.push("accept");
@@ -129,7 +183,7 @@ describe("dispatchTabActions 共享 runner（轮1 architect concern-7）", () =>
   it("全部 false → fallthrough，按序穷尽（尾动作最后）", () => {
     const calls: string[] = [];
     const outcome = dispatchTabActions(
-      { composing: false, suggestionActive: false, inTableCell: false },
+      { composing: false, suggestionActive: false, inTableCell: false, sourceMode: false },
       {
         "code-block": () => {
           calls.push("code");
@@ -152,7 +206,7 @@ describe("dispatchTabActions 共享 runner（轮1 architect concern-7）", () =>
   it("composing → 零调用直接 fallthrough（铁律第 1 步）", () => {
     let called = false;
     const outcome = dispatchTabActions(
-      { composing: true, suggestionActive: true, inTableCell: false },
+      { composing: true, suggestionActive: true, inTableCell: false, sourceMode: false },
       {
         "accept-suggestion": () => {
           called = true;
@@ -167,7 +221,7 @@ describe("dispatchTabActions 共享 runner（轮1 architect concern-7）", () =>
   it("表格上下文序列：accept → escape → tail（无 code-block）", () => {
     const calls: string[] = [];
     dispatchTabActions(
-      { composing: false, suggestionActive: true, inTableCell: true },
+      { composing: false, suggestionActive: true, inTableCell: true, sourceMode: false },
       {
         "accept-suggestion": () => {
           calls.push("accept");

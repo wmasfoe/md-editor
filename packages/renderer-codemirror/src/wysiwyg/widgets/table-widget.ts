@@ -335,6 +335,8 @@ export class TableGridWidget extends WidgetType {
               composing,
               suggestionActive: view.state.field(aiSuggestionField, false) !== null,
               inTableCell: true,
+              // 表格 DOM 腿只存在于所见即所得（单元格是 widget 内部 DOM）
+              sourceMode: false,
             },
             {
               "accept-suggestion": () => {
@@ -691,6 +693,12 @@ function createEditableCell(
     editor.contentEditable = "true";
   }
   editor.spellcheck = false;
+  // S2 根因修复：文档内容**不得参与浏览器的 Tab 焦点链**。
+  // 此前本单元格编辑器是唯一漏设 tabindex 的文档内可聚焦元素，于是 CM6 腿 fallthrough、
+  // Tab 交还浏览器时，默认 Tab 导航把焦点移进单元格（视觉上“光标跳进表格”）。
+  // 其余文档内 widget（折叠按钮 / HTML / MDX / 分割线 / default-atom / 表格 wrapper / 图片）
+  // 均已是 tabindex="-1"；此处补上以保持一致。程序化 `focus()` 不受影响。
+  editor.tabIndex = -1;
   editor.textContent = text;
   cell.append(editor);
 

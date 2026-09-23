@@ -48,9 +48,17 @@ test.describe("D-1 Tab 跳出括号/link（真实 desktop app）", () => {
     await replaceDocument(page, PARAGRAPH);
     const before = await readDoc(page);
 
-    // `前文\n\nfoo()\n\n后文\n` → `(` 在 5，`)` 在 6；光标落在二者之间 = 6
-    await setCaret(page, 6);
+    // `前文\n\nfoo()\n\n后文\n` → `(` 在 **7**、`)` 在 **8**；光标落在二者之间 = 8
+    // （修正：此处旧注释写“`(` 在 5”且用 6 定位，实际落在 `foo` 词内 ⇒ Tab 不会跳出，
+    //   而该用例只断言“文本不变” ⇒ 即使 Tab 根本没被仲裁也会通过。现补上光标位移断言。）
+    await setCaret(page, 8);
     await page.keyboard.press("Tab");
+
+    // 光标语义：必须真的跳到 `)` 之后（否则本用例会退化成“什么都没发生也算通过”）
+    const headAfterEscape = await page.evaluate(
+      () => window.__CODEMIRROR_EDITOR_E2E__?.getDiagnostics()?.renderer?.selectionHead ?? -1,
+    );
+    expect(headAfterEscape, "括号跳出必须真的把光标移到 `)` 之后").toBe(9);
 
     // T20 硬断言：文档字节完全不变（光标语义由集成层 T3–T9 覆盖）
     const after = await readDoc(page);
