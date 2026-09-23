@@ -8,10 +8,12 @@ import { WysiwygDiagnostics, provideWysiwygDiagnostics } from "../../src/diagnos
 import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
 import {
   configureWysiwygProjectionFeatures,
+  setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
 import {
   DEFAULT_DIM_OPACITY,
+  focusDimDecorationsField,
   focusModeExtension,
   focusModeField,
   isAtomicWidgetBlock,
@@ -197,5 +199,71 @@ describe("OB1 / T-F7 🔴 PM-1 硬闸门：专注模式不得改变投影重建�
     // F-C 变体零 decoration，故 map-vs-rebuild 判定根本看不到它。
     expect(on, "开启专注模式后路径分类不得变化").toEqual(off);
     expect(on.fullBuild, "PM-1：不得因专注模式退化为全量重建").toBe(0);
+  });
+});
+
+function focusDecorationPositions(state: EditorState): readonly number[] {
+  const positions: number[] = [];
+  state.field(focusDimDecorationsField).between(0, state.doc.length, (from, _to, value) => {
+    if (String(value.spec.class ?? "").startsWith("cm-md-focus-")) {
+      positions.push(from);
+    }
+  });
+  return positions;
+}
+
+describe("F6/OB2（G006 方案 b）：专注装饰走视口过滤 + 生产全文构建明说", () => {
+  /** 读出 focus 装饰行位置 */
+
+  it("2000 行夹具 + effect 注入可见区 → 只构建可见区（G006 视口过滤）；未注入 = 全文构建", () => {
+    // ⚠️ 方案(b) 明说（PRD R-6）：生产当前是**全文构建** —— probe 有意 no-op，生产不派发
+    // setWysiwygVisibleRangesEffect；本测试走 effect 注入路径驱动 G006（F6/OB2 改写约定）。
+    const fixture = Array.from(
+      { length: 2000 },
+      (_unused, index) => `# Line ${index} content`,
+    ).join("\n");
+    let state = stateWith(fixture, 0, [
+      markdownRangeIndexField,
+      editorModeField,
+      configureWysiwygProjectionFeatures([
+        "inline-styles",
+        "headings",
+        "blocks",
+        "links",
+        "images",
+        "thematic-breaks",
+        "default-atoms",
+        "frontmatter",
+        "tables",
+        "html",
+        "mdx",
+      ]),
+      wysiwygProjectionField,
+      focusModeExtension,
+    ]);
+    state = state.update({ effects: setFocusModeEffect.of(true) }).state;
+
+    // 未注入可见区 → 全文构建（明说的生产现状）
+    const full = focusDecorationPositions(state);
+    expect(full.length, "全文构建：绝大多数行都有 focus 装饰").toBeGreaterThan(1000);
+
+    // 注入可见区 [1000,1100) → 只构建与可见区相交的块
+    state = state.update({
+      effects: setWysiwygVisibleRangesEffect.of([{ from: 1000, to: 1100 }]),
+    }).state;
+    console.log(
+      "DBG projRanges:",
+      JSON.stringify(
+        (state.field(wysiwygProjectionField) as unknown as { visibleRanges?: unknown })
+          .visibleRanges ?? null,
+      ),
+    );
+    const limited = focusDecorationPositions(state);
+    expect(limited.length, "限定构建：装饰数远少于全文").toBeGreaterThan(0);
+    expect(limited.length).toBeLessThan(full.length / 10);
+    for (const pos of limited) {
+      expect(pos, `装饰位置 ${pos} 必须落在可见区邻域（块相交规则）`).toBeGreaterThanOrEqual(900);
+      expect(pos).toBeLessThanOrEqual(1120);
+    }
   });
 });

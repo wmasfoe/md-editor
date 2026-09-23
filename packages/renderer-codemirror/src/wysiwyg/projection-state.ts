@@ -173,6 +173,11 @@ export const endWysiwygCompositionGuardEffect = StateEffect.define<null>();
 /**
  * G006 P1-4:EditorView 几何采集(visibleRanges)经此 effect 注入投影层。
  * 由 visibleRangesProbePlugin 在 viewportChanged 时派发;StateField 缓存并在
+ *
+ * ⚠️ **生产当前是全文构建**（PRD R-6 明说，方案 (b) 约定）：probe 有意 no-op（update
+ * 周期禁 dispatch 的 CM 规范约束），生产不派发本 effect，G006 视口过滤处于休眠能力态；
+ * dispatcher 侧 feed（scroll/RAF 回调派发 + rangesEqual diff + scroll-jank 基准）
+ * = 方案 (a)，留给后续 $performance-goal 硬前置。F6/OB2 测试改写到 effect 注入路径。
  * 全量重建时过滤 layoutDecorations(原子/保护范围保持全文)。
  */
 export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceRange[]>();
