@@ -29,4 +29,15 @@ describe("打字机模式：单滚动所有权（结构级护栏）", () => {
       0,
     );
   });
+
+  it("AC-S6-b：光标移动走 animateTo（缓动），输入走即时写 —— 删除动画会让本测试变红", () => {
+    // 行为级时序断言在本环境不可靠（CM 自身 nearest 滚动 + CDP 采样时序），
+    // 故以**结构级**锁取代：`recenter` 必须在 immediate 分支直接写、
+    // 其余分支调用 animateTo，且 animateTo 必须按 rAF 帧推进。
+    expect(SOURCE, "必须保留 animateTo（缓动居中）").toMatch(/this\.animateTo\(view, target\)/);
+    expect(SOURCE, "immediate 分支必须直接写（打字即时，AC W3）").toMatch(
+      /this\.writeScrollTop\(view, target\)/,
+    );
+    expect(SOURCE, "animateTo 必须按 rAF 帧推进").toMatch(/animationFrame = scheduleFrame\(step\)/);
+  });
 });
