@@ -243,6 +243,31 @@ export class TableGridWidget extends WidgetType {
         lastEditingCellByRecordId.set(currentValue().recordId, address);
       }
       cell.classList.add("cm-md-table-widget__cell--editing");
+      // S4（编辑器交互 bug 批）：把**编辑器光标**随 DOM 焦点一起搬进表格范围。
+      //
+      // 否则状态里的“当前块”与用户可见的光标分裂 —— 直接可见的后果是专注模式
+      // 会残留上一个活动块的高亮（属主报的 #6：光标已点进表格，标题仍高亮）。
+      // 仅当光标**不在**本表格范围内时才 dispatch（避免无谓事务与重复重建）。
+      //
+      // ⚠️ 只在焦点落到**单元格编辑器**（可编辑区）时同步：聚焦手柄/菜单等控件
+      // 并不等于“把编辑位置搬过去”，否则 Tab 落到控件上会把光标拽进表格（实测过）。
+      const focusedEditor = (event.target as Element | null)?.closest?.(
+        ".cm-md-table-widget__cell-editor",
+      );
+      if (!focusedEditor) {
+        return;
+      }
+      // IME/组合期不得搬动编辑器状态：会打断单元格内的组合与会话内 DOM 光标
+      //（CI 实测 E19「组合期 Tab 不跳出」因此失败，本地因时序巧合未复现）。
+      const projection = view.state.field(wysiwygProjectionField, false);
+      if (view.composing || (projection?.compositionGuardRanges.length ?? 0) > 0) {
+        return;
+      }
+      const record = view.state.field(markdownRangeIndexField, false)?.get(currentValue().recordId);
+      const head = view.state.selection.main.head;
+      if (record && (head < record.fullRange.from || head > record.fullRange.to)) {
+        view.dispatch({ selection: { anchor: record.fullRange.from } });
+      }
     };
 
     const focusout: EventListener = (event) => {
@@ -305,8 +330,14 @@ export class TableGridWidget extends WidgetType {
         // `view.composing` / `compositionGuardRanges` 两条闸的信息（信息丢失型 smell）。
         const composing = keyEvent.isComposing || view.composing || compositionGuarded;
         if (composing) {
-          // 放行原生（不 preventDefault → IME/浏览器默认键为不受阻），但**阻断我方链**：
-          // Tab 不得再冒泡进 CM6 keymap（轮1 concern-6 的 dispatch 级契约的前置保障）。
+          // 组合期：**阻断我方链**（Tab 不得冒泡进 CM6 keymap，轮1 concern-6 的 dispatch 级契约前置保障），
+          // 并**消费该键**（preventDefault）。
+          //
+          // 为什么必须 preventDefault（S9 自查 + CI 实测）：只 stopPropagation 时，浏览器默认 Tab 导航
+          // 会把焦点移出单元格 ⇒ 组合中未提交的文本随 DOM 焦点丢失（E19 实测 cell 状态从 `3:3:cf()`
+          // 变成 `0:0:`）。真实输入法会先消耗 Tab（用于候选选择），故 preventDefault 对真机行为**无影响**；
+          // 它只保证「组合期不因 Tab 而丢状态」。
+          keyEvent.preventDefault();
           keyEvent.stopPropagation();
           return;
         }
@@ -694,7 +725,8 @@ function createEditableCell(
   }
   editor.spellcheck = false;
   // S2 根因修复：文档内容**不得参与浏览器的 Tab 焦点链**。
-  // 此前本单元格编辑器是唯一漏设 tabindex 的文档内可聚焦元素，于是 CM6 腿 fallthrough、
+  // 此前单元格编辑器漏设 tabindex（并非唯一 —— 代码块工具栏/图片 widget 亦然，
+  // 同批一并修复，并由「文档内可聚焦元素枚举」护栏测试长期看守），于是 CM6 腿 fallthrough、
   // Tab 交还浏览器时，默认 Tab 导航把焦点移进单元格（视觉上“光标跳进表格”）。
   // 其余文档内 widget（折叠按钮 / HTML / MDX / 分割线 / default-atom / 表格 wrapper / 图片）
   // 均已是 tabindex="-1"；此处补上以保持一致。程序化 `focus()` 不受影响。
@@ -741,6 +773,9 @@ function createHandleButton(
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
+  // 文档内控件不参与浏览器 Tab 焦点链（与单元格编辑器/其它 widget 一致）：
+  // 否则 CM6 腿 fallthrough、Tab 交还浏览器时会落到手柄上（S2 同类缺陷）。
+  button.tabIndex = -1;
   button.className = "cm-md-table-widget__btn cm-md-table-widget__btn--handle";
   button.dataset.tableToggle = toggle;
   button.setAttribute(
@@ -821,6 +856,8 @@ function createMenuButton(
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
+  // 同上：菜单项也不进 Tab 链（菜单打开后由键盘逻辑自行管理焦点）
+  button.tabIndex = -1;
   button.className = `cm-md-table-widget__btn cm-md-table-widget__menu-item${danger ? " cm-md-table-widget__menu-item--danger" : ""}`;
   button.dataset.tableAction = action;
   button.setAttribute("role", "menuitem");

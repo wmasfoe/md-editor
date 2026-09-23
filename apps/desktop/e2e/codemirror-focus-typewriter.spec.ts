@@ -40,22 +40,34 @@ const FOCUS_DOC = [
   "",
 ].join("\n");
 
-/** E21 夹具：四种整块 replace widget，其中三种**不在**旧 kind 名单内（后者已删除） */
-const WIDGET_DOC = [
-  "Setext 标题",
-  "===========",
-  "",
-  "普通段落，专注模式下应被 dim。",
-  "",
-  "[ref]: https://example.com/only",
-  "",
-  "脚注引用示例。[^1]",
-  "",
-  "[^1]: 脚注定义内容",
+/** E21 夹具：四种整块 replace widget，其中三种**不在**旧 kind 名单内（后者已删除） */ const WIDGET_DOC =
+  [
+    "Setext 标题",
+    "===========",
+    "",
+    "普通段落，专注模式下应被 dim。",
+    "",
+    "[ref]: https://example.com/only",
+    "",
+    "脚注引用示例。[^1]",
+    "",
+    "[^1]: 脚注定义内容",
+    "",
+    "| 列一 | 列二 |",
+    "| --- | --- |",
+    "| 单元 | 数据 |",
+    "",
+  ].join("\n");
+
+/** E25 夹具：标题在上、表格在下 —— 用于锁定「活动块必须迁移」 */
+const STALE_DOC = [
+  "### 标题",
   "",
   "| 列一 | 列二 |",
   "| --- | --- |",
   "| 单元 | 数据 |",
+  "",
+  "尾段",
   "",
 ].join("\n");
 
@@ -238,5 +250,40 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     for (const widget of await blockAtoms.all()) {
       await expect(widget).toHaveClass(/cm-md-focus-(active|dim)/);
     }
+  });
+
+  test("E25/AC-S4：光标从标题移入下方表格后，活动块必须迁移（不得残留标题高亮）", async ({
+    page,
+  }) => {
+    await openApp(page);
+    await loadDoc(page, STALE_DOC);
+    await setCaret(page, STALE_DOC.indexOf("标题"));
+    await runCommand(page, "Focus Mode");
+
+    const heading = page.locator(".cm-line").filter({ hasText: "标题" }).first();
+    await expect(heading, "基线：光标在标题上时标题应为活动块").toHaveClass(/cm-md-focus-active/);
+
+    // 真实用户操作：点进表格单元格（单元格是 widget 内的 contenteditable）
+    await page.locator(".cm-md-table-widget td, .cm-md-table-widget th").first().click();
+
+    // 活动块必须迁移：标题不得再持有 active
+    await expect(heading, "S4：活动块不得残留（标题不得仍为 active）").not.toHaveClass(
+      /cm-md-focus-active/,
+    );
+  });
+
+  test("E26/AC-S4b：专注 + 打字机叠加时活动块同样必须迁移", async ({ page }) => {
+    await openApp(page);
+    await loadDoc(page, STALE_DOC);
+    await setCaret(page, STALE_DOC.indexOf("标题"));
+    await runCommand(page, "Focus Mode");
+    await runCommand(page, "Typewriter Mode");
+
+    const heading = page.locator(".cm-line").filter({ hasText: "标题" }).first();
+    await expect(heading, "基线：标题为活动块").toHaveClass(/cm-md-focus-active/);
+
+    await page.locator(".cm-md-table-widget td, .cm-md-table-widget th").first().click();
+
+    await expect(heading, "叠加模式下活动块也不得残留").not.toHaveClass(/cm-md-focus-active/);
   });
 });
