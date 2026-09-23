@@ -3,6 +3,7 @@ import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
 export * from "./content.ts";
 export * from "./document-state.ts";
+export * from "./document-identity.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
 

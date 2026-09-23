@@ -12,7 +12,11 @@
  */
 
 import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
-import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
+import {
+  resolveReplaceIntent,
+  switchEditorModeSafely,
+  type EditorMode,
+} from "@md-editor/editor-core";
 import type {
   ConfirmationChoice,
   ConfirmationState,
@@ -187,12 +191,9 @@ export function useDocumentActionsController({
           savedMarkdown: document.markdown,
           filePath: document.filePath,
           // S7（architect 终审驱动项 ①）：**文档身份由宿主显式声明**，渲染层不再推断。
-          // 重开当前已打开的**同一文件**（Recent/重复打开）⇒ 同一篇文档 ⇒ 保留阅读位置；
-          // 其余情况（换文件、未命名文档）交由缺省 `"different"` 归零。
-          replaceIntent:
-            document.filePath !== null && document.filePath === currentFilePath
-              ? "same"
-              : "different",
+          // 规则收敛在 editor-core 的 `resolveReplaceIntent`（desktop/web/utools 三宿主共用，
+          // 避免各写一份而漂移 —— web/utools 曾因缺声明而在重开同一文件时把视口弹回顶部）。
+          replaceIntent: resolveReplaceIntent(currentFilePath, document.filePath),
         },
         { kind: "command", commandId: "file.open" },
       );

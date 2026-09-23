@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createDocumentState,
+  resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
 } from "@md-editor/editor-core";
@@ -186,6 +187,9 @@ function MainWebEditorApp({
           markdown: nextMarkdown,
           savedMarkdown: documentState.getSnapshot().savedMarkdown,
           filePath: activeFilePath,
+          // 粘贴图片 = **同一篇文档内**的内容变更（走整篇替换管道）⇒ 必须保留阅读位置。
+          // 不声明会回落 fail-safe `"different"`，把正在阅读的用户弹回顶部（architect 终审残留）。
+          replaceIntent: "same",
         },
         { kind: "command", commandId: "image.paste" },
       );
@@ -234,7 +238,12 @@ function MainWebEditorApp({
       if (firstMd) {
         const text = await webFileSystem.readFile(firstMd);
         documentState.replaceDocument(
-          { markdown: text, savedMarkdown: text, filePath: firstMd },
+          {
+            markdown: text,
+            savedMarkdown: text,
+            filePath: firstMd,
+            replaceIntent: resolveReplaceIntent(documentState.getSnapshot().filePath, firstMd),
+          },
           { kind: "command", commandId: "file.openFirst" },
         );
         setActiveFilePath(firstMd);
@@ -264,7 +273,12 @@ function MainWebEditorApp({
       const res = await webFileSystem.openSingleFile();
       if (!res) return;
       documentState.replaceDocument(
-        { markdown: res.content, savedMarkdown: res.content, filePath: res.name },
+        {
+          markdown: res.content,
+          savedMarkdown: res.content,
+          filePath: res.name,
+          replaceIntent: resolveReplaceIntent(documentState.getSnapshot().filePath, res.name),
+        },
         { kind: "command", commandId: "file.openSingle" },
       );
       setActiveFilePath(res.name);
@@ -280,7 +294,12 @@ function MainWebEditorApp({
       try {
         const text = await webFileSystem.readFile(path);
         documentState.replaceDocument(
-          { markdown: text, savedMarkdown: text, filePath: path },
+          {
+            markdown: text,
+            savedMarkdown: text,
+            filePath: path,
+            replaceIntent: resolveReplaceIntent(documentState.getSnapshot().filePath, path),
+          },
           { kind: "command", commandId: "file.openTreeItem" },
         );
         setActiveFilePath(path);

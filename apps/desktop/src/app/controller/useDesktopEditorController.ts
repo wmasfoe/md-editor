@@ -662,9 +662,12 @@ export function useDesktopEditorController({
   // S1(b)/MED-4（architect 终审驱动项 ②）：**文档边界后从 renderer 端口回读真实视图轴状态并重建镜像**。
   //
   // 镜像（mode-menu-store）只记「最近一次请求」，一旦边界事件改变了真实状态（历史上会归默认值）
-  // 就会与镜像发散，而原生菜单的勾选态是照着镜像渲染的 ⇒ 用户会看到错勾选。
-  // 这里让宿主以 renderer 为**单一事实源**自愈；浏览器内（无原生菜单）也能通过
-  // E2E 断言「镜像 === DOM 真实状态」来验证，不再只是「只写不读」。
+  // 就会与镜像发散。这里让宿主以 renderer 为**单一事实源**自愈；浏览器内（无原生菜单）可由
+  // E2E 断言「镜像 === DOM 真实状态」验证，不再只是「只写不读」。
+  //
+  // 原生菜单校正需要**两步**（architect 复审判定此处曾是不完整的自愈：只重建菜单等于读旧状态）：
+  // 1) `set_mode_menu_checked` —— Rust 侧 `ModeMenuState` **只由**它写入；
+  // 2) `reapply_app_menu` —— 重建菜单时 `build_app_menu` 才读这个状态。
   useEffect(() => {
     const access = getRendererPorts();
     if (access.status !== "available") {
@@ -674,7 +677,16 @@ export function useDesktopEditorController({
     recordModeMenuChecked("focus", truth.focus);
     recordModeMenuChecked("typewriter", truth.typewriter);
     if (isTauri()) {
-      // 让原生菜单按重同步后的镜像重建勾选（失败留痕，不静默吞）
+      void invoke("set_mode_menu_checked", { mode: "focus", checked: truth.focus }).catch(
+        (error: unknown) => {
+          console.warn("set_mode_menu_checked(focus, view-axis sync) failed:", error);
+        },
+      );
+      void invoke("set_mode_menu_checked", { mode: "typewriter", checked: truth.typewriter }).catch(
+        (error: unknown) => {
+          console.warn("set_mode_menu_checked(typewriter, view-axis sync) failed:", error);
+        },
+      );
       void invoke("reapply_app_menu").catch((error: unknown) => {
         console.warn("reapply_app_menu(view-axis sync) failed:", error);
       });
