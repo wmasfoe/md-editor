@@ -27,7 +27,8 @@ import {
   setFocusModeEffect,
 } from "../../src/wysiwyg/focus-mode.ts";
 import {
-  DEVIATION_THRESHOLD_RATIO,
+  CENTER_ANIMATION_MS,
+  CENTER_EPSILON_PX,
   setTypewriterModeEffect,
   typewriterModeField,
 } from "../../src/wysiwyg/typewriter-mode.ts";
@@ -315,9 +316,13 @@ describe("F1 / U21 专注模式状态与 dim 强度", () => {
   });
 });
 
-describe("U22 / W1 打字机防抖阈值", () => {
-  it("阈值为 0.35 倍视口高度（VMark 抖动坑的落地约束）", () => {
-    expect(DEVIATION_THRESHOLD_RATIO).toBe(0.35);
+describe("U22 / S6 打字机居中常量（取代历史 W1 的 0.35 阈值）", () => {
+  it("抖动容差是**像素级**（不是「允许偏离视口 35%」的策略）；缓动时长有限且短", () => {
+    // S6 规格变更：常驻居中 —— 容差只能用于防微抖自激，不得再放宽到视口比例
+    expect(CENTER_EPSILON_PX).toBeGreaterThan(0);
+    expect(CENTER_EPSILON_PX).toBeLessThanOrEqual(2);
+    expect(CENTER_ANIMATION_MS).toBeGreaterThan(0);
+    expect(CENTER_ANIMATION_MS).toBeLessThanOrEqual(200);
   });
 
   it("打字机模式状态可开关", () => {

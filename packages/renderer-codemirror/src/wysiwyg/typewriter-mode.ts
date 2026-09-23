@@ -2,28 +2,43 @@
  * @file typewriter-mode.ts
  * @description 打字机模式（Typewriter Mode）—— D-2，纯视图状态，**零文档变更**。
  *
- * ## 行为
- * 当前行始终垂直居中于视口，视线固定不动，文档在眼前流过。
+ * ## 行为（S6 规格变更后的模型）
+ * 光标行**常驻**视口垂直中心，视线固定不动，文档在眼前流过。
  *
  * ## 关键取舍
- * - **防抖阈值**（`DEVIATION_THRESHOLD_RATIO = 0.35`）：光标行偏离视口中心不超过
- *   `0.35 × 视口高度`时**不校正**。竞品 VMark 明确踩过「轻微光标移动引起抖动」的坑，
- *   此阈值就是那次教训的落地。
- * - **输入过程中禁用 smooth 滚动**：smooth 会造成跟随延迟、打字发飘；改为即时滚动
- *   并用 `requestAnimationFrame` 节流。
+ * - **常驻居中（S6）**：光标行偏离中心超过 `CENTER_EPSILON_PX` 即校正回 50%。
+ *   ⚠️ 本条**取代**了历史规格 W1/W2 的「偏离 ≤0.35×视口高不校正」——
+ *   属主确认真实预期是「一直保持 50%」，0.35 阈值会让光标明显偏离中心
+ *   （该阈值原本是为规避竞品 VMark 的「轻微移动引起抖动」而设，故此处改用**像素级**
+ *   容差 + 短缓动来防抖，而不是放宽到 35% 视口高）。
+ * - **防自激**：`CENTER_EPSILON_PX` 容差 + 本插件只写 `scrollDOM.scrollTop`
+ *   且**不改 selection/doc** ⇒ 不会自触发（W5：不与大纲滚动同步形成死循环）。
+ * - **输入过程即时**：打字时用即时滚动（`immediate=true`），禁用缓动 —— smooth 会造成
+ *   跟随延迟、打字发飘（AC W3 保留）。
+ * - **光标移动用短缓动**（`CENTER_ANIMATION_MS`）：属主要求“不要太突兀”；
+ *   仅 140ms ease-out，且**若期间被外部滚动打断则立刻放弃**（不跟用户抢）。
+ * - **手动滚动不抢、不自动归位（A1）**：本模块**不监听 scroll 事件** ——
+ *   用户滚轮/拖条后光标可以在视野里偏离中心，直到下次移动光标或输入才重新居中。
+ * - **单滚动所有权**：只写 CM 自己的 `scrollDOM`，不引入第二个滚动容器。
  * - **异步渲染后重校正**：图表/公式渲染会改变块高度，故 `geometryChanged` 也触发重算。
- * - **不得与大纲滚动同步形成死循环**：本模块只在「偏离超阈值」时滚动，且滚动本身不改
- *   selection，故不会自触发。
  */
 
 import { StateEffect, StateField, type Extension } from "@codemirror/state";
-import { EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
 
 /** 开关打字机模式 */
 export const setTypewriterModeEffect = StateEffect.define<boolean>();
 
-/** 防抖阈值：光标行偏离视口中心的比例超过此值才校正 */
-export const DEVIATION_THRESHOLD_RATIO = 0.35;
+/**
+ * 居中抖动的**像素级**容差：偏离小于此值不动作。
+ *
+ * 作用有二：① 避免「滚动 → 几何重算 → 再滚动」的微抖自激；② 避免每帧写 scrollTop。
+ * 与历史 W1 的「0.35 × 视口高」不同：这是**抖动量级**的容差，不是「允许偏离多少」的策略。
+ */
+export const CENTER_EPSILON_PX = 1.5;
+
+/** 光标移动时的居中缓动时长（ms）。输入路径不使用缓动（AC W3）。 */
+export const CENTER_ANIMATION_MS = 140;
 
 /** 打字机模式状态（纯视图状态） */
 export const typewriterModeField = StateField.define<boolean>({
@@ -40,10 +55,10 @@ export const typewriterModeField = StateField.define<boolean>({
 });
 
 /**
- * 计算光标行中心与视口中心的偏离（单位 px）。
+ * 光标行中心相对视口中心的**有符号**偏移（px）：正值 = 光标在中心**下方**。
  * 无法测量时返回 null（fail closed：不滚动）。
  */
-export function measureCenterDeviation(view: EditorView): number | null {
+export function measureCenterOffset(view: EditorView): number | null {
   const head = view.state.selection.main.head;
   const coords = view.coordsAtPos(head);
   const rect = view.dom.getBoundingClientRect();
@@ -52,13 +67,33 @@ export function measureCenterDeviation(view: EditorView): number | null {
   }
   const lineCenter = (coords.top + coords.bottom) / 2;
   const viewCenter = rect.top + rect.height / 2;
-  return Math.abs(lineCenter - viewCenter);
+  return lineCenter - viewCenter;
 }
 
-/** 打字机滚动器：仅在偏离超阈值时把光标行校正回视口 50% 高度 */
+/** 光标行中心与视口中心的**绝对**偏离（px）。无法测量时返回 null。 */
+export function measureCenterDeviation(view: EditorView): number | null {
+  const offset = measureCenterOffset(view);
+  return offset === null ? null : Math.abs(offset);
+}
+
+/** 把光标行居中所需的 scrollTop 目标值（浏览器会自行夹到合法区间） */
+function centerScrollTarget(view: EditorView, offset: number): number {
+  return view.scrollDOM.scrollTop + offset;
+}
+
+/** 缓动曲线：ease-out（先快后慢，收尾不突兀） */
+function easeOut(progress: number): number {
+  return 1 - (1 - progress) ** 3;
+}
+
+/** 打字机滚动器：光标行常驻视口 50%（移动光标时短缓动、输入时即时） */
 const typewriterPlugin = ViewPlugin.fromClass(
   class {
     private frame = 0;
+    /** 缓动动画帧 id（与调度帧分开：动画可被新调度取消） */
+    private animationFrame = 0;
+    /** 上一次由本插件写入的 scrollTop：若被外部改写则说明用户/他人滚动，动画立即放弃 */
+    private lastWrittenScrollTop: number | null = null;
 
     constructor(view: EditorView) {
       this.schedule(view, /* immediate */ true);
@@ -67,11 +102,13 @@ const typewriterPlugin = ViewPlugin.fromClass(
     update(update: ViewUpdate): void {
       const enabled = update.state.field(typewriterModeField, false) === true;
       if (!enabled) {
+        this.cancelAnimation();
         return;
       }
-      // geometryChanged 覆盖「异步渲染改变块高度后重新校正」（AC W4 的可测部分）
+      // geometryChanged 覆盖「异步渲染改变块高度后重新校正」（AC W4 的可测部分）。
+      // 输入（docChanged）走即时滚动（AC W3）；光标移动走短缓动（S6「不要太突兀」）。
       if (update.selectionSet || update.docChanged || update.geometryChanged) {
-        this.schedule(update.view, /* immediate */ update.docChanged);
+        this.schedule(update.view, /* immediate */ update.docChanged || update.geometryChanged);
       }
     }
 
@@ -80,55 +117,84 @@ const typewriterPlugin = ViewPlugin.fromClass(
         cancelFrame(this.frame);
         this.frame = 0;
       }
+      this.cancelAnimation();
+    }
+
+    private cancelAnimation(): void {
+      if (this.animationFrame !== 0) {
+        cancelFrame(this.animationFrame);
+        this.animationFrame = 0;
+      }
     }
 
     /**
-     * @param immediate 输入过程中为 true：**禁用 smooth**，避免打字发飘（AC W3）
+     * @param immediate 输入/几何变化时为 true：**禁用缓动**（避免打字发飘，AC W3）
      */
     private schedule(view: EditorView, immediate: boolean): void {
       if (this.frame !== 0) {
-        // 与 scheduleFrame 对称地走带守卫的 cancelFrame（避免「有 rAF 但无 cAF」的环境抛错）
         cancelFrame(this.frame);
       }
+      this.cancelAnimation();
       const run = (): void => {
         this.frame = 0;
         this.recenter(view, immediate);
       };
-      // ViewPlugin 只在真实 DOM 环境实例化（node 单测只用 typewriterModeField，
-      // 不构造本插件），故走原生 `requestAnimationFrame` —— 但保留**最小环境守卫**：
-      // 非浏览器环境（jsdom/SSR/纯 node）无 rAF，直接返回 0 = 不排程。
-      // 注：先前删掉的是「`typeof` + `setTimeout` 充降」分支 —— 投机的是 **setTimeout 语义**
-      //（凭空发明定时重校行为），而非守卫本身；守卫只避免崩溃、不改变任何浏览器语义，
-      // 并与 `destroy()` 的 `cancelFrame` 对称（后者同样带守卫）。
+      // 最小环境守卫：非浏览器环境（jsdom/SSR/纯 node）无 rAF → 返回 0 = 不排程，不抛错。
       this.frame = scheduleFrame(run);
     }
 
     private recenter(view: EditorView, immediate: boolean): void {
-      const enabled = view.state.field(typewriterModeField, false) === true;
-      if (!enabled) {
+      if (view.state.field(typewriterModeField, false) !== true) {
         return;
       }
-      const rect = view.dom.getBoundingClientRect();
-      const deviation = measureCenterDeviation(view);
-      if (deviation === null) {
+      const offset = measureCenterOffset(view);
+      if (offset === null) {
         return;
       }
-      // 防抖：偏离不超过阈值 → 不滚动（AC W1）
-      if (deviation <= rect.height * DEVIATION_THRESHOLD_RATIO) {
+      // 已在中心（含抖动量级）→ 不动作：防微抖自激、避免每帧写 scrollTop
+      if (Math.abs(offset) <= CENTER_EPSILON_PX) {
         return;
       }
-      view.dispatch({
-        effects: EditorView.scrollIntoView(view.state.selection.main.head, {
-          y: "center",
-        }),
-        // 纯滚动事务：不改 selection、不改 doc → 不触发 undo、不触发投影重建
-        scrollIntoView: !immediate,
-      });
+      const target = centerScrollTarget(view, offset);
+      if (immediate) {
+        this.writeScrollTop(view, target);
+        return;
+      }
+      this.animateTo(view, target);
+    }
+
+    private writeScrollTop(view: EditorView, value: number): void {
+      view.scrollDOM.scrollTop = value;
+      this.lastWrittenScrollTop = value;
+    }
+
+    /** 短缓动居中；若期间 scrollTop 被外部改写（用户滚动）则立即放弃，不跟用户抢 */
+    private animateTo(view: EditorView, target: number): void {
+      const start = view.scrollDOM.scrollTop;
+      const distance = target - start;
+      const startedAt = now();
+      this.cancelAnimation();
+      const step = (): void => {
+        this.animationFrame = 0;
+        // 被外部改写 ⇒ 用户在滚动 ⇒ 放弃本次居中（A1：不抢）
+        if (
+          this.lastWrittenScrollTop !== null &&
+          Math.abs(view.scrollDOM.scrollTop - this.lastWrittenScrollTop) > 2
+        ) {
+          return;
+        }
+        const elapsed = now() - startedAt;
+        const progress = CENTER_ANIMATION_MS <= 0 ? 1 : Math.min(1, elapsed / CENTER_ANIMATION_MS);
+        this.writeScrollTop(view, progress >= 1 ? target : start + distance * easeOut(progress));
+        if (progress < 1) {
+          this.animationFrame = scheduleFrame(step);
+        }
+      };
+      this.animationFrame = scheduleFrame(step);
     }
   },
 );
 
-/** 打字机模式扩展 */
 /** 环境守卫：非浏览器（jsdom/SSR/纯 node）无 rAF → 返回 0 表示「不排程」，不抛错 */
 function scheduleFrame(run: () => void): number {
   if (typeof requestAnimationFrame !== "function") {
@@ -142,6 +208,13 @@ function cancelFrame(frame: number): void {
   if (frame !== 0 && typeof cancelAnimationFrame === "function") {
     cancelAnimationFrame(frame);
   }
+}
+
+/** 单调时钟（测试环境可能有 performance 缺失） */
+function now(): number {
+  return typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
 }
 
 export const typewriterModeExtension: Extension = [typewriterModeField, typewriterPlugin];

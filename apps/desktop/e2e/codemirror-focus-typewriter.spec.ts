@@ -141,28 +141,56 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     await expect(table).toHaveClass(/cm-md-focus-(active|dim)/);
   });
 
-  test("E15/W1+W2：超阈值校正到 50% 居中；阈值内不滚动", async ({ page }) => {
+  test("E15/S6：光标移动后（无论远近）都居中到视口 50%", async ({ page }) => {
     await openApp(page);
     await loadDoc(page, FOCUS_DOC);
     await runCommand(page, "Typewriter Mode");
 
-    // W2：光标跳到文末段（远超 0.35×视口高）→ 校正到视口 50%
-    // 容差 0.18：末采样含单帧时序抖动；未校正时偏差 ≈0.4–0.5，故 0.18 足以判别 W2 生效
+    // 远距离跳转 → 居中
     await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 30"));
     await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
 
-    // W1：光标移到紧邻上一段（偏差 ≈1–2 行 << 0.35×视口高）→ 不滚动
-    const scrollTopBefore = await page.evaluate(
-      () => document.querySelector(".cm-scroller")!.scrollTop,
-    );
-    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 29"));
-    await page.waitForTimeout(700); // 防抖 + rAF 窗口
-    const scrollTopAfter = await page.evaluate(
-      () => document.querySelector(".cm-scroller")!.scrollTop,
-    );
-    expect(scrollTopAfter, "W1：阈值内不得触发滚动").toBe(scrollTopBefore);
-    // 校正确实没有在等待期间被偷偷执行（光标仍大致居中）
-    expect(await cursorCenterDelta(page)).toBeLessThan(0.45);
+    // 近距离移动（历史上「偏离 ≤0.35×视口高 不滚动」会放过）→ S6 同样必须居中
+    // 容差 0.18：未居中时偏差约 0.3–0.5（相邻段落），足以判别
+    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 25"));
+    await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
+  });
+
+  test("E29/AC-S6-a：手动滚动不抢、不自动归位（A1）", async ({ page }) => {
+    await openApp(page);
+    await loadDoc(page, FOCUS_DOC);
+    await runCommand(page, "Typewriter Mode");
+    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 10"));
+    await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
+
+    // 用户手动滚动（模拟滚轮/拖条）
+    const scrolled = await page.evaluate(() => {
+      const scroller = document.querySelector(".cm-scroller")!;
+      scroller.scrollTop = scroller.scrollTop + 120;
+      return scroller.scrollTop;
+    });
+
+    // 等待远超缓动时长（140ms）与 rAF 节流的窗口：若实现会「拉回」，这里就会被观测到
+    await page.waitForTimeout(700);
+    const after = await page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);
+    expect(Math.abs(after - scrolled), "A1：手动滚动后不得被自动拉回").toBeLessThanOrEqual(2);
+    // 且光标此时确实偏离中心（证明没有偷偷归位）
+    expect(await cursorCenterDelta(page), "A1：手动滚动后光标可离开中心").toBeGreaterThan(0.02);
+  });
+
+  test("E30/AC-S6-c：静置后不得自激滚动（无无限居中循环，与 W5 同源）", async ({ page }) => {
+    await openApp(page);
+    await loadDoc(page, FOCUS_DOC);
+    await runCommand(page, "Typewriter Mode");
+    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 20"));
+    await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
+
+    // 等缓动与 rAF 全部落定后：连续两次采样 scrollTop 必须一致（不得自激）
+    await page.waitForTimeout(500);
+    const first = await page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);
+    await page.waitForTimeout(600);
+    const second = await page.evaluate(() => document.querySelector(".cm-scroller")!.scrollTop);
+    expect(second, "静置后不得继续自激滚动").toBe(first);
   });
 
   test("E15/W3：输入路径即时跟随（禁 smooth —— 大输入后短窗内光标即居中）", async ({ page }) => {
