@@ -6,7 +6,9 @@ import { expect, test, type Page } from "@playwright/test";
  * 根因（实测锁定，见提交说明）：
  *  - **#2**：仲裁 fallthrough 时把 Tab 交还浏览器 → 默认 Tab 导航把 DOM 焦点送进文档内的
  *    可聚焦元素（表格单元格 contenteditable 等）⇒ 视觉上“光标跳进表格”（属主复现）。
- *    修法：CM6 腿 fallthrough **消费** Tab（编辑器内 Tab 永不逃逸焦点）。
+ *    修法：**修「文档内容不参与浏览器 Tab 链」这一不变量**（文档内控件 tabindex=-1）；
+ *    CM6 腿 fallthrough 仍按既有尾契约**交还责任链**（不消费 Tab）。
+ *    该不变量由 E32 结构护栏长期看守（枚举 `.cm-content` 内可 Tab 达元素）。
  *  - **#1**：源码模式无门控 ⇒ 括号/链接跳出照常发生。修法：编辑轴事实入纯决策函数。
  *
  * 用例设计要点：**必须有对照组**（E24）—— 否则“什么都不做”也能让“文本不变”类断言通过
@@ -26,6 +28,22 @@ const OWNER_REPRO = [
 
 /** `前文\n\nfoo()\n\n后文\n`：`(` = 7、`)` = 8；括号“内”= 8 */
 const PARAGRAPH = "前文\n\nfoo()\n\n后文\n";
+
+/** E32 夹具：表格 + 代码块 + 图片 —— 覆盖三类会渲染文档内控件/可焦点元素的 widget */
+const TABBABLE_DOC = [
+  "| 列一 | 列二 |",
+  "| --- | --- |",
+  "| 单元 | 数据 |",
+  "",
+  "```js",
+  "console.log(1);",
+  "```",
+  "",
+  "![示例图](https://example.com/x.png)",
+  "",
+  "尾段。",
+  "",
+].join("\n");
 const INSIDE_PARENS = 8;
 
 /** 代码块夹具（S5）：光标置于正文行行首 */
@@ -104,6 +122,11 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
     // ① 焦点不得进入表格单元格（S2 根因：单元格曾是唯一未设 tabindex 的文档内可聚焦元素）
     const focus = await focusInfo(page);
     expect(focus.inCellEditor, "Tab 后焦点不得落在表格单元格编辑器上").toBe(false);
+    const onDocumentControl = await page.evaluate(() => {
+      const active = document.activeElement;
+      return Boolean(active?.closest?.(".cm-content") && active.closest?.(".cm-md-"));
+    });
+    expect(onDocumentControl, "Tab 后焦点不得落在任何文档内 widget 控件上").toBe(false);
 
     // ② CM 光标必须仍在末行（不得被送进表格）
     const head = await readCaret(page);
@@ -161,5 +184,37 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
     expect(await readCaret(page), "光标必须随缩进右移（否则插入的空白会“长在光标左边”）").toBe(
       bodyStart + 2,
     );
+  });
+
+  test("E32/AC-S2c：文档内容（表格/代码块/图片控件）不得进入浏览器 Tab 链", async ({ page }) => {
+    await openApp(page);
+    await setDoc(page, TABBABLE_DOC, "wysiwyg");
+
+    // 不变量：`.cm-content` 内的控件**不得**可 Tab 达（tabIndex >= 0）。
+    // 否则 CM6 腿 fallthrough、Tab 交还浏览器时就会把焦点送进文档内控件 —— 正是属主 #2 的机制。
+    // 新增 widget 若忘记 tabindex=-1，本护栏会红（把「逐个手工维护」升级为可失败的约束）。
+    // 例外（**有意的可访问性 Tab 停点**，不得为修 #2 而删除）：
+    //  - 文档内链接 `a[href]`
+    //  - 代码块工具栏的**键盘可达操作**（`select` / 按钮）—— 由 M2 可访问性 spec
+    //    `codemirror-m2-code-block-accessibility.spec.ts`（M2C-A01/A05「keyboard-reachable actions」）规格化要求
+    //  - 图片 widget 的放大查看按钮与其源输入框（与代码块工具栏同类的可达操作）
+    // 本护栏要拦的是**非有意**的可 Tab 控件：表格单元格编辑器 / 行列表格手柄 / 菜单项 等。
+    const offenders = await page.evaluate(() => {
+      const content = document.querySelector(".cm-content");
+      if (!content) {
+        return ["<缺少 .cm-content>"];
+      }
+      const selector = 'button, select, input, textarea, [contenteditable="true"], [tabindex]';
+      return Array.from(content.querySelectorAll<HTMLElement>(selector))
+        .filter(
+          (element) =>
+            element.tabIndex >= 0 &&
+            element.tagName !== "A" &&
+            !element.closest(".cm-md-code-toolbar") &&
+            !element.closest(".cm-md-image-widget"),
+        )
+        .map((element) => `${element.tagName}.${element.className}`.slice(0, 70));
+    });
+    expect(offenders, "文档内控件必须 tabindex=-1（新增 widget 请一并处理）").toEqual([]);
   });
 });

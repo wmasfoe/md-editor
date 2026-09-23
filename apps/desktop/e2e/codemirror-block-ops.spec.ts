@@ -132,5 +132,13 @@ test.describe("块操作（真实 desktop app · G007 命令面板路径）", ()
     await page.keyboard.press(`${MOD_KEY}+Alt+Backspace`);
     const deleted = await readDoc(page);
     expect(deleted.split("段落乙").length - 1, "Mod-Alt+Backspace 应触发删除块").toBe(1);
+
+    // 上移（评审 L-4：上移键位此前未覆盖）—— 放在最后，避免打乱前面各步的前置顺序
+    await setCaret(page, deleted.indexOf("段落丙"));
+    await page.keyboard.press(`${MOD_KEY}+Alt+ArrowUp`);
+    const movedUp = await readDoc(page);
+    expect(movedUp.indexOf("段落丙"), "Mod-Alt+↑ 应触发上移块").toBeLessThan(
+      movedUp.indexOf("段落乙"),
+    );
   });
 });

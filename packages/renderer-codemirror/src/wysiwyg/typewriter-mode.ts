@@ -105,10 +105,16 @@ const typewriterPlugin = ViewPlugin.fromClass(
         this.cancelAnimation();
         return;
       }
+      // 刚刚开启（字段翻转）→ 立即排一次居中（否则光标会一直偏离中心直到第一次输入）
+      if (update.startState.field(typewriterModeField, false) !== true) {
+        this.schedule(update.view, /* immediate */ false);
+        return;
+      }
       // geometryChanged 覆盖「异步渲染改变块高度后重新校正」（AC W4 的可测部分）。
-      // 输入（docChanged）走即时滚动（AC W3）；光标移动走短缓动（S6「不要太突兀」）。
+      // **只有输入（docChanged）走即时**（AC W3：避免打字发飘）；
+      // 光标移动与几何变化都走短缓动 —— 否则异步改高会在用户滚动时把视口硬拽一下（A1「不抢」）。
       if (update.selectionSet || update.docChanged || update.geometryChanged) {
-        this.schedule(update.view, /* immediate */ update.docChanged || update.geometryChanged);
+        this.schedule(update.view, /* immediate */ update.docChanged);
       }
     }
 
@@ -173,16 +179,24 @@ const typewriterPlugin = ViewPlugin.fromClass(
       const start = view.scrollDOM.scrollTop;
       const distance = target - start;
       const startedAt = now();
+      // 基线必须刷新为**本帧起点**：否则上一次外部滚动留下的旧基线会让此后**每一帧**
+      // 都判定“被外部改写”而直接放弃 ⇒ 手动滚动后动画居中**永久失效**
+      //（评审 H-1 静态推导；已修复）。
+      this.lastWrittenScrollTop = start;
       this.cancelAnimation();
+      // 首帧**不做**外部滚动判定：CM 可能因为本次光标移动而自行做过一次 nearest 滚动，
+      // 那不是“用户在滚动”。只在第 2 帧起、且位置相对**我们上次写入值**发生变化时才放弃。
+      let frameIndex = 0;
       const step = (): void => {
         this.animationFrame = 0;
-        // 被外部改写 ⇒ 用户在滚动 ⇒ 放弃本次居中（A1：不抢）
         if (
+          frameIndex > 0 &&
           this.lastWrittenScrollTop !== null &&
           Math.abs(view.scrollDOM.scrollTop - this.lastWrittenScrollTop) > 2
         ) {
           return;
         }
+        frameIndex += 1;
         const elapsed = now() - startedAt;
         const progress = CENTER_ANIMATION_MS <= 0 ? 1 : Math.min(1, elapsed / CENTER_ANIMATION_MS);
         this.writeScrollTop(view, progress >= 1 ? target : start + distance * easeOut(progress));

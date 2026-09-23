@@ -177,6 +177,13 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     // 容差 0.18：未居中时偏差约 0.3–0.5（相邻段落），足以判别
     await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 25"));
     await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
+
+    // AC-S6-b 第二半「过渡非瞬时」：**如实声明为结构性验证**，不做时序断言。
+    // 原因（实测）：本环境下「立即采样」会被 CM 自身的 nearest 滚动与 CDP 采样时序污染
+    //（首帧采样常已接近目标 ⇒ 5ms 假绿；慢机上又可能假红），时序断言无法稳定证伪。
+    // 结构性依据：`update` 中只有 `docChanged`（输入）走 `immediate`，光标移动/几何变化走
+    // `animateTo`（见 typewriter-mode.ts）；`CENTER_ANIMATION_MS` 由 U22 单测守住上界。
+    // 若将来要把「动画」做成可运行时证伪，应在模块内暴露帧计数探针（已登记为后续项）。
   });
 
   test("E29/AC-S6-a：手动滚动不抢、不自动归位（A1，**真实滚轮**）", async ({ page }) => {
@@ -202,6 +209,43 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     expect(Math.abs(after - scrolled), "A1：手动滚动后不得被自动拉回").toBeLessThanOrEqual(2);
     // 且光标此时确实偏离中心（证明没有偷偷归位）
     expect(await cursorCenterDelta(page), "A1：手动滚动后光标可离开中心").toBeGreaterThan(0.02);
+
+    // 等滚动惯性落定（落定前的“不抢”是设计行为）：连续两次采样相同才算稳定
+    await expect
+      .poll(
+        async () => {
+          const first = await page.evaluate(
+            () => document.querySelector(".cm-scroller")!.scrollTop,
+          );
+          await page.waitForTimeout(120);
+          const second = await page.evaluate(
+            () => document.querySelector(".cm-scroller")!.scrollTop,
+          );
+          return Math.abs(second - first);
+        },
+        { timeout: 3000, intervals: [150, 200, 300] },
+      )
+      .toBeLessThanOrEqual(2);
+    // H-1 回归锁：手动滚动之后**移动光标**仍必须重新居中（且走动画）。
+    // 若动画基线使用旧值，会被永久判定为「外部滚动」而放弃 ⇒ 这条会红。
+    // 注意：夹具只有「滚动段落 1..30」，写不存在的段落会让 lastIndexOf 返回 -1 ⇒ 光标不动（曾因此假红）
+    await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 29"));
+    await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
+  });
+
+  test("E33/AC-S1-c：源码模式下专注/打字机仍生效（两轴正交，评审 M-3）", async ({ page }) => {
+    await openApp(page);
+    await loadDoc(page, FOCUS_DOC);
+    await page.evaluate(() => window.__MD_EDITOR_E2E__?.setMode?.("source"));
+    await runCommand(page, "Focus Mode");
+    await runCommand(page, "Typewriter Mode");
+
+    // 视图轴与编辑轴正交：源码模式下仍应开关生效（不得被静默忽略）
+    await expect(page.locator(".cm-md-focus-mode"), "源码模式应仍带 focus 根标记").toHaveCount(1);
+    expect(
+      await page.locator(".cm-md-focus-dim").count(),
+      "源码模式下仍应有 dim 行装饰",
+    ).toBeGreaterThan(0);
   });
 
   test("E30/AC-S6-c：静置后不得自激滚动（无无限居中循环，与 W5 同源）", async ({ page }) => {
@@ -226,11 +270,15 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     await setCaret(page, FOCUS_DOC.lastIndexOf("滚动段落 30"));
     await expect.poll(() => cursorCenterDelta(page), { timeout: 3000 }).toBeLessThan(0.18);
 
-    // 单次大输入：光标瞬间远离中心（>>0.35×vh）→ 输入路径 immediate 校正必须**即时完成**。
-    // 若实现回退成 smooth，首个采样点（~30ms）光标仍会远偏离中心 → poll 早期失败。
+    // 单次大输入：光标瞬间远离中心 → 输入路径必须**即时**完成校正（AC W3）。
+    // ⚠️ 窗口必须**短于**动画时长（CENTER_ANIMATION_MS = 140）：否则「改成平滑」的实现
+    // 也能在窗口内完成而让本用例失去证伪力（评审 M-1）。
     await page.keyboard.insertText("触发输入期即时校正的长文本内容".repeat(60));
+    // 短窗轮询（窗口 < CENTER_ANIMATION_MS=140ms）：即时写只需 1 帧，动画完成需 ~140ms。
+    // 证伪力边界（如实声明）：CI/CDP 往返存在抖动，极窄窗口会产生假红，故取 120ms；
+    // 这仍能拦住「输入也走完整动画」的回归，但不能稳定区分 0ms 与 140ms 的细微差异。
     await expect
-      .poll(() => cursorCenterDelta(page), { timeout: 350, intervals: [30, 40, 50] })
+      .poll(() => cursorCenterDelta(page), { timeout: 120, intervals: [16, 16, 32] })
       .toBeLessThan(0.15);
   });
 
