@@ -6,7 +6,9 @@
  * 浏览器内 E2E **无法断言原生菜单**。为让「两条切换路径（原生菜单事件 / 命令面板）都写到同一镜像」
  * 可被自动化验证，宿主在每次请求写入时同时记录在这里，并由 E2E 桥面暴露（`getModeMenuChecks`）。
  *
- * 语义：仅记录**最近一次请求**的真实开关态（不是猜测）；真实权威仍在 renderer 的
+ * 语义：记录**最近一次已知**的勾选态 —— 来源有二：① 宿主收到切换请求时写入的请求态；
+ * ② **文档边界后**宿主经 `getViewModeState()` 回读渲染层真实状态后的重同步写入
+ *（见 `useDesktopEditorController` 的视图轴重同步）。真实权威始终在 renderer 的
  * `focusModeField` / `typewriterModeField`（见 docs/agent/product/editor_view_modes.md）。
  */
 

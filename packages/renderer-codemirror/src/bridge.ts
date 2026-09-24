@@ -63,7 +63,7 @@ export interface CodeMirrorEditorPorts {
    * D-2/S1(b) 视图模式：**回读**视图轴（专注/打字机）真实开关态。
    *
    * 渲染层的 `focusModeField` / `typewriterModeField` 是单一事实源；
-   * 宿主菜单镜像只记「最近一次请求」，文档边界等事件后必须用它校对（MED-4）。
+   * 宿主菜单镜像记的是「最近一次已知勾选态」，文档边界等事件后必须用它校对并**重同步**（MED-4）。
    */
   getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
   focus(): void;

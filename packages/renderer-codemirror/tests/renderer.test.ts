@@ -821,19 +821,40 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(after.scrollTop, "声明为同一文档的重装载必须保留视口").toBe(512);
   });
 
-  it("R17d resets the viewport when a DIFFERENT path replaces the document", () => {
-    // 路径已知时以路径为准：内容完全相同但换文档也必须归零。
+  it("R17d 声明的身份是唯一判据：路径不同但声明 same 仍保留视口（渲染层不看路径）", () => {
+    // code-reviewer 复审 LOW-2：原 R17d 断言「不同路径 ⇒ 归零」，但渲染层已不再读路径，
+    // 该断言退化为与 R17e 相同的 fail-safe 用例、不再有判别力。改为**反证**：
+    // 路径不同（/a.md → /b.md）却声明 same ⇒ 视口仍保留 ⇒ 证明身份只来自宿主声明。
     const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
     const setup = createSetup({ markdown: body, filePath: "/a.md" });
     setup.harness.setScrollTop(512);
 
     setup.document.replaceDocument(
-      { markdown: body, filePath: "/b.md", mode: "wysiwyg" },
+      { markdown: body, filePath: "/b.md", mode: "wysiwyg", replaceIntent: "same" },
       { kind: "command", commandId: "file.open" },
     );
-    const after = setup.harness.probe();
 
-    expect(after.scrollTop, "换文档（不同路径）必须归零").toBe(0);
+    expect(setup.harness.probe().scrollTop, "声明为同一文档 ⇒ 保留视口（与路径无关）").toBe(512);
+  });
+
+  it("R17g 同一文档重装载连光标一起保留；换文档仍归零", () => {
+    // code-reviewer 复审 MEDIUM-3：此前只保留了视口，选区仍被复位到 0
+    // ⇒ 光标落在视口之外，下一次按键会把视口拽回顶部（等于没修）。
+    const body = Array.from({ length: 900 }, (_u, i) => "line " + i).join("\n") + "\n";
+    const setup = createSetup({ markdown: body, filePath: "/doc.md" });
+    setup.harness.setSelection(400, 400);
+
+    setup.document.replaceDocument(
+      { markdown: body, filePath: "/doc.md", mode: "wysiwyg", replaceIntent: "same" },
+      { kind: "command", commandId: "file.save" },
+    );
+    expect(setup.harness.probe().selectionHead, "同一文档重装载保留光标").toBe(400);
+
+    setup.document.replaceDocument(
+      { markdown: "other\n", mode: "wysiwyg" },
+      { kind: "command", commandId: "file.open" },
+    );
+    expect(setup.harness.probe().selectionHead, "换文档仍归零").toBe(0);
   });
 
   it("R17b preserves the viewport when the SAME document is re-loaded with a trivial difference", () => {
@@ -887,7 +908,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(setup.harness.probe().scrollTop, "声明为换文档就必须归零").toBe(0);
   });
 
-  it("R19 视图轴（专注/打字机）跨文档边界继承：与文档轴正交，不随换文档重置", () => {
+  it("R20 视图轴（专注/打字机）跨文档边界继承：与文档轴正交，不随换文档重置", () => {
     // S1(b)/MED-4 根因：文档边界重建 EditorState 时，视图轴开关若归默认值，
     // ① 用户的视图偏好会被静默关掉；② 宿主原生菜单镜像（只记「最近一次请求」）会与真实状态发散。
     const setup = createSetup({ markdown: "line 1\nline 2\nline 3\n" });
@@ -905,7 +926,7 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     });
   });
 
-  it("R19b 视图轴默认关闭；同一文档重装载同样继承，且文档轴（mode）仍由快照决定", () => {
+  it("R20b 视图轴默认关闭；同一文档重装载同样继承，且文档轴（mode）仍由快照决定", () => {
     const setup = createSetup({ markdown: "line 1\n" });
     expect(setup.harness.renderer.getViewModeState(), "默认两轴均关").toEqual({
       focus: false,

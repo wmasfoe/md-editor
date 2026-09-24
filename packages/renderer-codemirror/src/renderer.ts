@@ -1142,8 +1142,8 @@ class CodeMirrorRendererController {
    * 读取**视图轴**（专注/打字机）当前开关态。
    *
    * 权威来源是渲染层的两个 StateField（见 docs/agent/product/editor_view_modes.md）。
-   * 宿主菜单镜像只记「最近一次请求」，所以需要一条「回读真实状态」的通道来核对一致性：
-   * 镜像不能被当成事实源（S1(b)/MED-4）。
+   * 宿主菜单镜像记录的是「最近一次已知勾选态」（请求态，或文档边界后的重同步值），
+   * 因此需要这条「回读真实状态」的通道：镜像不能被当成事实源（S1(b)/MED-4）。
    */
   getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
     return {
@@ -1302,11 +1302,15 @@ class CodeMirrorRendererController {
     this.#view.requestMeasure(afterMeasure);
   }
 
-  #createState(snapshot: DocumentSnapshot, viewAxisAlignment: ViewAxisState): EditorState {
+  #createState(
+    snapshot: DocumentSnapshot,
+    viewAxisAlignment: ViewAxisState,
+    selection: EditorSelection = EditorSelection.single(0),
+  ): EditorState {
     this.#explicitStateCreationCount += 1;
     return EditorState.create({
       doc: normalizeLineEndings(snapshot.markdown),
-      selection: EditorSelection.single(0),
+      selection,
       extensions: [
         ...this.#rootExtensions,
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
@@ -1515,12 +1519,22 @@ class CodeMirrorRendererController {
     // 未声明时按 `"different"` 归零（fail-safe：宁归零，不保留错位阅读位置）——见 R17/R17e/R17f。
     const previousScrollTop = this.#view.getScrollTop();
     const sameDocument = snapshot.replaceIntent === "same";
+    // 同一文档重装载：**连光标一起保留**。否则视口保留了、光标却被复位到 0 ⇒ 光标落在视口之外，
+    // 下一次按键会把视口拽回顶部，等于没修（code-reviewer 复审 MEDIUM-3）。
+    // 换文档仍归零（R17 原契约）；声明为 same 时按新文档长度夹取（内容可能变短）。
+    const previousHead = this.#view.state.selection.main.head;
     // 视图轴（专注/打字机）与文档轴正交：跨边界继承，不随文档重置（S1(b)/MED-4 根因修复）。
     const viewAxisAlignment: ViewAxisState = {
       focus: this.#view.state.field(focusModeField, false) === true,
       typewriter: this.#view.state.field(typewriterModeField, false) === true,
     };
-    const nextState = this.#createState(snapshot, viewAxisAlignment);
+    const nextState = this.#createState(
+      snapshot,
+      viewAxisAlignment,
+      sameDocument
+        ? EditorSelection.single(Math.min(previousHead, snapshot.markdown.length))
+        : undefined,
+    );
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
     if (sameDocument) {
