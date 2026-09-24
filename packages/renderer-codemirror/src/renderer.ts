@@ -1531,7 +1531,11 @@ class CodeMirrorRendererController {
     const nextState = this.#createState(
       snapshot,
       viewAxisAlignment,
-      sameDocument ? this.#clampedSelection(snapshot.markdown.length) : undefined,
+      sameDocument
+        ? // 用**归一后**长度夹取（与 `#createState` 的 `normalizeLineEndings` 及 reconcile 兄弟路径
+          // 的 `markdownLf.length` 一致；今天等价，但不留「归一前/后长度混用」的潜在坑 —— architect R3/code-reviewer 残留 3）
+          this.#clampedSelection(normalizeLineEndings(snapshot.markdown).length)
+        : undefined,
     );
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
