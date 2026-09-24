@@ -550,14 +550,15 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     );
 
     expect(span, "前置：确实发生了滚动（否则动画无从谈起）").toBeGreaterThan(150);
+    // **帧率无关**的「仍在途中」判据（CI 教训：按「不同数值个数」断言会随 CI 帧率抖动 ——
+    // 本仓 CI 曾因 E38 的 distinct ≥ 15 失败，而本机同用例稳过 —— 故改用「首帧是否已就位」：
+    // 平滑缓动在动画结束前不可能已达终值；瞬时跳变则首帧就是终值。
+    const settledScrollTop = samples[samples.length - 1];
+    const inFlight = Math.abs(samples[1] - settledScrollTop);
     expect(
-      distinct,
-      "缓动必须产生多个中间帧（瞬时跳变只会有 1~2 个不同值）",
-    ).toBeGreaterThanOrEqual(6);
-    expect(
-      maxStep,
-      `单帧最大位移（${maxStep}）必须小于总位移（${span}）的一半 —— 证明是缓动而非一步到位`,
-    ).toBeLessThan(span * 0.5);
+      inFlight,
+      `动画途中不得已到达目标（首帧 ${samples[1]} vs 终值 ${settledScrollTop}）`,
+    ).toBeGreaterThan(span * 0.05);
 
     // ---- 对照阶段（code-reviewer 复审 LOW-4：红向对照必须在用例内断言，不能只写在注释里）----
     // 关闭打字机后做**同一次**视野内移动：无缓动 ⇒ 不应出现多个中间帧。
@@ -585,7 +586,9 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       () => (window as unknown as { __controlSamples: number[] }).__controlSamples,
     );
     const controlDistinct = new Set(controlSamples).size;
-    console.log(`[E37] on: distinct=${distinct} span=${span} | off: distinct=${controlDistinct}`);
+    console.log(
+      `[E37] on: distinct=${distinct} span=${span} maxStep=${maxStep} inFlight=${inFlight} | off: distinct=${controlDistinct}`,
+    );
     expect(
       controlDistinct,
       `关闭打字机后同一次移动不得出现缓动中间帧（实测 ${controlDistinct} 个不同值）`,
@@ -601,9 +604,9 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     // 探针实测（5 次快速移动，均在视野内）：
     // series=[588,597,605,612,626,639,658,675,690,709,727,749,770,788,803,813,825,834,838,…]
     // ⇒ distinct=31 · span=276 · **reversals=0** · tail=[859,…,864]（单调收敛）。
-    // 红向对照（**同一夹具、同样 5 次快速移动，唯一差别是关闭打字机模式**）：
-    // series=[260,315,370,425,480,536] ⇒ distinct=**6**（每次移动一步到位）⇒ `distinct ≥ 15` 失败；
-    // 即该用例真正区分「连续缓动」与「离散跳变」，而不是只要“能滚”就绿。
+    // 对照（唯一差别关闭打字机）：series=[260,315,370,425,480,536] ⇒ 每次移动一步到位。
+    // 本用例断言的是**帧率无关**的不变量（方向反转数 + 收敛 + 跨度），不按帧数断言 ——
+    // 见下方说明（CI 曾因帧数断言失败）。
     await openApp(page);
     await loadDoc(page, TYPEWRITER_ANIMATION_DOC);
     await runCommand(page, "Typewriter Mode");
@@ -655,10 +658,11 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       `[E38] distinct=${distinct} span=${span} reversals=${reversals} tailSpan=${tailSpan}`,
     );
 
+    // 判别力说明（**CI 教训后改写**）：本用例的职责是**抖动锁**（reversals + 收敛），
+    // 而「缓动 vs 一步到位」由 E37 用**帧率无关**的「首帧是否已就位」判据 + 用例内对照覆盖。
+    // 早期版本在此断言 `distinct ≥ 15`（本机稳过 27~31），但本仓 CI 帧率明显更低而失败 ——
+    // 按「不同数值个数」断言本质上依赖帧率，属于不稳定的判定，已移除。
     expect(span, "前置：连续移动确实产生了滚动").toBeGreaterThan(100);
-    // 判别力（探针实测）：打字机开 ⇒ distinct=31（连续缓动，逐帧小步）；
-    // 唯一差别关闭打字机 ⇒ distinct=6（每次移动一步到位，大步跳变）⇒ 阈值 15 两侧各留 ~2 倍余量。
-    expect(distinct, "必须是连续运动而非“每次移动一步到位”").toBeGreaterThanOrEqual(15);
     expect(
       reversals,
       `连续快速移动过程中不得出现方向反转（抖动/竞争动画）—— 实测 ${reversals} 次`,
