@@ -125,6 +125,26 @@ function cursorCenterDelta(page: Page): Promise<number> {
   });
 }
 
+/** E37/E38 共用夹具：足够长，可稳定观察滚动动画与抖动 */
+const TYPEWRITER_ANIMATION_DOC = [
+  "# 标题块",
+  "",
+  "段落甲。",
+  "",
+  ...Array.from({ length: 90 }, (_u, i) => `滚动段落 ${i + 1}：打字机滚动动画/抖动观测夹具。`),
+  "",
+].join("\n");
+
+/** 第 lineNo 行的字符偏移（0 基；夹具行内容仅 ASCII） */
+function lineOffsetOf(doc: string, lineNo: number): number {
+  const docLines = doc.split("\n");
+  let offset = 0;
+  for (let i = 0; i < lineNo; i += 1) {
+    offset += docLines[i].length + 1;
+  }
+  return offset;
+}
+
 test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () => {
   test("E13/F2+F1：活动块标记 = 光标所在块；dim 强度落在 0.30–0.50", async ({ page }) => {
     await openApp(page);
@@ -478,29 +498,13 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
     // 红向对照（**同一夹具、同一 276px 位移，唯一差别是关闭打字机模式**）：
     // series=[260,536] ⇒ distinct=2（瞬时跳变）⇒ 本用例的 distinct ≥ 6 会失败。
     // 即：无缓动则无中间帧，该断言真正区分了「缓动」与「一步到位」。
-    const LONG_DOC = [
-      "# 标题块",
-      "",
-      "段落甲。",
-      "",
-      ...Array.from({ length: 80 }, (_u, i) => `滚动段落 ${i + 1}：打字机平滑动画的逐帧采样夹具。`),
-      "",
-    ].join("\n");
-    const lineOffset = (lineNo: number): number => {
-      const docLines = LONG_DOC.split("\n");
-      let offset = 0;
-      for (let i = 0; i < lineNo; i += 1) {
-        offset += docLines[i].length + 1;
-      }
-      return offset;
-    };
 
     await openApp(page);
-    await loadDoc(page, LONG_DOC);
+    await loadDoc(page, TYPEWRITER_ANIMATION_DOC);
     await runCommand(page, "Typewriter Mode");
 
     // 先定位到文档中段，让 CM 的可见性滚动与打字机居中都已稳定
-    await setCaret(page, lineOffset(30));
+    await setCaret(page, lineOffsetOf(TYPEWRITER_ANIMATION_DOC, 30));
     await page.waitForTimeout(600);
 
     await page.evaluate(
@@ -519,7 +523,7 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
         // 与采样同一次 evaluate 内触发光标移动（不隔 CDP 往返）
         window.__MD_EDITOR_E2E__!.setSelection(at, at);
       },
-      lineOffset(40), // 视野内下移 10 行 ⇒ 滚动只由打字机居中驱动
+      lineOffsetOf(TYPEWRITER_ANIMATION_DOC, 40), // 视野内下移 10 行 ⇒ 滚动只由打字机居中驱动
     );
 
     await expect
@@ -554,5 +558,114 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       maxStep,
       `单帧最大位移（${maxStep}）必须小于总位移（${span}）的一半 —— 证明是缓动而非一步到位`,
     ).toBeLessThan(span * 0.5);
+
+    // ---- 对照阶段（code-reviewer 复审 LOW-4：红向对照必须在用例内断言，不能只写在注释里）----
+    // 关闭打字机后做**同一次**视野内移动：无缓动 ⇒ 不应出现多个中间帧。
+    // 探针实测：关模式同位移 ⇒ series=[260,536]（distinct=2）⇒ 下面 distinct ≤ 3 成立，
+    // 而开模式实测 distinct=22 ⇒ 两侧分得开，本用例不是「能滚就绿」。
+    await runCommand(page, "Typewriter Mode"); // 再切一次 = 关闭
+    await setCaret(page, lineOffsetOf(TYPEWRITER_ANIMATION_DOC, 30));
+    await page.waitForTimeout(500);
+    await page.evaluate(
+      (at) => {
+        const scroller = document.querySelector(".cm-scroller")!;
+        const holder = window as unknown as { __controlSamples: number[] };
+        holder.__controlSamples = [Math.round(scroller.scrollTop)];
+        scroller.addEventListener(
+          "scroll",
+          () => holder.__controlSamples.push(Math.round(scroller.scrollTop)),
+          { passive: true },
+        );
+        window.__MD_EDITOR_E2E__!.setSelection(at, at);
+      },
+      lineOffsetOf(TYPEWRITER_ANIMATION_DOC, 40),
+    );
+    await page.waitForTimeout(600);
+    const controlSamples = await page.evaluate(
+      () => (window as unknown as { __controlSamples: number[] }).__controlSamples,
+    );
+    const controlDistinct = new Set(controlSamples).size;
+    console.log(`[E37] on: distinct=${distinct} span=${span} | off: distinct=${controlDistinct}`);
+    expect(
+      controlDistinct,
+      `关闭打字机后同一次移动不得出现缓动中间帧（实测 ${controlDistinct} 个不同值）`,
+    ).toBeLessThanOrEqual(3);
+  });
+
+  test("E38/W1：连续快速移动光标不得抖动（运行时观测：单调收敛、无来回）", async ({ page }) => {
+    // 审计早前报告点名：W1「抖动」此前只有**常量区间断言**（`CENTER_EPSILON_PX ≤ 2`），
+    // 不是**运行时**观测。本用例用与 E37 同款逐帧采样，但改为**连续快速移动光标**
+    //（间隔 30ms，远小于 140ms 动画时长 ⇒ 动画被不断重定向，最容易暴露竞争/抖动），
+    // 断言：① 运动连续（多个不同中间帧）；② **无方向反转**（来回抖动会被逐帧计数）；③ 最终收敛。
+    //
+    // 探针实测（5 次快速移动，均在视野内）：
+    // series=[588,597,605,612,626,639,658,675,690,709,727,749,770,788,803,813,825,834,838,…]
+    // ⇒ distinct=31 · span=276 · **reversals=0** · tail=[859,…,864]（单调收敛）。
+    // 红向对照（**同一夹具、同样 5 次快速移动，唯一差别是关闭打字机模式**）：
+    // series=[260,315,370,425,480,536] ⇒ distinct=**6**（每次移动一步到位）⇒ `distinct ≥ 15` 失败；
+    // 即该用例真正区分「连续缓动」与「离散跳变」，而不是只要“能滚”就绿。
+    await openApp(page);
+    await loadDoc(page, TYPEWRITER_ANIMATION_DOC);
+    await runCommand(page, "Typewriter Mode");
+
+    await setCaret(page, lineOffsetOf(TYPEWRITER_ANIMATION_DOC, 30));
+    await page.waitForTimeout(600);
+
+    const rapidTargets = [32, 34, 36, 38, 40].map((lineNo) =>
+      lineOffsetOf(TYPEWRITER_ANIMATION_DOC, lineNo),
+    );
+    await page.evaluate((targets) => {
+      const scroller = document.querySelector(".cm-scroller")!;
+      const holder = window as unknown as { __jitterSamples: number[] };
+      holder.__jitterSamples = [Math.round(scroller.scrollTop)];
+      scroller.addEventListener(
+        "scroll",
+        () => holder.__jitterSamples.push(Math.round(scroller.scrollTop)),
+        { passive: true },
+      );
+      // 连续快速移动：间隔 30ms < 动画时长 140ms ⇒ 动画被重定向（竞争/抖动最易在此暴露）
+      targets.forEach((at, index) => {
+        setTimeout(() => window.__MD_EDITOR_E2E__!.setSelection(at, at), index * 30);
+      });
+    }, rapidTargets);
+
+    await page.waitForTimeout(900);
+    const samples = await page.evaluate(
+      () => (window as unknown as { __jitterSamples: number[] }).__jitterSamples,
+    );
+
+    const distinct = new Set(samples).size;
+    const span = Math.max(...samples) - Math.min(...samples);
+    let reversals = 0;
+    for (let i = 2; i < samples.length; i += 1) {
+      const previousStep = samples[i - 1] - samples[i - 2];
+      const currentStep = samples[i] - samples[i - 1];
+      if (
+        previousStep !== 0 &&
+        currentStep !== 0 &&
+        Math.sign(previousStep) !== Math.sign(currentStep)
+      ) {
+        reversals += 1;
+      }
+    }
+    const tail = samples.slice(-5);
+    const tailSpan = Math.max(...tail) - Math.min(...tail);
+    // 诊断输出（CI 失败时可直接看到度量，便于判定是否真回归）
+    console.log(
+      `[E38] distinct=${distinct} span=${span} reversals=${reversals} tailSpan=${tailSpan}`,
+    );
+
+    expect(span, "前置：连续移动确实产生了滚动").toBeGreaterThan(100);
+    // 判别力（探针实测）：打字机开 ⇒ distinct=31（连续缓动，逐帧小步）；
+    // 唯一差别关闭打字机 ⇒ distinct=6（每次移动一步到位，大步跳变）⇒ 阈值 15 两侧各留 ~2 倍余量。
+    expect(distinct, "必须是连续运动而非“每次移动一步到位”").toBeGreaterThanOrEqual(15);
+    expect(
+      reversals,
+      `连续快速移动过程中不得出现方向反转（抖动/竞争动画）—— 实测 ${reversals} 次`,
+    ).toBe(0);
+    expect(
+      tailSpan,
+      `最终必须收敛（尾段位移相对总量可忽略）—— 实测尾段跨 ${tailSpan}px / 总 ${span}px`,
+    ).toBeLessThan(span * 0.05);
   });
 });
