@@ -57,4 +57,62 @@ test.describe("S7 滚动位置保持（属主复现文档）", () => {
       `重新装载后视口不得弹回顶部（滚动前 ${scrolled}，装载后 ${after}）`,
     ).toBeGreaterThan(scrolled * 0.5);
   });
+
+  test("E40/AC-S7：属主原始路径（快速滚动 + 大纲跳 §3.1）不弹回顶部，且不触发文档替换", async ({
+    page,
+  }) => {
+    // 属主原始描述是「**快速滚动**到 §3.1 一带 → 突然回顶部」。审计多次指出该**字面路径**
+    // 此前只被「不声称已修」地记录，没有仪器化证据。本用例把它固化为可证伪的不变量：
+    //   ① 快速滚轮本身不得弹回顶部（属主文档版，与 E31 的三态锁互补）；
+    //   ② 用**大纲**跳 §3.1 后视口停在目标附近、光标落到该标题；
+    //   ③ **跳转不得走「整篇文档替换」路径** —— 该路径正是 S7 的根因路径
+    //      （若将来有人让大纲导航改走 replaceDocument，这里立即变红）。
+    // 实测（2026-09-24 探针）：快速滚动后 scrollTop=3627；跳转后 2692（未回顶部）、
+    // 光标 153→2010、替换计数 1→1（未新增）。
+    const readState = async () =>
+      page.evaluate(() => {
+        const diagnostics = window.__MD_EDITOR_E2E__!.getDiagnostics();
+        return {
+          scrollTop: document.querySelector(".cm-scroller")!.scrollTop,
+          replacements: diagnostics.renderer?.stateReplacementCount ?? -1,
+          head: diagnostics.renderer?.selectionHead ?? -1,
+        };
+      });
+
+    await openApp(page);
+    await loadDoc(page, DEMO);
+
+    const scrolled = await scrollDown(page, 12);
+    const afterFastScroll = await readState();
+    expect(scrolled, "① 快速滚动本身不得弹回顶部").toBeGreaterThan(300);
+    expect(afterFastScroll.scrollTop).toBeGreaterThan(300);
+
+    // ② 用标题栏的大纲浮层跳 §3.1
+    const titleBar = page.locator(".group\\/titlebar-controls");
+    await titleBar.hover();
+    const outlineButton = page
+      .getByRole("button", { name: "打开大纲浮层" })
+      .or(page.locator("button[title='大纲']"))
+      .or(page.locator("button[title='Outline']"));
+    await expect(outlineButton).toBeVisible();
+    await outlineButton.click();
+    const nav = page.locator(
+      "nav[aria-label='大纲目录'], nav[aria-label='Document outline'], nav[aria-label='文章大纲']",
+    );
+    await expect(nav).toBeVisible();
+    const target = nav.getByRole("button", { name: /3\.1/ }).first();
+    await expect(target).toBeVisible();
+    await target.click();
+    await page.waitForTimeout(700);
+
+    const afterJump = await readState();
+    expect(afterJump.scrollTop, "② 跳转后视口停在目标附近而非顶部").toBeGreaterThan(300);
+    expect(afterJump.head, "② 光标应落到 §3.1 标题处（比滚动后更靠后）").toBeGreaterThan(
+      afterFastScroll.head,
+    );
+    expect(
+      afterJump.replacements - afterFastScroll.replacements,
+      "③ 大纲跳转不得走整篇文档替换路径（S7 根因路径）",
+    ).toBe(0);
+  });
 });
