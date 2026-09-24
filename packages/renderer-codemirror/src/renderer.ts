@@ -1521,8 +1521,8 @@ class CodeMirrorRendererController {
     const sameDocument = snapshot.replaceIntent === "same";
     // 同一文档重装载：**连光标一起保留**。否则视口保留了、光标却被复位到 0 ⇒ 光标落在视口之外，
     // 下一次按键会把视口拽回顶部，等于没修（code-reviewer 复审 MEDIUM-3）。
-    // 换文档仍归零（R17 原契约）；声明为 same 时按新文档长度夹取（内容可能变短）。
-    const previousHead = this.#view.state.selection.main.head;
+    // 换文档仍归零（R17 原契约）；same 时用 `#clampedSelection` 按新文档长度夹取
+    //（与 reconcile / external-edit 两条兄弟路径同一约定，可保留区间与多光标 —— architect R3）。
     // 视图轴（专注/打字机）与文档轴正交：跨边界继承，不随文档重置（S1(b)/MED-4 根因修复）。
     const viewAxisAlignment: ViewAxisState = {
       focus: this.#view.state.field(focusModeField, false) === true,
@@ -1531,9 +1531,7 @@ class CodeMirrorRendererController {
     const nextState = this.#createState(
       snapshot,
       viewAxisAlignment,
-      sameDocument
-        ? EditorSelection.single(Math.min(previousHead, snapshot.markdown.length))
-        : undefined,
+      sameDocument ? this.#clampedSelection(snapshot.markdown.length) : undefined,
     );
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
