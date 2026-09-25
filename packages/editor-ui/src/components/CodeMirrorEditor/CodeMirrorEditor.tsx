@@ -17,6 +17,7 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
   type MarkdownSyntaxPlugin,
+  type AiSuggestionLabels,
 } from "@md-editor/renderer-codemirror";
 import "./CodeMirrorEditor.css";
 
@@ -43,6 +44,8 @@ export interface CodeMirrorEditorProps {
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
+  /** AI 建议徽标国际化标签配置 */
+  readonly aiSuggestionLabels?: AiSuggestionLabels;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -66,6 +69,7 @@ export function CodeMirrorEditor({
   onCursorLineChange,
   plugins,
   syntaxPlugins,
+  aiSuggestionLabels,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -86,6 +90,7 @@ export function CodeMirrorEditor({
     onCursorLineChange,
     plugins,
     syntaxPlugins,
+    aiSuggestionLabels,
     onSyncError,
   });
   callbacksRef.current = {
@@ -99,6 +104,7 @@ export function CodeMirrorEditor({
     onCursorLineChange,
     plugins,
     syntaxPlugins,
+    aiSuggestionLabels,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -146,6 +152,7 @@ export function CodeMirrorEditor({
       mdxComponents: callbacksRef.current.mdxComponents,
       openLinkTarget: callbacksRef.current.openLinkTarget,
       plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
+      aiSuggestionLabels: callbacksRef.current.aiSuggestionLabels,
     });
     bridgeRef.current = bridge;
     callbacksRef.current.onRendererPortsChange?.(bridge.ports);
@@ -169,6 +176,12 @@ export function CodeMirrorEditor({
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);
   }, [codeBlockLineNumbers]);
+
+  useLayoutEffect(() => {
+    if (aiSuggestionLabels) {
+      bridgeRef.current?.ports.setAiSuggestionLabels(aiSuggestionLabels);
+    }
+  }, [aiSuggestionLabels]);
 
   useLayoutEffect(() => {
     // 字体与字号会改变行高和字符宽度，通知 CodeMirror 丢弃旧测量缓存。

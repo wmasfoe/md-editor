@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
+import { useTranslation } from "@md-editor/i18n";
 import { ContextMenuItem } from "./ContextMenuItem";
 
 export interface ContextMenuPosition {
@@ -28,6 +29,8 @@ export function WebFileContextMenu({
   onDelete,
   onCopyPath,
 }: WebFileContextMenuProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     const handleGlobalClick = () => onClose();
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -54,7 +57,7 @@ export function WebFileContextMenu({
           onNewFile(menu.parentPath, false);
         }}
       >
-        新建文件 (.md)
+        {t("fileTree.contextMenu.newFile")} (.md)
       </ContextMenuItem>
       <ContextMenuItem
         onClick={() => {
@@ -62,7 +65,7 @@ export function WebFileContextMenu({
           onNewFile(menu.parentPath, true);
         }}
       >
-        新建 MDX 文件 (.mdx)
+        {t("fileTree.contextMenu.newMdxFile")} (.mdx)
       </ContextMenuItem>
       <ContextMenuItem
         onClick={() => {
@@ -70,7 +73,7 @@ export function WebFileContextMenu({
           onNewFolder(menu.parentPath);
         }}
       >
-        新建文件夹
+        {t("fileTree.contextMenu.newFolder")}
       </ContextMenuItem>
 
       {menu.node ? (
@@ -82,7 +85,7 @@ export function WebFileContextMenu({
               onCopyPath(menu.node!);
             }}
           >
-            复制相对路径
+            {t("fileTree.contextMenu.copyRelativePath")}
           </ContextMenuItem>
           <div className="my-1 h-px bg-[var(--theme-border)]/60" />
           <ContextMenuItem
@@ -91,7 +94,7 @@ export function WebFileContextMenu({
               onRename(menu.node!);
             }}
           >
-            重命名
+            {t("fileTree.contextMenu.rename")}
           </ContextMenuItem>
           <ContextMenuItem
             danger
@@ -100,7 +103,7 @@ export function WebFileContextMenu({
               onDelete(menu.node!);
             }}
           >
-            删除
+            {t("fileTree.contextMenu.delete")}
           </ContextMenuItem>
         </>
       ) : null}

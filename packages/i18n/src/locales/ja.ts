@@ -44,6 +44,17 @@ export const ja: TranslationSchema = {
     matchCount: "一致件数",
     resizeSidebarAria: "サイドバーの幅を調整",
     editorAria: "Markdown エディタ",
+    newFile: "新規ファイル",
+    newFolder: "新規フォルダ",
+    refresh: "再スキャンして更新",
+    openFolder: "ローカルフォルダを開く",
+    openFile: "単一ファイルを開く",
+    newDraft: "新規下書きを作成",
+    noFolderOpened: "ローカルフォルダが開かれていません",
+    noFolderOpenedDesc:
+      "ブラウザのネイティブファイルシステムを通じてローカルの Markdown ドキュメントを直接管理します。クラウドアップロード不要で完全安全です。",
+    newFileNamePlaceholder: "新しいファイル名 (.md)",
+    newFolderNamePlaceholder: "新しいフォルダ名",
   },
   settings: {
     title: "設定",
@@ -357,6 +368,10 @@ export const ja: TranslationSchema = {
       columns: "列",
       rows: "行",
     },
+    suggestion: {
+      accept: "承認",
+      dismiss: "破棄",
+    },
   },
   commands: {
     groups: {
@@ -457,6 +472,11 @@ export const ja: TranslationSchema = {
     aiNoSuggestion: "有効な生成候補が得られませんでした。設定を確認するか再試行してください",
     aiSuggestionGenerated: "候補が生成されました。Tab で確定、Esc で破棄",
     aiRequestFailed: "AI リクエストに失敗しました。ネットワークまたは設定を確認してください",
+    cannotOpenLink: "リンクを開けません: {{url}}",
+    delayedEditFailed: "遅延編集を完了できませんでした: {{status}}。",
+    editorSyncFailed:
+      "エディタの同期に失敗しました: {{detail}}。ドキュメントを再度開いてください。",
+    imageInsertFailed: "画像の挿入に失敗しました",
   },
   loading: {
     title: "処理中…",
@@ -473,6 +493,15 @@ export const ja: TranslationSchema = {
     actionCreatingFolder: "フォルダーを新規作成中",
     actionRenaming: "名前を変更中",
     actionDeleting: "削除中",
+  },
+  mdxMenu: {
+    placeholder: "MDX コンポーネントを検索して挿入…",
+    searchAria: "MDX コンポーネントを検索して挿入",
+    empty: "一致する MDX コンポーネントがありません",
+    defaultGroup: "コンポーネント",
+    navigate: "↑↓ 移動",
+    insert: "Enter 挿入",
+    availableCount: "{{count}} 個のコンポーネントが利用可能",
   },
   web: {
     settingsTitle: "設定・ショートカットガイド",
@@ -513,6 +542,14 @@ export const ja: TranslationSchema = {
     shortcutsDesc: "よく使うショートカットが事前登録されており、執筆中にいつでも呼び出せます。",
     appearanceDesc:
       "ライト／ダークそれぞれに内蔵テーマを選択し、WYSIWYG のフォントサイズを設定します。",
+    quickSearchPlaceholder: "ファイルをクイック検索...",
+    fileListAria: "ファイル一覧",
+    unsupportedFileSystem:
+      "お使いのブラウザは File System Access API をサポートしていません。Chrome または Edge のご利用を推奨します。",
+    unsupportedDirRename:
+      "お使いのブラウザはディレクトリの名前変更に対応していません。新規ディレクトリを作成してください。",
+    markdownDocDescription: "Markdown ドキュメント",
+    deleteNodeConfirm: "「{{name}}」を削除してもよろしいですか？この操作は取り消せません。",
     shortcuts: {
       toggleMode: "編集モード切替 (WYSIWYG / ソースコード)",
       toggleOutline: "アウトラインドロワー展開 / 折りたたみ",

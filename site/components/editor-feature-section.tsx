@@ -6,14 +6,12 @@ import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
 import { PinnedScene } from "./pinned-scene";
 
-function EditorSkeleton({ isZh }: { isZh: boolean }) {
+function EditorSkeleton({ text }: { text?: string }) {
   return (
     <div className="flex h-full min-h-[280px] w-full items-center justify-center rounded-3xl border border-line-strong/80 bg-surface/80 p-8 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.08)]">
       <div className="flex flex-col items-center gap-2.5 text-muted">
         <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
-        <span className="text-xs">
-          {isZh ? "正在准备书写画布..." : "Preparing writing canvas..."}
-        </span>
+        <span className="text-xs">{text ?? "Preparing writing canvas..."}</span>
       </div>
     </div>
   );
@@ -23,18 +21,18 @@ const DynamicSiteLiveEditor = dynamic(
   () => import("./site-live-editor").then((mod) => mod.SiteLiveEditor),
   {
     ssr: false,
-    loading: () => <EditorSkeleton isZh={true} />,
+    loading: () => <EditorSkeleton />,
   },
 );
 
 export function EditorFeatureSection() {
-  const { locale } = useI18n();
-  const isZh = locale === "zh";
+  const { t } = useI18n();
+  const copy = t.editorFeature;
 
   return (
     <PinnedScene
       id="features"
-      ariaLabel={isZh ? "基础编辑体验" : "Core Editor Experience"}
+      ariaLabel={copy.sectionAria}
       heightVh={200}
       frameClassName="bg-canvas z-[2]"
     >
@@ -70,17 +68,15 @@ export function EditorFeatureSection() {
             >
               <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft shadow-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                <span>{isZh ? "所见即所得 · 纯粹书写" : "WYSIWYG & PURE CRAFT"}</span>
+                <span>{copy.badge}</span>
               </div>
 
               <h2 className="mt-3 font-sans text-2xl font-bold tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
-                {isZh ? "即开即写，让文字回归纯粹" : "Instant, Distraction-Free Typography"}
+                {copy.title}
               </h2>
 
               <p className="mx-auto mt-2.5 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:mt-3 sm:text-base">
-                {isZh
-                  ? "无需复杂配置，也不必等待加载。在宣纸般温润的画布上，所见即所想，格式随行而生。"
-                  : "No setup, no waiting. Experience instant inline formatting on a warm paper-like canvas."}
+                {copy.subtitle}
               </p>
             </div>
 

@@ -42,6 +42,17 @@ export const zh = {
     matchCount: "匹配数量",
     resizeSidebarAria: "调整侧栏宽度",
     editorAria: "Markdown 编辑器",
+    newFile: "新建文件",
+    newFolder: "新建文件夹",
+    refresh: "重新扫描刷新",
+    openFolder: "打开本地文件夹",
+    openFile: "打开单文件",
+    newDraft: "新建空白草稿",
+    noFolderOpened: "未打开本地文件夹",
+    noFolderOpenedDesc:
+      "通过浏览器原生文件系统，直接管理本地 Markdown 文档库。无需上传云端，完全本地安全保密。",
+    newFileNamePlaceholder: "新文件名称 (.md)",
+    newFolderNamePlaceholder: "新文件夹名称",
   },
   settings: {
     title: "设置",
@@ -351,6 +362,10 @@ export const zh = {
       columns: "列",
       rows: "行",
     },
+    suggestion: {
+      accept: "接受",
+      dismiss: "取消",
+    },
   },
   commands: {
     groups: {
@@ -448,6 +463,10 @@ export const zh = {
     aiNoSuggestion: "未获得有效续写建议，请检查端点配置或重试",
     aiSuggestionGenerated: "已生成续写建议，按 Tab 采纳，按 Esc 放弃",
     aiRequestFailed: "AI 请求失败，请检查网络或设置",
+    cannotOpenLink: "无法打开链接：{{url}}",
+    delayedEditFailed: "延迟编辑未能完成：{{status}}。",
+    editorSyncFailed: "编辑器同步失败：{{detail}}。请重新打开当前文档。",
+    imageInsertFailed: "图片插入失败",
   },
   loading: {
     title: "处理中…",
@@ -464,6 +483,15 @@ export const zh = {
     actionCreatingFolder: "正在新建文件夹",
     actionRenaming: "正在重命名",
     actionDeleting: "正在删除",
+  },
+  mdxMenu: {
+    placeholder: "搜索并插入 MDX 组件…",
+    searchAria: "搜索并插入 MDX 组件",
+    empty: "没有匹配的 MDX 组件",
+    defaultGroup: "组件",
+    navigate: "↑↓ 导航",
+    insert: "Enter 插入",
+    availableCount: "{{count}} 个组件可用",
   },
   web: {
     settingsTitle: "设置与快捷键指南",
@@ -501,6 +529,13 @@ export const zh = {
     aiDesc: "AI 只会在你主动触发续写时请求；API Key 会保存在浏览器本地设置中。",
     shortcutsDesc: "预置全局常用快捷键，在编辑时可随时直接调用。",
     appearanceDesc: "为亮色和暗色分别选择内置主题，并配置所见即所得字号。",
+    quickSearchPlaceholder: "快速检索文件...",
+    fileListAria: "文件列表",
+    unsupportedFileSystem:
+      "当前浏览器不支持 File System Access API，建议使用 Chrome 或 Edge 浏览器。",
+    unsupportedDirRename: "当前浏览器不支持目录重命名，建议直接新建目录。",
+    markdownDocDescription: "Markdown 文档",
+    deleteNodeConfirm: "确认删除「{{name}}」？此操作不可撤销。",
     shortcuts: {
       toggleMode: "切换编辑模式 (所见即所得 / 源码)",
       toggleOutline: "大纲目录抽屉展开 / 收起",

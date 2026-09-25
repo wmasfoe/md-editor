@@ -7,10 +7,18 @@ import { SiteHeader } from "../components/site-header";
 import { getAndroidChangelogEntries, getChangelogEntries } from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
 import { detectLocaleFromHeader } from "../lib/i18n";
+import type { Locale } from "../lib/i18n/types";
 import { I18nProvider } from "../lib/i18n/context";
 import { DistributionProvider } from "../lib/distribution/context";
 import { OFFICIAL_SITE_URL, resolveDistributionDomain } from "../lib/site-links";
 import "./globals.css";
+
+const HTML_LANG_MAP: Record<Locale, string> = {
+  zh: "zh-CN",
+  "zh-Hant": "zh-TW",
+  ja: "ja",
+  en: "en",
+};
 
 const inter = Inter({
   subsets: ["latin"],
@@ -65,7 +73,7 @@ export default async function RootLayout({
   return (
     // 浏览器扩展可能会给根节点注入属性；这里只屏蔽外部属性噪声。
     <html
-      lang={initialLocale === "zh" ? "zh-CN" : "en"}
+      lang={HTML_LANG_MAP[initialLocale] ?? "en"}
       className={`${inter.variable} ${fraunces.variable}`}
       suppressHydrationWarning
     >

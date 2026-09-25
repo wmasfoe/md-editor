@@ -14,6 +14,7 @@ export const ja: TranslationSchema = {
     github: "GitHub",
     download: "ダウンロード",
     langSwitchAria: "言語を切り替え",
+    navAria: "メインナビゲーション",
   },
   hero: {
     tagline: "紙上に立ち込める静寂、筆先に宿る流麗",
@@ -41,11 +42,37 @@ export const ja: TranslationSchema = {
       description: "文章とUIが同じ画面に",
     },
   },
+  editorFeature: {
+    sectionAria: "コアエディタ体験",
+    badge: "WYSIWYG · 純粋な執筆",
+    title: "開けばすぐに書ける、文字の本質へ",
+    subtitle:
+      "設定もロード時間も不要。和紙のように温かみのあるキャンバスで、思い通りに文字を紡げます。",
+    loadingCanvas: "エディタキャンバスを準備中...",
+  },
+  editorPreview: {
+    workspace: "ワークスペース",
+    sampleFile: "集中執筆.md",
+    quote: "煩雑なツールバーはありません。思考の流れと文字のリズムだけに集中できます。",
+    description:
+      "Inkpoint は、流麗な WYSIWYG 組版と忠実な Markdown / MDX ソース再現性を兼ね備えています。文書は常に手元のディスクに保存され、ログイン不要で即座に執筆を始められます。",
+    calloutText: " ミニマル、ローカルファースト、長文組版に特化。",
+  },
+  liveEditor: {
+    samplesTitle: "サンプル文書",
+    canvasTitle: "インメモリキャンバス",
+    canvasDescription:
+      "右側のエディタをクリックして、自由に入力や編集をお試しください。ローカルへの保存負荷はありません。",
+    samplesPrefix: "サンプル:",
+    sourceMode: "ソース",
+    wysiwygMode: "WYSIWYG",
+  },
   mdxShowcase: {
     sectionBadge: "MDX · コンポーネントを文章に",
     sectionTitle: "文章の中にUIを配置し、思考を形にする",
     sectionSubtitle:
       "Markdown の長文に React コンポーネントを直接埋め込めます。スクロールするとプレビューとソースコードがシームレスに切り替わります。",
+    sectionAria: "MDX コンポーネント体験",
     sourceLabel: "ソース",
     previewLabel: "プレビュー",
     calloutTitle: "ローカルファースト",
@@ -55,6 +82,7 @@ export const ja: TranslationSchema = {
     lead: "執筆のフローを止めることなく、同じ Markdown 内にコンポーネントを記述。",
     body: "見出し、リスト、引用、MDX コンポーネントが 1 つのキャンバスを共有。ソースモードに切り替えても組版の構造は保たれます。",
     sourceFilename: "architecture.mdx",
+    loadingCanvas: "MDX キャンバスを準備中...",
   },
   download: {
     sectionBadge: "今すぐ始める · 純粋な執筆体験",
@@ -76,6 +104,11 @@ export const ja: TranslationSchema = {
     copiedButton: "コピー済み",
     copyCommandAria: "インストールコマンドをコピー",
     comingSoon: "近日公開",
+    betaStatus: "ベータ版",
+    systemRequirements: "システム要件: ",
+    installationTip: "インストールのヒント: ",
+    ariaAndroidBeta: "Android（ベータ版）",
+    ariaIosComingSoon: "iOS（近日公開、現在は利用不可）",
   },
   features: {
     sectionAria: "主な特徴",
@@ -133,6 +166,9 @@ export const ja: TranslationSchema = {
     latestBadge: "最新",
     importantBadge: "重要",
     pullRequestAria: "関連する Pull Request #{number} を表示",
+    downloadVersion: "このバージョンをダウンロード",
+    edgeDownloads: "エッジ直接ダウンロード",
+    viewAllArchitectures: "配布センターですべてのアーキテクチャを表示",
     itemTypes: {
       feat: "新機能",
       perf: "パフォーマンス",
@@ -154,6 +190,8 @@ export const ja: TranslationSchema = {
     sectionTitle: "思考を妨げず、そっと寄り添う",
     sectionSubtitle:
       "オンデバイスの小規模言語モデルがオフラインで静かに動作。執筆中に手が止まったときや推敲時に、自然な提案を行います。",
+    sectionAria: "オンデバイス AI 体験",
+    loadingCanvas: "オンデバイス AI キャンバスを読み込み中...",
     tabGrammar: "✍️ スマート文章・句読点校正",
     tabContinuation: "✨ インライン連続文章生成",
     statusSlmReady: "ローカル SLM · 高速推論の準備完了",
@@ -170,6 +208,26 @@ export const ja: TranslationSchema = {
     tipCompleted: "🎉 すべてのステップが完了しました。「デモを再実行」でいつでも再度試せます",
     tipDismissed: "💡 スキップしました: Tab を押して新しい提案を取得できます",
     tabHint: "Tab を押して、校正と続きの生成を今すぐ体験",
+    phase1Tip: "✨ ステップ ① 文章校正中: Tab で修正を採用、Esc でスキップ",
+    phase2Tip: "✨ ステップ ② 続きの生成中: Tab で文章を採用、スムーズな執筆を体験",
+    initialTip: "💡 ヒント: 上のボタンをクリックして、校正と文章生成のデモをお試しください",
+    bento: {
+      local: {
+        title: "オンデバイス・完全ローカル実行",
+        desc: "完全オフラインで動作。執筆のプライバシーや思考の記録が外部に出ることは一切なく、機内やオフラインでもスムーズです。",
+        tag: "0 Cloud Latency",
+      },
+      flow: {
+        title: "推敲から続きの生成へ · 淀みない執筆",
+        desc: "Tab キーを流れるように押すだけで、文章校正からインラインの続き生成へと自然に繋がります。",
+        tag: "⇥ Flow In-Sync",
+      },
+      context: {
+        title: "文脈とトーンを深く理解",
+        desc: "文章全体の論理構成と文体を的確に捉え、文脈に完璧に調和した表現と自然な接続詞を提案します。",
+        tag: "Context Aware",
+      },
+    },
   },
   releases: {
     title: "リリース配信センター",

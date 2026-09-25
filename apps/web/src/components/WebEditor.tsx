@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
 import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
   highlightPlugin,
@@ -27,6 +28,16 @@ export function WebEditor({
   resolveImageSrc,
   onRendererPortsChange,
 }: WebEditorProps) {
+  const { t } = useTranslation();
+
+  const aiSuggestionLabels = useMemo(
+    () => ({
+      accept: t("editor.suggestion.accept"),
+      dismiss: t("editor.suggestion.dismiss"),
+    }),
+    [t],
+  );
+
   // 注入官方 MDX 组件（支持 Callout 等）
   const mdxComponents = useMemo(() => createBuiltInMdxRegistry(officialMdxPlugins), []);
   // 注入 Markdown 语法扩展插件（如高亮、:::info 容器指令、LaTeX 数学公式与 Mermaid 图表）
@@ -55,6 +66,8 @@ export function WebEditor({
         mdxComponents={mdxComponents}
         fontSize={settings.fontSize}
         codeBlockLineNumbers={true}
+        ariaLabel={t("sidebar.editorAria")}
+        aiSuggestionLabels={aiSuggestionLabels}
         resolveImageSrc={handleResolveImageSrc}
         onRendererPortsChange={onRendererPortsChange}
         openLinkTarget={(url) => {

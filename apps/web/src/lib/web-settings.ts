@@ -32,7 +32,7 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = Object.freeze({
   }),
 });
 
-import type { LanguageSetting } from "@md-editor/i18n";
+import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 
 export interface WebSettings {
   readonly theme: WebTheme;
@@ -118,7 +118,7 @@ export function loadWebSettings(): WebSettings {
         ...parsed.ai,
       },
       plugins: parsed.plugins ?? DEFAULT_WEB_SETTINGS.plugins,
-      language: parsed.language ?? DEFAULT_WEB_SETTINGS.language,
+      language: normalizeLanguageSetting(parsed.language),
     };
   } catch {
     return DEFAULT_WEB_SETTINGS;

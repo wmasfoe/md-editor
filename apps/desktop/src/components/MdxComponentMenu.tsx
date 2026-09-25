@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
+import { useTranslation } from "@md-editor/i18n";
 
 export interface MdxComponentMenuProps {
   /** 面板是否处于打开状态 */
@@ -27,6 +28,7 @@ interface FilteredPluginItem {
  * - 组件分类分组展示
  */
 export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxComponentMenuProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -45,12 +47,13 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
 
   // 根据搜索关键词过滤候选组件列表
   const filteredItems = useMemo<readonly FilteredPluginItem[]>(() => {
+    const defaultGroup = t("mdxMenu.defaultGroup");
     const needle = query.trim().toLowerCase();
     const insertable = plugins.filter((p) => p.insert !== undefined);
     if (!needle) {
       return insertable.map((plugin) => ({
         plugin,
-        group: plugin.insert?.group ?? "组件",
+        group: plugin.insert?.group ?? defaultGroup,
       }));
     }
     return insertable
@@ -72,9 +75,9 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
       })
       .map((plugin) => ({
         plugin,
-        group: plugin.insert?.group ?? "组件",
+        group: plugin.insert?.group ?? defaultGroup,
       }));
-  }, [plugins, query]);
+  }, [plugins, query, t]);
 
   // 避免过滤后选中索引越界
   useEffect(() => {
@@ -160,8 +163,8 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
                 setActiveIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="搜索并插入 MDX 组件…"
-              aria-label="搜索并插入 MDX 组件"
+              placeholder={t("mdxMenu.placeholder")}
+              aria-label={t("mdxMenu.searchAria")}
               className="w-full bg-transparent text-sm text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-muted)]"
             />
             <span className="shrink-0 rounded border border-[var(--theme-border)] px-1.5 py-0.5 text-[10px] text-[var(--theme-muted)]">
@@ -173,7 +176,7 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
           <ul ref={listRef} className="max-h-[min(48vh,360px)] overflow-y-auto py-2">
             {groups.length === 0 ? (
               <li className="px-4 py-6 text-center text-[13px] text-[var(--theme-muted)]">
-                没有匹配的 MDX 组件
+                {t("mdxMenu.empty")}
               </li>
             ) : (
               groups.map(({ group, groupItems, start }) => (
@@ -222,9 +225,11 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
 
           {/* 底部按键提示 */}
           <div className="flex items-center gap-3 border-t border-[var(--theme-border)] px-4 py-2 text-[11px] text-[var(--theme-muted)]">
-            <span>↑↓ 导航</span>
-            <span>Enter 插入</span>
-            <span className="ml-auto">{filteredItems.length} 个组件可用</span>
+            <span>{t("mdxMenu.navigate")}</span>
+            <span>{t("mdxMenu.insert")}</span>
+            <span className="ml-auto">
+              {t("mdxMenu.availableCount", { count: filteredItems.length })}
+            </span>
           </div>
         </DialogPanel>
       </div>

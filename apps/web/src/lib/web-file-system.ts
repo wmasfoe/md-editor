@@ -1,4 +1,5 @@
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
+import { t } from "@md-editor/i18n";
 
 interface FileSystemHandleLike {
   readonly kind: "file" | "directory";
@@ -183,7 +184,7 @@ export class WebFileSystem {
    */
   public async openDirectory(): Promise<MarkdownFolder | null> {
     if (!isFileSystemAccessSupported) {
-      throw new Error("当前浏览器不支持 File System Access API，建议使用 Chrome 或 Edge 浏览器。");
+      throw new Error(t("web.unsupportedFileSystem"));
     }
 
     const win = window as WindowWithFileSystemAccess;
@@ -670,7 +671,7 @@ export class WebFileSystem {
       if (typeof dirHandle.move === "function") {
         await dirHandle.move(cleanNewName);
       } else {
-        throw new Error("当前浏览器不支持目录重命名，建议直接新建目录。");
+        throw new Error(t("web.unsupportedDirRename"));
       }
     }
 
@@ -793,7 +794,7 @@ export class WebFileSystem {
           const handles = await win.showOpenFilePicker({
             types: [
               {
-                description: "Markdown 文档",
+                description: t("web.markdownDocDescription"),
                 accept: {
                   "text/markdown": [".md", ".markdown", ".mdx"],
                   "text/plain": [".txt"],

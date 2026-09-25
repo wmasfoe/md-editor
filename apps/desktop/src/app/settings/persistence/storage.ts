@@ -5,7 +5,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { DEFAULT_AI_SETTINGS, normalizeAiSettings, type AiSettings } from "@md-editor/ai";
-import type { LanguageSetting } from "@md-editor/i18n";
+import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 import {
   DEFAULT_ASSETS_DIRECTORY,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
@@ -153,7 +153,8 @@ export function listenToAppLanguagePreviewChanged(
     let disposed = false;
 
     void listen<{ language?: unknown }>(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, (event) => {
-      handler(normalizeLanguageSetting(event.payload?.language));
+      const payloadLang = event.payload?.language;
+      handler(payloadLang === null ? null : normalizeLanguageSetting(payloadLang));
     }).then((dispose) => {
       if (disposed) {
         dispose();
@@ -171,18 +172,14 @@ export function listenToAppLanguagePreviewChanged(
 
   const listener = (event: Event) => {
     const detail = (event as CustomEvent<{ language?: unknown }>).detail;
-    handler(normalizeLanguageSetting(detail?.language));
+    const detailLang = detail?.language;
+    handler(detailLang === null ? null : normalizeLanguageSetting(detailLang));
   };
   window.addEventListener(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, listener);
   return () => window.removeEventListener(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, listener);
 }
 
-/**
- * 规范化语言配置字符串
- */
-export function normalizeLanguageSetting(input: unknown): LanguageSetting {
-  return input === "zh" || input === "en" ? input : "system";
-}
+export { normalizeLanguageSetting };
 
 export function normalizeSettings(
   input: Partial<PersistedSettings | AppSettings> | null | undefined,

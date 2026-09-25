@@ -28,11 +28,14 @@ export {
 } from "./renderer.ts";
 export {
   aiSuggestionExtension,
+  aiSuggestionLabelsFacet,
+  DEFAULT_AI_SUGGESTION_LABELS,
   acceptAiSuggestion,
   dismissAiSuggestion,
   setAiSuggestionEffect,
   clearAiSuggestionEffect,
   aiSuggestionField,
+  type AiSuggestionLabels,
   type AiSuggestionItem,
   type AiSuggestionInput,
   type AiSuggestionValue,

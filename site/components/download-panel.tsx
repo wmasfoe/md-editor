@@ -65,12 +65,16 @@ function renderPlatformLabel(platform: SitePlatform, comingSoonText = "敬请期
   return <span className="text-[12px] sm:text-sm">{SITE_PLATFORM_LABELS[platform]}</span>;
 }
 
-function getPlatformAriaLabel(platform: SitePlatform, isEn: boolean): string {
-  if (platform === "android") {
-    return isEn ? "Android (Beta)" : "Android（测试版）";
+function getPlatformAriaLabel(
+  platform: SitePlatform,
+  ariaAndroid?: string,
+  ariaIos?: string,
+): string {
+  if (platform === "android" && ariaAndroid) {
+    return ariaAndroid;
   }
-  if (platform === "ios") {
-    return isEn ? "iOS (Coming Soon)" : "iOS（即将推出，暂未开放）";
+  if (platform === "ios" && ariaIos) {
+    return ariaIos;
   }
   return SITE_PLATFORM_LABELS[platform];
 }
@@ -104,7 +108,9 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
           value={platform}
           onChange={setPlatform}
           getLabel={(p) => renderPlatformLabel(p, t.download.comingSoon)}
-          getAriaLabel={(p) => getPlatformAriaLabel(p, locale === "en")}
+          getAriaLabel={(p) =>
+            getPlatformAriaLabel(p, t.download.ariaAndroidBeta, t.download.ariaIosComingSoon)
+          }
           disabledItems={["ios"]}
           ariaLabel={t.download.tablistAria}
         />
@@ -140,7 +146,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
         {current.isBeta ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-accent">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            <span>{locale === "en" ? "Public Beta" : "测试版状态"}</span>
+            <span>{t.download.betaStatus}</span>
           </span>
         ) : null}
         {current.isBeta ? <span className="text-line-strong">·</span> : null}
@@ -200,14 +206,12 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
 
             <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted sm:text-sm">
               <p className="text-ink-soft">
-                <strong className="text-ink">{locale === "en" ? "System: " : "系统要求："}</strong>
+                <strong className="text-ink">{t.download.systemRequirements}</strong>
                 {mobileGuide.requirements}
               </p>
               <p>{mobileGuide.description}</p>
               <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 text-ink-soft">
-                <span className="font-medium text-ink">
-                  {locale === "en" ? "Installation Tip: " : "安装提示："}
-                </span>
+                <span className="font-medium text-ink">{t.download.installationTip}</span>
                 {mobileGuide.tips}
               </div>
               <p className="text-[11px] text-muted sm:text-xs">

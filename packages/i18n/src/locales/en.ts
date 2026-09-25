@@ -44,6 +44,17 @@ export const en: TranslationSchema = {
     matchCount: "Match count",
     resizeSidebarAria: "Resize sidebar",
     editorAria: "Markdown editor",
+    newFile: "New File",
+    newFolder: "New Folder",
+    refresh: "Rescan and Refresh",
+    openFolder: "Open Local Folder",
+    openFile: "Open Single File",
+    newDraft: "New Blank Draft",
+    noFolderOpened: "No local folder opened",
+    noFolderOpenedDesc:
+      "Manage local Markdown documents directly through the native File System API. Completely private, no cloud uploads required.",
+    newFileNamePlaceholder: "New file name (.md)",
+    newFolderNamePlaceholder: "New folder name",
   },
   settings: {
     title: "Settings",
@@ -354,6 +365,10 @@ export const en: TranslationSchema = {
       columns: "Columns",
       rows: "Rows",
     },
+    suggestion: {
+      accept: "Accept",
+      dismiss: "Discard",
+    },
   },
   commands: {
     groups: {
@@ -453,6 +468,10 @@ export const en: TranslationSchema = {
     aiNoSuggestion: "No valid continuation received. Please check settings or retry.",
     aiSuggestionGenerated: "Continuation suggestion ready: press Tab to accept, Esc to dismiss.",
     aiRequestFailed: "AI request failed, please check your network or settings.",
+    cannotOpenLink: "Cannot open link: {{url}}",
+    delayedEditFailed: "Delayed edit failed: {{status}}.",
+    editorSyncFailed: "Editor sync failed: {{detail}}. Please reopen the document.",
+    imageInsertFailed: "Failed to insert image",
   },
   loading: {
     title: "Processing…",
@@ -469,6 +488,15 @@ export const en: TranslationSchema = {
     actionCreatingFolder: "Creating folder",
     actionRenaming: "Renaming",
     actionDeleting: "Deleting",
+  },
+  mdxMenu: {
+    placeholder: "Search and insert MDX components…",
+    searchAria: "Search and insert MDX components",
+    empty: "No matching MDX components",
+    defaultGroup: "Components",
+    navigate: "↑↓ Navigate",
+    insert: "Enter to insert",
+    availableCount: "{{count}} components available",
   },
   web: {
     settingsTitle: "Settings & Shortcuts Guide",
@@ -508,6 +536,14 @@ export const en: TranslationSchema = {
     shortcutsDesc: "Preset global shortcuts available anytime while editing.",
     appearanceDesc:
       "Choose built-in themes for light and dark modes, and configure editor font size.",
+    quickSearchPlaceholder: "Quick search files...",
+    fileListAria: "File list",
+    unsupportedFileSystem:
+      "The current browser does not support the File System Access API. Chrome or Edge is recommended.",
+    unsupportedDirRename:
+      "Directory renaming is not supported in the current browser. Please create a new directory instead.",
+    markdownDocDescription: "Markdown document",
+    deleteNodeConfirm: 'Are you sure you want to delete "{{name}}"? This action cannot be undone.',
     shortcuts: {
       toggleMode: "Toggle Editor Mode (WYSIWYG / Source)",
       toggleOutline: "Toggle Outline Drawer",

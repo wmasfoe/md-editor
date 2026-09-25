@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  CodeMirrorEditor,
-  type CodeMirrorEditorExternalEditResult,
-  type CodeMirrorEditorPorts,
-  type CodeMirrorEditorSyncError,
-} from "@md-editor/editor-ui";
+import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
   highlightPlugin,
@@ -47,11 +43,20 @@ export function DesktopCodeMirrorEditor({
   onRendererPortsChange,
   showToast,
 }: DesktopCodeMirrorEditorProps) {
+  const { t } = useTranslation();
   const { settings } = useAppSettings();
   const snapshot = useDocumentSnapshot();
   const { openDocumentFromTree, dispatchCommand, refreshFolderForDocumentPath } =
     useDesktopEditorActions();
   const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
+
+  const aiSuggestionLabels = useMemo(
+    () => ({
+      accept: t("editor.suggestion.accept"),
+      dismiss: t("editor.suggestion.dismiss"),
+    }),
+    [t],
+  );
 
   const handlePortsChange = (newPorts: CodeMirrorEditorPorts | null) => {
     setPorts(newPorts);
@@ -142,7 +147,7 @@ export function DesktopCodeMirrorEditor({
         }
       } catch {
         // 解析失败不打断编辑器(链接已过渲染层协议白名单,这里只兜底)
-        showToast(`无法打开链接：${url}`);
+        showToast(t("toasts.cannotOpenLink", { url }));
       }
     })();
   };
@@ -166,6 +171,8 @@ export function DesktopCodeMirrorEditor({
       codeFontFamily={resolveCodeFontStack(settings.editor.codeFontFamily)}
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
+      ariaLabel={t("sidebar.editorAria")}
+      aiSuggestionLabels={aiSuggestionLabels}
       mdxMode={isMdxDocument}
       mdxComponents={runtime.mdxComponents}
       resolveImageSrc={(source) =>
@@ -173,8 +180,15 @@ export function DesktopCodeMirrorEditor({
       }
       openLinkTarget={handleOpenLink}
       onRendererPortsChange={handlePortsChange}
-      onQueuedExternalEditResult={(result) => reportQueuedEditResult(result, showToast)}
-      onSyncError={(error) => reportSyncError(error, showToast)}
+      onQueuedExternalEditResult={(result) => {
+        if (result.status === "applied" || result.status === "noop") return;
+        if (result.status === "cancelled" && result.reason === "superseded") return;
+        showToast(t("toasts.delayedEditFailed", { status: result.status }));
+      }}
+      onSyncError={(error) => {
+        const detail = error.kind === "renderer-sync" ? error.delivery.status : error.result.status;
+        showToast(t("toasts.editorSyncFailed", { detail }));
+      }}
     />
   );
 }
@@ -553,25 +567,4 @@ function useAutomaticAiEditing({
       }
     };
   }, [settings.ai]);
-}
-
-function reportQueuedEditResult(
-  result: CodeMirrorEditorExternalEditResult,
-  showToast: (message: string | null) => void,
-): void {
-  if (result.status === "applied" || result.status === "noop") {
-    return;
-  }
-  if (result.status === "cancelled" && result.reason === "superseded") {
-    return;
-  }
-  showToast(`延迟编辑未能完成：${result.status}。`);
-}
-
-function reportSyncError(
-  error: CodeMirrorEditorSyncError,
-  showToast: (message: string | null) => void,
-): void {
-  const detail = error.kind === "renderer-sync" ? error.delivery.status : error.result.status;
-  showToast(`编辑器同步失败：${detail}。请重新打开当前文档。`);
 }

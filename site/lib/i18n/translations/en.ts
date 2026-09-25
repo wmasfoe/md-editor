@@ -13,6 +13,7 @@ export const en: TranslationSchema = {
     github: "GitHub",
     download: "Download",
     langSwitchAria: "Switch language",
+    navAria: "Main navigation",
   },
   hero: {
     tagline: "Mist on paper, lightning in the stroke",
@@ -40,11 +41,36 @@ export const en: TranslationSchema = {
       description: "Prose and components",
     },
   },
+  editorFeature: {
+    sectionAria: "Core Editor Experience",
+    badge: "WYSIWYG & PURE CRAFT",
+    title: "Instant, Distraction-Free Typography",
+    subtitle:
+      "No setup, no waiting. Experience instant inline formatting on a warm paper-like canvas.",
+    loadingCanvas: "Preparing writing canvas...",
+  },
+  editorPreview: {
+    workspace: "WORKSPACE",
+    sampleFile: "focus-writing.md",
+    quote: "Zero cluttered toolbars. Keep your focus entirely in the flow of thought.",
+    description:
+      "Inkpoint delivers instant WYSIWYG elegance without sacrificing full Markdown/MDX source fidelity. Your thoughts stay on your disk.",
+    calloutText: " Distraction-free, local-first typography.",
+  },
+  liveEditor: {
+    samplesTitle: "SAMPLES",
+    canvasTitle: "In-Memory Canvas",
+    canvasDescription: "Type, edit, and explore typography directly on the right canvas.",
+    samplesPrefix: "Sample:",
+    sourceMode: "Source",
+    wysiwygMode: "WYSIWYG",
+  },
   mdxShowcase: {
     sectionBadge: "MDX · COMPONENTS IN PROSE",
     sectionTitle: "Components Live Inside the Writing",
     sectionSubtitle:
       "Drop React components into Markdown. Scroll to switch the same document from preview into source.",
+    sectionAria: "MDX component showcase",
     sourceLabel: "Source",
     previewLabel: "Preview",
     calloutTitle: "Local-First",
@@ -53,6 +79,7 @@ export const en: TranslationSchema = {
     lead: "Write components in the same Markdown file — never leave the flow.",
     body: "Headings, lists, quotes, and MDX components share one canvas. Switch to source and the semantics remain intact.",
     sourceFilename: "architecture.mdx",
+    loadingCanvas: "Preparing MDX canvas...",
   },
   download: {
     sectionBadge: "GET INKPOINT · BEGIN YOUR FLOW",
@@ -74,6 +101,11 @@ export const en: TranslationSchema = {
     copiedButton: "Copied",
     copyCommandAria: "Copy install command",
     comingSoon: "Coming Soon",
+    betaStatus: "Public Beta",
+    systemRequirements: "System: ",
+    installationTip: "Installation Tip: ",
+    ariaAndroidBeta: "Android (Beta)",
+    ariaIosComingSoon: "iOS (Coming Soon)",
   },
   features: {
     sectionAria: "Key Features",
@@ -131,6 +163,9 @@ export const en: TranslationSchema = {
     latestBadge: "Latest",
     importantBadge: "Major Update",
     pullRequestAria: "View associated Pull Request #{number}",
+    downloadVersion: "Download this version",
+    edgeDownloads: "Edge Downloads",
+    viewAllArchitectures: "All Architectures & Portal",
     itemTypes: {
       feat: "Added",
       perf: "Improved",
@@ -152,6 +187,8 @@ export const en: TranslationSchema = {
     sectionTitle: "Ambient Intelligence, Whisper-Quiet",
     sectionSubtitle:
       "Lightweight on-device models whisper continuous suggestions the moment you pause, with zero cloud dependency.",
+    sectionAria: "Ambient AI Showcase",
+    loadingCanvas: "Loading On-Device AI Canvas...",
     tabGrammar: "✍️ Grammar & Punctuation Polish",
     tabContinuation: "✨ In-Flow Ghost Text Continuation",
     statusSlmReady: "On-Device SLM · Ready",
@@ -168,6 +205,26 @@ export const en: TranslationSchema = {
     tipCompleted: "🎉 All steps completed: Click Reset Demo to replay anytime",
     tipDismissed: "💡 Dismissed: Press Tab to re-trigger suggestions",
     tabHint: "Press Tab to try polish and continuation",
+    phase1Tip: "✨ Phase 1 Polish: Press Tab to accept fix, Esc to skip",
+    phase2Tip: "✨ Phase 2 Continuation: Press Tab to accept inspired ghost text",
+    initialTip: "💡 Tip: Tap buttons above to experience instant grammar polish & continuation",
+    bento: {
+      local: {
+        title: "On-Device Local SLM",
+        desc: "100% offline inference. Zero telemetry, zero cloud egress. Total privacy and speed.",
+        tag: "0 Cloud Latency",
+      },
+      flow: {
+        title: "Polish & Continue in Flow",
+        desc: "Press Tab continuously: flow seamlessly from grammar polish to inspired continuation.",
+        tag: "⇥ Flow In-Sync",
+      },
+      context: {
+        title: "Full Context Awareness",
+        desc: "Deeply attuned to your essay structure and tone, providing seamless prose transitions.",
+        tag: "Context Aware",
+      },
+    },
   },
   releases: {
     title: "Releases Distribution Center",

@@ -49,11 +49,11 @@ export function ChangelogContent({
   modelChangelog,
 }: ChangelogContentProps) {
   const { locale, t } = useI18n();
-  const isEn = locale === "en";
-  const activeDesktopEntries = isEn && entriesEn.length > 0 ? entriesEn : entries;
+  const isEnOrJa = locale === "en" || locale === "ja";
+  const activeDesktopEntries = isEnOrJa && entriesEn.length > 0 ? entriesEn : entries;
   const activeAndroidEntries =
-    isEn && androidEntriesEn.length > 0 ? androidEntriesEn : androidEntries;
-  const activeWebEntries = isEn && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
+    isEnOrJa && androidEntriesEn.length > 0 ? androidEntriesEn : androidEntries;
+  const activeWebEntries = isEnOrJa && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
   const androidTabRef = useRef<HTMLButtonElement>(null);
@@ -166,7 +166,7 @@ export function ChangelogContent({
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.descriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              {isEn ? "apps/desktop/CHANGELOG_EN.md" : "apps/desktop/CHANGELOG.md"}
+              {isEnOrJa ? "apps/desktop/CHANGELOG_EN.md" : "apps/desktop/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -174,7 +174,9 @@ export function ChangelogContent({
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.androidDescriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              {isEn ? "apps/mobile/android/CHANGELOG_EN.md" : "apps/mobile/android/CHANGELOG.md"}
+              {isEnOrJa
+                ? "apps/mobile/android/CHANGELOG_EN.md"
+                : "apps/mobile/android/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -182,7 +184,7 @@ export function ChangelogContent({
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.webDescriptionPrefix}{" "}
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              {isEn ? "apps/web/CHANGELOG_EN.md" : "apps/web/CHANGELOG.md"}
+              {isEnOrJa ? "apps/web/CHANGELOG_EN.md" : "apps/web/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -253,12 +255,7 @@ export function ChangelogContent({
         hidden={!isDesktop}
         className={isDesktop ? undefined : "hidden"}
       >
-        <ClientChangelogTimeline
-          entries={activeDesktopEntries}
-          labels={t.changelog}
-          isDesktop
-          isEn={isEn}
-        />
+        <ClientChangelogTimeline entries={activeDesktopEntries} labels={t.changelog} isDesktop />
       </section>
       <section
         id="android-changelog-panel"
@@ -271,7 +268,6 @@ export function ChangelogContent({
           entries={activeAndroidEntries}
           labels={{ ...t.changelog, empty: t.changelog.androidEmpty }}
           isAndroid
-          isEn={isEn}
         />
       </section>
       <section
@@ -349,11 +345,11 @@ function ChangelogTab({
 
 function VersionDownloadDropdown({
   version,
-  isEn,
+  labels,
   isAndroid = false,
 }: {
   version: string;
-  isEn: boolean;
+  labels: ChangelogLabels;
   isAndroid?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -392,7 +388,7 @@ function VersionDownloadDropdown({
         >
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
         </svg>
-        <span>{isEn ? "Download" : "下载此版本"}</span>
+        <span>{labels.downloadVersion}</span>
         <svg
           className={`h-3 w-3 text-muted transition-transform ${isOpen ? "rotate-180" : ""}`}
           viewBox="0 0 24 24"
@@ -407,7 +403,7 @@ function VersionDownloadDropdown({
       {isOpen && (
         <div className="absolute right-0 z-30 mt-1.5 w-56 max-w-[calc(100vw-32px)] origin-top-right rounded-xl border border-line-strong/80 bg-surface-raised/95 p-1.5 shadow-xl backdrop-blur-md">
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-            v{version} {isEn ? "Edge Downloads" : "边缘直链下载"}
+            v{version} {labels.edgeDownloads}
           </div>
           {isAndroid && links.android ? (
             <a
@@ -457,7 +453,7 @@ function VersionDownloadDropdown({
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
           >
-            <span>{isEn ? "All Architectures & Portal" : "查看分发中心全部架构"}</span>
+            <span>{labels.viewAllArchitectures}</span>
             <span>→</span>
           </a>
         </div>
@@ -471,13 +467,11 @@ function ClientChangelogTimeline({
   labels,
   isDesktop = false,
   isAndroid = false,
-  isEn = false,
 }: {
   entries: ChangelogEntry[];
   labels: ChangelogLabels;
   isDesktop?: boolean;
   isAndroid?: boolean;
-  isEn?: boolean;
 }) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted">{labels.empty}</p>;
@@ -506,7 +500,7 @@ function ClientChangelogTimeline({
                 {isDesktop || isAndroid ? (
                   <VersionDownloadDropdown
                     version={entry.version}
-                    isEn={isEn}
+                    labels={labels}
                     isAndroid={isAndroid}
                   />
                 ) : null}

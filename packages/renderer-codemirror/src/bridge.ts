@@ -19,7 +19,11 @@ import {
   type ExternalEditRequest,
   type ExternalEditResult,
 } from "./renderer.ts";
-import type { AiSuggestionInput, AiSuggestionValue } from "./wysiwyg/suggestion.ts";
+import type {
+  AiSuggestionInput,
+  AiSuggestionLabels,
+  AiSuggestionValue,
+} from "./wysiwyg/suggestion.ts";
 import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
@@ -38,6 +42,7 @@ export interface CodeMirrorEditorPorts {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
+  setAiSuggestionLabels(labels: AiSuggestionLabels): void;
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
@@ -115,6 +120,7 @@ export interface CodeMirrorEditorBridgeOptions {
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
+  readonly aiSuggestionLabels?: AiSuggestionLabels;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -209,6 +215,7 @@ export function createCodeMirrorEditorBridge(
     openLinkTarget: options.openLinkTarget,
     onCursorLineChange: options.onCursorLineChange,
     plugins: options.plugins ?? options.syntaxPlugins,
+    aiSuggestionLabels: options.aiSuggestionLabels,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied" && result.status !== "noop") {
@@ -249,7 +256,8 @@ export function createCodeMirrorEditorBridge(
     getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
-    showSuggestion: (suggestion: AiSuggestionValue) => renderer.showSuggestion(suggestion),
+    showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
+    setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),
     acceptSuggestion: () => renderer.acceptSuggestion(),
     dismissSuggestion: () => renderer.dismissSuggestion(),
     getSuggestion: () => renderer.getSuggestion(),

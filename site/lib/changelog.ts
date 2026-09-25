@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import type { Locale } from "./i18n/types";
 
 export interface ChangelogItem {
   text: string;
@@ -139,14 +140,14 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
  * 获取 Desktop 桌面客户端的更新日志列表。
  */
 export function getDesktopChangelogEntries(
-  locale: "zh" | "en" = "zh",
+  locale: Locale = "zh",
   filePath?: string,
 ): ChangelogEntry[] {
-  const candidates =
-    locale === "en" ? defaultDesktopEnChangelogCandidates : defaultDesktopChangelogCandidates;
+  const isEn = locale === "en" || locale === "ja";
+  const candidates = isEn ? defaultDesktopEnChangelogCandidates : defaultDesktopChangelogCandidates;
   const resolved = resolveChangelogPath(filePath, candidates);
   if (!resolved) {
-    if (locale === "en") {
+    if (isEn) {
       return getDesktopChangelogEntries("zh", filePath);
     }
     return [];
@@ -157,15 +158,12 @@ export function getDesktopChangelogEntries(
 /**
  * 获取 Web 在线版的更新日志列表。
  */
-export function getWebChangelogEntries(
-  locale: "zh" | "en" = "zh",
-  filePath?: string,
-): ChangelogEntry[] {
-  const candidates =
-    locale === "en" ? defaultWebEnChangelogCandidates : defaultWebChangelogCandidates;
+export function getWebChangelogEntries(locale: Locale = "zh", filePath?: string): ChangelogEntry[] {
+  const isEn = locale === "en" || locale === "ja";
+  const candidates = isEn ? defaultWebEnChangelogCandidates : defaultWebChangelogCandidates;
   const resolved = resolveChangelogPath(filePath, candidates);
   if (!resolved) {
-    if (locale === "en") {
+    if (isEn) {
       return getWebChangelogEntries("zh", filePath);
     }
     return [];
@@ -177,14 +175,14 @@ export function getWebChangelogEntries(
  * 获取 Android 移动端的更新日志列表。
  */
 export function getAndroidChangelogEntries(
-  locale: "zh" | "en" = "zh",
+  locale: Locale = "zh",
   filePath?: string,
 ): ChangelogEntry[] {
-  const candidates =
-    locale === "en" ? defaultAndroidEnChangelogCandidates : defaultAndroidChangelogCandidates;
+  const isEn = locale === "en" || locale === "ja";
+  const candidates = isEn ? defaultAndroidEnChangelogCandidates : defaultAndroidChangelogCandidates;
   const resolved = resolveChangelogPath(filePath, candidates);
   if (!resolved) {
-    if (locale === "en") {
+    if (isEn) {
       return getAndroidChangelogEntries("zh", filePath);
     }
     return [];

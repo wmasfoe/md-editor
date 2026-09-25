@@ -18,7 +18,7 @@ export {
   ensureI18nInitialized,
   resources,
 } from "./i18n";
-export { detectSystemLocale, resolveActiveLocale } from "./detect";
+export { detectSystemLocale, normalizeLanguageSetting, resolveActiveLocale } from "./detect";
 export {
   SUPPORTED_LOCALES,
   DEFAULT_LOCALE,
