@@ -11,14 +11,38 @@ use crate::settings;
 pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
 #[cfg(target_os = "macos")]
-fn is_zh_locale() -> bool {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum AppMenuLocale {
+    Zh,
+    ZhHant,
+    Ja,
+    En,
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn detect_menu_locale() -> AppMenuLocale {
     let settings = settings::load_app_settings();
     match settings.language.as_deref() {
-        Some("zh") => true,
-        Some("en") => false,
-        _ => std::env::var("LANG")
-            .map(|l| l.to_lowercase().starts_with("zh"))
-            .unwrap_or(false),
+        Some("zh") => AppMenuLocale::Zh,
+        Some("zh-Hant") => AppMenuLocale::ZhHant,
+        Some("ja") => AppMenuLocale::Ja,
+        Some("en") => AppMenuLocale::En,
+        _ => {
+            let lang = std::env::var("LANG").unwrap_or_default().to_lowercase();
+            if lang.starts_with("zh-tw")
+                || lang.starts_with("zh-hk")
+                || lang.starts_with("zh-mo")
+                || lang.starts_with("zh-hant")
+            {
+                AppMenuLocale::ZhHant
+            } else if lang.starts_with("zh") {
+                AppMenuLocale::Zh
+            } else if lang.starts_with("ja") {
+                AppMenuLocale::Ja
+            } else {
+                AppMenuLocale::En
+            }
+        }
     }
 }
 
@@ -148,8 +172,8 @@ mod menu_accelerator_collision_tests {
 #[cfg(target_os = "macos")]
 pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
-    let is_zh = is_zh_locale();
-    let open_recent_menu = recent_files::build_open_recent_menu(app, is_zh)?;
+    let locale = detect_menu_locale();
+    let open_recent_menu = recent_files::build_open_recent_menu(app, locale)?;
     // D-2 勾选态：从镜像状态读取（默认全关，与 renderer StateField 初始态一致）。
     let mode_checks = app
         .state::<ModeMenuState>()
@@ -158,16 +182,42 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         .map(|guard| *guard)
         .unwrap_or_default();
 
-    let file_title = if is_zh { "文件" } else { "File" };
-    let new_title = if is_zh { "新建" } else { "New" };
-    let open_title = if is_zh { "打开..." } else { "Open..." };
-    let open_folder_title = if is_zh {
-        "打开文件夹..."
-    } else {
-        "Open Folder..."
+    let file_title = match locale {
+        AppMenuLocale::Zh => "文件",
+        AppMenuLocale::ZhHant => "檔案",
+        AppMenuLocale::Ja => "ファイル",
+        AppMenuLocale::En => "File",
     };
-    let save_title = if is_zh { "保存" } else { "Save" };
-    let save_as_title = if is_zh { "另存为..." } else { "Save As..." };
+    let new_title = match locale {
+        AppMenuLocale::Zh => "新建",
+        AppMenuLocale::ZhHant => "新增",
+        AppMenuLocale::Ja => "新規作成",
+        AppMenuLocale::En => "New",
+    };
+    let open_title = match locale {
+        AppMenuLocale::Zh => "打开...",
+        AppMenuLocale::ZhHant => "開啟...",
+        AppMenuLocale::Ja => "開く...",
+        AppMenuLocale::En => "Open...",
+    };
+    let open_folder_title = match locale {
+        AppMenuLocale::Zh => "打开文件夹...",
+        AppMenuLocale::ZhHant => "開啟資料夾...",
+        AppMenuLocale::Ja => "フォルダーを開く...",
+        AppMenuLocale::En => "Open Folder...",
+    };
+    let save_title = match locale {
+        AppMenuLocale::Zh => "保存",
+        AppMenuLocale::ZhHant => "儲存",
+        AppMenuLocale::Ja => "保存",
+        AppMenuLocale::En => "Save",
+    };
+    let save_as_title = match locale {
+        AppMenuLocale::Zh => "另存为...",
+        AppMenuLocale::ZhHant => "另存為...",
+        AppMenuLocale::Ja => "名前を付けて保存...",
+        AppMenuLocale::En => "Save As...",
+    };
 
     let file_menu = SubmenuBuilder::new(app, file_title)
         .item(&menu_item(app, "md-editor:new", new_title, "CmdOrCtrl+N")?)
@@ -199,11 +249,17 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    let edit_title = if is_zh { "编辑" } else { "Edit" };
-    let insert_table_title = if is_zh {
-        "插入表格..."
-    } else {
-        "Insert Table..."
+    let edit_title = match locale {
+        AppMenuLocale::Zh => "编辑",
+        AppMenuLocale::ZhHant => "編輯",
+        AppMenuLocale::Ja => "編集",
+        AppMenuLocale::En => "Edit",
+    };
+    let insert_table_title = match locale {
+        AppMenuLocale::Zh => "插入表格...",
+        AppMenuLocale::ZhHant => "插入表格...",
+        AppMenuLocale::Ja => "テーブルを挿入...",
+        AppMenuLocale::En => "Insert Table...",
     };
     let edit_menu = SubmenuBuilder::new(app, edit_title)
         .undo()
@@ -222,22 +278,35 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    let view_title = if is_zh { "视图" } else { "View" };
-    let toggle_source_title = if is_zh {
-        "切换源码模式"
-    } else {
-        "Toggle Source Mode"
+    let view_title = match locale {
+        AppMenuLocale::Zh => "视图",
+        AppMenuLocale::ZhHant => "檢視",
+        AppMenuLocale::Ja => "表示",
+        AppMenuLocale::En => "View",
     };
-    let toggle_sidebar_title = if is_zh {
-        "切换文件树 / 大纲"
-    } else {
-        "Toggle File Tree / Outline"
+    let toggle_source_title = match locale {
+        AppMenuLocale::Zh => "切换源码模式",
+        AppMenuLocale::ZhHant => "切換原始碼模式",
+        AppMenuLocale::Ja => "ソースコードモード切替",
+        AppMenuLocale::En => "Toggle Source Mode",
     };
-    let focus_mode_title = if is_zh { "专注模式" } else { "Focus Mode" };
-    let typewriter_mode_title = if is_zh {
-        "打字机模式"
-    } else {
-        "Typewriter Mode"
+    let toggle_sidebar_title = match locale {
+        AppMenuLocale::Zh => "切换文件树 / 大纲",
+        AppMenuLocale::ZhHant => "切換檔案樹 / 大綱",
+        AppMenuLocale::Ja => "ファイルツリー / アウトライン切替",
+        AppMenuLocale::En => "Toggle File Tree / Outline",
+    };
+    let focus_mode_title = match locale {
+        AppMenuLocale::Zh => "专注模式",
+        AppMenuLocale::ZhHant => "專注模式",
+        AppMenuLocale::Ja => "フォーカスモード",
+        AppMenuLocale::En => "Focus Mode",
+    };
+    let typewriter_mode_title = match locale {
+        AppMenuLocale::Zh => "打字机模式",
+        AppMenuLocale::ZhHant => "打字機模式",
+        AppMenuLocale::Ja => "タイプライターモード",
+        AppMenuLocale::En => "Typewriter Mode",
     };
 
     let view_menu = SubmenuBuilder::new(app, view_title)
@@ -280,8 +349,18 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    let settings_title = if is_zh { "设置" } else { "Settings" };
-    let settings_item_title = if is_zh { "设置..." } else { "Settings..." };
+    let settings_title = match locale {
+        AppMenuLocale::Zh => "设置",
+        AppMenuLocale::ZhHant => "設定",
+        AppMenuLocale::Ja => "設定",
+        AppMenuLocale::En => "Settings",
+    };
+    let settings_item_title = match locale {
+        AppMenuLocale::Zh => "设置...",
+        AppMenuLocale::ZhHant => "設定...",
+        AppMenuLocale::Ja => "設定...",
+        AppMenuLocale::En => "Settings...",
+    };
     let settings_menu = SubmenuBuilder::new(app, settings_title)
         .item(&menu_item(
             app,
@@ -291,10 +370,13 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    let about_desc = if is_zh {
-        "简洁的本地 Markdown 和 MDX 桌面编辑器"
-    } else {
-        "A sleek, local-first Markdown and MDX desktop editor"
+    let about_desc = match locale {
+        AppMenuLocale::Zh => "简洁的本地 Markdown 和 MDX 桌面编辑器",
+        AppMenuLocale::ZhHant => "簡潔的本機 Markdown 和 MDX 桌面編輯器",
+        AppMenuLocale::Ja => {
+            "洗練されたローカルファーストの Markdown および MDX デスクトップエディタ"
+        }
+        AppMenuLocale::En => "A sleek, local-first Markdown and MDX desktop editor",
     };
     let about_metadata = AboutMetadataBuilder::new()
         .name(Some("Inkpoint"))

@@ -18,6 +18,20 @@ export interface I18nProviderProps {
   children: ReactNode;
 }
 
+function getHtmlLang(locale: Locale): string {
+  switch (locale) {
+    case "zh":
+      return "zh-CN";
+    case "zh-Hant":
+      return "zh-TW";
+    case "ja":
+      return "ja";
+    case "en":
+    default:
+      return "en";
+  }
+}
+
 export function I18nProvider({ initialLocale, children }: I18nProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
@@ -25,7 +39,7 @@ export function I18nProvider({ initialLocale, children }: I18nProviderProps) {
   useEffect(() => {
     const clientLocale = detectClientLocale();
     setLocaleState((prev) => (prev !== clientLocale ? clientLocale : prev));
-    document.documentElement.lang = clientLocale === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = getHtmlLang(clientLocale);
   }, []);
 
   const setLocale = useCallback((nextLocale: Locale) => {
@@ -36,7 +50,7 @@ export function I18nProvider({ initialLocale, children }: I18nProviderProps) {
       // 忽略 localStorage 写入异常
     }
     if (typeof document !== "undefined") {
-      document.documentElement.lang = nextLocale === "zh" ? "zh-CN" : "en";
+      document.documentElement.lang = getHtmlLang(nextLocale);
     }
   }, []);
 

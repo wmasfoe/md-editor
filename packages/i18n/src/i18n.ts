@@ -7,6 +7,8 @@ import i18n, {
 import { initReactI18next } from "react-i18next";
 import { en } from "./locales/en";
 import { zh } from "./locales/zh";
+import { zhHant } from "./locales/zh-Hant";
+import { ja } from "./locales/ja";
 import { detectSystemLocale, resolveActiveLocale } from "./detect";
 import type { LanguageSetting, Locale } from "./types";
 import { FALLBACK_LOCALE } from "./types";
@@ -15,8 +17,14 @@ export const resources = {
   zh: {
     translation: zh,
   },
+  "zh-Hant": {
+    translation: zhHant,
+  },
   en: {
     translation: en,
+  },
+  ja: {
+    translation: ja,
   },
 } as const;
 
@@ -48,13 +56,23 @@ export async function changeLanguage(localeOrSetting: LanguageSetting): Promise<
   const activeLocale = resolveActiveLocale(localeOrSetting);
   await i18nChangeLanguage(activeLocale);
   if (typeof document !== "undefined") {
-    document.documentElement.lang = activeLocale === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang =
+      activeLocale === "zh"
+        ? "zh-CN"
+        : activeLocale === "zh-Hant"
+          ? "zh-TW"
+          : activeLocale === "ja"
+            ? "ja"
+            : "en";
   }
 }
 
 export function getCurrentLocale(): Locale {
   const current = i18n.language;
-  return current === "zh" ? "zh" : "en";
+  if (current === "zh" || current === "zh-Hant" || current === "ja" || current === "en") {
+    return current;
+  }
+  return "en";
 }
 
 export { i18n };

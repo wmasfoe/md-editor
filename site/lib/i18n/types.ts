@@ -1,24 +1,38 @@
 /**
  * 语言定义与翻译契约
- * zh: 简体中文
  * en: 英文
+ * zh: 简体中文
+ * zh-Hant: 繁体中文
+ * ja: 日文
  */
 
-export type Locale = "zh" | "en";
+export type Locale = "zh" | "en" | "zh-Hant" | "ja";
 
-export const SUPPORTED_LOCALES: readonly Locale[] = ["zh", "en"] as const;
+export const SUPPORTED_LOCALES: readonly Locale[] = ["en", "zh", "zh-Hant", "ja"] as const;
 
+export const DEFAULT_LOCALE: Locale = "en";
 export const DEFAULT_NON_CHINESE_LOCALE: Locale = "en";
 export const CHINESE_LOCALE: Locale = "zh";
 
 export const LOCALE_LABELS: Record<Locale, string> = {
-  zh: "简体中文",
   en: "English",
+  zh: "简体中文",
+  "zh-Hant": "繁體中文",
+  ja: "日本語",
 };
 
 export const LOCALE_SHORT_LABELS: Record<Locale, string> = {
-  zh: "中",
   en: "EN",
+  zh: "中",
+  "zh-Hant": "繁",
+  ja: "日",
+};
+
+export const LOCALE_FLAGS: Record<Locale, string> = {
+  en: "🇺🇸",
+  zh: "🇨🇳",
+  "zh-Hant": "🇭🇰",
+  ja: "🇯🇵",
 };
 
 export interface FeatureItem {

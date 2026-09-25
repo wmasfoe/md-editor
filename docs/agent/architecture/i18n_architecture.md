@@ -14,8 +14,9 @@
 2. **零运行时重构的多语言扩展能力**：
    - 采用标准且成熟的开源方案（`i18next` + `react-i18next`）；
    - 支持参数插值（例如 `{{count}} 词` / `{{count}} words`、`{{version}}` 等）；
-   - 支持三种语言模式：`"system"`（跟随系统/浏览器偏好）、`"zh"`（简体中文）、`"en"`（English）；
-   - 当需要接入日语、德语、繁体中文等新语言时，只需新增对应语言字典并注册，调用层代码无需任何架构调整。
+   - 目前全系统已原生支持 4 种语言：`"en"`（English）、`"zh"`（简体中文）、`"zh-Hant"`（繁體中文）、`"ja"`（日本語），以及 `"system"`（跟随系统/浏览器偏好）；
+   - **语言探测与兜底规则**：当根据用户浏览器或系统偏好探测语言时，若探测到未受支持的语言（如法语、德语、西班牙语、韩语等），严格默认使用英文（`"en"`）；
+   - 当需要接入新语言时，只需新增对应语言字典并注册，调用层代码无需任何架构调整。
 3. **分层清晰与领域职责收敛**：
    - 翻译资源与初始化逻辑集中在 `@md-editor/i18n`；
    - 宿主壳层（Desktop 端与 Web 端）只负责在设置持久化中保存 `language`，并在挂载与变更时调用 `changeLanguage(settings.language)`；
@@ -90,27 +91,34 @@ packages/i18n/
 
 ---
 
-## 5. 如何添加新的语言（以日文 `ja` 为例）
+## 5. 官网集成与下拉切换器设计 (`site/`)
+
+官网独立维护高性能静态字典以保障首屏极速渲染（SSR/ISR）：
+- **字典与类型**：`site/lib/i18n/` 下定义 `Locale = "zh" | "en" | "zh-Hant" | "ja"`，完整维护 4 种语言翻译；
+- **服务端与客户端探测**：
+  - `detectLocaleFromHeader(acceptLanguage)`：解析 HTTP 请求头的语言偏好，当用户偏好不在支持列表内时，严格默认返回英文（`"en"`）；
+  - `detectClientLocale()`：优先读取 `localStorage`，其次探测浏览器 `navigator.languages`，不支持则默认 `"en"`；
+- **Apple Liquid Glass 风格下拉语言切换器**：
+  - `LanguageSwitcher`（`site/components/language-switcher.tsx`）：
+    - 触发器：采用标准的文A 图标（`LanguageIcon`）；
+    - 弹出层：亚克力毛玻璃底色（`backdrop-blur-xl`）、柔和投影（`shadow-xl`）与细边框（`border-line/80`）；
+    - 条目列表：展示国旗图标（🇺🇸/🇨🇳/🇭🇰/🇯🇵）与原生语言名称，当前选中项高亮圆角药丸底色（`bg-accent/10 text-accent`）；
+    - 交互与无障碍：支持点击外部关闭、ESC 键快速关闭、键盘焦点以及 ARIA 语义（`role="listbox"` / `role="option"`）。
+
+---
+
+## 6. 如何添加新的语言（以德语 `de` 为例）
 
 1. **定义语言代码**：
-   在 `packages/i18n/src/types.ts` 中，扩展 `Locale` 与 `SUPPORTED_LOCALES`：
-   ```ts
-   export type Locale = "zh" | "en" | "ja";
-   export const SUPPORTED_LOCALES: readonly Locale[] = ["zh", "en", "ja"] as const;
-   ```
+   在 `packages/i18n/src/types.ts` 与 `site/lib/i18n/types.ts` 中，扩展 `Locale`、`SUPPORTED_LOCALES` 以及国旗映射 `LOCALE_FLAGS`。
 2. **新增语言字典**：
-   创建 `packages/i18n/src/locales/ja.ts`：
-   ```ts
-   import type { TranslationSchema } from "./zh";
-   export const ja: TranslationSchema = {
-     // 完整填入所有对应翻译，编译器会自动提示缺失的键
-   };
-   ```
+   - 创建 `packages/i18n/src/locales/de.ts`，由 `TranslationSchema` 强类型约束；
+   - 创建 `site/lib/i18n/translations/de.ts`。
 3. **注册资源**：
-   在 `packages/i18n/src/i18n.ts` 的 `resources` 中引入并注册 `ja`。
+   在 `packages/i18n/src/i18n.ts` 与 `site/lib/i18n/index.ts` 中注册新字典。
 4. **检测匹配**：
-   在 `packages/i18n/src/detect.ts` 中添加对 `ja` 前缀的识别。
+   在 `packages/i18n/src/detect.ts` 与 `site/lib/i18n/detect.ts` 中添加前缀匹配规则。
 5. **UI 选项补充**：
-   在 `zh.ts` 和 `en.ts` 的 `settings.general.languageJa` 中填入名称（如 `"日本語"`），并在设置面板的下拉菜单中增加选项。
+   在现有各语言的 `settings.general.languageDe` 中填入名称（如 `"Deutsch"`），并在设置面板与官网下拉列表中增加选项。
 6. **自动化验证**：
-   运行 `pnpm --filter @md-editor/i18n test`，单测会自动确保 `ja` 与 `zh` 保持 100% 键对齐。
+   运行 `pnpm test` 与 `pnpm typecheck`，单测将自动校验 100% 键对齐与探测规则。
