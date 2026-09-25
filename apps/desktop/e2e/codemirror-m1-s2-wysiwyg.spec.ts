@@ -95,7 +95,11 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(page.locator(".cm-md-block-marker--list-item-unordered")).toHaveCount(3);
     await expect(page.locator(".cm-md-block-marker--list-item-ordered")).toHaveCount(1);
     await expect(page.locator(".cm-md-task-checkbox")).toHaveCount(1);
-    await expect(page.locator(".cm-md-link-label")).toHaveText("label");
+    // 链接渲染范围已扩展（裸 URL / 尖括号 / 引用式同样渲染为 <a>）⇒ 用**精确文本**定位"带标签的那条"，
+    // 否则 strict mode 会因匹配到新渲染出的链接而报冲突。
+    await expect(page.locator(".cm-md-link-label").filter({ hasText: /^label$/ })).toHaveText(
+      "label",
+    );
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(1);
     await expect(page.locator(".cm-md-thematic-break-widget")).toHaveCount(1);
     // 链接类（裸 URL / 尖括号 / 引用式）已改为普通可编辑文本 ⇒ 默认原子 2 → 1
@@ -273,7 +277,9 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     page,
   }) => {
     const before = await diagnostics(page);
-    const label = page.locator(".cm-md-link-label");
+    // 链接渲染范围已扩展（裸 URL / 尖括号 / 引用式同样渲染为 <a>，且 "reference label" 也含 "label"）
+    // ⇒ 用**精确文本**定位"带标签的那条"，避免 strict 冲突。
+    const label = page.locator(".cm-md-link-label").filter({ hasText: /^label$/ });
     await expect(label).toHaveText("label");
     await expect(page.locator(".cm-content")).not.toContainText("https://example.com");
 
@@ -288,7 +294,11 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     });
 
     await page.locator(".cm-content").press("ArrowDown");
-    await expect(page.locator(".cm-md-link-label")).toHaveText("label");
+    // 链接渲染范围已扩展（裸 URL / 尖括号 / 引用式同样渲染为 <a>）⇒ 用文本定位"带标签的那条"，
+    // 否则 strict mode 会因匹配到新渲染出的链接而报冲突。
+    await expect(page.locator(".cm-md-link-label").filter({ hasText: "label" }).first()).toHaveText(
+      "label",
+    );
     await expect(page.locator(".cm-content")).not.toContainText("https://example.com");
 
     const twoLinks =

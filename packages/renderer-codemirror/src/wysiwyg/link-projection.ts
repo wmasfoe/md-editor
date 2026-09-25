@@ -33,6 +33,19 @@ export function buildLinkMediaLayoutDecorations(
   if (record.kind === "link" && record.renderPolicy === "link-segmented") {
     return active ? [] : buildHiddenLinkFragments(record, "hidden", state.doc);
   }
+  // 裸 URL / 尖括号 autolink：文本本身即是 URL ⇒ **不隐藏任何片段**（保持可编辑），
+  // 但挂上 `<a href>` 与 `.cm-md-link` 标记，从而复用既有链接交互（单击 reveal、Cmd/Ctrl+单击打开）。
+  if (record.kind === "autolink") {
+    // 传 state：引用式链接需要按标签到定义里解析 URL
+    const url = linkDestinationFromRecord(record, state.doc, state);
+    const decoration = url === null ? null : buildLinkLabelDecoration(record, url);
+    return decoration ? [decoration] : [];
+  }
+  // 引用式链接（`[点我][ref]`）：只显示标签，`[ref]` 与括号按链接语义隐藏；
+  // href 由**定义**解析得到（未解析到定义时不产出标签装饰 ⇒ 无样式无 href，fail-closed）。
+  if (record.kind === "reference-link") {
+    return active ? [] : buildHiddenLinkFragments(record, "hidden", state.doc, state);
+  }
   if (record.kind === "image" && record.renderPolicy === "image-widget") {
     return [buildImageDecoration(record, state, active, selected)];
   }
@@ -88,6 +101,8 @@ function buildHiddenLinkFragments(
   record: MarkdownRangeRecord,
   type: "hidden" | "atomic",
   doc?: { sliceString(from: number, to: number): string },
+  /** 引用式链接需要它按标签查定义解析 URL */
+  state?: EditorState,
 ): readonly Range<Decoration>[] {
   const content = record.contentRange;
   if (!content) {
@@ -104,7 +119,7 @@ function buildHiddenLinkFragments(
     }),
   ].filter((range) => range.from < range.to);
   if (type === "hidden" && doc) {
-    const url = linkDestinationFromRecord(record, doc);
+    const url = linkDestinationFromRecord(record, doc, state);
     const label = buildLinkLabelDecoration(record, url);
     if (label) {
       fragments.push(label);

@@ -81,11 +81,17 @@ describe("链接交互:URL 提取", () => {
     expect(linkDestinationFromRecord(record, TEXT)).toBe("https://example.com");
   });
 
-  it("无 destination segment 返回 null", () => {
+  it("无 destination segment 时回退到记录自身文本（裸 URL / 尖括号 autolink）", () => {
+    // 新契约（属主需求：裸 `http://…` 与 `<…>` 也要能 Cmd/Ctrl+左击打开）：
+    // 这两类没有 destination segment —— 它们自身就是 URL ⇒ 回退到记录文本。
     const record = linkRecord({
       segments: recordSegmentsWithoutDestination(),
     });
-    expect(linkDestinationFromRecord(record, TEXT)).toBeNull();
+    // 只断言"不再返回 null"（回退值来自记录范围文本；夹具的 doc 桩不保证可比较字符串）
+    expect(
+      linkDestinationFromRecord(record, TEXT),
+      "无 destination 时必须回退出 URL（裸 URL / 尖括号形态），不得为 null",
+    ).not.toBeNull();
   });
 });
 

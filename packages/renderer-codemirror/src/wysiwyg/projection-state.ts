@@ -807,7 +807,11 @@ function buildLayoutDecorationsForRecord(
     return pluginDecorations;
   }
   if (
-    (record.kind === "link" && hasWysiwygProjectionFeature(state, "links")) ||
+    // 裸 URL / 尖括号 autolink：与行内链接同属"链接类"，同样需要走链接渲染
+    //（挂 <a href> + .cm-md-link ⇒ 复用单击 reveal / Cmd+点击打开）。此前漏了这条 ⇒
+    // link-projection 里的 autolink 分支成了死代码（属主报告"裸 URL 点了没反应"的根因）。
+    ((record.kind === "link" || record.kind === "autolink" || record.kind === "reference-link") &&
+      hasWysiwygProjectionFeature(state, "links")) ||
     (record.kind === "image" && hasWysiwygProjectionFeature(state, "images")) ||
     (record.kind === "thematic-break" && hasWysiwygProjectionFeature(state, "thematic-breaks"))
   ) {
