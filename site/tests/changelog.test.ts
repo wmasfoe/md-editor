@@ -131,6 +131,31 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
     expect(androidEn[0].items[0].text).toMatch(/^[*A-Za-z]/u);
   });
 
+  it("reads desktop, web and android changelogs correctly for zh-Hant and ja locales", async () => {
+    const { getDesktopChangelogEntries, getWebChangelogEntries, getAndroidChangelogEntries } =
+      await import("../lib/changelog");
+
+    const desktopZhHant = getDesktopChangelogEntries("zh-Hant");
+    const desktopJa = getDesktopChangelogEntries("ja");
+    expect(desktopZhHant.length).toBeGreaterThan(0);
+    expect(desktopJa.length).toBeGreaterThan(0);
+    expect(desktopZhHant[0].version).toBe(desktopJa[0].version);
+    // ja falls back to English changelog
+    expect(desktopJa[0].items[0].text).toMatch(/^[A-Za-z]/u);
+
+    const webZhHant = getWebChangelogEntries("zh-Hant");
+    const webJa = getWebChangelogEntries("ja");
+    expect(webZhHant.length).toBeGreaterThan(0);
+    expect(webJa.length).toBeGreaterThan(0);
+    expect(webJa[0].items[0].text).toMatch(/^[A-Za-z]/u);
+
+    const androidZhHant = getAndroidChangelogEntries("zh-Hant");
+    const androidJa = getAndroidChangelogEntries("ja");
+    expect(androidZhHant.length).toBeGreaterThanOrEqual(3);
+    expect(androidJa.length).toBeGreaterThanOrEqual(3);
+    expect(androidJa[0].items[0].text).toMatch(/^[*A-Za-z]/u);
+  });
+
   it("falls back to Chinese when English changelog is not found", async () => {
     const { getDesktopChangelogEntries } = await import("../lib/changelog");
     // 传入不存在的文件路径，但在 locale="en" 且无显式指定时或指定不存在路径时的行为

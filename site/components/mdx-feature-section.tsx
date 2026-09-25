@@ -5,12 +5,13 @@ import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
 import { PinnedScene } from "./pinned-scene";
 
-function EditorSkeleton({ isZh }: { isZh: boolean }) {
+function EditorSkeleton() {
+  const { t } = useI18n();
   return (
     <div className="flex h-full min-h-[280px] w-full items-center justify-center rounded-3xl border border-line-strong/80 bg-surface/80 p-8">
       <div className="flex flex-col items-center gap-2.5 text-muted">
         <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-accent" />
-        <span className="text-xs">{isZh ? "正在准备 MDX 画布..." : "Preparing MDX canvas..."}</span>
+        <span className="text-xs">{t.mdxShowcase.loadingCanvas}</span>
       </div>
     </div>
   );
@@ -20,7 +21,7 @@ const DynamicMdxWipeCanvas = dynamic(
   () => import("./mdx-wipe-canvas").then((mod) => mod.MdxWipeCanvas),
   {
     ssr: false,
-    loading: () => <EditorSkeleton isZh={true} />,
+    loading: () => <EditorSkeleton />,
   },
 );
 
@@ -28,14 +29,13 @@ const DynamicMdxWipeCanvas = dynamic(
  * MDX 展区：右侧不透明源码层随滚动盖住左侧所见即所得，两边可编辑且内容同步。
  */
 export function MdxFeatureSection() {
-  const { locale, t } = useI18n();
-  const isZh = locale === "zh";
+  const { t } = useI18n();
   const copy = t.mdxShowcase;
 
   return (
     <PinnedScene
       id="mdx"
-      ariaLabel={isZh ? "MDX 组件体验" : "MDX component showcase"}
+      ariaLabel={copy.sectionAria}
       heightVh={200}
       frameClassName="bg-canvas z-[4]"
     >

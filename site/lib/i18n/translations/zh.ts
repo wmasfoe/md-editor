@@ -13,6 +13,7 @@ export const zh: TranslationSchema = {
     github: "GitHub",
     download: "下载",
     langSwitchAria: "切换语言",
+    navAria: "主导航",
   },
   hero: {
     tagline: "纸上烟云，笔下惊鸿",
@@ -39,10 +40,34 @@ export const zh: TranslationSchema = {
       description: "文字与组件同屏",
     },
   },
+  editorFeature: {
+    sectionAria: "基础编辑体验",
+    badge: "所见即所得 · 纯粹书写",
+    title: "即开即写，让文字回归纯粹",
+    subtitle: "无需复杂配置，也不必等待加载。在宣纸般温润的画布上，所见即所想，格式随行而生。",
+    loadingCanvas: "正在准备书写画布...",
+  },
+  editorPreview: {
+    workspace: "工作区",
+    sampleFile: "专注写作.md",
+    quote: "没有繁琐的界面工具栏堆叠，让光标回到文字呼吸本身。",
+    description:
+      "Inkpoint 结合了所见即所得的流畅排版与原汁原味的 Markdown / MDX 源码保真度。文档永远留在你的本地磁盘上，无需登录，即开即写。",
+    calloutText: " 极简、本地、专注于长文排版。",
+  },
+  liveEditor: {
+    samplesTitle: "示例文档",
+    canvasTitle: "纯内存画布",
+    canvasDescription: "试着在右侧任意点击、敲入文字或修改内容，零本地存储负担。",
+    samplesPrefix: "示例文档:",
+    sourceMode: "源码",
+    wysiwygMode: "WYSIWYG",
+  },
   mdxShowcase: {
     sectionBadge: "MDX · 组件即文档",
     sectionTitle: "文中生组件，编排自成章",
     sectionSubtitle: "在 Markdown 长文里直接写入 React 组件。向下滚动，同一篇文档从排版切到源码。",
+    sectionAria: "MDX 组件体验",
     sourceLabel: "源码",
     previewLabel: "预览",
     calloutTitle: "本地优先",
@@ -51,6 +76,7 @@ export const zh: TranslationSchema = {
     lead: "在同一篇 Markdown 里写入组件，不必离开书写流。",
     body: "标题、列表、引用与 MDX 组件共享同一画布。切换源码时，排版语义完整保留。",
     sourceFilename: "architecture.mdx",
+    loadingCanvas: "正在准备 MDX 画布...",
   },
   download: {
     sectionBadge: "即刻启程 · 纯粹写作",
@@ -71,6 +97,11 @@ export const zh: TranslationSchema = {
     copiedButton: "已复制",
     copyCommandAria: "复制安装命令",
     comingSoon: "敬请期待",
+    betaStatus: "测试版状态",
+    systemRequirements: "系统要求：",
+    installationTip: "安装提示：",
+    ariaAndroidBeta: "Android（测试版）",
+    ariaIosComingSoon: "iOS（即将推出，暂未开放）",
   },
   features: {
     sectionAria: "主要能力",
@@ -125,6 +156,9 @@ export const zh: TranslationSchema = {
     latestBadge: "最新",
     importantBadge: "重点更新",
     pullRequestAria: "查看关联 Pull Request #{number}",
+    downloadVersion: "下载此版本",
+    edgeDownloads: "边缘直链下载",
+    viewAllArchitectures: "查看分发中心全部架构",
     itemTypes: {
       feat: "新增",
       perf: "优化",
@@ -146,6 +180,8 @@ export const zh: TranslationSchema = {
     sectionTitle: "灵犀相通，润物无声",
     sectionSubtitle:
       "端侧小语言模型静默运行，无需联网。在你沉思停笔或校对文本时，恰如其分地送上连贯建议。",
+    sectionAria: "AI 智能赋能体验",
+    loadingCanvas: "正在加载端侧 AI 画布...",
     tabGrammar: "✍️ 智能语病与标点修复",
     tabContinuation: "✨ 行内灵犀连续续写",
     statusSlmReady: "本地端侧 SLM · 极速推理就绪",
@@ -162,6 +198,26 @@ export const zh: TranslationSchema = {
     tipCompleted: "🎉 已连贯推进完成：点击「重新演示」随时再次体验",
     tipDismissed: "💡 已跳过：轻敲 Tab 重新获取建议",
     tabHint: "按下 Tab，直接体验审校与续写",
+    phase1Tip: "✨ 阶段 ① 审校中：轻敲 Tab 逐项修正，Esc 跳过当前项",
+    phase2Tip: "✨ 阶段 ② 续写中：轻敲 Tab 逐段融入，体验行云流水",
+    initialTip: "💡 提示：轻敲上方按钮，即可在画布中体验「草稿纠错」与「落笔成章」",
+    bento: {
+      local: {
+        title: "端侧本地直跑",
+        desc: "完全离线可用，写作隐私与思考记录绝不出设备，断网环境亦能行云流水。",
+        tag: "0 Cloud Latency",
+      },
+      flow: {
+        title: "先审校后续写 · 一气呵成",
+        desc: "连续轻敲 Tab，从标点病句纠错自然过渡到灵犀续写，篇章落笔成章。",
+        tag: "⇥ Flow In-Sync",
+      },
+      context: {
+        title: "全篇脉络感知",
+        desc: "深度感知上下文论述结构与行文文风，精准奉上契合语境的遣词造句与行文衔接。",
+        tag: "Context Aware",
+      },
+    },
   },
   releases: {
     title: "版本分发中心",

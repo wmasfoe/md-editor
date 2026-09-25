@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { SHOWCASE_AI_FLOW_DATA } from "../components/showcase-ai-samples";
 
 describe("SHOWCASE_AI_FLOW_DATA contract", () => {
-  it("contains valid sequential flow data for zh and en", () => {
-    for (const lang of ["zh", "en"] as const) {
+  it("contains valid sequential flow data for zh, en, zh-Hant, and ja", () => {
+    for (const lang of ["zh", "en", "zh-Hant", "ja"] as const) {
       const data = SHOWCASE_AI_FLOW_DATA[lang];
       expect(data).toBeDefined();
 

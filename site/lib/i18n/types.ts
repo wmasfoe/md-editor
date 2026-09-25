@@ -53,6 +53,7 @@ export interface TranslationSchema {
     github: string;
     download: string;
     langSwitchAria: string;
+    navAria: string;
   };
   hero: {
     tagline: string;
@@ -70,10 +71,33 @@ export interface TranslationSchema {
     ai: FeatureItem;
     mdx: FeatureItem;
   };
+  editorFeature: {
+    sectionAria: string;
+    badge: string;
+    title: string;
+    subtitle: string;
+    loadingCanvas: string;
+  };
+  editorPreview: {
+    workspace: string;
+    sampleFile: string;
+    quote: string;
+    description: string;
+    calloutText: string;
+  };
+  liveEditor: {
+    samplesTitle: string;
+    canvasTitle: string;
+    canvasDescription: string;
+    samplesPrefix: string;
+    sourceMode: string;
+    wysiwygMode: string;
+  };
   mdxShowcase: {
     sectionBadge: string;
     sectionTitle: string;
     sectionSubtitle: string;
+    sectionAria: string;
     sourceLabel: string;
     previewLabel: string;
     calloutTitle: string;
@@ -82,6 +106,7 @@ export interface TranslationSchema {
     lead: string;
     body: string;
     sourceFilename: string;
+    loadingCanvas: string;
   };
   download: {
     sectionBadge: string;
@@ -102,6 +127,11 @@ export interface TranslationSchema {
     copiedButton: string;
     copyCommandAria: string;
     comingSoon: string;
+    betaStatus: string;
+    systemRequirements: string;
+    installationTip: string;
+    ariaAndroidBeta: string;
+    ariaIosComingSoon: string;
   };
   features: {
     sectionAria: string;
@@ -142,6 +172,9 @@ export interface TranslationSchema {
     latestBadge: string;
     importantBadge: string;
     pullRequestAria: string;
+    downloadVersion: string;
+    edgeDownloads: string;
+    viewAllArchitectures: string;
     itemTypes: {
       feat: string;
       perf: string;
@@ -162,6 +195,8 @@ export interface TranslationSchema {
     sectionBadge: string;
     sectionTitle: string;
     sectionSubtitle: string;
+    sectionAria: string;
+    loadingCanvas: string;
     tabGrammar: string;
     tabContinuation: string;
     statusSlmReady: string;
@@ -178,6 +213,26 @@ export interface TranslationSchema {
     tipCompleted: string;
     tipDismissed: string;
     tabHint: string;
+    phase1Tip: string;
+    phase2Tip: string;
+    initialTip: string;
+    bento: {
+      local: {
+        title: string;
+        desc: string;
+        tag: string;
+      };
+      flow: {
+        title: string;
+        desc: string;
+        tag: string;
+      };
+      context: {
+        title: string;
+        desc: string;
+        tag: string;
+      };
+    };
   };
   releases: {
     title: string;

@@ -17,9 +17,9 @@ interface EditorPreviewStageProps {
  * 4. 编辑器实例文档：以霞鹜文楷呈现逼真的 Markdown / MDX 写作与代码高亮排版。
  */
 export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPreviewStageProps) {
-  const { locale, t } = useI18n();
-  const isZh = locale === "zh";
+  const { t } = useI18n();
   const badges = t.previewBadges;
+  const preview = t.editorPreview;
 
   // 向内翻转：默认俯视收在 10deg，避免一开始就把侧边挂件压住
   const rotateX = prefersReducedMotion ? 0 : interpolate(progress, [0, 0.9], [10, 0]);
@@ -56,7 +56,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
           <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
             <span className="text-ink">Inkpoint</span>
             <span className="text-line-strong">/</span>
-            <span>{isZh ? "专注写作.md" : "focus-writing.md"}</span>
+            <span>{preview.sampleFile}</span>
           </div>
 
           <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-soft shadow-xs">
@@ -69,7 +69,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
         <div className="grid grid-cols-1 md:grid-cols-12">
           <div className="hidden border-r border-line bg-canvas/60 p-3.5 md:col-span-3 md:block">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-              {isZh ? "工作区" : "WORKSPACE"}
+              {preview.workspace}
             </p>
             <ul className="space-y-1 text-xs text-ink-soft">
               <li className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
@@ -78,7 +78,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
               </li>
               <li className="flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 font-medium text-ink shadow-xs">
                 <span>📄</span>
-                <span className="truncate">{isZh ? "专注写作.md" : "focus-writing.md"}</span>
+                <span className="truncate">{preview.sampleFile}</span>
               </li>
               <li className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
                 <span>📄</span>
@@ -98,15 +98,11 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
               </h1>
 
               <blockquote className="my-3 border-l-2 border-accent/60 pl-3.5 text-sm italic text-muted">
-                {isZh
-                  ? "没有繁琐的界面工具栏堆叠，让光标回到文字呼吸本身。"
-                  : "Zero cluttered toolbars. Keep your focus entirely in the flow of thought."}
+                {preview.quote}
               </blockquote>
 
               <p className="text-[14px] leading-relaxed text-ink-soft sm:text-[15px]">
-                {isZh
-                  ? "Inkpoint 结合了所见即所得的流畅排版与原汁原味的 Markdown / MDX 源码保真度。文档永远留在你的本地磁盘上，无需登录，即开即写。"
-                  : "Inkpoint delivers instant WYSIWYG elegance without sacrificing full Markdown/MDX source fidelity. Your thoughts stay on your disk."}
+                {preview.description}
               </p>
 
               <div className="my-4 overflow-hidden rounded-xl border border-line bg-surface-soft/80 p-3 font-mono text-[12px] leading-relaxed text-ink-soft shadow-xs sm:text-[13px]">
@@ -121,9 +117,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
                   <span className="text-muted">&#60;</span>
                   <span className="text-blot font-semibold">Callout</span>
                   <span className="text-muted">&#62;</span>
-                  {isZh
-                    ? " 极简、本地、专注于长文排版。"
-                    : " Distraction-free, local-first typography."}
+                  {preview.calloutText}
                   <span className="text-muted">&#60;/</span>
                   <span className="text-blot font-semibold">Callout</span>
                   <span className="text-muted">&#62;</span>

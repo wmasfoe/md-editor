@@ -21,8 +21,14 @@ import {
 } from "@md-editor/syntax-plugins";
 import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
+import {
+  getSampleFilename,
+  getSampleMarkdown,
+  getSampleTitle,
+  SHOWCASE_SAMPLES,
+  type ShowcaseSample,
+} from "./showcase-samples";
 import { useI18n } from "../lib/i18n/context";
-import { SHOWCASE_SAMPLES, type ShowcaseSample } from "./showcase-samples";
 
 export interface SiteLiveEditorProps {
   className?: string;
@@ -103,8 +109,8 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
   framed = true,
   plugins: userPlugins,
 }: SiteLiveEditorProps) {
-  const { locale } = useI18n();
-  const isZh = locale === "zh";
+  const { locale, t } = useI18n();
+  const copy = t.liveEditor;
   const defaultId = initialSampleId ?? samples[0]?.id ?? "focus";
   const [activeId, setActiveId] = useState<string>(defaultId);
   const [liveMode, setLiveMode] = useState<EditorMode>(requestedMode ?? "wysiwyg");
@@ -124,8 +130,8 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
 
   const initialMarkdown = useMemo(() => {
     const sample = samples.find((item) => item.id === defaultId) ?? samples[0];
-    return isZh ? sample.markdownZh : sample.markdownEn;
-  }, [defaultId, isZh, samples]);
+    return getSampleMarkdown(sample, locale);
+  }, [defaultId, locale, samples]);
 
   const [ownedDocument] = useState<DocumentState>(() =>
     createDocumentState({
@@ -168,7 +174,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
   const handleSelectSample = useCallback(
     (sample: ShowcaseSample) => {
       setActiveId(sample.id);
-      const markdown = isZh ? sample.markdownZh : sample.markdownEn;
+      const markdown = getSampleMarkdown(sample, locale);
       const mode = requestedMode ?? documentState.getSnapshot().mode;
       documentState.replaceDocument(
         {
@@ -180,13 +186,13 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
         { kind: "command", commandId: "sample.switch" },
       );
     },
-    [documentState, isZh, requestedMode],
+    [documentState, locale, requestedMode],
   );
 
   const activeSample = samples.find((item) => item.id === activeId) ?? samples[0];
-  const filename = isZh ? activeSample.filenameZh : activeSample.filenameEn;
+  const filename = getSampleFilename(activeSample, locale);
   const resolvedModeLabel =
-    modeLabel ?? (liveMode === "source" ? (isZh ? "源码" : "Source") : "WYSIWYG");
+    modeLabel ?? (liveMode === "source" ? copy.sourceMode : copy.wysiwygMode);
 
   return (
     <EditorUiProvider markdown={initialMarkdown} showToast={noopToast}>
@@ -240,7 +246,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               <div>
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                    {isZh ? "示例文档" : "SAMPLES"}
+                    {copy.samplesTitle}
                   </span>
                   <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
                 </div>
@@ -248,7 +254,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
                 <nav className="space-y-1.5">
                   {samples.map((sample) => {
                     const isActive = sample.id === activeId;
-                    const sampleName = isZh ? sample.filenameZh : sample.filenameEn;
+                    const sampleName = getSampleFilename(sample, locale);
                     return (
                       <button
                         key={sample.id}
@@ -271,25 +277,19 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               </div>
 
               <div className="mt-4 rounded-xl border border-line/70 bg-surface-soft/60 p-2.5 text-[11px] leading-relaxed text-muted">
-                <span className="font-semibold text-ink-soft">
-                  {isZh ? "纯内存画布" : "In-Memory Canvas"}
-                </span>
-                <p className="mt-0.5">
-                  {isZh
-                    ? "试着在右侧任意点击、敲入文字或修改内容，零本地存储负担。"
-                    : "Type, edit, and explore typography directly on the right canvas."}
-                </p>
+                <span className="font-semibold text-ink-soft">{copy.canvasTitle}</span>
+                <p className="mt-0.5">{copy.canvasDescription}</p>
               </div>
             </aside>
 
             <div className="relative flex min-h-[280px] flex-col p-3.5 sm:p-4 md:col-span-9 md:p-5">
               <div className="mb-3 flex items-center gap-2 overflow-x-auto border-b border-line pb-2.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <span className="shrink-0 text-[11px] font-semibold text-muted">
-                  {isZh ? "示例文档:" : "Sample:"}
+                  {copy.samplesPrefix}
                 </span>
                 {samples.map((sample) => {
                   const isActive = sample.id === activeId;
-                  const title = isZh ? sample.titleZh : sample.titleEn;
+                  const title = getSampleTitle(sample, locale);
                   return (
                     <button
                       key={sample.id}

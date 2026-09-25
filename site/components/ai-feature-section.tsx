@@ -7,12 +7,13 @@ import { interpolate } from "../lib/parallax";
 import type { AiShowcaseEditorHandle, AiShowcaseFlowState } from "./ai-showcase-editor";
 import { PinnedScene } from "./pinned-scene";
 
-function AiEditorSkeleton({ isZh }: { isZh: boolean }) {
+function AiEditorSkeleton() {
+  const { t } = useI18n();
   return (
     <div className="flex min-h-[140px] sm:min-h-[160px] w-full items-center justify-center py-8 text-muted">
       <div className="flex items-center gap-2 text-xs">
         <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-accent" />
-        <span>{isZh ? "正在加载端侧 AI 画布..." : "Loading On-Device AI Canvas..."}</span>
+        <span>{t.aiShowcase.loadingCanvas}</span>
       </div>
     </div>
   );
@@ -22,7 +23,7 @@ const DynamicAiShowcaseEditor = dynamic(
   () => import("./ai-showcase-editor").then((mod) => mod.AiShowcaseEditor),
   {
     ssr: false,
-    loading: () => <AiEditorSkeleton isZh={true} />,
+    loading: () => <AiEditorSkeleton />,
   },
 );
 
@@ -77,7 +78,6 @@ function AiTabHintBadge({
 
 export function AiFeatureSection() {
   const { locale, t } = useI18n();
-  const isZh = locale === "zh";
   const aiText = t.aiShowcase;
 
   const editorRef = useRef<AiShowcaseEditorHandle | null>(null);
@@ -152,47 +152,26 @@ export function AiFeatureSection() {
     };
   }, [isHovered, aiState.isDismissed, aiState.isFinished]);
 
-  const bentoItems = isZh
-    ? [
-        {
-          icon: "🔒",
-          title: "端侧本地直跑",
-          desc: "完全离线可用，写作隐私与思考记录绝不出设备，断网环境亦能行云流水。",
-          tag: "0 Cloud Latency",
-        },
-        {
-          icon: "🎯",
-          title: "先审校后续写 · 一气呵成",
-          desc: "连续轻敲 Tab，从标点病句纠错自然过渡到灵犀续写，篇章落笔成章。",
-          tag: "⇥ Flow In-Sync",
-        },
-        {
-          icon: "🧠",
-          title: "全篇脉络感知",
-          desc: "深度感知上下文论述结构与行文文风，精准奉上契合语境的遣词造句与行文衔接。",
-          tag: "Context Aware",
-        },
-      ]
-    : [
-        {
-          icon: "🔒",
-          title: "On-Device Local SLM",
-          desc: "100% offline inference. Zero telemetry, zero cloud egress. Total privacy and speed.",
-          tag: "0 Cloud Latency",
-        },
-        {
-          icon: "🎯",
-          title: "Polish & Continue in Flow",
-          desc: "Press Tab continuously: flow seamlessly from grammar polish to inspired continuation.",
-          tag: "⇥ Flow In-Sync",
-        },
-        {
-          icon: "🧠",
-          title: "Full Context Awareness",
-          desc: "Deeply attuned to your essay structure and tone, providing seamless prose transitions.",
-          tag: "Context Aware",
-        },
-      ];
+  const bentoItems = [
+    {
+      icon: "🔒",
+      title: aiText.bento.local.title,
+      desc: aiText.bento.local.desc,
+      tag: aiText.bento.local.tag,
+    },
+    {
+      icon: "🎯",
+      title: aiText.bento.flow.title,
+      desc: aiText.bento.flow.desc,
+      tag: aiText.bento.flow.tag,
+    },
+    {
+      icon: "🧠",
+      title: aiText.bento.context.title,
+      desc: aiText.bento.context.desc,
+      tag: aiText.bento.context.tag,
+    },
+  ];
 
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
     // 阻止浏览器将 DOM 焦点转移给头部元素，保证 CodeMirror 编辑器捕获键盘
@@ -205,7 +184,7 @@ export function AiFeatureSection() {
   return (
     <PinnedScene
       id="ai"
-      ariaLabel={isZh ? "AI 智能赋能体验" : "Ambient AI Showcase"}
+      ariaLabel={aiText.sectionAria}
       heightVh={200}
       frameClassName="bg-canvas z-[3]"
     >
@@ -498,7 +477,11 @@ export function AiFeatureSection() {
                   className="min-h-0 flex-1 overflow-hidden py-4 sm:py-5"
                   onMouseDown={() => editorRef.current?.focus()}
                 >
-                  <DynamicAiShowcaseEditor ref={editorRef} isZh={isZh} onStateChange={setAiState} />
+                  <DynamicAiShowcaseEditor
+                    ref={editorRef}
+                    locale={locale}
+                    onStateChange={setAiState}
+                  />
                 </div>
 
                 {/* 拟物 Keycap 交互控制面板：所有按钮设置 tabIndex={-1}，避免抢占 Tab 键 */}
@@ -594,15 +577,9 @@ export function AiFeatureSection() {
                         ? aiText.tipCompleted
                         : tabReady
                           ? aiState.stage === "grammar"
-                            ? isZh
-                              ? "✨ 阶段 ① 审校中：轻敲 Tab 逐项修正，Esc 跳过当前项"
-                              : "✨ Phase 1 Polish: Press Tab to accept fix, Esc to skip"
-                            : isZh
-                              ? "✨ 阶段 ② 续写中：轻敲 Tab 逐段融入，体验行云流水"
-                              : "✨ Phase 2 Continuation: Press Tab to accept inspired ghost text"
-                          : isZh
-                            ? "💡 提示：轻敲上方按钮，即可在画布中体验「草稿纠错」与「落笔成章」"
-                            : "💡 Tip: Tap buttons above to experience instant grammar polish & continuation"}
+                            ? aiText.phase1Tip
+                            : aiText.phase2Tip
+                          : aiText.initialTip}
                   </p>
                 </div>
               </div>

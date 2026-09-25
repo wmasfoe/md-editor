@@ -2,6 +2,8 @@
  * 官网 AI 展区两阶段连贯流（修病句 → 灵犀续写）预设数据与坐标生成器
  */
 
+import type { Locale } from "../lib/i18n/types";
+
 export interface AiGrammarItem {
   readonly from: number;
   readonly to: number;
@@ -53,10 +55,16 @@ function buildGrammarItems(
 const ZH_GRAMMAR_TEXT =
   "在数字时代的浪潮中，我们常常遗忘了书写的本真. 纸张与墨水的触感，渐渐被机械的敲击声所代取，然而真正的思考，往往需要一份从容与沉静。";
 
+const ZH_HANT_GRAMMAR_TEXT =
+  "在數位時代的浪潮中，我們常常遺忘了書寫的本真. 紙張與墨水的觸感，漸漸被機械的敲擊聲所代取，然而真正的思考，往往需要一份從容與沉靜。";
+
+const JA_GRAMMAR_TEXT =
+  "デジタル時代の喧騒の中で、私たちは書くことの本質を忘れがちです. 紙とインクの感触は機械的な打鍵音に取って代わられたが、真の思考には静けさとゆとりが求められます。";
+
 const EN_GRAMMAR_TEXT =
   "In an era of relentless distraction, true thinking demand a quiet sanctuary. Between thoughtful margins thoughts crystallize into lasting prose.";
 
-export const SHOWCASE_AI_FLOW_DATA: Record<"zh" | "en", AiShowcaseFlowData> = {
+export const SHOWCASE_AI_FLOW_DATA: Record<Locale, AiShowcaseFlowData> = {
   zh: {
     initialMarkdown: ZH_GRAMMAR_TEXT,
     grammarItems: buildGrammarItems(ZH_GRAMMAR_TEXT, [
@@ -89,6 +97,76 @@ export const SHOWCASE_AI_FLOW_DATA: Record<"zh" | "en", AiShowcaseFlowData> = {
       {
         stepIndex: 2,
         text: "重拾落笔成章的纯粹愉悦。",
+      },
+    ],
+  },
+  "zh-Hant": {
+    initialMarkdown: ZH_HANT_GRAMMAR_TEXT,
+    grammarItems: buildGrammarItems(ZH_HANT_GRAMMAR_TEXT, [
+      {
+        originalText: ".",
+        replacement: "。",
+        explanation: "半角英文句號規範為中文全角句號",
+      },
+      {
+        originalText: "所代取",
+        replacement: "所取代",
+        explanation: "糾正動賓語序倒裝，使行文更道地",
+      },
+      {
+        originalText: "，然而",
+        replacement: "；然而",
+        explanation: "轉折長複句改用分號斷句，語意更沉著",
+      },
+    ]),
+    continuationOnlyMarkdown: "寫作本是一場沉靜的對話。",
+    continuationSteps: [
+      {
+        stepIndex: 0,
+        text: "在宣紙方寸之間，",
+      },
+      {
+        stepIndex: 1,
+        text: "任由思緒靜靜流淌，",
+      },
+      {
+        stepIndex: 2,
+        text: "重拾落筆成章的純粹愉悅。",
+      },
+    ],
+  },
+  ja: {
+    initialMarkdown: JA_GRAMMAR_TEXT,
+    grammarItems: buildGrammarItems(JA_GRAMMAR_TEXT, [
+      {
+        originalText: ".",
+        replacement: "。",
+        explanation: "半角ピリオドを全角句点に修正",
+      },
+      {
+        originalText: "取って代わられたが",
+        replacement: "取って代わられつつありますが",
+        explanation: "文末の敬体（です・ます調）に合わせて統一",
+      },
+      {
+        originalText: "が求められます",
+        replacement: "こそが不可欠です",
+        explanation: "文脈の強調と自然な筆致への推敲",
+      },
+    ]),
+    continuationOnlyMarkdown: "書くことは、静かな自己との対話です。",
+    continuationSteps: [
+      {
+        stepIndex: 0,
+        text: "白紙の余白に、",
+      },
+      {
+        stepIndex: 1,
+        text: "思考が静かに紡がれ、",
+      },
+      {
+        stepIndex: 2,
+        text: "言葉が本来の輝きを取り戻します。",
       },
     ],
   },

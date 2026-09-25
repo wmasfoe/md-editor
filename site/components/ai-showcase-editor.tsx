@@ -15,6 +15,7 @@ import {
   type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
 import { SHOWCASE_AI_FLOW_DATA, type AiShowcaseStage } from "./showcase-ai-samples";
+import type { Locale } from "../lib/i18n/types";
 
 export interface AiShowcaseFlowState {
   readonly stage: AiShowcaseStage | "completed";
@@ -36,7 +37,8 @@ export interface AiShowcaseEditorHandle {
 }
 
 export interface AiShowcaseEditorProps {
-  readonly isZh: boolean;
+  readonly isZh?: boolean;
+  readonly locale?: Locale;
   readonly onStateChange?: (state: AiShowcaseFlowState) => void;
 }
 
@@ -63,8 +65,9 @@ const EDITOR_STYLES: React.CSSProperties = {
 } as React.CSSProperties;
 
 export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEditorProps>(
-  function AiShowcaseEditor({ isZh, onStateChange }, ref) {
-    const flowData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+  function AiShowcaseEditor({ isZh, locale, onStateChange }, ref) {
+    const activeLocale: Locale = locale ?? (isZh ? "zh" : "en");
+    const flowData = SHOWCASE_AI_FLOW_DATA[activeLocale];
 
     // 纯内存文档状态
     const [documentState] = useState<DocumentState>(() =>
@@ -90,7 +93,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
     const noopToast = useCallback(() => {}, []);
 
     const emitState = useCallback(() => {
-      const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+      const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
       onStateChangeRef.current?.({
         stage: stageRef.current,
         grammarIndex: grammarIndexRef.current,
@@ -100,12 +103,12 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         isFinished: stageRef.current === "completed",
         isDismissed: isDismissedRef.current,
       });
-    }, [isZh]);
+    }, [activeLocale]);
 
     // 启动 Phase 1 语法与标点审校
     const startPhase1 = useCallback(
       (activePorts: CodeMirrorEditorPorts) => {
-        const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+        const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
         stageRef.current = "grammar";
         grammarIndexRef.current = 0;
         continuationIndexRef.current = 0;
@@ -128,13 +131,13 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
 
         emitState();
       },
-      [documentState, isZh, emitState],
+      [documentState, activeLocale, emitState],
     );
 
     // 启动 Phase 2 行内灵犀续写（无缝接在当前文档末尾，或以纯续写起手文稿启动）
     const startPhase2 = useCallback(
       (activePorts: CodeMirrorEditorPorts, standalone = false) => {
-        const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+        const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
         stageRef.current = "continuation";
         continuationIndexRef.current = 0;
         isDismissedRef.current = false;
@@ -167,7 +170,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
 
         emitState();
       },
-      [documentState, isZh, emitState],
+      [documentState, activeLocale, emitState],
     );
 
     // 重置并启动完整两阶段连贯流
@@ -185,7 +188,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         return;
       }
       resetFlow();
-    }, [ports, isZh, resetFlow]);
+    }, [ports, activeLocale, resetFlow]);
 
     // 监听文档内容更新，推进两阶段状态机
     useEffect(() => {
@@ -198,7 +201,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
           return;
         }
 
-        const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+        const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
 
         if (stageRef.current === "grammar") {
           // 检查当前审校队列
@@ -238,7 +241,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
       return () => {
         unsubscribe();
       };
-    }, [documentState, isZh, startPhase2, emitState]);
+    }, [documentState, activeLocale, startPhase2, emitState]);
 
     // 处理驳回建议逻辑
     const handleDismiss = useCallback(() => {
@@ -250,7 +253,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
       if (stageRef.current === "grammar") {
         activePorts.dismissSuggestion();
         const sugg = activePorts.getSuggestion();
-        const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+        const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
         if (!sugg) {
           // 语法项全部跳过，自动进入续写
           grammarIndexRef.current = activeData.grammarItems.length;
@@ -264,7 +267,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         isDismissedRef.current = true;
         emitState();
       }
-    }, [isZh, startPhase2, emitState]);
+    }, [activeLocale, startPhase2, emitState]);
 
     // 处理重新获取建议逻辑
     const handleRetrigger = useCallback(() => {
@@ -273,7 +276,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         return;
       }
 
-      const activeData = SHOWCASE_AI_FLOW_DATA[isZh ? "zh" : "en"];
+      const activeData = SHOWCASE_AI_FLOW_DATA[activeLocale];
 
       if (stageRef.current === "grammar") {
         activePorts.showSuggestion({
@@ -298,7 +301,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         emitState();
         activePorts.focus();
       }
-    }, [documentState, isZh, emitState]);
+    }, [documentState, activeLocale, emitState]);
 
     // 暴露给父组件的受控操作
     useImperativeHandle(

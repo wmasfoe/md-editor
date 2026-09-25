@@ -33,7 +33,7 @@ export function SiteHeader({ catalog }: SiteHeaderProps) {
           <InkpointWordmark className="min-w-0 max-sm:text-[0.95rem]" />
         </Link>
 
-        <nav className="flex shrink-0 items-center gap-1 sm:gap-2.5" aria-label="主导航">
+        <nav className="flex shrink-0 items-center gap-1 sm:gap-2.5" aria-label={t.header.navAria}>
           <Link
             href="/changelog"
             className="inline-flex min-h-10 items-center rounded-full px-2.5 py-1.5 text-[13px] text-ink-soft transition-colors hover:bg-surface-soft hover:text-ink sm:min-h-0 sm:px-3 sm:text-sm"

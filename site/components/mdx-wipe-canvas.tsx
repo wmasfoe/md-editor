@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createDocumentState, type DocumentState } from "@md-editor/editor-core";
 import { useI18n } from "../lib/i18n/context";
-import { MDX_SHOWCASE_SAMPLE } from "./showcase-samples";
+import { getSampleMarkdown, MDX_SHOWCASE_SAMPLE } from "./showcase-samples";
 import { SiteLiveEditor } from "./site-live-editor";
 
 interface MdxWipeCanvasProps {
@@ -22,8 +22,8 @@ function syncMarkdown(from: DocumentState, to: DocumentState) {
       savedMarkdown: markdown,
       filePath: null,
       mode: to.getSnapshot().mode,
-      // 同一篇文档的**内容同步**（一份内容同时展示在两种模式下）⇒ 必须保留阅读位置。
-      // 不声明会回落 fail-safe `"different"`，让镜像面板在每次同步时被弹回顶部
+      // 同一篇文档的内容同步（一份内容同时展示在两种模式下）必须保留阅读位置。
+      // 不声明会回落 fail-safe "different"，让镜像面板在每次同步时被弹回顶部
       //（code-reviewer 复审 MEDIUM：本宿主在移除渲染层推断后漏声明）。
       replaceIntent: "same",
     },
@@ -42,8 +42,7 @@ export function MdxWipeCanvas({
   filename,
 }: MdxWipeCanvasProps) {
   const { locale } = useI18n();
-  const isZh = locale === "zh";
-  const initialMarkdown = isZh ? MDX_SHOWCASE_SAMPLE.markdownZh : MDX_SHOWCASE_SAMPLE.markdownEn;
+  const initialMarkdown = getSampleMarkdown(MDX_SHOWCASE_SAMPLE, locale);
   const samples = useMemo(() => [MDX_SHOWCASE_SAMPLE], []);
   const syncingRef = useRef(false);
 
@@ -59,6 +58,30 @@ export function MdxWipeCanvas({
       mode: "source",
     }),
   );
+
+  useEffect(() => {
+    const nextMarkdown = getSampleMarkdown(MDX_SHOWCASE_SAMPLE, locale);
+    wysiwygDocument.replaceDocument(
+      {
+        markdown: nextMarkdown,
+        savedMarkdown: nextMarkdown,
+        filePath: null,
+        mode: wysiwygDocument.getSnapshot().mode,
+        replaceIntent: "same",
+      },
+      { kind: "command", commandId: "locale.switch" },
+    );
+    sourceDocument.replaceDocument(
+      {
+        markdown: nextMarkdown,
+        savedMarkdown: nextMarkdown,
+        filePath: null,
+        mode: sourceDocument.getSnapshot().mode,
+        replaceIntent: "same",
+      },
+      { kind: "command", commandId: "locale.switch" },
+    );
+  }, [locale, sourceDocument, wysiwygDocument]);
 
   useEffect(() => {
     const unsubscribers = [wysiwygDocument, sourceDocument].map((from, index) => {
