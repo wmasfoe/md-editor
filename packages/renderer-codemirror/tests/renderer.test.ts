@@ -235,7 +235,9 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     // 夹具为 Setext 标题 + 裸 URL + 脚注：裸 URL 改为普通文本后不再是原子 ⇒ 3 → 2
     expect(probe.wysiwygProjection).toMatchObject({
       mode: "wysiwyg",
-      layoutDecorationCount: 2,
+      // 裸 URL 现在也会产出链接装饰（<a href> + .cm-md-link）⇒ 装饰数 2 → 3；
+      // 它**不是**原子（原子数保持 2：Setext + 脚注）
+      layoutDecorationCount: 3,
       atomicRangeCount: 2,
     });
     expect(probe.wysiwygProjection.protectedRanges).toHaveLength(2);
