@@ -131,4 +131,9 @@ describe("链接交互:label 装饰", () => {
     const record = linkRecord({ contentRange: undefined });
     expect(buildLinkLabelDecoration(record, "https://example.com")).toBeNull();
   });
+
+  it("空 contentRange (from === to) 返回 null，避免 RangeError: Mark decorations may not be empty", () => {
+    const record = linkRecord({ contentRange: { from: 1, to: 1 } });
+    expect(buildLinkLabelDecoration(record, "https://example.com")).toBeNull();
+  });
 });

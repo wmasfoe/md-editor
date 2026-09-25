@@ -111,6 +111,23 @@ function partitionRangeByCodeBlocks(
 }
 
 /**
+ * 安全调用 RectangleMarker.forRange，当 CodeMirror 处于过渡状态或 tile tree 尚未就绪时
+ * （例如在快速视口滚动或异步测量阶段抛出 "No tile at position ..."），
+ * 捕获异常并优雅回退为空数组，防止选区/光标层渲染崩溃
+ */
+function safeRectangleMarkersForRange(
+  view: EditorView,
+  className: string,
+  range: SelectionRange,
+): readonly RectangleMarker[] {
+  try {
+    return RectangleMarker.forRange(view, className, range);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 为代码块内的子选区生成并校准选区矩形：
  * 消除 CodeMirror 官方 rectanglesForRange 默认以编辑器全局 leftSide (88px 卡片外边框)
  * 绘制中间行与末行的假定，将其统一校准至代码字符起始列（textLeft），与首行选中态保持严格一致。
@@ -122,7 +139,7 @@ function computeCodeBlockMarkers(
   base: { left: number; top: number },
 ): readonly RectangleMarker[] {
   const range = EditorSelection.range(partitionFrom, partitionTo);
-  const rawMarkers = RectangleMarker.forRange(view, "cm-selectionBackground", range);
+  const rawMarkers = safeRectangleMarkersForRange(view, "cm-selectionBackground", range);
 
   // 测量当前代码块内可见代码行的文本起始列坐标 textLeft
   let textLeft: number | null = null;
@@ -131,7 +148,12 @@ function computeCodeBlockMarkers(
 
   for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
     const line = view.state.doc.line(lineNum);
-    const coords = view.coordsAtPos(line.from);
+    let coords: { left: number; top: number; right: number; bottom: number } | null = null;
+    try {
+      coords = view.coordsAtPos(line.from);
+    } catch {
+      coords = null;
+    }
     if (coords) {
       textLeft = coords.left - base.left;
       break;
@@ -218,44 +240,52 @@ export function isAtomSelection(state: EditorState, range: SelectionRange): bool
  * 计算选区标记集，对代码块多行边界进行校准，并对原子组件选区跳过文本背景绘制
  */
 export function computeSelectionMarkers(view: EditorView): readonly RectangleMarker[] {
-  const markers: RectangleMarker[] = [];
-  const base = getBase(view);
-  const { ranges } = view.state.selection;
+  try {
+    const markers: RectangleMarker[] = [];
+    const base = getBase(view);
+    const { ranges } = view.state.selection;
 
-  for (const range of ranges) {
-    if (range.empty) continue;
+    for (const range of ranges) {
+      if (range.empty) continue;
 
-    // 若该选区对应整块原子选区（如水平分割线），其选中态由组件自身外框呈现，跳过绘制文本选区背景
-    if (isAtomSelection(view.state, range)) {
-      continue;
-    }
-
-    const codeBlocks = findIntersectingCodeBlocks(view.state, range.from, range.to);
-    if (codeBlocks.length === 0) {
-      for (const marker of RectangleMarker.forRange(view, "cm-selectionBackground", range)) {
-        markers.push(marker);
+      // 若该选区对应整块原子选区（如水平分割线），其选中态由组件自身外框呈现，跳过绘制文本选区背景
+      if (isAtomSelection(view.state, range)) {
+        continue;
       }
-      continue;
-    }
 
-    const partitions = partitionRangeByCodeBlocks(range.from, range.to, codeBlocks);
-    for (const part of partitions) {
-      if (part.from >= part.to) continue;
-      if (part.isCodeBlock) {
-        const codeMarkers = computeCodeBlockMarkers(view, part.from, part.to, base);
-        for (const marker of codeMarkers) {
+      const codeBlocks = findIntersectingCodeBlocks(view.state, range.from, range.to);
+      if (codeBlocks.length === 0) {
+        for (const marker of safeRectangleMarkersForRange(view, "cm-selectionBackground", range)) {
           markers.push(marker);
         }
-      } else {
-        const partRange = EditorSelection.range(part.from, part.to);
-        for (const marker of RectangleMarker.forRange(view, "cm-selectionBackground", partRange)) {
-          markers.push(marker);
+        continue;
+      }
+
+      const partitions = partitionRangeByCodeBlocks(range.from, range.to, codeBlocks);
+      for (const part of partitions) {
+        if (part.from >= part.to) continue;
+        if (part.isCodeBlock) {
+          const codeMarkers = computeCodeBlockMarkers(view, part.from, part.to, base);
+          for (const marker of codeMarkers) {
+            markers.push(marker);
+          }
+        } else {
+          const partRange = EditorSelection.range(part.from, part.to);
+          for (const marker of safeRectangleMarkersForRange(
+            view,
+            "cm-selectionBackground",
+            partRange,
+          )) {
+            markers.push(marker);
+          }
         }
       }
     }
+
+    return markers;
+  } catch {
+    return [];
   }
-
-  return markers;
 }
 
 /**
@@ -396,20 +426,24 @@ export const codeBlockAtomicSelectionFilter: Extension = EditorState.transaction
 export const cursorLayer = layer({
   above: true,
   markers(view) {
-    const { state } = view;
-    const conf = getDrawSelectionConfig(state);
-    const cursors: RectangleMarker[] = [];
-    for (const r of state.selection.ranges) {
-      const prim = r === state.selection.main;
-      if (r.empty || conf.drawRangeCursor) {
-        const className = prim ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary";
-        const cursor = r.empty ? r : EditorSelection.cursor(r.head, r.assoc);
-        for (const piece of RectangleMarker.forRange(view, className, cursor)) {
-          cursors.push(piece);
+    try {
+      const { state } = view;
+      const conf = getDrawSelectionConfig(state);
+      const cursors: RectangleMarker[] = [];
+      for (const r of state.selection.ranges) {
+        const prim = r === state.selection.main;
+        if (r.empty || conf.drawRangeCursor) {
+          const className = prim ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary";
+          const cursor = r.empty ? r : EditorSelection.cursor(r.head, r.assoc);
+          for (const piece of safeRectangleMarkersForRange(view, className, cursor)) {
+            cursors.push(piece);
+          }
         }
       }
+      return cursors;
+    } catch {
+      return [];
     }
-    return cursors;
   },
   update(update, dom) {
     if (update.transactions.some((tr) => tr.selection)) {
