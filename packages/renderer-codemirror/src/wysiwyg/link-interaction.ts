@@ -46,10 +46,10 @@ export function linkDestinationFromRecord(
   doc: { sliceString(from: number, to: number): string },
 ): string | null {
   const destination = record.segments.find((segment) => segment.role === "destination");
-  if (!destination) {
-    return null;
-  }
-  const raw = doc.sliceString(destination.from, destination.to).trim();
+  // 裸 URL / 尖括号 autolink 没有 destination segment（其自身就是 URL）⇒ 回退到记录文本。
+  const raw = destination
+    ? doc.sliceString(destination.from, destination.to).trim()
+    : doc.sliceString(record.fullRange.from, record.fullRange.to).trim();
   // 角括号包裹的 URL(如 <https://example.com>)去掉尖括号
   return raw.startsWith("<") && raw.endsWith(">") ? raw.slice(1, -1) : raw;
 }
@@ -81,6 +81,17 @@ export function buildLinkLabelDecoration(
   }).range(content.from, content.to);
 }
 
+/**
+ * 「链接类」记录：`link`（`[标签](URL)`）、`autolink`（裸 URL 与 `<URL>`）、`reference-link`。
+ *
+ * 属主需求：**裸 `http://…` 与 `[]()` 都要**支持 Cmd/Ctrl+左击用默认浏览器打开；
+ * 且这些文本同时必须**可编辑**（`editPolicy: "native"`，见 node-policy）。三者的记录结构不同，
+ * 但"链接交互"（落光标 reveal / Cmd+点击打开 / Mod-Enter 打开）应共用同一套机制。
+ */
+function isLinkLikeRecord(record: MarkdownRangeRecord): boolean {
+  return record.kind === "link" || record.kind === "autolink" || record.kind === "reference-link";
+}
+
 /** 光标处的链接(经 selection head 所在 record) */
 function linkRecordAtSelection(state: EditorState): MarkdownRangeRecord | null {
   const head = state.selection.main.head;
@@ -89,7 +100,7 @@ function linkRecordAtSelection(state: EditorState): MarkdownRangeRecord | null {
     return null;
   }
   for (const record of index.records) {
-    if (record.kind === "link" && head >= record.fullRange.from && head <= record.fullRange.to) {
+    if (isLinkLikeRecord(record) && head >= record.fullRange.from && head <= record.fullRange.to) {
       return record;
     }
   }
@@ -121,7 +132,7 @@ function revealLinkSourceAt(view: EditorView, position: number): boolean {
   }
   const record = index.records.find(
     (candidate) =>
-      candidate.kind === "link" &&
+      isLinkLikeRecord(candidate) &&
       position >= candidate.fullRange.from &&
       position <= candidate.fullRange.to,
   );

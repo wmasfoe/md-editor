@@ -33,6 +33,13 @@ export function buildLinkMediaLayoutDecorations(
   if (record.kind === "link" && record.renderPolicy === "link-segmented") {
     return active ? [] : buildHiddenLinkFragments(record, "hidden", state.doc);
   }
+  // 裸 URL / 尖括号 autolink：文本本身即是 URL ⇒ **不隐藏任何片段**（保持可编辑），
+  // 但挂上 `<a href>` 与 `.cm-md-link` 标记，从而复用既有链接交互（单击 reveal、Cmd/Ctrl+单击打开）。
+  if (record.kind === "autolink") {
+    const url = linkDestinationFromRecord(record, state.doc);
+    const decoration = url === null ? null : buildLinkLabelDecoration(record, url);
+    return decoration ? [decoration] : [];
+  }
   if (record.kind === "image" && record.renderPolicy === "image-widget") {
     return [buildImageDecoration(record, state, active, selected)];
   }
