@@ -27,7 +27,8 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
    - `pnpm test`（运行所有 package 单元测试，必须 100% 通过；不强制要求 e2e 测试）；
    - `pnpm typecheck`（确保所有 workspace 无 TypeScript 类型错误）；
 9. **Push 后 CI 监控规范**：如果当前分支存在关联的 Pull Request，在 `git push` 成功后，必须自动执行 CI 状态监控（如 `gh pr checks` 或 `gh run watch`），观察并向用户汇报 CI 构建与测试结果，确保未引入远程破坏；
-10. **严禁无意义的兼容性 Re-export（杜绝代码臃肿）**：当抽取、拆解或新增独立子包/模块时，严禁在旧模块或旧包中为了所谓的“向后兼容”保留无意义的 `re-export` 转发代码。一旦拆出新包，必须直接修改所有历史调用方直接从新包导入，并彻底清理旧模块与无用导出，严防历史包袱累积导致代码库日益臃肿。
+10. **严禁无意义的兼容性 Re-export（杜绝代码臃肿）**：当抽取、拆解或新增独立子包/模块时，严禁在旧模块或旧包中为了所谓的“向后兼容”保留无意义的 `re-export` 转发代码。一旦拆出新包，必须直接修改所有历史调用方直接从新包导入，并彻底清理旧模块与无用导出，严防历史包袱累积导致代码库日益臃肿；
+11. **PR 合并与分支清理规范**：使用 GitHub CLI（`gh pr merge`）执行 PR 合并时，必须携带 `--delete-branch`（或 `-d`）参数，合并后自动清理远程分支与本地分支，避免已合入分支长期累积堆积；严禁删除 `main`、`dev`、`beta` 保护分支。
 
 ## 架构边界设计
 
@@ -170,6 +171,11 @@ Before pushing to remote, always execute and ensure passes:
 If a Pull Request is open for the branch, monitor its CI status after push:
 `gh pr checks --watch`
 Report the final CI status clearly to the user.
+
+### PR Merge & Branch Deletion Protocol
+When merging PRs via `gh pr merge`, always use `--delete-branch` (or `-d`), e.g.:
+`gh pr merge <pr_number> --squash --delete-branch`
+Never delete protected branches (`main`, `dev`, `beta`).
 </conventional_commit_protocol>
 
 ---

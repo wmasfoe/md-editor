@@ -174,6 +174,7 @@ v0.1 策略: MDX 组件作为 raw block 保留，不执行
 - **Commit 规范**: 严格遵循 Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `test:`, `chore:`)，建议带 scope，如 `feat(plugins): ...`。严禁随意句式或 Lore 格式。
 - **Push 前验证**: 必须执行并通过 `pnpm lint`、`pnpm test`（单元测试通过，不强制要求 e2e）、`pnpm typecheck`。
 - **Push 后 CI 监控**: 若存在关联 PR，push 完成后必须运行 `gh pr checks --watch` 监控 CI 状态并汇报。
+- **PR 合并与分支清理**: 使用 GitHub CLI（`gh pr merge`）合并 PR 时，必须携带 `--delete-branch`（或 `-d`），合并后自动清理远程与本地分支；严禁删除 `main`、`dev`、`beta` 保护分支。
 
 **严禁无意义的兼容性 Re-export (杜绝代码臃肿)**:
 - 当抽取、拆解或新增独立子包/模块时，严禁在旧包中为了所谓向后兼容保留无意义的 `re-export` 转发。

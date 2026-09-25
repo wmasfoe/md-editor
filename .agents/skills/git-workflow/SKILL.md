@@ -107,7 +107,29 @@ gh pr checks <pr_number> --watch
 
 ---
 
-## 5. Multi-Platform Release Protocol
+## 5. Pull Request Merge & Branch Cleanup Protocol (Mandatory)
+
+When merging a Pull Request using GitHub CLI (`gh pr merge`), **ALWAYS include the `--delete-branch` (`-d`) flag** to automatically delete both the remote branch and local tracking branch after merge:
+
+```bash
+# Recommended squash-and-merge with automatic branch deletion:
+gh pr merge <pr_number_or_url> --squash --delete-branch
+
+# Or with auto-merge enabled (automatically merges and deletes branch once CI passes):
+gh pr merge <pr_number_or_url> --squash --auto --delete-branch
+```
+
+### Safety Rules for Branch Deletion:
+- **Protected Branches**: NEVER delete `main`, `dev`, or `beta`.
+- Merging with `--delete-branch` ensures already-merged feature/fix branches do not accumulate as stale branches.
+- After merging, switch back to `main` and pull the latest changes:
+  ```bash
+  git checkout main && git pull origin main
+  ```
+
+---
+
+## 6. Multi-Platform Release Protocol
 
 For multi-platform releases, version bumps, changelog maintenance, and production deployment, refer to the dedicated **Release Skill**:
 - [`.agents/skills/release/SKILL.md`](file:///Users/ikun/code/md-editor/.agents/skills/release/SKILL.md)
@@ -121,3 +143,4 @@ For multi-platform releases, version bumps, changelog maintenance, and productio
 | **Web** | `pnpm release:web` | `web-v*` | `.github/workflows/release-web.yml` |
 | **Site** | `pnpm release:site` | N/A | Vercel CLI Prebuilt Deploy |
 | **Worker** | `pnpm deploy:worker` | N/A | Cloudflare Worker CLI |
+
