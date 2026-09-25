@@ -96,7 +96,7 @@ const INSTALL_BY_PLATFORM_EN: Record<"macos" | "linux" | "windows", PlatformInst
   },
 };
 
-export const DEFAULT_ANDROID_VERSION = "0.1.1";
+export const DEFAULT_ANDROID_VERSION = "0.2.0";
 
 /** 按版本和语言构造多平台主下载与次要架构入口；移动端排在最后并标明测试版状态。 */
 export function buildDownloadCatalog(

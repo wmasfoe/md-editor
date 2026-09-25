@@ -63,11 +63,11 @@ describe("getPlatformInstall", () => {
   it("builds mobile download catalog with Android APK and iOS TestFlight", () => {
     const zh = getMobileDownloadCatalog("zh");
     expect(zh.android.primary.href).toBe(
-      "https://download.jiaqi.im/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
+      "https://download.jiaqi.im/inkpoint/android/0.2.0/Inkpoint_0.2.0.apk",
     );
     expect(zh.android.primary.label).toBe("下载 Android 安装包 (APK)");
     expect(zh.android.format).toBe("Android 8.0+ · APK · 测试版");
-    expect(zh.android.version).toBe("0.1.1");
+    expect(zh.android.version).toBe("0.2.0");
     expect(zh.ios.primary.href).toContain("testflight.apple.com");
     expect(zh.ios.format).toBe("iOS 16.0+ · TestFlight · 测试版");
 

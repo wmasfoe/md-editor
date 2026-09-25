@@ -73,6 +73,35 @@ export async function runCli() {
     console.warn(`Could not fetch remote version.json: ${err.message}. Using local baseline.`);
   }
 
+  // 1.1 若已有清单中缺少 android 节点，尝试从 releases API 恢复最新 Android 版本
+  if (!existingManifest.android && platform !== "android") {
+    try {
+      const relRes = await fetch(`${distributionUrl}/api/${appName}/android/releases`, {
+        headers: { "User-Agent": "Inkpoint-Release-Script/1.0" },
+      });
+      if (relRes.ok) {
+        const relData = await relRes.json();
+        const androidRelease = relData.latestReleases?.android;
+        if (androidRelease) {
+          const ver = relData.latestAndroidVersion || androidRelease.version;
+          existingManifest.android = {
+            version: ver,
+            releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${ver}`,
+            apk: {
+              version: ver,
+              fileName: androidRelease.fileName || `Inkpoint_${ver}.apk`,
+              downloadUrl:
+                androidRelease.downloadUrl || `${distributionUrl}/${appName}/android/latest`,
+            },
+          };
+          console.log(`✓ Restored existing android node from releases API: v${ver}`);
+        }
+      }
+    } catch {
+      // Ignore recovery errors
+    }
+  }
+
   if (platform === "android") {
     // 移动端 Manifest 生成与合并
     const apkFile = findFile(

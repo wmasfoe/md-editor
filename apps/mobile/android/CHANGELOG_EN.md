@@ -2,6 +2,12 @@
 
 All notable changes to the Inkpoint Android application will be documented in this file.
 
+## 0.2.0 - 2026-09-25 (#82, #84)
+
+- **Edge distribution & releases archive**: Integrated with Cloudflare R2 automated multi-platform distribution system, supporting comprehensive historical release indexing and fast direct downloads (#82).
+- **Documentation & engineering standard upgrade**: Enhanced mobile architecture contracts and workspace collaboration documentation, aligning with multi-platform release specifications (#84).
+- **Editor engine & bridge performance**: Synchronized with the latest CodeMirror 6 core rendering mechanism, improving bidirectional event stream communication stability between WebView and Jetpack Compose.
+
 ## 0.1.1 - 2026-09-17 (#81)
 
 - **Fix crash when entering editor state**: Resolved occasional crash when transitioning into the editing state on mobile, improving bridge communication stability between WebView and Compose (#81).

@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   title: "更新记录",
 };
 
+/**
+ * ISR 页面级缓存：5分钟后台重新生成。
+ * 平时请求由边缘 CDN 直接提供缓存响应，一次读取全量复用，避免每次请求重复解析各端 CHANGELOG.md。
+ */
+export const revalidate = 300;
+
 export default async function ChangelogPage() {
   const desktopEntries = getDesktopChangelogEntries("zh");
   const desktopEntriesEn = getDesktopChangelogEntries("en");

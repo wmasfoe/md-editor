@@ -9,9 +9,10 @@
 | 端标识 | 对应工作区 | 版本管理与发版命令 | Git Tag 触发契约 | 关联更新日志 | CI/CD 工作流 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*` / `desktop-v*`<br>(基线: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-desktop.yml` |
+| **Android** | `apps/mobile/android` | `pnpm release:android`<br>`pnpm release:android:version` | `android-v*` | `apps/mobile/android/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-mobile.yml` |
 | **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*`（标签归档，不污染 GitHub Release） | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
 | **uTools** | `apps/utools` | `pnpm build:utools` | `utools-v*`<br>(基线: `utools-v0.1.0`) | `apps/utools/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-utools.yml` |
-| **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取双端中英文 Changelog 并在官网支持双语切换展示 | 静态部署 / Vercel CLI |
+| **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取全平台中英文 Changelog 并在官网支持多端切换展示 | 静态部署 / Vercel CLI |
 
 ---
 
@@ -45,7 +46,29 @@ pnpm release:desktop:version
 
 ---
 
-## 3. Web 在线版发版 (Web)
+## 3. Android 移动端发版 (Android)
+
+### 3.1 架构与发版流程
+- **版本单一事实源**：`apps/mobile/android/app/build.gradle.kts`（`versionName` 与 `versionCode`）以及 `apps/mobile/android/CHANGELOG.md`；
+- **全自动发布**：通过 `pnpm release:android` 执行版本号自增、CHANGELOG 写入、Git commit 与打 `android-v*` tag；
+- **CI 自动化构建与上传**：推送 tag 自动触发 `.github/workflows/release-mobile.yml`，打包发布 APK、上传至 Cloudflare R2、同步分发清单并触发官网部署。
+
+### 3.2 常用指令
+```bash
+# 交互式发布 Android 端（推荐）
+pnpm release:android
+
+# 命令行指定版本与说明
+pnpm release:android patch --notes "优化移动端编辑器体验"
+pnpm release:android 0.2.0 --notes "分发中心版本归档与稳定性提升"
+
+# 仅更新版本文件与日志，用于分步审核
+pnpm release:android:version
+```
+
+---
+
+## 4. Web 在线版发版 (Web)
 
 ### 3.1 架构与发布机制 (方案 A)
 - **独立发布，不占 Release 页面**：Web 端为持续在线 Web 服务，不生成 GitHub Release，确保 GitHub Releases 专用于桌面客户端安装包，保持 `Latest` 徽标纯净；

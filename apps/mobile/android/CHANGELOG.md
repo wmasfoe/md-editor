@@ -2,6 +2,12 @@
 
 All notable changes to the Inkpoint Android application will be documented in this file.
 
+## 0.2.0 - 2026-09-25 (#82, #84)
+
+- **边缘分发与版本归档支持**：接入 Cloudflare R2 自动化多平台分发体系，支持全量历史版本索引与秒级直链下载 (#82)
+- **文档与工程规范升级**：完善移动端架构契约与工作区协同文档，对齐全平台发布规范 (#84)
+- **编辑器引擎与桥接性能优化**：同步最新 CodeMirror 6 核心渲染机制，优化 WebView 与原生 Jetpack Compose 之间的双向事件流通信稳定性
+
 ## 0.1.1 - 2026-09-17 (#81)
 
 - **修复编辑器启动状态崩溃**：修复移动端进入编辑状态时的偶发崩溃问题，提升 WebView 与 Compose 通信稳定性 (#81)
