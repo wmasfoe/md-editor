@@ -22,7 +22,10 @@ mod window_chrome;
 #[cfg(target_os = "macos")]
 use app_menu::build_app_menu;
 use app_menu::MENU_ACTION_EVENT;
-use app_menu::{save_app_settings_and_update_menu, update_recent_files_menu};
+use app_menu::{
+    reapply_app_menu, save_app_settings_and_update_menu, set_mode_menu_checked,
+    update_recent_files_menu, ModeMenuState,
+};
 use file_commands::{
     allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
     create_markdown_tree_item, delete_markdown_tree_item, inspect_linked_file,
@@ -71,6 +74,8 @@ pub fn run() {
         .manage(SaveCommitGate::default())
         .manage(FolderWatcherState::default())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
+        // D-2：View 菜单勾选态镜像状态（app_menu::set_mode_menu_checked 写入，build_app_menu 读取）
+        .manage(ModeMenuState::default())
         .setup(|_app| {
             #[cfg(target_os = "macos")]
             window_chrome::install_initial_main_window_traffic_light_refresh(_app.handle());
@@ -101,6 +106,8 @@ pub fn run() {
             check_path_exists,
             save_recent_files,
             update_recent_files_menu,
+            reapply_app_menu,
+            set_mode_menu_checked,
             pick_theme_css_file,
             read_theme_css_file,
             show_file_tree_context_menu,

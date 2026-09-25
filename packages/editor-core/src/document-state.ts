@@ -161,6 +161,8 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
     filePath: input.filePath ?? null,
     mode: input.mode ?? "wysiwyg",
     documentGeneration: 1,
+    // 初始文档无「上一次替换」，视为「换文档」（fail-safe）
+    replaceIntent: "different",
     stateRevision: 0,
     contentRevision: 0,
     persistenceStatus: {
@@ -513,6 +515,9 @@ export function createDocumentState(input: DocumentStateInput = {}): DocumentSta
         filePath: replaceInput.filePath ?? null,
         mode: replaceInput.mode ?? currentSnapshot.mode,
         documentGeneration: currentSnapshot.documentGeneration + 1,
+        // 文档身份由**调用方显式声明**，缺省为 "different"（fail-safe）——
+        // 渲染层据此决定视口保留与否，不再自行从路径/内容前缀反推身份。
+        replaceIntent: replaceInput.replaceIntent ?? "different",
         stateRevision: currentSnapshot.stateRevision + 1,
         contentRevision: 0,
         persistenceStatus: {

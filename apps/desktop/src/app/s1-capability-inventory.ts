@@ -1,4 +1,9 @@
-export type S1CapabilityDisposition = "retained" | "removed-disabled" | "typed-unsupported";
+export type S1CapabilityDisposition =
+  | "retained"
+  | "removed-disabled"
+  | "typed-unsupported"
+  /** S1 基线之后新增的能力（D-3 块操作 / D-2 视图模式等）—— “retained” 暗示基线已存在，对新能力是失实来源（code-review LOW） */
+  | "new-capability";
 
 export type S1CapabilityBaseline = "implemented" | "legacy-engine" | "silent-noop-blocker";
 
@@ -43,10 +48,23 @@ const silentNoopCommands = [
   "format.heading3",
 ] as const;
 
+/** D-3 块操作命令（CM6 新能力，非 S1 迁移遗留项） */
+const d3BlockCommands = [
+  "block.moveUp",
+  "block.moveDown",
+  "block.duplicate",
+  "block.delete",
+] as const;
+
+/** D-2 视图模式命令（专注/打字机：renderer StateField 开关 + macOS View 菜单勾选项） */
+const d2ViewModeCommands = ["view.toggleFocusMode", "view.toggleTypewriterMode"] as const;
+
 export const S1_REGISTERED_COMMAND_IDS = [
   ...implementedCommands,
   ...legacyModeCommands,
   ...deferredLegacyCommands,
+  ...d3BlockCommands,
+  ...d2ViewModeCommands,
 ] as const;
 
 export const S1_REMOVED_COMMAND_IDS = silentNoopCommands;
@@ -80,6 +98,48 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     s1Disposition: "removed-disabled" as const,
     note: "The baseline command only logged; S1 removes it from the active runtime registry.",
   })),
+  {
+    id: "block.moveUp",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-3 block operation: move block up, reusing renderer block-move.ts.",
+  },
+  {
+    id: "block.moveDown",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-3 block operation: move block down, reusing renderer block-move.ts.",
+  },
+  {
+    id: "block.duplicate",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-3 block operation: duplicate block with blank-line normalization.",
+  },
+  {
+    id: "block.delete",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-3 block operation: delete block through protected transactions.",
+  },
+  {
+    id: "view.toggleFocusMode",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-2 focus mode: renderer focusModeField toggle mirrored to macOS View menu check state.",
+  },
+  {
+    id: "view.toggleTypewriterMode",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "New-in-D-2 typewriter mode: renderer typewriterModeField toggle mirrored to macOS View menu check state.",
+  },
   {
     id: "editor.markdown-input-history",
     kind: "surface",

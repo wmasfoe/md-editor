@@ -3,6 +3,7 @@ import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { selectWysiwygAtom } from "../atom-selection.ts";
+import { authorizeWysiwygProtectedChange } from "../change-authorization.ts";
 
 export interface ImageWidgetValue {
   readonly recordId: string;
@@ -86,6 +87,8 @@ function commitImageSource(
       changes: { from: range.from, to: range.to },
       selection: EditorSelection.cursor(range.from),
       userEvent: "input.delete",
+      // 轮1 architect WATCH（concern-3）：图片原子整删改用显式注解惯例（同 atom-selection）
+      annotations: [authorizeWysiwygProtectedChange.of(true)],
     });
     view.focus();
     return;
@@ -100,6 +103,8 @@ function commitImageSource(
     view.dispatch({
       changes: { from: range.from, to: range.to, insert: markdown },
       userEvent: "input",
+      // 轮1 concern-4 护栏命中：图片源同步重写 image 原子 range —— 受保护时必须授权
+      annotations: [authorizeWysiwygProtectedChange.of(true)],
     });
   }
   // 同步后光标移到图片后,自动取消原子选中
@@ -119,6 +124,8 @@ function deleteImage(wrapper: HTMLElement, view: EditorView): void {
     changes: { from: range.from, to: range.to },
     selection: EditorSelection.cursor(range.from),
     userEvent: "input.delete",
+    // 轮1 concern-4：与同函数上一个已注解删除保持惯例一致（image 整删）
+    annotations: [authorizeWysiwygProtectedChange.of(true)],
   });
   view.focus();
 }

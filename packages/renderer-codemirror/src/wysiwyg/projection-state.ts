@@ -173,6 +173,11 @@ export const endWysiwygCompositionGuardEffect = StateEffect.define<null>();
 /**
  * G006 P1-4:EditorView 几何采集(visibleRanges)经此 effect 注入投影层。
  * 由 visibleRangesProbePlugin 在 viewportChanged 时派发;StateField 缓存并在
+ *
+ * ⚠️ **生产当前是全文构建**（PRD R-6 明说，方案 (b) 约定）：probe 有意 no-op（update
+ * 周期禁 dispatch 的 CM 规范约束），生产不派发本 effect，G006 视口过滤处于休眠能力态；
+ * dispatcher 侧 feed（scroll/RAF 回调派发 + rangesEqual diff + scroll-jank 基准）
+ * = 方案 (a)，留给后续 $performance-goal 硬前置。F6/OB2 测试改写到 effect 注入路径。
  * 全量重建时过滤 layoutDecorations(原子/保护范围保持全文)。
  */
 export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceRange[]>();
@@ -1176,4 +1181,69 @@ function selectionActivatesRecord(
     return false;
   }
   return from < record.fullRange.to && to > record.fullRange.from;
+}
+
+const EMPTY_BLOCK_WIDGET_RANGES: readonly SourceRange[] = [];
+
+let cachedBlockWidgetSource: unknown = null;
+let cachedBlockWidgetRanges: readonly SourceRange[] = EMPTY_BLOCK_WIDGET_RANGES;
+
+/**
+ * 块 widget 覆盖的**源范围**（按 from 升序）。
+ *
+ * 判据 = 投影层自己写下的 block replace 装饰（`spec.block === true`）**且跨文本**
+ *（`to > from`）。`to > from` 用于排除**零长度点 widget**（如代码块工具栏 / spacer）：
+ * 点装饰并不「覆盖该行」，若当成覆盖会让缩进代码块的首个正文行失去行装饰。
+ *
+ * 为什么把判据放在投影层：`spec.block` 是**投影层拥有的渲染契约**。集中在拥有者处，
+ * 消费方（专注模式的行装饰、块工具栏的行装饰）就不必各自维护 kind 名单 ——
+ * 否则新增块 widget kind 时必然出现「一处改了、另一处忘了」的静默漂移。
+ * 真实缺陷（本批次修复）：曾经的块工具栏 kind 名单（只含 4 个 kind，已随本次迁移删除）
+ * 漏掉 setext 标题 / 引用定义 / 脚注定义（三者同为整块 replace widget），
+ * 于是同位置 `Decoration.line` 与块 widget 冲突 → 幻影行 / 块消失（F5）。
+ *
+ * 缓存按 `layoutDecorations` 的**对象身份**记忆：身份未变 ⇒ 渲染契约未变。
+ * ⚠️ 注意 `layoutDecorations` 会随 `visibleRanges` 变化而重建，故**不能**假设
+ *「块 widget 范围与可见区无关」—— 用身份做键才既正确又不漏失效。
+ */
+export function blockWidgetCoveredRanges(state: EditorState): readonly SourceRange[] {
+  const projection = state.field(wysiwygProjectionField, false);
+  if (projection === undefined) {
+    return EMPTY_BLOCK_WIDGET_RANGES;
+  }
+  if (projection.layoutDecorations === cachedBlockWidgetSource) {
+    return cachedBlockWidgetRanges;
+  }
+  const ranges: SourceRange[] = [];
+  projection.layoutDecorations.between(0, state.doc.length, (from, to, value) => {
+    if (value.spec?.block === true && to > from) {
+      ranges.push({ from, to });
+    }
+  });
+  // CM 的 `RangeSet.between()` 不承诺报告顺序（且 `RangeSet.update` 可能把越序范围落入
+  // nextLayer 后按层报告），而消费方用单调游标 → 显式排序，不依赖未承诺的第三方保证。
+  ranges.sort((left, right) => left.from - right.from);
+  cachedBlockWidgetSource = projection.layoutDecorations;
+  cachedBlockWidgetRanges = ranges;
+  return ranges;
+}
+
+/**
+ * 投影状态是否在两次状态之间变化 —— **投影派生消费者共用的唯一失效契约**。
+ *
+ * 为什么必须共用：一旦消费者从「自维护 kind 名单」改为「读投影派生值」（块 widget 覆盖范围），
+ * 其失效条件就必须同步跟上。两个消费者用两套失效契约正是漂移温床 —— 投影变了而消费者没重算，
+ * 就会留下陈旧装饰集，使行装饰与块 widget 同位置共存（幻影行 / 块消失，F5）。
+ *
+ * 判据 = 投影状态对象的**身份**：投影层真正重建时返回新的冻结对象，无关事务返回 `previous`。
+ * ⚠️ 不要退化成只比 `layoutDecorations` 身份 —— 投影没有 layout 装饰时前后都是
+ * `Decoration.none` 单例，而 `visibleRanges` 可能已变（G006 视口过滤会静默失效）。
+ */
+export function projectionStateChangedBetween(before: EditorState, after: EditorState): boolean {
+  return before.field(wysiwygProjectionField, false) !== after.field(wysiwygProjectionField, false);
+}
+
+/** `projectionStateChangedBetween` 的 ViewUpdate 适配（ViewPlugin 消费者使用） */
+export function projectionStateChanged(update: ViewUpdate): boolean {
+  return projectionStateChangedBetween(update.startState, update.state);
 }

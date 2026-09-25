@@ -57,6 +57,18 @@ import {
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
 import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
 import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
+import { deleteBlock, duplicateBlock, moveBlockDown, moveBlockUp } from "./wysiwyg/block-move.ts";
+import {
+  focusDimOpacityFacet,
+  focusModeField,
+  focusModeInitialFacet,
+  setFocusModeEffect,
+} from "./wysiwyg/focus-mode.ts";
+import {
+  setTypewriterModeEffect,
+  typewriterModeField,
+  typewriterModeInitialFacet,
+} from "./wysiwyg/typewriter-mode.ts";
 import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
 import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
 import {
@@ -111,6 +123,9 @@ export interface CodeMirrorRendererOptions {
   ) => void;
   /** 光标所在行号变更回调(1-based)，用于联动大纲等 UI 高亮 */
   readonly onCursorLineChange?: (line: number) => void;
+  /** D-2 可配 dim 强度（轮1 architect WATCH concern-8）：宿主注入通道，缺省走 facet 默认 0.38；
+   * 读取时按 spec 区间 [0.30, 0.50] 硬夹（resolveDimOpacity）。 */
+  readonly focusDimOpacity?: number;
   /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -160,6 +175,16 @@ export interface CodeMirrorRenderer {
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
+  moveBlockUp(): boolean;
+  moveBlockDown(): boolean;
+  duplicateBlock(): boolean;
+  deleteBlock(): boolean;
+  /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
+  toggleFocusMode(): boolean;
+  /** 回读视图轴（专注/打字机）真实开关态，供宿主核对菜单镜像一致性（S1(b)/MED-4） */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
+  /** D-2：切换打字机模式，返回切换后状态 */
+  toggleTypewriterMode(): boolean;
   getSelectionSnapshot(): {
     readonly from: number;
     readonly to: number;
@@ -180,6 +205,18 @@ export interface CodeMirrorRenderer {
   /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
   destroy(): void;
+}
+
+/**
+ * 视图轴（专注/打字机）开关快照。
+ *
+ * 视图轴与文档轴**正交**：文档边界（换文档 / 同一文档重装载）重建 `EditorState` 时，
+ * 视图轴开关必须由渲染层**继承**，不能随文档重置 —— 否则用户的视图偏好被静默关掉，
+ * 且宿主原生菜单镜像会与渲染层真实状态发散（S1(b) / MED-4 根因）。
+ */
+interface ViewAxisState {
+  readonly focus: boolean;
+  readonly typewriter: boolean;
 }
 
 export interface RendererViewAdapter {
@@ -495,6 +532,8 @@ class CodeMirrorRendererController {
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
   #visibilityRestoreSequence = 0;
   #modeScrollRestoreSequence = 0;
+  /** S7：快照重装载后的滚动恢复序列（防过期回调覆盖用户滚动） */
+  #reconcileScrollRestoreSequence = 0;
   readonly #modeScrollTopsByMode = new Map<EditorMode, number>();
   readonly #modeCursorPosByMode = new Map<EditorMode, number>();
   #destroyed = false;
@@ -545,6 +584,10 @@ class CodeMirrorRendererController {
       editorModeField,
       markdownRangeIndexField,
       mdxModeFacet.of(options.mdxMode ?? false),
+      // 轮1 architect WATCH concern-8：renderer 选项 → facet 的宿主注入路径（通道端到端可行使）
+      ...(options.focusDimOpacity === undefined
+        ? []
+        : [focusDimOpacityFacet.of(options.focusDimOpacity)]),
       mdxComponentRegistryFacet.of(options.mdxComponents ?? null),
       openLinkTargetFacet.of(options.openLinkTarget ?? null),
       linkInteractionExtension,
@@ -579,7 +622,8 @@ class CodeMirrorRendererController {
       }),
     ]);
 
-    const initialState = this.#createState(initialSnapshot);
+    // 会话初始：尚无「上一次视图轴状态」⇒ 两开关均关（宿主持久化偏好不属本批范围）
+    const initialState = this.#createState(initialSnapshot, { focus: false, typewriter: false });
     this.#view = viewFactory({
       parent: options.parent,
       state: initialState,
@@ -793,6 +837,13 @@ class CodeMirrorRendererController {
       );
     }
     const nextSelection = this.#clampedSelection(markdownLf.length);
+    // S7：**全量替换文档时必须保留视口位置**。
+    //
+    // 宿主与应用自身在会话中会重新装载当前文档（保存往返、外部改动、设置变更后的快照同步
+    // 都走本路径）。只要重发内容与编辑器当前内容存在**任何微小差异**（换行/尾空白归一即足够），
+    // 下面就是一次全量替换 —— 若不恢复滚动，正在阅读的用户会被**弹回顶部**。
+    // 属主复现（E34，夹具为其逐字文档）：滚动到 2560 → 装载后 0；修复后保持原位。
+    const preservedScrollTop = markdownLf === currentMarkdown ? null : this.#view.getScrollTop();
     this.#view.dispatch({
       ...(markdownLf === currentMarkdown
         ? {}
@@ -808,6 +859,17 @@ class CodeMirrorRendererController {
         rendererTransactionOrigin.of({ kind: "reconcile" }),
       ],
     });
+    if (preservedScrollTop !== null) {
+      // CodeMirror 可能在随后的 measure 中调整滚动锚点（与 setHostVisibility 同款处置）：
+      // 先在本次写入恢复一次，再在 measure 回调里复核一次。
+      this.#view.setScrollTop(preservedScrollTop);
+      const restoreSequence = ++this.#reconcileScrollRestoreSequence;
+      this.#requestMeasure(() => {
+        if (!this.#destroyed && this.#reconcileScrollRestoreSequence === restoreSequence) {
+          this.#view.setScrollTop(preservedScrollTop);
+        }
+      });
+    }
     this.#clearPendingProtocolState();
     this.#acceptSnapshotBookkeeping(snapshot);
     return this.#recordSyncResult({
@@ -1035,6 +1097,75 @@ class CodeMirrorRendererController {
     return acceptAiSuggestion(this.#view as unknown as EditorView);
   }
 
+  moveBlockUp(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return moveBlockUp(this.#view as unknown as EditorView);
+  }
+
+  moveBlockDown(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return moveBlockDown(this.#view as unknown as EditorView);
+  }
+
+  toggleFocusMode(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    const view = this.#view as unknown as EditorView | null;
+    if (!view) {
+      return false;
+    }
+    // 纯视图态：dispatch effect 改 StateField，零文档变更（S2 同源契约）
+    const next = !view.state.field(focusModeField, false);
+    view.dispatch({ effects: setFocusModeEffect.of(next) });
+    return next;
+  }
+
+  toggleTypewriterMode(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    const view = this.#view as unknown as EditorView | null;
+    if (!view) {
+      return false;
+    }
+    const next = !view.state.field(typewriterModeField, false);
+    view.dispatch({ effects: setTypewriterModeEffect.of(next) });
+    return next;
+  }
+
+  /**
+   * 读取**视图轴**（专注/打字机）当前开关态。
+   *
+   * 权威来源是渲染层的两个 StateField（见 docs/agent/product/editor_view_modes.md）。
+   * 宿主菜单镜像记录的是「最近一次已知勾选态」（请求态，或文档边界后的重同步值），
+   * 因此需要这条「回读真实状态」的通道：镜像不能被当成事实源（S1(b)/MED-4）。
+   */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
+    return {
+      focus: this.#view.state.field(focusModeField, false) === true,
+      typewriter: this.#view.state.field(typewriterModeField, false) === true,
+    };
+  }
+
+  duplicateBlock(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return duplicateBlock(this.#view as unknown as EditorView);
+  }
+
+  deleteBlock(): boolean {
+    if (this.#destroyed) {
+      return false;
+    }
+    return deleteBlock(this.#view as unknown as EditorView);
+  }
+
   dismissSuggestion(): boolean {
     if (this.#destroyed) {
       return false;
@@ -1171,15 +1302,22 @@ class CodeMirrorRendererController {
     this.#view.requestMeasure(afterMeasure);
   }
 
-  #createState(snapshot: DocumentSnapshot): EditorState {
+  #createState(
+    snapshot: DocumentSnapshot,
+    viewAxisAlignment: ViewAxisState,
+    selection: EditorSelection = EditorSelection.single(0),
+  ): EditorState {
     this.#explicitStateCreationCount += 1;
     return EditorState.create({
       doc: normalizeLineEndings(snapshot.markdown),
-      selection: EditorSelection.single(0),
+      selection,
       extensions: [
         ...this.#rootExtensions,
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
+        // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
+        focusModeInitialFacet.of(viewAxisAlignment.focus),
+        typewriterModeInitialFacet.of(viewAxisAlignment.typewriter),
       ],
     });
   }
@@ -1371,10 +1509,48 @@ class CodeMirrorRendererController {
     this.#modeScrollTopsByMode.clear();
     this.#modeCursorPosByMode.clear();
     this.#clearPendingProtocolState();
-    const nextState = this.#createState(snapshot);
+    // S7：**区分「换文档」与「同一文档重装载」**。
+    // 换文档回顶部是对的；但同一文档的重装载（保存往返、外部改动、设置变更后的快照重发）
+    // 若无条件归零，就会把正在阅读的用户**弹回顶部** —— 属主复现（E34，夹具为其逐字文档）。
+    //
+    // 身份判据**只认宿主声明**（`snapshot.replaceIntent`），渲染层不做任何推断
+    //（architect 终审驱动项 ①）：从路径/内容前缀反推会重复宿主的领域知识
+    //（宿主本就拥有 `documentGeneration` 与重装载意图），并悄悄成为视口语义的隐性事实源。
+    // 未声明时按 `"different"` 归零（fail-safe：宁归零，不保留错位阅读位置）——见 R17/R17e/R17f。
+    const previousScrollTop = this.#view.getScrollTop();
+    const sameDocument = snapshot.replaceIntent === "same";
+    // 同一文档重装载：**连光标一起保留**。否则视口保留了、光标却被复位到 0 ⇒ 光标落在视口之外，
+    // 下一次按键会把视口拽回顶部，等于没修（code-reviewer 复审 MEDIUM-3）。
+    // 换文档仍归零（R17 原契约）；same 时用 `#clampedSelection` 按新文档长度夹取
+    //（与 reconcile / external-edit 两条兄弟路径同一约定，可保留区间与多光标 —— architect R3）。
+    // 视图轴（专注/打字机）与文档轴正交：跨边界继承，不随文档重置（S1(b)/MED-4 根因修复）。
+    const viewAxisAlignment: ViewAxisState = {
+      focus: this.#view.state.field(focusModeField, false) === true,
+      typewriter: this.#view.state.field(typewriterModeField, false) === true,
+    };
+    const nextState = this.#createState(
+      snapshot,
+      viewAxisAlignment,
+      sameDocument
+        ? // 用**归一后**长度夹取（与 `#createState` 的 `normalizeLineEndings` 及 reconcile 兄弟路径
+          // 的 `markdownLf.length` 一致；今天等价，但不留「归一前/后长度混用」的潜在坑 —— architect R3/code-reviewer 残留 3）
+          this.#clampedSelection(normalizeLineEndings(snapshot.markdown).length)
+        : undefined,
+    );
     this.#view.setState(nextState);
     this.#view.clearDomSelection();
-    this.#view.setScrollTop(0);
+    if (sameDocument) {
+      // 与 setHostVisibility 同款：先写一次，再在 measure 回调复核（CM 可能调整滚动锚点）
+      const restoreSequence = ++this.#reconcileScrollRestoreSequence;
+      this.#view.setScrollTop(previousScrollTop);
+      this.#requestMeasure(() => {
+        if (!this.#destroyed && this.#reconcileScrollRestoreSequence === restoreSequence) {
+          this.#view.setScrollTop(previousScrollTop);
+        }
+      });
+    } else {
+      this.#view.setScrollTop(0);
+    }
     this.#stateReplacementCount += 1;
     this.#stateEpochSequence += 1;
     this.#stateEpochId = `${this.#viewId.replace("view", "state")}-${this.#stateEpochSequence}`;
@@ -1607,6 +1783,13 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionValue) => controller.showSuggestion(suggestion),
     acceptSuggestion: () => controller.acceptSuggestion(),
+    moveBlockUp: () => controller.moveBlockUp(),
+    moveBlockDown: () => controller.moveBlockDown(),
+    duplicateBlock: () => controller.duplicateBlock(),
+    deleteBlock: () => controller.deleteBlock(),
+    toggleFocusMode: () => controller.toggleFocusMode(),
+    getViewModeState: () => controller.getViewModeState(),
+    toggleTypewriterMode: () => controller.toggleTypewriterMode(),
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),

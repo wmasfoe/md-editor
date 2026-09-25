@@ -3,6 +3,7 @@ import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
 export * from "./content.ts";
 export * from "./document-state.ts";
+export * from "./document-identity.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
 
@@ -88,8 +89,14 @@ export type BuiltInCommandId =
   | "view.toggleSource"
   | "view.showWysiwyg"
   | "view.toggleSidebarPrimary"
+  | "view.toggleFocusMode"
+  | "view.toggleTypewriterMode"
   | "ai.continueWriting"
-  | "ai.fixGrammar";
+  | "ai.fixGrammar"
+  | "block.moveUp"
+  | "block.moveDown"
+  | "block.duplicate"
+  | "block.delete";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -103,6 +110,18 @@ export interface EditorActionHandlers {
   readonly openInsertTableDialog?: () => void | Promise<void>;
   readonly toggleSourceMode?: () => void | Promise<void>;
   readonly showWysiwygMode?: () => void | Promise<void>;
+  /** D-2 专注模式开关（同步切换，菜单勾选态在 host action 里镜像） */
+  readonly toggleFocusMode?: () => void | Promise<void>;
+  /** D-2 打字机模式开关 */
+  readonly toggleTypewriterMode?: () => void | Promise<void>;
+  /** D-3 块操作：上移块（复用 `moveBlock`） */
+  readonly moveBlockUp?: () => void | Promise<void>;
+  /** D-3 块操作：下移块（复用 `moveBlock`） */
+  readonly moveBlockDown?: () => void | Promise<void>;
+  /** D-3 块操作：复制块（块 range 复制 + 空行归一） */
+  readonly duplicateBlock?: () => void | Promise<void>;
+  /** D-3 块操作：删除块（走受保护事务，undo 可恢复） */
+  readonly deleteBlock?: () => void | Promise<void>;
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
   readonly continueAiWriting?: () => void | Promise<void>;
   readonly fixAiGrammar?: () => void | Promise<void>;
@@ -287,6 +306,20 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         "toggleSourceMode",
         { group: "视图", keywords: ["源码", "source", "toggle"] },
       );
+      registerActionCommand(
+        context.commands,
+        "view.toggleFocusMode",
+        "Focus Mode",
+        "toggleFocusMode",
+        { group: "视图", keywords: ["专注", "focus", "沉浸", "模式"] },
+      );
+      registerActionCommand(
+        context.commands,
+        "view.toggleTypewriterMode",
+        "Typewriter Mode",
+        "toggleTypewriterMode",
+        { group: "视图", keywords: ["打字机", "typewriter", "滚动", "模式"] },
+      );
       registerActionCommand(context.commands, "view.showWysiwyg", "Edit Mode", "showWysiwygMode", {
         group: "视图",
         keywords: ["编辑", "wysiwyg"],
@@ -377,6 +410,67 @@ export function createAiWritingFeature(): FeatureDescriptor {
         id: "ai.fixGrammar",
         key: "Mod-Shift-G",
         commandId: "ai.fixGrammar",
+      });
+    },
+  };
+}
+
+/**
+ * D-3 块操作命令（上移块 / 下移块 / 复制块 / 删除块）。
+ *
+ * 复用 `renderer-codemirror` 的 `wysiwyg/block-move.ts` 纯逻辑（其模块注释
+ * 明确预留「命令」为调用方）。按计划 R6：**本批不绑默认快捷键**，
+ * 只注册命令——命令面板可搜、`when` 可过滤、用户可在快捷键设置里自定义。
+ */
+export function createBlockCommandsFeature(): FeatureDescriptor {
+  return {
+    id: "block-commands",
+    title: "Block operation commands",
+    setup(context) {
+      registerActionCommand(context.commands, "block.moveUp", "Move Block Up", "moveBlockUp", {
+        group: "Blocks",
+        keywords: ["block", "move", "up", "块", "上移"],
+      });
+      registerActionCommand(
+        context.commands,
+        "block.moveDown",
+        "Move Block Down",
+        "moveBlockDown",
+        { group: "Blocks", keywords: ["block", "move", "down", "块", "下移"] },
+      );
+      registerActionCommand(
+        context.commands,
+        "block.duplicate",
+        "Duplicate Block",
+        "duplicateBlock",
+        { group: "Blocks", keywords: ["block", "duplicate", "copy", "块", "复制"] },
+      );
+      registerActionCommand(context.commands, "block.delete", "Delete Block", "deleteBlock", {
+        group: "Blocks",
+        keywords: ["block", "delete", "remove", "块", "删除"],
+      });
+
+      // S8（编辑器交互 bug 批，属主 #7）：块操作快捷键。
+      // 默认键可在设置里改（defaults.ts 同名 id 行）；占用盘点与守卫测试见该文件注释。
+      context.keymaps.register({
+        id: "block.moveUp",
+        key: "Mod-Alt-ArrowUp",
+        commandId: "block.moveUp",
+      });
+      context.keymaps.register({
+        id: "block.moveDown",
+        key: "Mod-Alt-ArrowDown",
+        commandId: "block.moveDown",
+      });
+      context.keymaps.register({
+        id: "block.duplicate",
+        key: "Mod-Alt-D",
+        commandId: "block.duplicate",
+      });
+      context.keymaps.register({
+        id: "block.delete",
+        key: "Mod-Alt-Backspace",
+        commandId: "block.delete",
       });
     },
   };

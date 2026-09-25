@@ -47,6 +47,25 @@ export interface CodeMirrorEditorPorts {
     readonly text: string;
     readonly head: number;
   };
+  /** D-3 块操作：上移块 */
+  moveBlockUp(): boolean;
+  /** D-3 块操作：下移块 */
+  moveBlockDown(): boolean;
+  /** D-3 块操作：复制块 */
+  duplicateBlock(): boolean;
+  /** D-3 块操作：删除块 */
+  deleteBlock(): boolean;
+  /** D-2 视图模式：切换专注模式，返回切换后状态 */
+  toggleFocusMode(): boolean;
+  /** D-2 视图模式：切换打字机模式，返回切换后状态 */
+  toggleTypewriterMode(): boolean;
+  /**
+   * D-2/S1(b) 视图模式：**回读**视图轴（专注/打字机）真实开关态。
+   *
+   * 渲染层的 `focusModeField` / `typewriterModeField` 是单一事实源；
+   * 宿主菜单镜像记的是「最近一次已知勾选态」，文档边界等事件后必须用它校对并**重同步**（MED-4）。
+   */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
   focus(): void;
   setSelection(from: number, to: number): void;
   scrollToLine(
@@ -221,6 +240,13 @@ export function createCodeMirrorEditorBridge(
     clientId: renderer.clientId,
     mode,
     applyExternalEdit,
+    moveBlockUp: () => renderer.moveBlockUp(),
+    moveBlockDown: () => renderer.moveBlockDown(),
+    duplicateBlock: () => renderer.duplicateBlock(),
+    deleteBlock: () => renderer.deleteBlock(),
+    toggleFocusMode: () => renderer.toggleFocusMode(),
+    toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
+    getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionValue) => renderer.showSuggestion(suggestion),

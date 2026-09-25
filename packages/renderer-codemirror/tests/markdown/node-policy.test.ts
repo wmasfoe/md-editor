@@ -65,11 +65,11 @@ describe("Markdown node policy registry", () => {
     }
   });
 
-  it("claims only top-level GFM URL nodes as bare autolinks", () => {
+  it("treats top-level GFM URL nodes as plain editable text (属主手测缺陷：曾按受保护原子处理，导致改不了/删不掉)", () => {
     expect(getMarkdownNodePolicy("URL", "Paragraph")).toMatchObject({
       kind: "autolink",
-      renderPolicy: "source-only-atom",
-      editPolicy: "source-mode-only",
+      renderPolicy: "raw-fallback",
+      editPolicy: "native",
     });
     expect(getMarkdownNodePolicy("URL", "Autolink")).toBeNull();
     expect(getMarkdownNodePolicy("URL", "Link")).toBeNull();

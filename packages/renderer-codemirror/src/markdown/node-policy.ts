@@ -256,10 +256,15 @@ const REFERENCE_IMAGE_POLICY = definePolicy({
 });
 
 const BARE_AUTOLINK_POLICY = definePolicy({
+  // 裸 URL（无尖括号）在 markdown 里**就是普通文本** —— 属主手测缺陷：此前按
+  // 「不渲染的原子 + 仅源码模式可编辑」处理，导致光标离开再回来**改不了**（保护层静默拒绝）、
+  // **删不掉**（不在 DeletableAtom 白名单），且光标进入时出现原子描边。
+  // 现改回文本语义：可落光标、可就地输入、可删除，且不产生任何装饰。
+  // 注意：`<https://…>` 形态走上面的 `Autolink` 策略（渲染为链接、点击即可编辑），保持不动。
   kind: "autolink",
-  renderPolicy: "source-only-atom",
-  editPolicy: "source-mode-only",
-  interactionPolicy: "source-mode-required",
+  renderPolicy: "raw-fallback",
+  editPolicy: "native",
+  interactionPolicy: "text",
   priority: 50,
   markerNodeNames: [],
   contentStrategy: "full",

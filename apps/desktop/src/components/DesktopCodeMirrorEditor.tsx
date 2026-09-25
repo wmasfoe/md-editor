@@ -95,6 +95,9 @@ export function DesktopCodeMirrorEditor({
             markdown: nextMarkdown,
             savedMarkdown: current.savedMarkdown,
             filePath: current.filePath,
+            // 粘贴图片 = **同一篇文档内**的内容变更（走整篇替换管道）⇒ 显式声明 same，
+            // 否则渲染层会把这次替换当成换文档而把正在阅读的用户弹回顶部（S7）。
+            replaceIntent: "same",
           },
           { kind: "command", commandId: "editor.pasteImage" },
         );

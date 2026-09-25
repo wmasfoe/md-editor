@@ -86,6 +86,7 @@ scratch/
 dist-desktop/
 .omx/
 .omc/
+.pi/
 .agents/*
 !.agents/skills/
 !.agents/skills/**

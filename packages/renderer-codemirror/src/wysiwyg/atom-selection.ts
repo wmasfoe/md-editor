@@ -6,6 +6,7 @@ import {
   type SelectionRange,
   type StateCommand,
 } from "@codemirror/state";
+import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 import type { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
@@ -137,6 +138,9 @@ function deleteExactlySelectedAtoms(
       changes: atomDeletionChanges(uniqueAtoms),
       effects: clearWysiwygAtomSelectionEffect.of(null),
       userEvent,
+      // 轮1 architect WATCH（concern-3）：整原子删除改用同侪的显式注解惯例，
+      // 不再依赖 change-protection 的恰好选区 carve-out（语义等价、惯例统一）。
+      annotations: [authorizeWysiwygProtectedChange.of(true)],
     }),
   );
   return true;

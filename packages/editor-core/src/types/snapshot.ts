@@ -45,6 +45,21 @@ export type PersistenceStatus =
     };
 
 /**
+ * 文档替换的**身份声明**（由宿主显式给出，渲染层不得自行推断）
+ *
+ * 渲染层需要知道「本次整篇替换文档」是否仍属于同一篇文档，才能决定是否保留阅读位置（视口）。
+ * 这一判断依赖宿主的领域知识（用户意图、文件系统事件来源），**不能**由渲染层从
+ * 路径或内容前缀反推 —— 反推会与宿主已有的 `documentGeneration` 语义重复，
+ * 并悄悄成为视口语义的隐性事实源（architect 终审驱动项 ①）。
+ *
+ * - `same`: 同一篇文档的重新装载（保存往返、外部改动、快照重发）⇒ 视口保留
+ * - `different`: 进入另一篇文档（打开、新建、模板复制）⇒ 视口归零
+ *
+ * **缺省语义为 `different`（fail-safe）**：未声明时宁可归零，也不要保留错位的阅读位置。
+ */
+export type DocumentReplaceIntent = "same" | "different";
+
+/**
  * 不可变文档状态快照
  *
  * 记录文档在某一时刻的完整只读状态。外部组件与渲染器仅能消费此快照，
@@ -66,6 +81,14 @@ export interface DocumentSnapshot {
    * 每次执行“新建文档”或“整篇替换文档”时自增，用于快速作废旧文档的所有异步操作
    */
   readonly documentGeneration: number;
+  /**
+   * **最近一次整篇替换**的身份声明（见 {@link DocumentReplaceIntent}）
+   *
+   * 语义边界：本字段描述的是「产生当前状态的那次替换」，因此仅在 `documentGeneration`
+   * 自增的那一份快照上对渲染层有意义；后续内容/模式/持久化变更会原样继承它，
+   * 渲染层**只在文档边界（代际自增）读取**，故继承不会造成误判。
+   */
+  readonly replaceIntent: DocumentReplaceIntent;
   /**
    * 整体状态版本号 (State Revision)
    * 包含内容变动、路径变动、模式切换等任意状态跃迁时单调递增

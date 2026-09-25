@@ -3,6 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 const SCROLL_FIXTURE = "/fixtures/s1-scroll.md";
 const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
 const REDO_KEY = process.platform === "darwin" ? "Meta+Shift+z" : "Control+y";
+/** AC-S1-a 后半句的键位路径（与 e2e helper 的 MOD_KEY 同一平台约定） */
+const MOD_SLASH = process.platform === "darwin" ? "Meta+/" : "Control+/";
 
 test.describe("CodeMirror S1 desktop product surface", () => {
   test("E1-E3: preserves one view through modes/rerenders and emits no echo", async ({ page }) => {
@@ -473,6 +475,22 @@ test.describe("CodeMirror S1 desktop product surface", () => {
     const afterClick = await diagnostics(page);
     expect(afterClick.renderer?.selectionAnchor).toBe(afterClick.renderer?.selectionHead);
     expect(afterClick.renderer?.selectionRanges).toHaveLength(1);
+  });
+
+  test("E39/AC-S1-a：Mod-/ 键位仍可双向切换源码模式（非面板路径）", async ({ page }) => {
+    // AC-S1-a 的后半句（「Mod-/ 仍可双向切换源码」）此前只被**面板路径**
+    //（`view.toggleSource`，见 G007 命令面板 spec）覆盖，**键位路径没有任何用例**。
+    // 模式判据用编辑器根属性 `data-editor-mode`（与 E1-E3 同款），不依赖内部字段。
+    await openFixture(page, SCROLL_FIXTURE);
+    const editor = page.locator(".cm-editor");
+    await expect(editor, "前置：处于 wysiwyg").toHaveAttribute("data-editor-mode", "wysiwyg");
+
+    await page.locator(".cm-content").click();
+    await page.keyboard.press(MOD_SLASH);
+    await expect(editor, "Mod-/ 应切到源码模式").toHaveAttribute("data-editor-mode", "source");
+
+    await page.keyboard.press(MOD_SLASH);
+    await expect(editor, "再按一次应切回 wysiwyg").toHaveAttribute("data-editor-mode", "wysiwyg");
   });
 });
 

@@ -51,12 +51,6 @@ export const DEFAULT_SHORTCUT_TEMPLATES: readonly Omit<ShortcutSetting, "key">[]
     defaultKey: "Mod-Shift-H",
   },
   {
-    id: "format.link",
-    commandId: "format.link",
-    label: "插入 / 包裹链接",
-    defaultKey: "Mod-K",
-  },
-  {
     id: "format.codeBlock",
     commandId: "format.codeBlock",
     label: "插入代码块",
@@ -169,5 +163,32 @@ export const DEFAULT_SHORTCUT_TEMPLATES: readonly Omit<ShortcutSetting, "key">[]
     commandId: "ai.fixGrammar",
     label: "AI 语法与润色修复",
     defaultKey: "Mod-Shift-G",
+  },
+  // S8（编辑器交互 bug 批，属主 #7）：块操作快捷键。
+  // 占用盘点：与既有 Mod-Alt-T（插表格）/ Mod-Alt-f,y（视图模式）/ Mod-Alt-1..6 / Mod-Alt-0
+  // 及全部 Mod-* 条目均无冲突（由 app-settings 的占用守卫测试锁定，含大小写不敏感归一）。
+  {
+    id: "block.moveUp",
+    commandId: "block.moveUp",
+    label: "上移块",
+    defaultKey: "Mod-Alt-ArrowUp",
+  },
+  {
+    id: "block.moveDown",
+    commandId: "block.moveDown",
+    label: "下移块",
+    defaultKey: "Mod-Alt-ArrowDown",
+  },
+  {
+    id: "block.duplicate",
+    commandId: "block.duplicate",
+    label: "复制块",
+    defaultKey: "Mod-Alt-D",
+  },
+  {
+    id: "block.delete",
+    commandId: "block.delete",
+    label: "删除块",
+    defaultKey: "Mod-Alt-Backspace",
   },
 ];

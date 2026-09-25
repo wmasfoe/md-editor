@@ -2,6 +2,8 @@ import { Prec, StateEffect, StateField, type Extension, type Range } from "@code
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../mode.ts";
+import { wysiwygProjectionField } from "./projection-state.ts";
+import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
 
 export interface AiSuggestionItem {
   readonly from: number;
@@ -291,7 +293,24 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+/**
+ * IME / 组合输入护栏：与 `canRunCodeBlockCommand`(`code-block-commands.ts:362-365`)、
+ * `viewCommand`/`canRunStructuredCommand`(`markdown-commands.ts:87-101`) 同模式。
+ *
+ * 背景（D-1b，共识评审 pass-1 发现的真实缺陷）：本函数此前**没有** composing 门控，
+ * 而它在 keymap facet 中是**第一个** Tab 绑定（`renderer.ts:553` 早于 `:554`），
+ * 因此 IME 组合期间按 Tab 会被 AI 接受抢走，违反 D2 铁律「瞬时模态态 > 结构语义」中的
+ * 第 1 步「IME 组合中 → 放行原生」。
+ */
+function canAcceptAiSuggestion(view: EditorView): boolean {
+  const projection = view.state.field(wysiwygProjectionField, false);
+  return !view.composing && (!projection || projection.compositionGuardRanges.length === 0);
+}
+
 export function acceptAiSuggestion(view: EditorView): boolean {
+  if (!canAcceptAiSuggestion(view)) {
+    return false;
+  }
   const suggestion = view.state.field(aiSuggestionField);
   if (!suggestion || suggestion.items.length === 0) {
     return false;
@@ -348,7 +367,10 @@ export function acceptAiSuggestion(view: EditorView): boolean {
       anchor: nextTargetItem ? nextTargetItem.from : nextCursorPos,
     },
     effects,
-    annotations: [isolateHistory.of("full")],
+    // 护栏扫描发现（轮1 concern-4 首跑命中）：与 H2 同类 —— AI 接受的插入若落在
+    // 受保护区（表格单元格/围栏代码/原子）会被 protection 静默拒绝，建议被消费却无落字。
+    // 用户显式接受 = 授权语义，补受保护注解。
+    annotations: [isolateHistory.of("full"), authorizeWysiwygProtectedChange.of(true)],
     userEvent: "input.ai",
   });
 
@@ -390,10 +412,8 @@ export function dismissAiSuggestion(view: EditorView): boolean {
 }
 
 export const aiSuggestionKeymap = keymap.of([
-  {
-    key: "Tab",
-    run: acceptAiSuggestion,
-  },
+  // D-MB：Tab 已收敛到统一 Tab arbiter（tab-arbiter-command.ts，唯一 Prec.highest Tab
+  // 绑定）—— 此处不再单独绑 Tab，次序由纯决策函数单一定义（H3 由构造消失）。
   {
     key: "Mod-Enter",
     run: acceptAiSuggestion,

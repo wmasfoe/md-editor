@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   createDocumentState,
+  resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
 } from "@md-editor/editor-core";
@@ -363,6 +364,8 @@ export function UtoolsApp() {
                   savedMarkdown: content,
                   filePath: targetFile,
                   mode: snapshotRef.current.mode,
+                  // 同一文档重开的显式声明规则（editor-core 收敛，三宿主共用）
+                  replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetFile),
                 },
                 { kind: "command", commandId: "utools.openWorkspace" },
               );
@@ -398,6 +401,8 @@ export function UtoolsApp() {
                     savedMarkdown: content,
                     filePath: firstMd.path,
                     mode: snapshotRef.current.mode,
+                    // 同一文档重开的显式声明规则（editor-core 收敛，三宿主共用）
+                    replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, firstMd.path),
                   },
                   { kind: "command", commandId: "utools.openFolderFile" },
                 );
@@ -426,6 +431,8 @@ export function UtoolsApp() {
                   savedMarkdown: content,
                   filePath: targetPath,
                   mode: snapshotRef.current.mode,
+                  // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
+                  replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetPath),
                 },
                 { kind: "command", commandId: "utools.openFile" },
               );
@@ -516,6 +523,8 @@ export function UtoolsApp() {
             savedMarkdown: content,
             filePath: targetPath,
             mode: snapshotRef.current.mode,
+            // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
+            replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetPath),
           },
           { kind: "command", commandId: "utools.openFilePicker" },
         );
@@ -566,6 +575,8 @@ export function UtoolsApp() {
               savedMarkdown: content,
               filePath: firstMd.path,
               mode: snapshotRef.current.mode,
+              // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
+              replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, firstMd.path),
             },
             { kind: "command", commandId: "utools.openFolderPicker" },
           );
@@ -782,6 +793,8 @@ export function UtoolsApp() {
                 savedMarkdown: current.savedMarkdown,
                 filePath: current.filePath,
                 mode: current.mode,
+                // 图片插入 = 同一篇文档内的内容变更（整篇替换管道）⇒ 保留阅读位置
+                replaceIntent: "same",
               },
               { kind: "command", commandId: "editor.insertImage" },
             );
@@ -793,6 +806,8 @@ export function UtoolsApp() {
               savedMarkdown: current.savedMarkdown,
               filePath: current.filePath,
               mode: current.mode,
+              // 同上：图片插入走整篇替换管道，但属同一篇文档
+              replaceIntent: "same",
             },
             { kind: "command", commandId: "editor.insertImage" },
           );

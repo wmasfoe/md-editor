@@ -1,0 +1,66 @@
+# 编辑器视图模式：专注模式 / 打字机模式（D-2）
+
+用途：记录 **用户可见的视图模式行为契约**（菜单项、键位、勾选态镜像、可配项）与其关键取舍。
+当需要判断「专注/打字机模式应如何表现、键位为何是这两个、哪些行为是有意为之」时读本文件。
+实现细节见 `packages/renderer-codemirror/src/wysiwyg/focus-mode.ts` 与 `typewriter-mode.ts`。
+
+## 1. 行为契约
+
+| 能力 | 行为 | 关键约束 |
+| --- | --- | --- |
+| 专注模式 | 光标所在块保持不透明，其余块降透明度 | **零文档变更**（纯视图态）；**跟随光标**（不是鼠标悬停，避免闪烁） |
+| 打字机模式 | 光标**常驻**钉在视口中心（内容在其下滚动） | **A1：手动滚动不被抢、不自动归位**；移动光标**平滑**归位（140ms 缓动）；**打字即时**归位（禁 smooth，避免打字发飘）；单滚动所有权 |
+
+两种模式**可叠加**，故在 macOS「视图」菜单中为**两个独立的勾选项**（单一菜单项无法表达叠加态）。
+
+- dim 强度默认 `0.38`，可配区间**硬夹在 `[0.30, 0.50]`**；经 `focusDimOpacityFacet` 注入
+  （renderer 选项 `focusDimOpacity` 已打通），非有限值回落默认值。
+- dim **不加背景色/遮罩**（保持宣纸/炭焙材质），只降透明度 + 120ms 过渡；
+  搜索命中在 dim 块内**显式保持对比度**。
+
+## 2. 键位（含一次因碰撞而改选）
+
+| 菜单项 | 键位 | 说明 |
+| --- | --- | --- |
+| 专注模式 | `Mod-Alt-f` | `f` = focus |
+| 打字机模式 | `Mod-Alt-y` | **原选定 `Mod-Alt-t`，因与表格插入冲突而改选** |
+
+**为什么不能用 `Mod-Alt-t`**：原生菜单加速键由 muda 解析，其 `parse_code()` 先对键名做
+`to_uppercase()` 再匹配（`"KEYT" | "T" => KeyT`），因此 `Mod-Alt-t` 与既有表格插入的
+`Mod-Alt-T` 是**同一个 OS 级加速键**（macOS 只会让其中一个生效）。
+该结论由结构性守卫测试锁定：`app_menu::menu_accelerator_collision_tests`
+（大小写不敏感两两不同 + 自证 + 「打字机 ≠ 表格」回归锁）。
+
+> 教训：涉及外部依赖语义的判定（此处＝原生菜单如何解析加速键）必须**读依赖源码**后再下结论；
+> 仅凭命名直觉（大写＝含 Shift）会产出假保证。
+
+## 3. 勾选态镜像（renderer 为单一事实源）
+
+- 渲染层切换后经宿主 `invoke("set_mode_menu_checked", { mode, checked })` 写入 Rust 侧镜像状态；
+- 菜单重建时按镜像状态应用 `checked`；写入失败则回退 `invoke("reapply_app_menu")`（失败留痕，不静默）；
+- **Rust 侧是尽力而为的镜像**，渲染层的 StateField 才是权威（镜像不一致时以渲染层为准）。
+- **视图轴与文档轴正交**：文档边界重建 `EditorState` 时经 `focusModeInitialFacet` /
+  `typewriterModeInitialFacet` 注入初值 ⇒ 视图轴**跨文档边界继承**，不随文档重置。
+- **文档边界后宿主主动重同步**：宿主在 `documentGeneration` 变化时经 `getViewModeState()`
+  回读渲染层真实状态并重写镜像，再在 Tauri 下**先** `set_mode_menu_checked`（focus + typewriter，
+  写 Rust 侧 `ModeMenuState`）**再** `reapply_app_menu`（重建时 `build_app_menu` 读该状态）。
+  两步顺序不可颠倒：`ModeMenuState` **只由** `set_mode_menu_checked` 写入，只重建会读到旧勾选。
+- 原生菜单勾选的**视觉结果**无法在浏览器内断言（E2E 只验证「镜像 === 渲染层真实状态」）；
+  该部分是人工验收项，Rust 侧由 `mode_menu_tests` 覆盖状态写入。
+
+## 4. 与之相关的用户可见变更
+
+- **`Mod+K` 归命令面板**：编辑器内的 `Mod-k` 绑定已移除（此前与 G007 命令面板双触发），命令面板独占该键。
+- **`format.link` 默认键删除**：其默认键与既有交互冲突，已从快捷键默认表移除。
+- 菜单加速键读取的 settings id 与**真实命令 id 同名**（`view.toggleFocusMode` /
+  `view.toggleTypewriterMode`）；当前 `defaults.ts` 尚无对应行，故仍用内联默认值 ——
+  将来若补行即可让用户改键生效（补行需先解决「JS keymap 与原生菜单加速键同时注册」的双触发风险）。
+
+## 5. 已知取舍与后续项
+
+- **生产当前是全文构建**：G006 视口过滤（`visibleRanges`）处于**休眠能力态**（生产不派发注入
+  effect，因为 CM 规范禁止在 update 周期 dispatch）；这是方案 (b) 的明说约定，不是遗漏。
+- 专注模式在**源码模式**下同样生效（与打字机模式一致），当前未按模式收敛；若需收敛应在模式层加门控。
+- 打字机的「阈值 / 校正到 50%」模型已在 S6 被**常驻居中**取代（历史 W1/W2 条款的改写
+  登记在 `.omx/plans/test-spec-batch1-editor-feel.md` §4）；`CENTER_EPSILON_PX` 现在只用于
+  「是否已居中」的判定，不再是「超过阈值才滚动」的触发阀。

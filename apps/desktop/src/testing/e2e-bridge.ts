@@ -1,4 +1,8 @@
-import { switchEditorModeSafely, type EditorMode } from "@md-editor/editor-core";
+import {
+  switchEditorModeSafely,
+  type DocumentReplaceIntent,
+  type EditorMode,
+} from "@md-editor/editor-core";
 import type {
   CodeMirrorEditorExternalEditResult,
   CodeMirrorEditorPorts,
@@ -7,6 +11,7 @@ import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirr
 import type { RuntimeFileService } from "@md-editor/file-system";
 import type { DesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";
+import { getModeMenuChecks } from "../app/stores/mode-menu-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useToastStore } from "../app/stores/toast-store";
 import { getS1CapabilityInventory } from "../app/s1-capability-inventory";
@@ -34,7 +39,12 @@ export interface EditorE2eBridge {
   openFixture(path: string): Promise<void>;
   openFolder(): Promise<void>;
   setFolderEmpty(empty: boolean): void;
-  replaceDocument(markdown: string, filePath?: string | null, mode?: EditorMode): void;
+  replaceDocument(
+    markdown: string,
+    filePath?: string | null,
+    mode?: EditorMode,
+    replaceIntent?: DocumentReplaceIntent,
+  ): void;
   createNewDocument(): Promise<void>;
   dispatchCommand(id: string): Promise<void>;
   setMode(mode: EditorMode): Promise<void>;
@@ -42,6 +52,8 @@ export interface EditorE2eBridge {
     markdown: string,
   ): CodeMirrorEditorExternalEditResult | { readonly status: "unavailable" };
   setCompositionActive(active: boolean): void;
+  /** S1(b)：读取最近一次菜单勾选态请求（镜像可验证性 seam） */
+  getModeMenuChecks(): { focus: boolean; typewriter: boolean };
   triggerParentRerender(): void;
   setAssetPreviewVisible(visible: boolean): void;
   /** 程序化设置编辑器选区(renderer 标准端口,自带焦点;E2E 定位不依赖点击时序) */
@@ -106,9 +118,14 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
     setFolderEmpty(empty: boolean) {
       setE2eFolderEmpty(empty);
     },
-    replaceDocument(markdown: string, filePath: string | null = null, mode?: EditorMode) {
+    replaceDocument(
+      markdown: string,
+      filePath: string | null = null,
+      mode?: EditorMode,
+      replaceIntent?: DocumentReplaceIntent,
+    ) {
       runtime.document.replaceDocument(
-        { markdown, savedMarkdown: markdown, filePath, mode },
+        { markdown, savedMarkdown: markdown, filePath, mode, replaceIntent },
         { kind: "command", commandId: "e2e.replaceDocument" },
       );
       useDocumentUiStore.getState().setHasActiveDocument(true);
@@ -148,6 +165,9 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
         expectedContentRevision: snapshot.contentRevision,
         selection: "preserve-offset-clamped",
       });
+    },
+    getModeMenuChecks() {
+      return getModeMenuChecks();
     },
     setCompositionActive(active: boolean) {
       const content = document.querySelector<HTMLElement>(".cm-content");

@@ -261,3 +261,14 @@ describe("G006 P1-4 visibleRanges 限定全量重建", () => {
     probe.destroy?.();
   });
 });
+
+describe("OB2（G006 方案 b）：限定构建计数钩子（effect 注入路径）", () => {
+  it("recordVisibleRangeLimitedBuild 随可见区注入增长（生产当前是全文构建——probe 有意 no-op，PRD R-6 明说）", () => {
+    const { state, diagnostics } = createHarness(
+      Array.from({ length: 2000 }, (_unused, index) => `# Line ${index} content`).join("\n"),
+    );
+    const before = diagnostics.snapshot().visibleRangeLimitedBuildCount;
+    applyVisibleRanges(state, [{ from: 1000, to: 1100 }]);
+    expect(diagnostics.snapshot().visibleRangeLimitedBuildCount).toBeGreaterThan(before);
+  });
+});

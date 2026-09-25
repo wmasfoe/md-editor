@@ -144,6 +144,11 @@ describe("editor UI instance state policy", () => {
 function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
   return {
     clientId,
+    // D-2 视图模式 ports（返回切换后状态）
+    toggleFocusMode: vi.fn(() => false),
+    toggleTypewriterMode: vi.fn(() => false),
+    // S1(b)：回读视图轴真实状态（供宿主核对菜单镜像一致性）
+    getViewModeState: vi.fn(() => ({ focus: false, typewriter: false })),
     mode: {
       applyMode: vi.fn(() => ({ status: "failed" as const, errorCode: "TEST" })),
       rollbackMode: vi.fn(),
@@ -155,6 +160,10 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     acceptSuggestion: vi.fn(() => false),
     dismissSuggestion: vi.fn(() => false),
     getSuggestion: vi.fn(() => null),
+    moveBlockUp: vi.fn(() => false),
+    moveBlockDown: vi.fn(() => false),
+    duplicateBlock: vi.fn(() => false),
+    deleteBlock: vi.fn(() => false),
     getSelectionSnapshot: vi.fn(() => ({ from: 0, to: 0, text: "", head: 0 })),
     focus: vi.fn(),
     setSelection: vi.fn(),

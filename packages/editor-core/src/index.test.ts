@@ -303,6 +303,8 @@ describe("built-in feature registry", () => {
       "mdx.openComponentMenu",
       "table.insert",
       "view.toggleSource",
+      "view.toggleFocusMode",
+      "view.toggleTypewriterMode",
       "view.showWysiwyg",
       "view.toggleSidebarPrimary",
     ]);

@@ -7,6 +7,7 @@ import {
   type RendererViewAdapter,
   type RendererViewFactoryInput,
 } from "../../src/renderer.ts";
+import { resolveDimOpacity } from "../../src/wysiwyg/focus-mode.ts";
 import {
   markdownRangeIndexField,
   SyntaxPluginRegistry,
@@ -415,5 +416,54 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     expect(highlightRecords[0].renderPolicy).toBe("inline-visible-markers");
     expect(highlightRecords[0].kind).toBe("highlight");
     renderer.destroy();
+  });
+
+  it("focusDimOpacity 宿主选项注入 facet 通道并按 [0.30, 0.50] 硬夹（轮1 architect concern-8）", () => {
+    const parent = (
+      typeof document !== "undefined" ? document.createElement("div") : {}
+    ) as HTMLElement;
+    const docState = createDocumentState({ markdown: "# T" });
+
+    const stateWithOption = (focusDimOpacity: number): EditorState => {
+      let viewState: EditorState | null = null;
+      createCodeMirrorRendererWithFactory(
+        {
+          parent,
+          initialSnapshot: docState.getSnapshot(),
+          onEditorChange: () => {},
+          onQueuedExternalEditReady: () => {},
+          onQueuedExternalEditCancelled: () => {},
+          focusDimOpacity,
+        },
+        (input: RendererViewFactoryInput): RendererViewAdapter => {
+          viewState = input.state;
+          return {
+            get state() {
+              return viewState!;
+            },
+            isComposing: false,
+            dispatch: () => {},
+            dispatchTransaction: () => {},
+            setState: (nextState: EditorState) => {
+              viewState = nextState;
+            },
+            scrollSnapshot: () => ({}) as unknown as StateEffect<unknown>,
+            getScrollTop: () => 0,
+            setScrollTop: () => {},
+            hasFocus: () => false,
+            focus: () => {},
+            requestMeasure: () => {},
+            clearDomSelection: () => {},
+            destroy: () => {},
+          };
+        },
+      );
+      expect(viewState, "factory 应在构造期同步产出 state").not.toBeNull();
+      return viewState as unknown as EditorState;
+    };
+
+    expect(resolveDimOpacity(stateWithOption(0.45)), "宿主中值直通").toBe(0.45);
+    expect(resolveDimOpacity(stateWithOption(0.9)), "超上界硬夹 0.50").toBe(0.5);
+    expect(resolveDimOpacity(stateWithOption(0.1)), "低于下界硬夹 0.30").toBe(0.3);
   });
 });

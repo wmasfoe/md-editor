@@ -37,7 +37,10 @@ import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { selectWysiwygAtom } from "../atom-selection.ts";
-import { clearWysiwygAtomSelectionEffect } from "../projection-state.ts";
+import { clearWysiwygAtomSelectionEffect, wysiwygProjectionField } from "../projection-state.ts";
+import { acceptAiSuggestion, aiSuggestionField } from "../suggestion.ts";
+import { dispatchTabActions } from "../tab-arbiter.ts";
+import { escapeBracketInCellDom } from "./cell-caret.ts";
 import type { MarkdownTableCellAlignment } from "../../markdown/range-types.ts";
 import {
   commitTableCell,
@@ -240,6 +243,31 @@ export class TableGridWidget extends WidgetType {
         lastEditingCellByRecordId.set(currentValue().recordId, address);
       }
       cell.classList.add("cm-md-table-widget__cell--editing");
+      // S4（编辑器交互 bug 批）：把**编辑器光标**随 DOM 焦点一起搬进表格范围。
+      //
+      // 否则状态里的“当前块”与用户可见的光标分裂 —— 直接可见的后果是专注模式
+      // 会残留上一个活动块的高亮（属主报的 #6：光标已点进表格，标题仍高亮）。
+      // 仅当光标**不在**本表格范围内时才 dispatch（避免无谓事务与重复重建）。
+      //
+      // ⚠️ 只在焦点落到**单元格编辑器**（可编辑区）时同步：聚焦手柄/菜单等控件
+      // 并不等于“把编辑位置搬过去”，否则 Tab 落到控件上会把光标拽进表格（实测过）。
+      const focusedEditor = (event.target as Element | null)?.closest?.(
+        ".cm-md-table-widget__cell-editor",
+      );
+      if (!focusedEditor) {
+        return;
+      }
+      // IME/组合期不得搬动编辑器状态：会打断单元格内的组合与会话内 DOM 光标
+      //（CI 实测 E19「组合期 Tab 不跳出」因此失败，本地因时序巧合未复现）。
+      const projection = view.state.field(wysiwygProjectionField, false);
+      if (view.composing || (projection?.compositionGuardRanges.length ?? 0) > 0) {
+        return;
+      }
+      const record = view.state.field(markdownRangeIndexField, false)?.get(currentValue().recordId);
+      const head = view.state.selection.main.head;
+      if (record && (head < record.fullRange.from || head > record.fullRange.to)) {
+        view.dispatch({ selection: { anchor: record.fullRange.from } });
+      }
     };
 
     const focusout: EventListener = (event) => {
@@ -285,6 +313,95 @@ export class TableGridWidget extends WidgetType {
         return;
       }
       if (keyEvent.key === "Tab") {
+        // D2 铁律第 1 步：**IME 组合期放行原生** —— 不仲裁、不 preventDefault。
+        // M6：`acceptAiSuggestion` 已有 composing 门控（D-1b），但表格单元格的
+        // **DOM 腿**此前没有 —— 而这正是本批最该生效的那条腿，否则组合期按 Tab
+        // 会被括号跳出抢走，违反「瞬时模态态 > 结构语义」。
+        // M6 → 三闸（E19 取证）：`keyEvent.isComposing` = 真实浏览器 IME 键事件标志；
+        // `view.composing` = CM6 组合态；**compositionGuardRanges** = 渲染层
+        // domEventObservers(compositionstart) → startWysiwygCompositionGuardEffect
+        // 设的选区护栏（E19 的 setCompositionActive seam 正是走这条路径）——
+        // 三者与 CM6 腿 `canEscapeBracket` 对称（评审原文：“and the cell equivalent of
+        // compositionGuardRanges”）。
+        const projection = view.state.field(wysiwygProjectionField, false);
+        const compositionGuarded = (projection?.compositionGuardRanges.length ?? 0) > 0;
+        // 三闸合一的**真实值**：既用于早退，也作为 arbiter 的 composing 输入。
+        // 不得只传 `keyEvent.isComposing`：早退之后它恒为 false，会丢掉
+        // `view.composing` / `compositionGuardRanges` 两条闸的信息（信息丢失型 smell）。
+        const composing = keyEvent.isComposing || view.composing || compositionGuarded;
+        if (composing) {
+          // 组合期：**阻断我方链**（Tab 不得冒泡进 CM6 keymap，轮1 concern-6 的 dispatch 级契约前置保障），
+          // 并**消费该键**（preventDefault）。
+          //
+          // 为什么必须 preventDefault（S9 自查 + CI 实测）：只 stopPropagation 时，浏览器默认 Tab 导航
+          // 会把焦点移出单元格 ⇒ 组合中未提交的文本随 DOM 焦点丢失（E19 实测 cell 状态从 `3:3:cf()`
+          // 变成 `0:0:`）。真实输入法会先消耗 Tab（用于候选选择），故 preventDefault 对真机行为**无影响**；
+          // 它只保证「组合期不因 Tab 而丢状态」。
+          keyEvent.preventDefault();
+          keyEvent.stopPropagation();
+          return;
+        }
+        // ── D-1 单元格内 Tab 仲裁（必须在任何 preventDefault / flushCellCommit 之前）──
+        //
+        // 背景：本 DOM `keydown` 对 Tab 直接 `preventDefault()+stopPropagation()`，
+        // **任何 keymap `Prec` 都够不着**（`ignoreEvent` 已把 cell 事件排除在 CM6 之外）。
+        // 这是共识评审 pass-1/pass-2 定位的**唯一真实 AI-Tab 缺陷点**。
+        //
+        // 仲裁顺序（deep-interview D2）：AI 接受 → 单元格内括号/link 跳出 → 跳下一格。
+        //
+        // 🔴 PM-4 / T20-cell 硬契约：**括号跳出必须先于 `flushCellCommit`**。
+        // `flushCellCommit` 会产生**文档变更**（`table-editing.ts:249-278` 的
+        // `buildCellReplacement` 会整行重序列化并规范化空白），
+        // 若先 commit 再跳出，T20「零文本变更」会在单元格语境被破坏。
+        if (!keyEvent.shiftKey) {
+          // D-MB：本处是统一 Tab arbiter 的**表格薄派发器** ——
+          // 序列不在此写死，由纯决策函数 `decideTabActions` 给出
+          // （表格上下文：accept-suggestion → escape-bracket → table-next-cell，
+          // 跳过 code-block），与 CM6 腿**语义单一**，杜绝两套仲裁漂移。
+          // 轮1 concern-7：迭代归共享 runner（dispatchTabActions）；本处只供给「动作→执行器」映射
+          const outcome = dispatchTabActions(
+            {
+              // 三闸合一的真实值（此处恒 false，因为上面已对 composing 早退；
+              // 传真实值而非 keyEvent.isComposing 可保证将来早退条件收窄时语义不丢）
+              composing,
+              suggestionActive: view.state.field(aiSuggestionField, false) !== null,
+              inTableCell: true,
+              // 表格 DOM 腿只存在于所见即所得（单元格是 widget 内部 DOM）
+              sourceMode: false,
+            },
+            {
+              "accept-suggestion": () => {
+                // MEDIUM-4：cell 有未提交输入时**不得先走接受** —— accept 的 doc 变更会触发
+                // widget 重渲染、未提交 DOM 输入静默丢失；跳过接受 → 尾动作 flushCellCommit
+                // 落盘输入（suggestion 随 commit 的 docChanged 自清，无陈旧坐标风险）。
+                if (hasUncommittedCellInput(cell, currentValue())) {
+                  return false;
+                }
+                if (!acceptAiSuggestion(view)) {
+                  return false;
+                }
+                keyEvent.preventDefault();
+                keyEvent.stopPropagation();
+                return true;
+              },
+              "escape-bracket": () => {
+                // 🔴 PM-4 / T20-cell：跳出先于任何 flushCellCommit（零文本变更）
+                if (!escapeBracketInCellDom(cell)) {
+                  return false;
+                }
+                keyEvent.preventDefault();
+                keyEvent.stopPropagation();
+                return true;
+              },
+              // 尾动作：不在此执行 —— fallthrough 到下方既有跳格 / flush 逻辑
+              //（**表格腿尾语义**；尾契约全文见 tab-arbiter.ts 的 dispatchTabActions）
+              "table-next-cell": () => false,
+            },
+          );
+          if (outcome === "handled") {
+            return;
+          }
+        }
         keyEvent.preventDefault();
         keyEvent.stopPropagation();
         flushCellCommit(view, wrapper, cell, currentValue().recordId);
@@ -607,6 +724,13 @@ function createEditableCell(
     editor.contentEditable = "true";
   }
   editor.spellcheck = false;
+  // S2 根因修复：文档内容**不得参与浏览器的 Tab 焦点链**。
+  // 此前单元格编辑器漏设 tabindex（并非唯一 —— 代码块工具栏/图片 widget 亦然，
+  // 同批一并修复，并由「文档内可聚焦元素枚举」护栏测试长期看守），于是 CM6 腿 fallthrough、
+  // Tab 交还浏览器时，默认 Tab 导航把焦点移进单元格（视觉上“光标跳进表格”）。
+  // 其余文档内 widget（折叠按钮 / HTML / MDX / 分割线 / default-atom / 表格 wrapper / 图片）
+  // 均已是 tabindex="-1"；此处补上以保持一致。程序化 `focus()` 不受影响。
+  editor.tabIndex = -1;
   editor.textContent = text;
   cell.append(editor);
 
@@ -649,6 +773,9 @@ function createHandleButton(
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
+  // 文档内控件不参与浏览器 Tab 焦点链（与单元格编辑器/其它 widget 一致）：
+  // 否则 CM6 腿 fallthrough、Tab 交还浏览器时会落到手柄上（S2 同类缺陷）。
+  button.tabIndex = -1;
   button.className = "cm-md-table-widget__btn cm-md-table-widget__btn--handle";
   button.dataset.tableToggle = toggle;
   button.setAttribute(
@@ -729,6 +856,8 @@ function createMenuButton(
 ): HTMLButtonElement {
   const button = document.createElement("button");
   button.type = "button";
+  // 同上：菜单项也不进 Tab 链（菜单打开后由键盘逻辑自行管理焦点）
+  button.tabIndex = -1;
   button.className = `cm-md-table-widget__btn cm-md-table-widget__menu-item${danger ? " cm-md-table-widget__menu-item--danger" : ""}`;
   button.dataset.tableAction = action;
   button.setAttribute("role", "menuitem");
@@ -754,6 +883,39 @@ function closeTableMenu(
   }
 }
 
+/**
+ * 从 cell 编辑器抽取待提交文本（flushCellCommit 与 M4 pending 判定**共用**，防提取逻辑漂移）。
+ */
+function extractCellEditorText(cell: HTMLElement): string {
+  const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
+  const clone = editor.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
+  return (clone.innerText || clone.textContent || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
+/**
+ * MEDIUM-4：cell 是否有**未提交输入**（编辑器抽取文本 ≠ 记录中的已提交文本）。
+ * 无此判定时，带建议按 Tab → accept 腿先跑 → doc 变更触发 widget 重渲染 →
+ * 未提交的 cell DOM 输入静默丢失；E18 无输入故套件不绿不了（评审批次新边）。
+ */
+function hasUncommittedCellInput(cell: HTMLElement, value: TableGridValue): boolean {
+  const address = addressFromCell(cell, value.recordId);
+  if (!address) {
+    return false;
+  }
+  const committed =
+    address.rowKind === "header"
+      ? value.headerCells[address.colIndex]
+      : value.bodyRows[address.rowIndex]?.[address.colIndex];
+  if (committed === undefined) {
+    return false;
+  }
+  return extractCellEditorText(cell) !== committed;
+}
+
 function flushCellCommit(
   view: EditorView,
   wrapper: HTMLElement,
@@ -764,13 +926,7 @@ function flushCellCommit(
   if (!address) {
     return;
   }
-  const editor = cell.querySelector<HTMLElement>(".cm-md-table-widget__cell-editor") ?? cell;
-  const clone = editor.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(".cm-md-table-widget__handle").forEach((handle) => handle.remove());
-  const text = (clone.innerText || clone.textContent || "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\r?\n/g, " ")
-    .trim();
+  const text = extractCellEditorText(cell);
   commitTableCell(view, address, text);
   lastEditingCellByRecordId.set(recordId, address);
   editingCellByDom.delete(wrapper);
