@@ -1,5 +1,5 @@
 import type { LanguageSetting, Locale } from "./types";
-import { DEFAULT_LOCALE, FALLBACK_LOCALE } from "./types";
+import { DEFAULT_LOCALE, FALLBACK_LOCALE, SUPPORTED_LOCALES } from "./types";
 
 /**
  * 检测当前运行系统或浏览器的主语言
@@ -73,14 +73,28 @@ export function detectSystemLocale(customNavigator?: {
 }
 
 /**
+ * 规范化语言配置值
+ * 若属于已支持的 Locale 则原样返回，否则降级为 "system"
+ */
+export function normalizeLanguageSetting(input: unknown): LanguageSetting {
+  if (typeof input !== "string") {
+    return "system";
+  }
+  if (SUPPORTED_LOCALES.some((locale) => locale.code === input)) {
+    return input as Locale;
+  }
+  return "system";
+}
+
+/**
  * 根据语言设置解析出实际生效的目标语言代码
  */
 export function resolveActiveLocale(setting?: LanguageSetting | string | null): Locale {
   if (!setting || setting === "system") {
     return detectSystemLocale();
   }
-  if (setting === "zh" || setting === "en" || setting === "zh-Hant" || setting === "ja") {
-    return setting;
+  if (SUPPORTED_LOCALES.some((locale) => locale.code === setting)) {
+    return setting as Locale;
   }
   return FALLBACK_LOCALE;
 }

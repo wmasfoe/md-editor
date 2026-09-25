@@ -3,6 +3,7 @@ import {
   changeLanguage,
   detectSystemLocale,
   getCurrentLocale,
+  normalizeLanguageSetting,
   resolveActiveLocale,
   t,
 } from "../src";
@@ -43,6 +44,20 @@ describe("@md-editor/i18n", () => {
     // "system" will resolve to one of supported locales
     const systemLocale = resolveActiveLocale("system");
     expect(["zh", "en", "zh-Hant", "ja"]).toContain(systemLocale);
+  });
+
+  it("should normalize language setting correctly", () => {
+    expect(normalizeLanguageSetting("zh")).toBe("zh");
+    expect(normalizeLanguageSetting("zh-Hant")).toBe("zh-Hant");
+    expect(normalizeLanguageSetting("en")).toBe("en");
+    expect(normalizeLanguageSetting("ja")).toBe("ja");
+    expect(normalizeLanguageSetting("system")).toBe("system");
+    expect(normalizeLanguageSetting("fr")).toBe("system");
+    expect(normalizeLanguageSetting("invalid")).toBe("system");
+    expect(normalizeLanguageSetting(null)).toBe("system");
+    expect(normalizeLanguageSetting(undefined)).toBe("system");
+    expect(normalizeLanguageSetting(123)).toBe("system");
+    expect(normalizeLanguageSetting({})).toBe("system");
   });
 
   it("should detect system locale correctly and default to en when unsupported", () => {

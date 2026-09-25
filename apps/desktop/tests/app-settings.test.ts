@@ -16,13 +16,17 @@ import {
   keyboardShortcutLabel,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
+  normalizeLanguageSetting,
   normalizePluginSettings,
+  normalizeSettings,
   normalizeAppTheme,
   normalizeUpdateSettings,
   normalizeShortcutKey,
   listenToAppSettingsChanged,
+  listenToAppLanguagePreviewChanged,
   listenToAppThemePreviewChanged,
   loadAppSettings,
+  publishAppLanguagePreview,
   saveAppSettings,
   shortcutKeyFromKeyboardEvent,
   validateAssetsDirectory,
@@ -412,6 +416,71 @@ describe("app settings", () => {
     expect(saved.theme.mode).toBe("dark");
     expect(saved.editor.wysiwygFontSize).toBe(20);
     expect(saved.assetsDirectory).toBe("images/posts");
+  });
+
+  it("normalizes and preserves all supported language settings including zh-Hant and ja", () => {
+    expect(normalizeLanguageSetting("zh")).toBe("zh");
+    expect(normalizeLanguageSetting("zh-Hant")).toBe("zh-Hant");
+    expect(normalizeLanguageSetting("en")).toBe("en");
+    expect(normalizeLanguageSetting("ja")).toBe("ja");
+    expect(normalizeLanguageSetting("system")).toBe("system");
+    expect(normalizeLanguageSetting("unsupported")).toBe("system");
+    expect(normalizeLanguageSetting(null)).toBe("system");
+    expect(normalizeLanguageSetting(undefined)).toBe("system");
+
+    expect(normalizeSettings({ language: "zh-Hant" }).language).toBe("zh-Hant");
+    expect(normalizeSettings({ language: "ja" }).language).toBe("ja");
+    expect(normalizeSettings({ language: "zh" }).language).toBe("zh");
+    expect(normalizeSettings({ language: "en" }).language).toBe("en");
+    expect(normalizeSettings({ language: "system" }).language).toBe("system");
+    expect(normalizeSettings({ language: "unknown" }).language).toBe("system");
+  });
+
+  it("persists zh-Hant and ja language settings without reverting to system", async () => {
+    const events = new EventTarget();
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", events);
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+    });
+
+    const defaultSettings = createDefaultSettings();
+
+    // 繁体中文保存与读取
+    const savedZhHant = await saveAppSettings({
+      ...defaultSettings,
+      language: "zh-Hant",
+    });
+    expect(savedZhHant.language).toBe("zh-Hant");
+    const reloadedZhHant = await loadAppSettings();
+    expect(reloadedZhHant.language).toBe("zh-Hant");
+
+    // 日语保存与读取
+    const savedJa = await saveAppSettings({
+      ...defaultSettings,
+      language: "ja",
+    });
+    expect(savedJa.language).toBe("ja");
+    const reloadedJa = await loadAppSettings();
+    expect(reloadedJa.language).toBe("ja");
+  });
+
+  it("delivers language preview events and passes null on preview reset", async () => {
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+
+    const received: (string | null)[] = [];
+    const dispose = listenToAppLanguagePreviewChanged((lang) => {
+      received.push(lang);
+    });
+
+    await publishAppLanguagePreview("zh-Hant");
+    await publishAppLanguagePreview("ja");
+    await publishAppLanguagePreview(null);
+    dispose?.();
+
+    expect(received).toEqual(["zh-Hant", "ja", null]);
   });
 
   it("normalizes DeepSeek provider settings to the fixed endpoint", () => {
