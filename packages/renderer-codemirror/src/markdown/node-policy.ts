@@ -118,10 +118,13 @@ const POLICIES: Readonly<Record<string, MarkdownNodePolicy>> = Object.freeze({
     contentStrategy: "none",
   }),
   Autolink: definePolicy({
+    // 属主手测驱动（与裸 URL 同一原则）：尖括号 autolink 此前也是「不渲染的受保护原子」
+    // ⇒ 黑字 + 原子描边 + 改不了 + 删不掉（实测：方向键整段跳过、整串选中 Backspace 被拒）。
+    // 现改为普通可编辑文本：可落光标进入、可就地改、可删除，且不产生装饰。
     kind: "autolink",
-    renderPolicy: "source-only-atom",
-    editPolicy: "source-mode-only",
-    interactionPolicy: "source-mode-required",
+    renderPolicy: "raw-fallback",
+    editPolicy: "native",
+    interactionPolicy: "text",
     priority: 50,
     markerNodeNames: ["LinkMark"],
     contentStrategy: "url",
@@ -236,10 +239,11 @@ const RAW_FALLBACK_POLICY = definePolicy({
 });
 
 const REFERENCE_LINK_POLICY = definePolicy({
+  // 同上（属主手测：引用式链接 `[点我][ref]` 与尖括号形态症状完全相同）。
   kind: "reference-link",
-  renderPolicy: "source-only-atom",
-  editPolicy: "source-mode-only",
-  interactionPolicy: "source-mode-required",
+  renderPolicy: "raw-fallback",
+  editPolicy: "native",
+  interactionPolicy: "text",
   priority: 50,
   markerNodeNames: ["LinkMark"],
   contentStrategy: "link-label",

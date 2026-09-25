@@ -239,10 +239,18 @@ describe("WYSIWYG projection StateField", () => {
   });
 
   it("protects source-only local edits, permits broad deletion, and disables protection in source mode", () => {
-    const { state } = createProjectionState(EditorSelection.cursor(0), ["default-atoms"]);
-    const autolink = state.field(markdownRangeIndexField).byKind("autolink")[0];
+    // 用**仍是 source-only 原子**的 kind（引用定义）验证保护语义：链接类（裸 URL / 尖括号 /
+    // 引用式）已按属主手测改为普通可编辑文本，不再受此保护约束。这里用自定义文档，
+    // 避免改动本文件共用的 DOCUMENT 夹具而影响其它用例。
+    const protectedFixture = "# Heading\n\n[label][ref]\n\n[ref]: https://example.com\n";
+    const { state } = createProjectionState(
+      EditorSelection.cursor(0),
+      ["default-atoms"],
+      protectedFixture,
+    );
+    const autolink = state.field(markdownRangeIndexField).byKind("reference-definition")[0];
     if (!autolink) {
-      throw new Error("Expected an autolink record.");
+      throw new Error("Expected a reference-definition record.");
     }
     const inside = autolink.fullRange.from + 2;
     const blockedTransaction = state.update({
@@ -250,7 +258,7 @@ describe("WYSIWYG projection StateField", () => {
       selection: EditorSelection.cursor(inside + 1),
     });
     expect(blockedTransaction.docChanged).toBe(false);
-    expect(blockedTransaction.state.doc.toString()).toBe(DOCUMENT);
+    expect(blockedTransaction.state.doc.toString()).toBe(protectedFixture);
     expect(blockedTransaction.state.selection).toEqual(state.selection);
     expect(
       blockedTransaction.effects.some((effect) => effect.is(protectedWysiwygChangeRejectedEffect)),
@@ -260,7 +268,7 @@ describe("WYSIWYG projection StateField", () => {
     );
     expect(undoDepth(blockedTransaction.state)).toBe(0);
 
-    // 恰好等于默认 atom 的选区不是宽选区：footnote/autolink 保持 source-only
+    // 恰好等于默认 atom 的选区不是宽选区：**引用定义**等仍保持 source-only
     // 保护（G012 语义：恰好拒绝、严格更宽才放行）。回归锁定：M3 表格改动
     // （7501b76）曾把恰好相等选区对所有 protected range 放行，导致默认 atom
     // 被静默删除；现在仅 table provenance 允许恰好相等选区。
@@ -273,7 +281,7 @@ describe("WYSIWYG projection StateField", () => {
       userEvent: "delete.selection",
     });
     expect(exactDelete.docChanged).toBe(false);
-    expect(exactDelete.state.doc.toString()).toBe(DOCUMENT);
+    expect(exactDelete.state.doc.toString()).toBe(protectedFixture);
     expect(exactDelete.state.selection).toEqual(exactlySelected.selection);
     expect(
       exactDelete.effects.some((effect) => effect.is(protectedWysiwygChangeRejectedEffect)),
@@ -300,7 +308,7 @@ describe("WYSIWYG projection StateField", () => {
 
     const sourceState = state.update({ effects: setEditorModeEffect.of("source") }).state;
     const editedInSource = sourceState.update({ changes: { from: inside, insert: "x" } }).state;
-    expect(editedInSource.doc.toString()).not.toBe(DOCUMENT);
+    expect(editedInSource.doc.toString()).not.toBe(protectedFixture);
     expect(undoDepth(editedInSource)).toBe(1);
   });
 

@@ -74,19 +74,17 @@ describe("default WYSIWYG visualization", () => {
     const projection = state.field(wysiwygProjectionField);
     const projectedWidgets = widgets(projection.layoutDecorations);
 
-    // 裸 URL 不再计入 source-only 原子（改为普通可编辑文本）⇒ 9 → 8
-    expect(defaults).toHaveLength(8);
+    // 裸 URL、尖括号 autolink、引用式链接均已改为普通可编辑文本 ⇒ 9 → 6
+    expect(defaults).toHaveLength(6);
     expect(projectedWidgets).toHaveLength(defaults.length);
     expect(inspectWysiwygProjection(state)).toMatchObject({
       protectedRanges: defaults.map((record) => record.fullRange),
       layoutDecorationCount: defaults.length,
       atomicRangeCount: defaults.length,
     });
-    // 两个 autolink 中：尖括号 `<…>` 仍是原子；**裸 URL** 已改为普通文本 ⇒ 少一项
+    // 三种链接类（裸 URL / 尖括号 autolink / 引用式）都已改为普通文本 ⇒ 只剩结构性原子
     expect(projectedWidgets.map((widget) => widget.value.kind)).toEqual([
       "heading-setext",
-      "autolink",
-      "reference-link",
       "reference-image",
       "reference-definition",
       "reference-definition",
@@ -107,9 +105,10 @@ describe("default WYSIWYG visualization", () => {
 
   it("updates selected styling without changing the document", () => {
     const { state } = createState();
-    const atom = state.field(markdownRangeIndexField).byKind("reference-link")[0];
+    // 用**未被本次改动影响**的原子 kind（链接类已改为普通文本）
+    const atom = state.field(markdownRangeIndexField).byKind("reference-image")[0];
     if (!atom) {
-      throw new Error("Expected a reference-link atom.");
+      throw new Error("Expected a reference-image atom.");
     }
     const selected = state.update({
       selection: EditorSelection.range(atom.fullRange.from, atom.fullRange.to),
@@ -126,9 +125,9 @@ describe("default WYSIWYG visualization", () => {
 
   it("drops only a stale-fingerprint projection and records safe fallback", () => {
     const original = createState();
-    const atom = original.state.field(markdownRangeIndexField).byKind("autolink")[0];
+    const atom = original.state.field(markdownRangeIndexField).byKind("reference-image")[0];
     if (!atom) {
-      throw new Error("Expected an autolink atom.");
+      throw new Error("Expected a reference-image atom.");
     }
     const changedSource = `${DEFAULT_SOURCE.slice(0, atom.fullRange.from + 2)}x${DEFAULT_SOURCE.slice(
       atom.fullRange.from + 3,

@@ -19,6 +19,13 @@ import { openFullApp as openApp } from "./editor-e2e-helpers";
 const URL = "https://example.com/some/path";
 const DOC = `看 ${URL} 结束`;
 
+async function readSelection(page: Page): Promise<{ anchor: number; head: number }> {
+  return page.evaluate(() => {
+    const renderer = window.__MD_EDITOR_E2E__!.getDiagnostics().renderer;
+    return { anchor: renderer?.selectionAnchor ?? -1, head: renderer?.selectionHead ?? -1 };
+  });
+}
+
 async function readHead(page: Page): Promise<number> {
   return page.evaluate(
     () => window.__MD_EDITOR_E2E__!.getDiagnostics().renderer?.selectionHead ?? -1,
@@ -70,5 +77,62 @@ test.describe("裸 URL 的编辑语义（属主手测）", () => {
     await expect
       .poll(() => readDoc(page), { message: "裸 URL 必须可删除（受保护原子会静默拒绝）" })
       .toBe(DOC.slice(0, urlEnd - 1) + DOC.slice(urlEnd));
+  });
+
+  /**
+   * 同类缺陷（属主手测："a 和 b 都会遇到"）：**尖括号 autolink** 与**引用式链接**在 WYSIWYG 下
+   * 同样是「黑字 + 原子描边 + 改不了 + 删不掉」——它们与裸 URL 一样被赋了
+   * `source-only-atom` / `source-mode-only` / `source-mode-required`。
+   *
+   * 对照事实（探针实测）：行内链接 `[点我](…)` 走的是 `link-segmented` 策略 ⇒ 逐步可进入、
+   * 双击可就地改、整串选中可删除 ✅ —— 本用例锁的是另两种形态应达到**同等**的可编辑/可删除语义。
+   */
+  const AUTO = "<https://example.com/a(b)>";
+  const REF_LINK = "[点我][ref]";
+
+  test("E43：尖括号 autolink 与引用式链接必须能落光标进内部、且能整串删除", async ({ page }) => {
+    await openApp(page);
+    await expect(page.locator(".cm-editor")).toHaveCount(1);
+
+    for (const [name, snippet] of [
+      ["尖括号 autolink", AUTO],
+      ["引用式链接", REF_LINK],
+    ] as const) {
+      const caseDoc = `前 ${snippet} 后\n`;
+      await page.evaluate((m) => window.__MD_EDITOR_E2E__!.replaceDocument(m), caseDoc);
+      await expect.poll(() => readDoc(page), { message: `${name}：前置文本` }).toBe(caseDoc);
+
+      const from = caseDoc.indexOf(snippet);
+      const to = from + snippet.length;
+
+      // ① 方向键从左侧进入：必须**落进内部**（今天：整段原子选中 ⇒ 红）
+      await page.evaluate((at) => window.__MD_EDITOR_E2E__!.setSelection(at, at), from - 1);
+      // 按**两次**：旧行为下第一次到原子左缘（折叠）、第二次会整段选中 ⇒ 只有两次都折叠才算真的
+      // "能走进去"（按一次在两种行为下都折叠，无法判别 —— 该断言曾被这样写空转过）。
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.press("ArrowRight");
+      await page.waitForTimeout(150);
+      const selection = await readSelection(page);
+      // 原子选中的特征是 **anchor ≠ head 且覆盖整段**；正常进入必须是折叠选区且落在区间内。
+      expect(
+        selection.anchor,
+        `${name}：方向键进入后不得整段原子选中（实际 anchor=${selection.anchor} head=${selection.head}）`,
+      ).toBe(selection.head);
+      expect(
+        selection.head,
+        `${name}：方向键进入后光标必须落在该文本区间内（实际 head=${selection.head}，区间=${from}..${to}）`,
+      ).toBeGreaterThanOrEqual(from);
+      expect(selection.head, `${name}：不得越过该文本右界`).toBeLessThanOrEqual(to);
+
+      // ② 整串选中后 Backspace 必须真的删除（今天：受保护 ⇒ 文本不变 ⇒ 红）
+      await page.evaluate((range) => window.__MD_EDITOR_E2E__!.setSelection(range.from, range.to), {
+        from,
+        to,
+      });
+      await page.keyboard.press("Backspace");
+      await expect
+        .poll(() => readDoc(page), { message: `${name}：整串选中后必须可删除` })
+        .toBe(`前  后\n`);
+    }
   });
 });
