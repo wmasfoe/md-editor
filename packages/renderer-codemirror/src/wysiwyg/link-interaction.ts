@@ -114,7 +114,7 @@ export function buildLinkLabelDecoration(
   url: string | null,
 ): Range<Decoration> | null {
   const content = record.contentRange;
-  if (!content) {
+  if (!content || content.from === content.to) {
     return null;
   }
   const safeUrl = url !== null && isSafeLinkTarget(url) ? url : null;
