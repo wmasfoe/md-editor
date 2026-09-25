@@ -98,7 +98,8 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(page.locator(".cm-md-link-label")).toHaveText("label");
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(1);
     await expect(page.locator(".cm-md-thematic-break-widget")).toHaveCount(1);
-    await expect(page.locator(".cm-md-default-atom")).toHaveCount(2);
+    // 链接类（裸 URL / 尖括号 / 引用式）已改为普通可编辑文本 ⇒ 默认原子 2 → 1
+    await expect(page.locator(".cm-md-default-atom")).toHaveCount(1);
 
     await clickLineText(page, lineWithText(page, "Heading"), "Heading");
     const headingSelection = (await diagnostics(page)).renderer!;
@@ -696,13 +697,12 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await expect(content).toBeFocused();
     await content.press(UNDO_KEY);
 
-    const defaultAtom = page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]');
-    await defaultAtom.click();
-    await expect(defaultAtom).toHaveAttribute("aria-selected", "true");
-    await content.press("Delete");
-    await expect(page.locator(".cm-announced")).toContainText(
-      "This Markdown syntax can only be edited in source mode.",
-    );
+    // 属主手测驱动：**链接类文本已不再是受保护原子** ⇒ 此处不再有 autolink 投影控件
+    //（其"可就地编辑 / 可删除"的行为契约由 E42/E43 覆盖）。
+    await expect(
+      page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]'),
+      "链接类已改为普通可编辑文本 ⇒ 不应再有 autolink 原子控件",
+    ).toHaveCount(0);
   });
 
   test("E07-E08: broad selection preserves source clipboard and allows deletion and undo", async ({
@@ -741,17 +741,19 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
   test("E01-AC14: supported defaults, code blocks, and HTML visualize while unsupported syntax stays raw", async ({
     page,
   }) => {
-    // 属主手测驱动：**裸 URL 改为普通可编辑文本**（不再作为受保护原子）⇒ 默认原子 7 → 6，
-    // 其中 autolink 2 → 1（只剩尖括号 `<…>` 形态）。见 E42 的行为契约。
+    // 属主手测驱动：**三种链接类（裸 URL / 尖括号 autolink / 引用式）均改为普通可编辑文本**
+    // ⇒ 默认原子 7 → 4，其中 autolink 2 → 0。见 E42/E43 的行为契约。
     const defaults = page.locator(".cm-md-default-atom");
-    await expect(defaults).toHaveCount(6);
+    await expect(defaults).toHaveCount(4);
     await expect(page.locator('.cm-md-default-atom[data-syntax-kind="heading-setext"]')).toHaveText(
       "Setext visual",
     );
-    await expect(page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]')).toHaveCount(1);
+    await expect(page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]')).toHaveCount(0);
+    // 引用式链接同样已改为普通文本 ⇒ 不再是默认原子（其源码文本仍照常显示）
     await expect(
       page.locator('.cm-md-default-atom[data-syntax-kind="reference-link"]'),
-    ).toContainText("reference label");
+    ).toHaveCount(0);
+    await expect(page.locator(".cm-content")).toContainText("reference label");
     await expect(
       page.locator('.cm-md-default-atom[data-syntax-kind="reference-definition"]'),
     ).toContainText("https://reference.example");

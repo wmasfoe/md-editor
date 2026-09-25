@@ -42,7 +42,8 @@ describe("Markdown node policy registry", () => {
       getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark", "LinkLabel"]),
     ).toMatchObject({
       kind: "reference-link",
-      renderPolicy: "source-only-atom",
+      // 属主手测驱动：引用式链接也改为普通可编辑文本（原先作为受保护原子，删不掉/进不去）
+      renderPolicy: "raw-fallback",
     });
     expect(getMarkdownNodePolicy("Link", "Paragraph", ["LinkMark", "LinkMark"])).toBeNull();
     expect(getMarkdownNodePolicy("HorizontalRule")).toMatchObject({

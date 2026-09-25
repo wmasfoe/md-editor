@@ -125,7 +125,7 @@ describe("wysiwyg change protection provenance semantics", () => {
     expect(attempted.effects.some((effect) => effect.is(EditorView.announce))).toBe(true);
   });
 
-  it("rejects an exactly selected autolink deletion while a strictly wider selection is allowed", () => {
+  it("allows an exactly selected autolink deletion (属主手测：此前被静默拒绝，导致「删不掉」)", () => {
     const doc = ["Before", "", "<https://example.org>", "", "Tail", ""].join("\n");
     const { state, index } = createHarness(doc);
     const autolink = index.byKind("autolink")[0];
@@ -139,8 +139,9 @@ describe("wysiwyg change protection provenance semantics", () => {
       selection: EditorSelection.cursor(autolink.fullRange.from),
       userEvent: "delete.selection",
     });
-    expect(exactDelete.docChanged).toBe(false);
-    expect(exactDelete.state.doc.toString()).toBe(doc);
+    // 新契约：尖括号 autolink 已是普通文本 ⇒ 整串选中删除必须生效（旧行为是静默拒绝）
+    expect(exactDelete.docChanged).toBe(true);
+    expect(exactDelete.state.doc.toString()).not.toBe(doc);
 
     const wide = state.update({
       selection: EditorSelection.range(autolink.fullRange.from - 1, autolink.fullRange.to + 1),
