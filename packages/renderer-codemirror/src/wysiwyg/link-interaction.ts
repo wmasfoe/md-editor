@@ -40,11 +40,62 @@ export function isSafeLinkTarget(url: string): boolean {
   return !trimmed.startsWith("//");
 }
 
+/** 规范化引用标签（去方括号、折叠空白、大小写不敏感 —— 对齐 CommonMark 的 label 匹配） */
+function normalizeReferenceLabel(raw: string): string {
+  return raw
+    .replace(/^\[|\]$/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+/**
+ * 引用式链接（`[点我][ref]`）按**标签**到 `reference-definition`（`[ref]: URL`）里取 URL。
+ * 语义依据：引用式链接自身不含 URL，URL 写在别处的定义里（CommonMark §4.7/§4.8）。
+ */
+export function referenceDefinitionUrl(
+  state: EditorState,
+  record: MarkdownRangeRecord,
+): string | null {
+  const index = state.field(markdownRangeIndexField, false);
+  const referenceLabelSegment = record.segments.find((segment) => segment.role === "label");
+  if (!index || !referenceLabelSegment) {
+    return null;
+  }
+  const wanted = normalizeReferenceLabel(
+    state.sliceDoc(referenceLabelSegment.from, referenceLabelSegment.to),
+  );
+  if (!wanted) {
+    return null;
+  }
+  for (const candidate of index.records) {
+    if (candidate.kind !== "reference-definition") {
+      continue;
+    }
+    const labelSegment = candidate.segments.find((segment) => segment.role === "label");
+    const destinationSegment = candidate.segments.find((segment) => segment.role === "destination");
+    if (!labelSegment || !destinationSegment) {
+      continue;
+    }
+    const label = normalizeReferenceLabel(state.sliceDoc(labelSegment.from, labelSegment.to));
+    if (label === wanted) {
+      return state.sliceDoc(destinationSegment.from, destinationSegment.to).trim();
+    }
+  }
+  return null;
+}
+
 /** 从 record 的 destination segment 提取链接 URL(无则 null) */
 export function linkDestinationFromRecord(
   record: MarkdownRangeRecord,
   doc: { sliceString(from: number, to: number): string },
+  /** 可选：引用式链接需要按标签查定义，故需要 state */
+  state?: EditorState,
 ): string | null {
+  // 引用式链接（`[点我][ref]`）：URL 在定义里，必须先解析（否则会误把 `[ref]` 当 URL）
+  if (record.kind === "reference-link") {
+    return state ? referenceDefinitionUrl(state, record) : null;
+  }
   const destination = record.segments.find((segment) => segment.role === "destination");
   // 裸 URL / 尖括号 autolink 没有 destination segment（其自身就是 URL）⇒ 回退到记录文本。
   const raw = destination
@@ -115,7 +166,7 @@ export function openLinkAtCursor(view: EditorView): boolean {
   if (!record) {
     return false;
   }
-  const url = linkDestinationFromRecord(record, view.state.doc);
+  const url = linkDestinationFromRecord(record, view.state.doc, view.state);
   const open = view.state.facet(openLinkTargetFacet);
   if (!url || !isSafeLinkTarget(url) || !open) {
     return false;

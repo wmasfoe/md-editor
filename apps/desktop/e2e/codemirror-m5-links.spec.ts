@@ -41,6 +41,86 @@ async function diagnostics(page: Page): Promise<{
 }
 
 test.describe("链接交互(M5 链接打开迁移)", () => {
+  /** 属主报告：裸写 `https://123.com` 这类链接，Cmd/Ctrl+点击必须能用默认浏览器打开。
+   *  (#128 为修「改不了/删不掉」曾把裸 URL 降为纯文本 ⇒ 链接身份丢失 ⇒ 点击无反应。) */
+  const BARE_URL_DOCUMENT = ["Before", "", "https://123.com", "", "After", ""].join("\n");
+  const ANGLE_URL_DOCUMENT = ["Before", "", "<https://123.com>", "", "After", ""].join("\n");
+
+  test("L5: 裸 URL 渲染为可打开的 <a href>，Cmd/Ctrl+点击可打开（属主报告）", async ({ page }) => {
+    await openHarness(page);
+    await replaceDocument(page, BARE_URL_DOCUMENT);
+
+    const link = page.locator(".cm-md-link");
+    await expect(link, "裸 URL 必须带链接标记").toHaveCount(1);
+    await expect(link).toHaveAttribute("href", "https://123.com");
+
+    const before = (await diagnostics(page)).renderer?.markdown;
+    await page
+      .locator(".cm-md-link")
+      .click({ modifiers: [MOD_KEY === "Meta" ? "Meta" : "Control"] });
+    await expect
+      .poll(async () => openedLinks(page), { message: "Cmd+点击必须触发打开回调" })
+      .toEqual(["https://123.com"]);
+    expect((await diagnostics(page)).renderer?.markdown ?? "", "打开不得改动文档").toBe(
+      before ?? "",
+    );
+  });
+
+  /** 引用式链接：URL 写在**别处的定义**里（`[ref]: …`）⇒ 必须按标签查定义才能打开。 */
+  const REFERENCE_DOCUMENT = [
+    "Before",
+    "",
+    "[点我][ref]",
+    "",
+    "[ref]: https://example.com/from-definition",
+    "",
+    "After",
+    "",
+  ].join("\n");
+
+  test("L7: 引用式链接按标签查定义后再 Cmd/Ctrl+点击打开", async ({ page }) => {
+    await openHarness(page);
+    await replaceDocument(page, REFERENCE_DOCUMENT);
+
+    // 前置：标签可被渲染为链接（但不一定已有 href —— 那正是本用例要修的）
+    const link = page.locator(".cm-md-link").first();
+    await expect(link, "引用式链接的标签必须带链接标记").toHaveCount(1);
+    await expect(link, "href 必须解析自引用定义").toHaveAttribute(
+      "href",
+      "https://example.com/from-definition",
+    );
+
+    await page
+      .locator(".cm-md-link")
+      .first()
+      .click({ modifiers: [MOD_KEY === "Meta" ? "Meta" : "Control"] });
+    await expect
+      .poll(async () => openedLinks(page), { message: "Cmd+点击必须打开定义里的 URL" })
+      .toEqual(["https://example.com/from-definition"]);
+  });
+
+  test("L6: 尖括号 autolink 既可编辑、也能 Cmd/Ctrl+点击打开", async ({ page }) => {
+    await openHarness(page);
+    await replaceDocument(page, ANGLE_URL_DOCUMENT);
+
+    const link = page.locator(".cm-md-link");
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute("href", "https://123.com");
+
+    await page
+      .locator(".cm-md-link")
+      .click({ modifiers: [MOD_KEY === "Meta" ? "Meta" : "Control"] });
+    await expect.poll(async () => openedLinks(page)).toEqual(["https://123.com"]);
+
+    // 可编辑性：普通点击落光标后仍能就地输入（不因"可打开"而失去编辑能力）
+    await replaceDocument(page, ANGLE_URL_DOCUMENT);
+    await page.locator(".cm-md-link").click();
+    await page.keyboard.type("Z");
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer?.markdown ?? "")
+      .toContain("Z");
+  });
+
   test("L1: 非 active 链接渲染为可打开的 <a href>", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, LINK_DOCUMENT);
