@@ -634,7 +634,23 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       });
     }, rapidTargets);
 
-    await page.waitForTimeout(900);
+    // **等到真的停稳**再取尾段（CI 教训：固定 900ms 在高负载机器上不足以让缓动结束，
+    // 尾段仍在移动 ⇒ 误判为"未收敛"。这里按"连续两次读数相同"判稳，最多等 4s）。
+    // 读**实时** scrollTop 判稳（不能看采样数组尾部：停稳后不再有新采样推入，永远不相等）。
+    let previousScrollTop = -1;
+    await expect
+      .poll(
+        async () => {
+          const current = await page.evaluate(
+            () => document.querySelector(".cm-scroller")!.scrollTop,
+          );
+          const stable = current === previousScrollTop;
+          previousScrollTop = current;
+          return stable;
+        },
+        { timeout: 4000, interval: 120, message: "前置：滚动最终必须停稳" },
+      )
+      .toBe(true);
     const samples = await page.evaluate(
       () => (window as unknown as { __jitterSamples: number[] }).__jitterSamples,
     );
