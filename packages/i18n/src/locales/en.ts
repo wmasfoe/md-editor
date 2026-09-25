@@ -70,7 +70,9 @@ export const en: TranslationSchema = {
       languageField: "Interface Language",
       languageSystem: "Follow System",
       languageZh: "简体中文",
+      languageZhHant: "Traditional Chinese",
       languageEn: "English",
+      languageJa: "Japanese",
       assetsTitle: "Image Assets",
       assetsDesc:
         "Relative path for pasted or dropped images. Supports starting with ./ or ../, and ${filename} for document name (e.g. ./assets, ../imgs, ${filename}.assets).",

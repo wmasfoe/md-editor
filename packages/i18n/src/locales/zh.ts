@@ -68,7 +68,9 @@ export const zh = {
       languageField: "界面语言",
       languageSystem: "跟随系统",
       languageZh: "简体中文",
+      languageZhHant: "繁體中文",
       languageEn: "English",
+      languageJa: "日本語",
       assetsTitle: "图片设置",
       assetsDesc:
         "粘贴或拖拽图片时保存的相对路径，支持以 ./ 或 ../ 开头，支持使用 ${filename} 代表当前文档名（如 ./assets、../imgs、${filename}.assets）。",

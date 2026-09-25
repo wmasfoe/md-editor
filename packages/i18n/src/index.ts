@@ -28,4 +28,6 @@ export {
   type LocaleInfo,
 } from "./types";
 export { zh, type TranslationSchema } from "./locales/zh";
+export { zhHant } from "./locales/zh-Hant";
 export { en } from "./locales/en";
+export { ja } from "./locales/ja";

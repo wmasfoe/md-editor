@@ -518,7 +518,9 @@ export function WebSettingsDialog({
                 >
                   <option value="system">{t("settings.general.languageSystem")}</option>
                   <option value="zh">{t("settings.general.languageZh")}</option>
+                  <option value="zh-Hant">{t("settings.general.languageZhHant")}</option>
                   <option value="en">{t("settings.general.languageEn")}</option>
+                  <option value="ja">{t("settings.general.languageJa")}</option>
                 </select>
               </label>
             </section>
