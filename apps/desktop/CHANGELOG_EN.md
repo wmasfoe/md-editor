@@ -2,6 +2,14 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.12.0 - 2026-09-25 (#128, #129, #130, #131, #132)
+
+- Fixed: pressing Tab in body text inserted no indentation and moved focus out of the editor. Tab now inserts a two-space line indent and keeps focus inside the editor; Shift-Tab outdents symmetrically. Inside block-level or protected regions (frontmatter, HTML, MDX) Tab is consumed but the text is left untouched
+- Fixed: a directly typed bare link (e.g. `https://123.com`) could not be edited or deleted and showed an atom outline when the caret entered it. Angle autolinks `<https://…>` and reference-style links `[label][ref]` are editable and deletable in place again
+- New: Cmd/Ctrl + left click opens links in the system default browser for all four forms — bare links, angle autolinks, inline `[label](URL)` and reference-style `[label][ref]` (the URL is resolved from its link definition). A plain click still places the caret so the text stays editable; dangerous protocols are rejected
+- Product decision recorded: no Tab keyboard path into the code-block toolbar (sidebar and primary actions all have shortcuts), so Tab is always used for text indentation
+- Docs: new "Editor interaction contracts" spec covering Tab ownership, link-like text and its open path, and local vs cloud media
+
 ## 0.11.0 - 2026-09-22 (#91, #92, #93, #94, #95, #96, #98)
 
 - Fixed a one-line-height rendering gap between the toolbar and the code body of indented fenced code blocks (fence line prefixed with spaces, e.g. a ts language tag) in WYSIWYG mode, together with lost code card styling for code blocks nested in lists and blockquotes and a collapsed last visible code line in empty indented code blocks.
