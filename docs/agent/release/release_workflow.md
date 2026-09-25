@@ -68,6 +68,14 @@
 5. **若是桌面端客户端版本发布**：
    - 走标准客户端发布命令：`pnpm release:desktop`（由 GitHub Actions 构建多端二进制并自动同步至 R2 与公开 Tap）。
 
+## Linux 双架构分发契约（amd64 / arm64）
+
+- CI 产物命名（`release-desktop.yml`）：AppImage 为 `*_amd64.AppImage` / `*_aarch64.AppImage`，DEB 为 `*_amd64.deb` / `*_arm64.deb`；`x86_64.AppImage` 历史上从未存在，官网与脚本禁止构造该文件名。
+- `version.json` 槽位：`linux_appimage` / `linux_deb` 固定为 x64，`linux_appimage_arm64` / `linux_deb_arm64` 固定为 ARM64，由 `update-r2-version-manifest.mjs` 按架构精确匹配写入（禁止取 readdir 首个命中）。
+- latest 路由：`/desktop/linux/latest` 与 `/desktop/linux-deb/latest` 默认 x64；ARM 用户走 `/desktop/linux-arm64/latest` 与 `/desktop/linux-deb-arm64/latest`。Worker 绝不跨架构回退（同扩展名仅剩异架构包时才兜底）。
+- 架构识别必须同时处理 `aarch64` 与 `arm64`（`aarch64` 不含 `arm64` 子串）：`router.ts` 的 `isArm64AssetName` / `isX64AssetName` 为唯一口径，`sync` 脚本与 manifest 脚本各自镜像该逻辑。
+- 线上数据恢复：存量 `version.json` 的 x64 槽位可能指向 ARM 包，随下一次桌面发版重建 manifest 自动修复；紧急时可手动重跑 manifest 脚本并上传 R2。
+
 ## 相关文件索引
 
 - `.github/workflows/build-desktop.yml`: PR 和手动触发的跨平台校验构建入口。

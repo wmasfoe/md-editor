@@ -66,9 +66,9 @@ describe("site-links", () => {
     expect(() => buildMacosDmgUrl("")).toThrow(/Invalid macOS DMG version/u);
   });
 
-  it("builds Linux AppImage URLs for x86_64 and aarch64", () => {
+  it("builds Linux AppImage URLs for amd64 and aarch64", () => {
     expect(buildLinuxAppImageUrl("0.4.4")).toBe(
-      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_x86_64.AppImage",
+      "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_amd64.AppImage",
     );
     expect(buildLinuxAppImageUrl("v0.4.4", "aarch64")).toBe(
       "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",
@@ -146,8 +146,8 @@ describe("site-links", () => {
     expect(buildWindowsSetupUrl("0.10.2", "x64", customDomain)).toBe(
       "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x64-setup.exe",
     );
-    expect(buildLinuxAppImageUrl("0.10.2", "x86_64", customDomain)).toBe(
-      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_x86_64.AppImage",
+    expect(buildLinuxAppImageUrl("0.10.2", "amd64", customDomain)).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint_0.10.2_amd64.AppImage",
     );
     expect(buildAndroidApkUrl("0.1.0", customDomain)).toBe(
       "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",

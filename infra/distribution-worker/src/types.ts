@@ -30,7 +30,11 @@ export interface AppVersionManifest {
       windows_x64?: PlatformAssetInfo;
       windows_arm64?: PlatformAssetInfo;
       linux_appimage?: PlatformAssetInfo;
+      /** Linux ARM64 AppImage（与 linux_appimage 固定为 x64 对应，避免按架构发错包） */
+      linux_appimage_arm64?: PlatformAssetInfo;
       linux_deb?: PlatformAssetInfo;
+      /** Linux ARM64 DEB（与 linux_deb 固定为 x64 对应） */
+      linux_deb_arm64?: PlatformAssetInfo;
     };
   };
   android?: {

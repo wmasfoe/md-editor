@@ -337,8 +337,8 @@ export function buildDownloadCatalog(
     },
     linux: {
       primary: {
-        href: buildLinuxAppImageUrl(normalized, "x86_64", domain),
-        fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_x86_64.AppImage`,
+        href: buildLinuxAppImageUrl(normalized, "amd64", domain),
+        fileName: `${ARTIFACT_NAME_PREFIX}_${normalized}_amd64.AppImage`,
         label: labels.linux,
       },
       format: "x86_64 · AppImage",
