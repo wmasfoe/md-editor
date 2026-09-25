@@ -236,6 +236,87 @@ export function parsePublishedVersionTag(tagName: string | null): string | null 
   return null;
 }
 
+export type RuntimeArch = "arm64" | "x64" | "unknown";
+
+/**
+ * 从 UA / platform 推断 CPU 架构（Tauri WebView 无原生 arch API 时的启发式口径）。
+ * 注意：macOS 的 UA 冻结为 "Intel Mac OS X"，绝不能用 bare "intel" 判 x64；
+ * 架构未知时返回 "unknown"，调用方必须回退到历史的首个匹配行为，不得猜错。
+ */
+export function detectRuntimeArch(userAgent?: string, platform?: string): RuntimeArch {
+  const ua = (
+    userAgent ?? (typeof navigator !== "undefined" ? navigator.userAgent : "")
+  ).toLowerCase();
+  const pf = (
+    platform ?? (typeof navigator !== "undefined" ? navigator.platform : "")
+  ).toLowerCase();
+  const text = `${ua} ${pf}`;
+  if (text.includes("aarch64") || text.includes("arm64")) {
+    return "arm64";
+  }
+  if (
+    text.includes("x86_64") ||
+    text.includes("amd64") ||
+    text.includes("x64") ||
+    text.includes("win64") ||
+    text.includes("wow64")
+  ) {
+    return "x64";
+  }
+  return "unknown";
+}
+
+/** 与分发网关同口径：aarch64 同样视为 ARM64（不含 arm64 子串）。 */
+export function isArmAssetFileName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes("arm64") || lower.includes("aarch64");
+}
+
+export function isX64AssetFileName(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (isArmAssetFileName(lower)) {
+    return false;
+  }
+  return lower.includes("x64") || lower.includes("x86_64") || lower.includes("amd64");
+}
+
+/**
+ * 在匹配当前系统的安装包中优先取同架构；架构未知时保持历史行为（首个匹配），
+ * 已知架构但无同架构包时回退到首个可用包（老版本只有单架构产物），好过无下载链接。
+ */
+export function pickPlatformAssetUrl(
+  assets: ReadonlyArray<{ name: string; downloadUrl: string }>,
+  matchExt: (name: string) => boolean,
+  arch: RuntimeArch,
+): string | undefined {
+  let fallback: string | undefined;
+  for (const asset of assets) {
+    if (!matchExt(asset.name)) {
+      continue;
+    }
+    if (arch === "unknown") {
+      return asset.downloadUrl;
+    }
+    const sameArch =
+      arch === "arm64" ? isArmAssetFileName(asset.name) : isX64AssetFileName(asset.name);
+    if (sameArch) {
+      return asset.downloadUrl;
+    }
+    fallback ??= asset.downloadUrl;
+  }
+  return fallback;
+}
+
+function matchAnyInstaller(name: string): boolean {
+  return (
+    name.endsWith(".dmg") ||
+    name.endsWith(".exe") ||
+    name.endsWith(".msi") ||
+    name.endsWith(".appimage") ||
+    name.endsWith(".deb")
+  );
+}
+
 function readPlatformDownloadUrl(input: unknown): string | undefined {
   if (!Array.isArray(input)) {
     return undefined;
@@ -244,8 +325,9 @@ function readPlatformDownloadUrl(input: unknown): string | undefined {
   const isWin = isWindowsPlatform();
   const isMac = isMacPlatform();
   const isLinux = isLinuxPlatform();
+  const arch = detectRuntimeArch();
 
-  // 优先匹配当前操作系统对应的原生安装包
+  const normalized: Array<{ name: string; downloadUrl: string }> = [];
   for (const asset of input) {
     if (!isRecord(asset)) {
       continue;
@@ -255,40 +337,23 @@ function readPlatformDownloadUrl(input: unknown): string | undefined {
     if (!name || !downloadUrl) {
       continue;
     }
-
-    if (isWin && (name.endsWith(".exe") || name.endsWith(".msi"))) {
-      return downloadUrl;
-    }
-    if (isMac && name.endsWith(".dmg")) {
-      return downloadUrl;
-    }
-    if (isLinux && (name.endsWith(".appimage") || name.endsWith(".deb"))) {
-      return downloadUrl;
-    }
+    normalized.push({ name, downloadUrl });
   }
 
-  // 兜底：若未精确匹配操作系统，回退至常见安装包类型
-  for (const asset of input) {
-    if (!isRecord(asset)) {
-      continue;
-    }
-    const name = readString(asset.name)?.toLowerCase();
-    const downloadUrl = readString(asset.browser_download_url);
-    if (!name || !downloadUrl) {
-      continue;
-    }
-    if (
-      name.endsWith(".dmg") ||
-      name.endsWith(".exe") ||
-      name.endsWith(".msi") ||
-      name.endsWith(".appimage") ||
-      name.endsWith(".deb")
-    ) {
-      return downloadUrl;
-    }
+  const matchCurrentOs = (name: string): boolean => {
+    if (isWin) return name.endsWith(".exe") || name.endsWith(".msi");
+    if (isMac) return name.endsWith(".dmg");
+    if (isLinux) return name.endsWith(".appimage") || name.endsWith(".deb");
+    return false;
+  };
+
+  const preferred = pickPlatformAssetUrl(normalized, matchCurrentOs, arch);
+  if (preferred) {
+    return preferred;
   }
 
-  return undefined;
+  // 兜底：若未精确匹配操作系统，回退至常见安装包类型（保持历史行为）。
+  return pickPlatformAssetUrl(normalized, matchAnyInstaller, "unknown");
 }
 
 function parseSemver(input: string): SemverParts | null {
