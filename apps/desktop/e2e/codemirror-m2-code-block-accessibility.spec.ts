@@ -40,16 +40,22 @@ test.describe("CodeMirror M2 code-block accessibility", () => {
     ).toHaveCount(2);
     await expect(page.locator(".cm-content")).not.toContainText("```ts meta=1");
 
+    // **需求变更（属主决策，2026-09-25）**：不考虑纯键盘用户 —— 侧栏/键位已有快捷键，
+    // 不需要"把焦点从内容交给控件"。Tab 由编辑器内容消费（行级缩进），焦点必须留在内容区。
+    // 因此本用例不再断言"Tab 依次聚焦语言/选择/复制按钮"，改为：
+    //   ① Tab 后焦点仍在内容区（新契约）；
+    //   ② 控件仍具备正确的可访问性语义（role/name/value）且**在被聚焦后**可正常操作。
     await page.keyboard.press("Tab");
-    await expect(page.locator(".cm-content")).toBeFocused();
+    await expect(page.locator(".cm-content"), "Tab 后焦点必须仍在内容区").toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(language).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(select).toBeFocused();
-    await page.keyboard.press("Tab");
-    await expect(copy).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".cm-content")).toBeFocused();
+    await expect(page.locator(".cm-content"), "再按一次仍须留在内容区").toBeFocused();
+    await page.keyboard.press("Meta+z"); // 撤销上一步缩进，保持夹具文本不变
+
+    await expect(language).toHaveValue("typescript");
+    await expect(select).toHaveAccessibleName(/select code block body/iu);
+    await expect(copy).toHaveAccessibleName(/copy code block body/iu);
+    await language.click();
+    await expect(language, "控件被聚焦后仍是可操作的真实控件").toBeFocused();
 
     const markdown = await page.evaluate(
       () => window.__CODEMIRROR_EDITOR_E2E__?.getDiagnostics().renderer?.markdown,

@@ -36,6 +36,11 @@ const PROJECTION_KINDS = [
   "images",
   "tables",
   "code-blocks",
+  // 保护语义依赖这些投影：缺了它们 `protectedRanges` 为空 ⇒ 保护层会放行
+  //（U7a/U7b/U7c 的「受保护区内文本零变更」断言正是在验收这条链路）。
+  "frontmatter",
+  "html",
+  "mdx",
 ] as unknown as Parameters<typeof createWysiwygProjectionExtensions>[0];
 
 /** 共用扩展（供单光标与多光标 state 复用，保证同一仲裁面） */
@@ -182,12 +187,16 @@ describe("T3–T8 CM6 适配器：括号/link 跳出（只动 selection，零文
     expect(r.cursor).toBe(5);
   });
 
-  it("T5 foo()| → 不动点：escapeBracket 返回 false，交还责任链（不断言『无动作』）", () => {
+  it("T5 foo()| → 不动点：escapeBracket 返回 false，交棒给仲裁链的**缩进兜底**", () => {
     const r = escapeAt("foo()|");
     expect(r.moved).toBe(false);
     expect(r.text).toBe("foo()");
-    // I7：关键是 Tab **落到仲裁链下一步**，而非被本层吞掉
-    expect(dispatchTabLikeKeymap(createTestView(buildState("foo()", 5)))).toBe(false);
+    // I7 原意：Tab 必须**落到仲裁链下一步**，而不是被括号跳出层吞掉。
+    // 新契约（属主手测驱动）：仲裁链的尾动作由「交还浏览器」改为「行级缩进」⇒
+    // 这一层仍然返回 false（不跳出），但键被**编辑器内容**消费 ⇒ 文本按缩进单位变化。
+    const view = createTestView(buildState("foo()", 5));
+    expect(dispatchTabLikeKeymap(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("  foo()");
   });
 
   it("T6 foo(xxx|xxx) → 非空对也跳，内容逐字符不变", () => {
@@ -314,7 +323,17 @@ function coveringRecord(
 }
 
 describe("AC-MB3 / H4 边界切片：五类边界内 Tab 不跳出（适配器查 range-index fail closed）", () => {
-  function assertClosed(doc: string, cursor: number, kind: string, extra: Extension[] = []): void {
+  function assertClosed(
+    doc: string,
+    cursor: number,
+    kind: string,
+    extra: Extension[] = [],
+    /**
+     * 行内语义（如 autolink）允许**行首缩进**；块级/受保护语义（frontmatter / html / mdx）
+     * 必须**文本零变更**（fail-closed，与 change-protection 同一原则）。
+     */
+    expectIndent = false,
+  ): void {
     const state = buildState(doc, cursor, extra);
     expect(
       coveringRecord(state, kind, cursor),
@@ -323,9 +342,15 @@ describe("AC-MB3 / H4 边界切片：五类边界内 Tab 不跳出（适配器�
     expect(escapeBracket(createTestView(state)), `${kind} 内必须 fail closed 不跳出`).toBe(false);
     const view = createTestView(buildState(doc, cursor, extra));
     const before = view.state.doc.toString();
-    expect(dispatchTabLikeKeymap(view), `${kind} 内 Tab 不被跳出消费`).toBe(false);
-    expect(view.state.doc.toString(), `${kind} 文本零变更`).toBe(before);
-    expect(view.state.selection.main.head, `${kind} 光标不移动`).toBe(cursor);
+    // 新契约（属主手测驱动）：编辑器内容**消费** Tab（不再交还浏览器，避免焦点离开编辑器），
+    // 仲裁链的尾动作是行级缩进；块级/受保护行只消费按键而不动文本。
+    expect(dispatchTabLikeKeymap(view), `${kind} 内 Tab 由编辑器消费（不再交还浏览器）`).toBe(true);
+    // 行内语义允许行首缩进（光标随插入量右移 2）；块级/受保护语义必须文本零变更、光标不动。
+    const indentLength = 2;
+    const expectedDoc = expectIndent ? `  ${before}` : before;
+    const expectedHead = expectIndent ? cursor + indentLength : cursor;
+    expect(view.state.doc.toString(), `${kind} 文本期望`).toBe(expectedDoc);
+    expect(view.state.selection.main.head, `${kind} 光标期望`).toBe(expectedHead);
   }
 
   it("U7a frontmatter 源码内括号不跳出", () => {
@@ -347,7 +372,8 @@ describe("AC-MB3 / H4 边界切片：五类边界内 Tab 不跳出（适配器�
 
   it("U8a URL 段（autolink）内括号不跳出", () => {
     const doc = "见 <https://e.com/a(x)>";
-    expect(() => assertClosed(doc, doc.indexOf("(x)") + 2, "autolink")).not.toThrow();
+    // autolink 属**行内**语义：缩进只动行首空白，不影响其结构 ⇒ 允许行首缩进
+    expect(() => assertClosed(doc, doc.indexOf("(x)") + 2, "autolink", [], true)).not.toThrow();
   });
 
   it("U8b 围栏代码体内括号不跳出（Tab 归 codeBlockTab，其消费已由 I9 升档第 2 步断言）", () => {

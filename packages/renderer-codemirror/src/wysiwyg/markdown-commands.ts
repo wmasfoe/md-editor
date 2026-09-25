@@ -1,4 +1,5 @@
 import { deleteMarkupBackward, insertNewlineContinueMarkup } from "@codemirror/lang-markdown";
+import { removeIndent } from "./paragraph-indent.ts";
 import { indentUnit } from "@codemirror/language";
 import { EditorSelection, Prec, type EditorState, type StateCommand } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
@@ -78,7 +79,11 @@ export function createMarkdownStructuredCommandExtensions() {
       // 「表格跳格 / 列表层级」作为结构尾动作由纯决策函数按 D2 全序调度。
       {
         key: "Shift-Tab",
-        run: (view) => enterSelectedTableCell(view) || viewCommand(outdentMarkdownList)(view),
+        run: (view) =>
+          enterSelectedTableCell(view) ||
+          viewCommand(outdentMarkdownList)(view) ||
+          // 兜底：普通段落的行级反缩进（列表/表格已在前两步消费；自己消费按键以免焦点离开编辑器）
+          removeIndent(view),
       },
       { key: "Space", run: viewCommand(toggleSelectedTasks) },
     ]),

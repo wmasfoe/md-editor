@@ -73,8 +73,9 @@ test.describe("D-1 Tab 跳出括号/link（真实 desktop app）", () => {
     await setCaret(page, 9); // foo()| = `)` 之后（UTF-16：前文占 2 单元，foo() 位于 4..8，不动点=9）
     await page.keyboard.press("Tab");
 
-    // 零文本变更；且光标不是被「跳出」推走（仍在原位或按后续逻辑移动）
-    expect(await readDoc(page), "零文本变更").toBe(before);
+    // 新契约：Tab 的尾动作是**行首缩进**（本用例本意"跳出层不吞掉 Tab、落到后续逻辑"，
+    // 现在"后续逻辑"= 行级缩进）⇒ 文本应恰好比原来多出行首 2 空格，括号结构不变。
+    expect(await readDoc(page), "只允许行首缩进").toBe(before.replace("foo()", "  foo()"));
   });
 
   // T17/E19（IME 组合期）：**已恢复为本文件的 E19**（终局评审 MEDIUM-2 更正）——
@@ -269,7 +270,14 @@ async function expectNoJump(
   await page.keyboard.press("Tab");
   const after = await readDoc(page);
   expect(after.replace(/[ \t]/g, ""), "括号结构逐字符不变（不得跳出）").toBe(doc);
-  expect(await head(page), `escape 层不得消费 Tab（目标 ${forbidden} 是禁区）`).not.toBe(forbidden);
+  // 新契约（属主手测驱动）：Tab 的尾动作是**行级缩进** ⇒ 光标会右移缩进量。
+  // 因此不能再拿"光标恰好等于禁区位置"判跳（缩进后的位置可能与禁区数值重合，属假阳性）；
+  // 改为断言"位移不超过缩进量"，并把禁区位置作为诊断信息带上。
+  const afterHead = await head(page);
+  expect(
+    afterHead,
+    `escape 层不得消费 Tab：只允许行首缩进带来的 +2 位移（禁区 ${forbidden}，实际 ${afterHead}）`,
+  ).toBeLessThanOrEqual(cursor + 2);
 }
 
 test.describe("E1–E8 / T3–T10 括号与 link 跳出（真实 desktop app）", () => {

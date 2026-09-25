@@ -11,7 +11,7 @@
  * `Shift-Tab`、`Mod-Enter`、`Escape` 等非 Tab 绑定保持原 keymap 不动。
  */
 
-import { EditorSelection, Prec } from "@codemirror/state";
+import { Prec } from "@codemirror/state";
 import { keymap, type EditorView } from "@codemirror/view";
 import { codeBlockTab } from "./code-block-commands.ts";
 import { escapeBracket } from "./bracket-escape-command.ts";
@@ -20,6 +20,7 @@ import { acceptAiSuggestion, aiSuggestionField } from "./suggestion.ts";
 import { wysiwygProjectionField } from "./projection-state.ts";
 import { editorModeField } from "../mode.ts";
 import { dispatchTabActions, type TabAction } from "./tab-arbiter.ts";
+import { insertIndent } from "./paragraph-indent.ts";
 
 /** 执行器表：动作标识 → 实际执行器（全部保留自门控，返回 false 继续序列） */
 /** view 闭包版执行器表（轮1 concern-7：映射供给 runner，迭代归 tab-arbiter） */
@@ -80,29 +81,12 @@ export function runTabArbiter(view: EditorView): boolean {
   if (dispatchTabActions(context, executorsFor(view)) === "handled") {
     return true;
   }
-  return context.sourceMode ? insertSourceIndent(view) : false;
+  // 兜底（属主手测驱动的新契约）：**不再把 Tab 交还浏览器**。
+  // 旧尾契约下所见即所得模式的普通正文按 Tab 既无缩进、又把 DOM 焦点送出编辑器
+  //（实测 activeElement 落到 BODY）；而**源码模式早已有同样的行级缩进** —— 二者只是被
+  // `sourceMode` 门控分开。缩进是**文本级**语义（与编辑轴无关），故合一。
+  return insertIndent(view);
 }
-
-/**
- * 源码模式下的 Tab 兜底：**行级缩进**（2 空格，与代码块缩进约定一致；
- * 刻意不用 4 空格 —— 4 空格在 markdown 里会把段落变成缩进代码块）。
- * 光标随插入量右移，保持相对位置。
- */
-function insertSourceIndent(view: EditorView): boolean {
-  const { state } = view;
-  const spec = state.changeByRange((range) => {
-    const line = state.doc.lineAt(range.from);
-    return {
-      changes: { from: line.from, insert: SOURCE_INDENT },
-      range: EditorSelection.cursor(range.from + SOURCE_INDENT.length),
-    };
-  });
-  view.dispatch({ ...spec, userEvent: "input.indent", scrollIntoView: true });
-  return true;
-}
-
-/** 源码模式缩进量（2 空格；与代码块缩进约定一致且不会产生缩进代码块） */
-const SOURCE_INDENT = "  ";
 
 /** 全编辑器唯一的 Tab 仲裁入口（`Prec.highest`） */
 export const tabArbiterKeymap = Prec.highest(keymap.of([{ key: "Tab", run: runTabArbiter }]));
