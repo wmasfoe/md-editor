@@ -74,16 +74,17 @@ describe("default WYSIWYG visualization", () => {
     const projection = state.field(wysiwygProjectionField);
     const projectedWidgets = widgets(projection.layoutDecorations);
 
-    expect(defaults).toHaveLength(9);
+    // 裸 URL 不再计入 source-only 原子（改为普通可编辑文本）⇒ 9 → 8
+    expect(defaults).toHaveLength(8);
     expect(projectedWidgets).toHaveLength(defaults.length);
     expect(inspectWysiwygProjection(state)).toMatchObject({
       protectedRanges: defaults.map((record) => record.fullRange),
       layoutDecorationCount: defaults.length,
       atomicRangeCount: defaults.length,
     });
+    // 两个 autolink 中：尖括号 `<…>` 仍是原子；**裸 URL** 已改为普通文本 ⇒ 少一项
     expect(projectedWidgets.map((widget) => widget.value.kind)).toEqual([
       "heading-setext",
-      "autolink",
       "autolink",
       "reference-link",
       "reference-image",

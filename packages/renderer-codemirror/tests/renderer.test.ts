@@ -232,12 +232,13 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     const probe = setup.harness.probe();
 
     expect(probe.markdown).toBe(markdown);
+    // 夹具为 Setext 标题 + 裸 URL + 脚注：裸 URL 改为普通文本后不再是原子 ⇒ 3 → 2
     expect(probe.wysiwygProjection).toMatchObject({
       mode: "wysiwyg",
-      layoutDecorationCount: 3,
-      atomicRangeCount: 3,
+      layoutDecorationCount: 2,
+      atomicRangeCount: 2,
     });
-    expect(probe.wysiwygProjection.protectedRanges).toHaveLength(3);
+    expect(probe.wysiwygProjection.protectedRanges).toHaveLength(2);
   });
 
   it("R3 publishes one local origin and acknowledges it without an echo transaction", () => {

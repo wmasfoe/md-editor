@@ -741,12 +741,14 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
   test("E01-AC14: supported defaults, code blocks, and HTML visualize while unsupported syntax stays raw", async ({
     page,
   }) => {
+    // 属主手测驱动：**裸 URL 改为普通可编辑文本**（不再作为受保护原子）⇒ 默认原子 7 → 6，
+    // 其中 autolink 2 → 1（只剩尖括号 `<…>` 形态）。见 E42 的行为契约。
     const defaults = page.locator(".cm-md-default-atom");
-    await expect(defaults).toHaveCount(7);
+    await expect(defaults).toHaveCount(6);
     await expect(page.locator('.cm-md-default-atom[data-syntax-kind="heading-setext"]')).toHaveText(
       "Setext visual",
     );
-    await expect(page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]')).toHaveCount(2);
+    await expect(page.locator('.cm-md-default-atom[data-syntax-kind="autolink"]')).toHaveCount(1);
     await expect(
       page.locator('.cm-md-default-atom[data-syntax-kind="reference-link"]'),
     ).toContainText("reference label");
