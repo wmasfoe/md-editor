@@ -2,6 +2,10 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.12.1 - 2026-09-25 (#134)
+
+- Fixed: URL resolution issue in the desktop release workflow when optional build artifacts (such as Windows ARM64) are not present, preventing invalid directory URLs in installer script generation
+
 ## 0.12.0 - 2026-09-25 (#128, #129, #130, #131, #132)
 
 - Fixed: pressing Tab in body text inserted no indentation and moved focus out of the editor. Tab now inserts a two-space line indent and keeps focus inside the editor; Shift-Tab outdents symmetrically. Inside block-level or protected regions (frontmatter, HTML, MDX) Tab is consumed but the text is left untouched
