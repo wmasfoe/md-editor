@@ -2,6 +2,15 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.13.0 - 2026-09-26 (#135, #137, #138, #140)
+
+- Added full internationalization (i18n) support for Japanese and Traditional Chinese, featuring a dropdown language selector and automatic system/browser locale detection
+- Fully localized Desktop and Web editor shells and peripheral UI components (sidebar, file tree, context menus, MDX component palette, toast notifications), achieving 100% locale key parity
+- Introduced dynamic `AiSuggestionLabels` facet in CodeMirror editor kernel, enabling reactive hot-switching for inline AI ghost suggestion hints (e.g., "Tab Accept · Esc Dismiss") without editor reload
+- Fixed settings persistence defect where saving non-zh/en language preferences reverted to "System Default", and calibrated cross-window preview cancellation
+- Fixed potential rendering crashes caused by empty link decorations and unmapped tile selection markers in WYSIWYG mode
+- Disabled Sentry error reporting in development environments to eliminate noisy issue reports during local debugging
+
 ## 0.12.1 - 2026-09-25 (#134)
 
 - Fixed: URL resolution issue in the desktop release workflow when optional build artifacts (such as Windows ARM64) are not present, preventing invalid directory URLs in installer script generation
