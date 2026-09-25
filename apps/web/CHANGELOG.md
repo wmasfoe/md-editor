@@ -17,10 +17,6 @@
 
 - 常规操作成功静默 Toast，优化沉浸式写作体验
 
-# Changelog - Web Playground
-
-All notable changes to the Inkpoint Web Playground will be documented in this file.
-
 ## 0.1.1 - 2026-09-18 (#88, #89)
 
 - 修复长文档在所见即所得与源码模式切换时可视区域跳动与光标丢失问题，实现屏幕像素级平稳过渡

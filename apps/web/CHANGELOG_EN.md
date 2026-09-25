@@ -2,6 +2,13 @@
 
 All notable changes to the Inkpoint Web Playground will be documented in this file.
 
+## 0.2.0 - 2026-09-26 (#138, #140)
+
+- Added full internationalization (i18n) support for Traditional Chinese and Japanese with a dropdown language selector and browser language detection
+- Added multilingual showcase document presets with real-time locale switching and preview
+- Fully localized sidebar, file tree, context menus, and preferences modal
+- Enabled dynamic reactive hot-switching for inline AI ghost suggestion hints (Tab Accept · Esc Dismiss)
+
 ## 0.1.3 - 2026-09-25 (#128, #129, #130, #131, #132)
 
 - Fixed: Tab in body text did not indent and moved focus out of the editor (now a two-space line indent with focus kept; Shift-Tab outdents; protected regions are untouched)
