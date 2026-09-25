@@ -16,7 +16,10 @@ import { describe, expect, it } from "vitest";
  *    - `markdown-commands.ts`：结构命令经 `authorizeWysiwygStructuredCommand` 授权
  *      （保护层 `isWysiwygStructuredCommandAuthorized` 放行），列表缩进作用于非受保护 marker；
  *    - `renderer.ts`：控制器/facade 事务重派发（effects/listener 流），其**自身的字面量
- *      变更点**仍受规则 2 约束。
+ *      变更点**仍受规则 2 约束；
+ *    - `paragraph-indent.ts`：行级缩进兜底 —— 变更前**显式调用保护层
+ *      `isWysiwygChangeAllowed`**（受保护语义下只消费按键、不动文本），
+ *      故它是「先授权再 dispatch」的正当透传，而非绕道。
  *    枚举外的新间接 dispatch 会被点名 —— 惯例不再「可绕道」。
  *
  * 显式豁免（全文件跳扫，语义理由非偷懒）：
@@ -47,7 +50,7 @@ const ALLOWLIST = new Set([
 ]);
 
 /** 允许 `dispatch(<identifier>)` 间接形式的**枚举透传枢纽**（其余文件出现即违规） */
-const INDIRECT_OK = new Set(["markdown-commands.ts", "renderer.ts"]);
+const INDIRECT_OK = new Set(["markdown-commands.ts", "renderer.ts", "paragraph-indent.ts"]);
 
 /** 从 `dispatch(` 起做括号配平，取该次调用的真实参数体（消除跨调用假阳） */
 function dispatchArgument(source: string, start: number): string {

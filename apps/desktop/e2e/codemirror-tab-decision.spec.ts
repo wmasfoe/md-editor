@@ -135,8 +135,10 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
       lineStart + "($a$)".length,
     );
 
-    // ③ 零文本变更
-    expect(await readDoc(page), "Tab 不得改动文本").toBe(OWNER_REPRO);
+    // ③ 只允许**行首缩进**（新契约）：不得发生跳出/表格跳转等其它文本改动
+    expect(await readDoc(page), "Tab 只允许在该行行首插入缩进单位，不得有其它文本改动").toBe(
+      OWNER_REPRO.replace("($a$)", "  ($a$)"),
+    );
   });
 
   test("E23/AC-S3：源码模式下 Tab 不得触发括号跳出，而是行级普通缩进", async ({ page }) => {
@@ -219,5 +221,37 @@ test.describe("S2/S3 Tab 决策正确性（真实 desktop app）", () => {
         .map((element) => `${element.tagName}.${element.className}`.slice(0, 70));
     });
     expect(offenders, "文档内控件必须 tabindex=-1（新增 widget 请一并处理）").toEqual([]);
+  });
+
+  test("E41/AC-S2b：普通正文按 Tab 必须缩进，且焦点留在编辑器内（Shift-Tab 反缩进）", async ({
+    page,
+  }) => {
+    // 属主手测发现（本批承认但未闭环的空白）：**普通正文按 Tab 既没缩进，还把 DOM 焦点送出编辑器**
+    // （实测 activeElement 落到 BODY）。本文件头注释里的尾契约是「fallthrough 交还浏览器」，
+    // S2 只修了「焦点跳进**文档内**控件」，未处理「焦点离开编辑器」。
+    //
+    // 新契约（属主提出）：**编辑器内容必须消费 Tab** —— 普通正文缩进（缩进单位 2 空格，
+    // 与代码块/列表一致），Shift-Tab 反缩进；焦点永不离开编辑器。
+    // 结构/列表/代码块等既有语义不受影响（本动作处于 D2 全序**尾部**，只在前述执行器全部不动作时出场）。
+    await openApp(page);
+    await setDoc(page, "普通段落一行\n\n第二段\n", "wysiwyg");
+    await setCaret(page, 2);
+
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => readDoc(page), { message: "Tab 必须产生行级缩进（2 空格）" })
+      .toBe("  普通段落一行\n\n第二段\n");
+    const focusAfterTab = await focusInfo(page);
+    expect(
+      focusAfterTab.inEditor,
+      "Tab 后焦点必须仍在编辑器内（不得交给浏览器 Tab 导航送出编辑器）",
+    ).toBe(true);
+
+    // 对称性：Shift-Tab 反缩进，且同样不交出焦点
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() => readDoc(page), { message: "Shift-Tab 必须反缩进" })
+      .toBe("普通段落一行\n\n第二段\n");
+    expect((await focusInfo(page)).inEditor, "Shift-Tab 后焦点仍须在编辑器内").toBe(true);
   });
 });
