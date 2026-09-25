@@ -39,6 +39,8 @@
 | :--- | :--- | :--- |
 | `pnpm release:desktop` | `scripts/release/publish-desktop.mjs` | 桌面端完整发版流程（版本更新、Changelog 写入、commit、`v*` tag 与 push，同时支持 `desktop-v*`） |
 | `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端核心版本文件（desktop package, Tauri, Cargo；root package 固定为 `0.0.0` 容器占位）与 `apps/desktop/CHANGELOG.md` |
+| `pnpm release:android` | `scripts/release/publish-android.mjs` | Android 端完整发版流程（更新 build.gradle.kts、Changelog 写入、commit、`android-v*` tag 与 push 触发 CI） |
+| `pnpm release:android:version` | `scripts/release/version-android.mjs` | 仅更新 Android 端版本文件（build.gradle.kts）与 `apps/mobile/android/CHANGELOG.md` |
 | `pnpm release:web` | `scripts/web/deploy-web.mjs` | Web 端本地 Vercel CLI 预构建极速上线入口（对标 `release:site`） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
 | `pnpm deploy:web` | `scripts/web/deploy-web.mjs` | Web 端部署别名入口 |

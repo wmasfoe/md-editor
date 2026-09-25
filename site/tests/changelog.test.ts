@@ -120,12 +120,14 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
 
     const androidZh = getAndroidChangelogEntries("zh");
     const androidEn = getAndroidChangelogEntries("en");
-    expect(androidZh.length).toBeGreaterThanOrEqual(2);
-    expect(androidEn.length).toBeGreaterThanOrEqual(2);
-    expect(androidZh[0].version).toBe("0.1.1");
-    expect(androidEn[0].version).toBe("0.1.1");
-    expect(androidZh[1].version).toBe("0.1.0");
-    expect(androidEn[1].version).toBe("0.1.0");
+    expect(androidZh.length).toBeGreaterThanOrEqual(3);
+    expect(androidEn.length).toBeGreaterThanOrEqual(3);
+    expect(androidZh[0].version).toBe("0.2.0");
+    expect(androidEn[0].version).toBe("0.2.0");
+    expect(androidZh[1].version).toBe("0.1.1");
+    expect(androidEn[1].version).toBe("0.1.1");
+    expect(androidZh[2].version).toBe("0.1.0");
+    expect(androidEn[2].version).toBe("0.1.0");
     expect(androidEn[0].items[0].text).toMatch(/^[*A-Za-z]/u);
   });
 
