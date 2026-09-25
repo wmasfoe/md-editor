@@ -157,6 +157,7 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     setCodeBlockLineNumbers: vi.fn(() => ({ status: "noop" as const })),
     setHostVisibility: vi.fn(),
     showSuggestion: vi.fn(),
+    setAiSuggestionLabels: vi.fn(),
     acceptSuggestion: vi.fn(() => false),
     dismissSuggestion: vi.fn(() => false),
     getSuggestion: vi.fn(() => null),

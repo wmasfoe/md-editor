@@ -25,4 +25,10 @@ export * from "./hooks";
 export * from "./themes/built-in-themes";
 export * from "./keyboard";
 export type { TocTarget } from "./types";
-export { type MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+export {
+  type MarkdownSyntaxPlugin,
+  type AiSuggestionLabels,
+  type AiSuggestionInput,
+  type AiSuggestionValue,
+  DEFAULT_AI_SUGGESTION_LABELS,
+} from "@md-editor/renderer-codemirror";

@@ -6,6 +6,8 @@ import {
   acceptAiSuggestion,
   aiSuggestionExtension,
   aiSuggestionField,
+  aiSuggestionLabelsFacet,
+  DEFAULT_AI_SUGGESTION_LABELS,
   dismissAiSuggestion,
   setAiSuggestionEffect,
 } from "../../src/wysiwyg/suggestion.ts";
@@ -185,5 +187,66 @@ describe("AI Suggestion: Rewrite / Diff Edit", () => {
       selection: EditorSelection.cursor(4),
     });
     expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
+});
+
+describe("AI Suggestion: i18n Labels", () => {
+  it("默认采用中文标签 'Tab 接受 · Esc 取消'", () => {
+    expect(DEFAULT_AI_SUGGESTION_LABELS).toEqual({
+      accept: "接受",
+      dismiss: "取消",
+      tabKey: "Tab",
+      escKey: "Esc",
+    });
+
+    const view = createTestView("hello world", 0);
+    const facet = view.state.facet(aiSuggestionLabelsFacet);
+    expect(facet.accept).toBe("接受");
+    expect(facet.dismiss).toBe("取消");
+    expect(facet.tabKey).toBe("Tab");
+    expect(facet.escKey).toBe("Esc");
+  });
+
+  it("支持通过 Facet 全局注入自定义国际化标签 (如日语 'Tab 承認 · Esc 破棄')", () => {
+    const state = EditorState.create({
+      doc: "日本語テキスト",
+      extensions: [
+        aiSuggestionExtension,
+        aiSuggestionLabelsFacet.of({ accept: "承認", dismiss: "破棄" }),
+      ],
+    });
+    const facet = state.facet(aiSuggestionLabelsFacet);
+    expect(facet.accept).toBe("承認");
+    expect(facet.dismiss).toBe("破棄");
+    expect(facet.tabKey).toBe("Tab");
+    expect(facet.escKey).toBe("Esc");
+  });
+
+  it("支持通过建议输入对象 labels 覆盖单次建议的标签并保留至后续项", () => {
+    const view = createTestView("hello world", 0);
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        items: [
+          { from: 0, to: 5, text: "hi", originalText: "hello" },
+          { from: 6, to: 11, text: "earth", originalText: "world" },
+        ],
+        activeIndex: 0,
+        labels: {
+          accept: "Accept",
+          dismiss: "Discard",
+        },
+      }),
+    });
+
+    const initial = view.state.field(aiSuggestionField);
+    expect(initial?.labels?.accept).toBe("Accept");
+    expect(initial?.labels?.dismiss).toBe("Discard");
+
+    // 接受第一项，流转到第二项
+    expect(acceptAiSuggestion(view)).toBe(true);
+    const after = view.state.field(aiSuggestionField);
+    expect(after?.activeIndex).toBe(1);
+    expect(after?.labels?.accept).toBe("Accept");
+    expect(after?.labels?.dismiss).toBe("Discard");
   });
 });

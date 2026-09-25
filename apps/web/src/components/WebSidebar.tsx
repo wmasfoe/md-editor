@@ -67,7 +67,7 @@ export function WebSidebar({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const sidebarTitle = tab === "files" ? "文件" : "大纲";
+  const sidebarTitle = tab === "files" ? t("sidebar.files") : t("sidebar.outline");
 
   return (
     <>
@@ -93,7 +93,7 @@ export function WebSidebar({
             borderRightWidth: isVisible ? 1 : 0,
           } as CSSProperties
         }
-        aria-label={tab === "files" ? "文件列表" : "文档大纲"}
+        aria-label={tab === "files" ? t("web.fileListAria") : t("web.documentOutline")}
         aria-hidden={!isVisible}
         inert={!isVisible}
       >
@@ -102,8 +102,8 @@ export function WebSidebar({
           <button
             type="button"
             className="grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
-            aria-label={tab === "files" ? "切换至文档大纲" : "切换至文件树"}
-            title={tab === "files" ? "切换至文档大纲" : "切换至文件树"}
+            aria-label={tab === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")}
+            title={tab === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")}
             onClick={() => setTab(tab === "files" ? "outline" : "files")}
           >
             {tab === "files" ? (
@@ -124,8 +124,8 @@ export function WebSidebar({
                 "grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95",
                 isSearchOpen && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
-              aria-label="搜索文件"
-              title="搜索文件"
+              aria-label={t("fileTree.searchPlaceholder")}
+              title={t("fileTree.searchPlaceholder")}
               onClick={() => {
                 setIsSearchOpen((prev) => !prev);
                 if (isSearchOpen) setSearchQuery("");
@@ -144,7 +144,7 @@ export function WebSidebar({
             <MagnifyingGlassIcon className="size-3.5 shrink-0 text-[var(--theme-control-subtle)]" />
             <input
               type="text"
-              placeholder="快速检索文件..."
+              placeholder={t("web.quickSearchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-6 flex-1 bg-transparent text-xs text-[var(--theme-title)] placeholder:text-[var(--theme-control-subtle)] outline-none"

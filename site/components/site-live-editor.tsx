@@ -128,18 +128,39 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
     });
   }, []);
 
-  const initialMarkdown = useMemo(() => {
-    const sample = samples.find((item) => item.id === defaultId) ?? samples[0];
+  const currentMarkdown = useMemo(() => {
+    const sample = samples.find((item) => item.id === activeId) ?? samples[0];
     return getSampleMarkdown(sample, locale);
-  }, [defaultId, locale, samples]);
+  }, [activeId, locale, samples]);
 
   const [ownedDocument] = useState<DocumentState>(() =>
     createDocumentState({
-      markdown: initialMarkdown,
+      markdown: currentMarkdown,
       mode: requestedMode ?? "wysiwyg",
     }),
   );
   const documentState = documentStateProp ?? ownedDocument;
+
+  const prevLocaleRef = useRef(locale);
+  useEffect(() => {
+    if (prevLocaleRef.current !== locale) {
+      prevLocaleRef.current = locale;
+      if (!documentStateProp) {
+        const currentSample = samples.find((item) => item.id === activeId) ?? samples[0];
+        const markdown = getSampleMarkdown(currentSample, locale);
+        documentState.replaceDocument(
+          {
+            markdown,
+            savedMarkdown: markdown,
+            filePath: null,
+            mode: documentState.getSnapshot().mode,
+            replaceIntent: "same",
+          },
+          { kind: "command", commandId: "locale.switch" },
+        );
+      }
+    }
+  }, [activeId, documentState, documentStateProp, locale, samples]);
 
   const noopToast = useCallback(() => {}, []);
 
@@ -195,7 +216,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
     modeLabel ?? (liveMode === "source" ? copy.sourceMode : copy.wysiwygMode);
 
   return (
-    <EditorUiProvider markdown={initialMarkdown} showToast={noopToast}>
+    <EditorUiProvider markdown={currentMarkdown} showToast={noopToast}>
       <div
         style={EDITOR_THEME}
         className={[

@@ -92,8 +92,11 @@ import {
   acceptAiSuggestion,
   aiSuggestionExtension,
   aiSuggestionField,
+  aiSuggestionLabelsFacet,
   dismissAiSuggestion,
   setAiSuggestionEffect,
+  type AiSuggestionInput,
+  type AiSuggestionLabels,
   type AiSuggestionValue,
 } from "./wysiwyg/suggestion.ts";
 import { flushActiveTableCell } from "./wysiwyg/widgets/table-widget.ts";
@@ -130,6 +133,8 @@ export interface CodeMirrorRendererOptions {
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
+  /** AI 建议徽标国际化文案 */
+  readonly aiSuggestionLabels?: AiSuggestionLabels;
 }
 
 export interface ExternalEditRequest {
@@ -171,7 +176,8 @@ export interface CodeMirrorRenderer {
   rollbackMode(receipt: ModeReceipt): void;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setHostVisibility(hidden: boolean): void;
-  showSuggestion(suggestion: AiSuggestionValue): void;
+  showSuggestion(suggestion: AiSuggestionInput): void;
+  setAiSuggestionLabels(labels: AiSuggestionLabels): void;
   acceptSuggestion(): boolean;
   dismissSuggestion(): boolean;
   getSuggestion(): AiSuggestionValue | null;
@@ -499,6 +505,7 @@ class CodeMirrorRendererController {
   readonly #modeCompartment = new Compartment();
   readonly #markdownLanguageCompartment = new Compartment();
   readonly #syntaxRegistryCompartment = new Compartment();
+  readonly #aiSuggestionLabelsCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
@@ -511,6 +518,7 @@ class CodeMirrorRendererController {
   #contentRevision: number;
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
   #codeBlockLineNumbers = false;
+  #aiSuggestionLabels: AiSuggestionLabels | undefined;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
   #pendingExternalEdit: ExternalEditRequest | null = null;
@@ -550,6 +558,7 @@ class CodeMirrorRendererController {
     this.#stateEpochId = `cm-state-${rendererId}-${this.#stateEpochSequence}`;
     this.#options = options;
     this.#controllerOptions = controllerOptions;
+    this.#aiSuggestionLabels = options.aiSuggestionLabels;
 
     const initialSnapshot = options.initialSnapshot;
     this.#documentGeneration = initialSnapshot.documentGeneration;
@@ -594,6 +603,7 @@ class CodeMirrorRendererController {
       blockToolbarExtension,
       codeBlockSelectionExtension,
       aiSuggestionExtension,
+      this.#aiSuggestionLabelsCompartment.of(aiSuggestionLabelsFacet.of(this.#aiSuggestionLabels)),
       createWysiwygProjectionExtensions(
         [
           "inline-styles",
@@ -1080,7 +1090,7 @@ class CodeMirrorRendererController {
     });
   }
 
-  showSuggestion(suggestion: AiSuggestionValue): void {
+  showSuggestion(suggestion: AiSuggestionInput): void {
     if (this.#destroyed) {
       return;
     }
@@ -1088,6 +1098,16 @@ class CodeMirrorRendererController {
       effects: setAiSuggestionEffect.of(suggestion),
     });
     this.#view.focus();
+  }
+
+  setAiSuggestionLabels(labels: AiSuggestionLabels): void {
+    if (this.#destroyed) {
+      return;
+    }
+    this.#aiSuggestionLabels = labels;
+    this.#view.dispatch({
+      effects: this.#aiSuggestionLabelsCompartment.reconfigure(aiSuggestionLabelsFacet.of(labels)),
+    });
   }
 
   acceptSuggestion(): boolean {
@@ -1781,7 +1801,8 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
-    showSuggestion: (suggestion: AiSuggestionValue) => controller.showSuggestion(suggestion),
+    showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
+    setAiSuggestionLabels: (labels: AiSuggestionLabels) => controller.setAiSuggestionLabels(labels),
     acceptSuggestion: () => controller.acceptSuggestion(),
     moveBlockUp: () => controller.moveBlockUp(),
     moveBlockDown: () => controller.moveBlockDown(),

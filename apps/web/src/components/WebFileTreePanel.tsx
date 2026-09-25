@@ -19,6 +19,7 @@ import {
 } from "@md-editor/file-system";
 import { FileKindIcon } from "./FileKindIcon";
 import { WebFileContextMenu, type ContextMenuPosition } from "./WebFileContextMenu";
+import { useTranslation } from "@md-editor/i18n";
 import { cx } from "../lib/cx";
 
 export interface WebFileTreePanelProps {
@@ -54,6 +55,7 @@ export function WebFileTreePanel({
   onRenameItem,
   onDeleteItem,
 }: WebFileTreePanelProps) {
+  const { t } = useTranslation();
   const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => new Set());
   const [contextMenu, setContextMenu] = useState<ContextMenuPosition | null>(null);
   const [inlineAction, setInlineAction] = useState<{
@@ -195,9 +197,11 @@ export function WebFileTreePanel({
         <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]">
           <FolderIcon className="size-6 stroke-[1.5]" />
         </div>
-        <h3 className="text-sm font-semibold text-[var(--theme-title)]">工作区未加载</h3>
+        <h3 className="text-sm font-semibold text-[var(--theme-title)]">
+          {t("sidebar.noFolderOpened")}
+        </h3>
         <p className="mt-1.5 text-xs leading-relaxed text-[var(--theme-muted)]">
-          通过浏览器原生文件系统，直接管理本地 Markdown 文档库。无需上传云端，完全本地安全保密。
+          {t("sidebar.noFolderOpenedDesc")}
         </p>
         <div className="mt-5 flex flex-col gap-2">
           <button
@@ -206,21 +210,21 @@ export function WebFileTreePanel({
             className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--theme-primary)] px-3 text-xs font-medium text-white shadow-sm transition-all hover:opacity-90 active:scale-98"
           >
             <FolderOpenIcon className="size-4" />
-            打开本地文件夹
+            {t("sidebar.openFolder")}
           </button>
           <button
             type="button"
             onClick={onOpenSingleFile}
             className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 text-xs font-medium text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-control-hover)] active:scale-98"
           >
-            打开单文件
+            {t("sidebar.openFile")}
           </button>
           <button
             type="button"
             onClick={onNewDraft}
             className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 text-xs font-medium text-[var(--theme-text)] transition-colors hover:bg-[var(--theme-control-hover)] active:scale-98"
           >
-            新建空白草稿
+            {t("sidebar.newDraft")}
           </button>
         </div>
       </div>
@@ -276,7 +280,9 @@ export function WebFileTreePanel({
                     type="text"
                     autoFocus
                     placeholder={
-                      inlineAction.kind === "directory" ? "新文件夹名称" : "新文件名称 (.md)"
+                      inlineAction.kind === "directory"
+                        ? t("sidebar.newFolderNamePlaceholder")
+                        : t("sidebar.newFileNamePlaceholder")
                     }
                     value={inputVal}
                     onChange={(e) => setInputVal(e.target.value)}
@@ -363,7 +369,7 @@ export function WebFileTreePanel({
         <div className="flex items-center gap-0.5">
           <button
             type="button"
-            title="新建文件"
+            title={t("sidebar.newFile")}
             onClick={() => {
               setInlineAction({ parentPath: folder.rootPath, kind: "markdown" });
               setInputVal("untitled.md");
@@ -374,7 +380,7 @@ export function WebFileTreePanel({
           </button>
           <button
             type="button"
-            title="重新扫描刷新"
+            title={t("sidebar.refresh")}
             onClick={onRefreshFolder}
             className="flex size-6 items-center justify-center rounded text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
           >
@@ -391,7 +397,11 @@ export function WebFileTreePanel({
             <input
               type="text"
               autoFocus
-              placeholder={inlineAction.kind === "directory" ? "新文件夹名称" : "新文件名称 (.md)"}
+              placeholder={
+                inlineAction.kind === "directory"
+                  ? t("sidebar.newFolderNamePlaceholder")
+                  : t("sidebar.newFileNamePlaceholder")
+              }
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
               onKeyDown={(e) => {
@@ -458,7 +468,7 @@ export function WebFileTreePanel({
             setInputVal(node.name);
           }}
           onDelete={(node) => {
-            if (window.confirm(`确认删除「${node.name}」？此操作不可撤销。`)) {
+            if (window.confirm(t("web.deleteNodeConfirm", { name: node.name }))) {
               void onDeleteItem(node);
             }
           }}

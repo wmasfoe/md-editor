@@ -20,7 +20,7 @@ import { WebSidebar } from "./components/WebSidebar";
 import { SidebarResizer, SIDEBAR_DEFAULT_WIDTH } from "./components/SidebarResizer";
 import { CollapsedSidebarReveal } from "./components/CollapsedSidebarReveal";
 import { WebSettingsDialog } from "./components/WebSettingsDialog";
-import { DEFAULT_SHOWCASE_MARKDOWN } from "./presets/showcase";
+import { getShowcaseMarkdown } from "./presets/showcase";
 import { exportMarkdown, copyMarkdown } from "./lib/export-helper";
 import {
   clearSavedDraft,
@@ -43,8 +43,8 @@ export function App() {
 
   // 初始化 DocumentState
   const initialMarkdown = useMemo(() => {
-    return loadSavedDraft() || DEFAULT_SHOWCASE_MARKDOWN;
-  }, []);
+    return loadSavedDraft() || getShowcaseMarkdown(settings.language);
+  }, [settings.language]);
 
   const [documentState] = useState<DocumentState>(() =>
     createDocumentState({ markdown: initialMarkdown }),
@@ -353,12 +353,12 @@ function MainWebEditorApp({
         });
       } catch (err: unknown) {
         console.error(err);
-        showToast(`保存文件失败: ${getErrorMessage(err)}`);
+        showToast(t("toasts.saveFailed", { error: getErrorMessage(err) }));
       }
     } else {
       saveDraft(currentMarkdown);
     }
-  }, [activeFilePath, currentMarkdown, documentState, showToast]);
+  }, [activeFilePath, currentMarkdown, documentState, showToast, t]);
 
   // 新建文件或文件夹
   const handleCreateItem = useCallback(
@@ -370,10 +370,10 @@ function MainWebEditorApp({
           await handleOpenFile(newPath);
         }
       } catch (err: unknown) {
-        showToast(`创建失败: ${getErrorMessage(err)}`);
+        showToast(t("fileTree.errors.createFailed", { error: getErrorMessage(err) }));
       }
     },
-    [handleOpenFile, showToast],
+    [handleOpenFile, showToast, t],
   );
 
   // 重命名文件或目录
@@ -386,10 +386,10 @@ function MainWebEditorApp({
           setActiveFilePath(newPath);
         }
       } catch (err: unknown) {
-        showToast(`重命名失败: ${getErrorMessage(err)}`);
+        showToast(t("fileTree.errors.renameFailed", { error: getErrorMessage(err) }));
       }
     },
-    [activeFilePath, showToast],
+    [activeFilePath, showToast, t],
   );
 
   // 删除文件或目录
@@ -402,10 +402,10 @@ function MainWebEditorApp({
           handleNewDraft();
         }
       } catch (err: unknown) {
-        showToast(`删除失败: ${getErrorMessage(err)}`);
+        showToast(t("fileTree.errors.deleteFailed", { error: getErrorMessage(err) }));
       }
     },
-    [activeFilePath, handleNewDraft, showToast],
+    [activeFilePath, handleNewDraft, showToast, t],
   );
 
   // 导出 Markdown 文件
@@ -430,10 +430,11 @@ function MainWebEditorApp({
   // 重置为默认展示文档
   const handleReset = () => {
     clearSavedDraft();
+    const showcase = getShowcaseMarkdown(settings.language);
     documentState.replaceDocument(
       {
-        markdown: DEFAULT_SHOWCASE_MARKDOWN,
-        savedMarkdown: DEFAULT_SHOWCASE_MARKDOWN,
+        markdown: showcase,
+        savedMarkdown: showcase,
         filePath: null,
       },
       { kind: "command", commandId: "web.reset" },
@@ -484,6 +485,10 @@ function MainWebEditorApp({
         from: cursorPos,
         to: cursorPos,
         text: continuation,
+        labels: {
+          accept: t("editor.suggestion.accept"),
+          dismiss: t("editor.suggestion.dismiss"),
+        },
       });
       showToast(t("toasts.aiSuggestionGenerated"));
     } catch (err) {

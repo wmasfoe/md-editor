@@ -1,4 +1,11 @@
-import { Prec, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
+import {
+  Facet,
+  Prec,
+  StateEffect,
+  StateField,
+  type Extension,
+  type Range,
+} from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../mode.ts";
@@ -13,9 +20,41 @@ export interface AiSuggestionItem {
   readonly explanation?: string;
 }
 
+export interface AiSuggestionLabels {
+  readonly accept?: string;
+  readonly dismiss?: string;
+  readonly tabKey?: string;
+  readonly escKey?: string;
+}
+
+export const DEFAULT_AI_SUGGESTION_LABELS: Required<AiSuggestionLabels> = Object.freeze({
+  accept: "接受",
+  dismiss: "取消",
+  tabKey: "Tab",
+  escKey: "Esc",
+});
+
+export const aiSuggestionLabelsFacet = Facet.define<
+  AiSuggestionLabels | undefined,
+  Required<AiSuggestionLabels>
+>({
+  combine(values) {
+    const merged = { ...DEFAULT_AI_SUGGESTION_LABELS };
+    for (const val of values) {
+      if (!val) continue;
+      if (val.accept !== undefined) merged.accept = val.accept;
+      if (val.dismiss !== undefined) merged.dismiss = val.dismiss;
+      if (val.tabKey !== undefined) merged.tabKey = val.tabKey;
+      if (val.escKey !== undefined) merged.escKey = val.escKey;
+    }
+    return merged;
+  },
+});
+
 export interface AiSuggestionValue {
   readonly items: readonly AiSuggestionItem[];
   readonly activeIndex: number;
+  readonly labels?: AiSuggestionLabels;
   // 向后兼容便捷字段（指向当前 active 项）
   readonly from?: number;
   readonly to?: number;
@@ -36,6 +75,7 @@ export type AiSuggestionInput =
       readonly explanation?: string;
       readonly items?: readonly AiSuggestionItem[];
       readonly activeIndex?: number;
+      readonly labels?: AiSuggestionLabels;
     };
 
 export function normalizeAiSuggestionValue(
@@ -88,10 +128,13 @@ export function normalizeAiSuggestionValue(
 
   const clampedIndex = Math.min(Math.max(0, activeIndex), validItems.length - 1);
   const active = validItems[clampedIndex];
+  const labels =
+    typeof input === "object" && input !== null && "labels" in input ? input.labels : undefined;
 
   return {
     items: validItems,
     activeIndex: clampedIndex,
+    labels,
     from: active.from,
     to: active.to,
     text: active.text,
@@ -133,7 +176,11 @@ class GhostTextWidget extends WidgetType {
 class DiffAdditionWidget extends WidgetType {
   constructor(
     readonly text: string,
-    readonly options: { readonly isActive: boolean; readonly stepLabel?: string } = {
+    readonly options: {
+      readonly isActive: boolean;
+      readonly stepLabel?: string;
+      readonly labels?: Required<AiSuggestionLabels>;
+    } = {
       isActive: true,
     },
   ) {
@@ -144,7 +191,11 @@ class DiffAdditionWidget extends WidgetType {
     return (
       other.text === this.text &&
       other.options.isActive === this.options.isActive &&
-      other.options.stepLabel === this.options.stepLabel
+      other.options.stepLabel === this.options.stepLabel &&
+      other.options.labels?.accept === this.options.labels?.accept &&
+      other.options.labels?.dismiss === this.options.labels?.dismiss &&
+      other.options.labels?.tabKey === this.options.labels?.tabKey &&
+      other.options.labels?.escKey === this.options.labels?.escKey
     );
   }
 
@@ -161,10 +212,11 @@ class DiffAdditionWidget extends WidgetType {
     span.textContent = this.text;
 
     if (this.options.isActive) {
+      const labels = this.options.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
       const badge = doc.createElement("span");
       badge.className = "cm-md-ai-badge";
       badge.setAttribute("aria-hidden", "true");
-      badge.textContent = `Tab 接受${this.options.stepLabel || ""} · Esc 取消`;
+      badge.textContent = `${labels.tabKey} ${labels.accept}${this.options.stepLabel || ""} · ${labels.escKey} ${labels.dismiss}`;
       span.append(badge);
     }
 
@@ -261,6 +313,16 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
           );
         }
       } else {
+        const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
+        const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
+          ? {
+              accept: suggestion.labels.accept ?? facetLabels.accept,
+              dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
+              tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
+              escKey: suggestion.labels.escKey ?? facetLabels.escKey,
+            }
+          : facetLabels;
+
         // Edit/Rewrite: 删除线原词 + 绿色新增候选词
         ranges.push(
           Decoration.mark({
@@ -275,6 +337,7 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
             widget: new DiffAdditionWidget(item.text, {
               isActive,
               stepLabel: totalRemaining > 1 ? ` (${currentStep}/${totalRemaining})` : "",
+              labels: resolvedLabels,
             }),
             side: 1,
           }).range(to),
@@ -352,6 +415,7 @@ export function acceptAiSuggestion(view: EditorView): boolean {
       setAiSuggestionEffect.of({
         items: nextItems,
         activeIndex: nextActiveIndex,
+        labels: suggestion.labels,
       }),
     );
   } else {
@@ -397,6 +461,7 @@ export function dismissAiSuggestion(view: EditorView): boolean {
         setAiSuggestionEffect.of({
           items: suggestion.items,
           activeIndex: nextActiveIndex,
+          labels: suggestion.labels,
         }),
       ],
       userEvent: "input.ai",
@@ -477,6 +542,7 @@ export const aiSuggestionTheme = EditorView.baseTheme({
 });
 
 export const aiSuggestionExtension: Extension[] = [
+  aiSuggestionLabelsFacet.of(DEFAULT_AI_SUGGESTION_LABELS),
   aiSuggestionField,
   aiSuggestionDecorations,
   Prec.highest(aiSuggestionKeymap),

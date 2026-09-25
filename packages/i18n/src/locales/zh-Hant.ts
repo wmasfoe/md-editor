@@ -44,6 +44,17 @@ export const zhHant: TranslationSchema = {
     matchCount: "相符數量",
     resizeSidebarAria: "調整側邊欄寬度",
     editorAria: "Markdown 編輯器",
+    newFile: "新增檔案",
+    newFolder: "新增資料夾",
+    refresh: "重新掃描整理",
+    openFolder: "開啟本機資料夾",
+    openFile: "開啟單一檔案",
+    newDraft: "新增空白草稿",
+    noFolderOpened: "尚未開啟本機資料夾",
+    noFolderOpenedDesc:
+      "透過瀏覽器原生檔案系統，直接管理本機 Markdown 文件庫。無需上傳雲端，完全本機安全保密。",
+    newFileNamePlaceholder: "新檔案名稱 (.md)",
+    newFolderNamePlaceholder: "新資料夾名稱",
   },
   settings: {
     title: "設定",
@@ -354,6 +365,10 @@ export const zhHant: TranslationSchema = {
       columns: "欄",
       rows: "列",
     },
+    suggestion: {
+      accept: "接受",
+      dismiss: "取消",
+    },
   },
   commands: {
     groups: {
@@ -451,6 +466,10 @@ export const zhHant: TranslationSchema = {
     aiNoSuggestion: "未獲得有效續寫建議，請檢查端點設定或重試",
     aiSuggestionGenerated: "已生成續寫建議，按 Tab 採納，按 Esc 放棄",
     aiRequestFailed: "AI 請求失敗，請檢查網路或設定",
+    cannotOpenLink: "無法開啟連結：{{url}}",
+    delayedEditFailed: "延遲編輯未能完成：{{status}}。",
+    editorSyncFailed: "編輯器同步失敗：{{detail}}。請重新開啟目前文件。",
+    imageInsertFailed: "圖片插入失敗",
   },
   loading: {
     title: "處理中…",
@@ -467,6 +486,15 @@ export const zhHant: TranslationSchema = {
     actionCreatingFolder: "正在新增資料夾",
     actionRenaming: "正在重新命名",
     actionDeleting: "正在刪除",
+  },
+  mdxMenu: {
+    placeholder: "搜尋並插入 MDX 元件…",
+    searchAria: "搜尋並插入 MDX 元件",
+    empty: "沒有相符的 MDX 元件",
+    defaultGroup: "元件",
+    navigate: "↑↓ 導覽",
+    insert: "Enter 插入",
+    availableCount: "{{count}} 個元件可用",
   },
   web: {
     settingsTitle: "設定與快捷鍵指南",
@@ -504,6 +532,13 @@ export const zhHant: TranslationSchema = {
     aiDesc: "AI 只會在您主動觸發續寫時請求；API Key 會儲存在瀏覽器本機設定中。",
     shortcutsDesc: "預設全域常用快捷鍵，在編輯時可隨時直接呼叫。",
     appearanceDesc: "為淺色和深色分別選擇內建主題，並設定所見即所得字級。",
+    quickSearchPlaceholder: "快速搜尋檔案...",
+    fileListAria: "檔案清單",
+    unsupportedFileSystem:
+      "目前瀏覽器不支援 File System Access API，建議使用 Chrome 或 Edge 瀏覽器。",
+    unsupportedDirRename: "目前瀏覽器不支援目錄重新命名，建議直接新建目錄。",
+    markdownDocDescription: "Markdown 文件",
+    deleteNodeConfirm: "確認刪除「{{name}}」？此操作無法復原。",
     shortcuts: {
       toggleMode: "切換編輯模式 (所見即所得 / 原始碼)",
       toggleOutline: "大綱目錄抽屜展開 / 收合",

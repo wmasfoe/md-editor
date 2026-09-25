@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -16,6 +17,7 @@ import {
 } from "@md-editor/editor-ui";
 import { SHOWCASE_AI_FLOW_DATA, type AiShowcaseStage } from "./showcase-ai-samples";
 import type { Locale } from "../lib/i18n/types";
+import { useI18n } from "../lib/i18n/context";
 
 export interface AiShowcaseFlowState {
   readonly stage: AiShowcaseStage | "completed";
@@ -66,8 +68,17 @@ const EDITOR_STYLES: React.CSSProperties = {
 
 export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEditorProps>(
   function AiShowcaseEditor({ isZh, locale, onStateChange }, ref) {
+    const { t } = useI18n();
     const activeLocale: Locale = locale ?? (isZh ? "zh" : "en");
     const flowData = SHOWCASE_AI_FLOW_DATA[activeLocale];
+
+    const aiSuggestionLabels = useMemo(
+      () => ({
+        accept: t.aiShowcase.acceptButton,
+        dismiss: t.aiShowcase.dismissButton,
+      }),
+      [t.aiShowcase.acceptButton, t.aiShowcase.dismissButton],
+    );
 
     // 纯内存文档状态
     const [documentState] = useState<DocumentState>(() =>
@@ -127,11 +138,12 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         activePorts.showSuggestion({
           items: activeData.grammarItems,
           activeIndex: 0,
+          labels: aiSuggestionLabels,
         });
 
         emitState();
       },
-      [documentState, activeLocale, emitState],
+      [documentState, activeLocale, aiSuggestionLabels, emitState],
     );
 
     // 启动 Phase 2 行内灵犀续写（无缝接在当前文档末尾，或以纯续写起手文稿启动）
@@ -282,6 +294,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         activePorts.showSuggestion({
           items: activeData.grammarItems,
           activeIndex: grammarIndexRef.current,
+          labels: aiSuggestionLabels,
         });
         isDismissedRef.current = false;
         emitState();
@@ -301,7 +314,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
         emitState();
         activePorts.focus();
       }
-    }, [documentState, activeLocale, emitState]);
+    }, [documentState, activeLocale, aiSuggestionLabels, emitState]);
 
     // 暴露给父组件的受控操作
     useImperativeHandle(
@@ -375,6 +388,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
             fontSize={17}
             className="site-ai-codemirror text-lg leading-[1.9] sm:text-xl"
             onRendererPortsChange={setPorts}
+            aiSuggestionLabels={aiSuggestionLabels}
           />
         </div>
       </EditorUiProvider>
