@@ -27,3 +27,18 @@ test("generateWindowsInstallScript throws on missing version", () => {
     generateWindowsInstallScript({ version: "" });
   }, /Missing required parameter: version/);
 });
+
+test("generateWindowsInstallScript handles empty winArm64Url gracefully", () => {
+  const script = generateWindowsInstallScript({
+    version: "0.4.0",
+    winX64Url: "https://example.com/md-editor-setup-x64.exe",
+    winX64Sha256: "d".repeat(64),
+    winArm64Url: "",
+    winArm64Sha256: "",
+  });
+
+  assert.ok(script.includes("$WinArm64Url = ''"));
+  assert.ok(script.includes("$WinArm64Sha256 = ''"));
+  assert.ok(script.includes("$WinX64Url = 'https://example.com/md-editor-setup-x64.exe'"));
+  assert.ok(script.includes("Fallback to x64 on Windows 11 ARM"));
+});

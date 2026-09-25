@@ -35,3 +35,18 @@ test("generateInstallScript throws on missing version", () => {
     generateInstallScript({ version: "" });
   }, /Missing required parameter: version/);
 });
+
+test("generateInstallScript handles empty linuxArm64Url gracefully", () => {
+  const script = generateInstallScript({
+    version: "0.4.0",
+    dmgUrl: "https://example.com/md-editor.dmg",
+    dmgSha256: "a".repeat(64),
+    linuxX64Url: "https://example.com/md-editor-x86_64.AppImage",
+    linuxX64Sha256: "b".repeat(64),
+    linuxArm64Url: "",
+    linuxArm64Sha256: "",
+  });
+
+  assert.ok(script.includes("LINUX_ARM64_URL=''"));
+  assert.ok(script.includes("LINUX_ARM64_SHA256=''"));
+});
