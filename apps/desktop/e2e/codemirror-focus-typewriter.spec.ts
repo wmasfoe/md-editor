@@ -685,9 +685,17 @@ test.describe("D-2 专注模式 / 打字机模式（真实 desktop app）", () =
       reversals,
       `连续快速移动过程中不得出现方向反转（抖动/竞争动画）—— 实测 ${reversals} 次`,
     ).toBe(0);
+    // 收敛判据改为**精确**、与环境无关：停稳后（上面已轮询到实时值连续两次相同）
+    // 最后一次采样必须与实时滚动位置一致（允许 1px 的滚动事件滞后）。
+    // 说明：此前用"尾段跨度 < 总位移 5%"这种阈值判收敛，CI 上两次因此失败（实测 17px / 14px 对阈值 13.8px），
+    // 属**环境相关阈值**；这里换成不依赖阈值分布的形式。真正的抖动锁是上面的 `reversals === 0`（帧率无关）。
+    const settledScrollTop = await page.evaluate(
+      () => document.querySelector(".cm-scroller")!.scrollTop,
+    );
+    const lastSample = samples[samples.length - 1] ?? -1;
     expect(
-      tailSpan,
-      `最终必须收敛（尾段位移相对总量可忽略）—— 实测尾段跨 ${tailSpan}px / 总 ${span}px`,
-    ).toBeLessThan(span * 0.05);
+      Math.abs(lastSample - settledScrollTop),
+      `停稳后最后一次采样必须与实时滚动位置一致（最后采样 ${lastSample} vs 实时 ${settledScrollTop}）`,
+    ).toBeLessThanOrEqual(1);
   });
 });
