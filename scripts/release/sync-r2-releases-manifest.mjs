@@ -31,17 +31,18 @@ export function matchPlatform(fileName) {
     return { platform: "windows-x64", platformLabel: "Windows (x64) · Setup" };
   }
   if (lower.endsWith(".appimage")) {
+    // 与 Worker 侧保持一致：aarch64 同样视为 ARM64（不含 arm64 子串）。
+    const isArm = lower.includes("arm64") || lower.includes("aarch64");
     return {
       platform: "linux-appimage",
-      platformLabel: lower.includes("arm64")
-        ? "Linux (ARM64) · AppImage"
-        : "Linux (x86_64) · AppImage",
+      platformLabel: isArm ? "Linux (ARM64) · AppImage" : "Linux (x86_64) · AppImage",
     };
   }
   if (lower.endsWith(".deb")) {
+    const isArm = lower.includes("arm64") || lower.includes("aarch64");
     return {
       platform: "linux-deb",
-      platformLabel: lower.includes("arm64") ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB",
+      platformLabel: isArm ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB",
     };
   }
   if (lower.endsWith(".apk")) {

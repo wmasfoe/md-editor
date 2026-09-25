@@ -211,10 +211,12 @@ export function buildMacosDmgUrl(version: string, domain?: string): string {
 
 /**
  * 根据语义化版本构造 Linux AppImage 直链。
+ * 注意：CI 实际产物命名为 amd64（x64）/ aarch64（ARM64），历史上从未出现过 x86_64.AppImage，
+ * arch 参数必须与真实文件名一致，否则直链 404。
  */
 export function buildLinuxAppImageUrl(
   version: string,
-  arch: "x86_64" | "aarch64" = "x86_64",
+  arch: "amd64" | "aarch64" = "amd64",
   domain?: string,
 ): string {
   const normalized = normalizeVersion(version);

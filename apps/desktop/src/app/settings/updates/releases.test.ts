@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compareReleaseVersions, parsePublishedVersionTag } from "./releases";
+import {
+  compareReleaseVersions,
+  detectRuntimeArch,
+  parsePublishedVersionTag,
+  pickPlatformAssetUrl,
+} from "./releases";
 
 describe("parsePublishedVersionTag", () => {
   describe("conventional desktop tags (current baseline)", () => {
@@ -89,3 +94,75 @@ describe("compareReleaseVersions", () => {
     expect(compareReleaseVersions("0.11.0", "0.10.9")).toBe(1);
   });
 });
+
+describe("detectRuntimeArch", () => {
+  it("detects ARM64 from aarch64 and arm64 tokens", () => {
+    expect(detectRuntimeArch("Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/605.1.15", "")).toBe(
+      "arm64",
+    );
+    expect(detectRuntimeArch("Mozilla/5.0 (Windows NT 10.0; ARM64) AppleWebKit/537.36", "")).toBe(
+      "arm64",
+    );
+  });
+
+  it("detects x64 from x86_64, amd64, x64 and win64 tokens", () => {
+    expect(detectRuntimeArch("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36", "")).toBe("x64");
+    expect(
+      detectRuntimeArch("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", ""),
+    ).toBe("x64");
+  });
+
+  it("never mistakes frozen Intel Mac UA for x64-capable detection", () => {
+    // macOS UA 冻结为 Intel 字样，无法区分 Apple Silicon / Intel，必须返回 unknown
+    // 交由首个匹配兜底（当前只发布 aarch64 DMG）。
+    expect(
+      detectRuntimeArch(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+        "MacIntel",
+      ),
+    ).toBe("unknown");
+  });
+
+  it("returns unknown when no arch token is present", () => {
+    expect(detectRuntimeArch("Mozilla/5.0 AppleWebKit/605.1.15", "")).toBe("unknown");
+  });
+});
+
+describe("pickPlatformAssetUrl", () => {
+  const linuxAssets = [
+    { name: "inkpoint_0.12.1_aarch64.appimage", downloadUrl: "https://example.com/arm64" },
+    { name: "inkpoint_0.12.1_amd64.appimage", downloadUrl: "https://example.com/x64" },
+    { name: "inkpoint_0.12.1_arm64.deb", downloadUrl: "https://example.com/arm64-deb" },
+    { name: "inkpoint_0.12.1_amd64.deb", downloadUrl: "https://example.com/x64-deb" },
+  ];
+
+  it("prefers same-arch asset regardless of list order", () => {
+    expect(pickPlatformAssetUrl(linuxAssets, matchLinuxInstaller, "arm64")).toBe(
+      "https://example.com/arm64",
+    );
+    expect(pickPlatformAssetUrl(linuxAssets, matchLinuxInstaller, "x64")).toBe(
+      "https://example.com/x64",
+    );
+  });
+
+  it("keeps legacy first-match behavior when arch is unknown", () => {
+    expect(pickPlatformAssetUrl(linuxAssets, matchLinuxInstaller, "unknown")).toBe(
+      "https://example.com/arm64",
+    );
+  });
+
+  it("falls back to any available asset when same-arch build is missing", () => {
+    const x64Only = linuxAssets.filter((asset) => asset.downloadUrl.includes("x64"));
+    expect(pickPlatformAssetUrl(x64Only, matchLinuxInstaller, "arm64")).toBe(
+      "https://example.com/x64",
+    );
+  });
+
+  it("returns undefined when nothing matches", () => {
+    expect(pickPlatformAssetUrl(linuxAssets, () => false, "x64")).toBeUndefined();
+  });
+});
+
+function matchLinuxInstaller(name: string): boolean {
+  return name.endsWith(".appimage") || name.endsWith(".deb");
+}

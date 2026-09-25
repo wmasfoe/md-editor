@@ -45,6 +45,21 @@ export function getMimeType(filename: string): string {
 }
 
 /**
+ * 架构归一化：安装包文件名混用 aarch64/arm64、amd64/x86_64/x64 四种写法，
+ * 必须同时识别，否则按架构分发会错配（历史教训：aarch64 不含 arm64 子串）。
+ */
+export function isArm64AssetName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes("arm64") || lower.includes("aarch64");
+}
+
+export function isX64AssetName(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (isArm64AssetName(lower)) return false;
+  return lower.includes("x64") || lower.includes("x86_64") || lower.includes("amd64");
+}
+
+/**
  * 辅助函数：根据平台关键词从 GitHub Release 资产列表中匹配对应的安装包 URL
  */
 export function matchDesktopAsset(
@@ -86,12 +101,35 @@ export function matchDesktopAsset(
         return { name: asset.name, url: asset.browser_download_url, size: asset.size };
       }
     }
-    // Linux AppImage
-    if ((p === "linux" || p === "linux-x64" || p === "appimage") && name.endsWith(".appimage")) {
+    // Linux AppImage：泛 linux 键默认 x64（与官网“x86_64 · AppImage”主按钮一致），
+    // 点名 linux-arm64 才取 ARM 构建，避免单槽位按 readdir 顺序错发。
+    if (
+      (p === "linux" || p === "linux-x64" || p === "linux-amd64" || p === "appimage") &&
+      name.endsWith(".appimage") &&
+      isX64AssetName(name)
+    ) {
       return { name: asset.name, url: asset.browser_download_url, size: asset.size };
     }
-    // Linux Deb
-    if ((p === "linux-deb" || p === "deb") && name.endsWith(".deb")) {
+    if (
+      (p === "linux-arm64" || p === "linux-aarch64" || p === "appimage-arm64") &&
+      name.endsWith(".appimage") &&
+      isArm64AssetName(name)
+    ) {
+      return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+    }
+    // Linux Deb：泛 linux-deb 键默认 x64，点名 linux-deb-arm64 才取 ARM 构建。
+    if (
+      (p === "linux-deb" || p === "deb" || p === "deb-x64") &&
+      name.endsWith(".deb") &&
+      isX64AssetName(name)
+    ) {
+      return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+    }
+    if (
+      (p === "linux-deb-arm64" || p === "deb-arm64" || p === "deb-aarch64") &&
+      name.endsWith(".deb") &&
+      isArm64AssetName(name)
+    ) {
       return { name: asset.name, url: asset.browser_download_url, size: asset.size };
     }
   }
@@ -106,6 +144,30 @@ export function matchDesktopAsset(
       return { name: asset.name, url: asset.browser_download_url, size: asset.size };
     }
     if (p.includes("linux") && name.endsWith(".appimage")) {
+      // 同一 release 存在双架构时优先与请求键同架构，避免错发。
+      if (p.includes("arm") || p.includes("aarch")) {
+        if (isArm64AssetName(name)) {
+          return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+        }
+        continue;
+      }
+      if (isX64AssetName(name)) {
+        return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+      }
+    }
+    if (p.includes("linux") && name.endsWith(".deb")) {
+      if (p.includes("arm") || p.includes("aarch")) {
+        if (isArm64AssetName(name)) {
+          return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+        }
+        continue;
+      }
+      if (isX64AssetName(name)) {
+        return { name: asset.name, url: asset.browser_download_url, size: asset.size };
+      }
+    }
+    // 极端兜底：该扩展名只剩异架构产物时返回任一可用包，好过 404。
+    if (p.includes("linux") && (name.endsWith(".appimage") || name.endsWith(".deb"))) {
       return { name: asset.name, url: asset.browser_download_url, size: asset.size };
     }
   }
@@ -354,12 +416,12 @@ export async function buildReleasesManifest(
           }
         } else if (lower.endsWith(".appimage")) {
           platform = "linux-appimage";
-          platformLabel = lower.includes("arm64")
+          platformLabel = isArm64AssetName(lower)
             ? "Linux (ARM64) · AppImage"
             : "Linux (x86_64) · AppImage";
         } else if (lower.endsWith(".deb")) {
           platform = "linux-deb";
-          platformLabel = lower.includes("arm64") ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB";
+          platformLabel = isArm64AssetName(lower) ? "Linux (ARM64) · DEB" : "Linux (x86_64) · DEB";
         } else if (lower.endsWith(".apk")) {
           platform = "android";
           platformLabel = "Android · APK";
@@ -493,14 +555,36 @@ export async function buildReleasesManifest(
                 isR2Cached: true,
               });
             }
+            if (dAssets.linux_appimage_arm64) {
+              list.push({
+                platform: "linux-appimage",
+                platformLabel: "Linux (ARM64) · AppImage",
+                fileName: dAssets.linux_appimage_arm64.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/linux-arm64/latest`,
+                sizeBytes: dAssets.linux_appimage_arm64.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.linux_appimage_arm64.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
             if (dAssets.linux_deb) {
               list.push({
                 platform: "linux-deb",
-                platformLabel: "Linux · DEB",
+                platformLabel: "Linux (x86_64) · DEB",
                 fileName: dAssets.linux_deb.fileName,
                 downloadUrl: `${baseUrl}/${app}/desktop/${desktopVersion}/${dAssets.linux_deb.fileName}`,
                 sizeBytes: dAssets.linux_deb.sizeBytes || 0,
                 formattedSize: formatBytes(dAssets.linux_deb.sizeBytes || 0),
+                isR2Cached: true,
+              });
+            }
+            if (dAssets.linux_deb_arm64) {
+              list.push({
+                platform: "linux-deb",
+                platformLabel: "Linux (ARM64) · DEB",
+                fileName: dAssets.linux_deb_arm64.fileName,
+                downloadUrl: `${baseUrl}/${app}/desktop/${desktopVersion}/${dAssets.linux_deb_arm64.fileName}`,
+                sizeBytes: dAssets.linux_deb_arm64.sizeBytes || 0,
+                formattedSize: formatBytes(dAssets.linux_deb_arm64.sizeBytes || 0),
                 isR2Cached: true,
               });
             }
@@ -836,8 +920,13 @@ function selectDesktopManifestAsset(
   if (platform.includes("win") || platform.includes("exe")) {
     return platform.includes("arm64") ? assets.windows_arm64 : assets.windows_x64;
   }
-  if (platform.includes("deb")) return assets.linux_deb;
+  if (platform.includes("deb")) {
+    // deb 与 appimage 分槽：泛键默认 x64，点名 arm 才取 ARM 槽，绝不跨架构回退。
+    if (platform.includes("arm") || platform.includes("aarch")) return assets.linux_deb_arm64;
+    return assets.linux_deb;
+  }
   if (platform.includes("linux") || platform.includes("appimage")) {
+    if (platform.includes("arm") || platform.includes("aarch")) return assets.linux_appimage_arm64;
     return assets.linux_appimage;
   }
   return undefined;
@@ -1041,6 +1130,9 @@ export async function handleRequest(
             "windows",
             "windows-arm64",
             "linux",
+            "linux-arm64",
+            "linux-deb",
+            "linux-deb-arm64",
             "android",
           ],
         },
@@ -1483,7 +1575,13 @@ export async function handleRequest(
         "windows-arm64": [`${app}/desktop/windows-arm64/latest.exe`],
         linux: [`${app}/desktop/linux/latest.AppImage`, `${app}/desktop/latest.AppImage`],
         "linux-x64": [`${app}/desktop/linux/latest.AppImage`],
+        "linux-amd64": [`${app}/desktop/linux/latest.AppImage`],
+        // ARM 别名无物理 R2 文件：latest 由 version.json 动态路由，直接走版本化查找。
+        "linux-arm64": [],
+        "linux-aarch64": [],
         "linux-deb": [`${app}/desktop/linux/latest.deb`],
+        "linux-deb-arm64": [],
+        "linux-deb-aarch64": [],
       };
 
       const candidates = platformCandidates[platform] || [
@@ -1562,8 +1660,16 @@ export async function handleRequest(
         fallbackFileName = p.includes("arm64")
           ? "Inkpoint_arm64-setup.exe"
           : "Inkpoint_x64-setup.exe";
+      } else if (p.includes("deb")) {
+        // deb 点名 arm 才回退 ARM 包，与 latest 路由的默认 x64 保持一致。
+        // 注意：必须放在 linux 分支之前，因为 linux-deb-* 同时包含 linux 子串。
+        fallbackFileName =
+          p.includes("arm") || p.includes("aarch") ? "Inkpoint_arm64.deb" : "Inkpoint_amd64.deb";
       } else if (p.includes("linux") || p.includes("appimage")) {
-        fallbackFileName = "Inkpoint_amd64.AppImage";
+        fallbackFileName =
+          p.includes("arm") || p.includes("aarch")
+            ? "Inkpoint_aarch64.AppImage"
+            : "Inkpoint_amd64.AppImage";
       }
 
       const fallbackUrl = `https://github.com/${githubRepo}/releases/latest/download/${fallbackFileName}`;

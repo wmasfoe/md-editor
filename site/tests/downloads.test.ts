@@ -18,7 +18,7 @@ describe("buildDownloadCatalog", () => {
       fileName: "Inkpoint_0.4.4_aarch64.dmg",
       label: "下载 macOS",
     });
-    expect(catalog.linux.primary.fileName).toBe("Inkpoint_0.4.4_x86_64.AppImage");
+    expect(catalog.linux.primary.fileName).toBe("Inkpoint_0.4.4_amd64.AppImage");
     expect(catalog.linux.secondary).toEqual([
       {
         href: "https://download.jiaqi.im/inkpoint/desktop/0.4.4/Inkpoint_0.4.4_aarch64.AppImage",

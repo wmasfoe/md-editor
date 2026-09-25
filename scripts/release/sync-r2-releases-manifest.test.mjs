@@ -145,3 +145,18 @@ describe("sync-r2-releases-manifest", () => {
     assert.equal(androidList[1].isLatest, false);
   });
 });
+
+describe("matchPlatform linux arch labels", () => {
+  it("labels aarch64 artifacts as ARM64 (aarch64 contains no arm64 substring)", () => {
+    assert.equal(
+      matchPlatform("Inkpoint_0.12.1_aarch64.AppImage").platformLabel,
+      "Linux (ARM64) · AppImage",
+    );
+    assert.equal(matchPlatform("Inkpoint_0.12.1_arm64.deb").platformLabel, "Linux (ARM64) · DEB");
+    assert.equal(
+      matchPlatform("Inkpoint_0.12.1_amd64.AppImage").platformLabel,
+      "Linux (x86_64) · AppImage",
+    );
+    assert.equal(matchPlatform("Inkpoint_0.12.1_amd64.deb").platformLabel, "Linux (x86_64) · DEB");
+  });
+});

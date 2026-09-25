@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { inferPlatformFromPath } from "../src/analytics.ts";
-import { buildReleasesManifest, handleRequest, matchDesktopAsset } from "../src/router.ts";
+import {
+  buildReleasesManifest,
+  handleRequest,
+  isArm64AssetName,
+  isX64AssetName,
+  matchDesktopAsset,
+} from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 
 describe("Distribution Worker Router & Matcher", () => {
@@ -1109,5 +1115,133 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(inferPlatformFromPath("/inkpoint/android/latest", "Inkpoint_latest.apk")).toBe(
       "android",
     );
+  });
+});
+
+describe("Linux multi-arch distribution", () => {
+  // 双架构资产：ARM 包刻意排在前面，验证选择与 readdir / API 顺序无关。
+  const dualArchAssets = [
+    {
+      name: "Inkpoint_0.12.1_aarch64.AppImage",
+      browser_download_url: "https://example.com/Inkpoint_0.12.1_aarch64.AppImage",
+      size: 82143752,
+    },
+    {
+      name: "Inkpoint_0.12.1_amd64.AppImage",
+      browser_download_url: "https://example.com/Inkpoint_0.12.1_amd64.AppImage",
+      size: 92274688,
+    },
+    {
+      name: "Inkpoint_0.12.1_arm64.deb",
+      browser_download_url: "https://example.com/Inkpoint_0.12.1_arm64.deb",
+      size: 8516886,
+    },
+    {
+      name: "Inkpoint_0.12.1_amd64.deb",
+      browser_download_url: "https://example.com/Inkpoint_0.12.1_amd64.deb",
+      size: 10624702,
+    },
+  ];
+
+  it("normalizes aarch64/arm64 and amd64/x86_64/x64 spellings", () => {
+    expect(isArm64AssetName("Inkpoint_0.12.1_aarch64.AppImage")).toBe(true);
+    expect(isArm64AssetName("Inkpoint_0.12.1_arm64.deb")).toBe(true);
+    expect(isArm64AssetName("Inkpoint_0.12.1_amd64.AppImage")).toBe(false);
+    expect(isX64AssetName("Inkpoint_0.12.1_amd64.AppImage")).toBe(true);
+    expect(isX64AssetName("Inkpoint_0.12.1_x86_64.AppImage")).toBe(true);
+    expect(isX64AssetName("Inkpoint_0.12.1_x64-setup.exe")).toBe(true);
+    // aarch64 含 x64 形似子串但绝不能判为 x64。
+    expect(isX64AssetName("Inkpoint_0.12.1_aarch64.AppImage")).toBe(false);
+  });
+
+  it("routes generic linux keys to x64 regardless of asset order", () => {
+    expect(matchDesktopAsset(dualArchAssets, "linux")?.name).toBe("Inkpoint_0.12.1_amd64.AppImage");
+    expect(matchDesktopAsset(dualArchAssets, "linux-deb")?.name).toBe("Inkpoint_0.12.1_amd64.deb");
+  });
+
+  it("routes explicit arm64 keys to ARM builds", () => {
+    expect(matchDesktopAsset(dualArchAssets, "linux-arm64")?.name).toBe(
+      "Inkpoint_0.12.1_aarch64.AppImage",
+    );
+    expect(matchDesktopAsset(dualArchAssets, "linux-aarch64")?.name).toBe(
+      "Inkpoint_0.12.1_aarch64.AppImage",
+    );
+    expect(matchDesktopAsset(dualArchAssets, "linux-deb-arm64")?.name).toBe(
+      "Inkpoint_0.12.1_arm64.deb",
+    );
+  });
+
+  it("serves per-arch latest routes from version.json slots", async () => {
+    const manifest = {
+      app: "inkpoint",
+      updatedAt: "2026-09-25T00:00:00Z",
+      desktop: {
+        version: "0.12.1",
+        assets: {
+          linux_appimage: {
+            version: "0.12.1",
+            fileName: "Inkpoint_0.12.1_amd64.AppImage",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/linux/latest",
+          },
+          linux_appimage_arm64: {
+            version: "0.12.1",
+            fileName: "Inkpoint_0.12.1_aarch64.AppImage",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/linux-arm64/latest",
+          },
+          linux_deb: {
+            version: "0.12.1",
+            fileName: "Inkpoint_0.12.1_amd64.deb",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/linux-deb/latest",
+          },
+          linux_deb_arm64: {
+            version: "0.12.1",
+            fileName: "Inkpoint_0.12.1_arm64.deb",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/desktop/linux-deb-arm64/latest",
+          },
+        },
+      },
+    };
+    const servedKeys: string[] = [];
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/version.json") {
+          return { text: async () => JSON.stringify(manifest) } as unknown as R2ObjectBody;
+        }
+        if (key.startsWith("inkpoint/desktop/0.12.1/Inkpoint_0.12.1_")) {
+          servedKeys.push(key);
+          return {
+            body: new ReadableStream(),
+            httpEtag: `etag-${key}`,
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const cases: Array<[string, string]> = [
+      ["linux", "Inkpoint_0.12.1_amd64.AppImage"],
+      ["linux-arm64", "Inkpoint_0.12.1_aarch64.AppImage"],
+      ["linux-deb", "Inkpoint_0.12.1_amd64.deb"],
+      ["linux-deb-arm64", "Inkpoint_0.12.1_arm64.deb"],
+    ];
+    for (const [platform, fileName] of cases) {
+      const res = await handleRequest(
+        new Request(`https://download.jiaqi.im/inkpoint/desktop/${platform}/latest`),
+        env,
+      );
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Disposition")).toContain(fileName);
+    }
+    expect(servedKeys).toEqual([
+      "inkpoint/desktop/0.12.1/Inkpoint_0.12.1_amd64.AppImage",
+      "inkpoint/desktop/0.12.1/Inkpoint_0.12.1_aarch64.AppImage",
+      "inkpoint/desktop/0.12.1/Inkpoint_0.12.1_amd64.deb",
+      "inkpoint/desktop/0.12.1/Inkpoint_0.12.1_arm64.deb",
+    ]);
   });
 });

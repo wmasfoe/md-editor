@@ -8,6 +8,17 @@ export function computeSha256(filePath) {
   return crypto.createHash("sha256").update(buffer).digest("hex");
 }
 
+// 架构归一化：CI 产物混用 aarch64/arm64、amd64/x86_64/x64 四种写法，
+// 且同一目录常同时存在双架构包，findFile 取首个命中的顺序是不稳定的，
+// 必须按槽位精确匹配（历史教训：aarch64 不含 arm64 子串，曾导致 version.json 里 x64 槽位指向 ARM 包）。
+export function isArmFileName(name) {
+  return /arm64|aarch64/i.test(name);
+}
+
+export function isX64FileName(name) {
+  return !isArmFileName(name) && /x64|x86_64|amd64/i.test(name);
+}
+
 export function mergeVersionManifest(existingManifest = {}, updateData = {}) {
   const app = updateData.app || existingManifest.app || "inkpoint";
   const updatedAt = new Date().toISOString();
@@ -136,7 +147,9 @@ export async function runCli() {
     return;
   }
 
-  // 2. 桌面端 Manifest 生成与合并
+  // 2. 桌面端 Manifest 生成与合并（各槽位按架构精确匹配，见顶层 isArmFileName / isX64FileName）
+  const findArchFile = (isArch) => findFile(artifactsDir, (n) => isArch(n));
+
   const macArmDmg = findFile(
     artifactsDir,
     (n) =>
@@ -151,17 +164,10 @@ export async function runCli() {
     (n) => n.endsWith(".exe") && (n.includes("x64") || !n.includes("arm64")),
   );
   const winArm64 = findFile(artifactsDir, (n) => n.endsWith(".exe") && n.includes("arm64"));
-  const linuxAppImage = findFile(
-    artifactsDir,
-    (n) =>
-      n.endsWith(".AppImage") &&
-      (n.includes("amd64") || n.includes("x86_64") || !n.includes("arm64")),
-  );
-  const linuxDeb = findFile(
-    artifactsDir,
-    (n) =>
-      n.endsWith(".deb") && (n.includes("amd64") || n.includes("x86_64") || !n.includes("arm64")),
-  );
+  const linuxAppImageX64 = findArchFile((n) => n.endsWith(".AppImage") && isX64FileName(n));
+  const linuxAppImageArm64 = findArchFile((n) => n.endsWith(".AppImage") && isArmFileName(n));
+  const linuxDebX64 = findArchFile((n) => n.endsWith(".deb") && isX64FileName(n));
+  const linuxDebArm64 = findArchFile((n) => n.endsWith(".deb") && isArmFileName(n));
 
   const createAssetInfo = (filePath, defaultName, urlPlatform) => {
     const fileName = filePath ? path.basename(filePath) : defaultName;
@@ -197,12 +203,26 @@ export async function runCli() {
           )
         : undefined,
       linux_appimage: createAssetInfo(
-        linuxAppImage,
-        `Inkpoint_${normalizedVersion}_x86_64.AppImage`,
+        linuxAppImageX64,
+        `Inkpoint_${normalizedVersion}_amd64.AppImage`,
         "linux",
       ),
-      linux_deb: linuxDeb
-        ? createAssetInfo(linuxDeb, `Inkpoint_${normalizedVersion}_amd64.deb`, "linux-deb")
+      linux_appimage_arm64: linuxAppImageArm64
+        ? createAssetInfo(
+            linuxAppImageArm64,
+            `Inkpoint_${normalizedVersion}_aarch64.AppImage`,
+            "linux-arm64",
+          )
+        : undefined,
+      linux_deb: linuxDebX64
+        ? createAssetInfo(linuxDebX64, `Inkpoint_${normalizedVersion}_amd64.deb`, "linux-deb")
+        : undefined,
+      linux_deb_arm64: linuxDebArm64
+        ? createAssetInfo(
+            linuxDebArm64,
+            `Inkpoint_${normalizedVersion}_arm64.deb`,
+            "linux-deb-arm64",
+          )
         : undefined,
     },
   };
