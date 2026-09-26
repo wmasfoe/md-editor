@@ -140,12 +140,13 @@ export class PieceTable {
     return Math.min(start + Math.max(0, pos.col), maxOffset);
   }
 
-  /** 返回指定行的文本（不含换行符） */
+  /** 返回指定行的文本（不含行尾换行符；末行若无结尾换行则原样返回） */
   lineText(line: number): string {
     if (line < 0 || line >= this.lineStarts.length) return "";
     const start = this.lineStarts[line];
-    const end = this.lineStarts[line + 1] === undefined ? this.totalLength : this.lineStarts[line + 1];
-    return this.sliceRange(start, Math.max(start, end - 1));
+    const nextStart = this.lineStarts[line + 1];
+    const end = nextStart === undefined ? this.totalLength : nextStart - 1;
+    return this.sliceRange(start, Math.max(start, end));
   }
 
   /** 复制一段区间文本（供渲染层切片用） */

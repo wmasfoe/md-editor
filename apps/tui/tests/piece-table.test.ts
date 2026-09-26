@@ -77,6 +77,15 @@ describe("PieceTable", () => {
     expect(b.positionAt(3)).toEqual({ line: 1, col: 0 });
   });
 
+  it("returns line text without the trailing newline and keeps the last line intact", () => {
+    const b = new PieceTable("ab\ncd");
+    expect(b.lineText(0)).toBe("ab");
+    expect(b.lineText(1)).toBe("cd");
+    const trailing = new PieceTable("a\n");
+    expect(trailing.lineText(0)).toBe("a");
+    expect(trailing.lineText(1)).toBe("");
+  });
+
   it("handles 1MB text with 5000 random inserts quickly", () => {
     const lines = 20000;
     const big = Array.from({ length: lines }, (_, i) => `line ${i} content`).join("\n");
