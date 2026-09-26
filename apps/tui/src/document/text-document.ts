@@ -26,6 +26,8 @@ export class TextDocument {
   private readonly buffer: PieceTable;
   private cursorLine = 0;
   private cursorGrapheme = 0;
+  /** 内容版本号：每次编辑自增，供渲染层做缓存失效 */
+  private revisionCounter = 0;
   /** 上下移动时记忆的目标显示列（vim 语义），水平移动或编辑后失效 */
   private goalColumn: number | null = null;
   private recorder: EditRecorder | null = null;
@@ -36,6 +38,11 @@ export class TextDocument {
 
   setRecorder(recorder: EditRecorder | null): void {
     this.recorder = recorder;
+  }
+
+  /** 内容版本号（编辑即自增；纯光标移动不变） */
+  get version(): number {
+    return this.revisionCounter;
   }
 
   // ── 文档读取 ──────────────────────────────────────────────
@@ -178,6 +185,7 @@ export class TextDocument {
     const at = this.offset;
     this.buffer.insert(at, text);
     this.recorder?.record({ kind: "insert", offset: at, text });
+    this.revisionCounter++;
     this.goalColumn = null;
     this.setOffsetWithoutReset(at + text.length);
   }
@@ -234,6 +242,7 @@ export class TextDocument {
     } finally {
       this.recorder = saved;
     }
+    this.revisionCounter++;
     this.goalColumn = null;
   }
 
@@ -243,6 +252,7 @@ export class TextDocument {
     if (length <= 0) return "";
     const removed = this.buffer.delete(from, length);
     this.recorder?.record({ kind: "delete", offset: from, text: removed });
+    this.revisionCounter++;
     this.goalColumn = null;
     this.setOffsetWithoutReset(from);
     return removed;
