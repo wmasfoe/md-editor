@@ -1,0 +1,27 @@
+{
+  "name": "@md-editor/tui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "inkpoint-tui": "dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@earendil-works/pi-tui": "^0.87.1",
+    "@md-editor/compiler": "workspace:*",
+    "@md-editor/editor-core": "workspace:*",
+    "sugar-high": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
