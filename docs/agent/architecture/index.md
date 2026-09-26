@@ -36,5 +36,7 @@
   记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入与 CI/CD 自动化流水线。
 - 多平台分发与边缘加速架构方案： [multi_platform_distribution_architecture.md](./multi_platform_distribution_architecture.md)
   记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计与 CI/CD 自动化流水线。
+- 终端 TUI 编辑器（vim 式）架构方案： [terminal_tui_editor_architecture.md](./terminal_tui_editor_architecture.md)
+  记录 `apps/tui`（inkpoint-tui）的定位（vim 式全屏 + 可嵌入聊天壳子）、可嵌入性硬规则（尺寸来自壳子、不碰 stdout、CURSOR_MARKER 供 IME 定位）、分层（piece-table / grapheme 光标 / operation 级 undo / 行稳定 live preview 渲染 / alt-screen 壳子）、与 renderer-codemirror 的复用边界、伪终端冒烟验证方法与已知限制/路线图。
 
 

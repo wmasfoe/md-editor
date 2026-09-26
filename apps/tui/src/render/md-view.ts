@@ -186,7 +186,9 @@ export class MdDocumentView {
         const quote = QUOTE_RE.exec(text);
         if (!quote) return theme.quote(text);
         const [, indent, markers, body] = quote;
-        const prefix = hideMarkers ? "│ ".repeat(markers.length / 2 || 1) : theme.marker(indent + markers);
+        const prefix = hideMarkers
+          ? "│ ".repeat(markers.length / 2 || 1)
+          : theme.marker(indent + markers);
         return prefix + theme.quote(this.renderInline(body, hideMarkers));
       }
       case "list": {
@@ -195,13 +197,15 @@ export class MdDocumentView {
         const [, indent, marker, gap, body] = list;
         const bulletChar = context.ordered ? marker : "•";
         const prefixContent = `${bulletChar}${gap}`;
-        const prefix = hideMarkers ? theme.bullet(prefixContent) : theme.marker(indent + marker + gap);
+        const prefix = hideMarkers
+          ? theme.bullet(prefixContent)
+          : theme.marker(indent + marker + gap);
         return prefix + this.renderInline(body, hideMarkers);
       }
       case "rule":
         return theme.marker(text);
       case "table":
-        return this.renderInline(text, hideMarkers, { keepPipes: true });
+        return this.renderInline(text, hideMarkers);
       default:
         return this.renderInline(text, hideMarkers);
     }
@@ -213,7 +217,7 @@ export class MdDocumentView {
    * 第一版不做嵌套解析（`**a *b* c**` 只处理外层），保持行内文本长度在隐藏标记后
    * 与显示内容一一对应；code span 内部不再解析其它标记。
    */
-  private renderInline(text: string, hideMarkers: boolean, options: { keepPipes?: boolean } = {}): string {
+  private renderInline(text: string, hideMarkers: boolean): string {
     if (text.length === 0) return "";
     const theme = this.theme;
     let out = "";
@@ -263,7 +267,9 @@ export class MdDocumentView {
         const end = text.indexOf("~~", i + 2);
         if (end > i + 2) {
           const body = text.slice(i + 2, end);
-          out += hideMarkers ? theme.dim(body) : theme.marker("~~") + theme.dim(body) + theme.marker("~~");
+          out += hideMarkers
+            ? theme.dim(body)
+            : theme.marker("~~") + theme.dim(body) + theme.marker("~~");
           i = end + 2;
           continue;
         }

@@ -33,9 +33,12 @@ export interface MdEditorOptions {
   onQuit?: (options: { dirty: boolean }) => void;
   /** 状态栏消息回调（保存成功、命令未实现等提示） */
   onStatusMessage?: (message: string) => void;
-  /** 内容变化回调（外部可用于 dirty 标记/自动保存） */
+  /** 内容变化回调（外部可用于 dirty 标记/自动保存）；可在构造后替换 */
   onChange?: () => void;
 }
+
+/** 空文档时显示的一行提示（避免空白屏） */
+const EMPTY_DOC_HINT = "按 i 开始输入 · :w 保存 · :q! 强制退出";
 
 export class MdEditor implements Component, Focusable {
   readonly doc: TextDocument;
@@ -45,6 +48,7 @@ export class MdEditor implements Component, Focusable {
   private readonly view: MdDocumentView;
   private readonly keymap = new EditorKeymap();
   private readonly options: MdEditorOptions;
+  private changeListener: (() => void) | null;
   private currentMode: EditorMode = "normal";
   private commandBuffer = "";
   private yankBuffer = "";
@@ -59,8 +63,14 @@ export class MdEditor implements Component, Focusable {
     this.doc.setRecorder(this.history);
     this.view = new MdDocumentView(this.doc, options.theme ?? defaultTheme);
     this.path = options.filePath ?? null;
-    // 新文档从 insert 模式起步，打开已有文件的文档从 normal 起步（vim 习惯）
-    this.currentMode = (options.initialText?.length ?? 0) > 0 ? "normal" : "insert";
+    this.changeListener = options.onChange ?? null;
+    // 与 vim 一致：无论文档是否为空都从 normal 模式起步
+    this.currentMode = "normal";
+  }
+
+  /** 替换内容变化监听（壳子在自己准备好之后接入，例如滚动跟随） */
+  setChangeListener(listener: (() => void) | null): void {
+    this.changeListener = listener;
   }
 
   // ── 状态（供状态栏/壳子读取） ──────────────────────────────
@@ -124,6 +134,13 @@ export class MdEditor implements Component, Focusable {
 
     for (let line = 0; line < this.doc.lineCount; line++) {
       const isCursorLine = line === cursorLine && this.focused;
+      // 空文档给一行占位提示，避免「一片空白不知道能不能打字」
+      if (this.doc.length === 0 && line === 0) {
+        const hint = this.themeForEmptyHint(EMPTY_DOC_HINT);
+        const withMarker = isCursorLine ? CURSOR_MARKER + hint : hint;
+        lines.push(this.withGutter(0, withMarker, gutter, width));
+        continue;
+      }
       const styled = this.view.renderLine(line, { active: line === cursorLine });
       let text = styled;
       if (isCursorLine) {
@@ -357,7 +374,7 @@ export class MdEditor implements Component, Focusable {
   }
 
   private notifyChange(): void {
-    this.options.onChange?.();
+    this.changeListener?.();
   }
 
   // ── 渲染辅助 ────────────────────────────────────────────
@@ -369,6 +386,10 @@ export class MdEditor implements Component, Focusable {
     const head = sliceByColumn(styledLine, 0, displayColumn);
     const tail = sliceByColumn(styledLine, displayColumn, 100000);
     return `${head}${CURSOR_MARKER}${tail}`;
+  }
+
+  private themeForEmptyHint(text: string): string {
+    return (this.options.theme ?? defaultTheme).dim(text);
   }
 
   private lineGutterWidth(): number {

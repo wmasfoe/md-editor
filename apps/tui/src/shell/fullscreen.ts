@@ -41,7 +41,11 @@ export interface FullscreenShell {
 }
 
 /** 光标驱动滚动的纯逻辑：返回让光标保持可见的视口顶行（vim 的 scrolloff=0 行为） */
-export function nextScrollTop(currentTop: number, viewportHeight: number, cursorLine: number): number {
+export function nextScrollTop(
+  currentTop: number,
+  viewportHeight: number,
+  cursorLine: number,
+): number {
   if (viewportHeight <= 0) return currentTop;
   if (cursorLine < currentTop) return cursorLine;
   if (cursorLine >= currentTop + viewportHeight) return cursorLine - viewportHeight + 1;
@@ -53,14 +57,11 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
   // 第二个参数 true：显示硬件光标 —— IME 候选窗要靠它定位
   const tui = new TuiAltScreen(terminal, true);
   let quitRequested = false;
-  // 光标驱动滚动：先占位，ScrollView 创建后接入真实实现
-  let ensureCursorVisible: () => void = () => {};
 
   const editor = new MdEditor({
     initialText: options.initialText ?? "",
     filePath: options.filePath ?? null,
     theme: options.theme ?? defaultTheme,
-    onChange: () => ensureCursorVisible(),
     onSave: (text, filePath) => saveDocument(text, filePath, editor, options),
     onQuit: () => {
       quitRequested = true;
@@ -75,16 +76,13 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
     { component: statusBar, basis: 1 },
   ]);
 
-  ensureCursorVisible = () => followCursor();
-
-  /**
-   * 让视口跟随光标；viewportHeight 可显式传入（测试/嵌入壳子已知高度时）。
-   * 视口高度未知（headless 渲染）时保持不动。
-   */
-  function followCursor(viewportHeight = scrollView.viewportHeight): void {
+  /** 让视口跟随光标；viewportHeight 可显式传入（测试/嵌入壳子已知高度时） */
+  const followCursor = (viewportHeight = scrollView.viewportHeight): void => {
     const next = nextScrollTop(scrollView.scrollTop, viewportHeight, editor.doc.position.line);
     if (next !== scrollView.scrollTop) scrollView.scrollTo(next);
-  }
+  };
+  // 编辑器与 ScrollView 都就绪后再接上滚动跟随（编辑器的 onChange 在构造期先留空）
+  editor.setChangeListener(() => followCursor());
 
   tui.setLayoutRoot(layout);
   tui.setFocus(editor);

@@ -11,22 +11,10 @@ import { parseKey } from "@earendil-works/pi-tui";
 export type EditorMode = "normal" | "insert" | "command";
 
 export type EditorMotion =
-  | "left"
-  | "right"
-  | "up"
-  | "down"
-  | "line-start"
-  | "line-end"
-  | "doc-start"
-  | "doc-end";
+  "left" | "right" | "up" | "down" | "line-start" | "line-end" | "doc-start" | "doc-end";
 
 export type InsertPlacement =
-  | "before"
-  | "after"
-  | "line-start"
-  | "line-end"
-  | "new-line-below"
-  | "new-line-above";
+  "before" | "after" | "line-start" | "line-end" | "new-line-below" | "new-line-above";
 
 export type EditorCommand =
   | { type: "move"; motion: EditorMotion }

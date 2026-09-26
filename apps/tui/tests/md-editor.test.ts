@@ -67,13 +67,27 @@ describe("MdEditor rendering", () => {
 });
 
 describe("MdEditor editing", () => {
-  it("starts in insert mode for an empty document and types text", () => {
+  it("starts in normal mode like vim and requires i to type", () => {
     const editor = makeEditor("");
+    expect(editor.mode).toBe("normal");
+    editor.handleInput("h"); // normal 模式下的 h 是移动，不该插入字符
+    expect(editor.doc.getText()).toBe("");
+    editor.handleInput("i");
     expect(editor.mode).toBe("insert");
     editor.handleInput("h");
     editor.handleInput("i");
     expect(editor.doc.getText()).toBe("hi");
     expect(editor.dirty).toBe(true);
+  });
+
+  it("shows a hint instead of a blank line for an empty document", () => {
+    const editor = makeEditor("");
+    const line = editor.render(60)[0];
+    expect(withoutMarker(line)).toContain("按 i 开始输入");
+    // 一旦有内容，占位提示消失
+    editor.handleInput("i");
+    editor.handleInput("x");
+    expect(withoutMarker(editor.render(60)[0])).toBe(" 1 x");
   });
 
   it("starts in normal mode for a non-empty document", () => {
