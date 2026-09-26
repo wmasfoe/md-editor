@@ -246,6 +246,28 @@ export class TextDocument {
     this.goalColumn = null;
   }
 
+  /** 删除整行（含行尾换行符，vim 的 dd 语义），返回被删除的文本；光标停在删除位置的行首 */
+  deleteLines(from: number, count = 1): string {
+    if (count <= 0 || from < 0 || from >= this.buffer.lineCount) return "";
+    const lastLine = Math.min(from + count, this.buffer.lineCount);
+    let start = this.lineStartOffset(from);
+    let end: number;
+    if (lastLine < this.buffer.lineCount) {
+      end = this.lineStartOffset(lastLine);
+    } else {
+      end = this.buffer.length;
+      // 删除文档末尾的行：连带吃掉它前面的换行符，否则会留下一个空行
+      if (start > 0) start -= 1;
+    }
+    const removed = this.buffer.delete(start, end - start);
+    this.recorder?.record({ kind: "delete", offset: start, text: removed });
+    this.revisionCounter++;
+    this.goalColumn = null;
+    this.setOffsetWithoutReset(Math.min(start, this.buffer.length));
+    this.cursorGrapheme = 0;
+    return removed;
+  }
+
   // ── 内部 ────────────────────────────────────────────────
 
   private deleteRange(from: number, length: number): string {

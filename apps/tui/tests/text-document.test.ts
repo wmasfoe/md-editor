@@ -112,6 +112,27 @@ describe("TextDocument", () => {
     expect(doc.position.grapheme).toBe(0);
   });
 
+  it("deletes whole lines with dd semantics", () => {
+    const doc = new TextDocument("a\nb\nc");
+    doc.setPosition(1, 1);
+    expect(doc.deleteLines(1, 1)).toBe("b\n");
+    expect(doc.getText()).toBe("a\nc");
+    expect(doc.position).toEqual({ line: 1, grapheme: 0 });
+
+    const tail = new TextDocument("a\nb");
+    tail.deleteLines(1, 1);
+    expect(tail.getText()).toBe("a");
+
+    const head = new TextDocument("a\nb");
+    head.deleteLines(0, 1);
+    expect(head.getText()).toBe("b");
+
+    const all = new TextDocument("a\nb\nc");
+    all.deleteLines(0, 3);
+    expect(all.getText()).toBe("");
+    expect(all.lineCount).toBe(1);
+  });
+
   it("records edit operations for undo", () => {
     const recorder = new RecordingRecorder();
     const doc = new TextDocument("ab");
