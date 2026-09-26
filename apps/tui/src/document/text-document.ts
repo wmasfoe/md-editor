@@ -213,6 +213,30 @@ export class TextDocument {
     return "";
   }
 
+  /** 应用一组逆操作（undo/redo 回放用），回放期间不记录历史；结束时光标停在改动区起点 */
+  applyOps(ops: readonly EditOp[]): void {
+    if (ops.length === 0) return;
+    const saved = this.recorder;
+    this.recorder = null;
+    let affectedFrom = Number.POSITIVE_INFINITY;
+    try {
+      for (const op of ops) {
+        affectedFrom = Math.min(affectedFrom, op.offset);
+        if (op.kind === "insert") {
+          this.buffer.insert(op.offset, op.text);
+          this.setOffsetWithoutReset(op.offset + op.text.length);
+        } else {
+          this.buffer.delete(op.offset, op.text.length);
+          this.setOffsetWithoutReset(op.offset);
+        }
+      }
+      this.setOffsetWithoutReset(affectedFrom);
+    } finally {
+      this.recorder = saved;
+    }
+    this.goalColumn = null;
+  }
+
   // ── 内部 ────────────────────────────────────────────────
 
   private deleteRange(from: number, length: number): string {
