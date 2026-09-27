@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
+    "ink": "dist/cli.js",
     "inkpoint-tui": "dist/cli.js"
   },
   "scripts": {

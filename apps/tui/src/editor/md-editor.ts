@@ -127,6 +127,17 @@ export class MdEditor implements Component, Focusable {
 
   // ── Component ───────────────────────────────────────────
 
+  /** 动态切换主题并重绘 */
+  setTheme(theme: TerminalTheme): void {
+    this.options.theme = theme;
+    this.view.setTheme(theme);
+    this.invalidate();
+  }
+
+  getTheme(): TerminalTheme {
+    return this.view.getTheme();
+  }
+
   invalidate(): void {
     this.view.invalidate();
   }

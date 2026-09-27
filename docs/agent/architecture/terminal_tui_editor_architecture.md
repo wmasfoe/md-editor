@@ -51,13 +51,29 @@
 
 ## 6. 运行与验证
 
+### 6.1 运行方式（开发环境 & 全局别名）
+
 ```bash
-# 运行（需要交互式终端；注意不要加 `--`，pnpm 11 会把字面量 `--` 当成文件路径传进去）
-pnpm dev:tui README.md
+# 1. 仓库内直接运行（开发调试，无需预先 build，支持实时代码热改）
+pnpm ink README.md
 # 等价写法
+pnpm dev:tui README.md
 pnpm --filter @md-editor/tui dev README.md
 cd apps/tui && pnpm dev README.md
-cd apps/tui && npx tsx src/cli.ts README.md
+
+# 2. 浅色/深色主题控制（默认自动检测终端背景）
+pnpm ink --light README.md    # 强制浅色主题（高对比度焦橙/深琥珀标题）
+pnpm ink --dark README.md     # 强制深色主题（暖金橙阶梯标题）
+pnpm ink --theme auto README.md
+
+# 3. 开发环境配置系统级全局 `ink` 命令：
+# 方式 A（实时 TSX 开发，推荐）：在 ~/.zshrc 或 ~/.bashrc 增加别名
+alias ink="pnpm --filter @md-editor/tui dev"
+# 方式 B（全局 Link 编译产物）：
+pnpm build:tui
+pnpm -C apps/tui link --global
+# 之后即可在任意目录直接执行：
+ink README.md
 
 # 构建产物（tsc → apps/tui/dist，可直接用 node 跑，不需要 tsx）
 pnpm build:tui
@@ -81,7 +97,20 @@ cat /tmp/smoke.md   # 期望: "# Hello 中文" + 换行 + "second line"
 
 v1 验证记录：单测 84 个全绿；上述冒烟在本机（Debian 13 / aarch64）实测通过，含中文输入与光标定位。
 
-### 6.1 增量渲染性能（第二轮）
+### 6.2 终端配色与明暗模式自适应（Light / Dark Mode）
+
+- **背景与痛点**：默认主题的标题阶梯采用暗底暖金橙（H1: 214, H2: 220, H3: 228）。在终端浅色背景（如白底）下，明黄色字体与背景对比度仅 ~1.15:1，肉眼几乎无法辨识。
+- **浅色主题设计**：
+  - H1 采用焦橙 / 深琥珀红（ANSI 166，`#d75f00`，白底对比度 > 4.5:1，符合 WCAG AA）；
+  - H2 采用深琥珀 / 古铜（ANSI 130，`#af5f00`，对比度 > 5.5:1）；
+  - H3 采用深橄榄金（ANSI 94，`#875f00`，对比度 > 7.5:1）；
+  - 列表圆点改用深琥珀（130）替代亮黄（33），行内代码用深青（30）替代亮青（36）。
+- **三阶段色彩自适应管线**：
+  1. **首帧同步探测**：启动前按 `INK_THEME` → `TERM_BACKGROUND` → `COLORFGBG`（如 `0;15` 为浅底）→ macOS `defaults read -g AppleInterfaceStyle` 同步决定初始主题，杜绝首屏闪烁；
+  2. **终端协议异步校准**：进入 alt-screen 后，壳子向终端发起 OSC 11 背景 RGB 查询与 DSR 996 色彩偏好查询，通过相对亮度公式 `L = 0.299R + 0.587G + 0.114B` 精准判定终端背景是深是浅；若与初始猜测不一致，原地无损切主题重绘；
+  3. **实时切换监听**：向终端发送 `\x1b[?2031h` 开启调色板变更通知，用户在运行期间切换系统/终端外观（如白天下班切暗黑）时，壳子捕获 CSI 997 通知并动态切换主题。
+
+### 6.3 增量渲染性能（第二轮）
 
 每次击键的渲染成本模型（本机 2vCPU ARM 实测，`tests/perf-guard.test.ts` 用比值断言护栏）：
 

@@ -14,6 +14,7 @@
     "dev:ios": "node scripts/mobile/run-ios.mjs",
     "dev:android": "node scripts/mobile/run-android.mjs",
     "dev:tui": "pnpm --filter @md-editor/tui dev",
+    "ink": "pnpm --filter @md-editor/tui dev",
     "tauri": "pnpm --filter @md-editor/desktop tauri",
     "dev:worker": "pnpm --filter @md-editor/distribution-worker run dev",
     "deploy:worker": "pnpm --filter @md-editor/distribution-worker run deploy",

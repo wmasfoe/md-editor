@@ -15,8 +15,12 @@ const MODE_LABEL: Record<string, string> = {
 export class StatusBar implements Component {
   constructor(
     private readonly editor: MdEditor,
-    private readonly theme: TerminalTheme = defaultTheme,
+    private theme: TerminalTheme = defaultTheme,
   ) {}
+
+  setTheme(theme: TerminalTheme): void {
+    this.theme = theme;
+  }
 
   invalidate(): void {
     // 无缓存

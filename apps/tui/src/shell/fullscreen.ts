@@ -15,7 +15,13 @@ import {
 } from "@earendil-works/pi-tui";
 import { MdEditor } from "../editor/md-editor.ts";
 import { StatusBar } from "./statusbar.ts";
-import { defaultTheme, type TerminalTheme } from "../render/theme.ts";
+import {
+  colorSchemeFromRgb,
+  detectEnvironmentColorScheme,
+  getThemeByColorScheme,
+  type TerminalColorScheme,
+  type TerminalTheme,
+} from "../render/theme.ts";
 
 export interface FullscreenShellOptions {
   filePath?: string | null;
@@ -23,6 +29,8 @@ export interface FullscreenShellOptions {
   /** 注入终端（测试用假终端；默认取 stdout） */
   terminal?: Terminal;
   theme?: TerminalTheme;
+  /** 配色模式：'dark' | 'light' | 'auto'，未指定时默认按终端/系统环境探测 */
+  colorScheme?: "dark" | "light" | "auto";
   /** 保存失败时是否抛出（默认写入状态栏提示） */
   onError?: (error: unknown) => void;
 }
@@ -32,6 +40,12 @@ export interface FullscreenShell {
   editor: MdEditor;
   scrollView: ScrollView;
   statusBar: StatusBar;
+  /** 当前生效的配色方案 */
+  readonly colorScheme: TerminalColorScheme;
+  /** 动态切换配色方案 */
+  setColorScheme(scheme: TerminalColorScheme): void;
+  /** 动态切换主题对象 */
+  setTheme(theme: TerminalTheme): void;
   /** 启动终端渲染循环 */
   start(): void;
   /** 停止渲染并把最终内容交回主屏 */
@@ -58,10 +72,18 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
   const tui = new TuiAltScreen(terminal, true);
   let quitRequested = false;
 
+  const initialScheme: TerminalColorScheme =
+    options.colorScheme === "light" || options.colorScheme === "dark"
+      ? options.colorScheme
+      : detectEnvironmentColorScheme();
+
+  let activeScheme: TerminalColorScheme = initialScheme;
+  const initialTheme: TerminalTheme = options.theme ?? getThemeByColorScheme(initialScheme);
+
   const editor = new MdEditor({
     initialText: options.initialText ?? "",
     filePath: options.filePath ?? null,
-    theme: options.theme ?? defaultTheme,
+    theme: initialTheme,
     onSave: (text, filePath) => saveDocument(text, filePath, editor, options),
     onQuit: () => {
       quitRequested = true;
@@ -70,7 +92,7 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
   });
 
   const scrollView = new ScrollView(editor, { primary: true, follow: "none", scrollbar: "auto" });
-  const statusBar = new StatusBar(editor, options.theme ?? defaultTheme);
+  const statusBar = new StatusBar(editor, initialTheme);
   const layout = new VStack([
     { component: scrollView, grow: 1 },
     { component: statusBar, basis: 1 },
@@ -87,8 +109,43 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
   tui.setLayoutRoot(layout);
   tui.setFocus(editor);
 
+  function setColorScheme(scheme: TerminalColorScheme): void {
+    if (activeScheme === scheme) return;
+    activeScheme = scheme;
+    const nextTheme = getThemeByColorScheme(scheme);
+    editor.setTheme(nextTheme);
+    statusBar.setTheme(nextTheme);
+    tui.requestRender();
+  }
+
+  function setTheme(theme: TerminalTheme): void {
+    editor.setTheme(theme);
+    statusBar.setTheme(theme);
+    tui.requestRender();
+  }
+
   function start(): void {
     tui.start();
+
+    // 仅在未显式锁定 theme 且允许 auto 时，向终端开启通知并异步探测背景
+    if (!options.theme && options.colorScheme !== "dark" && options.colorScheme !== "light") {
+      tui.setTerminalColorSchemeNotifications(true);
+      tui.onTerminalColorSchemeChange((scheme) => {
+        setColorScheme(scheme);
+      });
+
+      void Promise.allSettled([
+        tui.queryTerminalColorScheme({ timeoutMs: 250 }),
+        tui.queryTerminalBackgroundColor({ timeoutMs: 250 }),
+      ]).then(([schemeResult, bgResult]) => {
+        if (quitRequested) return;
+        if (schemeResult.status === "fulfilled" && schemeResult.value) {
+          setColorScheme(schemeResult.value);
+        } else if (bgResult.status === "fulfilled" && bgResult.value) {
+          setColorScheme(colorSchemeFromRgb(bgResult.value));
+        }
+      });
+    }
   }
 
   function stop(): void {
@@ -100,7 +157,20 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
     if (quitRequested) return;
   }
 
-  return { tui, editor, scrollView, statusBar, start, stop, followCursor };
+  return {
+    tui,
+    editor,
+    scrollView,
+    statusBar,
+    get colorScheme() {
+      return activeScheme;
+    },
+    setColorScheme,
+    setTheme,
+    start,
+    stop,
+    followCursor,
+  };
 }
 
 function saveDocument(

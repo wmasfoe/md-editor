@@ -189,8 +189,18 @@ export class MdDocumentView {
 
   constructor(
     private readonly doc: TextDocument,
-    private readonly theme: TerminalTheme = defaultTheme,
+    private theme: TerminalTheme = defaultTheme,
   ) {}
+
+  /** 动态切换主题并清空渲染缓存 */
+  setTheme(theme: TerminalTheme): void {
+    this.theme = theme;
+    this.invalidate();
+  }
+
+  getTheme(): TerminalTheme {
+    return this.theme;
+  }
 
   /** 全部失效（主题变更、重新加载文档等） */
   invalidate(): void {
