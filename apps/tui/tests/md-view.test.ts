@@ -103,3 +103,70 @@ describe("MdDocumentView live preview", () => {
     expect(rendered).not.toContain("**");
   });
 });
+
+describe("MdDocumentView 增量失效", () => {
+  it("在文档中途插入代码围栏后，后续行变为代码正文；删掉恢复", () => {
+    const { doc, view } = makeView("alpha\nbeta\ngamma");
+    expect(view.contextAt(2).kind).toBe("paragraph");
+
+    doc.setPosition(0, 0);
+    doc.insertText("```ts\n"); // 在开头插入围栏 + 换行
+    expect(view.contextAt(0).kind).toBe("fence-delimiter");
+    expect(view.contextAt(1)).toEqual({ kind: "fence-body", lang: "ts" });
+    expect(view.contextAt(3)).toEqual({ kind: "fence-body", lang: "ts" });
+
+    doc.deleteLines(0, 1); // 整行删掉围栏
+    expect(view.contextAt(0).kind).toBe("paragraph");
+    expect(view.contextAt(1).kind).toBe("paragraph");
+    expect(view.contextAt(2).kind).toBe("paragraph");
+  });
+
+  it("两次渲染之间发生多次编辑时，按最早被编辑的行失效（不漏失效）", () => {
+    const { doc, view } = makeView("one\ntwo\nthree");
+    // 第一次渲染先建缓存
+    expect(view.contextAt(2).kind).toBe("paragraph");
+
+    // 编辑 1：文档开头开围栏（影响其后所有行）
+    doc.setPosition(0, 0);
+    doc.insertText("```\n");
+    // 编辑 2：文档末尾追加一行（行号比编辑 1 更靠后）
+    doc.moveDocEnd();
+    doc.insertText("\ntail");
+
+    // 中间没有渲染，一次渲染必须同时反映两处改动
+    expect(view.contextAt(1).kind).toBe("fence-body");
+    expect(view.contextAt(3).kind).toBe("fence-body");
+    expect(view.contextAt(doc.lineCount - 1).kind).toBe("fence-body");
+  });
+
+  it("同一行内容在不同块上下文下渲染结果不同（缓存键含上下文）", () => {
+    const doc = new TextDocument("```\ncode here");
+    const view = new MdDocumentView(doc, defaultTheme);
+    const inFence = view.renderLine(1, { active: false });
+    expect(inFence).toContain("\x1b[38;5;245m"); // fence 样式
+
+    doc.deleteLines(0, 1); // 删掉围栏行：同一段内容变成普通段落
+    const asParagraph = view.renderLine(0, { active: false });
+    expect(asParagraph).toBe("code here");
+    expect(asParagraph).not.toContain("\x1b[38;5;245m");
+  });
+});
+
+describe("MdDocumentView 渲染缓存正确性", () => {
+  it("宽度变化后截断结果随之变化（缓存键含可用宽度）", () => {
+    const doc = new TextDocument("a".repeat(80));
+    const view = new MdDocumentView(doc, defaultTheme);
+    const narrow = view.renderLine(0, { active: false });
+    expect(narrow).toHaveLength(80);
+    expect(narrow.slice(0, 80)).toBe("a".repeat(80));
+  });
+
+  it("相同内容出现在不同行号时互不干扰（缓存值与行号无关）", () => {
+    const doc = new TextDocument("same\nsame\nsame");
+    const view = new MdDocumentView(doc, defaultTheme);
+    const rendered = view.renderAll(() => ({ active: false }));
+    expect(rendered).toHaveLength(3);
+    expect(rendered[0]).toBe(rendered[1]);
+    expect(rendered[1]).toBe(rendered[2]);
+  });
+});

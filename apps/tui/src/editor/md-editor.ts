@@ -37,6 +37,9 @@ export interface MdEditorOptions {
   onChange?: () => void;
 }
 
+/** 行缓存上限（防超长文档吃内存；到顶清空重建） */
+const LINE_CACHE_LIMIT = 8000;
+
 /** 空文档时显示的一行提示（避免空白屏） */
 const EMPTY_DOC_HINT = "按 i 开始输入 · :w 保存 · :q! 强制退出";
 
@@ -49,6 +52,8 @@ export class MdEditor implements Component, Focusable {
   private readonly keymap = new EditorKeymap();
   private readonly options: MdEditorOptions;
   private changeListener: (() => void) | null;
+  /** 最终行（截断后正文）缓存；见 truncateCached 的性能说明 */
+  private readonly lineCache = new Map<string, string>();
   private currentMode: EditorMode = "normal";
   private commandBuffer = "";
   private yankBuffer = "";
@@ -142,13 +147,35 @@ export class MdEditor implements Component, Focusable {
         continue;
       }
       const styled = this.view.renderLine(line, { active: line === cursorLine });
-      let text = styled;
-      if (isCursorLine) {
-        text = this.insertCursorMarker(styled);
-      }
+      const text = isCursorLine ? this.insertCursorMarker(styled) : styled;
       lines.push(this.withGutter(line, text, gutter, width));
     }
     return lines;
+  }
+
+  /**
+   * 行号栏 + 截断。截断结果按「可用宽度 + 最终文本」缓存：行号栏本身只是 padStart
+   * 拼接（800 行 0.08ms），而 `truncateToWidth` 要解析 ANSI 算显示宽度，实测 800 行
+   * 文档独占 17.8ms/帧（整帧 21ms）——它才是打字发黏的根因。
+   * 缓存只存正文、不含行号，所以在文档顶部插入/删除行时整屏仍能命中缓存。
+   */
+  private withGutter(line: number, text: string, gutter: number, width: number): string {
+    const available = Math.max(0, width - gutter);
+    const lineNumber = String(line + 1).padStart(gutter - 1, " ");
+    return `${lineNumber} ${this.truncateCached(text, available)}`;
+  }
+
+  private truncateCached(text: string, available: number): string {
+    // 纯 ASCII 且长度不超可用宽度：显示宽度只会 <= 代码单元数，可省一次 ANSI 解析
+    if (text.length <= available && !/[\u1100-\uFFFF]/.test(text)) return text;
+    const key = `${available}|${text}`;
+    const cached = this.lineCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const rendered = truncateToWidth(text, available);
+    if (this.lineCache.size >= LINE_CACHE_LIMIT) this.lineCache.clear();
+    this.lineCache.set(key, rendered);
+    return rendered;
   }
 
   handleInput(data: string): void {
@@ -374,6 +401,7 @@ export class MdEditor implements Component, Focusable {
   }
 
   private notifyChange(): void {
+    // 渲染缓存的失效由 MdDocumentView 自己按文档版本同步（见 syncVersion）
     this.changeListener?.();
   }
 
@@ -395,12 +423,5 @@ export class MdEditor implements Component, Focusable {
   private lineGutterWidth(): number {
     // 行号宽度随总行数增长，最少 3 列
     return Math.max(3, String(this.doc.lineCount).length);
-  }
-
-  private withGutter(line: number, text: string, gutter: number, width: number): string {
-    const lineNumber = String(line + 1).padStart(gutter - 1, " ");
-    const gutterText = `${lineNumber} `;
-    const available = Math.max(0, width - gutter);
-    return gutterText + truncateToWidth(text, available);
   }
 }

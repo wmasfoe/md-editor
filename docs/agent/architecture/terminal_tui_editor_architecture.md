@@ -2,7 +2,7 @@
 
 用途：记录 `apps/tui`（inkpoint-tui）终端客户端的定位、分层、复用边界与演进路线。改动 TUI 渲染/编辑器内核，或评估「TUI 与桌面/Web 端共享内核」时先读本文。
 
-状态：v1 已落地（84 个单测 + 伪终端冒烟验证通过），未发布、未接入发版链路。
+状态：v1 已落地（95 个单测 + 伪终端冒烟验证通过），未发布、未接入发版链路。第二轮已做增量渲染性能优化（见 §6.1）。
 
 ## 1. 目标与定位
 
@@ -23,10 +23,10 @@
 | --- | --- | --- |
 | 缓冲区 | `apps/tui/src/buffer/piece-table.ts` | piece table（只读 original + 追加 add），增量维护行首索引，提供 offset ↔ (line, col) |
 | 字素/列宽 | `apps/tui/src/buffer/graphemes.ts` | grapheme 分段（`Intl.Segmenter`）与显示列换算（宽度用 pi-tui `visibleWidth`，即 wcwidth 语义） |
-| 文档模型 | `apps/tui/src/document/text-document.ts` | 光标（grapheme 下标）+ 编辑原语（插入/退格/删行）+ 版本号（渲染缓存失效用） |
+| 文档模型 | `apps/tui/src/document/text-document.ts` | 光标（grapheme 下标）+ 编辑原语（插入/退格/删行）+ 版本号与 `takeEditFloor()`（渲染缓存增量失效用） |
 | 撤销 | `apps/tui/src/document/history.ts` | operation 级 undo/redo，按「输入组」提交（`flush()` 由语义边界触发），回放期间不记录 |
 | 键位 | `apps/tui/src/editor/keymap.ts` | 三模态（normal/insert/command）键位表 + 多键序列（`gg`/`dd`/`yy`）+ 括号粘贴；输入先经 `parseKey` 归一化（兼容 Kitty 协议） |
-| 渲染 | `apps/tui/src/render/md-view.ts` + `theme.ts` | 块上下文扫描（标题/引用/列表/围栏/表格/前置元数据）+ 行内样式；光标行显示源码，其余行隐藏标记（live preview） |
+| 渲染 | `apps/tui/src/render/md-view.ts` + `theme.ts` | 块上下文扫描（标题/引用/列表/围栏/表格/前置元数据）+ 行内样式；光标行显示源码，其余行隐藏标记（live preview）；**增量失效 + 行样式缓存**（见 §6.1） |
 | 组件 | `apps/tui/src/editor/md-editor.ts` | 把上面几层组装成 `Component`：命令分发、脏标记、保存/退出回调、行号栏、光标标记 |
 | 壳子 | `apps/tui/src/shell/fullscreen.ts` + `statusbar.ts` | alt-screen + ScrollView + 状态栏；保存落盘、退出收尾、光标驱动滚动 |
 | 入口 | `apps/tui/src/cli.ts` | argv 解析、TTY 守卫、信号处理 |
@@ -41,6 +41,7 @@
 6. **undo 按输入组**：连续击键合成一组（模式切换/光标移动/换行/保存/undo 本身触发 `flush()`），回放逆操作时暂停记录。
 7. **空文档给占位提示行**（`按 i 开始输入 · :w 保存 · :q! 强制退出`），避免空白屏；且与 vim 一致，**默认 normal 模式**（空文档不会把首个 `i` 当文字插入）。
 8. **保存不做隐式改写**：文件按缓冲区原样写回，不自动补结尾换行（与 VS Code `insertFinalNewline: false` 一致）。
+9. **性能靠「内容键缓存」而不是视口裁剪**（第二轮实测后定调）：真正的热点不是 Markdown 样式计算，而是 `truncateToWidth` 解析 ANSI 算宽度 —— 800 行文档里它独占 17.8ms/帧（整帧 21ms）。所以做法是：块上下文与扫描状态按行缓存（编辑后从 `takeEditFloor()` 续扫）、行样式按「上下文 + 是否光标行 + 行内容」缓存、截断结果按「可用宽度 + 最终文本」缓存（**不含行号**，这样在文档顶部插行也不会整屏失效）。全程保留 `render(width)` 返回真实行数，不引入视口裁剪，pi-tui 的滚动条/搜索/复制等能力不受影响。
 
 ## 5. 复用边界（相对桌面/Web 端）
 
@@ -72,6 +73,26 @@ cat /tmp/smoke.md   # 期望: "# Hello 中文" + 换行 + "second line"
 
 v1 验证记录：单测 84 个全绿；上述冒烟在本机（Debian 13 / aarch64）实测通过，含中文输入与光标定位。
 
+### 6.1 增量渲染性能（第二轮）
+
+每次击键的渲染成本模型（本机 2vCPU ARM 实测，`tests/perf-guard.test.ts` 用比值断言护栏）：
+
+| 场景 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 800 行（真实架构文档）单帧 | 21.4ms | **0.7ms** |
+| 800 行一次击键（编辑 + 渲染） | 21.7ms | **1.7ms** |
+| 8000 行单帧 | 218ms | **6.3ms** |
+| 2000 行顶部编辑（上下文需从第 0 行续扫，最坏情况） | ~96ms | **4.8ms** |
+| 1MB / 6 万行单帧 | 48.8ms | 31ms（仍偏慢，见限制） |
+
+三层缓存与失效规则：
+
+1. **块上下文 + 扫描状态**（`MdDocumentView`）：`scanBlockContexts` 同时返回每行之后的围栏/前置元数据状态；编辑后只从「最早被编辑的行」续扫（`TextDocument.takeEditFloor()` 取两次渲染之间的最小值，避免多次编辑只按最后一次失效而漏算）。
+2. **行样式**（`MdDocumentView.lineCache`）：键 = 块上下文 + 是否光标行 + 行内容。上下文变化但内容相同时（如围栏开关）也会正确重渲。
+3. **截断结果**（`MdEditor.truncateCached`）：键 = 可用宽度 + 最终文本。纯 ASCII 且长度不超可用宽度时直接跳过（显示宽度必然 <= 代码单元数），含 CJK/emoji 的行仍走 `truncateToWidth`。
+
+失效由视图自己按 `doc.version` 同步（`syncVersion()`），调用方无需手动调用 `invalidateFrom`；`invalidate()` 仅用于主题变更/重新加载。
+
 ## 7. 已知限制 / 路线图
 
 限制（v1 有意冻结）：
@@ -80,12 +101,12 @@ v1 验证记录：单测 84 个全绿；上述冒烟在本机（Debian 13 / aarc
 - 无鼠标点击定位、无文本选择：`render(width)` 层面行内标记隐藏会让非光标行列映射偏移；先只保留滚轮（ScrollView 自带）。
 - 无语法高亮：代码块整行单色，`sugar-high` 依赖已装但未接（`render/highlight.ts` 待建）。
 - 无选区/复制块、无 `yy` 多行、无 `w/b` 词移动、无搜索、无 `:e <path>`。
-- 大文档每帧渲染整篇（O(行数)）；块上下文按版本号缓存，行渲染未按可见窗口裁剪。视口裁剪与脏行重绘是下一步性能工作。
+- 大文档仍有每帧 O(行数) 的固定开销（逐行取文本 + 拼缓存键）：800 行 0.7ms、8000 行 6.3ms 可接受，1MB/6 万行约 31ms/帧（打字有黏感）。若真要支撑超大文件，再上「视口裁剪」——只对可见窗口做真实渲染、窗口外返回占位行；代价是 pi-tui 内置的全文搜索/复制会看不到窗口外内容，需一并权衡。
 - 保存不补结尾换行、未接入发版链路（`apps/tui` 目前只是 workspace 包，没有产物发布）。
 
 路线图（按优先级）：
 
-1. 视口裁剪渲染 + 脏行增量重绘（大文档体验前提）。
+1. ~~增量渲染（块上下文续扫 + 行样式/截断缓存）~~ —— 已完成（§6.1）。
 2. 代码块语法高亮（接 `sugar-high`，保留行稳定）。
 3. `$/dx` 词移动、`w/b`、搜索 `/`。
 4. 鼠标点击定位（需要 renderInline 产出「显示列 → 源码列」映射表）。

@@ -8,7 +8,11 @@
  *      光标所在行保持源码可见 —— 这样光标列与源码列严格一致，CJK 光标定位不会错。
  * 块级重排（真 WYSIWYG 隐藏标记改变行数）作为后续演进，需要配套 linenum 映射表。
  *
- * 块上下文按文档版本缓存：TextDocument 每次编辑自增 version，视图据此失效重算。
+ * 性能模型（2026-09 增补：增量扫描 + 行渲染缓存）：
+ *   - 块上下文与「扫描状态」按行缓存（states[i] = 第 i 行之后的围栏/前置元数据状态）；
+ *     编辑后只从文档报告的 lastEditLine 起重扫（围栏状态可安全续接），不再全文重扫；
+ *   - 行渲染结果按「块上下文 + 是否光标行 + 行内容」做键缓存，未变的行零成本复用。
+ * 每次击键的成本 ≈ 变更行 + O(行数) 的查表，与文档规模基本解耦。
  */
 import type { TextDocument } from "../document/text-document.ts";
 import { defaultTheme, type TerminalTheme } from "./theme.ts";
@@ -25,6 +29,19 @@ export type BlockContext =
   | { kind: "table" }
   | { kind: "paragraph" };
 
+/** 扫描跨行状态：决定「从第 N 行续扫」是否安全 */
+export interface BlockScanState {
+  inFence: boolean;
+  fenceLang: string | null;
+  inFrontmatter: boolean;
+}
+
+export const INITIAL_SCAN_STATE: BlockScanState = {
+  inFence: false,
+  fenceLang: null,
+  inFrontmatter: false,
+};
+
 const HEADING_RE = /^(#{1,6})(\s+)(.*)$/;
 const QUOTE_RE = /^(\s*)((?:>\s?)+)(.*)$/;
 const LIST_RE = /^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/;
@@ -33,76 +50,99 @@ const RULE_RE = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
 const FRONTMATTER_RE = /^---\s*$/;
 const TABLE_RE = /^\s*\|.*\|\s*$/;
 
-/** 扫描全文，给每一行标注块上下文（行数与源码严格一致） */
-export function computeBlockContexts(lines: readonly string[]): BlockContext[] {
+/**
+ * 扫描一段行，返回逐行块上下文与「每行之后」的扫描状态。
+ * initialState 允许从文档中间续扫（配 states[i-1] 使用）；atDocumentStart 用于
+ * 决定是否把首行识别为前置元数据（只有整篇扫描才允许）。
+ */
+export function scanBlockContexts(
+  lines: readonly string[],
+  initialState: BlockScanState = INITIAL_SCAN_STATE,
+  atDocumentStart = false,
+): { contexts: BlockContext[]; states: BlockScanState[] } {
   const contexts: BlockContext[] = [];
-  let inFence = false;
-  let fenceLang: string | null = null;
-  let inFrontmatter = false;
+  const states: BlockScanState[] = [];
+  let state: BlockScanState = { ...initialState };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    if (i === 0 && FRONTMATTER_RE.test(line)) {
-      inFrontmatter = true;
+    if (state.inFrontmatter) {
       contexts.push({ kind: "frontmatter" });
+      if (FRONTMATTER_RE.test(line)) state = { ...state, inFrontmatter: false };
+      states.push(state);
       continue;
     }
-    if (inFrontmatter) {
+
+    if (atDocumentStart && i === 0 && FRONTMATTER_RE.test(line)) {
+      state = { ...state, inFrontmatter: true };
       contexts.push({ kind: "frontmatter" });
-      if (FRONTMATTER_RE.test(line)) inFrontmatter = false;
+      states.push(state);
       continue;
     }
 
     const fence = FENCE_RE.exec(line);
     if (fence) {
-      if (!inFence) {
-        inFence = true;
-        fenceLang = normaliseLang(fence[3]);
-        contexts.push({ kind: "fence-delimiter", lang: fenceLang });
+      if (!state.inFence) {
+        const lang = normaliseLang(fence[3]);
+        state = { ...state, inFence: true, fenceLang: lang };
+        contexts.push({ kind: "fence-delimiter", lang });
       } else {
-        inFence = false;
-        const closingLang = normaliseLang(fence[3]);
-        contexts.push({ kind: "fence-delimiter", lang: closingLang ?? fenceLang });
-        fenceLang = null;
+        const lang = state.fenceLang;
+        state = { ...state, inFence: false, fenceLang: null };
+        contexts.push({ kind: "fence-delimiter", lang });
       }
+      states.push(state);
       continue;
     }
-    if (inFence) {
-      contexts.push({ kind: "fence-body", lang: fenceLang });
+    if (state.inFence) {
+      contexts.push({ kind: "fence-body", lang: state.fenceLang });
+      states.push(state);
       continue;
     }
 
     if (line.trim().length === 0) {
       contexts.push({ kind: "blank" });
+      states.push(state);
       continue;
     }
     const heading = HEADING_RE.exec(line);
     if (heading) {
       contexts.push({ kind: "heading", level: heading[1].length });
+      states.push(state);
       continue;
     }
     if (RULE_RE.test(line)) {
       contexts.push({ kind: "rule" });
+      states.push(state);
       continue;
     }
     const quote = QUOTE_RE.exec(line);
     if (quote) {
       contexts.push({ kind: "quote", depth: countQuoteMarkers(quote[2]) });
+      states.push(state);
       continue;
     }
     const list = LIST_RE.exec(line);
     if (list) {
       contexts.push({ kind: "list", marker: list[2], ordered: /\d/.test(list[2]) });
+      states.push(state);
       continue;
     }
     if (TABLE_RE.test(line)) {
       contexts.push({ kind: "table" });
+      states.push(state);
       continue;
     }
     contexts.push({ kind: "paragraph" });
+    states.push(state);
   }
-  return contexts;
+  return { contexts, states };
+}
+
+/** 全文扫描（给测试与一次性场景用的兼容入口） */
+export function computeBlockContexts(lines: readonly string[]): BlockContext[] {
+  return scanBlockContexts(lines, INITIAL_SCAN_STATE, true).contexts;
 }
 
 function normaliseLang(info: string): string | null {
@@ -116,37 +156,87 @@ function countQuoteMarkers(markers: string): number {
   return count;
 }
 
+/** 块上下文 → 缓存键组成部分（上下文变了，即使行内容相同也必须重渲） */
+function contextKey(context: BlockContext): string {
+  switch (context.kind) {
+    case "heading":
+      return `heading${context.level}`;
+    case "fence-delimiter":
+    case "fence-body":
+      return `${context.kind}:${context.lang ?? ""}`;
+    case "list":
+      return `list:${context.ordered ? "o" : "u"}`;
+    case "quote":
+      return `quote${context.depth}`;
+    default:
+      return context.kind;
+  }
+}
+
 export interface RenderLineOptions {
   /** 光标所在行：显示源码并保留标记（live preview 的「活动行」） */
   active: boolean;
 }
 
+/** 行渲染缓存上限（防超长文档吃内存；到顶直接清空重建） */
+const LINE_CACHE_LIMIT = 8000;
+
 export class MdDocumentView {
-  private contexts: BlockContext[] | null = null;
+  private contexts: BlockContext[] = [];
+  private states: BlockScanState[] = [];
   private cachedVersion = -1;
+  private readonly lineCache = new Map<string, string>();
 
   constructor(
     private readonly doc: TextDocument,
     private readonly theme: TerminalTheme = defaultTheme,
   ) {}
 
-  /** 文档内容变化后调用（也可依赖 version 自动失效） */
+  /** 全部失效（主题变更、重新加载文档等） */
   invalidate(): void {
-    this.contexts = null;
-    this.cachedVersion = -1;
+    this.contexts = [];
+    this.states = [];
+    this.cachedVersion = this.doc.version;
+    this.lineCache.clear();
+  }
+
+  /** 内容版本变化时从「最早被编辑的行」起增量失效（自动，调用方无需关心） */
+  private syncVersion(): void {
+    if (this.cachedVersion === this.doc.version) return;
+    this.invalidateFrom(this.doc.takeEditFloor());
+    this.cachedVersion = this.doc.version;
+  }
+
+  /**
+   * 编辑后从指定行起失效：该行之前的块上下文、扫描状态与渲染缓存都仍然有效。
+   * 传入「编辑起始行」即可；传更靠前的行号也安全（只是多算一点）。
+   */
+  invalidateFrom(line: number): void {
+    const from = Math.max(0, Math.min(line, this.contexts.length));
+    this.contexts.length = from;
+    this.states.length = from;
   }
 
   contextAt(line: number): BlockContext {
-    const contexts = this.ensureContexts();
-    return contexts[line] ?? { kind: "paragraph" };
+    this.syncVersion();
+    this.ensureContexts();
+    return this.contexts[line] ?? { kind: "paragraph" };
   }
 
   /** 渲染单个源码行；行数与源码一一对应 */
   renderLine(line: number, options: RenderLineOptions): string {
+    this.syncVersion();
+    this.ensureContexts();
     const text = this.doc.lineText(line);
-    const context = this.contextAt(line);
-    const hideMarkers = !options.active;
-    return this.renderWithContext(text, context, hideMarkers);
+    const context = this.contexts[line] ?? { kind: "paragraph" };
+    const key = `${contextKey(context)}|${options.active ? "a" : "i"}|${text}`;
+    const cached = this.lineCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const rendered = this.renderWithContext(text, context, !options.active);
+    if (this.lineCache.size >= LINE_CACHE_LIMIT) this.lineCache.clear();
+    this.lineCache.set(key, rendered);
+    return rendered;
   }
 
   /** 批量渲染（供不需要逐行控制的场景：导出、测试） */
@@ -290,13 +380,22 @@ export class MdDocumentView {
     return out;
   }
 
-  private ensureContexts(): BlockContext[] {
-    if (this.contexts && this.cachedVersion === this.doc.version) return this.contexts;
-    const lines: string[] = [];
-    for (let line = 0; line < this.doc.lineCount; line++) lines.push(this.doc.lineText(line));
-    this.contexts = computeBlockContexts(lines);
-    this.cachedVersion = this.doc.version;
-    return this.contexts;
+  /** 按当前文档行数补齐块上下文：只扫描缺失的后半段，围栏状态从缓存续接 */
+  private ensureContexts(): void {
+    const count = this.doc.lineCount;
+    if (this.contexts.length > count) {
+      this.contexts.length = count;
+      this.states.length = count;
+    }
+    if (this.contexts.length >= count) return;
+
+    const start = this.contexts.length;
+    const fresh: string[] = [];
+    for (let line = start; line < count; line++) fresh.push(this.doc.lineText(line));
+    const initialState = start === 0 ? INITIAL_SCAN_STATE : this.states[start - 1];
+    const scanned = scanBlockContexts(fresh, initialState, start === 0);
+    this.contexts.push(...scanned.contexts);
+    this.states.push(...scanned.states);
   }
 }
 

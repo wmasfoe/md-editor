@@ -186,3 +186,30 @@ describe("MdEditor file & quit flow", () => {
     expect(editor.commandLine).toBeNull();
   });
 });
+
+describe("MdEditor 截断缓存隔离", () => {
+  it("不同终端宽度渲染互不污染（缓存键含可用宽度）", () => {
+    const text = "中文字符".repeat(20);
+    const editor = new MdEditor({ initialText: text });
+    const wide = editor.render(200);
+    const narrow = editor.render(40);
+    const wideAgain = editor.render(200);
+
+    expect(visibleWidth(wide[0])).toBeLessThanOrEqual(200);
+    expect(visibleWidth(narrow[0])).toBeLessThanOrEqual(40);
+    expect(narrow[0].length).toBeLessThan(wide[0].length);
+    expect(wideAgain[0]).toBe(wide[0]); // 回到宽终端仍与首次一致
+  });
+
+  it("行号栏随行数位数增长自动变宽，且不串用旧缓存", () => {
+    const editor = new MdEditor({ initialText: "a\nb\nc" });
+    const three = editor.render(80);
+    expect(three[0]).toBe(" 1 a"); // 行号栏最少 3 列宽
+    const many = new MdEditor({
+      initialText: Array.from({ length: 12 }, (_, i) => `l${i}`).join("\n"),
+    });
+    const rendered = many.render(80);
+    expect(rendered[0]).toBe(" 1 l0");
+    expect(rendered[11]).toBe("12 l11");
+  });
+});

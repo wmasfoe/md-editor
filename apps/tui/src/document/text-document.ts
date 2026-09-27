@@ -28,6 +28,10 @@ export class TextDocument {
   private cursorGrapheme = 0;
   /** 内容版本号：每次编辑自增，供渲染层做缓存失效 */
   private revisionCounter = 0;
+  /** 最近一次编辑起始行（增量失效锚点） */
+  private lastEditedLine = 0;
+  /** 自上次被取走以来最早被编辑的行（批量编辑时取最小值才安全） */
+  private editFloor = Number.POSITIVE_INFINITY;
   /** 上下移动时记忆的目标显示列（vim 语义），水平移动或编辑后失效 */
   private goalColumn: number | null = null;
   private recorder: EditRecorder | null = null;
@@ -43,6 +47,14 @@ export class TextDocument {
   /** 内容版本号（编辑即自增；纯光标移动不变） */
   get version(): number {
     return this.revisionCounter;
+  }
+
+  /**
+   * 最近一次编辑起始所在的源码行号（无编辑为 0）。
+   * 渲染层用它做增量失效：该行之前的块上下文与渲染结果仍然有效。
+   */
+  get lastEditLine(): number {
+    return this.lastEditedLine;
   }
 
   // ── 文档读取 ──────────────────────────────────────────────
@@ -185,6 +197,7 @@ export class TextDocument {
     const at = this.offset;
     this.buffer.insert(at, text);
     this.recorder?.record({ kind: "insert", offset: at, text });
+    this.markEdited(at);
     this.revisionCounter++;
     this.goalColumn = null;
     this.setOffsetWithoutReset(at + text.length);
@@ -242,6 +255,7 @@ export class TextDocument {
     } finally {
       this.recorder = saved;
     }
+    this.markEdited(affectedFrom === Number.POSITIVE_INFINITY ? 0 : affectedFrom);
     this.revisionCounter++;
     this.goalColumn = null;
   }
@@ -261,6 +275,7 @@ export class TextDocument {
     }
     const removed = this.buffer.delete(start, end - start);
     this.recorder?.record({ kind: "delete", offset: start, text: removed });
+    this.markEdited(start);
     this.revisionCounter++;
     this.goalColumn = null;
     this.setOffsetWithoutReset(Math.min(start, this.buffer.length));
@@ -274,6 +289,7 @@ export class TextDocument {
     if (length <= 0) return "";
     const removed = this.buffer.delete(from, length);
     this.recorder?.record({ kind: "delete", offset: from, text: removed });
+    this.markEdited(from);
     this.revisionCounter++;
     this.goalColumn = null;
     this.setOffsetWithoutReset(from);
@@ -285,6 +301,27 @@ export class TextDocument {
     const { line, col } = this.buffer.positionAt(offset);
     this.cursorLine = line;
     this.cursorGrapheme = offsetToGrapheme(this.buffer.lineText(line), col);
+  }
+
+  /** 记录编辑起始行：增量渲染的失效锚点 */
+  private markEdited(offset: number): void {
+    const line = Math.max(
+      0,
+      Math.min(this.buffer.positionAt(offset).line, this.buffer.lineCount - 1),
+    );
+    this.lastEditedLine = line;
+    this.editFloor = Math.min(this.editFloor, line);
+  }
+
+  /**
+   * 取走「自上次调用以来最早被编辑的行号」并重置。
+   * 渲染层用它做增量失效：两次渲染之间可能发生多次编辑（顶行插代码围栏 + 末行打字），
+   * 只按最后一次编辑的行号失效会漏掉前面的改动，所以必须取最小值。
+   */
+  takeEditFloor(): number {
+    const floor = this.editFloor;
+    this.editFloor = Number.POSITIVE_INFINITY;
+    return Number.isFinite(floor) ? floor : this.lastEditedLine;
   }
 
   private lineStartOffset(line: number): number {
