@@ -79,11 +79,16 @@ export function main(): void {
     initialText: loadDocumentText(parsed.filePath),
     colorScheme: parsed.colorScheme,
     onError: (error) => {
-      process.stderr.write(`ink: ${String(error)}\n`);
+      // TUI 运行中：错误已经通过状态栏呈现，再写 stderr 会把 alt-screen 画面写花。
+      // 只有启动阶段（画面还没接管）才直接打 stderr。
+      if (!tuiRunning) process.stderr.write(`ink: ${String(error)}\n`);
     },
   });
 
+  let tuiRunning = false;
+
   const cleanup = () => {
+    tuiRunning = false;
     try {
       shell.stop();
     } catch {
@@ -100,6 +105,7 @@ export function main(): void {
     process.exit(143);
   });
 
+  tuiRunning = true;
   shell.start();
 }
 

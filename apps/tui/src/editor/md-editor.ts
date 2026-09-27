@@ -27,8 +27,8 @@ export interface MdEditorOptions {
   initialText?: string;
   filePath?: string | null;
   theme?: TerminalTheme;
-  /** 保存回调：壳子负责真正落盘（组件不做 IO） */
-  onSave?: (text: string, filePath: string | null) => void;
+  /** 保存回调：壳子负责真正落盘（组件不做 IO）；返回 false 表示写盘失败 */
+  onSave?: (text: string, filePath: string | null) => boolean;
   /** 退出回调：壳子负责收尾（停止 TUI、退出进程） */
   onQuit?: (options: { dirty: boolean }) => void;
   /** 状态栏消息回调（保存成功、命令未实现等提示） */
@@ -190,6 +190,12 @@ export class MdEditor implements Component, Focusable {
   }
 
   handleInput(data: string): void {
+    // 状态消息是瞬时的（vim 语义）：下一次按键就清掉，让状态栏恢复模式/文件/位置信息。
+    // 注意在跑命令之前清，这样 :w 这类命令自己设置的提示不会被这次按键抹掉。
+    if (this.statusMessage) {
+      this.statusMessage = "";
+      this.notifyChange();
+    }
     const command = this.keymap.feed(this.currentMode, data);
     this.applyCommand(command);
   }
@@ -371,8 +377,8 @@ export class MdEditor implements Component, Focusable {
       return;
     }
     if (trimmed === "wq" || trimmed === "x") {
-      this.save();
-      this.quit();
+      // 写盘失败时不退出：留在编辑器里，保留脏标记与错误提示（与 vim 一致）
+      if (this.save()) this.quit();
       return;
     }
     if (trimmed === "q!") {
@@ -392,11 +398,14 @@ export class MdEditor implements Component, Focusable {
     this.options.onStatusMessage?.(this.statusMessage);
   }
 
-  private save(): void {
+  /** 保存：由壳子真正落盘；返回是否写成功（失败时保留脏标记，不覆盖壳子的错误提示） */
+  private save(): boolean {
     this.history.flush();
-    this.options.onSave?.(this.doc.getText(), this.path);
+    const ok = this.options.onSave?.(this.doc.getText(), this.path) ?? true;
+    if (!ok) return false;
     this.dirtyFlag = false;
     this.setStatus("已保存");
+    return true;
   }
 
   private quit(): void {

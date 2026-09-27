@@ -133,3 +133,61 @@ describe("fullscreen shell", () => {
     }
   });
 });
+
+describe("状态栏在真实帧布局里的位置（回归：basis 缺失会被 shrink 挤成 0 行）", () => {
+  it("24 行终端下状态栏写在第 24 行，正文只占前 23 行", async () => {
+    const terminal = new FakeTerminal();
+    terminal.rows = 24;
+    const shell = createFullscreenShell({
+      terminal,
+      initialText: Array.from({ length: 60 }, (_, i) => `line ${i + 1}`).join("\n"),
+    });
+    shell.start();
+    try {
+      await vi.waitFor(() => {
+        expect(terminal.writes.join("")).toContain("NORMAL");
+      });
+    } finally {
+      shell.stop();
+    }
+
+    // 状态栏必须落在第 24 行（终端最后一行）：旧实现里 ScrollView 没给 basis:0，
+    // 初始尺寸取整篇内容高度 → 按比例 shrink 后状态栏被挤成 0 行，永远看不见。
+    const ESC = String.fromCharCode(27);
+    const out = terminal.writes.join("");
+    const lastRow24 = out.lastIndexOf(`${ESC}[24;1H`);
+    expect(lastRow24).toBeGreaterThan(-1);
+    // 第 24 行紧邻转义之后写下的文本（跳过清行序列）
+    const row24Text = out.slice(lastRow24).split(ESC).slice(1, 3).join("");
+    expect(row24Text).toContain("NORMAL");
+    // 正文不能占用第 24 行（否则就是状态栏被挤掉的症状）
+    expect(row24Text).not.toContain("line ");
+  });
+
+  it("状态栏列号用显示列（CJK/emoji 双宽），不是 grapheme 序号", () => {
+    const shell = createFullscreenShell({ terminal: new FakeTerminal(), initialText: "中文ab" });
+    // 光标停在「中文」之后：grapheme 序号 3，显示列 5（1 基）
+    for (const key of ["l", "l"]) shell.editor.handleInput(key);
+    const line = shell.statusBar.render(80)[0];
+    expect(line).toContain("1:5");
+    expect(line).not.toContain("1:3");
+  });
+});
+
+describe("壳子写盘失败路径", () => {
+  it("状态栏报错、脏标记保留、错误回调照常触发", () => {
+    const errors: unknown[] = [];
+    const shell = createFullscreenShell({
+      terminal: new FakeTerminal(),
+      filePath: "/proc/definitely-not-writable.md",
+      initialText: "data",
+      onError: (error) => errors.push(error),
+    });
+    shell.editor.handleInput("x");
+    for (const key of [":", "w", "\r"]) shell.editor.handleInput(key);
+
+    expect(shell.editor.dirty).toBe(true);
+    expect(shell.statusBar.render(80)[0]).toContain("保存失败");
+    expect(errors).toHaveLength(1);
+  });
+});

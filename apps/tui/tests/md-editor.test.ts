@@ -142,7 +142,10 @@ describe("MdEditor file & quit flow", () => {
     const saved: Array<{ text: string; path: string | null }> = [];
     const editor = makeEditor("data", {
       filePath: "/tmp/x.md",
-      onSave: (text, path) => saved.push({ text, path }),
+      onSave: (text, path) => {
+        saved.push({ text, path });
+        return true;
+      },
     });
     editor.handleInput(":");
     editor.handleInput("w");
@@ -154,7 +157,12 @@ describe("MdEditor file & quit flow", () => {
 
   it("saves via ctrl+s", () => {
     let saves = 0;
-    const editor = makeEditor("data", { onSave: () => saves++ });
+    const editor = makeEditor("data", {
+      onSave: () => {
+        saves++;
+        return true;
+      },
+    });
     editor.handleInput("\x13");
     expect(saves).toBe(1);
   });
@@ -211,5 +219,75 @@ describe("MdEditor 截断缓存隔离", () => {
     const rendered = many.render(80);
     expect(rendered[0]).toBe(" 1 l0");
     expect(rendered[11]).toBe("12 l11");
+  });
+});
+
+describe("写盘失败的语义（回归：不能报「已保存」也不能清脏标记）", () => {
+  it(":w 失败时保留脏标记，不覆盖壳子的错误消息", () => {
+    const editor = makeEditor("data", {
+      filePath: "/proc/nope.md",
+      onSave: () => {
+        editor.setStatus("保存失败: ENOENT");
+        return false;
+      },
+    });
+    editor.handleInput("x"); // 弄脏
+    editor.handleInput(":");
+    editor.handleInput("w");
+    editor.handleInput("\r");
+    expect(editor.dirty).toBe(true);
+    expect(editor.status).toContain("保存失败");
+    expect(editor.status).not.toContain("已保存");
+  });
+
+  it(":wq 写盘失败时不退出", () => {
+    const exits: Array<{ dirty: boolean }> = [];
+    const editor = makeEditor("data", {
+      onQuit: (info) => exits.push(info),
+      onSave: () => false,
+    });
+    editor.handleInput("x");
+    editor.handleInput(":");
+    editor.handleInput("w");
+    editor.handleInput("q");
+    editor.handleInput("\r");
+    expect(exits).toHaveLength(0);
+    expect(editor.dirty).toBe(true);
+  });
+
+  it(":wq 写盘成功才退出", () => {
+    const exits: Array<{ dirty: boolean }> = [];
+    const editor = makeEditor("data", {
+      onQuit: (info) => exits.push(info),
+      onSave: () => true,
+    });
+    editor.handleInput("x");
+    editor.handleInput(":");
+    editor.handleInput("w");
+    editor.handleInput("q");
+    editor.handleInput("\r");
+    expect(exits).toEqual([{ dirty: false }]);
+  });
+});
+
+describe("状态消息是瞬时的（回归：不能永久占住状态栏）", () => {
+  it(":w 之后按任意键，消息清掉、模式/文件信息恢复", () => {
+    const editor = makeEditor("data", { filePath: "/tmp/x.md", onSave: () => true });
+    editor.handleInput(":");
+    editor.handleInput("w");
+    editor.handleInput("\r");
+    expect(editor.status).toBe("已保存");
+
+    editor.handleInput("j");
+    expect(editor.status).toBe("");
+  });
+
+  it("命令自己设置的消息不会被同一次按键抹掉", () => {
+    const editor = makeEditor("data");
+    editor.handleInput("x"); // 弄脏
+    editor.handleInput(":");
+    editor.handleInput("q");
+    editor.handleInput("\r");
+    expect(editor.status).toContain("未保存");
   });
 });

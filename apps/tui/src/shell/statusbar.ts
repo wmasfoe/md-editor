@@ -38,13 +38,15 @@ export class StatusBar implements Component {
       return [truncateToWidth(this.theme.dim(message), width)];
     }
 
-    const { line, column } = editor.getCursorInfo();
+    const { line, displayColumn } = editor.getCursorInfo();
     const total = editor.doc.lineCount;
     const percent = total <= 1 ? 100 : Math.round(((line - 1) / (total - 1)) * 100);
     const left = ` ${MODE_LABEL[editor.mode] ?? editor.mode}${editor.pendingPrefix}`;
     const dirtyMark = editor.dirty ? " [+]" : "";
     const file = (editor.filePath ?? "[未命名]") + dirtyMark;
-    const right = `${file} │ ${line}:${column} │ ${percent}%`;
+    // 列号用「显示列」而不是 grapheme 序号：与 vim 的 ruler（virtcol）一致，
+    // 中文/emoji 双宽字符下才与屏幕上的光标位置对得上（"中文x" 显示 1:6 而不是 1:4）。
+    const right = `${file} │ ${line}:${displayColumn + 1} │ ${percent}%`;
 
     const gap = Math.max(1, width - visibleWidth(left) - visibleWidth(right) - 1);
     const line1 = `${left}${" ".repeat(gap)}${right} `;
