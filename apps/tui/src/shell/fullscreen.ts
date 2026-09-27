@@ -84,7 +84,7 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
     initialText: options.initialText ?? "",
     filePath: options.filePath ?? null,
     theme: initialTheme,
-    onSave: (text, filePath) => saveDocument(text, filePath, editor, options),
+    onSave: (text, filePath): boolean => saveDocument(text, filePath, editor, options),
     onQuit: () => {
       quitRequested = true;
       stop();
@@ -93,9 +93,13 @@ export function createFullscreenShell(options: FullscreenShellOptions = {}): Ful
 
   const scrollView = new ScrollView(editor, { primary: true, follow: "none", scrollbar: "auto" });
   const statusBar = new StatusBar(editor, initialTheme);
+  // 布局要点（pi-tui README「Alternate-screen viewport layouts」）：
+  // - ScrollView 必须给 basis: 0：否则它的初始尺寸取「内容高度」（整篇文档），
+  //   总高超出屏幕后按比例 shrink，会把状态栏挤成 0 行 → 状态栏永远看不见。
+  // - 状态栏用 basis: "auto" + minSize: 1，保证至少留一行。
   const layout = new VStack([
-    { component: scrollView, grow: 1 },
-    { component: statusBar, basis: 1 },
+    { component: scrollView, basis: 0, grow: 1, minSize: 1 },
+    { component: statusBar, basis: "auto", shrink: 1, minSize: 1 },
   ]);
 
   /** 让视口跟随光标；viewportHeight 可显式传入（测试/嵌入壳子已知高度时） */
@@ -178,7 +182,7 @@ function saveDocument(
   filePath: string | null,
   editor: MdEditor,
   options: FullscreenShellOptions,
-): void {
+): boolean {
   const target = filePath ?? "untitled.md";
   try {
     writeFileSync(target, text, "utf8");
@@ -186,9 +190,12 @@ function saveDocument(
       editor.setFilePath(target);
       editor.setStatus(`未命名文档已保存为 ${target}（用 :e 改名待后续版本支持）`);
     }
+    return true;
   } catch (error) {
+    // 失败路径：错误消息进状态栏；返回 false 让编辑器保留脏标记、不报「已保存」
     editor.setStatus(`保存失败: ${String(error)}`);
     options.onError?.(error);
+    return false;
   }
 }
 
