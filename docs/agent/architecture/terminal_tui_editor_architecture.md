@@ -53,11 +53,15 @@
 
 ```bash
 # 运行（需要交互式终端；注意不要加 `--`，pnpm 11 会把字面量 `--` 当成文件路径传进去）
+pnpm dev:tui README.md
+# 等价写法
 pnpm --filter @md-editor/tui dev README.md
-# 或
 cd apps/tui && pnpm dev README.md
-# 或直接跑源码
 cd apps/tui && npx tsx src/cli.ts README.md
+
+# 构建产物（tsc → apps/tui/dist，可直接用 node 跑，不需要 tsx）
+pnpm build:tui
+node apps/tui/dist/cli.js README.md
 
 # 单测 / 类型检查
 pnpm --filter @md-editor/tui test
