@@ -15,6 +15,7 @@ public struct EditorWebView: UIViewRepresentable {
     }
 
     public func makeUIView(context: Context) -> WKWebView {
+        LaunchDiagnostics.mark("webview: makeUIView 开始")
         let config = WKWebViewConfiguration()
         let contentController = WKUserContentController()
 
@@ -22,9 +23,13 @@ public struct EditorWebView: UIViewRepresentable {
         contentController.add(bridgeController, name: "InkpointBridge")
         config.userContentController = contentController
 
-        // 允许本地静态资源访问
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
+        // 允许本地静态资源访问（离线编辑器需要读 file:// 下的子资源）。
+        // ⚠️ allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs 是 WebKit 的
+        // **私有属性**，不同 iOS 版本并不保证存在；直接 setValue(_:forKey:) 一旦碰到不存在的
+        // key 会抛 NSUnknownKeyException —— Swift 捕不到，表现为「启动即闪退」。
+        // 所以这里先探测 responds(to:) 再写，键不存在就跳过（最多退化为子资源受限，不会崩）。
+        setPrivateWebKitFlag(on: config.preferences, key: "allowFileAccessFromFileURLs")
+        setPrivateWebKitFlag(on: config, key: "allowUniversalAccessFromFileURLs")
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -46,7 +51,20 @@ public struct EditorWebView: UIViewRepresentable {
             webView.isInspectable = true
         }
 
+        LaunchDiagnostics.mark("webview: makeUIView 完成")
         return webView
+    }
+
+    /// 写入 WebKit 私有属性前先探测是否存在，避免 KVC 抛 NSUnknownKeyException 导致闪退。
+    @discardableResult
+    private func setPrivateWebKitFlag(on object: NSObject, key: String) -> Bool {
+        guard object.responds(to: NSSelectorFromString(key)) else {
+            LaunchDiagnostics.mark("webview: 当前系统不响应私有属性 \(key)，已跳过")
+            return false
+        }
+        object.setValue(true, forKey: key)
+        LaunchDiagnostics.mark("webview: 已开启私有属性 \(key)")
+        return true
     }
 
     public func updateUIView(_ uiView: WKWebView, context: Context) {
@@ -61,17 +79,20 @@ public struct EditorWebView: UIViewRepresentable {
         // 1. 优先从 App Bundle 的 Resources/editor 查找
         if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "editor") {
             let folderURL = htmlURL.deletingLastPathComponent()
+            LaunchDiagnostics.mark("webview: 命中编辑器资源 \(htmlURL.path)")
             webView.loadFileURL(htmlURL, allowingReadAccessTo: folderURL)
             return
         }
 
         // 2. 备用相对路径查找（用于测试或非标准构建环境）
         if let directURL = Bundle.main.url(forResource: "index", withExtension: "html") {
+            LaunchDiagnostics.mark("webview: 资源位于 bundle 根目录 \(directURL.path)")
             webView.loadFileURL(directURL, allowingReadAccessTo: directURL.deletingLastPathComponent())
             return
         }
 
         // 3. 容底：展示友好的离线提示
+        LaunchDiagnostics.mark("webview: 未找到编辑器资源，使用兜底页面")
         let fallbackHTML = """
         <!DOCTYPE html>
         <html>
@@ -93,10 +114,12 @@ public struct EditorWebView: UIViewRepresentable {
         }
 
         public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            LaunchDiagnostics.mark("webview: 页面加载完成")
             print("[EditorWebView] HTML Bundle navigation did finish")
         }
 
         public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            LaunchDiagnostics.mark("webview: 页面加载失败 \(error.localizedDescription)")
             print("[EditorWebView] Navigation failed:", error)
         }
     }
