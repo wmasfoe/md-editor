@@ -14,12 +14,12 @@ on:
         description: "IPA 文件名里的版本号（留空则取工程里的 MARKETING_VERSION）"
         required: false
         default: ""
-  # 备用入口：打 ios-v* tag 即触发（tag push 用被推 ref 里的 workflow 文件，
-  # 所以合并到 main 之前也能用）。注意这里刻意不创建 GitHub Release —— 避免
-  # 被 sync-r2-releases-manifest 扫进 App 的更新清单。
+  # 备用入口：打 ios-ipa-v* tag 即触发（tag push 用被推 ref 里的 workflow 文件，
+  # 所以合并到 main 之前也能用）。刻意用独立前缀，不占用 ios-v* 发布 tag；
+  # 也刻意不创建 GitHub Release —— 避免被 sync-r2-releases-manifest 扫进更新清单。
   push:
     tags:
-      - "ios-v*"
+      - "ios-ipa-v*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -62,7 +62,7 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             VERSION="${{ github.event.inputs.version }}"
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#ios-v}"
+            VERSION="${GITHUB_REF_NAME#ios-ipa-v}"
           else
             VERSION=$(grep -m1 'MARKETING_VERSION' apps/mobile/ios/Inkpoint.xcodeproj/project.pbxproj | sed -E 's/.*= (.*);/\1/' | tr -d ' ')
           fi
