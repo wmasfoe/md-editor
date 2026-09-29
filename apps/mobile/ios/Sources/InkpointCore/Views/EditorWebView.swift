@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 #if canImport(WebKit)
 import WebKit
 #endif
