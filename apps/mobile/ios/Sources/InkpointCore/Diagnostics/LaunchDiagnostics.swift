@@ -37,9 +37,7 @@ public enum LaunchDiagnostics {
 
     /// 安装未捕获异常处理器（应在 App 启动最早期调用）
     public static func installCrashHandler() {
-        NSSetUncaughtExceptionHandler { exception in
-            markUncaughtException(exception)
-        }
+        NSSetUncaughtExceptionHandler(inkpointUncaughtExceptionHandler)
         mark("app: 未捕获异常处理器已安装")
     }
 
@@ -60,4 +58,12 @@ public enum LaunchDiagnostics {
     private static func timestamp() -> String {
         ISO8601DateFormatter().string(from: Date())
     }
+}
+
+/// 未捕获异常处理器的顶层函数实现。
+/// `NSSetUncaughtExceptionHandler` 需要 C 函数指针，**不能**传捕获上下文的闭包
+/// （否则报 `a C function pointer cannot be formed from a closure that captures context`），
+/// 所以这里用全局函数而不是静态方法或闭包。
+private func inkpointUncaughtExceptionHandler(_ exception: NSException) {
+    LaunchDiagnostics.markUncaughtException(exception)
 }
