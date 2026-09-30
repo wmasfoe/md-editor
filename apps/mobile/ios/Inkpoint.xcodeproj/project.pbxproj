@@ -18,6 +18,7 @@
 		1009 /* DocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2009 /* DocumentView.swift */; };
 		1010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2010 /* Assets.xcassets */; };
 		1011 /* editor in Resources */ = {isa = PBXBuildFile; fileRef = 2011 /* editor */; };
+		1012 /* LaunchDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2013 /* LaunchDiagnostics.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +35,7 @@
 		2010 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2011 /* editor */ = {isa = PBXFileReference; lastKnownFileType = folder; path = editor; sourceTree = "<group>"; };
 		2012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		2013 /* LaunchDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics/LaunchDiagnostics.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 				2007 /* OutlineView.swift */,
 				2008 /* DocumentPicker.swift */,
 				2009 /* DocumentView.swift */,
+				2013 /* LaunchDiagnostics.swift */,
 			);
 			name = Core;
 			path = Sources/InkpointCore;
@@ -178,6 +181,7 @@
 				1007 /* OutlineView.swift in Sources */,
 				1008 /* DocumentPicker.swift in Sources */,
 				1009 /* DocumentView.swift in Sources */,
+				1012 /* LaunchDiagnostics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,7 +241,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Inkpoint/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -258,7 +262,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Inkpoint/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
