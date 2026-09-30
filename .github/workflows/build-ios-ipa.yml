@@ -1,0 +1,138 @@
+name: Build iOS IPA (Unsigned, for self-signing)
+
+# 用途：在 macOS runner 上编出「未签名」的 device 版 .ipa，供自行签名安装
+# （Sideloadly / AltStore / Feather / 爱思助手等会用自己的证书重签）。
+#
+# 为什么需要单独一条：mobile-ci 的 iOS job 只编模拟器且不留产物；
+# release-mobile 只出 Android APK 到 R2，iOS 目前没有发布链路。
+#
+# 产物：Inkpoint-<version>-unsigned.ipa（Payload/Inkpoint.app，无证书、无描述文件）
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "IPA 文件名里的版本号（留空则取工程里的 MARKETING_VERSION）"
+        required: false
+        default: ""
+  # 备用入口：打 ios-ipa-v* tag 即触发（tag push 用被推 ref 里的 workflow 文件，
+  # 所以合并到 main 之前也能用）。刻意用独立前缀，不占用 ios-v* 发布 tag；
+  # 也刻意不创建 GitHub Release —— 避免被 sync-r2-releases-manifest 扫进更新清单。
+  push:
+    tags:
+      - "ios-ipa-v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ipa:
+    name: Build Unsigned IPA (macOS)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # apps/mobile/ios/Inkpoint/Resources/editor 被 .gitignore 忽略（是构建产物），
+      # 必须先在 macOS runner 上同步编辑器 Web 包，否则 App 里没有界面资源。
+      - name: Build & Sync Mobile Web Bundle
+        run: pnpm run build:mobile
+
+      - name: Run Swift Bridge Contract Tests
+        working-directory: apps/mobile/ios
+        run: swift run InkpointContractTests
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#ios-ipa-v}"
+          else
+            VERSION=$(grep -m1 'MARKETING_VERSION' apps/mobile/ios/Inkpoint.xcodeproj/project.pbxproj | sed -E 's/.*= (.*);/\1/' | tr -d ' ')
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${VERSION}"
+
+      # 关键：关掉签名（未签名包才能被自签工具重签）。
+      # 同时清空 CODE_SIGN_ENTITLEMENTS，避免工程里残留的 entitlements 让构建要求证书。
+      - name: Build iOS App (Device, Unsigned)
+        run: |
+          xcodebuild -project apps/mobile/ios/Inkpoint.xcodeproj \
+            -scheme Inkpoint \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            clean build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            PROVISIONING_PROFILE_SPECIFIER=""
+
+      - name: Package unsigned IPA
+        id: package
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "找不到 Release-iphoneos 产物" >&2
+            exit 1
+          fi
+          echo "app=${APP_PATH}" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          IPA_NAME="Inkpoint-${{ steps.version.outputs.version }}-unsigned.ipa"
+          (cd "$RUNNER_TEMP" && zip -qry "$IPA_NAME" Payload)
+          echo "ipa=${RUNNER_TEMP}/${IPA_NAME}" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/$IPA_NAME"
+
+      - name: Verify IPA contents
+        run: |
+          set -euo pipefail
+          IPA="${{ steps.package.outputs.ipa }}"
+          APP="${{ steps.package.outputs.app }}"
+          echo "--- IPA 顶层结构 ---"
+          unzip -l "$IPA" | sed -n '1,12p'
+          echo "--- Info.plist 关键字段 ---"
+          plutil -p "$APP/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|MinimumOSVersion|CFBundleExecutable'
+          echo "--- 编辑器 Web 资源（folder reference -> Inkpoint.app/editor/）---"
+          test -f "$APP/editor/index.html"
+          ls "$APP/editor" | head -5
+          echo "--- 签名状态（预期：未签名）---"
+          codesign -dv "$APP" 2>&1 | head -3 || echo "（无签名信息 = 未签名，符合预期）"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkpoint-ios-unsigned-${{ steps.version.outputs.version }}
+          path: ${{ steps.package.outputs.ipa }}
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          {
+            echo "### iOS 未签名 IPA 构建完成"
+            echo ""
+            echo "- 版本：${{ steps.version.outputs.version }}"
+            echo "- Bundle ID：com.inkpoint.editor"
+            echo "- 最低系统：iOS 17.0"
+            echo "- 产物：\`Inkpoint-${{ steps.version.outputs.version }}-unsigned.ipa\`（未签名）"
+            echo "- 安装：用 Sideloadly / AltStore / Feather 等工具自签后安装"
+          } >> "$GITHUB_STEP_SUMMARY"
