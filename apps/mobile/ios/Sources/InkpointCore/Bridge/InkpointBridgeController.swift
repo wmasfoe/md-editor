@@ -23,7 +23,9 @@ public final class InkpointBridgeController: NSObject {
     /// 向 WebView 发送 NativeActionMessage
     public func dispatchAction(_ action: NativeActionMessage) {
         #if canImport(WebKit)
+        LaunchDiagnostics.mark("bridge: 派发 \(action.action)")
         guard let webView = self.webView else {
+            LaunchDiagnostics.mark("bridge: WebView 为空，\(action.action) 未派发")
             print("[InkpointBridgeController] Cannot dispatch action: webView is nil")
             return
         }
@@ -45,7 +47,9 @@ public final class InkpointBridgeController: NSObject {
         Task { @MainActor in
             do {
                 _ = try await webView.evaluateJavaScript(js)
+                LaunchDiagnostics.mark("bridge: \(action.action) 的 JS 已执行")
             } catch {
+                LaunchDiagnostics.mark("bridge: \(action.action) 的 JS 执行失败 \(error.localizedDescription)")
                 print("[InkpointBridgeController] JS eval error for action \(action.action):", error)
             }
         }
@@ -84,6 +88,7 @@ public final class InkpointBridgeController: NSObject {
 
     @MainActor
     private func processEvent(_ event: WebEventMessage) {
+        LaunchDiagnostics.mark("bridge: 收到事件 \(event.event)")
         switch event.event {
         case "ready", "onDocumentReady":
             documentModel?.notifyWebViewReady()

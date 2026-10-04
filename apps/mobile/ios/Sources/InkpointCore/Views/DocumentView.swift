@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// Inkpoint 移动端核心文档视图
 public struct DocumentView: View {
@@ -8,6 +9,11 @@ public struct DocumentView: View {
     @State private var showOutlineSheet: Bool = false
     @State private var showDocumentPicker: Bool = false
     @State private var showInfoSheet: Bool = false
+    /// 诊断日志页（上次运行异常结束时自动弹出）
+    @State private var showDiagnostics: Bool = false
+
+    /// 前后台状态：进入后台时写「正常退出」标记，用于区分「崩溃」与「正常退出」
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(documentModel: DocumentModel? = nil) {
         let model = documentModel ?? DocumentModel()
@@ -25,6 +31,29 @@ public struct DocumentView: View {
             .navigationTitle(documentModel.title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            // 诊断：上次异常结束则自动弹出日志；进入后台记一次「正常退出」；
+            // 键盘显示/隐藏也各记一笔（iOS 键盘相关的崩溃靠它定位）
+            .onAppear {
+                if LaunchDiagnostics.previousSessionCrashed {
+                    showDiagnostics = true
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background {
+                    LaunchDiagnostics.markCleanExit()
+                }
+            }
+            #if canImport(UIKit)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                LaunchDiagnostics.mark("keyboard: 将要显示")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                LaunchDiagnostics.mark("keyboard: 已显示")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                LaunchDiagnostics.mark("keyboard: 将要隐藏")
+            }
             #endif
             .toolbar {
                 // 导航栏左侧：打开文件与文档修改标记
@@ -72,6 +101,10 @@ public struct DocumentView: View {
                 }
             }
             #endif
+            // 诊断日志页（可手动打开；上次异常结束时也会自动弹出）
+            .sheet(isPresented: $showDiagnostics) {
+                DiagnosticsView()
+            }
         }
     }
 
@@ -150,6 +183,14 @@ public struct DocumentView: View {
             Section("文档信息") {
                 Text("字数统计: \(documentModel.wordCount) 字")
                 Text("阅读时长: ~\(max(1, documentModel.wordCount / 300)) 分钟")
+            }
+
+            Section("诊断") {
+                Button {
+                    showDiagnostics = true
+                } label: {
+                    Label("诊断日志", systemImage: "doc.text.magnifyingglass")
+                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")

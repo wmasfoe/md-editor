@@ -183,16 +183,19 @@ public final class DocumentModel: ObservableObject {
     }
 
     public func toggleMode() {
+        LaunchDiagnostics.mark("edit: 点击了模式切换按钮")
         let nextMode: EditorMode = (mode == .read) ? .edit : .read
         setMode(nextMode)
     }
 
     public func setMode(_ newMode: EditorMode) {
         guard mode != newMode else { return }
+        LaunchDiagnostics.mark("edit: 切换模式 -> \(newMode.rawValue)")
         mode = newMode
         let payload: [String: AnyCodable] = ["mode": .string(newMode.rawValue)]
         let action = NativeActionMessage(action: "setMode", payload: payload)
         onDispatchAction?(action)
+        LaunchDiagnostics.mark("edit: setMode 已派发给 WebView")
     }
 
     public func executeCommand(_ command: MarkdownCommand) {
