@@ -15,6 +15,9 @@ public struct DocumentView: View {
     /// 前后台状态：进入后台时写「正常退出」标记，用于区分「崩溃」与「正常退出」
     @Environment(\.scenePhase) private var scenePhase
 
+    /// 系统外观：暗色模式下需要同步告知 web 内容（原生 chrome 会自动跟随）
+    @Environment(\.colorScheme) private var colorScheme
+
     /// 诊断实验开关（A/B 定位用，持久化）：开启后不再把键盘工具栏挂到键盘上。
     /// 与 DiagnosticsView 里的开关共用同一个键；崩溃重启后仍生效。
     @AppStorage("inkpoint.diag.noKeyboardToolbar") private var diagNoKeyboardToolbar: Bool = false
@@ -42,10 +45,21 @@ public struct DocumentView: View {
                 if LaunchDiagnostics.previousSessionCrashed {
                     showDiagnostics = true
                 }
+                syncAppearance()
             }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background {
                     LaunchDiagnostics.markCleanExit()
+                }
+            }
+            // 系统外观变化时同步给 web（避免「深色外壳 + 浅色正文」的对比度错乱）
+            .onChange(of: colorScheme) { _, _ in
+                syncAppearance()
+            }
+            // web 就绪后补发一次：启动阶段 web 尚未加载，首次指令会落空
+            .onChange(of: documentModel.isWebViewReady) { _, ready in
+                if ready {
+                    syncAppearance()
                 }
             }
             #if canImport(UIKit)
@@ -110,6 +124,13 @@ public struct DocumentView: View {
                 DiagnosticsView()
             }
         }
+    }
+
+    // MARK: - Appearance
+
+    /// 把当前系统外观同步给 web 内容
+    private func syncAppearance() {
+        documentModel.setTheme(isDark: colorScheme == .dark)
     }
 
     // MARK: - Toolbar Subviews

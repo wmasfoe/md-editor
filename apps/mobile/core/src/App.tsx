@@ -108,7 +108,11 @@ graph TD
 export const App: React.FC = () => {
   const [content, setContent] = useState<string>(INITIAL_DEMO_MARKDOWN);
   const [mode, setMode] = useState<"read" | "edit">("read");
-  const [isDark, setIsDark] = useState<boolean>(false);
+  // 初始主题跟随系统（原生端还会通过 setTheme 指令同步一次，二者一致）
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
   const [filePath, setFilePath] = useState<string | undefined>();
 
   // 1. 初始化并注册原生 Action 监听
@@ -134,11 +138,6 @@ export const App: React.FC = () => {
     // 监听原生主题切换指令
     const cleanupSetTheme = bridge.onAction<SetThemePayload>("setTheme", (payload) => {
       setIsDark(payload.isDark);
-      if (payload.isDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
     });
 
     // 监听原生大纲跳转指令
@@ -170,6 +169,12 @@ export const App: React.FC = () => {
       cleanupScrollToHeading();
     };
   }, []);
+
+  // 2. 主题变化时同步 <html> 上的 dark 类：
+  // body 的暗色背景（dark:bg-neutral-950）与 CodeMirror 的 --theme-* 变量都依赖它
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+  }, [isDark]);
 
   return (
     <div className={`app-root min-h-screen w-full transition-colors ${isDark ? "dark" : ""}`}>

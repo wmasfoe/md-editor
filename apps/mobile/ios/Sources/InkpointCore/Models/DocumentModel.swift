@@ -198,6 +198,15 @@ public final class DocumentModel: ObservableObject {
         LaunchDiagnostics.mark("edit: setMode 已派发给 WebView")
     }
 
+    /// 同步外观主题到 WebView。
+    /// 原生 chrome 会跟随系统自动变暗，但 web 内容是独立渲染的，必须显式告知，
+    /// 否则暗色模式下会出现「深色外壳 + 浅色正文」的对比度错乱。
+    public func setTheme(isDark: Bool) {
+        let payload: [String: AnyCodable] = ["isDark": .bool(isDark)]
+        let action = NativeActionMessage(action: "setTheme", payload: payload)
+        onDispatchAction?(action)
+    }
+
     public func executeCommand(_ command: MarkdownCommand) {
         let payload: [String: AnyCodable] = ["command": .string(command.rawValue)]
         let action = NativeActionMessage(action: "execCommand", payload: payload)
