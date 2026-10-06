@@ -24,13 +24,16 @@ public struct EditorWebView: UIViewRepresentable {
         contentController.add(bridgeController, name: "InkpointBridge")
         config.userContentController = contentController
 
-        // 允许本地静态资源访问（离线编辑器需要读 file:// 下的子资源）。
-        // ⚠️ allowFileAccessFromFileURLs / allowUniversalAccessFromFileURLs 是 WebKit 的
-        // **私有属性**，不同 iOS 版本并不保证存在；直接 setValue(_:forKey:) 一旦碰到不存在的
-        // key 会抛 NSUnknownKeyException —— Swift 捕不到，表现为「启动即闪退」。
-        // 所以这里先探测 responds(to:) 再写，键不存在就跳过（最多退化为子资源受限，不会崩）。
-        setPrivateWebKitFlag(on: config.preferences, key: "allowFileAccessFromFileURLs")
-        setPrivateWebKitFlag(on: config, key: "allowUniversalAccessFromFileURLs")
+        // 编辑器静态资源改由自定义 scheme 伺服（inkpoint://editor/…）。
+        // file:// 下 ES module 会被 CORS 拦截（旧的私有开关在新系统已不存在），
+        // 结果是页面白屏、Bridge 缺失。详见 EditorSchemeHandler。
+        let editorRoot = Self.editorResourceRoot()
+        if let editorRoot = editorRoot {
+            config.setURLSchemeHandler(
+                EditorSchemeHandler(rootDirectory: editorRoot),
+                forURLScheme: EditorSchemeHandler.scheme
+            )
+        }
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -46,7 +49,7 @@ public struct EditorWebView: UIViewRepresentable {
         }
 
         // 加载离线前端页面
-        loadEditorBundle(in: webView)
+        loadEditorBundle(in: webView, editorRoot: editorRoot)
 
         if #available(iOS 16.4, *) {
             webView.isInspectable = true
@@ -56,16 +59,11 @@ public struct EditorWebView: UIViewRepresentable {
         return webView
     }
 
-    /// 写入 WebKit 私有属性前先探测是否存在，避免 KVC 抛 NSUnknownKeyException 导致闪退。
-    @discardableResult
-    private func setPrivateWebKitFlag(on object: NSObject, key: String) -> Bool {
-        guard object.responds(to: NSSelectorFromString(key)) else {
-            LaunchDiagnostics.mark("webview: 当前系统不响应私有属性 \(key)，已跳过")
-            return false
-        }
-        object.setValue(true, forKey: key)
-        LaunchDiagnostics.mark("webview: 已开启私有属性 \(key)")
-        return true
+    /// 编辑器静态资源根目录（App Bundle 内的 Resources/editor）
+    private static func editorResourceRoot() -> URL? {
+        Bundle.main
+            .url(forResource: "index", withExtension: "html", subdirectory: "editor")?
+            .deletingLastPathComponent()
     }
 
     public func updateUIView(_ uiView: WKWebView, context: Context) {
@@ -76,19 +74,20 @@ public struct EditorWebView: UIViewRepresentable {
         Coordinator(self)
     }
 
-    private func loadEditorBundle(in webView: WKWebView) {
-        // 1. 优先从 App Bundle 的 Resources/editor 查找
+    private func loadEditorBundle(in webView: WKWebView, editorRoot: URL?) {
+        // 1. 首选：自定义 scheme（ES module / 动态 import / 字体全部可用）
+        if let editorRoot = editorRoot,
+           let schemeURL = URL(string: "\(EditorSchemeHandler.scheme)://\(EditorSchemeHandler.host)/index.html") {
+            LaunchDiagnostics.mark("webview: 经自定义 scheme 加载编辑器资源（\(editorRoot.path)）")
+            webView.load(URLRequest(url: schemeURL))
+            return
+        }
+
+        // 2. 兜底：file:// 直载（仅经典脚本可用；ES module 会被 CORS 拦截）
         if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "editor") {
             let folderURL = htmlURL.deletingLastPathComponent()
             LaunchDiagnostics.mark("webview: 命中编辑器资源 \(htmlURL.path)")
             webView.loadFileURL(htmlURL, allowingReadAccessTo: folderURL)
-            return
-        }
-
-        // 2. 备用相对路径查找（用于测试或非标准构建环境）
-        if let directURL = Bundle.main.url(forResource: "index", withExtension: "html") {
-            LaunchDiagnostics.mark("webview: 资源位于 bundle 根目录 \(directURL.path)")
-            webView.loadFileURL(directURL, allowingReadAccessTo: directURL.deletingLastPathComponent())
             return
         }
 
