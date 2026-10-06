@@ -15,6 +15,9 @@ public struct DiagnosticsView: View {
     @State private var logText: String = ""
     @State private var copied: Bool = false
 
+    /// 诊断实验开关（A/B 定位用，与 DocumentView 共用同一个键）
+    @AppStorage("inkpoint.diag.noKeyboardToolbar") private var diagNoKeyboardToolbar: Bool = false
+
     private let crashed: Bool
 
     public init(crashed: Bool = LaunchDiagnostics.previousSessionCrashed) {
@@ -30,6 +33,17 @@ public struct DiagnosticsView: View {
                         : "下面是 App 的诊断日志，点右上角「复制」或「分享」可发送。")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("实验：禁用键盘工具栏", isOn: $diagNoKeyboardToolbar)
+                            .font(.system(size: 13))
+                        Text("用于定位「点编辑闪退」：开启后进入编辑态不再把工具栏挂到键盘上。关闭本页后点一次「编辑」测试，日志会自动记录结果。")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(Color.secondary.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
                     Text(logText.isEmpty ? "（日志为空）" : logText)
                         .font(.system(size: 11, design: .monospaced))

@@ -29,6 +29,10 @@ public final class InkpointBridgeController: NSObject {
             print("[InkpointBridgeController] Cannot dispatch action: webView is nil")
             return
         }
+        if action.action == "setMode" {
+            LaunchDiagnostics.markMemory("edit: 派发 setMode 前")
+            startMemorySampling()
+        }
 
         guard let jsonString = action.toJSONString() else {
             print("[InkpointBridgeController] Failed to serialize action:", action.action)
@@ -45,9 +49,11 @@ public final class InkpointBridgeController: NSObject {
         let js = "if (window.InkpointBridge) { window.InkpointBridge.dispatchNativeAction(\"\(escaped)\"); }"
 
         Task { @MainActor in
+            LaunchDiagnostics.mark("bridge: \(action.action) 的 JS 开始执行")
             do {
                 _ = try await webView.evaluateJavaScript(js)
                 LaunchDiagnostics.mark("bridge: \(action.action) 的 JS 已执行")
+                LaunchDiagnostics.markMemory("bridge: \(action.action) JS 完成后")
             } catch {
                 LaunchDiagnostics.mark("bridge: \(action.action) 的 JS 执行失败 \(error.localizedDescription)")
                 print("[InkpointBridgeController] JS eval error for action \(action.action):", error)
@@ -83,6 +89,18 @@ public final class InkpointBridgeController: NSObject {
             }
         } catch {
             print("[InkpointBridgeController] Failed to decode WebEventMessage:", error)
+        }
+    }
+
+    /// setMode 之后连续采样内存 10 秒（每秒 1 次）。
+    /// 若崩溃与内存增长相关（被系统直接杀掉不会留下任何崩溃标记），采样值就是唯一线索；
+    /// 采样条数也顺带记录了 App 在 setMode 后存活了多久。
+    private func startMemorySampling() {
+        Task { @MainActor in
+            for index in 1...10 {
+                try? await Task.sleep(for: .seconds(1))
+                LaunchDiagnostics.markMemory("edit: 采样 #\(index)")
+            }
         }
     }
 

@@ -15,6 +15,10 @@ public struct DocumentView: View {
     /// 前后台状态：进入后台时写「正常退出」标记，用于区分「崩溃」与「正常退出」
     @Environment(\.scenePhase) private var scenePhase
 
+    /// 诊断实验开关（A/B 定位用，持久化）：开启后不再把键盘工具栏挂到键盘上。
+    /// 与 DiagnosticsView 里的开关共用同一个键；崩溃重启后仍生效。
+    @AppStorage("inkpoint.diag.noKeyboardToolbar") private var diagNoKeyboardToolbar: Bool = false
+
     public init(documentModel: DocumentModel? = nil) {
         let model = documentModel ?? DocumentModel()
         _documentModel = StateObject(wrappedValue: model)
@@ -80,7 +84,7 @@ public struct DocumentView: View {
 
                 // 键盘附加上方悬浮快捷工具栏 (仅在编辑态激活)
                 #if canImport(UIKit)
-                if documentModel.mode == .edit {
+                if documentModel.mode == .edit && !diagNoKeyboardToolbar {
                     ToolbarItemGroup(placement: .keyboard) {
                         KeyboardAccessoryBar(documentModel: documentModel)
                     }

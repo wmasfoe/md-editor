@@ -123,6 +123,16 @@ public struct EditorWebView: UIViewRepresentable {
             LaunchDiagnostics.mark("webview: 页面加载失败 \(error.localizedDescription)")
             print("[EditorWebView] Navigation failed:", error)
         }
+
+        /// WebContent 进程崩溃/被系统回收（页面白屏的常见原因）
+        public func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            LaunchDiagnostics.mark("webview: WebContent 进程已终止")
+        }
+
+        /// 预加载导航失败（例如本地资源协议被拒）
+        public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            LaunchDiagnostics.mark("webview: 预加载导航失败 \(error.localizedDescription)")
+        }
     }
 }
 #elseif canImport(AppKit)

@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// 启动诊断日志（用于在「没有 Mac / 没有 Xcode / 拿不到沙盒文件」的环境下定位崩溃）。
 ///
@@ -47,6 +48,57 @@ public enum LaunchDiagnostics {
     public static func installCrashHandler() {
         NSSetUncaughtExceptionHandler(inkpointUncaughtExceptionHandler)
         mark("app: 未捕获异常处理器已安装")
+    }
+
+    // MARK: - 硬崩溃（信号）
+
+    /// 信号处理器用的文件描述符：安装时打开，避免在信号上下文里做文件系统操作
+    private static var crashFileDescriptor: Int32 = -1
+
+    /// 安装信号处理器。
+    ///
+    /// 必要性：SIGSEGV/SIGABRT/SIGTRAP 这类**硬崩溃不会走 ObjC 异常处理器**——
+    /// 上一版日志里「派发 setMode 后没有任何后续标记、也没有 UNCAUGHT」就是这种情况，
+    /// 只有挂信号才能把崩溃类型与调用栈写进日志。
+    public static func installSignalHandlers() {
+        if crashFileDescriptor < 0, let url = logFileURL {
+            crashFileDescriptor = open(url.path, O_WRONLY | O_APPEND | O_CREAT, 0o644)
+        }
+        for signalNumber in [SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGTRAP, SIGFPE] {
+            _ = signal(signalNumber, inkpointSignalHandler)
+        }
+        mark("app: 信号处理器已安装")
+    }
+
+    /// 记录当前进程内存占用（phys_footprint，MB）。
+    /// 用途：若崩溃是「内存被杀」（Jetsam），进程会被直接干掉、不留下任何崩溃标记，
+    /// 采样值就成了唯一线索。
+    public static func markMemory(_ label: String) {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), rebound, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return }
+        let megabytes = Double(info.phys_footprint) / 1024 / 1024
+        mark("\(label)：内存 \(String(format: "%.1f", megabytes))MB")
+    }
+
+    /// 信号上下文内的最小写入（`write(2)` 是 async-signal-safe 的）
+    fileprivate static func writeRaw(_ bytes: UnsafePointer<CChar>, count: Int) {
+        guard crashFileDescriptor >= 0 else { return }
+        _ = write(crashFileDescriptor, bytes, count)
+    }
+
+    /// 信号上下文内的补充写入（best-effort，允许失败）
+    fileprivate static func appendRaw(_ text: String) {
+        guard crashFileDescriptor >= 0, let data = text.data(using: .utf8) else { return }
+        data.withUnsafeBytes { buffer in
+            guard let base = buffer.baseAddress else { return }
+            _ = write(crashFileDescriptor, base, buffer.count)
+        }
     }
 
     /// 开始新会话；返回**上一次**运行是否异常结束。
@@ -120,4 +172,36 @@ public enum LaunchDiagnostics {
 /// 所以这里用全局函数而不是静态方法或闭包。
 private func inkpointUncaughtExceptionHandler(_ exception: NSException) {
     LaunchDiagnostics.markUncaughtException(exception)
+}
+
+/// 信号处理器（硬崩溃：SIGSEGV / SIGABRT / SIGTRAP 等）。
+///
+/// 步骤：先用 async-signal-safe 的 `write(2)` 写一行**固定标记**（即使后面卡死也能证明
+/// 「是信号崩溃」而不是「被系统内存杀」——后者不会留下任何标记），再尽力附加崩溃线程的调用栈，
+/// 最后恢复默认处理并重新抛出，保留系统崩溃报告行为。
+private func inkpointSignalHandler(_ signalNumber: Int32) {
+    let name: String
+    switch signalNumber {
+    case SIGABRT: name = "SIGABRT"
+    case SIGSEGV: name = "SIGSEGV"
+    case SIGBUS: name = "SIGBUS"
+    case SIGILL: name = "SIGILL"
+    case SIGTRAP: name = "SIGTRAP"
+    case SIGFPE: name = "SIGFPE"
+    default: name = "SIGNAL_\(signalNumber)"
+    }
+
+    let marker = "❌ 信号崩溃（\(name)）\n"
+    marker.withCString { pointer in
+        LaunchDiagnostics.writeRaw(pointer, count: marker.utf8.count)
+    }
+
+    var detail = "调用栈（崩溃线程，最多 40 帧）：\n"
+    for (index, frame) in Thread.callStackSymbols.prefix(40).enumerated() {
+        detail += "  \(index) \(frame)\n"
+    }
+    LaunchDiagnostics.appendRaw(detail)
+
+    _ = signal(signalNumber, SIG_DFL)
+    _ = raise(signalNumber)
 }

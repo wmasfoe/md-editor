@@ -11,6 +11,7 @@ struct InkpointApp: App {
         // 启动诊断：装未捕获异常处理器 + 开启新会话（顺带判断上次运行是否异常结束）。
         // 崩溃现场由 App 内的「诊断日志」页展示，侧载容器里也能取出来。
         LaunchDiagnostics.installCrashHandler()
+        LaunchDiagnostics.installSignalHandlers()
         LaunchDiagnostics.beginSession()
         LaunchDiagnostics.mark("app: InkpointApp.init 完成")
     }
