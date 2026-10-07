@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { extractPrNumbers, parseChangelog } from "../lib/changelog";
 
@@ -122,12 +123,22 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
     const androidEn = getAndroidChangelogEntries("en");
     expect(androidZh.length).toBeGreaterThanOrEqual(3);
     expect(androidEn.length).toBeGreaterThanOrEqual(3);
-    expect(androidZh[0].version).toBe("0.2.0");
-    expect(androidEn[0].version).toBe("0.2.0");
-    expect(androidZh[1].version).toBe("0.1.1");
-    expect(androidEn[1].version).toBe("0.1.1");
-    expect(androidZh[2].version).toBe("0.1.0");
-    expect(androidEn[2].version).toBe("0.1.0");
+    // 中英条目顺序与版本号必须一一对应
+    expect(androidZh.map((entry) => entry.version)).toEqual(
+      androidEn.map((entry) => entry.version),
+    );
+    // 最新条目必须等于 Android 版本文件里的 versionName：
+    // 发版脚本只升 build.gradle.kts，断言随之自动成立，无需每次发版手改本文件
+    const androidGradleSource = await readFile(
+      new URL("../../apps/mobile/android/app/build.gradle.kts", import.meta.url),
+      "utf8",
+    );
+    const gradleVersionName = /versionName\s*=\s*"([^"]+)"/u.exec(androidGradleSource)?.[1];
+    expect(gradleVersionName).toBeDefined();
+    expect(androidZh[0].version).toBe(gradleVersionName);
+    expect(androidEn[0].version).toBe(gradleVersionName);
+    // 最早的 Android 版本保持稳定，用于确认历史条目未被截断
+    expect(androidZh.at(-1)?.version).toBe("0.1.0");
     expect(androidEn[0].items[0].text).toMatch(/^[*A-Za-z]/u);
   });
 
