@@ -19,6 +19,7 @@ const rendererMock = vi.hoisted(() => {
         setHostVisibility: vi.fn(),
         focus: vi.fn(),
         requestMeasure: vi.fn(),
+        isComposing: true,
         destroy: vi.fn(),
       };
     }),
@@ -31,6 +32,18 @@ describe("CodeMirrorEditor clipboard bridge", () => {
   beforeEach(() => {
     rendererMock.calls.length = 0;
     rendererMock.createCodeMirrorRenderer.mockClear();
+  });
+
+  it("把渲染器的组合输入状态透传给宿主端口（iOS 壳子据此推迟重排与桥接上报）", () => {
+    const bridge = createCodeMirrorEditorBridge({
+      parent: createParent(),
+      document: createDocumentState({ markdown: "拼字\n" }),
+      onSyncError: vi.fn(),
+      onQueuedExternalEditResult: vi.fn(),
+    });
+
+    expect(bridge.ports.isComposing()).toBe(true);
+    bridge.destroy();
   });
 
   it("passes an injected clipboard writer into the renderer options", async () => {

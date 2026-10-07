@@ -23,9 +23,25 @@ public final class InkpointBridgeController: NSObject {
     /// 向 WebView 发送 NativeActionMessage
     public func dispatchAction(_ action: NativeActionMessage) {
         #if canImport(WebKit)
+        LaunchDiagnostics.mark("bridge: 派发 \(action.action)")
         guard let webView = self.webView else {
+            LaunchDiagnostics.mark("bridge: WebView 为空，\(action.action) 未派发")
             print("[InkpointBridgeController] Cannot dispatch action: webView is nil")
             return
+        }
+        if action.action == "setMode" {
+            LaunchDiagnostics.markMemory("edit: 派发 setMode 前")
+            startMemorySampling()
+            // 冒烟测试：先跑一条结果确定可序列化的脚本，
+            // 用于区分「evaluateJavaScript 通道本身崩溃」与「具体脚本内容崩溃」。
+            LaunchDiagnostics.mark("诊断: 冒烟 eval 开始")
+            webView.evaluateJavaScript("1 + 1") { result, error in
+                if let error = error {
+                    LaunchDiagnostics.mark("诊断: 冒烟 eval 失败 \(error.localizedDescription)")
+                } else {
+                    LaunchDiagnostics.mark("诊断: 冒烟 eval 成功 -> \(String(describing: result))")
+                }
+            }
         }
 
         guard let jsonString = action.toJSONString() else {
@@ -40,13 +56,25 @@ public final class InkpointBridgeController: NSObject {
             .replacingOccurrences(of: "\n", with: "\\n")
             .replacingOccurrences(of: "\r", with: "\\r")
 
-        let js = "if (window.InkpointBridge) { window.InkpointBridge.dispatchNativeAction(\"\(escaped)\"); }"
+        // 关键：脚本必须**返回可序列化的值**。
+        // `evaluateJavaScript` 拿到 `undefined` 结果时会走 WebKit 的「unsupported type」处理路径，
+        // 在部分系统版本上该路径直接断言崩溃（SIGTRAP，调用栈落在 WebKit/JavaScriptCore 内，
+        // 与实测日志一致）。这里用 IIFE 显式返回字符串："ok"=已派发、"missing"=页面里还没有桥。
+        let js = "(function() { if (window.InkpointBridge) { window.InkpointBridge.dispatchNativeAction(\"\(escaped)\"); return \"ok\"; } return \"missing\"; })()"
 
         Task { @MainActor in
-            do {
-                _ = try await webView.evaluateJavaScript(js)
-            } catch {
-                print("[InkpointBridgeController] JS eval error for action \(action.action):", error)
+            let actionName = action.action
+            LaunchDiagnostics.mark("bridge: \(actionName) 的 JS 开始执行")
+            // 用 completion-handler 版 API 而不是 `try await` 版：
+            // 后者走 Swift 并发覆盖层（libswiftWebKit），该覆盖层有已知崩溃报告，尽量绕开。
+            webView.evaluateJavaScript(js) { result, error in
+                if let error = error {
+                    LaunchDiagnostics.mark("bridge: \(actionName) 的 JS 执行失败 \(error.localizedDescription)")
+                    print("[InkpointBridgeController] JS eval error for action \(actionName):", error)
+                } else {
+                    LaunchDiagnostics.mark("bridge: \(actionName) 的 JS 已执行 -> \(String(describing: result))")
+                    LaunchDiagnostics.markMemory("bridge: \(actionName) JS 完成后")
+                }
             }
         }
         #endif
@@ -82,8 +110,21 @@ public final class InkpointBridgeController: NSObject {
         }
     }
 
+    /// setMode 之后连续采样内存 10 秒（每秒 1 次）。
+    /// 若崩溃与内存增长相关（被系统直接杀掉不会留下任何崩溃标记），采样值就是唯一线索；
+    /// 采样条数也顺带记录了 App 在 setMode 后存活了多久。
+    private func startMemorySampling() {
+        Task { @MainActor in
+            for index in 1...10 {
+                try? await Task.sleep(for: .seconds(1))
+                LaunchDiagnostics.markMemory("edit: 采样 #\(index)")
+            }
+        }
+    }
+
     @MainActor
     private func processEvent(_ event: WebEventMessage) {
+        LaunchDiagnostics.mark("bridge: 收到事件 \(event.event)")
         switch event.event {
         case "ready", "onDocumentReady":
             documentModel?.notifyWebViewReady()

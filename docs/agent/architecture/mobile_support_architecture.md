@@ -42,6 +42,7 @@ md-editor/
 ### 3.1 原生向 Web 发出的 Action (Native -> Web)
 - `loadDocument(markdown, mode, title)`: 注入文档内容与初始模式
 - `setMode(mode: "read" | "edit")`: 切换阅读态与编辑态
+- `setTheme(isDark: boolean)`: 同步系统外观，Web 侧据此维护 `<html>.dark`（CodeMirror `--theme-*` 变量随之切换）
 - `execCommand(command: MarkdownCommand)`: 触发格式化指令（h1, h2, bold, italic, strikethrough, code, quote, bulletList, orderedList, taskList, link, table, hr）
 - `requestContent`: 原生请求最新 Markdown 内容以准备持久化保存
 - `scrollToHeading(headingId)`: 大纲导航跳转
@@ -57,9 +58,16 @@ md-editor/
 
 ---
 
+### 3.3 编辑区可编辑性与中文 IME 约束（iOS / WebKit 硬约束）
+
+- **外壳根节点禁止 `user-select: none`**：WebKit 对 `user-select` 的实现会波及 `contenteditable` 的可编辑性——祖先一旦继承 `none`，iOS 上编辑器内的选区、光标定位与 IME 组合都会异常，表现为"确认候选词时拼音 pre-edit 直接落进文档 + 编辑时乱跳"。可编辑性因此由代码**显式声明**而不依赖继承：编辑器子树（`.editor-container … .cm-content / [contenteditable]`）强制 `user-select: text`（含 `-webkit-` 前缀），沉浸阅读区（`.reader-container`）才设为 `none`；Markdown 标记符也不再单独设 `none`（避免在可编辑子树内制造不可编辑孤岛）。
+- **组合输入期间的副作用必须推迟**：渲染器通过端口 `isComposing(): boolean` 暴露 IME 组合状态（投影守卫标记与 CodeMirror 视图态取或）。移动端壳子在组合中不向原生上报 `contentChange` / `outlineExtracted`，也不响应 `visualViewport` 重排，统一推迟到组合结束后补跑——原生 UI 中途重建或编辑器重排都会让 WebKit 提前提交 pre-edit。
+
+---
+
 ## 4. iOS 平台深度特性
 
-1. **WKWebView 离线托管**：使用 `loadFileURL(..., allowingReadAccessTo: ...)` 离线载入本地资源，杜绝外部 CDN 延迟；
+1. **WKWebView 离线托管**：由 `WKURLSchemeHandler` 以 `inkpoint://editor/…` 自定义 scheme 提供离线资源（`file://` 下 ES module 会被 CORS 拦截导致白屏）；
 2. **UIInputAccessoryView 弹簧工具栏**：SwiftUI 中通过 `.toolbar { ToolbarItemGroup(placement: .keyboard) { KeyboardAccessoryBar(...) } }` 深度联动 iOS 软键盘，平滑升降；
 3. **触感反馈引擎**：按键点击触发 `UIImpactFeedbackGenerator(style: .light)`，模式切换触发 `.medium`，大纲选中触发 `UISelectionFeedbackGenerator`；
 4. **系统级文档就地编辑**：配置 `LSSupportsOpeningDocumentsInPlace: true` 与 `UIFileSharingEnabled: true`，结合 `UIDocumentPickerViewController` 原地读写 iCloud Drive / 本地文件；

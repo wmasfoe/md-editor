@@ -170,6 +170,8 @@ function createRendererPorts(clientId: string): CodeMirrorEditorPorts {
     setSelection: vi.fn(),
     scrollToLine: vi.fn(() => true),
     requestMeasure: vi.fn(),
+    // 组合输入（IME）状态：宿主据此推迟视口重排与桥接上报
+    isComposing: vi.fn(() => false),
     flushPendingEdits: vi.fn(() => false),
     setPlugins: vi.fn(),
   };

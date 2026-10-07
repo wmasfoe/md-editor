@@ -19,6 +19,8 @@
 		1010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2010 /* Assets.xcassets */; };
 		1011 /* editor in Resources */ = {isa = PBXBuildFile; fileRef = 2011 /* editor */; };
 		1012 /* LaunchDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2013 /* LaunchDiagnostics.swift */; };
+		1013 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2014 /* DiagnosticsView.swift */; };
+		1014 /* EditorSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2015 /* EditorSchemeHandler.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +38,8 @@
 		2011 /* editor */ = {isa = PBXFileReference; lastKnownFileType = folder; path = editor; sourceTree = "<group>"; };
 		2012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2013 /* LaunchDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics/LaunchDiagnostics.swift; sourceTree = "<group>"; };
+		2014 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DiagnosticsView.swift; sourceTree = "<group>"; };
+		2015 /* EditorSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/EditorSchemeHandler.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -89,6 +93,8 @@
 				2008 /* DocumentPicker.swift */,
 				2009 /* DocumentView.swift */,
 				2013 /* LaunchDiagnostics.swift */,
+				2014 /* DiagnosticsView.swift */,
+				2015 /* EditorSchemeHandler.swift */,
 			);
 			name = Core;
 			path = Sources/InkpointCore;
@@ -182,6 +188,8 @@
 				1008 /* DocumentPicker.swift in Sources */,
 				1009 /* DocumentView.swift in Sources */,
 				1012 /* LaunchDiagnostics.swift in Sources */,
+				1013 /* DiagnosticsView.swift in Sources */,
+				1014 /* EditorSchemeHandler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,7 +249,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Inkpoint/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -262,7 +270,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Inkpoint/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -78,6 +78,11 @@ export interface CodeMirrorEditorPorts {
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean;
   requestMeasure(): void;
+  /**
+   * 组合输入（IME）是否进行中：宿主据此推迟视口重排与桥接上报，
+   * 避免 iOS WebKit 在组合期把 pre-edit（拼音）当作普通文本提交。
+   */
+  isComposing(): boolean;
   /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
   flushPendingEdits(): boolean;
   /** 全量替换并热重载 Markdown 语法扩展插件列表 */
@@ -269,6 +274,7 @@ export function createCodeMirrorEditorBridge(
       scrollOptions?: { readonly select?: boolean; readonly focus?: boolean },
     ) => renderer.scrollToLine(line, scrollOptions),
     requestMeasure: () => renderer.requestMeasure(),
+    isComposing: () => renderer.isComposing,
     flushPendingEdits: () => renderer.flushPendingEdits(),
     setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
   });

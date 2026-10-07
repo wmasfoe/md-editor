@@ -8,9 +8,11 @@ struct InkpointApp: App {
     @StateObject private var documentModel = DocumentModel()
 
     init() {
-        // 启动诊断：装未捕获异常处理器（KVC 私有 key 之类的 ObjC 异常会被记录下来），
-        // 便于在没有 Xcode/Console 的环境下定位「启动即闪退」。日志见沙盒 Documents/inkpoint-launch.log。
+        // 启动诊断：装未捕获异常处理器 + 开启新会话（顺带判断上次运行是否异常结束）。
+        // 崩溃现场由 App 内的「诊断日志」页展示，侧载容器里也能取出来。
         LaunchDiagnostics.installCrashHandler()
+        LaunchDiagnostics.installSignalHandlers()
+        LaunchDiagnostics.beginSession()
         LaunchDiagnostics.mark("app: InkpointApp.init 完成")
     }
 

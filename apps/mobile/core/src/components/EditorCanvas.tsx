@@ -96,6 +96,30 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
   const onContentChangeRef = useRef(onContentChange);
   onContentChangeRef.current = onContentChange;
 
+  // iOS 组合输入（IME）守卫：拼字期间既不向原生上报、也不响应视口重排。
+  // 原因：WebKit 在组合期一旦被重排或让原生 UI 重建，就会把 pre-edit（拼音）
+  // 当作普通文本提交，表现为"确认候选词时拼音被写进编辑区 + 光标乱跳"，
+  // 因此这些副作用统一推迟到组合结束（isComposing 转 false）后执行。
+  const deferredTaskRef = useRef<(() => void) | null>(null);
+  const deferredTimerRef = useRef<number | null>(null);
+
+  /** 组合期间调用：记下待执行副作用，组合结束后再跑（同刻多次调用只保留最后一次） */
+  const runAfterComposition = (task: () => void) => {
+    deferredTaskRef.current = task;
+    if (deferredTimerRef.current !== null) return;
+    const tick = () => {
+      if (portsRef.current?.isComposing()) {
+        deferredTimerRef.current = window.setTimeout(tick, 120);
+        return;
+      }
+      deferredTimerRef.current = null;
+      const pending = deferredTaskRef.current;
+      deferredTaskRef.current = null;
+      pending?.();
+    };
+    deferredTimerRef.current = window.setTimeout(tick, 120);
+  };
+
   // 1. 初始化核心状态机 DocumentState（仅挂载时初始化一次）
   const docState = useMemo(() => {
     return createDocumentState({
@@ -122,14 +146,29 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
         contentRef.current = currentMarkdown;
         onContentChangeRef.current(currentMarkdown);
 
-        const wordCount = currentMarkdown.trim().length;
-        bridge.notifyContentChange({ isDirty: true, wordCount });
-        bridge.notifyOutline(extractOutline(currentMarkdown));
+        // 原生上报（字数/大纲）在组合期推迟：iOS 上原生 UI 中途重建会打断 IME
+        const notifyNative = () => {
+          bridge.notifyContentChange({
+            isDirty: true,
+            wordCount: currentMarkdown.trim().length,
+          });
+          bridge.notifyOutline(extractOutline(currentMarkdown));
+        };
+        if (portsRef.current?.isComposing()) {
+          runAfterComposition(notifyNative);
+        } else {
+          notifyNative();
+        }
       }
     });
 
     return () => {
       unsubscribe();
+      if (deferredTimerRef.current !== null) {
+        window.clearTimeout(deferredTimerRef.current);
+        deferredTimerRef.current = null;
+      }
+      deferredTaskRef.current = null;
     };
   }, [docState]);
 
@@ -176,8 +215,13 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
       bridge.respondSaveContent(docState.getSnapshot().markdown, true);
     });
 
-    // 6. 监听移动端 Visual Viewport 变化
+    // 6. 监听移动端 Visual Viewport 变化（iOS 键盘/候选栏弹动）
+    // 组合期推迟重排：重排会让 WebKit 提前提交 pre-edit，表现为拼音直落编辑区
     const handleViewportResize = () => {
+      if (portsRef.current?.isComposing()) {
+        runAfterComposition(() => portsRef.current?.requestMeasure());
+        return;
+      }
       portsRef.current?.requestMeasure();
     };
     window.visualViewport?.addEventListener("resize", handleViewportResize);
