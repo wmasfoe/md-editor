@@ -42,7 +42,9 @@ export function updateChangelogContents(contents, { version, notes, date, mode, 
     return `# Changelog\n\n${nextSection}\n`;
   }
 
-  const titleMatch = trimmed.match(/^#\s+Changelog\s*$/im);
+  // 标题兼容 `# Changelog` 与 `# Changelog - Inkpoint iOS` 等带平台后缀的写法；
+  // 否则会误判为「无标题」而在文件顶部另插一个 `# Changelog`，产生重复标题。
+  const titleMatch = trimmed.match(/^#\s+Changelog(?:\s*[-–—].*)?\s*$/im);
   if (!titleMatch || titleMatch.index === undefined) {
     return `# Changelog\n\n${nextSection}\n\n${trimmed}\n`;
   }

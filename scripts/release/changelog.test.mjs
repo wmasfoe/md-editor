@@ -86,3 +86,22 @@ test("resume mode fails without target section", () => {
     /missing section/u,
   );
 });
+
+test("inserts after a platform-suffixed title without duplicating the heading", () => {
+  const current =
+    "# Changelog - Inkpoint iOS\n\nAll notable changes.\n\n## 0.1.0 - 2026-09-16\n\n- First release.\n";
+
+  const next = updateChangelogContents(current, {
+    version: "0.2.1",
+    notes: "自签分发链路",
+    date: "2026-10-07",
+  });
+
+  // 标题只允许出现一次，且新版本条目紧随其后
+  assert.equal(next.match(/^#\s+Changelog/gm)?.length, 1);
+  assert.match(
+    next,
+    /^# Changelog - Inkpoint iOS\n\n## 0\.2\.1 - 2026-10-07\n\n- 自签分发链路\n\nAll notable changes\./u,
+  );
+  assert.ok(next.includes("## 0.1.0 - 2026-09-16"));
+});
