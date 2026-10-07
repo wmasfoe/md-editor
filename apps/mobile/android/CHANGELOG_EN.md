@@ -1,15 +1,13 @@
-# Changelog
-
-## 0.2.1 - 2026-10-07 (#149)
-
-- **修复中文输入法组合输入异常**：编辑器区域不再被外壳设为不可选中，输入法的拼音不会再被当作正文写入文档，编辑时光标不再乱跳 (#149)
-- **补齐全端 App 图标**：Android 接入 mipmap 与自适应图标，桌面图标不再缺失 (#147)
-- **编辑器外观跟随系统深浅色**：系统主题切换时编辑器配色实时同步，不再出现深色外壳配白底正文 (#149)
-- **输入法组合期间不再触发原生侧重排**：字数与大纲上报、视口重排推迟到候选词确认之后执行，提升中文输入稳定性 (#149)
-
 # Changelog - Inkpoint Android
 
 All notable changes to the Inkpoint Android application will be documented in this file.
+
+## 0.2.1 - 2026-10-07 (#149)
+
+- **Fix Chinese IME composition input**: the editor area is no longer marked unselectable by the shell, so the pinyin pre-edit string is no longer committed into the document and the caret no longer jumps while typing (#149)
+- **Restore app icons on all targets**: Android now ships mipmap and adaptive icons, and the desktop icon is no longer missing (#147)
+- **Editor appearance follows the system color scheme**: editor colors update in real time when the system theme changes, no more dark shell with a white document body (#149)
+- **No native-side relayout during IME composition**: word count, outline reporting and viewport re-measure are deferred until the candidate is confirmed, improving CJK input stability (#149)
 
 ## 0.2.0 - 2026-09-25 (#82, #84)
 

@@ -1,4 +1,6 @@
-# Changelog
+# Changelog - Inkpoint Android
+
+All notable changes to the Inkpoint Android application will be documented in this file.
 
 ## 0.2.1 - 2026-10-07 (#149)
 
@@ -6,10 +8,6 @@
 - **补齐全端 App 图标**：Android 接入 mipmap 与自适应图标，桌面图标不再缺失 (#147)
 - **编辑器外观跟随系统深浅色**：系统主题切换时编辑器配色实时同步，不再出现深色外壳配白底正文 (#149)
 - **输入法组合期间不再触发原生侧重排**：字数与大纲上报、视口重排推迟到候选词确认之后执行，提升中文输入稳定性 (#149)
-
-# Changelog - Inkpoint Android
-
-All notable changes to the Inkpoint Android application will be documented in this file.
 
 ## 0.2.0 - 2026-09-25 (#82, #84)
 
