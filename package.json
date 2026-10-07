@@ -33,6 +33,8 @@
     "release:desktop:version": "node scripts/release/version-desktop.mjs",
     "release:android": "node scripts/release/publish-android.mjs",
     "release:android:version": "node scripts/release/version-android.mjs",
+    "release:ios": "node scripts/release/publish-ios.mjs",
+    "release:ios:version": "node scripts/release/version-ios.mjs",
     "release:web": "node scripts/web/deploy-web.mjs",
     "release:web:publish": "node scripts/release/publish-web.mjs",
     "release:web:version": "node scripts/release/version-web.mjs",

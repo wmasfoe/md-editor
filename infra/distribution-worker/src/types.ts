@@ -42,8 +42,19 @@ export interface AppVersionManifest {
     releaseNotesUrl?: string;
     apk: PlatformAssetInfo;
   };
+  /**
+   * iOS 未签名 IPA 通道：由 `build-ios-ipa.yml` 构建并上传到 R2，
+   * 官网与分发网关通过 `/:app/ios/latest` 提供直链，用户侧自签后安装。
+   */
   ios?: {
     version: string;
+    releaseNotesUrl?: string;
+    ipa?: PlatformAssetInfo & {
+      /** 未签名包（自签工具重签后方可安装） */
+      unsigned?: boolean;
+      minimumOSVersion?: string;
+    };
+    /** 历史字段：曾经预留的 TestFlight / App Store 通道 */
     testFlightUrl?: string;
     appStoreUrl?: string;
   };
@@ -58,6 +69,7 @@ export interface ReleaseAssetInfo {
     | "linux-appimage"
     | "linux-deb"
     | "android"
+    | "ios"
     | "updater"
     | "other";
   platformLabel: string;
@@ -76,7 +88,7 @@ export interface ReleaseInfo {
   isPrerelease: boolean;
   releaseNotesUrl: string;
   assets: ReleaseAssetInfo[];
-  category?: "desktop" | "android" | "all";
+  category?: "desktop" | "android" | "ios" | "all";
 }
 
 export interface PlatformLatestSummary {
@@ -84,6 +96,8 @@ export interface PlatformLatestSummary {
   downloadUrl?: string;
   fileName?: string;
   formattedSize?: string;
+  /** 平台说明文案（如 iOS 的「未签名 IPA（自签安装）」） */
+  platformLabel?: string;
   assets?: ReleaseAssetInfo[];
 }
 
@@ -94,9 +108,11 @@ export interface ReleasesManifest {
   latestVersion: string;
   latestDesktopVersion?: string;
   latestAndroidVersion?: string;
+  latestIosVersion?: string;
   latestReleases?: {
     desktop?: PlatformLatestSummary;
     android?: PlatformLatestSummary;
+    ios?: PlatformLatestSummary;
   };
   releases: ReleaseInfo[];
 }

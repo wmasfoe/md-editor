@@ -231,13 +231,19 @@ export function renderAppDevicesHtml(
     (r) => r.category === "android" || r.assets.some((a) => a.platform === "android"),
   );
 
+  const iosReleases = manifest.releases.filter(
+    (r) => r.category === "ios" || r.assets.some((a) => a.platform === "ios"),
+  );
+
   const latestDesktopVersion =
     manifest.latestDesktopVersion || desktopReleases[0]?.version || manifest.latestVersion;
   const latestAndroidVersion =
     manifest.latestAndroidVersion || androidReleases[0]?.version || "0.1.0";
+  const latestIosVersion = manifest.latestIosVersion || iosReleases[0]?.version || "-";
 
   const latestDesktop = desktopReleases[0];
   const latestAndroid = androidReleases[0];
+  const latestIos = iosReleases[0];
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -275,6 +281,12 @@ export function renderAppDevicesHtml(
           <td class="date">${latestAndroid?.publishedAt.slice(0, 10) || "-"}</td>
           <td class="size">${androidReleases.length}</td>
           <td class="desc">Android 移动端 (APK) · 最新: <a href="/${app}/android/${latestAndroidVersion}/">v${latestAndroidVersion}</a></td>
+        </tr>
+        <tr>
+          <td><a href="/${app}/ios/">ios/</a></td>
+          <td class="date">${latestIos?.publishedAt.slice(0, 10) || "-"}</td>
+          <td class="size">${iosReleases.length}</td>
+          <td class="desc">iOS 移动端 (未签名 IPA · 自签安装) · 最新: <a href="/${app}/ios/${latestIosVersion}/">v${latestIosVersion}</a></td>
         </tr>
       </tbody>
     </table>
@@ -333,8 +345,34 @@ export function renderAppDevicesHtml(
       </tbody>
     </table>
   </div>
+  <h2>ios/</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Version</th>
+          <th class="date">Release Date</th>
+          <th class="size">Packages</th>
+          <th>Platform Coverage</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${iosReleases
+          .map(
+            (r, idx) => `
+        <tr>
+          <td><a href="/${app}/ios/${r.version}/">${r.version}/</a>${idx === 0 ? " [Latest]" : ""}</td>
+          <td class="date">${r.publishedAt.slice(0, 10)}</td>
+          <td class="size">${r.assets.length} files</td>
+          <td class="desc">iOS (未签名 IPA · 需自签安装)</td>
+        </tr>`,
+          )
+          .join("")}
+      </tbody>
+    </table>
+  </div>
   <hr>
-  <address>Application: ${app} · Desktop: ${desktopReleases.length} releases · Android: ${androidReleases.length} releases · <a href="${currentOrigin}/api/${app}/releases">JSON API</a></address>
+  <address>Application: ${app} · Desktop: ${desktopReleases.length} releases · Android: ${androidReleases.length} releases · iOS: ${iosReleases.length} releases · <a href="${currentOrigin}/api/${app}/releases">JSON API</a></address>
 </body>
 </html>`;
 }
@@ -344,16 +382,24 @@ export function renderAppDevicesHtml(
  */
 export function renderDeviceVersionsHtml(
   app: string,
-  device: "desktop" | "android",
+  device: "desktop" | "android" | "ios",
   manifest: ReleasesManifest,
   currentOrigin: string,
 ): string {
   const isAndroid = device === "android";
-  const deviceTitle = isAndroid ? "Android 移动端" : "Desktop 桌面端";
+  const isIos = device === "ios";
+  const deviceTitle = isIos
+    ? "iOS 移动端（未签名 IPA）"
+    : isAndroid
+      ? "Android 移动端"
+      : "Desktop 桌面端";
 
   const releases = manifest.releases.filter((r) => {
     if (isAndroid) {
       return r.category === "android" || r.assets.some((a) => a.platform === "android");
+    }
+    if (isIos) {
+      return r.category === "ios" || r.assets.some((a) => a.platform === "ios");
     }
     return (
       r.category === "desktop" ||
@@ -397,7 +443,7 @@ export function renderDeviceVersionsHtml(
           <td><a href="/${app}/${device}/${r.version}/">${r.version}/</a>${idx === 0 ? " [Latest]" : ""}</td>
           <td class="date">${r.publishedAt.slice(0, 10)}</td>
           <td class="size">${r.assets.length} files</td>
-          <td class="desc">${isAndroid ? "Android (APK)" : "macOS / Windows / Linux"}</td>
+          <td class="desc">${isIos ? "iOS (未签名 IPA · 需自签安装)" : isAndroid ? "Android (APK)" : "macOS / Windows / Linux"}</td>
         </tr>`,
           )
           .join("")}
@@ -415,7 +461,7 @@ export function renderDeviceVersionsHtml(
  */
 export function renderVersionFilesHtml(
   app: string,
-  device: "desktop" | "android",
+  device: "desktop" | "android" | "ios",
   release: ReleaseInfo,
   currentOrigin: string,
 ): string {
@@ -477,9 +523,9 @@ export function renderVersionIndexHtml(
   app: string,
   manifest: ReleasesManifest,
   currentOrigin: string,
-  initialCategory: "all" | "desktop" | "android" = "all",
+  initialCategory: "all" | "desktop" | "android" | "ios" = "all",
 ): string {
-  if (initialCategory === "desktop" || initialCategory === "android") {
+  if (initialCategory === "desktop" || initialCategory === "android" || initialCategory === "ios") {
     return renderDeviceVersionsHtml(app, initialCategory, manifest, currentOrigin);
   }
   return renderAppDevicesHtml(app, manifest, currentOrigin);

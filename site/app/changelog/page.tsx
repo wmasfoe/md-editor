@@ -3,6 +3,7 @@ import { ChangelogContent } from "../../components/changelog-content";
 import {
   getAndroidChangelogEntries,
   getDesktopChangelogEntries,
+  getIosChangelogEntries,
   getWebChangelogEntries,
 } from "../../lib/changelog";
 import { getModelChangelog } from "../../lib/model-changelog-source";
@@ -22,6 +23,8 @@ export default async function ChangelogPage() {
   const desktopEntriesEn = getDesktopChangelogEntries("en");
   const androidEntries = getAndroidChangelogEntries("zh");
   const androidEntriesEn = getAndroidChangelogEntries("en");
+  const iosEntries = getIosChangelogEntries("zh");
+  const iosEntriesEn = getIosChangelogEntries("en");
   const webEntries = getWebChangelogEntries("zh");
   const webEntriesEn = getWebChangelogEntries("en");
   const modelChangelog = await getModelChangelog();
@@ -32,6 +35,8 @@ export default async function ChangelogPage() {
       entriesEn={desktopEntriesEn}
       androidEntries={androidEntries}
       androidEntriesEn={androidEntriesEn}
+      iosEntries={iosEntries}
+      iosEntriesEn={iosEntriesEn}
       webEntries={webEntries}
       webEntriesEn={webEntriesEn}
       modelChangelog={modelChangelog}

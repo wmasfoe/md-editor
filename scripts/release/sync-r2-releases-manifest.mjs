@@ -48,6 +48,9 @@ export function matchPlatform(fileName) {
   if (lower.endsWith(".apk")) {
     return { platform: "android", platformLabel: "Android · APK" };
   }
+  if (lower.endsWith(".ipa")) {
+    return { platform: "ios", platformLabel: "iOS · 未签名 IPA（自签安装）" };
+  }
   if (lower.endsWith(".tar.gz") || lower.endsWith(".sig")) {
     return {
       platform: "updater",
@@ -96,6 +99,7 @@ function parseSemverComponents(v) {
     .replace(/^v/i, "")
     .replace(/^android-v/i, "")
     .replace(/^mobile-v/i, "")
+    .replace(/^ios-ipa-v/i, "")
     .split(".")
     .map((num) => parseInt(num, 10) || 0);
 }
@@ -127,6 +131,67 @@ export function getAndroidGitTags() {
 }
 
 /**
+ * 构建 iOS 未签名 IPA 的清单条目。
+ *
+ * iOS 刻意不创建 GitHub Release（避免抢占仓库 Releases 页的 Latest 徽标），
+ * 所以条目无法从 GitHub Releases 推导，只能：
+ *   1. 由发版 workflow 通过 IOS_RELEASE_VERSION 注入当前版本；
+ *   2. 从上一版线上 releases.json 里把历史 iOS 条目递推下来（见 fetchRemoteIosReleases）。
+ * 这样可以避免历史 tag（例如从未上传过 R2 的 ios-ipa-v0.1.0）产出 404 下载链接。
+ */
+export function buildIosReleaseEntry(version, artifactsDir = "dist-mobile") {
+  if (!version) {
+    return null;
+  }
+  const cleanVersion = String(version)
+    .replace(/^ios-ipa-v/, "")
+    .replace(/^v/, "");
+  const fileName = `Inkpoint-${cleanVersion}-unsigned.ipa`;
+  const filePath = path.join(artifactsDir, fileName);
+  const sizeBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 4300000;
+
+  return {
+    version: cleanVersion,
+    tagName: `ios-ipa-v${cleanVersion}`,
+    publishedAt: new Date().toISOString(),
+    isLatest: false,
+    isPrerelease: true,
+    category: "ios",
+    releaseNotesUrl: `https://github.com/${GITHUB_REPO}/releases/tag/ios-ipa-v${cleanVersion}`,
+    assets: [
+      {
+        platform: "ios",
+        platformLabel: "iOS · 未签名 IPA（自签安装）",
+        fileName,
+        downloadUrl: `${DISTRIBUTION_URL}/${DEFAULT_APP}/ios/${cleanVersion}/${fileName}`,
+        sizeBytes,
+        formattedSize: formatBytes(sizeBytes),
+        isR2Cached: true,
+      },
+    ],
+  };
+}
+
+/**
+ * 从线上 releases.json 取回历史 iOS 条目（best-effort）。
+ * iOS 的历史版本唯一来源就是上一版分发清单，因此必须递推保留。
+ */
+export async function fetchRemoteIosReleases(baseUrl = DISTRIBUTION_URL, app = DEFAULT_APP) {
+  try {
+    const res = await fetch(`${baseUrl}/api/${app}/releases`, {
+      headers: { "User-Agent": "Inkpoint-Sync-Releases/1.0" },
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data = await res.json();
+    return (data.releases || []).filter((release) => release.category === "ios");
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 构建完整的 ReleasesManifest
  */
 export function transformGitHubReleases(
@@ -137,12 +202,16 @@ export function transformGitHubReleases(
 ) {
   const releases = [];
   const androidMap = new Map();
+  const iosMap = new Map();
 
   // 1. 如果传入了已有的 Android releases 或历史清单，先载入
   if (Array.isArray(options.existingReleases)) {
     for (const r of options.existingReleases) {
       if (r.category === "android" || r.assets?.some((a) => a.platform === "android")) {
         androidMap.set(r.version, { ...r, category: "android" });
+      }
+      if (r.category === "ios" || r.assets?.some((a) => a.platform === "ios")) {
+        iosMap.set(r.version, { ...r, category: "ios" });
       }
     }
   }
@@ -152,6 +221,18 @@ export function transformGitHubReleases(
     for (const r of options.extraAndroidReleases) {
       if (r.version) {
         androidMap.set(r.version, { ...r, category: "android" });
+      }
+    }
+  }
+
+  // 2.1 同理合并显式的 extraIosReleases（iOS 无 GitHub Release，只能由 tag + R2 产物推导）
+  if (Array.isArray(options.extraIosReleases)) {
+    for (const r of options.extraIosReleases) {
+      if (!r || !r.version) {
+        continue;
+      }
+      if (r.version) {
+        iosMap.set(r.version, { ...r, category: "ios" });
       }
     }
   }
@@ -180,6 +261,7 @@ export function transformGitHubReleases(
     }
 
     const hasAndroid = isAndroidTag || assets.some((a) => a.platform === "android");
+    const hasIos = tag.startsWith("ios-ipa-v") || assets.some((a) => a.platform === "ios");
     const hasDesktop = assets.some((a) =>
       [
         "macos-arm64",
@@ -191,7 +273,7 @@ export function transformGitHubReleases(
       ].includes(a.platform),
     );
 
-    const category = hasAndroid && !hasDesktop ? "android" : "desktop";
+    const category = hasDesktop ? "desktop" : hasAndroid ? "android" : hasIos ? "ios" : "desktop";
 
     if (category === "android") {
       androidMap.set(cleanVer, {
@@ -201,6 +283,17 @@ export function transformGitHubReleases(
         isLatest: false,
         isPrerelease: Boolean(raw.prerelease),
         category: "android",
+        releaseNotesUrl: raw.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
+        assets,
+      });
+    } else if (category === "ios") {
+      iosMap.set(cleanVer, {
+        version: cleanVer,
+        tagName: tag,
+        publishedAt: raw.published_at || new Date().toISOString(),
+        isLatest: false,
+        isPrerelease: Boolean(raw.prerelease),
+        category: "ios",
         releaseNotesUrl: raw.html_url || `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
         assets,
       });
@@ -229,9 +322,21 @@ export function transformGitHubReleases(
 
   releases.push(...sortedAndroid);
 
+  // 排序并合并 iOS Releases（未签名 IPA 通道）
+  const sortedIos = Array.from(iosMap.values()).toSorted((a, b) =>
+    compareSemver(b.version, a.version),
+  );
+
+  for (let i = 0; i < sortedIos.length; i++) {
+    sortedIos[i].isLatest = i === 0;
+  }
+
+  releases.push(...sortedIos);
+
   // 计算最新桌面与移动端
   const desktopRelease = releases.find((r) => r.category === "desktop");
   const androidRelease = sortedAndroid[0];
+  const iosRelease = sortedIos[0];
 
   if (desktopRelease) {
     desktopRelease.isLatest = true;
@@ -239,6 +344,7 @@ export function transformGitHubReleases(
 
   const latestDesktopVersion = desktopRelease?.version || "0.10.2";
   const latestAndroidVersion = androidRelease?.version || "0.1.1";
+  const latestIosVersion = iosRelease?.version || "";
 
   return {
     app,
@@ -247,6 +353,7 @@ export function transformGitHubReleases(
     latestVersion: latestDesktopVersion,
     latestDesktopVersion,
     latestAndroidVersion,
+    latestIosVersion,
     latestReleases: {
       desktop: {
         version: latestDesktopVersion,
@@ -258,6 +365,15 @@ export function transformGitHubReleases(
         downloadUrl: `${baseUrl}/${app}/android/latest`,
         fileName: androidRelease?.assets?.[0]?.fileName || `Inkpoint_${latestAndroidVersion}.apk`,
         formattedSize: androidRelease?.assets?.[0]?.formattedSize || "43 MB",
+      },
+      ios: {
+        version: latestIosVersion,
+        downloadUrl: `${baseUrl}/${app}/ios/latest`,
+        platformLabel: "iOS · 未签名 IPA（自签安装）",
+        fileName:
+          iosRelease?.assets?.[0]?.fileName ||
+          (latestIosVersion ? `Inkpoint-${latestIosVersion}-unsigned.ipa` : ""),
+        formattedSize: iosRelease?.assets?.[0]?.formattedSize || "4.3 MB",
       },
     },
     releases,
@@ -325,6 +441,10 @@ export async function runCli() {
   const manifest = transformGitHubReleases(rawReleases, DEFAULT_APP, DISTRIBUTION_URL, {
     existingReleases,
     extraAndroidReleases: gitAndroidReleases,
+    extraIosReleases: [
+      buildIosReleaseEntry(process.env.IOS_RELEASE_VERSION),
+      ...(await fetchRemoteIosReleases()),
+    ].filter(Boolean),
   });
 
   // 1. 保存到本地快照（作为 Worker 的安全 fallback）

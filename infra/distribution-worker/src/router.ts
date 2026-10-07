@@ -24,7 +24,7 @@ export const SUPPORTED_APPS = [
   },
 ];
 
-export const KNOWN_PLATFORM_CATEGORIES = new Set(["android", "desktop", "mobile"]);
+export const KNOWN_PLATFORM_CATEGORIES = new Set(["android", "ios", "desktop", "mobile"]);
 
 export const MIME_TYPES: Record<string, string> = {
   dmg: "application/x-apple-diskimage",
@@ -33,6 +33,7 @@ export const MIME_TYPES: Record<string, string> = {
   appimage: "application/x-executable",
   deb: "application/vnd.debian.binary-package",
   apk: "application/vnd.android.package-archive",
+  ipa: "application/octet-stream",
   gz: "application/gzip",
   zip: "application/zip",
   sig: "text/plain",
@@ -504,6 +505,11 @@ export async function buildReleasesManifest(
   }
 
   // 3. 动态补全移动端（Android）最新发布条目，解决跨端版本号不一致导致翻找历史记录的问题
+  // iOS 未签名 IPA 通道：默认无版本，只有 version.json 里出现 ios 节点才对外展示
+  let iosVersion = "";
+  let iosFileName = "";
+  let iosSizeBytes = 4300000;
+  let iosPublishedAt = "";
   let androidVersion = "0.1.0";
   let androidFileName = `Inkpoint_${androidVersion}.apk`;
   let androidSizeBytes = 45000000;
@@ -591,6 +597,18 @@ export async function buildReleasesManifest(
             if (list.length > 0) {
               desktopAssets = list;
             }
+          }
+        }
+        if (vData.ios?.version) {
+          iosVersion = vData.ios.version;
+          if (vData.ios.ipa?.fileName) {
+            iosFileName = vData.ios.ipa.fileName;
+          }
+          if (vData.ios.ipa?.sizeBytes) {
+            iosSizeBytes = vData.ios.ipa.sizeBytes;
+          }
+          if (vData.updatedAt) {
+            iosPublishedAt = vData.updatedAt;
           }
         }
         if (vData.android?.version) {
@@ -782,12 +800,59 @@ export async function buildReleasesManifest(
   );
   releases.push(...sortedAndroid);
 
+  // F. iOS 归档：从清单里已有 ios 条目 + version.json 的 ios 节点重建（iOS 无 GitHub Release）
+  const iosMap = new Map<string, ReleaseInfo>();
+  for (const r of releases) {
+    if (r.category === "ios" || r.assets?.some((a) => a.platform === "ios")) {
+      iosMap.set(r.version, { ...r, category: "ios" });
+    }
+  }
+
+  if (iosVersion && !iosMap.has(iosVersion)) {
+    const fileName = iosFileName || `Inkpoint-${iosVersion}-unsigned.ipa`;
+    iosMap.set(iosVersion, {
+      version: iosVersion,
+      tagName: `ios-ipa-v${iosVersion}`,
+      publishedAt: iosPublishedAt || new Date().toISOString(),
+      isLatest: false,
+      isPrerelease: true,
+      category: "ios",
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/ios-ipa-v${iosVersion}`,
+      assets: [
+        {
+          platform: "ios",
+          platformLabel: "iOS · 未签名 IPA（自签安装）",
+          fileName,
+          downloadUrl: `${baseUrl}/${app}/ios/${iosVersion}/${fileName}`,
+          sizeBytes: iosSizeBytes,
+          formattedSize: formatBytes(iosSizeBytes),
+          isR2Cached: true,
+        },
+      ],
+    });
+  }
+
+  const sortedIos = Array.from(iosMap.values()).toSorted((a, b) =>
+    compareSemver(b.version, a.version),
+  );
+
+  for (let i = 0; i < sortedIos.length; i++) {
+    sortedIos[i].isLatest = i === 0;
+  }
+
+  releases = releases.filter(
+    (r) => r.category !== "ios" && !r.assets?.some((a) => a.platform === "ios"),
+  );
+  releases.push(...sortedIos);
+
   // 5. 计算各端最新版本与直达摘要
   const desktopRelease = releases.find((r) => r.category === "desktop");
   const topAndroid = sortedAndroid[0];
+  const topIos = sortedIos[0];
 
   const latestDesktopVersion = desktopRelease?.version || releases[0]?.version || "0.10.2";
   const latestAndroidVersion = topAndroid?.version || androidVersion;
+  const latestIosVersion = topIos?.version || iosVersion;
 
   return {
     app,
@@ -796,6 +861,7 @@ export async function buildReleasesManifest(
     latestVersion: latestDesktopVersion,
     latestDesktopVersion,
     latestAndroidVersion,
+    latestIosVersion,
     latestReleases: {
       desktop: {
         version: latestDesktopVersion,
@@ -808,6 +874,18 @@ export async function buildReleasesManifest(
         fileName: topAndroid?.assets?.[0]?.fileName || androidFileName,
         formattedSize: topAndroid?.assets?.[0]?.formattedSize || formatBytes(androidSizeBytes),
       },
+      ios: latestIosVersion
+        ? {
+            version: latestIosVersion,
+            downloadUrl: `${baseUrl}/${app}/ios/latest`,
+            platformLabel: "iOS · 未签名 IPA（自签安装）",
+            fileName:
+              topIos?.assets?.[0]?.fileName ||
+              iosFileName ||
+              `Inkpoint-${latestIosVersion}-unsigned.ipa`,
+            formattedSize: topIos?.assets?.[0]?.formattedSize || formatBytes(iosSizeBytes),
+          }
+        : undefined,
     },
     releases,
   };
@@ -1122,6 +1200,7 @@ export async function handleRequest(
             desktopUpdater: "/:app/desktop/updater.json",
             desktopLatest: "/:app/desktop/:platform/latest",
             androidLatest: "/:app/android/latest",
+            iosLatest: "/:app/ios/latest",
             githubMirror: "/gh/:org/:repo/releases/download/:tag/:filename",
           },
           supportedPlatforms: [
@@ -1176,13 +1255,13 @@ export async function handleRequest(
 
   // C. 规范的专属端版本清单 API: /api/:app/:device/releases 或 /api/:app/releases/:device
   const appDeviceReleasesMatch =
-    path.match(/^\/api\/([^/]+)\/(android|desktop|mobile)\/releases(?:\.json)?$/) ||
-    path.match(/^\/api\/([^/]+)\/releases\/(android|desktop|mobile)(?:\.json)?$/);
+    path.match(/^\/api\/([^/]+)\/(android|desktop|mobile|ios)\/(?:releases|latest)(?:\.json)?$/) ||
+    path.match(/^\/api\/([^/]+)\/releases\/(android|desktop|mobile|ios)(?:\.json)?$/);
 
   if (appDeviceReleasesMatch) {
     const rawApp = appDeviceReleasesMatch[1];
     const cat = appDeviceReleasesMatch[2];
-    const category = cat === "mobile" ? "android" : (cat as "android" | "desktop");
+    const category = cat === "mobile" ? "android" : (cat as "android" | "desktop" | "ios");
     const app = rawApp && !KNOWN_PLATFORM_CATEGORIES.has(rawApp) ? rawApp : defaultApp;
 
     const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
@@ -1190,6 +1269,7 @@ export async function handleRequest(
       (r) =>
         r.category === category ||
         (category === "android" && r.assets.some((a) => a.platform === "android")) ||
+        (category === "ios" && r.assets.some((a) => a.platform === "ios")) ||
         (category === "desktop" &&
           r.assets.some(
             (a) =>
@@ -1304,10 +1384,8 @@ export async function handleRequest(
             downloadUrl: `${url.origin}/${app}/android/latest`,
           },
         },
-        ios: {
-          version: "0.1.0",
-          testFlightUrl: "https://testflight.apple.com/join/placeholder",
-        },
+        // iOS 未签名 IPA 通道：R2 清单缺失时不做任何虚假承诺（历史上的 TestFlight 占位已移除）
+        ios: undefined,
       };
 
       return respond(
@@ -1470,6 +1548,45 @@ export async function handleRequest(
         error: "Android release artifact not found in R2 bucket",
         app,
         help: "Please upload APK via GitHub Actions workflow 'release-mobile.yml'",
+      }),
+      { status: 404, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  // 5.5 iOS 未签名 IPA 最新版直链: /:app/ios/latest 或 /ios/latest
+  // 未签名包由用户侧自签工具（Sideloadly / AltStore / LiveContainer）重签后安装。
+  const iosMatch = path.match(/^(?:\/([^/]+))?\/ios\/(?:latest|latest\.ipa)$/);
+  if (iosMatch) {
+    const app = iosMatch[1] || defaultApp;
+
+    if (env.RELEASE_BUCKET) {
+      const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
+      if (manifestObj) {
+        try {
+          const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
+          const iosNode = manifest.ios;
+          const version = iosNode?.version;
+          if (version && iosNode?.ipa) {
+            const fileName = iosNode.ipa.fileName || `Inkpoint-${version}-unsigned.ipa`;
+            const versionObj =
+              (await env.RELEASE_BUCKET.get(`${app}/ios/${version}/${fileName}`)) ||
+              (await env.RELEASE_BUCKET.get(`${app}/ios/${version}/latest.ipa`));
+            if (versionObj) {
+              trackDownload(app, version, fileName);
+              return serveR2Object(versionObj, fileName, "application/octet-stream");
+            }
+          }
+        } catch {
+          // 清单解析失败：继续走下面的 404 提示
+        }
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "iOS release artifact not found in R2 bucket",
+        app,
+        help: "Please upload the unsigned IPA via GitHub Actions workflow 'build-ios-ipa.yml'",
       }),
       { status: 404, headers: { "Content-Type": "application/json" } },
     );
@@ -1708,6 +1825,15 @@ export async function handleRequest(
     return Response.redirect(`${url.origin}/${defaultApp}/desktop/`, 302);
   }
 
+  if (
+    path === "/ios" ||
+    path === "/ios/" ||
+    path === "/releases/ios" ||
+    path === "/releases/ios/"
+  ) {
+    return Response.redirect(`${url.origin}/${defaultApp}/ios/`, 302);
+  }
+
   if (path === "/releases" || path === "/releases/" || path === "/portal" || path === "/portal/") {
     return Response.redirect(`${url.origin}/${defaultApp}/`, 302);
   }
@@ -1718,7 +1844,9 @@ export async function handleRequest(
   // 9.1 单段路径：应用设备目录 Index of /:app/ (如 /inkpoint)
   if (segments.length === 1) {
     const app = segments[0];
-    if (!["api", "gh", "favicon.ico", "releases", "android", "desktop", "mobile"].includes(app)) {
+    if (
+      !["api", "gh", "favicon.ico", "releases", "android", "desktop", "mobile", "ios"].includes(app)
+    ) {
       const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
       const html = renderAppDevicesHtml(app, manifest, url.origin);
       return respond(
@@ -1760,6 +1888,16 @@ export async function handleRequest(
           }),
         );
       }
+      if (sub === "ios" || sub === "ios-ipa") {
+        const html = renderDeviceVersionsHtml(app, "ios", manifest, url.origin);
+        return respond(
+          new Response(html, {
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+            },
+          }),
+        );
+      }
 
       // 兼容历史直接访问版本号 /:app/:version/
       const cleanVer = sub.replace(/^v/, "");
@@ -1774,10 +1912,13 @@ export async function handleRequest(
 
       if (release) {
         const device =
-          release.category === "android" ||
-          (release.assets.length > 0 && release.assets.every((a) => a.platform === "android"))
-            ? "android"
-            : "desktop";
+          release.category === "ios" ||
+          (release.assets.length > 0 && release.assets.every((a) => a.platform === "ios"))
+            ? "ios"
+            : release.category === "android" ||
+                (release.assets.length > 0 && release.assets.every((a) => a.platform === "android"))
+              ? "android"
+              : "desktop";
         const html = renderVersionFilesHtml(app, device, release, url.origin);
         return respond(
           new Response(html, {
@@ -1809,26 +1950,36 @@ export async function handleRequest(
   if (segments.length === 3) {
     const [app, part2, part3] = segments;
     if (!["api", "gh"].includes(app)) {
-      if (part2 === "desktop" || part2 === "android") {
-        const device = part2;
+      if (part2 === "desktop" || part2 === "android" || part2 === "ios" || part2 === "ios-ipa") {
+        const device = part2 === "ios-ipa" ? "ios" : part2;
         const version = part3;
         const manifest = await buildReleasesManifest(app, githubRepo, env, url.origin);
         const cleanVer = version.replace(/^v/, "");
+        const matchesDevice = (r: ReleaseInfo): boolean => {
+          if (device === "ios") {
+            return r.category === "ios" || r.assets.some((a) => a.platform === "ios");
+          }
+          if (device === "android") {
+            return r.category === "android" || r.assets.some((a) => a.platform === "android");
+          }
+          return (
+            r.category === "desktop" ||
+            r.assets.some(
+              (a) =>
+                a.platform.includes("macos") ||
+                a.platform.includes("windows") ||
+                a.platform.includes("linux"),
+            )
+          );
+        };
         const release = manifest.releases.find(
           (r) =>
-            (r.category === device ||
-              (device === "android"
-                ? r.assets.some((a) => a.platform === "android")
-                : r.assets.some(
-                    (a) =>
-                      a.platform.includes("macos") ||
-                      a.platform.includes("windows") ||
-                      a.platform.includes("linux"),
-                  ))) &&
+            matchesDevice(r) &&
             (r.version === cleanVer ||
               r.version === version ||
               r.tagName === version ||
               r.tagName === `android-v${cleanVer}` ||
+              r.tagName === `ios-ipa-v${cleanVer}` ||
               r.tagName === `v${cleanVer}`),
         );
 
@@ -1896,7 +2047,7 @@ export async function handleRequest(
   // 9.4 四段路径：规范层级下载 /:app/:device/:version/:filename (如 /inkpoint/desktop/0.10.1/Inkpoint_0.10.1_aarch64.dmg)
   if (segments.length === 4) {
     const [app, device, version, filename] = segments;
-    const knownDevices = ["desktop", "android", "macos", "windows", "linux", "mobile"];
+    const knownDevices = ["desktop", "android", "ios", "macos", "windows", "linux", "mobile"];
 
     if (knownDevices.includes(device) && filename.includes(".")) {
       const contentType = getMimeType(filename);

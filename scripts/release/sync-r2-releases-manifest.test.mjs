@@ -1,6 +1,33 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { matchPlatform, transformGitHubReleases } from "./sync-r2-releases-manifest.mjs";
+import {
+  buildIosReleaseEntry,
+  matchPlatform,
+  transformGitHubReleases,
+} from "./sync-r2-releases-manifest.mjs";
+
+function iosReleaseEntry(version, publishedAt) {
+  return {
+    version,
+    tagName: `ios-ipa-v${version}`,
+    publishedAt,
+    isLatest: false,
+    isPrerelease: true,
+    category: "ios",
+    releaseNotesUrl: `https://github.com/wmasfoe/md-editor/releases/tag/ios-ipa-v${version}`,
+    assets: [
+      {
+        platform: "ios",
+        platformLabel: "iOS · 未签名 IPA（自签安装）",
+        fileName: `Inkpoint-${version}-unsigned.ipa`,
+        downloadUrl: `https://download.justdev.cn/inkpoint/ios/${version}/Inkpoint-${version}-unsigned.ipa`,
+        sizeBytes: 4300000,
+        formattedSize: "4.1 MB",
+        isR2Cached: true,
+      },
+    ],
+  };
+}
 
 describe("sync-r2-releases-manifest", () => {
   it("matches various platform file extensions accurately", () => {
@@ -11,6 +38,7 @@ describe("sync-r2-releases-manifest", () => {
     assert.equal(matchPlatform("inkpoint_0.10.2_amd64.AppImage").platform, "linux-appimage");
     assert.equal(matchPlatform("inkpoint_0.10.2_amd64.deb").platform, "linux-deb");
     assert.equal(matchPlatform("Inkpoint_0.1.0.apk").platform, "android");
+    assert.equal(matchPlatform("Inkpoint-0.2.1-unsigned.ipa").platform, "ios");
     assert.equal(matchPlatform("Inkpoint.app.tar.gz.sig").platform, "updater");
     assert.equal(matchPlatform("unknown.txt").platform, "other");
   });
@@ -143,6 +171,82 @@ describe("sync-r2-releases-manifest", () => {
     assert.equal(androidList[0].isLatest, true);
     assert.equal(androidList[1].version, "0.1.0");
     assert.equal(androidList[1].isLatest, false);
+  });
+});
+
+describe("iOS unsigned IPA releases", () => {
+  it("maps .ipa artifacts to the ios platform with a self-sign label", () => {
+    const matched = matchPlatform("Inkpoint-0.2.1-unsigned.ipa");
+    assert.equal(matched.platform, "ios");
+    assert.match(matched.platformLabel, /未签名 IPA/);
+  });
+
+  it("merges injected + previously published iOS entries without needing GitHub Releases", () => {
+    const rawDesktopMock = [
+      {
+        tag_name: "v0.13.0",
+        published_at: "2026-09-20T12:00:00Z",
+        prerelease: false,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.0",
+        assets: [{ name: "Inkpoint_0.13.0_aarch64.dmg", size: 10000000 }],
+      },
+    ];
+
+    const manifest = transformGitHubReleases(
+      rawDesktopMock,
+      "inkpoint",
+      "https://download.justdev.cn",
+      {
+        extraIosReleases: [
+          buildIosReleaseEntry("0.2.1"),
+          iosReleaseEntry("0.2.0", "2026-09-19T12:00:00Z"),
+        ],
+      },
+    );
+
+    assert.equal(manifest.latestIosVersion, "0.2.1");
+    assert.equal(manifest.latestReleases.ios.version, "0.2.1");
+    assert.equal(
+      manifest.latestReleases.ios.downloadUrl,
+      "https://download.justdev.cn/inkpoint/ios/latest",
+    );
+    assert.equal(manifest.latestReleases.ios.fileName, "Inkpoint-0.2.1-unsigned.ipa");
+    assert.equal(manifest.latestReleases.ios.platformLabel, "iOS · 未签名 IPA（自签安装）");
+
+    const iosList = manifest.releases.filter((r) => r.category === "ios");
+    assert.equal(iosList.length, 2);
+    assert.equal(iosList[0].version, "0.2.1");
+    assert.equal(iosList[0].isLatest, true);
+    assert.equal(iosList[1].version, "0.2.0");
+    assert.equal(iosList[1].isLatest, false);
+
+    // iOS 条目不能影响桌面端 Latest 判定
+    assert.equal(manifest.latestDesktopVersion, "0.13.0");
+  });
+
+  it("ignores an empty IOS_RELEASE_VERSION and keeps other platforms intact", () => {
+    const manifest = transformGitHubReleases(
+      [
+        {
+          tag_name: "v0.13.0",
+          published_at: "2026-09-20T12:00:00Z",
+          prerelease: false,
+          html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.0",
+          assets: [{ name: "Inkpoint_0.13.0_aarch64.dmg", size: 10000000 }],
+        },
+      ],
+      "inkpoint",
+      "https://download.justdev.cn",
+      { extraIosReleases: [buildIosReleaseEntry(undefined)] },
+    );
+
+    assert.equal(buildIosReleaseEntry(undefined), null);
+    assert.equal(manifest.latestIosVersion, "");
+    assert.equal(
+      manifest.releases.some((r) => r.category === "ios"),
+      false,
+    );
+    assert.equal(manifest.releases.length, 1);
   });
 });
 

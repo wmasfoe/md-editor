@@ -44,14 +44,14 @@ export function detectSitePlatform(userAgent: string): SitePlatform {
     return "android";
   }
 
-  // iOS 客户端目前置灰待发布，iOS 访问默认推荐 macOS 桌面端
+  // iOS 客户端以未签名 IPA 形式分发，iOS 访问直接推荐 iOS 入口
   if (
     ua.includes("iphone") ||
     ua.includes("ipad") ||
     ua.includes("ipod") ||
     (ua.includes("macintosh") && ua.includes("mobile"))
   ) {
-    return "macos";
+    return "ios";
   }
 
   if (ua.includes("linux") || ua.includes("cros")) {

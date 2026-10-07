@@ -23,6 +23,12 @@
   - 校验 package、源码/构建 plugin manifest 与 tag 版本完全一致，并拒绝包含开发地址或缺少关键文件的产物；
   - 上传 `inkpoint-utools-${version}.zip` 并创建 GitHub Release；
   - uTools 市场没有公开发布 API/CLI，版本说明、截图、提交审核仍由维护者在官方开发者工具中完成。
+- **iOS 发版（`ios-ipa-v*` tag，自签分发）**：
+  - 由 `.github/workflows/build-ios-ipa.yml` 触发：macOS runner 以 `CODE_SIGNING_ALLOWED=NO` 编出**未签名** device 版 IPA（`Inkpoint-<version>-unsigned.ipa`）；
+  - **刻意不创建 GitHub Release**：保持仓库 Releases 页的 `Latest` 徽标锁定桌面端，历史版本由 R2 产物与线上 `releases.json` 递推（`sync-r2-releases-manifest.mjs` 的 `buildIosReleaseEntry` / `fetchRemoteIosReleases`）；
+  - 版本号为**纯 semver**（如 `0.2.1`）时才进入发布任务：上传 `inkpoint/ios/<version>/Inkpoint-<version>-unsigned.ipa`、`inkpoint/ios/latest.ipa` 与合并后的 `inkpoint/version.json`，随后刷新全量清单、刷新边缘缓存、触发官网 changelog 发布；
+  - 版本号带后缀（如 `0.1.0-b8`）时只出包、只留 GitHub artifact，绝不覆盖线上分发；
+  - 用户侧安装方式为自签工具（Sideloadly / AltStore / SideStore / LiveContainer），官网 iOS 卡片提供 IPA 直链与自签指引；免费 Apple ID 签名 7 天有效。
 - **官网部署**：
   - 唯一入口为 `pnpm release:site`（`scripts/site/deploy-site.mjs`）；
   - `site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
@@ -41,6 +47,8 @@
 | `pnpm release:desktop:version` | `scripts/release/version-desktop.mjs` | 仅更新桌面端核心版本文件（desktop package, Tauri, Cargo；root package 固定为 `0.0.0` 容器占位）与 `apps/desktop/CHANGELOG.md` |
 | `pnpm release:android` | `scripts/release/publish-android.mjs` | Android 端完整发版流程（更新 build.gradle.kts、Changelog 写入、commit、`android-v*` tag 与 push 触发 CI） |
 | `pnpm release:android:version` | `scripts/release/version-android.mjs` | 仅更新 Android 端版本文件（build.gradle.kts）与 `apps/mobile/android/CHANGELOG.md` |
+| `pnpm release:ios` | `scripts/release/publish-ios.mjs` | iOS 端完整发版流程（更新 Xcode 工程版本、Changelog 写入、commit、`ios-ipa-v*` tag 与 push 触发 macOS 构建与 R2 发布） |
+| `pnpm release:ios:version` | `scripts/release/version-ios.mjs` | 仅更新 iOS 端版本文件（`Inkpoint.xcodeproj/project.pbxproj`）与 `apps/mobile/ios/CHANGELOG.md` |
 | `pnpm release:web` | `scripts/web/deploy-web.mjs` | Web 端本地 Vercel CLI 预构建极速上线入口（对标 `release:site`） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
 | `pnpm deploy:web` | `scripts/web/deploy-web.mjs` | Web 端部署别名入口 |
@@ -67,6 +75,10 @@
    - 验证：检查 `https://editor.justdev.cn/playground` 是否正常生效。
 5. **若是桌面端客户端版本发布**：
    - 走标准客户端发布命令：`pnpm release:desktop`（由 GitHub Actions 构建多端二进制并自动同步至 R2 与公开 Tap）。
+6. **若是移动端版本发布**：
+   - Android：`pnpm release:android [patch|minor|major|x.y.z]`；
+   - iOS：`pnpm release:ios [patch|minor|major|x.y.z]`；
+   - 两者各自 push tag 触发 CI（`release-mobile.yml` / `build-ios-ipa.yml`），无需本地构建。
 
 ## Linux 双架构分发契约（amd64 / arm64）
 
@@ -89,6 +101,10 @@
 - `scripts/release/publish-web.mjs`: 交互式 Web 端发版编排脚本。
 - `scripts/release/deploy-web.mjs`: Web 端唯一 Vercel CLI 发布入口；由 `pnpm deploy:web` 触发。
 - `scripts/release/validate-utools-release.mjs`: 校验 uTools 版本、tag、正式 manifest 和构建目录完整性。
+- `.github/workflows/build-ios-ipa.yml`: iOS 未签名 IPA 构建与 R2 发布工作流（`ios-ipa-v*` tag 或手动触发）。
+- `scripts/release/version-ios.mjs`: 更新 `Inkpoint.xcodeproj/project.pbxproj` 的 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` 与 iOS Changelog。
+- `scripts/release/publish-ios.mjs`: 交互式 iOS 端发版编排脚本。
+- `apps/mobile/ios/CHANGELOG.md`: iOS 端更新历史。
 - `scripts/release/changelog.mjs`: Changelog 解析与更新共享工具模块。
 - `scripts/site/deploy-site.mjs`: 官网唯一 Vercel CLI 发布入口；由 `pnpm release:site` 触发。
 - `apps/desktop/CHANGELOG.md`: 桌面端更新历史。

@@ -148,6 +148,8 @@ export function inferPlatformFromPath(pathname: string, fileName: string): strin
   const lower = pathname.toLowerCase() + " " + fileName.toLowerCase();
 
   if (lower.includes("android") || lower.endsWith(".apk")) return "android";
+  // iOS 未签名 IPA：路径含 /ios 段或文件名以 .ipa 结尾
+  if (lower.includes("/ios") || lower.endsWith(".ipa")) return "ios";
   if (lower.includes("aarch64") || lower.includes("arm64")) {
     if (lower.includes(".dmg") || lower.includes(".app.tar.gz")) return "macos-arm64";
     if (lower.includes(".exe") || lower.includes(".nsis.zip") || lower.includes(".zip"))

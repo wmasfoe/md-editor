@@ -4,9 +4,16 @@ name: Build iOS IPA (Unsigned, for self-signing)
 # （Sideloadly / AltStore / Feather / 爱思助手等会用自己的证书重签）。
 #
 # 为什么需要单独一条：mobile-ci 的 iOS job 只编模拟器且不留产物；
-# release-mobile 只出 Android APK 到 R2，iOS 目前没有发布链路。
+# release-mobile 只出 Android APK 到 R2。
 #
 # 产物：Inkpoint-<version>-unsigned.ipa（Payload/Inkpoint.app，无证书、无描述文件）
+#
+# 两条链路：
+#   1. 纯出包（build-ipa）：体积小、只留 GitHub artifact，供临时验证 —— 版本号带后缀
+#      （如 0.1.0-b8）时只走这条，不发布；
+#   2. 正式发版（publish-ipa）：版本号为纯 semver（如 0.2.1）时，把 IPA 发布到 R2
+#      （/inkpoint/ios/<ver>/... 与 /inkpoint/ios/latest.ipa）、刷新 version.json 与全量清单，
+#      并更新官网更新日志。
 on:
   workflow_dispatch:
     inputs:
@@ -23,7 +30,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-ipa:
@@ -136,3 +143,116 @@ jobs:
             echo "- 产物：\`Inkpoint-${{ steps.version.outputs.version }}-unsigned.ipa\`（未签名）"
             echo "- 安装：用 Sideloadly / AltStore / Feather 等工具自签后安装"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # 正式发版：把未签名 IPA 发布到 R2 + 刷新清单 + 更新官网更新日志
+  # 仅当版本号为纯 semver（如 0.2.1）时执行；0.1.0-b8 这类临时出包不发布。
+  publish-ipa:
+    name: Publish Unsigned IPA to R2 & Website
+    needs: build-ipa
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve version & guard
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#ios-ipa-v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Resolved release version: ${VERSION} (publish enabled)"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice ::\"${VERSION}\" is not a plain semver version — skipping R2 publish (build-only run)."
+          fi
+
+      - name: Download unsigned IPA artifact
+        if: steps.version.outputs.publish == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: inkpoint-ios-unsigned-${{ steps.version.outputs.version }}
+          path: dist-mobile
+
+      - name: Generate and Merge Multi-App version.json Manifest
+        if: steps.version.outputs.publish == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_PLATFORM: ios
+          OUTPUT_PATH: dist-mobile/version.json
+          ARTIFACTS_DIR: dist-mobile
+        run: node scripts/release/update-r2-version-manifest.mjs
+
+      - name: Upload IPA & Manifest to Cloudflare R2
+        if: steps.version.outputs.publish == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          PURGE_TOKEN: ${{ secrets.PURGE_TOKEN }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          VERSION: ${{ steps.version.outputs.version }}
+          IOS_RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning ::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured. Skipping R2 upload."
+            exit 0
+          fi
+
+          BUCKET="${R2_BUCKET_NAME:-inkpoint-releases}"
+          IPA="dist-mobile/Inkpoint-${VERSION}-unsigned.ipa"
+          test -f "$IPA"
+
+          echo "🚀 Uploading iOS release artifacts to Cloudflare R2 bucket: ${BUCKET}..."
+          npx wrangler r2 object put "${BUCKET}/inkpoint/ios/${VERSION}/Inkpoint-${VERSION}-unsigned.ipa" --file "$IPA" --remote
+          npx wrangler r2 object put "${BUCKET}/inkpoint/ios/latest.ipa" --file "$IPA" --remote
+          npx wrangler r2 object put "${BUCKET}/inkpoint/version.json" --file "dist-mobile/version.json" --remote
+
+          # 同步全量历史版本清单（iOS 条目由 IOS_RELEASE_VERSION 注入）
+          node scripts/release/sync-r2-releases-manifest.mjs --upload
+
+          echo "🧹 Purging download edge cache..."
+          node scripts/release/purge-download-cache.mjs
+
+          echo "✅ iOS release deployed to Cloudflare R2 and cache purged!"
+
+      - name: Archive iOS release artifacts in GitHub Actions
+        if: steps.version.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkpoint-ios-release-${{ steps.version.outputs.version }}
+          path: dist-mobile/*
+          retention-days: 30
+
+      - name: Publish website changelog
+        if: steps.version.outputs.publish == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::notice ::VERCEL_TOKEN not configured — skipping website deploy."
+            exit 0
+          fi
+          pnpm release:site

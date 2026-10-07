@@ -79,6 +79,44 @@ describe("mergeVersionManifest", () => {
   });
 });
 
+describe("runCli iOS unsigned IPA slot", () => {
+  it("writes an ios node with the IPA asset and preserves existing desktop/android nodes", async () => {
+    const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { runCli } = await import("./update-r2-version-manifest.mjs");
+
+    const dir = mkdtempSync(join(tmpdir(), "inkpoint-ios-artifacts-"));
+    const outDir = mkdtempSync(join(tmpdir(), "inkpoint-ios-manifest-"));
+    writeFileSync(join(dir, "Inkpoint-0.2.1-unsigned.ipa"), "fake-ipa-bytes");
+
+    const savedEnv = { ...process.env };
+    process.env.RELEASE_VERSION = "ios-ipa-v0.2.1";
+    process.env.RELEASE_PLATFORM = "ios";
+    process.env.ARTIFACTS_DIR = dir;
+    process.env.OUTPUT_PATH = join(outDir, "version.json");
+    // 指向关闭端口，使远端清单拉取快速失败，走本地基线。
+    process.env.DISTRIBUTION_URL = "http://127.0.0.1:9";
+    process.env.APP_NAME = "inkpoint";
+    try {
+      await runCli();
+    } finally {
+      process.env = savedEnv;
+    }
+
+    const manifest = JSON.parse(readFileSync(join(outDir, "version.json"), "utf8"));
+    assert.equal(manifest.ios.version, "0.2.1");
+    assert.equal(manifest.ios.ipa.fileName, "Inkpoint-0.2.1-unsigned.ipa");
+    assert.equal(manifest.ios.ipa.downloadUrl, "http://127.0.0.1:9/inkpoint/ios/latest");
+    assert.equal(manifest.ios.ipa.unsigned, true);
+    // tag 里的 ios-ipa-v 前缀必须被剥掉，否则清单里会出现 ios-ipa-v0.2.1 这种版本号
+    assert.ok(!manifest.ios.version.includes("ios-ipa-v"));
+
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outDir, { recursive: true, force: true });
+  });
+});
+
 describe("runCli linux arch slots", () => {
   it("assigns x64 and ARM64 artifacts to their own slots regardless of directory order", async () => {
     const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import("node:fs");

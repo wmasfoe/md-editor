@@ -22,12 +22,14 @@ interface ChangelogContentProps {
   entriesEn?: ChangelogEntry[];
   androidEntries?: ChangelogEntry[];
   androidEntriesEn?: ChangelogEntry[];
+  iosEntries?: ChangelogEntry[];
+  iosEntriesEn?: ChangelogEntry[];
   webEntries?: ChangelogEntry[];
   webEntriesEn?: ChangelogEntry[];
   modelChangelog: unknown;
 }
 
-type ChangelogSource = "desktop" | "android" | "web" | "model";
+type ChangelogSource = "desktop" | "android" | "ios" | "web" | "model";
 type ChangelogLabels = TranslationSchema["changelog"];
 
 const ITEM_TYPE_STYLES: Record<string, string> = {
@@ -44,6 +46,8 @@ export function ChangelogContent({
   entriesEn = [],
   androidEntries = [],
   androidEntriesEn = [],
+  iosEntries = [],
+  iosEntriesEn = [],
   webEntries = [],
   webEntriesEn = [],
   modelChangelog,
@@ -53,14 +57,17 @@ export function ChangelogContent({
   const activeDesktopEntries = isEnOrJa && entriesEn.length > 0 ? entriesEn : entries;
   const activeAndroidEntries =
     isEnOrJa && androidEntriesEn.length > 0 ? androidEntriesEn : androidEntries;
+  const activeIosEntries = isEnOrJa && iosEntriesEn.length > 0 ? iosEntriesEn : iosEntries;
   const activeWebEntries = isEnOrJa && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
   const androidTabRef = useRef<HTMLButtonElement>(null);
+  const iosTabRef = useRef<HTMLButtonElement>(null);
   const webTabRef = useRef<HTMLButtonElement>(null);
   const modelTabRef = useRef<HTMLButtonElement>(null);
   const isDesktop = source === "desktop";
   const isAndroid = source === "android";
+  const isIos = source === "ios";
   const isWeb = source === "web";
   const isModel = source === "model";
 
@@ -79,6 +86,13 @@ export function ChangelogContent({
         window.location.hash === "#mobile"
       ) {
         setSource("android");
+      } else if (
+        tabParam === "ios" ||
+        tabParam === "ios-ipa" ||
+        window.location.hash === "#ios" ||
+        window.location.hash === "#ios-ipa"
+      ) {
+        setSource("ios");
       } else if (tabParam === "web" || window.location.hash === "#web") {
         setSource("web");
       } else if (
@@ -111,9 +125,11 @@ export function ChangelogContent({
           ? "#model"
           : nextSource === "android"
             ? "#android"
-            : nextSource === "web"
-              ? "#web"
-              : "#desktop";
+            : nextSource === "ios"
+              ? "#ios"
+              : nextSource === "web"
+                ? "#web"
+                : "#desktop";
       window.history.replaceState(null, "", url.toString());
     }
     if (moveFocus) {
@@ -122,9 +138,11 @@ export function ChangelogContent({
           ? desktopTabRef
           : nextSource === "android"
             ? androidTabRef
-            : nextSource === "web"
-              ? webTabRef
-              : modelTabRef;
+            : nextSource === "ios"
+              ? iosTabRef
+              : nextSource === "web"
+                ? webTabRef
+                : modelTabRef;
       requestAnimationFrame(() => target.current?.focus());
     }
   }
@@ -135,7 +153,7 @@ export function ChangelogContent({
     }
 
     event.preventDefault();
-    const order: ChangelogSource[] = ["desktop", "android", "web", "model"];
+    const order: ChangelogSource[] = ["desktop", "android", "ios", "web", "model"];
     const currentIndex = order.indexOf(source);
     let nextIndex: number;
 
@@ -177,6 +195,14 @@ export function ChangelogContent({
               {isEnOrJa
                 ? "apps/mobile/android/CHANGELOG_EN.md"
                 : "apps/mobile/android/CHANGELOG.md"}
+            </code>
+            {t.changelog.descriptionSuffix}
+          </p>
+        ) : isIos ? (
+          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
+            {t.changelog.iosDescriptionPrefix}{" "}
+            <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
+              {isEnOrJa ? "apps/mobile/ios/CHANGELOG_EN.md" : "apps/mobile/ios/CHANGELOG.md"}
             </code>
             {t.changelog.descriptionSuffix}
           </p>
@@ -228,6 +254,15 @@ export function ChangelogContent({
             {t.changelog.androidTab}
           </ChangelogTab>
           <ChangelogTab
+            active={isIos}
+            buttonRef={iosTabRef}
+            controls="ios-changelog-panel"
+            id="ios-changelog-tab"
+            onSelect={() => selectSource("ios")}
+          >
+            {t.changelog.iosTab}
+          </ChangelogTab>
+          <ChangelogTab
             active={isWeb}
             buttonRef={webTabRef}
             controls="web-changelog-panel"
@@ -267,6 +302,19 @@ export function ChangelogContent({
         <ClientChangelogTimeline
           entries={activeAndroidEntries}
           labels={{ ...t.changelog, empty: t.changelog.androidEmpty }}
+          isAndroid
+        />
+      </section>
+      <section
+        id="ios-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="ios-changelog-tab"
+        hidden={!isIos}
+        className={isIos ? undefined : "hidden"}
+      >
+        <ClientChangelogTimeline
+          entries={activeIosEntries}
+          labels={{ ...t.changelog, empty: t.changelog.iosEmpty }}
           isAndroid
         />
       </section>
