@@ -204,6 +204,11 @@ export interface CodeMirrorRenderer {
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean;
   requestMeasure(): void;
+  /**
+   * 组合输入（IME）是否进行中：宿主据此推迟视口重排与桥接上报，
+   * 避免 iOS WebKit 在组合期把 pre-edit（拼音）当作普通文本提交。
+   */
+  readonly isComposing: boolean;
   /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
   flushPendingEdits(): boolean;
   /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
@@ -640,6 +645,16 @@ class CodeMirrorRendererController {
       onCompositionStart: () => this.#startComposition(),
       onCompositionEnd: () => this.#finishComposition(),
     });
+  }
+
+  /**
+   * 组合输入（IME）是否进行中。`#compositionActive` 是本渲染器的投影守卫标记，
+   * `#view.isComposing` 是 CodeMirror 视图/DOM 层事实，两者取或即"用户正在拼字"。
+   * 宿主（移动端壳子）用它决定是否推迟视口重排与桥接上报：iOS WebKit 在组合期
+   * 重排/让原生 UI 重建时会把 pre-edit（拼音）当作普通文本提前提交。
+   */
+  get isComposing(): boolean {
+    return this.#compositionActive || this.#view.isComposing;
   }
 
   get probe(): RendererTestingProbeInternal {
@@ -1814,6 +1829,9 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),
+    get isComposing(): boolean {
+      return controller.isComposing;
+    },
     focus: () => controller.focus(),
     setSelection: (from: number, to: number) => controller.setSelection(from, to),
     scrollToLine: (

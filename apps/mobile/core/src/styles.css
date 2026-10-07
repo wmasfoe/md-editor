@@ -159,7 +159,6 @@ body {
   font-style: normal;
   font-weight: 500 !important;
   text-decoration: none !important;
-  user-select: none;
 }
 
 /* 沉浸阅读排版样式 */
@@ -608,4 +607,27 @@ pre code.hljs {
 .editor-container .code-mirror-editor-host .cm-scroller {
   font-family: var(--theme-font) !important;
   padding-bottom: 80px;
+}
+
+/* 6. WebKit/iOS 可编辑性守卫（必须显式声明，不能依赖继承）
+   WebKit 对 user-select 的实现会影响 contenteditable 的可编辑性：一旦祖先
+   （例如外壳 app 根节点）继承了 user-select:none，iOS 上编辑器内的选区、
+   光标定位与 IME 组合输入都会异常——拼音 pre-edit 会被当作普通文本提前提交。
+   这里把编辑器子树显式拉回 text，任何外层 none 都不再影响编辑。 */
+.editor-container,
+.editor-container .code-mirror-editor-host,
+.editor-container .code-mirror-editor-host .cm-editor,
+.editor-container .code-mirror-editor-host .cm-content,
+.editor-container .code-mirror-editor-host .cm-line,
+.editor-container .code-mirror-editor-host [contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 阅读模式保持不可选中的沉浸感（原 app 级 select-none 的意图收窄到这里） */
+.reader-container,
+.reader-container .markdown-body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }

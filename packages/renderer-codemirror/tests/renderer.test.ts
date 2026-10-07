@@ -679,6 +679,18 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
     expect(destroyed.ready).toHaveLength(0);
   });
 
+  it("R21 向宿主暴露组合输入状态，供 iOS 壳子推迟视口重排与桥接上报", () => {
+    const setup = createSetup({ markdown: "拼字\n" });
+
+    expect(setup.harness.renderer.isComposing).toBe(false);
+
+    setup.harness.startComposition();
+    expect(setup.harness.renderer.isComposing).toBe(true);
+
+    setup.harness.endComposition();
+    expect(setup.harness.renderer.isComposing).toBe(false);
+  });
+
   it("R15 normalizes initial, local, and external Markdown to LF", () => {
     const setup = createSetup({ markdown: "one\r\ntwo\rthree\r\n" });
     expect(setup.harness.probe().markdown).toBe("one\ntwo\nthree\n");

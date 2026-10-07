@@ -180,7 +180,7 @@ export const App: React.FC = () => {
     <div className={`app-root min-h-screen w-full transition-colors ${isDark ? "dark" : ""}`}>
       {/* 顶部轻量浮动条：仅在编辑模式下显示“完成”返回阅读态 */}
       {mode === "edit" && (
-        <header className="sticky top-0 z-30 flex h-11 items-center justify-between border-b border-neutral-200/80 bg-white/90 px-4 backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/90">
+        <header className="sticky top-0 z-30 flex h-11 select-none items-center justify-between border-b border-neutral-200/80 bg-white/90 px-4 backdrop-blur-md dark:border-neutral-800/80 dark:bg-neutral-950/90">
           <span className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
             {filePath ? filePath.split("/").pop() : "编辑中"}
           </span>
