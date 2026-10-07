@@ -3,6 +3,7 @@ import readline from "node:readline";
 import { updateChangelogFile } from "./changelog.mjs";
 
 export const iosProjectPath = "apps/mobile/ios/Inkpoint.xcodeproj/project.pbxproj";
+export const iosAppInfoPlistPath = "apps/mobile/ios/Inkpoint/Info.plist";
 export const iosChangelogPath = "apps/mobile/ios/CHANGELOG.md";
 export const iosChangelogEnPath = "apps/mobile/ios/CHANGELOG_EN.md";
 
@@ -62,6 +63,33 @@ export function bumpIosVersion(currentVersion, bump) {
   return `${major}.${minor}.${patch + 1}`;
 }
 
+/**
+ * 校验 App 的 Info.plist 用 $(MARKETING_VERSION) / $(CURRENT_PROJECT_VERSION) 动态取值。
+ *
+ * 历史教训：Info.plist 里写死 0.1.0 时，发版脚本只升 MARKETING_VERSION，
+ * 结果「文件名与清单是 0.2.1、包内 CFBundleShortVersionString 还是 0.1.0」——
+ * 用户装完在系统里看到的版本号与官网不一致。因此这里 fail-closed。
+ */
+export function assertDynamicBundleVersion(plistPath = iosAppInfoPlistPath) {
+  if (!fs.existsSync(plistPath)) {
+    return;
+  }
+  const contents = fs.readFileSync(plistPath, "utf8");
+  const fields = [
+    ["CFBundleShortVersionString", "$(MARKETING_VERSION)"],
+    ["CFBundleVersion", "$(CURRENT_PROJECT_VERSION)"],
+  ];
+  for (const [key, expected] of fields) {
+    const match = contents.match(new RegExp(`<key>${key}</key>\\s*<string>([^<]*)</string>`, "u"));
+    if (match && !match[1].includes("$(")) {
+      throw new Error(
+        `${plistPath} 的 ${key} 是写死的 "${match[1]}"，必须写成 ${expected}，` +
+          "否则包内版本号不会随发版更新（会出现文件名与包内版本不一致）。",
+      );
+    }
+  }
+}
+
 /** 更新工程里的 MARKETING_VERSION（全部配置）与 CURRENT_PROJECT_VERSION */
 export function updateIosProject(nextVersion, nextBuild, projectPath = iosProjectPath) {
   const contents = fs.readFileSync(projectPath, "utf8");
@@ -74,6 +102,9 @@ export function updateIosProject(nextVersion, nextBuild, projectPath = iosProjec
   }
 
   fs.writeFileSync(projectPath, updated);
+
+  // 单一收口点：任何发版入口（version-ios / publish-ios）都会经过这里
+  assertDynamicBundleVersion();
 }
 
 async function selectVersionType(currentVersion) {

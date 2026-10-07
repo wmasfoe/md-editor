@@ -165,11 +165,14 @@ export async function main() {
     }
   }
 
+  // --resume：中断重试时复用已写入的版本段，不再重复追加
+  const changelogMode = options.resume ? "resume" : "normal";
   updateIosProject(nextVersion, nextBuild);
   updateChangelogFile({
     path: iosChangelogPath,
     version: nextVersion,
     notes,
+    mode: changelogMode,
     pr: options.pr,
   });
 
@@ -178,6 +181,7 @@ export async function main() {
       path: iosChangelogEnPath,
       version: nextVersion,
       notes,
+      mode: changelogMode,
       pr: options.pr,
     });
   }
