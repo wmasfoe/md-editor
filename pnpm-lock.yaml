@@ -272,6 +272,34 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
 
+  apps/tui:
+    dependencies:
+      '@earendil-works/pi-tui':
+        specifier: ^0.87.1
+        version: 0.87.1
+      '@md-editor/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
+      sugar-high:
+        specifier: ^2.5.0
+        version: 2.5.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.21
+      tsx:
+        specifier: ^4.19.0
+        version: 4.19.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
+
   apps/utools:
     dependencies:
       '@md-editor/editor-core':
@@ -977,6 +1005,10 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
+
+  '@earendil-works/pi-tui@0.87.1':
+    resolution: {integrity: sha512-YEH2vRyOeiO7hhN6j6AE6YwKSq2Kz2f3XR8bj1TbR+aGE/JsnY1hLPMI2pvaZfRM1n9Y00tejxFQ4zbzvF7nkQ==}
+    engines: {node: '>=22.19.0'}
 
   '@edge-runtime/format@2.2.1':
     resolution: {integrity: sha512-JQTRVuiusQLNNLe2W9tnzBlV/GvSVcozLl4XZHk5swnRZ/v6jp8TqR8P7sqmJsQqblDZ3EztcWmLDbhRje/+8g==}
@@ -3809,6 +3841,10 @@ packages:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
 
+  get-east-asian-width@1.6.0:
+    resolution: {integrity: sha512-QRbvDIbx6YklUe6RxeTeleMR0yv3cYH6PsPZHcnVn7xv7zO1BHN8r0XETu8n6Ye3Q+ahtSarc3WgtNWmehIBfA==}
+    engines: {node: '>=18'}
+
   get-stream@5.2.0:
     resolution: {integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==}
     engines: {node: '>=8'}
@@ -4692,6 +4728,14 @@ packages:
   stylis@4.4.0:
     resolution: {integrity: sha512-5Z9ZpRzfuH6l/UAvCPAPUo3665Nk2wLaZU3x+TLHKVzIz33+sbJqbtrYoC3KD4/uVOr2Zp+L0LySezP9OHV9yA==}
 
+  sugar-high@2.5.0:
+    resolution: {integrity: sha512-SPusUAqHpkpAxwGO6bVRegBq/Y6ZYkkZFR18VeH02pqk/l9hHJnc7MQf5Quyo54UQj1jU8u5zUDvj5zBJbA0rQ==}
+    peerDependencies:
+      gpu-lexer: '>=0.0.2'
+    peerDependenciesMeta:
+      gpu-lexer:
+        optional: true
+
   tabbable@6.4.0:
     resolution: {integrity: sha512-05PUHKSNE8ou2dwIxTngl4EzcnsCDZGJ/iCLtDflR/SHB/ny14rXc+qU5P4mG9JkusiV7EivzY9Mhm55AzAvCg==}
 
@@ -5329,6 +5373,11 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+
+  '@earendil-works/pi-tui@0.87.1':
+    dependencies:
+      get-east-asian-width: 1.6.0
+      marked: 18.0.11
 
   '@edge-runtime/format@2.2.1': {}
 
@@ -7819,6 +7868,8 @@ snapshots:
 
   gensync@1.0.0-beta.2: {}
 
+  get-east-asian-width@1.6.0: {}
+
   get-stream@5.2.0:
     dependencies:
       pump: 3.0.4
@@ -8828,6 +8879,8 @@ snapshots:
       react: 19.2.7
 
   stylis@4.4.0: {}
+
+  sugar-high@2.5.0: {}
 
   tabbable@6.4.0: {}
 
