@@ -54,6 +54,9 @@ export const RELEASES_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/`;
 /** 官方 Android 平台版本中心页面 URL */
 export const ANDROID_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/android/`;
 
+/** 官方 iOS（未签名 IPA）版本分发入口 URL */
+export const IOS_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/ios/`;
+
 /** 官方 Desktop 平台版本中心页面 URL */
 export const DESKTOP_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/desktop/`;
 
@@ -111,12 +114,15 @@ export function resolveReleasesPortalUrl(hostname?: string): string {
  * 根据当前域名解析特定平台版本分发中心 Web 页面 URL
  */
 export function resolveDevicePortalUrl(
-  platform: "desktop" | "android" | "all" = "all",
+  platform: "desktop" | "android" | "ios" | "all" = "all",
   hostname?: string,
 ): string {
   const base = resolveDistributionUrl(hostname);
   if (platform === "android") {
     return `${base}/inkpoint/android/`;
+  }
+  if (platform === "ios") {
+    return `${base}/inkpoint/ios/`;
   }
   if (platform === "desktop") {
     return `${base}/inkpoint/desktop/`;
@@ -184,6 +190,22 @@ export function buildAndroidApkUrl(version?: string, domain?: string): string {
     return `${baseUrl}/inkpoint/android/${normalized}/Inkpoint_${normalized}.apk`;
   }
   return `${baseUrl}/inkpoint/android/latest`;
+}
+
+/**
+ * 构造通用多端版本清单接口 URL
+ */
+/**
+ * 构造 iOS 未签名 IPA 直链。
+ * 传版本号时给出该版本的归档直链，否则给出 /ios/latest 最新版直链。
+ */
+export function buildIosIpaUrl(version?: string, domain?: string): string {
+  const baseUrl = resolveBaseUrl(domain);
+  if (version) {
+    const normalized = normalizeVersion(version);
+    return `${baseUrl}/inkpoint/ios/${normalized}/Inkpoint-${normalized}-unsigned.ipa`;
+  }
+  return `${baseUrl}/inkpoint/ios/latest`;
 }
 
 /**

@@ -51,6 +51,8 @@
 | `GET /api/version.json` | 默认获取主应用 `inkpoint` 的版本元数据清单 | `public, max-age=300` |
 | `GET /:app/desktop/:platform/latest` | 查询 GitHub API 匹配对应平台的最新安装包并流式代理加速 | `public, max-age=86400, s-maxage=2592000` |
 | `GET /:app/android/latest` | 直出 R2 中最新版本的 Android APK 安装包 | `public, max-age=3600, s-maxage=86400` |
+| `GET /:app/ios/latest` | 直出 R2 中最新版本的 **iOS 未签名 IPA**（用户用自签工具重签后安装） | `public, max-age=3600, s-maxage=86400` |
+| `GET /:app/ios/` | iOS 版本目录门户（含未签名 IPA 与自签说明） | ISR 同 HTML 策略 |
 | `GET /:app/:platform/:version/:file` | 精确下载特定版本的归档资产（移动端读 R2，桌面端读 GitHub） | `public, max-age=2592000` |
 | `GET /gh/*` | 通用 GitHub 资产边缘反向代理 | `public, max-age=2592000` |
 
@@ -67,7 +69,8 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
   │   ├── {version}/Inkpoint_{version}.apk  # 版本物理归档
   │   └── latest.apk                       # 指向最新版（避免频繁改动外链）
   ├── ios/
-  │   └── (预留结构)
+  │   ├── {version}/Inkpoint-{version}-unsigned.ipa  # 未签名 IPA 版本归档
+  │   └── latest.ipa                                # 指向最新版（避免频繁改动外链）
   └── version.json                         # 全局版本清单
 ```
 
@@ -101,8 +104,15 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
     }
   },
   "ios": {
-    "version": "0.1.0",
-    "testFlightUrl": "https://testflight.apple.com/join/placeholder"
+    "version": "0.2.1",
+    "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/ios-ipa-v0.2.1",
+    "ipa": {
+      "version": "0.2.1",
+      "fileName": "Inkpoint-0.2.1-unsigned.ipa",
+      "downloadUrl": "https://download.justdev.cn/inkpoint/ios/latest",
+      "unsigned": true,
+      "minimumOSVersion": "17.0"
+    }
   }
 }
 ```
@@ -120,6 +130,15 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
    - 自动更新生成 `inkpoint/version.json` 并推送到 R2 根路径；
    - 上传 Actions Artifact 保留 30 天双重备份。
 
+## 5.1 iOS 自签分发流水线 (`.github/workflows/build-ios-ipa.yml`)
+
+1. **触发契约**：推送 `ios-ipa-v*` 标签或手动 `workflow_dispatch`，在 macOS runner 上以 `CODE_SIGNING_ALLOWED=NO` 构建**未签名** device 版 IPA；
+2. **双链路分流**（按版本号形态判定）：
+   - 版本号带后缀（如 `0.1.0-b8`）→ 只出包，仅留 GitHub Actions Artifact（30 天），**绝不覆盖线上分发**；
+   - 版本号为纯 semver（如 `0.2.1`）→ 进入 `publish-ipa` 任务：上传 `ios/{version}/Inkpoint-{version}-unsigned.ipa` 与 `ios/latest.ipa`、合并 `version.json`、刷新全量清单、刷新边缘缓存、触发官网 changelog 发布；
+3. **不发 GitHub Release**：保持仓库 Releases 页 `Latest` 徽标锁定桌面端；iOS 历史版本由「线上 `releases.json` 递推 + `IOS_RELEASE_VERSION` 注入」维护，禁止从 `ios-ipa-v*` tag 反推（历史 tag 可能从未上传过 R2，会产出 404 链接）；
+4. **用户侧安装**：Sideloadly / AltStore / SideStore / LiveContainer 重签后安装，首次启动需在「设置 → 通用 → VPN与设备管理」信任证书；免费 Apple ID 签名有效期 7 天。
+
 ---
 
 ## 6. 官网联动设计 (`site`)
@@ -128,6 +147,6 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
    - 暴露 `DISTRIBUTION_DOMAIN = "download.justdev.cn"` 与 `DISTRIBUTION_URL`；
    - 提供 `buildAcceleratedDesktopUrl`、`buildAndroidApkUrl`、`buildVersionApiUrl` 等安全方法；
 2. **`site/lib/downloads.ts`**：
-   - 导出 `getMobileDownloadCatalog(locale)`，包含 Android APK 直链与 iOS TestFlight 渠道；
+   - 导出 `getMobileDownloadCatalog(locale)`，包含 Android APK 直链与 iOS 未签名 IPA 直链（`/inkpoint/ios/{version}/Inkpoint-{version}-unsigned.ipa`，兜底 `/inkpoint/ios/latest`）；
 3. **`site/components/download-panel.tsx`**：
    - 桌面端下载按钮下方增加轻量优雅的移动端快捷接入横条，保证全终端访客一站式获取最新客户端。

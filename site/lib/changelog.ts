@@ -54,6 +54,16 @@ const defaultAndroidEnChangelogCandidates = [
   path.join(process.cwd(), "apps", "mobile", "android", "CHANGELOG_EN.md"),
 ];
 
+const defaultIosChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "mobile", "ios", "CHANGELOG.md"),
+  path.join(process.cwd(), "apps", "mobile", "ios", "CHANGELOG.md"),
+];
+
+const defaultIosEnChangelogCandidates = [
+  path.join(process.cwd(), "..", "apps", "mobile", "ios", "CHANGELOG_EN.md"),
+  path.join(process.cwd(), "apps", "mobile", "ios", "CHANGELOG_EN.md"),
+];
+
 /**
  * 从文本中提取所有合法的正整数 PR 编号。
  * 支持形如 "(#49)", "(PR #49)", "(#48, #49)" 或纯数组等。
@@ -188,6 +198,54 @@ export function getAndroidChangelogEntries(
     return [];
   }
   return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+/**
+ * 获取 iOS 移动端的更新日志列表。
+ */
+export function getIosChangelogEntries(locale: Locale = "zh", filePath?: string): ChangelogEntry[] {
+  const isEn = locale === "en" || locale === "ja";
+  const candidates = isEn ? defaultIosEnChangelogCandidates : defaultIosChangelogCandidates;
+  const resolved = resolveChangelogPath(filePath, candidates);
+  if (!resolved) {
+    if (isEn) {
+      return getIosChangelogEntries("zh", filePath);
+    }
+    return [];
+  }
+  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+/**
+ * 获取当前最新的 iOS 版本号。
+ * 优先从 iOS 更新日志首条提取，兜底解析 Xcode 工程里的 MARKETING_VERSION。
+ */
+export function getLatestIosVersion(): string {
+  const entries = getIosChangelogEntries("zh");
+  if (entries.length > 0 && entries[0].version) {
+    return entries[0].version;
+  }
+  const projectCandidates = [
+    path.join(
+      process.cwd(),
+      "..",
+      "apps",
+      "mobile",
+      "ios",
+      "Inkpoint.xcodeproj",
+      "project.pbxproj",
+    ),
+    path.join(process.cwd(), "apps", "mobile", "ios", "Inkpoint.xcodeproj", "project.pbxproj"),
+  ];
+  for (const candidate of projectCandidates) {
+    if (fs.existsSync(candidate)) {
+      const match = fs.readFileSync(candidate, "utf8").match(/MARKETING_VERSION\s*=\s*([^;]+);/);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+  }
+  return "0.1.0";
 }
 
 /**

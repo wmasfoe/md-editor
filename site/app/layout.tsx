@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 import { InkWashFilter } from "../components/ink-wash-filter";
 import { SiteFooter } from "../components/site-footer";
 import { SiteHeader } from "../components/site-header";
-import { getAndroidChangelogEntries, getChangelogEntries } from "../lib/changelog";
+import {
+  getAndroidChangelogEntries,
+  getChangelogEntries,
+  getIosChangelogEntries,
+} from "../lib/changelog";
 import { buildDownloadCatalog } from "../lib/downloads";
 import { detectLocaleFromHeader } from "../lib/i18n";
 import type { Locale } from "../lib/i18n/types";
@@ -66,8 +70,15 @@ export default async function RootLayout({
   const initialLocale = detectLocaleFromHeader(acceptLanguage);
   const [latest] = getChangelogEntries();
   const [latestAndroid] = getAndroidChangelogEntries();
+  const [latestIos] = getIosChangelogEntries();
   const catalog = latest
-    ? buildDownloadCatalog(latest.version, initialLocale, initialDomain, latestAndroid?.version)
+    ? buildDownloadCatalog(
+        latest.version,
+        initialLocale,
+        initialDomain,
+        latestAndroid?.version,
+        latestIos?.version,
+      )
     : null;
 
   return (

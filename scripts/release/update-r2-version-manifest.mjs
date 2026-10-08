@@ -57,13 +57,17 @@ export async function runCli() {
   const normalizedVersion = version
     .replace(/^v/, "")
     .replace(/^android-v/, "")
-    .replace(/^mobile-v/, "");
+    .replace(/^mobile-v/, "")
+    .replace(/^ios-ipa-v/, "");
   const platform = process.env.RELEASE_PLATFORM || "desktop";
   const artifactsDir =
-    process.env.ARTIFACTS_DIR || (platform === "android" ? "dist-mobile" : "release-artifacts");
+    process.env.ARTIFACTS_DIR ||
+    (platform === "android" || platform === "ios" ? "dist-mobile" : "release-artifacts");
   const outputPath =
     process.env.OUTPUT_PATH ||
-    (platform === "android" ? "dist-mobile/version.json" : "dist-desktop/version.json");
+    (platform === "android" || platform === "ios"
+      ? "dist-mobile/version.json"
+      : "dist-desktop/version.json");
   const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
   const appName = process.env.APP_NAME || "inkpoint";
   const githubRepo = process.env.GITHUB_REPO || "wmasfoe/md-editor";
@@ -144,6 +148,43 @@ export async function runCli() {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
     console.log(`✓ Updated Android version manifest: ${outputPath}`);
+    return;
+  }
+
+  if (platform === "ios") {
+    // iOS 未签名 IPA 槽位：产物由 macOS runner 构建后放进 dist-mobile，
+    // 下载地址统一走分发网关的 /ios/latest 直链（与 Android 对齐）
+    const ipaFile = findFile(artifactsDir, (n) => n.endsWith(".ipa") && !n.includes("latest"));
+
+    const fileName = ipaFile
+      ? path.basename(ipaFile)
+      : `Inkpoint-${normalizedVersion}-unsigned.ipa`;
+    const sizeBytes = ipaFile ? fs.statSync(ipaFile).size : undefined;
+    const sha256 = ipaFile ? computeSha256(ipaFile) : undefined;
+
+    const ios = {
+      version: normalizedVersion,
+      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/ios-ipa-v${normalizedVersion}`,
+      ipa: {
+        version: normalizedVersion,
+        fileName,
+        downloadUrl: `${distributionUrl}/${appName}/ios/latest`,
+        sizeBytes,
+        sha256,
+        // 未签名包：由用户侧自签工具（Sideloadly / AltStore / LiveContainer 等）重签后安装
+        unsigned: true,
+        minimumOSVersion: "17.0",
+      },
+    };
+
+    const updatedManifest = mergeVersionManifest(existingManifest, {
+      app: appName,
+      ios,
+    });
+
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
+    console.log(`✓ Updated iOS version manifest: ${outputPath}`);
     return;
   }
 

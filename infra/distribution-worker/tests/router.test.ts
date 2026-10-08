@@ -1041,6 +1041,207 @@ describe("Distribution Worker Router & Matcher", () => {
     }
   });
 
+  it("should serve the latest unsigned iOS IPA directly from R2 and attribute it to the manifest version", async () => {
+    const waitUntilCalls: Promise<unknown>[] = [];
+    const insertedRows: unknown[][] = [];
+    vi.stubGlobal("caches", {
+      default: { match: async () => undefined, put: async () => undefined },
+    });
+    const manifest = {
+      app: "inkpoint",
+      updatedAt: "2026-09-28T00:00:00Z",
+      ios: {
+        version: "0.2.1",
+        ipa: {
+          version: "0.2.1",
+          fileName: "Inkpoint-0.2.1-unsigned.ipa",
+          downloadUrl: "https://download.justdev.cn/inkpoint/ios/latest",
+          unsigned: true,
+        },
+      },
+    };
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/version.json") {
+          return { text: async () => JSON.stringify(manifest) } as unknown as R2ObjectBody;
+        }
+        if (key === "inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-ipa",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const mockDb = {
+      prepare: () => ({
+        bind: (...values: unknown[]) => ({
+          run: async () => insertedRows.push(values),
+        }),
+      }),
+    } as unknown as D1Database;
+    const ctx = {
+      waitUntil: (promise: Promise<unknown>) => waitUntilCalls.push(promise),
+    } as unknown as ExecutionContext;
+
+    const res = await handleRequest(
+      new Request("https://download.justdev.cn/inkpoint/ios/latest", {
+        headers: { "CF-Connecting-IP": "203.0.113.9" },
+      }),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+        DOWNLOAD_ANALYTICS: mockDb,
+        HMAC_SALT: "test-salt",
+      },
+      ctx,
+    );
+    await Promise.all(waitUntilCalls);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Disposition")).toContain("Inkpoint-0.2.1-unsigned.ipa");
+    expect(insertedRows[0]?.slice(0, 4)).toEqual([
+      "inkpoint",
+      "ios",
+      "0.2.1",
+      "Inkpoint-0.2.1-unsigned.ipa",
+    ]);
+  });
+
+  it("should return 404 with helpful error when the iOS IPA is not in R2", async () => {
+    const res = await handleRequest(
+      new Request("https://download.justdev.cn/inkpoint/ios/latest"),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: { get: async () => null } as unknown as R2Bucket,
+      },
+    );
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string; app: string };
+    expect(body.error).toContain("iOS release artifact not found in R2 bucket");
+    expect(body.app).toBe("inkpoint");
+  });
+
+  it("should serve a versioned iOS IPA from R2 with the octet-stream content type", async () => {
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa") {
+          return {
+            body: new ReadableStream(),
+            httpEtag: "etag-ios-versioned",
+            writeHttpMetadata: (_headers: Headers) => {},
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const res = await handleRequest(
+      new Request("https://download.justdev.cn/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa"),
+      {
+        DEFAULT_APP: "inkpoint",
+        RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+      },
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/octet-stream");
+    expect(res.headers.get("Content-Disposition")).toContain("Inkpoint-0.2.1-unsigned.ipa");
+  });
+
+  it("should render the iOS portal and redirect the /ios and /releases/ios shortcuts", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(new Request("https://download.justdev.cn/inkpoint/ios"), env);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Index of /inkpoint/ios/");
+    expect(html).toContain("iOS 移动端");
+    expect(html).toContain("未签名 IPA");
+    expect(html).toContain("/api/inkpoint/ios/releases");
+
+    for (const path of ["/ios", "/releases/ios"]) {
+      const redirect = await handleRequest(new Request(`https://download.justdev.cn${path}`), env);
+      expect(redirect.status).toBe(302);
+      expect(redirect.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/ios/");
+    }
+  });
+
+  it("should expose latestIosVersion and the ios summary in the releases manifest API", async () => {
+    // iOS 历史来自 R2 releases.json，当前版本来自 version.json 的 ios 节点；
+    // 这里用 version.json 造出 ios 节点，验证 API 摘要字段。
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/version.json") {
+          return {
+            text: async () =>
+              JSON.stringify({
+                app: "inkpoint",
+                updatedAt: "2026-09-28T00:00:00Z",
+                ios: {
+                  version: "0.2.1",
+                  ipa: { version: "0.2.1", fileName: "Inkpoint-0.2.1-unsigned.ipa" },
+                },
+              }),
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(
+      new Request("https://download.justdev.cn/api/inkpoint/releases"),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      latestIosVersion?: string;
+      latestReleases?: { ios?: { version: string; downloadUrl: string; platformLabel: string } };
+    };
+
+    expect(typeof data.latestIosVersion).toBe("string");
+    expect(data.latestReleases?.ios?.downloadUrl).toBe(
+      "https://download.justdev.cn/inkpoint/ios/latest",
+    );
+    expect(data.latestReleases?.ios?.platformLabel).toContain("未签名 IPA");
+  });
+
+  it("should render the ios directory row on the app device index", async () => {
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      GITHUB_REPO: "wmasfoe/md-editor",
+    };
+
+    const res = await handleRequest(
+      new Request("https://download.justdev.cn/inkpoint/", { headers: { Accept: "text/html" } }),
+      env,
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain('href="/inkpoint/ios/"');
+    expect(html).toContain("iOS 移动端 (未签名 IPA · 自签安装)");
+  });
+
+  it("should infer the ios analytics platform from the /ios path and .ipa file name", () => {
+    expect(inferPlatformFromPath("/inkpoint/ios/latest", "Inkpoint-0.2.1-unsigned.ipa")).toBe(
+      "ios",
+    );
+    expect(inferPlatformFromPath("/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa", "x.ipa")).toBe(
+      "ios",
+    );
+  });
+
   it("should accurately infer platform from various installer and updater filenames", () => {
     // macOS
     expect(

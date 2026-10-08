@@ -31,25 +31,15 @@ function PlatformGlyph({ platform, className }: { platform: SitePlatform; classN
   return null;
 }
 
-function renderPlatformLabel(platform: SitePlatform, comingSoonText = "敬请期待") {
-  if (platform === "android") {
+function renderPlatformLabel(platform: SitePlatform) {
+  if (platform === "android" || platform === "ios") {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
-        <span className="text-[12px] sm:text-sm">Android</span>
+        <span className="text-[12px] sm:text-sm">{platform === "android" ? "Android" : "iOS"}</span>
         {/* 窄屏保留微呼吸圆点，宽屏展示完整测试版 Badge */}
         <span className="h-1.5 w-1.5 rounded-full bg-accent sm:hidden" />
         <span className="hidden rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none sm:inline-block">
           Beta
-        </span>
-      </span>
-    );
-  }
-  if (platform === "ios") {
-    return (
-      <span className="inline-flex items-center gap-1 sm:gap-1.5">
-        <span className="text-[12px] sm:text-sm">iOS</span>
-        <span className="hidden rounded-full bg-line-strong/25 px-1.5 py-0.5 text-[9px] font-medium text-muted/75 leading-none sm:inline-block">
-          {comingSoonText}
         </span>
       </span>
     );
@@ -84,15 +74,19 @@ type DownloadPanelProps = {
   initialPlatform: SitePlatform;
   version?: string;
   androidVersion?: string;
+  iosVersion?: string;
 };
 
-export function DownloadPanel({ initialPlatform, version, androidVersion }: DownloadPanelProps) {
+export function DownloadPanel({
+  initialPlatform,
+  version,
+  androidVersion,
+  iosVersion,
+}: DownloadPanelProps) {
   const { locale, t } = useI18n();
   const { domain } = useDistribution();
-  const [platform, setPlatform] = useState<SitePlatform>(
-    initialPlatform === "ios" ? "macos" : initialPlatform,
-  );
-  const catalog = buildDownloadCatalog(version, locale, domain, androidVersion);
+  const [platform, setPlatform] = useState<SitePlatform>(initialPlatform);
+  const catalog = buildDownloadCatalog(version, locale, domain, androidVersion, iosVersion);
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
   const platforms = listSitePlatforms();
@@ -107,11 +101,10 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
           items={platforms}
           value={platform}
           onChange={setPlatform}
-          getLabel={(p) => renderPlatformLabel(p, t.download.comingSoon)}
+          getLabel={(p) => renderPlatformLabel(p)}
           getAriaLabel={(p) =>
-            getPlatformAriaLabel(p, t.download.ariaAndroidBeta, t.download.ariaIosComingSoon)
+            getPlatformAriaLabel(p, t.download.ariaAndroidBeta, t.download.ariaIosBeta)
           }
-          disabledItems={["ios"]}
           ariaLabel={t.download.tablistAria}
         />
 
@@ -124,8 +117,6 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
           <a
             href={current.primary.href}
             download={current.primary.fileName}
-            target={platform === "ios" ? "_blank" : undefined}
-            rel={platform === "ios" ? "noreferrer" : undefined}
             aria-label={`${current.primary.label}，${current.format}`}
             className="liquid-glass-button-dark group relative mt-4 inline-flex h-12 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-full px-5 text-sm font-medium text-white sm:h-12 sm:w-fit sm:px-7"
           >
@@ -171,7 +162,13 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
         ))}
         <span className="text-line-strong">·</span>
         <a
-          href={platform === "android" ? catalog.androidPackagesUrl : catalog.desktopPackagesUrl}
+          href={
+            platform === "android"
+              ? catalog.androidPackagesUrl
+              : platform === "ios"
+                ? catalog.iosPackagesUrl
+                : catalog.desktopPackagesUrl
+          }
           target="_blank"
           rel="noreferrer"
           className="text-ink-soft transition-colors hover:text-ink"
@@ -210,7 +207,7 @@ export function DownloadPanel({ initialPlatform, version, androidVersion }: Down
                 {mobileGuide.requirements}
               </p>
               <p>{mobileGuide.description}</p>
-              <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 text-ink-soft">
+              <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 whitespace-pre-line text-ink-soft">
                 <span className="font-medium text-ink">{t.download.installationTip}</span>
                 {mobileGuide.tips}
               </div>

@@ -121,11 +121,11 @@ describe("buildDownloadCatalog with i18n", () => {
     expect(catalogEn.windows.secondary[0].label).toBe("ARM64 Setup");
   });
 
-  it("provides localized coming soon label for iOS", () => {
-    expect(zh.download.comingSoon).toBe("敬请期待");
-    expect(zhHant.download.comingSoon).toBe("敬請期待");
-    expect(ja.download.comingSoon).toBe("近日公開");
-    expect(en.download.comingSoon).toBe("Coming Soon");
+  it("provides localized self-sign labels for the iOS download entry", () => {
+    expect(zh.download.ariaIosBeta).toContain("未签名 IPA");
+    expect(zhHant.download.ariaIosBeta).toContain("未簽名 IPA");
+    expect(ja.download.ariaIosBeta).toContain("未署名 IPA");
+    expect(en.download.ariaIosBeta).toContain("Unsigned IPA");
   });
 });
 

@@ -1,6 +1,16 @@
-# Changelog - Inkpoint iOS
+﻿# Changelog - Inkpoint iOS
 
 All notable changes to the Inkpoint iOS application will be documented in this file.
+
+## 0.2.1 - 2026-10-07
+
+- 新增 iOS 未签名 IPA 自签分发链路：官网 iOS 入口开放下载，附 Sideloadly / AltStore / LiveContainer 自签安装指引
+- **原生 iOS 客户端首个正式版本**：与 Android 端统一版本号 0.2.1，基于 SwiftUI + WKWebView 双向混合架构
+- 修复侧载环境下点击「编辑」无法打开 Markdown 文档、编辑模式无法唤起软键盘
+- 修复中文输入法确认候选词时把拼音 pre-edit 直接写入文档、编辑时光标乱跳（WebKit user-select 可编辑性约束）
+- 修复暗色模式下正文对比度异常：原生外观变化实时同步到编辑器主题
+- 消除启动闪退风险，并新增 App 内原生崩溃诊断页（崩溃后重开 App 直接展示日志）
+- 补齐两端 App 图标与显示名称
 
 ## 0.1.0 - 2026-09-16 (#69)
 

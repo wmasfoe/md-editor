@@ -4,11 +4,13 @@ import {
   ANDROID_PORTAL_URL,
   ARTIFACT_NAME_PREFIX,
   buildAndroidApkUrl,
+  buildIosIpaUrl,
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
   buildWindowsSetupUrl,
   DESKTOP_PORTAL_URL,
   GITHUB_RELEASES_URL,
+  IOS_PORTAL_URL,
   normalizeVersion,
   RELEASES_PORTAL_URL,
   resolveDevicePortalUrl,
@@ -43,6 +45,7 @@ export type DownloadCatalog = Record<SitePlatform, PlatformDownload> & {
   allPackagesUrl: string;
   desktopPackagesUrl: string;
   androidPackagesUrl: string;
+  iosPackagesUrl: string;
 };
 
 export type PlatformInstall = {
@@ -161,6 +164,7 @@ const DOWNLOAD_LABELS: Record<
     androidFormat: string;
     androidSecondary: string;
     iosPrimary: string;
+    iosSecondary: string;
     iosFormat: string;
   }
 > = {
@@ -172,8 +176,9 @@ const DOWNLOAD_LABELS: Record<
     androidPrimary: "下载 Android 安装包 (APK)",
     androidFormat: "Android 8.0+ · APK · 测试版",
     androidSecondary: "最新版直链",
-    iosPrimary: "加入 iOS TestFlight 公测",
-    iosFormat: "iOS 16.0+ · TestFlight · 测试版",
+    iosPrimary: "下载 iOS 未签名 IPA",
+    iosSecondary: "最新版直链",
+    iosFormat: "iOS 17.0+ · 未签名 IPA · 需自签安装",
   },
   "zh-Hant": {
     macos: "下載 macOS",
@@ -183,8 +188,9 @@ const DOWNLOAD_LABELS: Record<
     androidPrimary: "下載 Android 安裝套件 (APK)",
     androidFormat: "Android 8.0+ · APK · 測試版",
     androidSecondary: "最新版直接連結",
-    iosPrimary: "加入 iOS TestFlight 公測",
-    iosFormat: "iOS 16.0+ · TestFlight · 測試版",
+    iosPrimary: "下載 iOS 未簽名 IPA",
+    iosSecondary: "最新版直接連結",
+    iosFormat: "iOS 17.0+ · 未簽名 IPA · 需自行簽名安裝",
   },
   ja: {
     macos: "macOS 版をダウンロード",
@@ -194,8 +200,9 @@ const DOWNLOAD_LABELS: Record<
     androidPrimary: "Android APK をダウンロード (Beta)",
     androidFormat: "Android 8.0+ · APK · ベータ版",
     androidSecondary: "最新版の直接リンク",
-    iosPrimary: "iOS TestFlight パブリックベータに参加",
-    iosFormat: "iOS 16.0+ · TestFlight · ベータ版",
+    iosPrimary: "iOS 未署名 IPA をダウンロード",
+    iosSecondary: "最新版の直接リンク",
+    iosFormat: "iOS 17.0+ · 未署名 IPA · 自己署名インストールが必要",
   },
   en: {
     macos: "Download for macOS",
@@ -205,12 +212,15 @@ const DOWNLOAD_LABELS: Record<
     androidPrimary: "Download Android APK (Beta)",
     androidFormat: "Android 8.0+ · APK · Beta",
     androidSecondary: "Latest APK Link",
-    iosPrimary: "Join iOS TestFlight (Beta)",
-    iosFormat: "iOS 16.0+ · TestFlight · Beta",
+    iosPrimary: "Download iOS IPA (Unsigned)",
+    iosSecondary: "Latest IPA Link",
+    iosFormat: "iOS 17.0+ · Unsigned IPA · Self-sign required",
   },
 };
 
-export const DEFAULT_ANDROID_VERSION = "0.2.0";
+export const DEFAULT_ANDROID_VERSION = "0.2.1";
+
+export const DEFAULT_IOS_VERSION = "0.2.1";
 
 const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePlatformGuide>> = {
   zh: {
@@ -225,13 +235,14 @@ const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePla
         "公测阶段功能正持续迭代，如遇排版渲染或输入法兼容问题，欢迎前往 GitHub 提交 Issue 反馈。",
     },
     ios: {
-      badge: "公测中 · Beta",
-      title: "iOS 客户端公测说明",
-      requirements: "适用于 iOS 16.0 及更高版本的 iPhone 与 iPad 设备",
+      badge: "自签安装 · Beta",
+      title: "iOS 客户端安装说明",
+      requirements: "适用于 iOS 17.0 及更高版本的 iPhone 与 iPad 设备",
       description:
-        "Inkpoint iOS 版目前通过 Apple 官方 TestFlight 进行公测体验，免签名、更稳定、体验丝滑。",
-      tips: "请先在 App Store 下载安装 Apple 官方「TestFlight」应用，随后点击上方按钮加入 Inkpoint 公测。",
-      feedback: "可直接在 TestFlight 应用中截屏并反馈体验建议，或在 GitHub 提交反馈。",
+        "Inkpoint iOS 版以未签名 IPA 形式分发（未上架 App Store，也不走 TestFlight）。你需要在电脑或手机上用自签工具重签名后安装，首次启动需在「设置 → 通用 → VPN与设备管理」中信任对应证书。",
+      tips: "推荐工具：\n① Sideloadly（电脑端，Windows / macOS，用 Apple ID 签名后有线安装）\n② AltStore / SideStore（手机上自签，需先配对电脑装一次 AltServer）\n③ LiveContainer（侧载容器，可在其中直接运行未签名 IPA）\n免费 Apple ID 签名有效期为 7 天，到期后用同一工具重新签名即可。",
+      feedback:
+        "未签名分发自签环节可能因 Xcode / iOS 版本差异出现失败，欢迎在 GitHub 提交 Issue 说明机型与报错。",
     },
   },
   "zh-Hant": {
@@ -246,13 +257,14 @@ const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePla
         "公測階段功能持續迭代中，如遇排版渲染或輸入法相容性問題，歡迎前往 GitHub 提交 Issue 反饋。",
     },
     ios: {
-      badge: "公測中 · Beta",
-      title: "iOS 客戶端公測說明",
-      requirements: "適用於 iOS 16.0 及更高版本的 iPhone 與 iPad 裝置",
+      badge: "自行簽名安裝 · Beta",
+      title: "iOS 客戶端安裝說明",
+      requirements: "適用於 iOS 17.0 及更高版本的 iPhone 與 iPad 裝置",
       description:
-        "Inkpoint iOS 版目前透過 Apple 官方 TestFlight 進行公開測試，免簽名、更穩定、體驗流暢。",
-      tips: "請先在 App Store 下載安裝 Apple 官方「TestFlight」應用程式，隨後點擊上方按鈕加入 Inkpoint 公測。",
-      feedback: "可直接在 TestFlight 應用程式中截圖反饋體驗建議，或前往 GitHub 提交回饋。",
+        "Inkpoint iOS 版以未簽名 IPA 形式分發（未上架 App Store，也不使用 TestFlight）。你需要用自行簽名工具重新簽名後安裝，首次啟動需在「設定 → 一般 → VPN與裝置管理」中信任對應憑證。",
+      tips: "推薦工具：\n① Sideloadly（電腦端，Windows / macOS，以 Apple ID 簽名後有線安裝）\n② AltStore / SideStore（手機自簽，需先與電腦配對安裝 AltServer）\n③ LiveContainer（側載容器，可直接在其中執行未簽名 IPA）\n免費 Apple ID 簽名有效期為 7 天，到期後用同一工具重新簽名即可。",
+      feedback:
+        "未簽名分發的簽名環節可能因 Xcode / iOS 版本差異而失敗，歡迎在 GitHub 提交 Issue 說明機型與錯誤訊息。",
     },
   },
   ja: {
@@ -267,14 +279,14 @@ const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePla
         "ベータ期間中は継続的に改善を行っています。表示の崩れや入力の不具合などがありましたら、GitHub の Issue よりご報告ください。",
     },
     ios: {
-      badge: "パブリックベータ · Beta",
-      title: "iOS TestFlight ベータテストのご案内",
-      requirements: "iOS 16.0 以降の iPhone および iPad に対応",
+      badge: "自己署名インストール · Beta",
+      title: "iOS 版インストールのご案内",
+      requirements: "iOS 17.0 以降の iPhone および iPad に対応",
       description:
-        "Inkpoint iOS 版は Apple 公式の TestFlight を通じてパブリックベータを提供しています。署名作業不要で安全かつスムーズにご利用いただけます。",
-      tips: "App Store から Apple 公式の「TestFlight」アプリをインストールした後、上のボタンをタップしてベータテストに参加してください。",
+        "Inkpoint iOS 版は未署名 IPA として配布しています（App Store 未掲載、TestFlight も使用しません）。ご自身で再署名してインストールする必要があり、初回起動時は「設定 → 一般 → VPN とデバイス管理」で証明書を信頼してください。",
+      tips: "推奨ツール：\n① Sideloadly（PC 版・Windows / macOS、Apple ID で署名して有線インストール）\n② AltStore / SideStore（iPhone 上で自己署名、事前に PC とペアリングして AltServer を導入）\n③ LiveContainer（サイドロードコンテナ、その中で未署名 IPA を直接実行）\n無料の Apple ID 署名は 7 日間有効で、期限切れ後は同じツールで再署名してください。",
       feedback:
-        "TestFlight アプリ内で直接スクリーンショットを撮影してフィードバックを送信するか、GitHub でご報告ください。",
+        "未署名配布の署名工程は Xcode / iOS のバージョン差で失敗することがあります。機種とエラー内容を添えて GitHub の Issue よりご報告ください。",
     },
   },
   en: {
@@ -289,13 +301,14 @@ const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePla
         "Encountered any rendering issues or input glitches? Feel free to report them via GitHub.",
     },
     ios: {
-      badge: "Public Beta",
-      title: "iOS TestFlight Beta Guide",
-      requirements: "Requires iOS 16.0 or later on iPhone and iPad",
+      badge: "Self-signed install · Beta",
+      title: "iOS Install Guide",
+      requirements: "Requires iOS 17.0 or later on iPhone and iPad",
       description:
-        "Inkpoint for iOS is distributed via Apple TestFlight public beta — official, secure, and easy to install.",
-      tips: "Please install the Apple 'TestFlight' app from the App Store first, then tap the button above to join the Beta.",
-      feedback: "You can share screenshots directly inside TestFlight or report issues via GitHub.",
+        "Inkpoint for iOS ships as an unsigned IPA (not on the App Store, no TestFlight). You need to re-sign it with a sideloading tool before installing; on first launch, trust the certificate under Settings → General → VPN & Device Management.",
+      tips: "Recommended tools:\n(1) Sideloadly — desktop (Windows / macOS), signs with your Apple ID and installs over USB\n(2) AltStore / SideStore — self-signing on device, requires pairing with a computer running AltServer once\n(3) LiveContainer — a sideloading container that runs unsigned IPAs directly\nFree Apple ID signatures expire after 7 days; re-sign with the same tool to refresh.",
+      feedback:
+        "Sideloading can fail depending on your Xcode / iOS versions — open a GitHub issue with your device model and the error message.",
     },
   },
 };
@@ -306,13 +319,14 @@ export function buildDownloadCatalog(
   locale: Locale = "zh",
   domain?: string,
   androidVersion?: string,
+  iosVersion?: string,
 ): DownloadCatalog {
   const normalized = version ? normalizeVersion(version) : null;
   const labels = DOWNLOAD_LABELS[locale] ?? DOWNLOAD_LABELS.en;
-  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion);
+  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion, iosVersion);
 
   if (!normalized) {
-    return fallbackCatalog(locale, domain, androidVersion);
+    return fallbackCatalog(locale, domain, androidVersion, iosVersion);
   }
 
   const allPackagesUrl = domain ? resolveReleasesPortalUrl(domain) : RELEASES_PORTAL_URL;
@@ -322,6 +336,7 @@ export function buildDownloadCatalog(
   const androidPackagesUrl = domain
     ? resolveDevicePortalUrl("android", domain)
     : ANDROID_PORTAL_URL;
+  const iosPackagesUrl = domain ? resolveDevicePortalUrl("ios", domain) : IOS_PORTAL_URL;
 
   return {
     macos: {
@@ -386,6 +401,7 @@ export function buildDownloadCatalog(
     allPackagesUrl,
     desktopPackagesUrl,
     androidPackagesUrl,
+    iosPackagesUrl,
   };
 }
 
@@ -418,9 +434,10 @@ function fallbackCatalog(
   locale: Locale = "zh",
   domain?: string,
   androidVersion?: string,
+  iosVersion?: string,
 ): DownloadCatalog {
   const labels = DOWNLOAD_LABELS[locale] ?? DOWNLOAD_LABELS.en;
-  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion);
+  const mobile = getMobileDownloadCatalog(locale, domain, androidVersion, iosVersion);
   const allPackagesUrl = domain ? resolveReleasesPortalUrl(domain) : RELEASES_PORTAL_URL;
   const desktopPackagesUrl = domain
     ? resolveDevicePortalUrl("desktop", domain)
@@ -428,6 +445,7 @@ function fallbackCatalog(
   const androidPackagesUrl = domain
     ? resolveDevicePortalUrl("android", domain)
     : ANDROID_PORTAL_URL;
+  const iosPackagesUrl = domain ? resolveDevicePortalUrl("ios", domain) : IOS_PORTAL_URL;
   return {
     macos: fallbackPrimary(labels.macos, "Apple Silicon · DMG"),
     linux: fallbackPrimary(labels.linux, "x86_64 · AppImage"),
@@ -449,6 +467,7 @@ function fallbackCatalog(
     allPackagesUrl,
     desktopPackagesUrl,
     androidPackagesUrl,
+    iosPackagesUrl,
   };
 }
 
@@ -478,9 +497,11 @@ export function getMobileDownloadCatalog(
   locale: Locale = "zh",
   domain?: string,
   androidVersion = DEFAULT_ANDROID_VERSION,
+  iosVersion = DEFAULT_IOS_VERSION,
 ): MobilePlatformDownload {
   const labels = DOWNLOAD_LABELS[locale] ?? DOWNLOAD_LABELS.en;
   const normalizedAndroidVer = normalizeVersion(androidVersion) || DEFAULT_ANDROID_VERSION;
+  const normalizedIosVer = normalizeVersion(iosVersion) || DEFAULT_IOS_VERSION;
   return {
     android: {
       primary: {
@@ -499,12 +520,18 @@ export function getMobileDownloadCatalog(
     },
     ios: {
       primary: {
-        href: "https://testflight.apple.com/join/placeholder",
+        href: buildIosIpaUrl(normalizedIosVer, domain),
+        fileName: `Inkpoint-${normalizedIosVer}-unsigned.ipa`,
         label: labels.iosPrimary,
       },
       format: labels.iosFormat,
-      secondary: [],
-      version: "0.1.0",
+      secondary: [
+        {
+          href: buildIosIpaUrl(undefined, domain),
+          label: labels.iosSecondary,
+        },
+      ],
+      version: normalizedIosVer,
     },
   };
 }

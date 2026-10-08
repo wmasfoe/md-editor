@@ -126,12 +126,11 @@ export interface TranslationSchema {
     copyButton: string;
     copiedButton: string;
     copyCommandAria: string;
-    comingSoon: string;
     betaStatus: string;
     systemRequirements: string;
     installationTip: string;
     ariaAndroidBeta: string;
-    ariaIosComingSoon: string;
+    ariaIosBeta: string;
   };
   features: {
     sectionAria: string;
@@ -154,17 +153,20 @@ export interface TranslationSchema {
     tabsAria: string;
     clientTab: string;
     androidTab: string;
+    iosTab: string;
     webTab: string;
     modelTab: string;
     descriptionPrefix: string;
     descriptionSuffix: string;
     androidDescriptionPrefix: string;
+    iosDescriptionPrefix: string;
     webDescriptionPrefix: string;
     modelDescriptionPrefix: string;
     modelDescriptionSuffix: string;
     modelOriginalLanguage: string;
     empty: string;
     androidEmpty: string;
+    iosEmpty: string;
     webEmpty: string;
     modelEmpty: string;
     listAria: string;

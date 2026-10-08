@@ -30,11 +30,14 @@ describe("detectSitePlatform", () => {
     ).toBe("android");
   });
 
-  it("defaults iOS mobile browsers to macos while iOS tab is inactive", () => {
+  it("routes iOS mobile browsers to the iOS entry now that unsigned IPA is published", () => {
     expect(detectSitePlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe(
-      "macos",
+      "ios",
     );
-    expect(detectSitePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)")).toBe("macos");
+    expect(detectSitePlatform("Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)")).toBe("ios");
+    expect(
+      detectSitePlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Mobile/15E148"),
+    ).toBe("ios");
   });
 
   it("defaults macOS and unknown agents to macos", () => {

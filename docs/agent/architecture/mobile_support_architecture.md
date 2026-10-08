@@ -71,7 +71,8 @@ md-editor/
 2. **UIInputAccessoryView 弹簧工具栏**：SwiftUI 中通过 `.toolbar { ToolbarItemGroup(placement: .keyboard) { KeyboardAccessoryBar(...) } }` 深度联动 iOS 软键盘，平滑升降；
 3. **触感反馈引擎**：按键点击触发 `UIImpactFeedbackGenerator(style: .light)`，模式切换触发 `.medium`，大纲选中触发 `UISelectionFeedbackGenerator`；
 4. **系统级文档就地编辑**：配置 `LSSupportsOpeningDocumentsInPlace: true` 与 `UIFileSharingEnabled: true`，结合 `UIDocumentPickerViewController` 原地读写 iCloud Drive / 本地文件；
-5. **系统分享扩展 (Share Extension)**：支持在微信或“文件”App 中将选中文本或 `.md` 文件通过深度链接与 App Group 共享直接导入。
+5. **系统分享扩展 (Share Extension)**：支持在微信或“文件”App 中将选中文本或 `.md` 文件通过深度链接与 App Group 共享直接导入；
+6. **未签名 IPA 自签分发**：iOS 客户端不走 App Store / TestFlight，由 `build-ios-ipa.yml` 在 macOS runner 上以 `CODE_SIGNING_ALLOWED=NO` 产出未签名 IPA，经 R2（`/inkpoint/ios/{version}/…`、`/inkpoint/ios/latest.ipa`）分发；用户用 Sideloadly / AltStore / SideStore / LiveContainer 重签后安装。发版命令 `pnpm release:ios`（tag `ios-ipa-v*`），**刻意不创建 GitHub Release**——历史版本由线上 `releases.json` 递推，避免抢占仓库 Releases 页的 `Latest` 徽标。
 
 ---
 
