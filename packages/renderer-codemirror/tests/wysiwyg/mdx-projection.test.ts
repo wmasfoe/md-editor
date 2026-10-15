@@ -15,6 +15,7 @@ import {
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
 import { mdxComponentRegistryFacet } from "../../src/wysiwyg/mdx-projection.ts";
+import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 import type { MdxComponentWidget } from "../../src/wysiwyg/widgets/mdx-component-widget.ts";
 
 const CALLOUT_DESCRIPTOR: MdxComponentDescriptor = {
@@ -94,6 +95,22 @@ describe("MDX projection(白名单求值)", () => {
     ]);
     expect(widget?.value.childrenSource).toContain("body");
     expect(inspectWysiwygProjection(state).layoutDecorationCount).toBe(1);
+  });
+
+  it("routes the MDX block widget through the whole-line replacement contract", () => {
+    const doc = ['<Callout type="info" title="提示">', "body", "</Callout>", ""].join("\n");
+    const { state } = createMdxHarness(doc);
+    const mdx = state.field(markdownRangeIndexField).byKind("mdx-jsx")[0];
+    const [probe] = findLayoutDecorationsForTesting(state, "mdx-widget");
+
+    // 不对称 Inclusivity：起点覆盖避免上方幽灵空行，终点不覆盖避免吞并下方换行。
+    expect(probe?.spec).toMatchObject({
+      block: true,
+      inclusiveStart: true,
+      inclusiveEnd: false,
+    });
+    expect(state.doc.lineAt(probe.from).from).toBe(probe.from);
+    expect(probe.to).toBe(mdx.fullRange.to + 1);
   });
 
   it("C2: 未注册组件显示占位(descriptor 为 null)", () => {

@@ -24,6 +24,7 @@ import {
   createCodeBlockLineNumberDecorations,
   type CodeBlockLogicalLine,
 } from "./wysiwyg/code-block-line-numbers.ts";
+import { wysiwygProjectionField } from "./wysiwyg/projection-state.ts";
 
 const testScrollSnapshotEffect = StateEffect.define<null>();
 
@@ -222,6 +223,32 @@ export type { RendererTestingProbeInternal as RendererTestingProbe };
 export { createCodeMirrorRendererWithFactory } from "./renderer.ts";
 export { provideWysiwygDiagnostics, WysiwygDiagnostics } from "./diagnostics.ts";
 export { getM2CodeBlockPerformanceFixture } from "./markdown/fixtures.ts";
+
+/** 布局替换装饰的测试探针结果。 */
+export interface LayoutDecorationProbe {
+  readonly from: number;
+  readonly to: number;
+  readonly spec: Record<string, unknown>;
+}
+
+/**
+ * 测试用：按 `wysiwygRole` 取回 WYSIWYG 布局替换装饰的 spec 与源码范围。
+ * 用于断言整行块级替换的 Inclusivity 契约（`block` / `inclusiveStart` / `inclusiveEnd`）。
+ */
+export function findLayoutDecorationsForTesting(
+  state: EditorState,
+  role: string,
+): readonly LayoutDecorationProbe[] {
+  const probes: LayoutDecorationProbe[] = [];
+  state
+    .field(wysiwygProjectionField)
+    .layoutDecorations.between(0, state.doc.length, (from, to, value) => {
+      if (value.spec.wysiwygRole === role) {
+        probes.push({ from, to, spec: value.spec as Record<string, unknown> });
+      }
+    });
+  return probes;
+}
 
 export function installCodeBlockLineNumberGeometryFixture(parent: HTMLElement): EditorView {
   const document = [

@@ -1,6 +1,7 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { selectWysiwygAtom } from "../atom-selection.ts";
+import { applyBlockCategory } from "../block-replacement.ts";
 
 export interface ThematicBreakWidgetValue {
   readonly recordId: string;
@@ -28,6 +29,9 @@ export class ThematicBreakWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const separator = view.dom.ownerDocument.createElement("span");
     separator.className = "cm-md-thematic-break-widget";
+    // 分割线属于"符号型块"：呼吸感由展示层统一规则提供（`--theme-block-symbol-gap`），
+    // 不伪造空行，也不在本 widget 上单独写 margin。见 block-replacement.ts。
+    applyBlockCategory(separator, "symbol");
     separator.setAttribute("role", "separator");
     separator.setAttribute("tabindex", "-1");
     separator.setAttribute("aria-label", "Thematic break");

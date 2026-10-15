@@ -16,6 +16,7 @@ import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,
 } from "../../src/wysiwyg/html-projection.ts";
+import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
 interface ProjectionHarness {
   readonly state: EditorState;
@@ -86,6 +87,22 @@ describe("M4-a HTML projection", () => {
     expect(projection.atomicRangeCount).toBe(1);
     expect(projection.protectedRanges).toContainEqual({ ...html.fullRange, kind: "html" });
     expect(projection.activeSyntaxIds).not.toContain(html.id);
+  });
+
+  it("routes the HTML block widget through the whole-line replacement contract", () => {
+    const doc = ["Before", "", "<div>Safe</div>", "", "After", ""].join("\n");
+    const { state, index } = createHtmlHarness(doc);
+    const html = index.byKind("html")[0];
+    const [probe] = findLayoutDecorationsForTesting(state, "html-widget");
+
+    // 不对称 Inclusivity：起点覆盖避免上方幽灵空行，终点不覆盖避免吞并下方换行。
+    expect(probe?.spec).toMatchObject({
+      block: true,
+      inclusiveStart: true,
+      inclusiveEnd: false,
+    });
+    expect(state.doc.lineAt(probe.from).from).toBe(probe.from);
+    expect(probe.to).toBe(html.fullRange.to + 1);
   });
 
   it("fails closed for table/form structure instead of concatenating remaining text", () => {

@@ -2,6 +2,7 @@ import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
+import { buildWholeLineBlockReplacement } from "./block-replacement.ts";
 import { TableGridWidget, type TableGridValue } from "./widgets/table-widget.ts";
 
 export function isProjectableTable(record: MarkdownRangeRecord): boolean {
@@ -30,16 +31,14 @@ export function buildTableLayoutDecorations(
   if (!value) {
     return [];
   }
-  const replacementTo = trailingLineBreakEnd(record, state);
-  return [
-    Decoration.replace({
-      widget: new TableGridWidget({ ...value, selected }),
-      inclusive: false,
-      block: true,
-      wysiwygRecordId: record.id,
-      wysiwygRole: "table-widget",
-    }).range(record.fullRange.from, replacementTo),
-  ];
+  // 整行块级替换必须走统一契约（不对称 Inclusivity），否则 CM6 会在表格上方合成幽灵空行，
+  // 导致源码 1 个空行渲染成 2 个。契约与机理见 block-replacement.ts。
+  return buildWholeLineBlockReplacement({
+    record,
+    state,
+    widget: new TableGridWidget({ ...value, selected }),
+    role: "table-widget",
+  });
 }
 
 /** 整表始终 atomic，光标无法落入源码管道文本。 */
@@ -143,11 +142,4 @@ export function splitTableRowCells(line: string, hasLeadingPipes: boolean): read
   }
   cells.push(buffer.trim());
   return cells;
-}
-
-function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): number {
-  return record.fullRange.to < state.doc.length &&
-    state.sliceDoc(record.fullRange.to, record.fullRange.to + 1) === "\n"
-    ? record.fullRange.to + 1
-    : record.fullRange.to;
 }

@@ -1,6 +1,7 @@
 import { Facet, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
+import { buildWholeLineBlockReplacement } from "./block-replacement.ts";
 import {
   MdxComponentWidget,
   type MdxComponentWidgetValue,
@@ -95,16 +96,13 @@ export function buildMdxLayoutDecorations(
     return [];
   }
   const value = buildMdxWidgetValue(record, selected, state);
-  const replacementTo = trailingLineBreakEnd(record, state);
-  return [
-    Decoration.replace({
-      widget: new MdxComponentWidget(value),
-      inclusive: false,
-      block: true,
-      wysiwygRecordId: record.id,
-      wysiwygRole: "mdx-widget",
-    }).range(record.fullRange.from, replacementTo),
-  ];
+  // 整行块级替换必须走统一契约（不对称 Inclusivity），否则 CM6 会在 MDX 组件块上方合成幽灵空行。
+  return buildWholeLineBlockReplacement({
+    record,
+    state,
+    widget: new MdxComponentWidget(value),
+    role: "mdx-widget",
+  });
 }
 
 export function buildMdxAtomicRanges(record: MarkdownRangeRecord): readonly Range<Decoration>[] {
@@ -121,15 +119,6 @@ export function buildMdxAtomicRanges(record: MarkdownRangeRecord): readonly Rang
 
 export function getMdxProtectedRanges(record: MarkdownRangeRecord): readonly SourceRange[] {
   return isProjectableMdx(record) ? [record.fullRange] : [];
-}
-
-/** 组件块替换为 widget 时,吞掉尾随换行(与 HTML widget 一致) */
-function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): number {
-  const { to } = record.fullRange;
-  if (to < state.doc.length && state.doc.sliceString(to, to + 1) === "\n") {
-    return to + 1;
-  }
-  return to;
 }
 
 export const mdxProjectionTheme = EditorView.baseTheme({

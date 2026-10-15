@@ -17,6 +17,7 @@ import {
   wysiwygProjectionField,
 } from "../../src/wysiwyg/projection-state.ts";
 import { DefaultAtomWidget } from "../../src/wysiwyg/widgets/default-atom-widget.ts";
+import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
 const DEFAULT_SOURCE = [
   "Setext title",
@@ -67,6 +68,35 @@ function widgets(decorations: DecorationSet): readonly DefaultAtomWidget[] {
 }
 
 describe("default WYSIWYG visualization", () => {
+  it("splits block atoms onto the whole-line contract and keeps inline atoms exclusive", () => {
+    const { state } = createState();
+    const probes = findLayoutDecorationsForTesting(state, "default-atom-widget");
+    const blockProbes = probes.filter(
+      (probe) => (probe.spec.widget as DefaultAtomWidget).value.block,
+    );
+    const inlineProbes = probes.filter(
+      (probe) => !(probe.spec.widget as DefaultAtomWidget).value.block,
+    );
+
+    // setext 标题 / 引用式定义 / 脚注定义等整行块级原子块：不对称 Inclusivity。
+    expect(blockProbes.length).toBeGreaterThan(0);
+    for (const probe of blockProbes) {
+      expect(probe.spec).toMatchObject({
+        block: true,
+        inclusiveStart: true,
+        inclusiveEnd: false,
+      });
+      expect(state.doc.lineAt(probe.from).from).toBe(probe.from);
+    }
+
+    // 行内原子（autolink / 引用式链接等）必须保持 `inclusive: false` 的行内替换语义。
+    for (const probe of inlineProbes) {
+      expect(probe.spec).toMatchObject({ block: false, inclusive: false });
+      expect(probe.spec.inclusiveStart).toBeUndefined();
+      expect(probe.spec.inclusiveEnd).toBeUndefined();
+    }
+  });
+
   it("projects each supported source-only record as one visual and atomic range", () => {
     const { state } = createState();
     const index = state.field(markdownRangeIndexField);

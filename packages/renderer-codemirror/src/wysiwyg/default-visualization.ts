@@ -11,6 +11,7 @@ import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
 import { DefaultAtomWidget, type DefaultAtomWidgetValue } from "./widgets/default-atom-widget.ts";
+import { buildWholeLineBlockReplacement } from "./block-replacement.ts";
 
 /**
  * 构建降级兜底原子块的 Replace 装饰挂件。
@@ -24,24 +25,30 @@ export function buildDefaultAtomLayoutDecorations(
     return [];
   }
   const value = createDefaultAtomWidgetValue(record, selected, state);
-  const replacementTo =
-    record.kind === "heading-setext" ? trailingLineBreakEnd(record, state) : record.fullRange.to;
+  const widget = new DefaultAtomWidget(value);
+  // 整行块级原子块（setext 标题 / 引用式定义 / 脚注定义）必须走统一契约（不对称 Inclusivity），
+  // 否则 CM6 会在这类块上方合成幽灵空行。
+  if (value.block) {
+    return buildWholeLineBlockReplacement({
+      record,
+      state,
+      widget,
+      role: "default-atom-widget",
+      // setext 标题需要覆盖到行尾换行；引用式/脚注定义保持记录自身范围。
+      includeTrailingLineBreak: record.kind === "heading-setext",
+    });
+  }
+  // 行内原子（autolink / 引用式链接 / 脚注引用）保持非 block 的 `inclusive: false`：
+  // 它们是行内替换，取消 inclusive 会改变游标 reveal 与选区语义。
   return [
     Decoration.replace({
-      widget: new DefaultAtomWidget(value),
+      widget,
       inclusive: false,
-      block: value.block,
+      block: false,
       wysiwygRecordId: record.id,
       wysiwygRole: "default-atom-widget",
-    }).range(record.fullRange.from, replacementTo),
+    }).range(record.fullRange.from, record.fullRange.to),
   ];
-}
-
-function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): number {
-  return record.fullRange.to < state.doc.length &&
-    state.sliceDoc(record.fullRange.to, record.fullRange.to + 1) === "\n"
-    ? record.fullRange.to + 1
-    : record.fullRange.to;
 }
 
 export function buildDefaultAtomAtomicRanges(
