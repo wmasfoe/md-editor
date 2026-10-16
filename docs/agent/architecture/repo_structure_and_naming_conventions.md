@@ -109,7 +109,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行 |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`） |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 
