@@ -7,7 +7,7 @@ import {
   type StateCommand,
 } from "@codemirror/state";
 import { authorizeWysiwygProtectedChange } from "./change-authorization.ts";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../markdown/range-types.ts";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
@@ -80,6 +80,70 @@ export function moveAtomVertically(view: EditorView, direction: "backward" | "fo
   );
   return true;
 }
+
+/**
+ * 整块原子选中态下的键入 = 替换整块 + **光标收敛**。
+ *
+ * 为什么必须显式接管：整行块级替换装饰开启了 `inclusiveStart: true`（消除上方幽灵空行，
+ * 见 `block-replacement.ts`），CM6 因此把 widget 标记为 `TileFlag.IncStart`，并在 `resolveBlock`
+ * 中把 DOM 选区锚点放进 **widget 内部**。当用户键入字符替换整块时，浏览器选区会顺着被替换掉的
+ * widget DOM 回读成一个**覆盖刚键入文本的范围**，于是下一次键入把上一字符删掉（表现为“丢首字符”）。
+ *
+ * 这里直接派发事务（changes + 折叠光标）并返回 `true`，不再依赖 DOM 选区回读：
+ * - 仅接管“选区恰好等于整块原子范围”的整行块级原子（表格 / HTML / MDX / 块级兜底原子）；
+ * - 行内原子、普通文本选区、IME 组字与回显源码的原子一律交回 CodeMirror 原生路径。
+ */
+export const blockAtomTypingInputHandler = EditorView.inputHandler.of((view, from, to, insert) => {
+  if (view.composing || insert === "" || insert.includes("\n")) {
+    return false;
+  }
+  const { state } = view;
+  const projection = state.field(wysiwygProjectionField, false);
+  if (
+    !projection ||
+    projection.mode !== "wysiwyg" ||
+    projection.compositionGuardRanges.length > 0
+  ) {
+    return false;
+  }
+  const main = state.selection.main;
+  if (main.empty) {
+    return false;
+  }
+  const atom = exactlySelectedAtom(state, main);
+  if (!atom || !hasWholeLineBlockReplacement(state, atom)) {
+    return false;
+  }
+  // 注意：不校验浏览器推导的 `from/to`。HTML / MDX widget 的 DOM 不可编辑时，
+  // 浏览器会把变更位置推到 widget **之后**（甚至在块外），若据此退回原生路径，
+  // 键入就会变成“在 HTML 块后追加文本”而不是替换整块。
+  // “光标恰好选中整块原子”已是权威意图信号，替换范围一律以原子范围为准。
+
+  view.dispatch(
+    state.update({
+      changes: { from: atom.fullRange.from, to: atom.fullRange.to, insert },
+      selection: EditorSelection.cursor(atom.fullRange.from + insert.length),
+      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+      userEvent: "input.type",
+      scrollIntoView: true,
+    }),
+  );
+  return true;
+});
+
+/** 该原子是否由整行块级替换装饰（`block: true`）渲染——只有这类原子需要光标收敛接管。 */
+function hasWholeLineBlockReplacement(state: EditorState, atom: SelectableAtom): boolean {
+  let found = false;
+  state
+    .field(wysiwygProjectionField)
+    .layoutDecorations.between(atom.fullRange.from, atom.fullRange.to, (_from, _to, value) => {
+      if (value.spec.wysiwygRecordId === atom.id && value.spec.block === true) {
+        found = true;
+      }
+    });
+  return found;
+}
+
 export const clearSelectedAtoms: StateCommand = guarded(({ state, dispatch }) => {
   const projection = state.field(wysiwygProjectionField, false);
   if (!projection || projection.selectedAtomIds.length === 0) {

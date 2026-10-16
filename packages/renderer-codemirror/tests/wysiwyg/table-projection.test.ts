@@ -16,6 +16,7 @@ import {
 } from "../../src/wysiwyg/projection-state.ts";
 import { serializeTableRow, escapeTableCellText } from "../../src/wysiwyg/table-editing.ts";
 import { splitTableRowCells } from "../../src/wysiwyg/table-projection.ts";
+import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
 interface ProjectionHarness {
   readonly state: EditorState;
@@ -54,6 +55,23 @@ describe("M3 table projection", () => {
     expect(projection.layoutDecorationCount).toBeGreaterThan(0);
     expect(projection.atomicRangeCount).toBeGreaterThan(0);
     expect(projection.protectedRanges).toContainEqual({ ...table.fullRange, kind: "table" });
+  });
+
+  it("routes the table widget through the whole-line replacement contract", () => {
+    const fixture = getM3TableFixture("M3T-F01");
+    const { state, index } = createTableHarness(fixture.markdown);
+    const table = index.byKind("table")[0];
+    const [probe] = findLayoutDecorationsForTesting(state, "table-widget");
+
+    // 不对称 Inclusivity：起点覆盖避免上方幽灵空行，终点不覆盖避免吞并下方换行。
+    expect(probe?.spec).toMatchObject({
+      block: true,
+      inclusiveStart: true,
+      inclusiveEnd: false,
+    });
+    // 整行替换的起点必须落在行首，否则 CM6 仍会合成幽灵空行。
+    expect(state.doc.lineAt(probe.from).from).toBe(probe.from);
+    expect(probe.to).toBe(table.fullRange.to + 1);
   });
 
   it("keeps the full table protected even when the cursor is inside the table range", () => {

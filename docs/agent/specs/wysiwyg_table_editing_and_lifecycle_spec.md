@@ -29,6 +29,8 @@
 
 - 表格单元格的编辑提交边界严格收敛在单个 cell（`<th>` 或 `<td>`）级别，不得以整个 `TableGridWidget` 外层容器作为失焦判定条件。
 - 当用户在表格内通过 Tab、Enter、方向键或鼠标点击在不同单元格之间移动焦点时，前一个单元格接收到 `focusout` 事件，即使 `relatedTarget` 仍然位于同一个表格 wrapper 内，也必须立即触发该单元格的 `commitCellEdit`，将其即时写入底层 Markdown 状态。
+- **仅在存在未提交输入时才回写源码**（`hasUncommittedCellInput`）：单元格 DOM 文本与已提交文本一致时，`focusout` 只更新“最近编辑单元格”记忆，**不得**派发文档变更。否则 `buildCellReplacement` 会对整行重序列化（padded 行 `|  a  | b |` 被静默规范化为 `| a | b |`），破坏“零文本变更”契约，并因文档变更清掉待处理的 AI 建议（D-1 PM-4 硬闸门 E18/T2：注入建议时的 `view.focus()` 会把焦点从单元格移到编辑器，触发此路径）。
+  - 回归锁：`packages/renderer-codemirror/tests/wysiwyg/widgets/widget-lifecycle.test.ts`（失焦无输入 ⇒ 文档逐字节不变；有输入 ⇒ 该行按既有语义回写）。
 
 ### 3. 生命周期主动刷新契约 (`flushPendingEdits`)
 

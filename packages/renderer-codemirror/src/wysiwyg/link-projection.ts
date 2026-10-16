@@ -9,6 +9,7 @@ import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
 import { buildLinkLabelDecoration, linkDestinationFromRecord } from "./link-interaction.ts";
+import { buildWholeLineBlockReplacement } from "./block-replacement.ts";
 import { resolveImagePreview } from "./image-resolver.ts";
 import { ImageWidget } from "./widgets/image-widget.ts";
 import { ThematicBreakWidget } from "./widgets/thematic-break-widget.ts";
@@ -50,23 +51,18 @@ export function buildLinkMediaLayoutDecorations(
     return [buildImageDecoration(record, state, active, selected)];
   }
   if (record.kind === "thematic-break" && record.renderPolicy === "thematic-break-widget") {
-    const replacementTo = trailingLineBreakEnd(record, state);
-    // CM6 块级替换：设置 inclusiveStart: true 避免起点生成幽灵空行（消除上方多出一行及光标上浮错位）；
-    // 同时设置 inclusiveEnd: false 避免吞并紧随其后的换行（保持下方空行数量完全精确）。
-    return [
-      Decoration.replace({
-        widget: new ThematicBreakWidget({
-          recordId: record.id,
-          selected,
-          diagnostics: getWysiwygDiagnostics(state),
-        }),
-        block: true,
-        inclusiveStart: true,
-        inclusiveEnd: false,
-        wysiwygRecordId: record.id,
-        wysiwygRole: "thematic-break-widget",
-      }).range(record.fullRange.from, replacementTo),
-    ];
+    // 整行块级替换统一契约（不对称 Inclusivity）：起点覆盖避免上方幽灵空行，
+    // 终点不覆盖避免吞并紧随换行。契约与机理见 block-replacement.ts。
+    return buildWholeLineBlockReplacement({
+      record,
+      state,
+      widget: new ThematicBreakWidget({
+        recordId: record.id,
+        selected,
+        diagnostics: getWysiwygDiagnostics(state),
+      }),
+      role: "thematic-break-widget",
+    });
   }
   return [];
 }
@@ -88,13 +84,6 @@ export function buildLinkMediaAtomicRanges(
     return [atomicRange(record.id, "thematic-break-atomic", record.fullRange)];
   }
   return [];
-}
-
-function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): number {
-  return record.fullRange.to < state.doc.length &&
-    state.sliceDoc(record.fullRange.to, record.fullRange.to + 1) === "\n"
-    ? record.fullRange.to + 1
-    : record.fullRange.to;
 }
 
 function buildHiddenLinkFragments(

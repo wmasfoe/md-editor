@@ -285,7 +285,12 @@ export class TableGridWidget extends WidgetType {
         return;
       }
       cell.classList.remove("cm-md-table-widget__cell--editing");
-      flushCellCommit(view, wrapper, cell, currentValue().recordId);
+      // 仅在**确有未提交输入**时回写源码：
+      // 1. 无输入变化的焦点转移（如注入 AI 建议时的 `view.focus()`）不应产生文档变更；
+      // 2. 否则 `buildCellReplacement` 会把 padded 行整行重序列化（零文本变更契约被破坏），
+      //    并因 doc 变更清掉待处理的 AI 建议（D-1 PM-4 硬闸门）。
+      // 无输入变化时仍需更新“最近编辑单元格”记忆，保持 Tab/Enter 重进语义不变。
+      commitCellOnFocusOut(view, wrapper, cell, currentValue());
     };
 
     const keydown: EventListener = (event) => {
@@ -929,6 +934,28 @@ function flushCellCommit(
   const text = extractCellEditorText(cell);
   commitTableCell(view, address, text);
   lastEditingCellByRecordId.set(recordId, address);
+  editingCellByDom.delete(wrapper);
+}
+
+/**
+ * 单元格失焦时的提交：仅当存在未提交输入才回写源码。
+ * 无输入变化时只更新记忆、不产生文档变更（参见 focusout 注释）。
+ */
+function commitCellOnFocusOut(
+  view: EditorView,
+  wrapper: HTMLElement,
+  cell: HTMLElement,
+  value: TableGridValue,
+): void {
+  const address = addressFromCell(cell, value.recordId);
+  if (!address) {
+    return;
+  }
+  if (hasUncommittedCellInput(cell, value)) {
+    flushCellCommit(view, wrapper, cell, value.recordId);
+    return;
+  }
+  lastEditingCellByRecordId.set(value.recordId, address);
   editingCellByDom.delete(wrapper);
 }
 

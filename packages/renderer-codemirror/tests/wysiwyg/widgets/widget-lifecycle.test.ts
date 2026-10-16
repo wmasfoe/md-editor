@@ -564,6 +564,67 @@ describe("table widget DOM lifecycle", () => {
     return { view, dom, document, widget, diagnostics };
   }
 
+  it("失焦仅在存在未提交输入时回写源码（padded 行不得被静默规范化）", () => {
+    let state = EditorState.create({
+      doc: "|  a  | b |\n| - | - |\n|  c  | d |\n",
+      selection: EditorSelection.cursor(0),
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+        editorModeField,
+        markdownRangeIndexField,
+        configureWysiwygProjectionFeatures(["tables"]),
+        wysiwygProjectionField,
+        wysiwygChangeProtection,
+      ],
+    });
+    const document = new FakeDocument();
+    const view = {
+      dom: { ownerDocument: document },
+      get state() {
+        return state;
+      },
+      dispatch(spec: Parameters<EditorState["update"]>[0]) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+    } as unknown as EditorView;
+
+    const table = state.field(markdownRangeIndexField).byKind("table")[0]!;
+    const widget = new TableGridWidget({
+      recordId: table.id,
+      headerCells: ["a", "b"],
+      bodyRows: [["c", "d"]],
+      alignments: ["none", "none"],
+      selected: false,
+      diagnostics: null,
+    });
+    const dom = widget.toDOM(view) as unknown as FakeElement;
+    const bodyCell = (
+      dom.querySelectorAll<HTMLElement>("tbody td") as unknown as FakeElement[]
+    )[0]!;
+    const editor = bodyCell.querySelector<HTMLElement>(
+      ".cm-md-table-widget__cell-editor",
+    ) as unknown as FakeElement;
+
+    // 1) 无未提交输入：仅焦点转移（如注入 AI 建议时的 view.focus()）不得改写源码，
+    //    否则 padded 行会被静默规范化、待处理的 AI 建议也会被 doc 变更清掉。
+    dom.dispatch("focusin", { target: editor } as unknown as FocusEvent);
+    dom.dispatch("focusout", {
+      target: editor,
+      relatedTarget: null,
+    } as unknown as FocusEvent);
+    expect(state.doc.toString()).toBe("|  a  | b |\n| - | - |\n|  c  | d |\n");
+
+    // 2) 存在未提交输入：失焦必须回写（沿用既有整行规范化语义）。
+    editor.textContent = "cc";
+    dom.dispatch("focusin", { target: editor } as unknown as FocusEvent);
+    dom.dispatch("focusout", {
+      target: editor,
+      relatedTarget: null,
+    } as unknown as FocusEvent);
+    expect(state.doc.toString()).toBe("|  a  | b |\n| - | - |\n| cc | d |\n");
+  });
+
   it("renders an editable grid with Notion-style block handles and a lazy action menu", () => {
     const { dom } = createTableWidget();
 

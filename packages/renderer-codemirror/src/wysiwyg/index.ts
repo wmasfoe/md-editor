@@ -13,6 +13,7 @@ import { createMarkdownStructuredCommandExtensions } from "./markdown-commands.t
 import { createMarkdownFormattingKeymap } from "./markdown-formatting.ts";
 import { smartLinkPasteExtension } from "./smart-paste.ts";
 import { smartPairsExtension } from "./smart-pairs.ts";
+import { blockAtomTypingInputHandler } from "./atom-selection.ts";
 import { tabArbiterKeymap } from "./tab-arbiter-command.ts";
 import { focusModeExtension } from "./focus-mode.ts";
 import { typewriterModeExtension } from "./typewriter-mode.ts";
@@ -27,6 +28,7 @@ import {
 import { htmlProjectionTheme } from "./html-projection.ts";
 import { mdxProjectionTheme } from "./mdx-projection.ts";
 import { tableProjectionTheme } from "./table-projection.ts";
+import { blockReplacementTheme } from "./block-replacement.ts";
 import { visibleMarkdownMarksPlugin } from "./visible-marks.ts";
 
 export function createWysiwygProjectionExtensions(
@@ -39,6 +41,7 @@ export function createWysiwygProjectionExtensions(
     codeBlockLineNumbersField,
     codeBlockLineNumberTheme,
     codeBlockProjectionTheme,
+    blockReplacementTheme,
     tableProjectionTheme,
     htmlProjectionTheme,
     mdxProjectionTheme,
@@ -62,6 +65,8 @@ export function createWysiwygProjectionExtensions(
     createMarkdownFormattingKeymap(),
     smartLinkPasteExtension,
     smartPairsExtension,
+    // 按键 order 与 smart-pairs 无关：整块原子选中态下先接管（光标收敛），其余场景返回 false 交回原生路径。
+    blockAtomTypingInputHandler,
     // D-2：专注模式 + 打字机模式（纯视图状态，零文档变更）。
     // 两者都是独立 ViewPlugin，不进 layoutDecorations → 不参与 G004 map-vs-rebuild 判定。
     focusModeExtension,

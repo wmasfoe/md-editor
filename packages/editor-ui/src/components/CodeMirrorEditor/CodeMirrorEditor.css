@@ -555,7 +555,9 @@
   box-sizing: border-box;
   width: 100%;
   height: 1.85rem;
-  margin: 0;
+  /* 垂直间距不再在本 widget 上声明：分割线属于"符号型块"（data-md-block-category="symbol"），
+     由 renderer 核心层 block-replacement.ts 统一提供（--theme-block-symbol-gap）。
+     在此写 margin 会覆盖统一规则，导致逐 widget 硬编码。 */
   cursor: pointer;
 }
 

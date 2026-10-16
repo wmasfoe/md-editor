@@ -15,6 +15,7 @@ import {
   type SanitizedHtmlBlock,
 } from "../markdown/html-sanitize.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
+import { buildWholeLineBlockReplacement } from "./block-replacement.ts";
 import { HtmlBlockWidget, type HtmlBlockWidgetValue } from "./widgets/html-block-widget.ts";
 
 const HTML_SANITIZE_CACHE_LIMIT = 128;
@@ -39,16 +40,13 @@ export function buildHtmlLayoutDecorations(
     return [];
   }
   const value = buildHtmlWidgetValue(record, selected, state);
-  const replacementTo = trailingLineBreakEnd(record, state);
-  return [
-    Decoration.replace({
-      widget: new HtmlBlockWidget(value),
-      inclusive: false,
-      block: true,
-      wysiwygRecordId: record.id,
-      wysiwygRole: "html-widget",
-    }).range(record.fullRange.from, replacementTo),
-  ];
+  // 整行块级替换必须走统一契约（不对称 Inclusivity），否则 CM6 会在 HTML 块上方合成幽灵空行。
+  return buildWholeLineBlockReplacement({
+    record,
+    state,
+    widget: new HtmlBlockWidget(value),
+    role: "html-widget",
+  });
 }
 
 export function buildHtmlAtomicRanges(
@@ -141,11 +139,4 @@ function getSanitizedHtml(record: MarkdownRangeRecord, state: EditorState): Sani
     }
   }
   return result;
-}
-
-function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorState): number {
-  return record.fullRange.to < state.doc.length &&
-    state.sliceDoc(record.fullRange.to, record.fullRange.to + 1) === "\n"
-    ? record.fullRange.to + 1
-    : record.fullRange.to;
 }
