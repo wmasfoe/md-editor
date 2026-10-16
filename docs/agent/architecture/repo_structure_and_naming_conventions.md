@@ -92,11 +92,11 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 把巨型文件拆成"入口 + 协作者"时，遵守以下约定（PR3 拆分 `renderer.ts` / `projection-state.ts` / `table-widget.ts` 时确立）：
 
 1. **状态归属单一**：可变状态由**入口模块**（owner，如 `CodeMirrorRendererController`、`TableGridWidget`、`wysiwygProjectionField`）持有；协作者是**叶子模块**，只能通过显式参数或窄 context 对象读写 owner 的状态，不得自行持有可变状态。
-2. **例外须登记**：确需共持有的状态（如外部编辑队列与注入队列的配对状态）必须在**代码注释**与本节各写一处，说明为何不能收敛到 owner。
+2. **例外须登记**：确需共持有的状态必须在**代码注释**与本节各写一处，说明为何不能收敛到 owner（当前实现已全部收敛到 owner，无例外实例；本条目为条件式约束）。
 3. **依赖单向**：协作者之间只允许单向依赖；跨模块共享类型用 `import type`，不得引入运行期双向 import 或求值环。
 4. **cluster 级体量契约（机器强制）**：`CLUSTER_STRICT_PACKAGES`（当前 `packages/renderer-codemirror`）内**任何** `.ts/.tsx` 超过 800 行即**失败**——防止"把巨型文件拆成巨型协作者"。其它包仍为 >800 警告 / >1200 失败。
 5. **命名**：协作者名以其**职责角色**命名（`mode-viewport`、`document-protocol`、`host-visibility`、`transaction-ledger`、`view-operations`、`probe`、`composition`、`selection`、`validation` 等），不得用 `helpers`、`utils`、`misc` 等无语义名。
-6. **登记义务**：新增/重命名协作者必须同步更新 `scripts/structure/check.mjs` 的 `WYSIWYG_DOMAIN_MEMBERS`（或对应域映射）与 `SPLIT_TARGETS`，否则 `lint:structure` 会以"多出未登记文件"失败。
+6. **登记义务（pr3 起机器强制）**：新增/重命名协作者必须同步登记：`wysiwyg/**` 与 `widgets/**` 走 `WYSIWYG_DOMAIN_MEMBERS`；`renderer/**` 走 `RENDERER_CLUSTER_MEMBERS`（顶层与 `controller/` 两个作用域）。未登记成员会被判为"多出未登记的簇成员"而失败；已登记但缺失同样失败。
 7. **不留副本**：抽取后必须删除原位置实现；禁止保留兼容 re-export（`index.ts` 仅作目录聚合）。
 
 ---
@@ -109,7 +109,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行 |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`） |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 

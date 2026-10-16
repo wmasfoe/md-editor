@@ -397,3 +397,26 @@ test("cluster 级硬约束：指定包内 >800 行失败，其它包仅警告", 
     },
   );
 });
+
+test("PR3：renderer 簇新增未登记协作者必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/renderer-codemirror/src/renderer/index.ts": "export {};\n",
+      "packages/renderer-codemirror/src/renderer/controller.ts": "export {};\n",
+      "packages/renderer-codemirror/src/renderer/types.ts": "export {};\n",
+      "packages/renderer-codemirror/src/renderer/view-adapter.ts": "export {};\n",
+      "packages/renderer-codemirror/src/renderer/controller/probe.ts": "export {};\n",
+      "packages/renderer-codemirror/src/renderer/controller/new-collaborator.ts": "export {};\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "多出未登记的簇成员"),
+        true,
+        "renderer 簇新增协作者必须失败（契约第二维度）",
+      );
+    },
+  );
+});
