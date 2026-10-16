@@ -10,11 +10,8 @@ import { markdownRangeIndexField, type MarkdownRangeIndex } from "../../markdown
 import { editorModeField } from "../../mode.ts";
 import { buildInlineStyleDecorations } from "../projections/inline-heading.ts";
 import { isPlainTextInput } from "../input/plain-text-input.ts";
-import {
-  hasWysiwygProjectionFeature,
-  recordIdsStable,
-  refreshWysiwygProjectionEffect,
-} from "./projection-state.ts";
+import { hasWysiwygProjectionFeature, recordIdsStable } from "./projection-field.ts";
+import { refreshWysiwygProjectionEffect } from "./types.ts";
 
 class VisibleMarkdownMarks {
   decorations: DecorationSet;
