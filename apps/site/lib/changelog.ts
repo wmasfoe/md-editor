@@ -24,45 +24,36 @@ export interface ChangelogEntry {
   items: ChangelogItem[];
 }
 
-const defaultDesktopChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG.md"),
-  path.join(process.cwd(), "apps", "desktop", "CHANGELOG.md"),
+/**
+ * 仓库根候选：生产环境（Vercel）与 `pnpm --filter @md-editor/site` 的 cwd 为 `apps/site`，
+ * 但本地 vitest 的 cwd 可能是仓库根或 `apps/`。逐个尝试，避免把解析绑死在单一 cwd 假设上。
+ */
+const repoRootCandidates = [
+  path.resolve(process.cwd(), "..", ".."),
+  path.resolve(process.cwd(), ".."),
+  process.cwd(),
 ];
 
-const defaultDesktopEnChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "desktop", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "apps", "desktop", "CHANGELOG_EN.md"),
-];
+/** 在仓库根候选下展开同一相对路径的候选列表。 */
+function repoCandidates(...segments: string[]): readonly string[] {
+  return repoRootCandidates.map((root) => path.join(root, ...segments));
+}
 
-const defaultWebChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "web", "CHANGELOG.md"),
-  path.join(process.cwd(), "apps", "web", "CHANGELOG.md"),
-];
+const defaultDesktopChangelogCandidates = repoCandidates("apps", "desktop", "CHANGELOG.md");
 
-const defaultWebEnChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "web", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "apps", "web", "CHANGELOG_EN.md"),
-];
+const defaultDesktopEnChangelogCandidates = repoCandidates("apps", "desktop", "CHANGELOG_EN.md");
 
-const defaultAndroidChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "mobile", "android", "CHANGELOG.md"),
-  path.join(process.cwd(), "apps", "mobile", "android", "CHANGELOG.md"),
-];
+const defaultWebChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG.md");
 
-const defaultAndroidEnChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "mobile", "android", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "apps", "mobile", "android", "CHANGELOG_EN.md"),
-];
+const defaultWebEnChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG_EN.md");
 
-const defaultIosChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "mobile", "ios", "CHANGELOG.md"),
-  path.join(process.cwd(), "apps", "mobile", "ios", "CHANGELOG.md"),
-];
+const defaultAndroidChangelogCandidates = repoCandidates("apps", "mobile", "android", "CHANGELOG.md");
 
-const defaultIosEnChangelogCandidates = [
-  path.join(process.cwd(), "..", "apps", "mobile", "ios", "CHANGELOG_EN.md"),
-  path.join(process.cwd(), "apps", "mobile", "ios", "CHANGELOG_EN.md"),
-];
+const defaultAndroidEnChangelogCandidates = repoCandidates("apps", "mobile", "android", "CHANGELOG_EN.md");
+
+const defaultIosChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG.md");
+
+const defaultIosEnChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG_EN.md");
 
 /**
  * 从文本中提取所有合法的正整数 PR 编号。
@@ -225,18 +216,13 @@ export function getLatestIosVersion(): string {
   if (entries.length > 0 && entries[0].version) {
     return entries[0].version;
   }
-  const projectCandidates = [
-    path.join(
-      process.cwd(),
-      "..",
-      "apps",
-      "mobile",
-      "ios",
-      "Inkpoint.xcodeproj",
-      "project.pbxproj",
-    ),
-    path.join(process.cwd(), "apps", "mobile", "ios", "Inkpoint.xcodeproj", "project.pbxproj"),
-  ];
+  const projectCandidates = repoCandidates(
+    "apps",
+    "mobile",
+    "ios",
+    "Inkpoint.xcodeproj",
+    "project.pbxproj",
+  );
   for (const candidate of projectCandidates) {
     if (fs.existsSync(candidate)) {
       const match = fs.readFileSync(candidate, "utf8").match(/MARKETING_VERSION\s*=\s*([^;]+);/);
@@ -257,10 +243,13 @@ export function getLatestAndroidVersion(): string {
   if (entries.length > 0 && entries[0].version) {
     return entries[0].version;
   }
-  const gradleCandidates = [
-    path.join(process.cwd(), "..", "apps", "mobile", "android", "app", "build.gradle.kts"),
-    path.join(process.cwd(), "apps", "mobile", "android", "app", "build.gradle.kts"),
-  ];
+  const gradleCandidates = repoCandidates(
+    "apps",
+    "mobile",
+    "android",
+    "app",
+    "build.gradle.kts",
+  );
   for (const candidate of gradleCandidates) {
     if (fs.existsSync(candidate)) {
       const match = fs.readFileSync(candidate, "utf8").match(/versionName\s*=\s*"([^"]+)"/);

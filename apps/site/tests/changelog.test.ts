@@ -130,7 +130,7 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
     // 最新条目必须等于 Android 版本文件里的 versionName：
     // 发版脚本只升 build.gradle.kts，断言随之自动成立，无需每次发版手改本文件
     const androidGradleSource = await readFile(
-      new URL("../../apps/mobile/android/app/build.gradle.kts", import.meta.url),
+      new URL("../../mobile/android/app/build.gradle.kts", import.meta.url),
       "utf8",
     );
     const gradleVersionName = /versionName\s*=\s*"([^"]+)"/u.exec(androidGradleSource)?.[1];
@@ -150,7 +150,7 @@ describe("getDesktopChangelogEntries, getWebChangelogEntries & getAndroidChangel
     expect(iosZh.map((entry) => entry.version)).toEqual(iosEn.map((entry) => entry.version));
     // 最新条目必须等于 Xcode 工程的 MARKETING_VERSION：发版脚本只升工程文件，断言随之自动成立
     const iosProjectSource = await readFile(
-      new URL("../../apps/mobile/ios/Inkpoint.xcodeproj/project.pbxproj", import.meta.url),
+      new URL("../../mobile/ios/Inkpoint.xcodeproj/project.pbxproj", import.meta.url),
       "utf8",
     );
     const marketingVersion = /MARKETING_VERSION\s*=\s*([^;]+);/u.exec(iosProjectSource)?.[1].trim();
