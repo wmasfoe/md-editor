@@ -23,7 +23,7 @@ import {
 } from "../../markdown/range-index.ts";
 import type { MarkdownSyntaxPlugin } from "../../plugins/syntax-plugin.ts";
 import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
-import { refreshWysiwygProjectionEffect } from "../../wysiwyg/state/projection-state.ts";
+import { refreshWysiwygProjectionEffect } from "../../wysiwyg/state/types.ts";
 import type { RendererViewAdapter } from "../types.ts";
 
 export interface SyntaxPluginContext {

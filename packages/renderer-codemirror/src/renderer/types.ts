@@ -21,7 +21,7 @@ import type { Markdown } from "@md-editor/shared";
 import type { WysiwygDiagnosticsSnapshot } from "../diagnostics.ts";
 import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
 import type { MdxComponentLookup } from "../wysiwyg/projections/mdx-projection.ts";
-import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/projection-state.ts";
+import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/types.ts";
 import type { ImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
 import type {
   AiSuggestionInput,

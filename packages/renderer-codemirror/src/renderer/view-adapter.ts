@@ -9,7 +9,7 @@
 
 import type { EditorState, StateEffect, Transaction, TransactionSpec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { flushActiveTableCell } from "../wysiwyg/widgets/table-widget.ts";
+import { flushActiveTableCell } from "../wysiwyg/widgets/table/index.ts";
 import type { CodeMirrorRendererController } from "./controller.ts";
 import type { CodeMirrorRenderer, RendererViewAdapter, RendererViewFactoryInput } from "./types.ts";
 

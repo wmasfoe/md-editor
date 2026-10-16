@@ -125,3 +125,11 @@ export function scrollViewToLine(
   }
   return true;
 }
+
+/** Flush native DOM/widget edits only while the controller's view is alive. */
+export function flushPendingViewEdits(view: RendererViewAdapter, destroyed: boolean): boolean {
+  if (destroyed) {
+    return false;
+  }
+  return view.flushPendingEdits?.() ?? false;
+}
