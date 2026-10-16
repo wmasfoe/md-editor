@@ -20,7 +20,7 @@ import {
   getFencedCodeBlockBodyRange,
   isProjectableCodeBlock,
 } from "../projections/code-block-projection.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * 计算 view.scrollDOM 的基准偏移量（与 CodeMirror 内部 getBase 逻辑一致）

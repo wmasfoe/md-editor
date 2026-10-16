@@ -1,17 +1,5 @@
 [
   {
-    "id": "renderer-module",
-    "path": "packages/renderer-codemirror/src/renderer.ts",
-    "maxLines": 1893,
-    "reason": "PR3 拆分前登记（PR2 搬迁后按实测行数重设基线）：主渲染器控制器聚合文件（拆到 renderer/* 后删除本条目）"
-  },
-  {
-    "id": "projection-state-module",
-    "path": "packages/renderer-codemirror/src/wysiwyg/state/projection-state.ts",
-    "maxLines": 1256,
-    "reason": "PR3 拆分前登记（PR2 搬迁后按实测行数重设基线）：投影状态字段与装饰/范围构建聚合（拆到 state/* 后删除本条目）"
-  },
-  {
     "id": "infra-router-module",
     "path": "infra/distribution-worker/src/router.ts",
     "maxLines": 2097,

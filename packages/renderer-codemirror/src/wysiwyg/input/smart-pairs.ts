@@ -2,7 +2,7 @@ import { EditorSelection, Transaction, type Extension } from "@codemirror/state"
 import { EditorView } from "@codemirror/view";
 import { editorModeField } from "../../mode.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * 选区包裹定界符映射表

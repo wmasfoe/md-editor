@@ -18,8 +18,8 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-  type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { type WysiwygProjectionFeature } from "../../src/wysiwyg/state/types.ts";
 
 const TABLE_DOCUMENT = [
   "| name | role |",

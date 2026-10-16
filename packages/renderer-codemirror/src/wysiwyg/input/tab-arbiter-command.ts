@@ -17,7 +17,7 @@ import { codeBlockTab } from "../editing/code-block-commands.ts";
 import { escapeBracket } from "./bracket-escape-command.ts";
 import { structuredTab } from "../editing/markdown-commands.ts";
 import { acceptAiSuggestion, aiSuggestionField } from "../view/suggestion.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 import { editorModeField } from "../../mode.ts";
 import { dispatchTabActions, type TabAction } from "./tab-arbiter.ts";
 import { insertIndent } from "../editing/paragraph-indent.ts";

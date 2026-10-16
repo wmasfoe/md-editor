@@ -19,7 +19,7 @@ import { moveAtomVertically } from "../../src/wysiwyg/blocks/atom-selection.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 import { createRendererTestHarness } from "../../src/testing.ts";
 import { type CodeMirrorRenderer } from "../../src/index.ts";
 

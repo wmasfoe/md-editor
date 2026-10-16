@@ -9,7 +9,7 @@ import {
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../../mode.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 
 export interface AiSuggestionItem {

@@ -11,7 +11,7 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,

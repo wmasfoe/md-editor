@@ -23,12 +23,12 @@ import {
   toggleTaskMarkerAt,
   toggleSelectedTasks,
 } from "../../src/wysiwyg/editing/markdown-commands.ts";
-import { enterSelectedTableCell } from "../../src/wysiwyg/widgets/table-widget.ts";
+import { enterSelectedTableCell } from "../../src/wysiwyg/widgets/table/index.ts";
 import {
   configureWysiwygProjectionFeatures,
-  startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { startWysiwygCompositionGuardEffect } from "../../src/wysiwyg/state/types.ts";
 
 interface CommandResult {
   readonly handled: boolean;

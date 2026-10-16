@@ -3,7 +3,7 @@ import { Decoration, EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
-import { TableGridWidget, type TableGridValue } from "../widgets/table-widget.ts";
+import { TableGridWidget, type TableGridValue } from "../widgets/table/index.ts";
 
 export function isProjectableTable(record: MarkdownRangeRecord): boolean {
   return (

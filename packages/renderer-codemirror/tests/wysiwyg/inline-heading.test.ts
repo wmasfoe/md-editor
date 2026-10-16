@@ -16,10 +16,12 @@ import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
-  startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
+} from "../../src/wysiwyg/state/projection-field.ts";
+import {
+  startWysiwygCompositionGuardEffect,
   type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/types.ts";
 import { buildVisibleMarkdownMarks } from "../../src/wysiwyg/state/visible-marks.ts";
 
 interface DecorationSummary {

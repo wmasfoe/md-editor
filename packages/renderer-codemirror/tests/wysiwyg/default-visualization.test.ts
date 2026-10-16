@@ -13,9 +13,9 @@ import {
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
-  selectWysiwygAtomEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { selectWysiwygAtomEffect } from "../../src/wysiwyg/state/types.ts";
 import { DefaultAtomWidget } from "../../src/wysiwyg/widgets/default-atom-widget.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 

@@ -23,9 +23,9 @@ import {
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
-  startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { startWysiwygCompositionGuardEffect } from "../../src/wysiwyg/state/types.ts";
 
 interface CommandResult {
   readonly handled: boolean;

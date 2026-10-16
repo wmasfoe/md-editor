@@ -12,10 +12,10 @@ import type { EditorView } from "@codemirror/view";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
-  setWysiwygVisibleRangesEffect,
   visibleRangesProbePlugin,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { setWysiwygVisibleRangesEffect } from "../../src/wysiwyg/state/types.ts";
 import type { SourceRange } from "../../src/markdown/range-types.ts";
 
 function createHarness(doc: string): { state: EditorState; diagnostics: WysiwygDiagnostics } {

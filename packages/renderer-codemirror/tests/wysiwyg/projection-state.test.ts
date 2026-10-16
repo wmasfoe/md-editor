@@ -17,14 +17,16 @@ import {
 } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   clearWysiwygAtomSelectionEffect,
-  configureWysiwygProjectionFeatures,
   endWysiwygCompositionGuardEffect,
-  inspectWysiwygProjection,
   selectWysiwygAtomEffect,
   startWysiwygCompositionGuardEffect,
-  wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/types.ts";
+import {
+  configureWysiwygProjectionFeatures,
+  inspectWysiwygProjection,
+  wysiwygProjectionField,
+} from "../../src/wysiwyg/state/projection-field.ts";
 import {
   codeBlockLineNumbersField,
   setCodeBlockLineNumbersEffect,

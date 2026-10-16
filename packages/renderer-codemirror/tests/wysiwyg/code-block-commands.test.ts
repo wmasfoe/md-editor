@@ -33,9 +33,9 @@ import {
 import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
-  startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { startWysiwygCompositionGuardEffect } from "../../src/wysiwyg/state/types.ts";
 
 class CommandHarness {
   transactions: Transaction[] = [];

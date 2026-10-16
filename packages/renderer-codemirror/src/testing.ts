@@ -24,7 +24,7 @@ import {
   createCodeBlockLineNumberDecorations,
   type CodeBlockLogicalLine,
 } from "./wysiwyg/editing/code-block-line-numbers.ts";
-import { wysiwygProjectionField } from "./wysiwyg/state/projection-state.ts";
+import { wysiwygProjectionField } from "./wysiwyg/state/projection-field.ts";
 
 const testScrollSnapshotEffect = StateEffect.define<null>();
 

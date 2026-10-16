@@ -14,7 +14,7 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 function createWysiwygState(doc: string, mode: "wysiwyg" | "source" = "wysiwyg"): EditorState {
   return EditorState.create({

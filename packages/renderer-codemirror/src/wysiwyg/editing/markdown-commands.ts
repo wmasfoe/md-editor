@@ -17,9 +17,9 @@ import {
   selectAtomBackward,
   selectAtomForward,
 } from "../blocks/atom-selection.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 import { toggleSelectedTasks as toggleSelectedTasksBase } from "./task-toggle.ts";
-import { enterSelectedTableCell } from "../widgets/table-widget.ts";
+import { enterSelectedTableCell } from "../widgets/table/index.ts";
 
 export { toggleTaskMarkerAt } from "./task-toggle.ts";
 

@@ -10,9 +10,9 @@ import { provideImagePreviewResolver } from "../../src/wysiwyg/view/image-resolv
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
-  selectWysiwygAtomEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { selectWysiwygAtomEffect } from "../../src/wysiwyg/state/types.ts";
 import { ImageWidget } from "../../src/wysiwyg/widgets/image-widget.ts";
 import { ThematicBreakWidget } from "../../src/wysiwyg/widgets/thematic-break-widget.ts";
 

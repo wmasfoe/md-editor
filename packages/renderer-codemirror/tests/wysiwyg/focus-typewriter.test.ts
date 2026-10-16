@@ -14,10 +14,12 @@ import {
   blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
   projectionStateChangedBetween,
+  wysiwygProjectionField,
+} from "../../src/wysiwyg/state/projection-field.ts";
+import {
   refreshWysiwygProjectionEffect,
   setWysiwygVisibleRangesEffect,
-  wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/types.ts";
 import {
   DEFAULT_DIM_OPACITY,
   focusDimDecorationsField,
@@ -126,7 +128,7 @@ describe("F5 所有权契约：块 widget 覆盖的行不得挂 focus 线装饰"
       provideWysiwygDiagnostics(new WysiwygDiagnostics()),
       editorModeField,
       markdownRangeIndexField,
-      // 投影构建在读 code 块 record 时会取该字段（`projection-state.ts` 的
+      // 投影构建在读 code 块 record 时会取该字段（`projection-field.ts` 的
       // `buildLayoutDecorationsForRecord`），故含代码块的夹具必须注册它，
       // 否则一旦惰性求值投影就会抛 “Field is not present in this state”。
       codeBlockLineNumbersField,

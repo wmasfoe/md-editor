@@ -66,7 +66,7 @@ import {
   blockWidgetCoveredRanges,
   projectionStateChangedBetween,
   wysiwygProjectionField,
-} from "../state/projection-state.ts";
+} from "../state/projection-field.ts";
 
 /** 专注模式开关（零文档变更，纯视图态） */
 export const setFocusModeEffect = StateEffect.define<boolean>();
@@ -200,7 +200,7 @@ function buildFocusDecorations(state: EditorState): DecorationSet {
   const active = resolveActiveBlock(blocks, head);
   const projection = state.field(wysiwygProjectionField, false);
   const visibleRanges = projection?.visibleRanges ?? EMPTY_VISIBLE_RANGES;
-  // 块 widget 覆盖行集合来自**投影层拥有的渲染契约**（`projection-state.ts` 的同名函数）：
+  // 块 widget 覆盖行集合来自**投影层拥有的渲染契约**（`projection-field.ts` 的同名函数）：
   // 本模块不再自维护 kind 名单，新增块 widget kind 自动覆盖。
   const widgetRanges = blockWidgetCoveredRanges(state);
 

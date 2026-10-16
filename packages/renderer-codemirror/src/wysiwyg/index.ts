@@ -26,8 +26,8 @@ import {
   configureWysiwygProjectionFeatures,
   visibleRangesProbePlugin,
   wysiwygProjectionField,
-  type WysiwygProjectionFeature,
-} from "./state/projection-state.ts";
+} from "./state/projection-field.ts";
+import { type WysiwygProjectionFeature } from "./state/types.ts";
 import { htmlProjectionTheme } from "./projections/html-projection.ts";
 import { mdxProjectionTheme } from "./projections/mdx-projection.ts";
 import { tableProjectionTheme } from "./projections/table-projection.ts";

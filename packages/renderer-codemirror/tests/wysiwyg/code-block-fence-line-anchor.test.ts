@@ -12,7 +12,7 @@ import {
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 /**
  * 围栏代码块的行装饰锚点回归：
