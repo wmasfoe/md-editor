@@ -11,9 +11,9 @@ import {
   blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
   projectionStateChangedBetween,
-  setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
+import { setWysiwygVisibleRangesEffect } from "../../src/wysiwyg/state/types.ts";
 
 /**
  * 块工具栏 × 块 widget 覆盖范围。

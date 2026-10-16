@@ -14,7 +14,7 @@ import {
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 /**
  * 契约测试：整行块级替换装饰的**不对称 Inclusivity** 是 CM6 幽灵空行/吞行问题的唯一解法。

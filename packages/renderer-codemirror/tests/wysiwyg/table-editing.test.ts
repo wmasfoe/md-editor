@@ -9,7 +9,7 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 import {
   commitTableCell,
   deleteTableBodyRow,
@@ -19,12 +19,12 @@ import {
   insertTableColumn,
   setTableColumnAlignment,
 } from "../../src/wysiwyg/editing/table-editing.ts";
-import { TableGridWidget, flushActiveTableCell } from "../../src/wysiwyg/widgets/table-widget.ts";
+import { TableGridWidget, flushActiveTableCell } from "../../src/wysiwyg/widgets/table/index.ts";
 import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   createCodeMirrorRendererWithFactory,
   type RendererViewAdapter,
-} from "../../src/renderer.ts";
+} from "../../src/renderer/index.ts";
 
 function createView(doc: string): { view: EditorView; getState: () => EditorState } {
   let state = EditorState.create({

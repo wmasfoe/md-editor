@@ -9,7 +9,7 @@ import {
 import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../../mode.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 
 export interface AiSuggestionItem {
@@ -361,7 +361,7 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
  * `viewCommand`/`canRunStructuredCommand`(`markdown-commands.ts:87-101`) 同模式。
  *
  * 背景（D-1b，共识评审 pass-1 发现的真实缺陷）：本函数此前**没有** composing 门控，
- * 而它在 keymap facet 中是**第一个** Tab 绑定（`renderer.ts:553` 早于 `:554`），
+ * 而它在 keymap facet 中是**第一个** Tab 绑定（`renderer/controller.ts`（keymap 注册）早于 `:554`），
  * 因此 IME 组合期间按 Tab 会被 AI 接受抢走，违反 D2 铁律「瞬时模态态 > 结构语义」中的
  * 第 1 步「IME 组合中 → 放行原生」。
  */

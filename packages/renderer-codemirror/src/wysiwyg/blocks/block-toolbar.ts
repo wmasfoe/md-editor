@@ -8,7 +8,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { readBlockRanges, type BlockRange } from "./block-move.ts";
-import { blockWidgetCoveredRanges, projectionStateChanged } from "../state/projection-state.ts";
+import { blockWidgetCoveredRanges, projectionStateChanged } from "../state/projection-field.ts";
 import {
   foldToggleTheme,
   foldableToggleAt,

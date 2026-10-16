@@ -6,7 +6,7 @@ import {
 } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * 校验是否可在当前状态下执行结构化/格式化命令

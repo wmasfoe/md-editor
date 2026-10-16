@@ -13,7 +13,7 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 import { mdxComponentRegistryFacet } from "../../src/wysiwyg/projections/mdx-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 import type { MdxComponentWidget } from "../../src/wysiwyg/widgets/mdx-component-widget.ts";

@@ -18,7 +18,16 @@ import test from "node:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { runChecks, WARN_LINES, FAIL_LINES, MOVE_HEADROOM } from "./check.mjs";
+import {
+  runChecks,
+  WARN_LINES,
+  FAIL_LINES,
+  MOVE_HEADROOM,
+  SPLIT_TARGETS,
+  WYSIWYG_DOMAIN_MEMBERS,
+  checkSplitTargets,
+  checkWysiwygDomains,
+} from "./check.mjs";
 
 /** 在临时目录中构造 fixture 根并执行回调；回调结束后清理。 */
 function withFixture(files, fn) {
@@ -298,6 +307,58 @@ test("PR1 阶段不得启用 PR2/PR3 规则（ruleset rollout）", () => {
         fails(result, "测试文件必须位于 tests/"),
         false,
         "PR1 不应因存量 src 内测试而红",
+      );
+    },
+  );
+});
+
+// PR3 专项阈值独立于普通 1200 行阈值，确保残余 controller 不会再次膨胀。
+test("PR3：四个拆分入口均为 800 行硬上限，且只在 PR3 启用", () => {
+  for (const [target, limit] of Object.entries(SPLIT_TARGETS)) {
+    assert.equal(limit, 800, `${target} 必须使用单一职责簇上限`);
+    withFixture({ [target]: lines(800) }, (root) => {
+      assert.deepEqual(checkSplitTargets({ root }).failures, []);
+    });
+    withFixture({ [target]: lines(801) }, (root) => {
+      assert.equal(checkSplitTargets({ root }).failures.length, 1);
+      assert.equal(runChecks({ root, phase: "pr2" }).rules.includes("splitTargets"), false);
+      assert.equal(fails(runChecks({ root, phase: "pr3" }), `[splitTargets] ${target}`), true);
+    });
+  }
+});
+
+test("PR3：state 拆分成员精确匹配，拒绝恢复旧聚合文件", () => {
+  const members = [
+    "types.ts",
+    "projection-field.ts",
+    "decorations.ts",
+    "ranges.ts",
+    "atoms.ts",
+    "visible-marks.ts",
+    "change-authorization.ts",
+    "change-protection.ts",
+  ];
+  assert.deepEqual(WYSIWYG_DOMAIN_MEMBERS.state, members);
+  const files = Object.fromEntries(
+    Object.entries(WYSIWYG_DOMAIN_MEMBERS).flatMap(([domain, names]) =>
+      names.map((name) => [
+        `packages/renderer-codemirror/src/wysiwyg/${domain}/${name}`,
+        "export {};\n",
+      ]),
+    ),
+  );
+  withFixture(files, (root) => assert.deepEqual(checkWysiwygDomains({ root }).failures, []));
+  withFixture(
+    {
+      ...files,
+      "packages/renderer-codemirror/src/wysiwyg/state/projection-state.ts": "export {};\n",
+    },
+    (root) => {
+      assert.equal(
+        checkWysiwygDomains({ root }).failures.some((failure) =>
+          failure.includes("多出未登记文件 projection-state.ts"),
+        ),
+        true,
       );
     },
   );

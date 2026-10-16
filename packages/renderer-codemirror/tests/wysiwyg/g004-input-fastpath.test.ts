@@ -11,11 +11,13 @@ import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-bl
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
+  wysiwygProjectionField,
+} from "../../src/wysiwyg/state/projection-field.ts";
+import {
   refreshWysiwygProjectionEffect,
   startWysiwygCompositionGuardEffect,
-  wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/types.ts";
 import { plainTextInputCanMapVisibleMarks } from "../../src/wysiwyg/state/visible-marks.ts";
 
 const WYSIWYG_FEATURES: readonly WysiwygProjectionFeature[] = [

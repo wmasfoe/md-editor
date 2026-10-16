@@ -67,8 +67,8 @@
   - 豁免指向的文件不存在即失败（防僵尸条目）；
   - 被豁免文件的实际行数不得超过其 `maxLines`（豁免只允许缩小）。
 - **变更流程**：调整豁免必须**同 commit** 修改 `structure-exceptions.json` 与 `exceptions.baseline.json` —— 这会让变更成为显式的双文件 diff（评审信号）。真正的硬阻断需 CODEOWNERS 覆盖 `exceptions*.json` 或受保护分支校验（见 follow-up）。
-- **当前初始豁免（全量，3 条）**：`renderer-module`(1885)、`projection-state-module`(1253)、`infra-router-module`(2097，本任务域外、登记冻结)。三条都在后续拆分或独立任务中消除。
-- **可接受的警告**：域内 800–1200 行存量文件（`table-widget.ts` 1092、`UtoolsApp.tsx` 1139、`web-file-system.ts` 841、`useDesktopEditorController.ts` 835）产生 warn 但不豁免；`tests/` 内的 2 个 >1000 行测试文件不在适用域。
+- **当前豁免（全量，1 条）**：`infra-router-module`(2097，本任务域外、登记冻结)。PR3 已拆分 renderer 与 projection-state，并同步删除两份清单中的对应豁免。
+- **可接受的警告**：域内 800–1200 行存量文件（`UtoolsApp.tsx` 1139、`web-file-system.ts` 841、`useDesktopEditorController.ts` 835）产生 warn 但不豁免；`tests/` 内的 2 个 >1000 行测试文件不在适用域。
 
 ## 6. 域是职责标签（taxonomy），不是分层（layering）
 
@@ -76,12 +76,16 @@
 
 **不要**据此施加"低层不得依赖高层"的护栏 —— 实测跨域依赖是向外的单向边，例如：
 
-- `state/projection-state.ts` → `projections/inline-heading`、`projections/link-projection`、`input/plain-text-input`
+- `state/decorations.ts` / `state/ranges.ts` / `state/projection-field.ts` → `projections/inline-heading`、`projections/link-projection`、`input/plain-text-input`
 - `state/change-protection.ts` → `projections/code-block-projection`
 - `blocks/atom-selection.ts` → `state/change-authorization`
 - `editing/table-editing.ts` → `projections/table-projection`
 
 域只回答"文件放哪"，不承诺依赖方向。
+
+PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decorations.ts`、`ranges.ts`、`atoms.ts`、`visible-marks.ts`、`change-authorization.ts`、`change-protection.ts`。
+`types.ts` 持有 Facet/Effect 唯一实例，`projection-field.ts` 持有 StateField 唯一实例以及依赖该字段的配置/查询入口；装饰、范围与 atom 计算按职责拆出，禁止为旧路径保留兼容转发。
+`widgets/table/index.ts` 是表格 widget 的目录聚合边界，DOM、提交与焦点行为在同目录协作。
 
 ## 7. 规则分批上线（ruleset rollout）与基线自检铁律
 
@@ -91,14 +95,14 @@
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：拆分目标文件 ≤ 单一职责簇阈值 |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行 |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 
 ## 8. 检查器用法
 
 ```bash
-pnpm lint:structure                 # 等同于 node scripts/structure/check.mjs --phase pr1（已串入 pnpm lint）
+pnpm lint:structure                 # 等同于 node scripts/structure/check.mjs --phase pr3（已串入 pnpm lint）
 node scripts/structure/check.mjs --phase pr2 --json     # 指定阶段 + JSON 输出
 node scripts/structure/check.mjs --root <fixture-dir>   # 在 fixture 根上运行（反例测试用）
 node --test scripts/structure/check.test.mjs            # N 类反例（已串入 pnpm test）

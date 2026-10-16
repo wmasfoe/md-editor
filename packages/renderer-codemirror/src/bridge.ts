@@ -18,7 +18,7 @@ import {
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
-} from "./renderer.ts";
+} from "./renderer/index.ts";
 import type {
   AiSuggestionInput,
   AiSuggestionLabels,

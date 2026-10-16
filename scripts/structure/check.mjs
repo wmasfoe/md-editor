@@ -42,7 +42,7 @@ export const WYSIWYG_TOP_LEVEL = [
 /** PR3 起必须 ≤ 单一职责簇阈值的目标文件（路径 → 允许上限）。 */
 export const SPLIT_TARGETS = {
   "packages/renderer-codemirror/src/renderer/index.ts": WARN_LINES,
-  "packages/renderer-codemirror/src/renderer/controller.ts": FAIL_LINES,
+  "packages/renderer-codemirror/src/renderer/controller.ts": WARN_LINES,
   "packages/renderer-codemirror/src/wysiwyg/state/projection-field.ts": WARN_LINES,
   "packages/renderer-codemirror/src/wysiwyg/widgets/table/table-widget.ts": WARN_LINES,
 };
@@ -82,7 +82,11 @@ export const PHASE_RULES = {
 /** PR2 起 `wysiwyg/` 各域的成员集合（逐文件域归属，堵住"文件全塞一个域"仍绿）。 */
 export const WYSIWYG_DOMAIN_MEMBERS = {
   state: [
-    "projection-state.ts",
+    "types.ts",
+    "projection-field.ts",
+    "decorations.ts",
+    "ranges.ts",
+    "atoms.ts",
     "visible-marks.ts",
     "change-authorization.ts",
     "change-protection.ts",

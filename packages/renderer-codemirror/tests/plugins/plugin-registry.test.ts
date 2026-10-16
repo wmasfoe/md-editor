@@ -6,7 +6,7 @@ import {
   createCodeMirrorRendererWithFactory,
   type RendererViewAdapter,
   type RendererViewFactoryInput,
-} from "../../src/renderer.ts";
+} from "../../src/renderer/index.ts";
 import { resolveDimOpacity } from "../../src/wysiwyg/view/focus-mode.ts";
 import {
   markdownRangeIndexField,

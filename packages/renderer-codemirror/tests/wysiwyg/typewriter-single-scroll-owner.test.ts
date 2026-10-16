@@ -21,7 +21,7 @@ const SRC_ROOT = fileURLToPath(new URL("../../src", import.meta.url));
 
 /** 允许写 scrollTop 的文件（白名单，每条写明理由） */
 const SCROLLTOP_WRITERS: Record<string, string> = {
-  "renderer.ts": "renderer 适配层：自身 scroller 的读写与 setScrollTop 端口",
+  "view-adapter.ts": "renderer 视图适配层：自身 scroller 的读写与 setScrollTop 端口",
   "typewriter-mode.ts": "打字机模式自身（本文件即其结构护栏）",
   "code-block-selection.ts": "代码块选区层读取（非写入其它容器）",
 };

@@ -14,7 +14,7 @@ import {
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 function createHarness(doc: string, selection: EditorSelection = EditorSelection.single(0)) {
   const diagnostics = new WysiwygDiagnostics();

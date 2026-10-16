@@ -7,16 +7,16 @@ import { describe, expect, it } from "vitest";
  * 受保护注解惯例的**结构性护栏**（轮1 architect concern-4 提出、轮2 WATCH① 收窄补全）。
  *
  * 断言面（v2，按轮2 architect 盲区清单逐条闭合）：
- * 1. **范围**：扫描整个 `src/`（不再只有 `src/wysiwyg/**`）—— renderer.ts 的
- *    reconcile/external-edit dispatch（其 :818/:881 均已带注解）从此在 CI 覆盖内；
+ * 1. **范围**：扫描整个 `src/`（不再只有 `src/wysiwyg/**`）—— `renderer/controller.ts` 的
+ *    reconcile/external-edit dispatch（字面量变更点均已带注解）从此在 CI 覆盖内；
  * 2. **字面量规则**：`dispatch({ ..., changes: ... })` 必须携带
  *    `authorizeWysiwygProtectedChange`，否则列出 file:line 失败；
  * 3. **间接形式**：`dispatch(<identifier>)`（StateCommand/事务变量透传）无法静态见
  *    changes —— 只允许出现在两个**枚举的透传枢纽**（INDIRECT_OK）里，语义理由：
  *    - `markdown-commands.ts`：结构命令经 `authorizeWysiwygStructuredCommand` 授权
  *      （保护层 `isWysiwygStructuredCommandAuthorized` 放行），列表缩进作用于非受保护 marker；
- *    - `renderer.ts`：控制器/facade 事务重派发（effects/listener 流），其**自身的字面量
- *      变更点**仍受规则 2 约束；
+ *    - `view-adapter.ts`：renderer 视图适配器的控制器/facade 事务透传（`dispatch(spec)` /
+ *      `dispatch(transaction)`），其**自身的字面量变更点**仍受规则 2 约束；
  *    - `paragraph-indent.ts`：行级缩进兜底 —— 变更前**显式调用保护层
  *      `isWysiwygChangeAllowed`**（受保护语义下只消费按键、不动文本），
  *      故它是「先授权再 dispatch」的正当透传，而非绕道。
@@ -50,7 +50,7 @@ const ALLOWLIST = new Set([
 ]);
 
 /** 允许 `dispatch(<identifier>)` 间接形式的**枚举透传枢纽**（其余文件出现即违规） */
-const INDIRECT_OK = new Set(["markdown-commands.ts", "renderer.ts", "paragraph-indent.ts"]);
+const INDIRECT_OK = new Set(["markdown-commands.ts", "view-adapter.ts", "paragraph-indent.ts"]);
 
 /** 从 `dispatch(` 起做括号配平，取该次调用的真实参数体（消除跨调用假阳） */
 function dispatchArgument(source: string, start: number): string {

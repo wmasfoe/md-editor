@@ -18,7 +18,7 @@ import { readCodeBlockBodyText } from "../../src/wysiwyg/editing/code-block-comm
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 function createState(doc: string): EditorState {
   const cursor = doc.indexOf("const");

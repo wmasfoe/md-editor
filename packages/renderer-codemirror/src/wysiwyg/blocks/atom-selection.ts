@@ -11,12 +11,8 @@ import { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
-import {
-  clearWysiwygAtomSelectionEffect,
-  hasWysiwygProjectionFeature,
-  selectWysiwygAtomEffect,
-  wysiwygProjectionField,
-} from "../state/projection-state.ts";
+import { clearWysiwygAtomSelectionEffect, selectWysiwygAtomEffect } from "../state/types.ts";
+import { hasWysiwygProjectionFeature, wysiwygProjectionField } from "../state/projection-field.ts";
 
 type SelectableAtom = MarkdownRangeRecord;
 type DeletableAtom = MarkdownRangeRecord & {

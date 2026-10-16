@@ -31,7 +31,7 @@ import type { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import type { MarkdownSyntaxKind } from "../../markdown/range-types.ts";
 import { detectBracketUnitInLineRuns } from "./bracket-escape.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * H4 **fail closed 边界集**：光标位于这些 kind 的 record 覆盖范围内时，

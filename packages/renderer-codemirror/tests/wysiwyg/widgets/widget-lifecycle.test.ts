@@ -9,12 +9,12 @@ import { editorModeField } from "../../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../../src/wysiwyg/state/projection-state.ts";
+} from "../../../src/wysiwyg/state/projection-field.ts";
 import { wysiwygChangeProtection } from "../../../src/wysiwyg/state/change-protection.ts";
 import { DefaultAtomWidget } from "../../../src/wysiwyg/widgets/default-atom-widget.ts";
 import { FrontmatterHeaderWidget } from "../../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
 import { ImageWidget } from "../../../src/wysiwyg/widgets/image-widget.ts";
-import { TableGridWidget } from "../../../src/wysiwyg/widgets/table-widget.ts";
+import { TableGridWidget } from "../../../src/wysiwyg/widgets/table/index.ts";
 import { ThematicBreakWidget } from "../../../src/wysiwyg/widgets/thematic-break-widget.ts";
 
 // Node 测试环境没有 DOM 全局类；为 widget 代码中的 instanceof 检查提供最小桩类型。

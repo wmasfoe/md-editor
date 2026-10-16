@@ -35,7 +35,7 @@ import { smartPairsInputHandler } from "../../src/wysiwyg/input/smart-pairs.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 
 function createState(
   doc: string,

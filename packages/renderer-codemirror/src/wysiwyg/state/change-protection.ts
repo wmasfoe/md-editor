@@ -7,7 +7,7 @@ import {
   authorizeWysiwygProtectedChange,
   isWysiwygStructuredCommandAuthorized,
 } from "./change-authorization.ts";
-import { wysiwygProjectionField } from "./projection-state.ts";
+import { wysiwygProjectionField } from "./projection-field.ts";
 import { getCodeBlockProtectedRanges } from "../projections/code-block-projection.ts";
 
 export const protectedWysiwygChangeRejectedEffect = StateEffect.define<null>();

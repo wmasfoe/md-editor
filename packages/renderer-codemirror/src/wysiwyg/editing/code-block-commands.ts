@@ -24,7 +24,7 @@ import {
   getFencedCodeBlockBodyRange,
   isProjectableCodeBlock,
 } from "../projections/code-block-projection.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 export type WriteClipboardText = (text: string) => Promise<void>;
 

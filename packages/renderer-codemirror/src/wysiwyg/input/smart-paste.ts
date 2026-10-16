@@ -1,7 +1,7 @@
 import { EditorSelection, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
-import { wysiwygProjectionField } from "../state/projection-state.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 
 /**
  * 校验是否为合法 URL

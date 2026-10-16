@@ -12,7 +12,7 @@ import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-bl
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/state/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-field.ts";
 import {
   addBlockBelow,
   deleteBlock,

@@ -49,7 +49,7 @@ const PROJECTION_KINDS = [
 /** 共用扩展（供单光标与多光标 state 复用，保证同一仲裁面） */
 function commonExtensions(extra: Extension[] = []): Extension[] {
   return [
-    // 生产端 renderer.ts 同款：不开此 facet，CM6 会在 state 创建时把多光标折叠成主光标
+    // 生产端 renderer/controller.ts 同款：不开此 facet，CM6 会在 state 创建时把多光标折叠成主光标
     // （EditorState.create 的 normalizeSelection 行为）——H5 多光标断言的硬前置
     EditorState.allowMultipleSelections.of(true),
     markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
@@ -62,7 +62,7 @@ function commonExtensions(extra: Extension[] = []): Extension[] {
   ];
 }
 
-/** 组合真实扩展集：基座字段 + renderer.ts:553-554 的注册顺序 */
+/** 组合真实扩展集：基座字段 + renderer/controller.ts 的注册顺序 */
 function buildState(doc: string, cursor: number, extra: Extension[] = []): EditorState {
   return EditorState.create({
     doc,
