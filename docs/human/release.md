@@ -156,7 +156,7 @@ uTools 官方公开流程要求在开发者工具中填写发布信息、截图�
 
 官网采用 **Vercel CLI-only** 发布：
 - 仓库内**唯一**发布入口：`pnpm release:site` → `scripts/site/deploy-site.mjs`
-- `site/vercel.json` 已设置 `git.deploymentEnabled: false`，关闭 push / PR 触发的自动部署。
+- `apps/site/vercel.json` 已设置 `git.deploymentEnabled: false`，关闭 push / PR 触发的自动部署。
 
 ### 2. 本地预览与手动发布
 
