@@ -3,7 +3,6 @@ packages:
   - "apps/mobile/*"
   - "infra/*"
   - "packages/*"
-  - "site"
 
 catalog:
   "@playwright/test": ^1.51.1

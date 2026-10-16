@@ -91,15 +91,15 @@ packages/i18n/
 
 ---
 
-## 5. 官网集成与下拉切换器设计 (`site/`)
+## 5. 官网集成与下拉切换器设计 (`apps/site/`)
 
 官网独立维护高性能静态字典以保障首屏极速渲染（SSR/ISR）：
-- **字典与类型**：`site/lib/i18n/` 下定义 `Locale = "zh" | "en" | "zh-Hant" | "ja"`，完整维护 4 种语言翻译；
+- **字典与类型**：`apps/site/lib/i18n/` 下定义 `Locale = "zh" | "en" | "zh-Hant" | "ja"`，完整维护 4 种语言翻译；
 - **服务端与客户端探测**：
   - `detectLocaleFromHeader(acceptLanguage)`：解析 HTTP 请求头的语言偏好，当用户偏好不在支持列表内时，严格默认返回英文（`"en"`）；
   - `detectClientLocale()`：优先读取 `localStorage`，其次探测浏览器 `navigator.languages`，不支持则默认 `"en"`；
 - **Apple Liquid Glass 风格下拉语言切换器**：
-  - `LanguageSwitcher`（`site/components/language-switcher.tsx`）：
+  - `LanguageSwitcher`（`apps/site/components/language-switcher.tsx`）：
     - 触发器：采用标准的文A 图标（`LanguageIcon`）；
     - 弹出层：亚克力毛玻璃底色（`backdrop-blur-xl`）、柔和投影（`shadow-xl`）与细边框（`border-line/80`）；
     - 条目列表：展示国旗图标（🇺🇸/🇨🇳/🇭🇰/🇯🇵）与原生语言名称，当前选中项高亮圆角药丸底色（`bg-accent/10 text-accent`）；
@@ -110,14 +110,14 @@ packages/i18n/
 ## 6. 如何添加新的语言（以德语 `de` 为例）
 
 1. **定义语言代码**：
-   在 `packages/i18n/src/types.ts` 与 `site/lib/i18n/types.ts` 中，扩展 `Locale`、`SUPPORTED_LOCALES` 以及国旗映射 `LOCALE_FLAGS`。
+   在 `packages/i18n/src/types.ts` 与 `apps/site/lib/i18n/types.ts` 中，扩展 `Locale`、`SUPPORTED_LOCALES` 以及国旗映射 `LOCALE_FLAGS`。
 2. **新增语言字典**：
    - 创建 `packages/i18n/src/locales/de.ts`，由 `TranslationSchema` 强类型约束；
-   - 创建 `site/lib/i18n/translations/de.ts`。
+   - 创建 `apps/site/lib/i18n/translations/de.ts`。
 3. **注册资源**：
-   在 `packages/i18n/src/i18n.ts` 与 `site/lib/i18n/index.ts` 中注册新字典。
+   在 `packages/i18n/src/i18n.ts` 与 `apps/site/lib/i18n/index.ts` 中注册新字典。
 4. **检测匹配**：
-   在 `packages/i18n/src/detect.ts` 与 `site/lib/i18n/detect.ts` 中添加前缀匹配规则。
+   在 `packages/i18n/src/detect.ts` 与 `apps/site/lib/i18n/detect.ts` 中添加前缀匹配规则。
 5. **UI 选项补充**：
    在现有各语言的 `settings.general.languageDe` 中填入名称（如 `"Deutsch"`），并在设置面板与官网下拉列表中增加选项。
 6. **自动化验证**：

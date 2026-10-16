@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "release:site": "node ../scripts/site/deploy-site.mjs",
+    "release:site": "node ../../scripts/site/deploy-site.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

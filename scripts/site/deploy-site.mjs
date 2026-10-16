@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "../..");
-const siteDir = path.join(repoRoot, "site");
+const siteDir = path.join(repoRoot, "apps", "site");
 const desktopChangelogPath = path.join(repoRoot, "apps/desktop/CHANGELOG.md");
 // 约定：.vercel 只放在 monorepo 根。Vercel Root Directory=site，CLI cwd=仓库根。
 const rootVercelDir = path.join(repoRoot, ".vercel");
@@ -79,15 +79,15 @@ function assertProjectRootDirectory() {
   const rootDirectory = project?.settings?.rootDirectory;
 
   // 本仓库约定：Vercel Root Directory = site，CLI cwd = monorepo 根，.vercel 在 monorepo 根。
-  if (rootDirectory && rootDirectory !== "site" && rootDirectory !== "./site") {
+  if (rootDirectory && rootDirectory !== "apps/site" && rootDirectory !== "./apps/site") {
     throw new Error(
-      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "site" so CLI can run from the monorepo root with .vercel at the repo root.`,
+      `Unexpected Vercel rootDirectory "${rootDirectory}". Expected "apps/site" so CLI can run from the monorepo root with .vercel at the repo root.`,
     );
   }
 
   if (!rootDirectory) {
     console.warn(
-      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "site" and keeping .vercel at the monorepo root.',
+      'Warning: Vercel project rootDirectory is empty. Prefer setting Root Directory to "apps/site" and keeping .vercel at the monorepo root.',
     );
   }
 }

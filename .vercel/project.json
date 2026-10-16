@@ -9,7 +9,7 @@
     "installCommand": null,
     "buildCommand": null,
     "outputDirectory": null,
-    "rootDirectory": "site",
+    "rootDirectory": "apps/site",
     "directoryListing": false,
     "nodeVersion": "24.x"
   }

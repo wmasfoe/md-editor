@@ -61,13 +61,13 @@
 
 当一个 PR 合并入 `main` 分支后，维护者或 Agent 应先执行 `git checkout main && git pull`，并根据本次 PR 涉及的修改范围决定执行哪项上线命令：
 
-1. **若修改了 `site/` 目录**（如官网文案、Next.js ISR 版本中心 `/releases`、更新日志 UI、样式等）：
+1. **若修改了 `apps/site/` 目录**（如官网文案、Next.js ISR 版本中心 `/releases`、更新日志 UI、样式等）：
    - 执行：`pnpm release:site`
    - 验证：检查 `https://editor.justdev.cn/` 和 `https://editor.jiaqi.im/` 是否正常生效。
 2. **若修改了 `infra/distribution-worker/` 目录**（如分发网关路由、R2 代理策略、静态目录模板等）：
    - 执行：`pnpm deploy:worker`
    - 验证：检查 `https://download.justdev.cn/` 和 `https://download.jiaqi.im/` 是否正常生效。
-3. **若同时修改了 `site/` 和 `infra/distribution-worker/`**：
+3. **若同时修改了 `apps/site/` 和 `infra/distribution-worker/`**：
    - 先执行：`pnpm release:site`
    - 再执行：`pnpm deploy:worker`
 4. **若修改了 `apps/web/` 目录**（Web 在线 Playground）：
