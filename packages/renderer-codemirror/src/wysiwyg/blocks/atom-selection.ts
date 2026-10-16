@@ -1,0 +1,625 @@
+import {
+  EditorSelection,
+  type StateEffect,
+  Transaction,
+  type EditorState,
+  type SelectionRange,
+  type StateCommand,
+} from "@codemirror/state";
+import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
+import { EditorView } from "@codemirror/view";
+import { markdownRangeIndexField } from "../../markdown/range-index.ts";
+import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
+import {
+  clearWysiwygAtomSelectionEffect,
+  hasWysiwygProjectionFeature,
+  selectWysiwygAtomEffect,
+  wysiwygProjectionField,
+} from "../state/projection-state.ts";
+
+type SelectableAtom = MarkdownRangeRecord;
+type DeletableAtom = MarkdownRangeRecord & {
+  readonly kind: "image" | "thematic-break" | "table" | "html";
+};
+
+export const deleteSelectedAtomBackward: StateCommand = guarded((target) =>
+  deleteExactlySelectedAtoms(target, "delete.backward"),
+);
+export const deleteSelectedAtomForward: StateCommand = guarded((target) =>
+  deleteExactlySelectedAtoms(target, "delete.forward"),
+);
+export const selectAtomBackward: StateCommand = guarded((target) =>
+  moveAcrossAtoms(target, "backward"),
+);
+export const selectAtomForward: StateCommand = guarded((target) =>
+  moveAcrossAtoms(target, "forward"),
+);
+export function moveAtomVertically(view: EditorView, direction: "backward" | "forward"): boolean {
+  const projection = view.state.field(wysiwygProjectionField, false);
+  if (
+    view.composing ||
+    !projection ||
+    projection.mode !== "wysiwyg" ||
+    projection.compositionGuardRanges.length > 0
+  ) {
+    return false;
+  }
+
+  const targets = view.state.selection.ranges.map((range) =>
+    verticalMovementTarget(view, range, direction),
+  );
+  if (targets.some((target) => target === null)) {
+    return false;
+  }
+  const resolved = targets as readonly VerticalMovementTarget[];
+  if (resolved.every((target) => target.kind === "native")) {
+    return false;
+  }
+
+  const effects: StateEffect<unknown>[] = [clearWysiwygAtomSelectionEffect.of(null)];
+  effects.push(
+    ...resolved
+      .filter(
+        (target): target is Extract<VerticalMovementTarget, { readonly kind: "select" }> =>
+          target.kind === "select",
+      )
+      .map((target) => selectWysiwygAtomEffect.of({ recordId: target.atom.id, extend: true })),
+  );
+
+  view.dispatch(
+    view.state.update({
+      selection: EditorSelection.create(
+        resolved.map((target) => target.selection),
+        view.state.selection.mainIndex,
+      ),
+      effects,
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select",
+    }),
+  );
+  return true;
+}
+
+/**
+ * 整块原子选中态下的键入 = 替换整块 + **光标收敛**。
+ *
+ * 为什么必须显式接管：整行块级替换装饰开启了 `inclusiveStart: true`（消除上方幽灵空行，
+ * 见 `block-replacement.ts`），CM6 因此把 widget 标记为 `TileFlag.IncStart`，并在 `resolveBlock`
+ * 中把 DOM 选区锚点放进 **widget 内部**。当用户键入字符替换整块时，浏览器选区会顺着被替换掉的
+ * widget DOM 回读成一个**覆盖刚键入文本的范围**，于是下一次键入把上一字符删掉（表现为“丢首字符”）。
+ *
+ * 这里直接派发事务（changes + 折叠光标）并返回 `true`，不再依赖 DOM 选区回读：
+ * - 仅接管“选区恰好等于整块原子范围”的整行块级原子（表格 / HTML / MDX / 块级兜底原子）；
+ * - 行内原子、普通文本选区、IME 组字与回显源码的原子一律交回 CodeMirror 原生路径。
+ */
+export const blockAtomTypingInputHandler = EditorView.inputHandler.of((view, from, to, insert) => {
+  if (view.composing || insert === "" || insert.includes("\n")) {
+    return false;
+  }
+  const { state } = view;
+  const projection = state.field(wysiwygProjectionField, false);
+  if (
+    !projection ||
+    projection.mode !== "wysiwyg" ||
+    projection.compositionGuardRanges.length > 0
+  ) {
+    return false;
+  }
+  const main = state.selection.main;
+  if (main.empty) {
+    return false;
+  }
+  const atom = exactlySelectedAtom(state, main);
+  if (!atom || !hasWholeLineBlockReplacement(state, atom)) {
+    return false;
+  }
+  // 注意：不校验浏览器推导的 `from/to`。HTML / MDX widget 的 DOM 不可编辑时，
+  // 浏览器会把变更位置推到 widget **之后**（甚至在块外），若据此退回原生路径，
+  // 键入就会变成“在 HTML 块后追加文本”而不是替换整块。
+  // “光标恰好选中整块原子”已是权威意图信号，替换范围一律以原子范围为准。
+
+  view.dispatch(
+    state.update({
+      changes: { from: atom.fullRange.from, to: atom.fullRange.to, insert },
+      selection: EditorSelection.cursor(atom.fullRange.from + insert.length),
+      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+      userEvent: "input.type",
+      scrollIntoView: true,
+    }),
+  );
+  return true;
+});
+
+/** 该原子是否由整行块级替换装饰（`block: true`）渲染——只有这类原子需要光标收敛接管。 */
+function hasWholeLineBlockReplacement(state: EditorState, atom: SelectableAtom): boolean {
+  let found = false;
+  state
+    .field(wysiwygProjectionField)
+    .layoutDecorations.between(atom.fullRange.from, atom.fullRange.to, (_from, _to, value) => {
+      if (value.spec.wysiwygRecordId === atom.id && value.spec.block === true) {
+        found = true;
+      }
+    });
+  return found;
+}
+
+export const clearSelectedAtoms: StateCommand = guarded(({ state, dispatch }) => {
+  const projection = state.field(wysiwygProjectionField, false);
+  if (!projection || projection.selectedAtomIds.length === 0) {
+    return false;
+  }
+
+  const selections = state.selection.ranges.map((range) => {
+    const atom = exactlySelectedAtom(state, range);
+    if (!atom) {
+      return range;
+    }
+    return EditorSelection.cursor(
+      range.head > range.anchor ? atom.fullRange.to : atom.fullRange.from,
+    );
+  });
+  dispatch(
+    state.update({
+      selection: EditorSelection.create(selections, state.selection.mainIndex),
+      effects: clearWysiwygAtomSelectionEffect.of(null),
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select",
+    }),
+  );
+  return true;
+});
+
+export function selectWysiwygAtom(view: EditorView, recordId: string, extend = false): boolean {
+  const atom = selectableAtomById(view.state, recordId);
+  if (!atom) {
+    return false;
+  }
+  const atomSelection = EditorSelection.range(atom.fullRange.from, atom.fullRange.to);
+  const ranges = extend ? [...view.state.selection.ranges, atomSelection] : [atomSelection];
+  view.dispatch({
+    selection: EditorSelection.create(ranges, ranges.length - 1),
+    effects: selectWysiwygAtomEffect.of({ recordId, extend }),
+    annotations: Transaction.addToHistory.of(false),
+    userEvent: "select.pointer",
+  });
+  view.focus();
+  return true;
+}
+
+function deleteExactlySelectedAtoms(
+  { state, dispatch }: Parameters<StateCommand>[0],
+  userEvent: "delete.backward" | "delete.forward",
+): boolean {
+  const atoms = state.selection.ranges.map((range) => exactlySelectedAtom(state, range));
+  if (atoms.some((atom) => atom === null || !isDeletableAtom(atom))) {
+    return false;
+  }
+
+  const uniqueAtoms = deduplicateAtoms(atoms as readonly DeletableAtom[]);
+  dispatch(
+    state.update({
+      changes: atomDeletionChanges(uniqueAtoms),
+      effects: clearWysiwygAtomSelectionEffect.of(null),
+      userEvent,
+      // 轮1 architect WATCH（concern-3）：整原子删除改用同侪的显式注解惯例，
+      // 不再依赖 change-protection 的恰好选区 carve-out（语义等价、惯例统一）。
+      annotations: [authorizeWysiwygProtectedChange.of(true)],
+    }),
+  );
+  return true;
+}
+
+function moveAcrossAtoms(
+  { state, dispatch }: Parameters<StateCommand>[0],
+  direction: "backward" | "forward",
+): boolean {
+  const targets = state.selection.ranges.map((range) => movementTarget(state, range, direction));
+  if (targets.some((target) => target === null)) {
+    return false;
+  }
+
+  const resolved = targets as readonly AtomMovementTarget[];
+  const selectedAtoms = resolved.filter(
+    (target): target is Extract<AtomMovementTarget, { readonly kind: "select" }> =>
+      target.kind === "select",
+  );
+  const effects: StateEffect<unknown>[] = [clearWysiwygAtomSelectionEffect.of(null)];
+  effects.push(
+    ...selectedAtoms.map((target) =>
+      selectWysiwygAtomEffect.of({ recordId: target.atom.id, extend: true }),
+    ),
+  );
+  dispatch(
+    state.update({
+      selection: EditorSelection.create(
+        resolved.map((target) => target.selection),
+        state.selection.mainIndex,
+      ),
+      effects,
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "select",
+    }),
+  );
+  return true;
+}
+
+type AtomMovementTarget =
+  | {
+      readonly kind: "select";
+      readonly atom: SelectableAtom;
+      readonly selection: SelectionRange;
+    }
+  | { readonly kind: "exit"; readonly selection: SelectionRange };
+
+type VerticalMovementTarget =
+  | { readonly kind: "native"; readonly selection: SelectionRange }
+  | { readonly kind: "navigate"; readonly selection: SelectionRange }
+  | { readonly kind: "reveal-image"; readonly selection: SelectionRange }
+  | {
+      readonly kind: "select";
+      readonly atom: SelectableAtom;
+      readonly selection: SelectionRange;
+    };
+
+function quoteBoundaryMovementTarget(
+  view: EditorView,
+  range: SelectionRange,
+  direction: "backward" | "forward",
+): SelectionRange | null {
+  if (!range.empty) {
+    return null;
+  }
+
+  const doc = view.state.doc;
+  const currentLine = doc.lineAt(range.head);
+  const index = view.state.field(markdownRangeIndexField, false);
+  if (!index) {
+    return null;
+  }
+
+  // 场景 1：方向向后（ArrowUp 向上移动）
+  if (direction === "backward") {
+    // 场景 1A：当前处于 Alert 首个内容行，向上移动时自动跳过只读 Header，退出至 Alert 上方行
+    const currentAlertRecord = index.records.find((r) => {
+      if (r.kind !== "quote" || !r.alert) {
+        return false;
+      }
+      const startLine = doc.lineAt(r.fullRange.from);
+      return currentLine.number === startLine.number + 1;
+    });
+
+    if (currentAlertRecord) {
+      const startLine = doc.lineAt(currentAlertRecord.fullRange.from);
+      if (startLine.number > 1) {
+        const lineAbove = doc.line(startLine.number - 1);
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.min(lineAbove.to, lineAbove.from + colOffset);
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+      return EditorSelection.cursor(0);
+    }
+
+    // 场景 1B：当前处于引用块或 Alert 下方行，按 ArrowUp 必须精确移入上方引用块/Alert 内容区的最后一行
+    if (currentLine.number > 1) {
+      const prevLine = doc.line(currentLine.number - 1);
+      const quoteAbove = index.records.find((r) => {
+        if (r.kind !== "quote") {
+          return false;
+        }
+        const safeTo =
+          r.fullRange.to > r.fullRange.from &&
+          doc.sliceString(r.fullRange.to - 1, r.fullRange.to) === "\n"
+            ? r.fullRange.to - 1
+            : r.fullRange.to;
+        return (
+          prevLine.from >= r.fullRange.from && prevLine.from <= safeTo && currentLine.from > safeTo
+        );
+      });
+
+      if (quoteAbove) {
+        const startLine = doc.lineAt(quoteAbove.fullRange.from);
+        const safeTo =
+          quoteAbove.fullRange.to > quoteAbove.fullRange.from &&
+          doc.sliceString(quoteAbove.fullRange.to - 1, quoteAbove.fullRange.to) === "\n"
+            ? quoteAbove.fullRange.to - 1
+            : quoteAbove.fullRange.to;
+        const endLine = doc.lineAt(safeTo);
+
+        // 如果是 Alert 且只有 Header 行，定位到 startLine.from
+        if (quoteAbove.alert && startLine.number === endLine.number) {
+          return EditorSelection.cursor(startLine.from);
+        }
+
+        const match = /^(\s*> ?)/.exec(endLine.text);
+        const prefixLen = match ? match[1].length : 0;
+        const contentStart = endLine.from + prefixLen;
+        const contentEnd = endLine.to;
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.max(contentStart, Math.min(contentEnd, contentStart + colOffset));
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+    }
+  }
+
+  // 场景 2：方向向前（ArrowDown 向下移动）
+  if (direction === "forward") {
+    // 场景 2A：当前处于 Alert 上方行，向下移动时自动跳过只读 Header，直接落入 Alert 首个内容行
+    const alertBelow = index.records.find((r) => {
+      if (r.kind !== "quote" || !r.alert) {
+        return false;
+      }
+      const startLine = doc.lineAt(r.fullRange.from);
+      return currentLine.number + 1 === startLine.number;
+    });
+
+    if (alertBelow) {
+      const startLine = doc.lineAt(alertBelow.fullRange.from);
+      const safeTo =
+        alertBelow.fullRange.to > alertBelow.fullRange.from &&
+        doc.sliceString(alertBelow.fullRange.to - 1, alertBelow.fullRange.to) === "\n"
+          ? alertBelow.fullRange.to - 1
+          : alertBelow.fullRange.to;
+      const endLine = doc.lineAt(safeTo);
+
+      if (startLine.number < endLine.number) {
+        const firstContentLine = doc.line(startLine.number + 1);
+        const match = /^(\s*> ?)/.exec(firstContentLine.text);
+        const prefixLen = match ? match[1].length : 0;
+        const contentStart = firstContentLine.from + prefixLen;
+        const contentEnd = firstContentLine.to;
+        const colOffset = Math.max(0, range.head - currentLine.from);
+        const targetPos = Math.max(contentStart, Math.min(contentEnd, contentStart + colOffset));
+        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
+      }
+    }
+  }
+
+  return null;
+}
+
+function movementTarget(
+  state: EditorState,
+  range: SelectionRange,
+  direction: "backward" | "forward",
+): AtomMovementTarget | null {
+  const selected = exactlySelectedAtom(state, range);
+  if (selected) {
+    return {
+      kind: "exit",
+      selection: EditorSelection.cursor(
+        direction === "forward" ? selected.fullRange.to : selected.fullRange.from,
+      ),
+    };
+  }
+  if (!range.empty) {
+    return null;
+  }
+
+  const atoms = state
+    .field(markdownRangeIndexField)
+    .records.filter((record) => isSelectableAtom(record, state))
+    .filter((atom) =>
+      direction === "forward"
+        ? atom.fullRange.from === range.head
+        : atom.fullRange.to === range.head,
+    );
+  if (atoms.length !== 1) {
+    return null;
+  }
+  const atom = atoms[0];
+  if (isKeyboardRevealAtom(atom, state)) {
+    return {
+      kind: "exit",
+      selection: revealedSourceCursor(atom, direction),
+    };
+  }
+  return {
+    kind: "select",
+    atom,
+    selection:
+      direction === "forward"
+        ? EditorSelection.range(atom.fullRange.from, atom.fullRange.to)
+        : EditorSelection.range(atom.fullRange.to, atom.fullRange.from),
+  };
+}
+
+function verticalMovementTarget(
+  view: EditorView,
+  range: SelectionRange,
+  direction: "backward" | "forward",
+): VerticalMovementTarget | null {
+  if (!range.empty) {
+    return null;
+  }
+
+  // 优先处理 Quote / Alert 边界导航（进入内容区最后一行、跳过只读 Header 等）
+  const quoteTarget = quoteBoundaryMovementTarget(view, range, direction);
+  if (quoteTarget) {
+    return { kind: "navigate", selection: quoteTarget };
+  }
+
+  const moved = view.moveVertically(range, direction === "forward");
+  const atoms = view.state
+    .field(markdownRangeIndexField)
+    .records.filter((record) => isKeyboardProjectedAtom(record, view.state))
+    .filter((record) => verticalMoveHitsAtom(record, range, moved, direction));
+  if (atoms.length !== 1) {
+    return { kind: "native", selection: moved };
+  }
+
+  const atom = atoms[0];
+  if (!isKeyboardRevealAtom(atom, view.state)) {
+    return {
+      kind: "select",
+      atom,
+      selection:
+        direction === "forward"
+          ? EditorSelection.range(atom.fullRange.from, atom.fullRange.to, moved.goalColumn)
+          : EditorSelection.range(atom.fullRange.to, atom.fullRange.from, moved.goalColumn),
+    };
+  }
+  return {
+    kind: "reveal-image",
+    selection: revealedSourceCursor(
+      atom,
+      moved.head <= atom.fullRange.from ? "forward" : "backward",
+      moved,
+    ),
+  };
+}
+
+function revealedSourceCursor(
+  atom: MarkdownRangeRecord,
+  direction: "backward" | "forward",
+  movement?: SelectionRange,
+): SelectionRange {
+  if (atom.kind === "image") {
+    const minimum = atom.fullRange.from + 1;
+    const maximum = atom.fullRange.to - 1;
+    const preferred = direction === "forward" ? (atom.contentRange?.from ?? minimum) : maximum;
+    const position = Math.max(minimum, Math.min(maximum, preferred));
+    return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
+  }
+  // 表格：光标进入表头行首个 cell 内容之后，让源码立即回显。
+  const minimum = atom.fullRange.from + 1;
+  const maximum = Math.max(minimum, atom.fullRange.to - 1);
+  const position = direction === "forward" ? minimum : maximum;
+  return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
+}
+
+function positionIsInside(record: MarkdownRangeRecord, position: number): boolean {
+  return position > record.fullRange.from && position < record.fullRange.to;
+}
+
+/**
+ * 判定一次纵向视觉移动是否"进入/跨过"某个投影 atom（表格/图片/分割线）。
+ * 表格是整块 block widget：从上方一行向下移动时，CM6 的视觉落点可能
+ * 直接落在 widget 之后（moved.head > fullRange.to），此时同样视为命中，
+ * 保证 ArrowDown 与 ArrowUp 行为对称（进入即原子选中整表）。
+ */
+function verticalMoveHitsAtom(
+  record: MarkdownRangeRecord,
+  range: SelectionRange,
+  moved: SelectionRange,
+  direction: "backward" | "forward",
+): boolean {
+  if (positionIsInside(record, range.head)) {
+    return false;
+  }
+  if (direction === "forward") {
+    return range.head < record.fullRange.from && moved.head >= record.fullRange.from;
+  }
+  return range.head > record.fullRange.to && moved.head <= record.fullRange.to;
+}
+
+function exactlySelectedAtom(state: EditorState, range: SelectionRange): SelectableAtom | null {
+  if (range.empty) {
+    return null;
+  }
+  const atom = state
+    .field(markdownRangeIndexField)
+    .records.find(
+      (record): record is SelectableAtom =>
+        isSelectableAtom(record, state) &&
+        record.fullRange.from === range.from &&
+        record.fullRange.to === range.to,
+    );
+  return atom ?? null;
+}
+
+function selectableAtomById(state: EditorState, recordId: string): SelectableAtom | null {
+  const record = state.field(markdownRangeIndexField).get(recordId);
+  return record && isSelectableAtom(record, state) ? record : null;
+}
+
+function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  return (
+    record.parserCoverage === "complete" &&
+    ((record.editPolicy === "atom-delete" &&
+      (record.kind === "image" || record.kind === "thematic-break")) ||
+      (hasWysiwygProjectionFeature(state, "default-atoms") &&
+        isDefaultAtomRecord(record) &&
+        hasCurrentSourceFingerprint(record, state)) ||
+      (hasWysiwygProjectionFeature(state, "tables") &&
+        record.kind === "table" &&
+        record.renderPolicy === "table-widget") ||
+      (hasWysiwygProjectionFeature(state, "html") &&
+        record.kind === "html" &&
+        record.renderPolicy === "html-widget") ||
+      (hasWysiwygProjectionFeature(state, "mdx") &&
+        record.kind === "mdx-jsx" &&
+        record.renderPolicy === "mdx-widget"))
+  );
+}
+
+function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  // 表格始终显示网格并在单元格内编辑，Arrow 进入时原子选中整表（不回显源码）。
+  return isSelectableAtom(record, state) && record.interactionPolicy === "reveal-source";
+}
+
+function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  if (!isSelectableAtom(record, state)) {
+    return false;
+  }
+  if (record.kind === "image") {
+    return hasWysiwygProjectionFeature(state, "images");
+  }
+  if (record.kind === "thematic-break") {
+    return hasWysiwygProjectionFeature(state, "thematic-breaks");
+  }
+  if (record.kind === "table") {
+    return hasWysiwygProjectionFeature(state, "tables");
+  }
+  if (record.kind === "html") {
+    return hasWysiwygProjectionFeature(state, "html");
+  }
+  if (record.kind === "mdx-jsx") {
+    return hasWysiwygProjectionFeature(state, "mdx");
+  }
+  return true;
+}
+
+function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
+  return (
+    (record.editPolicy === "atom-delete" &&
+      (record.kind === "image" || record.kind === "thematic-break")) ||
+    (record.kind === "table" &&
+      record.renderPolicy === "table-widget" &&
+      record.editPolicy === "structured") ||
+    (record.kind === "html" &&
+      record.renderPolicy === "html-widget" &&
+      record.editPolicy === "structured") ||
+    (record.kind === "mdx-jsx" &&
+      record.renderPolicy === "mdx-widget" &&
+      record.editPolicy === "structured")
+  );
+}
+
+function deduplicateAtoms(atoms: readonly DeletableAtom[]): readonly DeletableAtom[] {
+  return [...new Map(atoms.map((atom) => [atom.id, atom])).values()];
+}
+
+function atomDeletionChanges(
+  atoms: readonly DeletableAtom[],
+): readonly { readonly from: number; readonly to: number }[] {
+  const changes: { from: number; to: number }[] = [];
+  for (const atom of atoms) {
+    const change = { from: atom.fullRange.from, to: atom.fullRange.to };
+    const index = changes.findIndex((existing) => existing.from < change.from);
+    changes.splice(index === -1 ? changes.length : index, 0, change);
+  }
+  return changes;
+}
+
+function guarded(command: StateCommand): StateCommand {
+  return (target) => {
+    const projection = target.state.field(wysiwygProjectionField, false);
+    if (!projection) {
+      return command(target);
+    }
+    return projection.mode === "wysiwyg" && projection.compositionGuardRanges.length === 0
+      ? command(target)
+      : false;
+  };
+}

@@ -17,9 +17,9 @@ import {
   type TransactionSpec,
 } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
-import { codeBlockSelectionExtension } from "./wysiwyg/code-block-selection.ts";
+import { codeBlockSelectionExtension } from "./wysiwyg/editing/code-block-selection.ts";
 import { search, searchKeymap } from "@codemirror/search";
-import { createLiquidSearchPanel } from "./wysiwyg/search-panel.ts";
+import { createLiquidSearchPanel } from "./wysiwyg/view/search-panel.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -55,26 +55,34 @@ import {
   type RendererTransactionOrigin,
 } from "./origin.ts";
 import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
-import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/link-interaction.ts";
-import { blockToolbarExtension } from "./wysiwyg/block-toolbar.ts";
-import { deleteBlock, duplicateBlock, moveBlockDown, moveBlockUp } from "./wysiwyg/block-move.ts";
+import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/view/link-interaction.ts";
+import { blockToolbarExtension } from "./wysiwyg/blocks/block-toolbar.ts";
+import {
+  deleteBlock,
+  duplicateBlock,
+  moveBlockDown,
+  moveBlockUp,
+} from "./wysiwyg/blocks/block-move.ts";
 import {
   focusDimOpacityFacet,
   focusModeField,
   focusModeInitialFacet,
   setFocusModeEffect,
-} from "./wysiwyg/focus-mode.ts";
+} from "./wysiwyg/view/focus-mode.ts";
 import {
   setTypewriterModeEffect,
   typewriterModeField,
   typewriterModeInitialFacet,
-} from "./wysiwyg/typewriter-mode.ts";
-import { mdxComponentRegistryFacet, type MdxComponentLookup } from "./wysiwyg/mdx-projection.ts";
-import { authorizeWysiwygProtectedChange } from "./wysiwyg/change-authorization.ts";
+} from "./wysiwyg/input/typewriter-mode.ts";
+import {
+  mdxComponentRegistryFacet,
+  type MdxComponentLookup,
+} from "./wysiwyg/projections/mdx-projection.ts";
+import { authorizeWysiwygProtectedChange } from "./wysiwyg/state/change-authorization.ts";
 import {
   provideImagePreviewResolver,
   type ImagePreviewResolver,
-} from "./wysiwyg/image-resolver.ts";
+} from "./wysiwyg/view/image-resolver.ts";
 import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
 import { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
 import {
@@ -83,11 +91,11 @@ import {
   refreshWysiwygProjectionEffect,
   startWysiwygCompositionGuardEffect,
   type WysiwygProjectionSnapshot,
-} from "./wysiwyg/projection-state.ts";
+} from "./wysiwyg/state/projection-state.ts";
 import {
   initialCodeBlockLineNumbersFacet,
   setCodeBlockLineNumbersEffect,
-} from "./wysiwyg/code-block-projection.ts";
+} from "./wysiwyg/projections/code-block-projection.ts";
 import {
   acceptAiSuggestion,
   aiSuggestionExtension,
@@ -98,7 +106,7 @@ import {
   type AiSuggestionInput,
   type AiSuggestionLabels,
   type AiSuggestionValue,
-} from "./wysiwyg/suggestion.ts";
+} from "./wysiwyg/view/suggestion.ts";
 import { flushActiveTableCell } from "./wysiwyg/widgets/table-widget.ts";
 
 export interface CodeMirrorRendererOptions {

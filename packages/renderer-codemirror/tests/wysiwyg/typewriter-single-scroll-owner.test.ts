@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
  * 不得创建/插入任何 DOM 容器，也不得使用其它滚动 API（`scrollTo/scrollBy/window.scroll`）。
  */
 const SOURCE = readFileSync(
-  fileURLToPath(new URL("../../src/wysiwyg/typewriter-mode.ts", import.meta.url)),
+  fileURLToPath(new URL("../../src/wysiwyg/input/typewriter-mode.ts", import.meta.url)),
   "utf-8",
 );
 

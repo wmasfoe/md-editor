@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
   insertCodeBlock,
   insertOrWrapLink,
@@ -29,13 +29,13 @@ import {
   toggleOrderedList,
   toggleStrikethrough,
   toggleTaskList,
-} from "../../src/wysiwyg/markdown-formatting.ts";
-import { isValidUrl } from "../../src/wysiwyg/smart-paste.ts";
-import { smartPairsInputHandler } from "../../src/wysiwyg/smart-pairs.ts";
+} from "../../src/wysiwyg/editing/markdown-formatting.ts";
+import { isValidUrl } from "../../src/wysiwyg/input/smart-paste.ts";
+import { smartPairsInputHandler } from "../../src/wysiwyg/input/smart-pairs.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 function createState(
   doc: string,
@@ -338,7 +338,7 @@ describe("Smart Link Paste & Smart Pairs", () => {
     }
 
     try {
-      const { createLiquidSearchPanel } = await import("../../src/wysiwyg/search-panel.ts");
+      const { createLiquidSearchPanel } = await import("../../src/wysiwyg/view/search-panel.ts");
       const state = createState("Hello Search");
       const mockView = {
         state,

@@ -7,7 +7,7 @@
   },
   {
     "id": "projection-state-module",
-    "path": "packages/renderer-codemirror/src/wysiwyg/projection-state.ts",
+    "path": "packages/renderer-codemirror/src/wysiwyg/state/projection-state.ts",
     "maxLines": 1253,
     "reason": "PR3 拆分前登记：投影状态字段与装饰/范围构建聚合（拆到 state/* 后删除本条目）"
   },

@@ -7,18 +7,18 @@ import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
 import { WysiwygDiagnostics, provideWysiwygDiagnostics } from "../../src/diagnostics.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import {
   addBlockBelow,
   deleteBlock,
   duplicateBlock,
   moveBlockUp,
-} from "../../src/wysiwyg/block-move.ts";
+} from "../../src/wysiwyg/blocks/block-move.ts";
 
 /**
  * M8 / AC-H2：块操作单测**必须与 `wysiwygChangeProtection` 组装**。

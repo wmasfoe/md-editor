@@ -1,6 +1,6 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
-import { selectWysiwygAtom } from "../atom-selection.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
 
 export interface HtmlBlockWidgetValue {
   readonly recordId: string;

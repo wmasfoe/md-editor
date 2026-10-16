@@ -13,9 +13,9 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
-import { serializeTableRow, escapeTableCellText } from "../../src/wysiwyg/table-editing.ts";
-import { splitTableRowCells } from "../../src/wysiwyg/table-projection.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
+import { serializeTableRow, escapeTableCellText } from "../../src/wysiwyg/editing/table-editing.ts";
+import { splitTableRowCells } from "../../src/wysiwyg/projections/table-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
 interface ProjectionHarness {

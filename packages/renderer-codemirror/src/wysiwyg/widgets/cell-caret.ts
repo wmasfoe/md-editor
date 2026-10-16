@@ -13,7 +13,7 @@
  * 这正是 Architect 共识评审 Synthesis 的「分布式派发，单一语义」。
  */
 
-import { detectBracketUnitInCell } from "../bracket-escape.ts";
+import { detectBracketUnitInCell } from "../input/bracket-escape.ts";
 
 const NODE_TEXT = 4; // NodeFilter.SHOW_TEXT（避免依赖 DOM lib 常量）
 

@@ -10,11 +10,11 @@ import {
   buildWholeLineBlockReplacement,
   trailingLineBreakEnd,
   WYSIWYG_BLOCK_CATEGORY_ATTRIBUTE,
-} from "../../src/wysiwyg/block-replacement.ts";
+} from "../../src/wysiwyg/blocks/block-replacement.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 /**
  * 契约测试：整行块级替换装饰的**不对称 Inclusivity** 是 CM6 幽灵空行/吞行问题的唯一解法。

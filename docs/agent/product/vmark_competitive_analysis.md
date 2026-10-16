@@ -46,7 +46,7 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 
 | 能力 | 我们现状 | VMark |
 |---|---|---|
-| 搜索替换 | ✅ 已有 `renderer-codemirror/src/wysiwyg/search-panel.ts` | ✅ 含正则/全词/计数 |
+| 搜索替换 | ✅ 已有 `renderer-codemirror/src/wysiwyg/view/search-panel.ts` | ✅ 含正则/全词/计数 |
 | 命令面板 | ✅ 已有（G007，`Cmd/Ctrl+K`） | ✅ `Mod+Shift+P`，含 when 过滤 |
 | 最近文件 | ✅ 已有 `file-system/src/recent-files.ts` | ✅ |
 | 大纲面板 | ✅ 已有（含当前标题高亮 + 滚动同步） | ✅ 另有过滤输入框 |
@@ -55,8 +55,8 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 | 代码块 | ✅ 已有（M2，高亮/行号/复制/Tab 缩进） | ✅ |
 | Frontmatter 面板 | ✅ 已有（M1-FM） | ✅ 折叠式 |
 | 快捷键自定义 | ✅ 已有 `settings/shortcuts/keys.ts` | ✅ 全量可自定义 |
-| **自动配对 + Tab 跳出** | ⚠️ 部分：`wysiwyg/smart-pairs.ts` 仅做**选区包裹**；空光标自动闭合被**有意排除**（代码注释：保证连续输入 ``` 可创建代码块）；无 Tab 跳出 | ✅ 含 CJK 括号 |
-| **行/块操作**（移/复/删/并/排序） | ⚠️ 部分：`wysiwyg/block-move.ts`（369 行）已有**块移动**（拖拽手柄 + 列表缩进归一 + 空行归一 + `addBlockBelow`）；无复制/删除/合并/排序命令，也未接进命令注册表 | ✅ 8 项行操作 |
+| **自动配对 + Tab 跳出** | ⚠️ 部分：`wysiwyg/input/smart-pairs.ts` 仅做**选区包裹**；空光标自动闭合被**有意排除**（代码注释：保证连续输入 ``` 可创建代码块）；无 Tab 跳出 | ✅ 含 CJK 括号 |
+| **行/块操作**（移/复/删/并/排序） | ⚠️ 部分：`wysiwyg/blocks/block-move.ts`（369 行）已有**块移动**（拖拽手柄 + 列表缩进归一 + 空行归一 + `addBlockBelow`）；无复制/删除/合并/排序命令，也未接进命令注册表 | ✅ 8 项行操作 |
 | **Focus / Typewriter / 只读模式** | ❌ 无 | ✅ 三件套 |
 | **Hot Exit / 会话恢复** | ❌ 无 | ✅ 全量含崩溃恢复 |
 | **文档历史快照** | ❌ 无 | ✅ JSONL 按日分组 |
@@ -65,7 +65,7 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 | **导出 HTML / PDF** | ❌ 无（PRD v0.3 待做） | ✅ 成熟产品设计 |
 | **Source Peek 块级源码编辑** | ❌ 无 | ✅ `F5` |
 | **智能粘贴（HTML/Word→MD）** | ❌ 无 | ✅ |
-| **AI Genies（选区 AI 改写）** | ⚠️ 已有 `wysiwyg/suggestion.ts`（多条目建议 + `Tab` 接受 / `Mod-Enter` 接受 / `Esc` 取消 + ghost text + diff 高亮）与 `packages/ai`（completion/connector/document-context）；缺 Spotlight 选择器、scope 循环、prompt 历史、选区改写 genie | ✅ 13 个 genie + Spotlight |
+| **AI Genies（选区 AI 改写）** | ⚠️ 已有 `wysiwyg/view/suggestion.ts`（多条目建议 + `Tab` 接受 / `Mod-Enter` 接受 / `Esc` 取消 + ghost text + diff 高亮）与 `packages/ai`（completion/connector/document-context）；缺 Spotlight 选择器、scope 循环、prompt 历史、选区改写 genie | ✅ 13 个 genie + Spotlight |
 | **MCP 集成** | ❌ 无 | ✅ 一键接入 6 个 AI CLI |
 | 内联 `[TOC]` | ❌ 无 | ✅ |
 | 文本清理 / 孤儿图片清理 | ❌ 无 | ✅ |
@@ -83,7 +83,7 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 > 🔴 **【勘误 · 2026-09-22 · deep-interview + ralplan 共识评审后】**
 > 下列 §4.2–§4.4 是调研初稿，其中若干建议**已被属主明确否决或被代码事实证伪**，以本勘误为准：
 >
-> 1. **§4.2「自动配对 + Tab 跳出」**：属主**明确否决「空光标自动补右半括号」**（含 CJK 括号）——原话「这个千万不要做，编辑起来手感很恶心」。这与仓库既有产品决策一致（`wysiwyg/smart-pairs.ts` 注释：「空光标状态下不进行任何自动闭合干扰」）。**最终只保留 Tab 跳出**，且其语义改为「光标位于或紧邻括号对/link 节点时移到右边界之后」（**非空对也跳**、嵌套取最内层、link/图片当整体）。CJK 括号**不做自动闭合**，但**参与跳出配对**。
+> 1. **§4.2「自动配对 + Tab 跳出」**：属主**明确否决「空光标自动补右半括号」**（含 CJK 括号）——原话「这个千万不要做，编辑起来手感很恶心」。这与仓库既有产品决策一致（`wysiwyg/input/smart-pairs.ts` 注释：「空光标状态下不进行任何自动闭合干扰」）。**最终只保留 Tab 跳出**，且其语义改为「光标位于或紧邻括号对/link 节点时移到右边界之后」（**非空对也跳**、嵌套取最内层、link/图片当整体）。CJK 括号**不做自动闭合**，但**参与跳出配对**。
 > 2. **§4.3「行操作」**：裸行语义会破坏 Markdown 结构，已改为**块操作**（复用既有 `block-move.ts`）；且「合并/排序」两项已推迟。
 > 3. **§4.4「无干扰三件套」**：只读模式推迟到 1.5 批；专注/打字机已落地，且实现采用**零 decoration 的 ViewPlugin 变体**（比本文原设想更安全）。
 > 4. **本文遗漏的两个真实缺陷**（已修）：`acceptAiSuggestion` 缺 composing 门控；表格单元格 Tab 在 `flushCellCommit` **之后**才移动焦点（破坏零文本变更契约）。

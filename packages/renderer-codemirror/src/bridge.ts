@@ -23,7 +23,7 @@ import type {
   AiSuggestionInput,
   AiSuggestionLabels,
   AiSuggestionValue,
-} from "./wysiwyg/suggestion.ts";
+} from "./wysiwyg/view/suggestion.ts";
 import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;

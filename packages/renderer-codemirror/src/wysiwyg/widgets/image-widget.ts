@@ -2,8 +2,8 @@ import { EditorSelection, type EditorState } from "@codemirror/state";
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import { selectWysiwygAtom } from "../atom-selection.ts";
-import { authorizeWysiwygProtectedChange } from "../change-authorization.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
+import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 
 export interface ImageWidgetValue {
   readonly recordId: string;

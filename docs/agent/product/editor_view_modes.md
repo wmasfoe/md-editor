@@ -2,7 +2,7 @@
 
 用途：记录 **用户可见的视图模式行为契约**（菜单项、键位、勾选态镜像、可配项）与其关键取舍。
 当需要判断「专注/打字机模式应如何表现、键位为何是这两个、哪些行为是有意为之」时读本文件。
-实现细节见 `packages/renderer-codemirror/src/wysiwyg/focus-mode.ts` 与 `typewriter-mode.ts`。
+实现细节见 `packages/renderer-codemirror/src/wysiwyg/view/focus-mode.ts` 与 `typewriter-mode.ts`。
 
 ## 1. 行为契约
 

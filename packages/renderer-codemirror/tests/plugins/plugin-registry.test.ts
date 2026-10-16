@@ -7,7 +7,7 @@ import {
   type RendererViewAdapter,
   type RendererViewFactoryInput,
 } from "../../src/renderer.ts";
-import { resolveDimOpacity } from "../../src/wysiwyg/focus-mode.ts";
+import { resolveDimOpacity } from "../../src/wysiwyg/view/focus-mode.ts";
 import {
   markdownRangeIndexField,
   SyntaxPluginRegistry,

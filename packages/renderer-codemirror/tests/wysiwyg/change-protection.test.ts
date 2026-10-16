@@ -12,14 +12,14 @@ import {
   type MarkdownRangeIndex,
 } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 const TABLE_DOCUMENT = [
   "| name | role |",

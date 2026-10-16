@@ -5,16 +5,19 @@ import { describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField, mdxModeFacet } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   acceptAiSuggestion,
   aiSuggestionExtension,
   aiSuggestionField,
   setAiSuggestionEffect,
-} from "../../src/wysiwyg/suggestion.ts";
+} from "../../src/wysiwyg/view/suggestion.ts";
 import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
-import { escapeBracket, isTabEscapeClosedKind } from "../../src/wysiwyg/bracket-escape-command.ts";
-import { runTabArbiter } from "../../src/wysiwyg/tab-arbiter-command.ts";
+import {
+  escapeBracket,
+  isTabEscapeClosedKind,
+} from "../../src/wysiwyg/input/bracket-escape-command.ts";
+import { runTabArbiter } from "../../src/wysiwyg/input/tab-arbiter-command.ts";
 
 /**
  * S1 / D-1 阶段 A：AI-Tab 仲裁机制的【复现优先】用例（P5 先锁行为再改）。

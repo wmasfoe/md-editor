@@ -36,10 +36,13 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import { selectWysiwygAtom } from "../atom-selection.ts";
-import { clearWysiwygAtomSelectionEffect, wysiwygProjectionField } from "../projection-state.ts";
-import { acceptAiSuggestion, aiSuggestionField } from "../suggestion.ts";
-import { dispatchTabActions } from "../tab-arbiter.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
+import {
+  clearWysiwygAtomSelectionEffect,
+  wysiwygProjectionField,
+} from "../state/projection-state.ts";
+import { acceptAiSuggestion, aiSuggestionField } from "../view/suggestion.ts";
+import { dispatchTabActions } from "../input/tab-arbiter.ts";
 import { escapeBracketInCellDom } from "./cell-caret.ts";
 import type { MarkdownTableCellAlignment } from "../../markdown/range-types.ts";
 import {
@@ -52,7 +55,7 @@ import {
   setTableColumnAlignment,
   type TableCellAddress,
   type TableRowKind,
-} from "../table-editing.ts";
+} from "../editing/table-editing.ts";
 
 /**
  * 可视化表格网格数据。单元格文本来自源码行切分（GFM 管道表格），

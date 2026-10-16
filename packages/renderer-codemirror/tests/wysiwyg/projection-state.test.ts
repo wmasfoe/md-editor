@@ -14,7 +14,7 @@ import {
   protectedWysiwygChangeRejectedEffect,
   WYSIWYG_SOURCE_MODE_REQUIRED_MESSAGE,
   wysiwygChangeProtection,
-} from "../../src/wysiwyg/change-protection.ts";
+} from "../../src/wysiwyg/state/change-protection.ts";
 import {
   clearWysiwygAtomSelectionEffect,
   configureWysiwygProjectionFeatures,
@@ -24,12 +24,12 @@ import {
   startWysiwygCompositionGuardEffect,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import {
   codeBlockLineNumbersField,
   setCodeBlockLineNumbersEffect,
-} from "../../src/wysiwyg/code-block-projection.ts";
-import { buildVisibleMarkdownMarks } from "../../src/wysiwyg/visible-marks.ts";
+} from "../../src/wysiwyg/projections/code-block-projection.ts";
+import { buildVisibleMarkdownMarks } from "../../src/wysiwyg/state/visible-marks.ts";
 
 const DOCUMENT = [
   "# Heading",

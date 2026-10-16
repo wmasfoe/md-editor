@@ -5,31 +5,34 @@ import {
   codeBlockKeymap,
   provideCodeBlockClipboard,
   type WriteClipboardText,
-} from "./code-block-commands.ts";
-import { codeBlockLineNumbersField, codeBlockProjectionTheme } from "./code-block-projection.ts";
-import { codeBlockLineNumberTheme } from "./code-block-line-numbers.ts";
-import { wysiwygChangeProtection } from "./change-protection.ts";
-import { createMarkdownStructuredCommandExtensions } from "./markdown-commands.ts";
-import { createMarkdownFormattingKeymap } from "./markdown-formatting.ts";
-import { smartLinkPasteExtension } from "./smart-paste.ts";
-import { smartPairsExtension } from "./smart-pairs.ts";
-import { blockAtomTypingInputHandler } from "./atom-selection.ts";
-import { tabArbiterKeymap } from "./tab-arbiter-command.ts";
-import { focusModeExtension } from "./focus-mode.ts";
-import { typewriterModeExtension } from "./typewriter-mode.ts";
-import { markdownParseProgressPlugin } from "./parse-progress.ts";
+} from "./editing/code-block-commands.ts";
+import {
+  codeBlockLineNumbersField,
+  codeBlockProjectionTheme,
+} from "./projections/code-block-projection.ts";
+import { codeBlockLineNumberTheme } from "./editing/code-block-line-numbers.ts";
+import { wysiwygChangeProtection } from "./state/change-protection.ts";
+import { createMarkdownStructuredCommandExtensions } from "./editing/markdown-commands.ts";
+import { createMarkdownFormattingKeymap } from "./editing/markdown-formatting.ts";
+import { smartLinkPasteExtension } from "./input/smart-paste.ts";
+import { smartPairsExtension } from "./input/smart-pairs.ts";
+import { blockAtomTypingInputHandler } from "./blocks/atom-selection.ts";
+import { tabArbiterKeymap } from "./input/tab-arbiter-command.ts";
+import { focusModeExtension } from "./view/focus-mode.ts";
+import { typewriterModeExtension } from "./input/typewriter-mode.ts";
+import { markdownParseProgressPlugin } from "./view/parse-progress.ts";
 import {
   clearWysiwygTypedBoundaryOnBlur,
   configureWysiwygProjectionFeatures,
   visibleRangesProbePlugin,
   wysiwygProjectionField,
   type WysiwygProjectionFeature,
-} from "./projection-state.ts";
-import { htmlProjectionTheme } from "./html-projection.ts";
-import { mdxProjectionTheme } from "./mdx-projection.ts";
-import { tableProjectionTheme } from "./table-projection.ts";
-import { blockReplacementTheme } from "./block-replacement.ts";
-import { visibleMarkdownMarksPlugin } from "./visible-marks.ts";
+} from "./state/projection-state.ts";
+import { htmlProjectionTheme } from "./projections/html-projection.ts";
+import { mdxProjectionTheme } from "./projections/mdx-projection.ts";
+import { tableProjectionTheme } from "./projections/table-projection.ts";
+import { blockReplacementTheme } from "./blocks/block-replacement.ts";
+import { visibleMarkdownMarksPlugin } from "./state/visible-marks.ts";
 
 export function createWysiwygProjectionExtensions(
   features: readonly WysiwygProjectionFeature[],
@@ -74,4 +77,7 @@ export function createWysiwygProjectionExtensions(
   ];
 }
 
-export { codeBlockSelectionExtension, codeBlockSelectionLayer } from "./code-block-selection.ts";
+export {
+  codeBlockSelectionExtension,
+  codeBlockSelectionLayer,
+} from "./editing/code-block-selection.ts";

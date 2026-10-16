@@ -10,7 +10,7 @@ import {
   DEFAULT_AI_SUGGESTION_LABELS,
   dismissAiSuggestion,
   setAiSuggestionEffect,
-} from "../../src/wysiwyg/suggestion.ts";
+} from "../../src/wysiwyg/view/suggestion.ts";
 import { setEditorModeEffect } from "../../src/mode.ts";
 
 function createTestView(doc: string, cursor = 0): EditorView {

@@ -1,6 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { focusDimOpacityFacet, resolveDimOpacity } from "../../src/wysiwyg/focus-mode.ts";
+import { focusDimOpacityFacet, resolveDimOpacity } from "../../src/wysiwyg/view/focus-mode.ts";
 
 /**
  * code-review LOW「DEFAULT_DIM_OPACITY 走可配通道」的回归锁：

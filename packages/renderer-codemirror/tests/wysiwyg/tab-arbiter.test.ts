@@ -3,7 +3,7 @@ import {
   decideTabActions,
   dispatchTabActions,
   type TabAction,
-} from "../../src/wysiwyg/tab-arbiter.ts";
+} from "../../src/wysiwyg/input/tab-arbiter.ts";
 
 /**
  * AC-MB1：统一 Tab arbiter **纯决策函数**的属性测试（终局 code-review T13 的治本）。

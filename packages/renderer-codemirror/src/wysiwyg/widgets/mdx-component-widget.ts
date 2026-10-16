@@ -1,5 +1,5 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
-import { selectWysiwygAtom } from "../atom-selection.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
 
 export interface MdxComponentWidgetValue {
   /** 所属 record id(原子选中/数据回写) */

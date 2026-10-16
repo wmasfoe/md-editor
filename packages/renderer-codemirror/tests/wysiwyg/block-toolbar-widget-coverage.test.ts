@@ -4,16 +4,16 @@ import { markdown } from "@codemirror/lang-markdown";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
-import { blockDecorationsFromRanges } from "../../src/wysiwyg/block-toolbar.ts";
-import { readBlockRanges } from "../../src/wysiwyg/block-move.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
+import { blockDecorationsFromRanges } from "../../src/wysiwyg/blocks/block-toolbar.ts";
+import { readBlockRanges } from "../../src/wysiwyg/blocks/block-move.ts";
 import {
   blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
   projectionStateChangedBetween,
   setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 /**
  * 块工具栏 × 块 widget 覆盖范围。

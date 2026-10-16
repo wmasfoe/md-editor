@@ -9,13 +9,13 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   buildDefaultAtomAtomicRanges,
   buildDefaultAtomLayoutDecorations,
-} from "../../src/wysiwyg/default-visualization.ts";
+} from "../../src/wysiwyg/blocks/default-visualization.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   selectWysiwygAtomEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import { DefaultAtomWidget } from "../../src/wysiwyg/widgets/default-atom-widget.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 

@@ -15,7 +15,7 @@ import {
   setWysiwygVisibleRangesEffect,
   visibleRangesProbePlugin,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import type { SourceRange } from "../../src/markdown/range-types.ts";
 
 function createHarness(doc: string): { state: EditorState; diagnostics: WysiwygDiagnostics } {

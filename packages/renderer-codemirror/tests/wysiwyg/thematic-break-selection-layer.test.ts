@@ -8,13 +8,13 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   computeSelectionMarkers,
   isAtomSelection,
-} from "../../src/wysiwyg/code-block-selection.ts";
-import { selectWysiwygAtom } from "../../src/wysiwyg/atom-selection.ts";
+} from "../../src/wysiwyg/editing/code-block-selection.ts";
+import { selectWysiwygAtom } from "../../src/wysiwyg/blocks/atom-selection.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 function createWysiwygState(doc: string, mode: "wysiwyg" | "source" = "wysiwyg"): EditorState {
   return EditorState.create({
