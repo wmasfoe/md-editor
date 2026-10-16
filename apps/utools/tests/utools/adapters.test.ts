@@ -299,7 +299,7 @@ describe("uTools Platform Adapters", () => {
 
       // Save previous bridge
       const prevBridge = window.inkpointNodeBridge;
-      require("../../../preload/index.js");
+      require("../../preload/index.js");
 
       const bridge = window.inkpointNodeBridge!;
       expect(bridge.resolveImageSrc).toBeDefined();
@@ -347,8 +347,8 @@ describe("uTools Platform Adapters", () => {
       const os = require("node:os");
 
       const prevBridge = window.inkpointNodeBridge;
-      delete require.cache[require.resolve("../../../preload/index.js")];
-      require("../../../preload/index.js");
+      delete require.cache[require.resolve("../../preload/index.js")];
+      require("../../preload/index.js");
       const bridge = window.inkpointNodeBridge!;
 
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-tree-test-"));
