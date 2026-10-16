@@ -105,7 +105,7 @@ function resolveVercelBin() {
   }
 
   throw new Error(
-    "vercel CLI not found under site/node_modules; run `pnpm install` from the repo root first.",
+    "vercel CLI not found under apps/site/node_modules; run `pnpm install` from the repo root first.",
   );
 }
 

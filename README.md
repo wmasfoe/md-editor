@@ -228,8 +228,8 @@ md-editor/
 │   │   ├── android/             # Android 原生工程 (Kotlin + Jetpack Compose + SAF)
 │   │   └── ios/                 # iOS 原生工程 (Swift 6 + SwiftUI + Share Extension)
 │   ├── utools/                  # uTools 平台快速呼出沉浸式轻量插件 (物理隔离零技术债设计)
-│   └── web/                     # Web 在线 Playground 编辑器应用 (Vite + React 19)
-├── site/                        # Inkpoint 官方展示网站与动态版本下载中心 (Next.js App Router)
+│   ├── web/                     # Web 在线 Playground 编辑器应用 (Vite + React 19)
+│   └── site/                    # Inkpoint 官方展示网站与动态版本下载中心 (Next.js App Router)
 ├── infra/
 │   └── distribution-worker/     # Cloudflare Worker 全球边缘分发网关与安装包动态代理服务 (R2 + Fallback)
 ├── packages/

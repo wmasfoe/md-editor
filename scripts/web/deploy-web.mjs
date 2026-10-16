@@ -51,7 +51,7 @@ Options:
 
 function resolveVercelBin() {
   const candidates = [
-    path.join(repoRoot, "site/node_modules/.bin/vercel"),
+    path.join(repoRoot, "apps/site/node_modules/.bin/vercel"),
     path.join(repoRoot, "node_modules/.bin/vercel"),
     path.join(repoRoot, "node_modules/.pnpm/node_modules/.bin/vercel"),
   ];

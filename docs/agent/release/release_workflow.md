@@ -31,7 +31,7 @@
   - 用户侧安装方式为自签工具（Sideloadly / AltStore / SideStore / LiveContainer），官网 iOS 卡片提供 IPA 直链与自签指引；免费 Apple ID 签名 7 天有效。
 - **官网部署**：
   - 唯一入口为 `pnpm release:site`（`scripts/site/deploy-site.mjs`）；
-  - `site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
+  - `apps/site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
   - 承载主站首页、Next.js ISR 全平台版本分发中心（`/releases`）、更新日志（`/changelog`）等；
   - 对应域名：`editor.justdev.cn` 与 `editor.jiaqi.im`。
 - **全球边缘分发网关与 R2 存储（Cloudflare Worker）**：

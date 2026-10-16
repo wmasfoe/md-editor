@@ -49,7 +49,7 @@ flowchart TD
     subgraph Dist["分发与安装渠道"]
         GHRelease["GitHub Releases (全量产物)"]
         TapRepo["wmasfoe/homebrew-tap (Cask + install-md-editor.sh + install-md-editor.ps1)"]
-        Site["site/ 官网首页 (多平台下载与终端一键安装)"]
+        Site["apps/site/ 官网首页 (多平台下载与终端一键安装)"]
     end
 
     Branch --> TauriConf

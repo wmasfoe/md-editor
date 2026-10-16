@@ -7,7 +7,7 @@
  * 设计要点（code-reviewer 复审 MEDIUM 修复）：判定必须按**属性名**而不是标签匹配 ——
  * 简写属性调用写作 `{ markdown, savedMarkdown }`（没有 `markdown:` 这个标签），
  * 早期版本用 `markdown:` 过滤，于是**静默跳过**了简写调用，包括守卫本要防住的
- * `site/components/mdx-wipe-canvas.tsx` 回归。现在改为要求表达式内出现 `markdown` 词，
+ * `apps/site/components/mdx-wipe-canvas.tsx` 回归。现在改为要求表达式内出现 `markdown` 词，
  * 并另加自测（`document-identity-convention.test.ts`）证明「简写 + 未声明」确实会被标红。
  */
 

@@ -14,7 +14,7 @@ import {
  * 为什么需要它：未声明 ⇒ 渲染层按 fail-safe `"different"` 把视口归零。若该调用其实属于
  * 「同一篇文档的内容变更 / 重装载」，就会把正在阅读的用户**弹回顶部**。
  * 这正是 code-reviewer 复审 MEDIUM-1 发现的问题：第五个宿主
- * `site/components/mdx-wipe-canvas.tsx` 在移除渲染层推断后漏声明 —— 而它位于 `site/`，
+ * `apps/site/components/mdx-wipe-canvas.tsx` 在移除渲染层推断后漏声明 —— 而它位于 `site/`，
  * 既不在 `apps/**` 也不在 `packages/**`，两次人工审计都漏了。本护栏把该约束前移到**编写路径**。
  *
  * 白名单 = **有意不声明**的调用点（真·新建 / 重置 / 划词新建等「确实换文档」的场景）；

@@ -228,8 +228,8 @@ md-editor/
 │   │   ├── android/             # Android native project (Kotlin + Jetpack Compose + SAF)
 │   │   └── ios/                 # iOS native project (Swift 6 + SwiftUI + Share Extension)
 │   ├── utools/                  # uTools platform immersive lightweight quick-note plugin
-│   └── web/                     # Web online Playground editor application (Vite + React 19)
-├── site/                        # Inkpoint official website and dynamic download center (Next.js App Router)
+│   ├── web/                     # Web online Playground editor application (Vite + React 19)
+│   └── site/                    # Inkpoint official website and dynamic download center (Next.js App Router)
 ├── infra/
 │   └── distribution-worker/     # Cloudflare Worker global edge download gateway & dynamic proxy (R2 + Fallback)
 ├── packages/
