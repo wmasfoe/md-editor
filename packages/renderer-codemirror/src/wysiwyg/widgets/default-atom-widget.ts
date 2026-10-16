@@ -1,7 +1,7 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import type { MarkdownSyntaxKind } from "../../markdown/range-types.ts";
-import { selectWysiwygAtom } from "../atom-selection.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
 
 export interface DefaultAtomWidgetValue {
   readonly recordId: string;

@@ -227,7 +227,7 @@ WYSIWYG 代码块不是源码围栏预览，而是直接可编辑的代码块：
 
 - `markdown-fidelity.findFrontmatterSourceRange` 只负责 LF 文档中 offset 0 的 closed/unterminated 边界和 raw/content fidelity，不解析 YAML。
 - `renderer-codemirror/markdown/frontmatter-yaml.ts` 直接使用 `@lezer/yaml` 生成 YAML token 与 diagnostic ranges；EOF/空白错误会钳制到可见字符，解析错误不阻断编辑。
-- `renderer-codemirror/wysiwyg/frontmatter-projection.ts` 把 opening fence 替换为默认隐藏的 status Widget、隐藏 closing fence、为 YAML body 添加 line/Mark decorations，并只把 fence 放入 atomic/protected ranges。
+- `renderer-codemirror/wysiwyg/projections/frontmatter-projection.ts` 把 opening fence 替换为默认隐藏的 status Widget、隐藏 closing fence、为 YAML body 添加 line/Mark decorations，并只把 fence 放入 atomic/protected ranges。
 - status Widget 在正常状态不占用可见标题内容，只在 YAML 错误或 fence 未闭合时显示状态；YAML 正文、光标与选择仍全部属于主编辑面。
 - YAML body 没有被搬入 Widget、form、nested `EditorView` 或 contenteditable island；它仍是主 `.cm-content` 的普通文本，因此 selection、IME、clipboard 和 history 沿用主 CM6 状态。
 - 未编辑源码不经过 serializer。用户编辑只产生命中正文范围的 CM6 change；全局保存仍遵循既有 LF 契约，不承诺恢复输入文件的 CRLF bytes。

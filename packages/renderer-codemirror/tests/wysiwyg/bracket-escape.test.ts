@@ -3,7 +3,7 @@ import {
   detectBracketUnit,
   detectBracketUnitInCell,
   detectBracketUnitInLineRuns,
-} from "../../src/wysiwyg/bracket-escape.ts";
+} from "../../src/wysiwyg/input/bracket-escape.ts";
 
 /**
  * U-ESC —— `detectBracketUnit(text, offset)` 纯函数的单元测试（test-spec §1）。

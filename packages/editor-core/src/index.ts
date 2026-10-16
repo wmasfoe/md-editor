@@ -418,7 +418,7 @@ export function createAiWritingFeature(): FeatureDescriptor {
 /**
  * D-3 块操作命令（上移块 / 下移块 / 复制块 / 删除块）。
  *
- * 复用 `renderer-codemirror` 的 `wysiwyg/block-move.ts` 纯逻辑（其模块注释
+ * 复用 `renderer-codemirror` 的 `wysiwyg/blocks/block-move.ts` 纯逻辑（其模块注释
  * 明确预留「命令」为调用方）。按计划 R6：**本批不绑默认快捷键**，
  * 只注册命令——命令面板可搜、`when` 可过滤、用户可在快捷键设置里自定义。
  */

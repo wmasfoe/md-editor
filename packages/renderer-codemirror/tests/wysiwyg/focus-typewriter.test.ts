@@ -7,9 +7,9 @@ import {
   refreshMarkdownParseCoverageEffect,
 } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import { WysiwygDiagnostics, provideWysiwygDiagnostics } from "../../src/diagnostics.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   blockWidgetCoveredRanges,
   configureWysiwygProjectionFeatures,
@@ -17,7 +17,7 @@ import {
   refreshWysiwygProjectionEffect,
   setWysiwygVisibleRangesEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import {
   DEFAULT_DIM_OPACITY,
   focusDimDecorationsField,
@@ -25,14 +25,14 @@ import {
   focusModeField,
   resolveActiveBlock,
   setFocusModeEffect,
-} from "../../src/wysiwyg/focus-mode.ts";
+} from "../../src/wysiwyg/view/focus-mode.ts";
 import {
   CENTER_ANIMATION_MS,
   CENTER_EPSILON_PX,
   setTypewriterModeEffect,
   typewriterModeField,
-} from "../../src/wysiwyg/typewriter-mode.ts";
-import { readBlockRanges, type BlockRange } from "../../src/wysiwyg/block-move.ts";
+} from "../../src/wysiwyg/input/typewriter-mode.ts";
+import { readBlockRanges, type BlockRange } from "../../src/wysiwyg/blocks/block-move.ts";
 
 /**
  * U-VIEW —— D-2 专注模式 / 打字机模式的纯逻辑与状态测试（test-spec §1 U19–U23）。

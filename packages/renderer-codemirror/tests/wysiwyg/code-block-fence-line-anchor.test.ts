@@ -8,11 +8,11 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   codeBlockLineNumbersField,
   getCodeBlockProtectedRanges,
-} from "../../src/wysiwyg/code-block-projection.ts";
+} from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 /**
  * 围栏代码块的行装饰锚点回归：

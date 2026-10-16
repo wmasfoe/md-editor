@@ -272,6 +272,79 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
 
+  apps/site:
+    dependencies:
+      '@heroicons/react':
+        specifier: 'catalog:'
+        version: 2.2.0(react@19.2.7)
+      '@md-editor/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
+      '@md-editor/editor-ui':
+        specifier: workspace:*
+        version: link:../../packages/editor-ui
+      '@md-editor/mdx-component-registry':
+        specifier: workspace:*
+        version: link:../../packages/mdx-component-registry
+      '@md-editor/mdx-plugins':
+        specifier: workspace:*
+        version: link:../../packages/mdx-plugins
+      '@md-editor/renderer-codemirror':
+        specifier: workspace:*
+        version: link:../../packages/renderer-codemirror
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../../packages/syntax-plugins
+      '@samasante/liquid-glass':
+        specifier: ^0.1.1
+        version: 0.1.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      katex:
+        specifier: ^0.18.6
+        version: 0.18.6
+      lxgw-wenkai-webfont:
+        specifier: ^1.7.0
+        version: 1.7.0
+      next:
+        specifier: 'catalog:'
+        version: 16.2.10(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+      react-icons:
+        specifier: ^5.7.0
+        version: 5.7.0(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: 'catalog:'
+        version: 4.3.2
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.21
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
+      postcss:
+        specifier: 'catalog:'
+        version: 8.5.15
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vercel:
+        specifier: 'catalog:'
+        version: 49.2.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(rollup@4.61.1)(typescript@5.9.3)
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
+
   apps/utools:
     dependencies:
       '@md-editor/editor-core':
@@ -735,79 +808,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
-      vitest:
-        specifier: 'catalog:'
-        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
-
-  site:
-    dependencies:
-      '@heroicons/react':
-        specifier: 'catalog:'
-        version: 2.2.0(react@19.2.7)
-      '@md-editor/editor-core':
-        specifier: workspace:*
-        version: link:../packages/editor-core
-      '@md-editor/editor-ui':
-        specifier: workspace:*
-        version: link:../packages/editor-ui
-      '@md-editor/mdx-component-registry':
-        specifier: workspace:*
-        version: link:../packages/mdx-component-registry
-      '@md-editor/mdx-plugins':
-        specifier: workspace:*
-        version: link:../packages/mdx-plugins
-      '@md-editor/renderer-codemirror':
-        specifier: workspace:*
-        version: link:../packages/renderer-codemirror
-      '@md-editor/syntax-plugins':
-        specifier: workspace:*
-        version: link:../packages/syntax-plugins
-      '@samasante/liquid-glass':
-        specifier: ^0.1.1
-        version: 0.1.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      katex:
-        specifier: ^0.18.6
-        version: 0.18.6
-      lxgw-wenkai-webfont:
-        specifier: ^1.7.0
-        version: 1.7.0
-      next:
-        specifier: 'catalog:'
-        version: 16.2.10(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      react:
-        specifier: 'catalog:'
-        version: 19.2.7
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.7(react@19.2.7)
-      react-icons:
-        specifier: ^5.7.0
-        version: 5.7.0(react@19.2.7)
-    devDependencies:
-      '@tailwindcss/postcss':
-        specifier: 'catalog:'
-        version: 4.3.2
-      '@types/node':
-        specifier: 'catalog:'
-        version: 22.19.21
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.17)
-      postcss:
-        specifier: 'catalog:'
-        version: 8.5.15
-      tailwindcss:
-        specifier: 'catalog:'
-        version: 4.3.2
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-      vercel:
-        specifier: 'catalog:'
-        version: 49.2.0(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(rollup@4.61.1)(typescript@5.9.3)
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)

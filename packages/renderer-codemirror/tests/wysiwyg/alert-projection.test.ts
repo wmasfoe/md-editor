@@ -13,13 +13,13 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   buildBlockLayoutDecorations,
   getBlockProtectedRanges,
-} from "../../src/wysiwyg/list-projection.ts";
-import { DirectiveHeaderWidget } from "../../src/wysiwyg/callout-widget.ts";
-import { moveAtomVertically } from "../../src/wysiwyg/atom-selection.ts";
+} from "../../src/wysiwyg/projections/list-projection.ts";
+import { DirectiveHeaderWidget } from "../../src/wysiwyg/widgets/callout-widget.ts";
+import { moveAtomVertically } from "../../src/wysiwyg/blocks/atom-selection.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import { createRendererTestHarness } from "../../src/testing.ts";
 import { type CodeMirrorRenderer } from "../../src/index.ts";
 

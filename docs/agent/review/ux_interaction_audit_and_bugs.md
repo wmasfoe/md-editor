@@ -36,7 +36,7 @@
   4. **实际结果**：又生成了一行 `- `，文档变为 `- 第一项\n- \n- `。
   5. **预期结果**：当前空列表项的前缀 `- ` 被清除，光标停留在普通段落空行上，退出列表。
 - **根因分析（第一性原理）**：
-  - 代码位于 `packages/renderer-codemirror/src/wysiwyg/markdown-commands.ts` 中的 `insertListContinuationFallback` 与 `isListContinuationCandidate`。
+  - 代码位于 `packages/renderer-codemirror/src/wysiwyg/editing/markdown-commands.ts` 中的 `insertListContinuationFallback` 与 `isListContinuationCandidate`。
   - 函数只判断了“光标是否位于列表行末（`head < line.to - 1`）”，**但没有判断当前行除了 marker 以外是否还有实际正文**。
   - 当当前行仅包含列表 marker 时，它仍然被判定为合法的续行候选（candidate），从而无条件 dispatch 了 `\n${indentation}${markerText}`。
 - **推荐修复方案**：
@@ -64,7 +64,7 @@
 
 - **严重程度**：中
 - **现象描述**：
-  - `packages/renderer-codemirror/src/wysiwyg/markdown-formatting.ts` 中将 `Mod-k` 注册为 `insertOrWrapLink`（将选中文本包装为 `[选中文本](url)`，或在光标处插入 `[](url)`）。
+  - `packages/renderer-codemirror/src/wysiwyg/editing/markdown-formatting.ts` 中将 `Mod-k` 注册为 `insertOrWrapLink`（将选中文本包装为 `[选中文本](url)`，或在光标处插入 `[](url)`）。
   - 但 `apps/desktop/src/app/App.tsx` 中在 `window` 上注册了全局 keydown 监听：按下 `Cmd+K` / `Ctrl+K` 时直接 `event.preventDefault()` 并打开全局命令面板（Command Palette）。
   - 这导致编辑器内置的 `Mod-k` 链接格式化命令被完全遮蔽，用户在编辑正文时按 `Cmd+K` 无法插入链接，只能唤出命令面板。
 - **复现步骤**：
@@ -85,14 +85,14 @@
   - 但当编辑到**表格最后一个单元格（最后一行最后一列）**时，按下 `Tab` 键没有任何反应（既不跳出表格，也不增加新行）。
   - **对比与行业惯例**：在 Notion、Obsidian、Typora、GitHub Issue 以及 Excel / Word 中，在表格末格按 `Tab` 键的标准行为是**自动在表格底部追加一个新行，并将焦点移动到新行的第一个单元格**。当前缺失该行为，导致用户连续录入多行表格数据时，必须停下打字去用鼠标点击行手柄中的“在下方插入行”，打断连续输入。
 - **优化建议**：
-  在 `packages/renderer-codemirror/src/wysiwyg/table-editing.ts` 的 `navigateTableCell` 中，当检测到目标单元格超出 `maxRow` 且方向为 forward 时，触发 `insertTableRowBelow` 自动新增一行，并将编辑状态置于新行第 0 列。
+  在 `packages/renderer-codemirror/src/wysiwyg/editing/table-editing.ts` 的 `navigateTableCell` 中，当检测到目标单元格超出 `maxRow` 且方向为 forward 时，触发 `insertTableRowBelow` 自动新增一行，并将编辑状态置于新行第 0 列。
 
 ---
 
 ### Friction 2: 空光标状态下缺少成对符号（引号/括号/代码反引号）自动补全闭合
 
 - **交互卡点表现**：
-  - 当前 `packages/renderer-codemirror/src/wysiwyg/smart-pairs.ts` 实现了**选区包裹**（例如选中单词按 `*` 变为 `*word*`，按 `[` 变为 `[word]`），体验顺畅。
+  - 当前 `packages/renderer-codemirror/src/wysiwyg/input/smart-pairs.ts` 实现了**选区包裹**（例如选中单词按 `*` 变为 `*word*`，按 `[` 变为 `[word]`），体验顺畅。
   - 但在**空光标（无选区）普通打字状态**下，用户输入 `"`、`(`、`[`、`` ` `` 时，编辑器**不会自动补全右侧闭合符号**，也没有输入闭合符号时的跳过（step-over）支持。用户每次输入成对符号都必须完整敲击左右两侧，略显生硬。
 - **优化建议**：
   将 CodeMirror 官方成熟的 `@codemirror/autocomplete` 中的 `closeBrackets()` 扩展或定制的空光标成对补全规则引入到 WYSIWYG 扩展链中。
@@ -102,7 +102,7 @@
 ### Friction 3: 标题级别切换控件与行首手柄的菜单层级收敛
 
 - **交互卡点表现**：
-  - 代码库中存在 `packages/renderer-codemirror/src/wysiwyg/head-level-control.ts`（用于在标题行首显示小号 `H1` 标签并点击下拉切换级别），但该 extension 未被挂载。
+  - 代码库中存在 `packages/renderer-codemirror/src/wysiwyg/editing/head-level-control.ts`（用于在标题行首显示小号 `H1` 标签并点击下拉切换级别），但该 extension 未被挂载。
   - 当前真实的标题级别切换收敛在每行的 **`⋮` 块操作菜单** 中（悬停行首显示 `⋮`，点击展开包含“添加块”、“折叠”以及 `H1`~`H6`、“正文”）。
   - **体验现状**：用户在标题行打字时，行首没有显式的标题级别提示，必须通过鼠标悬停并点击 `⋮` 才能看到当前可切换的级别。
 - **优化建议**：

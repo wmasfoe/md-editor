@@ -12,13 +12,13 @@ import {
   resolveCodeBlockIndentPlan,
   resolveHiddenIndentRange,
   stripCodeBlockIndent,
-} from "../../src/wysiwyg/code-block-indent.ts";
-import { codeBlockLineNumbersField } from "../../src/wysiwyg/code-block-projection.ts";
-import { readCodeBlockBodyText } from "../../src/wysiwyg/code-block-commands.ts";
+} from "../../src/wysiwyg/editing/code-block-indent.ts";
+import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
+import { readCodeBlockBodyText } from "../../src/wysiwyg/editing/code-block-commands.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 function createState(doc: string): EditorState {
   const cursor = doc.indexOf("const");

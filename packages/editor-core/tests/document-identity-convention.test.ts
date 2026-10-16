@@ -81,7 +81,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 describe("文档身份声明约定（源码级结构护栏）", () => {
   it("每个非测试 replaceDocument 调用都必须声明 replaceIntent，或在白名单内", () => {
     const offenders: string[] = [];
-    for (const dir of ["apps", "packages", "site", "infra"]) {
+    for (const dir of ["apps", "packages", "infra"]) {
       for (const file of sourceFiles(join(REPO_ROOT, dir))) {
         const source = readFileSync(file, "utf-8");
         if (!source.includes(".replaceDocument(")) {

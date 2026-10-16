@@ -6,7 +6,7 @@ import {
   copyCodeBlockBodyById,
   selectCodeBlockBodyById,
   setCodeBlockLanguageById,
-} from "../code-block-commands.ts";
+} from "../editing/code-block-commands.ts";
 
 export interface CodeBlockToolbarWidgetValue {
   readonly recordId: string;

@@ -1,0 +1,41 @@
+{
+  "name": "@md-editor/site",
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "release:site": "node ../../scripts/site/deploy-site.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@heroicons/react": "catalog:",
+    "@md-editor/editor-core": "workspace:*",
+    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/mdx-component-registry": "workspace:*",
+    "@md-editor/mdx-plugins": "workspace:*",
+    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/syntax-plugins": "workspace:*",
+    "@samasante/liquid-glass": "^0.1.1",
+    "katex": "^0.18.6",
+    "lxgw-wenkai-webfont": "^1.7.0",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-icons": "^5.7.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vercel": "catalog:",
+    "vitest": "catalog:"
+  }
+}

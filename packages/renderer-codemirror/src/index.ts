@@ -39,7 +39,7 @@ export {
   type AiSuggestionItem,
   type AiSuggestionInput,
   type AiSuggestionValue,
-} from "./wysiwyg/suggestion.ts";
+} from "./wysiwyg/view/suggestion.ts";
 export {
   toggleBold,
   toggleItalic,
@@ -60,7 +60,7 @@ export {
   setHeading5,
   setHeading6,
   createMarkdownFormattingKeymap,
-} from "./wysiwyg/markdown-formatting.ts";
+} from "./wysiwyg/editing/markdown-formatting.ts";
 export {
   search,
   searchKeymap,
@@ -71,10 +71,13 @@ export {
   replaceNext,
   replaceAll,
 } from "@codemirror/search";
-export { createLiquidSearchPanel } from "./wysiwyg/search-panel.ts";
-export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/smart-paste.ts";
-export { smartPairsExtension } from "./wysiwyg/smart-pairs.ts";
-export type { ImagePreviewResolveInput, ImagePreviewResolver } from "./wysiwyg/image-resolver.ts";
+export { createLiquidSearchPanel } from "./wysiwyg/view/search-panel.ts";
+export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/input/smart-paste.ts";
+export { smartPairsExtension } from "./wysiwyg/input/smart-pairs.ts";
+export type {
+  ImagePreviewResolveInput,
+  ImagePreviewResolver,
+} from "./wysiwyg/view/image-resolver.ts";
 
 export type {
   DocumentSnapshot,
@@ -95,7 +98,7 @@ export {
   DirectiveHeaderWidget,
   defaultCalloutTitle,
   getCalloutSvg,
-} from "./wysiwyg/callout-widget.ts";
+} from "./wysiwyg/widgets/callout-widget.ts";
 export { markdownRangeIndexField, syntaxPluginRegistryFacet } from "./markdown/range-index.ts";
 export type { MarkdownNodePolicy } from "./markdown/node-policy.ts";
 export type {

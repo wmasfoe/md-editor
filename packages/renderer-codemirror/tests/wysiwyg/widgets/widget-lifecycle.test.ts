@@ -9,8 +9,8 @@ import { editorModeField } from "../../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../../src/wysiwyg/projection-state.ts";
-import { wysiwygChangeProtection } from "../../../src/wysiwyg/change-protection.ts";
+} from "../../../src/wysiwyg/state/projection-state.ts";
+import { wysiwygChangeProtection } from "../../../src/wysiwyg/state/change-protection.ts";
 import { DefaultAtomWidget } from "../../../src/wysiwyg/widgets/default-atom-widget.ts";
 import { FrontmatterHeaderWidget } from "../../../src/wysiwyg/widgets/frontmatter-header-widget.ts";
 import { ImageWidget } from "../../../src/wysiwyg/widgets/image-widget.ts";

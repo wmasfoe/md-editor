@@ -11,11 +11,11 @@ import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,
-} from "../../src/wysiwyg/html-projection.ts";
+} from "../../src/wysiwyg/projections/html-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
 interface ProjectionHarness {

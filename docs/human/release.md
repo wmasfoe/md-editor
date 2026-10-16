@@ -142,8 +142,8 @@ uTools 官方公开流程要求在开发者工具中填写发布信息、截图�
 
 ## 四、官网（site）发版
 
-官网在 monorepo 的 `site/` 包（Next.js），内容来源：
-- 页面文案与布局：`site/`
+官网在 monorepo 的 `apps/site/` 包（Next.js），内容来源：
+- 页面文案与布局：`apps/site/`
 - **更新记录**：同时展示「桌面客户端」（来自 `apps/desktop/CHANGELOG.md`）与「Web 在线版」（来自 `apps/web/CHANGELOG.md`），支持 Tab 自由切换。
 
 ### 1. 发布策略

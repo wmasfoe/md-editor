@@ -4,7 +4,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { readBlockRanges, type BlockRange } from "../../src/wysiwyg/block-move.ts";
+import { readBlockRanges, type BlockRange } from "../../src/wysiwyg/blocks/block-move.ts";
 
 /**
  * S3 / D-3 阶段 A：`block-move` 缺陷的**复现优先**用例（P5 先锁行为再改）。

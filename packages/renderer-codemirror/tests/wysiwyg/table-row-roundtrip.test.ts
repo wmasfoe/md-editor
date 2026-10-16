@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { serializeTableRow } from "../../src/wysiwyg/table-editing.ts";
-import { splitTableRowCells } from "../../src/wysiwyg/table-projection.ts";
+import { serializeTableRow } from "../../src/wysiwyg/editing/table-editing.ts";
+import { splitTableRowCells } from "../../src/wysiwyg/projections/table-projection.ts";
 
 /** `serializeTableRow ∘ splitTableRowCells` 行往返 */
 function roundTrip(row: string, leading: boolean): string {

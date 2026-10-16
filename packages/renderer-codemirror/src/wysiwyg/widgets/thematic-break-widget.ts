@@ -1,7 +1,7 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
-import { selectWysiwygAtom } from "../atom-selection.ts";
-import { applyBlockCategory } from "../block-replacement.ts";
+import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
+import { applyBlockCategory } from "../blocks/block-replacement.ts";
 
 export interface ThematicBreakWidgetValue {
   readonly recordId: string;

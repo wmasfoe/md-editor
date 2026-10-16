@@ -8,7 +8,7 @@
 
 触发阅读的改动范围（任一命中即必须先读本规范）：
 
-- `packages/renderer-codemirror/src/wysiwyg/block-replacement.ts`（契约与规则的**唯一实现来源**）；
+- `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts`（契约与规则的**唯一实现来源**）；
 - 任何整行块级投影：`table-projection.ts`（表格）、`html-projection.ts`（HTML 块）、`mdx-projection.ts`（MDX 组件块）、`default-visualization.ts`（setext 标题 / 引用式定义 / 脚注定义等兜底原子块）、`link-projection.ts`（分割线）；
 - 任何在 WYSIWYG 中新增“整行块级 widget”或调整其垂直间距的改动。
 
@@ -94,7 +94,7 @@ if (deco.block) {
 
 ## 核心不变量与设计契约 (Core Invariants)
 
-1. **单一实现来源**：所有整行块级替换装饰必须经 `packages/renderer-codemirror/src/wysiwyg/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，禁止在 projection 文件里手写 `Decoration.replace` 的边界参数；`trailingLineBreakEnd()` 亦只有该模块一份实现。
+1. **单一实现来源**：所有整行块级替换装饰必须经 `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，禁止在 projection 文件里手写 `Decoration.replace` 的边界参数；`trailingLineBreakEnd()` 亦只有该模块一份实现。
 2. **不对称 Inclusivity 契约**：
    对于覆盖整行（从行首到行末 `\n`）的块级替换装饰器（如 `ThematicBreakWidget`、`TableGridWidget`、`HtmlBlockWidget`、`MdxComponentWidget`），**必须精准采用不对称 Inclusivity 配置**：
    ```typescript

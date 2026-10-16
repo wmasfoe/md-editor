@@ -144,14 +144,14 @@
 7. **即开即写**：编辑画布随进度上移覆盖标题，宽度保持 `max-w-5xl`，不拉满视口。
 8. **降级**：`prefers-reduced-motion: reduce` 或窄屏/矮屏时取消加长行程与 sticky。
 
-实现入口：`site/components/pinned-scene.tsx`、`site/lib/parallax.ts` 的 `sceneProgressFromRect`，样式见 `site/app/globals.css` 的 `.pinned-scene-*` 与 `.ink-float-gentle*`。
+实现入口：`apps/site/components/pinned-scene.tsx`、`apps/site/lib/parallax.ts` 的 `sceneProgressFromRect`，样式见 `apps/site/app/globals.css` 的 `.pinned-scene-*` 与 `.ink-float-gentle*`。
 
 ---
 
 ## 六、 响应式与移动端适配契约 (Mobile Responsive & Accessibility)
 
 ### 1. 钉住场景平滑降级 (PinnedScene Graceful Downgrade)
-- 媒体查询断点：`(min-width: 768px) and (min-height: 700px)`（详见 `site/lib/parallax.ts` 的 `PINNED_SCENE_MEDIA`）。
+- 媒体查询断点：`(min-width: 768px) and (min-height: 700px)`（详见 `apps/site/lib/parallax.ts` 的 `PINNED_SCENE_MEDIA`）。
 - **移动端/小屏降级行为**：
   - 取消 `sticky` 锁定和加长虚拟行程，恢复自然垂直文档流；
   - `SceneRenderState` 自动注入 `isPinned: false`、`progress: 1`、`isActive: true`；

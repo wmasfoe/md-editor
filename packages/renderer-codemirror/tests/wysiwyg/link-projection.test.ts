@@ -6,13 +6,13 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
-import { provideImagePreviewResolver } from "../../src/wysiwyg/image-resolver.ts";
+import { provideImagePreviewResolver } from "../../src/wysiwyg/view/image-resolver.ts";
 import {
   configureWysiwygProjectionFeatures,
   inspectWysiwygProjection,
   selectWysiwygAtomEffect,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import { ImageWidget } from "../../src/wysiwyg/widgets/image-widget.ts";
 import { ThematicBreakWidget } from "../../src/wysiwyg/widgets/thematic-break-widget.ts";
 

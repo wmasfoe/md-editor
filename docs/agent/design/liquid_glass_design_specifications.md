@@ -36,7 +36,7 @@ Liquid Glass 是 Apple 在 visionOS / iOS 18+ / macOS 设计语言中推出的�
 
 ## 三、 CSS Token 与 Class 契约
 
-定义在 `site/app/globals.css` 中的全局类：
+定义在 `apps/site/app/globals.css` 中的全局类：
 
 | 类名 | 材质类型 | 核心样式特征 | 适用场景 |
 | :--- | :--- | :--- | :--- |
@@ -49,7 +49,7 @@ Liquid Glass 是 Apple 在 visionOS / iOS 18+ / macOS 设计语言中推出的�
 
 ## 四、 核心组件落地实现
 
-### 1. 交互式拖拽与 @samasante/liquid-glass 原生折射分段选择器 (`site/components/liquid-glass-segmented-control.tsx`)
+### 1. 交互式拖拽与 @samasante/liquid-glass 原生折射分段选择器 (`apps/site/components/liquid-glass-segmented-control.tsx`)
 - **多层架构与原生 SDF 折射**：
   1. **底层（Track Container）**：外层轨道采用 `.liquid-glass-track` 磨砂凹槽，`overflow-visible` 避免切断浮动透镜；
   2. **原生光学折射层（`<Glass>` Engine）**：基于 `@samasante/liquid-glass` 的 SVG `feDisplacementMap` SDF 透镜引擎，透镜中心坐标通过 `center.x = (position + 0.5) / count` 精准映射；

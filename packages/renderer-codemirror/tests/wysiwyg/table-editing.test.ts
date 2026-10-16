@@ -9,7 +9,7 @@ import { editorModeField } from "../../src/mode.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 import {
   commitTableCell,
   deleteTableBodyRow,
@@ -18,9 +18,9 @@ import {
   insertTableBodyRow,
   insertTableColumn,
   setTableColumnAlignment,
-} from "../../src/wysiwyg/table-editing.ts";
+} from "../../src/wysiwyg/editing/table-editing.ts";
 import { TableGridWidget, flushActiveTableCell } from "../../src/wysiwyg/widgets/table-widget.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import {
   createCodeMirrorRendererWithFactory,
   type RendererViewAdapter,

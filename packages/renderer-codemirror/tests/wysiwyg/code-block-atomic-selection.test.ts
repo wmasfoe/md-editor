@@ -5,16 +5,16 @@ import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnos
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
-import { wysiwygChangeProtection } from "../../src/wysiwyg/change-protection.ts";
-import { codeBlockSelectionExtension } from "../../src/wysiwyg/code-block-selection.ts";
+import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
+import { codeBlockSelectionExtension } from "../../src/wysiwyg/editing/code-block-selection.ts";
 import {
   codeBlockLineNumbersField,
   CodeBlockSpacerWidget,
-} from "../../src/wysiwyg/code-block-projection.ts";
+} from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
-} from "../../src/wysiwyg/projection-state.ts";
+} from "../../src/wysiwyg/state/projection-state.ts";
 
 function createHarness(doc: string, selection: EditorSelection = EditorSelection.single(0)) {
   const diagnostics = new WysiwygDiagnostics();

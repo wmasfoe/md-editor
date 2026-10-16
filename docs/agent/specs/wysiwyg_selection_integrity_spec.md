@@ -39,7 +39,7 @@
 3. 精确选中的分割线由 `Backspace` / `Delete` 整块删除，一次 undo 必须完整恢复。
 4. 未提供专用编辑交互的 CommonMark/GFM 语法作为默认 atom 自动可视化。WYSIWYG 中允许选择和跨越，不允许精确修改或整块删除；编辑必须切到全局源码模式。
 5. 多选区 atom 操作必须全有或全无：所有 range 都兼容才派发一次 transaction，任何一个 range 不兼容则不产生部分修改。
-6. **CM6 块级替换 Decoration (`block: true`) Inclusivity 契约**：整行块级替换组件（分割线、表格、HTML 块、MDX 组件块、setext 标题等兜底原子块）必须经 `packages/renderer-codemirror/src/wysiwyg/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，由该模块统一设置 `inclusiveStart: true`（避免 CodeMirror 因判定起点未被块级覆盖而在上方合成幽灵空行）与 `inclusiveEnd: false`（避免吞并紧随其后的换行符）；行内原子（`block: false`）保持 `inclusive: false` 不变。空行数量必须与源码 1:1。**契约与“符号型块默认间距”规则的完整表述见 [thematic_break_and_block_inclusivity_spec.md](./thematic_break_and_block_inclusivity_spec.md)，本节不再重复细节，避免双份规范漂移。**
+6. **CM6 块级替换 Decoration (`block: true`) Inclusivity 契约**：整行块级替换组件（分割线、表格、HTML 块、MDX 组件块、setext 标题等兜底原子块）必须经 `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，由该模块统一设置 `inclusiveStart: true`（避免 CodeMirror 因判定起点未被块级覆盖而在上方合成幽灵空行）与 `inclusiveEnd: false`（避免吞并紧随其后的换行符）；行内原子（`block: false`）保持 `inclusive: false` 不变。空行数量必须与源码 1:1。**契约与“符号型块默认间距”规则的完整表述见 [thematic_break_and_block_inclusivity_spec.md](./thematic_break_and_block_inclusivity_spec.md)，本节不再重复细节，避免双份规范漂移。**
 
 ### 结构化编辑、IME 与模式
 
@@ -64,23 +64,23 @@
 - parser 与 range index：`packages/renderer-codemirror/src/markdown/range-index.ts`
   - 负责从 CM6 Markdown syntax tree 建立稳定 `MarkdownRangeRecord`。
   - document change 时重建受影响解析覆盖；仅 selection change 时不得重跑全文解析。
-- 投影状态：`packages/renderer-codemirror/src/wysiwyg/projection-state.ts`
+- 投影状态：`packages/renderer-codemirror/src/wysiwyg/state/projection-state.ts`
   - `wysiwygProjectionField` 唯一持有 active syntax ids、selected atom ids、composition guards、protected ranges、layout decorations 和 atomic ranges。
   - source 模式投影集合必须为空。
-- 原子选择与删除：`packages/renderer-codemirror/src/wysiwyg/atom-selection.ts`
+- 原子选择与删除：`packages/renderer-codemirror/src/wysiwyg/blocks/atom-selection.ts`
   - 图片键盘进入揭示源码；分割线和默认 atom 使用精确 CM6 range 选择。
   - 图片、分割线可精确删除；默认 atom 不走专用删除。
-- 修改保护：`packages/renderer-codemirror/src/wysiwyg/change-protection.ts`
+- 修改保护：`packages/renderer-codemirror/src/wysiwyg/state/change-protection.ts`
   - transaction filter 拦截 WYSIWYG 内默认 atom、Frontmatter fence 和隐藏 block marker 的局部修改。
   - undo/redo、授权的外部编辑、source 模式编辑和覆盖完整 atom 的宽选区操作必须放行。
-- 结构化授权：`packages/renderer-codemirror/src/wysiwyg/change-authorization.ts`
+- 结构化授权：`packages/renderer-codemirror/src/wysiwyg/state/change-authorization.ts`
   - renderer 自有 transaction 使用显式 annotation；上游 Markdown 命令只在同步 `state.update` 调用栈内获得 state-scoped 授权。
   - 授权不得延续到后续普通 typing、paste 或其他编辑器实例。
-- 结构化命令：`packages/renderer-codemirror/src/wysiwyg/markdown-commands.ts`
+- 结构化命令：`packages/renderer-codemirror/src/wysiwyg/editing/markdown-commands.ts`
   - 列表、任务和 atom 命令统一使用 CM6 transaction，并在多选区下保持全有或全无。
 - 代码块投影与命令：
-  - `packages/renderer-codemirror/src/wysiwyg/code-block-projection.ts` 负责 closed block 投影、结构范围和零长度 body geometry。
-  - `packages/renderer-codemirror/src/wysiwyg/code-block-commands.ts` 负责 body editing、首次 materialization、语言/copy/selection 和边界删除语义。
+  - `packages/renderer-codemirror/src/wysiwyg/projections/code-block-projection.ts` 负责 closed block 投影、结构范围和零长度 body geometry。
+  - `packages/renderer-codemirror/src/wysiwyg/editing/code-block-commands.ts` 负责 body editing、首次 materialization、语言/copy/selection 和边界删除语义。
 - Widget：`packages/renderer-codemirror/src/wysiwyg/widgets/`
   - Widget 只渲染和转发 atom 选择，不直接修改 Markdown，不获得独立可编辑焦点。
 

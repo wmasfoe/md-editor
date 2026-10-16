@@ -23,8 +23,8 @@ import {
   codeBlockLineNumberTheme,
   createCodeBlockLineNumberDecorations,
   type CodeBlockLogicalLine,
-} from "./wysiwyg/code-block-line-numbers.ts";
-import { wysiwygProjectionField } from "./wysiwyg/projection-state.ts";
+} from "./wysiwyg/editing/code-block-line-numbers.ts";
+import { wysiwygProjectionField } from "./wysiwyg/state/projection-state.ts";
 
 const testScrollSnapshotEffect = StateEffect.define<null>();
 
