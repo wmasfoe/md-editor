@@ -35,7 +35,7 @@ const repoRootCandidates = [
 ];
 
 /** 在仓库根候选下展开同一相对路径的候选列表。 */
-function repoCandidates(...segments: string[]): readonly string[] {
+function repoCandidates(...segments: string[]): string[] {
   return repoRootCandidates.map((root) => path.join(root, ...segments));
 }
 
