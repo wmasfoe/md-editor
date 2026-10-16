@@ -363,3 +363,37 @@ test("PR3：state 拆分成员精确匹配，拒绝恢复旧聚合文件", () =>
     },
   );
 });
+
+test("cluster 级硬约束：指定包内 >800 行失败，其它包仅警告", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/renderer-codemirror/src/big.ts": lines(WARN_LINES + 1),
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr1" });
+      assert.equal(
+        fails(result, "cluster 级硬约束"),
+        true,
+        "renderer-codemirror 内 801 行必须失败（防拆成巨型协作者）",
+      );
+    },
+  );
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/other/src/big.ts": lines(WARN_LINES + 1),
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr1" });
+      assert.equal(fails(result, "cluster 级硬约束"), false, "其它包 801 行只应警告");
+      assert.equal(
+        result.warnings.some((item) => item.includes("src/big.ts")),
+        true,
+        "其它包必须保留警告",
+      );
+    },
+  );
+});
