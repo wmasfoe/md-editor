@@ -283,7 +283,7 @@ md-editor/
 
 ## 开发指南
 
-详细的代码规范与工作流说明请参考 [CLAUDE.md](CLAUDE.md) 与 [AGENTS.md](AGENTS.md)。
+详细的代码规范与工作流说明请参考 [AGENTS.md](AGENTS.md)（含「代码结构与命名」）与 [仓库结构与命名规范](docs/agent/architecture/repo_structure_and_naming_conventions.md)。
 
 ---
 

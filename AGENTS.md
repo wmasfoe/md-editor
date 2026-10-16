@@ -30,6 +30,19 @@ USE CODEX NATIVE SUBAGENTS FOR INDEPENDENT PARALLEL SUBTASKS WHEN THAT IMPROVES 
 10. **严禁无意义的兼容性 Re-export（杜绝代码臃肿）**：当抽取、拆解或新增独立子包/模块时，严禁在旧模块或旧包中为了所谓的“向后兼容”保留无意义的 `re-export` 转发代码。一旦拆出新包，必须直接修改所有历史调用方直接从新包导入，并彻底清理旧模块与无用导出，严防历史包袱累积导致代码库日益臃肿；
 11. **PR 合并与分支清理规范**：使用 GitHub CLI（`gh pr merge`）执行 PR 合并时，必须携带 `--delete-branch`（或 `-d`）参数，合并后自动清理远程分支与本地分支，避免已合入分支长期累积堆积；严禁删除 `main`、`dev`、`beta` 保护分支。
 
+## 代码结构与命名
+
+结构性约定（目录职责、文件名与后缀语义、测试位置、导入规则、体量阈值与豁免清单、规则分批上线）统一收敛在
+[仓库结构与命名规范](./docs/agent/architecture/repo_structure_and_naming_conventions.md)，
+机器可读的唯一事实来源是同目录的 `scripts/structure/check.mjs`。
+
+- **测试位置**：所有测试位于 `<pkg>/tests/**`，`src/**` 内不允许测试文件或 `tests/`、`__tests__/` 目录；
+  `tests/` 与 `src/` 保持顶层目录镜像（`support/`、`fixtures/`、`helpers/` 等辅助目录豁免）。
+- **导入**：禁止冗余回退段路径（`a/b/../c`）与跨包深导入（`@md-editor/<pkg>/src/**`）；移动文件后直接改所有调用方，禁止兼容 re-export。
+- **体量阈值**：`packages|apps|infra/*/src/**` 的 `.ts/.tsx` 单文件 >800 行警告、>1200 行失败；
+  豁免清单 `structure-exceptions.json` 与 `scripts/structure/exceptions.baseline.json` 必须一致地维护（id 子集、`maxLines` 只降不升、搬迁 ≤+5 行 headroom），且**禁止新增豁免**。
+- **改结构前先读规范**；改规则时必须同时更新「检查器 + 规范文档 + 反例测试」，并跑 `pnpm lint`（含 `pnpm lint:structure`）、`pnpm test`（含 `pnpm test:structure`）、`pnpm typecheck`。
+
 ## 架构边界设计
 
 设计新能力或修复跨层问题时，优先把稳定能力收敛到拥有该职责的核心模块中，外部接入层只做数据获取、协议适配和结果注入。不要让外部 provider、AI 请求层、平台适配层或临时 UI 逻辑直接承担编辑器语义、交互状态、渲染规则或验收逻辑。
