@@ -12,7 +12,7 @@ import type {
   CodeMirrorRenderer,
   ExternalEditRequest,
   ExternalEditResult,
-} from "../src/renderer.ts";
+} from "../src/renderer/index.ts";
 import {
   createRendererTestHarness,
   type RendererTestHarness,

@@ -18,7 +18,7 @@ import {
   type RendererTestingProbeInternal,
   type RendererViewAdapter,
   type RendererViewFactoryInput,
-} from "./renderer.ts";
+} from "./renderer/index.ts";
 import {
   codeBlockLineNumberTheme,
   createCodeBlockLineNumberDecorations,
@@ -220,7 +220,7 @@ export function createRendererTestHarness(
 
 export { inspectRendererForTesting };
 export type { RendererTestingProbeInternal as RendererTestingProbe };
-export { createCodeMirrorRendererWithFactory } from "./renderer.ts";
+export { createCodeMirrorRendererWithFactory } from "./renderer/index.ts";
 export { provideWysiwygDiagnostics, WysiwygDiagnostics } from "./diagnostics.ts";
 export { getM2CodeBlockPerformanceFixture } from "./markdown/fixtures.ts";
 

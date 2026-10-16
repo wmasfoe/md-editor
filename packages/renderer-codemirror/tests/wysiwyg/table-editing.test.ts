@@ -24,7 +24,7 @@ import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protecti
 import {
   createCodeMirrorRendererWithFactory,
   type RendererViewAdapter,
-} from "../../src/renderer.ts";
+} from "../../src/renderer/index.ts";
 
 function createView(doc: string): { view: EditorView; getState: () => EditorState } {
   let state = EditorState.create({

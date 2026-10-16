@@ -1,3 +1,16 @@
+/**
+ * @file controller.ts
+ * @description CodeMirror 渲染器控制器：持有协议状态、编排视图与投影扩展，并驱动端口语义。
+ *
+ * 本模块只保留"状态持有 + 编排"残余；可独立成簇的行为已抽为接收显式上下文的协作器：
+ * - 模式切换视口/光标记忆 → `controller/mode-viewport.ts`
+ * - 语法插件注册/替换 → `controller/plugin-management.ts`
+ * - 选区钳制 → `controller/selection.ts`
+ * - 入参校验/冻结 → `controller/validation.ts`
+ *
+ * 对外门面（`CodeMirrorRenderer`）由 `renderer/index.ts` 在控制器之后装配，避免 TDZ。
+ */
+
 import {
   defaultKeymap,
   history,
@@ -7,6 +20,8 @@ import {
   undoDepth,
 } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { codeFolding } from "@codemirror/language";
+import { search, searchKeymap } from "@codemirror/search";
 import {
   Compartment,
   EditorSelection,
@@ -17,9 +32,6 @@ import {
   type TransactionSpec,
 } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
-import { codeBlockSelectionExtension } from "./wysiwyg/editing/code-block-selection.ts";
-import { search, searchKeymap } from "@codemirror/search";
-import { createLiquidSearchPanel } from "./wysiwyg/view/search-panel.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -30,72 +42,59 @@ import type {
   RendererExternalEditReceipt,
   RendererSyncResult,
 } from "@md-editor/editor-core";
-import { normalizeLineEndings, type Markdown } from "@md-editor/shared";
-import { codeFolding } from "@codemirror/language";
+import { normalizeLineEndings } from "@md-editor/shared";
+import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../diagnostics.ts";
 import {
   codeBlockTokenHighlighting,
   createMarkdownLanguageSupport,
-} from "./markdown/code-languages.ts";
-import {
-  provideWysiwygDiagnostics,
-  WysiwygDiagnostics,
-  type WysiwygDiagnosticsSnapshot,
-} from "./diagnostics.ts";
+} from "../markdown/code-languages.ts";
+import { M1_MARKDOWN_EXTENSIONS } from "../markdown/extensions.ts";
 import {
   markdownRangeIndexField,
   mdxModeFacet,
-  refreshMarkdownParseCoverageEffect,
   syntaxPluginRegistryFacet,
-} from "./markdown/range-index.ts";
-import { M1_MARKDOWN_EXTENSIONS } from "./markdown/extensions.ts";
-import { createModeExtensions, editorModeField, setEditorModeEffect } from "./mode.ts";
+} from "../markdown/range-index.ts";
+import { createModeExtensions, editorModeField, setEditorModeEffect } from "../mode.ts";
 import {
   readRendererTransactionOrigin,
   rendererTransactionOrigin,
   type RendererTransactionOrigin,
-} from "./origin.ts";
-import { createWysiwygProjectionExtensions } from "./wysiwyg/index.ts";
-import { linkInteractionExtension, openLinkTargetFacet } from "./wysiwyg/view/link-interaction.ts";
-import { blockToolbarExtension } from "./wysiwyg/blocks/block-toolbar.ts";
+} from "../origin.ts";
+import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
+import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
+import { blockToolbarExtension } from "../wysiwyg/blocks/block-toolbar.ts";
 import {
   deleteBlock,
   duplicateBlock,
   moveBlockDown,
   moveBlockUp,
-} from "./wysiwyg/blocks/block-move.ts";
+} from "../wysiwyg/blocks/block-move.ts";
+import { codeBlockSelectionExtension } from "../wysiwyg/editing/code-block-selection.ts";
+import { createWysiwygProjectionExtensions } from "../wysiwyg/index.ts";
 import {
-  focusDimOpacityFacet,
-  focusModeField,
-  focusModeInitialFacet,
-  setFocusModeEffect,
-} from "./wysiwyg/view/focus-mode.ts";
-import {
-  setTypewriterModeEffect,
   typewriterModeField,
   typewriterModeInitialFacet,
-} from "./wysiwyg/input/typewriter-mode.ts";
+} from "../wysiwyg/input/typewriter-mode.ts";
+import { mdxComponentRegistryFacet } from "../wysiwyg/projections/mdx-projection.ts";
 import {
-  mdxComponentRegistryFacet,
-  type MdxComponentLookup,
-} from "./wysiwyg/projections/mdx-projection.ts";
-import { authorizeWysiwygProtectedChange } from "./wysiwyg/state/change-authorization.ts";
-import {
-  provideImagePreviewResolver,
-  type ImagePreviewResolver,
-} from "./wysiwyg/view/image-resolver.ts";
-import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
-import { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
+  initialCodeBlockLineNumbersFacet,
+  setCodeBlockLineNumbersEffect,
+} from "../wysiwyg/projections/code-block-projection.ts";
+import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import {
   endWysiwygCompositionGuardEffect,
   inspectWysiwygProjection,
   refreshWysiwygProjectionEffect,
   startWysiwygCompositionGuardEffect,
-  type WysiwygProjectionSnapshot,
-} from "./wysiwyg/state/projection-state.ts";
+} from "../wysiwyg/state/projection-state.ts";
 import {
-  initialCodeBlockLineNumbersFacet,
-  setCodeBlockLineNumbersEffect,
-} from "./wysiwyg/projections/code-block-projection.ts";
+  focusDimOpacityFacet,
+  focusModeField,
+  focusModeInitialFacet,
+} from "../wysiwyg/view/focus-mode.ts";
+import { provideImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
+import { linkInteractionExtension, openLinkTargetFacet } from "../wysiwyg/view/link-interaction.ts";
+import { createLiquidSearchPanel } from "../wysiwyg/view/search-panel.ts";
 import {
   acceptAiSuggestion,
   aiSuggestionExtension,
@@ -106,410 +105,46 @@ import {
   type AiSuggestionInput,
   type AiSuggestionLabels,
   type AiSuggestionValue,
-} from "./wysiwyg/view/suggestion.ts";
-import { flushActiveTableCell } from "./wysiwyg/widgets/table-widget.ts";
+} from "../wysiwyg/view/suggestion.ts";
+import {
+  dispatchModeChangeWithMemory,
+  type ModeViewportContext,
+} from "./controller/mode-viewport.ts";
+import {
+  registerSyntaxPlugins,
+  replaceSyntaxPlugins,
+  type SyntaxPluginContext,
+} from "./controller/plugin-management.ts";
+import { clampSelection } from "./controller/selection.ts";
+import { TransactionLedger } from "./controller/transaction-ledger.ts";
+import {
+  freezeExternalRequest,
+  validateExternalRequest,
+  validateModeRequest,
+} from "./controller/validation.ts";
+import {
+  readSelectionSnapshot,
+  readViewModeState,
+  scrollViewToLine,
+  setViewSelection,
+  toggleViewFocusMode,
+  toggleViewTypewriterMode,
+} from "./controller/view-operations.ts";
+import type {
+  CodeBlockLineNumberPortResult,
+  CodeMirrorRendererControllerOptions,
+  CodeMirrorRendererOptions,
+  ExternalEditRequest,
+  ExternalEditResult,
+  RendererViewAdapter,
+  RendererViewFactory,
+  RendererTestingProbeInternal,
+  ViewAxisState,
+} from "./types.ts";
 
-export interface CodeMirrorRendererOptions {
-  readonly parent: HTMLElement;
-  readonly initialSnapshot: DocumentSnapshot;
-  readonly resolveImagePreview?: ImagePreviewResolver;
-  readonly writeClipboardText?: (text: string) => Promise<void>;
-  /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
-  readonly mdxMode?: boolean;
-  /** MDX 组件白名单查找(最小接口,不执行组件代码);缺省 null = 一律占位 */
-  readonly mdxComponents?: MdxComponentLookup;
-  /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
-  readonly openLinkTarget?: (url: string) => void;
-  readonly onEditorChange: (change: {
-    readonly markdown: Markdown;
-    readonly origin: {
-      readonly kind: "renderer";
-      readonly clientId: string;
-      readonly sequence: number;
-    };
-  }) => void;
-  readonly onQueuedExternalEditReady: (request: ExternalEditRequest) => void;
-  readonly onQueuedExternalEditCancelled: (
-    result: Extract<ExternalEditResult, { readonly status: "cancelled" }>,
-  ) => void;
-  /** 光标所在行号变更回调(1-based)，用于联动大纲等 UI 高亮 */
-  readonly onCursorLineChange?: (line: number) => void;
-  /** D-2 可配 dim 强度（轮1 architect WATCH concern-8）：宿主注入通道，缺省走 facet 默认 0.38；
-   * 读取时按 spec 区间 [0.30, 0.50] 硬夹（resolveDimOpacity）。 */
-  readonly focusDimOpacity?: number;
-  /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
-  readonly plugins?: readonly MarkdownSyntaxPlugin[];
-  /** 兼容别名：同 plugins */
-  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
-  /** AI 建议徽标国际化文案 */
-  readonly aiSuggestionLabels?: AiSuggestionLabels;
-}
-
-export interface ExternalEditRequest {
-  readonly operationId: string;
-  readonly markdown: Markdown;
-  readonly expectedGeneration: number;
-  readonly expectedContentRevision: number;
-  readonly selection: "preserve-offset-clamped" | "start";
-}
-
-export type ExternalEditResult =
-  | {
-      readonly status: "applied";
-      readonly receipt: RendererExternalEditReceipt;
-      readonly transactionCount: 1;
-    }
-  | { readonly status: "queued-composition"; readonly operationId: string }
-  | { readonly status: "noop" }
-  | {
-      readonly status: "stale";
-      readonly actualGeneration: number;
-      readonly actualContentRevision: number;
-    }
-  | {
-      readonly status: "cancelled";
-      readonly reason: "superseded" | "document-replaced" | "destroyed";
-    }
-  | { readonly status: "reconcile-required" };
-
-export type CodeBlockLineNumberPortResult =
-  { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
-
-export interface CodeMirrorRenderer {
-  readonly clientId: string;
-  sync(event: DocumentStateEvent): RendererSyncResult;
-  reconcile(snapshot: DocumentSnapshot): RendererSyncResult;
-  applyReservedExternalEdit(request: ExternalEditRequest): ExternalEditResult;
-  applyMode(request: ModeRequest): ModePortResult;
-  rollbackMode(receipt: ModeReceipt): void;
-  setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
-  setHostVisibility(hidden: boolean): void;
-  showSuggestion(suggestion: AiSuggestionInput): void;
-  setAiSuggestionLabels(labels: AiSuggestionLabels): void;
-  acceptSuggestion(): boolean;
-  dismissSuggestion(): boolean;
-  getSuggestion(): AiSuggestionValue | null;
-  moveBlockUp(): boolean;
-  moveBlockDown(): boolean;
-  duplicateBlock(): boolean;
-  deleteBlock(): boolean;
-  /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
-  toggleFocusMode(): boolean;
-  /** 回读视图轴（专注/打字机）真实开关态，供宿主核对菜单镜像一致性（S1(b)/MED-4） */
-  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
-  /** D-2：切换打字机模式，返回切换后状态 */
-  toggleTypewriterMode(): boolean;
-  getSelectionSnapshot(): {
-    readonly from: number;
-    readonly to: number;
-    readonly text: string;
-    readonly head: number;
-  };
-  focus(): void;
-  setSelection(from: number, to: number): void;
-  scrollToLine(
-    line: number,
-    options?: { readonly select?: boolean; readonly focus?: boolean },
-  ): boolean;
-  requestMeasure(): void;
-  /**
-   * 组合输入（IME）是否进行中：宿主据此推迟视口重排与桥接上报，
-   * 避免 iOS WebKit 在组合期把 pre-edit（拼音）当作普通文本提交。
-   */
-  readonly isComposing: boolean;
-  /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
-  flushPendingEdits(): boolean;
-  /** 安装/挂载 Markdown 语法扩展插件（支持链式调用） */
-  use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
-  /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
-  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
-  destroy(): void;
-}
-
-/**
- * 视图轴（专注/打字机）开关快照。
- *
- * 视图轴与文档轴**正交**：文档边界（换文档 / 同一文档重装载）重建 `EditorState` 时，
- * 视图轴开关必须由渲染层**继承**，不能随文档重置 —— 否则用户的视图偏好被静默关掉，
- * 且宿主原生菜单镜像会与渲染层真实状态发散（S1(b) / MED-4 根因）。
- */
-interface ViewAxisState {
-  readonly focus: boolean;
-  readonly typewriter: boolean;
-}
-
-export interface RendererViewAdapter {
-  readonly state: EditorState;
-  readonly isComposing: boolean;
-  dispatch(spec: TransactionSpec): void;
-  dispatchTransaction(transaction: Transaction): void;
-  setState(state: EditorState): void;
-  scrollSnapshot(): StateEffect<unknown>;
-  getScrollTop(): number;
-  setScrollTop(value: number): void;
-  getCursorCoordinates?(pos: number): {
-    readonly top: number;
-    readonly bottom: number;
-    readonly left: number;
-    readonly right: number;
-  } | null;
-  getViewportRect?(): {
-    readonly top: number;
-    readonly bottom: number;
-    readonly left: number;
-    readonly right: number;
-  } | null;
-  getLineBlockTop?(pos: number): number | null;
-  hasFocus(): boolean;
-  focus(): void;
-  requestMeasure(afterMeasure?: () => void): void;
-  clearDomSelection(): void;
-  flushPendingEdits?(): boolean;
-  destroy(): void;
-}
-
-export interface RendererViewFactoryInput {
-  readonly parent: HTMLElement;
-  readonly state: EditorState;
-  readonly onCompositionStart: () => void;
-  readonly onCompositionEnd: () => void;
-}
-
-export type RendererViewFactory = (input: RendererViewFactoryInput) => RendererViewAdapter;
-
-interface CodeMirrorRendererControllerOptions {
-  readonly useNativeCodeLanguages: boolean;
-}
-
-export interface RendererTestingProbeInternal {
-  readonly clientId: string;
-  readonly viewId: string;
-  readonly stateEpochId: string;
-  readonly rootExtensionId: string;
-  readonly documentGeneration: number;
-  readonly stateRevision: number;
-  readonly contentRevision: number;
-  readonly mode: EditorMode;
-  readonly markdown: string;
-  readonly selectionAnchor: number;
-  readonly selectionHead: number;
-  readonly selectionRangeCount: number;
-  readonly selectionRanges: readonly {
-    readonly anchor: number;
-    readonly head: number;
-  }[];
-  readonly scrollTop: number;
-  readonly focused: boolean;
-  readonly undoDepth: number;
-  readonly redoDepth: number;
-  readonly codeBlockLineNumbers: boolean;
-  readonly viewCreationCount: number;
-  readonly viewDestructionCount: number;
-  readonly explicitStateCreationCount: number;
-  readonly stateReplacementCount: number;
-  readonly documentTransactionCount: number;
-  readonly modeTransactionCount: number;
-  readonly externalEditTransactionCount: number;
-  readonly reconciliationTransactionCount: number;
-  readonly codeBlockLineNumberTransactionCount: number;
-  readonly measureRequestCount: number;
-  readonly highestPublishedRendererSequence: number;
-  readonly lastAcknowledgedRendererSequence: number;
-  readonly queuedExternalEditOperationId: string | null;
-  readonly pendingExternalEditOperationId: string | null;
-  readonly pendingModeOperationId: string | null;
-  readonly persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
-  readonly lastSyncStatus: RendererSyncResult["status"] | null;
-  readonly lastErrorCode: string | null;
-  readonly destroyed: boolean;
-  readonly wysiwyg: WysiwygDiagnosticsSnapshot;
-  readonly wysiwygProjection: WysiwygProjectionSnapshot;
-}
-
-class DomRendererViewAdapter implements RendererViewAdapter {
-  readonly #view: EditorView;
-
-  constructor(input: RendererViewFactoryInput) {
-    this.#view = new EditorView({ state: input.state, parent: input.parent });
-  }
-
-  get state(): EditorState {
-    return this.#view.state;
-  }
-
-  get isComposing(): boolean {
-    return this.#view.compositionStarted;
-  }
-
-  dispatch(spec: TransactionSpec): void {
-    this.#view.dispatch(spec);
-  }
-
-  dispatchTransaction(transaction: Transaction): void {
-    this.#view.dispatch(transaction);
-  }
-
-  setState(state: EditorState): void {
-    this.#view.setState(state);
-  }
-
-  scrollSnapshot(): StateEffect<unknown> {
-    return this.#view.scrollSnapshot();
-  }
-
-  getScrollTop(): number {
-    return this.#view.scrollDOM.scrollTop;
-  }
-
-  setScrollTop(value: number): void {
-    this.#view.scrollDOM.scrollTop = value;
-  }
-
-  getCursorCoordinates(pos: number): {
-    readonly top: number;
-    readonly bottom: number;
-    readonly left: number;
-    readonly right: number;
-  } | null {
-    const coords = this.#view.coordsAtPos(pos);
-    if (!coords) {
-      return null;
-    }
-    return {
-      top: coords.top,
-      bottom: coords.bottom,
-      left: coords.left,
-      right: coords.right,
-    };
-  }
-
-  getViewportRect(): {
-    readonly top: number;
-    readonly bottom: number;
-    readonly left: number;
-    readonly right: number;
-  } | null {
-    const rect = this.#view.scrollDOM.getBoundingClientRect?.();
-    if (!rect) {
-      return null;
-    }
-    return {
-      top: rect.top,
-      bottom: rect.bottom,
-      left: rect.left,
-      right: rect.right,
-    };
-  }
-
-  getLineBlockTop(pos: number): number | null {
-    try {
-      const clampedPos = Math.max(0, Math.min(pos, this.#view.state.doc.length));
-      return this.#view.lineBlockAt(clampedPos).top;
-    } catch {
-      return null;
-    }
-  }
-
-  hasFocus(): boolean {
-    return this.#view.hasFocus;
-  }
-
-  focus(): void {
-    this.#view.focus();
-  }
-
-  requestMeasure(afterMeasure?: () => void): void {
-    this.#view.requestMeasure();
-    if (afterMeasure) {
-      const frame = this.#view.dom.ownerDocument.defaultView;
-      if (frame) {
-        frame.requestAnimationFrame(afterMeasure);
-      } else {
-        queueMicrotask(afterMeasure);
-      }
-    }
-  }
-
-  clearDomSelection(): void {
-    const dom = this.#view.contentDOM;
-    const win = dom.ownerDocument?.defaultView;
-    const sel = win?.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      sel.removeAllRanges();
-    }
-    const internalView = this.#view as unknown as {
-      observer?: {
-        clearSelectionRange?: () => void;
-        clear?: () => void;
-      };
-      inputState?: {
-        mouseSelection?: { destroy?: () => void } | null;
-        draggedContent?: unknown;
-        lastSelectionTime?: number;
-        lastSelectionOrigin?: unknown;
-      };
-    };
-    internalView.observer?.clearSelectionRange?.();
-    internalView.observer?.clear?.();
-    if (internalView.inputState?.mouseSelection) {
-      internalView.inputState.mouseSelection.destroy?.();
-      internalView.inputState.mouseSelection = null;
-    }
-    if (internalView.inputState) {
-      internalView.inputState.draggedContent = null;
-      internalView.inputState.lastSelectionTime = 0;
-      internalView.inputState.lastSelectionOrigin = null;
-    }
-    if (this.#view.hasFocus) {
-      this.#view.focus();
-    }
-  }
-
-  flushPendingEdits(): boolean {
-    return flushActiveTableCell(this.#view);
-  }
-
-  destroy(): void {
-    this.#view.destroy();
-  }
-}
-
-const controllerByRenderer = new WeakMap<CodeMirrorRenderer, CodeMirrorRendererController>();
 let nextRendererId = 1;
 
-function isNonNegativeSafeInteger(value: number): boolean {
-  return Number.isSafeInteger(value) && value >= 0;
-}
-
-function clampOffset(offset: number, documentLength: number): number {
-  return Math.max(0, Math.min(offset, documentLength));
-}
-
-function freezeExternalRequest(request: ExternalEditRequest): ExternalEditRequest {
-  return Object.freeze({ ...request });
-}
-
-function validateExternalRequest(request: ExternalEditRequest): void {
-  if (
-    request.operationId.length === 0 ||
-    !isNonNegativeSafeInteger(request.expectedGeneration) ||
-    !isNonNegativeSafeInteger(request.expectedContentRevision)
-  ) {
-    throw new Error("External edit requests require an id and non-negative safe revisions.");
-  }
-}
-
-function validateModeRequest(request: ModeRequest): void {
-  if (
-    request.operationId.length === 0 ||
-    !isNonNegativeSafeInteger(request.expectedGeneration) ||
-    !isNonNegativeSafeInteger(request.expectedStateRevision)
-  ) {
-    throw new Error("Mode requests require an id and non-negative safe revisions.");
-  }
-}
-
-class CodeMirrorRendererController {
+export class CodeMirrorRendererController {
   readonly clientId: string;
   readonly #viewId: string;
   readonly #rootExtensionId: string;
@@ -542,12 +177,7 @@ class CodeMirrorRendererController {
   #viewDestructionCount = 0;
   #explicitStateCreationCount = 0;
   #stateReplacementCount = 0;
-  #documentTransactionCount = 0;
-  #modeTransactionCount = 0;
-  #externalEditTransactionCount = 0;
-  #reconciliationTransactionCount = 0;
-  #codeBlockLineNumberTransactionCount = 0;
-  #measureRequestCount = 0;
+  readonly #ledger = new TransactionLedger();
   #lastSyncStatus: RendererSyncResult["status"] | null = null;
   #lastErrorCode: string | null = null;
   #hiddenViewState: { readonly focused: boolean; readonly scrollTop: number } | null = null;
@@ -697,12 +327,7 @@ class CodeMirrorRendererController {
       viewDestructionCount: this.#viewDestructionCount,
       explicitStateCreationCount: this.#explicitStateCreationCount,
       stateReplacementCount: this.#stateReplacementCount,
-      documentTransactionCount: this.#documentTransactionCount,
-      modeTransactionCount: this.#modeTransactionCount,
-      externalEditTransactionCount: this.#externalEditTransactionCount,
-      reconciliationTransactionCount: this.#reconciliationTransactionCount,
-      codeBlockLineNumberTransactionCount: this.#codeBlockLineNumberTransactionCount,
-      measureRequestCount: this.#measureRequestCount,
+      ...this.#ledger.probeFields(),
       highestPublishedRendererSequence: this.#highestPublishedRendererSequence,
       lastAcknowledgedRendererSequence: this.#lastAcknowledgedRendererSequence,
       queuedExternalEditOperationId: this.#queuedExternalEdit?.operationId ?? null,
@@ -983,7 +608,7 @@ class CodeMirrorRendererController {
       markdown: this.#view.state.doc.toString(),
       viewId: this.#viewId,
       stateEpochId: this.#stateEpochId,
-      transactionSequence: this.#documentTransactionCount,
+      transactionSequence: this.#ledger.documentTransactionCount,
     });
     return { status: "applied", receipt, transactionCount: 1 };
   }
@@ -1028,7 +653,7 @@ class CodeMirrorRendererController {
     });
     this.#pendingModeReceipt = receipt;
     try {
-      this.#dispatchModeChange(request.mode, {
+      this.#performModeChange(request.mode, {
         kind: "mode",
         operationId: request.operationId,
       });
@@ -1052,7 +677,7 @@ class CodeMirrorRendererController {
     ) {
       throw new Error("Mode rollback receipt is stale or does not belong to this renderer.");
     }
-    this.#dispatchModeChange(receipt.previousMode, {
+    this.#performModeChange(receipt.previousMode, {
       kind: "mode-rollback",
       operationId: receipt.operationId,
     });
@@ -1158,41 +783,18 @@ class CodeMirrorRendererController {
     if (this.#destroyed) {
       return false;
     }
-    const view = this.#view as unknown as EditorView | null;
-    if (!view) {
-      return false;
-    }
-    // 纯视图态：dispatch effect 改 StateField，零文档变更（S2 同源契约）
-    const next = !view.state.field(focusModeField, false);
-    view.dispatch({ effects: setFocusModeEffect.of(next) });
-    return next;
+    return toggleViewFocusMode(this.#view);
   }
 
   toggleTypewriterMode(): boolean {
     if (this.#destroyed) {
       return false;
     }
-    const view = this.#view as unknown as EditorView | null;
-    if (!view) {
-      return false;
-    }
-    const next = !view.state.field(typewriterModeField, false);
-    view.dispatch({ effects: setTypewriterModeEffect.of(next) });
-    return next;
+    return toggleViewTypewriterMode(this.#view);
   }
 
-  /**
-   * 读取**视图轴**（专注/打字机）当前开关态。
-   *
-   * 权威来源是渲染层的两个 StateField（见 docs/agent/product/editor_view_modes.md）。
-   * 宿主菜单镜像记录的是「最近一次已知勾选态」（请求态，或文档边界后的重同步值），
-   * 因此需要这条「回读真实状态」的通道：镜像不能被当成事实源（S1(b)/MED-4）。
-   */
   getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
-    return {
-      focus: this.#view.state.field(focusModeField, false) === true,
-      typewriter: this.#view.state.field(typewriterModeField, false) === true,
-    };
+    return readViewModeState(this.#view);
   }
 
   duplicateBlock(): boolean {
@@ -1232,14 +834,7 @@ class CodeMirrorRendererController {
     if (this.#destroyed) {
       return { from: 0, to: 0, text: "", head: 0 };
     }
-    const selection = this.#view.state.selection.main;
-    const text = this.#view.state.doc.sliceString(selection.from, selection.to);
-    return {
-      from: selection.from,
-      to: selection.to,
-      text,
-      head: selection.head,
-    };
+    return readSelectionSnapshot(this.#view);
   }
 
   focus(): void {
@@ -1256,19 +851,7 @@ class CodeMirrorRendererController {
     if (this.#destroyed) {
       return;
     }
-    const length = this.#view.state.doc.length;
-    const clampedFrom = Math.max(0, Math.min(from, length));
-    const clampedTo = Math.max(0, Math.min(to, length));
-    this.#view.dispatch({
-      selection: EditorSelection.create(
-        clampedFrom === clampedTo
-          ? [EditorSelection.cursor(clampedFrom)]
-          : [EditorSelection.range(clampedFrom, clampedTo)],
-      ),
-      scrollIntoView: true,
-      annotations: Transaction.addToHistory.of(false),
-      userEvent: "select",
-    });
+    setViewSelection(this.#view, from, to);
   }
 
   /**
@@ -1282,27 +865,7 @@ class CodeMirrorRendererController {
     if (this.#destroyed) {
       return false;
     }
-    const totalLines = this.#view.state.doc.lines;
-    if (totalLines <= 0) {
-      return false;
-    }
-    const clampedLine = Math.max(1, Math.min(Math.floor(line), totalLines));
-    const lineInfo = this.#view.state.doc.line(clampedLine);
-    const pos = lineInfo.from;
-    const select = options?.select ?? true;
-    const focus = options?.focus ?? true;
-
-    this.#view.dispatch({
-      ...(select ? { selection: EditorSelection.cursor(pos) } : {}),
-      effects: EditorView.scrollIntoView(pos, { y: "start", yMargin: 40 }),
-      annotations: Transaction.addToHistory.of(false),
-      userEvent: "select.pointer",
-    });
-
-    if (focus) {
-      this.#view.focus();
-    }
-    return true;
+    return scrollViewToLine(this.#view, line, options);
   }
 
   requestMeasure(): void {
@@ -1341,7 +904,7 @@ class CodeMirrorRendererController {
   }
 
   #requestMeasure(afterMeasure?: () => void): void {
-    this.#measureRequestCount += 1;
+    this.#ledger.countMeasure();
     this.#view.requestMeasure(afterMeasure);
   }
 
@@ -1381,16 +944,16 @@ class CodeMirrorRendererController {
     );
     if (documentTransactions.length === 0) {
       for (const transaction of update.transactions) {
-        this.#countInternalTransaction(readRendererTransactionOrigin(transaction));
+        this.#ledger.countOrigin(readRendererTransactionOrigin(transaction));
       }
       return;
     }
 
-    this.#documentTransactionCount += documentTransactions.length;
+    this.#ledger.countDocumentTransactions(documentTransactions.length);
     const localTransactions: Transaction[] = [];
     for (const transaction of update.transactions) {
       const origin = readRendererTransactionOrigin(transaction);
-      this.#countInternalTransaction(origin);
+      this.#ledger.countOrigin(origin);
       if (transaction.docChanged && origin === undefined) {
         localTransactions.push(transaction);
       }
@@ -1417,130 +980,28 @@ class CodeMirrorRendererController {
     });
   }
 
-  #countInternalTransaction(origin: RendererTransactionOrigin | undefined): void {
-    switch (origin?.kind) {
-      case "external-edit":
-        this.#externalEditTransactionCount += 1;
-        break;
-      case "reconcile":
-        this.#reconciliationTransactionCount += 1;
-        break;
-      case "mode":
-      case "mode-rollback":
-        this.#modeTransactionCount += 1;
-        break;
-      case "code-block-line-numbers":
-        this.#codeBlockLineNumberTransactionCount += 1;
-        break;
-    }
+  #performModeChange(mode: EditorMode, origin: RendererTransactionOrigin): void {
+    dispatchModeChangeWithMemory(this.#modeViewportContext(), mode, origin);
   }
 
-  #dispatchModeChange(mode: EditorMode, origin: RendererTransactionOrigin): void {
-    const previousMode = this.#currentMode();
-    const previousScrollTop = this.#view.getScrollTop();
-    const cursorPos = this.#view.state.selection.main.head;
-    const initialCoords = this.#view.getCursorCoordinates?.(cursorPos) ?? null;
-    const initialViewport = this.#view.getViewportRect?.() ?? null;
-
-    // 记录切换前模式的滚动位置与光标位置
-    this.#modeScrollTopsByMode.set(previousMode, previousScrollTop);
-    this.#modeCursorPosByMode.set(previousMode, cursorPos);
-
-    // 检测光标在切换前是否处于当前可视视口内部：
-    // 若处于视口内，记录光标相对于视口顶部的相对偏移量（用于模式切换后像素级几何对齐）；
-    // 若光标在视口外（如用户滚动至其他段落阅读），则不强行吸附光标，维持原视口阅读位置。
-    let cursorOffsetPx: number | null = null;
-    if (
-      initialCoords !== null &&
-      initialViewport !== null &&
-      initialViewport.bottom > initialViewport.top
-    ) {
-      if (
-        initialCoords.bottom >= initialViewport.top &&
-        initialCoords.top <= initialViewport.bottom
-      ) {
-        cursorOffsetPx = initialCoords.top - initialViewport.top;
-      }
-    }
-
-    // 判断目标模式是否已有精确记录且光标未发生位移（例如 WYSIWYG -> Source -> WYSIWYG 原路切回）
-    const hasPriorModeRecord = this.#modeScrollTopsByMode.has(mode);
-    const cursorUnchanged = this.#modeCursorPosByMode.get(mode) === cursorPos;
-    const priorScrollTop =
-      hasPriorModeRecord && cursorUnchanged ? this.#modeScrollTopsByMode.get(mode)! : null;
-
-    const scrollSnapshot = this.#view.scrollSnapshot();
-    this.#view.dispatch({
-      effects: [
-        setEditorModeEffect.of(mode),
-        this.#modeCompartment.reconfigure(createModeExtensions(mode)),
-        scrollSnapshot,
-      ],
-      annotations: [Transaction.addToHistory.of(false), rendererTransactionOrigin.of(origin)],
-    });
-
-    if (priorScrollTop !== null) {
-      this.#view.setScrollTop(priorScrollTop);
-    } else if (cursorOffsetPx === null) {
-      this.#view.setScrollTop(previousScrollTop);
-    }
-
-    const generation = this.#documentGeneration;
-    const restoreSequence = ++this.#modeScrollRestoreSequence;
-    this.#requestMeasure(() => {
-      if (
-        !this.#destroyed &&
-        this.#documentGeneration === generation &&
-        this.#currentMode() === mode &&
-        this.#modeScrollRestoreSequence === restoreSequence
-      ) {
-        if (priorScrollTop !== null) {
-          this.#view.setScrollTop(priorScrollTop);
-          return;
-        }
-
-        if (cursorOffsetPx !== null) {
-          const currentHead = this.#view.state.selection.main.head;
-          const newCoords = this.#view.getCursorCoordinates?.(currentHead) ?? null;
-          const newViewport = this.#view.getViewportRect?.() ?? null;
-          if (newCoords !== null && newViewport !== null) {
-            const currentOffset = newCoords.top - newViewport.top;
-            const delta = currentOffset - cursorOffsetPx;
-            if (Math.abs(delta) >= 1) {
-              const currentScroll = this.#view.getScrollTop();
-              const targetScroll = Math.max(0, currentScroll + delta);
-              this.#view.setScrollTop(targetScroll);
-              this.#modeScrollTopsByMode.set(mode, targetScroll);
-            } else {
-              this.#modeScrollTopsByMode.set(mode, this.#view.getScrollTop());
-            }
-            return;
-          }
-          const blockTop = this.#view.getLineBlockTop?.(currentHead);
-          if (typeof blockTop === "number") {
-            const targetScrollTop = Math.max(0, blockTop - cursorOffsetPx);
-            this.#view.setScrollTop(targetScrollTop);
-            this.#modeScrollTopsByMode.set(mode, targetScrollTop);
-            return;
-          }
-        }
-
-        this.#view.setScrollTop(previousScrollTop);
-      }
-    });
+  /** 控制器持有的模式记忆状态以显式上下文交给协作器读写（避免反向运行期依赖）。 */
+  #modeViewportContext(): ModeViewportContext {
+    return {
+      view: this.#view,
+      modeCompartment: this.#modeCompartment,
+      scrollTopsByMode: this.#modeScrollTopsByMode,
+      cursorPosByMode: this.#modeCursorPosByMode,
+      currentMode: () => this.#currentMode(),
+      documentGeneration: () => this.#documentGeneration,
+      isDestroyed: () => this.#destroyed,
+      beginRestoreSequence: () => ++this.#modeScrollRestoreSequence,
+      isCurrentRestore: (sequence) => this.#modeScrollRestoreSequence === sequence,
+      requestMeasure: (afterMeasure) => this.#requestMeasure(afterMeasure),
+    };
   }
 
   #clampedSelection(documentLength: number): EditorSelection {
-    const current = this.#view.state.selection;
-    return EditorSelection.create(
-      current.ranges.map((range) =>
-        EditorSelection.range(
-          clampOffset(range.anchor, documentLength),
-          clampOffset(range.head, documentLength),
-        ),
-      ),
-      current.mainIndex,
-    );
+    return clampSelection(this.#view.state.selection, documentLength);
   }
 
   #installDocumentBoundary(snapshot: DocumentSnapshot): void {
@@ -1702,192 +1163,33 @@ class CodeMirrorRendererController {
     if (this.#destroyed) {
       return this;
     }
-    const flattened: MarkdownSyntaxPlugin[] = [];
-    for (const plugin of plugins) {
-      if (Array.isArray(plugin)) {
-        for (const p of plugin) {
-          flattened.push(p);
-        }
-      } else if (plugin && typeof plugin === "object" && "id" in plugin) {
-        flattened.push(plugin);
-      }
-    }
-    if (flattened.length === 0) {
-      return this;
-    }
-
-    // 判断是否有真正扩展 Lezer Markdown 语法/词法分析器的插件（带 markdownExtension）
-    const isSyntaxPlugin = flattened.some((plugin) => Boolean(plugin.markdownExtension));
-
-    this.#syntaxRegistry.registerAll(flattened);
-
-    const effects: StateEffect<unknown>[] = [
-      this.#syntaxRegistryCompartment.reconfigure(
-        syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
-      ),
-    ];
-
-    if (isSyntaxPlugin) {
-      // 语法层面插件：需要重配 Lezer 语言分析器，并调度 AST RangeIndex 全量重新解析
-      const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
-      const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
-      effects.push(
-        this.#markdownLanguageCompartment.reconfigure(
-          this.#controllerOptions.useNativeCodeLanguages
-            ? createMarkdownLanguageSupport(
-                { extensions: markdownExtensions, addKeymap: false },
-                this.#wysiwygDiagnostics,
-              )
-            : markdown({ extensions: markdownExtensions, addKeymap: false }),
-        ),
-        refreshMarkdownParseCoverageEffect.of(null),
-      );
-    }
-
-    // 无论 UI 层面还是 AST 层面，均派发 refreshWysiwygProjectionEffect 触发投影层重新编译
-    effects.push(refreshWysiwygProjectionEffect.of(null));
-
-    this.#view.dispatch({ effects });
+    registerSyntaxPlugins(this.#syntaxPluginContext(), plugins);
     return this;
   }
 
   /**
    * 动态全量替换当前已激活的 Markdown 语法插件集合。
    *
-   * 核心交互与生命周期契约：
-   * 1. 幂等性守卫：比对新旧插件 ID 清单，若完全一致则直接跳过，避免无谓的 Compartment 重配与重排开销；
-   * 2. 原子化 Compartment 重构：
-   *    - 同步更新内部 SyntaxPluginRegistry；
-   *    - 重新提取 Lezer markdownExtension 并通过 markdownLanguageCompartment.reconfigure 注入新解析器；
-   *    - 通过 syntaxPluginRegistryCompartment.reconfigure 注入最新 Facet 策略；
-   *    - 派发 refreshMarkdownParseCoverageEffect 与 refreshWysiwygProjectionEffect 重绘投影；
-   * 3. 异步 AST 调度：调度 scheduleFullParse 保证文档 RangeIndex 准确感知新的/卸载的语法规则；
-   * 4. 零侵入保证：全程绝不销毁或替换 DOM 树，选区与历史栈完整无损。
+   * 核心交互与生命周期契约（全文见 `controller/plugin-management.ts`）：
+   * ID 清单幂等守卫、原子化 Compartment 重构、零 DOM 侵入。
    */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
     if (this.#destroyed) {
       return this;
     }
-
-    const flattened: MarkdownSyntaxPlugin[] = [];
-    for (const plugin of plugins) {
-      if (plugin && typeof plugin === "object" && "id" in plugin) {
-        flattened.push(plugin);
-      }
-    }
-
-    // 检查是否与当前注册表已有的插件一致（按 id 顺序与内容比较）
-    const currentPlugins = this.#syntaxRegistry.plugins;
-    if (
-      currentPlugins.length === flattened.length &&
-      currentPlugins.every((curr, idx) => curr.id === flattened[idx]?.id)
-    ) {
-      return this;
-    }
-
-    // 全量原子替换注册中心插件
-    this.#syntaxRegistry.setPlugins(flattened);
-
-    // 组装新的 Lezer Markdown 语法扩展（内置基础扩展 + 已启用插件扩展）
-    const pluginExtensions = this.#syntaxRegistry.getMarkdownExtensions();
-    const markdownExtensions = Object.freeze([...M1_MARKDOWN_EXTENSIONS, ...pluginExtensions]);
-
-    const effects: StateEffect<unknown>[] = [
-      this.#syntaxRegistryCompartment.reconfigure(
-        syntaxPluginRegistryFacet.of(this.#syntaxRegistry),
-      ),
-      this.#markdownLanguageCompartment.reconfigure(
-        this.#controllerOptions.useNativeCodeLanguages
-          ? createMarkdownLanguageSupport(
-              { extensions: markdownExtensions, addKeymap: false },
-              this.#wysiwygDiagnostics,
-            )
-          : markdown({ extensions: markdownExtensions, addKeymap: false }),
-      ),
-      refreshMarkdownParseCoverageEffect.of(null),
-      refreshWysiwygProjectionEffect.of(null),
-    ];
-
-    this.#view.dispatch({ effects });
+    replaceSyntaxPlugins(this.#syntaxPluginContext(), plugins);
     return this;
   }
-}
 
-function createRendererFacade(controller: CodeMirrorRendererController): CodeMirrorRenderer {
-  const renderer: CodeMirrorRenderer = Object.freeze({
-    clientId: controller.clientId,
-    sync: (event: DocumentStateEvent) => controller.sync(event),
-    reconcile: (snapshot: DocumentSnapshot) => controller.reconcile(snapshot),
-    applyReservedExternalEdit: (request: ExternalEditRequest) =>
-      controller.applyReservedExternalEdit(request),
-    applyMode: (request: ModeRequest) => controller.applyMode(request),
-    rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
-    setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
-    setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
-    showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
-    setAiSuggestionLabels: (labels: AiSuggestionLabels) => controller.setAiSuggestionLabels(labels),
-    acceptSuggestion: () => controller.acceptSuggestion(),
-    moveBlockUp: () => controller.moveBlockUp(),
-    moveBlockDown: () => controller.moveBlockDown(),
-    duplicateBlock: () => controller.duplicateBlock(),
-    deleteBlock: () => controller.deleteBlock(),
-    toggleFocusMode: () => controller.toggleFocusMode(),
-    getViewModeState: () => controller.getViewModeState(),
-    toggleTypewriterMode: () => controller.toggleTypewriterMode(),
-    dismissSuggestion: () => controller.dismissSuggestion(),
-    getSuggestion: () => controller.getSuggestion(),
-    getSelectionSnapshot: () => controller.getSelectionSnapshot(),
-    get isComposing(): boolean {
-      return controller.isComposing;
-    },
-    focus: () => controller.focus(),
-    setSelection: (from: number, to: number) => controller.setSelection(from, to),
-    scrollToLine: (
-      line: number,
-      options?: { readonly select?: boolean; readonly focus?: boolean },
-    ) => controller.scrollToLine(line, options),
-    requestMeasure: () => controller.requestMeasure(),
-    flushPendingEdits: () => controller.flushPendingEdits(),
-    use: (...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]) => {
-      controller.use(...plugins);
-      return renderer;
-    },
-    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => {
-      controller.setPlugins(plugins);
-      return renderer;
-    },
-    destroy: () => controller.destroy(),
-  });
-  controllerByRenderer.set(renderer, controller);
-  return renderer;
-}
-
-export function createCodeMirrorRenderer(options: CodeMirrorRendererOptions): CodeMirrorRenderer {
-  return createCodeMirrorRendererWithFactory(
-    options,
-    (input) => new DomRendererViewAdapter(input),
-    { useNativeCodeLanguages: true },
-  );
-}
-
-/** @internal Exported only for the package's state-backed protocol test harness. */
-export function createCodeMirrorRendererWithFactory(
-  options: CodeMirrorRendererOptions,
-  viewFactory: RendererViewFactory,
-  controllerOptions: CodeMirrorRendererControllerOptions = { useNativeCodeLanguages: false },
-): CodeMirrorRenderer {
-  return createRendererFacade(
-    new CodeMirrorRendererController(options, viewFactory, controllerOptions),
-  );
-}
-
-/** @internal Exported only through `@md-editor/renderer-codemirror/testing`. */
-export function inspectRendererForTesting(
-  renderer: CodeMirrorRenderer,
-): RendererTestingProbeInternal {
-  const controller = controllerByRenderer.get(renderer);
-  if (!controller) {
-    throw new Error("Renderer was not created by this package instance.");
+  /** 控制器持有的插件注册表/Compartment 以显式上下文交给协作器读写。 */
+  #syntaxPluginContext(): SyntaxPluginContext {
+    return {
+      view: this.#view,
+      registry: this.#syntaxRegistry,
+      syntaxRegistryCompartment: this.#syntaxRegistryCompartment,
+      markdownLanguageCompartment: this.#markdownLanguageCompartment,
+      useNativeCodeLanguages: this.#controllerOptions.useNativeCodeLanguages,
+      diagnostics: this.#wysiwygDiagnostics,
+    };
   }
-  return controller.probe;
 }

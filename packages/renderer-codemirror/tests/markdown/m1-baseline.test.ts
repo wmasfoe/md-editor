@@ -8,7 +8,7 @@ import { createDocumentState, switchEditorModeSafely } from "@md-editor/editor-c
 import { describe, expect, it } from "vitest";
 import { M1_MARKDOWN_FIXTURES, getM1MarkdownFixture } from "../../src/markdown/fixtures.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
-import type { CodeMirrorRenderer } from "../../src/renderer.ts";
+import type { CodeMirrorRenderer } from "../../src/renderer/index.ts";
 import { createRendererTestHarness } from "../../src/testing.ts";
 
 function collectNodeNames(tree: Tree): ReadonlySet<string> {

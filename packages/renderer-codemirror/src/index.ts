@@ -25,7 +25,7 @@ export {
   type CodeBlockLineNumberPortResult,
   type ExternalEditRequest,
   type ExternalEditResult,
-} from "./renderer.ts";
+} from "./renderer/index.ts";
 export {
   aiSuggestionExtension,
   aiSuggestionLabelsFacet,
