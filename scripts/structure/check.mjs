@@ -34,6 +34,24 @@ export const MOVE_HEADROOM = 5;
 /** 测试辅助目录不入镜像检查（存量合法反例：packages/editor-core/tests/support）。 */
 export const MIRROR_EXEMPT_DIRS = new Set(["support", "fixtures", "helpers", "__fixtures__"]);
 /** `wysiwyg/` 顶层（PR2 起）必须精确等于该集合。 */
+/** `renderer/` 簇成员登记（PR3 拆分后）：顶层文件 + `controller/` 协作者。 */
+export const RENDERER_CLUSTER_MEMBERS = {
+  ".": ["index.ts", "types.ts", "view-adapter.ts", "controller.ts", "controller"],
+  controller: [
+    "composition.ts",
+    "document-protocol.ts",
+    "host-visibility.ts",
+    "mode-viewport.ts",
+    "plugin-management.ts",
+    "probe.ts",
+    "root-extensions.ts",
+    "selection.ts",
+    "transaction-ledger.ts",
+    "validation.ts",
+    "view-operations.ts",
+  ],
+};
+
 export const WYSIWYG_TOP_LEVEL = [
   "index.ts",
   "state",
@@ -81,6 +99,7 @@ export const PHASE_RULES = {
     "wysiwygTopLevel",
     "wysiwygDomains",
     "splitTargets",
+    "rendererCluster",
   ],
 };
 
@@ -454,6 +473,35 @@ export function checkWysiwygDomains({ root }) {
   return { failures, warnings: [] };
 }
 
+/**
+ * 规则（PR3+）：`renderer/` 簇成员枚举——新增/重命名协作者必须同步登记，
+ * 否则"多出未登记文件"即失败（补上 cluster 契约的第二维度：成员集合）。
+ */
+export function checkRendererCluster({ root }) {
+  const failures = [];
+  const base = join(root, "packages/renderer-codemirror/src/renderer");
+  if (!existsSync(base)) return { failures: [], warnings: [] };
+  for (const [scope, expected] of Object.entries(RENDERER_CLUSTER_MEMBERS)) {
+    const dir = scope === "." ? base : join(base, scope);
+    if (!existsSync(dir)) {
+      failures.push(`renderer/${scope === "." ? "" : scope}: 目录不存在`);
+      continue;
+    }
+    const actual = readdirSync(dir).filter((entry) => !entry.startsWith("."));
+    for (const entry of actual) {
+      if (!expected.includes(entry))
+        failures.push(
+          `renderer/${scope === "." ? "" : `${scope}/`}${entry}: 多出未登记的簇成员（新增协作者必须登记 RENDERER_CLUSTER_MEMBERS）`,
+        );
+    }
+    for (const entry of expected) {
+      if (!actual.includes(entry))
+        failures.push(`renderer/${scope === "." ? "" : `${scope}/`}${entry}: 已登记但文件缺失`);
+    }
+  }
+  return { failures, warnings: [] };
+}
+
 /** 规则（PR3+）：拆分目标文件达成 ≤ 单一职责簇阈值。 */
 export function checkSplitTargets({ root }) {
   const failures = [];
@@ -479,6 +527,7 @@ export function runChecks({ root, phase = "pr1" }) {
     testsInsideSrc: checkTestsInsideSrc,
     wysiwygTopLevel: checkWysiwygTopLevel,
     wysiwygDomains: checkWysiwygDomains,
+    rendererCluster: checkRendererCluster,
     splitTargets: checkSplitTargets,
   };
   const failures = [];
