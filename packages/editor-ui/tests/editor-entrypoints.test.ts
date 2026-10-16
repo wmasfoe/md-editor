@@ -2,18 +2,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ) as {
   exports?: Record<string, string>;
 };
-const indexSource = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
-const hooksIndexSource = readFileSync(new URL("../hooks/index.ts", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+const hooksIndexSource = readFileSync(new URL("../src/hooks/index.ts", import.meta.url), "utf8");
 const codeMirrorEditorSource = readFileSync(
-  new URL("../components/CodeMirrorEditor/CodeMirrorEditor.tsx", import.meta.url),
+  new URL("../src/components/CodeMirrorEditor/CodeMirrorEditor.tsx", import.meta.url),
   "utf8",
 );
 const codeMirrorEditorStyles = readFileSync(
-  new URL("../components/CodeMirrorEditor/CodeMirrorEditor.css", import.meta.url),
+  new URL("../src/components/CodeMirrorEditor/CodeMirrorEditor.css", import.meta.url),
   "utf8",
 );
 

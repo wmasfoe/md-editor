@@ -3,33 +3,33 @@ import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const sourceRoot = new URL("../", import.meta.url);
-const editorHostPackageRoot = new URL("../../../editor-host", import.meta.url);
+const sourceRoot = new URL("../src", import.meta.url);
+const editorHostPackageRoot = new URL("../../editor-host", import.meta.url);
 const desktopPackageJson = JSON.parse(
-  readFileSync(new URL("../../../../apps/desktop/package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../../apps/desktop/package.json", import.meta.url), "utf8"),
 ) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
 };
 const desktopViteConfigSource = readFileSync(
-  new URL("../../../../apps/desktop/vite.config.ts", import.meta.url),
+  new URL("../../../apps/desktop/vite.config.ts", import.meta.url),
   "utf8",
 );
 const packageJson = JSON.parse(
-  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ) as {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 };
-const hooksIndexSource = readFileSync(new URL("../hooks/index.ts", import.meta.url), "utf8");
-const rootIndexSource = readFileSync(new URL("../index.ts", import.meta.url), "utf8");
+const hooksIndexSource = readFileSync(new URL("../src/hooks/index.ts", import.meta.url), "utf8");
+const rootIndexSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
 const editorUiProviderSource = readFileSync(
-  new URL("../hooks/useEditorUi.tsx", import.meta.url),
+  new URL("../src/hooks/useEditorUi.tsx", import.meta.url),
   "utf8",
 );
 const outlineControllerSource = readFileSync(
-  new URL("../hooks/useOutlineController.ts", import.meta.url),
+  new URL("../src/hooks/useOutlineController.ts", import.meta.url),
   "utf8",
 );
 
