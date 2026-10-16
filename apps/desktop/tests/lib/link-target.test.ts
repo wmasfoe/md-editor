@@ -5,7 +5,7 @@ import {
   isHttpLink,
   normalizeLocalHrefPath,
   splitLinkHref,
-} from "./link-target";
+} from "../../src/lib/link-target";
 
 describe("link target helpers", () => {
   it("recognizes http and https links", () => {

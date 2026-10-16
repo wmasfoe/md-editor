@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "../theme";
+import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "../../src/utools/theme";
 
 describe("uTools theme resolution", () => {
   it("keeps an explicit light preference on a dark host", () => {

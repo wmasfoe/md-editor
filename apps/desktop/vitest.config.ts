@@ -7,7 +7,7 @@ export default mergeConfig(
     test: {
       environment: "node",
       globals: true,
-      include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+      include: ["tests/**/*.test.ts"],
     },
   }),
 );

@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { CodeMirrorEditorPorts } from "../components/CodeMirrorEditor";
+import type { CodeMirrorEditorPorts } from "../src/components/CodeMirrorEditor/index";
 import {
   EditorUiProvider,
   unsupportedEditorUiCommandSlots,
@@ -9,7 +9,7 @@ import {
   useOptionalEditorUiActions,
   useEditorUiState,
   type EditorUiActionsContextValue,
-} from "../hooks/useEditorUi";
+} from "../src/hooks/useEditorUi";
 
 describe("editor UI instance state policy", () => {
   it("returns typed unsupported results when no editor command implementation is mounted", async () => {

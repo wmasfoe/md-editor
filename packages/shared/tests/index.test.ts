@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { err, normalizeLineEndings, ok } from "./index.ts";
+import { err, normalizeLineEndings, ok } from "../src/index.ts";
 
 describe("shared utilities", () => {
   it("normalizeLineEndings converts CRLF and CR to LF", () => {

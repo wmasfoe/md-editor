@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createCommandRegistry, type CommandContext, type CommandDescriptor } from "../index.ts";
+import {
+  createCommandRegistry,
+  type CommandContext,
+  type CommandDescriptor,
+} from "../src/index.ts";
 
 function createContext(): CommandContext {
   return {} as CommandContext;

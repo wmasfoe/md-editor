@@ -3,7 +3,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDocumentState } from "@md-editor/editor-core";
-import { createUtoolsFileAdapter, createUtoolsNativeSaveAdapter } from "../file-adapter";
+import {
+  createUtoolsFileAdapter,
+  createUtoolsNativeSaveAdapter,
+} from "../../src/utools/file-adapter";
 import {
   saveLastOpenedFile,
   loadLastOpenedFile,
@@ -16,15 +19,19 @@ import {
   loadUtoolsSettings,
   saveUtoolsSettings,
   DEFAULT_UTOOLS_SETTINGS,
-} from "../db-storage";
+} from "../../src/utools/db-storage";
 import {
   resolveProseFontStack,
   resolveCodeFontStack,
   PROSE_FONT_OPTIONS,
   CODE_FONT_OPTIONS,
-} from "../fonts";
-import { hasAcceptedAiDisclaimer, acceptAiDisclaimer, resetAiDisclaimer } from "../ai-disclaimer";
-import { buildReferralUrl } from "../referral";
+} from "../../src/utools/fonts";
+import {
+  hasAcceptedAiDisclaimer,
+  acceptAiDisclaimer,
+  resetAiDisclaimer,
+} from "../../src/utools/ai-disclaimer";
+import { buildReferralUrl } from "../../src/utools/referral";
 import type { NativeFileSaveJob } from "@md-editor/file-system";
 
 describe("uTools Platform Adapters", () => {

@@ -19,7 +19,7 @@ import {
   serializeEditorContent,
   updateRawMarkdown,
   type RawFragment,
-} from "./index.ts";
+} from "../src/index.ts";
 
 describe("editor-core AI writing feature", () => {
   it("registers the AI writing commands and keymaps as a built-in feature", async () => {

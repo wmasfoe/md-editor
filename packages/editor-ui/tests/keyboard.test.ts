@@ -6,7 +6,7 @@ import {
   isMacPlatform,
   isWindowsPlatform,
   matchesRuntimeKeymap,
-} from "../keyboard";
+} from "../src/keyboard";
 
 function createKeyboardEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
   return {

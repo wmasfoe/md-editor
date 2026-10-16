@@ -4,7 +4,7 @@ import {
   detectRuntimeArch,
   parsePublishedVersionTag,
   pickPlatformAssetUrl,
-} from "./releases";
+} from "../../../../src/app/settings/updates/releases";
 
 describe("parsePublishedVersionTag", () => {
   describe("conventional desktop tags (current baseline)", () => {
