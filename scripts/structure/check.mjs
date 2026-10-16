@@ -25,6 +25,11 @@ import { fileURLToPath } from "node:url";
 export const WARN_LINES = 800;
 export const FAIL_LINES = 1200;
 /** 搬迁 PR 允许的 `maxLines` 缓冲（重连 import 可能导致 ±1 行漂移）。 */
+/**
+ * **cluster 级硬约束**：这些包内任何 `.ts/.tsx` 超过 `WARN_LINES` 即**失败**
+ * （而非仅警告）——防止"把巨型文件拆成巨型协作者"，即 PR3 之后的回涨防线。
+ */
+export const CLUSTER_STRICT_PACKAGES = ["packages/renderer-codemirror"];
 export const MOVE_HEADROOM = 5;
 /** 测试辅助目录不入镜像检查（存量合法反例：packages/editor-core/tests/support）。 */
 export const MIRROR_EXEMPT_DIRS = new Set(["support", "fixtures", "helpers", "__fixtures__"]);
@@ -140,6 +145,19 @@ export const WYSIWYG_DOMAIN_MEMBERS = {
     "image-resolver.ts",
     "link-interaction.ts",
   ],
+  // widgets/ 同样纳入域成员登记（含 PR3 引入的 table/ 子目录）
+  widgets: [
+    "callout-widget.ts",
+    "cell-caret.ts",
+    "code-block-toolbar-widget.ts",
+    "default-atom-widget.ts",
+    "frontmatter-header-widget.ts",
+    "html-block-widget.ts",
+    "image-widget.ts",
+    "mdx-component-widget.ts",
+    "thematic-break-widget.ts",
+    "table",
+  ],
 };
 
 /** 扫描域：工作区中需要检查的源码根。 */
@@ -233,8 +251,13 @@ export function checkThresholds({ root, directories = workspaceDirs(root) }) {
         if (lines > cap) failures.push(`${rel}: ${lines} 行 > 豁免上限 ${cap}（豁免只允许缩小）`);
         continue;
       }
+      const clusterStrict = CLUSTER_STRICT_PACKAGES.some((prefix) => rel.startsWith(prefix));
       if (lines > FAIL_LINES) failures.push(`${rel}: ${lines} 行 > ${FAIL_LINES}（未登记豁免）`);
-      else if (lines > WARN_LINES) warnings.push(`${rel}: ${lines} 行 > ${WARN_LINES}`);
+      else if (lines > WARN_LINES && clusterStrict) {
+        failures.push(
+          `${rel}: ${lines} 行 > ${WARN_LINES}（cluster 级硬约束：${CLUSTER_STRICT_PACKAGES.join(", ")} 内任何文件不得超过该上限）`,
+        );
+      } else if (lines > WARN_LINES) warnings.push(`${rel}: ${lines} 行 > ${WARN_LINES}`);
     }
   }
   return { failures, warnings };

@@ -87,6 +87,20 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 `types.ts` 持有 Facet/Effect 唯一实例，`projection-field.ts` 持有 StateField 唯一实例以及依赖该字段的配置/查询入口；装饰、范围与 atom 计算按职责拆出，禁止为旧路径保留兼容转发。
 `widgets/table/index.ts` 是表格 widget 的目录聚合边界，DOM、提交与焦点行为在同目录协作。
 
+## 6.1 协作者（collaborator）模式与 cluster 级体量契约
+
+把巨型文件拆成"入口 + 协作者"时，遵守以下约定（PR3 拆分 `renderer.ts` / `projection-state.ts` / `table-widget.ts` 时确立）：
+
+1. **状态归属单一**：可变状态由**入口模块**（owner，如 `CodeMirrorRendererController`、`TableGridWidget`、`wysiwygProjectionField`）持有；协作者是**叶子模块**，只能通过显式参数或窄 context 对象读写 owner 的状态，不得自行持有可变状态。
+2. **例外须登记**：确需共持有的状态（如外部编辑队列与注入队列的配对状态）必须在**代码注释**与本节各写一处，说明为何不能收敛到 owner。
+3. **依赖单向**：协作者之间只允许单向依赖；跨模块共享类型用 `import type`，不得引入运行期双向 import 或求值环。
+4. **cluster 级体量契约（机器强制）**：`CLUSTER_STRICT_PACKAGES`（当前 `packages/renderer-codemirror`）内**任何** `.ts/.tsx` 超过 800 行即**失败**——防止"把巨型文件拆成巨型协作者"。其它包仍为 >800 警告 / >1200 失败。
+5. **命名**：协作者名以其**职责角色**命名（`mode-viewport`、`document-protocol`、`host-visibility`、`transaction-ledger`、`view-operations`、`probe`、`composition`、`selection`、`validation` 等），不得用 `helpers`、`utils`、`misc` 等无语义名。
+6. **登记义务**：新增/重命名协作者必须同步更新 `scripts/structure/check.mjs` 的 `WYSIWYG_DOMAIN_MEMBERS`（或对应域映射）与 `SPLIT_TARGETS`，否则 `lint:structure` 会以"多出未登记文件"失败。
+7. **不留副本**：抽取后必须删除原位置实现；禁止保留兼容 re-export（`index.ts` 仅作目录聚合）。
+
+---
+
 ## 7. 规则分批上线（ruleset rollout）与基线自检铁律
 
 护栏只在"**自身 PR 完成后为真**"时才启用，否则护栏测的是历史欠债而非本次改动。
