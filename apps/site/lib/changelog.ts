@@ -47,9 +47,19 @@ const defaultWebChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG.m
 
 const defaultWebEnChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG_EN.md");
 
-const defaultAndroidChangelogCandidates = repoCandidates("apps", "mobile", "android", "CHANGELOG.md");
+const defaultAndroidChangelogCandidates = repoCandidates(
+  "apps",
+  "mobile",
+  "android",
+  "CHANGELOG.md",
+);
 
-const defaultAndroidEnChangelogCandidates = repoCandidates("apps", "mobile", "android", "CHANGELOG_EN.md");
+const defaultAndroidEnChangelogCandidates = repoCandidates(
+  "apps",
+  "mobile",
+  "android",
+  "CHANGELOG_EN.md",
+);
 
 const defaultIosChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG.md");
 
@@ -243,13 +253,7 @@ export function getLatestAndroidVersion(): string {
   if (entries.length > 0 && entries[0].version) {
     return entries[0].version;
   }
-  const gradleCandidates = repoCandidates(
-    "apps",
-    "mobile",
-    "android",
-    "app",
-    "build.gradle.kts",
-  );
+  const gradleCandidates = repoCandidates("apps", "mobile", "android", "app", "build.gradle.kts");
   for (const candidate of gradleCandidates) {
     if (fs.existsSync(candidate)) {
       const match = fs.readFileSync(candidate, "utf8").match(/versionName\s*=\s*"([^"]+)"/);
