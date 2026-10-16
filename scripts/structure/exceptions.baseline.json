@@ -1,0 +1,20 @@
+[
+  {
+    "id": "renderer-module",
+    "path": "packages/renderer-codemirror/src/renderer.ts",
+    "maxLines": 1885,
+    "reason": "PR3 拆分前登记：主渲染器控制器聚合文件（拆到 renderer/* 后删除本条目）"
+  },
+  {
+    "id": "projection-state-module",
+    "path": "packages/renderer-codemirror/src/wysiwyg/projection-state.ts",
+    "maxLines": 1253,
+    "reason": "PR3 拆分前登记：投影状态字段与装饰/范围构建聚合（拆到 state/* 后删除本条目）"
+  },
+  {
+    "id": "infra-router-module",
+    "path": "infra/distribution-worker/src/router.ts",
+    "maxLines": 2097,
+    "reason": "PR1 起草时实测发现的存量巨型文件（2097 行）：本任务域外，登记冻结防增长，拆留后续"
+  }
+]

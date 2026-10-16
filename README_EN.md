@@ -283,7 +283,7 @@ Comprehensive architecture proposals and design guidelines are located in [`docs
 
 ## Contributing & Guidelines
 
-For code conventions and Git workflows, please refer to [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md).
+For code conventions and Git workflows, please refer to [AGENTS.md](AGENTS.md) (see the "Code structure & naming" section) and the [repository structure & naming convention](docs/agent/architecture/repo_structure_and_naming_conventions.md).
 
 ---
 
