@@ -38,6 +38,26 @@ describe("highlightPlugin", () => {
     expect(top.toString()).toBe("Document(Paragraph(Highlight(HighlightMark,HighlightMark)))");
   });
 
+  it("parses highlight adjacent to Chinese punctuation (CJK-friendly flanking)", () => {
+    // 修复前：`==` 后紧贴全角标点时不满足 left-flanking，整对定界符退化为字面文本。
+    for (const source of [
+      "字==「高亮」==字",
+      "==高亮。==后续",
+      "（==高亮==）",
+      "中==「高亮」==文",
+    ]) {
+      expect(configuredParser.parse(source).topNode.toString()).toBe(
+        "Document(Paragraph(Highlight(HighlightMark,HighlightMark)))",
+      );
+    }
+  });
+
+  it("keeps the escape guard for `\\==`", () => {
+    expect(configuredParser.parse("\\==not highlight==").topNode.toString()).toBe(
+      "Document(Paragraph(Escape))",
+    );
+  });
+
   it("supports nested bold and italic inside highlight", () => {
     const tree = configuredParser.parse("==text with **bold** and *italic*==");
     const top = tree.topNode;

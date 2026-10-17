@@ -13,6 +13,7 @@
 - 整行块级替换 Inclusivity 与符号型块间距规范（含 Thematic Break / 表格 / HTML / MDX）： [thematic_break_and_block_inclusivity_spec.md](./thematic_break_and_block_inclusivity_spec.md)
 - 编辑器模式切换视口滚动与光标几何定位规范： [editor_mode_switch_viewport_and_cursor_spec.md](./editor_mode_switch_viewport_and_cursor_spec.md)
 - 编辑器交互契约规范（Tab 归属 / 链接类文本与打开通路 / 图片视频口径，含踩坑与用例缺口）： [editor_interaction_tab_and_links_spec.md](./editor_interaction_tab_and_links_spec.md)
+- CJK 友好强调契约规范（`**加粗**` / `~~删除~~` / `==高亮==` 的中文标点邻接、两引擎映射与已知边界）： [cjk_friendly_emphasis_spec.md](./cjk_friendly_emphasis_spec.md)
 
 ## 历史归档 (Archive)
 
@@ -30,6 +31,8 @@
 - 涉及双模式（WYSIWYG <-> Source）切换时视口滚动跳动、长文档光标居中保持或往返无损记忆时，先读编辑器模式切换视口滚动与光标几何定位规范。
 - 涉及 Tab 行为（缩进/焦点归属/块级区 fail-closed）、链接类文本（裸 URL / 尖括号 / 行内 / 引用式）的渲染与
   "Cmd/Ctrl+点击用系统浏览器打开"链路、或图片视频的本地 vs 云端口径时，先读编辑器交互契约规范。
+- 涉及强调/斜体/删除线/高亮的定界符解析（`**` / `*` / `~~` / `==`）、中文标点邻接不生效、lezer Markdown 扩展链或
+  `@md-editor/compiler` 的 marked 配置时，先读 CJK 友好强调契约规范。
 - 涉及早期 Milkdown / ProseMirror 历史问题排查时，可按需进入 [archive/index.md](./archive/index.md) 查阅归档规范。
 - 新增棘手问题时，优先放在本目录，并在本文件写清楚触发阅读的改动范围。
 

@@ -1,4 +1,5 @@
-import { Marked, type Token, type Tokens } from "marked";
+import { Marked, Tokenizer, type MarkedExtension, type Token, type Tokens } from "marked";
+import markedCjkFriendly from "marked-cjk-friendly";
 import type {
   BlockToken,
   CompileResult,
@@ -30,10 +31,50 @@ export function generateHeadingSlug(text: string): string {
 }
 
 /**
+ * marked 默认（纯 CommonMark 语义）的 emStrong 实现，用于把 `_` / `__` 交回标准解析。
+ */
+const defaultEmStrong = Tokenizer.prototype.emStrong;
+
+/**
+ * CJK 友好的强调 / 删除线定界符扩展（对应 CommonMark「CJK-friendly amendments」）。
+ *
+ * `marked-cjk-friendly` 是上游实现，但它把 CJK 字符整体按标点对待，`_` 家族会比规范修订
+ * 更宽松（例如 `这是 _斜体_文字` 会被解析成斜体）。规范修订刻意保留 `_` 的词内限制，
+ * 编辑器语法树（`@md-editor/renderer-codemirror` 的 `cjkFriendlyEmphasisMarkdownExtension`）
+ * 也按该口径解析，因此这里只让扩展接管 `*` / `**` / `~~`，`_` / `__` 交回 marked 默认实现，
+ * 保证「编辑器所见 = 静态渲染所得」。
+ */
+function createCjkFriendlyTokenizerExtension(): MarkedExtension {
+  const cjkTokenizer = markedCjkFriendly().tokenizer;
+  const cjkEmStrong = cjkTokenizer?.emStrong;
+  const cjkDel = cjkTokenizer?.del;
+  if (!cjkEmStrong || !cjkDel) {
+    throw new Error("marked-cjk-friendly 未提供 emStrong/del 覆盖，无法接入 CJK 友好解析");
+  }
+  return {
+    tokenizer: {
+      emStrong(src, maskedSrc, prevChar = "") {
+        return src.startsWith("_")
+          ? defaultEmStrong.call(this, src, maskedSrc, prevChar)
+          : cjkEmStrong.call(this, src, maskedSrc, prevChar);
+      },
+      del(src, maskedSrc, prevChar = "") {
+        return cjkDel.call(this, src, maskedSrc, prevChar);
+      },
+    },
+  };
+}
+
+/**
  * Configures a dedicated Marked instance with math, highlight, and directive extensions
+ *
+ * 同时接入 CJK 友好的强调/删除线定界符判定：中文标点旁的 `**加粗**`、`~~删除~~`
+ * 不再退化成字面文本或跳对错配。
  */
 function createMarkedLexer(): Marked {
   const marked = new Marked();
+
+  marked.use(createCjkFriendlyTokenizerExtension());
 
   marked.use({
     gfm: true,

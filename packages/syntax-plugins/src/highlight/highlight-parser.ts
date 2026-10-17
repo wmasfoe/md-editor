@@ -1,14 +1,11 @@
 import type { InlineContext, MarkdownConfig } from "@lezer/markdown";
+import {
+  readDelimiterNeighbors,
+  resolveCjkFriendlyDelimiterSides,
+} from "@md-editor/renderer-codemirror";
 import { HIGHLIGHT_NODES } from "./highlight-types.ts";
 
 const HighlightDelim = { resolve: HIGHLIGHT_NODES.Highlight, mark: HIGHLIGHT_NODES.HighlightMark };
-
-let Punctuation = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~\xA1\u2010-\u2027]/;
-try {
-  Punctuation = new RegExp("[\\p{S}|\\p{P}]", "u");
-} catch {
-  // fallback if Unicode property escapes not supported
-}
 
 /**
  * Lezer Markdown 扩展：支持 ==高亮== 语法。
@@ -16,10 +13,9 @@ try {
  * 遵循 CommonMark / GFM delimiter run 规范与 Typora / Obsidian 事实标准：
  * 1. 定界符为连续的两个等号 `==`；
  * 2. 连续 3 个及以上等号（如 `===`）不解析为双等号高亮（防止侵入标题底线或特殊语法）；
- * 3. 强调边界规则：
- *    - 开定界符后不能紧跟空白字符；
- *    - 闭定界符前不能紧跟空白字符；
- *    - 标点与空白环视判定，支持嵌套强调（如 ==**粗体高亮**==）；
+ * 3. 强调边界规则由 `@md-editor/renderer-codemirror` 的 CJK 友好 flanking 判定提供
+ *    （与 `**粗体**` / `~~删除~~` 同一套规则）：开定界符后不能紧跟空白，闭定界符前不能紧跟
+ *    空白，并支持嵌套强调（如 ==**粗体高亮**==）与中文标点邻接（如 ==「高亮」==）；
  * 4. 转义反斜杠忽略。
  */
 export const highlightMarkdownExtension: MarkdownConfig = Object.freeze({
@@ -42,20 +38,11 @@ export const highlightMarkdownExtension: MarkdownConfig = Object.freeze({
           return -1;
         }
 
-        const before = cx.slice(pos - 1, pos);
-        const after = cx.slice(pos + 2, pos + 3);
-        const sBefore = /\s|^$/.test(before);
-        const sAfter = /\s|^$/.test(after);
-        const pBefore = Punctuation.test(before);
-        const pAfter = Punctuation.test(after);
-
-        return cx.addDelimiter(
-          HighlightDelim,
-          pos,
-          pos + 2,
-          !sAfter && (!pAfter || sBefore || pBefore),
-          !sBefore && (!pBefore || sAfter || pAfter),
+        const sides = resolveCjkFriendlyDelimiterSides(
+          "=",
+          readDelimiterNeighbors(cx, pos, pos + 2),
         );
+        return cx.addDelimiter(HighlightDelim, pos, pos + 2, sides.canOpen, sides.canClose);
       },
     }),
   ]),
