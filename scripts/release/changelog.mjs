@@ -109,3 +109,36 @@ function escapeRegExp(value) {
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
+
+/**
+ * 同时写入中文与英文 changelog（发布规范要求两种语言都有条目）。
+ * - `notesEn` 缺省时回退为 `notes`（与 android/ios 发布脚本既有行为一致），
+ *   保证 `apps/site` 的 changelog 解析测试（断言 ZH/EN 首条版本一致）不会因漏写 EN 而失败；
+ * - `enPath` 不存在时跳过英文写入并返回 `en: null`（保持对尚未建 EN 文件的平台向后兼容）。
+ */
+export function updateChangelogPair({
+  zhPath,
+  enPath,
+  version,
+  notes,
+  notesEn,
+  date,
+  mode,
+  dryRun = false,
+  pr,
+}) {
+  const zh = updateChangelogFile({ path: zhPath, version, notes, date, mode, dryRun, pr });
+  if (!enPath || !fs.existsSync(enPath)) {
+    return { zh, en: null };
+  }
+  const en = updateChangelogFile({
+    path: enPath,
+    version,
+    notes: notesEn ?? notes,
+    date,
+    mode,
+    dryRun,
+    pr,
+  });
+  return { zh, en };
+}

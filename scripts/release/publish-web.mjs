@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
-import { updateChangelogFile } from "./changelog.mjs";
+import { updateChangelogPair } from "./changelog.mjs";
 import { bumpWebVersion, readWebVersion } from "./version-web.mjs";
 
 const defaultNotes = "修复了一些已知问题，优化了 Web 端编辑体验";
@@ -20,6 +20,7 @@ function parseArgs(argv) {
     allowAnyBranch: false,
     branch: releaseBranchDefault,
     notes: undefined,
+    notesEn: undefined,
     pr: undefined,
     kind: undefined,
     deploy: undefined,
@@ -47,6 +48,8 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--notes") {
       options.notes = readOptionValue(argv, index, arg);
+    } else if (arg === "--notes-en") {
+      options.notesEn = readOptionValue(argv, index, arg);
       index += 1;
     } else if (arg === "--pr") {
       options.pr = readOptionValue(argv, index, arg);
@@ -90,6 +93,7 @@ Options:
   --deploy             Deploy to Vercel production after pushing release commit and tag.
   --no-deploy          Skip Vercel production deployment.
   --notes <text>       Release notes used in the commit and annotated tag.
+  --notes-en <text>    English release notes for CHANGELOG_EN.md (falls back to --notes).
   --pr <number>        Associated Pull Request number for the release changelog.
   --yes, -y            Skip the final interactive confirmation.`;
 }
@@ -345,10 +349,12 @@ async function main() {
     });
   }
 
-  const changelogResult = updateChangelogFile({
-    path: webChangelogPath,
+  const changelogResult = updateChangelogPair({
+    zhPath: webChangelogPath,
+    enPath: webChangelogEnPath,
     version: plan.nextVersion,
     notes: plan.notes,
+    notesEn: options.notesEn,
     pr: plan.pr,
     mode: options.resume ? "resume" : "normal",
     dryRun: options.dryRun,

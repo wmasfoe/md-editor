@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
-import { updateChangelogFile } from "./changelog.mjs";
+import { updateChangelogPair } from "./changelog.mjs";
 
 const defaultNotes = "修复了一些已知问题，添加了一些新功能";
 const releaseBranchDefault = "main";
@@ -27,6 +27,7 @@ function parseArgs(argv) {
     allowAnyBranch: false,
     branch: releaseBranchDefault,
     notes: undefined,
+    notesEn: undefined,
     pr: undefined,
     kind: undefined,
   };
@@ -49,6 +50,8 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--notes") {
       options.notes = readOptionValue(argv, index, arg);
+    } else if (arg === "--notes-en") {
+      options.notesEn = readOptionValue(argv, index, arg);
       index += 1;
     } else if (arg === "--pr") {
       options.pr = readOptionValue(argv, index, arg);
@@ -90,6 +93,7 @@ Options:
   --resume             Continue after release:desktop:version already changed version files.
   --no-push            Commit and tag locally, but do not push.
   --notes <text>       Release notes used in the commit and annotated tag.
+  --notes-en <text>    English release notes for CHANGELOG_EN.md (falls back to --notes).
   --pr <number>        Associated Pull Request number for the release changelog.
   --yes, -y            Skip the final interactive confirmation.`;
 }
@@ -434,10 +438,12 @@ async function main() {
     );
   }
 
-  const changelogResult = updateChangelogFile({
-    path: desktopChangelogPath,
+  const changelogResult = updateChangelogPair({
+    zhPath: desktopChangelogPath,
+    enPath: desktopChangelogEnPath,
     version: plan.nextVersion,
     notes: plan.notes,
+    notesEn: options.notesEn,
     pr: plan.pr,
     mode: options.resume ? "resume" : "normal",
     dryRun: options.dryRun,
