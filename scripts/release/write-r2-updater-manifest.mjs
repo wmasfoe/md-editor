@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export function generateR2UpdaterManifest({
   version,
@@ -7,7 +8,7 @@ export function generateR2UpdaterManifest({
   appName = "inkpoint",
   macTarName = "Inkpoint.app.tar.gz",
   macSignature,
-  winZipName,
+  winUpdaterName,
   winSignature,
   notes,
 }) {
@@ -25,10 +26,10 @@ export function generateR2UpdaterManifest({
     };
   }
 
-  if (winZipName && winSignature) {
+  if (winUpdaterName && winSignature) {
     platforms["windows-x86_64"] = {
       signature: winSignature.trim(),
-      url: `${distributionUrl}/${appName}/desktop/${normalizedVersion}/${winZipName}`,
+      url: `${distributionUrl}/${appName}/desktop/${normalizedVersion}/${winUpdaterName}`,
     };
   }
 
@@ -54,6 +55,53 @@ function findFile(dir, predicate) {
   return null;
 }
 
+/**
+ * 在 `artifactsDir` 中解析各平台的更新产物与签名。
+ *
+ * Windows 的更新产物有两种形态，取决于 Tauri 版本：
+ *  1. 旧的 `<...>_x64-setup.nsis.zip`（带 `.sig`）；
+ *  2. **当前实际产出的 NSIS 安装器本体 `<...>_x64-setup.exe` + 同名 `.sig`**。
+ * 早期实现只匹配 `.zip`，于是 `windows-x86_64` 条目长期缺失——Windows 用户因此收不到
+ * 应用内更新（详见 docs/agent/release/release_workflow.md）。
+ */
+export function resolveUpdaterArtifacts(artifactsDir, env = process.env) {
+  const resolved = {
+    macTarName: "Inkpoint.app.tar.gz",
+    macSignature: env.MAC_UPDATER_SIGNATURE,
+    winUpdaterName: undefined,
+    winSignature: env.WIN_UPDATER_SIGNATURE,
+  };
+
+  if (!artifactsDir || !fs.existsSync(artifactsDir)) {
+    return resolved;
+  }
+
+  const macFile = findFile(artifactsDir, (n) => n.endsWith(".app.tar.gz"));
+  if (macFile) {
+    resolved.macTarName = path.basename(macFile);
+    if (fs.existsSync(`${macFile}.sig`)) {
+      resolved.macSignature = fs.readFileSync(`${macFile}.sig`, "utf-8");
+    }
+  }
+
+  // `x64` 限定 64 位 Intel/AMD 安装包；`arm64` 不含该子串，不会被误匹配。
+  // 按优先级依次尝试：`.nsis.zip`（旧形态） → 其他 `.zip` → **NSIS 安装器本体**（当前实际产出）。
+  const winUpdaterMatchers = [
+    (name) => name.includes("x64") && name.endsWith(".nsis.zip"),
+    (name) => name.includes("x64") && name.endsWith(".zip"),
+    (name) => name.includes("x64") && name.endsWith("-setup.exe"),
+  ];
+  const winFile = winUpdaterMatchers.map((match) => findFile(artifactsDir, match)).find(Boolean);
+  if (winFile) {
+    resolved.winUpdaterName = path.basename(winFile);
+    if (fs.existsSync(`${winFile}.sig`)) {
+      resolved.winSignature = fs.readFileSync(`${winFile}.sig`, "utf-8");
+    }
+  }
+
+  return resolved;
+}
+
 export function runCli() {
   const version = process.env.RELEASE_VERSION;
   if (!version) {
@@ -66,32 +114,20 @@ export function runCli() {
   const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
   const appName = process.env.APP_NAME || "inkpoint";
 
-  let macTarName = "Inkpoint.app.tar.gz";
-  let macSignature = process.env.MAC_UPDATER_SIGNATURE;
-  let winZipName;
-  let winSignature = process.env.WIN_UPDATER_SIGNATURE;
+  const { macTarName, macSignature, winUpdaterName, winSignature } = resolveUpdaterArtifacts(
+    artifactsDir,
+    process.env,
+  );
 
-  if (fs.existsSync(artifactsDir)) {
-    const macFile = findFile(artifactsDir, (n) => n.endsWith(".app.tar.gz"));
-    if (macFile) {
-      macTarName = path.basename(macFile);
-      const sigFile = `${macFile}.sig`;
-      if (fs.existsSync(sigFile)) {
-        macSignature = fs.readFileSync(sigFile, "utf-8");
-      }
-    }
-
-    const winFile = findFile(
-      artifactsDir,
-      (n) => n.includes("x64") && (n.endsWith(".nsis.zip") || n.endsWith(".zip")),
+  if (!macSignature) {
+    console.warn(
+      "⚠️ 未找到 macOS 更新签名：darwin-aarch64 条目将缺失（macOS 用户收不到应用内更新）",
     );
-    if (winFile) {
-      winZipName = path.basename(winFile);
-      const sigFile = `${winFile}.sig`;
-      if (fs.existsSync(sigFile)) {
-        winSignature = fs.readFileSync(sigFile, "utf-8");
-      }
-    }
+  }
+  if (!winUpdaterName || !winSignature) {
+    console.warn(
+      "⚠️ 未找到 Windows 更新产物或签名：windows-x86_64 条目将缺失（Windows 用户收不到应用内更新）",
+    );
   }
 
   const manifest = generateR2UpdaterManifest({
@@ -100,15 +136,22 @@ export function runCli() {
     appName,
     macTarName,
     macSignature,
-    winZipName,
+    winUpdaterName,
     winSignature,
   });
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  console.log(`✓ Generated R2 updater manifest: ${outputPath}`);
+  console.log(
+    `✓ Generated R2 updater manifest: ${outputPath} (platforms: ${Object.keys(manifest.platforms).join(", ") || "none"})`,
+  );
 }
 
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+const isDirectRun =
+  process.argv[1] &&
+  (import.meta.url.endsWith(process.argv[1]) ||
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
+
+if (isDirectRun) {
   runCli();
 }
