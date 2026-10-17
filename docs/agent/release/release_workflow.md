@@ -100,6 +100,16 @@ node scripts/release/purge-download-cache.mjs
 curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 ```
 
+### Windows 应用内更新（`windows-x86_64`）契约
+
+- Tauri v2 的 NSIS 更新产物**就是安装器本体**：`Inkpoint_<version>_x64-setup.exe` + 同名 `.sig`（**没有** `.nsis.zip`）；
+- 发布链路必须按 `.nsis.zip` → `*.zip` → `*-x64-setup.exe` 的优先级解析（`resolveUpdaterArtifacts`），
+  并同时上传签名到 `inkpoint/desktop/<version>/<name>.sig`，否则 `updater.json` 里不会出现 Windows 条目；
+- `inkpoint/desktop/updater.json` 必须**同时**包含 `darwin-aarch64` 与 `windows-x86_64`，缺失即静默失去该平台的应用内更新；
+- 校验：`curl -s https://download.jiaqi.im/inkpoint/desktop/updater.json` 应输出两个平台；
+- 事故记录（2026-10-17）：旧查找只匹配 `*x64*.nsis.zip|*.zip` → 永远命中不到 → Windows 自 0.12.x 起一直收不到
+  应用内更新。已修脚本与 workflow，并对 **0.13.2 做了热修**（补传 `Inkpoint_0.13.2_x64-setup.exe.sig` + 重写双平台 `updater.json`）。
+
 ## 合并 PR 后的线上部署决策矩阵
 
 当一个 PR 合并入 `main` 分支后，维护者或 Agent 应先执行 `git checkout main && git pull`，并根据本次 PR 涉及的修改范围决定执行哪项上线命令：
