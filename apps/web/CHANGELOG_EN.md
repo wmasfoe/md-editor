@@ -1,5 +1,9 @@
 # Changelog - Web Playground
 
+## 0.2.1 - 2026-10-17 (#159)
+
+- Brings the CJK-friendly emphasis fix from desktop 0.13.2: bold/italic/strikethrough/highlight adjacent to CJK punctuation no longer degrade into literal text or mis-pair with later markers; the ==highlight== boundary rule now shares the same flanking logic as emphasis and strikethrough (non-CJK text is unaffected).
+
 All notable changes to the Inkpoint Web Playground will be documented in this file.
 
 ## 0.2.0 - 2026-09-26 (#138, #140)
