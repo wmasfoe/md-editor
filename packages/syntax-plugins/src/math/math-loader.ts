@@ -2,20 +2,45 @@ import type KatexType from "katex";
 
 let katexInstance: typeof KatexType | null = null;
 let katexPromise: Promise<typeof KatexType> | null = null;
+let katexStylesheetPromise: Promise<unknown> | null = null;
 
 const mathRenderCache = new Map<string, { html: string; error?: string }>();
 const MAX_CACHE_SIZE = 1000;
 
 /**
- * 动态按需加载 KaTeX 模块（支持单例与并发去重）。
+ * 惰性加载 KaTeX 官方样式（单例、幂等）。
+ *
+ * 样式唯一来源在本包：`@md-editor/syntax-plugins` 声明了 `katex` 依赖，因此各接入端不再
+ * 需要（也不应该）在全局入口 `@import "katex/dist/katex.min.css"` —— 全局引入会形成幽灵依赖，
+ * 并与这里形成重复投放；同时避免无公式文档首屏加载样式。
+ *
+ * 触发时机：
+ * - 编辑器路径：由公式 widget 与 `renderMathHtml()` 的未就绪兜底分支经 `loadKatex()` 触发；
+ * - 静态渲染路径（如移动端阅读器把 compiler 输出注入宿主 DOM）：由接入端显式调用本函数。
+ *
+ * 加载失败不致命：公式仍以无样式 HTML 呈现，避免整条渲染链因样式缺失而中断。
+ */
+export function ensureKatexStylesheet(): Promise<unknown> {
+  if (!katexStylesheetPromise) {
+    // 样式写入独立模块（副作用导入 CSS），确保 bundler 将它拆成随需加载的样式产物。
+    katexStylesheetPromise = import("./katex-styles.ts").catch(() => undefined);
+  }
+  return katexStylesheetPromise;
+}
+
+/**
+ * 动态按需加载 KaTeX 运行时与样式（支持单例与并发去重）。
+ *
+ * 惰性契约：本模块**不得**在模块作用域触发加载，只在真实需要渲染公式时调用
+ * （调用方为 `math-projection` 的公式 widget，以及 `renderMathHtml` 的未就绪兜底分支）。
  */
 export async function loadKatex(): Promise<typeof KatexType> {
   if (katexInstance) {
     return katexInstance;
   }
   if (!katexPromise) {
-    katexPromise = import("katex")
-      .then((mod) => {
+    katexPromise = Promise.all([import("katex"), ensureKatexStylesheet()])
+      .then(([mod]) => {
         katexInstance = mod.default ?? mod;
         return katexInstance;
       })
@@ -25,13 +50,6 @@ export async function loadKatex(): Promise<typeof KatexType> {
       });
   }
   return katexPromise;
-}
-
-// 浏览器/客户端环境下尽早预加载 KaTeX，避免文档加载时异步排版跳变
-if (typeof window !== "undefined" && typeof document !== "undefined") {
-  void loadKatex().catch(() => {
-    // 静默处理预加载失败，由后续实际渲染环节安全兜底
-  });
 }
 
 /**

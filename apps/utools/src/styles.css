@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@import "katex/dist/katex.min.css";
+/* KaTeX 样式不再全局引入：由 @md-editor/syntax-plugins 在首次渲染公式时惰性加载，
+   既消除 apps/utools 对 katex 的幽灵依赖，也避免无公式文档首屏加载样式。 */
 @source "../../../packages/editor-ui/src";
 
 :root {
