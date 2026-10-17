@@ -2,6 +2,11 @@
 
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
+## 0.13.1 - 2026-10-17
+
+- WYSIWYG blank-line fidelity fix + repository structure governance. Fixed an extra blank line rendered between a heading and the following table / HTML / MDX block (one source blank line was displayed as two); source blank lines now map 1:1 to the rendered result. Thematic-break-like "symbol blocks" now use a single rule-based default spacing instead of per-widget hard-coded margins.
+- Engineering (no behavior change): new structure guard `pnpm lint:structure` (size thresholds, frozen exceptions, test layout, import rules); `wysiwyg` reorganized into six responsibility domains; website workspace moved to `apps/site`; three oversized modules split into responsibility clusters with the public API unchanged symbol-by-symbol.
+
 ## 0.13.0 - 2026-09-26 (#135, #137, #138, #140)
 
 - Added full internationalization (i18n) support for Japanese and Traditional Chinese, featuring a dropdown language selector and automatic system/browser locale detection
