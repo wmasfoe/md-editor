@@ -1,7 +1,9 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
+import { fileURLToPath } from "node:url";
 import { updateChangelogPair } from "./changelog.mjs";
 
 const defaultNotes = "修复了一些已知问题，添加了一些新功能";
@@ -18,7 +20,7 @@ const releaseFiles = [
   "apps/desktop/src-tauri/Cargo.lock",
 ];
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     dryRun: false,
     resume: false,
@@ -50,6 +52,8 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--notes") {
       options.notes = readOptionValue(argv, index, arg);
+      // 缺少 index 推进会把 notes 文本当成位置参数（`patch --notes "x"` 报 Unexpected argument）
+      index += 1;
     } else if (arg === "--notes-en") {
       options.notesEn = readOptionValue(argv, index, arg);
       index += 1;
@@ -515,7 +519,14 @@ async function promptForResume(options, currentVersion) {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+const isDirectRun =
+  process.argv[1] &&
+  (import.meta.url.endsWith(process.argv[1]) ||
+    fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
