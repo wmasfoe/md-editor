@@ -6,6 +6,7 @@ import {
   type MarkdownConfig,
   type MarkdownExtension,
 } from "@lezer/markdown";
+import { CJK_FRIENDLY_MARKDOWN_EXTENSIONS } from "./cjk-friendly-emphasis.ts";
 
 const FOOTNOTE_LABEL = "[A-Za-z0-9_-]+";
 const INLINE_FOOTNOTE = new RegExp(`^\\[\\^(${FOOTNOTE_LABEL})\\]`, "u");
@@ -67,4 +68,6 @@ export const footnoteMarkdownExtension: MarkdownConfig = Object.freeze({
 export const M1_MARKDOWN_EXTENSIONS: readonly MarkdownExtension[] = Object.freeze([
   GFM,
   footnoteMarkdownExtension,
+  // CJK 友好的强调 / 删除线定界符判定；必须在 GFM 之后（按名替换其 `Strikethrough` 解析器）。
+  ...CJK_FRIENDLY_MARKDOWN_EXTENSIONS,
 ]);

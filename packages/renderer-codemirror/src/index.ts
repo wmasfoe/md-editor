@@ -111,3 +111,13 @@ export {
   findCodeBlockLanguage,
   type CodeBlockLanguageLoadObserver,
 } from "./markdown/code-languages.ts";
+export {
+  CJK_FRIENDLY_MARKDOWN_EXTENSIONS,
+  cjkFriendlyEmphasisMarkdownExtension,
+  cjkFriendlyStrikethroughMarkdownExtension,
+  resolveCjkFriendlyDelimiterSides,
+  readDelimiterNeighbors,
+  type DelimiterMarker,
+  type DelimiterNeighbors,
+  type DelimiterSides,
+} from "./markdown/cjk-friendly-emphasis.ts";

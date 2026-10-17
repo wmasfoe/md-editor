@@ -200,6 +200,9 @@ renderer
   - 定界符为连续的两个等号 `==`（ASCII 61）；
   - 连续 3 个及以上等号（如 `===`）不解析为高亮标记，防止破坏标题底线或自定义分隔；
   - 遵循 CommonMark 强调（Emphasis）空白与标点环视规则（开定界符后不可紧贴空白，闭定界符前不可紧贴空白）；
+    标点分类与 flanking 判定**复用核心导出的 `resolveCjkFriendlyDelimiterSides` / `readDelimiterNeighbors`**
+    （中文标点邻接场景与 `**粗体**` / `~~删除~~` 同口径，不再在插件内复刻正则；规则与已知边界见
+    [CJK 友好强调契约规范](../specs/cjk_friendly_emphasis_spec.md)）；
   - 配置 `after: "Emphasis"`，原生参与 Lezer 行内定界符配对树，自洽支持与粗体、斜体嵌套（如 `==**粗体高亮**==` 或 `**==高亮粗体==**`）；
   - 反斜杠转义 `\==` 安全保持纯文本。
 
