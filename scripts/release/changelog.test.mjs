@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatPrSuffix, updateChangelogContents } from "./changelog.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { formatPrSuffix, updateChangelogContents, updateChangelogPair } from "./changelog.mjs";
 
 test("formatPrSuffix formats single number or array correctly", () => {
   assert.equal(formatPrSuffix(undefined), "");
@@ -104,4 +107,65 @@ test("inserts after a platform-suffixed title without duplicating the heading", 
     /^# Changelog - Inkpoint iOS\n\n## 0\.2\.1 - 2026-10-07\n\n- 自签分发链路\n\nAll notable changes\./u,
   );
   assert.ok(next.includes("## 0.1.0 - 2026-09-16"));
+});
+
+test("updateChangelogPair writes both ZH and EN entries with EN notes when provided", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "changelog-pair-"));
+  const zhPath = path.join(dir, "CHANGELOG.md");
+  const enPath = path.join(dir, "CHANGELOG_EN.md");
+  fs.writeFileSync(zhPath, "# Changelog\n");
+  fs.writeFileSync(enPath, "# Changelog\n");
+
+  const result = updateChangelogPair({
+    zhPath,
+    enPath,
+    version: "1.2.3",
+    notes: "中文说明",
+    notesEn: "English notes",
+    date: "2026-01-02",
+  });
+
+  assert.equal(result.zh.changed, true);
+  assert.equal(result.en.changed, true);
+  assert.match(fs.readFileSync(zhPath, "utf8"), /## 1\.2\.3 - 2026-01-02[\s\S]*- 中文说明/u);
+  assert.match(fs.readFileSync(enPath, "utf8"), /## 1\.2\.3 - 2026-01-02[\s\S]*- English notes/u);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("updateChangelogPair falls back to zh notes when notesEn is absent", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "changelog-pair-fallback-"));
+  const zhPath = path.join(dir, "CHANGELOG.md");
+  const enPath = path.join(dir, "CHANGELOG_EN.md");
+  fs.writeFileSync(zhPath, "# Changelog\n");
+  fs.writeFileSync(enPath, "# Changelog\n");
+
+  updateChangelogPair({
+    zhPath,
+    enPath,
+    version: "1.2.4",
+    notes: "same notes",
+    date: "2026-01-03",
+  });
+
+  // 关键：两文件首条版本一致（apps/site 的 changelog 解析测试依赖此不变量）
+  assert.match(fs.readFileSync(enPath, "utf8"), /## 1\.2\.4 - 2026-01-03/u);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("updateChangelogPair skips EN when the EN file does not exist", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "changelog-pair-missing-"));
+  const zhPath = path.join(dir, "CHANGELOG.md");
+  fs.writeFileSync(zhPath, "# Changelog\n");
+
+  const result = updateChangelogPair({
+    zhPath,
+    enPath: path.join(dir, "CHANGELOG_EN.md"),
+    version: "1.2.5",
+    notes: "zh only",
+    date: "2026-01-04",
+  });
+
+  assert.equal(result.en, null);
+  assert.match(fs.readFileSync(zhPath, "utf8"), /## 1\.2\.5 - 2026-01-04/u);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
