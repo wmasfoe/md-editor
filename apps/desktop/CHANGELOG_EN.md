@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.2 - 2026-10-17 (#159)
+
+- Fixed bold, italic, strikethrough and highlight failing when adjacent to CJK punctuation: patterns such as **"quote"**, ~~"strike"~~ and =="mark"== used to degrade into literal text, and could even mis-pair with a later marker (bolding the text in between). They now parse with the CJK-friendly rules; non-CJK text is unaffected, and the editor output matches the mobile reader, Quick Look preview and HTML export.
+
 All notable changes to the Inkpoint desktop application will be documented in this file.
 
 ## 0.13.1 - 2026-10-17
