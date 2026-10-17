@@ -450,6 +450,10 @@ jobs:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
           IS_PRERELEASE: ${{ steps.release_version.outputs.is_prerelease }}
           GITHUB_REPO: ${{ github.repository }}
+          # 同步历史清单需要读取 GitHub Releases；不带 token 时匿名调用会被 403 限流，
+          # 桌面端历史版本会因此从清单中消失（2026-10-17 线上事故根因）。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "::warning ::CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID is not configured. Skipping R2 desktop upload."

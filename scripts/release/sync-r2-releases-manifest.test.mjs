@@ -2,9 +2,43 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildIosReleaseEntry,
+  evaluateReleaseHistoryShrink,
   matchPlatform,
   transformGitHubReleases,
 } from "./sync-r2-releases-manifest.mjs";
+
+function desktopEntry(version, fileName = `Inkpoint_${version}_aarch64.dmg`) {
+  return {
+    version,
+    tagName: `v${version}`,
+    publishedAt: "2026-10-01T12:00:00Z",
+    isLatest: false,
+    isPrerelease: false,
+    category: "desktop",
+    releaseNotesUrl: `https://github.com/wmasfoe/md-editor/releases/tag/v${version}`,
+    assets: [
+      {
+        platform: "macos-arm64",
+        platformLabel: "macOS (Apple Silicon) · DMG",
+        fileName,
+        downloadUrl: `https://download.jiaqi.im/inkpoint/${version}/${fileName}`,
+        sizeBytes: 30000000,
+        formattedSize: "29 MB",
+        isR2Cached: false,
+      },
+    ],
+  };
+}
+
+function rawGitHubRelease(version, assetName = `Inkpoint_${version}_aarch64.dmg`) {
+  return {
+    tag_name: `v${version}`,
+    published_at: "2026-10-17T09:51:15Z",
+    prerelease: false,
+    html_url: `https://github.com/wmasfoe/md-editor/releases/tag/v${version}`,
+    assets: [{ name: assetName, size: 30961854 }],
+  };
+}
 
 function iosReleaseEntry(version, publishedAt) {
   return {
@@ -262,5 +296,150 @@ describe("matchPlatform linux arch labels", () => {
       "Linux (x86_64) · AppImage",
     );
     assert.equal(matchPlatform("Inkpoint_0.12.1_amd64.deb").platformLabel, "Linux (x86_64) · DEB");
+  });
+});
+
+describe("历史桌面端版本保留（回归：发布时 GitHub 403 曾清空下载中心）", () => {
+  it("GitHub 返回 0 条时仍保留线上/fallback 的桌面端历史", () => {
+    const existing = [
+      desktopEntry("0.13.0"),
+      desktopEntry("0.12.1"),
+      desktopEntry("0.12.0"),
+      {
+        version: "0.2.1",
+        tagName: "android-v0.2.1",
+        publishedAt: "2026-10-01T00:00:00Z",
+        isLatest: true,
+        isPrerelease: true,
+        category: "android",
+        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.2.1",
+        assets: [
+          {
+            platform: "android",
+            platformLabel: "Android · APK (Beta)",
+            fileName: "Inkpoint_0.2.1.apk",
+            downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.2.1/Inkpoint_0.2.1.apk",
+            sizeBytes: 45000000,
+            formattedSize: "43 MB",
+            isR2Cached: true,
+          },
+        ],
+      },
+    ];
+
+    const manifest = transformGitHubReleases([], "inkpoint", "https://download.jiaqi.im", {
+      existingReleases: existing,
+    });
+
+    const desktop = manifest.releases.filter((r) => r.category === "desktop");
+    assert.deepEqual(
+      desktop.map((r) => r.version),
+      ["0.13.0", "0.12.1", "0.12.0"],
+    );
+    assert.equal(desktop[0].isLatest, true);
+    assert.equal(desktop[1].isLatest, false);
+    assert.equal(manifest.latestDesktopVersion, "0.13.0");
+    // 移动端历史同样不得丢
+    assert.equal(manifest.latestAndroidVersion, "0.2.1");
+  });
+
+  it("同一版本以 GitHub 的新数据为准，且不产生重复条目", () => {
+    const manifest = transformGitHubReleases(
+      [rawGitHubRelease("0.13.1", "Inkpoint_0.13.1_aarch64-fresh.dmg")],
+      "inkpoint",
+      "https://download.jiaqi.im",
+      {
+        existingReleases: [
+          desktopEntry("0.13.1", "Inkpoint_0.13.1_stale.dmg"),
+          desktopEntry("0.13.0"),
+        ],
+      },
+    );
+
+    const desktop = manifest.releases.filter((r) => r.category === "desktop");
+    assert.deepEqual(
+      desktop.map((r) => r.version),
+      ["0.13.1", "0.13.0"],
+    );
+    assert.equal(desktop[0].assets[0].fileName, "Inkpoint_0.13.1_aarch64-fresh.dmg");
+    assert.equal(desktop[0].isLatest, true);
+  });
+});
+
+describe("evaluateReleaseHistoryShrink", () => {
+  const baseline = [desktopEntry("0.13.0"), desktopEntry("0.12.1")];
+  const android = {
+    version: "0.2.1",
+    category: "android",
+    assets: [],
+  };
+
+  it("放行历史增长与持平", () => {
+    const grown = evaluateReleaseHistoryShrink({
+      baselineReleases: baseline,
+      nextManifest: { releases: [desktopEntry("0.13.1"), ...baseline, android] },
+    });
+    assert.equal(grown.ok, true);
+    assert.equal(grown.next.desktop, 3);
+
+    const equal = evaluateReleaseHistoryShrink({
+      baselineReleases: baseline,
+      nextManifest: { releases: baseline },
+    });
+    assert.equal(equal.ok, true);
+    assert.equal(equal.shrinkages.length, 0);
+  });
+
+  it("拦截桌面端历史收缩（本次线上事故形态）", () => {
+    const guarded = evaluateReleaseHistoryShrink({
+      baselineReleases: baseline,
+      nextManifest: { releases: [android] },
+    });
+    assert.equal(guarded.ok, false);
+    assert.deepEqual(
+      guarded.shrinkages.map((s) => `${s.group} ${s.from}->${s.to}`),
+      ["desktop 2->0"],
+    );
+  });
+
+  it("拦截移动端历史收缩", () => {
+    const guarded = evaluateReleaseHistoryShrink({
+      baselineReleases: [android, { ...android, version: "0.2.0" }],
+      nextManifest: { releases: [desktopEntry("0.13.1")] },
+    });
+    assert.equal(guarded.ok, false);
+    assert.deepEqual(
+      guarded.shrinkages.map((s) => s.group),
+      ["mobile"],
+    );
+  });
+
+  it("基线按去重版本计数：线上清单与仓库 fallback 重叠不产生误报", () => {
+    const guarded = evaluateReleaseHistoryShrink({
+      baselineReleases: [...baseline, ...baseline],
+      nextManifest: { releases: baseline },
+    });
+    assert.equal(guarded.ok, true);
+    assert.equal(guarded.baseline.desktop, 2);
+  });
+
+  it("基线中的非版本号脏条目不计入历史（清洗脏数据不算收缩）", () => {
+    const junk = { version: "utools-v0.1.1", category: "desktop", assets: [] };
+    const guarded = evaluateReleaseHistoryShrink({
+      baselineReleases: [...baseline, junk],
+      nextManifest: { releases: baseline },
+    });
+    assert.equal(guarded.ok, true);
+    assert.equal(guarded.baseline.desktop, 2);
+  });
+
+  it("显式 allowShrink 放行主动下架", () => {
+    const guarded = evaluateReleaseHistoryShrink({
+      baselineReleases: baseline,
+      nextManifest: { releases: [] },
+      allowShrink: true,
+    });
+    assert.equal(guarded.ok, true);
+    assert.equal(guarded.allowShrink, true);
   });
 });

@@ -57,6 +57,49 @@
 | `pnpm dev:site` | `site` | 本地启动官网 Next.js 开发环境（端口 3000） |
 | `pnpm dev:worker` | `infra/distribution-worker` | 本地启动 Cloudflare Worker 边缘网关调试环境（Wrangler） |
 
+## 下载中心历史版本清单（`inkpoint/releases.json`）契约
+
+下载中心的版本列表**不是**扫 R2 目录得到的，而是读 R2 里的预构建清单 `inkpoint/releases.json`；
+Worker 优先用该清单，只有清单缺失/为空时才回退到 GitHub Releases API，最后才用仓库内置的
+`infra/distribution-worker/src/fallback-releases.json`。清单由
+`scripts/release/sync-r2-releases-manifest.mjs` 生成并在发版时 `--upload` 覆盖。
+
+因此有两个必须守住的契约：
+
+1. **生成清单必须能读到 GitHub Releases**（桌面端条目唯一来源）：
+   - CI 里必须把 `GITHUB_TOKEN` / `GH_TOKEN` 传给同步步骤（三个 workflow 的 R2 上传步骤已显式传入）。
+     不带 token 时匿名调用 `api.github.com` 会被 **403 限流**；
+   - 本地运行时脚本会用 `gh auth token` 兜底，未登录时同样会降级。
+2. **任何降级都不得缩小历史**：
+   - 历史桌面端条目会从「线上清单 ∪ 仓库 fallback」合并补齐（并清洗 `utools-v*` 这类非发行 tag 脏数据）；
+   - 生成后有一道护栏 `evaluateReleaseHistoryShrink`：桌面端 / 移动端去重版本数少于基线时，
+     **跳过写入与上传**并打印原因（线上清单保持原样）；确需主动下架版本时用
+     `--allow-history-shrink` 或 `ALLOW_RELEASE_HISTORY_SHRINK=true` 显式放行。
+
+### 事故复盘（2026-10-17：下载中心 desktop 只剩最新版）
+
+- 现象：`/inkpoint/desktop/` 只列 `0.13.1`，但 R2 里的历史安装包都还在。
+- 根因链：`release-desktop.yml` 的同步步骤未传 `GITHUB_TOKEN` → `api.github.com` 返回 **403** →
+  脚本把「拉取失败」当成「历史上只有这些版本」（当时桌面端条目只来自 GitHub，且不合并历史）→
+  仍以 `--upload` 覆写 R2 清单 → 桌面端条目归零，页面仅剩 Worker 从 `version.json` 补出的当前版本。
+  证据：该次 Release Desktop App run 日志中 `GitHub API releases page 1 returned HTTP 403` +
+  `✓ Fetched 0 releases from GitHub` + `✅ Successfully uploaded inkpoint/releases.json to R2!`。
+- 已修：CI 传 token；桌面端历史合并；护栏 fail-closed；`fallback-releases.json` 重新生成（补齐 0.10.3–0.13.1）。
+
+### 修复手册（清单被截断时）
+
+```bash
+# 1) 本地（已 gh auth login）重新生成清单：会打印护栏结论，历史不足会拒绝写盘
+node scripts/release/sync-r2-releases-manifest.mjs
+
+# 2) 确认条目数/版本范围正常后，再上传到 R2 并刷边缘缓存
+node scripts/release/sync-r2-releases-manifest.mjs --upload
+node scripts/release/purge-download-cache.mjs
+
+# 3) 线上校验（应能看到完整历史，而不是 1 条桌面版本）
+curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
+```
+
 ## 合并 PR 后的线上部署决策矩阵
 
 当一个 PR 合并入 `main` 分支后，维护者或 Agent 应先执行 `git checkout main && git pull`，并根据本次 PR 涉及的修改范围决定执行哪项上线命令：

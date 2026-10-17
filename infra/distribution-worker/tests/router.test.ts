@@ -8,6 +8,29 @@ import {
   matchDesktopAsset,
 } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
+import fallbackManifest from "../src/fallback-releases.json";
+
+/**
+ * 内置 fallback 清单会随发版重新生成（版本数量与最新版本都会变），
+ * 因此涉及历史版本的断言一律从清单推导，不再写死具体版本号。
+ */
+function fallbackVersions(category: "desktop" | "android" | "ios"): string[] {
+  return (fallbackManifest as { releases: Array<{ category: string; version: string }> }).releases
+    .filter((release) => release.category === category)
+    .map((release) => release.version)
+    .toSorted((a, b) => {
+      const pa = a.split(".").map((part) => Number.parseInt(part, 10) || 0);
+      const pb = b.split(".").map((part) => Number.parseInt(part, 10) || 0);
+      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = pa[i] ?? 0;
+        const nb = pb[i] ?? 0;
+        if (na !== nb) return nb - na;
+      }
+      return 0;
+    });
+}
+
+const fallbackAndroidVersions = fallbackVersions("android");
 
 describe("Distribution Worker Router & Matcher", () => {
   afterEach(() => {
@@ -546,10 +569,9 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(manifest.app).toBe("inkpoint");
     expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
     expect(manifest.releases.every((r) => r.category === "android")).toBe(true);
-    expect(manifest.releases[0].version).toBe("0.1.1");
+    expect(manifest.releases.map((r) => r.version)).toEqual(fallbackAndroidVersions);
     expect(manifest.releases[0].isLatest).toBe(true);
-    expect(manifest.releases[1].version).toBe("0.1.0");
-    expect(manifest.releases[1].isLatest).toBe(false);
+    expect(manifest.releases.slice(1).every((r) => r.isLatest === false)).toBe(true);
   });
 
   it("should return android releases on RESTful /api/inkpoint/releases/android", async () => {
@@ -565,7 +587,7 @@ describe("Distribution Worker Router & Matcher", () => {
       releases: Array<{ version: string; category: string }>;
     };
     expect(manifest.releases.length).toBeGreaterThanOrEqual(2);
-    expect(manifest.releases[0].version).toBe("0.1.1");
+    expect(manifest.releases[0].version).toBe(fallbackAndroidVersions[0]);
   });
 
   it("should 302 redirect non-app release APIs /api/android/releases and /api/releases/android to canonical path", async () => {
@@ -762,8 +784,8 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     expect(data.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(data.latestAndroidVersion).toBe("0.1.1");
-    expect(data.latestReleases?.android?.version).toBe("0.1.1");
+    expect(data.latestAndroidVersion).toBe(fallbackAndroidVersions[0]);
+    expect(data.latestReleases?.android?.version).toBe(fallbackAndroidVersions[0]);
   });
 
   it("should serve 3-segment versioned artifact directly from R2 when available", async () => {
@@ -814,14 +836,18 @@ describe("Distribution Worker Router & Matcher", () => {
     );
 
     expect(manifest.latestDesktopVersion).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(manifest.latestAndroidVersion).toBe("0.1.1");
+    expect(manifest.latestAndroidVersion).toBe(fallbackAndroidVersions[0]);
     expect(manifest.releases.some((r) => r.category === "desktop")).toBe(true);
-    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.1")).toBe(
-      true,
-    );
-    expect(manifest.releases.some((r) => r.category === "android" && r.version === "0.1.0")).toBe(
-      true,
-    );
+    expect(
+      manifest.releases.some(
+        (r) => r.category === "android" && r.version === fallbackAndroidVersions[0],
+      ),
+    ).toBe(true);
+    expect(
+      manifest.releases.some(
+        (r) => r.category === "android" && r.version === fallbackAndroidVersions.at(-1),
+      ),
+    ).toBe(true);
   });
 
   it("should return edge ISR Cache-Control headers on HTML and API responses", async () => {
@@ -956,10 +982,53 @@ describe("Distribution Worker Router & Matcher", () => {
     const html = await res.text();
     expect(html).toContain("0.1.1/");
     expect(html).toContain("0.1.0/");
-    expect(html).toContain("共 2 个版本");
+    expect(html).toContain(`共 ${fallbackAndroidVersions.length} 个版本`);
   });
 
   it("should filter out non-desktop and non-android releases (e.g. utools-v*, web-v*) from manifest", async () => {
+    // 该用例只验证「发行 tag 过滤」，因此显式 stub GitHub API：
+    // 否则会依赖真实网络（被限流时走 bundled fallback，断言随 fallback 数据漂移而失败）。
+    const githubReleases = [
+      {
+        tag_name: "v0.13.1",
+        published_at: "2026-10-17T09:51:15Z",
+        prerelease: false,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.1",
+        assets: [{ name: "Inkpoint_0.13.1_aarch64.dmg", size: 30961854 }],
+      },
+      {
+        tag_name: "android-v0.2.1",
+        published_at: "2026-10-01T00:00:00Z",
+        prerelease: true,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.2.1",
+        assets: [{ name: "Inkpoint_0.2.1.apk", size: 45000000 }],
+      },
+      {
+        tag_name: "utools-v0.1.1",
+        published_at: "2026-09-18T00:00:00Z",
+        prerelease: false,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/utools-v0.1.1",
+        assets: [{ name: "inkpoint-utools-0.1.1.zip", size: 1200000 }],
+      },
+      {
+        tag_name: "web-v0.1.0",
+        published_at: "2026-09-18T00:00:00Z",
+        prerelease: false,
+        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/web-v0.1.0",
+        assets: [{ name: "inkpoint-web-0.1.0.tar.gz", size: 800000 }],
+      },
+    ];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/releases/latest")) {
+        return new Response(JSON.stringify(githubReleases[0]), { status: 200 });
+      }
+      if (url.includes("/releases")) {
+        return new Response(JSON.stringify(githubReleases), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    });
+
     const env: Env = {
       DEFAULT_APP: "inkpoint",
       GITHUB_REPO: "wmasfoe/md-editor",
