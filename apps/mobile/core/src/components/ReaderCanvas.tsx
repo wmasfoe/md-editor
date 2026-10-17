@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from "react";
 import { renderStaticHtml } from "@md-editor/compiler";
+import { ensureKatexStylesheet } from "@md-editor/syntax-plugins";
 import { hydrateMermaid, extractOutline } from "../lib/plugin-renderer.ts";
 import { bridge } from "../bridge/index.ts";
 
@@ -22,6 +23,12 @@ export const ReaderCanvas: React.FC<ReaderCanvasProps> = ({ content, onEnterEdit
       outline: extractedOutline,
     };
   }, [content]);
+
+  // 阅读器把 compiler 输出的 HTML 片段注入宿主 DOM（片段不含内联样式），
+  // 因此这里显式索取 KaTeX 官方样式；样式唯一来源在 @md-editor/syntax-plugins。
+  useEffect(() => {
+    void ensureKatexStylesheet();
+  }, []);
 
   // 大纲解析完成后，上报给原生端（供 iOS / Android 原生大纲侧边栏使用）
   useEffect(() => {

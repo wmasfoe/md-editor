@@ -16,7 +16,7 @@ export {
   MathInlineWidget,
   MathBlockWidget,
 } from "./math-projection.ts";
-export { loadKatex, getLoadedKatex, renderMathHtml } from "./math-loader.ts";
+export { loadKatex, getLoadedKatex, renderMathHtml, ensureKatexStylesheet } from "./math-loader.ts";
 
 /**
  * 官方 LaTeX 数学公式扩展插件（Math Syntax Plugin）。
