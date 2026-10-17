@@ -206,6 +206,9 @@ jobs:
       - name: Upload IPA & Manifest to Cloudflare R2
         if: steps.version.outputs.publish == 'true'
         env:
+          # 历史清单同步需要 GitHub Releases 读取权限（匿名调用会被 403 限流）
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
