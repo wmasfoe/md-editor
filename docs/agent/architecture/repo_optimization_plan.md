@@ -15,6 +15,9 @@
 | O3 | `distribution-worker/src/router.ts`（2097 行）拆分 | `refactor/split-distribution-router` |
 | O4 | 工程门禁与包体预算护栏补齐 | `ci/structure-and-bundle-gates` |
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
+| O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
+
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已实施**（`perf/dedupe-katex-version`，基于 main）；其余均未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -86,6 +89,16 @@
 - 首选：根 `package.json` 增加 scoped override（概念形式 `mermaid>katex: 0.18.6`），重算锁文件。可行性依据：mermaid 的 ESM 路径只在 `dist/chunks/mermaid.core/chunk-DU6HZSFF.mjs:5212-5245` 使用 KaTeX，且**唯一调用是 `katex.renderToString(tex, { throwOnError, displayMode, output })`**，`output` 取 `mathml`/`htmlAndMathml`；本地两份 `types/katex.d.ts` 中该签名与取值域一致。
 - 归因提醒：`peerDependenciesMeta` **不能**完成收敛（mermaid 把 katex 放在 `dependencies`）；mermaid 的 `dist/mermaid.js` 单体 UMD 内嵌 0.16.47 副本不受 override 影响。
 - 合并前必须补 mermaid 数学图回归（现有 `packages/syntax-plugins/tests/mermaid.test.ts:175-195` 不含 `$$…$$` 场景）。
+
+**P1 实施记录（已完成，分支 `perf/dedupe-katex-version`，基于 main）**
+
+- **重要修正（与上文的偏离）**：pnpm 11 **不再读取 `package.json` 的 `pnpm` 字段**（实测警告：`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides"`）。override 必须写在 `pnpm-workspace.yaml`；父子选择器 `"mermaid>katex"` 语法可用。
+- 落地：`pnpm-workspace.yaml` 新增 `overrides: { "mermaid>katex": "0.18.6" }`（附原因注释 + 回归证据路径）。
+- 回归（先补，且均在 override 前跑通基线）：
+  - `packages/syntax-plugins/tests/katex-mermaid-contract.test.ts`：锁定 mermaid 的调用形状 `renderToString(c, { throwOnError: true, displayMode: true, output: "mathml" | "htmlAndMathml" })` 与 `throwOnError` 语义；
+  - `apps/desktop/e2e/codemirror-mermaid-math.spec.ts`：真实浏览器里载入含 `A["$$x^2+y^2=z^2$$"]` 的 mermaid 图，断言 SVG 内 `.katex` 存在且无降级文案（node 环境不可行：mermaid.render 需要真实 DOM）。
+- 实测效果：lockfile 仅剩 `katex@0.18.6`（0.16.47 条目消失）；web dist **6.7 MB → 6.5 MB**；katex JS chunk **2 → 1**（三端各省 261,329 B / gzip 77,272 B，合计 ≈ 765 kB / gzip ≈ 226 kB）；mermaid chunk 尺寸不变（688,940 → 688,936 B）。
+- 边界：`apps/mobile/core` 因 compiler 静态引入 katex，会把 katex 内联进主 chunk（无独立 chunk 文件），但全产物仍只有 **1 份** katex 代码；断言口径应为「含 katex 代码的 JS 产物数 = 1」而非「chunk 文件名」。`node_modules/.pnpm/katex@0.16.47` 目录会磁盘残留（pnpm 不 prune），不参与解析。
 
 **备选对比**
 
