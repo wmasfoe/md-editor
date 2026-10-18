@@ -83,6 +83,4 @@ pnpm test
 # 执行 TypeScript 类型校验
 pnpm typecheck
 
-# 单独构建该子包
-pnpm build
 ```

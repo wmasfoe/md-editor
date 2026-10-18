@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已合并**（#170，squash `af7b922`）；**O3（router.ts 拆分）已实施**（`refactor/split-distribution-router`）；O5-3 已核实无需清理；O6 未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已合并**（#170，squash `af7b922`）；**O3（router.ts 拆分）已合并**（#171，squash `e669ea3`）；**O6（构建产物语义）已实施**（`chore/build-artifact-semantics`）；O5-3 已核实无需清理。**本轮 7 项全部完成。**
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -272,6 +272,14 @@ infra/distribution-worker/src/
 2. **发布链路疑似重复构建**：`release-web.yml:50-65` 先 `pnpm build:web` 再 `pnpm deploy:web`，而 `scripts/web/deploy-web.mjs:158-165` 又会执行 `vercel build --prod` + `--prebuilt` 部署；`apps/site` 类似（CI `next build` + `scripts/site/deploy-site.mjs:37-38` 的 Vercel build）。**在确认 Vercel 是否复用前不得直接移除 CI 侧构建**（它可能是唯一的 PR 可见验证）；本项先做确认与记录，再决定是否去重。
 
 真实交付物清单（保留，勿删）：Desktop frontend bundle（`tauri.conf.json` `frontendDist: ../dist`）、Mobile `dist`（由 `scripts/mobile/sync-mobile-web.mjs` 注入 iOS/Android 资源）、uTools `dist`（含生成的 release `plugin.json`）、QuickLook `quicklook-engine.js`（由 `packages/compiler/src/index.ts` 打包，`build-quicklook.sh` 复制进 `.appex`）。另注：`test:quicklook` 会注册系统扩展与操作 `/Applications`，属开发者 smoke，不应进 CI（CI 用 bundle 构建/校验路径）。
+
+**O6 实施记录（已完成，分支 `chore/build-artifact-semantics`）**
+
+- 核实（第 1 项）：`tsconfig.base.json:17` 为 `noEmit: true`，12 个 `packages/*` 的 `build` 都是 `tsc -p tsconfig.json` → **不产出任何产物**（`packages/*/dist` 不存在，仓库内 0 处引用）；CI 与脚本也**从不调用根 `pnpm build`**（只用 app 级 `build:web|macos|site|mobile|utools`）。
+- 落地：删除 12 个包的 `build` 脚本（与 `pnpm typecheck` 完全等价，保留只会误导“能构建出产物”），并同步 3 个把它写成“编译子包 / 单独构建该子包”的 README（`packages/{compiler,editor-ui,editor-core}/README.md`）。根 `pnpm build` 语义因此变为“只构建 5 个应用产物”；显式类型检查由 `pnpm typecheck` 承担（CI 与 release 链路均已显式调用）。
+- 核实（第 2 项）：`release-web.yml` 先 `pnpm build:web` 再 `pnpm deploy:web`，而 `scripts/web/deploy-web.mjs:158-167` 自己会 `vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt`；`apps/site` 的 `scripts/site/deploy-site.mjs:37-38` 同样。**结论：同一份源码确实会被构建两次，但不是重复劳动** —— 部署消费的是 Vercel 自己的 `.vercel/output`，本地 `apps/web/dist` 并不参与部署；`pnpm build:web` 的角色是“部署前构建验证”（且 #169 已把它加进 PR CI，PR 阶段即可拦住构建期问题）。
+- 决定：**保留** `release-web.yml` 的 `pnpm build:web`（生产前最后一道构建门禁，成本低），并把“构建两次”的事实记录在此，避免后人误判为可删的冗余。
+- 验证：`pnpm build` 只构建 5 个应用（含 desktop 的 QuickLook 扩展）✅；`pnpm typecheck` 仍覆盖 18 个工作区（12 包 + 5 应用 + worker）✅；`pnpm lint` ✅。
 
 ---
 
