@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已实施**（`ci/structure-guard-and-web-build`）；O3/O5-2/O6 未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已实施**（`chore/catalog-consolidation`）；O5-3 已核实无需清理；O3/O6 未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -215,7 +215,7 @@ infra/distribution-worker/src/
 
 `docs/agent/status/codemirror_renderer_migration_status.md` 记录 S6「未开始」。已有 `diagnostics.ts` 计数器 + `code-block-performance` 单测/e2e 先例，建议先固化"编辑器打开 + 首次投影 + 单字符输入"三个 fixture 的计数与耗时门槛，再逐步扩展，不新造观测设施。
 
-**O4b 实施记录（已完成，分支 `ci/structure-guard-and-web-build`，基于 main）**
+**O4b 实施记录（已合并，分支 `ci/structure-guard-and-web-build` / PR #169，squash `af82475`）**
 
 - 先核实了在途分支 `origin/ci/split-validation-and-macos-build`：**最后提交 2026-07-07（3 个多月前）、从未合并**；其 `ci.yml` 只在 ubuntu 跑 `pnpm lint`/`test`/`test:rust`，**没有 Browser E2E，且 Rust 三平台 matrix 收敛为单平台**。因此不做“等它落地 / cherry-pick 它”的取舍，改为在 main 的 `build-desktop.yml` 上最小补齐。
 - 改动两处：
@@ -230,8 +230,28 @@ infra/distribution-worker/src/
 ### O5 依赖卫生
 
 1. **消除 katex CSS 幽灵依赖**（与 O1 P0 同批）：要么在 `apps/{desktop,web,utools}` 声明 `katex`，要么（更符合边界原则）把 CSS 归属移入 `packages/syntax-plugins`（它已声明 katex），由包自己负责样式，app 不再出现裸 specifier。倾向后者。
-2. **catalog 收口**：当前 `pnpm-workspace.yaml#catalog` 14 个键；仓库自管 `package.json` 共 **118 处** `catalog:` 与 **50 处**字面量；"在 catalog 中却仍写字面量"的情况为 **0**（一致）。建议补录高频共享依赖：`katex`、`@types/katex`、`mermaid`、`@codemirror/state`、`@codemirror/view`、`@lezer/common`、`@lezer/markdown`、`@tailwindcss/*` 之外的 `react-scope` 复核。不改 `react` 范围（`>=18.3.0 <20` 只在 desktop 出现，先单独确认）。
+2. **catalog 收口**：**口径修正** —— `pnpm-workspace.yaml#catalog` 实际有 **33 个键**（早前统计只解析了带引号的键，漏掉 `postcss`/`react`/`typescript`/`vite`/`vitest`/`zustand`/`i18next` 等未加引号的键，因此“118 处 catalog: / 50 处字面量”的对比不准确）。真实缺口只是少数**跨包共享**依赖：`katex`、`@types/katex`、`mermaid`、`@codemirror/state`、`@codemirror/view`、`@lezer/common`、`@lezer/markdown`。不改 `react` 范围（`>=18.3.0 <20` 只在 desktop 出现，先单独确认）。
 3. **分支卫生**：按 AGENTS.md 第 11 条清理已合并的远程分支（`gh pr merge --delete-branch` 之后的遗留），避免后续审计继续被噪声干扰。
+
+**O5-1 实施记录（已合并，#165 / squash `6f75c81`）**
+
+- 选择“在应用里声明 `katex`”而非“把样式归属下沉到包内”：后者（实测）会让 KaTeX 样式跟随包含 math 模块的 chunk 走（desktop 从入口 CSS 移到 `SettingsDialog-*.css`），属行为不确定的构建细节。
+- 新增契约测试 `packages/syntax-plugins/tests/katex-stylesheet-contract.test.ts`：引入官方样式的应用必须声明 `katex`；包内不得引入官方样式（防重复投放）。
+
+**O5-2 实施记录（已完成，分支 `chore/catalog-consolidation`）**
+
+- 补录 7 个键并收口 **18 处**声明（各消费方原声明完全一致，收口不产生版本变化）：
+  - `katex ^0.18.6`（7 个消费方：web / desktop / utools / mobile-core / site / compiler / syntax-plugins）—— 与 `overrides` 联动，必须全仓一致；
+  - `@types/katex ^0.16.8`（compiler、syntax-plugins）；
+  - `mermaid ^11.17.2`（syntax-plugins；版本与 katex override 耦合）；
+  - CodeMirror 6 家族 `@codemirror/state ^6.6.0`、`@codemirror/view ^6.43.1`、`@lezer/common ^1.5.2`、`@lezer/markdown ^1.8.0`（renderer-codemirror、syntax-plugins）—— 多实例会导致状态/视图错乱，必须版本对齐。
+- 未收口（单消费方，留在各自包内）：`@codemirror/lang-*`、`@codemirror/language|commands|search|legacy-modes`、`@lezer/highlight|yaml`、`highlight.js`、`marked*`、`micromark-extension-cjk-friendly-util`、`@sentry/react`、`@tauri-apps/plugin-*`、`react-icons`、`lxgw-wenkai-webfont`、`@samasante/liquid-glass`。
+- 验证：lockfile 差异仅为 `catalogs` 新增条目 + `importers` 的 `specifier` 改为 `catalog:`，**解析版本未变**；`pnpm typecheck` / `pnpm test`（含 test:bundle）/ `pnpm lint` 全绿。
+
+**O5-3 实施记录（已核实，无需清理）**
+
+- 会话开始时远程的 30+ 个“已合并未删”分支已被清理；当前 12 个非保护分支**全部携带未合并提交**（squash 合并会让 `rev-list` 误报，因此用“PR 状态 + `git diff main...branch` 是否为空”双口径核实）。
+- 其中 5 个的 PR 为 **CLOSED 而非 merged**（`ci/split-validation-and-macos-build` #18、`feat/desktop-r2-distribution` #73、`feature/hierarchical-device-releases` #77、`feature/liquid-glass-group` #24、`fix-windows-issues` #36），另有 4 个无 PR 的旧分支；这些属“被放弃的提案”，是否删除由仓库 owner 决定（本轮不动）。
 
 ---
 
