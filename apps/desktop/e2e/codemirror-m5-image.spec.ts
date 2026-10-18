@@ -113,6 +113,29 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await expect(overlay).toHaveAttribute("aria-modal", "true");
     await expect(overlay).toBeFocused();
 
+    // 图片几何：contain 于视口内且居中。
+    // 这条断言是为了锁住「静态模式不得施加变换」——若会话对 zoomPan:false 也 setTransform，
+    // 图片会被二次缩放并整体偏移，而只看浮层根计算样式是看不出来的（实测漏过一次）。
+    const imageGeometry = await overlay.locator("img").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(imageGeometry.width).toBeLessThanOrEqual(imageGeometry.viewportWidth * 0.93);
+    expect(imageGeometry.height).toBeLessThanOrEqual(imageGeometry.viewportHeight * 0.93);
+    expect(Math.abs(imageGeometry.centerX - imageGeometry.viewportWidth / 2)).toBeLessThanOrEqual(
+      2,
+    );
+    expect(Math.abs(imageGeometry.centerY - imageGeometry.viewportHeight / 2)).toBeLessThanOrEqual(
+      2,
+    );
+
     await page.keyboard.press("Escape");
     await expect(overlay).toHaveCount(0);
   });

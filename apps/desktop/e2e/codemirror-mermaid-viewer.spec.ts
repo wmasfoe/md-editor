@@ -338,6 +338,53 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(page.locator(".cm-content")).toBeFocused();
   });
 
+  test("AC6: 滚轮缩放与双击复位（并验证缩放真的改变几何）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const readScale = (): Promise<number> =>
+      overlay
+        .locator("svg")
+        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+    const initialScale = await readScale();
+
+    const box = await overlay.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(0, -400);
+    }
+    const zoomedScale = await readScale();
+    expect(zoomedScale).toBeGreaterThan(initialScale);
+
+    await overlay.dblclick();
+    expect(Math.abs((await readScale()) - initialScale)).toBeLessThan(0.01);
+  });
+
+  test("AC16: 重复开关无残留；关闭后 Escape 不再有效果（document 级监听已注销）", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+
+    for (let index = 0; index < 2; index += 1) {
+      await page.locator(".cm-md-mermaid-container").first().click();
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    }
+
+    // 关闭后 document 级监听应已注销：Escape 不得再产生任何副作用
+    const before = await readDoc(page);
+    await page.keyboard.press("Escape");
+    expect(await readDoc(page)).toBe(before);
+    expect(await page.locator(".cm-md-media-viewer").count()).toBe(0);
+  });
+
   test("AC10: 浮层内 SVG 的 id 与正文 SVG 无交集，且引用可解析", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);
@@ -369,11 +416,26 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
           }
         }
       }
-      return { overlayIds, bodyIds, dangling };
+      // 真实产出的额外证据：浮层内 <style> 文本不得残留正文 id 标识符 token
+      // （node 夹具只能覆盖已知形态，这里用浏览器序列化的真实 mermaid 输出做补刀）
+      const styleLeakedTokens: string[] = [];
+      if (overlaySvg) {
+        const styleText = Array.from(overlaySvg.querySelectorAll("style"))
+          .map((node) => node.textContent ?? "")
+          .join("\n");
+        for (const id of bodyIds) {
+          const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (new RegExp(`(^|[^-A-Za-z0-9_])${escaped}([^-A-Za-z0-9_]|$)`).test(styleText)) {
+            styleLeakedTokens.push(id);
+          }
+        }
+      }
+      return { overlayIds, bodyIds, dangling, styleLeakedTokens };
     });
 
     expect(result.overlayIds.length).toBeGreaterThan(0);
     expect(result.overlayIds.some((id) => result.bodyIds.includes(id))).toBe(false);
     expect(result.dangling).toEqual([]);
+    expect(result.styleLeakedTokens).toEqual([]);
   });
 });
