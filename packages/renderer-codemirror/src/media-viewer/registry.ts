@@ -27,11 +27,6 @@ export interface MediaViewerRegistry<THandle extends ViewerHandleLike> {
   has(host: object): boolean;
   /** 仅注销登记（句柄已在别处关闭时使用，避免重复 close）。 */
   forget(host: object): void;
-  /**
-   * 推荐的开启序列：**先关旧、再建新**。
-   * 顺序不可颠倒——若先建新再关旧，同一 host 名下会短暂存在两个浮层（两个 `document` 级监听）。
-   */
-  replace(host: object, create: () => THandle): THandle;
 }
 
 export function createMediaViewerRegistry<
@@ -56,17 +51,6 @@ export function createMediaViewerRegistry<
     },
     forget(host) {
       byHost.delete(host);
-    },
-    replace(host, create) {
-      // 重复 open 守卫：同 host 已有句柄时先关旧（含其 document 级监听与浮层 DOM）
-      const existing = byHost.get(host);
-      if (existing) {
-        byHost.delete(host);
-        existing.close({ restoreFocus: false });
-      }
-      const handle = create();
-      byHost.set(host, handle);
-      return handle;
     },
   };
 }

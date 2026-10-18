@@ -89,11 +89,8 @@ export function createRecordingKeyboard(): RecordingKeyboard {
     add: (listener) => {
       listeners.push(listener);
     },
-    remove: (listener) => {
-      const index = listeners.indexOf(listener);
-      if (index >= 0) {
-        listeners.splice(index, 1);
-      }
+    remove: () => {
+      listeners.length = 0;
     },
     dispatch: (event) => listeners.map((listener) => listener(event) === true),
   };

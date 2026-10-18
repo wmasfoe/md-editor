@@ -45,13 +45,39 @@ export interface MediaViewerOptions {
 }
 
 export interface MediaViewerHandle {
-  /** 浮层根元素（供调用方做定位/尺寸断言；契约要求该字段可用，不得为死字段）。 */
-  readonly element: HTMLElement;
   close(options?: { readonly restoreFocus?: boolean }): void;
 }
 
 /** 模块级 host 键控登记表（唯一所有权来源；生命周期逻辑见 `registry.ts` 的单测）。 */
 const registry = createMediaViewerRegistry<MediaViewerHandle>();
+
+/**
+ * 让背景在模态打开期间不可交互（`inert`）：否则按 Tab 会回到编辑器，
+ * 其后键入会修改“被模态盖住”的文档，而浮层却声称 `aria-modal`。
+ * 本仓已有 inert 先例（CodeMirrorEditor.tsx / AppSidebar.tsx）。
+ * 返回恢复函数（幂等：只在本次确实设置过时移除）。
+ */
+function inertBackground(doc: Document, overlay: HTMLElement): () => void {
+  const appRoot = doc.getElementById("root") ?? doc.body.firstElementChild;
+  if (!(appRoot instanceof HTMLElement) || appRoot === overlay || appRoot.contains(overlay)) {
+    return () => undefined;
+  }
+  const alreadyInert = appRoot.hasAttribute("inert");
+  if (!alreadyInert) {
+    appRoot.setAttribute("inert", "");
+  }
+  return () => {
+    if (!alreadyInert) {
+      appRoot.removeAttribute("inert");
+    }
+  };
+}
+
+/** 测量浮层可视区域（缓存于 `openMediaViewer`，由 ResizeObserver 刷新）。 */
+function measureRootSize(root: HTMLElement): { readonly width: number; readonly height: number } {
+  const rect = root.getBoundingClientRect();
+  return { width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
+}
 
 /** 构造样式注入端口（唯一需要类型断言的地方：`head.append` 接受 `Node`）。 */
 function createStylePort(doc: Document): ViewerStylePort {
@@ -219,6 +245,10 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
   let detached = false;
   // 声明必须在会话构造**之前**：键盘端口的 `add` 在构造期同步调用（否则命中 TDZ）
   let keyboard: KeyboardBinding | null = null;
+  // 视口尺寸缓存：避免滚动/拖拽时逐帧 `getBoundingClientRect`（由 ResizeObserver 回调刷新）
+  let viewportSize = measureRootSize(root);
+  // 模态诚实化：浮层打开期间让背景 inert（否则 Tab 回到编辑器后，键入会改到被盖住的文档）
+  const restoreInert = inertBackground(doc, root);
   const styledMedia = media as Element & { style: CSSStyleDeclaration };
 
   const session = createMediaViewerSession(
@@ -230,10 +260,7 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
       setDragging: (dragging: boolean) => {
         root.classList.toggle("cm-md-media-viewer--dragging", dragging);
       },
-      measureViewport: () => {
-        const rect = root.getBoundingClientRect();
-        return { width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
-      },
+      measureViewport: () => viewportSize,
       measureContent: () => contentSize,
       focus: () => root.focus(),
       destroy: () => {
@@ -245,6 +272,7 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
         disposeObserver = null;
         keyboard?.dispose();
         keyboard = null;
+        restoreInert();
         root.remove();
       },
     },
@@ -307,11 +335,13 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
           return () => observer.disconnect();
         };
   if (observe) {
-    disposeObserver = observe(root, () => session.handleResize());
+    disposeObserver = observe(root, () => {
+      viewportSize = measureRootSize(root);
+      session.handleResize();
+    });
   }
 
   const publicHandle: MediaViewerHandle = {
-    element: root,
     close: (closeOptions) => session.handle.close(closeOptions),
   };
   registry.set(host, publicHandle);

@@ -66,10 +66,11 @@ export interface MediaViewerOverlayPort {
   destroy(): void;
 }
 
-/** 文档级键盘端口（**捕获相**注册；注销必须成对）。 */
+/** 文档级键盘端口（**捕获相**注册；注销必须成对，且实现持持有唯一监听者）。 */
 export interface MediaViewerKeyboardPort {
   add(listener: (event: MediaViewerKeyEvent) => void): void;
-  remove(listener: (event: MediaViewerKeyEvent) => void): void;
+  /** 注销当前监听（无需传回 listener：实现自己持有它，与适配层实现一致）。 */
+  remove(): void;
 }
 
 export interface MediaViewerSessionOptions {
@@ -182,7 +183,7 @@ export function createMediaViewerSession(
     closed = true;
     dragging = false;
     dragStart = null;
-    keyboard.remove(onKeyDown);
+    keyboard.remove();
     overlay.destroy();
     options.onClose?.();
     if (closeOptions?.restoreFocus !== false) {

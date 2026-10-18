@@ -35,11 +35,15 @@ function createFakeHandle(id: string): FakeHandle {
 }
 
 describe("宿主键控登记表", () => {
-  it("重复 open 同一 host：先关旧句柄且只保留最新句柄", () => {
+  it("生产开启序列（先 closeFor 旧句柄、再 set 新句柄）：旧句柄被关且只保留最新", () => {
     const registry = createMediaViewerRegistry<FakeHandle>();
     const host = { name: "host" };
-    const first = registry.replace(host, () => createFakeHandle("first"));
-    const second = registry.replace(host, () => createFakeHandle("second"));
+    const first = createFakeHandle("first");
+    registry.set(host, first);
+    // openMediaViewer 的实际顺序：先关旧（避免两个浮层并存）
+    registry.closeFor(host, { restoreFocus: false });
+    const second = createFakeHandle("second");
+    registry.set(host, second);
 
     expect(first.closeCalls.count).toBe(1);
     expect(second.closeCalls.count).toBe(0);
@@ -76,7 +80,8 @@ describe("宿主键控登记表", () => {
   it("restoreFocus 选项透传到句柄", () => {
     const registry = createMediaViewerRegistry<FakeHandle>();
     const host = { name: "host" };
-    const handle = registry.replace(host, () => createFakeHandle("h"));
+    const handle = createFakeHandle("h");
+    registry.set(host, handle);
     registry.closeFor(host, { restoreFocus: true });
     expect(handle.closeCalls.restoreFocus).toBe(true);
   });
@@ -84,7 +89,8 @@ describe("宿主键控登记表", () => {
   it("先 forget 再 closeFor：不会二次关闭（宿主销毁路径）", () => {
     const registry = createMediaViewerRegistry<FakeHandle>();
     const host = { name: "host" };
-    const handle = registry.replace(host, () => createFakeHandle("h"));
+    const handle = createFakeHandle("h");
+    registry.set(host, handle);
     registry.forget(host);
     expect(registry.closeFor(host)).toBe(false);
     expect(handle.closeCalls.count).toBe(0);
