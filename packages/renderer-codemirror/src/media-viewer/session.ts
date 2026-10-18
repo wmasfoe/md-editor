@@ -14,7 +14,6 @@
  */
 import {
   DEFAULT_ZOOM_PAN_LIMITS,
-  clampTransform,
   createInitialTransform,
   panBy,
   zoomAtPoint,
@@ -106,6 +105,9 @@ export interface MediaViewerSession {
 /** 滚轮缩放灵敏度（指数映射，保证连续缩放平滑且与方向无关的对称性）。 */
 const WHEEL_ZOOM_SENSITIVITY = 0.0015;
 
+/** 静态模式的恒等变换（不改变元素几何）。 */
+const IDENTITY_TRANSFORM: ViewerTransform = Object.freeze({ scale: 1, x: 0, y: 0 });
+
 function resolveLimits(zoomPan: MediaViewerZoomPan): ZoomPanLimits {
   return {
     maxScale: zoomPan.maxScale ?? DEFAULT_ZOOM_PAN_LIMITS.maxScale,
@@ -131,12 +133,21 @@ export function createMediaViewerSession(
   const limits = options.zoomPan === false ? null : resolveLimits(options.zoomPan);
   const zoomPanEnabled = limits !== null;
   let closed = false;
-  let transform: ViewerTransform = createInitialTransform(
-    overlay.measureViewport(),
-    overlay.measureContent(),
-    options.fit,
-    limits ?? DEFAULT_ZOOM_PAN_LIMITS,
-  );
+  /**
+   * 静态模式（`zoomPan: false`，图片路径）**不施加任何变换**：sizing 完全由 CSS 拥有
+   * （`.cm-md-media-viewer__media--image` 的 `max-width/max-height + object-fit` 加舞台 flex 居中）。
+   * 若会话也去 setTransform，就是两套 sizing 权威叠加——图片会被二次缩放并整体偏移；
+   * 而且图片在 `load` 之前自然尺寸尚未就绪（测量回退到占位尺寸）会使错位更严重。
+   * 静态模式下的 resize 同样为 no-op（无需重新 fit）。
+   */
+  let transform: ViewerTransform = zoomPanEnabled
+    ? createInitialTransform(
+        overlay.measureViewport(),
+        overlay.measureContent(),
+        options.fit,
+        limits ?? DEFAULT_ZOOM_PAN_LIMITS,
+      )
+    : IDENTITY_TRANSFORM;
   let dragging = false;
   let dragStart: {
     readonly x: number;
@@ -144,12 +155,17 @@ export function createMediaViewerSession(
     readonly transform: ViewerTransform;
   } | null = null;
 
-  overlay.setTransform(transform);
+  if (zoomPanEnabled) {
+    overlay.setTransform(transform);
+  }
   if (options.takeFocus) {
     overlay.focus();
   }
 
   const resetTransform = (): void => {
+    if (!zoomPanEnabled) {
+      return;
+    }
     transform = createInitialTransform(
       overlay.measureViewport(),
       overlay.measureContent(),
@@ -182,7 +198,9 @@ export function createMediaViewerSession(
     }
     const isModK = (event.metaKey || event.ctrlKey) && (event.key === "k" || event.key === "K");
     if (isModK) {
-      // 互斥：关掉查看器，把事件留给命令面板（不 preventDefault、不 stopPropagation）
+      // 互斥：关掉查看器，把事件留给命令面板（不 preventDefault、不 stopPropagation）。
+      // 注：这里**不做平台判定**（接受 Meta 或 Ctrl）：非本平台键会“关查看器但不打开面板”，
+      // 属无害噪声；宁可保持跨平台宽松，也不引入平台检测这一新的注入面。
       close({ restoreFocus: true });
       return false;
     }
@@ -255,21 +273,11 @@ export function createMediaViewerSession(
       resetTransform();
     },
     handleResize: () => {
-      if (closed) {
+      if (closed || !zoomPanEnabled) {
+        // 静态模式：sizing 归 CSS，viewport 变化无需重新 fit，也不得施加变换
         return;
       }
-      if (zoomPanEnabled) {
-        resetTransform();
-        return;
-      }
-      // 图片路径（zoomPan:false）不重算基准，仅保持限位内的确定性
-      transform = clampTransform(
-        transform,
-        overlay.measureViewport(),
-        overlay.measureContent(),
-        DEFAULT_ZOOM_PAN_LIMITS,
-      );
-      overlay.setTransform(transform);
+      resetTransform();
     },
     requestEdit: () => {
       if (closed) {

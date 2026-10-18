@@ -19,10 +19,6 @@ import {
   keyEvent,
 } from "./support/recording-overlay.ts";
 
-const SVG_CONTENT = { kind: "svg", svg: "<svg/>", label: "Mermaid 图表" } as const;
-// 内容注入已移交 DOM 层（buildOverlay）：会话不再持有内容，故此处仅保留类型样例供后续用例引用
-void SVG_CONTENT;
-
 function createHarness(overrides?: Partial<MediaViewerSessionOptions>): {
   readonly session: ReturnType<typeof createMediaViewerSession>;
   readonly overlay: ReturnType<typeof createRecordingOverlay>;

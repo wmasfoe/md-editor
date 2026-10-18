@@ -38,8 +38,7 @@ export interface MediaViewerOptions {
   readonly zoomPan: false | MediaViewerZoomPan;
   /** 打开时是否接管焦点（图片与图表均为 true：浮层是模态，不接管会让键入改到背后文档）。 */
   readonly takeFocus: boolean;
-  /** 视口观测注入点（缺省用 `ResizeObserver`，再退化为 window resize）。 */
-  readonly observeViewport?: ((target: Element, onResize: () => void) => () => void) | undefined;
+  /** 浮层内「编辑源码」入口；仅图表（svg 内容）传入。 */
   readonly onRequestEdit?: (() => void) | undefined;
   /** 关闭后焦点归还（由调用方注入，通常 `() => view.focus()`）。 */
   readonly restoreFocus?: (() => void) | undefined;
@@ -300,14 +299,13 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
   stage.addEventListener("dragstart", (event) => event.preventDefault());
 
   const observe =
-    options.observeViewport ??
-    (typeof ResizeObserver === "undefined"
+    typeof ResizeObserver === "undefined"
       ? null
       : (target: Element, onResize: () => void) => {
           const observer = new ResizeObserver(() => onResize());
           observer.observe(target);
           return () => observer.disconnect();
-        });
+        };
   if (observe) {
     disposeObserver = observe(root, () => session.handleResize());
   }
