@@ -17,7 +17,6 @@ export {
   loadKatex,
   getLoadedKatex,
   renderMathHtml,
-  ensureKatexStylesheet,
 } from "./math/index.ts";
 
 export {

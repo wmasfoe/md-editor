@@ -1,6 +1,5 @@
 @import "tailwindcss";
-/* KaTeX 样式不再全局引入：官网只在水合后的客户端编辑器里渲染公式，
-   样式由 @md-editor/syntax-plugins 按需加载，避免与全局样式重复投放。 */
+@import "katex/dist/katex.min.css";
 @import "lxgw-wenkai-webfont/lxgwwenkai-regular.css";
 @import "lxgw-wenkai-webfont/lxgwwenkai-bold.css";
 

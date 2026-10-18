@@ -139,11 +139,9 @@ renderer
 - **AST 纯净度**：通过 Lezer `parseInline` 与 `parseBlock` 独立扩展注入 `InlineMath`、`BlockMath` 与 `MathMark`。未安装插件时自然降级为纯文本与普通段落，核心渲染器零硬编码。
 
 ### 5.2 异步加载与 LRU 缓存
-- **按需加载**：KaTeX 核心库与字体通过 `loadKatex()` 动态 `import("katex")` 异步加载，不增加主包初次加载体积；
+- **按需打包与尽早预加载**：KaTeX 运行时以动态 `import("katex")` 形式拆为独立 chunk（不进入主包），但**在浏览器环境于模块初始化时尽早预加载**（`math-loader.ts` 的模块作用域预加载块）。这是刻意取舍：首次公式若走「占位符（原始 LaTeX 文本）→ 排版结果」替换，会产生可见的视觉跳变与一次高度重测，其代价高于首屏多一次 chunk 请求的代价。
 - **渲染缓存**：使用容量为 500 的 LRU 缓存结构（`mathCache`），对相同 LaTeX 表达式与 displayMode 组合命中缓存，极大减少视图滚动与重排时的解析与 DOM 创建开销；
-- **样式装配（单一来源）**：KaTeX 官方样式由 `@md-editor/syntax-plugins` 独家拥有并随需加载 —— `src/math/katex-styles.ts` 以副作用导入方式引入 `katex/dist/katex.min.css`，`math-loader.ts` 通过 `import("./katex-styles.ts")` 动态装载；**所有接入端均不再全局 `@import "katex/dist/katex.min.css"`**（全局引入会在未声明 `katex` 的应用里形成幽灵依赖，并与包内装载重复投放同一份样式）。
-  - 触发路径：编辑器路径由公式 widget（`math-projection.ts`）与 `renderMathHtml()` 的未就绪兜底分支经 `loadKatex()` 触发；静态渲染宿主（`apps/mobile/core` 的 `ReaderCanvas` 把 compiler 输出**片段**注入宿主 DOM，片段不含内联样式）显式调用 `ensureKatexStylesheet()`。
-  - 惰性契约：`math-loader.ts` **不得**在模块作用域触发 `loadKatex()`；一切加载只能由上述触发点发起。回归门禁见 `packages/syntax-plugins/tests/math-lazy-loading.test.ts`（含 browser-like 环境不预加载、显式入口幂等、样式归属与无模块作用域副作用四类断言）。
+- **样式装配**：官方样式由各接入端在入口全局引入 `@import "katex/dist/katex.min.css"`（`apps/desktop` / `apps/web` / `apps/utools` / `apps/mobile/core` / `apps/site`），确保离线与打包自包含；**引入样式的应用必须同时声明 `katex` 依赖**（均已声明），否则该样式仅能靠 pnpm 隐式提升解析，属幽灵依赖。`@md-editor/syntax-plugins` 自身不引入官方样式，避免与接入端重复投放。回归门禁见 `packages/syntax-plugins/tests/katex-stylesheet-contract.test.ts`。
 
 ### 5.3 所见即所得就地编辑契约
 - **非激活状态**：

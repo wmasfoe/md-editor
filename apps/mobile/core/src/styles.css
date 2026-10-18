@@ -1,6 +1,5 @@
 @import "tailwindcss";
-/* KaTeX 样式不再全局引入：唯一来源是 @md-editor/syntax-plugins（阅读器经 ensureKatexStylesheet()
-   显式触发，编辑器经公式 widget 惰性触发），避免同一份样式重复投放。 */
+@import "katex/dist/katex.min.css";
 @source "../../../packages/editor-ui/src";
 
 :root {

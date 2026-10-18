@@ -63,7 +63,7 @@
 
 ### O1 KaTeX 运行时收敛
 
-**P0：去掉启动即加载 + CSS 惰性化**
+**P0：去掉启动即加载 + CSS 惰性化（已全部撤回，见下方实施记录）**
 
 1. `packages/syntax-plugins/src/math/math-loader.ts`：删除 `:30-35` 的模块作用域预加载块；保留 `loadKatex()` 的单例 + 失败重试（`:12-27`）。这不违反既有契约，反而更忠实于 `docs/agent/architecture/markdown_syntax_plugin_architecture.md:141-144`「按需加载…不增加主包初次加载体积」的原文要求。
 2. `packages/syntax-plugins/src/math/math-projection.ts`：把样式加载与既有 `MathInlineWidget.toDOM` / `MathBlockWidget.toDOM` 的首次渲染衔接（`:42-58, 125-140` 已有"加载完成后重绘并重测"路径），样式加载需单例化。**不改**插件语法注册时机，避免首轮解析丢 math 节点。
@@ -71,12 +71,15 @@
 4. **例外与边界（必须单列验收）**：`apps/mobile/core` 的阅读路径是同步 compiler 链路 —— `ReaderCanvas.tsx:2,17 → renderStaticHtml → compiler/src/emitter/html-emitter.ts:3 → math-render.ts:1 import { renderToString } from "katex"`，**不受本次改动影响**；mobile 默认示例本身含公式。不要把 web 的改善数字外推到 mobile。
 5. 同步更新 `markdown_syntax_plugin_architecture.md:142-144` 与"样式装配"段落（`:144`）。
 
-**P0 实施记录（已完成，分支 `perf/single-katex-runtime`）**
+**P0 实施记录（已全部撤回，仅保留最小依赖卫生修复）**
 
-- 落地形态与上文的差异：实施中发现**单纯"移除全局 CSS + 包内惰性加载"会让 mobile 与 site 重复投放同一份样式**（两者原本保留全局引入：mobile 产物曾同时出现入口 CSS 552 处 katex 规则 *加* 一份 29,834 字节惰性 CSS；site 产物同时存在 25,283 字节与 278,924 字节两个含 katex 的 CSS）。因此最终改为**全平台单一来源**：5 处全局 `@import` 全部移除，包内 `src/math/katex-styles.ts` 成为唯一样式装载点；静态渲染宿主（mobile 阅读器）显式调用新增的 `ensureKatexStylesheet()`。
-- 新增公共 API：`ensureKatexStylesheet()`（经 `math/index.ts` 与包根入口导出），服务于"需要样式但不需要运行时"的静态渲染宿主；幂等，与 `loadKatex()` 共享单例。
-- 实测收益（web 入口，真实 CLI 构建）：入口 CSS 113,297 → 82,913 字节（gzip 22,775 → 14,236）；KaTeX 样式转为随公式加载的 30,837 字节（gzip 8,114）；KaTeX JS 261,228 字节（gzip 77,482）不再于启动时触发。即无公式文档首屏约 **−86 kB gzip**（web/desktop/utools 各自受益；mobile/site 从"重复两份"回到单份）。
-- 边界：`packages/compiler` 自带的离线 KaTeX 兼容样式（`src/templates/styles.ts`，由 `renderStaticDocument` 内联）与本包官方样式是两套不同用途的样式，本项不改动 compiler 路径。
+- 原计划「去预加载 + CSS 惰性化」整体撤回，两次原因：
+  1. **体验**：延后加载会让首次公式出现「占位符（原始 LaTeX 文本）→ 排版结果」的可见替换，块级公式（`.cm-md-math-block` 有 `padding: 1rem`）还伴随一次高度重测位移；该代价高于首屏多一份 KaTeX 的代价。已恢复浏览器环境下模块作用域的尽早预加载，并加测试锁定。
+  2. **行为不确定**：把样式归属移入包内（静态引入）虽能消除幽灵依赖，但样式产物会跟随包含 math 模块的 chunk 走 —— 实测 desktop 的 KaTeX 样式从入口 CSS 移到了 `SettingsDialog-*.css`（该 chunk 由入口动态加载；widget 代码与样式同 chunk，功能上应仍能带出样式）。属构建细节层面的行为变化，不适合放进「行为不变」的修复。
+- **本 PR 最终只做最小依赖卫生修复**：在 `apps/web` / `apps/desktop` / `apps/utools` 声明 `katex` —— 这三个应用本就在入口全局引入官方样式，此前仅靠 pnpm 隐式提升解析（幽灵依赖）。样式引入位置、产物结构与 main 完全一致。
+- 新增契约测试 `packages/syntax-plugins/tests/katex-stylesheet-contract.test.ts`：引入官方样式的应用必须声明 `katex`；包内不得引入官方样式（防重复投放）。
+- **O1-P1（katex 双版本收敛）不受影响**：三端仍各多打一份 261 kB（gzip 77 kB）的 KaTeX，仍需先补 mermaid 数学图回归。
+- 保留备选方案（未来若要重做首屏优化可重新评估）：① 占位符视觉对齐（`font-size: 1.05em`/斜体）+ `void loadKatex()` 失败兜底；② 应用层按文档是否含 `$` 预热；③ 索引阶段预热。
 
 **P1：版本收敛到单实例**
 
