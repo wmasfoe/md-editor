@@ -180,6 +180,14 @@ renderer
   - `EditorView.baseTheme` 同样不行：它把不含 `&` 的选择器编译为 `.<baseThemeID> <sel>`（要求目标是 `.cm-editor` 的**后代**）；
   - 因此样式常量放在 `media-viewer/styles.ts` 并在打开时幂等注入 `document.head`，选择器**一律无祖先前缀**（`.cm-md-media-viewer*`）；`editor-ui` 不得再放带前缀的浮层规则，`tests/media-viewer/styles.test.ts` 会把它钉成可失败断言。
 - **键盘归属**：`Escape` **只关浮层**（document 捕获相 + `preventDefault`）；`Mod+K` **互斥**——先关浮层且不消费事件，让桌面命令面板（window 冒泡相、不检查 `defaultPrevented`）照常打开（命令面板 `z-[70]` 低于浮层 `1000`，因此“面板盖在浮层上”不可能成立）。
+  - **防腐约束（除文件隐式契约）**：桌面命令面板的 `Mod+K` 处理器**不得新增 `defaultPrevented` 早退**，否则互斥语义在非本平台键上会出现“面板不开、浮层也关了”的噪声。
+  - **已知偏差（已登记）**：浮层不做平台判定，同时接受 Meta 与 Ctrl——非本平台键会“关浮层但不打开面板”，属无害噪声；宁可保持跨平台宽松，也不引入平台检测这一新的注入面。
+- **模态诚实化（本仓第二套模态）**：浮层打开时把应用根置 `inert`（`media-viewer/browser.ts` 的 `inertBackground`），否则 Tab 会回到编辑器、随后键入会修改“被模态盖住”的文档——而浮层却声称 `aria-modal`。本仓 `inert` 先例：`CodeMirrorEditor.tsx` / `AppSidebar.tsx`。**新增第二套模态前先读本节。**
+- **几何不变量（e2e 才能守）**：
+  1. `--zoom-pan` 下舞台必须与浮层根**重合**（`position:absolute; inset:0`）：媒体盒的绝对定位包含块必须是 `position:fixed; inset:0` 的根，其 padding-box 原点即视口 (0,0)；若舞台保持 `position:relative`，媒体移出流后舞台收缩为 0×0、被根居中 ⇒ 包含块原点变成视口中心，图形被整体偏移半个视口（曾实测 `left=500, top=250` @1000×500）。
+  2. mermaid 的 SVG 根带 `width="100%"` 与内联 `max-width`，其**布局盒 ≠ `viewBox`**；注入时必须归一化宽高到 `viewBox` 并清掉内联上限，否则 `fit:"width"` 数值上算对、视觉上不铺开（曾实测只到视口宽 19.7%）。
+  3. 以上两条只能由 e2e 的 `getBoundingClientRect` 断言守护（node 无 CSS 布局）；**只断言宽度比是无效的**（对 translate 位移盲）。
+- **静态模式（图片路径）单一 sizing 权威**：`zoomPan:false` 时会话**不得**施加任何变换，尺寸完全由 CSS 拥有（`__media--image` 的 `max-width/max-height + object-fit` 加舞台 flex 居中）；两套 sizing 叠加会二次缩放并整体偏移（评审 BLOCK 过一 次）。
 - **画布扩展兼容性（Forward-Compatible Design）**：
   - 遵循“以 Markdown 文本为 Single Source of Truth”的一贯设计哲学；
   - 当前 `MermaidBlockWidget` 充当 Display Adapter；未来如引入交互式可视化设计器（拖拽节点、修改连线），将通过统一的 Adapter 接口向底层 CodeMirror 文档写回 DSL 代码，无需变更 AST 节点结构或打破现有契约。

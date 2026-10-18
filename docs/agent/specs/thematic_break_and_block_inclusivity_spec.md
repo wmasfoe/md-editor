@@ -125,6 +125,8 @@ if (deco.block) {
 - 因此 **Mermaid 块暂不受 #2（不对称 Inclusivity）约束**，也不得借本豁免去放宽其它块级 widget；
 - **已知回归缺口**：既有块级空行保真 e2e（`wysiwyg-block-blank-line-fidelity.spec.ts`）的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**（其 widget 内部新增了外层包装 DOM 后尤应补一档）；补夹具时需同步核对本豁免是否仍成立。
 
+### 符号型块（symbol block）默认间距规则
+
 **定义**：一个整行块级 widget 属于符号型块，当且仅当同时满足：
 
 1. 其替换范围覆盖整行；（即本规范 Inclusivity 契约的作用域）
