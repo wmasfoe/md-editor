@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已实施**（`perf/dedupe-katex-version`，基于 main）；其余均未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已实施**（`refactor/workspace-vite-aliases`）；其余均未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -127,6 +127,14 @@
 **已验证的反证**：desktop 的 alias 清单里没有 `@md-editor/file-system` 与 `@md-editor/i18n`，但源码大量直接 import 二者（如 `apps/desktop/src/desktop/file-service.ts:5`、`apps/desktop/src/components/SettingsDialog.tsx:3`），说明 `workspace link + exports` 链路可用。
 
 **未证风险**：仓库内无法证明移除 alias 后 Vite 的 optimizeDeps/pre-bundling 行为不变，因此必须用真实 `vite build` + 冷启动 dev smoke 兜底；alias-free 全部通过后应删除 helper，不留空抽象。
+
+**O2 实施记录（已完成，分支 `refactor/workspace-vite-aliases`）**
+
+- 结论比方案更彻底：三个 app 的 alias **全部删除，不引入 helper**。可行性由探针确定（清空 `resolve.alias` 后用真实 Vite resolver 解析）：web 14/14、desktop 14/14 全部经 `exports` 回退解析到 `packages/*/src`；utools 12/14 的两项失败是它**本就不依赖**的包（`i18n`、`renderer-codemirror`）。即所有 alias 均为冗余的第二份入口描述。
+- 改动：`apps/{web,desktop,utools}/vite.config.ts` 删除 `resolve.alias`（净减 **29 条**）；utools 的本地 `workspacePath` **保留**（bundle 插件仍用于复制 logo/preload/plugin.json）；新增 3 份解析契约测试（对象级断言无 `resolve.alias` + 源码级断言无 `resolve:` 块 + 每个工作区依赖/子路径经 `exports` 解析到 `packages/*/src`）；删除语义已反转的 `apps/desktop/tests/vite-aliases.test.ts`。
+- `apps/mobile/core` 按方案**单列，本轮不动**（8 条 alias 留待独立评审）。
+- 验证：三 app 构建成功；**dev 冷启动 smoke**（起 dev server 后 curl 首页 + `/@fs/<repo>/packages/editor-core/src/index.ts`）三端均 200 且返回转换后 JS、**无 `.vite/deps` 预打包引用**；三 app 单测 24/196/24 通过；desktop 全套 Playwright（189 tests）通过；`pnpm test/lint/typecheck` 全绿。
+- smoke 踩坑（供后续复用）：Vite 默认绑定 `localhost`（本机可能解析到 `::1`），smoke 需显式 `--host 127.0.0.1`；带 `base`（如 web 的 `/playground/`）时 `/@fs` 请求也必须带 base 前缀。
 
 ---
 
