@@ -70,5 +70,4 @@ const fullHtmlDoc = createStaticDocumentHtml({
 ```bash
 pnpm test
 pnpm typecheck
-pnpm build
 ```

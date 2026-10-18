@@ -12,7 +12,6 @@
     "./OutlinePanel": "./src/components/OutlinePanel.tsx"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

@@ -79,6 +79,4 @@ pnpm test
 # 执行 TypeScript 校验
 pnpm typecheck
 
-# 编译子包
-pnpm build
 ```
