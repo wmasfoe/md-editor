@@ -87,6 +87,10 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
     const before = await readDoc(page);
+    // R1 的核心承诺是「零选区副作用」：必须直接断言选区，而不是只看“文档未变 + 无 marker”
+    const selectionBefore = await page.evaluate(
+      () => window.__MD_EDITOR_E2E__?.getDiagnostics().renderer?.selectionAnchor ?? null,
+    );
 
     await page.locator(".cm-md-mermaid-container").first().click();
 
@@ -97,6 +101,12 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
     // 文档未被改动
     expect(await readDoc(page)).toBe(before);
+    // 选区未被移动
+    expect(
+      await page.evaluate(
+        () => window.__MD_EDITOR_E2E__?.getDiagnostics().renderer?.selectionAnchor ?? null,
+      ),
+    ).toBe(selectionBefore);
   });
 
   test("AC2: 拖拽（位移超阈值）不打开浮层", async ({ page }) => {
@@ -238,6 +248,21 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await block.hover();
     const viewerButton = page.locator(".cm-md-mermaid-toolbar__viewer").first();
     await expect(viewerButton).toBeVisible();
+
+    // 工具栏未被滚动层裁剪：按钮完整落在块的可视矩形内（toBeVisible 对“被裁剪”是盲的）
+    const toolbarBox = await viewerButton.boundingBox();
+    const blockBox = await block.boundingBox();
+    expect(toolbarBox).not.toBeNull();
+    expect(blockBox).not.toBeNull();
+    if (toolbarBox && blockBox) {
+      expect(toolbarBox.x).toBeGreaterThanOrEqual(blockBox.x - 1);
+      expect(toolbarBox.x + toolbarBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width + 1);
+      expect(toolbarBox.y).toBeGreaterThanOrEqual(blockBox.y - 1);
+      expect(toolbarBox.y + toolbarBox.height).toBeLessThanOrEqual(
+        blockBox.y + blockBox.height + 1,
+      );
+    }
+
     await viewerButton.click({ force: true });
     const overlay = page.locator(".cm-md-media-viewer");
     await expect(overlay).toBeVisible();
@@ -364,7 +389,7 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     expect(Math.abs((await readScale()) - initialScale)).toBeLessThan(0.01);
   });
 
-  test("AC16: 重复开关无残留；关闭后 Escape 不再有效果（document 级监听已注销）", async ({
+  test("AC16: 重复开关无残留（浮层计数）且关闭后 Escape 不再有效果（监听已注销）", async ({
     page,
   }) => {
     test.setTimeout(90_000);
