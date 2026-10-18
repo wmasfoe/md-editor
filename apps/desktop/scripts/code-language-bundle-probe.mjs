@@ -1,10 +1,21 @@
 import { gzipSync } from "node:zlib";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { build } from "vite";
+import { buildBaseline, evaluateBundleBudget } from "./bundle-budget.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(scriptDirectory, "..");
+const baselinePath = resolve(scriptDirectory, "bundle-budget.baseline.json");
+
+function readBaseline() {
+  try {
+    return JSON.parse(readFileSync(baselinePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
 const allowedLanguagePackages = new Set([
   "cpp",
   "css",
@@ -98,4 +109,35 @@ const report = {
 };
 
 console.log(JSON.stringify(report, null, 2));
+
+// ---- 包体预算判定 ----
+// 指标是 minify+gzip 后的字节数，与机器性能无关（确定性），因此可用绝对阈值。
+if (process.argv.includes("--update-budget")) {
+  const next = buildBaseline(report, readBaseline() ?? {});
+  writeFileSync(baselinePath, `${JSON.stringify(next, null, 2)}\n`);
+  console.log(`\n[bundle-budget] 已刷新基线：${relative(process.cwd(), baselinePath)}`);
+} else {
+  const baseline = readBaseline();
+  if (!baseline) {
+    console.error(
+      `\n[bundle-budget] 未找到基线文件 ${baselinePath}（可运行 pnpm test:bundle:update 生成）`,
+    );
+    process.exitCode = 1;
+  } else {
+    const evaluation = evaluateBundleBudget(report, baseline);
+    console.log(`\n[bundle-budget] headroom=${(evaluation.headroomRatio * 100).toFixed(0)}%`);
+    for (const check of evaluation.checks) {
+      console.log(
+        `  ${check.ok ? "PASS" : "FAIL"}  ${check.metric}: ${check.actual} / limit ${check.limit}（基线 ${check.baseline}）`,
+      );
+    }
+    if (!evaluation.ok) {
+      console.error(
+        "[bundle-budget] 包体超出预算：先确认是否为有意增重；若有意，运行 pnpm test:bundle:update 刷新基线（让增重成为一次可见 diff）",
+      );
+      process.exitCode = 1;
+    }
+  }
+}
+
 if (report.excludedModuleCount > 0) process.exitCode = 1;

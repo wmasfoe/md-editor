@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已实施**（`refactor/workspace-vite-aliases`）；其余均未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已实施**（`ci/bundle-budget-guard`）；O4b/O3/O5-2/O6 未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -196,6 +196,16 @@ infra/distribution-worker/src/
 - 若该分支不落地：在 main 的 `build-desktop.yml` lint job（现只有 `pnpm lint:oxlint` 与 `pnpm format:prettier:check`）追加 `run: pnpm lint:structure`（或合并为一步 `pnpm lint`），并把结果纳入 `ci-status` 聚合 job 的 `needs`。
 
 **B. 包体/首屏预算护栏**
+
+**O4a 实施记录（已完成，分支 `ci/bundle-budget-guard`，叠放在 #167 之上）**
+
+- 前提：探针此前跑不通是因为幽灵依赖（`build()` API 路径解析 `katex/dist/katex.min.css` 失败）；#165 修完后 `node apps/desktop/scripts/code-language-bundle-probe.mjs` **已恢复可用**（实测 exit 0）。
+- 新增 `apps/desktop/scripts/bundle-budget.mjs`（纯逻辑）+ `bundle-budget.test.mjs`（6 用例，`node --test`）：指标口径为 **minify+gzip 字节数**（确定性、与机器性能无关，因此可用绝对阈值），阈值 = 基线 × (1 + headroom 3%)；基线缺指标时显式报错而非静默放行。
+- 新增基线 `apps/desktop/scripts/bundle-budget.baseline.json`（当前：boot 580,962 / total 1,838,252 / chunkCount 80）；`chunkCount` 仅作信息展示（代码分割策略变化会合法地改变它）。
+- 探针增加预算判定与 `--update-budget`；根脚本新增 `test:bundle`（逻辑单测 + 探针）与 `test:bundle:update`，并**串入根 `pnpm test`** —— 这样不改任何 CI 文件也能被 CI 执行（CI 跑 `pnpm test`）。
+- 检测能力已反证：把基线临时调低 10% → 探针 exit 1 并输出 FAIL 明细（随后已还原）。
+- 实测运行间波动 ≈0.4%（boot 580,962 ↔ 583,438；total 1,838,252 ↔ 1,849,827），3% headroom 足以吸收；若未来出现接近阈值的持续漂移，应先确认是否为真实增重。
+- 未纳入本项（属 O4b，需先定 CI 分支取舍）：`lint:structure` 门禁落点、web/desktop 产物构建 smoke、把预算护栏提为独立 PR 必选状态。
 
 - 先修 `apps/desktop/scripts/code-language-bundle-probe.mjs`：它当前无法运行（`build()` API 路径解析失败），只遍历静态 `chunk.imports`、不报告 `dynamicImports`/CSS/原始字节 —— 恰好无法识别“模块顶层触发的动态 import”这种本次要防的回归；且它的退出码只检查 `excludedModules`，**目前根本不是预算护栏**。
 - 修好后先建立成功构建的 boot/total gzip 基线，再设阈值（并留 headroom）后接入门禁。注意指标选择：**包体/首屏用确定性的 gzip 字节**；而 `apps/tui/tests/perf-guard.test.ts`（在途分支）的“同进程比值 + 多次采样取最小值”适用于**运行时耗时**（理由见其 `:1-13`：共享 runner 上 GC/调度尖峰可把单次读数抬高 5–10 倍），不可直接把 TUI 的数值阈值搬到 bundle 场景。
