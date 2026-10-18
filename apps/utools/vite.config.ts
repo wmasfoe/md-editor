@@ -52,41 +52,15 @@ function utoolsDistBundlePlugin() {
   };
 }
 
+/**
+ * 工作区包（`@md-editor/*`）不在此声明 Vite alias：
+ * 它们经 pnpm workspace link + `package.json#exports`（指向 `./src/index.ts`）解析到源码，
+ * 别名只是重复的第二份入口描述，会随包增删漂移。
+ * 解析契约回归测试见 `tests/vite-workspace-resolution.test.ts`。
+ */
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), utoolsDistBundlePlugin()],
-  resolve: {
-    alias: [
-      {
-        find: "@md-editor/editor-ui/hooks",
-        replacement: workspacePath("../../packages/editor-ui/src/hooks/index.ts"),
-      },
-      {
-        find: /^@md-editor\/editor-ui$/,
-        replacement: workspacePath("../../packages/editor-ui/src/index.ts"),
-      },
-      {
-        find: /^@md-editor\/editor-core$/,
-        replacement: workspacePath("../../packages/editor-core/src/index.ts"),
-      },
-      {
-        find: /^@md-editor\/markdown-fidelity$/,
-        replacement: workspacePath("../../packages/markdown-fidelity/src/index.ts"),
-      },
-      {
-        find: /^@md-editor\/file-system$/,
-        replacement: workspacePath("../../packages/file-system/src/index.ts"),
-      },
-      {
-        find: /^@md-editor\/shared$/,
-        replacement: workspacePath("../../packages/shared/src/index.ts"),
-      },
-      {
-        find: /^@md-editor\/syntax-plugins$/,
-        replacement: workspacePath("../../packages/syntax-plugins/src/index.ts"),
-      },
-    ],
-  },
   server: {
     host: "0.0.0.0",
     port: 5174,
