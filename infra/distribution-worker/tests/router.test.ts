@@ -1,12 +1,12 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { inferPlatformFromPath } from "../src/analytics.ts";
 import {
-  buildReleasesManifest,
-  handleRequest,
   isArm64AssetName,
   isX64AssetName,
   matchDesktopAsset,
-} from "../src/router.ts";
+} from "../src/distribution/platform-assets.ts";
+import { buildReleasesManifest } from "../src/releases/manifest.ts";
+import { handleRequest } from "../src/router.ts";
 import type { Env } from "../src/types.ts";
 import fallbackManifest from "../src/fallback-releases.json";
 
@@ -33,6 +33,16 @@ function fallbackVersions(category: "desktop" | "android" | "ios"): string[] {
 const fallbackAndroidVersions = fallbackVersions("android");
 
 describe("Distribution Worker Router & Matcher", () => {
+  beforeEach(() => {
+    // 测试禁止真实网络：任何未显式 stub 的 fetch 立即失败。
+    // 历史上 fallback 用例会真访问 api.github.com，结果取决于网络可达性（非确定性）。
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const target =
+        typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+      throw new Error(`测试禁止真实网络访问：${target}（请在该用例内显式 stub fetch）`);
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

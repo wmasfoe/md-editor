@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已实施**（`chore/catalog-consolidation`）；O5-3 已核实无需清理；O3/O6 未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已合并**（#170，squash `af7b922`）；**O3（router.ts 拆分）已实施**（`refactor/split-distribution-router`）；O5-3 已核实无需清理；O6 未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -169,6 +169,15 @@ infra/distribution-worker/src/
 5. `router.ts` 降到 <800 行后，从 `structure-exceptions.json` **与** `scripts/structure/exceptions.baseline.json` 同步删除 `infra-router-module`；拆分过程中每次缩小都把 `maxLines` 一并下调（豁免只降不升，禁止新增豁免）。cluster/协作者登记机制不适用于 `infra/`。
 
 **验证**：`pnpm --filter @md-editor/distribution-worker build|typecheck|test` + `pnpm lint:structure`；断言覆盖 matcher ARM/x64 规则、来源优先级、status/Location/Content-Type/CORS/Cache-Control/Content-Disposition、统计只归属具体版本且经 `waitUntil`。
+
+**O3 实施记录（已完成，分支 `refactor/split-distribution-router`，一个 PR 内一次性完成）**
+
+- 结果：`router.ts` **2097 → 58 行**（−97%），只剩“建立上下文 → 缓存命中 → 按既有顺序分发 → 404”；最大新文件 554 行（`releases/manifest.ts`，低于 800 告警线）；**唯一豁免已从两份清单同步移除**（`structure-exceptions.json` 与 `scripts/structure/exceptions.baseline.json` 现均为 `[]`），结构守卫与检查器单测（12/12）通过。
+- 新结构（行数）：`router/context.ts`(127) 请求上下文（缓存读取/`respond` 包装/`trackDownload` 统计闭包）｜`router/config.ts`(14) 应用与平台常量｜`router/routes/{system,manifest-api,latest-artifacts,catalog}.ts`(153/283/337/307) 按**原顺序**拆出的四组路由族｜`distribution/{platform-assets,github-releases,object-responses}.ts`(182/164/97) 平台与 MIME、GitHub 抓取缓存、代理与 R2 响应｜`releases/{manifest,semver}.ts`(554/25)｜`shared/format-bytes.ts`(15) 自 `portal.ts` 迁出。
+- 与方案的差异（刻意取舍）：`buildReleasesManifest` **整体平移**为 `releases/manifest.ts`，未再拆成 `release-sources`/`mobile-history`/`manifest` 三文件 —— 该函数内部共享十余个局部状态（ios/android/desktop 版本与资产、releases 累积、seenDesktop 去重），强拆需引入上下文对象并逐个改写写入点，属“为拆分而拆分”的行为风险；其 554 行已低于告警线，内部细分留作可选后续。
+- 方案第 1 步（测试确定性）：`tests/router.test.ts` 增加 `beforeEach` 的 fetch 守卫（未显式 stub 的真实网络访问立即失败）—— 此前 fallback 用例会真访问 `api.github.com`，结果取决于网络可达性；修复后 `router.test.ts` 从 **5393ms → 26ms**，49 个集成用例全绿。
+- 新增 `tests/object-responses.test.ts`（5 用例）：`proxyGitHubAsset` 的 Range 转发 / 206 与上游响应头保留 / Content-Disposition / 上游失败 JSON 透传；`serveR2Object` 的 immutable 与短缓存两档 Cache-Control、ETag、CORS。
+- 行为不变：路由顺序、状态码、响应头、来源优先级（R2 → GitHub → fallback）与统计口径均未改；`src/index.ts` 默认 Worker 导出与 `handleRequest` 签名不变；测试与调用方直接改导入新模块（不留兼容 re-export，AGENTS.md 第 10 条）；重复的 MIME 表已统一到 `platform-assets.ts`。
 
 ---
 
