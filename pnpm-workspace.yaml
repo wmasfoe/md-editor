@@ -45,3 +45,11 @@ allowBuilds:
   sharp: true
 confirmModulesPurge: false
 verifyDepsBeforeRun: false
+
+# KaTeX 版本收敛：mermaid 11.x 声明 katex ^0.16.47，其余工作区包为 ^0.18.6，
+# 两个范围不相交会导致三端各多打一份 261 kB（gzip 77 kB）的 KaTeX。
+# mermaid 只使用 katex.renderToString(tex, { throwOnError, displayMode, output })，
+# 回归证据：packages/syntax-plugins/tests/katex-mermaid-contract.test.ts 与
+# apps/desktop/e2e/codemirror-mermaid-math.spec.ts。
+overrides:
+  "mermaid>katex": "0.18.6"
