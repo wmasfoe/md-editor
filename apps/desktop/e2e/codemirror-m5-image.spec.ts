@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { MOD_KEY } from "./editor-e2e-helpers";
 
 const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
 
@@ -136,7 +137,10 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
       2,
     );
 
-    await page.keyboard.press("Escape");
+    // AC15 ④：图片路径也拿到 `Mod+K` 互斥行为（先关浮层）。
+    // 注：“面板照常打开”那半句由 codemirror-mermaid-viewer.spec.ts 在完整 app harness 下断言——
+    // 本 spec 用轻量 harness，并不挂载桌面命令面板。
+    await page.keyboard.press(`${MOD_KEY}+k`);
     await expect(overlay).toHaveCount(0);
   });
 

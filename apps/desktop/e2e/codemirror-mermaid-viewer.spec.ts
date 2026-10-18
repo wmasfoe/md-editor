@@ -52,6 +52,25 @@ const SHALLOW_MERMAID_DOC = [
   "",
 ].join("\n");
 
+/** 两个 mermaid 块（AC16 多图场景）：各自开关后 body 不得有残留。 */
+const TWO_MERMAID_DOC = [
+  "# 两图",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  A --> B",
+  "```",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  C --> D",
+  "```",
+  "",
+].join("\n");
+
+/** 普通代码块（AC8 负例：代码块内 Enter 仍须换行，不得被 mermaid 改动影响）。 */
+const CODE_FENCE_DOC = ["# 代码", "", "```js", "const a = 1;", "```", ""].join("\n");
+
 /** AC8 负例用的纯文本夹具（无 mermaid 块）：段落与列表的 Enter 行为必须保持不变。 */
 const PROSE_DOC = ["# 标题", "", "段落一。", "", "- 项目一", ""].join("\n");
 
@@ -408,6 +427,87 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await page.keyboard.press("Escape");
     expect(await readDoc(page)).toBe(before);
     expect(await page.locator(".cm-md-media-viewer").count()).toBe(0);
+  });
+
+  test("AC16 真实路径：浮层打开时切到源码模式（widget 销毁）后不得有幽灵浮层", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toHaveCount(1);
+
+    // 切到源码模式 ⇒ widget 被销毁 ⇒ destroy(dom) 必须关掉浮层
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(overlay).toHaveCount(0);
+    // 再切回来：不得出现第二个浮层
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC16 多图：两图各开关一次后 body 无残留", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, TWO_MERMAID_DOC);
+    await expect(page.locator(".cm-md-mermaid-container")).toHaveCount(2);
+    await waitForSvg(page);
+
+    for (const index of [0, 1, 1, 0]) {
+      await page.locator(".cm-md-mermaid-container").nth(index).click();
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    }
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC18: 浮层打开时背景置 inert（Tab 不会把焦点带回编辑器），关闭后恢复", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    const root = page.locator("#root");
+    await expect(root).not.toHaveAttribute("inert", "");
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    // 模态诚实化：背景 inert（仅靠聚焦浮层无法阻止 Tab 回到编辑器）
+    await expect(root).toHaveAttribute("inert", "");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".cm-content")).not.toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+    await expect(root).not.toHaveAttribute("inert", "");
+  });
+
+  test("AC8 机制守卫：to 边界（程序化置位）与代码块 Enter 负例", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    // to 边界：光标正好落在块尾（机制守卫，不代表用户可达路径）
+    const closeFenceEnd = MERMAID_DOC.indexOf("```", MERMAID_DOC.indexOf("```") + 3) + 3;
+    await setCaret(page, closeFenceEnd);
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible({ timeout: 10_000 });
+
+    // 代码块内 Enter 仍须换行（不新增 Enter keymap 的行为负例）
+    await openFullApp(page);
+    await loadDoc(page, CODE_FENCE_DOC);
+    const before = await readDoc(page);
+    await setCaret(page, CODE_FENCE_DOC.indexOf("const a = 1;") + "const a = 1;".length);
+    await page.keyboard.press("Enter");
+    expect((await readDoc(page)).length).toBe(before.length + 1);
+  });
+
+  test("AC11: 浮层为 DOM 节点注入，不使用 data:image/svg 形式的 <img>", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    await expect(overlay.locator('img[src^="data:image/svg"]')).toHaveCount(0);
+    await expect(overlay.locator("svg")).toBeVisible();
   });
 
   test("AC10: 浮层内 SVG 的 id 与正文 SVG 无交集，且引用可解析", async ({ page }) => {
