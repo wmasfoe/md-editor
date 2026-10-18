@@ -1565,6 +1565,61 @@
   box-shadow: var(--theme-shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
 }
 
+/* 图表块外层包装：承载悬浮工具栏。
+   工具栏必须放在**滚动层之外**：`.cm-md-mermaid-container` 带 `overflow-x: auto`，
+   绝对定位的工具栏若位于其中，超宽图横向滚动时会被裁剪/滚走（AC19）。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-block {
+  position: relative;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-block:hover .cm-md-mermaid-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__edit {
+  border: 1px solid var(--theme-border, #d8dee4);
+  border-radius: 4px;
+  background: var(--theme-surface, #fff);
+  color: var(--theme-control-subtle, var(--theme-muted, #6e7781));
+  cursor: pointer;
+  font-family: var(--theme-ui-font, var(--theme-font, system-ui, sans-serif));
+  font-size: 0.76rem;
+  line-height: 1;
+  padding: 0.28rem 0.45rem;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer:hover,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__edit:hover {
+  background: var(--theme-primary-soft, rgba(0, 0, 0, 0.06));
+  color: var(--theme-primary, var(--theme-text, currentColor));
+  border-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-loading {
   font-size: 0.85rem;
   color: var(--theme-muted, #6e7781);
