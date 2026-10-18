@@ -63,6 +63,14 @@ export const VIEWER_CSS = [
   "  display: block;",
   "  transform-origin: 0 0;",
   "}",
+  // 缩放平移模式：内容盒必须从浮层原点 (0,0) 开始，scale/translate 数学里的 (x,y)
+  // 才真正等价于“内容盒左上角落在视口 (x,y)”。图片路径（zoomPan:false）不走这条，
+  // 仍由 __stage 的 flex 居中 + max-width/max-height 控制尺寸。
+  ".cm-md-media-viewer--zoom-pan .cm-md-media-viewer__media {",
+  "  position: absolute;",
+  "  top: 0;",
+  "  left: 0;",
+  "}",
   ".cm-md-media-viewer__media--image {",
   "  max-width: 92vw;",
   "  max-height: 92vh;",

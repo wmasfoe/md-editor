@@ -74,6 +74,30 @@ function measureIntrinsicSize(node: Element): { readonly width: number; readonly
   return { width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
 }
 
+/**
+ * 把 SVG 的**布局盒**归一化到 `viewBox` 尺寸。
+ *
+ * 为什么必须做：mermaid 输出的根节点通常是 `width="100%"` + 内联 `style="max-width: <n>px"`，
+ * 其布局盒宽度受**舞台**（`max-width: 92vw`）与内联 max-width 共同约束，与 `viewBox` 并不相等；
+ * 而缩放平移数学的基准是“内容盒左上角位于视口 (x, y) 且尺寸为该盒尺寸”。盒与 viewBox 不一致时，
+ * `fit:"width"` 只是数值上算对、视觉上并不铺开（曾实测只到视口宽度的 19.7%）。
+ * 归一化后：盒 = viewBox，缩放语义精确；位置的“原点对齐”由 CSS 的
+ * `.cm-md-media-viewer--zoom-pan .cm-md-media-viewer__media { position:absolute; top:0; left:0 }` 保证。
+ */
+function normalizeSvgLayoutBox(svg: Element): void {
+  const viewBox = svg instanceof SVGSVGElement ? svg.viewBox?.baseVal : undefined;
+  if (!viewBox || viewBox.width <= 0 || viewBox.height <= 0) {
+    return;
+  }
+  svg.setAttribute("width", String(viewBox.width));
+  svg.setAttribute("height", String(viewBox.height));
+  const styled = svg as Element & { style?: CSSStyleDeclaration };
+  if (styled.style) {
+    styled.style.maxWidth = "none";
+    styled.style.maxHeight = "none";
+  }
+}
+
 interface OverlayParts {
   readonly root: HTMLDivElement;
   readonly stage: HTMLDivElement;
@@ -108,6 +132,7 @@ function buildOverlay(
     stage.innerHTML = isolated.svg;
     media = stage.querySelector("svg") ?? stage;
     media.classList.add("cm-md-media-viewer__media", "cm-md-media-viewer__media--svg");
+    normalizeSvgLayoutBox(media);
   } else {
     const image = doc.createElement("img");
     image.className = "cm-md-media-viewer__media cm-md-media-viewer__media--image";
