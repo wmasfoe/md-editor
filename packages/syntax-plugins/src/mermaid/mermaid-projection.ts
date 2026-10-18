@@ -191,6 +191,27 @@ export class MermaidBlockWidget extends WidgetType {
       );
     });
 
+    /**
+     * 打开共享查看器（单击块体与工具栏按钮两处共用）。
+     * 未渲染出 SVG（加载中 / 空围栏 / 渲染失败）时为 no-op。
+     */
+    const openViewer = (): void => {
+      const svg = renderedSvgByDom.get(container);
+      if (!svg) {
+        return;
+      }
+      openMediaViewer({
+        document: doc,
+        host: wrapper,
+        content: { kind: "svg", svg, label: "Mermaid 图表" },
+        fit: "width",
+        zoomPan: {},
+        takeFocus: true,
+        onRequestEdit: () => enterSourceEdit(view, this.anchorPos),
+        restoreFocus: () => view.focus(),
+      });
+    };
+
     container.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -207,36 +228,14 @@ export class MermaidBlockWidget extends WidgetType {
         }
         return;
       }
-      openMediaViewer({
-        document: doc,
-        host: wrapper,
-        content: { kind: "svg", svg, label: "Mermaid 图表" },
-        fit: "width",
-        zoomPan: {},
-        takeFocus: true,
-        onRequestEdit: () => enterSourceEdit(view, this.anchorPos),
-        restoreFocus: () => view.focus(),
-      });
+      openViewer();
     });
 
     viewerButton.addEventListener("mousedown", (event) => event.stopPropagation());
     viewerButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const svg = renderedSvgByDom.get(container);
-      if (!svg) {
-        return;
-      }
-      openMediaViewer({
-        document: doc,
-        host: wrapper,
-        content: { kind: "svg", svg, label: "Mermaid 图表" },
-        fit: "width",
-        zoomPan: {},
-        takeFocus: true,
-        onRequestEdit: () => enterSourceEdit(view, this.anchorPos),
-        restoreFocus: () => view.focus(),
-      });
+      openViewer();
     });
 
     editButton.addEventListener("mousedown", (event) => event.stopPropagation());
