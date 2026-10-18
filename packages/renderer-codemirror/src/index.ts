@@ -121,3 +121,21 @@ export {
   type DelimiterNeighbors,
   type DelimiterSides,
 } from "./markdown/cjk-friendly-emphasis.ts";
+export {
+  closeMediaViewerFor,
+  openMediaViewer,
+  createMediaViewerSession,
+  ensureViewerStyleElement,
+  rewriteSvgIds,
+  collectSvgIds,
+  findDanglingReferences,
+  findLeakedIdTokens,
+  VIEWER_CSS,
+  VIEWER_STYLE_ELEMENT_ID,
+  type MediaViewerContent,
+  type MediaViewerHandle,
+  type MediaViewerOptions,
+  type MediaViewerSession,
+  type MediaViewerSessionOptions,
+  type MediaViewerZoomPan,
+} from "./media-viewer/index.ts";
