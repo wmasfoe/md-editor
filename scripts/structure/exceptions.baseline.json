@@ -1,8 +1,1 @@
-[
-  {
-    "id": "infra-router-module",
-    "path": "infra/distribution-worker/src/router.ts",
-    "maxLines": 2097,
-    "reason": "PR1 起草时实测发现的存量巨型文件（2097 行）：本任务域外，登记冻结防增长，拆留后续"
-  }
-]
+[]
