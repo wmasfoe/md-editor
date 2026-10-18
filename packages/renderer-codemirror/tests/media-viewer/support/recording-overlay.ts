@@ -8,7 +8,6 @@
  * 断言的是"会话做了什么"，而不是"mock 被调用了"这种自证。
  */
 import type {
-  MediaViewerContent,
   MediaViewerKeyEvent,
   MediaViewerKeyboardPort,
   MediaViewerOverlayPort,
@@ -20,7 +19,6 @@ import type {
 } from "../../../src/media-viewer/zoom-pan.ts";
 
 export interface RecordingOverlay extends MediaViewerOverlayPort {
-  readonly contents: MediaViewerContent[];
   readonly transforms: ViewerTransform[];
   readonly draggingFlags: boolean[];
   readonly focusCalls: number;
@@ -34,16 +32,13 @@ export function createRecordingOverlay(init?: {
   readonly viewport?: ViewportSize;
   readonly content?: ContentSize;
 }): RecordingOverlay {
-  const contents: MediaViewerContent[] = [];
   const transforms: ViewerTransform[] = [];
   const draggingFlags: boolean[] = [];
   let focusCalls = 0;
   let destroyed = 0;
-  let mounted = true;
   let viewport: ViewportSize = init?.viewport ?? { width: 1000, height: 500 };
   let content: ContentSize = init?.content ?? { width: 400, height: 400 };
   return {
-    contents,
     transforms,
     draggingFlags,
     get focusCalls() {
@@ -51,9 +46,6 @@ export function createRecordingOverlay(init?: {
     },
     get destroyed() {
       return destroyed;
-    },
-    get mounted() {
-      return mounted;
     },
     get viewport() {
       return viewport;
@@ -66,9 +58,6 @@ export function createRecordingOverlay(init?: {
     },
     set content(next: ContentSize) {
       content = next;
-    },
-    setContent: (next) => {
-      contents.push(next);
     },
     setTransform: (transform) => {
       transforms.push(transform);
@@ -83,7 +72,6 @@ export function createRecordingOverlay(init?: {
     },
     destroy: () => {
       destroyed += 1;
-      mounted = false;
     },
   };
 }

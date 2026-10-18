@@ -57,8 +57,6 @@ export interface MediaViewerPointerEvent {
 
 /** 浮层端口：只声明会话逻辑真正需要的语义动作。 */
 export interface MediaViewerOverlayPort {
-  /** 注入内容（图片设置 src/alt；SVG 注入**已完成 id 隔离**的标记）。 */
-  setContent(content: MediaViewerContent): void;
   /** 应用变换（`translate(x, y) scale(s)` + `transform-origin: 0 0`）。 */
   setTransform(transform: ViewerTransform): void;
   /** 拖拽中视觉（`cursor: grabbing` 一类）。 */
@@ -67,7 +65,6 @@ export interface MediaViewerOverlayPort {
   measureContent(): ContentSize;
   focus(): void;
   destroy(): void;
-  readonly mounted: boolean;
 }
 
 /** 文档级键盘端口（**捕获相**注册；注销必须成对）。 */
@@ -77,7 +74,6 @@ export interface MediaViewerKeyboardPort {
 }
 
 export interface MediaViewerSessionOptions {
-  readonly content: MediaViewerContent;
   /** 初始视图：`"width"`（默认，适应宽度）/ `"contain"`（整图可见，图片路径沿用）。 */
   readonly fit: "contain" | "width";
   readonly zoomPan: false | MediaViewerZoomPan;
@@ -90,13 +86,12 @@ export interface MediaViewerSessionOptions {
   readonly onClose?: (() => void) | undefined;
 }
 
-export interface MediaViewerHandle {
-  readonly element?: unknown;
+export interface MediaViewerSessionHandle {
   close(options?: { readonly restoreFocus?: boolean }): void;
 }
 
 export interface MediaViewerSession {
-  readonly handle: MediaViewerHandle;
+  readonly handle: MediaViewerSessionHandle;
   handleKeyDown(event: MediaViewerKeyEvent): boolean;
   handleWheel(event: MediaViewerWheelEvent): void;
   handlePointerDown(event: MediaViewerPointerEvent): void;
@@ -149,7 +144,6 @@ export function createMediaViewerSession(
     readonly transform: ViewerTransform;
   } | null = null;
 
-  overlay.setContent(options.content);
   overlay.setTransform(transform);
   if (options.takeFocus) {
     overlay.focus();

@@ -9,20 +9,30 @@
  * 设计约束见 `.omx/plans/prd-mermaid-diagram-viewer.md` §4.4：样式的载体、生命周期所有权、
  * 键盘归属（Escape 只关浮层 / `Mod+K` 互斥）都在此模块内闭环，调用方只注入内容与回调。
  */
-export { closeMediaViewerFor, openMediaViewer, type MediaViewerOptions } from "./browser.ts";
+export {
+  closeMediaViewerFor,
+  openMediaViewer,
+  type MediaViewerHandle,
+  type MediaViewerOptions,
+} from "./browser.ts";
 export {
   createMediaViewerSession,
   type MediaViewerContent,
-  type MediaViewerHandle,
   type MediaViewerKeyEvent,
   type MediaViewerKeyboardPort,
   type MediaViewerOverlayPort,
   type MediaViewerPointerEvent,
   type MediaViewerSession,
+  type MediaViewerSessionHandle,
   type MediaViewerSessionOptions,
   type MediaViewerWheelEvent,
   type MediaViewerZoomPan,
 } from "./session.ts";
+export {
+  createMediaViewerRegistry,
+  type MediaViewerRegistry,
+  type ViewerHandleLike,
+} from "./registry.ts";
 export {
   ensureViewerStyleElement,
   VIEWER_CSS,

@@ -20,6 +20,8 @@ import {
 } from "./support/recording-overlay.ts";
 
 const SVG_CONTENT = { kind: "svg", svg: "<svg/>", label: "Mermaid 图表" } as const;
+// 内容注入已移交 DOM 层（buildOverlay）：会话不再持有内容，故此处仅保留类型样例供后续用例引用
+void SVG_CONTENT;
 
 function createHarness(overrides?: Partial<MediaViewerSessionOptions>): {
   readonly session: ReturnType<typeof createMediaViewerSession>;
@@ -31,7 +33,6 @@ function createHarness(overrides?: Partial<MediaViewerSessionOptions>): {
   const keyboard = createRecordingKeyboard();
   const events = { restoreFocus: 0, closed: 0, edit: 0 };
   const session = createMediaViewerSession(overlay, keyboard, {
-    content: SVG_CONTENT,
     fit: "width",
     zoomPan: {},
     takeFocus: true,
@@ -52,7 +53,6 @@ function createHarness(overrides?: Partial<MediaViewerSessionOptions>): {
 describe("会话建立", () => {
   it("注入内容、应用初始变换、按 takeFocus 接管焦点、注册键盘监听一次", () => {
     const { overlay, keyboard } = createHarness();
-    expect(overlay.contents).toEqual([SVG_CONTENT]);
     expect(overlay.transforms).toHaveLength(1);
     // fit=width：内容宽 400、视口宽 1000 ⇒ scale 2.5，水平铺满、垂直居中
     expect(overlay.transforms[0]?.scale).toBe(2.5);
@@ -136,7 +136,7 @@ describe("编辑入口（AC4）", () => {
   it("requestEdit 先关闭浮层再请求编辑（保证光标落点）", () => {
     const { session, overlay, events } = createHarness();
     session.requestEdit();
-    expect(overlay.mounted).toBe(false);
+    expect(overlay.destroyed).toBe(1);
     expect(events.edit).toBe(1);
     expect(events.closed).toBe(1);
     expect(events.restoreFocus).toBe(1);
