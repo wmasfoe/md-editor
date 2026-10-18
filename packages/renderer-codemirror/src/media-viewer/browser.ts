@@ -16,7 +16,6 @@
 import {
   createMediaViewerSession,
   type MediaViewerContent,
-  type MediaViewerHandle,
   type MediaViewerZoomPan,
   type MediaViewerKeyEvent,
 } from "./session.ts";
@@ -26,6 +25,7 @@ import {
   type ViewerStylePort,
 } from "./styles.ts";
 import { rewriteSvgIds } from "./svg-id.ts";
+import { createMediaViewerRegistry } from "./registry.ts";
 import type { ViewerTransform } from "./zoom-pan.ts";
 
 export interface MediaViewerOptions {
@@ -45,8 +45,14 @@ export interface MediaViewerOptions {
   readonly restoreFocus?: (() => void) | undefined;
 }
 
-/** 模块级 host 键控登记表（唯一所有权来源）。 */
-const handlesByHost = new WeakMap<HTMLElement, MediaViewerHandle>();
+export interface MediaViewerHandle {
+  /** 浮层根元素（供调用方做定位/尺寸断言；契约要求该字段可用，不得为死字段）。 */
+  readonly element: HTMLElement;
+  close(options?: { readonly restoreFocus?: boolean }): void;
+}
+
+/** 模块级 host 键控登记表（唯一所有权来源；生命周期逻辑见 `registry.ts` 的单测）。 */
+const registry = createMediaViewerRegistry<MediaViewerHandle>();
 
 /** 构造样式注入端口（唯一需要类型断言的地方：`head.append` 接受 `Node`）。 */
 function createStylePort(doc: Document): ViewerStylePort {
@@ -196,7 +202,8 @@ function bindDocumentKeyDown(
 /** 打开查看器：重复 open 先关旧句柄（防幽灵浮层），并把新句柄登记到 host 名下。 */
 export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle {
   const { document: doc, host } = options;
-  closeMediaViewerFor(host);
+  // 重复 open 守卫：先关旧句柄（含其浮层 DOM 与 document 级监听），再构建新浮层
+  registry.closeFor(host, { restoreFocus: false });
   ensureViewerStyleElement(createStylePort(doc));
 
   const { root, stage, media } = buildOverlay(
@@ -217,9 +224,6 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
 
   const session = createMediaViewerSession(
     {
-      setContent: () => {
-        /* 内容在 buildOverlay 内一次构建完成；会话不再改写内容 */
-      },
       setTransform: (transform: ViewerTransform) => {
         // 只写 transform 属性（不拼接 style 字符串，避免多次调用后无界增长）
         styledMedia.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
@@ -244,9 +248,6 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
         keyboard = null;
         root.remove();
       },
-      get mounted() {
-        return !detached;
-      },
     },
     {
       add: (listener) => {
@@ -258,14 +259,13 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
       },
     },
     {
-      content: options.content,
       fit: options.fit,
       zoomPan: options.zoomPan,
       takeFocus: options.takeFocus,
       onRequestEdit: options.onRequestEdit,
       restoreFocus: options.restoreFocus,
       onClose: () => {
-        handlesByHost.delete(host);
+        registry.forget(host);
       },
     },
   );
@@ -273,7 +273,9 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
   closeButton?.addEventListener("click", () => session.handle.close({ restoreFocus: true }));
   editButton?.addEventListener("click", () => session.requestEdit());
   root.addEventListener("click", (event) => {
-    if (event.target === root) {
+    // 背景区（root 本身，或缩放平移模式下与 root 重合的 stage）点击关闭。
+    // 注意：`--zoom-pan` 下 stage 为 inset:0 会覆盖整屏，若只判 root 则“点空白关闭”会失效。
+    if (event.target === root || event.target === stage) {
       session.handle.close({ restoreFocus: true });
     }
   });
@@ -310,11 +312,15 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
     disposeObserver = observe(root, () => session.handleResize());
   }
 
-  handlesByHost.set(host, session.handle);
-  return session.handle;
+  const publicHandle: MediaViewerHandle = {
+    element: root,
+    close: (closeOptions) => session.handle.close(closeOptions),
+  };
+  registry.set(host, publicHandle);
+  return publicHandle;
 }
 
-/** 关闭 registry 中属于该 host 的浮层；未登记时为无操作（幂等）。 */
+/** 关闭 registry 中属于该 host 的浮层；未登记时为幂等 no-op。 */
 export function closeMediaViewerFor(host: HTMLElement): void {
-  handlesByHost.get(host)?.close({ restoreFocus: false });
+  registry.closeFor(host, { restoreFocus: false });
 }

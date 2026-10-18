@@ -53,7 +53,16 @@ export const VIEWER_CSS = [
   "  max-width: 92vw;",
   "  max-height: 92vh;",
   "}",
+  // 缩放平移模式：让舞台与浮层根重合。media 的绝对定位包含块因此变成 root（position:fixed; inset:0），
+  // 其 padding box 原点就是视口 (0,0)——这正是 translate(x,y) 的语义前提。
+  // 反例（已实测的缺陷）：舞台保持 position:relative 且只带 max-width/max-height，media 移出流后
+  // 舞台收缩为 0×0 并被 root 的 flex center 放在视口正中 ⇒ 包含块原点落在视口中心，
+  // 图形被整体偏移半个视口（Chromium 1000×500 下实测 left=500, top=250）。
   ".cm-md-media-viewer--zoom-pan .cm-md-media-viewer__stage {",
+  "  position: absolute;",
+  "  inset: 0;",
+  "  max-width: none;",
+  "  max-height: none;",
   "  cursor: grab;",
   "}",
   ".cm-md-media-viewer--dragging .cm-md-media-viewer__stage {",
