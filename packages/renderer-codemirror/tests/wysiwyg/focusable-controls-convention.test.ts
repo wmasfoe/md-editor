@@ -41,9 +41,17 @@ const SCAN_ROOTS: readonly ScanRoot[] = Object.freeze([
     id: "syntax-plugins",
     dir: fileURLToPath(new URL("../../../syntax-plugins/src", import.meta.url)),
   },
+  // 媒体查看器自建关闭/编辑按钮，必须在护栏覆盖内（architect R5）
+  { id: "media-viewer", dir: fileURLToPath(new URL("../../src/media-viewer", import.meta.url)) },
 ]);
 
-/** 白名单 = **有意的可键盘到达控件**（可访问性诉求）；每条都必须写明依据。 */
+/** 白名单 = **有意的可键盘到达控件**（可访问性诉求）；每条都必须写明依据。
+ *
+ * 裁决冲突登记（2026-10，architect R4）：`mermaid` 的工具栏按钮同样位于 `.cm-content` 内、
+ * 同样是“查看/编辑源码”类动作，却**有意**取 `tabIndex=-1`（不可 Tab 达）——因为该块在键盘路径上
+ * 已有“光标/方向键进入块即展开源码”的等价入口，且 owner 决策（codemirror-m2-code-block-accessibility.spec.ts）
+ * 明确“Tab 由编辑器内容消费、焦点必须留在内容区”。图片 widget 的同类控件历史上被本白名单认定为可达，
+ * 两者结论相反且长期共存：**新增同类控件时先看本节，不要默认为模板。** */
 const INTENTIONAL_A11Y_ALLOWLIST: Readonly<Record<string, string>> = Object.freeze({
   "wysiwyg:code-block-toolbar-widget.ts":
     "M2C-A01/A05（codemirror-m2-code-block-accessibility.spec.ts）要求代码块操作可键盘到达",
@@ -106,13 +114,18 @@ describe("文档内可聚焦控件约定（源码级结构护栏）", () => {
     ).toEqual([]);
   });
 
-  it("扫描根集合精确等于两个既定根（防止改指根导致覆盖静默丢失）", () => {
-    expect(SCAN_ROOTS.map((root) => root.id)).toEqual(["wysiwyg", "syntax-plugins"]);
+  it("扫描根集合精确等于三个既定根（防止改指根导致覆盖静默丢失）", () => {
+    expect(SCAN_ROOTS.map((root) => root.id)).toEqual([
+      "wysiwyg",
+      "syntax-plugins",
+      "media-viewer",
+    ]);
   });
 
   it("每个扫描根都必须真的扫到已知文件（防止根系退化为空转）", () => {
     expect(collectScannedRelativePaths(SCAN_ROOTS[0]!)).toContain("widgets/image-widget.ts");
     expect(collectScannedRelativePaths(SCAN_ROOTS[1]!)).toContain("mermaid/mermaid-projection.ts");
+    expect(collectScannedRelativePaths(SCAN_ROOTS[2]!)).toContain("browser.ts");
   });
 
   it("判别力：临时目录中的违规合成文件必须被抓到（扫描器不退化为空转）", () => {
