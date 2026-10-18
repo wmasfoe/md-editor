@@ -17,7 +17,7 @@
 | O5 | 依赖卫生：幽灵依赖 + catalog 收口 | `chore/dependency-hygiene` |
 | O6 | 构建产物语义复核（包级 build 不产出产物）+ 发布链路疑似重复构建 | `chore/build-artifact-semantics` |
 
-状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已实施**（`ci/bundle-budget-guard`）；O4b/O3/O5-2/O6 未开始。
+状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已实施**（`ci/structure-guard-and-web-build`）；O3/O5-2/O6 未开始。
 
 非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
 
@@ -197,7 +197,7 @@ infra/distribution-worker/src/
 
 **B. 包体/首屏预算护栏**
 
-**O4a 实施记录（已完成，分支 `ci/bundle-budget-guard`，叠放在 #167 之上）**
+**O4a 实施记录（已合并，分支 `ci/bundle-budget-guard` / PR #168，squash `11eb173`）**
 
 - 前提：探针此前跑不通是因为幽灵依赖（`build()` API 路径解析 `katex/dist/katex.min.css` 失败）；#165 修完后 `node apps/desktop/scripts/code-language-bundle-probe.mjs` **已恢复可用**（实测 exit 0）。
 - 新增 `apps/desktop/scripts/bundle-budget.mjs`（纯逻辑）+ `bundle-budget.test.mjs`（6 用例，`node --test`）：指标口径为 **minify+gzip 字节数**（确定性、与机器性能无关，因此可用绝对阈值），阈值 = 基线 × (1 + headroom 3%)；基线缺指标时显式报错而非静默放行。
@@ -214,6 +214,16 @@ infra/distribution-worker/src/
 **C. S6 性能基线（最小闭环）**
 
 `docs/agent/status/codemirror_renderer_migration_status.md` 记录 S6「未开始」。已有 `diagnostics.ts` 计数器 + `code-block-performance` 单测/e2e 先例，建议先固化"编辑器打开 + 首次投影 + 单字符输入"三个 fixture 的计数与耗时门槛，再逐步扩展，不新造观测设施。
+
+**O4b 实施记录（已完成，分支 `ci/structure-guard-and-web-build`，基于 main）**
+
+- 先核实了在途分支 `origin/ci/split-validation-and-macos-build`：**最后提交 2026-07-07（3 个多月前）、从未合并**；其 `ci.yml` 只在 ubuntu 跑 `pnpm lint`/`test`/`test:rust`，**没有 Browser E2E，且 Rust 三平台 matrix 收敛为单平台**。因此不做“等它落地 / cherry-pick 它”的取舍，改为在 main 的 `build-desktop.yml` 上最小补齐。
+- 改动两处：
+  1. `lint` job 增加 `Lint (Structure)` → `pnpm lint:structure`（**不能**换成 `pnpm lint`：会连带 cargo fmt/clippy，而该 job 未装 Rust；Rust lint 已由 `test-rust` job 覆盖）
+  2. `test-unit` job 增加 `Build Web app (production)` → `pnpm build:web`（`apps/web` 产物此前只在 `web-v*` tag 时构建，PR 阶段发现不了构建期问题，例如幽灵依赖导致的 CSS 解析失败）
+- 桌面端产物构建 smoke 不重复添加：O4a 的 `test:bundle` 探针已做一次完整 desktop Vite 构建（并已串入 `pnpm test`）。
+- 未做（属仓库设置而非文件改动）：把聚合门禁 / 包体预算提为 branch protection 的必需状态。
+- 保留结论：**不采纳**那个陈旧分支的 CI 拆分（其代价是丢 Browser E2E 与跨平台 Rust 验证）。
 
 ---
 

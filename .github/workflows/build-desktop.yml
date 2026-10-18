@@ -43,6 +43,11 @@ jobs:
       - name: Format (Prettier)
         run: pnpm format:prettier:check
 
+      # 仓库结构守卫（目录职责/命名/测试位置/体量阈值与豁免）。
+      # 注意不能直接换成 `pnpm lint`：那会连带执行 cargo fmt/clippy，而本 job 未安装 Rust。
+      - name: Lint (Structure)
+        run: pnpm lint:structure
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
@@ -90,6 +95,12 @@ jobs:
 
       - name: Run unit tests
         run: pnpm test
+
+      # 生产构建 smoke：apps/web 的产物此前只在 web-v* tag 发布时才构建，
+      # PR 阶段发现不了构建期问题（例如幽灵依赖导致的 CSS 解析失败）。
+      # 桌面端产物已由 `pnpm test` 中的 test:bundle 探针覆盖（它会做一次完整 desktop Vite 构建）。
+      - name: Build Web app (production)
+        run: pnpm build:web
 
       - name: Validate release version files
         run: node scripts/release/validate-release-version.mjs
