@@ -115,7 +115,15 @@ if (deco.block) {
 6. **空行保真优先于视觉节奏**：WYSIWYG 的空行数量必须与源码 1:1（源码 N 个空行 ⇒ 视觉 N 个空行；0 个 ⇒ 相邻）。不允许用伪造空行来制造间距。
 7. **整块原子选中态键入必须收敛为光标**：`inclusiveStart: true` 会让 CM6 把 widget 标记为 `TileFlag.IncStart`，`resolveBlock` 因此把 DOM 选区锚点放进 **widget 内部**；当键入字符替换整块时，浏览器选区会顺着被替换掉的 widget DOM 回读成**覆盖刚键入文本的范围**，下一次键入就会把上一字符删掉（现象：丢首字符，例如 `replacement` → `eplacement`）。因此整行块级原子（表格 / HTML / MDX / 块级兜底原子）的键入必须由 `blockAtomTypingInputHandler`（`atom-selection.ts`）显式派发事务（changes + 折叠光标），不得依赖 DOM 选区回读。行内原子、普通文本选区、IME 组字保持原生路径。
 
-### 符号型块（symbol block）默认间距规则
+### 已登记豁免：Mermaid 块（2026-10）
+
+`MermaidBlockWidget`（`packages/syntax-plugins/src/mermaid/mermaid-projection.ts`）目前仍**手写** `Decoration.replace({ …, inclusive: false, block: true })`，未经 `buildWholeLineBlockReplacement()`——即与不变量 #1/#4 存在漂移。
+
+**本仓库显式接受该现状**，理由与约束：
+
+- 改走统一实现会移动替换 range，并打破既有装饰几何断言（`packages/syntax-plugins/tests/mermaid.test.ts` 中 `inactiveDecos[0].from/to === record.fullRange.to`），属独立风险面，需另开任务；
+- 因此 **Mermaid 块暂不受 #2（不对称 Inclusivity）约束**，也不得借本豁免去放宽其它块级 widget；
+- **已知回归缺口**：既有块级空行保真 e2e（`wysiwyg-block-blank-line-fidelity.spec.ts`）的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**（其 widget 内部新增了外层包装 DOM 后尤应补一档）；补夹具时需同步核对本豁免是否仍成立。
 
 **定义**：一个整行块级 widget 属于符号型块，当且仅当同时满足：
 
