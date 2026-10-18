@@ -167,7 +167,19 @@ renderer
 - **错误卡片隔离**：捕获 Mermaid 解析与渲染过程中的所有语法异常，就地渲染友好的错误诊断卡片（包含错误行号与提示），严禁未捕获异常冒泡至全局。
 
 ### 6.3 所见即所得交互与未来架构兼容性
-- **就地编辑体验**：光标在 Mermaid 块外部时光滑呈现图表 SVG；光标移入代码块时原位暴露原始 Markdown 代码，支持快捷修改；
+- **鼠标/键盘有意分离（v7 契约）**：
+  - **鼠标单击块体 = 只读查看**：打开共享媒体查看器（默认适应宽度 + 滚轮缩放 + 拖拽平移 + 双击复位），**不修改选区、不展开源码**；打开动作在 `click` 阶段判定（`detail === 1` 且指针位移 < 4px 且目标非工具栏按钮）；
+  - **鼠标拖拽**不触发打开（位移阈值），避免“想拖选区却弹出浮层”；
+  - **键盘仍按 Typora 习惯**：光标/方向键进入块（含块**边界**）即原位暴露源码——块边界也生效是因为激活判定对空选区走闭区间包含（`markdown/range-types.ts::sourceRangeContains`）；
+  - **编辑入口显式化**：块内悬浮工具栏「编辑源码」与浮层内「编辑源码」两处；**不新增任何 keymap**（块边界已激活源码 ⇒ `Enter` 冗余；且仓库已有两个 `Prec.highest` 的 `Enter` 属主），也不再依赖 `mousedown` 内 `dispatch` 选区来进入编辑。
+- **`ignoreEvent` 返回 `true`**：块体不把指针事件交给 CM6（否则点击会按坐标把光标放到块边界 → 触发激活态）；真正阻止“单击即源码”的是**删除 dispatch**（主因）与 `ignoreEvent` 门控 selectionchange 回读（第二道防线）。
+- **加载/失败态**：SVG 未就绪时「放大查看」禁用且单击不打开；渲染失败卡片单击 = 进入源码编辑（无图可看时编辑是唯一有意义动作，卡片文案“点击卡片进入源码编辑”保持自洽）。
+- **媒体查看能力不在本插件内实现**：浮层、缩放平移、id 隔离、样式与生命周期均由 `@md-editor/renderer-codemirror` 的 `media-viewer` 模块提供（图片与图表共用），插件只做内容注入与事件接线。
+- **浮层样式为运行期注入的无前缀常量**（非典型决策，故意登记）：
+  - 浮层挂在 `document.body`，而宿主样式表规则统一带 `.code-mirror-editor-host` 前缀（只挂在 React 宿主 div 上）⇒ 带前缀的规则**永不匹配**（这是仓库历史上的真实缺陷，曾导致图片浮层长期“全裸”）；
+  - `EditorView.baseTheme` 同样不行：它把不含 `&` 的选择器编译为 `.<baseThemeID> <sel>`（要求目标是 `.cm-editor` 的**后代**）；
+  - 因此样式常量放在 `media-viewer/styles.ts` 并在打开时幂等注入 `document.head`，选择器**一律无祖先前缀**（`.cm-md-media-viewer*`）；`editor-ui` 不得再放带前缀的浮层规则，`tests/media-viewer/styles.test.ts` 会把它钉成可失败断言。
+- **键盘归属**：`Escape` **只关浮层**（document 捕获相 + `preventDefault`）；`Mod+K` **互斥**——先关浮层且不消费事件，让桌面命令面板（window 冒泡相、不检查 `defaultPrevented`）照常打开（命令面板 `z-[70]` 低于浮层 `1000`，因此“面板盖在浮层上”不可能成立）。
 - **画布扩展兼容性（Forward-Compatible Design）**：
   - 遵循“以 Markdown 文本为 Single Source of Truth”的一贯设计哲学；
   - 当前 `MermaidBlockWidget` 充当 Display Adapter；未来如引入交互式可视化设计器（拖拽节点、修改连线），将通过统一的 Adapter 接口向底层 CodeMirror 文档写回 DSL 代码，无需变更 AST 节点结构或打破现有契约。
