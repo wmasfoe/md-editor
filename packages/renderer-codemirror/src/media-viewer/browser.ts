@@ -38,6 +38,12 @@ export interface MediaViewerOptions {
   readonly zoomPan: false | MediaViewerZoomPan;
   /** 打开时是否接管焦点（图片与图表均为 true：浮层是模态，不接管会让键入改到背后文档）。 */
   readonly takeFocus: boolean;
+  /**
+   * 模态期间需要置 `inert` 的背景根（可选）。
+   * 缺省时按宿主约定猜：`#root` → `body.firstElementChild`（desktop/web 宿主用 `#root`）。
+   * 非 `#root` 约定的宿主（utools / 将来移动端）应显式传入，否则模态保证会静默弱化。
+   */
+  readonly backgroundRoot?: HTMLElement | undefined;
   /** 浮层内「编辑源码」入口；仅图表（svg 内容）传入。 */
   readonly onRequestEdit?: (() => void) | undefined;
   /** 关闭后焦点归还（由调用方注入，通常 `() => view.focus()`）。 */
@@ -57,8 +63,12 @@ const registry = createMediaViewerRegistry<MediaViewerHandle>();
  * 本仓已有 inert 先例（CodeMirrorEditor.tsx / AppSidebar.tsx）。
  * 返回恢复函数（幂等：只在本次确实设置过时移除）。
  */
-function inertBackground(doc: Document, overlay: HTMLElement): () => void {
-  const appRoot = doc.getElementById("root") ?? doc.body.firstElementChild;
+function inertBackground(
+  doc: Document,
+  overlay: HTMLElement,
+  backgroundRoot?: HTMLElement | undefined,
+): () => void {
+  const appRoot = backgroundRoot ?? doc.getElementById("root") ?? doc.body.firstElementChild;
   if (!(appRoot instanceof HTMLElement) || appRoot === overlay || appRoot.contains(overlay)) {
     return () => undefined;
   }
@@ -248,7 +258,7 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
   // 视口尺寸缓存：避免滚动/拖拽时逐帧 `getBoundingClientRect`（由 ResizeObserver 回调刷新）
   let viewportSize = measureRootSize(root);
   // 模态诚实化：浮层打开期间让背景 inert（否则 Tab 回到编辑器后，键入会改到被盖住的文档）
-  const restoreInert = inertBackground(doc, root);
+  const restoreInert = inertBackground(doc, root, options.backgroundRoot);
   const styledMedia = media as Element & { style: CSSStyleDeclaration };
 
   const session = createMediaViewerSession(

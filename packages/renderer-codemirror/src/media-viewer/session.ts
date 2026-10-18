@@ -14,6 +14,7 @@
  */
 import {
   DEFAULT_ZOOM_PAN_LIMITS,
+  clampTransform,
   createInitialTransform,
   panBy,
   zoomAtPoint,
@@ -278,7 +279,20 @@ export function createMediaViewerSession(
         // 静态模式：sizing 归 CSS，viewport 变化无需重新 fit，也不得施加变换
         return;
       }
-      resetTransform();
+      if (options.fit === "width") {
+        // 适应宽度：视口变化即重新铺满
+        resetTransform();
+        return;
+      }
+      // 整图可见（contain）：**保留**用户当前的缩放与平移，仅按新视口重新限位
+      // （此前无条件 resetTransform 会在窗口尺寸变化时丢掉用户的缩放与位置）
+      transform = clampTransform(
+        transform,
+        overlay.measureViewport(),
+        overlay.measureContent(),
+        limits ?? DEFAULT_ZOOM_PAN_LIMITS,
+      );
+      overlay.setTransform(transform);
     },
     requestEdit: () => {
       if (closed) {

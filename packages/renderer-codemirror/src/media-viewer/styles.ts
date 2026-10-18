@@ -118,7 +118,9 @@ export const VIEWER_CSS = [
 
 /**
  * 幂等注入浮层样式：已存在则按需刷新文本，不存在则创建并追加到 `head`。
- * 无 `document` 的调用方应由上层跳过（见 `index.ts` 的 `typeof document === "undefined"` 守卫）。
+ *
+ * 本模块自身**不引用** `document`：注入目标由调用方的 `port` 提供，因此无需
+ * `typeof document === "undefined"` 之类的环境守卫（node 侧直接用 mini-port）。
  */
 export function ensureViewerStyleElement(port: ViewerStylePort): void {
   const existing = port.getElementById(VIEWER_STYLE_ELEMENT_ID);
