@@ -472,26 +472,12 @@
   border-color: #d33;
 }
 
-/* 放大查看器浮层(全屏遮罩) */
-.code-mirror-editor-host .cm-md-image-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.72);
-  cursor: zoom-out;
-}
-
-.code-mirror-editor-host .cm-md-image-viewer__image {
-  max-width: 92vw;
-  max-height: 92vh;
-  object-fit: contain;
-  border-radius: 4px;
-  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.5);
-  cursor: default;
-}
+/* 放大查看器浮层样式已迁出：
+   原 `.code-mirror-editor-host .cm-md-image-viewer*` 规则挂在 React 宿主 div 上，
+   而浮层是 `document.body` 的子节点 ⇒ 规则永不匹配（浮层长期“全裸”，见 PR 的 fix commit）。
+   现由 `@md-editor/renderer-codemirror` 的 `media-viewer/styles.ts` 自持注入
+   （无祖先前缀 `.cm-md-media-viewer*`）。改动此块前请先读
+   docs/agent/architecture/markdown_syntax_plugin_architecture.md。 */
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-alt {
   display: block;

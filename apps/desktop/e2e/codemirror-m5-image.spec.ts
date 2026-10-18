@@ -75,7 +75,7 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(0);
   });
 
-  test("I4: 查看器按钮打开全屏浮层,Escape 关闭", async ({ page }) => {
+  test("I4: 查看器按钮打开全屏浮层（计算样式生效）,Escape 关闭", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
@@ -83,9 +83,36 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await image.hover();
     const viewerButton = image.locator(".cm-md-image-widget__viewer");
     await viewerButton.click({ force: true });
-    const overlay = page.locator(".cm-md-image-viewer");
+    // 类名随媒体查看器下沉改为 .cm-md-media-viewer*
+    const overlay = page.locator(".cm-md-media-viewer");
     await expect(overlay).toBeVisible();
     await expect(overlay.locator("img")).toHaveAttribute("src", "cat.png");
+
+    // AC17：浮层计算样式必须真实生效（旧规则带宿主前缀，对 body 级浮层永不匹配）
+    const styles = await overlay.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        position: computed.position,
+        zIndex: Number.parseInt(computed.zIndex, 10),
+        background: computed.backgroundColor,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    expect(styles.position).toBe("fixed");
+    expect(styles.zIndex).toBeGreaterThanOrEqual(1000);
+    expect(styles.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(styles.width).toBeGreaterThanOrEqual(styles.viewportWidth - 1);
+    expect(styles.height).toBeGreaterThanOrEqual(styles.viewportHeight - 1);
+
+    // dialog 语义 + 焦点接管（键入不得修改背后文档）
+    await expect(overlay).toHaveAttribute("role", "dialog");
+    await expect(overlay).toHaveAttribute("aria-modal", "true");
+    await expect(overlay).toBeFocused();
+
     await page.keyboard.press("Escape");
     await expect(overlay).toHaveCount(0);
   });
