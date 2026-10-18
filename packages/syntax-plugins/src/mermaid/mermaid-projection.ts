@@ -9,6 +9,14 @@ import type { MermaidMetadata } from "./mermaid-types.ts";
 const OPEN_DRAG_THRESHOLD_PX = 4;
 
 /**
+ * 手势判定（纯函数，便于单测边界）：原地单击才展开查看；拖拽不展开。
+ * 抽成导出函数是因为 AC2 要求覆盖 `0 / 阈值−1 / 阈值 / 阈值+1` 四个边界。
+ */
+export function shouldOpenViewerFromClick(detail: number, dragDistance: number): boolean {
+  return detail === 1 && dragDistance <= OPEN_DRAG_THRESHOLD_PX;
+}
+
+/**
  * 渲染完成后的 SVG 字符串，按 **DOM** 键控。
  *
  * 为什么不放实例字段：CM6 在 `WidgetType.compare()` 为真时走 DOM 复用分支并**丢弃旧实例**
@@ -147,7 +155,8 @@ export class MermaidBlockWidget extends WidgetType {
           container.classList.remove("cm-md-mermaid--has-error");
           container.innerHTML = svg;
           renderedSvgByDom.set(container, svg);
-          viewerButton.disabled = false;
+          // 空围栏（renderMermaidSvg 返回空串）时保持禁用；否则任务栏按钮可点却无反应
+          viewerButton.disabled = svg.trim() === "";
         }
         scheduleHeightMeasure(view, `mermaid-${this.recordId}`);
       })
@@ -185,13 +194,17 @@ export class MermaidBlockWidget extends WidgetType {
     container.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (event.detail !== 1 || dragDistance > OPEN_DRAG_THRESHOLD_PX) {
+      if (!shouldOpenViewerFromClick(event.detail, dragDistance)) {
         return;
       }
       const svg = renderedSvgByDom.get(container);
       if (!svg) {
-        // 有意例外：无图可看时（渲染失败）单击即进入源码编辑，与卡片文案自洽
-        enterSourceEdit(view, this.anchorPos);
+        // 仅**渲染失败**才是“无意可看 ⇒ 单击进入编辑”的有意例外；
+        // 加载中（骨架屏）必须不产生任何副作用——否则在 mermaid 动态 import 窗口里
+        // 单击会把用户推进源码态，正是本特性要消除的“点击即掉进源码”。
+        if (container.classList.contains("cm-md-mermaid--has-error")) {
+          enterSourceEdit(view, this.anchorPos);
+        }
         return;
       }
       openMediaViewer({
