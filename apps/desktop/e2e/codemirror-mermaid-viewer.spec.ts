@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { loadDoc, openFullApp, readDoc } from "./editor-e2e-helpers";
+import { MOD_KEY, loadDoc, openFullApp, readDoc, setCaret } from "./editor-e2e-helpers";
 
 /**
  * Mermaid 图表「查看 / 编辑」解耦的浏览器验收（AC1–AC4、AC8–AC12、AC17–AC19）。
@@ -38,6 +38,22 @@ const INVALID_MERMAID_DOC = [
   "```",
   "",
 ].join("\n");
+
+/** AC5 用：**浅图**。fit=width 下高度远小于视口 ⇒ 上下留有空白遮罩可点。
+ *  反之高瘦图（graph TD）在 fit=width 下会铺满整屏——那时“点空白关闭”天然不可用，
+ *  只能靠 Escape / 关闭按钮（已登记为固有取舍）。 */
+const SHALLOW_MERMAID_DOC = [
+  "# 浅图",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  A[开始] --> B[结束]",
+  "```",
+  "",
+].join("\n");
+
+/** AC8 负例用的纯文本夹具（无 mermaid 块）：段落与列表的 Enter 行为必须保持不变。 */
+const PROSE_DOC = ["# 标题", "", "段落一。", "", "- 项目一", ""].join("\n");
 
 /** 超宽图：列数足够多，使 SVG 宽度超过视口 ⇒ 触发滚动层裁剪风险（AC19）。
  *  必顶先给一个标题：夹具若以 ```mermaid 开头，loadDoc 后光标落在文档起点＝fence 内，
@@ -226,12 +242,84 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     const overlay = page.locator(".cm-md-media-viewer");
     await expect(overlay).toBeVisible();
 
-    // 「适应宽度」不能只是数值上算对：真实渲染宽度必须真的铺开（防止 layout box 与 viewBox 不一致时"看起来坏"）
-    const widthRatio = await overlay.locator("svg").evaluate((element) => {
+    // 「适应宽度」必须是**位置 + 覆盖**都对：只断言宽度会漏掉“包含块原点错位”——
+    // 自己就漏过一次：内容被整体偏移半个视口、图形画到右下象限，而宽度比仍然正确。
+    const geometry = await overlay.locator("svg").evaluate((element) => {
       const rect = element.getBoundingClientRect();
-      return rect.width / window.innerWidth;
+      return {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
     });
-    expect(widthRatio).toBeGreaterThan(0.5);
+    expect(geometry.width).toBeGreaterThan(geometry.viewportWidth * 0.95);
+    expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+    expect(Math.abs(geometry.left)).toBeLessThanOrEqual(1);
+    expect(geometry.top).toBeGreaterThanOrEqual(-1);
+    expect(geometry.top + geometry.height).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+  });
+
+  test("AC5: 三通道关闭（Escape / 遮罩 / 关闭按钮）且关闭后焦点回编辑器", async ({ page }) => {
+    test.setTimeout(120_000);
+    for (const channel of ["escape", "backdrop", "button"] as const) {
+      await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+      await waitForSvg(page);
+      await page.locator(".cm-md-mermaid-container").first().click();
+      const overlay = page.locator(".cm-md-media-viewer");
+      await expect(overlay).toBeVisible();
+
+      if (channel === "escape") {
+        await page.keyboard.press("Escape");
+      } else if (channel === "backdrop") {
+        // 左上角空白：缩放平移模式下 stage 与 root 重合，两者都应被视为遮罩。
+        // 夹具必须是**浅图**——高图在 fit=width 下铺满全屏，没有空白可点。
+        await overlay.click({ position: { x: 4, y: 4 } });
+      } else {
+        await overlay.locator(".cm-md-media-viewer__close").click();
+      }
+
+      await expect(overlay, `关闭通道 ${channel} 应移除浮层`).toHaveCount(0);
+      await expect(page.locator(".cm-content"), `关闭通道 ${channel} 应交还焦点`).toBeFocused();
+    }
+  });
+
+  test("AC8 负例：段落 Enter 换行、列表 Enter 续行（行为回归，不新增 Enter keymap）", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await openFullApp(page);
+    await loadDoc(page, PROSE_DOC);
+
+    await setCaret(page, PROSE_DOC.indexOf("段落一。") + "段落一。".length);
+    await page.keyboard.press("Enter");
+    expect(await readDoc(page)).toContain("段落一。\n");
+
+    await setCaret(page, PROSE_DOC.indexOf("- 项目一") + "- 项目一".length);
+    await page.keyboard.press("Enter");
+    expect(await readDoc(page)).toContain("- 项目一\n- ");
+  });
+
+  test("AC18: Mod+K 互斥（先关查看器、面板照常打开）与 Mod-/ 真实效果", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    await page.keyboard.press(`${MOD_KEY}+k`);
+    await expect(overlay).toHaveCount(0);
+    await expect(page.getByLabel(/命令搜索|Command search/)).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Mod-/ 的真实效果：切到源码模式（容器消失、原始围栏可见），再切回
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-content")).toContainText("```mermaid");
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container").first()).toBeVisible({ timeout: 30_000 });
   });
 
   test("AC12: 图表块后按 Tab 不新增文档内 Tab 停靠点（焦点留在内容区）", async ({ page }) => {
