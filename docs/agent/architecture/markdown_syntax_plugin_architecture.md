@@ -183,6 +183,10 @@ renderer
   - **防腐约束（除文件隐式契约）**：桌面命令面板的 `Mod+K` 处理器**不得新增 `defaultPrevented` 早退**，否则互斥语义在非本平台键上会出现“面板不开、浮层也关了”的噪声。
   - **已知偏差（已登记）**：浮层不做平台判定，同时接受 Meta 与 Ctrl——非本平台键会“关浮层但不打开面板”，属无害噪声；宁可保持跨平台宽松，也不引入平台检测这一新的注入面。
 - **模态诚实化（本仓第二套模态）**：浮层打开时把应用根置 `inert`（`media-viewer/browser.ts` 的 `inertBackground`），否则 Tab 会回到编辑器、随后键入会修改“被模态盖住”的文档——而浮层却声称 `aria-modal`。本仓 `inert` 先例：`CodeMirrorEditor.tsx` / `AppSidebar.tsx`。**新增第二套模态前先读本节。**
+- **浮层控件的可键盘达性 vs 文档内控件约定（不得混淆）**：
+  - 浮层是**宿主级 UI**：挂在 `document.body` 上、不在 `.cm-content` 内，因此**不适用**“文档内可聚焦控件必须 `tabIndex=-1`”的约定（那个约定是为了不让文档内容参与浏览器 Tab 链）；
+  - 恰恰相反：一个声称 `aria-modal="true"` 的 dialog 内**必须有可 Tab 达的控件**（关闭 / 编辑源码），否则键盘用户无法抵达入口，`aria-modal` 就只是断言而非事实；
+  - 因此 `focusable-controls-convention` 的扫描根**只含** `src/wysiwyg` 与 `packages/syntax-plugins/src`，**不包含** `src/media-viewer`——把后者纳入会反向逼着模态按钮取 `tabIndex=-1`（历史上曾误这么做过，详见 PRD r5 D1 纠偏）。
 - **几何不变量（e2e 才能守）**：
   1. `--zoom-pan` 下舞台必须与浮层根**重合**（`position:absolute; inset:0`）：媒体盒的绝对定位包含块必须是 `position:fixed; inset:0` 的根，其 padding-box 原点即视口 (0,0)；若舞台保持 `position:relative`，媒体移出流后舞台收缩为 0×0、被根居中 ⇒ 包含块原点变成视口中心，图形被整体偏移半个视口（曾实测 `left=500, top=250` @1000×500）。
   2. mermaid 的 SVG 根带 `width="100%"` 与内联 `max-width`，其**布局盒 ≠ `viewBox`**；注入时必须归一化宽高到 `viewBox` 并清掉内联上限，否则 `fit:"width"` 数值上算对、视觉上不铺开（曾实测只到视口宽 19.7%）。

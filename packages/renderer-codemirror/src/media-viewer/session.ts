@@ -26,6 +26,11 @@ import {
 
 export type MediaViewerContent =
   | { readonly kind: "image"; readonly src: string; readonly alt: string }
+  /**
+   * `svg` 必须是**生产者已消毒过的**标记（本项目为 mermaid 在 `securityLevel: "strict"` 下的产
+   * 出，且已经过 `rewriteSvgIds`）。本模块会把它当 DOM 节点注入（而非 `<img>`，以保证
+   * `foreignObject` 继承页面 CSS 变量与字体），因此**不接受**来自不可信输入的原始 SVG 字符串。
+   */
   | { readonly kind: "svg"; readonly svg: string; readonly label: string };
 
 export interface MediaViewerZoomPan {
