@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { MOD_KEY } from "./editor-e2e-helpers";
 
 const UNDO_KEY = process.platform === "darwin" ? "Meta+z" : "Control+z";
 
@@ -75,7 +76,7 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await expect(page.locator(".cm-md-image-widget")).toHaveCount(0);
   });
 
-  test("I4: 查看器按钮打开全屏浮层,Escape 关闭", async ({ page }) => {
+  test("I4: 查看器按钮打开全屏浮层（计算样式生效）,Escape 关闭", async ({ page }) => {
     await openHarness(page);
     await replaceDocument(page, FIXTURE);
 
@@ -83,10 +84,70 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
     await image.hover();
     const viewerButton = image.locator(".cm-md-image-widget__viewer");
     await viewerButton.click({ force: true });
-    const overlay = page.locator(".cm-md-image-viewer");
+    // 类名随媒体查看器下沉改为 .cm-md-media-viewer*
+    const overlay = page.locator(".cm-md-media-viewer");
     await expect(overlay).toBeVisible();
     await expect(overlay.locator("img")).toHaveAttribute("src", "cat.png");
+
+    // AC17：浮层计算样式必须真实生效（旧规则带宿主前缀，对 body 级浮层永不匹配）
+    const styles = await overlay.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        position: computed.position,
+        zIndex: Number.parseInt(computed.zIndex, 10),
+        background: computed.backgroundColor,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+    expect(styles.position).toBe("fixed");
+    expect(styles.zIndex).toBeGreaterThanOrEqual(1000);
+    expect(styles.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(styles.width).toBeGreaterThanOrEqual(styles.viewportWidth - 1);
+    expect(styles.height).toBeGreaterThanOrEqual(styles.viewportHeight - 1);
+
+    // dialog 语义 + 焦点接管（键入不得修改背后文档）
+    await expect(overlay).toHaveAttribute("role", "dialog");
+    await expect(overlay).toHaveAttribute("aria-modal", "true");
+    await expect(overlay).toBeFocused();
+
+    // 图片几何：contain 于视口内且居中。
+    // 这条断言是为了锁住「静态模式不得施加变换」——若会话对 zoomPan:false 也 setTransform，
+    // 图片会被二次缩放并整体偏移，而只看浮层根计算样式是看不出来的（实测漏过一次）。
+    const imageGeometry = await overlay.locator("img").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left + rect.width / 2,
+        centerY: rect.top + rect.height / 2,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(imageGeometry.width).toBeLessThanOrEqual(imageGeometry.viewportWidth * 0.93);
+    expect(imageGeometry.height).toBeLessThanOrEqual(imageGeometry.viewportHeight * 0.93);
+    expect(Math.abs(imageGeometry.centerX - imageGeometry.viewportWidth / 2)).toBeLessThanOrEqual(
+      2,
+    );
+    expect(Math.abs(imageGeometry.centerY - imageGeometry.viewportHeight / 2)).toBeLessThanOrEqual(
+      2,
+    );
+
+    // Escape 关闭（原有断言，不得因新增 AC15④ 而被取代）
     await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+
+    // AC15 ④：图片路径也拿到 `Mod+K` 互斥行为（先关浮层）。
+    // 注：“面板照常打开”那半句由 codemirror-mermaid-viewer.spec.ts 在完整 app harness 下断言——
+    // 本 spec 用轻量 harness，并不挂载桌面命令面板。
+    await image.hover();
+    await viewerButton.click({ force: true });
+    await expect(overlay).toBeVisible();
+    await page.keyboard.press(`${MOD_KEY}+k`);
     await expect(overlay).toHaveCount(0);
   });
 

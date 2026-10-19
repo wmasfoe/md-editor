@@ -115,6 +115,20 @@ if (deco.block) {
 6. **空行保真优先于视觉节奏**：WYSIWYG 的空行数量必须与源码 1:1（源码 N 个空行 ⇒ 视觉 N 个空行；0 个 ⇒ 相邻）。不允许用伪造空行来制造间距。
 7. **整块原子选中态键入必须收敛为光标**：`inclusiveStart: true` 会让 CM6 把 widget 标记为 `TileFlag.IncStart`，`resolveBlock` 因此把 DOM 选区锚点放进 **widget 内部**；当键入字符替换整块时，浏览器选区会顺着被替换掉的 widget DOM 回读成**覆盖刚键入文本的范围**，下一次键入就会把上一字符删掉（现象：丢首字符，例如 `replacement` → `eplacement`）。因此整行块级原子（表格 / HTML / MDX / 块级兜底原子）的键入必须由 `blockAtomTypingInputHandler`（`atom-selection.ts`）显式派发事务（changes + 折叠光标），不得依赖 DOM 选区回读。行内原子、普通文本选区、IME 组字保持原生路径。
 
+### 已登记豁免：Mermaid 块（2026-10）
+
+`MermaidBlockWidget`（`packages/syntax-plugins/src/mermaid/mermaid-projection.ts`）目前仍**手写** `Decoration.replace({ …, inclusive: false, block: true })`，未经 `buildWholeLineBlockReplacement()`——即与不变量 #1/#4 存在漂移。
+
+**本仓库显式接受该现状**，理由与约束：
+
+- 改走统一实现会移动替换 range，并打破既有装饰几何断言（`packages/syntax-plugins/tests/mermaid.test.ts` 中 `inactiveDecos[0].from/to === record.fullRange.to`），属独立风险面，需另开任务；
+- 因此 **Mermaid 块暂不受 #2（不对称 Inclusivity）约束**，也不得借本豁免去放宽其它块级 widget；
+- **已知回归缺口（2026-10 实测确认，不再是推测）**：既有块级空行保真 e2e 的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**；而在启用 mermaid 插件的完整 app harness 中实测：
+  - 源码 1 个空行 ⇒ 视觉 **2** 个空行（**多一个幽灵行**）；
+  - 源码 **0** 个空行 ⇒ 视觉 **1** 个空行（同样多一个）——即 mermaid 块目前**恒定多渲染 1 个幽灵行**。
+
+  这正是手写 `inclusive:false` 未采用不对称 Inclusivity 的后果，已由 `codemirror-mermaid-viewer.spec.ts` 的「块间空行保真（已登记偏差）」用例**钉死当前行为**（非假绿：后续改走统一实现时该用例会变红，需同步改断言并删除本偏差声明）。修复方向：让 mermaid 改走 `buildWholeLineBlockReplacement()`（会移动 range 并需同步调整 `packages/syntax-plugins/tests/mermaid.test.ts` 的装饰几何断言），属独立任务。
+
 ### 符号型块（symbol block）默认间距规则
 
 **定义**：一个整行块级 widget 属于符号型块，当且仅当同时满足：
@@ -128,16 +142,24 @@ if (deco.block) {
 - 符号型块的“呼吸感”由**展示层统一提供**，而不是伪造空行：renderer 侧通过 `applyBlockCategory(dom, "symbol")` 声明类别（输出 `data-md-block-category="symbol"`），`blockReplacementTheme` 为该类别统一声明垂直间距：
   ```css
   [data-md-block-category="symbol"] {
-    margin-top: var(--theme-block-symbol-gap, 0.5rem);
-    margin-bottom: var(--theme-block-symbol-gap, 0.5rem);
+    box-sizing: content-box;
+    padding-top: var(--theme-block-symbol-gap, 0.5rem);
+    padding-bottom: var(--theme-block-symbol-gap, 0.5rem);
   }
   ```
+
 - 当前成员：**分割线**（`ThematicBreakWidget`）。新增同类块只需调用 `applyBlockCategory(dom, "symbol")` 即自动获得该间距。
-- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写 `margin`（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码）。
+- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`。
 - 间距只允许加**垂直方向**，不得改变空行数量、源码或光标步数。
 - 宿主（editor-ui / 移动端等）可通过定义 `--theme-block-symbol-gap` 覆盖数值；未定义时回落到 `0.5rem`（DESIGN.md 4px 基线网格）。
 
-**已接受的不一致（不要当 bug 修）**：CM6 中 widget 的 margin 与相邻源码空行是**叠加**关系（不会 margin collapse），因此符号型块在“源码 1 个空行”时看起来会比普通段落之间的 1 个空行略宽。这是用户明确接受的代价：细符号块紧贴正文时观感过挤，而用户无法用“半个空行”微调它。
+> ⚠ **为什么必须是 `padding` 而不是 `margin`（硬约束）**：CM6 的点击→位置映射依赖高度图，而高度图只量
+> border-box、**不含 margin** ⇒ 用 margin 提供的间距会成为累计误差，累计超过一个行高时用户
+> **点击某行、光标却落到下一行**。完整机制、实测数据、已排除假设、诊断方法与残项登记见
+> **[CM6 高度图与点击落点保真规范](./codemirror_height_map_and_click_fidelity_spec.md)**（本事实的唯一事实源）。
+> 回归护栏：`apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`。
+
+**已接受的不一致（不要当 bug 修）**：符号型块自带的间距与相邻源码空行是**叠加**关系（不会 margin collapse），因此符号型块在“源码 1 个空行”时看起来会比普通段落之间的 1 个空行略宽。这是用户明确接受的代价：细符号块紧贴正文时观感过挤，而用户无法用“半个空行”微调它。
 
 ---
 
@@ -157,5 +179,8 @@ if (deco.block) {
      - 方向键进入整块原子时 `selectionAnchor/Head` 等于块源码范围，且光标不得绘制在 widget 顶边之上；
      - 表格 / HTML / MDX 整块原子选中态键入 `ab` ⇒ 源码被替换为 `ab`（锁死“丢首字符”回归）；
      - 行内 JSX 不丢内容且不产生额外空行；
-     - 符号型块（分割线）的 `data-md-block-category` 为 `symbol`，且计算后的垂直 margin 等于 `--theme-block-symbol-gap`（回落 0.5rem）。
+     - 符号型块的 `data-md-block-category` 为 `symbol`，计算后 `margin` 为 0、上下 `padding` 均等于 `--theme-block-symbol-gap`（回落 0.5rem），且 border-box 高度 = 符号本体 1.85rem + 2×gap（视觉足迹不变）。
+   - `apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`（**点击落点保真**，本轮新增）：
+     - 块级行不得用垂直 margin 提供间距（带已登记残项基线）；
+     - 滚动后点击段落，`selectionHead` 必须落在被点击的那一行，且 `.cm-cursor` 必须绘制在该行盒内。
 3. **回归面（改动后必须全量通过）**：`codemirror-m3-table.spec.ts`、`codemirror-m4-html-mdx.spec.ts`、`codemirror-m4-mdx.spec.ts`、`thematic-break-rendering.spec.ts`、`ux-fixes-verification.spec.ts` 以及 `pnpm lint` / `pnpm test` / `pnpm typecheck`。

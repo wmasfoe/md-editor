@@ -32,9 +32,12 @@
  * 这类块的"呼吸感"由展示层统一提供（见 {@link blockReplacementTheme}），而**不是**伪造空行：
  * 空行数量始终与源码 1:1，间距只加垂直方向，不影响源码与光标步数。
  *
- * 注意：CM6 中 widget 的 margin 与相邻空行是**叠加**关系（不会 margin collapse），
- * 因此符号型块在"源码 1 个空行"时看起来会比普通段落间的空行略宽——这是有意接受的不一致，
- * 新增符号块成员只允许登记 {@link applyBlockCategory}，禁止逐 widget 手写 margin。
+ * ⚠️ 间距必须用 **padding** 交付，**禁止 margin**：CM6 的高度图（`HeightMap`）对每一行/块只量
+ * border-box 高度（`getBoundingClientRect().height`），**不包含 margin**；而 `posAtCoords` 的
+ * y→行号映射完全建立在高度图上（`view.elementAtHeight(yOffset)`）。每漏算一次 margin，
+ * 该块之后所有内容的"点击位置 vs 光标落点"就整体偏移同样的量；累计超过一个行高即偏一行。
+ * 实测：文档含 2 个分割线时漏算 2×16px=32px > 行高 28px，点击段落会落到下一行
+ * （见 `thematic_break_and_block_inclusivity_spec.md` 的"高度图契约"一节）。
  */
 
 import type { EditorState, Extension, Range } from "@codemirror/state";
@@ -52,7 +55,7 @@ export const BLOCK_SYMBOL_GAP_VARIABLE = "--theme-block-symbol-gap";
 
 /**
  * 在 widget 根节点上声明视觉类别。符号型块（{@link WysiwygBlockCategory}）由此获得
- * {@link blockReplacementTheme} 的统一间距，无需自己写 margin。
+ * {@link blockReplacementTheme} 的统一间距，无需自己写 padding。
  */
 export function applyBlockCategory(dom: HTMLElement, category: WysiwygBlockCategory): void {
   dom.setAttribute(WYSIWYG_BLOCK_CATEGORY_ATTRIBUTE, category);
@@ -110,10 +113,17 @@ export function trailingLineBreakEnd(record: MarkdownRangeRecord, state: EditorS
 /**
  * 符号型块的展示层间距规则。规则本体收敛在 renderer 核心层，宿主只通过
  * {@link BLOCK_SYMBOL_GAP_VARIABLE} 提供设计值；未定义时回落到 8px（DESIGN.md 4px 基线网格）。
+ *
+ * 为什么是 padding 而不是 margin（**不要在符号块上改回 margin**）：
+ * CM6 的高度图只量 border-box，margin 不计入 ⇒ 每个符号块的间距都会成为高度图的
+ * 累计误差，使鼠标点击的 y 被映射到错误的行（详见模块头注释与 spec 的"高度图契约"）。
+ * `boxSizing: content-box` 使 padding 对声明了固定高度的 widget 也是**额外**空间，
+ * 因此视觉足迹与旧的 `height + 2×margin` 完全一致（分割线行 29.6px + 16px = 45.6px 不变）。
  */
 export const blockReplacementTheme: Extension = EditorView.baseTheme({
   [`[${WYSIWYG_BLOCK_CATEGORY_ATTRIBUTE}="symbol"]`]: {
-    marginTop: `var(${BLOCK_SYMBOL_GAP_VARIABLE}, 0.5rem)`,
-    marginBottom: `var(${BLOCK_SYMBOL_GAP_VARIABLE}, 0.5rem)`,
+    boxSizing: "content-box",
+    paddingTop: `var(${BLOCK_SYMBOL_GAP_VARIABLE}, 0.5rem)`,
+    paddingBottom: `var(${BLOCK_SYMBOL_GAP_VARIABLE}, 0.5rem)`,
   },
 });

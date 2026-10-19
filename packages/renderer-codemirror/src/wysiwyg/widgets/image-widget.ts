@@ -1,5 +1,6 @@
 import { EditorSelection, type EditorState } from "@codemirror/state";
 import { WidgetType, type EditorView } from "@codemirror/view";
+import { closeMediaViewerFor, openMediaViewer } from "../../media-viewer/index.ts";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
@@ -130,39 +131,34 @@ function deleteImage(wrapper: HTMLElement, view: EditorView): void {
   view.focus();
 }
 
-/** 放大查看器:全屏浮层显示大图,点击遮罩/Escape 关闭 */
+/**
+ * 放大查看：交由共享媒体查看器（媒体能力已下沉到 `media-viewer` 模块，图片与图表共用）。
+ *
+ * 图片路径行为**冻结**：`fit: "contain"`（整图可见）+ `zoomPan: false`（无缩放/平移/拖拽监听）。
+ * 相对迁移前的两处**显式修复**（已在 PRD §3/§4.4.4 登记、CHANGELOG 记 `fix`）：
+ * 1. 浮层样式首次真正生效——旧规则带 `.code-mirror-editor-host` 前缀，而浮层挂在 `document.body`，
+ *    后缀选择器永不匹配（于是长期“全裸”且测试仍绿）；现由模块自持注入无前缀样式。
+ * 2. 打开时接管焦点（`takeFocus: true`）——旧实现不接管，导致浮层遮住屏幕时键盘输入会改到背后文档。
+ * Escape 仍为“只关浮层”（与迁移前同构），冲突面板/`Mod+K` 的归属由共享模块统一处理。
+ */
 function openImageViewer(wrapper: HTMLElement, view: EditorView): void {
   const previewSource = wrapper.dataset.previewSource;
   if (!previewSource) {
     return;
   }
-  const document = view.dom.ownerDocument;
-  const overlay = document.createElement("div");
-  overlay.className = "cm-md-image-viewer";
-  const image = document.createElement("img");
-  image.className = "cm-md-image-viewer__image";
-  image.src = previewSource;
-  image.alt = wrapper.dataset.imageDescription ?? "Markdown image";
-  overlay.append(image);
-  document.body.append(overlay);
-
-  const close = (): void => {
-    overlay.remove();
-    document.removeEventListener("keydown", onKeyDown, true);
-    view.focus();
-  };
-  const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      close();
-    }
-  };
-  overlay.addEventListener("click", (event) => {
-    if (event.target === overlay) {
-      close();
-    }
+  openMediaViewer({
+    document: view.dom.ownerDocument,
+    host: wrapper,
+    content: {
+      kind: "image",
+      src: previewSource,
+      alt: wrapper.dataset.imageDescription ?? "Markdown image",
+    },
+    fit: "contain",
+    zoomPan: false,
+    takeFocus: true,
+    restoreFocus: () => view.focus(),
   });
-  document.addEventListener("keydown", onKeyDown, true);
 }
 
 export class ImageWidget extends WidgetType {
@@ -328,6 +324,9 @@ export class ImageWidget extends WidgetType {
   }
 
   destroy(dom: HTMLElement): void {
+    // 浮层句柄按 host DOM 键控：CM6 复用 DOM 时会丢弃旧 widget 实例且不调其 `destroy`，
+    // 因此清理必须走“按 DOM 关闭”的模块级入口（而非实例字段）。
+    closeMediaViewerFor(dom);
     const listeners = listenersByDom.get(dom);
     const image = dom.querySelector("img");
     const state = widgetDomState.get(dom);

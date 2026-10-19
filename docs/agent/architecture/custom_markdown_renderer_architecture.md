@@ -502,6 +502,7 @@ React 组件内部状态不是文档事实源。表格选择等需要跨重建�
 每类元素必须定义显式触发：
 
 - 图片：Widget 点击或 selection 触碰后显示完整源码，并在源码行下方保留实时 point Widget 预览；只有非活动 Replace range 是 atomic。
+- Mermaid 图表：**鼠标单击 = 打开共享媒体查看器（不修改选区、不展开源码）**；鼠标拖拽不触发打开；**键盘光标/方向键进入块（含块边界）仍原位展开源码**；编辑入口为块内悬浮工具栏与浮层内的「编辑源码」。块体 `ignoreEvent` 返回 `true`（指针事件不交给 CM6）。详见 `markdown_syntax_plugin_architecture.md` §6.3。
 - 链接：label 中的普通光标 / selection 触发展开。
 - 分割线、MDX：只进入原子块选中，不展开源码。
 - 标题：按活动行显隐，不使用 atomic 触发。

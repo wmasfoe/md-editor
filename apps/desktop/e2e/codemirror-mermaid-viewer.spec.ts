@@ -1,0 +1,639 @@
+import { expect, test, type Page } from "@playwright/test";
+import { MOD_KEY, loadDoc, openFullApp, readDoc, setCaret } from "./editor-e2e-helpers";
+
+/**
+ * Mermaid 图表「查看 / 编辑」解耦的浏览器验收（AC1–AC4、AC8–AC12、AC17–AC19）。
+ *
+ * 契约来源：`.omx/plans/test-spec-mermaid-diagram-viewer.md` v7 与
+ * `.omx/plans/prd-mermaid-diagram-viewer.md` §4.4。
+ *
+ * 为什么必须浏览器：mermaid 渲染需要真实 DOM；浮层的**计算样式**（`position:fixed` / 覆盖视口 /
+ * `z-index`）与**焦点接管**也只有真实浏览器能给证据。
+ *
+ * 类名契约（实现必须匹配，G003）：
+ * - `.cm-md-mermaid-block`：外层包装（承载工具栏，避免被 `overflow-x:auto` 裁剪）
+ * - `.cm-md-mermaid-container`：SVG 滚动层（既有类名保持不变，既有 spec 依赖它）
+ * - `.cm-md-mermaid-toolbar` + `__viewer` / `__edit`
+ * - 共享浮层：`.cm-md-media-viewer`（根）+ `__stage` / `__media` / `__close` / `__edit`
+ */
+
+const MERMAID_DOC = [
+  "# 图表",
+  "",
+  "```mermaid",
+  "graph TD",
+  "  A[开始] --> B[结束]",
+  "```",
+  "",
+  "正文段落。",
+  "",
+].join("\n");
+
+const INVALID_MERMAID_DOC = [
+  "# 坏图",
+  "",
+  "```mermaid",
+  "graph TD",
+  "  A[未闭合 -->",
+  "```",
+  "",
+].join("\n");
+
+/** AC5 用：**浅图**。fit=width 下高度远小于视口 ⇒ 上下留有空白遮罩可点。
+ *  反之高瘦图（graph TD）在 fit=width 下会铺满整屏——那时“点空白关闭”天然不可用，
+ *  只能靠 Escape / 关闭按钮（已登记为固有取舍）。 */
+const SHALLOW_MERMAID_DOC = [
+  "# 浅图",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  A[开始] --> B[结束]",
+  "```",
+  "",
+].join("\n");
+
+/** 两个 mermaid 块（AC16 多图场景）：各自开关后 body 不得有残留。 */
+const TWO_MERMAID_DOC = [
+  "# 两图",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  A --> B",
+  "```",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  C --> D",
+  "```",
+  "",
+].join("\n");
+
+/** 普通代码块（AC8 负例：代码块内 Enter 仍须换行，不得被 mermaid 改动影响）。 */
+const CODE_FENCE_DOC = ["# 代码", "", "```js", "const a = 1;", "```", ""].join("\n");
+
+/** AC8 负例用的纯文本夹具（无 mermaid 块）：段落与列表的 Enter 行为必须保持不变。 */
+const PROSE_DOC = ["# 标题", "", "段落一。", "", "- 项目一", ""].join("\n");
+
+/** 超宽图：列数足够多，使 SVG 宽度超过视口 ⇒ 触发滚动层裁剪风险（AC19）。
+ *  必顶先给一个标题：夹具若以 ```mermaid 开头，loadDoc 后光标落在文档起点＝fence 内，
+ *  块会处于激活态（源码态）而根本没有 widget（这反而验证了“光标进入块即展开源码”的语义）。 */
+const WIDE_MERMAID_DOC = [
+  "# 宽图",
+  "",
+  "```mermaid",
+  "graph LR",
+  "  A1 --> A2 --> A3 --> A4 --> A5 --> A6 --> A7 --> A8 --> A9 --> A10 --> A11 --> A12",
+  "```",
+  "",
+].join("\n");
+
+async function openMermaidDoc(page: Page, doc: string): Promise<void> {
+  await openFullApp(page);
+  await loadDoc(page, doc);
+  await expect(page.locator(".cm-md-mermaid-container").first()).toBeVisible({ timeout: 30_000 });
+}
+
+/** 等到 SVG 渲染完成（此时「放大查看」才可用）。 */
+async function waitForSvg(page: Page): Promise<void> {
+  await expect(page.locator(".cm-md-mermaid-container svg").first()).toBeVisible({
+    timeout: 30_000,
+  });
+}
+
+test.describe("Mermaid 图表查看与编辑解耦", () => {
+  test("AC1: 单击块体打开浮层，不改选区、不展开源码", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    const before = await readDoc(page);
+    // R1 的核心承诺是「零选区副作用」：必须直接断言选区，而不是只看“文档未变 + 无 marker”
+    const selectionBefore = await page.evaluate(
+      () => window.__MD_EDITOR_E2E__?.getDiagnostics().renderer?.selectionAnchor ?? null,
+    );
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    await expect(overlay.locator("svg")).toBeVisible();
+    // 未进入源码态
+    await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
+    // 文档未被改动
+    expect(await readDoc(page)).toBe(before);
+    // 选区未被移动
+    expect(
+      await page.evaluate(
+        () => window.__MD_EDITOR_E2E__?.getDiagnostics().renderer?.selectionAnchor ?? null,
+      ),
+    ).toBe(selectionBefore);
+  });
+
+  test("AC2: 拖拽（位移超阈值）不打开浮层", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    const box = await page.locator(".cm-md-mermaid-container").first().boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2 + 10);
+    await page.mouse.up();
+
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC3: 悬浮工具栏——放大查看只开浮层，编辑源码只进编辑", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    const block = page.locator(".cm-md-mermaid-block").first();
+    await block.hover();
+    const toolbar = page.locator(".cm-md-mermaid-toolbar").first();
+    await expect(toolbar).toBeVisible();
+    const viewerButton = toolbar.locator(".cm-md-mermaid-toolbar__viewer");
+    const editButton = toolbar.locator(".cm-md-mermaid-toolbar__edit");
+    await expect(viewerButton).toBeVisible();
+    await expect(editButton).toBeVisible();
+
+    await viewerButton.click({ force: true });
+    await expect(page.locator(".cm-md-media-viewer")).toBeVisible();
+    await expect(page.locator(".cm-md-marker--mermaid")).toHaveCount(0);
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+
+    await block.hover();
+    await editButton.click({ force: true });
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC4: 浮层内「编辑源码」→ 关浮层并进入源码态", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    await overlay.locator(".cm-md-media-viewer__edit").click();
+
+    await expect(overlay).toHaveCount(0);
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+  });
+
+  test("AC17/AC18: 浮层计算样式生效、dialog 语义、焦点接管（键入不改文档）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    const before = await readDoc(page);
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const styles = await overlay.evaluate((element) => {
+      const computed = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        position: computed.position,
+        zIndex: Number.parseInt(computed.zIndex, 10),
+        background: computed.backgroundColor,
+        width: rect.width,
+        height: rect.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(styles.position).toBe("fixed");
+    expect(styles.zIndex).toBeGreaterThanOrEqual(1000);
+    expect(styles.background).not.toBe("rgba(0, 0, 0, 0)");
+    expect(styles.width).toBeGreaterThanOrEqual(styles.viewportWidth - 1);
+    expect(styles.height).toBeGreaterThanOrEqual(styles.viewportHeight - 1);
+
+    await expect(overlay).toHaveAttribute("role", "dialog");
+    await expect(overlay).toHaveAttribute("aria-modal", "true");
+    await expect(overlay).toBeFocused();
+
+    // 键入不得改到背后文档
+    await page.keyboard.type("zzz");
+    expect(await readDoc(page)).toBe(before);
+  });
+
+  test("AC9: 渲染失败时不产生空浮层；单击错误卡片进入源码编辑", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, INVALID_MERMAID_DOC);
+    const errorCard = page.locator(".cm-md-mermaid-error").first();
+    await expect(errorCard).toBeVisible({ timeout: 30_000 });
+
+    await errorCard.click();
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible();
+  });
+
+  test("AC8: 键盘光标进入块（含边界）即展开源码；普通段落 Enter 仍换行", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    // 把光标放到 mermaid 块上一行（"# 图表"），再向下移动进入块
+    const container = page.locator(".cm-md-mermaid-container").first();
+    const box = await container.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+    await page.mouse.click(box.x + 10, box.y - 40);
+    await page.keyboard.press("ArrowDown");
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("AC19: 超宽图下工具栏不被裁剪、按钮仍可点击，且浮层内图表真的铺开", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, WIDE_MERMAID_DOC);
+    await waitForSvg(page);
+
+    const container = page.locator(".cm-md-mermaid-container").first();
+    await container.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+
+    const block = page.locator(".cm-md-mermaid-block").first();
+    await block.hover();
+    const viewerButton = page.locator(".cm-md-mermaid-toolbar__viewer").first();
+    await expect(viewerButton).toBeVisible();
+
+    // 工具栏未被滚动层裁剪：按钮完整落在块的可视矩形内（toBeVisible 对“被裁剪”是盲的）
+    const toolbarBox = await viewerButton.boundingBox();
+    const blockBox = await block.boundingBox();
+    expect(toolbarBox).not.toBeNull();
+    expect(blockBox).not.toBeNull();
+    if (toolbarBox && blockBox) {
+      expect(toolbarBox.x).toBeGreaterThanOrEqual(blockBox.x - 1);
+      expect(toolbarBox.x + toolbarBox.width).toBeLessThanOrEqual(blockBox.x + blockBox.width + 1);
+      expect(toolbarBox.y).toBeGreaterThanOrEqual(blockBox.y - 1);
+      expect(toolbarBox.y + toolbarBox.height).toBeLessThanOrEqual(
+        blockBox.y + blockBox.height + 1,
+      );
+    }
+
+    await viewerButton.click({ force: true });
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    // 「适应宽度」必须是**位置 + 覆盖**都对：只断言宽度会漏掉“包含块原点错位”——
+    // 自己就漏过一次：内容被整体偏移半个视口、图形画到右下象限，而宽度比仍然正确。
+    const geometry = await overlay.locator("svg").evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(geometry.width).toBeGreaterThan(geometry.viewportWidth * 0.95);
+    expect(geometry.width).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+    expect(Math.abs(geometry.left)).toBeLessThanOrEqual(1);
+    expect(geometry.top).toBeGreaterThanOrEqual(-1);
+    expect(geometry.top + geometry.height).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+  });
+
+  test("AC5: 三通道关闭（Escape / 遮罩 / 关闭按钮）且关闭后焦点回编辑器", async ({ page }) => {
+    test.setTimeout(120_000);
+    for (const channel of ["escape", "backdrop", "button"] as const) {
+      await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+      await waitForSvg(page);
+      await page.locator(".cm-md-mermaid-container").first().click();
+      const overlay = page.locator(".cm-md-media-viewer");
+      await expect(overlay).toBeVisible();
+
+      if (channel === "escape") {
+        await page.keyboard.press("Escape");
+      } else if (channel === "backdrop") {
+        // 左上角空白：缩放平移模式下 stage 与 root 重合，两者都应被视为遮罩。
+        // 夹具必须是**浅图**——高图在 fit=width 下铺满全屏，没有空白可点。
+        await overlay.click({ position: { x: 4, y: 4 } });
+      } else {
+        await overlay.locator(".cm-md-media-viewer__close").click();
+      }
+
+      await expect(overlay, `关闭通道 ${channel} 应移除浮层`).toHaveCount(0);
+      await expect(page.locator(".cm-content"), `关闭通道 ${channel} 应交还焦点`).toBeFocused();
+    }
+  });
+
+  test("AC8 负例：段落 Enter 换行、列表 Enter 续行（行为回归，不新增 Enter keymap）", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await openFullApp(page);
+    await loadDoc(page, PROSE_DOC);
+
+    await setCaret(page, PROSE_DOC.indexOf("段落一。") + "段落一。".length);
+    await page.keyboard.press("Enter");
+    expect(await readDoc(page)).toContain("段落一。\n");
+
+    await setCaret(page, PROSE_DOC.indexOf("- 项目一") + "- 项目一".length);
+    await page.keyboard.press("Enter");
+    expect(await readDoc(page)).toContain("- 项目一\n- ");
+  });
+
+  test("AC18: Mod+K 互斥（先关查看器、面板照常打开）与 Mod-/ 真实效果", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    await page.keyboard.press(`${MOD_KEY}+k`);
+    await expect(overlay).toHaveCount(0);
+    await expect(page.getByLabel(/命令搜索|Command search/)).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Mod-/ 的真实效果：切到源码模式（容器消失、原始围栏可见），再切回
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-content")).toContainText("```mermaid");
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container").first()).toBeVisible({ timeout: 30_000 });
+  });
+
+  test("AC12: 图表块后按 Tab 不新增文档内 Tab 停靠点（焦点留在内容区）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    const container = page.locator(".cm-md-mermaid-container").first();
+    const box = await container.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+    await page.mouse.click(box.x + 10, box.y + box.height + 30);
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".cm-content")).toBeFocused();
+  });
+
+  test("AC6: 滚轮缩放与双击复位（并验证缩放真的改变几何）", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const readScale = (): Promise<number> =>
+      overlay
+        .locator("svg")
+        .evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).a);
+    const initialScale = await readScale();
+
+    const box = await overlay.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(0, -400);
+    }
+    const zoomedScale = await readScale();
+    expect(zoomedScale).toBeGreaterThan(initialScale);
+
+    await overlay.dblclick();
+    expect(Math.abs((await readScale()) - initialScale)).toBeLessThan(0.01);
+  });
+
+  test("AC6: 拖拽平移会改变位移，且松手后的 click 不得把浮层关掉", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const readTransform = (): Promise<string> =>
+      overlay.locator("svg").evaluate((element) => getComputedStyle(element).transform);
+    const before = await readTransform();
+
+    const box = await overlay.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 60, startY + 40);
+    await page.mouse.up();
+
+    // AC6：拖拽必须真的产生平移
+    expect(await readTransform()).not.toBe(before);
+    // r5 D2：拖拽结束后的 click 不得被当成“点空白关闭”
+    await expect(overlay).toHaveCount(1);
+  });
+
+  test("AC16: 重复开关无残留（浮层计数）且关闭后 Escape 不再有效果（监听已注销）", async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+
+    for (let index = 0; index < 2; index += 1) {
+      await page.locator(".cm-md-mermaid-container").first().click();
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    }
+
+    // 关闭后 document 级监听应已注销：Escape 不得再产生任何副作用
+    const before = await readDoc(page);
+    await page.keyboard.press("Escape");
+    expect(await readDoc(page)).toBe(before);
+    expect(await page.locator(".cm-md-media-viewer").count()).toBe(0);
+  });
+
+  test("AC16 真实路径：浮层打开时切到源码模式（widget 销毁）后不得有幽灵浮层", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toHaveCount(1);
+
+    // 切到源码模式 ⇒ widget 被销毁 ⇒ destroy(dom) 必须关掉浮层
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(overlay).toHaveCount(0);
+    // 再切回来：不得出现第二个浮层
+    await page.keyboard.press(`${MOD_KEY}+/`);
+    await expect(page.locator(".cm-md-mermaid-container").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC16 多图：两图各开关一次后 body 无残留", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, TWO_MERMAID_DOC);
+    await expect(page.locator(".cm-md-mermaid-container")).toHaveCount(2);
+    await waitForSvg(page);
+
+    for (const index of [0, 1, 1, 0]) {
+      await page.locator(".cm-md-mermaid-container").nth(index).click();
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(1);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+    }
+    await expect(page.locator(".cm-md-media-viewer")).toHaveCount(0);
+  });
+
+  test("AC18: 浮层打开时背景置 inert（Tab 不会把焦点带回编辑器），关闭后恢复", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    const root = page.locator("#root");
+    await expect(root).not.toHaveAttribute("inert", "");
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    // 模态诚实化：背景 inert（仅靠聚焦浮层无法阻止 Tab 回到编辑器）
+    await expect(root).toHaveAttribute("inert", "");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(".cm-content")).not.toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+    await expect(root).not.toHaveAttribute("inert", "");
+  });
+
+  test("AC8 机制守卫：to 边界（程序化置位）与代码块 Enter 负例", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+    // to 边界：光标正好落在块尾（机制守卫，不代表用户可达路径）
+    const closeFenceEnd = MERMAID_DOC.indexOf("```", MERMAID_DOC.indexOf("```") + 3) + 3;
+    await setCaret(page, closeFenceEnd);
+    await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible({ timeout: 10_000 });
+
+    // 代码块内 Enter 仍须换行（不新增 Enter keymap 的行为负例）
+    await openFullApp(page);
+    await loadDoc(page, CODE_FENCE_DOC);
+    const before = await readDoc(page);
+    await setCaret(page, CODE_FENCE_DOC.indexOf("const a = 1;") + "const a = 1;".length);
+    await page.keyboard.press("Enter");
+    expect((await readDoc(page)).length).toBe(before.length + 1);
+  });
+
+  test("AC11: 浮层为 DOM 节点注入，不使用 data:image/svg 形式的 <img>", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+    await expect(overlay.locator('img[src^="data:image/svg"]')).toHaveCount(0);
+    await expect(overlay.locator("svg")).toBeVisible();
+  });
+
+  test("块间空行保真（已登记偏差）：mermaid 在源码 0 空行时会多出 1 个幽灵行", async ({ page }) => {
+    test.setTimeout(120_000);
+    // 背景：MermaidBlockWidget 仍手写 `inclusive:false + block:true`，未走 buildWholeLineBlockReplacement，
+    // 因此它**不受**不对称 Inclusivity 契约保护（见 thematic_break_and_block_inclusivity_spec.md
+    // 的「已登记豁免：Mermaid 块」）。本用例把当前行为**钉死**：
+    //   源码 1 个空行 ⇒ 视觉 1 个空行（正常）
+    //   源码 0 个空行 ⇒ 视觉 1 个空行（**偏差**：多一个幽灵行）
+    //   源码 1 个空行 ⇒ 视觉 2 个空行（**偏差**：同样多一个）——即**恒定 +1**
+    // 后续把 mermaid 改走统一实现时本用例会变红——届时按契约改为 N ⇒ N 并删除偏差声明。
+    const expectations = [
+      { blankCount: 0, visualLines: 1 },
+      { blankCount: 1, visualLines: 2 },
+    ] as const;
+
+    for (const { blankCount, visualLines } of expectations) {
+      const markdown = [
+        "## 标题",
+        ...Array.from({ length: blankCount }, () => ""),
+        "```mermaid",
+        "graph LR",
+        "  A --> B",
+        "```",
+        "",
+      ].join("\n");
+      await openFullApp(page);
+      await loadDoc(page, markdown);
+      await expect(page.locator(".cm-md-mermaid-block")).toHaveCount(1, { timeout: 30_000 });
+
+      const children = await page.evaluate(() =>
+        Array.from(document.querySelectorAll(".cm-content > *")).map((element) =>
+          (element.className ?? "").toString(),
+        ),
+      );
+      const widgetIndex = children.findIndex((className) =>
+        className.split(/\s+/u).includes("cm-md-mermaid-block"),
+      );
+      expect(widgetIndex).toBeGreaterThan(0);
+      const between = children.slice(1, widgetIndex);
+      expect(between.every((className) => className.split(/\s+/u).includes("cm-line"))).toBe(true);
+      expect(between, `源码 ${blankCount} 个空行的视觉行数`).toHaveLength(visualLines);
+    }
+  });
+
+  test("AC10: 浮层内 SVG 的 id 与正文 SVG 无交集，且引用可解析", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, MERMAID_DOC);
+    await waitForSvg(page);
+
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const result = await page.evaluate(() => {
+      const bodySvg = document.querySelector(".cm-md-mermaid-container svg");
+      const overlaySvg = document.querySelector(".cm-md-media-viewer svg");
+      // 不抽 helper：`page.evaluate` 的函数会被序列化到浏览器执行，模块级 helper 在那里不存在
+      const overlayIds = overlaySvg
+        ? Array.from(overlaySvg.querySelectorAll("[id]")).map((node) => node.id)
+        : [];
+      const bodyIds = bodySvg
+        ? Array.from(bodySvg.querySelectorAll("[id]")).map((node) => node.id)
+        : [];
+      // 浮层内所有 url(#x) 引用是否都能在浮层内解析
+      const dangling: string[] = [];
+      if (overlaySvg) {
+        for (const node of Array.from(overlaySvg.querySelectorAll("*"))) {
+          for (const attribute of Array.from(node.attributes)) {
+            const match = /url\(#([^)]+)\)/.exec(attribute.value);
+            if (match && !overlaySvg.querySelector(`[id="${match[1]}"]`)) {
+              dangling.push(match[1]);
+            }
+          }
+        }
+      }
+      // 真实产出的额外证据：浮层内 <style> 文本不得残留正文 id 标识符 token
+      // （node 夹具只能覆盖已知形态，这里用浏览器序列化的真实 mermaid 输出做补刀）
+      const styleLeakedTokens: string[] = [];
+      if (overlaySvg) {
+        const styleText = Array.from(overlaySvg.querySelectorAll("style"))
+          .map((node) => node.textContent ?? "")
+          .join("\n");
+        for (const id of bodyIds) {
+          const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          if (new RegExp(`(^|[^-A-Za-z0-9_])${escaped}([^-A-Za-z0-9_]|$)`).test(styleText)) {
+            styleLeakedTokens.push(id);
+          }
+        }
+      }
+      return { overlayIds, bodyIds, dangling, styleLeakedTokens };
+    });
+
+    expect(result.overlayIds.length).toBeGreaterThan(0);
+    expect(result.overlayIds.some((id) => result.bodyIds.includes(id))).toBe(false);
+    expect(result.dangling).toEqual([]);
+    expect(result.styleLeakedTokens).toEqual([]);
+  });
+});

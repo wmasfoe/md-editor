@@ -472,26 +472,12 @@
   border-color: #d33;
 }
 
-/* 放大查看器浮层(全屏遮罩) */
-.code-mirror-editor-host .cm-md-image-viewer {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.72);
-  cursor: zoom-out;
-}
-
-.code-mirror-editor-host .cm-md-image-viewer__image {
-  max-width: 92vw;
-  max-height: 92vh;
-  object-fit: contain;
-  border-radius: 4px;
-  box-shadow: 0 6px 32px rgba(0, 0, 0, 0.5);
-  cursor: default;
-}
+/* 放大查看器浮层样式已迁出：
+   原 `.code-mirror-editor-host .cm-md-image-viewer*` 规则挂在 React 宿主 div 上，
+   而浮层是 `document.body` 的子节点 ⇒ 规则永不匹配（浮层长期“全裸”，见 PR 的 fix commit）。
+   现由 `@md-editor/renderer-codemirror` 的 `media-viewer/styles.ts` 自持注入
+   （无祖先前缀 `.cm-md-media-viewer*`）。改动此块前请先读
+   docs/agent/architecture/markdown_syntax_plugin_architecture.md。 */
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-image-widget__placeholder-alt {
   display: block;
@@ -552,12 +538,16 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-thematic-break-widget {
   display: flex;
   align-items: center;
-  box-sizing: border-box;
+  /* 不用 border-box：统一间距由核心层（block-replacement.ts）以 **padding** 交付，
+     而 padding 必须计进 border-box 才算入 CM6 高度图。若在此声明 border-box，
+     1.85rem 会把那 2×8px padding 吃回去（间距消失），且高度图依旧漏算 ⇒ 点击偏行。 */
+  box-sizing: content-box;
   width: 100%;
+  /* 这里只是"符号本体"（那根线）的高度，不含统一间距。 */
   height: 1.85rem;
-  /* 垂直间距不再在本 widget 上声明：分割线属于"符号型块"（data-md-block-category="symbol"），
+  /* 垂直间距不在本 widget 声明：分割线属于"符号型块"（data-md-block-category="symbol"），
      由 renderer 核心层 block-replacement.ts 统一提供（--theme-block-symbol-gap）。
-     在此写 margin 会覆盖统一规则，导致逐 widget 硬编码。 */
+     在此写间距会覆盖统一规则，导致逐 widget 硬编码。 */
   cursor: pointer;
 }
 
@@ -1577,6 +1567,61 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-container:hover {
   border-color: var(--theme-primary, #0969da);
   box-shadow: var(--theme-shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+/* 图表块外层包装：承载悬浮工具栏。
+   工具栏必须放在**滚动层之外**：`.cm-md-mermaid-container` 带 `overflow-x: auto`，
+   绝对定位的工具栏若位于其中，超宽图横向滚动时会被裁剪/滚走（AC19）。 */
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-block {
+  position: relative;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-block:hover .cm-md-mermaid-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__edit {
+  border: 1px solid var(--theme-border, #d8dee4);
+  border-radius: 4px;
+  background: var(--theme-surface, #fff);
+  color: var(--theme-control-subtle, var(--theme-muted, #6e7781));
+  cursor: pointer;
+  font-family: var(--theme-ui-font, var(--theme-font, system-ui, sans-serif));
+  font-size: 0.76rem;
+  line-height: 1;
+  padding: 0.28rem 0.45rem;
+  transition:
+    background var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color var(--cm-transition-fast, 120ms cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer:hover,
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__edit:hover {
+  background: var(--theme-primary-soft, rgba(0, 0, 0, 0.06));
+  color: var(--theme-primary, var(--theme-text, currentColor));
+  border-color: var(--theme-border-strong, var(--theme-border, #afb8c1));
+}
+
+.code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-toolbar__viewer[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-mermaid-loading {
