@@ -538,12 +538,16 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-thematic-break-widget {
   display: flex;
   align-items: center;
-  box-sizing: border-box;
+  /* 不用 border-box：统一间距由核心层（block-replacement.ts）以 **padding** 交付，
+     而 padding 必须计进 border-box 才算入 CM6 高度图。若在此声明 border-box，
+     1.85rem 会把那 2×8px padding 吃回去（间距消失），且高度图依旧漏算 ⇒ 点击偏行。 */
+  box-sizing: content-box;
   width: 100%;
+  /* 这里只是"符号本体"（那根线）的高度，不含统一间距。 */
   height: 1.85rem;
-  /* 垂直间距不再在本 widget 上声明：分割线属于"符号型块"（data-md-block-category="symbol"），
+  /* 垂直间距不在本 widget 声明：分割线属于"符号型块"（data-md-block-category="symbol"），
      由 renderer 核心层 block-replacement.ts 统一提供（--theme-block-symbol-gap）。
-     在此写 margin 会覆盖统一规则，导致逐 widget 硬编码。 */
+     在此写间距会覆盖统一规则，导致逐 widget 硬编码。 */
   cursor: pointer;
 }
 

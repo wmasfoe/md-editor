@@ -142,16 +142,33 @@ if (deco.block) {
 - 符号型块的“呼吸感”由**展示层统一提供**，而不是伪造空行：renderer 侧通过 `applyBlockCategory(dom, "symbol")` 声明类别（输出 `data-md-block-category="symbol"`），`blockReplacementTheme` 为该类别统一声明垂直间距：
   ```css
   [data-md-block-category="symbol"] {
-    margin-top: var(--theme-block-symbol-gap, 0.5rem);
-    margin-bottom: var(--theme-block-symbol-gap, 0.5rem);
+    box-sizing: content-box;
+    padding-top: var(--theme-block-symbol-gap, 0.5rem);
+    padding-bottom: var(--theme-block-symbol-gap, 0.5rem);
   }
   ```
+
+### ⚠ 高度图契约：块间距**必须用 padding，禁止 margin**
+
+**这是硬约束，不是风格偏好。**
+
+CM6 的 y→行号映射完全建立在高度图上（`posAtCoords` → `view.elementAtHeight(yOffset)`，见 `@codemirror/view` 的 `function posAtCoords`），而高度图对每个行/块只量 **border-box**（`getBoundingClientRect().height`），**不包含 margin**。因此：
+
+- 用 `margin` 给块提供垂直间距 ⇒ 高度图每块漏算 2×gap；
+- 漏算量在上方累计超过一个行高时，用户**点击某一行、光标却落到下一行**（视觉与文档 offset 割裂）；
+- 已实测：文档含 2 个分割线（各 16px）⇒ 漏算 32px > 行高 28px ⇒ 点击段落稳定 +1 行；同一文档不含块时偏差为 0；`main` 上同样复现。
+
+回归护栏：`apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`（① 块级行不得用垂直 margin；② 滚动后点击段落光标必须落在被点击的行内）。
+
+> `box-sizing: content-box` 是必需的：符号型 widget 通常自带固定 `height`，若保留 `border-box`，padding 会被那层高度“吃掉”（间距消失）且高度图依旧漏算。
+
+**已知残项（显式登记，勿静默放过）**：`cm-md-mdx-widget` 仍用 `margin: 0.25rem 0`（每块 8px）。因其卡片自带 `border` + `background`，直接改 padding 会让间距被边框与背景包进去（视觉变化），需按“外层行容器 + 内层卡片”结构改造；4 个以上 MDX 块（≥32px）即可重现点击偏行。详见 `.omx/investigations/click-caret-offset-after-scroll.md`。
 - 当前成员：**分割线**（`ThematicBreakWidget`）。新增同类块只需调用 `applyBlockCategory(dom, "symbol")` 即自动获得该间距。
-- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写 `margin`（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码）。
+- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`（见上方高度图契约）。
 - 间距只允许加**垂直方向**，不得改变空行数量、源码或光标步数。
 - 宿主（editor-ui / 移动端等）可通过定义 `--theme-block-symbol-gap` 覆盖数值；未定义时回落到 `0.5rem`（DESIGN.md 4px 基线网格）。
 
-**已接受的不一致（不要当 bug 修）**：CM6 中 widget 的 margin 与相邻源码空行是**叠加**关系（不会 margin collapse），因此符号型块在“源码 1 个空行”时看起来会比普通段落之间的 1 个空行略宽。这是用户明确接受的代价：细符号块紧贴正文时观感过挤，而用户无法用“半个空行”微调它。
+**已接受的不一致（不要当 bug 修）**：符号型块自带的间距与相邻源码空行是**叠加**关系（不会 margin collapse），因此符号型块在“源码 1 个空行”时看起来会比普通段落之间的 1 个空行略宽。这是用户明确接受的代价：细符号块紧贴正文时观感过挤，而用户无法用“半个空行”微调它。
 
 ---
 
@@ -171,5 +188,8 @@ if (deco.block) {
      - 方向键进入整块原子时 `selectionAnchor/Head` 等于块源码范围，且光标不得绘制在 widget 顶边之上；
      - 表格 / HTML / MDX 整块原子选中态键入 `ab` ⇒ 源码被替换为 `ab`（锁死“丢首字符”回归）；
      - 行内 JSX 不丢内容且不产生额外空行；
-     - 符号型块（分割线）的 `data-md-block-category` 为 `symbol`，且计算后的垂直 margin 等于 `--theme-block-symbol-gap`（回落 0.5rem）。
+     - 符号型块的 `data-md-block-category` 为 `symbol`，计算后 `margin` 为 0、上下 `padding` 均等于 `--theme-block-symbol-gap`（回落 0.5rem），且 border-box 高度 = 符号本体 1.85rem + 2×gap（视觉足迹不变）。
+   - `apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`（**点击落点保真**，本轮新增）：
+     - 块级行不得用垂直 margin 提供间距（带已登记残项基线）；
+     - 滚动后点击段落，`selectionHead` 必须落在被点击的那一行，且 `.cm-cursor` 必须绘制在该行盒内。
 3. **回归面（改动后必须全量通过）**：`codemirror-m3-table.spec.ts`、`codemirror-m4-html-mdx.spec.ts`、`codemirror-m4-mdx.spec.ts`、`thematic-break-rendering.spec.ts`、`ux-fixes-verification.spec.ts` 以及 `pnpm lint` / `pnpm test` / `pnpm typecheck`。

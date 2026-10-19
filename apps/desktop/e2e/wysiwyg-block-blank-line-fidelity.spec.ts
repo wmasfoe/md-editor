@@ -235,10 +235,14 @@ test.describe("WYSIWYG 块间空行保真（标题 ↔ 块级 widget）", () => 
       const widget = document.querySelector(".cm-md-thematic-break-widget");
       if (!(widget instanceof HTMLElement)) return null;
       const style = getComputedStyle(widget);
+      const box = widget.getBoundingClientRect();
       return {
         category: widget.getAttribute("data-md-block-category"),
+        paddingTop: style.paddingTop,
+        paddingBottom: style.paddingBottom,
         marginTop: style.marginTop,
         marginBottom: style.marginBottom,
+        borderBoxHeight: box.height,
         rootFontSize: getComputedStyle(document.documentElement).fontSize,
       };
     });
@@ -246,7 +250,15 @@ test.describe("WYSIWYG 块间空行保真（标题 ↔ 块级 widget）", () => 
     expect(metrics?.category).toBe("symbol");
     // 规则：间距 = `--theme-block-symbol-gap`（缺失时回落到 0.5rem，DESIGN.md 4px 基线网格）。
     const expectedGap = 0.5 * Number.parseFloat(metrics!.rootFontSize);
-    expect(Number.parseFloat(metrics!.marginTop)).toBeCloseTo(expectedGap, 1);
-    expect(Number.parseFloat(metrics!.marginBottom)).toBeCloseTo(expectedGap, 1);
+    // 间距必须由 **padding** 交付（进 border-box ⇒ 计入 CM6 高度图）。
+    // 用 margin 交付时 CM6 高度图漏算，会让后续内容的点击落点偏移一行（回归见
+    // codemirror-click-caret-fidelity.spec.ts；契约见 thematic_break_and_block_inclusivity_spec.md）。
+    expect(Number.parseFloat(metrics!.paddingTop)).toBeCloseTo(expectedGap, 1);
+    expect(Number.parseFloat(metrics!.paddingBottom)).toBeCloseTo(expectedGap, 1);
+    expect(Number.parseFloat(metrics!.marginTop)).toBe(0);
+    expect(Number.parseFloat(metrics!.marginBottom)).toBe(0);
+    // 视觉足迹不变：符号本体 1.85rem + 上下各一个 gap。
+    const symbolHeight = 1.85 * Number.parseFloat(metrics!.rootFontSize);
+    expect(metrics!.borderBoxHeight).toBeCloseTo(symbolHeight + expectedGap * 2, 0);
   });
 });
