@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.14.0 - 2026-10-19 (#173)
+
+- New: Mermaid diagrams separate viewing from editing — a single click opens an enlarged viewer (fit-to-width, cursor-centered wheel zoom, drag to pan, double-click to reset, Esc to close), with explicit edit buttons in the block toolbar and inside the viewer instead of dropping into source mode. Fixed: the image zoom viewer's styles had never taken effect; images now share the same viewer as diagrams. Fixed: clicking body text after scrolling could place the caret one line off — block rows delivered vertical spacing via margin, which CodeMirror's height map does not measure, so accumulated drift exceeded one line height; thematic-break spacing is now delivered as padding with identical visuals. Accessibility: the viewer declares aria-modal, marks the background inert, and its close/edit buttons are keyboard reachable.
+
 ## 0.13.2 - 2026-10-17 (#159)
 
 - Fixed bold, italic, strikethrough and highlight failing when adjacent to CJK punctuation: patterns such as **"quote"**, ~~"strike"~~ and =="mark"== used to degrade into literal text, and could even mis-pair with a later marker (bolding the text in between). They now parse with the CJK-friendly rules; non-CJK text is unaffected, and the editor output matches the mobile reader, Quick Look preview and HTML export.
