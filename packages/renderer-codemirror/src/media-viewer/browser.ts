@@ -69,7 +69,9 @@ function inertBackground(
   backgroundRoot?: HTMLElement | undefined,
 ): () => void {
   const appRoot = backgroundRoot ?? doc.getElementById("root") ?? doc.body.firstElementChild;
-  if (!(appRoot instanceof HTMLElement) || appRoot === overlay || appRoot.contains(overlay)) {
+  const isElementLike =
+    typeof HTMLElement === "undefined" ? appRoot !== null : appRoot instanceof HTMLElement;
+  if (!appRoot || !isElementLike || appRoot === overlay || appRoot.contains(overlay)) {
     return () => undefined;
   }
   const alreadyInert = appRoot.hasAttribute("inert");
@@ -89,6 +91,9 @@ function measureRootSize(root: HTMLElement): { readonly width: number; readonly 
   return { width: Math.max(rect.width, 1), height: Math.max(rect.height, 1) };
 }
 
+/** 模块级实例计数器：为每次注入的 SVG 生成唯一 id 前缀（比 `Math.random()` 可预测、可断言、无碰撞疑虑）。 */
+let viewerInstanceCounter = 0;
+
 /** 构造样式注入端口（唯一需要类型断言的地方：`head.append` 接受 `Node`）。 */
 function createStylePort(doc: Document): ViewerStylePort {
   return {
@@ -101,14 +106,25 @@ function createStylePort(doc: Document): ViewerStylePort {
 }
 
 /** 内容节点的"未缩放基准尺寸"：必须与当前 transform 无关，否则缩放/平移会自我叠加。 */
+/**
+ * 内容节点的“未缩放基准尺寸”：必须与当前 transform 无关，否则缩放/平移会自我叠加。
+ *
+ * 注：`SVGSVGElement` / `HTMLImageElement` 在 node 环境不存在 ⇒ 必须先做 `typeof` 守卫，
+ * 否则（`undefined instanceof` → ReferenceError）适配层根本无法在 node 里实例化。
+ */
 function measureIntrinsicSize(node: Element): { readonly width: number; readonly height: number } {
-  if (node instanceof SVGSVGElement) {
+  if (typeof SVGSVGElement !== "undefined" && node instanceof SVGSVGElement) {
     const viewBox = node.viewBox?.baseVal;
     if (viewBox && viewBox.width > 0 && viewBox.height > 0) {
       return { width: viewBox.width, height: viewBox.height };
     }
   }
-  if (node instanceof HTMLImageElement && node.naturalWidth > 0 && node.naturalHeight > 0) {
+  if (
+    typeof HTMLImageElement !== "undefined" &&
+    node instanceof HTMLImageElement &&
+    node.naturalWidth > 0 &&
+    node.naturalHeight > 0
+  ) {
     return { width: node.naturalWidth, height: node.naturalHeight };
   }
   const rect = node.getBoundingClientRect();
@@ -126,7 +142,10 @@ function measureIntrinsicSize(node: Element): { readonly width: number; readonly
  * `.cm-md-media-viewer--zoom-pan .cm-md-media-viewer__media { position:absolute; top:0; left:0 }` 保证。
  */
 function normalizeSvgLayoutBox(svg: Element): void {
-  const viewBox = svg instanceof SVGSVGElement ? svg.viewBox?.baseVal : undefined;
+  const viewBox =
+    typeof SVGSVGElement !== "undefined" && svg instanceof SVGSVGElement
+      ? svg.viewBox?.baseVal
+      : undefined;
   if (!viewBox || viewBox.width <= 0 || viewBox.height <= 0) {
     return;
   }
@@ -169,7 +188,7 @@ function buildOverlay(
   let media: Element;
   if (content.kind === "svg") {
     // id 隔离在注入前完成：前缀唯一化 + 全部引用改写（含无空格根选择器与内联 style 值）
-    const isolated = rewriteSvgIds(content.svg, `mv-${Math.random().toString(36).slice(2, 8)}-`);
+    const isolated = rewriteSvgIds(content.svg, `mv-${++viewerInstanceCounter}-`);
     stage.innerHTML = isolated.svg;
     media = stage.querySelector("svg") ?? stage;
     media.classList.add("cm-md-media-viewer__media", "cm-md-media-viewer__media--svg");
@@ -325,6 +344,9 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
     });
   });
   root.addEventListener("pointerdown", (event) => {
+    // 注：**不**用 `setPointerCapture`——实测它会改变后续指针事件路由，
+    // 使浮层内按钮的 `click` 与 `dblclick` 不再落到目标元素上（AC4/AC6 回归）。
+    // 拖拽越界的情形由 `pointercancel` + 指针碰撞（pointerup 在 root 上）兼容。
     session.handlePointerDown({ clientX: event.clientX, clientY: event.clientY });
   });
   root.addEventListener("pointermove", (event) => {
