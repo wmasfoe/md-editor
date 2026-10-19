@@ -148,25 +148,16 @@ if (deco.block) {
   }
   ```
 
-### ⚠ 高度图契约：块间距**必须用 padding，禁止 margin**
-
-**这是硬约束，不是风格偏好。**
-
-CM6 的 y→行号映射完全建立在高度图上（`posAtCoords` → `view.elementAtHeight(yOffset)`，见 `@codemirror/view` 的 `function posAtCoords`），而高度图对每个行/块只量 **border-box**（`getBoundingClientRect().height`），**不包含 margin**。因此：
-
-- 用 `margin` 给块提供垂直间距 ⇒ 高度图每块漏算 2×gap；
-- 漏算量在上方累计超过一个行高时，用户**点击某一行、光标却落到下一行**（视觉与文档 offset 割裂）；
-- 已实测：文档含 2 个分割线（各 16px）⇒ 漏算 32px > 行高 28px ⇒ 点击段落稳定 +1 行；同一文档不含块时偏差为 0；`main` 上同样复现。
-
-回归护栏：`apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`（① 块级行不得用垂直 margin；② 滚动后点击段落光标必须落在被点击的行内）。
-
-> `box-sizing: content-box` 是必需的：符号型 widget 通常自带固定 `height`，若保留 `border-box`，padding 会被那层高度“吃掉”（间距消失）且高度图依旧漏算。
-
-**已知残项（显式登记，勿静默放过）**：`cm-md-mdx-widget` 仍用 `margin: 0.25rem 0`（每块 8px）。因其卡片自带 `border` + `background`，直接改 padding 会让间距被边框与背景包进去（视觉变化），需按“外层行容器 + 内层卡片”结构改造；4 个以上 MDX 块（≥32px）即可重现点击偏行。详见 `.omx/investigations/click-caret-offset-after-scroll.md`。
 - 当前成员：**分割线**（`ThematicBreakWidget`）。新增同类块只需调用 `applyBlockCategory(dom, "symbol")` 即自动获得该间距。
-- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`（见上方高度图契约）。
+- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`。
 - 间距只允许加**垂直方向**，不得改变空行数量、源码或光标步数。
 - 宿主（editor-ui / 移动端等）可通过定义 `--theme-block-symbol-gap` 覆盖数值；未定义时回落到 `0.5rem`（DESIGN.md 4px 基线网格）。
+
+> ⚠ **为什么必须是 `padding` 而不是 `margin`（硬约束）**：CM6 的点击→位置映射依赖高度图，而高度图只量
+> border-box、**不含 margin** ⇒ 用 margin 提供的间距会成为累计误差，累计超过一个行高时用户
+> **点击某行、光标却落到下一行**。完整机制、实测数据、已排除假设、诊断方法与残项登记见
+> **[CM6 高度图与点击落点保真规范](./codemirror_height_map_and_click_fidelity_spec.md)**（本事实的唯一事实源）。
+> 回归护栏：`apps/desktop/e2e/codemirror-click-caret-fidelity.spec.ts`。
 
 **已接受的不一致（不要当 bug 修）**：符号型块自带的间距与相邻源码空行是**叠加**关系（不会 margin collapse），因此符号型块在“源码 1 个空行”时看起来会比普通段落之间的 1 个空行略宽。这是用户明确接受的代价：细符号块紧贴正文时观感过挤，而用户无法用“半个空行”微调它。
 
