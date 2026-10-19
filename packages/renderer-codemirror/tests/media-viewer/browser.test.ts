@@ -13,6 +13,9 @@
  *
  * 能力边界（诚实）：fake DOM 不解析 HTML ⇒ 只驱动**图片路径**（`createElement("img")`）；
  * SVG 路径的 `stage.innerHTML = svg` + `querySelector("svg")` 由 e2e 覆盖。
+ *
+ * 关于指针捕获：**有意不用** `setPointerCapture`（实测它会改变事件路由、使浮层内
+ * `click`/`dblclick` 不再落到目标元素上）；对应用例断言的是“不调用”这一事实。
  */
 import { describe, expect, it } from "vitest";
 import { closeMediaViewerFor, openMediaViewer } from "../../src/media-viewer/browser.ts";

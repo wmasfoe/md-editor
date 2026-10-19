@@ -94,6 +94,9 @@ function measureRootSize(root: HTMLElement): { readonly width: number; readonly 
 /** 模块级实例计数器：为每次注入的 SVG 生成唯一 id 前缀（比 `Math.random()` 可预测、可断言、无碰撞疑虑）。 */
 let viewerInstanceCounter = 0;
 
+/** 浮层内“拖拽 vs 单击”阈值（px）：超过即视为拖拽，结束后的 `click` 不得触发“点空白关闭”。 */
+const OPEN_VIEWER_DRAG_THRESHOLD_PX = 4;
+
 /** 构造样式注入端口（唯一需要类型断言的地方：`head.append` 接受 `Node`）。 */
 function createStylePort(doc: Document): ViewerStylePort {
   return {
@@ -208,7 +211,9 @@ function buildOverlay(
   closeButton.className = "cm-md-media-viewer__close";
   closeButton.setAttribute("aria-label", "关闭");
   closeButton.title = "关闭";
-  closeButton.tabIndex = -1;
+  // 注：浮层是**宿主级 UI**（挂在 `document.body`、不在 `.cm-content` 内），
+  // 因此**不适用**“文档内控件必须 tabIndex=-1”的约定——恰恰相反：
+  // 一个声称 `aria-modal` 的对话框里必须有可 Tab 达的控件，否则键盘用户无法抵达关闭/编辑入口。
   closeButton.textContent = "✕";
   root.append(closeButton);
 
@@ -218,7 +223,7 @@ function buildOverlay(
     editButton.className = "cm-md-media-viewer__edit";
     editButton.setAttribute("aria-label", "编辑源码");
     editButton.title = "编辑源码";
-    editButton.tabIndex = -1;
+    // 同上：宿主级模态内的控件必须可键盘达
     editButton.textContent = "编辑源码";
     root.append(editButton);
   }
@@ -326,11 +331,21 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
     },
   );
 
+  // 拖拽状态：用于区分“拖拽平移”与“点空白关闭”。
+  // 不加这一层的话：mousedown 落在图形、mouseup 落在 stage 的手势会产出一个 target 为 stage 的 click，
+  // 于是“拖拽结束”被误当成“点空白”，直接把浮层关掉（评审 r5 D2）。
+  let pointerDownAt: { readonly x: number; readonly y: number } | null = null;
+  let pointerMoved = 0;
+
   closeButton?.addEventListener("click", () => session.handle.close({ restoreFocus: true }));
   editButton?.addEventListener("click", () => session.requestEdit());
   root.addEventListener("click", (event) => {
     // 背景区（root 本身，或缩放平移模式下与 root 重合的 stage）点击关闭。
     // 注意：`--zoom-pan` 下 stage 为 inset:0 会覆盖整屏，若只判 root 则“点空白关闭”会失效。
+    // 且**拖拽后的那个 click 不算**（否则平移结束就会误关浮层）。
+    if (pointerMoved > OPEN_VIEWER_DRAG_THRESHOLD_PX) {
+      return;
+    }
     if (event.target === root || event.target === stage) {
       session.handle.close({ restoreFocus: true });
     }
@@ -344,16 +359,30 @@ export function openMediaViewer(options: MediaViewerOptions): MediaViewerHandle 
     });
   });
   root.addEventListener("pointerdown", (event) => {
+    pointerDownAt = { x: event.clientX, y: event.clientY };
+    pointerMoved = 0;
     // 注：**不**用 `setPointerCapture`——实测它会改变后续指针事件路由，
     // 使浮层内按钮的 `click` 与 `dblclick` 不再落到目标元素上（AC4/AC6 回归）。
     // 拖拽越界的情形由 `pointercancel` + 指针碰撞（pointerup 在 root 上）兼容。
     session.handlePointerDown({ clientX: event.clientX, clientY: event.clientY });
   });
   root.addEventListener("pointermove", (event) => {
+    if (pointerDownAt) {
+      pointerMoved = Math.max(
+        pointerMoved,
+        Math.hypot(event.clientX - pointerDownAt.x, event.clientY - pointerDownAt.y),
+      );
+    }
     session.handlePointerMove({ clientX: event.clientX, clientY: event.clientY });
   });
-  root.addEventListener("pointerup", () => session.handlePointerUp());
-  root.addEventListener("pointercancel", () => session.handlePointerUp());
+  root.addEventListener("pointerup", () => {
+    pointerDownAt = null;
+    session.handlePointerUp();
+  });
+  root.addEventListener("pointercancel", () => {
+    pointerDownAt = null;
+    session.handlePointerUp();
+  });
   root.addEventListener("dblclick", () => session.handleDoubleClick());
   // 舞台空白区域拖拽时不要选中文本
   stage.addEventListener("dragstart", (event) => event.preventDefault());

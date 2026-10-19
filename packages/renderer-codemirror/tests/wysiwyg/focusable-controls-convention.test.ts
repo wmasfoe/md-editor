@@ -41,8 +41,9 @@ const SCAN_ROOTS: readonly ScanRoot[] = Object.freeze([
     id: "syntax-plugins",
     dir: fileURLToPath(new URL("../../../syntax-plugins/src", import.meta.url)),
   },
-  // 媒体查看器自建关闭/编辑按钮，必须在护栏覆盖内（architect R5）
-  { id: "media-viewer", dir: fileURLToPath(new URL("../../src/media-viewer", import.meta.url)) },
+  // 注：`src/media-viewer` **有意不纳入**——它是**宿主级 UI**（浮层挂在 document.body，不在 `.cm-content` 内），
+  // 其关闭/编辑按钮**必须**可键盘达（否则 `aria-modal` 就是断言而非事实）。
+  // 本护栏只管“文档内容区内的控件”（即 r2 评审的原始判断）。
 ]);
 
 /** 白名单 = **有意的可键盘到达控件**（可访问性诉求）；每条都必须写明依据。
@@ -114,18 +115,13 @@ describe("文档内可聚焦控件约定（源码级结构护栏）", () => {
     ).toEqual([]);
   });
 
-  it("扫描根集合精确等于三个既定根（防止改指根导致覆盖静默丢失）", () => {
-    expect(SCAN_ROOTS.map((root) => root.id)).toEqual([
-      "wysiwyg",
-      "syntax-plugins",
-      "media-viewer",
-    ]);
+  it("扫描根集合精确等于两个既定根（防止改指根导致覆盖静默丢失）", () => {
+    expect(SCAN_ROOTS.map((root) => root.id)).toEqual(["wysiwyg", "syntax-plugins"]);
   });
 
   it("每个扫描根都必须真的扫到已知文件（防止根系退化为空转）", () => {
     expect(collectScannedRelativePaths(SCAN_ROOTS[0]!)).toContain("widgets/image-widget.ts");
     expect(collectScannedRelativePaths(SCAN_ROOTS[1]!)).toContain("mermaid/mermaid-projection.ts");
-    expect(collectScannedRelativePaths(SCAN_ROOTS[2]!)).toContain("browser.ts");
   });
 
   it("判别力：临时目录中的违规合成文件必须被抓到（扫描器不退化为空转）", () => {
