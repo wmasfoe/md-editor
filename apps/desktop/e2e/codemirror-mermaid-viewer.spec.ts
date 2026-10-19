@@ -510,6 +510,49 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(overlay.locator("svg")).toBeVisible();
   });
 
+  test("块间空行保真（已登记偏差）：mermaid 在源码 0 空行时会多出 1 个幽灵行", async ({ page }) => {
+    test.setTimeout(120_000);
+    // 背景：MermaidBlockWidget 仍手写 `inclusive:false + block:true`，未走 buildWholeLineBlockReplacement，
+    // 因此它**不受**不对称 Inclusivity 契约保护（见 thematic_break_and_block_inclusivity_spec.md
+    // 的「已登记豁免：Mermaid 块」）。本用例把当前行为**钉死**：
+    //   源码 1 个空行 ⇒ 视觉 1 个空行（正常）
+    //   源码 0 个空行 ⇒ 视觉 1 个空行（**偏差**：多一个幽灵行）
+    //   源码 1 个空行 ⇒ 视觉 2 个空行（**偏差**：同样多一个）——即**恒定 +1**
+    // 后续把 mermaid 改走统一实现时本用例会变红——届时按契约改为 N ⇒ N 并删除偏差声明。
+    const expectations = [
+      { blankCount: 0, visualLines: 1 },
+      { blankCount: 1, visualLines: 2 },
+    ] as const;
+
+    for (const { blankCount, visualLines } of expectations) {
+      const markdown = [
+        "## 标题",
+        ...Array.from({ length: blankCount }, () => ""),
+        "```mermaid",
+        "graph LR",
+        "  A --> B",
+        "```",
+        "",
+      ].join("\n");
+      await openFullApp(page);
+      await loadDoc(page, markdown);
+      await expect(page.locator(".cm-md-mermaid-block")).toHaveCount(1, { timeout: 30_000 });
+
+      const children = await page.evaluate(() =>
+        Array.from(document.querySelectorAll(".cm-content > *")).map((element) =>
+          (element.className ?? "").toString(),
+        ),
+      );
+      const widgetIndex = children.findIndex((className) =>
+        className.split(/\s+/u).includes("cm-md-mermaid-block"),
+      );
+      expect(widgetIndex).toBeGreaterThan(0);
+      const between = children.slice(1, widgetIndex);
+      expect(between.every((className) => className.split(/\s+/u).includes("cm-line"))).toBe(true);
+      expect(between, `源码 ${blankCount} 个空行的视觉行数`).toHaveLength(visualLines);
+    }
+  });
+
   test("AC10: 浮层内 SVG 的 id 与正文 SVG 无交集，且引用可解析", async ({ page }) => {
     test.setTimeout(90_000);
     await openMermaidDoc(page, MERMAID_DOC);

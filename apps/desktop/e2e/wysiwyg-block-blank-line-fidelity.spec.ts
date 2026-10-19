@@ -44,6 +44,10 @@ const MDX_CASE: BlockCase = {
 };
 
 const BLOCK_CASES: readonly BlockCase[] = [TABLE_CASE, HTML_CASE, MDX_CASE, THEMATIC_BREAK_CASE];
+// 注：mermaid 不在本表——本 spec 的 harness（`?surface=codemirror-editor&mdx=1`）**未启用 mermaid 插件**，
+// 因此 ```mermaid 在本夹具下只会是普通代码块（widget 计数永远为 0）。
+// mermaid 的同一套空行保真断言改在启用插件的完整 app harness 中断言：
+// apps/desktop/e2e/codemirror-mermaid-viewer.spec.ts 的「块间空行保真」用例。
 
 /** 空行档位：0（紧贴，块级替换不得吞掉整行语义）与 1（用户报告的故障场景）。 */
 const BLANK_COUNTS = [0, 1] as const;

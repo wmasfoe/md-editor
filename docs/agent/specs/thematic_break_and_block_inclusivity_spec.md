@@ -123,7 +123,11 @@ if (deco.block) {
 
 - 改走统一实现会移动替换 range，并打破既有装饰几何断言（`packages/syntax-plugins/tests/mermaid.test.ts` 中 `inactiveDecos[0].from/to === record.fullRange.to`），属独立风险面，需另开任务；
 - 因此 **Mermaid 块暂不受 #2（不对称 Inclusivity）约束**，也不得借本豁免去放宽其它块级 widget；
-- **已知回归缺口**：既有块级空行保真 e2e（`wysiwyg-block-blank-line-fidelity.spec.ts`）的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**（其 widget 内部新增了外层包装 DOM 后尤应补一档）；补夹具时需同步核对本豁免是否仍成立。
+- **已知回归缺口（2026-10 实测确认，不再是推测）**：既有块级空行保真 e2e 的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**；而在启用 mermaid 插件的完整 app harness 中实测：
+  - 源码 1 个空行 ⇒ 视觉 **2** 个空行（**多一个幽灵行**）；
+  - 源码 **0** 个空行 ⇒ 视觉 **1** 个空行（同样多一个）——即 mermaid 块目前**恒定多渲染 1 个幽灵行**。
+
+  这正是手写 `inclusive:false` 未采用不对称 Inclusivity 的后果，已由 `codemirror-mermaid-viewer.spec.ts` 的「块间空行保真（已登记偏差）」用例**钉死当前行为**（非假绿：后续改走统一实现时该用例会变红，需同步改断言并删除本偏差声明）。修复方向：让 mermaid 改走 `buildWholeLineBlockReplacement()`（会移动 range 并需同步调整 `packages/syntax-plugins/tests/mermaid.test.ts` 的装饰几何断言），属独立任务。
 
 ### 符号型块（symbol block）默认间距规则
 
