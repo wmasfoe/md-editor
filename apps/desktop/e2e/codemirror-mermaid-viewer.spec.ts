@@ -408,6 +408,36 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     expect(Math.abs((await readScale()) - initialScale)).toBeLessThan(0.01);
   });
 
+  test("AC6: 拖拽平移会改变位移，且松手后的 click 不得把浮层关掉", async ({ page }) => {
+    test.setTimeout(90_000);
+    await openMermaidDoc(page, SHALLOW_MERMAID_DOC);
+    await waitForSvg(page);
+    await page.locator(".cm-md-mermaid-container").first().click();
+    const overlay = page.locator(".cm-md-media-viewer");
+    await expect(overlay).toBeVisible();
+
+    const readTransform = (): Promise<string> =>
+      overlay.locator("svg").evaluate((element) => getComputedStyle(element).transform);
+    const before = await readTransform();
+
+    const box = await overlay.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 60, startY + 40);
+    await page.mouse.up();
+
+    // AC6：拖拽必须真的产生平移
+    expect(await readTransform()).not.toBe(before);
+    // r5 D2：拖拽结束后的 click 不得被当成“点空白关闭”
+    await expect(overlay).toHaveCount(1);
+  });
+
   test("AC16: 重复开关无残留（浮层计数）且关闭后 Escape 不再有效果（监听已注销）", async ({
     page,
   }) => {

@@ -137,9 +137,16 @@ test.describe("M5 图片闭环(就地编辑源码 + 查看器)", () => {
       2,
     );
 
+    // Escape 关闭（原有断言，不得因新增 AC15④ 而被取代）
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+
     // AC15 ④：图片路径也拿到 `Mod+K` 互斥行为（先关浮层）。
     // 注：“面板照常打开”那半句由 codemirror-mermaid-viewer.spec.ts 在完整 app harness 下断言——
     // 本 spec 用轻量 harness，并不挂载桌面命令面板。
+    await image.hover();
+    await viewerButton.click({ force: true });
+    await expect(overlay).toBeVisible();
     await page.keyboard.press(`${MOD_KEY}+k`);
     await expect(overlay).toHaveCount(0);
   });
