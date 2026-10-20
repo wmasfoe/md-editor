@@ -12,6 +12,19 @@ const webAppUrl = rawWebAppUrl.replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  /**
+   * Next 的 output file tracing 以 monorepo 根为 root，会把整棵 `apps/desktop/src-tauri`
+   * （Rust 源码 + `target/` 构建产物，约 6.5 万个文件）trace 进 server function，
+   * 导致生成的 `.vc-config.json` 里的 filePathMap 达 ~16MB，超过 Vercel 单文件 10MB
+   * 上传上限而部署失败。站点运行期只需要各应用的 CHANGELOG 文件，Rust 目录与本产物无关。
+   */
+  outputFileTracingExcludes: {
+    "*": [
+      "../../apps/desktop/src-tauri/**",
+      "../../apps/desktop/src-tauri/**/*",
+      "apps/desktop/src-tauri/**",
+    ],
+  },
   transpilePackages: [
     "@md-editor/editor-core",
     "@md-editor/editor-ui",
