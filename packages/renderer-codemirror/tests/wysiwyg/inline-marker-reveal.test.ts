@@ -134,6 +134,36 @@ describe("resolveInlineMarkerRevealIds", () => {
     expect(revealFor(state, state.selection)).toBe(EMPTY_REVEAL_IDS);
   });
 
+  it("T-19（AC-9-D）: touching 调用次数 = selection range 数，与文档长度无关", () => {
+    // 代理指标：resolver 每个 selection range 只做一次区间查询（二分候选 + 线性扫），
+    // 因此“每事务查询次数”只随 range 数增长，不随文档长度增长。
+    const calls: Array<{ from: number; to: number }> = [];
+    const fakeIndex = {
+      touching(from: number, to: number) {
+        calls.push({ from, to });
+        return [];
+      },
+    } as unknown as Parameters<typeof resolveInlineMarkerRevealIds>[0];
+
+    const single = EditorSelection.single(3);
+    resolveInlineMarkerRevealIds(fakeIndex, single, false);
+    expect(calls).toHaveLength(1);
+
+    const multi = EditorSelection.create([
+      EditorSelection.cursor(3),
+      EditorSelection.cursor(40),
+      EditorSelection.cursor(900),
+    ]);
+    calls.length = 0;
+    resolveInlineMarkerRevealIds(fakeIndex, multi, false);
+    expect(calls).toHaveLength(3);
+
+    // 开关 ON 直接短路，一次查询都不做（ON 模式不付该成本）。
+    calls.length = 0;
+    resolveInlineMarkerRevealIds(fakeIndex, multi, true);
+    expect(calls).toHaveLength(0);
+  });
+
   it("T-11b: branded 类型阻断“把上一状态的旧数组直接回传”（编译期）", () => {
     expect(typeof typeLevelOnly).toBe("function");
   });
