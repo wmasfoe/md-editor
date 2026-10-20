@@ -49,6 +49,16 @@ function boldRange(markdown: string): { from: number; to: number } {
 }
 
 test.describe("行内标记源码显隐 · 手测清单自动化代理", () => {
+  test("E-7: 冷启动 ON（facet 初值，无任何 toggle 事务）首帧即常显", async ({ page }) => {
+    await page.goto("/?surface=codemirror-editor&inlineStyleMarkers=1");
+    await expect(page.locator(".cm-editor")).toHaveCount(1);
+    await page.evaluate(() => {
+      window.__CODEMIRROR_EDITOR_E2E__?.replaceDocument("Head\n\nxx **bold** yy\n", "wysiwyg");
+    });
+    // 未调用任何 setInlineStyleMarkers：marker 来自创建时的 facet 初值。
+    await expect(page.locator(".cm-md-marker--bold")).toHaveCount(2);
+  });
+
   test.beforeEach(async ({ context, page }) => {
     await grantClipboard(context);
     await openHarness(page);

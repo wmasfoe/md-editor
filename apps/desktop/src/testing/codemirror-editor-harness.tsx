@@ -34,6 +34,7 @@ interface HarnessControls {
   readonly setEditorMounted: (mounted: boolean) => void;
   readonly setFontSize: (fontSize: number) => void;
   readonly setCodeBlockLineNumbers: (enabled: boolean) => void;
+  readonly setInlineStyleMarkers: (enabled: boolean) => void;
   readonly setPreviewVisible: (visible: boolean) => void;
   readonly rerender: () => void;
 }
@@ -58,6 +59,7 @@ export interface CodeMirrorEditorHarnessBridge {
   ): ReturnType<typeof switchEditorModeSafely> | { readonly status: "unavailable" };
   setFontSize(fontSize: number): void;
   setCodeBlockLineNumbers(enabled: boolean): void;
+  setInlineStyleMarkers(enabled: boolean): void;
   setPreviewVisible(visible: boolean): void;
   applyExternalEdit(
     markdown: string,
@@ -223,6 +225,9 @@ export function installCodeMirrorEditorHarness(
     setCodeBlockLineNumbers(enabled: boolean) {
       requireControls().setCodeBlockLineNumbers(enabled);
     },
+    setInlineStyleMarkers(enabled: boolean) {
+      requireControls().setInlineStyleMarkers(enabled);
+    },
     setPreviewVisible(visible: boolean) {
       requireControls().setPreviewVisible(visible);
     },
@@ -311,6 +316,10 @@ export function installCodeMirrorEditorHarness(
     const [editorMounted, setEditorMounted] = useState(true);
     const [fontSize, setFontSize] = useState(16);
     const [codeBlockLineNumbers, setCodeBlockLineNumbers] = useState(false);
+    // E-7 冷启动：由 URL 参数决定首帧的开关值（不经过任何 toggle 事务）。
+    const [inlineStyleMarkers, setInlineStyleMarkers] = useState(
+      new URLSearchParams(window.location.search).get("inlineStyleMarkers") === "1",
+    );
     const [previewVisible, setPreviewVisible] = useState(false);
     const [, setRenderSequence] = useState(0);
 
@@ -318,6 +327,7 @@ export function installCodeMirrorEditorHarness(
       setEditorMounted,
       setFontSize,
       setCodeBlockLineNumbers,
+      setInlineStyleMarkers,
       setPreviewVisible,
       rerender: () => setRenderSequence((sequence) => sequence + 1),
     };
@@ -339,6 +349,7 @@ export function installCodeMirrorEditorHarness(
               document={runtime.document}
               fontSize={fontSize}
               codeBlockLineNumbers={codeBlockLineNumbers}
+              showInlineStyleMarkers={inlineStyleMarkers}
               hidden={previewVisible}
               writeClipboardText={async (text) => {
                 if (nextClipboardFailure) {
