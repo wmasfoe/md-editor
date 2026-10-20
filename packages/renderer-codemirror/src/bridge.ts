@@ -15,6 +15,7 @@ import {
   createCodeMirrorRenderer,
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
+  type InlineStyleMarkerPortResult,
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
@@ -40,6 +41,7 @@ export interface CodeMirrorEditorPorts {
   readonly mode: ModeRendererPort;
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
+  setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -260,6 +262,7 @@ export function createCodeMirrorEditorBridge(
     toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
     getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
+    setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),

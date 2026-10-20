@@ -16,6 +16,7 @@ export interface TransactionLedgerSnapshot {
   readonly externalEditTransactionCount: number;
   readonly reconciliationTransactionCount: number;
   readonly codeBlockLineNumberTransactionCount: number;
+  readonly inlineStyleMarkerTransactionCount: number;
   readonly measureRequestCount: number;
 }
 
@@ -25,6 +26,7 @@ export class TransactionLedger {
   #externalEditTransactionCount = 0;
   #reconciliationTransactionCount = 0;
   #codeBlockLineNumberTransactionCount = 0;
+  #inlineStyleMarkerTransactionCount = 0;
   #measureRequestCount = 0;
 
   get documentTransactionCount(): number {
@@ -57,6 +59,9 @@ export class TransactionLedger {
       case "code-block-line-numbers":
         this.#codeBlockLineNumberTransactionCount += 1;
         break;
+      case "inline-style-markers":
+        this.#inlineStyleMarkerTransactionCount += 1;
+        break;
     }
   }
 
@@ -67,6 +72,7 @@ export class TransactionLedger {
       externalEditTransactionCount: this.#externalEditTransactionCount,
       reconciliationTransactionCount: this.#reconciliationTransactionCount,
       codeBlockLineNumberTransactionCount: this.#codeBlockLineNumberTransactionCount,
+      inlineStyleMarkerTransactionCount: this.#inlineStyleMarkerTransactionCount,
       measureRequestCount: this.#measureRequestCount,
     };
   }

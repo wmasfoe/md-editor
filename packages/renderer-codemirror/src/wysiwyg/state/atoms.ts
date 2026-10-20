@@ -4,6 +4,7 @@ import { type MarkdownRangeIndex } from "../../markdown/range-index.ts";
 import type { SourceRange } from "../../markdown/range-types.ts";
 import { isRenderableDefaultAtom } from "../blocks/default-visualization.ts";
 import { freezeRanges } from "./ranges.ts";
+import type { InlineMarkerRevealIds } from "./inline-marker-reveal.ts";
 import {
   clearWysiwygAtomSelectionEffect,
   clearWysiwygTypedBoundaryEffect,
@@ -102,9 +103,30 @@ export function computeTypedBoundary(
   return previous;
 }
 
-export function freezeProjectionState(state: WysiwygProjectionState): WysiwygProjectionState {
+/**
+ * 投影状态“草稿”：除 `inlineMarkerRevealIds` 以外的全部字段。
+ *
+ * 为什么需要：`compileProjection` 的两处 `freezeProjectionState` 调用传的是**逐字段列全**
+ * 的对象字面量（不展开 `previous`）。若 `freezeProjectionState` 第一参直接要求完整的
+ * `WysiwygProjectionState`，新字段就成了第二个语义来源（可从字面量写死）。用 `Omit`
+ * 后，字面量保持原字段集即可编译，而新字段只能来自第二参数。
+ */
+export type ProjectionStateDraft = Omit<WysiwygProjectionState, "inlineMarkerRevealIds">;
+
+/**
+ * 冻结并构造新的投影状态。
+ *
+ * ⚠️ `reveal` 是 `inlineMarkerRevealIds` 的**唯一来源**：不得从 `state`（可能带着旧值）
+ * 透传。参数类型为 branded `InlineMarkerRevealIds`，因此把 `previous.inlineMarkerRevealIds`
+ * （普通 `readonly string[]`）直接回传会在编译期失败。
+ */
+export function freezeProjectionState(
+  state: ProjectionStateDraft,
+  reveal: InlineMarkerRevealIds,
+): WysiwygProjectionState {
   return Object.freeze({
     ...state,
+    inlineMarkerRevealIds: freezeStrings(reveal),
     activeSyntaxIds: freezeStrings(state.activeSyntaxIds),
     selectedAtomIds: freezeStrings(state.selectedAtomIds),
     compositionGuardRanges: freezeRanges(state.compositionGuardRanges),
@@ -136,6 +158,6 @@ export function sortStrings(values: Iterable<string>): readonly string[] {
   return Object.freeze(sorted);
 }
 
-function equalStrings(left: readonly string[], right: readonly string[]): boolean {
+export function equalStrings(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }

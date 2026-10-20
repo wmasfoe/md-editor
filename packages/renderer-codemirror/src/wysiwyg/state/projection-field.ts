@@ -14,13 +14,23 @@ import { editorModeField } from "../../mode.ts";
 import { isPlainTextInput } from "../input/plain-text-input.ts";
 import { setCodeBlockLineNumbersEffect } from "../projections/code-block-projection.ts";
 import {
+  inlineStyleMarkersField,
+  setInlineStyleMarkersEffect,
+} from "../projections/inline-heading.ts";
+import {
   applyAtomEffects,
   applyCompositionEffects,
   computeTypedBoundary,
+  equalStrings,
   freezeProjectionState,
   normalizeSelectedAtomIds,
   sortStrings,
 } from "./atoms.ts";
+import {
+  EMPTY_REVEAL_IDS,
+  resolveInlineMarkerRevealIds,
+  type InlineMarkerRevealIds,
+} from "./inline-marker-reveal.ts";
 import { buildLayoutDecorations, updateChangedLayoutDecorations } from "./decorations.ts";
 import {
   buildAtomicRanges,
@@ -71,6 +81,27 @@ export const clearWysiwygTypedBoundaryOnBlur = EditorView.domEventHandlers({
   },
 });
 
+/** 开关值读取（缺省 `false`：默认不展示源码标记）。 */
+function showInlineStyleMarkers(state: EditorState): boolean {
+  return state.field(inlineStyleMarkersField, false) ?? false;
+}
+
+/**
+ * 当前状态下的行内标记显形点集。
+ *
+ * source 模式恒为空集（该模式下 `buildVisibleMarkdownMarks` 直接返回空装饰集，
+ * 但仍要保证点集本身可快照、可断言，不得冻结旧值）。
+ */
+function resolveRevealIdsForState(
+  state: EditorState,
+  index: MarkdownRangeIndex,
+): InlineMarkerRevealIds {
+  if (state.field(editorModeField) === "source") {
+    return EMPTY_REVEAL_IDS;
+  }
+  return resolveInlineMarkerRevealIds(index, state.selection, showInlineStyleMarkers(state));
+}
+
 export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>({
   create(state) {
     return compileProjection(state, [], []);
@@ -78,6 +109,8 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
   update(previous, transaction) {
     const index = transaction.state.field(markdownRangeIndexField);
     const mode = transaction.state.field(editorModeField);
+    // 单次派生：所有产出新状态的路径都复用这一份点集（见 Step 2.3）。
+    const revealIds = resolveRevealIdsForState(transaction.state, index);
     // G006 P1-4:ViewPlugin 几何采集经 effect 注入;变化时触发限定重建。
     const visibleRangesEffect = transaction.effects.find((effect) =>
       effect.is(setWysiwygVisibleRangesEffect),
@@ -116,7 +149,8 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     const effectsChanged =
       selectedAtomIds !== previous.selectedAtomIds ||
       compositionGuardRanges !== previous.compositionGuardRanges ||
-      transaction.effects.some((effect) => effect.is(setCodeBlockLineNumbersEffect));
+      transaction.effects.some((effect) => effect.is(setCodeBlockLineNumbersEffect)) ||
+      transaction.effects.some((effect) => effect.is(setInlineStyleMarkersEffect));
 
     // G004 P0-2:compositionend 后由 renderer 派发空事务 + refresh effect,
     // 强制投影全量重建一次,保证 IME 提交后装饰与最终文档一致。
@@ -155,16 +189,19 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       // G004 P0-2:composition 输入事务只 map 不重建(全量重建会取消输入法)。
       if (isCompositionInputTransaction(transaction)) {
         getWysiwygDiagnostics(transaction.state)?.recordCompositionMapSkip();
-        return freezeProjectionState({
-          ...previous,
-          rangeIndexVersion: index.version,
-          typedBoundary,
-          compositionGuardRanges: mappedCompositionGuardRanges,
-          layoutDecorations: previous.layoutDecorations.map(transaction.changes),
-          atomicRanges: previous.atomicRanges.map(transaction.changes),
-          protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
-          lastSelectionDeltaIds: [],
-        });
+        return freezeProjectionState(
+          {
+            ...previous,
+            rangeIndexVersion: index.version,
+            typedBoundary,
+            compositionGuardRanges: mappedCompositionGuardRanges,
+            layoutDecorations: previous.layoutDecorations.map(transaction.changes),
+            atomicRanges: previous.atomicRanges.map(transaction.changes),
+            protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
+            lastSelectionDeltaIds: [],
+          },
+          revealIds,
+        );
       }
       return updateDocumentProjection(
         previous,
@@ -173,6 +210,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
         selectedAtomIds,
         mappedCompositionGuardRanges,
         typedBoundary,
+        revealIds,
       );
     }
 
@@ -197,13 +235,22 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     );
     const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
     if (changedIds.length === 0) {
-      return previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary
-        ? previous
-        : freezeProjectionState({
-            ...previous,
-            typedBoundary,
-            lastSelectionDeltaIds: [],
-          });
+      if (previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary) {
+        // 范围选区贴边的失效路径：active 不变，但闭区间触及点集可能已变。
+        return equalStrings(revealIds, previous.inlineMarkerRevealIds)
+          ? previous
+          : freezeProjectionState({ ...previous }, revealIds);
+      }
+      // 进入该冻结子返回即计数（无论 reveal 是否变化）——它是“是否命中本分支”的唯一判据。
+      getWysiwygDiagnostics(transaction.state)?.recordSelectionFreezeWithoutDelta();
+      return freezeProjectionState(
+        {
+          ...previous,
+          typedBoundary,
+          lastSelectionDeltaIds: [],
+        },
+        revealIds,
+      );
     }
 
     getWysiwygDiagnostics(transaction.state)?.recordSelectionDeltaUpdate();
@@ -229,15 +276,18 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     const protectedRanges = changedIds.some((id) => index.get(id)?.kind === "table")
       ? buildProtectedRanges(index, activeSyntaxIds, transaction.state)
       : previous.protectedRanges;
-    return freezeProjectionState({
-      ...previous,
-      typedBoundary,
-      activeSyntaxIds,
-      layoutDecorations,
-      atomicRanges,
-      protectedRanges,
-      lastSelectionDeltaIds: changedIds,
-    });
+    return freezeProjectionState(
+      {
+        ...previous,
+        typedBoundary,
+        activeSyntaxIds,
+        layoutDecorations,
+        atomicRanges,
+        protectedRanges,
+        lastSelectionDeltaIds: changedIds,
+      },
+      revealIds,
+    );
   },
   provide(field) {
     return [
@@ -272,6 +322,7 @@ export function inspectWysiwygProjection(state: EditorState): WysiwygProjectionS
     layoutDecorationCount: projection.layoutDecorations.size,
     atomicRangeCount: projection.atomicRanges.size,
     lastSelectionDeltaIds: projection.lastSelectionDeltaIds,
+    inlineMarkerRevealIds: projection.inlineMarkerRevealIds,
   });
 }
 
@@ -284,19 +335,22 @@ function compileProjection(
 ): WysiwygProjectionState {
   const index = state.field(markdownRangeIndexField);
   if (state.field(editorModeField) === "source") {
-    return freezeProjectionState({
-      mode: "source",
-      rangeIndexVersion: index.version,
-      activeSyntaxIds: [],
-      selectedAtomIds: [],
-      compositionGuardRanges: [],
-      protectedRanges: [],
-      layoutDecorations: Decoration.none,
-      atomicRanges: Decoration.none,
-      lastSelectionDeltaIds: [],
-      typedBoundary: null,
-      visibleRanges,
-    });
+    return freezeProjectionState(
+      {
+        mode: "source",
+        rangeIndexVersion: index.version,
+        activeSyntaxIds: [],
+        selectedAtomIds: [],
+        compositionGuardRanges: [],
+        protectedRanges: [],
+        layoutDecorations: Decoration.none,
+        atomicRanges: Decoration.none,
+        lastSelectionDeltaIds: [],
+        typedBoundary: null,
+        visibleRanges,
+      },
+      EMPTY_REVEAL_IDS,
+    );
   }
 
   const activeSyntaxIds = collectActiveSyntaxIds(index, state.selection, typedBoundary);
@@ -318,19 +372,22 @@ function compileProjection(
   if (visibleRanges.length > 0) {
     diagnostics?.recordVisibleRangeLimitedBuild();
   }
-  return freezeProjectionState({
-    mode: "wysiwyg",
-    rangeIndexVersion: index.version,
-    activeSyntaxIds,
-    selectedAtomIds: normalizedAtomIds,
-    compositionGuardRanges: normalizedGuards,
-    protectedRanges,
-    layoutDecorations,
-    atomicRanges,
-    lastSelectionDeltaIds: [],
-    typedBoundary,
-    visibleRanges,
-  });
+  return freezeProjectionState(
+    {
+      mode: "wysiwyg",
+      rangeIndexVersion: index.version,
+      activeSyntaxIds,
+      selectedAtomIds: normalizedAtomIds,
+      compositionGuardRanges: normalizedGuards,
+      protectedRanges,
+      layoutDecorations,
+      atomicRanges,
+      lastSelectionDeltaIds: [],
+      typedBoundary,
+      visibleRanges,
+    },
+    resolveRevealIdsForState(state, index),
+  );
 }
 
 function updateDocumentProjection(
@@ -340,6 +397,7 @@ function updateDocumentProjection(
   selectedAtomIds: readonly string[],
   compositionGuardRanges: readonly SourceRange[],
   typedBoundary: number | null,
+  revealIds: InlineMarkerRevealIds,
 ): WysiwygProjectionState {
   const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection, typedBoundary);
 
@@ -348,16 +406,22 @@ function updateDocumentProjection(
   // 直接 map 保留全部装饰 DOM,跳过 collectChangedRecordIds 的两次全量遍历。
   if (plainTextInsertCanMapProjection(transaction, index)) {
     getWysiwygDiagnostics(transaction.state)?.recordProjectionMapSkip();
-    return freezeProjectionState({
-      ...previous,
-      rangeIndexVersion: index.version,
-      activeSyntaxIds,
-      typedBoundary,
-      layoutDecorations: previous.layoutDecorations.map(transaction.changes),
-      atomicRanges: previous.atomicRanges.map(transaction.changes),
-      protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
-      lastSelectionDeltaIds: [],
-    });
+    // 带证明的继承：该快速路径要求插入点前后都在“无任何记录重叠”的纯文本段落
+    // （`cursorInPlainParagraph`），而对折叠光标 `touching(p,p) ≡ overlapping(p,p)`
+    // ⇒ 显形点集必为空集；仍显式传入当期 `revealIds`（不允许从 `...previous` 透传）。
+    return freezeProjectionState(
+      {
+        ...previous,
+        rangeIndexVersion: index.version,
+        activeSyntaxIds,
+        typedBoundary,
+        layoutDecorations: previous.layoutDecorations.map(transaction.changes),
+        atomicRanges: previous.atomicRanges.map(transaction.changes),
+        protectedRanges: mapProtectedRanges(previous.protectedRanges, transaction.changes),
+        lastSelectionDeltaIds: [],
+      },
+      revealIds,
+    );
   }
 
   const previousIndex = transaction.startState.field(markdownRangeIndexField);
@@ -388,19 +452,22 @@ function updateDocumentProjection(
   if (dirtyCodeBlockCount > 0) {
     getWysiwygDiagnostics(transaction.state)?.recordDirtyCodeBlockRebuild(dirtyCodeBlockCount);
   }
-  return freezeProjectionState({
-    mode: "wysiwyg",
-    rangeIndexVersion: index.version,
-    activeSyntaxIds,
-    selectedAtomIds,
-    compositionGuardRanges,
-    protectedRanges: buildProtectedRanges(index, activeSyntaxIds, transaction.state),
-    layoutDecorations,
-    atomicRanges,
-    lastSelectionDeltaIds: [],
-    typedBoundary,
-    visibleRanges: previous.visibleRanges,
-  });
+  return freezeProjectionState(
+    {
+      mode: "wysiwyg",
+      rangeIndexVersion: index.version,
+      activeSyntaxIds,
+      selectedAtomIds,
+      compositionGuardRanges,
+      protectedRanges: buildProtectedRanges(index, activeSyntaxIds, transaction.state),
+      layoutDecorations,
+      atomicRanges,
+      lastSelectionDeltaIds: [],
+      typedBoundary,
+      visibleRanges: previous.visibleRanges,
+    },
+    revealIds,
+  );
 }
 
 /**

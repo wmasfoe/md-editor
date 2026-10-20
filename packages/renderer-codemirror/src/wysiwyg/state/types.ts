@@ -48,6 +48,7 @@ export interface WysiwygProjectionSnapshot {
   readonly layoutDecorationCount: number;
   readonly atomicRangeCount: number;
   readonly lastSelectionDeltaIds: readonly string[];
+  readonly inlineMarkerRevealIds: readonly string[];
 }
 
 export interface WysiwygProjectionState {
@@ -60,6 +61,12 @@ export interface WysiwygProjectionState {
   readonly layoutDecorations: DecorationSet;
   readonly atomicRanges: DecorationSet;
   readonly lastSelectionDeltaIds: readonly string[];
+  /**
+   * 四类内置行内标记的**源码显形点集**（仅这些 kind，且仅 OFF 时非空）。
+   * 由 `resolveInlineMarkerRevealIds` 在投影层单点派生；`touching()` 闭区间语义，
+   * 含“范围选区贴边”这一 `activeSyntaxIds` 不覆盖的情形。
+   */
+  readonly inlineMarkerRevealIds: readonly string[];
   /** 刚由输入事务产生的光标位置;用于 reveal-source 记录闭合符右缘的 reveal 宽松判定 */
   readonly typedBoundary: number | null;
   /** 最近一次可见区(EditorView 几何采集,effect 注入);空 = 未初始化,全量构建 */

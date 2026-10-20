@@ -16,6 +16,7 @@ type ProbeValues = Pick<
   | "stateRevision"
   | "contentRevision"
   | "codeBlockLineNumbers"
+  | "inlineStyleMarkers"
   | "viewDestructionCount"
   | "explicitStateCreationCount"
   | "stateReplacementCount"
@@ -36,6 +37,7 @@ export function createRendererProbe(
   values: ProbeValues,
 ): RendererTestingProbeInternal {
   const selection = view.state.selection;
+  const wysiwygSnapshot = diagnostics.snapshot();
   return Object.freeze({
     clientId: values.clientId,
     viewId: values.viewId,
@@ -62,6 +64,7 @@ export function createRendererProbe(
     undoDepth: undoDepth(view.state),
     redoDepth: redoDepth(view.state),
     codeBlockLineNumbers: values.codeBlockLineNumbers,
+    inlineStyleMarkers: values.inlineStyleMarkers,
     viewCreationCount: 1,
     viewDestructionCount: values.viewDestructionCount,
     explicitStateCreationCount: values.explicitStateCreationCount,
@@ -76,7 +79,9 @@ export function createRendererProbe(
     lastSyncStatus: values.lastSyncStatus,
     lastErrorCode: values.lastErrorCode,
     destroyed: values.destroyed,
-    wysiwyg: diagnostics.snapshot(),
+    // 显形点集失效见证：进入 `changedIds.length === 0` 冻结子返回的次数。
+    selectionFreezeWithoutDeltaCount: wysiwygSnapshot.selectionFreezeWithoutDeltaCount,
+    wysiwyg: wysiwygSnapshot,
     wysiwygProjection: inspectWysiwygProjection(view.state),
   });
 }

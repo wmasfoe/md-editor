@@ -23,6 +23,10 @@ import {
   type WysiwygProjectionFeature,
 } from "../../src/wysiwyg/state/types.ts";
 import { buildVisibleMarkdownMarks } from "../../src/wysiwyg/state/visible-marks.ts";
+import {
+  initialInlineStyleMarkersFacet,
+  inlineStyleMarkersField,
+} from "../../src/wysiwyg/projections/inline-heading.ts";
 
 interface DecorationSummary {
   readonly from: number;
@@ -50,6 +54,10 @@ function createState(
       markdownRangeIndexField,
       configureWysiwygProjectionFeatures(features),
       wysiwygProjectionField,
+      // 本 fixture 覆盖的是“marker 常显”的既有语义（heading 显隐 + 行内样式装饰），
+      // 故显式把开关置 ON；OFF 语义由 inline-marker-source-toggle.test.ts 覆盖。
+      inlineStyleMarkersField,
+      initialInlineStyleMarkersFacet.of(true),
     ],
   });
   return { state, diagnostics };
