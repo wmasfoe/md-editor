@@ -150,6 +150,7 @@ export const en: TranslationSchema = {
       fontSizeUnit: "{{size}} px",
       lineNumbers: "Code Block Line Numbers",
       showLineNumbers: "Show line numbers in code blocks",
+      showInlineStyleMarkers: "Show inline format markers (**, *, ~~, `)",
       themes: {
         githubLight: "GitHub Light",
         gothicLight: "Gothic Light",

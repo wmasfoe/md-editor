@@ -24,6 +24,8 @@ import "./CodeMirrorEditor.css";
 export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
   readonly codeBlockLineNumbers?: boolean;
+  /** 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及时临时显形）。 */
+  readonly showInlineStyleMarkers?: boolean;
   readonly fontSize?: number;
   readonly proseFontFamily?: string;
   readonly codeFontFamily?: string;
@@ -54,6 +56,7 @@ export interface CodeMirrorEditorProps {
 export function CodeMirrorEditor({
   document,
   codeBlockLineNumbers = false,
+  showInlineStyleMarkers = false,
   fontSize,
   proseFontFamily,
   codeFontFamily,
@@ -176,6 +179,10 @@ export function CodeMirrorEditor({
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setCodeBlockLineNumbers(codeBlockLineNumbers);
   }, [codeBlockLineNumbers]);
+
+  useLayoutEffect(() => {
+    bridgeRef.current?.ports.setInlineStyleMarkers(showInlineStyleMarkers);
+  }, [showInlineStyleMarkers]);
 
   useLayoutEffect(() => {
     if (aiSuggestionLabels) {

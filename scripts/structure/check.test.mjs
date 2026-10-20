@@ -335,6 +335,7 @@ test("PR3：state 拆分成员精确匹配，拒绝恢复旧聚合文件", () =>
     "ranges.ts",
     "atoms.ts",
     "visible-marks.ts",
+    "inline-marker-reveal.ts",
     "change-authorization.ts",
     "change-protection.ts",
   ];

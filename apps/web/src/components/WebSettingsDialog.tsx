@@ -420,6 +420,20 @@ export function WebSettingsDialog({
                     {localSettings.fontSize}px
                   </output>
                 </label>
+                <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--theme-primary)]"
+                    checked={localSettings.showInlineStyleMarkers}
+                    onChange={(event) =>
+                      setLocalSettings((prev) => ({
+                        ...prev,
+                        showInlineStyleMarkers: event.target.checked,
+                      }))
+                    }
+                  />
+                  <span>{t("settings.appearance.showInlineStyleMarkers")}</span>
+                </label>
               </fieldset>
 
               <div className="grid gap-2.5">

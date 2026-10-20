@@ -83,7 +83,7 @@
 
 域只回答"文件放哪"，不承诺依赖方向。
 
-PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decorations.ts`、`ranges.ts`、`atoms.ts`、`visible-marks.ts`、`change-authorization.ts`、`change-protection.ts`。
+PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decorations.ts`、`ranges.ts`、`atoms.ts`、`visible-marks.ts`、`inline-marker-reveal.ts`、`change-authorization.ts`、`change-protection.ts`。
 `types.ts` 持有 Facet/Effect 唯一实例，`projection-field.ts` 持有 StateField 唯一实例以及依赖该字段的配置/查询入口；装饰、范围与 atom 计算按职责拆出，禁止为旧路径保留兼容转发。
 `widgets/table/index.ts` 是表格 widget 的目录聚合边界，DOM、提交与焦点行为在同目录协作。
 

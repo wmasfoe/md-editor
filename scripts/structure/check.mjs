@@ -112,6 +112,7 @@ export const WYSIWYG_DOMAIN_MEMBERS = {
     "ranges.ts",
     "atoms.ts",
     "visible-marks.ts",
+    "inline-marker-reveal.ts",
     "change-authorization.ts",
     "change-protection.ts",
   ],

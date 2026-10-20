@@ -8,6 +8,12 @@
 export interface EditorDisplaySettings {
   /** 是否在代码块中显示行号 */
   readonly showCodeBlockLineNumbers: boolean;
+  /**
+   * 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码。
+   *
+   * 默认 `false`：仅在光标/选区触及（含贴边）时临时显形，保持正文干净。
+   */
+  readonly showInlineStyleMarkers: boolean;
   /** 所见即所得编辑区的正文字号 (px, 范围 13~22) */
   readonly wysiwygFontSize: number;
   /** 正文字体族栈 key 或自定义字体名 */

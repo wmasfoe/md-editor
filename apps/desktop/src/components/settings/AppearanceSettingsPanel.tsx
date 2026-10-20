@@ -206,6 +206,20 @@ export function AppearanceSettingsPanel({
             />
             <span>{t("settings.appearance.showLineNumbers")}</span>
           </label>
+          <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--theme-primary)]"
+              checked={editorSettingsDraft.showInlineStyleMarkers}
+              onChange={(event) =>
+                onChangeEditorSettings({
+                  ...editorSettingsDraft,
+                  showInlineStyleMarkers: event.target.checked,
+                })
+              }
+            />
+            <span>{t("settings.appearance.showInlineStyleMarkers")}</span>
+          </label>
         </fieldset>
         <div className="grid gap-2.5">
           <h3 className={settingsFieldLabelClassName}>{t("settings.appearance.themeTitle")}</h3>

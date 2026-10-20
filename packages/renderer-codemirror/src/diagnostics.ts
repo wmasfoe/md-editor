@@ -14,6 +14,8 @@ export interface WysiwygDiagnosticsSnapshot {
   readonly dirtyBlockRebuildCount: number;
   readonly mappedRangeCount: number;
   readonly selectionDeltaUpdateCount: number;
+  /** 进入“无激活增量但需冻结新投影”的选区子分支次数（行内标记显形点集的失效见证）。 */
+  readonly selectionFreezeWithoutDeltaCount: number;
   readonly layoutDecorationReplaceCount: number;
   readonly fullProjectionBuildCount: number;
   readonly projectionMapSkipCount: number;
@@ -73,6 +75,7 @@ export class WysiwygDiagnostics {
   #dirtyBlockRebuildCount = 0;
   #mappedRangeCount = 0;
   #selectionDeltaUpdateCount = 0;
+  #selectionFreezeWithoutDeltaCount = 0;
   #layoutDecorationReplaceCount = 0;
   #fullProjectionBuildCount = 0;
   #projectionMapSkipCount = 0;
@@ -113,6 +116,17 @@ export class WysiwygDiagnostics {
 
   recordSelectionDeltaUpdate(): void {
     this.#selectionDeltaUpdateCount += 1;
+  }
+
+  /**
+   * 记录“进入 `changedIds.length === 0` 的冻结子返回”。
+   *
+   * 口径刻意不包含 reveal 是否变化：该分支的进入条件由 `lastSelectionDeltaIds` /
+   * `typedBoundary` 决定，与显形点集无关；用 reveal 做口径会与“reveal 不变但确实
+   * 命中该分支”的用例互斥。
+   */
+  recordSelectionFreezeWithoutDelta(): void {
+    this.#selectionFreezeWithoutDeltaCount += 1;
   }
 
   recordLayoutDecorationReplace(count = 1): void {
@@ -210,6 +224,7 @@ export class WysiwygDiagnostics {
       dirtyBlockRebuildCount: this.#dirtyBlockRebuildCount,
       mappedRangeCount: this.#mappedRangeCount,
       selectionDeltaUpdateCount: this.#selectionDeltaUpdateCount,
+      selectionFreezeWithoutDeltaCount: this.#selectionFreezeWithoutDeltaCount,
       layoutDecorationReplaceCount: this.#layoutDecorationReplaceCount,
       fullProjectionBuildCount: this.#fullProjectionBuildCount,
       projectionMapSkipCount: this.#projectionMapSkipCount,

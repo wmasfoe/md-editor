@@ -10,6 +10,7 @@ import {
   codeBlockLineNumbersField,
   codeBlockProjectionTheme,
 } from "./projections/code-block-projection.ts";
+import { inlineStyleMarkersField } from "./projections/inline-heading.ts";
 import { codeBlockLineNumberTheme } from "./editing/code-block-line-numbers.ts";
 import { wysiwygChangeProtection } from "./state/change-protection.ts";
 import { createMarkdownStructuredCommandExtensions } from "./editing/markdown-commands.ts";
@@ -42,6 +43,7 @@ export function createWysiwygProjectionExtensions(
     configureWysiwygProjectionFeatures(features),
     provideCodeBlockClipboard(options.writeClipboardText),
     codeBlockLineNumbersField,
+    inlineStyleMarkersField,
     codeBlockLineNumberTheme,
     codeBlockProjectionTheme,
     blockReplacementTheme,

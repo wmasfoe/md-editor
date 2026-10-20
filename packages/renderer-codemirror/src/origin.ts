@@ -5,7 +5,8 @@ export type RendererTransactionOrigin =
   | { readonly kind: "reconcile" }
   | { readonly kind: "mode"; readonly operationId: string }
   | { readonly kind: "mode-rollback"; readonly operationId: string }
-  | { readonly kind: "code-block-line-numbers" };
+  | { readonly kind: "code-block-line-numbers" }
+  | { readonly kind: "inline-style-markers" };
 
 export const rendererTransactionOrigin = Annotation.define<RendererTransactionOrigin>();
 

@@ -164,9 +164,39 @@ export class MarkdownRangeIndex {
   }
 
   /**
+   * 闭区间“触及”查询：检索与 `[from, to]` **闭区间**相交或相邻的一切记录。
+   *
+   * 与 `overlapping()` 的差别（二者语义必须并存，不得合并）：
+   * - `overlapping()` 对范围查询用**严格重叠**（`sourceRangesOverlap`），并在
+   *   `record.fullRange.from >= to` 处提前 break——这是**全局激活契约**（atomic /
+   *   protected ranges / link reveal 共用），一字不得改。
+   * - `touching()` 用**闭区间**（`record.fullRange.from <= to && record.fullRange.to >= from`），
+   *   使“光标/选区紧贴记录首尾外侧”也命中，专供四类内置行内标记的**源码显形**判定。
+   * - 折叠光标下两者等价（都退化为 `sourceRangeContains`），差别只在范围选区贴边。
+   *
+   * 仅与 `overlapping()` 共享候选定位 helper `findFirstCandidate`（`prefixMaximumEnds`
+   * 保证所有可能触及的候选都在该下标之后），循环体各自独立，以免一处修改影响两处。
+   */
+  touching(from: number, to: number): readonly MarkdownRangeRecord[] {
+    const records: MarkdownRangeRecord[] = [];
+    const firstCandidate = findFirstCandidate(this.#prefixMaximumEnds, from);
+    for (let index = firstCandidate; index < this.records.length; index += 1) {
+      const record = this.records[index];
+      // 闭区间：记录起点超过查询终点才可能越过，此处不含 `>=` 提前 break。
+      if (record.fullRange.from > to) {
+        break;
+      }
+      if (record.fullRange.to >= from) {
+        records.push(record);
+      }
+    }
+    return Object.freeze(records);
+  }
+
+  /**
    * 按语法种类（kind）过滤记录。
    *
-   * @param kind - 语法种类（如 'code-block', 'table', 'frontmatter' 等）
+   * @param kind - 语法种类（如 'code-block'、'table'、'frontmatter' 等）
    */
   byKind(kind: MarkdownSyntaxKind): readonly MarkdownRangeRecord[] {
     return Object.freeze(this.records.filter((record) => record.kind === kind));

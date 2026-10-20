@@ -95,6 +95,15 @@ export type ExternalEditResult =
 export type CodeBlockLineNumberPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
+/**
+ * 行内标记源码显隐开关的端口结果。
+ *
+ * 独立于 `CodeBlockLineNumberPortResult`：两者语义无关，未来任一方的 state 集合变化
+ * 都不应牵动另一方（禁止复用同一导出）。
+ */
+export type InlineStyleMarkerPortResult =
+  { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
+
 export interface CodeMirrorRenderer {
   readonly clientId: string;
   sync(event: DocumentStateEvent): RendererSyncResult;
@@ -103,6 +112,7 @@ export interface CodeMirrorRenderer {
   applyMode(request: ModeRequest): ModePortResult;
   rollbackMode(receipt: ModeReceipt): void;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
+  setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -223,6 +233,7 @@ export interface RendererTestingProbeInternal {
   readonly undoDepth: number;
   readonly redoDepth: number;
   readonly codeBlockLineNumbers: boolean;
+  readonly inlineStyleMarkers: boolean;
   readonly viewCreationCount: number;
   readonly viewDestructionCount: number;
   readonly explicitStateCreationCount: number;
@@ -232,6 +243,9 @@ export interface RendererTestingProbeInternal {
   readonly externalEditTransactionCount: number;
   readonly reconciliationTransactionCount: number;
   readonly codeBlockLineNumberTransactionCount: number;
+  readonly inlineStyleMarkerTransactionCount: number;
+  /** 进入“无激活增量但需冻结新投影”的选区分支次数（显形点集失效见证）。 */
+  readonly selectionFreezeWithoutDeltaCount: number;
   readonly measureRequestCount: number;
   readonly highestPublishedRendererSequence: number;
   readonly lastAcknowledgedRendererSequence: number;

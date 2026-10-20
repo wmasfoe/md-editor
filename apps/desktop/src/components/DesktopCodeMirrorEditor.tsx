@@ -171,6 +171,7 @@ export function DesktopCodeMirrorEditor({
       codeFontFamily={resolveCodeFontStack(settings.editor.codeFontFamily)}
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
+      showInlineStyleMarkers={settings.editor.showInlineStyleMarkers}
       ariaLabel={t("sidebar.editorAria")}
       aiSuggestionLabels={aiSuggestionLabels}
       mdxMode={isMdxDocument}

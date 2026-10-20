@@ -46,6 +46,10 @@ import {
   initialCodeBlockLineNumbersFacet,
   setCodeBlockLineNumbersEffect,
 } from "../wysiwyg/projections/code-block-projection.ts";
+import {
+  initialInlineStyleMarkersFacet,
+  setInlineStyleMarkersEffect,
+} from "../wysiwyg/projections/inline-heading.ts";
 import { focusModeInitialFacet } from "../wysiwyg/view/focus-mode.ts";
 import {
   acceptAiSuggestion,
@@ -79,6 +83,7 @@ import {
 } from "./controller/view-operations.ts";
 import type {
   CodeBlockLineNumberPortResult,
+  InlineStyleMarkerPortResult,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
   ExternalEditRequest,
@@ -128,6 +133,7 @@ export class CodeMirrorRendererController {
   #contentRevision: number;
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
   #codeBlockLineNumbers = false;
+  #inlineStyleMarkers = false;
   #aiSuggestionLabels: AiSuggestionLabels | undefined;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
@@ -217,6 +223,7 @@ export class CodeMirrorRendererController {
       stateRevision: this.#stateRevision,
       contentRevision: this.#contentRevision,
       codeBlockLineNumbers: this.#codeBlockLineNumbers,
+      inlineStyleMarkers: this.#inlineStyleMarkers,
       viewDestructionCount: this.#viewDestructionCount,
       explicitStateCreationCount: this.#explicitStateCreationCount,
       stateReplacementCount: this.#stateReplacementCount,
@@ -247,6 +254,24 @@ export class CodeMirrorRendererController {
   rollbackMode(receipt: ModeReceipt): void {
     rollbackMode(this.#documentProtocolContext(), receipt);
   }
+  setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult {
+    if (this.#destroyed) {
+      return { status: "destroyed" };
+    }
+    if (enabled === this.#inlineStyleMarkers) {
+      return { status: "noop" };
+    }
+    this.#view.dispatch({
+      effects: setInlineStyleMarkersEffect.of(enabled),
+      annotations: [
+        Transaction.addToHistory.of(false),
+        rendererTransactionOrigin.of({ kind: "inline-style-markers" }),
+      ],
+    });
+    this.#inlineStyleMarkers = enabled;
+    return { status: "applied" };
+  }
+
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult {
     if (this.#destroyed) {
       return { status: "destroyed" };
@@ -449,6 +474,7 @@ export class CodeMirrorRendererController {
       extensions: [
         ...this.#rootExtensions,
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
+        initialInlineStyleMarkersFacet.of(this.#inlineStyleMarkers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
         // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
         focusModeInitialFacet.of(viewAxisAlignment.focus),
