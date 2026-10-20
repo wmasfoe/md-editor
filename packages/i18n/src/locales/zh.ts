@@ -147,6 +147,7 @@ export const zh = {
       fontSizeUnit: "{{size}} 像素",
       lineNumbers: "代码块行号",
       showLineNumbers: "显示代码块行号",
+      showInlineStyleMarkers: "显示行内格式标记（**、*、~~、`）",
       themes: {
         githubLight: "GitHub 浅色 (GitHub Light)",
         gothicLight: "哥特浅色 (Gothic Light)",

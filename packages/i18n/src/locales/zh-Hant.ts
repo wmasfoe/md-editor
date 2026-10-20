@@ -150,6 +150,7 @@ export const zhHant: TranslationSchema = {
       fontSizeUnit: "{{size}} 像素",
       lineNumbers: "程式碼區塊行號",
       showLineNumbers: "顯示程式碼區塊行號",
+      showInlineStyleMarkers: "顯示行內格式標記（**、*、~~、`）",
       themes: {
         githubLight: "GitHub 淺色 (GitHub Light)",
         gothicLight: "哥德淺色 (Gothic Light)",

@@ -153,6 +153,7 @@ export const ja: TranslationSchema = {
       fontSizeUnit: "{{size}} ピクセル",
       lineNumbers: "コードブロック行番号",
       showLineNumbers: "コードブロックに行番号を表示",
+      showInlineStyleMarkers: "インライン書式マーカーを表示（**、*、~~、`）",
       themes: {
         githubLight: "GitHub ライト (GitHub Light)",
         gothicLight: "ゴシックライト (Gothic Light)",
