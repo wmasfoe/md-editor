@@ -2,31 +2,36 @@
 
 ## 0.15.0 - 2026-10-20 (#174, #175)
 
-- Inline format markers (bold `**`, italic `*`, strikethrough `~~`, inline code `` ` ``) are now **hidden by default** in WYSIWYG mode: you see only the rendered result, and the markers appear temporarily when the caret or selection touches that inline record (including its exact start/end offsets), disappearing again when you move away. To always show them, enable "Show inline format markers" in Appearance settings (off by default, including for existing installs). Everything else is unchanged: headings `#`, links/images, tables, code blocks, HTML/MDX, lists/quotes, and plugin inline syntaxes (`$…$`, `==…==`); the mobile reading view and Quick Look preview remain fidelity exports and are not affected by this toggle.
+- Inline format markers (bold `**`, italic `*`, strikethrough `~~`, inline code) are now hidden by default and only appear when the caret or selection touches them — a cleaner reading surface.
+- Prefer to see the raw symbols? Turn on "Show inline format markers" in Appearance settings; behavior is then identical to before.
+- Nothing else changed: headings, links/images, tables, code blocks, lists, quotes, plus the mobile reader and Quick Look preview.
 
 ## 0.14.0 - 2026-10-19 (#173)
 
-- New: Mermaid diagrams separate viewing from editing — a single click opens an enlarged viewer (fit-to-width, cursor-centered wheel zoom, drag to pan, double-click to reset, Esc to close), with explicit edit buttons in the block toolbar and inside the viewer instead of dropping into source mode. Fixed: the image zoom viewer's styles had never taken effect; images now share the same viewer as diagrams. Fixed: clicking body text after scrolling could place the caret one line off — block rows delivered vertical spacing via margin, which CodeMirror's height map does not measure, so accumulated drift exceeded one line height; thematic-break spacing is now delivered as padding with identical visuals. Accessibility: the viewer declares aria-modal, marks the background inert, and its close/edit buttons are keyboard reachable.
+- Click a Mermaid diagram to view it enlarged: fit to width, wheel zoom, drag to pan, double-click to reset, Esc to close.
+- Editing a diagram is now an explicit button (in the block toolbar and inside the viewer) instead of dropping into source mode on click.
+- Fixed: the image zoom viewer's styles had never taken effect — images now share the diagram viewer.
+- Fixed: clicking body text after scrolling could place the caret one line off.
+- Viewer accessibility: the background is inert while open, and close/edit buttons are keyboard reachable.
 
 ## 0.13.2 - 2026-10-17 (#159)
 
-- Fixed bold, italic, strikethrough and highlight failing when adjacent to CJK punctuation: patterns such as **"quote"**, ~~"strike"~~ and =="mark"== used to degrade into literal text, and could even mis-pair with a later marker (bolding the text in between). They now parse with the CJK-friendly rules; non-CJK text is unaffected, and the editor output matches the mobile reader, Quick Look preview and HTML export.
-
-All notable changes to the Inkpoint desktop application will be documented in this file.
+- Fixed bold, italic, strikethrough and highlight failing when adjacent to CJK punctuation: patterns like `**"quote"**` no longer degrade into literal text or mis-pair with a later marker.
 
 ## 0.13.1 - 2026-10-17
 
-- WYSIWYG blank-line fidelity fix + repository structure governance. Fixed an extra blank line rendered between a heading and the following table / HTML / MDX block (one source blank line was displayed as two); source blank lines now map 1:1 to the rendered result. Thematic-break-like "symbol blocks" now use a single rule-based default spacing instead of per-widget hard-coded margins.
-- Engineering (no behavior change): new structure guard `pnpm lint:structure` (size thresholds, frozen exceptions, test layout, import rules); `wysiwyg` reorganized into six responsibility domains; website workspace moved to `apps/site`; three oversized modules split into responsibility clusters with the public API unchanged symbol-by-symbol.
+- Fixed an extra blank line between a heading and the following table / HTML / MDX block: one source blank line now renders as one.
+- Thematic-break-like blocks use a single spacing rule instead of per-widget values.
+- Engineering (no behavior change): new `pnpm lint:structure` guard, `wysiwyg` reorganized by responsibility, three oversized modules split into clusters.
 
 ## 0.13.0 - 2026-09-26 (#135, #137, #138, #140)
 
-- Added full internationalization (i18n) support for Japanese and Traditional Chinese, featuring a dropdown language selector and automatic system/browser locale detection
-- Fully localized Desktop and Web editor shells and peripheral UI components (sidebar, file tree, context menus, MDX component palette, toast notifications), achieving 100% locale key parity
-- Introduced dynamic `AiSuggestionLabels` facet in CodeMirror editor kernel, enabling reactive hot-switching for inline AI ghost suggestion hints (e.g., "Tab Accept · Esc Dismiss") without editor reload
-- Fixed settings persistence defect where saving non-zh/en language preferences reverted to "System Default", and calibrated cross-window preview cancellation
-- Fixed potential rendering crashes caused by empty link decorations and unmapped tile selection markers in WYSIWYG mode
-- Disabled Sentry error reporting in development environments to eliminate noisy issue reports during local debugging
+- Added Japanese and Traditional Chinese UI, following the system/browser language by default.
+- Sidebar, file tree, context menu, MDX component menu and toasts are fully localized.
+- Inline AI completion hints are localized and switch without reloading the editor.
+- Fixed language selection falling back to "System default" after saving.
+- Fixed a rendering crash and selection-marker glitches caused by empty links in WYSIWYG.
+- Sentry error reporting is off by default in development.
 
 ## 0.12.1 - 2026-09-25 (#134)
 
