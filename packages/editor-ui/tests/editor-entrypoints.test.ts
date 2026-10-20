@@ -33,6 +33,12 @@ describe("editor-ui public editor entrypoints", () => {
     expect(runtimeExportSources(indexSource)).toContain("./components/CodeMirrorEditor");
   });
 
+  it("forwards the inline-style marker source toggle to renderer ports", () => {
+    // 开关值只在宿主读取，编辑器层只负责把布尔值推给 renderer 端口（不得在此计算编辑器语义）。
+    expect(codeMirrorEditorSource).toContain("showInlineStyleMarkers?: boolean");
+    expect(codeMirrorEditorSource).toContain("ports.setInlineStyleMarkers(showInlineStyleMarkers)");
+  });
+
   it("mounts the raw CodeMirror bridge without a controlled Markdown value", () => {
     expect(codeMirrorEditorSource).toContain("createCodeMirrorEditorBridge");
     expect(codeMirrorEditorSource).toContain("useSyncExternalStore");
