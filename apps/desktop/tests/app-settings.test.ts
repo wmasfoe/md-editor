@@ -132,12 +132,14 @@ describe("app settings", () => {
   it("normalizes editor display settings with code block line numbers off by default", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
       showCodeBlockLineNumbers: false,
+      showInlineStyleMarkers: false,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
     });
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
       showCodeBlockLineNumbers: true,
+      showInlineStyleMarkers: false,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
@@ -151,9 +153,17 @@ describe("app settings", () => {
       }),
     ).toEqual({
       showCodeBlockLineNumbers: false,
+      showInlineStyleMarkers: false,
       wysiwygFontSize: 20,
       proseFontFamily: "lxgw-wenkai",
       codeFontFamily: "jetbrains-mono",
+    });
+    // T-30：只接受布尔 true；非布尔（如字符串 "true"）一律关闭。
+    expect(normalizeEditorDisplaySettings({ showInlineStyleMarkers: true })).toMatchObject({
+      showInlineStyleMarkers: true,
+    });
+    expect(normalizeEditorDisplaySettings({ showInlineStyleMarkers: "true" })).toMatchObject({
+      showInlineStyleMarkers: false,
     });
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 8 }).wysiwygFontSize).toBe(13);
     expect(normalizeEditorDisplaySettings({ wysiwygFontSize: 40 }).wysiwygFontSize).toBe(22);

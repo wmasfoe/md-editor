@@ -58,6 +58,13 @@ export interface EditorE2eBridge {
   setAssetPreviewVisible(visible: boolean): void;
   /** 程序化设置编辑器选区(renderer 标准端口,自带焦点;E2E 定位不依赖点击时序) */
   setSelection(from: number, to: number): void;
+  /**
+   * 程序化切换「行内格式标记源码」开关（renderer 标准端口）。
+   *
+   * 只驱动渲染器端口，不改宿主设置：属性→端口这段接线由 desktop 单测
+   * `editor-adapter-wiring.test.ts` 覆盖，这里只验证渲染器侧的显隐行为。
+   */
+  setInlineStyleMarkers(enabled: boolean): void;
   /** 程序化滚动至指定行(renderer 标准端口,支持自动选中与聚焦) */
   scrollToLine(
     line: number,
@@ -188,6 +195,12 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
       } else {
         store.closeAssetPreview();
       }
+    },
+    setInlineStyleMarkers(enabled: boolean) {
+      if (!ports) {
+        throw new Error("Renderer ports are not mounted.");
+      }
+      ports.setInlineStyleMarkers(enabled);
     },
     setSelection(from: number, to: number) {
       if (!ports) {

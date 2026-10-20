@@ -17,6 +17,10 @@ describe("desktop editor adapter wiring", () => {
     expect(desktopCodeMirrorSource).toContain(
       "codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}",
     );
+    // T-32：行内标记源码显隐开关必须从设置透传到编辑器（不得在适配层硬编码）。
+    expect(desktopCodeMirrorSource).toContain(
+      "showInlineStyleMarkers={settings.editor.showInlineStyleMarkers}",
+    );
   });
 
   it("removes both legacy desktop adapters", () => {

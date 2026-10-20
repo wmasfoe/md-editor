@@ -85,10 +85,16 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     await loadMarkdown(page, CORE_MARKDOWN);
     await expect(page.locator(".cm-editor")).toHaveCount(1);
     await expect(page.locator(".cm-md-frontmatter-header")).toBeHidden();
-    await expect(page.locator(".cm-md-marker--bold")).toHaveCount(2);
-    await expect(page.locator(".cm-md-marker--italic")).toHaveCount(2);
-    await expect(page.locator(".cm-md-marker--strikethrough")).toHaveCount(2);
-    await expect(page.locator(".cm-md-marker--inline-code")).toHaveCount(2);
+    // 行内格式标记源码默认隐藏（开关默认 OFF）：四类 marker 均不渲染。
+    await expect(page.locator(".cm-md-marker--bold")).toHaveCount(0);
+    await expect(page.locator(".cm-md-marker--italic")).toHaveCount(0);
+    await expect(page.locator(".cm-md-marker--strikethrough")).toHaveCount(0);
+    await expect(page.locator(".cm-md-marker--inline-code")).toHaveCount(0);
+    // 内容样式仍在（只隐藏源码符号，不隐藏排版效果）。
+    await expect(page.locator(".cm-md-bold")).toHaveCount(1);
+    await expect(page.locator(".cm-md-italic")).toHaveCount(1);
+    await expect(page.locator(".cm-md-strikethrough")).toHaveCount(1);
+    await expect(page.locator(".cm-md-inline-code")).toHaveCount(1);
     await expect(page.locator(".cm-md-heading--level-1")).toContainText("Heading");
     await expect(page.locator(".cm-md-block-marker--quote")).toHaveCount(0);
     await expect(page.locator(".cm-md-block-line--quote")).toHaveCount(1);
@@ -118,6 +124,49 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
       viewCreationCount: 1,
       stateReplacementCount: 1,
     });
+  });
+
+  test("E02c: 行内标记默认隐藏，折叠光标/范围选区触及（含贴边）即显形，开关 ON 恢复常显", async ({
+    page,
+  }) => {
+    const doc = CORE_MARKDOWN;
+    const boldSource = "**bold**";
+    const boldStart = doc.indexOf(boldSource);
+    expect(boldStart).toBeGreaterThan(0);
+    const boldEnd = boldStart + boldSource.length;
+
+    await loadMarkdown(page, doc);
+    const boldMarkers = page.locator(".cm-md-marker--bold");
+
+    // 默认：光标在无关行 ⇒ 隐藏。
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setSelection(0, 0));
+    await expect(boldMarkers).toHaveCount(0);
+
+    // 折叠光标紧贴闭合符右缘（record.to）⇒ 显形。
+    await page.evaluate((pos) => window.__MD_EDITOR_E2E__!.setSelection(pos, pos), boldEnd);
+    await expect(boldMarkers).toHaveCount(2);
+    await expect(boldMarkers.first()).toHaveText("**");
+
+    // 移回无关行 ⇒ 重新隐藏。
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setSelection(0, 0));
+    await expect(boldMarkers).toHaveCount(0);
+
+    // 范围选区贴住记录左缘（零重叠，`[x, record.from]`）⇒ 显形（activeSyntaxIds 不覆盖的情形）。
+    await page.evaluate(
+      (from) => window.__MD_EDITOR_E2E__!.setSelection(from - 2, from),
+      boldStart,
+    );
+    await expect(boldMarkers).toHaveCount(2);
+
+    // 开关 ON ⇒ 与选区无关，恒显。
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setSelection(0, 0));
+    await expect(boldMarkers).toHaveCount(0);
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setInlineStyleMarkers(true));
+    await expect(boldMarkers).toHaveCount(2);
+
+    // 开关 OFF ⇒ 立刻回到隐藏（运行时切换无需重开文档）。
+    await page.evaluate(() => window.__MD_EDITOR_E2E__!.setInlineStyleMarkers(false));
+    await expect(boldMarkers).toHaveCount(0);
   });
 
   test("E02b: long lines wrap without horizontal editor scrolling in both modes", async ({
