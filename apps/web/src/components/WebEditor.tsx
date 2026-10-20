@@ -66,6 +66,7 @@ export function WebEditor({
         mdxComponents={mdxComponents}
         fontSize={settings.fontSize}
         codeBlockLineNumbers={true}
+        showInlineStyleMarkers={settings.showInlineStyleMarkers}
         ariaLabel={t("sidebar.editorAria")}
         aiSuggestionLabels={aiSuggestionLabels}
         resolveImageSrc={handleResolveImageSrc}

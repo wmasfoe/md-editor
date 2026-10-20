@@ -123,6 +123,8 @@ export interface UtoolsSettings {
   fontSize: number; // 13 ~ 22, default 15
   proseFontFamily: string; // font option id, default ""
   codeFontFamily: string; // font option id, default ""
+  /** 是否常显行内格式标记源码，默认 false（仅触及临时显形）。 */
+  showInlineStyleMarkers: boolean;
 }
 
 export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
@@ -130,6 +132,7 @@ export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
   fontSize: 15,
   proseFontFamily: "",
   codeFontFamily: "",
+  showInlineStyleMarkers: false,
 };
 
 export const UTOOLS_SETTINGS_KEY = "inkpoint_utools_settings";
@@ -165,6 +168,7 @@ export function loadUtoolsSettings(): UtoolsSettings {
             : 15,
         proseFontFamily: typeof parsed.proseFontFamily === "string" ? parsed.proseFontFamily : "",
         codeFontFamily: typeof parsed.codeFontFamily === "string" ? parsed.codeFontFamily : "",
+        showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
       };
     } catch {
       // JSON 解析失败则回退默认

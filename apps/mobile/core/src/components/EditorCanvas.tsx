@@ -238,6 +238,8 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
       <CodeMirrorEditor
         document={docState}
         plugins={plugins}
+        // 移动端编辑画布跟随全局默认（不提供设置入口）；阅读模式走静态 HTML 管线，不在本开关范围。
+        showInlineStyleMarkers={false}
         onRendererPortsChange={(ports) => {
           portsRef.current = ports;
           if (ports) {

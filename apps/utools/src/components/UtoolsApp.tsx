@@ -1080,6 +1080,7 @@ export function UtoolsApp() {
             <CodeMirrorEditor
               document={docState}
               codeBlockLineNumbers={false}
+              showInlineStyleMarkers={settings.showInlineStyleMarkers}
               fontSize={settings.fontSize}
               proseFontFamily={resolveProseFontStack(settings.proseFontFamily)}
               codeFontFamily={resolveCodeFontStack(settings.codeFontFamily)}

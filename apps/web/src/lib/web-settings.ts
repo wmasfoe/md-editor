@@ -39,6 +39,10 @@ export interface WebSettings {
   readonly lightTheme: BuiltInThemeId;
   readonly darkTheme: BuiltInThemeId;
   readonly fontSize: number;
+  /**
+   * 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及临时显形）。
+   */
+  readonly showInlineStyleMarkers: boolean;
   readonly ai: WebAiConfig;
   readonly plugins: PluginSettings;
   readonly language: LanguageSetting;
@@ -73,6 +77,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   lightTheme: "paper-light",
   darkTheme: "charcoal-dark",
   fontSize: 16,
+  showInlineStyleMarkers: false,
   ai: {
     enabled: true,
     provider: "deepseek",
@@ -113,6 +118,8 @@ export function loadWebSettings(): WebSettings {
       lightTheme: parsed.lightTheme ?? DEFAULT_WEB_SETTINGS.lightTheme,
       darkTheme: parsed.darkTheme ?? DEFAULT_WEB_SETTINGS.darkTheme,
       fontSize: parsed.fontSize ?? DEFAULT_WEB_SETTINGS.fontSize,
+      // 只接受布尔 true，其余一律关闭（存量用户升级后默认变干净）。
+      showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
       ai: {
         ...DEFAULT_WEB_SETTINGS.ai,
         ...parsed.ai,
