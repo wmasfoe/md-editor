@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export function generateR2UpdaterManifest({
   version,
-  distributionUrl = "https://download.justdev.cn",
+  distributionUrl = "https://download.jiaqi.im",
   appName = "inkpoint",
   macTarName = "Inkpoint.app.tar.gz",
   macSignature,
@@ -111,7 +111,9 @@ export function runCli() {
 
   const artifactsDir = process.env.ARTIFACTS_DIR || "release-artifacts";
   const outputPath = process.env.OUTPUT_PATH || "dist-desktop/updater.json";
-  const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
+  // 与 Tauri updater 首选 endpoint 保持同域：清单与二进制同域，避免客户端跨域下载
+  // 命中代理分流慢路径（如 `.cn → DIRECT`）。CI 如需覆盖可显式设置 DISTRIBUTION_URL。
+  const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
   const appName = process.env.APP_NAME || "inkpoint";
 
   const { macTarName, macSignature, winUpdaterName, winSignature } = resolveUpdaterArtifacts(
