@@ -39,7 +39,7 @@ export interface CodeMirrorEditorProps {
   readonly mdxMode?: boolean;
   /** MDX 组件白名单(最小查找接口,纯 metadata);缺省 = 一律占位 */
   readonly mdxComponents?: MdxComponentsLookup;
-  /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
+  /** 链接打开回调(宿主决策:文档内锚点跳转、内部 markdown 文件、资产与外部链接) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
   /** 可选语法扩展插件列表（纯增量加载） */

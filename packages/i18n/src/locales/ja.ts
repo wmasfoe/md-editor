@@ -473,7 +473,6 @@ export const ja: TranslationSchema = {
     aiNoSuggestion: "有効な生成候補が得られませんでした。設定を確認するか再試行してください",
     aiSuggestionGenerated: "候補が生成されました。Tab で確定、Esc で破棄",
     aiRequestFailed: "AI リクエストに失敗しました。ネットワークまたは設定を確認してください",
-    cannotOpenLink: "リンクを開けません: {{url}}",
     delayedEditFailed: "遅延編集を完了できませんでした: {{status}}。",
     editorSyncFailed:
       "エディタの同期に失敗しました: {{detail}}。ドキュメントを再度開いてください。",

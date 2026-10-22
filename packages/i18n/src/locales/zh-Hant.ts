@@ -467,7 +467,6 @@ export const zhHant: TranslationSchema = {
     aiNoSuggestion: "未獲得有效續寫建議，請檢查端點設定或重試",
     aiSuggestionGenerated: "已生成續寫建議，按 Tab 採納，按 Esc 放棄",
     aiRequestFailed: "AI 請求失敗，請檢查網路或設定",
-    cannotOpenLink: "無法開啟連結：{{url}}",
     delayedEditFailed: "延遲編輯未能完成：{{status}}。",
     editorSyncFailed: "編輯器同步失敗：{{detail}}。請重新開啟目前文件。",
     imageInsertFailed: "圖片插入失敗",

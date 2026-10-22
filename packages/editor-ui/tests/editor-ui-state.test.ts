@@ -139,6 +139,41 @@ describe("editor UI instance state policy", () => {
 
     unregister();
   });
+
+  /**
+   * 属主报告：手动输入的目录（`[标题](#锚点)`）在 Cmd/Ctrl+点击后无法跳转。
+   * 这里锁住「容忍 TOC 生成器标点差异」的跳转语义，并锁住失败时的提示。
+   */
+  it("jumps to headings for TOC-style anchors and reports unresolved fragments", () => {
+    const markdown = "## 一、全景搭配图：这些 Skills 怎么组合最爽？\n\n正文\n";
+    const showToast = vi.fn();
+    let actions: EditorUiActionsContextValue | null = null;
+    renderToStaticMarkup(
+      createElement(
+        EditorUiProvider,
+        { markdown, showToast },
+        createElement(CaptureProbe, {
+          label: "fragment",
+          capture: (value) => {
+            actions = value;
+          },
+        }),
+      ),
+    );
+
+    const rendererPorts = createRendererPorts("renderer:fragment");
+    const unregister = actions!.registerRendererPorts(rendererPorts);
+
+    actions!.jumpToMarkdownFragment(markdown, "一-全景搭配图这些-skills-怎么组合最爽");
+    expect(rendererPorts.scrollToLine).toHaveBeenCalledWith(1);
+    expect(showToast).not.toHaveBeenCalled();
+
+    actions!.jumpToMarkdownFragment(markdown, "不存在的锚点");
+    expect(rendererPorts.scrollToLine).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith("没有找到标题 #不存在的锚点");
+
+    unregister();
+  });
 });
 
 function createRendererPorts(clientId: string): CodeMirrorEditorPorts {

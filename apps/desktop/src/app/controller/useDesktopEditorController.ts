@@ -545,11 +545,22 @@ export function useDesktopEditorController({
   }, [applyDownloadedUpdate, downloadUpdate, relaunchUpdate, requestConfirmation, t, updateStatus]);
 
   // --- openWysiwygLink ---
+  // 所见即所得模式下 Cmd/Ctrl+点击（或 Mod+Enter）的唯一链接入口：
+  // 文档内锚点 `#fragment` 交给 editor-ui 解析并滚动，其余判定委托 Rust 侧
+  // inspect_linked_file（相对路径按当前文档目录解析）。
   const openWysiwygLink = useCallback(
     async (href: string) => {
       const parts = splitLinkHref(href);
-      if (parts.path === "" && parts.fragment) {
-        jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
+      if (parts.path === "" && parts.fragment !== null) {
+        if (parts.fragment) {
+          jumpToMarkdownFragment(runtime.document.getSnapshot().markdown, parts.fragment);
+          return;
+        }
+        // 空片段（`[回到顶部](#)`）：按浏览器语义滚到文档顶部。
+        const access = getRendererPorts();
+        if (access.status === "available") {
+          access.ports.scrollToLine(1);
+        }
         return;
       }
 
@@ -597,6 +608,7 @@ export function useDesktopEditorController({
     [
       ensureDiscardAllowed,
       fileService,
+      getRendererPorts,
       jumpToMarkdownFragment,
       openAssetPath,
       refreshFolderForDocumentPath,

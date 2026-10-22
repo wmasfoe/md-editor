@@ -13,7 +13,6 @@ import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentSnapshot } from "../app/document-store";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
-import { inspectLinkedFileTarget, openExternalTarget } from "../desktop/link-service";
 import { resolvePreviewImageSrc } from "../lib/markdown-preview";
 import { bindDropImageListener } from "../app/events/drop-image-listener";
 import { bindPasteImageListener } from "../app/events/paste-image-listener";
@@ -46,7 +45,7 @@ export function DesktopCodeMirrorEditor({
   const { t } = useTranslation();
   const { settings } = useAppSettings();
   const snapshot = useDocumentSnapshot();
-  const { openDocumentFromTree, dispatchCommand, refreshFolderForDocumentPath } =
+  const { openWysiwygLink, dispatchCommand, refreshFolderForDocumentPath } =
     useDesktopEditorActions();
   const [ports, setPorts] = useState<CodeMirrorEditorPorts | null>(null);
 
@@ -128,28 +127,11 @@ export function DesktopCodeMirrorEditor({
     };
   }, [settings.assetsDirectory, dispatchCommand, ports, refreshFolderForDocumentPath]);
 
-  // 链接打开:内部 markdown 文件在当前应用内打开,其余(资产/外部 URL)走系统打开。
-  // 判定委托给 Rust 侧 inspect_linked_file(相对路径按当前文档目录解析)。
+  // 链接打开:内部文档 / 锚点 / 资产 / 外部 URL 的判定全部收敛在 controller
+  // (`openWysiwygLink`)，渲染层只把通过协议白名单的 URL 交回宿主。
+  // 锚点链接(`#fragment`)由 controller 交给 editor-ui 解析并滚动定位。
   const handleOpenLink = (url: string): void => {
-    void (async () => {
-      try {
-        if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(url)) {
-          // 显式协议(http/https/mailto 等)→ 系统浏览器/默认处理
-          await openExternalTarget(url);
-          return;
-        }
-        const documentPath = runtime.document.getSnapshot().filePath ?? "";
-        const target = await inspectLinkedFileTarget(documentPath, url);
-        if (target.kind === "markdown") {
-          await openDocumentFromTree(target.path);
-        } else {
-          await openExternalTarget(target.path);
-        }
-      } catch {
-        // 解析失败不打断编辑器(链接已过渲染层协议白名单,这里只兜底)
-        showToast(t("toasts.cannotOpenLink", { url }));
-      }
-    })();
+    void openWysiwygLink(url);
   };
 
   const isMdxDocument =

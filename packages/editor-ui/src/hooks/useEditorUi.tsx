@@ -1,5 +1,4 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
-import { extractHeadingOutline } from "@md-editor/markdown-fidelity";
 import type { CodeMirrorEditorPorts } from "@md-editor/renderer-codemirror";
 import type { OutlineItem } from "../components/OutlinePanel";
 import type { TocTarget } from "../types";
@@ -109,13 +108,11 @@ export function EditorUiProvider({ children, markdown, showToast }: EditorUiProv
   }, []);
 
   const jumpToMarkdownFragment = useCallback((targetMarkdown: string, fragment: string | null) => {
-    outlineRef.current.jumpToMarkdownFragment(targetMarkdown, fragment);
-    if (fragment) {
-      const nextOutline = extractHeadingOutline(targetMarkdown);
-      const item = nextOutline.find((candidate) => candidate.id === fragment);
-      if (item) {
-        rendererPortsRef.current?.scrollToLine(item.line);
-      }
+    // 锚点解析（兼容 GitHub 风格与手工 TOC 的标点差异）由 markdown-fidelity 负责，
+    // 大纲控制器只负责同步高亮状态并把解析结果交给调用方滚动定位。
+    const item = outlineRef.current.jumpToMarkdownFragment(targetMarkdown, fragment);
+    if (item) {
+      rendererPortsRef.current?.scrollToLine(item.line);
     }
   }, []);
 

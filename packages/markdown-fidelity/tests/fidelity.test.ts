@@ -4,7 +4,9 @@ import {
   extractHeadingOutline,
   findFrontmatterSourceRange,
   findActiveHeadingIdForLine,
+  headingAnchorSlug,
   isLikelyMdxBlock,
+  resolveHeadingAnchor,
   restoreMarkdownImageSources,
   restoreRawBlocksFromPreview,
   rewriteMarkdownImageSourcesForPreview,
@@ -104,6 +106,78 @@ describe("outline extraction", () => {
     const outline = extractHeadingOutline(markdown);
     expect(outline).toHaveLength(10);
     expect(outline.at(-1)).toMatchObject({ text: "Section 9000", line: 9001 });
+  });
+});
+
+describe("heading anchor resolution", () => {
+  /**
+   * 属主报告：手动输入目录（锚点链接）后 Cmd/Ctrl+左击无法跳转。
+   * 这些锚点来自 TOC 生成器/手工撰写，标点处理与本仓库 slugify 不一致
+   * （`、`→`-`、`：`/`？`/`（）`/`➔` 直接丢弃），因此解析必须容忍差异。
+   */
+  const DOCUMENT = [
+    "1. [全景搭配图](#一-全景搭配图这些-skills-怎么组合最爽)",
+    "2. [短剧全流程](#二-第一类短剧全流程导演与制片-skills剧本--分镜--视频--成片)",
+    "",
+    "## 一、全景搭配图：这些 Skills 怎么组合最爽？",
+    "",
+    "正文",
+    "",
+    "## 二、第一类：短剧全流程导演与制片 Skills（剧本 ➔ 分镜 ➔ 视频 ➔ 成片）",
+    "",
+  ].join("\n");
+
+  it("matches GitHub 风格锚点（标点直接丢弃）", () => {
+    expect(headingAnchorSlug("一、全景搭配图：这些 Skills 怎么组合最爽？")).toBe(
+      "一全景搭配图这些-skills-怎么组合最爽",
+    );
+    expect(resolveHeadingAnchor(DOCUMENT, "一全景搭配图这些-skills-怎么组合最爽")).toMatchObject({
+      line: 4,
+      level: 2,
+    });
+  });
+
+  it("容忍 TOC 生成器之间不一致的标点→连字符策略", () => {
+    expect(resolveHeadingAnchor(DOCUMENT, "一-全景搭配图这些-skills-怎么组合最爽")).toMatchObject({
+      line: 4,
+    });
+    expect(
+      resolveHeadingAnchor(DOCUMENT, "二-第一类短剧全流程导演与制片-skills剧本--分镜--视频--成片"),
+    ).toMatchObject({ line: 8 });
+  });
+
+  it("接受百分号编码、`#` 前缀与大小写差异", () => {
+    expect(
+      resolveHeadingAnchor(
+        DOCUMENT,
+        `#${encodeURIComponent("一-全景搭配图这些-skills-怎么组合最爽")}`,
+      ),
+    ).toMatchObject({ line: 4 });
+    expect(resolveHeadingAnchor("# Hello World\n", "HELLO-WORLD")).toMatchObject({ line: 1 });
+  });
+
+  it("按渲染文本生成锚点（剔除行内标记与链接目标）", () => {
+    const markdown = "## 使用 `npm run dev` 启动 [开发服务器](https://example.com)\n";
+    expect(headingAnchorSlug("使用 `npm run dev` 启动 [开发服务器](https://example.com)")).toBe(
+      "使用-npm-run-dev-启动-开发服务器",
+    );
+    expect(resolveHeadingAnchor(markdown, "使用-npm-run-dev-启动-开发服务器")).toMatchObject({
+      line: 1,
+    });
+  });
+
+  it("支持重复标题的 GitHub 后缀与既有大纲 id 后缀", () => {
+    const markdown = "# A\n\ntext\n\n## A\n";
+
+    expect(resolveHeadingAnchor(markdown, "a")).toMatchObject({ line: 1 });
+    expect(resolveHeadingAnchor(markdown, "a-1")).toMatchObject({ line: 5 });
+    expect(resolveHeadingAnchor(markdown, "a-2")).toMatchObject({ line: 5 });
+  });
+
+  it("找不到锚点时返回 null（不猜相似标题）", () => {
+    expect(resolveHeadingAnchor(DOCUMENT, "不存在的锚点")).toBeNull();
+    expect(resolveHeadingAnchor(DOCUMENT, "")).toBeNull();
+    expect(resolveHeadingAnchor("没有标题\n", "anything")).toBeNull();
   });
 });
 

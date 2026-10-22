@@ -1,5 +1,10 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { extractHeadingOutline, findActiveHeadingIdForLine } from "@md-editor/markdown-fidelity";
+import {
+  extractHeadingOutline,
+  findActiveHeadingIdForLine,
+  resolveHeadingAnchor,
+  type HeadingOutlineItem,
+} from "@md-editor/markdown-fidelity";
 import type { TocTarget } from "../types";
 
 interface UseOutlineControllerOptions {
@@ -28,21 +33,29 @@ export function useOutlineController({ markdown, showToast }: UseOutlineControll
     setActiveOutlineId(findActiveHeadingIdForLine(outlineRef.current, line));
   }, []);
 
+  /**
+   * 跳转到文档内锚点（`#fragment`）。
+   *
+   * 锚点解析交给 markdown-fidelity：文档内锚点由 TOC 生成器或人工撰写，
+   * 对 `、：（）➔` 等标点的处理并不一致，必须容忍这些差异才能命中标题。
+   *
+   * @returns 命中的标题项（供调用方滚动定位）；未命中返回 null 并提示。
+   */
   const jumpToMarkdownFragment = useCallback(
-    (targetMarkdown: string, fragment: string | null) => {
+    (targetMarkdown: string, fragment: string | null): HeadingOutlineItem | null => {
       if (!fragment) {
-        return;
+        return null;
       }
 
-      const nextOutline = extractHeadingOutline(targetMarkdown);
-      const item = nextOutline.find((candidate) => candidate.id === fragment);
+      const item = resolveHeadingAnchor(targetMarkdown, fragment);
       if (!item) {
         showToast(`没有找到标题 #${fragment}`);
-        return;
+        return null;
       }
 
       setActiveOutlineId(item.id);
       setTocTarget({ line: item.line, level: item.level, text: item.text, nonce: Date.now() });
+      return item;
     },
     [showToast],
   );

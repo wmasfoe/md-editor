@@ -267,6 +267,113 @@ export function findActiveHeadingIdForLine(
   return active?.id ?? null;
 }
 
+/**
+ * 标题的**可见文本**：锚点按渲染后的文本生成（GitHub 语义），
+ * 因此必须剔除行内 markdown 语法与 HTML 标签，而不是直接给源码做 slug。
+ * 例如 `## 使用 \`npm run dev\` 启动 [文档](https://x.dev)` 的锚点只包含
+ * 可见文字 `使用 npm run dev 启动 文档`。
+ */
+function headingAnchorText(source: string): string {
+  return source
+    .replace(/!\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/!\[([^\]]*)\]\[[^\]]*\]/gu, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1")
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/gu, "$1")
+    .replace(/<[^>]*>/gu, "")
+    .replace(/\*\*|~~|__/gu, "")
+    .replace(/[*`]/gu, "");
+}
+
+/**
+ * GitHub 兼容的标题锚点（slug）：
+ *
+ * - 大小写折叠；
+ * - **丢弃** Unicode 标点与符号（`：`、`、`、`？`、`（`、`➔`、emoji 等），
+ *   这是 GitHub / github-slugger 的行为，也是绝大多数 TOC 生成器的目标格式；
+ * - 空白 → `-`，保留 `-` / `_`。
+ */
+export function headingAnchorSlug(source: string): string {
+  return headingAnchorText(source)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
+    .trim()
+    .replace(/\s+/gu, "-");
+}
+
+/**
+ * 宽松比较键：忽略标点、空白与连字符的差异。
+ *
+ * 手工撰写或不同 TOC 生成器的锚点对 `、：（）➔` 的处置并不一致
+ * （有的转成 `-`，有的直接丢弃），因此精确匹配失败后按可见字符比对。
+ */
+function looseHeadingKey(value: string): string {
+  return value.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, "");
+}
+
+/** 规范化锚点片段：容忍前导 `#`、百分号编码与大小写差异。 */
+function normalizeHeadingFragment(fragment: string): string {
+  let value = fragment.trim();
+  if (value.startsWith("#")) {
+    value = value.slice(1);
+  }
+  if (value.includes("%")) {
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      // 非法的百分号序列：保留原样，按字面比较
+    }
+  }
+  return value.trim().toLowerCase();
+}
+
+/**
+ * 把文档内锚点（`#fragment`）解析为对应标题。
+ *
+ * 匹配顺序（逐标题、逐别名，一次命中即返回）：
+ * 1. 精确别名：GitHub 锚点、重复标题后缀（`-1` 起）与既有大纲 id（`-2` 起）；
+ * 2. 全文档无精确命中时，取第一个宽松匹配（忽略标点/空白/连字符差异）。
+ *
+ * 只做确定性比对，不做相似度猜测：找不到返回 `null`，由调用方提示失败。
+ */
+export function resolveHeadingAnchor(
+  markdown: string,
+  fragment: string,
+): HeadingOutlineItem | null {
+  const wanted = normalizeHeadingFragment(fragment);
+  if (wanted.length === 0) {
+    return null;
+  }
+
+  const outline = extractHeadingOutline(markdown);
+  const wantedLoose = looseHeadingKey(wanted);
+  const occurrences = new Map<string, number>();
+  // 宽松匹配只做兜底：先记下第一个候选，等整份文档都没有精确命中再返回。
+  let looseMatch: HeadingOutlineItem | null = null;
+
+  for (const item of outline) {
+    const anchor = headingAnchorSlug(item.text);
+    const occurrence = anchor.length > 0 ? (occurrences.get(anchor) ?? 0) : 0;
+    if (anchor.length > 0) {
+      occurrences.set(anchor, occurrence + 1);
+    }
+    const aliases = [anchor, occurrence > 0 ? `${anchor}-${occurrence}` : "", item.id].filter(
+      (alias) => alias.length > 0,
+    );
+
+    for (const alias of aliases) {
+      if (alias === wanted) {
+        return item;
+      }
+      if (looseMatch === null && wantedLoose.length > 0 && looseHeadingKey(alias) === wantedLoose) {
+        looseMatch = item;
+      }
+    }
+  }
+
+  return looseMatch;
+}
+
 export function isLikelyMdxBlock(markdown: string): boolean {
   // 大写 JSX 标签暂时只识别为需要保留的 MDX 组件源码，
   // 不渲染，也不执行。
