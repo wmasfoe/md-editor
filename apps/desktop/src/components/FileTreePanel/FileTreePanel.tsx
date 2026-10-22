@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
-import type { MarkdownFileTreeNode, RuntimeFileService } from "@md-editor/file-system";
+import {
+  createDefaultCollapsedDirectoryPaths,
+  type MarkdownFileTreeNode,
+  type RuntimeFileService,
+} from "@md-editor/file-system";
 import { findFirstMarkdownPath } from "../../app/files/file-tree-mutations";
-import { createDefaultCollapsedDirectoryPaths } from "../../app/files/file-tree-view-state";
 import {
   FILE_TREE_CONTEXT_MENU_ACTION,
   copyNativeFileTreePath,

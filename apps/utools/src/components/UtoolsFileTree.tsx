@@ -3,7 +3,13 @@
 // 100% 对齐桌面端 (apps/desktop/src/components/FileTreePanel) 的视觉排版、折叠语义与活跃高亮
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
+import {
+  collectAncestorDirectoryPaths,
+  createDefaultCollapsedDirectoryPaths,
+  isSameOrChildPath,
+  type MarkdownFileTreeNode,
+  type MarkdownFolder,
+} from "@md-editor/file-system";
 import {
   ChevronRightIcon,
   CloseIcon,
@@ -40,15 +46,6 @@ function getDirname(p: string): string {
   return norm.slice(0, lastIndex) || "/";
 }
 
-function isSameOrChildPath(child: string, parent: string): boolean {
-  const normChild = normalizePath(child);
-  const normParent = normalizePath(parent);
-  return (
-    normChild === normParent ||
-    normChild.startsWith(normParent.endsWith("/") ? normParent : normParent + "/")
-  );
-}
-
 function getRelativePath(rootPath: string, targetPath: string): string {
   const normRoot = normalizePath(rootPath);
   const normTarget = normalizePath(targetPath);
@@ -79,56 +76,6 @@ const isMac =
   typeof navigator !== "undefined" &&
   (navigator.platform?.toLowerCase().includes("mac") ||
     navigator.userAgent?.toLowerCase().includes("mac"));
-
-function collectAncestorDirectoryPaths(rootPath: string, filePath: string | null): Set<string> {
-  const paths = new Set<string>([rootPath]);
-  if (!filePath) {
-    return paths;
-  }
-
-  let current = getDirname(filePath);
-  while (isSameOrChildPath(current, rootPath)) {
-    paths.add(current);
-    if (current === rootPath) {
-      break;
-    }
-    const next = getDirname(current);
-    if (next === current) break;
-    current = next;
-  }
-
-  return paths;
-}
-
-function visitDirectoryNodes(
-  node: MarkdownFileTreeNode,
-  visit: (node: MarkdownFileTreeNode) => void,
-) {
-  if (node.kind !== "directory") {
-    return;
-  }
-
-  visit(node);
-  for (const child of node.children ?? []) {
-    visitDirectoryNodes(child, visit);
-  }
-}
-
-function createDefaultCollapsedDirectoryPaths(
-  root: MarkdownFileTreeNode,
-  visibleFilePath: string | null,
-): Set<string> {
-  const expandedPaths = collectAncestorDirectoryPaths(root.path, visibleFilePath);
-  const collapsedPaths = new Set<string>();
-
-  visitDirectoryNodes(root, (node) => {
-    if (node.path !== root.path && !expandedPaths.has(node.path)) {
-      collapsedPaths.add(node.path);
-    }
-  });
-
-  return collapsedPaths;
-}
 
 /**
  * 苹果风格行内编辑输入框：自动选中主干文件名，支持 Enter 提交与 Escape 撤销
@@ -213,7 +160,7 @@ export function UtoolsFileTree({
   onToast,
 }: UtoolsFileTreeProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => {
+  const [collapsedPaths, setCollapsedPaths] = useState<ReadonlySet<string>>(() => {
     return folder ? createDefaultCollapsedDirectoryPaths(folder.tree, activeFilePath) : new Set();
   });
   const [creatingParent, setCreatingParent] = useState<{

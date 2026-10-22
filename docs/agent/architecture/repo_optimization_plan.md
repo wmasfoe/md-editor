@@ -19,7 +19,12 @@
 
 状态（随实施更新）：O1-P0 已按评审**全部撤回**；O5-1（幽灵依赖）已合并（#165，squash `6f75c81`）；**O1-P1（katex 单版本收敛）已合并**（#166，squash `fbde816`）；**O2（Vite 别名单源化）已合并**（#167，squash `ec5d3e6`）；**O4a（包体预算护栏）已合并**（#168，squash `11eb173`）；**O4b（结构守卫 + web 产物构建入 CI）已合并**（#169，squash `af82475`）；**O5-2（catalog 收口）已合并**（#170，squash `af7b922`）；**O3（router.ts 拆分）已合并**（#171，squash `e669ea3`）；**O6（构建产物语义）已实施**（`chore/build-artifact-semantics`）；O5-3 已核实无需清理。**本轮 7 项全部完成。**
 
-非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。已登记待后续的复用缺口（本轮不处理）：`apps/utools/src/components/UtoolsFileTree.tsx:32-117` 本地重写了 `packages/file-system/src/tree-view-state.ts:24-120` 已提供的路径 helper（Web 已复用：`apps/web/src/components/WebFileTreePanel.tsx:13-19,84-105`）；因属“跨 app 去重”范畴，与暂缓项合并处理。
+非目标（本轮不做）：跨 app 组件/数据模块去重、渲染器内部重构、产品功能调整。
+
+已登记的复用缺口（进度与后续）：
+
+- **已收口（2026-10-22）**：uTools 文件树曾本地重写 `tree-view-state` 的 `isSameOrChildPath` / `visitDirectoryNodes` / `collectAncestorDirectoryPaths` / `createDefaultCollapsedDirectoryPaths`，现全部改为从 `@md-editor/file-system` 导入；同时删除了 `apps/desktop/src/app/files/file-tree-view-state.ts` 这个纯 re-export 垫片及其重复测试。契约回归见 `apps/utools/tests/file-tree-collapse-contract.test.ts`。
+- **仍待处理（更大的第二批，尚未开工）**：文件树路径能力实际存在**三套**并存实现——① `packages/file-system`（`dirname` / `getDirectoryPath` 自身也已互相重复）；② `apps/desktop/src/lib/path.ts`（`normalizePath` / `dirname` / `isSameOrChildPath`，是三者中**最强**的实现：处理 `\\?\` 扩展前缀、盘符大写、尾斜杠与 Windows 大小写不敏感）；③ `apps/desktop/src/components/FileTreePanel/utils.ts`（重复了 `storageKeyForRoot` / `readCollapsedPaths` / `writeCollapsedPaths` 与 `relativePathFromRoot`）。收口需要把 ② 的语义上提到 `packages/file-system` 作为唯一实现，再迁移 ①②③ 全部调用方；因涉及 Windows 路径语义变化，必须单独一轮并补齐测试，不与机械去重混做。
 
 ---
 
