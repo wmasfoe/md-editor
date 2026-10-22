@@ -56,12 +56,12 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 | 代码块增强 | 部分完成 | WYSIWYG 已有轻量级基础高亮和语言输入；更完整的语言覆盖和主题化仍待增强 |
 | 代码块内编辑体验 | 部分完成 | 已支持 Tab 缩进、复制按钮；复杂 selection 保持和更多编辑细节仍可增强 |
 | 大纲增强 | 部分完成 | 当前标题高亮、滚动同步已接入；长文档性能优化仍待增强 |
-| 图片增强 | 未开始 | 拖拽图片、自定义命名、重复文件处理 |
-| ImageStorageProvider 接口 | 未开始 | 先实现本地 provider，接口兼容后续自定义目录和云端上传 |
-| 最近文件 | 未开始 | 记录最近打开文件，并处理文件移动、删除和无权限访问 |
-| 官方 MDX 组件最小切片 | 未开始 | 用 `Callout` 验证 registry、AST range、真实渲染、原子选择、后代交互拦截和错误占位 |
-| 错误提示体系 | 部分完成 | 文件操作已有顶部错误提示；解析失败、模式切换失败等仍需更完整的用户提示 |
-| 基础主题 | 部分完成 | 已有 Typora-like 亮色基础样式；暗色主题和主题切换仍待补齐 |
+| 图片增强 | 已完成 | 拖拽图片、自定义命名、重复文件处理——拖放入口 `apps/desktop/src/app/events/drop-image-listener.ts`（`getDroppedImage`）；命名与去重 `apps/desktop/src-tauri/src/file_commands/assets.rs`（`next_image_path` 用 `preferred_name` 消毒后加 `-N` 后缀避碰撞） |
+| ImageStorageProvider 接口 | 已完成 | 接口 `packages/file-system/src/index.ts:115`，本地实现 `createLocalAssetsImageStorageProvider`（`apps/desktop/src/desktop/file-adapter.ts:111`），后续自定义目录/云端上传可直接新增 provider |
+| 最近文件 | 已完成 | `packages/file-system/src/recent-files.ts`（add/remove/move + 上限裁剪）与 `apps/desktop/src/app/controller/recent-files-store.ts`（Tauri 原生菜单后端）；文件移动经 `file-tree-store.ts` 调 `recentFilesStore.move` 同步 |
+| 官方 MDX 组件最小切片 | 已完成 | `Callout` 已过 registry、AST range、真实渲染、原子选择、后代交互拦截与错误占位全链路（M4/G005，2026-08-04 验证）；实现见 `packages/mdx-plugins/src/callout/` |
+| 错误提示体系 | 部分完成 | 文件操作已有顶部错误提示并接入 Sentry（0.11.0，默认开、可关、过滤文档内容）；解析失败、模式切换失败等仍缺更完整的用户提示 |
+| 基础主题 | 已完成 | 主题模式 system/light/dark（`apps/desktop/src/components/settings/AppearanceSettingsPanel.tsx`）+ 每档自定义 CSS 与内置主题选项（`apps/desktop/src/app/settings/theme-css.ts`、`ThemeCssPicker.tsx`） |
 
 ## 4.1 已完成的 v0.1 打磨项
 
@@ -72,6 +72,22 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 - 大纲支持当前标题高亮，并跟随 Source Mode / WYSIWYG 编辑区滚动同步。
 - WYSIWYG fenced code block 接入轻量级 decoration 高亮，不改写文档内容，覆盖常见 JS/TS/JSON/YAML/Shell/CSS/HTML token。
 - WYSIWYG code block 支持复制按钮、Tab 缩进，以及右下角语言输入；语言模糊匹配只作为提示，最终以用户输入为准。
+
+## 4.2 P1 状态核对记录
+
+记录日期：2026-10-22（本次核对的证据均为 main 分支代码事实，不是目标描述）
+
+本次核对把上表中 5 条与实际代码对齐：图片增强、ImageStorageProvider、最近文件、官方 MDX 组件最小切片与基础主题均已完成。核对方式与落点：
+
+| 条目 | 核对依据 |
+|---|---|
+| 图片增强（拖放/命名/去重） | `apps/desktop/src/lib/paste-image.ts` 的 `getDroppedImage`；Rust `next_image_path` |
+| ImageStorageProvider | `packages/file-system/src/index.ts` 接口 + `file-adapter.ts` 本地实现 |
+| 最近文件 | `packages/file-system/src/recent-files.ts` + `recent-files-store.ts`（含 move/remove/原生菜单） |
+| MDX 最小切片 | `packages/mdx-plugins/src/callout/`；验证记录见迁移状态文档 M4/G005 |
+| 基础主题 | `AppearanceSettingsPanel.tsx` 模式选项 + `theme-css.ts` 分档 CSS |
+
+同时确认一条仍存在的**代码与能力清单漂移**（不在本次修复范围）：`ai.continueWriting` 在能力清单中仍标 `typed-unsupported`，但控制器已完整接线。详情与待办见 [`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md) 的「当前 Beta 已知缺口」——需一次专项变更同时改清单、快捷键默认项与测试断言。
 
 ## 5. P2：v0.3+
 

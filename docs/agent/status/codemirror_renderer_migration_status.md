@@ -118,8 +118,9 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 ## 当前 Beta 已知缺口
 
 - M3 / S4：表格恒显示为可编辑网格并支持单元格左键就地编辑、Notion 式行/列块手柄与操作菜单增删行列及列对齐切换、末尾 Enter 退出表格续写段落、整表原子选中/删除与选中态等价替换及操作提示、Arrow 对称整表选中；多单元格拖选、列宽调整、tab 跳格仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
-- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 真实解析/渲染尚未实现，MDX 入口仍可见地报告 typed unsupported。
-- M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 入口当前可见地报告 typed unsupported。
+- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 全链路（`mdx-parse` 无 acorn 解析 → registry 白名单 → `MdxComponentWidget`）已于 2026-08-04 验证（G005）。仅剩入口层缺口：`mdx.openComponentMenu` 命令仍为 typed-unsupported（见下方「能力清单与实现漂移」）。
+- M5：链接打开、块拖拽、折叠、标题 H 控件、图片闭环（粘贴/拖放 + 本地 `ImageStorageProvider` + 自定义命名 + 重名 `-N` 去重）、搜索（`@codemirror/search` + `searchKeymap`）、大纲（`OutlinePanel` + `useOutlineController`）、主题（system/light/dark + 每档自定义 CSS + 内置主题选项）与内联 AI 建议（`aiScheduler` + `showSuggestion` + Tab arbiter `accept-suggestion`）均已迁移。剩余 typed-unsupported 命令：`mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar`。
+- 能力清单与实现漂移（待对齐，暂不改动已验证的 S1 契约）：`apps/desktop/src/app/s1-capability-inventory.ts` 将 `ai.continueWriting` 归入 `deferredLegacyCommands` → `typed-unsupported`，但 `apps/desktop/src/app/controller/useDesktopEditorController.ts` 的 `continueAiWriting` 已完整接线（`aiScheduler.schedule` + `showSuggestion`），且 `EditorTitleBarControls.tsx` 已 `dispatchCommand("ai.continueWriting")`。需要一次专项变更同时修正清单、快捷键默认项与 `apps/desktop/tests/s1-capability-inventory.test.ts` 断言。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
 - S1/M0 原生人工门禁已通过；环境、覆盖范围和结论见文末“原生人工验收通过记录”。后续里程碑引入 decoration、Widget、表格或 MDX 后，仍须针对新增交互重新执行对应原生验收。
 - G008：全仓 typecheck/test/lint/build/Rust/browser/Tauri 启动冒烟、post-cleaner 重验和初轮复核修复后的全量重验已通过；独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`。

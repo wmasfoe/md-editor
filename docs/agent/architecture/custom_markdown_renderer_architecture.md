@@ -2,7 +2,11 @@
 
 > 用途：定义从 Milkdown 迁移到 CodeMirror 6 后的产品行为、领域边界、状态模型、实现顺序和验收契约。
 >
-> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用，M1/S2 核心、独立 M1-FM/S5-FM-only、M2/S3 代码块与 M3 可编辑可视化表格均已验证；M3 表格以"始终网格 + 就地单元格编辑"落地（S4 引擎评估触发 No-Go 后不引入嵌套编辑器，contenteditable 单元格 + 受保护 transaction 回写 GFM 源码）。M2/S3 保持单一 CM6 状态栈，当前自动化为 renderer 20 files / 213 tests 与 typecheck/lint/build 全绿；M4、M5、M6、S5 HTML/MDX 仍未完成。**
+> 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用，M1/S2 核心、独立 M1-FM/S5-FM-only、M2/S3 代码块与 M3 可编辑可视化表格均已验证；M3 表格以"始终网格 + 就地单元格编辑"落地（S4 引擎评估触发 No-Go 后不引入嵌套编辑器，contenteditable 单元格 + 受保护 transaction 回写 GFM 源码）。M4（基础 HTML + 官方 MDX 全链路）与 M5（现有能力迁移）已于 2026-08-07 验证通过，M6 稳定发布收口进行中。**
+>
+> 进度事实只在 [迁移状态文档](../status/codemirror_renderer_migration_status.md) 维护，本文不重复记录测试数量与里程碑勾选状态，避免两处漂移。
+>
+> 当前未完成项聚焦在：M6 的 S6 性能基线尚未固化为护栏，以及 M3-C 裁剪留待的多单元格拖选 / 列宽调整 / tab 跳格。
 >
 > 本文是迁移目标和冲突决策的权威来源。迁移在 feature 分支上以单一 CM6 编辑器推进，不维护
 > Milkdown / CM6 双运行时；未达到完整验收前可以发布明确标注缺口的 beta，但不得宣称迁移完成。
