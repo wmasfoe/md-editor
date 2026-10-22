@@ -68,7 +68,7 @@
   - 被豁免文件的实际行数不得超过其 `maxLines`（豁免只允许缩小）。
 - **变更流程**：调整豁免必须**同 commit** 修改 `structure-exceptions.json` 与 `exceptions.baseline.json` —— 这会让变更成为显式的双文件 diff（评审信号）。真正的硬阻断需 CODEOWNERS 覆盖 `exceptions*.json` 或受保护分支校验（见 follow-up）。
 - **当前豁免（全量，1 条）**：`infra-router-module`(2097，本任务域外、登记冻结)。PR3 已拆分 renderer 与 projection-state，并同步删除两份清单中的对应豁免。
-- **可接受的警告**：域内 800–1200 行存量文件（`UtoolsApp.tsx` 1139、`web-file-system.ts` 841、`useDesktopEditorController.ts` 835）产生 warn 但不豁免；`tests/` 内的 2 个 >1000 行测试文件不在适用域。
+- **可接受的警告**：域内 800–1200 行存量文件（`UtoolsApp.tsx` 1139、`web-file-system.ts` 841、`useDesktopEditorController.ts` 847）产生 warn 但不豁免；`tests/` 内的 2 个 >1000 行测试文件不在适用域。
 
 ## 6. 域是职责标签（taxonomy），不是分层（layering）
 

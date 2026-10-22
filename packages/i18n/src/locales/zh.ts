@@ -464,7 +464,6 @@ export const zh = {
     aiNoSuggestion: "未获得有效续写建议，请检查端点配置或重试",
     aiSuggestionGenerated: "已生成续写建议，按 Tab 采纳，按 Esc 放弃",
     aiRequestFailed: "AI 请求失败，请检查网络或设置",
-    cannotOpenLink: "无法打开链接：{{url}}",
     delayedEditFailed: "延迟编辑未能完成：{{status}}。",
     editorSyncFailed: "编辑器同步失败：{{detail}}。请重新打开当前文档。",
     imageInsertFailed: "图片插入失败",

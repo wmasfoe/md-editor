@@ -469,7 +469,6 @@ export const en: TranslationSchema = {
     aiNoSuggestion: "No valid continuation received. Please check settings or retry.",
     aiSuggestionGenerated: "Continuation suggestion ready: press Tab to accept, Esc to dismiss.",
     aiRequestFailed: "AI request failed, please check your network or settings.",
-    cannotOpenLink: "Cannot open link: {{url}}",
     delayedEditFailed: "Delayed edit failed: {{status}}.",
     editorSyncFailed: "Editor sync failed: {{detail}}. Please reopen the document.",
     imageInsertFailed: "Failed to insert image",

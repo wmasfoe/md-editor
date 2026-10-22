@@ -51,10 +51,33 @@
 
 ### 打开通路的接线（宿主侧，链已存在，勿重复实现）
 `renderer` 的 `openLinkTarget` option → `editor-ui` 的 `CodeMirrorEditor` 转发 →
-`apps/desktop` 的 `handleOpenLink` → `link-service.openExternalTarget` →
-`invoke("open_external_target")` → Rust（`file_commands/mutations.rs`，含 http/https/mailto 白名单 + 本地路径 canonicalize）。
-> 教训：**先全仓 grep 确认链路是否已存在**再动手；本批曾因一次失败的 grep 误判"宿主从未接入"，写了一份重复的 Rust 实现（已删除）。
+`apps/desktop` 的 `DesktopCodeMirrorEditor` → `DesktopEditorActions.openWysiwygLink`
+（`useDesktopEditorController` 内的**唯一**分派点：文档内锚点 / 内部文档 / 资产 / 外部 URL）→
+`link-service.openExternalTarget` → `invoke("open_external_target")` → Rust
+（`file_commands/mutations.rs`，含 http/https/mailto 白名单 + 本地路径 canonicalize）。
+> 教训一：**先全仓 grep 确认链路是否已存在**再动手；本批曾因一次失败的 grep 误判"宿主从未接入"，写了一份重复的 Rust 实现（已删除）。
 > `rg -r` 是**替换**而非"递归"：误用会让输出被人为改写，是造成误判的直接原因之一。
+> 教训二：CM6 迁移期适配层（`DesktopCodeMirrorEditor` 的 `handleOpenLink`）曾自行解析链接、漏掉 fragment 分支，
+> 导致点目录项报「无法打开链接」；现已**删除该重复实现**，统一走 `openWysiwygLink`。新增链接形态只改分派点，不要在适配层另写一套。
+
+### 文档内锚点（`#fragment`）
+
+手动输入的目录（`[标题](#锚点)`）是**正常输入**，Cmd/Ctrl+点击必须能跳转。锚点由 TOC 生成器或人工撰写，
+对 `、：（）？➔` 等标点的处置并不一致，因此**解析规则必须有容错**，且只能定义在一处：
+
+| 项 | 契约 |
+| --- | --- |
+| 唯一实现 | `packages/markdown-fidelity` 的 `resolveHeadingAnchor(markdown, fragment)` |
+| 锚点来源文本 | 标题**渲染后**的可见文本：剔除 `**`／`~~`／反引号／链接与图片目标／HTML 标签 |
+| GitHub 兼容 slug（`headingAnchorSlug`） | 大小写折叠；**丢弃** Unicode 标点与符号（`：`、`、`、`？`、`（`、`）`、`➔` 等、emoji）；空白 → `-`；保留 `-` / `_` |
+| 重复标题 | 精确匹配同时接受 GitHub 后缀（`a-1`、`a-2`）与既有大纲 id 后缀（`a-2` 起） |
+| 容错兜底 | 精确匹配失败后按「忽略标点/空白/连字符」的宽松键比对（先精确、后宽松，全文档一次命中即返回） |
+| 输入规范化 | 容忍前导 `#`、百分号编码、大小写差异（`decodeURIComponent` 失败时按字面比较） |
+| 空片段 | `[回到顶部](#)` 按浏览器语义回到文档顶部（`scrollToLine(1)`） |
+| 未命中 | toast「没有找到标题 #…」，**不移动光标、不改文档**（不做相似度猜测） |
+| 匹配范围 | 仅 `extractHeadingOutline` 口径（ATX 标题 `#`~`######`）；setext 标题与围栏内 `#` 行见缺口 |
+
+滚动定位复用既有 `CodeMirrorEditorPorts.scrollToLine`（默认落光标 + 聚焦），不新增第二个滚动所有者。
 
 ---
 
@@ -76,6 +99,10 @@
 - **链接可编辑/可删除**：`E42`（裸 URL：内部可输入 + 可整串删除）、`E43`（尖括号 + 引用式：可落光标 + 可删除）。
 - **链接可打开**：`L5`（裸 URL）、`L6`（尖括号，且**仍可编辑**）、`L7`（引用式按标签查定义）；
   既有 `L1`–`L4`（行内链接渲染 / 危险协议 fail-closed / 普通点击 reveal / Mod-Enter 打开）。
+- **锚点跳转**：`A1`（手工目录项 Cmd/Ctrl+点击跳到标题且无错误 toast）、`A2`（`➔`/双连字符等标点策略不一致仍命中）、
+  `A3`（未命中提示、光标不动、文档不变）、`A4`（`#` 空片段回到顶部）；
+  单测 `markdown-fidelity/tests/fidelity.test.ts`（GitHub slug / 宽松匹配 / 百分号编码 / 重复标题 / 行内标记）与
+  `editor-ui/tests/editor-ui-state.test.ts`（跳转接线 + 未命中提示）。
 - **结构护栏**：`document-identity-convention.test.ts`（**自证伪**：删掉某宿主声明后定向变红）、
   `typewriter-single-scroll-owner.test.ts`（renderer 级单滚动所有权）、`focusable-controls-convention.test.ts`、
   `dispatch-annotation-convention.test.ts`（含 `paragraph-indent.ts` 的授权透传理由）。
@@ -89,6 +116,10 @@
 5. 其它 `source-only-atom` 的删除白名单（如 `reference-image`）未纳入（本轮只处理了链接类）。
 6. **E2E 分层**：E2E 跑的是**桌面应用的 web 外壳（Chromium）**，只证明**共享层**；原生菜单、真实 webview
    焦点策略、文件系统交互属**桌面专属**，只能手测（报告时须区分两者）。
+7. **锚点跳转只在桌面宿主接线**：`apps/web`、`apps/utools`、`apps/site` 的 `openLinkTarget` 仍直接 `window.open`，
+   `#fragment` 与内部文档链接在那些宿主里没有跳转语义（需要时按同一分派点接入 `jumpToMarkdownFragment`）。
+8. **标题识别口径**：`extractHeadingOutline` 只认 ATX 标题且不排除代码围栏内以 `#` 开头的行；
+   setext 标题（`Title` + `===`）不在锚点候选内。
 
 ---
 

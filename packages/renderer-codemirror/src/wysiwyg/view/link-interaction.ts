@@ -8,7 +8,7 @@ import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
  *
  * - 非 active 链接渲染为真 `<a href>`(label 挂 a 标签 + href + cm-md-link class);
  * - 普通点击:光标移入 label → 链接转为显示源码(reveal);
- * - Cmd/Ctrl+点击 或 Mod-Enter:把 URL 交给宿主回调打开(内部 markdown 文件/外部链接由宿主决策);
+ * - Cmd/Ctrl+点击 或 Mod-Enter:把 URL 交给宿主回调打开(文档内锚点/内部 markdown 文件/资产/外部链接由宿主决策);
  * - modifier 按下时编辑器根挂 data-link-modifier,主题据此显示 pointer 光标;
  * - blur 清理 modifier 状态。
  *
