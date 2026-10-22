@@ -12,7 +12,11 @@ import {
   matchDesktopAsset,
   selectDesktopManifestAsset,
 } from "../../distribution/platform-assets.ts";
-import { proxyGitHubAsset, serveR2Object } from "../../distribution/object-responses.ts";
+import {
+  proxyGitHubAsset,
+  serveFirstR2BucketObject,
+  serveR2BucketObject,
+} from "../../distribution/object-responses.ts";
 
 export async function handleLatestArtifactsRoutes(
   context: RouterContext,
@@ -26,8 +30,16 @@ export async function handleLatestArtifactsRoutes(
 
     if (env.RELEASE_BUCKET) {
       // 优先找最新版软链/定名文件
-      const latestObj = await env.RELEASE_BUCKET.get(`${app}/android/latest.apk`);
-      if (latestObj) {
+      const latestHit = await serveR2BucketObject(
+        env.RELEASE_BUCKET,
+        `${app}/android/latest.apk`,
+        request,
+        {
+          customFileName: `${app}-latest.apk`,
+          contentType: "application/vnd.android.package-archive",
+        },
+      );
+      if (latestHit) {
         const manifestObj = await env.RELEASE_BUCKET.get(`${app}/version.json`);
         if (manifestObj) {
           try {
@@ -41,11 +53,7 @@ export async function handleLatestArtifactsRoutes(
             // 清单不可用时不写入无法归属具体版本的统计。
           }
         }
-        return serveR2Object(
-          latestObj,
-          `${app}-latest.apk`,
-          "application/vnd.android.package-archive",
-        );
+        return latestHit;
       }
 
       // 如果未放 latest.apk，检查清单中指定的最新版
@@ -55,17 +63,22 @@ export async function handleLatestArtifactsRoutes(
           const manifest = JSON.parse(await manifestObj.text()) as AppVersionManifest;
           if (manifest.android?.version) {
             const version = manifest.android.version;
-            const versionObj =
-              (await env.RELEASE_BUCKET.get(`${app}/android/${version}/Inkpoint_${version}.apk`)) ||
-              (await env.RELEASE_BUCKET.get(`${app}/android/${version}/app-debug.apk`)) ||
-              (await env.RELEASE_BUCKET.get(`${app}/android/${version}/inkpoint-${version}.apk`));
-            if (versionObj) {
+            const versionHit = await serveFirstR2BucketObject(
+              env.RELEASE_BUCKET,
+              [
+                `${app}/android/${version}/Inkpoint_${version}.apk`,
+                `${app}/android/${version}/app-debug.apk`,
+                `${app}/android/${version}/inkpoint-${version}.apk`,
+              ],
+              request,
+              {
+                customFileName: `Inkpoint_${version}.apk`,
+                contentType: "application/vnd.android.package-archive",
+              },
+            );
+            if (versionHit) {
               trackDownload(app, version, `Inkpoint_${version}.apk`);
-              return serveR2Object(
-                versionObj,
-                `Inkpoint_${version}.apk`,
-                "application/vnd.android.package-archive",
-              );
+              return versionHit.response;
             }
           }
         } catch {
@@ -99,12 +112,15 @@ export async function handleLatestArtifactsRoutes(
           const version = iosNode?.version;
           if (version && iosNode?.ipa) {
             const fileName = iosNode.ipa.fileName || `Inkpoint-${version}-unsigned.ipa`;
-            const versionObj =
-              (await env.RELEASE_BUCKET.get(`${app}/ios/${version}/${fileName}`)) ||
-              (await env.RELEASE_BUCKET.get(`${app}/ios/${version}/latest.ipa`));
-            if (versionObj) {
+            const versionHit = await serveFirstR2BucketObject(
+              env.RELEASE_BUCKET,
+              [`${app}/ios/${version}/${fileName}`, `${app}/ios/${version}/latest.ipa`],
+              request,
+              { customFileName: fileName, contentType: "application/octet-stream" },
+            );
+            if (versionHit) {
               trackDownload(app, version, fileName);
-              return serveR2Object(versionObj, fileName, "application/octet-stream");
+              return versionHit.response;
             }
           }
         } catch {
@@ -141,11 +157,13 @@ export async function handleLatestArtifactsRoutes(
         `desktop/${scriptFile}`,
         scriptFile,
       ];
-      for (const candidate of candidates) {
-        const r2Obj = await env.RELEASE_BUCKET.get(candidate);
-        if (r2Obj) {
-          return serveR2Object(r2Obj, scriptFile, contentType, false);
-        }
+      const scriptHit = await serveFirstR2BucketObject(env.RELEASE_BUCKET, candidates, request, {
+        customFileName: scriptFile,
+        contentType,
+        isImmutable: false,
+      });
+      if (scriptHit) {
+        return scriptHit.response;
       }
     }
 
@@ -239,9 +257,12 @@ export async function handleLatestArtifactsRoutes(
       ];
 
       for (const candidate of candidates) {
-        const r2Obj = await env.RELEASE_BUCKET.get(candidate);
-        if (r2Obj) {
-          const ext = candidate.split(".").pop() || "";
+        const ext = candidate.split(".").pop() || "";
+        const candidateRes = await serveR2BucketObject(env.RELEASE_BUCKET, candidate, request, {
+          customFileName: `${app}-${platform}-latest.${ext}`,
+          contentType: mimeTypes[ext] || "application/octet-stream",
+        });
+        if (candidateRes) {
           const manifestAsset = selectDesktopManifestAsset(r2Manifest, platform);
           const analyticsVersion = r2Manifest?.desktop?.version;
           if (
@@ -251,11 +272,7 @@ export async function handleLatestArtifactsRoutes(
           ) {
             trackDownload(app, analyticsVersion, manifestAsset.fileName);
           }
-          return serveR2Object(
-            r2Obj,
-            `${app}-${platform}-latest.${ext}`,
-            mimeTypes[ext] || "application/octet-stream",
-          );
+          return candidateRes;
         }
       }
 
@@ -263,17 +280,19 @@ export async function handleLatestArtifactsRoutes(
       const dVer = r2Manifest?.desktop?.version;
       const assetInfo = selectDesktopManifestAsset(r2Manifest, platform);
       if (dVer && assetInfo?.fileName) {
-        const versionedObj = await env.RELEASE_BUCKET.get(
+        const versioned = await serveR2BucketObject(
+          env.RELEASE_BUCKET,
           `${app}/desktop/${dVer}/${assetInfo.fileName}`,
+          request,
+          {
+            customFileName: assetInfo.fileName,
+            contentType:
+              mimeTypes[assetInfo.fileName.split(".").pop() || ""] || "application/octet-stream",
+          },
         );
-        if (versionedObj) {
-          const ext = assetInfo.fileName.split(".").pop() || "";
+        if (versioned) {
           trackDownload(app, dVer, assetInfo.fileName);
-          return serveR2Object(
-            versionedObj,
-            assetInfo.fileName,
-            mimeTypes[ext] || "application/octet-stream",
-          );
+          return versioned;
         }
       }
     }

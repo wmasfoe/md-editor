@@ -216,13 +216,7 @@ export async function handleManifestApiRoutes(
     if (env.RELEASE_BUCKET) {
       const r2Updater = await env.RELEASE_BUCKET.get(`${app}/desktop/updater.json`);
       if (r2Updater) {
-        return respond(
-          new Response(r2Updater.body, {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }),
-        );
+        return respond(await serveUpdaterManifest(r2Updater, url.origin));
       }
     }
 
@@ -280,4 +274,43 @@ export async function handleManifestApiRoutes(
   }
 
   return undefined;
+}
+
+/**
+ * 输出 R2 中的 updater.json，并在重写二进制 URL 后返回。
+ *
+ * R2 里存的清单可能是构建期按默认分发域名生成的（历史上曾指向另一个域名），
+ * 若原样透传，Tauri 更新器会跨域去另一个域名下载大二进制——在代理分流
+ *（如 `.cn → DIRECT`）下极易命中慢路径。统一改写为本次请求的 origin 后，
+ * 清单与二进制永远同域，下载走哪条路完全可预测。
+ */
+async function serveUpdaterManifest(r2Updater: R2ObjectBody, origin: string): Promise<Response> {
+  const raw = await r2Updater.text();
+  try {
+    const manifest = JSON.parse(raw) as {
+      platforms?: Record<string, { signature?: string; url?: unknown }>;
+    };
+    if (manifest && typeof manifest === "object" && manifest.platforms) {
+      for (const item of Object.values(manifest.platforms)) {
+        if (item && typeof item.url === "string") {
+          try {
+            const parsed = new URL(item.url);
+            if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+              item.url = `${origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+            }
+          } catch {
+            // 非绝对 URL（如已是相对路径）：保持原样。
+          }
+        }
+      }
+    }
+    return new Response(JSON.stringify(manifest, null, 2), {
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch {
+    // 非 JSON 存量：原样透传，不中断更新。
+    return new Response(raw, {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }

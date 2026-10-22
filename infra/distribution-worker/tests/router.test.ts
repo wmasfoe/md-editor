@@ -358,7 +358,7 @@ describe("Distribution Worker Router & Matcher", () => {
       get: async (key: string) => {
         if (key === "inkpoint/desktop/updater.json") {
           return {
-            body: JSON.stringify(mockR2Updater),
+            text: async () => JSON.stringify(mockR2Updater),
           } as unknown as R2ObjectBody;
         }
         return null;
@@ -378,6 +378,103 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(data.platforms["darwin-aarch64"].url).toBe(
       "https://download.jiaqi.im/inkpoint/desktop/0.10.2/Inkpoint.app.tar.gz",
     );
+  });
+
+  it("should rewrite R2 updater binary URLs to the request origin (same-domain downloads)", async () => {
+    // 回归：R2 存量清单曾指向另一个分发域名，原样透传会导致更新器跨域下载大二进制。
+    const storedUpdater = {
+      version: "0.15.0",
+      notes: "Inkpoint 0.15.0",
+      platforms: {
+        "darwin-aarch64": {
+          signature: "sig-mac",
+          url: "https://download.justdev.cn/inkpoint/desktop/0.15.0/Inkpoint.app.tar.gz",
+        },
+        "windows-x86_64": {
+          signature: "sig-win",
+          url: "https://download.justdev.cn/inkpoint/desktop/0.15.0/Inkpoint_0.15.0_x64-setup.exe?x=1#y",
+        },
+      },
+    };
+
+    const mockBucket = {
+      get: async (key: string) => {
+        if (key === "inkpoint/desktop/updater.json") {
+          return {
+            text: async () => JSON.stringify(storedUpdater),
+          } as unknown as R2ObjectBody;
+        }
+        return null;
+      },
+    };
+
+    const req = new Request("https://download.jiaqi.im/inkpoint/desktop/updater.json");
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const res = await handleRequest(req, env);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as typeof storedUpdater;
+    expect(data.platforms["darwin-aarch64"].url).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.15.0/Inkpoint.app.tar.gz",
+    );
+    expect(data.platforms["windows-x86_64"].url).toBe(
+      "https://download.jiaqi.im/inkpoint/desktop/0.15.0/Inkpoint_0.15.0_x64-setup.exe?x=1#y",
+    );
+    expect(data.platforms["darwin-aarch64"].signature).toBe("sig-mac");
+  });
+
+  it("should return 206 with Content-Range for ranged versioned downloads (resume support)", async () => {
+    const payload = "0123456789ABCDEFGHIJ";
+    const mockBucket = {
+      head: async (key: string) =>
+        key === "inkpoint/desktop/0.10.2/file.dmg"
+          ? ({ size: payload.length, httpEtag: '"etag-range"' } as unknown as R2Object)
+          : null,
+      get: async (key: string, options?: { range?: { offset?: number; length?: number } }) => {
+        if (key !== "inkpoint/desktop/0.10.2/file.dmg") {
+          return null;
+        }
+        let body = payload;
+        if (options?.range && typeof options.range.offset === "number") {
+          body = payload.slice(
+            options.range.offset,
+            options.range.offset + (options.range.length ?? payload.length),
+          );
+        }
+        return {
+          body,
+          httpEtag: '"etag-range"',
+          writeHttpMetadata: (_headers: Headers) => {},
+        } as unknown as R2ObjectBody;
+      },
+    };
+
+    const env: Env = {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
+    };
+
+    const partial = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/desktop/0.10.2/file.dmg", {
+        headers: { Range: "bytes=5-9" },
+      }),
+      env,
+    );
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("Content-Range")).toBe(`bytes 5-9/${payload.length}`);
+    expect(partial.headers.get("Accept-Ranges")).toBe("bytes");
+    expect(await partial.text()).toBe("56789");
+
+    const unsatisfiable = await handleRequest(
+      new Request("https://download.jiaqi.im/inkpoint/desktop/0.10.2/file.dmg", {
+        headers: { Range: `bytes=${payload.length}-` },
+      }),
+      env,
+    );
+    expect(unsatisfiable.status).toBe(416);
   });
 
   it("should serve desktop latest artifact directly from R2 when available", async () => {

@@ -8,7 +8,7 @@
 import type { RouterContext } from "../context.ts";
 import type { ReleaseInfo } from "../../types.ts";
 import { getMimeType } from "../../distribution/platform-assets.ts";
-import { proxyGitHubAsset, serveR2Object } from "../../distribution/object-responses.ts";
+import { proxyGitHubAsset, serveFirstR2BucketObject } from "../../distribution/object-responses.ts";
 import { buildReleasesManifest } from "../../releases/manifest.ts";
 import {
   renderAppDevicesHtml,
@@ -232,20 +232,21 @@ export async function handleCatalogRoutes(context: RouterContext): Promise<Respo
         const filename = part3;
         const contentType = getMimeType(filename);
 
-        // A. 优先从 R2 获取
+        // A. 优先从 R2 获取（支持 Range 断点续传）
         if (env.RELEASE_BUCKET) {
-          const r2Keys = [
-            `${app}/desktop/${version}/${filename}`,
-            `${app}/${version}/${filename}`,
-            `${app}/android/${version}/${filename}`,
-          ];
-
-          for (const r2Key of r2Keys) {
-            const obj = await env.RELEASE_BUCKET.get(r2Key);
-            if (obj) {
-              trackDownload(app, version, filename);
-              return serveR2Object(obj, filename, contentType, true);
-            }
+          const hit = await serveFirstR2BucketObject(
+            env.RELEASE_BUCKET,
+            [
+              `${app}/desktop/${version}/${filename}`,
+              `${app}/${version}/${filename}`,
+              `${app}/android/${version}/${filename}`,
+            ],
+            request,
+            { customFileName: filename, contentType, isImmutable: true },
+          );
+          if (hit) {
+            trackDownload(app, version, filename);
+            return hit.response;
           }
         }
 
@@ -269,21 +270,22 @@ export async function handleCatalogRoutes(context: RouterContext): Promise<Respo
     if (knownDevices.includes(device) && filename.includes(".")) {
       const contentType = getMimeType(filename);
 
-      // A. 优先从 R2 获取
+      // A. 优先从 R2 获取（支持 Range 断点续传）
       if (env.RELEASE_BUCKET) {
-        const r2Keys = [
-          `${app}/${device}/${version}/${filename}`,
-          `${app}/desktop/${version}/${filename}`,
-          `${app}/android/${version}/${filename}`,
-          `${app}/${version}/${filename}`,
-        ];
-
-        for (const r2Key of r2Keys) {
-          const obj = await env.RELEASE_BUCKET.get(r2Key);
-          if (obj) {
-            trackDownload(app, version, filename);
-            return serveR2Object(obj, filename, contentType, true);
-          }
+        const hit = await serveFirstR2BucketObject(
+          env.RELEASE_BUCKET,
+          [
+            `${app}/${device}/${version}/${filename}`,
+            `${app}/desktop/${version}/${filename}`,
+            `${app}/android/${version}/${filename}`,
+            `${app}/${version}/${filename}`,
+          ],
+          request,
+          { customFileName: filename, contentType, isImmutable: true },
+        );
+        if (hit) {
+          trackDownload(app, version, filename);
+          return hit.response;
         }
       }
 
