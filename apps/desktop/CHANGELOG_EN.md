@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1 - 2026-10-22 (#182)
+
+- Fixed in-document anchor links ([title](#anchor)) in WYSIWYG mode: clicking a TOC entry now jumps to the matching heading and places the caret.
+- Anchors now tolerate the punctuation styles used by different TOC generators (、：（）？➔), as well as duplicate headings, case differences and percent-encoding.
+- [Back to top](#) scrolls to the start of the document; an unresolved anchor only shows a toast and never moves the caret or edits the document.
+
 ## 0.15.0 - 2026-10-20 (#174, #175)
 
 - Inline format markers (bold `**`, italic `*`, strikethrough `~~`, inline code) are now hidden by default and only appear when the caret or selection touches them — a cleaner reading surface.
