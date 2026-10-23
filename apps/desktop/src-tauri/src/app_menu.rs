@@ -16,7 +16,7 @@ pub(crate) enum AppMenuLocale {
     En,
 }
 
-#[cfg(target_os = "macos")]
+// 语言探测与平台无关：Windows/Linux 没有原生应用菜单，但关于窗口标题同样需要本地化。
 pub(crate) fn detect_menu_locale() -> AppMenuLocale {
     let settings = settings::load_app_settings();
     match settings.language.as_deref() {

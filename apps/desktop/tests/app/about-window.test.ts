@@ -52,6 +52,16 @@ describe("about window native wiring", () => {
     expect(menuSource).not.toMatch(/^\s*\.about\(/mu);
   });
 
+  it("keeps locale detection platform-neutral because the about window uses it", () => {
+    // 回归：detect_menu_locale 曾带 macOS cfg，导致 Windows/Linux 构建 E0432。
+    expect(menuSource).not.toMatch(
+      /#\[cfg\(target_os = "macos"\)\]\s*\n(pub\(crate\) )?fn detect_menu_locale/u,
+    );
+    expect(menuSource).not.toMatch(
+      /#\[cfg\(target_os = "macos"\)\]\s*\n\s*pub\(crate\) enum AppMenuLocale/u,
+    );
+  });
+
   it("declares bundle copyright so Info.plist carries the same authorship", () => {
     expect(tauriConfig.bundle.copyright).toContain("Inkpoint Contributors");
   });
