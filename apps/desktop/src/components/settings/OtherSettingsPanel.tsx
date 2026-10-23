@@ -8,6 +8,8 @@ import type {
 } from "../../app/settings/app-settings";
 import { useTranslation } from "@md-editor/i18n";
 import { updateProgressLabel, updateStatusMessage } from "./settingsUtils";
+import { UpdateReleaseNotes } from "../updates/UpdateReleaseNotes";
+import { isPlaceholderReleaseNotes, readReleaseNotesEntry } from "../../app/updates/release-notes";
 import {
   settingsDescriptionClassName,
   settingsFieldLabelClassName,
@@ -58,6 +60,15 @@ export function OtherSettingsPanel({
     (updateStatus.state === "available" || updateStatus.state === "downloaded") &&
     updateStatus.installKind === "app";
   const canRelaunchAfterUpdate = updateStatus.state === "installed";
+  // 更新日志由发版链路写入 notes（CHANGELOG 原文）；占位内容不渲染，避免出现「Inkpoint 0.15.1」这类噪音。
+  const releaseNotesEntry = readReleaseNotesEntry(updateStatus);
+  const showReleaseNotes =
+    (updateStatus.state === "available" ||
+      updateStatus.state === "downloading" ||
+      updateStatus.state === "downloaded") &&
+    (releaseNotesEntry !== null ||
+      (updateStatus.releaseNotes !== undefined &&
+        !isPlaceholderReleaseNotes(updateStatus.releaseNotes)));
 
   const handleCopyCommand = () => {
     if (!updateStatus.installCommand) return;
@@ -126,17 +137,14 @@ export function OtherSettingsPanel({
             {t("settings.general.updateTitle")}
           </h2>
           <p className={settingsDescriptionClassName}>{updateStatusMessage(updateStatus)}</p>
-          {(updateStatus.state === "available" ||
-            updateStatus.state === "downloading" ||
-            updateStatus.state === "downloaded") &&
-          updateStatus.releaseNotes ? (
-            <div className="mt-2 max-h-[180px] overflow-y-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
-              <p className="mb-1 text-[12px] font-medium text-[var(--theme-title)]">
-                {t("settings.general.releaseNotes")}
-              </p>
-              <p className="whitespace-pre-wrap text-[12px] leading-5 text-[var(--theme-text)]">
-                {updateStatus.releaseNotes}
-              </p>
+          {showReleaseNotes ? (
+            <div className="mt-2 max-h-[220px] overflow-y-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
+              <UpdateReleaseNotes
+                entry={releaseNotesEntry}
+                fallbackVersion={updateStatus.latestVersion ?? ""}
+                notesTitle={t("settings.updates.notesTitle")}
+                noNotesLabel={t("settings.updates.noNotes")}
+              />
             </div>
           ) : null}
           {updateStatus.state === "available" && updateStatus.installCommand ? (

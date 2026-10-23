@@ -131,8 +131,9 @@ export function editorUpdateActionLabel(updateStatus: UpdateStatus): string {
       return t("editor.titleBar.updateDownloading");
     case "installing":
       return t("editor.titleBar.updateReady");
+    case "downloaded":
     case "installed":
-      return t("editor.titleBar.updateRelaunch");
+      return t("settings.updates.actions.restartToUpdate");
     default:
       return t("editor.titleBar.updateAvailable");
   }
