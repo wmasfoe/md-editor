@@ -2,6 +2,7 @@ import { t } from "@md-editor/i18n";
 import type { ChangelogEntry } from "@md-editor/changelog";
 import type { AppUpdateSettings, UpdateStatus } from "../../app/settings/app-settings";
 import { readReleaseNotesEntry } from "../../app/updates/release-notes";
+import { useEffect, useRef, useState } from "react";
 import { updateDownloadProgress, updateStatusMessage } from "./settingsUtils";
 import { UpdateReleaseNotes } from "../updates/UpdateReleaseNotes";
 import {
@@ -32,6 +33,8 @@ interface UpdateSettingsPanelProps {
   readonly onSkipVersion: () => void;
   readonly onOpenChangelog: () => void;
   readonly onOpenEnglishChangelog: () => void;
+  /** 手动安装通道：打开安装包下载页 */
+  readonly onOpenInstallerDownload: (url: string) => void;
 }
 
 /** 状态徽标：把状态机压成用户能一眼读完的 4 种色调。 */
@@ -74,7 +77,22 @@ export function UpdateSettingsPanel({
   onSkipVersion,
   onOpenChangelog,
   onOpenEnglishChangelog,
+  onOpenInstallerDownload,
 }: UpdateSettingsPanelProps) {
+  const [hasCopiedCommand, setHasCopiedCommand] = useState(false);
+  const copyResetTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copyResetTimer.current), []);
+
+  const copyInstallCommand = () => {
+    const command = updateStatus.installCommand;
+    if (!command) return;
+    void navigator.clipboard.writeText(command).then(() => {
+      setHasCopiedCommand(true);
+      copyResetTimer.current = window.setTimeout(() => setHasCopiedCommand(false), 2000);
+    });
+  };
+
   const isBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
@@ -85,6 +103,9 @@ export function UpdateSettingsPanel({
   const canRelaunch = updateStatus.state === "installed";
   const canSkip =
     updateStatus.state === "available" && updateStatus.installKind === "app" && !isSkippedVersion;
+  // updater manifest 不可用时后端会退回 GitHub Releases（installKind: "manual"），
+  // 这条降级通道必须保留可执行的恢复动作，否则用户只能自己找安装包。
+  const isManualInstall = updateStatus.installKind === "manual";
   const notesEntry: ChangelogEntry | null = readReleaseNotesEntry(updateStatus);
   const tone = resolveStatusTone(updateStatus.state);
 
@@ -127,7 +148,7 @@ export function UpdateSettingsPanel({
           </div>
           <p className="m-0 text-[11px] text-[var(--theme-muted)]">
             {lastCheckedAt
-              ? t("settings.updates.lastChecked", { time: lastCheckedAt })
+              ? t("settings.updates.lastChecked", { time: formatCheckedAt(lastCheckedAt) })
               : t("settings.updates.neverChecked")}
           </p>
         </div>
@@ -185,6 +206,39 @@ export function UpdateSettingsPanel({
             </button>
           ) : null}
         </div>
+
+        {isManualInstall && updateStatus.installCommand ? (
+          <div className="mt-3 grid gap-1">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12px] text-[var(--theme-muted)]">
+                {t("settings.general.manualInstallCommand")}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className={settingsSmallButtonClassName}
+                  onClick={copyInstallCommand}
+                >
+                  {hasCopiedCommand
+                    ? t("settings.general.copied")
+                    : t("settings.general.copyCommand")}
+                </button>
+                {updateStatus.downloadUrl ? (
+                  <button
+                    type="button"
+                    className={settingsSmallButtonClassName}
+                    onClick={() => onOpenInstallerDownload(updateStatus.downloadUrl ?? "")}
+                  >
+                    {t("settings.general.downloadInstaller")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-[11px] leading-normal text-[var(--theme-text)]">
+              {updateStatus.installCommand}
+            </code>
+          </div>
+        ) : null}
       </section>
 
       {notesEntry ? (
@@ -256,6 +310,12 @@ export function UpdateSettingsPanel({
       </section>
     </div>
   );
+}
+
+/** 时间戳按当前界面语言格式化；无效值原样返回，避免显示 Invalid Date。 */
+function formatCheckedAt(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleTimeString();
 }
 
 /** 状态徽标文案：状态机每个取值都有显式 key，避免运行时拼接 i18n key。 */

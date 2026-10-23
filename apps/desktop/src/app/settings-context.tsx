@@ -70,7 +70,7 @@ export interface AppSettingsContextValue {
   readonly skipUpdateVersion: (version?: string) => Promise<void>;
   /** 提示簿记（已提示/已跳过），设置页据此隐藏已经生效的动作 */
   readonly updatePromptState: UpdatePromptState;
-  /** 最近一次检查完成的时间（本地化展示用）；从未检查为 null */
+  /** 最近一次检查完成时间（ISO 字符串，展示时再按语言格式化）；从未检查为 null */
   readonly lastCheckedAt: string | null;
 }
 
@@ -141,13 +141,9 @@ export function AppSettingsProvider({
     };
   }, []);
 
-  // 读取提示簿记（仅主窗口需要）；读完之前不发起自动检查，避免对已提示版本重复弹窗。
+  // 读取提示簿记。设置窗口的「跳过此版本」按钮也需要这份状态（否则跳过态永远显示未跳过）；
+  // 主窗口读完之前不发起自动检查，避免对已提示版本重复弹窗。
   useEffect(() => {
-    if (surface !== "main") {
-      setHasLoadedPromptState(true);
-      return;
-    }
-
     let disposed = false;
     void loadUpdatePromptState().then((state) => {
       if (disposed) return;
@@ -300,12 +296,16 @@ export function AppSettingsProvider({
 
       try {
         if (automatic && current.state === "available" && current.installKind === "app") {
-          // 该分支的提示已在上一轮处理过（noticePending=false），这里只判断是否该继续下载。
+          // 提示仍可能待展示（用户停留在弹窗上时 6h 周期会再次进入）：
+          // 与首次检查用同一套准入判断，避免在模态背后开始下载。
+          const noticePending =
+            shouldPresentUpdateNotice(current, promptStateRef.current) &&
+            readReleaseNotesEntry(current) !== null;
           const shouldDownload = shouldAutoDownloadUpdate({
             status: current,
             promptState: promptStateRef.current,
             automaticDownload: downloadAvailableUpdate,
-            noticePending: false,
+            noticePending,
           });
           if (!shouldDownload) {
             setUpdateStatus(current);
@@ -371,7 +371,7 @@ export function AppSettingsProvider({
         return failedStatus;
       } finally {
         isAutoUpdateRunningRef.current = false;
-        setLastCheckedAt(new Date().toLocaleTimeString());
+        setLastCheckedAt(new Date().toISOString());
       }
     },
     [],

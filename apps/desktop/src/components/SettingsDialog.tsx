@@ -166,6 +166,7 @@ export function SettingsPage({
             onOpenEnglishChangelog={() =>
               void openExternalTarget(updateStatus.releaseUrl ?? APP_RELEASES_URL)
             }
+            onOpenInstallerDownload={(url) => void openExternalTarget(url)}
           />
         ),
       },

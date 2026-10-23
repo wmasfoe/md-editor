@@ -37,10 +37,12 @@ export function AboutWindowApp() {
         await changeLanguage(settings.language);
         if (disposed) return;
         // StrictMode 重放时重复 show/focus 是幂等的。
-        disposeTheme = applyThemeBeforeWindowReveal(
-          settings.theme,
-          revealCurrentAboutWindow,
-        ).dispose;
+        const applied = applyThemeBeforeWindowReveal(settings.theme, revealCurrentAboutWindow);
+        disposeTheme = applied.dispose;
+        // reveal 被拒（例如 capability 未授权）时必须留下证据，否则会变成 unhandled rejection。
+        void applied.revealed.catch((error: unknown) => {
+          console.warn("关于窗口显示失败", error);
+        });
       })
       .catch((error: unknown) => {
         // 设置读取失败不应该让窗口永久隐藏：退回浏览器默认主题直接显示。

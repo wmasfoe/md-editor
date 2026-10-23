@@ -5,6 +5,7 @@ import {
   shouldAutoDownloadUpdate,
   shouldPresentUpdateNotice,
 } from "../../../src/app/updates/presentation";
+import { shouldShowEditorUpdateAction } from "../../../src/app/updates/update-status";
 import type { UpdateStatus } from "../../../src/app/settings/app-settings";
 
 function status(partial: Partial<UpdateStatus>): UpdateStatus {
@@ -184,5 +185,34 @@ describe("shouldAutoDownloadUpdate", () => {
         noticePending: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("shouldShowEditorUpdateAction", () => {
+  it("drops the title-bar CTA for a skipped version", () => {
+    expect(
+      shouldShowEditorUpdateAction(status({ latestVersion: "0.16.0" }), {
+        skippedVersion: "0.16.0",
+      }),
+    ).toBe(false);
+    expect(shouldShowEditorUpdateAction(status({ latestVersion: "0.16.0" }), {})).toBe(true);
+  });
+
+  it("keeps the restart entry even when the version was skipped before download", () => {
+    // 已下载后必须有重启入口，否则用户无法完成更新。
+    for (const state of ["downloaded", "installing", "installed"] as const) {
+      expect(
+        shouldShowEditorUpdateAction(status({ state, latestVersion: "0.16.0" }), {
+          skippedVersion: "0.16.0",
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("stays hidden for manual install channels and idle states", () => {
+    expect(
+      shouldShowEditorUpdateAction(status({ installKind: "manual", latestVersion: "0.16.0" })),
+    ).toBe(false);
+    expect(shouldShowEditorUpdateAction(status({ state: "idle" }))).toBe(false);
   });
 });

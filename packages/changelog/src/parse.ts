@@ -3,6 +3,11 @@
  *
  * 纯函数、零 Node 依赖：官网在构建期读取文件，桌面端解析 updater manifest 的 notes，
  * 两侧都走这一份实现，避免出现两套「更新内容」语义。
+ *
+ * 注意：发版脚本 `scripts/release/changelog-section.mjs` 另有一个**切片**实现
+ * （它需要保留 `## <version>` 原文供 manifest notes 使用，不能复用结构化解析）。
+ * 两侧共享的是标题格式契约，由 `apps/desktop/tests/app/updates/changelog-contract.test.ts`
+ * 交叉断言；改这里的分组正则必须同步发版侧。
  */
 
 import type { ChangelogEntry, ChangelogItem } from "./types.ts";

@@ -56,14 +56,14 @@ const documentMetricKinds: readonly DocumentMetricKind[] = ["words", "lines", "c
  */
 export function EditorTitleBarControls() {
   const { t } = useTranslation();
-  const { updateStatus, openSettings } = useAppSettings();
+  const { updateStatus, updatePromptState, openSettings } = useAppSettings();
   const { outline, activeOutlineId } = useEditorUiState();
   const { jumpToTocItem } = useEditorUiActions();
   const { hasActiveDocument } = useDocumentUiStore();
   const { runEditorUpdateAction, dispatchCommand } = useDesktopEditorActions();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
 
-  const showUpdateAction = shouldShowEditorUpdateAction(updateStatus);
+  const showUpdateAction = shouldShowEditorUpdateAction(updateStatus, updatePromptState);
   const updateBusy = isUpdateActionBusy(updateStatus);
   const updateActionLabel = editorUpdateActionLabel(updateStatus);
 
