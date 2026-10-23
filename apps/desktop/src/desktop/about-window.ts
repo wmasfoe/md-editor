@@ -1,8 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { t } from "@md-editor/i18n";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ABOUT_WINDOW_LABEL, resolveDesktopWindowSurface } from "./window-labels";
-
-export { ABOUT_WINDOW_LABEL } from "./window-labels";
 
 export function isAboutWindow(): boolean {
   return resolveDesktopWindowSurface() === ABOUT_WINDOW_LABEL;
@@ -36,4 +35,21 @@ export async function revealCurrentAboutWindow(): Promise<boolean> {
   await window.show();
   await window.setFocus();
   return true;
+}
+
+/**
+ * 打开关于窗口并把失败反馈给用户。
+ * 命令面板与设置页共用这一条路径，避免各自硬编码提示文案。
+ */
+export async function openAboutWindowWithToast(
+  showToast: (message: string | null) => void,
+): Promise<void> {
+  try {
+    const opened = await openAboutWindow();
+    if (!opened) {
+      showToast(t("settings.general.aboutDesktopOnly"));
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : t("settings.general.aboutOpenFailed"));
+  }
 }

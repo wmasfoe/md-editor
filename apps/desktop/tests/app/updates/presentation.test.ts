@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  isVersionSkipped,
   selectUpdatePresentation,
+  shouldAutoDownloadUpdate,
   shouldPresentUpdateNotice,
 } from "../../../src/app/updates/presentation";
+import { shouldShowEditorUpdateAction } from "../../../src/app/updates/update-status";
 import type { UpdateStatus } from "../../../src/app/settings/app-settings";
 
 function status(partial: Partial<UpdateStatus>): UpdateStatus {
@@ -16,8 +19,9 @@ describe("selectUpdatePresentation", () => {
         status: status({ latestVersion: "0.16.0" }),
         promptState: {},
         hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
       }),
-    ).toEqual({ notice: "release-notes", titleBar: "available" });
+    ).toEqual({ notice: "release-notes" });
   });
 
   it("holds the notice until the first frame has painted", () => {
@@ -26,6 +30,7 @@ describe("selectUpdatePresentation", () => {
         status: status({ latestVersion: "0.16.0" }),
         promptState: {},
         hasPaintedFirstFrame: false,
+        hasReleaseNotes: true,
       }).notice,
     ).toBe("none");
   });
@@ -36,6 +41,7 @@ describe("selectUpdatePresentation", () => {
         status: status({ latestVersion: "0.16.0" }),
         promptState: { lastNotifiedVersion: "0.16.0" },
         hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
       }).notice,
     ).toBe("none");
   });
@@ -46,6 +52,7 @@ describe("selectUpdatePresentation", () => {
         status: status({ latestVersion: "0.16.0" }),
         promptState: { lastNotifiedVersion: "0.16.0", skippedVersion: "0.16.0" },
         hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
       }).notice,
     ).toBe("none");
   });
@@ -56,6 +63,7 @@ describe("selectUpdatePresentation", () => {
         status: status({ latestVersion: "0.17.0" }),
         promptState: { skippedVersion: "0.16.0", lastNotifiedVersion: "0.16.0" },
         hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
       }).notice,
     ).toBe("release-notes");
   });
@@ -69,27 +77,15 @@ describe("selectUpdatePresentation", () => {
     ).toBe(false);
   });
 
-  it("maps title bar actions across the update lifecycle", () => {
-    const cases: [UpdateStatus["state"], string][] = [
-      ["idle", "none"],
-      ["checking", "none"],
-      ["up-to-date", "none"],
-      ["available", "available"],
-      ["downloading", "available"],
-      ["downloaded", "restart"],
-      ["installing", "available"],
-      ["installed", "restart"],
-      ["error", "none"],
-    ];
-
-    for (const [state, expected] of cases) {
-      const result = selectUpdatePresentation({
-        status: status({ state, latestVersion: "0.16.0" }),
-        promptState: { lastNotifiedVersion: "0.16.0" },
+  it("does not open an empty notice when notes have no content", () => {
+    expect(
+      selectUpdatePresentation({
+        status: status({ latestVersion: "0.16.0" }),
+        promptState: {},
         hasPaintedFirstFrame: true,
-      });
-      expect({ state, titleBar: result.titleBar }).toEqual({ state, titleBar: expected });
-    }
+        hasReleaseNotes: false,
+      }),
+    ).toEqual({ notice: "none" });
   });
 
   it("never presents anything for manual install flows", () => {
@@ -98,7 +94,125 @@ describe("selectUpdatePresentation", () => {
         status: status({ installKind: "manual", latestVersion: "0.16.0" }),
         promptState: {},
         hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
       }),
-    ).toEqual({ notice: "none", titleBar: "none" });
+    ).toEqual({ notice: "none" });
+  });
+});
+
+describe("isVersionSkipped", () => {
+  it("only matches the exact skipped version, ignoring a v prefix", () => {
+    expect(
+      isVersionSkipped(status({ latestVersion: "0.16.0" }), { skippedVersion: "0.16.0" }),
+    ).toBe(true);
+    expect(
+      isVersionSkipped(status({ latestVersion: "v0.16.0" }), { skippedVersion: "0.16.0" }),
+    ).toBe(true);
+  });
+
+  it("does not treat a newer version as skipped", () => {
+    expect(
+      isVersionSkipped(status({ latestVersion: "0.17.0" }), { skippedVersion: "0.16.0" }),
+    ).toBe(false);
+    expect(isVersionSkipped(status({ latestVersion: "0.16.0" }), {})).toBe(false);
+  });
+});
+
+describe("shouldAutoDownloadUpdate", () => {
+  const available = status({ latestVersion: "0.16.0" });
+
+  it("downloads when auto-download is on and nothing blocks it", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: available,
+        promptState: {},
+        automaticDownload: true,
+        noticePending: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("respects the automatic-download preference", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: available,
+        promptState: {},
+        automaticDownload: false,
+        noticePending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("waits for the release-notes notice before downloading", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: available,
+        promptState: {},
+        automaticDownload: true,
+        noticePending: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("never downloads a skipped version (MAJOR-1 regression)", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: available,
+        promptState: { skippedVersion: "0.16.0" },
+        automaticDownload: true,
+        noticePending: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("resumes downloading for a version newer than the skipped one", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: status({ latestVersion: "0.17.0" }),
+        promptState: { skippedVersion: "0.16.0" },
+        automaticDownload: true,
+        noticePending: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("stays out of manual-install channels", () => {
+    expect(
+      shouldAutoDownloadUpdate({
+        status: status({ latestVersion: "0.16.0", installKind: "manual" }),
+        promptState: {},
+        automaticDownload: true,
+        noticePending: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldShowEditorUpdateAction", () => {
+  it("drops the title-bar CTA for a skipped version", () => {
+    expect(
+      shouldShowEditorUpdateAction(status({ latestVersion: "0.16.0" }), {
+        skippedVersion: "0.16.0",
+      }),
+    ).toBe(false);
+    expect(shouldShowEditorUpdateAction(status({ latestVersion: "0.16.0" }), {})).toBe(true);
+  });
+
+  it("keeps the restart entry even when the version was skipped before download", () => {
+    // 已下载后必须有重启入口，否则用户无法完成更新。
+    for (const state of ["downloaded", "installing", "installed"] as const) {
+      expect(
+        shouldShowEditorUpdateAction(status({ state, latestVersion: "0.16.0" }), {
+          skippedVersion: "0.16.0",
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it("stays hidden for manual install channels and idle states", () => {
+    expect(
+      shouldShowEditorUpdateAction(status({ installKind: "manual", latestVersion: "0.16.0" })),
+    ).toBe(false);
+    expect(shouldShowEditorUpdateAction(status({ state: "idle" }))).toBe(false);
   });
 });

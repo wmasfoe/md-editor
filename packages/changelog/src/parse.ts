@@ -3,6 +3,11 @@
  *
  * 纯函数、零 Node 依赖：官网在构建期读取文件，桌面端解析 updater manifest 的 notes，
  * 两侧都走这一份实现，避免出现两套「更新内容」语义。
+ *
+ * 注意：发版脚本 `scripts/release/changelog-section.mjs` 另有一个**切片**实现
+ * （它需要保留 `## <version>` 原文供 manifest notes 使用，不能复用结构化解析）。
+ * 两侧共享的是标题格式契约，由 `apps/desktop/tests/app/updates/changelog-contract.test.ts`
+ * 交叉断言；改这里的分组正则必须同步发版侧。
  */
 
 import type { ChangelogEntry, ChangelogItem } from "./types.ts";
@@ -42,7 +47,8 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
     // 匹配二级版本标题：## 0.10.1 - 2026-09-10 (#56, #57)
     const heading = line.match(/^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u);
     if (heading) {
-      const version = heading[1].trim();
+      // 标题可能写成 `## v0.16.0`；归一化后渲染层统一加 `v`，不会出现 `vv0.16.0`。
+      const version = heading[1].trim().replace(/^v/iu, "");
       const date = heading[2]?.trim() ?? "";
       const prText = heading[3]?.trim();
       const sourcePR = prText ? extractPrNumbers(prText) : [];

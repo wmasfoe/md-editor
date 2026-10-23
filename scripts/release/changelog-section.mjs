@@ -3,8 +3,9 @@
  * @fileoverview 从 CHANGELOG 抽取发版所需的「本次更新内容」
  *
  * 发版链路里更新内容的唯一事实源是 `apps/desktop/CHANGELOG.md`：
- * - `--notes-out`：写入 Tauri updater manifest 的 `notes`（中文区块，含 `## <version>` 标题，
- *   桌面端用 @md-editor/changelog 的同一份 parser 解析）；
+ * - `--notes-out`：写入 Tauri updater manifest 的 `notes`（中文区块，含 `## <version>` 标题）。
+ *   桌面端用 @md-editor/changelog 解析同一份**标题格式契约**（不是同一份代码，
+ *   契约由 apps/desktop/tests/app/updates/changelog-contract.test.ts 交叉断言）；
  * - `--body-out`：写入 GitHub Release body（中英双区块，便于英文用户阅读）。
  *
  * 版本区块缺失或没有有效列表项时直接失败，避免发版把 `Inkpoint <version>` 这类空内容推给用户。
@@ -37,7 +38,8 @@ export function extractVersionSection(markdown, version) {
   let end = lines.length;
 
   for (let index = 0; index < lines.length; index += 1) {
-    const heading = /^##\s+(\S+)/u.exec(lines[index]);
+    // 与 packages/changelog/src/parse.ts 的版本标题正则保持同一口径（锚定整行）。
+    const heading = /^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u.exec(lines[index]);
     if (!heading) {
       continue;
     }

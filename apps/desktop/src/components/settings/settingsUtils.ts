@@ -80,6 +80,9 @@ export function formatByteSize(value: number): string {
   return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+/** 总量未知时展示的弱进度：只表示「正在下载」，不暗示比例。 */
+const UNKNOWN_TOTAL_PROGRESS_PERCENT = 8;
+
 /**
  * 更新下载进度：返回进度条百分比与文案。
  * 总量未知（旧 manifest 或服务端未给 contentLength）时退化为弱进度，不假装知道比例。
@@ -101,46 +104,59 @@ export function updateDownloadProgress(
     const downloaded = formatByteSize(downloadedBytes);
     const total = formatByteSize(totalBytes);
     return {
-      percent: Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)),
+      // 防御负值（协议异常）与超量（服务端 contentLength 偏小）。
+      percent: clampPercent(Math.round((downloadedBytes / totalBytes) * 100)),
       label: t("settings.updates.progress.downloading", { downloaded, total }),
     };
   }
 
   return {
-    percent: 8,
+    percent: UNKNOWN_TOTAL_PROGRESS_PERCENT,
     label: t("settings.updates.progress.downloadedOnly", {
       downloaded: formatByteSize(downloadedBytes),
     }),
   };
 }
 
-export function updateStatusMessage(updateStatus: UpdateStatus): string {
-  if (updateStatus.message) {
-    return updateStatus.message;
-  }
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
+}
 
-  const latestVersion = updateStatus.latestVersion ?? "未知版本";
+/**
+ * 更新状态的一句话说明。
+ *
+ * 文案全部走 i18n：此前的实现把中文硬编码在 switch 里，
+ * en / ja / zh-Hant 用户看到的仍是中文，而对应的 `updateStatus.*` 键从未被使用。
+ */
+export function updateStatusMessage(updateStatus: UpdateStatus): string {
+  const version = updateStatus.latestVersion ?? t("settings.updates.unknownVersion");
   switch (updateStatus.state) {
     case "idle":
-      return "点击检查更新获取当前发布状态。";
+      return t("settings.general.updateStatus.idle");
     case "checking":
-      return "正在检查更新...";
+      return t("settings.general.updateStatus.checking");
     case "up-to-date":
-      return `当前版本 ${updateStatus.currentVersion} 已是最新发布版本。`;
+      return t("settings.general.updateStatus.upToDate");
     case "available":
-      return `发现新版本 ${latestVersion}，当前版本 ${updateStatus.currentVersion}。`;
+      return t("settings.general.updateStatus.available", { version });
     case "downloading":
-      return `正在下载 ${APP_DISPLAY_NAME} ${latestVersion}...`;
+      return t("settings.general.updateStatus.downloading", {
+        app: APP_DISPLAY_NAME,
+        version,
+      });
     case "downloaded":
-      return `${APP_DISPLAY_NAME} ${latestVersion} 已下载，退出并更新后生效。`;
+      return t("settings.general.updateStatus.downloaded", { app: APP_DISPLAY_NAME, version });
     case "installing":
-      return "更新下载完成，正在安装...";
+      return t("settings.general.updateStatus.installing");
     case "installed":
-      return `${APP_DISPLAY_NAME} ${latestVersion} 已安装，重启应用后生效。`;
+      return t("settings.general.updateStatus.installed", { app: APP_DISPLAY_NAME, version });
     case "unconfigured":
-      return "应用内更新暂不可用，请确认 Release workflow 已完成。";
+      return t("settings.general.updateStatus.unconfigured");
     case "error":
-      return updateStatus.error ? `更新失败：${updateStatus.error}` : "更新失败。";
+      return t("settings.general.updateStatus.error", {
+        error: updateStatus.error ?? t("settings.general.updateStatus.errorUnknown"),
+      });
   }
 }
 

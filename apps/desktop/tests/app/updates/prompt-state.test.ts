@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  listenUpdatePromptStateChanged,
   loadUpdatePromptState,
   normalizeUpdatePromptState,
   normalizeVersion,
   saveUpdatePromptState,
+  UPDATE_PROMPT_CHANGED_EVENT,
 } from "../../../src/app/updates/prompt-state";
 
 describe("normalizeVersion", () => {
@@ -42,5 +44,15 @@ describe("load/save outside Tauri", () => {
   it("degrades to an empty state without throwing", async () => {
     await expect(loadUpdatePromptState()).resolves.toEqual({});
     await expect(saveUpdatePromptState({ lastNotifiedVersion: "0.16.0" })).resolves.toBeUndefined();
+  });
+});
+
+describe("cross-window prompt state sync", () => {
+  it("exposes a dedicated broadcast event name", () => {
+    expect(UPDATE_PROMPT_CHANGED_EVENT).toBe("md-editor-update-prompt-changed");
+  });
+
+  it("skips subscription outside Tauri and returns no unsubscriber", () => {
+    expect(listenUpdatePromptStateChanged(() => undefined)).toBeUndefined();
   });
 });

@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ABOUT_WINDOW_LABEL, resolveDesktopWindowSurface } from "../../src/desktop/window-labels";
+import {
+  ABOUT_WINDOW_LABEL,
+  MAIN_WINDOW_LABEL,
+  resolveDesktopWindowSurface,
+  SETTINGS_WINDOW_LABEL,
+} from "../../src/desktop/window-labels";
 
 const bootstrapSource = readFileSync(
   new URL("../../src/app/platform-bootstrap.ts", import.meta.url),
@@ -17,6 +22,13 @@ const tauriConfig = JSON.parse(
 );
 const aboutContentSource = readFileSync(
   new URL("../../src/components/about/AboutContent.tsx", import.meta.url),
+  "utf8",
+);
+const capabilities = JSON.parse(
+  readFileSync(new URL("../../src-tauri/capabilities/default.json", import.meta.url), "utf8"),
+);
+const aboutWindowAppSource = readFileSync(
+  new URL("../../src/app/AboutWindowApp.tsx", import.meta.url),
   "utf8",
 );
 
@@ -74,7 +86,35 @@ describe("about content", () => {
     expect(aboutContentSource).toContain("about.highlightsTitle");
     expect(aboutContentSource).toContain("about.copyright");
     expect(aboutContentSource).toContain("openExternalTarget");
+    expect(aboutContentSource).toContain("APP_WEBSITE_URL");
+    // 链接集中在 lib/app-links，避免域名散落多处
+    expect(aboutContentSource).not.toContain("https://github.com/wmasfoe/md-editor");
     // CSP 为 null 的应用里不引入 HTML 注入面。
     expect(aboutContentSource).not.toContain("dangerouslySetInnerHTML");
+  });
+});
+
+describe("about window startup", () => {
+  it("aligns the persisted language before revealing the window", () => {
+    // 回归：i18n 按系统语言自举，而原生窗口标题用持久化语言，不显式对齐会出现标题与正文不同语言。
+    expect(aboutWindowAppSource).toContain("changeLanguage(settings.language)");
+    const languageCall = aboutWindowAppSource.indexOf("await changeLanguage(settings.language)");
+    const revealCall = aboutWindowAppSource.indexOf("applyThemeBeforeWindowReveal(settings.theme");
+    expect(languageCall).toBeGreaterThan(-1);
+    expect(revealCall).toBeGreaterThan(languageCall);
+  });
+});
+
+describe("about window capabilities", () => {
+  it("authorizes every window label used by the app", () => {
+    // 回归：capabilities 缺 about 时，show/set-focus/start-dragging 全被 ACL 拒绝，
+    // 3s 兜底会变成实际显示路径，且窗口不可拖动。
+    expect(capabilities.windows).toEqual(
+      expect.arrayContaining([MAIN_WINDOW_LABEL, SETTINGS_WINDOW_LABEL, ABOUT_WINDOW_LABEL]),
+    );
+  });
+
+  it("rejects reveal failures without producing unhandled rejections", () => {
+    expect(aboutWindowAppSource).toContain("applied.revealed.catch");
   });
 });

@@ -77,7 +77,10 @@ export function DesktopModals() {
       <UpdateNoticeDialog
         version={updateNotice?.version ?? null}
         entry={updateNotice?.entry ?? null}
-        onResolve={(choice) => void resolveUpdateNotice(choice)}
+        onResolve={(choice) => {
+          if (!updateNotice) return;
+          void resolveUpdateNotice(choice, updateNotice.version);
+        }}
       />
     </>
   );

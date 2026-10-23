@@ -52,14 +52,17 @@ describe("readReleaseNotesEntry", () => {
     expect(entry?.items[0].items?.[0].text).toContain("检测到新版本");
   });
 
-  it("falls back to the first entry when the version is not found", () => {
+  it("does not attribute another version's items to the requested version", () => {
+    // notes 是「本版本切片」；版本未命中时退回 entries[0] 会显示错版本内容，
+    // 因此改为按扁平分拣取本切片条目，标题仍用请求版本。
     const entry = readReleaseNotesEntry(
-      status({ latestVersion: "9.9.9", releaseNotes: CHANGELOG }),
+      status({ latestVersion: "9.9.9", releaseNotes: "## 0.15.1 - 2026-10-22\n\n- 旧版本条目\n" }),
     );
-    expect(entry?.version).toBe("0.16.0");
+    expect(entry?.version).toBe("9.9.9");
+    expect(entry?.items.map((item) => item.text)).toEqual(["旧版本条目"]);
   });
 
-  it("parses a flat GitHub release body without version headings", () => {
+  it("parses only list lines from a flat GitHub release body", () => {
     const entry = readReleaseNotesEntry(
       status({
         latestVersion: "0.17.0",
@@ -67,10 +70,15 @@ describe("readReleaseNotesEntry", () => {
       }),
     );
     expect(entry?.version).toBe("0.17.0");
-    expect(entry?.items.map((item) => item.text)).toEqual([
-      "What's new:",
-      "新增更新提示",
-      "修复若干问题",
-    ]);
+    // 引导句与 HTML 片段都不是条目，避免把说明文字当成更新内容。
+    expect(entry?.items.map((item) => item.text)).toEqual(["新增更新提示", "修复若干问题"]);
+  });
+
+  it("returns null for a flat body without bullet lines", () => {
+    expect(
+      readReleaseNotesEntry(
+        status({ latestVersion: "0.17.0", releaseNotes: "What's new:\n<p>see repo</p>" }),
+      ),
+    ).toBeNull();
   });
 });

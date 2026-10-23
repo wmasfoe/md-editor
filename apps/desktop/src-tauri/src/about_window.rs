@@ -1,6 +1,6 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-use crate::app_menu::{detect_menu_locale, AppMenuLocale};
+use crate::app_menu::{about_menu_title, detect_menu_locale};
 #[cfg(target_os = "macos")]
 use crate::window_chrome::{APP_MAIN_TRAFFIC_LIGHT_LEFT, APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET};
 
@@ -22,16 +22,6 @@ const ABOUT_TRAFFIC_LIGHT_LEFT: f64 =
 const ABOUT_TRAFFIC_LIGHT_VERTICAL_INSET: f64 =
     APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET + ABOUT_TRAFFIC_LIGHT_VERTICAL_COMPENSATION;
 
-/// 关于窗口标题随界面语言切换，与原生菜单共用同一套本地化判断。
-fn about_window_title(locale: AppMenuLocale) -> &'static str {
-    match locale {
-        AppMenuLocale::Zh => "关于 Inkpoint",
-        AppMenuLocale::ZhHant => "關於 Inkpoint",
-        AppMenuLocale::Ja => "Inkpoint について",
-        AppMenuLocale::En => "About Inkpoint",
-    }
-}
-
 /// 打开（或聚焦）单例关于窗口。
 /// 菜单项、命令面板与设置入口都走这一个入口，避免出现第二个「关于」窗口。
 #[tauri::command]
@@ -52,7 +42,7 @@ pub(crate) async fn open_about_window(app: tauri::AppHandle) -> Result<(), Strin
             ABOUT_WINDOW_LABEL,
             WebviewUrl::App("index.html?window=about".into()),
         )
-        .title(about_window_title(detect_menu_locale()))
+        .title(about_menu_title(detect_menu_locale()))
         .inner_size(ABOUT_WINDOW_WIDTH, ABOUT_WINDOW_HEIGHT)
         .visible(ABOUT_WINDOW_STARTS_VISIBLE)
         .center()
@@ -75,19 +65,45 @@ pub(crate) async fn open_about_window(app: tauri::AppHandle) -> Result<(), Strin
     };
 
     match build_window(&app) {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            schedule_reveal_fallback(app);
+            Ok(())
+        }
         Err(error) => {
             // 上一窗口异步销毁尚未完成时会出现重名报错，销毁旧句柄后重试一次。
             if let Some(existing) = app.get_webview_window(ABOUT_WINDOW_LABEL) {
                 let _ = existing.destroy();
-                std::thread::sleep(std::time::Duration::from_millis(150));
+                // 等待放在阻塞线程池，不占用 async runtime 的 worker。
+                let _ = tauri::async_runtime::spawn_blocking(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(150));
+                })
+                .await;
                 build_window(&app).map_err(tauri_error_to_string)?;
+                schedule_reveal_fallback(app);
                 Ok(())
             } else {
                 Err(tauri_error_to_string(error))
             }
         }
     }
+}
+
+/// 前端负责「主题就绪后再显示」。若前端异常未能 reveal，这里兜底显示，
+/// 否则菜单「关于」会永久没有反应且没有任何错误提示。
+fn schedule_reveal_fallback(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let _ = tauri::async_runtime::spawn_blocking(|| {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        })
+        .await;
+
+        if let Some(window) = app.get_webview_window(ABOUT_WINDOW_LABEL) {
+            if !window.is_visible().unwrap_or(true) {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+    });
 }
 
 fn tauri_error_to_string(error: tauri::Error) -> String {

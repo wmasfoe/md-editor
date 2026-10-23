@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
     ],
   },
   transpilePackages: [
+    "@md-editor/changelog",
     "@md-editor/editor-core",
     "@md-editor/editor-ui",
     "@md-editor/mdx-component-registry",

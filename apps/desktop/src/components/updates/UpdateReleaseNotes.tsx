@@ -6,6 +6,7 @@
  */
 
 import type { ReactNode } from "react";
+import { openExternalTarget } from "../../desktop/link-service";
 import {
   tokenizeInlineMarkdown,
   type ChangelogEntry,
@@ -100,9 +101,13 @@ function renderInline(text: string): ReactNode[] {
           <a
             key={index}
             href={token.href}
-            target="_blank"
             rel="noreferrer"
             className="text-[var(--theme-primary)] underline underline-offset-2"
+            onClick={(event) => {
+              // Tauri webview 里 target=_blank 不可靠：统一交给系统浏览器。
+              event.preventDefault();
+              void openExternalTarget(token.href);
+            }}
           >
             {token.text}
           </a>

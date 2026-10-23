@@ -9,7 +9,7 @@ import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
-import { openAboutWindow } from "../../desktop/about-window";
+import { openAboutWindowWithToast } from "../../desktop/about-window";
 import { listenToFolderChanged } from "../../desktop/folder-watcher-events";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
@@ -123,14 +123,9 @@ export function useDesktopEditorController({
   }, [switchMode]);
 
   // --- openAbout ---
-  // 命令面板 `app.about` 与设置入口走同一条窗口路径；失败时告知而不是静默吞掉。
+  // 命令面板与设置入口共用同一条窗口路径与同一份 i18n 提示。
   const openAbout = useCallback(async () => {
-    try {
-      const opened = await openAboutWindow();
-      if (!opened) showToast("关于窗口仅在桌面应用中可用。");
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "关于窗口打开失败。");
-    }
+    await openAboutWindowWithToast(showToast);
   }, [showToast]);
 
   // --- dispatchCommand ---

@@ -20,7 +20,6 @@ export interface UpdateStatus {
     | "installed"
     | "unconfigured"
     | "error";
-  readonly message?: string;
   readonly latestVersion?: string;
   readonly releaseUrl?: string;
   readonly downloadUrl?: string;
