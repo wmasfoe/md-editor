@@ -369,6 +369,8 @@ jobs:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
           RELEASE_TAG: md-editor-${{ steps.release_version.outputs.tag }}
+          # tap 的 md-editor-latest.json 是第二 update endpoint，同样需要真实更新内容
+          RELEASE_NOTES_FILE: ${{ steps.release_notes.outputs.notes_file }}
         run: |
           dmg_file="$(find release-artifacts -type f -name '*.dmg' -print -quit)"
           linux_x64_file="$(find release-artifacts -type f \( -name '*amd64.AppImage' -o -name '*x86_64.AppImage' \) -print -quit)"
@@ -425,6 +427,7 @@ jobs:
             export UPDATER_SIGNATURE="$(cat "$updater_file.sig")"
             export UPDATER_PLATFORM="darwin-aarch64"
             export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
+            export RELEASE_NOTES_FILE="$RELEASE_NOTES_FILE"
             node scripts/release/write-updater-manifest.mjs
           fi
 
@@ -443,6 +446,7 @@ jobs:
             export UPDATER_SIGNATURE="$(cat "$win_updater_file.sig")"
             export UPDATER_PLATFORM="windows-x86_64"
             export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
+            export RELEASE_NOTES_FILE="$RELEASE_NOTES_FILE"
             node scripts/release/write-updater-manifest.mjs
           fi
 

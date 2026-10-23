@@ -80,6 +80,9 @@ export function formatByteSize(value: number): string {
   return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+/** 总量未知时展示的弱进度：只表示「正在下载」，不暗示比例。 */
+const UNKNOWN_TOTAL_PROGRESS_PERCENT = 8;
+
 /**
  * 更新下载进度：返回进度条百分比与文案。
  * 总量未知（旧 manifest 或服务端未给 contentLength）时退化为弱进度，不假装知道比例。
@@ -101,17 +104,23 @@ export function updateDownloadProgress(
     const downloaded = formatByteSize(downloadedBytes);
     const total = formatByteSize(totalBytes);
     return {
-      percent: Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)),
+      // 防御负值（协议异常）与超量（服务端 contentLength 偏小）。
+      percent: clampPercent(Math.round((downloadedBytes / totalBytes) * 100)),
       label: t("settings.updates.progress.downloading", { downloaded, total }),
     };
   }
 
   return {
-    percent: 8,
+    percent: UNKNOWN_TOTAL_PROGRESS_PERCENT,
     label: t("settings.updates.progress.downloadedOnly", {
       downloaded: formatByteSize(downloadedBytes),
     }),
   };
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, value));
 }
 
 /**
@@ -121,10 +130,6 @@ export function updateDownloadProgress(
  * en / ja / zh-Hant 用户看到的仍是中文，而对应的 `updateStatus.*` 键从未被使用。
  */
 export function updateStatusMessage(updateStatus: UpdateStatus): string {
-  if (updateStatus.message) {
-    return updateStatus.message;
-  }
-
   const version = updateStatus.latestVersion ?? t("settings.updates.unknownVersion");
   switch (updateStatus.state) {
     case "idle":

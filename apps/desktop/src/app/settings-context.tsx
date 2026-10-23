@@ -28,6 +28,7 @@ import {
 } from "./updates/app-updater";
 import { isUpdateActionBusy, isUpdateReadyToApply } from "./updates/update-status";
 import {
+  listenUpdatePromptStateChanged,
   loadUpdatePromptState,
   normalizeVersion,
   saveUpdatePromptState,
@@ -35,6 +36,7 @@ import {
 } from "./updates/prompt-state";
 import {
   selectUpdatePresentation,
+  shouldAutoDownloadUpdate,
   shouldPresentUpdateNotice,
   type UpdateNoticeChoice,
 } from "./updates/presentation";
@@ -63,9 +65,13 @@ export interface AppSettingsContextValue {
     readonly version: string;
     readonly entry: ChangelogEntry | null;
   } | null;
-  readonly resolveUpdateNotice: (choice: UpdateNoticeChoice) => Promise<void>;
-  /** 跳过当前最新版本：之后不再自动提示该版本（手动检查仍可见） */
-  readonly skipUpdateVersion: () => Promise<void>;
+  readonly resolveUpdateNotice: (choice: UpdateNoticeChoice, version: string) => Promise<void>;
+  /** 跳过当前最新版本：之后不再自动提示/自动下载该版本（手动检查仍可见） */
+  readonly skipUpdateVersion: (version?: string) => Promise<void>;
+  /** 提示簿记（已提示/已跳过），设置页据此隐藏已经生效的动作 */
+  readonly updatePromptState: UpdatePromptState;
+  /** 最近一次检查完成的时间（本地化展示用）；从未检查为 null */
+  readonly lastCheckedAt: string | null;
 }
 
 interface UpdateCheckOptions {
@@ -113,6 +119,7 @@ export function AppSettingsProvider({
   const [hasPaintedFirstFrame, setHasPaintedFirstFrame] = useState(false);
   const toastedVersionsRef = useRef(new Set<string>());
   const hasRunInitialCheckRef = useRef(false);
+  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
 
   useEffect(() => {
     updateStatusRef.current = updateStatus;
@@ -148,8 +155,15 @@ export function AppSettingsProvider({
       setPromptState(state);
       setHasLoadedPromptState(true);
     });
+    // 设置窗口里的「跳过此版本」写的是同一份文件；这里跟随刷新，避免同一会话内重复提示。
+    const stopListening = listenUpdatePromptStateChanged((state) => {
+      if (disposed) return;
+      promptStateRef.current = state;
+      setPromptState(state);
+    });
     return () => {
       disposed = true;
+      stopListening?.();
     };
   }, [surface]);
 
@@ -286,7 +300,14 @@ export function AppSettingsProvider({
 
       try {
         if (automatic && current.state === "available" && current.installKind === "app") {
-          if (!downloadAvailableUpdate) {
+          // 该分支的提示已在上一轮处理过（noticePending=false），这里只判断是否该继续下载。
+          const shouldDownload = shouldAutoDownloadUpdate({
+            status: current,
+            promptState: promptStateRef.current,
+            automaticDownload: downloadAvailableUpdate,
+            noticePending: false,
+          });
+          if (!shouldDownload) {
             setUpdateStatus(current);
             return current;
           }
@@ -312,14 +333,18 @@ export function AppSettingsProvider({
         }
 
         // 需要向用户展示更新内容时，先让提示出现；自动下载推迟到提示关闭之后。
-        const willPresentNotice = shouldPresentUpdateNotice(next, promptStateRef.current);
+        // 旧版本 manifest 的 notes 可能只是占位（Inkpoint x.y.z），此时不弹空弹窗。
+        const willPresentNotice =
+          shouldPresentUpdateNotice(next, promptStateRef.current) &&
+          readReleaseNotesEntry(next) !== null;
+        const shouldDownload = shouldAutoDownloadUpdate({
+          status: next,
+          promptState: promptStateRef.current,
+          automaticDownload: downloadAvailableUpdate,
+          noticePending: willPresentNotice,
+        });
         setUpdateStatus(next);
-        if (
-          !willPresentNotice &&
-          next.state === "available" &&
-          next.installKind === "app" &&
-          downloadAvailableUpdate
-        ) {
+        if (shouldDownload) {
           const downloaded = await downloadPendingUpdate(setUpdateStatus);
           if (downloaded.state === "error") {
             console.warn("自动下载更新失败", downloaded.error ?? downloaded.state);
@@ -346,6 +371,7 @@ export function AppSettingsProvider({
         return failedStatus;
       } finally {
         isAutoUpdateRunningRef.current = false;
+        setLastCheckedAt(new Date().toLocaleTimeString());
       }
     },
     [],
@@ -360,6 +386,15 @@ export function AppSettingsProvider({
       downloadAvailableUpdate: settings.update.automaticDownload,
     });
   }, [runUpdateCheck, settings.update.automaticCheck, settings.update.automaticDownload]);
+
+  // 关掉自动检测再打开时，用户期望马上生效：复位首检标记，让下面的 effect 立即检查一次。
+  const previousAutomaticCheckRef = useRef(settings.update.automaticCheck);
+  useEffect(() => {
+    if (!previousAutomaticCheckRef.current && settings.update.automaticCheck) {
+      hasRunInitialCheckRef.current = false;
+    }
+    previousAutomaticCheckRef.current = settings.update.automaticCheck;
+  }, [settings.update.automaticCheck]);
 
   // 自动更新：设置与提示簿记就绪后立即检查一次，之后按固定周期检查（仅主窗口）。
   useEffect(() => {
@@ -397,28 +432,30 @@ export function AppSettingsProvider({
     void saveUpdatePromptState(next);
   }, []);
 
-  const skipUpdateVersion = useCallback(async () => {
-    const version = normalizeVersion(updateStatusRef.current.latestVersion);
-    if (!version) return;
+  const skipUpdateVersion = useCallback(
+    async (targetVersion?: string) => {
+      // 设置页调用时没有「当前提示版本」上下文，回落到状态里的最新版本。
+      const version = normalizeVersion(targetVersion ?? updateStatusRef.current.latestVersion);
+      if (!version) return;
 
-    commitPromptState({
-      ...promptStateRef.current,
-      lastNotifiedVersion: version,
-      skippedVersion: version,
-    });
-    showToast(t("settings.updates.toasts.skipped", { version }));
-  }, [commitPromptState, showToast]);
+      commitPromptState({
+        ...promptStateRef.current,
+        lastNotifiedVersion: version,
+        skippedVersion: version,
+      });
+      showToast(t("settings.updates.toasts.skipped", { version }));
+    },
+    [commitPromptState, showToast],
+  );
 
   // 关闭提示：记录已提示版本；「跳过」交给 skipUpdateVersion，保证两个入口写同一种状态。
   const resolveUpdateNotice = useCallback(
-    async (choice: UpdateNoticeChoice) => {
+    async (choice: UpdateNoticeChoice, version: string) => {
       if (choice === "skip") {
-        await skipUpdateVersion();
+        await skipUpdateVersion(version);
         return;
       }
 
-      const version = normalizeVersion(updateStatusRef.current.latestVersion);
-      if (!version) return;
       commitPromptState({ ...promptStateRef.current, lastNotifiedVersion: version });
 
       // 「立即更新」或开启自动下载时，提示关闭后立刻转入后台下载。
@@ -430,10 +467,12 @@ export function AppSettingsProvider({
   );
 
   const updateNotice = useMemo(() => {
+    const entry = readReleaseNotesEntry(updateStatus);
     const presentation = selectUpdatePresentation({
       status: updateStatus,
       promptState,
       hasPaintedFirstFrame,
+      hasReleaseNotes: entry !== null,
     });
     if (presentation.notice !== "release-notes") {
       return null;
@@ -442,7 +481,7 @@ export function AppSettingsProvider({
     if (!version) {
       return null;
     }
-    return { version, entry: readReleaseNotesEntry(updateStatus) };
+    return { version, entry };
   }, [hasPaintedFirstFrame, promptState, updateStatus]);
 
   // 第二段提醒：下载完成后只提示一次 toast，不再弹模态打断。
@@ -469,6 +508,8 @@ export function AppSettingsProvider({
     updateNotice,
     resolveUpdateNotice,
     skipUpdateVersion,
+    updatePromptState: promptState,
+    lastCheckedAt,
   };
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>;

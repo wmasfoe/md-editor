@@ -19,6 +19,10 @@ const aboutContentSource = readFileSync(
   new URL("../../src/components/about/AboutContent.tsx", import.meta.url),
   "utf8",
 );
+const aboutWindowAppSource = readFileSync(
+  new URL("../../src/app/AboutWindowApp.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("about window surface routing", () => {
   it("resolves the about window label instead of falling into unknown", () => {
@@ -74,7 +78,21 @@ describe("about content", () => {
     expect(aboutContentSource).toContain("about.highlightsTitle");
     expect(aboutContentSource).toContain("about.copyright");
     expect(aboutContentSource).toContain("openExternalTarget");
+    expect(aboutContentSource).toContain("APP_WEBSITE_URL");
+    // 链接集中在 lib/app-links，避免域名散落多处
+    expect(aboutContentSource).not.toContain("https://github.com/wmasfoe/md-editor");
     // CSP 为 null 的应用里不引入 HTML 注入面。
     expect(aboutContentSource).not.toContain("dangerouslySetInnerHTML");
+  });
+});
+
+describe("about window startup", () => {
+  it("aligns the persisted language before revealing the window", () => {
+    // 回归：i18n 按系统语言自举，而原生窗口标题用持久化语言，不显式对齐会出现标题与正文不同语言。
+    expect(aboutWindowAppSource).toContain("changeLanguage(settings.language)");
+    const languageCall = aboutWindowAppSource.indexOf("await changeLanguage(settings.language)");
+    const revealCall = aboutWindowAppSource.indexOf("disposeTheme = applyThemeBeforeWindowReveal");
+    expect(languageCall).toBeGreaterThan(-1);
+    expect(revealCall).toBeGreaterThan(languageCall);
   });
 });

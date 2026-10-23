@@ -43,6 +43,16 @@ pub(crate) fn detect_menu_locale() -> AppMenuLocale {
     }
 }
 
+/// 「关于」标题的唯一来源：原生菜单项与关于窗口标题都从这里取，避免加语言时只改一处。
+pub(crate) fn about_menu_title(locale: AppMenuLocale) -> &'static str {
+    match locale {
+        AppMenuLocale::Zh => "关于 Inkpoint",
+        AppMenuLocale::ZhHant => "關於 Inkpoint",
+        AppMenuLocale::Ja => "Inkpoint について",
+        AppMenuLocale::En => "About Inkpoint",
+    }
+}
+
 /// D-2：View 菜单勾选态的**镜像**（单一事实在 renderer 的 focusModeField / typewriterModeField）。
 /// 前端每次切换后 invoke `set_mode_menu_checked` 写入本状态，菜单重建时按状态应用 `checked`
 /// —— 从而 AC-D2-1 的「勾选态与实际开关一致」由构造成立（两端各只有一个写入路径）。
@@ -369,15 +379,8 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
 
     // 关于入口走自绘窗口（含应用图标、版本、定位、链接与版权），
     // 因此不再使用预置 `.about()`：预置项会打开系统 NSAboutPanel，造成两个「关于」入口。
-    let about_title = match locale {
-        AppMenuLocale::Zh => "关于 Inkpoint",
-        AppMenuLocale::ZhHant => "關於 Inkpoint",
-        AppMenuLocale::Ja => "Inkpoint について",
-        AppMenuLocale::En => "About Inkpoint",
-    };
-
     let app_menu = SubmenuBuilder::new(app, "Inkpoint")
-        .item(&MenuItemBuilder::with_id("md-editor:about", about_title).build(app)?)
+        .item(&MenuItemBuilder::with_id("md-editor:about", about_menu_title(locale)).build(app)?)
         .separator()
         .hide()
         .hide_others()

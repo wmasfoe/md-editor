@@ -1,6 +1,12 @@
 import { useTranslation } from "@md-editor/i18n";
 import { openExternalTarget } from "../../desktop/link-service";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
+import {
+  APP_CHANGELOG_URL,
+  APP_LICENSE_URL,
+  APP_REPOSITORY_URL,
+  APP_WEBSITE_URL,
+} from "../../lib/app-links";
 
 /**
  * @fileoverview 关于窗口内容
@@ -20,18 +26,10 @@ interface AboutLink {
 }
 
 const ABOUT_LINKS: readonly AboutLink[] = [
-  { id: "site", labelKey: "about.links.site", href: "https://editor.jiaqi.im" },
-  {
-    id: "changelog",
-    labelKey: "about.links.changelog",
-    href: "https://editor.jiaqi.im/changelog",
-  },
-  { id: "github", labelKey: "about.links.github", href: "https://github.com/wmasfoe/md-editor" },
-  {
-    id: "license",
-    labelKey: "about.links.license",
-    href: "https://github.com/wmasfoe/md-editor/blob/main/LICENSE",
-  },
+  { id: "site", labelKey: "about.links.site", href: APP_WEBSITE_URL },
+  { id: "changelog", labelKey: "about.links.changelog", href: APP_CHANGELOG_URL },
+  { id: "github", labelKey: "about.links.github", href: APP_REPOSITORY_URL },
+  { id: "license", labelKey: "about.links.license", href: APP_LICENSE_URL },
 ];
 
 const ABOUT_HIGHLIGHTS = [

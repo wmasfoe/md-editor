@@ -7,6 +7,7 @@
  */
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { emit, listen } from "@tauri-apps/api/event";
 
 /** 更新提示簿记。字段缺省表示从未提示/从未跳过。 */
 export interface UpdatePromptState {
@@ -15,6 +16,13 @@ export interface UpdatePromptState {
 }
 
 const EMPTY_STATE: UpdatePromptState = Object.freeze({});
+
+/**
+ * 簿记变更广播：主窗口与设置窗口都会写「跳过此版本」，
+ * 但每个窗口各自持有一份内存快照。没有这条事件时，
+ * 设置窗口跳过某版本后主窗口仍会在同一会话的周期检查里再次提示。
+ */
+export const UPDATE_PROMPT_CHANGED_EVENT = "md-editor-update-prompt-changed";
 
 /** 规范化版本号：去空白、去 `v` 前缀、空值视为缺省。 */
 export function normalizeVersion(version: unknown): string | undefined {
@@ -71,9 +79,43 @@ export function saveUpdatePromptState(state: UpdatePromptState): Promise<void> {
   writeQueue = writeQueue.then(async () => {
     try {
       await invoke("save_update_prompt_state", { state });
+      await emit(UPDATE_PROMPT_CHANGED_EVENT, state);
     } catch (error) {
       console.warn("保存更新提示状态失败", error);
     }
   });
   return writeQueue;
+}
+
+/**
+ * 订阅其他窗口写入的簿记。
+ * 返回取消订阅函数；非 Tauri 环境返回 undefined。
+ */
+export function listenUpdatePromptStateChanged(
+  handler: (state: UpdatePromptState) => void,
+): (() => void) | undefined {
+  if (!isTauri()) {
+    return undefined;
+  }
+
+  let disposed = false;
+  let unlisten: (() => void) | undefined;
+  void listen<unknown>(UPDATE_PROMPT_CHANGED_EVENT, (event) => {
+    handler(normalizeUpdatePromptState(event.payload));
+  })
+    .then((dispose) => {
+      if (disposed) {
+        dispose();
+        return;
+      }
+      unlisten = dispose;
+    })
+    .catch((error: unknown) => {
+      console.warn("订阅更新提示状态失败", error);
+    });
+
+  return () => {
+    disposed = true;
+    unlisten?.();
+  };
 }

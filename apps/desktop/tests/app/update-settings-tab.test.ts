@@ -86,8 +86,8 @@ describe("update settings tab wiring", () => {
   });
 
   it("offers both changelog entry points without hardcoded urls in the panel", () => {
-    expect(settingsDialogSource).toContain("UPDATE_CHANGELOG_URL");
-    expect(settingsDialogSource).toContain("UPDATE_RELEASES_PAGE_URL");
+    expect(settingsDialogSource).toContain("APP_CHANGELOG_URL");
+    expect(settingsDialogSource).toContain("APP_RELEASES_URL");
     expect(updatePanelSource).not.toContain("https://editor.jiaqi.im/changelog");
   });
 });

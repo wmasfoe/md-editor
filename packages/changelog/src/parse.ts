@@ -42,7 +42,8 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
     // 匹配二级版本标题：## 0.10.1 - 2026-09-10 (#56, #57)
     const heading = line.match(/^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u);
     if (heading) {
-      const version = heading[1].trim();
+      // 标题可能写成 `## v0.16.0`；归一化后渲染层统一加 `v`，不会出现 `vv0.16.0`。
+      const version = heading[1].trim().replace(/^v/iu, "");
       const date = heading[2]?.trim() ?? "";
       const prText = heading[3]?.trim();
       const sourcePR = prText ? extractPrNumbers(prText) : [];

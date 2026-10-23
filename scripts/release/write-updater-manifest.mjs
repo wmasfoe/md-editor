@@ -40,9 +40,20 @@ if (fs.existsSync(outputPath)) {
   }
 }
 
+// Homebrew tap 的 md-editor-latest.json 是 tauri.conf.json 注册的第二 update endpoint：
+// R2 不可用或受限流影响时客户端会落到这里，因此同样要带真实更新内容，
+// 否则「检测到更新但没有更新内容」会在最需要的时候复现。
+const notesFile = process.env.RELEASE_NOTES_FILE?.trim();
+const notes = notesFile ? fs.readFileSync(notesFile, "utf-8").trim() : "";
+if (!notes) {
+  console.warn(
+    "⚠️ RELEASE_NOTES_FILE is missing or empty: the Homebrew tap manifest will fall back to a version-only note.",
+  );
+}
+
 const manifest = {
   version,
-  notes: `Inkpoint ${version}`,
+  notes: notes || `Inkpoint ${version}`,
   platforms: {
     ...(existingManifest.version === version ? existingManifest.platforms : {}),
     [platform]: {

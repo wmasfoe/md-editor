@@ -59,7 +59,7 @@ describe("readReleaseNotesEntry", () => {
     expect(entry?.version).toBe("0.16.0");
   });
 
-  it("parses a flat GitHub release body without version headings", () => {
+  it("parses only list lines from a flat GitHub release body", () => {
     const entry = readReleaseNotesEntry(
       status({
         latestVersion: "0.17.0",
@@ -67,10 +67,15 @@ describe("readReleaseNotesEntry", () => {
       }),
     );
     expect(entry?.version).toBe("0.17.0");
-    expect(entry?.items.map((item) => item.text)).toEqual([
-      "What's new:",
-      "新增更新提示",
-      "修复若干问题",
-    ]);
+    // 引导句与 HTML 片段都不是条目，避免把说明文字当成更新内容。
+    expect(entry?.items.map((item) => item.text)).toEqual(["新增更新提示", "修复若干问题"]);
+  });
+
+  it("returns null for a flat body without bullet lines", () => {
+    expect(
+      readReleaseNotesEntry(
+        status({ latestVersion: "0.17.0", releaseNotes: "What's new:\n<p>see repo</p>" }),
+      ),
+    ).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { t as translate, useTranslation } from "@md-editor/i18n";
+import { useTranslation } from "@md-editor/i18n";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -14,11 +14,12 @@ import { AppearanceSettingsPanel } from "./settings/AppearanceSettingsPanel";
 import { PluginSettingsPanel } from "./settings/PluginSettingsPanel";
 import { OtherSettingsPanel } from "./settings/OtherSettingsPanel";
 import { UpdateSettingsPanel } from "./settings/UpdateSettingsPanel";
+import { isVersionSkipped } from "../app/updates/presentation";
 import { ShortcutSettingsPanel } from "./settings/ShortcutSettingsPanel";
 import { settingsDescriptionClassName } from "./settings/settingsStyles";
 import { openExternalTarget } from "../desktop/link-service";
-import { UPDATE_CHANGELOG_URL, UPDATE_RELEASES_PAGE_URL } from "../app/settings/updates/defaults";
-import { openAboutWindow } from "../desktop/about-window";
+import { APP_CHANGELOG_URL, APP_RELEASES_URL } from "../lib/app-links";
+import { openAboutWindowWithToast } from "../desktop/about-window";
 
 interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
@@ -32,7 +33,8 @@ export function SettingsPage({
   onStartWindowDrag,
   onRelaunchAfterUpdate,
 }: SettingsPageProps) {
-  const { settings, updateStatus, skipUpdateVersion } = useAppSettings();
+  const { settings, updateStatus, skipUpdateVersion, updatePromptState, lastCheckedAt } =
+    useAppSettings();
   const { toast, showToast } = useToast();
   const ctrl = useSettingsController({ showToast, surface });
   const { closeSettings, destroySettingsWindowAfterRollback } = ctrl;
@@ -151,16 +153,18 @@ export function SettingsPage({
         panel: (
           <UpdateSettingsPanel
             updateStatus={updateStatus}
+            isSkippedVersion={isVersionSkipped(updateStatus, updatePromptState)}
             updateSettingsDraft={ctrl.updateSettingsDraft}
             isCheckingForUpdates={updateStatus.state === "checking"}
+            lastCheckedAt={lastCheckedAt}
             onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
             onCheckForUpdates={() => void ctrl.runUpdateCheck()}
             onInstallUpdate={() => void ctrl.installUpdate()}
             onRelaunchAfterUpdate={onRelaunchAfterUpdate}
             onSkipVersion={() => void skipUpdateVersion()}
-            onOpenChangelog={() => void openExternalTarget(UPDATE_CHANGELOG_URL)}
+            onOpenChangelog={() => void openExternalTarget(APP_CHANGELOG_URL)}
             onOpenEnglishChangelog={() =>
-              void openExternalTarget(updateStatus.releaseUrl ?? UPDATE_RELEASES_PAGE_URL)
+              void openExternalTarget(updateStatus.releaseUrl ?? APP_RELEASES_URL)
             }
           />
         ),
@@ -176,7 +180,7 @@ export function SettingsPage({
             errorReportingDraft={ctrl.errorReportingDraft}
             onChangeLanguage={ctrl.setLanguageDraft}
             onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
-            onOpenAbout={() => void openAboutFromSettings(showToast)}
+            onOpenAbout={() => void openAboutWindowWithToast(showToast)}
             onChangeErrorReporting={ctrl.setErrorReportingDraft}
           />
         ),
@@ -184,11 +188,13 @@ export function SettingsPage({
     ],
     [
       ctrl,
+      lastCheckedAt,
       onRelaunchAfterUpdate,
       settings.shortcuts,
       showToast,
       skipUpdateVersion,
       t,
+      updatePromptState,
       updateStatus,
     ],
   );
@@ -288,21 +294,6 @@ export function SettingsPage({
       </div>
     </section>
   );
-}
-
-/**
- * 设置页的「关于」入口：设置窗口内没有编辑器动作上下文，
- * 因此直接调用窗口命令，主窗口与独立设置窗口都能用同一条路径。
- */
-async function openAboutFromSettings(showToast: (message: string | null) => void): Promise<void> {
-  try {
-    const opened = await openAboutWindow();
-    if (!opened) showToast(translate("settings.general.aboutDesktopOnly"));
-  } catch (error) {
-    showToast(
-      error instanceof Error ? error.message : translate("settings.general.aboutOpenFailed"),
-    );
-  }
 }
 
 export const SettingsDialog = SettingsPage;

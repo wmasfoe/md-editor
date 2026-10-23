@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { t } from "@md-editor/i18n";
 import type { ChangelogEntry } from "@md-editor/changelog";
 import type { AppUpdateSettings, UpdateStatus } from "../../app/settings/app-settings";
@@ -21,8 +20,11 @@ import {
 
 interface UpdateSettingsPanelProps {
   readonly updateStatus: UpdateStatus;
+  /** 该版本是否已被跳过：跳过后不再提供同一个动作，避免重复写簿记 */
+  readonly isSkippedVersion: boolean;
   readonly updateSettingsDraft: AppUpdateSettings;
   readonly isCheckingForUpdates: boolean;
+  readonly lastCheckedAt: string | null;
   readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
   readonly onInstallUpdate: () => void;
@@ -61,8 +63,10 @@ const STATUS_TONE_CLASS: Record<StatusTone, string> = {
 
 export function UpdateSettingsPanel({
   updateStatus,
+  isSkippedVersion,
   updateSettingsDraft,
   isCheckingForUpdates,
+  lastCheckedAt,
   onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
@@ -71,9 +75,6 @@ export function UpdateSettingsPanel({
   onOpenChangelog,
   onOpenEnglishChangelog,
 }: UpdateSettingsPanelProps) {
-  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
-  const wasCheckingRef = useRef(false);
-
   const isBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
@@ -82,20 +83,10 @@ export function UpdateSettingsPanel({
     (updateStatus.state === "available" || updateStatus.state === "downloaded") &&
     updateStatus.installKind === "app";
   const canRelaunch = updateStatus.state === "installed";
-  const canSkip = updateStatus.state === "available" && updateStatus.installKind === "app";
+  const canSkip =
+    updateStatus.state === "available" && updateStatus.installKind === "app" && !isSkippedVersion;
   const notesEntry: ChangelogEntry | null = readReleaseNotesEntry(updateStatus);
   const tone = resolveStatusTone(updateStatus.state);
-
-  // 只记录「本轮检查结束」的时间：进入 checking 时打标记，离开时落时间戳。
-  useEffect(() => {
-    if (isCheckingForUpdates) {
-      wasCheckingRef.current = true;
-      return;
-    }
-    if (!wasCheckingRef.current) return;
-    wasCheckingRef.current = false;
-    setLastCheckedAt(new Date().toLocaleTimeString());
-  }, [isCheckingForUpdates]);
 
   const progress = updateDownloadProgress(updateStatus);
 

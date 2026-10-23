@@ -45,7 +45,15 @@ export function readReleaseNotesEntry(status: UpdateStatus): ChangelogEntry | nu
   const version = normalizeVersion(status.latestVersion) ?? "";
   const entries = parseChangelog(notes);
   if (entries.length > 0) {
-    return (version ? findChangelogEntry(entries, version) : null) ?? entries[0];
+    const matched = version ? findChangelogEntry(entries, version) : null;
+    if (matched) {
+      return matched;
+    }
+    // 发版管道可能把版本号写错；降级展示首条，但要留下可定位的证据。
+    console.warn(
+      `更新日志未包含版本 ${version || "(unknown)"}，已降级展示首条 ${entries[0].version}。`,
+    );
+    return entries[0];
   }
 
   const items = toFallbackItems(notes);
@@ -56,13 +64,16 @@ export function readReleaseNotesEntry(status: UpdateStatus): ChangelogEntry | nu
   return { version, date: "", items };
 }
 
-/** 扁平正文兜底：去掉标题行与列表符号，逐行成为条目。 */
+/**
+ * 扁平正文兜底：旧版 GitHub Release body 没有版本标题，只有列表。
+ * 只收列表行——引导句（"What's new:"）与 HTML 片段都不是条目；
+ * 一条列表行都没有时返回空，交给「本次更新没有附带更新日志」。
+ */
 function toFallbackItems(notes: string): ChangelogItem[] {
   return notes
     .split(/\r?\n/u)
     .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("#"))
+    .filter((line) => /^[-*]\s+\S/u.test(line))
     .map((line) => line.replace(/^[-*]\s+/u, "").trim())
-    .filter((text) => text !== "")
     .map((text) => ({ text }));
 }
