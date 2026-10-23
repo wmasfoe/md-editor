@@ -116,6 +116,18 @@ export function runCli() {
   const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
   const appName = process.env.APP_NAME || "inkpoint";
 
+  // 更新内容由 scripts/release/changelog-section.mjs 从 CHANGELOG 抽取后写入文件；
+  // 缺省时 manifest 只能退化为 `Inkpoint <version>` 占位，客户端将无法展示本次更新内容。
+  const notesFile = process.env.RELEASE_NOTES_FILE;
+  const notes = notesFile
+    ? fs.readFileSync(notesFile, "utf8").trim()
+    : process.env.RELEASE_NOTES?.trim();
+  if (!notes) {
+    console.warn(
+      "⚠️ 未提供 RELEASE_NOTES_FILE / RELEASE_NOTES：manifest notes 将退化为版本号占位（CI 发版必须提供）",
+    );
+  }
+
   const { macTarName, macSignature, winUpdaterName, winSignature } = resolveUpdaterArtifacts(
     artifactsDir,
     process.env,
@@ -140,6 +152,7 @@ export function runCli() {
     macSignature,
     winUpdaterName,
     winSignature,
+    notes,
   });
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });

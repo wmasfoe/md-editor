@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import type { ChangelogEntry, ChangelogItem } from "../lib/changelog";
+import {
+  tokenizeInlineMarkdown,
+  type ChangelogEntry,
+  type ChangelogItem,
+} from "@md-editor/changelog";
 import { useI18n } from "../lib/i18n/context";
 import type { TranslationSchema } from "../lib/i18n/types";
 import {
@@ -876,59 +880,44 @@ function PullRequestIcon({ className = "h-3.5 w-3.5" }: { className?: string }) 
 }
 
 function renderInlineMarkdown(text: string): React.ReactNode[] {
-  const tokenRegex =
-    /((?<!`)`([^`\n]+)`(?!`)|(?<!`)\*\*([^*]+)\*\*(?!\*)|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))/gu;
-
-  const result: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = tokenRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      result.push(text.slice(lastIndex, match.index));
-    }
-
-    const fullMatch = match[0];
-    const codeMatch = match[2];
-    const boldMatch = match[3];
-    const linkText = match[4];
-    const linkUrl = match[5];
-
-    if (codeMatch !== undefined) {
-      result.push(
-        <code
-          key={match.index}
-          className="rounded-md border border-line/70 bg-surface-soft px-1.5 py-0.5 font-mono text-[13px] text-ink"
-        >
-          {codeMatch}
-        </code>,
-      );
-    } else if (boldMatch !== undefined) {
-      result.push(
-        <strong key={match.index} className="font-semibold text-ink">
-          {boldMatch}
-        </strong>,
-      );
-    } else if (linkText !== undefined && linkUrl !== undefined) {
-      result.push(
-        <a
-          key={match.index}
-          href={linkUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-accent underline underline-offset-2 hover:opacity-80"
-        >
-          {linkText}
-        </a>,
-      );
-    }
-
-    lastIndex = match.index + fullMatch.length;
+  // 行内语义由 @md-editor/changelog 统一 token 化，官网只负责套样式；
+  // 桌面端消费同一份 token，保证「更新内容」在两处结构一致。
+  const tokens = tokenizeInlineMarkdown(text);
+  if (tokens.length === 0) {
+    return [text];
   }
 
-  if (lastIndex < text.length) {
-    result.push(text.slice(lastIndex));
-  }
-
-  return result.length > 0 ? result : [text];
+  return tokens.map((token, index) => {
+    switch (token.kind) {
+      case "code":
+        return (
+          <code
+            key={index}
+            className="rounded-md border border-line/70 bg-surface-soft px-1.5 py-0.5 font-mono text-[13px] text-ink"
+          >
+            {token.text}
+          </code>
+        );
+      case "bold":
+        return (
+          <strong key={index} className="font-semibold text-ink">
+            {token.text}
+          </strong>
+        );
+      case "link":
+        return (
+          <a
+            key={index}
+            href={token.href}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline underline-offset-2 hover:opacity-80"
+          >
+            {token.text}
+          </a>
+        );
+      default:
+        return token.text;
+    }
+  });
 }

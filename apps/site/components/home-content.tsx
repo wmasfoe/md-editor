@@ -7,7 +7,7 @@ import { EditorPreviewStage } from "./editor-preview-stage";
 import { HeroCta } from "./hero-cta";
 import { InkpointWordmark } from "./inkpoint-wordmark";
 import { MdxFeatureSection } from "./mdx-feature-section";
-import type { ChangelogEntry } from "../lib/changelog";
+import type { ChangelogEntry } from "@md-editor/changelog";
 import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
 import type { SitePlatform } from "../lib/platform";
