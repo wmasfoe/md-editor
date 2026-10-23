@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.16.0 - 2026-10-23
+
+- A "What's new" dialog now appears when a new version is detected, showing the version, date, linked PRs and a bullet list sourced from the same changelog as the website.
+- Each version is announced once, and can be skipped: a skipped version is neither announced nor downloaded automatically.
+- When a download finishes, the title bar switches to "Restart to update" with a single toast instead of a modal that interrupts writing.
+- Update checks now run immediately at launch (previously after 30 seconds); automatic-download defaults are unchanged.
+- Settings gained a dedicated Updates tab: version comparison, status, download progress, release notes, check/download/install-and-restart/skip actions, and auto-update toggles.
+- The macOS app menu now opens a dedicated About Inkpoint window with the app icon, version, positioning, highlights and links to the website, changelog, GitHub and license; Windows and Linux can open it from the command palette or Settings.
+- Release notes are now extracted from CHANGELOG by the release pipeline and written into the updater manifest and the GitHub release; a missing section aborts the release instead of shipping an update with no notes.
+
 ## 0.15.1 - 2026-10-22 (#182)
 
 - Fixed in-document anchor links ([title](#anchor)) in WYSIWYG mode: clicking a TOC entry now jumps to the matching heading and places the caret.
