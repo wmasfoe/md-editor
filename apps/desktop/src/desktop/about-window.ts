@@ -2,8 +2,6 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ABOUT_WINDOW_LABEL, resolveDesktopWindowSurface } from "./window-labels";
 
-export { ABOUT_WINDOW_LABEL } from "./window-labels";
-
 export function isAboutWindow(): boolean {
   return resolveDesktopWindowSurface() === ABOUT_WINDOW_LABEL;
 }

@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { updateDownloadProgress } from "../../src/components/settings/settingsUtils";
+import { changeLanguage } from "@md-editor/i18n";
+import {
+  updateDownloadProgress,
+  updateStatusMessage,
+} from "../../src/components/settings/settingsUtils";
 import type { UpdateStatus } from "../../src/app/settings/app-settings";
 
 const settingsDialogSource = readFileSync(
@@ -85,5 +89,41 @@ describe("update settings tab wiring", () => {
     expect(settingsDialogSource).toContain("UPDATE_CHANGELOG_URL");
     expect(settingsDialogSource).toContain("UPDATE_RELEASES_PAGE_URL");
     expect(updatePanelSource).not.toContain("https://editor.jiaqi.im/changelog");
+  });
+});
+
+describe("updateStatusMessage localization", () => {
+  const chinesePattern = /[\u4e00-\u9fff]/u;
+
+  it("keeps the Chinese wording for zh", async () => {
+    await changeLanguage("zh");
+    const message = updateStatusMessage(
+      status({ state: "available", latestVersion: "0.16.0", currentVersion: "0.15.1" }),
+    );
+    expect(message).toContain("0.16.0");
+    expect(message).toMatch(chinesePattern);
+  });
+
+  it("returns English copy for en instead of hardcoded Chinese", async () => {
+    await changeLanguage("en");
+    try {
+      const message = updateStatusMessage(
+        status({ state: "available", latestVersion: "0.16.0", currentVersion: "0.15.1" }),
+      );
+      expect(message).toContain("0.16.0");
+      expect(message).not.toMatch(chinesePattern);
+    } finally {
+      await changeLanguage("zh");
+    }
+  });
+
+  it("falls back to a localized unknown-error label when the updater gives none", async () => {
+    await changeLanguage("en");
+    try {
+      const message = updateStatusMessage(status({ state: "error" }));
+      expect(message).not.toMatch(chinesePattern);
+    } finally {
+      await changeLanguage("zh");
+    }
   });
 });
