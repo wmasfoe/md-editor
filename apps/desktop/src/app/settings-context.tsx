@@ -64,6 +64,8 @@ export interface AppSettingsContextValue {
     readonly entry: ChangelogEntry | null;
   } | null;
   readonly resolveUpdateNotice: (choice: UpdateNoticeChoice) => Promise<void>;
+  /** 跳过当前最新版本：之后不再自动提示该版本（手动检查仍可见） */
+  readonly skipUpdateVersion: () => Promise<void>;
 }
 
 interface UpdateCheckOptions {
@@ -388,36 +390,43 @@ export function AppSettingsProvider({
     surface,
   ]);
 
-  // 关闭提示：记录已提示版本；「跳过」额外记录跳过版本，不再对该版本自动提示。
+  /** 写入提示簿记的唯一入口：状态同一份 ref 与 state 必须同步更新。 */
+  const commitPromptState = useCallback((next: UpdatePromptState) => {
+    promptStateRef.current = next;
+    setPromptState(next);
+    void saveUpdatePromptState(next);
+  }, []);
+
+  const skipUpdateVersion = useCallback(async () => {
+    const version = normalizeVersion(updateStatusRef.current.latestVersion);
+    if (!version) return;
+
+    commitPromptState({
+      ...promptStateRef.current,
+      lastNotifiedVersion: version,
+      skippedVersion: version,
+    });
+    showToast(t("settings.updates.toasts.skipped", { version }));
+  }, [commitPromptState, showToast]);
+
+  // 关闭提示：记录已提示版本；「跳过」交给 skipUpdateVersion，保证两个入口写同一种状态。
   const resolveUpdateNotice = useCallback(
     async (choice: UpdateNoticeChoice) => {
-      const version = normalizeVersion(updateStatusRef.current.latestVersion);
-      if (!version) return;
-
-      const next: UpdatePromptState =
-        choice === "skip"
-          ? {
-              ...promptStateRef.current,
-              lastNotifiedVersion: version,
-              skippedVersion: version,
-            }
-          : { ...promptStateRef.current, lastNotifiedVersion: version };
-
-      promptStateRef.current = next;
-      setPromptState(next);
-      void saveUpdatePromptState(next);
-
       if (choice === "skip") {
-        showToast(t("settings.updates.toasts.skipped", { version }));
+        await skipUpdateVersion();
         return;
       }
+
+      const version = normalizeVersion(updateStatusRef.current.latestVersion);
+      if (!version) return;
+      commitPromptState({ ...promptStateRef.current, lastNotifiedVersion: version });
 
       // 「立即更新」或开启自动下载时，提示关闭后立刻转入后台下载。
       if (choice === "update" || settings.update.automaticDownload) {
         void downloadUpdate();
       }
     },
-    [downloadUpdate, settings.update.automaticDownload, showToast],
+    [commitPromptState, downloadUpdate, settings.update.automaticDownload, skipUpdateVersion],
   );
 
   const updateNotice = useMemo(() => {
@@ -459,6 +468,7 @@ export function AppSettingsProvider({
     applyDownloadedUpdate,
     updateNotice,
     resolveUpdateNotice,
+    skipUpdateVersion,
   };
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>;
