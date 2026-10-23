@@ -39,6 +39,7 @@
     "externalBin": ["binaries/llama-server"],
     "resources": [],
     "category": "Productivity",
+    "copyright": "Copyright © 2026 Inkpoint Contributors",
     "shortDescription": "Daily-usable Markdown and MDX desktop editor",
     "longDescription": "A sleek, daily-usable Markdown and MDX desktop editor with local-first file workflows.",
     "icon": [

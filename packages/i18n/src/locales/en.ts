@@ -56,6 +56,27 @@ export const en: TranslationSchema = {
     newFileNamePlaceholder: "New file name (.md)",
     newFolderNamePlaceholder: "New folder name",
   },
+  about: {
+    windowTitle: "About {{app}}",
+    version: "Version {{version}}",
+    tagline: "A focused, local-first desktop editor for Markdown and MDX.",
+    highlightsTitle: "Highlights",
+    highlights: {
+      localFirst: "Files stay on your machine, lossless and portable to other tools.",
+      wysiwyg: "What-you-see-is-what-you-get editing without inline syntax noise.",
+      mdxAndDiagrams: "MDX components, Mermaid diagrams and LaTeX math.",
+      aiCompletion: "Inline AI continuation and grammar fixes, with an offline local model.",
+    },
+    linksTitle: "Links",
+    links: {
+      site: "Website",
+      changelog: "Changelog",
+      github: "GitHub repository",
+      license: "GPL-3.0 license",
+    },
+    copyright: "© 2026 Inkpoint Contributors",
+    license: "Released under the GNU General Public License v3.0",
+  },
   settings: {
     title: "Settings",
     resetTab: "Reset Current Tab",
@@ -117,6 +138,11 @@ export const en: TranslationSchema = {
       updateInstalledRestartApp: "Update installed successfully. Restart the application to apply.",
       updateInstalledSaveFirst:
         "Update installed. Please save all documents first, then restart the application manually.",
+      aboutDesc: "Version, highlights and related links.",
+      aboutVersion: "Product information and copyright",
+      aboutOpen: "Open About window",
+      aboutDesktopOnly: "The About window is only available in the desktop app.",
+      aboutOpenFailed: "Failed to open the About window.",
       errorReportingTitle: "Error Reporting",
       errorReportingDesc:
         "When enabled, anonymous JS exceptions and crash reports (including device model, OS version, and app version) are sent to help improve stability. No document contents or personal data are collected.",

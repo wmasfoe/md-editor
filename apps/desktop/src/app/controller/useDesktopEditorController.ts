@@ -9,6 +9,7 @@ import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
 import { inspectLinkedFileTarget, openExternalTarget } from "../../desktop/link-service";
+import { openAboutWindow } from "../../desktop/about-window";
 import { listenToFolderChanged } from "../../desktop/folder-watcher-events";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
@@ -121,6 +122,17 @@ export function useDesktopEditorController({
     await switchMode(currentMode === "source" ? "wysiwyg" : "source");
   }, [switchMode]);
 
+  // --- openAbout ---
+  // 命令面板 `app.about` 与设置入口走同一条窗口路径；失败时告知而不是静默吞掉。
+  const openAbout = useCallback(async () => {
+    try {
+      const opened = await openAboutWindow();
+      if (!opened) showToast("关于窗口仅在桌面应用中可用。");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "关于窗口打开失败。");
+    }
+  }, [showToast]);
+
   // --- dispatchCommand ---
   const dispatchCommand = useCallback(
     async (id: string) => {
@@ -143,6 +155,7 @@ export function useDesktopEditorController({
             await saveDocument(true);
           },
           openSettings,
+          openAbout,
           // D-3 块操作：host→renderer 接线（view 在 renderer 侧，故经 ports 回调）。
           // ports 不可用时静默 no-op，与本文件既有 `flushPendingEdits` 同款 fail-closed 语义。
           // LOW 处置：ports 返回的 boolean **不再静默丢弃** —— false（目标不可操作，
@@ -463,6 +476,7 @@ export function useDesktopEditorController({
       createNewDocument,
       getRendererPorts,
       hasPendingConfirmation,
+      openAbout,
       openDocument,
       openFolder,
       openRecentDocument,
@@ -820,6 +834,7 @@ export function useDesktopEditorController({
     insertMdxComponent,
     insertTable,
     refreshFolderForDocumentPath,
+    openAbout,
   };
 }
 

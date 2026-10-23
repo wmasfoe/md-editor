@@ -56,6 +56,27 @@ export const ja: TranslationSchema = {
     newFileNamePlaceholder: "新しいファイル名 (.md)",
     newFolderNamePlaceholder: "新しいフォルダ名",
   },
+  about: {
+    windowTitle: "{{app}} について",
+    version: "バージョン {{version}}",
+    tagline: "ローカルファイルを大切にする Markdown / MDX デスクトップエディタ。",
+    highlightsTitle: "主な機能",
+    highlights: {
+      localFirst: "ファイルは手元にそのまま。形式を損なわず他のツールにも引き継げます。",
+      wysiwyg: "インライン記法を気にせず書ける WYSIWYG 編集。",
+      mdxAndDiagrams: "MDX コンポーネント、Mermaid 図、LaTeX 数式に対応。",
+      aiCompletion: "インライン AI 補完と校正。オフラインのローカルモデルも利用可能。",
+    },
+    linksTitle: "リンク",
+    links: {
+      site: "公式サイト",
+      changelog: "更新履歴",
+      github: "GitHub リポジトリ",
+      license: "GPL-3.0 ライセンス",
+    },
+    copyright: "© 2026 Inkpoint Contributors",
+    license: "GNU General Public License v3.0 で公開",
+  },
   settings: {
     title: "設定",
     resetTab: "現在のタブをリセット",
@@ -118,6 +139,11 @@ export const ja: TranslationSchema = {
         "アップデートがインストールされました。アプリを再起動してください。",
       updateInstalledSaveFirst:
         "アップデートがインストールされました。すべてのドキュメントを保存した後、アプリを手動で再起動してください。",
+      aboutDesc: "バージョン、主な機能、関連リンクを表示します。",
+      aboutVersion: "製品情報と著作権",
+      aboutOpen: "「について」を開く",
+      aboutDesktopOnly: "「について」ウィンドウはデスクトップアプリでのみ利用できます。",
+      aboutOpenFailed: "「について」ウィンドウを開けませんでした。",
       errorReportingTitle: "エラー報告",
       errorReportingDesc:
         "有効にすると、匿名のクラッシュ情報（デバイスモデル、OS バージョン、アプリバージョン）を送信し、品質向上に役立てます。ドキュメントの内容や個人情報は収集されません。",

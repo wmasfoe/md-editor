@@ -56,6 +56,27 @@ export const zhHant: TranslationSchema = {
     newFileNamePlaceholder: "新檔案名稱 (.md)",
     newFolderNamePlaceholder: "新資料夾名稱",
   },
+  about: {
+    windowTitle: "關於 {{app}}",
+    version: "版本 {{version}}",
+    tagline: "簡潔的本機優先 Markdown 與 MDX 桌面編輯器。",
+    highlightsTitle: "主要能力",
+    highlights: {
+      localFirst: "檔案直接留在本機，格式無損、可隨時改用其他工具接手。",
+      wysiwyg: "所見即所得編輯，行內格式標記不打擾寫作。",
+      mdxAndDiagrams: "支援 MDX 元件、Mermaid 圖表與 LaTeX 公式。",
+      aiCompletion: "行內 AI 續寫與語法校正，可使用離線本機模型。",
+    },
+    linksTitle: "連結",
+    links: {
+      site: "官方網站",
+      changelog: "更新日誌",
+      github: "GitHub 儲存庫",
+      license: "GPL-3.0 授權",
+    },
+    copyright: "© 2026 Inkpoint Contributors",
+    license: "依 GNU 通用公共授權條款 v3.0 發佈",
+  },
   settings: {
     title: "設定",
     resetTab: "重設目前分頁",
@@ -117,6 +138,11 @@ export const zhHant: TranslationSchema = {
       updateInstalledRestartApp: "更新已安裝，重新啟動應用程式後生效。",
       updateInstalledSaveFirst:
         "更新已安裝。請先儲存所有文件，然後手動重新啟動應用程式以完成更新。",
+      aboutDesc: "檢視版本、主要能力與相關連結。",
+      aboutVersion: "產品資訊與版權",
+      aboutOpen: "開啟關於視窗",
+      aboutDesktopOnly: "關於視窗僅在桌面應用程式中可用。",
+      aboutOpenFailed: "關於視窗開啟失敗。",
       errorReportingTitle: "錯誤回報",
       errorReportingDesc:
         "啟用後，應用程式會匿名回報 JS 例外與崩潰資訊（含裝置型號、系統版本、App 版本），協助改進穩定性。不會蒐集文件內容或個人資料。",

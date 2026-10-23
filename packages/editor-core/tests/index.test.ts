@@ -300,6 +300,7 @@ describe("built-in feature registry", () => {
       "file.save",
       "file.saveAs",
       "settings.open",
+      "app.about",
       "mdx.openComponentMenu",
       "table.insert",
       "view.toggleSource",

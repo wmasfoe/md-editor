@@ -1,11 +1,13 @@
 import type { ErrorReportingSettings, LanguageSetting } from "../../app/settings/app-settings";
 import { useTranslation } from "@md-editor/i18n";
+import { APP_DISPLAY_NAME } from "../../lib/app-name";
 import {
   settingsDescriptionClassName,
   settingsFieldLabelClassName,
   settingsInputClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
+  settingsSmallButtonClassName,
 } from "./settingsStyles";
 
 interface OtherSettingsPanelProps {
@@ -14,6 +16,7 @@ interface OtherSettingsPanelProps {
   readonly errorReportingDraft: ErrorReportingSettings;
   readonly onChangeLanguage: (value: LanguageSetting) => void;
   readonly onChangeAssetsDirectory: (value: string) => void;
+  readonly onOpenAbout: () => void;
   readonly onChangeErrorReporting: (value: ErrorReportingSettings) => void;
 }
 
@@ -23,6 +26,7 @@ export function OtherSettingsPanel({
   errorReportingDraft,
   onChangeLanguage,
   onChangeAssetsDirectory,
+  onOpenAbout,
   onChangeErrorReporting,
 }: OtherSettingsPanelProps) {
   const { t } = useTranslation();
@@ -68,6 +72,22 @@ export function OtherSettingsPanel({
             spellCheck={false}
           />
         </label>
+      </section>
+
+      <section className={settingsModuleClassName} aria-labelledby="about-settings-title">
+        <div className="mb-3">
+          <h2 id="about-settings-title" className={settingsSectionTitleClassName}>
+            {t("about.windowTitle", { app: APP_DISPLAY_NAME })}
+          </h2>
+          <p className={settingsDescriptionClassName}>{t("settings.general.aboutDesc")}</p>
+        </div>
+        {/* macOS 的关于入口在原生菜单；Windows / Linux 没有应用菜单，这里提供同等入口。 */}
+        <div className="flex items-center justify-between gap-3 max-[560px]:flex-col max-[560px]:items-start">
+          <span className={settingsFieldLabelClassName}>{t("settings.general.aboutVersion")}</span>
+          <button type="button" className={settingsSmallButtonClassName} onClick={onOpenAbout}>
+            {t("settings.general.aboutOpen")}
+          </button>
+        </div>
       </section>
 
       <section className={settingsModuleClassName} aria-labelledby="error-reporting-title">

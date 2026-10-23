@@ -1,6 +1,6 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
 import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { useTranslation } from "@md-editor/i18n";
+import { t as translate, useTranslation } from "@md-editor/i18n";
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -18,6 +18,7 @@ import { ShortcutSettingsPanel } from "./settings/ShortcutSettingsPanel";
 import { settingsDescriptionClassName } from "./settings/settingsStyles";
 import { openExternalTarget } from "../desktop/link-service";
 import { UPDATE_CHANGELOG_URL, UPDATE_RELEASES_PAGE_URL } from "../app/settings/updates/defaults";
+import { openAboutWindow } from "../desktop/about-window";
 
 interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
@@ -175,12 +176,21 @@ export function SettingsPage({
             errorReportingDraft={ctrl.errorReportingDraft}
             onChangeLanguage={ctrl.setLanguageDraft}
             onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
+            onOpenAbout={() => void openAboutFromSettings(showToast)}
             onChangeErrorReporting={ctrl.setErrorReportingDraft}
           />
         ),
       },
     ],
-    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, skipUpdateVersion, t, updateStatus],
+    [
+      ctrl,
+      onRelaunchAfterUpdate,
+      settings.shortcuts,
+      showToast,
+      skipUpdateVersion,
+      t,
+      updateStatus,
+    ],
   );
 
   return (
@@ -278,6 +288,21 @@ export function SettingsPage({
       </div>
     </section>
   );
+}
+
+/**
+ * 设置页的「关于」入口：设置窗口内没有编辑器动作上下文，
+ * 因此直接调用窗口命令，主窗口与独立设置窗口都能用同一条路径。
+ */
+async function openAboutFromSettings(showToast: (message: string | null) => void): Promise<void> {
+  try {
+    const opened = await openAboutWindow();
+    if (!opened) showToast(translate("settings.general.aboutDesktopOnly"));
+  } catch (error) {
+    showToast(
+      error instanceof Error ? error.message : translate("settings.general.aboutOpenFailed"),
+    );
+  }
 }
 
 export const SettingsDialog = SettingsPage;

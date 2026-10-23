@@ -23,6 +23,7 @@ const implementedCommands = [
   "file.save",
   "file.saveAs",
   "settings.open",
+  "app.about",
   "table.insert",
   "view.toggleSidebarPrimary",
 ] as const;
