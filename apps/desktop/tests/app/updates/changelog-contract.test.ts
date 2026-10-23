@@ -61,11 +61,9 @@ describe("changelog heading contract (release slicer ↔ runtime parser)", () =>
     const section = extractVersionSection(markdown, version);
     expect(section !== null).toBe(accepted);
 
-    // 契约核心：切片器接受，解析器就必须能按版本命中。
-    if (section !== null) {
-      const entry = findChangelogEntry(parseChangelog(markdown), version);
-      expect(entry?.version).toBe(version);
-    }
+    // 契约核心：切片器接受时，解析器必须能按同一版本命中。
+    const resolvedVersion = findChangelogEntry(parseChangelog(markdown), version)?.version ?? null;
+    expect(resolvedVersion).toBe(accepted ? version : null);
   });
 
   it("round-trips the real desktop changelog through both implementations", async () => {
@@ -79,10 +77,14 @@ describe("changelog heading contract (release slicer ↔ runtime parser)", () =>
     );
     expect(versions.length).toBeGreaterThan(0);
 
-    for (const version of versions) {
-      const section = extractVersionSection(markdown, version);
-      if (section === null) continue;
-      expect(findChangelogEntry(parseChangelog(markdown), version)?.version).toBe(version);
-    }
+    const accepted = versions.filter(
+      (version) => extractVersionSection(markdown, version) !== null,
+    );
+    expect(accepted.length).toBeGreaterThan(0);
+
+    const resolved = accepted.map(
+      (version) => findChangelogEntry(parseChangelog(markdown), version)?.version ?? null,
+    );
+    expect(resolved).toEqual(accepted);
   });
 });
