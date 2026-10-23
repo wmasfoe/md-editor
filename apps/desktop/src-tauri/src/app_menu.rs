@@ -1,7 +1,5 @@
 #[cfg(target_os = "macos")]
-use tauri::menu::{
-    AboutMetadataBuilder, CheckMenuItemBuilder, Menu, MenuItemBuilder, SubmenuBuilder,
-};
+use tauri::menu::{CheckMenuItemBuilder, Menu, MenuItemBuilder, SubmenuBuilder};
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
@@ -10,7 +8,6 @@ use crate::settings;
 
 pub(crate) const MENU_ACTION_EVENT: &str = "md-editor-menu-action";
 
-#[cfg(target_os = "macos")]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum AppMenuLocale {
     Zh,
@@ -370,25 +367,17 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
         )?)
         .build()?;
 
-    let about_desc = match locale {
-        AppMenuLocale::Zh => "简洁的本地 Markdown 和 MDX 桌面编辑器",
-        AppMenuLocale::ZhHant => "簡潔的本機 Markdown 和 MDX 桌面編輯器",
-        AppMenuLocale::Ja => {
-            "洗練されたローカルファーストの Markdown および MDX デスクトップエディタ"
-        }
-        AppMenuLocale::En => "A sleek, local-first Markdown and MDX desktop editor",
+    // 关于入口走自绘窗口（含应用图标、版本、定位、链接与版权），
+    // 因此不再使用预置 `.about()`：预置项会打开系统 NSAboutPanel，造成两个「关于」入口。
+    let about_title = match locale {
+        AppMenuLocale::Zh => "关于 Inkpoint",
+        AppMenuLocale::ZhHant => "關於 Inkpoint",
+        AppMenuLocale::Ja => "Inkpoint について",
+        AppMenuLocale::En => "About Inkpoint",
     };
-    let about_metadata = AboutMetadataBuilder::new()
-        .name(Some("Inkpoint"))
-        .version(Some(env!("CARGO_PKG_VERSION")))
-        .comments(Some(about_desc))
-        .license(Some("GPL-3.0"))
-        .website(Some("https://editor.jiaqi.im"))
-        .website_label(Some("editor.jiaqi.im"))
-        .build();
 
     let app_menu = SubmenuBuilder::new(app, "Inkpoint")
-        .about(Some(about_metadata))
+        .item(&MenuItemBuilder::with_id("md-editor:about", about_title).build(app)?)
         .separator()
         .hide()
         .hide_others()

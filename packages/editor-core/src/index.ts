@@ -84,6 +84,7 @@ export type BuiltInCommandId =
   | "file.save"
   | "file.saveAs"
   | "settings.open"
+  | "app.about"
   | "mdx.openComponentMenu"
   | "table.insert"
   | "view.toggleSource"
@@ -106,6 +107,8 @@ export interface EditorActionHandlers {
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
   readonly openSettings?: () => void | Promise<void>;
+  /** 打开关于窗口/弹窗；未实现的宿主会被命令注册表降级为 no-op */
+  readonly openAbout?: () => void | Promise<void>;
   readonly openMdxComponentMenu?: () => void | Promise<void>;
   readonly openInsertTableDialog?: () => void | Promise<void>;
   readonly toggleSourceMode?: () => void | Promise<void>;
@@ -284,6 +287,10 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       registerActionCommand(context.commands, "settings.open", "Settings", "openSettings", {
         group: "设置",
         keywords: ["设置", "偏好", "settings"],
+      });
+      registerActionCommand(context.commands, "app.about", "About Inkpoint", "openAbout", {
+        group: "设置",
+        keywords: ["关于", "版本", "about", "version"],
       });
       registerActionCommand(
         context.commands,

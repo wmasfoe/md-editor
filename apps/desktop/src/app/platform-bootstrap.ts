@@ -1,4 +1,5 @@
 import {
+  ABOUT_WINDOW_LABEL,
   MAIN_WINDOW_LABEL,
   SETTINGS_WINDOW_LABEL,
   type DesktopWindowSurface,
@@ -15,6 +16,7 @@ export interface DesktopPlatformBootstrap<TRegistration, TFileService> {
   readonly createMainFileService: (registration: TRegistration) => Promise<TFileService>;
   readonly renderMain: (services: MainPlatformServices<TFileService>) => Promise<void> | void;
   readonly renderSettings: () => Promise<void> | void;
+  readonly renderAbout: () => Promise<void> | void;
   readonly renderInitializationError: (error: DesktopPlatformInitializationError) => void;
 }
 
@@ -39,6 +41,11 @@ export async function bootstrapDesktopPlatform<TRegistration, TFileService>(
 ): Promise<void> {
   if (input.surface === SETTINGS_WINDOW_LABEL) {
     await input.renderSettings();
+    return;
+  }
+
+  if (input.surface === ABOUT_WINDOW_LABEL) {
+    await input.renderAbout();
     return;
   }
 

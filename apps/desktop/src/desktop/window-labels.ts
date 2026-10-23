@@ -3,10 +3,12 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export const MAIN_WINDOW_LABEL = "main";
 export const SETTINGS_WINDOW_LABEL = "settings";
+export const ABOUT_WINDOW_LABEL = "about";
 
 export type DesktopWindowSurface =
   | typeof MAIN_WINDOW_LABEL
   | typeof SETTINGS_WINDOW_LABEL
+  | typeof ABOUT_WINDOW_LABEL
   | { readonly kind: "unknown"; readonly label: string };
 
 export function resolveDesktopWindowSurface(search = window.location.search): DesktopWindowSurface {
@@ -14,7 +16,11 @@ export function resolveDesktopWindowSurface(search = window.location.search): De
     ? getCurrentWindow().label
     : (new URLSearchParams(search).get("window") ?? MAIN_WINDOW_LABEL);
 
-  if (label === MAIN_WINDOW_LABEL || label === SETTINGS_WINDOW_LABEL) {
+  if (
+    label === MAIN_WINDOW_LABEL ||
+    label === SETTINGS_WINDOW_LABEL ||
+    label === ABOUT_WINDOW_LABEL
+  ) {
     return label;
   }
 

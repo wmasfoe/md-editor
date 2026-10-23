@@ -53,6 +53,7 @@ async function bootstrap(): Promise<void> {
     },
     renderMain: renderMainSurface,
     renderSettings: renderSettingsSurface,
+    renderAbout: renderAboutSurface,
     renderInitializationError,
   });
 }
@@ -82,6 +83,15 @@ async function renderMainSurface(
         onDesktopActionsChange={testingCallbacks?.onDesktopActionsChange}
         onRendererPortsChange={testingCallbacks?.onRendererPortsChange}
       />
+    </React.StrictMode>,
+  );
+}
+
+async function renderAboutSurface(): Promise<void> {
+  const { AboutWindowApp } = await import("./app/AboutWindowApp");
+  createRoot(requireRootElement()).render(
+    <React.StrictMode>
+      <AboutWindowApp />
     </React.StrictMode>,
   );
 }

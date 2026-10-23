@@ -1,5 +1,6 @@
 use tauri::Emitter;
 
+mod about_window;
 mod app_menu;
 mod file_commands;
 mod folder_watcher;
@@ -20,6 +21,7 @@ mod update_prompt;
 #[cfg(target_os = "macos")]
 mod window_chrome;
 
+use about_window::open_about_window;
 #[cfg(target_os = "macos")]
 use app_menu::build_app_menu;
 use app_menu::MENU_ACTION_EVENT;
@@ -62,6 +64,16 @@ pub fn run() {
 
     let builder = builder.on_menu_event(|app, event| {
         let action = event.id().as_ref();
+        // 「关于」由 Rust 直接开窗：它不属于编辑器命令，广播给 webview 只会在主窗口无人处理。
+        if action == "md-editor:about" {
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = open_about_window(handle).await {
+                    eprintln!("Failed to open about window: {error}");
+                }
+            });
+            return;
+        }
         if action.starts_with("md-editor:") {
             // Tauri v2 这里广播给所有 webview，避免依赖固定窗口 label。
             let _ = app.emit(MENU_ACTION_EVENT, action);
@@ -128,6 +140,7 @@ pub fn run() {
             delete_local_ai_model,
             request_local_ai_continuation,
             open_settings_window,
+            open_about_window,
             close_settings_window,
             save_app_settings_and_update_menu,
             inspect_linked_file,

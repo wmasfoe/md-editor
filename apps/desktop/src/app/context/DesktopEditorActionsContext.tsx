@@ -10,6 +10,7 @@ export interface DesktopEditorActions {
   readonly insertMdxComponent: (plugin: MdxComponentPlugin) => void;
   readonly insertTable: (cols: number, rows: number) => void;
   readonly refreshFolderForDocumentPath: (documentPath: string) => Promise<void>;
+  readonly openAbout: () => Promise<void>;
 }
 
 export const DesktopEditorActionsContext = createContext<DesktopEditorActions | null>(null);
