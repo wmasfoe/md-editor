@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.1 - 2026-10-23 (#190)
+
+- Fixed Linux AppImage icon links pointing to the build machine, keeping application icons available after downloading or moving the app.
+
 ## 0.16.0 - 2026-10-23
 
 - A "What's new" dialog now appears when a new version is detected, showing the version, date, linked PRs and a bullet list sourced from the same changelog as the website.
