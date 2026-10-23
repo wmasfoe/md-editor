@@ -304,6 +304,9 @@ importers:
       '@heroicons/react':
         specifier: 'catalog:'
         version: 2.2.0(react@19.2.7)
+      '@md-editor/changelog':
+        specifier: workspace:*
+        version: link:../../packages/changelog
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -519,6 +522,15 @@ importers:
         version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
 
   packages/ai:
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(lightningcss@1.32.0)
+
+  packages/changelog:
     devDependencies:
       typescript:
         specifier: 'catalog:'
