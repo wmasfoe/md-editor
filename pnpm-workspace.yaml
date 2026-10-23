@@ -13,7 +13,8 @@ catalog:
   "@tailwindcss/postcss": ^4.1.17
   "@tailwindcss/vite": ^4.1.17
   "@tauri-apps/api": ^2.2.0
-  "@tauri-apps/cli": ^2.2.1
+  # 2.11.4 fixes absolute .DirIcon/.desktop symlinks in AppImages (tauri-apps/tauri#15596).
+  "@tauri-apps/cli": 2.11.4
   "@types/node": ^22.10.2
   "@types/react": ^19.0.1
   "@types/react-dom": ^19.0.2
