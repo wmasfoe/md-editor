@@ -84,6 +84,14 @@ test.describe("CodeMirrorEditor React bridge", () => {
     await expect(page.locator(".cm-gutters, .cm-lineNumbers")).toHaveCount(0);
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setFontSize(19));
     await expect(page.locator(".code-mirror-editor-host")).toHaveCSS("font-size", "19px");
+    await page.evaluate(async () => {
+      // CSS updates before CodeMirror's animation-frame measurement adjusts the scroll anchor.
+      // Record the preview baseline only after the font layout has been measured and painted.
+      await document.fonts.ready;
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+    });
     const beforePreview = await diagnostics(page);
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setPreviewVisible(true));
     await expect(page.getByTestId("asset-preview")).toBeVisible();
