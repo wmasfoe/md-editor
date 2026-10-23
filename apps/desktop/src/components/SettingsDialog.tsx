@@ -13,8 +13,11 @@ import { AiSettingsPanel } from "./settings/AiSettingsPanel";
 import { AppearanceSettingsPanel } from "./settings/AppearanceSettingsPanel";
 import { PluginSettingsPanel } from "./settings/PluginSettingsPanel";
 import { OtherSettingsPanel } from "./settings/OtherSettingsPanel";
+import { UpdateSettingsPanel } from "./settings/UpdateSettingsPanel";
 import { ShortcutSettingsPanel } from "./settings/ShortcutSettingsPanel";
 import { settingsDescriptionClassName } from "./settings/settingsStyles";
+import { openExternalTarget } from "../desktop/link-service";
+import { UPDATE_CHANGELOG_URL, UPDATE_RELEASES_PAGE_URL } from "../app/settings/updates/defaults";
 
 interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
@@ -28,7 +31,7 @@ export function SettingsPage({
   onStartWindowDrag,
   onRelaunchAfterUpdate,
 }: SettingsPageProps) {
-  const { settings, updateStatus } = useAppSettings();
+  const { settings, updateStatus, skipUpdateVersion } = useAppSettings();
   const { toast, showToast } = useToast();
   const ctrl = useSettingsController({ showToast, surface });
   const { closeSettings, destroySettingsWindowAfterRollback } = ctrl;
@@ -141,6 +144,27 @@ export function SettingsPage({
         ),
       },
       {
+        id: "updates",
+        label: t("settings.tabs.updates"),
+        description: t("settings.tabs.updatesDesc"),
+        panel: (
+          <UpdateSettingsPanel
+            updateStatus={updateStatus}
+            updateSettingsDraft={ctrl.updateSettingsDraft}
+            isCheckingForUpdates={updateStatus.state === "checking"}
+            onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
+            onCheckForUpdates={() => void ctrl.runUpdateCheck()}
+            onInstallUpdate={() => void ctrl.installUpdate()}
+            onRelaunchAfterUpdate={onRelaunchAfterUpdate}
+            onSkipVersion={() => void skipUpdateVersion()}
+            onOpenChangelog={() => void openExternalTarget(UPDATE_CHANGELOG_URL)}
+            onOpenEnglishChangelog={() =>
+              void openExternalTarget(updateStatus.releaseUrl ?? UPDATE_RELEASES_PAGE_URL)
+            }
+          />
+        ),
+      },
+      {
         id: "other",
         label: t("settings.tabs.general"),
         description: t("settings.tabs.generalDesc"),
@@ -148,22 +172,15 @@ export function SettingsPage({
           <OtherSettingsPanel
             languageDraft={ctrl.languageDraft}
             assetsDirectoryDraft={ctrl.assetsDirectoryDraft}
-            updateStatus={updateStatus}
-            updateSettingsDraft={ctrl.updateSettingsDraft}
-            isCheckingForUpdates={updateStatus.state === "checking"}
             errorReportingDraft={ctrl.errorReportingDraft}
             onChangeLanguage={ctrl.setLanguageDraft}
             onChangeAssetsDirectory={ctrl.setAssetsDirectoryDraft}
-            onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
-            onCheckForUpdates={() => void ctrl.runUpdateCheck()}
-            onInstallUpdate={() => void ctrl.installUpdate()}
-            onRelaunchAfterUpdate={onRelaunchAfterUpdate}
             onChangeErrorReporting={ctrl.setErrorReportingDraft}
           />
         ),
       },
     ],
-    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, t, updateStatus],
+    [ctrl, onRelaunchAfterUpdate, settings.shortcuts, skipUpdateVersion, t, updateStatus],
   );
 
   return (
