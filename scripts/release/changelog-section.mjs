@@ -39,8 +39,7 @@ export function extractVersionSection(markdown, version) {
 
   for (let index = 0; index < lines.length; index += 1) {
     // 与 packages/changelog/src/parse.ts 的版本标题正则保持同一口径（锚定整行）。
-    const heading =
-      /^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u.exec(lines[index]);
+    const heading = /^##\s+(\S+)(?:\s+-\s+([^\s(]+))?(?:\s+\(([^)]+)\))?\s*$/u.exec(lines[index]);
     if (!heading) {
       continue;
     }
