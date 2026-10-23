@@ -30,7 +30,6 @@ import { isDiscardProtectionRequired } from "./document-save";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
-import { useTranslation } from "@md-editor/i18n";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 import { recordModeMenuChecked } from "../stores/mode-menu-store";
@@ -57,7 +56,6 @@ export function useDesktopEditorController({
     downloadUpdate,
     applyDownloadedUpdate,
   } = useAppSettings();
-  const { t } = useTranslation();
   const snapshot = useDocumentSnapshot();
   const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
   // 接入多 Slot 并发调度器（--parallel 2），支持 LoRA 分组感知调度与高优先级抢占。
@@ -507,15 +505,8 @@ export function useDesktopEditorController({
     };
 
     if (nextStatus.state === "available") {
-      const releaseNotesText = nextStatus.releaseNotes
-        ? `\n\n${t("settings.general.releaseNotes")}：\n${nextStatus.releaseNotes}`
-        : "";
-      const choice = await requestConfirmation({
-        title: "下载更新",
-        description: `发现 ${APP_DISPLAY_NAME} ${nextStatus.latestVersion ?? "新版本"}。下载完成后，你可以继续退出并更新。${releaseNotesText}`,
-        confirmLabel: "下载更新",
-      });
-      if (choice !== "confirm") return;
+      // 点击标题栏更新按钮本身就是下载意图：不再叠加一层确认弹窗。
+      // 更新内容由 UpdateNoticeDialog 与设置「更新」页展示，这里不再拼 Markdown 原文。
       const result = await downloadUpdate();
       if (result.state !== "downloaded") return;
       nextStatus = result;
@@ -542,7 +533,7 @@ export function useDesktopEditorController({
 
     const result = await applyDownloadedUpdate();
     if (result.state === "installed") await relaunchUpdate();
-  }, [applyDownloadedUpdate, downloadUpdate, relaunchUpdate, requestConfirmation, t, updateStatus]);
+  }, [applyDownloadedUpdate, downloadUpdate, relaunchUpdate, requestConfirmation, updateStatus]);
 
   // --- openWysiwygLink ---
   // 所见即所得模式下 Cmd/Ctrl+点击（或 Mod+Enter）的唯一链接入口：

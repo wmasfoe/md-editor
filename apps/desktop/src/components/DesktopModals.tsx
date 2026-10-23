@@ -3,11 +3,13 @@ import { ConfirmActionDialog } from "@md-editor/editor-ui";
 import { CommandPalette } from "./CommandPalette";
 import { MdxComponentMenu } from "./MdxComponentMenu";
 import { InsertTableDialog } from "./InsertTableDialog";
+import { UpdateNoticeDialog } from "./updates/UpdateNoticeDialog";
 import { isMacPlatform } from "../app/AppWindowChrome";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useConfirmationStore } from "../app/stores/confirmation-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useAppSettings } from "../app/settings-context";
 
 /**
  * 桌面端全局模态弹窗与浮层管理组件。
@@ -16,7 +18,8 @@ import { useDocumentUiStore } from "../app/stores/document-ui-store";
  * 1. ConfirmActionDialog: 操作确认对话框（如覆盖保存、删除文件确认等）；
  * 2. CommandPalette: 命令面板，支持 Cmd/Ctrl+K 全局快捷键唤起，动作经由 dispatchCommand 分发；
  * 3. MdxComponentMenu: MDX 自定义组件插入菜单；
- * 4. InsertTableDialog: 插入表格行数列数配置对话框。
+ * 4. InsertTableDialog: 插入表格行数列数配置对话框；
+ * 5. UpdateNoticeDialog: 检测到新版本后的「本次更新内容」提示（同版本只提示一次）。
  */
 export function DesktopModals() {
   const { confirmation, resolveConfirmation } = useConfirmationStore();
@@ -27,6 +30,7 @@ export function DesktopModals() {
     closeInsertTableDialog,
   } = useDocumentUiStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
+  const { updateNotice, resolveUpdateNotice } = useAppSettings();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // 全局快捷键 Cmd/Ctrl+K 开关命令面板
@@ -67,6 +71,13 @@ export function DesktopModals() {
         open={isInsertTableDialogOpen}
         onClose={closeInsertTableDialog}
         onConfirm={insertTable}
+      />
+
+      {/* 新版本提示：展示本次更新内容，关闭后同版本不再自动出现 */}
+      <UpdateNoticeDialog
+        version={updateNotice?.version ?? null}
+        entry={updateNotice?.entry ?? null}
+        onResolve={(choice) => void resolveUpdateNotice(choice)}
       />
     </>
   );
