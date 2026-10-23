@@ -55,73 +55,81 @@ const defaultIosChangelogCandidates = repoCandidates("apps", "mobile", "ios", "C
 const defaultIosEnChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG_EN.md");
 
 /**
- * 获取 Desktop 桌面客户端的更新日志列表。
+ * 读取指定平台的更新日志。
+ *
+ * 四个平台（Desktop / Web / Android / iOS）只有候选文件不同，读取与回退规则完全一致：
+ * 英文缺失时回退中文，两者都缺失时返回空数组（官网页面显示空状态，而不是抛错）。
  */
+function readChangelogEntries(
+  locale: Locale,
+  zhCandidates: string[],
+  enCandidates: string[],
+  filePath: string | undefined,
+  isEnglish: (locale: Locale) => boolean,
+): ChangelogEntry[] {
+  const wantsEnglish = isEnglish(locale);
+  const resolved = resolveChangelogPath(filePath, wantsEnglish ? enCandidates : zhCandidates);
+  if (!resolved) {
+    return wantsEnglish
+      ? readChangelogEntries("zh", zhCandidates, enCandidates, filePath, isEnglish)
+      : [];
+  }
+  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+}
+
+/** ja 与 en 共用英文日志：仓库里没有日文 CHANGELOG。 */
+function prefersEnglishChangelog(locale: Locale): boolean {
+  return locale === "en" || locale === "ja";
+}
+
+/** 获取 Desktop 桌面客户端的更新日志列表。 */
 export function getDesktopChangelogEntries(
   locale: Locale = "zh",
   filePath?: string,
 ): ChangelogEntry[] {
-  const isEn = locale === "en" || locale === "ja";
-  const candidates = isEn ? defaultDesktopEnChangelogCandidates : defaultDesktopChangelogCandidates;
-  const resolved = resolveChangelogPath(filePath, candidates);
-  if (!resolved) {
-    if (isEn) {
-      return getDesktopChangelogEntries("zh", filePath);
-    }
-    return [];
-  }
-  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+  return readChangelogEntries(
+    locale,
+    defaultDesktopChangelogCandidates,
+    defaultDesktopEnChangelogCandidates,
+    filePath,
+    prefersEnglishChangelog,
+  );
 }
 
-/**
- * 获取 Web 在线版的更新日志列表。
- */
+/** 获取 Web 在线版的更新日志列表。 */
 export function getWebChangelogEntries(locale: Locale = "zh", filePath?: string): ChangelogEntry[] {
-  const isEn = locale === "en" || locale === "ja";
-  const candidates = isEn ? defaultWebEnChangelogCandidates : defaultWebChangelogCandidates;
-  const resolved = resolveChangelogPath(filePath, candidates);
-  if (!resolved) {
-    if (isEn) {
-      return getWebChangelogEntries("zh", filePath);
-    }
-    return [];
-  }
-  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+  return readChangelogEntries(
+    locale,
+    defaultWebChangelogCandidates,
+    defaultWebEnChangelogCandidates,
+    filePath,
+    prefersEnglishChangelog,
+  );
 }
 
-/**
- * 获取 Android 移动端的更新日志列表。
- */
+/** 获取 Android 移动端的更新日志列表。 */
 export function getAndroidChangelogEntries(
   locale: Locale = "zh",
   filePath?: string,
 ): ChangelogEntry[] {
-  const isEn = locale === "en" || locale === "ja";
-  const candidates = isEn ? defaultAndroidEnChangelogCandidates : defaultAndroidChangelogCandidates;
-  const resolved = resolveChangelogPath(filePath, candidates);
-  if (!resolved) {
-    if (isEn) {
-      return getAndroidChangelogEntries("zh", filePath);
-    }
-    return [];
-  }
-  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+  return readChangelogEntries(
+    locale,
+    defaultAndroidChangelogCandidates,
+    defaultAndroidEnChangelogCandidates,
+    filePath,
+    prefersEnglishChangelog,
+  );
 }
 
-/**
- * 获取 iOS 移动端的更新日志列表。
- */
+/** 获取 iOS 移动端的更新日志列表。 */
 export function getIosChangelogEntries(locale: Locale = "zh", filePath?: string): ChangelogEntry[] {
-  const isEn = locale === "en" || locale === "ja";
-  const candidates = isEn ? defaultIosEnChangelogCandidates : defaultIosChangelogCandidates;
-  const resolved = resolveChangelogPath(filePath, candidates);
-  if (!resolved) {
-    if (isEn) {
-      return getIosChangelogEntries("zh", filePath);
-    }
-    return [];
-  }
-  return parseChangelog(fs.readFileSync(resolved, "utf8"));
+  return readChangelogEntries(
+    locale,
+    defaultIosChangelogCandidates,
+    defaultIosEnChangelogCandidates,
+    filePath,
+    prefersEnglishChangelog,
+  );
 }
 
 /**
