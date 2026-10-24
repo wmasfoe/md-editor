@@ -289,9 +289,7 @@ md-editor/
 
 ## License
 
-本项目遵循 [GNU General Public License v3.0 (GPL-3.0)](LICENSE) 开源协议（针对 iOS 客户端包含 [Apple App Store 豁免条款](NOTICE)）。严格防止第三方闭源套壳、恶意改名与商业转售，保障开源社区与用户的长久自由。
-
-详见根目录完整 [LICENSE](LICENSE) 协议文件与 [NOTICE](NOTICE)。
+本项目以 [GNU General Public License v3.0 or later (GPL-3.0-or-later)](LICENSE) 发布。协议全文见 [LICENSE](LICENSE)，版权声明见 [NOTICE](NOTICE)。
 
 ---
 

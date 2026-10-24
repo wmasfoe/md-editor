@@ -70,10 +70,10 @@ export const zh = {
       site: "官方网站",
       changelog: "更新日志",
       github: "GitHub 仓库",
-      license: "GPL-3.0 许可证",
+      license: "GPL-3.0-or-later",
     },
     copyright: "© 2026 Inkpoint Contributors",
-    license: "基于 GNU 通用公共许可证 v3.0 发布",
+    license: "以 GPL-3.0-or-later 发布",
   },
   settings: {
     title: "设置",

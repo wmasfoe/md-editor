@@ -289,9 +289,7 @@ For code conventions and Git workflows, please refer to [AGENTS.md](AGENTS.md) (
 
 ## License
 
-Inkpoint is open-source software licensed under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE) with an [Apple App Store Exception](NOTICE) for iOS distribution. This prevents unauthorized proprietary repackaging, white-labeling, or closed-source resale, guaranteeing long-term freedom for the community and users.
-
-See the root [LICENSE](LICENSE) file for the GPL text and [NOTICE](NOTICE) for the copyright grant and App Store additional permission.
+Inkpoint is licensed under the [GNU General Public License v3.0 or later (GPL-3.0-or-later)](LICENSE). The license text is [LICENSE](LICENSE). The copyright notice is [NOTICE](NOTICE).
 
 ---
 
