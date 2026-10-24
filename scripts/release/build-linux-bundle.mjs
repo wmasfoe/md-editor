@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   ensureAppImageZsyncFiles,
   prepareLinuxDeployTools,
+  prependLibraryDirectory,
   updateInformationForArch,
 } from "./appimage-catalog.mjs";
 import { seedAppImageLauncherCache } from "./validate-appimage.mjs";
@@ -32,10 +33,15 @@ console.log(`Prepared linuxdeploy wrapper: ${prepared.cachePath}`);
 // Embedded before appimagetool runs, which is also before minisign. Do not
 // repack the AppImage afterwards: that would invalidate the updater signature.
 const updateInformation = updateInformationForArch();
+const binariesDir = path.join(repoRoot, "apps/desktop/src-tauri/binaries");
+// llama-server links libllama.so from this directory. release-desktop.yml sets
+// LD_LIBRARY_PATH to it; prepend when the variable already points elsewhere.
+const libraryPath = prependLibraryDirectory(process.env.LD_LIBRARY_PATH, binariesDir);
 const env = {
   ...process.env,
   NO_STRIP: process.env.NO_STRIP ?? "true",
   APPIMAGE_EXTRACT_AND_RUN: "1",
+  LD_LIBRARY_PATH: libraryPath,
   LDAI_UPDATE_INFORMATION: updateInformation,
   UPDATE_INFORMATION: updateInformation,
   LDAI_UPD_INFO: updateInformation,

@@ -622,7 +622,9 @@ export function validateAppImages(
           const storeDir = path.join(temporaryDirectory, "squashfs-store");
           const previousUmask = process.umask(0o022);
           try {
-            execFileSync("unsquashfs", ["-o", offset, "-d", storeDir, imagePath], {
+            // -no-xattrs: security.selinux labels in the squashfs make unsquashfs
+            // exit non-zero when the host cannot restore them. Mode checks do not need xattrs.
+            execFileSync("unsquashfs", ["-no-xattrs", "-o", offset, "-d", storeDir, imagePath], {
               stdio: ["ignore", "ignore", "pipe"],
             });
           } finally {
@@ -678,14 +680,18 @@ export async function validateAppImagesAsync(
       if (offset !== null && hasPasswordlessSudo()) {
         // Unpack as root so the payload is owned by root:root, testing real non-owner
         // execution permissions (matching firejail's FUSE mount in AppImageHub).
-        execFileSync("sudo", ["-n", "unsquashfs", "-o", offset, "-d", launchAppDir, imagePath], {
-          stdio: ["ignore", "ignore", "pipe"],
-        });
+        execFileSync(
+          "sudo",
+          ["-n", "unsquashfs", "-no-xattrs", "-o", offset, "-d", launchAppDir, imagePath],
+          {
+            stdio: ["ignore", "ignore", "pipe"],
+          },
+        );
         unpackedAsRoot = true;
       } else if (offset !== null) {
         const previousUmask = process.umask(0o022);
         try {
-          execFileSync("unsquashfs", ["-o", offset, "-d", launchAppDir, imagePath], {
+          execFileSync("unsquashfs", ["-no-xattrs", "-o", offset, "-d", launchAppDir, imagePath], {
             stdio: ["ignore", "ignore", "pipe"],
           });
         } finally {

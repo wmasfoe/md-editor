@@ -18,6 +18,7 @@ import {
   linuxdeployCacheName,
   patchGtkPluginScript,
   prepareLinuxDeployTools,
+  prependLibraryDirectory,
   updateInformationForArch,
 } from "./appimage-catalog.mjs";
 
@@ -93,6 +94,16 @@ test("release workflows upload zsync assets without sending them to the Homebrew
   }
   const homebrew = release.split("Publish public Homebrew asset")[1].split("Sync Cask")[0];
   assert.doesNotMatch(homebrew, /AppImage\.zsync/u);
+});
+
+test("sidecar library directory is prepended to LD_LIBRARY_PATH", () => {
+  assert.equal(prependLibraryDirectory(undefined, "/opt/binaries"), "/opt/binaries");
+  assert.equal(prependLibraryDirectory("", "/opt/binaries"), "/opt/binaries");
+  assert.equal(prependLibraryDirectory("/opt/binaries", "/opt/binaries"), "/opt/binaries");
+  assert.equal(
+    prependLibraryDirectory("/exec-daemon/tmux-root/lib", "/opt/binaries"),
+    "/opt/binaries:/exec-daemon/tmux-root/lib",
+  );
 });
 
 test("GTK plugin patch adds the exclude flag once", () => {

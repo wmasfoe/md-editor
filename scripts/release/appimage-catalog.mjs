@@ -80,6 +80,18 @@ export function linuxdeployCacheName(arch = linuxdeployArch()) {
   return `linuxdeploy-${arch}.AppImage`;
 }
 
+/**
+ * linuxdeploy resolves sidecar dependencies such as libllama.so through
+ * LD_LIBRARY_PATH. CI sets that variable to the binaries directory; a developer
+ * shell may already point it somewhere else, so the sidecar directory is
+ * prepended unless it is already present.
+ */
+export function prependLibraryDirectory(existing, directory) {
+  const entries = (existing ?? "").split(path.delimiter).filter(Boolean);
+  if (entries.includes(directory)) return entries.join(path.delimiter);
+  return [directory, ...entries].join(path.delimiter);
+}
+
 export function updateInformationForArch(arch = linuxdeployArch()) {
   if (arch === "x86_64") return AMD64_UPDATE_INFORMATION;
   if (arch === "aarch64") return AARCH64_UPDATE_INFORMATION;
