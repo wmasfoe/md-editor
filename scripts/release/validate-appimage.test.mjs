@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { validateAppDir, validateAppImages } from "./validate-appimage.mjs";
+import {
+  seedAppImageLauncherCache,
+  validateAppDir,
+  validateAppImages,
+} from "./validate-appimage.mjs";
 
 const png = fileURLToPath(
   new URL("../../apps/desktop/src-tauri/icons/128x128.png", import.meta.url),
@@ -13,12 +17,39 @@ const png = fileURLToPath(
 const cli = fileURLToPath(new URL("./validate-appimage.mjs", import.meta.url));
 const unixOnly = { skip: process.platform === "win32" };
 
+const validDesktopContent = `[Desktop Entry]
+Type=Application
+Name=Example App
+Exec=example-app
+Icon=Example App
+Categories=Utility;TextEditor;
+`;
+
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-appimage-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const appDir = path.join(root, "Example App.AppDir");
-  fs.mkdirSync(appDir);
+  fs.mkdirSync(appDir, { mode: 0o755 });
   fs.copyFileSync(png, path.join(appDir, "Example App.png"));
+  fs.chmodSync(path.join(appDir, "Example App.png"), 0o644);
+  fs.writeFileSync(path.join(appDir, "AppRun"), '#!/bin/sh\nexec ./AppRun.wrapped "$@"\n', {
+    mode: 0o755,
+  });
+  fs.writeFileSync(path.join(appDir, "AppRun.wrapped"), "#!/bin/sh\nexit 0\n", {
+    mode: 0o755,
+  });
+  const applicationsDir = path.join(appDir, "usr", "share", "applications");
+  fs.mkdirSync(applicationsDir, { recursive: true, mode: 0o755 });
+  const realDesktop = path.join(applicationsDir, "Example App.desktop");
+  fs.writeFileSync(realDesktop, validDesktopContent, { mode: 0o644 });
+  if (process.platform !== "win32") {
+    fs.symlinkSync(
+      "usr/share/applications/Example App.desktop",
+      path.join(appDir, "Example App.desktop"),
+    );
+  } else {
+    fs.copyFileSync(realDesktop, path.join(appDir, "Example App.desktop"));
+  }
   return { root, appDir, icon: path.join(appDir, ".DirIcon") };
 }
 
@@ -41,14 +72,15 @@ test(
     fs.symlinkSync("Example App.png", icon);
     const moved = path.join(root, "relocated.AppDir");
     fs.renameSync(appDir, moved);
-    assert.doesNotThrow(() => validateAppDir(moved));
+    assert.doesNotThrow(() => validateAppDir(moved, { requireCompleteAppDir: true }));
   },
 );
 
 test("accepts a regular PNG .DirIcon", (t) => {
   const { appDir, icon } = fixture(t);
   fs.copyFileSync(png, icon);
-  assert.doesNotThrow(() => validateAppDir(appDir));
+  fs.chmodSync(icon, 0o644);
+  assert.doesNotThrow(() => validateAppDir(appDir, { requireCompleteAppDir: true }));
 });
 
 test("rejects missing and dangling icon links", unixOnly, (t) => {
@@ -77,6 +109,110 @@ test("rejects directories, truncated icons, and non-PNG content", (t) => {
   assert.throws(() => validateAppDir(appDir), /PNG file/u);
 });
 
+test(
+  "rejects AppRun.wrapped with mode 0770 (tauri-apps/tauri#16155 firejail Permission denied)",
+  unixOnly,
+  (t) => {
+    const { appDir, icon } = fixture(t);
+    fs.symlinkSync("Example App.png", icon);
+    fs.chmodSync(path.join(appDir, "AppRun.wrapped"), 0o770);
+    assert.throws(
+      () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+      /AppRun\.wrapped has mode 0770/u,
+    );
+  },
+);
+
+test(
+  "rejects nested executables or files that are not readable/executable by others",
+  unixOnly,
+  (t) => {
+    const { appDir, icon } = fixture(t);
+    fs.symlinkSync("Example App.png", icon);
+    const binDir = path.join(appDir, "usr", "bin");
+    fs.mkdirSync(binDir, { recursive: true, mode: 0o755 });
+    const binary = path.join(binDir, "md-editor");
+    fs.writeFileSync(binary, "#!/bin/sh\nexit 0\n");
+    fs.chmodSync(binary, 0o750);
+    assert.throws(
+      () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+      /usr\/bin\/md-editor has mode 0750/u,
+    );
+
+    fs.chmodSync(binary, 0o755);
+    const secretFile = path.join(appDir, "usr", "share", "secret.txt");
+    fs.writeFileSync(secretFile, "restricted");
+    fs.chmodSync(secretFile, 0o640);
+    assert.throws(
+      () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+      /usr\/share\/secret\.txt has mode 0640/u,
+    );
+
+    fs.chmodSync(secretFile, 0o644);
+    fs.chmodSync(binDir, 0o700);
+    assert.throws(
+      () => validateAppDir(appDir, { requireCompleteAppDir: true, checkDirectories: true }),
+      /usr\/bin has mode 0700/u,
+    );
+  },
+);
+
+test("rejects invalid .desktop symlinks or missing required desktop keys", unixOnly, (t) => {
+  const { appDir, icon } = fixture(t);
+  fs.symlinkSync("Example App.png", icon);
+  const desktopLink = path.join(appDir, "Example App.desktop");
+  const realDesktop = path.join(appDir, "usr", "share", "applications", "Example App.desktop");
+
+  fs.unlinkSync(desktopLink);
+  fs.symlinkSync(realDesktop, desktopLink);
+  assert.throws(
+    () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+    /Example App\.desktop must use a relative symlink/u,
+  );
+
+  fs.unlinkSync(desktopLink);
+  fs.symlinkSync("usr/share/applications/Example App.desktop", desktopLink);
+  fs.writeFileSync(realDesktop, "[Desktop Entry]\nName=Example App\nExec=example-app\n");
+  assert.throws(
+    () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+    /must define Icon= exactly once/u,
+  );
+});
+
+test(
+  "seedAppImageLauncherCache downloads missing launcher and repairs 0770 permissions to 0755",
+  unixOnly,
+  (t) => {
+    const { root } = fixture(t);
+    const cacheDir = path.join(root, "tauri-cache");
+    let downloadedUrl = null;
+    const seeded = seedAppImageLauncherCache({
+      cacheDir,
+      arch: "x86_64",
+      platform: "linux",
+      download: (url, destination) => {
+        downloadedUrl = url;
+        fs.writeFileSync(destination, "#!/bin/sh\n", { mode: 0o770 });
+      },
+    });
+    assert.ok(seeded?.endsWith("AppRun-x86_64"));
+    assert.match(downloadedUrl ?? "", /apprun-old\/AppRun-x86_64$/u);
+    assert.equal(fs.statSync(seeded).mode & 0o777, 0o755);
+
+    // Simulate a pre-existing 0770 launcher cached by an older Tauri run
+    fs.chmodSync(seeded, 0o770);
+    seedAppImageLauncherCache({
+      cacheDir,
+      arch: "x86_64",
+      platform: "linux",
+      download: () => {
+        throw new Error("should not re-download non-empty cached launcher");
+      },
+    });
+    assert.equal(fs.statSync(seeded).mode & 0o777, 0o755);
+  },
+);
+
 test("fails when the build directory contains no AppImage", (t) => {
   const { root } = fixture(t);
   assert.throws(() => validateAppImages(root), /No AppImages found/u);
@@ -96,6 +232,7 @@ test(
     const runtime = `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
+process.umask(0);
 if (process.argv[2] !== '--appimage-extract') process.exit(2);
 fs.writeFileSync(${JSON.stringify(extractionRecord)}, process.cwd());
 fs.cpSync(${JSON.stringify(appDir)}, path.join(process.cwd(), 'squashfs-root'), {
@@ -107,11 +244,19 @@ fs.cpSync(${JSON.stringify(appDir)}, path.join(process.cwd(), 'squashfs-root'), 
         mode: 0o755,
       });
     }
-    assert.doesNotThrow(() => validateAppImages(artifacts));
+    assert.doesNotThrow(() => validateAppImages(artifacts, { requireCompleteAppDir: true }));
     assert.equal(fs.existsSync(fs.readFileSync(extractionRecord, "utf8")), false);
     for (const name of fs.readdirSync(artifacts)) {
       assert.equal(fs.readFileSync(path.join(artifacts, name), "utf8"), runtime);
     }
+
+    // Fail via CLI when AppRun.wrapped is 0770
+    fs.chmodSync(path.join(appDir, "AppRun.wrapped"), 0o770);
+    const modeResult = spawnSync(process.execPath, [cli, artifacts], { encoding: "utf8" });
+    assert.equal(modeResult.status, 1);
+    assert.match(modeResult.stderr, /Invalid AppImage.*AppRun\.wrapped has mode 0770/u);
+    assert.equal(fs.existsSync(fs.readFileSync(extractionRecord, "utf8")), false);
+    fs.chmodSync(path.join(appDir, "AppRun.wrapped"), 0o755);
 
     fs.unlinkSync(icon);
     fs.symlinkSync(path.join(appDir, "Example App.png"), icon);

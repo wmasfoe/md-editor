@@ -659,7 +659,7 @@ export function useDesktopEditorController({
   }, [setIsSidebarVisible]);
 
   useEffect(() => {
-    const fileName = snapshot.filePath?.split(/[\\/]/).pop() || "未命名文档";
+    const fileName = snapshot.filePath?.split(/[\\/]/).pop() || APP_DISPLAY_NAME;
     const title = `${fileName}${snapshot.isDirty ? "*" : ""}`;
     document.title = title;
     if (isTauri()) {
