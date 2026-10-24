@@ -3,7 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { expectedUpdateInformation, normalizeUpdateInformation } from "./appimage-catalog.mjs";
+import {
+  expectedUpdateInformation,
+  normalizeUpdateInformation,
+  readAppImageUpdateInformation,
+  readZsyncFilename,
+} from "./appimage-catalog.mjs";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -543,27 +548,23 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName, temporaryDirecto
   }
 }
 
-function validateEmbeddedUpdateInformation(imagePath, appImageName) {
-  // Synthetic fixtures only implement --appimage-extract. A real runtime that
-  // reports --appimage-offset also reports --appimage-updateinformation.
-  if (readAppImageOffset(imagePath) === null) return;
+export function validateEmbeddedUpdateInformation(imagePath, appImageName) {
   const expected = expectedUpdateInformation(appImageName);
   if (!expected) return;
-  let raw = "";
-  try {
-    raw = execFileSync(imagePath, ["--appimage-updateinformation"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (error) {
-    throw new Error(`AppImage does not report update information (${error.message}).`, {
-      cause: error,
-    });
-  }
-  const actual = normalizeUpdateInformation(raw);
+  // Synthetic fixtures are node scripts, not ELF AppImages. A real AppImage is
+  // ELF and must carry the section even when APPIMAGE_EXTRACT_AND_RUN is set.
+  const embedded = readAppImageUpdateInformation(imagePath);
+  if (embedded === null) return;
+  const actual = normalizeUpdateInformation(embedded);
   if (actual !== expected) {
     throw new Error(
       `AppImage update information must be ${expected} (got ${JSON.stringify(actual)}).`,
+    );
+  }
+  const filename = readZsyncFilename(`${imagePath}.zsync`);
+  if (filename !== appImageName) {
+    throw new Error(
+      `AppImage zsync Filename must be ${appImageName} (got ${JSON.stringify(filename)}).`,
     );
   }
 }

@@ -102,6 +102,119 @@ export function normalizeUpdateInformation(raw) {
   return String(raw).replaceAll("\0", "").trim();
 }
 
+const ELF_MAGIC = Buffer.from([0x7f, 0x45, 0x4c, 0x46]);
+const UPD_INFO_SECTION = ".upd_info";
+
+function readExact(fd, position, length) {
+  const buffer = Buffer.alloc(length);
+  const bytesRead = fs.readSync(fd, buffer, 0, length, position);
+  if (bytesRead !== length) {
+    throw new Error(`Short ELF read at offset ${position}: expected ${length}, got ${bytesRead}.`);
+  }
+  return buffer;
+}
+
+function parseElf64SectionHeader(buffer) {
+  return {
+    name: buffer.readUInt32LE(0),
+    offset: Number(buffer.readBigUInt64LE(24)),
+    size: Number(buffer.readBigUInt64LE(32)),
+    link: buffer.readUInt32LE(40),
+  };
+}
+
+/**
+ * Bytes appimagetool stores for `appimagetool -u`. Returns null when the file
+ * is not an ELF (synthetic test runtimes). Throws when a real AppImage ELF has
+ * no `.upd_info` section.
+ *
+ * Do not exec `--appimage-updateinformation`. release-desktop.yml and this
+ * build set APPIMAGE_EXTRACT_AND_RUN=1, and that runtime path forwards the
+ * flag to the payload. The desktop app then starts and dies in GTK init,
+ * which is not evidence that the section is missing.
+ */
+export function readAppImageUpdateInformation(imagePath) {
+  const fd = fs.openSync(imagePath, "r");
+  try {
+    const ident = readExact(fd, 0, 16);
+    if (!ident.subarray(0, 4).equals(ELF_MAGIC)) return null;
+    if (ident[4] !== 2 || ident[5] !== 1) {
+      throw new Error(`${imagePath} is an ELF AppImage but not 64-bit little-endian.`);
+    }
+
+    const header = readExact(fd, 0, 64);
+    const sectionOffset = Number(header.readBigUInt64LE(40));
+    const sectionEntrySize = header.readUInt16LE(58);
+    let sectionCount = header.readUInt16LE(60);
+    let stringIndex = header.readUInt16LE(62);
+    if (sectionEntrySize < 64 || sectionOffset <= 0) {
+      throw new Error(`${imagePath} has no ELF section headers.`);
+    }
+
+    const sectionAt = (index) =>
+      parseElf64SectionHeader(readExact(fd, sectionOffset + index * sectionEntrySize, 64));
+
+    // shnum/shstrndx of 0 or 0xffff means the real value is in section header 0.
+    if (sectionCount === 0 || stringIndex === 0xffff) {
+      const first = sectionAt(0);
+      if (sectionCount === 0) sectionCount = first.size;
+      if (stringIndex === 0xffff) stringIndex = first.link;
+    }
+    if (sectionCount <= 0 || stringIndex >= sectionCount) {
+      throw new Error(`${imagePath} has an unusable ELF section header table.`);
+    }
+
+    const stringHeader = sectionAt(stringIndex);
+    if (stringHeader.size <= 0 || stringHeader.size > 1024 * 1024) {
+      throw new Error(`${imagePath} has an unusable ELF section name table.`);
+    }
+    const names = readExact(fd, stringHeader.offset, stringHeader.size);
+
+    for (let index = 0; index < sectionCount; index += 1) {
+      const section = sectionAt(index);
+      const nameEnd = names.indexOf(0, section.name);
+      const name = names.toString("utf8", section.name, nameEnd === -1 ? names.length : nameEnd);
+      if (name !== UPD_INFO_SECTION) continue;
+      if (section.size <= 0 || section.size > 64 * 1024) {
+        throw new Error(`${imagePath} has an empty or oversized ${UPD_INFO_SECTION} section.`);
+      }
+      const raw = readExact(fd, section.offset, section.size).toString("utf8");
+      const updateInformation = normalizeUpdateInformation(raw);
+      if (!updateInformation) {
+        throw new Error(`${imagePath} has an empty ${UPD_INFO_SECTION} section.`);
+      }
+      return updateInformation;
+    }
+
+    throw new Error(`${imagePath} has no ${UPD_INFO_SECTION} section.`);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+/** Text header of an appimagetool `.zsync`. The body after the blank line is binary. */
+export function readZsyncFilename(zsyncPath) {
+  if (!fs.existsSync(zsyncPath) || fs.statSync(zsyncPath).size === 0) {
+    throw new Error(`AppImage zsync is missing: ${zsyncPath}`);
+  }
+  const head = Buffer.alloc(1024);
+  const fd = fs.openSync(zsyncPath, "r");
+  let bytesRead = 0;
+  try {
+    bytesRead = fs.readSync(fd, head, 0, head.length, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const match = head
+    .subarray(0, bytesRead)
+    .toString("utf8")
+    .match(/^Filename:\s*(.+)$/mu);
+  if (!match) {
+    throw new Error(`AppImage zsync has no Filename header: ${zsyncPath}`);
+  }
+  return match[1].trim();
+}
+
 export function expectedUpdateInformation(appImageName) {
   if (appImageName.includes("_aarch64.") || appImageName.includes("_arm64.")) {
     return AARCH64_UPDATE_INFORMATION;
