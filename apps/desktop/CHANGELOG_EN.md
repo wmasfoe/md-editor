@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.4 - 2026-10-24 (#193,194)
+
+- The Linux AppImage now includes AppStream metadata and zsync update information, and no longer bundles libwayland-client.so.0.
+- The license is plain GPL-3.0-or-later, with no Apple App Store additional permission.
+
 ## 0.16.3 - 2026-10-24 (#191,192)
 
 - Fixed Linux AppImage launcher executable permissions and initial window title, and hardened headless X11 sandbox launch verification for Firejail and other sandboxed environments.
