@@ -76,7 +76,12 @@
         ]
       },
       "appimage": {
-        "bundleMediaFramework": false
+        "bundleMediaFramework": false,
+        "files": {
+          "usr/share/metainfo/dev.md_editor.app.appdata.xml": "linux/dev.md_editor.app.appdata.xml",
+          "usr/share/doc/inkpoint/LICENSE": "../../../LICENSE",
+          "usr/share/doc/inkpoint/NOTICE": "../../../NOTICE"
+        }
       }
     },
     "windows": {

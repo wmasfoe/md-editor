@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { expectedUpdateInformation, normalizeUpdateInformation } from "./appimage-catalog.mjs";
 
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -218,11 +219,51 @@ function validatePermissionsTree(root, { checkDirectories = false } = {}) {
   }
 }
 
+const BLACKLISTED_BASENAMES = new Set(["libwayland-client.so.0"]);
+
+function assertNoBlacklistedFiles(root) {
+  const stack = [root];
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+        continue;
+      }
+      if (BLACKLISTED_BASENAMES.has(entry.name)) {
+        throw new Error(
+          `AppImage bundles blacklisted file ${path.relative(root, fullPath)}; libwayland-client.so.0 must come from the host.`,
+        );
+      }
+    }
+  }
+}
+
+function hasCatalogAppdata(root) {
+  for (const relativeDir of ["usr/share/metainfo", "usr/share/appdata"]) {
+    const dir = path.join(root, relativeDir);
+    if (!fs.existsSync(dir)) continue;
+    if (fs.readdirSync(dir).some((name) => name.endsWith("appdata.xml"))) return true;
+  }
+  return false;
+}
+
+function assertCatalogAppdata(root) {
+  if (hasCatalogAppdata(root)) return;
+  throw new Error(
+    "AppImage is missing usr/share/metainfo/*appdata.xml (AppImageHub ignores *.metainfo.xml).",
+  );
+}
+
 export function validateAppDir(
   appDir,
   { requireCompleteAppDir = false, checkDirectories = false } = {},
 ) {
   const root = fs.realpathSync(appDir);
+  assertNoBlacklistedFiles(root);
+  if (requireCompleteAppDir) assertCatalogAppdata(root);
   const icon = path.join(root, ".DirIcon");
 
   // An absolute link can work on the build runner while breaking everywhere else.
@@ -502,6 +543,52 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName, temporaryDirecto
   }
 }
 
+function validateEmbeddedUpdateInformation(imagePath, appImageName) {
+  // Synthetic fixtures only implement --appimage-extract. A real runtime that
+  // reports --appimage-offset also reports --appimage-updateinformation.
+  if (readAppImageOffset(imagePath) === null) return;
+  const expected = expectedUpdateInformation(appImageName);
+  if (!expected) return;
+  let raw = "";
+  try {
+    raw = execFileSync(imagePath, ["--appimage-updateinformation"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    throw new Error(`AppImage does not report update information (${error.message}).`, {
+      cause: error,
+    });
+  }
+  const actual = normalizeUpdateInformation(raw);
+  if (actual !== expected) {
+    throw new Error(
+      `AppImage update information must be ${expected} (got ${JSON.stringify(actual)}).`,
+    );
+  }
+}
+
+function validateInkpointAppstream(extractedRoot) {
+  if (!hasCommand("appstreamcli")) return;
+  const metainfoDir = path.join(extractedRoot, "usr", "share", "metainfo");
+  if (!fs.existsSync(metainfoDir)) return;
+  const isInkpoint = fs.readdirSync(metainfoDir).some((name) => {
+    const content = fs.readFileSync(path.join(metainfoDir, name), "utf8");
+    return content.includes("dev.md_editor.app");
+  });
+  if (!isInkpoint) return;
+  try {
+    execFileSync("appstreamcli", ["validate-tree", "--no-net", extractedRoot], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    const detail = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
+    throw new Error(`appstreamcli validate-tree failed${detail ? `: ${detail}` : "."}`, {
+      cause: error,
+    });
+  }
+}
+
 export function validateAppImages(
   directory,
   { requireCompleteAppDir = false, verifyLaunch = false } = {},
@@ -523,6 +610,8 @@ export function validateAppImages(
       });
       const extractedRoot = path.join(temporaryDirectory, "squashfs-root");
       validateAppDir(extractedRoot, { requireCompleteAppDir });
+      validateEmbeddedUpdateInformation(imagePath, name);
+      validateInkpointAppstream(extractedRoot);
 
       // On Linux, if unsquashfs is installed and the artifact supports --appimage-offset,
       // also verify the stored SquashFS directory permissions (since --appimage-extract
