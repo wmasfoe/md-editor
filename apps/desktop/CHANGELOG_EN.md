@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.5 - 2026-10-24 (#196)
+
+- Linux AppImage update information is stored in the ELF .upd_info section and shipped as a .zsync file, so the build no longer launches the app to read it.
+- AppStream metadata validates with Ubuntu 22.04's appstreamcli.
+
 ## 0.16.4 - 2026-10-24 (#193,194)
 
 - The Linux AppImage now includes AppStream metadata and zsync update information, and no longer bundles libwayland-client.so.0.
