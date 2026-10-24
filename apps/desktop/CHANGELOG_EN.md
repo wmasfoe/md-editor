@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.2 - 2026-10-24 (#191)
+
+- Fixed Linux AppImage launcher executable permissions and initial window title so the app launches cleanly under Firejail and other sandboxed environments.
+
 ## 0.16.1 - 2026-10-23 (#190)
 
 - Fixed Linux AppImage icon links pointing to the build machine, keeping application icons available after downloading or moving the app.
