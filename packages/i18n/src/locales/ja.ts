@@ -72,10 +72,10 @@ export const ja: TranslationSchema = {
       site: "公式サイト",
       changelog: "更新履歴",
       github: "GitHub リポジトリ",
-      license: "GPL-3.0 ライセンス",
+      license: "GPL-3.0-or-later",
     },
     copyright: "© 2026 Inkpoint Contributors",
-    license: "GNU General Public License v3.0 で公開",
+    license: "GPL-3.0-or-later で公開",
   },
   settings: {
     title: "設定",

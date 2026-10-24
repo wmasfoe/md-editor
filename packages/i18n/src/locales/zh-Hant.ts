@@ -72,10 +72,10 @@ export const zhHant: TranslationSchema = {
       site: "官方網站",
       changelog: "更新日誌",
       github: "GitHub 儲存庫",
-      license: "GPL-3.0 授權",
+      license: "GPL-3.0-or-later",
     },
     copyright: "© 2026 Inkpoint Contributors",
-    license: "依 GNU 通用公共授權條款 v3.0 發佈",
+    license: "以 GPL-3.0-or-later 發佈",
   },
   settings: {
     title: "設定",

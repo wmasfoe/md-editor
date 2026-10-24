@@ -71,15 +71,17 @@ test("update information matches the GitHub release asset globs", () => {
   assert.match(metainfo, /<name>Inkpoint<\/name>/u);
 });
 
-test("LICENSE is the canonical GPL-3.0 text and the App Store grant lives in NOTICE", () => {
+test("LICENSE is the canonical GPL-3.0 text and NOTICE has no extra terms", () => {
   const license = fs.readFileSync(path.join(repoRoot, "LICENSE"), "utf8");
   const notice = fs.readFileSync(path.join(repoRoot, "NOTICE"), "utf8");
   assert.match(license, /^ {20}GNU GENERAL PUBLIC LICENSE\n {23}Version 3, 29 June 2007\n/u);
   assert.doesNotMatch(license.slice(0, 200), /Inkpoint/u);
   assert.match(license, /How to Apply These Terms to Your New Programs/u);
-  assert.match(notice, /Apple App Store Exception/u);
-  assert.match(notice, /any later version/u);
   assert.match(notice, /Copyright \(C\) 2026 Inkpoint Contributors/u);
+  assert.match(notice, /any later version/u);
+  assert.doesNotMatch(notice, /App Store/u);
+  assert.doesNotMatch(notice, /additional permission/iu);
+  assert.doesNotMatch(notice, /special exception/iu);
 });
 
 test("release workflows upload zsync assets without sending them to the Homebrew tap", () => {

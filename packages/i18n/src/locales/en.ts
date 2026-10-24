@@ -72,10 +72,10 @@ export const en: TranslationSchema = {
       site: "Website",
       changelog: "Changelog",
       github: "GitHub repository",
-      license: "GPL-3.0 license",
+      license: "GPL-3.0-or-later",
     },
     copyright: "© 2026 Inkpoint Contributors",
-    license: "Released under the GNU General Public License v3.0",
+    license: "Released under GPL-3.0-or-later",
   },
   settings: {
     title: "Settings",
