@@ -273,12 +273,50 @@ function matchesHostLinuxArch(appImageName) {
   return false;
 }
 
-async function runHeadlessWindowSmokeTest(appDir, appImageName) {
+function readAppImageOffset(imagePath) {
+  try {
+    const rawOffset = execFileSync(imagePath, ["--appimage-offset"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (/^\d+$/u.test(rawOffset) && Number(rawOffset) > 0) {
+      return rawOffset;
+    }
+  } catch {
+    // Synthetic test runtimes may only implement --appimage-extract
+  }
+  return null;
+}
+
+function hasPasswordlessSudo() {
+  if (process.platform !== "linux" || !hasCommand("sudo")) {
+    return false;
+  }
+  try {
+    execFileSync("sudo", ["-n", "true"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runHeadlessWindowSmokeTest(appDir, appImageName, temporaryDirectory) {
   if (!hasCommand("Xvfb") || !hasCommand("xwininfo")) {
     throw new Error(
       `Cannot run --verify-launch for ${appImageName}: Xvfb and xwininfo are required.`,
     );
   }
+
+  const homeDir = path.join(temporaryDirectory, "home");
+  const icewmDir = path.join(homeDir, ".icewm");
+  fs.mkdirSync(icewmDir, { recursive: true, mode: 0o755 });
+  // Match AppImage/appimage.github.io (.github/workflows/test.yml) so IceWM does not
+  // create its own visible taskbar window on the virtual display.
+  fs.writeFileSync(
+    path.join(icewmDir, "preferences"),
+    "TaskBarAtTop = 0\nTaskBarKeepBelow = 1\nTaskBarAutoHide = 1\nShowTaskBar = 0\n",
+    { mode: 0o644 },
+  );
 
   const display = `:98`;
   const xvfb = spawn("Xvfb", [display, "-screen", "0", "800x600x24"], {
@@ -286,28 +324,50 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName) {
   });
   xvfb.unref();
 
+  let wmProcess = null;
   let appProcess = null;
-  let stderrOutput = "";
+  let appOutput = "";
+  let lastTreeOutput = "";
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    const env = {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const x11Env = {
       ...process.env,
       DISPLAY: display,
+      HOME: homeDir,
+    };
+
+    if (hasCommand("icewm")) {
+      wmProcess = spawn("icewm", [], {
+        env: x11Env,
+        stdio: "ignore",
+      });
+      wmProcess.unref();
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    const env = {
+      ...x11Env,
       GDK_BACKEND: "x11",
+      NO_AT_BRIDGE: "1",
       WEBKIT_DISABLE_DMABUF_RENDERER: "1",
       WEBKIT_DISABLE_COMPOSITING_MODE: "1",
       QTWEBENGINE_DISABLE_SANDBOX: "1",
     };
     delete env.WAYLAND_DISPLAY;
+    delete env.LD_LIBRARY_PATH;
+    delete env.APPIMAGE_EXTRACT_AND_RUN;
 
     appProcess = spawn(path.join(appDir, "AppRun"), [], {
       cwd: appDir,
       env,
       detached: true,
-      stdio: ["ignore", "ignore", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    appProcess.stdout.on("data", (chunk) => {
+      appOutput += chunk.toString("utf8");
     });
     appProcess.stderr.on("data", (chunk) => {
-      stderrOutput += chunk.toString("utf8");
+      appOutput += chunk.toString("utf8");
     });
 
     const deadline = Date.now() + 30_000;
@@ -315,40 +375,82 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName) {
     while (Date.now() < deadline) {
       if (appProcess.exitCode !== null) {
         throw new Error(
-          `AppRun exited prematurely with code ${appProcess.exitCode} before showing a window.\n${stderrOutput.slice(-1500)}`,
+          `AppRun exited prematurely with code ${appProcess.exitCode} before showing a window.\n${appOutput.slice(-2000)}`,
         );
       }
 
       try {
         const tree = execFileSync("xwininfo", ["-root", "-tree"], {
-          env: { ...process.env, DISPLAY: display },
+          env: x11Env,
           encoding: "utf8",
           stdio: ["ignore", "pipe", "ignore"],
         });
+        lastTreeOutput = tree;
         const candidates = tree
           .split(/\r?\n/u)
           .map((line) => line.trim())
           .filter(
             (line) =>
-              line.startsWith("0x") && /": \("/u.test(line) && !/\b1x1\+|\b10x10\+/u.test(line),
+              line.startsWith("0x") &&
+              !/\bicewm\b/iu.test(line) &&
+              !/\s(?:1x1|10x10)\+/u.test(line) &&
+              (/": \("/u.test(line) || /"Inkpoint"|md-editor/iu.test(line)),
           );
         for (const candidate of candidates) {
           const windowId = candidate.split(/\s+/u)[0];
-          const info = execFileSync("xwininfo", ["-id", windowId], {
-            env: { ...process.env, DISPLAY: display },
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-          });
-          if (info.includes("IsViewable")) {
-            viewableWindowLine = candidate;
-            break;
+          try {
+            const info = execFileSync("xwininfo", ["-id", windowId], {
+              env: x11Env,
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "ignore"],
+            });
+            if (info.includes("IsViewable")) {
+              viewableWindowLine = candidate;
+              break;
+            }
+          } catch {
+            // Candidate window may have been unmapped/destroyed between queries
           }
-        }
-        if (viewableWindowLine) {
-          break;
         }
       } catch {
         // X server or window tree not ready yet
+      }
+
+      if (!viewableWindowLine && hasCommand("xdotool")) {
+        try {
+          const visibleIds = execFileSync("xdotool", ["search", "--onlyvisible", "--name", "."], {
+            env: x11Env,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+          })
+            .split(/\r?\n/u)
+            .map((line) => line.trim())
+            .filter(Boolean);
+          for (const wid of visibleIds) {
+            try {
+              const info = execFileSync("xwininfo", ["-id", wid], {
+                env: x11Env,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+              });
+              if (info.includes("IsViewable") && !/\bicewm\b/iu.test(info)) {
+                const headerLine = info
+                  .split(/\r?\n/u)
+                  .find((line) => line.includes("xwininfo: Window id:"));
+                viewableWindowLine = headerLine ? headerLine.trim() : wid;
+                break;
+              }
+            } catch {
+              // Ignore transient window IDs
+            }
+          }
+        } catch {
+          // No visible windows found via xdotool yet
+        }
+      }
+
+      if (viewableWindowLine) {
+        break;
       }
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -356,7 +458,7 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName) {
 
     if (!viewableWindowLine) {
       throw new Error(
-        `AppRun did not map a viewable X11 window within 30s.\n${stderrOutput.slice(-1500)}`,
+        `AppRun did not map a viewable X11 window within 30s.\n--- App output ---\n${appOutput.slice(-2000)}\n--- X11 root tree ---\n${lastTreeOutput.slice(-2000)}`,
       );
     }
 
@@ -364,13 +466,14 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName) {
     await new Promise((resolve) => setTimeout(resolve, 3000));
     if (appProcess.exitCode !== null) {
       throw new Error(
-        `AppRun exited with code ${appProcess.exitCode} shortly after mapping its window.\n${stderrOutput.slice(-1500)}`,
+        `AppRun exited with code ${appProcess.exitCode} shortly after mapping its window.\n${appOutput.slice(-2000)}`,
       );
     }
 
     console.log(`Verified X11 window for ${appImageName}: ${viewableWindowLine}`);
   } finally {
     if (appProcess) {
+      appProcess.stdout?.destroy();
       appProcess.stderr?.destroy();
       if (appProcess.pid) {
         try {
@@ -382,6 +485,13 @@ async function runHeadlessWindowSmokeTest(appDir, appImageName) {
             // Process already exited
           }
         }
+      }
+    }
+    if (wmProcess) {
+      try {
+        wmProcess.kill("SIGKILL");
+      } catch {
+        // IceWM already exited
       }
     }
     try {
@@ -418,19 +528,7 @@ export function validateAppImages(
       // also verify the stored SquashFS directory permissions (since --appimage-extract
       // creates directories with 0700 regardless of stored SquashFS modes).
       if (process.platform === "linux" && hasCommand("unsquashfs")) {
-        let offset = null;
-        try {
-          const rawOffset = execFileSync(imagePath, ["--appimage-offset"], {
-            encoding: "utf8",
-            stdio: ["ignore", "pipe", "ignore"],
-          }).trim();
-          if (/^\d+$/u.test(rawOffset) && Number(rawOffset) > 0) {
-            offset = rawOffset;
-          }
-        } catch {
-          // Synthetic test runtimes may only implement --appimage-extract
-        }
-
+        const offset = readAppImageOffset(imagePath);
         if (offset !== null) {
           const storeDir = path.join(temporaryDirectory, "squashfs-store");
           const previousUmask = process.umask(0o022);
@@ -483,15 +581,44 @@ export async function validateAppImagesAsync(
     if (!matchesHostLinuxArch(name)) continue;
     const imagePath = path.resolve(directory, name);
     const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-appimage-launch-"));
+    fs.chmodSync(temporaryDirectory, 0o755);
+    let unpackedAsRoot = false;
     try {
-      execFileSync(imagePath, ["--appimage-extract"], {
-        cwd: temporaryDirectory,
-        stdio: ["ignore", "ignore", "pipe"],
-      });
-      await runHeadlessWindowSmokeTest(path.join(temporaryDirectory, "squashfs-root"), name);
+      const launchAppDir = path.join(temporaryDirectory, "squashfs-root");
+      const offset = hasCommand("unsquashfs") ? readAppImageOffset(imagePath) : null;
+      if (offset !== null && hasPasswordlessSudo()) {
+        // Unpack as root so the payload is owned by root:root, testing real non-owner
+        // execution permissions (matching firejail's FUSE mount in AppImageHub).
+        execFileSync("sudo", ["-n", "unsquashfs", "-o", offset, "-d", launchAppDir, imagePath], {
+          stdio: ["ignore", "ignore", "pipe"],
+        });
+        unpackedAsRoot = true;
+      } else if (offset !== null) {
+        const previousUmask = process.umask(0o022);
+        try {
+          execFileSync("unsquashfs", ["-o", offset, "-d", launchAppDir, imagePath], {
+            stdio: ["ignore", "ignore", "pipe"],
+          });
+        } finally {
+          process.umask(previousUmask);
+        }
+      } else {
+        execFileSync(imagePath, ["--appimage-extract"], {
+          cwd: temporaryDirectory,
+          stdio: ["ignore", "ignore", "pipe"],
+        });
+      }
+      await runHeadlessWindowSmokeTest(launchAppDir, name, temporaryDirectory);
     } catch (error) {
       throw new Error(`Invalid AppImage ${name}: ${error.message}`, { cause: error });
     } finally {
+      if (unpackedAsRoot) {
+        try {
+          execFileSync("sudo", ["-n", "rm", "-rf", temporaryDirectory], { stdio: "ignore" });
+        } catch {
+          // Best-effort cleanup of root-owned files
+        }
+      }
       fs.rmSync(temporaryDirectory, { recursive: true, force: true });
     }
   }
