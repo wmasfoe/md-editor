@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.16.3 - 2026-10-24 (#191,192)
+
+- Fixed Linux AppImage launcher executable permissions and initial window title, and hardened headless X11 sandbox launch verification for Firejail and other sandboxed environments.
+
 ## 0.16.2 - 2026-10-24 (#191)
 
 - Fixed Linux AppImage launcher executable permissions and initial window title so the app launches cleanly under Firejail and other sandboxed environments.
