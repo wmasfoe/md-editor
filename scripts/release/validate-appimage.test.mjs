@@ -40,6 +40,13 @@ function fixture(t) {
   });
   const applicationsDir = path.join(appDir, "usr", "share", "applications");
   fs.mkdirSync(applicationsDir, { recursive: true, mode: 0o755 });
+  const metainfoDir = path.join(appDir, "usr", "share", "metainfo");
+  fs.mkdirSync(metainfoDir, { recursive: true, mode: 0o755 });
+  fs.writeFileSync(
+    path.join(metainfoDir, "example.appdata.xml"),
+    "<component><id>example.app</id></component>\n",
+    { mode: 0o644 },
+  );
   const realDesktop = path.join(applicationsDir, "Example App.desktop");
   fs.writeFileSync(realDesktop, validDesktopContent, { mode: 0o644 });
   if (process.platform !== "win32") {
@@ -212,6 +219,35 @@ test(
     assert.equal(fs.statSync(seeded).mode & 0o777, 0o755);
   },
 );
+
+test("rejects a bundled libwayland-client.so.0 and accepts the versioned soname", (t) => {
+  const { appDir, icon } = fixture(t);
+  fs.copyFileSync(png, icon);
+  fs.chmodSync(icon, 0o644);
+  const libDir = path.join(appDir, "usr", "lib");
+  fs.mkdirSync(libDir, { recursive: true, mode: 0o755 });
+  const versioned = path.join(libDir, "libwayland-client.so.0.23.1");
+  fs.writeFileSync(versioned, "host provides the soname", { mode: 0o644 });
+  assert.doesNotThrow(() => validateAppDir(appDir));
+
+  const blacklisted = path.join(libDir, "libwayland-client.so.0");
+  fs.writeFileSync(blacklisted, "bundled", { mode: 0o644 });
+  assert.throws(
+    () => validateAppDir(appDir),
+    /blacklisted file usr\/lib\/libwayland-client\.so\.0/u,
+  );
+});
+
+test("requires an appdata.xml metainfo file for a complete AppDir", (t) => {
+  const { appDir, icon } = fixture(t);
+  fs.copyFileSync(png, icon);
+  fs.chmodSync(icon, 0o644);
+  fs.rmSync(path.join(appDir, "usr", "share", "metainfo", "example.appdata.xml"));
+  assert.throws(
+    () => validateAppDir(appDir, { requireCompleteAppDir: true }),
+    /missing usr\/share\/metainfo\/\*appdata\.xml/u,
+  );
+});
 
 test("fails when the build directory contains no AppImage", (t) => {
   const { root } = fixture(t);

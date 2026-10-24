@@ -136,6 +136,7 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 ## Linux 双架构分发契约（amd64 / arm64）
 
 - CI 产物命名（`release-desktop.yml`）：AppImage 为 `*_amd64.AppImage` / `*_aarch64.AppImage`，DEB 为 `*_amd64.deb` / `*_arm64.deb`；`x86_64.AppImage` 历史上从未存在，官网与脚本禁止构造该文件名。
+- AppImageHub 目录项：AppImage 内必须有 `usr/share/metainfo/*.appdata.xml`（组件 id `dev.md_editor.app`，因为 AppStream 不允许 rDNS 中间段使用连字符；Tauri identifier 仍是 `dev.md-editor.app`。launchable 为 `Inkpoint.desktop`，`project_license` 为 `GPL-3.0-or-later`），不得打包 `libwayland-client.so.0`（由宿主提供），并在 linuxdeploy 打包时写入 `gh-releases-zsync|wmasfoe|md-editor|latest|Inkpoint_*_{amd64|aarch64}.AppImage.zsync`。`release-desktop.yml` 与 `release-beta.yml` 把同名 `.AppImage.zsync` 上传到该仓库的 GitHub Release（AppImageUpdate 的 `latest` 通道读的是这里，不是 R2 或 Homebrew tap）。排除库和 update information 都发生在签名之前；构建后不得再改写 AppImage 字节，否则 Tauri updater 的 minisign `.sig` 会失效。
 - `version.json` 槽位：`linux_appimage` / `linux_deb` 固定为 x64，`linux_appimage_arm64` / `linux_deb_arm64` 固定为 ARM64，由 `update-r2-version-manifest.mjs` 按架构精确匹配写入（禁止取 readdir 首个命中）。
 - latest 路由：`/desktop/linux/latest` 与 `/desktop/linux-deb/latest` 默认 x64；ARM 用户走 `/desktop/linux-arm64/latest` 与 `/desktop/linux-deb-arm64/latest`。Worker 绝不跨架构回退（同扩展名仅剩异架构包时才兜底）。
 - 架构识别必须同时处理 `aarch64` 与 `arm64`（`aarch64` 不含 `arm64` 子串）：`router.ts` 的 `isArm64AssetName` / `isX64AssetName` 为唯一口径，`sync` 脚本与 manifest 脚本各自镜像该逻辑。

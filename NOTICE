@@ -1,0 +1,29 @@
+Inkpoint
+Copyright (C) 2026 Inkpoint Contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+### Apple App Store Exception (for iOS):
+
+As a special exception to the GNU General Public License v3.0, the copyright
+holders of Inkpoint give permission to distribute the Inkpoint application
+through Apple's App Store under the terms of the Apple App Store Terms of Service,
+notwithstanding anything to the contrary in Section 6 of the GNU General Public
+License v3.0.
+
+The terms of the GNU General Public License version 3 are in the LICENSE file
+distributed with this program. The notice above is the Inkpoint copyright and
+license grant (version 3 or, at your option, any later version) together with
+an additional permission under section 7 of that license allowing iOS builds
+to be distributed through Apple's App Store.
