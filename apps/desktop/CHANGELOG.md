@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.4 - 2026-10-24 (#193,194)
+
+- Linux AppImage 补齐 AppStream 元数据与 zsync 更新信息，不再内置 libwayland-client.so.0，改由系统提供。
+- 许可证改为标准 GPL-3.0-or-later，不再附带 Apple App Store 额外许可。
+
 ## 0.16.3 - 2026-10-24 (#191,192)
 
 - 修复 Linux AppImage 启动器执行权限缺失与初始窗口标题问题，并强化无头 X11 沙箱启动验收，确保在 Firejail 等沙箱环境中可正常启动。
