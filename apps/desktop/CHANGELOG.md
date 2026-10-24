@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.5 - 2026-10-24 (#196)
+
+- Linux AppImage 的更新信息写入 ELF .upd_info 并附带 .zsync，构建不再通过启动应用来查询更新信息。
+- AppStream 元数据兼容 Ubuntu 22.04 的 appstreamcli。
+
 ## 0.16.4 - 2026-10-24 (#193,194)
 
 - Linux AppImage 补齐 AppStream 元数据与 zsync 更新信息，不再内置 libwayland-client.so.0，改由系统提供。
