@@ -19,8 +19,11 @@ import {
   patchGtkPluginScript,
   prepareLinuxDeployTools,
   prependLibraryDirectory,
+  readAppImageUpdateInformation,
+  readZsyncFilename,
   updateInformationForArch,
 } from "./appimage-catalog.mjs";
+import { validateEmbeddedUpdateInformation } from "./validate-appimage.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
 const linuxGcc = process.platform === "linux" && hasCommand("gcc");
@@ -82,6 +85,15 @@ test("LICENSE is the canonical GPL-3.0 text and NOTICE has no extra terms", () =
   assert.doesNotMatch(notice, /App Store/u);
   assert.doesNotMatch(notice, /additional permission/iu);
   assert.doesNotMatch(notice, /special exception/iu);
+});
+
+test("pull requests build the Linux AppImage before All Checks Passed", () => {
+  const build = fs.readFileSync(path.join(repoRoot, ".github/workflows/build-desktop.yml"), "utf8");
+  const job = build.split("build-linux-appimage:")[1]?.split("\n  build-desktop:")[0] ?? "";
+  assert.match(job, /github\.event_name == 'pull_request'/u);
+  assert.match(job, /pnpm build:linux/u);
+  assert.match(build, /needs:[\s\S]*- build-linux-appimage/u);
+  assert.doesNotMatch(job, /github\.event_name == 'workflow_dispatch'\s*$/mu);
 });
 
 test("release workflows upload zsync assets without sending them to the Homebrew tap", () => {
@@ -281,5 +293,85 @@ MimeType=text/markdown;
     encoding: "utf8",
   });
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+/**
+ * Minimal ELF64 with one named payload section. Enough for the section walker;
+ * it is not a runnable AppImage. The payload is NUL-padded the way appimagetool
+ * pads `.upd_info`.
+ */
+function writeElf64WithSection(filePath, sectionName, text) {
+  const payload = Buffer.concat([Buffer.from(text, "utf8"), Buffer.alloc(8)]);
+  const names = Buffer.from(`\0${sectionName}\0.shstrtab\0`, "utf8");
+  const sectionNameOffset = 1;
+  const stringTableOffset = sectionNameOffset + Buffer.byteLength(sectionName) + 1;
+  const payloadOffset = 64;
+  const namesOffset = payloadOffset + payload.length;
+  const sectionOffset = Math.ceil((namesOffset + names.length) / 8) * 8;
+  const sectionCount = 3;
+  const file = Buffer.alloc(sectionOffset + sectionCount * 64);
+  file[0] = 0x7f;
+  file.write("ELF", 1, "ascii");
+  file[4] = 2;
+  file[5] = 1;
+  file[6] = 1;
+  file.writeUInt16LE(2, 16);
+  file.writeUInt16LE(62, 18);
+  file.writeUInt32LE(1, 20);
+  file.writeBigUInt64LE(BigInt(sectionOffset), 40);
+  file.writeUInt16LE(64, 52);
+  file.writeUInt16LE(64, 58);
+  file.writeUInt16LE(sectionCount, 60);
+  file.writeUInt16LE(2, 62);
+  payload.copy(file, payloadOffset);
+  names.copy(file, namesOffset);
+
+  const writeSection = (index, name, type, offset, size) => {
+    const at = sectionOffset + index * 64;
+    file.writeUInt32LE(name, at);
+    file.writeUInt32LE(type, at + 4);
+    file.writeBigUInt64LE(BigInt(offset), at + 24);
+    file.writeBigUInt64LE(BigInt(size), at + 32);
+    file.writeBigUInt64LE(1n, at + 48);
+  };
+  writeSection(1, sectionNameOffset, 1, payloadOffset, payload.length);
+  writeSection(2, stringTableOffset, 3, namesOffset, names.length);
+  fs.writeFileSync(filePath, file);
+}
+
+test("update information is read from the ELF section and the zsync filename", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-upd-info-"));
+  const name = "Inkpoint_0.16.4_amd64.AppImage";
+  const imagePath = path.join(root, name);
+  writeElf64WithSection(imagePath, ".upd_info", AMD64_UPDATE_INFORMATION);
+  fs.writeFileSync(`${imagePath}.zsync`, `zsync: 0.6.2\nFilename: ${name}\n\nnot-really-binary`);
+  const previous = process.env.APPIMAGE_EXTRACT_AND_RUN;
+  process.env.APPIMAGE_EXTRACT_AND_RUN = "1";
+  try {
+    assert.equal(readAppImageUpdateInformation(imagePath), AMD64_UPDATE_INFORMATION);
+    assert.equal(readZsyncFilename(`${imagePath}.zsync`), name);
+    assert.doesNotThrow(() => validateEmbeddedUpdateInformation(imagePath, name));
+    fs.rmSync(`${imagePath}.zsync`);
+    assert.throws(() => validateEmbeddedUpdateInformation(imagePath, name), /zsync is missing/u);
+  } finally {
+    if (previous === undefined) delete process.env.APPIMAGE_EXTRACT_AND_RUN;
+    else process.env.APPIMAGE_EXTRACT_AND_RUN = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("an ELF AppImage without .upd_info is rejected and a script is ignored", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "inkpoint-upd-info-missing-"));
+  const imagePath = path.join(root, "Inkpoint_0.16.4_aarch64.AppImage");
+  writeElf64WithSection(imagePath, ".note", AARCH64_UPDATE_INFORMATION);
+  assert.throws(() => readAppImageUpdateInformation(imagePath), /\.upd_info/u);
+
+  const scriptPath = path.join(root, "Example_1.0.0_amd64.AppImage");
+  fs.writeFileSync(scriptPath, "#!/usr/bin/env node\nprocess.exit(2)\n", { mode: 0o755 });
+  assert.equal(readAppImageUpdateInformation(scriptPath), null);
+  assert.doesNotThrow(() =>
+    validateEmbeddedUpdateInformation(scriptPath, path.basename(scriptPath)),
+  );
   fs.rmSync(root, { recursive: true, force: true });
 });

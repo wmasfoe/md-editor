@@ -17,9 +17,10 @@
   </description>
   <launchable type="desktop-id">Inkpoint.desktop</launchable>
   <icon type="stock">md-editor</icon>
+  <!-- homepage is the repository. vcs-browser is rejected as a failing warning by
+       appstreamcli 0.15 on Ubuntu 22.04, which is the x86_64 release runner. -->
   <url type="homepage">https://github.com/wmasfoe/md-editor</url>
   <url type="bugtracker">https://github.com/wmasfoe/md-editor/issues</url>
-  <url type="vcs-browser">https://github.com/wmasfoe/md-editor</url>
   <provides>
     <binary>md-editor</binary>
   </provides>
