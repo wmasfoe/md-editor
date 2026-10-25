@@ -42,20 +42,20 @@ export const desktopLocalAiInvokeImpl = async (
   const startTime = isDev && isCompletion ? performance.now() : 0;
 
   const options = (args?.options as Record<string, unknown>) || {};
-  const intent = String(options.intent ?? "unknown");
+  const task = String(options.task ?? "unknown");
   const taskLabel =
-    intent === "editing"
+    task === "gec"
       ? "【阶段 1：语法修复审校 (GEC)】"
-      : intent === "continuation"
+      : task === "completion"
         ? "【阶段 2：行内续写补全 (FIM)】"
-        : `【综合分析 (${intent})】`;
+        : `【综合分析 (${task})】`;
 
   if (isDev && isCompletion) {
     console.groupCollapsed(`🤖 [Local LLM 发起请求] ${taskLabel}`);
     console.log("模型 ID:", options.modelId);
-    console.log("任务类型 (Intent):", intent);
+    console.log("任务类型 (Task):", task);
     console.log("停用词 (Stop Tokens):", options.stop);
-    console.log("输入 Prompt:\n" + String(options.prompt ?? ""));
+    console.log("输入 Prompt:", options.messages ?? options.rawPrompt ?? "");
     console.groupEnd();
   }
 
@@ -68,7 +68,7 @@ export const desktopLocalAiInvokeImpl = async (
       console.log("【LLM 原样返回 (Raw Output)】:\n", result);
       console.debug("调用详情:", {
         modelId: options.modelId,
-        intent,
+        task,
         elapsedMs: `${elapsedMs}ms`,
       });
       console.groupEnd();
@@ -92,7 +92,7 @@ export const desktopLocalAiInvokeImpl = async (
       console.debug("调用参数:", {
         command,
         modelId: options.modelId,
-        intent,
+        task,
         args,
       });
       console.groupEnd();

@@ -27,8 +27,8 @@ packages/ai/src/
 │   ├── model-client.ts      # 依赖倒置契约：ModelClient, ModelContext, LocalInferenceBridge
 │   └── settings.ts          # 多协议端点、预设配置、历史数据迁移与准备度校验
 ├── app/                     # 写作应用编排与 Harness 管道
-│   ├── harness-guardrails.ts # 前置守卫：shouldSkipAutoGec、纯文本 GEC 规范化
-│   ├── harness-prompts.ts    # Prompt 与 GBNF 构造器、后置净化与四重锚点定位校准
+│   ├── harness-guardrails.ts # 前置守卫、后置净化与纠错锚点定位校准
+│   ├── harness-prompts.ts    # Prompt 与 GBNF 构造器
 │   ├── document-context.ts   # 文档宏观上下文渐进式提炼与大纲提取
 │   ├── request-scheduler.ts  # 请求并发调度与防抖抢占
 │   ├── cache.ts              # LRU 缓存
@@ -56,7 +56,7 @@ packages/ai/src/
 
 ### 3.2 构造规范 (Prompt Harness)
 - **GEC 语法纠错**：严格遵照纯文本协议，User Prompt 仅传入纯 `${targetText}`，无额外标签前缀；
-- **Standard Gemma 4 续写**：基于 ChatML 结构化多轮消息，提供全局文档大纲、局部前文与后文，配合 GBNF 语法围栏输出；
+- **Standard Gemma 4 续写**：基于 ChatML 消息提供文档大纲、局部前文与后文，返回续写正文；纠错元组 GBNF 只应用于 GEC，不应用于续写；
 - **Lite Qwen 3 续写**：基于超低延迟原生 `/completion` FIM 模式，直通模型补全。
 
 ### 3.3 后置净化与四重锚点定位 (Post-Model & Quad-Layer Defense)
@@ -87,6 +87,24 @@ packages/ai/src/
 - `llama-server` 进程启动参数：`--jinja`, `--reasoning-budget 0`, `--n-gpu-layers 99`；
 - `/v1/chat/completions` 请求载荷强制包含：`"chat_template_kwargs": { "enable_thinking": false }`。
 
+### 4.3 桌面宿主调用边界
+
+- AI 包负责构建 System/User 消息、FIM Prompt 和 GBNF；Rust 不重新生成提示词或猜测编辑器上下文。
+- Tauri 命令 `request_local_ai_continuation` 仅接收 `{ options: LocalInferenceRequest }`，不接收额外 `context`。
+- 任务字段统一为 `task: gec | completion | distill`，Rust 使用同名枚举反序列化，不保留 `intent: editing | continuation` 旧映射。
+- `messages` 与 `rawPrompt` 必须提供一种；Chat 使用 `max_tokens`，原生 `/completion` 使用 `n_predict`。
+- LoRA 更新成功后才缓存任务；更新失败终止当次推理并保留可重试状态。无 LoRA 的 Standard 不访问适配器接口；未指定任务时使用基座。
+
+### 4.4 发布清单与 RFC 示例的差异
+
+2026-10-25 核对了 [v1.4.0 发布清单](https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/manifest.json)。该清单与 RFC 示例不同，模型文件摘要必须取自实际发布清单，不能复制示例占位值：
+
+- Lite 基座 `639,446,688` 字节，GEC LoRA `5,073,568` 字节；客户端内置摘要与下载体积已按发布清单校正。
+- Standard 实际发布条目为 Q8_0、`5,048,352,864` 字节，下载源为 Hugging Face；RFC 描述的是 Q4_K_M、约 1.68 GB。当前默认 Q4_K_M 条目的摘要仍为占位值，需在量化规格确定后与真实产物统一。远程清单有效时会覆盖默认条目。
+- [上游模型元数据](https://huggingface.co/api/models/unsloth/gemma-4-E2B-it-GGUF?blobs=true)在 revision `0314792d7f1f7e229411f620751375812bb9faf2` 已包含 Q4_K_M：`3,106,738,272` 字节，SHA256 为 `740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8`。因此 Q4_K_M 也需修正文档中的体积，并同步模型仓库的发布清单。
+
+架构来源由用户指定为 [《10 分钟学会设计 Agent 架构》](https://www.youtube.com/watch?v=0QrSy9dKuH8)。本轮仅获取到视频元数据，未获取到字幕或正文，以上边界核对依据仓库契约与 RFC，不代表已完成视频逐项验收。
+
 ---
 
 ## 5. 跨端整合矩阵
@@ -105,3 +123,4 @@ packages/ai/src/
 1. `packages/ai/tests/ai-boundary.test.ts` 零外向依赖架构检查 100% 通过；
 2. `packages/ai/tests/tuple-diff-parser.test.ts` RFC-004 TC-1 ~ TC-5 测试全部通过；
 3. 各应用端 (`apps/desktop`, `apps/web`, `apps/utools`) 单测与类型检查 100% 通过。
+4. 桌面桥接与 Rust 共用 `apps/desktop/tests/fixtures/local-ai-inference-requests.json`，覆盖 GEC、Lite FIM、Standard Chat 续写与 Distill；Rust runtime 通过本地模拟 HTTP 服务验证 LoRA 开关、失败重试及任务缓存。

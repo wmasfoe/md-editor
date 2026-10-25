@@ -119,7 +119,7 @@ export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
     tier: "lite",
     displayName: "Lite (Qwen 3 0.6B)",
     parameterSize: "0.6B",
-    downloadSizeBytes: 667_000_000,
+    downloadSizeBytes: 644_520_256,
     recommendedMemoryGb: 4,
     description: "极速轻量档：内存占用 <300MB，首字延迟 <30ms，适合老旧轻薄本与快速输入",
     isAvailable: true,

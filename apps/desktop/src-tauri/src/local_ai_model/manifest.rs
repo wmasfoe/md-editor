@@ -75,8 +75,9 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
         version: "v1.4.0".to_string(),
         filename: "lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
         download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
-        size_bytes: 639_000_000,
-        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+        // Pin the released artifact metadata, not the illustrative RFC values.
+        size_bytes: 639_446_688,
+        sha256: "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031".to_string(),
         context_size: 8192,
         default_max_tokens: 220,
         is_available: true,
@@ -87,8 +88,8 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
                 LocalAiFileSpec {
                     filename: "lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
                     download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
-                    size_bytes: 28_000_000,
-                    sha256: "cbf529a4d5fca1687a31d0f6644d6f14c4e36124c6b017414c6cf4c1cc35b214".to_string(),
+                    size_bytes: 5_073_568,
+                    sha256: "084533a775dfa6eba375bfa5448c4c0eddd87c85e2520d3cf11734b07cc51b31".to_string(),
                 },
             ),
         ],
