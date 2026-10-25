@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-const DEFAULT_LLAMA_CPP_TAG = process.env.LLAMA_CPP_RELEASE_TAG?.trim() || "b4600";
+const DEFAULT_LLAMA_CPP_TAG = process.env.LLAMA_CPP_RELEASE_TAG?.trim() || "b9789";
 const BINARIES_DIR = path.resolve("apps/desktop/src-tauri/binaries");
 
 /**
@@ -13,6 +13,7 @@ const TARGET_CONFIGS = {
     binaryName: "llama-server-aarch64-apple-darwin",
     isExecutable: true,
     assetNames: [
+      `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-macos-arm64.tar.gz`,
       `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-macos-arm64.zip`,
       `llama-server-macos-arm64.zip`,
     ],
@@ -20,12 +21,17 @@ const TARGET_CONFIGS = {
   "x86_64-apple-darwin": {
     binaryName: "llama-server-x86_64-apple-darwin",
     isExecutable: true,
-    assetNames: [`llama-${DEFAULT_LLAMA_CPP_TAG}-bin-macos-x64.zip`, `llama-server-macos-x64.zip`],
+    assetNames: [
+      `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-macos-x64.tar.gz`,
+      `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-macos-x64.zip`,
+      `llama-server-macos-x64.zip`,
+    ],
   },
   "x86_64-unknown-linux-gnu": {
     binaryName: "llama-server-x86_64-unknown-linux-gnu",
     isExecutable: true,
     assetNames: [
+      `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-ubuntu-x64.tar.gz`,
       `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-ubuntu-x64.zip`,
       `llama-server-ubuntu-x64.zip`,
     ],
@@ -34,6 +40,7 @@ const TARGET_CONFIGS = {
     binaryName: "llama-server-aarch64-unknown-linux-gnu",
     isExecutable: true,
     assetNames: [
+      `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-ubuntu-arm64.tar.gz`,
       `llama-${DEFAULT_LLAMA_CPP_TAG}-bin-ubuntu-arm64.zip`,
       `llama-server-ubuntu-arm64.zip`,
     ],
@@ -129,24 +136,44 @@ async function prepareLlamaRuntime() {
   try {
     let downloaded = false;
     for (const assetName of config.assetNames) {
-      const url = `https://github.com/ggerganov/llama.cpp/releases/download/${DEFAULT_LLAMA_CPP_TAG}/${assetName}`;
-      const zipPath = path.join(tempDir, assetName);
-      console.log(`[prepare-llama-runtime] Attempting to download from ${url}...`);
+      const urls = [
+        `https://github.com/ggml-org/llama.cpp/releases/download/${DEFAULT_LLAMA_CPP_TAG}/${assetName}`,
+        `https://github.com/ggerganov/llama.cpp/releases/download/${DEFAULT_LLAMA_CPP_TAG}/${assetName}`,
+      ];
+      const archivePath = path.join(tempDir, assetName);
+
+      for (const url of urls) {
+        console.log(`[prepare-llama-runtime] Attempting to download from ${url}...`);
+        try {
+          execFileSync(
+            "curl",
+            ["-fL", "--retry", "3", "--retry-delay", "2", "-o", archivePath, url],
+            {
+              stdio: "inherit",
+            },
+          );
+          downloaded = true;
+          break;
+        } catch {
+          // try next url fallback
+        }
+      }
+
+      if (!downloaded || !fs.existsSync(archivePath)) {
+        continue;
+      }
 
       try {
-        execFileSync("curl", ["-fL", "--retry", "3", "--retry-delay", "2", "-o", zipPath, url], {
-          stdio: "inherit",
-        });
-        downloaded = true;
-
-        console.log(`[prepare-llama-runtime] Extracting ${zipPath}...`);
-        if (process.platform === "win32") {
+        console.log(`[prepare-llama-runtime] Extracting ${archivePath}...`);
+        if (assetName.endsWith(".tar.gz") || assetName.endsWith(".tgz")) {
+          execFileSync("tar", ["-xzf", archivePath, "-C", tempDir]);
+        } else if (process.platform === "win32") {
           execFileSync("powershell", [
             "-Command",
-            `Expand-Archive -Path '${zipPath}' -DestinationPath '${tempDir}' -Force`,
+            `Expand-Archive -Path '${archivePath}' -DestinationPath '${tempDir}' -Force`,
           ]);
         } else {
-          execFileSync("unzip", ["-o", "-q", zipPath, "-d", tempDir]);
+          execFileSync("unzip", ["-o", "-q", archivePath, "-d", tempDir]);
         }
 
         // Find llama-server executable in extracted files

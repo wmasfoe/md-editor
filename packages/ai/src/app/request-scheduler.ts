@@ -1,15 +1,19 @@
-import type { AiTaskKind } from "./types.ts";
+/**
+ * @file app/request-scheduler.ts
+ * @module @md-editor/ai
+ * @description
+ * 优先级 + Scope 自动抢占 + LoRA 适配器亲和度分组请求调度器。
+ */
 
-/** 用户可见操作优先于编辑自动任务，编辑自动任务优先于后台分析。 */
+import type { AiTaskKind } from "../domain/types.ts";
+
+/** 用户显式快捷键触发（urgent）优先于自动补全/纠错（normal），再优先于后台文档提炼（background） */
 export type AiRequestPriority = "urgent" | "normal" | "background";
 
 export type AiRequestStatus = "queued" | "running" | "completed" | "cancelled" | "stale" | "failed";
 
 /**
- * 用于识别“同一个位置/文档上的同类请求”。
- *
- * 调度器不解释 documentRevision 与 anchor 的业务含义；调用者用它们构造稳定 scope，
- * 从而让补全、纠错、总结各自有正确的覆盖边界。
+ * 用于识别“同一个文档/位置上的同类请求”以执行过期取消。
  */
 export interface AiRequestScope {
   readonly workspaceId?: string;
@@ -24,7 +28,7 @@ export interface AiScheduledRequestContext {
   readonly scope: AiRequestScope;
   readonly priority: AiRequestPriority;
   readonly signal: AbortSignal;
-  /** 当前请求是否仍是该 scope 的最新有效请求。 */
+  /** 当前请求是否仍是该 scope 的最新有效请求 */
   readonly isCurrent: () => boolean;
 }
 
@@ -32,14 +36,11 @@ export interface AiScheduleOptions<T> {
   readonly scope: AiRequestScope;
   readonly priority: AiRequestPriority;
   /**
-   * 关联的 LoRA 适配器分组（如 "gec" | "completion" | "distill"），用于多 Slot 调度下的适配器聚合与并发隔离。
-   * 若不显式传递，则默认取 scope.task。
+   * 关联的 LoRA 适配器分组（如 "gec" | "completion" | "distill" | "base"），
+   * 多 Slot 并发时同组并行、跨组排队隔离，避免全局 LoRA scale 切换串扰。
    */
   readonly loraGroup?: string;
-  /**
-   * 同 scope 的新请求是否取代旧请求。默认 true：GEC/Completion 应只保留最新输入。
-   * 总结、风格分析若需合并，调用方可传 false 并自行使用稳定 scope 去重。
-   */
+  /** 同 scope 的新请求是否取代旧请求（默认 true） */
   readonly replace?: boolean;
   readonly run: (context: AiScheduledRequestContext) => Promise<T>;
 }
@@ -67,10 +68,7 @@ interface QueuedRequest<T> {
 const PRIORITY_ORDER: readonly AiRequestPriority[] = ["urgent", "normal", "background"];
 
 /**
- * 本地 AI 请求调度器。
- *
- * 默认并发为 2（对应多 Slot 连续批处理），并引入 LoRA 适配器感知分组调度：
- * 在多 Slot 并发时，同 LoRA 组的请求安全并行执行，跨 LoRA 组的请求排队隔离，杜绝全局权重串扰。
+ * AI 请求并发与取消调度器。
  */
 export class AiRequestScheduler {
   private readonly queues: Record<AiRequestPriority, QueuedRequest<unknown>[]> = {
@@ -187,8 +185,6 @@ export class AiRequestScheduler {
       this.activeLoRaGroup = null;
     }
 
-    // 若当前存在正在运行的请求，空闲 slot 必须优先挑选【相同 LoRA 组】的请求并发执行，
-    // 既能避免修改全局 LoRA 导致在跑任务被破坏，又能复用该组 Adapter 的内存与 KV Cache
     if (this.activeLoRaGroup !== null) {
       for (const priority of PRIORITY_ORDER) {
         const queue = this.queues[priority];
@@ -197,14 +193,9 @@ export class AiRequestScheduler {
           return queue.splice(matchIndex, 1)[0];
         }
       }
-
-      // 如果当前最高优先级队列有更紧急任务（如 urgent），但属于不同 LoRA 组，
-      // 必须等待正在运行的 slot 全部完成（activeCount 归零）后才能切换权重
       return undefined;
     }
 
-    // 当前没有正在运行的任务 (activeCount === 0)：
-    // 严格按优先级从高到低调度队首请求，并将该请求的 loraGroup 设为当前活跃组
     for (const priority of PRIORITY_ORDER) {
       const request = this.queues[priority].shift();
       if (request) {
@@ -243,7 +234,6 @@ export class AiRequestScheduler {
       })
       .catch((error: unknown) => {
         if (request.controller.signal.aborted) {
-          // cancelRequest 已拒绝 promise；避免二次 settle。
           return;
         }
         request.status = "failed";

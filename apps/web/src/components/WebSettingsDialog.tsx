@@ -12,14 +12,21 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
-  PRESET_PROVIDERS,
   BUILT_IN_LIGHT_THEME_OPTIONS,
   BUILT_IN_DARK_THEME_OPTIONS,
   type BuiltInThemeId,
   type WebSettings,
   type WebTheme,
 } from "../lib/web-settings";
-import { testAiConnection, type AiTestResult } from "../lib/web-ai-client";
+import {
+  AI_URL_PRESETS,
+  applyAiUrlPreset,
+  updateAiEndpoint,
+  updateAiProvider,
+  type AiConnectionTestResult,
+  type AiProtocolId,
+} from "@md-editor/ai";
+import { webAiService } from "../lib/web-ai-service";
 import { changeLanguage, useTranslation, type LanguageSetting } from "@md-editor/i18n";
 
 // 对齐 Desktop 端设置模块样式类名
@@ -61,7 +68,7 @@ export function WebSettingsDialog({
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const [localSettings, setLocalSettings] = useState<WebSettings>(settings);
   const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<AiTestResult | null>(null);
+  const [testResult, setTestResult] = useState<AiConnectionTestResult | null>(null);
 
   React.useEffect(() => {
     if (open) {
@@ -88,15 +95,10 @@ export function WebSettingsDialog({
   const modKey = isMac ? "Command" : "Ctrl";
   const shiftKey = isMac ? "Shift+" : "Shift+";
 
-  const handleApplyPreset = (preset: (typeof PRESET_PROVIDERS)[number]) => {
+  const handleApplyPreset = (presetId: (typeof AI_URL_PRESETS)[number]["id"]) => {
     setLocalSettings((prev) => ({
       ...prev,
-      ai: {
-        ...prev.ai,
-        provider: preset.id,
-        baseUrl: preset.baseUrl,
-        model: preset.model,
-      },
+      ai: applyAiUrlPreset(prev.ai, presetId),
     }));
     setTestResult(null);
   };
@@ -105,8 +107,13 @@ export function WebSettingsDialog({
     setIsTesting(true);
     setTestResult(null);
     try {
-      const result = await testAiConnection(localSettings.ai);
+      const result = await webAiService.testConnection(localSettings.ai);
       setTestResult(result);
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setIsTesting(false);
     }
@@ -228,97 +235,129 @@ export function WebSettingsDialog({
                 <span className={settingsFieldLabelClassName}>{t("web.enableAi")}</span>
               </label>
 
+              {/* 协议选择 */}
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>{t("settings.ai.provider")}</span>
+                <span className={settingsFieldLabelClassName}>{t("settings.ai.protocol")}</span>
                 <select
                   className={settingsInputClassName}
                   value={localSettings.ai.provider}
                   onChange={(event) => {
-                    const prov = event.target.value as WebSettings["ai"]["provider"];
-                    const matchedPreset = PRESET_PROVIDERS.find((p) => p.id === prov);
+                    const prov = event.target.value as AiProtocolId;
                     setLocalSettings((prev) => ({
                       ...prev,
-                      ai: {
-                        ...prev.ai,
-                        provider: prov,
-                        ...(matchedPreset ? { baseUrl: matchedPreset.baseUrl } : {}),
-                      },
+                      ai: updateAiProvider(prev.ai, prov),
                     }));
                   }}
                 >
-                  <option value="openai-compatible">OpenAI-compatible</option>
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="ollama">Ollama</option>
+                  <option value="openai">{t("settings.ai.protocolOpenAi")}</option>
+                  <option value="anthropic">{t("settings.ai.protocolAnthropic")}</option>
+                  <option value="google">{t("settings.ai.protocolGoogle")}</option>
                 </select>
               </label>
 
+              {/* 推荐快速预设 */}
               <div>
                 <label className="block text-xs font-medium text-[var(--theme-muted)] mb-1.5">
-                  {t("web.recommendedProviders")}
+                  {t("settings.ai.presets")}
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {PRESET_PROVIDERS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      className={`h-[28px] rounded-[5px] border px-2.5 text-xs font-medium transition-colors ${
-                        localSettings.ai.provider === preset.id
-                          ? "border-[var(--theme-primary)] bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
-                          : "border-[var(--theme-border-strong)] bg-[var(--theme-surface)] hover:bg-[var(--theme-control-hover)]"
-                      }`}
-                      onClick={() => handleApplyPreset(preset)}
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
+                  {AI_URL_PRESETS.map((preset) => {
+                    const activeProto: AiProtocolId =
+                      localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider;
+                    const isPresetActive =
+                      localSettings.ai.provider === preset.protocol &&
+                      localSettings.ai.endpoints[activeProto]?.baseUrl === preset.baseUrl;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        className={`h-[28px] rounded-[5px] border px-2.5 text-xs font-medium transition-colors ${
+                          isPresetActive
+                            ? "border-[var(--theme-primary)] bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
+                            : "border-[var(--theme-border-strong)] bg-[var(--theme-surface)] hover:bg-[var(--theme-control-hover)]"
+                        }`}
+                        onClick={() => handleApplyPreset(preset.id)}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Base URL */}
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
                 <span className={settingsFieldLabelClassName}>{t("web.endpointBaseUrl")}</span>
-                <input
-                  type="text"
-                  className={settingsInputClassName}
-                  placeholder="https://api.openai.com/v1"
-                  value={localSettings.ai.baseUrl}
-                  onChange={(e) =>
-                    setLocalSettings((prev) => ({
-                      ...prev,
-                      ai: { ...prev.ai, baseUrl: e.target.value },
-                    }))
-                  }
-                />
+                <div>
+                  <input
+                    type="text"
+                    className={settingsInputClassName}
+                    placeholder="https://api.openai.com/v1"
+                    value={
+                      localSettings.ai.endpoints[
+                        localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider
+                      ].baseUrl
+                    }
+                    onChange={(e) => {
+                      const activeProto: AiProtocolId =
+                        localSettings.ai.provider === "local"
+                          ? "openai"
+                          : localSettings.ai.provider;
+                      setLocalSettings((prev) => ({
+                        ...prev,
+                        ai: updateAiEndpoint(prev.ai, activeProto, { baseUrl: e.target.value }),
+                      }));
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] text-[var(--theme-muted)]">
+                    {t("settings.ai.customBaseUrlHint")}
+                  </p>
+                </div>
               </label>
 
+              {/* API Key */}
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
                 <span className={settingsFieldLabelClassName}>{t("settings.ai.apiKey")}</span>
                 <input
                   type="password"
                   className={settingsInputClassName}
                   placeholder="sk-..."
-                  value={localSettings.ai.apiKey}
-                  onChange={(e) =>
+                  value={
+                    localSettings.ai.endpoints[
+                      localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider
+                    ].apiKey
+                  }
+                  onChange={(e) => {
+                    const activeProto: AiProtocolId =
+                      localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider;
                     setLocalSettings((prev) => ({
                       ...prev,
-                      ai: { ...prev.ai, apiKey: e.target.value },
-                    }))
-                  }
+                      ai: updateAiEndpoint(prev.ai, activeProto, { apiKey: e.target.value }),
+                    }));
+                  }}
                 />
               </label>
 
+              {/* Model Name */}
               <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
                 <span className={settingsFieldLabelClassName}>{t("web.modelName")}</span>
                 <input
                   type="text"
                   className={settingsInputClassName}
                   placeholder="deepseek-chat / gpt-4o-mini"
-                  value={localSettings.ai.model}
-                  onChange={(e) =>
+                  value={
+                    localSettings.ai.endpoints[
+                      localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider
+                    ].model
+                  }
+                  onChange={(e) => {
+                    const activeProto: AiProtocolId =
+                      localSettings.ai.provider === "local" ? "openai" : localSettings.ai.provider;
                     setLocalSettings((prev) => ({
                       ...prev,
-                      ai: { ...prev.ai, model: e.target.value },
-                    }))
-                  }
+                      ai: updateAiEndpoint(prev.ai, activeProto, { model: e.target.value }),
+                    }));
+                  }}
                 />
               </label>
 

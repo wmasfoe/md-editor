@@ -136,7 +136,7 @@ fn legacy_v100_installed_model_marked_available_with_update() {
     );
     assert_eq!(status.status, "available");
     assert_eq!(status.version, Some("v1.0.0".to_string()));
-    assert_eq!(status.latest_version, "v1.3.1");
+    assert_eq!(status.latest_version, "v1.4.0");
     assert!(status.has_update);
 }
 
@@ -144,11 +144,11 @@ fn legacy_v100_installed_model_marked_available_with_update() {
 fn sanitizes_corrupted_lora_task_description_to_canonical() {
     assert_eq!(
         sanitize_model_description(STANDARD_MODEL_ID, Some("任务专用 LoRA Adapter（distill）")),
-        "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。"
+        "高精度专业档：Google Gemma 4 端侧基座，原生推理与长句逻辑极强，无错识别率接近 100%"
     );
     assert_eq!(
         sanitize_model_description(LITE_MODEL_ID, Some("任务专用 LoRA Adapter (gec)")),
-        "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。"
+        "极速轻量档：内存占用 <300MB，首字延迟 <30ms，适合老旧轻薄本与快速输入"
     );
     assert_eq!(
         sanitize_model_description(STANDARD_MODEL_ID, Some("自定义标准版模型描述")),
@@ -230,7 +230,7 @@ fn can_reuse_local_component_checks_sha256_and_size() {
 #[test]
 fn default_manifests_have_valid_integrity_specs() {
     for manifest in [default_lite_model(), default_standard_model()] {
-        assert_eq!(manifest.version, "v1.3.1");
+        assert_eq!(manifest.version, "v1.4.0");
         assert!(manifest.is_available);
         assert!(!manifest.filename.is_empty());
         assert!(manifest.download_url.starts_with("https://"));
@@ -260,4 +260,41 @@ fn default_manifests_have_valid_integrity_specs() {
             );
         }
     }
+}
+
+#[test]
+fn parses_rfc004_v140_manifest_with_zero_lora_standard() {
+    let json = r#"{
+        "version": "1.4.0",
+        "models": [
+            {
+                "modelId": "md-editor-writer-standard",
+                "tier": "standard",
+                "displayName": "Standard (Google Gemma 4 E2B)",
+                "description": "高精度专业档",
+                "base": {
+                    "filename": "standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf",
+                    "sizeBytes": 1680000000,
+                    "sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+                    "downloadUrl": "https://example.com/standard.gguf"
+                },
+                "capabilities": {
+                    "gec": {
+                        "adapterId": null,
+                        "filename": null,
+                        "sizeBytes": 0,
+                        "sha256": "",
+                        "downloadUrl": ""
+                    }
+                }
+            }
+        ]
+    }"#;
+    let remote: RemoteManifest = serde_json::from_str(json).unwrap();
+    let catalog = build_catalog_from_remote(&remote);
+    let standard = catalog.iter().find(|m| m.id == STANDARD_MODEL_ID).unwrap();
+    assert_eq!(standard.version, "v1.4.0");
+    assert_eq!(standard.adapters.len(), 0); // adapterId: null 且 url 为空，成功忽略并不注册为下载项
+    assert_eq!(standard.all_download_specs().len(), 1); // 仅有 base.gguf
+    assert_eq!(standard.all_download_specs()[0].0, "base");
 }

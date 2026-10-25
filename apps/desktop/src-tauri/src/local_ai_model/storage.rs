@@ -470,66 +470,46 @@ pub(crate) fn read_model_status(manifest: &LocalAiModelManifest) -> LocalAiModel
 
 pub(crate) fn write_model_metadata(manifest: &LocalAiModelManifest) -> Result<(), String> {
     let directory = model_directory(manifest)?;
-    let metadata = if !manifest.adapters.is_empty() {
-        PersistedLocalAiModelManifest {
-            id: manifest.id.to_string(),
-            display_name: manifest.display_name.to_string(),
-            version: manifest.version.clone(),
-            base_filename: Some("base.gguf".to_string()),
-            base_sha256: Some(manifest.sha256.clone()),
-            gec_filename: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "gec")
-                .map(|_| "gec.gguf".to_string()),
-            gec_sha256: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "gec")
-                .map(|(_, a)| a.sha256.clone()),
-            completion_filename: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "completion")
-                .map(|_| "completion.gguf".to_string()),
-            completion_sha256: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "completion")
-                .map(|(_, a)| a.sha256.clone()),
-            distill_filename: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "distill")
-                .map(|_| "distill.gguf".to_string()),
-            distill_sha256: manifest
-                .adapters
-                .iter()
-                .find(|(t, _)| t == "distill")
-                .map(|(_, a)| a.sha256.clone()),
-            total_size_bytes: manifest.total_download_bytes(),
-            filename: None,
-            size_bytes: None,
-            sha256: None,
-        }
-    } else {
-        PersistedLocalAiModelManifest {
-            id: manifest.id.clone(),
-            display_name: manifest.display_name.clone(),
-            version: manifest.version.clone(),
-            base_filename: None,
-            base_sha256: None,
-            gec_filename: None,
-            gec_sha256: None,
-            completion_filename: None,
-            completion_sha256: None,
-            distill_filename: None,
-            distill_sha256: None,
-            total_size_bytes: manifest.size_bytes,
-            filename: Some(manifest.filename.clone()),
-            size_bytes: Some(manifest.size_bytes),
-            sha256: Some(manifest.sha256.clone()),
-        }
+    let metadata = PersistedLocalAiModelManifest {
+        id: manifest.id.to_string(),
+        display_name: manifest.display_name.to_string(),
+        version: manifest.version.clone(),
+        base_filename: Some("base.gguf".to_string()),
+        base_sha256: Some(manifest.sha256.clone()),
+        gec_filename: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "gec")
+            .map(|_| "gec.gguf".to_string()),
+        gec_sha256: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "gec")
+            .map(|(_, a)| a.sha256.clone()),
+        completion_filename: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "completion")
+            .map(|_| "completion.gguf".to_string()),
+        completion_sha256: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "completion")
+            .map(|(_, a)| a.sha256.clone()),
+        distill_filename: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "distill")
+            .map(|_| "distill.gguf".to_string()),
+        distill_sha256: manifest
+            .adapters
+            .iter()
+            .find(|(t, _)| t == "distill")
+            .map(|(_, a)| a.sha256.clone()),
+        total_size_bytes: manifest.total_download_bytes(),
+        filename: Some(manifest.filename.clone()),
+        size_bytes: Some(manifest.size_bytes),
+        sha256: Some(manifest.sha256.clone()),
     };
     let manifest_json = serde_json::to_string_pretty(&metadata)
         .map_err(|error| format!("Failed to serialize local AI model manifest: {error}"))?;

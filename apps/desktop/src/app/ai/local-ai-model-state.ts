@@ -70,12 +70,12 @@ export function toLocalAiModelCommandStatus(
   input: Partial<LocalAiModelCommandStatus> | null | undefined,
 ): LocalAiModelCommandStatus {
   const settings = normalizeLocalAiModelSettings(input);
-  const displayName = normalizeString(input?.displayName, "Standard (1.5B)");
+  const displayName = normalizeString(input?.displayName, "Standard (Gemma 4 2B)");
   const fallbackTier = displayName.toLowerCase().includes("lite") ? "lite" : "standard";
   const fallbackDescription =
     fallbackTier === "lite"
-      ? "自研微调轻量模型，极速响应，适合轻薄本与日常流畅写作。"
-      : "自研微调高精度进阶版，更强复杂长句纠错与代码续写能力。";
+      ? "轻量极速端侧模型 (Qwen 3 0.6B + GEC LoRA)，极速响应，适合轻薄本与流畅写作。"
+      : "标准进阶端侧模型 (Google Gemma 4 E2B 原生)，支持 ChatML 结构化纠错与续写。";
   return {
     ...settings,
     displayName,

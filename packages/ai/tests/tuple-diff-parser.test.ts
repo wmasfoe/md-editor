@@ -5,7 +5,7 @@ import {
   locateCloudEditSuggestion,
   parseTupleDiffOutput,
   resolveTripleDefenseDiffs,
-} from "../src/tuple-diff-parser.ts";
+} from "../src/index.ts";
 
 describe("tuple-diff-parser: Unicode 坐标与 Diff 解析", () => {
   it("正确转换包含 Emoji 的 Unicode Code Point 偏移量到 UTF-16", () => {

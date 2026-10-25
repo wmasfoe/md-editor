@@ -25,18 +25,42 @@ export const AI_DISCLAIMER_CONTENT = {
  * 检查用户是否已经明确阅读并同意了免责协议
  */
 export function hasAcceptedAiDisclaimer(): boolean {
-  if (typeof window === "undefined" || typeof window.utools === "undefined") {
+  if (typeof window === "undefined") {
     return false;
   }
-  return window.utools.dbStorage.getItem(DISCLAIMER_STORAGE_KEY) === "true";
+  if (typeof window.utools !== "undefined" && window.utools.dbStorage) {
+    try {
+      return window.utools.dbStorage.getItem(DISCLAIMER_STORAGE_KEY) === "true";
+    } catch {
+      // 降级
+    }
+  }
+  try {
+    return localStorage.getItem(DISCLAIMER_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
 /**
  * 记录用户同意免责协议
  */
 export function acceptAiDisclaimer(): void {
-  if (typeof window !== "undefined" && typeof window.utools !== "undefined") {
-    window.utools.dbStorage.setItem(DISCLAIMER_STORAGE_KEY, "true");
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof window.utools !== "undefined" && window.utools.dbStorage) {
+    try {
+      window.utools.dbStorage.setItem(DISCLAIMER_STORAGE_KEY, "true");
+      return;
+    } catch {
+      // 降级
+    }
+  }
+  try {
+    localStorage.setItem(DISCLAIMER_STORAGE_KEY, "true");
+  } catch {
+    // 忽略
   }
 }
 
@@ -44,7 +68,20 @@ export function acceptAiDisclaimer(): void {
  * 重置免责状态（供测试或重新签署使用）
  */
 export function resetAiDisclaimer(): void {
-  if (typeof window !== "undefined" && typeof window.utools !== "undefined") {
-    window.utools.dbStorage.removeItem(DISCLAIMER_STORAGE_KEY);
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (typeof window.utools !== "undefined" && window.utools.dbStorage) {
+    try {
+      window.utools.dbStorage.removeItem(DISCLAIMER_STORAGE_KEY);
+      return;
+    } catch {
+      // 降级
+    }
+  }
+  try {
+    localStorage.removeItem(DISCLAIMER_STORAGE_KEY);
+  } catch {
+    // 忽略
   }
 }

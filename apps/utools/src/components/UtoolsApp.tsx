@@ -38,6 +38,7 @@ import type { EditorMode } from "../utools/types";
 import { ReferralBanner } from "./ReferralBanner";
 import { DisclaimerModal } from "./DisclaimerModal";
 import { SettingsModal } from "./SettingsModal";
+import { useUtoolsAi } from "../utools/use-utools-ai";
 import { UtoolsFileTree } from "./UtoolsFileTree";
 import { UtoolsStatusBar } from "./UtoolsStatusBar";
 import {
@@ -74,7 +75,6 @@ function findFirstMarkdown(node: MarkdownFileTreeNode): MarkdownFileTreeNode | n
 export function UtoolsApp() {
   const [mode, setMode] = useState<EditorMode>("file");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isDisclaimerOpen, setIsDisclaimerOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<UtoolsSettings>(() => loadUtoolsSettings());
   const [folder, setFolder] = useState<MarkdownFolder | null>(null);
@@ -193,6 +193,15 @@ export function UtoolsApp() {
   }, [applyTheme, settings.theme]);
 
   const [rendererPorts, setRendererPorts] = useState<CodeMirrorEditorPorts | null>(null);
+
+  const ai = useUtoolsAi({
+    settings,
+    getEditorPorts: () => rendererPorts,
+    getMarkdown: () => snapshotRef.current.markdown,
+    getEditorMode: () => snapshotRef.current.mode,
+    showToast,
+    onOpenSettings: handleOpenSettings,
+  });
 
   const toggleSourceMode = useCallback(() => {
     if (!rendererPorts) {
@@ -940,8 +949,8 @@ export function UtoolsApp() {
           handleCancelSettings();
           return;
         }
-        if (isDisclaimerOpen) {
-          setIsDisclaimerOpen(false);
+        if (ai.isDisclaimerOpen) {
+          ai.closeDisclaimer();
           return;
         }
       }
@@ -1030,12 +1039,31 @@ export function UtoolsApp() {
         void handleSaveDocument();
         return;
       }
+
+      // 9. Cmd+J 或 Cmd+Shift+A: AI 智能续写
+      if ((key === "j" && !e.shiftKey) || (key === "a" && e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        void ai.triggerContinuation();
+        return;
+      }
+
+      // 10. Cmd+Shift+G: AI 语法错别字审校
+      if (key === "g" && e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        void ai.triggerGrammarFix();
+        return;
+      }
     };
 
     // 使用 capture: true 在捕获阶段顶层拦截快捷键，杜绝子级编辑器拦截产生意外副作用
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [
+    ai,
     handleNewFile,
     handleOpenFile,
     handleOpenFolder,
@@ -1043,7 +1071,6 @@ export function UtoolsApp() {
     handleSaveDocument,
     handleCancelSettings,
     handleOpenSettings,
-    isDisclaimerOpen,
     isSettingsOpen,
     toggleSourceMode,
   ]);
@@ -1120,20 +1147,21 @@ export function UtoolsApp() {
         </div>
       )}
 
-      {/* 设置菜单与偏好弹窗（整合外观排版、快捷键速查与 uTools 全局指南） */}
+      {/* 设置菜单与偏好弹窗（整合外观排版、AI 助手、快捷键速查与 uTools 全局指南） */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onCancel={handleCancelSettings}
         onSave={handleSaveSettings}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
+        onOpenDisclaimer={ai.openDisclaimer}
       />
 
       {/* AI 安全与免责声明弹窗 */}
       <DisclaimerModal
-        isOpen={isDisclaimerOpen}
-        onAccept={() => setIsDisclaimerOpen(false)}
-        onClose={() => setIsDisclaimerOpen(false)}
+        isOpen={ai.isDisclaimerOpen}
+        onAccept={ai.handleAcceptDisclaimer}
+        onClose={ai.closeDisclaimer}
       />
     </div>
   );

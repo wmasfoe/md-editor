@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { LocalInferenceBridge, LocalInferenceRequest } from "@md-editor/ai";
 import {
   BUILTIN_LOCAL_MODELS,
   DEFAULT_LOCAL_MODEL_ID,
@@ -16,6 +17,18 @@ export {
   getRecommendedModelId,
   mergeLocalAiModelStatus,
 } from "./local-ai-model-state";
+
+/**
+ * 桌面端原生本地模型推理桥接函数，对齐 `@md-editor/ai` 的 LocalInferenceBridge 依赖倒置契约
+ */
+export const desktopLocalAiBridge: LocalInferenceBridge = async (
+  request: LocalInferenceRequest,
+): Promise<string> => {
+  const result = await desktopLocalAiInvokeImpl("request_local_ai_continuation", {
+    options: request,
+  });
+  return typeof result === "string" ? result : String(result ?? "");
+};
 
 export const desktopLocalAiInvokeImpl = async (
   command: string,

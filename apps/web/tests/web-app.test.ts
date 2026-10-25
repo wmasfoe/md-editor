@@ -62,7 +62,9 @@ describe("Web App Presets and Settings", () => {
   it("defines supported AI preset providers", () => {
     const ids = PRESET_PROVIDERS.map((p) => p.id);
     expect(ids).toContain("deepseek");
-    expect(ids).toContain("openai-compatible");
+    expect(ids).toContain("openai");
+    expect(ids).toContain("anthropic");
+    expect(ids).toContain("google");
     expect(ids).toContain("ollama");
   });
 

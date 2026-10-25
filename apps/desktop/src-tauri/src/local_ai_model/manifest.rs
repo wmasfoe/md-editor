@@ -49,13 +49,8 @@ impl LocalAiModelManifest {
     pub(crate) fn all_download_specs(&self) -> Vec<(String, LocalAiFileSpec)> {
         let mut specs = Vec::new();
         if !self.download_url.is_empty() {
-            let base_tag = if self.adapters.is_empty() {
-                "model"
-            } else {
-                "base"
-            };
             specs.push((
-                base_tag.to_string(),
+                "base".to_string(),
                 LocalAiFileSpec {
                     filename: self.filename.clone(),
                     download_url: self.download_url.clone(),
@@ -75,13 +70,13 @@ impl LocalAiModelManifest {
 pub(crate) fn default_lite_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: LITE_MODEL_ID.to_string(),
-        display_name: "Lite (0.6B)".to_string(),
-        description: "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。".to_string(),
-        version: "v1.3.1".to_string(),
-        filename: "lite-base-qwen3-0.6b-v1.3.1-Q8_0.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-base-qwen3-0.6b-v1.3.1-Q8_0.gguf".to_string(),
-        size_bytes: 639_446_688,
-        sha256: "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031".to_string(),
+        display_name: "Lite (Qwen 3 0.6B)".to_string(),
+        description: canonical_description_for_tier(LITE_MODEL_ID),
+        version: "v1.4.0".to_string(),
+        filename: "lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
+        size_bytes: 639_000_000,
+        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
         context_size: 8192,
         default_max_tokens: 220,
         is_available: true,
@@ -90,78 +85,32 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
             (
                 "gec".to_string(),
                 LocalAiFileSpec {
-                    filename: "lite-gec-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-gec-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 40_397_472,
-                    sha256: "0547dcf4e629e6747c4a7ef9bef485562de83590543bf459aff25ee379fc331a".to_string(),
-                },
-            ),
-            (
-                "completion".to_string(),
-                LocalAiFileSpec {
-                    filename: "lite-completion-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-completion-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 40_397_472,
-                    sha256: "aa6e806b1ad802d8d3a1dacd382826891e76810cf5e9eff85f1472919e8ec7a8".to_string(),
-                },
-            ),
-            (
-                "distill".to_string(),
-                LocalAiFileSpec {
-                    filename: "lite-distill-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/lite-distill-qwen3-0.6b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 40_397_472,
-                    sha256: "347e34a26df1bd11f23d0d1afc8e292efcbeb51c2782f393a22ae29bac970b09".to_string(),
+                    filename: "lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
+                    size_bytes: 28_000_000,
+                    sha256: "cbf529a4d5fca1687a31d0f6644d6f14c4e36124c6b017414c6cf4c1cc35b214".to_string(),
                 },
             ),
         ],
     }
 }
 
-/// 内置标准级 Standard 模型（Qwen3 1.7B + 专用任务 LoRA）。
+/// 内置标准级 Standard 模型（Google Gemma 4 E2B 原生基座）。
 pub(crate) fn default_standard_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: STANDARD_MODEL_ID.to_string(),
-        display_name: "Standard (1.7B)".to_string(),
-        description: "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。".to_string(),
-        version: "v1.3.1".to_string(),
-        filename: "standard-base-qwen3-1.7b-v1.3.1-Q8_0.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-base-qwen3-1.7b-v1.3.1-Q8_0.gguf".to_string(),
-        size_bytes: 1_834_426_016,
-        sha256: "061b54daade076b5d3362dac252678d17da8c68f07560be70818cace6590cb1a".to_string(),
+        display_name: "Standard (Google Gemma 4 E2B)".to_string(),
+        description: canonical_description_for_tier(STANDARD_MODEL_ID),
+        version: "v1.4.0".to_string(),
+        filename: "standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
+        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
+        size_bytes: 1_680_000_000,
+        sha256: "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a".to_string(),
         context_size: 8192,
         default_max_tokens: 260,
         is_available: true,
         is_recommended: false,
-        adapters: vec![
-            (
-                "gec".to_string(),
-                LocalAiFileSpec {
-                    filename: "standard-gec-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-gec-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 69_757_600,
-                    sha256: "06acb8e8bc92c19e84c02fa36ac19c282f58d4bb3a0262ce361914aa219e91db".to_string(),
-                },
-            ),
-            (
-                "completion".to_string(),
-                LocalAiFileSpec {
-                    filename: "standard-completion-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-completion-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 69_757_600,
-                    sha256: "f8391f9b4e01ede76fc2f74e502996bde31445ec799cd3a24683d4b7b5241ac2".to_string(),
-                },
-            ),
-            (
-                "distill".to_string(),
-                LocalAiFileSpec {
-                    filename: "standard-distill-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/standard-distill-qwen3-1.7b-v1.3.1-lora-f16.gguf".to_string(),
-                    size_bytes: 69_757_600,
-                    sha256: "7da6e7770360238508f7ac0d6aba03787ec9f0b5439644a0d86f064287f5af88".to_string(),
-                },
-            ),
-        ],
+        adapters: vec![],
     }
 }
 
@@ -275,7 +224,7 @@ pub(crate) fn save_cached_remote_manifest(manifest: &RemoteManifest) -> Result<(
 pub(crate) fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
     let urls = [
         "https://github.com/wmasfoe/md-editor-models/releases/latest/download/manifest.json",
-        "https://github.com/wmasfoe/md-editor-models/releases/download/v1.3.1/manifest.json",
+        "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/manifest.json",
         "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/manifest.json",
         "https://raw.githubusercontent.com/wmasfoe/md-editor-models/main/manifest.json",
     ];
@@ -357,10 +306,10 @@ pub(crate) fn entry_primary_asset(entry: &RemoteModelEntry) -> RemoteModelAsset 
 pub(crate) fn canonical_description_for_tier(logical_id: &str) -> String {
     match logical_id {
         LITE_MODEL_ID => {
-            "Qwen3 架构任务专用 LoRA 矩阵（纠错 / 续写 / 提炼），极速轻量。".to_string()
+            "极速轻量档：内存占用 <300MB，首字延迟 <30ms，适合老旧轻薄本与快速输入".to_string()
         }
         STANDARD_MODEL_ID => {
-            "Qwen3 进阶版，搭载语法纠错、行内续写与长文提炼三大任务专用 LoRA，能力全面。"
+            "高精度专业档：Google Gemma 4 端侧基座，原生推理与长句逻辑极强，无错识别率接近 100%"
                 .to_string()
         }
         PRO_MODEL_ID => "旗舰级深度长文创作、论文润色与逻辑重构（敬请期待）。".to_string(),
@@ -412,15 +361,17 @@ pub(crate) fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiM
         if let Some(caps) = &entry.capabilities {
             for (task, cap) in caps {
                 if let (Some(fn_name), Some(url)) = (&cap.asset.filename, &cap.asset.download_url) {
-                    adapters.push((
-                        task.clone(),
-                        LocalAiFileSpec {
-                            filename: fn_name.clone(),
-                            download_url: url.clone(),
-                            size_bytes: cap.asset.size_bytes.unwrap_or(0),
-                            sha256: cap.asset.sha256.clone().unwrap_or_default(),
-                        },
-                    ));
+                    if !fn_name.trim().is_empty() && !url.trim().is_empty() {
+                        adapters.push((
+                            task.clone(),
+                            LocalAiFileSpec {
+                                filename: fn_name.clone(),
+                                download_url: url.clone(),
+                                size_bytes: cap.asset.size_bytes.unwrap_or(0),
+                                sha256: cap.asset.sha256.clone().unwrap_or_default(),
+                            },
+                        ));
+                    }
                 }
             }
         }
@@ -454,7 +405,7 @@ pub(crate) fn build_catalog_from_remote(remote: &RemoteManifest) -> Vec<LocalAiM
                     existing.sha256 = sha.clone();
                 }
             }
-            if !adapters.is_empty() {
+            if entry.capabilities.is_some() {
                 existing.adapters = adapters;
             }
             existing.context_size = context_size;

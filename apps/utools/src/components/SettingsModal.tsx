@@ -3,6 +3,7 @@ import { useState } from "react";
 import { DEFAULT_UTOOLS_SETTINGS, type UtoolsSettings } from "../utools/db-storage";
 import { CODE_FONT_OPTIONS, PROSE_FONT_OPTIONS } from "../utools/fonts";
 import { CloseIcon, InfoIcon } from "./Icons";
+import { UtoolsAiSettingsPanel } from "./UtoolsAiSettingsPanel";
 
 export interface SettingsModalProps {
   readonly isOpen: boolean;
@@ -12,9 +13,10 @@ export interface SettingsModalProps {
   readonly onUpdateSettings: (
     updater: Partial<UtoolsSettings> | ((prev: UtoolsSettings) => UtoolsSettings),
   ) => void;
+  readonly onOpenDisclaimer: () => void;
 }
 
-type TabType = "appearance" | "shortcuts" | "global";
+type TabType = "appearance" | "ai" | "shortcuts" | "global";
 
 interface ShortcutItem {
   readonly key: string;
@@ -28,11 +30,19 @@ interface ShortcutCategory {
 
 const TABS: readonly { id: TabType; label: string; description: string }[] = [
   { id: "appearance", label: "外观设置", description: "主题与字体" },
+  { id: "ai", label: "AI 智能助写", description: "云端协议与预设" },
   { id: "shortcuts", label: "快捷键速查", description: "编辑命令" },
   { id: "global", label: "uTools 快捷键", description: "全局呼出" },
 ];
 
 const SHORTCUT_CATEGORIES: readonly ShortcutCategory[] = [
+  {
+    title: "AI 智能助写",
+    items: [
+      { key: "⌘ / Ctrl + J 或 ⌘ / Ctrl + Shift + A", desc: "AI 行内续写 (Ghost Text)" },
+      { key: "⌘ / Ctrl + Shift + G", desc: "AI 局部语法错别字审校" },
+    ],
+  },
   {
     title: "常用操作与视图",
     items: [
@@ -85,6 +95,7 @@ export function SettingsModal({
   onSave,
   settings,
   onUpdateSettings,
+  onOpenDisclaimer,
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>("appearance");
 
@@ -180,6 +191,13 @@ export function SettingsModal({
                     isCustomProse={isCustomProse}
                     isCustomCode={isCustomCode}
                     onUpdateSettings={onUpdateSettings}
+                  />
+                ) : null}
+                {activeTab === "ai" ? (
+                  <UtoolsAiSettingsPanel
+                    aiSettings={settings.ai}
+                    onChangeAiSettings={(nextAi) => onUpdateSettings({ ai: nextAi })}
+                    onOpenDisclaimer={onOpenDisclaimer}
                   />
                 ) : null}
                 {activeTab === "shortcuts" ? <ShortcutsPanel /> : null}

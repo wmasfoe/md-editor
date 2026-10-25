@@ -6,7 +6,7 @@ import {
   createAppThemePreviewSession,
   createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
-  DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_DEEPSEEK_BASE_URL,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
   DEFAULT_PLUGIN_SETTINGS,
   DEFAULT_THEME_SETTINGS,
@@ -493,17 +493,12 @@ describe("app settings", () => {
     expect(received).toEqual(["zh-Hant", "ja", null]);
   });
 
-  it("normalizes DeepSeek provider settings to the fixed endpoint", () => {
+  it("normalizes DeepSeek provider settings into openai protocol endpoint", () => {
     expect(
       normalizeAiSettings({
         provider: "deepseek",
-        openAiCompatible: {
-          baseUrl: "https://api.openai.com/v1",
-          model: "deepseek-chat",
-          apiKey: "local-key",
-        },
-      }).openAiCompatible.baseUrl,
-    ).toBe(DEFAULT_DEEPSEEK_ENDPOINT);
+      }).endpoints.openai.baseUrl,
+    ).toBe(DEFAULT_DEEPSEEK_BASE_URL);
   });
 
   it("detects a newer public release from the tap release payload", () => {

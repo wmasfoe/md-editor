@@ -1,6 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "@md-editor/i18n";
-import type { AiSettings } from "@md-editor/ai";
+import {
+  AI_URL_PRESETS,
+  applyAiUrlPreset,
+  updateAiEndpoint,
+  type AiProtocolId,
+  type AiSettings,
+} from "@md-editor/ai";
+import { desktopAiService } from "../../app/ai/desktop-ai-service";
 import {
   BUILTIN_LOCAL_MODELS,
   formatSystemSpecsLabel,
@@ -93,7 +100,7 @@ export function AiSettingsPanel({
         </div>
 
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-          <span className={settingsFieldLabelClassName}>{t("settings.ai.provider")}</span>
+          <span className={settingsFieldLabelClassName}>{t("settings.ai.protocol")}</span>
           <select
             className={settingsInputClassName}
             value={aiSettingsDraft.provider}
@@ -103,9 +110,10 @@ export function AiSettingsPanel({
               )
             }
           >
-            <option value="openai-compatible">OpenAI-compatible</option>
-            <option value="deepseek">DeepSeek</option>
-            <option value="local">{t("settings.ai.providerLocal")}</option>
+            <option value="openai">{t("settings.ai.protocolOpenAi")}</option>
+            <option value="anthropic">{t("settings.ai.protocolAnthropic")}</option>
+            <option value="google">{t("settings.ai.protocolGoogle")}</option>
+            <option value="local">{t("settings.ai.protocolLocal")}</option>
           </select>
         </label>
 
@@ -137,64 +145,152 @@ function RemoteAiSettings({
   aiSettingsDraft,
   onChangeAiSettings,
 }: Pick<AiSettingsPanelProps, "aiSettingsDraft" | "onChangeAiSettings">) {
+  const { t } = useTranslation();
+  const [testState, setTestState] = useState<{
+    status: "idle" | "testing" | "success" | "error";
+    message: string;
+  }>({ status: "idle", message: "" });
+
+  const activeProtocol: AiProtocolId =
+    aiSettingsDraft.provider === "local" ? "openai" : aiSettingsDraft.provider;
+  const currentEndpoint = aiSettingsDraft.endpoints[activeProtocol];
+
+  const handleTestConnection = async () => {
+    setTestState({ status: "testing", message: t("settings.ai.testingConnection") });
+    try {
+      const result = await desktopAiService.testConnection(aiSettingsDraft);
+      if (result.ok) {
+        setTestState({
+          status: "success",
+          message: `连接成功 (延迟: ${result.latencyMs ?? 0}ms)`,
+        });
+      } else {
+        setTestState({
+          status: "error",
+          message: result.message || "连接失败",
+        });
+      }
+    } catch (error) {
+      setTestState({
+        status: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
   return (
-    <div className="grid gap-2.5">
+    <div className="grid gap-3">
+      {/* 快速预设药丸按钮 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px] text-[var(--theme-muted)]">{t("settings.ai.presets")}:</span>
+        {AI_URL_PRESETS.map((preset) => {
+          const isPresetActive =
+            aiSettingsDraft.provider === preset.protocol &&
+            currentEndpoint.baseUrl === preset.baseUrl;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                isPresetActive
+                  ? "bg-[var(--theme-primary)] text-white"
+                  : "bg-[var(--theme-chrome)] text-[var(--theme-title)] hover:bg-[var(--theme-border)] border border-[var(--theme-border)]"
+              }`}
+              onClick={() => {
+                onChangeAiSettings(applyAiUrlPreset(aiSettingsDraft, preset.id));
+                setTestState({ status: "idle", message: "" });
+              }}
+            >
+              {preset.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Endpoint (Base URL) */}
       <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-        <span className={settingsFieldLabelClassName}>Endpoint</span>
-        <input
-          className={settingsInputClassName}
-          value={aiSettingsDraft.openAiCompatible.baseUrl}
-          disabled={aiSettingsDraft.provider === "deepseek"}
-          onChange={(event) =>
-            onChangeAiSettings({
-              ...aiSettingsDraft,
-              openAiCompatible: {
-                ...aiSettingsDraft.openAiCompatible,
-                baseUrl: event.target.value,
-              },
-            })
-          }
-          placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
-          spellCheck={false}
-        />
+        <span className={settingsFieldLabelClassName}>{t("settings.ai.baseUrl")}</span>
+        <div>
+          <input
+            className={settingsInputClassName}
+            value={currentEndpoint.baseUrl}
+            onChange={(event) => {
+              onChangeAiSettings(
+                updateAiEndpoint(aiSettingsDraft, activeProtocol, {
+                  baseUrl: event.target.value,
+                }),
+              );
+              setTestState({ status: "idle", message: "" });
+            }}
+            placeholder={providerEndpointPlaceholder(aiSettingsDraft.provider)}
+            spellCheck={false}
+          />
+          <p className="mt-1 text-[11px] text-[var(--theme-muted)]">
+            {t("settings.ai.customBaseUrlHint")}
+          </p>
+        </div>
       </label>
+
+      {/* Model */}
       <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-        <span className={settingsFieldLabelClassName}>Model</span>
+        <span className={settingsFieldLabelClassName}>{t("settings.ai.model")}</span>
         <input
           className={settingsInputClassName}
-          value={aiSettingsDraft.openAiCompatible.model}
-          onChange={(event) =>
-            onChangeAiSettings({
-              ...aiSettingsDraft,
-              openAiCompatible: {
-                ...aiSettingsDraft.openAiCompatible,
+          value={currentEndpoint.model}
+          onChange={(event) => {
+            onChangeAiSettings(
+              updateAiEndpoint(aiSettingsDraft, activeProtocol, {
                 model: event.target.value,
-              },
-            })
-          }
+              }),
+            );
+            setTestState({ status: "idle", message: "" });
+          }}
           placeholder={providerModelPlaceholder(aiSettingsDraft.provider)}
           spellCheck={false}
         />
       </label>
+
+      {/* API Key */}
       <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-        <span className={settingsFieldLabelClassName}>API Key</span>
+        <span className={settingsFieldLabelClassName}>{t("settings.ai.apiKey")}</span>
         <input
           type="password"
           className={settingsInputClassName}
-          value={aiSettingsDraft.openAiCompatible.apiKey}
-          onChange={(event) =>
-            onChangeAiSettings({
-              ...aiSettingsDraft,
-              openAiCompatible: {
-                ...aiSettingsDraft.openAiCompatible,
+          value={currentEndpoint.apiKey}
+          onChange={(event) => {
+            onChangeAiSettings(
+              updateAiEndpoint(aiSettingsDraft, activeProtocol, {
                 apiKey: event.target.value,
-              },
-            })
-          }
+              }),
+            );
+            setTestState({ status: "idle", message: "" });
+          }}
           placeholder="sk-..."
           spellCheck={false}
         />
       </label>
+
+      {/* 测试连接按钮与反馈 */}
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          type="button"
+          className={settingsSmallButtonClassName}
+          onClick={handleTestConnection}
+          disabled={testState.status === "testing"}
+        >
+          {testState.status === "testing"
+            ? t("settings.ai.testingConnection")
+            : t("settings.ai.testConnection")}
+        </button>
+        {testState.status === "success" && (
+          <span className="text-[12px] text-emerald-600 dark:text-emerald-400">
+            ✓ {testState.message}
+          </span>
+        )}
+        {testState.status === "error" && (
+          <span className="text-[12px] text-red-600 dark:text-red-400">✗ {testState.message}</span>
+        )}
+      </div>
     </div>
   );
 }
