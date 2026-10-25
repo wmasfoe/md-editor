@@ -19,6 +19,7 @@ import type {
   ModelResponse,
 } from "../domain/model-client.ts";
 import { createAbortError, DEFAULT_HTTP_TIMEOUT_MS } from "./http-transport.ts";
+import { logLlmError, logLlmRequest, logLlmSuccess } from "./logger.ts";
 
 export class LocalSlmClient implements ModelClient {
   public readonly providerId = "local" as const;
@@ -78,16 +79,38 @@ export class LocalSlmClient implements ModelClient {
       };
     }
 
-    const text = await runBridgeWithTimeout(
-      () => this.bridge(request),
-      context.signal,
-      context.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-    );
+    logLlmRequest("LocalSLM", this.modelId, {
+      task: context.task,
+      isFim: Boolean(context.rawCompletion),
+      temperature: request.temperature,
+      maxTokens: request.maxTokens,
+      promptPreview: (request.rawPrompt ?? context.prompt).slice(0, 80),
+    });
 
-    return {
-      text,
-      latencyMs: Date.now() - startTime,
-    };
+    try {
+      const text = await runBridgeWithTimeout(
+        () => this.bridge(request),
+        context.signal,
+        context.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
+      );
+
+      const latencyMs = Date.now() - startTime;
+      logLlmSuccess("LocalSLM", this.modelId, {
+        latencyMs,
+        textPreview: text.slice(0, 100),
+      });
+
+      return {
+        text,
+        latencyMs,
+      };
+    } catch (error) {
+      logLlmError("LocalSLM", this.modelId, {
+        latencyMs: Date.now() - startTime,
+        error,
+      });
+      throw error;
+    }
   }
 }
 

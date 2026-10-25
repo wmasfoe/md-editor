@@ -60,6 +60,22 @@ describe("AiWritingService: App Harness 编排服务", () => {
     expect(result.hasContinuation).toBe(true);
     expect(result.continuation).toBe("然后我们一起去吃晚餐。");
     expect(generateSpy).toHaveBeenCalledTimes(1);
+
+    // 测试主动段落续写（isGhostText: false），带前导换行与多行段落
+    const multiLineSpy = vi.fn().mockResolvedValue({
+      text: "\n\n这是第一段续写内容。\n\n这是第二段续写内容。",
+      latencyMs: 15,
+    });
+    (service as unknown as { resolveClient: typeof resolveClient }).resolveClient = () => ({
+      providerId: "openai" as const,
+      modelId: "gpt-4.1-mini",
+      generate: multiLineSpy,
+    });
+    const multiLineResult = await service.continueWriting(settings, snapshot, {
+      isGhostText: false,
+    });
+    expect(multiLineResult.hasContinuation).toBe(true);
+    expect(multiLineResult.continuation).toBe("这是第一段续写内容。\n\n这是第二段续写内容。");
   });
 
   it("fixGrammar 执行语法修复并按四重防御锚点对齐", async () => {

@@ -169,8 +169,10 @@ export function sanitizeContinuationOutput(
     text = trimmedFenceCheck.replace(/^```[\w-]*\n/u, "").replace(/\n```$/u, "");
   }
 
+  // 剥离模型输出的前导换行（无论单行幽灵还是多行段落，前导换行都会破坏行内衔接并导致前缀去重失效）
+  text = text.replace(/^[\r\n]+/u, "");
+
   if (options.isGhostText) {
-    text = text.replace(/^[\r\n]+/u, "");
     const firstLineBreak = text.search(/[\r\n]/u);
     if (firstLineBreak !== -1) {
       text = text.slice(0, firstLineBreak);

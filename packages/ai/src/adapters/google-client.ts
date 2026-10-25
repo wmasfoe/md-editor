@@ -12,6 +12,7 @@ import {
   fetchJsonWithTimeout,
   resolveGoogleGenerateContentEndpoint,
 } from "./http-transport.ts";
+import { logLlmError, logLlmRequest, logLlmSuccess } from "./logger.ts";
 
 interface GoogleGenerateContentResponse {
   readonly candidates?: ReadonlyArray<{
@@ -82,6 +83,14 @@ export class GoogleClient implements ModelClient {
       };
     }
 
+    logLlmRequest("Google", this.modelId, {
+      url,
+      task: context.task,
+      temperature: context.temperature,
+      maxTokens: context.maxTokens,
+      promptPreview: context.prompt.slice(0, 80),
+    });
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -99,7 +108,12 @@ export class GoogleClient implements ModelClient {
     });
 
     if (!ok) {
-      throw new Error(extractApiErrorMessage(data, status, "Google Gemini 服务"));
+      const errorMsg = extractApiErrorMessage(data, status, "Google Gemini 服务");
+      logLlmError("Google", this.modelId, {
+        latencyMs: Date.now() - startTime,
+        error: errorMsg,
+      });
+      throw new Error(errorMsg);
     }
 
     const parsed = (data ?? {}) as GoogleGenerateContentResponse;
@@ -109,10 +123,17 @@ export class GoogleClient implements ModelClient {
       .map((part) => part.text ?? "")
       .join("");
 
+    const latencyMs = Date.now() - startTime;
+    logLlmSuccess("Google", this.modelId, {
+      latencyMs,
+      finishReason: candidate?.finishReason,
+      textPreview: text.slice(0, 100),
+    });
+
     return {
       text,
       finishReason: candidate?.finishReason,
-      latencyMs: Date.now() - startTime,
+      latencyMs,
     };
   }
 }

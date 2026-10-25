@@ -6,6 +6,10 @@ import {
   isEarlyOpenAiReasoningModel,
   isOpenAiReasoningModel,
   LocalSlmClient,
+  logLlmError,
+  logLlmRequest,
+  logLlmRetry,
+  logLlmSuccess,
   OpenAIClient,
   type AiSettings,
   type LocalInferenceRequest,
@@ -415,6 +419,25 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect(capturedBodies[1].max_tokens).toBeUndefined();
       expect(capturedBodies[1].temperature).toBeUndefined();
       expect(capturedBodies[1].max_completion_tokens).toBe(1024);
+    });
+  });
+
+  describe("logger: 开发环境结构化日志", () => {
+    it("logLlmRequest, logLlmSuccess, logLlmRetry, logLlmError 正常执行且不抛异常", () => {
+      const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(() => {
+        logLlmRequest("OpenAI", "gpt-4o", { task: "completion", promptPreview: "test" });
+        logLlmSuccess("OpenAI", "gpt-4o", { latencyMs: 100, textPreview: "res" });
+        logLlmRetry("OpenAI", "gpt-4o", { attempt: 1, reason: "err" });
+        logLlmError("OpenAI", "gpt-4o", { latencyMs: 50, error: "fail" });
+      }).not.toThrow();
+
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
     });
   });
 });

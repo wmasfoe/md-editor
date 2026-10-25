@@ -203,14 +203,24 @@ export function useDesktopEditorController({
             }
             const selection = portsAccess.ports.getSelectionSnapshot();
             const markdown = snapshot.markdown;
-            const before = markdown.slice(0, selection.from);
-            const after = markdown.slice(selection.to);
+            // 续写插入点始终在选区末尾（无选区时即为光标位置），保证续写内容作为幽灵文本追加渲染
+            const insertPosition = selection.to;
+            const before = markdown.slice(0, insertPosition);
+            const after = markdown.slice(insertPosition);
             const selectedText = selection.text;
 
             const docKey = snapshot.filePath || "untitled";
             const docContext = desktopAiService.documentContext.getOrExtract(docKey, markdown);
 
             try {
+              if (import.meta.env.DEV) {
+                console.debug("[AI Desktop] ▶ 触发手动续写 (ai.continueWriting)...", {
+                  insertPosition,
+                  beforeLength: before.length,
+                  afterLength: after.length,
+                  selectedText,
+                });
+              }
               showToast("AI 续写思考中...");
               const suggestion = await desktopAiService.continueWriting(
                 settings.ai,
@@ -227,13 +237,17 @@ export function useDesktopEditorController({
                 { isGhostText: false },
               );
 
+              if (import.meta.env.DEV) {
+                console.debug("[AI Desktop] 手动续写结果 (ai.continueWriting):", suggestion);
+              }
+
               if (suggestion.continuation) {
                 portsAccess.ports.showSuggestion({
-                  from: selection.from,
-                  to: selection.to,
+                  from: insertPosition,
+                  to: insertPosition,
                   text: suggestion.continuation,
                 });
-                showToast(null);
+                showToast("AI 续写建议已就绪，按 Tab 采纳，按 Esc 放弃。");
               } else {
                 showToast("未能生成有效续写建议。");
               }

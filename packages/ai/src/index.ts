@@ -33,6 +33,7 @@ export * from "./adapters/anthropic-client.ts";
 export * from "./adapters/google-client.ts";
 export * from "./adapters/local-slm-client.ts";
 export * from "./adapters/client-factory.ts";
+export * from "./adapters/logger.ts";
 
 export interface CreateAiWritingServiceOptions {
   /** 当前宿主平台是否允许使用桌面端本地模型（Desktop 为 true，Web / uTools 为 false） */

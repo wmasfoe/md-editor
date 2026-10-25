@@ -15,6 +15,7 @@ import {
   fetchJsonWithTimeout,
   resolveAnthropicMessagesEndpoint,
 } from "./http-transport.ts";
+import { logLlmError, logLlmRequest, logLlmSuccess } from "./logger.ts";
 
 interface AnthropicMessagesResponse {
   readonly stop_reason?: string | null;
@@ -61,6 +62,14 @@ export class AnthropicClient implements ModelClient {
       body.stop_sequences = [...context.stopSequences];
     }
 
+    logLlmRequest("Anthropic", this.modelId, {
+      url,
+      task: context.task,
+      temperature: context.temperature,
+      maxTokens: context.maxTokens,
+      promptPreview: context.prompt.slice(0, 80),
+    });
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
@@ -80,7 +89,12 @@ export class AnthropicClient implements ModelClient {
     });
 
     if (!ok) {
-      throw new Error(extractApiErrorMessage(data, status, "Anthropic 服务"));
+      const errorMsg = extractApiErrorMessage(data, status, "Anthropic 服务");
+      logLlmError("Anthropic", this.modelId, {
+        latencyMs: Date.now() - startTime,
+        error: errorMsg,
+      });
+      throw new Error(errorMsg);
     }
 
     const parsed = (data ?? {}) as AnthropicMessagesResponse;
@@ -89,10 +103,17 @@ export class AnthropicClient implements ModelClient {
       .map((block) => block.text ?? "")
       .join("");
 
+    const latencyMs = Date.now() - startTime;
+    logLlmSuccess("Anthropic", this.modelId, {
+      latencyMs,
+      finishReason: parsed.stop_reason ?? undefined,
+      textPreview: text.slice(0, 100),
+    });
+
     return {
       text,
       finishReason: parsed.stop_reason ?? undefined,
-      latencyMs: Date.now() - startTime,
+      latencyMs,
     };
   }
 }

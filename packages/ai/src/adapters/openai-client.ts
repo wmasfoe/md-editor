@@ -20,6 +20,7 @@ import {
   fetchJsonWithTimeout,
   resolveOpenAiChatEndpoint,
 } from "./http-transport.ts";
+import { logLlmError, logLlmRequest, logLlmRetry, logLlmSuccess } from "./logger.ts";
 
 interface OpenAiChatResponse {
   readonly choices?: ReadonlyArray<{
@@ -155,6 +156,14 @@ export class OpenAIClient implements ModelClient {
     const messages = buildOpenAiMessages(this.modelId, context.instruction, context.prompt);
     const body = buildOpenAiRequestBody(this.modelId, context, messages);
 
+    logLlmRequest("OpenAI", this.modelId, {
+      url,
+      task: context.task,
+      temperature: body.temperature,
+      maxTokens: body.max_tokens ?? body.max_completion_tokens,
+      promptPreview: context.prompt.slice(0, 80),
+    });
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -184,10 +193,17 @@ export class OpenAIClient implements ModelClient {
               ? rawContent.map((part) => (typeof part?.text === "string" ? part.text : "")).join("")
               : "";
 
+        const latencyMs = Date.now() - startTime;
+        logLlmSuccess("OpenAI", this.modelId, {
+          latencyMs,
+          finishReason: choice?.finish_reason ?? undefined,
+          textPreview: text.slice(0, 100),
+        });
+
         return {
           text,
           finishReason: choice?.finish_reason ?? undefined,
-          latencyMs: Date.now() - startTime,
+          latencyMs,
         };
       }
 
@@ -258,13 +274,26 @@ export class OpenAIClient implements ModelClient {
         }
 
         if (adapted) {
+          logLlmRetry("OpenAI", this.modelId, {
+            attempt: attempt + 1,
+            reason: rawMessage,
+            adaptedBody: body,
+          });
           continue;
         }
       }
 
+      logLlmError("OpenAI", this.modelId, {
+        latencyMs: Date.now() - startTime,
+        error: lastError.message,
+      });
       throw lastError;
     }
 
+    logLlmError("OpenAI", this.modelId, {
+      latencyMs: Date.now() - startTime,
+      error: lastError?.message ?? "OpenAI 兼容服务请求失败",
+    });
     throw lastError ?? new Error("OpenAI 兼容服务请求失败");
   }
 }
