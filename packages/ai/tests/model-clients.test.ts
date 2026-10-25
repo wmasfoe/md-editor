@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AnthropicClient,
-  clearGlobalUnsupportedParamsCache,
   createModelClient,
   GoogleClient,
   isEarlyOpenAiReasoningModel,
@@ -70,7 +69,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
         { role: "user", content: "User prompt" },
       ],
       temperature: 0.5,
-      max_tokens: 100,
+      max_completion_tokens: 100,
       stop: ["\n"],
     });
   });
@@ -359,7 +358,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       ]);
     });
 
-    it("当遇到 'max_tokens is not supported with this model. Use max_completion_tokens instead' 时自动自愈重试", async () => {
+    it("当遇到极旧第三方代理端点报错 'max_completion_tokens is not supported' 时单次请求内自动回退至 max_tokens 重试", async () => {
       let attemptCount = 0;
       const capturedBodies: Array<Record<string, unknown>> = [];
 
@@ -369,14 +368,14 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
         capturedBodies.push(body);
 
         if (attemptCount === 1) {
-          // 首次请求模拟 OpenAI 报错 400
+          // 首次请求模拟老旧代理报错 400
           return new Response(
             JSON.stringify({
               error: {
                 message:
-                  "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+                  "Unsupported parameter: 'max_completion_tokens' is not supported with this model. Use 'max_tokens' instead.",
                 type: "invalid_request_error",
-                param: "max_tokens",
+                param: "max_completion_tokens",
                 code: "unsupported_parameter",
               },
             }),
@@ -387,7 +386,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
         // 第二次重试自愈成功
         return new Response(
           JSON.stringify({
-            choices: [{ message: { content: "自愈重试成功响应" } }],
+            choices: [{ message: { content: "回退 max_tokens 成功" } }],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
@@ -395,9 +394,9 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
 
       const client = new OpenAIClient(
         {
-          baseUrl: "https://api.openai.com/v1",
-          model: "custom-reasoning-model",
-          apiKey: "sk-test",
+          baseUrl: "http://localhost:11434/v1",
+          model: "legacy-ollama-model",
+          apiKey: "",
         },
         { fetchImpl: mockFetch },
       );
@@ -409,17 +408,16 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
         maxTokens: 256,
       });
 
-      expect(res.text).toBe("自愈重试成功响应");
+      expect(res.text).toBe("回退 max_tokens 成功");
       expect(attemptCount).toBe(2);
 
-      // 首次发出的请求包含 max_tokens 与 temperature
-      expect(capturedBodies[0].max_tokens).toBe(256);
-      expect(capturedBodies[0].temperature).toBe(0.3);
+      // 首次发出的请求直接采用现代标准的 max_completion_tokens
+      expect(capturedBodies[0].max_completion_tokens).toBe(256);
+      expect(capturedBodies[0].max_tokens).toBeUndefined();
 
-      // 自愈后第二次发出的请求：max_tokens 与 temperature 已剔除，转为 max_completion_tokens
-      expect(capturedBodies[1].max_tokens).toBeUndefined();
-      expect(capturedBodies[1].temperature).toBeUndefined();
-      expect(capturedBodies[1].max_completion_tokens).toBe(1024);
+      // 回退后发出的请求：max_completion_tokens 已转换为 legacy max_tokens
+      expect(capturedBodies[1].max_completion_tokens).toBeUndefined();
+      expect(capturedBodies[1].max_tokens).toBe(256);
     });
 
     it("gpt-5 系列模型 (gpt-5.4-nano) 预置识别为现代推理模型，首发即使用 max_completion_tokens 且不发 stop/temperature", async () => {
@@ -461,8 +459,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect((capturedBody.messages as Array<{ role: string }>)[0].role).toBe("developer");
     });
 
-    it("对于未在正则中的未知模型，遇到 'stop' 不支持时自动自愈，且后续新建 Client 实例通过全局缓存持久记忆跳过", async () => {
-      clearGlobalUnsupportedParamsCache();
+    it("对于未在推理正则中的未知模型，遇到服务端 'stop' 不支持时，单次请求内自动剔除 stop 并重试成功", async () => {
       let attemptCount = 0;
       const capturedBodies: Array<Record<string, unknown>> = [];
 
@@ -487,55 +484,31 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
 
         return new Response(
           JSON.stringify({
-            choices: [{ message: { content: "自愈成功响应" } }],
+            choices: [{ message: { content: "单次重试自愈成功" } }],
           }),
           { status: 200, headers: { "Content-Type": "application/json" } },
         );
       });
 
-      const client1 = new OpenAIClient(
+      const client = new OpenAIClient(
         {
           baseUrl: "https://api.my-custom-proxy.com/v1",
-          model: "custom-nano-variant",
+          model: "custom-variant",
           apiKey: "sk-test",
         },
         { fetchImpl: mockFetch },
       );
 
-      const res = await client1.generate({
+      const res = await client.generate({
         instruction: "提示词",
         prompt: "测试文本",
         stopSequences: ["\n"],
       });
 
-      expect(res.text).toBe("自愈成功响应");
+      expect(res.text).toBe("单次重试自愈成功");
       expect(attemptCount).toBe(2);
       expect(capturedBodies[0].stop).toEqual(["\n"]);
       expect(capturedBodies[1].stop).toBeUndefined();
-      // 同步自愈：stop 不支持时，自动将 max_tokens 升级为 max_completion_tokens 并清除 temperature
-      expect(capturedBodies[1].max_tokens).toBeUndefined();
-      expect(capturedBodies[1].max_completion_tokens).toBe(1024);
-      expect(capturedBodies[1].temperature).toBeUndefined();
-
-      // 模拟 resolveClient：重新实例化一个新的 client2
-      const client2 = new OpenAIClient(
-        {
-          baseUrl: "https://api.my-custom-proxy.com/v1",
-          model: "custom-nano-variant",
-          apiKey: "sk-test",
-        },
-        { fetchImpl: mockFetch },
-      );
-
-      await client2.generate({
-        instruction: "提示词",
-        prompt: "测试文本2",
-        stopSequences: ["\n"],
-      });
-
-      // 验证 client2 从首发开始就不再携带 stop，不需要触发 400 重试
-      expect(attemptCount).toBe(3);
-      expect(capturedBodies[2].stop).toBeUndefined();
     });
   });
 
