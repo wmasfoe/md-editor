@@ -6,7 +6,7 @@
 
 - 产品需求、路线与竞品分析（如 VMark 等）： [product/index.md](./product/index.md)
 - 设计规范： [design/index.md](./design/index.md)
-- 技术架构、能力边界与方案（含 AI Harness/本地 SLM 接口契约、PR3 模块拆分与结构护栏）： [architecture/index.md](./architecture/index.md)
+- 技术架构、能力边界与方案（含 AI Harness/本地 SLM 接口契约、macOS 本地推理打包与签名、PR3 模块拆分与结构护栏）： [architecture/index.md](./architecture/index.md)
 - 实现状态、迁移进度、Beta 缺口与阶段验证记录： [status/index.md](./status/index.md)
 - 高风险问题规范（选区、IME、AI 修复预览等编辑器交互契约）： [specs/index.md](./specs/index.md)
 - 发布与仓库流程： [release/index.md](./release/index.md)

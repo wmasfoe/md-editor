@@ -14,7 +14,7 @@
 - Hooks 迁移到 React-facing 层与 editor-core 平台依赖清理手册： [hooks-migration-to-editor-core.md](./hooks-migration-to-editor-core.md)
 - macOS 窗口 Chrome 规范： [macos_window_chrome_guidelines.md](./macos_window_chrome_guidelines.md)
 - MDX 官方组件分层方案： [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
-- 本地小模型接入方案： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
+- 本地小模型接入方案（含 macOS runtime 动态库布局、ad-hoc 签名例外与验证方式）： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
 - 端侧专属小模型 (SLM) 紧凑协议与客户端对接规范： [slm_compact_protocol_and_client_integration.md](./slm_compact_protocol_and_client_integration.md)
 - Desktop Editor Actions Context（Provider 依赖型动作的组织规范）： [desktop_editor_actions_context.md](./desktop_editor_actions_context.md)
 - WYSIWYG 内联可删除语法标记（Milkdown 路线 D 历史实现）+ 编辑器视觉优化记录： [inline_syntax_markers_and_visual_refresh.md](./inline_syntax_markers_and_visual_refresh.md)
