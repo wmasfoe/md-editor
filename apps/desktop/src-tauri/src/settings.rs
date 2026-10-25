@@ -97,10 +97,35 @@ pub(crate) struct UpdateSettings {
 #[tauri::command]
 pub(crate) fn load_app_settings() -> AppSettings {
     let Some(data_dir) = app_data_dir() else {
+        eprintln!("[Settings] Warning: cannot resolve app data dir, returning default settings");
         return default_settings();
     };
 
-    read_settings(&data_dir.join(SETTINGS_FILE_NAME)).unwrap_or_else(default_settings)
+    let settings_path = data_dir.join(SETTINGS_FILE_NAME);
+    let loaded = read_settings(&settings_path).unwrap_or_else(default_settings);
+    if let Some(ai) = &loaded.ai {
+        let has_endpoints = ai.endpoints.is_some();
+        let provider = ai.provider.as_deref().unwrap_or("none");
+        let openai_key_set = ai
+            .endpoints
+            .as_ref()
+            .and_then(|e| e.openai.as_ref())
+            .and_then(|o| o.api_key.as_ref())
+            .map(|k| !k.is_empty())
+            .unwrap_or(false);
+        let openai_model = ai
+            .endpoints
+            .as_ref()
+            .and_then(|e| e.openai.as_ref())
+            .and_then(|o| o.model.as_ref())
+            .map(|m| m.as_str())
+            .unwrap_or("");
+        eprintln!(
+            "[Settings] load_app_settings: provider={provider}, model={openai_model}, hasEndpoints={has_endpoints}, openaiKeySet={openai_key_set} from {:?}",
+            settings_path
+        );
+    }
+    loaded
 }
 
 #[tauri::command]
@@ -108,7 +133,30 @@ pub(crate) fn save_app_settings(settings: AppSettings) -> Result<(), String> {
     let data_dir = app_data_dir().ok_or_else(|| "Cannot resolve app data directory".to_string())?;
     fs::create_dir_all(&data_dir)
         .map_err(|error| format!("Failed to create app data directory: {error}"))?;
-    write_settings(&data_dir.join(SETTINGS_FILE_NAME), &settings)
+    let settings_path = data_dir.join(SETTINGS_FILE_NAME);
+    if let Some(ai) = &settings.ai {
+        let has_endpoints = ai.endpoints.is_some();
+        let provider = ai.provider.as_deref().unwrap_or("none");
+        let openai_key_set = ai
+            .endpoints
+            .as_ref()
+            .and_then(|e| e.openai.as_ref())
+            .and_then(|o| o.api_key.as_ref())
+            .map(|k| !k.is_empty())
+            .unwrap_or(false);
+        let openai_model = ai
+            .endpoints
+            .as_ref()
+            .and_then(|e| e.openai.as_ref())
+            .and_then(|o| o.model.as_ref())
+            .map(|m| m.as_str())
+            .unwrap_or("");
+        eprintln!(
+            "[Settings] save_app_settings: provider={provider}, model={openai_model}, hasEndpoints={has_endpoints}, openaiKeySet={openai_key_set} to {:?}",
+            settings_path
+        );
+    }
+    write_settings(&settings_path, &settings)
 }
 
 #[allow(dead_code)]

@@ -329,6 +329,11 @@ export function useSettingsController({
     setIsSavingSettings(true);
     setSettingsErrorMessage(null);
     try {
+      console.info("[Settings] User requested save in surface:", surface, {
+        provider: aiSettingsDraft.provider,
+        openaiModel: aiSettingsDraft.endpoints.openai.model,
+        hasApiKey: Boolean(aiSettingsDraft.endpoints.openai.apiKey),
+      });
       await saveAppSettings({
         shortcuts: normalizedShortcuts,
         assetsDirectory: nextAssetsDirectory,
@@ -346,6 +351,7 @@ export function useSettingsController({
       }
       // saveAppSettings 广播 listenToAppSettingsChanged，Context 会自动更新 settings
       try {
+        console.info("[Settings] Save successful, closing settings surface:", surface);
         await closeSettingsSurfaceAfterSave({
           surface,
           closeEmbeddedSettings: closeEmbedded,

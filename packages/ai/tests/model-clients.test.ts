@@ -3,6 +3,8 @@ import {
   AnthropicClient,
   createModelClient,
   GoogleClient,
+  isEarlyOpenAiReasoningModel,
+  isOpenAiReasoningModel,
   LocalSlmClient,
   OpenAIClient,
   type AiSettings,
@@ -250,5 +252,169 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
     expect(
       createModelClient({ ...baseSettings, provider: "local" }, { localBridge: mockBridge }),
     ).toBeInstanceOf(LocalSlmClient);
+  });
+
+  describe("OpenAI 推理模型适配与自愈", () => {
+    it("正确识别 OpenAI o 系列推理模型与早期模型", () => {
+      expect(isOpenAiReasoningModel("o1")).toBe(true);
+      expect(isOpenAiReasoningModel("o1-mini")).toBe(true);
+      expect(isOpenAiReasoningModel("o1-preview")).toBe(true);
+      expect(isOpenAiReasoningModel("o3-mini")).toBe(true);
+      expect(isOpenAiReasoningModel("o3")).toBe(true);
+      expect(isOpenAiReasoningModel("o4-preview")).toBe(true);
+      expect(isOpenAiReasoningModel("openai/o1-mini")).toBe(true);
+
+      expect(isOpenAiReasoningModel("gpt-4o")).toBe(false);
+      expect(isOpenAiReasoningModel("gpt-4.1-mini")).toBe(false);
+      expect(isOpenAiReasoningModel("deepseek-chat")).toBe(false);
+      expect(isOpenAiReasoningModel("qwen3:0.6b")).toBe(false);
+
+      expect(isEarlyOpenAiReasoningModel("o1-mini")).toBe(true);
+      expect(isEarlyOpenAiReasoningModel("o1-preview")).toBe(true);
+      expect(isEarlyOpenAiReasoningModel("o1")).toBe(false);
+      expect(isEarlyOpenAiReasoningModel("o3-mini")).toBe(false);
+    });
+
+    it("推理模型 (o3-mini) 自动使用 max_completion_tokens 并剔除 temperature，使用 developer 角色", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "o3-mini 思考并完成续写" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const client = new OpenAIClient(
+        {
+          baseUrl: "https://api.openai.com/v1",
+          model: "o3-mini",
+          apiKey: "sk-o3-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      const res = await client.generate({
+        instruction: "保持简洁。",
+        prompt: "续写这首诗歌",
+        temperature: 0.7,
+        maxTokens: 256,
+      });
+
+      expect(res.text).toBe("o3-mini 思考并完成续写");
+      expect(capturedBody.model).toBe("o3-mini");
+      // 推理模型严格不应传 temperature
+      expect(capturedBody.temperature).toBeUndefined();
+      // 推理模型不使用 max_tokens，使用 max_completion_tokens，且预算至少 1024
+      expect(capturedBody.max_tokens).toBeUndefined();
+      expect(capturedBody.max_completion_tokens).toBe(1024);
+      // 使用 developer 角色
+      expect(capturedBody.messages).toEqual([
+        { role: "developer", content: "保持简洁。" },
+        { role: "user", content: "续写这首诗歌" },
+      ]);
+    });
+
+    it("早期推理模型 (o1-mini) 将 instruction 整合入 user 消息避免角色报错", async () => {
+      let capturedBody: Record<string, unknown> = {};
+
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "o1-mini 续写" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const client = new OpenAIClient(
+        {
+          baseUrl: "https://api.openai.com/v1",
+          model: "o1-mini",
+          apiKey: "sk-o1-mini-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      const res = await client.generate({
+        instruction: "修补语法错误。",
+        prompt: "他走去学校。",
+      });
+
+      expect(res.text).toBe("o1-mini 续写");
+      expect(capturedBody.messages).toEqual([
+        {
+          role: "user",
+          content: "[Instruction]\n修补语法错误。\n\n[Content]\n他走去学校。",
+        },
+      ]);
+    });
+
+    it("当遇到 'max_tokens is not supported with this model. Use max_completion_tokens instead' 时自动自愈重试", async () => {
+      let attemptCount = 0;
+      const capturedBodies: Array<Record<string, unknown>> = [];
+
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        attemptCount++;
+        const body = JSON.parse(init?.body as string) as Record<string, unknown>;
+        capturedBodies.push(body);
+
+        if (attemptCount === 1) {
+          // 首次请求模拟 OpenAI 报错 400
+          return new Response(
+            JSON.stringify({
+              error: {
+                message:
+                  "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+                type: "invalid_request_error",
+                param: "max_tokens",
+                code: "unsupported_parameter",
+              },
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        // 第二次重试自愈成功
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "自愈重试成功响应" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const client = new OpenAIClient(
+        {
+          baseUrl: "https://api.openai.com/v1",
+          model: "custom-reasoning-model",
+          apiKey: "sk-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      const res = await client.generate({
+        instruction: "提示词",
+        prompt: "测试文本",
+        temperature: 0.3,
+        maxTokens: 256,
+      });
+
+      expect(res.text).toBe("自愈重试成功响应");
+      expect(attemptCount).toBe(2);
+
+      // 首次发出的请求包含 max_tokens 与 temperature
+      expect(capturedBodies[0].max_tokens).toBe(256);
+      expect(capturedBodies[0].temperature).toBe(0.3);
+
+      // 自愈后第二次发出的请求：max_tokens 与 temperature 已剔除，转为 max_completion_tokens
+      expect(capturedBodies[1].max_tokens).toBeUndefined();
+      expect(capturedBodies[1].temperature).toBeUndefined();
+      expect(capturedBodies[1].max_completion_tokens).toBe(1024);
+    });
   });
 });
