@@ -1,0 +1,58 @@
+[
+  {
+    "options": {
+      "modelId": "md-editor-writer-lite",
+      "task": "gec",
+      "messages": [
+        { "role": "system", "content": "仅返回纠错元组。" },
+        { "role": "user", "content": "今天我们因该去公园。" }
+      ],
+      "grammar": "root ::= \"[]\"",
+      "maxTokens": 128,
+      "temperature": 0,
+      "disableThinking": true,
+      "cachePrompt": true
+    }
+  },
+  {
+    "options": {
+      "modelId": "md-editor-writer-lite",
+      "task": "completion",
+      "rawPrompt": "<|fim_prefix|>前文<|fim_suffix|>后文<|fim_middle|>",
+      "maxTokens": 64,
+      "temperature": 0.3,
+      "stop": ["\n", "<|fim_end|>"],
+      "disableThinking": true,
+      "cachePrompt": true
+    }
+  },
+  {
+    "options": {
+      "modelId": "md-editor-writer-standard",
+      "task": "completion",
+      "messages": [
+        { "role": "system", "content": "只返回续写正文。" },
+        { "role": "user", "content": "【光标前文】\n前文\n【光标后文】\n后文" }
+      ],
+      "maxTokens": 64,
+      "temperature": 0.3,
+      "stop": ["\n"],
+      "disableThinking": true,
+      "cachePrompt": true
+    }
+  },
+  {
+    "options": {
+      "modelId": "md-editor-writer-lite",
+      "task": "distill",
+      "messages": [
+        { "role": "system", "content": "提炼文档主题。" },
+        { "role": "user", "content": "文档正文" }
+      ],
+      "maxTokens": 180,
+      "temperature": 0.2,
+      "disableThinking": true,
+      "cachePrompt": true
+    }
+  }
+]

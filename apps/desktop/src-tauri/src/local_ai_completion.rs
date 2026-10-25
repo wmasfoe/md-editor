@@ -8,21 +8,9 @@ use crate::{
     local_ai_model::get_available_local_ai_model,
     local_ai_runtime::{
         post_chat_completion, post_raw_completion, schedule_idle_shutdown, LocalAiRuntimeState,
+        LocalAiTask,
     },
 };
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct LocalAiCompletionContext {
-    #[serde(default)]
-    before: String,
-    #[serde(default)]
-    after: String,
-    #[serde(default)]
-    selected_text: String,
-    #[serde(default)]
-    mode: String,
-}
 
 #[derive(Deserialize, serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -36,8 +24,7 @@ pub(crate) struct LocalAiChatMessage {
 pub(crate) struct LocalAiContinuationOptions {
     model_id: Option<String>,
     max_tokens: Option<u16>,
-    intent: Option<String>,
-    prompt: Option<String>,
+    task: Option<LocalAiTask>,
     raw_prompt: Option<String>,
     messages: Option<Vec<LocalAiChatMessage>>,
     stop: Option<Vec<String>>,
@@ -51,86 +38,16 @@ pub(crate) struct LocalAiContinuationOptions {
 pub(crate) async fn request_local_ai_continuation(
     app: AppHandle,
     runtime: State<'_, LocalAiRuntimeState>,
-    context: LocalAiCompletionContext,
-    options: Option<LocalAiContinuationOptions>,
+    options: LocalAiContinuationOptions,
 ) -> Result<String, String> {
-    let model_id = options.as_ref().and_then(|value| value.model_id.clone());
-    let model = get_available_local_ai_model(model_id.as_deref())?;
-    let max_tokens = options
-        .as_ref()
-        .and_then(|value| value.max_tokens)
-        .unwrap_or(model.default_max_tokens);
-    let intent = options.as_ref().and_then(|value| value.intent.clone());
-
-    let (is_raw, request) =
-        if let Some(messages) = options.as_ref().and_then(|o| o.messages.as_ref()) {
-            if !messages.is_empty() {
-                let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.0);
-                let disable_thinking = options
-                    .as_ref()
-                    .and_then(|o| o.disable_thinking)
-                    .unwrap_or(true);
-                let mut payload = json!({
-                    "model": &model.model_id,
-                    "messages": messages,
-                    "temperature": temp,
-                    "max_tokens": max_tokens,
-                    "stream": false,
-                    "chat_template_kwargs": {
-                        "enable_thinking": !disable_thinking
-                    }
-                });
-                if let Some(stop) = options.as_ref().and_then(|o| o.stop.as_ref()) {
-                    if !stop.is_empty() {
-                        payload["stop"] = json!(stop);
-                    }
-                }
-                if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
-                    if !grammar.trim().is_empty() {
-                        payload["grammar"] = json!(grammar);
-                    }
-                }
-                (false, payload)
-            } else {
-                let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
-                (false, build_local_ai_request(&model, &prompt, max_tokens))
-            }
-        } else if let Some(raw_prompt) = options
-            .as_ref()
-            .and_then(|o| o.raw_prompt.as_deref().or(o.prompt.as_deref()))
-        {
-            let stop = options
-                .as_ref()
-                .and_then(|o| o.stop.clone())
-                .unwrap_or_default();
-            let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.3);
-            let cache_prompt = options
-                .as_ref()
-                .and_then(|o| o.cache_prompt)
-                .unwrap_or(true);
-            let mut payload = json!({
-                "prompt": raw_prompt,
-                "n_predict": max_tokens,
-                "temperature": temp,
-                "stop": stop,
-                "cache_prompt": cache_prompt,
-                "stream": false
-            });
-            if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
-                if !grammar.trim().is_empty() {
-                    payload["grammar"] = json!(grammar);
-                }
-            }
-            (true, payload)
-        } else {
-            let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
-            (false, build_local_ai_request(&model, &prompt, max_tokens))
-        };
+    let model = get_available_local_ai_model(options.model_id.as_deref())?;
+    let max_tokens = options.max_tokens.unwrap_or(model.default_max_tokens);
+    let (is_raw, request) = build_local_ai_request(&model.model_id, max_tokens, &options)?;
 
     let runtime_manager = runtime.manager();
     let app_handle = app.clone();
     let model_for_runtime = model.clone();
-    let intent_for_runtime = intent.clone();
+    let task = options.task;
 
     #[cfg(debug_assertions)]
     {
@@ -154,12 +71,15 @@ pub(crate) async fn request_local_ai_continuation(
                 return Err(err);
             }
         };
-        let _ = runtime.activate_lora_adapter(endpoint.port, intent_for_runtime.as_deref());
-        let response = if is_raw {
-            post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
-        } else {
-            post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
-        };
+        let response = runtime
+            .activate_lora_adapter(endpoint.port, task)
+            .and_then(|()| {
+                if is_raw {
+                    post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
+                } else {
+                    post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
+                }
+            });
         if let Err(err) = &response {
             eprintln!("[Local AI Error] 请求本地推理服务接口失败: {err}");
         }
@@ -184,85 +104,59 @@ pub(crate) async fn request_local_ai_continuation(
     Ok(content)
 }
 
-fn build_local_ai_prompt(
-    context: &LocalAiCompletionContext,
-    intent: Option<&str>,
-    max_tokens: u16,
-) -> String {
-    let is_editing = intent.is_none() || intent == Some("editing") || intent == Some("both");
-    let is_continuation =
-        intent.is_none() || intent == Some("continuation") || intent == Some("both");
-
-    let instruction = match (is_editing, is_continuation) {
-        (true, false) => "你是一个精通中文写作与审校的编辑。请仔细检查【当前选中文本/待检行】或【光标前】句子中的错别字、标点错误、语病并给出修改建议。若有修改需求则 hasEdit 设为 true 并填写 edit，否则 hasEdit 设为 false 且 edit 设为 null。hasContinuation 设为 false 且 continuation 设为空字符串。",
-        (false, true) => "你是一个 Markdown 写作助手。请根据【光标前】内容在光标位置提供自然连贯的续写。hasContinuation 设为 true 并填写 continuation，hasEdit 设为 false 且 edit 设为 null。",
-        _ => "你是一个专业的 Markdown 写作与修改润色助手。请检查【当前选中文本/待检行】或【光标前】句子是否存在错别字、标点误用或语病，若有请设置 hasEdit 为 true 并给出 edit；若无需修改则 hasEdit 为 false 且 edit 为 null。同时可在光标处提供续写并设置 hasContinuation 与 continuation。",
-    };
-
-    format!(
-        "{instruction}\n\
-         约束：只返回 JSON，不要任何解释，不要代码围栏。\n\
-         JSON schema: {{\"hasEdit\":boolean,\"edit\":{{\"original\":\"string\",\"replacement\":\"string\",\"reason\":\"string\"}},\"hasContinuation\":boolean,\"continuation\":\"string\"}}。\n\
-         说明：\n\
-         1. hasEdit: true 时，edit.original 必须是上下文中真实存在的待修改原文片段，edit.replacement 是修改后内容，edit.reason 是简短修改理由。\n\
-         2. hasEdit: false 时，edit 设为 null。\n\
-         3. hasContinuation: true 时，continuation 是光标处连贯自然的后续文本；否则为 false 且为空字符串。\n\
-         目标 token 上限：{max_tokens}\n\
-         模式：{mode}\n\n\
-         【光标前】\n{before}\n\n\
-         【当前选中文本/待检行】\n{selected_text}\n\n\
-         【光标后】\n{after}\n",
-        instruction = instruction,
-        max_tokens = max_tokens,
-        mode = context.mode.as_str(),
-        before = context.before.as_str(),
-        selected_text = context.selected_text.as_str(),
-        after = context.after.as_str()
-    )
-}
-
+/// Harness owns prompts; the native host only translates its request to llama-server.
 fn build_local_ai_request(
-    model: &crate::local_ai_model::LocalAiModelFile,
-    prompt: &str,
+    model_id: &str,
     max_tokens: u16,
-) -> Value {
-    json!({
-        "model": model.model_id,
-        "messages": [
-            {
-                "role": "system",
-                "content": "你是 Markdown 写作助手，只返回严格符合 JSON Schema 的建议，不要解释，不要代码围栏。"
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.2,
-        "stream": false,
-        "response_format": {
-            "type": "json_object",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "hasContinuation": { "type": "boolean" },
-                    "continuation": { "type": "string" },
-                    "hasEdit": { "type": "boolean" },
-                    "edit": {
-                        "type": ["object", "null"],
-                        "properties": {
-                            "original": { "type": "string" },
-                            "replacement": { "type": "string" },
-                            "reason": { "type": "string" }
-                        },
-                        "required": ["original", "replacement"]
-                    }
-                },
-                "required": ["hasContinuation", "continuation", "hasEdit", "edit"]
-            }
+    options: &LocalAiContinuationOptions,
+) -> Result<(bool, Value), String> {
+    let messages = options
+        .messages
+        .as_ref()
+        .filter(|messages| !messages.is_empty());
+    let raw_prompt = options
+        .raw_prompt
+        .as_deref()
+        .filter(|prompt| !prompt.is_empty());
+    let (is_raw, mut payload) = match (messages, raw_prompt) {
+        (Some(messages), None) => (
+            false,
+            json!({
+                "model": model_id,
+                "messages": messages,
+                "temperature": options.temperature.unwrap_or(0.0),
+                "max_tokens": max_tokens,
+                "stream": false,
+                "chat_template_kwargs": {
+                    "enable_thinking": !options.disable_thinking.unwrap_or(true)
+                }
+            }),
+        ),
+        (None, Some(prompt)) => (
+            true,
+            json!({
+                "prompt": prompt,
+                "n_predict": max_tokens,
+                "temperature": options.temperature.unwrap_or(0.3),
+                "cache_prompt": options.cache_prompt.unwrap_or(true),
+                "stream": false
+            }),
+        ),
+        _ => {
+            return Err("本地推理请求必须提供 messages 或 rawPrompt，且不能同时提供。".to_string())
         }
-    })
+    };
+    if let Some(stop) = &options.stop {
+        if !stop.is_empty() {
+            payload["stop"] = json!(stop);
+        }
+    }
+    if let Some(grammar) = &options.grammar {
+        if !grammar.trim().is_empty() {
+            payload["grammar"] = json!(grammar);
+        }
+    }
+    Ok((is_raw, payload))
 }
 
 fn extract_local_ai_completion_content(response_body: &str) -> Result<String, String> {
@@ -306,4 +200,69 @@ fn truncate_for_error(body: &str) -> String {
     let mut value = trimmed.chars().take(LIMIT).collect::<String>();
     value.push_str("...");
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_shared_harness_requests_without_editor_context() {
+        // These exact IPC arguments are also exercised by the TypeScript bridge tests.
+        let requests: Vec<Value> = serde_json::from_str(include_str!(
+            "../../tests/fixtures/local-ai-inference-requests.json"
+        ))
+        .unwrap();
+        let expected_tasks = [
+            LocalAiTask::Gec,
+            LocalAiTask::Completion,
+            LocalAiTask::Completion,
+            LocalAiTask::Distill,
+        ];
+
+        for (args, task) in requests.iter().zip(expected_tasks) {
+            let source = &args["options"];
+            let options: LocalAiContinuationOptions =
+                serde_json::from_value(source.clone()).unwrap();
+            assert_eq!(options.task, Some(task));
+            let (is_raw, payload) = build_local_ai_request(
+                options.model_id.as_deref().unwrap(),
+                options.max_tokens.unwrap(),
+                &options,
+            )
+            .unwrap();
+            assert_eq!(payload["stream"], false);
+            assert_eq!(payload["stop"], source["stop"]);
+            assert_eq!(payload["grammar"], source["grammar"]);
+            if is_raw {
+                assert_eq!(payload["prompt"], source["rawPrompt"]);
+                assert_eq!(payload["n_predict"], source["maxTokens"]);
+                assert_eq!(payload["cache_prompt"], true);
+                assert!(payload.get("messages").is_none());
+            } else {
+                assert_eq!(payload["messages"], source["messages"]);
+                assert_eq!(payload["max_tokens"], source["maxTokens"]);
+                assert_eq!(payload["chat_template_kwargs"]["enable_thinking"], false);
+            }
+            let temperature = payload["temperature"].as_f64().unwrap();
+            assert!((temperature - source["temperature"].as_f64().unwrap()).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_tasks_and_ambiguous_or_missing_payloads() {
+        assert!(serde_json::from_value::<LocalAiContinuationOptions>(json!({
+            "task": "editing", "rawPrompt": "text"
+        }))
+        .is_err());
+        for source in [
+            json!({}),
+            json!({"messages": []}),
+            json!({"rawPrompt": ""}),
+            json!({"messages": [{"role": "user", "content": "text"}], "rawPrompt": "text"}),
+        ] {
+            let options = serde_json::from_value(source).unwrap();
+            assert!(build_local_ai_request("model", 128, &options).is_err());
+        }
+    }
 }

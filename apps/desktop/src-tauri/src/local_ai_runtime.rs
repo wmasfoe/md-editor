@@ -21,6 +21,30 @@ const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(250);
 const LOCAL_AI_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
+/// Stable Harness task names are shared with `@md-editor/ai`; no legacy intent aliases.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum LocalAiTask {
+    Gec,
+    Completion,
+    Distill,
+}
+
+impl LocalAiTask {
+    fn adapter_scale(self, path: &str) -> f32 {
+        let name = match self {
+            Self::Gec => "gec",
+            Self::Completion => "completion",
+            Self::Distill => "distill",
+        };
+        if path.to_ascii_lowercase().contains(name) {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
 #[derive(Clone, Default)]
 pub(crate) struct LocalAiRuntimeState {
     manager: Arc<Mutex<LocalAiRuntimeManager>>,
@@ -47,7 +71,8 @@ struct LocalAiRuntimeProcess {
     model_id: String,
     port: u16,
     last_used_at: Instant,
-    active_lora_task: Option<String>,
+    active_lora_task: Option<LocalAiTask>,
+    has_lora_adapters: bool,
 }
 
 impl LocalAiRuntimeManager {
@@ -67,6 +92,7 @@ impl LocalAiRuntimeManager {
         let sidecar_path = resolve_llama_server_path(app)?;
         ensure_runtime_dependencies(&sidecar_path);
         let args = build_llama_server_args(model, port);
+        let has_lora_adapters = args.iter().any(|arg| arg == "--lora");
         let mut command = Command::new(&sidecar_path);
         command
             .args(args)
@@ -100,6 +126,7 @@ impl LocalAiRuntimeManager {
             port,
             last_used_at: Instant::now(),
             active_lora_task: None,
+            has_lora_adapters,
         });
 
         Ok(LocalAiRuntimeEndpoint { port })
@@ -167,36 +194,26 @@ impl LocalAiRuntimeManager {
     pub(crate) fn activate_lora_adapter(
         &mut self,
         port: u16,
-        intent: Option<&str>,
+        task: Option<LocalAiTask>,
     ) -> Result<(), String> {
         let Some(process) = self.process.as_mut() else {
             return Ok(());
         };
-        if process.port != port {
+        if process.port != port || !process.has_lora_adapters {
             return Ok(());
         }
 
-        let target_task = match intent {
-            Some("editing") => "gec",
-            Some("continuation") => "completion",
-            Some("distill") => "distill",
-            _ => "gec",
-        };
-
-        if process.active_lora_task.as_deref() == Some(target_task) {
+        if process.active_lora_task == task {
             return Ok(());
         }
 
-        let get_res = send_localhost_http_request(
+        let response = send_localhost_http_request(
             "GET",
             "/lora-adapters",
             port,
             None,
             Duration::from_secs(2),
-        );
-        let Ok(resp) = get_res else {
-            return Ok(());
-        };
+        )?;
 
         #[derive(serde::Deserialize)]
         struct LoraAdapterInfo {
@@ -207,24 +224,17 @@ impl LocalAiRuntimeManager {
             scale: f32,
         }
 
-        let Ok(adapters) = serde_json::from_str::<Vec<LoraAdapterInfo>>(&resp.body) else {
-            return Ok(());
-        };
+        let adapters = serde_json::from_str::<Vec<LoraAdapterInfo>>(&response.body)
+            .map_err(|error| format!("解析本地 LoRA 适配器列表失败：{error}"))?;
 
         if adapters.is_empty() {
-            return Ok(());
+            return Err("本地模型已加载 LoRA，但服务未返回适配器。".to_string());
         }
 
         let mut update_payload = Vec::new();
         for adapter in &adapters {
-            let path_lower = adapter.path.to_ascii_lowercase();
-            let matches = match target_task {
-                "gec" => path_lower.contains("gec"),
-                "completion" => path_lower.contains("completion"),
-                "distill" => path_lower.contains("distill"),
-                _ => false,
-            };
-            let scale = if matches { 1.0 } else { 0.0 };
+            // A base-only request must also clear any adapter enabled by a prior GEC.
+            let scale = task.map_or(0.0, |task| task.adapter_scale(&adapter.path));
             update_payload.push(serde_json::json!({
                 "id": adapter.id,
                 "scale": scale,
@@ -232,15 +242,16 @@ impl LocalAiRuntimeManager {
         }
 
         let post_body = serde_json::to_string(&update_payload).map_err(|e| e.to_string())?;
-        let _ = send_localhost_http_request(
+        send_localhost_http_request(
             "POST",
             "/lora-adapters",
             port,
             Some(&post_body),
             Duration::from_secs(2),
-        );
+        )?;
 
-        process.active_lora_task = Some(target_task.to_string());
+        // Cache only a successful switch; a failed update must be retried.
+        process.active_lora_task = task;
         Ok(())
     }
 
@@ -671,6 +682,123 @@ fn truncate_for_error(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lite_uses_gec_adapter_only_for_gec() {
+        let path = "lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf";
+        for (name, scale) in [("gec", 1.0), ("completion", 0.0), ("distill", 0.0)] {
+            let task: LocalAiTask = serde_json::from_value(serde_json::json!(name)).unwrap();
+            assert_eq!(task.adapter_scale(path), scale);
+        }
+    }
+
+    #[test]
+    fn switches_lora_scales_and_retries_failed_updates() {
+        use std::io::{BufRead, BufReader};
+
+        let listener = TcpListener::bind((LOCAL_AI_HOST, 0)).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut scales = Vec::new();
+            for status in [200, 500, 200, 200, 200] {
+                for method in ["GET", "POST"] {
+                    let mut stream = loop {
+                        match listener.accept() {
+                            Ok((stream, _)) => break stream,
+                            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                                assert!(Instant::now() < deadline, "missing adapter request");
+                                thread::sleep(Duration::from_millis(5));
+                            }
+                            Err(error) => panic!("{error}"),
+                        }
+                    };
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let mut reader = BufReader::new(&stream);
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    assert!(line.starts_with(&format!("{method} /lora-adapters ")));
+                    let mut content_length = 0;
+                    loop {
+                        line.clear();
+                        assert!(reader.read_line(&mut line).unwrap() > 0);
+                        if line == "\r\n" {
+                            break;
+                        }
+                        if let Some((name, value)) = line.split_once(':') {
+                            if name.eq_ignore_ascii_case("content-length") {
+                                content_length = value.trim().parse::<usize>().unwrap();
+                            }
+                        }
+                    }
+                    let (code, body) = if method == "GET" {
+                        (
+                            200,
+                            r#"[{"id":0,"path":"lite-gec-lora-f16.gguf","scale":0}]"#,
+                        )
+                    } else {
+                        let mut body = vec![0; content_length];
+                        reader.read_exact(&mut body).unwrap();
+                        let update: Value = serde_json::from_slice(&body).unwrap();
+                        scales.push(update[0]["scale"].as_f64().unwrap());
+                        (status, "[]")
+                    };
+                    drop(reader);
+                    write!(stream, "HTTP/1.1 {code} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+                }
+            }
+            scales
+        });
+
+        // A short-lived test binary supplies the process handle; no model is started.
+        let child = Command::new(env::current_exe().unwrap())
+            .arg("--list")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut runtime = LocalAiRuntimeManager {
+            process: Some(LocalAiRuntimeProcess {
+                child,
+                model_id: "lite".to_string(),
+                port,
+                last_used_at: Instant::now(),
+                active_lora_task: None,
+                has_lora_adapters: true,
+            }),
+        };
+        runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Gec))
+            .unwrap();
+        assert!(runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Completion))
+            .is_err());
+        assert_eq!(
+            runtime.process.as_ref().unwrap().active_lora_task,
+            Some(LocalAiTask::Gec)
+        );
+        runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Completion))
+            .unwrap();
+        // Reusing the successful task should not issue another HTTP update.
+        runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Completion))
+            .unwrap();
+        runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Distill))
+            .unwrap();
+        runtime.activate_lora_adapter(port, None).unwrap();
+        assert_eq!(runtime.process.as_ref().unwrap().active_lora_task, None);
+        assert_eq!(server.join().unwrap(), vec![1.0, 0.0, 0.0, 0.0, 0.0]);
+        // Standard has no adapters and should not contact the adapter endpoint.
+        runtime.process.as_mut().unwrap().has_lora_adapters = false;
+        runtime
+            .activate_lora_adapter(port, Some(LocalAiTask::Gec))
+            .unwrap();
+    }
 
     #[test]
     fn builds_llama_server_args_with_localhost_and_model_path() {
