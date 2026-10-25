@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    env,
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
@@ -90,7 +90,6 @@ impl LocalAiRuntimeManager {
 
         let port = pick_available_localhost_port()?;
         let sidecar_path = resolve_llama_server_path(app)?;
-        ensure_runtime_dependencies(&sidecar_path);
         let args = build_llama_server_args(model, port);
         let has_lora_adapters = args.iter().any(|arg| arg == "--lora");
         let mut command = Command::new(&sidecar_path);
@@ -455,59 +454,9 @@ fn sidecar_resource_file_name() -> String {
     }
 }
 
-/// 自动保证 llama-server 的同级依赖动态库齐备。
-/// 在 macOS/Linux 上，二进制执行文件若依赖 @rpath / @loader_path，
-/// 必须确保动态库直接存在于 sidecar 所在同级目录以防止 SIP 环境变量清洗或路径缺失。
-fn ensure_runtime_dependencies(sidecar_path: &Path) {
-    let Some(parent) = sidecar_path.parent() else {
-        return;
-    };
-
-    #[cfg(target_os = "macos")]
-    let primary_dylib = "libllama-server-impl.dylib";
-    #[cfg(target_os = "linux")]
-    let primary_dylib = "libllama.so";
-    #[cfg(target_os = "windows")]
-    let primary_dylib = "llama.dll";
-
-    if parent.join(primary_dylib).is_file() {
-        return;
-    }
-
-    let candidate_dirs = [
-        parent.join("llama-runtime-macos-arm64"),
-        parent.join("binaries").join("llama-runtime-macos-arm64"),
-        parent
-            .join("..")
-            .join("..")
-            .join("binaries")
-            .join("llama-runtime-macos-arm64"),
-        parent
-            .join("..")
-            .join("..")
-            .join("src-tauri")
-            .join("binaries")
-            .join("llama-runtime-macos-arm64"),
-    ];
-
-    for source_dir in candidate_dirs {
-        if let Ok(entries) = fs::read_dir(&source_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let target_file = parent.join(entry.file_name());
-                    if !target_file.exists() {
-                        let _ = fs::copy(&path, &target_file);
-                    }
-                }
-            }
-            if parent.join(primary_dylib).is_file() {
-                break;
-            }
-        }
-    }
-}
-
+// Bundled macOS dylibs live beside the sidecar before signing (tauri.macos.conf.json).
+// These environment paths support development and external runtimes; startup never writes
+// into the installed app, and the signed sidecar resolves its own @loader_path dependencies.
 fn apply_runtime_library_paths(command: &mut Command, sidecar_path: &Path) {
     let Some(parent) = sidecar_path.parent() else {
         return;

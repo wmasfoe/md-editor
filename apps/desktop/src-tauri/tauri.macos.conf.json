@@ -1,13 +1,46 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "resources": [
-      "binaries/llama-runtime-macos-arm64/*.dylib",
-      "binaries/llama-runtime-macos-arm64/LICENSE.llama.cpp"
-    ],
+    "resources": ["binaries/llama-runtime-macos-arm64/LICENSE.llama.cpp"],
     "macOS": {
+      "entitlements": "entitlements.plist",
       "files": {
-        "PlugIns/InkpointQuickLook.appex": "target/quicklook/InkpointQuickLook.appex"
+        "PlugIns/InkpointQuickLook.appex": "target/quicklook/InkpointQuickLook.appex",
+        "MacOS/libggml-base.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml-base.0.15.2.dylib",
+        "MacOS/libggml-base.0.dylib": "binaries/llama-runtime-macos-arm64/libggml-base.0.dylib",
+        "MacOS/libggml-base.dylib": "binaries/llama-runtime-macos-arm64/libggml-base.dylib",
+        "MacOS/libggml-blas.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml-blas.0.15.2.dylib",
+        "MacOS/libggml-blas.0.dylib": "binaries/llama-runtime-macos-arm64/libggml-blas.0.dylib",
+        "MacOS/libggml-blas.dylib": "binaries/llama-runtime-macos-arm64/libggml-blas.dylib",
+        "MacOS/libggml-cpu.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml-cpu.0.15.2.dylib",
+        "MacOS/libggml-cpu.0.dylib": "binaries/llama-runtime-macos-arm64/libggml-cpu.0.dylib",
+        "MacOS/libggml-cpu.dylib": "binaries/llama-runtime-macos-arm64/libggml-cpu.dylib",
+        "MacOS/libggml-metal.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml-metal.0.15.2.dylib",
+        "MacOS/libggml-metal.0.dylib": "binaries/llama-runtime-macos-arm64/libggml-metal.0.dylib",
+        "MacOS/libggml-metal.dylib": "binaries/llama-runtime-macos-arm64/libggml-metal.dylib",
+        "MacOS/libggml-rpc.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml-rpc.0.15.2.dylib",
+        "MacOS/libggml-rpc.0.dylib": "binaries/llama-runtime-macos-arm64/libggml-rpc.0.dylib",
+        "MacOS/libggml-rpc.dylib": "binaries/llama-runtime-macos-arm64/libggml-rpc.dylib",
+        "MacOS/libggml.0.15.2.dylib": "binaries/llama-runtime-macos-arm64/libggml.0.15.2.dylib",
+        "MacOS/libggml.0.dylib": "binaries/llama-runtime-macos-arm64/libggml.0.dylib",
+        "MacOS/libggml.dylib": "binaries/llama-runtime-macos-arm64/libggml.dylib",
+        "MacOS/libllama-batched-bench-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-batched-bench-impl.dylib",
+        "MacOS/libllama-bench-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-bench-impl.dylib",
+        "MacOS/libllama-cli-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-cli-impl.dylib",
+        "MacOS/libllama-common.0.0.9789.dylib": "binaries/llama-runtime-macos-arm64/libllama-common.0.0.9789.dylib",
+        "MacOS/libllama-common.0.dylib": "binaries/llama-runtime-macos-arm64/libllama-common.0.dylib",
+        "MacOS/libllama-common.dylib": "binaries/llama-runtime-macos-arm64/libllama-common.dylib",
+        "MacOS/libllama-completion-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-completion-impl.dylib",
+        "MacOS/libllama-fit-params-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-fit-params-impl.dylib",
+        "MacOS/libllama-perplexity-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-perplexity-impl.dylib",
+        "MacOS/libllama-quantize-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-quantize-impl.dylib",
+        "MacOS/libllama-server-impl.dylib": "binaries/llama-runtime-macos-arm64/libllama-server-impl.dylib",
+        "MacOS/libllama.0.0.9789.dylib": "binaries/llama-runtime-macos-arm64/libllama.0.0.9789.dylib",
+        "MacOS/libllama.0.dylib": "binaries/llama-runtime-macos-arm64/libllama.0.dylib",
+        "MacOS/libllama.dylib": "binaries/llama-runtime-macos-arm64/libllama.dylib",
+        "MacOS/libmtmd.0.0.9789.dylib": "binaries/llama-runtime-macos-arm64/libmtmd.0.0.9789.dylib",
+        "MacOS/libmtmd.0.dylib": "binaries/llama-runtime-macos-arm64/libmtmd.0.dylib",
+        "MacOS/libmtmd.dylib": "binaries/llama-runtime-macos-arm64/libmtmd.dylib"
       }
     }
   }
