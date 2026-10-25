@@ -7,8 +7,8 @@ import {
   mathPlugin,
   mermaidPlugin,
 } from "@md-editor/syntax-plugins";
-import { requestAiContinuation, documentContextManager } from "@md-editor/ai";
-import { desktopLocalAiInvokeImpl } from "../app/ai/local-ai-model";
+import { shouldSkipAutoGec } from "@md-editor/ai";
+import { desktopAiService } from "../app/ai/desktop-ai-service";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentSnapshot } from "../app/document-store";
@@ -214,15 +214,14 @@ function useAutomaticAiEditing({
       if (
         markdown.trim().length >= 50 &&
         settings.ai.enabled &&
-        settings.ai.provider === "local" &&
-        settings.ai.localModel.enabled &&
-        settings.ai.localModel.status === "available"
+        (settings.ai.provider === "local"
+          ? settings.ai.localModel.enabled && settings.ai.localModel.status === "available"
+          : Boolean(settings.ai.endpoints[settings.ai.provider]?.apiKey))
       ) {
         const docKey = filePath || "untitled";
-        documentContextManager
+        desktopAiService
           .scheduleDistillation(docKey, markdown, {
             settings: settings.ai,
-            localInvokeImpl: desktopLocalAiInvokeImpl,
             onUpdate: (ctx) => {
               if (import.meta.env.DEV) {
                 console.debug("[AI DocContext] 后台文档提炼已完成:", ctx);
@@ -244,7 +243,7 @@ function useAutomaticAiEditing({
         const snap = runtime.document.getSnapshot();
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
-          documentContextManager.getOrExtract(docKey, snap.markdown);
+          desktopAiService.documentContext.getOrExtract(docKey, snap.markdown);
           triggerDistillationIfEligible(snap.markdown, snap.filePath);
         }
         return;
@@ -340,7 +339,7 @@ function useAutomaticAiEditing({
           }
 
           const docKey = snapshot.filePath || "untitled";
-          const docContext = documentContextManager.getOrExtract(docKey, markdown);
+          const docContext = desktopAiService.documentContext.getOrExtract(docKey, markdown);
 
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
@@ -348,10 +347,13 @@ function useAutomaticAiEditing({
           try {
             // =========================================================
             // 阶段 1：优先触发「AI 语法与润色修复」
+            // 前置守卫：表格、代码块、URL、未闭合符号或行首符号输入中不触发自动 GEC
             // =========================================================
             let hasRenderedEditSuggestion = false;
 
-            if (settings.ai.features.editing && currentLineText.length >= 3) {
+            const shouldSkipGec = shouldSkipAutoGec(rawLine, before);
+
+            if (settings.ai.features.editing && currentLineText.length >= 3 && !shouldSkipGec) {
               if (import.meta.env.DEV) {
                 console.debug("[AI 流水线] ▶ 阶段 1：优先发起「AI 语法与润色修复」审校...", {
                   cursorPos,
@@ -359,7 +361,7 @@ function useAutomaticAiEditing({
                 });
               }
 
-              const editResult = await requestAiContinuation(
+              const editResult = await desktopAiService.fixGrammar(
                 settings.ai,
                 {
                   before,
@@ -372,10 +374,7 @@ function useAutomaticAiEditing({
                   documentContext: docContext,
                 },
                 {
-                  intent: "editing",
                   signal: abortController.signal,
-                  localInvokeImpl: desktopLocalAiInvokeImpl,
-                  documentContext: docContext,
                 },
               );
 
@@ -400,18 +399,22 @@ function useAutomaticAiEditing({
                         },
                       ];
 
+                // 计算当前行的首部缩进偏移量，防止缩进行（如列表项）产生定位偏差
+                const leadingSpaces = rawLine.length - rawLine.trimStart().length;
+                const lineContentStart = lineStart + leadingSpaces;
+
                 const items = diffs
                   .map((diff) => {
-                    let itemFrom = lineStart;
+                    let itemFrom = lineContentStart;
                     let itemTo = lineEnd;
                     const originalText = diff.original;
 
                     if (typeof diff.utf16From === "number" && typeof diff.utf16To === "number") {
-                      itemFrom = lineStart + diff.utf16From;
-                      itemTo = lineStart + diff.utf16To;
+                      itemFrom = lineContentStart + diff.utf16From;
+                      itemTo = lineContentStart + diff.utf16To;
                     } else if (diff.original && currentLineText.includes(diff.original)) {
                       const offset = currentLineText.indexOf(diff.original);
-                      itemFrom = lineStart + offset;
+                      itemFrom = lineContentStart + offset;
                       itemTo = itemFrom + diff.original.length;
                     }
 
@@ -477,7 +480,7 @@ function useAutomaticAiEditing({
                 );
               }
 
-              const continuationResult = await requestAiContinuation(
+              const continuationResult = await desktopAiService.continueWriting(
                 settings.ai,
                 {
                   before,
@@ -490,11 +493,8 @@ function useAutomaticAiEditing({
                   documentContext: docContext,
                 },
                 {
-                  intent: "continuation",
                   isGhostText: true,
                   signal: abortController.signal,
-                  localInvokeImpl: desktopLocalAiInvokeImpl,
-                  documentContext: docContext,
                 },
               );
 

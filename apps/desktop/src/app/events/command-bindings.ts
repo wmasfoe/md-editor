@@ -28,12 +28,22 @@ export function createRuntimeKeyboardShortcuts(
 ) {
   const customKeymaps = new Map(settings.shortcuts.map((shortcut) => [shortcut.id, shortcut.key]));
 
-  return runtime.keymaps.list().map((keymap): KeyboardShortcut => ({
+  const shortcuts = runtime.keymaps.list().map((keymap): KeyboardShortcut => ({
     matches: (event) => matchesRuntimeKeymap(event, customKeymaps.get(keymap.id) ?? keymap.key),
     run: () => {
       void dispatchCommand(keymap.commandId);
     },
   }));
+
+  // 兼容 Mod-j 备用续写快捷键（对齐 Web 端与设计规范，支持单手盲操）
+  shortcuts.push({
+    matches: (event) => matchesRuntimeKeymap(event, "Mod-j"),
+    run: () => {
+      void dispatchCommand("ai.continueWriting");
+    },
+  });
+
+  return shortcuts;
 }
 
 export function bindRuntimeKeyboardShortcuts(

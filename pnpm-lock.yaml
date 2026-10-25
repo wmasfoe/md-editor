@@ -380,6 +380,9 @@ importers:
 
   apps/utools:
     dependencies:
+      '@md-editor/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@md-editor/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
@@ -389,6 +392,9 @@ importers:
       '@md-editor/file-system':
         specifier: workspace:*
         version: link:../../packages/file-system
+      '@md-editor/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@md-editor/markdown-fidelity':
         specifier: workspace:*
         version: link:../../packages/markdown-fidelity

@@ -276,6 +276,11 @@ pub(crate) fn build_llama_server_args(model: &LocalAiModelFile, port: u16) -> Ve
         model.model_id.clone(),
         "--offline".to_string(),
         "--no-webui".to_string(),
+        "--jinja".to_string(),
+        "--reasoning-budget".to_string(),
+        "0".to_string(),
+        "--n-gpu-layers".to_string(),
+        "99".to_string(),
     ];
 
     let mut has_lora = false;
@@ -696,6 +701,11 @@ mod tests {
             .any(|pair| pair == ["--alias", "md-editor-writer-small-v1"]));
         assert!(args.iter().any(|arg| arg == "--offline"));
         assert!(args.iter().any(|arg| arg == "--no-webui"));
+        assert!(args.iter().any(|arg| arg == "--jinja"));
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--reasoning-budget", "0"]));
+        assert!(args.windows(2).any(|pair| pair == ["--n-gpu-layers", "99"]));
     }
 
     #[test]

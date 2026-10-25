@@ -5,10 +5,27 @@ import {
   extractDeterministicDocContext,
   simpleTextHash,
   splitMarkdownSections,
-} from "../src/document-context.ts";
-import type { AiSettings } from "../src/types.ts";
+  type ModelClient,
+} from "../src/index.ts";
 
-describe("document-context: 确定性 AST 提取、智能分块与滚动提炼流水线", () => {
+function createMockClient(impl: () => Promise<string>): {
+  readonly client: ModelClient;
+  readonly generateSpy: ReturnType<typeof vi.fn>;
+} {
+  const generateSpy = vi.fn().mockImplementation(async () => ({
+    text: await impl(),
+  }));
+  return {
+    client: {
+      providerId: "local",
+      modelId: "md-editor-writer-standard",
+      generate: generateSpy,
+    },
+    generateSpy,
+  };
+}
+
+describe("document-context: 确定性 AST 提取、智能分块与解耦滚动提炼", () => {
   const sampleMarkdown = `---
 title: "Tauri 2.0 深度实操指南"
 tags: [tauri, rust, react]
@@ -76,34 +93,24 @@ def add(a, b):
     expect(chunks[0]?.content).toContain("Tauri 2.0 深度实操指南");
   });
 
-  it("distillDocumentProgressive: 单次直投模式 (短文档)", async () => {
-    const settings: AiSettings = {
-      enabled: true,
-      provider: "local",
-      features: { continuation: true, editing: true },
-      openAiCompatible: { baseUrl: "", model: "", apiKey: "" },
-      localModel: {
-        enabled: true,
-        modelId: "md-editor-writer-lite",
-        version: "1.0.0",
-        status: "available",
-        downloadedBytes: 0,
-        totalBytes: 0,
-        error: null,
-      },
-    };
-
-    const mockInvoke = vi.fn().mockResolvedValue("主题：介绍 Tauri 2.0 本地模型集成架构与优化。");
+  it("distillDocumentProgressive: 通过抽象 ModelClient 执行单次直投提炼", async () => {
+    const { client, generateSpy } = createMockClient(
+      async () => "主题：介绍 Tauri 2.0 本地模型集成架构与优化。",
+    );
 
     const result = await distillDocumentProgressive({
-      settings,
+      client,
       markdown: sampleMarkdown,
-      localInvokeImpl: mockInvoke,
     });
 
     expect(result.isDistilled).toBe(true);
     expect(result.topic).toBe("主题：介绍 Tauri 2.0 本地模型集成架构与优化。");
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    expect(generateSpy).toHaveBeenCalledTimes(1);
+    expect(generateSpy.mock.calls[0]?.[0]).toMatchObject({
+      task: "distill",
+      temperature: 0.2,
+      maxTokens: 180,
+    });
   });
 
   it("DocumentContextManager: 内存缓存、命中与 LRU 机制", () => {
@@ -112,97 +119,46 @@ def add(a, b):
 
     const extracted = manager.getOrExtract(filePath, sampleMarkdown);
     expect(extracted.title).toBe("Tauri 2.0 深度实操指南");
-
-    // 第二次直接从内存缓存获取
-    const cached = manager.get(filePath);
-    expect(cached).toBe(extracted);
-
-    // simpleTextHash 计算一致
+    expect(manager.get(filePath)).toBe(extracted);
     expect(simpleTextHash("abc")).toBe(simpleTextHash("abc"));
     expect(simpleTextHash("abc")).not.toBe(simpleTextHash("def"));
   });
 
   it("DocumentContextManager: 取消与打断机制", async () => {
     const manager = new DocumentContextManager();
-    const filePath = "/path/to/test2.md";
-
-    const settings: AiSettings = {
-      enabled: true,
-      provider: "local",
-      features: { continuation: true, editing: true },
-      openAiCompatible: { baseUrl: "", model: "", apiKey: "" },
-      localModel: {
-        enabled: true,
-        modelId: "md-editor-writer-lite",
-        version: "1.0.0",
-        status: "available",
-        downloadedBytes: 0,
-        totalBytes: 0,
-        error: null,
-      },
-    };
-
-    const mockInvoke = vi.fn().mockImplementation(
+    const filePath = "/path/to/cancel.md";
+    const slow = createMockClient(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve("主题：完成提炼"), 50);
+          setTimeout(() => resolve("主题：不应覆盖"), 60);
         }),
     );
 
-    const promise = manager.scheduleDistillation(filePath, sampleMarkdown, {
-      settings,
-      localInvokeImpl: mockInvoke,
+    const pending = manager.scheduleDistillation(filePath, sampleMarkdown, {
+      client: slow.client,
     });
-
-    // 立即取消
     manager.cancelDistillation(filePath);
-    const result = await promise;
-    // 取消后依然优雅返回保底 AST 上下文
-    expect(result.title).toBe("Tauri 2.0 深度实操指南");
+    const fallback = await pending;
+    expect(fallback.title).toBe("Tauri 2.0 深度实操指南");
   });
 
   it("scheduleDistillation: 并发相同内容的提炼请求共享进行中的 Promise，杜绝重复调用底层模型", async () => {
     const manager = new DocumentContextManager();
     const filePath = "test/doc.md";
-    const settings: AiSettings = {
-      enabled: true,
-      provider: "local",
-      features: { continuation: true, editing: true },
-      openAiCompatible: { baseUrl: "", model: "", apiKey: "" },
-      localModel: {
-        enabled: true,
-        modelId: "md-editor-writer-lite",
-        version: "1.0.0",
-        status: "available",
-        downloadedBytes: 0,
-        totalBytes: 0,
-        error: null,
-      },
-    };
-
-    const mockInvoke = vi.fn().mockImplementation(
+    const { client, generateSpy } = createMockClient(
       () =>
         new Promise((resolve) => {
-          setTimeout(() => resolve("主题：完成并发提炼"), 30);
+          setTimeout(() => resolve("主题：完成并发提炼"), 25);
         }),
     );
 
-    // 模拟 React StrictMode 或多处生命周期同时触发调度
-    const p1 = manager.scheduleDistillation(filePath, sampleMarkdown, {
-      settings,
-      localInvokeImpl: mockInvoke,
-    });
-    const p2 = manager.scheduleDistillation(filePath, sampleMarkdown, {
-      settings,
-      localInvokeImpl: mockInvoke,
-    });
-
-    expect(p1).toBe(p2); // 引用严格相同
+    const p1 = manager.scheduleDistillation(filePath, sampleMarkdown, { client });
+    const p2 = manager.scheduleDistillation(filePath, sampleMarkdown, { client });
+    expect(p1).toBe(p2);
 
     const [res1, res2] = await Promise.all([p1, p2]);
     expect(res1.topic).toBe("主题：完成并发提炼");
     expect(res2.topic).toBe("主题：完成并发提炼");
-    // 底层 LLM 推理只被真正触发了 1 次！
-    expect(mockInvoke).toHaveBeenCalledTimes(1);
+    expect(generateSpy).toHaveBeenCalledTimes(1);
   });
 });

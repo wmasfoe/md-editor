@@ -3,6 +3,8 @@ import {
   BUILT_IN_LIGHT_THEME_OPTIONS,
   BUILT_IN_DARK_THEME_OPTIONS,
 } from "@md-editor/editor-ui";
+import { AI_URL_PRESETS, normalizeAiSettings, type AiSettings } from "@md-editor/ai";
+import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 
 export { BUILT_IN_LIGHT_THEME_OPTIONS, BUILT_IN_DARK_THEME_OPTIONS, type BuiltInThemeId };
 
@@ -12,13 +14,7 @@ export { BUILT_IN_LIGHT_THEME_OPTIONS, BUILT_IN_DARK_THEME_OPTIONS, type BuiltIn
 
 export type WebTheme = "light" | "dark" | "system";
 
-export interface WebAiConfig {
-  readonly enabled: boolean;
-  readonly provider: "deepseek" | "openai-compatible" | "ollama";
-  readonly baseUrl: string;
-  readonly apiKey: string;
-  readonly model: string;
-}
+export type WebAiConfig = AiSettings;
 
 export interface PluginSettings {
   readonly enabled: Readonly<Record<string, boolean>>;
@@ -31,8 +27,6 @@ export const DEFAULT_PLUGIN_SETTINGS: PluginSettings = Object.freeze({
     "markdown.directive": true,
   }),
 });
-
-import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 
 export interface WebSettings {
   readonly theme: WebTheme;
@@ -48,29 +42,7 @@ export interface WebSettings {
   readonly language: LanguageSetting;
 }
 
-export const PRESET_PROVIDERS = [
-  {
-    id: "deepseek" as const,
-    name: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    model: "deepseek-chat",
-    defaultApiKeyHint: "sk-...",
-  },
-  {
-    id: "openai-compatible" as const,
-    name: "OpenAI 兼容",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-4o-mini",
-    defaultApiKeyHint: "sk-...",
-  },
-  {
-    id: "ollama" as const,
-    name: "Ollama (本地)",
-    baseUrl: "http://localhost:11434/v1",
-    model: "qwen2.5-coder:latest",
-    defaultApiKeyHint: "ollama",
-  },
-] as const;
+export const PRESET_PROVIDERS = AI_URL_PRESETS;
 
 export const DEFAULT_WEB_SETTINGS: WebSettings = {
   theme: "system",
@@ -78,13 +50,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   darkTheme: "charcoal-dark",
   fontSize: 16,
   showInlineStyleMarkers: false,
-  ai: {
-    enabled: true,
-    provider: "deepseek",
-    baseUrl: "https://api.deepseek.com",
-    apiKey: "",
-    model: "deepseek-chat",
-  },
+  ai: normalizeAiSettings({}, { allowLocal: false, defaultPresetId: "deepseek" }),
   plugins: DEFAULT_PLUGIN_SETTINGS,
   language: "system",
 };
@@ -120,10 +86,10 @@ export function loadWebSettings(): WebSettings {
       fontSize: parsed.fontSize ?? DEFAULT_WEB_SETTINGS.fontSize,
       // 只接受布尔 true，其余一律关闭（存量用户升级后默认变干净）。
       showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
-      ai: {
-        ...DEFAULT_WEB_SETTINGS.ai,
-        ...parsed.ai,
-      },
+      ai: normalizeAiSettings(parsed.ai, {
+        allowLocal: false,
+        defaultPresetId: "deepseek",
+      }),
       plugins: parsed.plugins ?? DEFAULT_WEB_SETTINGS.plugins,
       language: normalizeLanguageSetting(parsed.language),
     };

@@ -1,3 +1,5 @@
+import { normalizeAiSettings, type AiSettings } from "@md-editor/ai";
+
 export const LAST_OPENED_FILE_KEY = "inkpoint_last_opened_file_path";
 
 /**
@@ -125,6 +127,8 @@ export interface UtoolsSettings {
   codeFontFamily: string; // font option id, default ""
   /** 是否常显行内格式标记源码，默认 false（仅触及临时显形）。 */
   showInlineStyleMarkers: boolean;
+  /** AI 助写多协议配置（持久化存储） */
+  ai: AiSettings;
 }
 
 export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
@@ -133,12 +137,13 @@ export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
   proseFontFamily: "",
   codeFontFamily: "",
   showInlineStyleMarkers: false,
+  ai: normalizeAiSettings({}, { allowLocal: false, defaultPresetId: "deepseek" }),
 };
 
 export const UTOOLS_SETTINGS_KEY = "inkpoint_utools_settings";
 
 /**
- * 加载用户偏好设置（主题、字号、字体族栈）
+ * 加载用户偏好设置（主题、字号、字体族栈、AI）
  */
 export function loadUtoolsSettings(): UtoolsSettings {
   let raw: string | null = null;
@@ -169,6 +174,10 @@ export function loadUtoolsSettings(): UtoolsSettings {
         proseFontFamily: typeof parsed.proseFontFamily === "string" ? parsed.proseFontFamily : "",
         codeFontFamily: typeof parsed.codeFontFamily === "string" ? parsed.codeFontFamily : "",
         showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
+        ai: normalizeAiSettings(parsed.ai, {
+          allowLocal: false,
+          defaultPresetId: "deepseek",
+        }),
       };
     } catch {
       // JSON 解析失败则回退默认

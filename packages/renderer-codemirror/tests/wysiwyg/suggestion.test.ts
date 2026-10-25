@@ -4,6 +4,7 @@ import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import {
   acceptAiSuggestion,
+  aiSuggestionDecorations,
   aiSuggestionExtension,
   aiSuggestionField,
   aiSuggestionLabelsFacet,
@@ -97,6 +98,24 @@ describe("AI Suggestion: Ghost Text Continuation", () => {
     view.dispatch({
       effects: setEditorModeEffect.of("source"),
     });
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
+
+  it("支持多行段落与带前导换行的续写内容，能够正常渲染 Decorations 并通过 Tab 接受", () => {
+    const view = createTestView("人工智能正在", 6);
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 6,
+        to: 6,
+        text: "\n\n改变世界。\n第二行深入发展。",
+      }),
+    });
+
+    const decorations = view.state.field(aiSuggestionDecorations);
+    expect(decorations.size).toBe(1);
+
+    expect(acceptAiSuggestion(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("人工智能正在\n\n改变世界。\n第二行深入发展。");
     expect(view.state.field(aiSuggestionField)).toBeNull();
   });
 });

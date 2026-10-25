@@ -31,7 +31,7 @@ import {
   type WebSettings,
   type WebTheme,
 } from "./lib/web-settings";
-import { requestWebAiContinuation } from "./lib/web-ai-client";
+import { webAiService } from "./lib/web-ai-service";
 import { applyDesktopTheme } from "./lib/theme-manager";
 import { bindWebKeyboardShortcuts } from "./lib/keyboard-shortcuts";
 import { webFileSystem } from "./lib/web-file-system";
@@ -446,18 +446,9 @@ function MainWebEditorApp({
 
   // 触发 AI 智能续写
   const handleTriggerAi = async () => {
-    if (!settings.ai.enabled) {
-      showToast(t("toasts.aiNotEnabled"));
-      setIsSettingsOpen(true);
-      return;
-    }
-    if (!settings.ai.baseUrl) {
-      showToast(t("toasts.aiConfigureBaseUrl"));
-      setIsSettingsOpen(true);
-      return;
-    }
-    if (!settings.ai.apiKey && settings.ai.provider !== "ollama") {
-      showToast(t("toasts.aiConfigureApiKey"));
+    const readiness = webAiService.checkReadiness(settings.ai, "continuation");
+    if (readiness) {
+      showToast(readiness);
       setIsSettingsOpen(true);
       return;
     }
@@ -474,17 +465,27 @@ function MainWebEditorApp({
     showToast(t("toasts.aiThinking"));
 
     try {
-      const continuation = await requestWebAiContinuation(settings.ai, before, after);
-      if (!continuation) {
+      const result = await webAiService.continueWriting(
+        settings.ai,
+        {
+          before,
+          after,
+          selectedText: selection.text,
+          mode,
+        },
+        { isGhostText: false },
+      );
+
+      if (!result.continuation) {
         showToast(t("toasts.aiNoSuggestion"));
         return;
       }
       ports.showSuggestion({
-        items: [{ from: cursorPos, to: cursorPos, text: continuation }],
+        items: [{ from: cursorPos, to: cursorPos, text: result.continuation }],
         activeIndex: 0,
         from: cursorPos,
         to: cursorPos,
-        text: continuation,
+        text: result.continuation,
         labels: {
           accept: t("editor.suggestion.accept"),
           dismiss: t("editor.suggestion.dismiss"),

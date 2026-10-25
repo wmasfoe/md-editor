@@ -128,9 +128,16 @@ pub(crate) async fn download_model(
                 _ => None,
             });
 
-        if can_reuse_local_component(&local_file, &spec, persisted_sha) {
+        let candidate_file =
+            if !local_file.is_file() && tag == "base" && directory.join("model.gguf").is_file() {
+                directory.join("model.gguf")
+            } else {
+                local_file
+            };
+
+        if can_reuse_local_component(&candidate_file, &spec, persisted_sha) {
             let final_staged_path = staging_dir.join(format!("{tag}.gguf"));
-            if stage_reused_component(&local_file, &final_staged_path).is_ok() {
+            if stage_reused_component(&candidate_file, &final_staged_path).is_ok() {
                 reused_specs.push((tag, spec));
                 continue;
             }

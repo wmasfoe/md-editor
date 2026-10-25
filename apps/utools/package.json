@@ -11,9 +11,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@md-editor/ai": "workspace:*",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/editor-ui": "workspace:*",
     "@md-editor/file-system": "workspace:*",
+    "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",

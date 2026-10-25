@@ -6,7 +6,7 @@ import {
   createAppThemePreviewSession,
   createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
-  DEFAULT_DEEPSEEK_ENDPOINT,
+  DEFAULT_DEEPSEEK_BASE_URL,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
   DEFAULT_PLUGIN_SETTINGS,
   DEFAULT_THEME_SETTINGS,
@@ -428,6 +428,50 @@ describe("app settings", () => {
     expect(saved.assetsDirectory).toBe("images/posts");
   });
 
+  it("persists and reloads multi-protocol AI endpoint configuration including apiKey and custom model", async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", new EventTarget());
+    vi.stubGlobal("localStorage", {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+    });
+
+    const customSettings: AppSettings = {
+      ...createDefaultSettings(),
+      ai: {
+        ...createDefaultSettings().ai,
+        provider: "openai",
+        endpoints: {
+          openai: {
+            baseUrl: "https://api.deepseek.com",
+            model: "deepseek-chat",
+            apiKey: "sk-my-secret-key-12345",
+          },
+          anthropic: {
+            baseUrl: "https://api.anthropic.com",
+            model: "claude-3-7-sonnet",
+            apiKey: "sk-ant-test-key",
+          },
+          google: {
+            baseUrl: "https://generativelanguage.googleapis.com",
+            model: "gemini-2.5-flash",
+            apiKey: "AIzaSyTestKey",
+          },
+        },
+      },
+    };
+
+    await saveAppSettings(customSettings);
+    const reloaded = await loadAppSettings();
+
+    expect(reloaded.ai.endpoints.openai.apiKey).toBe("sk-my-secret-key-12345");
+    expect(reloaded.ai.endpoints.openai.model).toBe("deepseek-chat");
+    expect(reloaded.ai.endpoints.openai.baseUrl).toBe("https://api.deepseek.com");
+    expect(reloaded.ai.endpoints.anthropic.apiKey).toBe("sk-ant-test-key");
+    expect(reloaded.ai.endpoints.google.apiKey).toBe("AIzaSyTestKey");
+    expect(reloaded.ai.openAiCompatible?.apiKey).toBe("sk-my-secret-key-12345");
+  });
+
   it("normalizes and preserves all supported language settings including zh-Hant and ja", () => {
     expect(normalizeLanguageSetting("zh")).toBe("zh");
     expect(normalizeLanguageSetting("zh-Hant")).toBe("zh-Hant");
@@ -493,17 +537,12 @@ describe("app settings", () => {
     expect(received).toEqual(["zh-Hant", "ja", null]);
   });
 
-  it("normalizes DeepSeek provider settings to the fixed endpoint", () => {
+  it("normalizes DeepSeek provider settings into openai protocol endpoint", () => {
     expect(
       normalizeAiSettings({
         provider: "deepseek",
-        openAiCompatible: {
-          baseUrl: "https://api.openai.com/v1",
-          model: "deepseek-chat",
-          apiKey: "local-key",
-        },
-      }).openAiCompatible.baseUrl,
-    ).toBe(DEFAULT_DEEPSEEK_ENDPOINT);
+      }).endpoints.openai.baseUrl,
+    ).toBe(DEFAULT_DEEPSEEK_BASE_URL);
   });
 
   it("detects a newer public release from the tap release payload", () => {

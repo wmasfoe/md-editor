@@ -72,7 +72,15 @@ export async function loadAppSettings(): Promise<AppSettings> {
     ? await invoke<Partial<PersistedSettings>>("load_app_settings")
     : readLocalSettings();
 
-  return normalizeSettings(saved);
+  const normalized = normalizeSettings(saved);
+  console.info("[Settings] loadAppSettings:", {
+    isTauri: isTauri(),
+    provider: normalized.ai.provider,
+    openaiModel: normalized.ai.endpoints.openai.model,
+    openaiKeyConfigured: Boolean(normalized.ai.endpoints.openai.apiKey),
+    endpointKeys: Object.keys(normalized.ai.endpoints),
+  });
+  return normalized;
 }
 
 /**
@@ -81,6 +89,14 @@ export async function loadAppSettings(): Promise<AppSettings> {
 export async function saveAppSettings(settings: AppSettings): Promise<AppSettings> {
   const normalized = normalizeSettings(settings);
   const persisted = toPersistedSettings(normalized);
+
+  console.info("[Settings] saveAppSettings:", {
+    isTauri: isTauri(),
+    provider: normalized.ai.provider,
+    openaiModel: normalized.ai.endpoints.openai.model,
+    openaiKeyConfigured: Boolean(normalized.ai.endpoints.openai.apiKey),
+    endpointKeys: Object.keys(normalized.ai.endpoints),
+  });
 
   if (isTauri()) {
     await invoke("save_app_settings_and_update_menu", { settings: persisted });
@@ -217,7 +233,10 @@ export function toPersistedSettings(settings: AppSettings): PersistedSettings {
     assetsDirectory: settings.assetsDirectory,
     editor: settings.editor,
     theme: settings.theme,
-    ai: settings.ai,
+    ai: {
+      ...settings.ai,
+      openAiCompatible: settings.ai.endpoints.openai,
+    },
     update: settings.update,
     plugins: settings.plugins,
     language: settings.language,

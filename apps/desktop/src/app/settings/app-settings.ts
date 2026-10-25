@@ -11,8 +11,10 @@
 
 export type { LanguageSetting } from "@md-editor/i18n";
 export {
-  DEFAULT_DEEPSEEK_ENDPOINT,
-  DEFAULT_OPENAI_COMPATIBLE_ENDPOINT,
+  DEFAULT_DEEPSEEK_BASE_URL,
+  DEFAULT_OPENAI_BASE_URL,
+  DEFAULT_ANTHROPIC_BASE_URL,
+  DEFAULT_GOOGLE_BASE_URL,
   normalizeAiSettings,
 } from "@md-editor/ai";
 

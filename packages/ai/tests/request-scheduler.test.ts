@@ -4,7 +4,7 @@ import {
   AiRequestScheduler,
   createAiRequestScopeKey,
   type AiScheduledRequestContext,
-} from "../src/request-scheduler.ts";
+} from "../src/index.ts";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

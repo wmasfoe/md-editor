@@ -30,6 +30,8 @@
 
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
+- AI 写作服务整洁架构与 App Harness 编排规范： [ai_writing_harness_architecture.md](./ai_writing_harness_architecture.md)
+  记录 `@md-editor/ai` 整洁分层设计（domain/app/adapters）、ModelClient 依赖倒置、三大云端标准协议 + 自定义 Base URL、Pre-Model 前置守卫、思考模式禁用、后置净化与四重锚点定位校准，以及 RFC-004 (v1.4.0) 客户端多端落地规范。
 - 国际化 (i18n) 架构与多语言扩展方案： [i18n_architecture.md](./i18n_architecture.md)
   记录 `@md-editor/i18n` 独立包设计、Type-Safe 字典、全应用多语言接入方案及后续新增语言指南。
 - 代码库模块化拆分、并发保序保存调度与多端发版架构方案： [codebase_modularization_and_concurrency_architecture.md](./codebase_modularization_and_concurrency_architecture.md)

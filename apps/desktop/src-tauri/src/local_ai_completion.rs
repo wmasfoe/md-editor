@@ -14,10 +14,21 @@ use crate::{
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalAiCompletionContext {
+    #[serde(default)]
     before: String,
+    #[serde(default)]
     after: String,
+    #[serde(default)]
     selected_text: String,
+    #[serde(default)]
     mode: String,
+}
+
+#[derive(Deserialize, serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LocalAiChatMessage {
+    role: String,
+    content: String,
 }
 
 #[derive(Deserialize)]
@@ -27,9 +38,13 @@ pub(crate) struct LocalAiContinuationOptions {
     max_tokens: Option<u16>,
     intent: Option<String>,
     prompt: Option<String>,
+    raw_prompt: Option<String>,
+    messages: Option<Vec<LocalAiChatMessage>>,
     stop: Option<Vec<String>>,
     temperature: Option<f32>,
     grammar: Option<String>,
+    disable_thinking: Option<bool>,
+    cache_prompt: Option<bool>,
 }
 
 #[tauri::command]
@@ -47,31 +62,70 @@ pub(crate) async fn request_local_ai_continuation(
         .unwrap_or(model.default_max_tokens);
     let intent = options.as_ref().and_then(|value| value.intent.clone());
 
-    let (is_raw, request) = if let Some(prompt) = options.as_ref().and_then(|o| o.prompt.as_deref())
-    {
-        let stop = options
-            .as_ref()
-            .and_then(|o| o.stop.clone())
-            .unwrap_or_default();
-        let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.0);
-        let mut payload = json!({
-            "prompt": prompt,
-            "n_predict": max_tokens,
-            "temperature": temp,
-            "stop": stop,
-            "cache_prompt": true,
-            "stream": false
-        });
-        if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
-            if !grammar.trim().is_empty() {
-                payload["grammar"] = json!(grammar);
+    let (is_raw, request) =
+        if let Some(messages) = options.as_ref().and_then(|o| o.messages.as_ref()) {
+            if !messages.is_empty() {
+                let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.0);
+                let disable_thinking = options
+                    .as_ref()
+                    .and_then(|o| o.disable_thinking)
+                    .unwrap_or(true);
+                let mut payload = json!({
+                    "model": &model.model_id,
+                    "messages": messages,
+                    "temperature": temp,
+                    "max_tokens": max_tokens,
+                    "stream": false,
+                    "chat_template_kwargs": {
+                        "enable_thinking": !disable_thinking
+                    }
+                });
+                if let Some(stop) = options.as_ref().and_then(|o| o.stop.as_ref()) {
+                    if !stop.is_empty() {
+                        payload["stop"] = json!(stop);
+                    }
+                }
+                if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
+                    if !grammar.trim().is_empty() {
+                        payload["grammar"] = json!(grammar);
+                    }
+                }
+                (false, payload)
+            } else {
+                let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
+                (false, build_local_ai_request(&model, &prompt, max_tokens))
             }
-        }
-        (true, payload)
-    } else {
-        let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
-        (false, build_local_ai_request(&model, &prompt, max_tokens))
-    };
+        } else if let Some(raw_prompt) = options
+            .as_ref()
+            .and_then(|o| o.raw_prompt.as_deref().or(o.prompt.as_deref()))
+        {
+            let stop = options
+                .as_ref()
+                .and_then(|o| o.stop.clone())
+                .unwrap_or_default();
+            let temp = options.as_ref().and_then(|o| o.temperature).unwrap_or(0.3);
+            let cache_prompt = options
+                .as_ref()
+                .and_then(|o| o.cache_prompt)
+                .unwrap_or(true);
+            let mut payload = json!({
+                "prompt": raw_prompt,
+                "n_predict": max_tokens,
+                "temperature": temp,
+                "stop": stop,
+                "cache_prompt": cache_prompt,
+                "stream": false
+            });
+            if let Some(grammar) = options.as_ref().and_then(|o| o.grammar.as_deref()) {
+                if !grammar.trim().is_empty() {
+                    payload["grammar"] = json!(grammar);
+                }
+            }
+            (true, payload)
+        } else {
+            let prompt = build_local_ai_prompt(&context, intent.as_deref(), max_tokens);
+            (false, build_local_ai_request(&model, &prompt, max_tokens))
+        };
 
     let runtime_manager = runtime.manager();
     let app_handle = app.clone();
@@ -239,7 +293,7 @@ fn extract_local_ai_completion_content(response_body: &str) -> Result<String, St
             )
         })?;
 
-    Ok(content.trim().to_string())
+    Ok(content.trim_end().to_string())
 }
 
 fn truncate_for_error(body: &str) -> String {

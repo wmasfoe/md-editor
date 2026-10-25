@@ -147,12 +147,21 @@ export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null
 export const clearAiSuggestionEffect = StateEffect.define<void>();
 
 class GhostTextWidget extends WidgetType {
-  constructor(readonly text: string) {
+  constructor(
+    readonly text: string,
+    readonly labels?: Required<AiSuggestionLabels>,
+  ) {
     super();
   }
 
   eq(other: GhostTextWidget): boolean {
-    return other.text === this.text;
+    return (
+      other.text === this.text &&
+      other.labels?.accept === this.labels?.accept &&
+      other.labels?.dismiss === this.labels?.dismiss &&
+      other.labels?.tabKey === this.labels?.tabKey &&
+      other.labels?.escKey === this.labels?.escKey
+    );
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -164,6 +173,13 @@ class GhostTextWidget extends WidgetType {
     span.className = "cm-md-ai-ghost-text";
     span.setAttribute("aria-hidden", "true");
     span.textContent = this.text;
+
+    const labels = this.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
+    const badge = doc.createElement("span");
+    badge.className = "cm-md-ai-badge";
+    badge.setAttribute("aria-hidden", "true");
+    badge.textContent = `${labels.tabKey} ${labels.accept} · ${labels.escKey} ${labels.dismiss}`;
+    span.append(badge);
 
     return span;
   }
@@ -303,11 +319,21 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
 
       if (from === to) {
         // Continuation: 纯幽灵文本在光标后
-        const inlineText = item.text.split("\n")[0] || "";
-        if (inlineText) {
+        const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
+        const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
+          ? {
+              accept: suggestion.labels.accept ?? facetLabels.accept,
+              dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
+              tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
+              escKey: suggestion.labels.escKey ?? facetLabels.escKey,
+            }
+          : facetLabels;
+
+        const displayText = item.text.replace(/^[\r\n]+/u, "");
+        if (displayText.trim().length > 0) {
           ranges.push(
             Decoration.widget({
-              widget: new GhostTextWidget(inlineText),
+              widget: new GhostTextWidget(displayText, resolvedLabels),
               side: 1,
             }).range(from),
           );
@@ -495,6 +521,7 @@ export const aiSuggestionTheme = EditorView.baseTheme({
     opacity: "0.78",
     pointerEvents: "none",
     userSelect: "none",
+    whiteSpace: "pre-wrap",
   },
   ".cm-md-ai-badge": {
     display: "inline-flex",
