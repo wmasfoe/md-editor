@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0 - 2026-10-25 (#199, #200)
+
+- Add support for OpenAI-compatible services, Anthropic Claude, and Google Gemini in AI settings, with custom service URLs and models.
+- Improve input validation and result handling for AI proofreading and continuation to reduce duplicate content, reasoning text, and misplaced suggestions.
+- Fix failed desktop local-model requests and incorrect proofreading adapter use during continuation, and correct Lite model download verification metadata.
+
 ## 0.16.5 - 2026-10-24 (#193, #194, #196)
 
 - Linux AppImage update information is stored in the ELF .upd_info section and shipped as a .zsync file, so the build no longer launches the app to read it.
