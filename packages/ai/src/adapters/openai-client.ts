@@ -33,18 +33,40 @@ interface OpenAiChatResponse {
 }
 
 /**
- * 判断指定模型是否属于 OpenAI 推理模型（如 o1, o1-mini, o1-preview, o3-mini 等）。
+ * 判断指定模型是否属于 OpenAI 推理模型（如 o1, o1-mini, o1-preview, o3-mini 等）或下一代模型（gpt-5 系列）。
  *
- * 推理模型特点：
+ * 推理与现代模型特点：
  * 1. 不支持 legacy 的 `max_tokens` 参数，必须使用 `max_completion_tokens`；
  * 2. 内部思维链（reasoning tokens）会计入 completion 预算，预算过低（如默认 256）会导致无法输出有效结果；
- * 3. 不支持自定义 `temperature` 参数（传入会直接返回 HTTP 400 Unsupported parameter: 'temperature'）；
+ * 3. 不支持自定义 `temperature` 与 `stop` 参数（传入会直接返回 HTTP 400 Unsupported parameter: 'temperature' / 'stop'）；
  * 4. 早期模型（o1-mini、o1-preview）不支持 system / developer 角色，需整合到 user prompt；
- * 5. o1 / o3 系列支持 `developer` 角色替代 `system` 角色。
+ * 5. o1 / o3 / gpt-5 系列原生支持 `developer` 角色替代 `system` 角色。
  */
 export function isOpenAiReasoningModel(modelId: string): boolean {
   const normalized = modelId.trim().toLowerCase();
-  return /(?:^|\/)(?:o[1-9]|o[1-9]-)/iu.test(normalized);
+  return /(?:^|\/)(?:o[1-9]|o[1-9]-)/iu.test(normalized) || /(?:^|\/)gpt-5/iu.test(normalized);
+}
+
+/** 模块级端点能力记忆缓存：跨请求与跨 Client 实例持久化记录特定端点+模型不支持的参数 */
+const GLOBAL_UNSUPPORTED_PARAMS_CACHE = new Map<string, Set<string>>();
+
+export function getGlobalUnsupportedParams(baseUrl: string, modelId: string): Set<string> {
+  const key = `${baseUrl.trim().toLowerCase()}::${modelId.trim().toLowerCase()}`;
+  let set = GLOBAL_UNSUPPORTED_PARAMS_CACHE.get(key);
+  if (!set) {
+    set = new Set<string>();
+    GLOBAL_UNSUPPORTED_PARAMS_CACHE.set(key, set);
+  }
+  return set;
+}
+
+export function recordUnsupportedParam(baseUrl: string, modelId: string, param: string): void {
+  const set = getGlobalUnsupportedParams(baseUrl, modelId);
+  set.add(param);
+}
+
+export function clearGlobalUnsupportedParamsCache(): void {
+  GLOBAL_UNSUPPORTED_PARAMS_CACHE.clear();
 }
 
 /**
@@ -149,7 +171,6 @@ export class OpenAIClient implements ModelClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly fetchImpl?: typeof fetch;
-  private readonly unsupportedParams = new Set<string>();
 
   public constructor(
     endpoint: AiProtocolEndpointSettings,
@@ -164,14 +185,15 @@ export class OpenAIClient implements ModelClient {
   public async generate(context: ModelContext): Promise<ModelResponse> {
     const startTime = Date.now();
     const url = resolveOpenAiChatEndpoint(this.baseUrl);
+    const unsupported = getGlobalUnsupportedParams(this.baseUrl, this.modelId);
 
     const messages = buildOpenAiMessages(
       this.modelId,
       context.instruction,
       context.prompt,
-      this.unsupportedParams.has("system_role"),
+      unsupported.has("system_role"),
     );
-    const body = buildOpenAiRequestBody(this.modelId, context, messages, this.unsupportedParams);
+    const body = buildOpenAiRequestBody(this.modelId, context, messages, unsupported);
 
     logLlmRequest("OpenAI", this.modelId, {
       url,
@@ -227,7 +249,7 @@ export class OpenAIClient implements ModelClient {
       const rawMessage = extractApiErrorMessage(data, status, "OpenAI 兼容服务");
       lastError = new Error(rawMessage);
 
-      // 自愈重试：当服务返回 HTTP 400 并提示参数不支持时，动态自愈调整 payload 并记忆不支持的参数
+      // 自愈重试：当服务返回 HTTP 400 并提示参数不支持时，动态自愈调整 payload 并持久记忆不支持的参数
       if (status === 400 && attempt < 2) {
         let adapted = false;
         const lowerMsg = rawMessage.toLowerCase();
@@ -242,7 +264,7 @@ export class OpenAIClient implements ModelClient {
             lowerMsg.includes("unknown"))
         ) {
           delete body.stop;
-          this.unsupportedParams.add("stop");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "stop");
           adapted = true;
         }
 
@@ -256,10 +278,10 @@ export class OpenAIClient implements ModelClient {
           const maxVal = (body.max_tokens as number) ?? 256;
           delete body.max_tokens;
           body.max_completion_tokens = Math.max(maxVal, 1024);
-          this.unsupportedParams.add("max_tokens");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "max_tokens");
           // 推理模型通常也不允许 temperature，顺便清理
           delete body.temperature;
-          this.unsupportedParams.add("temperature");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "temperature");
           adapted = true;
         } else if (
           "max_completion_tokens" in body &&
@@ -273,7 +295,7 @@ export class OpenAIClient implements ModelClient {
           const maxVal = (body.max_completion_tokens as number) ?? 256;
           delete body.max_completion_tokens;
           body.max_tokens = Math.min(maxVal, 4096);
-          this.unsupportedParams.add("max_completion_tokens");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "max_completion_tokens");
           adapted = true;
         }
 
@@ -284,7 +306,7 @@ export class OpenAIClient implements ModelClient {
           (lowerMsg.includes("unsupported") || lowerMsg.includes("not supported"))
         ) {
           delete body.temperature;
-          this.unsupportedParams.add("temperature");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "temperature");
           adapted = true;
         }
 
@@ -295,7 +317,7 @@ export class OpenAIClient implements ModelClient {
           (lowerMsg.includes("unsupported") || lowerMsg.includes("not supported"))
         ) {
           delete body.response_format;
-          this.unsupportedParams.add("response_format");
+          recordUnsupportedParam(this.baseUrl, this.modelId, "response_format");
           adapted = true;
         }
 
@@ -314,7 +336,7 @@ export class OpenAIClient implements ModelClient {
               body.messages = [
                 { role: "user", content: `${prefix}\n\n[Content]\n${userMsg.content}` },
               ];
-              this.unsupportedParams.add("system_role");
+              recordUnsupportedParam(this.baseUrl, this.modelId, "system_role");
               adapted = true;
             }
           }

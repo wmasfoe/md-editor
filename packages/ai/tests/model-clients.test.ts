@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AnthropicClient,
+  clearGlobalUnsupportedParamsCache,
   createModelClient,
   GoogleClient,
   isEarlyOpenAiReasoningModel,
@@ -421,7 +422,47 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect(capturedBodies[1].max_completion_tokens).toBe(1024);
     });
 
-    it("当遇到 'Unsupported parameter: stop is not supported with this model' 时自动剔除 stop 并自愈重试，且后续请求记忆不携带", async () => {
+    it("gpt-5 系列模型 (gpt-5.4-nano) 预置识别为现代推理模型，首发即使用 max_completion_tokens 且不发 stop/temperature", async () => {
+      let capturedBody: Record<string, unknown> = {};
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "gpt-5 续写" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const client = new OpenAIClient(
+        {
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-5.4-nano",
+          apiKey: "sk-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      const res = await client.generate({
+        instruction: "系统指令",
+        prompt: "用户输入",
+        temperature: 0.3,
+        stopSequences: ["\n"],
+        maxTokens: 256,
+      });
+
+      expect(res.text).toBe("gpt-5 续写");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // 验证不传易引发 400 的参数
+      expect(capturedBody.max_tokens).toBeUndefined();
+      expect(capturedBody.temperature).toBeUndefined();
+      expect(capturedBody.stop).toBeUndefined();
+      expect(capturedBody.max_completion_tokens).toBe(1024);
+      expect((capturedBody.messages as Array<{ role: string }>)[0].role).toBe("developer");
+    });
+
+    it("对于未在正则中的未知模型，遇到 'stop' 不支持时自动自愈，且后续新建 Client 实例通过全局缓存持久记忆跳过", async () => {
+      clearGlobalUnsupportedParamsCache();
       let attemptCount = 0;
       const capturedBodies: Array<Record<string, unknown>> = [];
 
@@ -452,16 +493,16 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
         );
       });
 
-      const client = new OpenAIClient(
+      const client1 = new OpenAIClient(
         {
-          baseUrl: "https://api.openai.com/v1",
-          model: "gpt-5.4-nano",
+          baseUrl: "https://api.my-custom-proxy.com/v1",
+          model: "custom-nano-variant",
           apiKey: "sk-test",
         },
         { fetchImpl: mockFetch },
       );
 
-      const res = await client.generate({
+      const res = await client1.generate({
         instruction: "提示词",
         prompt: "测试文本",
         stopSequences: ["\n"],
@@ -472,12 +513,23 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect(capturedBodies[0].stop).toEqual(["\n"]);
       expect(capturedBodies[1].stop).toBeUndefined();
 
-      // 第二次请求：由于自愈记忆机制，应当从首发就不再携带 stop
-      await client.generate({
+      // 模拟 resolveClient：重新实例化一个新的 client2
+      const client2 = new OpenAIClient(
+        {
+          baseUrl: "https://api.my-custom-proxy.com/v1",
+          model: "custom-nano-variant",
+          apiKey: "sk-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      await client2.generate({
         instruction: "提示词",
         prompt: "测试文本2",
         stopSequences: ["\n"],
       });
+
+      // 验证 client2 从首发开始就不再携带 stop，不需要触发 400 重试
       expect(attemptCount).toBe(3);
       expect(capturedBodies[2].stop).toBeUndefined();
     });
