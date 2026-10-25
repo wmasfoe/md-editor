@@ -633,10 +633,10 @@ export function getAiCompletionReadiness(
   const endpoint = settings.endpoints[settings.provider];
   const cleanUrl = endpoint.baseUrl.trim();
   if (!cleanUrl) {
-    return "请先配置 API Endpoint (Base URL)。";
+    return "请先配置 AI Endpoint。";
   }
   if (!endpoint.model.trim()) {
-    return "请先配置 AI 模型名称 (Model)。";
+    return "请先配置 AI 模型名称。";
   }
   if (!endpoint.apiKey.trim() && !isLoopbackHttpEndpoint(cleanUrl)) {
     return "请先配置 API Key。";
