@@ -420,6 +420,67 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect(capturedBodies[1].temperature).toBeUndefined();
       expect(capturedBodies[1].max_completion_tokens).toBe(1024);
     });
+
+    it("当遇到 'Unsupported parameter: stop is not supported with this model' 时自动剔除 stop 并自愈重试，且后续请求记忆不携带", async () => {
+      let attemptCount = 0;
+      const capturedBodies: Array<Record<string, unknown>> = [];
+
+      const mockFetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        attemptCount++;
+        const body = JSON.parse(init?.body as string) as Record<string, unknown>;
+        capturedBodies.push(body);
+
+        if (attemptCount === 1) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                message: "Unsupported parameter: 'stop' is not supported with this model.",
+                type: "invalid_request_error",
+                param: "stop",
+                code: "unsupported_parameter",
+              },
+            }),
+            { status: 400, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: "自愈成功响应" } }],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const client = new OpenAIClient(
+        {
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-5.4-nano",
+          apiKey: "sk-test",
+        },
+        { fetchImpl: mockFetch },
+      );
+
+      const res = await client.generate({
+        instruction: "提示词",
+        prompt: "测试文本",
+        stopSequences: ["\n"],
+      });
+
+      expect(res.text).toBe("自愈成功响应");
+      expect(attemptCount).toBe(2);
+      expect(capturedBodies[0].stop).toEqual(["\n"]);
+      expect(capturedBodies[1].stop).toBeUndefined();
+
+      // 第二次请求：由于自愈记忆机制，应当从首发就不再携带 stop
+      await client.generate({
+        instruction: "提示词",
+        prompt: "测试文本2",
+        stopSequences: ["\n"],
+      });
+      expect(attemptCount).toBe(3);
+      expect(capturedBodies[2].stop).toBeUndefined();
+    });
   });
 
   describe("logger: 开发环境结构化日志", () => {

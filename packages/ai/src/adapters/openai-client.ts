@@ -62,6 +62,7 @@ export function buildOpenAiMessages(
   modelId: string,
   instruction: string | undefined,
   prompt: string,
+  userOnlyRole = false,
 ): Array<{ role: "system" | "user" | "developer"; content: string }> {
   const trimmedInstruction = instruction?.trim();
   const isReasoning = isOpenAiReasoningModel(modelId);
@@ -71,7 +72,7 @@ export function buildOpenAiMessages(
     return [{ role: "user", content: prompt }];
   }
 
-  if (isEarly) {
+  if (isEarly || userOnlyRole) {
     return [
       {
         role: "user",
@@ -100,6 +101,7 @@ export function buildOpenAiRequestBody(
   modelId: string,
   context: ModelContext,
   messages: Array<{ role: "system" | "user" | "developer"; content: string }>,
+  unsupportedParams?: ReadonlySet<string>,
 ): Record<string, unknown> {
   const isReasoning = isOpenAiReasoningModel(modelId);
   const body: Record<string, unknown> = {
@@ -108,13 +110,15 @@ export function buildOpenAiRequestBody(
     stream: false,
   };
 
-  if (isReasoning) {
+  if (isReasoning || unsupportedParams?.has("max_tokens")) {
     // 推理模型强制使用 max_completion_tokens，且思维链 tokens 共享预算，保底 1024
     body.max_completion_tokens = Math.max(context.maxTokens ?? 256, 1024);
-    // 推理模型严格禁止传入 temperature
-  } else {
+  } else if (!unsupportedParams?.has("max_completion_tokens")) {
     // 兼容传统 OpenAI 兼容端点（如旧版 Ollama/vLLM）
     body.max_tokens = context.maxTokens ?? 256;
+  }
+
+  if (!isReasoning && !unsupportedParams?.has("temperature")) {
     if (typeof context.temperature === "number") {
       body.temperature = context.temperature;
     } else {
@@ -122,10 +126,17 @@ export function buildOpenAiRequestBody(
     }
   }
 
-  if (context.stopSequences && context.stopSequences.length > 0) {
+  // 推理模型与显式不支持 stop 的端点均不传 stop 参数
+  if (
+    !isReasoning &&
+    !unsupportedParams?.has("stop") &&
+    context.stopSequences &&
+    context.stopSequences.length > 0
+  ) {
     body.stop = [...context.stopSequences];
   }
-  if (context.outputFormat?.kind === "json-object") {
+
+  if (!unsupportedParams?.has("response_format") && context.outputFormat?.kind === "json-object") {
     body.response_format = { type: "json_object" };
   }
 
@@ -138,6 +149,7 @@ export class OpenAIClient implements ModelClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
   private readonly fetchImpl?: typeof fetch;
+  private readonly unsupportedParams = new Set<string>();
 
   public constructor(
     endpoint: AiProtocolEndpointSettings,
@@ -153,8 +165,13 @@ export class OpenAIClient implements ModelClient {
     const startTime = Date.now();
     const url = resolveOpenAiChatEndpoint(this.baseUrl);
 
-    const messages = buildOpenAiMessages(this.modelId, context.instruction, context.prompt);
-    const body = buildOpenAiRequestBody(this.modelId, context, messages);
+    const messages = buildOpenAiMessages(
+      this.modelId,
+      context.instruction,
+      context.prompt,
+      this.unsupportedParams.has("system_role"),
+    );
+    const body = buildOpenAiRequestBody(this.modelId, context, messages, this.unsupportedParams);
 
     logLlmRequest("OpenAI", this.modelId, {
       url,
@@ -210,12 +227,26 @@ export class OpenAIClient implements ModelClient {
       const rawMessage = extractApiErrorMessage(data, status, "OpenAI 兼容服务");
       lastError = new Error(rawMessage);
 
-      // 自愈重试：当服务返回 HTTP 400 并提示参数不支持时，动态自愈调整 payload
+      // 自愈重试：当服务返回 HTTP 400 并提示参数不支持时，动态自愈调整 payload 并记忆不支持的参数
       if (status === 400 && attempt < 2) {
         let adapted = false;
         const lowerMsg = rawMessage.toLowerCase();
 
-        // 1. 服务端要求使用 max_completion_tokens（例如未在正则中命中的推理模型，或开启了严格校验的新版端点）
+        // 1. 服务端不支持 stop 参数（如部分推理模型、精简纳米模型或特定代理网关）
+        if (
+          "stop" in body &&
+          lowerMsg.includes("stop") &&
+          (lowerMsg.includes("unsupported") ||
+            lowerMsg.includes("not supported") ||
+            lowerMsg.includes("unrecognized") ||
+            lowerMsg.includes("unknown"))
+        ) {
+          delete body.stop;
+          this.unsupportedParams.add("stop");
+          adapted = true;
+        }
+
+        // 2. 服务端要求使用 max_completion_tokens（例如未在正则中命中的推理模型，或开启了严格校验的新版端点）
         if (
           "max_tokens" in body &&
           (lowerMsg.includes("max_completion_tokens") ||
@@ -225,8 +256,10 @@ export class OpenAIClient implements ModelClient {
           const maxVal = (body.max_tokens as number) ?? 256;
           delete body.max_tokens;
           body.max_completion_tokens = Math.max(maxVal, 1024);
+          this.unsupportedParams.add("max_tokens");
           // 推理模型通常也不允许 temperature，顺便清理
           delete body.temperature;
+          this.unsupportedParams.add("temperature");
           adapted = true;
         } else if (
           "max_completion_tokens" in body &&
@@ -236,24 +269,37 @@ export class OpenAIClient implements ModelClient {
             lowerMsg.includes("unrecognized") ||
             lowerMsg.includes("unknown"))
         ) {
-          // 2. 服务端为老旧代理，不支持 max_completion_tokens，回退到 max_tokens
+          // 3. 服务端为老旧代理，不支持 max_completion_tokens，回退到 max_tokens
           const maxVal = (body.max_completion_tokens as number) ?? 256;
           delete body.max_completion_tokens;
           body.max_tokens = Math.min(maxVal, 4096);
+          this.unsupportedParams.add("max_completion_tokens");
           adapted = true;
         }
 
-        // 3. 服务端不支持 temperature（例如推理模型）
+        // 4. 服务端不支持 temperature（例如推理模型）
         if (
           "temperature" in body &&
           lowerMsg.includes("temperature") &&
           (lowerMsg.includes("unsupported") || lowerMsg.includes("not supported"))
         ) {
           delete body.temperature;
+          this.unsupportedParams.add("temperature");
           adapted = true;
         }
 
-        // 4. 服务端不支持 developer 或 system 角色
+        // 5. 服务端不支持 response_format
+        if (
+          "response_format" in body &&
+          lowerMsg.includes("response_format") &&
+          (lowerMsg.includes("unsupported") || lowerMsg.includes("not supported"))
+        ) {
+          delete body.response_format;
+          this.unsupportedParams.add("response_format");
+          adapted = true;
+        }
+
+        // 6. 服务端不支持 developer 或 system 角色
         if (
           lowerMsg.includes("role") ||
           lowerMsg.includes("system") ||
@@ -268,6 +314,7 @@ export class OpenAIClient implements ModelClient {
               body.messages = [
                 { role: "user", content: `${prefix}\n\n[Content]\n${userMsg.content}` },
               ];
+              this.unsupportedParams.add("system_role");
               adapted = true;
             }
           }
