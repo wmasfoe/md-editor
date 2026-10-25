@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.17.1 - 2026-10-25 (#201)
+
+- Fix local model startup failures on macOS caused by missing runtime dependencies and dynamic library signature validation.
+
 ## 0.17.0 - 2026-10-25 (#199, #200)
 
 - Add support for OpenAI-compatible services, Anthropic Claude, and Google Gemini in AI settings, with custom service URLs and models.
