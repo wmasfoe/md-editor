@@ -217,7 +217,10 @@ export function toPersistedSettings(settings: AppSettings): PersistedSettings {
     assetsDirectory: settings.assetsDirectory,
     editor: settings.editor,
     theme: settings.theme,
-    ai: settings.ai,
+    ai: {
+      ...settings.ai,
+      openAiCompatible: settings.ai.endpoints.openai,
+    },
     update: settings.update,
     plugins: settings.plugins,
     language: settings.language,

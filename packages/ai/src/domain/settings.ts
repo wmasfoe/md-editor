@@ -188,6 +188,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
     editing: true,
   },
   endpoints: DEFAULT_AI_ENDPOINTS,
+  openAiCompatible: DEFAULT_AI_ENDPOINTS.openai,
   localModel: DEFAULT_LOCAL_MODEL_SETTINGS,
 };
 
@@ -474,6 +475,7 @@ export function normalizeAiSettings(
     provider,
     features,
     endpoints,
+    openAiCompatible: endpoints.openai,
     localModel: normalizeLocalAiModelSettings(rawLocalModel),
   };
 }
@@ -485,6 +487,7 @@ export function updateAiProvider(settings: AiSettings, provider: AiProviderType)
   return {
     ...settings,
     provider,
+    openAiCompatible: settings.endpoints.openai,
   };
 }
 
@@ -497,16 +500,18 @@ export function updateAiEndpoint(
   patch: Partial<AiProtocolEndpointSettings>,
 ): AiSettings {
   const current = settings.endpoints[protocol];
+  const nextEndpoints: AiEndpointsRecord = {
+    ...settings.endpoints,
+    [protocol]: {
+      baseUrl: patch.baseUrl !== undefined ? patch.baseUrl : current.baseUrl,
+      model: patch.model !== undefined ? patch.model : current.model,
+      apiKey: patch.apiKey !== undefined ? patch.apiKey : current.apiKey,
+    },
+  };
   return {
     ...settings,
-    endpoints: {
-      ...settings.endpoints,
-      [protocol]: {
-        baseUrl: patch.baseUrl !== undefined ? patch.baseUrl : current.baseUrl,
-        model: patch.model !== undefined ? patch.model : current.model,
-        apiKey: patch.apiKey !== undefined ? patch.apiKey : current.apiKey,
-      },
-    },
+    endpoints: nextEndpoints,
+    openAiCompatible: nextEndpoints.openai,
   };
 }
 
@@ -528,17 +533,20 @@ export function applyAiUrlPreset(settings: AiSettings, presetId: AiUrlPreset["id
       ? preset.defaultModel
       : currentSlot.model;
 
+  const nextEndpoints: AiEndpointsRecord = {
+    ...settings.endpoints,
+    [preset.protocol]: {
+      ...currentSlot,
+      baseUrl: preset.baseUrl,
+      model: nextModel,
+    },
+  };
+
   return {
     ...settings,
     provider: preset.protocol,
-    endpoints: {
-      ...settings.endpoints,
-      [preset.protocol]: {
-        ...currentSlot,
-        baseUrl: preset.baseUrl,
-        model: nextModel,
-      },
-    },
+    endpoints: nextEndpoints,
+    openAiCompatible: nextEndpoints.openai,
   };
 }
 

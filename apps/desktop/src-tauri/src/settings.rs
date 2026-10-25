@@ -34,8 +34,30 @@ pub(crate) struct AiSettings {
     pub(crate) enabled: Option<bool>,
     pub(crate) provider: Option<String>,
     pub(crate) features: Option<AiFeatureSettings>,
+    #[serde(default)]
+    pub(crate) endpoints: Option<AiEndpointsSettings>,
+    #[serde(default)]
     pub(crate) open_ai_compatible: Option<AiOpenAiCompatibleSettings>,
     pub(crate) local_model: Option<AiLocalModelSettings>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiEndpointsSettings {
+    #[serde(default)]
+    pub(crate) openai: Option<AiProtocolEndpointSettings>,
+    #[serde(default)]
+    pub(crate) anthropic: Option<AiProtocolEndpointSettings>,
+    #[serde(default)]
+    pub(crate) google: Option<AiProtocolEndpointSettings>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AiProtocolEndpointSettings {
+    pub(crate) base_url: Option<String>,
+    pub(crate) model: Option<String>,
+    pub(crate) api_key: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -195,6 +217,7 @@ mod tests {
                     continuation: Some(false),
                     editing: Some(true),
                 }),
+                endpoints: None,
                 open_ai_compatible: Some(AiOpenAiCompatibleSettings {
                     base_url: Some("https://api.example.test/v1".to_string()),
                     model: Some("writer".to_string()),
@@ -222,6 +245,62 @@ mod tests {
                 }
             })),
             language: Some("zh".to_string()),
+        };
+
+        write_settings(&path, &settings).unwrap();
+        assert_eq!(read_settings(&path), Some(settings));
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn settings_round_trip_with_multi_protocol_endpoints() {
+        let path = std::env::temp_dir().join(format!(
+            "md-editor-settings-endpoints-{}-{}.json",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let settings = AppSettings {
+            shortcuts: None,
+            assets_directory: None,
+            editor: None,
+            theme: None,
+            ai: Some(AiSettings {
+                enabled: Some(true),
+                provider: Some("openai".to_string()),
+                features: Some(AiFeatureSettings {
+                    continuation: Some(false),
+                    editing: Some(true),
+                }),
+                endpoints: Some(AiEndpointsSettings {
+                    openai: Some(AiProtocolEndpointSettings {
+                        base_url: Some("https://api.openai.com/v1".to_string()),
+                        model: Some("gpt-4.1-mini".to_string()),
+                        api_key: Some("sk-secret-key-123".to_string()),
+                    }),
+                    anthropic: Some(AiProtocolEndpointSettings {
+                        base_url: Some("https://api.anthropic.com".to_string()),
+                        model: Some("claude-3-7-sonnet".to_string()),
+                        api_key: Some("sk-ant-test".to_string()),
+                    }),
+                    google: Some(AiProtocolEndpointSettings {
+                        base_url: Some("https://generativelanguage.googleapis.com".to_string()),
+                        model: Some("gemini-2.5-flash".to_string()),
+                        api_key: Some("AIzaSyTestKey".to_string()),
+                    }),
+                }),
+                open_ai_compatible: Some(AiOpenAiCompatibleSettings {
+                    base_url: Some("https://api.openai.com/v1".to_string()),
+                    model: Some("gpt-4.1-mini".to_string()),
+                    api_key: Some("sk-secret-key-123".to_string()),
+                }),
+                local_model: None,
+            }),
+            update: None,
+            plugins: None,
+            language: None,
         };
 
         write_settings(&path, &settings).unwrap();

@@ -92,6 +92,8 @@ export interface AiSettings {
   readonly features: AiFeatureSettings;
   readonly endpoints: AiEndpointsRecord;
   readonly localModel: AiLocalModelSettings;
+  /** 兼容历史 openAiCompatible 字段（与 endpoints.openai 双向同步，保障原生存储平滑升级） */
+  readonly openAiCompatible?: AiProtocolEndpointSettings;
 }
 
 /** 连通性测试结果 */

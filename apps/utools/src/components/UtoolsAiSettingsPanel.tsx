@@ -131,9 +131,9 @@ export function UtoolsAiSettingsPanel({
             onChangeAiSettings(updateAiProvider(aiSettings, e.target.value as AiProtocolId))
           }
         >
-          <option value="openai">OpenAI 兼容协议 (支持 DeepSeek / Ollama)</option>
-          <option value="anthropic">Anthropic (Claude)</option>
-          <option value="google">Google (Gemini)</option>
+          <option value="openai">OpenAI 协议 (ChatGPT / 兼容)</option>
+          <option value="anthropic">Anthropic 协议 (Claude)</option>
+          <option value="google">Google 协议 (Gemini)</option>
         </select>
       </label>
 
