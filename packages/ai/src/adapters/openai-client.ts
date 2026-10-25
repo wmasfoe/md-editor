@@ -44,7 +44,11 @@ interface OpenAiChatResponse {
  */
 export function isOpenAiReasoningModel(modelId: string): boolean {
   const normalized = modelId.trim().toLowerCase();
-  return /(?:^|\/)(?:o[1-9]|o[1-9]-)/iu.test(normalized) || /(?:^|\/)gpt-5/iu.test(normalized);
+  return (
+    /(?:^|\/)(?:o[1-9]|o[1-9]-)/iu.test(normalized) ||
+    /(?:^|\/)gpt-5/iu.test(normalized) ||
+    /(?:^|\/)(?:deepseek-r1|deepseek-reasoner|reasoning|reasoner)/iu.test(normalized)
+  );
 }
 
 /** 模块级端点能力记忆缓存：跨请求与跨 Client 实例持久化记录特定端点+模型不支持的参数 */
@@ -265,6 +269,17 @@ export class OpenAIClient implements ModelClient {
         ) {
           delete body.stop;
           recordUnsupportedParam(this.baseUrl, this.modelId, "stop");
+          // 若 stop 不受支持，该模型大概率属于现代推理/精简模型，同步自愈 max_tokens 与 temperature，避免连续触发 400
+          if ("max_tokens" in body && !unsupported.has("max_completion_tokens")) {
+            const maxVal = (body.max_tokens as number) ?? 256;
+            delete body.max_tokens;
+            body.max_completion_tokens = Math.max(maxVal, 1024);
+            recordUnsupportedParam(this.baseUrl, this.modelId, "max_tokens");
+          }
+          if ("temperature" in body) {
+            delete body.temperature;
+            recordUnsupportedParam(this.baseUrl, this.modelId, "temperature");
+          }
           adapted = true;
         }
 
@@ -279,9 +294,15 @@ export class OpenAIClient implements ModelClient {
           delete body.max_tokens;
           body.max_completion_tokens = Math.max(maxVal, 1024);
           recordUnsupportedParam(this.baseUrl, this.modelId, "max_tokens");
-          // 推理模型通常也不允许 temperature，顺便清理
-          delete body.temperature;
-          recordUnsupportedParam(this.baseUrl, this.modelId, "temperature");
+          // 推理模型通常也不允许 temperature 与 stop，一并清理避免下一轮重试再次触发 400
+          if ("temperature" in body) {
+            delete body.temperature;
+            recordUnsupportedParam(this.baseUrl, this.modelId, "temperature");
+          }
+          if ("stop" in body) {
+            delete body.stop;
+            recordUnsupportedParam(this.baseUrl, this.modelId, "stop");
+          }
           adapted = true;
         } else if (
           "max_completion_tokens" in body &&

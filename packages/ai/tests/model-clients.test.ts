@@ -512,6 +512,10 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       expect(attemptCount).toBe(2);
       expect(capturedBodies[0].stop).toEqual(["\n"]);
       expect(capturedBodies[1].stop).toBeUndefined();
+      // 同步自愈：stop 不支持时，自动将 max_tokens 升级为 max_completion_tokens 并清除 temperature
+      expect(capturedBodies[1].max_tokens).toBeUndefined();
+      expect(capturedBodies[1].max_completion_tokens).toBe(1024);
+      expect(capturedBodies[1].temperature).toBeUndefined();
 
       // 模拟 resolveClient：重新实例化一个新的 client2
       const client2 = new OpenAIClient(
