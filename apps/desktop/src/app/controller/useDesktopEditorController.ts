@@ -22,6 +22,7 @@ import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { desktopAiService } from "../ai/desktop-ai-service.ts";
 import { isDiscardProtectionRequired } from "./document-save";
+import { checkPendingDraft } from "./session-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
@@ -136,6 +137,9 @@ export function useDesktopEditorController({
           },
           saveDocumentAs: async () => {
             await saveDocument(true);
+          },
+          openDocumentHistory: () => {
+            useDocumentUiStore.getState().openHistoryDrawer();
           },
           openSettings,
           openAbout,
@@ -594,6 +598,12 @@ export function useDesktopEditorController({
   );
   useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
   useEffect(() => bindBrowserDirtyDocumentGuard(), []);
+  useEffect(() => {
+    // 启动时检查初始文档是否存在未保存草稿（做法 2：提示用户恢复）
+    void checkPendingDraft(runtime.document.getSnapshot().filePath).then((draft) => {
+      useDocumentUiStore.getState().setPendingDraft(draft);
+    });
+  }, []);
   useEffect(
     () =>
       bindTauriCloseGuard(() =>

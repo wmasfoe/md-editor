@@ -4,11 +4,13 @@ import { CommandPalette } from "./CommandPalette";
 import { MdxComponentMenu } from "./MdxComponentMenu";
 import { InsertTableDialog } from "./InsertTableDialog";
 import { UpdateNoticeDialog } from "./updates/UpdateNoticeDialog";
+import { HistoryDrawer } from "./history/HistoryDrawer";
 import { isMacPlatform } from "../app/AppWindowChrome";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useConfirmationStore } from "../app/stores/confirmation-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useToastStore } from "../app/stores/toast-store";
 import { useAppSettings } from "../app/settings-context";
 
 /**
@@ -28,7 +30,10 @@ export function DesktopModals() {
     closeMdxComponentMenu,
     isInsertTableDialogOpen,
     closeInsertTableDialog,
+    isHistoryDrawerOpen,
+    closeHistoryDrawer,
   } = useDocumentUiStore();
+  const { showToast } = useToastStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
   const { updateNotice, resolveUpdateNotice } = useAppSettings();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -81,6 +86,13 @@ export function DesktopModals() {
           if (!updateNotice) return;
           void resolveUpdateNotice(choice, updateNotice.version);
         }}
+      />
+      {/* 历史版本快照抽屉 */}
+      <HistoryDrawer
+        open={isHistoryDrawerOpen}
+        filePath={runtime.document.getSnapshot().filePath}
+        onClose={closeHistoryDrawer}
+        onShowToast={showToast}
       />
     </>
   );

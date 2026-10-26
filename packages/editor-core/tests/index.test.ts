@@ -299,6 +299,7 @@ describe("built-in feature registry", () => {
       "file.openFolder",
       "file.save",
       "file.saveAs",
+      "file.history",
       "settings.open",
       "app.about",
       "mdx.openComponentMenu",

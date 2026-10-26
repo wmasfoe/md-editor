@@ -6,6 +6,7 @@ export * from "./document-state.ts";
 export * from "./document-identity.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
+export * from "./session/index.ts";
 
 export interface CommandContext {
   readonly document: DocumentState;
@@ -83,6 +84,7 @@ export type BuiltInCommandId =
   | "file.openFolder"
   | "file.save"
   | "file.saveAs"
+  | "file.history"
   | "settings.open"
   | "app.about"
   | "mdx.openComponentMenu"
@@ -106,6 +108,7 @@ export interface EditorActionHandlers {
   readonly openFolder?: () => void | Promise<void>;
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
+  readonly openDocumentHistory?: () => void | Promise<void>;
   readonly openSettings?: () => void | Promise<void>;
   /** 打开关于窗口/弹窗；未实现的宿主会被命令注册表降级为 no-op */
   readonly openAbout?: () => void | Promise<void>;
@@ -284,6 +287,16 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         group: "文件",
         keywords: ["另存为", "save as"],
       });
+      registerActionCommand(
+        context.commands,
+        "file.history",
+        "Document History",
+        "openDocumentHistory",
+        {
+          group: "文件",
+          keywords: ["历史", "版本", "快照", "history", "snapshot", "revert"],
+        },
+      );
       registerActionCommand(context.commands, "settings.open", "Settings", "openSettings", {
         group: "设置",
         keywords: ["设置", "偏好", "settings"],

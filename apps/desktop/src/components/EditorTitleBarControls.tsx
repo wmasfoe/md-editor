@@ -25,6 +25,7 @@ import {
 } from "@headlessui/react";
 import {
   ChevronUpDownIcon,
+  ClockIcon,
   ListBulletIcon,
   RectangleGroupIcon,
   SparklesIcon,
@@ -100,6 +101,15 @@ export function EditorTitleBarControls() {
             activeOutlineId={activeOutlineId}
             onJumpToOutlineItem={jumpToTocItem}
           />
+          <button
+            type="button"
+            className={titleBarSecondaryButtonClassName}
+            aria-label="版本历史"
+            title="版本历史"
+            onClick={() => void dispatchCommand("file.history")}
+          >
+            <ClockIcon aria-hidden="true" />
+          </button>
         </>
       ) : null}
       <button

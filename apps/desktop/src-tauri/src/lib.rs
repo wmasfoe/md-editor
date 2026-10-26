@@ -13,6 +13,7 @@ mod process_utils;
 mod quicklook;
 mod recent_files;
 mod save_runtime;
+mod session;
 mod settings;
 mod settings_window;
 mod system_info;
@@ -45,6 +46,11 @@ use local_ai_model::{
 };
 use recent_files::{load_recent_files, save_recent_files};
 use save_runtime::SaveCommitGate;
+use session::{
+    clear_persisted_session, delete_draft_file, delete_history_snapshot, list_draft_files,
+    load_draft_file, load_history_index, load_history_snapshot, load_persisted_session,
+    save_draft_file, save_history_index, save_history_snapshot, save_persisted_session,
+};
 use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
 use system_info::get_system_specs;
@@ -144,7 +150,19 @@ pub fn run() {
             close_settings_window,
             save_app_settings_and_update_menu,
             inspect_linked_file,
-            open_external_target
+            open_external_target,
+            load_persisted_session,
+            save_persisted_session,
+            clear_persisted_session,
+            load_draft_file,
+            save_draft_file,
+            delete_draft_file,
+            list_draft_files,
+            load_history_index,
+            save_history_index,
+            load_history_snapshot,
+            save_history_snapshot,
+            delete_history_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running Inkpoint");

@@ -60,8 +60,12 @@ const d3BlockCommands = [
 /** D-2 视图模式命令（专注/打字机：renderer StateField 开关 + macOS View 菜单勾选项） */
 const d2ViewModeCommands = ["view.toggleFocusMode", "view.toggleTypewriterMode"] as const;
 
+/** 文档历史版本与快照回滚命令 */
+const historyCommands = ["file.history"] as const;
+
 export const S1_REGISTERED_COMMAND_IDS = [
   ...implementedCommands,
+  ...historyCommands,
   ...legacyModeCommands,
   ...deferredLegacyCommands,
   ...d3BlockCommands,
@@ -140,6 +144,13 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     baseline: "implemented",
     s1Disposition: "new-capability",
     note: "New-in-D-2 typewriter mode: renderer typewriterModeField toggle mirrored to macOS View menu check state.",
+  },
+  {
+    id: "file.history",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Document snapshot history drawer and version restoration.",
   },
   {
     id: "editor.markdown-input-history",
