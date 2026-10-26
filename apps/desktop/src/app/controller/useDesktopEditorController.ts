@@ -28,6 +28,7 @@ import {
   checkDocumentLinksAndLint,
   exportDocumentAsHtml,
   exportDocumentAsPdf,
+  resolveExportStyling,
 } from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
@@ -149,9 +150,11 @@ export function useDesktopEditorController({
           },
           exportHtml: async () => {
             const activeDocSnapshot = runtime.document.getSnapshot();
+            const styling = resolveExportStyling(settings);
             const result = await exportDocumentAsHtml(
               activeDocSnapshot.filePath,
               activeDocSnapshot.markdown,
+              styling,
             );
             if (result.success) {
               showToast(result.filePath ? `已导出至: ${result.filePath}` : "已成功导出 HTML");
@@ -161,10 +164,11 @@ export function useDesktopEditorController({
           },
           exportPdf: async () => {
             const activeDocSnapshot = runtime.document.getSnapshot();
+            const styling = resolveExportStyling(settings);
             const result = await exportDocumentAsPdf(
               activeDocSnapshot.filePath,
               activeDocSnapshot.markdown,
-              { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm" },
+              { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm", ...styling },
             );
             if (result.success) {
               if (result.filePath) {
@@ -180,7 +184,8 @@ export function useDesktopEditorController({
           },
           copyAsHtml: async () => {
             const activeDocSnapshot = runtime.document.getSnapshot();
-            const ok = await copyDocumentAsHtml(activeDocSnapshot.markdown);
+            const styling = resolveExportStyling(settings);
+            const ok = await copyDocumentAsHtml(activeDocSnapshot.markdown, styling);
             if (ok) {
               showToast("已复制富文本 HTML 至剪贴板");
             } else {
@@ -511,7 +516,7 @@ export function useDesktopEditorController({
       openRecentDocument,
       openSettings,
       saveDocument,
-      settings.ai,
+      settings,
       setIsSidebarVisible,
       showToast,
       snapshot,

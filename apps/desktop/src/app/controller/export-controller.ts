@@ -3,11 +3,61 @@ import type { EditorUiActionsContextValue } from "@md-editor/editor-ui";
 import { validateMarkdownRelativeLinks } from "@md-editor/file-system";
 import type { LinkDiagnosticItem } from "@md-editor/renderer-codemirror";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
+import {
+  type AppSettings,
+  resolveProseFontStack,
+  resolveCodeFontStack,
+  resolveThemeColorScheme,
+} from "../settings";
+import { builtInThemeCss } from "../settings/built-in-themes";
 
-export interface ExportPdfOptions {
+export interface ExportDocumentStylingOptions {
+  readonly proseFontFamily?: string;
+  readonly codeFontFamily?: string;
+  readonly fontSize?: number;
+  readonly themeCss?: string;
+  readonly isDark?: boolean;
+}
+
+export interface ExportPdfOptions extends ExportDocumentStylingOptions {
   readonly pageSize?: "A4" | "Letter";
   readonly orientation?: "portrait" | "landscape";
   readonly margin?: string;
+}
+
+/**
+ * 从全局设置中提取导出排版样式（字体、字号、主题变量与色彩方案）
+ */
+export function resolveExportStyling(settings: AppSettings): ExportDocumentStylingOptions {
+  const scheme = resolveThemeColorScheme(settings.theme.mode);
+  const themeScheme = scheme === "dark" ? settings.theme.dark : settings.theme.light;
+  const themeCss = builtInThemeCss(themeScheme.builtinTheme);
+  const proseFontFamily = resolveProseFontStack(settings.editor.proseFontFamily);
+  const codeFontFamily = resolveCodeFontStack(settings.editor.codeFontFamily);
+  const fontSize = settings.editor.wysiwygFontSize;
+  const isDark = scheme === "dark";
+
+  return {
+    proseFontFamily,
+    codeFontFamily,
+    fontSize,
+    themeCss,
+    isDark,
+  };
+}
+
+/**
+ * 尝试动态加载 syntax-plugins 的 Mermaid 矢量渲染器
+ */
+async function resolveMermaidRenderer(
+  isDark = false,
+): Promise<((code: string) => Promise<{ svg: string; error?: string } | null>) | undefined> {
+  try {
+    const { renderMermaidSvg } = await import("@md-editor/syntax-plugins");
+    return (code: string) => renderMermaidSvg(code, isDark);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -42,9 +92,20 @@ async function resolveImageAsBase64(
 /**
  * 复制语义富文本 HTML 到系统剪贴板（兼容各类富文本编辑器与邮件客户端）
  */
-export async function copyDocumentAsHtml(markdown: string): Promise<boolean> {
-  const { renderFragmentHtml } = await import("@md-editor/compiler");
-  const fragment = renderFragmentHtml(markdown);
+export async function copyDocumentAsHtml(
+  markdown: string,
+  styling: ExportDocumentStylingOptions = {},
+): Promise<boolean> {
+  const { exportDocumentHtml } = await import("@md-editor/compiler");
+  const mermaidRenderer = await resolveMermaidRenderer(styling.isDark ?? false);
+  const result = await exportDocumentHtml(markdown, {
+    renderMermaidSvg: mermaidRenderer,
+    proseFontFamily: styling.proseFontFamily,
+    codeFontFamily: styling.codeFontFamily,
+    fontSize: styling.fontSize,
+    customCss: styling.themeCss,
+  });
+  const fragment = result.standaloneHtml;
   if (typeof navigator !== "undefined" && navigator.clipboard) {
     try {
       if (typeof ClipboardItem !== "undefined") {
@@ -68,16 +129,23 @@ export async function copyDocumentAsHtml(markdown: string): Promise<boolean> {
 }
 
 /**
- * 导出单一独立 HTML 文件（内联样式、公式与图片资源）
+ * 导出单一独立 HTML 文件（内联样式、公式、Mermaid 矢量图与图片资源）
  */
 export async function exportDocumentAsHtml(
   documentPath: string | null,
   markdown: string,
+  styling: ExportDocumentStylingOptions = {},
 ): Promise<{ success: boolean; filePath?: string; message?: string }> {
   try {
     const { exportDocumentHtml } = await import("@md-editor/compiler");
+    const mermaidRenderer = await resolveMermaidRenderer(styling.isDark ?? false);
     const exportResult = await exportDocumentHtml(markdown, {
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
+      renderMermaidSvg: mermaidRenderer,
+      proseFontFamily: styling.proseFontFamily,
+      codeFontFamily: styling.codeFontFamily,
+      fontSize: styling.fontSize,
+      customCss: styling.themeCss,
     });
 
     const baseName = documentPath
@@ -146,9 +214,15 @@ export async function exportDocumentAsPdf(
 
     const printPageCss = `@page { size: ${pageSize} ${orientation}; margin: ${margin}; }`;
     const { exportDocumentHtml } = await import("@md-editor/compiler");
+    const mermaidRenderer = await resolveMermaidRenderer(options.isDark ?? false);
     const exportResult = await exportDocumentHtml(markdown, {
       printPageCss,
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
+      renderMermaidSvg: mermaidRenderer,
+      proseFontFamily: options.proseFontFamily,
+      codeFontFamily: options.codeFontFamily,
+      fontSize: options.fontSize,
+      customCss: options.themeCss,
     });
 
     const baseName = documentPath

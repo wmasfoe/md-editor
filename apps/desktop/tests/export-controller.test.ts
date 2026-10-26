@@ -119,4 +119,50 @@ describe("export-controller", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("resolves export styling from app settings with fonts and theme CSS", async () => {
+    const { resolveExportStyling } = await import("../src/app/controller/export-controller");
+    const { createDefaultSettings } = await import("../src/app/settings/persistence/storage");
+
+    const defaultSettings = createDefaultSettings();
+    const customSettings = {
+      ...defaultSettings,
+      editor: {
+        ...defaultSettings.editor,
+        proseFontFamily: "lxgw-wenkai",
+        codeFontFamily: "jetbrains-mono",
+        wysiwygFontSize: 18,
+      },
+    };
+
+    const styling = resolveExportStyling(customSettings);
+    expect(styling.proseFontFamily).toContain("LXGW WenKai");
+    expect(styling.codeFontFamily).toContain("JetBrains Mono");
+    expect(styling.fontSize).toBe(18);
+    expect(styling.themeCss).toBeDefined();
+    expect(styling.isDark).toBe(false);
+  });
+
+  it("passes styling and fonts into generated PDF export HTML", async () => {
+    mockSave.mockResolvedValueOnce("/Users/test/Documents/styled.pdf");
+    mockInvoke.mockResolvedValueOnce(undefined);
+
+    const { exportDocumentAsPdf } = await import("../src/app/controller/export-controller");
+    const result = await exportDocumentAsPdf("/Users/test/Documents/styled.md", "# Styled Doc", {
+      pageSize: "A4",
+      orientation: "portrait",
+      proseFontFamily: "LXGW WenKai, sans-serif",
+      codeFontFamily: "JetBrains Mono, monospace",
+      fontSize: 18,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      "export_html_to_pdf",
+      expect.objectContaining({
+        outputPath: "/Users/test/Documents/styled.pdf",
+        html: expect.stringMatching(/--theme-font:\s*LXGW WenKai/),
+      }),
+    );
+  });
 });

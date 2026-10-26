@@ -41,7 +41,7 @@ export function resolveThemeColorScheme(
   if (mode !== "system") {
     return mode;
   }
-  if (typeof window.matchMedia !== "function") {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return "light";
   }
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

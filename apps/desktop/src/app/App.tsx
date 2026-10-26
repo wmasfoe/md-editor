@@ -225,8 +225,6 @@ function MainApp({
 
           {/* 核心视图区域：未打开文档欢迎页、CodeMirror 编辑器、图片资源预览与加载状态 */}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <EditorToast toast={toast} />
-
             <DraftRecoveryBanner
               draftInfo={pendingDraft}
               onRestore={() => {
@@ -288,6 +286,9 @@ function MainApp({
 
       {/* 全局模态弹窗层（操作确认、命令面板 Cmd+K、MDX 组件、表格插入） */}
       <DesktopModals />
+
+      {/* 全局顶部通知浮层 */}
+      <EditorToast toast={toast} />
     </main>
   );
 }

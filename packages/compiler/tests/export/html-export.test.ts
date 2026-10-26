@@ -46,4 +46,33 @@ describe("html-export", () => {
     expect(result.standaloneHtml).toContain("@media print { @page { size: Letter portrait; } }");
     expect(result.linkedHtml).toContain("@media print { @page { size: Letter portrait; } }");
   });
+
+  it("inlines mermaid diagrams as vector SVG when renderer provided", async () => {
+    const md = "# Chart\n\n```mermaid\ngraph TD;\nA-->B;\n```";
+    const result = await exportDocumentHtml(md, {
+      renderMermaidSvg: async (code) => {
+        expect(code).toContain("graph TD");
+        return { svg: '<svg id="test-mermaid"><rect width="100" height="50"/></svg>' };
+      },
+    });
+
+    expect(result.standaloneHtml).toContain('<div class="cm-md-mermaid-container">');
+    expect(result.standaloneHtml).toContain('<svg id="test-mermaid">');
+    expect(result.linkedHtml).toContain('<div class="cm-md-mermaid-container">');
+    expect(result.linkedHtml).toContain('<svg id="test-mermaid">');
+  });
+
+  it("injects prose and code fonts and font sizes into document", async () => {
+    const md = "# Font Document\n\nText here.";
+    const result = await exportDocumentHtml(md, {
+      proseFontFamily: '"LXGW WenKai", sans-serif',
+      codeFontFamily: '"JetBrains Mono", monospace',
+      fontSize: 18,
+    });
+
+    expect(result.standaloneHtml).toContain('--theme-font: "LXGW WenKai", sans-serif;');
+    expect(result.standaloneHtml).toContain('--theme-mono-font: "JetBrains Mono", monospace;');
+    expect(result.standaloneHtml).toContain("--theme-editor-font-size: 18px;");
+    expect(result.standaloneHtml).toContain("font-size: 18px;");
+  });
 });

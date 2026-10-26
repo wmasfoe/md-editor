@@ -8,9 +8,25 @@ export interface HtmlExportOptions extends StaticDocumentOptions {
    */
   readonly resolveImageDataUrl?: (src: string) => Promise<string | null>;
   /**
+   * 异步将 mermaid 图表源码转为 SVG 的函数。
+   */
+  readonly renderMermaidSvg?: (code: string) => Promise<{ svg: string; error?: string } | null>;
+  /**
    * 打印样式覆盖（例如设置 @page { size: A4; margin: 15mm; }）
    */
   readonly printPageCss?: string;
+  /**
+   * 正文字体族栈
+   */
+  readonly proseFontFamily?: string;
+  /**
+   * 代码字体族栈
+   */
+  readonly codeFontFamily?: string;
+  /**
+   * 编辑器字号大小 (px)
+   */
+  readonly fontSize?: number;
 }
 
 export interface HtmlExportResult {
@@ -90,6 +106,72 @@ async function inlineImagesInDataUrls(
 }
 
 /**
+ * 匹配 HTML 中 mermaid 语法高亮代码块
+ */
+const MERMAID_BLOCK_REGEX =
+  /<pre><code class="[^"]*language-mermaid[^"]*">([\s\S]*?)<\/code><\/pre>/gi;
+
+function unescapeHtmlEntities(escaped: string): string {
+  return escaped
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/**
+ * 将 HTML 中的 Mermaid 代码块渲染为矢量 SVG 图表
+ */
+async function inlineMermaidSvg(
+  html: string,
+  renderer?: (code: string) => Promise<{ svg: string; error?: string } | null>,
+): Promise<string> {
+  if (!renderer) {
+    return html;
+  }
+
+  const matches: Array<{ fullMatch: string; code: string }> = [];
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(MERMAID_BLOCK_REGEX.source, "gi");
+
+  while ((match = regex.exec(html)) !== null) {
+    const [fullMatch, rawEscapedCode] = match;
+    if (rawEscapedCode) {
+      matches.push({ fullMatch, code: unescapeHtmlEntities(rawEscapedCode) });
+    }
+  }
+
+  if (matches.length === 0) {
+    return html;
+  }
+
+  const replacements = await Promise.all(
+    matches.map(async (m) => {
+      try {
+        const res = await renderer(m.code);
+        if (res && res.svg && res.svg.trim().length > 0) {
+          return {
+            fullMatch: m.fullMatch,
+            replacement: `<div class="cm-md-mermaid-container"><div class="cm-md-mermaid-svg">${res.svg}</div></div>`,
+          };
+        }
+        return { fullMatch: m.fullMatch, replacement: m.fullMatch };
+      } catch {
+        return { fullMatch: m.fullMatch, replacement: m.fullMatch };
+      }
+    }),
+  );
+
+  let resultHtml = html;
+  for (const { fullMatch, replacement } of replacements) {
+    resultHtml = resultHtml.replace(fullMatch, replacement);
+  }
+
+  return resultHtml;
+}
+
+/**
  * 双模 HTML 导出器：
  * 同时生成独立自包含 HTML (standalone) 与标准外链 HTML (linked)。
  */
@@ -102,19 +184,43 @@ export async function exportDocumentHtml(
     ...options,
   };
   const rendered = renderStaticHtml(markdown, renderOptions);
-  const extraCss = options.printPageCss
-    ? `${options.customCss ?? ""}\n@media print { ${options.printPageCss} }`
-    : options.customCss;
 
-  // 1. linkedHtml: 直接使用原始 HTML
-  const linkedHtml = createStaticDocumentHtml(rendered, {
+  const fontDeclarations: string[] = [];
+  if (options.proseFontFamily) {
+    fontDeclarations.push(`--theme-font: ${options.proseFontFamily};`);
+  }
+  if (options.codeFontFamily) {
+    fontDeclarations.push(`--theme-mono-font: ${options.codeFontFamily};`);
+  }
+  if (options.fontSize && Number.isFinite(options.fontSize) && options.fontSize > 0) {
+    fontDeclarations.push(
+      `--theme-editor-font-size: ${options.fontSize}px; font-size: ${options.fontSize}px;`,
+    );
+  }
+  const fontCss =
+    fontDeclarations.length > 0 ? `:root, body { ${fontDeclarations.join(" ")} }` : "";
+
+  const customCssWithFonts = [fontCss, options.customCss ?? ""].filter(Boolean).join("\n");
+  const extraCss = options.printPageCss
+    ? `${customCssWithFonts}\n@media print { ${options.printPageCss} }`
+    : customCssWithFonts;
+
+  // 1. Mermaid 图表转换为矢量 SVG (若提供了 mermaid 渲染器)
+  const contentWithMermaid = await inlineMermaidSvg(rendered.html, options.renderMermaidSvg);
+
+  // 2. linkedHtml: 包含 Mermaid 矢量图及原始相对图片
+  const linkedRenderResult: StaticRenderResult = {
+    ...rendered,
+    html: contentWithMermaid,
+  };
+  const linkedHtml = createStaticDocumentHtml(linkedRenderResult, {
     ...renderOptions,
     customCss: extraCss,
   });
 
-  // 2. standaloneHtml: 内联图片并包装
+  // 3. standaloneHtml: 内联图片并包装
   const inlinedContentHtml = await inlineImagesInDataUrls(
-    rendered.html,
+    contentWithMermaid,
     options.resolveImageDataUrl,
   );
   const standaloneRenderResult: StaticRenderResult = {
