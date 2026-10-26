@@ -167,7 +167,13 @@ export function useDesktopEditorController({
               { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm" },
             );
             if (result.success) {
-              showToast(result.filePath ? `已导出至: ${result.filePath}` : "已成功导出 PDF");
+              if (result.filePath) {
+                showToast(`已导出至: ${result.filePath}`);
+              } else if (result.message) {
+                showToast(result.message);
+              } else {
+                showToast("已成功导出 PDF");
+              }
             } else if (result.message && result.message !== "已取消导出") {
               showToast(`导出失败: ${result.message}`);
             }

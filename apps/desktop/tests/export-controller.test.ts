@@ -94,4 +94,29 @@ describe("export-controller", () => {
       orientation: "portrait",
     });
   });
+
+  it("falls back to print preview when backend PDF export fails", async () => {
+    mockSave.mockResolvedValueOnce("/Users/test/Documents/fallback.pdf");
+    mockInvoke.mockRejectedValueOnce(new Error("Native engine error"));
+
+    vi.stubGlobal("document", {
+      createElement: () => ({
+        style: {},
+        contentWindow: { focus: vi.fn(), print: vi.fn() },
+        addEventListener: (_event: string, cb: () => void) => cb(),
+      }),
+      body: {
+        appendChild: vi.fn(),
+        removeChild: vi.fn(),
+      },
+    });
+
+    const { exportDocumentAsPdf } = await import("../src/app/controller/export-controller");
+    const result = await exportDocumentAsPdf(null, "# Fallback Doc");
+
+    expect(result.success).toBe(true);
+    expect(result.message).toContain("系统打印");
+
+    vi.unstubAllGlobals();
+  });
 });

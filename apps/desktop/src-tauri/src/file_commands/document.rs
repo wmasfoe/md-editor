@@ -347,11 +347,14 @@ pub(crate) fn write_exported_files(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+const PDF_EXPORT_SWIFT_SOURCE: &str = include_str!("../../helpers/pdf_export/main.swift");
+
 /// 将 HTML 渲染为标准 PDF 文档并写入目标路径。
 ///
 /// 在 macOS 平台：
 /// 1. 优先尝试调用已打包的本地原生二进制 `inkpoint-pdf-exporter`；
-/// 2. 若处于开发模式且二进制未构建，则通过系统 `/usr/bin/swift` 执行内置导出脚本；
+/// 2. 若原生二进制未构建或未找到，则提取内置编译期嵌入的 Swift 源码并通过系统 `/usr/bin/swift` 执行；
 /// 3. 内部借助 WebKit 与 PDFKit 在沙箱外以矢量方式渲染排版与 KaTeX 公式并精确分页。
 #[tauri::command]
 pub(crate) fn export_html_to_pdf(
@@ -391,14 +394,18 @@ pub(crate) fn export_html_to_pdf(
                 if let Some(contents) = parent.parent() {
                     candidates.push(contents.join("Resources").join(binary_name));
                     candidates.push(contents.join("MacOS").join(binary_name));
+                    if let Some(target_root) = contents.parent() {
+                        candidates.push(target_root.join("binaries").join(binary_name));
+                    }
                 }
             }
         }
-        // 开发模式下的路径查找
+        // 开发模式与各级相对路径查找
         candidates.push(PathBuf::from(format!(
             "apps/desktop/src-tauri/binaries/{binary_name}"
         )));
         candidates.push(PathBuf::from(format!("src-tauri/binaries/{binary_name}")));
+        candidates.push(PathBuf::from(format!("binaries/{binary_name}")));
 
         let binary_path = candidates.into_iter().find(|path| path.is_file());
 
@@ -412,26 +419,28 @@ pub(crate) fn export_html_to_pdf(
                 ])
                 .output()
         } else {
-            // 本地开发或未单独编译二进制时的回退方案：直接通过系统 swift 执行
-            let script_candidates = [
-                PathBuf::from("apps/desktop/src-tauri/helpers/pdf_export/main.swift"),
-                PathBuf::from("src-tauri/helpers/pdf_export/main.swift"),
-            ];
-            let script_path = script_candidates.into_iter().find(|path| path.is_file());
-
-            if let Some(script) = script_path {
-                Command::new("/usr/bin/swift")
+            // 本地开发或未单独编译二进制时的回退方案：使用编译期内置嵌入的 Swift 源码，落盘临时脚本并执行
+            let temp_script_path = temp_dir.join(format!("inkpoint_pdf_runner_{timestamp}.swift"));
+            if fs::write(&temp_script_path, PDF_EXPORT_SWIFT_SOURCE.as_bytes()).is_ok() {
+                let swift_bin = if Path::new("/usr/bin/swift").exists() {
+                    "/usr/bin/swift"
+                } else {
+                    "swift"
+                };
+                let res = Command::new(swift_bin)
                     .args([
-                        script.to_string_lossy().as_ref(),
+                        temp_script_path.to_string_lossy().as_ref(),
                         &temp_html_str,
                         &output_path,
                         &page_size_arg,
                         &orientation_arg,
                     ])
-                    .output()
+                    .output();
+                let _ = fs::remove_file(&temp_script_path);
+                res
             } else {
                 let _ = fs::remove_file(&temp_html_path);
-                return Err("未找到 PDF 导出组件，请确认应用安装完整".to_string());
+                return Err("无法生成 PDF 导出临时运行器".to_string());
             }
         };
 
