@@ -41,6 +41,7 @@ src-tauri/.cargo/
 **/src-tauri/binaries/llama-server-*
 !**/src-tauri/binaries/llama-server-aarch64-apple-darwin
 **/src-tauri/binaries/tmp-llama-*
+**/src-tauri/binaries/inkpoint-pdf-exporter
 
 # Package manager logs
 npm-debug.log*

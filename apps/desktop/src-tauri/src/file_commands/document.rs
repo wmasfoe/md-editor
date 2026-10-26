@@ -346,3 +346,123 @@ pub(crate) fn write_exported_files(
 
     Ok(())
 }
+
+/// 将 HTML 渲染为标准 PDF 文档并写入目标路径。
+///
+/// 在 macOS 平台：
+/// 1. 优先尝试调用已打包的本地原生二进制 `inkpoint-pdf-exporter`；
+/// 2. 若处于开发模式且二进制未构建，则通过系统 `/usr/bin/swift` 执行内置导出脚本；
+/// 3. 内部借助 WebKit 与 PDFKit 在沙箱外以矢量方式渲染排版与 KaTeX 公式并精确分页。
+#[tauri::command]
+pub(crate) fn export_html_to_pdf(
+    app: tauri::AppHandle,
+    html: String,
+    output_path: String,
+    page_size: Option<String>,
+    orientation: Option<String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        let temp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_html_path = temp_dir.join(format!("inkpoint_pdf_export_{timestamp}.html"));
+
+        fs::write(&temp_html_path, html.as_bytes())
+            .map_err(|error| format!("写入临时导出 HTML 文件失败: {error}"))?;
+
+        let page_size_arg = page_size.unwrap_or_else(|| "A4".to_string());
+        let orientation_arg = orientation.unwrap_or_else(|| "portrait".to_string());
+        let temp_html_str = temp_html_path.to_string_lossy().to_string();
+
+        let binary_name = "inkpoint-pdf-exporter";
+        let mut candidates = Vec::new();
+
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            candidates.push(resource_dir.join(binary_name));
+        }
+        if let Ok(current_exe) = std::env::current_exe() {
+            if let Some(parent) = current_exe.parent() {
+                candidates.push(parent.join(binary_name));
+                if let Some(contents) = parent.parent() {
+                    candidates.push(contents.join("Resources").join(binary_name));
+                    candidates.push(contents.join("MacOS").join(binary_name));
+                }
+            }
+        }
+        // 开发模式下的路径查找
+        candidates.push(PathBuf::from(format!(
+            "apps/desktop/src-tauri/binaries/{binary_name}"
+        )));
+        candidates.push(PathBuf::from(format!("src-tauri/binaries/{binary_name}")));
+
+        let binary_path = candidates.into_iter().find(|path| path.is_file());
+
+        let result = if let Some(bin) = binary_path {
+            Command::new(bin)
+                .args([
+                    &temp_html_str,
+                    &output_path,
+                    &page_size_arg,
+                    &orientation_arg,
+                ])
+                .output()
+        } else {
+            // 本地开发或未单独编译二进制时的回退方案：直接通过系统 swift 执行
+            let script_candidates = [
+                PathBuf::from("apps/desktop/src-tauri/helpers/pdf_export/main.swift"),
+                PathBuf::from("src-tauri/helpers/pdf_export/main.swift"),
+            ];
+            let script_path = script_candidates.into_iter().find(|path| path.is_file());
+
+            if let Some(script) = script_path {
+                Command::new("/usr/bin/swift")
+                    .args([
+                        script.to_string_lossy().as_ref(),
+                        &temp_html_str,
+                        &output_path,
+                        &page_size_arg,
+                        &orientation_arg,
+                    ])
+                    .output()
+            } else {
+                let _ = fs::remove_file(&temp_html_path);
+                return Err("未找到 PDF 导出组件，请确认应用安装完整".to_string());
+            }
+        };
+
+        let _ = fs::remove_file(&temp_html_path);
+
+        match result {
+            Ok(output) if output.status.success() => Ok(()),
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                Err(format!(
+                    "PDF 渲染失败 (退出码 {:?}): {}{}",
+                    output.status.code(),
+                    stderr.trim(),
+                    if stderr.trim().is_empty() {
+                        stdout.trim()
+                    } else {
+                        ""
+                    }
+                ))
+            }
+            Err(error) => Err(format!("调起 PDF 导出服务失败: {error}")),
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, html, output_path, page_size, orientation);
+        Err(
+            "当前操作系统暂未内置直接导出 PDF 引擎，请导出为 HTML 后使用浏览器打印为 PDF"
+                .to_string(),
+        )
+    }
+}

@@ -26,8 +26,8 @@ pub(crate) use assets::{
 };
 pub(crate) use context_menu::show_file_tree_context_menu;
 pub(crate) use document::{
-    attach_save_runtime, open_markdown_document, open_markdown_document_at_path,
-    save_markdown_document_ordered, write_exported_files,
+    attach_save_runtime, export_html_to_pdf, open_markdown_document,
+    open_markdown_document_at_path, save_markdown_document_ordered, write_exported_files,
 };
 pub(crate) use mutations::{
     check_path_exists, copy_file_tree_path, create_markdown_tree_item, delete_markdown_tree_item,

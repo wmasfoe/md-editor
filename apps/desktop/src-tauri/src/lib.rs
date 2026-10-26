@@ -32,7 +32,7 @@ use app_menu::{
 };
 use file_commands::{
     allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
-    create_markdown_tree_item, delete_markdown_tree_item, inspect_linked_file,
+    create_markdown_tree_item, delete_markdown_tree_item, export_html_to_pdf, inspect_linked_file,
     open_external_target, open_markdown_document, open_markdown_document_at_path,
     open_markdown_folder, pick_theme_css_file, read_theme_css_file, refresh_markdown_folder,
     rename_markdown_tree_item, reveal_file_tree_item_in_finder, save_markdown_document_ordered,
@@ -152,6 +152,7 @@ pub fn run() {
             inspect_linked_file,
             open_external_target,
             write_exported_files,
+            export_html_to_pdf,
             load_persisted_session,
             save_persisted_session,
             clear_persisted_session,

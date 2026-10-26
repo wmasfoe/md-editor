@@ -161,15 +161,15 @@ export function useDesktopEditorController({
           },
           exportPdf: async () => {
             const activeDocSnapshot = runtime.document.getSnapshot();
-            const ok = await exportDocumentAsPdf(
+            const result = await exportDocumentAsPdf(
               activeDocSnapshot.filePath,
               activeDocSnapshot.markdown,
               { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm" },
             );
-            if (ok) {
-              showToast("已调起打印系统（可选择“另存为 PDF”）");
-            } else {
-              showToast("调起打印失败");
+            if (result.success) {
+              showToast(result.filePath ? `已导出至: ${result.filePath}` : "已成功导出 PDF");
+            } else if (result.message && result.message !== "已取消导出") {
+              showToast(`导出失败: ${result.message}`);
             }
           },
           copyAsHtml: async () => {

@@ -132,13 +132,13 @@ export async function exportDocumentAsHtml(
 }
 
 /**
- * 调用系统打印通道并导出 PDF（应用打印分页截断保护）
+ * 导出 PDF 文档（调起原生保存对话框并完成精确矢量排版落盘）
  */
 export async function exportDocumentAsPdf(
   documentPath: string | null,
   markdown: string,
   options: ExportPdfOptions = {},
-): Promise<boolean> {
+): Promise<{ success: boolean; filePath?: string; message?: string }> {
   try {
     const pageSize = options.pageSize ?? "A4";
     const orientation = options.orientation ?? "portrait";
@@ -151,30 +151,69 @@ export async function exportDocumentAsPdf(
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
     });
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.srcdoc = exportResult.standaloneHtml;
+    const baseName = documentPath
+      ? (documentPath
+          .split(/[/\\]/)
+          .pop()
+          ?.replace(/\.[^/.]+$/, "") ?? "document")
+      : exportResult.title || "document";
+    const defaultFilename = `${baseName}.pdf`;
 
-    document.body.appendChild(iframe);
+    if (isTauri()) {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selected = await save({
+        defaultPath: defaultFilename,
+        filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+        title: "导出 PDF 文档",
+      });
 
-    iframe.addEventListener("load", () => {
-      setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 3000);
-      }, 250);
-    });
+      if (!selected || typeof selected !== "string") {
+        return { success: false, message: "已取消导出" };
+      }
 
-    return true;
-  } catch {
-    return false;
+      await invoke("export_html_to_pdf", {
+        html: exportResult.standaloneHtml,
+        outputPath: selected,
+        pageSize,
+        orientation,
+      });
+
+      return { success: true, filePath: selected };
+    }
+
+    // Web 浏览器环境通过 iframe 调起浏览器打印（支持“另存为 PDF”）
+    if (typeof document !== "undefined") {
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "100%";
+      iframe.style.height = "100%";
+      iframe.style.opacity = "0";
+      iframe.style.pointerEvents = "none";
+      iframe.style.zIndex = "-1";
+      iframe.srcdoc = exportResult.standaloneHtml;
+
+      document.body.appendChild(iframe);
+
+      return new Promise((resolve) => {
+        iframe.addEventListener("load", () => {
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+              resolve({ success: true });
+            }, 1000);
+          }, 300);
+        });
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, message };
   }
 }
 
