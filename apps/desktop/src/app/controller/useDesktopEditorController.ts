@@ -23,7 +23,12 @@ import { recentFilesStore } from "./recent-files-store";
 import { desktopAiService } from "../ai/desktop-ai-service.ts";
 import { isDiscardProtectionRequired } from "./document-save";
 import { checkPendingDraft } from "./session-controller";
-import { copyDocumentAsHtml, checkDocumentLinksAndLint } from "./export-controller";
+import {
+  copyDocumentAsHtml,
+  checkDocumentLinksAndLint,
+  exportDocumentAsHtml,
+  exportDocumentAsPdf,
+} from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
@@ -142,11 +147,30 @@ export function useDesktopEditorController({
           openDocumentHistory: () => {
             useDocumentUiStore.getState().openHistoryDrawer();
           },
-          exportHtml: () => {
-            useDocumentUiStore.getState().openExportDialog("html");
+          exportHtml: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const result = await exportDocumentAsHtml(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+            );
+            if (result.success) {
+              showToast(result.filePath ? `已导出至: ${result.filePath}` : "已成功导出 HTML");
+            } else if (result.message && result.message !== "已取消导出") {
+              showToast(`导出失败: ${result.message}`);
+            }
           },
-          exportPdf: () => {
-            useDocumentUiStore.getState().openExportDialog("pdf");
+          exportPdf: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const ok = await exportDocumentAsPdf(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+              { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm" },
+            );
+            if (ok) {
+              showToast("已调起打印系统（可选择“另存为 PDF”）");
+            } else {
+              showToast("调起打印失败");
+            }
           },
           copyAsHtml: async () => {
             const activeDocSnapshot = runtime.document.getSnapshot();

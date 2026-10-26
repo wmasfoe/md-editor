@@ -68,49 +68,62 @@ export async function copyDocumentAsHtml(markdown: string): Promise<boolean> {
 }
 
 /**
- * 双模导出 HTML（同时产出 standalone.html 与 index.html）
+ * 导出单一独立 HTML 文件（内联样式、公式与图片资源）
  */
 export async function exportDocumentAsHtml(
   documentPath: string | null,
   markdown: string,
-): Promise<{ success: boolean; directory?: string; message?: string }> {
+): Promise<{ success: boolean; filePath?: string; message?: string }> {
   try {
     const { exportDocumentHtml } = await import("@md-editor/compiler");
     const exportResult = await exportDocumentHtml(markdown, {
       resolveImageDataUrl: (src: string) => resolveImageAsBase64(documentPath, src),
     });
 
+    const baseName = documentPath
+      ? (documentPath
+          .split(/[/\\]/)
+          .pop()
+          ?.replace(/\.[^/.]+$/, "") ?? "document")
+      : exportResult.title || "document";
+    const defaultFilename = `${baseName}.html`;
+
     if (isTauri()) {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: "选择 HTML 导出保存目录",
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const selected = await save({
+        defaultPath: defaultFilename,
+        filters: [{ name: "HTML 文档", extensions: ["html", "htm"] }],
+        title: "导出 HTML 文档",
       });
 
       if (!selected || typeof selected !== "string") {
         return { success: false, message: "已取消导出" };
       }
 
+      const dirIndex = Math.max(selected.lastIndexOf("/"), selected.lastIndexOf("\\"));
+      const directory = dirIndex >= 0 ? selected.slice(0, dirIndex) : "";
+      const fileName = dirIndex >= 0 ? selected.slice(dirIndex + 1) : selected;
+
       await invoke("write_exported_files", {
-        directory: selected,
+        directory,
         files: {
-          "standalone.html": exportResult.standaloneHtml,
-          "index.html": exportResult.linkedHtml,
+          [fileName]: exportResult.standaloneHtml,
         },
       });
 
-      return { success: true, directory: selected };
+      return { success: true, filePath: selected };
     }
 
-    // Web 浏览器环境下载 standalone.html
-    const blob = new Blob([exportResult.standaloneHtml], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${exportResult.title || "document"}.standalone.html`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Web 浏览器环境直接下载单个独立的 HTML 文件
+    if (typeof document !== "undefined") {
+      const blob = new Blob([exportResult.standaloneHtml], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = defaultFilename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
     return { success: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

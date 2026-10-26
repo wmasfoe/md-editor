@@ -145,12 +145,12 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       {/* 桌面级双栏 Visual Diff 检查器面板 */}
-      <div className="relative z-10 flex h-full w-[920px] max-w-[96vw] flex-row border-l border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl animate-in slide-in-from-right duration-250">
+      <div className="relative z-10 flex h-full w-[920px] max-w-[96vw] flex-row border-l border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl animate-in slide-in-from-right duration-250 select-none">
         {/* 左栏：快照时间轴列表 */}
-        <div className="flex w-[290px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-surface-soft)]">
+        <div className="flex w-[290px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-surface-soft)] select-none">
           {/* 左栏头部 */}
-          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4">
-            <div className="flex items-center gap-2">
+          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4 select-none">
+            <div className="flex items-center gap-2 select-none">
               <svg
                 className="h-4 w-4 text-[var(--theme-primary,currentColor)]"
                 viewBox="0 0 24 24"
@@ -161,21 +161,23 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              <h2 className="text-[13.5px] font-semibold text-[var(--theme-title)]">版本历史</h2>
+              <h2 className="text-[13.5px] font-semibold text-[var(--theme-title)] select-none">
+                版本历史
+              </h2>
             </div>
-            <span className="rounded-full bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)]">
+            <span className="rounded-full bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] select-none">
               {snapshots.length} 个版本
             </span>
           </div>
 
           {/* 快照时间轴卡片列表 */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 select-none">
             {isLoading ? (
-              <div className="py-12 text-center text-xs text-[var(--theme-muted)]">
+              <div className="py-12 text-center text-xs text-[var(--theme-muted)] select-none">
                 正在加载快照历史...
               </div>
             ) : snapshots.length === 0 ? (
-              <div className="py-16 text-center text-xs text-[var(--theme-muted)] leading-relaxed">
+              <div className="py-16 text-center text-xs text-[var(--theme-muted)] leading-relaxed select-none">
                 暂无历史版本记录。
                 <br />
                 保存或自动记录时将生成快照。
@@ -205,24 +207,24 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                   <div
                     key={item.id}
                     onClick={() => void handleSelectSnapshot(item.id)}
-                    className={`group relative flex flex-col gap-1.5 rounded-[10px] border p-3 text-xs cursor-pointer transition-all ${
+                    className={`group relative flex flex-col gap-1.5 rounded-[10px] border p-3 text-xs cursor-pointer select-none transition-all ${
                       isSelected
                         ? "border-blue-500/60 bg-white/90 dark:bg-white/[0.09] shadow-sm ring-1 ring-blue-500/30"
                         : "border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)] hover:shadow-xs"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[var(--theme-title)] text-[12.5px]">
+                    <div className="flex items-center justify-between select-none">
+                      <span className="font-semibold text-[var(--theme-title)] text-[12.5px] select-none">
                         {relativeTime}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${triggerBadge.color}`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium select-none ${triggerBadge.color}`}
                       >
                         {triggerBadge.label}
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-[var(--theme-muted)] font-mono">
+                    <div className="text-[11px] text-[var(--theme-muted)] font-mono select-none">
                       {date.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -232,12 +234,12 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                       {date.toLocaleDateString([], { month: "2-digit", day: "2-digit" })}
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-[var(--theme-muted)] pt-1 border-t border-[var(--theme-border-subtle,rgba(0,0,0,0.04))] dark:border-white/[0.04]">
-                      <span>
+                    <div className="flex items-center justify-between text-[11px] text-[var(--theme-muted)] pt-1 border-t border-[var(--theme-border-subtle,rgba(0,0,0,0.04))] dark:border-white/[0.04] select-none">
+                      <span className="select-none">
                         {item.charCount.toLocaleString()} 字 · {item.lineCount} 行
                       </span>
                       {isSelected ? (
-                        <span className="text-[10.5px] font-medium text-blue-600 dark:text-blue-400">
+                        <span className="text-[10.5px] font-medium text-blue-600 dark:text-blue-400 select-none">
                           正在检视 →
                         </span>
                       ) : null}
@@ -252,42 +254,42 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
         {/* 右栏：Visual Diff 差异检视器与受控回滚 */}
         <div className="flex flex-1 min-w-0 flex-col bg-[var(--theme-surface)]">
           {/* 右栏顶部操作与元数据栏 */}
-          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4">
-            <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4 select-none">
+            <div className="flex items-center gap-3 min-w-0 select-none">
               {activeSnapshot ? (
                 <>
-                  <div className="text-[13px] font-medium text-[var(--theme-title)] truncate">
+                  <div className="text-[13px] font-medium text-[var(--theme-title)] truncate select-none">
                     快照检视：{new Date(activeSnapshot.timestamp).toLocaleString()}
                   </div>
                   {/* 变更指标 Pills */}
                   {diffResult.hasChanges ? (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
+                    <div className="flex items-center gap-1.5 shrink-0 select-none">
+                      <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono select-none">
                         +{diffResult.additions}
                       </span>
-                      <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 font-mono">
+                      <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 font-mono select-none">
                         -{diffResult.deletions}
                       </span>
                     </div>
                   ) : (
-                    <span className="rounded-md bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] shrink-0">
+                    <span className="rounded-md bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] shrink-0 select-none">
                       与当前一致
                     </span>
                   )}
                 </>
               ) : (
-                <div className="text-xs text-[var(--theme-muted)]">请选择快照</div>
+                <div className="text-xs text-[var(--theme-muted)] select-none">请选择快照</div>
               )}
             </div>
 
             {/* 右上角快捷操作与关闭 */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 select-none">
               {activeSnapshot ? (
                 <>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="flex items-center gap-1 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] transition-colors"
+                    className="flex items-center gap-1 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] select-none transition-colors"
                   >
                     <svg
                       className="h-3.5 w-3.5"
@@ -305,7 +307,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                   <button
                     type="button"
                     onClick={() => void handleRevert(activeSnapshot.id)}
-                    className="flex items-center gap-1.5 rounded-[6px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-3 py-1 text-[11.5px] font-semibold text-white shadow-xs transition-all"
+                    className="flex items-center gap-1.5 rounded-[6px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-3 py-1 text-[11.5px] font-semibold text-white shadow-xs select-none transition-all"
                   >
                     <svg
                       className="h-3.5 w-3.5"
@@ -325,22 +327,30 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="关闭"
-                className="ml-2 rounded p-1 text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-title)] transition-colors"
+                aria-label="关闭历史版本抽屉"
+                className="ml-2 flex h-7 w-7 items-center justify-center rounded-[6px] text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-title)] select-none transition-colors"
               >
-                ✕
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
           </div>
 
           {/* 模式切换器与图例引导条 */}
-          <div className="flex items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-surface-soft)] px-4 py-2 text-xs">
+          <div className="flex items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-surface-soft)] px-4 py-2 text-xs select-none">
             {/* 胶囊视图切换 */}
-            <div className="inline-flex rounded-full bg-black/[0.06] dark:bg-white/[0.08] p-0.5">
+            <div className="inline-flex rounded-full bg-black/[0.06] dark:bg-white/[0.08] p-0.5 select-none">
               <button
                 type="button"
                 onClick={() => setViewMode("diff")}
-                className={`rounded-full px-3 py-0.5 text-[11px] font-medium transition-all ${
+                className={`rounded-full px-3 py-0.5 text-[11px] font-medium select-none transition-all ${
                   viewMode === "diff"
                     ? "bg-white dark:bg-[#2c2d33] text-[var(--theme-title)] shadow-xs"
                     : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
@@ -351,7 +361,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
               <button
                 type="button"
                 onClick={() => setViewMode("preview")}
-                className={`rounded-full px-3 py-0.5 text-[11px] font-medium transition-all ${
+                className={`rounded-full px-3 py-0.5 text-[11px] font-medium select-none transition-all ${
                   viewMode === "preview"
                     ? "bg-white dark:bg-[#2c2d33] text-[var(--theme-title)] shadow-xs"
                     : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
@@ -363,18 +373,18 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
 
             {/* 图例说明 */}
             {viewMode === "diff" ? (
-              <div className="flex items-center gap-3 text-[11px] text-[var(--theme-muted)]">
-                <span className="flex items-center gap-1">
+              <div className="flex items-center gap-3 text-[11px] text-[var(--theme-muted)] select-none">
+                <span className="flex items-center gap-1 select-none">
                   <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
                   快照内容（恢复时找回）
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 select-none">
                   <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
                   当前修改（恢复时替换）
                 </span>
               </div>
             ) : (
-              <div className="text-[11px] text-[var(--theme-muted)] font-mono">
+              <div className="text-[11px] text-[var(--theme-muted)] font-mono select-none">
                 {previewContent?.length ?? 0} 字符 · {previewContent?.split(/\r?\n/).length ?? 0} 行
               </div>
             )}
@@ -383,13 +393,13 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
           {/* 核心内容区：Visual Diff 或 源码预览 */}
           <div className="flex-1 overflow-auto font-mono text-[11.5px] leading-[1.6]">
             {previewContent === null ? (
-              <div className="py-24 text-center text-xs text-[var(--theme-muted)]">
+              <div className="py-24 text-center text-xs text-[var(--theme-muted)] select-none">
                 请在左侧选择快照以查看差异与内容
               </div>
             ) : viewMode === "diff" ? (
               <div className="min-w-full inline-block">
                 {!diffResult.hasChanges ? (
-                  <div className="p-8 text-center text-xs text-[var(--theme-muted)]">
+                  <div className="p-8 text-center text-xs text-[var(--theme-muted)] select-none">
                     该历史快照与当前编辑器内容完全一致，未产生行级修改。
                   </div>
                 ) : (
@@ -428,8 +438,8 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                         >
                           {isAdded ? "+" : isRemoved ? "-" : " "}
                         </span>
-                        {/* 正文文本 */}
-                        <span className="flex-1 px-1 py-0.5 whitespace-pre-wrap break-all">
+                        {/* 正文文本（允许用户按需选中复制） */}
+                        <span className="flex-1 px-1 py-0.5 whitespace-pre-wrap break-all select-text font-mono">
                           {line.text || " "}
                         </span>
                       </div>
@@ -448,7 +458,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                     <span className="w-12 shrink-0 select-none px-2 text-right text-[10px] text-[var(--theme-muted)] opacity-50">
                       {idx + 1}
                     </span>
-                    <span className="flex-1 px-2 whitespace-pre-wrap break-all text-[var(--theme-text)]">
+                    <span className="flex-1 px-2 whitespace-pre-wrap break-all text-[var(--theme-text)] select-text font-mono">
                       {lineText || " "}
                     </span>
                   </div>

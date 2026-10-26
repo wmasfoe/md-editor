@@ -15,9 +15,6 @@ import { useAppSettings } from "../app/settings-context";
 const HistoryDrawer = lazy(() =>
   import("./history/HistoryDrawer").then((m) => ({ default: m.HistoryDrawer })),
 );
-const ExportDialog = lazy(() =>
-  import("./export/ExportDialog").then((m) => ({ default: m.ExportDialog })),
-);
 
 /**
  * 桌面端全局模态弹窗与浮层管理组件。
@@ -38,9 +35,6 @@ export function DesktopModals() {
     closeInsertTableDialog,
     isHistoryDrawerOpen,
     closeHistoryDrawer,
-    isExportDialogOpen,
-    closeExportDialog,
-    exportDialogDefaultTab,
   } = useDocumentUiStore();
   const { showToast } = useToastStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
@@ -104,17 +98,6 @@ export function DesktopModals() {
             filePath={runtime.document.getSnapshot().filePath}
             onClose={closeHistoryDrawer}
             onShowToast={showToast}
-          />
-        </Suspense>
-      )}
-
-      {/* 导出对话框 */}
-      {isExportDialogOpen && (
-        <Suspense fallback={null}>
-          <ExportDialog
-            open={isExportDialogOpen}
-            defaultTab={exportDialogDefaultTab}
-            onClose={closeExportDialog}
           />
         </Suspense>
       )}

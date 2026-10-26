@@ -17,8 +17,6 @@ export interface DocumentUiStore {
   isMdxComponentMenuOpen: boolean;
   isInsertTableDialogOpen: boolean;
   isHistoryDrawerOpen: boolean;
-  isExportDialogOpen: boolean;
-  exportDialogDefaultTab: "html" | "pdf" | "copy";
   pendingDraft: PendingDraftInfo | null;
   setHasActiveDocument: StoreStateSetter<boolean>;
   setOpenedAsset: StoreStateSetter<OpenedAsset | null>;
@@ -28,8 +26,6 @@ export interface DocumentUiStore {
   closeInsertTableDialog: () => void;
   openHistoryDrawer: () => void;
   closeHistoryDrawer: () => void;
-  openExportDialog: (tab?: "html" | "pdf" | "copy") => void;
-  closeExportDialog: () => void;
   setPendingDraft: (draft: PendingDraftInfo | null) => void;
   resolveImageSrc: (src: string) => string;
   openAssetPath: (path: string, name?: string) => void;
@@ -44,8 +40,6 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   isMdxComponentMenuOpen: false,
   isInsertTableDialogOpen: false,
   isHistoryDrawerOpen: false,
-  isExportDialogOpen: false,
-  exportDialogDefaultTab: "html",
   pendingDraft: null,
   setHasActiveDocument: (value) =>
     set((state) => ({
@@ -72,12 +66,6 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   },
   closeHistoryDrawer: () => {
     set({ isHistoryDrawerOpen: false });
-  },
-  openExportDialog: (tab = "html") => {
-    set({ isExportDialogOpen: true, exportDialogDefaultTab: tab });
-  },
-  closeExportDialog: () => {
-    set({ isExportDialogOpen: false });
   },
   setPendingDraft: (draft) => {
     set({ pendingDraft: draft });
