@@ -2,14 +2,17 @@
  * @file HistoryDrawer.tsx
  * @description
  * 抽屉式文档历史版本快照时间轴与双栏交互式 Visual Diff 恢复面板。
- * 遵循 Apple Liquid Glass 设计语言与 macOS 桌面级检查器规范。
+ * 遵循应用内置主题变量系统（--theme-primary, --theme-chrome, --theme-surface）
+ * 以及 macOS 桌面级检查器自适应响应式规范。
  */
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { DocumentHistoryEntry } from "@md-editor/file-system";
-import { runtime } from "../../app/runtime/editor-runtime.ts";
-import { historyStore, revertToHistorySnapshot } from "../../app/controller/session-controller.ts";
-import { computeLineDiff, type DiffResult } from "./line-diff.ts";
+import { runtime } from "../../app/runtime/editor-runtime";
+import { historyStore, revertToHistorySnapshot } from "../../app/controller/session-controller";
+import { computeLineDiff, type DiffResult } from "./line-diff";
+import { isMacPlatform } from "../../app/AppWindowChrome";
+import { cx } from "../../lib/cx";
 
 export interface HistoryDrawerProps {
   readonly open: boolean;
@@ -41,6 +44,21 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"diff" | "preview">("diff");
   const [isCopied, setIsCopied] = useState(false);
+
+  const isMac = useMemo(() => isMacPlatform(), []);
+  const [windowWidth, setWindowWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1024,
+  );
+  const [compactTab, setCompactTab] = useState<"list" | "detail">("detail");
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isCompact = windowWidth < 880;
+  const isUltraCompact = windowWidth < 680;
 
   // 打开抽屉时加载快照列表与当前编辑器内容
   useEffect(() => {
@@ -85,6 +103,9 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
     setSelectedSnapshotId(snapshotId);
     const content = await historyStore.loadSnapshotContent(filePath, snapshotId);
     setPreviewContent(content);
+    if (isUltraCompact) {
+      setCompactTab("detail");
+    }
   };
 
   const handleRevert = async (snapshotId: string) => {
@@ -139,20 +160,41 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
       role="dialog"
       aria-modal="true"
       aria-label="文档历史版本快照"
-      className="fixed inset-0 z-50 flex justify-end bg-black/35 backdrop-blur-[6px] transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex justify-end bg-black/35 backdrop-blur-[6px] transition-opacity animate-in fade-in duration-200 select-none"
     >
       {/* 遮罩背景点击关闭 */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       {/* 桌面级双栏 Visual Diff 检查器面板 */}
-      <div className="relative z-10 flex h-full w-[920px] max-w-[96vw] flex-row border-l border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl animate-in slide-in-from-right duration-250 select-none">
+      <div
+        className={cx(
+          "relative z-10 flex h-full flex-row border-l border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl animate-in slide-in-from-right duration-250 select-none overflow-hidden",
+          isUltraCompact ? "w-full" : "w-[min(900px,calc(100vw-88px))]",
+        )}
+      >
         {/* 左栏：快照时间轴列表 */}
-        <div className="flex w-[290px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-surface-soft)] select-none">
+        <div
+          className={cx(
+            "flex flex-col border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] select-none",
+            isUltraCompact
+              ? compactTab === "list"
+                ? "w-full shrink-0"
+                : "hidden"
+              : isCompact
+                ? "w-[240px] shrink-0"
+                : "w-[270px] shrink-0",
+          )}
+        >
           {/* 左栏头部 */}
-          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4 select-none">
-            <div className="flex items-center gap-2 select-none">
+          <div
+            className={cx(
+              "flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-3.5 select-none",
+              isUltraCompact && isMac && "pl-[76px]",
+            )}
+          >
+            <div className="flex items-center gap-2 select-none min-w-0">
               <svg
-                className="h-4 w-4 text-[var(--theme-primary,currentColor)]"
+                className="h-4 w-4 shrink-0 text-[var(--theme-primary)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -161,17 +203,37 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
-              <h2 className="text-[13.5px] font-semibold text-[var(--theme-title)] select-none">
+              <h2 className="text-[13px] font-semibold text-[var(--theme-title)] select-none truncate">
                 版本历史
               </h2>
             </div>
-            <span className="rounded-full bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] select-none">
-              {snapshots.length} 个版本
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="rounded-full bg-[var(--theme-control-hover)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-control-text)] select-none">
+                {snapshots.length} 个版本
+              </span>
+              {isUltraCompact && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="关闭历史版本抽屉"
+                  className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] select-none transition-colors"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 快照时间轴卡片列表 */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 select-none">
+          <div className="flex-1 overflow-y-auto p-2.5 space-y-2 select-none">
             {isLoading ? (
               <div className="py-12 text-center text-xs text-[var(--theme-muted)] select-none">
                 正在加载快照历史...
@@ -191,40 +253,45 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                   item.trigger === "manual-save"
                     ? {
                         label: "手动保存",
-                        color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                        color: "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]",
                       }
                     : item.trigger === "pre-restore"
                       ? {
                           label: "回滚快照",
-                          color: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+                          color: "bg-amber-500/12 text-amber-700 dark:text-amber-400",
                         }
                       : {
                           label: "自动快照",
-                          color: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                          color:
+                            "bg-[var(--theme-control-active)] text-[var(--theme-control-text)]",
                         };
 
                 return (
                   <div
                     key={item.id}
                     onClick={() => void handleSelectSnapshot(item.id)}
-                    className={`group relative flex flex-col gap-1.5 rounded-[10px] border p-3 text-xs cursor-pointer select-none transition-all ${
+                    className={cx(
+                      "group relative flex flex-col gap-1.5 rounded-[9px] border p-2.5 text-xs cursor-pointer select-none transition-all",
                       isSelected
-                        ? "border-blue-500/60 bg-white/90 dark:bg-white/[0.09] shadow-sm ring-1 ring-blue-500/30"
-                        : "border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)] hover:shadow-xs"
-                    }`}
+                        ? "border-[var(--theme-primary)] bg-[var(--theme-primary-soft)] shadow-2xs ring-1 ring-[var(--theme-primary)]"
+                        : "border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)]",
+                    )}
                   >
                     <div className="flex items-center justify-between select-none">
                       <span className="font-semibold text-[var(--theme-title)] text-[12.5px] select-none">
                         {relativeTime}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium select-none ${triggerBadge.color}`}
+                        className={cx(
+                          "rounded-full px-2 py-0.5 text-[10px] font-medium select-none",
+                          triggerBadge.color,
+                        )}
                       >
                         {triggerBadge.label}
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-[var(--theme-muted)] font-mono select-none">
+                    <div className="text-[11px] text-[var(--theme-control-subtle)] font-mono select-none">
                       {date.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -234,12 +301,12 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                       {date.toLocaleDateString([], { month: "2-digit", day: "2-digit" })}
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-[var(--theme-muted)] pt-1 border-t border-[var(--theme-border-subtle,rgba(0,0,0,0.04))] dark:border-white/[0.04] select-none">
+                    <div className="flex items-center justify-between text-[11px] text-[var(--theme-muted)] pt-1 border-t border-[var(--theme-border)]/40 select-none">
                       <span className="select-none">
                         {item.charCount.toLocaleString()} 字 · {item.lineCount} 行
                       </span>
                       {isSelected ? (
-                        <span className="text-[10.5px] font-medium text-blue-600 dark:text-blue-400 select-none">
+                        <span className="text-[10.5px] font-semibold text-[var(--theme-primary)] select-none">
                           正在检视 →
                         </span>
                       ) : null}
@@ -252,28 +319,51 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
         </div>
 
         {/* 右栏：Visual Diff 差异检视器与受控回滚 */}
-        <div className="flex flex-1 min-w-0 flex-col bg-[var(--theme-surface)]">
+        <div
+          className={cx(
+            "flex min-w-0 flex-1 flex-col bg-[var(--theme-surface)] select-none",
+            isUltraCompact && compactTab === "list" && "hidden",
+          )}
+        >
           {/* 右栏顶部操作与元数据栏 */}
-          <div className="flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-4 select-none">
-            <div className="flex items-center gap-3 min-w-0 select-none">
+          <div
+            className={cx(
+              "flex h-12 items-center justify-between border-b border-[var(--theme-border)] px-3 select-none gap-2",
+              isUltraCompact && isMac && "pl-[76px]",
+            )}
+          >
+            {/* 左侧：返回按钮（超窄屏）与检视信息 */}
+            <div className="flex items-center gap-2 min-w-0 select-none flex-1">
+              {isUltraCompact && (
+                <button
+                  type="button"
+                  onClick={() => setCompactTab("list")}
+                  className="flex items-center gap-1 rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1 text-[11px] font-medium text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] select-none shrink-0"
+                >
+                  ← 列表
+                </button>
+              )}
+
               {activeSnapshot ? (
                 <>
-                  <div className="text-[13px] font-medium text-[var(--theme-title)] truncate select-none">
-                    快照检视：{new Date(activeSnapshot.timestamp).toLocaleString()}
+                  <div className="text-[12.5px] font-medium text-[var(--theme-title)] truncate select-none">
+                    {isCompact
+                      ? `快照 ${new Date(activeSnapshot.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                      : `快照检视：${new Date(activeSnapshot.timestamp).toLocaleString([], { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}`}
                   </div>
                   {/* 变更指标 Pills */}
                   {diffResult.hasChanges ? (
-                    <div className="flex items-center gap-1.5 shrink-0 select-none">
-                      <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-600 dark:text-emerald-400 font-mono select-none">
+                    <div className="flex items-center gap-1 shrink-0 select-none">
+                      <span className="rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-400 font-mono select-none">
                         +{diffResult.additions}
                       </span>
-                      <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-600 dark:text-rose-400 font-mono select-none">
+                      <span className="rounded-md bg-rose-500/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-rose-700 dark:text-rose-400 font-mono select-none">
                         -{diffResult.deletions}
                       </span>
                     </div>
                   ) : (
-                    <span className="rounded-md bg-black/[0.05] dark:bg-white/[0.08] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] shrink-0 select-none">
-                      与当前一致
+                    <span className="rounded-md bg-[var(--theme-control-hover)] px-1.5 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)] shrink-0 select-none">
+                      一致
                     </span>
                   )}
                 </>
@@ -282,17 +372,17 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
               )}
             </div>
 
-            {/* 右上角快捷操作与关闭 */}
-            <div className="flex items-center gap-2 select-none">
+            {/* 右侧：动作按钮与关闭 */}
+            <div className="flex items-center gap-1.5 shrink-0 select-none">
               {activeSnapshot ? (
                 <>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="flex items-center gap-1 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] select-none transition-colors"
+                    className="flex items-center gap-1 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2.5 py-1 text-[11.5px] font-medium text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] select-none transition-colors shrink-0 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
                   >
                     <svg
-                      className="h-3.5 w-3.5"
+                      className="h-3.5 w-3.5 shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -301,16 +391,16 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                     </svg>
-                    {isCopied ? "已复制 ✓" : "复制快照"}
+                    <span>{isCopied ? "已复制 ✓" : "复制快照"}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => void handleRevert(activeSnapshot.id)}
-                    className="flex items-center gap-1.5 rounded-[6px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-3 py-1 text-[11.5px] font-semibold text-white shadow-xs select-none transition-all"
+                    className="flex items-center gap-1.5 rounded-[6px] bg-[var(--theme-primary-fill)] hover:bg-[color-mix(in_srgb,var(--theme-primary-fill)_88%,black)] active:scale-[0.98] px-3 py-1 text-[11.5px] font-semibold text-white shadow-xs select-none transition-all shrink-0 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
                   >
                     <svg
-                      className="h-3.5 w-3.5"
+                      className="h-3.5 w-3.5 shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -319,7 +409,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                       <polyline points="1 4 1 10 7 10" />
                       <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
                     </svg>
-                    恢复至此版本
+                    <span>恢复至此版本</span>
                   </button>
                 </>
               ) : null}
@@ -328,7 +418,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 type="button"
                 onClick={onClose}
                 aria-label="关闭历史版本抽屉"
-                className="ml-2 flex h-7 w-7 items-center justify-center rounded-[6px] text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-title)] select-none transition-colors"
+                className="ml-1 flex h-7 w-7 items-center justify-center rounded-[6px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] select-none transition-colors shrink-0"
               >
                 <svg
                   className="h-4 w-4"
@@ -344,48 +434,50 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
           </div>
 
           {/* 模式切换器与图例引导条 */}
-          <div className="flex items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-surface-soft)] px-4 py-2 text-xs select-none">
+          <div className="flex min-h-[38px] items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-1 text-xs select-none gap-2">
             {/* 胶囊视图切换 */}
-            <div className="inline-flex rounded-full bg-black/[0.06] dark:bg-white/[0.08] p-0.5 select-none">
+            <div className="inline-flex rounded-full bg-[var(--theme-control-active)] p-0.5 select-none shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode("diff")}
-                className={`rounded-full px-3 py-0.5 text-[11px] font-medium select-none transition-all ${
+                className={cx(
+                  "rounded-full px-2.5 py-0.5 text-[11px] transition-all select-none",
                   viewMode === "diff"
-                    ? "bg-white dark:bg-[#2c2d33] text-[var(--theme-title)] shadow-xs"
-                    : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
-                }`}
+                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-semibold shadow-2xs"
+                    : "text-[var(--theme-control-text)] hover:text-[var(--theme-title)] font-medium",
+                )}
               >
-                差异对比 (Diff)
+                差异对比
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("preview")}
-                className={`rounded-full px-3 py-0.5 text-[11px] font-medium select-none transition-all ${
+                className={cx(
+                  "rounded-full px-2.5 py-0.5 text-[11px] transition-all select-none",
                   viewMode === "preview"
-                    ? "bg-white dark:bg-[#2c2d33] text-[var(--theme-title)] shadow-xs"
-                    : "text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
-                }`}
+                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-semibold shadow-2xs"
+                    : "text-[var(--theme-control-text)] hover:text-[var(--theme-title)] font-medium",
+                )}
               >
-                快照全文 (Preview)
+                快照全文
               </button>
             </div>
 
             {/* 图例说明 */}
             {viewMode === "diff" ? (
-              <div className="flex items-center gap-3 text-[11px] text-[var(--theme-muted)] select-none">
+              <div className="flex items-center gap-2.5 text-[11px] text-[var(--theme-muted)] select-none shrink-0">
                 <span className="flex items-center gap-1 select-none">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                  快照内容（恢复时找回）
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
+                  <span>{isCompact ? "+ 找回" : "+ 快照找回"}</span>
                 </span>
                 <span className="flex items-center gap-1 select-none">
-                  <span className="inline-block h-2 w-2 rounded-full bg-rose-500" />
-                  当前修改（恢复时替换）
+                  <span className="inline-block h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                  <span>{isCompact ? "- 替换" : "- 本地修改"}</span>
                 </span>
               </div>
             ) : (
-              <div className="text-[11px] text-[var(--theme-muted)] font-mono select-none">
-                {previewContent?.length ?? 0} 字符 · {previewContent?.split(/\r?\n/).length ?? 0} 行
+              <div className="text-[11px] text-[var(--theme-muted)] font-mono select-none shrink-0">
+                {previewContent?.length ?? 0} 字 · {previewContent?.split(/\r?\n/).length ?? 0} 行
               </div>
             )}
           </div>
@@ -419,11 +511,11 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                         }`}
                       >
                         {/* 当前行号 */}
-                        <span className="w-10 shrink-0 select-none px-2 py-0.5 text-right text-[10px] text-[var(--theme-muted)] opacity-60">
+                        <span className="w-10 shrink-0 select-none px-2 py-0.5 text-right text-[10px] text-[var(--theme-control-subtle)] opacity-70">
                           {line.currentLineNumber ?? ""}
                         </span>
                         {/* 快照行号 */}
-                        <span className="w-10 shrink-0 select-none px-2 py-0.5 text-right text-[10px] text-[var(--theme-muted)] opacity-60 border-r border-[var(--theme-border-subtle,rgba(0,0,0,0.06))]">
+                        <span className="w-10 shrink-0 select-none px-2 py-0.5 text-right text-[10px] text-[var(--theme-control-subtle)] opacity-70 border-r border-[var(--theme-border)]/40">
                           {line.snapshotLineNumber ?? ""}
                         </span>
                         {/* 差异标号 + / - */}
@@ -455,7 +547,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                     key={`preview-line-${idx}`}
                     className="flex hover:bg-black/[0.02] dark:hover:bg-white/[0.02]"
                   >
-                    <span className="w-12 shrink-0 select-none px-2 text-right text-[10px] text-[var(--theme-muted)] opacity-50">
+                    <span className="w-12 shrink-0 select-none px-2 text-right text-[10px] text-[var(--theme-control-subtle)] opacity-60">
                       {idx + 1}
                     </span>
                     <span className="flex-1 px-2 whitespace-pre-wrap break-all text-[var(--theme-text)] select-text font-mono">
