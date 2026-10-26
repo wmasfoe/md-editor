@@ -1,0 +1,49 @@
+import { describe, expect, it } from "vitest";
+import { exportDocumentHtml, renderFragmentHtml } from "../../src/export/html-export.ts";
+
+describe("html-export", () => {
+  it("renders fragment html for clipboard copy", () => {
+    const md = "# Title\n\nHello **world**!";
+    const html = renderFragmentHtml(md);
+    expect(html).toContain("<h1");
+    expect(html).toContain("Title</h1>");
+    expect(html).toContain("<strong>world</strong>");
+    // 不应包含完整的 doctype 和 html 头
+    expect(html).not.toContain("<!doctype html>");
+  });
+
+  it("exports both standalone and linked html simultaneously", async () => {
+    const md = "# My Document\n\n![Logo](./assets/logo.png)\n\n![Web](https://example.com/pic.png)";
+    const result = await exportDocumentHtml(md, {
+      resolveImageDataUrl: async (src) => {
+        if (src === "./assets/logo.png") {
+          return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+        }
+        return null;
+      },
+    });
+
+    expect(result.title).toBe("My Document");
+
+    // standalone 应包含 base64 内联
+    expect(result.standaloneHtml).toContain('src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="');
+    expect(result.standaloneHtml).toContain("<!doctype html>");
+    // standalone 不应替换网络图片
+    expect(result.standaloneHtml).toContain('src="https://example.com/pic.png"');
+
+    // linked 应保留原始相对路径
+    expect(result.linkedHtml).toContain('src="./assets/logo.png"');
+    expect(result.linkedHtml).toContain('src="https://example.com/pic.png"');
+    expect(result.linkedHtml).toContain("<!doctype html>");
+  });
+
+  it("injects custom printPageCss into @media print", async () => {
+    const md = "# Printable Note";
+    const result = await exportDocumentHtml(md, {
+      printPageCss: "@page { size: Letter portrait; }",
+    });
+
+    expect(result.standaloneHtml).toContain("@media print { @page { size: Letter portrait; } }");
+    expect(result.linkedHtml).toContain("@media print { @page { size: Letter portrait; } }");
+  });
+});

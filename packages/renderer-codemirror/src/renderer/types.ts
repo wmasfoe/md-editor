@@ -7,6 +7,7 @@
  */
 
 import type { EditorState, StateEffect, Transaction, TransactionSpec } from "@codemirror/state";
+import type { Diagnostic } from "@codemirror/lint";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -28,6 +29,8 @@ import type {
   AiSuggestionLabels,
   AiSuggestionValue,
 } from "../wysiwyg/view/suggestion.ts";
+import type { DocumentLinterOptions } from "../lint/types.ts";
+export type { DocumentLinterOptions };
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
@@ -153,6 +156,8 @@ export interface CodeMirrorRenderer {
   use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
   /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
+  /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
+  runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
   destroy(): void;
 }
 

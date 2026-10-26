@@ -327,3 +327,22 @@ pub(crate) fn allow_asset_directory_for_file(
 
     allow_asset_directory(app, parent)
 }
+
+/// 将导出的文件集合（如 standalone.html 与 index.html）写入目标目录。
+#[tauri::command]
+pub(crate) fn write_exported_files(
+    directory: String,
+    files: std::collections::HashMap<String, String>,
+) -> Result<(), String> {
+    let dir = Path::new(&directory);
+    fs::create_dir_all(dir)
+        .map_err(|error| format!("Failed to create directory {}: {error}", dir.display()))?;
+
+    for (file_name, content) in files {
+        let target = dir.join(file_name);
+        fs::write(&target, content.as_bytes())
+            .map_err(|error| format!("Failed to write {}: {error}", target.display()))?;
+    }
+
+    Ok(())
+}

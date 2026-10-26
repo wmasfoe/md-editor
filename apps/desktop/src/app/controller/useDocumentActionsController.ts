@@ -36,6 +36,7 @@ import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 import { executeDocumentSave, getSaveFeedback, isDiscardProtectionRequired } from "./document-save";
 import { checkPendingDraft, recordDocumentHistory, sessionStore } from "./session-controller";
+import { checkDocumentLinksAndLint } from "./export-controller";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 
 /**
@@ -270,6 +271,7 @@ export function useDocumentActionsController({
           ) {
             rememberRecentPath(authoritativePath);
             void recordDocumentHistory(authoritativePath, latest.markdown, "manual-save");
+            void checkDocumentLinksAndLint(authoritativePath, latest.markdown, getRendererPorts);
             if (
               shouldRefreshFolderAfterSave({
                 previousPath,

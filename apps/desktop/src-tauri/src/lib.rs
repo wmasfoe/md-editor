@@ -36,7 +36,7 @@ use file_commands::{
     open_external_target, open_markdown_document, open_markdown_document_at_path,
     open_markdown_folder, pick_theme_css_file, read_theme_css_file, refresh_markdown_folder,
     rename_markdown_tree_item, reveal_file_tree_item_in_finder, save_markdown_document_ordered,
-    save_pasted_image, show_file_tree_context_menu,
+    save_pasted_image, show_file_tree_context_menu, write_exported_files,
 };
 use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
 use local_ai_completion::request_local_ai_continuation;
@@ -151,6 +151,7 @@ pub fn run() {
             save_app_settings_and_update_menu,
             inspect_linked_file,
             open_external_target,
+            write_exported_files,
             load_persisted_session,
             save_persisted_session,
             clear_persisted_session,

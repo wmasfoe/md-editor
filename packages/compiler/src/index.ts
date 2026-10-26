@@ -95,3 +95,6 @@ export {
 export { STATIC_DOCUMENT_BASE_CSS } from "./templates/styles.ts";
 export { extractDocumentTitle, generateHeadingSlug };
 export type { StaticDocumentOptions, TokenizeOptions, EmitHtmlOptions };
+
+// 导出 HTML/PDF 导出器
+export * from "./export/index.ts";

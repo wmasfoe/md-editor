@@ -108,6 +108,8 @@ import { createRendererProbe } from "./controller/probe.ts";
 import { setHostVisibility } from "./controller/host-visibility.ts";
 
 import { startComposition, finishComposition } from "./controller/composition.ts";
+import { executeDocumentLint, type DocumentLinterOptions } from "../lint/index.ts";
+import type { Diagnostic } from "@codemirror/lint";
 
 let nextRendererId = 1;
 
@@ -433,6 +435,13 @@ export class CodeMirrorRendererController {
 
   flushPendingEdits(): boolean {
     return flushPendingViewEdits(this.#view, this.#destroyed);
+  }
+
+  async runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]> {
+    if (this.#destroyed) {
+      return [];
+    }
+    return executeDocumentLint(this.#view, options);
   }
 
   destroy(): void {

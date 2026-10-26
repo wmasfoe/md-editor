@@ -24,6 +24,7 @@ import {
   PopoverPanel,
 } from "@headlessui/react";
 import {
+  ArrowUpOnSquareIcon,
   ChevronUpDownIcon,
   ClockIcon,
   ListBulletIcon,
@@ -101,6 +102,15 @@ export function EditorTitleBarControls() {
             activeOutlineId={activeOutlineId}
             onJumpToOutlineItem={jumpToTocItem}
           />
+          <button
+            type="button"
+            className={titleBarSecondaryButtonClassName}
+            aria-label="导出文档"
+            title="导出文档 (HTML / PDF / 富文本)"
+            onClick={() => void dispatchCommand("file.exportHtml")}
+          >
+            <ArrowUpOnSquareIcon aria-hidden="true" />
+          </button>
           <button
             type="button"
             className={titleBarSecondaryButtonClassName}

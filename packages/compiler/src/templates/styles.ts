@@ -342,4 +342,30 @@ pre code.hljs { background: #f6f8fa; color: #24292f; border: 1px solid rgba(27, 
   .hljs-title, .hljs-title.function_ { color: #d2a8ff; }
   .hljs-variable { color: #ffa657; }
 }
+
+@media print {
+  @page {
+    margin: 15mm 20mm;
+  }
+  body {
+    background-color: #ffffff !important;
+    color: #1f2328 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+  pre, blockquote, table, .katex-display, .callout, figure, img {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  a {
+    color: inherit;
+    text-decoration: underline;
+  }
+}
 `;

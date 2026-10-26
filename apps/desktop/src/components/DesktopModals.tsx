@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { ConfirmActionDialog } from "@md-editor/editor-ui";
 import { CommandPalette } from "./CommandPalette";
 import { MdxComponentMenu } from "./MdxComponentMenu";
 import { InsertTableDialog } from "./InsertTableDialog";
 import { UpdateNoticeDialog } from "./updates/UpdateNoticeDialog";
-import { HistoryDrawer } from "./history/HistoryDrawer";
 import { isMacPlatform } from "../app/AppWindowChrome";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";
@@ -12,6 +11,13 @@ import { useConfirmationStore } from "../app/stores/confirmation-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useToastStore } from "../app/stores/toast-store";
 import { useAppSettings } from "../app/settings-context";
+
+const HistoryDrawer = lazy(() =>
+  import("./history/HistoryDrawer").then((m) => ({ default: m.HistoryDrawer })),
+);
+const ExportDialog = lazy(() =>
+  import("./export/ExportDialog").then((m) => ({ default: m.ExportDialog })),
+);
 
 /**
  * 桌面端全局模态弹窗与浮层管理组件。
@@ -32,6 +38,9 @@ export function DesktopModals() {
     closeInsertTableDialog,
     isHistoryDrawerOpen,
     closeHistoryDrawer,
+    isExportDialogOpen,
+    closeExportDialog,
+    exportDialogDefaultTab,
   } = useDocumentUiStore();
   const { showToast } = useToastStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
@@ -88,12 +97,27 @@ export function DesktopModals() {
         }}
       />
       {/* 历史版本快照抽屉 */}
-      <HistoryDrawer
-        open={isHistoryDrawerOpen}
-        filePath={runtime.document.getSnapshot().filePath}
-        onClose={closeHistoryDrawer}
-        onShowToast={showToast}
-      />
+      {isHistoryDrawerOpen && (
+        <Suspense fallback={null}>
+          <HistoryDrawer
+            open={isHistoryDrawerOpen}
+            filePath={runtime.document.getSnapshot().filePath}
+            onClose={closeHistoryDrawer}
+            onShowToast={showToast}
+          />
+        </Suspense>
+      )}
+
+      {/* 导出对话框 */}
+      {isExportDialogOpen && (
+        <Suspense fallback={null}>
+          <ExportDialog
+            open={isExportDialogOpen}
+            defaultTab={exportDialogDefaultTab}
+            onClose={closeExportDialog}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

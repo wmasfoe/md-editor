@@ -26,6 +26,8 @@ import type {
   AiSuggestionValue,
 } from "./wysiwyg/view/suggestion.ts";
 import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
+import type { Diagnostic } from "@codemirror/lint";
+import type { DocumentLinterOptions } from "./lint/types.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
 
@@ -89,6 +91,8 @@ export interface CodeMirrorEditorPorts {
   flushPendingEdits(): boolean;
   /** 全量替换并热重载 Markdown 语法扩展插件列表 */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
+  /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
+  runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
 }
 
 export type CodeMirrorEditorSyncError =
@@ -280,6 +284,7 @@ export function createCodeMirrorEditorBridge(
     isComposing: () => renderer.isComposing,
     flushPendingEdits: () => renderer.flushPendingEdits(),
     setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
+    runDocumentLint: (opts?: DocumentLinterOptions) => renderer.runDocumentLint(opts),
   });
   rendererByPorts.set(ports, renderer);
 

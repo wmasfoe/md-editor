@@ -23,6 +23,7 @@ import type {
   ExternalEditRequest,
   RendererViewFactory,
   RendererTestingProbeInternal,
+  DocumentLinterOptions,
 } from "./types.ts";
 
 export type {
@@ -83,6 +84,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
       controller.setPlugins(plugins);
       return renderer;
     },
+    runDocumentLint: (options?: DocumentLinterOptions) => controller.runDocumentLint(options),
     destroy: () => controller.destroy(),
   });
   controllerByRenderer.set(renderer, controller);

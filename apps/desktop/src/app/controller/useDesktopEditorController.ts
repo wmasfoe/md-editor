@@ -23,6 +23,7 @@ import { recentFilesStore } from "./recent-files-store";
 import { desktopAiService } from "../ai/desktop-ai-service.ts";
 import { isDiscardProtectionRequired } from "./document-save";
 import { checkPendingDraft } from "./session-controller";
+import { copyDocumentAsHtml, checkDocumentLinksAndLint } from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
@@ -140,6 +141,36 @@ export function useDesktopEditorController({
           },
           openDocumentHistory: () => {
             useDocumentUiStore.getState().openHistoryDrawer();
+          },
+          exportHtml: () => {
+            useDocumentUiStore.getState().openExportDialog("html");
+          },
+          exportPdf: () => {
+            useDocumentUiStore.getState().openExportDialog("pdf");
+          },
+          copyAsHtml: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const ok = await copyDocumentAsHtml(activeDocSnapshot.markdown);
+            if (ok) {
+              showToast("已复制富文本 HTML 至剪贴板");
+            } else {
+              showToast("复制失败");
+            }
+          },
+          checkLinks: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const res = await checkDocumentLinksAndLint(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+              getRendererPorts,
+            );
+            if (res.total === 0) {
+              showToast("检查完成：未发现链接或格式问题");
+            } else {
+              showToast(
+                `检查完成：发现 ${res.errors} 处错误，${res.warnings} 处警告（已标注在编辑器中）`,
+              );
+            }
           },
           openSettings,
           openAbout,

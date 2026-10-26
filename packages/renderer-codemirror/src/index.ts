@@ -129,3 +129,13 @@ export {
   type MediaViewerOptions,
   type MediaViewerZoomPan,
 } from "./media-viewer/index.ts";
+
+export {
+  createLintExtensions,
+  executeDocumentLint,
+  runLinkValidation,
+  type DocumentLinterOptions,
+  type LinkLintOptions,
+  type LinkDiagnosticItem,
+  type MarkdownLintDiagnostic,
+} from "./lint/index.ts";

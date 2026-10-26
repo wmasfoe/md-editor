@@ -233,3 +233,10 @@ gantt
    - `pnpm typecheck` 全 workspace 零错误。
 3. **架构与豁免护栏**：
    - 严格遵守 `scripts/structure/check.mjs` 规范，不增加新的文件行数豁免，移动或抽取模块不留无意义的向后兼容 re-export。
+
+---
+
+## 六、 落地交付记录
+
+- **阶段一（第 3 批 · 信任基石）**：已于 commit `7e4f2c1` 全量交付并验证。实现了 `SessionStore`/`DraftStore`、Tauri 前后台会话状态同步、启动草稿恢复 Banner 提示（选项 2）以及基于 `.inkpoint/history/` 的快照记录器和 `HistoryDrawer` 抽屉查看与回滚。
+- **阶段二（第 5 批 · 专业输出）**：已于本次提交全量交付并验证。实现了 `markdownlint` 与 `validateMarkdownRelativeLinks` 探针检查、CM6 诊断投影与快捷键导航、`standalone.html`（内联图片 Base64 + CSS/KaTeX）与 `index.html` 双模导出、`@media print` 防截断打印流 PDF 导出、以及富文本剪贴板复制。全量 `pnpm lint`、`pnpm test`（含 bundle budget 预算）与 `pnpm typecheck` 100% 验证通过。
