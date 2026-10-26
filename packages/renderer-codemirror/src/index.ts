@@ -132,6 +132,8 @@ export {
 
 export {
   createLintExtensions,
+  createDiagnosticDomNode,
+  lintLiquidTheme,
   executeDocumentLint,
   runLinkValidation,
   type DocumentLinterOptions,

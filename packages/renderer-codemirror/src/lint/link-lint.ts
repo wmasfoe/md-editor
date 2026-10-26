@@ -1,5 +1,6 @@
 import type { EditorState } from "@codemirror/state";
 import type { Diagnostic } from "@codemirror/lint";
+import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 import type { LinkLintOptions } from "./types.ts";
 
 /**
@@ -33,11 +34,21 @@ export async function runLinkValidation(
         continue;
       }
 
+      const severity = item.severity ?? "error";
       diagnostics.push({
         from,
         to,
-        severity: item.severity ?? "error",
+        severity,
+        source: "链接检查",
         message: `[链接检查] ${item.message}`,
+        renderMessage: () =>
+          createDiagnosticDomNode({
+            ruleCode: "Link",
+            ruleAlias: "local-link",
+            description: item.message,
+            detail: item.target ? `目标: ${item.target}` : undefined,
+            severity,
+          }) as unknown as Node,
       });
     }
 

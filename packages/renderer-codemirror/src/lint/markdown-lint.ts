@@ -1,6 +1,7 @@
 import type { EditorState } from "@codemirror/state";
 import type { Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
+import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 
 export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   default: true,
@@ -8,6 +9,8 @@ export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   "no-inline-html": false, // MD033: 允许 HTML/MDX 标签
   "first-line-heading": false, // MD041: 允许第一行不是标题
   "single-trailing-newline": false, // MD047: 编辑器内部不强求尾部换行
+  "no-trailing-spaces": false, // MD009: 写作交互中允许尾部临时空格（避免键入过程中产生骚扰性红线）
+  "no-hard-tabs": false, // MD010: 允许使用制表符缩进
 };
 
 /**
@@ -53,13 +56,26 @@ export function runMarkdownLint(
         to = from + 1;
       }
 
+      const ruleCode = issue.ruleNames[0] ?? "Lint";
+      const ruleAlias = issue.ruleNames[1];
+      const severity = issue.severity === "error" ? "error" : "warning";
+
       diagnostics.push({
         from,
         to,
-        severity: issue.severity === "error" ? "error" : "warning",
+        severity,
+        source: "markdownlint",
         message: `[${issue.ruleNames.join("/")}] ${issue.ruleDescription}${
           issue.errorDetail ? ` (${issue.errorDetail})` : ""
         }`,
+        renderMessage: () =>
+          createDiagnosticDomNode({
+            ruleCode,
+            ruleAlias,
+            description: issue.ruleDescription,
+            detail: issue.errorDetail ?? undefined,
+            severity,
+          }) as unknown as Node,
       });
     }
 

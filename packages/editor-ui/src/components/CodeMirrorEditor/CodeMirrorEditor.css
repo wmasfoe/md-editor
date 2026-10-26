@@ -1667,3 +1667,52 @@
   font-family: var(--theme-mono-font, monospace);
   font-size: 0.9em;
 }
+
+/* ==========================================================================
+   CodeMirror Lint Tooltip & Diagnostics (Apple Liquid Glass)
+   ========================================================================== */
+
+.code-mirror-editor-host .cm-tooltip.cm-tooltip-lint {
+  border: 1px solid var(--theme-glass-border, rgba(0, 0, 0, 0.08)) !important;
+  background: var(--theme-glass-bg, rgba(255, 255, 255, 0.88)) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(190%) !important;
+  backdrop-filter: blur(24px) saturate(190%) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 1px 1px 0 rgba(255, 255, 255, 0.95) inset,
+    0 12px 36px -4px rgba(0, 0, 0, 0.16),
+    0 2px 8px -2px rgba(0, 0, 0, 0.08) !important;
+  padding: 6px 10px !important;
+  max-width: 480px !important;
+  z-index: 100 !important;
+  animation: cm-lint-fade-in 140ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+@keyframes cm-lint-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.code-mirror-editor-host .cm-diagnostic {
+  border-left: none !important;
+  padding: 4px 6px !important;
+  margin: 0 !important;
+}
+
+.code-mirror-editor-host .cm-lintRange-error {
+  background-image: none !important;
+  border-bottom: 1.5px dashed var(--theme-danger-text, #ef4444) !important;
+  padding-bottom: 1px !important;
+}
+
+.code-mirror-editor-host .cm-lintRange-warning {
+  background-image: none !important;
+  border-bottom: 1.5px dashed var(--theme-warning-text, #f59e0b) !important;
+  padding-bottom: 1px !important;
+}

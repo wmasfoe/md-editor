@@ -1,13 +1,19 @@
-import { useState } from "react";
+/**
+ * @file ExportDialog.tsx
+ * @description
+ * 文档导出模态对话框（HTML 双模导出、专业 PDF 防截断打印导出与剪贴板富文本复制）。
+ * 遵循 Apple Liquid Glass 拟物材质与 macOS 桌面级分段选择器交互规范。
+ */
+
+import React, { useState } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
-import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { runtime } from "../../app/runtime/editor-runtime";
-import { useToastStore } from "../../app/stores/toast-store";
+import { runtime } from "../../app/runtime/editor-runtime.ts";
+import { useToastStore } from "../../app/stores/toast-store.ts";
 import {
   copyDocumentAsHtml,
   exportDocumentAsHtml,
   exportDocumentAsPdf,
-} from "../../app/controller/export-controller";
+} from "../../app/controller/export-controller.ts";
 
 export interface ExportDialogProps {
   readonly open: boolean;
@@ -68,7 +74,7 @@ export function ExportDialog({ open, defaultTab = "html", onClose }: ExportDialo
     const snapshot = runtime.document.getSnapshot();
     const ok = await copyDocumentAsHtml(snapshot.markdown);
     if (ok) {
-      showToast("已复制富文本 HTML 至剪贴板");
+      showToast("已复制富文本 HTML 至系统剪贴板");
       onClose();
     } else {
       showToast("复制失败");
@@ -77,169 +83,317 @@ export function ExportDialog({ open, defaultTab = "html", onClose }: ExportDialo
 
   return (
     <Dialog open={open} onClose={onClose} className="fixed inset-0 z-[70]">
-      <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.4)] backdrop-blur-[4px] transition-opacity" />
-      <div className="fixed inset-0 grid place-items-center p-4">
-        <DialogPanel className="w-[min(520px,calc(100vw-2rem))] rounded-[16px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-6 shadow-[var(--theme-shadow)]">
-          <DialogTitle className="m-0 mb-4 text-[16px] font-[650] text-[var(--theme-title)]">
-            导出文档
-          </DialogTitle>
+      {/* Liquid Glass 高斯模糊遮罩层 */}
+      <DialogBackdrop className="fixed inset-0 bg-black/35 backdrop-blur-[10px] transition-opacity animate-in fade-in duration-200" />
 
-          {/* 选项卡头部 */}
-          <div className="flex border-b border-[var(--theme-border)] pb-2 mb-4 gap-4">
+      <div className="fixed inset-0 grid place-items-center p-4">
+        {/* Apple 拟物液态玻璃面板 */}
+        <DialogPanel className="w-[min(560px,calc(100vw-2rem))] rounded-[20px] border border-white/50 dark:border-white/10 bg-white/90 dark:bg-[#1c1e24]/90 backdrop-blur-[24px] saturate-[180%] p-6 shadow-[0_24px_64px_-12px_rgba(0,0,0,0.3),0_1px_1px_0_rgba(255,255,255,0.8)_inset] animate-in zoom-in-95 duration-180">
+          {/* 对话框头部 */}
+          <div className="flex items-start justify-between mb-5">
+            <div>
+              <DialogTitle className="m-0 text-[16px] font-[650] text-[var(--theme-title)] tracking-tight">
+                导出与分发
+              </DialogTitle>
+              <p className="mt-1 text-[12px] text-[var(--theme-muted)]">
+                编译为独立 HTML、专业矢量 PDF 或通用富文本剪贴板格式
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full p-1 text-[var(--theme-muted)] hover:bg-black/[0.05] dark:hover:bg-white/[0.08] hover:text-[var(--theme-title)] transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* macOS 拟物液态分段胶囊选择器 (Segmented Control) */}
+          <div className="inline-flex w-full p-1 rounded-full bg-black/[0.05] dark:bg-white/[0.08] backdrop-blur-md mb-5">
             <button
               type="button"
               onClick={() => setActiveTab("html")}
-              className={`pb-1 text-[13.5px] font-medium transition-colors border-b-2 ${
+              className={`flex-1 py-1.5 text-[12px] font-medium rounded-full transition-all text-center ${
                 activeTab === "html"
-                  ? "border-[var(--theme-primary)] text-[var(--theme-title)]"
-                  : "border-transparent text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+                  ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_1px_rgba(255,255,255,0.8)_inset]"
+                  : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
               }`}
             >
-              导出 HTML
+              HTML 导出
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("pdf")}
-              className={`pb-1 text-[13.5px] font-medium transition-colors border-b-2 ${
+              className={`flex-1 py-1.5 text-[12px] font-medium rounded-full transition-all text-center ${
                 activeTab === "pdf"
-                  ? "border-[var(--theme-primary)] text-[var(--theme-title)]"
-                  : "border-transparent text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+                  ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_1px_rgba(255,255,255,0.8)_inset]"
+                  : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
               }`}
             >
-              导出 PDF
+              PDF 打印 / 导出
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("copy")}
-              className={`pb-1 text-[13.5px] font-medium transition-colors border-b-2 ${
+              className={`flex-1 py-1.5 text-[12px] font-medium rounded-full transition-all text-center ${
                 activeTab === "copy"
-                  ? "border-[var(--theme-primary)] text-[var(--theme-title)]"
-                  : "border-transparent text-[var(--theme-muted)] hover:text-[var(--theme-text)]"
+                  ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-[0_2px_8px_rgba(0,0,0,0.08),0_1px_1px_rgba(255,255,255,0.8)_inset]"
+                  : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
               }`}
             >
               复制为 HTML
             </button>
           </div>
 
-          {/* 选项卡内容 */}
+          {/* 选项卡内容区 */}
           {activeTab === "html" && (
-            <div className="space-y-3 text-[13px] text-[var(--theme-text)]">
-              <p className="leading-relaxed text-[var(--theme-muted)]">
-                一键双模导出：将在指定目录下同时产出两个 HTML 文件，消除配置选择负担：
+            <div className="space-y-3.5 text-[12.5px] text-[var(--theme-text)]">
+              <p className="leading-relaxed text-[var(--theme-muted)] text-[12px]">
+                一键双模导出：将在指定输出目录下同时构建两份 HTML 文件，免去繁琐的配置切换：
               </p>
-              <div className="rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-code-bg,#f6f8fa)] p-3 space-y-1.5 font-mono text-[12px]">
-                <div>
-                  <span className="font-semibold text-[var(--theme-title)]">standalone.html</span>:
-                  全内联独立文件（包含 Base64 图片与 CSS/KaTeX 样式），适合单文件直接邮件/微信发送。
+
+              {/* standalone.html 卡片 */}
+              <div className="rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface-soft)] p-3.5 space-y-1.5 transition-all hover:border-[var(--theme-border-strong)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold text-[var(--theme-title)] text-[13px]">
+                      standalone.html
+                    </span>
+                    <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-medium">
+                      全内联独立版
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[var(--theme-muted)]">适合邮件 / 微信传输</span>
                 </div>
-                <div>
-                  <span className="font-semibold text-[var(--theme-title)]">index.html</span>:
-                  标准外链结构（保留相对资源引用），适合静态站点与文档托管。
+                <p className="text-[11.5px] text-[var(--theme-muted)] leading-relaxed m-0">
+                  自动将文档内所有相对图片编译转码为 Base64 内联存储，集成完整 CSS 排版与 KaTeX
+                  数学公式样式，单文件双击即开即读。
+                </p>
+              </div>
+
+              {/* index.html 卡片 */}
+              <div className="rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface-soft)] p-3.5 space-y-1.5 transition-all hover:border-[var(--theme-border-strong)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold text-[var(--theme-title)] text-[13px]">
+                      index.html
+                    </span>
+                    <span className="rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[10px] font-medium">
+                      标准外链站点
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[var(--theme-muted)]">适合 Web 部署</span>
                 </div>
+                <p className="text-[11.5px] text-[var(--theme-muted)] leading-relaxed m-0">
+                  保持相对资源目录结构引用，文件精巧轻量，可无缝部署至 GitHub Pages、Vercel
+                  或个人静态博客。
+                </p>
               </div>
             </div>
           )}
 
           {activeTab === "pdf" && (
-            <div className="space-y-4 text-[13px] text-[var(--theme-text)]">
-              <p className="leading-relaxed text-[var(--theme-muted)]">
-                注入专业排版样式与代码/表格/公式分页防截断保护规则，调用系统原生打印管道导出高质量
-                PDF：
-              </p>
+            <div className="space-y-4 text-[12.5px] text-[var(--theme-text)]">
+              {/* 分页防撕裂特性提示 */}
+              <div className="flex items-center gap-2 rounded-[10px] border border-blue-500/20 bg-blue-500/[0.08] p-3 text-[11.5px] text-blue-800 dark:text-blue-300">
+                <svg
+                  className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>
+                  已启用智能防截断引擎：表格、长代码块与公式行绝不跨页撕裂，矢量渲染保真。
+                </span>
+              </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[12px] font-medium text-[var(--theme-muted)] mb-1">
-                    纸张尺寸
-                  </label>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => setPageSize(e.target.value as "A4" | "Letter")}
-                    className="w-full h-[32px] rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-[13px] text-[var(--theme-title)]"
-                  >
-                    <option value="A4">A4 (210×297mm)</option>
-                    <option value="Letter">US Letter</option>
-                  </select>
+              {/* 拟物分段控件组 */}
+              <div className="space-y-3">
+                {/* 纸张尺寸 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium text-[var(--theme-muted)]">
+                    纸张规格
+                  </span>
+                  <div className="inline-flex p-0.5 rounded-lg bg-black/[0.05] dark:bg-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setPageSize("A4")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        pageSize === "A4"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      A4 (210×297mm)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPageSize("Letter")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        pageSize === "Letter"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      US Letter
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[12px] font-medium text-[var(--theme-muted)] mb-1">
-                    页面方向
-                  </label>
-                  <select
-                    value={orientation}
-                    onChange={(e) => setOrientation(e.target.value as "portrait" | "landscape")}
-                    className="w-full h-[32px] rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-[13px] text-[var(--theme-title)]"
-                  >
-                    <option value="portrait">纵向 (Portrait)</option>
-                    <option value="landscape">横向 (Landscape)</option>
-                  </select>
+
+                {/* 页面方向 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium text-[var(--theme-muted)]">
+                    打印方向
+                  </span>
+                  <div className="inline-flex p-0.5 rounded-lg bg-black/[0.05] dark:bg-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setOrientation("portrait")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        orientation === "portrait"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      纵向 (Portrait)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOrientation("landscape")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        orientation === "landscape"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      横向 (Landscape)
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[12px] font-medium text-[var(--theme-muted)] mb-1">
-                    页边距
-                  </label>
-                  <select
-                    value={margin}
-                    onChange={(e) => setMargin(e.target.value as "standard" | "compact" | "wide")}
-                    className="w-full h-[32px] rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-[13px] text-[var(--theme-title)]"
-                  >
-                    <option value="standard">标准边距</option>
-                    <option value="compact">紧凑边距</option>
-                    <option value="wide">宽松边距</option>
-                  </select>
+
+                {/* 页边距 */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-medium text-[var(--theme-muted)]">
+                    页面边距
+                  </span>
+                  <div className="inline-flex p-0.5 rounded-lg bg-black/[0.05] dark:bg-white/[0.08]">
+                    <button
+                      type="button"
+                      onClick={() => setMargin("compact")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        margin === "compact"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      紧凑 (10mm)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMargin("standard")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        margin === "standard"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      标准 (15mm)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMargin("wide")}
+                      className={`px-3 py-1 text-[11.5px] font-medium rounded-md transition-all ${
+                        margin === "wide"
+                          ? "bg-white dark:bg-[#2c2e36] text-[var(--theme-title)] shadow-xs"
+                          : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]"
+                      }`}
+                    >
+                      宽松 (25mm)
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {activeTab === "copy" && (
-            <div className="space-y-3 text-[13px] text-[var(--theme-text)]">
-              <p className="leading-relaxed text-[var(--theme-muted)]">
-                将当前 Markdown 文档实时编译为包含完整排版样式的语义富文本 HTML，并写入系统剪贴板。
+            <div className="space-y-3.5 text-[12.5px] text-[var(--theme-text)]">
+              <p className="leading-relaxed text-[var(--theme-muted)] text-[12px]">
+                将 Markdown 实时编译为携带内联样式的语义富文本 HTML 并写入系统剪贴板：
               </p>
-              <p className="text-[12px] text-[var(--theme-muted)]">
-                可无缝直接粘贴至飞书、语雀、微信公众号、Apple Mail、Outlook 等主流富文本编辑器。
-              </p>
+              <div className="rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface-soft)] p-3.5 space-y-2.5">
+                <div className="text-[11.5px] font-medium text-[var(--theme-title)]">
+                  跨平台多应用粘贴兼容：
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "飞书",
+                    "语雀",
+                    "微信公众号",
+                    "Apple Mail",
+                    "Outlook",
+                    "Notion",
+                    "企业微信",
+                  ].map((app) => (
+                    <span
+                      key={app}
+                      className="rounded-full bg-black/[0.04] dark:bg-white/[0.08] px-2.5 py-0.5 text-[11px] text-[var(--theme-text)] font-medium"
+                    >
+                      {app}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-[11px] text-[var(--theme-muted)] m-0 leading-relaxed">
+                  直接 Command+V 粘贴即可完美继承多级标题、代码高亮、引用块、任务清单与表格。
+                </p>
+              </div>
             </div>
           )}
 
+          {/* 分割线 */}
           <div className="my-5 border-b border-[var(--theme-border)]" />
 
-          {/* 底部按钮栏 */}
-          <div className="flex justify-end gap-2.5">
+          {/* 底部操作按钮栏 */}
+          <div className="flex items-center justify-end gap-2.5">
             <button
               type="button"
-              className={dialogButtonClassName}
               onClick={onClose}
               disabled={isExporting}
+              className="rounded-[10px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-2 text-[12.5px] font-medium text-[var(--theme-text)] hover:bg-[var(--theme-hover)] transition-colors active:scale-[0.98]"
             >
               取消
             </button>
+
             {activeTab === "html" && (
               <button
                 type="button"
-                className={primaryDialogButtonClassName}
                 onClick={handleExportHtml}
                 disabled={isExporting}
+                className="flex items-center gap-1.5 rounded-[10px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm transition-all disabled:opacity-50"
               >
                 {isExporting ? "正在导出..." : "选择目录并导出"}
               </button>
             )}
+
             {activeTab === "pdf" && (
               <button
                 type="button"
-                className={primaryDialogButtonClassName}
                 onClick={handleExportPdf}
                 disabled={isExporting}
+                className="flex items-center gap-1.5 rounded-[10px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm transition-all disabled:opacity-50"
               >
-                {isExporting ? "正在准备..." : "调起系统打印 / 另存为 PDF"}
+                {isExporting ? "正在调起..." : "调起系统打印 / 另存为 PDF"}
               </button>
             )}
+
             {activeTab === "copy" && (
               <button
                 type="button"
-                className={primaryDialogButtonClassName}
                 onClick={handleCopyHtml}
+                className="flex items-center gap-1.5 rounded-[10px] bg-blue-600 hover:bg-blue-500 active:scale-[0.98] px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm transition-all"
               >
                 复制富文本至剪贴板
               </button>

@@ -16,6 +16,44 @@ describe("markdown-lint in editor", () => {
     );
     expect(issue).toBeDefined();
     expect(issue?.severity).toBe("error");
+    expect(issue?.renderMessage).toBeTypeOf("function");
+
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    let node: unknown;
+    try {
+      (globalThis as unknown as { document?: unknown }).document = {
+        createElement: (tag: string) => ({
+          tagName: tag,
+          className: "",
+          appendChild(child: unknown) {
+            const self = this as { children?: unknown[] };
+            self.children = self.children ?? [];
+            self.children.push(child);
+          },
+          textContent: "",
+        }),
+      };
+      node = issue?.renderMessage?.({} as never);
+    } finally {
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+
+    expect(node).toBeDefined();
+    expect((node as unknown as { className?: string })?.className).toContain(
+      "cm-liquid-diagnostic",
+    );
+  });
+
+  it("does not flag trailing spaces during drafting by default", () => {
+    // 验证 MD009 (no-trailing-spaces) 默认不产生骚扰性红线
+    const doc = "# Heading\nParagraph with trailing space   \n";
+    const state = EditorState.create({ doc });
+    const diagnostics = runMarkdownLint(state);
+
+    const trailingSpaceIssue = diagnostics.find(
+      (d) => d.message.includes("MD009") || d.message.includes("no-trailing-spaces"),
+    );
+    expect(trailingSpaceIssue).toBeUndefined();
   });
 
   it("returns empty array for clean markdown", () => {
