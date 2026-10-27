@@ -55,14 +55,18 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     topRow.appendChild(alias);
   }
 
+  if (options.ruleCode || displayAlias) {
+    container.appendChild(topRow);
+  }
+
   // 核心错误描述
   const displayDesc = zhInfo?.description ?? options.description;
-  const desc = document.createElement("span");
-  desc.className = "cm-liquid-diagnostic__desc";
-  desc.textContent = displayDesc;
-  topRow.appendChild(desc);
-
-  container.appendChild(topRow);
+  if (displayDesc) {
+    const desc = document.createElement("div");
+    desc.className = "cm-liquid-diagnostic__desc";
+    desc.textContent = displayDesc;
+    container.appendChild(desc);
+  }
 
   // 详细上下文信息（如 "期望: h2，实际: h3"）
   const rawDetail = options.detail;

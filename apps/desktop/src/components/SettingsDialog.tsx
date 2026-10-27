@@ -174,15 +174,27 @@ export function SettingsPage({
               onChangeLightTheme: (theme) =>
                 ctrl.setThemeDraft((prev) => ({
                   ...prev,
-                  light: { ...prev.light, builtinTheme: theme as BuiltInThemeId },
+                  light:
+                    theme === "custom"
+                      ? { ...prev.light, source: "custom" }
+                      : { ...prev.light, source: "builtin", builtinTheme: theme as BuiltInThemeId },
                 })),
               onChangeDarkTheme: (theme) =>
                 ctrl.setThemeDraft((prev) => ({
                   ...prev,
-                  dark: { ...prev.dark, builtinTheme: theme as BuiltInThemeId },
+                  dark:
+                    theme === "custom"
+                      ? { ...prev.dark, source: "custom" }
+                      : { ...prev.dark, source: "builtin", builtinTheme: theme as BuiltInThemeId },
                 })),
             }}
             customCss={{
+              isLightCustom:
+                ctrl.themeDraft.light.source === "custom" ||
+                ctrl.themeDraft.light.customCssPath !== null,
+              isDarkCustom:
+                ctrl.themeDraft.dark.source === "custom" ||
+                ctrl.themeDraft.dark.customCssPath !== null,
               lightPath: ctrl.themeDraft.light.customCssPath,
               darkPath: ctrl.themeDraft.dark.customCssPath,
               onChoose: (scheme) => void ctrl.chooseThemeCss(scheme),

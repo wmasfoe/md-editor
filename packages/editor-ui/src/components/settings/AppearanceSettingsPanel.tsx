@@ -20,6 +20,8 @@ import {
 export interface CustomCssState {
   readonly lightPath: string | null;
   readonly darkPath: string | null;
+  readonly isLightCustom?: boolean;
+  readonly isDarkCustom?: boolean;
   readonly onChoose: (scheme: "light" | "dark") => void;
   readonly onClear: (scheme: "light" | "dark") => void;
 }
@@ -77,123 +79,115 @@ export function AppearanceSettingsPanel({
 
           {builtInThemes ? (
             <>
-              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>
+              <div className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-start gap-3 max-[760px]:grid-cols-1">
+                <span className={`${settingsFieldLabelClassName} pt-1.5`}>
                   {t("settings.appearance.lightTheme")}
                 </span>
-                <select
-                  className={settingsInputClassName}
-                  value={builtInThemes.lightTheme}
-                  onChange={(event) => builtInThemes.onChangeLightTheme(event.target.value)}
-                >
-                  {BUILT_IN_LIGHT_THEME_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {t(`settings.appearance.themes.${themeKey(opt.id)}`, {
-                        defaultValue: opt.label,
-                      })}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="grid gap-2">
+                  <select
+                    className={settingsInputClassName}
+                    value={customCss?.isLightCustom ? "custom" : builtInThemes.lightTheme}
+                    onChange={(event) => builtInThemes.onChangeLightTheme(event.target.value)}
+                  >
+                    {BUILT_IN_LIGHT_THEME_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {t(`settings.appearance.themes.${themeKey(opt.id)}`, {
+                          defaultValue: opt.label,
+                        })}
+                      </option>
+                    ))}
+                    {customCss ? (
+                      <option value="custom">{t("settings.appearance.customCss")}</option>
+                    ) : null}
+                  </select>
 
-              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>
+                  {customCss && (customCss.isLightCustom || customCss.lightPath !== null) ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${settingsInputClassName} min-w-0 flex-1`}
+                        placeholder={t("settings.appearance.noCssSelected")}
+                        value={customCss.lightPath ?? ""}
+                        title={customCss.lightPath ?? t("settings.appearance.noCssSelected")}
+                      />
+                      <button
+                        type="button"
+                        className={settingsSmallButtonClassName}
+                        onClick={() => customCss.onChoose("light")}
+                      >
+                        {t("settings.appearance.chooseCssFile")}
+                      </button>
+                      {customCss.lightPath ? (
+                        <button
+                          type="button"
+                          className={settingsSmallButtonClassName}
+                          onClick={() => customCss.onClear("light")}
+                        >
+                          {t("settings.appearance.clearCss")}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-start gap-3 max-[760px]:grid-cols-1">
+                <span className={`${settingsFieldLabelClassName} pt-1.5`}>
                   {t("settings.appearance.darkTheme")}
                 </span>
-                <select
-                  className={settingsInputClassName}
-                  value={builtInThemes.darkTheme}
-                  onChange={(event) => builtInThemes.onChangeDarkTheme(event.target.value)}
-                >
-                  {BUILT_IN_DARK_THEME_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {t(`settings.appearance.themes.${themeKey(opt.id)}`, {
-                        defaultValue: opt.label,
-                      })}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                <div className="grid gap-2">
+                  <select
+                    className={settingsInputClassName}
+                    value={customCss?.isDarkCustom ? "custom" : builtInThemes.darkTheme}
+                    onChange={(event) => builtInThemes.onChangeDarkTheme(event.target.value)}
+                  >
+                    {BUILT_IN_DARK_THEME_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {t(`settings.appearance.themes.${themeKey(opt.id)}`, {
+                          defaultValue: opt.label,
+                        })}
+                      </option>
+                    ))}
+                    {customCss ? (
+                      <option value="custom">{t("settings.appearance.customCss")}</option>
+                    ) : null}
+                  </select>
+
+                  {customCss && (customCss.isDarkCustom || customCss.darkPath !== null) ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        className={`${settingsInputClassName} min-w-0 flex-1`}
+                        placeholder={t("settings.appearance.noCssSelected")}
+                        value={customCss.darkPath ?? ""}
+                        title={customCss.darkPath ?? t("settings.appearance.noCssSelected")}
+                      />
+                      <button
+                        type="button"
+                        className={settingsSmallButtonClassName}
+                        onClick={() => customCss.onChoose("dark")}
+                      >
+                        {t("settings.appearance.chooseCssFile")}
+                      </button>
+                      {customCss.darkPath ? (
+                        <button
+                          type="button"
+                          className={settingsSmallButtonClassName}
+                          onClick={() => customCss.onClear("dark")}
+                        >
+                          {t("settings.appearance.clearCss")}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </>
           ) : null}
         </div>
       </section>
-
-      {/* 模块 2：自定义 CSS 皮肤（可选能力，仅 Desktop 传入） */}
-      {customCss ? (
-        <section className={settingsModuleClassName} aria-labelledby="custom-css-title">
-          <div className="mb-3">
-            <h2 id="custom-css-title" className={settingsSectionTitleClassName}>
-              {t("settings.appearance.customCss")}
-            </h2>
-            <p className={settingsDescriptionClassName}>{t("settings.appearance.customCssDesc")}</p>
-          </div>
-
-          <div className="grid gap-3">
-            <div className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={settingsFieldLabelClassName}>
-                {t("settings.appearance.lightTheme")} CSS
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  className={settingsInputClassName}
-                  placeholder={t("settings.appearance.noCssSelected")}
-                  value={customCss.lightPath ?? ""}
-                />
-                <button
-                  type="button"
-                  className={settingsSmallButtonClassName}
-                  onClick={() => customCss.onChoose("light")}
-                >
-                  {t("settings.appearance.chooseCssFile")}
-                </button>
-                {customCss.lightPath ? (
-                  <button
-                    type="button"
-                    className={settingsSmallButtonClassName}
-                    onClick={() => customCss.onClear("light")}
-                  >
-                    {t("settings.appearance.clearCss")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={settingsFieldLabelClassName}>
-                {t("settings.appearance.darkTheme")} CSS
-              </span>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  className={settingsInputClassName}
-                  placeholder={t("settings.appearance.noCssSelected")}
-                  value={customCss.darkPath ?? ""}
-                />
-                <button
-                  type="button"
-                  className={settingsSmallButtonClassName}
-                  onClick={() => customCss.onChoose("dark")}
-                >
-                  {t("settings.appearance.chooseCssFile")}
-                </button>
-                {customCss.darkPath ? (
-                  <button
-                    type="button"
-                    className={settingsSmallButtonClassName}
-                    onClick={() => customCss.onClear("dark")}
-                  >
-                    {t("settings.appearance.clearCss")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

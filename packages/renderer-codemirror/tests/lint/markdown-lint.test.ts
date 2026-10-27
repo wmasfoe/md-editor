@@ -130,4 +130,42 @@ describe("markdown-lint in editor", () => {
     expect(diagnostics[0].message).toContain("未找到");
     expect(diagnostics[0].severity).toBe("error");
   });
+
+  it("creates structured DOM node with distinct header and description layers for theme clarity", () => {
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    try {
+      (globalThis as unknown as { document?: unknown }).document = {
+        documentElement: { lang: "zh" },
+        createElement: (tag: string) => ({
+          tagName: tag,
+          className: "",
+          children: [] as unknown[],
+          appendChild(child: unknown) {
+            this.children.push(child);
+          },
+          textContent: "",
+        }),
+      };
+
+      const doc = "# H1\n\n### H3\n";
+      const state = EditorState.create({ doc });
+      const diagnostics = runMarkdownLint(state);
+      const md001 = diagnostics.find((d) => d.message.includes("MD001"));
+      const rendered = md001?.renderMessage?.({} as never) as unknown as {
+        children: { className?: string }[];
+      };
+
+      expect(rendered).toBeDefined();
+      const headerNode = rendered.children.find((c) =>
+        c.className?.includes("cm-liquid-diagnostic__header"),
+      );
+      const descNode = rendered.children.find((c) =>
+        c.className?.includes("cm-liquid-diagnostic__desc"),
+      );
+      expect(headerNode).toBeDefined();
+      expect(descNode).toBeDefined();
+    } finally {
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
 });
