@@ -621,6 +621,9 @@ importers:
       '@md-editor/renderer-codemirror':
         specifier: workspace:*
         version: link:../renderer-codemirror
+      '@md-editor/syntax-plugins':
+        specifier: workspace:*
+        version: link:../syntax-plugins
     devDependencies:
       '@types/react':
         specifier: 'catalog:'

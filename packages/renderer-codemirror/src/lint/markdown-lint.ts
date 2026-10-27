@@ -2,6 +2,8 @@ import { Transaction, type EditorState } from "@codemirror/state";
 import type { Action, Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
+import { markdownRangeIndexField } from "../markdown/range-index.ts";
+import type { MarkdownSyntaxKind } from "../markdown/range-types.ts";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 import {
   MARKDOWNLINT_ZH_RULES,
@@ -9,6 +11,13 @@ import {
   getActiveLintLocale,
   localizeMarkdownLintDetail,
 } from "./markdown-lint-i18n.ts";
+
+const EXEMPT_SYNTAX_KINDS: ReadonlySet<MarkdownSyntaxKind> = new Set([
+  "frontmatter",
+  "inline-math",
+  "block-math",
+  "mdx-jsx",
+]);
 
 export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   default: true,
@@ -18,6 +27,7 @@ export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   "single-trailing-newline": false, // MD047: 编辑器内部不强求尾部换行
   "no-trailing-spaces": false, // MD009: 写作交互中允许尾部临时空格（避免键入过程中产生骚扰性红线）
   "no-hard-tabs": false, // MD010: 允许使用制表符缩进
+  "no-duplicate-heading": { siblings_only: true }, // MD024: 允许不同父章节下同名子标题（如 ### 小结）
 };
 
 /**
@@ -45,6 +55,7 @@ export function runMarkdownLint(
 
     const issues = result.content ?? [];
     const diagnostics: Diagnostic[] = [];
+    const rangeIndex = state.field(markdownRangeIndexField, false);
 
     for (const issue of issues) {
       const lineNum = Math.min(Math.max(1, issue.lineNumber), state.doc.lines);
@@ -61,6 +72,14 @@ export function runMarkdownLint(
 
       if (from === to && from < line.to) {
         to = from + 1;
+      }
+
+      // 精确跳过 Frontmatter、LaTeX 数学公式与 MDX JSX 内部区域的格式误报
+      if (rangeIndex) {
+        const overlapping = rangeIndex.overlapping(from, to);
+        if (overlapping.some((record) => EXEMPT_SYNTAX_KINDS.has(record.kind))) {
+          continue;
+        }
       }
 
       const ruleCode = issue.ruleNames[0] ?? "Lint";

@@ -6,7 +6,8 @@ export type RendererTransactionOrigin =
   | { readonly kind: "mode"; readonly operationId: string }
   | { readonly kind: "mode-rollback"; readonly operationId: string }
   | { readonly kind: "code-block-line-numbers" }
-  | { readonly kind: "inline-style-markers" };
+  | { readonly kind: "inline-style-markers" }
+  | { readonly kind: "markdown-lint" };
 
 export const rendererTransactionOrigin = Annotation.define<RendererTransactionOrigin>();
 

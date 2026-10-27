@@ -133,6 +133,7 @@ describe("app settings", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
       showCodeBlockLineNumbers: false,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
@@ -140,6 +141,7 @@ describe("app settings", () => {
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
       showCodeBlockLineNumbers: true,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
@@ -154,9 +156,17 @@ describe("app settings", () => {
     ).toEqual({
       showCodeBlockLineNumbers: false,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 20,
       proseFontFamily: "lxgw-wenkai",
       codeFontFamily: "jetbrains-mono",
+    });
+    expect(
+      normalizeEditorDisplaySettings({
+        enableMarkdownLint: false,
+      }),
+    ).toMatchObject({
+      enableMarkdownLint: false,
     });
     // T-30：只接受布尔 true；非布尔（如字符串 "true"）一律关闭。
     expect(normalizeEditorDisplaySettings({ showInlineStyleMarkers: true })).toMatchObject({

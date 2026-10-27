@@ -53,4 +53,17 @@ describe("uTools settings · showInlineStyleMarkers", () => {
     stubStorage("{not-json");
     expect(loadUtoolsSettings().showInlineStyleMarkers).toBe(false);
   });
+
+  it("enableMarkdownLint defaults to true and showCodeBlockLineNumbers defaults to false", () => {
+    stubStorage();
+    expect(DEFAULT_UTOOLS_SETTINGS.enableMarkdownLint).toBe(true);
+    expect(DEFAULT_UTOOLS_SETTINGS.showCodeBlockLineNumbers).toBe(false);
+
+    expect(loadUtoolsSettings().enableMarkdownLint).toBe(true);
+    expect(loadUtoolsSettings().showCodeBlockLineNumbers).toBe(false);
+
+    stubStorage(JSON.stringify({ enableMarkdownLint: false, showCodeBlockLineNumbers: true }));
+    expect(loadUtoolsSettings().enableMarkdownLint).toBe(false);
+    expect(loadUtoolsSettings().showCodeBlockLineNumbers).toBe(true);
+  });
 });

@@ -125,8 +125,10 @@ export interface UtoolsSettings {
   fontSize: number; // 13 ~ 22, default 15
   proseFontFamily: string; // font option id, default ""
   codeFontFamily: string; // font option id, default ""
+  showCodeBlockLineNumbers: boolean;
   /** 是否常显行内格式标记源码，默认 false（仅触及临时显形）。 */
   showInlineStyleMarkers: boolean;
+  enableMarkdownLint: boolean;
   /** AI 助写多协议配置（持久化存储） */
   ai: AiSettings;
 }
@@ -136,7 +138,9 @@ export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
   fontSize: 15,
   proseFontFamily: "",
   codeFontFamily: "",
+  showCodeBlockLineNumbers: false,
   showInlineStyleMarkers: false,
+  enableMarkdownLint: true,
   ai: normalizeAiSettings({}, { allowLocal: false, defaultPresetId: "deepseek" }),
 };
 
@@ -173,7 +177,9 @@ export function loadUtoolsSettings(): UtoolsSettings {
             : 15,
         proseFontFamily: typeof parsed.proseFontFamily === "string" ? parsed.proseFontFamily : "",
         codeFontFamily: typeof parsed.codeFontFamily === "string" ? parsed.codeFontFamily : "",
+        showCodeBlockLineNumbers: parsed.showCodeBlockLineNumbers === true,
         showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
+        enableMarkdownLint: parsed.enableMarkdownLint !== false,
         ai: normalizeAiSettings(parsed.ai, {
           allowLocal: false,
           defaultPresetId: "deepseek",

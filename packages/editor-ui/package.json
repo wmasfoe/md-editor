@@ -9,7 +9,8 @@
     "./hooks": "./src/hooks/index.ts",
     "./CodeMirrorEditor": "./src/components/CodeMirrorEditor/index.ts",
     "./CodeMirrorEditor/testing": "./src/components/CodeMirrorEditor/testing.ts",
-    "./OutlinePanel": "./src/components/OutlinePanel.tsx"
+    "./OutlinePanel": "./src/components/OutlinePanel.tsx",
+    "./settings": "./src/components/settings/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -22,7 +23,8 @@
     "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@md-editor/renderer-codemirror": "workspace:*"
+    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/syntax-plugins": "workspace:*"
   },
   "peerDependencies": {
     "react": "catalog:",

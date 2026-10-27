@@ -18,6 +18,7 @@ import {
   EditorState,
   Transaction,
   type Extension,
+  type StateEffect,
 } from "@codemirror/state";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
 import type {
@@ -84,6 +85,7 @@ import {
 import type {
   CodeBlockLineNumberPortResult,
   InlineStyleMarkerPortResult,
+  MarkdownLintPortResult,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
   ExternalEditRequest,
@@ -108,8 +110,13 @@ import { createRendererProbe } from "./controller/probe.ts";
 import { setHostVisibility } from "./controller/host-visibility.ts";
 
 import { startComposition, finishComposition } from "./controller/composition.ts";
-import { executeDocumentLint, type DocumentLinterOptions } from "../lint/index.ts";
-import type { Diagnostic } from "@codemirror/lint";
+import {
+  executeDocumentLint,
+  collectPreservedNonMarkdownDiagnostics,
+  createRealtimeMarkdownLintExtension,
+  type DocumentLinterOptions,
+} from "../lint/index.ts";
+import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 
 let nextRendererId = 1;
 
@@ -123,6 +130,7 @@ export class CodeMirrorRendererController {
   readonly #markdownLanguageCompartment = new Compartment();
   readonly #syntaxRegistryCompartment = new Compartment();
   readonly #aiSuggestionLabelsCompartment = new Compartment();
+  readonly #markdownLintCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
@@ -136,6 +144,7 @@ export class CodeMirrorRendererController {
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
   #codeBlockLineNumbers = false;
   #inlineStyleMarkers = false;
+  #markdownLintEnabled = false;
   #aiSuggestionLabels: AiSuggestionLabels | undefined;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
@@ -178,6 +187,7 @@ export class CodeMirrorRendererController {
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
+    this.#markdownLintEnabled = options.enableMarkdownLint ?? false;
 
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
@@ -271,6 +281,32 @@ export class CodeMirrorRendererController {
       ],
     });
     this.#inlineStyleMarkers = enabled;
+    return { status: "applied" };
+  }
+
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult {
+    if (this.#destroyed) {
+      return { status: "destroyed" };
+    }
+    if (enabled === this.#markdownLintEnabled) {
+      return { status: "noop" };
+    }
+    this.#markdownLintEnabled = enabled;
+    const reconfigureEffect = this.#markdownLintCompartment.reconfigure(
+      createRealtimeMarkdownLintExtension(enabled),
+    );
+    const clearEffects: readonly StateEffect<unknown>[] = enabled
+      ? []
+      : (setDiagnostics(this.#view.state, collectPreservedNonMarkdownDiagnostics(this.#view.state))
+          .effects as readonly StateEffect<unknown>[]);
+
+    this.#view.dispatch({
+      effects: [reconfigureEffect, ...clearEffects],
+      annotations: [
+        Transaction.addToHistory.of(false),
+        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+      ],
+    });
     return { status: "applied" };
   }
 
@@ -485,6 +521,9 @@ export class CodeMirrorRendererController {
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
         initialInlineStyleMarkersFacet.of(this.#inlineStyleMarkers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
+        this.#markdownLintCompartment.of(
+          createRealtimeMarkdownLintExtension(this.#markdownLintEnabled),
+        ),
         // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
         focusModeInitialFacet.of(viewAxisAlignment.focus),
         typewriterModeInitialFacet.of(viewAxisAlignment.typewriter),

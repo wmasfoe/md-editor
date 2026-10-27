@@ -23,6 +23,7 @@ export { OutlinePanel, type OutlineItem, type OutlinePanelProps } from "./compon
 export { WelcomeState, type WelcomeStateProps } from "./components/WelcomeState";
 export * from "./hooks";
 export * from "./themes/built-in-themes";
+export * from "./themes/editor-fonts";
 export * from "./keyboard";
 export type { TocTarget } from "./types";
 export {

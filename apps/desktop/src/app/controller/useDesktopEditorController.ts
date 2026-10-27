@@ -198,6 +198,7 @@ export function useDesktopEditorController({
               activeDocSnapshot.filePath,
               activeDocSnapshot.markdown,
               getRendererPorts,
+              settings.editor.enableMarkdownLint,
             );
             if (res.total === 0) {
               showToast("检查完成：未发现链接或格式问题");

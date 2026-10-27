@@ -25,7 +25,7 @@ import {
   resolveCodeFontStack,
   PROSE_FONT_OPTIONS,
   CODE_FONT_OPTIONS,
-} from "../../src/utools/fonts";
+} from "@md-editor/editor-ui";
 import {
   hasAcceptedAiDisclaimer,
   acceptAiDisclaimer,
@@ -252,6 +252,10 @@ describe("uTools Platform Adapters", () => {
         fontSize: 18,
         proseFontFamily: "lxgw-wenkai",
         codeFontFamily: "jetbrains-mono",
+        showCodeBlockLineNumbers: true,
+        showInlineStyleMarkers: true,
+        enableMarkdownLint: false,
+        ai: DEFAULT_UTOOLS_SETTINGS.ai,
       };
       saveUtoolsSettings(updated);
 
@@ -260,6 +264,8 @@ describe("uTools Platform Adapters", () => {
       expect(loaded.fontSize).toBe(18);
       expect(loaded.proseFontFamily).toBe("lxgw-wenkai");
       expect(loaded.codeFontFamily).toBe("jetbrains-mono");
+      expect(loaded.showCodeBlockLineNumbers).toBe(true);
+      expect(loaded.enableMarkdownLint).toBe(false);
     });
   });
 

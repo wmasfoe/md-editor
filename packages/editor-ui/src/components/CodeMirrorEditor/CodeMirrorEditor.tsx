@@ -26,6 +26,8 @@ export interface CodeMirrorEditorProps {
   readonly codeBlockLineNumbers?: boolean;
   /** 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及时临时显形）。 */
   readonly showInlineStyleMarkers?: boolean;
+  /** 是否开启实时 Markdown 规范检查（默认 false，移动端与官网保持纯净）。 */
+  readonly enableMarkdownLint?: boolean;
   readonly fontSize?: number;
   readonly proseFontFamily?: string;
   readonly codeFontFamily?: string;
@@ -57,6 +59,7 @@ export function CodeMirrorEditor({
   document,
   codeBlockLineNumbers = false,
   showInlineStyleMarkers = false,
+  enableMarkdownLint = false,
   fontSize,
   proseFontFamily,
   codeFontFamily,
@@ -94,6 +97,7 @@ export function CodeMirrorEditor({
     plugins,
     syntaxPlugins,
     aiSuggestionLabels,
+    enableMarkdownLint,
     onSyncError,
   });
   callbacksRef.current = {
@@ -108,6 +112,7 @@ export function CodeMirrorEditor({
     plugins,
     syntaxPlugins,
     aiSuggestionLabels,
+    enableMarkdownLint,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -156,6 +161,7 @@ export function CodeMirrorEditor({
       openLinkTarget: callbacksRef.current.openLinkTarget,
       plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
       aiSuggestionLabels: callbacksRef.current.aiSuggestionLabels,
+      enableMarkdownLint: callbacksRef.current.enableMarkdownLint,
     });
     bridgeRef.current = bridge;
     callbacksRef.current.onRendererPortsChange?.(bridge.ports);
@@ -183,6 +189,10 @@ export function CodeMirrorEditor({
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setInlineStyleMarkers(showInlineStyleMarkers);
   }, [showInlineStyleMarkers]);
+
+  useLayoutEffect(() => {
+    bridgeRef.current?.ports.setMarkdownLint(enableMarkdownLint);
+  }, [enableMarkdownLint]);
 
   useLayoutEffect(() => {
     if (aiSuggestionLabels) {

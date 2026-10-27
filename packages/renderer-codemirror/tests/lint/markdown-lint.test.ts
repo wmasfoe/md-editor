@@ -88,6 +88,27 @@ describe("markdown-lint in editor", () => {
     expect(diagnostics).toHaveLength(0);
   });
 
+  it("allows duplicate subheadings under different parent sections (MD024 siblings_only: true)", () => {
+    const doc = [
+      "# Section 1",
+      "",
+      "### Subheading",
+      "",
+      "Content 1",
+      "",
+      "# Section 2",
+      "",
+      "### Subheading",
+      "",
+      "Content 2",
+      "",
+    ].join("\n");
+    const state = EditorState.create({ doc });
+    const diagnostics = runMarkdownLint(state);
+    const md024 = diagnostics.find((d) => d.message.includes("MD024"));
+    expect(md024).toBeUndefined();
+  });
+
   it("validates local relative links against external validator results", async () => {
     const doc = "[Valid Link](./doc.md)\n[Missing Image](./missing.png)";
     const state = EditorState.create({ doc });

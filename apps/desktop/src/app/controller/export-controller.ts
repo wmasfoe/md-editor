@@ -1,14 +1,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { EditorUiActionsContextValue } from "@md-editor/editor-ui";
+import { resolveCodeFontStack, resolveProseFontStack } from "@md-editor/editor-ui";
 import { validateMarkdownRelativeLinks } from "@md-editor/file-system";
 import type { LinkDiagnosticItem } from "@md-editor/renderer-codemirror";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
-import {
-  type AppSettings,
-  resolveProseFontStack,
-  resolveCodeFontStack,
-  resolveThemeColorScheme,
-} from "../settings";
+import { type AppSettings, resolveThemeColorScheme } from "../settings";
 import { builtInThemeCss } from "../settings/built-in-themes";
 
 export interface ExportDocumentStylingOptions {
@@ -348,6 +344,7 @@ export async function checkDocumentLinksAndLint(
   documentPath: string | null,
   markdown: string,
   getRendererPorts: EditorUiActionsContextValue["getRendererPorts"],
+  enableMarkdownLint = true,
 ): Promise<{ total: number; errors: number; warnings: number }> {
   const access = getRendererPorts();
   if (access.status !== "available") {
@@ -371,7 +368,7 @@ export async function checkDocumentLinksAndLint(
   };
 
   const diagnostics = await access.ports.runDocumentLint({
-    enableMarkdownLint: true,
+    enableMarkdownLint,
     enableLinkCheck: Boolean(documentPath),
     validateLinks,
   });

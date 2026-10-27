@@ -16,6 +16,7 @@ import {
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
   type InlineStyleMarkerPortResult,
+  type MarkdownLintPortResult,
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
@@ -44,6 +45,7 @@ export interface CodeMirrorEditorPorts {
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -127,6 +129,8 @@ export interface CodeMirrorEditorBridgeOptions {
   /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
+  /** 是否开启实时 Markdown 规范检查（默认 false） */
+  readonly enableMarkdownLint?: boolean;
   /** 可选语法扩展插件列表 */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -227,6 +231,7 @@ export function createCodeMirrorEditorBridge(
     onCursorLineChange: options.onCursorLineChange,
     plugins: options.plugins ?? options.syntaxPlugins,
     aiSuggestionLabels: options.aiSuggestionLabels,
+    enableMarkdownLint: options.enableMarkdownLint,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied" && result.status !== "noop") {
@@ -267,6 +272,7 @@ export function createCodeMirrorEditorBridge(
     getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
+    setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),

@@ -131,7 +131,10 @@ export {
 } from "./media-viewer/index.ts";
 
 export {
-  createLintExtensions,
+  createLintBaseExtensions,
+  createRealtimeMarkdownLintExtension,
+  clearMarkdownLintDiagnostics,
+  collectPreservedNonMarkdownDiagnostics,
   createDiagnosticDomNode,
   lintLiquidTheme,
   executeDocumentLint,

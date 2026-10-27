@@ -1,5 +1,11 @@
 import { Facet, type Extension, type EditorState, type TransactionSpec } from "@codemirror/state";
-import { linter, lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import {
+  forEachDiagnostic,
+  linter,
+  lintKeymap,
+  setDiagnostics,
+  type Diagnostic,
+} from "@codemirror/lint";
 import { EditorView, keymap } from "@codemirror/view";
 import { runMarkdownLint } from "./markdown-lint.ts";
 import { runLinkValidation } from "./link-lint.ts";
@@ -187,14 +193,64 @@ export const lintLiquidTheme = EditorView.baseTheme({
 });
 
 /**
- * 提供 CM6 原生 Lint 支持（包含实时 Markdown 格式诊断、下划线标记与 F2 / Shift+F2 导航快捷键及 Liquid Glass 视觉定制）
+ * 实时 Markdown 规范检查最大字符保护阈值（约 4,000+ 行），超过则跳过自动后台全量扫描以保护打字流畅度
  */
-export function createLintExtensions(): Extension {
-  return [
-    linter((view) => runMarkdownLint(view.state), { delay: 600 }),
-    keymap.of(lintKeymap),
-    lintLiquidTheme,
-  ];
+export const MAX_REALTIME_LINT_DOC_CHARS = 120_000;
+
+/**
+ * 收集当前 state 中除 markdownlint 以外的既有诊断（例如手动链接检查结果），避免被实时轮询覆盖
+ */
+export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diagnostic[] {
+  const preserved: Diagnostic[] = [];
+  forEachDiagnostic(state, (diagnostic, from, to) => {
+    if (diagnostic.source !== "markdownlint") {
+      preserved.push({
+        ...diagnostic,
+        from,
+        to,
+      });
+    }
+  });
+  return preserved;
+}
+
+/**
+ * 清除所有 markdownlint 产生的波浪线诊断，同时保留其他来源诊断
+ */
+export function clearMarkdownLintDiagnostics(state: EditorState): TransactionSpec {
+  const preserved = collectPreservedNonMarkdownDiagnostics(state);
+  return setDiagnostics(state, preserved);
+}
+
+/**
+ * 提供 CM6 原生 Lint 常驻底座（包含状态字段挂载、快捷键导航以及 Liquid Glass 毛玻璃气泡视觉定制）
+ * 不挂载任何自动轮询源，零定时器与零静态检查开销。
+ */
+export function createLintBaseExtensions(): Extension {
+  return [linter(null), keymap.of(lintKeymap), lintLiquidTheme];
+}
+
+/**
+ * 创建可热插拔的实时 Markdown 规范检查扩展。
+ * 当 enabled 为 false 时返回空扩展；
+ * 当 enabled 为 true 时防抖 600ms 同步检查并在主视口展示波浪线。
+ */
+export function createRealtimeMarkdownLintExtension(enabled: boolean): Extension {
+  if (!enabled) {
+    return [];
+  }
+  return linter(
+    async (view) => {
+      const preserved = collectPreservedNonMarkdownDiagnostics(view.state);
+      if (view.state.doc.length > MAX_REALTIME_LINT_DOC_CHARS) {
+        return preserved;
+      }
+      const { runMarkdownLint: runLint } = await import("./markdown-lint.ts");
+      const mdDiagnostics = runLint(view.state);
+      return [...preserved, ...mdDiagnostics];
+    },
+    { delay: 600 },
+  );
 }
 
 /**

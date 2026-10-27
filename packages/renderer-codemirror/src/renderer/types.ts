@@ -60,6 +60,8 @@ export interface CodeMirrorRendererOptions {
   /** D-2 可配 dim 强度（轮1 architect WATCH concern-8）：宿主注入通道，缺省走 facet 默认 0.38；
    * 读取时按 spec 区间 [0.30, 0.50] 硬夹（resolveDimOpacity）。 */
   readonly focusDimOpacity?: number;
+  /** 是否开启实时 Markdown 规范检查（默认 false，由宿主按需开启） */
+  readonly enableMarkdownLint?: boolean;
   /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -107,6 +109,9 @@ export type CodeBlockLineNumberPortResult =
 export type InlineStyleMarkerPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
+export type MarkdownLintPortResult =
+  { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
+
 export interface CodeMirrorRenderer {
   readonly clientId: string;
   sync(event: DocumentStateEvent): RendererSyncResult;
@@ -116,6 +121,7 @@ export interface CodeMirrorRenderer {
   rollbackMode(receipt: ModeReceipt): void;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;

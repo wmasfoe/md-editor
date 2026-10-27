@@ -31,7 +31,7 @@ import {
   settingsModuleClassName,
   settingsSectionTitleClassName,
   settingsSmallButtonClassName,
-} from "./settingsStyles";
+} from "@md-editor/editor-ui/settings";
 
 interface AiSettingsPanelProps {
   readonly aiSettingsDraft: AiSettings;

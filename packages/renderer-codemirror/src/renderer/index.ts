@@ -29,6 +29,7 @@ import type {
 export type {
   CodeBlockLineNumberPortResult,
   InlineStyleMarkerPortResult,
+  MarkdownLintPortResult,
   CodeMirrorRenderer,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
@@ -51,6 +52,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => controller.setInlineStyleMarkers(enabled),
+    setMarkdownLint: (enabled: boolean) => controller.setMarkdownLint(enabled),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => controller.setAiSuggestionLabels(labels),
