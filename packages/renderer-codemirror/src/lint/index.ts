@@ -1,6 +1,7 @@
 import { Facet, type Extension, type EditorState, type TransactionSpec } from "@codemirror/state";
-import { lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { linter, lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { EditorView, keymap } from "@codemirror/view";
+import { runMarkdownLint } from "./markdown-lint.ts";
 import { runLinkValidation } from "./link-lint.ts";
 import type { DocumentLinterOptions, LinkLintOptions } from "./types.ts";
 
@@ -186,10 +187,14 @@ export const lintLiquidTheme = EditorView.baseTheme({
 });
 
 /**
- * 提供 CM6 原生 Lint 支持（包含下划线诊断标记与 F2 / Shift+F2 导航快捷键及 Liquid Glass 视觉定制）
+ * 提供 CM6 原生 Lint 支持（包含实时 Markdown 格式诊断、下划线标记与 F2 / Shift+F2 导航快捷键及 Liquid Glass 视觉定制）
  */
 export function createLintExtensions(): Extension {
-  return [keymap.of(lintKeymap), lintLiquidTheme];
+  return [
+    linter((view) => runMarkdownLint(view.state), { delay: 600 }),
+    keymap.of(lintKeymap),
+    lintLiquidTheme,
+  ];
 }
 
 /**
@@ -202,7 +207,6 @@ export async function executeDocumentLint(
   const diagnostics: Diagnostic[] = [];
 
   if (options.enableMarkdownLint !== false) {
-    const { runMarkdownLint } = await import("./markdown-lint.ts");
     const mdDiagnostics = runMarkdownLint(view.state, options.markdownlintConfig);
     diagnostics.push(...mdDiagnostics);
   }
