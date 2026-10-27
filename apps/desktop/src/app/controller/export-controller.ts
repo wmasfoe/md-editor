@@ -25,6 +25,11 @@ export interface ExportPdfOptions extends ExportDocumentStylingOptions {
   readonly margin?: string;
 }
 
+const DEFAULT_EDITOR_PROSE_FONT =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif';
+const DEFAULT_EDITOR_CODE_FONT =
+  'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono", "Source Code Pro", Consolas, monospace';
+
 /**
  * 从全局设置中提取导出排版样式（字体、字号、主题变量与色彩方案）
  */
@@ -32,9 +37,11 @@ export function resolveExportStyling(settings: AppSettings): ExportDocumentStyli
   const scheme = resolveThemeColorScheme(settings.theme.mode);
   const themeScheme = scheme === "dark" ? settings.theme.dark : settings.theme.light;
   const themeCss = builtInThemeCss(themeScheme.builtinTheme);
-  const proseFontFamily = resolveProseFontStack(settings.editor.proseFontFamily);
-  const codeFontFamily = resolveCodeFontStack(settings.editor.codeFontFamily);
-  const fontSize = settings.editor.wysiwygFontSize;
+  const rawProseFont = resolveProseFontStack(settings.editor.proseFontFamily);
+  const rawCodeFont = resolveCodeFontStack(settings.editor.codeFontFamily);
+  const proseFontFamily = rawProseFont || DEFAULT_EDITOR_PROSE_FONT;
+  const codeFontFamily = rawCodeFont || DEFAULT_EDITOR_CODE_FONT;
+  const fontSize = settings.editor.wysiwygFontSize || 16;
   const isDark = scheme === "dark";
 
   return {

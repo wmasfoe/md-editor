@@ -56,22 +56,27 @@ class PDFExportRunner: NSObject, WKNavigationDelegate {
             exit(124)
         }
 
-        self.webView.loadHTMLString(html, baseURL: Bundle.main.bundleURL)
+        self.webView.loadHTMLString(html, baseURL: URL(string: "https://localhost/"))
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // 等待排版渲染完成（字体、KaTeX 布局等）
-        Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-
-            self.webView.evaluateJavaScript(
-                "Math.max(document.documentElement.scrollHeight || 0, document.body.scrollHeight || 0)"
-            ) { [weak self] result, error in
-                guard let self = self else { return }
-                let totalHeight = (result as? NSNumber)?.doubleValue ?? Double(self.pageHeight)
-                let numPages = max(1, Int(ceil(totalHeight / Double(self.pageHeight))))
-                self.capturePages(numPages: numPages)
+        // 等待字体就绪与排版渲染完成（字体加载、KaTeX 布局、Mermaid 尺寸计算）
+        let js = """
+        (async () => {
+            if (document.fonts && document.fonts.ready) {
+                try {
+                    await document.fonts.ready;
+                } catch (e) {}
             }
+            await new Promise(r => setTimeout(r, 200));
+            return Math.max(document.documentElement.scrollHeight || 0, document.body.scrollHeight || 0);
+        })()
+        """
+        self.webView.evaluateJavaScript(js) { [weak self] result, error in
+            guard let self = self else { return }
+            let totalHeight = (result as? NSNumber)?.doubleValue ?? Double(self.pageHeight)
+            let numPages = max(1, Int(ceil(totalHeight / Double(self.pageHeight))))
+            self.capturePages(numPages: numPages)
         }
     }
 

@@ -2,6 +2,9 @@
  * Standard CSS rules aligning with Inkpoint design tokens, typography, and KaTeX offline rendering
  */
 export const STATIC_DOCUMENT_BASE_CSS = `
+@import url("https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css");
+@import url("https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.1.0/style.css");
+
 :root {
   color-scheme: light;
   --theme-bg: #ffffff;
@@ -388,7 +391,11 @@ pre code.hljs { background: var(--theme-code-bg, #f6f8fa); color: var(--theme-co
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  body, p, li, td, th, blockquote, div {
+    font-family: var(--theme-font, inherit) !important;
+  }
   h1, h2, h3, h4, h5, h6 {
+    font-family: var(--theme-font, inherit) !important;
     break-after: avoid;
     page-break-after: avoid;
     color: var(--theme-title, inherit) !important;

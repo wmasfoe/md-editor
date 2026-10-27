@@ -68,11 +68,20 @@ describe("html-export", () => {
       proseFontFamily: '"LXGW WenKai", sans-serif',
       codeFontFamily: '"JetBrains Mono", monospace',
       fontSize: 18,
+      customCss: ':root { --theme-font: "Default Theme Font"; }',
     });
 
-    expect(result.standaloneHtml).toContain('--theme-font: "LXGW WenKai", sans-serif;');
-    expect(result.standaloneHtml).toContain('--theme-mono-font: "JetBrains Mono", monospace;');
-    expect(result.standaloneHtml).toContain("--theme-editor-font-size: 18px;");
-    expect(result.standaloneHtml).toContain("font-size: 18px;");
+    expect(result.standaloneHtml).toContain('--theme-font: "LXGW WenKai", sans-serif !important;');
+    expect(result.standaloneHtml).toContain(
+      '--theme-mono-font: "JetBrains Mono", monospace !important;',
+    );
+    expect(result.standaloneHtml).toContain("--theme-editor-font-size: 18px !important;");
+    expect(result.standaloneHtml).toContain("font-family: var(--theme-font) !important;");
+
+    // Ensure user font is cascaded AFTER customCss
+    const themeFontPos = result.standaloneHtml.indexOf('"Default Theme Font"');
+    const userFontPos = result.standaloneHtml.indexOf('"LXGW WenKai"');
+    expect(themeFontPos).toBeGreaterThan(-1);
+    expect(userFontPos).toBeGreaterThan(themeFontPos);
   });
 });

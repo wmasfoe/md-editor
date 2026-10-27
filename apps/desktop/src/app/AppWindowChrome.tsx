@@ -122,7 +122,7 @@ export function EditorToast({ toast }: { readonly toast: AppToast | null }) {
       return;
     }
 
-    const timer = window.setTimeout(() => setActiveToast(null), 3200);
+    const timer = window.setTimeout(() => setActiveToast(null), 3400);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -130,13 +130,65 @@ export function EditorToast({ toast }: { readonly toast: AppToast | null }) {
     return null;
   }
 
+  // 根据通知文案语义推断视觉指示状态
+  const isError = /失败|错误|未能|异常|未找到|未就绪/.test(activeToast.message);
+  const isSuccess = !isError && /已|成功|就绪|完成/.test(activeToast.message);
+
   return (
     <div
-      key={activeToast.id}
-      className="pointer-events-none fixed left-1/2 top-4 z-50 max-w-[min(520px,calc(100%_-_32px))] -translate-x-1/2 rounded-[10px] border border-white/10 bg-[rgba(38,38,40,0.86)] px-3.5 py-2 text-center text-[13px] font-medium leading-[1.35] text-white shadow-[0_10px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl motion-safe:animate-[toast-in_160ms_ease-out] motion-reduce:animate-none"
-      role="alert"
+      className="pointer-events-none fixed inset-x-0 top-3.5 z-50 flex justify-center px-4"
+      role="region"
+      aria-live="polite"
     >
-      {activeToast.message}
+      <div
+        key={activeToast.id}
+        onClick={() => setActiveToast(null)}
+        className={cx(
+          "pointer-events-auto inline-flex items-center gap-2 max-w-[min(540px,calc(100vw_-_32px))] select-none",
+          "rounded-full px-4 py-2 text-[13px] font-medium leading-none",
+          "bg-[var(--theme-surface,#ffffff)]/94 dark:bg-[var(--theme-surface,#1c1b1a)]/94",
+          "text-[var(--theme-text,#24292f)] dark:text-[var(--theme-text,#e6edf3)]",
+          "border border-[var(--theme-border,rgba(0,0,0,0.1))] dark:border-[var(--theme-border,rgba(255,255,255,0.14))]",
+          "shadow-[0_8px_24px_rgba(0,0,0,0.12),0_2px_6px_rgba(0,0,0,0.06)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)]",
+          "backdrop-blur-xl transition-all duration-200 cursor-pointer active:scale-98",
+          "motion-safe:animate-[toast-in_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none",
+        )}
+        role="alert"
+      >
+        {isSuccess ? (
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <svg
+              className="h-2.5 w-2.5"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M2.5 6.5L4.8 8.8L9.5 3.5" />
+            </svg>
+          </span>
+        ) : isError ? (
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
+            <svg
+              className="h-2.5 w-2.5"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="6" cy="6" r="4.5" />
+              <path d="M6 4v2.5M6 8.5h.01" />
+            </svg>
+          </span>
+        ) : (
+          <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--theme-primary,#0969da)]" />
+        )}
+        <span className="truncate">{activeToast.message}</span>
+      </div>
     </div>
   );
 }

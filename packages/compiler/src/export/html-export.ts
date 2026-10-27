@@ -186,21 +186,48 @@ export async function exportDocumentHtml(
   const rendered = renderStaticHtml(markdown, renderOptions);
 
   const fontDeclarations: string[] = [];
+  const bodyFontRules: string[] = [];
+  const monoFontRules: string[] = [];
+
   if (options.proseFontFamily) {
-    fontDeclarations.push(`--theme-font: ${options.proseFontFamily};`);
+    fontDeclarations.push(`--theme-font: ${options.proseFontFamily} !important;`);
+    bodyFontRules.push(`font-family: var(--theme-font) !important;`);
   }
   if (options.codeFontFamily) {
-    fontDeclarations.push(`--theme-mono-font: ${options.codeFontFamily};`);
+    fontDeclarations.push(`--theme-mono-font: ${options.codeFontFamily} !important;`);
+    monoFontRules.push(`font-family: var(--theme-mono-font) !important;`);
   }
   if (options.fontSize && Number.isFinite(options.fontSize) && options.fontSize > 0) {
     fontDeclarations.push(
-      `--theme-editor-font-size: ${options.fontSize}px; font-size: ${options.fontSize}px;`,
+      `--theme-editor-font-size: ${options.fontSize}px !important; font-size: ${options.fontSize}px !important;`,
+    );
+    bodyFontRules.push(`font-size: var(--theme-editor-font-size) !important;`);
+  }
+
+  const fontCssParts: string[] = [];
+  if (fontDeclarations.length > 0) {
+    fontCssParts.push(`:root, body, #content { ${fontDeclarations.join(" ")} }`);
+  }
+  if (bodyFontRules.length > 0) {
+    fontCssParts.push(
+      `body, #content, p, li, td, th, blockquote, div, h1, h2, h3, h4, h5, h6 { ${bodyFontRules.join(" ")} }`,
+    );
+    fontCssParts.push(
+      `@media print { body, #content, p, li, td, th, blockquote, div, h1, h2, h3, h4, h5, h6 { ${bodyFontRules.join(" ")} } }`,
     );
   }
-  const fontCss =
-    fontDeclarations.length > 0 ? `:root, body { ${fontDeclarations.join(" ")} }` : "";
+  if (monoFontRules.length > 0) {
+    fontCssParts.push(
+      `code, pre, pre code, .cm-md-inline-code, kbd, samp { ${monoFontRules.join(" ")} }`,
+    );
+    fontCssParts.push(
+      `@media print { code, pre, pre code, .cm-md-inline-code, kbd, samp { ${monoFontRules.join(" ")} } }`,
+    );
+  }
+  const fontCss = fontCssParts.join("\n");
 
-  const customCssWithFonts = [fontCss, options.customCss ?? ""].filter(Boolean).join("\n");
+  // options.customCss (主题样式) 位于前，用户指定的 fontCss 位于后，确保显式选择的排版字体优先级最高
+  const customCssWithFonts = [options.customCss ?? "", fontCss].filter(Boolean).join("\n");
   const extraCss = options.printPageCss
     ? `${customCssWithFonts}\n@media print { ${options.printPageCss} }`
     : customCssWithFonts;
