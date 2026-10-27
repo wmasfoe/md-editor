@@ -5,7 +5,7 @@
  * 遵循极简主义（Simplicity is architecture），去除冗余图例与厚重卡片，提供纯粹的时间轴与 Visual Diff。
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { DocumentHistoryEntry } from "@md-editor/file-system";
 import { runtime } from "../../app/runtime/editor-runtime";
 import { historyStore, revertToHistorySnapshot } from "../../app/controller/session-controller";
@@ -82,13 +82,16 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
       });
   }, [open, filePath]);
 
-  const handleSelectSnapshot = async (snapshotId: string) => {
-    if (!filePath) return;
-    setSelectedSnapshotId(snapshotId);
-    const content = await historyStore.loadSnapshotContent(filePath, snapshotId);
-    setPreviewContent(content);
-    setMobileTab("detail");
-  };
+  const handleSelectSnapshot = useCallback(
+    async (snapshotId: string) => {
+      if (!filePath) return;
+      setSelectedSnapshotId(snapshotId);
+      const content = await historyStore.loadSnapshotContent(filePath, snapshotId);
+      setPreviewContent(content);
+      setMobileTab("detail");
+    },
+    [filePath],
+  );
 
   const handleRevert = async (snapshotId: string) => {
     if (!filePath) return;
@@ -111,17 +114,29 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
     }
   };
 
-  // Escape 快捷键退出
+  // 键盘快捷键支持：Escape 关闭，ArrowUp / ArrowDown 切换版本快照
   useEffect(() => {
-    if (!open) return;
+    if (!open || snapshots.length === 0) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onClose();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const currentIndex = snapshots.findIndex((s) => s.id === selectedSnapshotId);
+        if (currentIndex < snapshots.length - 1) {
+          void handleSelectSnapshot(snapshots[currentIndex + 1].id);
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const currentIndex = snapshots.findIndex((s) => s.id === selectedSnapshotId);
+        if (currentIndex > 0) {
+          void handleSelectSnapshot(snapshots[currentIndex - 1].id);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, snapshots, selectedSnapshotId, handleSelectSnapshot]);
 
   // 计算行级 Visual Diff
   const diffResult: DiffResult = useMemo(() => {
@@ -142,15 +157,15 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
       role="dialog"
       aria-modal="true"
       aria-label="版本历史"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-[4px] animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-black/40 backdrop-blur-[4px] animate-in fade-in duration-150 select-none"
     >
       {/* 遮罩背景点击退出 */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
 
       {/* 居中悬浮极简工作台面板 */}
-      <div className="relative z-10 flex flex-col w-[min(960px,100%)] h-[min(650px,90vh)] rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl overflow-hidden animate-in zoom-in-[0.98] duration-150">
+      <div className="relative z-10 flex flex-col w-[min(920px,calc(100vw-32px))] h-[min(620px,calc(100vh-48px))] rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl overflow-hidden animate-in zoom-in-[0.98] duration-150">
         {/* 顶部统一极简工具栏 */}
-        <header className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 sm:px-4 gap-2 select-none">
+        <header className="flex h-11 shrink-0 items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 sm:px-4 gap-2 select-none">
           {/* 左侧：标题与计数 */}
           <div className="flex items-center gap-2 shrink-0">
             {mobileTab === "detail" && (
