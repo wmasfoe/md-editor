@@ -35,7 +35,7 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
 
   const severity = options.severity ?? "error";
 
-  // 严重级别微标与规则码胶囊
+  // 严重级别徽标与规则码胶囊（如 MD001）
   if (options.ruleCode) {
     const badge = document.createElement("span");
     badge.className = `cm-liquid-diagnostic__badge cm-liquid-diagnostic__badge--${severity}`;
@@ -43,26 +43,16 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     topRow.appendChild(badge);
   }
 
+  container.appendChild(topRow);
+
   const activeLocale = options.locale ?? getActiveLintLocale();
   const ruleInfo = options.ruleCode
     ? getMarkdownLintRuleInfo(options.ruleCode, activeLocale)
     : undefined;
 
-  // 规则可读别名（如 "见出しレベルの順次増加"、"标题层级递增" 或 "Heading increment"）
-  const displayAlias = ruleInfo?.alias ?? options.ruleAlias;
-  if (displayAlias) {
-    const alias = document.createElement("span");
-    alias.className = "cm-liquid-diagnostic__alias";
-    alias.textContent = displayAlias;
-    topRow.appendChild(alias);
-  }
-
-  if (options.ruleCode || displayAlias) {
-    container.appendChild(topRow);
-  }
-
-  // 核心错误描述
-  const displayDesc = ruleInfo?.description ?? options.description;
+  // 简明核心规则描述（去除多余说教与例证，纯正标准 Linter 风格）
+  const displayDesc =
+    ruleInfo?.description ?? options.description ?? ruleInfo?.alias ?? options.ruleAlias;
   if (displayDesc) {
     const desc = document.createElement("div");
     desc.className = "cm-liquid-diagnostic__desc";
@@ -70,29 +60,21 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     container.appendChild(desc);
   }
 
-  // 详细上下文信息与建议卡片
+  // 真实上下文参数与对比信息（如 "期望: h2，实际: h3"）
+  // 严格去除 Emoji（💡、ℹ️）及提示气泡，作为低调字号的次级说明呈现，杜绝 AI 说教味
   const rawDetail = options.detail;
   const displayDetail = localizeMarkdownLintDetail(rawDetail, activeLocale);
-  if (displayDetail) {
+  const isRedundantSuggestion =
+    displayDetail &&
+    (displayDetail.startsWith("建议") ||
+      displayDetail.startsWith("提案") ||
+      displayDetail.startsWith("建議") ||
+      displayDetail.startsWith("Suggestion"));
+
+  if (displayDetail && !isRedundantSuggestion) {
     const detailRow = document.createElement("div");
     detailRow.className = "cm-liquid-diagnostic__detail";
-
-    const isSuggestion =
-      displayDetail.includes("建议") ||
-      displayDetail.includes("提案") ||
-      displayDetail.includes("建議") ||
-      displayDetail.includes("Suggestion");
-
-    const icon = document.createElement("span");
-    icon.className = "cm-liquid-diagnostic__detail-icon";
-    icon.textContent = isSuggestion ? "💡" : "ℹ️";
-    detailRow.appendChild(icon);
-
-    const text = document.createElement("span");
-    text.className = "cm-liquid-diagnostic__detail-text";
-    text.textContent = displayDetail;
-    detailRow.appendChild(text);
-
+    detailRow.textContent = displayDetail;
     container.appendChild(detailRow);
   }
 

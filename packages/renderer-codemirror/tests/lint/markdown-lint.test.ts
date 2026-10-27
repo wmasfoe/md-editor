@@ -66,7 +66,7 @@ describe("markdown-lint in editor", () => {
     expect(md018).toBeDefined();
     expect(md018?.message).toContain("建议：在此处补充一个空格");
     expect(md018?.actions).toBeDefined();
-    expect(md018?.actions?.[0].name).toBe("一键修复");
+    expect(md018?.actions?.[0].name).toBe("修复");
   });
 
   it("does not flag trailing spaces during drafting by default", () => {
@@ -190,7 +190,7 @@ describe("markdown-lint in editor", () => {
       const md018 = diagnostics.find((d) => d.message.includes("MD018"));
       expect(md018).toBeDefined();
       expect(md018?.message).toContain("提案: ここに半角スペースを1つ追加");
-      expect(md018?.actions?.[0].name).toBe("クイック修正");
+      expect(md018?.actions?.[0].name).toBe("修正");
     } finally {
       (globalThis as unknown as { document?: unknown }).document = origDoc;
     }
@@ -209,7 +209,7 @@ describe("markdown-lint in editor", () => {
       const md018En = diagnosticsEn.find((d) => d.message.includes("MD018"));
       expect(md018En?.message).toContain("No space after hash");
       expect(md018En?.message).toContain("Suggestion: Add a space here");
-      expect(md018En?.actions?.[0].name).toBe("Quick Fix");
+      expect(md018En?.actions?.[0].name).toBe("Fix");
 
       // zh-Hant
       (globalThis as unknown as { document?: unknown }).document = {
@@ -218,7 +218,7 @@ describe("markdown-lint in editor", () => {
       const diagnosticsHant = runMarkdownLint(state);
       const md018Hant = diagnosticsHant.find((d) => d.message.includes("MD018"));
       expect(md018Hant?.message).toContain("建議：在此處補充一個空格");
-      expect(md018Hant?.actions?.[0].name).toBe("一鍵修復");
+      expect(md018Hant?.actions?.[0].name).toBe("修復");
     } finally {
       (globalThis as unknown as { document?: unknown }).document = origDoc;
     }

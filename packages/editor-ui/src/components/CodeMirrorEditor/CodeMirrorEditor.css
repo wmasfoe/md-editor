@@ -1745,12 +1745,13 @@
 
 .code-mirror-editor-host .cm-diagnostic {
   border-left: none !important;
-  padding: 12px 14px !important;
+  padding: 8px 12px !important;
   margin: 0 !important;
   display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 8px !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
   background: transparent !important;
   font-family: var(
     --theme-font,
@@ -1764,15 +1765,15 @@
 
 .code-mirror-editor-host .cm-diagnosticText {
   flex: 1 1 auto;
+  min-width: 0;
   color: var(--theme-text, inherit);
   font-size: 13px;
-  line-height: 1.5;
-  width: 100%;
+  line-height: 1.4;
 }
 
 .code-mirror-editor-host .cm-diagnostic + .code-mirror-editor-host .cm-diagnostic {
-  border-top: 1px solid var(--theme-border, rgba(0, 0, 0, 0.08)) !important;
-  padding-top: 12px !important;
+  border-top: 1px solid var(--theme-border, rgba(0, 0, 0, 0.06)) !important;
+  padding-top: 8px !important;
   margin-top: 0 !important;
 }
 
@@ -1791,15 +1792,15 @@
 }
 
 .code-mirror-editor-host .cm-diagnosticAction {
-  align-self: flex-end !important;
+  flex-shrink: 0 !important;
+  align-self: center !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 4px !important;
-  height: 26px !important;
-  padding: 0 12px !important;
-  border-radius: 6px !important;
-  font-size: 12px !important;
+  height: 24px !important;
+  padding: 0 10px !important;
+  border-radius: 5px !important;
+  font-size: 11.5px !important;
   font-weight: 500 !important;
   cursor: pointer !important;
   white-space: nowrap !important;
@@ -1815,7 +1816,7 @@
   background-color: var(--theme-primary, #0969da) !important;
   border-color: var(--theme-primary, #0969da) !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 8px rgba(9, 105, 218, 0.25) !important;
+  box-shadow: 0 2px 6px rgba(9, 105, 218, 0.25) !important;
 }
 
 .code-mirror-editor-host .cm-diagnosticAction:active {
@@ -1825,8 +1826,8 @@
 :root[data-theme-scheme="dark"] .code-mirror-editor-host .cm-diagnosticAction,
 :root.dark .code-mirror-editor-host .cm-diagnosticAction,
 .dark .code-mirror-editor-host .cm-diagnosticAction {
-  background-color: rgba(122, 162, 247, 0.14) !important;
-  border-color: rgba(122, 162, 247, 0.28) !important;
+  background-color: rgba(122, 162, 247, 0.12) !important;
+  border-color: rgba(122, 162, 247, 0.25) !important;
   color: #a5c2ff !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
 }
@@ -1834,10 +1835,10 @@
 :root[data-theme-scheme="dark"] .code-mirror-editor-host .cm-diagnosticAction:hover,
 :root.dark .code-mirror-editor-host .cm-diagnosticAction:hover,
 .dark .code-mirror-editor-host .cm-diagnosticAction:hover {
-  background-color: #4774ca !important;
+  background-color: #3b69b5 !important;
   border-color: #7aa2f7 !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 8px rgba(122, 162, 247, 0.35) !important;
+  box-shadow: 0 2px 6px rgba(122, 162, 247, 0.35) !important;
 }
 
 .code-mirror-editor-host .cm-lintRange-error {

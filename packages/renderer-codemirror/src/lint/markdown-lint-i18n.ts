@@ -58,19 +58,19 @@ export function getMarkdownLintRuleInfo(
 }
 
 /**
- * 获取“一键修复 / Quick Fix / クイック修正”按钮的本地化标签
+ * 获取“修复 / Fix / 修正”动作按钮的本地化标签
  */
 export function getQuickFixActionLabel(locale: LintLocale = getActiveLintLocale()): string {
   switch (locale) {
     case "ja":
-      return "クイック修正";
+      return "修正";
     case "zh-Hant":
-      return "一鍵修復";
+      return "修復";
     case "en":
-      return "Quick Fix";
+      return "Fix";
     case "zh":
     default:
-      return "一键修复";
+      return "修复";
   }
 }
 

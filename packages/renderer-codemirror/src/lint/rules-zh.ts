@@ -14,195 +14,195 @@ export interface LocalizedRuleInfo {
 export const MARKDOWNLINT_ZH_RULES: Record<string, LocalizedRuleInfo> = {
   MD001: {
     alias: "标题层级递增",
-    description: "标题层级必须逐级递增（不可跳跃层级，例如从 H1 直接跳到 H3）",
+    description: "标题层级必须逐级递增",
   },
   MD002: {
     alias: "首个标题为H1",
-    description: "文档中的第一个标题必须是一级标题（H1）",
+    description: "文档首个标题必须是一级标题 (H1)",
   },
   MD003: {
     alias: "标题风格统一",
-    description: "文档内标题风格应保持一致（如统一采用 ATX `#` 风格）",
+    description: "标题风格应保持一致",
   },
   MD004: {
     alias: "无序列表符号统一",
-    description: "无序列表符号在同一作用域内应保持统一（统一使用 `-`、`*` 或 `+`）",
+    description: "无序列表符号在同一作用域内应保持统一",
   },
   MD005: {
     alias: "列表缩进对齐",
-    description: "同级列表项前缀缩进必须严格对齐",
+    description: "同级列表项前缀缩进必须对齐",
   },
   MD006: {
     alias: "顶层列表顶格",
-    description: "最外层无序列表项必须从行首起始，不可缩进",
+    description: "最外层列表项必须顶格起始",
   },
   MD007: {
     alias: "子列表缩进空格",
-    description: "子级无序列表缩进空格数量不符合预期",
+    description: "子列表缩进空格数不符合规范",
   },
   MD009: {
     alias: "行尾多余空格",
-    description: "行尾不应存在多余的空格",
+    description: "行尾不应存在多余空格",
   },
   MD010: {
     alias: "硬制表符缩进",
-    description: "请使用空格进行缩进，避免混用硬制表符（Tab）",
+    description: "请使用空格缩进，避免硬制表符 (Tab)",
   },
   MD011: {
     alias: "反向链接语法",
-    description: "链接语法写反，标准格式为 [链接文本](链接地址)",
+    description: "链接语法写反，标准格式为 [文本](链接)",
   },
   MD012: {
     alias: "连续多个空行",
-    description: "段落之间存在多个多余的连续空白行",
+    description: "不应包含多个连续空行",
   },
   MD013: {
     alias: "单行字符超长",
-    description: "当前行字符长度超过配置上限",
+    description: "单行字符数超过配置上限",
   },
   MD014: {
     alias: "终端命令前缀符号",
-    description: "已显示输出结果的代码块中，命令无需添加 $ 前缀",
+    description: "代码块中的命令无需添加 $ 前缀",
   },
   MD018: {
     alias: "标题缺少空格",
-    description: "标题井号 `#` 与标题正文之间必须保留一个空格",
+    description: "标题井号与正文之间需保留一个空格",
   },
   MD019: {
     alias: "标题多个空格",
-    description: "标题井号 `#` 与标题正文之间只能保留一个空格，不可包含多个空格",
+    description: "标题井号与正文之间只能保留一个空格",
   },
   MD020: {
     alias: "闭合标题缺少空格",
-    description: "闭合式标题（Closed ATX）正文与前缀井号之间缺少空格",
+    description: "闭合式标题前后缺少空格",
   },
   MD021: {
     alias: "闭合标题多个空格",
-    description: "闭合式标题（Closed ATX）正文与前后井号之间存在多余空格",
+    description: "闭合式标题前后只能保留一个空格",
   },
   MD022: {
     alias: "标题四周空行",
-    description: "标题上方与下方必须各保留一行空行与正文隔开",
+    description: "标题上方与下方需各保留一行空行",
   },
   MD023: {
     alias: "标题必须顶格起始",
-    description: "标题必须从行首顶格起始，前面不可包含空格缩进",
+    description: "标题行必须从行首起始，不可缩进",
   },
   MD024: {
     alias: "重复的标题内容",
-    description: "文档中存在多个相同内容的标题，易造成目录或锚点跳转歧义",
+    description: "同级小节标题不应重复",
   },
   MD025: {
     alias: "单一一级主标题",
-    description: "一个标准文档通常只应包含一个一级主标题（H1）",
+    description: "文档中只应包含一个一级标题 (H1)",
   },
   MD026: {
     alias: "标题末尾多余标点",
-    description: "标题末尾不应包含多余的标点符号（如句号、逗号、冒号）",
+    description: "标题末尾不应包含标点符号",
   },
   MD027: {
     alias: "引用块多个空格",
-    description: "引用块符号 `>` 后面只应保留一个空格",
+    description: "引用块符号后面只能保留一个空格",
   },
   MD028: {
     alias: "引用块空行阻断",
-    description: "引用块内部不应用纯空白行隔断",
+    description: "引用块之间不应存在空行",
   },
   MD029: {
     alias: "有序列表序号前缀",
-    description: "有序列表项的前缀序号必须递增或保持一致格式",
+    description: "有序列表项的前缀序号必须递增",
   },
   MD030: {
     alias: "列表标记空格数量",
-    description: "列表符号（`-` 或 `1.`）与文本之间的空格数量不符合预期",
+    description: "列表标记与内容之间空格数不符合规范",
   },
   MD031: {
     alias: "代码块四周空行",
-    description: "围栏代码块（```）上方与下方必须各保留一行空行",
+    description: "代码块前后需各保留一行空行",
   },
   MD032: {
     alias: "列表四周空行",
-    description: "列表块上方与下方必须保留空行与普通段落隔开",
+    description: "列表前后需保留空行",
   },
   MD033: {
     alias: "内联HTML标签",
-    description: "使用了不允许的内联 HTML 标签",
+    description: "不应直接使用 HTML 标签",
   },
   MD034: {
     alias: "裸露裸写URL",
-    description: "检测到未用尖括号 `<https://...>` 或超链接语法 `[文本](URL)` 包裹的裸露 URL",
+    description: "网址与邮箱应使用有效链接语法，避免裸 URL",
   },
   MD035: {
     alias: "分割线风格统一",
-    description: "水平分割线符号（如 `---` 或 `***`）应在全篇保持统一",
+    description: "分割线样式应全篇保持统一",
   },
   MD036: {
     alias: "加粗/斜体滥充标题",
-    description: "请使用标准标题语法（`#`），不要使用单行加粗或斜体充当假标题",
+    description: "不应用加粗或斜体文本充当标题",
   },
   MD037: {
     alias: "加粗/斜体内侧多余空格",
-    description: "加粗/斜体标记符号与文字内侧不应有多余空格",
+    description: "行内格式标记内侧不应有多余空格",
   },
   MD038: {
     alias: "行内代码内侧多余空格",
-    description: "行内代码反引号与代码文本内侧不应有多余空格",
+    description: "行内代码反引号内侧不应有多余空格",
   },
   MD039: {
     alias: "链接文本内侧多余空格",
-    description: "链接中括号 `[ ... ]` 内侧不应有多余空格",
+    description: "链接中括号内侧不应有多余空格",
   },
   MD040: {
     alias: "代码块未指定语言",
-    description: "代码块（```）必须在起始处明确指定语言标识符（如 ```ts、```json）",
+    description: "代码块必须指定语法高亮语言",
   },
   MD041: {
     alias: "首行必须是标题",
-    description: "文档的第一行应当是一级标题",
+    description: "文档首行应当是一级标题",
   },
   MD042: {
     alias: "空链接",
-    description: "链接的目标地址不能为空（如 `[]( )` 或 `[文字]()`）",
+    description: "链接目标地址不能为空",
   },
   MD043: {
     alias: "必须遵循预设结构",
-    description: "文档结构不符合配置中预设的必选标题大纲结构",
+    description: "文档结构与预期大纲不匹配",
   },
   MD044: {
     alias: "专有名词大小写",
-    description: "专有名词的大小写拼写不符合词典规范",
+    description: "专有名词大小写拼写不规范",
   },
   MD045: {
     alias: "图片缺少替代文本",
-    description: "图片必须填写描述性替代文本（alt text），以保证无障碍可访问性",
+    description: "图片必须填写替代文本 (alt text)",
   },
   MD046: {
     alias: "代码块风格统一",
-    description: "代码块风格（缩进式 vs 围栏式 ```）应在全篇保持统一",
+    description: "代码块风格应全篇保持统一",
   },
   MD047: {
     alias: "文件末尾保留换行",
-    description: "文件末尾应保留一个单独的换行符",
+    description: "文件末尾应保留一个换行符",
   },
   MD048: {
     alias: "代码围栏符号统一",
-    description: "代码块围栏符号（``` 与 ~~~）应在全篇保持统一",
+    description: "代码块围栏符号应全篇保持统一",
   },
   MD049: {
     alias: "斜体强调符号统一",
-    description: "斜体强调符号（`*` 与 `_`）应在全篇保持统一",
+    description: "斜体强调符号应全篇保持统一",
   },
   MD050: {
     alias: "加粗强调符号统一",
-    description: "加粗强调符号（`**` 与 `__`）应在全篇保持统一",
+    description: "加粗强调符号应全篇保持统一",
   },
   MD051: {
     alias: "内部锚点无效",
-    description: "文档内的锚点跳转链接（#hash）在当前文档中未找到对应标题",
+    description: "文档内锚点在当前文档中未找到对应标题",
   },
   MD052: {
     alias: "参考链接未定义",
-    description: "引用的参考式链接或图片标签在文档中未找到对应定义",
+    description: "参考式链接在文档中未找到对应定义",
   },
   MD053: {
     alias: "参考链接定义未使用",
