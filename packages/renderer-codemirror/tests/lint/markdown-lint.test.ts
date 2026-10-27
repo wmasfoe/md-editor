@@ -44,6 +44,18 @@ describe("markdown-lint in editor", () => {
     );
   });
 
+  it("provides localized Chinese descriptions and aliases for markdownlint rules", () => {
+    // 标题层级跳级违反 MD001 (heading-increment)
+    const doc = "# H1\n\n### H3\n";
+    const state = EditorState.create({ doc });
+    const diagnostics = runMarkdownLint(state);
+
+    const md001 = diagnostics.find((d) => d.message.includes("MD001"));
+    expect(md001).toBeDefined();
+    expect(md001?.message).toContain("标题层级递增");
+    expect(md001?.message).toContain("期望");
+  });
+
   it("does not flag trailing spaces during drafting by default", () => {
     // 验证 MD009 (no-trailing-spaces) 默认不产生骚扰性红线
     const doc = "# Heading\nParagraph with trailing space   \n";

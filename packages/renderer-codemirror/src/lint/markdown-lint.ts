@@ -2,6 +2,7 @@ import type { EditorState } from "@codemirror/state";
 import type { Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
+import { MARKDOWNLINT_ZH_RULES, localizeMarkdownLintDetail } from "./markdown-lint-i18n.ts";
 
 export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   default: true,
@@ -60,13 +61,18 @@ export function runMarkdownLint(
       const ruleAlias = issue.ruleNames[1];
       const severity = issue.severity === "error" ? "error" : "warning";
 
+      const zhInfo = MARKDOWNLINT_ZH_RULES[ruleCode];
+      const displayAlias = zhInfo?.alias ?? ruleAlias ?? ruleCode;
+      const displayDesc = zhInfo?.description ?? issue.ruleDescription;
+      const displayDetail = localizeMarkdownLintDetail(issue.errorDetail ?? undefined);
+
       diagnostics.push({
         from,
         to,
         severity,
         source: "markdownlint",
-        message: `[${issue.ruleNames.join("/")}] ${issue.ruleDescription}${
-          issue.errorDetail ? ` (${issue.errorDetail})` : ""
+        message: `[${ruleCode}/${displayAlias}] ${displayDesc}${
+          displayDetail ? ` (${displayDetail})` : ""
         }`,
         renderMessage: () =>
           createDiagnosticDomNode({
