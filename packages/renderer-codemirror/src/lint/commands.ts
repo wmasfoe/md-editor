@@ -139,6 +139,12 @@ export function runMarkdownLintCommand(
     } catch {
       // 容错：无 DOM 真实宿主或测试 mock 视口下安全跳过面板挂载
     }
+  } else if (diagnostics.length === 0 && typeof view.plugin === "function") {
+    try {
+      closeLintPanel(view);
+    } catch {
+      // 容错：安全跳过
+    }
   }
 
   const errors = diagnostics.filter((d) => d.severity === "error").length;

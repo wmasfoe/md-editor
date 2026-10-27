@@ -1,5 +1,5 @@
 import { Transaction, type EditorState, type Text } from "@codemirror/state";
-import type { Action, Diagnostic } from "@codemirror/lint";
+import { closeLintPanel, setDiagnostics, type Action, type Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
@@ -153,6 +153,16 @@ export function runMarkdownLint(
                 authorizeWysiwygProtectedChange.of(true),
               ],
             });
+            // 修复完成后即刻重新扫描并刷新视口诊断波浪线与底部面板
+            const refreshed = runMarkdownLint(view.state, config);
+            view.dispatch(setDiagnostics(view.state, refreshed));
+            if (refreshed.length === 0 && typeof view.plugin === "function") {
+              try {
+                closeLintPanel(view);
+              } catch {
+                // 容错：安全跳过
+              }
+            }
           },
         });
       }

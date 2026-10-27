@@ -479,24 +479,23 @@ export class CodeMirrorRendererController {
   }
 
   async runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]> {
-    if (this.#destroyed) {
-      return [];
-    }
-    return executeDocumentLint(this.#view, options);
+    return this.#destroyed ? [] : executeDocumentLint(this.#view, options);
+  }
+
+  get #targetEditorView(): EditorView {
+    return this.#view.editorView ?? (this.#view as unknown as EditorView);
   }
 
   runMarkdownLintCommand(config?: Record<string, unknown>): MarkdownLintRunResult {
-    if (this.#destroyed) {
-      return { total: 0, errors: 0, warnings: 0 };
-    }
-    return runMarkdownLintCommand(this.#view as unknown as EditorView, config);
+    return this.#destroyed
+      ? { total: 0, errors: 0, warnings: 0 }
+      : runMarkdownLintCommand(this.#targetEditorView, config);
   }
 
   fixAllMarkdownLint(config?: Record<string, unknown>): MarkdownLintFixAllResult {
-    if (this.#destroyed) {
-      return { appliedCount: 0, remainingCount: 0 };
-    }
-    return fixAllMarkdownLintIssues(this.#view as unknown as EditorView, config);
+    return this.#destroyed
+      ? { appliedCount: 0, remainingCount: 0 }
+      : fixAllMarkdownLintIssues(this.#targetEditorView, config);
   }
 
   destroy(): void {

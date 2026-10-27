@@ -113,4 +113,24 @@ title: 测试标题
     const changesInFrontmatter = changes.filter((c) => c.from < 50);
     expect(changesInFrontmatter).toHaveLength(0);
   });
+
+  it("runMarkdownLintCommand 在存在问题时尝试呼出面板，在无问题时统计为 0", () => {
+    let panelOpened = false;
+
+    const mockView = {
+      ...createTestEditor("# 标题\n\n\n\n正文").view,
+      plugin: () => {
+        panelOpened = true;
+        return null;
+      },
+    } as unknown as EditorView;
+
+    const result = runMarkdownLintCommand(mockView);
+    expect(panelOpened).toBe(true);
+    expect(result.total).toBeGreaterThan(0);
+
+    const cleanView = createTestEditor("# 标题\n\n正文\n").view;
+    const cleanResult = runMarkdownLintCommand(cleanView);
+    expect(cleanResult.total).toBe(0);
+  });
 });

@@ -7,6 +7,7 @@
  */
 
 import type { EditorState, StateEffect, Transaction, TransactionSpec } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
 import type { Diagnostic } from "@codemirror/lint";
 import type {
   DocumentSnapshot,
@@ -194,6 +195,8 @@ export interface ViewAxisState {
 export interface RendererViewAdapter {
   readonly state: EditorState;
   readonly isComposing: boolean;
+  /** 底层真实 CodeMirror EditorView 引用（测试 mock 适配器可能缺省） */
+  readonly editorView?: EditorView;
   dispatch(spec: TransactionSpec): void;
   dispatchTransaction(transaction: Transaction): void;
   setState(state: EditorState): void;
