@@ -70,13 +70,29 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     container.appendChild(desc);
   }
 
-  // 详细上下文信息
+  // 详细上下文信息与建议卡片
   const rawDetail = options.detail;
   const displayDetail = localizeMarkdownLintDetail(rawDetail, activeLocale);
   if (displayDetail) {
     const detailRow = document.createElement("div");
     detailRow.className = "cm-liquid-diagnostic__detail";
-    detailRow.textContent = displayDetail;
+
+    const isSuggestion =
+      displayDetail.includes("建议") ||
+      displayDetail.includes("提案") ||
+      displayDetail.includes("建議") ||
+      displayDetail.includes("Suggestion");
+
+    const icon = document.createElement("span");
+    icon.className = "cm-liquid-diagnostic__detail-icon";
+    icon.textContent = isSuggestion ? "💡" : "ℹ️";
+    detailRow.appendChild(icon);
+
+    const text = document.createElement("span");
+    text.className = "cm-liquid-diagnostic__detail-text";
+    text.textContent = displayDetail;
+    detailRow.appendChild(text);
+
     container.appendChild(detailRow);
   }
 
