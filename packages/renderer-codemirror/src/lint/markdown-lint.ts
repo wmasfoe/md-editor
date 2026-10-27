@@ -2,7 +2,11 @@ import type { EditorState } from "@codemirror/state";
 import type { Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
-import { MARKDOWNLINT_ZH_RULES, localizeMarkdownLintDetail } from "./markdown-lint-i18n.ts";
+import {
+  MARKDOWNLINT_ZH_RULES,
+  getActiveLintLocale,
+  localizeMarkdownLintDetail,
+} from "./markdown-lint-i18n.ts";
 
 export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   default: true,
@@ -61,10 +65,14 @@ export function runMarkdownLint(
       const ruleAlias = issue.ruleNames[1];
       const severity = issue.severity === "error" ? "error" : "warning";
 
-      const zhInfo = MARKDOWNLINT_ZH_RULES[ruleCode];
+      const activeLocale = getActiveLintLocale();
+      const isZh = activeLocale === "zh" || activeLocale === "zh-Hant";
+      const zhInfo = isZh ? MARKDOWNLINT_ZH_RULES[ruleCode] : undefined;
       const displayAlias = zhInfo?.alias ?? ruleAlias ?? ruleCode;
       const displayDesc = zhInfo?.description ?? issue.ruleDescription;
-      const displayDetail = localizeMarkdownLintDetail(issue.errorDetail ?? undefined);
+      const displayDetail = isZh
+        ? localizeMarkdownLintDetail(issue.errorDetail ?? undefined)
+        : (issue.errorDetail ?? undefined);
 
       diagnostics.push({
         from,
@@ -81,6 +89,7 @@ export function runMarkdownLint(
             description: issue.ruleDescription,
             detail: issue.errorDetail ?? undefined,
             severity,
+            locale: activeLocale,
           }) as unknown as Node,
       });
     }

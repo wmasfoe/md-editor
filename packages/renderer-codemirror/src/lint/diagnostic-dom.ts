@@ -3,7 +3,11 @@
  * @description 为 CodeMirror Lint 诊断提示气泡提供 Apple Liquid Glass 风格的自绘 DOM 卡片。
  */
 
-import { MARKDOWNLINT_ZH_RULES, localizeMarkdownLintDetail } from "./markdown-lint-i18n.ts";
+import {
+  MARKDOWNLINT_ZH_RULES,
+  getActiveLintLocale,
+  localizeMarkdownLintDetail,
+} from "./markdown-lint-i18n.ts";
 
 export interface DiagnosticDomOptions {
   readonly ruleCode?: string;
@@ -11,7 +15,7 @@ export interface DiagnosticDomOptions {
   readonly description: string;
   readonly detail?: string;
   readonly severity?: "error" | "warning" | "info" | "hint";
-  readonly locale?: "zh" | "en";
+  readonly locale?: "zh" | "zh-Hant" | "ja" | "en";
 }
 
 /**
@@ -38,7 +42,8 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     topRow.appendChild(badge);
   }
 
-  const isZh = options.locale !== "en";
+  const activeLocale = options.locale ?? getActiveLintLocale();
+  const isZh = activeLocale === "zh" || activeLocale === "zh-Hant";
   const zhInfo = options.ruleCode && isZh ? MARKDOWNLINT_ZH_RULES[options.ruleCode] : undefined;
 
   // 规则可读别名（如 "标题层级递增" 或 "heading-increment"）

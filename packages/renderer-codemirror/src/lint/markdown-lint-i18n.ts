@@ -228,6 +228,19 @@ export const MARKDOWNLINT_ZH_RULES: Record<string, LocalizedRuleInfo> = {
 };
 
 /**
+ * 获取当前宿主环境的语言代码
+ */
+export function getActiveLintLocale(): "zh" | "zh-Hant" | "ja" | "en" {
+  if (typeof document === "undefined") return "zh";
+  const lang = document.documentElement.lang;
+  if (lang === "en" || lang.startsWith("en-")) return "en";
+  if (lang === "ja" || lang.startsWith("ja-")) return "ja";
+  if (lang === "zh-TW" || lang === "zh-HK" || lang === "zh-Hant") return "zh-Hant";
+  if (lang.startsWith("zh")) return "zh";
+  return "zh";
+}
+
+/**
  * 将 markdownlint 生成的英文上下文详情（如 "Expected: h2; Actual: h3"）本地化为中文
  */
 export function localizeMarkdownLintDetail(detail?: string): string | undefined {
