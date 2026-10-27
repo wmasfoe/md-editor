@@ -19,15 +19,38 @@ export function extractDocumentTitle(markdown: string): string | null {
 }
 
 /**
- * Generates URL-safe heading anchor id
+ * Generates legacy URL-safe heading anchor id with hyphens replacing non-alphanumeric characters
  */
-export function generateHeadingSlug(text: string): string {
+export function generateLegacyHeadingSlug(text: string): string {
   const plainText = text.replace(/<[^>]+>/g, "").trim();
   return plainText
     .toLowerCase()
     .replace(/[`*_~[\]()]/g, "")
     .replace(/[^\w\u4e00-\u9fa5]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+/**
+ * Generates URL-safe heading anchor id following GitHub / GFM standard:
+ * - Drops Unicode and ASCII punctuation and symbols (：、？“”‘’（）➔ etc.)
+ * - Replaces whitespace with single hyphens
+ * - Falls back to legacy slug for purely symbolic text
+ */
+export function generateHeadingSlug(text: string): string {
+  const plainText = text.replace(/<[^>]+>/g, "").trim();
+  const githubSlug = plainText
+    .toLowerCase()
+    .replace(/[`*_~[\]()]/g, "")
+    .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, "")
+    .trim()
+    .replace(/\s+/gu, "-")
+    .replace(/^-|-$/g, "");
+
+  if (githubSlug.length > 0) {
+    return githubSlug;
+  }
+
+  return generateLegacyHeadingSlug(text);
 }
 
 /**

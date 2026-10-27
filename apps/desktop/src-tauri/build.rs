@@ -41,6 +41,7 @@ fn ensure_external_bin_placeholders() {
 }
 
 fn ensure_pdf_exporter_binary() {
+    println!("cargo:rerun-if-changed=helpers/pdf_export/main.swift");
     let manifest_dir = env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."));
@@ -53,7 +54,22 @@ fn ensure_pdf_exporter_binary() {
     let swift_source = manifest_dir.join("helpers/pdf_export/main.swift");
 
     if cfg!(target_os = "macos") && swift_source.exists() {
-        if !target_bin.exists() {
+        let should_compile = if !target_bin.exists() {
+            true
+        } else if let (Ok(src_meta), Ok(bin_meta)) =
+            (fs::metadata(&swift_source), fs::metadata(&target_bin))
+        {
+            src_meta
+                .modified()
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                > bin_meta
+                    .modified()
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        } else {
+            false
+        };
+
+        if should_compile {
             let _ = std::process::Command::new("swiftc")
                 .args([
                     "-target",

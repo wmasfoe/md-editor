@@ -87,6 +87,9 @@ class PDFExportRunner: NSObject, WKNavigationDelegate {
         // 1. 收集文档内部锚点链接及其目标元素坐标
         const anchors = [];
         const links = document.querySelectorAll('a[href^="#"]');
+        const cleanKey = (s) => (s || '').toLowerCase().replace(/[^\\p{L}\\p{N}\\p{M}]+/gu, '');
+        const allHeadings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+
         for (const a of links) {
             const rawHref = a.getAttribute('href') || '';
             let hash = rawHref.slice(1);
@@ -101,6 +104,21 @@ class PDFExportRunner: NSObject, WKNavigationDelegate {
                     target = document.querySelector(`[id="${CSS.escape(hash)}"]`) ||
                              document.querySelector(`[name="${CSS.escape(hash)}"]`);
                 } catch (e) {}
+            }
+
+            // 宽松兜底匹配：针对人工撰写或不同生成器 TOC 锚点中省略标点、双连字符等差异
+            if (!target) {
+                const targetKey = cleanKey(hash);
+                if (targetKey) {
+                    for (const h of allHeadings) {
+                        const hId = h.id || '';
+                        const hText = h.getAttribute('data-heading-text') || h.textContent || '';
+                        if (cleanKey(hId) === targetKey || cleanKey(hText) === targetKey) {
+                            target = h;
+                            break;
+                        }
+                    }
+                }
             }
 
             if (!target) continue;
@@ -276,15 +294,14 @@ class PDFExportRunner: NSObject, WKNavigationDelegate {
             // 优先查找 WebKit 已生成的 Link 注解并覆写其 destination
             var matched: PDFAnnotation? = nil
             for ann in srcPage.annotations where ann.type == "Link" {
-                if let urlStr = ann.url?.absoluteString, urlStr.contains("#\(a.hash)") {
+                let decodedUrl = ann.url?.absoluteString.removingPercentEncoding ?? ""
+                if decodedUrl.contains("#\(a.hash)") {
                     matched = ann
                     break
                 }
-                if ann.url == nil && ann.destination == nil {
-                    if ann.bounds.insetBy(dx: -4, dy: -4).intersects(expectedBounds) {
-                        matched = ann
-                        break
-                    }
+                if ann.bounds.insetBy(dx: -4, dy: -4).intersects(expectedBounds) {
+                    matched = ann
+                    break
                 }
             }
 
@@ -295,6 +312,30 @@ class PDFExportRunner: NSObject, WKNavigationDelegate {
                 let newAnn = PDFAnnotation(bounds: expectedBounds, forType: .link, withProperties: nil)
                 newAnn.destination = destination
                 srcPage.addAnnotation(newAnn)
+            }
+        }
+
+        // 清理所有残留的 localhost 内部相对 URL 或未成功绑定的死链接注解，彻底防止 PDFgear 等阅读器误报权限错误
+        for p in 0..<doc.pageCount {
+            if let page = doc.page(at: p) {
+                let invalidAnnotations = page.annotations.filter { ann in
+                    guard ann.type == "Link" else { return false }
+                    if ann.destination != nil {
+                        return false
+                    }
+                    if let url = ann.url {
+                        let str = url.absoluteString
+                        if str.contains("localhost/") || url.host == "localhost" {
+                            return true
+                        }
+                    } else {
+                        return true
+                    }
+                    return false
+                }
+                for invalid in invalidAnnotations {
+                    page.removeAnnotation(invalid)
+                }
             }
         }
     }

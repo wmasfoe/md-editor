@@ -80,6 +80,11 @@ body {
 }
 
 /* Headings */
+.heading-anchor-alias {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+}
 h1, h2, h3, h4, h5, h6 {
   color: var(--theme-title, var(--theme-heading-accent, var(--theme-text)));
   font-weight: 700;

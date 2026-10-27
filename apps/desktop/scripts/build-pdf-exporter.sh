@@ -46,6 +46,16 @@ fi
 
 echo "==> Successfully built Inkpoint PDF Exporter at: ${TARGET_BIN}"
 
+# 同步拷贝至 target/debug 与 target/release 目录（如果存在），确保开发模式与调试运行即时生效
+if [[ -d "${DESKTOP_DIR}/src-tauri/target/debug" ]]; then
+  cp -f "${TARGET_BIN}" "${DESKTOP_DIR}/src-tauri/target/debug/inkpoint-pdf-exporter"
+  echo "==> Synchronized to target/debug/inkpoint-pdf-exporter"
+fi
+if [[ -d "${DESKTOP_DIR}/src-tauri/target/release" ]]; then
+  cp -f "${TARGET_BIN}" "${DESKTOP_DIR}/src-tauri/target/release/inkpoint-pdf-exporter"
+  echo "==> Synchronized to target/release/inkpoint-pdf-exporter"
+fi
+
 # If target .app bundle directory is specified, copy into Contents/MacOS or Contents/Resources
 TARGET_APP="${1:-}"
 if [[ -n "${TARGET_APP}" && -d "${TARGET_APP}" ]]; then
