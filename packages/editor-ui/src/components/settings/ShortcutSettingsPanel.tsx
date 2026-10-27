@@ -3,6 +3,7 @@
  */
 
 import type { KeyboardEvent, ReactNode } from "react";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
 import {
   settingsDescriptionClassName,
@@ -10,7 +11,6 @@ import {
   settingsInputClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-  settingsSmallButtonClassName,
 } from "./settings-styles";
 
 export interface ShortcutItemData {
@@ -102,7 +102,7 @@ export function ShortcutSettingsPanel({
                   key={shortcut.id}
                   className={`grid items-center gap-2.5 max-[760px]:grid-cols-1 ${
                     mode === "editable"
-                      ? "grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_56px]"
+                      ? "grid-cols-[minmax(150px,1fr)_minmax(160px,220px)_30px]"
                       : "grid-cols-[minmax(150px,1fr)_minmax(160px,220px)]"
                   }`}
                 >
@@ -135,11 +135,15 @@ export function ShortcutSettingsPanel({
                   {mode === "editable" && onResetShortcut ? (
                     <button
                       type="button"
-                      className={settingsSmallButtonClassName}
+                      className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={!isCustom}
                       onClick={() => onResetShortcut(shortcut.id)}
+                      title={t("settings.shortcuts.resetToDefault", { defaultValue: "恢复默认" })}
+                      aria-label={t("settings.shortcuts.resetToDefault", {
+                        defaultValue: "恢复默认",
+                      })}
                     >
-                      {t("settings.shortcuts.resetToDefault", { defaultValue: "重置" })}
+                      <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
                     </button>
                   ) : null}
                 </div>

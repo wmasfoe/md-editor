@@ -1,4 +1,4 @@
-import { Transaction, type EditorState } from "@codemirror/state";
+import { Transaction, type EditorState, type Text } from "@codemirror/state";
 import type { Action, Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
@@ -13,12 +13,50 @@ import {
   localizeMarkdownLintDetail,
 } from "./markdown-lint-i18n.ts";
 
-const EXEMPT_SYNTAX_KINDS: ReadonlySet<MarkdownSyntaxKind> = new Set([
+export const EXEMPT_SYNTAX_KINDS: ReadonlySet<MarkdownSyntaxKind> = new Set([
   "frontmatter",
   "inline-math",
   "block-math",
   "mdx-jsx",
 ]);
+
+export interface MarkdownLintTextChange {
+  readonly from: number;
+  readonly to: number;
+  readonly insert: string;
+}
+
+export interface MarkdownLintFixInfo {
+  readonly lineNumber?: number;
+  readonly editColumn?: number;
+  readonly deleteCount?: number;
+  readonly insertText?: string;
+}
+
+/**
+ * 将 markdownlint 的单项 fixInfo 转换为 CodeMirror 文本区间替换声明
+ */
+export function convertFixInfoToChange(
+  doc: Text,
+  fix: MarkdownLintFixInfo,
+  fallbackLineNum: number,
+): MarkdownLintTextChange {
+  const fixLineNum = Math.min(Math.max(1, fix.lineNumber ?? fallbackLineNum), doc.lines);
+  const targetLine = doc.line(fixLineNum);
+  const deleteCount = fix.deleteCount ?? 0;
+
+  if (deleteCount === -1) {
+    const lineFrom = targetLine.from;
+    const lineTo = fixLineNum < doc.lines ? doc.line(fixLineNum + 1).from : targetLine.to;
+    return { from: lineFrom, to: lineTo, insert: "" };
+  }
+
+  const editColumn = Math.max(1, fix.editColumn ?? 1);
+  const editFrom = Math.min(targetLine.from + editColumn - 1, targetLine.to);
+  const editTo = Math.min(editFrom + deleteCount, targetLine.to);
+  const insertText = fix.insertText ?? "";
+  return { from: editFrom, to: editTo, insert: insertText };
+}
 
 export const DEFAULT_MARKDOWNLINT_CONFIG: Record<string, unknown> = {
   default: true,
@@ -106,41 +144,15 @@ export function runMarkdownLint(
         actions.push({
           name: getQuickFixActionLabel(activeLocale),
           apply: (view) => {
-            const fixLineNum = Math.min(
-              Math.max(1, fix.lineNumber ?? lineNum),
-              view.state.doc.lines,
-            );
-            const targetLine = view.state.doc.line(fixLineNum);
-            const deleteCount = fix.deleteCount ?? 0;
-
-            if (deleteCount === -1) {
-              const lineFrom = targetLine.from;
-              const lineTo =
-                fixLineNum < view.state.doc.lines
-                  ? view.state.doc.line(fixLineNum + 1).from
-                  : targetLine.to;
-              view.dispatch({
-                changes: { from: lineFrom, to: lineTo, insert: "" },
-                userEvent: "lint.fix",
-                annotations: [
-                  Transaction.addToHistory.of(true),
-                  authorizeWysiwygProtectedChange.of(true),
-                ],
-              });
-            } else {
-              const editColumn = Math.max(1, fix.editColumn ?? 1);
-              const editFrom = Math.min(targetLine.from + editColumn - 1, targetLine.to);
-              const editTo = Math.min(editFrom + deleteCount, targetLine.to);
-              const insertText = fix.insertText ?? "";
-              view.dispatch({
-                changes: { from: editFrom, to: editTo, insert: insertText },
-                userEvent: "lint.fix",
-                annotations: [
-                  Transaction.addToHistory.of(true),
-                  authorizeWysiwygProtectedChange.of(true),
-                ],
-              });
-            }
+            const change = convertFixInfoToChange(view.state.doc, fix, lineNum);
+            view.dispatch({
+              changes: change,
+              userEvent: "lint.fix",
+              annotations: [
+                Transaction.addToHistory.of(true),
+                authorizeWysiwygProtectedChange.of(true),
+              ],
+            });
           },
         });
       }

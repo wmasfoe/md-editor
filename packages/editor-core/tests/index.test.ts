@@ -313,6 +313,8 @@ describe("built-in feature registry", () => {
       "view.toggleTypewriterMode",
       "view.showWysiwyg",
       "view.toggleSidebarPrimary",
+      "lint.run",
+      "lint.fixAll",
     ]);
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Shift-B:view.toggleSidebarPrimary",
@@ -325,6 +327,12 @@ describe("built-in feature registry", () => {
     );
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Alt-T:table.insert",
+    );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Shift-Alt-L:lint.run",
+    );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Shift-Alt-F:lint.fixAll",
     );
 
     await commands.dispatch("table.insert", {

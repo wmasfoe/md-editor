@@ -509,6 +509,8 @@ export const en: TranslationSchema = {
       "format.heading5": "Heading 5",
       "format.heading6": "Heading 6",
       "format.paragraph": "Paragraph",
+      "lint.run": "Run Markdown Lint",
+      "lint.fixAll": "Fix All Markdown Lint Issues",
     },
   },
   commandPalette: {

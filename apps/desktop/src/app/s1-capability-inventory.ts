@@ -69,6 +69,8 @@ const exportAndQualityCommands = [
   "file.exportPdf",
   "edit.copyAsHtml",
   "file.checkLinks",
+  "lint.run",
+  "lint.fixAll",
 ] as const;
 
 export const S1_REGISTERED_COMMAND_IDS = [
@@ -188,6 +190,20 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     baseline: "implemented",
     s1Disposition: "new-capability",
     note: "Local relative link validation and markdownlint formatting inspection.",
+  },
+  {
+    id: "lint.run",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Run on-demand MarkdownLint inspection, display diagnostics, and open dock panel.",
+  },
+  {
+    id: "lint.fixAll",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Batch fix all auto-fixable MarkdownLint issues with single-step atomic undo.",
   },
   {
     id: "editor.markdown-input-history",

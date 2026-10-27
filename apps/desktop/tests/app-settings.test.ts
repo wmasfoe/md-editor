@@ -97,6 +97,8 @@ describe("app settings", () => {
       "block.moveDown",
       "block.duplicate",
       "block.delete",
+      "lint.run",
+      "lint.fixAll",
     ]);
   });
 

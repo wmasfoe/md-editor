@@ -208,6 +208,36 @@ export function useDesktopEditorController({
               );
             }
           },
+          runMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            const res = portsAccess.ports.runMarkdownLint();
+            if (res.total === 0) {
+              showToast("规范检查通过：未发现格式问题");
+            } else {
+              showToast(`规范检查完成：发现 ${res.total} 处问题（已在下方面板列出）`);
+            }
+          },
+          fixAllMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            const res = portsAccess.ports.fixAllMarkdownLint();
+            if (res.appliedCount > 0) {
+              showToast(
+                `已自动修复 ${res.appliedCount} 处规范问题${
+                  res.remainingCount > 0 ? `，尚余 ${res.remainingCount} 处需手动处理` : ""
+                }`,
+              );
+            } else if (res.remainingCount > 0) {
+              showToast(`当前存在 ${res.remainingCount} 处规范问题，暂不支持自动修复`);
+            } else {
+              showToast("当前文档没有规范问题");
+            }
+          },
           openSettings,
           openAbout,
           // D-3 块操作：host→renderer 接线（view 在 renderer 侧，故经 ports 回调）。

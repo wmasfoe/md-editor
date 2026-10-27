@@ -115,7 +115,11 @@ import {
   collectPreservedNonMarkdownDiagnostics,
   createRealtimeMarkdownLintExtension,
   runMarkdownLint,
+  runMarkdownLintCommand,
+  fixAllMarkdownLintIssues,
   type DocumentLinterOptions,
+  type MarkdownLintRunResult,
+  type MarkdownLintFixAllResult,
 } from "../lint/index.ts";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 
@@ -479,6 +483,20 @@ export class CodeMirrorRendererController {
       return [];
     }
     return executeDocumentLint(this.#view, options);
+  }
+
+  runMarkdownLintCommand(config?: Record<string, unknown>): MarkdownLintRunResult {
+    if (this.#destroyed) {
+      return { total: 0, errors: 0, warnings: 0 };
+    }
+    return runMarkdownLintCommand(this.#view as unknown as EditorView, config);
+  }
+
+  fixAllMarkdownLint(config?: Record<string, unknown>): MarkdownLintFixAllResult {
+    if (this.#destroyed) {
+      return { appliedCount: 0, remainingCount: 0 };
+    }
+    return fixAllMarkdownLintIssues(this.#view as unknown as EditorView, config);
   }
 
   destroy(): void {

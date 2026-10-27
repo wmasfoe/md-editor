@@ -103,7 +103,9 @@ export type BuiltInCommandId =
   | "block.moveUp"
   | "block.moveDown"
   | "block.duplicate"
-  | "block.delete";
+  | "block.delete"
+  | "lint.run"
+  | "lint.fixAll";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -139,6 +141,8 @@ export interface EditorActionHandlers {
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
   readonly continueAiWriting?: () => void | Promise<void>;
   readonly fixAiGrammar?: () => void | Promise<void>;
+  readonly runMarkdownLint?: () => void | Promise<void>;
+  readonly fixAllMarkdownLint?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -381,6 +385,28 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         "toggleSidebarPrimary",
         { group: "视图", keywords: ["侧栏", "sidebar", "outline"] },
       );
+      registerActionCommand(context.commands, "lint.run", "Run Markdown Lint", "runMarkdownLint", {
+        group: "编辑",
+        keywords: ["lint", "markdownlint", "规范", "检查"],
+      });
+      registerActionCommand(
+        context.commands,
+        "lint.fixAll",
+        "Fix All Markdown Lint Issues",
+        "fixAllMarkdownLint",
+        { group: "编辑", keywords: ["lint", "fix", "修复", "一键修复", "规范"] },
+      );
+
+      context.keymaps.register({
+        id: "lint.run",
+        key: "Shift-Alt-L",
+        commandId: "lint.run",
+      });
+      context.keymaps.register({
+        id: "lint.fixAll",
+        key: "Shift-Alt-F",
+        commandId: "lint.fixAll",
+      });
 
       context.keymaps.register({
         id: "view.toggleSource",

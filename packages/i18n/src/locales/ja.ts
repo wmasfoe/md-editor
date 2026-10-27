@@ -513,6 +513,8 @@ export const ja: TranslationSchema = {
       "format.heading5": "見出し 5 (H5)",
       "format.heading6": "見出し 6 (H6)",
       "format.paragraph": "本文段落",
+      "lint.run": "Markdown 規約チェック実行",
+      "lint.fixAll": "すべての Markdown 規約問題を一括修正",
     },
   },
   commandPalette: {

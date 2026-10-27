@@ -508,6 +508,8 @@ export const zhHant: TranslationSchema = {
       "format.heading5": "五級標題 (H5)",
       "format.heading6": "六級標題 (H6)",
       "format.paragraph": "本文段落",
+      "lint.run": "執行 Markdown 規範檢查",
+      "lint.fixAll": "一鍵修復全部規範問題",
     },
   },
   commandPalette: {

@@ -96,6 +96,17 @@ export interface CodeMirrorEditorPorts {
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
   /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
   runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
+  /** 运行单次 Markdown 规范检查，分发诊断并打开问题面板 */
+  runMarkdownLint(config?: Record<string, unknown>): {
+    readonly total: number;
+    readonly errors: number;
+    readonly warnings: number;
+  };
+  /** 一键自动修复所有支持自动修复的 Markdown 规范问题 */
+  fixAllMarkdownLint(config?: Record<string, unknown>): {
+    readonly appliedCount: number;
+    readonly remainingCount: number;
+  };
 }
 
 export type CodeMirrorEditorSyncError =
@@ -293,6 +304,8 @@ export function createCodeMirrorEditorBridge(
     flushPendingEdits: () => renderer.flushPendingEdits(),
     setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
     runDocumentLint: (opts?: DocumentLinterOptions) => renderer.runDocumentLint(opts),
+    runMarkdownLint: (config?: Record<string, unknown>) => renderer.runMarkdownLintCommand(config),
+    fixAllMarkdownLint: (config?: Record<string, unknown>) => renderer.fixAllMarkdownLint(config),
   });
   rendererByPorts.set(ports, renderer);
 
