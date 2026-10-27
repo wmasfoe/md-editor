@@ -166,17 +166,20 @@ export interface CodeMirrorRenderer {
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
   /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
   runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
-  /** 运行单次 Markdown 规范检查，分发诊断并打开问题面板 */
+  /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */
   runMarkdownLintCommand(config?: Record<string, unknown>): {
     readonly total: number;
     readonly errors: number;
     readonly warnings: number;
+    readonly toggledOff?: boolean;
   };
   /** 一键自动修复所有支持自动修复的 Markdown 规范问题 */
   fixAllMarkdownLint(config?: Record<string, unknown>): {
     readonly appliedCount: number;
     readonly remainingCount: number;
   };
+  /** 清除 Markdown 规范检查状态（波浪线与底部面板） */
+  clearMarkdownLint(): void;
   destroy(): void;
 }
 

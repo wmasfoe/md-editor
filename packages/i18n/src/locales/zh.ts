@@ -505,8 +505,9 @@ export const zh = {
       "format.heading5": "五级标题 (H5)",
       "format.heading6": "六级标题 (H6)",
       "format.paragraph": "正文段落",
-      "lint.run": "运行 Markdown 规范检查",
+      "lint.run": "运行 / 切换 Markdown 规范检查",
       "lint.fixAll": "一键修复全部规范问题",
+      "lint.clear": "清除 Markdown 规范检查状态",
     },
   },
   commandPalette: {

@@ -214,7 +214,9 @@ export function useDesktopEditorController({
               return;
             }
             const res = portsAccess.ports.runMarkdownLint();
-            if (res.total === 0) {
+            if (res.toggledOff) {
+              showToast("已退出规范检查状态");
+            } else if (res.total === 0) {
               showToast("规范检查通过：未发现格式问题");
             } else {
               showToast(`规范检查完成：发现 ${res.total} 处问题（已在下方面板列出）`);
@@ -237,6 +239,14 @@ export function useDesktopEditorController({
             } else {
               showToast("当前文档没有规范问题");
             }
+          },
+          clearMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            portsAccess.ports.clearMarkdownLint();
+            showToast("已退出规范检查状态");
           },
           openSettings,
           openAbout,

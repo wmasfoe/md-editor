@@ -2,8 +2,14 @@
  * @fileoverview Markdown 规范检查与一键批量修复命令
  */
 
-import { Transaction, type EditorState } from "@codemirror/state";
-import { openLintPanel, closeLintPanel, setDiagnostics } from "@codemirror/lint";
+import { Transaction, type EditorState, type TransactionSpec } from "@codemirror/state";
+import {
+  openLintPanel,
+  closeLintPanel,
+  setDiagnostics,
+  forEachDiagnostic,
+  type Diagnostic,
+} from "@codemirror/lint";
 import type { EditorView } from "@codemirror/view";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
@@ -22,6 +28,7 @@ export interface MarkdownLintRunResult {
   readonly total: number;
   readonly errors: number;
   readonly warnings: number;
+  readonly toggledOff?: boolean;
 }
 
 export interface MarkdownLintFixAllResult {
@@ -123,13 +130,78 @@ export function filterNonOverlappingDescendingChanges(
 }
 
 /**
- * 运行单次 Markdown 规范检查命令：
- * 分发诊断至编辑器，并呼出底部问题面板供逐项查看与跳转
+ * 收集当前 state 中除 markdownlint 以外的既有诊断（例如手动链接检查结果），避免被清空逻辑误杀
+ */
+export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diagnostic[] {
+  const preserved: Diagnostic[] = [];
+  forEachDiagnostic(state, (diagnostic, from, to) => {
+    if (diagnostic.source !== "markdownlint") {
+      preserved.push({
+        ...diagnostic,
+        from,
+        to,
+      });
+    }
+  });
+  return preserved;
+}
+
+/**
+ * 清除所有 markdownlint 产生的波浪线诊断，同时保留其他来源诊断（如链接检查）
+ */
+export function clearMarkdownLintDiagnostics(state: EditorState): TransactionSpec {
+  const preserved = collectPreservedNonMarkdownDiagnostics(state);
+  return setDiagnostics(state, preserved);
+}
+
+/**
+ * 统计当前编辑器中属于 markdownlint 的活跃诊断数量
+ */
+export function countActiveMarkdownLintDiagnostics(state: EditorState): number {
+  let count = 0;
+  forEachDiagnostic(state, (d) => {
+    if (d.source === "markdownlint") {
+      count++;
+    }
+  });
+  return count;
+}
+
+/**
+ * 清除当前编辑器的 MarkdownLint 规范检查状态（清除波浪线并关闭底部面板）
+ */
+export function clearMarkdownLintCommand(view: EditorView): void {
+  view.dispatch(clearMarkdownLintDiagnostics(view.state));
+  if (typeof view.plugin === "function") {
+    try {
+      closeLintPanel(view);
+    } catch {
+      // 容错：安全跳过
+    }
+  }
+}
+
+/**
+ * 运行或切换 Markdown 规范检查命令：
+ * - 若当前处于已检查状态（存在活跃诊断），再次执行则 Toggle Off（清空波浪线并收起面板）；
+ * - 若当前处于关闭状态，则执行全新扫描，分发诊断并呼出底部面板供跳转查看。
  */
 export function runMarkdownLintCommand(
   view: EditorView,
   config?: Record<string, unknown>,
 ): MarkdownLintRunResult {
+  // 如果当前视图中已经存在活跃的 markdownlint 诊断（已处于检查状态），再次执行快捷键则 Toggle Off（退出校验状态）
+  const activeCount = countActiveMarkdownLintDiagnostics(view.state);
+  if (activeCount > 0) {
+    clearMarkdownLintCommand(view);
+    return {
+      total: 0,
+      errors: 0,
+      warnings: 0,
+      toggledOff: true,
+    };
+  }
+
   const diagnostics = runMarkdownLint(view.state, config);
   view.dispatch(setDiagnostics(view.state, diagnostics));
 
@@ -154,6 +226,7 @@ export function runMarkdownLintCommand(
     total: diagnostics.length,
     errors,
     warnings,
+    toggledOff: false,
   };
 }
 

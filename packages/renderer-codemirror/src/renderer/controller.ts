@@ -117,6 +117,7 @@ import {
   runMarkdownLint,
   runMarkdownLintCommand,
   fixAllMarkdownLintIssues,
+  clearMarkdownLintCommand,
   type DocumentLinterOptions,
   type MarkdownLintRunResult,
   type MarkdownLintFixAllResult,
@@ -462,16 +463,11 @@ export class CodeMirrorRendererController {
     line: number,
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return scrollViewToLine(this.#view, line, options);
+    return this.#destroyed ? false : scrollViewToLine(this.#view, line, options);
   }
 
   requestMeasure(): void {
-    if (!this.#destroyed) {
-      this.#requestMeasure();
-    }
+    if (!this.#destroyed) this.#requestMeasure();
   }
 
   flushPendingEdits(): boolean {
@@ -496,6 +492,10 @@ export class CodeMirrorRendererController {
     return this.#destroyed
       ? { appliedCount: 0, remainingCount: 0 }
       : fixAllMarkdownLintIssues(this.#targetEditorView, config);
+  }
+
+  clearMarkdownLint(): void {
+    if (!this.#destroyed) clearMarkdownLintCommand(this.#targetEditorView);
   }
 
   destroy(): void {

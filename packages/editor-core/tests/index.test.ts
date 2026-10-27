@@ -315,6 +315,7 @@ describe("built-in feature registry", () => {
       "view.toggleSidebarPrimary",
       "lint.run",
       "lint.fixAll",
+      "lint.clear",
     ]);
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Mod-Shift-B:view.toggleSidebarPrimary",

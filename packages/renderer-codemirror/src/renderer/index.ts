@@ -91,6 +91,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     runMarkdownLintCommand: (config?: Record<string, unknown>) =>
       controller.runMarkdownLintCommand(config),
     fixAllMarkdownLint: (config?: Record<string, unknown>) => controller.fixAllMarkdownLint(config),
+    clearMarkdownLint: () => controller.clearMarkdownLint(),
     destroy: () => controller.destroy(),
   });
   controllerByRenderer.set(renderer, controller);

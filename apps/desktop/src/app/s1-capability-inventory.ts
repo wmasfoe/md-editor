@@ -71,6 +71,7 @@ const exportAndQualityCommands = [
   "file.checkLinks",
   "lint.run",
   "lint.fixAll",
+  "lint.clear",
 ] as const;
 
 export const S1_REGISTERED_COMMAND_IDS = [
@@ -204,6 +205,13 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     baseline: "implemented",
     s1Disposition: "new-capability",
     note: "Batch fix all auto-fixable MarkdownLint issues with single-step atomic undo.",
+  },
+  {
+    id: "lint.clear",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Clear on-demand MarkdownLint diagnostics and close dock panel.",
   },
   {
     id: "editor.markdown-input-history",

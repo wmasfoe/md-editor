@@ -1,14 +1,13 @@
 import { Facet, type Extension, type EditorState, type TransactionSpec } from "@codemirror/state";
-import {
-  forEachDiagnostic,
-  linter,
-  lintKeymap,
-  setDiagnostics,
-  type Diagnostic,
-} from "@codemirror/lint";
+import { linter, lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { EditorView, keymap } from "@codemirror/view";
 import { runMarkdownLint } from "./markdown-lint.ts";
 import { runLinkValidation } from "./link-lint.ts";
+import {
+  clearMarkdownLintCommand,
+  countActiveMarkdownLintDiagnostics,
+  collectPreservedNonMarkdownDiagnostics,
+} from "./commands.ts";
 import type { DocumentLinterOptions, LinkLintOptions } from "./types.ts";
 
 export * from "./types.ts";
@@ -240,36 +239,52 @@ export const lintLiquidTheme = EditorView.baseTheme({
 export const MAX_REALTIME_LINT_DOC_CHARS = 120_000;
 
 /**
- * 收集当前 state 中除 markdownlint 以外的既有诊断（例如手动链接检查结果），避免被实时轮询覆盖
- */
-export function collectPreservedNonMarkdownDiagnostics(state: EditorState): Diagnostic[] {
-  const preserved: Diagnostic[] = [];
-  forEachDiagnostic(state, (diagnostic, from, to) => {
-    if (diagnostic.source !== "markdownlint") {
-      preserved.push({
-        ...diagnostic,
-        from,
-        to,
-      });
-    }
-  });
-  return preserved;
-}
-
-/**
- * 清除所有 markdownlint 产生的波浪线诊断，同时保留其他来源诊断
- */
-export function clearMarkdownLintDiagnostics(state: EditorState): TransactionSpec {
-  const preserved = collectPreservedNonMarkdownDiagnostics(state);
-  return setDiagnostics(state, preserved);
-}
-
-/**
  * 提供 CM6 原生 Lint 常驻底座（包含状态字段挂载、快捷键导航以及 Liquid Glass 毛玻璃气泡视觉定制）
  * 不挂载任何自动轮询源，零定时器与零静态检查开销。
  */
 export function createLintBaseExtensions(): Extension {
-  return [linter(null), keymap.of(lintKeymap), lintLiquidTheme];
+  return [
+    linter(null),
+    keymap.of([
+      ...lintKeymap,
+      {
+        key: "Escape",
+        run(view) {
+          if (countActiveMarkdownLintDiagnostics(view.state) > 0) {
+            clearMarkdownLintCommand(view);
+            return true;
+          }
+          return false;
+        },
+      },
+    ]),
+    lintLiquidTheme,
+    EditorView.domEventHandlers({
+      mouseenter(event) {
+        const target = event.target as HTMLElement | null;
+        const closeBtn = target?.closest?.(".cm-panel-lint [name='close']");
+        if (closeBtn && !closeBtn.getAttribute("title")) {
+          closeBtn.setAttribute("title", "关闭并清除规范检查 (Esc / ⌥⇧L)");
+        }
+      },
+      click(event, view) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.(".cm-panel-lint [name='close']")) {
+          // 用户点击底部诊断面板右上角 × 按钮时，同步清除文档内的 markdownlint 波浪线标记并收起
+          clearMarkdownLintCommand(view);
+        }
+      },
+      keydown(event, view) {
+        if (event.key === "Escape") {
+          const target = event.target as HTMLElement | null;
+          if (target?.closest?.(".cm-panel-lint")) {
+            // 在底部面板内按 Esc 时同步清除标记
+            clearMarkdownLintCommand(view);
+          }
+        }
+      },
+    }),
+  ];
 }
 
 /**

@@ -105,7 +105,8 @@ export type BuiltInCommandId =
   | "block.duplicate"
   | "block.delete"
   | "lint.run"
-  | "lint.fixAll";
+  | "lint.fixAll"
+  | "lint.clear";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -143,6 +144,7 @@ export interface EditorActionHandlers {
   readonly fixAiGrammar?: () => void | Promise<void>;
   readonly runMarkdownLint?: () => void | Promise<void>;
   readonly fixAllMarkdownLint?: () => void | Promise<void>;
+  readonly clearMarkdownLint?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -387,7 +389,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       );
       registerActionCommand(context.commands, "lint.run", "Run Markdown Lint", "runMarkdownLint", {
         group: "编辑",
-        keywords: ["lint", "markdownlint", "规范", "检查"],
+        keywords: ["lint", "markdownlint", "规范", "检查", "切换"],
       });
       registerActionCommand(
         context.commands,
@@ -395,6 +397,13 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         "Fix All Markdown Lint Issues",
         "fixAllMarkdownLint",
         { group: "编辑", keywords: ["lint", "fix", "修复", "一键修复", "规范"] },
+      );
+      registerActionCommand(
+        context.commands,
+        "lint.clear",
+        "Clear Markdown Lint Diagnostics",
+        "clearMarkdownLint",
+        { group: "编辑", keywords: ["lint", "clear", "清除", "关闭", "规范"] },
       );
 
       context.keymaps.register({

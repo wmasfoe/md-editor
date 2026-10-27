@@ -10,6 +10,8 @@ import {
   filterNonOverlappingDescendingChanges,
   fixAllMarkdownLintIssues,
   runMarkdownLintCommand,
+  clearMarkdownLintCommand,
+  countActiveMarkdownLintDiagnostics,
   type MarkdownLintTextChange,
 } from "../../src/lint/commands.ts";
 
@@ -132,5 +134,37 @@ title: 测试标题
     const cleanView = createTestEditor("# 标题\n\n正文\n").view;
     const cleanResult = runMarkdownLintCommand(cleanView);
     expect(cleanResult.total).toBe(0);
+    expect(cleanResult.toggledOff).toBe(false);
+  });
+
+  it("runMarkdownLintCommand 支持 Toggle 语义：在已校验状态下再次执行即关闭并清除标记", () => {
+    const { view } = createTestEditor("# 标题\n\n\n\n正文内容");
+
+    // 第一次执行：分发诊断并打开面板
+    const firstResult = runMarkdownLintCommand(view);
+    expect(firstResult.total).toBeGreaterThan(0);
+    expect(firstResult.toggledOff).toBe(false);
+    expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
+
+    // 第二次执行：触发 Toggle Off，自动清空所有诊断标记与面板
+    const toggleResult = runMarkdownLintCommand(view);
+    expect(toggleResult.toggledOff).toBe(true);
+    expect(toggleResult.total).toBe(0);
+    expect(countActiveMarkdownLintDiagnostics(view.state)).toBe(0);
+
+    // 第三次执行：再次开启
+    const thirdResult = runMarkdownLintCommand(view);
+    expect(thirdResult.toggledOff).toBe(false);
+    expect(thirdResult.total).toBeGreaterThan(0);
+    expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
+  });
+
+  it("clearMarkdownLintCommand 可直接清除所有 markdownlint 诊断并关闭面板", () => {
+    const { view } = createTestEditor("# 标题\n\n\n\n正文内容");
+    runMarkdownLintCommand(view);
+    expect(countActiveMarkdownLintDiagnostics(view.state)).toBeGreaterThan(0);
+
+    clearMarkdownLintCommand(view);
+    expect(countActiveMarkdownLintDiagnostics(view.state)).toBe(0);
   });
 });
