@@ -114,6 +114,7 @@ import {
   executeDocumentLint,
   collectPreservedNonMarkdownDiagnostics,
   createRealtimeMarkdownLintExtension,
+  runMarkdownLint,
   type DocumentLinterOptions,
 } from "../lint/index.ts";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
@@ -310,6 +311,30 @@ export class CodeMirrorRendererController {
     return { status: "applied" };
   }
 
+  recomputeMarkdownLint(): MarkdownLintPortResult {
+    if (this.#destroyed) {
+      return { status: "destroyed" };
+    }
+    if (!this.#markdownLintEnabled) {
+      return { status: "noop" };
+    }
+    const preserved = collectPreservedNonMarkdownDiagnostics(this.#view.state);
+    const mdDiagnostics = runMarkdownLint(this.#view.state);
+    const effects: readonly StateEffect<unknown>[] = (setDiagnostics(this.#view.state, [
+      ...preserved,
+      ...mdDiagnostics,
+    ]).effects ?? []) as readonly StateEffect<unknown>[];
+
+    this.#view.dispatch({
+      effects: [...effects],
+      annotations: [
+        Transaction.addToHistory.of(false),
+        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+      ],
+    });
+    return { status: "applied" };
+  }
+
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult {
     if (this.#destroyed) {
       return { status: "destroyed" };
@@ -354,38 +379,23 @@ export class CodeMirrorRendererController {
   }
 
   acceptSuggestion(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return acceptAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && acceptAiSuggestion(this.#view as unknown as EditorView);
   }
 
   moveBlockUp(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return moveBlockUp(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveBlockUp(this.#view as unknown as EditorView);
   }
 
   moveBlockDown(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return moveBlockDown(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveBlockDown(this.#view as unknown as EditorView);
   }
 
   toggleFocusMode(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return toggleViewFocusMode(this.#view);
+    return !this.#destroyed && toggleViewFocusMode(this.#view);
   }
 
   toggleTypewriterMode(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return toggleViewTypewriterMode(this.#view);
+    return !this.#destroyed && toggleViewTypewriterMode(this.#view);
   }
 
   getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
@@ -393,24 +403,15 @@ export class CodeMirrorRendererController {
   }
 
   duplicateBlock(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return duplicateBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && duplicateBlock(this.#view as unknown as EditorView);
   }
 
   deleteBlock(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return deleteBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && deleteBlock(this.#view as unknown as EditorView);
   }
 
   dismissSuggestion(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return dismissAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && dismissAiSuggestion(this.#view as unknown as EditorView);
   }
 
   getSuggestion(): AiSuggestionValue | null {

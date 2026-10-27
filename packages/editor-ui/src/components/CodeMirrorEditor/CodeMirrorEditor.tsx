@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import type { DocumentState } from "@md-editor/editor-core";
+import { useTranslation } from "@md-editor/i18n";
 import { useOptionalEditorUiActions } from "../../hooks/useEditorUi";
 import {
   createCodeMirrorEditorBridge,
@@ -190,8 +191,32 @@ export function CodeMirrorEditor({
     bridgeRef.current?.ports.setInlineStyleMarkers(showInlineStyleMarkers);
   }, [showInlineStyleMarkers]);
 
+  const { i18n } = useTranslation();
+  const currentLanguage = i18n?.language;
+
   useLayoutEffect(() => {
     bridgeRef.current?.ports.setMarkdownLint(enableMarkdownLint);
+  }, [enableMarkdownLint]);
+
+  useLayoutEffect(() => {
+    if (enableMarkdownLint) {
+      bridgeRef.current?.ports.recomputeMarkdownLint();
+    }
+  }, [currentLanguage, enableMarkdownLint]);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const handleLanguageChange = () => {
+      if (enableMarkdownLint) {
+        bridgeRef.current?.ports.recomputeMarkdownLint();
+      }
+    };
+    window.addEventListener("md-editor:language-changed", handleLanguageChange);
+    return () => {
+      window.removeEventListener("md-editor:language-changed", handleLanguageChange);
+    };
   }, [enableMarkdownLint]);
 
   useLayoutEffect(() => {

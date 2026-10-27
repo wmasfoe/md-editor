@@ -4,9 +4,10 @@
  */
 
 import {
-  MARKDOWNLINT_ZH_RULES,
   getActiveLintLocale,
+  getMarkdownLintRuleInfo,
   localizeMarkdownLintDetail,
+  type LintLocale,
 } from "./markdown-lint-i18n.ts";
 
 export interface DiagnosticDomOptions {
@@ -15,7 +16,7 @@ export interface DiagnosticDomOptions {
   readonly description: string;
   readonly detail?: string;
   readonly severity?: "error" | "warning" | "info" | "hint";
-  readonly locale?: "zh" | "zh-Hant" | "ja" | "en";
+  readonly locale?: LintLocale;
 }
 
 /**
@@ -43,11 +44,12 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
   }
 
   const activeLocale = options.locale ?? getActiveLintLocale();
-  const isZh = activeLocale === "zh" || activeLocale === "zh-Hant";
-  const zhInfo = options.ruleCode && isZh ? MARKDOWNLINT_ZH_RULES[options.ruleCode] : undefined;
+  const ruleInfo = options.ruleCode
+    ? getMarkdownLintRuleInfo(options.ruleCode, activeLocale)
+    : undefined;
 
-  // 规则可读别名（如 "标题层级递增" 或 "heading-increment"）
-  const displayAlias = zhInfo?.alias ?? options.ruleAlias;
+  // 规则可读别名（如 "见出しレベルの順次増加"、"标题层级递增" 或 "Heading increment"）
+  const displayAlias = ruleInfo?.alias ?? options.ruleAlias;
   if (displayAlias) {
     const alias = document.createElement("span");
     alias.className = "cm-liquid-diagnostic__alias";
@@ -60,7 +62,7 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
   }
 
   // 核心错误描述
-  const displayDesc = zhInfo?.description ?? options.description;
+  const displayDesc = ruleInfo?.description ?? options.description;
   if (displayDesc) {
     const desc = document.createElement("div");
     desc.className = "cm-liquid-diagnostic__desc";
@@ -68,9 +70,9 @@ export function createDiagnosticDomNode(options: DiagnosticDomOptions): HTMLElem
     container.appendChild(desc);
   }
 
-  // 详细上下文信息（如 "期望: h2，实际: h3"）
+  // 详细上下文信息
   const rawDetail = options.detail;
-  const displayDetail = isZh ? localizeMarkdownLintDetail(rawDetail) : rawDetail;
+  const displayDetail = localizeMarkdownLintDetail(rawDetail, activeLocale);
   if (displayDetail) {
     const detailRow = document.createElement("div");
     detailRow.className = "cm-liquid-diagnostic__detail";

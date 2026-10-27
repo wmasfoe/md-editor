@@ -12,6 +12,7 @@ import { runLinkValidation } from "./link-lint.ts";
 import type { DocumentLinterOptions, LinkLintOptions } from "./types.ts";
 
 export * from "./types.ts";
+export { runMarkdownLint } from "./markdown-lint.ts";
 export { runLinkValidation } from "./link-lint.ts";
 export { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 

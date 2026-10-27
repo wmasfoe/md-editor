@@ -168,4 +168,59 @@ describe("markdown-lint in editor", () => {
       (globalThis as unknown as { document?: unknown }).document = origDoc;
     }
   });
+
+  it("provides localized Japanese descriptions, suggestions and Quick Fix for ja locale", () => {
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    try {
+      (globalThis as unknown as { document?: unknown }).document = {
+        documentElement: { lang: "ja" },
+      };
+
+      // MD001 (heading-increment) + MD018 (no-missing-space-atx)
+      const doc = "# H1\n\n### H3\n#Heading without space\n";
+      const state = EditorState.create({ doc });
+      const diagnostics = runMarkdownLint(state);
+
+      const md001 = diagnostics.find((d) => d.message.includes("MD001"));
+      expect(md001).toBeDefined();
+      expect(md001?.message).toContain("見出しレベルの順次増加");
+      expect(md001?.message).toContain("1段階ずつ増やす必要があります");
+      expect(md001?.message).toContain("期待値");
+
+      const md018 = diagnostics.find((d) => d.message.includes("MD018"));
+      expect(md018).toBeDefined();
+      expect(md018?.message).toContain("提案: ここに半角スペースを1つ追加");
+      expect(md018?.actions?.[0].name).toBe("クイック修正");
+    } finally {
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
+
+  it("provides localized English and Traditional Chinese for en and zh-Hant locales", () => {
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    try {
+      // en
+      (globalThis as unknown as { document?: unknown }).document = {
+        documentElement: { lang: "en" },
+      };
+      const doc = "#Heading without space\n";
+      const state = EditorState.create({ doc });
+      const diagnosticsEn = runMarkdownLint(state);
+      const md018En = diagnosticsEn.find((d) => d.message.includes("MD018"));
+      expect(md018En?.message).toContain("No space after hash");
+      expect(md018En?.message).toContain("Suggestion: Add a space here");
+      expect(md018En?.actions?.[0].name).toBe("Quick Fix");
+
+      // zh-Hant
+      (globalThis as unknown as { document?: unknown }).document = {
+        documentElement: { lang: "zh-Hant" },
+      };
+      const diagnosticsHant = runMarkdownLint(state);
+      const md018Hant = diagnosticsHant.find((d) => d.message.includes("MD018"));
+      expect(md018Hant?.message).toContain("建議：在此處補充一個空格");
+      expect(md018Hant?.actions?.[0].name).toBe("一鍵修復");
+    } finally {
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
 });

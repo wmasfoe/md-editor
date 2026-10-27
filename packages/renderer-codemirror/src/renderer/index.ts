@@ -53,6 +53,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => controller.setInlineStyleMarkers(enabled),
     setMarkdownLint: (enabled: boolean) => controller.setMarkdownLint(enabled),
+    recomputeMarkdownLint: () => controller.recomputeMarkdownLint(),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => controller.setAiSuggestionLabels(labels),

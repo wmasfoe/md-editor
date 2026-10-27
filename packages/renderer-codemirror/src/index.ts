@@ -23,6 +23,7 @@ export {
   type CodeMirrorRenderer,
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
+  type MarkdownLintPortResult,
   type ExternalEditRequest,
   type ExternalEditResult,
 } from "./renderer/index.ts";
@@ -138,6 +139,7 @@ export {
   createDiagnosticDomNode,
   lintLiquidTheme,
   executeDocumentLint,
+  runMarkdownLint,
   runLinkValidation,
   type DocumentLinterOptions,
   type LinkLintOptions,

@@ -46,6 +46,7 @@ export interface CodeMirrorEditorPorts {
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  recomputeMarkdownLint(): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -273,6 +274,7 @@ export function createCodeMirrorEditorBridge(
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
     setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
+    recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),

@@ -6,9 +6,10 @@ import { markdownRangeIndexField } from "../markdown/range-index.ts";
 import type { MarkdownSyntaxKind } from "../markdown/range-types.ts";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 import {
-  MARKDOWNLINT_ZH_RULES,
-  describeFixInfoInChinese,
+  describeFixInfo,
   getActiveLintLocale,
+  getMarkdownLintRuleInfo,
+  getQuickFixActionLabel,
   localizeMarkdownLintDetail,
 } from "./markdown-lint-i18n.ts";
 
@@ -87,26 +88,23 @@ export function runMarkdownLint(
       const severity = issue.severity === "error" ? "error" : "warning";
 
       const activeLocale = getActiveLintLocale();
-      const isZh = activeLocale === "zh" || activeLocale === "zh-Hant";
-      const zhInfo = isZh ? MARKDOWNLINT_ZH_RULES[ruleCode] : undefined;
-      const displayAlias = zhInfo?.alias ?? ruleAlias ?? ruleCode;
-      const displayDesc = zhInfo?.description ?? issue.ruleDescription;
+      const ruleInfo = getMarkdownLintRuleInfo(ruleCode, activeLocale);
+      const displayAlias = ruleInfo?.alias ?? ruleAlias ?? ruleCode;
+      const displayDesc = ruleInfo?.description ?? issue.ruleDescription;
 
-      // 优先从纯结构化的 fixInfo 状态字段生成地道中文建议，避免依赖脆弱正则
-      const fixDescription =
-        issue.fixInfo && isZh ? describeFixInfoInChinese(issue.fixInfo) : undefined;
+      // 优先从纯结构化的 fixInfo 状态字段生成地道多语言建议，避免依赖脆弱正则
+      const fixDescription = issue.fixInfo
+        ? describeFixInfo(issue.fixInfo, activeLocale)
+        : undefined;
       const displayDetail =
-        fixDescription ??
-        (isZh
-          ? localizeMarkdownLintDetail(issue.errorDetail ?? undefined)
-          : (issue.errorDetail ?? undefined));
+        fixDescription ?? localizeMarkdownLintDetail(issue.errorDetail ?? undefined, activeLocale);
 
       // 若 markdownlint 返回了自动修复元数据，挂载 CodeMirror Action
       const actions: Action[] = [];
       if (issue.fixInfo) {
         const fix = issue.fixInfo;
         actions.push({
-          name: isZh ? "一键修复" : "Fix",
+          name: getQuickFixActionLabel(activeLocale),
           apply: (view) => {
             const fixLineNum = Math.min(
               Math.max(1, fix.lineNumber ?? lineNum),
@@ -159,8 +157,8 @@ export function runMarkdownLint(
         renderMessage: () =>
           createDiagnosticDomNode({
             ruleCode,
-            ruleAlias,
-            description: issue.ruleDescription,
+            ruleAlias: displayAlias,
+            description: displayDesc,
             detail: displayDetail,
             severity,
             locale: activeLocale,
