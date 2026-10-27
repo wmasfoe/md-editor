@@ -56,6 +56,19 @@ describe("markdown-lint in editor", () => {
     expect(md001?.message).toContain("期望");
   });
 
+  it("extracts fixInfo into structured Chinese suggestion and provides Quick Fix action", () => {
+    // MD018: 标题后缺少空格
+    const doc = "#Heading without space\n";
+    const state = EditorState.create({ doc });
+    const diagnostics = runMarkdownLint(state);
+
+    const md018 = diagnostics.find((d) => d.message.includes("MD018"));
+    expect(md018).toBeDefined();
+    expect(md018?.message).toContain("建议：在此处补充一个空格");
+    expect(md018?.actions).toBeDefined();
+    expect(md018?.actions?.[0].name).toBe("一键修复");
+  });
+
   it("does not flag trailing spaces during drafting by default", () => {
     // 验证 MD009 (no-trailing-spaces) 默认不产生骚扰性红线
     const doc = "# Heading\nParagraph with trailing space   \n";

@@ -240,6 +240,41 @@ export function getActiveLintLocale(): "zh" | "zh-Hant" | "ja" | "en" {
   return "zh";
 }
 
+export interface MarkdownLintFixInfo {
+  readonly lineNumber?: number;
+  readonly editColumn?: number;
+  readonly deleteCount?: number;
+  readonly insertText?: string;
+}
+
+/**
+ * 根据 fixInfo 纯结构化状态字段生成地道的中文建议（完全不依赖正则表达式）
+ */
+export function describeFixInfoInChinese(fixInfo: MarkdownLintFixInfo): string {
+  if (fixInfo.deleteCount === -1) {
+    return "建议：删除此多余空行";
+  }
+  const deleteCount = fixInfo.deleteCount ?? 0;
+  const insertText = fixInfo.insertText ?? "";
+
+  if (insertText === " " && deleteCount === 0) {
+    return "建议：在此处补充一个空格";
+  }
+  if (insertText === "\n" && deleteCount === 0) {
+    return "建议：在此处补充一行空行隔开";
+  }
+  if (deleteCount > 0 && !insertText) {
+    return `建议：删除多余的 ${deleteCount} 个字符`;
+  }
+  if (deleteCount > 0 && insertText) {
+    return `建议：替换为 "${insertText}"`;
+  }
+  if (insertText) {
+    return `建议：在此处插入 "${insertText}"`;
+  }
+  return "建议：自动格式化修复";
+}
+
 /**
  * 将 markdownlint 生成的英文上下文详情（如 "Expected: h2; Actual: h3"）本地化为中文
  */

@@ -1,9 +1,11 @@
-import type { EditorState } from "@codemirror/state";
-import type { Diagnostic } from "@codemirror/lint";
+import { Transaction, type EditorState } from "@codemirror/state";
+import type { Action, Diagnostic } from "@codemirror/lint";
 import { lint as lintMarkdownSync } from "markdownlint/sync";
+import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 import {
   MARKDOWNLINT_ZH_RULES,
+  describeFixInfoInChinese,
   getActiveLintLocale,
   localizeMarkdownLintDetail,
 } from "./markdown-lint-i18n.ts";
@@ -70,9 +72,61 @@ export function runMarkdownLint(
       const zhInfo = isZh ? MARKDOWNLINT_ZH_RULES[ruleCode] : undefined;
       const displayAlias = zhInfo?.alias ?? ruleAlias ?? ruleCode;
       const displayDesc = zhInfo?.description ?? issue.ruleDescription;
-      const displayDetail = isZh
-        ? localizeMarkdownLintDetail(issue.errorDetail ?? undefined)
-        : (issue.errorDetail ?? undefined);
+
+      // 优先从纯结构化的 fixInfo 状态字段生成地道中文建议，避免依赖脆弱正则
+      const fixDescription =
+        issue.fixInfo && isZh ? describeFixInfoInChinese(issue.fixInfo) : undefined;
+      const displayDetail =
+        fixDescription ??
+        (isZh
+          ? localizeMarkdownLintDetail(issue.errorDetail ?? undefined)
+          : (issue.errorDetail ?? undefined));
+
+      // 若 markdownlint 返回了自动修复元数据，挂载 CodeMirror Action
+      const actions: Action[] = [];
+      if (issue.fixInfo) {
+        const fix = issue.fixInfo;
+        actions.push({
+          name: isZh ? "一键修复" : "Fix",
+          apply: (view) => {
+            const fixLineNum = Math.min(
+              Math.max(1, fix.lineNumber ?? lineNum),
+              view.state.doc.lines,
+            );
+            const targetLine = view.state.doc.line(fixLineNum);
+            const deleteCount = fix.deleteCount ?? 0;
+
+            if (deleteCount === -1) {
+              const lineFrom = targetLine.from;
+              const lineTo =
+                fixLineNum < view.state.doc.lines
+                  ? view.state.doc.line(fixLineNum + 1).from
+                  : targetLine.to;
+              view.dispatch({
+                changes: { from: lineFrom, to: lineTo, insert: "" },
+                userEvent: "lint.fix",
+                annotations: [
+                  Transaction.addToHistory.of(true),
+                  authorizeWysiwygProtectedChange.of(true),
+                ],
+              });
+            } else {
+              const editColumn = Math.max(1, fix.editColumn ?? 1);
+              const editFrom = Math.min(targetLine.from + editColumn - 1, targetLine.to);
+              const editTo = Math.min(editFrom + deleteCount, targetLine.to);
+              const insertText = fix.insertText ?? "";
+              view.dispatch({
+                changes: { from: editFrom, to: editTo, insert: insertText },
+                userEvent: "lint.fix",
+                annotations: [
+                  Transaction.addToHistory.of(true),
+                  authorizeWysiwygProtectedChange.of(true),
+                ],
+              });
+            }
+          },
+        });
+      }
 
       diagnostics.push({
         from,
@@ -82,12 +136,13 @@ export function runMarkdownLint(
         message: `[${ruleCode}/${displayAlias}] ${displayDesc}${
           displayDetail ? ` (${displayDetail})` : ""
         }`,
+        actions,
         renderMessage: () =>
           createDiagnosticDomNode({
             ruleCode,
             ruleAlias,
             description: issue.ruleDescription,
-            detail: issue.errorDetail ?? undefined,
+            detail: displayDetail,
             severity,
             locale: activeLocale,
           }) as unknown as Node,
