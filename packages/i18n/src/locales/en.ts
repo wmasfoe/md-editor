@@ -267,6 +267,9 @@ export const en: TranslationSchema = {
       noResults: "No matching shortcuts found.",
       defaultShortcut: "Default {{key}}",
       ariaShortcut: "{{name}} shortcut",
+      invalidShortcutFormat:
+        'Invalid shortcut format for "{{name}}". Please use a modifier combination like Command+Shift+B or Option+Shift+L.',
+      duplicateShortcut: "Shortcut {{key}} is already in use.",
     },
     ai: {
       title: "AI Settings",

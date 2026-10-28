@@ -271,6 +271,9 @@ export const ja: TranslationSchema = {
       noResults: "一致するショートカットが見つかりません。",
       defaultShortcut: "デフォルト: {{key}}",
       ariaShortcut: "{{name}} のショートカット",
+      invalidShortcutFormat:
+        "「{{name}}」のショートカット形式が無効です。Command+Shift+B や Option+Shift+L などの組み合わせを使用してください。",
+      duplicateShortcut: "ショートカット {{key}} は既に使用されています。",
     },
     ai: {
       title: "AI 設定",

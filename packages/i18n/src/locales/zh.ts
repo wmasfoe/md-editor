@@ -264,6 +264,9 @@ export const zh = {
       noResults: "没有匹配的快捷键设置。",
       defaultShortcut: "默认 {{key}}",
       ariaShortcut: "{{name}}快捷键",
+      invalidShortcutFormat:
+        '"{{name}}"快捷键格式无效，请使用 Command+Shift+B 或 Option+Shift+L 这类组合。',
+      duplicateShortcut: "快捷键 {{key}} 被重复使用。",
     },
     ai: {
       title: "AI 设置",

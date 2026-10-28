@@ -267,6 +267,9 @@ export const zhHant: TranslationSchema = {
       noResults: "沒有相符的快捷鍵設定。",
       defaultShortcut: "預設 {{key}}",
       ariaShortcut: "{{name}}快捷鍵",
+      invalidShortcutFormat:
+        "「{{name}}」快捷鍵格式無效，請使用 Command+Shift+B 或 Option+Shift+L 這類組合。",
+      duplicateShortcut: "快捷鍵 {{key}} 被重複使用。",
     },
     ai: {
       title: "AI 設定",
