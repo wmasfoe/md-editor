@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.18.0 - 2026-10-28 (#202)
+
+- Draft Recovery (Hot Exit): Unsaved edits are now automatically preserved when the app exits; a banner appears at next launch allowing you to restore your drafts in one click or discard them.
+- Document History & Snapshots: Added a history drawer with snapshot timelines, line-by-line diff comparisons, keyboard navigation, and one-click rollback to any previous version.
+- Markdown Linting & Quick Fix: Integrated real-time Markdown style checks with diagnostic underlines and tooltips. Press ⌥⇧L to open the bottom diagnostic dock, and ⌥⇧F to batch auto-fix formatting issues (available in English, Chinese, Japanese, and Traditional Chinese).
+- HTML & PDF Export: Added quick export actions in the title bar: export styled standalone HTML, generate native paginated vector PDF with clickable outlines, or copy rich text directly to the clipboard.
+- Settings Overhaul: Reorganized settings into clean tabs and added a dedicated Shortcuts manager where you can customize lint shortcuts or reset them to defaults.
+
 ## 0.17.1 - 2026-10-25 (#201)
 
 - Fix local model startup failures on macOS caused by missing runtime dependencies and dynamic library signature validation.
