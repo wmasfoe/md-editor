@@ -7,6 +7,8 @@
  */
 
 import type { EditorState, StateEffect, Transaction, TransactionSpec } from "@codemirror/state";
+import type { EditorView } from "@codemirror/view";
+import type { Diagnostic } from "@codemirror/lint";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -28,6 +30,8 @@ import type {
   AiSuggestionLabels,
   AiSuggestionValue,
 } from "../wysiwyg/view/suggestion.ts";
+import type { DocumentLinterOptions } from "../lint/types.ts";
+export type { DocumentLinterOptions };
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
@@ -57,6 +61,8 @@ export interface CodeMirrorRendererOptions {
   /** D-2 可配 dim 强度（轮1 architect WATCH concern-8）：宿主注入通道，缺省走 facet 默认 0.38；
    * 读取时按 spec 区间 [0.30, 0.50] 硬夹（resolveDimOpacity）。 */
   readonly focusDimOpacity?: number;
+  /** 是否开启实时 Markdown 规范检查（默认 false，由宿主按需开启） */
+  readonly enableMarkdownLint?: boolean;
   /** 可选语法扩展插件列表（纯增量加载，未配置时保持标准 CommonMark/GFM） */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -104,6 +110,9 @@ export type CodeBlockLineNumberPortResult =
 export type InlineStyleMarkerPortResult =
   { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
 
+export type MarkdownLintPortResult =
+  { readonly status: "applied" } | { readonly status: "noop" } | { readonly status: "destroyed" };
+
 export interface CodeMirrorRenderer {
   readonly clientId: string;
   sync(event: DocumentStateEvent): RendererSyncResult;
@@ -113,6 +122,8 @@ export interface CodeMirrorRenderer {
   rollbackMode(receipt: ModeReceipt): void;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  recomputeMarkdownLint(): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -153,6 +164,22 @@ export interface CodeMirrorRenderer {
   use(...plugins: (MarkdownSyntaxPlugin | readonly MarkdownSyntaxPlugin[])[]): this;
   /** 全量替换并热重载 Markdown 语法扩展插件列表（用于启用/禁用插件热更新） */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this;
+  /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
+  runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
+  /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */
+  runMarkdownLintCommand(config?: Record<string, unknown>): {
+    readonly total: number;
+    readonly errors: number;
+    readonly warnings: number;
+    readonly toggledOff?: boolean;
+  };
+  /** 一键自动修复所有支持自动修复的 Markdown 规范问题 */
+  fixAllMarkdownLint(config?: Record<string, unknown>): {
+    readonly appliedCount: number;
+    readonly remainingCount: number;
+  };
+  /** 清除 Markdown 规范检查状态（波浪线与底部面板） */
+  clearMarkdownLint(): void;
   destroy(): void;
 }
 
@@ -171,6 +198,8 @@ export interface ViewAxisState {
 export interface RendererViewAdapter {
   readonly state: EditorState;
   readonly isComposing: boolean;
+  /** 底层真实 CodeMirror EditorView 引用（测试 mock 适配器可能缺省） */
+  readonly editorView?: EditorView;
   dispatch(spec: TransactionSpec): void;
   dispatchTransaction(transaction: Transaction): void;
   setState(state: EditorState): void;

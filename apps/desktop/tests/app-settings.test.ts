@@ -97,6 +97,8 @@ describe("app settings", () => {
       "block.moveDown",
       "block.duplicate",
       "block.delete",
+      "lint.run",
+      "lint.fixAll",
     ]);
   });
 
@@ -133,6 +135,7 @@ describe("app settings", () => {
     expect(normalizeEditorDisplaySettings(undefined)).toEqual({
       showCodeBlockLineNumbers: false,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
@@ -140,6 +143,7 @@ describe("app settings", () => {
     expect(normalizeEditorDisplaySettings({ showCodeBlockLineNumbers: true })).toEqual({
       showCodeBlockLineNumbers: true,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 17,
       proseFontFamily: "",
       codeFontFamily: "",
@@ -154,9 +158,17 @@ describe("app settings", () => {
     ).toEqual({
       showCodeBlockLineNumbers: false,
       showInlineStyleMarkers: false,
+      enableMarkdownLint: true,
       wysiwygFontSize: 20,
       proseFontFamily: "lxgw-wenkai",
       codeFontFamily: "jetbrains-mono",
+    });
+    expect(
+      normalizeEditorDisplaySettings({
+        enableMarkdownLint: false,
+      }),
+    ).toMatchObject({
+      enableMarkdownLint: false,
     });
     // T-30：只接受布尔 true；非布尔（如字符串 "true"）一律关闭。
     expect(normalizeEditorDisplaySettings({ showInlineStyleMarkers: true })).toMatchObject({
@@ -180,6 +192,11 @@ describe("app settings", () => {
     expect(normalizeShortcutKey("Mod-Shift-B")).toBe("Mod-Shift-B");
     expect(normalizeShortcutKey("Mod-Alt-T")).toBe("Mod-Alt-T");
     expect(normalizeShortcutKey("mod-alt-t")).toBe("Mod-Alt-T");
+    expect(normalizeShortcutKey("Shift-Alt-L")).toBe("Shift-Alt-L");
+    expect(normalizeShortcutKey("Option+Shift+L")).toBe("Shift-Alt-L");
+    expect(normalizeShortcutKey("Alt+Shift+L")).toBe("Shift-Alt-L");
+    expect(normalizeShortcutKey("Shift-Alt-F")).toBe("Shift-Alt-F");
+    expect(normalizeShortcutKey("Option+Shift+F")).toBe("Shift-Alt-F");
   });
 
   it("formats keyboard shortcut labels correctly for macOS, Windows, and Linux", () => {
@@ -209,7 +226,9 @@ describe("app settings", () => {
 
   it("rejects shortcuts without a primary modifier", () => {
     expect(normalizeShortcutKey("Shift+B")).toBeNull();
+    expect(normalizeShortcutKey("Shift-B")).toBeNull();
     expect(normalizeShortcutKey("Command")).toBeNull();
+    expect(normalizeShortcutKey("Option")).toBeNull();
   });
 
   it("captures shortcut combinations from keyboard events", () => {
@@ -764,6 +783,27 @@ describe("默认快捷键占用守卫（S8）", () => {
     expect(new Set(ids).size, "id 必须唯一").toBe(ids.length);
     for (const template of DEFAULT_SHORTCUT_TEMPLATES) {
       expect(template.commandId, `${template.id} 的 commandId 应与 id 同名`).toBe(template.id);
+    }
+  });
+
+  it("所有默认快捷键均能通过 normalizeShortcutKey 并在跨平台标签中往返", () => {
+    for (const template of DEFAULT_SHORTCUT_TEMPLATES) {
+      const fromInternal = normalizeShortcutKey(template.defaultKey);
+      expect(fromInternal, `${template.id} 默认键 ${template.defaultKey} 应合法`).toBe(
+        template.defaultKey,
+      );
+
+      const macLabel = keyboardShortcutLabel(template.defaultKey, "mac");
+      expect(
+        normalizeShortcutKey(macLabel),
+        `${template.id} mac 标签 ${macLabel} 应能正确反解`,
+      ).toBe(template.defaultKey);
+
+      const winLabel = keyboardShortcutLabel(template.defaultKey, "windows");
+      expect(
+        normalizeShortcutKey(winLabel),
+        `${template.id} windows 标签 ${winLabel} 应能正确反解`,
+      ).toBe(template.defaultKey);
     }
   });
 });

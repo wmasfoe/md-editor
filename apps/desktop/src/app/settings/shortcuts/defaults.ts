@@ -191,4 +191,16 @@ export const DEFAULT_SHORTCUT_TEMPLATES: readonly Omit<ShortcutSetting, "key">[]
     label: "删除块",
     defaultKey: "Mod-Alt-Backspace",
   },
+  {
+    id: "lint.run",
+    commandId: "lint.run",
+    label: "运行 Markdown 规范检查",
+    defaultKey: "Shift-Alt-L",
+  },
+  {
+    id: "lint.fixAll",
+    commandId: "lint.fixAll",
+    label: "一键修复全部规范问题",
+    defaultKey: "Shift-Alt-F",
+  },
 ];

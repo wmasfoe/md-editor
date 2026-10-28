@@ -3,6 +3,7 @@ import {
   type TokenizeOptions,
   extractDocumentTitle,
   generateHeadingSlug,
+  generateLegacyHeadingSlug,
 } from "./parser/tokenizer.ts";
 import { emitHtml, type EmitHtmlOptions } from "./emitter/html-emitter.ts";
 import { createStaticDocumentHtml, type StaticDocumentOptions } from "./templates/document.ts";
@@ -93,5 +94,8 @@ export {
 
 // 导出样式与辅助函数
 export { STATIC_DOCUMENT_BASE_CSS } from "./templates/styles.ts";
-export { extractDocumentTitle, generateHeadingSlug };
+export { extractDocumentTitle, generateHeadingSlug, generateLegacyHeadingSlug };
 export type { StaticDocumentOptions, TokenizeOptions, EmitHtmlOptions };
+
+// 导出 HTML/PDF 导出器
+export * from "./export/index.ts";

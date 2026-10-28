@@ -65,6 +65,11 @@ export async function changeLanguage(localeOrSetting: LanguageSetting): Promise<
             ? "ja"
             : "en";
   }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("md-editor:language-changed", { detail: { locale: activeLocale } }),
+    );
+  }
 }
 
 export function getCurrentLocale(): Locale {

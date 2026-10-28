@@ -33,10 +33,14 @@ export interface WebSettings {
   readonly lightTheme: BuiltInThemeId;
   readonly darkTheme: BuiltInThemeId;
   readonly fontSize: number;
+  readonly proseFontFamily: string;
+  readonly codeFontFamily: string;
+  readonly showCodeBlockLineNumbers: boolean;
   /**
    * 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及临时显形）。
    */
   readonly showInlineStyleMarkers: boolean;
+  readonly enableMarkdownLint: boolean;
   readonly ai: WebAiConfig;
   readonly plugins: PluginSettings;
   readonly language: LanguageSetting;
@@ -49,7 +53,11 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   lightTheme: "paper-light",
   darkTheme: "charcoal-dark",
   fontSize: 16,
+  proseFontFamily: "",
+  codeFontFamily: "",
+  showCodeBlockLineNumbers: false,
   showInlineStyleMarkers: false,
+  enableMarkdownLint: true,
   ai: normalizeAiSettings({}, { allowLocal: false, defaultPresetId: "deepseek" }),
   plugins: DEFAULT_PLUGIN_SETTINGS,
   language: "system",
@@ -84,8 +92,18 @@ export function loadWebSettings(): WebSettings {
       lightTheme: parsed.lightTheme ?? DEFAULT_WEB_SETTINGS.lightTheme,
       darkTheme: parsed.darkTheme ?? DEFAULT_WEB_SETTINGS.darkTheme,
       fontSize: parsed.fontSize ?? DEFAULT_WEB_SETTINGS.fontSize,
+      proseFontFamily:
+        typeof parsed.proseFontFamily === "string"
+          ? parsed.proseFontFamily
+          : DEFAULT_WEB_SETTINGS.proseFontFamily,
+      codeFontFamily:
+        typeof parsed.codeFontFamily === "string"
+          ? parsed.codeFontFamily
+          : DEFAULT_WEB_SETTINGS.codeFontFamily,
+      showCodeBlockLineNumbers: parsed.showCodeBlockLineNumbers === true,
       // 只接受布尔 true，其余一律关闭（存量用户升级后默认变干净）。
       showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
+      enableMarkdownLint: parsed.enableMarkdownLint !== false,
       ai: normalizeAiSettings(parsed.ai, {
         allowLocal: false,
         defaultPresetId: "deepseek",

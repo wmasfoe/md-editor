@@ -146,4 +146,37 @@ describe("@md-editor/i18n", () => {
     expect(t("settings.plugins.items.markdown.mermaid.name")).toBe("Mermaid 図表");
     expect(t("settings.plugins.items.markdown.directive.name")).toBe("コンテナ記法 (Admonition)");
   });
+
+  it("dispatches md-editor:language-changed event and updates document.documentElement.lang", async () => {
+    const receivedEvents: string[] = [];
+    const eventTarget = new EventTarget();
+    const fakeDocument = { documentElement: { lang: "" } };
+    const fakeWindow = {
+      dispatchEvent: (event: Event) => eventTarget.dispatchEvent(event),
+      addEventListener: eventTarget.addEventListener.bind(eventTarget),
+      removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+    };
+    const origWindow = (globalThis as unknown as { window?: unknown }).window;
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    try {
+      (globalThis as unknown as { window?: unknown }).window = fakeWindow;
+      (globalThis as unknown as { document?: unknown }).document = fakeDocument;
+      fakeWindow.addEventListener("md-editor:language-changed", ((
+        e: CustomEvent<{ locale: string }>,
+      ) => {
+        receivedEvents.push(e.detail.locale);
+      }) as EventListener);
+
+      await changeLanguage("ja");
+      expect(fakeDocument.documentElement.lang).toBe("ja");
+      expect(receivedEvents).toContain("ja");
+
+      await changeLanguage("zh");
+      expect(fakeDocument.documentElement.lang).toBe("zh-CN");
+      expect(receivedEvents).toContain("zh");
+    } finally {
+      (globalThis as unknown as { window?: unknown }).window = origWindow;
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
 });

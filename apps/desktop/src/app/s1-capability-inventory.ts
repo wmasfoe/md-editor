@@ -60,8 +60,24 @@ const d3BlockCommands = [
 /** D-2 视图模式命令（专注/打字机：renderer StateField 开关 + macOS View 菜单勾选项） */
 const d2ViewModeCommands = ["view.toggleFocusMode", "view.toggleTypewriterMode"] as const;
 
+/** 文档历史版本与快照回滚命令 */
+const historyCommands = ["file.history"] as const;
+
+/** 专业输出与质量检查命令（HTML/PDF 导出、剪贴板富文本与链接检查） */
+const exportAndQualityCommands = [
+  "file.exportHtml",
+  "file.exportPdf",
+  "edit.copyAsHtml",
+  "file.checkLinks",
+  "lint.run",
+  "lint.fixAll",
+  "lint.clear",
+] as const;
+
 export const S1_REGISTERED_COMMAND_IDS = [
   ...implementedCommands,
+  ...historyCommands,
+  ...exportAndQualityCommands,
   ...legacyModeCommands,
   ...deferredLegacyCommands,
   ...d3BlockCommands,
@@ -140,6 +156,62 @@ export const S1_CAPABILITY_INVENTORY: readonly S1CapabilityInventoryEntry[] = Ob
     baseline: "implemented",
     s1Disposition: "new-capability",
     note: "New-in-D-2 typewriter mode: renderer typewriterModeField toggle mirrored to macOS View menu check state.",
+  },
+  {
+    id: "file.history",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Document snapshot history drawer and version restoration.",
+  },
+  {
+    id: "file.exportHtml",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Dual-mode HTML export (standalone and linked assets).",
+  },
+  {
+    id: "file.exportPdf",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Print to PDF export with pagination and break-inside protection.",
+  },
+  {
+    id: "edit.copyAsHtml",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Copy semantic rich-text HTML into system clipboard.",
+  },
+  {
+    id: "file.checkLinks",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Local relative link validation and markdownlint formatting inspection.",
+  },
+  {
+    id: "lint.run",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Run on-demand MarkdownLint inspection, display diagnostics, and open dock panel.",
+  },
+  {
+    id: "lint.fixAll",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Batch fix all auto-fixable MarkdownLint issues with single-step atomic undo.",
+  },
+  {
+    id: "lint.clear",
+    kind: "command",
+    baseline: "implemented",
+    s1Disposition: "new-capability",
+    note: "Clear on-demand MarkdownLint diagnostics and close dock panel.",
   },
   {
     id: "editor.markdown-input-history",

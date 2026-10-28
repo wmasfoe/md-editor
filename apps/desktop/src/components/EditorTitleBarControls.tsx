@@ -24,7 +24,9 @@ import {
   PopoverPanel,
 } from "@headlessui/react";
 import {
+  ArrowUpOnSquareIcon,
   ChevronUpDownIcon,
+  ClockIcon,
   ListBulletIcon,
   RectangleGroupIcon,
   SparklesIcon,
@@ -100,6 +102,20 @@ export function EditorTitleBarControls() {
             activeOutlineId={activeOutlineId}
             onJumpToOutlineItem={jumpToTocItem}
           />
+          <ExportMenu
+            onExportHtml={() => void dispatchCommand("file.exportHtml")}
+            onExportPdf={() => void dispatchCommand("file.exportPdf")}
+            onCopyAsHtml={() => void dispatchCommand("edit.copyAsHtml")}
+          />
+          <button
+            type="button"
+            className={titleBarSecondaryButtonClassName}
+            aria-label="版本历史"
+            title="版本历史"
+            onClick={() => void dispatchCommand("file.history")}
+          >
+            <ClockIcon aria-hidden="true" />
+          </button>
         </>
       ) : null}
       <button
@@ -191,6 +207,81 @@ function AiWritingMenu({
               onClick={onOpenSettings}
             >
               <span>{t("editor.titleBar.aiSettings")}</span>
+            </button>
+          )}
+        </MenuItem>
+      </MenuItems>
+    </Menu>
+  );
+}
+
+/**
+ * 导出与分享格式选择下拉菜单
+ */
+function ExportMenu({
+  onExportHtml,
+  onExportPdf,
+  onCopyAsHtml,
+}: {
+  readonly onExportHtml: () => void;
+  readonly onExportPdf: () => void;
+  readonly onCopyAsHtml: () => void;
+}) {
+  return (
+    <Menu as="div" className="relative">
+      <MenuButton
+        className={cx(titleBarSecondaryButtonClassName, "focus-visible:opacity-100")}
+        aria-label="导出文档"
+        title="导出文档"
+      >
+        <ArrowUpOnSquareIcon aria-hidden="true" />
+      </MenuButton>
+      <MenuItems
+        anchor={{ to: "bottom end", gap: 6, padding: 8 }}
+        className="z-[70] min-w-[180px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl select-none"
+      >
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onExportHtml}
+            >
+              <span>导出为 HTML</span>
+              <span className="text-[11px] text-[var(--theme-muted)] font-mono">.html</span>
+            </button>
+          )}
+        </MenuItem>
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center justify-between gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onExportPdf}
+            >
+              <span>导出为 PDF</span>
+              <span className="text-[11px] text-[var(--theme-muted)] font-mono">.pdf</span>
+            </button>
+          )}
+        </MenuItem>
+        <div className="my-1 border-t border-[var(--theme-border)]" />
+        <MenuItem>
+          {({ focus }) => (
+            <button
+              type="button"
+              className={cx(
+                "flex h-8 w-full items-center gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
+              )}
+              onClick={onCopyAsHtml}
+            >
+              <span>复制为 HTML 富文本</span>
             </button>
           )}
         </MenuItem>

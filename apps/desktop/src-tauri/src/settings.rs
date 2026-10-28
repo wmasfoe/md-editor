@@ -18,6 +18,8 @@ pub(crate) struct AppSettings {
     pub(crate) update: Option<UpdateSettings>,
     #[serde(default, deserialize_with = "deserialize_object_settings")]
     pub(crate) plugins: Option<Value>,
+    #[serde(default, deserialize_with = "deserialize_object_settings")]
+    pub(crate) error_reporting: Option<Value>,
     pub(crate) language: Option<String>,
 }
 
@@ -181,6 +183,7 @@ fn default_settings() -> AppSettings {
         ai: None,
         update: None,
         plugins: None,
+        error_reporting: None,
         language: None,
     }
 }
@@ -292,6 +295,9 @@ mod tests {
                     "markdown.directive": true
                 }
             })),
+            error_reporting: Some(serde_json::json!({
+                "enabled": true
+            })),
             language: Some("zh".to_string()),
         };
 
@@ -348,6 +354,7 @@ mod tests {
             }),
             update: None,
             plugins: None,
+            error_reporting: None,
             language: None,
         };
 

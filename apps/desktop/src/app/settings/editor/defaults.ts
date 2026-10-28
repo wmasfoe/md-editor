@@ -30,6 +30,7 @@ export const DEFAULT_ASSETS_DIRECTORY = "assets";
 export const DEFAULT_EDITOR_DISPLAY_SETTINGS: EditorDisplaySettings = {
   showCodeBlockLineNumbers: false,
   showInlineStyleMarkers: false,
+  enableMarkdownLint: true,
   wysiwygFontSize: 17,
   proseFontFamily: "",
   codeFontFamily: "",
@@ -102,6 +103,8 @@ export function normalizeEditorDisplaySettings(input: unknown): EditorDisplaySet
     showCodeBlockLineNumbers: input.showCodeBlockLineNumbers === true,
     // 只接受布尔 true：字段缺失/字符串/其它类型一律关闭（存量用户升级后自动变干净）。
     showInlineStyleMarkers: input.showInlineStyleMarkers === true,
+    // 默认开启 markdownlint：若显式为 false 则关闭，其余（缺失/非布尔）默认 true
+    enableMarkdownLint: input.enableMarkdownLint !== false,
     wysiwygFontSize: normalizeWysiwygFontSize(input.wysiwygFontSize),
     proseFontFamily: typeof input.proseFontFamily === "string" ? input.proseFontFamily.trim() : "",
     codeFontFamily: typeof input.codeFontFamily === "string" ? input.codeFontFamily.trim() : "",

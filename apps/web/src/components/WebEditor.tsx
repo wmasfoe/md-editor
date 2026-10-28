@@ -1,5 +1,10 @@
 import React, { useCallback, useMemo } from "react";
-import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import {
+  CodeMirrorEditor,
+  type CodeMirrorEditorPorts,
+  resolveCodeFontStack,
+  resolveProseFontStack,
+} from "@md-editor/editor-ui";
 import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
@@ -65,8 +70,11 @@ export function WebEditor({
         mdxMode={true}
         mdxComponents={mdxComponents}
         fontSize={settings.fontSize}
-        codeBlockLineNumbers={true}
+        proseFontFamily={resolveProseFontStack(settings.proseFontFamily)}
+        codeFontFamily={resolveCodeFontStack(settings.codeFontFamily)}
+        codeBlockLineNumbers={settings.showCodeBlockLineNumbers}
         showInlineStyleMarkers={settings.showInlineStyleMarkers}
+        enableMarkdownLint={settings.enableMarkdownLint}
         ariaLabel={t("sidebar.editorAria")}
         aiSuggestionLabels={aiSuggestionLabels}
         resolveImageSrc={handleResolveImageSrc}

@@ -11,8 +11,11 @@ const settingsDialogSource = readFileSync(
   new URL("../../src/components/SettingsDialog.tsx", import.meta.url),
   "utf8",
 );
-const otherPanelSource = readFileSync(
-  new URL("../../src/components/settings/OtherSettingsPanel.tsx", import.meta.url),
+const generalPanelSource = readFileSync(
+  new URL(
+    "../../../../packages/editor-ui/src/components/settings/GeneralSettingsPanel.tsx",
+    import.meta.url,
+  ),
   "utf8",
 );
 const updatePanelSource = readFileSync(
@@ -72,10 +75,10 @@ describe("update settings tab wiring", () => {
   });
 
   it("keeps the general tab free of update controls", () => {
-    expect(otherPanelSource).not.toContain("updateStatus");
-    expect(otherPanelSource).not.toContain("onCheckForUpdates");
-    expect(otherPanelSource).not.toContain("UpdateReleaseNotes");
-    expect(otherPanelSource).not.toContain("update-settings-title");
+    expect(generalPanelSource).not.toContain("updateStatus");
+    expect(generalPanelSource).not.toContain("onCheckForUpdates");
+    expect(generalPanelSource).not.toContain("UpdateReleaseNotes");
+    expect(generalPanelSource).not.toContain("update-settings-title");
   });
 
   it("reuses the shared release-notes renderer and prompt-state skip path", () => {

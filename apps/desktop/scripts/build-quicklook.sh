@@ -72,3 +72,8 @@ if [[ -n "${TARGET_APP}" && -d "${TARGET_APP}" ]]; then
   fi
   echo "==> Quick Look extension successfully bundled into ${TARGET_APP}!"
 fi
+
+# 8. Build PDF Exporter
+bash "${DESKTOP_DIR}/scripts/build-pdf-exporter.sh" "${TARGET_APP}"
+
+

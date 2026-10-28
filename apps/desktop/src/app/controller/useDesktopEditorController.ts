@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useTranslation } from "@md-editor/i18n";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
@@ -22,6 +23,14 @@ import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { desktopAiService } from "../ai/desktop-ai-service.ts";
 import { isDiscardProtectionRequired } from "./document-save";
+import { checkPendingDraft } from "./session-controller";
+import {
+  copyDocumentAsHtml,
+  checkDocumentLinksAndLint,
+  exportDocumentAsHtml,
+  exportDocumentAsPdf,
+  resolveExportStyling,
+} from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
@@ -52,6 +61,7 @@ export function useDesktopEditorController({
     applyDownloadedUpdate,
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
+  const { t } = useTranslation();
   const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
 
   const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
@@ -136,6 +146,121 @@ export function useDesktopEditorController({
           },
           saveDocumentAs: async () => {
             await saveDocument(true);
+          },
+          openDocumentHistory: () => {
+            useDocumentUiStore.getState().openHistoryDrawer();
+          },
+          exportHtml: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const styling = resolveExportStyling(settings);
+            const result = await exportDocumentAsHtml(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+              styling,
+            );
+            if (result.success) {
+              showToast(
+                result.filePath
+                  ? t("toasts.exportToPath", { path: result.filePath })
+                  : t("toasts.exportHtmlSuccess"),
+              );
+            } else if (result.message && result.message !== "已取消导出") {
+              showToast(t("toasts.exportFailed", { message: result.message }));
+            }
+          },
+          exportPdf: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const styling = resolveExportStyling(settings);
+            const result = await exportDocumentAsPdf(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+              { pageSize: "A4", orientation: "portrait", margin: "15mm 20mm", ...styling },
+            );
+            if (result.success) {
+              if (result.filePath) {
+                showToast(t("toasts.exportToPath", { path: result.filePath }));
+              } else if (result.message) {
+                showToast(result.message);
+              } else {
+                showToast(t("toasts.exportPdfSuccess"));
+              }
+            } else if (result.message && result.message !== "已取消导出") {
+              showToast(t("toasts.exportFailed", { message: result.message }));
+            }
+          },
+          copyAsHtml: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const styling = resolveExportStyling(settings);
+            const ok = await copyDocumentAsHtml(activeDocSnapshot.markdown, styling);
+            if (ok) {
+              showToast(t("toasts.copyHtmlSuccess"));
+            } else {
+              showToast(t("toasts.copyFailed"));
+            }
+          },
+          checkLinks: async () => {
+            const activeDocSnapshot = runtime.document.getSnapshot();
+            const res = await checkDocumentLinksAndLint(
+              activeDocSnapshot.filePath,
+              activeDocSnapshot.markdown,
+              getRendererPorts,
+              settings.editor.enableMarkdownLint,
+            );
+            if (res.total === 0) {
+              showToast(t("toasts.checkLinksPassed"));
+            } else {
+              showToast(
+                t("toasts.checkLinksFound", {
+                  errors: res.errors,
+                  warnings: res.warnings,
+                }),
+              );
+            }
+          },
+          runMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            const res = portsAccess.ports.runMarkdownLint();
+            if (res.toggledOff) {
+              showToast(t("toasts.lintExited"));
+            } else if (res.total === 0) {
+              showToast(t("toasts.lintPassed"));
+            } else {
+              showToast(t("toasts.lintCompletedWithIssues", { count: res.total }));
+            }
+          },
+          fixAllMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            const res = portsAccess.ports.fixAllMarkdownLint();
+            if (res.appliedCount > 0) {
+              if (res.remainingCount > 0) {
+                showToast(
+                  t("toasts.lintFixAllPartial", {
+                    applied: res.appliedCount,
+                    remaining: res.remainingCount,
+                  }),
+                );
+              } else {
+                showToast(t("toasts.lintFixAllSuccess", { applied: res.appliedCount }));
+              }
+            } else if (res.remainingCount > 0) {
+              showToast(t("toasts.lintFixAllUnfixable", { remaining: res.remainingCount }));
+            } else {
+              showToast(t("toasts.lintNoIssues"));
+            }
+          },
+          clearMarkdownLint: async () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status !== "available") {
+              return;
+            }
+            portsAccess.ports.clearMarkdownLint();
+            showToast(t("toasts.lintExited"));
           },
           openSettings,
           openAbout,
@@ -446,11 +571,12 @@ export function useDesktopEditorController({
       openRecentDocument,
       openSettings,
       saveDocument,
-      settings.ai,
+      settings,
       setIsSidebarVisible,
       showToast,
       snapshot,
       switchMode,
+      t,
       toggleSourceMode,
     ],
   );
@@ -594,6 +720,12 @@ export function useDesktopEditorController({
   );
   useEffect(() => bindDesktopMenuCommands(dispatchCommand), [dispatchCommand]);
   useEffect(() => bindBrowserDirtyDocumentGuard(), []);
+  useEffect(() => {
+    // 启动时检查初始文档是否存在未保存草稿（做法 2：提示用户恢复）
+    void checkPendingDraft(runtime.document.getSnapshot().filePath).then((draft) => {
+      useDocumentUiStore.getState().setPendingDraft(draft);
+    });
+  }, []);
   useEffect(
     () =>
       bindTauriCloseGuard(() =>

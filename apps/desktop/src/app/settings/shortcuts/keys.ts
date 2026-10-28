@@ -122,7 +122,7 @@ export function shortcutKeyFromKeyboardEvent(
  * 将用户自定义输入的快捷键字符串规范化为标准内部格式
  */
 export function normalizeShortcutKey(input: string): string | null {
-  // 用户输入面向产品文案（如 Option+Command+T），内部统一成 keymap 格式（如 Mod-Shift-B）
+  // 用户输入面向产品文案（如 Option+Shift+L 或 Option+Command+T），内部统一成 keymap 格式（如 Shift-Alt-L 或 Mod-Shift-B）
   const internalKey = normalizeInternalShortcutKey(input);
   if (internalKey) {
     return internalKey;
@@ -171,35 +171,63 @@ export function normalizeShortcutKey(input: string): string | null {
     key = normalizeKeyName(rawPart);
   }
 
-  if (!wantsMod || !key) {
+  // 必须至少包含一个主修饰键（Mod 或 Alt，避免仅 Shift 劫持正常大小写字母输入），且必须有按键
+  if ((!wantsMod && !wantsAlt) || !key) {
     return null;
   }
 
-  return ["Mod", wantsShift ? "Shift" : null, wantsAlt ? "Alt" : null, key]
+  return [wantsMod ? "Mod" : null, wantsShift ? "Shift" : null, wantsAlt ? "Alt" : null, key]
     .filter(Boolean)
     .join("-");
 }
 
 function normalizeInternalShortcutKey(input: string): string | null {
   const parts = input.trim().split("-").filter(Boolean);
-  if (parts[0]?.toLowerCase() !== "mod" || parts.length < 2) {
+  if (parts.length < 2) {
     return null;
   }
 
-  const modifiers = parts.slice(1, -1);
-  const normalizedModifiers: string[] = [];
-  for (const modifier of modifiers) {
-    const lower = modifier.toLowerCase();
-    if (lower === "shift") {
-      normalizedModifiers.push("Shift");
+  let wantsMod = false;
+  let wantsShift = false;
+  let wantsAlt = false;
+
+  const rawKey = parts.at(-1)!;
+  const modifierParts = parts.slice(0, -1);
+
+  for (const mod of modifierParts) {
+    const lower = mod.toLowerCase();
+    if (
+      lower === "mod" ||
+      lower === "cmd" ||
+      lower === "command" ||
+      lower === "ctrl" ||
+      lower === "control" ||
+      lower === "win" ||
+      lower === "super"
+    ) {
+      wantsMod = true;
+    } else if (lower === "shift") {
+      wantsShift = true;
     } else if (lower === "alt" || lower === "option") {
-      normalizedModifiers.push("Alt");
+      wantsAlt = true;
     } else {
       return null;
     }
   }
 
-  return ["Mod", ...normalizedModifiers, normalizeKeyName(parts.at(-1) ?? "")].join("-");
+  // 必须至少包含一个主修饰键（Mod 或 Alt，避免仅 Shift 劫持正常大小写字母输入）
+  if (!wantsMod && !wantsAlt) {
+    return null;
+  }
+
+  const key = normalizeKeyName(rawKey);
+  if (!key) {
+    return null;
+  }
+
+  return [wantsMod ? "Mod" : null, wantsShift ? "Shift" : null, wantsAlt ? "Alt" : null, key]
+    .filter(Boolean)
+    .join("-");
 }
 
 function normalizeKeyName(key: string): string {

@@ -3,6 +3,7 @@ import { escapeHtml, highlightCode } from "./highlight-code.ts";
 import { renderMathToString } from "./math-render.ts";
 import { getCalloutSvg } from "../data/callout-data.ts";
 import type { StaticCustomRenderer } from "./custom-renderer.ts";
+import { generateLegacyHeadingSlug } from "../parser/tokenizer.ts";
 
 const defaultThematicBreak = () => "<hr />\n";
 
@@ -153,7 +154,12 @@ export function emitHtml(tokens: StaticToken[], options: EmitHtmlOptions = {}): 
             : escapeHtml(token.text);
           const plainText = token.text.replace(/<[^>]+>/g, "").trim();
           const idAttr = token.id ? ` id="${escapeHtml(token.id)}"` : "";
-          return `<h${token.level}${idAttr} data-heading-text="${escapeHtml(plainText)}">${inner}</h${token.level}>\n`;
+          const legacySlug = generateLegacyHeadingSlug(plainText);
+          const aliasTag =
+            legacySlug && legacySlug !== token.id
+              ? `<a id="${escapeHtml(legacySlug)}" class="heading-anchor-alias" aria-hidden="true"></a>`
+              : "";
+          return `<h${token.level}${idAttr} data-heading-text="${escapeHtml(plainText)}">${aliasTag}${inner}</h${token.level}>\n`;
         };
         return custom?.heading ? custom.heading(token, next) : next();
       }

@@ -1,6 +1,4 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from "@headlessui/react";
-import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -9,15 +7,23 @@ import {
   ClipboardDocumentIcon,
   ExclamationCircleIcon,
   SparklesIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
-  BUILT_IN_LIGHT_THEME_OPTIONS,
-  BUILT_IN_DARK_THEME_OPTIONS,
-  type BuiltInThemeId,
-  type WebSettings,
-  type WebTheme,
-} from "../lib/web-settings";
+  SettingsShell,
+  type SettingsTabItem,
+  EditorSettingsPanel,
+  AppearanceSettingsPanel,
+  PluginSettingsPanel,
+  ShortcutSettingsPanel,
+  GeneralSettingsPanel,
+  settingsDescriptionClassName,
+  settingsFieldLabelClassName,
+  settingsInputClassName,
+  settingsModuleClassName,
+  settingsSectionTitleClassName,
+  settingsSmallButtonClassName,
+} from "@md-editor/editor-ui/settings";
+import { type BuiltInThemeId, type WebSettings } from "../lib/web-settings";
 import {
   AI_URL_PRESETS,
   applyAiUrlPreset,
@@ -28,16 +34,6 @@ import {
 } from "@md-editor/ai";
 import { webAiService } from "../lib/web-ai-service";
 import { changeLanguage, useTranslation, type LanguageSetting } from "@md-editor/i18n";
-
-// 对齐 Desktop 端设置模块样式类名
-const settingsModuleClassName = "py-1";
-const settingsSectionTitleClassName = "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";
-const settingsDescriptionClassName = "mb-0 mt-1 text-xs leading-normal text-[var(--theme-muted)]";
-const settingsFieldLabelClassName = "block text-[13px] font-semibold text-[var(--theme-title)]";
-const settingsInputClassName =
-  "h-[30px] w-full rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 text-[13px] leading-none text-[var(--theme-text)] outline-none read-only:cursor-default focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_2px_var(--theme-primary-soft)]";
-const settingsSmallButtonClassName =
-  "h-[30px] px-2.5 rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55";
 
 export interface WebSettingsDialogProps {
   readonly open: boolean;
@@ -65,35 +61,31 @@ export function WebSettingsDialog({
   onReset,
 }: WebSettingsDialogProps) {
   const { t } = useTranslation();
-  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
   const [localSettings, setLocalSettings] = useState<WebSettings>(settings);
+  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
+
+  // AI 连通性测试状态
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<AiConnectionTestResult | null>(null);
 
+  // 跨平台快捷键提示前缀判断（Mac 显示 ⌘，其余平台显示 Ctrl）
+  const isMac = useMemo(() => {
+    if (typeof navigator === "undefined") return false;
+    return /mac/i.test(navigator.userAgent);
+  }, []);
+  const modKey = isMac ? "⌘" : "Ctrl";
+  const shiftKey = isMac ? "⇧" : "Shift+";
+
+  // 当外部 settings 改变时同步到 localSettings
   React.useEffect(() => {
-    if (open) {
-      setLocalSettings(settings);
-    }
-  }, [open, settings]);
-
-  const handleLanguageChange = (value: LanguageSetting) => {
-    setLocalSettings((prev) => ({ ...prev, language: value }));
-    void changeLanguage(value);
-  };
-
-  const handleClose = useCallback(() => {
-    if (localSettings.language !== settings.language) {
-      void changeLanguage(settings.language);
-    }
     setLocalSettings(settings);
-    onClose();
-  }, [localSettings.language, onClose, settings]);
+    setTestResult(null);
+  }, [settings]);
 
-  const isMac =
-    typeof navigator !== "undefined" &&
-    /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  const modKey = isMac ? "Command" : "Ctrl";
-  const shiftKey = isMac ? "Shift+" : "Shift+";
+  const handleLanguageChange = async (lang: LanguageSetting) => {
+    setLocalSettings((prev) => ({ ...prev, language: lang }));
+    await changeLanguage(lang);
+  };
 
   const handleApplyPreset = (presetId: (typeof AI_URL_PRESETS)[number]["id"]) => {
     setLocalSettings((prev) => ({
@@ -109,102 +101,153 @@ export function WebSettingsDialog({
     try {
       const result = await webAiService.testConnection(localSettings.ai);
       setTestResult(result);
-    } catch (err) {
+    } catch (err: unknown) {
       setTestResult({
         ok: false,
-        message: err instanceof Error ? err.message : String(err),
+        message: err instanceof Error ? err.message : t("common.error"),
       });
     } finally {
       setIsTesting(false);
     }
-  }, [localSettings.ai]);
+  }, [localSettings.ai, t]);
 
   const handleSave = () => {
     onSaveSettings(localSettings);
     onClose();
   };
 
-  // 快捷键列表配置（与 Desktop 的 ShortcutSettingsPanel 呈现方式一致）
+  // 快捷键列表配置（只读速查表）
   const shortcutsList = useMemo(
     () => [
       {
         id: "view.toggleMode",
         label: t("web.shortcuts.toggleMode"),
-        keyLabel: `${modKey}+/`,
+        key: `${modKey}+/`,
       },
       {
         id: "view.toggleOutline",
         label: t("web.shortcuts.toggleOutline"),
-        keyLabel: `${shiftKey}${modKey}+B`,
+        key: `${shiftKey}${modKey}+B`,
       },
       {
         id: "ai.trigger",
         label: t("web.shortcuts.aiTrigger"),
-        keyLabel: `${modKey}+J`,
+        key: `${modKey}+J`,
       },
       {
         id: "ai.accept",
         label: t("web.shortcuts.aiAccept"),
-        keyLabel: "Tab",
+        key: "Tab",
       },
       {
         id: "view.closeOverlay",
         label: t("web.shortcuts.closeOverlay"),
-        keyLabel: "Escape",
+        key: "Escape",
       },
       {
         id: "file.save",
         label: t("web.shortcuts.saveDocument"),
-        keyLabel: `${modKey}+S`,
+        key: `${modKey}+S`,
       },
       {
         id: "app.settings",
         label: t("web.shortcuts.openSettings"),
-        keyLabel: `${modKey}+,`,
+        key: `${modKey}+,`,
       },
     ],
     [modKey, shiftKey, t],
   );
 
-  // 四个标准 Tab，完全对齐 Desktop 的架构
-  const tabs = useMemo(
+  const tabs: readonly SettingsTabItem[] = useMemo(
     () => [
       {
-        id: "shortcuts",
-        label: t("settings.tabs.shortcuts"),
-        description: t("settings.tabs.shortcutsDesc"),
+        id: "editor",
+        label: t("settings.tabs.editor"),
+        description: t("settings.tabs.editorDesc"),
         panel: (
-          <section className={settingsModuleClassName} aria-labelledby="shortcut-settings-title">
-            <div className="mb-3">
-              <h2 id="shortcut-settings-title" className={settingsSectionTitleClassName}>
-                {t("settings.shortcuts.title")}
-              </h2>
-              <p className={settingsDescriptionClassName}>{t("web.shortcutsDesc")}</p>
-            </div>
-            <div className="grid gap-2.5">
-              {shortcutsList.map((shortcut) => (
-                <div
-                  key={shortcut.id}
-                  className="grid grid-cols-[minmax(150px,1fr)_minmax(160px,220px)] items-center gap-2.5 max-[760px]:grid-cols-1"
-                >
-                  <span className="min-w-0">
-                    <strong className={settingsFieldLabelClassName}>{shortcut.label}</strong>
-                    <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">
-                      {t("settings.shortcuts.defaultShortcut", { key: shortcut.keyLabel })}
-                    </small>
-                  </span>
-                  <input
-                    data-settings-shortcut-input="true"
-                    className={settingsInputClassName}
-                    value={shortcut.keyLabel}
-                    readOnly
-                    spellCheck={false}
-                    aria-label={t("settings.shortcuts.ariaShortcut", { name: shortcut.label })}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+          <EditorSettingsPanel
+            fontSize={{
+              value: localSettings.fontSize,
+              onChange: (size) => setLocalSettings((prev) => ({ ...prev, fontSize: size })),
+            }}
+            proseFont={{
+              value: localSettings.proseFontFamily,
+              onChange: (fam) => setLocalSettings((prev) => ({ ...prev, proseFontFamily: fam })),
+            }}
+            codeFont={{
+              value: localSettings.codeFontFamily,
+              onChange: (fam) => setLocalSettings((prev) => ({ ...prev, codeFontFamily: fam })),
+            }}
+            showLineNumbers={{
+              checked: localSettings.showCodeBlockLineNumbers,
+              onChange: (checked) =>
+                setLocalSettings((prev) => ({ ...prev, showCodeBlockLineNumbers: checked })),
+            }}
+            showInlineStyleMarkers={{
+              checked: localSettings.showInlineStyleMarkers,
+              onChange: (checked) =>
+                setLocalSettings((prev) => ({ ...prev, showInlineStyleMarkers: checked })),
+            }}
+            enableMarkdownLint={{
+              checked: localSettings.enableMarkdownLint,
+              onChange: (checked) =>
+                setLocalSettings((prev) => ({ ...prev, enableMarkdownLint: checked })),
+            }}
+            editorMode={
+              onChangeMode
+                ? {
+                    mode: mode ?? "wysiwyg",
+                    onChange: onChangeMode,
+                  }
+                : undefined
+            }
+          />
+        ),
+      },
+      {
+        id: "appearance",
+        label: t("settings.tabs.appearance"),
+        description: t("settings.tabs.appearanceDesc"),
+        panel: (
+          <AppearanceSettingsPanel
+            mode={localSettings.theme}
+            onChangeMode={(theme) => setLocalSettings((prev) => ({ ...prev, theme }))}
+            builtInThemes={{
+              lightTheme: localSettings.lightTheme,
+              darkTheme: localSettings.darkTheme,
+              onChangeLightTheme: (theme) =>
+                setLocalSettings((prev) => ({
+                  ...prev,
+                  lightTheme: theme as BuiltInThemeId,
+                })),
+              onChangeDarkTheme: (theme) =>
+                setLocalSettings((prev) => ({
+                  ...prev,
+                  darkTheme: theme as BuiltInThemeId,
+                })),
+            }}
+          />
+        ),
+      },
+      {
+        id: "plugins",
+        label: t("settings.tabs.plugins"),
+        description: t("settings.tabs.pluginsDesc"),
+        panel: (
+          <PluginSettingsPanel
+            plugins={localSettings.plugins}
+            onTogglePlugin={(id, enabled) =>
+              setLocalSettings((prev) => ({
+                ...prev,
+                plugins: {
+                  enabled: {
+                    ...prev.plugins.enabled,
+                    [id]: enabled,
+                  },
+                },
+              }))
+            }
+          />
         ),
       },
       {
@@ -403,250 +446,102 @@ export function WebSettingsDialog({
         ),
       },
       {
-        id: "appearance",
-        label: t("settings.tabs.appearance"),
-        description: t("settings.tabs.appearanceDesc"),
-        panel: (
-          <section className={settingsModuleClassName} aria-labelledby="appearance-settings-title">
-            <div className="mb-3">
-              <h2 id="appearance-settings-title" className={settingsSectionTitleClassName}>
-                {t("settings.appearance.title")}
-              </h2>
-              <p className={settingsDescriptionClassName}>{t("web.appearanceDesc")}</p>
-            </div>
-            <div className="grid gap-4">
-              <fieldset className="grid gap-3 border-0 p-0">
-                <legend className={settingsFieldLabelClassName}>
-                  {t("settings.appearance.fontTitle")}
-                </legend>
-
-                {onChangeMode && (
-                  <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                    <span className={settingsFieldLabelClassName}>
-                      {t("web.currentEditorMode")}
-                    </span>
-                    <select
-                      className={settingsInputClassName}
-                      value={mode ?? "wysiwyg"}
-                      onChange={(e) => onChangeMode(e.target.value as "wysiwyg" | "source")}
-                    >
-                      <option value="wysiwyg">{t("web.wysiwygMode")}</option>
-                      <option value="source">{t("web.sourceMode")}</option>
-                    </select>
-                  </label>
-                )}
-
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
-                  <span className={settingsFieldLabelClassName}>
-                    {t("settings.appearance.fontSize")}
-                  </span>
-                  <input
-                    type="range"
-                    min={13}
-                    max={22}
-                    step={1}
-                    value={localSettings.fontSize}
-                    aria-label={t("settings.appearance.fontSize")}
-                    className="accent-[var(--theme-primary)]"
-                    onChange={(event) =>
-                      setLocalSettings((prev) => ({
-                        ...prev,
-                        fontSize: Number.parseInt(event.target.value, 10),
-                      }))
-                    }
-                  />
-                  <output className="text-right text-[13px] tabular-nums text-[var(--theme-control-text)]">
-                    {localSettings.fontSize}px
-                  </output>
-                </label>
-                <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
-                  <input
-                    type="checkbox"
-                    className="size-4 accent-[var(--theme-primary)]"
-                    checked={localSettings.showInlineStyleMarkers}
-                    onChange={(event) =>
-                      setLocalSettings((prev) => ({
-                        ...prev,
-                        showInlineStyleMarkers: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>{t("settings.appearance.showInlineStyleMarkers")}</span>
-                </label>
-              </fieldset>
-
-              <div className="grid gap-2.5">
-                <h3 className={settingsFieldLabelClassName}>
-                  {t("settings.appearance.themeTitle")}
-                </h3>
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>
-                    {t("settings.appearance.applyMode")}
-                  </span>
-                  <select
-                    className={settingsInputClassName}
-                    value={localSettings.theme}
-                    onChange={(event) =>
-                      setLocalSettings((prev) => ({
-                        ...prev,
-                        theme: event.target.value as WebTheme,
-                      }))
-                    }
-                  >
-                    <option value="system">{t("settings.appearance.modeSystem")}</option>
-                    <option value="light">{t("settings.appearance.modeLight")}</option>
-                    <option value="dark">{t("settings.appearance.modeDark")}</option>
-                  </select>
-                </label>
-
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>
-                    {t("settings.appearance.lightTheme")}
-                  </span>
-                  <select
-                    className={settingsInputClassName}
-                    value={localSettings.lightTheme}
-                    onChange={(event) =>
-                      setLocalSettings((prev) => ({
-                        ...prev,
-                        lightTheme: event.target.value as BuiltInThemeId,
-                      }))
-                    }
-                  >
-                    {BUILT_IN_LIGHT_THEME_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                  <span className={settingsFieldLabelClassName}>
-                    {t("settings.appearance.darkTheme")}
-                  </span>
-                  <select
-                    className={settingsInputClassName}
-                    value={localSettings.darkTheme}
-                    onChange={(event) =>
-                      setLocalSettings((prev) => ({
-                        ...prev,
-                        darkTheme: event.target.value as BuiltInThemeId,
-                      }))
-                    }
-                  >
-                    {BUILT_IN_DARK_THEME_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-          </section>
-        ),
+        id: "shortcuts",
+        label: t("settings.tabs.shortcuts"),
+        description: t("settings.tabs.shortcutsDesc"),
+        panel: <ShortcutSettingsPanel mode="readonly" shortcuts={shortcutsList} />,
       },
       {
-        id: "other",
-        label: t("settings.tabs.other"),
-        description: t("settings.tabs.otherDesc"),
+        id: "general",
+        label: t("settings.tabs.general"),
+        description: t("settings.tabs.generalDesc"),
         panel: (
-          <div className="grid gap-5">
-            <section className={settingsModuleClassName} aria-labelledby="language-settings-title">
-              <div className="mb-3">
-                <h2 id="language-settings-title" className={settingsSectionTitleClassName}>
-                  {t("settings.general.languageTitle")}
-                </h2>
-                <p className={settingsDescriptionClassName}>{t("settings.general.languageDesc")}</p>
-              </div>
-              <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-                <span className={settingsFieldLabelClassName}>
-                  {t("settings.general.languageField")}
-                </span>
-                <select
-                  className={settingsInputClassName}
-                  value={localSettings.language}
-                  onChange={(event) => handleLanguageChange(event.target.value as LanguageSetting)}
+          <GeneralSettingsPanel
+            language={{
+              value: localSettings.language,
+              onChange: handleLanguageChange,
+            }}
+            about={{
+              description: t("web.aboutDesc"),
+            }}
+            extraSections={
+              <div className="grid gap-5">
+                <section
+                  className={settingsModuleClassName}
+                  aria-labelledby="document-settings-title"
                 >
-                  <option value="system">{t("settings.general.languageSystem")}</option>
-                  <option value="zh">{t("settings.general.languageZh")}</option>
-                  <option value="zh-Hant">{t("settings.general.languageZhHant")}</option>
-                  <option value="en">{t("settings.general.languageEn")}</option>
-                  <option value="ja">{t("settings.general.languageJa")}</option>
-                </select>
-              </label>
-            </section>
+                  <div className="mb-3">
+                    <h2 id="document-settings-title" className={settingsSectionTitleClassName}>
+                      {t("web.documentOutput")}
+                    </h2>
+                    <p className={settingsDescriptionClassName}>{t("web.documentOutputDesc")}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {onExport && (
+                      <button
+                        type="button"
+                        className={settingsSmallButtonClassName}
+                        onClick={onExport}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <ArrowDownTrayIcon className="size-3.5 text-[var(--theme-muted)]" />
+                          <span>{t("web.exportMarkdown")}</span>
+                        </span>
+                      </button>
+                    )}
+                    {onCopy && (
+                      <button
+                        type="button"
+                        className={settingsSmallButtonClassName}
+                        onClick={onCopy}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {isCopied ? (
+                            <>
+                              <ClipboardDocumentCheckIcon className="size-3.5 text-green-500" />
+                              <span className="text-green-500">{t("web.copied")}</span>
+                            </>
+                          ) : (
+                            <>
+                              <ClipboardDocumentIcon className="size-3.5 text-[var(--theme-muted)]" />
+                              <span>{t("web.copyMarkdown")}</span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                </section>
 
-            <section className={settingsModuleClassName} aria-labelledby="document-settings-title">
-              <div className="mb-3">
-                <h2 id="document-settings-title" className={settingsSectionTitleClassName}>
-                  {t("web.documentOutput")}
-                </h2>
-                <p className={settingsDescriptionClassName}>{t("web.documentOutputDesc")}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {onExport && (
-                  <button type="button" className={settingsSmallButtonClassName} onClick={onExport}>
-                    <span className="flex items-center gap-1.5">
-                      <ArrowDownTrayIcon className="size-3.5 text-[var(--theme-muted)]" />
-                      <span>{t("web.exportMarkdown")}</span>
-                    </span>
-                  </button>
+                {onReset && (
+                  <section
+                    className={settingsModuleClassName}
+                    aria-labelledby="reset-settings-title"
+                  >
+                    <div className="mb-3">
+                      <h2 id="reset-settings-title" className={settingsSectionTitleClassName}>
+                        {t("web.resetDemo")}
+                      </h2>
+                      <p className={settingsDescriptionClassName}>{t("web.resetDemoDesc")}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="h-[30px] rounded-[5px] border border-red-500/30 bg-red-500/10 px-3 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
+                      onClick={() => {
+                        onReset();
+                        onClose();
+                      }}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ArrowPathIcon className="size-3.5" />
+                        <span>{t("web.resetDemoButton")}</span>
+                      </span>
+                    </button>
+                  </section>
                 )}
-                {onCopy && (
-                  <button type="button" className={settingsSmallButtonClassName} onClick={onCopy}>
-                    <span className="flex items-center gap-1.5">
-                      {isCopied ? (
-                        <>
-                          <ClipboardDocumentCheckIcon className="size-3.5 text-green-500" />
-                          <span className="text-green-500">{t("web.copied")}</span>
-                        </>
-                      ) : (
-                        <>
-                          <ClipboardDocumentIcon className="size-3.5 text-[var(--theme-muted)]" />
-                          <span>{t("web.copyMarkdown")}</span>
-                        </>
-                      )}
-                    </span>
-                  </button>
-                )}
               </div>
-            </section>
-
-            {onReset && (
-              <section className={settingsModuleClassName} aria-labelledby="reset-settings-title">
-                <div className="mb-3">
-                  <h2 id="reset-settings-title" className={settingsSectionTitleClassName}>
-                    {t("web.resetDemo")}
-                  </h2>
-                  <p className={settingsDescriptionClassName}>{t("web.resetDemoDesc")}</p>
-                </div>
-                <button
-                  type="button"
-                  className="h-[30px] rounded-[5px] border border-red-500/30 bg-red-500/10 px-3 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
-                  onClick={() => {
-                    onReset();
-                    onClose();
-                  }}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <ArrowPathIcon className="size-3.5" />
-                    <span>{t("web.resetDemoButton")}</span>
-                  </span>
-                </button>
-              </section>
-            )}
-
-            <section className={settingsModuleClassName} aria-labelledby="about-settings-title">
-              <div className="mb-3">
-                <h2 id="about-settings-title" className={settingsSectionTitleClassName}>
-                  {t("web.aboutTitle")}
-                </h2>
-                <p className={settingsDescriptionClassName}>{t("web.aboutDesc")}</p>
-              </div>
-            </section>
-          </div>
+            }
+          />
         ),
       },
     ],
@@ -657,8 +552,8 @@ export function WebSettingsDialog({
       localSettings,
       mode,
       onChangeMode,
-      onCopy,
       onClose,
+      onCopy,
       onExport,
       onReset,
       shortcutsList,
@@ -667,93 +562,18 @@ export function WebSettingsDialog({
     ],
   );
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-in fade-in duration-150">
-      <div
-        data-settings-dialog="true"
-        className="flex h-[min(640px,88vh)] w-full max-w-[840px] flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-2xl animate-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 对齐 Desktop 的标题栏 */}
-        <header className="flex min-h-[54px] shrink-0 items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5">
-          <div className="min-w-0">
-            <h1
-              id="settings-title"
-              className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]"
-            >
-              {t("settings.title")}
-            </h1>
-            <p className={settingsDescriptionClassName}>{t("web.settingsDescription")}</p>
-          </div>
-          <button
-            type="button"
-            className="rounded-lg p-1.5 text-[var(--theme-muted)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-            onClick={handleClose}
-          >
-            <XMarkIcon className="size-5" />
-          </button>
-        </header>
-
-        {/* 垂直两栏分栏：左侧 190px 导航，右侧滚动面板 */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <TabGroup
-            vertical
-            selectedIndex={selectedTabIndex}
-            onChange={setSelectedTabIndex}
-            className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)] overflow-hidden max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]"
-          >
-            <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
-              <TabList
-                className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto"
-                aria-label={t("web.settingsNavAria")}
-              >
-                {tabs.map((tab) => (
-                  <Tab
-                    key={tab.id}
-                    className={({ selected }) =>
-                      [
-                        "grid min-h-[46px] w-full min-w-0 grid-cols-1 rounded-[6px] border-0 px-3 py-2 text-left outline-none transition-colors max-[720px]:min-w-[132px]",
-                        selected
-                          ? "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
-                          : "bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]",
-                        "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]",
-                      ].join(" ")
-                    }
-                  >
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-[1.3]">
-                      {tab.label}
-                    </span>
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-[1.35] text-[var(--theme-muted)]">
-                      {tab.description}
-                    </span>
-                  </Tab>
-                ))}
-              </TabList>
-            </aside>
-            <TabPanels className="min-h-0 overflow-auto bg-[var(--theme-surface)]">
-              {tabs.map((tab) => (
-                <TabPanel key={tab.id} className="min-h-full outline-none">
-                  <div className="mx-auto grid w-full max-w-[760px] gap-5 px-7 py-6 max-[760px]:px-4">
-                    {tab.panel}
-                  </div>
-                </TabPanel>
-              ))}
-            </TabPanels>
-          </TabGroup>
-
-          {/* 底部保存与取消按钮，完全对齐 Desktop */}
-          <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-3.5">
-            <button type="button" className={dialogButtonClassName} onClick={handleClose}>
-              {t("common.cancel")}
-            </button>
-            <button type="button" className={primaryDialogButtonClassName} onClick={handleSave}>
-              {t("common.save")}
-            </button>
-          </footer>
-        </div>
-      </div>
-    </div>
+    <SettingsShell
+      variant="modal"
+      open={open}
+      title={t("settings.title")}
+      tabs={tabs}
+      selectedTabIndex={selectedTabIndex}
+      onSelectTab={setSelectedTabIndex}
+      onClose={onClose}
+      onSave={handleSave}
+      cancelText={t("common.cancel")}
+      saveText={t("common.save")}
+    />
   );
 }

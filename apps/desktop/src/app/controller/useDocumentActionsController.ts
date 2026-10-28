@@ -35,6 +35,9 @@ import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
 import { executeDocumentSave, getSaveFeedback, isDiscardProtectionRequired } from "./document-save";
+import { checkPendingDraft, recordDocumentHistory, sessionStore } from "./session-controller";
+import { checkDocumentLinksAndLint } from "./export-controller";
+import { useDocumentUiStore } from "../stores/document-ui-store";
 
 /**
  * 文档动作控制器入参配置。
@@ -201,6 +204,11 @@ export function useDocumentActionsController({
       setOpenedAsset(null);
       setHasActiveDocument(true);
       rememberRecentDocument(document);
+
+      // 异步检测当前打开文档是否存在未保存草稿（做法 2：提示用户恢复）
+      void checkPendingDraft(document.filePath).then((draft) => {
+        useDocumentUiStore.getState().setPendingDraft(draft);
+      });
     },
     [rememberRecentDocument, setHasActiveDocument, setOpenedAsset, showToast],
   );
@@ -216,6 +224,10 @@ export function useDocumentActionsController({
     showToast(null);
     setOpenedAsset(null);
     setHasActiveDocument(true);
+
+    void checkPendingDraft(null).then((draft) => {
+      useDocumentUiStore.getState().setPendingDraft(draft);
+    });
   }, [setHasActiveDocument, setOpenedAsset, showToast]);
 
   /**
@@ -247,12 +259,19 @@ export function useDocumentActionsController({
             latest.persistenceStatus.kind === "verified" &&
             !latest.isDirty;
 
+          if (savedCurrentDocument) {
+            void sessionStore.clearActiveSession();
+            useDocumentUiStore.getState().setPendingDraft(null);
+          }
+
           const authoritativePath = latest.filePath;
           if (
             authoritativePath &&
             (settlement.status === "applied" || settlement.status === "promoted")
           ) {
             rememberRecentPath(authoritativePath);
+            void recordDocumentHistory(authoritativePath, latest.markdown, "manual-save");
+            void checkDocumentLinksAndLint(authoritativePath, latest.markdown, getRendererPorts);
             if (
               shouldRefreshFolderAfterSave({
                 previousPath,

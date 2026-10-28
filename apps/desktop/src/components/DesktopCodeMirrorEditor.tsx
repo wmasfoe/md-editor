@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import {
+  CodeMirrorEditor,
+  type CodeMirrorEditorPorts,
+  resolveCodeFontStack,
+  resolveProseFontStack,
+} from "@md-editor/editor-ui";
 import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
@@ -18,11 +23,7 @@ import { bindDropImageListener } from "../app/events/drop-image-listener";
 import { bindPasteImageListener } from "../app/events/paste-image-listener";
 import type { PasteImageRuntime } from "../lib/paste-image";
 import { useConfirmationStore } from "../app/stores/confirmation-store";
-import {
-  resolveCodeFontStack,
-  resolveProseFontStack,
-  type AppSettings,
-} from "../app/settings/app-settings";
+import type { AppSettings } from "../app/settings/app-settings";
 
 export interface DesktopCodeMirrorEditorProps {
   readonly hidden?: boolean;
@@ -154,6 +155,7 @@ export function DesktopCodeMirrorEditor({
       hidden={hidden}
       codeBlockLineNumbers={settings.editor.showCodeBlockLineNumbers}
       showInlineStyleMarkers={settings.editor.showInlineStyleMarkers}
+      enableMarkdownLint={settings.editor.enableMarkdownLint}
       ariaLabel={t("sidebar.editorAria")}
       aiSuggestionLabels={aiSuggestionLabels}
       mdxMode={isMdxDocument}

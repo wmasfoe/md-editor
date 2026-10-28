@@ -51,4 +51,34 @@ describe("web settings · showInlineStyleMarkers", () => {
     saveWebSettings({ ...loadWebSettings(), showInlineStyleMarkers: false });
     expect(loadWebSettings().showInlineStyleMarkers).toBe(false);
   });
+
+  it("defaults enableMarkdownLint to true and supports toggling", () => {
+    stubStorage();
+    expect(DEFAULT_WEB_SETTINGS.enableMarkdownLint).toBe(true);
+    expect(loadWebSettings().enableMarkdownLint).toBe(true);
+
+    stubStorage(JSON.stringify({ enableMarkdownLint: false }));
+    expect(loadWebSettings().enableMarkdownLint).toBe(false);
+
+    saveWebSettings({ ...loadWebSettings(), enableMarkdownLint: false });
+    expect(loadWebSettings().enableMarkdownLint).toBe(false);
+  });
+
+  it("persists editor typography and line number preferences", () => {
+    stubStorage();
+    expect(DEFAULT_WEB_SETTINGS.showCodeBlockLineNumbers).toBe(false);
+    expect(DEFAULT_WEB_SETTINGS.proseFontFamily).toBe("");
+    expect(DEFAULT_WEB_SETTINGS.codeFontFamily).toBe("");
+
+    saveWebSettings({
+      ...loadWebSettings(),
+      showCodeBlockLineNumbers: true,
+      proseFontFamily: "lxgw-wenkai",
+      codeFontFamily: "jetbrains-mono",
+    });
+    const loaded = loadWebSettings();
+    expect(loaded.showCodeBlockLineNumbers).toBe(true);
+    expect(loaded.proseFontFamily).toBe("lxgw-wenkai");
+    expect(loaded.codeFontFamily).toBe("jetbrains-mono");
+  });
 });

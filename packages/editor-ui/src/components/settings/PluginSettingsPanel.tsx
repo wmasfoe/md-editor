@@ -1,19 +1,22 @@
+/**
+ * @fileoverview 跨端统一 Markdown 扩展插件配置面板组件 (Plugin Settings Panel)
+ */
+
 import type { ReactNode } from "react";
 import {
   OFFICIAL_SYNTAX_PLUGINS_METADATA,
   type OfficialSyntaxPluginDescriptor,
   type OfficialSyntaxPluginId,
-} from "@md-editor/syntax-plugins";
-import type { PluginSettings } from "../../app/settings/app-settings";
+} from "@md-editor/syntax-plugins/metadata";
 import { useTranslation } from "@md-editor/i18n";
 import {
   settingsDescriptionClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-} from "./settingsStyles";
+} from "./settings-styles";
 
-interface PluginSettingsPanelProps {
-  readonly pluginsDraft: PluginSettings;
+export interface PluginSettingsPanelProps {
+  readonly plugins: { readonly enabled: Readonly<Record<string, boolean>> };
   readonly onTogglePlugin: (pluginId: string, enabled: boolean) => void;
 }
 
@@ -34,7 +37,6 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          {/* 荧光高亮笔 Highlighter 图标 */}
           <path d="m9 11-6 6v3h3l6-6" />
           <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
         </svg>
@@ -51,7 +53,6 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          {/* 数学求和/公式 Sigma 符号与根号积分几何构型 */}
           <path d="M18 4H6l7 8-7 8h12" />
         </svg>
       );
@@ -67,7 +68,6 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          {/* Mermaid 分支流程与拓扑节点 */}
           <rect x="3" y="3" width="6" height="6" rx="1.5" />
           <rect x="15" y="15" width="6" height="6" rx="1.5" />
           <rect x="15" y="3" width="6" height="6" rx="1.5" />
@@ -87,7 +87,6 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          {/* Admonition 容器卡片与信息提示 */}
           <rect x="3" y="4" width="18" height="16" rx="2" />
           <path d="M12 8v4" />
           <path d="M12 16h.01" />
@@ -111,9 +110,6 @@ function PluginIcon({ id }: { readonly id: OfficialSyntaxPluginId }): ReactNode 
   }
 }
 
-/**
- * 官方认证徽章矢量 SVG 图标
- */
 function OfficialBadgeIcon(): ReactNode {
   return (
     <svg className="size-3 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -126,9 +122,6 @@ function OfficialBadgeIcon(): ReactNode {
   );
 }
 
-/**
- * 积木拼装（更多插件研发中）矢量 SVG 图标
- */
 function PuzzleIcon(): ReactNode {
   return (
     <svg
@@ -148,11 +141,7 @@ function PuzzleIcon(): ReactNode {
   );
 }
 
-/**
- * OpenDesign & Claude Design 风格 Switch 滑块组件
- * 具备精致微阴影、平滑弹性滑动、键盘操作与无障碍 (a11y) 支持
- */
-function ClaudeSwitch({
+function Switch({
   checked,
   onChange,
   ariaLabel,
@@ -205,9 +194,6 @@ const TAG_TRANSLATION_KEYS: Record<string, string> = {
   主题适配: "settings.plugins.tags.themeAdaptive",
 };
 
-/**
- * 单个插件设置卡片（Claude Design 精致紧凑风格）
- */
 function PluginItemCard({
   descriptor,
   isEnabled,
@@ -235,7 +221,6 @@ function PluginItemCard({
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        {/* 左侧：图标 + 标题 + 官方徽章 */}
         <div className="flex items-start gap-3 min-w-0">
           <div
             className={`flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
@@ -252,19 +237,16 @@ function PluginItemCard({
                 {translatedName}
               </span>
 
-              {/* 官方认证徽章：绿色高质感徽标 */}
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
                 <OfficialBadgeIcon />
                 <span>{t("settings.plugins.officialBadge")}</span>
               </span>
             </div>
 
-            {/* 描述信息 */}
             <p className="mb-1.5 mt-0.5 text-[12px] leading-relaxed text-[var(--theme-muted)]">
               {translatedDesc}
             </p>
 
-            {/* 语法提示与特性标签 */}
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
                 {translatedHint}
@@ -285,7 +267,6 @@ function PluginItemCard({
           </div>
         </div>
 
-        {/* 右侧：精美 Switch 滑块 */}
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <span
             className={`text-[11.5px] font-medium transition-colors ${
@@ -294,7 +275,7 @@ function PluginItemCard({
           >
             {isEnabled ? t("settings.plugins.enabledStatus") : t("settings.plugins.disabledStatus")}
           </span>
-          <ClaudeSwitch
+          <Switch
             checked={isEnabled}
             onChange={onToggle}
             ariaLabel={t("settings.plugins.toggleAria", { name: translatedName })}
@@ -305,7 +286,7 @@ function PluginItemCard({
   );
 }
 
-export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSettingsPanelProps) {
+export function PluginSettingsPanel({ plugins, onTogglePlugin }: PluginSettingsPanelProps) {
   const { t } = useTranslation();
   return (
     <section className={settingsModuleClassName} aria-labelledby="plugin-settings-title">
@@ -317,9 +298,8 @@ export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSett
       </div>
 
       <div className="grid gap-2.5">
-        {/* 官方插件列表 */}
         {OFFICIAL_SYNTAX_PLUGINS_METADATA.map((descriptor) => {
-          const isEnabled = pluginsDraft.enabled[descriptor.id] ?? descriptor.defaultEnabled;
+          const isEnabled = plugins.enabled[descriptor.id] ?? descriptor.defaultEnabled;
           return (
             <PluginItemCard
               key={descriptor.id}
@@ -330,7 +310,6 @@ export function PluginSettingsPanel({ pluginsDraft, onTogglePlugin }: PluginSett
           );
         })}
 
-        {/* 更多插件开发中卡片（Claude / OpenDesign 风格虚线探索预告） */}
         <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-3.5 py-2.5 transition-colors">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)]">

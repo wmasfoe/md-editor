@@ -3,5 +3,4 @@
  */
 
 export * from "./types.ts";
-export * from "./fonts.ts";
 export * from "./defaults.ts";

@@ -18,6 +18,7 @@ import {
   EditorState,
   Transaction,
   type Extension,
+  type StateEffect,
 } from "@codemirror/state";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
 import type {
@@ -84,6 +85,7 @@ import {
 import type {
   CodeBlockLineNumberPortResult,
   InlineStyleMarkerPortResult,
+  MarkdownLintPortResult,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
   ExternalEditRequest,
@@ -108,6 +110,19 @@ import { createRendererProbe } from "./controller/probe.ts";
 import { setHostVisibility } from "./controller/host-visibility.ts";
 
 import { startComposition, finishComposition } from "./controller/composition.ts";
+import {
+  executeDocumentLint,
+  collectPreservedNonMarkdownDiagnostics,
+  createRealtimeMarkdownLintExtension,
+  runMarkdownLint,
+  runMarkdownLintCommand,
+  fixAllMarkdownLintIssues,
+  clearMarkdownLintCommand,
+  type DocumentLinterOptions,
+  type MarkdownLintRunResult,
+  type MarkdownLintFixAllResult,
+} from "../lint/index.ts";
+import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 
 let nextRendererId = 1;
 
@@ -121,6 +136,7 @@ export class CodeMirrorRendererController {
   readonly #markdownLanguageCompartment = new Compartment();
   readonly #syntaxRegistryCompartment = new Compartment();
   readonly #aiSuggestionLabelsCompartment = new Compartment();
+  readonly #markdownLintCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
@@ -134,6 +150,7 @@ export class CodeMirrorRendererController {
   #persistenceStatus: DocumentSnapshot["persistenceStatus"]["kind"];
   #codeBlockLineNumbers = false;
   #inlineStyleMarkers = false;
+  #markdownLintEnabled = false;
   #aiSuggestionLabels: AiSuggestionLabels | undefined;
   #compositionActive = false;
   #queuedExternalEdit: ExternalEditRequest | null = null;
@@ -176,6 +193,7 @@ export class CodeMirrorRendererController {
     this.#stateRevision = initialSnapshot.stateRevision;
     this.#contentRevision = initialSnapshot.contentRevision;
     this.#persistenceStatus = initialSnapshot.persistenceStatus.kind;
+    this.#markdownLintEnabled = options.enableMarkdownLint ?? false;
 
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
@@ -272,6 +290,56 @@ export class CodeMirrorRendererController {
     return { status: "applied" };
   }
 
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult {
+    if (this.#destroyed) {
+      return { status: "destroyed" };
+    }
+    if (enabled === this.#markdownLintEnabled) {
+      return { status: "noop" };
+    }
+    this.#markdownLintEnabled = enabled;
+    const reconfigureEffect = this.#markdownLintCompartment.reconfigure(
+      createRealtimeMarkdownLintExtension(enabled),
+    );
+    const clearEffects: readonly StateEffect<unknown>[] = enabled
+      ? []
+      : (setDiagnostics(this.#view.state, collectPreservedNonMarkdownDiagnostics(this.#view.state))
+          .effects as readonly StateEffect<unknown>[]);
+
+    this.#view.dispatch({
+      effects: [reconfigureEffect, ...clearEffects],
+      annotations: [
+        Transaction.addToHistory.of(false),
+        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+      ],
+    });
+    return { status: "applied" };
+  }
+
+  recomputeMarkdownLint(): MarkdownLintPortResult {
+    if (this.#destroyed) {
+      return { status: "destroyed" };
+    }
+    if (!this.#markdownLintEnabled) {
+      return { status: "noop" };
+    }
+    const preserved = collectPreservedNonMarkdownDiagnostics(this.#view.state);
+    const mdDiagnostics = runMarkdownLint(this.#view.state);
+    const effects: readonly StateEffect<unknown>[] = (setDiagnostics(this.#view.state, [
+      ...preserved,
+      ...mdDiagnostics,
+    ]).effects ?? []) as readonly StateEffect<unknown>[];
+
+    this.#view.dispatch({
+      effects: [...effects],
+      annotations: [
+        Transaction.addToHistory.of(false),
+        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+      ],
+    });
+    return { status: "applied" };
+  }
+
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult {
     if (this.#destroyed) {
       return { status: "destroyed" };
@@ -316,38 +384,23 @@ export class CodeMirrorRendererController {
   }
 
   acceptSuggestion(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return acceptAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && acceptAiSuggestion(this.#view as unknown as EditorView);
   }
 
   moveBlockUp(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return moveBlockUp(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveBlockUp(this.#view as unknown as EditorView);
   }
 
   moveBlockDown(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return moveBlockDown(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveBlockDown(this.#view as unknown as EditorView);
   }
 
   toggleFocusMode(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return toggleViewFocusMode(this.#view);
+    return !this.#destroyed && toggleViewFocusMode(this.#view);
   }
 
   toggleTypewriterMode(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return toggleViewTypewriterMode(this.#view);
+    return !this.#destroyed && toggleViewTypewriterMode(this.#view);
   }
 
   getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean } {
@@ -355,24 +408,15 @@ export class CodeMirrorRendererController {
   }
 
   duplicateBlock(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return duplicateBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && duplicateBlock(this.#view as unknown as EditorView);
   }
 
   deleteBlock(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return deleteBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && deleteBlock(this.#view as unknown as EditorView);
   }
 
   dismissSuggestion(): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return dismissAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && dismissAiSuggestion(this.#view as unknown as EditorView);
   }
 
   getSuggestion(): AiSuggestionValue | null {
@@ -419,20 +463,39 @@ export class CodeMirrorRendererController {
     line: number,
     options?: { readonly select?: boolean; readonly focus?: boolean },
   ): boolean {
-    if (this.#destroyed) {
-      return false;
-    }
-    return scrollViewToLine(this.#view, line, options);
+    return this.#destroyed ? false : scrollViewToLine(this.#view, line, options);
   }
 
   requestMeasure(): void {
-    if (!this.#destroyed) {
-      this.#requestMeasure();
-    }
+    if (!this.#destroyed) this.#requestMeasure();
   }
 
   flushPendingEdits(): boolean {
     return flushPendingViewEdits(this.#view, this.#destroyed);
+  }
+
+  async runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]> {
+    return this.#destroyed ? [] : executeDocumentLint(this.#view, options);
+  }
+
+  get #targetEditorView(): EditorView {
+    return this.#view.editorView ?? (this.#view as unknown as EditorView);
+  }
+
+  runMarkdownLintCommand(config?: Record<string, unknown>): MarkdownLintRunResult {
+    return this.#destroyed
+      ? { total: 0, errors: 0, warnings: 0 }
+      : runMarkdownLintCommand(this.#targetEditorView, config);
+  }
+
+  fixAllMarkdownLint(config?: Record<string, unknown>): MarkdownLintFixAllResult {
+    return this.#destroyed
+      ? { appliedCount: 0, remainingCount: 0 }
+      : fixAllMarkdownLintIssues(this.#targetEditorView, config);
+  }
+
+  clearMarkdownLint(): void {
+    if (!this.#destroyed) clearMarkdownLintCommand(this.#targetEditorView);
   }
 
   destroy(): void {
@@ -476,6 +539,9 @@ export class CodeMirrorRendererController {
         initialCodeBlockLineNumbersFacet.of(this.#codeBlockLineNumbers),
         initialInlineStyleMarkersFacet.of(this.#inlineStyleMarkers),
         this.#modeCompartment.of(createModeExtensions(snapshot.mode)),
+        this.#markdownLintCompartment.of(
+          createRealtimeMarkdownLintExtension(this.#markdownLintEnabled),
+        ),
         // 视图轴继承（与文档正交）：作为初值注入，避免「先默认后 dispatch」的副作用
         focusModeInitialFacet.of(viewAxisAlignment.focus),
         typewriterModeInitialFacet.of(viewAxisAlignment.typewriter),

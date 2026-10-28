@@ -6,6 +6,7 @@ export * from "./document-state.ts";
 export * from "./document-identity.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
+export * from "./session/index.ts";
 
 export interface CommandContext {
   readonly document: DocumentState;
@@ -83,6 +84,11 @@ export type BuiltInCommandId =
   | "file.openFolder"
   | "file.save"
   | "file.saveAs"
+  | "file.history"
+  | "file.exportHtml"
+  | "file.exportPdf"
+  | "edit.copyAsHtml"
+  | "file.checkLinks"
   | "settings.open"
   | "app.about"
   | "mdx.openComponentMenu"
@@ -97,7 +103,10 @@ export type BuiltInCommandId =
   | "block.moveUp"
   | "block.moveDown"
   | "block.duplicate"
-  | "block.delete";
+  | "block.delete"
+  | "lint.run"
+  | "lint.fixAll"
+  | "lint.clear";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -106,6 +115,11 @@ export interface EditorActionHandlers {
   readonly openFolder?: () => void | Promise<void>;
   readonly saveDocument?: () => void | Promise<void>;
   readonly saveDocumentAs?: () => void | Promise<void>;
+  readonly openDocumentHistory?: () => void | Promise<void>;
+  readonly exportHtml?: () => void | Promise<void>;
+  readonly exportPdf?: () => void | Promise<void>;
+  readonly copyAsHtml?: () => void | Promise<void>;
+  readonly checkLinks?: () => void | Promise<void>;
   readonly openSettings?: () => void | Promise<void>;
   /** 打开关于窗口/弹窗；未实现的宿主会被命令注册表降级为 no-op */
   readonly openAbout?: () => void | Promise<void>;
@@ -128,6 +142,9 @@ export interface EditorActionHandlers {
   readonly toggleSidebarPrimary?: () => void | Promise<void>;
   readonly continueAiWriting?: () => void | Promise<void>;
   readonly fixAiGrammar?: () => void | Promise<void>;
+  readonly runMarkdownLint?: () => void | Promise<void>;
+  readonly fixAllMarkdownLint?: () => void | Promise<void>;
+  readonly clearMarkdownLint?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -284,6 +301,38 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         group: "文件",
         keywords: ["另存为", "save as"],
       });
+      registerActionCommand(
+        context.commands,
+        "file.history",
+        "Document History",
+        "openDocumentHistory",
+        {
+          group: "文件",
+          keywords: ["历史", "版本", "快照", "history", "snapshot", "revert"],
+        },
+      );
+      registerActionCommand(context.commands, "file.exportHtml", "Export as HTML", "exportHtml", {
+        group: "文件",
+        keywords: ["导出", "html", "export", "web"],
+      });
+      registerActionCommand(context.commands, "file.exportPdf", "Export as PDF", "exportPdf", {
+        group: "文件",
+        keywords: ["导出", "pdf", "打印", "print"],
+      });
+      registerActionCommand(context.commands, "edit.copyAsHtml", "Copy as HTML", "copyAsHtml", {
+        group: "编辑",
+        keywords: ["复制", "富文本", "copy", "html"],
+      });
+      registerActionCommand(
+        context.commands,
+        "file.checkLinks",
+        "Check Document Links & Lint",
+        "checkLinks",
+        {
+          group: "工具",
+          keywords: ["链接", "检查", "lint", "link", "check"],
+        },
+      );
       registerActionCommand(context.commands, "settings.open", "Settings", "openSettings", {
         group: "设置",
         keywords: ["设置", "偏好", "settings"],
@@ -338,6 +387,35 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         "toggleSidebarPrimary",
         { group: "视图", keywords: ["侧栏", "sidebar", "outline"] },
       );
+      registerActionCommand(context.commands, "lint.run", "Run Markdown Lint", "runMarkdownLint", {
+        group: "编辑",
+        keywords: ["lint", "markdownlint", "规范", "检查", "切换"],
+      });
+      registerActionCommand(
+        context.commands,
+        "lint.fixAll",
+        "Fix All Markdown Lint Issues",
+        "fixAllMarkdownLint",
+        { group: "编辑", keywords: ["lint", "fix", "修复", "一键修复", "规范"] },
+      );
+      registerActionCommand(
+        context.commands,
+        "lint.clear",
+        "Clear Markdown Lint Diagnostics",
+        "clearMarkdownLint",
+        { group: "编辑", keywords: ["lint", "clear", "清除", "关闭", "规范"] },
+      );
+
+      context.keymaps.register({
+        id: "lint.run",
+        key: "Shift-Alt-L",
+        commandId: "lint.run",
+      });
+      context.keymaps.register({
+        id: "lint.fixAll",
+        key: "Shift-Alt-F",
+        commandId: "lint.fixAll",
+      });
 
       context.keymaps.register({
         id: "view.toggleSource",

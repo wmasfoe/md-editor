@@ -16,6 +16,7 @@ import {
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
   type InlineStyleMarkerPortResult,
+  type MarkdownLintPortResult,
   type CodeMirrorRenderer,
   type ExternalEditRequest,
   type ExternalEditResult,
@@ -26,6 +27,8 @@ import type {
   AiSuggestionValue,
 } from "./wysiwyg/view/suggestion.ts";
 import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
+import type { Diagnostic } from "@codemirror/lint";
+import type { DocumentLinterOptions } from "./lint/types.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
 
@@ -42,6 +45,8 @@ export interface CodeMirrorEditorPorts {
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  recomputeMarkdownLint(): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -89,6 +94,22 @@ export interface CodeMirrorEditorPorts {
   flushPendingEdits(): boolean;
   /** 全量替换并热重载 Markdown 语法扩展插件列表 */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
+  /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
+  runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
+  /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */
+  runMarkdownLint(config?: Record<string, unknown>): {
+    readonly total: number;
+    readonly errors: number;
+    readonly warnings: number;
+    readonly toggledOff?: boolean;
+  };
+  /** 一键自动修复所有支持自动修复的 Markdown 规范问题 */
+  fixAllMarkdownLint(config?: Record<string, unknown>): {
+    readonly appliedCount: number;
+    readonly remainingCount: number;
+  };
+  /** 清除 Markdown 规范检查状态（波浪线与底部面板） */
+  clearMarkdownLint(): void;
 }
 
 export type CodeMirrorEditorSyncError =
@@ -123,6 +144,8 @@ export interface CodeMirrorEditorBridgeOptions {
   /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
   readonly openLinkTarget?: (url: string) => void;
   readonly onCursorLineChange?: (line: number) => void;
+  /** 是否开启实时 Markdown 规范检查（默认 false） */
+  readonly enableMarkdownLint?: boolean;
   /** 可选语法扩展插件列表 */
   readonly plugins?: readonly MarkdownSyntaxPlugin[];
   /** 兼容别名：同 plugins */
@@ -223,6 +246,7 @@ export function createCodeMirrorEditorBridge(
     onCursorLineChange: options.onCursorLineChange,
     plugins: options.plugins ?? options.syntaxPlugins,
     aiSuggestionLabels: options.aiSuggestionLabels,
+    enableMarkdownLint: options.enableMarkdownLint,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);
       if (result.status !== "applied" && result.status !== "noop") {
@@ -263,6 +287,8 @@ export function createCodeMirrorEditorBridge(
     getViewModeState: () => renderer.getViewModeState(),
     setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
+    setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
+    recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),
@@ -280,6 +306,10 @@ export function createCodeMirrorEditorBridge(
     isComposing: () => renderer.isComposing,
     flushPendingEdits: () => renderer.flushPendingEdits(),
     setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
+    runDocumentLint: (opts?: DocumentLinterOptions) => renderer.runDocumentLint(opts),
+    runMarkdownLint: (config?: Record<string, unknown>) => renderer.runMarkdownLintCommand(config),
+    fixAllMarkdownLint: (config?: Record<string, unknown>) => renderer.fixAllMarkdownLint(config),
+    clearMarkdownLint: () => renderer.clearMarkdownLint(),
   });
   rendererByPorts.set(ports, renderer);
 

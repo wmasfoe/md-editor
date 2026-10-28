@@ -23,11 +23,13 @@ import type {
   ExternalEditRequest,
   RendererViewFactory,
   RendererTestingProbeInternal,
+  DocumentLinterOptions,
 } from "./types.ts";
 
 export type {
   CodeBlockLineNumberPortResult,
   InlineStyleMarkerPortResult,
+  MarkdownLintPortResult,
   CodeMirrorRenderer,
   CodeMirrorRendererControllerOptions,
   CodeMirrorRendererOptions,
@@ -50,6 +52,8 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     rollbackMode: (receipt: ModeReceipt) => controller.rollbackMode(receipt),
     setCodeBlockLineNumbers: (enabled: boolean) => controller.setCodeBlockLineNumbers(enabled),
     setInlineStyleMarkers: (enabled: boolean) => controller.setInlineStyleMarkers(enabled),
+    setMarkdownLint: (enabled: boolean) => controller.setMarkdownLint(enabled),
+    recomputeMarkdownLint: () => controller.recomputeMarkdownLint(),
     setHostVisibility: (hidden: boolean) => controller.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => controller.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => controller.setAiSuggestionLabels(labels),
@@ -83,6 +87,11 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
       controller.setPlugins(plugins);
       return renderer;
     },
+    runDocumentLint: (options?: DocumentLinterOptions) => controller.runDocumentLint(options),
+    runMarkdownLintCommand: (config?: Record<string, unknown>) =>
+      controller.runMarkdownLintCommand(config),
+    fixAllMarkdownLint: (config?: Record<string, unknown>) => controller.fixAllMarkdownLint(config),
+    clearMarkdownLint: () => controller.clearMarkdownLint(),
     destroy: () => controller.destroy(),
   });
   controllerByRenderer.set(renderer, controller);

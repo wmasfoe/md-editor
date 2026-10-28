@@ -4,6 +4,7 @@
 
 ## 文档
 
+- VMark 剩余核心能力落地技术方案（Hot Exit、文档历史、Markdown Lint/链接检查与 HTML/PDF 导出）： [vmark_remaining_features_technical_plan.md](./vmark_remaining_features_technical_plan.md)
 - 技术方案（文件、状态等通用边界继续有效；编辑器内核以 CM6 专项方案为准）： [markdown_editor_technical_plan.md](./markdown_editor_technical_plan.md)
 - 能力边界设计原则： [capability_boundary_design_principles.md](./capability_boundary_design_principles.md)
 - 仓库优化与加固方案（体积/首屏、配置单源、巨型文件拆分、工程门禁、依赖卫生五项方案与验收标准）： [repo_optimization_plan.md](./repo_optimization_plan.md)

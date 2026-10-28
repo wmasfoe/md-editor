@@ -14,10 +14,12 @@ import { EditorLoadingState } from "../components/EditorLoadingState";
 import { DesktopModals } from "../components/DesktopModals";
 import {
   AppSidebar,
-  SidebarResizer,
   CollapsedSidebarReveal,
   SIDEBAR_DEFAULT_WIDTH,
+  SidebarResizer,
 } from "../components/AppSidebar";
+import { DraftRecoveryBanner } from "../components/session/DraftRecoveryBanner";
+import { discardPendingDraft, restorePendingDraft } from "./controller/session-controller";
 import { APP_DISPLAY_NAME } from "../lib/app-name";
 import { toAssetUrl } from "../lib/markdown-preview";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
@@ -147,8 +149,14 @@ function MainApp({
   const snapshot = useDocumentSnapshot();
   const { isSidebarVisible, setIsSidebarVisible } = useSidebarStore();
   const { pendingAction } = useFileActionStore();
-  const { hasActiveDocument, openedAsset, closeAssetPreview, getRecentFiles } =
-    useDocumentUiStore();
+  const {
+    hasActiveDocument,
+    openedAsset,
+    closeAssetPreview,
+    getRecentFiles,
+    pendingDraft,
+    setPendingDraft,
+  } = useDocumentUiStore();
   const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
 
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
@@ -217,7 +225,21 @@ function MainApp({
 
           {/* 核心视图区域：未打开文档欢迎页、CodeMirror 编辑器、图片资源预览与加载状态 */}
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-            <EditorToast toast={toast} />
+            <DraftRecoveryBanner
+              draftInfo={pendingDraft}
+              onRestore={() => {
+                if (pendingDraft) {
+                  restorePendingDraft(pendingDraft);
+                  setPendingDraft(null);
+                }
+              }}
+              onDiscard={() => {
+                if (pendingDraft) {
+                  void discardPendingDraft(pendingDraft.draftId);
+                  setPendingDraft(null);
+                }
+              }}
+            />
 
             {!hasActiveDocument && !openedAsset ? (
               <WelcomeState
@@ -264,6 +286,9 @@ function MainApp({
 
       {/* 全局模态弹窗层（操作确认、命令面板 Cmd+K、MDX 组件、表格插入） */}
       <DesktopModals />
+
+      {/* 全局顶部通知浮层 */}
+      <EditorToast toast={toast} />
     </main>
   );
 }

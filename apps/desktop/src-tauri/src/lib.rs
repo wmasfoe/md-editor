@@ -13,6 +13,7 @@ mod process_utils;
 mod quicklook;
 mod recent_files;
 mod save_runtime;
+mod session;
 mod settings;
 mod settings_window;
 mod system_info;
@@ -31,11 +32,11 @@ use app_menu::{
 };
 use file_commands::{
     allow_asset_path, attach_save_runtime, check_path_exists, copy_file_tree_path,
-    create_markdown_tree_item, delete_markdown_tree_item, inspect_linked_file,
+    create_markdown_tree_item, delete_markdown_tree_item, export_html_to_pdf, inspect_linked_file,
     open_external_target, open_markdown_document, open_markdown_document_at_path,
     open_markdown_folder, pick_theme_css_file, read_theme_css_file, refresh_markdown_folder,
     rename_markdown_tree_item, reveal_file_tree_item_in_finder, save_markdown_document_ordered,
-    save_pasted_image, show_file_tree_context_menu,
+    save_pasted_image, show_file_tree_context_menu, write_exported_files,
 };
 use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
 use local_ai_completion::request_local_ai_continuation;
@@ -45,6 +46,11 @@ use local_ai_model::{
 };
 use recent_files::{load_recent_files, save_recent_files};
 use save_runtime::SaveCommitGate;
+use session::{
+    clear_persisted_session, delete_draft_file, delete_history_snapshot, list_draft_files,
+    load_draft_file, load_history_index, load_history_snapshot, load_persisted_session,
+    save_draft_file, save_history_index, save_history_snapshot, save_persisted_session,
+};
 use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
 use system_info::get_system_specs;
@@ -144,7 +150,21 @@ pub fn run() {
             close_settings_window,
             save_app_settings_and_update_menu,
             inspect_linked_file,
-            open_external_target
+            open_external_target,
+            write_exported_files,
+            export_html_to_pdf,
+            load_persisted_session,
+            save_persisted_session,
+            clear_persisted_session,
+            load_draft_file,
+            save_draft_file,
+            delete_draft_file,
+            list_draft_files,
+            load_history_index,
+            save_history_index,
+            load_history_snapshot,
+            save_history_snapshot,
+            delete_history_snapshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running Inkpoint");

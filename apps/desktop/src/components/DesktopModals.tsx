@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { ConfirmActionDialog } from "@md-editor/editor-ui";
 import { CommandPalette } from "./CommandPalette";
 import { MdxComponentMenu } from "./MdxComponentMenu";
@@ -9,7 +9,12 @@ import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsCont
 import { runtime } from "../app/runtime/editor-runtime";
 import { useConfirmationStore } from "../app/stores/confirmation-store";
 import { useDocumentUiStore } from "../app/stores/document-ui-store";
+import { useToastStore } from "../app/stores/toast-store";
 import { useAppSettings } from "../app/settings-context";
+
+const HistoryDrawer = lazy(() =>
+  import("./history/HistoryDrawer").then((m) => ({ default: m.HistoryDrawer })),
+);
 
 /**
  * 桌面端全局模态弹窗与浮层管理组件。
@@ -28,7 +33,10 @@ export function DesktopModals() {
     closeMdxComponentMenu,
     isInsertTableDialogOpen,
     closeInsertTableDialog,
+    isHistoryDrawerOpen,
+    closeHistoryDrawer,
   } = useDocumentUiStore();
+  const { showToast } = useToastStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
   const { updateNotice, resolveUpdateNotice } = useAppSettings();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -82,6 +90,17 @@ export function DesktopModals() {
           void resolveUpdateNotice(choice, updateNotice.version);
         }}
       />
+      {/* 历史版本快照抽屉 */}
+      {isHistoryDrawerOpen && (
+        <Suspense fallback={null}>
+          <HistoryDrawer
+            open={isHistoryDrawerOpen}
+            filePath={runtime.document.getSnapshot().filePath}
+            onClose={closeHistoryDrawer}
+            onShowToast={showToast}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

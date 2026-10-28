@@ -154,4 +154,24 @@ graph TD
     expect(result.html).toContain("graph TD");
     expect(result.html).toContain("A --&gt; B");
   });
+
+  it("generates GitHub-compatible heading slugs and legacy alias targets for Chinese and punctuated titles", () => {
+    const md = `## 一、 全景图：AI 短剧到底是怎么做出来的？\n\n## 二、 核心环节：短剧“洗稿”怎么操作？（视频扒稿 & 小说改编）`;
+    const result = renderStaticHtml(md);
+
+    // Primary ID should be GitHub standard slug (punctuation dropped, spaces to hyphens)
+    expect(result.html).toContain('id="一-全景图ai-短剧到底是怎么做出来的"');
+    // Legacy slug alias should also be present for backward compatibility
+    expect(result.html).toContain('id="一-全景图-ai-短剧到底是怎么做出来的"');
+
+    expect(result.html).toContain('id="二-核心环节短剧洗稿怎么操作视频扒稿-小说改编"');
+    expect(result.html).toContain('id="二-核心环节-短剧-洗稿-怎么操作-视频扒稿-小说改编"');
+  });
+
+  it("includes client-side interactive anchor jump script in static document", () => {
+    const md = `[Jump](#一-全景图ai-短剧到底是怎么做出来的)\n\n## 一、 全景图：AI 短剧到底是怎么做出来的？`;
+    const doc = renderStaticDocument(md);
+    expect(doc).toContain("resolveHeadingElement");
+    expect(doc).toContain("scrollIntoView");
+  });
 });

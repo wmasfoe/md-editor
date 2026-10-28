@@ -24,6 +24,10 @@ export class DomRendererViewAdapter implements RendererViewAdapter {
     return this.#view.state;
   }
 
+  get editorView(): EditorView {
+    return this.#view;
+  }
+
   get isComposing(): boolean {
     return this.#view.compositionStarted;
   }

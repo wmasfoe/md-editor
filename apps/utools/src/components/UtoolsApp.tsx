@@ -13,6 +13,8 @@ import {
   CodeMirrorEditor,
   EditorUiProvider,
   type CodeMirrorEditorPorts,
+  resolveCodeFontStack,
+  resolveProseFontStack,
 } from "@md-editor/editor-ui";
 import {
   appendImageMarkdown,
@@ -31,7 +33,6 @@ import {
   saveUtoolsSettings,
   type UtoolsSettings,
 } from "../utools/db-storage";
-import { resolveCodeFontStack, resolveProseFontStack } from "../utools/fonts";
 import { registerUtoolsLifecycle, type PluginEnterDetail } from "../utools/lifecycle";
 import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "../utools/theme";
 import type { EditorMode } from "../utools/types";
@@ -1106,8 +1107,9 @@ export function UtoolsApp() {
           <EditorUiProvider markdown={snapshot.markdown} showToast={showToast}>
             <CodeMirrorEditor
               document={docState}
-              codeBlockLineNumbers={false}
+              codeBlockLineNumbers={settings.showCodeBlockLineNumbers}
               showInlineStyleMarkers={settings.showInlineStyleMarkers}
+              enableMarkdownLint={settings.enableMarkdownLint}
               fontSize={settings.fontSize}
               proseFontFamily={resolveProseFontStack(settings.proseFontFamily)}
               codeFontFamily={resolveCodeFontStack(settings.codeFontFamily)}

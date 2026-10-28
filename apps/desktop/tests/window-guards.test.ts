@@ -10,7 +10,7 @@ const tauri = vi.hoisted(() => ({
   onCloseRequested: vi.fn(),
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({ isTauri: tauri.isTauri }));
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: tauri.isTauri, invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => ({
     destroy: tauri.destroy,

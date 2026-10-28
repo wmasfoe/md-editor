@@ -4,6 +4,7 @@ import { codeFolding } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import { EditorState, type Compartment, type Extension } from "@codemirror/state";
 import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
+import { createLintBaseExtensions } from "../../lint/index.ts";
 
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { provideWysiwygDiagnostics } from "../../diagnostics.ts";
@@ -60,6 +61,7 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
 
   return Object.freeze([
     history(),
+    createLintBaseExtensions(),
     EditorState.allowMultipleSelections.of(true),
     EditorView.lineWrapping,
     codeFolding(),

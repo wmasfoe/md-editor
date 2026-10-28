@@ -313,8 +313,15 @@ export function useSettingsController({
     for (const shortcut of loadedSettings.shortcuts) {
       const key = normalizeShortcutKey(shortcutDrafts[shortcut.id] ?? shortcut.key);
       if (!key) {
+        const translate = t as (key: string, options?: { defaultValue?: string }) => string;
+        const localizedName = shortcut.commandId
+          ? translate(`commands.titles.${shortcut.commandId}`, { defaultValue: shortcut.label })
+          : shortcut.label;
         setSettingsErrorMessage(
-          `"${shortcut.label}"快捷键格式无效，请使用 Command+Shift+B 这类组合。`,
+          t("settings.shortcuts.invalidShortcutFormat", {
+            name: localizedName,
+            defaultValue: `"${localizedName}"快捷键格式无效，请使用 Command+Shift+B 这类组合。`,
+          }),
         );
         return;
       }
@@ -322,7 +329,12 @@ export function useSettingsController({
     }
     const duplicate = findDuplicateShortcut(normalizedShortcuts.map((s) => s.key));
     if (duplicate) {
-      setSettingsErrorMessage(`快捷键 ${keyboardShortcutLabel(duplicate)} 被重复使用。`);
+      setSettingsErrorMessage(
+        t("settings.shortcuts.duplicateShortcut", {
+          key: keyboardShortcutLabel(duplicate),
+          defaultValue: `快捷键 ${keyboardShortcutLabel(duplicate)} 被重复使用。`,
+        }),
+      );
       return;
     }
 
@@ -356,7 +368,8 @@ export function useSettingsController({
           surface,
           closeEmbeddedSettings: closeEmbedded,
           closeSettingsWindow: destroyCurrentSettingsWindow,
-          showSavedToast: () => showToast("设置已保存。"),
+          showSavedToast: () =>
+            showToast(t("toasts.settingsSaved", { defaultValue: "设置已保存。" })),
         });
       } catch (error) {
         setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));
@@ -378,6 +391,7 @@ export function useSettingsController({
     shortcutDrafts,
     showToast,
     surface,
+    t,
     themeDraft,
     themePreviewSession,
     updateSettingsDraft,

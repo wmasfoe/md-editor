@@ -25,6 +25,7 @@ describe("editor-ui public editor entrypoints", () => {
       "./CodeMirrorEditor": "./src/components/CodeMirrorEditor/index.ts",
       "./CodeMirrorEditor/testing": "./src/components/CodeMirrorEditor/testing.ts",
       "./OutlinePanel": "./src/components/OutlinePanel.tsx",
+      "./settings": "./src/components/settings/index.ts",
     });
 
     expect(hooksIndexSource).toContain('export * from "./useEditorUi"');
@@ -37,6 +38,16 @@ describe("editor-ui public editor entrypoints", () => {
     // 开关值只在宿主读取，编辑器层只负责把布尔值推给 renderer 端口（不得在此计算编辑器语义）。
     expect(codeMirrorEditorSource).toContain("showInlineStyleMarkers?: boolean");
     expect(codeMirrorEditorSource).toContain("ports.setInlineStyleMarkers(showInlineStyleMarkers)");
+  });
+
+  it("forwards markdown lint toggle to renderer ports", () => {
+    expect(codeMirrorEditorSource).toContain("enableMarkdownLint?: boolean");
+    expect(codeMirrorEditorSource).toContain("ports.setMarkdownLint(enableMarkdownLint)");
+  });
+
+  it("recomputes markdown lint when language changes", () => {
+    expect(codeMirrorEditorSource).toContain("ports.recomputeMarkdownLint()");
+    expect(codeMirrorEditorSource).toContain("md-editor:language-changed");
   });
 
   it("mounts the raw CodeMirror bridge without a controlled Markdown value", () => {

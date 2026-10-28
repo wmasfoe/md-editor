@@ -14,6 +14,12 @@ export interface EditorDisplaySettings {
    * 默认 `false`：仅在光标/选区触及（含贴边）时临时显形，保持正文干净。
    */
   readonly showInlineStyleMarkers: boolean;
+  /**
+   * 是否开启 Markdown 规范（markdownlint）实时诊断与原位波浪线
+   *
+   * 默认 `true`
+   */
+  readonly enableMarkdownLint: boolean;
   /** 所见即所得编辑区的正文字号 (px, 范围 13~22) */
   readonly wysiwygFontSize: number;
   /** 正文字体族栈 key 或自定义字体名 */

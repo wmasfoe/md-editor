@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { MarkdownFileTreeNode, RecentFile } from "@md-editor/file-system";
+import type { PendingDraftInfo } from "../controller/session-controller";
 import type { OpenedAsset } from "../../types";
 import { basename } from "../../lib/link-target";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
@@ -15,12 +16,17 @@ export interface DocumentUiStore {
   openedAsset: OpenedAsset | null;
   isMdxComponentMenuOpen: boolean;
   isInsertTableDialogOpen: boolean;
+  isHistoryDrawerOpen: boolean;
+  pendingDraft: PendingDraftInfo | null;
   setHasActiveDocument: StoreStateSetter<boolean>;
   setOpenedAsset: StoreStateSetter<OpenedAsset | null>;
   openMdxComponentMenu: () => void;
   closeMdxComponentMenu: () => void;
   openInsertTableDialog: () => void;
   closeInsertTableDialog: () => void;
+  openHistoryDrawer: () => void;
+  closeHistoryDrawer: () => void;
+  setPendingDraft: (draft: PendingDraftInfo | null) => void;
   resolveImageSrc: (src: string) => string;
   openAssetPath: (path: string, name?: string) => void;
   closeAssetPreview: () => void;
@@ -33,6 +39,8 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   openedAsset: null,
   isMdxComponentMenuOpen: false,
   isInsertTableDialogOpen: false,
+  isHistoryDrawerOpen: false,
+  pendingDraft: null,
   setHasActiveDocument: (value) =>
     set((state) => ({
       hasActiveDocument: typeof value === "function" ? value(state.hasActiveDocument) : value,
@@ -52,6 +60,15 @@ export const useDocumentUiStore = create<DocumentUiStore>((set, get) => ({
   },
   closeInsertTableDialog: () => {
     set({ isInsertTableDialogOpen: false });
+  },
+  openHistoryDrawer: () => {
+    set({ isHistoryDrawerOpen: true });
+  },
+  closeHistoryDrawer: () => {
+    set({ isHistoryDrawerOpen: false });
+  },
+  setPendingDraft: (draft) => {
+    set({ pendingDraft: draft });
   },
   resolveImageSrc: (src) => resolvePreviewImageSrc(runtime.document.getSnapshot().filePath, src),
   openAssetPath: (path, name = basename(path)) => {

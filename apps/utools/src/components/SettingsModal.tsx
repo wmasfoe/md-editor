@@ -1,7 +1,15 @@
-import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
-import { useState } from "react";
-import { DEFAULT_UTOOLS_SETTINGS, type UtoolsSettings } from "../utools/db-storage";
-import { CODE_FONT_OPTIONS, PROSE_FONT_OPTIONS } from "../utools/fonts";
+import { useState, useMemo } from "react";
+import {
+  SettingsShell,
+  type SettingsTabItem,
+  EditorSettingsPanel,
+  AppearanceSettingsPanel,
+  ShortcutSettingsPanel,
+  settingsDescriptionClassName,
+  settingsModuleClassName,
+  settingsSectionTitleClassName,
+} from "@md-editor/editor-ui/settings";
+import type { UtoolsSettings } from "../utools/db-storage";
 import { CloseIcon, InfoIcon } from "./Icons";
 import { UtoolsAiSettingsPanel } from "./UtoolsAiSettingsPanel";
 
@@ -16,8 +24,6 @@ export interface SettingsModalProps {
   readonly onOpenDisclaimer: () => void;
 }
 
-type TabType = "appearance" | "ai" | "shortcuts" | "global";
-
 interface ShortcutItem {
   readonly key: string;
   readonly desc: string;
@@ -27,13 +33,6 @@ interface ShortcutCategory {
   readonly title: string;
   readonly items: readonly ShortcutItem[];
 }
-
-const TABS: readonly { id: TabType; label: string; description: string }[] = [
-  { id: "appearance", label: "外观设置", description: "主题与字体" },
-  { id: "ai", label: "AI 智能助写", description: "云端协议与预设" },
-  { id: "shortcuts", label: "快捷键速查", description: "编辑命令" },
-  { id: "global", label: "uTools 快捷键", description: "全局呼出" },
-];
 
 const SHORTCUT_CATEGORIES: readonly ShortcutCategory[] = [
   {
@@ -83,12 +82,6 @@ const SHORTCUT_CATEGORIES: readonly ShortcutCategory[] = [
   },
 ];
 
-const sectionTitleClassName = "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";
-const descriptionClassName = "mb-0 mt-1 text-xs leading-normal text-[var(--theme-muted)]";
-const fieldLabelClassName = "block text-[13px] font-semibold text-[var(--theme-title)]";
-const inputClassName =
-  "h-[30px] w-full rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 text-[13px] leading-none text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_2px_var(--theme-primary-soft)]";
-
 export function SettingsModal({
   isOpen,
   onCancel,
@@ -97,350 +90,146 @@ export function SettingsModal({
   onUpdateSettings,
   onOpenDisclaimer,
 }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("appearance");
+  const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
-  if (!isOpen) return null;
+  const tabs: readonly SettingsTabItem[] = useMemo(
+    () => [
+      {
+        id: "editor",
+        label: "编辑器配置",
+        description: "排版与标记",
+        panel: (
+          <EditorSettingsPanel
+            fontSize={{
+              value: settings.fontSize,
+              onChange: (size) => onUpdateSettings({ fontSize: size }),
+            }}
+            proseFont={{
+              value: settings.proseFontFamily,
+              onChange: (fam) => onUpdateSettings({ proseFontFamily: fam }),
+            }}
+            codeFont={{
+              value: settings.codeFontFamily,
+              onChange: (fam) => onUpdateSettings({ codeFontFamily: fam }),
+            }}
+            showLineNumbers={{
+              checked: settings.showCodeBlockLineNumbers,
+              onChange: (checked) => onUpdateSettings({ showCodeBlockLineNumbers: checked }),
+            }}
+            showInlineStyleMarkers={{
+              checked: settings.showInlineStyleMarkers,
+              onChange: (checked) => onUpdateSettings({ showInlineStyleMarkers: checked }),
+            }}
+            enableMarkdownLint={{
+              checked: settings.enableMarkdownLint,
+              onChange: (checked) => onUpdateSettings({ enableMarkdownLint: checked }),
+            }}
+          />
+        ),
+      },
+      {
+        id: "appearance",
+        label: "外观设置",
+        description: "主题与色彩",
+        panel: (
+          <AppearanceSettingsPanel
+            mode={settings.theme}
+            onChangeMode={(theme) => onUpdateSettings({ theme })}
+          />
+        ),
+      },
+      {
+        id: "ai",
+        label: "AI 智能助写",
+        description: "云端协议与预设",
+        panel: (
+          <UtoolsAiSettingsPanel
+            aiSettings={settings.ai}
+            onChangeAiSettings={(nextAi) =>
+              onUpdateSettings((prev) => ({
+                ...prev,
+                ai: nextAi,
+              }))
+            }
+            onOpenDisclaimer={onOpenDisclaimer}
+          />
+        ),
+      },
+      {
+        id: "shortcuts",
+        label: "快捷键速查",
+        description: "编辑命令",
+        panel: <ShortcutSettingsPanel mode="readonly" categories={SHORTCUT_CATEGORIES} />,
+      },
+      {
+        id: "global",
+        label: "uTools 快捷键",
+        description: "全局呼出",
+        panel: (
+          <section className={settingsModuleClassName} aria-labelledby="global-shortcut-title">
+            <div className="mb-4">
+              <h2 id="global-shortcut-title" className={settingsSectionTitleClassName}>
+                uTools 全局快捷键
+              </h2>
+              <p className={settingsDescriptionClassName}>把 Inkpoint 绑定为系统快捷入口。</p>
+            </div>
 
-  const isCustomProse =
-    Boolean(settings.proseFontFamily) &&
-    !PROSE_FONT_OPTIONS.some((option) => option.id === settings.proseFontFamily);
-  const isCustomCode =
-    Boolean(settings.codeFontFamily) &&
-    !CODE_FONT_OPTIONS.some((option) => option.id === settings.codeFontFamily);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 select-none"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <section
-        className="flex h-[min(620px,calc(100vh-32px))] w-[min(840px,calc(100vw-32px))] min-h-0 flex-col overflow-hidden rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-[var(--theme-shadow)]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-      >
-        <header className="flex min-h-[54px] shrink-0 items-center justify-between gap-4 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5">
-          <div className="min-w-0">
-            <h1
-              id="settings-title"
-              className="m-0 text-[17px] leading-[1.35] text-[var(--theme-title)]"
-            >
-              设置
-            </h1>
-            <p className={descriptionClassName}>Inkpoint uTools 插件</p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
-            title="取消并关闭"
-            aria-label="取消并关闭设置"
-          >
-            <CloseIcon className="size-4" />
-          </button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="grid min-h-0 flex-1 grid-cols-[190px_minmax(0,1fr)] overflow-hidden max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_minmax(0,1fr)]">
-            <aside className="min-h-0 border-r border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-4 max-[720px]:border-b max-[720px]:border-r-0 max-[720px]:py-2">
-              <nav
-                className="flex flex-col gap-1 max-[720px]:flex-row max-[720px]:overflow-x-auto"
-                role="tablist"
-                aria-label="设置"
-              >
-                {TABS.map((tab) => {
-                  const selected = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={selected}
-                      aria-controls={`settings-panel-${tab.id}`}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`grid min-h-[46px] w-full min-w-0 grid-cols-1 rounded-[6px] border-0 px-3 py-2 text-left outline-none transition-colors max-[720px]:min-w-[132px] ${
-                        selected
-                          ? "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
-                          : "bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
-                      } focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]`}
-                    >
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-[1.3]">
-                        {tab.label}
-                      </span>
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-[1.35] text-[var(--theme-muted)]">
-                        {tab.description}
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </aside>
-
-            <main
-              id={`settings-panel-${activeTab}`}
-              className="min-h-0 overflow-auto bg-[var(--theme-surface)]"
-              role="tabpanel"
-            >
-              <div className="mx-auto grid w-full max-w-[760px] gap-5 px-7 py-6 max-[760px]:px-4">
-                {activeTab === "appearance" ? (
-                  <AppearancePanel
-                    settings={settings}
-                    isCustomProse={isCustomProse}
-                    isCustomCode={isCustomCode}
-                    onUpdateSettings={onUpdateSettings}
-                  />
-                ) : null}
-                {activeTab === "ai" ? (
-                  <UtoolsAiSettingsPanel
-                    aiSettings={settings.ai}
-                    onChangeAiSettings={(nextAi) => onUpdateSettings({ ai: nextAi })}
-                    onOpenDisclaimer={onOpenDisclaimer}
-                  />
-                ) : null}
-                {activeTab === "shortcuts" ? <ShortcutsPanel /> : null}
-                {activeTab === "global" ? <GlobalShortcutPanel /> : null}
+            <div className="grid gap-5 text-[13px] leading-relaxed text-[var(--theme-text)]">
+              <div className="flex gap-2 border-l-2 border-[var(--theme-primary)] pl-3 text-[var(--theme-control-text)]">
+                <InfoIcon className="mt-0.5 size-4 shrink-0 text-[var(--theme-primary)]" />
+                <p className="m-0">
+                  在 uTools 偏好设置中，将 Inkpoint 的“速记便签”指令绑定为全局快捷键。
+                </p>
               </div>
-            </main>
-          </div>
 
-          <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-chrome)] px-5 py-3.5">
-            <div>
-              {activeTab === "appearance" ? (
-                <button
-                  type="button"
-                  className={dialogButtonClassName}
-                  onClick={() => onUpdateSettings({ ...DEFAULT_UTOOLS_SETTINGS })}
-                >
-                  恢复默认
-                </button>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" className={dialogButtonClassName} onClick={onCancel}>
-                取消
-              </button>
-              <button type="button" className={primaryDialogButtonClassName} onClick={onSave}>
-                保存
-              </button>
-            </div>
-          </footer>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-interface AppearancePanelProps {
-  readonly settings: UtoolsSettings;
-  readonly isCustomProse: boolean;
-  readonly isCustomCode: boolean;
-  readonly onUpdateSettings: SettingsModalProps["onUpdateSettings"];
-}
-
-function AppearancePanel({
-  settings,
-  isCustomProse,
-  isCustomCode,
-  onUpdateSettings,
-}: AppearancePanelProps) {
-  return (
-    <section className="py-1" aria-labelledby="appearance-settings-title">
-      <div className="mb-3">
-        <h2 id="appearance-settings-title" className={sectionTitleClassName}>
-          外观设置
-        </h2>
-        <p className={descriptionClassName}>调整编辑器字体、字号与明暗主题。</p>
-      </div>
-
-      <div className="grid gap-4">
-        <fieldset className="grid gap-3 border-0 p-0">
-          <legend className={fieldLabelClassName}>字体与排版</legend>
-
-          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={fieldLabelClassName}>正文字体</span>
-            <select
-              className={inputClassName}
-              value={isCustomProse ? "custom" : settings.proseFontFamily}
-              onChange={(event) => {
-                const value = event.target.value;
-                onUpdateSettings({
-                  proseFontFamily:
-                    value === "custom" ? settings.proseFontFamily || "PingFang SC" : value,
-                });
-              }}
-            >
-              {PROSE_FONT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-              <option value="custom">自定义字体</option>
-            </select>
-          </label>
-          {isCustomProse ? (
-            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={fieldLabelClassName}>自定义正文字体</span>
-              <input
-                type="text"
-                className={inputClassName}
-                placeholder="例如 PingFang SC"
-                value={settings.proseFontFamily}
-                onChange={(event) => onUpdateSettings({ proseFontFamily: event.target.value })}
-              />
-            </label>
-          ) : null}
-
-          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={fieldLabelClassName}>代码字体</span>
-            <select
-              className={inputClassName}
-              value={isCustomCode ? "custom" : settings.codeFontFamily}
-              onChange={(event) => {
-                const value = event.target.value;
-                onUpdateSettings({
-                  codeFontFamily: value === "custom" ? settings.codeFontFamily || "SF Mono" : value,
-                });
-              }}
-            >
-              {CODE_FONT_OPTIONS.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-              <option value="custom">自定义代码字体</option>
-            </select>
-          </label>
-          {isCustomCode ? (
-            <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-              <span className={fieldLabelClassName}>自定义代码字体</span>
-              <input
-                type="text"
-                className={inputClassName}
-                placeholder="例如 SF Mono"
-                value={settings.codeFontFamily}
-                onChange={(event) => onUpdateSettings({ codeFontFamily: event.target.value })}
-              />
-            </label>
-          ) : null}
-
-          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)_44px] items-center gap-3 text-[13px] text-[var(--theme-text)] max-[760px]:grid-cols-[minmax(0,1fr)_44px]">
-            <span className={`${fieldLabelClassName} max-[760px]:col-span-2`}>正文字号</span>
-            <input
-              type="range"
-              min={13}
-              max={22}
-              step={1}
-              value={settings.fontSize}
-              aria-label="正文字号"
-              onChange={(event) => onUpdateSettings({ fontSize: Number(event.target.value) })}
-            />
-            <output className="text-right text-[13px] tabular-nums text-[var(--theme-control-text)]">
-              {settings.fontSize}px
-            </output>
-          </label>
-          <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
-            <input
-              type="checkbox"
-              className="size-4 accent-[var(--theme-primary)]"
-              checked={settings.showInlineStyleMarkers}
-              onChange={(event) =>
-                onUpdateSettings({ showInlineStyleMarkers: event.target.checked })
-              }
-            />
-            <span>显示行内格式标记（**、*、~~、`）</span>
-          </label>
-        </fieldset>
-
-        <div className="grid gap-2.5">
-          <h3 className={fieldLabelClassName}>主题</h3>
-          <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
-            <span className={fieldLabelClassName}>应用模式</span>
-            <select
-              className={inputClassName}
-              value={settings.theme}
-              onChange={(event) =>
-                onUpdateSettings({ theme: event.target.value as UtoolsSettings["theme"] })
-              }
-            >
-              <option value="system">跟随系统</option>
-              <option value="light">浅色</option>
-              <option value="dark">深色</option>
-            </select>
-          </label>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ShortcutsPanel() {
-  return (
-    <section className="py-1" aria-labelledby="shortcut-settings-title">
-      <div className="mb-3">
-        <h2 id="shortcut-settings-title" className={sectionTitleClassName}>
-          快捷键速查
-        </h2>
-        <p className={descriptionClassName}>uTools 插件沿用 Inkpoint 桌面端的编辑命令。</p>
-      </div>
-      <div className="grid gap-5">
-        {SHORTCUT_CATEGORIES.map((category) => (
-          <section key={category.title} className="grid gap-2">
-            <h3 className={fieldLabelClassName}>{category.title}</h3>
-            <div className="grid gap-1">
-              {category.items.map((item) => (
-                <div
-                  key={item.key}
-                  className="grid min-h-[34px] grid-cols-[minmax(0,1fr)_minmax(150px,220px)] items-center gap-3 border-b border-[var(--theme-border)] py-1.5 text-[13px] last:border-b-0 max-[620px]:grid-cols-1"
-                >
-                  <span className="text-[var(--theme-text)]">{item.desc}</span>
-                  <kbd className="justify-self-stretch rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 py-1 text-[12px] text-[var(--theme-control-text)] max-[620px]:justify-self-start">
-                    {item.key}
-                  </kbd>
-                </div>
-              ))}
+              <ol className="m-0 grid gap-3 pl-5">
+                <li>
+                  呼出 uTools 搜索框，输入 <code>偏好设置</code> 并回车打开。
+                </li>
+                <li>
+                  切换到 <strong>全局快捷键</strong> 标签页，点击右上角的 <strong>+ 添加</strong>。
+                </li>
+                <li>
+                  快捷键输入框内按下期望的全局按键组合（例如：<code>⌥ + 空格</code> 或{" "}
+                  <code>Ctrl + Shift + M</code>）。
+                </li>
+                <li>
+                  功能指令选择 <strong>Inkpoint: 速记便签</strong>。
+                </li>
+                <li>配置完成后，在任意应用界面按下该快捷键即可秒级呼出 Inkpoint，随手记下灵感。</li>
+              </ol>
             </div>
           </section>
-        ))}
-      </div>
-    </section>
+        ),
+      },
+    ],
+    [onOpenDisclaimer, onUpdateSettings, settings],
   );
-}
 
-function GlobalShortcutPanel() {
   return (
-    <section className="py-1" aria-labelledby="global-shortcut-title">
-      <div className="mb-4">
-        <h2 id="global-shortcut-title" className={sectionTitleClassName}>
-          uTools 全局快捷键
-        </h2>
-        <p className={descriptionClassName}>把 Inkpoint 绑定为系统快捷入口。</p>
-      </div>
-
-      <div className="grid gap-5 text-[13px] leading-relaxed text-[var(--theme-text)]">
-        <div className="flex gap-2 border-l-2 border-[var(--theme-primary)] pl-3 text-[var(--theme-control-text)]">
-          <InfoIcon className="mt-0.5 size-4 shrink-0 text-[var(--theme-primary)]" />
-          <p className="m-0">
-            在 uTools 偏好设置中，将 Inkpoint 的“速记便签”指令绑定为全局快捷键。
-          </p>
-        </div>
-
-        <ol className="m-0 grid gap-3 pl-5">
-          <li>打开 uTools 主搜索框，按 ⌘ / Ctrl + , 进入偏好设置。</li>
-          <li>进入“快捷呼出”或“全局快捷键”。</li>
-          <li>添加快捷键，例如 ⌥ + 空格或 ⌘ + ⌥ + M。</li>
-          <li>关联指令搜索并选择“md”或“速记便签”。</li>
-        </ol>
-
-        <section className="grid gap-1 border-t border-[var(--theme-border)] pt-4">
-          <h3 className={fieldLabelClassName}>划词超级面板</h3>
-          <p className="m-0 text-[var(--theme-control-text)]">
-            选中文本并唤起 uTools 超级面板，选择“划词编辑”即可导入 Inkpoint。
-          </p>
-        </section>
-      </div>
-    </section>
+    <SettingsShell
+      variant="modal"
+      open={isOpen}
+      title="设置"
+      subtitle="Inkpoint uTools 插件"
+      tabs={tabs}
+      selectedTabIndex={selectedTabIndex}
+      onSelectTab={setSelectedTabIndex}
+      onClose={onCancel}
+      onSave={onSave}
+      headerExtra={
+        <button
+          type="button"
+          onClick={onCancel}
+          className="grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+          title="取消并关闭"
+          aria-label="取消并关闭设置"
+        >
+          <CloseIcon className="size-4" />
+        </button>
+      }
+      cancelText="取消"
+      saveText="保存"
+    />
   );
 }

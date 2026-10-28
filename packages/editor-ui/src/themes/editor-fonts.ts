@@ -2,14 +2,22 @@
  * @fileoverview 正文与代码字体族栈预设与解析器 (Editor Fonts)
  */
 
-/**
- * 预设正文字体选项清单
- */
-export const PROSE_FONT_OPTIONS: readonly {
+export interface FontOption {
   readonly id: string;
   readonly label: string;
   readonly stack: string;
-}[] = [
+}
+
+/** 所见即所得编辑区正文字号最小值（像素） */
+export const WYSIWYG_FONT_SIZE_MIN = 13;
+
+/** 所见即所得编辑区正文字号最大值（像素） */
+export const WYSIWYG_FONT_SIZE_MAX = 22;
+
+/**
+ * 预设正文字体选项清单
+ */
+export const PROSE_FONT_OPTIONS: readonly FontOption[] = [
   { id: "", label: "跟随主题默认", stack: "" },
   {
     id: "system-sans",
@@ -36,11 +44,7 @@ export const PROSE_FONT_OPTIONS: readonly {
 /**
  * 预设等宽代码字体选项清单
  */
-export const CODE_FONT_OPTIONS: readonly {
-  readonly id: string;
-  readonly label: string;
-  readonly stack: string;
-}[] = [
+export const CODE_FONT_OPTIONS: readonly FontOption[] = [
   { id: "", label: "跟随主题默认", stack: "" },
   {
     id: "system-mono",

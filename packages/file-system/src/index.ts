@@ -10,6 +10,9 @@ import {
 export * from "./recent-files.ts";
 export * from "./save-scheduler";
 export * from "./tree-view-state";
+export * from "./session/index.ts";
+export * from "./history/index.ts";
+export * from "./link/index.ts";
 
 export interface MarkdownDocumentFile {
   readonly filePath: string;

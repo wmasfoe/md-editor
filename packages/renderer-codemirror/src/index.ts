@@ -23,6 +23,7 @@ export {
   type CodeMirrorRenderer,
   type CodeMirrorRendererOptions,
   type CodeBlockLineNumberPortResult,
+  type MarkdownLintPortResult,
   type ExternalEditRequest,
   type ExternalEditResult,
 } from "./renderer/index.ts";
@@ -129,3 +130,23 @@ export {
   type MediaViewerOptions,
   type MediaViewerZoomPan,
 } from "./media-viewer/index.ts";
+
+export {
+  createLintBaseExtensions,
+  createRealtimeMarkdownLintExtension,
+  clearMarkdownLintDiagnostics,
+  collectPreservedNonMarkdownDiagnostics,
+  createDiagnosticDomNode,
+  lintLiquidTheme,
+  executeDocumentLint,
+  runMarkdownLint,
+  runMarkdownLintCommand,
+  fixAllMarkdownLintIssues,
+  type MarkdownLintRunResult,
+  type MarkdownLintFixAllResult,
+  runLinkValidation,
+  type DocumentLinterOptions,
+  type LinkLintOptions,
+  type LinkDiagnosticItem,
+  type MarkdownLintDiagnostic,
+} from "./lint/index.ts";
