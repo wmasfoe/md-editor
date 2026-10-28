@@ -577,6 +577,23 @@ export const ja: TranslationSchema = {
     editorSyncFailed:
       "エディタの同期に失敗しました: {{detail}}。ドキュメントを再度開いてください。",
     imageInsertFailed: "画像の挿入に失敗しました",
+    lintCompletedWithIssues:
+      "Markdown 規約チェック完了: {{count}} 件の問題が見つかりました（下のパネルに表示）",
+    lintPassed: "Markdown 規約チェック合格: フォーマットの問題は見つかりませんでした",
+    lintExited: "Markdown 規約チェック状態を終了しました",
+    lintFixAllSuccess: "すべての問題（{{applied}} 件）を自動修復しました",
+    lintFixAllPartial:
+      "{{applied}} 件の問題を自動修復しました。残り {{remaining}} 件は手動で修正してください",
+    lintFixAllUnfixable: "現在 {{remaining}} 件の問題がありますが、自動修復には対応していません",
+    lintNoIssues: "現在のドキュメントに規約上の問題はありません",
+    checkLinksPassed: "チェック完了: リンクやフォーマットの問題は見つかりませんでした",
+    checkLinksFound: "チェック完了: エラー {{errors}} 件、警告 {{warnings}} 件（エディタ内に表示）",
+    exportHtmlSuccess: "HTML のエクスポートが完了しました",
+    exportPdfSuccess: "PDF のエクスポートが完了しました",
+    exportToPath: "エクスポート先: {{path}}",
+    exportFailed: "エクスポートに失敗しました: {{message}}",
+    copyHtmlSuccess: "リッチテキスト HTML をクリップボードにコピーしました",
+    settingsSaved: "設定を保存しました。",
   },
   loading: {
     title: "処理中…",

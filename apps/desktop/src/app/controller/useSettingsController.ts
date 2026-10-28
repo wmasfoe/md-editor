@@ -368,7 +368,8 @@ export function useSettingsController({
           surface,
           closeEmbeddedSettings: closeEmbedded,
           closeSettingsWindow: destroyCurrentSettingsWindow,
-          showSavedToast: () => showToast("设置已保存。"),
+          showSavedToast: () =>
+            showToast(t("toasts.settingsSaved", { defaultValue: "设置已保存。" })),
         });
       } catch (error) {
         setSettingsErrorMessage(formatActionError(error, "设置窗口关闭失败。"));

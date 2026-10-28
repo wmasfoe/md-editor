@@ -571,6 +571,24 @@ export const en: TranslationSchema = {
     delayedEditFailed: "Delayed edit failed: {{status}}.",
     editorSyncFailed: "Editor sync failed: {{detail}}. Please reopen the document.",
     imageInsertFailed: "Failed to insert image",
+    lintCompletedWithIssues:
+      "Markdown lint completed: found {{count}} issues (listed in panel below)",
+    lintPassed: "Markdown lint passed: no formatting issues found",
+    lintExited: "Exited Markdown linting mode",
+    lintFixAllSuccess: "Auto-fixed all {{applied}} issues",
+    lintFixAllPartial:
+      "Auto-fixed {{applied}} issues, {{remaining}} remaining require manual handling",
+    lintFixAllUnfixable: "Currently {{remaining}} issues exist, auto-fix not supported",
+    lintNoIssues: "No lint issues in current document",
+    checkLinksPassed: "Check completed: no broken links or format issues found",
+    checkLinksFound:
+      "Check completed: found {{errors}} errors and {{warnings}} warnings (marked in editor)",
+    exportHtmlSuccess: "Successfully exported HTML",
+    exportPdfSuccess: "Successfully exported PDF",
+    exportToPath: "Exported to: {{path}}",
+    exportFailed: "Export failed: {{message}}",
+    copyHtmlSuccess: "Rich text HTML copied to clipboard",
+    settingsSaved: "Settings saved.",
   },
   loading: {
     title: "Processing…",

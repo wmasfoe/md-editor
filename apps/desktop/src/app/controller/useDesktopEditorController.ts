@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useTranslation } from "@md-editor/i18n";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
@@ -60,6 +61,7 @@ export function useDesktopEditorController({
     applyDownloadedUpdate,
   } = useAppSettings();
   const snapshot = useDocumentSnapshot();
+  const { t } = useTranslation();
   const { getRendererPorts, jumpToMarkdownFragment } = useEditorUiActions();
 
   const setIsSidebarVisible = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
@@ -157,9 +159,13 @@ export function useDesktopEditorController({
               styling,
             );
             if (result.success) {
-              showToast(result.filePath ? `已导出至: ${result.filePath}` : "已成功导出 HTML");
+              showToast(
+                result.filePath
+                  ? t("toasts.exportToPath", { path: result.filePath })
+                  : t("toasts.exportHtmlSuccess"),
+              );
             } else if (result.message && result.message !== "已取消导出") {
-              showToast(`导出失败: ${result.message}`);
+              showToast(t("toasts.exportFailed", { message: result.message }));
             }
           },
           exportPdf: async () => {
@@ -172,14 +178,14 @@ export function useDesktopEditorController({
             );
             if (result.success) {
               if (result.filePath) {
-                showToast(`已导出至: ${result.filePath}`);
+                showToast(t("toasts.exportToPath", { path: result.filePath }));
               } else if (result.message) {
                 showToast(result.message);
               } else {
-                showToast("已成功导出 PDF");
+                showToast(t("toasts.exportPdfSuccess"));
               }
             } else if (result.message && result.message !== "已取消导出") {
-              showToast(`导出失败: ${result.message}`);
+              showToast(t("toasts.exportFailed", { message: result.message }));
             }
           },
           copyAsHtml: async () => {
@@ -187,9 +193,9 @@ export function useDesktopEditorController({
             const styling = resolveExportStyling(settings);
             const ok = await copyDocumentAsHtml(activeDocSnapshot.markdown, styling);
             if (ok) {
-              showToast("已复制富文本 HTML 至剪贴板");
+              showToast(t("toasts.copyHtmlSuccess"));
             } else {
-              showToast("复制失败");
+              showToast(t("toasts.copyFailed"));
             }
           },
           checkLinks: async () => {
@@ -201,10 +207,13 @@ export function useDesktopEditorController({
               settings.editor.enableMarkdownLint,
             );
             if (res.total === 0) {
-              showToast("检查完成：未发现链接或格式问题");
+              showToast(t("toasts.checkLinksPassed"));
             } else {
               showToast(
-                `检查完成：发现 ${res.errors} 处错误，${res.warnings} 处警告（已标注在编辑器中）`,
+                t("toasts.checkLinksFound", {
+                  errors: res.errors,
+                  warnings: res.warnings,
+                }),
               );
             }
           },
@@ -215,11 +224,11 @@ export function useDesktopEditorController({
             }
             const res = portsAccess.ports.runMarkdownLint();
             if (res.toggledOff) {
-              showToast("已退出规范检查状态");
+              showToast(t("toasts.lintExited"));
             } else if (res.total === 0) {
-              showToast("规范检查通过：未发现格式问题");
+              showToast(t("toasts.lintPassed"));
             } else {
-              showToast(`规范检查完成：发现 ${res.total} 处问题（已在下方面板列出）`);
+              showToast(t("toasts.lintCompletedWithIssues", { count: res.total }));
             }
           },
           fixAllMarkdownLint: async () => {
@@ -229,15 +238,20 @@ export function useDesktopEditorController({
             }
             const res = portsAccess.ports.fixAllMarkdownLint();
             if (res.appliedCount > 0) {
-              showToast(
-                `已自动修复 ${res.appliedCount} 处规范问题${
-                  res.remainingCount > 0 ? `，尚余 ${res.remainingCount} 处需手动处理` : ""
-                }`,
-              );
+              if (res.remainingCount > 0) {
+                showToast(
+                  t("toasts.lintFixAllPartial", {
+                    applied: res.appliedCount,
+                    remaining: res.remainingCount,
+                  }),
+                );
+              } else {
+                showToast(t("toasts.lintFixAllSuccess", { applied: res.appliedCount }));
+              }
             } else if (res.remainingCount > 0) {
-              showToast(`当前存在 ${res.remainingCount} 处规范问题，暂不支持自动修复`);
+              showToast(t("toasts.lintFixAllUnfixable", { remaining: res.remainingCount }));
             } else {
-              showToast("当前文档没有规范问题");
+              showToast(t("toasts.lintNoIssues"));
             }
           },
           clearMarkdownLint: async () => {
@@ -246,7 +260,7 @@ export function useDesktopEditorController({
               return;
             }
             portsAccess.ports.clearMarkdownLint();
-            showToast("已退出规范检查状态");
+            showToast(t("toasts.lintExited"));
           },
           openSettings,
           openAbout,
@@ -562,6 +576,7 @@ export function useDesktopEditorController({
       showToast,
       snapshot,
       switchMode,
+      t,
       toggleSourceMode,
     ],
   );

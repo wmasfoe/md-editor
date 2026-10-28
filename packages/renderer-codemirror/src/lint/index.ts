@@ -3,6 +3,7 @@ import { linter, lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror
 import { EditorView, keymap } from "@codemirror/view";
 import { runMarkdownLint } from "./markdown-lint.ts";
 import { runLinkValidation } from "./link-lint.ts";
+import { getClosePanelTooltipLabel } from "./markdown-lint-i18n.ts";
 import {
   clearMarkdownLintCommand,
   countActiveMarkdownLintDiagnostics,
@@ -264,7 +265,7 @@ export function createLintBaseExtensions(): Extension {
         const target = event.target as HTMLElement | null;
         const closeBtn = target?.closest?.(".cm-panel-lint [name='close']");
         if (closeBtn && !closeBtn.getAttribute("title")) {
-          closeBtn.setAttribute("title", "关闭并清除规范检查 (Esc / ⌥⇧L)");
+          closeBtn.setAttribute("title", getClosePanelTooltipLabel());
         }
       },
       click(event, view) {

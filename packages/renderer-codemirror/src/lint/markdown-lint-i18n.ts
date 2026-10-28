@@ -74,6 +74,23 @@ export function getQuickFixActionLabel(locale: LintLocale = getActiveLintLocale(
   }
 }
 
+/**
+ * 获取“关闭并清除规范检查”按钮提示的本地化标签
+ */
+export function getClosePanelTooltipLabel(locale: LintLocale = getActiveLintLocale()): string {
+  switch (locale) {
+    case "ja":
+      return "規約チェックを閉じてクリア (Esc / ⌥⇧L)";
+    case "zh-Hant":
+      return "關閉並清除規範檢查 (Esc / ⌥⇧L)";
+    case "en":
+      return "Close and clear lint diagnostics (Esc / ⌥⇧L)";
+    case "zh":
+    default:
+      return "关闭并清除规范检查 (Esc / ⌥⇧L)";
+  }
+}
+
 export interface MarkdownLintFixInfo {
   readonly lineNumber?: number;
   readonly editColumn?: number;
