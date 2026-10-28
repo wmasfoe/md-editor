@@ -238,5 +238,6 @@ gantt
 
 ## 六、 落地交付记录
 
-- **阶段一（第 3 批 · 信任基石）**：已于 commit `7e4f2c1` 全量交付并验证。实现了 `SessionStore`/`DraftStore`、Tauri 前后台会话状态同步、启动草稿恢复 Banner 提示（选项 2）以及基于 `.inkpoint/history/` 的快照记录器和 `HistoryDrawer` 抽屉查看与回滚。
-- **阶段二（第 5 批 · 专业输出）**：已于本次提交全量交付并验证。实现了 `markdownlint` 与 `validateMarkdownRelativeLinks` 探针检查、CM6 诊断投影与快捷键导航、`standalone.html`（内联图片 Base64 + CSS/KaTeX）与 `index.html` 双模导出、`@media print` 防截断打印流 PDF 导出、以及富文本剪贴板复制。全量 `pnpm lint`、`pnpm test`（含 bundle budget 预算）与 `pnpm typecheck` 100% 验证通过。
+- **阶段一（第 3 批 · 信任基石）**：已于 PR #202 全量交付并合入 `main`。实现了 `SessionStore`/`DraftStore`、Tauri 前后台会话状态同步、启动草稿恢复 Banner 提示以及基于 `.inkpoint/history/` 的快照记录器和 `HistoryDrawer` 抽屉查看与回滚。
+- **阶段二（第 5 批 · 专业输出）**：已于 PR #202 全量交付并合入 `main`。实现了 `markdownlint` 与 `validateMarkdownRelativeLinks` 探针检查、CM6 诊断投影与 `⌥⇧L` / `⌥⇧F` 快捷键导航及自动修复、`standalone.html`（内联图片 Base64 + CSS/KaTeX）与 `index.html` 双模导出、macOS 原生矢量分页 PDF 导出（内置 Swift PDF 引擎并支持打印回退）、以及富文本 HTML 剪贴板复制。
+- **阶段三（发版交付与多语言支持）**：已于 2026-10-28 随 **v0.18.0** 正式发布。MarkdownLint 诊断说明、浮窗与 Toast 全面支持中、英、日、繁体四种语言实时切换。全量 `pnpm lint`、`pnpm test`（含 bundle budget 预算）与 `pnpm typecheck` 100% 验证通过。
