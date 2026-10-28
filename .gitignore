@@ -63,7 +63,6 @@ test-results/
 # Cache
 .cache/
 .parcel-cache/
-.eslintcache
 .wrangler/
 **/.wrangler/
 
