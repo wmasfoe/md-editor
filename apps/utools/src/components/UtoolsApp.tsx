@@ -17,24 +17,13 @@ import {
   resolveProseFontStack,
 } from "@md-editor/editor-ui";
 import {
-  appendImageMarkdown,
-  imageAltTextFromFileName,
-  type MarkdownFileTreeNode,
-  type MarkdownFolder,
-} from "@md-editor/file-system";
-import {
-  clearLastOpenedFile,
   clearLastOpenedFolder,
   loadLastOpenedFile,
   loadLastOpenedFolder,
-  loadUtoolsSettings,
   saveLastOpenedFile,
   saveLastOpenedFolder,
-  saveUtoolsSettings,
-  type UtoolsSettings,
 } from "../utools/db-storage";
 import { registerUtoolsLifecycle, type PluginEnterDetail } from "../utools/lifecycle";
-import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "../utools/theme";
 import type { EditorMode } from "../utools/types";
 import { ReferralBanner } from "./ReferralBanner";
 import { DisclaimerModal } from "./DisclaimerModal";
@@ -42,6 +31,9 @@ import { SettingsModal } from "./SettingsModal";
 import { useUtoolsAi } from "../utools/use-utools-ai";
 import { UtoolsFileTree } from "./UtoolsFileTree";
 import { UtoolsStatusBar } from "./UtoolsStatusBar";
+import { useUtoolsThemeSettings } from "../utools/use-utools-theme-settings";
+import { findFirstMarkdown, useUtoolsFileTree } from "../utools/use-utools-file-tree";
+import { useUtoolsDocumentController } from "../utools/use-utools-document-controller";
 import {
   containerDirectivePlugin,
   highlightPlugin,
@@ -60,26 +52,29 @@ const UTOOLS_SYNTAX_PLUGINS = [
   mermaidPlugin,
 ];
 
-function findFirstMarkdown(node: MarkdownFileTreeNode): MarkdownFileTreeNode | null {
-  if (node.kind === "markdown") return node;
-  if (node.kind === "directory" && node.children) {
-    const readme = node.children.find((c) => c.kind === "markdown" && /^readme\.md$/i.test(c.name));
-    if (readme) return readme;
-    for (const child of node.children) {
-      const found = findFirstMarkdown(child);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 export function UtoolsApp() {
-  const [mode, setMode] = useState<EditorMode>("file");
+  const [_mode, setMode] = useState<EditorMode>("file");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [settings, setSettings] = useState<UtoolsSettings>(() => loadUtoolsSettings());
-  const [folder, setFolder] = useState<MarkdownFolder | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [rendererPorts, setRendererPorts] = useState<CodeMirrorEditorPorts | null>(null);
+
+  const {
+    settings,
+    settingsRef,
+    isSettingsOpen,
+    applyTheme,
+    handleOpenSettings,
+    handleCancelSettings,
+    handleSaveSettings,
+    handleUpdateSettings,
+  } = useUtoolsThemeSettings();
+
+  const showToast = useCallback((msg: string | null) => {
+    setToastMessage(msg);
+    if (msg) {
+      setTimeout(() => setToastMessage(null), 2400);
+    }
+  }, []);
 
   // 初始化持久化文档模型：优先读取上次打开的本地文件，若无则初始化空白文档
   const initialDocument = useMemo(() => {
@@ -119,81 +114,33 @@ export function UtoolsApp() {
   const getSnapshot = useCallback(() => docState.getSnapshot(), [docState]);
   const snapshot = useSyncExternalStore(subscribeSnapshot, getSnapshot, getSnapshot);
 
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const settingsBeforeDialogRef = useRef(settings);
-  const folderRef = useRef(folder);
-  folderRef.current = folder;
 
-  const showToast = useCallback((msg: string | null) => {
-    setToastMessage(msg);
-    if (msg) {
-      setTimeout(() => setToastMessage(null), 2400);
-    }
-  }, []);
-
-  // 设置窗口内先即时预览，保存时再持久化，取消则回滚到打开前状态。
-  const handleUpdateSettings = useCallback(
-    (updater: Partial<UtoolsSettings> | ((prev: UtoolsSettings) => UtoolsSettings)) => {
-      setSettings((prev) => {
-        return typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
-      });
+  const { handleSaveDocument, handleNewFile, handleInsertImageFile } = useUtoolsDocumentController({
+    docState,
+    markdown: snapshot.markdown,
+    setMode,
+    setFolder: (f) => fileTree.setFolder(f),
+    folderRef: {
+      get current() {
+        return fileTree.folderRef.current;
+      },
+      set current(v) {
+        fileTree.folderRef.current = v;
+      },
     },
-    [],
-  );
+    rendererPorts,
+    showToast,
+  });
 
-  const handleOpenSettings = useCallback(() => {
-    settingsBeforeDialogRef.current = settingsRef.current;
-    setIsSettingsOpen(true);
-  }, []);
-
-  const handleCancelSettings = useCallback(() => {
-    setSettings(settingsBeforeDialogRef.current);
-    setIsSettingsOpen(false);
-  }, []);
-
-  const handleSaveSettings = useCallback(() => {
-    const next = settingsRef.current;
-    saveUtoolsSettings(next);
-    settingsBeforeDialogRef.current = next;
-    setIsSettingsOpen(false);
-  }, []);
-
-  // 主题应用逻辑
-  const applyTheme = useCallback((theme: "system" | "light" | "dark") => {
-    let isDark = false;
-    if (theme === "dark") {
-      isDark = true;
-    } else if (theme === "light") {
-      isDark = false;
-    } else {
-      // 跟随系统主题
-      if (typeof window !== "undefined" && window.utools?.isDarkColors) {
-        isDark = window.utools.isDarkColors();
-      } else if (typeof window !== "undefined") {
-        isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      }
-    }
-    applyResolvedUtoolsTheme(document.documentElement, resolveUtoolsTheme(theme, isDark));
-  }, []);
-
-  // 响应主题切换
-  useEffect(() => {
-    applyTheme(settings.theme);
-
-    if (settings.theme === "system" && typeof window !== "undefined") {
-      const mql = window.matchMedia("(prefers-color-scheme: dark)");
-      const onChange = () => applyTheme("system");
-      mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
-    }
-  }, [applyTheme, settings.theme]);
-
-  const [rendererPorts, setRendererPorts] = useState<CodeMirrorEditorPorts | null>(null);
+  const fileTree = useUtoolsFileTree({
+    docState,
+    setMode,
+    setIsSidebarOpen,
+    showToast,
+    onNewFile: handleNewFile,
+  });
 
   const ai = useUtoolsAi({
     settings,
@@ -221,131 +168,12 @@ export function UtoolsApp() {
     }
   }, [docState, rendererPorts, showToast, snapshot.mode]);
 
-  // 1. 本地文件保存操作（对齐桌面端 file.save，通过 beginSave/settleSave 保持选区与滚动位置）
-  const handleSaveDocument = useCallback(async (): Promise<boolean> => {
-    const current = docState.getSnapshot();
-    let targetPath = current.filePath;
-
-    if (!targetPath) {
-      if (typeof window === "undefined" || !window.utools) {
-        showToast("当前环境不支持文件保存窗口");
-        return false;
-      }
-      const chosen = window.utools.showSaveDialog({
-        title: "保存 Markdown 文档",
-        defaultPath: "未命名.md",
-        filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
-        buttonLabel: "保存",
-      });
-      if (!chosen) {
-        return false;
-      }
-      targetPath = chosen;
-    }
-
-    if (window.inkpointNodeBridge) {
-      const destination = current.filePath
-        ? ({ kind: "current-path" as const, path: current.filePath } as const)
-        : ({ kind: "prompt" as const, suggestedPath: targetPath } as const);
-      const checkpoint = docState.beginSave(destination);
-
-      try {
-        window.inkpointNodeBridge.writeFile(targetPath, checkpoint.markdownLf);
-        docState.settleSave(checkpoint, {
-          status: "succeeded",
-          commit: "committed",
-          filePath: targetPath,
-          warnings: [],
-        });
-        saveLastOpenedFile(targetPath);
-
-        // 若当前工作区包含该文件，刷新工作区目录树
-        const activeFolder = folderRef.current;
-        if (activeFolder && targetPath.startsWith(activeFolder.rootPath)) {
-          try {
-            const updated = window.inkpointNodeBridge.scanFolder(activeFolder.rootPath);
-            setFolder(updated);
-          } catch {
-            // 忽略
-          }
-        }
-
-        return true;
-      } catch (err) {
-        docState.settleSave(checkpoint, {
-          status: "failed",
-          commit: "not-committed",
-          phase: "temp-write",
-          errorCode: err instanceof Error ? err.message : String(err),
-        });
-        showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
-        return false;
-      }
-    }
-    return false;
-  }, [docState, showToast]);
-
-  // 2. 本地文件自动防抖保存逻辑（当已关联本地文件且内容修改时自动刷盘，使用 beginSave/settleSave 杜绝跳顶）
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const current = docState.getSnapshot();
-      if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-        const checkpoint = docState.beginSave({
-          kind: "current-path",
-          path: current.filePath,
-        });
-        try {
-          window.inkpointNodeBridge.writeFile(current.filePath, checkpoint.markdownLf);
-          docState.settleSave(checkpoint, {
-            status: "succeeded",
-            commit: "committed",
-            filePath: current.filePath,
-            warnings: [],
-          });
-        } catch (err) {
-          docState.settleSave(checkpoint, {
-            status: "failed",
-            commit: "not-committed",
-            phase: "temp-write",
-            errorCode: err instanceof Error ? err.message : String(err),
-          });
-          console.error("自动保存文件失败:", err);
-        }
-      }
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [docState, snapshot.markdown]);
-
-  // 3. 用户点击新建文档（对齐桌面端 file.new）
-  const handleNewFile = useCallback(() => {
-    const current = docState.getSnapshot();
-    if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-      try {
-        window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-      } catch {
-        // 忽略
-      }
-    }
-    docState.replaceDocument(
-      {
-        markdown: "",
-        savedMarkdown: "",
-        filePath: null,
-        mode: snapshotRef.current.mode,
-      },
-      { kind: "command", commandId: "file.new" },
-    );
-    clearLastOpenedFile();
-    setMode("file");
-  }, [docState]);
-
-  // 4. 注册 uTools 生命周期监听
+  // 注册 uTools 生命周期监听
   useEffect(() => {
     const handleEnter = (detail: PluginEnterDetail) => {
       applyTheme(settingsRef.current.theme);
 
-      // 场景 A: 完整工作区模式 (从已安装插件中心打开、搜索 Inkpoint/工作区/workspace)
+      // 场景 A: 完整工作区模式
       if (detail.code === "workspace") {
         setIsSidebarOpen(true);
         const lastFolder = loadLastOpenedFolder();
@@ -356,7 +184,7 @@ export function UtoolsApp() {
         ) {
           try {
             const scanned = window.inkpointNodeBridge.scanFolder(lastFolder);
-            setFolder(scanned);
+            fileTree.setFolder(scanned);
 
             const lastFile = loadLastOpenedFile();
             const targetFile =
@@ -374,7 +202,6 @@ export function UtoolsApp() {
                   savedMarkdown: content,
                   filePath: targetFile,
                   mode: snapshotRef.current.mode,
-                  // 同一文档重开的显式声明规则（editor-core 收敛，三宿主共用）
                   replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetFile),
                 },
                 { kind: "command", commandId: "utools.openWorkspace" },
@@ -389,7 +216,7 @@ export function UtoolsApp() {
         return;
       }
 
-      // 场景 B: 匹配文件夹 (打开 Markdown 文件夹/工作区)
+      // 场景 B: 匹配文件夹
       if (detail.code === "open-folder") {
         const fileList = detail.payload;
         if (Array.isArray(fileList) && fileList.length > 0) {
@@ -398,7 +225,7 @@ export function UtoolsApp() {
           if (dirPath && window.inkpointNodeBridge) {
             try {
               const scanned = window.inkpointNodeBridge.scanFolder(dirPath);
-              setFolder(scanned);
+              fileTree.setFolder(scanned);
               setIsSidebarOpen(true);
               saveLastOpenedFolder(dirPath);
 
@@ -411,7 +238,6 @@ export function UtoolsApp() {
                     savedMarkdown: content,
                     filePath: firstMd.path,
                     mode: snapshotRef.current.mode,
-                    // 同一文档重开的显式声明规则（editor-core 收敛，三宿主共用）
                     replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, firstMd.path),
                   },
                   { kind: "command", commandId: "utools.openFolderFile" },
@@ -426,7 +252,7 @@ export function UtoolsApp() {
         }
       }
 
-      // 场景 C: 匹配文件 (打开本地 Markdown 文件)
+      // 场景 C: 匹配文件
       if (detail.code === "open-file" || detail.type === "file") {
         const fileList = detail.payload;
         if (Array.isArray(fileList) && fileList.length > 0) {
@@ -441,7 +267,6 @@ export function UtoolsApp() {
                   savedMarkdown: content,
                   filePath: targetPath,
                   mode: snapshotRef.current.mode,
-                  // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
                   replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetPath),
                 },
                 { kind: "command", commandId: "utools.openFile" },
@@ -449,12 +274,11 @@ export function UtoolsApp() {
               setMode("file");
               saveLastOpenedFile(targetPath);
 
-              // 为其所在父级目录构建文件树并展开侧边栏
               const parentDir = window.inkpointNodeBridge.getDirname(targetPath);
               if (parentDir && window.inkpointNodeBridge.isDirectory(parentDir)) {
                 try {
                   const scanned = window.inkpointNodeBridge.scanFolder(parentDir);
-                  setFolder(scanned);
+                  fileTree.setFolder(scanned);
                   setIsSidebarOpen(true);
                   saveLastOpenedFolder(parentDir);
                 } catch {
@@ -470,7 +294,7 @@ export function UtoolsApp() {
         }
       }
 
-      // 场景 D: 划词进入 (超级面板匹配任意文本)
+      // 场景 D: 划词进入
       if (detail.code === "selection-edit" || detail.type === "over") {
         const text = typeof detail.payload === "string" ? detail.payload : "";
         if (text) {
@@ -491,7 +315,6 @@ export function UtoolsApp() {
     };
 
     const handleOut = () => {
-      // 插件退出到后台时，强制刷盘未保存内容
       const current = docState.getSnapshot();
       if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
         try {
@@ -508,339 +331,16 @@ export function UtoolsApp() {
     });
 
     return cleanup;
-  }, [applyTheme, docState]);
+  }, [applyTheme, docState, fileTree, settingsRef]);
 
-  // 4. 用户点击打开本地文件
-  const handleOpenFile = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.utools === "undefined") {
-      showToast("当前环境不支持文件选择器");
-      return;
-    }
-    const paths = window.utools.showOpenDialog({
-      filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx", "txt"] }],
-      properties: ["openFile"],
-    });
-    if (!paths || paths.length === 0) {
-      return;
-    }
-    const targetPath = paths[0];
-    if (window.inkpointNodeBridge) {
-      try {
-        const content = window.inkpointNodeBridge.readFile(targetPath);
-        docState.replaceDocument(
-          {
-            markdown: content,
-            savedMarkdown: content,
-            filePath: targetPath,
-            mode: snapshotRef.current.mode,
-            // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
-            replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, targetPath),
-          },
-          { kind: "command", commandId: "utools.openFilePicker" },
-        );
-        setMode("file");
-
-        // 自动挂载该文件所属文件夹并展开侧栏
-        const parentDir = window.inkpointNodeBridge.getDirname(targetPath);
-        if (parentDir && window.inkpointNodeBridge.isDirectory(parentDir)) {
-          try {
-            const scanned = window.inkpointNodeBridge.scanFolder(parentDir);
-            setFolder(scanned);
-            setIsSidebarOpen(true);
-          } catch {
-            // 忽略
-          }
-        }
-      } catch (err) {
-        showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-  }, [docState, showToast]);
-
-  // 5. 用户点击打开本地文件夹
-  const handleOpenFolder = useCallback(() => {
-    if (typeof window === "undefined" || typeof window.utools === "undefined") {
-      showToast("当前环境不支持选择文件夹");
-      return;
-    }
-    const paths = window.utools.showOpenDialog({
-      properties: ["openDirectory"],
-    });
-    if (!paths || paths.length === 0) return;
-    const targetDir = paths[0];
-    if (window.inkpointNodeBridge) {
-      try {
-        const scanned = window.inkpointNodeBridge.scanFolder(targetDir);
-        setFolder(scanned);
-        setIsSidebarOpen(true);
-        setMode("file");
-        saveLastOpenedFolder(targetDir);
-
-        const firstMd = findFirstMarkdown(scanned.tree);
-        if (firstMd) {
-          const content = window.inkpointNodeBridge.readFile(firstMd.path);
-          docState.replaceDocument(
-            {
-              markdown: content,
-              savedMarkdown: content,
-              filePath: firstMd.path,
-              mode: snapshotRef.current.mode,
-              // 同一文档重开 = 同一篇文档（规则收敛在 editor-core，三宿主共用）
-              replaceIntent: resolveReplaceIntent(snapshotRef.current.filePath, firstMd.path),
-            },
-            { kind: "command", commandId: "utools.openFolderPicker" },
-          );
-        }
-      } catch (err) {
-        showToast(`打开失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-  }, [docState, showToast]);
-
-  // 5. 选中文件树中的文件
-  const handleSelectTreeFile = useCallback(
-    (path: string) => {
-      if (path === docState.getSnapshot().filePath) return;
-      const current = docState.getSnapshot();
-      if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-        try {
-          window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-        } catch (err) {
-          console.error("保存旧文件失败:", err);
-        }
-      }
-      if (window.inkpointNodeBridge) {
-        try {
-          const content = window.inkpointNodeBridge.readFile(path);
-          docState.replaceDocument(
-            {
-              markdown: content,
-              savedMarkdown: content,
-              filePath: path,
-              mode: snapshotRef.current.mode,
-            },
-            { kind: "command", commandId: "utools.selectTreeFile" },
-          );
-          setMode("file");
-          saveLastOpenedFile(path);
-        } catch (err) {
-          showToast(`读取失败: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-    },
-    [docState, showToast],
-  );
-
-  // 6. 在文件树中新建文件/文件夹
-  const handleCreateTreeItem = useCallback(
-    async (parentPath: string, name: string, kind: "markdown" | "directory") => {
-      if (!folder || !window.inkpointNodeBridge) return;
-      try {
-        const createdPath = window.inkpointNodeBridge.createTreeItem(parentPath, name, kind);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-        setFolder(updated);
-        if (kind === "markdown") {
-          handleSelectTreeFile(createdPath);
-        }
-      } catch (err) {
-        showToast(`创建失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [folder, handleSelectTreeFile, showToast],
-  );
-
-  // 7. 删除文件树节点
-  const handleDeleteTreeNode = useCallback(
-    async (path: string) => {
-      if (!folder || !window.inkpointNodeBridge) return;
-      try {
-        window.inkpointNodeBridge.deleteTreeItem(path);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-        setFolder(updated);
-        const currentSnap = docState.getSnapshot();
-        if (
-          currentSnap.filePath === path ||
-          (currentSnap.filePath && currentSnap.filePath.startsWith(path + "/"))
-        ) {
-          handleNewFile();
-        }
-      } catch (err) {
-        showToast(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [docState, folder, handleNewFile, showToast],
-  );
-
-  // 8. 重命名文件树节点
-  const handleRenameTreeItem = useCallback(
-    async (oldPath: string, newName: string) => {
-      if (!folder || !window.inkpointNodeBridge) return;
-      try {
-        const newPath = window.inkpointNodeBridge.renameTreeItem(oldPath, newName);
-        const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-        setFolder(updated);
-        const currentSnap = docState.getSnapshot();
-        // 若当前打开的文件被重命名，或所在目录被重命名，通过 setDocumentPath 同步更新文档路径（不改变代际与滚动）
-        if (currentSnap.filePath === oldPath) {
-          docState.setDocumentPath({
-            filePath: newPath,
-            expectedGeneration: currentSnap.documentGeneration,
-            expectedStateRevision: currentSnap.stateRevision,
-            origin: { kind: "command", commandId: "file.rename" },
-          });
-          saveLastOpenedFile(newPath);
-        } else if (currentSnap.filePath && currentSnap.filePath.startsWith(oldPath + "/")) {
-          const newDocPath = newPath + currentSnap.filePath.slice(oldPath.length);
-          docState.setDocumentPath({
-            filePath: newDocPath,
-            expectedGeneration: currentSnap.documentGeneration,
-            expectedStateRevision: currentSnap.stateRevision,
-            origin: { kind: "command", commandId: "file.rename" },
-          });
-          saveLastOpenedFile(newDocPath);
-        }
-      } catch (err) {
-        showToast(`重命名失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [docState, folder, showToast],
-  );
-
-  // 9. 刷新目录树
-  const handleRefreshFolder = useCallback(() => {
-    if (!folder || !window.inkpointNodeBridge) return;
-    try {
-      const updated = window.inkpointNodeBridge.scanFolder(folder.rootPath);
-      setFolder(updated);
-    } catch (err) {
-      showToast(`刷新失败: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }, [folder, showToast]);
-
-  // 9. 贴回原应用
+  // 贴回原应用
   const handlePasteBackToApp = useCallback(() => {
     if (typeof window !== "undefined" && typeof window.utools !== "undefined") {
       window.utools.hideMainWindowPasteText(snapshot.markdown);
     }
   }, [snapshot.markdown]);
 
-  // 10. 图片粘贴与拖拽导入处理（对齐桌面端 ensureDocumentSaved 与 assets/ 规范）
-  const handleInsertImageFile = useCallback(
-    async (file: File) => {
-      let current = docState.getSnapshot();
-      const altText = imageAltTextFromFileName(file.name) || "image";
-
-      // 如果尚未保存文档，要求先保存以计算稳定相对目录（对齐桌面端设计）
-      if (!current.filePath) {
-        const saved = await handleSaveDocument();
-        if (!saved) {
-          showToast("请先保存文档再插入本地图片");
-          return;
-        }
-        current = docState.getSnapshot();
-      }
-
-      if (!current.filePath || !window.inkpointNodeBridge?.savePastedImage) {
-        showToast("当前环境不支持保存本地图片");
-        return;
-      }
-
-      try {
-        const buffer = await file.arrayBuffer();
-        const res = window.inkpointNodeBridge.savePastedImage(
-          current.filePath,
-          file.type || "image/png",
-          buffer,
-          file.name,
-        );
-
-        const targetSrc = res.markdownPath;
-        const cursorPos = rendererPorts?.getSelectionSnapshot().head;
-        const tag = `![${altText}](${targetSrc})`;
-        let nextMarkdown: string;
-        let nextCursorPos: number;
-        if (
-          cursorPos !== undefined &&
-          cursorPos !== null &&
-          cursorPos >= 0 &&
-          cursorPos <= current.markdown.length
-        ) {
-          const before = current.markdown.slice(0, cursorPos);
-          const after = current.markdown.slice(cursorPos);
-          const needsPrefixNewline = before.length > 0 && !before.endsWith("\n");
-          const needsSuffixNewline = after.length > 0 && !after.startsWith("\n");
-          const insertedText = `${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}`;
-          nextMarkdown = `${before}${insertedText}${after}`;
-          nextCursorPos = before.length + insertedText.length;
-        } else {
-          nextMarkdown = appendImageMarkdown(current.markdown, targetSrc, altText);
-          nextCursorPos = nextMarkdown.length;
-        }
-
-        // 核心原则：同文档程序化修改只通过 renderer applyExternalEdit port（对齐架构原则），
-        // 保留现有选区与滚动位置，杜绝跳回文档顶部
-        if (rendererPorts) {
-          const editResult = rendererPorts.applyExternalEdit({
-            operationId: `utools:insert-image:${Date.now()}`,
-            markdown: nextMarkdown,
-            expectedGeneration: current.documentGeneration,
-            expectedContentRevision: current.contentRevision,
-            selection: "preserve-offset-clamped",
-          });
-
-          if (
-            editResult.status === "applied" ||
-            editResult.status === "noop" ||
-            editResult.status === "queued-composition"
-          ) {
-            rendererPorts.setSelection(nextCursorPos, nextCursorPos);
-            rendererPorts.focus();
-          } else {
-            // 降级兜底：若 externalEdit 状态异常（如陈旧代际），通过 replaceDocument 保证内容不丢失
-            docState.replaceDocument(
-              {
-                markdown: nextMarkdown,
-                savedMarkdown: current.savedMarkdown,
-                filePath: current.filePath,
-                mode: current.mode,
-                // 图片插入 = 同一篇文档内的内容变更（整篇替换管道）⇒ 保留阅读位置
-                replaceIntent: "same",
-              },
-              { kind: "command", commandId: "editor.insertImage" },
-            );
-          }
-        } else {
-          docState.replaceDocument(
-            {
-              markdown: nextMarkdown,
-              savedMarkdown: current.savedMarkdown,
-              filePath: current.filePath,
-              mode: current.mode,
-              // 同上：图片插入走整篇替换管道，但属同一篇文档
-              replaceIntent: "same",
-            },
-            { kind: "command", commandId: "editor.insertImage" },
-          );
-        }
-
-        // 刷新目录树以显示新生成的 assets 资产
-        const activeFolder = folderRef.current;
-        if (activeFolder && window.inkpointNodeBridge) {
-          try {
-            const updated = window.inkpointNodeBridge.scanFolder(activeFolder.rootPath);
-            setFolder(updated);
-          } catch {
-            // 忽略刷新异常
-          }
-        }
-      } catch (err) {
-        showToast(`保存本地图片失败: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    },
-    [docState, handleSaveDocument, rendererPorts, showToast],
-  );
-
-  // 11. 监听剪贴板粘贴图片与拖拽图片事件
+  // 监听剪贴板粘贴图片与拖拽图片事件
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const clipboardData = e.clipboardData;
@@ -888,7 +388,7 @@ export function UtoolsApp() {
     };
   }, [handleInsertImageFile]);
 
-  // 12. 图片预览路径解析（直接从 docState 同步读取，杜绝 React Ref 延迟，配合 preload 转 Data URL）
+  // 图片预览路径解析
   const resolveImage = useCallback(
     (src: string) => {
       if (!src) return src;
@@ -902,49 +402,40 @@ export function UtoolsApp() {
         return src;
       }
 
-      // 核心原则：直接从文档状态机同步获取 filePath，绝不使用 React Ref 避免 decoration 阶段脱节
       const currentPath = docState.getSnapshot().filePath;
-      const workspaceRoot = folder?.rootPath;
+      const workspaceRoot = fileTree.folder?.rootPath;
 
-      // 优先通过 preload bridge 转为 data URL（同步调用，完全跨平台）
       if (window.inkpointNodeBridge?.resolveImageSrc) {
         const resolved = window.inkpointNodeBridge.resolveImageSrc(
           currentPath ?? "",
           src,
           workspaceRoot,
         );
-        // 如果 bridge 解析失败（文件不存在），返回原始 src
         if (resolved && resolved !== src) {
           return resolved;
         }
       }
 
-      // Fallback：Electron/uTools 支持 file:// 协议，将相对路径转为绝对路径
-      // 这在 bridge 不可用或解析失败时提供兜底
       if (currentPath) {
         try {
-          // 根据当前文档路径计算图片绝对路径
-          // path.resolve 只在 Node.js 中有，Electron 渲染进程无法直接用
-          // 改用字符串处理（浏览器级别的相对路径解析）
           const docDir = currentPath.substring(0, currentPath.lastIndexOf("/") + 1);
           if (docDir) {
             const cleanSrc = src.startsWith("./") ? src.slice(2) : src;
             return `file://${docDir}${cleanSrc}`;
           }
         } catch {
-          // 忽略路径解析异常
+          // 忽略
         }
       }
 
       return src;
     },
-    [docState, folder?.rootPath],
+    [docState, fileTree.folder?.rootPath],
   );
 
-  // 13. 全局快捷键与应用内快捷键监听（严格对齐桌面端快捷键映射）
+  // 全局快捷键监听
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Escape: 关闭设置弹窗或免责声明浮层
       if (e.key === "Escape") {
         if (isSettingsOpen) {
           handleCancelSettings();
@@ -961,7 +452,6 @@ export function UtoolsApp() {
 
       const key = e.key.toLowerCase();
 
-      // 1. Cmd+, 或 Ctrl+,: 打开偏好设置 (对齐桌面端与 Mac 经典偏好设置快捷键)
       if (e.key === "," || key === ",") {
         e.preventDefault();
         e.stopPropagation();
@@ -970,8 +460,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 2. Cmd+/ 或 Ctrl+/: 切换源码 / 所见即所得模式 (对齐桌面端 view.toggleSource)
-      // 捕获阶段拦截并阻止向下透传至 CodeMirror，防止触发 CodeMirror 默认的 toggleComment (注释 <!-- -->)
       if (e.key === "/" || key === "/") {
         e.preventDefault();
         e.stopPropagation();
@@ -980,7 +468,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 3. Cmd+1 或 Ctrl+1: 切换至所见即所得模式 (对齐桌面端 view.showWysiwyg)
       if (key === "1" && !e.shiftKey && !e.altKey) {
         if (snapshotRef.current.mode === "source") {
           e.preventDefault();
@@ -991,8 +478,6 @@ export function UtoolsApp() {
         }
       }
 
-      // 4. Cmd+Shift+B 或 Ctrl+Shift+B: 展开 / 收起侧边栏文件树 (对齐桌面端 view.toggleSidebarPrimary)
-      // 同时兼容 Cmd+\ 保证老习惯不失效
       if ((key === "b" && e.shiftKey) || e.key === "\\" || key === "\\") {
         e.preventDefault();
         e.stopPropagation();
@@ -1001,7 +486,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 5. Cmd+N 或 Ctrl+N: 新建空白文档 (对齐桌面端 file.new)
       if (key === "n" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -1010,20 +494,18 @@ export function UtoolsApp() {
         return;
       }
 
-      // 6. Cmd+O 或 Ctrl+O: 打开文件；带 Shift (Cmd+Shift+O) 为打开文件夹 (对齐桌面端 file.open & file.openFolder)
       if (key === "o") {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
         if (e.shiftKey) {
-          handleOpenFolder();
+          fileTree.handleOpenFolder();
         } else {
-          handleOpenFile();
+          fileTree.handleOpenFile();
         }
         return;
       }
 
-      // 7. Cmd+Enter 或 Ctrl+Enter: 贴回原活动应用 (uTools 专属高效流)
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
@@ -1032,7 +514,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 8. Cmd+S 或 Ctrl+S: 立即写盘保存 (对齐桌面端 file.save)
       if (key === "s" && !e.shiftKey && !e.altKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -1041,7 +522,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 9. Cmd+J 或 Cmd+Shift+A: AI 智能续写
       if ((key === "j" && !e.shiftKey) || (key === "a" && e.shiftKey)) {
         e.preventDefault();
         e.stopPropagation();
@@ -1050,7 +530,6 @@ export function UtoolsApp() {
         return;
       }
 
-      // 10. Cmd+Shift+G: AI 语法错别字审校
       if (key === "g" && e.shiftKey) {
         e.preventDefault();
         e.stopPropagation();
@@ -1060,14 +539,12 @@ export function UtoolsApp() {
       }
     };
 
-    // 使用 capture: true 在捕获阶段顶层拦截快捷键，杜绝子级编辑器拦截产生意外副作用
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [
     ai,
+    fileTree,
     handleNewFile,
-    handleOpenFile,
-    handleOpenFolder,
     handlePasteBackToApp,
     handleSaveDocument,
     handleCancelSettings,
@@ -1085,20 +562,20 @@ export function UtoolsApp() {
       <div className="flex-1 min-h-0 flex flex-row overflow-hidden relative">
         {isSidebarOpen && (
           <UtoolsFileTree
-            folder={folder}
+            folder={fileTree.folder}
             activeFilePath={snapshot.filePath}
-            onSelectFile={handleSelectTreeFile}
-            onCreateItem={handleCreateTreeItem}
-            onRenameItem={handleRenameTreeItem}
-            onDeleteNode={handleDeleteTreeNode}
-            onRefresh={handleRefreshFolder}
+            onSelectFile={fileTree.handleSelectTreeFile}
+            onCreateItem={fileTree.handleCreateTreeItem}
+            onRenameItem={fileTree.handleRenameTreeItem}
+            onDeleteNode={fileTree.handleDeleteTreeNode}
+            onRefresh={fileTree.handleRefreshFolder}
             onToast={showToast}
             onCloseFolder={() => {
-              setFolder(null);
+              fileTree.setFolder(null);
               setIsSidebarOpen(false);
               clearLastOpenedFolder();
             }}
-            onOpenFolder={handleOpenFolder}
+            onOpenFolder={fileTree.handleOpenFolder}
           />
         )}
 
@@ -1127,14 +604,14 @@ export function UtoolsApp() {
       <UtoolsStatusBar
         filePath={snapshot.filePath}
         isDirty={snapshot.isDirty}
-        folder={folder}
+        folder={fileTree.folder}
         isSidebarOpen={isSidebarOpen}
         charCount={snapshot.markdown.length}
         editorMode={snapshot.mode}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         onNewFile={handleNewFile}
-        onOpenFile={handleOpenFile}
-        onOpenFolder={handleOpenFolder}
+        onOpenFile={fileTree.handleOpenFile}
+        onOpenFolder={fileTree.handleOpenFolder}
         onToggleSourceMode={toggleSourceMode}
         onOpenSettings={handleOpenSettings}
       />
@@ -1149,7 +626,7 @@ export function UtoolsApp() {
         </div>
       )}
 
-      {/* 设置菜单与偏好弹窗（整合外观排版、AI 助手、快捷键速查与 uTools 全局指南） */}
+      {/* 设置菜单与偏好弹窗 */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onCancel={handleCancelSettings}

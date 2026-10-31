@@ -143,6 +143,17 @@ describe("export-controller", () => {
     expect(styling.isDark).toBe(false);
   });
 
+  it("leaves proseFontFamily undefined when following theme default so theme font stack is preserved", async () => {
+    const { resolveExportStyling } = await import("../src/app/controller/export-controller");
+    const { createDefaultSettings } = await import("../src/app/settings/persistence/storage");
+
+    const defaultSettings = createDefaultSettings();
+    const styling = resolveExportStyling(defaultSettings);
+    expect(styling.proseFontFamily).toBeUndefined();
+    expect(styling.codeFontFamily).toBeUndefined();
+    expect(styling.themeCss).toBeDefined();
+  });
+
   it("passes styling and fonts into generated PDF export HTML", async () => {
     mockSave.mockResolvedValueOnce("/Users/test/Documents/styled.pdf");
     mockInvoke.mockResolvedValueOnce(undefined);

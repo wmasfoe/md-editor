@@ -78,12 +78,12 @@ describe("Web App Presets and Settings", () => {
 });
 
 describe("Desktop Theme Reuse in Web", () => {
-  it("includes all 5 built-in desktop themes", () => {
+  it("includes all built-in desktop themes including Kami", () => {
     const lightIds = BUILT_IN_LIGHT_THEME_OPTIONS.map((o) => o.id);
     const darkIds = BUILT_IN_DARK_THEME_OPTIONS.map((o) => o.id);
 
-    expect(lightIds).toEqual(["paper-light", "github-light", "gothic-light"]);
-    expect(darkIds).toEqual(["charcoal-dark", "night-dark"]);
+    expect(lightIds).toEqual(["paper-light", "kami-light", "github-light", "gothic-light"]);
+    expect(darkIds).toEqual(["charcoal-dark", "kami-dark", "night-dark"]);
   });
 
   it("generates CSS variable tokens for built-in themes", () => {

@@ -28,7 +28,7 @@
     sans-serif
   );
   line-height: var(--theme-editor-line-height, 1.62);
-  letter-spacing: 0;
+  letter-spacing: var(--theme-letter-spacing, 0);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -130,7 +130,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold,
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-bold * {
   color: var(--theme-title, var(--theme-strong-accent, #111827)) !important;
-  font-weight: 700 !important;
+  font-weight: var(--theme-bold-font-weight, 700) !important;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -173,6 +173,7 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading {
+  font-family: var(--theme-heading-font, var(--theme-font, inherit));
   color: var(--theme-title, #111827);
   -webkit-font-smoothing: antialiased;
 }
@@ -180,13 +181,16 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-1 {
   font-size: 1.65em;
   line-height: 1.32;
-  font-weight: 750;
+  font-weight: var(--theme-heading-font-weight, 750);
   letter-spacing: -0.016em;
-  background: linear-gradient(
-      var(--theme-border, rgba(0, 0, 0, 0.08)),
-      var(--theme-border, rgba(0, 0, 0, 0.08))
-    )
-    bottom 0.4rem left 0 / 100% 1px no-repeat;
+  background: var(
+    --theme-heading-divider,
+    linear-gradient(
+        var(--theme-border, rgba(0, 0, 0, 0.08)),
+        var(--theme-border, rgba(0, 0, 0, 0.08))
+      )
+      bottom 0.4rem left 0 / 100% 1px no-repeat
+  );
   padding-top: 0.7em;
   padding-bottom: 0.7rem;
 }
@@ -194,7 +198,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-2 {
   font-size: 1.42em;
   line-height: 1.35;
-  font-weight: 700;
+  font-weight: var(--theme-heading-font-weight, 700);
   letter-spacing: -0.012em;
   padding-top: 0.6em;
   padding-bottom: 0.57rem;
@@ -203,7 +207,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-3 {
   font-size: 1.25em;
   line-height: 1.4;
-  font-weight: 680;
+  font-weight: var(--theme-heading-font-weight, 680);
   letter-spacing: -0.008em;
   padding-top: 0.5em;
   padding-bottom: 0.48rem;
@@ -212,7 +216,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-4 {
   font-size: 1.12em;
   line-height: 1.45;
-  font-weight: 650;
+  font-weight: var(--theme-heading-font-weight, 650);
   padding-top: 0.4em;
   padding-bottom: 0.34rem;
 }
@@ -220,7 +224,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-5 {
   font-size: 1.02em;
   line-height: 1.5;
-  font-weight: 600;
+  font-weight: var(--theme-heading-font-weight, 600);
   padding-top: 0.35em;
   padding-bottom: 0.28rem;
 }
@@ -228,7 +232,7 @@
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-heading--level-6 {
   font-size: 0.95em;
   line-height: 1.55;
-  font-weight: 600;
+  font-weight: var(--theme-heading-font-weight, 600);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--theme-muted, #656d76);
@@ -244,11 +248,13 @@
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-block-line--quote {
-  border-left: 3px solid
-    var(--theme-primary, var(--theme-blockquote-border, var(--theme-border, currentColor)));
+  border-left: var(
+    --theme-blockquote-border,
+    3px solid var(--theme-primary, var(--theme-border, currentColor))
+  );
   padding-left: 0.85rem;
-  background: var(--theme-primary-soft, transparent);
-  border-radius: 0 4px 4px 0;
+  background: var(--theme-blockquote-bg, var(--theme-primary-soft, transparent));
+  border-radius: 0 var(--theme-radius-base, 4px) var(--theme-radius-base, 4px) 0;
   color: var(--theme-blockquote-text, var(--theme-muted, currentColor));
 }
 
@@ -652,8 +658,8 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.28rem 0.65rem;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--theme-radius-base, 6px);
+  border-top-right-radius: var(--theme-radius-base, 6px);
   background: var(--theme-code-gutter-bg, var(--theme-bg-muted, #f6f8fa));
   border: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
   border-bottom: 1px solid var(--theme-border, rgba(0, 0, 0, 0.06));
@@ -791,8 +797,8 @@
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-code-line--last {
   border-bottom: 1px solid var(--theme-code-border, var(--theme-border, #d8dee4));
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: var(--theme-radius-base, 6px);
+  border-bottom-right-radius: var(--theme-radius-base, 6px);
   padding-bottom: 0.45rem;
 }
 
@@ -1513,15 +1519,15 @@
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive-line--first,
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--first {
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-left-radius: var(--theme-radius-base, 6px);
+  border-top-right-radius: var(--theme-radius-base, 6px);
   padding-top: 0.35rem;
 }
 
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-directive-line--last,
 .code-mirror-editor-host .cm-md-editor--wysiwyg .cm-md-alert--last {
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: var(--theme-radius-base, 6px);
+  border-bottom-right-radius: var(--theme-radius-base, 6px);
   padding-bottom: 0.65rem;
 }
 

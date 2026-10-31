@@ -204,5 +204,9 @@ function themeKey(id: BuiltInThemeId): string {
       return "paperLight";
     case "charcoal-dark":
       return "charcoalDark";
+    case "kami-light":
+      return "kamiLight";
+    case "kami-dark":
+      return "kamiDark";
   }
 }

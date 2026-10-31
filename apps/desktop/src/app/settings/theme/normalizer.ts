@@ -74,7 +74,9 @@ function normalizeBuiltInTheme(input: unknown, fallback: BuiltInThemeId): BuiltI
     input === "gothic-light" ||
     input === "night-dark" ||
     input === "paper-light" ||
-    input === "charcoal-dark"
+    input === "charcoal-dark" ||
+    input === "kami-light" ||
+    input === "kami-dark"
     ? input
     : fallback;
 }

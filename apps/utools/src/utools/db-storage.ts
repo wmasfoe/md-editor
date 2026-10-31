@@ -1,4 +1,5 @@
 import { normalizeAiSettings, type AiSettings } from "@md-editor/ai";
+import type { BuiltInThemeId } from "@md-editor/editor-ui";
 
 export const LAST_OPENED_FILE_KEY = "inkpoint_last_opened_file_path";
 
@@ -122,6 +123,8 @@ export function clearLastOpenedFolder(): void {
 
 export interface UtoolsSettings {
   theme: "system" | "light" | "dark";
+  lightTheme?: BuiltInThemeId;
+  darkTheme?: BuiltInThemeId;
   fontSize: number; // 13 ~ 22, default 15
   proseFontFamily: string; // font option id, default ""
   codeFontFamily: string; // font option id, default ""
@@ -135,6 +138,8 @@ export interface UtoolsSettings {
 
 export const DEFAULT_UTOOLS_SETTINGS: UtoolsSettings = {
   theme: "system",
+  lightTheme: "paper-light",
+  darkTheme: "charcoal-dark",
   fontSize: 15,
   proseFontFamily: "",
   codeFontFamily: "",
@@ -171,6 +176,14 @@ export function loadUtoolsSettings(): UtoolsSettings {
       const parsed = JSON.parse(raw);
       return {
         theme: parsed.theme === "dark" || parsed.theme === "light" ? parsed.theme : "system",
+        lightTheme:
+          typeof parsed.lightTheme === "string"
+            ? parsed.lightTheme
+            : DEFAULT_UTOOLS_SETTINGS.lightTheme,
+        darkTheme:
+          typeof parsed.darkTheme === "string"
+            ? parsed.darkTheme
+            : DEFAULT_UTOOLS_SETTINGS.darkTheme,
         fontSize:
           typeof parsed.fontSize === "number" && parsed.fontSize >= 13 && parsed.fontSize <= 22
             ? parsed.fontSize

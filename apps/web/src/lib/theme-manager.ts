@@ -1,4 +1,4 @@
-import { builtInThemeCss, setThemeStyleText, type BuiltInThemeId } from "@md-editor/editor-ui";
+import { compileThemeCss, setThemeStyleText, type BuiltInThemeId } from "@md-editor/editor-ui";
 import type { WebSettings } from "./web-settings";
 
 export function resolveEffectiveColorScheme(theme: "light" | "dark" | "system"): "light" | "dark" {
@@ -18,7 +18,16 @@ export function applyDesktopTheme(settings: WebSettings): () => void {
   const apply = () => {
     const scheme = resolveEffectiveColorScheme(settings.theme);
     const themeId: BuiltInThemeId = scheme === "dark" ? settings.darkTheme : settings.lightTheme;
-    const css = builtInThemeCss(themeId);
+    const css = compileThemeCss({
+      baseTheme: themeId,
+      colorScheme: scheme,
+      customCssText: settings.customCss,
+      typographyOverrides: {
+        proseFontFamily: settings.proseFontFamily || undefined,
+        codeFontFamily: settings.codeFontFamily || undefined,
+        fontSize: settings.fontSize || undefined,
+      },
+    });
 
     // 注入桌面端一致的纯正 CSS 变量
     setThemeStyleText(css);

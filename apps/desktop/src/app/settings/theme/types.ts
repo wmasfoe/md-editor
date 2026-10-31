@@ -2,24 +2,14 @@
  * @fileoverview 主题设置模型与实时预览协议类型
  */
 
-/**
- * 主题色彩模式
- * - `system`: 跟随操作系统深浅色
- * - `light`: 强制浅色
- * - `dark`: 强制深色
- */
-export type ThemeColorScheme = "system" | "light" | "dark";
+import type { BuiltInThemeId, ThemeColorScheme } from "@md-editor/editor-ui";
+
+export type { BuiltInThemeId, ThemeColorScheme };
 
 /**
  * 主题样式来源：内置预设或用户自定义 CSS
  */
 export type ThemeSourceType = "builtin" | "custom";
-
-/**
- * 内置预设主题标识
- */
-export type BuiltInThemeId =
-  "github-light" | "gothic-light" | "night-dark" | "paper-light" | "charcoal-dark";
 
 /**
  * 单一色彩方案（浅色或深色）下的具体主题配置
