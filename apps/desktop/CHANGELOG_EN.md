@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.0 - 2026-11-01 (#205, #206, #207, #208)
+
+- Classic "Kami" Paper & Ink Themes & 3-Layer Style Engine: Added the minimalist "Kami Light" (rice paper texture) and "Kami Dark" (ink wash) built-in themes. Rebuilt the styling architecture into a 3-layer compilation engine (base, theme, user override) with translucent ink-blue selection highlights meeting WCAG 2.1 AA/AAA contrast ratios.
+- Cursor-Tab Unified Inline Completion & Next-Edit Prediction: Added Cursor-style inline AI completion and next-edit prediction across the entire editor area. Contextual completions, corrections, and rewrites can be triggered anywhere and accepted instantly with the Tab key.
+- Local Model Background Scheduling & Lifecycle Management: Completely removed silent cold-boot distillation and typing-pause inference loops, using lightweight AST parsing for instant outline extraction. Added request preemption via TCP socket termination, and guaranteed clean termination of background llama-server processes on app exit.
+- Instant Typography & Font Live Preview: Changing prose fonts, code fonts, or font sizes in Appearance settings now reflects immediately in the main editor window, with automatic rollback on cancellation and seamless persistence on save.
+
 ## 0.18.0 - 2026-10-28 (#202)
 
 - Draft Recovery (Hot Exit): Unsaved edits are now automatically preserved when the app exits; a banner appears at next launch allowing you to restore your drafts in one click or discard them.
