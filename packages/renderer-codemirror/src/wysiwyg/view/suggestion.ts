@@ -303,73 +303,60 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
     }
 
     const docLen = transaction.state.doc.length;
-    const ranges: Range<Decoration>[] = [];
-    const totalRemaining = suggestion.items.length - suggestion.activeIndex;
+    const activeIndex = suggestion.activeIndex;
+    const currentItem = suggestion.items[activeIndex];
+    if (!currentItem) {
+      return Decoration.none;
+    }
 
-    suggestion.items.forEach((item, index) => {
-      // 已经处理完毕的前置项不予渲染
-      if (index < suggestion.activeIndex) {
-        return;
-      }
+    const from = Math.min(Math.max(0, currentItem.from), docLen);
+    const to = Math.min(Math.max(from, currentItem.to), docLen);
+    const totalRemaining = suggestion.items.length - activeIndex;
 
-      const from = Math.min(Math.max(0, item.from), docLen);
-      const to = Math.min(Math.max(from, item.to), docLen);
-      const isActive = index === suggestion.activeIndex;
-      const currentStep = index - suggestion.activeIndex + 1;
-
-      if (from === to) {
-        // Continuation: 纯幽灵文本在光标后
-        const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
-        const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
-          ? {
-              accept: suggestion.labels.accept ?? facetLabels.accept,
-              dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
-              tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
-              escKey: suggestion.labels.escKey ?? facetLabels.escKey,
-            }
-          : facetLabels;
-
-        const displayText = item.text.replace(/^[\r\n]+/u, "");
-        if (displayText.trim().length > 0) {
-          ranges.push(
-            Decoration.widget({
-              widget: new GhostTextWidget(displayText, resolvedLabels),
-              side: 1,
-            }).range(from),
-          );
+    const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
+    const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
+      ? {
+          accept: suggestion.labels.accept ?? facetLabels.accept,
+          dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
+          tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
+          escKey: suggestion.labels.escKey ?? facetLabels.escKey,
         }
-      } else {
-        const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
-        const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
-          ? {
-              accept: suggestion.labels.accept ?? facetLabels.accept,
-              dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
-              tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
-              escKey: suggestion.labels.escKey ?? facetLabels.escKey,
-            }
-          : facetLabels;
+      : facetLabels;
 
-        // Edit/Rewrite: 删除线原词 + 绿色新增候选词
-        ranges.push(
-          Decoration.mark({
-            class: isActive
-              ? "cm-md-ai-diff-deleted"
-              : "cm-md-ai-diff-deleted cm-md-ai-diff-pending",
-            attributes: { "aria-label": "AI 建议替换的原内容" },
-          }).range(from, to),
-        );
+    const ranges: Range<Decoration>[] = [];
+
+    // P1 原则约束：全篇视口中严格仅渲染 activeIndex 当前一处激活焦点。
+    // 队列中的后续项（index > activeIndex）仅保留在 StateField 内存中静默待命，严禁在文档中提前渲染 pending 装饰。
+    if (from === to) {
+      // Continuation: 纯幽灵文本在光标后
+      const displayText = currentItem.text.replace(/^[\r\n]+/u, "");
+      if (displayText.trim().length > 0) {
         ranges.push(
           Decoration.widget({
-            widget: new DiffAdditionWidget(item.text, {
-              isActive,
-              stepLabel: totalRemaining > 1 ? ` (${currentStep}/${totalRemaining})` : "",
-              labels: resolvedLabels,
-            }),
+            widget: new GhostTextWidget(displayText, resolvedLabels),
             side: 1,
-          }).range(to),
+          }).range(from),
         );
       }
-    });
+    } else {
+      // Edit/Rewrite: 单焦点删除线原词 + 绿色新增候选词
+      ranges.push(
+        Decoration.mark({
+          class: "cm-md-ai-diff-deleted",
+          attributes: { "aria-label": "AI 建议替换的原内容" },
+        }).range(from, to),
+      );
+      ranges.push(
+        Decoration.widget({
+          widget: new DiffAdditionWidget(currentItem.text, {
+            isActive: true,
+            stepLabel: totalRemaining > 1 ? ` (1/${totalRemaining})` : "",
+            labels: resolvedLabels,
+          }),
+          side: 1,
+        }).range(to),
+      );
+    }
 
     if (ranges.length === 0) {
       return Decoration.none;

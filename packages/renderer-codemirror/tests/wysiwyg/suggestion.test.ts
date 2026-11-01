@@ -190,6 +190,30 @@ describe("AI Suggestion: Rewrite / Diff Edit", () => {
     expect(view.state.field(aiSuggestionField)).toBeNull();
   });
 
+  it("Case I-2b: 视口严格仅渲染 activeIndex 单一焦点 (捍卫 P1 流式单焦点)", () => {
+    const view = createTestView("第一处错误，第二处错误，第三处错误", 0);
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        items: [
+          { from: 0, to: 5, text: "一修正", originalText: "第一处错误" },
+          { from: 6, to: 11, text: "二修正", originalText: "第二处错误" },
+          { from: 12, to: 17, text: "三修正", originalText: "第三处错误" },
+        ],
+        activeIndex: 0,
+      }),
+    });
+
+    // 验证当前 decorations 仅为 activeIndex (0) 的 1 个 mark + 1 个 widget，共 2 个装饰
+    // 后续 2 个项绝对不生成 cm-md-ai-diff-pending 装饰
+    const initialDecos = view.state.field(aiSuggestionDecorations);
+    expect(initialDecos.size).toBe(2);
+
+    // Tab 推进到第 1 项
+    expect(acceptAiSuggestion(view)).toBe(true);
+    const step2Decos = view.state.field(aiSuggestionDecorations);
+    expect(step2Decos.size).toBe(2);
+  });
+
   it("普通输入或选区移出自动清除建议", () => {
     const view = createTestView("段落测试", 0);
     view.dispatch({
