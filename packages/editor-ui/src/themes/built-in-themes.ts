@@ -1,19 +1,19 @@
-export type BuiltInThemeId =
-  "github-light" | "gothic-light" | "night-dark" | "paper-light" | "charcoal-dark";
+import { KAMI_DARK_THEME_CSS, KAMI_LIGHT_THEME_CSS } from "./kami-themes";
+import type { BuiltInThemeId, BuiltInThemeOption } from "./theme-schema";
+import { ensureWebFontsForCss } from "./webfont-loader";
 
-export interface BuiltInThemeOption {
-  readonly id: BuiltInThemeId;
-  readonly label: string;
-}
+export type { BuiltInThemeId, BuiltInThemeOption };
 
 export const BUILT_IN_LIGHT_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
   { id: "paper-light", label: "宣纸" },
+  { id: "kami-light", label: "Kami (纸)" },
   { id: "github-light", label: "GitHub" },
   { id: "gothic-light", label: "Gothic" },
 ];
 
 export const BUILT_IN_DARK_THEME_OPTIONS: readonly BuiltInThemeOption[] = [
   { id: "charcoal-dark", label: "炭焙" },
+  { id: "kami-dark", label: "Kami (墨)" },
   { id: "night-dark", label: "Night" },
 ];
 
@@ -29,6 +29,10 @@ export function builtInThemeCss(themeId: BuiltInThemeId): string {
       return PAPER_LIGHT_THEME_CSS;
     case "charcoal-dark":
       return CHARCOAL_DARK_THEME_CSS;
+    case "kami-light":
+      return KAMI_LIGHT_THEME_CSS;
+    case "kami-dark":
+      return KAMI_DARK_THEME_CSS;
   }
 }
 
@@ -36,6 +40,7 @@ export function setThemeStyleText(css: string): void {
   if (typeof document === "undefined") {
     return;
   }
+  ensureWebFontsForCss(css);
   let style = document.getElementById("md-editor-custom-theme") as HTMLStyleElement | null;
   if (!style) {
     style = document.createElement("style");

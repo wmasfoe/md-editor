@@ -41,6 +41,7 @@ export interface WebSettings {
    */
   readonly showInlineStyleMarkers: boolean;
   readonly enableMarkdownLint: boolean;
+  readonly customCss?: string;
   readonly ai: WebAiConfig;
   readonly plugins: PluginSettings;
   readonly language: LanguageSetting;
@@ -104,6 +105,7 @@ export function loadWebSettings(): WebSettings {
       // 只接受布尔 true，其余一律关闭（存量用户升级后默认变干净）。
       showInlineStyleMarkers: parsed.showInlineStyleMarkers === true,
       enableMarkdownLint: parsed.enableMarkdownLint !== false,
+      customCss: typeof parsed.customCss === "string" ? parsed.customCss : undefined,
       ai: normalizeAiSettings(parsed.ai, {
         allowLocal: false,
         defaultPresetId: "deepseek",

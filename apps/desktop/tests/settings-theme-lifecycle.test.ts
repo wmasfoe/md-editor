@@ -117,7 +117,7 @@ describe("settings theme lifecycle", () => {
     const reveal = vi.fn(async () => {
       expect(target.dataset.themeScheme).toBe("dark");
       expect(target.dataset.themeSource).toBe("custom");
-      expect(readThemeStyle()).toBe(customCss);
+      expect(readThemeStyle()).toContain(customCss);
     });
 
     const initialTheme = applyThemeBeforeWindowReveal(customTheme, reveal, {

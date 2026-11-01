@@ -32,6 +32,12 @@ export interface CodeMirrorEditorProps {
   readonly fontSize?: number;
   readonly proseFontFamily?: string;
   readonly codeFontFamily?: string;
+  readonly headingFontFamily?: string;
+  readonly lineHeight?: number;
+  readonly letterSpacing?: string;
+  readonly contentMaxWidth?: number | string;
+  readonly boldFontWeight?: number;
+  readonly headingFontWeight?: number;
   readonly hidden?: boolean;
   readonly className?: string;
   readonly style?: CSSProperties;
@@ -64,6 +70,12 @@ export function CodeMirrorEditor({
   fontSize,
   proseFontFamily,
   codeFontFamily,
+  headingFontFamily,
+  lineHeight,
+  letterSpacing,
+  contentMaxWidth,
+  boldFontWeight,
+  headingFontWeight,
   hidden = false,
   className,
   style,
@@ -226,9 +238,19 @@ export function CodeMirrorEditor({
   }, [aiSuggestionLabels]);
 
   useLayoutEffect(() => {
-    // 字体与字号会改变行高和字符宽度，通知 CodeMirror 丢弃旧测量缓存。
+    // 字体、字号、字重、字距、行高或版心变动会改变文本测量和坐标，通知 CodeMirror 丢弃旧测量缓存。
     bridgeRef.current?.ports.requestMeasure();
-  }, [fontSize, proseFontFamily, codeFontFamily]);
+  }, [
+    fontSize,
+    proseFontFamily,
+    codeFontFamily,
+    headingFontFamily,
+    lineHeight,
+    letterSpacing,
+    contentMaxWidth,
+    boldFontWeight,
+    headingFontWeight,
+  ]);
 
   useLayoutEffect(() => {
     const activePlugins = plugins ?? syntaxPlugins;
@@ -259,10 +281,28 @@ export function CodeMirrorEditor({
   const fontSizeStyle: CSSProperties | undefined =
     fontSize !== undefined && Number.isFinite(fontSize) && fontSize > 0 ? { fontSize } : undefined;
   const fontStyles: CSSProperties | undefined =
-    proseFontFamily || codeFontFamily
+    proseFontFamily ||
+    codeFontFamily ||
+    headingFontFamily ||
+    lineHeight ||
+    letterSpacing ||
+    contentMaxWidth ||
+    boldFontWeight ||
+    headingFontWeight
       ? ({
           ...(proseFontFamily ? { "--theme-font": proseFontFamily } : {}),
           ...(codeFontFamily ? { "--theme-mono-font": codeFontFamily } : {}),
+          ...(headingFontFamily ? { "--theme-heading-font": headingFontFamily } : {}),
+          ...(lineHeight ? { "--theme-editor-line-height": lineHeight } : {}),
+          ...(letterSpacing ? { "--theme-letter-spacing": letterSpacing } : {}),
+          ...(contentMaxWidth
+            ? {
+                "--theme-content-width":
+                  typeof contentMaxWidth === "number" ? `${contentMaxWidth}px` : contentMaxWidth,
+              }
+            : {}),
+          ...(boldFontWeight ? { "--theme-bold-font-weight": boldFontWeight } : {}),
+          ...(headingFontWeight ? { "--theme-heading-font-weight": headingFontWeight } : {}),
         } as CSSProperties)
       : undefined;
 

@@ -1,11 +1,10 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { EditorUiActionsContextValue } from "@md-editor/editor-ui";
-import { resolveCodeFontStack, resolveProseFontStack } from "@md-editor/editor-ui";
+import type { ColorSchemeOverrides, EditorUiActionsContextValue } from "@md-editor/editor-ui";
+import { compileThemeCss, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/editor-ui";
 import { validateMarkdownRelativeLinks } from "@md-editor/file-system";
 import type { LinkDiagnosticItem } from "@md-editor/renderer-codemirror";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
 import { type AppSettings, resolveThemeColorScheme } from "../settings";
-import { builtInThemeCss } from "../settings/built-in-themes";
 
 export interface ExportDocumentStylingOptions {
   readonly proseFontFamily?: string;
@@ -21,22 +20,24 @@ export interface ExportPdfOptions extends ExportDocumentStylingOptions {
   readonly margin?: string;
 }
 
-const DEFAULT_EDITOR_PROSE_FONT =
-  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif';
-const DEFAULT_EDITOR_CODE_FONT =
-  'ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Code", "JetBrains Mono", "Source Code Pro", Consolas, monospace';
-
 /**
  * 从全局设置中提取导出排版样式（字体、字号、主题变量与色彩方案）
  */
 export function resolveExportStyling(settings: AppSettings): ExportDocumentStylingOptions {
   const scheme = resolveThemeColorScheme(settings.theme.mode);
   const themeScheme = scheme === "dark" ? settings.theme.dark : settings.theme.light;
-  const themeCss = builtInThemeCss(themeScheme.builtinTheme);
+  const themeCss = compileThemeCss({
+    baseTheme: themeScheme.builtinTheme,
+    colorScheme: scheme === "dark" ? "dark" : "light",
+    customCssText: (themeScheme as { readonly customCss?: string }).customCss,
+    lightOverrides: settings.theme.light as unknown as ColorSchemeOverrides,
+    darkOverrides: settings.theme.dark as unknown as ColorSchemeOverrides,
+  });
   const rawProseFont = resolveProseFontStack(settings.editor.proseFontFamily);
   const rawCodeFont = resolveCodeFontStack(settings.editor.codeFontFamily);
-  const proseFontFamily = rawProseFont || DEFAULT_EDITOR_PROSE_FONT;
-  const codeFontFamily = rawCodeFont || DEFAULT_EDITOR_CODE_FONT;
+  // 未显式选择覆盖字体时保持 undefined，完整继承主题自身的默认字体（如 Kami 衬线或宣纸文楷）
+  const proseFontFamily = rawProseFont || undefined;
+  const codeFontFamily = rawCodeFont || undefined;
   const fontSize = settings.editor.wysiwygFontSize || 16;
   const isDark = scheme === "dark";
 

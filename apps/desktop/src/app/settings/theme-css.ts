@@ -1,7 +1,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { compileThemeCss, setThemeStyleText } from "@md-editor/editor-ui";
 import type { AppThemeSettings, ThemeSchemeSettings } from "./app-settings";
 import { resolveThemeColorScheme } from "./app-settings";
-import { builtInThemeCss } from "./built-in-themes";
 
 export interface ThemeCssFile {
   readonly path: string;
@@ -79,8 +79,15 @@ export function applyCustomThemeCss(
     const scheme = resolveThemeColorScheme(theme.mode);
     const themeScheme = scheme === "dark" ? theme.dark : theme.light;
     const cssPath = customCssPathForThemeScheme(themeScheme);
-    const fallbackCss = builtInThemeCss(themeScheme.builtinTheme);
     const currentRequest = (requestId += 1);
+
+    const renderCss = (customCssText?: string) => {
+      return compileThemeCss({
+        baseTheme: themeScheme.builtinTheme,
+        colorScheme: scheme,
+        customCssText,
+      });
+    };
 
     target.dataset.themeScheme = scheme;
     target.dataset.themeSource = themeScheme.source;
@@ -88,28 +95,28 @@ export function applyCustomThemeCss(
     target.dataset.themeCssPath = cssPath ?? "";
 
     if (!cssPath) {
-      setThemeStyleText(fallbackCss);
+      setThemeStyleText(renderCss());
       return;
     }
 
     const cachedCss = themeCssCache.get(cssPath);
     if (cachedCss !== undefined) {
-      setThemeStyleText(cachedCss);
+      setThemeStyleText(renderCss(cachedCss));
       if (options.refreshCachedCss === false) return;
     } else {
-      setThemeStyleText(fallbackCss);
+      setThemeStyleText(renderCss());
     }
 
     void loadCss(cssPath)
       .then((file) => {
         if (!disposed && currentRequest === requestId) {
           rememberThemeCssFile(file);
-          setThemeStyleText(file.css);
+          setThemeStyleText(renderCss(file.css));
         }
       })
       .catch((error: unknown) => {
         if (!disposed && currentRequest === requestId) {
-          setThemeStyleText(fallbackCss);
+          setThemeStyleText(renderCss());
           console.warn("主题 CSS 加载失败", error);
         }
       });
@@ -158,17 +165,4 @@ async function preloadCurrentThemeCss(
     themeCssPreloadCache.set(cssPath, pending);
   }
   await pending;
-}
-
-function setThemeStyleText(css: string) {
-  let style = document.getElementById("md-editor-custom-theme") as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement("style");
-    style.id = "md-editor-custom-theme";
-    document.head.append(style);
-  }
-  if (style.textContent === css) {
-    return;
-  }
-  style.textContent = css;
 }

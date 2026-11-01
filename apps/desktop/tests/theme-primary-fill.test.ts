@@ -1,6 +1,5 @@
-import { primaryDialogButtonClassName } from "@md-editor/editor-ui";
+import { builtInThemeCss, primaryDialogButtonClassName } from "@md-editor/editor-ui";
 import { describe, expect, it } from "vitest";
-import { builtInThemeCss } from "../src/app/settings/built-in-themes";
 
 describe("primary button theme token", () => {
   it.each(["night-dark", "charcoal-dark"] as const)(

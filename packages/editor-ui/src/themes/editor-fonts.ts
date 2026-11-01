@@ -20,6 +20,11 @@ export const WYSIWYG_FONT_SIZE_MAX = 22;
 export const PROSE_FONT_OPTIONS: readonly FontOption[] = [
   { id: "", label: "跟随主题默认", stack: "" },
   {
+    id: "kami-serif",
+    label: "仓耳今楷 · Kami 衬线 (Charter / TsangerJinKai02)",
+    stack: `Charter, Georgia, "TsangerJinKai02", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", Palatino, serif`,
+  },
+  {
     id: "system-sans",
     label: "系统无衬线 (苹方 / San Francisco)",
     stack: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif`,
@@ -28,6 +33,11 @@ export const PROSE_FONT_OPTIONS: readonly FontOption[] = [
     id: "lxgw-wenkai",
     label: "霞鹜文楷 (LXGW WenKai)",
     stack: `"LXGW WenKai", "LXGW WenKai Screen", "LXGW WenKai GB", "LXGWWenKai-Regular", "LXGWWenKai", "霞鹜文楷", "霞鹜文楷 屏幕阅读版", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif`,
+  },
+  {
+    id: "source-han-serif",
+    label: "思源宋体 (Source Han Serif SC)",
+    stack: `"Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", "STSong", serif`,
   },
   {
     id: "songti",
