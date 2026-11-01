@@ -1,4 +1,4 @@
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 mod about_window;
 mod app_menu;
@@ -39,7 +39,7 @@ use file_commands::{
     save_pasted_image, show_file_tree_context_menu, write_exported_files,
 };
 use folder_watcher::{unwatch_folder, watch_folder, FolderWatcherState};
-use local_ai_completion::request_local_ai_continuation;
+use local_ai_completion::{cancel_local_ai_request, request_local_ai_continuation};
 use local_ai_model::{
     cancel_local_ai_model_download, check_local_ai_model_updates, delete_local_ai_model,
     download_local_ai_model, get_all_local_ai_models_status, get_local_ai_model_status,
@@ -86,7 +86,7 @@ pub fn run() {
         }
     });
 
-    builder
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
@@ -144,6 +144,7 @@ pub fn run() {
             download_local_ai_model,
             cancel_local_ai_model_download,
             delete_local_ai_model,
+            cancel_local_ai_request,
             request_local_ai_continuation,
             open_settings_window,
             open_about_window,
@@ -166,6 +167,31 @@ pub fn run() {
             save_history_snapshot,
             delete_history_snapshot
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Inkpoint");
+        .build(tauri::generate_context!())
+        .expect("error while building Inkpoint");
+
+    app.run(|app_handle, event| match event {
+        tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
+            if let Some(runtime_state) =
+                app_handle.try_state::<local_ai_runtime::LocalAiRuntimeState>()
+            {
+                local_ai_runtime::terminate_all_runtimes(&runtime_state);
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        tauri::RunEvent::WindowEvent {
+            event: tauri::WindowEvent::Destroyed,
+            ..
+        } => {
+            let has_windows = !app_handle.webview_windows().is_empty();
+            if !has_windows {
+                if let Some(runtime_state) =
+                    app_handle.try_state::<local_ai_runtime::LocalAiRuntimeState>()
+                {
+                    local_ai_runtime::terminate_all_runtimes(&runtime_state);
+                }
+            }
+        }
+        _ => {}
+    });
 }

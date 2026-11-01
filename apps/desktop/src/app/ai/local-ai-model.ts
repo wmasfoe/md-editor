@@ -19,15 +19,44 @@ export {
 } from "./local-ai-model-state";
 
 /**
- * 桌面端原生本地模型推理桥接函数，对齐 `@md-editor/ai` 的 LocalInferenceBridge 依赖倒置契约
+ * 桌面端原生本地模型推理桥接函数，对齐 `@md-editor/ai` 的 LocalInferenceBridge 依赖倒置契约。
+ * 支持与前端 AbortSignal 深度联动，在用户持续输入导致旧请求废弃时，主动向 Rust 端发送 cancel 指令。
  */
 export const desktopLocalAiBridge: LocalInferenceBridge = async (
   request: LocalInferenceRequest,
+  bridgeOptions?: { readonly signal?: AbortSignal },
 ): Promise<string> => {
-  const result = await desktopLocalAiInvokeImpl("request_local_ai_continuation", {
-    options: request,
-  });
-  return typeof result === "string" ? result : String(result ?? "");
+  const requestId =
+    request.requestId || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const requestWithOptions = {
+    ...request,
+    requestId,
+  };
+
+  const signal = bridgeOptions?.signal;
+  if (signal?.aborted) {
+    throw new Error("AI 请求已取消。");
+  }
+
+  const abortHandler = () => {
+    // 立即通知 Rust 侧强行中断底层 TCP 通信与 llama-server slot 生成，杜绝无意义任务堆积
+    void invoke("cancel_local_ai_request", { requestId }).catch(() => {});
+  };
+
+  if (signal) {
+    signal.addEventListener("abort", abortHandler, { once: true });
+  }
+
+  try {
+    const result = await desktopLocalAiInvokeImpl("request_local_ai_continuation", {
+      options: requestWithOptions,
+    });
+    return typeof result === "string" ? result : String(result ?? "");
+  } finally {
+    if (signal) {
+      signal.removeEventListener("abort", abortHandler);
+    }
+  }
 };
 
 export const desktopLocalAiInvokeImpl = async (

@@ -187,7 +187,6 @@ function useAutomaticAiEditing({
 }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const distillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portsRef = useRef<CodeMirrorEditorPorts | null>(ports);
   const lastAnalyzedTextRef = useRef<string>("");
   portsRef.current = ports;
@@ -212,41 +211,31 @@ function useAutomaticAiEditing({
       );
     }
 
-    const triggerDistillationIfEligible = (markdown: string, filePath?: string | null) => {
-      if (
-        markdown.trim().length >= 50 &&
-        settings.ai.enabled &&
-        (settings.ai.provider === "local"
-          ? settings.ai.localModel.enabled && settings.ai.localModel.status === "available"
-          : Boolean(settings.ai.endpoints[settings.ai.provider]?.apiKey))
-      ) {
-        const docKey = filePath || "untitled";
-        desktopAiService
-          .scheduleDistillation(docKey, markdown, {
-            settings: settings.ai,
-            onUpdate: (ctx) => {
-              if (import.meta.env.DEV) {
-                console.debug("[AI DocContext] 后台文档提炼已完成:", ctx);
-              }
-            },
-          })
-          .catch(() => {});
-      }
-    };
-
-    // 组件挂载时，若当前文档已具备足够长度，在后台低优先级异步触发宏观提炼
+    // 组件挂载时仅提取确定性 AST 大纲（零模型开销纯正则匹配），坚决不进行静默模型推理
     const initialSnap = runtime.document.getSnapshot();
-    triggerDistillationIfEligible(initialSnap.markdown, initialSnap.filePath);
+    if (initialSnap.markdown.trim()) {
+      desktopAiService.documentContext.getOrExtract(
+        initialSnap.filePath || "untitled",
+        initialSnap.markdown,
+      );
+    }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
-      // 换文档或重置文档时清除缓存并触发新文档的确定性大纲提取与后台提炼
+      // 换文档或重置文档时清除缓存、中断正在进行的推理，并预热新文档的确定性大纲
       if (event.transition.kind === "document-replace") {
         lastAnalyzedTextRef.current = "";
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         const snap = runtime.document.getSnapshot();
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
           desktopAiService.documentContext.getOrExtract(docKey, snap.markdown);
-          triggerDistillationIfEligible(snap.markdown, snap.filePath);
         }
         return;
       }
@@ -269,15 +258,6 @@ function useAutomaticAiEditing({
       if (event.transition.kind !== "content" || event.transition.origin.kind !== "renderer") {
         return;
       }
-
-      // 敲字过程中，如果内容发生累计，在用户停顿 2.5 秒后低频调度全篇滚动总结提炼
-      if (distillTimerRef.current) {
-        clearTimeout(distillTimerRef.current);
-      }
-      distillTimerRef.current = setTimeout(() => {
-        const snap = runtime.document.getSnapshot();
-        triggerDistillationIfEligible(snap.markdown, snap.filePath);
-      }, 2500);
 
       // 清除上一次未触发的定时器与未完成的请求
       if (timerRef.current) {
@@ -543,9 +523,6 @@ function useAutomaticAiEditing({
       unsubscribe();
       if (timerRef.current) {
         clearTimeout(timerRef.current);
-      }
-      if (distillTimerRef.current) {
-        clearTimeout(distillTimerRef.current);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();

@@ -22,6 +22,7 @@ pub(crate) struct LocalAiChatMessage {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalAiContinuationOptions {
+    request_id: Option<String>,
     model_id: Option<String>,
     max_tokens: Option<u16>,
     task: Option<LocalAiTask>,
@@ -35,6 +36,15 @@ pub(crate) struct LocalAiContinuationOptions {
 }
 
 #[tauri::command]
+pub(crate) fn cancel_local_ai_request(
+    runtime: State<'_, LocalAiRuntimeState>,
+    request_id: String,
+) -> Result<(), String> {
+    runtime.cancel_request(&request_id);
+    Ok(())
+}
+
+#[tauri::command]
 pub(crate) async fn request_local_ai_continuation(
     app: AppHandle,
     runtime: State<'_, LocalAiRuntimeState>,
@@ -45,14 +55,17 @@ pub(crate) async fn request_local_ai_continuation(
     let (is_raw, request) = build_local_ai_request(&model.model_id, max_tokens, &options)?;
 
     let runtime_manager = runtime.manager();
+    let runtime_state_clone = (*runtime).clone();
     let app_handle = app.clone();
     let model_for_runtime = model.clone();
     let task = options.task;
+    let request_id = options.request_id;
 
     #[cfg(debug_assertions)]
     {
         eprintln!(
-            "[Local AI] 📤 发起推理请求 (model={}, raw={}):\n--- [PROMPT 输入] ---\n{}\n--- [PROMPT 结束] ---",
+            "[Local AI] 📤 发起推理请求 (req={:?}, model={}, raw={}):\n--- [PROMPT 输入] ---\n{}\n--- [PROMPT 结束] ---",
+            request_id,
             model.model_id,
             is_raw,
             request.get("prompt").and_then(Value::as_str).unwrap_or("")
@@ -61,30 +74,52 @@ pub(crate) async fn request_local_ai_continuation(
 
     let response_body = tauri::async_runtime::spawn_blocking(move || {
         let idle_manager = Arc::clone(&runtime_manager);
-        let mut runtime = runtime_manager
-            .lock()
-            .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
-        let endpoint = match runtime.ensure_ready(&app_handle, &model_for_runtime) {
-            Ok(ep) => ep,
-            Err(err) => {
-                eprintln!("[Local AI Error] ensure_ready 启动服务失败: {err}");
-                return Err(err);
-            }
-        };
-        let response = runtime
-            .activate_lora_adapter(endpoint.port, task)
-            .and_then(|()| {
-                if is_raw {
-                    post_raw_completion(endpoint.port, &request, Duration::from_secs(120))
-                } else {
-                    post_chat_completion(endpoint.port, &request, Duration::from_secs(120))
+
+        // 细粒度并发锁优化：仅在启动环境检查与 LoRA 适配器切换期间短时间持有锁，
+        // 耗时的网络通信阶段在无锁状态下运行，允许并行 slot 通信并即时响应取消指令
+        let endpoint = {
+            let mut runtime = runtime_manager
+                .lock()
+                .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
+            let ep = match runtime.ensure_ready(&app_handle, &model_for_runtime) {
+                Ok(ep) => ep,
+                Err(err) => {
+                    eprintln!("[Local AI Error] ensure_ready 启动服务失败: {err}");
+                    return Err(err);
                 }
-            });
+            };
+            runtime.activate_lora_adapter(ep.port, task)?;
+            runtime.mark_used();
+            ep
+        };
+
+        let response = if is_raw {
+            post_raw_completion(
+                endpoint.port,
+                &request,
+                Duration::from_secs(120),
+                request_id.as_deref(),
+                Some(&runtime_state_clone),
+                task,
+            )
+        } else {
+            post_chat_completion(
+                endpoint.port,
+                &request,
+                Duration::from_secs(120),
+                request_id.as_deref(),
+                Some(&runtime_state_clone),
+                task,
+            )
+        };
+
         if let Err(err) = &response {
             eprintln!("[Local AI Error] 请求本地推理服务接口失败: {err}");
         }
-        runtime.mark_used();
-        drop(runtime);
+
+        if let Ok(mut runtime) = runtime_manager.lock() {
+            runtime.mark_used();
+        }
         schedule_idle_shutdown(idle_manager);
         response
     })
