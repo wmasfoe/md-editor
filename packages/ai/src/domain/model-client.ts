@@ -97,6 +97,8 @@ export interface LocalChatMessage {
  * 将该请求转发给 Rust 侧 `llama-server` 管理器。
  */
 export interface LocalInferenceRequest {
+  /** 唯一请求标识符（用于生命周期跟踪与中断取消） */
+  readonly requestId?: string;
   readonly modelId: string;
   readonly task?: AiTaskKind;
   /** 标准 `/v1/chat/completions` 对话消息列表（GEC / Standard 续写 / Distill） */
@@ -115,4 +117,7 @@ export interface LocalInferenceRequest {
 }
 
 /** 宿主平台注入的本地小模型推理桥接函数 */
-export type LocalInferenceBridge = (request: LocalInferenceRequest) => Promise<string>;
+export type LocalInferenceBridge = (
+  request: LocalInferenceRequest,
+  options?: { readonly signal?: AbortSignal },
+) => Promise<string>;

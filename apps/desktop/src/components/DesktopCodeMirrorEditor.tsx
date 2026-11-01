@@ -226,7 +226,7 @@ function useAutomaticAiEditing({
             settings: settings.ai,
             onUpdate: (ctx) => {
               if (import.meta.env.DEV) {
-                console.debug("[AI DocContext] 后台文档提炼已完成:", ctx);
+                console.debug("[AI DocContext] 后台大模型文档提炼已完成:", ctx);
               }
             },
           })
@@ -234,32 +234,64 @@ function useAutomaticAiEditing({
       }
     };
 
-    // 组件挂载时，若当前文档已具备足够长度，在后台低优先级异步触发宏观提炼
+    // 组件挂载时先预热基础大纲，若文档达到长度，延迟 3 秒后在后台低优先级调度大模型宏观提炼
     const initialSnap = runtime.document.getSnapshot();
-    triggerDistillationIfEligible(initialSnap.markdown, initialSnap.filePath);
+    if (initialSnap.markdown.trim()) {
+      desktopAiService.documentContext.getOrExtract(
+        initialSnap.filePath || "untitled",
+        initialSnap.markdown,
+      );
+      if (initialSnap.markdown.trim().length >= 50) {
+        distillTimerRef.current = setTimeout(() => {
+          const snap = runtime.document.getSnapshot();
+          triggerDistillationIfEligible(snap.markdown, snap.filePath);
+        }, 3000);
+      }
+    }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
-      // 换文档或重置文档时清除缓存并触发新文档的确定性大纲提取与后台提炼
+      // 换文档或重置文档时清除缓存、中断正在进行的推理，并在空闲后调度大模型提炼
       if (event.transition.kind === "document-replace") {
         lastAnalyzedTextRef.current = "";
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        if (distillTimerRef.current) {
+          clearTimeout(distillTimerRef.current);
+          distillTimerRef.current = null;
+        }
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         const snap = runtime.document.getSnapshot();
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
           desktopAiService.documentContext.getOrExtract(docKey, snap.markdown);
-          triggerDistillationIfEligible(snap.markdown, snap.filePath);
+          if (snap.markdown.trim().length >= 50) {
+            distillTimerRef.current = setTimeout(() => {
+              const currentSnap = runtime.document.getSnapshot();
+              triggerDistillationIfEligible(currentSnap.markdown, currentSnap.filePath);
+            }, 3000);
+          }
         }
         return;
       }
 
       // 模式切换时：立即取消未触发的自动续写定时器并中断在途的网络/本地模型推理请求
       if (event.transition.kind === "mode") {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         if (timerRef.current) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
         }
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
+        if (distillTimerRef.current) {
+          clearTimeout(distillTimerRef.current);
+          distillTimerRef.current = null;
         }
         lastAnalyzedTextRef.current = "";
         return;
@@ -270,15 +302,6 @@ function useAutomaticAiEditing({
         return;
       }
 
-      // 敲字过程中，如果内容发生累计，在用户停顿 2.5 秒后低频调度全篇滚动总结提炼
-      if (distillTimerRef.current) {
-        clearTimeout(distillTimerRef.current);
-      }
-      distillTimerRef.current = setTimeout(() => {
-        const snap = runtime.document.getSnapshot();
-        triggerDistillationIfEligible(snap.markdown, snap.filePath);
-      }, 2500);
-
       // 清除上一次未触发的定时器与未完成的请求
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -287,6 +310,15 @@ function useAutomaticAiEditing({
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
+
+      // 用户打字时，清除旧提炼定时器；当用户完全停止打字 8 秒后（处于思考停顿状态），低优先级在后台触发大模型提炼
+      if (distillTimerRef.current) {
+        clearTimeout(distillTimerRef.current);
+      }
+      distillTimerRef.current = setTimeout(() => {
+        const snap = runtime.document.getSnapshot();
+        triggerDistillationIfEligible(snap.markdown, snap.filePath);
+      }, 8000);
 
       const currentPorts = portsRef.current;
       if (!currentPorts) {

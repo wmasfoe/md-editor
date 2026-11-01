@@ -1,10 +1,14 @@
 use std::{
+    collections::{HashMap, HashSet},
     env,
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, Instant},
 };
@@ -21,8 +25,11 @@ const HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTH_CHECK_INTERVAL: Duration = Duration::from_millis(250);
 const LOCAL_AI_IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
+/// 全局活动 llama-server 进程 PID 记录，用于在应用退出或发生 panic 时内核级强制终结，杜绝孤儿进程
+static ACTIVE_LLAMA_PID: AtomicU32 = AtomicU32::new(0);
+
 /// Stable Harness task names are shared with `@md-editor/ai`; no legacy intent aliases.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum LocalAiTask {
     Gec,
@@ -48,11 +55,83 @@ impl LocalAiTask {
 #[derive(Clone, Default)]
 pub(crate) struct LocalAiRuntimeState {
     manager: Arc<Mutex<LocalAiRuntimeManager>>,
+    active_connections: Arc<Mutex<HashMap<String, Arc<TcpStream>>>>,
+    active_tasks: Arc<Mutex<HashMap<LocalAiTask, String>>>,
+    cancelled_request_ids: Arc<Mutex<HashSet<String>>>,
 }
 
 impl LocalAiRuntimeState {
     pub(crate) fn manager(&self) -> Arc<Mutex<LocalAiRuntimeManager>> {
         Arc::clone(&self.manager)
+    }
+
+    /// 注册正在执行的网络通信流，若此前存在同 task 的在途旧请求，自动抢占中止
+    pub(crate) fn register_connection(
+        &self,
+        request_id: String,
+        task: Option<LocalAiTask>,
+        stream: Arc<TcpStream>,
+    ) {
+        if let Some(t) = task {
+            let mut tasks = self.active_tasks.lock().unwrap();
+            if let Some(old_id) = tasks.insert(t, request_id.clone()) {
+                if old_id != request_id {
+                    let mut connections = self.active_connections.lock().unwrap();
+                    if let Some(old_stream) = connections.remove(&old_id) {
+                        let _ = old_stream.shutdown(std::net::Shutdown::Both);
+                    }
+                    let mut cancelled = self.cancelled_request_ids.lock().unwrap();
+                    cancelled.insert(old_id);
+                }
+            }
+        }
+
+        let mut connections = self.active_connections.lock().unwrap();
+        connections.insert(request_id, stream);
+    }
+
+    /// 注销已完成的通信流
+    pub(crate) fn unregister_connection(&self, request_id: &str) {
+        let mut connections = self.active_connections.lock().unwrap();
+        connections.remove(request_id);
+        let mut cancelled = self.cancelled_request_ids.lock().unwrap();
+        cancelled.remove(request_id);
+    }
+
+    /// 检查指定请求是否已被显式或抢占取消
+    pub(crate) fn is_cancelled(&self, request_id: &str) -> bool {
+        let cancelled = self.cancelled_request_ids.lock().unwrap();
+        cancelled.contains(request_id)
+    }
+
+    /// 主动取消指定请求：强行关闭连接流并标记为已取消，促使 llama-server 立即停止当前 slot
+    pub(crate) fn cancel_request(&self, request_id: &str) {
+        {
+            let mut cancelled = self.cancelled_request_ids.lock().unwrap();
+            cancelled.insert(request_id.to_string());
+        }
+        let mut connections = self.active_connections.lock().unwrap();
+        if let Some(stream) = connections.remove(request_id) {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+    }
+
+    /// 应用退出或窗口销毁时终结所有在途通信与后台推理子进程
+    pub(crate) fn terminate_all(&self) {
+        {
+            let mut connections = self.active_connections.lock().unwrap();
+            for stream in connections.values() {
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+            }
+            connections.clear();
+        }
+        if let Ok(mut manager) = self.manager.lock() {
+            manager.stop_runtime();
+        }
+        let pid = ACTIVE_LLAMA_PID.swap(0, Ordering::SeqCst);
+        if pid > 0 {
+            kill_process_by_pid(pid);
+        }
     }
 }
 
@@ -117,6 +196,8 @@ impl LocalAiRuntimeManager {
             )
         })?;
 
+        ACTIVE_LLAMA_PID.store(child.id(), Ordering::SeqCst);
+
         wait_until_runtime_ready(&mut child, port)?;
 
         self.process = Some(LocalAiRuntimeProcess {
@@ -165,11 +246,12 @@ impl LocalAiRuntimeManager {
         }
     }
 
-    fn stop_runtime(&mut self) {
+    pub(crate) fn stop_runtime(&mut self) {
         let Some(mut process) = self.process.take() else {
             return;
         };
 
+        ACTIVE_LLAMA_PID.store(0, Ordering::SeqCst);
         let _ = process.child.kill();
         let _ = process.child.wait();
     }
@@ -327,11 +409,24 @@ pub(crate) fn post_chat_completion(
     port: u16,
     request: &Value,
     timeout: Duration,
+    request_id: Option<&str>,
+    state: Option<&LocalAiRuntimeState>,
+    task: Option<LocalAiTask>,
 ) -> Result<String, String> {
     let body = serde_json::to_string(request)
         .map_err(|error| format!("序列化本地模型请求失败：{error}"))?;
-    let response =
-        send_localhost_http_request("POST", "/v1/chat/completions", port, Some(&body), timeout)?;
+    let response = send_localhost_http_request_cancellable(
+        "POST",
+        "/v1/chat/completions",
+        port,
+        Some(&body),
+        timeout,
+        CancellableRequestOptions {
+            request_id,
+            state,
+            task,
+        },
+    )?;
     Ok(response.body)
 }
 
@@ -339,10 +434,24 @@ pub(crate) fn post_raw_completion(
     port: u16,
     request: &Value,
     timeout: Duration,
+    request_id: Option<&str>,
+    state: Option<&LocalAiRuntimeState>,
+    task: Option<LocalAiTask>,
 ) -> Result<String, String> {
     let body = serde_json::to_string(request)
         .map_err(|error| format!("序列化本地模型请求失败：{error}"))?;
-    let response = send_localhost_http_request("POST", "/completion", port, Some(&body), timeout)?;
+    let response = send_localhost_http_request_cancellable(
+        "POST",
+        "/completion",
+        port,
+        Some(&body),
+        timeout,
+        CancellableRequestOptions {
+            request_id,
+            state,
+            task,
+        },
+    )?;
     Ok(response.body)
 }
 
@@ -503,6 +612,13 @@ struct HttpResponse {
     body: String,
 }
 
+#[derive(Default)]
+struct CancellableRequestOptions<'a> {
+    request_id: Option<&'a str>,
+    state: Option<&'a LocalAiRuntimeState>,
+    task: Option<LocalAiTask>,
+}
+
 fn send_localhost_http_request(
     method: &str,
     path: &str,
@@ -510,8 +626,36 @@ fn send_localhost_http_request(
     body: Option<&str>,
     timeout: Duration,
 ) -> Result<HttpResponse, String> {
+    send_localhost_http_request_cancellable(
+        method,
+        path,
+        port,
+        body,
+        timeout,
+        CancellableRequestOptions::default(),
+    )
+}
+
+fn send_localhost_http_request_cancellable(
+    method: &str,
+    path: &str,
+    port: u16,
+    body: Option<&str>,
+    timeout: Duration,
+    options: CancellableRequestOptions<'_>,
+) -> Result<HttpResponse, String> {
+    let request_id = options.request_id;
+    let state = options.state;
+    let task = options.task;
+
+    if let (Some(req_id), Some(st)) = (request_id, state) {
+        if st.is_cancelled(req_id) {
+            return Err("本地推理请求已取消。".to_string());
+        }
+    }
+
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-    let mut stream = TcpStream::connect_timeout(&address, timeout)
+    let stream = TcpStream::connect_timeout(&address, timeout)
         .map_err(|error| format!("连接本地推理服务失败：{error}"))?;
     stream
         .set_read_timeout(Some(timeout))
@@ -519,6 +663,24 @@ fn send_localhost_http_request(
     stream
         .set_write_timeout(Some(timeout))
         .map_err(|error| format!("设置本地推理写入超时失败：{error}"))?;
+
+    let stream = Arc::new(stream);
+    if let (Some(req_id), Some(st)) = (request_id, state) {
+        st.register_connection(req_id.to_string(), task, Arc::clone(&stream));
+    }
+
+    struct ConnectionGuard<'a> {
+        request_id: Option<&'a str>,
+        state: Option<&'a LocalAiRuntimeState>,
+    }
+    impl<'a> Drop for ConnectionGuard<'a> {
+        fn drop(&mut self) {
+            if let (Some(req_id), Some(st)) = (self.request_id, self.state) {
+                st.unregister_connection(req_id);
+            }
+        }
+    }
+    let _guard = ConnectionGuard { request_id, state };
 
     let body = body.unwrap_or("");
     let request = format!(
@@ -531,16 +693,49 @@ fn send_localhost_http_request(
          {body}",
         body.len()
     );
-    stream
+
+    let mut stream_write = &*stream;
+    stream_write
         .write_all(request.as_bytes())
         .map_err(|error| format!("发送本地模型请求失败：{error}"))?;
 
     let mut bytes = Vec::new();
-    stream
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("读取本地模型响应失败：{error}"))?;
+    let mut stream_read = &*stream;
+    let read_result = stream_read.read_to_end(&mut bytes);
+
+    if let (Some(req_id), Some(st)) = (request_id, state) {
+        if st.is_cancelled(req_id) {
+            return Err("本地推理请求已取消。".to_string());
+        }
+    }
+
+    read_result.map_err(|error| {
+        if let (Some(req_id), Some(st)) = (request_id, state) {
+            if st.is_cancelled(req_id) {
+                return "本地推理请求已取消。".to_string();
+            }
+        }
+        format!("读取本地模型响应失败：{error}")
+    })?;
 
     parse_http_response(&bytes)
+}
+
+fn kill_process_by_pid(pid: u32) {
+    #[cfg(unix)]
+    {
+        let _ = Command::new("kill").args(["-9", &pid.to_string()]).output();
+    }
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/F", "/PID", &pid.to_string()])
+            .output();
+    }
+}
+
+pub(crate) fn terminate_all_runtimes(state: &LocalAiRuntimeState) {
+    state.terminate_all();
 }
 
 fn parse_http_response(bytes: &[u8]) -> Result<HttpResponse, String> {
@@ -812,5 +1007,41 @@ mod tests {
 
         assert!(error.contains("500"));
         assert!(error.contains("bad"));
+    }
+
+    #[test]
+    fn preempts_and_cancels_in_flight_request_of_same_task() {
+        let state = LocalAiRuntimeState::default();
+        let listener = TcpListener::bind((LOCAL_AI_HOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let stream1 = TcpStream::connect((LOCAL_AI_HOST, port)).unwrap();
+        state.register_connection(
+            "req-1".to_string(),
+            Some(LocalAiTask::Completion),
+            Arc::new(stream1),
+        );
+        assert!(!state.is_cancelled("req-1"));
+
+        // 模拟打字过程中发起同任务的更新请求：应自动抢占旧任务
+        let stream2 = TcpStream::connect((LOCAL_AI_HOST, port)).unwrap();
+        state.register_connection(
+            "req-2".to_string(),
+            Some(LocalAiTask::Completion),
+            Arc::new(stream2),
+        );
+
+        assert!(state.is_cancelled("req-1"));
+        assert!(!state.is_cancelled("req-2"));
+
+        // 显式主动取消请求
+        state.cancel_request("req-2");
+        assert!(state.is_cancelled("req-2"));
+    }
+
+    #[test]
+    fn terminate_all_cleans_up_without_panic() {
+        let state = LocalAiRuntimeState::default();
+        terminate_all_runtimes(&state);
     }
 }

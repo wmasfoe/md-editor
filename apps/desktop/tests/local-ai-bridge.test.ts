@@ -20,9 +20,43 @@ describe("local AI bridge contract shared with Rust", () => {
       vi.mocked(invoke).mockResolvedValueOnce("模型正文");
 
       expect(await desktopLocalAiBridge(options as LocalInferenceRequest)).toBe("模型正文");
-      expect(invoke).toHaveBeenLastCalledWith("request_local_ai_continuation", { options });
+      expect(invoke).toHaveBeenLastCalledWith("request_local_ai_continuation", {
+        options: expect.objectContaining({
+          ...options,
+          requestId: expect.any(String),
+        }),
+      });
     },
   );
+
+  it("triggers cancel_local_ai_request IPC when signal aborts during in-flight inference", async () => {
+    let resolveInference!: (value: string) => void;
+    const pendingInference = new Promise<string>((resolve) => {
+      resolveInference = resolve;
+    });
+
+    vi.mocked(invoke).mockImplementation(async (command) => {
+      if (command === "request_local_ai_continuation") {
+        return pendingInference;
+      }
+      return null;
+    });
+
+    const abortController = new AbortController();
+    const bridgePromise = desktopLocalAiBridge(requests[0]!.options as LocalInferenceRequest, {
+      signal: abortController.signal,
+    });
+
+    // 模拟用户在打字期间触发了 abort
+    abortController.abort();
+
+    expect(invoke).toHaveBeenCalledWith("cancel_local_ai_request", {
+      requestId: expect.stringMatching(/^local-/),
+    });
+
+    resolveInference("done");
+    await bridgePromise;
+  });
 
   it("rejects browser preview before invoking native inference", async () => {
     vi.mocked(isTauri).mockReturnValueOnce(false);

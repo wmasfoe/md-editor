@@ -13,6 +13,7 @@
  *   4. `testConnection`（设置面板一键协议连通性测试）
  */
 
+import { createAbortError } from "../adapters/http-transport.ts";
 import type { ModelClient } from "../domain/model-client.ts";
 import { getAiCompletionReadiness } from "../domain/settings.ts";
 import type {
@@ -105,6 +106,10 @@ export class AiWritingService {
     snapshot: AiContextSnapshot,
     options: AiContinuationOptions = {},
   ): Promise<AiWritingSuggestion> {
+    if (options.signal?.aborted) {
+      throw createAbortError();
+    }
+
     const readiness = this.checkReadiness(settings, "continuation");
     if (readiness) {
       throw new Error(readiness);
@@ -112,45 +117,63 @@ export class AiWritingService {
 
     const isGhostText = options.isGhostText !== false;
     const client = this.resolveClient(settings, { fetchImpl: options.fetchImpl });
+    const documentId = snapshot.document?.filePath || "untitled";
 
-    const modelContext =
-      settings.provider === "local"
-        ? buildLocalContinuationModelContext(snapshot, settings.localModel.modelId, {
-            isGhostText,
-            profile: options.profile,
-            documentContext: options.documentContext,
-            signal: options.signal,
-            timeoutMs: options.timeoutMs,
-          })
-        : buildCloudContinuationModelContext(snapshot, {
-            isGhostText,
-            profile: options.profile,
-            documentContext: options.documentContext,
-            signal: options.signal,
-            timeoutMs: options.timeoutMs,
-          });
+    const scheduled = this.scheduler.schedule({
+      scope: {
+        documentId,
+        task: "completion",
+      },
+      priority: isGhostText ? "normal" : "urgent",
+      loraGroup: "completion",
+      run: async ({ signal: schedulerSignal }) => {
+        const signal = combineSignals(options.signal, schedulerSignal);
+        if (signal?.aborted) {
+          throw createAbortError();
+        }
 
-    const response = await client.generate(modelContext);
-    const continuation = sanitizeContinuationOutput(response.text, {
-      before: snapshot.before,
-      after: snapshot.after,
-      isGhostText,
+        const modelContext =
+          settings.provider === "local"
+            ? buildLocalContinuationModelContext(snapshot, settings.localModel.modelId, {
+                isGhostText,
+                profile: options.profile,
+                documentContext: options.documentContext,
+                signal,
+                timeoutMs: options.timeoutMs,
+              })
+            : buildCloudContinuationModelContext(snapshot, {
+                isGhostText,
+                profile: options.profile,
+                documentContext: options.documentContext,
+                signal,
+                timeoutMs: options.timeoutMs,
+              });
+
+        const response = await client.generate(modelContext);
+        const continuation = sanitizeContinuationOutput(response.text, {
+          before: snapshot.before,
+          after: snapshot.after,
+          isGhostText,
+        });
+
+        if (!continuation) {
+          return {
+            hasContinuation: false,
+            hasEdit: false,
+            edit: null,
+          };
+        }
+
+        return {
+          hasContinuation: true,
+          continuation,
+          hasEdit: false,
+          edit: null,
+        };
+      },
     });
 
-    if (!continuation) {
-      return {
-        hasContinuation: false,
-        hasEdit: false,
-        edit: null,
-      };
-    }
-
-    return {
-      hasContinuation: true,
-      continuation,
-      hasEdit: false,
-      edit: null,
-    };
+    return scheduled.promise;
   }
 
   /**
@@ -161,6 +184,10 @@ export class AiWritingService {
     snapshot: AiContextSnapshot,
     options: AiGrammarFixOptions = {},
   ): Promise<AiWritingSuggestion> {
+    if (options.signal?.aborted) {
+      throw createAbortError();
+    }
+
     const readiness = this.checkReadiness(settings, "editing");
     if (readiness) {
       throw new Error(readiness);
@@ -176,55 +203,73 @@ export class AiWritingService {
     }
 
     const client = this.resolveClient(settings, { fetchImpl: options.fetchImpl });
+    const documentId = snapshot.document?.filePath || "untitled";
 
-    const modelContext =
-      settings.provider === "local"
-        ? buildLocalGecModelContext(targetText, {
-            signal: options.signal,
-            timeoutMs: options.timeoutMs,
-          })
-        : buildCloudGecModelContext(targetText, {
-            documentContext: options.documentContext ?? snapshot.documentContext,
-            document: snapshot.document,
-            signal: options.signal,
-            timeoutMs: options.timeoutMs,
-          });
+    const scheduled = this.scheduler.schedule({
+      scope: {
+        documentId,
+        task: "gec",
+      },
+      priority: "normal",
+      loraGroup: "gec",
+      run: async ({ signal: schedulerSignal }) => {
+        const signal = combineSignals(options.signal, schedulerSignal);
+        if (signal?.aborted) {
+          throw createAbortError();
+        }
 
-    const response = await client.generate(modelContext);
+        const modelContext =
+          settings.provider === "local"
+            ? buildLocalGecModelContext(targetText, {
+                signal,
+                timeoutMs: options.timeoutMs,
+              })
+            : buildCloudGecModelContext(targetText, {
+                documentContext: options.documentContext ?? snapshot.documentContext,
+                document: snapshot.document,
+                signal,
+                timeoutMs: options.timeoutMs,
+              });
 
-    // 优先按紧凑元组 [[start, end, orig, repl]] 解析并经四重防御锚点校验
-    const tupleDiffs = parseTupleDiffOutput(response.text);
-    if (tupleDiffs.length > 0) {
-      const validated = resolveTripleDefenseDiffs(targetText, tupleDiffs);
-      return buildEditSuggestionFromDiffs(validated);
-    }
+        const response = await client.generate(modelContext);
 
-    // 若返回明确空数组 []，代表无错负样本通过，直接返回无修改
-    if (response.text.trim() === "[]") {
-      return {
-        hasContinuation: false,
-        hasEdit: false,
-        edit: null,
-      };
-    }
+        // 优先按紧凑元组 [[start, end, orig, repl]] 解析并经四重防御锚点校验
+        const tupleDiffs = parseTupleDiffOutput(response.text);
+        if (tupleDiffs.length > 0) {
+          const validated = resolveTripleDefenseDiffs(targetText, tupleDiffs);
+          return buildEditSuggestionFromDiffs(validated);
+        }
 
-    // 兼容部分云端模型偶发返回 JSON 对象格式 { edit: { original, replacement, reason } }
-    if (settings.provider !== "local") {
-      const fallbackParsed = parseAiWritingSuggestion(response.text, targetText);
-      if (fallbackParsed.hasEdit && fallbackParsed.edit) {
+        // 若返回明确空数组 []，代表无错负样本通过，直接返回无修改
+        if (response.text.trim() === "[]") {
+          return {
+            hasContinuation: false,
+            hasEdit: false,
+            edit: null,
+          };
+        }
+
+        // 兼容部分云端模型偶发返回 JSON 对象格式 { edit: { original, replacement, reason } }
+        if (settings.provider !== "local") {
+          const fallbackParsed = parseAiWritingSuggestion(response.text, targetText);
+          if (fallbackParsed.hasEdit && fallbackParsed.edit) {
+            return {
+              hasContinuation: false,
+              hasEdit: true,
+              edit: fallbackParsed.edit,
+            };
+          }
+        }
+
         return {
           hasContinuation: false,
-          hasEdit: true,
-          edit: fallbackParsed.edit,
+          hasEdit: false,
+          edit: null,
         };
-      }
-    }
+      },
+    });
 
-    return {
-      hasContinuation: false,
-      hasEdit: false,
-      edit: null,
-    };
+    return scheduled.promise;
   }
 
   /**
@@ -279,12 +324,25 @@ export class AiWritingService {
     }
 
     const client = this.resolveClient(options.settings, { fetchImpl: options.fetchImpl });
-    return this.documentContext.scheduleDistillation(filePath, markdown, {
-      client,
-      title: options.title,
-      onUpdate: options.onUpdate,
-      timeoutMs: options.timeoutMs,
+    const scheduled = this.scheduler.schedule({
+      scope: {
+        documentId: filePath || "untitled",
+        task: "distill",
+      },
+      priority: "background",
+      loraGroup: "distill",
+      run: async ({ signal: schedulerSignal }) => {
+        return this.documentContext.scheduleDistillation(filePath, markdown, {
+          client,
+          title: options.title,
+          onUpdate: options.onUpdate,
+          timeoutMs: options.timeoutMs,
+          signal: schedulerSignal,
+        });
+      },
     });
+
+    return scheduled.promise;
   }
 
   /**
@@ -348,4 +406,23 @@ export class AiWritingService {
       };
     }
   }
+}
+
+/**
+ * 安全合并多个 AbortSignal（只要任意一个触发 abort，组合 Signal 即触发 abort）。
+ */
+function combineSignals(s1?: AbortSignal, s2?: AbortSignal): AbortSignal | undefined {
+  if (!s1) return s2;
+  if (!s2) return s1;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([s1, s2]);
+  }
+  const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  s1.addEventListener("abort", onAbort, { once: true });
+  s2.addEventListener("abort", onAbort, { once: true });
+  if (s1.aborted || s2.aborted) {
+    controller.abort();
+  }
+  return controller.signal;
 }

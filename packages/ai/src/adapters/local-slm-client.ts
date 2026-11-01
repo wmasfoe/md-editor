@@ -40,9 +40,11 @@ export class LocalSlmClient implements ModelClient {
     const grammar =
       context.outputFormat?.kind === "gbnf-grammar" ? context.outputFormat.grammar : undefined;
 
+    const requestId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let request: LocalInferenceRequest;
     if (context.rawCompletion) {
       request = {
+        requestId,
         modelId: this.modelId,
         task: context.task,
         rawPrompt: context.rawCompletion.prompt,
@@ -67,6 +69,7 @@ export class LocalSlmClient implements ModelClient {
       });
 
       request = {
+        requestId,
         modelId: this.modelId,
         task: context.task,
         messages,
@@ -80,6 +83,7 @@ export class LocalSlmClient implements ModelClient {
     }
 
     logLlmRequest("LocalSLM", this.modelId, {
+      requestId,
       task: context.task,
       isFim: Boolean(context.rawCompletion),
       temperature: request.temperature,
@@ -89,7 +93,7 @@ export class LocalSlmClient implements ModelClient {
 
     try {
       const text = await runBridgeWithTimeout(
-        () => this.bridge(request),
+        () => this.bridge(request, { signal: context.signal }),
         context.signal,
         context.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
       );
