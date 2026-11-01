@@ -23,6 +23,7 @@ import { relaunchAfterUpdate } from "../updates/app-updater";
 import {
   keyboardShortcutLabel,
   createAppThemePreviewSession,
+  createAppEditorPreviewSession,
   listenToAppSettingsChanged,
   normalizeAiSettings,
   normalizeShortcutKey,
@@ -118,6 +119,7 @@ export function useSettingsController({
   const hasInitialized = useRef(false);
   const hasRevealedSettingsWindow = useRef(false);
   const [themePreviewSession] = useState(() => createAppThemePreviewSession());
+  const [editorPreviewSession] = useState(() => createAppEditorPreviewSession());
 
   useEffect(() => {
     let cancelled = false;
@@ -200,6 +202,14 @@ export function useSettingsController({
     });
   }, [surface, themeDraft, themePreviewSession]);
 
+  // 设置窗口编辑器排版与字体草稿实时广播给主窗口预览
+  useEffect(() => {
+    if (surface !== "settings-window" || !hasInitialized.current) return;
+    void editorPreviewSession.publish(editorSettingsDraft).catch((error: unknown) => {
+      console.warn("编辑器字体预览广播失败", error);
+    });
+  }, [editorPreviewSession, editorSettingsDraft, surface]);
+
   // 应用主题 CSS（设置窗口或内嵌设置页打开时应用草稿主题）
   useLayoutEffect(() => {
     if (surface !== "settings-window") return;
@@ -255,9 +265,13 @@ export function useSettingsController({
     await themePreviewSession.publish(null);
   }, [themePreviewSession]);
 
+  const restoreSavedEditorPreview = useCallback(async () => {
+    await editorPreviewSession.publish(null);
+  }, [editorPreviewSession]);
+
   const closeSettings = useCallback(() => {
     if (surface === "settings-window") {
-      void restoreSavedThemePreview()
+      void Promise.all([restoreSavedThemePreview(), restoreSavedEditorPreview()])
         .then(() => {
           void changeLanguage(loadedSettings.language);
           void publishAppLanguagePreview(null);
@@ -272,17 +286,26 @@ export function useSettingsController({
     setSettingsErrorMessage(null);
     syncDrafts(loadedSettings);
     void changeLanguage(loadedSettings.language);
-    void restoreSavedThemePreview().catch((error: unknown) => {
-      console.warn("主题预览回滚失败", error);
-    });
-  }, [closeEmbedded, loadedSettings, restoreSavedThemePreview, surface, syncDrafts]);
+    void Promise.all([restoreSavedThemePreview(), restoreSavedEditorPreview()]).catch(
+      (error: unknown) => {
+        console.warn("主题与字体预览回滚失败", error);
+      },
+    );
+  }, [
+    closeEmbedded,
+    loadedSettings,
+    restoreSavedEditorPreview,
+    restoreSavedThemePreview,
+    surface,
+    syncDrafts,
+  ]);
 
   const destroySettingsWindowAfterRollback = useCallback(async () => {
-    await restoreSavedThemePreview();
+    await Promise.all([restoreSavedThemePreview(), restoreSavedEditorPreview()]);
     await changeLanguage(loadedSettings.language);
     await publishAppLanguagePreview(null);
     await destroyCurrentSettingsWindow();
-  }, [loadedSettings.language, restoreSavedThemePreview]);
+  }, [loadedSettings.language, restoreSavedEditorPreview, restoreSavedThemePreview]);
 
   const captureShortcutDraft = useCallback((id: string, key: string) => {
     setShortcutDrafts((current) => ({ ...current, [id]: keyboardShortcutLabel(key) }));
@@ -357,7 +380,7 @@ export function useSettingsController({
         language: languageDraft,
         errorReporting: errorReportingDraft,
       });
-      await themePreviewSession.publish(null);
+      await Promise.all([themePreviewSession.publish(null), editorPreviewSession.publish(null)]);
       if (surface === "settings-window") {
         void publishAppLanguagePreview(null);
       }
@@ -394,6 +417,7 @@ export function useSettingsController({
     t,
     themeDraft,
     themePreviewSession,
+    editorPreviewSession,
     updateSettingsDraft,
   ]);
 

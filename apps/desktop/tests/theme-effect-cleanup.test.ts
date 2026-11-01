@@ -54,6 +54,21 @@ describe("theme effect cleanup wiring", () => {
     expect(settingsContextSource).toContain("loadPersistedSettings: loadAppSettings,");
   });
 
+  it("clears the temporary editor font preview when settings are cancelled", () => {
+    expect(settingsControllerSource).toContain("editorPreviewSession.publish(null)");
+  });
+
+  it("clears the temporary editor font preview after settings are saved", () => {
+    expect(
+      settingsControllerSource.match(/editorPreviewSession\.publish\(null\)/gu)?.length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("coordinates editor font live preview and persisted settings reload in main window", () => {
+    expect(settingsContextSource).toContain("createAppEditorPreviewCoordinator({");
+    expect(settingsContextSource).toContain("editor: previewEditor ?? settings.editor");
+  });
+
   it("keeps the first paint dark when the system is dark before saved settings load", () => {
     expect(desktopStyles).toContain("@media (prefers-color-scheme: dark)");
     expect(desktopStyles).toContain("color-scheme: dark;");

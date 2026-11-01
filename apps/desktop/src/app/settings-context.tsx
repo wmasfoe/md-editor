@@ -11,10 +11,12 @@ import { isTauri } from "@tauri-apps/api/core";
 import {
   appVersion,
   createAppThemePreviewCoordinator,
+  createAppEditorPreviewCoordinator,
   createDefaultSettings,
   loadAppSettings,
   listenToAppSettingsChanged,
   listenToAppThemePreviewChanged,
+  listenToAppEditorPreviewChanged,
   listenToAppLanguagePreviewChanged,
   type AppSettings,
   type UpdateStatus,
@@ -104,6 +106,7 @@ export function AppSettingsProvider({
   const [settings, setSettings] = useState<AppSettings>(() => createDefaultSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [previewTheme, setPreviewTheme] = useState<AppSettings["theme"] | null>(null);
+  const [previewEditor, setPreviewEditor] = useState<AppSettings["editor"] | null>(null);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
     currentVersion: appVersion(),
@@ -223,6 +226,26 @@ export function AppSettingsProvider({
       onPreviewTheme: setPreviewTheme,
     });
     const stopListening = listenToAppThemePreviewChanged((event) => {
+      void coordinator.handle(event).catch((error: unknown) => {
+        showToast(error instanceof Error ? error.message : "设置重新读取失败。");
+      });
+    });
+
+    return () => {
+      coordinator.dispose();
+      stopListening?.();
+    };
+  }, [showToast, surface]);
+
+  // 主窗口接收设置窗口的编辑器排版与字体预览
+  useEffect(() => {
+    if (surface !== "main") return;
+    const coordinator = createAppEditorPreviewCoordinator({
+      loadPersistedSettings: loadAppSettings,
+      onPersistedSettings: setSettings,
+      onPreviewEditor: setPreviewEditor,
+    });
+    const stopListening = listenToAppEditorPreviewChanged((event) => {
       void coordinator.handle(event).catch((error: unknown) => {
         showToast(error instanceof Error ? error.message : "设置重新读取失败。");
       });
@@ -494,8 +517,17 @@ export function AppSettingsProvider({
     showToast(t("settings.updates.toasts.downloaded", { version }));
   }, [showToast, updateStatus.latestVersion, updateStatus.state]);
 
+  const effectiveSettings = useMemo(
+    () => ({
+      ...settings,
+      theme: previewTheme ?? settings.theme,
+      editor: previewEditor ?? settings.editor,
+    }),
+    [settings, previewEditor, previewTheme],
+  );
+
   const value: AppSettingsContextValue = {
-    settings,
+    settings: effectiveSettings,
     hasLoadedSettings,
     updateStatus,
     isSettingsOpen,

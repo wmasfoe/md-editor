@@ -4,6 +4,7 @@ import { isWindowsPlatform } from "../src/lib/keyboard";
 import {
   compareReleaseVersions,
   createAppThemePreviewSession,
+  createAppEditorPreviewSession,
   createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
   DEFAULT_DEEPSEEK_BASE_URL,
@@ -25,6 +26,7 @@ import {
   listenToAppSettingsChanged,
   listenToAppLanguagePreviewChanged,
   listenToAppThemePreviewChanged,
+  listenToAppEditorPreviewChanged,
   loadAppSettings,
   publishAppLanguagePreview,
   saveAppSettings,
@@ -404,6 +406,40 @@ describe("app settings", () => {
         sessionId: "settings-test",
         sequence: 2,
         theme: null,
+      },
+    ]);
+  });
+
+  it("publishes sequenced editor display preview events for one settings session", async () => {
+    const events = new EventTarget();
+    vi.stubGlobal("window", events);
+
+    const previews: unknown[] = [];
+    const dispose = listenToAppEditorPreviewChanged((event) => previews.push(event));
+    const session = createAppEditorPreviewSession({ sessionId: "settings-editor-test" });
+
+    await session.publish({
+      ...DEFAULT_EDITOR_DISPLAY_SETTINGS,
+      wysiwygFontSize: 20,
+      proseFontFamily: "Inter",
+    });
+    await session.publish(null);
+    dispose?.();
+
+    expect(previews).toEqual([
+      {
+        sessionId: "settings-editor-test",
+        sequence: 1,
+        editor: {
+          ...DEFAULT_EDITOR_DISPLAY_SETTINGS,
+          wysiwygFontSize: 20,
+          proseFontFamily: "Inter",
+        },
+      },
+      {
+        sessionId: "settings-editor-test",
+        sequence: 2,
+        editor: null,
       },
     ]);
   });
