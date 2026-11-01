@@ -187,6 +187,7 @@ function useAutomaticAiEditing({
 }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const distillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portsRef = useRef<CodeMirrorEditorPorts | null>(ports);
   const lastAnalyzedTextRef = useRef<string>("");
   portsRef.current = ports;
@@ -211,22 +212,54 @@ function useAutomaticAiEditing({
       );
     }
 
-    // 组件挂载时仅提取确定性 AST 大纲（零模型开销纯正则匹配），坚决不进行静默模型推理
+    const triggerDistillationIfEligible = (markdown: string, filePath?: string | null) => {
+      if (
+        markdown.trim().length >= 50 &&
+        settings.ai.enabled &&
+        (settings.ai.provider === "local"
+          ? settings.ai.localModel.enabled && settings.ai.localModel.status === "available"
+          : Boolean(settings.ai.endpoints[settings.ai.provider]?.apiKey))
+      ) {
+        const docKey = filePath || "untitled";
+        desktopAiService
+          .scheduleDistillation(docKey, markdown, {
+            settings: settings.ai,
+            onUpdate: (ctx) => {
+              if (import.meta.env.DEV) {
+                console.debug("[AI DocContext] 后台大模型文档提炼已完成:", ctx);
+              }
+            },
+          })
+          .catch(() => {});
+      }
+    };
+
+    // 组件挂载时先预热基础大纲，若文档达到长度，延迟 3 秒后在后台低优先级调度大模型宏观提炼
     const initialSnap = runtime.document.getSnapshot();
     if (initialSnap.markdown.trim()) {
       desktopAiService.documentContext.getOrExtract(
         initialSnap.filePath || "untitled",
         initialSnap.markdown,
       );
+      if (initialSnap.markdown.trim().length >= 50) {
+        distillTimerRef.current = setTimeout(() => {
+          const snap = runtime.document.getSnapshot();
+          triggerDistillationIfEligible(snap.markdown, snap.filePath);
+        }, 3000);
+      }
     }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
-      // 换文档或重置文档时清除缓存、中断正在进行的推理，并预热新文档的确定性大纲
+      // 换文档或重置文档时清除缓存、中断正在进行的推理，并在空闲后调度大模型提炼
       if (event.transition.kind === "document-replace") {
         lastAnalyzedTextRef.current = "";
         if (timerRef.current) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
+        }
+        if (distillTimerRef.current) {
+          clearTimeout(distillTimerRef.current);
+          distillTimerRef.current = null;
         }
         if (abortControllerRef.current) {
           abortControllerRef.current.abort();
@@ -236,19 +269,29 @@ function useAutomaticAiEditing({
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
           desktopAiService.documentContext.getOrExtract(docKey, snap.markdown);
+          if (snap.markdown.trim().length >= 50) {
+            distillTimerRef.current = setTimeout(() => {
+              const currentSnap = runtime.document.getSnapshot();
+              triggerDistillationIfEligible(currentSnap.markdown, currentSnap.filePath);
+            }, 3000);
+          }
         }
         return;
       }
 
       // 模式切换时：立即取消未触发的自动续写定时器并中断在途的网络/本地模型推理请求
       if (event.transition.kind === "mode") {
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+          abortControllerRef.current = null;
+        }
         if (timerRef.current) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
         }
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-          abortControllerRef.current = null;
+        if (distillTimerRef.current) {
+          clearTimeout(distillTimerRef.current);
+          distillTimerRef.current = null;
         }
         lastAnalyzedTextRef.current = "";
         return;
@@ -267,6 +310,15 @@ function useAutomaticAiEditing({
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
+
+      // 用户打字时，清除旧提炼定时器；当用户完全停止打字 8 秒后（处于思考停顿状态），低优先级在后台触发大模型提炼
+      if (distillTimerRef.current) {
+        clearTimeout(distillTimerRef.current);
+      }
+      distillTimerRef.current = setTimeout(() => {
+        const snap = runtime.document.getSnapshot();
+        triggerDistillationIfEligible(snap.markdown, snap.filePath);
+      }, 8000);
 
       const currentPorts = portsRef.current;
       if (!currentPorts) {
@@ -523,6 +575,9 @@ function useAutomaticAiEditing({
       unsubscribe();
       if (timerRef.current) {
         clearTimeout(timerRef.current);
+      }
+      if (distillTimerRef.current) {
+        clearTimeout(distillTimerRef.current);
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();

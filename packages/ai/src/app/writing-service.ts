@@ -324,12 +324,25 @@ export class AiWritingService {
     }
 
     const client = this.resolveClient(options.settings, { fetchImpl: options.fetchImpl });
-    return this.documentContext.scheduleDistillation(filePath, markdown, {
-      client,
-      title: options.title,
-      onUpdate: options.onUpdate,
-      timeoutMs: options.timeoutMs,
+    const scheduled = this.scheduler.schedule({
+      scope: {
+        documentId: filePath || "untitled",
+        task: "distill",
+      },
+      priority: "background",
+      loraGroup: "distill",
+      run: async ({ signal: schedulerSignal }) => {
+        return this.documentContext.scheduleDistillation(filePath, markdown, {
+          client,
+          title: options.title,
+          onUpdate: options.onUpdate,
+          timeoutMs: options.timeoutMs,
+          signal: schedulerSignal,
+        });
+      },
     });
+
+    return scheduled.promise;
   }
 
   /**

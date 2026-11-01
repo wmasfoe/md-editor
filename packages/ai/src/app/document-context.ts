@@ -250,7 +250,7 @@ export async function distillDocumentProgressive(options: {
   let accumulatedSummary = "";
 
   try {
-    if (chunks.length === 1 || markdown.length <= 2_000) {
+    if (chunks.length === 1 || markdown.length <= 4_000) {
       if (signal?.aborted) {
         return baseContext;
       }
@@ -258,7 +258,7 @@ export async function distillDocumentProgressive(options: {
       const modelCtx = buildDistillModelContext({
         title: baseContext.title || "未命名文档",
         outline: baseContext.outline,
-        content: chunks[0]?.content || markdown.slice(0, 2_000),
+        content: chunks[0]?.content || markdown.slice(0, 4_000),
         signal,
         timeoutMs,
       });
@@ -269,7 +269,9 @@ export async function distillDocumentProgressive(options: {
         accumulatedSummary = topicOutput;
       }
     } else {
-      for (const chunk of chunks) {
+      // 长篇文档最多采样提炼前 3 个主要核心章节，避免碎片化连续数十次调用模型阻塞调度队列
+      const boundedChunks = chunks.slice(0, 3);
+      for (const chunk of boundedChunks) {
         if (signal?.aborted) {
           break;
         }
@@ -363,6 +365,7 @@ export class DocumentContextManager {
       readonly title?: string;
       readonly onUpdate?: (context: AiDocumentContext) => void;
       readonly timeoutMs?: number;
+      readonly signal?: AbortSignal;
     },
   ): Promise<AiDocumentContext> {
     const currentHash = simpleTextHash(markdown);
@@ -381,6 +384,14 @@ export class DocumentContextManager {
 
     const abortController = new AbortController();
     this.abortControllers.set(filePath, abortController);
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        abortController.abort();
+      } else {
+        options.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+      }
+    }
 
     const taskPromise = (async () => {
       try {
