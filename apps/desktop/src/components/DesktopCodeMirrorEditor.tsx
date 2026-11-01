@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CodeMirrorEditor,
+  type AiSuggestionItem,
   type CodeMirrorEditorPorts,
   resolveCodeFontStack,
   resolveProseFontStack,
@@ -361,8 +362,8 @@ function useAutomaticAiEditing({
           const rawLine = markdown.slice(lineStart, lineEnd);
           const currentLineText = rawLine.trim();
 
-          // 忽略完全空白或过短前文
-          if (before.trim().length < 2) {
+          // 忽略完全空白、过短前文，或处于代码块/公式块内部
+          if (before.trim().length < 2 || shouldSkipAutoGec(currentLineText, before)) {
             return;
           }
 
@@ -378,188 +379,129 @@ function useAutomaticAiEditing({
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
 
+          // CAS 护栏：锁定发起推理时的文档版本快照
+          const initialMarkdown = markdown;
+
           try {
-            // =========================================================
-            // 阶段 1：优先触发「AI 语法与润色修复」
-            // 前置守卫：表格、代码块、URL、未闭合符号或行首符号输入中不触发自动 GEC
-            // =========================================================
-            let hasRenderedEditSuggestion = false;
-
-            const shouldSkipGec = shouldSkipAutoGec(rawLine, before);
-
-            if (settings.ai.features.editing && currentLineText.length >= 3 && !shouldSkipGec) {
-              if (import.meta.env.DEV) {
-                console.debug("[AI 流水线] ▶ 阶段 1：优先发起「AI 语法与润色修复」审校...", {
-                  cursorPos,
-                  currentLineText,
-                });
-              }
-
-              const editResult = await desktopAiService.fixGrammar(
-                settings.ai,
-                {
-                  before,
-                  after,
-                  selectedText: currentLineText,
-                  mode: snapshot.mode,
-                  document: {
-                    filePath: snapshot.filePath,
-                  },
-                  documentContext: docContext,
-                },
-                {
-                  signal: abortController.signal,
-                },
+            if (import.meta.env.DEV) {
+              console.debug(
+                `[AI Cursor Tab] ▶ 统一单次前向推理 (Single-Pass)... (provider: ${settings.ai.provider})`,
+                { cursorPos, markdownLength: markdown.length },
               );
+            }
 
-              if (abortController.signal.aborted) {
-                return;
-              }
+            // 单次前向推理：模型直接决断是进行 Diff 错词修复还是 Ghost Text 行内续写
+            const decision = await desktopAiService.predictUnifiedEdit(
+              settings.ai,
+              {
+                before,
+                after,
+                selectedText: "",
+                mode: snapshot.mode,
+                document: {
+                  filePath: snapshot.filePath,
+                },
+                documentContext: docContext,
+              },
+              {
+                isGhostText: true,
+                signal: abortController.signal,
+              },
+            );
 
+            if (abortController.signal.aborted) {
+              return;
+            }
+
+            // CAS 护栏校验：若文档在异步推理期间被用户打字更改，丢弃旧预测防止坐标漂移
+            const latestSnap = runtime.document.getSnapshot();
+            if (latestSnap.markdown !== initialMarkdown) {
               if (import.meta.env.DEV) {
-                console.debug("[AI 流水线] 阶段 1 审校解析结果:", editResult);
-              }
-
-              if (editResult.hasEdit && editResult.edit && editResult.edit.replacement) {
-                const diffs =
-                  editResult.edit.diffs && editResult.edit.diffs.length > 0
-                    ? editResult.edit.diffs
-                    : [
-                        {
-                          original: editResult.edit.original,
-                          replacement: editResult.edit.replacement,
-                          utf16From: editResult.edit.utf16From,
-                          utf16To: editResult.edit.utf16To,
-                        },
-                      ];
-
-                // 计算当前行的首部缩进偏移量，防止缩进行（如列表项）产生定位偏差
-                const leadingSpaces = rawLine.length - rawLine.trimStart().length;
-                const lineContentStart = lineStart + leadingSpaces;
-
-                const items = diffs
-                  .map((diff) => {
-                    let itemFrom = lineContentStart;
-                    let itemTo = lineEnd;
-                    const originalText = diff.original;
-
-                    if (typeof diff.utf16From === "number" && typeof diff.utf16To === "number") {
-                      itemFrom = lineContentStart + diff.utf16From;
-                      itemTo = lineContentStart + diff.utf16To;
-                    } else if (diff.original && currentLineText.includes(diff.original)) {
-                      const offset = currentLineText.indexOf(diff.original);
-                      itemFrom = lineContentStart + offset;
-                      itemTo = itemFrom + diff.original.length;
-                    }
-
-                    return {
-                      from: itemFrom,
-                      to: itemTo,
-                      text: diff.replacement,
-                      originalText,
-                      explanation: editResult.edit?.reason,
-                    };
-                  })
-                  .filter(
-                    (item) =>
-                      item.from <= item.to &&
-                      item.text.length > 0 &&
-                      item.originalText !== item.text,
-                  );
-
-                if (items.length > 0) {
-                  if (import.meta.env.DEV) {
-                    console.debug(
-                      `[AI 流水线] ⏸ 阶段 1 发现 ${items.length} 处修改建议 (hasEdit: true)，渲染 Diff 队列并终止后续阶段 2 续写:`,
-                      items,
-                    );
-                  }
-
-                  activePorts.showSuggestion({
-                    items,
-                    activeIndex: 0,
-                    from: items[0].from,
-                    to: items[0].to,
-                    text: items[0].text,
-                    originalText: items[0].originalText,
-                    explanation: items[0].explanation,
-                  });
-                  hasRenderedEditSuggestion = true;
-                  lastAnalyzedTextRef.current = cacheKey;
-                  return; // 存在语法/润色问题并已展示修改建议，结束流程（不触发续写）
-                }
-              } else if (import.meta.env.DEV) {
                 console.debug(
-                  "[AI 流水线] ⏩ 阶段 1 审校完成：未发现语法问题 (hasEdit: false)，准备进入阶段 2 续写...",
+                  "[AI Cursor Tab] ⚠️ 文档在推理期间已被用户编辑修改 (CAS mismatch)，丢弃过时建议。",
                 );
+              }
+              return;
+            }
+
+            // 确认光标依然没有展示中的建议
+            if (activePorts.getSuggestion() !== null) {
+              return;
+            }
+
+            if (decision.action === "none" || decision.items.length === 0) {
+              if (import.meta.env.DEV) {
+                console.debug("[AI Cursor Tab] ⏩ 推理决策为无需修改/续写 (action: none)。");
+              }
+              lastAnalyzedTextRef.current = cacheKey;
+              return;
+            }
+
+            // 计算微观切片（Prefix 1500）在全篇文档中的绝对起始偏移量
+            const microPrefixMax = 1500;
+            const microPrefixLength = Math.min(before.length, microPrefixMax);
+            const sliceStartInDoc = before.length - microPrefixLength;
+
+            const items: AiSuggestionItem[] = [];
+
+            for (const item of decision.items) {
+              if (item.action === "continuation") {
+                // Continuation: 幽灵续写锚定在当前光标处
+                items.push({
+                  from: cursorPos,
+                  to: cursorPos,
+                  text: item.text,
+                });
+              } else if (item.action === "edit") {
+                // Edit: 将相对切片坐标转为全篇绝对坐标
+                const absFrom = sliceStartInDoc + item.fromOffset;
+                const absTo = sliceStartInDoc + item.toOffset;
+
+                // 防御校验：确认文档原字符与建议原字符严格匹配
+                if (absFrom >= 0 && absTo <= latestSnap.markdown.length && absFrom <= absTo) {
+                  const docSubstring = latestSnap.markdown.slice(absFrom, absTo);
+                  if (item.originalText && docSubstring !== item.originalText) {
+                    if (import.meta.env.DEV) {
+                      console.warn(
+                        `[AI Cursor Tab] 防御校验丢弃幻觉项: 目标子串 "${docSubstring}" !== 原文期望 "${item.originalText}"`,
+                      );
+                    }
+                    continue;
+                  }
+                  items.push({
+                    from: absFrom,
+                    to: absTo,
+                    text: item.text,
+                    originalText: item.originalText,
+                    explanation: item.reason,
+                  });
+                }
               }
             }
 
-            // =========================================================
-            // 阶段 2：语法检查无误（或未开启语法审校），紧接着触发「AI 续写」
-            // =========================================================
-            if (!hasRenderedEditSuggestion && settings.ai.features.continuation) {
-              // 确认光标依然没有展示中的建议
-              if (activePorts.getSuggestion() !== null) {
-                return;
-              }
-
+            if (items.length > 0) {
               if (import.meta.env.DEV) {
                 console.debug(
-                  "[AI 流水线] ▶ 阶段 2：语法无误，触发光标处「AI 行内续写 (Ghost Text)」...",
-                  {
-                    cursorPos,
-                    beforeLength: before.length,
-                  },
+                  `[AI Cursor Tab] ✔ 渲染流式单焦点建议 (${decision.action}, 共 ${items.length} 处预推测):`,
+                  items[0],
                 );
               }
 
-              const continuationResult = await desktopAiService.continueWriting(
-                settings.ai,
-                {
-                  before,
-                  after,
-                  selectedText: "",
-                  mode: snapshot.mode,
-                  document: {
-                    filePath: snapshot.filePath,
-                  },
-                  documentContext: docContext,
-                },
-                {
-                  isGhostText: true,
-                  signal: abortController.signal,
-                },
-              );
-
-              if (abortController.signal.aborted) {
-                return;
-              }
-
-              if (import.meta.env.DEV) {
-                console.debug("[AI 流水线] 阶段 2 续写解析结果:", continuationResult);
-              }
-
-              if (continuationResult.hasContinuation && continuationResult.continuation) {
-                if (import.meta.env.DEV) {
-                  console.debug(
-                    "[AI 流水线] ✔ 阶段 2 获得续写内容，渲染 Ghost Text:",
-                    continuationResult.continuation,
-                  );
-                }
-
-                activePorts.showSuggestion({
-                  from: cursorPos,
-                  to: cursorPos,
-                  text: continuationResult.continuation,
-                });
-              }
+              activePorts.showSuggestion({
+                items,
+                activeIndex: 0,
+                from: items[0].from,
+                to: items[0].to,
+                text: items[0].text,
+                originalText: items[0].originalText,
+                explanation: items[0].explanation,
+              });
             }
 
             lastAnalyzedTextRef.current = cacheKey;
           } catch (error) {
             if (import.meta.env.DEV) {
-              console.warn("[AI Auto] 自动建议流水线发生异常:", error);
+              console.warn("[AI Cursor Tab] 统一单次推理发生异常:", error);
             }
           } finally {
             if (abortControllerRef.current === abortController) {
@@ -567,7 +509,7 @@ function useAutomaticAiEditing({
             }
           }
         },
-        settings.ai.provider === "local" ? 650 : 1000,
+        settings.ai.provider === "local" ? 400 : 600,
       );
     });
 

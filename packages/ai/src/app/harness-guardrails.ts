@@ -19,6 +19,8 @@ import type {
   AiWritingEditSuggestion,
   AiWritingSuggestion,
   CompactTupleDiff,
+  UnifiedEditDecision,
+  UnifiedEditItem,
   ValidatedDiffItem,
 } from "../domain/types.ts";
 
@@ -697,7 +699,194 @@ function readObjectProperty(
   key: string,
 ): Record<string, unknown> | null {
   const value = input[key];
-  return typeof value === "object" && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(parsedProperty(value))
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function parsedProperty(val: unknown): unknown {
+  return val;
+}
+
+/**
+ * 剥离外层 Markdown 代码块（如 ```diff ... ``` 或 ```text ... ```）及周围闲聊文字。
+ */
+function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  const fenceMatch = trimmed.match(/```[a-zA-Z0-9_-]*\s*([\s\S]*?)\s*```/u);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
+  return trimmed;
+}
+
+/**
+ * 提取核心 Action-First 指令内容，剥离前置客套话。
+ */
+function isolateActionBlock(text: string): string {
+  const editIdx = text.search(/\bACT:EDIT\b/iu);
+  if (editIdx !== -1) {
+    return text.slice(editIdx).trim();
+  }
+  const contIdx = text.search(/\bACT:CONT\b/iu);
+  if (contIdx !== -1) {
+    return text.slice(contIdx).trim();
+  }
+  const noneIdx = text.search(/\bACT:NONE\b/iu);
+  if (noneIdx !== -1) {
+    return text.slice(noneIdx).trim();
+  }
+  return text;
+}
+
+/**
+ * 解析并防御校验统一单次前向推理模型输出（Action-First 协议）。
+ *
+ * 坐标契约：
+ * items 中的 fromOffset 与 toOffset 均严格以 context.slice 首字符为 0 索引 UTF-16 偏移。
+ */
+export function parseUnifiedEditOutput(
+  rawOutput: string,
+  context: {
+    readonly slice: string;
+    readonly cursorOffset?: number;
+  },
+): UnifiedEditDecision {
+  const cleaned = stripThinkingTags(rawOutput);
+  const defenced = isolateActionBlock(stripMarkdownFences(cleaned));
+  const trimmed = defenced.trim();
+
+  if (!trimmed) {
+    return { action: "none", items: [], rawModelOutput: rawOutput };
+  }
+
+  const cursorOffset = context.cursorOffset ?? context.slice.length;
+
+  // 1. 显式标记 ACT:NONE 或 [NONE]
+  if (/^ACT:NONE\b/iu.test(trimmed) || trimmed === "[NONE]" || trimmed === "[]") {
+    return { action: "none", items: [], rawModelOutput: rawOutput };
+  }
+
+  // 2. 检查是否为 ACT:CONT 或 [CONTINUATION: ...]
+  const isActCont = /^ACT:CONT\b/iu.test(trimmed);
+  const legacyContMatch = trimmed.match(/^\[CONTINUATION:\s*(?:["']?)([\s\S]*?)(?:["']?)\]$/iu);
+
+  if (isActCont || legacyContMatch) {
+    const contText = isActCont
+      ? trimmed.replace(/^ACT:CONT\b[:\s]*/iu, "")
+      : (legacyContMatch?.[1] ?? "");
+    const sanitized = sanitizeContinuationOutput(contText);
+    if (!sanitized) {
+      return { action: "none", items: [], rawModelOutput: rawOutput };
+    }
+
+    const item: UnifiedEditItem = {
+      action: "continuation",
+      fromOffset: cursorOffset,
+      toOffset: cursorOffset,
+      text: sanitized,
+    };
+    return {
+      action: "continuation",
+      items: [item],
+      rawModelOutput: rawOutput,
+    };
+  }
+
+  // 3. 检查是否为 ACT:EDIT 或 [EDIT: ...] 标签
+  const isActEdit = /^ACT:EDIT\b/iu.test(trimmed);
+  const legacyEditMatches = Array.from(
+    trimmed.matchAll(/\[EDIT:\s*(\d+)\s*,\s*(\d+)\s*,\s*["'](.*?)["']\s*,\s*["'](.*?)["']\s*\]/giu),
+  );
+
+  if (isActEdit || legacyEditMatches.length > 0) {
+    let diffList: CompactTupleDiff[] = [];
+
+    if (legacyEditMatches.length > 0) {
+      diffList = legacyEditMatches.map((m) => [
+        Number.parseInt(m[1], 10),
+        Number.parseInt(m[2], 10),
+        m[3],
+        m[4],
+      ]);
+    } else {
+      // 从 ACT:EDIT 后续正文中解析 JSON 数组或 tuple diffs
+      const editBody = trimmed.replace(/^ACT:EDIT\b[:\s]*/iu, "").trim();
+      diffList = parseTupleDiffOutput(editBody);
+      // 若未能通过标准 tuple 解析，尝试单项 [start, end, "orig", "repl"]
+      if (diffList.length === 0) {
+        const singleTuple = parseTupleDiffOutput(`[${editBody}]`);
+        if (singleTuple.length > 0) {
+          diffList = singleTuple;
+        }
+      }
+    }
+
+    if (diffList.length > 0) {
+      const validated = resolveTripleDefenseDiffs(context.slice, diffList);
+      if (validated.length > 0) {
+        const items: UnifiedEditItem[] = validated.map((diff) => ({
+          action: "edit",
+          fromOffset: diff.utf16From,
+          toOffset: diff.utf16To,
+          originalText: diff.original,
+          text: diff.replacement,
+        }));
+        return {
+          action: "edit",
+          items,
+          rawModelOutput: rawOutput,
+        };
+      }
+    }
+
+    // 若声明了 ACT:EDIT 但无有效经过校验的 diff，安全降级为 none
+    return { action: "none", items: [], rawModelOutput: rawOutput };
+  }
+
+  // 4. 纯紧凑数组兜底（如 [[10, 15, "orig", "repl"]]）
+  if (trimmed.startsWith("[")) {
+    const tupleDiffs = parseTupleDiffOutput(trimmed);
+    if (tupleDiffs.length > 0) {
+      const validated = resolveTripleDefenseDiffs(context.slice, tupleDiffs);
+      if (validated.length > 0) {
+        const items: UnifiedEditItem[] = validated.map((diff) => ({
+          action: "edit",
+          fromOffset: diff.utf16From,
+          toOffset: diff.utf16To,
+          originalText: diff.original,
+          text: diff.replacement,
+        }));
+        return {
+          action: "edit",
+          items,
+          rawModelOutput: rawOutput,
+        };
+      }
+    }
+  }
+
+  // 5. 容错降级（Case U-10）：小模型未输出任何标签，但输出了自然句子
+  // 若光标在切片尾部或空白处，安全降级为 Ghost Text 续写
+  const isNearEnd = cursorOffset >= context.slice.trimEnd().length;
+  if (isNearEnd && !trimmed.includes("[") && !trimmed.includes("{")) {
+    const fallbackCont = sanitizeContinuationOutput(trimmed);
+    if (fallbackCont) {
+      return {
+        action: "continuation",
+        items: [
+          {
+            action: "continuation",
+            fromOffset: cursorOffset,
+            toOffset: cursorOffset,
+            text: fallbackCont,
+          },
+        ],
+        rawModelOutput: rawOutput,
+      };
+    }
+  }
+
+  // 其他不可识别杂质输出，安全静默丢弃
+  return { action: "none", items: [], rawModelOutput: rawOutput };
 }

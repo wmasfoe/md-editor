@@ -377,3 +377,143 @@ export function buildDistillModelContext(input: {
     timeoutMs: input.timeoutMs,
   };
 }
+
+/** Action-First 协议统一动作前缀 */
+export const ACTION_PREFIX_EDIT = "ACT:EDIT";
+export const ACTION_PREFIX_CONT = "ACT:CONT";
+export const ACTION_PREFIX_NONE = "ACT:NONE";
+
+/** 微观滑动窗口切片默认裁剪尺寸 */
+export const UNIFIED_MICRO_PREFIX_MAX = 1_500;
+export const UNIFIED_MICRO_SUFFIX_MAX = 500;
+
+/** 微观滑动窗口切片数据契约 */
+export interface UnifiedMicroContextSlice {
+  readonly prefix: string;
+  readonly suffix: string;
+  readonly slice: string;
+  /** 光标在 slice 内的相对 UTF-16 偏移位置 */
+  readonly cursorOffset: number;
+}
+
+/**
+ * 构造统一单次推理所使用的微观滑动窗口切片。
+ */
+export function createUnifiedMicroSlice(
+  snapshot: AiContextSnapshot,
+  options: {
+    readonly prefixMax?: number;
+    readonly suffixMax?: number;
+  } = {},
+): UnifiedMicroContextSlice {
+  const prefixMax = options.prefixMax ?? UNIFIED_MICRO_PREFIX_MAX;
+  const suffixMax = options.suffixMax ?? UNIFIED_MICRO_SUFFIX_MAX;
+
+  const prefix =
+    snapshot.before.length <= prefixMax ? snapshot.before : snapshot.before.slice(-prefixMax);
+  const suffix =
+    snapshot.after.length <= suffixMax ? snapshot.after : snapshot.after.slice(0, suffixMax);
+
+  const slice = `${prefix}${suffix}`;
+  const cursorOffset = prefix.length;
+
+  return {
+    prefix,
+    suffix,
+    slice,
+    cursorOffset,
+  };
+}
+
+/** 类 Cursor Tab 统一单次决策系统提示词 */
+export const UNIFIED_EDIT_SYSTEM_PROMPT = [
+  "你是类似 Cursor Tab 的智能 Markdown 写作与润色协同引擎。",
+  "根据提供的宏观文档上下文和用户当前编辑的局部微观滑动窗口切片，做出唯一的首字极速决策：",
+  "1. 若光标所在句子或邻近文本存在错别字、病句、漏字、多字或中英文标点错误：",
+  '   首行严格输出 ACT:EDIT，后续每行输出紧凑 Diff 数组：[fromOffset, toOffset, "原词", "建议词"]',
+  "   【关键原则】：fromOffset 与 toOffset 必须严格以【微观待检切片】的首字符为 0 索引 UTF-16 偏移；",
+  "2. 若当前文本通顺完整，且光标处于自然的写作停顿或词尾，适合向下延续：",
+  "   首行严格输出 ACT:CONT，紧随其后直接输出自然续写正文（禁止输出外层引号或解释说明）；",
+  "3. 若当前状态完备且不需要任何修改或续写（如未完成的专有名词、独立无误代码等）：",
+  "   严格仅输出 ACT:NONE，禁止输出任何其他分析文字。",
+  "必须保持克制：遇到专有名词、代码片段或表达自然无误的内容，严禁强行润色。",
+].join("\n");
+
+/**
+ * 构建云端统一决策 `ModelContext`。
+ */
+export function buildCloudUnifiedEditModelContext(
+  snapshot: AiContextSnapshot,
+  options: {
+    readonly isGhostText?: boolean;
+    readonly profile?: UserStyleProfile;
+    readonly documentContext?: AiDocumentContext;
+    readonly signal?: AbortSignal;
+    readonly timeoutMs?: number;
+  } = {},
+): ModelContext {
+  const micro = createUnifiedMicroSlice(snapshot);
+  const docPrefix = buildDocumentContextPrefix(
+    options.documentContext ?? snapshot.documentContext,
+    snapshot.document,
+  );
+  const stylePrefix = options.profile ? buildUserStyleProfilePrefix(options.profile) : "";
+
+  const instruction = [UNIFIED_EDIT_SYSTEM_PROMPT, stylePrefix, docPrefix]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const userPrompt = [
+    `【微观待检切片】(共 ${micro.slice.length} 字符，当前光标位于偏移 ${micro.cursorOffset})`,
+    '"""',
+    micro.slice,
+    '"""',
+    "请根据当前切片及光标位置做出单次决策：",
+  ].join("\n");
+
+  return {
+    instruction,
+    prompt: userPrompt,
+    temperature: 0.2,
+    maxTokens: 160,
+    task: "completion",
+    signal: options.signal,
+    timeoutMs: options.timeoutMs,
+  };
+}
+
+/**
+ * 构建本地模型统一决策 `ModelContext`（处理 Lite 0.6B 与 Standard 档位分流）。
+ */
+export function buildLocalUnifiedEditModelContext(
+  snapshot: AiContextSnapshot,
+  modelId: string,
+  options: {
+    readonly isGhostText?: boolean;
+    readonly profile?: UserStyleProfile;
+    readonly documentContext?: AiDocumentContext;
+    readonly signal?: AbortSignal;
+    readonly timeoutMs?: number;
+  } = {},
+): ModelContext {
+  // 本地 Lite 档位 (Qwen 3 0.6B)：为了避免双重任务认知过载，光标在行尾时走原生 FIM 极速续写
+  if (isLiteLocalModel(modelId)) {
+    const isAtLineEnd =
+      snapshot.after.length === 0 ||
+      snapshot.after.startsWith("\n") ||
+      snapshot.after.startsWith("\r");
+    if (isAtLineEnd && !snapshot.selectedText) {
+      return buildLocalContinuationModelContext(snapshot, modelId, options);
+    }
+    // 光标在句子中间时，针对当前所在行进行 GEC 纠错
+    const lineStart = snapshot.before.lastIndexOf("\n") + 1;
+    const lineEndIndex = snapshot.after.indexOf("\n");
+    const currentLine =
+      snapshot.before.slice(lineStart) +
+      (lineEndIndex === -1 ? snapshot.after : snapshot.after.slice(0, lineEndIndex));
+    return buildLocalGecModelContext(currentLine, options);
+  }
+
+  // 本地 Standard 档位 (Gemma 4 E2B / Qwen 2.5 1.5B+ 及以上)：走标准 Action-First 协议
+  return buildCloudUnifiedEditModelContext(snapshot, options);
+}

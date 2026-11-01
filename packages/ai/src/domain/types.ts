@@ -16,7 +16,7 @@ export type AiProtocolId = "openai" | "anthropic" | "google";
 export type AiProviderType = AiProtocolId | "local";
 
 /** App Harness 调度的稳定逻辑任务标识 */
-export type AiTaskKind = "gec" | "completion" | "distill" | "style-analysis";
+export type AiTaskKind = "gec" | "completion" | "distill" | "style-analysis" | "unified-edit";
 
 /** 本地模型下载与校验生命周期状态 */
 export type AiLocalModelStatus =
@@ -197,4 +197,35 @@ export interface AiWritingSuggestion {
   readonly continuation?: string;
   readonly hasEdit?: boolean;
   readonly edit?: AiWritingEditSuggestion | null;
+}
+
+/** 类 Cursor Tab 统一单次决策动作类型 */
+export type UnifiedEditAction = "none" | "edit" | "continuation";
+
+/**
+ * 统一编辑建议项（支持紧凑 Diff 替换与 Ghost Text 续写）。
+ *
+ * 坐标契约约定：
+ * fromOffset 与 toOffset 必须严格以传入的微观滑动窗口（Micro-Window 切片）
+ * 起始字符为 0 索引的 UTF-16 code units 相对偏移量。
+ */
+export interface UnifiedEditItem {
+  readonly action: "edit" | "continuation";
+  /** 严格以传入的微观滑动窗口切片起始为 0 索引的 UTF-16 偏移 */
+  readonly fromOffset: number;
+  /** 严格以传入的微观滑动窗口切片起始为 0 索引的 UTF-16 偏移 */
+  readonly toOffset: number;
+  /** 替换或续写的建议文本 */
+  readonly text: string;
+  /** 待替换的原文字符串（供四重防御强比对使用；continuation 时可为空） */
+  readonly originalText?: string;
+  /** 建议理由或简短说明 */
+  readonly reason?: string;
+}
+
+/** 统一单次前向推理决策输出 */
+export interface UnifiedEditDecision {
+  readonly action: UnifiedEditAction;
+  readonly items: readonly UnifiedEditItem[];
+  readonly rawModelOutput?: string;
 }
