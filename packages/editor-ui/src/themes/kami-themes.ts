@@ -23,8 +23,8 @@ export const KAMI_LIGHT_THEME_CSS = `
   --theme-border-strong: #d8d5c8;
   --theme-primary: #1B365D;
   --theme-primary-fill: var(--theme-primary);
-  --theme-primary-soft: #EEF2F7;
-  --theme-primary-selected: #E4ECF5;
+  --theme-primary-soft: rgba(27, 54, 93, 0.08);
+  --theme-primary-selected: rgba(27, 54, 93, 0.22);
   --theme-control-hover: #e8e6dc;
   --theme-control-active: #dcd9cd;
   --theme-danger-bg: rgba(181, 51, 51, 0.1);
@@ -49,7 +49,7 @@ export const KAMI_LIGHT_THEME_CSS = `
   --theme-del-accent: #b53333;
   --theme-code-accent: #1B365D;
   --theme-marker-dim: #6b6a64;
-  --theme-mark: #E4ECF5;
+  --theme-mark: rgba(27, 54, 93, 0.22);
   --theme-content-width: 820px;
   --theme-editor-font-size: 16px;
   --theme-editor-line-height: 1.58;

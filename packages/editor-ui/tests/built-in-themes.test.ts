@@ -85,6 +85,20 @@ describe("built-in-themes baseline characterization", () => {
     expect(builtInThemeCss("night-dark")).toContain("color-scheme: dark;");
   });
 
+  it("ensures selection background (--theme-primary-selected) has alpha transparency across all built-in themes", () => {
+    for (const id of ALL_BUILT_IN_THEME_IDS) {
+      const css = builtInThemeCss(id);
+      const match = css.match(/--theme-primary-selected:\s*([^;]+);/u);
+      expect(match, `${id} should declare --theme-primary-selected`).not.toBeNull();
+      const value = match![1].trim();
+      // 选区层位于内容层之上（z-index: 1），背景必须包含 alpha 通道（rgba 或 color-mix），禁止使用 100% 不透明色导致选中文本被遮挡
+      expect(
+        value.startsWith("rgba(") || value.startsWith("color-mix("),
+        `${id} selection background must have alpha transparency, received: ${value}`,
+      ).toBe(true);
+    }
+  });
+
   it("handles undefined document gracefully without throwing (SSR)", () => {
     vi.stubGlobal("document", undefined);
     expect(() => setThemeStyleText(":root { --theme-bg: #fff; }")).not.toThrow();
