@@ -1,5 +1,11 @@
 # Changelog - Web Playground
 
+## 0.2.3 - 2026-11-02 (#209)
+
+- Out-of-viewport AI suggestion navigation with two-step Tab: accurately detect whether suggestions lie outside the visible screen viewport via DOM and pixel geometry, show floating frosted-glass indicators (press Tab to smooth-scroll and center, press Tab again to apply), and preserve suggestions via cursor anchor tracking.
+- Filter out redundant identical edits: automatically prune suggestions where the proposed replacement matches the original document text.
+- Editor kernel & typography optimizations: enhanced CodeMirror editor stability and formatting experience across WYSIWYG and Source modes.
+
 ## 0.2.2 - 2026-10-20
 
 - Inline format markers (bold, italic, strikethrough, inline code) are now hidden by default and appear only when the caret or selection touches them. Turn on "Show inline format markers" in Appearance settings to always see them.
