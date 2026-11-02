@@ -152,4 +152,24 @@ describe("tuple-diff-parser: 云端大模型自适应定位器 (Adaptive Locator
     expect(located?.utf16From).toBe(8);
     expect(located?.original).toBe("但是");
   });
+
+  it("当修改前后内容完全一致或目标文本已等于建议词时返回 null", () => {
+    const text = "今天天气很好，但是我想出去玩。";
+    // 1. original === replacement
+    const editSame = {
+      original: "但是",
+      replacement: "但是",
+    };
+    expect(locateCloudEditSuggestion(text, editSame)).toBeNull();
+
+    // 2. targetText 中对应的 slice 已经等于 replacement
+    const textAlready = "今天天气很好，所以我想出去玩。";
+    const editAlready = {
+      original: "所以",
+      replacement: "所以",
+      start: 7,
+      end: 9,
+    };
+    expect(locateCloudEditSuggestion(textAlready, editAlready)).toBeNull();
+  });
 });

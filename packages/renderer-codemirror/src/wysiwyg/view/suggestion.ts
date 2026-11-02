@@ -335,6 +335,11 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
     const to = Math.min(Math.max(from, currentItem.to), docLen);
     const totalRemaining = suggestion.items.length - activeIndex;
 
+    // 若修改前后内容完全一致，不渲染无意义的删除/新增标记
+    if (from < to && transaction.state.doc.sliceString(from, to) === currentItem.text) {
+      return Decoration.none;
+    }
+
     const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
     const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
       ? {
@@ -442,6 +447,25 @@ export function acceptAiSuggestion(view: EditorView): boolean {
   const from = Math.min(Math.max(0, currentItem.from), docLen);
   const to = Math.min(Math.max(from, currentItem.to), docLen);
   const insertText = currentItem.text;
+
+  // 防御校验：若在接受时发现文档当前内容与将要插入的文本完全一致（无实质改动），直接推进至下一项或清除
+  if (from < to && view.state.sliceDoc(from, to) === insertText) {
+    const nextActiveIndex = activeIndex + 1;
+    const hasMore = nextActiveIndex < suggestion.items.length;
+    view.dispatch({
+      effects: hasMore
+        ? [
+            setAiSuggestionEffect.of({
+              items: suggestion.items,
+              activeIndex: nextActiveIndex,
+              labels: suggestion.labels,
+            }),
+          ]
+        : [clearAiSuggestionEffect.of(undefined)],
+    });
+    return true;
+  }
+
   const delta = insertText.length - (to - from);
 
   // 对队列中后续尚未处理的建议项，按长度差量进行坐标平移映射

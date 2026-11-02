@@ -488,6 +488,16 @@ export function useDesktopEditorController({
                   originalText = suggestion.edit.original;
                 }
 
+                const docSlice = markdown.slice(editFrom, editTo);
+                // 校验：若修改前和修改后的内容完全一致，或文档中当前片段已等于建议词，则剔除
+                if (
+                  originalText === suggestion.edit.replacement ||
+                  docSlice === suggestion.edit.replacement
+                ) {
+                  showToast("未发现明显语法、错别字或标点问题。");
+                  return;
+                }
+
                 portsAccess.ports.showSuggestion({
                   from: editFrom,
                   to: editTo,

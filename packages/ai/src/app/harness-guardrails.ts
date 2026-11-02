@@ -319,6 +319,9 @@ export function resolveTripleDefenseDiffs(
 
     // 第 1 层：精确坐标强一致匹配
     if (targetText.slice(utf16From, utf16To) === original) {
+      if (targetText.slice(utf16From, utf16To) === replacement) {
+        continue;
+      }
       validated.push({
         start,
         end,
@@ -333,6 +336,9 @@ export function resolveTripleDefenseDiffs(
 
     // 纯插入场景（original 为空，start === end）
     if (original === "" && utf16From === utf16To && utf16From <= targetText.length) {
+      if (replacement === "") {
+        continue;
+      }
       validated.push({
         start,
         end,
@@ -355,6 +361,9 @@ export function resolveTripleDefenseDiffs(
       if (indexInWindow !== -1) {
         const adjustedFrom = searchStart + indexInWindow;
         const adjustedTo = adjustedFrom + original.length;
+        if (targetText.slice(adjustedFrom, adjustedTo) === replacement) {
+          continue;
+        }
         validated.push({
           start,
           end,
@@ -370,6 +379,9 @@ export function resolveTripleDefenseDiffs(
       // 第 3 层：全文唯一匹配 / 最近邻锚点兜底（应对大于 fuzzyRadius 的前缀偏移）
       const anchored = findNearestSubstringAnchor(targetText, original, utf16From);
       if (anchored) {
+        if (targetText.slice(anchored.utf16From, anchored.utf16To) === replacement) {
+          continue;
+        }
         validated.push({
           start,
           end,
@@ -435,6 +447,9 @@ export function locateCloudEditSuggestion(
     edit.end <= targetText.length &&
     targetText.slice(edit.start, edit.end) === original
   ) {
+    if (targetText.slice(edit.start, edit.end) === replacement) {
+      return null;
+    }
     return {
       start: edit.start,
       end: edit.end,
@@ -452,6 +467,10 @@ export function locateCloudEditSuggestion(
     typeof edit.start === "number" ? edit.start : undefined,
   );
   if (!anchored) {
+    return null;
+  }
+
+  if (targetText.slice(anchored.utf16From, anchored.utf16To) === replacement) {
     return null;
   }
 
@@ -803,12 +822,9 @@ export function parseUnifiedEditOutput(
     let diffList: CompactTupleDiff[] = [];
 
     if (legacyEditMatches.length > 0) {
-      diffList = legacyEditMatches.map((m) => [
-        Number.parseInt(m[1], 10),
-        Number.parseInt(m[2], 10),
-        m[3],
-        m[4],
-      ]);
+      diffList = legacyEditMatches
+        .filter((m) => m[3] !== m[4])
+        .map((m) => [Number.parseInt(m[1], 10), Number.parseInt(m[2], 10), m[3], m[4]]);
     } else {
       // 从 ACT:EDIT 后续正文中解析 JSON 数组或 tuple diffs
       const editBody = trimmed.replace(/^ACT:EDIT\b[:\s]*/iu, "").trim();
@@ -824,8 +840,13 @@ export function parseUnifiedEditOutput(
 
     if (diffList.length > 0) {
       const validated = resolveTripleDefenseDiffs(context.slice, diffList);
-      if (validated.length > 0) {
-        const items: UnifiedEditItem[] = validated.map((diff) => ({
+      const filteredDiffs = validated.filter(
+        (diff) =>
+          diff.original !== diff.replacement &&
+          context.slice.slice(diff.utf16From, diff.utf16To) !== diff.replacement,
+      );
+      if (filteredDiffs.length > 0) {
+        const items: UnifiedEditItem[] = filteredDiffs.map((diff) => ({
           action: "edit",
           fromOffset: diff.utf16From,
           toOffset: diff.utf16To,
@@ -849,8 +870,13 @@ export function parseUnifiedEditOutput(
     const tupleDiffs = parseTupleDiffOutput(trimmed);
     if (tupleDiffs.length > 0) {
       const validated = resolveTripleDefenseDiffs(context.slice, tupleDiffs);
-      if (validated.length > 0) {
-        const items: UnifiedEditItem[] = validated.map((diff) => ({
+      const filteredDiffs = validated.filter(
+        (diff) =>
+          diff.original !== diff.replacement &&
+          context.slice.slice(diff.utf16From, diff.utf16To) !== diff.replacement,
+      );
+      if (filteredDiffs.length > 0) {
+        const items: UnifiedEditItem[] = filteredDiffs.map((diff) => ({
           action: "edit",
           fromOffset: diff.utf16From,
           toOffset: diff.utf16To,

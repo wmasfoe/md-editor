@@ -326,4 +326,31 @@ describe("AI Suggestion: i18n Labels", () => {
     expect(view.state.doc.toString()).not.toBe(docBefore);
     expect(view.state.doc.toString()).toContain("Replacement");
   });
+
+  it("自动过滤修改前和修改后完全相同的建议项", () => {
+    const view = createTestView("这是一段测试文字。");
+
+    // 1. 设置时，originalText === text 的项被安全剔除
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        originalText: "这是一段",
+        text: "这是一段",
+      }),
+    });
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+
+    // 2. 如果文档中当前文字与替换文本已经一致，accept 时不产生多余修改
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        text: "这是一段",
+      }),
+    });
+    expect(acceptAiSuggestion(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("这是一段测试文字。");
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
 });

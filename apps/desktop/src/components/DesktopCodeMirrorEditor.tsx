@@ -483,9 +483,21 @@ function useAutomaticAiEditing({
                   continue;
                 }
 
-                // 防御校验：确认文档原字符与建议原字符严格匹配
+                // 防御校验：确认文档原字符与建议原字符严格匹配，且修改前后内容不能完全一致
                 if (absFrom >= 0 && absTo <= latestSnap.markdown.length && absFrom <= absTo) {
                   const docSubstring = latestSnap.markdown.slice(absFrom, absTo);
+                  // 剔除前后内容完全一致的建议项（无实质变更）
+                  if (
+                    docSubstring === item.text ||
+                    (item.originalText !== undefined && item.originalText === item.text)
+                  ) {
+                    if (import.meta.env.DEV) {
+                      console.debug(
+                        `[AI Cursor Tab] 剔除前后内容完全一致的建议项: "${docSubstring}" === "${item.text}"`,
+                      );
+                    }
+                    continue;
+                  }
                   if (item.originalText && docSubstring !== item.originalText) {
                     if (import.meta.env.DEV) {
                       console.warn(
