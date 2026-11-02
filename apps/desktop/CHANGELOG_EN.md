@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.1 - 2026-11-02 (#209)
+
+- Stabilized macOS native traffic lights during window resizing: unified window chrome origin to (9.0, 18.0) and removed dynamic jitter compensation.
+- Resolved AI grammar correction (GEC) recursive loop on cloud models: added physical request cancellation via AbortSignal, bounded GEC inspection to current active paragraph, and introduced convergence fingerprint caching to prevent oscillating edit loops.
+- Out-of-viewport AI suggestion navigation with two-step Tab: accurately detect whether suggestions lie outside the visible screen viewport via DOM and pixel geometry, show floating frosted-glass indicators (press Tab to smooth-scroll and center, press Tab again to apply), and preserve suggestions via cursor anchor tracking.
+- Filter out redundant identical edits: automatically prune suggestions where the proposed replacement matches the original document text.
+
 ## 0.19.0 - 2026-11-01 (#205, #206, #207, #208)
 
 - Classic "Kami" Paper & Ink Themes & 3-Layer Style Engine: Added the minimalist "Kami Light" (rice paper texture) and "Kami Dark" (ink wash) built-in themes. Rebuilt the styling architecture into a 3-layer compilation engine (base, theme, user override) with translucent ink-blue selection highlights meeting WCAG 2.1 AA/AAA contrast ratios.
