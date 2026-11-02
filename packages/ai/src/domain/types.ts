@@ -228,4 +228,6 @@ export interface UnifiedEditDecision {
   readonly action: UnifiedEditAction;
   readonly items: readonly UnifiedEditItem[];
   readonly rawModelOutput?: string;
+  /** 本次微观切片前缀长度（用于客户端绝对坐标对齐） */
+  readonly slicePrefixLength?: number;
 }

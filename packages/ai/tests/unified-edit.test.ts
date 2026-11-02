@@ -222,6 +222,23 @@ describe("Unified Edit Suite (类 Cursor Tab 单次前向推理与防御守卫)"
     expect(fallbackRes.items[0].text).toBe(brokenOutput);
   });
 
+  // Case U-11: 自动剔除修改前后内容完全一致的无意义 Edit
+  it("Case U-11: 自动剔除修改前后内容完全一致的无意义 Edit", () => {
+    // 1. 模型返回 original === replacement 的 Edit
+    const rawSame = `${ACTION_PREFIX_EDIT}\n[0, 4, "今天天气", "今天天气"]`;
+    const resSame = parseUnifiedEditOutput(rawSame, { slice: baseSlice });
+    expect(resSame.action).toBe("none");
+    expect(resSame.items).toHaveLength(0);
+
+    // 2. 混合建议中，剔除相同项，仅保留有实质修改的项
+    const from = baseSlice.indexOf("下着大雨");
+    const rawMixed = `${ACTION_PREFIX_EDIT}\n[[0, 4, "今天天气", "今天天气"], [${from}, ${from + 4}, "下着大雨", "暴雨倾盆"]]`;
+    const resMixed = parseUnifiedEditOutput(rawMixed, { slice: baseSlice });
+    expect(resMixed.action).toBe("edit");
+    expect(resMixed.items).toHaveLength(1);
+    expect(resMixed.items[0].text).toBe("暴雨倾盆");
+  });
+
   // 辅助验证：createUnifiedMicroSlice 切片构造
   it("createUnifiedMicroSlice 正确计算微观切片与光标偏移", () => {
     const snap: AiContextSnapshot = {

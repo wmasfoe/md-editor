@@ -10,6 +10,7 @@ import {
   aiSuggestionLabelsFacet,
   DEFAULT_AI_SUGGESTION_LABELS,
   dismissAiSuggestion,
+  getSuggestionViewportStatus,
   setAiSuggestionEffect,
 } from "../../src/wysiwyg/view/suggestion.ts";
 import { setEditorModeEffect } from "../../src/mode.ts";
@@ -291,5 +292,154 @@ describe("AI Suggestion: i18n Labels", () => {
     expect(after?.activeIndex).toBe(1);
     expect(after?.labels?.accept).toBe("Accept");
     expect(after?.labels?.dismiss).toBe("Discard");
+  });
+
+  it("视口外建议两阶段 Tab：第 1 次按 Tab 仅平滑定位不修改文档，第 2 次按 Tab 真正落入文档", () => {
+    const view = createTestView(
+      "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10",
+    );
+    // 模拟视口为前 2 行 [0, 15]
+    Object.defineProperty(view, "visibleRanges", {
+      value: [{ from: 0, to: 15 }],
+      configurable: true,
+    });
+
+    // 建议落在视口外第 8 行 (from: 50, to: 55)
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 50,
+        to: 55,
+        text: "Replacement",
+      }),
+    });
+
+    const docBefore = view.state.doc.toString();
+
+    // 第 1 次 Tab：建议在视口外，仅滚动并标记 hasScrolledIntoView，文档不改变
+    const step1Result = acceptAiSuggestion(view);
+    expect(step1Result).toBe(true);
+    expect(view.state.doc.toString()).toBe(docBefore);
+    expect(view.state.field(aiSuggestionField)?.hasScrolledIntoView).toBe(true);
+
+    // 第 2 次 Tab：再次按 Tab 真正接受并替换文档
+    const step2Result = acceptAiSuggestion(view);
+    expect(step2Result).toBe(true);
+    expect(view.state.doc.toString()).not.toBe(docBefore);
+    expect(view.state.doc.toString()).toContain("Replacement");
+  });
+
+  it("自动过滤修改前和修改后完全相同的建议项", () => {
+    const view = createTestView("这是一段测试文字。");
+
+    // 1. 设置时，originalText === text 的项被安全剔除
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        originalText: "这是一段",
+        text: "这是一段",
+      }),
+    });
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+
+    // 2. 如果文档中当前文字与替换文本已经一致，accept 时不产生多余修改
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        text: "这是一段",
+      }),
+    });
+    expect(acceptAiSuggestion(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("这是一段测试文字。");
+    expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
+
+  it("基于 DOM 虚拟化与屏幕像素几何正确识别建议相对于视口的位置", () => {
+    const view = createTestView("0123456789\n".repeat(20));
+
+    // 1. 超出 DOM 虚拟化范围
+    Object.defineProperty(view, "visibleRanges", {
+      value: [{ from: 20, to: 50 }],
+      configurable: true,
+    });
+    expect(getSuggestionViewportStatus(view, { from: 0, to: 10, text: "abc" })).toBe("above");
+    expect(getSuggestionViewportStatus(view, { from: 60, to: 70, text: "abc" })).toBe("below");
+    // 在 visibleRanges 内且无 scrollDOM 真实尺寸时，降级为 visible
+    expect(getSuggestionViewportStatus(view, { from: 25, to: 35, text: "abc" })).toBe("visible");
+
+    // 2. 在 DOM 虚拟化范围内，模拟真实 scrollDOM 和 coordsAtPos
+    const scrollDOMMock = {
+      getBoundingClientRect: () => ({
+        top: 100,
+        bottom: 500,
+        height: 400,
+        width: 600,
+      }),
+    };
+    Object.defineProperty(view, "scrollDOM", {
+      value: scrollDOMMock,
+      configurable: true,
+    });
+
+    // 模拟 pos 坐标查询
+    (
+      view as unknown as { coordsAtPos: (pos: number) => { top: number; bottom: number } | null }
+    ).coordsAtPos = (pos: number) => {
+      // 假设每单位 pos 对应 10px Y 坐标
+      // pos 0..10 -> Y: 0..50 (在 scrollDOM 100 顶部上方)
+      // pos 25..35 -> Y: 250..350 (在 scrollDOM 100..500 内部)
+      // pos 60..70 -> Y: 600..700 (在 scrollDOM 500 底部下方)
+      return { top: pos * 10, bottom: pos * 10 + 20 };
+    };
+
+    // 整个文档都在 DOM 中
+    Object.defineProperty(view, "visibleRanges", {
+      value: [{ from: 0, to: 100 }],
+      configurable: true,
+    });
+
+    // pos 5: top: 50, bottom: 70 (< scrollRect.top + 4 即 104) -> above
+    expect(getSuggestionViewportStatus(view, { from: 5, to: 8, text: "abc" })).toBe("above");
+    // pos 30: top: 300, bottom: 320 (在 100..500 内部) -> visible
+    expect(getSuggestionViewportStatus(view, { from: 30, to: 35, text: "abc" })).toBe("visible");
+    // pos 55: top: 550, bottom: 570 (> scrollRect.bottom - 4 即 496) -> below
+    expect(getSuggestionViewportStatus(view, { from: 55, to: 60, text: "abc" })).toBe("below");
+  });
+
+  it("当光标停留在 cursorAnchor 时，选区同步不会误清除文首或文中的 GEC 建议", () => {
+    // 模拟：用户在 offset 20 处打字，GEC 触发并在 offset 0..4 产生替换建议
+    const view = createTestView("这是一段用于测试光标锚点保留的文本内容。", 20);
+
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        text: "那是",
+        cursorAnchor: 20,
+      }),
+    });
+
+    const suggestionBefore = view.state.field(aiSuggestionField);
+    expect(suggestionBefore).not.toBeNull();
+    expect(suggestionBefore?.cursorAnchor).toBe(20);
+
+    // 模拟编辑器派发选区同步事务（光标依然停留在 20 处）
+    view.dispatch({
+      selection: EditorSelection.cursor(20),
+    });
+
+    // 建议由于 cursorAnchor 保护，不被误清除
+    const suggestionAfter = view.state.field(aiSuggestionField);
+    expect(suggestionAfter).not.toBeNull();
+    expect(suggestionAfter?.items[0].text).toBe("那是");
+
+    // 若用户移开光标至其他位置（例如 10 处，既非锚点也非建议区间）
+    view.dispatch({
+      selection: EditorSelection.cursor(10),
+    });
+
+    // 建议被自动清除
+    expect(view.state.field(aiSuggestionField)).toBeNull();
   });
 });

@@ -36,6 +36,8 @@ export {
   setAiSuggestionEffect,
   clearAiSuggestionEffect,
   aiSuggestionField,
+  getSuggestionViewportStatus,
+  type SuggestionViewportPosition,
   type AiSuggestionLabels,
   type AiSuggestionItem,
   type AiSuggestionInput,
