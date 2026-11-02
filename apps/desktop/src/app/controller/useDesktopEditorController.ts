@@ -379,6 +379,7 @@ export function useDesktopEditorController({
                   from: insertPosition,
                   to: insertPosition,
                   text: suggestion.continuation,
+                  cursorAnchor: insertPosition,
                 });
                 showToast("AI 续写建议已就绪，按 Tab 采纳，按 Esc 放弃。");
               } else {
@@ -415,6 +416,7 @@ export function useDesktopEditorController({
             }
             const selection = portsAccess.ports.getSelectionSnapshot();
             const markdown = snapshot.markdown;
+            const cursorAnchor = selection.from;
             let targetFrom = selection.from;
             let targetTo = selection.to;
             let selectedText = selection.text;
@@ -504,6 +506,7 @@ export function useDesktopEditorController({
                   text: suggestion.edit.replacement,
                   originalText,
                   explanation: suggestion.edit.reason,
+                  cursorAnchor,
                 });
                 showToast(
                   suggestion.edit.reason

@@ -46,17 +46,11 @@ export const aiSuggestionLabelsFacet = Facet.define<
   AiSuggestionLabels | undefined,
   Required<AiSuggestionLabels>
 >({
-  combine(values) {
-    const merged = { ...DEFAULT_AI_SUGGESTION_LABELS };
-    for (const val of values) {
-      if (!val) continue;
-      if (val.accept !== undefined) merged.accept = val.accept;
-      if (val.dismiss !== undefined) merged.dismiss = val.dismiss;
-      if (val.tabKey !== undefined) merged.tabKey = val.tabKey;
-      if (val.escKey !== undefined) merged.escKey = val.escKey;
-    }
-    return merged;
-  },
+  combine: (values) =>
+    values.reduce<Required<AiSuggestionLabels>>(
+      (acc, val) => (val ? Object.assign(acc, val) : acc),
+      { ...DEFAULT_AI_SUGGESTION_LABELS },
+    ),
 });
 
 export interface AiSuggestionValue {
@@ -65,6 +59,8 @@ export interface AiSuggestionValue {
   readonly labels?: AiSuggestionLabels;
   /** 视口外建议两阶段 Tab 状态：是否已完成第 1 阶段（平滑定位居中） */
   readonly hasScrolledIntoView?: boolean;
+  /** 触发建议时的光标锚点位置（例如 GEC 触发时光标在文末，建议在文首） */
+  readonly cursorAnchor?: number;
   // 向后兼容便捷字段（指向当前 active 项）
   readonly from?: number;
   readonly to?: number;
@@ -77,49 +73,41 @@ export type AiSuggestionInput =
   | AiSuggestionValue
   | AiSuggestionItem
   | readonly AiSuggestionItem[]
-  | {
-      readonly from: number;
-      readonly to: number;
-      readonly text: string;
-      readonly originalText?: string;
-      readonly explanation?: string;
-      readonly items?: readonly AiSuggestionItem[];
-      readonly activeIndex?: number;
-      readonly labels?: AiSuggestionLabels;
-    };
+  | (Partial<AiSuggestionValue> & AiSuggestionItem);
 
 export function normalizeAiSuggestionValue(
   input: AiSuggestionInput | null | undefined,
 ): AiSuggestionValue | null {
-  if (!input) {
-    return null;
-  }
+  if (!input) return null;
 
   let items: readonly AiSuggestionItem[] = [];
   let activeIndex = 0;
 
   if (Array.isArray(input)) {
     items = input;
-  } else if ("items" in input && Array.isArray(input.items) && input.items.length > 0) {
-    items = input.items;
-    activeIndex = Math.min(Math.max(0, input.activeIndex ?? 0), items.length - 1);
-  } else if (
-    "from" in input &&
-    typeof input.from === "number" &&
-    "to" in input &&
-    typeof input.to === "number" &&
-    "text" in input &&
-    typeof input.text === "string"
-  ) {
-    items = [
-      {
-        from: input.from,
-        to: input.to,
-        text: input.text,
-        originalText: input.originalText,
-        explanation: input.explanation,
-      },
-    ];
+  } else {
+    const raw = input as unknown as Record<string, unknown>;
+    if ("items" in raw && Array.isArray(raw.items) && raw.items.length > 0) {
+      items = raw.items as readonly AiSuggestionItem[];
+      activeIndex = Math.min(
+        Math.max(0, typeof raw.activeIndex === "number" ? raw.activeIndex : 0),
+        items.length - 1,
+      );
+    } else if (
+      typeof raw.from === "number" &&
+      typeof raw.to === "number" &&
+      typeof raw.text === "string"
+    ) {
+      items = [
+        {
+          from: raw.from,
+          to: raw.to,
+          text: raw.text,
+          originalText: typeof raw.originalText === "string" ? raw.originalText : undefined,
+          explanation: typeof raw.explanation === "string" ? raw.explanation : undefined,
+        },
+      ];
+    }
   }
 
   const validItems = items.filter(
@@ -132,19 +120,22 @@ export function normalizeAiSuggestionValue(
       (item.originalText === undefined || item.originalText !== item.text),
   );
 
-  if (validItems.length === 0) {
-    return null;
-  }
+  if (validItems.length === 0) return null;
 
   const clampedIndex = Math.min(Math.max(0, activeIndex), validItems.length - 1);
   const active = validItems[clampedIndex];
-  const labels =
-    typeof input === "object" && input !== null && "labels" in input ? input.labels : undefined;
+  const raw = Array.isArray(input) ? null : (input as unknown as Record<string, unknown>);
+  const labels = raw?.labels as AiSuggestionLabels | undefined;
+  const cursorAnchor = typeof raw?.cursorAnchor === "number" ? raw.cursorAnchor : undefined;
+  const hasScrolledIntoView =
+    typeof raw?.hasScrolledIntoView === "boolean" ? raw.hasScrolledIntoView : undefined;
 
   return {
     items: validItems,
     activeIndex: clampedIndex,
     labels,
+    cursorAnchor,
+    hasScrolledIntoView,
     from: active.from,
     to: active.to,
     text: active.text,
@@ -153,9 +144,63 @@ export function normalizeAiSuggestionValue(
   };
 }
 
+export type SuggestionViewportPosition = "above" | "below" | "visible";
+
+/**
+ * 判定建议项相对于当前编辑器可见视口的物理位置。
+ * 1. 若超出 CodeMirror DOM 虚拟化渲染范围，直接判定 above / below
+ * 2. 在 DOM 渲染范围内，利用 scrollDOM 与字符真实 DOMRect 计算是否位于屏幕可见视口之上/之下
+ */
+export function getSuggestionViewportStatus(
+  view: EditorView,
+  item: AiSuggestionItem,
+): SuggestionViewportPosition {
+  const ranges = Array.isArray(view.visibleRanges) ? view.visibleRanges : [];
+  if (ranges.length === 0) return "visible";
+  if (item.to < ranges[0].from) return "above";
+  if (item.from > ranges[ranges.length - 1].to) return "below";
+
+  // 2. 在 DOM 渲染范围内，根据实际屏幕滚动视口 DOMRect 进行物理像素可见性判断
+  const scrollDOM = view.scrollDOM;
+  if (!scrollDOM || typeof scrollDOM.getBoundingClientRect !== "function") return "visible";
+
+  const scrollRect = scrollDOM.getBoundingClientRect();
+  if (scrollRect.height <= 0 || scrollRect.width <= 0) return "visible";
+
+  const fromCoords = view.coordsAtPos(item.from);
+  const toCoords = view.coordsAtPos(item.to);
+  if (!fromCoords && !toCoords) return "visible";
+
+  const itemTop = Math.min(fromCoords?.top ?? Infinity, toCoords?.top ?? Infinity);
+  const itemBottom = Math.max(fromCoords?.bottom ?? -Infinity, toCoords?.bottom ?? -Infinity);
+
+  if (itemBottom < scrollRect.top + 4) return "above";
+  if (itemTop > scrollRect.bottom - 4) return "below";
+  return "visible";
+}
+
 export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null>();
 export const clearAiSuggestionEffect = StateEffect.define<void>();
 export const markAiSuggestionScrolledEffect = StateEffect.define<boolean>();
+
+const areLabelsEq = (a?: AiSuggestionLabels, b?: AiSuggestionLabels): boolean =>
+  a === b ||
+  (a?.accept === b?.accept &&
+    a?.dismiss === b?.dismiss &&
+    a?.tabKey === b?.tabKey &&
+    a?.escKey === b?.escKey);
+
+function createAiBadge(
+  doc: Document,
+  labels: Required<AiSuggestionLabels>,
+  step = "",
+): HTMLElement {
+  const badge = doc.createElement("span");
+  badge.className = "cm-md-ai-badge";
+  badge.setAttribute("aria-hidden", "true");
+  badge.textContent = `${labels.tabKey} ${labels.accept}${step} · ${labels.escKey} ${labels.dismiss}`;
+  return badge;
+}
 
 class GhostTextWidget extends WidgetType {
   constructor(
@@ -166,32 +211,17 @@ class GhostTextWidget extends WidgetType {
   }
 
   eq(other: GhostTextWidget): boolean {
-    return (
-      other.text === this.text &&
-      other.labels?.accept === this.labels?.accept &&
-      other.labels?.dismiss === this.labels?.dismiss &&
-      other.labels?.tabKey === this.labels?.tabKey &&
-      other.labels?.escKey === this.labels?.escKey
-    );
+    return other.text === this.text && areLabelsEq(other.labels, this.labels);
   }
 
   toDOM(view: EditorView): HTMLElement {
     const doc = view?.dom?.ownerDocument ?? (typeof document !== "undefined" ? document : null);
-    if (!doc) {
-      return null as never;
-    }
+    if (!doc) return null as never;
     const span = doc.createElement("span");
     span.className = "cm-md-ai-ghost-text";
     span.setAttribute("aria-hidden", "true");
     span.textContent = this.text;
-
-    const labels = this.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
-    const badge = doc.createElement("span");
-    badge.className = "cm-md-ai-badge";
-    badge.setAttribute("aria-hidden", "true");
-    badge.textContent = `${labels.tabKey} ${labels.accept} · ${labels.escKey} ${labels.dismiss}`;
-    span.append(badge);
-
+    span.append(createAiBadge(doc, this.labels ?? DEFAULT_AI_SUGGESTION_LABELS));
     return span;
   }
 
@@ -219,34 +249,28 @@ class DiffAdditionWidget extends WidgetType {
       other.text === this.text &&
       other.options.isActive === this.options.isActive &&
       other.options.stepLabel === this.options.stepLabel &&
-      other.options.labels?.accept === this.options.labels?.accept &&
-      other.options.labels?.dismiss === this.options.labels?.dismiss &&
-      other.options.labels?.tabKey === this.options.labels?.tabKey &&
-      other.options.labels?.escKey === this.options.labels?.escKey
+      areLabelsEq(other.options.labels, this.options.labels)
     );
   }
 
   toDOM(view: EditorView): HTMLElement {
     const doc = view?.dom?.ownerDocument ?? (typeof document !== "undefined" ? document : null);
-    if (!doc) {
-      return null as never;
-    }
+    if (!doc) return null as never;
     const span = doc.createElement("span");
     span.className = this.options.isActive
       ? "cm-md-ai-diff-added"
       : "cm-md-ai-diff-added cm-md-ai-diff-pending";
     span.setAttribute("aria-hidden", "true");
     span.textContent = this.text;
-
     if (this.options.isActive) {
-      const labels = this.options.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
-      const badge = doc.createElement("span");
-      badge.className = "cm-md-ai-badge";
-      badge.setAttribute("aria-hidden", "true");
-      badge.textContent = `${labels.tabKey} ${labels.accept}${this.options.stepLabel || ""} · ${labels.escKey} ${labels.dismiss}`;
-      span.append(badge);
+      span.append(
+        createAiBadge(
+          doc,
+          this.options.labels ?? DEFAULT_AI_SUGGESTION_LABELS,
+          this.options.stepLabel || "",
+        ),
+      );
     }
-
     return span;
   }
 
@@ -291,7 +315,7 @@ export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
       return null;
     }
 
-    // 光标移动如果离开了所有待处理建议区间，自动清除建议
+    // 光标移动如果离开了所有待处理建议区间且不在触发锚点处，自动清除建议
     if (
       transaction.selection &&
       !transaction.isUserEvent("input.ai") &&
@@ -305,7 +329,8 @@ export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
         }
         return head >= item.from && head <= item.to;
       });
-      if (!isInsideAny) {
+      const isAtAnchor = value.cursorAnchor !== undefined && head === value.cursorAnchor;
+      if (!isInsideAny && !isAtAnchor) {
         return null;
       }
     }
@@ -341,14 +366,10 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
     }
 
     const facetLabels = transaction.state.facet(aiSuggestionLabelsFacet);
-    const resolvedLabels: Required<AiSuggestionLabels> = suggestion.labels
-      ? {
-          accept: suggestion.labels.accept ?? facetLabels.accept,
-          dismiss: suggestion.labels.dismiss ?? facetLabels.dismiss,
-          tabKey: suggestion.labels.tabKey ?? facetLabels.tabKey,
-          escKey: suggestion.labels.escKey ?? facetLabels.escKey,
-        }
-      : facetLabels;
+    const resolvedLabels: Required<AiSuggestionLabels> = {
+      ...facetLabels,
+      ...suggestion.labels,
+    };
 
     const ranges: Range<Decoration>[] = [];
 
@@ -427,10 +448,8 @@ export function acceptAiSuggestion(view: EditorView): boolean {
 
   // 视口外两阶段 Tab 交互：
   // 检查建议是否落在当前视口之外。若在视口外且尚未定位，第 1 次 Tab 仅平滑滚动至建议居中，不修改文档文本。
-  const ranges = Array.isArray(view.visibleRanges) ? view.visibleRanges : [];
-  const isOutOfViewport =
-    ranges.length > 0 &&
-    (currentItem.to < ranges[0].from || currentItem.from > ranges[ranges.length - 1].to);
+  const status = getSuggestionViewportStatus(view, currentItem);
+  const isOutOfViewport = status !== "visible";
 
   if (isOutOfViewport && !suggestion.hasScrolledIntoView) {
     view.dispatch({
@@ -459,6 +478,7 @@ export function acceptAiSuggestion(view: EditorView): boolean {
               items: suggestion.items,
               activeIndex: nextActiveIndex,
               labels: suggestion.labels,
+              cursorAnchor: suggestion.cursorAnchor,
             }),
           ]
         : [clearAiSuggestionEffect.of(undefined)],
@@ -493,6 +513,7 @@ export function acceptAiSuggestion(view: EditorView): boolean {
         items: nextItems,
         activeIndex: nextActiveIndex,
         labels: suggestion.labels,
+        cursorAnchor: suggestion.cursorAnchor,
       }),
     );
   } else {
@@ -539,6 +560,7 @@ export function dismissAiSuggestion(view: EditorView): boolean {
           items: suggestion.items,
           activeIndex: nextActiveIndex,
           labels: suggestion.labels,
+          cursorAnchor: suggestion.cursorAnchor,
         }),
       ],
       userEvent: "input.ai",
@@ -693,16 +715,15 @@ export const aiViewportCuePlugin = ViewPlugin.fromClass(
       this.dom.style.display = "none";
 
       this.textSpan = document.createElement("span");
-      this.tabBadge = document.createElement("span");
-      this.tabBadge.className = "cm-md-ai-viewport-cue-btn";
-      this.closeBtn = document.createElement("span");
-      this.closeBtn.className = "cm-md-ai-viewport-cue-close";
-      this.closeBtn.textContent = "×";
-      this.closeBtn.title = "Esc";
-
-      this.dom.appendChild(this.textSpan);
-      this.dom.appendChild(this.tabBadge);
-      this.dom.appendChild(this.closeBtn);
+      this.tabBadge = Object.assign(document.createElement("span"), {
+        className: "cm-md-ai-viewport-cue-btn",
+      });
+      this.closeBtn = Object.assign(document.createElement("span"), {
+        className: "cm-md-ai-viewport-cue-close",
+        textContent: "×",
+        title: "Esc",
+      });
+      this.dom.append(this.textSpan, this.tabBadge, this.closeBtn);
 
       this.dom.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -745,24 +766,17 @@ export const aiViewportCuePlugin = ViewPlugin.fromClass(
         return;
       }
 
-      const ranges = Array.isArray(this.view.visibleRanges) ? this.view.visibleRanges : [];
-      if (ranges.length === 0) {
-        this.dom.style.display = "none";
-        return;
-      }
-
-      const viewportFrom = ranges[0].from;
-      const viewportTo = ranges[ranges.length - 1].to;
+      const status = getSuggestionViewportStatus(this.view, currentItem);
 
       const labels = suggestion.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
       const tabKey = labels.tabKey ?? "Tab";
 
-      if (currentItem.to < viewportFrom) {
+      if (status === "above") {
         this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-top";
         this.dom.style.display = "inline-flex";
         this.textSpan.textContent = "↑ 上方有 AI 建议";
         this.tabBadge.textContent = `${tabKey} 定位`;
-      } else if (currentItem.from > viewportTo) {
+      } else if (status === "below") {
         this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-bottom";
         this.dom.style.display = "inline-flex";
         this.textSpan.textContent = "↓ 下方有 AI 建议";

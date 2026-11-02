@@ -529,6 +529,7 @@ function useAutomaticAiEditing({
               activePorts.showSuggestion({
                 items,
                 activeIndex: 0,
+                cursorAnchor: cursorPos,
                 from: items[0].from,
                 to: items[0].to,
                 text: items[0].text,
