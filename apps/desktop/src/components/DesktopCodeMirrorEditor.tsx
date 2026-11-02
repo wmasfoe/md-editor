@@ -191,6 +191,7 @@ function useAutomaticAiEditing({
   const distillTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const portsRef = useRef<CodeMirrorEditorPorts | null>(ports);
   const lastAnalyzedTextRef = useRef<string>("");
+  const recentlyAcceptedRef = useRef<Map<string, number>>(new Map());
   portsRef.current = ports;
 
   useEffect(() => {
@@ -266,6 +267,7 @@ function useAutomaticAiEditing({
           abortControllerRef.current.abort();
           abortControllerRef.current = null;
         }
+        desktopAiService.abort(undefined);
         const snap = runtime.document.getSnapshot();
         const docKey = snap.filePath || "untitled";
         if (snap.markdown.trim()) {
@@ -286,6 +288,7 @@ function useAutomaticAiEditing({
           abortControllerRef.current.abort();
           abortControllerRef.current = null;
         }
+        desktopAiService.abort(undefined);
         if (timerRef.current) {
           clearTimeout(timerRef.current);
           timerRef.current = null;
@@ -311,18 +314,26 @@ function useAutomaticAiEditing({
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
+      const snap = runtime.document.getSnapshot();
+      desktopAiService.abort(snap.filePath || "untitled", "completion");
+      desktopAiService.abort(snap.filePath || "untitled", "gec");
 
       // 用户打字时，清除旧提炼定时器；当用户完全停止打字 8 秒后（处于思考停顿状态），低优先级在后台触发大模型提炼
       if (distillTimerRef.current) {
         clearTimeout(distillTimerRef.current);
       }
       distillTimerRef.current = setTimeout(() => {
-        const snap = runtime.document.getSnapshot();
-        triggerDistillationIfEligible(snap.markdown, snap.filePath);
+        const latestDocSnap = runtime.document.getSnapshot();
+        triggerDistillationIfEligible(latestDocSnap.markdown, latestDocSnap.filePath);
       }, 8000);
 
       const currentPorts = portsRef.current;
       if (!currentPorts) {
+        return;
+      }
+
+      // 若当前已有建议展示（如连续按 Tab 正在消费本地多段建议队列），绝不发起新网络请求打断队列
+      if (currentPorts.getSuggestion() !== null) {
         return;
       }
 
@@ -437,10 +448,16 @@ function useAutomaticAiEditing({
               return;
             }
 
-            // 计算微观切片（Prefix 1500）在全篇文档中的绝对起始偏移量
-            const microPrefixMax = 1500;
-            const microPrefixLength = Math.min(before.length, microPrefixMax);
+            // 计算微观切片在全篇文档中的绝对起始偏移量
+            const microPrefixLength = decision.slicePrefixLength ?? Math.min(before.length, 1500);
             const sliceStartInDoc = before.length - microPrefixLength;
+
+            const now = Date.now();
+            for (const [key, ts] of recentlyAcceptedRef.current) {
+              if (now - ts > 8_000) {
+                recentlyAcceptedRef.current.delete(key);
+              }
+            }
 
             const items: AiSuggestionItem[] = [];
 
@@ -457,6 +474,15 @@ function useAutomaticAiEditing({
                 const absFrom = sliceStartInDoc + item.fromOffset;
                 const absTo = sliceStartInDoc + item.toOffset;
 
+                // 循环防护：避免模型反复针对相同区间产生往复 ping-pong 建议
+                const fingerprint = `${absFrom}:${absTo}:${item.text}`;
+                if (recentlyAcceptedRef.current.has(fingerprint)) {
+                  if (import.meta.env.DEV) {
+                    console.debug("[AI Cursor Tab] 拦截重复往复循环建议:", fingerprint);
+                  }
+                  continue;
+                }
+
                 // 防御校验：确认文档原字符与建议原字符严格匹配
                 if (absFrom >= 0 && absTo <= latestSnap.markdown.length && absFrom <= absTo) {
                   const docSubstring = latestSnap.markdown.slice(absFrom, absTo);
@@ -468,6 +494,7 @@ function useAutomaticAiEditing({
                     }
                     continue;
                   }
+                  recentlyAcceptedRef.current.set(fingerprint, now);
                   items.push({
                     from: absFrom,
                     to: absTo,

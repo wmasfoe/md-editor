@@ -57,8 +57,8 @@ export const DISTILL_SYSTEM_PROMPT =
 /** 云端多协议通用语法纠错系统提示词 */
 export const CLOUD_GEC_SYSTEM_PROMPT = [
   "你是严谨的 Markdown 语法、拼写与标点纠错器。",
-  "请仅针对用户提供的待检文本检查明显的错别字、语法语病、英文拼写错误或中英文标点错误。",
-  "必须保持克制：遇到专有名词（如 LoRA、GGUF、TypeScript、Tauri 等）、代码片段或表达自然无误的句子，严禁强行润色或改写。",
+  "请仅针对用户提供的当前编辑文本检查明显的错别字、语法语病、英文拼写错误或中英文标点错误。",
+  "必须保持克制：仅纠正当前正在编辑句的明确错误；遇到专有名词（如 LoRA、GGUF、TypeScript、Tauri 等）、代码片段或表达自然无误的句子，严禁强行润色或改写；严禁改写之前的既有历史段落。",
   '严格只输出紧凑 JSON 数组：[[start, end, "原词", "建议词"]]，其中 [start, end] 以待检文本首字符为 0 索引计数。',
   "如果文本完全无错，严格仅输出 []，不要输出任何解释或 Markdown 代码围栏。",
 ].join("\n");
@@ -404,16 +404,41 @@ export function createUnifiedMicroSlice(
   options: {
     readonly prefixMax?: number;
     readonly suffixMax?: number;
+    readonly boundToParagraph?: boolean;
   } = {},
 ): UnifiedMicroContextSlice {
   const prefixMax = options.prefixMax ?? UNIFIED_MICRO_PREFIX_MAX;
   const suffixMax = options.suffixMax ?? UNIFIED_MICRO_SUFFIX_MAX;
 
-  const prefix =
+  let candidatePrefix =
     snapshot.before.length <= prefixMax ? snapshot.before : snapshot.before.slice(-prefixMax);
-  const suffix =
+
+  // 严格以当前光标所在的当前段落为前向界限，禁止越过更早的历史段落
+  if (options.boundToParagraph !== false) {
+    const lastParagraphBreak = Math.max(
+      candidatePrefix.lastIndexOf("\n\n"),
+      candidatePrefix.lastIndexOf("\r\n\r\n"),
+    );
+    if (lastParagraphBreak !== -1) {
+      candidatePrefix = candidatePrefix.slice(
+        candidatePrefix.indexOf("\n\n") !== -1 ? lastParagraphBreak + 2 : lastParagraphBreak + 4,
+      );
+    }
+  }
+
+  let candidateSuffix =
     snapshot.after.length <= suffixMax ? snapshot.after : snapshot.after.slice(0, suffixMax);
 
+  // 后向切片也限制在当前段落，避免扫描到后续未编辑段落
+  if (options.boundToParagraph !== false) {
+    const nextParagraphBreak = candidateSuffix.indexOf("\n\n");
+    if (nextParagraphBreak !== -1) {
+      candidateSuffix = candidateSuffix.slice(0, nextParagraphBreak);
+    }
+  }
+
+  const prefix = candidatePrefix;
+  const suffix = candidateSuffix;
   const slice = `${prefix}${suffix}`;
   const cursorOffset = prefix.length;
 
@@ -432,6 +457,7 @@ export const UNIFIED_EDIT_SYSTEM_PROMPT = [
   "1. 若光标所在句子或邻近文本存在错别字、病句、漏字、多字或中英文标点错误：",
   '   首行严格输出 ACT:EDIT，后续每行输出紧凑 Diff 数组：[fromOffset, toOffset, "原词", "建议词"]',
   "   【关键原则】：fromOffset 与 toOffset 必须严格以【微观待检切片】的首字符为 0 索引 UTF-16 偏移；",
+  "   【范围原则】：仅检视光标当前正在编辑的句子与当前活跃段落，严禁改写之前已写好的历史段落；",
   "2. 若当前文本通顺完整，且光标处于自然的写作停顿或词尾，适合向下延续：",
   "   首行严格输出 ACT:CONT，紧随其后直接输出自然续写正文（禁止输出外层引号或解释说明）；",
   "3. 若当前状态完备且不需要任何修改或续写（如未完成的专有名词、独立无误代码等）：",

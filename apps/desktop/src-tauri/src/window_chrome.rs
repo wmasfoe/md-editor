@@ -19,13 +19,13 @@ use tauri::Manager;
 use crate::platform_contract::MAIN_WINDOW_LABEL;
 
 #[cfg(target_os = "macos")]
-pub(crate) const APP_MAIN_TRAFFIC_LIGHT_LEFT: f64 = 16.0;
+pub(crate) const APP_MAIN_TRAFFIC_LIGHT_LEFT: f64 = 9.0;
 #[cfg(target_os = "macos")]
-pub(crate) const APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET: f64 = 13.0;
+pub(crate) const APP_MAIN_TRAFFIC_LIGHT_VERTICAL_INSET: f64 = 18.0;
 #[cfg(target_os = "macos")]
-const MAIN_TRAFFIC_LIGHT_LAYOUT_HORIZONTAL_COMPENSATION: f64 = -7.0;
+const MAIN_TRAFFIC_LIGHT_LAYOUT_HORIZONTAL_COMPENSATION: f64 = 0.0;
 #[cfg(target_os = "macos")]
-const MAIN_TRAFFIC_LIGHT_LAYOUT_VERTICAL_COMPENSATION: f64 = 5.0;
+const MAIN_TRAFFIC_LIGHT_LAYOUT_VERTICAL_COMPENSATION: f64 = 0.0;
 #[cfg(target_os = "macos")]
 const MAIN_TRAFFIC_LIGHT_LAYOUT_LEFT: f64 =
     APP_MAIN_TRAFFIC_LIGHT_LEFT + MAIN_TRAFFIC_LIGHT_LAYOUT_HORIZONTAL_COMPENSATION;
@@ -476,9 +476,9 @@ mod tests {
         assert_eq!(
             update,
             TrafficLightFrameUpdate {
-                title_bar_origin_y: 733.0,
-                title_bar_height: 27.0,
-                button_x_positions: [16.0, 36.0, 56.0],
+                title_bar_origin_y: 728.0,
+                title_bar_height: 32.0,
+                button_x_positions: [9.0, 29.0, 49.0],
             }
         );
     }

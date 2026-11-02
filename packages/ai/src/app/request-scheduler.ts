@@ -140,6 +140,36 @@ export class AiRequestScheduler {
     }
   }
 
+  /**
+   * 中断指定文档（或全部文档）指定任务类型的所有在途或排队中的 AI 请求。
+   */
+  public cancelDocument(documentId?: string, task?: AiTaskKind, reason = "aborted"): void {
+    const toCancel: QueuedRequest<unknown>[] = [];
+    for (const req of this.activeById.values()) {
+      if (
+        (!documentId || req.scope.documentId === documentId) &&
+        (!task || req.scope.task === task)
+      ) {
+        toCancel.push(req);
+      }
+    }
+    for (const priority of PRIORITY_ORDER) {
+      for (const req of this.queues[priority]) {
+        if (
+          (!documentId || req.scope.documentId === documentId) &&
+          (!task || req.scope.task === task)
+        ) {
+          if (!toCancel.includes(req)) {
+            toCancel.push(req);
+          }
+        }
+      }
+    }
+    for (const req of toCancel) {
+      this.cancelRequest(req.requestId, reason);
+    }
+  }
+
   public cancelRequest(requestId: string, reason = "cancelled"): void {
     const request = this.activeById.get(requestId);
     if (!request || request.status === "completed" || request.status === "failed") {

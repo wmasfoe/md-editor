@@ -6,7 +6,15 @@ import {
   type Extension,
   type Range,
 } from "@codemirror/state";
-import { Decoration, EditorView, WidgetType, keymap, type DecorationSet } from "@codemirror/view";
+import {
+  Decoration,
+  EditorView,
+  WidgetType,
+  keymap,
+  ViewPlugin,
+  type ViewUpdate,
+  type DecorationSet,
+} from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../../mode.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
@@ -55,6 +63,8 @@ export interface AiSuggestionValue {
   readonly items: readonly AiSuggestionItem[];
   readonly activeIndex: number;
   readonly labels?: AiSuggestionLabels;
+  /** 视口外建议两阶段 Tab 状态：是否已完成第 1 阶段（平滑定位居中） */
+  readonly hasScrolledIntoView?: boolean;
   // 向后兼容便捷字段（指向当前 active 项）
   readonly from?: number;
   readonly to?: number;
@@ -145,6 +155,7 @@ export function normalizeAiSuggestionValue(
 
 export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null>();
 export const clearAiSuggestionEffect = StateEffect.define<void>();
+export const markAiSuggestionScrolledEffect = StateEffect.define<boolean>();
 
 class GhostTextWidget extends WidgetType {
   constructor(
@@ -259,6 +270,13 @@ export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
       if (effect.is(setEditorModeEffect)) {
         return null;
       }
+      if (effect.is(markAiSuggestionScrolledEffect)) {
+        if (!value) return null;
+        return {
+          ...value,
+          hasScrolledIntoView: effect.value,
+        };
+      }
     }
 
     if (value === null) {
@@ -274,7 +292,11 @@ export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
     }
 
     // 光标移动如果离开了所有待处理建议区间，自动清除建议
-    if (transaction.selection && !transaction.isUserEvent("input.ai")) {
+    if (
+      transaction.selection &&
+      !transaction.isUserEvent("input.ai") &&
+      !transaction.isUserEvent("select.ai")
+    ) {
       const head = transaction.selection.main.head;
       const remainingItems = value.items.slice(value.activeIndex);
       const isInsideAny = remainingItems.some((item) => {
@@ -396,6 +418,24 @@ export function acceptAiSuggestion(view: EditorView): boolean {
   const currentItem = suggestion.items[activeIndex];
   if (!currentItem) {
     return false;
+  }
+
+  // 视口外两阶段 Tab 交互：
+  // 检查建议是否落在当前视口之外。若在视口外且尚未定位，第 1 次 Tab 仅平滑滚动至建议居中，不修改文档文本。
+  const ranges = Array.isArray(view.visibleRanges) ? view.visibleRanges : [];
+  const isOutOfViewport =
+    ranges.length > 0 &&
+    (currentItem.to < ranges[0].from || currentItem.from > ranges[ranges.length - 1].to);
+
+  if (isOutOfViewport && !suggestion.hasScrolledIntoView) {
+    view.dispatch({
+      effects: [
+        EditorView.scrollIntoView(currentItem.from, { y: "center" }),
+        markAiSuggestionScrolledEffect.of(true),
+      ],
+      userEvent: "select.ai",
+    });
+    return true;
   }
 
   const docLen = view.state.doc.length;
@@ -553,12 +593,168 @@ export const aiSuggestionTheme = EditorView.baseTheme({
     opacity: "0.55",
     backgroundColor: "rgba(46, 160, 67, 0.08)",
   },
+  ".cm-md-ai-viewport-cue": {
+    position: "absolute",
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: "50",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "6px 14px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "500",
+    color: "var(--theme-title, #1c1c1e)",
+    background: "var(--theme-card, rgba(255, 255, 255, 0.92))",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    border: "1px solid var(--theme-border, rgba(0, 0, 0, 0.12))",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08)",
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+  },
+  ".cm-md-ai-viewport-cue:hover": {
+    background: "var(--theme-card-hover, rgba(255, 255, 255, 0.98))",
+    transform: "translateX(-50%) scale(1.02)",
+  },
+  ".cm-md-ai-viewport-cue-top": {
+    top: "12px",
+  },
+  ".cm-md-ai-viewport-cue-bottom": {
+    bottom: "16px",
+  },
+  ".cm-md-ai-viewport-cue-btn": {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "2px 6px",
+    borderRadius: "4px",
+    background: "var(--theme-primary-soft, rgba(110, 31, 44, 0.1))",
+    color: "var(--theme-primary, #6e1f2c)",
+    fontSize: "11px",
+    fontWeight: "600",
+  },
+  ".cm-md-ai-viewport-cue-close": {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "16px",
+    height: "16px",
+    borderRadius: "50%",
+    marginLeft: "2px",
+    color: "var(--theme-muted, #8a8a8a)",
+    cursor: "pointer",
+    fontSize: "14px",
+    lineHeight: "1",
+  },
+  ".cm-md-ai-viewport-cue-close:hover": {
+    color: "var(--theme-title, #1c1c1e)",
+    background: "rgba(0, 0, 0, 0.08)",
+  },
 });
+
+export const aiViewportCuePlugin = ViewPlugin.fromClass(
+  class {
+    private readonly dom: HTMLElement;
+    private readonly textSpan: HTMLElement;
+    private readonly tabBadge: HTMLElement;
+    private readonly closeBtn: HTMLElement;
+    private readonly onScroll: () => void;
+
+    constructor(private readonly view: EditorView) {
+      this.dom = document.createElement("div");
+      this.dom.className = "cm-md-ai-viewport-cue";
+      this.dom.style.display = "none";
+
+      this.textSpan = document.createElement("span");
+      this.tabBadge = document.createElement("span");
+      this.tabBadge.className = "cm-md-ai-viewport-cue-btn";
+      this.closeBtn = document.createElement("span");
+      this.closeBtn.className = "cm-md-ai-viewport-cue-close";
+      this.closeBtn.textContent = "×";
+      this.closeBtn.title = "Esc";
+
+      this.dom.appendChild(this.textSpan);
+      this.dom.appendChild(this.tabBadge);
+      this.dom.appendChild(this.closeBtn);
+
+      this.dom.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.target === this.closeBtn) {
+          dismissAiSuggestion(this.view);
+        } else {
+          acceptAiSuggestion(this.view);
+        }
+      });
+
+      this.onScroll = () => {
+        this.updateCue();
+      };
+      this.view.scrollDOM?.addEventListener?.("scroll", this.onScroll, { passive: true });
+      this.view.dom?.appendChild?.(this.dom);
+      this.updateCue();
+    }
+
+    update(_update: ViewUpdate) {
+      this.updateCue();
+    }
+
+    destroy() {
+      this.view.scrollDOM?.removeEventListener?.("scroll", this.onScroll);
+      this.dom.remove();
+    }
+
+    private updateCue() {
+      const suggestion = this.view.state.field(aiSuggestionField);
+      if (!suggestion || suggestion.items.length === 0) {
+        this.dom.style.display = "none";
+        return;
+      }
+
+      const activeIndex = suggestion.activeIndex;
+      const currentItem = suggestion.items[activeIndex];
+      if (!currentItem) {
+        this.dom.style.display = "none";
+        return;
+      }
+
+      const ranges = Array.isArray(this.view.visibleRanges) ? this.view.visibleRanges : [];
+      if (ranges.length === 0) {
+        this.dom.style.display = "none";
+        return;
+      }
+
+      const viewportFrom = ranges[0].from;
+      const viewportTo = ranges[ranges.length - 1].to;
+
+      const labels = suggestion.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
+      const tabKey = labels.tabKey ?? "Tab";
+
+      if (currentItem.to < viewportFrom) {
+        this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-top";
+        this.dom.style.display = "inline-flex";
+        this.textSpan.textContent = "↑ 上方有 AI 建议";
+        this.tabBadge.textContent = `${tabKey} 定位`;
+      } else if (currentItem.from > viewportTo) {
+        this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-bottom";
+        this.dom.style.display = "inline-flex";
+        this.textSpan.textContent = "↓ 下方有 AI 建议";
+        this.tabBadge.textContent = `${tabKey} 定位`;
+      } else {
+        this.dom.style.display = "none";
+      }
+    }
+  },
+);
 
 export const aiSuggestionExtension: Extension[] = [
   aiSuggestionLabelsFacet.of(DEFAULT_AI_SUGGESTION_LABELS),
   aiSuggestionField,
   aiSuggestionDecorations,
+  aiViewportCuePlugin,
   Prec.highest(aiSuggestionKeymap),
   aiSuggestionTheme,
 ];

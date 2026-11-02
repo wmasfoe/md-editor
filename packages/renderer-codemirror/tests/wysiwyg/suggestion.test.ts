@@ -292,4 +292,38 @@ describe("AI Suggestion: i18n Labels", () => {
     expect(after?.labels?.accept).toBe("Accept");
     expect(after?.labels?.dismiss).toBe("Discard");
   });
+
+  it("视口外建议两阶段 Tab：第 1 次按 Tab 仅平滑定位不修改文档，第 2 次按 Tab 真正落入文档", () => {
+    const view = createTestView(
+      "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10",
+    );
+    // 模拟视口为前 2 行 [0, 15]
+    Object.defineProperty(view, "visibleRanges", {
+      value: [{ from: 0, to: 15 }],
+      configurable: true,
+    });
+
+    // 建议落在视口外第 8 行 (from: 50, to: 55)
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 50,
+        to: 55,
+        text: "Replacement",
+      }),
+    });
+
+    const docBefore = view.state.doc.toString();
+
+    // 第 1 次 Tab：建议在视口外，仅滚动并标记 hasScrolledIntoView，文档不改变
+    const step1Result = acceptAiSuggestion(view);
+    expect(step1Result).toBe(true);
+    expect(view.state.doc.toString()).toBe(docBefore);
+    expect(view.state.field(aiSuggestionField)?.hasScrolledIntoView).toBe(true);
+
+    // 第 2 次 Tab：再次按 Tab 真正接受并替换文档
+    const step2Result = acceptAiSuggestion(view);
+    expect(step2Result).toBe(true);
+    expect(view.state.doc.toString()).not.toBe(docBefore);
+    expect(view.state.doc.toString()).toContain("Replacement");
+  });
 });

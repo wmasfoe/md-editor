@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "@md-editor/i18n";
@@ -114,6 +114,8 @@ export function useDesktopEditorController({
     },
     [switchDocumentMode],
   );
+
+  const manualAiAbortControllerRef = useRef<AbortController | null>(null);
 
   const toggleSourceMode = useCallback(async () => {
     const currentMode = runtime.document.getSnapshot().mode;
@@ -337,6 +339,12 @@ export function useDesktopEditorController({
             const docKey = snapshot.filePath || "untitled";
             const docContext = desktopAiService.documentContext.getOrExtract(docKey, markdown);
 
+            if (manualAiAbortControllerRef.current) {
+              manualAiAbortControllerRef.current.abort();
+            }
+            const controller = new AbortController();
+            manualAiAbortControllerRef.current = controller;
+
             try {
               if (import.meta.env.DEV) {
                 console.debug("[AI Desktop] ▶ 触发手动续写 (ai.continueWriting)...", {
@@ -359,7 +367,7 @@ export function useDesktopEditorController({
                   },
                   documentContext: docContext,
                 },
-                { isGhostText: false },
+                { isGhostText: false, signal: controller.signal },
               );
 
               if (import.meta.env.DEV) {
@@ -377,6 +385,9 @@ export function useDesktopEditorController({
                 showToast("未能生成有效续写建议。");
               }
             } catch (error) {
+              if (controller.signal.aborted) {
+                return;
+              }
               if (import.meta.env.DEV) {
                 console.error("AI 续写请求失败:", error);
               }
@@ -425,18 +436,30 @@ export function useDesktopEditorController({
             const docKey = snapshot.filePath || "untitled";
             const docContext = desktopAiService.documentContext.getOrExtract(docKey, markdown);
 
+            if (manualAiAbortControllerRef.current) {
+              manualAiAbortControllerRef.current.abort();
+            }
+            const controller = new AbortController();
+            manualAiAbortControllerRef.current = controller;
+
             try {
               showToast("AI 语法修复分析中...");
-              const suggestion = await desktopAiService.fixGrammar(settings.ai, {
-                before,
-                after,
-                selectedText,
-                mode: snapshot.mode,
-                document: {
-                  filePath: snapshot.filePath,
+              const suggestion = await desktopAiService.fixGrammar(
+                settings.ai,
+                {
+                  before,
+                  after,
+                  selectedText,
+                  mode: snapshot.mode,
+                  document: {
+                    filePath: snapshot.filePath,
+                  },
+                  documentContext: docContext,
                 },
-                documentContext: docContext,
-              });
+                {
+                  signal: controller.signal,
+                },
+              );
 
               if (import.meta.env.DEV) {
                 console.debug("[AI Manual Fix] 审校结果:", suggestion);
@@ -481,6 +504,9 @@ export function useDesktopEditorController({
                 showToast("未发现明显语法、错别字或标点问题。");
               }
             } catch (error) {
+              if (controller.signal.aborted) {
+                return;
+              }
               if (import.meta.env.DEV) {
                 console.error("AI 语法修复请求失败:", error);
               }

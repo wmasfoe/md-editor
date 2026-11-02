@@ -113,6 +113,17 @@ export class AiWritingService {
   }
 
   /**
+   * 物理中断指定文档（或全部文档）指定任务类型的全部在途与排队请求。
+   */
+  public abort(
+    documentId?: string,
+    task?: "completion" | "gec" | "distill",
+    reason = "aborted",
+  ): void {
+    this.scheduler.cancelDocument(documentId, task, reason);
+  }
+
+  /**
    * 发起光标处续写（Pre-Model 上下文切片 -> ModelClient.generate -> Post-Model 重叠消除与思维链剥离）。
    */
   public async continueWriting(
@@ -207,7 +218,8 @@ export class AiWritingService {
       throw new Error(readiness);
     }
 
-    const targetText = snapshot.selectedText || snapshot.before;
+    const targetText =
+      snapshot.selectedText || getParagraphBoundedTargetText(snapshot.before, snapshot.after);
     if (!targetText.trim()) {
       return {
         hasContinuation: false,
@@ -344,10 +356,14 @@ export class AiWritingService {
               });
 
         const response = await client.generate(modelContext);
-        return parseUnifiedEditOutput(response.text, {
+        const decision = parseUnifiedEditOutput(response.text, {
           slice: micro.slice,
           cursorOffset: micro.cursorOffset,
         });
+        return {
+          ...decision,
+          slicePrefixLength: micro.prefix.length,
+        };
       },
     });
 
@@ -507,4 +523,21 @@ function combineSignals(s1?: AbortSignal, s2?: AbortSignal): AbortSignal | undef
     controller.abort();
   }
   return controller.signal;
+}
+
+/**
+ * 提取光标所在当前段落的待检文本，杜绝跨段落越界到全篇开头。
+ */
+function getParagraphBoundedTargetText(before: string, after: string): string {
+  const lastDoubleNewline = Math.max(before.lastIndexOf("\n\n"), before.lastIndexOf("\r\n\r\n"));
+  const paragraphStart = lastDoubleNewline === -1 ? 0 : lastDoubleNewline + 2;
+  const paragraphBefore = before.slice(paragraphStart);
+  const boundedBefore =
+    paragraphBefore.length <= 400 ? paragraphBefore : paragraphBefore.slice(-400);
+
+  const nextDoubleNewline = after.indexOf("\n\n");
+  const paragraphAfter = nextDoubleNewline === -1 ? after : after.slice(0, nextDoubleNewline);
+  const boundedAfter = paragraphAfter.length <= 200 ? paragraphAfter : paragraphAfter.slice(0, 200);
+
+  return `${boundedBefore}${boundedAfter}`.trim();
 }
