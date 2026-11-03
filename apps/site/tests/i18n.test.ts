@@ -130,6 +130,10 @@ describe("buildDownloadCatalog with i18n", () => {
     expect(zhHant.download.ariaAndroidBeta).toContain("需自行編譯原始碼");
     expect(ja.download.ariaAndroidBeta).toContain("ビルドが必要");
     expect(en.download.ariaAndroidBeta).toContain("build from source");
+    expect(zh.download.sourceOnlyTooltip).toBe("需自行编译");
+    expect(zhHant.download.sourceOnlyTooltip).toBe("需自行編譯");
+    expect(ja.download.sourceOnlyTooltip).toBe("要ソースコードビルド");
+    expect(en.download.sourceOnlyTooltip).toBe("Build from source required");
   });
 });
 

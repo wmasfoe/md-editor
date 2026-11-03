@@ -102,6 +102,7 @@ export const en: TranslationSchema = {
     copyCommandAria: "Copy install command",
     betaStatus: "Public Beta",
     sourceOnlyStatus: "Source Build Required",
+    sourceOnlyTooltip: "Build from source required",
     noPrebuiltNoticeTitle: "Notice regarding pre-built packages: ",
     systemRequirements: "System: ",
     installationTip: "Build & Run Guide: ",
@@ -160,8 +161,9 @@ export const en: TranslationSchema = {
     modelDescriptionSuffix: "in the model repository.",
     modelOriginalLanguage: "The model release notes below are published in Chinese.",
     viewSourceGuide: "View Source Build Guide",
+    mobileSourceTitle: "Source Build Required",
     mobileSourceNotice:
-      "Notice: Mobile platforms (Android & iOS) currently do not provide pre-compiled installation packages. If needed, please clone the repository and build from source locally.",
+      "Official mobile pre-compiled packages are not provided. Please clone the repository and compile from source if needed. Mobile release notes are no longer maintained here.",
     empty: "No desktop changelog entries found.",
     androidEmpty: "No Android app changelog entries found.",
     iosEmpty: "No iOS app changelog entries found.",

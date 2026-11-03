@@ -15,6 +15,7 @@ export interface LiquidGlassSegmentedControlProps<T extends string> {
   onChange: (value: T) => void;
   getLabel: (item: T) => React.ReactNode;
   getAriaLabel?: (item: T) => string;
+  getItemTitle?: (item: T) => string | undefined;
   disabledItems?: T[];
   ariaLabel?: string;
   className?: string;
@@ -67,6 +68,7 @@ export function LiquidGlassSegmentedControl<T extends string>({
   onChange,
   getLabel,
   getAriaLabel,
+  getItemTitle,
   disabledItems = [],
   ariaLabel,
   className = "",
@@ -284,13 +286,15 @@ export function LiquidGlassSegmentedControl<T extends string>({
         {items.map((item, idx) => {
           const isActive = idx === activeIndex;
           const isDisabled = disabledItems.includes(item);
+          const itemTitle = getItemTitle?.(item);
 
           return (
             <div
               key={item}
+              title={itemTitle}
               className={`flex items-center justify-center text-[13px] transition-colors sm:text-sm ${
                 isDisabled
-                  ? "opacity-40 text-muted/60 cursor-not-allowed select-none"
+                  ? "opacity-40 text-muted/60 select-none"
                   : isActive
                     ? "font-semibold text-ink"
                     : "font-medium text-muted"
@@ -312,31 +316,38 @@ export function LiquidGlassSegmentedControl<T extends string>({
         {items.map((item, idx) => {
           const isActive = idx === activeIndex;
           const isDisabled = disabledItems.includes(item);
+          const itemTitle = getItemTitle?.(item);
 
           return (
-            <button
+            <div
               key={item}
-              type="button"
-              role="tab"
-              id={`segmented-tab-${item}`}
-              data-item={item}
-              disabled={isDisabled}
-              aria-disabled={isDisabled}
-              aria-selected={isActive}
-              tabIndex={isActive ? 0 : -1}
-              onClick={() => !isDisabled && transitionTo(idx)}
-              className={`inline-flex h-full w-full items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
-                isDisabled ? "cursor-not-allowed" : "cursor-pointer"
-              }`}
+              title={itemTitle}
+              className={`h-full w-full ${isDisabled ? "cursor-not-allowed" : ""}`}
             >
-              <span className="sr-only">
-                {getAriaLabel
-                  ? getAriaLabel(item)
-                  : typeof getLabel(item) === "string"
-                    ? (getLabel(item) as string)
-                    : item}
-              </span>
-            </button>
+              <button
+                type="button"
+                role="tab"
+                id={`segmented-tab-${item}`}
+                data-item={item}
+                disabled={isDisabled}
+                aria-disabled={isDisabled}
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                title={itemTitle}
+                onClick={() => !isDisabled && transitionTo(idx)}
+                className={`inline-flex h-full w-full items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                  isDisabled ? "cursor-not-allowed pointer-events-none" : "cursor-pointer"
+                }`}
+              >
+                <span className="sr-only">
+                  {getAriaLabel
+                    ? getAriaLabel(item)
+                    : typeof getLabel(item) === "string"
+                      ? (getLabel(item) as string)
+                      : item}
+                </span>
+              </button>
+            </div>
           );
         })}
       </div>

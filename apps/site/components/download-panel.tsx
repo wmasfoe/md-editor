@@ -37,10 +37,8 @@ function renderPlatformLabel(platform: SitePlatform) {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
         <span className="text-[12px] sm:text-sm">{platform === "android" ? "Android" : "iOS"}</span>
-        {/* 窄屏保留微呼吸圆点，宽屏展示完整源码编译 Badge */}
-        <span className="h-1.5 w-1.5 rounded-full bg-accent sm:hidden" />
-        <span className="hidden rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none sm:inline-block">
-          Source
+        <span className="hidden rounded-full bg-muted/20 px-1.5 py-0.5 text-[9px] font-semibold text-muted leading-none sm:inline-block">
+          源码
         </span>
       </span>
     );
@@ -78,6 +76,8 @@ type DownloadPanelProps = {
   iosVersion?: string;
 };
 
+const DISABLED_PLATFORMS: SitePlatform[] = ["android", "ios"];
+
 export function DownloadPanel({
   initialPlatform,
   version,
@@ -86,7 +86,10 @@ export function DownloadPanel({
 }: DownloadPanelProps) {
   const { locale, t } = useI18n();
   const { domain } = useDistribution();
-  const [platform, setPlatform] = useState<SitePlatform>(initialPlatform);
+  const defaultPlatform: SitePlatform = DISABLED_PLATFORMS.includes(initialPlatform)
+    ? "macos"
+    : initialPlatform;
+  const [platform, setPlatform] = useState<SitePlatform>(defaultPlatform);
   const catalog = buildDownloadCatalog(version, locale, domain, androidVersion, iosVersion);
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
@@ -102,6 +105,10 @@ export function DownloadPanel({
           items={platforms}
           value={platform}
           onChange={setPlatform}
+          disabledItems={DISABLED_PLATFORMS}
+          getItemTitle={(p) =>
+            DISABLED_PLATFORMS.includes(p) ? t.download.sourceOnlyTooltip : undefined
+          }
           getLabel={(p) => renderPlatformLabel(p)}
           getAriaLabel={(p) =>
             getPlatformAriaLabel(p, t.download.ariaAndroidBeta, t.download.ariaIosBeta)

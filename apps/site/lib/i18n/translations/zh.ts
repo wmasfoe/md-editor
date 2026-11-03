@@ -98,6 +98,7 @@ export const zh: TranslationSchema = {
     copyCommandAria: "复制安装命令",
     betaStatus: "测试版状态",
     sourceOnlyStatus: "需自行编译源码",
+    sourceOnlyTooltip: "需自行编译",
     noPrebuiltNoticeTitle: "暂不提供安装包说明：",
     systemRequirements: "系统要求：",
     installationTip: "编译与运行指南：",
@@ -153,8 +154,9 @@ export const zh: TranslationSchema = {
     modelDescriptionSuffix: "自动同步。",
     modelOriginalLanguage: "",
     viewSourceGuide: "查看源码编译说明",
+    mobileSourceTitle: "需自行编译源码",
     mobileSourceNotice:
-      "提示：移动端（Android / iOS）当前暂不提供预编译安装包。如有需要，请克隆开源仓库并在本地自行编译源码运行。",
+      "官方不提供移动端安装包，如有需要请克隆源码自行编译。移动端已停止在此记录版本更新日志。",
     empty: "暂无客户端更新记录。",
     androidEmpty: "暂无 Android 移动端更新记录。",
     iosEmpty: "暂无 iOS 移动端更新记录。",

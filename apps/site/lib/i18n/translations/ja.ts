@@ -105,6 +105,7 @@ export const ja: TranslationSchema = {
     copyCommandAria: "インストールコマンドをコピー",
     betaStatus: "ベータ版",
     sourceOnlyStatus: "ソースコードからビルドが必要",
+    sourceOnlyTooltip: "要ソースコードビルド",
     noPrebuiltNoticeTitle: "パッケージ提供について：",
     systemRequirements: "システム要件: ",
     installationTip: "ビルド＆実行ガイド: ",
@@ -163,8 +164,9 @@ export const ja: TranslationSchema = {
     modelDescriptionSuffix: "から自動同期しています。",
     modelOriginalLanguage: "",
     viewSourceGuide: "ソースコードビルド手順を見る",
+    mobileSourceTitle: "要ソースコードビルド",
     mobileSourceNotice:
-      "ご注意：モバイル版（Android / iOS）は現在ビルド済みパッケージを提供していません。ご利用の場合はリポジトリをクローンし、ローカル環境でソースコードからビルドしてください。",
+      "公式のモバイル版パッケージは提供しておりません。ご利用の場合はソースコードからビルドしてください。モバイル版の更新履歴は今後こちらに記録されません。",
     empty: "デスクトップ版の更新履歴はありません。",
     androidEmpty: "Android 版の更新履歴はありません。",
     iosEmpty: "iOS 版の更新履歴はありません。",

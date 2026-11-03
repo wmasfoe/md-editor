@@ -99,6 +99,7 @@ export const zhHant: TranslationSchema = {
     copyCommandAria: "複製安裝命令",
     betaStatus: "測試版狀態",
     sourceOnlyStatus: "需自行編譯原始碼",
+    sourceOnlyTooltip: "需自行編譯",
     noPrebuiltNoticeTitle: "暫不提供安裝套件說明：",
     systemRequirements: "系統需求：",
     installationTip: "編譯與執行指南：",
@@ -154,8 +155,9 @@ export const zhHant: TranslationSchema = {
     modelDescriptionSuffix: "自動同步。",
     modelOriginalLanguage: "",
     viewSourceGuide: "查看原始碼編譯說明",
+    mobileSourceTitle: "需自行編譯原始碼",
     mobileSourceNotice:
-      "提示：行動端（Android / iOS）目前暫不提供預編譯安裝套件。如有需要，請複製開源儲存庫並在本地自行編譯原始碼執行。",
+      "官方不提供行動端安裝套件，如有需要請複製原始碼自行編譯。行動端已停止在此記錄版本更新日誌。",
     empty: "暫無用戶端更新紀錄。",
     androidEmpty: "暫無 Android 行動端更新紀錄。",
     iosEmpty: "暫無 iOS 行動端更新紀錄。",
