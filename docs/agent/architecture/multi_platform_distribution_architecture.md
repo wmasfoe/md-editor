@@ -147,6 +147,6 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
    - 暴露 `DISTRIBUTION_DOMAIN = "download.justdev.cn"` 与 `DISTRIBUTION_URL`；
    - 提供 `buildAcceleratedDesktopUrl`、`buildAndroidApkUrl`、`buildVersionApiUrl` 等安全方法；
 2. **`apps/site/lib/downloads.ts`**：
-   - 导出 `getMobileDownloadCatalog(locale)`，包含 Android APK 直链与 iOS 未签名 IPA 直链（`/inkpoint/ios/{version}/Inkpoint-{version}-unsigned.ipa`，兜底 `/inkpoint/ios/latest`）；
+   - 导出 `getMobileDownloadCatalog(locale)`，指向移动端源码编译说明链接（当前阶段移动端暂不提供预编译安装包，需克隆源码自行编译）；
 3. **`apps/site/components/download-panel.tsx`**：
-   - 桌面端下载按钮下方增加轻量优雅的移动端快捷接入横条，保证全终端访客一站式获取最新客户端。
+   - 桌面端提供一键安装与多架构安装包下载；移动端展示源码编译与运行指南，清晰标注暂无安装包。

@@ -18,7 +18,12 @@ import {
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
-import { buildAppPrUrl, buildVersionPackageLinks } from "../lib/site-links";
+import {
+  ANDROID_SOURCE_GUIDE_URL,
+  buildAppPrUrl,
+  buildVersionPackageLinks,
+  IOS_SOURCE_GUIDE_URL,
+} from "../lib/site-links";
 import { useDistribution } from "../lib/distribution/context";
 
 interface ChangelogContentProps {
@@ -48,10 +53,6 @@ const ITEM_TYPE_STYLES: Record<string, string> = {
 export function ChangelogContent({
   entries,
   entriesEn = [],
-  androidEntries = [],
-  androidEntriesEn = [],
-  iosEntries = [],
-  iosEntriesEn = [],
   webEntries = [],
   webEntriesEn = [],
   modelChangelog,
@@ -59,9 +60,6 @@ export function ChangelogContent({
   const { locale, t } = useI18n();
   const isEnOrJa = locale === "en" || locale === "ja";
   const activeDesktopEntries = isEnOrJa && entriesEn.length > 0 ? entriesEn : entries;
-  const activeAndroidEntries =
-    isEnOrJa && androidEntriesEn.length > 0 ? androidEntriesEn : androidEntries;
-  const activeIosEntries = isEnOrJa && iosEntriesEn.length > 0 ? iosEntriesEn : iosEntries;
   const activeWebEntries = isEnOrJa && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
@@ -157,7 +155,7 @@ export function ChangelogContent({
     }
 
     event.preventDefault();
-    const order: ChangelogSource[] = ["desktop", "android", "ios", "web", "model"];
+    const order: ChangelogSource[] = ["desktop", "web", "model", "android", "ios"];
     const currentIndex = order.indexOf(source);
     let nextIndex: number;
 
@@ -195,19 +193,27 @@ export function ChangelogContent({
         ) : isAndroid ? (
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.androidDescriptionPrefix}{" "}
-            <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              {isEnOrJa
-                ? "apps/mobile/android/CHANGELOG_EN.md"
-                : "apps/mobile/android/CHANGELOG.md"}
-            </code>
+            <a
+              href={ANDROID_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft underline hover:text-accent"
+            >
+              apps/mobile/android
+            </a>
             {t.changelog.descriptionSuffix}
           </p>
         ) : isIos ? (
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
             {t.changelog.iosDescriptionPrefix}{" "}
-            <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
-              {isEnOrJa ? "apps/mobile/ios/CHANGELOG_EN.md" : "apps/mobile/ios/CHANGELOG.md"}
-            </code>
+            <a
+              href={IOS_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft underline hover:text-accent"
+            >
+              apps/mobile/ios
+            </a>
             {t.changelog.descriptionSuffix}
           </p>
         ) : isWeb ? (
@@ -249,24 +255,6 @@ export function ChangelogContent({
             {t.changelog.clientTab}
           </ChangelogTab>
           <ChangelogTab
-            active={isAndroid}
-            buttonRef={androidTabRef}
-            controls="android-changelog-panel"
-            id="android-changelog-tab"
-            onSelect={() => selectSource("android")}
-          >
-            {t.changelog.androidTab}
-          </ChangelogTab>
-          <ChangelogTab
-            active={isIos}
-            buttonRef={iosTabRef}
-            controls="ios-changelog-panel"
-            id="ios-changelog-tab"
-            onSelect={() => selectSource("ios")}
-          >
-            {t.changelog.iosTab}
-          </ChangelogTab>
-          <ChangelogTab
             active={isWeb}
             buttonRef={webTabRef}
             controls="web-changelog-panel"
@@ -284,6 +272,24 @@ export function ChangelogContent({
           >
             {t.changelog.modelTab}
           </ChangelogTab>
+          <ChangelogTab
+            active={isAndroid}
+            buttonRef={androidTabRef}
+            controls="android-changelog-panel"
+            id="android-changelog-tab"
+            onSelect={() => selectSource("android")}
+          >
+            {t.changelog.androidTab}
+          </ChangelogTab>
+          <ChangelogTab
+            active={isIos}
+            buttonRef={iosTabRef}
+            controls="ios-changelog-panel"
+            id="ios-changelog-tab"
+            onSelect={() => selectSource("ios")}
+          >
+            {t.changelog.iosTab}
+          </ChangelogTab>
         </div>
       </header>
 
@@ -295,32 +301,6 @@ export function ChangelogContent({
         className={isDesktop ? undefined : "hidden"}
       >
         <ClientChangelogTimeline entries={activeDesktopEntries} labels={t.changelog} isDesktop />
-      </section>
-      <section
-        id="android-changelog-panel"
-        role="tabpanel"
-        aria-labelledby="android-changelog-tab"
-        hidden={!isAndroid}
-        className={isAndroid ? undefined : "hidden"}
-      >
-        <ClientChangelogTimeline
-          entries={activeAndroidEntries}
-          labels={{ ...t.changelog, empty: t.changelog.androidEmpty }}
-          isAndroid
-        />
-      </section>
-      <section
-        id="ios-changelog-panel"
-        role="tabpanel"
-        aria-labelledby="ios-changelog-tab"
-        hidden={!isIos}
-        className={isIos ? undefined : "hidden"}
-      >
-        <ClientChangelogTimeline
-          entries={activeIosEntries}
-          labels={{ ...t.changelog, empty: t.changelog.iosEmpty }}
-          isAndroid
-        />
       </section>
       <section
         id="web-changelog-panel"
@@ -345,6 +325,66 @@ export function ChangelogContent({
           <p className="mb-5 text-sm text-muted">{t.changelog.modelOriginalLanguage}</p>
         ) : null}
         <ModelChangelogTimeline payload={modelChangelog} labels={t.changelog} />
+      </section>
+      <section
+        id="android-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="android-changelog-tab"
+        hidden={!isAndroid}
+        className={isAndroid ? undefined : "hidden"}
+      >
+        <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
+          <div className="flex items-center gap-2.5 text-base font-semibold text-ink sm:text-lg">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span>
+              {t.changelog.androidTab} · {t.changelog.mobileSourceTitle}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
+            {t.changelog.mobileSourceNotice}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href={ANDROID_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-semibold text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
+            >
+              <span>{t.changelog.viewSourceGuide}</span>
+              <span>→</span>
+            </a>
+          </div>
+        </div>
+      </section>
+      <section
+        id="ios-changelog-panel"
+        role="tabpanel"
+        aria-labelledby="ios-changelog-tab"
+        hidden={!isIos}
+        className={isIos ? undefined : "hidden"}
+      >
+        <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
+          <div className="flex items-center gap-2.5 text-base font-semibold text-ink sm:text-lg">
+            <span className="h-2 w-2 rounded-full bg-amber-500" />
+            <span>
+              {t.changelog.iosTab} · {t.changelog.mobileSourceTitle}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
+            {t.changelog.mobileSourceNotice}
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href={IOS_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-semibold text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
+            >
+              <span>{t.changelog.viewSourceGuide}</span>
+              <span>→</span>
+            </a>
+          </div>
+        </div>
       </section>
 
       <div className="mt-10 sm:mt-12">
@@ -398,11 +438,9 @@ function ChangelogTab({
 function VersionDownloadDropdown({
   version,
   labels,
-  isAndroid = false,
 }: {
   version: string;
   labels: ChangelogLabels;
-  isAndroid?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -457,50 +495,33 @@ function VersionDownloadDropdown({
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
             v{version} {labels.edgeDownloads}
           </div>
-          {isAndroid && links.android ? (
-            <a
-              href={links.android.url}
-              download={links.android.fileName}
-              className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-            >
-              <span>Android (APK)</span>
-              <span className="text-[10px] text-muted">APK</span>
-            </a>
-          ) : (
-            <>
-              <a
-                href={links.macos.url}
-                download={links.macos.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>macOS (Apple Silicon)</span>
-                <span className="text-[10px] text-muted">DMG</span>
-              </a>
-              <a
-                href={links.windows.url}
-                download={links.windows.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>Windows (x64)</span>
-                <span className="text-[10px] text-muted">Setup.exe</span>
-              </a>
-              <a
-                href={links.linux.url}
-                download={links.linux.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>Linux (x86_64)</span>
-                <span className="text-[10px] text-muted">AppImage</span>
-              </a>
-            </>
-          )}
+          <a
+            href={links.macos.url}
+            download={links.macos.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>macOS (Apple Silicon)</span>
+            <span className="text-[10px] text-muted">DMG</span>
+          </a>
+          <a
+            href={links.windows.url}
+            download={links.windows.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Windows (x64)</span>
+            <span className="text-[10px] text-muted">Setup.exe</span>
+          </a>
+          <a
+            href={links.linux.url}
+            download={links.linux.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Linux (x86_64)</span>
+            <span className="text-[10px] text-muted">AppImage</span>
+          </a>
           <div className="my-1 border-t border-line/60" />
           <a
-            href={
-              isAndroid
-                ? `${releasesPortalUrl.replace(/\/+$/, "")}/android/`
-                : `${releasesPortalUrl.replace(/\/+$/, "")}/desktop/#v${version}`
-            }
+            href={`${releasesPortalUrl.replace(/\/+$/, "")}/desktop/#v${version}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
@@ -518,12 +539,10 @@ function ClientChangelogTimeline({
   entries,
   labels,
   isDesktop = false,
-  isAndroid = false,
 }: {
   entries: ChangelogEntry[];
   labels: ChangelogLabels;
   isDesktop?: boolean;
-  isAndroid?: boolean;
 }) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted">{labels.empty}</p>;
@@ -549,12 +568,8 @@ function ClientChangelogTimeline({
                   </time>
                   {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
                 </div>
-                {isDesktop || isAndroid ? (
-                  <VersionDownloadDropdown
-                    version={entry.version}
-                    labels={labels}
-                    isAndroid={isAndroid}
-                  />
+                {isDesktop ? (
+                  <VersionDownloadDropdown version={entry.version} labels={labels} />
                 ) : null}
               </div>
               <PullRequestLine

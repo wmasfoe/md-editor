@@ -121,11 +121,19 @@ describe("buildDownloadCatalog with i18n", () => {
     expect(catalogEn.windows.secondary[0].label).toBe("ARM64 Setup");
   });
 
-  it("provides localized self-sign labels for the iOS download entry", () => {
-    expect(zh.download.ariaIosBeta).toContain("未签名 IPA");
-    expect(zhHant.download.ariaIosBeta).toContain("未簽名 IPA");
-    expect(ja.download.ariaIosBeta).toContain("未署名 IPA");
-    expect(en.download.ariaIosBeta).toContain("Unsigned IPA");
+  it("provides localized labels for the iOS and Android download entries", () => {
+    expect(zh.download.ariaIosBeta).toContain("需自行编译源码");
+    expect(zhHant.download.ariaIosBeta).toContain("需自行編譯原始碼");
+    expect(ja.download.ariaIosBeta).toContain("ビルドが必要");
+    expect(en.download.ariaIosBeta).toContain("build from source");
+    expect(zh.download.ariaAndroidBeta).toContain("需自行编译源码");
+    expect(zhHant.download.ariaAndroidBeta).toContain("需自行編譯原始碼");
+    expect(ja.download.ariaAndroidBeta).toContain("ビルドが必要");
+    expect(en.download.ariaAndroidBeta).toContain("build from source");
+    expect(zh.download.sourceOnlyTooltip).toBe("需自行编译");
+    expect(zhHant.download.sourceOnlyTooltip).toBe("需自行編譯");
+    expect(ja.download.sourceOnlyTooltip).toBe("要ソースコードビルド");
+    expect(en.download.sourceOnlyTooltip).toBe("Build from source required");
   });
 });
 

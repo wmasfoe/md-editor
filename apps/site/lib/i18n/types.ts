@@ -127,6 +127,9 @@ export interface TranslationSchema {
     copiedButton: string;
     copyCommandAria: string;
     betaStatus: string;
+    sourceOnlyStatus: string;
+    sourceOnlyTooltip: string;
+    noPrebuiltNoticeTitle: string;
     systemRequirements: string;
     installationTip: string;
     ariaAndroidBeta: string;
@@ -164,6 +167,9 @@ export interface TranslationSchema {
     modelDescriptionPrefix: string;
     modelDescriptionSuffix: string;
     modelOriginalLanguage: string;
+    viewSourceGuide: string;
+    mobileSourceTitle: string;
+    mobileSourceNotice: string;
     empty: string;
     androidEmpty: string;
     iosEmpty: string;

@@ -20,6 +20,15 @@ export const PLAYGROUND_URL = `${OFFICIAL_SITE_URL}${PLAYGROUND_PATH}`;
 /** 本项目源码仓库 */
 export const GITHUB_REPO_URL = "https://github.com/wmasfoe/md-editor";
 
+/** 移动端套件源码说明链接 */
+export const MOBILE_SOURCE_GUIDE_URL = `${GITHUB_REPO_URL}/tree/main/apps/mobile#readme`;
+
+/** Android 源码编译指南链接 */
+export const ANDROID_SOURCE_GUIDE_URL = `${GITHUB_REPO_URL}/tree/main/apps/mobile/android#readme`;
+
+/** iOS 源码编译指南链接 */
+export const IOS_SOURCE_GUIDE_URL = `${GITHUB_REPO_URL}/tree/main/apps/mobile/ios#readme`;
+
 /** 根据 PR 编号构造 App 源码仓库 PR 页面链接 */
 export function buildAppPrUrl(prNumber: number): string {
   return `${GITHUB_REPO_URL}/pull/${prNumber}`;

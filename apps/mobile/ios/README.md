@@ -1,5 +1,8 @@
 # Inkpoint iOS - 原生 iOS 客户端
 
+> [!IMPORTANT]
+> **暂不提供预编译安装包**：当前 iOS 客户端暂不提供官方预编译 IPA（未上架 App Store）。如有使用或体验需求，请在 macOS 环境下使用最新 Xcode 克隆仓库并在本地自行编译源码运行。
+
 Inkpoint 移动端的 iOS 原生工程，基于 **Swift 6 + SwiftUI + WebKit (WKWebView)** 构建。
 
 ---

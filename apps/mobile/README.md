@@ -1,5 +1,8 @@
 # Inkpoint Mobile - 移动端套件
 
+> [!IMPORTANT]
+> **暂不提供预编译安装包**：当前 Inkpoint 移动端（Android & iOS）处于开源早期阶段，**官方暂不分发预编译安装包（APK / IPA）**。如有体验或使用需求，请克隆开源仓库并在本地自行编译源码运行（参考下方构建与本地调试指南）。
+
 Inkpoint 移动端套件采用 **“即览 (Jilan)”** 设计哲学与 **混合架构 (Hybrid Web + Native Shell)**：
 - **Web 离线内核 (`apps/mobile/core`)**：复用桌面端成熟的 `@md-editor/renderer-codemirror` 与 `@md-editor/syntax-plugins`，确保移动端与桌面端 100% 渲染一致与零格式损坏；
 - **Android 原生应用 (`apps/mobile/android`)**：基于 Kotlin + Jetpack Compose 构建，提供软键盘快捷工具栏（`KeyboardAccessoryBar`）、系统级震动触感（Haptics）与存储访问框架（SAF）；

@@ -1,5 +1,8 @@
 # Inkpoint Android - 原生 Android 客户端
 
+> [!IMPORTANT]
+> **暂不提供预编译安装包**：当前 Android 客户端暂不提供官方预编译 APK 安装包。如有使用或体验需求，请按照下方指南在本地克隆仓库并自行编译源码运行。
+
 Inkpoint 移动端的 Android 原生工程，基于 **Kotlin + Jetpack Compose + Material Design 3** 构建。
 
 ---

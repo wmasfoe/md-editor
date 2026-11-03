@@ -2,20 +2,22 @@ import type { Locale } from "./i18n/types";
 import { SITE_PLATFORMS, type DesktopPlatform, type SitePlatform } from "./platform";
 import {
   ANDROID_PORTAL_URL,
+  ANDROID_SOURCE_GUIDE_URL,
   ARTIFACT_NAME_PREFIX,
-  buildAndroidApkUrl,
-  buildIosIpaUrl,
   buildLinuxAppImageUrl,
   buildMacosDmgUrl,
   buildWindowsSetupUrl,
   DESKTOP_PORTAL_URL,
   GITHUB_RELEASES_URL,
   IOS_PORTAL_URL,
+  IOS_SOURCE_GUIDE_URL,
   normalizeVersion,
   RELEASES_PORTAL_URL,
   resolveDevicePortalUrl,
   resolveReleasesPortalUrl,
 } from "./site-links";
+
+export { ANDROID_SOURCE_GUIDE_URL, IOS_SOURCE_GUIDE_URL };
 
 export const UNIX_INSTALL_COMMAND =
   "curl -fsSL https://download.jiaqi.im/inkpoint/desktop/install.sh | sh";
@@ -173,48 +175,48 @@ const DOWNLOAD_LABELS: Record<
     linux: "下载 Linux",
     windows: "下载 Windows",
     windowsArm64: "ARM64 安装包",
-    androidPrimary: "下载 Android 安装包 (APK)",
-    androidFormat: "Android 8.0+ · APK · 测试版",
-    androidSecondary: "最新版直链",
-    iosPrimary: "下载 iOS 未签名 IPA",
-    iosSecondary: "最新版直链",
-    iosFormat: "iOS 17.0+ · 未签名 IPA · 需自签安装",
+    androidPrimary: "查看 Android 源码编译说明",
+    androidFormat: "Android 8.0+ · 暂无安装包 · 需自行编译源码",
+    androidSecondary: "源码编译说明",
+    iosPrimary: "查看 iOS 源码编译说明",
+    iosSecondary: "源码编译说明",
+    iosFormat: "iOS 17.0+ · 暂无安装包 · 需自行编译源码",
   },
   "zh-Hant": {
     macos: "下載 macOS",
     linux: "下載 Linux",
     windows: "下載 Windows",
     windowsArm64: "ARM64 安裝套件",
-    androidPrimary: "下載 Android 安裝套件 (APK)",
-    androidFormat: "Android 8.0+ · APK · 測試版",
-    androidSecondary: "最新版直接連結",
-    iosPrimary: "下載 iOS 未簽名 IPA",
-    iosSecondary: "最新版直接連結",
-    iosFormat: "iOS 17.0+ · 未簽名 IPA · 需自行簽名安裝",
+    androidPrimary: "查看 Android 原始碼編譯說明",
+    androidFormat: "Android 8.0+ · 暫無安裝套件 · 需自行編譯原始碼",
+    androidSecondary: "原始碼編譯說明",
+    iosPrimary: "查看 iOS 原始碼編譯說明",
+    iosSecondary: "原始碼編譯說明",
+    iosFormat: "iOS 17.0+ · 暫無安裝套件 · 需自行編譯原始碼",
   },
   ja: {
     macos: "macOS 版をダウンロード",
     linux: "Linux 版をダウンロード",
     windows: "Windows 版をダウンロード",
     windowsArm64: "ARM64 インストーラー",
-    androidPrimary: "Android APK をダウンロード (Beta)",
-    androidFormat: "Android 8.0+ · APK · ベータ版",
-    androidSecondary: "最新版の直接リンク",
-    iosPrimary: "iOS 未署名 IPA をダウンロード",
-    iosSecondary: "最新版の直接リンク",
-    iosFormat: "iOS 17.0+ · 未署名 IPA · 自己署名インストールが必要",
+    androidPrimary: "Android ビルド手順を見る",
+    androidFormat: "Android 8.0+ · パッケージ提供なし · 自行ビルドが必要",
+    androidSecondary: "ビルド手順",
+    iosPrimary: "iOS ビルド手順を見る",
+    iosSecondary: "ビルド手順",
+    iosFormat: "iOS 17.0+ · パッケージ提供なし · 自行ビルドが必要",
   },
   en: {
     macos: "Download for macOS",
     linux: "Download for Linux",
     windows: "Download for Windows",
     windowsArm64: "ARM64 Setup",
-    androidPrimary: "Download Android APK (Beta)",
-    androidFormat: "Android 8.0+ · APK · Beta",
-    androidSecondary: "Latest APK Link",
-    iosPrimary: "Download iOS IPA (Unsigned)",
-    iosSecondary: "Latest IPA Link",
-    iosFormat: "iOS 17.0+ · Unsigned IPA · Self-sign required",
+    androidPrimary: "View Android Build Guide",
+    androidFormat: "Android 8.0+ · No pre-built package · Build from source",
+    androidSecondary: "Build Guide",
+    iosPrimary: "View iOS Build Guide",
+    iosSecondary: "Build Guide",
+    iosFormat: "iOS 17.0+ · No pre-built package · Build from source",
   },
 };
 
@@ -225,90 +227,91 @@ export const DEFAULT_IOS_VERSION = "0.2.1";
 const MOBILE_PLATFORM_GUIDES: Record<Locale, Record<"android" | "ios", MobilePlatformGuide>> = {
   zh: {
     android: {
-      badge: "公测中 · Beta",
-      title: "Android 客户端公测说明",
-      requirements: "适用于 Android 8.0 (API 26) 及更高版本的手机与平板设备",
+      badge: "源码编译 · 暂无安装包",
+      title: "Android 客户端编译与运行指南",
+      requirements: "适用于 Android 8.0 (API 26)+ 设备，需本地配置 JDK 17 与 Android SDK",
       description:
-        "Inkpoint 移动端当前处于公测（Beta）阶段，采用原生 CodeMirror 6 编辑引擎，具备离线 Markdown 读写与双向链接能力。",
-      tips: "下载 APK 后可直接点击安装。若系统提示「来源未知的应用」，请在系统设置中允许来自此浏览器的应用安装。",
+        "Inkpoint 移动端目前处于开源开发阶段，暂不提供预编译安装包（APK）。如有体验或使用需求，请克隆开源仓库并在本地自行编译源码运行。",
+      tips: "快速编译运行步骤：\n① 克隆仓库并安装依赖：pnpm install\n② 同步移动端 Web 离线内核：pnpm build:mobile\n③ 运行与调试：执行 pnpm android 或通过 Android Studio 打开 apps/mobile/android 工程\n④ 打包 APK：在 apps/mobile/android 目录下执行 ./gradlew assembleDebug",
       feedback:
-        "公测阶段功能正持续迭代，如遇排版渲染或输入法兼容问题，欢迎前往 GitHub 提交 Issue 反馈。",
+        "移动端功能持续迭代中，如在编译构建或体验过程中遇到问题，欢迎前往 GitHub 提交 Issue 反馈。",
     },
     ios: {
-      badge: "自签安装 · Beta",
-      title: "iOS 客户端安装说明",
-      requirements: "适用于 iOS 17.0 及更高版本的 iPhone 与 iPad 设备",
+      badge: "源码编译 · 暂无安装包",
+      title: "iOS 客户端编译与运行指南",
+      requirements: "适用于 iOS 17.0+ 的 iPhone 与 iPad，需 macOS 与最新 Xcode (Swift 6)",
       description:
-        "Inkpoint iOS 版以未签名 IPA 形式分发（未上架 App Store，也不走 TestFlight）。你需要在电脑或手机上用自签工具重签名后安装，首次启动需在「设置 → 通用 → VPN与设备管理」中信任对应证书。",
-      tips: "推荐工具：\n① Sideloadly（电脑端，Windows / macOS，用 Apple ID 签名后有线安装）\n② AltStore / SideStore（手机上自签，需先配对电脑装一次 AltServer）\n③ LiveContainer（侧载容器，可在其中直接运行未签名 IPA）\n免费 Apple ID 签名有效期为 7 天，到期后用同一工具重新签名即可。",
+        "Inkpoint 移动端目前处于开源开发阶段，暂不提供预编译安装包（IPA）。如有体验或使用需求，请克隆开源仓库并在本地通过 Xcode 自行编译源码运行。",
+      tips: "快速编译运行步骤：\n① 克隆仓库并安装依赖：pnpm install\n② 同步移动端 Web 离线内核：pnpm build:mobile\n③ 运行与调试：执行 pnpm ios 或通过 Xcode 打开 apps/mobile/ios/Inkpoint.xcodeproj 工程\n④ 在 Xcode 中连接真机或启动模拟器直接点击 Run 即可构建运行",
       feedback:
-        "未签名分发自签环节可能因 Xcode / iOS 版本差异出现失败，欢迎在 GitHub 提交 Issue 说明机型与报错。",
+        "移动端功能持续迭代中，如在编译构建或体验过程中遇到问题，欢迎前往 GitHub 提交 Issue 反馈。",
     },
   },
   "zh-Hant": {
     android: {
-      badge: "公測中 · Beta",
-      title: "Android 客戶端公測說明",
-      requirements: "適用於 Android 8.0 (API 26) 及更高版本的智慧型手機與平板裝置",
+      badge: "原始碼編譯 · 暫無安裝套件",
+      title: "Android 客戶端編譯與執行指南",
+      requirements: "適用於 Android 8.0 (API 26)+ 裝置，需本地配置 JDK 17 與 Android SDK",
       description:
-        "Inkpoint 行動端目前處於公開測試（Beta）階段，採用原生 CodeMirror 6 編輯引擎，具備離線 Markdown 讀寫與雙向連結能力。",
-      tips: "下載 APK 後可直接點擊安裝。若系統提示「未知的應用程式」，請在系統設定中允許來自此瀏覽器的應用程式安裝。",
+        "Inkpoint 行動端目前處於開源開發階段，暫不提供預編譯安裝套件（APK）。如有體驗或使用需求，請複製開源儲存庫並在本地自行編譯原始碼執行。",
+      tips: "快速編譯執行步驟：\n① 複製開源儲存庫並安裝依賴：pnpm install\n② 同步行動端 Web 離線核心：pnpm build:mobile\n③ 執行與除錯：執行 pnpm android 或透過 Android Studio 開啟 apps/mobile/android 專案\n④ 打包 APK：在 apps/mobile/android 目錄下執行 ./gradlew assembleDebug",
       feedback:
-        "公測階段功能持續迭代中，如遇排版渲染或輸入法相容性問題，歡迎前往 GitHub 提交 Issue 反饋。",
+        "行動端功能持續迭代中，如在編譯建置或體驗過程中遇到問題，歡迎前往 GitHub 提交 Issue 反饋。",
     },
     ios: {
-      badge: "自行簽名安裝 · Beta",
-      title: "iOS 客戶端安裝說明",
-      requirements: "適用於 iOS 17.0 及更高版本的 iPhone 與 iPad 裝置",
+      badge: "原始碼編譯 · 暫無安裝套件",
+      title: "iOS 客戶端編譯與執行指南",
+      requirements: "適用於 iOS 17.0+ 的 iPhone 與 iPad，需 macOS 與最新 Xcode (Swift 6)",
       description:
-        "Inkpoint iOS 版以未簽名 IPA 形式分發（未上架 App Store，也不使用 TestFlight）。你需要用自行簽名工具重新簽名後安裝，首次啟動需在「設定 → 一般 → VPN與裝置管理」中信任對應憑證。",
-      tips: "推薦工具：\n① Sideloadly（電腦端，Windows / macOS，以 Apple ID 簽名後有線安裝）\n② AltStore / SideStore（手機自簽，需先與電腦配對安裝 AltServer）\n③ LiveContainer（側載容器，可直接在其中執行未簽名 IPA）\n免費 Apple ID 簽名有效期為 7 天，到期後用同一工具重新簽名即可。",
+        "Inkpoint 行動端目前處於開源開發階段，暫不提供預編譯安裝套件（IPA）。如有體驗或使用需求，請複製開源儲存庫並在本地透過 Xcode 自行編譯原始碼執行。",
+      tips: "快速編譯執行步驟：\n① 複製開源儲存庫並安裝依賴：pnpm install\n② 同步行動端 Web 離線核心：pnpm build:mobile\n③ 執行與除錯：執行 pnpm ios 或透過 Xcode 開啟 apps/mobile/ios/Inkpoint.xcodeproj 專案\n④ 在 Xcode 中連接實體裝置或啟動模擬器直接點擊 Run 即可建置執行",
       feedback:
-        "未簽名分發的簽名環節可能因 Xcode / iOS 版本差異而失敗，歡迎在 GitHub 提交 Issue 說明機型與錯誤訊息。",
+        "行動端功能持續迭代中，如在編譯建置或體驗過程中遇到問題，歡迎前往 GitHub 提交 Issue 反饋。",
     },
   },
   ja: {
     android: {
-      badge: "パブリックベータ · Beta",
-      title: "Android 版ベータテストのご案内",
-      requirements: "Android 8.0 (API 26) 以降のスマートフォンおよびタブレットに対応",
+      badge: "ソースコードビルド · パッケージ提供なし",
+      title: "Android 版ビルド＆実行ガイド",
+      requirements: "Android 8.0 (API 26)+ 端末に対応（ローカルに JDK 17 と Android SDK が必要）",
       description:
-        "Inkpoint モバイル版は現在パブリックベータ版です。ネイティブの CodeMirror 6 エディタエンジンを搭載し、オフラインでの Markdown 編集と双方向リンクに対応しています。",
-      tips: "APK のダウンロード後、直接タップしてインストールできます。「提供元不明のアプリ」という警告が表示された場合は、ブラウザの設定からインストールの許可を有効にしてください。",
+        "Inkpoint モバイル版は現在開発中であり、事前ビルド済みパッケージ（APK）の配布は行っておりません。ご利用の場合は、リポジトリをクローンしてローカルでソースコードからビルドしてください。",
+      tips: "クイックビルド手順：\n① リポジトリをクローンし依存関係を導入：pnpm install\n② モバイル Web オフラインコアを同期：pnpm build:mobile\n③ 実行とデバッグ：pnpm android を実行するか、Android Studio で apps/mobile/android を開く\n④ APK パッケージ化：apps/mobile/android で ./gradlew assembleDebug を実行",
       feedback:
-        "ベータ期間中は継続的に改善を行っています。表示の崩れや入力の不具合などがありましたら、GitHub の Issue よりご報告ください。",
+        "モバイル版は継続的に開発中です。ビルドや動作に関する問題がありましたら、GitHub の Issue よりご報告ください。",
     },
     ios: {
-      badge: "自己署名インストール · Beta",
-      title: "iOS 版インストールのご案内",
-      requirements: "iOS 17.0 以降の iPhone および iPad に対応",
+      badge: "ソースコードビルド · パッケージ提供なし",
+      title: "iOS 版ビルド＆実行ガイド",
+      requirements:
+        "iOS 17.0+ の iPhone / iPad に対応（macOS および最新の Xcode / Swift 6 が必要）",
       description:
-        "Inkpoint iOS 版は未署名 IPA として配布しています（App Store 未掲載、TestFlight も使用しません）。ご自身で再署名してインストールする必要があり、初回起動時は「設定 → 一般 → VPN とデバイス管理」で証明書を信頼してください。",
-      tips: "推奨ツール：\n① Sideloadly（PC 版・Windows / macOS、Apple ID で署名して有線インストール）\n② AltStore / SideStore（iPhone 上で自己署名、事前に PC とペアリングして AltServer を導入）\n③ LiveContainer（サイドロードコンテナ、その中で未署名 IPA を直接実行）\n無料の Apple ID 署名は 7 日間有効で、期限切れ後は同じツールで再署名してください。",
+        "Inkpoint モバイル版は現在開発中であり、事前ビルド済みパッケージ（IPA）の配布は行っておりません。ご利用の場合は、リポジトリをクローンして Xcode でソースコードからビルドしてください。",
+      tips: "クイックビルド手順：\n① リポジトリをクローンし依存関係を導入：pnpm install\n② モバイル Web オフラインコアを同期：pnpm build:mobile\n③ 実行とデバッグ：pnpm ios を実行するか、Xcode で apps/mobile/ios/Inkpoint.xcodeproj を開く\n④ 実機を接続するかシミュレータを選択して Run を実行",
       feedback:
-        "未署名配布の署名工程は Xcode / iOS のバージョン差で失敗することがあります。機種とエラー内容を添えて GitHub の Issue よりご報告ください。",
+        "モバイル版は継続的に開発中です。ビルドや動作に関する問題がありましたら、GitHub の Issue よりご報告ください。",
     },
   },
   en: {
     android: {
-      badge: "Public Beta",
-      title: "Android Beta Guide",
-      requirements: "Requires Android 8.0 (API 26) or later (Phones & Tablets)",
+      badge: "Source Build · No Pre-built Package",
+      title: "Android Client Build & Run Guide",
+      requirements: "Requires Android 8.0+ (API 26), local JDK 17 and Android SDK",
       description:
-        "Inkpoint Mobile is currently in public beta. Featuring the native CodeMirror 6 engine, bidirectional links, and offline local editing.",
-      tips: "Open the APK directly after downloading. If prompted with 'Unknown sources', allow install from this browser in system settings.",
+        "Inkpoint Mobile is currently in open-source development. Pre-compiled installation packages (APKs) are not provided. If needed, please clone the repository and compile the source code locally.",
+      tips: "Quick start steps:\n1. Clone repository and install dependencies: pnpm install\n2. Sync mobile Web offline core: pnpm build:mobile\n3. Run & debug: execute pnpm android or open apps/mobile/android in Android Studio\n4. Build APK: run ./gradlew assembleDebug under apps/mobile/android",
       feedback:
-        "Encountered any rendering issues or input glitches? Feel free to report them via GitHub.",
+        "Mobile features are actively evolving. If you encounter any build issues, please open an issue on GitHub.",
     },
     ios: {
-      badge: "Self-signed install · Beta",
-      title: "iOS Install Guide",
-      requirements: "Requires iOS 17.0 or later on iPhone and iPad",
+      badge: "Source Build · No Pre-built Package",
+      title: "iOS Client Build & Run Guide",
+      requirements: "Requires iOS 17.0+ on iPhone/iPad, macOS, and latest Xcode (Swift 6)",
       description:
-        "Inkpoint for iOS ships as an unsigned IPA (not on the App Store, no TestFlight). You need to re-sign it with a sideloading tool before installing; on first launch, trust the certificate under Settings → General → VPN & Device Management.",
-      tips: "Recommended tools:\n(1) Sideloadly — desktop (Windows / macOS), signs with your Apple ID and installs over USB\n(2) AltStore / SideStore — self-signing on device, requires pairing with a computer running AltServer once\n(3) LiveContainer — a sideloading container that runs unsigned IPAs directly\nFree Apple ID signatures expire after 7 days; re-sign with the same tool to refresh.",
+        "Inkpoint Mobile is currently in open-source development. Pre-compiled installation packages (IPAs) are not provided. If needed, please clone the repository and compile the source code locally via Xcode.",
+      tips: "Quick start steps:\n1. Clone repository and install dependencies: pnpm install\n2. Sync mobile Web offline core: pnpm build:mobile\n3. Run & debug: execute pnpm ios or open apps/mobile/ios/Inkpoint.xcodeproj in Xcode\n4. Connect your device or select a simulator and click Run in Xcode",
       feedback:
-        "Sideloading can fail depending on your Xcode / iOS versions — open a GitHub issue with your device model and the error message.",
+        "Mobile features are actively evolving. If you encounter any build issues, please open an issue on GitHub.",
     },
   },
 };
@@ -491,11 +494,11 @@ export interface MobilePlatformDownload {
 }
 
 /**
- * 构造移动端（Android / iOS）下载目录，标明测试版状态
+ * 构造移动端（Android / iOS）下载目录，标明源码编译与无预编译包状态
  */
 export function getMobileDownloadCatalog(
   locale: Locale = "zh",
-  domain?: string,
+  _domain?: string,
   androidVersion = DEFAULT_ANDROID_VERSION,
   iosVersion = DEFAULT_IOS_VERSION,
 ): MobilePlatformDownload {
@@ -505,32 +508,20 @@ export function getMobileDownloadCatalog(
   return {
     android: {
       primary: {
-        href: buildAndroidApkUrl(normalizedAndroidVer, domain),
-        fileName: `Inkpoint_${normalizedAndroidVer}.apk`,
+        href: ANDROID_SOURCE_GUIDE_URL,
         label: labels.androidPrimary,
       },
       format: labels.androidFormat,
-      secondary: [
-        {
-          href: buildAndroidApkUrl(undefined, domain),
-          label: labels.androidSecondary,
-        },
-      ],
+      secondary: [],
       version: normalizedAndroidVer,
     },
     ios: {
       primary: {
-        href: buildIosIpaUrl(normalizedIosVer, domain),
-        fileName: `Inkpoint-${normalizedIosVer}-unsigned.ipa`,
+        href: IOS_SOURCE_GUIDE_URL,
         label: labels.iosPrimary,
       },
       format: labels.iosFormat,
-      secondary: [
-        {
-          href: buildIosIpaUrl(undefined, domain),
-          label: labels.iosSecondary,
-        },
-      ],
+      secondary: [],
       version: normalizedIosVer,
     },
   };
