@@ -33,11 +33,11 @@
   - 唯一入口为 `pnpm release:site`（`scripts/site/deploy-site.mjs`）；
   - `apps/site/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`；
   - 承载主站首页、Next.js ISR 全平台版本分发中心（`/releases`）、更新日志（`/changelog`）等；
-  - 对应域名：`editor.justdev.cn` 与 `editor.jiaqi.im`。
+  - 对应主域名：`editor.jiaqi.im`（历史域名 `editor.justdev.cn` 自动重定向至此）。
 - **全球边缘分发网关与 R2 存储（Cloudflare Worker）**：
   - 唯一入口为 `pnpm deploy:worker`（`infra/distribution-worker`）；
   - 负责各平台安装包大文件直连（`/inkpoint/desktop/...`、`/inkpoint/android/...`）、版本清单 API（`/api/inkpoint/releases`）、应用内自动更新检查（`/desktop/updater.json`）与静态目录预渲染；
-  - 对应域名：`download.justdev.cn` 与 `download.jiaqi.im`。
+  - 对应主域名：`download.jiaqi.im`（历史域名 `download.justdev.cn` 自动重定向至此）。
 
 ## 核心发版与部署命令速查
 
@@ -52,8 +52,8 @@
 | `pnpm release:web` | `scripts/web/deploy-web.mjs` | Web 端本地 Vercel CLI 预构建极速上线入口（对标 `release:site`） |
 | `pnpm release:web:version` | `scripts/release/version-web.mjs` | 仅更新 Web 端版本文件与 `apps/web/CHANGELOG.md` |
 | `pnpm deploy:web` | `scripts/web/deploy-web.mjs` | Web 端部署别名入口 |
-| `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口（发布至 `editor.justdev.cn` / `editor.jiaqi.im`） |
-| `pnpm deploy:worker` | `infra/distribution-worker` | Cloudflare Worker 边缘分发网关发布入口（发布至 `download.justdev.cn` / `download.jiaqi.im`） |
+| `pnpm release:site` | `scripts/site/deploy-site.mjs` | 官网 Vercel CLI 预构建发布入口（发布至 `editor.jiaqi.im`） |
+| `pnpm deploy:worker` | `infra/distribution-worker` | Cloudflare Worker 边缘分发网关发布入口（发布至 `download.jiaqi.im`） |
 | `pnpm dev:site` | `site` | 本地启动官网 Next.js 开发环境（端口 3000） |
 | `pnpm dev:worker` | `infra/distribution-worker` | 本地启动 Cloudflare Worker 边缘网关调试环境（Wrangler） |
 
@@ -116,16 +116,16 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 
 1. **若修改了 `apps/site/` 目录**（如官网文案、Next.js ISR 版本中心 `/releases`、更新日志 UI、样式等）：
    - 执行：`pnpm release:site`
-   - 验证：检查 `https://editor.justdev.cn/` 和 `https://editor.jiaqi.im/` 是否正常生效。
+   - 验证：检查 `https://editor.jiaqi.im/` 是否正常生效。
 2. **若修改了 `infra/distribution-worker/` 目录**（如分发网关路由、R2 代理策略、静态目录模板等）：
    - 执行：`pnpm deploy:worker`
-   - 验证：检查 `https://download.justdev.cn/` 和 `https://download.jiaqi.im/` 是否正常生效。
+   - 验证：检查 `https://download.jiaqi.im/` 是否正常生效。
 3. **若同时修改了 `apps/site/` 和 `infra/distribution-worker/`**：
    - 先执行：`pnpm release:site`
    - 再执行：`pnpm deploy:worker`
 4. **若修改了 `apps/web/` 目录**（Web 在线 Playground）：
    - 执行：`pnpm release:web`
-   - 验证：检查 `https://editor.justdev.cn/playground` 是否正常生效。
+   - 验证：检查 `https://editor.jiaqi.im/playground` 是否正常生效。
 5. **若是桌面端客户端版本发布**：
    - 走标准客户端发布命令：`pnpm release:desktop`（由 GitHub Actions 构建多端二进制并自动同步至 R2 与公开 Tap）。
 6. **若是移动端版本发布**：

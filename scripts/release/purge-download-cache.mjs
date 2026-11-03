@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_DOMAINS = ["https://download.justdev.cn", "https://download.jiaqi.im"];
+export const DEFAULT_DOMAINS = ["https://download.jiaqi.im", "https://download.justdev.cn"];
 
 export const PURGE_PATHS = [
   "",

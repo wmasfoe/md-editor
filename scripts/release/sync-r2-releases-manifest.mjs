@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 export const DEFAULT_APP = process.env.APP_NAME || "inkpoint";
 export const GITHUB_REPO = process.env.GITHUB_REPO || "wmasfoe/md-editor";
-export const DISTRIBUTION_URL = process.env.DISTRIBUTION_URL || "https://download.justdev.cn";
+export const DISTRIBUTION_URL = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
 export const BUCKET = process.env.R2_BUCKET_NAME || "inkpoint-releases";
 
 function formatBytes(bytes) {

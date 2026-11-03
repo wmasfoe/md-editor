@@ -186,7 +186,8 @@ function inferSource(request: Request): string {
   const userAgent = request.headers.get("User-Agent") || "";
 
   if (userAgent.includes("Tauri") || userAgent.includes("tauri-updater")) return "updater";
-  if (referer.includes("inkpoint") || referer.includes("justdev")) return "site";
+  if (referer.includes("inkpoint") || referer.includes("jiaqi") || referer.includes("justdev"))
+    return "site";
   if (accept.includes("application/json")) return "api";
 
   return "direct";

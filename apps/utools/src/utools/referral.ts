@@ -2,7 +2,7 @@
 // 官网与原生桌面端导流模块
 
 /** 官网域名 */
-export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
+export const OFFICIAL_SITE_DOMAIN = "editor.jiaqi.im";
 
 /** 官网完整 URL */
 export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
