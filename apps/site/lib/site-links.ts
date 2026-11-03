@@ -6,7 +6,7 @@
  */
 
 /** 官网域名 */
-export const OFFICIAL_SITE_DOMAIN = "editor.justdev.cn";
+export const OFFICIAL_SITE_DOMAIN = "editor.jiaqi.im";
 
 /** 官网完整 URL */
 export const OFFICIAL_SITE_URL = `https://${OFFICIAL_SITE_DOMAIN}`;
@@ -82,7 +82,7 @@ export const DESKTOP_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/deskto
  * 根据当前运行上下文（浏览器 window.location.hostname 或传入的 hostname）智能解析分发加速域名。
  * 例如：
  * - editor.jiaqi.im -> download.jiaqi.im
- * - editor.justdev.cn -> download.justdev.cn
+ * - editor.justdev.cn（历史域名） -> download.jiaqi.im
  * - 任意 editor.<domain> -> download.<domain>
  * - 本地开发或未知主机 -> 回退默认 download.jiaqi.im
  */
@@ -95,8 +95,9 @@ export function resolveDistributionDomain(hostname?: string): string {
     if (host === "editor.jiaqi.im" || host.endsWith(".jiaqi.im")) {
       return "download.jiaqi.im";
     }
+    // 兼容历史 justdev.cn 访问并统一导流至规范分发域 download.jiaqi.im
     if (host === "editor.justdev.cn" || host.endsWith(".justdev.cn")) {
-      return "download.justdev.cn";
+      return "download.jiaqi.im";
     }
     if (host.startsWith("editor.")) {
       return `download.${host.slice("editor.".length)}`;

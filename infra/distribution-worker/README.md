@@ -1,6 +1,6 @@
 # @md-editor/distribution-worker - 全球边缘分发网关
 
-基于 [Cloudflare Workers](https://workers.cloudflare.com/) 构建的 Inkpoint 全球边缘下载网关与动态版本分发服务（规范域名 `download.jiaqi.im`，`download.justdev.cn` 为同源备用域名——更新清单与二进制永远同域输出，避免客户端跨域下载）。
+基于 [Cloudflare Workers](https://workers.cloudflare.com/) 构建的 Inkpoint 全球边缘下载网关与动态版本分发服务（规范主域名 `download.jiaqi.im`，历史域名 `download.justdev.cn` 自动重定向至此——更新清单与二进制永远同域输出，避免客户端跨域下载）。
 
 ---
 

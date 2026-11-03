@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="https://editor.justdev.cn/download">
+  <a href="https://editor.jiaqi.im/#download">
     <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_Android_%7C_uTools-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
@@ -110,7 +110,7 @@
 | **Android** | ARM64 / x86_64 (Android 8.0+) | 源码编译 | **暂不提供预编译安装包**，如有需要请自行编译源码（详见 [apps/mobile/android](apps/mobile/android/README.md)） |
 | **iOS** | iPhone / iPad (iOS 17.0+) | 源码编译 | **暂不提供预编译安装包**，如有需要请自行编译源码（详见 [apps/mobile/ios](apps/mobile/ios/README.md)） |
 | **uTools** | 跨平台桌面应用环境 | `.upxs` (插件离线包) | uTools 插件中心搜索「Inkpoint」或一键呼出速记 |
-| **Web** | 现代化 Web 浏览器 | 在线即用 (SPA) | 零安装直接访问 [Web Playground](https://editor.justdev.cn) |
+| **Web** | 现代化 Web 浏览器 | 在线即用 (SPA) | 零安装直接访问 [Web Playground](https://editor.jiaqi.im/playground) |
 
 ### 方式一：一键脚本安装 (桌面端推荐)
 
@@ -134,7 +134,7 @@ brew install --cask wmasfoe/tap/md-editor
 
 ### 方式三：手动下载 (桌面端)
 
-前往 [官方下载中心](https://editor.justdev.cn/download) 或 [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) 页面下载对应桌面系统的最新安装包。
+前往 [官方下载中心](https://editor.jiaqi.im/#download) 或 [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) 页面下载对应桌面系统的最新安装包。
 
 > [!NOTE]
 > **移动端说明**：Android 与 iOS 移动端目前处于开源开发阶段，**暂不提供官方预编译安装包（APK / IPA）**。如有使用或体验需求，请参考 [apps/mobile/README.md](apps/mobile/README.md) 克隆代码并在本地自行编译源码运行。

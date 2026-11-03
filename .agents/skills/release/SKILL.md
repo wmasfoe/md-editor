@@ -29,9 +29,9 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.12.1`) | `.github/workflows/release-desktop.yml` | `apps/desktop/package.json`<br>`src-tauri/tauri.conf.json`<br>`src-tauri/Cargo.toml`<br>`apps/desktop/CHANGELOG*.md` | Cloudflare R2 (`/inkpoint/desktop/`)<br>Homebrew Tap<br>GitHub Releases |
 | **Android App** | `pnpm release:android` | `pnpm release:android:version` | `android-v*` (e.g. `android-v0.2.0`) | `.github/workflows/release-mobile.yml` | `apps/mobile/android/app/build.gradle.kts`<br>`apps/mobile/android/CHANGELOG*.md` | Cloudflare R2 (`/inkpoint/android/`)<br>Distribution Gateway |
-| **Web Playground** | `pnpm release:web` | `pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*` (archival tag only) | `.github/workflows/release-web.yml` | `apps/web/package.json`<br>`apps/web/CHANGELOG*.md` | Vercel Production (`editor.justdev.cn/playground`) |
-| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop, Android & Web changelogs | Vercel Production (`editor.justdev.cn` & `editor.jiaqi.im`) |
-| **Distribution Worker** | `pnpm deploy:worker` | N/A | Manual / Infrastructure deploy | Cloudflare Worker CLI | `infra/distribution-worker` | Cloudflare Edge (`download.justdev.cn` & `download.jiaqi.im`) |
+| **Web Playground** | `pnpm release:web` | `pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*` (archival tag only) | `.github/workflows/release-web.yml` | `apps/web/package.json`<br>`apps/web/CHANGELOG*.md` | Vercel Production (`editor.jiaqi.im/playground`) |
+| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop, Android & Web changelogs | Vercel Production (`editor.jiaqi.im`) |
+| **Distribution Worker** | `pnpm deploy:worker` | N/A | Manual / Infrastructure deploy | Cloudflare Worker CLI | `infra/distribution-worker` | Cloudflare Edge (`download.jiaqi.im`) |
 | **uTools Plugin** | Manual Review | `apps/utools/package.json` | `utools-v*` | `.github/workflows/release-utools.yml` | `apps/utools/package.json`<br>`apps/utools/CHANGELOG*.md` | uTools Developer Center (manual submission) |
 
 ---

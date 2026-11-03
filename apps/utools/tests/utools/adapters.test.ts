@@ -399,7 +399,7 @@ describe("uTools Platform Adapters", () => {
   describe("Referral URL", () => {
     it("generates correct UTM tracking parameters and targets official site", () => {
       const url = buildReferralUrl("top_banner");
-      expect(url.startsWith("https://editor.justdev.cn")).toBe(true);
+      expect(url.startsWith("https://editor.jiaqi.im")).toBe(true);
       expect(url).toContain("utm_source=utools");
       expect(url).toContain("utm_medium=plugin");
       expect(url).toContain("utm_campaign=top_banner");

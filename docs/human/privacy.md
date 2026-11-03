@@ -57,7 +57,7 @@ Inkpoint 会定期检查是否有新版本可用（可在设置中关闭）。
 
 ## 四、官网页面访问
 
-访问 inkpoint 官网（editor.justdev.cn 或 editor.jiaqi.im）时，由 Vercel 托管，会记录标准的访问日志。这部分由 Vercel 平台管理，不在 Inkpoint 应用范围内。
+访问 inkpoint 官网（editor.jiaqi.im，历史域名 editor.justdev.cn 自动重定向至此）时，由 Vercel 托管，会记录标准的访问日志。这部分由 Vercel 平台管理，不在 Inkpoint 应用范围内。
 
 
 ## 五、其他说明

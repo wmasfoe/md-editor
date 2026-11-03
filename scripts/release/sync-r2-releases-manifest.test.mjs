@@ -54,7 +54,7 @@ function iosReleaseEntry(version, publishedAt) {
         platform: "ios",
         platformLabel: "iOS · 未签名 IPA（自签安装）",
         fileName: `Inkpoint-${version}-unsigned.ipa`,
-        downloadUrl: `https://download.justdev.cn/inkpoint/ios/${version}/Inkpoint-${version}-unsigned.ipa`,
+        downloadUrl: `https://download.jiaqi.im/inkpoint/ios/${version}/Inkpoint-${version}-unsigned.ipa`,
         sizeBytes: 4300000,
         formattedSize: "4.1 MB",
         isR2Cached: true,
@@ -229,7 +229,7 @@ describe("iOS unsigned IPA releases", () => {
     const manifest = transformGitHubReleases(
       rawDesktopMock,
       "inkpoint",
-      "https://download.justdev.cn",
+      "https://download.jiaqi.im",
       {
         extraIosReleases: [
           buildIosReleaseEntry("0.2.1"),
@@ -242,7 +242,7 @@ describe("iOS unsigned IPA releases", () => {
     assert.equal(manifest.latestReleases.ios.version, "0.2.1");
     assert.equal(
       manifest.latestReleases.ios.downloadUrl,
-      "https://download.justdev.cn/inkpoint/ios/latest",
+      "https://download.jiaqi.im/inkpoint/ios/latest",
     );
     assert.equal(manifest.latestReleases.ios.fileName, "Inkpoint-0.2.1-unsigned.ipa");
     assert.equal(manifest.latestReleases.ios.platformLabel, "iOS · 未签名 IPA（自签安装）");
@@ -270,7 +270,7 @@ describe("iOS unsigned IPA releases", () => {
         },
       ],
       "inkpoint",
-      "https://download.justdev.cn",
+      "https://download.jiaqi.im",
       { extraIosReleases: [buildIosReleaseEntry(undefined)] },
     );
 

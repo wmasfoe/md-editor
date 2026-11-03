@@ -19,7 +19,7 @@
 
 ```
                                ┌────────────────────────────────────────────────────────┐
-                               │       download.justdev.cn (Cloudflare Worker)          │
+                               │       download.jiaqi.im (Cloudflare Worker)            │
                                │                统一全球边缘加速网关                    │
                                └───────────────────────────┬────────────────────────────┘
                                                            │
@@ -86,12 +86,12 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
       "macos_arm64": {
         "version": "0.10.2",
         "fileName": "Inkpoint_0.10.2_aarch64.dmg",
-        "downloadUrl": "https://download.justdev.cn/inkpoint/desktop/macos/latest"
+        "downloadUrl": "https://download.jiaqi.im/inkpoint/desktop/macos/latest"
       },
       "windows_x64": {
         "version": "0.10.2",
         "fileName": "Inkpoint_0.10.2_x64-setup.exe",
-        "downloadUrl": "https://download.justdev.cn/inkpoint/desktop/windows/latest"
+        "downloadUrl": "https://download.jiaqi.im/inkpoint/desktop/windows/latest"
       }
     }
   },
@@ -100,7 +100,7 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
     "apk": {
       "version": "0.1.0",
       "fileName": "Inkpoint_0.1.0.apk",
-      "downloadUrl": "https://download.justdev.cn/inkpoint/android/latest"
+      "downloadUrl": "https://download.jiaqi.im/inkpoint/android/latest"
     }
   },
   "ios": {
@@ -109,7 +109,7 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
     "ipa": {
       "version": "0.2.1",
       "fileName": "Inkpoint-0.2.1-unsigned.ipa",
-      "downloadUrl": "https://download.justdev.cn/inkpoint/ios/latest",
+      "downloadUrl": "https://download.jiaqi.im/inkpoint/ios/latest",
       "unsigned": true,
       "minimumOSVersion": "17.0"
     }
@@ -144,7 +144,7 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
 ## 6. 官网联动设计 (`site`)
 
 1. **`apps/site/lib/site-links.ts`**：
-   - 暴露 `DISTRIBUTION_DOMAIN = "download.justdev.cn"` 与 `DISTRIBUTION_URL`；
+   - 暴露 `DISTRIBUTION_DOMAIN = "download.jiaqi.im"` 与 `DISTRIBUTION_URL`；
    - 提供 `buildAcceleratedDesktopUrl`、`buildAndroidApkUrl`、`buildVersionApiUrl` 等安全方法；
 2. **`apps/site/lib/downloads.ts`**：
    - 导出 `getMobileDownloadCatalog(locale)`，指向移动端源码编译说明链接（当前阶段移动端暂不提供预编译安装包，需克隆源码自行编译）；

@@ -388,11 +388,11 @@ describe("Distribution Worker Router & Matcher", () => {
       platforms: {
         "darwin-aarch64": {
           signature: "sig-mac",
-          url: "https://download.justdev.cn/inkpoint/desktop/0.15.0/Inkpoint.app.tar.gz",
+          url: "https://download.jiaqi.im/inkpoint/desktop/0.15.0/Inkpoint.app.tar.gz",
         },
         "windows-x86_64": {
           signature: "sig-win",
-          url: "https://download.justdev.cn/inkpoint/desktop/0.15.0/Inkpoint_0.15.0_x64-setup.exe?x=1#y",
+          url: "https://download.jiaqi.im/inkpoint/desktop/0.15.0/Inkpoint_0.15.0_x64-setup.exe?x=1#y",
         },
       },
     };
@@ -1231,7 +1231,7 @@ describe("Distribution Worker Router & Matcher", () => {
         ipa: {
           version: "0.2.1",
           fileName: "Inkpoint-0.2.1-unsigned.ipa",
-          downloadUrl: "https://download.justdev.cn/inkpoint/ios/latest",
+          downloadUrl: "https://download.jiaqi.im/inkpoint/ios/latest",
           unsigned: true,
         },
       },
@@ -1263,7 +1263,7 @@ describe("Distribution Worker Router & Matcher", () => {
     } as unknown as ExecutionContext;
 
     const res = await handleRequest(
-      new Request("https://download.justdev.cn/inkpoint/ios/latest", {
+      new Request("https://download.jiaqi.im/inkpoint/ios/latest", {
         headers: { "CF-Connecting-IP": "203.0.113.9" },
       }),
       {
@@ -1287,13 +1287,10 @@ describe("Distribution Worker Router & Matcher", () => {
   });
 
   it("should return 404 with helpful error when the iOS IPA is not in R2", async () => {
-    const res = await handleRequest(
-      new Request("https://download.justdev.cn/inkpoint/ios/latest"),
-      {
-        DEFAULT_APP: "inkpoint",
-        RELEASE_BUCKET: { get: async () => null } as unknown as R2Bucket,
-      },
-    );
+    const res = await handleRequest(new Request("https://download.jiaqi.im/inkpoint/ios/latest"), {
+      DEFAULT_APP: "inkpoint",
+      RELEASE_BUCKET: { get: async () => null } as unknown as R2Bucket,
+    });
 
     expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string; app: string };
@@ -1316,7 +1313,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const res = await handleRequest(
-      new Request("https://download.justdev.cn/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa"),
+      new Request("https://download.jiaqi.im/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa"),
       {
         DEFAULT_APP: "inkpoint",
         RELEASE_BUCKET: mockBucket as unknown as R2Bucket,
@@ -1334,7 +1331,7 @@ describe("Distribution Worker Router & Matcher", () => {
       GITHUB_REPO: "wmasfoe/md-editor",
     };
 
-    const res = await handleRequest(new Request("https://download.justdev.cn/inkpoint/ios"), env);
+    const res = await handleRequest(new Request("https://download.jiaqi.im/inkpoint/ios"), env);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Index of /inkpoint/ios/");
@@ -1343,9 +1340,9 @@ describe("Distribution Worker Router & Matcher", () => {
     expect(html).toContain("/api/inkpoint/ios/releases");
 
     for (const path of ["/ios", "/releases/ios"]) {
-      const redirect = await handleRequest(new Request(`https://download.justdev.cn${path}`), env);
+      const redirect = await handleRequest(new Request(`https://download.jiaqi.im${path}`), env);
       expect(redirect.status).toBe(302);
-      expect(redirect.headers.get("Location")).toBe("https://download.justdev.cn/inkpoint/ios/");
+      expect(redirect.headers.get("Location")).toBe("https://download.jiaqi.im/inkpoint/ios/");
     }
   });
 
@@ -1377,7 +1374,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const res = await handleRequest(
-      new Request("https://download.justdev.cn/api/inkpoint/releases"),
+      new Request("https://download.jiaqi.im/api/inkpoint/releases"),
       env,
     );
     expect(res.status).toBe(200);
@@ -1388,7 +1385,7 @@ describe("Distribution Worker Router & Matcher", () => {
 
     expect(typeof data.latestIosVersion).toBe("string");
     expect(data.latestReleases?.ios?.downloadUrl).toBe(
-      "https://download.justdev.cn/inkpoint/ios/latest",
+      "https://download.jiaqi.im/inkpoint/ios/latest",
     );
     expect(data.latestReleases?.ios?.platformLabel).toContain("未签名 IPA");
   });
@@ -1400,7 +1397,7 @@ describe("Distribution Worker Router & Matcher", () => {
     };
 
     const res = await handleRequest(
-      new Request("https://download.justdev.cn/inkpoint/", { headers: { Accept: "text/html" } }),
+      new Request("https://download.jiaqi.im/inkpoint/", { headers: { Accept: "text/html" } }),
       env,
     );
     expect(res.status).toBe(200);

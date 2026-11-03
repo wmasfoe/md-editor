@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <a href="https://editor.justdev.cn/download">
+  <a href="https://editor.jiaqi.im/#download">
     <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_Android_%7C_uTools-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
@@ -115,7 +115,7 @@ Choose the installation method that best fits your operating system and device:
 | **Android** | ARM64 / x86_64 (Android 8.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/android](apps/mobile/android/README.md)) |
 | **iOS** | iPhone / iPad (iOS 17.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/ios](apps/mobile/ios/README.md)) |
 | **uTools** | Desktop application environment | `.upxs` (Plugin package) | Search "Inkpoint" in uTools store or trigger via shortcut |
-| **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.justdev.cn) |
+| **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.jiaqi.im/playground) |
 
 ### Option 1: One-Line Install Script (Desktop Recommended)
 
@@ -139,7 +139,7 @@ brew install --cask wmasfoe/tap/md-editor
 
 ### Option 3: Manual Download (Desktop)
 
-Visit the [Official Download Portal](https://editor.justdev.cn/download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
+Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
 
 > [!NOTE]
 > **Mobile Notice**: Android and iOS mobile versions are currently in active open-source development and **do not provide pre-compiled installation packages (APKs/IPAs)**. If you need to run on mobile, please refer to [apps/mobile/README.md](apps/mobile/README.md) to compile from source locally.
