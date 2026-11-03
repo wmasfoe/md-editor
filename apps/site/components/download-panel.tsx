@@ -37,10 +37,10 @@ function renderPlatformLabel(platform: SitePlatform) {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
         <span className="text-[12px] sm:text-sm">{platform === "android" ? "Android" : "iOS"}</span>
-        {/* 窄屏保留微呼吸圆点，宽屏展示完整测试版 Badge */}
+        {/* 窄屏保留微呼吸圆点，宽屏展示完整源码编译 Badge */}
         <span className="h-1.5 w-1.5 rounded-full bg-accent sm:hidden" />
         <span className="hidden rounded-full bg-accent/15 px-1.5 py-0.5 text-[9px] font-semibold text-accent leading-none sm:inline-block">
-          Beta
+          Source
         </span>
       </span>
     );
@@ -118,6 +118,8 @@ export function DownloadPanel({
           <a
             href={current.primary.href}
             download={current.primary.fileName}
+            target={isMobile ? "_blank" : undefined}
+            rel={isMobile ? "noreferrer" : undefined}
             aria-label={`${current.primary.label}，${current.format}`}
             className="liquid-glass-button-dark group relative mt-4 inline-flex h-12 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-full px-5 text-sm font-medium text-white sm:h-12 sm:w-fit sm:px-7"
           >
@@ -129,6 +131,7 @@ export function DownloadPanel({
             <span className="relative z-10 inline-flex items-center gap-2.5 font-semibold tracking-tight">
               <PlatformGlyph platform={platform} className="h-4 w-4 shrink-0 opacity-90" />
               <span>{current.primary.label}</span>
+              {isMobile ? <span className="text-xs opacity-75">↗</span> : null}
             </span>
           </a>
         </div>
@@ -138,7 +141,7 @@ export function DownloadPanel({
         {current.isBeta ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-accent">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-            <span>{t.download.betaStatus}</span>
+            <span>{isMobile ? t.download.sourceOnlyStatus : t.download.betaStatus}</span>
           </span>
         ) : null}
         {current.isBeta ? <span className="text-line-strong">·</span> : null}
@@ -171,21 +174,19 @@ export function DownloadPanel({
             </a>
           </span>
         ))}
-        <span className="text-line-strong">·</span>
-        <a
-          href={
-            platform === "android"
-              ? catalog.androidPackagesUrl
-              : platform === "ios"
-                ? catalog.iosPackagesUrl
-                : catalog.desktopPackagesUrl
-          }
-          target="_blank"
-          rel="noreferrer"
-          className="text-ink-soft transition-colors hover:text-ink"
-        >
-          {t.hero.allPackages}
-        </a>
+        {!isMobile ? (
+          <>
+            <span className="text-line-strong">·</span>
+            <a
+              href={catalog.desktopPackagesUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-ink-soft transition-colors hover:text-ink"
+            >
+              {t.hero.allPackages}
+            </a>
+          </>
+        ) : null}
       </p>
 
       {/* 桌面端命令行一键安装 或 移动端测试版说明指南卡片 */}
@@ -217,7 +218,10 @@ export function DownloadPanel({
                 <strong className="text-ink">{t.download.systemRequirements}</strong>
                 {mobileGuide.requirements}
               </p>
-              <p>{mobileGuide.description}</p>
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+                <strong className="font-semibold">{t.download.noPrebuiltNoticeTitle}</strong>
+                <span>{mobileGuide.description}</span>
+              </div>
               <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 whitespace-pre-line text-ink-soft">
                 <span className="font-medium text-ink">{t.download.installationTip}</span>
                 {mobileGuide.tips}

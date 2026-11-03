@@ -18,7 +18,12 @@ import {
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
-import { buildAppPrUrl, buildVersionPackageLinks } from "../lib/site-links";
+import {
+  ANDROID_SOURCE_GUIDE_URL,
+  buildAppPrUrl,
+  buildVersionPackageLinks,
+  IOS_SOURCE_GUIDE_URL,
+} from "../lib/site-links";
 import { useDistribution } from "../lib/distribution/context";
 
 interface ChangelogContentProps {
@@ -303,10 +308,22 @@ export function ChangelogContent({
         hidden={!isAndroid}
         className={isAndroid ? undefined : "hidden"}
       >
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-medium">
+            {t.changelog.mobileSourceNotice}{" "}
+            <a
+              href={ANDROID_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-current font-semibold hover:opacity-80"
+            >
+              {t.changelog.viewSourceGuide} →
+            </a>
+          </p>
+        </div>
         <ClientChangelogTimeline
           entries={activeAndroidEntries}
           labels={{ ...t.changelog, empty: t.changelog.androidEmpty }}
-          isAndroid
         />
       </section>
       <section
@@ -316,10 +333,22 @@ export function ChangelogContent({
         hidden={!isIos}
         className={isIos ? undefined : "hidden"}
       >
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-medium">
+            {t.changelog.mobileSourceNotice}{" "}
+            <a
+              href={IOS_SOURCE_GUIDE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-current font-semibold hover:opacity-80"
+            >
+              {t.changelog.viewSourceGuide} →
+            </a>
+          </p>
+        </div>
         <ClientChangelogTimeline
           entries={activeIosEntries}
           labels={{ ...t.changelog, empty: t.changelog.iosEmpty }}
-          isAndroid
         />
       </section>
       <section
@@ -398,11 +427,9 @@ function ChangelogTab({
 function VersionDownloadDropdown({
   version,
   labels,
-  isAndroid = false,
 }: {
   version: string;
   labels: ChangelogLabels;
-  isAndroid?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -457,50 +484,33 @@ function VersionDownloadDropdown({
           <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
             v{version} {labels.edgeDownloads}
           </div>
-          {isAndroid && links.android ? (
-            <a
-              href={links.android.url}
-              download={links.android.fileName}
-              className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-            >
-              <span>Android (APK)</span>
-              <span className="text-[10px] text-muted">APK</span>
-            </a>
-          ) : (
-            <>
-              <a
-                href={links.macos.url}
-                download={links.macos.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>macOS (Apple Silicon)</span>
-                <span className="text-[10px] text-muted">DMG</span>
-              </a>
-              <a
-                href={links.windows.url}
-                download={links.windows.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>Windows (x64)</span>
-                <span className="text-[10px] text-muted">Setup.exe</span>
-              </a>
-              <a
-                href={links.linux.url}
-                download={links.linux.fileName}
-                className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
-              >
-                <span>Linux (x86_64)</span>
-                <span className="text-[10px] text-muted">AppImage</span>
-              </a>
-            </>
-          )}
+          <a
+            href={links.macos.url}
+            download={links.macos.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>macOS (Apple Silicon)</span>
+            <span className="text-[10px] text-muted">DMG</span>
+          </a>
+          <a
+            href={links.windows.url}
+            download={links.windows.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Windows (x64)</span>
+            <span className="text-[10px] text-muted">Setup.exe</span>
+          </a>
+          <a
+            href={links.linux.url}
+            download={links.linux.fileName}
+            className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-ink transition-colors hover:bg-surface hover:text-accent"
+          >
+            <span>Linux (x86_64)</span>
+            <span className="text-[10px] text-muted">AppImage</span>
+          </a>
           <div className="my-1 border-t border-line/60" />
           <a
-            href={
-              isAndroid
-                ? `${releasesPortalUrl.replace(/\/+$/, "")}/android/`
-                : `${releasesPortalUrl.replace(/\/+$/, "")}/desktop/#v${version}`
-            }
+            href={`${releasesPortalUrl.replace(/\/+$/, "")}/desktop/#v${version}`}
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-between rounded-lg px-2.5 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-ink"
@@ -518,12 +528,10 @@ function ClientChangelogTimeline({
   entries,
   labels,
   isDesktop = false,
-  isAndroid = false,
 }: {
   entries: ChangelogEntry[];
   labels: ChangelogLabels;
   isDesktop?: boolean;
-  isAndroid?: boolean;
 }) {
   if (entries.length === 0) {
     return <p className="text-sm text-muted">{labels.empty}</p>;
@@ -549,12 +557,8 @@ function ClientChangelogTimeline({
                   </time>
                   {index === 0 ? <StatusBadge>{labels.latestBadge}</StatusBadge> : null}
                 </div>
-                {isDesktop || isAndroid ? (
-                  <VersionDownloadDropdown
-                    version={entry.version}
-                    labels={labels}
-                    isAndroid={isAndroid}
-                  />
+                {isDesktop ? (
+                  <VersionDownloadDropdown version={entry.version} labels={labels} />
                 ) : null}
               </div>
               <PullRequestLine
