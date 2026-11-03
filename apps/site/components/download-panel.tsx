@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FaAndroid, FaApple, FaLinux, FaWindows } from "react-icons/fa6";
 import { useState } from "react";
 import {
@@ -142,9 +143,19 @@ export function DownloadPanel({
         ) : null}
         {current.isBeta ? <span className="text-line-strong">·</span> : null}
         {current.version || version ? (
-          <span>
+          <Link
+            href={
+              platform === "android"
+                ? "/changelog#android"
+                : platform === "ios"
+                  ? "/changelog#ios"
+                  : "/changelog#desktop"
+            }
+            className="transition-colors hover:text-ink hover:underline"
+            title={t.header.changelog}
+          >
             {t.hero.latestPrefix} v{current.version ?? version}
-          </span>
+          </Link>
         ) : null}
         {current.version || version ? <span className="text-line-strong">·</span> : null}
         <span>{current.format}</span>
