@@ -174,6 +174,7 @@ export const zhHant: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint，本機優先的 Markdown / MDX 桌面編輯器",
+    changelog: "更新紀錄",
     playground: "線上體驗",
     github: "GitHub",
     releases: "版本發佈中心",

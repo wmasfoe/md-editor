@@ -189,6 +189,7 @@ export interface TranslationSchema {
   };
   footer: {
     summary: string;
+    changelog: string;
     playground: string;
     github: string;
     releases: string;

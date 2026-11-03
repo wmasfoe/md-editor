@@ -184,6 +184,7 @@ export const ja: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint、ローカルファーストの Markdown / MDX デスクトップエディタ",
+    changelog: "更新履歴",
     playground: "Web 体験版",
     github: "GitHub",
     releases: "リリース配信センター",

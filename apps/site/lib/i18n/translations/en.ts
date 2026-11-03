@@ -181,6 +181,7 @@ export const en: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint, a local-first Markdown / MDX desktop editor",
+    changelog: "Changelog",
     playground: "Playground",
     github: "GitHub",
     releases: "Releases",

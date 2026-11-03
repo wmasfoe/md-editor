@@ -173,6 +173,7 @@ export const zh: TranslationSchema = {
   },
   footer: {
     summary: "Inkpoint，本地优先的 Markdown / MDX 桌面编辑器",
+    changelog: "更新记录",
     playground: "在线体验",
     github: "GitHub",
     releases: "版本分发中心",
