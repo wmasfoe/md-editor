@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.2 - 2026-11-04 (#213)
+
+- Prevent CodeMirror geometry query errors during view updates with requestMeasure and defensive fallback; unify official site and distribution domain endpoints to jiaqi.im.
+
 ## 0.19.1 - 2026-11-02 (#209)
 
 - Stabilized macOS native traffic lights during window resizing: unified window chrome origin to (9.0, 18.0) and removed dynamic jitter compensation.
