@@ -95,6 +95,25 @@ describe("createRobustMouseSelectionExtension", () => {
     expect(result.main.empty).toBe(false);
     expect(result.main.from).toBe(14);
     expect(result.main.to).toBe(20);
+    expect(result.main.anchor).toBe(14);
+    expect(result.main.head).toBe(20);
+    expect(result.main.anchor).toBeLessThan(result.main.head); // 正向拖拽
+
+    // 反向拖拽：光标从 14 移动到 5
+    mockCoords = 5;
+    const reverseDragEvent = {
+      button: 0,
+      clientX: 100 - (DRAG_THRESHOLD_PX + 5),
+      clientY: 100,
+      detail: 1,
+    } as MouseEvent;
+    const reverseResult = style!.get(reverseDragEvent, false, false);
+    expect(reverseResult.main.empty).toBe(false);
+    expect(reverseResult.main.from).toBe(5);
+    expect(reverseResult.main.to).toBe(14);
+    expect(reverseResult.main.anchor).toBe(14);
+    expect(reverseResult.main.head).toBe(5);
+    expect(reverseResult.main.anchor).toBeGreaterThan(reverseResult.main.head); // 反向拖拽方向性严格保留
   });
 
   it("双击选词与三击选行在无拖拽下正确执行", () => {

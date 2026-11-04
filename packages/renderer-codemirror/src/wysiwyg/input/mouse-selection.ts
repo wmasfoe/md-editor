@@ -20,7 +20,12 @@
  * 彻底消除由于 DOM 装饰展开排版位移带来的意外选区。
  */
 
-import { EditorSelection, type EditorState, type Extension } from "@codemirror/state";
+import {
+  EditorSelection,
+  type EditorState,
+  type Extension,
+  type SelectionRange,
+} from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
 
 /** 判定鼠标位移为真实拖拽手势的像素阈值 */
@@ -73,32 +78,40 @@ export function createRobustMouseSelectionStyle(
         ? (view.posAndSideAtCoords({ x: curEvent.clientX, y: curEvent.clientY }, false) ?? start)
         : start;
 
-      let range: ReturnType<typeof EditorSelection.cursor>;
+      let range: SelectionRange;
       if (type === 1) {
-        // 单击光标
-        range = EditorSelection.cursor(cur.pos, cur.assoc);
+        // 单击或单点拖拽：发生真实拖拽时以按下点为 anchor、当前点为 head，保留正向/反向拖拽的方向性
+        range = isActualDrag
+          ? EditorSelection.range(start.pos, cur.pos, cur.assoc)
+          : EditorSelection.cursor(start.pos, start.assoc);
       } else if (type === 2) {
         // 双击选词
-        const word = view.state.wordAt(cur.pos);
-        range = word ? EditorSelection.range(word.from, word.to) : EditorSelection.cursor(cur.pos);
-      } else {
-        // 三击整行
-        const line = view.state.doc.lineAt(cur.pos);
-        let to = line.to;
-        if (to < view.state.doc.length) {
-          to++;
+        const startWord = view.state.wordAt(start.pos) ?? EditorSelection.cursor(start.pos);
+        const curWord = view.state.wordAt(cur.pos) ?? EditorSelection.cursor(cur.pos);
+        if (!isActualDrag) {
+          range = startWord;
+        } else if (cur.pos < start.pos) {
+          range = EditorSelection.range(startWord.to, curWord.from);
+        } else {
+          range = EditorSelection.range(startWord.from, curWord.to);
         }
-        range = EditorSelection.range(line.from, to);
-      }
-
-      if (isActualDrag && start.pos !== cur.pos && !extend) {
-        const from = Math.min(start.pos, cur.pos);
-        const to = Math.max(start.pos, cur.pos);
-        range = EditorSelection.range(from, to, cur.assoc);
+      } else {
+        // 三击选行
+        const startLine = view.state.doc.lineAt(start.pos);
+        const curLine = view.state.doc.lineAt(cur.pos);
+        const startTo = Math.min(view.state.doc.length, startLine.to + 1);
+        const curTo = Math.min(view.state.doc.length, curLine.to + 1);
+        if (!isActualDrag) {
+          range = EditorSelection.range(startLine.from, startTo);
+        } else if (cur.pos < start.pos) {
+          range = EditorSelection.range(startTo, curLine.from);
+        } else {
+          range = EditorSelection.range(startLine.from, curTo);
+        }
       }
 
       if (extend) {
-        return startSel.replaceRange(startSel.main.extend(range.from, range.to, range.assoc));
+        return startSel.replaceRange(startSel.main.extend(range.head));
       }
       if (multiple) {
         return startSel.addRange(range);
