@@ -102,6 +102,9 @@ jobs:
       - name: Build Web app (production)
         run: pnpm build:web
 
+      - name: Assert web output has no sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/web/dist
+
       - name: Validate release version files
         run: node scripts/release/validate-release-version.mjs
 
@@ -223,7 +226,13 @@ jobs:
           NO_STRIP: "true"
           APPIMAGE_EXTRACT_AND_RUN: "1"
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: pnpm build:linux
+
+      - name: Assert no shipped sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -334,7 +343,13 @@ jobs:
           NO_STRIP: "true"
           APPIMAGE_EXTRACT_AND_RUN: "1"
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: ${{ matrix.platform.build_cmd }}
+
+      - name: Assert no shipped sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

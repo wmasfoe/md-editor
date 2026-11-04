@@ -181,6 +181,8 @@ describe("sentry error reporting", () => {
         expect(initCall.environment).toBe("web");
         expect(initCall.tracesSampleRate).toBe(0);
         expect(initCall.sendDefaultPii).toBe(false);
+        expect(initCall.release).toMatch(/^inkpoint@/u);
+        expect(initCall.dist).toBeUndefined();
       } finally {
         Object.assign(import.meta.env, originalEnv);
       }

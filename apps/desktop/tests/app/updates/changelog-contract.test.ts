@@ -87,4 +87,18 @@ describe("changelog heading contract (release slicer ↔ runtime parser)", () =>
     );
     expect(resolved).toEqual(accepted);
   });
+
+  it("keeps the unreleased sourcemap note out of shipped changelog entries", async () => {
+    const { readFileSync } = await import("node:fs");
+    for (const fileName of ["CHANGELOG.md", "CHANGELOG_EN.md"] as const) {
+      const markdown = readFileSync(
+        new URL(`../../../../../apps/desktop/${fileName}`, import.meta.url),
+        "utf8",
+      );
+      expect(extractVersionSection(markdown, "Unreleased")).toBeNull();
+      expect(extractVersionSection(markdown, "未发布")).toBeNull();
+      expect(findChangelogEntry(parseChangelog(markdown), "Unreleased")).toBeNull();
+      expect(findChangelogEntry(parseChangelog(markdown), "未发布")).toBeNull();
+    }
+  });
 });

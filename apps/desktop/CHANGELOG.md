@@ -1,5 +1,14 @@
 # Changelog
 
+<!--
+未发布条目不使用 `## <version> - <date>` 标题，避免被更新日志解析器当成已发布版本。
+下次发版时把下面的条目并入新的版本区块。
+-->
+
+## 未发布 — 生产构建上传 Sentry source map，且不随安装包分发
+
+- 桌面端生产构建生成 hidden source map，并在配置 `SENTRY_AUTH_TOKEN` 时上传到 Sentry。Release 为 `inkpoint@<版本号>`，与客户端上报一致，不设置 dist，符号解析使用 Debug ID。上传后删除全部 `.map` 并去掉 `sourceMappingURL`，安装包与网页产物都不包含 source map。未配置 token 时跳过上传，构建仍然成功。
+
 ## 0.19.2 - 2026-11-04 (#213)
 
 - 修复 CodeMirror 视图更新期间的几何测量冲突，提高 AI 建议浮标视口定位的稳定性；统整官方域名与下载服务至 jiaqi.im。
