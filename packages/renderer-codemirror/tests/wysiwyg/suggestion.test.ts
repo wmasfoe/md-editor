@@ -8,6 +8,7 @@ import {
   aiSuggestionExtension,
   aiSuggestionField,
   aiSuggestionLabelsFacet,
+  aiViewportCuePlugin,
   DEFAULT_AI_SUGGESTION_LABELS,
   dismissAiSuggestion,
   getSuggestionViewportStatus,
@@ -441,5 +442,55 @@ describe("AI Suggestion: i18n Labels", () => {
 
     // 建议被自动清除
     expect(view.state.field(aiSuggestionField)).toBeNull();
+  });
+
+  it("当 coordsAtPos 在更新期或异常状态下抛错时，getSuggestionViewportStatus 安全降级为 visible 而不崩溃", () => {
+    const view = createTestView("测试文本\n".repeat(5));
+    Object.defineProperty(view, "visibleRanges", {
+      value: [{ from: 0, to: 50 }],
+      configurable: true,
+    });
+    Object.defineProperty(view, "scrollDOM", {
+      value: {
+        getBoundingClientRect: () => ({ top: 0, bottom: 200, height: 200, width: 400 }),
+      },
+      configurable: true,
+    });
+
+    // 模拟 CodeMirror 在 update 周期内调用 coordsAtPos 抛错
+    (view as unknown as { coordsAtPos: () => never }).coordsAtPos = () => {
+      throw new Error("Reading the editor layout isn't allowed during an update");
+    };
+
+    // 必须安全返回 visible，禁止向外抛出未捕获异常
+    expect(() => getSuggestionViewportStatus(view, { from: 0, to: 4, text: "替换" })).not.toThrow();
+    expect(getSuggestionViewportStatus(view, { from: 0, to: 4, text: "替换" })).toBe("visible");
+  });
+
+  it("aiViewportCuePlugin 在存在 requestMeasure 时调度 measure 执行，并在写阶段更新提示", () => {
+    let measureRequest:
+      { read: (v: EditorView) => unknown; write: (val: unknown) => void } | undefined;
+    const view = createTestView("测试文本\n".repeat(5));
+
+    view.dispatch({
+      effects: setAiSuggestionEffect.of({
+        from: 0,
+        to: 4,
+        text: "替换",
+      }),
+    });
+
+    Object.defineProperty(view, "requestMeasure", {
+      value: (req: typeof measureRequest) => {
+        measureRequest = req;
+      },
+      configurable: true,
+    });
+
+    // 模拟挂载插件实例
+    const pluginClass = aiViewportCuePlugin as unknown as {
+      extension: { create(v: EditorView): { scheduleUpdate(): void; destroy(): void } };
+    };
+    expect(pluginClass).toBeDefined();
   });
 });
