@@ -98,15 +98,7 @@ export function normalizeAiSuggestionValue(
       typeof raw.to === "number" &&
       typeof raw.text === "string"
     ) {
-      items = [
-        {
-          from: raw.from,
-          to: raw.to,
-          text: raw.text,
-          originalText: typeof raw.originalText === "string" ? raw.originalText : undefined,
-          explanation: typeof raw.explanation === "string" ? raw.explanation : undefined,
-        },
-      ];
+      items = [raw as unknown as AiSuggestionItem];
     }
   }
 
@@ -136,11 +128,7 @@ export function normalizeAiSuggestionValue(
     labels,
     cursorAnchor,
     hasScrolledIntoView,
-    from: active.from,
-    to: active.to,
-    text: active.text,
-    originalText: active.originalText,
-    explanation: active.explanation,
+    ...active,
   };
 }
 
@@ -167,16 +155,21 @@ export function getSuggestionViewportStatus(
   const scrollRect = scrollDOM.getBoundingClientRect();
   if (scrollRect.height <= 0 || scrollRect.width <= 0) return "visible";
 
-  const fromCoords = view.coordsAtPos(item.from);
-  const toCoords = view.coordsAtPos(item.to);
-  if (!fromCoords && !toCoords) return "visible";
+  try {
+    const fromCoords = view.coordsAtPos(item.from);
+    const toCoords = view.coordsAtPos(item.to);
+    if (!fromCoords && !toCoords) return "visible";
 
-  const itemTop = Math.min(fromCoords?.top ?? Infinity, toCoords?.top ?? Infinity);
-  const itemBottom = Math.max(fromCoords?.bottom ?? -Infinity, toCoords?.bottom ?? -Infinity);
+    const itemTop = Math.min(fromCoords?.top ?? Infinity, toCoords?.top ?? Infinity);
+    const itemBottom = Math.max(fromCoords?.bottom ?? -Infinity, toCoords?.bottom ?? -Infinity);
 
-  if (itemBottom < scrollRect.top + 4) return "above";
-  if (itemTop > scrollRect.bottom - 4) return "below";
-  return "visible";
+    if (itemBottom < scrollRect.top + 4) return "above";
+    if (itemTop > scrollRect.bottom - 4) return "below";
+    return "visible";
+  } catch {
+    // 当在不可测量更新阶段或无有效几何信息时，安全降级为 visible
+    return "visible";
+  }
 }
 
 export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null>();
@@ -665,12 +658,8 @@ export const aiSuggestionTheme = EditorView.baseTheme({
     background: "var(--theme-card-hover, rgba(255, 255, 255, 0.98))",
     transform: "translateX(-50%) scale(1.02)",
   },
-  ".cm-md-ai-viewport-cue-top": {
-    top: "12px",
-  },
-  ".cm-md-ai-viewport-cue-bottom": {
-    bottom: "16px",
-  },
+  ".cm-md-ai-viewport-cue-top": { top: "12px" },
+  ".cm-md-ai-viewport-cue-bottom": { bottom: "16px" },
   ".cm-md-ai-viewport-cue-btn": {
     display: "inline-flex",
     alignItems: "center",
@@ -708,6 +697,7 @@ export const aiViewportCuePlugin = ViewPlugin.fromClass(
     private readonly tabBadge: HTMLElement;
     private readonly closeBtn: HTMLElement;
     private readonly onScroll: () => void;
+    private destroyed = false;
 
     constructor(private readonly view: EditorView) {
       this.dom = document.createElement("div");
@@ -736,54 +726,58 @@ export const aiViewportCuePlugin = ViewPlugin.fromClass(
       });
 
       this.onScroll = () => {
-        this.updateCue();
+        this.scheduleUpdate();
       };
       this.view.scrollDOM?.addEventListener?.("scroll", this.onScroll, { passive: true });
       this.view.dom?.appendChild?.(this.dom);
-      this.updateCue();
+      this.scheduleUpdate();
     }
 
     update(_update: ViewUpdate) {
-      this.updateCue();
+      this.scheduleUpdate();
     }
 
     destroy() {
+      this.destroyed = true;
       this.view.scrollDOM?.removeEventListener?.("scroll", this.onScroll);
       this.dom.remove();
     }
 
-    private updateCue() {
-      const suggestion = this.view.state.field(aiSuggestionField);
-      if (!suggestion || suggestion.items.length === 0) {
-        this.dom.style.display = "none";
-        return;
-      }
-
-      const activeIndex = suggestion.activeIndex;
-      const currentItem = suggestion.items[activeIndex];
-      if (!currentItem) {
-        this.dom.style.display = "none";
-        return;
-      }
-
-      const status = getSuggestionViewportStatus(this.view, currentItem);
-
-      const labels = suggestion.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
-      const tabKey = labels.tabKey ?? "Tab";
-
-      if (status === "above") {
-        this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-top";
-        this.dom.style.display = "inline-flex";
-        this.textSpan.textContent = "↑ 上方有 AI 建议";
-        this.tabBadge.textContent = `${tabKey} 定位`;
-      } else if (status === "below") {
-        this.dom.className = "cm-md-ai-viewport-cue cm-md-ai-viewport-cue-bottom";
-        this.dom.style.display = "inline-flex";
-        this.textSpan.textContent = "↓ 下方有 AI 建议";
-        this.tabBadge.textContent = `${tabKey} 定位`;
+    private scheduleUpdate() {
+      // CodeMirror 更新周期内严禁同步读取布局（coordsAtPos 会抛错），
+      // 必须通过 requestMeasure 在 measure 阶段完成视口位置判定与 DOM 样式更新
+      if (typeof this.view.requestMeasure === "function") {
+        this.view.requestMeasure({
+          key: this,
+          read: (view) => this.measureStatus(view),
+          write: (measure) => this.renderCue(measure),
+        });
       } else {
-        this.dom.style.display = "none";
+        this.renderCue(this.measureStatus(this.view));
       }
+    }
+
+    private measureStatus(view: EditorView) {
+      const suggestion = view.state.field(aiSuggestionField);
+      if (!suggestion || suggestion.items.length === 0) return null;
+      const currentItem = suggestion.items[suggestion.activeIndex];
+      if (!currentItem) return null;
+      const status = getSuggestionViewportStatus(view, currentItem);
+      const labels = suggestion.labels ?? DEFAULT_AI_SUGGESTION_LABELS;
+      return { status, tabKey: labels.tabKey ?? "Tab" };
+    }
+
+    private renderCue(measure: { status: SuggestionViewportPosition; tabKey: string } | null) {
+      if (this.destroyed) return;
+      if (!measure || (measure.status !== "above" && measure.status !== "below")) {
+        this.dom.style.display = "none";
+        return;
+      }
+      const isAbove = measure.status === "above";
+      this.dom.className = `cm-md-ai-viewport-cue cm-md-ai-viewport-cue-${isAbove ? "top" : "bottom"}`;
+      this.dom.style.display = "inline-flex";
+      this.textSpan.textContent = isAbove ? "↑ 上方有 AI 建议" : "↓ 下方有 AI 建议";
+      this.tabBadge.textContent = `${measure.tabKey} 定位`;
     }
   },
 );
