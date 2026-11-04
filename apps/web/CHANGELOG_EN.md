@@ -1,5 +1,9 @@
 # Changelog - Web Playground
 
+## 0.2.4 - 2026-11-04 (#213)
+
+- Prevent CodeMirror geometry query errors during view updates with requestMeasure and defensive fallback; unify official site and service domain endpoints to jiaqi.im.
+
 ## 0.2.3 - 2026-11-02 (#209)
 
 - Out-of-viewport AI suggestion navigation with two-step Tab: accurately detect whether suggestions lie outside the visible screen viewport via DOM and pixel geometry, show floating frosted-glass indicators (press Tab to smooth-scroll and center, press Tab again to apply), and preserve suggestions via cursor anchor tracking.
