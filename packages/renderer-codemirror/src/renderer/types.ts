@@ -134,6 +134,14 @@ export interface CodeMirrorRenderer {
   moveBlockDown(): boolean;
   duplicateBlock(): boolean;
   deleteBlock(): boolean;
+  /** 执行 Markdown 常用格式化命令 */
+  executeFormatting(commandId: string): boolean;
+  /** 打开文档内查找面板 */
+  openFind(): boolean;
+  /** 打开文档内替换面板 */
+  openReplace(): boolean;
+  /** 动态更新格式化快捷键映射 */
+  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
   /** D-2：切换专注模式，返回切换后状态（供 host 镜像到菜单勾选态） */
   toggleFocusMode(): boolean;
   /** 回读视图轴（专注/打字机）真实开关态，供宿主核对菜单镜像一致性（S1(b)/MED-4） */

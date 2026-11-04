@@ -6,6 +6,7 @@
  */
 
 import { emit, listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../../desktop/safe-unlisten";
 import { isTauri } from "@tauri-apps/api/core";
 import { APP_THEME_PREVIEW_CHANGED_EVENT } from "./defaults.ts";
 import { normalizeAppTheme } from "./normalizer.ts";
@@ -28,24 +29,29 @@ export function listenToAppThemePreviewChanged(
 ): (() => void) | undefined {
   if (isTauri()) {
     // 主题预览是跨窗口即时反馈，不代表已保存；会话和序号用于拒绝迟到事件。
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void | Promise<void>) | undefined;
     let disposed = false;
 
     void listen<unknown>(APP_THEME_PREVIEW_CHANGED_EVENT, (event) => {
       const normalized = normalizeAppThemePreviewEvent(event.payload);
       if (normalized) handler(normalized);
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-        return;
-      }
-      unlisten = dispose;
-    });
+    })
+      .then((dispose) => {
+        if (disposed) {
+          safeUnlisten(dispose);
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((err: unknown) => {
+        console.debug("[tauri] listen to app theme preview failed:", err);
+      });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      const fn = unlisten;
       unlisten = undefined;
+      safeUnlisten(fn);
     };
   }
 

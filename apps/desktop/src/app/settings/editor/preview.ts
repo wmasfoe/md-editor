@@ -7,6 +7,7 @@
  */
 
 import { emit, listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../../desktop/safe-unlisten";
 import { isTauri } from "@tauri-apps/api/core";
 import { normalizeEditorDisplaySettings } from "./defaults.ts";
 import type { EditorDisplaySettings } from "./types.ts";
@@ -50,24 +51,29 @@ export function listenToAppEditorPreviewChanged(
   handler: (event: AppEditorPreviewEvent) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void | Promise<void>) | undefined;
     let disposed = false;
 
     void listen<unknown>(APP_EDITOR_PREVIEW_CHANGED_EVENT, (event) => {
       const normalized = normalizeAppEditorPreviewEvent(event.payload);
       if (normalized) handler(normalized);
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-        return;
-      }
-      unlisten = dispose;
-    });
+    })
+      .then((dispose) => {
+        if (disposed) {
+          safeUnlisten(dispose);
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((err: unknown) => {
+        console.debug("[tauri] listen to app editor preview failed:", err);
+      });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      const fn = unlisten;
       unlisten = undefined;
+      safeUnlisten(fn);
     };
   }
 

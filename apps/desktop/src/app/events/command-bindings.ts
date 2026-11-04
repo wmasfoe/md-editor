@@ -35,6 +35,19 @@ export function createRuntimeKeyboardShortcuts(
     },
   }));
 
+  // 绑定设置中配置的自定义快捷键（覆盖 format.*、editor.find、editor.replace 等编辑器能力）
+  const registeredCommandIds = new Set(runtime.keymaps.list().map((k) => k.id));
+  for (const shortcut of settings.shortcuts) {
+    if (!registeredCommandIds.has(shortcut.id) && shortcut.key) {
+      shortcuts.push({
+        matches: (event) => matchesRuntimeKeymap(event, shortcut.key),
+        run: () => {
+          void dispatchCommand(shortcut.commandId);
+        },
+      });
+    }
+  }
+
   // 兼容 Mod-j 备用续写快捷键（对齐 Web 端与设计规范，支持单手盲操）
   shortcuts.push({
     matches: (event) => matchesRuntimeKeymap(event, "Mod-j"),

@@ -8,6 +8,7 @@
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../desktop/safe-unlisten";
 
 /** 更新提示簿记。字段缺省表示从未提示/从未跳过。 */
 export interface UpdatePromptState {
@@ -99,13 +100,13 @@ export function listenUpdatePromptStateChanged(
   }
 
   let disposed = false;
-  let unlisten: (() => void) | undefined;
+  let unlisten: (() => void | Promise<void>) | undefined;
   void listen<unknown>(UPDATE_PROMPT_CHANGED_EVENT, (event) => {
     handler(normalizeUpdatePromptState(event.payload));
   })
     .then((dispose) => {
       if (disposed) {
-        dispose();
+        safeUnlisten(dispose);
         return;
       }
       unlisten = dispose;
@@ -116,6 +117,8 @@ export function listenUpdatePromptStateChanged(
 
   return () => {
     disposed = true;
-    unlisten?.();
+    const fn = unlisten;
+    unlisten = undefined;
+    safeUnlisten(fn);
   };
 }

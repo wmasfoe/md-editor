@@ -4,6 +4,7 @@
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../../desktop/safe-unlisten";
 import { DEFAULT_AI_SETTINGS, normalizeAiSettings, type AiSettings } from "@md-editor/ai";
 import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 import {
@@ -115,23 +116,28 @@ export function listenToAppSettingsChanged(
   handler: (settings: AppSettings) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void | Promise<void>) | undefined;
     let disposed = false;
 
     void listen<Partial<AppSettings | PersistedSettings>>(APP_SETTINGS_CHANGED_EVENT, (event) => {
       handler(normalizeSettings(event.payload));
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-        return;
-      }
-      unlisten = dispose;
-    });
+    })
+      .then((dispose) => {
+        if (disposed) {
+          safeUnlisten(dispose);
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((err: unknown) => {
+        console.debug("[tauri] listen to app settings changed failed:", err);
+      });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      const fn = unlisten;
       unlisten = undefined;
+      safeUnlisten(fn);
     };
   }
 
@@ -165,24 +171,29 @@ export function listenToAppLanguagePreviewChanged(
   handler: (language: AppSettings["language"] | null) => void,
 ): (() => void) | undefined {
   if (isTauri()) {
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void | Promise<void>) | undefined;
     let disposed = false;
 
     void listen<{ language?: unknown }>(APP_LANGUAGE_PREVIEW_CHANGED_EVENT, (event) => {
       const payloadLang = event.payload?.language;
       handler(payloadLang === null ? null : normalizeLanguageSetting(payloadLang));
-    }).then((dispose) => {
-      if (disposed) {
-        dispose();
-        return;
-      }
-      unlisten = dispose;
-    });
+    })
+      .then((dispose) => {
+        if (disposed) {
+          safeUnlisten(dispose);
+          return;
+        }
+        unlisten = dispose;
+      })
+      .catch((err: unknown) => {
+        console.debug("[tauri] listen to app language preview failed:", err);
+      });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      const fn = unlisten;
       unlisten = undefined;
+      safeUnlisten(fn);
     };
   }
 

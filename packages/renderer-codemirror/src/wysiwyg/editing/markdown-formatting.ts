@@ -507,36 +507,82 @@ export const setHeading4: StateCommand = guarded(toggleHeadingLevel(4));
 export const setHeading5: StateCommand = guarded(toggleHeadingLevel(5));
 export const setHeading6: StateCommand = guarded(toggleHeadingLevel(6));
 
+export const FORMATTING_COMMAND_MAP: Record<string, StateCommand> = {
+  "format.bold": toggleBold,
+  "format.italic": toggleItalic,
+  "format.strikethrough": toggleStrikethrough,
+  "format.inlineCode": toggleInlineCode,
+  "format.highlight": toggleHighlight,
+  "format.codeBlock": insertCodeBlock,
+  "format.blockquote": toggleBlockquote,
+  "format.bulletList": toggleBulletList,
+  "format.orderedList": toggleOrderedList,
+  "format.taskList": toggleTaskList,
+  "format.paragraph": setParagraph,
+  "format.heading1": setHeading1,
+  "format.heading2": setHeading2,
+  "format.heading3": setHeading3,
+  "format.heading4": setHeading4,
+  "format.heading5": setHeading5,
+  "format.heading6": setHeading6,
+};
+
 /**
- * 创建 Markdown 常用格式化快捷键扩展
+ * 在指定 EditorView 上执行特定的格式化命令
  */
-export function createMarkdownFormattingKeymap() {
-  return keymap.of([
-    { key: "Mod-b", run: viewFormattingCommand(toggleBold) },
-    { key: "Mod-i", run: viewFormattingCommand(toggleItalic) },
+export function executeFormattingCommand(view: EditorView, commandId: string): boolean {
+  const cmd = FORMATTING_COMMAND_MAP[commandId];
+  if (!cmd) {
+    return false;
+  }
+  return viewFormattingCommand(cmd)(view);
+}
+
+/**
+ * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射
+ */
+export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
+  const getKey = (commandId: string, defaultKey: string) =>
+    customKeymaps?.get(commandId) ?? defaultKey;
+
+  const bindings = [
+    { key: getKey("format.bold", "Mod-b"), run: viewFormattingCommand(toggleBold) },
+    { key: getKey("format.italic", "Mod-i"), run: viewFormattingCommand(toggleItalic) },
     // 注：编辑器侧不再绑 Mod-k —— 全局命令面板拥有该 chord（桌面惯例），
     // 且曾在双层注册时每次唤面板都额外插入 `[](url)`（E2E 探针实证）。
     // 分工决议见 docs/agent/review/ux_interaction_audit_and_bugs.md 问题#4：
     // 编辑器内插链接用 Mod-l / Mod-Shift-l（本表已有）。
     { key: "Mod-l", run: viewFormattingCommand(insertOrWrapLink) },
     { key: "Mod-Shift-l", run: viewFormattingCommand(insertOrWrapLink) },
-    { key: "Mod-e", run: viewFormattingCommand(toggleInlineCode) },
+    { key: getKey("format.inlineCode", "Mod-e"), run: viewFormattingCommand(toggleInlineCode) },
     { key: "Mod-`", run: viewFormattingCommand(toggleInlineCode) },
-    { key: "Mod-Shift-s", run: viewFormattingCommand(toggleStrikethrough) },
-    { key: "Mod-Shift-x", run: viewFormattingCommand(toggleStrikethrough) },
-    { key: "Mod-Shift-h", run: viewFormattingCommand(toggleHighlight) },
-    { key: "Mod-Shift-q", run: viewFormattingCommand(toggleBlockquote) },
-    { key: "Mod-Shift-c", run: viewFormattingCommand(insertCodeBlock) },
-    { key: "Mod-Shift-k", run: viewFormattingCommand(insertCodeBlock) },
-    { key: "Mod-Shift-u", run: viewFormattingCommand(toggleBulletList) },
-    { key: "Mod-Shift-o", run: viewFormattingCommand(toggleOrderedList) },
-    { key: "Mod-Shift-t", run: viewFormattingCommand(toggleTaskList) },
-    { key: "Mod-Alt-0", run: viewFormattingCommand(setParagraph) },
-    { key: "Mod-Alt-1", run: viewFormattingCommand(setHeading1) },
-    { key: "Mod-Alt-2", run: viewFormattingCommand(setHeading2) },
-    { key: "Mod-Alt-3", run: viewFormattingCommand(setHeading3) },
-    { key: "Mod-Alt-4", run: viewFormattingCommand(setHeading4) },
-    { key: "Mod-Alt-5", run: viewFormattingCommand(setHeading5) },
-    { key: "Mod-Alt-6", run: viewFormattingCommand(setHeading6) },
-  ]);
+    {
+      key: getKey("format.strikethrough", "Mod-Shift-s"),
+      run: viewFormattingCommand(toggleStrikethrough),
+    },
+    { key: getKey("format.highlight", "Mod-Shift-h"), run: viewFormattingCommand(toggleHighlight) },
+    {
+      key: getKey("format.blockquote", "Mod-Shift-q"),
+      run: viewFormattingCommand(toggleBlockquote),
+    },
+    { key: getKey("format.codeBlock", "Mod-Shift-c"), run: viewFormattingCommand(insertCodeBlock) },
+    {
+      key: getKey("format.bulletList", "Mod-Shift-u"),
+      run: viewFormattingCommand(toggleBulletList),
+    },
+    {
+      key: getKey("format.orderedList", "Mod-Shift-o"),
+      run: viewFormattingCommand(toggleOrderedList),
+    },
+    { key: getKey("format.taskList", "Mod-Shift-t"), run: viewFormattingCommand(toggleTaskList) },
+    { key: getKey("format.paragraph", "Mod-Alt-0"), run: viewFormattingCommand(setParagraph) },
+    { key: getKey("format.heading1", "Mod-Alt-1"), run: viewFormattingCommand(setHeading1) },
+    { key: getKey("format.heading2", "Mod-Alt-2"), run: viewFormattingCommand(setHeading2) },
+    { key: getKey("format.heading3", "Mod-Alt-3"), run: viewFormattingCommand(setHeading3) },
+    { key: getKey("format.heading4", "Mod-Alt-4"), run: viewFormattingCommand(setHeading4) },
+    { key: getKey("format.heading5", "Mod-Alt-5"), run: viewFormattingCommand(setHeading5) },
+    { key: getKey("format.heading6", "Mod-Alt-6"), run: viewFormattingCommand(setHeading6) },
+  ];
+
+  return keymap.of(bindings.filter((b) => Boolean(b.key)));
 }

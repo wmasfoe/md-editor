@@ -1,5 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { safeUnlisten } from "../../desktop/safe-unlisten";
 import { isDiscardProtectionRequired } from "../controller/document-save";
 import { runtime } from "../runtime/editor-runtime";
 import { saveHotExitSession } from "../controller/session-controller";
@@ -21,7 +22,8 @@ export function bindBrowserDirtyDocumentGuard() {
 }
 
 export function bindTauriCloseGuard(confirmClose: () => Promise<boolean>) {
-  let unlisten: (() => void) | undefined;
+  let unlisten: (() => void | Promise<void>) | undefined;
+  let disposed = false;
 
   if (!isTauri()) {
     return undefined;
@@ -49,10 +51,20 @@ export function bindTauriCloseGuard(confirmClose: () => Promise<boolean>) {
       });
     })
     .then((dispose) => {
+      if (disposed) {
+        safeUnlisten(dispose);
+        return;
+      }
       unlisten = dispose;
+    })
+    .catch((err: unknown) => {
+      console.debug("[tauri] bindTauriCloseGuard failed:", err);
     });
 
   return () => {
-    unlisten?.();
+    disposed = true;
+    const fn = unlisten;
+    unlisten = undefined;
+    safeUnlisten(fn);
   };
 }

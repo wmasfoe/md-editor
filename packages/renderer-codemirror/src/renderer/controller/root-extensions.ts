@@ -46,6 +46,7 @@ export interface RootExtensionContext {
   readonly aiSuggestionLabels: AiSuggestionLabels | undefined;
   readonly aiSuggestionLabelsCompartment: Compartment;
   readonly finishComposition: () => void;
+  readonly formattingKeymapCompartment: Compartment;
   readonly handleViewUpdate: (update: ViewUpdate) => void;
   readonly markdownLanguageCompartment: Compartment;
   readonly options: CodeMirrorRendererOptions;
@@ -112,7 +113,10 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
         "mdx",
         "directives",
       ],
-      { writeClipboardText: context.options.writeClipboardText },
+      {
+        writeClipboardText: context.options.writeClipboardText,
+        formattingKeymapCompartment: context.formattingKeymapCompartment,
+      },
     ),
     EditorView.updateListener.of((update) => context.handleViewUpdate(update)),
     EditorView.domEventObservers({

@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { safeUnlisten } from "../../desktop/safe-unlisten";
 import type { LocalInferenceBridge, LocalInferenceRequest } from "@md-editor/ai";
 import {
   BUILTIN_LOCAL_MODELS,
@@ -239,7 +240,7 @@ export async function deleteLocalAiModel(
 export function listenToLocalAiModelProgress(
   handler: (status: LocalAiModelCommandStatus) => void,
 ): (() => void) | undefined {
-  let unlisten: (() => void) | undefined;
+  let unlisten: (() => void | Promise<void>) | undefined;
   let disposed = false;
 
   if (!isTauri()) {
@@ -248,17 +249,22 @@ export function listenToLocalAiModelProgress(
 
   void listen<Partial<LocalAiModelCommandStatus>>(LOCAL_AI_MODEL_PROGRESS_EVENT, (event) => {
     handler(toLocalAiModelCommandStatus(event.payload));
-  }).then((dispose) => {
-    if (disposed) {
-      dispose();
-      return;
-    }
-    unlisten = dispose;
-  });
+  })
+    .then((dispose) => {
+      if (disposed) {
+        safeUnlisten(dispose);
+        return;
+      }
+      unlisten = dispose;
+    })
+    .catch((err: unknown) => {
+      console.debug("[tauri] listen to local ai model progress failed:", err);
+    });
 
   return () => {
     disposed = true;
-    unlisten?.();
+    const fn = unlisten;
     unlisten = undefined;
+    safeUnlisten(fn);
   };
 }

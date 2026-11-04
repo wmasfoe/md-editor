@@ -36,12 +36,6 @@ import { createModeExtensions, editorModeField } from "../mode.ts";
 import { rendererTransactionOrigin, type RendererTransactionOrigin } from "../origin.ts";
 import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
 import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
-import {
-  deleteBlock,
-  duplicateBlock,
-  moveBlockDown,
-  moveBlockUp,
-} from "../wysiwyg/blocks/block-move.ts";
 import { typewriterModeInitialFacet } from "../wysiwyg/input/typewriter-mode.ts";
 import {
   initialCodeBlockLineNumbersFacet,
@@ -74,10 +68,18 @@ import {
 import { clampSelection } from "./controller/selection.ts";
 import { TransactionLedger } from "./controller/transaction-ledger.ts";
 import {
+  deleteViewBlock,
+  duplicateViewBlock,
+  executeViewFormatting,
   flushPendingViewEdits,
+  moveViewBlockDown,
+  moveViewBlockUp,
+  openViewFind,
+  openViewReplace,
   readSelectionSnapshot,
   readViewModeState,
   scrollViewToLine,
+  setFormattingViewKeymaps,
   setViewSelection,
   toggleViewFocusMode,
   toggleViewTypewriterMode,
@@ -137,6 +139,7 @@ export class CodeMirrorRendererController {
   readonly #syntaxRegistryCompartment = new Compartment();
   readonly #aiSuggestionLabelsCompartment = new Compartment();
   readonly #markdownLintCompartment = new Compartment();
+  readonly #formattingKeymapCompartment = new Compartment();
   readonly #syntaxRegistry: SyntaxPluginRegistry;
   readonly #rootExtensions: readonly Extension[];
   readonly #view: RendererViewAdapter;
@@ -201,6 +204,7 @@ export class CodeMirrorRendererController {
       aiSuggestionLabels: this.#aiSuggestionLabels,
       aiSuggestionLabelsCompartment: this.#aiSuggestionLabelsCompartment,
       finishComposition: () => this.#finishComposition(),
+      formattingKeymapCompartment: this.#formattingKeymapCompartment,
       handleViewUpdate: (update) => this.#handleViewUpdate(update),
       markdownLanguageCompartment: this.#markdownLanguageCompartment,
       options: options,
@@ -388,11 +392,11 @@ export class CodeMirrorRendererController {
   }
 
   moveBlockUp(): boolean {
-    return !this.#destroyed && moveBlockUp(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveViewBlockUp(this.#view);
   }
 
   moveBlockDown(): boolean {
-    return !this.#destroyed && moveBlockDown(this.#view as unknown as EditorView);
+    return !this.#destroyed && moveViewBlockDown(this.#view);
   }
 
   toggleFocusMode(): boolean {
@@ -408,11 +412,29 @@ export class CodeMirrorRendererController {
   }
 
   duplicateBlock(): boolean {
-    return !this.#destroyed && duplicateBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && duplicateViewBlock(this.#view);
   }
 
   deleteBlock(): boolean {
-    return !this.#destroyed && deleteBlock(this.#view as unknown as EditorView);
+    return !this.#destroyed && deleteViewBlock(this.#view);
+  }
+
+  executeFormatting(commandId: string): boolean {
+    return !this.#destroyed && executeViewFormatting(this.#view, commandId);
+  }
+
+  openFind(): boolean {
+    return !this.#destroyed && openViewFind(this.#view);
+  }
+
+  openReplace(): boolean {
+    return !this.#destroyed && openViewReplace(this.#view);
+  }
+
+  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void {
+    if (!this.#destroyed) {
+      setFormattingViewKeymaps(this.#view, this.#formattingKeymapCompartment, customKeymaps);
+    }
   }
 
   dismissSuggestion(): boolean {
@@ -420,45 +442,23 @@ export class CodeMirrorRendererController {
   }
 
   getSuggestion(): AiSuggestionValue | null {
-    if (this.#destroyed) {
-      return null;
-    }
-    return this.#view.state.field(aiSuggestionField, false) ?? null;
+    return this.#destroyed ? null : (this.#view.state.field(aiSuggestionField, false) ?? null);
   }
 
-  getSelectionSnapshot(): {
-    readonly from: number;
-    readonly to: number;
-    readonly text: string;
-    readonly head: number;
-  } {
-    if (this.#destroyed) {
-      return { from: 0, to: 0, text: "", head: 0 };
-    }
-    return readSelectionSnapshot(this.#view);
+  getSelectionSnapshot() {
+    return this.#destroyed
+      ? { from: 0, to: 0, text: "", head: 0 }
+      : readSelectionSnapshot(this.#view);
   }
 
   focus(): void {
-    if (!this.#destroyed) {
-      this.#view.focus();
-    }
+    if (!this.#destroyed) this.#view.focus();
   }
 
-  /**
-   * 设置编辑器选区(编辑器标准能力,供宿主定位/测试)。
-   * from === to 时为光标;范围按文档长度钳制。
-   */
   setSelection(from: number, to: number): void {
-    if (this.#destroyed) {
-      return;
-    }
-    setViewSelection(this.#view, from, to);
+    if (!this.#destroyed) setViewSelection(this.#view, from, to);
   }
 
-  /**
-   * 滚动到指定行(1-based)并可将光标定位到行首。
-   * line 范围自动按文档总行数钳制。
-   */
   scrollToLine(
     line: number,
     options?: { readonly select?: boolean; readonly focus?: boolean },

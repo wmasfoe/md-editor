@@ -10,13 +10,24 @@
  * 存活性（destroyed）守卫仍由控制器在调用前判定，本模块只负责视图侧语义。
  */
 
-import { EditorSelection, Transaction } from "@codemirror/state";
+import { EditorSelection, Transaction, type Compartment } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { openSearchPanel } from "@codemirror/search";
 import {
   setTypewriterModeEffect,
   typewriterModeField,
 } from "../../wysiwyg/input/typewriter-mode.ts";
 import { focusModeField, setFocusModeEffect } from "../../wysiwyg/view/focus-mode.ts";
+import {
+  createMarkdownFormattingKeymap,
+  executeFormattingCommand,
+} from "../../wysiwyg/editing/markdown-formatting.ts";
+import {
+  moveBlockUp as moveCmBlockUp,
+  moveBlockDown as moveCmBlockDown,
+  duplicateBlock as duplicateCmBlock,
+  deleteBlock as deleteCmBlock,
+} from "../../wysiwyg/blocks/block-move.ts";
 import type { RendererViewAdapter } from "../types.ts";
 
 /**
@@ -132,4 +143,69 @@ export function flushPendingViewEdits(view: RendererViewAdapter, destroyed: bool
     return false;
   }
   return view.flushPendingEdits?.() ?? false;
+}
+
+/** 执行 Markdown 常用格式化命令 */
+export function executeViewFormatting(view: RendererViewAdapter, commandId: string): boolean {
+  const cmView = view as unknown as EditorView | null;
+  if (!cmView) {
+    return false;
+  }
+  return executeFormattingCommand(cmView, commandId);
+}
+
+/** 打开文档内查找面板 */
+export function openViewFind(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  if (!cmView) {
+    return false;
+  }
+  return openSearchPanel(cmView);
+}
+
+/** 打开文档内替换面板 */
+export function openViewReplace(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  if (!cmView) {
+    return false;
+  }
+  return openSearchPanel(cmView);
+}
+
+/** 块操作：上移当前块 */
+export function moveViewBlockUp(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && moveCmBlockUp(cmView));
+}
+
+/** 块操作：下移当前块 */
+export function moveViewBlockDown(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && moveCmBlockDown(cmView));
+}
+
+/** 块操作：复制当前块 */
+export function duplicateViewBlock(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && duplicateCmBlock(cmView));
+}
+
+/** 块操作：删除当前块 */
+export function deleteViewBlock(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && deleteCmBlock(cmView));
+}
+
+/** 动态重配格式化快捷键 */
+export function setFormattingViewKeymaps(
+  view: RendererViewAdapter,
+  compartment: Compartment,
+  customKeymaps: ReadonlyMap<string, string>,
+): void {
+  const cmView = view as unknown as EditorView | null;
+  if (cmView) {
+    cmView.dispatch({
+      effects: compartment.reconfigure(createMarkdownFormattingKeymap(customKeymaps)),
+    });
+  }
 }
