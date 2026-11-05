@@ -140,9 +140,9 @@ export function createLiquidSearchPanel(view: EditorView): Panel {
   filterGroup.appendChild(wordBtn);
   filterGroup.appendChild(regexBtn);
 
-  // 展开替换行按钮
+  // 展开替换行按钮。类名是打开替换命令的稳定钩子，不依赖 title 文案。
   const toggleReplaceBtn = document.createElement("button");
-  toggleReplaceBtn.className = "cm-search-icon-button";
+  toggleReplaceBtn.className = "cm-search-icon-button cm-search-toggle-replace";
   toggleReplaceBtn.title = "展开/折叠替换 (⌘H)";
   toggleReplaceBtn.type = "button";
   toggleReplaceBtn.appendChild(createSvgIcon(EXPAND_ICON, 13));
@@ -346,4 +346,30 @@ export function createLiquidSearchPanel(view: EditorView): Panel {
       }
     },
   };
+}
+
+/**
+ * 展开替换行并聚焦替换输入框。
+ *
+ * 查找面板默认折叠替换行。`openSearchPanel` 只会打开面板并聚焦查找框，
+ * 所以「替换」命令必须在此之后把 `.cm-replace-row` 展开。优先点击切换按钮，
+ * 让面板内部的展开状态与 DOM 保持一致；按钮不存在时直接展开该行。
+ */
+export function revealReplaceInput(root: ParentNode): boolean {
+  const row = root.querySelector<HTMLElement>(".cm-replace-row");
+  const input = root.querySelector<HTMLInputElement>(".cm-replace-input");
+  if (!row || !input) {
+    return false;
+  }
+  if (row.style.display === "none") {
+    const toggle = root.querySelector<HTMLButtonElement>(".cm-search-toggle-replace");
+    if (typeof toggle?.click === "function") {
+      toggle.click();
+    } else {
+      row.style.display = "flex";
+    }
+  }
+  input.focus();
+  input.select?.();
+  return true;
 }

@@ -76,7 +76,7 @@ export {
   replaceAll,
 } from "@codemirror/search";
 export { createLiquidSearchPanel } from "./wysiwyg/view/search-panel.ts";
-export { smartLinkPasteExtension, isValidUrl } from "./wysiwyg/input/smart-paste.ts";
+export { smartPasteExtension, isValidUrl } from "./wysiwyg/input/smart-paste.ts";
 export { smartPairsExtension } from "./wysiwyg/input/smart-pairs.ts";
 export type {
   ImagePreviewResolveInput,

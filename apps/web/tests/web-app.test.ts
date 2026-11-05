@@ -194,14 +194,21 @@ describe("Web Keyboard Shortcuts System", () => {
     ).toBe(true);
     expect(onOpenDocument).toHaveBeenCalledTimes(1);
 
-    // 10. Mod-Shift-O (Open Folder)
+    // 10. Mod-Alt-O (Open Folder). Mod-Shift-O 属于有序列表，不能再打开文件夹。
     const onOpenFolder = vi.fn();
     expect(
-      handleWebKeyboardEvent(createKeyEvent({ code: "KeyO", key: "o", shiftKey: true }), {
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyO", key: "o", altKey: true }), {
         ...handlers,
         onOpenFolder,
       }),
     ).toBe(true);
+    expect(onOpenFolder).toHaveBeenCalledTimes(1);
+    expect(
+      handleWebKeyboardEvent(createKeyEvent({ code: "KeyO", key: "O", shiftKey: true }), {
+        ...handlers,
+        onOpenFolder,
+      }),
+    ).toBe(false);
     expect(onOpenFolder).toHaveBeenCalledTimes(1);
 
     // 11. Mod-Shift-S (Export Document)

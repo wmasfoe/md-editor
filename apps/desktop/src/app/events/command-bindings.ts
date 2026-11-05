@@ -79,19 +79,13 @@ export function bindRuntimeKeyboardShortcuts(
       return;
     }
 
-    // 格式化快捷键（format.*）仅在编辑器（.cm-editor）获得焦点时处理，
-    // 避免在设置弹窗输入框、文件重命名输入框等文本框内吞掉 Mod-B/I/E 等系统与输入按键
+    // 格式化快捷键只作用于编辑器正文。设置字段、搜索框、重命名框即使落在
+    // `.cm-editor` 内部（搜索面板）也不能被 capture 监听 preventDefault。
     if (shortcut.commandId?.startsWith("format.")) {
-      const target = event.target as HTMLElement | null;
-      const isInput =
-        (typeof HTMLInputElement !== "undefined" && target instanceof HTMLInputElement) ||
-        (typeof HTMLTextAreaElement !== "undefined" && target instanceof HTMLTextAreaElement) ||
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable === false;
-      if (isInput) {
+      if (isFormattingShortcutBlockedTarget(event.target)) {
         return;
       }
+      const target = event.target as HTMLElement | null;
       const isInsideEditor = Boolean(target?.closest?.(".cm-editor"));
       const isEditorActive = Boolean(
         typeof document !== "undefined" && document.activeElement?.closest?.(".cm-editor"),
@@ -107,6 +101,35 @@ export function bindRuntimeKeyboardShortcuts(
 
   window.addEventListener("keydown", listener, { capture: true });
   return () => window.removeEventListener("keydown", listener, { capture: true });
+}
+
+interface ShortcutEventTarget {
+  tagName?: string;
+  isContentEditable?: boolean;
+  closest?: (selector: string) => unknown;
+}
+
+/**
+ * 文本入口（input / textarea / select，以及编辑器以外的 contenteditable）
+ * 不接收 format.*。`.cm-content` 是编辑器正文，仍然接收。
+ * 不能用 `isContentEditable === false` 判断：那会把所有非可编辑节点都当成输入框。
+ */
+function isFormattingShortcutBlockedTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object") {
+    return false;
+  }
+  const element = target as ShortcutEventTarget;
+  if (element.closest?.(".cm-content")) {
+    return false;
+  }
+  const tag = element.tagName?.toUpperCase();
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+    return true;
+  }
+  if (element.isContentEditable === true && !element.closest?.(".cm-editor")) {
+    return true;
+  }
+  return false;
 }
 
 function isSettingsShortcutCaptureTarget(target: EventTarget | null): boolean {

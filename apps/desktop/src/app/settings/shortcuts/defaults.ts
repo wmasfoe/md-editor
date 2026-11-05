@@ -2,6 +2,7 @@
  * @fileoverview 默认快捷键清单与初始化列表
  */
 
+import { OPEN_FOLDER_SHORTCUT } from "@md-editor/editor-core";
 import type { ShortcutSetting } from "./types.ts";
 
 /**
@@ -139,6 +140,13 @@ export const DEFAULT_SHORTCUT_TEMPLATES: readonly Omit<ShortcutSetting, "key">[]
     commandId: "settings.open",
     label: "打开设置",
     defaultKey: "Mod-,",
+  },
+  {
+    // 与 editor-core 的 OPEN_FOLDER_SHORTCUT 同源，避开有序列表 Mod-Shift-O。
+    id: "file.openFolder",
+    commandId: "file.openFolder",
+    label: "打开文件夹",
+    defaultKey: OPEN_FOLDER_SHORTCUT,
   },
   {
     id: "mdx.openComponentMenu",

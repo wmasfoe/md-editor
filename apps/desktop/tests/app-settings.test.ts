@@ -90,6 +90,7 @@ describe("app settings", () => {
       "view.toggleSource",
       "view.toggleSidebarPrimary",
       "settings.open",
+      "file.openFolder",
       "mdx.openComponentMenu",
       "table.insert",
       "ai.continueWriting",

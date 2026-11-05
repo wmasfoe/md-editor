@@ -383,6 +383,12 @@ describe("built-in feature registry", () => {
       "Mod-Alt-T:table.insert",
     );
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
+      "Mod-Alt-O:file.openFolder",
+    );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).not.toContain(
+      "Mod-Shift-O:file.openFolder",
+    );
+    expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
       "Shift-Alt-L:lint.run",
     );
     expect(keymaps.list().map((keymap) => `${keymap.key}:${keymap.commandId}`)).toContain(
