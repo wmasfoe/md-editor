@@ -126,6 +126,12 @@ export {
   type DelimiterSides,
 } from "./markdown/cjk-friendly-emphasis.ts";
 export {
+  EDITOR_USER_NOTICE_EVENT,
+  dispatchEditorUserNotice,
+  type EditorUserNoticeDetail,
+} from "./editor-user-notice.ts";
+
+export {
   closeMediaViewerFor,
   openMediaViewer,
   type MediaViewerContent,

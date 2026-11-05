@@ -72,7 +72,7 @@ export const htmlProjectionTheme = EditorView.baseTheme({
   ".cm-md-html-block-widget": {
     display: "block",
     position: "relative",
-    margin: "0.5rem 0",
+    // 垂直间距禁止用 margin。CM6 高度图只量 border-box，margin 会让其后的点击偏行。
   },
   ".cm-md-html-block-widget--selected": {
     outline: "2px solid var(--theme-selection, Highlight)",
@@ -112,6 +112,12 @@ export const htmlProjectionTheme = EditorView.baseTheme({
     padding: "0.5rem",
     border: "1px solid var(--theme-border, currentColor)",
     color: "var(--theme-muted, currentColor)",
+  },
+  ".cm-md-html-block-widget__notice": {
+    display: "block",
+    padding: "0.35rem 0.5rem",
+    background: "var(--theme-danger-bg, rgba(180, 35, 24, 0.08))",
+    color: "var(--theme-danger, #b42318)",
   },
   ".cm-md-html-block-widget__editor": {
     border: "1px solid var(--theme-border, rgba(127, 127, 127, 0.25))",

@@ -1,7 +1,16 @@
-import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { CodeMirrorEditorPorts } from "@md-editor/renderer-codemirror";
 import type { OutlineItem } from "../components/OutlinePanel";
 import type { TocTarget } from "../types";
+import { subscribeEditorUserNotice } from "./editor-user-notice";
 import { useOutlineController } from "./useOutlineController";
 
 export interface EditorUiUnsupportedCommandResult {
@@ -75,6 +84,7 @@ const EditorUiActionsContext = createContext<EditorUiActionsContextValue | null>
 
 export function EditorUiProvider({ children, markdown, showToast }: EditorUiProviderProps) {
   const rendererPortsRef = useRef<CodeMirrorEditorPorts | null>(null);
+  useEffect(() => subscribeEditorUserNotice(window, showToast), [showToast]);
   const outline = useOutlineController({ markdown, showToast });
   const outlineRef = useRef(outline);
   outlineRef.current = outline;

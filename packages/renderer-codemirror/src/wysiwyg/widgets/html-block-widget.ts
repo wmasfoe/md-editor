@@ -1,8 +1,9 @@
 import { html } from "@codemirror/lang-html";
 import { history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { EditorState, Transaction } from "@codemirror/state";
+import { EditorState, StateField, Transaction } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, WidgetType } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
+import { dispatchEditorUserNotice } from "../../editor-user-notice.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
@@ -24,54 +25,90 @@ interface HtmlBlockWidgetListeners {
 
 export interface HtmlBlockState {
   readonly parentView: EditorView;
+  /** `toDOM` 时抓住的草稿表。销毁时禁止再读 `parentView.state`，见 {@link htmlSourcePeekDraftField}。 */
+  readonly draftStore: Map<string, string> | null;
   currentValue: HtmlBlockWidgetValue;
   mode: "rendered" | "source-peek";
   nestedView: EditorView | null;
   isAborting: boolean;
+  isCommitting: boolean;
+  disposed: boolean;
+  recordMissingNotified: boolean;
   readonly toolbarEl: HTMLElement;
   readonly contentEl: HTMLElement;
   rebuildToolbar: () => void;
   rebuildContent: () => void;
 }
 
-export type NestedEditorFactory = (options: {
-  parent: HTMLElement;
-  state: EditorState;
-}) => EditorView;
-
 const listenersByDom = new WeakMap<HTMLElement, HtmlBlockWidgetListeners>();
 const stateByDom = new WeakMap<HTMLElement, HtmlBlockState>();
 
 /**
- * 视口虚拟化滚动时暂存的未提交草稿映射表 (recordId -> uncommittedDraft)。
- * 防止滚动移出视口导致 destroy(dom) 销毁微型编辑器时丢失用户就地输入的代码。
- * 设定容量上限为 32，超出时按 FIFO 自动淘汰最旧草稿，防止无界内存泄漏。
+ * 每个 EditorState（一份文档）一份未提交草稿。
+ *
+ * `update` 返回同一 Map：同一文档上的后续事务不会丢掉草稿。
+ * `EditorState.create` / `view.setState` 走 `create()`，换文档时得到空表。
+ * 挂件在 `toDOM` 时抓住这份 Map。文档替换时 CM 会在 `view.state` 已经是新文档之后
+ * 才销毁旧挂件；若 destroy 再读 `view.state`，文档 A 的草稿会被写进文档 B。
  */
 const DRAFT_CACHE_LIMIT = 32;
-const uncommittedDraftsByRecordId = new Map<string, string>();
+export const htmlSourcePeekDraftField = StateField.define<Map<string, string>>({
+  create: () => new Map(),
+  update: (drafts) => drafts,
+});
 
-function saveUncommittedDraft(recordId: string, draft: string): void {
-  uncommittedDraftsByRecordId.set(recordId, draft);
-  if (uncommittedDraftsByRecordId.size > DRAFT_CACHE_LIMIT) {
-    const oldestKey = uncommittedDraftsByRecordId.keys().next().value;
-    if (oldestKey !== undefined) {
-      uncommittedDraftsByRecordId.delete(oldestKey);
+/** 提交时记录已不在当前文档。文案含「未能」，桌面 toast 会走错误样式。 */
+export const HTML_BLOCK_RECORD_MISSING_MESSAGE = "未能保存 HTML 块：原内容已不在文档中。";
+
+/**
+ * 只隔离嵌套源码编辑器和挂件工具栏。
+ * 不能写 `.cm-editor`：挂件本身就在父编辑器的 `.cm-editor` 里，
+ * `closest(".cm-editor")` 会把预览区点击也吞掉，整块无法被选中。
+ */
+const PEEK_ISOLATED_TARGET_SELECTOR = [
+  ".cm-md-html-block-widget__editor",
+  ".cm-md-html-block-widget__toolbar",
+  ".cm-md-html-block-widget__btn",
+  "button",
+  "a",
+].join(", ");
+
+type PeekCommitReason = "explicit" | "blur";
+
+function isPeekIsolatedTarget(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== "function") {
+    return false;
+  }
+  return Boolean((target as Element).closest(PEEK_ISOLATED_TARGET_SELECTOR));
+}
+
+function rememberDraft(drafts: Map<string, string> | null, recordId: string, draft: string): void {
+  if (!drafts) {
+    return;
+  }
+  // 先删再写，已有记录会移到队尾；否则容量已满时更新最旧的一条会被立刻淘汰。
+  drafts.delete(recordId);
+  drafts.set(recordId, draft);
+  while (drafts.size > DRAFT_CACHE_LIMIT) {
+    const oldestKey = drafts.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
     }
+    drafts.delete(oldestKey);
   }
 }
 
-let customNestedEditorFactory: NestedEditorFactory | null = null;
-
-export function setNestedEditorFactoryForTesting(factory: NestedEditorFactory | null): void {
-  customNestedEditorFactory = factory;
+function forgetDraft(drafts: Map<string, string> | null, recordId: string): void {
+  drafts?.delete(recordId);
 }
 
-export function getHtmlUncommittedDraft(recordId: string): string | undefined {
-  return uncommittedDraftsByRecordId.get(recordId);
+function readDraft(drafts: Map<string, string> | null, recordId: string): string | undefined {
+  return drafts?.get(recordId);
 }
 
-export function clearHtmlUncommittedDrafts(): void {
-  uncommittedDraftsByRecordId.clear();
+function commitShortcutLabel(ownerDocument: Document): string {
+  const platform = ownerDocument.defaultView?.navigator.platform ?? "";
+  return /Mac|iPhone|iPad|iPod/i.test(platform) ? "⌘↵" : "Ctrl+Enter";
 }
 
 export function getHtmlBlockWidgetState(dom: HTMLElement): HtmlBlockState | undefined {
@@ -105,20 +142,10 @@ export class HtmlBlockWidget extends WidgetType {
   }
 
   /**
-   * 键盘与指针事件隔离：
-   * 当事件目标发生在嵌套微型编辑器（.cm-editor）或挂件微操作栏（.cm-md-html-block-widget__toolbar）时，
-   * 必须返回 true，彻底阻断父编辑器 keymap（如 tabArbiterKeymap、blockAtomTypingInputHandler）介入。
+   * 嵌套编辑器和工具栏自己处理指针/键盘。预览区必须返回 false，父编辑器才能选中整块。
    */
   override ignoreEvent(event: Event): boolean {
-    const target = event.target as { closest?: (selector: string) => unknown } | null;
-    if (!target || typeof target.closest !== "function") {
-      return false;
-    }
-    return Boolean(
-      target.closest(
-        ".cm-editor, .cm-md-html-block-widget__toolbar, .cm-md-html-block-widget__btn, button",
-      ),
-    );
+    return isPeekIsolatedTarget(event.target);
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -144,10 +171,14 @@ export class HtmlBlockWidget extends WidgetType {
 
     const state: HtmlBlockState = {
       parentView: view,
+      draftStore: view.state.field(htmlSourcePeekDraftField, false) ?? null,
       currentValue: this.value,
       mode: "rendered",
       nestedView: null,
       isAborting: false,
+      isCommitting: false,
+      disposed: false,
+      recordMissingNotified: false,
       toolbarEl,
       contentEl,
       rebuildToolbar: () => rebuildToolbar(wrapper, state),
@@ -156,24 +187,14 @@ export class HtmlBlockWidget extends WidgetType {
     stateByDom.set(wrapper, state);
 
     const onPointerDown: EventListener = (event) => {
-      const target = event.target as { closest?: (selector: string) => unknown } | null;
-      if (!target || typeof target.closest !== "function") return;
-      if (
-        state.mode === "source-peek" ||
-        target.closest(".cm-editor, .cm-md-html-block-widget__toolbar, button, a")
-      ) {
+      if (state.mode === "source-peek" || isPeekIsolatedTarget(event.target)) {
         return;
       }
       preventWidgetSelection(event);
     };
 
     const onClick: EventListener = (event) => {
-      const target = event.target as { closest?: (selector: string) => unknown } | null;
-      if (!target || typeof target.closest !== "function") return;
-      if (
-        state.mode === "source-peek" ||
-        target.closest(".cm-editor, .cm-md-html-block-widget__toolbar, button, a")
-      ) {
+      if (state.mode === "source-peek" || isPeekIsolatedTarget(event.target)) {
         return;
       }
       const mouseEvent = event as MouseEvent;
@@ -185,12 +206,7 @@ export class HtmlBlockWidget extends WidgetType {
     };
 
     const onDblClick: EventListener = (event) => {
-      const target = event.target as { closest?: (selector: string) => unknown } | null;
-      if (!target || typeof target.closest !== "function") return;
-      if (
-        state.mode === "source-peek" ||
-        target.closest(".cm-editor, .cm-md-html-block-widget__toolbar, button, a")
-      ) {
+      if (state.mode === "source-peek" || isPeekIsolatedTarget(event.target)) {
         return;
       }
       event.preventDefault?.();
@@ -238,14 +254,16 @@ export class HtmlBlockWidget extends WidgetType {
   override destroy(dom: HTMLElement): void {
     const state = stateByDom.get(dom);
     if (state) {
-      if (state.nestedView) {
+      state.disposed = true;
+      // 提交进行中时父视图正在更新。嵌套编辑器留给 commit 在 dispatch 返回后释放，
+      // 避免在父更新内部同步 destroy 另一个 EditorView。
+      if (state.nestedView && !state.isCommitting) {
         const draft = state.nestedView.state.doc.toString();
         const original = state.currentValue.rawHtml ?? state.currentValue.sanitizedHtml;
         if (draft !== original) {
-          saveUncommittedDraft(state.currentValue.recordId, draft);
+          rememberDraft(state.draftStore, state.currentValue.recordId, draft);
         }
-        state.nestedView.destroy();
-        state.nestedView = null;
+        releaseNestedEditor(state);
       }
       stateByDom.delete(dom);
     }
@@ -300,7 +318,7 @@ function rebuildToolbar(wrapper: HTMLElement, state: HtmlBlockState): void {
     commitBtn.tabIndex = -1;
     commitBtn.className = "cm-md-html-block-widget__btn cm-md-html-block-widget__btn--commit";
     commitBtn.setAttribute("aria-label", "保存更改");
-    commitBtn.textContent = "完成 (⌘↵)";
+    commitBtn.textContent = `完成 (${commitShortcutLabel(document)})`;
     commitBtn.addEventListener("click", (event) => {
       event.stopPropagation?.();
       commitSourcePeek(wrapper, state);
@@ -334,11 +352,12 @@ function rebuildContent(wrapper: HTMLElement, state: HtmlBlockState): void {
 }
 
 export function enterSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): void {
-  if (state.mode === "source-peek") {
+  if (state.mode === "source-peek" || state.disposed) {
     return;
   }
   state.mode = "source-peek";
   state.isAborting = false;
+  state.recordMissingNotified = false;
   wrapper.classList.add("cm-md-html-block-widget--peek");
   state.rebuildToolbar();
 
@@ -349,33 +368,32 @@ export function enterSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): vo
   editorContainer.className = "cm-md-html-block-widget__editor";
   state.contentEl.append(editorContainer);
 
-  let isHandlingFocusOut = false;
-  const onFocusOut = (event: Event): void => {
-    if (isHandlingFocusOut || state.isAborting || state.mode !== "source-peek") {
+  // 只在容器上听 focusout。嵌套 EditorView 自己的 domEventHandlers 会再冒泡一次。
+  // 提交推迟到 microtask：避免在嵌套视图的事件回调里同步 destroy 它。
+  editorContainer.addEventListener("focusout", (event) => {
+    if (state.disposed || state.isAborting || state.isCommitting || state.mode !== "source-peek") {
       return;
     }
-    const related = (event as FocusEvent).relatedTarget as {
-      closest?: (selector: string) => unknown;
-    } | null;
-    if (
-      related &&
-      typeof related.closest === "function" &&
-      (related.closest(".cm-md-html-block-widget") === wrapper ||
-        related.closest(".cm-md-html-block-widget__toolbar") === state.toolbarEl)
-    ) {
+    const related = (event as FocusEvent).relatedTarget;
+    if (related instanceof Element && related.closest(".cm-md-html-block-widget") === wrapper) {
       return;
     }
-    isHandlingFocusOut = true;
-    try {
-      commitSourcePeek(wrapper, state);
-    } finally {
-      isHandlingFocusOut = false;
-    }
-  };
-  editorContainer.addEventListener("focusout", onFocusOut);
+    queueMicrotask(() => {
+      if (
+        state.disposed ||
+        state.isAborting ||
+        state.isCommitting ||
+        state.mode !== "source-peek" ||
+        !editorContainer.isConnected
+      ) {
+        return;
+      }
+      commitSourcePeek(wrapper, state, "blur");
+    });
+  });
 
   const initialDoc =
-    uncommittedDraftsByRecordId.get(state.currentValue.recordId) ??
+    readDraft(state.draftStore, state.currentValue.recordId) ??
     (state.currentValue.rawHtml || state.currentValue.sanitizedHtml);
 
   const extensions = [
@@ -401,51 +419,33 @@ export function enterSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): vo
       ...historyKeymap,
       indentWithTab,
     ]),
-    EditorView.domEventHandlers({
-      focusout: (event) => {
-        onFocusOut(event);
-      },
-    }),
   ];
 
-  const nestedState = EditorState.create({
-    doc: initialDoc,
-    extensions,
+  state.nestedView = new EditorView({
+    parent: editorContainer,
+    state: EditorState.create({ doc: initialDoc, extensions }),
   });
-
-  state.nestedView = customNestedEditorFactory
-    ? customNestedEditorFactory({ parent: editorContainer, state: nestedState })
-    : new EditorView({ parent: editorContainer, state: nestedState });
-
-  state.nestedView.focus?.();
+  state.nestedView.focus();
 }
 
 export function cancelSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): void {
-  if (state.mode !== "source-peek") {
+  if (state.disposed || state.mode !== "source-peek") {
     return;
   }
-  state.isAborting = true;
-  uncommittedDraftsByRecordId.delete(state.currentValue.recordId);
-  if (state.nestedView) {
-    state.nestedView.destroy();
-    state.nestedView = null;
-  }
-  state.mode = "rendered";
-  wrapper.classList.remove("cm-md-html-block-widget--peek");
-  state.rebuildToolbar();
-  state.rebuildContent();
-  state.isAborting = false;
-  state.parentView.focus?.();
+  forgetDraft(state.draftStore, state.currentValue.recordId);
+  finishPeek(wrapper, state);
 }
 
-export function commitSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): void {
-  if (state.mode !== "source-peek") {
+export function commitSourcePeek(
+  wrapper: HTMLElement,
+  state: HtmlBlockState,
+  reason: PeekCommitReason = "explicit",
+): void {
+  if (state.disposed || state.isCommitting || state.mode !== "source-peek" || !state.nestedView) {
     return;
   }
-  if (!state.nestedView) {
-    return;
-  }
-  const newHtml = state.nestedView.state.doc.toString();
+  const nestedView = state.nestedView;
+  const newHtml = nestedView.state.doc.toString();
   const originalHtml = state.currentValue.rawHtml ?? state.currentValue.sanitizedHtml;
 
   if (newHtml !== originalHtml) {
@@ -453,53 +453,84 @@ export function commitSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): v
     const rangeIndex = state.parentView.state.field(markdownRangeIndexField, false);
     const currentRecord = rangeIndex?.get(state.currentValue.recordId);
     if (!currentRecord) {
-      // 记录已不存在（外部并发删除），安全告警并保持编辑态，保护用户未提交输入不被静默销毁
-      console.warn(
-        `[HtmlBlockWidget] Record ${state.currentValue.recordId} not found in parent view; holding peek state`,
-      );
+      rememberDraft(state.draftStore, state.currentValue.recordId, newHtml);
+      notifyMissingRecord(wrapper, state, reason);
       return;
     }
-    state.parentView.dispatch({
-      changes: {
-        from: currentRecord.fullRange.from,
-        to: currentRecord.fullRange.to,
-        insert: newHtml,
-      },
-      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
-      userEvent: "input.type",
-    });
+    state.isCommitting = true;
+    try {
+      state.parentView.dispatch({
+        changes: {
+          from: currentRecord.fullRange.from,
+          to: currentRecord.fullRange.to,
+          insert: newHtml,
+        },
+        annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+        userEvent: "input.type",
+      });
+    } finally {
+      state.isCommitting = false;
+    }
   }
 
-  uncommittedDraftsByRecordId.delete(state.currentValue.recordId);
-  state.nestedView.destroy();
+  forgetDraft(state.draftStore, state.currentValue.recordId);
+  finishPeek(wrapper, state);
+}
+
+function notifyMissingRecord(
+  wrapper: HTMLElement,
+  state: HtmlBlockState,
+  reason: PeekCommitReason,
+): void {
+  ensureMissingRecordNotice(wrapper);
+  if (reason === "blur" && state.recordMissingNotified) {
+    return;
+  }
+  state.recordMissingNotified = true;
+  dispatchEditorUserNotice(state.parentView, HTML_BLOCK_RECORD_MISSING_MESSAGE);
+}
+
+function ensureMissingRecordNotice(wrapper: HTMLElement): void {
+  if (wrapper.querySelector(".cm-md-html-block-widget__notice")) {
+    return;
+  }
+  const notice = wrapper.ownerDocument.createElement("div");
+  notice.className = "cm-md-html-block-widget__notice";
+  notice.setAttribute("role", "alert");
+  notice.textContent = HTML_BLOCK_RECORD_MISSING_MESSAGE;
+  const content = wrapper.querySelector(".cm-md-html-block-widget__content");
+  if (content) {
+    wrapper.insertBefore(notice, content);
+  } else {
+    wrapper.append(notice);
+  }
+}
+
+function clearMissingRecordNotice(wrapper: HTMLElement): void {
+  wrapper.querySelector(".cm-md-html-block-widget__notice")?.remove();
+}
+
+function releaseNestedEditor(state: HtmlBlockState): void {
+  const nestedView = state.nestedView;
   state.nestedView = null;
+  nestedView?.destroy();
+}
+
+function finishPeek(wrapper: HTMLElement, state: HtmlBlockState): void {
   state.mode = "rendered";
+  state.isAborting = true;
+  releaseNestedEditor(state);
+  state.isAborting = false;
+  state.isCommitting = false;
+  state.recordMissingNotified = false;
   wrapper.classList.remove("cm-md-html-block-widget--peek");
+  clearMissingRecordNotice(wrapper);
+  if (state.disposed || !wrapper.isConnected) {
+    return;
+  }
   state.rebuildToolbar();
   state.rebuildContent();
-  state.isAborting = false;
-  state.parentView.focus?.();
-}
-
-export function enterHtmlSourcePeekForTesting(dom: HTMLElement): void {
-  const state = stateByDom.get(dom);
-  if (state) {
-    enterSourcePeek(dom, state);
-  }
-}
-
-export function commitHtmlSourcePeekForTesting(dom: HTMLElement): void {
-  const state = stateByDom.get(dom);
-  if (state) {
-    commitSourcePeek(dom, state);
-  }
-}
-
-export function cancelHtmlSourcePeekForTesting(dom: HTMLElement): void {
-  const state = stateByDom.get(dom);
-  if (state) {
-    cancelSourcePeek(dom, state);
-  }
+  state.parentView.focus();
 }
 
 function appendPlaceholder(dom: HTMLElement, message: string): void {
