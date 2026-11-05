@@ -102,6 +102,9 @@ jobs:
       - name: Build Web app (production)
         run: pnpm build:web
 
+      - name: Assert web output has no sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/web/dist
+
       - name: Validate release version files
         run: node scripts/release/validate-release-version.mjs
 
@@ -225,6 +228,9 @@ jobs:
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
         run: pnpm build:linux
 
+      - name: Assert no shipped sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -335,6 +341,9 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: "1"
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
         run: ${{ matrix.platform.build_cmd }}
+
+      - name: Assert no shipped sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

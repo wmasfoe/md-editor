@@ -165,6 +165,14 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 - `apps/web/CHANGELOG.md`: Web 在线端更新历史。
 - `apps/utools/CHANGELOG.md`: uTools 插件更新历史。
 
+## Sentry source map
+
+桌面端生产构建（`apps/desktop` 的 `pnpm build`，Tauri `beforeBuildCommand` 会调用它）生成 hidden source map，并用 `@sentry/vite-plugin` 注入 Debug ID。运行时 release 来自 `sentryReleaseName()`，形如 `inkpoint@0.19.2`，**不设置 dist**；上传选项与之相同，否则事件和 artifact 对不上。
+
+上传之后 `scripts/release/strip-sourcemaps.mjs` 删除全部 `.map` 并去掉 `sourceMappingURL`。`scripts/release/assert-no-sourcemaps.mjs` 在桌面构建、网页构建和各平台打包后失败退出，只要产物里还剩 map 或注释。没有 token 时跳过上传；token 失效或 Sentry 不可用时插件只 `console.warn`。两种情况都继续清理和检查，构建不因此失败。
+
+Token 只来自环境变量 `SENTRY_AUTH_TOKEN`。不要写入仓库，也不要使用会被插件自动读取的 `.env.sentry-build-plugin`（已在 `.gitignore`）。
+
 ## 必需 Secret
 
 `md-editor` 仓库需要配置：
@@ -174,3 +182,8 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 - `VERCEL_TOKEN`: 官网 CLI 部署。
 - `VERCEL_ORG_ID`: 官网目标 Org ID。
 - `VERCEL_PROJECT_ID`: 官网目标 Project ID。
+- `SENTRY_AUTH_TOKEN`: **Secret**（Settings → Secrets and variables → Actions → Secrets）。Sentry org auth token，需要 release 与 project 写权限（Organization token，或 Personal token 的 Project: Read & Write 与 Release: Admin）。只在发版打包步骤里注入：`.github/workflows/release-desktop.yml`（macOS、Linux x64、Linux aarch64、Windows）和 `.github/workflows/release-beta.yml`（macOS、Linux x64、Windows）。`.github/workflows/build-desktop.yml` 的 PR Linux AppImage 与手动多平台构建不注入 token，只跑 strip 和 assert。未配置时跳过上传。创建入口：`https://sentry.io/orgredirect/organizations/lijiaqi/settings/auth-tokens/`。
+
+可选 Variables（Settings → Secrets and variables → Actions → Variables），不配则用代码里的默认值：
+- `SENTRY_ORG`: 默认 `lijiaqi`。
+- `SENTRY_PROJECT`: 默认 `inkpoint`。

@@ -103,7 +103,8 @@ describe("repository CHANGELOG integration", () => {
       new URL("../../apps/desktop/CHANGELOG.md", import.meta.url),
       "utf8",
     );
-    const version = /^##\s+(\S+)/mu.exec(markdown)?.[1];
+    // 文件顶部可以有未发布说明，第一条 `##` 不一定是版本号。
+    const version = /^##\s+(v?\d+\.\d+\.\d+)\b/mu.exec(markdown)?.[1];
     assert.ok(version, "desktop CHANGELOG must contain at least one version section");
     const section = extractVersionSection(markdown, version);
     assert.ok(section, `section for ${version} must contain list items`);

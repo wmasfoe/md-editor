@@ -55,6 +55,9 @@ jobs:
       - name: Build Web app
         run: pnpm build:web
 
+      - name: Assert web output has no sourcemaps
+        run: node scripts/release/assert-no-sourcemaps.mjs apps/web/dist
+
       - name: Deploy Web app to Vercel production
         if: env.VERCEL_TOKEN != ''
         env:

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "dev:e2e": "vite --mode e2e --host 127.0.0.1 --port 4173",
-    "build": "tsc -p tsconfig.json && vite build && bash scripts/build-quicklook.sh",
+    "build": "tsc -p tsconfig.json && vite build && node ../../scripts/release/strip-sourcemaps.mjs dist && node ../../scripts/release/assert-no-sourcemaps.mjs dist && bash scripts/build-quicklook.sh",
     "build:quicklook": "bash scripts/build-quicklook.sh",
     "test:quicklook": "bash scripts/test-quicklook.sh",
     "preview": "vite preview",
@@ -46,6 +46,7 @@
   "devDependencies": {
     "@md-editor/renderer-codemirror": "workspace:*",
     "@playwright/test": "catalog:",
+    "@sentry/vite-plugin": "catalog:",
     "@tailwindcss/vite": "catalog:",
     "@tauri-apps/cli": "catalog:",
     "@types/react": "catalog:",

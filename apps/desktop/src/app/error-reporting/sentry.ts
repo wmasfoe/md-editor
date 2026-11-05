@@ -10,6 +10,7 @@
 
 import { isTauri } from "@tauri-apps/api/core";
 import type { ErrorReportingSettings } from "../settings/error-reporting/types.ts";
+import { sentryReleaseName } from "./sentry-release.ts";
 
 declare const __APP_VERSION__: string;
 
@@ -148,7 +149,8 @@ export async function ensureSentryInitialized(): Promise<void> {
 
       Sentry.init({
         dsn: SENTRY_DSN,
-        release: `inkpoint@${version}`,
+        // 与 source map 上传的 release 一致，且不设置 dist。见 sentry-release.ts。
+        release: sentryReleaseName(version),
         environment: isDev ? "development" : isTauri() ? "desktop" : "web",
         // 开发环境强制禁用 SDK 发送能力，生产环境遵循用户设置
         enabled: !isDev && isErrorReportingEnabled,

@@ -1,5 +1,15 @@
 # Changelog
 
+<!--
+Unreleased notes intentionally do not use a `## <version> - <date>` heading, so the
+changelog parser does not present them as a shipped release. Fold them into the
+next version section when cutting a release.
+-->
+
+## Unreleased — production builds upload Sentry source maps and do not ship them
+
+- Desktop production builds emit hidden source maps and upload them to Sentry on release builds when `SENTRY_AUTH_TOKEN` is set. The release is `inkpoint@<version>`, matching the client, with no dist; symbolication uses Debug IDs. After upload, every `.map` file is deleted and `sourceMappingURL` comments are removed, so installers and web artifacts do not contain source maps. A missing token or a failed upload does not fail the build; cleanup and the guard still run. Pull request and non-release builds do not receive the token.
+
 ## 0.19.2 - 2026-11-04 (#213)
 
 - Prevent CodeMirror geometry query errors during view updates with requestMeasure and defensive fallback; unify official site and distribution domain endpoints to jiaqi.im.
