@@ -1,14 +1,8 @@
 # Changelog
 
-<!--
-Unreleased notes intentionally do not use a `## <version> - <date>` heading, so the
-changelog parser does not present them as a shipped release. Fold them into the
-next version section when cutting a release.
--->
+## 0.19.3 - 2026-11-05 (#215, #216)
 
-## Unreleased — production builds upload Sentry source maps and do not ship them
-
-- Desktop production builds emit hidden source maps and upload them to Sentry on release builds when `SENTRY_AUTH_TOKEN` is set. The release is `inkpoint@<version>`, matching the client, with no dist; symbolication uses Debug IDs. After upload, every `.map` file is deleted and `sourceMappingURL` comments are removed, so installers and web artifacts do not contain source maps. A missing token or a failed upload does not fail the build; cleanup and the guard still run. Pull request and non-release builds do not receive the token.
+- Fix custom shortcuts and menu accelerator conflicts; fix first-click caret positioning on collapsed inline markers; honor AI continuation toggle; upload Sentry source maps on production release builds without shipping them
 
 ## 0.19.2 - 2026-11-04 (#213)
 
