@@ -1,5 +1,5 @@
 /** Projection contracts and singleton feature/effect identities. */
-import { Facet, StateEffect } from "@codemirror/state";
+import { Facet, StateEffect, StateField } from "@codemirror/state";
 import { type DecorationSet } from "@codemirror/view";
 import type { EditorMode } from "@md-editor/editor-core";
 import type { SourceRange } from "../../markdown/range-types.ts";
@@ -110,3 +110,25 @@ export const setWysiwygVisibleRangesEffect = StateEffect.define<readonly SourceR
 export const refreshWysiwygProjectionEffect = StateEffect.define<null>();
 
 export const clearWysiwygTypedBoundaryEffect = StateEffect.define<null>();
+
+/** 标记文末虚拟空行当前是否处于激活交互态（用户光标落入但未输入内容）。 */
+export const setVirtualTrailingLineActiveEffect = StateEffect.define<boolean>();
+
+/** 持有文末虚拟空行交互态的 StateField，未激活或未键入前底层 doc 保持 0 变更。 */
+export const virtualTrailingLineActiveField = StateField.define<boolean>({
+  create() {
+    return false;
+  },
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setVirtualTrailingLineActiveEffect)) {
+        return effect.value;
+      }
+    }
+    // 若文档发生变更，或选区移出文末，自动解除虚拟行激活态
+    if (tr.docChanged || (tr.selection && tr.state.selection.main.head !== tr.state.doc.length)) {
+      return false;
+    }
+    return value;
+  },
+});

@@ -21,6 +21,7 @@ import {
   isProjectableCodeBlock,
 } from "../projections/code-block-projection.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
+import { virtualTrailingLineActiveField } from "../state/types.ts";
 
 /**
  * 计算 view.scrollDOM 的基准偏移量（与 CodeMirror 内部 getBase 逻辑一致）
@@ -433,11 +434,16 @@ export function computeCursorMarkers(view: EditorView): readonly RectangleMarker
   try {
     const { state } = view;
     const conf = getDrawSelectionConfig(state);
+    const virtualActive = state.field(virtualTrailingLineActiveField, false);
     const cursors: RectangleMarker[] = [];
     for (const r of state.selection.ranges) {
       // 若当前选区精确对应某个原子组件（如 HTML 块、表格、分割线等），
       // 组件已通过蓝色高亮外框呈现整体选中态，绝不应在组件边缘/下方绘制文本插入光标
       if (!r.empty && isAtomSelection(state, r)) {
+        continue;
+      }
+      // 若虚拟空行处于激活态且光标位于文末，由虚拟空行挂件自身呈现光标，跳过绘制全局自绘光标
+      if (virtualActive && r.empty && r.head === state.doc.length) {
         continue;
       }
       const prim = r === state.selection.main;
