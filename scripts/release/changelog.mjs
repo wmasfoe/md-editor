@@ -6,12 +6,13 @@ export function hasVersionSection(contents, version) {
 
 export function formatPrSuffix(pr) {
   if (!pr) return "";
-  if (Array.isArray(pr)) {
-    const valid = pr.map((p) => String(p).replace(/^#/u, "").trim()).filter(Boolean);
-    return valid.length > 0 ? ` (#${valid.join(", #")})` : "";
-  }
-  const clean = String(pr).replace(/^#/u, "").trim();
-  return clean ? ` (#${clean})` : "";
+  const list = Array.isArray(pr)
+    ? pr
+    : String(pr)
+        .split(",")
+        .map((item) => item.trim());
+  const valid = list.map((p) => String(p).replace(/^#/u, "").trim()).filter(Boolean);
+  return valid.length > 0 ? ` (#${valid.join(", #")})` : "";
 }
 
 export function updateChangelogContents(contents, { version, notes, date, mode, pr }) {
@@ -52,7 +53,17 @@ export function updateChangelogContents(contents, { version, notes, date, mode, 
   const insertAt = titleMatch.index + titleMatch[0].length;
   const title = trimmed.slice(0, insertAt).trimEnd();
   const tail = trimmed.slice(insertAt).trimStart();
-  return `${title}\n\n${nextSection}\n\n${tail}\n`;
+  const cleanedTail = stripUnreleasedSection(tail);
+  return `${title}\n\n${nextSection}\n\n${cleanedTail}\n`;
+}
+
+function stripUnreleasedSection(content) {
+  return content
+    .replace(
+      /^(?:<!--[\s\S]*?-->\s*)?##\s+(?:未发布|Unreleased)[^\n]*\n+[\s\S]*?(?=\n##\s+\d|\n#|\s*$)/u,
+      "",
+    )
+    .trimStart();
 }
 
 export function updateChangelogFile({
@@ -129,7 +140,7 @@ export function updateChangelogPair({
 }) {
   const zh = updateChangelogFile({ path: zhPath, version, notes, date, mode, dryRun, pr });
   if (!enPath || !fs.existsSync(enPath)) {
-    return { zh, en: null };
+    return { zh, en: null, changed: zh.changed };
   }
   const en = updateChangelogFile({
     path: enPath,
@@ -140,5 +151,5 @@ export function updateChangelogPair({
     dryRun,
     pr,
   });
-  return { zh, en };
+  return { zh, en, changed: zh.changed || en.changed };
 }

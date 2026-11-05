@@ -166,6 +166,65 @@ test("updateChangelogPair skips EN when the EN file does not exist", () => {
   });
 
   assert.equal(result.en, null);
+  assert.equal(result.changed, true);
   assert.match(fs.readFileSync(zhPath, "utf8"), /## 1\.2\.5 - 2026-01-04/u);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("updateChangelogContents strips temporary unreleased section when prepending new version", () => {
+  const currentZh = `# Changelog
+
+<!--
+未发布条目不使用 ## <version> - <date> 标题。
+-->
+
+## 未发布 — 生产构建上传 Sentry source map
+
+- 桌面端生产构建生成 hidden source map。
+
+## 0.19.2 - 2026-11-04 (#213)
+
+- 修复几何测量冲突。
+`;
+
+  const nextZh = updateChangelogContents(currentZh, {
+    version: "0.19.3",
+    notes: "新版本修复",
+    date: "2026-11-05",
+    pr: "215, 216",
+  });
+
+  assert.match(
+    nextZh,
+    /^# Changelog\n\n## 0\.19\.3 - 2026-11-05 \(#215, #216\)\n\n- 新版本修复\n\n## 0\.19\.2/u,
+  );
+  assert.equal(nextZh.includes("未发布"), false);
+
+  const currentEn = `# Changelog
+
+<!--
+Unreleased notes fold into next version.
+-->
+
+## Unreleased — upload sourcemaps
+
+- Hidden source maps.
+
+## 0.19.2 - 2026-11-04 (#213)
+
+- Fix geometry query.
+`;
+
+  const nextEn = updateChangelogContents(currentEn, {
+    version: "0.19.3",
+    notes: "New fixes",
+    date: "2026-11-05",
+    pr: "215, 216",
+  });
+
+  assert.match(
+    nextEn,
+    /^# Changelog\n\n## 0\.19\.3 - 2026-11-05 \(#215, #216\)\n\n- New fixes\n\n## 0\.19\.2/u,
+  );
+  assert.equal(nextEn.includes("Unreleased"), false);
 });
