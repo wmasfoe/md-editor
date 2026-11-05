@@ -29,6 +29,7 @@ export function createRuntimeKeyboardShortcuts(
   const customKeymaps = new Map(settings.shortcuts.map((shortcut) => [shortcut.id, shortcut.key]));
 
   const shortcuts = runtime.keymaps.list().map((keymap): KeyboardShortcut => ({
+    commandId: keymap.commandId,
     matches: (event) => matchesRuntimeKeymap(event, customKeymaps.get(keymap.id) ?? keymap.key),
     run: () => {
       void dispatchCommand(keymap.commandId);
@@ -40,6 +41,7 @@ export function createRuntimeKeyboardShortcuts(
   for (const shortcut of settings.shortcuts) {
     if (!registeredCommandIds.has(shortcut.id) && shortcut.key) {
       shortcuts.push({
+        commandId: shortcut.commandId,
         matches: (event) => matchesRuntimeKeymap(event, shortcut.key),
         run: () => {
           void dispatchCommand(shortcut.commandId);
@@ -50,6 +52,7 @@ export function createRuntimeKeyboardShortcuts(
 
   // 兼容 Mod-j 备用续写快捷键（对齐 Web 端与设计规范，支持单手盲操）
   shortcuts.push({
+    commandId: "ai.continueWriting",
     matches: (event) => matchesRuntimeKeymap(event, "Mod-j"),
     run: () => {
       void dispatchCommand("ai.continueWriting");
@@ -76,6 +79,28 @@ export function bindRuntimeKeyboardShortcuts(
       return;
     }
 
+    // 格式化快捷键（format.*）仅在编辑器（.cm-editor）获得焦点时处理，
+    // 避免在设置弹窗输入框、文件重命名输入框等文本框内吞掉 Mod-B/I/E 等系统与输入按键
+    if (shortcut.commandId?.startsWith("format.")) {
+      const target = event.target as HTMLElement | null;
+      const isInput =
+        (typeof HTMLInputElement !== "undefined" && target instanceof HTMLInputElement) ||
+        (typeof HTMLTextAreaElement !== "undefined" && target instanceof HTMLTextAreaElement) ||
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable === false;
+      if (isInput) {
+        return;
+      }
+      const isInsideEditor = Boolean(target?.closest?.(".cm-editor"));
+      const isEditorActive = Boolean(
+        typeof document !== "undefined" && document.activeElement?.closest?.(".cm-editor"),
+      );
+      if (!isInsideEditor && !isEditorActive) {
+        return;
+      }
+    }
+
     event.preventDefault();
     shortcut.run(event);
   };
@@ -85,10 +110,21 @@ export function bindRuntimeKeyboardShortcuts(
 }
 
 function isSettingsShortcutCaptureTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    Boolean(target.closest('[data-settings-shortcut-input="true"]'))
-  );
+  if (typeof Element !== "undefined" && target instanceof Element) {
+    return Boolean(target.closest('[data-settings-shortcut-input="true"]'));
+  }
+  if (
+    target &&
+    "closest" in target &&
+    typeof (target as { closest?: unknown }).closest === "function"
+  ) {
+    return Boolean(
+      (target as unknown as { closest: (s: string) => unknown }).closest(
+        '[data-settings-shortcut-input="true"]',
+      ),
+    );
+  }
+  return false;
 }
 
 export function bindDesktopMenuCommands(dispatchCommand: DesktopCommandDispatcher) {

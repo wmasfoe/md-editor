@@ -10,9 +10,23 @@
  * 存活性（destroyed）守卫仍由控制器在调用前判定，本模块只负责视图侧语义。
  */
 
-import { EditorSelection, Transaction, type Compartment } from "@codemirror/state";
+import {
+  EditorSelection,
+  type EditorState,
+  Transaction,
+  type Compartment,
+  type StateEffect,
+} from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { openSearchPanel } from "@codemirror/search";
+import { setDiagnostics } from "@codemirror/lint";
+import { rendererTransactionOrigin } from "../../origin.ts";
+import {
+  acceptAiSuggestion,
+  aiSuggestionField,
+  dismissAiSuggestion,
+  type AiSuggestionValue,
+} from "../../wysiwyg/view/suggestion.ts";
 import {
   setTypewriterModeEffect,
   typewriterModeField,
@@ -163,14 +177,61 @@ export function openViewFind(view: RendererViewAdapter): boolean {
   return openSearchPanel(cmView);
 }
 
-/** 打开文档内替换面板 */
+/** 打开文档内替换面板并聚焦替换输入框 */
 export function openViewReplace(view: RendererViewAdapter): boolean {
   const cmView = view as unknown as EditorView | null;
   if (!cmView) {
     return false;
   }
-  return openSearchPanel(cmView);
+  const opened = openSearchPanel(cmView);
+  if (opened) {
+    focusReplaceInput(cmView);
+  }
+  return opened;
 }
+
+function focusReplaceInput(view: EditorView): void {
+  const dom = view.dom;
+  if (!dom) {
+    return;
+  }
+  const focusAction = () => {
+    // 若使用的是 liquid 搜索面板，且替换行当前处于折叠隐藏状态，则展开它
+    const replaceRow = dom.querySelector<HTMLElement>(".cm-replace-row");
+    if (replaceRow && replaceRow.style.display === "none") {
+      const toggleBtn = dom.querySelector<HTMLButtonElement>(
+        ".cm-search-icon-button[title*='替换']",
+      );
+      if (toggleBtn) {
+        toggleBtn.click();
+      } else {
+        replaceRow.style.display = "flex";
+      }
+    }
+    const replaceInput = dom.querySelector<HTMLInputElement>(
+      ".cm-replace-input, .cm-textfield[name='replace']",
+    );
+    if (replaceInput) {
+      replaceInput.focus();
+      replaceInput.select();
+    }
+  };
+
+  focusAction();
+  if (typeof requestAnimationFrame !== "undefined") {
+    requestAnimationFrame(focusAction);
+  }
+}
+
+import {
+  clearMarkdownLintCommand,
+  collectPreservedNonMarkdownDiagnostics,
+  fixAllMarkdownLintIssues,
+  runMarkdownLint,
+  runMarkdownLintCommand,
+  type MarkdownLintFixAllResult,
+  type MarkdownLintRunResult,
+} from "../../lint/index.ts";
 
 /** 块操作：上移当前块 */
 export function moveViewBlockUp(view: RendererViewAdapter): boolean {
@@ -208,4 +269,66 @@ export function setFormattingViewKeymaps(
       effects: compartment.reconfigure(createMarkdownFormattingKeymap(customKeymaps)),
     });
   }
+}
+
+/** 执行 markdownlint 诊断分析 */
+export function runViewMarkdownLint(
+  view: RendererViewAdapter,
+  config?: Record<string, unknown>,
+): MarkdownLintRunResult {
+  const target = view.editorView ?? (view as unknown as EditorView);
+  return runMarkdownLintCommand(target, config);
+}
+
+/** 执行 markdownlint 全部自动修复 */
+export function fixAllViewMarkdownLint(
+  view: RendererViewAdapter,
+  config?: Record<string, unknown>,
+): MarkdownLintFixAllResult {
+  const target = view.editorView ?? (view as unknown as EditorView);
+  return fixAllMarkdownLintIssues(target, config);
+}
+
+/** 清理 markdownlint 诊断结果 */
+export function clearViewMarkdownLint(view: RendererViewAdapter): void {
+  const target = view.editorView ?? (view as unknown as EditorView);
+  clearMarkdownLintCommand(target);
+}
+
+/** 采纳 AI 续写建议 */
+export function acceptViewAiSuggestion(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && acceptAiSuggestion(cmView));
+}
+
+/** 放弃 AI 续写建议 */
+export function dismissViewAiSuggestion(view: RendererViewAdapter): boolean {
+  const cmView = view as unknown as EditorView | null;
+  return Boolean(cmView && dismissAiSuggestion(cmView));
+}
+
+/** 读取当前 AI 建议内容 */
+export function readViewAiSuggestion(view: RendererViewAdapter): AiSuggestionValue | null {
+  return view.state.field(aiSuggestionField, false) ?? null;
+}
+
+/** 重新计算并在视图上派发 Markdown 诊断标记 */
+export function recomputeViewMarkdownLint(view: RendererViewAdapter): void {
+  const preserved = collectPreservedNonMarkdownDiagnostics(view.state);
+  const mdDiagnostics = runMarkdownLint(view.state);
+  const effects = (setDiagnostics(view.state, [...preserved, ...mdDiagnostics]).effects ??
+    []) as readonly StateEffect<unknown>[];
+  view.dispatch({
+    effects: [...effects],
+    annotations: [
+      Transaction.addToHistory.of(false),
+      rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+    ],
+  });
+}
+
+/** 收集清理 Markdown 诊断时的保留效果 */
+export function createMarkdownLintClearEffects(state: EditorState): readonly StateEffect<unknown>[] {
+  return (setDiagnostics(state, collectPreservedNonMarkdownDiagnostics(state))
+    .effects as readonly StateEffect<unknown>[]) ?? [];
 }

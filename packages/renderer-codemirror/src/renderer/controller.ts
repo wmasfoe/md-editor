@@ -20,7 +20,7 @@ import {
   type Extension,
   type StateEffect,
 } from "@codemirror/state";
-import type { EditorView, ViewUpdate } from "@codemirror/view";
+import type { ViewUpdate } from "@codemirror/view";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -47,10 +47,7 @@ import {
 } from "../wysiwyg/projections/inline-heading.ts";
 import { focusModeInitialFacet } from "../wysiwyg/view/focus-mode.ts";
 import {
-  acceptAiSuggestion,
-  aiSuggestionField,
   aiSuggestionLabelsFacet,
-  dismissAiSuggestion,
   setAiSuggestionEffect,
   type AiSuggestionInput,
   type AiSuggestionLabels,
@@ -68,16 +65,24 @@ import {
 import { clampSelection } from "./controller/selection.ts";
 import { TransactionLedger } from "./controller/transaction-ledger.ts";
 import {
+  acceptViewAiSuggestion,
+  clearViewMarkdownLint,
+  createMarkdownLintClearEffects,
   deleteViewBlock,
+  dismissViewAiSuggestion,
   duplicateViewBlock,
   executeViewFormatting,
+  fixAllViewMarkdownLint,
   flushPendingViewEdits,
   moveViewBlockDown,
   moveViewBlockUp,
   openViewFind,
   openViewReplace,
   readSelectionSnapshot,
+  readViewAiSuggestion,
   readViewModeState,
+  recomputeViewMarkdownLint,
+  runViewMarkdownLint,
   scrollViewToLine,
   setFormattingViewKeymaps,
   setViewSelection,
@@ -114,17 +119,12 @@ import { setHostVisibility } from "./controller/host-visibility.ts";
 import { startComposition, finishComposition } from "./controller/composition.ts";
 import {
   executeDocumentLint,
-  collectPreservedNonMarkdownDiagnostics,
   createRealtimeMarkdownLintExtension,
-  runMarkdownLint,
-  runMarkdownLintCommand,
-  fixAllMarkdownLintIssues,
-  clearMarkdownLintCommand,
   type DocumentLinterOptions,
   type MarkdownLintRunResult,
   type MarkdownLintFixAllResult,
 } from "../lint/index.ts";
-import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { type Diagnostic } from "@codemirror/lint";
 
 let nextRendererId = 1;
 
@@ -307,8 +307,7 @@ export class CodeMirrorRendererController {
     );
     const clearEffects: readonly StateEffect<unknown>[] = enabled
       ? []
-      : (setDiagnostics(this.#view.state, collectPreservedNonMarkdownDiagnostics(this.#view.state))
-          .effects as readonly StateEffect<unknown>[]);
+      : createMarkdownLintClearEffects(this.#view.state);
 
     this.#view.dispatch({
       effects: [reconfigureEffect, ...clearEffects],
@@ -327,20 +326,7 @@ export class CodeMirrorRendererController {
     if (!this.#markdownLintEnabled) {
       return { status: "noop" };
     }
-    const preserved = collectPreservedNonMarkdownDiagnostics(this.#view.state);
-    const mdDiagnostics = runMarkdownLint(this.#view.state);
-    const effects: readonly StateEffect<unknown>[] = (setDiagnostics(this.#view.state, [
-      ...preserved,
-      ...mdDiagnostics,
-    ]).effects ?? []) as readonly StateEffect<unknown>[];
-
-    this.#view.dispatch({
-      effects: [...effects],
-      annotations: [
-        Transaction.addToHistory.of(false),
-        rendererTransactionOrigin.of({ kind: "markdown-lint" }),
-      ],
-    });
+    recomputeViewMarkdownLint(this.#view);
     return { status: "applied" };
   }
 
@@ -388,7 +374,7 @@ export class CodeMirrorRendererController {
   }
 
   acceptSuggestion(): boolean {
-    return !this.#destroyed && acceptAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && acceptViewAiSuggestion(this.#view);
   }
 
   moveBlockUp(): boolean {
@@ -438,11 +424,11 @@ export class CodeMirrorRendererController {
   }
 
   dismissSuggestion(): boolean {
-    return !this.#destroyed && dismissAiSuggestion(this.#view as unknown as EditorView);
+    return !this.#destroyed && dismissViewAiSuggestion(this.#view);
   }
 
   getSuggestion(): AiSuggestionValue | null {
-    return this.#destroyed ? null : (this.#view.state.field(aiSuggestionField, false) ?? null);
+    return this.#destroyed ? null : readViewAiSuggestion(this.#view);
   }
 
   getSelectionSnapshot() {
@@ -455,10 +441,20 @@ export class CodeMirrorRendererController {
     if (!this.#destroyed) this.#view.focus();
   }
 
+  /**
+   * 设置编辑器选区(编辑器标准能力,供宿主定位/测试)。
+   * from === to 时为光标;范围按文档长度钳制。
+   */
   setSelection(from: number, to: number): void {
-    if (!this.#destroyed) setViewSelection(this.#view, from, to);
+    if (!this.#destroyed) {
+      setViewSelection(this.#view, from, to);
+    }
   }
 
+  /**
+   * 滚动到指定行(1-based)并可将光标定位到行首。
+   * line 范围自动按文档总行数钳制。
+   */
   scrollToLine(
     line: number,
     options?: { readonly select?: boolean; readonly focus?: boolean },
@@ -478,24 +474,20 @@ export class CodeMirrorRendererController {
     return this.#destroyed ? [] : executeDocumentLint(this.#view, options);
   }
 
-  get #targetEditorView(): EditorView {
-    return this.#view.editorView ?? (this.#view as unknown as EditorView);
-  }
-
   runMarkdownLintCommand(config?: Record<string, unknown>): MarkdownLintRunResult {
     return this.#destroyed
       ? { total: 0, errors: 0, warnings: 0 }
-      : runMarkdownLintCommand(this.#targetEditorView, config);
+      : runViewMarkdownLint(this.#view, config);
   }
 
   fixAllMarkdownLint(config?: Record<string, unknown>): MarkdownLintFixAllResult {
     return this.#destroyed
       ? { appliedCount: 0, remainingCount: 0 }
-      : fixAllMarkdownLintIssues(this.#targetEditorView, config);
+      : fixAllViewMarkdownLint(this.#view, config);
   }
 
   clearMarkdownLint(): void {
-    if (!this.#destroyed) clearMarkdownLintCommand(this.#targetEditorView);
+    if (!this.#destroyed) clearViewMarkdownLint(this.#view);
   }
 
   destroy(): void {

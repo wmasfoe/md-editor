@@ -23,4 +23,5 @@ export interface PastedImageFile {
 export interface KeyboardShortcut {
   readonly matches: (event: KeyboardEvent) => boolean;
   readonly run: (event: KeyboardEvent) => void;
+  readonly commandId?: string;
 }

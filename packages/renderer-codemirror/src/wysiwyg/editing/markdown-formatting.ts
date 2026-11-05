@@ -539,11 +539,34 @@ export function executeFormattingCommand(view: EditorView, commandId: string): b
 }
 
 /**
+ * 规范化 CodeMirror keymap 键位字符串。
+ *
+ * CodeMirror (@codemirror/view keymap) 对单个大写字母键名的匹配语义是「需要按 Shift」。
+ * 例如传入 "Mod-B" 会被解析为 Cmd+Shift+B，从而导致普通的 Cmd+B 无法匹配。
+ * 本函数将键位组合中的字母按键（最后一段）规范化为小写，确保无论传入 "Mod-B" 还是 "Mod-b"
+ * 均能被正确识别为无需按 Shift 的普通组合键；如需 Shift 则明确带有 Shift 修饰符（如 "Mod-Shift-s"）。
+ */
+export function normalizeCodeMirrorKey(chord: string): string {
+  if (!chord) {
+    return chord;
+  }
+  const parts = chord.split("-");
+  const last = parts[parts.length - 1];
+  if (/^[A-Za-z]$/.test(last)) {
+    parts[parts.length - 1] = last.toLowerCase();
+    return parts.join("-");
+  }
+  return chord;
+}
+
+/**
  * 创建 Markdown 常用格式化快捷键扩展，支持传入自定义键位映射
  */
 export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<string, string>) {
-  const getKey = (commandId: string, defaultKey: string) =>
-    customKeymaps?.get(commandId) ?? defaultKey;
+  const getKey = (commandId: string, defaultKey: string) => {
+    const raw = customKeymaps?.get(commandId) ?? defaultKey;
+    return normalizeCodeMirrorKey(raw);
+  };
 
   const bindings = [
     { key: getKey("format.bold", "Mod-b"), run: viewFormattingCommand(toggleBold) },
@@ -560,12 +583,16 @@ export function createMarkdownFormattingKeymap(customKeymaps?: ReadonlyMap<strin
       key: getKey("format.strikethrough", "Mod-Shift-s"),
       run: viewFormattingCommand(toggleStrikethrough),
     },
+    // 兼容传统删除线备用快捷键 Mod-Shift-x
+    { key: "Mod-Shift-x", run: viewFormattingCommand(toggleStrikethrough) },
     { key: getKey("format.highlight", "Mod-Shift-h"), run: viewFormattingCommand(toggleHighlight) },
     {
       key: getKey("format.blockquote", "Mod-Shift-q"),
       run: viewFormattingCommand(toggleBlockquote),
     },
     { key: getKey("format.codeBlock", "Mod-Shift-c"), run: viewFormattingCommand(insertCodeBlock) },
+    // 兼容传统代码块备用快捷键 Mod-Shift-k
+    { key: "Mod-Shift-k", run: viewFormattingCommand(insertCodeBlock) },
     {
       key: getKey("format.bulletList", "Mod-Shift-u"),
       run: viewFormattingCommand(toggleBulletList),

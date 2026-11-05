@@ -133,4 +133,29 @@ test.describe("行内标记源码显隐 · 手测清单自动化代理", () => {
       .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
       .toContain("**bold**");
   });
+
+  test("首次点击折叠的加粗文本时展开 ** 标记，且光标精确定位，不产生意外范围选区", async ({
+    page,
+  }) => {
+    // 模拟 Issue #214 真实场景：等了一下 **7.15** 的节点
+    const docWithBold = "等了一下 **7.15** 的节点\n";
+    await loadMarkdown(page, docWithBold);
+    // 初始光标在 0，加粗定界符 ** 处于折叠隐藏状态
+    await setSelection(page, 0);
+    await expect(page.locator(".cm-md-marker--bold")).toHaveCount(0);
+
+    // 找到文本节点中的加粗元素
+    const boldText = page.locator(".cm-content").getByText("7.15");
+    await expect(boldText).toBeVisible();
+
+    // 触发真实物理点击
+    await boldText.click();
+
+    // 点击后加粗标记正常显形展开
+    await expect(page.locator(".cm-md-marker--bold")).toHaveCount(2);
+
+    // 验证选区：anchor 与 head 必须严格相等（纯光标 caret，无意外范围选区）
+    const diag = await diagnostics(page);
+    expect(diag.renderer?.selectionAnchor).toBe(diag.renderer?.selectionHead);
+  });
 });

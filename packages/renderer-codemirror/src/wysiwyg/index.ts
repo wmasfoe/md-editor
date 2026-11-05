@@ -93,3 +93,7 @@ export {
   codeBlockSelectionExtension,
   codeBlockSelectionLayer,
 } from "./editing/code-block-selection.ts";
+export {
+  createMarkdownFormattingKeymap,
+  normalizeCodeMirrorKey,
+} from "./editing/markdown-formatting.ts";

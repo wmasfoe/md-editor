@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createRuntimeKeyboardShortcuts } from "../src/app/events/command-bindings";
+import {
+  bindRuntimeKeyboardShortcuts,
+  createRuntimeKeyboardShortcuts,
+} from "../src/app/events/command-bindings";
 import { createDefaultSettings } from "../src/app/settings/persistence/storage";
 
 function createKeyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
@@ -60,5 +63,76 @@ describe("createRuntimeKeyboardShortcuts", () => {
 
     newMatch!.run(newEvent);
     expect(dispatched).toContain("format.strikethrough");
+  });
+
+  it("bindRuntimeKeyboardShortcuts 不会在普通 input/textarea 输入框内拦截 format.* 快捷键", () => {
+    const originalWindow = globalThis.window;
+    const originalDocument = globalThis.document;
+
+    const mockListeners: Array<(event: KeyboardEvent) => void> = [];
+    (globalThis as unknown as { window: unknown }).window = {
+      addEventListener: (_type: string, listener: (event: KeyboardEvent) => void) => {
+        mockListeners.push(listener);
+      },
+      removeEventListener: () => {},
+    };
+    (globalThis as unknown as { document: unknown }).document = {
+      activeElement: null,
+    };
+
+    const dispatched: string[] = [];
+    const defaultSettings = createDefaultSettings();
+    const unbind = bindRuntimeKeyboardShortcuts(async (id: string) => {
+      dispatched.push(id);
+    }, defaultSettings);
+
+    expect(mockListeners.length).toBe(1);
+    const listener = mockListeners[0];
+
+    // 1. 在普通 input 输入框中按 Mod-B
+    let inputPrevented = false;
+    const inputTarget = {
+      tagName: "INPUT",
+      closest: () => null,
+      isContentEditable: false,
+    };
+    const inputEvent = createKeyEvent({
+      metaKey: true,
+      key: "b",
+      code: "KeyB",
+      target: inputTarget as unknown as EventTarget,
+      preventDefault: () => {
+        inputPrevented = true;
+      },
+    });
+
+    listener(inputEvent);
+    expect(inputPrevented).toBe(false);
+    expect(dispatched).toHaveLength(0);
+
+    // 2. 在 .cm-editor 内容区域中按 Mod-B
+    let editorPrevented = false;
+    const editorTarget = {
+      tagName: "DIV",
+      closest: (sel: string) => (sel === ".cm-editor" ? editorTarget : null),
+      isContentEditable: true,
+    };
+    const editorEvent = createKeyEvent({
+      metaKey: true,
+      key: "b",
+      code: "KeyB",
+      target: editorTarget as unknown as EventTarget,
+      preventDefault: () => {
+        editorPrevented = true;
+      },
+    });
+
+    listener(editorEvent);
+    expect(editorPrevented).toBe(true);
+    expect(dispatched).toContain("format.bold");
+
+    unbind();
+    globalThis.window = originalWindow;
+    globalThis.document = originalDocument;
   });
 });
