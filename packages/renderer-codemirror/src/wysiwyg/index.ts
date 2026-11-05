@@ -31,6 +31,7 @@ import {
 } from "./state/projection-field.ts";
 import { type WysiwygProjectionFeature } from "./state/types.ts";
 import { htmlProjectionTheme } from "./projections/html-projection.ts";
+import { htmlSourcePeekDraftField } from "./widgets/html-block-widget.ts";
 import { mdxProjectionTheme } from "./projections/mdx-projection.ts";
 import { tableProjectionTheme } from "./projections/table-projection.ts";
 import { blockReplacementTheme } from "./blocks/block-replacement.ts";
@@ -54,6 +55,7 @@ export function createWysiwygProjectionExtensions(
     blockReplacementTheme,
     tableProjectionTheme,
     htmlProjectionTheme,
+    htmlSourcePeekDraftField,
     mdxProjectionTheme,
     wysiwygProjectionField,
     clearWysiwygTypedBoundaryOnBlur,

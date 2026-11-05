@@ -54,6 +54,7 @@
     "@types/markdownlint": "^0.18.0",
     "@types/sanitize-html": "catalog:",
     "@types/turndown": "catalog:",
+    "jsdom": "^30.1.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

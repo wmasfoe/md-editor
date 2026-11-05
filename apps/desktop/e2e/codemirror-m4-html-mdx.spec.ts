@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { MOD_KEY } from "./editor-e2e-helpers";
 
 const SAFE_HTML_MARKDOWN = [
   "Before",
@@ -112,5 +113,44 @@ test.describe("CodeMirror M4 HTML projection", () => {
 
     await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setMode("source"));
     await expect(page.locator(".cm-content")).toContainText("<table><tr><td>A</td></tr></table>");
+  });
+
+  test("M4-E05: source peek commits with Mod-Enter and undoes in the parent editor", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    const markdown = ["Before", "", "<div>Safe peek</div>", "", "After", ""].join("\n");
+    await replaceDocument(page, markdown);
+
+    const widget = page.locator(".cm-md-html-block-widget");
+    await widget.dblclick();
+    const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
+    await expect(nested).toBeVisible();
+    await nested.click();
+    await page.keyboard.type("<!--peek-->");
+    await page.keyboard.press(`${MOD_KEY}+Enter`);
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer?.markdown)
+      .toContain("<!--peek-->");
+
+    await page.keyboard.press(`${MOD_KEY}+z`);
+    await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(markdown);
+  });
+
+  test("M4-E06: Escape cancels source peek without changing the document", async ({ page }) => {
+    await openHarness(page);
+    const markdown = ["Before", "", "<div>Safe peek</div>", "", "After", ""].join("\n");
+    await replaceDocument(page, markdown);
+
+    const widget = page.locator(".cm-md-html-block-widget");
+    await widget.dblclick();
+    const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
+    await expect(nested).toBeVisible();
+    await nested.click();
+    await page.keyboard.type("<!--nope-->");
+    await page.keyboard.press("Escape");
+
+    await expect(widget).not.toHaveClass(/cm-md-html-block-widget--peek/);
+    await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(markdown);
   });
 });

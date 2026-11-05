@@ -71,16 +71,63 @@ export function getHtmlProtectedRanges(record: MarkdownRangeRecord): readonly So
 export const htmlProjectionTheme = EditorView.baseTheme({
   ".cm-md-html-block-widget": {
     display: "block",
+    position: "relative",
+    // 垂直间距禁止用 margin。CM6 高度图只量 border-box，margin 会让其后的点击偏行。
   },
   ".cm-md-html-block-widget--selected": {
     outline: "2px solid var(--theme-selection, Highlight)",
     outlineOffset: "2px",
+  },
+  ".cm-md-html-block-widget__toolbar": {
+    display: "none",
+    position: "absolute",
+    top: "0.25rem",
+    right: "0.25rem",
+    zIndex: "10",
+    gap: "0.25rem",
+  },
+  ".cm-md-html-block-widget:hover .cm-md-html-block-widget__toolbar": {
+    display: "flex",
+  },
+  ".cm-md-html-block-widget--peek .cm-md-html-block-widget__toolbar": {
+    display: "flex",
+  },
+  ".cm-md-html-block-widget__btn": {
+    fontSize: "11px",
+    lineHeight: "1.2",
+    padding: "2px 6px",
+    border: "1px solid var(--theme-border, rgba(127, 127, 127, 0.3))",
+    borderRadius: "4px",
+    background: "var(--theme-bg-translucent, rgba(255, 255, 255, 0.85))",
+    color: "var(--theme-text, inherit)",
+    cursor: "pointer",
+    userSelect: "none",
+    backdropFilter: "blur(8px)",
+  },
+  ".cm-md-html-block-widget__btn:hover": {
+    background: "var(--theme-bg-hover, rgba(240, 240, 240, 0.95))",
   },
   ".cm-md-html-block-widget__placeholder": {
     display: "block",
     padding: "0.5rem",
     border: "1px solid var(--theme-border, currentColor)",
     color: "var(--theme-muted, currentColor)",
+  },
+  ".cm-md-html-block-widget__notice": {
+    display: "block",
+    padding: "0.35rem 0.5rem",
+    background: "var(--theme-danger-bg, rgba(180, 35, 24, 0.08))",
+    color: "var(--theme-danger, #b42318)",
+  },
+  ".cm-md-html-block-widget__editor": {
+    border: "1px solid var(--theme-border, rgba(127, 127, 127, 0.25))",
+    borderRadius: "4px",
+    background: "var(--theme-code-bg, rgba(0, 0, 0, 0.02))",
+    overflow: "hidden",
+  },
+  ".cm-md-html-block-widget__editor .cm-editor": {
+    outline: "none",
+    maxHeight: "400px",
   },
 });
 
@@ -98,6 +145,7 @@ function buildHtmlWidgetValue(
   state: EditorState,
 ): HtmlBlockWidgetValue {
   const diagnostics = getWysiwygDiagnostics(state);
+  const rawHtml = state.sliceDoc(record.fullRange.from, record.fullRange.to);
   if (record.parserCoverage !== "complete") {
     return {
       recordId: record.id,
@@ -105,6 +153,7 @@ function buildHtmlWidgetValue(
       placeholder: "HTML block is still being parsed; edit the original source instead.",
       selected,
       diagnostics,
+      rawHtml,
     };
   }
 
@@ -118,6 +167,7 @@ function buildHtmlWidgetValue(
         : null,
     selected,
     diagnostics,
+    rawHtml,
   };
 }
 
