@@ -291,6 +291,15 @@ export function createFeatureRegistry(): FeatureRegistry {
   };
 }
 
+/**
+ * 打开文件夹的默认快捷键。
+ *
+ * 不能占用 `Mod-Shift-O`：那是有序列表 `format.orderedList` 的默认键。
+ * 原生菜单加速键（尤其 macOS）会先于 webview 的 keydown 生效，两者撞车时有序列表失效。
+ * `Mod-Alt-O` 与「打开文件」`Mod-o` 同族，且不与现有 Mod-Alt-* 条目冲突。
+ */
+export const OPEN_FOLDER_SHORTCUT = "Mod-Alt-O";
+
 export function createBuiltInEditorFeature(): FeatureDescriptor {
   return {
     id: "editor.built-in",
@@ -484,6 +493,11 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
         id: "file.open",
         key: "Mod-o",
         commandId: "file.open",
+      });
+      context.keymaps.register({
+        id: "file.openFolder",
+        key: OPEN_FOLDER_SHORTCUT,
+        commandId: "file.openFolder",
       });
     },
   };

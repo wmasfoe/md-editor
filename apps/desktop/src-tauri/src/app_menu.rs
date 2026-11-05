@@ -185,6 +185,31 @@ mod menu_accelerator_collision_tests {
             .expect("另存为必须在加速键表内登记");
         let strikethrough = normalize(&menu_accelerator_for_shortcut("Mod-Shift-S"));
         assert_ne!(save_as, strikethrough, "另存为不得与删除线共用加速键");
+        assert_eq!(
+            save_as,
+            normalize("CmdOrCtrl+Alt+S"),
+            "另存为菜单加速键必须是 Mod-Alt-S，与编辑器 keymap 一致",
+        );
+    }
+
+    /// 回归锁：打开文件夹采用 Mod-Alt-O，不能再占用有序列表的 Mod-Shift-O。
+    #[test]
+    fn open_folder_does_not_collide_with_ordered_list() {
+        let open_folder = MENU_ACCELERATOR_SHORTCUTS
+            .iter()
+            .find(|(id, _)| *id == "file.openFolder")
+            .map(|(_, fallback)| normalize(&menu_accelerator_for_shortcut(fallback)))
+            .expect("打开文件夹必须在加速键表内登记");
+        let ordered_list = normalize(&menu_accelerator_for_shortcut("Mod-Shift-O"));
+        assert_ne!(
+            open_folder, ordered_list,
+            "打开文件夹不得与有序列表共用加速键",
+        );
+        assert_eq!(
+            open_folder,
+            normalize("CmdOrCtrl+Alt+O"),
+            "打开文件夹菜单加速键必须是 Mod-Alt-O",
+        );
     }
 }
 
@@ -247,7 +272,13 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             "CmdOrCtrl+O",
         )?)
         .items(&[&open_recent_menu])
-        .item(&MenuItemBuilder::with_id("md-editor:open-folder", open_folder_title).build(app)?)
+        .item(&menu_item(
+            app,
+            "md-editor:open-folder",
+            open_folder_title,
+            // Mod-Alt-O：与有序列表 Mod-Shift-O 分开，见 MENU_ACCELERATOR_SHORTCUTS。
+            &shortcut_accelerator("file.openFolder"),
+        )?)
         .separator()
         .item(&menu_item(
             app,
@@ -540,6 +571,8 @@ fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
 #[cfg(target_os = "macos")]
 const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
     ("file.saveAs", "Mod-Alt-S"),
+    // 打开文件夹不用 Mod-Shift-O：那是有序列表的默认键，OS 级加速键会先抢走按键。
+    ("file.openFolder", "Mod-Alt-O"),
     ("table.insert", "Mod-Alt-T"),
     ("view.toggleSource", "Mod-/"),
     ("view.toggleSidebarPrimary", "Mod-Shift-B"),
