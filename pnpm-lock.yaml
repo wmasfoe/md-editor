@@ -60,6 +60,9 @@ catalogs:
     '@types/sanitize-html':
       specifier: ^2.16.1
       version: 2.16.1
+    '@types/turndown':
+      specifier: ^5.0.6
+      version: 5.0.6
     '@vitejs/plugin-react':
       specifier: ^4.3.4
       version: 4.7.0
@@ -93,6 +96,12 @@ catalogs:
     tailwindcss:
       specifier: ^4.1.17
       version: 4.3.2
+    turndown:
+      specifier: ^7.2.0
+      version: 7.2.4
+    turndown-plugin-gfm:
+      specifier: ^1.0.2
+      version: 1.0.2
     typescript:
       specifier: ^5.7.2
       version: 5.9.3
@@ -830,6 +839,12 @@ importers:
       sanitize-html:
         specifier: 'catalog:'
         version: 2.17.6
+      turndown:
+        specifier: 'catalog:'
+        version: 7.2.4
+      turndown-plugin-gfm:
+        specifier: 'catalog:'
+        version: 1.0.2
     devDependencies:
       '@types/markdownlint':
         specifier: ^0.18.0
@@ -837,6 +852,9 @@ importers:
       '@types/sanitize-html':
         specifier: 'catalog:'
         version: 2.16.1
+      '@types/turndown':
+        specifier: 'catalog:'
+        version: 5.0.6
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1965,6 +1983,9 @@ packages:
 
   '@mermaid-js/parser@1.2.1':
     resolution: {integrity: sha512-n12NohV3mrUyUL2o93IgG/ifeW9FTyeJn3zDxkhwa8MJ9Fxg3HQMlA3RiGmD/3UnJvheztkjjQAjA2T4LmUcpw==}
+
+  '@mixmark-io/domino@2.2.0':
+    resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==}
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==}
@@ -3171,6 +3192,9 @@ packages:
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/turndown@5.0.6':
+    resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -5119,6 +5143,13 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
+  turndown-plugin-gfm@1.0.2:
+    resolution: {integrity: sha512-vwz9tfvF7XN/jE0dGoBei3FXWuvll78ohzCZQuOb+ZjWrs3a0XhQVomJEb2Qh4VHTPNRO4GPZh0V7VRbiWwkRg==}
+
+  turndown@7.2.4:
+    resolution: {integrity: sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==}
+    engines: {node: '>=18', npm: '>=9'}
+
   typescript@4.9.5:
     resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==}
     engines: {node: '>=4.2.0'}
@@ -6261,6 +6292,8 @@ snapshots:
     dependencies:
       '@chevrotain/types': 11.1.2
 
+  '@mixmark-io/domino@2.2.0': {}
+
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)':
     dependencies:
       '@emnapi/core': 1.11.2
@@ -7137,6 +7170,8 @@ snapshots:
 
   '@types/trusted-types@2.0.7':
     optional: true
+
+  '@types/turndown@5.0.6': {}
 
   '@types/unist@2.0.11': {}
 
@@ -9510,6 +9545,12 @@ snapshots:
       get-tsconfig: 4.14.0
     optionalDependencies:
       fsevents: 2.3.3
+
+  turndown-plugin-gfm@1.0.2: {}
+
+  turndown@7.2.4:
+    dependencies:
+      '@mixmark-io/domino': 2.2.0
 
   typescript@4.9.5: {}
 

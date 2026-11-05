@@ -15,7 +15,7 @@ import { codeBlockLineNumberTheme } from "./editing/code-block-line-numbers.ts";
 import { wysiwygChangeProtection } from "./state/change-protection.ts";
 import { createMarkdownStructuredCommandExtensions } from "./editing/markdown-commands.ts";
 import { createMarkdownFormattingKeymap } from "./editing/markdown-formatting.ts";
-import { smartLinkPasteExtension } from "./input/smart-paste.ts";
+import { smartPasteExtension } from "./input/smart-paste.ts";
 import { smartPairsExtension } from "./input/smart-pairs.ts";
 import { blockAtomTypingInputHandler } from "./blocks/atom-selection.ts";
 import { createRobustMouseSelectionExtension } from "./input/mouse-selection.ts";
@@ -78,7 +78,7 @@ export function createWysiwygProjectionExtensions(
           createMarkdownFormattingKeymap(options.customFormattingKeymaps),
         )
       : createMarkdownFormattingKeymap(options.customFormattingKeymaps),
-    smartLinkPasteExtension,
+    smartPasteExtension,
     smartPairsExtension,
     // 按键 order 与 smart-pairs 无关：整块原子选中态下先接管（光标收敛），其余场景返回 false 交回原生路径。
     blockAtomTypingInputHandler,
