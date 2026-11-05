@@ -477,6 +477,10 @@ function revealedSourceCursor(
     const position = Math.max(minimum, Math.min(maximum, preferred));
     return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
   }
+  if (atom.kind === "html") {
+    const position = direction === "forward" ? atom.fullRange.from : atom.fullRange.to;
+    return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
+  }
   // 表格：光标进入表头行首个 cell 内容之后，让源码立即回显。
   const minimum = atom.fullRange.from + 1;
   const maximum = Math.max(minimum, atom.fullRange.to - 1);
@@ -550,6 +554,9 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
 }
 
 function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  if (record.kind === "html") {
+    return false;
+  }
   // 表格始终显示网格并在单元格内编辑，Arrow 进入时原子选中整表（不回显源码）。
   return isSelectableAtom(record, state) && record.interactionPolicy === "reveal-source";
 }
@@ -583,9 +590,7 @@ function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
     (record.kind === "table" &&
       record.renderPolicy === "table-widget" &&
       record.editPolicy === "structured") ||
-    (record.kind === "html" &&
-      record.renderPolicy === "html-widget" &&
-      record.editPolicy === "structured") ||
+    (record.kind === "html" && record.renderPolicy === "html-widget") ||
     (record.kind === "mdx-jsx" &&
       record.renderPolicy === "mdx-widget" &&
       record.editPolicy === "structured")

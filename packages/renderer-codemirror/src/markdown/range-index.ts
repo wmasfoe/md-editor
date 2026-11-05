@@ -416,7 +416,7 @@ function visitParserNode(
     }
     // MDX 组件接管:<Callout> 等在 CM6 语法树中是 HTMLBlock/HTMLTag,
     // 若与 mdx-jsx 元素区间重叠,跳过(不产生 html record,避免双重投影)。
-    if (child.name === "HTMLBlock" || child.name === "HTMLTag") {
+    if (child.name === "HTMLBlock" || child.name === "HTMLTag" || child.name === "CommentBlock") {
       const childRange = nodeRange(child);
       if (
         mdxElements.some((element) => childRange.from < element.to && element.from < childRange.to)

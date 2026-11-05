@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
+import { history, undo, defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -15,6 +18,7 @@ import {
 import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,
+  htmlSourceKeymap,
 } from "../../src/wysiwyg/projections/html-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
@@ -78,7 +82,7 @@ describe("M4-a HTML projection", () => {
     });
   });
 
-  it("keeps an HTMLBlock atomic and protected over its exact source range", () => {
+  it("keeps an HTMLBlock atomic and protected when inactive, and reveals source when active", () => {
     const doc = ["Before", "", "<div>Safe</div>", "", "After", ""].join("\n");
     const { state, index } = createHtmlHarness(doc);
     const html = index.byKind("html")[0];
@@ -87,6 +91,17 @@ describe("M4-a HTML projection", () => {
     expect(projection.atomicRangeCount).toBe(1);
     expect(projection.protectedRanges).toContainEqual({ ...html.fullRange, kind: "html" });
     expect(projection.activeSyntaxIds).not.toContain(html.id);
+
+    // 光标移入 HTML 块范围：原位暴露源码，解除原子保护与挂件替换
+    const activeState = state.update({
+      selection: EditorSelection.cursor(html.fullRange.from),
+    }).state;
+    const activeProjection = inspectWysiwygProjection(activeState);
+    expect(activeProjection.activeSyntaxIds).toContain(html.id);
+    expect(activeProjection.atomicRangeCount).toBe(0);
+    expect(activeProjection.protectedRanges.some((r) => r.kind === "html")).toBe(false);
+    expect(findLayoutDecorationsForTesting(activeState, "html-widget")).toHaveLength(0);
+    expect(findLayoutDecorationsForTesting(activeState, "html-source-line")).toHaveLength(1);
   });
 
   it("routes the HTML block widget through the whole-line replacement contract", () => {
@@ -131,5 +146,59 @@ describe("M4-a HTML projection", () => {
       atomicRangeCount: 0,
       protectedRanges: [],
     });
+  });
+
+  it("handles in-place editing, Mod-Enter exit, and undo", () => {
+    const doc = ["Before", "", "<div>Safe peek</div>", "", "After", ""].join("\n");
+    const diagnostics = new WysiwygDiagnostics();
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: EditorSelection.cursor(0),
+        extensions: [
+          history(),
+          keymap.of([...defaultKeymap, ...historyKeymap]),
+          markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+          provideWysiwygDiagnostics(diagnostics),
+          editorModeField,
+          markdownRangeIndexField,
+          configureWysiwygProjectionFeatures(["html"]),
+          wysiwygProjectionField,
+          htmlSourceKeymap,
+        ],
+      }),
+    });
+
+    const index = view.state.field(markdownRangeIndexField);
+    const htmlRecord = index.byKind("html")[0];
+    expect(htmlRecord).toBeDefined();
+
+    // 1. Move cursor into the HTML block
+    view.dispatch({ selection: EditorSelection.cursor(htmlRecord.fullRange.from) });
+    expect(findHtmlWidget(view.state)).toBeNull();
+
+    // 2. Type text
+    view.dispatch({
+      changes: { from: htmlRecord.fullRange.from, insert: "<!--peek-->" },
+      selection: EditorSelection.cursor(htmlRecord.fullRange.from + "<!--peek-->".length),
+    });
+    expect(view.state.doc.toString()).toContain("<!--peek--><div>Safe peek</div>");
+
+    // 3. Trigger Mod-Enter (simulated via keydown / command)
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
+      ctrlKey: process.platform !== "darwin",
+      metaKey: process.platform === "darwin",
+      bubbles: true,
+      cancelable: true,
+    });
+    view.contentDOM.dispatchEvent(event);
+
+    // Verify cursor moved outside and widget re-appeared
+    expect(inspectWysiwygProjection(view.state).layoutDecorationCount).toBe(1);
+
+    // 4. Undo
+    undo(view);
+    expect(view.state.doc.toString()).toBe(doc);
   });
 });

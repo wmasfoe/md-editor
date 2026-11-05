@@ -137,7 +137,12 @@ function buildLayoutDecorationsForRecord(
     );
   }
   if (state.facet(configuredProjectionFeatures).includes("html") && isProjectableHtml(record)) {
-    return buildHtmlLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
+    return buildHtmlLayoutDecorations(
+      record,
+      activeSyntaxIds.includes(record.id),
+      selectedAtomIds.includes(record.id),
+      state,
+    );
   }
   if (state.facet(configuredProjectionFeatures).includes("mdx") && isProjectableMdx(record)) {
     return buildMdxLayoutDecorations(record, selectedAtomIds.includes(record.id), state);

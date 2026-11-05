@@ -271,10 +271,13 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       previous.selectedAtomIds,
       transaction.state,
     );
-    // 表格的 protected 范围依赖 active 状态（非活动整表、活动仅 delimiter 行），
+    // 表格与 HTML 块的 protected 范围依赖 active 状态（非活动整块保护、活动允许源码编辑），
     // selection 变化同样会改变该集合，必须在此同步重算。
-    const protectedRanges = changedIds.some((id) => index.get(id)?.kind === "table")
-      ? buildProtectedRanges(index, activeSyntaxIds, transaction.state)
+    const protectedRanges = changedIds.some((id) => {
+      const kind = index.get(id)?.kind;
+      return kind === "table" || kind === "html";
+    })
+      ? buildProtectedRanges(index, activeSyntaxIds, transaction.state, previous.selectedAtomIds)
       : previous.protectedRanges;
     return freezeProjectionState(
       {
@@ -365,7 +368,7 @@ function compileProjection(
     visibleRanges,
   );
   const atomicRanges = buildAtomicRanges(index, activeSyntaxIds, normalizedAtomIds, state);
-  const protectedRanges = buildProtectedRanges(index, activeSyntaxIds, state);
+  const protectedRanges = buildProtectedRanges(index, activeSyntaxIds, state, normalizedAtomIds);
   const diagnostics = getWysiwygDiagnostics(state);
   diagnostics?.recordLayoutDecorationReplace();
   diagnostics?.recordFullProjectionBuild();
@@ -459,7 +462,12 @@ function updateDocumentProjection(
       activeSyntaxIds,
       selectedAtomIds,
       compositionGuardRanges,
-      protectedRanges: buildProtectedRanges(index, activeSyntaxIds, transaction.state),
+      protectedRanges: buildProtectedRanges(
+        index,
+        activeSyntaxIds,
+        transaction.state,
+        selectedAtomIds,
+      ),
       layoutDecorations,
       atomicRanges,
       lastSelectionDeltaIds: [],
@@ -610,15 +618,24 @@ function selectionActivatesRecord(
   if (record.kind === "frontmatter") {
     return false;
   }
-  if (
-    record.interactionPolicy === "structured-block" &&
-    (record.kind === "table" || record.kind === "html")
-  ) {
-    // 结构化块始终显示 widget，不因光标/选区进入而切换到源码态。
+  if (record.interactionPolicy === "structured-block" && record.kind === "table") {
+    // 结构化表格始终显示 widget，不因光标/选区进入而切换到源码态。
     return false;
   }
   if (record.interactionPolicy !== "reveal-source") {
     return true;
+  }
+  if (record.kind === "html") {
+    // 当精确全选整块时，属于原子选中态（供整块删除/多选/快捷键操作），不激活源码展示
+    if (from === record.fullRange.from && to === record.fullRange.to) {
+      return false;
+    }
+    // HTML 块级内容：光标落在块内任意字符（含首尾闭区间）均激活源码展示，
+    // 允许光标在行首（< 之前）与行尾正常编辑，离开后自动收起为渲染态
+    if (from === to) {
+      return from >= record.fullRange.from && from <= record.fullRange.to;
+    }
+    return from < record.fullRange.to && to > record.fullRange.from;
   }
   if (from === to) {
     // G004 P0-3 typedBoundary 宽松判定:刚由输入事务产生的光标恰好落在
