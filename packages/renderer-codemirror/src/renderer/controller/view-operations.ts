@@ -328,7 +328,11 @@ export function recomputeViewMarkdownLint(view: RendererViewAdapter): void {
 }
 
 /** 收集清理 Markdown 诊断时的保留效果 */
-export function createMarkdownLintClearEffects(state: EditorState): readonly StateEffect<unknown>[] {
-  return (setDiagnostics(state, collectPreservedNonMarkdownDiagnostics(state))
-    .effects as readonly StateEffect<unknown>[]) ?? [];
+export function createMarkdownLintClearEffects(
+  state: EditorState,
+): readonly StateEffect<unknown>[] {
+  return (
+    (setDiagnostics(state, collectPreservedNonMarkdownDiagnostics(state))
+      .effects as readonly StateEffect<unknown>[]) ?? []
+  );
 }
