@@ -448,10 +448,11 @@ describe("Smart Link Paste & Smart Pairs", () => {
         },
       };
 
+      const isMac = typeof process !== "undefined" && process.platform === "darwin";
       expect(
         runScopeHandlers(
           view as unknown as EditorView,
-          keydown({ key: "b", keyCode: 66, ctrlKey: true }),
+          keydown({ key: "b", keyCode: 66, ctrlKey: !isMac, metaKey: isMac }),
           "editor",
         ),
       ).toBe(true);
@@ -465,7 +466,7 @@ describe("Smart Link Paste & Smart Pairs", () => {
       expect(
         runScopeHandlers(
           view as unknown as EditorView,
-          keydown({ key: "B", keyCode: 66, ctrlKey: true, shiftKey: true }),
+          keydown({ key: "B", keyCode: 66, ctrlKey: !isMac, metaKey: isMac, shiftKey: true }),
           "editor",
         ),
       ).toBe(false);
@@ -512,15 +513,19 @@ function keydown(
     altKey: boolean;
   }>,
 ): KeyboardEvent {
+  const isMac = typeof process !== "undefined" && process.platform === "darwin";
+  const ctrl = overrides.ctrlKey ?? false;
+  const meta = overrides.metaKey ?? false;
   return {
     key: "b",
     keyCode: 66,
-    ctrlKey: false,
-    metaKey: false,
+    ctrlKey: isMac ? false : ctrl,
+    metaKey: isMac ? ctrl || meta : meta,
     shiftKey: false,
     altKey: false,
     preventDefault() {},
     stopPropagation() {},
     ...overrides,
+    ...(isMac ? { ctrlKey: false, metaKey: ctrl || meta } : {}),
   } as KeyboardEvent;
 }

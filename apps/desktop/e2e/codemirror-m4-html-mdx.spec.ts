@@ -123,10 +123,10 @@ test.describe("CodeMirror M4 HTML projection", () => {
     await replaceDocument(page, markdown);
 
     const widget = page.locator(".cm-md-html-block-widget");
-    await widget.dblclick();
+    await widget.hover();
+    await widget.locator(".cm-md-html-block-widget__btn--edit").click();
     const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
     await expect(nested).toBeVisible();
-    await nested.click();
     await page.keyboard.type("<!--peek-->");
     await page.keyboard.press(`${MOD_KEY}+Enter`);
     await expect
@@ -143,7 +143,8 @@ test.describe("CodeMirror M4 HTML projection", () => {
     await replaceDocument(page, markdown);
 
     const widget = page.locator(".cm-md-html-block-widget");
-    await widget.dblclick();
+    await widget.hover();
+    await widget.locator(".cm-md-html-block-widget__btn--edit").click();
     const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
     await expect(nested).toBeVisible();
     await nested.click();

@@ -190,7 +190,7 @@ describe("HtmlBlockWidget source peek", () => {
       "编辑源码",
     );
 
-    enterPeek(widget);
+    clickControl(widget, ".cm-md-html-block-widget__btn--edit");
     const commitLabel = widget.querySelector(".cm-md-html-block-widget__btn--commit")?.textContent;
     expect(commitLabel === "完成 (⌘↵)" || commitLabel === "完成 (Ctrl+Enter)").toBe(true);
     replaceNested(widget, "<div>Edited</div>");
@@ -226,6 +226,22 @@ describe("HtmlBlockWidget source peek", () => {
     dispatchKey(cancelNested, "Escape");
     expect(getHtmlBlockWidgetState(cancelWidget)?.mode).toBe("rendered");
     expect(undone.state.doc.toString()).toBe(original);
+  });
+
+  it("supports default keymap commands like Backspace and Enter in the nested editor", () => {
+    const original = "<div>Test</div>\n";
+    const view = mountView(original);
+    const widget = projectedWidget(view);
+    clickControl(widget, ".cm-md-html-block-widget__btn--edit");
+    const nested = getHtmlBlockWidgetState(widget)?.nestedView;
+    if (!nested) {
+      throw new Error("missing nested editor");
+    }
+    nested.dispatch({ selection: { anchor: 15 } });
+    dispatchKey(nested, "Backspace");
+    expect(nested.state.doc.toString()).toBe("<div>Test</div");
+    dispatchKey(nested, "Enter");
+    expect(nested.state.doc.toString()).toContain("\n");
   });
 
   it("keeps an uncommitted draft on the same document and does not leak it into another view", () => {

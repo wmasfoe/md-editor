@@ -1,5 +1,5 @@
 import { html } from "@codemirror/lang-html";
-import { history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { EditorState, StateField, Transaction } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, WidgetType } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
@@ -76,10 +76,11 @@ const PEEK_ISOLATED_TARGET_SELECTOR = [
 type PeekCommitReason = "explicit" | "blur";
 
 function isPeekIsolatedTarget(target: EventTarget | null): boolean {
-  if (!target || typeof (target as Element).closest !== "function") {
+  const el = target instanceof Element ? target : (target as Node | null)?.parentElement;
+  if (!el || typeof el.closest !== "function") {
     return false;
   }
-  return Boolean((target as Element).closest(PEEK_ISOLATED_TARGET_SELECTOR));
+  return Boolean((el as Element).closest(PEEK_ISOLATED_TARGET_SELECTOR));
 }
 
 function rememberDraft(drafts: Map<string, string> | null, recordId: string, draft: string): void {
@@ -142,10 +143,28 @@ export class HtmlBlockWidget extends WidgetType {
   }
 
   /**
-   * 嵌套编辑器和工具栏自己处理指针/键盘。预览区必须返回 false，父编辑器才能选中整块。
+   * 嵌套源码编辑器和工具栏自己处理指针/键盘/选区事件，隔离父编辑器。
+   * 预览态普通内容区域必须返回 false，父编辑器才能执行选区与整块原子选择。
    */
   override ignoreEvent(event: Event): boolean {
-    return isPeekIsolatedTarget(event.target);
+    const target = event.target;
+    if (isPeekIsolatedTarget(target)) {
+      return true;
+    }
+    // selectionchange 事件 target 为 Document，需检查当前选区锚点是否在嵌套编辑器内
+    if (event.type === "selectionchange") {
+      const doc =
+        (target instanceof Document ? target : null) ??
+        (target as Node | null)?.ownerDocument ??
+        (typeof document !== "undefined" ? document : null);
+      const sel = doc?.getSelection?.();
+      const anchorNode = sel?.anchorNode;
+      const anchorEl = anchorNode instanceof Element ? anchorNode : anchorNode?.parentElement;
+      if (anchorEl && isPeekIsolatedTarget(anchorEl)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -289,12 +308,27 @@ function rebuildToolbar(wrapper: HTMLElement, state: HtmlBlockState): void {
     editBtn.className = "cm-md-html-block-widget__btn cm-md-html-block-widget__btn--edit";
     editBtn.setAttribute("aria-label", "编辑 HTML 源码");
     editBtn.textContent = "编辑源码";
+    // 阻止 pointerdown / mousedown 抢焦或触发失焦
+    editBtn.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    editBtn.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
     editBtn.addEventListener("click", (event) => {
+      event.preventDefault();
       event.stopPropagation?.();
       enterSourcePeek(wrapper, state);
     });
     state.toolbarEl.append(editBtn);
   } else {
+    const badge = document.createElement("span");
+    badge.className = "cm-md-html-block-widget__badge";
+    badge.textContent = "HTML";
+
+    const actions = document.createElement("div");
+    actions.className = "cm-md-html-block-widget__actions";
+
     const cancelBtn = document.createElement("button");
     cancelBtn.type = "button";
     cancelBtn.tabIndex = -1;
@@ -324,7 +358,8 @@ function rebuildToolbar(wrapper: HTMLElement, state: HtmlBlockState): void {
       commitSourcePeek(wrapper, state);
     });
 
-    state.toolbarEl.append(cancelBtn, commitBtn);
+    actions.append(cancelBtn, commitBtn);
+    state.toolbarEl.append(badge, actions);
   }
 }
 
@@ -416,6 +451,7 @@ export function enterSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): vo
           return true;
         },
       },
+      ...defaultKeymap,
       ...historyKeymap,
       indentWithTab,
     ]),
@@ -425,7 +461,18 @@ export function enterSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): vo
     parent: editorContainer,
     state: EditorState.create({ doc: initialDoc, extensions }),
   });
-  state.nestedView.focus();
+
+  // 使用 requestAnimationFrame 延迟聚焦，防止浏览器原 click/pointerdown 事件收尾导致焦点丢失回退至 body
+  const focusEditor = () => {
+    if (!state.disposed && state.mode === "source-peek" && state.nestedView) {
+      state.nestedView.focus();
+    }
+  };
+  if (typeof requestAnimationFrame !== "undefined") {
+    requestAnimationFrame(focusEditor);
+  } else {
+    focusEditor();
+  }
 }
 
 export function cancelSourcePeek(wrapper: HTMLElement, state: HtmlBlockState): void {
@@ -525,11 +572,10 @@ function finishPeek(wrapper: HTMLElement, state: HtmlBlockState): void {
   state.recordMissingNotified = false;
   wrapper.classList.remove("cm-md-html-block-widget--peek");
   clearMissingRecordNotice(wrapper);
-  if (state.disposed || !wrapper.isConnected) {
-    return;
+  if (!state.disposed && wrapper.isConnected) {
+    state.rebuildToolbar();
+    state.rebuildContent();
   }
-  state.rebuildToolbar();
-  state.rebuildContent();
   state.parentView.focus();
 }
 
