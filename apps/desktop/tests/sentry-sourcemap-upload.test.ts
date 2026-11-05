@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   resolveSentrySourcemapTarget,
   sentryReleaseName,
   sentryViteReleaseOptions,
   shouldEmitDesktopSourcemaps,
+  warnSentryUploadFailure,
 } from "../src/app/error-reporting/sentry-release.ts";
 
 describe("sentry sourcemap upload contract", () => {
@@ -74,5 +75,34 @@ describe("sentry sourcemap upload contract", () => {
       desktop.scripts.build.indexOf("strip-sourcemaps.mjs"),
     );
     expect(web.scripts.build).toContain("assert-no-sourcemaps.mjs dist");
+  });
+
+  it("warns instead of failing the build when sourcemap upload fails", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(() => warnSentryUploadFailure(new Error("401 Unauthorized"))).not.toThrow();
+    expect(warn).toHaveBeenCalledOnce();
+    expect(String(warn.mock.calls[0]?.[0])).toContain("401 Unauthorized");
+    warn.mockRestore();
+
+    const viteConfig = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+    expect(viteConfig).toContain("errorHandler: warnSentryUploadFailure");
+  });
+
+  it("injects the Sentry token only in release workflows", () => {
+    const pullRequestBuild = readFileSync(
+      new URL("../../../.github/workflows/build-desktop.yml", import.meta.url),
+      "utf8",
+    );
+    expect(pullRequestBuild).not.toContain("SENTRY_AUTH_TOKEN");
+    expect(pullRequestBuild).toContain("assert-no-sourcemaps.mjs");
+    expect(
+      readFileSync(
+        new URL("../../../.github/workflows/release-desktop.yml", import.meta.url),
+        "utf8",
+      ),
+    ).toContain("SENTRY_AUTH_TOKEN");
+    expect(
+      readFileSync(new URL("../../../.github/workflows/release-beta.yml", import.meta.url), "utf8"),
+    ).toContain("SENTRY_AUTH_TOKEN");
   });
 });

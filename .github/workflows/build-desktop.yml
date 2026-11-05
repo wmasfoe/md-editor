@@ -226,9 +226,6 @@ jobs:
           NO_STRIP: "true"
           APPIMAGE_EXTRACT_AND_RUN: "1"
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: pnpm build:linux
 
       - name: Assert no shipped sourcemaps
@@ -343,9 +340,6 @@ jobs:
           NO_STRIP: "true"
           APPIMAGE_EXTRACT_AND_RUN: "1"
           LD_LIBRARY_PATH: "${{ github.workspace }}/apps/desktop/src-tauri/binaries"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: ${{ matrix.platform.build_cmd }}
 
       - name: Assert no shipped sourcemaps

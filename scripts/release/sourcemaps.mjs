@@ -27,9 +27,15 @@ const TEXT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".css", ".html", ".svg"]
 
 const ARCHIVE_LISTERS = [
   {
-    test: (name) => name.endsWith(".tar.gz") || name.endsWith(".tgz") || name.endsWith(".tar"),
+    // gzip 包必须带 z。纯 .tar 用 -tzf 会因 gzip 头不匹配而失败，然后被当成「没有归档工具」跳过。
+    test: (name) => name.endsWith(".tar.gz") || name.endsWith(".tgz"),
     command: "tar",
     args: (file) => ["-tzf", file],
+  },
+  {
+    test: (name) => name.endsWith(".tar"),
+    command: "tar",
+    args: (file) => ["-tf", file],
   },
   {
     test: (name) => name.endsWith(".zip"),

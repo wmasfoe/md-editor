@@ -118,3 +118,28 @@ test("archive members named .map fail the guard", () => {
   const violations = findShippedSourcemaps([archive]);
   assert.ok(violations.some((item) => item.includes("app.js.map")));
 });
+
+test("plain tar members named .map fail the guard", () => {
+  let tar;
+  try {
+    execFileSync("tar", ["--version"], { stdio: "ignore" });
+    tar = true;
+  } catch {
+    tar = false;
+  }
+  if (!tar) return;
+
+  const root = tempDir();
+  const payload = path.join(root, "payload");
+  fs.mkdirSync(payload);
+  fs.writeFileSync(path.join(payload, "app.js.map"), "{}");
+  const archive = path.join(root, "bundle.tar");
+  execFileSync("tar", ["-cf", archive, "-C", payload, "app.js.map"]);
+  fs.rmSync(payload, { recursive: true });
+
+  const violations = findShippedSourcemaps([archive]);
+  assert.ok(
+    violations.some((item) => item.includes("app.js.map")),
+    `expected a .map member, got ${violations.join("; ")}`,
+  );
+});

@@ -30,6 +30,9 @@ catalogs:
     '@playwright/test':
       specifier: ^1.51.1
       version: 1.61.1
+    '@sentry/vite-plugin':
+      specifier: ^11.10.0
+      version: 11.10.0
     '@tailwindcss/postcss':
       specifier: ^4.1.17
       version: 4.3.2
@@ -229,7 +232,7 @@ importers:
         specifier: 'catalog:'
         version: 1.61.1
       '@sentry/vite-plugin':
-        specifier: ^11.10.0
+        specifier: 'catalog:'
         version: 11.10.0(rollup@4.61.1)
       '@tailwindcss/vite':
         specifier: 'catalog:'

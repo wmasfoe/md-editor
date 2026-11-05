@@ -7,6 +7,7 @@ import {
   resolveSentrySourcemapTarget,
   sentryViteReleaseOptions,
   shouldEmitDesktopSourcemaps,
+  warnSentryUploadFailure,
 } from "./src/app/error-reporting/sentry-release.ts";
 
 /**
@@ -39,6 +40,8 @@ export default defineConfig({
           project: sentryTarget.project,
           authToken: sentryTarget.authToken,
           telemetry: false,
+          // token 失效或 Sentry 不可用时只警告，不让 vite build 失败。
+          errorHandler: warnSentryUploadFailure,
           release: sentryViteReleaseOptions(packageJson.version),
           sourcemaps: {
             assets: "./dist/**",

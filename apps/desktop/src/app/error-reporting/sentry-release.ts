@@ -49,6 +49,16 @@ export function resolveSentrySourcemapTarget(
 }
 
 /**
+ * 上传失败时只警告。插件默认会抛错并中断 Vite；
+ * 这里吞掉错误，让后面的 strip 和 assert 照常执行。
+ */
+export function warnSentryUploadFailure(error: Error): void {
+  console.warn(
+    `[sentry] Sourcemap upload failed; continuing the build and still removing local maps. ${error.message}`,
+  );
+}
+
+/**
  * 插件写入 Sentry 的 release 选项。故意不含 `dist`：SDK 也不设置 dist。
  * 并行平台构建共用一个 release，因此不在这里 finalize，也不做 commit 关联
  * （浅克隆上 `setCommits` 会让发版失败，且与符号解析无关）。

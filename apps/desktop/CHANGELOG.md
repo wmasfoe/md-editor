@@ -7,7 +7,7 @@
 
 ## 未发布 — 生产构建上传 Sentry source map，且不随安装包分发
 
-- 桌面端生产构建生成 hidden source map，并在配置 `SENTRY_AUTH_TOKEN` 时上传到 Sentry。Release 为 `inkpoint@<版本号>`，与客户端上报一致，不设置 dist，符号解析使用 Debug ID。上传后删除全部 `.map` 并去掉 `sourceMappingURL`，安装包与网页产物都不包含 source map。未配置 token 时跳过上传，构建仍然成功。
+- 桌面端生产构建生成 hidden source map，并在发版配置 `SENTRY_AUTH_TOKEN` 时上传到 Sentry。Release 为 `inkpoint@<版本号>`，与客户端上报一致，不设置 dist，符号解析使用 Debug ID。上传后删除全部 `.map` 并去掉 `sourceMappingURL`，安装包与网页产物都不包含 source map。未配置 token 或上传失败时不中断构建，清理和检查照常执行。PR 与非发版构建不注入 token。
 
 ## 0.19.2 - 2026-11-04 (#213)
 
