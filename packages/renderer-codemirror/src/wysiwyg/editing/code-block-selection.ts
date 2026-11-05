@@ -225,10 +225,13 @@ export function isAtomSelection(state: EditorState, range: SelectionRange): bool
     }
   }
 
-  // 2. 兜底检查：若选区精确匹配分割线等全替换块级原子（自身无文本节点且有独立选中框），跳过绘制选区矩形
+  // 2. 兜底检查：若选区精确匹配分割线、HTML块、表格等全替换块级原子（自身无文本节点且有专属选中框），跳过绘制选区矩形与光标
   const matchingRecord = index.records.find(
     (record) =>
-      record.kind === "thematic-break" &&
+      (record.kind === "thematic-break" ||
+        record.kind === "html" ||
+        record.kind === "table" ||
+        record.kind === "mdx-jsx") &&
       record.fullRange.from === range.from &&
       record.fullRange.to === range.to,
   );
@@ -424,29 +427,41 @@ export const codeBlockAtomicSelectionFilter: Extension = EditorState.transaction
 );
 
 /**
+ * 计算自绘光标标记集：若选区对应整块原子选区，组件由专属外框呈现选中态，跳过绘制闪烁光标
+ */
+export function computeCursorMarkers(view: EditorView): readonly RectangleMarker[] {
+  try {
+    const { state } = view;
+    const conf = getDrawSelectionConfig(state);
+    const cursors: RectangleMarker[] = [];
+    for (const r of state.selection.ranges) {
+      // 若当前选区精确对应某个原子组件（如 HTML 块、表格、分割线等），
+      // 组件已通过蓝色高亮外框呈现整体选中态，绝不应在组件边缘/下方绘制文本插入光标
+      if (!r.empty && isAtomSelection(state, r)) {
+        continue;
+      }
+      const prim = r === state.selection.main;
+      if (r.empty || conf.drawRangeCursor) {
+        const className = prim ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary";
+        const cursor = r.empty ? r : EditorSelection.cursor(r.head, r.assoc);
+        for (const piece of safeRectangleMarkersForRange(view, className, cursor)) {
+          cursors.push(piece);
+        }
+      }
+    }
+    return cursors;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * 自绘光标层：在编辑器获焦时绘制光标并在选区变更时触发闪烁动画
  */
 export const cursorLayer = layer({
   above: true,
   markers(view) {
-    try {
-      const { state } = view;
-      const conf = getDrawSelectionConfig(state);
-      const cursors: RectangleMarker[] = [];
-      for (const r of state.selection.ranges) {
-        const prim = r === state.selection.main;
-        if (r.empty || conf.drawRangeCursor) {
-          const className = prim ? "cm-cursor cm-cursor-primary" : "cm-cursor cm-cursor-secondary";
-          const cursor = r.empty ? r : EditorSelection.cursor(r.head, r.assoc);
-          for (const piece of safeRectangleMarkersForRange(view, className, cursor)) {
-            cursors.push(piece);
-          }
-        }
-      }
-      return cursors;
-    } catch {
-      return [];
-    }
+    return computeCursorMarkers(view);
   },
   update(update, dom) {
     if (update.transactions.some((tr) => tr.selection)) {
@@ -466,6 +481,9 @@ export const cursorLayer = layer({
  */
 export const hideNativeSelection = Prec.highest(
   EditorView.theme({
+    ".cm-content": {
+      caretColor: "transparent !important",
+    },
     ".cm-line": {
       "& ::selection, &::selection": { backgroundColor: "transparent !important" },
       caretColor: "transparent !important",

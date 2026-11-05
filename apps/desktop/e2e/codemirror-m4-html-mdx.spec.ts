@@ -90,6 +90,8 @@ test.describe("CodeMirror M4 HTML projection", () => {
     const widget = page.locator(".cm-md-html-block-widget");
     await widget.click();
     await expect(widget).toHaveAttribute("aria-selected", "true");
+    // 原子选中态由组件自身外框呈现，绝不应在组件下方绘制闪烁光标
+    await expect(page.locator(".cm-cursor")).toHaveCount(0);
     await page.keyboard.press("Backspace");
     const withoutHtml = ["Before", "", "", "", "After", ""].join("\n");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(withoutHtml);
