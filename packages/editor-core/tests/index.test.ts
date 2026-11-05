@@ -4,6 +4,8 @@ import {
   computeDirtyState,
   createBuiltInEditorFeature,
   createAiWritingFeature,
+  createMarkdownFormattingFeature,
+  createEditorSearchFeature,
   createCommandRegistry,
   collectRawFragments,
   createDocumentState,
@@ -63,6 +65,57 @@ describe("editor-core AI writing feature", () => {
       }),
     ).toBe(true);
     expect(fixCalled).toBe(true);
+  });
+
+  it("registers formatting and search commands and keymaps", async () => {
+    const commands = createCommandRegistry();
+    const keymaps = createKeymapRegistry();
+    let formattedCommand: string | null = null;
+    let findOpened = false;
+    let replaceOpened = false;
+
+    createMarkdownFormattingFeature().setup({ commands, keymaps });
+    createEditorSearchFeature().setup({ commands, keymaps });
+
+    expect(keymaps.list().map((k) => k.id)).toContain("format.strikethrough");
+    expect(keymaps.list().map((k) => k.id)).toContain("editor.find");
+    expect(keymaps.list().map((k) => k.id)).toContain("editor.replace");
+
+    expect(
+      await commands.dispatch("format.strikethrough", {
+        document: createDocumentState(),
+        actions: {
+          executeFormatting: (id) => {
+            formattedCommand = id;
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(formattedCommand).toBe("format.strikethrough");
+
+    expect(
+      await commands.dispatch("editor.find", {
+        document: createDocumentState(),
+        actions: {
+          openFind: () => {
+            findOpened = true;
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(findOpened).toBe(true);
+
+    expect(
+      await commands.dispatch("editor.replace", {
+        document: createDocumentState(),
+        actions: {
+          openReplace: () => {
+            replaceOpened = true;
+          },
+        },
+      }),
+    ).toBe(true);
+    expect(replaceOpened).toBe(true);
   });
 });
 

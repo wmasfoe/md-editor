@@ -156,6 +156,7 @@ export const WYSIWYG_DOMAIN_MEMBERS = {
     "tab-arbiter.ts",
     "tab-arbiter-command.ts",
     "typewriter-mode.ts",
+    "mouse-selection.ts",
   ],
   view: [
     "focus-mode.ts",

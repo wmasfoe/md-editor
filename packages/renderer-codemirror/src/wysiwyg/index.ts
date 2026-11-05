@@ -1,4 +1,4 @@
-import type { Extension } from "@codemirror/state";
+import type { Compartment, Extension } from "@codemirror/state";
 import {
   codeBlockEmptyBodyInputHandler,
   codeBlockEmptyBodyPointerHandler,
@@ -18,6 +18,7 @@ import { createMarkdownFormattingKeymap } from "./editing/markdown-formatting.ts
 import { smartLinkPasteExtension } from "./input/smart-paste.ts";
 import { smartPairsExtension } from "./input/smart-pairs.ts";
 import { blockAtomTypingInputHandler } from "./blocks/atom-selection.ts";
+import { createRobustMouseSelectionExtension } from "./input/mouse-selection.ts";
 import { tabArbiterKeymap } from "./input/tab-arbiter-command.ts";
 import { focusModeExtension } from "./view/focus-mode.ts";
 import { typewriterModeExtension } from "./input/typewriter-mode.ts";
@@ -37,7 +38,11 @@ import { visibleMarkdownMarksPlugin } from "./state/visible-marks.ts";
 
 export function createWysiwygProjectionExtensions(
   features: readonly WysiwygProjectionFeature[],
-  options: { readonly writeClipboardText?: WriteClipboardText } = {},
+  options: {
+    readonly writeClipboardText?: WriteClipboardText;
+    readonly formattingKeymapCompartment?: Compartment;
+    readonly customFormattingKeymaps?: ReadonlyMap<string, string>;
+  } = {},
 ): Extension {
   return [
     configureWysiwygProjectionFeatures(features),
@@ -66,8 +71,13 @@ export function createWysiwygProjectionExtensions(
     // （tab-arbiter.ts 的 decideTabActions）单一定义；各执行器保留自门控。
     // H3（数组位置≠派发顺序）由构造消失：本数组里不再存在第二个 Tab 绑定。
     tabArbiterKeymap,
+    createRobustMouseSelectionExtension(),
     createMarkdownStructuredCommandExtensions(),
-    createMarkdownFormattingKeymap(),
+    options.formattingKeymapCompartment
+      ? options.formattingKeymapCompartment.of(
+          createMarkdownFormattingKeymap(options.customFormattingKeymaps),
+        )
+      : createMarkdownFormattingKeymap(options.customFormattingKeymaps),
     smartLinkPasteExtension,
     smartPairsExtension,
     // 按键 order 与 smart-pairs 无关：整块原子选中态下先接管（光标收敛），其余场景返回 false 交回原生路径。
@@ -83,3 +93,7 @@ export {
   codeBlockSelectionExtension,
   codeBlockSelectionLayer,
 } from "./editing/code-block-selection.ts";
+export {
+  createMarkdownFormattingKeymap,
+  normalizeCodeMirrorKey,
+} from "./editing/markdown-formatting.ts";

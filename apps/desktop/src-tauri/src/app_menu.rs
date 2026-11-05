@@ -174,6 +174,18 @@ mod menu_accelerator_collision_tests {
         let table = normalize(&menu_accelerator_for_shortcut("Mod-Alt-T"));
         assert_ne!(typewriter, table, "打字机模式不得与表格插入共用加速键");
     }
+
+    /// 回归锁：另存为采用 `Mod-Alt-S`，与删除线默认快捷键 `Mod-Shift-S` 绝不能碰撞。
+    #[test]
+    fn save_as_does_not_collide_with_strikethrough() {
+        let save_as = MENU_ACCELERATOR_SHORTCUTS
+            .iter()
+            .find(|(id, _)| *id == "file.saveAs")
+            .map(|(_, fallback)| normalize(&menu_accelerator_for_shortcut(fallback)))
+            .expect("另存为必须在加速键表内登记");
+        let strikethrough = normalize(&menu_accelerator_for_shortcut("Mod-Shift-S"));
+        assert_ne!(save_as, strikethrough, "另存为不得与删除线共用加速键");
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -235,12 +247,7 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             "CmdOrCtrl+O",
         )?)
         .items(&[&open_recent_menu])
-        .item(&menu_item(
-            app,
-            "md-editor:open-folder",
-            open_folder_title,
-            "CmdOrCtrl+Shift+O",
-        )?)
+        .item(&MenuItemBuilder::with_id("md-editor:open-folder", open_folder_title).build(app)?)
         .separator()
         .item(&menu_item(
             app,
@@ -252,7 +259,7 @@ pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri
             app,
             "md-editor:save-as",
             save_as_title,
-            "CmdOrCtrl+Shift+S",
+            &shortcut_accelerator("file.saveAs"),
         )?)
         .build()?;
 
@@ -532,6 +539,7 @@ fn menu_accelerator_for_shortcut(shortcut: &str) -> String {
 /// 该表由 `menu_accelerator_collision_tests` 锁定两两不同。
 #[cfg(target_os = "macos")]
 const MENU_ACCELERATOR_SHORTCUTS: &[(&str, &str)] = &[
+    ("file.saveAs", "Mod-Alt-S"),
     ("table.insert", "Mod-Alt-T"),
     ("view.toggleSource", "Mod-/"),
     ("view.toggleSidebarPrimary", "Mod-Shift-B"),

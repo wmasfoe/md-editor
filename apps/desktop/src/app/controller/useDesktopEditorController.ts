@@ -32,7 +32,7 @@ import {
   resolveExportStyling,
 } from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { useEditorUiActions } from "@md-editor/editor-ui";
+import { useEditorUiActions, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
 import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
@@ -46,6 +46,22 @@ import type { DesktopEditorActions } from "../context/DesktopEditorActionsContex
 export interface UseDesktopEditorControllerInput {
   readonly fileService: RuntimeFileService;
   readonly showToast: (message: string | null) => void;
+}
+
+function dispatchEditorFormattingCommand(id: string, ports: CodeMirrorEditorPorts): boolean {
+  if (id.startsWith("format.")) {
+    ports.executeFormatting(id);
+    return true;
+  }
+  if (id === "editor.find") {
+    ports.openFind();
+    return true;
+  }
+  if (id === "editor.replace") {
+    ports.openReplace();
+    return true;
+  }
+  return false;
 }
 
 export function useDesktopEditorController({
@@ -135,6 +151,7 @@ export function useDesktopEditorController({
       const access = getRendererPorts();
       if (access.status === "available") {
         access.ports.flushPendingEdits?.();
+        if (dispatchEditorFormattingCommand(id, access.ports)) return;
       }
       await runtime.commands.dispatch(id, {
         document: runtime.document,
@@ -304,6 +321,24 @@ export function useDesktopEditorController({
             }
             if (!portsAccess.ports.deleteBlock()) {
               showToast("块删除未执行。");
+            }
+          },
+          executeFormatting: (commandId) => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status === "available") {
+              portsAccess.ports.executeFormatting(commandId);
+            }
+          },
+          openFind: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status === "available") {
+              portsAccess.ports.openFind();
+            }
+          },
+          openReplace: () => {
+            const portsAccess = getRendererPorts();
+            if (portsAccess.status === "available") {
+              portsAccess.ports.openReplace();
             }
           },
           openMdxComponentMenu: async () => {

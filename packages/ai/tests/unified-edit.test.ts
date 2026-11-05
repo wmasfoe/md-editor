@@ -253,4 +253,44 @@ describe("Unified Edit Suite (类 Cursor Tab 单次前向推理与防御守卫)"
     expect(micro.prefix).toBe("Hello World ");
     expect(micro.suffix).toBe("Foo Bar");
   });
+
+  it("当在设置中关闭 continuation 时，predictUnifiedEdit 不产出续写建议", async () => {
+    const service = createAiWritingService({ allowLocal: true });
+    (service as unknown as { resolveClient: () => ModelClient }).resolveClient = () => ({
+      providerId: "openai",
+      modelId: "gpt-4",
+      generate: vi.fn().mockResolvedValue({
+        text: `${ACTION_PREFIX_CONT}\n这是自动续写的文本`,
+      }),
+    });
+
+    const settingsWithoutContinuation: AiSettings = {
+      ...DEFAULT_AI_SETTINGS,
+      enabled: true,
+      features: {
+        continuation: false, // 关闭续写
+        editing: true, // 开启纠错
+      },
+      endpoints: {
+        ...DEFAULT_AI_SETTINGS.endpoints,
+        openai: {
+          baseUrl: "https://api.openai.com/v1",
+          apiKey: "test",
+          model: "gpt-4",
+        },
+      },
+    };
+
+    const snap: AiContextSnapshot = {
+      before: "今天天气真好，",
+      after: "",
+      selectedText: "",
+      mode: "wysiwyg",
+    };
+
+    const decision = await service.predictUnifiedEdit(settingsWithoutContinuation, snap);
+    // 因为续写功能被关闭，返回的决策必须被过滤为 none 且 items 为空
+    expect(decision.action).toBe("none");
+    expect(decision.items).toHaveLength(0);
+  });
 });

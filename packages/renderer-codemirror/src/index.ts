@@ -63,6 +63,7 @@ export {
   setHeading5,
   setHeading6,
   createMarkdownFormattingKeymap,
+  normalizeCodeMirrorKey,
 } from "./wysiwyg/editing/markdown-formatting.ts";
 export {
   search,

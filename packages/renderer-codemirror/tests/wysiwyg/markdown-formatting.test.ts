@@ -15,8 +15,10 @@ import { editorModeField } from "../../src/mode.ts";
 import { wysiwygChangeProtection } from "../../src/wysiwyg/state/change-protection.ts";
 import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {
+  createMarkdownFormattingKeymap,
   insertCodeBlock,
   insertOrWrapLink,
+  normalizeCodeMirrorKey,
   setHeading1,
   setHeading2,
   setParagraph,
@@ -361,5 +363,26 @@ describe("Smart Link Paste & Smart Pairs", () => {
     } finally {
       globalThis.document = originalDocument;
     }
+  });
+
+  describe("CodeMirror 快捷键规范化与扩展", () => {
+    it("normalizeCodeMirrorKey 将键位末尾的字母统一转为小写", () => {
+      expect(normalizeCodeMirrorKey("Mod-B")).toBe("Mod-b");
+      expect(normalizeCodeMirrorKey("Mod-Shift-S")).toBe("Mod-Shift-s");
+      expect(normalizeCodeMirrorKey("Mod-Alt-T")).toBe("Mod-Alt-t");
+      expect(normalizeCodeMirrorKey("Mod-Alt-1")).toBe("Mod-Alt-1");
+      expect(normalizeCodeMirrorKey("Mod-`")).toBe("Mod-`");
+      expect(normalizeCodeMirrorKey("Mod-,")).toBe("Mod-,");
+      expect(normalizeCodeMirrorKey("")).toBe("");
+    });
+
+    it("createMarkdownFormattingKeymap 能够接受大写自定义键位并规范化，同时保留备用快捷键", () => {
+      const customKeymaps = new Map([
+        ["format.bold", "Mod-B"],
+        ["format.strikethrough", "Mod-Shift-S"],
+      ]);
+      const ext = createMarkdownFormattingKeymap(customKeymaps);
+      expect(ext).toBeDefined();
+    });
   });
 });

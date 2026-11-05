@@ -1,5 +1,5 @@
 import { useTranslation } from "@md-editor/i18n";
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -28,6 +28,7 @@ import { openExternalTarget } from "../desktop/link-service";
 import { APP_CHANGELOG_URL, APP_RELEASES_URL } from "../lib/app-links";
 import { openAboutWindowWithToast } from "../desktop/about-window";
 import { APP_DISPLAY_NAME } from "../lib/app-name";
+import { safeUnlisten } from "../desktop/safe-unlisten";
 
 interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
@@ -46,32 +47,40 @@ export function SettingsPage({
   const { toast, showToast } = useToast();
   const ctrl = useSettingsController({ showToast, surface });
   const { closeSettings, destroySettingsWindowAfterRollback } = ctrl;
+  const destroySettingsRef = useRef(destroySettingsWindowAfterRollback);
+  destroySettingsRef.current = destroySettingsWindowAfterRollback;
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
 
-  // settings-window：监听原生关闭按钮，回滚主题预览后再销毁窗口
+  // settings-window：监听原生关闭按钮，回滚主题预览后再销毁窗口。
+  // 通过 ref 引用最新的 destroySettingsWindowAfterRollback，避免保存设置后重放监听与注销竞态引发 Issue #214
   useEffect(() => {
     if (surface !== "settings-window" || !isTauri()) return;
-    let unlisten: (() => void) | undefined;
+    let unlisten: (() => void | Promise<void>) | undefined;
     let disposed = false;
     void getCurrentWindow()
       .onCloseRequested((event) => {
         event.preventDefault();
-        void destroySettingsWindowAfterRollback().catch((error: unknown) => {
+        void destroySettingsRef.current().catch((error: unknown) => {
           console.warn("设置窗口关闭回滚失败", error);
         });
       })
       .then((dispose) => {
         if (disposed) {
-          dispose();
+          safeUnlisten(dispose);
           return;
         }
         unlisten = dispose;
+      })
+      .catch((error: unknown) => {
+        console.warn("设置窗口注册关闭监听失败", error);
       });
     return () => {
       disposed = true;
-      unlisten?.();
+      const fn = unlisten;
+      unlisten = undefined;
+      safeUnlisten(fn);
     };
-  }, [destroySettingsWindowAfterRollback, surface]);
+  }, [surface]);
 
   useEffect(() => {
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {

@@ -64,6 +64,15 @@ export function DesktopCodeMirrorEditor({
     onRendererPortsChange?.(newPorts);
   };
 
+  // 同步用户在设置中自定义的快捷键至 CodeMirror 格式化按键扩展
+  useEffect(() => {
+    if (!ports) {
+      return;
+    }
+    const customKeymaps = new Map(settings.shortcuts.map((s) => [s.id, s.key]));
+    ports.setFormattingKeymaps(customKeymaps);
+  }, [ports, settings.shortcuts]);
+
   useAutomaticAiEditing({ ports, settings });
 
   // 绑定图片粘贴与拖拽导入监听器
@@ -193,6 +202,13 @@ function useAutomaticAiEditing({
   const lastAnalyzedTextRef = useRef<string>("");
   const recentlyAcceptedRef = useRef<Map<string, number>>(new Map());
   portsRef.current = ports;
+
+  useEffect(() => {
+    // 当在设置中关闭 AI 或关闭续写时，立刻撤销当前可能残留的续写建议
+    if (!settings.ai.enabled || !settings.ai.features.continuation) {
+      portsRef.current?.dismissSuggestion();
+    }
+  }, [settings.ai.enabled, settings.ai.features.continuation]);
 
   useEffect(() => {
     // 若 AI 未启用，或未开启任何 AI 特性，则不启动后台监听
@@ -463,6 +479,9 @@ function useAutomaticAiEditing({
 
             for (const item of decision.items) {
               if (item.action === "continuation") {
+                if (!settings.ai.features.continuation) {
+                  continue;
+                }
                 // Continuation: 幽灵续写锚定在当前光标处
                 items.push({
                   from: cursorPos,
@@ -470,6 +489,9 @@ function useAutomaticAiEditing({
                   text: item.text,
                 });
               } else if (item.action === "edit") {
+                if (!settings.ai.features.editing) {
+                  continue;
+                }
                 // Edit: 将相对切片坐标转为全篇绝对坐标
                 const absFrom = sliceStartInDoc + item.fromOffset;
                 const absTo = sliceStartInDoc + item.toOffset;

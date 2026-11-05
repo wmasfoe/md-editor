@@ -346,6 +346,7 @@ export class AiWritingService {
                 documentContext: options.documentContext,
                 signal,
                 timeoutMs: options.timeoutMs,
+                features: settings.features,
               })
             : buildCloudUnifiedEditModelContext(snapshot, {
                 isGhostText: options.isGhostText,
@@ -360,10 +361,38 @@ export class AiWritingService {
           slice: micro.slice,
           cursorOffset: micro.cursorOffset,
         });
-        return {
-          ...decision,
+
+        // 依据当前开启的特性进行严格过滤，关闭的特性不应产出建议
+        const filteredItems = decision.items.filter((item) => {
+          if (item.action === "continuation") {
+            return settings.features.continuation;
+          }
+          if (item.action === "edit") {
+            return settings.features.editing;
+          }
+          return false;
+        });
+
+        if (filteredItems.length === 0) {
+          const emptyResult: UnifiedEditDecision = {
+            action: "none",
+            items: [],
+            slicePrefixLength: micro.prefix.length,
+            rawModelOutput: decision.rawModelOutput,
+          };
+          return emptyResult;
+        }
+
+        const action: UnifiedEditDecision["action"] =
+          filteredItems[0].action === "continuation" ? "continuation" : "edit";
+
+        const successResult: UnifiedEditDecision = {
+          action,
+          items: filteredItems,
           slicePrefixLength: micro.prefix.length,
+          rawModelOutput: decision.rawModelOutput,
         };
+        return successResult;
       },
     });
 

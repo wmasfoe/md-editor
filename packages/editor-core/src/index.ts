@@ -106,7 +106,26 @@ export type BuiltInCommandId =
   | "block.delete"
   | "lint.run"
   | "lint.fixAll"
-  | "lint.clear";
+  | "lint.clear"
+  | "editor.find"
+  | "editor.replace"
+  | "format.bold"
+  | "format.italic"
+  | "format.strikethrough"
+  | "format.inlineCode"
+  | "format.highlight"
+  | "format.codeBlock"
+  | "format.blockquote"
+  | "format.bulletList"
+  | "format.orderedList"
+  | "format.taskList"
+  | "format.heading1"
+  | "format.heading2"
+  | "format.heading3"
+  | "format.heading4"
+  | "format.heading5"
+  | "format.heading6"
+  | "format.paragraph";
 
 export interface EditorActionHandlers {
   readonly newDocument?: () => void | Promise<void>;
@@ -145,6 +164,9 @@ export interface EditorActionHandlers {
   readonly runMarkdownLint?: () => void | Promise<void>;
   readonly fixAllMarkdownLint?: () => void | Promise<void>;
   readonly clearMarkdownLint?: () => void | Promise<void>;
+  readonly executeFormatting?: (commandId: string) => void | Promise<void>;
+  readonly openFind?: () => void | Promise<void>;
+  readonly openReplace?: () => void | Promise<void>;
 }
 
 export interface EditorRuntime {
@@ -450,7 +472,7 @@ export function createBuiltInEditorFeature(): FeatureDescriptor {
       });
       context.keymaps.register({
         id: "file.saveAs",
-        key: "Mod-Shift-S",
+        key: "Mod-Alt-S",
         commandId: "file.saveAs",
       });
       context.keymaps.register({
@@ -495,6 +517,86 @@ export function createAiWritingFeature(): FeatureDescriptor {
         id: "ai.fixGrammar",
         key: "Mod-Shift-G",
         commandId: "ai.fixGrammar",
+      });
+    },
+  };
+}
+
+export function createMarkdownFormattingFeature(): FeatureDescriptor {
+  return {
+    id: "editor.markdown-formatting",
+    title: "Markdown formatting commands",
+    setup(context) {
+      const commands: Array<{ id: string; title: string; defaultKey: string }> = [
+        { id: "format.bold", title: "Bold", defaultKey: "Mod-b" },
+        { id: "format.italic", title: "Italic", defaultKey: "Mod-i" },
+        { id: "format.strikethrough", title: "Strikethrough", defaultKey: "Mod-Shift-S" },
+        { id: "format.inlineCode", title: "Inline Code", defaultKey: "Mod-e" },
+        { id: "format.highlight", title: "Highlight", defaultKey: "Mod-Shift-H" },
+        { id: "format.codeBlock", title: "Code Block", defaultKey: "Mod-Shift-C" },
+        { id: "format.blockquote", title: "Blockquote", defaultKey: "Mod-Shift-Q" },
+        { id: "format.bulletList", title: "Bullet List", defaultKey: "Mod-Shift-U" },
+        { id: "format.orderedList", title: "Ordered List", defaultKey: "Mod-Shift-O" },
+        { id: "format.taskList", title: "Task List", defaultKey: "Mod-Shift-T" },
+        { id: "format.heading1", title: "Heading 1", defaultKey: "Mod-Alt-1" },
+        { id: "format.heading2", title: "Heading 2", defaultKey: "Mod-Alt-2" },
+        { id: "format.heading3", title: "Heading 3", defaultKey: "Mod-Alt-3" },
+        { id: "format.heading4", title: "Heading 4", defaultKey: "Mod-Alt-4" },
+        { id: "format.heading5", title: "Heading 5", defaultKey: "Mod-Alt-5" },
+        { id: "format.heading6", title: "Heading 6", defaultKey: "Mod-Alt-6" },
+        { id: "format.paragraph", title: "Paragraph", defaultKey: "Mod-Alt-0" },
+      ];
+
+      for (const cmd of commands) {
+        context.commands.register({
+          id: cmd.id,
+          title: cmd.title,
+          group: "格式",
+          run(ctx) {
+            return ctx.actions?.executeFormatting?.(cmd.id);
+          },
+        });
+        context.keymaps.register({
+          id: cmd.id,
+          key: cmd.defaultKey,
+          commandId: cmd.id,
+        });
+      }
+    },
+  };
+}
+
+export function createEditorSearchFeature(): FeatureDescriptor {
+  return {
+    id: "editor.search",
+    title: "Editor search commands",
+    setup(context) {
+      context.commands.register({
+        id: "editor.find",
+        title: "Find in Document",
+        group: "编辑",
+        run(ctx) {
+          return ctx.actions?.openFind?.();
+        },
+      });
+      context.keymaps.register({
+        id: "editor.find",
+        key: "Mod-f",
+        commandId: "editor.find",
+      });
+
+      context.commands.register({
+        id: "editor.replace",
+        title: "Replace in Document",
+        group: "编辑",
+        run(ctx) {
+          return ctx.actions?.openReplace?.();
+        },
+      });
+      context.keymaps.register({
+        id: "editor.replace",
+        key: "Mod-h",
+        commandId: "editor.replace",
       });
     },
   };
@@ -580,7 +682,7 @@ function registerActionCommand(
     group: options.group,
     keywords: options.keywords,
     async run(context) {
-      await context.actions?.[actionName]?.();
+      await (context.actions?.[actionName] as (() => unknown) | undefined)?.();
     },
   });
 }

@@ -520,6 +520,10 @@ export function buildLocalUnifiedEditModelContext(
     readonly documentContext?: AiDocumentContext;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
+    readonly features?: {
+      readonly continuation?: boolean;
+      readonly editing?: boolean;
+    };
   } = {},
 ): ModelContext {
   // 本地 Lite 档位 (Qwen 3 0.6B)：为了避免双重任务认知过载，光标在行尾时走原生 FIM 极速续写
@@ -528,10 +532,10 @@ export function buildLocalUnifiedEditModelContext(
       snapshot.after.length === 0 ||
       snapshot.after.startsWith("\n") ||
       snapshot.after.startsWith("\r");
-    if (isAtLineEnd && !snapshot.selectedText) {
+    if (isAtLineEnd && !snapshot.selectedText && options.features?.continuation !== false) {
       return buildLocalContinuationModelContext(snapshot, modelId, options);
     }
-    // 光标在句子中间时，针对当前所在行进行 GEC 纠错
+    // 光标在句子中间（或行尾但已关闭续写）时，针对当前所在行进行 GEC 纠错
     const lineStart = snapshot.before.lastIndexOf("\n") + 1;
     const lineEndIndex = snapshot.after.indexOf("\n");
     const currentLine =
