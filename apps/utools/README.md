@@ -29,7 +29,7 @@
 | `⌘ / Ctrl + S` | 立即保存当前文档至本地磁盘 | 全局 |
 | `⌘ / Ctrl + N` | 新建本地空白文档 | 全局 |
 | `⌘ / Ctrl + O` | 打开本地 Markdown 文件 | 全局 |
-| `⌘ / Ctrl + Shift + O` | 打开本地工作区文件夹 | 全局 |
+| `⌘ / Ctrl + Alt + O` | 打开本地工作区文件夹（`Shift + O` 保留给有序列表） | 全局 |
 | `⌘ / Ctrl + Shift + B` | 展开 / 收起文件树侧边栏抽屉（同时兼容 `⌘ / Ctrl + \`） | 全局 |
 | `⌘ / Ctrl + /` | 切换编辑模式（所见即所得 ⇄ 源码模式） | 全局 |
 | `⌘ / Ctrl + 1` | 切换为所见即所得视图模式 | 全局 |
@@ -44,6 +44,9 @@
 | `⌘ / Ctrl + Shift + H` | 文本高亮 (Highlight) | 编辑区 |
 | `⌘ / Ctrl + Shift + Q` | 切换引用块 (Blockquote) | 编辑区 |
 | `⌘ / Ctrl + Shift + U` | 无序列表 (Bullet List) | 编辑区 |
+| `⌘ / Ctrl + Shift + O` | 有序列表 (Ordered List) | 编辑区 |
+| `⌘ / Ctrl + Shift + X` | 删除线备用键 | 编辑区 |
+| `⌘ / Ctrl + Shift + K` | 代码块备用键 | 编辑区 |
 | `⌘ / Ctrl + Shift + T` | 待办任务列表 (Task List) | 编辑区 |
 | `⌘ / Ctrl + ⌥ + 1 ~ 6` | 一级至六级标题 (H1 ~ H6) | 编辑区 |
 | `⌘ / Ctrl + ⌥ + 0` | 正文段落 | 编辑区 |

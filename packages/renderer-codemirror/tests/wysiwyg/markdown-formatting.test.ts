@@ -7,7 +7,7 @@ import {
   type StateCommand,
   type TransactionSpec,
 } from "@codemirror/state";
-import { type EditorView } from "@codemirror/view";
+import { keymap, type EditorView, runScopeHandlers } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -302,6 +302,9 @@ describe("Smart Link Paste & Smart Pairs", () => {
         },
       };
       children: MockElement[] = [];
+      focused = false;
+      selected = false;
+      #listeners = new Map<string, Array<() => void>>();
       appendChild(child: MockElement) {
         this.children.push(child);
         return child;
@@ -328,9 +331,22 @@ describe("Smart Link Paste & Smart Pairs", () => {
         }
         return results;
       }
-      addEventListener() {}
-      focus() {}
-      select() {}
+      addEventListener(type: string, listener: () => void) {
+        const listeners = this.#listeners.get(type) ?? [];
+        listeners.push(listener);
+        this.#listeners.set(type, listeners);
+      }
+      click() {
+        for (const listener of this.#listeners.get("click") ?? []) {
+          listener();
+        }
+      }
+      focus() {
+        this.focused = true;
+      }
+      select() {
+        this.selected = true;
+      }
     }
 
     if (typeof globalThis.document === "undefined") {
@@ -340,7 +356,8 @@ describe("Smart Link Paste & Smart Pairs", () => {
     }
 
     try {
-      const { createLiquidSearchPanel } = await import("../../src/wysiwyg/view/search-panel.ts");
+      const { createLiquidSearchPanel, revealReplaceInput } =
+        await import("../../src/wysiwyg/view/search-panel.ts");
       const state = createState("Hello Search");
       const mockView = {
         state,
@@ -360,6 +377,16 @@ describe("Smart Link Paste & Smart Pairs", () => {
 
       const filterButtons = panel.dom.querySelectorAll(".cm-search-filter-btn");
       expect(filterButtons.length).toBe(3); // Aa, \b, .*
+
+      const replaceInput = panel.dom.querySelector(
+        ".cm-replace-input",
+      ) as unknown as MockElement | null;
+      expect(replaceInput).not.toBeNull();
+      expect((replaceRow as unknown as MockElement).style.display).toBe("none");
+      expect(revealReplaceInput(panel.dom as unknown as ParentNode)).toBe(true);
+      expect((replaceRow as unknown as MockElement).style.display).toBe("flex");
+      expect(replaceInput?.focused).toBe(true);
+      expect(replaceInput?.selected).toBe(true);
     } finally {
       globalThis.document = originalDocument;
     }
@@ -376,13 +403,124 @@ describe("Smart Link Paste & Smart Pairs", () => {
       expect(normalizeCodeMirrorKey("")).toBe("");
     });
 
-    it("createMarkdownFormattingKeymap 能够接受大写自定义键位并规范化，同时保留备用快捷键", () => {
+    it("createMarkdownFormattingKeymap 将用户设置里的大写键交给 keymap.of 前规范成小写，并保留备用键", () => {
       const customKeymaps = new Map([
         ["format.bold", "Mod-B"],
         ["format.strikethrough", "Mod-Shift-S"],
       ]);
-      const ext = createMarkdownFormattingKeymap(customKeymaps);
-      expect(ext).toBeDefined();
+      const state = EditorState.create({
+        doc: "hello",
+        selection: EditorSelection.range(0, 5),
+        extensions: [createMarkdownFormattingKeymap(customKeymaps)],
+      });
+      const keys = state
+        .facet(keymap)
+        .flat()
+        .map((binding) => binding.key);
+      expect(keys).toContain("Mod-b");
+      expect(keys).not.toContain("Mod-B");
+      expect(keys).toContain("Mod-Shift-s");
+      expect(keys).not.toContain("Mod-Shift-S");
+      expect(keys).toContain("Mod-Shift-x");
+      expect(keys).toContain("Mod-Shift-k");
+    });
+
+    it("真实 keydown 匹配：Mod-B 命中不加 Shift 的加粗，Mod-Shift-x / Mod-Shift-k 仍可用", () => {
+      let state = EditorState.create({
+        doc: "hello",
+        selection: EditorSelection.range(0, 5),
+        extensions: [
+          createMarkdownFormattingKeymap(
+            new Map([
+              ["format.bold", "Mod-B"],
+              ["format.strikethrough", "Mod-Shift-S"],
+            ]),
+          ),
+        ],
+      });
+      const view = {
+        composing: false,
+        get state() {
+          return state;
+        },
+        dispatch(transaction: { state: EditorState }) {
+          state = transaction.state;
+        },
+      };
+
+      expect(
+        runScopeHandlers(
+          view as unknown as EditorView,
+          keydown({ key: "b", keyCode: 66, ctrlKey: true }),
+          "editor",
+        ),
+      ).toBe(true);
+      expect(state.doc.toString()).toBe("**hello**");
+
+      state = EditorState.create({
+        doc: "hello",
+        selection: EditorSelection.range(0, 5),
+        extensions: [createMarkdownFormattingKeymap(new Map([["format.bold", "Mod-B"]]))],
+      });
+      expect(
+        runScopeHandlers(
+          view as unknown as EditorView,
+          keydown({ key: "B", keyCode: 66, ctrlKey: true, shiftKey: true }),
+          "editor",
+        ),
+      ).toBe(false);
+      expect(state.doc.toString()).toBe("hello");
+
+      state = EditorState.create({
+        doc: "hello",
+        selection: EditorSelection.range(0, 5),
+        extensions: [createMarkdownFormattingKeymap()],
+      });
+      expect(
+        runScopeHandlers(
+          view as unknown as EditorView,
+          keydown({ key: "X", keyCode: 88, ctrlKey: true, shiftKey: true }),
+          "editor",
+        ),
+      ).toBe(true);
+      expect(state.doc.toString()).toBe("~~hello~~");
+
+      state = EditorState.create({
+        doc: "",
+        selection: EditorSelection.cursor(0),
+        extensions: [createMarkdownFormattingKeymap()],
+      });
+      expect(
+        runScopeHandlers(
+          view as unknown as EditorView,
+          keydown({ key: "K", keyCode: 75, ctrlKey: true, shiftKey: true }),
+          "editor",
+        ),
+      ).toBe(true);
+      expect(state.doc.toString()).toBe("```\n\n```\n");
     });
   });
 });
+
+function keydown(
+  overrides: Partial<{
+    key: string;
+    keyCode: number;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+  }>,
+): KeyboardEvent {
+  return {
+    key: "b",
+    keyCode: 66,
+    ctrlKey: false,
+    metaKey: false,
+    shiftKey: false,
+    altKey: false,
+    preventDefault() {},
+    stopPropagation() {},
+    ...overrides,
+  } as KeyboardEvent;
+}

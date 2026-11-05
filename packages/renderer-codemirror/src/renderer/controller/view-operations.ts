@@ -32,6 +32,7 @@ import {
   typewriterModeField,
 } from "../../wysiwyg/input/typewriter-mode.ts";
 import { focusModeField, setFocusModeEffect } from "../../wysiwyg/view/focus-mode.ts";
+import { revealReplaceInput } from "../../wysiwyg/view/search-panel.ts";
 import {
   createMarkdownFormattingKeymap,
   executeFormattingCommand,
@@ -177,50 +178,33 @@ export function openViewFind(view: RendererViewAdapter): boolean {
   return openSearchPanel(cmView);
 }
 
-/** 打开文档内替换面板并聚焦替换输入框 */
+/**
+ * 打开文档内替换面板，展开替换行并聚焦替换输入框。
+ *
+ * `openSearchPanel` 在面板已打开时只会聚焦查找框，因此无论返回值如何都要再展开替换行。
+ * 面板 mount 会同步聚焦查找框，微任务和下一帧再聚焦一次，避免被那次聚焦盖掉。
+ */
 export function openViewReplace(view: RendererViewAdapter): boolean {
   const cmView = view as unknown as EditorView | null;
   if (!cmView) {
     return false;
   }
   const opened = openSearchPanel(cmView);
-  if (opened) {
-    focusReplaceInput(cmView);
+  const root = cmView.dom;
+  if (!root?.querySelector) {
+    return opened;
   }
-  return opened;
-}
-
-function focusReplaceInput(view: EditorView): void {
-  const dom = view.dom;
-  if (!dom) {
-    return;
-  }
-  const focusAction = () => {
-    // 若使用的是 liquid 搜索面板，且替换行当前处于折叠隐藏状态，则展开它
-    const replaceRow = dom.querySelector<HTMLElement>(".cm-replace-row");
-    if (replaceRow && replaceRow.style.display === "none") {
-      const toggleBtn = dom.querySelector<HTMLButtonElement>(
-        ".cm-search-icon-button[title*='替换']",
-      );
-      if (toggleBtn) {
-        toggleBtn.click();
-      } else {
-        replaceRow.style.display = "flex";
-      }
-    }
-    const replaceInput = dom.querySelector<HTMLInputElement>(
-      ".cm-replace-input, .cm-textfield[name='replace']",
-    );
-    if (replaceInput) {
-      replaceInput.focus();
-      replaceInput.select();
-    }
+  const revealed = revealReplaceInput(root);
+  const refocus = () => {
+    revealReplaceInput(root);
   };
-
-  focusAction();
-  if (typeof requestAnimationFrame !== "undefined") {
-    requestAnimationFrame(focusAction);
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(refocus);
   }
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(refocus);
+  }
+  return opened || revealed;
 }
 
 import {

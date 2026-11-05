@@ -112,8 +112,8 @@ export function UtoolsStatusBar({
             className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors max-w-[140px] truncate"
             title={
               hasFolder
-                ? `当前工作区: ${folder?.rootPath ?? ""} (点击更换文件夹，快捷键: Cmd+Shift+O)`
-                : "打开本地文件夹并浏览完整目录树 (快捷键: Cmd+Shift+O)"
+                ? `当前工作区: ${folder?.rootPath ?? ""} (点击更换文件夹，快捷键: Cmd+Option+O / Ctrl+Alt+O)`
+                : "打开本地文件夹并浏览完整目录树 (快捷键: Cmd+Option+O / Ctrl+Alt+O)"
             }
           >
             <FolderIcon className="size-3.5" />

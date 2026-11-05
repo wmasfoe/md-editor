@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   createDocumentState,
+  OPEN_FOLDER_SHORTCUT,
   resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
@@ -12,6 +13,7 @@ import {
 import {
   CodeMirrorEditor,
   EditorUiProvider,
+  matchesRuntimeKeymap,
   type CodeMirrorEditorPorts,
   resolveCodeFontStack,
   resolveProseFontStack,
@@ -494,15 +496,20 @@ export function UtoolsApp() {
         return;
       }
 
-      if (key === "o") {
+      // Mod-Alt-O 打开文件夹；Mod-Shift-O 留给有序列表，这里不能 preventDefault。
+      if (matchesRuntimeKeymap(e, OPEN_FOLDER_SHORTCUT)) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        if (e.shiftKey) {
-          fileTree.handleOpenFolder();
-        } else {
-          fileTree.handleOpenFile();
-        }
+        fileTree.handleOpenFolder();
+        return;
+      }
+
+      if (matchesRuntimeKeymap(e, "Mod-o")) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        fileTree.handleOpenFile();
         return;
       }
 

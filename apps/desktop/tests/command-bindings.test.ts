@@ -65,6 +65,28 @@ describe("createRuntimeKeyboardShortcuts", () => {
     expect(dispatched).toContain("format.strikethrough");
   });
 
+  it("打开文件夹绑定 Mod-Alt-O，Mod-Shift-O 仍是有序列表", () => {
+    const dispatched: string[] = [];
+    const shortcuts = createRuntimeKeyboardShortcuts(async (id) => {
+      dispatched.push(id);
+    }, createDefaultSettings());
+
+    const openFolder = shortcuts.find((shortcut) =>
+      shortcut.matches(createKeyEvent({ altKey: true, shiftKey: false, key: "o", code: "KeyO" })),
+    );
+    expect(openFolder).toBeDefined();
+    openFolder!.run(createKeyEvent({ altKey: true, key: "o", code: "KeyO" }));
+    expect(dispatched).toContain("file.openFolder");
+
+    dispatched.length = 0;
+    const orderedList = shortcuts.find((shortcut) =>
+      shortcut.matches(createKeyEvent({ altKey: false, shiftKey: true, key: "O", code: "KeyO" })),
+    );
+    expect(orderedList).toBeDefined();
+    orderedList!.run(createKeyEvent({ shiftKey: true, key: "O", code: "KeyO" }));
+    expect(dispatched).toEqual(["format.orderedList"]);
+  });
+
   it("bindRuntimeKeyboardShortcuts 不会在普通 input/textarea 输入框内拦截 format.* 快捷键", () => {
     const originalWindow = globalThis.window;
     const originalDocument = globalThis.document;
@@ -130,6 +152,62 @@ describe("createRuntimeKeyboardShortcuts", () => {
     listener(editorEvent);
     expect(editorPrevented).toBe(true);
     expect(dispatched).toContain("format.bold");
+
+    // 3. 编辑器内部的搜索框（位于 .cm-editor，但不是正文）不能被格式化快捷键拦截
+    let searchPrevented = false;
+    const searchTarget = {
+      tagName: "INPUT",
+      className: "cm-search-input",
+      isContentEditable: false,
+      closest: (sel: string) => (sel === ".cm-editor" ? searchTarget : null),
+    };
+    const searchEvent = createKeyEvent({
+      metaKey: true,
+      key: "b",
+      code: "KeyB",
+      target: searchTarget as unknown as EventTarget,
+      preventDefault: () => {
+        searchPrevented = true;
+      },
+    });
+    listener(searchEvent);
+    expect(searchPrevented).toBe(false);
+
+    // 4. textarea 与编辑器外的 contenteditable 同样不拦截
+    let textareaPrevented = false;
+    const textareaEvent = createKeyEvent({
+      metaKey: true,
+      key: "i",
+      code: "KeyI",
+      target: {
+        tagName: "TEXTAREA",
+        isContentEditable: false,
+        closest: () => null,
+      } as unknown as EventTarget,
+      preventDefault: () => {
+        textareaPrevented = true;
+      },
+    });
+    listener(textareaEvent);
+    expect(textareaPrevented).toBe(false);
+
+    let foreignEditablePrevented = false;
+    const foreignEditableEvent = createKeyEvent({
+      metaKey: true,
+      key: "e",
+      code: "KeyE",
+      target: {
+        tagName: "DIV",
+        isContentEditable: true,
+        closest: () => null,
+      } as unknown as EventTarget,
+      preventDefault: () => {
+        foreignEditablePrevented = true;
+      },
+    });
+    listener(foreignEditableEvent);
+    expect(foreignEditablePrevented).toBe(false);
+    expect(dispatched).toEqual(["format.bold"]);
 
     unbind();
     globalThis.window = originalWindow;

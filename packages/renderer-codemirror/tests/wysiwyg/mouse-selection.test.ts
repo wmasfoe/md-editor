@@ -155,4 +155,95 @@ describe("createRobustMouseSelectionExtension", () => {
     expect(tripleResult.main.from).toBe(0);
     expect(tripleResult.main.to).toBe(12);
   });
+
+  it("双击后继续拖拽按词扩展选区，而不是退化为字符区间", () => {
+    const state = EditorState.create({
+      doc: "hello world",
+      selection: EditorSelection.cursor(0),
+      extensions: [createRobustMouseSelectionExtension()],
+    });
+    // hello = 0..5，world = 6..11。字符级拖拽会得到 2..8，按词扩展必须覆盖两个整词。
+    let pos = 2;
+    const mockView: MouseSelectionViewContext = {
+      state,
+      posAndSideAtCoords: () => ({ pos, assoc: 1 }),
+    };
+    const mouseStyleFacet = state.facet(EditorView.mouseSelectionStyle);
+    const style = mouseStyleFacet[0](
+      mockView as unknown as EditorView,
+      {
+        button: 0,
+        clientX: 40,
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+    );
+
+    pos = 8;
+    const forward = style!.get(
+      {
+        button: 0,
+        clientX: 40 + DRAG_THRESHOLD_PX + 12,
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+      false,
+      false,
+    );
+    expect(forward.main.from).toBe(0);
+    expect(forward.main.to).toBe(11);
+    expect(forward.main.anchor).toBe(0);
+    expect(forward.main.head).toBe(11);
+
+    pos = 8;
+    const backwardStyle = mouseStyleFacet[0](
+      mockView as unknown as EditorView,
+      {
+        button: 0,
+        clientX: 80,
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+    );
+    pos = 2;
+    const backward = backwardStyle!.get(
+      {
+        button: 0,
+        clientX: 80 - (DRAG_THRESHOLD_PX + 12),
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+      false,
+      false,
+    );
+    expect(backward.main.from).toBe(0);
+    expect(backward.main.to).toBe(11);
+    expect(backward.main.anchor).toBe(11);
+    expect(backward.main.head).toBe(0);
+
+    // 词内拖拽仍保持整词，不缩成按下点到当前点的字符选区。
+    pos = 1;
+    const sameWordStyle = mouseStyleFacet[0](
+      mockView as unknown as EditorView,
+      {
+        button: 0,
+        clientX: 10,
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+    );
+    pos = 4;
+    const sameWord = sameWordStyle!.get(
+      {
+        button: 0,
+        clientX: 10 + DRAG_THRESHOLD_PX + 4,
+        clientY: 20,
+        detail: 2,
+      } as MouseEvent,
+      false,
+      false,
+    );
+    expect(sameWord.main.from).toBe(0);
+    expect(sameWord.main.to).toBe(5);
+  });
 });

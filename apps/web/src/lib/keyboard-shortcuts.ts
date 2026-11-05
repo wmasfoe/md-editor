@@ -1,3 +1,4 @@
+import { OPEN_FOLDER_SHORTCUT } from "@md-editor/editor-core";
 import { matchesRuntimeKeymap } from "@md-editor/editor-ui";
 
 export interface WebShortcutHandlers {
@@ -87,8 +88,8 @@ export function handleWebKeyboardEvent(
     return true;
   }
 
-  // 7. Mod-Shift-O : 打开文件夹
-  if (matchesRuntimeKeymap(event, "Mod-Shift-O") && handlers.onOpenFolder) {
+  // 7. Mod-Alt-O : 打开文件夹（Mod-Shift-O 留给有序列表）
+  if (matchesRuntimeKeymap(event, OPEN_FOLDER_SHORTCUT) && handlers.onOpenFolder) {
     event.preventDefault?.();
     handlers.onOpenFolder();
     return true;
