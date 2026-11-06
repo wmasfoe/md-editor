@@ -326,6 +326,34 @@ describe("Virtual Trailing Line", () => {
       }
     });
 
+    // 无尾随换行时 fullRange.to === doc.length，停在块末端与 doc.length 等价，测不出差别。
+    // 带尾随换行才会分开两者：停在 fullRange.to 的光标仍在块内，再键入会写进块里。
+    it.each([
+      ["table", "| A | B |\n| --- | --- |\n| 1 | 2 |\n", "table"],
+      ["html", "<div>End</div>\n", "html"],
+      ["thematic break", "para\n\n---\n", "thematic-break"],
+    ] as const)(
+      "ArrowDown from a terminal %s atom parks the caret at doc.length, not at the block end",
+      (_label, snippet, kind) => {
+        const { view, destroy } = createHarness(snippet);
+        try {
+          const record = view.state.field(markdownRangeIndexField).byKind(kind)[0];
+          expect(record).toBeDefined();
+          // 前置条件：块末端和文档末尾确实不是同一个偏移，否则这条用例没有区分力。
+          expect(record.fullRange.to).toBeLessThan(view.state.doc.length);
+          selectWysiwygAtom(view, record.id);
+
+          expect(moveDownToVirtualTrailingLine(view)).toBe(true);
+
+          expect(view.state.selection.main.head).toBe(view.state.doc.length);
+          expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+          expect(view.state.doc.toString()).toBe(snippet);
+        } finally {
+          destroy();
+        }
+      },
+    );
+
     it("Backspace and Enter on the virtual line do not change the document", () => {
       const snippet = "<div>End</div>";
       const { view, destroy } = createHarness(snippet);
