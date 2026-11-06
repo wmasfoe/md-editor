@@ -113,4 +113,50 @@ test.describe("Virtual Trailing Line E2E", () => {
     const expected = `${USER_HTML_SNIPPET}\n\n点击虚拟行后输入`;
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(expected);
   });
+
+  test("VTL-05: clicking the padding below the virtual line activates that line", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await replaceDocument(page, USER_HTML_SNIPPET);
+
+    const virtualLine = page.locator(".cm-virtual-trailing-line");
+    await expect(virtualLine).toHaveCount(1);
+    await clickBelow(page, virtualLine);
+
+    await expect(virtualLine).toHaveClass(/cm-virtual-trailing-line--active/);
+    const diag = await diagnostics(page);
+    expect(diag.renderer?.markdown).toBe(USER_HTML_SNIPPET);
+    expect(diag.renderer?.selectionHead).toBe(USER_HTML_SNIPPET.length);
+  });
+
+  test("VTL-06: clicking the padding below a real last line places the caret on that line", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    const withBlankLine = `${USER_HTML_SNIPPET}\n\n`;
+    await replaceDocument(page, withBlankLine);
+    await expect(page.locator(".cm-virtual-trailing-line")).toHaveCount(0);
+
+    const content = page.locator(".cm-content");
+    await clickBelow(page, content.locator(".cm-line").last());
+
+    const diag = await diagnostics(page);
+    expect(diag.renderer?.markdown).toBe(withBlankLine);
+    expect(diag.renderer?.selectionHead).toBe(withBlankLine.length);
+  });
 });
+
+async function clickBelow(page: Page, anchor: ReturnType<Page["locator"]>): Promise<void> {
+  await anchor.scrollIntoViewIfNeeded();
+  const anchorBox = await anchor.boundingBox();
+  const scrollerBox = await page.locator(".cm-scroller").boundingBox();
+  if (!anchorBox || !scrollerBox) {
+    throw new Error("editor geometry is unavailable");
+  }
+  const y = Math.min(anchorBox.y + anchorBox.height + 28, scrollerBox.y + scrollerBox.height - 6);
+  if (y <= anchorBox.y + anchorBox.height) {
+    throw new Error("no visible padding below the last line");
+  }
+  await page.mouse.click(anchorBox.x + Math.min(anchorBox.width / 2, 120), y);
+}

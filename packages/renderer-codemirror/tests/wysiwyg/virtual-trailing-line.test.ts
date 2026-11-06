@@ -5,17 +5,20 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
 }
 import { markdown } from "@codemirror/lang-markdown";
+import { history, undo } from "@codemirror/commands";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
 import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
+import { inspectWysiwygProjection } from "../../src/wysiwyg/state/projection-field.ts";
 import {
   calculateMaterializationPrefix,
   exitAtomAtEndOfDocument,
+  materializeVirtualTrailingLine,
   moveDownToVirtualTrailingLine,
   moveUpFromVirtualTrailingLine,
   needsVirtualTrailingLine,
@@ -33,6 +36,7 @@ function createHarness(doc: string, mode: "wysiwyg" | "source" = "wysiwyg") {
     doc,
     selection: EditorSelection.cursor(doc.length),
     extensions: [
+      history(),
       markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
       provideWysiwygDiagnostics(diagnostics),
       editorModeField,
@@ -85,10 +89,11 @@ describe("Virtual Trailing Line", () => {
       }
     });
 
-    it("returns true for normal text ending without newline", () => {
+    it("returns false for normal text ending without newline", () => {
       const { state, destroy } = createHarness("Hello world");
       try {
-        expect(needsVirtualTrailingLine(state)).toBe(true);
+        // 普通末行下面仍有 .cm-line。点文末空白应续写该段，不挂虚拟空行。
+        expect(needsVirtualTrailingLine(state)).toBe(false);
       } finally {
         destroy();
       }
@@ -288,25 +293,173 @@ describe("Virtual Trailing Line", () => {
   });
 
   describe("keyboard navigation with Arrow keys", () => {
-    it("moves focus to virtual line when pressing ArrowDown at EOF", () => {
-      const snippet = "Paragraph";
+    it("does not treat a plain paragraph end as a virtual line", () => {
+      const { view, destroy } = createHarness("Paragraph");
+      try {
+        view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) });
+        expect(moveDownToVirtualTrailingLine(view)).toBe(false);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("ArrowDown from a terminal HTML atom activates the virtual line without revealing source", () => {
+      const snippet = "<div>End</div>";
       const { view, destroy } = createHarness(snippet);
       try {
-        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+        const htmlRecord = view.state.field(markdownRangeIndexField).byKind("html")[0];
+        expect(htmlRecord).toBeDefined();
+        selectWysiwygAtom(view, htmlRecord.id);
 
-        // 光标在文末
-        view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) });
-        const movedDown = moveDownToVirtualTrailingLine(view);
-        expect(movedDown).toBe(true);
+        expect(moveDownToVirtualTrailingLine(view)).toBe(true);
         expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+        expect(view.state.selection.main.head).toBe(view.state.doc.length);
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(inspectWysiwygProjection(view.state).activeSyntaxIds).not.toContain(htmlRecord.id);
+        expect(view.dom.querySelector(".cm-md-html-block-widget")).not.toBeNull();
 
-        // 按 ArrowUp 退出虚拟行返回正文
-        const movedUp = moveUpFromVirtualTrailingLine(view);
-        expect(movedUp).toBe(true);
+        expect(moveUpFromVirtualTrailingLine(view)).toBe(true);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("Backspace and Enter on the virtual line do not change the document", () => {
+      const snippet = "<div>End</div>";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({
+          selection: EditorSelection.cursor(view.state.doc.length),
+          effects: setVirtualTrailingLineActiveEffect.of(true),
+        });
+        pressKey(view, "Backspace");
+        pressKey(view, "Enter");
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+      } finally {
+        destroy();
+      }
+    });
+  });
+
+  describe("clicking the space below the last line", () => {
+    it("activates the virtual line when the click is in the bottom padding", () => {
+      const snippet = "<div>End</div>";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({ selection: EditorSelection.cursor(0) });
+        mockDocumentGeometry(view, 160, 900);
+
+        clickContent(view, 200, 500);
+
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.selection.main.head).toBe(snippet.length);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+        expect(view.dom.querySelector(".cm-virtual-trailing-line--active")).not.toBeNull();
+      } finally {
+        destroy();
+      }
+    });
+
+    it("puts the caret on the real last line when no virtual line is showing", () => {
+      const snippet = "Hello\n";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({ selection: EditorSelection.cursor(0) });
+        mockDocumentGeometry(view, 80, 900);
+
+        clickContent(view, 200, 400);
+
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(needsVirtualTrailingLine(view.state)).toBe(false);
+        expect(view.state.selection.main.head).toBe(snippet.length);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("ignores clicks beside the document and clicks on the last line itself", () => {
+      const snippet = "<div>End</div>";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({ selection: EditorSelection.cursor(0) });
+        mockDocumentGeometry(view, 160, 900);
+
+        // 内容列左侧和最后一行本行都不算文末留白，不能误点亮虚拟空行。
+        clickContent(view, 8, 500);
+        clickContent(view, 200, 150);
+        expect(view.state.doc.toString()).toBe(snippet);
         expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
       } finally {
         destroy();
       }
     });
   });
+
+  describe("IME prefix undo", () => {
+    it("undoes the materialized prefix together with the composed text", () => {
+      const snippet = "<div>End</div>";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({
+          selection: EditorSelection.cursor(view.state.doc.length),
+          effects: setVirtualTrailingLineActiveEffect.of(true),
+        });
+        expect(materializeVirtualTrailingLine(view, "", "input.type.compose.start")).toBe(true);
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\n`);
+
+        view.dispatch({
+          changes: { from: view.state.doc.length, insert: "字" },
+          selection: EditorSelection.cursor(view.state.doc.length + 1),
+          userEvent: "input.type.compose",
+        });
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\n字`);
+
+        expect(undo(view)).toBe(true);
+        expect(view.state.doc.toString()).toBe(snippet);
+      } finally {
+        destroy();
+      }
+    });
+  });
 });
+
+function mockDocumentGeometry(
+  view: EditorView,
+  lastChildBottom: number,
+  contentBottom: number,
+): void {
+  vi.spyOn(view.contentDOM, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(40, 0, 560, contentBottom),
+  );
+  vi.spyOn(view.scrollDOM, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 640, contentBottom),
+  );
+  for (const child of view.contentDOM.children) {
+    vi.spyOn(child, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(40, lastChildBottom - 20, 560, 20),
+    );
+  }
+}
+
+function clickContent(view: EditorView, clientX: number, clientY: number): void {
+  view.contentDOM.dispatchEvent(
+    new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX,
+      clientY,
+    }),
+  );
+}
+
+function pressKey(view: EditorView, key: string): void {
+  view.focus();
+  view.contentDOM.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+}

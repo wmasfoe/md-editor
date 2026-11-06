@@ -17,8 +17,10 @@
  *    虚拟空行纯属展示层与交互引导，未实际输入前 `state.doc` **保持 0 字节增加**。
  *    任何保存（Save / Export / Snapshot）均以用户原始内容为准，绝不擅自追加无用换行。
  * 2. **精准触发（Deterministic Gating）**：
- *    若文档末尾**已有可见真实空行**：**绝不渲染**虚拟空行；
- *    若文档末尾**无空行**：精准挂载 `VirtualTrailingLineWidget`。
+ *    只在整行块级替换盖住文档末尾、下面已经没有 `.cm-line` 时挂载。
+ *    普通末行仍用原生行尾光标，点击文末空白是续写当前段，不是新起一行。
+ *    内容盒的下内边距（编辑器底部留白，不是左右侧栏）也算文末：光标落到最后一行；
+ *    虚拟空行出现时，这一下命中的就是虚拟空行。
  * 3. **即时物化（JIT Materialization）**：
  *    用户在虚拟空行上键入文字或粘贴时，由 `inputHandler` 即时派发单次事务，补全必要前导换行
  *    并插入内容，无缝转变为真实文档行。
@@ -45,7 +47,26 @@ import {
   virtualTrailingLineActiveField,
 } from "../state/types.ts";
 import { editorModeField } from "../../mode.ts";
+import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import { convertHtmlToMarkdown, shouldConvertClipboardHtml } from "../input/smart-paste.ts";
 import { isAtomSelection } from "./code-block-selection.ts";
+
+/** 整行替换会吞掉自己下方那一行的块。只有这些块贴在 EOF 时才需要虚拟空行。 */
+const TERMINAL_BLOCK_KINDS: ReadonlySet<MarkdownRangeRecord["kind"]> = new Set([
+  "html",
+  "table",
+  "thematic-break",
+  "mdx-jsx",
+  "frontmatter",
+  "heading-setext",
+]);
+
+function coversDocumentEnd(record: MarkdownRangeRecord, state: EditorState): boolean {
+  return (
+    TERMINAL_BLOCK_KINDS.has(record.kind) &&
+    trailingLineBreakEnd(record, state) === state.doc.length
+  );
+}
 
 /**
  * 判断当前文档是否需要渲染文末虚拟空行。
@@ -60,31 +81,11 @@ export function needsVirtualTrailingLine(state: EditorState): boolean {
     return false;
   }
 
-  // 1. 检查末尾整行块级替换组件（HTML 块、表格、分割线、MDX 组件、Frontmatter 等）
-  // 整行块级替换装饰会吞并相邻紧随的一个换行，若 replacementTo 等于 doc.length，
-  // 说明下方没有任何可见文本行，必须渲染虚拟空行
   const index = state.field(markdownRangeIndexField, false);
-  if (index) {
-    for (const record of index.records) {
-      if (
-        record.kind === "html" ||
-        record.kind === "table" ||
-        record.kind === "thematic-break" ||
-        record.kind === "mdx-jsx" ||
-        record.kind === "frontmatter" ||
-        record.kind === "heading-setext"
-      ) {
-        const replacementTo = trailingLineBreakEnd(record, state);
-        if (replacementTo === state.doc.length) {
-          return true;
-        }
-      }
-    }
+  if (!index) {
+    return false;
   }
-
-  // 2. 检查普通文本末行是否为非空行：若末尾已有空行（length === 0）则无需渲染，反之需要渲染
-  const lastLine = state.doc.line(state.doc.lines);
-  return lastLine.length > 0;
+  return index.records.some((record) => coversDocumentEnd(record, state));
 }
 
 /**
@@ -93,16 +94,7 @@ export function needsVirtualTrailingLine(state: EditorState): boolean {
 export function calculateMaterializationPrefix(state: EditorState): string {
   const doc = state.doc;
   const index = state.field(markdownRangeIndexField, false);
-  const isAfterBlock = index?.records.some(
-    (r) =>
-      (r.kind === "html" ||
-        r.kind === "table" ||
-        r.kind === "thematic-break" ||
-        r.kind === "mdx-jsx" ||
-        r.kind === "frontmatter" ||
-        r.kind === "heading-setext") &&
-      trailingLineBreakEnd(r, state) === doc.length,
-  );
+  const isAfterBlock = index?.records.some((record) => coversDocumentEnd(record, state));
 
   // 块级组件后需保持 Markdown 空行隔离，避免紧随文本被解析器吸收进块内
   if (isAfterBlock) {
@@ -158,12 +150,7 @@ export class VirtualTrailingLineWidget extends WidgetType {
 
     dom.addEventListener("mousedown", (event) => {
       if (event.button !== 0) return;
-      view.dispatch({
-        selection: EditorSelection.cursor(view.state.doc.length),
-        effects: setVirtualTrailingLineActiveEffect.of(true),
-        userEvent: "select",
-      });
-      view.focus();
+      placeCaretAtDocumentEnd(view);
     });
 
     return dom;
@@ -302,9 +289,10 @@ export function moveDownToVirtualTrailingLine(view: EditorView): boolean {
     const record = index?.records.find(
       (r) => r.fullRange.from === sel.from && r.fullRange.to === sel.to,
     );
-    if (record && trailingLineBreakEnd(record, state) === state.doc.length) {
+    if (record && coversDocumentEnd(record, state)) {
+      // 光标放到 doc.length，而不是块的 to。to 仍落在 HTML 闭区间内，会把预览拆开。
       view.dispatch({
-        selection: EditorSelection.cursor(record.fullRange.to),
+        selection: EditorSelection.cursor(state.doc.length),
         effects: [
           clearWysiwygAtomSelectionEffect.of(null),
           setVirtualTrailingLineActiveEffect.of(true),
@@ -365,29 +353,27 @@ export function moveUpFromVirtualTrailingLine(view: EditorView): boolean {
 /**
  * 快捷键绑定集合。
  */
+function virtualTrailingLineIsActive(view: EditorView): boolean {
+  return view.state.field(virtualTrailingLineActiveField, false) === true;
+}
+
 export const virtualTrailingLineKeymap: Extension = Prec.highest(
   keymap.of([
     {
       key: "Enter",
       run: (view) => {
         if (exitAtomAtEndOfDocument(view)) return true;
-        if (view.state.field(virtualTrailingLineActiveField, false)) {
-          const prefix = calculateMaterializationPrefix(view.state);
-          const insertPos = view.state.doc.length;
-          view.dispatch({
-            changes: { from: insertPos, insert: prefix },
-            selection: EditorSelection.cursor(insertPos + prefix.length),
-            effects: [setVirtualTrailingLineActiveEffect.of(false)],
-            annotations: [
-              Transaction.addToHistory.of(true),
-              authorizeWysiwygProtectedChange.of(true),
-            ],
-            userEvent: "input.type",
-          });
-          return true;
-        }
-        return false;
+        // 虚拟行本身就是空行。单独按 Enter 不写入换行，避免干净文件被空行污染。
+        return virtualTrailingLineIsActive(view);
       },
+    },
+    {
+      key: "Backspace",
+      run: (view) => virtualTrailingLineIsActive(view),
+    },
+    {
+      key: "Delete",
+      run: (view) => virtualTrailingLineIsActive(view),
     },
     {
       key: "ArrowDown",
@@ -398,20 +384,49 @@ export const virtualTrailingLineKeymap: Extension = Prec.highest(
       run: (view) => moveUpFromVirtualTrailingLine(view),
     },
     {
+      key: "ArrowLeft",
+      run: (view) =>
+        virtualTrailingLineIsActive(view) ? moveUpFromVirtualTrailingLine(view) : false,
+    },
+    {
       key: "Escape",
       run: (view) => {
-        if (view.state.field(virtualTrailingLineActiveField, false)) {
-          view.dispatch({
-            effects: setVirtualTrailingLineActiveEffect.of(false),
-            userEvent: "select",
-          });
-          return true;
+        if (!virtualTrailingLineIsActive(view)) {
+          return false;
         }
-        return false;
+        view.dispatch({
+          effects: setVirtualTrailingLineActiveEffect.of(false),
+          userEvent: "select",
+        });
+        return true;
       },
     },
   ]),
 );
+
+/**
+ * 把虚拟空行物化成真实文本。prefix 与正文在同一事务里，undo 一次就能一起撤回。
+ */
+export function materializeVirtualTrailingLine(
+  view: EditorView,
+  inserted: string,
+  userEvent: string,
+): boolean {
+  if (!virtualTrailingLineIsActive(view)) {
+    return false;
+  }
+  const prefix = calculateMaterializationPrefix(view.state);
+  const text = prefix + inserted;
+  const insertPos = view.state.doc.length;
+  view.dispatch({
+    changes: text.length > 0 ? { from: insertPos, insert: text } : undefined,
+    selection: EditorSelection.cursor(insertPos + text.length),
+    effects: [setVirtualTrailingLineActiveEffect.of(false)],
+    annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+    userEvent,
+  });
+  return true;
+}
 
 /**
  * 打字即时物化拦截器：当虚拟空行激活时，按键输入即时补齐换行并插入文本。
@@ -421,90 +436,147 @@ export const virtualTrailingLineInputHandler = EditorView.inputHandler.of(
     if (view.composing || insert === "") {
       return false;
     }
-    const isActive = view.state.field(virtualTrailingLineActiveField, false);
-    if (!isActive) {
-      return false;
-    }
-
-    const prefix = calculateMaterializationPrefix(view.state);
-    const textToInsert = prefix + insert;
-    const insertPos = view.state.doc.length;
-    view.dispatch({
-      changes: { from: insertPos, insert: textToInsert },
-      selection: EditorSelection.cursor(insertPos + textToInsert.length),
-      effects: [setVirtualTrailingLineActiveEffect.of(false)],
-      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
-      userEvent: "input.type",
-    });
-    return true;
+    return materializeVirtualTrailingLine(view, insert, "input.type");
   },
 );
+
+/** 组字开始时写入的前导换行。取消组字且没有上屏文字时把它撤掉。 */
+const pendingImePrefix = new WeakMap<EditorView, { from: number; to: number }>();
+
+function isShiftPaste(event: Event): boolean {
+  // ClipboardEvent 的类型定义没有 shiftKey，部分浏览器仍会带上这次按键状态。
+  const shiftKey = (event as { shiftKey?: boolean }).shiftKey;
+  return shiftKey === true;
+}
+
+function pastedTextForVirtualLine(clipboard: DataTransfer, shiftKey: boolean): string {
+  const plain = clipboard.getData("text/plain");
+  if (shiftKey) {
+    return plain;
+  }
+  const html = clipboard.getData("text/html");
+  if (html.trim() && shouldConvertClipboardHtml(clipboard)) {
+    const converted = convertHtmlToMarkdown(html);
+    if (converted) {
+      return converted;
+    }
+  }
+  return plain;
+}
 
 /**
  * 粘贴与 IME 组字物化支持，及滚动容器底部空白区单击激活。
  */
-export const virtualTrailingLineDOMHandlers = EditorView.domEventHandlers({
-  paste(event, view) {
-    const isActive = view.state.field(virtualTrailingLineActiveField, false);
-    if (!isActive) return false;
+export const virtualTrailingLinePasteHandler = Prec.highest(
+  EditorView.domEventHandlers({
+    paste(event, view) {
+      if (!virtualTrailingLineIsActive(view)) {
+        return false;
+      }
+      const clipboard = event.clipboardData;
+      if (!clipboard) {
+        return false;
+      }
+      const text = pastedTextForVirtualLine(clipboard, isShiftPaste(event));
+      if (!text) {
+        return false;
+      }
+      event.preventDefault();
+      return materializeVirtualTrailingLine(view, text, "input.paste");
+    },
+  }),
+);
 
-    const text = event.clipboardData?.getData("text/plain");
-    if (!text) return false;
+/**
+ * 把光标放到文档末尾。虚拟空行开启时同时点亮它，文档本身不改。
+ * 选区移动不进撤销栈，避免点一下留白就占掉一次撤销。
+ */
+function placeCaretAtDocumentEnd(view: EditorView): void {
+  view.dispatch({
+    selection: EditorSelection.cursor(view.state.doc.length),
+    effects: setVirtualTrailingLineActiveEffect.of(needsVirtualTrailingLine(view.state)),
+    annotations: Transaction.addToHistory.of(false),
+    userEvent: "select",
+  });
+  view.focus();
+}
 
-    const prefix = calculateMaterializationPrefix(view.state);
-    const textToInsert = prefix + text;
-    const insertPos = view.state.doc.length;
-    view.dispatch({
-      changes: { from: insertPos, insert: textToInsert },
-      selection: EditorSelection.cursor(insertPos + textToInsert.length),
-      effects: [setVirtualTrailingLineActiveEffect.of(false)],
-      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
-      userEvent: "input.paste",
-    });
-    event.preventDefault();
-    return true;
-  },
-  compositionstart(_event, view) {
-    const isActive = view.state.field(virtualTrailingLineActiveField, false);
-    if (!isActive) return false;
+/**
+ * 点击是否落在最后一行之下的编辑器留白。
+ * `.cm-content` 有 `min-height: 100%` 和下内边距，盒子底边包含留白，
+ * 不能拿它和点击坐标比。最后一行（含虚拟空行）的底边才是正文终点。
+ */
+function isClickBelowDocument(view: EditorView, event: MouseEvent): boolean {
+  if (event.button !== 0 || event.shiftKey) {
+    return false;
+  }
+  const content = view.contentDOM;
+  const contentBox = content.getBoundingClientRect();
+  if (event.clientX < contentBox.left || event.clientX > contentBox.right) {
+    return false;
+  }
+  const lastBottom = lastDocumentChildBottom(content);
+  if (lastBottom === null || event.clientY <= lastBottom) {
+    return false;
+  }
+  const scrollerBox = view.scrollDOM.getBoundingClientRect();
+  return event.clientY <= Math.max(contentBox.bottom, scrollerBox.bottom);
+}
 
-    // CJK 输入法组字开始时物化前导换行，确保浏览器有真实 DOM 选区锚点
-    const prefix = calculateMaterializationPrefix(view.state);
-    if (prefix.length > 0) {
-      view.dispatch({
-        changes: { from: view.state.doc.length, insert: prefix },
-        selection: EditorSelection.cursor(view.state.doc.length + prefix.length),
-        effects: [setVirtualTrailingLineActiveEffect.of(false)],
-        annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
-      });
+function lastDocumentChildBottom(content: HTMLElement): number | null {
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const child of content.children) {
+    if (!(child instanceof HTMLElement)) {
+      continue;
     }
+    const childBottom = child.getBoundingClientRect().bottom;
+    if (childBottom > bottom) {
+      bottom = childBottom;
+    }
+  }
+  return Number.isFinite(bottom) ? bottom : null;
+}
+
+export const virtualTrailingLineDOMHandlers = EditorView.domEventHandlers({
+  compositionstart(_event, view) {
+    if (!virtualTrailingLineIsActive(view)) return false;
+
+    // 组字需要真实 DOM 选区。前导换行用 compose.start，后续 compose 会并进同一次 undo。
+    const from = view.state.doc.length;
+    const prefix = calculateMaterializationPrefix(view.state);
+    if (prefix.length === 0) {
+      return false;
+    }
+    materializeVirtualTrailingLine(view, "", "input.type.compose.start");
+    pendingImePrefix.set(view, { from, to: view.state.doc.length });
+    return false;
+  },
+  compositionend(event, view) {
+    const pending = pendingImePrefix.get(view);
+    pendingImePrefix.delete(view);
+    if (!pending || event.data) {
+      return false;
+    }
+    if (view.state.doc.length !== pending.to || pending.to <= pending.from) {
+      return false;
+    }
+    view.dispatch({
+      changes: { from: pending.from, to: pending.to, insert: "" },
+      selection: EditorSelection.cursor(pending.from),
+      effects: [setVirtualTrailingLineActiveEffect.of(true)],
+      annotations: [Transaction.addToHistory.of(true), authorizeWysiwygProtectedChange.of(true)],
+      userEvent: "input.type.compose",
+    });
     return false;
   },
   mousedown(event, view) {
-    if (event.button !== 0) return false;
-    if (needsVirtualTrailingLine(view.state)) {
-      const target = event.target as HTMLElement | null;
-      if (
-        target?.classList.contains("cm-scroller") ||
-        target?.classList.contains("cm-editor") ||
-        target?.classList.contains("cm-content")
-      ) {
-        const content = view.contentDOM;
-        const contentBox = content.getBoundingClientRect();
-        // 用户点击了文档最下方空白区（低于最后一行元素）
-        if (event.clientY > contentBox.bottom - 4) {
-          view.dispatch({
-            selection: EditorSelection.cursor(view.state.doc.length),
-            effects: setVirtualTrailingLineActiveEffect.of(true),
-            userEvent: "select",
-          });
-          view.focus();
-          event.preventDefault();
-          return true;
-        }
-      }
+    if (!isClickBelowDocument(view, event)) {
+      return false;
     }
-    return false;
+    // 文末留白：光标落到最后一行。虚拟空行存在时，这一行就是虚拟空行。
+    placeCaretAtDocumentEnd(view);
+    event.preventDefault();
+    return true;
   },
 });
 
@@ -517,5 +589,6 @@ export const virtualTrailingLineExtension: Extension = [
   virtualTrailingLineTheme,
   virtualTrailingLineKeymap,
   virtualTrailingLineInputHandler,
+  virtualTrailingLinePasteHandler,
   virtualTrailingLineDOMHandlers,
 ];
