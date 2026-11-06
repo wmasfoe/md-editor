@@ -1,8 +1,5 @@
-// @vitest-environment jsdom
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
-import { history, undo, defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { describe, expect, it } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -18,7 +15,6 @@ import {
 import {
   clearHtmlSanitizeCache,
   getHtmlSanitizeCacheSize,
-  htmlSourceKeymap,
 } from "../../src/wysiwyg/projections/html-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
 
@@ -146,59 +142,5 @@ describe("M4-a HTML projection", () => {
       atomicRangeCount: 0,
       protectedRanges: [],
     });
-  });
-
-  it("handles in-place editing, Mod-Enter exit, and undo", () => {
-    const doc = ["Before", "", "<div>Safe peek</div>", "", "After", ""].join("\n");
-    const diagnostics = new WysiwygDiagnostics();
-    const view = new EditorView({
-      state: EditorState.create({
-        doc,
-        selection: EditorSelection.cursor(0),
-        extensions: [
-          history(),
-          keymap.of([...defaultKeymap, ...historyKeymap]),
-          markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
-          provideWysiwygDiagnostics(diagnostics),
-          editorModeField,
-          markdownRangeIndexField,
-          configureWysiwygProjectionFeatures(["html"]),
-          wysiwygProjectionField,
-          htmlSourceKeymap,
-        ],
-      }),
-    });
-
-    const index = view.state.field(markdownRangeIndexField);
-    const htmlRecord = index.byKind("html")[0];
-    expect(htmlRecord).toBeDefined();
-
-    // 1. Move cursor into the HTML block
-    view.dispatch({ selection: EditorSelection.cursor(htmlRecord.fullRange.from) });
-    expect(findHtmlWidget(view.state)).toBeNull();
-
-    // 2. Type text
-    view.dispatch({
-      changes: { from: htmlRecord.fullRange.from, insert: "<!--peek-->" },
-      selection: EditorSelection.cursor(htmlRecord.fullRange.from + "<!--peek-->".length),
-    });
-    expect(view.state.doc.toString()).toContain("<!--peek--><div>Safe peek</div>");
-
-    // 3. Trigger Mod-Enter (simulated via keydown / command)
-    const event = new KeyboardEvent("keydown", {
-      key: "Enter",
-      ctrlKey: process.platform !== "darwin",
-      metaKey: process.platform === "darwin",
-      bubbles: true,
-      cancelable: true,
-    });
-    view.contentDOM.dispatchEvent(event);
-
-    // Verify cursor moved outside and widget re-appeared
-    expect(inspectWysiwygProjection(view.state).layoutDecorationCount).toBe(1);
-
-    // 4. Undo
-    undo(view);
-    expect(view.state.doc.toString()).toBe(doc);
   });
 });

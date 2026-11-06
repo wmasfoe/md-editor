@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 
+if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+}
+
 import { history, undo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
