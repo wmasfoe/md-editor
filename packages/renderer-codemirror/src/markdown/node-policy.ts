@@ -168,8 +168,19 @@ const POLICIES: Readonly<Record<string, MarkdownNodePolicy>> = Object.freeze({
   HTMLBlock: definePolicy({
     kind: "html",
     renderPolicy: "html-widget",
-    editPolicy: "structured",
-    interactionPolicy: "structured-block",
+    editPolicy: "native",
+    interactionPolicy: "reveal-source",
+    priority: 20,
+    markerNodeNames: [],
+    contentStrategy: "full",
+  }),
+  // 注释是作者笔记，不是可渲染 HTML。走 html-widget 时清洗结果为空，
+  // 会显示成「不安全 HTML」占位卡片。保留源码，只加弱化行样式。
+  CommentBlock: definePolicy({
+    kind: "deferred-html",
+    renderPolicy: "deferred-raw",
+    editPolicy: "native",
+    interactionPolicy: "none",
     priority: 20,
     markerNodeNames: [],
     contentStrategy: "full",

@@ -9,7 +9,11 @@ import {
   codeBlockLineNumbersField,
 } from "../projections/code-block-projection.ts";
 import { buildFrontmatterLayoutDecorations } from "../projections/frontmatter-projection.ts";
-import { buildHtmlLayoutDecorations, isProjectableHtml } from "../projections/html-projection.ts";
+import {
+  buildCommentLayoutDecorations,
+  buildHtmlLayoutDecorations,
+  isProjectableHtml,
+} from "../projections/html-projection.ts";
 import { buildHeadingLayoutDecorations } from "../projections/inline-heading.ts";
 import { buildLinkMediaLayoutDecorations } from "../projections/link-projection.ts";
 import { buildBlockLayoutDecorations } from "../projections/list-projection.ts";
@@ -136,8 +140,16 @@ function buildLayoutDecorationsForRecord(
       state,
     );
   }
+  if (record.nodeName === "CommentBlock") {
+    return buildCommentLayoutDecorations(record, state);
+  }
   if (state.facet(configuredProjectionFeatures).includes("html") && isProjectableHtml(record)) {
-    return buildHtmlLayoutDecorations(record, selectedAtomIds.includes(record.id), state);
+    return buildHtmlLayoutDecorations(
+      record,
+      activeSyntaxIds.includes(record.id),
+      selectedAtomIds.includes(record.id),
+      state,
+    );
   }
   if (state.facet(configuredProjectionFeatures).includes("mdx") && isProjectableMdx(record)) {
     return buildMdxLayoutDecorations(record, selectedAtomIds.includes(record.id), state);

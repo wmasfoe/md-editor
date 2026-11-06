@@ -146,6 +146,7 @@ export const WYSIWYG_DOMAIN_MEMBERS = {
     "paragraph-indent.ts",
     "task-toggle.ts",
     "head-level-control.ts",
+    "virtual-trailing-line.ts",
   ],
   input: [
     "plain-text-input.ts",

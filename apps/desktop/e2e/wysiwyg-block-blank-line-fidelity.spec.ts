@@ -174,10 +174,36 @@ test.describe("WYSIWYG 块间空行保真（标题 ↔ 块级 widget）", () => 
       )
       .toBe(false);
 
-    // 再按一次 ArrowDown 离开整表，光标回落到表格记录末端（与分割线同一契约：
-    // 向下离开整块原子时折叠到 `record.fullRange.to`）。
+    // 再按一次 ArrowDown 离开整表。表格贴在文末，下方没有正文可落：
+    // 光标落到 `doc.length` 并点亮虚拟空行，文档一个字节都不变。
+    // 不能停在 `record.fullRange.to`：HTML 块的闭区间包含它，会把预览拆成源码。
     await page.keyboard.press("ArrowDown");
     await expect(widget).toHaveAttribute("aria-selected", "false");
+    await expect(page.locator(".cm-virtual-trailing-line--active")).toHaveCount(1);
+    const after = await diagnostics(page);
+    expect(after.renderer?.selectionHead).toBe(markdown.length);
+    expect(after.renderer?.markdown).toBe(markdown);
+  });
+
+  test("表格后还有正文时，向下离开整块原子折叠到表格记录末端", async ({ page }) => {
+    await openHarness(page);
+    const markdown = [HEADING, "", ...TABLE_CASE.body, "", "后续正文", ""].join("\n");
+    await replaceDocument(page, markdown);
+
+    const widget = page.locator(`.${TABLE_CASE.widgetClass}`);
+    await expect(widget).toHaveCount(1);
+
+    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setSelection(0, 0));
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(widget).toHaveAttribute("aria-selected", "true");
+
+    // 非文末块：没有虚拟空行，沿用统一契约，折叠到 `record.fullRange.to`（与分割线一致）。
+    const tableFrom = markdown.indexOf(TABLE_CASE.body[0]);
+    const tableTo = tableFrom + TABLE_CASE.body.join("\n").length;
+    await page.keyboard.press("ArrowDown");
+    await expect(widget).toHaveAttribute("aria-selected", "false");
+    await expect(page.locator(".cm-virtual-trailing-line")).toHaveCount(0);
     const after = await diagnostics(page);
     expect(after.renderer?.selectionHead).toBe(tableTo);
   });

@@ -11,6 +11,7 @@
 - 编辑器模式切换与 AI 流式生命周期治理规范： [editor_mode_switch_and_ai_lifecycle_spec.md](./editor_mode_switch_and_ai_lifecycle_spec.md)
 - 自定义图片相对路径解析与目录拦截规范： [image_path_resolution_and_directory_creation_spec.md](./image_path_resolution_and_directory_creation_spec.md)
 - 整行块级替换 Inclusivity 与符号型块间距规范（含 Thematic Break / 表格 / HTML / MDX）： [thematic_break_and_block_inclusivity_spec.md](./thematic_break_and_block_inclusivity_spec.md)
+- WYSIWYG 文末虚拟空行与 HTML 块源码展开规范（光标落点必须是 `doc.length`、物化与撤销、粘贴/IME、HTML 预览安全与点击）： [wysiwyg_virtual_trailing_line_spec.md](./wysiwyg_virtual_trailing_line_spec.md)
 - CM6 高度图与点击落点保真规范（块间距必须用 padding、禁止 margin）： [codemirror_height_map_and_click_fidelity_spec.md](./codemirror_height_map_and_click_fidelity_spec.md)
 - 编辑器模式切换视口滚动与光标几何定位规范： [editor_mode_switch_viewport_and_cursor_spec.md](./editor_mode_switch_viewport_and_cursor_spec.md)
 - 编辑器交互契约规范（Tab 归属 / 链接类文本与打开通路 / 图片视频口径，含踩坑与用例缺口）： [editor_interaction_tab_and_links_spec.md](./editor_interaction_tab_and_links_spec.md)
@@ -29,6 +30,7 @@
 - 涉及渲染器模式切换（WYSIWYG <-> Source）、`noop` 幂等性、并发防重入锁或 AI 续写流/幽灵建议清理销毁时，先读编辑器模式切换与 AI 流式生命周期治理规范。
 - 涉及图片粘贴保存、`./` 或 `../` 相对路径解析、`${filename}` 变量动态替换或未存在目录拦截创建弹窗时，先读自定义图片相对路径解析与目录拦截规范。
 - CM6 整行块级替换（Thematic Break / 表格 / HTML 块 / MDX 块 / setext 等兜底原子块）的 Inclusivity 语义、幽灵空行、块间空行保真或符号型块默认间距时，先读整行块级替换 Inclusivity 与符号型块间距规范。
+- 涉及文档末尾是表格 / HTML 块 / 分割线 / MDX 时的光标落点、文末虚拟空行（`virtual-trailing-line.ts`）、HTML 块源码展开与折叠（`html-projection.ts`）、HTML 预览挂载与点击行为，或改动 `virtualTrailingLineActiveField` 时，先读文末虚拟空行与 HTML 块源码展开规范。
 - 涉及**给块级行/块级 widget 提供垂直间距**、改块级 `height` / `box-sizing` / `padding` / 行高、新增整行块级 widget，
   或排查「滚动后点击位置与光标落点不一致 / 光标落到隔壁行」时，先读 CM6 高度图与点击落点保真规范。
 - 涉及双模式（WYSIWYG <-> Source）切换时视口滚动跳动、长文档光标居中保持或往返无损记忆时，先读编辑器模式切换视口滚动与光标几何定位规范。

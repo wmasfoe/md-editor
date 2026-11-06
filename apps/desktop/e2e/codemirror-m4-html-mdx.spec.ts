@@ -90,6 +90,8 @@ test.describe("CodeMirror M4 HTML projection", () => {
     const widget = page.locator(".cm-md-html-block-widget");
     await widget.click();
     await expect(widget).toHaveAttribute("aria-selected", "true");
+    // 原子选中态由组件自身外框呈现，绝不应在组件下方绘制闪烁光标
+    await expect(page.locator(".cm-cursor")).toHaveCount(0);
     await page.keyboard.press("Backspace");
     const withoutHtml = ["Before", "", "", "", "After", ""].join("\n");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(withoutHtml);
@@ -115,7 +117,7 @@ test.describe("CodeMirror M4 HTML projection", () => {
     await expect(page.locator(".cm-content")).toContainText("<table><tr><td>A</td></tr></table>");
   });
 
-  test("M4-E05: source peek commits with Mod-Enter and undoes in the parent editor", async ({
+  test("M4-E05: in-place source editing exits with Mod-Enter and undoes in the parent editor", async ({
     page,
   }) => {
     await openHarness(page);
@@ -123,34 +125,33 @@ test.describe("CodeMirror M4 HTML projection", () => {
     await replaceDocument(page, markdown);
 
     const widget = page.locator(".cm-md-html-block-widget");
-    await widget.dblclick();
-    const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
-    await expect(nested).toBeVisible();
-    await nested.click();
-    await page.keyboard.type("<!--peek-->");
+    await widget.hover();
+    await widget.locator(".cm-md-html-block-widget__btn--edit").click();
+    await expect(page.locator(".cm-md-html-source-line")).toBeVisible();
+    await page.keyboard.insertText("<!--peek-->");
     await page.keyboard.press(`${MOD_KEY}+Enter`);
     await expect
       .poll(async () => (await diagnostics(page)).renderer?.markdown)
       .toContain("<!--peek-->");
 
-    await page.keyboard.press(`${MOD_KEY}+z`);
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+z" : "Control+z");
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(markdown);
   });
 
-  test("M4-E06: Escape cancels source peek without changing the document", async ({ page }) => {
+  test("M4-E06: Escape exits in-place source editing and restores rendered widget", async ({
+    page,
+  }) => {
     await openHarness(page);
     const markdown = ["Before", "", "<div>Safe peek</div>", "", "After", ""].join("\n");
     await replaceDocument(page, markdown);
 
     const widget = page.locator(".cm-md-html-block-widget");
-    await widget.dblclick();
-    const nested = widget.locator(".cm-md-html-block-widget__editor .cm-content");
-    await expect(nested).toBeVisible();
-    await nested.click();
-    await page.keyboard.type("<!--nope-->");
+    await widget.hover();
+    await widget.locator(".cm-md-html-block-widget__btn--edit").click();
+    await expect(page.locator(".cm-md-html-source-line")).toBeVisible();
     await page.keyboard.press("Escape");
 
-    await expect(widget).not.toHaveClass(/cm-md-html-block-widget--peek/);
+    await expect(page.locator(".cm-md-html-block-widget")).toBeVisible();
     await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(markdown);
   });
 });

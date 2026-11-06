@@ -6,6 +6,7 @@ import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
 import { editorModeField } from "../../src/mode.ts";
 import {
+  computeCursorMarkers,
   computeSelectionMarkers,
   isAtomSelection,
 } from "../../src/wysiwyg/editing/code-block-selection.ts";
@@ -66,6 +67,54 @@ describe("thematic-break atom selection and selection layer markers", () => {
     // 验证自绘选区层不会为该原子选区生成任何 RectangleMarker（杜绝在黑框上方绘制多余的蓝色横条）
     const markers = computeSelectionMarkers(view);
     expect(markers).toHaveLength(0);
+
+    // 验证自绘光标层不会为原子选中态生成光标（杜绝在组件外框边缘闪烁多余的光标）
+    const cursorMarkers = computeCursorMarkers(view);
+    expect(cursorMarkers).toHaveLength(0);
+  });
+
+  it("identifies atom selection for html block and skips generating selection and cursor markers", () => {
+    const doc = "Before\n\n<div>Safe</div>\n\nAfter\n";
+    let state = EditorState.create({
+      doc,
+      extensions: [
+        EditorState.allowMultipleSelections.of(true),
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS, addKeymap: false }),
+        editorModeField,
+        markdownRangeIndexField,
+        configureWysiwygProjectionFeatures(["html"]),
+        wysiwygProjectionField,
+      ],
+    });
+    const htmlRecord = state.field(markdownRangeIndexField).byKind("html")[0];
+    expect(htmlRecord).toBeDefined();
+
+    const view = {
+      get state() {
+        return state;
+      },
+      dispatch(spec: TransactionSpec) {
+        state = state.update(spec).state;
+      },
+      focus() {},
+      textDirection: 0,
+      scrollDOM: {
+        getBoundingClientRect: () => ({ left: 0, top: 0, right: 800, bottom: 600 }),
+        clientWidth: 800,
+        scrollLeft: 0,
+        scrollTop: 0,
+      },
+    } as unknown as EditorView;
+
+    expect(selectWysiwygAtom(view, htmlRecord.id)).toBe(true);
+    expect(inspectWysiwygProjection(state).selectedAtomIds).toEqual([htmlRecord.id]);
+    expect(isAtomSelection(state, state.selection.main)).toBe(true);
+
+    const selectionMarkers = computeSelectionMarkers(view);
+    expect(selectionMarkers).toHaveLength(0);
+
+    const cursorMarkers = computeCursorMarkers(view);
+    expect(cursorMarkers).toHaveLength(0);
   });
 
   it("does not treat regular text selection as atom selection", () => {

@@ -550,6 +550,10 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
 }
 
 function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  // HTML 与表格/图片一致：方向键只原子选中整块。源码由双击、编辑按钮或 Mod-Enter 进入。
+  if (record.kind === "html") {
+    return false;
+  }
   // 表格始终显示网格并在单元格内编辑，Arrow 进入时原子选中整表（不回显源码）。
   return isSelectableAtom(record, state) && record.interactionPolicy === "reveal-source";
 }
@@ -583,9 +587,7 @@ function isDeletableAtom(record: SelectableAtom): record is DeletableAtom {
     (record.kind === "table" &&
       record.renderPolicy === "table-widget" &&
       record.editPolicy === "structured") ||
-    (record.kind === "html" &&
-      record.renderPolicy === "html-widget" &&
-      record.editPolicy === "structured") ||
+    (record.kind === "html" && record.renderPolicy === "html-widget") ||
     (record.kind === "mdx-jsx" &&
       record.renderPolicy === "mdx-widget" &&
       record.editPolicy === "structured")

@@ -30,12 +30,12 @@ import {
   wysiwygProjectionField,
 } from "./state/projection-field.ts";
 import { type WysiwygProjectionFeature } from "./state/types.ts";
-import { htmlProjectionTheme } from "./projections/html-projection.ts";
-import { htmlSourcePeekDraftField } from "./widgets/html-block-widget.ts";
+import { htmlProjectionTheme, htmlSourceKeymap } from "./projections/html-projection.ts";
 import { mdxProjectionTheme } from "./projections/mdx-projection.ts";
 import { tableProjectionTheme } from "./projections/table-projection.ts";
 import { blockReplacementTheme } from "./blocks/block-replacement.ts";
 import { visibleMarkdownMarksPlugin } from "./state/visible-marks.ts";
+import { virtualTrailingLineExtension } from "./editing/virtual-trailing-line.ts";
 
 export function createWysiwygProjectionExtensions(
   features: readonly WysiwygProjectionFeature[],
@@ -55,7 +55,7 @@ export function createWysiwygProjectionExtensions(
     blockReplacementTheme,
     tableProjectionTheme,
     htmlProjectionTheme,
-    htmlSourcePeekDraftField,
+    htmlSourceKeymap,
     mdxProjectionTheme,
     wysiwygProjectionField,
     clearWysiwygTypedBoundaryOnBlur,
@@ -88,6 +88,7 @@ export function createWysiwygProjectionExtensions(
     // 两者都是独立 ViewPlugin，不进 layoutDecorations → 不参与 G004 map-vs-rebuild 判定。
     focusModeExtension,
     typewriterModeExtension,
+    virtualTrailingLineExtension,
   ];
 }
 
@@ -99,3 +100,7 @@ export {
   createMarkdownFormattingKeymap,
   normalizeCodeMirrorKey,
 } from "./editing/markdown-formatting.ts";
+export {
+  needsVirtualTrailingLine,
+  virtualTrailingLineExtension,
+} from "./editing/virtual-trailing-line.ts";

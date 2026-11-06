@@ -105,7 +105,11 @@ function buildAtomicRangesForRecord(
     return buildTableAtomicRanges(record, activeSyntaxIds.includes(record.id));
   }
   if (state.facet(configuredProjectionFeatures).includes("html") && isProjectableHtml(record)) {
-    return buildHtmlAtomicRanges(record, _selectedAtomIds.includes(record.id));
+    return buildHtmlAtomicRanges(
+      record,
+      activeSyntaxIds.includes(record.id),
+      _selectedAtomIds.includes(record.id),
+    );
   }
   if (state.facet(configuredProjectionFeatures).includes("mdx") && isProjectableMdx(record)) {
     return buildMdxAtomicRanges(record);
@@ -125,6 +129,7 @@ export function buildProtectedRanges(
   index: MarkdownRangeIndex,
   activeSyntaxIds: readonly string[],
   state: EditorState,
+  selectedAtomIds: readonly string[] = [],
 ): readonly ProtectedSourceRange[] {
   return freezeRanges(
     index.records.flatMap((record) => {
@@ -173,7 +178,11 @@ export function buildProtectedRanges(
       }
       if (state.facet(configuredProjectionFeatures).includes("html") && isProjectableHtml(record)) {
         ranges.push(
-          ...getHtmlProtectedRanges(record).map((range) => ({
+          ...getHtmlProtectedRanges(
+            record,
+            activeSyntaxIds.includes(record.id),
+            selectedAtomIds.includes(record.id),
+          ).map((range) => ({
             ...range,
             kind: "html" as const,
           })),
