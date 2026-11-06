@@ -17,6 +17,7 @@ import {
   getHtmlSanitizeCacheSize,
 } from "../../src/wysiwyg/projections/html-projection.ts";
 import { findLayoutDecorationsForTesting } from "../../src/testing.ts";
+import { setVirtualTrailingLineActiveEffect } from "../../src/wysiwyg/state/types.ts";
 
 interface ProjectionHarness {
   readonly state: EditorState;
@@ -37,6 +38,7 @@ function createHtmlHarness(
       provideWysiwygDiagnostics(diagnostics),
       editorModeField,
       markdownRangeIndexField,
+      EditorState.allowMultipleSelections.of(true),
       configureWysiwygProjectionFeatures(features),
       wysiwygProjectionField,
     ],
@@ -139,6 +141,103 @@ describe("M4-a HTML projection", () => {
     expect(index.byKind("html")).toHaveLength(0);
     expect(findHtmlWidget(state)).toBeNull();
     expect(findLayoutDecorationsForTesting(state, "html-comment").length).toBeGreaterThan(0);
+  });
+
+  describe("who owns the caret at the end of the document", () => {
+    // HTML 块贴在文末时，块的闭区间右端点与虚拟空行的光标是同一个偏移（doc.length）。
+    // 规则：虚拟行激活且光标是空光标并停在 doc.length 时，光标属于虚拟行，HTML 不展开源码。
+    // 文档必须不带尾随换行：这样 fullRange.to === doc.length，光标才落在块的闭区间内，
+    // 两个“拥有者”才真的在争同一个偏移；带尾随换行时光标在块外，用例就测不到这条规则。
+    const doc = "Before\n\n<div>End</div>";
+
+    function stateAtEnd() {
+      const { state, index } = createHtmlHarness(doc);
+      const html = index.byKind("html")[0];
+      expect(html.fullRange.to).toBe(state.doc.length);
+      return { state, html };
+    }
+
+    it("keeps the preview collapsed when the virtual line holds the caret", () => {
+      const { state, html } = stateAtEnd();
+      const next = state.update({
+        selection: EditorSelection.cursor(state.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      expect(inspectWysiwygProjection(next).activeSyntaxIds).not.toContain(html.id);
+      expect(findLayoutDecorationsForTesting(next, "html-widget")).toHaveLength(1);
+      expect(findLayoutDecorationsForTesting(next, "html-source-line")).toHaveLength(0);
+    });
+
+    it("reveals the source for the same caret when the virtual line is not active", () => {
+      const { state, html } = stateAtEnd();
+      const next = state.update({ selection: EditorSelection.cursor(state.doc.length) }).state;
+      expect(inspectWysiwygProjection(next).activeSyntaxIds).toContain(html.id);
+      expect(findLayoutDecorationsForTesting(next, "html-source-line").length).toBeGreaterThan(0);
+    });
+
+    // 折叠 / 展开都是“选区 + 虚拟行标志”同一事务派发。投影字段的更新可能早于虚拟行字段，
+    // 若读字段里的旧值，会按上一状态判断，出现一帧闪烁或停在错误状态。
+    it("reads the effect of the same transaction when arming (stale field is false)", () => {
+      const { state, html } = stateAtEnd();
+      const away = state.update({ selection: EditorSelection.cursor(0) }).state;
+      const armed = away.update({
+        selection: EditorSelection.cursor(away.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      expect(inspectWysiwygProjection(armed).activeSyntaxIds).not.toContain(html.id);
+    });
+
+    it("reads the effect of the same transaction when disarming (stale field is true)", () => {
+      const { state, html } = stateAtEnd();
+      const armed = state.update({
+        selection: EditorSelection.cursor(state.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      const away = armed.update({
+        selection: EditorSelection.cursor(0),
+        effects: setVirtualTrailingLineActiveEffect.of(false),
+      }).state;
+      const back = away.update({
+        selection: EditorSelection.cursor(away.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(false),
+      }).state;
+      expect(inspectWysiwygProjection(back).activeSyntaxIds).toContain(html.id);
+    });
+
+    it("still reveals the source when another caret sits inside the block (multi-cursor)", () => {
+      // “虚拟行持有文末光标”只豁免停在文末的那个光标。另一个光标若在块内，仍然需要源码可见，
+      // 否则用户在块里的光标看不到自己正在编辑的文本。
+      const { state, html } = stateAtEnd();
+      const next = state.update({
+        selection: EditorSelection.create(
+          [
+            EditorSelection.cursor(html.fullRange.from + 3),
+            EditorSelection.cursor(state.doc.length),
+          ],
+          1,
+        ),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      expect(inspectWysiwygProjection(next).activeSyntaxIds).toContain(html.id);
+    });
+
+    it("does not hide the source for a caret that is not at the document end", () => {
+      const { state, html } = stateAtEnd();
+      const next = state.update({
+        selection: EditorSelection.cursor(html.fullRange.from + 3),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      expect(inspectWysiwygProjection(next).activeSyntaxIds).toContain(html.id);
+    });
+
+    it("does not hide the source for a range selection that merely ends at the document end", () => {
+      const { state, html } = stateAtEnd();
+      const next = state.update({
+        selection: EditorSelection.range(html.fullRange.from + 2, state.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      }).state;
+      expect(inspectWysiwygProjection(next).activeSyntaxIds).toContain(html.id);
+    });
   });
 
   it("does not project HTML when the feature is disabled", () => {

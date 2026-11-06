@@ -145,6 +145,88 @@ test.describe("Virtual Trailing Line E2E", () => {
     expect(diag.renderer?.markdown).toBe(withBlankLine);
     expect(diag.renderer?.selectionHead).toBe(withBlankLine.length);
   });
+
+  test("VTL-07: arrow-down off a terminal table parks the caret on the virtual line, typing appends below the table", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    const table = ["## 标题", "", "| a | b |", "| --- | --- |", "| 1 | 2 |", ""].join("\n");
+    await replaceDocument(page, table);
+
+    await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setSelection(0, 0));
+    // 标题 → 空行 → 整表原子选中 → 离开整表：3 次 ArrowDown。
+    for (let i = 0; i < 3; i += 1) await page.keyboard.press("ArrowDown");
+
+    await expect(page.locator(".cm-virtual-trailing-line--active")).toHaveCount(1);
+    expect((await diagnostics(page)).renderer?.markdown).toBe(table);
+
+    await page.keyboard.type("x");
+
+    // 正文成为表格下方的独立段落，而不是被吞进表格的新行。
+    await expect(page.locator(".cm-md-table-widget tbody tr")).toHaveCount(1);
+    await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(`${table}\nx`);
+  });
+
+  test("VTL-08: Enter, Backspace and Delete on the virtual line leave the file byte-identical", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await replaceDocument(page, USER_HTML_SNIPPET);
+    await page.locator(".cm-virtual-trailing-line").click();
+    await expect(page.locator(".cm-virtual-trailing-line--active")).toHaveCount(1);
+
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Backspace");
+    await page.keyboard.press("Delete");
+
+    expect((await diagnostics(page)).renderer?.markdown).toBe(USER_HTML_SNIPPET);
+    await expect(page.locator(".cm-virtual-trailing-line--active")).toHaveCount(1);
+  });
+
+  test("VTL-09: Escape out of a comment at the end of the document does not trap the caret", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    const doc = "Before\n\n<!-- note -->";
+    await replaceDocument(page, doc);
+    await page.evaluate(
+      (pos) => window.__CODEMIRROR_EDITOR_E2E__?.setSelection(pos, pos),
+      doc.indexOf("note"),
+    );
+
+    await page.keyboard.press("Escape");
+    // 注释不是需要虚拟空行的块：文末没有虚拟行，也就不该有被它吞掉的按键。
+    await expect(page.locator(".cm-virtual-trailing-line")).toHaveCount(0);
+    expect((await diagnostics(page)).renderer?.selectionHead).toBe(doc.length);
+
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => (await diagnostics(page)).renderer?.markdown).toBe(`${doc}\n`);
+  });
+
+  test("VTL-10: pasting rich HTML onto the virtual line lands as Markdown below the block", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await replaceDocument(page, USER_HTML_SNIPPET);
+    await page.locator(".cm-virtual-trailing-line").click();
+    await expect(page.locator(".cm-virtual-trailing-line--active")).toHaveCount(1);
+
+    await page.evaluate(() => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "Title");
+      data.setData("text/html", "<h2>Title</h2><ul><li>one</li><li>two</li></ul>");
+      document
+        .querySelector(".cm-content")
+        ?.dispatchEvent(
+          new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }),
+        );
+    });
+
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer?.markdown ?? "")
+      .toContain(`${USER_HTML_SNIPPET}\n\n## Title`);
+    expect((await diagnostics(page)).renderer?.markdown).not.toContain("<h2>");
+  });
 });
 
 async function clickBelow(page: Page, anchor: ReturnType<Page["locator"]>): Promise<void> {

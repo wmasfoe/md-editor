@@ -5,9 +5,9 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
 }
 import { markdown } from "@codemirror/lang-markdown";
-import { history, undo } from "@codemirror/commands";
-import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { defaultKeymap, history, undo } from "@codemirror/commands";
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { EditorView, keymap } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
@@ -30,7 +30,15 @@ import {
 } from "../../src/wysiwyg/state/types.ts";
 import { selectWysiwygAtom } from "../../src/wysiwyg/blocks/atom-selection.ts";
 
-function createHarness(doc: string, mode: "wysiwyg" | "source" = "wysiwyg") {
+/**
+ * @param extraExtensions 追加的扩展。生产根扩展装有 `defaultKeymap`，默认键位的优先级低于虚拟行键位；
+ *   要验证“虚拟行键位压过默认键位”，必须把它装进来，否则合成的 Backspace/Enter 本来就什么都不做。
+ */
+function createHarness(
+  doc: string,
+  mode: "wysiwyg" | "source" = "wysiwyg",
+  extraExtensions: readonly Extension[] = [],
+) {
   const diagnostics = new WysiwygDiagnostics();
   let state = EditorState.create({
     doc,
@@ -42,6 +50,7 @@ function createHarness(doc: string, mode: "wysiwyg" | "source" = "wysiwyg") {
       editorModeField,
       markdownRangeIndexField,
       createWysiwygProjectionExtensions(["html", "tables", "thematic-breaks"]),
+      ...extraExtensions,
     ],
   });
 
@@ -68,6 +77,9 @@ function createHarness(doc: string, mode: "wysiwyg" | "source" = "wysiwyg") {
     },
   };
 }
+
+/** 与生产根扩展一致的默认键位。 */
+const PRODUCTION_DEFAULT_KEYMAP: Extension = keymap.of(defaultKeymap);
 
 describe("Virtual Trailing Line", () => {
   describe("needsVirtualTrailingLine gating logic", () => {
@@ -356,7 +368,7 @@ describe("Virtual Trailing Line", () => {
 
     it("Backspace and Enter on the virtual line do not change the document", () => {
       const snippet = "<div>End</div>";
-      const { view, destroy } = createHarness(snippet);
+      const { view, destroy } = createHarness(snippet, "wysiwyg", [PRODUCTION_DEFAULT_KEYMAP]);
       try {
         view.dispatch({
           selection: EditorSelection.cursor(view.state.doc.length),
@@ -427,6 +439,336 @@ describe("Virtual Trailing Line", () => {
     });
   });
 
+  describe("keys on the active virtual line", () => {
+    const snippet = "<div>End</div>";
+
+    function activate() {
+      const harness = createHarness(snippet, "wysiwyg", [PRODUCTION_DEFAULT_KEYMAP]);
+      harness.view.dispatch({
+        selection: EditorSelection.cursor(harness.view.state.doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      });
+      return harness;
+    }
+
+    // 注意覆盖范围：这里只守“文档不变”这条不变量。文末的删除同时会被 wysiwygChangeProtection 拦下，
+    // 所以去掉 Backspace / Delete 的键位绑定，jsdom 里观察不到差别；绑定本身的作用（不触发
+    // “需要源码模式”提示）要靠 e2e 或人工确认。Enter 的绑定则有区分力，见下一条。
+    it("Backspace does not delete the last character of the block above", () => {
+      const { view, destroy } = activate();
+      try {
+        pressKey(view, "Backspace");
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("Enter does not insert a newline, so a clean file stays clean", () => {
+      const { view, destroy } = activate();
+      try {
+        pressKey(view, "Enter");
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("Delete does not touch the document", () => {
+      const { view, destroy } = activate();
+      try {
+        pressKey(view, "Delete");
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+      } finally {
+        destroy();
+      }
+    });
+
+    // 必须带尾随换行：无尾随换行时光标在块末端，原子选择层的 ArrowLeft 也会选中该块，
+    // 删掉虚拟行自己的 ArrowLeft 绑定结果完全一样，用例就失去区分力。
+    it.each([
+      ["html", "<div>End</div>\n", "html"],
+      ["table", "| A |\n| --- |\n| 1 |\n", "table"],
+      ["thematic break", "para\n\n---\n", "thematic-break"],
+    ] as const)(
+      "ArrowLeft leaves the virtual line and selects the preceding %s atom",
+      (_label, doc, kind) => {
+        const { view, destroy } = createHarness(doc);
+        try {
+          view.dispatch({
+            selection: EditorSelection.cursor(doc.length),
+            effects: setVirtualTrailingLineActiveEffect.of(true),
+          });
+          const record = view.state.field(markdownRangeIndexField).byKind(kind)[0];
+          expect(record.fullRange.to).toBeLessThan(doc.length);
+
+          pressKey(view, "ArrowLeft");
+
+          expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+          expect(view.state.doc.toString()).toBe(doc);
+          expect(view.state.selection.main.from).toBe(record.fullRange.from);
+          expect(view.state.selection.main.to).toBe(record.fullRange.to);
+        } finally {
+          destroy();
+        }
+      },
+    );
+
+    it("Escape deactivates the virtual line without changing the document", () => {
+      const { view, destroy } = activate();
+      try {
+        pressKey(view, "Escape");
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+        expect(view.state.doc.toString()).toBe(snippet);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("does not swallow Backspace, Delete or ArrowLeft when the virtual line is inactive", () => {
+      // 高优先级键位的返回值就是“是否接管”。未激活时必须放行，否则正文末尾的 Backspace 会失灵。
+      // 普通段落里没有任何其他处理器会接管这三个键，所以 defaultPrevented 只可能来自虚拟行键位。
+      const { view, destroy } = createHarness("Hello world");
+      try {
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+        const swallowed: string[] = [];
+        for (const key of ["Backspace", "Delete", "ArrowLeft"]) {
+          const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+          view.focus();
+          view.contentDOM.dispatchEvent(event);
+          if (event.defaultPrevented) swallowed.push(key);
+        }
+        // 用数组收集再整体断言：失败时能直接看到是哪个键被吞了。
+        expect(swallowed).toEqual([]);
+      } finally {
+        destroy();
+      }
+    });
+  });
+
+  describe("materialization", () => {
+    it("is a no-op when the virtual line is not active", () => {
+      const { view, destroy } = createHarness("<div>End</div>");
+      try {
+        expect(materializeVirtualTrailingLine(view, "x", "input.type")).toBe(false);
+        expect(view.state.doc.toString()).toBe("<div>End</div>");
+      } finally {
+        destroy();
+      }
+    });
+
+    it("writes the block-separating prefix and the text in one transaction, one undo reverts both", () => {
+      const snippet = "<div>End</div>";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({
+          selection: EditorSelection.cursor(snippet.length),
+          effects: setVirtualTrailingLineActiveEffect.of(true),
+        });
+        expect(materializeVirtualTrailingLine(view, "hi", "input.type")).toBe(true);
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\nhi`);
+        expect(view.state.selection.main.head).toBe(view.state.doc.length);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+
+        expect(undo(view)).toBe(true);
+        expect(view.state.doc.toString()).toBe(snippet);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("adds no prefix when the document already ends with a newline after a block", () => {
+      // 块后只剩一个换行时，虚拟行仍在；只需补一个换行把正文与块隔开。
+      const snippet = "| A |\n| --- |\n| 1 |\n";
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.dispatch({
+          selection: EditorSelection.cursor(snippet.length),
+          effects: setVirtualTrailingLineActiveEffect.of(true),
+        });
+        expect(materializeVirtualTrailingLine(view, "x", "input.type")).toBe(true);
+        expect(view.state.doc.toString()).toBe(`${snippet}\nx`);
+      } finally {
+        destroy();
+      }
+    });
+  });
+
+  describe("paste on the virtual line", () => {
+    const snippet = "<div>End</div>";
+
+    function activate() {
+      const harness = createHarness(snippet);
+      harness.view.dispatch({
+        selection: EditorSelection.cursor(snippet.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      });
+      return harness;
+    }
+
+    it("materializes plain text and prevents the browser default", () => {
+      const { view, destroy } = activate();
+      try {
+        const event = pasteEvent({ "text/plain": "hello" });
+        view.contentDOM.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\nhello`);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("converts rich HTML to Markdown, same as the regular smart paste", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(
+          pasteEvent({
+            "text/plain": "Title",
+            "text/html": "<h2>Title</h2><ul><li>one</li><li>two</li></ul>",
+          }),
+        );
+        const doc = view.state.doc.toString();
+        expect(doc.startsWith(`${snippet}\n\n`)).toBe(true);
+        expect(doc).toContain("## Title");
+        expect(doc).toContain("one");
+        expect(doc).not.toContain("<h2>");
+      } finally {
+        destroy();
+      }
+    });
+
+    it("keeps plain text when Shift is held", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(
+          pasteEvent({ "text/plain": "Title", "text/html": "<h2>Title</h2>" }, { shiftKey: true }),
+        );
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\nTitle`);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("does not materialize anything for an empty clipboard", () => {
+      const { view, destroy } = activate();
+      try {
+        // 不用 defaultPrevented 判断：CM6 自带的 paste 处理器对空剪贴板也会 preventDefault。
+        view.contentDOM.dispatchEvent(pasteEvent({}));
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("falls through to the default paste when the virtual line is inactive", () => {
+      const { view, destroy } = createHarness(snippet);
+      try {
+        view.contentDOM.dispatchEvent(pasteEvent({ "text/plain": "hello" }));
+        // 交给 CM6 默认粘贴：文本直接落在光标处，没有虚拟行物化才会补的 `\n\n` 前缀。
+        const doc = view.state.doc.toString();
+        expect(doc).toContain("hello");
+        expect(doc).not.toContain("\n\nhello");
+      } finally {
+        destroy();
+      }
+    });
+  });
+
+  describe("IME composition on the virtual line", () => {
+    const snippet = "<div>End</div>";
+
+    function activate(doc = snippet) {
+      const harness = createHarness(doc);
+      harness.view.dispatch({
+        selection: EditorSelection.cursor(doc.length),
+        effects: setVirtualTrailingLineActiveEffect.of(true),
+      });
+      return harness;
+    }
+
+    it("compositionstart materializes the separating newlines so the DOM has a real anchor", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\n`);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("compositionend with no committed text removes the prefix and re-activates the virtual line", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\n`);
+
+        view.contentDOM.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true, data: "" }),
+        );
+
+        expect(view.state.doc.toString()).toBe(snippet);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+        expect(view.state.selection.main.head).toBe(snippet.length);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("compositionend with committed text keeps the prefix", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        view.dispatch({
+          changes: { from: view.state.doc.length, insert: "字" },
+          selection: EditorSelection.cursor(view.state.doc.length + 1),
+          userEvent: "input.type.compose",
+        });
+        view.contentDOM.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true, data: "字" }),
+        );
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\n字`);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("does nothing at compositionend when the user already edited past the prefix", () => {
+      const { view, destroy } = activate();
+      try {
+        view.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        // 组字期间文档又长了：回收前导换行会误删用户内容，必须放弃回收。
+        view.dispatch({
+          changes: { from: view.state.doc.length, insert: "x" },
+          selection: EditorSelection.cursor(view.state.doc.length + 1),
+        });
+        view.contentDOM.dispatchEvent(
+          new CompositionEvent("compositionend", { bubbles: true, data: "" }),
+        );
+        expect(view.state.doc.toString()).toBe(`${snippet}\n\nx`);
+      } finally {
+        destroy();
+      }
+    });
+
+    it("compositionstart does nothing when no prefix is needed", () => {
+      // 普通段落末尾（无虚拟行语义）也可能被置为激活；此时 prefix 为空，不应派发多余事务。
+      const { view, destroy } = activate("Hello\n");
+      try {
+        const before = view.state.doc.toString();
+        view.contentDOM.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+        expect(view.state.doc.toString()).toBe(before);
+      } finally {
+        destroy();
+      }
+    });
+  });
+
   describe("IME prefix undo", () => {
     it("undoes the materialized prefix together with the composed text", () => {
       const snippet = "<div>End</div>";
@@ -490,4 +832,17 @@ function pressKey(view: EditorView, key: string): void {
   view.contentDOM.dispatchEvent(
     new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
   );
+}
+
+/** 构造带 clipboardData 的 paste 事件。jsdom 没有 DataTransfer，用最小实现代替。 */
+function pasteEvent(data: Record<string, string>, init: { shiftKey?: boolean } = {}): Event {
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      types: Object.keys(data),
+      getData: (format: string) => data[format] ?? "",
+    },
+  });
+  Object.defineProperty(event, "shiftKey", { value: init.shiftKey === true });
+  return event;
 }
