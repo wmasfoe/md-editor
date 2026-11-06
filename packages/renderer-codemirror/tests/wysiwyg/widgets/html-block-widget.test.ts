@@ -5,10 +5,10 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
   Range.prototype.getBoundingClientRect = () => new DOMRect();
 }
 
-import { history, undo } from "@codemirror/commands";
+import { defaultKeymap, history, undo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import { virtualTrailingLineExtension } from "../../../src/wysiwyg/editing/virtual-trailing-line.ts";
 import { virtualTrailingLineActiveField } from "../../../src/wysiwyg/state/types.ts";
 import { HtmlBlockWidget } from "../../../src/wysiwyg/widgets/html-block-widget.ts";
@@ -262,6 +262,33 @@ describe("HtmlBlockWidget native in-place reveal (Option A)", () => {
     expect(view.dom.querySelector(".cm-virtual-trailing-line--active")).not.toBeNull();
   });
 
+  it("leaving a comment at EOF does not arm a virtual line that is not on screen", () => {
+    // 注释不是需要虚拟空行的块，文末没有虚拟行可显示。若这里仍把激活态置为 true，
+    // 虚拟行的键位会吞掉 Enter / Backspace / Delete，用户被困在文末，什么都改不了。
+    const original = "Before\n\n<!-- note -->";
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: original,
+        extensions: [...parentExtensions(), keymap.of(defaultKeymap)],
+      }),
+    });
+    views.push(view);
+    view.dispatch({ selection: EditorSelection.cursor(original.indexOf("note")) });
+
+    dispatchKey(view, "Escape");
+
+    expect(view.state.selection.main.head).toBe(original.length);
+    expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+    expect(view.dom.querySelector(".cm-virtual-trailing-line")).toBeNull();
+
+    // 行为层面：Enter 必须能在注释下面开出新行。
+    dispatchKey(view, "Enter");
+    expect(view.state.doc.toString()).toBe(`${original}\n`);
+  });
+
   it("opens a safe preview link without selecting the atom", () => {
     const opened: string[] = [];
     const parent = document.createElement("div");
@@ -285,6 +312,139 @@ describe("HtmlBlockWidget native in-place reveal (Option A)", () => {
     expect(projectedWidget(view).getAttribute("aria-selected")).toBe("false");
   });
 
+  it("does not open an unsafe link target and does not select the atom either", () => {
+    const opened: string[] = [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'Before\n\n<div><a href="https://example.com">Docs</a></div>\n\nAfter\n',
+        extensions: [...parentExtensions(), openLinkTargetFacet.of((url) => opened.push(url))],
+      }),
+    });
+    views.push(view);
+    const anchor = projectedWidget(view).querySelector("a");
+    if (!(anchor instanceof HTMLElement)) {
+      throw new Error("preview link was not rendered");
+    }
+    // 清洗阶段会把危险 href 去掉，这里直接在 DOM 上改回危险值，模拟清洗被绕过时的最后一道防线。
+    anchor.setAttribute("href", "javascript:alert(1)");
+
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    anchor.dispatchEvent(event);
+
+    expect(opened).toEqual([]);
+    expect(event.defaultPrevented).toBe(true);
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("a click on a preview link does not bubble out of the widget", () => {
+    // stopPropagation 只对祖先监听器有意义：CM6 自己的点击/选区处理挂在 contentDOM 上。
+    // 链接点击若冒泡出去，会被当成对文档的普通点击，把光标挪进块里并展开源码。
+    const view = mountView(
+      'Before\n\n<div><a href="https://example.com">Docs</a></div>\n\nAfter\n',
+    );
+    const anchor = projectedWidget(view).querySelector("a");
+    if (!(anchor instanceof HTMLElement)) {
+      throw new Error("preview link was not rendered");
+    }
+    let reachedContentDom = false;
+    view.contentDOM.addEventListener("click", () => {
+      reachedContentDom = true;
+    });
+
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(reachedContentDom).toBe(false);
+  });
+
+  it("a click on an anchor without href is consumed too: nothing opens, nothing selects, nothing bubbles", () => {
+    const opened: string[] = [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "Before\n\n<div><a>plain</a></div>\n\nAfter\n",
+        extensions: [...parentExtensions(), openLinkTargetFacet.of((url) => opened.push(url))],
+      }),
+    });
+    views.push(view);
+    const anchor = projectedWidget(view).querySelector("a");
+    if (!(anchor instanceof HTMLElement)) {
+      throw new Error("anchor was not rendered");
+    }
+    let reachedContentDom = false;
+    view.contentDOM.addEventListener("click", () => {
+      reachedContentDom = true;
+    });
+
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    anchor.dispatchEvent(event);
+
+    expect(opened).toEqual([]);
+    expect(reachedContentDom).toBe(false);
+    // 无 href 的 a 与有 href 的走同一条路径：被预览消费，并阻止默认行为。
+    expect(event.defaultPrevented).toBe(true);
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("clicking non-interactive preview content still selects the whole atom", () => {
+    const view = mountView("Before\n\n<div><p>Body</p></div>\n\nAfter\n");
+    const paragraph = projectedWidget(view).querySelector("p");
+    if (!(paragraph instanceof HTMLElement)) {
+      throw new Error("paragraph was not rendered");
+    }
+    paragraph.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("clicking the toolbar area outside the preview content still selects the atom", () => {
+    const view = mountView("Before\n\n<div>Safe</div>\n\nAfter\n");
+    const toolbar = projectedWidget(view).querySelector(".cm-md-html-block-widget__toolbar");
+    if (!(toolbar instanceof HTMLElement)) {
+      throw new Error("toolbar was not rendered");
+    }
+    toolbar.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("clicking the source banner moves the caret to the block start without changing the document", () => {
+    const original = "Before\n\n<div>Safe</div>\n\nAfter\n";
+    const view = mountView(original);
+    clickControl(projectedWidget(view), ".cm-md-html-block-widget__btn--edit");
+    const banner = view.dom.querySelector(".cm-md-html-source-banner");
+    if (!(banner instanceof HTMLElement)) {
+      throw new Error("source banner was not rendered");
+    }
+    view.dispatch({ selection: EditorSelection.cursor(original.length) });
+
+    banner.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }),
+    );
+
+    expect(view.state.doc.toString()).toBe(original);
+    expect(view.state.selection.main.head).toBe(original.indexOf("<div>"));
+  });
+
+  it("a non-primary mouse button on the banner does nothing", () => {
+    const original = "Before\n\n<div>Safe</div>\n\nAfter\n";
+    const view = mountView(original);
+    clickControl(projectedWidget(view), ".cm-md-html-block-widget__btn--edit");
+    const banner = view.dom.querySelector(".cm-md-html-source-banner");
+    if (!(banner instanceof HTMLElement)) {
+      throw new Error("source banner was not rendered");
+    }
+    view.dispatch({ selection: EditorSelection.cursor(original.length) });
+
+    banner.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 2 }),
+    );
+
+    expect(view.state.selection.main.head).toBe(original.length);
+  });
+
   it("rebuilds preview DOM without script nodes or event handler attributes", () => {
     const view = mountView("x");
     const widget = new HtmlBlockWidget({
@@ -300,6 +460,78 @@ describe("HtmlBlockWidget native in-place reveal (Option A)", () => {
     expect(content?.querySelector("img")?.hasAttribute("onerror")).toBe(false);
     expect(content?.querySelector("a")?.getAttribute("href") ?? "").not.toMatch(/javascript:/i);
     expect(content?.textContent).toContain("Safe");
+  });
+
+  it("rebuild drops iframe, object and embed, and keeps their text neighbours", () => {
+    const view = mountView("x");
+    const widget = new HtmlBlockWidget({
+      recordId: "html-rebuild-embeds",
+      sanitizedHtml:
+        '<p>before</p><iframe src="https://evil.example"></iframe><object data="x"></object><embed src="y"><p>after</p>',
+      placeholder: null,
+      selected: false,
+      diagnostics: null,
+    });
+    const content = widget.toDOM(view).querySelector(".cm-md-html-block-widget__content");
+    expect(content?.querySelector("iframe, object, embed")).toBeNull();
+    expect(content?.textContent).toContain("before");
+    expect(content?.textContent).toContain("after");
+  });
+
+  it("rebuild strips vbscript: targets and padded javascript: targets from href and src", () => {
+    const view = mountView("x");
+    const widget = new HtmlBlockWidget({
+      recordId: "html-rebuild-protocols",
+      sanitizedHtml:
+        '<a href="vbscript:msgbox(1)">v</a><a href="  JavaScript:alert(1)">j</a><img src="javascript:alert(1)"><a href="https://ok.example">ok</a>',
+      placeholder: null,
+      selected: false,
+      diagnostics: null,
+    });
+    const content = widget.toDOM(view).querySelector(".cm-md-html-block-widget__content");
+    const links = Array.from(content?.querySelectorAll("a") ?? []);
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([null, null, "https://ok.example"]);
+    expect(content?.querySelector("img")?.hasAttribute("src")).toBe(false);
+  });
+
+  it("rebuild keeps ordinary attributes and nested structure", () => {
+    const view = mountView("x");
+    const widget = new HtmlBlockWidget({
+      recordId: "html-rebuild-keep",
+      sanitizedHtml: '<div class="hero" data-k="v"><p><strong>bold</strong> text</p></div>',
+      placeholder: null,
+      selected: false,
+      diagnostics: null,
+    });
+    const content = widget.toDOM(view).querySelector(".cm-md-html-block-widget__content");
+    const hero = content?.querySelector("div.hero");
+    expect(hero?.getAttribute("data-k")).toBe("v");
+    expect(hero?.querySelector("p > strong")?.textContent).toBe("bold");
+  });
+
+  it("rebuild falls back to inert text when no DOMParser is available", () => {
+    const view = mountView("x");
+    const document = view.dom.ownerDocument;
+    const originalView = document.defaultView;
+    const originalGlobal = (globalThis as { DOMParser?: unknown }).DOMParser;
+    // 同时抹掉 document.defaultView 上和全局的 DOMParser，模拟没有解析器的宿主。
+    Object.defineProperty(document, "defaultView", { value: {}, configurable: true });
+    (globalThis as { DOMParser?: unknown }).DOMParser = undefined;
+    try {
+      const widget = new HtmlBlockWidget({
+        recordId: "html-rebuild-fallback",
+        sanitizedHtml: "<b>raw</b>",
+        placeholder: null,
+        selected: false,
+        diagnostics: null,
+      });
+      const content = widget.toDOM(view).querySelector(".cm-md-html-block-widget__content");
+      expect(content?.querySelector("b")).toBeNull();
+      expect(content?.textContent).toBe("<b>raw</b>");
+    } finally {
+      Object.defineProperty(document, "defaultView", { value: originalView, configurable: true });
+      (globalThis as { DOMParser?: unknown }).DOMParser = originalGlobal;
+    }
   });
 
   it("renders placeholder for unsafe/unsupported HTML structures", () => {

@@ -29,6 +29,7 @@ import {
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
+import { needsVirtualTrailingLine } from "../editing/virtual-trailing-line.ts";
 import { HtmlBlockWidget, type HtmlBlockWidgetValue } from "../widgets/html-block-widget.ts";
 import {
   clearWysiwygAtomSelectionEffect,
@@ -408,11 +409,16 @@ function revealHtmlSource(view: EditorView, record: MarkdownRangeRecord): boolea
 function collapseHtmlSource(view: EditorView, record: MarkdownRangeRecord): boolean {
   const docLength = view.state.doc.length;
   const atDocumentEnd = record.fullRange.to >= docLength;
+  // 光标停在文末不等于要点亮虚拟空行：注释块不在虚拟行的块类型里，文末根本没有虚拟行可显示。
+  // 这时若仍置为激活，虚拟行的高优先级键位会吞掉 Enter / Backspace / Delete，用户被困在文末。
+  // 先用折叠后的光标位置推算，激活与否以“虚拟行此刻会不会出现”为准。
+  const cursor = atDocumentEnd ? docLength : record.fullRange.to + 1;
+  const armVirtualLine = atDocumentEnd && needsVirtualTrailingLine(view.state);
   view.dispatch({
-    selection: EditorSelection.cursor(atDocumentEnd ? docLength : record.fullRange.to + 1),
+    selection: EditorSelection.cursor(cursor),
     effects: [
       clearWysiwygAtomSelectionEffect.of(null),
-      setVirtualTrailingLineActiveEffect.of(atDocumentEnd),
+      setVirtualTrailingLineActiveEffect.of(armVirtualLine),
     ],
     scrollIntoView: true,
     annotations: Transaction.addToHistory.of(false),
