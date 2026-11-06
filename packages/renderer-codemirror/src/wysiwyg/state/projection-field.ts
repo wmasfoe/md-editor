@@ -46,7 +46,9 @@ import {
   clearWysiwygTypedBoundaryEffect,
   configuredProjectionFeatures,
   refreshWysiwygProjectionEffect,
+  setVirtualTrailingLineActiveEffect,
   setWysiwygVisibleRangesEffect,
+  virtualTrailingLineActiveField,
   type WysiwygProjectionFeature,
   type WysiwygProjectionSnapshot,
   type WysiwygProjectionState,
@@ -232,6 +234,8 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       index,
       transaction.state.selection,
       typedBoundary,
+      transaction.state,
+      transaction,
     );
     const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
     if (changedIds.length === 0) {
@@ -356,7 +360,7 @@ function compileProjection(
     );
   }
 
-  const activeSyntaxIds = collectActiveSyntaxIds(index, state.selection, typedBoundary);
+  const activeSyntaxIds = collectActiveSyntaxIds(index, state.selection, typedBoundary, state);
   const normalizedAtomIds = sortStrings(selectedAtomIds.filter((id) => index.get(id) !== null));
   const normalizedGuards = freezeRanges(compositionGuardRanges);
   const layoutDecorations = buildLayoutDecorations(
@@ -402,7 +406,13 @@ function updateDocumentProjection(
   typedBoundary: number | null,
   revealIds: InlineMarkerRevealIds,
 ): WysiwygProjectionState {
-  const activeSyntaxIds = collectActiveSyntaxIds(index, transaction.state.selection, typedBoundary);
+  const activeSyntaxIds = collectActiveSyntaxIds(
+    index,
+    transaction.state.selection,
+    typedBoundary,
+    transaction.state,
+    transaction,
+  );
 
   // G004 P0-1 纯文本输入快速路径:
   // 纯字母/数字插入且光标前后都在纯文本段落(无任何记录重叠)时,装饰不可能变化,
@@ -597,11 +607,15 @@ function collectActiveSyntaxIds(
   index: MarkdownRangeIndex,
   selection: EditorSelection,
   typedBoundary: number | null,
+  state: EditorState,
+  transaction?: Transaction,
 ): readonly string[] {
   const activeIds = new Set<string>();
   for (const range of selection.ranges) {
     for (const record of index.overlapping(range.from, range.to)) {
-      if (selectionActivatesRecord(record, range.from, range.to, typedBoundary)) {
+      if (
+        selectionActivatesRecord(record, range.from, range.to, typedBoundary, state, transaction)
+      ) {
         activeIds.add(record.id);
       }
     }
@@ -609,11 +623,37 @@ function collectActiveSyntaxIds(
   return sortStrings(activeIds);
 }
 
+/**
+ * 文末虚拟空行与 HTML 块共用 `doc.length` 这个偏移。
+ * 虚拟行激活时，这个光标属于空行，不再把贴在 EOF 的 HTML 展开成源码。
+ * effect 在同一事务里读取，避免字段更新顺序把激活态看成旧值。
+ */
+function virtualTrailingLineOwnsDocumentEnd(
+  state: EditorState,
+  transaction?: Transaction,
+): boolean {
+  let active = state.field(virtualTrailingLineActiveField, false) === true;
+  if (transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(setVirtualTrailingLineActiveEffect)) {
+        active = effect.value;
+      }
+    }
+  }
+  if (!active) {
+    return false;
+  }
+  const selection = state.selection.main;
+  return selection.empty && selection.head === state.doc.length;
+}
+
 function selectionActivatesRecord(
   record: MarkdownRangeRecord,
   from: number,
   to: number,
   typedBoundary: number | null,
+  state: EditorState,
+  transaction?: Transaction,
 ): boolean {
   if (record.kind === "frontmatter") {
     return false;
@@ -630,9 +670,16 @@ function selectionActivatesRecord(
     if (from === record.fullRange.from && to === record.fullRange.to) {
       return false;
     }
-    // HTML 块级内容：光标落在块内任意字符（含首尾闭区间）均激活源码展示，
-    // 允许光标在行首（< 之前）与行尾正常编辑，离开后自动收起为渲染态
+    // 光标落在块内（含首尾闭区间）才展开源码，这样行首和行尾都能继续输入。
+    // 贴在文末时 `to === doc.length`，虚拟空行也停在这个偏移上：那种光标不展开。
     if (from === to) {
+      if (
+        virtualTrailingLineOwnsDocumentEnd(state, transaction) &&
+        record.fullRange.to >= state.doc.length &&
+        from === state.doc.length
+      ) {
+        return false;
+      }
       return from >= record.fullRange.from && from <= record.fullRange.to;
     }
     return from < record.fullRange.to && to > record.fullRange.from;

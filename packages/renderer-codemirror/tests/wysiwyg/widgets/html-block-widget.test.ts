@@ -9,6 +9,10 @@ import { history, undo } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { virtualTrailingLineExtension } from "../../../src/wysiwyg/editing/virtual-trailing-line.ts";
+import { virtualTrailingLineActiveField } from "../../../src/wysiwyg/state/types.ts";
+import { HtmlBlockWidget } from "../../../src/wysiwyg/widgets/html-block-widget.ts";
+import { openLinkTargetFacet } from "../../../src/wysiwyg/view/link-interaction.ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../../src/markdown/range-index.ts";
@@ -37,6 +41,7 @@ function parentExtensions(): Extension[] {
     wysiwygChangeProtection,
     htmlProjectionTheme,
     htmlSourceKeymap,
+    virtualTrailingLineExtension,
   ];
 }
 
@@ -176,6 +181,31 @@ describe("HtmlBlockWidget native in-place reveal (Option A)", () => {
     );
   });
 
+  it("Mod-Enter leaves a comment-prefixed line without a newline so undo restores the HTML block", () => {
+    const original = "Before\n\n<div>Safe peek</div>\n\nAfter\n";
+    const view = mountView(original);
+    clickControl(projectedWidget(view), ".cm-md-html-block-widget__btn--edit");
+    const from = view.state.selection.main.head;
+    const inserted = "<!--peek-->";
+    view.dispatch({
+      changes: { from, insert: inserted },
+      selection: EditorSelection.cursor(from + inserted.length),
+      userEvent: "input.type",
+    });
+    const peeked = view.state.doc.toString();
+    const comment = view.state
+      .field(markdownRangeIndexField)
+      .records.find((record) => record.nodeName === "CommentBlock");
+    expect(comment?.fullRange.from).toBe(from);
+
+    dispatchKey(view, "Enter", true);
+
+    expect(view.state.doc.toString()).toBe(peeked);
+    expect(view.state.selection.main.head).toBe((comment?.fullRange.to ?? 0) + 1);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(original);
+  });
+
   it("Mod-Enter exits source editing and moves cursor to the next line", () => {
     const original = "Before\n\n<div>Keyed</div>\n\nAfter\n";
     const view = mountView(original);
@@ -203,6 +233,73 @@ describe("HtmlBlockWidget native in-place reveal (Option A)", () => {
     dispatchKey(view, "Escape");
 
     expect(view.dom.querySelector(".cm-md-html-block-widget")).not.toBeNull();
+  });
+
+  it("Mod-Enter on a selected atom reveals source", () => {
+    const view = mountView("Before\n\n<div>Toggle</div>\n\nAfter\n");
+    const widget = projectedWidget(view);
+    widget.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("true");
+
+    dispatchKey(view, "Enter", true);
+
+    expect(view.dom.querySelector(".cm-md-html-block-widget")).toBeNull();
+    expect(view.dom.querySelector(".cm-md-html-source-banner")?.textContent).toContain("Esc");
+    expect(view.state.doc.toString()).toBe("Before\n\n<div>Toggle</div>\n\nAfter\n");
+  });
+
+  it("Escape at EOF collapses the preview onto the virtual line without changing the document", () => {
+    const original = "Before\n\n<div>End</div>";
+    const view = mountView(original);
+    clickControl(projectedWidget(view), ".cm-md-html-block-widget__btn--edit");
+    expect(view.dom.querySelector(".cm-md-html-source-line")).not.toBeNull();
+
+    dispatchKey(view, "Escape");
+
+    expect(view.dom.querySelector(".cm-md-html-block-widget")).not.toBeNull();
+    expect(view.state.doc.toString()).toBe(original);
+    expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
+    expect(view.dom.querySelector(".cm-virtual-trailing-line--active")).not.toBeNull();
+  });
+
+  it("opens a safe preview link without selecting the atom", () => {
+    const opened: string[] = [];
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'Before\n\n<div><a href="https://example.com">Docs</a></div>\n\nAfter\n',
+        extensions: [...parentExtensions(), openLinkTargetFacet.of((url) => opened.push(url))],
+      }),
+    });
+    views.push(view);
+
+    const anchor = projectedWidget(view).querySelector("a");
+    if (!(anchor instanceof HTMLElement)) {
+      throw new Error("preview link was not rendered");
+    }
+    anchor.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+    expect(opened).toEqual(["https://example.com"]);
+    expect(projectedWidget(view).getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("rebuilds preview DOM without script nodes or event handler attributes", () => {
+    const view = mountView("x");
+    const widget = new HtmlBlockWidget({
+      recordId: "html-rebuild",
+      sanitizedHtml:
+        '<div>Safe</div><img src="x" onerror="alert(1)"><script>alert(1)</script><a href="javascript:alert(1)">x</a>',
+      placeholder: null,
+      selected: false,
+      diagnostics: null,
+    });
+    const content = widget.toDOM(view).querySelector(".cm-md-html-block-widget__content");
+    expect(content?.querySelector("script")).toBeNull();
+    expect(content?.querySelector("img")?.hasAttribute("onerror")).toBe(false);
+    expect(content?.querySelector("a")?.getAttribute("href") ?? "").not.toMatch(/javascript:/i);
+    expect(content?.textContent).toContain("Safe");
   });
 
   it("renders placeholder for unsafe/unsupported HTML structures", () => {

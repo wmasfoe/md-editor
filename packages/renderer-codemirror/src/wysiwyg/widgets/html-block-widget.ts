@@ -2,16 +2,16 @@
  * @file html-block-widget.ts
  * @description HTML 块级内容所见即所得渲染挂件。
  *
- * 遵循 Obsidian / Typora 范式的原位暴露架构（Caret-driven Reveal）：
- * - 单击块体：原子选中整块（支持整体 Backspace 删除与全选，与 Table/Image 规范一致）；
- * - 双击块体或点击「编辑源码」按钮：直接就地原位展开原生多行 HTML 源码；
- * - 方向键导航：键盘上下键滑入时自动展开源码，离开时自动折叠渲染；
- * - 离开态：光标离开该块时，挂件重新挂载并呈现更新后的渲染效果。
+ * - 单击卡片空白：原子选中整块（Backspace 删除、与表格/图片一致）；
+ * - 单击预览里的链接：打开链接，不选中整块；
+ * - 双击或「编辑源码」：在父文档里原位展开源码。方向键不展开。
+ * - 预览挂载走 DOMParser + 节点重建，不用 innerHTML。
  */
 
 import { type EditorView, WidgetType } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
 import { selectWysiwygAtom } from "../blocks/atom-selection.ts";
+import { isSafeLinkTarget, openLinkTargetFacet } from "../view/link-interaction.ts";
 
 export interface HtmlBlockWidgetValue {
   readonly recordId: string;
@@ -67,12 +67,6 @@ export class HtmlBlockWidget extends WidgetType {
       view.focus();
     };
 
-    // 单击块体原子选中整块（支持整块 Delete/Backspace 删除与多选）
-    wrapper.addEventListener("click", (event) => {
-      const mouseEvent = event as MouseEvent;
-      selectWysiwygAtom(view, this.value.recordId, mouseEvent.metaKey || mouseEvent.ctrlKey);
-    });
-
     // 双击块体直接原位展开源码编辑态
     wrapper.addEventListener("dblclick", enterEdit);
 
@@ -99,8 +93,17 @@ export class HtmlBlockWidget extends WidgetType {
       placeholder.textContent = this.value.placeholder;
       contentEl.appendChild(placeholder);
     } else {
-      contentEl.innerHTML = this.value.sanitizedHtml;
+      mountSanitizedHtml(document, contentEl, this.value.sanitizedHtml);
     }
+
+    // 单击卡片空白才原子选中。预览里的链接和表单控件保持自己的行为。
+    wrapper.addEventListener("click", (event) => {
+      if (handlePreviewContentClick(event, view, contentEl)) {
+        return;
+      }
+      const mouseEvent = event as MouseEvent;
+      selectWysiwygAtom(view, this.value.recordId, mouseEvent.metaKey || mouseEvent.ctrlKey);
+    });
 
     wrapper.append(toolbarEl, contentEl);
     return wrapper;
@@ -113,4 +116,91 @@ export class HtmlBlockWidget extends WidgetType {
     // 允许 click / dblclick 由 widget 自己的监听器处理
     return event.type !== "click" && event.type !== "dblclick";
   }
+}
+
+const PREVIEW_INTERACTIVE_SELECTOR = "a, button, summary, input, textarea, select, label";
+
+/**
+ * 预览内容区里的交互元素不选中整块。
+ * 安全链接交给宿主打开；`<details>` 等保留浏览器默认行为。
+ * @returns 这次点击已经被预览内容消费。
+ */
+function handlePreviewContentClick(event: Event, view: EditorView, content: HTMLElement): boolean {
+  const target = event.target;
+  if (!(target instanceof Element) || !content.contains(target)) {
+    return false;
+  }
+  const interactive = target.closest(PREVIEW_INTERACTIVE_SELECTOR);
+  if (!interactive || !content.contains(interactive)) {
+    return false;
+  }
+  event.stopPropagation();
+  const anchor = target.closest("a");
+  if (!anchor || !content.contains(anchor)) {
+    return true;
+  }
+  event.preventDefault();
+  const href = anchor.getAttribute("href");
+  const open = view.state.facet(openLinkTargetFacet);
+  if (href && isSafeLinkTarget(href) && open) {
+    open(href);
+  }
+  return true;
+}
+
+/**
+ * 第二层纵深：字符串清洗之后仍用 DOMParser 重建节点。
+ * 浏览器解析器里才会复活的残片在这里变成文本，不会再走 innerHTML。
+ */
+function mountSanitizedHtml(document: Document, parent: HTMLElement, html: string): void {
+  const nodes = parseAndRebuildHtml(document, html);
+  if (!nodes) {
+    parent.textContent = html;
+    return;
+  }
+  parent.append(...nodes);
+}
+
+function parseAndRebuildHtml(document: Document, htmlText: string): Node[] | null {
+  const Parser =
+    document.defaultView?.DOMParser ?? (typeof DOMParser === "undefined" ? null : DOMParser);
+  if (!Parser) {
+    return null;
+  }
+  const parsed = new Parser().parseFromString(`<body>${htmlText}</body>`, "text/html");
+  return Array.from(parsed.body.childNodes).map((node) => rebuildNode(document, node));
+}
+
+function rebuildNode(document: Document, source: Node): Node {
+  if (source.nodeType === 3) {
+    return document.createTextNode(source.nodeValue ?? "");
+  }
+  if (source.nodeType !== 1) {
+    return document.createTextNode("");
+  }
+
+  const sourceElement = source as Element;
+  const tagName = sourceElement.tagName.toLowerCase();
+  if (tagName === "script" || tagName === "iframe" || tagName === "object" || tagName === "embed") {
+    return document.createTextNode("");
+  }
+
+  const element = document.createElement(tagName);
+  for (const attribute of Array.from(sourceElement.attributes)) {
+    const attrName = attribute.name.toLowerCase();
+    if (attrName.startsWith("on")) {
+      continue;
+    }
+    if (
+      (attrName === "href" || attrName === "src") &&
+      /^(javascript|vbscript):/i.test(attribute.value.trim())
+    ) {
+      continue;
+    }
+    element.setAttribute(attribute.name, attribute.value);
+  }
+  for (const child of Array.from(sourceElement.childNodes)) {
+    element.append(rebuildNode(document, child));
+  }
+  return element;
 }

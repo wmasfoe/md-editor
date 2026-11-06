@@ -133,6 +133,14 @@ describe("M4-a HTML projection", () => {
     expect(getHtmlSanitizeCacheSize()).toBe(1);
   });
 
+  it("renders HTML comments as muted source instead of an unsafe placeholder", () => {
+    const doc = ["Before", "", "<!-- note -->", "", "After", ""].join("\n");
+    const { state, index } = createHtmlHarness(doc);
+    expect(index.byKind("html")).toHaveLength(0);
+    expect(findHtmlWidget(state)).toBeNull();
+    expect(findLayoutDecorationsForTesting(state, "html-comment").length).toBeGreaterThan(0);
+  });
+
   it("does not project HTML when the feature is disabled", () => {
     const doc = ["Before", "", "<div>Safe</div>", "", "After", ""].join("\n");
     const { state, index } = createHtmlHarness(doc, []);

@@ -106,10 +106,10 @@ describe("Markdown node policy registry", () => {
       interactionPolicy: "reveal-source",
     });
     expect(getMarkdownNodePolicy("CommentBlock")).toMatchObject({
-      kind: "html",
-      renderPolicy: "html-widget",
+      kind: "deferred-html",
+      renderPolicy: "deferred-raw",
       editPolicy: "native",
-      interactionPolicy: "reveal-source",
+      interactionPolicy: "none",
     });
     expect(getMarkdownNodePolicy("FutureExtensionNode")).toMatchObject({
       kind: "raw-fallback",

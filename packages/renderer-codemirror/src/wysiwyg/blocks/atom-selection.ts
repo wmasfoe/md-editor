@@ -477,10 +477,6 @@ function revealedSourceCursor(
     const position = Math.max(minimum, Math.min(maximum, preferred));
     return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
   }
-  if (atom.kind === "html") {
-    const position = direction === "forward" ? atom.fullRange.from : atom.fullRange.to;
-    return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
-  }
   // 表格：光标进入表头行首个 cell 内容之后，让源码立即回显。
   const minimum = atom.fullRange.from + 1;
   const maximum = Math.max(minimum, atom.fullRange.to - 1);
@@ -554,6 +550,7 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
 }
 
 function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  // HTML 与表格/图片一致：方向键只原子选中整块。源码由双击、编辑按钮或 Mod-Enter 进入。
   if (record.kind === "html") {
     return false;
   }
