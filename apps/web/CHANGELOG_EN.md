@@ -1,5 +1,9 @@
 # Changelog - Web Playground
 
+## 0.3.0 - 2026-11-07 (#224)
+
+- Plugin playground: new /playground/plugins page to browse plugins from a GitHub repository, try the selected plugin in an isolated sandbox (with example switching, enable/disable, source mode, undo and theme toggle), and copy an install link for the desktop app.
+
 ## 0.2.4 - 2026-11-04 (#213)
 
 - Prevent CodeMirror geometry query errors during view updates with requestMeasure and defensive fallback; unify official site and service domain endpoints to jiaqi.im.
