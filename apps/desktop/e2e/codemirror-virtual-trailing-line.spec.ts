@@ -227,6 +227,50 @@ test.describe("Virtual Trailing Line E2E", () => {
       .toContain(`${USER_HTML_SNIPPET}\n\n## Title`);
     expect((await diagnostics(page)).renderer?.markdown).not.toContain("<h2>");
   });
+
+  // 块下方只能有一个可落脚的空行：要么是虚拟行（文档没有空行），要么是文档自己的空行（已有空行）。
+  // 回归：虚拟行曾是普通 widget，CM6 在文末另补一个空 .cm-line，用户看到两个空行。
+  for (const [label, doc, expectVirtual] of [
+    ["表格，无尾随换行", "## 标题\n\n| a | b |\n| --- | --- |\n| 1 | 2 |", true],
+    ["表格，1 个尾随换行", "## 标题\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n", true],
+    [
+      "表格，2 个尾随换行（文档自带空行）",
+      "## 标题\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n",
+      false,
+    ],
+    ["分割线，1 个尾随换行", "开头\n\n---\n", true],
+  ] as const) {
+    test(`VTL-11: exactly one landing row below the terminal block - ${label}`, async ({
+      page,
+    }) => {
+      await openHarness(page);
+      await replaceDocument(page, doc);
+      await page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.setSelection(0, 0));
+
+      const below = await page.evaluate(() => {
+        const kids = Array.from(document.querySelectorAll<HTMLElement>(".cm-content > *"));
+        const at = kids.findIndex((el) => /cm-md-(table|thematic-break)-widget/.test(el.className));
+        return kids.slice(at + 1).map((el) => ({
+          virtual: el.classList.contains("cm-virtual-trailing-line"),
+          empty: (el.textContent ?? "") === "",
+          height: Math.round(el.getBoundingClientRect().height),
+        }));
+      });
+
+      if (expectVirtual) {
+        // 只有虚拟行这一行，不能再多一个空 .cm-line。
+        expect(below).toHaveLength(1);
+        expect(below[0].virtual).toBe(true);
+      } else {
+        // 文档自带空行：没有虚拟行，落脚行就是文档里的空行。
+        expect(below.some((row) => row.virtual)).toBe(false);
+        expect(below.length).toBeGreaterThan(0);
+        expect(below.every((row) => row.empty)).toBe(true);
+      }
+      // 无论哪种，保存内容都和打开时一字不差。
+      expect((await diagnostics(page)).renderer?.markdown).toBe(doc);
+    });
+  }
 });
 
 async function clickBelow(page: Page, anchor: ReturnType<Page["locator"]>): Promise<void> {

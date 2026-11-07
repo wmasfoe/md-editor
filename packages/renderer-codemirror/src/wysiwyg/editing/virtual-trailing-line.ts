@@ -5,8 +5,9 @@
  * ## 为什么需要文末虚拟空行
  *
  * 1. 在 WYSIWYG 模式下，若文档以整行块级替换组件（HTML 块、表格、分割线、MDX 组件等）
- *    结尾，且源码中该组件下方没有留真实空行，由于整行块级替换装饰器覆盖到文档末尾（`doc.length`），
- *    组件下方没有任何 `.cm-line` 文本节点；
+ *    结尾，且源码中该组件下方没有留真实空行，整行块级替换装饰器覆盖到文档末尾（`doc.length`），
+ *    组件下方没有文档自己的行。CM6 会合成一个空 `.cm-line` 顶上，但它不是安全的落脚点：
+ *    光标停在上面键入，字符会被块的解析吞进去（接在表格最后一格后，或成为表格新的一行）；
  * 2. 当用户选中该原子组件时，为了防止视觉错觉，系统已抑制组件边缘下方的游离光标；
  * 3. 此时若没有虚拟空行，用户将无法在组件下方点击或换行续写正文，只能切换到源码模式手动补换行，
  *    严重影响编辑流畅度。
@@ -17,7 +18,8 @@
  *    虚拟空行纯属展示层与交互引导，未实际输入前 `state.doc` **保持 0 字节增加**。
  *    任何保存（Save / Export / Snapshot）均以用户原始内容为准，绝不擅自追加无用换行。
  * 2. **精准触发（Deterministic Gating）**：
- *    只在整行块级替换盖住文档末尾、下面已经没有 `.cm-line` 时挂载。
+ *    只在整行块级替换盖住文档末尾、下面没有文档自己的行时挂载，并且取代 CM6 合成的那一行，
+ *    块下方始终只有一个落脚行。
  *    普通末行仍用原生行尾光标，点击文末空白是续写当前段，不是新起一行。
  *    内容盒的下内边距（编辑器底部留白，不是左右侧栏）也算文末：光标落到最后一行；
  *    虚拟空行出现时，这一下命中的就是虚拟空行。
@@ -177,35 +179,44 @@ export class VirtualTrailingLineWidget extends WidgetType {
 }
 
 /**
+ * 构建虚拟空行装饰：零长度、两端 inclusive 的块级 replace，位置在 `doc.length`。
+ *
+ * 为什么不是 `Decoration.widget({ block: true })`：
+ * CM6 视图构建器在两处会给「没有被块 widget 覆盖的位置」补一个空的 `.cm-line`：
+ *   ① 放置 `startSide > 0` 的块 widget 之前（`side: 1` 的普通 widget 属此类）；
+ *   ② 构建结束时，若末尾位置未被覆盖（`blockPosCovered()` 为假）。
+ * 整行块级替换（表格 / HTML / 分割线 / MDX 等）`inclusiveEnd` 为 false，不覆盖其后的位置，
+ * 所以普通 widget 无论放在 `side: 1`（空行在它前面）还是 `side: -1`（空行在它后面），
+ * 都会与那一行并存，用户看到两个空行。两种放法都实测过。
+ *
+ * 零长度 replace 的四种 inclusive 组合实测（表格结尾的文档，块下方的行序）：
+ *   start=true  end=true  → 虚拟行                  ← 唯一只剩一个落脚行的组合
+ *   start=true  end=false → 虚拟行 → 空 .cm-line    （没有 IncEnd，② 仍补一行）
+ *   start=false end=true  → 空 .cm-line → 虚拟行    （startSide > 0，① 仍补一行）
+ *   start=false end=false → CM6 抛 "Invalid range for replacement decoration"
+ * 所以两端都必须是 true：`startSide < 0` 不触发 ①，`IncEnd` 让 `blockPosCovered()` 为真不触发 ②。
+ */
+function buildVirtualTrailingLineDecorations(state: EditorState): DecorationSet {
+  if (!needsVirtualTrailingLine(state)) {
+    return Decoration.none;
+  }
+  const isActive = state.field(virtualTrailingLineActiveField, false) ?? false;
+  return Decoration.set([
+    Decoration.replace({
+      widget: new VirtualTrailingLineWidget(isActive),
+      block: true,
+      inclusiveStart: true,
+      inclusiveEnd: true,
+    }).range(state.doc.length),
+  ]);
+}
+
+/**
  * 驱动虚拟空行 Block Widget 挂载与更新的 StateField。
  */
 export const virtualTrailingLineDecorationField = StateField.define<DecorationSet>({
-  create(state) {
-    if (!needsVirtualTrailingLine(state)) {
-      return Decoration.none;
-    }
-    const isActive = state.field(virtualTrailingLineActiveField, false) ?? false;
-    return Decoration.set([
-      Decoration.widget({
-        widget: new VirtualTrailingLineWidget(isActive),
-        side: 1,
-        block: true,
-      }).range(state.doc.length),
-    ]);
-  },
-  update(decorations, tr) {
-    if (!needsVirtualTrailingLine(tr.state)) {
-      return Decoration.none;
-    }
-    const isActive = tr.state.field(virtualTrailingLineActiveField, false) ?? false;
-    return Decoration.set([
-      Decoration.widget({
-        widget: new VirtualTrailingLineWidget(isActive),
-        side: 1,
-        block: true,
-      }).range(tr.state.doc.length),
-    ]);
-  },
+  create: (state) => buildVirtualTrailingLineDecorations(state),
+  update: (_decorations, tr) => buildVirtualTrailingLineDecorations(tr.state),
   provide: (field) => EditorView.decorations.from(field),
 });
 

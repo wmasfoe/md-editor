@@ -226,7 +226,8 @@ describe("Virtual Trailing Line", () => {
         const decos = view.state.field(virtualTrailingLineDecorationField);
         let found = false;
         decos.between(view.state.doc.length, view.state.doc.length, (_from, _to, value) => {
-          if (value.spec.block && value.spec.side === 1) {
+          // 零长度、两端 inclusive 的块级 replace：让 CM6 认为文末已被覆盖，不再补空 .cm-line。
+          if (value.spec.block && value.spec.inclusiveStart && value.spec.inclusiveEnd) {
             found = true;
           }
         });
@@ -240,6 +241,56 @@ describe("Virtual Trailing Line", () => {
         destroy();
       }
     });
+
+    // 回归：CM6 构建末尾会给“未被块 widget 覆盖的文末位置”补一个空 .cm-line。整行块级替换不覆盖
+    // 末尾，虚拟行若只是普通 widget 就会叠在这一行之下，用户看到两个空行。
+    // 断言对象是 .cm-content 的直接子节点序列，不依赖具体像素。
+    it.each([
+      ["table", "Intro\n\n| A |\n| --- |\n| 1 |"],
+      ["table + 1 newline", "Intro\n\n| A |\n| --- |\n| 1 |\n"],
+      ["html", "Intro\n\n<div>Safe</div>"],
+      ["html + 1 newline", "Intro\n\n<div>Safe</div>\n"],
+      ["thematic break", "Intro\n\n---"],
+      ["thematic break + 1 newline", "Intro\n\n---\n"],
+    ])("leaves exactly one landing row below a terminal block: %s", (_label, doc) => {
+      const { view, destroy } = createHarness(doc);
+      try {
+        // 夹具默认把光标放在 doc.length，贴文末的 HTML 块会因此展开成源码行；
+        // 把光标放进开头的正文，让块保持预览态。
+        view.dispatch({ selection: EditorSelection.cursor(2) });
+        const kids = Array.from(view.contentDOM.children);
+        const blockIndex = kids.findIndex((el) =>
+          /cm-md-(table|html-block|thematic)/.test(el.className),
+        );
+        expect(blockIndex).toBeGreaterThanOrEqual(0);
+        const below = kids.slice(blockIndex + 1);
+        // 块下面只能有虚拟行这一个节点，不能再有空的 .cm-line。
+        expect(below.map((el) => el.className.split(" ")[0])).toEqual(["cm-virtual-trailing-line"]);
+      } finally {
+        destroy();
+      }
+    });
+
+    it.each([
+      ["table", "Intro\n\n| A |\n| --- |\n| 1 |\n\n"],
+      ["html", "Intro\n\n<div>Safe</div>\n\n"],
+    ])(
+      "keeps the document's own blank line as the landing row when there is no virtual line: %s",
+      (_label, doc) => {
+        const { view, destroy } = createHarness(doc);
+        try {
+          view.dispatch({ selection: EditorSelection.cursor(2) });
+          expect(view.contentDOM.querySelector(".cm-virtual-trailing-line")).toBeNull();
+          const kids = Array.from(view.contentDOM.children);
+          const blockIndex = kids.findIndex((el) => /cm-md-(table|html-block)/.test(el.className));
+          const below = kids.slice(blockIndex + 1);
+          expect(below.length).toBeGreaterThan(0);
+          expect(below.every((el) => el.classList.contains("cm-line"))).toBe(true);
+        } finally {
+          destroy();
+        }
+      },
+    );
 
     it("does not render virtual line widget when doc ends with real blank line", () => {
       const snippet = "<div>Safe</div>\n\n";
