@@ -10,8 +10,9 @@ import { EditorSelection, EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
+import { createMdxComponentRegistry } from "@md-editor/mdx-component-registry";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
-import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
+import { markdownRangeIndexField, mdxModeFacet } from "../../src/markdown/range-index.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";
 import { createWysiwygProjectionExtensions } from "../../src/wysiwyg/index.ts";
 import { inspectWysiwygProjection } from "../../src/wysiwyg/state/projection-field.ts";
@@ -29,6 +30,7 @@ import {
   virtualTrailingLineActiveField,
 } from "../../src/wysiwyg/state/types.ts";
 import { selectWysiwygAtom } from "../../src/wysiwyg/blocks/atom-selection.ts";
+import { mdxComponentRegistryFacet } from "../../src/wysiwyg/projections/mdx-projection.ts";
 
 /**
  * @param extraExtensions 追加的扩展。生产根扩展装有 `defaultKeymap`，默认键位的优先级低于虚拟行键位；
@@ -80,6 +82,55 @@ function createHarness(
 
 /** 与生产根扩展一致的默认键位。 */
 const PRODUCTION_DEFAULT_KEYMAP: Extension = keymap.of(defaultKeymap);
+
+/**
+ * 启用 MDX / Frontmatter 投影的视图。默认夹具 `createHarness` 没启用这两类投影，
+ * 而它们同样在 `TERMINAL_BLOCK_KINDS` 里，需要单独验证块下方只有一个落脚行。
+ */
+function mountWithFeatures(doc: string) {
+  const registry = createMdxComponentRegistry([
+    {
+      id: "mdx.callout",
+      component: {
+        name: "Callout",
+        displayName: "Callout",
+        props: [{ name: "type", type: "enum", values: ["info", "warning"] }],
+        acceptsChildren: true,
+        version: "0.1",
+      },
+    },
+  ]);
+  const parent = document.createElement("div");
+  document.body.appendChild(parent);
+  const view = new EditorView({
+    parent,
+    state: EditorState.create({
+      doc,
+      selection: EditorSelection.cursor(2),
+      extensions: [
+        markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+        editorModeField,
+        markdownRangeIndexField,
+        mdxModeFacet.of(true),
+        mdxComponentRegistryFacet.of(registry),
+        createWysiwygProjectionExtensions([
+          "html",
+          "tables",
+          "thematic-breaks",
+          "frontmatter",
+          "mdx",
+        ]),
+      ],
+    }),
+  });
+  return {
+    view,
+    destroy() {
+      view.destroy();
+      parent.remove();
+    },
+  };
+}
 
 describe("Virtual Trailing Line", () => {
   describe("needsVirtualTrailingLine gating logic", () => {
@@ -218,28 +269,112 @@ describe("Virtual Trailing Line", () => {
     });
   });
 
+  // MDX / Frontmatter 同在 TERMINAL_BLOCK_KINDS 里，但默认夹具没启用它们的投影。
+  // 这里单独搭一个启用对应特性的视图，守“块下方只有一个落脚行”对这两类块同样成立。
+  describe("terminal mdx and frontmatter blocks", () => {
+    // 块的渲染形态不同：MDX 是块 widget；Frontmatter 是 header / body / footer 三种带 .cm-line 的行。
+    // 注意：「frontmatter」（无尾随换行）这一条在旧实现（普通 widget）上也通过，不是漏测——
+    // 文档最后一行就是 footer 这个真实 .cm-line，CM6 末尾无需合成，本来就只有一个落脚行。
+    // 有一个尾随换行时才会多出合成行，「frontmatter + 1 newline」正是拦它的用例。
+    // 共同点是：虚拟行是最后一个子节点，紧挨在块的最后一个节点后面，中间没有合成的空 .cm-line。
+    it.each([
+      ["mdx", 'Intro\n\n<Callout type="info">\n内容\n</Callout>', "cm-md-mdx"],
+      ["mdx + 1 newline", 'Intro\n\n<Callout type="info">\n内容\n</Callout>\n', "cm-md-mdx"],
+      ["frontmatter", "---\ntitle: demo\n---", "cm-md-frontmatter-line--footer"],
+      ["frontmatter + 1 newline", "---\ntitle: demo\n---\n", "cm-md-frontmatter-line--footer"],
+    ])(
+      "leaves exactly one landing row below a terminal %s block",
+      (_label, doc, lastBlockClass) => {
+        const { view, destroy } = mountWithFeatures(doc);
+        try {
+          expect(needsVirtualTrailingLine(view.state)).toBe(true);
+          const kids = Array.from(view.contentDOM.children);
+          const virtualIndex = kids.findIndex((el) =>
+            el.classList.contains("cm-virtual-trailing-line"),
+          );
+          expect(virtualIndex).toBeGreaterThanOrEqual(0);
+          // 虚拟行必须是最后一个子节点。
+          expect(virtualIndex).toBe(kids.length - 1);
+          // 紧挨在它前面的必须是块自己的最后一个节点，不能是 CM6 合成的空 .cm-line。
+          const previous = kids[virtualIndex - 1];
+          expect(previous.className).toContain(lastBlockClass);
+        } finally {
+          destroy();
+        }
+      },
+    );
+  });
+
   describe("decoration and DOM presentation", () => {
     it("renders virtual line widget at doc.length when needed", () => {
       const snippet = "<div>Safe</div>";
       const { view, destroy } = createHarness(snippet);
       try {
-        const decos = view.state.field(virtualTrailingLineDecorationField);
-        let found = false;
-        decos.between(view.state.doc.length, view.state.doc.length, (_from, _to, value) => {
-          if (value.spec.block && value.spec.side === 1) {
-            found = true;
-          }
-        });
-        expect(found).toBe(true);
-
-        // DOM 中存在 cm-virtual-trailing-line
+        // 断言行为，不断言装饰的具体写法（行装饰 / widget 都可能）：
+        // 虚拟行存在、带标记、是最后一个子节点，且文档不变。
+        expect(view.state.field(virtualTrailingLineDecorationField).size).toBe(1);
         const el = view.dom.querySelector(".cm-virtual-trailing-line");
         expect(el).not.toBeNull();
         expect(el?.getAttribute("data-virtual-line")).toBe("true");
+        expect(view.contentDOM.lastElementChild).toBe(el);
+        expect(view.state.doc.toString()).toBe(snippet);
       } finally {
         destroy();
       }
     });
+
+    // 回归：CM6 构建末尾会给“未被块 widget 覆盖的文末位置”补一个空 .cm-line。整行块级替换不覆盖
+    // 末尾，虚拟行若只是普通 widget 就会叠在这一行之下，用户看到两个空行。
+    // 断言对象是 .cm-content 的直接子节点序列，不依赖具体像素。
+    it.each([
+      ["table", "Intro\n\n| A |\n| --- |\n| 1 |"],
+      ["table + 1 newline", "Intro\n\n| A |\n| --- |\n| 1 |\n"],
+      ["html", "Intro\n\n<div>Safe</div>"],
+      ["html + 1 newline", "Intro\n\n<div>Safe</div>\n"],
+      ["thematic break", "Intro\n\n---"],
+      ["thematic break + 1 newline", "Intro\n\n---\n"],
+    ])("leaves exactly one landing row below a terminal block: %s", (_label, doc) => {
+      const { view, destroy } = createHarness(doc);
+      try {
+        // 夹具默认把光标放在 doc.length，贴文末的 HTML 块会因此展开成源码行；
+        // 把光标放进开头的正文，让块保持预览态。
+        view.dispatch({ selection: EditorSelection.cursor(2) });
+        const kids = Array.from(view.contentDOM.children);
+        const blockIndex = kids.findIndex((el) =>
+          /cm-md-(table|html-block|thematic)/.test(el.className),
+        );
+        expect(blockIndex).toBeGreaterThanOrEqual(0);
+        const below = kids.slice(blockIndex + 1);
+        // 块下面只能有一个节点，且它就是虚拟行（虚拟行本身也是一个 .cm-line，所以按类名判定）。
+        expect(below.map((el) => el.classList.contains("cm-virtual-trailing-line"))).toEqual([
+          true,
+        ]);
+      } finally {
+        destroy();
+      }
+    });
+
+    it.each([
+      ["table", "Intro\n\n| A |\n| --- |\n| 1 |\n\n"],
+      ["html", "Intro\n\n<div>Safe</div>\n\n"],
+    ])(
+      "keeps the document's own blank line as the landing row when there is no virtual line: %s",
+      (_label, doc) => {
+        const { view, destroy } = createHarness(doc);
+        try {
+          view.dispatch({ selection: EditorSelection.cursor(2) });
+          expect(view.contentDOM.querySelector(".cm-virtual-trailing-line")).toBeNull();
+          const kids = Array.from(view.contentDOM.children);
+          const blockIndex = kids.findIndex((el) => /cm-md-(table|html-block)/.test(el.className));
+          expect(blockIndex).toBeGreaterThanOrEqual(0);
+          const below = kids.slice(blockIndex + 1);
+          expect(below.length).toBeGreaterThan(0);
+          expect(below.every((el) => el.classList.contains("cm-line"))).toBe(true);
+        } finally {
+          destroy();
+        }
+      },
+    );
 
     it("does not render virtual line widget when doc ends with real blank line", () => {
       const snippet = "<div>Safe</div>\n\n";
@@ -517,11 +652,13 @@ describe("Virtual Trailing Line", () => {
       },
     );
 
-    it("Escape deactivates the virtual line without changing the document", () => {
+    it("stays active while the caret is still on the virtual line, so Escape does not drop typing into the block", () => {
+      // 激活态跟光标走：光标没离开虚拟行，Escape 不能把它熄灭。
+      // 否则 Escape 之后再打字，字会被 CM6 写进文末合成的那一行，并进块里。
       const { view, destroy } = activate();
       try {
         pressKey(view, "Escape");
-        expect(view.state.field(virtualTrailingLineActiveField)).toBe(false);
+        expect(view.state.field(virtualTrailingLineActiveField)).toBe(true);
         expect(view.state.doc.toString()).toBe(snippet);
       } finally {
         destroy();
