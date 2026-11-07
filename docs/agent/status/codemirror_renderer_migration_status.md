@@ -118,9 +118,9 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 ## 当前 Beta 已知缺口
 
 - M3 / S4：表格恒显示为可编辑网格并支持单元格左键就地编辑、Notion 式行/列块手柄与操作菜单增删行列及列对齐切换、末尾 Enter 退出表格续写段落、整表原子选中/删除与选中态等价替换及操作提示、Arrow 对称整表选中；多单元格拖选、列宽调整、tab 跳格仍留待后续（S4 评估无成熟引擎，按 No-Go 裁剪为自研 contenteditable 单元格 + 源码回写，不引入嵌套编辑器）。
-- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 全链路（`mdx-parse` 无 acorn 解析 → registry 白名单 → `MdxComponentWidget`）已于 2026-08-04 验证（G005）。仅剩入口层缺口：`mdx.openComponentMenu` 命令仍为 typed-unsupported（见下方「能力清单与实现漂移」）。
-- M5：链接打开、块拖拽、折叠、标题 H 控件、图片闭环（粘贴/拖放 + 本地 `ImageStorageProvider` + 自定义命名 + 重名 `-N` 去重）、搜索（`@codemirror/search` + `searchKeymap`）、大纲（`OutlinePanel` + `useOutlineController`）、主题（system/light/dark + 每档自定义 CSS + 内置主题选项）与内联 AI 建议（`aiScheduler` + `showSuggestion` + Tab arbiter `accept-suggestion`）均已迁移。剩余 typed-unsupported 命令：`mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar`。
-- 能力清单与实现漂移（待对齐，暂不改动已验证的 S1 契约）：`apps/desktop/src/app/s1-capability-inventory.ts` 将 `ai.continueWriting` 归入 `deferredLegacyCommands` → `typed-unsupported`，但 `apps/desktop/src/app/controller/useDesktopEditorController.ts` 的 `continueAiWriting` 已完整接线（`aiScheduler.schedule` + `showSuggestion`），且 `EditorTitleBarControls.tsx` 已 `dispatchCommand("ai.continueWriting")`。需要一次专项变更同时修正清单、快捷键默认项与 `apps/desktop/tests/s1-capability-inventory.test.ts` 断言。
+- M4 / S5：基础 HTML 白名单渲染、原子选择、整块删除、undo 与错误占位已实现；官方 MDX 全链路（`mdx-parse` 无 acorn 解析 → registry 白名单 → `MdxComponentWidget`）已于 2026-08-04 验证（G005）。入口层：`mdx.openComponentMenu` 已接线，仅能力清单仍标 typed-unsupported（见下方「能力清单与实现漂移」）。
+- M5：链接打开、块拖拽、折叠、标题 H 控件、图片闭环（粘贴/拖放 + 本地 `ImageStorageProvider` + 自定义命名 + 重名 `-N` 去重）、搜索（`@codemirror/search` + `searchKeymap`）、大纲（`OutlinePanel` + `useOutlineController`）、主题（system/light/dark + 每档自定义 CSS + 内置主题选项）与内联 AI 建议（`aiScheduler` + `showSuggestion` + Tab arbiter `accept-suggestion`）均已迁移。能力清单中仍标 typed-unsupported 的 `mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar` 实际均已接线，属清单漂移，见下条。
+- 能力清单与实现漂移（待对齐，暂不改动已验证的 S1 契约；2026-11-07 重新核实）：`apps/desktop/src/app/s1-capability-inventory.ts` 的 `deferredLegacyCommands` 把 `mdx.openComponentMenu`、`ai.continueWriting`、`ai.fixGrammar` **三个**命令都标为 `typed-unsupported`，但三者在 `apps/desktop/src/app/controller/useDesktopEditorController.ts` 中均已完整接线（`openMdxComponentMenu` 打开插入菜单、`continueAiWriting` 走 `aiScheduler.schedule` + `showSuggestion`、`fixGrammar` 走 `desktopAiService.fixGrammar`），`EditorTitleBarControls.tsx` 也已 `dispatchCommand`。此前文档只记录了 `ai.continueWriting` 一个。需要一次专项变更同时修正清单、快捷键默认项与 `apps/desktop/tests/s1-capability-inventory.test.ts` 断言。
 - S6：没有删除前的同环境量化基线；CM6 大文件、输入延迟、滚动、内存和 Widget 生命周期数据仍待建立。
 - S1/M0 原生人工门禁已通过；环境、覆盖范围和结论见文末“原生人工验收通过记录”。后续里程碑引入 decoration、Widget、表格或 MDX 后，仍须针对新增交互重新执行对应原生验收。
 - G008：全仓 typecheck/test/lint/build/Rust/browser/Tauri 启动冒烟、post-cleaner 重验和初轮复核修复后的全量重验已通过；独立复跑结果为 code-reviewer `APPROVE`、architect `CLEAR`。
@@ -439,3 +439,26 @@ M5/M6 完成后，用户对行首控件区提出三点反馈：`.cm-content` 左
 - 全仓类型检查：11 个 workspace 模块 `tsc --noEmit` 全部通过。
 - 全仓单测：86 个测试文件、649 项 Vitest 单测 100% Pass（新增 5 项 `suggestion.test.ts`）。
 - 静态检查：`oxlint --deny-warnings` 与 `prettier` 全部通过。
+
+## v0.20.0 交付与遗留（2026-11-07）
+
+### 交付
+
+- **智能粘贴**（#217）：`wysiwyg/input/smart-paste.ts`。仅当剪贴板 HTML 有实际结构（标题 / 列表 / 表格 / 代码块 / 链接等）才经 turndown + GFM 转为 Markdown；IDE 复制（自定义 MIME）与只有表现层标签的内容保持 `text/plain`；`Shift` 粘贴纯文本；选区上粘贴 URL 生成 Markdown 链接；代码块与行内代码内原样。
+- **HTML 块就地编辑**（#218、#220）：双击 / 「编辑源码」 / 整块选中态 `Mod-Enter` 在文档流内展开源码，`Mod-Enter` / `Esc` 收起，方向键只做原子选中；预览改用 `DOMParser` 重建节点，不再 `innerHTML`；预览链接点击交给宿主打开；HTML 注释保留为弱化源码行。规范见 `docs/agent/specs/html_block_source_reveal_and_preview_spec.md`。
+- **文末虚拟空行**（#220、#221）：文档以表格 / HTML / 分割线 / MDX / Frontmatter / setext 标题结尾时，块下方有一个只用于编辑、不写入文件的落脚行。复用 CM6 在文末合成的那一行；激活态跟光标走，点击、方向键、Cmd/Ctrl+End、Cmd/Ctrl+ArrowDown、程序化选区、撤销物化后键入，都成为块下方的独立段落。规范见 `docs/agent/specs/wysiwyg_virtual_trailing_line_spec.md` 与 `codemirror_block_widget_trailing_row_spec.md`。
+- **快捷键**（#219）：「打开文件夹」改 `Mod-Alt-O`，规范化设置里的键名，替换命令打开替换框，编辑器外忽略格式快捷键，双击拖选按词扩展。
+
+### 验证
+
+- 合并前本地与 CI：lint / test / typecheck / build 全过，浏览器 e2e 264 passed（不重试）；renderer 876 条、desktop 312 条单测。
+- 文末虚拟空行的回归测试经「改回旧实现必须失败」验证：在 main（普通 widget）上 22 条 e2e 全部失败，在第一版修复（零长度 replace）上 21 条失败。方法见 `editor_interaction_test_discriminating_power_spec.md`。
+- **未做**：真实 Tauri 窗口里的系统输入法（IME）组字、原生菜单。Chromium e2e 不能代表桌面端，这几项只能手测。
+
+### 遗留缺口（均已核实，非推测）
+
+- **段落结尾且无尾随换行时不渲染虚拟行**。`40fb3bc` 为避免普通段落多出一行空白而收窄了挂载条件；产品期望是「末尾没有空行就渲染虚拟行」，二者不一致。改动会改变点击普通段落末尾的行为，需先确认。
+- **贴文末的 HTML 块展开成源码后再按 ArrowDown**：只多出虚拟行，预览不会折叠。原因是只翻转虚拟行标志、不带选区的事务在投影字段里走「沿用旧投影」的快速路径。待产品确认是否在这类事务上重算投影。
+- **Esc 不再取消虚拟行**。光标没离开虚拟行时取消激活，下一次键入会并进块；离开请用 ArrowUp / ArrowLeft。这是有意的行为变更，用户文档未单独说明。
+- **Mermaid 块在文末**：装饰仍是手写 `inclusive: false`，不在 `TERMINAL_BLOCK_KINDS` 中，文末的 Mermaid 暂无虚拟行，行为未按文末落脚行规范验证。
+- **引用块 / 列表内的块结尾**：`TERMINAL_BLOCK_KINDS` 只匹配顶层记录，未覆盖。

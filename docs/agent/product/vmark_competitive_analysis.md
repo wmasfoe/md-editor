@@ -58,19 +58,20 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 | **自动配对 + Tab 跳出** | ✅ 已完成：`wysiwyg/input/smart-pairs.ts` 选区包裹 + `tab-arbitration.ts`（支持括号与链接 Tab 跳出，代码块/行内代码保字面，空光标不自动补右括号以维持手感） | ✅ 含 CJK 括号 |
 | **行/块操作**（移/复/删/并/排序） | ✅ 已完成：`wysiwyg/blocks/block-move.ts` 块移动 + 块级快捷键与占位守护（`a7e43d6`） | ✅ 8 项行操作 |
 | **Focus / Typewriter / 只读模式** | ✅ 已完成：Focus 模式（当前块高亮/余块淡化）与 Typewriter 模式（光标居中缓动）；只读模式收敛于受控模式 | ✅ 三件套 |
-| **Hot Exit / 会话恢复** | ❌ 待做（第 3 批：信任基石） | ✅ 全量含崩溃恢复 |
-| **文档历史快照** | ❌ 待做（第 3 批：信任基石） | ✅ JSONL 按日分组 |
+| **Hot Exit / 会话恢复** | ✅ 已完成（v0.18.0，草稿自动暂存与启动恢复提示） | ✅ 全量含崩溃恢复 |
+| **文档历史快照** | ✅ 已完成（v0.18.0，`.inkpoint/history/` 原子快照 + 历史抽屉 Diff 与回滚） | ✅ JSONL 按日分组 |
 | **CJK 排版规则** | ✅ 核心已完成：CJK 友好强调/删除线定界符（`b6e37f1`）+ 本地 SLM 盘古之白与标点（`<|task_punc|>`） | ✅ **20+ 规则，产品卖点** |
-| **Markdown Lint + 链接检查** | ❌ 待做（第 5 批：专业输出） | ✅ 13 条规则 + M001/M002 |
-| **导出 HTML / PDF** | ❌ 待做（第 5 批：专业输出；底层 `@md-editor/compiler` 已有静态模板，缺桌面端导出交互与 PDF 打印） | ✅ 成熟产品设计 |
-| **Source Peek 块级源码编辑** | ⚠️ 部分：已有 M3 表格就地源码编辑与通用块级受保护事务回写基础设施 | ✅ `F5` |
-| **智能粘贴（HTML/Word→MD）** | ⚠️ 部分：图片粘贴/拖拽与基础 Markdown 保真已完备；HTML/富文本转换待接入 turndown | ✅ |
+| **Markdown Lint + 链接检查** | ✅ 已完成（v0.18.0，markdownlint + 本地相对链接与锚点探针，⌥⇧L / ⌥⇧F） | ✅ 13 条规则 + M001/M002 |
+| **导出 HTML / PDF** | ✅ 已完成（v0.18.0，双模 HTML、macOS 原生矢量分页 PDF、富文本剪贴板复制） | ✅ 成熟产品设计 |
+| **Source Peek 块级源码编辑** | ⚠️ 部分：表格与 HTML 块已就地编辑（HTML 块 v0.20.0：双击 / 编辑按钮 / `Mod-Enter` 在文档流内展开源码，不走浮层，见 `html_block_source_reveal_and_preview_spec.md`）；通用的“光标所在任意块按 `F5`”未做 | ✅ `F5` |
+| **智能粘贴（HTML/Word→MD）** | ✅ 已完成（v0.20.0，`wysiwyg/input/smart-paste.ts`：turndown + GFM，仅在有结构的富文本上转换，IDE 与纯文本保持原样，Shift 粘贴纯文本，选区粘贴链接生成 Markdown 链接） | ✅ |
 | **AI Genies（选区 AI 改写）** | ✅ 已完成：重构为干净架构多协议 AI Harness、本地模型推理与内联审批式建议系统（`83fe8df` / `605b06c`） | ✅ 13 个 genie + Spotlight |
 | **MCP 集成** | ⏸ 远期规划（第 6 批，需先完成跨平台分发打包尖刺） | ✅ 一键接入 6 个 AI CLI |
-| 内联 `[TOC]` | ❌ 无 | ✅ |
-| 文本清理 / 孤儿图片清理 | ❌ 无 | ✅ |
-| 大文件阈值策略 | ⚠️ M6 有性能抽查但无明确阈值 | ✅ 1MB/5MB/50MB 分级 |
-| 字体（拉丁/CJK/等宽分离）+ 缩放 | ⚠️ 有字体配置，未见快捷键缩放 | ✅ |
+| 内联 `[TOC]` | ❌ 无（2026-11-07 核实：源码中无 `[TOC]` / 目录投影） | ✅ |
+| 文本清理 / 孤儿图片清理 | ❌ 无（2026-11-07 核实：无大小写转换、行排序、尾随空格清理命令，无 assets 引用扫描） | ✅ |
+| 大文件阈值策略 | ❌ 无（M6 有性能抽查，2026-11-07 核实：打开文件路径上无任何大小判断） | ✅ 1MB/5MB/50MB 分级 |
+| 字体（拉丁/CJK/等宽分离）+ 缩放 | ⚠️ 有字体配置；2026-11-07 核实：快捷键清单中无缩放命令 | ✅ |
+| 多光标（`Mod-D` 选下一处 / `Mod-Shift-L` 全选匹配） | ✅ 已有：`@codemirror/search` 的 `searchKeymap` 自带，`root-extensions.ts` 已装并开启 `allowMultipleSelections`。**未做**：竞品要求的“代码围栏感知” | ✅ |
 | 主题 | ✅ 5 款 | 6 款 |
 | i18n | ✅ zh/en | 10 语言 |
 
@@ -213,7 +214,7 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 | 大纲过滤框 | 按标题文本过滤、保留祖先链 | editor-ui |
 | 字体缩放快捷键 | `Mod+=/-/0`，与设置项同一数值源，2px 步进 + 上下限 | editor-ui 设置 |
 | 阅读位置保持 | 切 tab / 切模式 / 磁盘重载后回到原位（光标优先） | editor-core |
-| 多光标增强 | `Mod+D` 选中下一处 / `Mod+Shift+L` 全选 / 纵向光标；**需代码围栏感知** | renderer |
+| 多光标增强 | `Mod+D` / `Mod+Shift+L` 已由 CM6 自带（见 §3）；仍待做的是**代码围栏感知**与纵向光标 | renderer |
 | Smart Select All | `Mod+A` 按容器逐级扩大（单元格→行→表→文档） | renderer |
 
 ---
@@ -256,6 +257,45 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 随手 | B 级小项 | 🔄 **持续穿插** | 穿插在各批次迭代中 |
 
 ---
+
+### 7.1 待办清单（2026-11-07 逐项以代码核实）
+
+本清单只记录**事实与证据**，不排优先级；优先级以 [`markdown_editor_task_priorities.md`](./markdown_editor_task_priorities.md) 为准，由属主决定。每一项的“证据”是核实时在源码中的搜索结果，不是推测。
+
+**一、B 级小项（竞品分析 §4 已列，均未做）**
+
+| 项 | 证据（2026-11-07） | 备注 |
+| --- | --- | --- |
+| 字体缩放快捷键 `Mod-=` / `Mod-−` / `Mod-0` | `settings/shortcuts/defaults.ts` 的命令清单里没有缩放命令；字体大小只有设置项 | 需与设置项共用同一数值源 |
+| 大纲过滤框 | `editor-ui/src/components/OutlinePanel.tsx` 没有输入框 | 竞品要求保留祖先链 |
+| 内联 `[TOC]` | 全仓无 `[TOC]` / 目录投影 | 归 renderer 投影 |
+| 大文件阈值（1MB 进源码模式 / 5MB 二次确认 / 50MB 拒绝） | 打开文件路径上无大小判断 | 涉及数据安全，阈值需属主确认 |
+| 只读模式 | `renderer-codemirror/src` 无 `EditorState.readOnly` / `EditorView.editable` | 竞品文档曾推迟到“1.5 批” |
+| 文本清理（尾随空格 / 合并空行 / 大小写 / 行排序） | 无对应命令 | 应接入命令注册表 |
+| 孤儿图片清理 | 无 assets 引用扫描 | 必须走 `file-system` 能力边界 |
+| 表格 Fit-to-width | `table` 相关代码无此概念（搜到的 `computeFitWidthScale` 属图片查看器） | M3 已有基础 |
+| 多光标的**代码围栏感知** | `Mod-D` / `Mod-Shift-L` 已由 `searchKeymap` 提供，但围栏内外不区分 | 竞品文档要求；纵向光标也未做 |
+
+**二、路线图上的大项**
+
+| 项 | 证据 | 备注 |
+| --- | --- | --- |
+| 更多官方 MDX 组件（LinkCard / Video / FileTree / Steps） | `packages/mdx-plugins/src/` 只有 `callout/` | 目前仅 `Callout` |
+| MCP 集成 | 未开始 | 文档要求先做 sidecar 跨平台打包尖刺，再决定是否进路线图 |
+| AI 静默检查 / 用户风格学习 / `.aiignore` / 历史文章索引 | 未实现；`markdown_editor_ai_feature_requirements.md` §7 明确列为延后项 | |
+| 云端图片上传 | 只有 `ImageStorageProvider` 扩展点 | 竞品分析建议交给 PicGo 等现成方案，不原生做 |
+| 表格 M3-C：多单元格拖选 / 列宽调整 | `task_priorities` §6 记为“有成熟引擎后恢复” | 评估过无成熟引擎 |
+
+**三、工程债**
+
+| 项 | 证据 | 备注 |
+| --- | --- | --- |
+| S6 性能基线 | 无删除前的同环境量化数据 | M6 因此无法收口 |
+| 能力清单漂移 | `s1-capability-inventory.ts` 把 `mdx.openComponentMenu` / `ai.continueWriting` / `ai.fixGrammar` 标 `typed-unsupported`，三者实际已接线 | 需同时改清单、快捷键默认项与 `s1-capability-inventory.test.ts` |
+| 段落结尾无换行不渲染虚拟行 | 与“末尾没有空行就渲染”的期望不一致 | 详见状态文档“v0.20.0 交付与遗留” |
+| IME / 原生菜单手测 | Chromium e2e 不能代表 Tauri 窗口 | v0.20.0 的虚拟空行未手测系统输入法 |
+
+**四、已明确不做**（见 §5）：双栏 Split View、Schema 预览、集成终端、知识库 / 双链 / 图谱、Coherence 溯源层、云图床原生上传、多格式打开。
 
 ## 8. 待确认事项
 
