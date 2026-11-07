@@ -57,15 +57,15 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 | 快捷键自定义 | ✅ 已有 `settings/shortcuts/keys.ts` | ✅ 全量可自定义 |
 | **自动配对 + Tab 跳出** | ✅ 已完成：`wysiwyg/input/smart-pairs.ts` 选区包裹 + `tab-arbitration.ts`（支持括号与链接 Tab 跳出，代码块/行内代码保字面，空光标不自动补右括号以维持手感） | ✅ 含 CJK 括号 |
 | **行/块操作**（移/复/删/并/排序） | ✅ 已完成：`wysiwyg/blocks/block-move.ts` 块移动 + 块级快捷键与占位守护（`a7e43d6`） | ✅ 8 项行操作 |
-| **Focus / Typewriter / 只读模式** | ✅ 已完成：Focus 模式（当前块高亮/余块淡化）与 Typewriter 模式（光标居中缓动）；只读模式收敛于受控模式 | ✅ 三件套 |
+| **Focus / Typewriter / 只读模式** | ⚠️ 部分：Focus 模式（当前块高亮/余块淡化）与 Typewriter 模式（光标居中缓动）已完成；只读模式未做（2026-11-07 核实：`renderer-codemirror/src` 无 `EditorState.readOnly` / `EditorView.editable`，见 §7.1） | ✅ 三件套 |
 | **Hot Exit / 会话恢复** | ✅ 已完成（v0.18.0，草稿自动暂存与启动恢复提示） | ✅ 全量含崩溃恢复 |
 | **文档历史快照** | ✅ 已完成（v0.18.0，`.inkpoint/history/` 原子快照 + 历史抽屉 Diff 与回滚） | ✅ JSONL 按日分组 |
-| **CJK 排版规则** | ✅ 核心已完成：CJK 友好强调/删除线定界符（`b6e37f1`）+ 本地 SLM 盘古之白与标点（`<|task_punc|>`） | ✅ **20+ 规则，产品卖点** |
+| **CJK 排版规则** | ⚠️ 部分：仅有 CJK 友好强调/删除线定界符解析（`b6e37f1`，`markdown/cjk-friendly-emphasis.ts`）与 CJK 括号 Tab 跳出（`bracket-escape.ts`）。CJK-拉丁间距、全角/半角标点归一、弯直引号配对、技术构造保护均未做。`<|task_punc|>` 只是本地模型的控制 Token（见 `apps/desktop/CHANGELOG.md`），2026-11-07 核实源码中无对应任务调用，不能算已落地 | ✅ **20+ 规则，产品卖点** |
 | **Markdown Lint + 链接检查** | ✅ 已完成（v0.18.0，markdownlint + 本地相对链接与锚点探针，⌥⇧L / ⌥⇧F） | ✅ 13 条规则 + M001/M002 |
 | **导出 HTML / PDF** | ✅ 已完成（v0.18.0，双模 HTML、macOS 原生矢量分页 PDF、富文本剪贴板复制） | ✅ 成熟产品设计 |
 | **Source Peek 块级源码编辑** | ⚠️ 部分：表格与 HTML 块已就地编辑（HTML 块 v0.20.0：双击 / 编辑按钮 / `Mod-Enter` 在文档流内展开源码，不走浮层，见 `html_block_source_reveal_and_preview_spec.md`）；通用的“光标所在任意块按 `F5`”未做 | ✅ `F5` |
 | **智能粘贴（HTML/Word→MD）** | ✅ 已完成（v0.20.0，`wysiwyg/input/smart-paste.ts`：turndown + GFM，仅在有结构的富文本上转换，IDE 与纯文本保持原样，Shift 粘贴纯文本，选区粘贴链接生成 Markdown 链接） | ✅ |
-| **AI Genies（选区 AI 改写）** | ✅ 已完成：重构为干净架构多协议 AI Harness、本地模型推理与内联审批式建议系统（`83fe8df` / `605b06c`） | ✅ 13 个 genie + Spotlight |
+| **AI Genies（选区 AI 改写）** | ⚠️ 部分：底层已完成（多协议 AI Harness、本地模型推理、内联审批式建议，`83fe8df` / `605b06c`），但 AI 命令只有 `ai.continueWriting` 与 `ai.fixGrammar`。Spotlight 选择器、选区改写、Quick Chips、Scope 循环、Prompt 历史均未做 | ✅ 13 个 genie + Spotlight |
 | **MCP 集成** | ⏸ 远期规划（第 6 批，需先完成跨平台分发打包尖刺） | ✅ 一键接入 6 个 AI CLI |
 | 内联 `[TOC]` | ❌ 无（2026-11-07 核实：源码中无 `[TOC]` / 目录投影） | ✅ |
 | 文本清理 / 孤儿图片清理 | ❌ 无（2026-11-07 核实：无大小写转换、行排序、尾随空格清理命令，无 assets 引用扫描） | ✅ |
@@ -95,6 +95,8 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 
 #### 4.1 CJK 排版规则（P0，杀手级差异化）
 
+> **状态（2026-11-07）**：仅完成友好强调/删除线定界符解析与括号 Tab 跳出；规则引擎（间距、标点归一、引号配对、技术构造保护）未开始，见 §3。
+
 VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖点。我们目标用户**就是中文技术写作者**，这是必争之地。
 
 - 能力：CJK-拉丁间距、全角/半角标点归一、弯直引号智能配对、`「」『』（）【】《》` 配对、技术构造保护（URL / 版本号 / 时间 / 小数不被误改）、光标处引号风格切换。
@@ -117,6 +119,8 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 #### 4.4 无干扰写作三件套：Focus / Typewriter / 只读（P1）
 
+> **状态（2026-11-07）**：Focus、Typewriter 已完成；只读模式未做。
+
 - **Focus Mode**：只保留当前块全透明、其余块降透明度。**我们是块级投影层，这个能力天然契合**（已有 block range model / `range-index.ts`，M3 表格已是块级 Widget），成本显著低于 VMark 在 ProseMirror 上的做法。
 - **Typewriter Mode**：当前行垂直居中。CM6 `EditorView` scroll 控制即可，注意阈值防抖（VMark 明确提到"小阈值避免抖动"，这个坑要避开）。
 - **Read-Only**：`EditorState.readOnly` + `EditorView.editable` compartment，注意与我们既有的 `protectedRanges` 语义区分（只读是全文级，protected 是范围级）。
@@ -138,6 +142,8 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 ### A 级：纳入规划（中成本 / 明显差异化）
 
 #### 4.7 AI Genies（P1，与我们 AI 路线完美同构）
+
+> **状态（2026-11-07）**：suggestion 展示/接受/取消基础设施已就绪；选区改写的触发入口与交互（Spotlight 等）未做，见 §3。
 
 VMark 的"选中文本 → `Mod+Y` Spotlight 选择器 → AI 改写 → 内联建议 → 接受/拒绝"，与我们已定的 **AI 显式续写：ghost text + `Tab` 接受 + `Esc` 取消**（见 [`markdown_editor_ai_feature_requirements.md`](./markdown_editor_ai_feature_requirements.md) §3.2）是**同一套 suggestion 展示/接受/取消/失效基础设施**，只是触发源从"续写"扩到"选区改写"。这是投入产出比最高的一条。
 
@@ -178,6 +184,8 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 **架构归属**：导出模块必须与编辑器核心解耦（PRD §5.7 的 `Exporter` 接口），主题样式复用 `editor-ui` 的主题 token。PDF 建议复用 Tauri 的 print-to-PDF 或成熟开源排版引擎，不自研排版。
 
 #### 4.10 Source Peek 块级源码编辑（P1，架构契合度最高）
+
+> **状态（2026-11-07）**：当前按块类型专属实现（表格、HTML 块），暂不做通用 `F5`。下文是通用化方案；其他块类型是否补做待产品判断，若补做应复用表格与 HTML 块已有的受保护回写通道，不新增第二套。
 
 `F5` 在 WYSIWYG 下针对**光标所在块**打开源码编辑浮层，`Cmd+Enter` 保存、`Esc` 取消、可开实时预览。用于"修表格语法 / 调列表缩进"这类真实痛点。
 
@@ -249,9 +257,9 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 批次 | 内容 | 状态 | 说明 / 理由 |
 |---|---|---|---|
 | 第 1 批（手感） | 4.2 自动配对/Tab 跳出 + 4.3 块操作 + 4.4 专注/打字机模式 | ✅ **已完成** | 已全量合入 main（`smart-pairs`、`tab-arbitration`、`block-move` 快捷键、Focus/Typewriter 模式） |
-| 第 2 批（差异化） | 4.1 CJK 排版 + 4.10 块级就地源码编辑 | ✅ **核心已完成** | CJK 友好定界符解析（`b6e37f1`）与 SLM `<|task_punc|>` 已落地；M3 表格块就地编辑验证了块级受保护回写通道 |
+| 第 2 批（差异化） | 4.1 CJK 排版 + 4.10 块级就地源码编辑 | ⚠️ **部分完成** | CJK 仅完成友好强调/删除线定界符解析（`b6e37f1`），排版规则引擎未做；块级就地编辑按块类型落地（表格 M3、HTML 块 #218），暂无通用 `F5` |
 | 第 3 批（信任） | 4.5 Hot Exit + 4.6 文档历史 | ✅ **已完成 (v0.18.0)** | 实现了异常退出草稿自动暂存、启动恢复提示 Banner 与基于 `.inkpoint/history/` 的原子快照记录及 HistoryDrawer 抽屉对比与回滚 |
-| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ✅ **已完成** | AI 多协议 Harness 重构、本地 SLM 轻量桥与审批式流式建议已完整交付（`83fe8df` / `605b06c`） |
+| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ⚠️ **基础设施已完成，选区改写未做** | AI 多协议 Harness 重构、本地 SLM 轻量桥与审批式流式建议已交付（`83fe8df` / `605b06c`）；现有命令仅续写与语法修复，Spotlight 选区改写未做 |
 | 第 5 批（专业） | 4.8 Lint/链接检查 + 4.9 导出 HTML/PDF | ✅ **已完成 (v0.18.0)** | 实现了 markdownlint + 本地相对链接与锚点探针（⌥⇧L/⌥⇧F 导航与批量修复）、双模 HTML、macOS 原生矢量分页 PDF 导出及富文本剪贴板复制 |
 | 第 6 批（战略） | 4.12 MCP 集成 | ⏸ **远期规划** | 战略价值高但存在平台打包与分发风险，等待技术尖刺完成后推进 |
 | 随手 | B 级小项 | 🔄 **持续穿插** | 穿插在各批次迭代中 |
