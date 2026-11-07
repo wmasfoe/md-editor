@@ -57,10 +57,10 @@ export function InsertTableDialog({ open, onClose, onConfirm }: InsertTableDialo
 
   return (
     <Dialog open={open} onClose={onClose} className="fixed inset-0 z-[70]">
-      <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.35)] backdrop-blur-[2px] transition-opacity" />
+      <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.35)] transition-opacity" />
       <div className="fixed inset-0 grid place-items-center p-4">
         <DialogPanel className="w-[min(380px,calc(100vw-2rem))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
-          <DialogTitle className="m-0 mb-5 text-center text-[15px] font-[650] leading-[1.4] text-[var(--theme-title)]">
+          <DialogTitle className="m-0 mb-5 text-center text-[15px] font-medium leading-[1.4] text-[var(--theme-title)]">
             {t("insertTable.title", { defaultValue: "插入表格" })}
           </DialogTitle>
 

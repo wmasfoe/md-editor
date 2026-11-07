@@ -101,7 +101,7 @@ export function ExternalPluginSettings() {
   return (
     <section className="mt-6 grid gap-3" aria-labelledby="external-plugins-title">
       <div>
-        <h2 id="external-plugins-title" className="text-sm font-semibold">
+        <h2 id="external-plugins-title" className="text-sm font-medium">
           {t("pluginPreview.externalTitle")}
         </h2>
         <p className="text-xs text-[var(--theme-muted)]">{t("pluginPreview.trust")}</p>

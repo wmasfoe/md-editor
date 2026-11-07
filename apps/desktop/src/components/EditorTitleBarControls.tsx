@@ -78,7 +78,7 @@ export function EditorTitleBarControls() {
       {showUpdateAction ? (
         <button
           type="button"
-          className="h-[22px] cursor-pointer rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white shadow-[0_1px_0_rgba(0,0,0,0.12)] hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
+          className="h-[22px] cursor-pointer rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
           onClick={() => void runEditorUpdateAction()}
           disabled={updateBusy}
         >
@@ -393,7 +393,7 @@ function OutlinePopover({
               aria-hidden="true"
             />
             <div className="relative z-10 flex h-[48px] items-center border-b border-[var(--theme-border)] px-4">
-              <h2 className="m-0 text-[17px] font-semibold leading-none text-[var(--theme-title)]">
+              <h2 className="m-0 text-[17px] font-medium leading-none text-[var(--theme-title)]">
                 {t("editor.outline.title")}
               </h2>
             </div>

@@ -30,9 +30,9 @@ export function SearchResultRow({
       <button
         type="button"
         className={cx(
-          "group relative flex min-h-9 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent px-2.5 py-1.5 text-left text-[13px] leading-[1.3] transition-all duration-120 ease-out focus-visible:outline-none",
+          "group relative flex min-h-9 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent px-2.5 py-1.5 text-left text-[13px] leading-[1.3] transition-colors duration-120 ease-out focus-visible:outline-none",
           isActive
-            ? "bg-[var(--theme-primary-soft)] font-semibold text-[var(--theme-primary)] shadow-2xs"
+            ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
             : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)]",
         )}
         title={node.path}
@@ -51,7 +51,7 @@ export function SearchResultRow({
             className={cx(
               "block overflow-hidden text-ellipsis whitespace-nowrap",
               isActive
-                ? "font-semibold text-[var(--theme-primary)]"
+                ? "font-medium text-[var(--theme-primary)]"
                 : "font-medium text-[var(--theme-title)]",
             )}
           >

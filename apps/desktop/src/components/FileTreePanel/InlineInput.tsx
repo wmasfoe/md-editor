@@ -36,7 +36,7 @@ export function InlineInput({ defaultValue, paddingLeft, onCommit, onCancel }: I
         ref={inputRef}
         type="text"
         defaultValue={defaultValue}
-        className="h-6 w-full min-w-0 rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] shadow-xs ring-2 ring-[var(--theme-primary-soft)] outline-none"
+        className="h-6 w-full min-w-0 rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] ring-2 ring-[var(--theme-primary-soft)] outline-none"
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

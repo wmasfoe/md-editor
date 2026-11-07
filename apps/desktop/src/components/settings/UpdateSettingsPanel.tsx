@@ -113,7 +113,7 @@ export function UpdateSettingsPanel({
                 version: updateStatus.currentVersion,
               })}
             </span>
-            <span className="font-[600] text-[var(--theme-title)]">
+            <span className="font-medium text-[var(--theme-title)]">
               {updateStatus.latestVersion
                 ? t("settings.updates.versionTransition", {
                     current: updateStatus.currentVersion,

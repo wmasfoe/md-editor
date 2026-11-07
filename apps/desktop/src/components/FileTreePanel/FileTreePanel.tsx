@@ -293,13 +293,13 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
   if (!folder) {
     return (
       <div className="flex min-h-0 flex-1 select-none flex-col items-center justify-center p-5 text-center">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--theme-border)]/60 bg-[var(--theme-surface)] shadow-xs">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-surface)]">
           <FolderIcon
             className="size-5 stroke-[1.75] text-[var(--theme-primary)]"
             aria-hidden="true"
           />
         </div>
-        <p className="mb-1 text-[13px] font-semibold text-[var(--theme-title)]">
+        <p className="mb-1 text-[13px] font-medium text-[var(--theme-title)]">
           {t("fileTree.emptyWorkspaceTitle")}
         </p>
         <p className="mb-4 max-w-[190px] text-[11px] leading-relaxed text-[var(--theme-control-subtle)]">
@@ -307,7 +307,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
         </p>
         <button
           type="button"
-          className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] shadow-xs transition-all duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
+          className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] transition-[background-color,border-color,transform] duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
           onClick={onOpenFolder}
         >
           <span>{t("fileTree.openFolder")}</span>

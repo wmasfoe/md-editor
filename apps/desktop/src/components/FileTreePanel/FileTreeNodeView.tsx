@@ -62,9 +62,9 @@ export function FileTreeNodeView({
         <button
           type="button"
           className={cx(
-            "group relative flex h-7 min-h-7 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-all duration-120 ease-out focus-visible:outline-none",
+            "group relative flex h-7 min-h-7 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-colors duration-120 ease-out focus-visible:outline-none",
             isActive
-              ? "bg-[var(--theme-primary-soft)] font-semibold text-[var(--theme-primary)] shadow-2xs"
+              ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
               : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)]",
           )}
           style={{ paddingLeft }}
@@ -114,7 +114,7 @@ export function FileTreeNodeView({
       <div className="px-1.5 py-[1px]">
         <button
           type="button"
-          className="group flex h-7 min-h-7 w-full select-none items-center gap-1.5 rounded-[6px] border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none"
+          className="group flex h-7 min-h-7 w-full select-none items-center gap-1.5 rounded-[6px] border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-colors duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none"
           style={{ paddingLeft }}
           title={node.path}
           aria-expanded={!isCollapsed}
