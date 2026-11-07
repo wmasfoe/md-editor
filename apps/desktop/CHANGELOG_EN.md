@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.0 - 2026-11-07 (#224)
+
+- External plugins: install community plugins from GitHub Releases without rebuilding the app. Supports custom syntax, writing commands, templates, shortcuts and per-plugin settings; the first install shows the source, version and digest and asks for confirmation; supports updates, rollback, disabling, and safe start with --disable-external-plugins. See inkpoint-plugin-starter for plugin development.
+
 ## 0.20.0 - 2026-11-07 (#217, #218, #219, #220, #221)
 
 - Smart paste: rich text copied from web pages and other sources is converted into clean Markdown (headings, lists, tables, and code blocks are preserved); IDE and plain-text pastes stay verbatim, hold Shift to paste as plain text; pasting a link over a selection wraps it as a Markdown link.
