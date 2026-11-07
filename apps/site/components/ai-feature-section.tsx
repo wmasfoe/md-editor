@@ -2,6 +2,12 @@
 
 import React, { useCallback, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import {
+  CheckIcon,
+  LockClosedIcon,
+  CursorArrowRaysIcon,
+  CpuChipIcon,
+} from "@heroicons/react/20/solid";
 import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
 import type { AiShowcaseEditorHandle, AiShowcaseFlowState } from "./ai-showcase-editor";
@@ -154,19 +160,19 @@ export function AiFeatureSection() {
 
   const bentoItems = [
     {
-      icon: "🔒",
+      icon: <LockClosedIcon className="size-4" aria-hidden="true" />,
       title: aiText.bento.local.title,
       desc: aiText.bento.local.desc,
       tag: aiText.bento.local.tag,
     },
     {
-      icon: "🎯",
+      icon: <CursorArrowRaysIcon className="size-4" aria-hidden="true" />,
       title: aiText.bento.flow.title,
       desc: aiText.bento.flow.desc,
       tag: aiText.bento.flow.tag,
     },
     {
-      icon: "🧠",
+      icon: <CpuChipIcon className="size-4" aria-hidden="true" />,
       title: aiText.bento.context.title,
       desc: aiText.bento.context.desc,
       tag: aiText.bento.context.tag,
@@ -223,12 +229,12 @@ export function AiFeatureSection() {
               }}
               className="mx-auto max-w-2xl shrink-0 text-center"
             >
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft shadow-xs">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                 <span>{aiText.sectionBadge}</span>
               </div>
 
-              <h2 className="mt-3 font-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">
+              <h2 className="mt-3 font-sans text-2xl font-medium tracking-tight text-ink sm:text-3xl lg:text-4xl">
                 {aiText.sectionTitle}
               </h2>
 
@@ -245,9 +251,9 @@ export function AiFeatureSection() {
                     key={item.title}
                     type="button"
                     onClick={() => setMobileCardIndex(idx)}
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                       idx === cardIndex
-                        ? "bg-surface font-semibold text-ink shadow-xs border border-line-strong"
+                        ? "bg-surface font-medium text-ink shadow-xs border border-line-strong"
                         : "text-muted hover:text-ink"
                     }`}
                   >
@@ -277,13 +283,13 @@ export function AiFeatureSection() {
                     }}
                     aria-hidden={!visible}
                   >
-                    <div className="flex items-start gap-3 rounded-2xl border border-line bg-surface px-4 py-3 shadow-[0_4px_16px_rgba(20,18,15,0.03)]">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-line bg-surface-soft/80 text-base">
+                    <div className="flex items-start gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-[0_4px_16px_rgba(20,18,15,0.03)]">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface-soft text-ink-soft">
                         {item.icon}
                       </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                          <h3 className="text-sm font-semibold tracking-tight text-ink">
+                          <h3 className="text-sm font-medium tracking-tight text-ink">
                             {item.title}
                           </h3>
                           <span className="font-mono text-[10px] text-ink/55">{item.tag}</span>
@@ -314,7 +320,7 @@ export function AiFeatureSection() {
                 onMouseLeave={() => setIsHovered(false)}
                 className={`group relative flex ${
                   isPinned ? "h-full min-h-0" : "min-h-[360px]"
-                } flex-col overflow-hidden rounded-3xl border bg-surface p-4 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-all sm:p-6 ${
+                } flex-col overflow-hidden rounded-3xl border bg-surface p-4 shadow-[0_24px_64px_-12px_rgba(20,18,15,0.1),0_0_0_1px_rgba(20,18,15,0.03),inset_0_1px_0_rgba(255,255,255,0.9)] transition-[color,background-color,border-color,box-shadow,transform,opacity] sm:p-6 ${
                   tabReady ? "border-line-strong ring-1 ring-ink/8" : "border-line-strong/80"
                 }`}
               >
@@ -327,7 +333,6 @@ export function AiFeatureSection() {
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center gap-2">
                       <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                         <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                       </span>
                       <span className="text-xs font-medium text-ink-soft">
@@ -348,7 +353,7 @@ export function AiFeatureSection() {
                           e.preventDefault();
                           editorRef.current?.jumpToStage("grammar");
                         }}
-                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                           aiState.stage === "grammar"
                             ? "bg-surface text-ink shadow-xs border border-line-strong/60"
                             : "text-muted hover:text-ink"
@@ -356,9 +361,11 @@ export function AiFeatureSection() {
                       >
                         <span>{aiText.tabGrammar}</span>
                         <span className="ml-1 font-mono text-[10px] opacity-70">
-                          {aiState.stage === "grammar"
-                            ? `(${Math.min(aiState.grammarIndex + 1, aiState.grammarTotal)}/${aiState.grammarTotal})`
-                            : "✓"}
+                          {aiState.stage === "grammar" ? (
+                            `(${Math.min(aiState.grammarIndex + 1, aiState.grammarTotal)}/${aiState.grammarTotal})`
+                          ) : (
+                            <CheckIcon className="inline size-3" aria-label="done" />
+                          )}
                         </span>
                       </button>
 
@@ -371,7 +378,7 @@ export function AiFeatureSection() {
                           e.preventDefault();
                           editorRef.current?.jumpToStage("continuation");
                         }}
-                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                           aiState.stage === "continuation" || aiState.stage === "completed"
                             ? "bg-surface text-ink shadow-xs border border-line-strong/60"
                             : "text-muted hover:text-ink"
@@ -379,11 +386,11 @@ export function AiFeatureSection() {
                       >
                         <span>{aiText.tabContinuation}</span>
                         <span className="ml-1 font-mono text-[10px] opacity-70">
-                          {aiState.stage === "continuation"
-                            ? `(${Math.min(aiState.continuationIndex + 1, aiState.continuationTotal)}/${aiState.continuationTotal})`
-                            : aiState.stage === "completed"
-                              ? "✓"
-                              : ""}
+                          {aiState.stage === "continuation" ? (
+                            `(${Math.min(aiState.continuationIndex + 1, aiState.continuationTotal)}/${aiState.continuationTotal})`
+                          ) : aiState.stage === "completed" ? (
+                            <CheckIcon className="inline size-3" aria-label="done" />
+                          ) : null}
                         </span>
                       </button>
                     </div>
@@ -400,11 +407,11 @@ export function AiFeatureSection() {
                           return (
                             <span
                               key={idx}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                              className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${
                                 isDone
                                   ? "w-4 bg-accent"
                                   : isCurrent
-                                    ? "w-4 bg-accent/60 animate-pulse"
+                                    ? "w-4 bg-accent/60"
                                     : "w-1.5 bg-line-strong/60"
                               }`}
                             />
@@ -418,11 +425,11 @@ export function AiFeatureSection() {
                           return (
                             <span
                               key={idx}
-                              className={`h-1.5 rounded-full transition-all duration-300 ${
+                              className={`h-1.5 rounded-full transition-[width,background-color] duration-300 ${
                                 isDone
                                   ? "w-4 bg-accent"
                                   : isCurrent
-                                    ? "w-4 bg-accent/60 animate-pulse"
+                                    ? "w-4 bg-accent/60"
                                     : "w-1.5 bg-line-strong/60"
                               }`}
                             />
@@ -430,7 +437,7 @@ export function AiFeatureSection() {
                         })}
 
                       {aiState.stage === "completed" && (
-                        <span className="h-1.5 w-6 rounded-full bg-emerald-500 transition-all duration-300" />
+                        <span className="h-1.5 w-6 rounded-full bg-emerald-500 transition-[width,background-color] duration-300" />
                       )}
                     </div>
 
@@ -499,7 +506,7 @@ export function AiFeatureSection() {
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.accept()}
-                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
+                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-medium text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                         >
                           <kbd
                             tabIndex={-1}
@@ -534,7 +541,7 @@ export function AiFeatureSection() {
                           type="button"
                           tabIndex={-1}
                           onClick={() => editorRef.current?.retrigger()}
-                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
+                          className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-medium text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                         >
                           <kbd
                             tabIndex={-1}
@@ -558,7 +565,7 @@ export function AiFeatureSection() {
                         type="button"
                         tabIndex={-1}
                         onClick={() => editorRef.current?.reset()}
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-semibold text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-all hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-line-strong bg-canvas px-3.5 py-2 text-xs font-medium text-ink shadow-[0_2px_0_rgba(20,18,15,0.08)] transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:bg-surface active:translate-y-[1px] active:shadow-none sm:flex-initial"
                       >
                         <span>{aiText.resetButton}</span>
                       </button>

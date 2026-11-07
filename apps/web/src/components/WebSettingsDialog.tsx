@@ -314,7 +314,7 @@ export function WebSettingsDialog({
                       <button
                         key={preset.id}
                         type="button"
-                        className={`h-[28px] rounded-[5px] border px-2.5 text-xs font-medium transition-colors ${
+                        className={`h-8 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
                           isPresetActive
                             ? "border-[var(--theme-primary)] bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
                             : "border-[var(--theme-border-strong)] bg-[var(--theme-surface)] hover:bg-[var(--theme-control-hover)]"
@@ -526,7 +526,7 @@ export function WebSettingsDialog({
                     </div>
                     <button
                       type="button"
-                      className="h-[30px] rounded-[5px] border border-red-500/30 bg-red-500/10 px-3 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 dark:text-red-400"
+                      className="h-8 rounded-lg border border-[var(--theme-danger-text)]/30 bg-[var(--theme-danger-bg)] px-3 text-xs font-medium text-[var(--theme-danger-text)] transition-colors hover:opacity-80"
                       onClick={() => {
                         onReset();
                         onClose();

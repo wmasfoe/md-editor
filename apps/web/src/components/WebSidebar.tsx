@@ -98,10 +98,10 @@ export function WebSidebar({
         inert={!isVisible}
       >
         {/* 顶部标题与切换 Tab */}
-        <div className="grid h-[38px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
+        <div className="grid h-10 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
           <button
             type="button"
-            className="grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
+            className="grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[var(--theme-control-text)] transition-[background-color,color,transform] duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
             aria-label={tab === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")}
             title={tab === "files" ? t("sidebar.switchToOutline") : t("sidebar.switchToFiles")}
             onClick={() => setTab(tab === "files" ? "outline" : "files")}
@@ -113,7 +113,7 @@ export function WebSidebar({
             )}
           </button>
 
-          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none tracking-tight text-[var(--theme-title)]">
+          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-medium leading-none text-[var(--theme-title)]">
             {sidebarTitle}
           </strong>
 
@@ -121,7 +121,7 @@ export function WebSidebar({
             <button
               type="button"
               className={cx(
-                "grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95",
+                "grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[var(--theme-control-text)] transition-[background-color,color,transform] duration-120 hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95",
                 isSearchOpen && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               aria-label={t("fileTree.searchPlaceholder")}
@@ -134,7 +134,7 @@ export function WebSidebar({
               <MagnifyingGlassIcon className="size-4 stroke-[1.4]" />
             </button>
           ) : (
-            <div className="size-[28px]" />
+            <div className="size-7" />
           )}
         </div>
 

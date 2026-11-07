@@ -512,3 +512,22 @@ export function LaptopIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function WarningIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="M8 2.5 14 13H2L8 2.5Z" />
+      <path d="M8 6.5v3" />
+      <path d="M8 11.5h.01" />
+    </svg>
+  );
+}

@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  BoltIcon,
+  DocumentTextIcon,
+  FolderIcon,
+  PencilSquareIcon,
+  SparklesIcon,
+} from "@heroicons/react/20/solid";
 import { useI18n } from "../lib/i18n/context";
 import { interpolate } from "../lib/parallax";
 import { SatelliteBadge } from "./satellite-badge";
@@ -46,7 +53,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
         className="overflow-hidden rounded-2xl border border-line-strong/80 bg-surface shadow-[0_24px_64px_-12px_rgba(20,18,15,0.16),0_0_0_1px_rgba(20,18,15,0.05),inset_0_1px_0_rgba(255,255,255,0.9)]"
       >
         {/* macOS 风格红绿灯标题栏 */}
-        <div className="flex h-10 shrink-0 items-center justify-between border-b border-line bg-surface-soft/80 px-4 backdrop-blur-md">
+        <div className="flex h-10 shrink-0 items-center justify-between border-b border-line bg-surface-soft px-4">
           <div className="flex items-center gap-2">
             <span className="h-3 w-3 rounded-full bg-[#ff5f57] ring-1 ring-black/10" />
             <span className="h-3 w-3 rounded-full bg-[#febc2e] ring-1 ring-black/10" />
@@ -59,7 +66,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
             <span>{preview.sampleFile}</span>
           </div>
 
-          <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-soft shadow-xs">
+          <div className="flex items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-soft">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
             <span>WYSIWYG</span>
           </div>
@@ -68,24 +75,22 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
         {/* 编辑器双栏布局：微型文件侧栏 + 写作工作面 */}
         <div className="grid grid-cols-1 md:grid-cols-12">
           <div className="hidden border-r border-line bg-canvas/60 p-3.5 md:col-span-3 md:block">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-              {preview.workspace}
-            </p>
+            <p className="mb-2 text-xs font-medium text-muted">{preview.workspace}</p>
             <ul className="space-y-1 text-xs text-ink-soft">
-              <li className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
-                <span>📁</span>
+              <li className="flex items-center gap-2 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
+                <FolderIcon className="size-4 shrink-0" aria-hidden="true" />
                 <span>essays</span>
               </li>
-              <li className="flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 font-medium text-ink shadow-xs">
-                <span>📄</span>
+              <li className="flex items-center gap-2 rounded-md bg-surface px-2 py-1 font-medium text-ink shadow-xs">
+                <DocumentTextIcon className="size-4 shrink-0" aria-hidden="true" />
                 <span className="truncate">{preview.sampleFile}</span>
               </li>
-              <li className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
-                <span>📄</span>
+              <li className="flex items-center gap-2 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
+                <DocumentTextIcon className="size-4 shrink-0" aria-hidden="true" />
                 <span>architecture.mdx</span>
               </li>
-              <li className="flex items-center gap-1.5 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
-                <span>📄</span>
+              <li className="flex items-center gap-2 rounded-md px-2 py-1 text-muted hover:bg-surface-soft">
+                <DocumentTextIcon className="size-4 shrink-0" aria-hidden="true" />
                 <span>release-notes.md</span>
               </li>
             </ul>
@@ -93,7 +98,7 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
 
           <div className="min-h-0 overflow-hidden p-4 sm:p-6 md:col-span-9 md:p-8">
             <div className="prose max-w-none text-ink">
-              <h1 className="font-sans text-xl font-bold tracking-tight text-ink sm:text-2xl">
+              <h1 className="font-sans text-xl font-medium tracking-tight text-ink sm:text-2xl">
                 {t.hero.previewHeading}
               </h1>
 
@@ -115,11 +120,11 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
                   <span className="text-seal">&quot;Inkpoint&quot;</span> &#125;;
                   <br />
                   <span className="text-muted">&#60;</span>
-                  <span className="text-blot font-semibold">Callout</span>
+                  <span className="text-blot font-medium">Callout</span>
                   <span className="text-muted">&#62;</span>
                   {preview.calloutText}
                   <span className="text-muted">&#60;/</span>
-                  <span className="text-blot font-semibold">Callout</span>
+                  <span className="text-blot font-medium">Callout</span>
                   <span className="text-muted">&#62;</span>
                 </div>
               </div>
@@ -130,8 +135,8 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
 
       <SatelliteBadge
         href="#features"
-        icon="✒️"
-        iconClassName="bg-accent/10"
+        icon={<PencilSquareIcon className="size-4" />}
+        iconClassName="bg-accent/10 text-accent"
         title={badges.editor.title}
         description={badges.editor.description}
         rotate={-2}
@@ -141,8 +146,8 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
 
       <SatelliteBadge
         href="#ai"
-        icon="✨"
-        iconClassName="bg-blot/10"
+        icon={<SparklesIcon className="size-4" />}
+        iconClassName="bg-blot/10 text-blot"
         title={badges.ai.title}
         description={badges.ai.description}
         rotate={2.5}
@@ -152,8 +157,8 @@ export function EditorPreviewStage({ progress, prefersReducedMotion }: EditorPre
 
       <SatelliteBadge
         href="#mdx"
-        icon="⚡️"
-        iconClassName="bg-seal/10"
+        icon={<BoltIcon className="size-4" />}
+        iconClassName="bg-seal/10 text-seal"
         title={badges.mdx.title}
         description={badges.mdx.description}
         rotate={-1}

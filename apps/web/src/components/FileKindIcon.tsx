@@ -1,3 +1,4 @@
+import { useTranslation } from "@md-editor/i18n";
 import { cx } from "../lib/cx";
 
 export interface FileKindIconProps {
@@ -14,8 +15,13 @@ export interface FileKindIconProps {
  * 4. 活动打开状态（isActive）：跟随主题主色高亮。
  */
 export function FileKindIcon({ kind, name = "", isActive = false }: FileKindIconProps) {
+  const { t } = useTranslation();
   const isMdx = kind === "markdown" && name.toLowerCase().endsWith(".mdx");
-  const title = isMdx ? "MDX 文件" : kind === "markdown" ? "Markdown 文件" : "图片文件";
+  const title = isMdx
+    ? t("web.header.kindMdx")
+    : kind === "markdown"
+      ? t("web.header.kindMarkdown")
+      : t("web.header.kindImage");
 
   if (isMdx) {
     return (

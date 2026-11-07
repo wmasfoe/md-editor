@@ -1,8 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 interface SatelliteBadgeProps {
   href: string;
-  icon: string;
+  /** 线性图标（16–20px），颜色继承 iconClassName 所在容器的文字色 */
+  icon: ReactNode;
   iconClassName: string;
   title: string;
   description: string;
@@ -43,7 +46,7 @@ export function SatelliteBadge({
         willChange: "transform",
       }}
       className={[
-        "absolute z-30 rounded-2xl border border-line-strong/80 bg-surface/90 px-3.5 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-md transition-[box-shadow,background-color] duration-200",
+        "absolute z-30 rounded-xl border border-line-strong/80 bg-surface px-4 py-2.5 shadow-[0_8px_24px_rgba(20,18,15,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] transition-[box-shadow,background-color] duration-200",
         visibilityClass,
         "hover:bg-surface hover:shadow-[0_12px_28px_rgba(20,18,15,0.12)]",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -51,13 +54,11 @@ export function SatelliteBadge({
       ].join(" ")}
       aria-label={`${title}，${description}`}
     >
-      <span
-        className={`flex h-7 w-7 items-center justify-center rounded-xl text-sm ${iconClassName}`}
-      >
+      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconClassName}`}>
         {icon}
       </span>
       <div>
-        <p className="text-xs font-semibold text-ink">{title}</p>
+        <p className="text-xs font-medium text-ink">{title}</p>
         <p className="text-[11px] text-muted">{description}</p>
       </div>
     </a>

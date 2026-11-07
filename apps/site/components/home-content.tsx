@@ -62,7 +62,7 @@ export function HomeContent({
                       splashesOffset={splashesOffset}
                       sealOffset={sealOffset}
                     />
-                    <span className="ink-float-gentle mt-4 text-pretty text-lg font-normal tracking-tight text-ink-soft sm:mt-5 sm:text-2xl">
+                    <span className="mt-4 text-pretty text-lg font-normal tracking-tight text-ink-soft sm:mt-5 sm:text-2xl">
                       {t.hero.tagline}
                     </span>
                   </h1>
@@ -96,11 +96,11 @@ export function HomeContent({
         <div className="mx-auto max-w-5xl px-4 sm:px-8">
           <div className="mx-auto max-w-2xl text-center">
             <div className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-ink-soft shadow-xs">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               <span>{t.download.sectionBadge}</span>
             </div>
 
-            <h2 className="mt-4 font-sans text-2xl font-bold tracking-tight text-ink sm:text-3xl lg:text-4xl">
+            <h2 className="mt-4 font-sans text-2xl font-medium tracking-tight text-ink sm:text-3xl lg:text-4xl">
               {t.download.sectionTitle}
             </h2>
 

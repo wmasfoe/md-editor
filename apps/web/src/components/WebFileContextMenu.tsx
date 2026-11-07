@@ -46,7 +46,7 @@ export function WebFileContextMenu({
 
   return (
     <div
-      className="fixed z-50 min-w-44 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)]/95 p-1.5 shadow-[0_12px_32px_rgba(20,18,15,0.12),0_0_0_1px_rgba(20,18,15,0.04)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 min-w-44 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-[var(--theme-shadow)] animate-in fade-in zoom-in-95 duration-100"
       style={{ left: menu.x, top: menu.y }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}

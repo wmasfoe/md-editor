@@ -19,7 +19,7 @@ import {
 } from "@md-editor/ai";
 import { utoolsAiService } from "../utools/ai-service";
 import { openOfficialSite } from "../utools/referral";
-import { ExternalLinkIcon } from "./Icons";
+import { ExternalLinkIcon, InfoIcon, WarningIcon } from "./Icons";
 
 export interface UtoolsAiSettingsPanelProps {
   readonly aiSettings: AiSettings;
@@ -29,11 +29,11 @@ export interface UtoolsAiSettingsPanelProps {
 
 const sectionTitleClassName = "m-0 text-sm leading-[1.4] text-[var(--theme-title)]";
 const descriptionClassName = "mb-0 mt-1 text-xs leading-normal text-[var(--theme-muted)]";
-const fieldLabelClassName = "block text-[13px] font-semibold text-[var(--theme-title)]";
+const fieldLabelClassName = "block text-[13px] font-medium text-[var(--theme-title)]";
 const inputClassName =
-  "h-[30px] w-full rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 text-[13px] leading-none text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_2px_var(--theme-primary-soft)]";
+  "h-8 w-full rounded-lg border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2 text-[13px] leading-none text-[var(--theme-text)] outline-none focus:border-[var(--theme-primary)] focus:shadow-[0_0_0_2px_var(--theme-primary-soft)]";
 const smallButtonClassName =
-  "h-[30px] px-2.5 rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55 cursor-pointer";
+  "h-8 px-2.5 rounded-lg border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-xs text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:opacity-55 cursor-pointer";
 
 export function UtoolsAiSettingsPanel({
   aiSettings,
@@ -83,8 +83,9 @@ export function UtoolsAiSettingsPanel({
 
       {/* 免责声明提示横幅 */}
       <div className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-chrome)]/60 p-3 text-xs flex items-center justify-between gap-3">
-        <span className="text-[var(--theme-muted)]">
-          ⚠️ 当前处于 uTools 宿主环境，API Key 直接留存于插件本地存储。
+        <span className="inline-flex items-center gap-2 text-[var(--theme-muted)]">
+          <WarningIcon className="size-4 shrink-0" />
+          当前处于 uTools 宿主环境，API Key 直接留存于插件本地存储
         </span>
         <button
           type="button"
@@ -150,7 +151,7 @@ export function UtoolsAiSettingsPanel({
               <button
                 key={preset.id}
                 type="button"
-                className={`h-[28px] rounded-[5px] border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
+                className={`h-8 rounded-lg border px-2.5 text-xs font-medium transition-colors cursor-pointer ${
                   isPresetActive
                     ? "border-[var(--theme-primary)] bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
                     : "border-[var(--theme-border-strong)] bg-[var(--theme-surface)] hover:bg-[var(--theme-control-hover)] text-[var(--theme-text)]"
@@ -248,8 +249,9 @@ export function UtoolsAiSettingsPanel({
 
       {/* 原生桌面端推荐横幅 */}
       <div className="mt-4 rounded-lg border border-dashed border-[var(--theme-border)] p-3 text-xs bg-[var(--theme-chrome)]/40 flex items-center justify-between">
-        <div className="text-[var(--theme-muted)]">
-          💡 需要完全断网离线使用、银行级数据隔离与 0 延时专属小模型？
+        <div className="inline-flex items-center gap-2 text-[var(--theme-muted)]">
+          <InfoIcon className="size-4 shrink-0" />
+          需要完全离线使用本地小模型？桌面版支持
         </div>
         <button
           type="button"

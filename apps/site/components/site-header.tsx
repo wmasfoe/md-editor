@@ -20,7 +20,7 @@ export function SiteHeader({ catalog }: SiteHeaderProps) {
       <div className="mx-auto flex h-12 max-w-5xl items-center justify-between gap-2 px-3 sm:h-14 sm:gap-3 sm:px-8">
         <Link
           href="/"
-          className="group flex min-w-0 items-center gap-1.5 text-sm font-semibold tracking-tight text-ink sm:gap-2.5"
+          className="group flex min-w-0 items-center gap-1.5 text-sm font-medium tracking-tight text-ink sm:gap-2.5"
         >
           <img
             src="/logo.png"

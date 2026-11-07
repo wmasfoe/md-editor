@@ -1,9 +1,10 @@
-# 桌面端界面去 AI 味整理记录（unslop pass）
+# 界面去 AI 味整理记录（unslop pass）
 
-用途：记录一次按 unslop 清单对桌面端与 `editor-ui` 做的界面整理，包含判定、改动范围和后续约束。改动界面样式前可对照本文，避免把已清理的做法改回去。
+用途：记录按 unslop 清单对桌面端、`editor-ui`、web、utools 和官网 site 做的界面整理，包含判定、改动范围和后续约束。改动界面样式前可对照本文，避免把已清理的做法改回去。
 
 - 状态：已完成（分支 `refactor/unslop-desktop-ui`）
 - 判定：轻度问题，沿用现有品牌与 `--theme-*` 变量，不重做视觉方向
+- 范围：`apps/desktop`、`packages/editor-ui`、`apps/web`、`apps/utools`、`apps/site`（mobile 为原生代码，tui 无源码，未处理）
 
 ## 已落地的规则
 
@@ -25,3 +26,17 @@
 - `CodeMirrorEditor.css` 约 2000 行，本次只核对了过渡曲线，没有逐条审查。
 - 设置对话框、版本历史和 AI 面板没有逐屏截图对比，只做了代码层面的规则检查。
 - 命令面板 e2e `E02` 的断言依赖按钮文本包含命令 id，已改为匹配本地化标题。
+
+## 各端补充
+
+| 端 | 处理 | 保留 |
+| --- | --- | --- |
+| web | 标题栏、侧栏文案改走 `web.header.*` i18n（四种语言同步）；示例文档去掉 emoji、感叹号和「丝滑」类词，表格状态列改为「可用」；去掉 AI 续写图标的 `animate-pulse` | 示例文档的结构与 Callout 演示不变 |
+| utools | `⚠️ 💡` 换成 `Icons.tsx` 的线性图标；删除 `PRO` 徽标；横幅文案去掉「银行级」「0 延时」「隐私零外传」；`h-7`、`rounded-[6px]` 等同桌面端处理 | `ai-disclaimer.ts` 的免责声明条款原样保留（法律性文本，需单独确认后再改） |
+| site | 悬浮卡片、示例文件列表、AI 区卡片的 emoji 换成 heroicons（数据层改用 `iconKey`，不引入 React）；去掉循环漂浮动画 `ink-float-*`、徽标圆点的 `animate-pulse` 和 `animate-ping`；药丸徽标改为句首大写；字重只用 400 和 500；i18n 去掉 `✨ 🎉 💡`、`seamless`、「行云流水」类词；三个悬浮卡片的结构保留 | 品牌词标 `inkpoint-wordmark.tsx` 的字重与字距、Liquid Glass 材质、背景径向光晕、扫光效果 |
+
+## 已知遗留（补充）
+
+- site 保留的玻璃与径向光晕与本文的「不用 backdrop-blur」规则不一致，属于官网品牌决定，见 `site_feature_sections_design_spec.md`。
+- `apps/site/app/globals.css` 里 `liquid-glass-*` 的 `backdrop-filter` 未改。
+- web 在 127.0.0.1 下加载 jsdelivr 上的霞鹜文楷字体返回 404（`lxgw-wenkai-webfont@1.1.0`），与本次改动无关，未处理。

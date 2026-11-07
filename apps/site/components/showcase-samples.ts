@@ -1,5 +1,7 @@
 import type { Locale } from "../lib/i18n/types";
 
+export type ShowcaseIconKey = "document" | "pen" | "component";
+
 export interface ShowcaseSample {
   readonly id: string;
   readonly filenameZh: string;
@@ -10,7 +12,8 @@ export interface ShowcaseSample {
   readonly titleZhHant: string;
   readonly titleJa: string;
   readonly titleEn: string;
-  readonly icon: string;
+  /** 示例类别，视图层据此选择线性图标；数据层不引入 React */
+  readonly iconKey: ShowcaseIconKey;
   readonly markdownZh: string;
   readonly markdownZhHant: string;
   readonly markdownJa: string;
@@ -70,7 +73,7 @@ export const SHOWCASE_SAMPLES: readonly ShowcaseSample[] = Object.freeze([
     titleZhHant: "專注寫作",
     titleJa: "集中執筆",
     titleEn: "Focus Writing",
-    icon: "📄",
+    iconKey: "document",
     markdownZh: [
       "# 静水流深，字字生香",
       "",
@@ -146,7 +149,7 @@ export const SHOWCASE_SAMPLES: readonly ShowcaseSample[] = Object.freeze([
     titleZhHant: "紙墨相生",
     titleJa: "紙と墨の調和",
     titleEn: "Paper & Ink",
-    icon: "✒️",
+    iconKey: "pen",
     markdownZh: [
       "# 纸墨相生，心手相应",
       "",
@@ -229,7 +232,7 @@ export const MDX_SHOWCASE_SAMPLE: ShowcaseSample = Object.freeze({
   titleZhHant: "架構手記",
   titleJa: "アーキテクチャノート",
   titleEn: "Architecture Notes",
-  icon: "⚡️",
+  iconKey: "component",
   markdownZh: [
     "# 架构手记",
     "",

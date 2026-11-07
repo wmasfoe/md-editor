@@ -251,9 +251,9 @@ function MainWebEditorApp({
       }
     } catch (err: unknown) {
       console.error(err);
-      showToast(getErrorMessage(err) || "打开文件夹失败");
+      showToast(getErrorMessage(err) || t("web.header.openFolderFailed"));
     }
-  }, [documentState, showToast]);
+  }, [documentState, showToast, t]);
 
   // 刷新当前文件夹
   const handleRefreshFolder = useCallback(async () => {
@@ -263,9 +263,9 @@ function MainWebEditorApp({
         setFolder(refreshed);
       }
     } catch (err: unknown) {
-      showToast(getErrorMessage(err) || "刷新文件树失败");
+      showToast(getErrorMessage(err) || t("web.header.refreshTreeFailed"));
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   // 打开单个 Markdown 文件
   const handleOpenSingleFile = useCallback(async () => {
@@ -284,9 +284,9 @@ function MainWebEditorApp({
       setActiveFilePath(res.name);
       setOpenedAsset(null);
     } catch (err: unknown) {
-      showToast(getErrorMessage(err) || "打开文件失败");
+      showToast(getErrorMessage(err) || t("web.header.openFileFailed"));
     }
-  }, [documentState, showToast]);
+  }, [documentState, showToast, t]);
 
   // 在工作区树中点击打开文件
   const handleOpenFile = useCallback(
@@ -305,10 +305,10 @@ function MainWebEditorApp({
         setActiveFilePath(path);
         setOpenedAsset(null);
       } catch (err: unknown) {
-        showToast(getErrorMessage(err) || "读取文件失败");
+        showToast(getErrorMessage(err) || t("web.header.readFileFailed"));
       }
     },
-    [documentState, showToast],
+    [documentState, showToast, t],
   );
 
   // 点击打开图片资源预览
@@ -633,7 +633,7 @@ function MainWebEditorApp({
 
       {/* 浮动胶囊 Toast 提示 */}
       {toastMessage && (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-2 text-xs font-medium text-[var(--theme-title)] shadow-lg backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-2 text-xs font-medium text-[var(--theme-title)] shadow-[var(--theme-shadow)] animate-in fade-in slide-in-from-bottom-2">
           {toastMessage}
         </div>
       )}

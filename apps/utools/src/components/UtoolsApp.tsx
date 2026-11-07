@@ -627,7 +627,7 @@ export function UtoolsApp() {
       {toastMessage && (
         <div
           role="status"
-          className="fixed bottom-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-md bg-[var(--theme-title)] text-[var(--theme-surface)] text-xs shadow-md pointer-events-none transition-all"
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-[var(--theme-title)] text-[var(--theme-surface)] text-xs shadow-[var(--theme-shadow)] pointer-events-none"
         >
           {toastMessage}
         </div>

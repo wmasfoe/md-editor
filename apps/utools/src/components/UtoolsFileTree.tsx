@@ -102,12 +102,12 @@ function InlineInput({
   }, []);
 
   return (
-    <div className="flex h-7 min-h-7 items-center pr-2" style={{ paddingLeft }}>
+    <div className="flex h-8 min-h-8 items-center pr-2" style={{ paddingLeft }}>
       <input
         ref={inputRef}
         type="text"
         defaultValue={defaultValue}
-        className="h-6 w-full min-w-0 rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] shadow-xs ring-2 ring-[var(--theme-primary-soft)] outline-none"
+        className="h-6 w-full min-w-0 rounded-md border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] shadow-xs ring-2 ring-[var(--theme-primary-soft)] outline-none"
         onBlur={() => onCommit(inputRef.current?.value ?? "")}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -135,7 +135,7 @@ function ContextMenuItem({
   return (
     <button
       type="button"
-      className={`flex min-h-7 w-full cursor-pointer select-none items-center rounded-[6px] border-0 bg-transparent px-2.5 py-1 text-left text-xs leading-[1.35] transition-colors duration-100 focus-visible:outline-none ${
+      className={`flex min-h-8 w-full cursor-pointer select-none items-center rounded border-0 bg-transparent px-2.5 py-1 text-left text-xs leading-[1.35] transition-colors duration-100 focus-visible:outline-none ${
         danger
           ? "text-[var(--theme-danger-text)] hover:bg-[var(--theme-danger-bg)] hover:text-[var(--theme-danger-text)]"
           : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
@@ -317,9 +317,9 @@ export function UtoolsFileTree({
         <div key={node.path} className="relative px-1.5 py-[1px]">
           <button
             type="button"
-            className={`group relative flex h-7 min-h-7 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-all duration-120 ease-out focus-visible:outline-none cursor-pointer ${
+            className={`group relative flex h-8 min-h-8 w-full select-none items-center gap-2 rounded-lg border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-colors duration-120 ease-out focus-visible:outline-none cursor-pointer ${
               isActive
-                ? "bg-[var(--theme-primary-soft)] font-semibold text-[var(--theme-primary)] shadow-2xs"
+                ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
                 : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)]"
             }`}
             style={{ paddingLeft: `${paddingLeft}px` }}
@@ -378,7 +378,7 @@ export function UtoolsFileTree({
         <div className="px-1.5 py-[1px]">
           <button
             type="button"
-            className="group flex h-7 min-h-7 w-full select-none items-center gap-1.5 rounded-[6px] border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none cursor-pointer"
+            className="group flex h-8 min-h-8 w-full select-none items-center gap-2 rounded-lg border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-colors duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none cursor-pointer"
             style={{ paddingLeft: `${paddingLeft}px` }}
             title={node.path}
             aria-expanded={!isCollapsed}
@@ -468,7 +468,7 @@ export function UtoolsFileTree({
     <aside className="w-60 h-full flex flex-col bg-[var(--theme-surface)] border-r border-[var(--theme-border)] shrink-0 overflow-hidden select-none">
       {/* 顶部标题与工作区操作 */}
       <div className="flex h-[38px] items-center justify-between px-3 border-b border-[var(--theme-border)] shrink-0">
-        <span className="text-[13px] font-semibold text-[var(--theme-title)] truncate flex items-center gap-1.5">
+        <span className="text-[13px] font-medium text-[var(--theme-title)] truncate flex items-center gap-1.5">
           <FolderIcon isExpanded={true} className="size-3.5 text-[var(--theme-primary)] shrink-0" />
           <span className="truncate" title={folder?.rootName ?? "工作区"}>
             {folder?.rootName ?? "工作区"}
@@ -482,7 +482,7 @@ export function UtoolsFileTree({
                 type="button"
                 onClick={onRefresh}
                 title="刷新目录"
-                className="p-1 rounded-[5px] text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] flex items-center justify-center cursor-pointer transition-colors"
+                className="p-1 rounded-md text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] flex items-center justify-center cursor-pointer transition-colors"
               >
                 <RefreshIcon className="size-3.5" />
               </button>
@@ -490,7 +490,7 @@ export function UtoolsFileTree({
                 type="button"
                 onClick={onCloseFolder}
                 title="关闭工作区"
-                className="p-1 rounded-[5px] text-[var(--theme-muted)] hover:text-[var(--theme-danger-text)] hover:bg-[var(--theme-control-hover)] flex items-center justify-center cursor-pointer transition-colors"
+                className="p-1 rounded-md text-[var(--theme-muted)] hover:text-[var(--theme-danger-text)] hover:bg-[var(--theme-control-hover)] flex items-center justify-center cursor-pointer transition-colors"
               >
                 <CloseIcon className="size-3.5" />
               </button>
@@ -499,7 +499,7 @@ export function UtoolsFileTree({
             <button
               type="button"
               onClick={onOpenFolder}
-              className="px-2.5 py-1 bg-[var(--theme-primary)] text-white rounded-[5px] text-xs font-medium cursor-pointer hover:opacity-90 transition-opacity"
+              className="px-2.5 py-1 bg-[var(--theme-primary)] text-white rounded-lg text-xs font-medium cursor-pointer hover:opacity-90 transition-opacity"
             >
               打开
             </button>
@@ -511,7 +511,7 @@ export function UtoolsFileTree({
         <>
           {/* 搜索框 */}
           <div className="p-2 border-b border-[var(--theme-border)] shrink-0">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--theme-control-hover)] border border-[var(--theme-border)] rounded-[6px] focus-within:border-[var(--theme-primary)] focus-within:ring-1 focus-within:ring-[var(--theme-primary-soft)] transition-all">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--theme-control-hover)] border border-[var(--theme-border)] rounded-lg focus-within:border-[var(--theme-primary)] focus-within:ring-1 focus-within:ring-[var(--theme-primary-soft)] transition-colors">
               <SearchIcon className="size-3.5 text-[var(--theme-muted)] shrink-0" />
               <input
                 type="text"
@@ -544,7 +544,7 @@ export function UtoolsFileTree({
           <button
             type="button"
             onClick={onOpenFolder}
-            className="px-3.5 py-1.5 bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] hover:bg-[var(--theme-primary-selected)] rounded-[6px] font-medium cursor-pointer transition-colors"
+            className="px-4 py-1.5 bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] hover:bg-[var(--theme-primary-selected)] rounded-lg font-medium cursor-pointer transition-colors"
           >
             打开本地文件夹
           </button>
@@ -554,7 +554,7 @@ export function UtoolsFileTree({
       {/* 苹果风格毛玻璃右键上下文菜单 */}
       {contextMenu && folder && (
         <div
-          className="fixed z-50 min-w-44 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)]/95 p-1.5 shadow-[0_12px_32px_rgba(20,18,15,0.18),0_0_0_1px_rgba(20,18,15,0.06)] backdrop-blur-xl select-none animate-in fade-in zoom-in-95 duration-100"
+          className="fixed z-50 min-w-44 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 shadow-[var(--theme-shadow)] animate-in fade-in zoom-in-95 duration-100"
           style={{
             left: Math.min(
               contextMenu.x,

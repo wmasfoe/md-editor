@@ -224,7 +224,7 @@ export function SettingsModal({
         <button
           type="button"
           onClick={onCancel}
-          className="grid size-[30px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+          className="grid size-8 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
           title="取消并关闭"
           aria-label="取消并关闭设置"
         >
