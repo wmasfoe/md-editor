@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isVersionSkipped,
+  resolveUpdateNoticeChoice,
   selectUpdatePresentation,
   shouldAutoDownloadUpdate,
   shouldPresentUpdateNotice,
@@ -9,7 +10,7 @@ import { shouldShowEditorUpdateAction } from "../../../src/app/updates/update-st
 import type { UpdateStatus } from "../../../src/app/settings/app-settings";
 
 function status(partial: Partial<UpdateStatus>): UpdateStatus {
-  return { currentVersion: "0.15.1", state: "available", installKind: "app", ...partial };
+  return { currentVersion: "0.15.1", state: "available", ...partial };
 }
 
 describe("selectUpdatePresentation", () => {
@@ -69,10 +70,12 @@ describe("selectUpdatePresentation", () => {
   });
 
   it("normalizes v-prefixed versions before comparing", () => {
-    expect(shouldPresentUpdateNotice(status({ latestVersion: "v0.16.0" }), {})).toBe(true);
+    expect(
+      shouldPresentUpdateNotice(status({ latestVersion: "v0.16.0" }), { promptState: {} }),
+    ).toBe(true);
     expect(
       shouldPresentUpdateNotice(status({ latestVersion: "v0.16.0" }), {
-        lastNotifiedVersion: "0.16.0",
+        promptState: { lastNotifiedVersion: "0.16.0" },
       }),
     ).toBe(false);
   });
@@ -88,15 +91,28 @@ describe("selectUpdatePresentation", () => {
     ).toEqual({ notice: "none" });
   });
 
-  it("never presents anything for manual install flows", () => {
+  it("does not present a version postponed with 「稍后」 in this session", () => {
     expect(
       selectUpdatePresentation({
-        status: status({ installKind: "manual", latestVersion: "0.16.0" }),
+        status: status({ latestVersion: "0.16.0" }),
         promptState: {},
+        postponedVersion: "0.16.0",
         hasPaintedFirstFrame: true,
         hasReleaseNotes: true,
-      }),
-    ).toEqual({ notice: "none" });
+      }).notice,
+    ).toBe("none");
+  });
+
+  it("still presents a newer version than the postponed one", () => {
+    expect(
+      selectUpdatePresentation({
+        status: status({ latestVersion: "0.17.0" }),
+        promptState: {},
+        postponedVersion: "0.16.0",
+        hasPaintedFirstFrame: true,
+        hasReleaseNotes: true,
+      }).notice,
+    ).toBe("release-notes");
   });
 });
 
@@ -176,15 +192,49 @@ describe("shouldAutoDownloadUpdate", () => {
     ).toBe(true);
   });
 
-  it("stays out of manual-install channels", () => {
+  it("never downloads a version postponed with 「稍后」 in this session", () => {
     expect(
       shouldAutoDownloadUpdate({
-        status: status({ latestVersion: "0.16.0", installKind: "manual" }),
+        status: available,
         promptState: {},
+        postponedVersion: "0.16.0",
         automaticDownload: true,
         noticePending: false,
       }),
     ).toBe(false);
+  });
+});
+
+describe("resolveUpdateNoticeChoice", () => {
+  it("「稍后」 neither downloads nor persists anything, even with auto-download on", () => {
+    const promptState = { lastNotifiedVersion: "0.15.0" };
+    const resolution = resolveUpdateNoticeChoice("later", "0.16.0", promptState);
+    expect(resolution.download).toBe(false);
+    expect(resolution.postponedVersion).toBe("0.16.0");
+    // 不写 lastNotifiedVersion：下次启动必须重新提示。
+    expect(resolution.promptState).toBe(promptState);
+  });
+
+  it("「立即更新」 downloads and records the version as notified", () => {
+    const resolution = resolveUpdateNoticeChoice("update", "0.16.0", {});
+    expect(resolution.download).toBe(true);
+    expect(resolution.promptState).toEqual({ lastNotifiedVersion: "0.16.0" });
+  });
+
+  it("「跳过此版本」 persists the skip without downloading", () => {
+    const resolution = resolveUpdateNoticeChoice("skip", "0.16.0", {});
+    expect(resolution.download).toBe(false);
+    expect(resolution.promptState).toEqual({
+      lastNotifiedVersion: "0.16.0",
+      skippedVersion: "0.16.0",
+    });
+  });
+
+  it("a postponed version is prompted again after restart (in-memory state is gone)", () => {
+    const { promptState } = resolveUpdateNoticeChoice("later", "0.16.0", {});
+    expect(shouldPresentUpdateNotice(status({ latestVersion: "0.16.0" }), { promptState })).toBe(
+      true,
+    );
   });
 });
 
@@ -209,10 +259,8 @@ describe("shouldShowEditorUpdateAction", () => {
     }
   });
 
-  it("stays hidden for manual install channels and idle states", () => {
-    expect(
-      shouldShowEditorUpdateAction(status({ installKind: "manual", latestVersion: "0.16.0" })),
-    ).toBe(false);
+  it("stays hidden for idle and up-to-date states", () => {
     expect(shouldShowEditorUpdateAction(status({ state: "idle" }))).toBe(false);
+    expect(shouldShowEditorUpdateAction(status({ state: "up-to-date" }))).toBe(false);
   });
 });

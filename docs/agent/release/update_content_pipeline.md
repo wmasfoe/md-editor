@@ -50,14 +50,33 @@ apps/desktop/CHANGELOG_EN.md┘   ├─ notes（中文区块）→ R2 updater.j
 | 环节 | 位置 | 说明 |
 | --- | --- | --- |
 | notes 归一 | `apps/desktop/src/app/updates/release-notes.ts` | 占位内容（`Inkpoint x.y.z`、旧 Release 模板）视为无内容；版本未命中时按扁平分拣本切片条目，**不回退 `entries[0]`**（那会展示上一版本内容） |
-| 提示准入 | `apps/desktop/src/app/updates/presentation.ts` | `isVersionSkipped` / `shouldPresentUpdateNotice` / `shouldAutoDownloadUpdate` 三个纯函数 |
+| 提示准入 | `apps/desktop/src/app/updates/presentation.ts` | `isVersionSkipped` / `shouldPresentUpdateNotice` / `shouldAutoDownloadUpdate` / `resolveUpdateNoticeChoice` 纯函数 |
+| 状态机 | `apps/desktop/src/app/updates/use-app-updates.ts` | 启动检查、6h 周期、自动下载、跨窗口桥接 |
 | 簿记 | `apps/desktop/src-tauri/src/update_prompt.rs` | `app_data_dir()/update-prompt.json`，只存 `lastNotifiedVersion` / `skippedVersion` |
 
 ### 两段式提示
 
-1. 检测到新版本且该版本未提示/未跳过、且 notes 有内容 → 弹「本次更新内容」；
-   关闭后写 `lastNotifiedVersion`，「跳过此版本」额外写 `skippedVersion`。
-2. 下载完成 → 标题栏「重启以更新」+ 一次性 toast，不再弹模态。
+1. 检测到新版本且该版本未提示/未跳过/本次运行未「稍后」、且 notes 有内容 → 弹「本次更新内容」，
+   在用户选择之前不自动下载。三个按钮的语义（`presentation.ts` 的 `resolveUpdateNoticeChoice`）：
+   - 「立即更新」：写 `lastNotifiedVersion`，开始下载；
+   - 「稍后」（含 Esc / 点遮罩）：**只记在内存**（`postponedVersion`），本次运行内不下载、不再弹窗；
+     不写盘，下次启动重新提示；
+   - 「跳过此版本」：写 `lastNotifiedVersion` + `skippedVersion`，持久化跳过。
+2. 下载完成 → 标题栏「重启以更新」+ 一次性 toast，不再弹模态。下载好的包只在主窗口内存里，
+   **直接退出不会安装**，因此文案必须引导用户点「重启以更新」，不能写「重启后生效」。
+
+### 检查失败与平台缺失
+
+`app-updater.ts` 把所有检查失败（R2 与 tap 两个 endpoint 都不可用、当前平台没有条目、网络错误）
+一律按「已是最新」处理，原因只写日志；不再退回 GitHub Releases 手动安装通道。下载带 30 分钟总超时，
+避免网络卡死后永久停在「下载中」挡住后续检查；手动下载失败给 toast，状态回到「可更新」可直接重试。
+
+### 主窗口是唯一执行者
+
+插件把待安装的更新与下载好的字节放在**发起调用的 webview** 的资源表里。
+`use-app-updates.ts` 约定只有主窗口调用插件，并通过 `update-bridge.ts` 广播状态快照；
+设置窗口只镜像快照，「检查 / 下载 / 安装并重启」以命令事件交给主窗口执行。
+「安装并重启」统一走编辑器控制器的 `runEditorUpdateAction`（未保存文档确认 + 主窗口前置）。
 
 ### 「跳过此版本」的语义（易错点）
 
@@ -84,4 +103,6 @@ apps/desktop/CHANGELOG_EN.md┘   ├─ notes（中文区块）→ R2 updater.j
 | 弹窗标题写 0.16.0、内容是旧版本 | `release-notes.ts` 是否又出现了 `entries[0]` 回退 |
 | 发版在 Resolve release notes 步骤失败 | CHANGELOG 是否有该版本区块、区块是否只有标题没有列表项 |
 | 跳过某版本后仍被提醒 | `shouldAutoDownloadUpdate` 是否被绕过、簿记事件是否送达另一窗口 |
+| 点「稍后」后仍在下载 | `resolveUpdateNoticeChoice("later")` 是否被改成触发下载、`postponedVersion` 是否传进准入判断 |
+| 设置窗口显示「未检查」 | 主窗口是否广播快照（`publishUpdateSnapshot`）、设置窗口是否发出 `sync` |
 | 关于窗口 3 秒后才出现 | `capabilities/default.json` 的 `windows` 是否漏了 `about`（漏了会 ACL 拒绝 show/set-focus） |

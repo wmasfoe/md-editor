@@ -1,19 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_SHORTCUT_TEMPLATES } from "../src/app/settings/shortcuts/defaults";
-import { isWindowsPlatform } from "../src/lib/keyboard";
 import {
-  compareReleaseVersions,
   createAppThemePreviewSession,
   createAppEditorPreviewSession,
-  createUpdateStatusFromGitHubReleases,
   createDefaultSettings,
   DEFAULT_DEEPSEEK_BASE_URL,
   DEFAULT_EDITOR_DISPLAY_SETTINGS,
   DEFAULT_PLUGIN_SETTINGS,
   DEFAULT_THEME_SETTINGS,
   DEFAULT_UPDATE_SETTINGS,
-  INSTALL_WITH_CURL_COMMAND,
-  INSTALL_WITH_POWERSHELL_COMMAND,
   keyboardShortcutLabel,
   normalizeAiSettings,
   normalizeEditorDisplaySettings,
@@ -601,138 +596,19 @@ describe("app settings", () => {
     ).toBe(DEFAULT_DEEPSEEK_BASE_URL);
   });
 
-  it("detects a newer public release from the tap release payload", () => {
-    expect(
-      createUpdateStatusFromGitHubReleases("0.2.8", [
-        {
-          tag_name: "md-editor-v0.2.9",
-          html_url: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
-          prerelease: false,
-          draft: false,
-          assets: [
-            {
-              name: "Markdown.Editor_0.2.9_aarch64.dmg",
-              browser_download_url:
-                "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
-            },
-          ],
-        },
-      ]),
-    ).toEqual({
-      currentVersion: "0.2.8",
-      state: "available",
-      latestVersion: "0.2.9",
-      releaseUrl: "https://github.com/wmasfoe/homebrew-tap/releases/tag/md-editor-v0.2.9",
-      downloadUrl:
-        "https://github.com/wmasfoe/homebrew-tap/releases/download/md-editor-v0.2.9/Markdown.Editor_0.2.9_aarch64.dmg",
-      installKind: "manual",
-      installCommand: isWindowsPlatform()
-        ? INSTALL_WITH_POWERSHELL_COMMAND
-        : INSTALL_WITH_CURL_COMMAND,
-    });
-  });
-
-  it("selects platform-specific installer download URL when multiple assets exist", () => {
-    const status = createUpdateStatusFromGitHubReleases("0.2.8", [
-      {
-        tag_name: "v0.2.9",
-        prerelease: false,
-        draft: false,
-        assets: [
-          {
-            name: "Inkpoint_0.2.9_aarch64.dmg",
-            browser_download_url: "https://example.com/Inkpoint_0.2.9_aarch64.dmg",
-          },
-          {
-            name: "Inkpoint_0.2.9_x64-setup.exe",
-            browser_download_url: "https://example.com/Inkpoint_0.2.9_x64-setup.exe",
-          },
-        ],
-      },
-    ]);
-
-    expect(status.state).toBe("available");
-    const isWin = isWindowsPlatform();
-    expect(status.downloadUrl).toBe(
-      isWin
-        ? "https://example.com/Inkpoint_0.2.9_x64-setup.exe"
-        : "https://example.com/Inkpoint_0.2.9_aarch64.dmg",
-    );
-    expect(status.installCommand).toBe(
-      isWin ? INSTALL_WITH_POWERSHELL_COMMAND : INSTALL_WITH_CURL_COMMAND,
-    );
-  });
-
-  it("reports up-to-date when the installed version matches the latest public release", () => {
-    expect(
-      createUpdateStatusFromGitHubReleases("0.2.9", [
-        {
-          tag_name: "md-editor-v0.2.9",
-          prerelease: false,
-          draft: false,
-          assets: [],
-        },
-      ]),
-    ).toEqual({
-      currentVersion: "0.2.9",
-      state: "up-to-date",
-      latestVersion: "0.2.9",
-      releaseUrl: undefined,
-      downloadUrl: undefined,
-    });
-  });
-
-  it("ignores prerelease and unrelated GitHub release tags", () => {
-    expect(
-      createUpdateStatusFromGitHubReleases("0.2.8", [
-        {
-          tag_name: "md-editor-v0.2.9-beta.1",
-          prerelease: true,
-          draft: false,
-        },
-        {
-          tag_name: "other-tool-v9.0.0",
-          prerelease: false,
-          draft: false,
-        },
-      ]),
-    ).toEqual({
-      currentVersion: "0.2.8",
-      state: "unconfigured",
-    });
-  });
-
-  it("compares stable and prerelease versions with semver precedence", () => {
-    expect(compareReleaseVersions("0.2.9", "0.2.8")).toBe(1);
-    expect(compareReleaseVersions("0.2.9-beta.2", "0.2.9-beta.1")).toBe(1);
-    expect(compareReleaseVersions("0.2.9", "0.2.9-beta.2")).toBe(1);
-    expect(compareReleaseVersions("0.2.9-beta.1", "0.2.9")).toBe(-1);
-    expect(compareReleaseVersions("0.2.9", "0.2.9")).toBe(0);
-  });
-
   it("keeps editor update action visibility in pure status helpers", () => {
     expect(
       shouldShowEditorUpdateAction({
         currentVersion: "0.3.0",
         state: "available",
         latestVersion: "0.3.1",
-        installKind: "app",
       }),
     ).toBe(true);
-    expect(
-      shouldShowEditorUpdateAction({
-        currentVersion: "0.3.0",
-        state: "available",
-        latestVersion: "0.3.1",
-        installKind: "manual",
-      }),
-    ).toBe(false);
     expect(
       isUpdateReadyToApply({
         currentVersion: "0.3.0",
         state: "downloaded",
         latestVersion: "0.3.1",
-        installKind: "app",
       }),
     ).toBe(true);
     expect(
@@ -740,7 +616,6 @@ describe("app settings", () => {
         currentVersion: "0.3.0",
         state: "downloading",
         latestVersion: "0.3.1",
-        installKind: "app",
       }),
     ).toBe(true);
   });

@@ -183,10 +183,6 @@ export const ja: TranslationSchema = {
         "画像の貼り付けまたはドラッグ時に保存される相対パス。./ または ../ で始まるパスに対応し、${filename} で現在のドキュメント名を参照できます（例: ./assets, ../imgs, ${filename}.assets）。",
       assetsField: "画像アセット保存先",
       assetsPlaceholder: "./assets または ${filename}.assets",
-      manualInstallCommand: "手動インストールコマンド",
-      downloadInstaller: "インストーラーをダウンロード",
-      copyCommand: "コマンドをコピー",
-      copied: "コピーしました",
       autoCheck: "アップデートを自動確認",
       autoDownload: "アップデートを自動ダウンロード",
       currentVersion: "現在のバージョン: {{version}}",
@@ -197,18 +193,13 @@ export const ja: TranslationSchema = {
         upToDate: "最新バージョンです。",
         available: "新しいバージョン {{version}} があります。",
         downloading: "{{app}} {{version}} をダウンロードしています…",
-        downloaded: "{{app}} {{version}} をダウンロードしました。再起動後に適用されます。",
+        downloaded:
+          "{{app}} {{version}} をダウンロードしました。「再起動して更新」でインストールできます。",
         installing: "アップデートをインストールしています…",
         installed: "{{app}} {{version}} をインストールしました。再起動すると反映されます。",
-        unconfigured:
-          "アプリ内アップデートは利用できません。Release workflow の完了をご確認ください。",
         error: "アップデートの確認に失敗しました：{{error}}",
         errorUnknown: "不明なエラー",
       },
-      updateInstalledRestartApp:
-        "アップデートがインストールされました。アプリを再起動してください。",
-      updateInstalledSaveFirst:
-        "アップデートがインストールされました。すべてのドキュメントを保存した後、アプリを手動で再起動してください。",
       aboutDesc: "バージョン、主な機能、関連リンクを表示します。",
       aboutVersion: "製品情報と著作権",
       aboutOpen: "「について」を開く",
@@ -255,14 +246,17 @@ export const ja: TranslationSchema = {
         downloaded: "再起動待ち",
         installing: "インストール中",
         installed: "インストール済み",
-        unconfigured: "未設定",
         error: "確認に失敗",
       },
       lastChecked: "最終確認：{{time}}",
       neverChecked: "まだ確認していません",
       toasts: {
-        downloaded: "{{version}} の準備ができました。再起動すると反映されます。",
+        downloaded:
+          "{{version}} をダウンロードしました。「再起動して更新」でインストールできます。",
         skipped: "{{version}} は今後自動で表示しません。",
+        downloadFailed: "アップデートのダウンロードに失敗しました：{{error}}",
+        installFailed: "アップデートのインストールに失敗しました：{{error}}",
+        checkFailed: "現在アップデートを確認できません。しばらくしてからもう一度お試しください。",
       },
     },
     appearance: {

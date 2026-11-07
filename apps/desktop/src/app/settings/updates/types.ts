@@ -18,17 +18,12 @@ export interface UpdateStatus {
     | "downloaded"
     | "installing"
     | "installed"
-    | "unconfigured"
     | "error";
   readonly latestVersion?: string;
-  readonly releaseUrl?: string;
-  readonly downloadUrl?: string;
-  readonly installKind?: "app" | "manual";
-  readonly installCommand?: string;
   readonly downloadedBytes?: number;
   readonly totalBytes?: number;
   readonly error?: string;
-  /** 最新版本的更新日志（Markdown 格式，来自 Tauri updater manifest 或 GitHub Release body） */
+  /** 最新版本的更新日志（Markdown 格式，来自 Tauri updater manifest 的 notes） */
   readonly releaseNotes?: string;
 }
 

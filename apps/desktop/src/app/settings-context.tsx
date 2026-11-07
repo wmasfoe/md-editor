@@ -1,15 +1,5 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { isTauri } from "@tauri-apps/api/core";
-import {
-  appVersion,
   createAppThemePreviewCoordinator,
   createAppEditorPreviewCoordinator,
   createDefaultSettings,
@@ -22,34 +12,13 @@ import {
   type UpdateStatus,
 } from "./settings/app-settings";
 import { applyCustomThemeCss } from "./settings/theme-css";
-import {
-  checkForInstallableUpdate,
-  downloadPendingUpdate,
-  installDownloadedUpdate,
-  relaunchAfterUpdate,
-} from "./updates/app-updater";
-import { isUpdateActionBusy, isUpdateReadyToApply } from "./updates/update-status";
-import {
-  listenUpdatePromptStateChanged,
-  loadUpdatePromptState,
-  normalizeVersion,
-  saveUpdatePromptState,
-  type UpdatePromptState,
-} from "./updates/prompt-state";
-import {
-  selectUpdatePresentation,
-  shouldAutoDownloadUpdate,
-  shouldPresentUpdateNotice,
-  type UpdateNoticeChoice,
-} from "./updates/presentation";
-import { readReleaseNotesEntry } from "./updates/release-notes";
+import type { UpdatePromptState } from "./updates/prompt-state";
+import type { UpdateNoticeChoice } from "./updates/presentation";
+import { useAppUpdates, type UpdateNotice } from "./updates/use-app-updates";
 import { openSettingsWindow } from "../desktop/settings-window";
 import { mergeLocalAiModelStatus, readLocalAiModelStatus } from "./ai/local-ai-model";
-import { changeLanguage, t } from "@md-editor/i18n";
-import type { ChangelogEntry } from "@md-editor/changelog";
+import { changeLanguage } from "@md-editor/i18n";
 import { syncSentryWithSettings } from "./error-reporting/sentry";
-
-const AUTO_UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 export interface AppSettingsContextValue {
   readonly settings: AppSettings;
@@ -62,11 +31,8 @@ export interface AppSettingsContextValue {
   readonly relaunchUpdate: () => Promise<void>;
   readonly downloadUpdate: () => Promise<UpdateStatus>;
   readonly applyDownloadedUpdate: () => Promise<UpdateStatus>;
-  /** 需要展示「本次更新内容」时非 null；同版本关闭后不再出现 */
-  readonly updateNotice: {
-    readonly version: string;
-    readonly entry: ChangelogEntry | null;
-  } | null;
+  /** 需要展示「本次更新内容」时非 null；同版本处理后不再出现 */
+  readonly updateNotice: UpdateNotice | null;
   readonly resolveUpdateNotice: (choice: UpdateNoticeChoice, version: string) => Promise<void>;
   /** 跳过当前最新版本：之后不再自动提示/自动下载该版本（手动检查仍可见） */
   readonly skipUpdateVersion: (version?: string) => Promise<void>;
@@ -74,11 +40,6 @@ export interface AppSettingsContextValue {
   readonly updatePromptState: UpdatePromptState;
   /** 最近一次检查完成时间（ISO 字符串，展示时再按语言格式化）；从未检查为 null */
   readonly lastCheckedAt: string | null;
-}
-
-interface UpdateCheckOptions {
-  readonly automatic?: boolean;
-  readonly downloadAvailableUpdate?: boolean;
 }
 
 const AppSettingsContext = createContext<AppSettingsContextValue | null>(null);
@@ -108,63 +69,6 @@ export function AppSettingsProvider({
   const [previewTheme, setPreviewTheme] = useState<AppSettings["theme"] | null>(null);
   const [previewEditor, setPreviewEditor] = useState<AppSettings["editor"] | null>(null);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(() => ({
-    currentVersion: appVersion(),
-    state: "idle",
-  }));
-  const updateStatusRef = useRef<UpdateStatus>(updateStatus);
-  const isAutoUpdateRunningRef = useRef(false);
-  // 更新提示簿记：只有「已提示/已跳过」两个版本号，持久化在独立文件里。
-  const [promptState, setPromptState] = useState<UpdatePromptState>({});
-  const promptStateRef = useRef<UpdatePromptState>({});
-  const [hasLoadedPromptState, setHasLoadedPromptState] = useState(false);
-  // 首帧闸门：主题与主窗口首帧就绪前不弹模态，避免遮罩白屏。
-  const [hasPaintedFirstFrame, setHasPaintedFirstFrame] = useState(false);
-  const toastedVersionsRef = useRef(new Set<string>());
-  const hasRunInitialCheckRef = useRef(false);
-  const [lastCheckedAt, setLastCheckedAt] = useState<string | null>(null);
-
-  useEffect(() => {
-    updateStatusRef.current = updateStatus;
-  }, [updateStatus]);
-
-  // 首帧闸门：双重 rAF 之后才允许呈现更新提示，避免启动瞬间闪出无主题的遮罩。
-  useEffect(() => {
-    if (typeof requestAnimationFrame !== "function") {
-      setHasPaintedFirstFrame(true);
-      return;
-    }
-    let secondFrame = 0;
-    const firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => setHasPaintedFirstFrame(true));
-    });
-    return () => {
-      cancelAnimationFrame(firstFrame);
-      if (secondFrame !== 0) cancelAnimationFrame(secondFrame);
-    };
-  }, []);
-
-  // 读取提示簿记。设置窗口的「跳过此版本」按钮也需要这份状态（否则跳过态永远显示未跳过）；
-  // 主窗口读完之前不发起自动检查，避免对已提示版本重复弹窗。
-  useEffect(() => {
-    let disposed = false;
-    void loadUpdatePromptState().then((state) => {
-      if (disposed) return;
-      promptStateRef.current = state;
-      setPromptState(state);
-      setHasLoadedPromptState(true);
-    });
-    // 设置窗口里的「跳过此版本」写的是同一份文件；这里跟随刷新，避免同一会话内重复提示。
-    const stopListening = listenUpdatePromptStateChanged((state) => {
-      if (disposed) return;
-      promptStateRef.current = state;
-      setPromptState(state);
-    });
-    return () => {
-      disposed = true;
-      stopListening?.();
-    };
-  }, [surface]);
 
   // 加载设置（含本地模型状态水合）
   useEffect(() => {
@@ -277,245 +181,13 @@ export function AppSettingsProvider({
     setIsSettingsOpen(false);
   }, []);
 
-  const downloadUpdate = useCallback(async () => {
-    const result = await downloadPendingUpdate(setUpdateStatus);
-    setUpdateStatus(result);
-    return result;
-  }, []);
-
-  const applyDownloadedUpdate = useCallback(async () => {
-    const installingStatus: UpdateStatus = {
-      ...updateStatusRef.current,
-      currentVersion: updateStatusRef.current.currentVersion || appVersion(),
-      state: "installing",
-    };
-    setUpdateStatus(installingStatus);
-    const result = await installDownloadedUpdate();
-    setUpdateStatus(result);
-    return result;
-  }, []);
-
-  const relaunchUpdate = useCallback(async () => {
-    await relaunchAfterUpdate();
-  }, []);
-
-  const runUpdateCheck = useCallback(
-    async ({ automatic = false, downloadAvailableUpdate = false }: UpdateCheckOptions = {}) => {
-      const current = updateStatusRef.current;
-      if (
-        isAutoUpdateRunningRef.current ||
-        isUpdateActionBusy(current) ||
-        isUpdateReadyToApply(current)
-      )
-        return current;
-
-      isAutoUpdateRunningRef.current = true;
-      const checkingStatus: UpdateStatus = {
-        ...current,
-        currentVersion: current.currentVersion || appVersion(),
-        state: "checking",
-      };
-      setUpdateStatus(checkingStatus);
-
-      try {
-        if (automatic && current.state === "available" && current.installKind === "app") {
-          // 提示仍可能待展示（用户停留在弹窗上时 6h 周期会再次进入）：
-          // 与首次检查用同一套准入判断，避免在模态背后开始下载。
-          const noticePending =
-            shouldPresentUpdateNotice(current, promptStateRef.current) &&
-            readReleaseNotesEntry(current) !== null;
-          const shouldDownload = shouldAutoDownloadUpdate({
-            status: current,
-            promptState: promptStateRef.current,
-            automaticDownload: downloadAvailableUpdate,
-            noticePending,
-          });
-          if (!shouldDownload) {
-            setUpdateStatus(current);
-            return current;
-          }
-          const downloaded = await downloadPendingUpdate(setUpdateStatus);
-          if (downloaded.state === "error") {
-            console.warn("自动下载更新失败", downloaded.error ?? downloaded.state);
-            setUpdateStatus(current);
-            return downloaded;
-          }
-          setUpdateStatus(downloaded);
-          return downloaded;
-        }
-
-        const next = await checkForInstallableUpdate(appVersion());
-        if (next.state === "error" || next.state === "unconfigured") {
-          if (automatic) {
-            console.warn("自动检测更新失败", next.error ?? next.state);
-            setUpdateStatus(current);
-          } else {
-            setUpdateStatus(next);
-          }
-          return next;
-        }
-
-        // 需要向用户展示更新内容时，先让提示出现；自动下载推迟到提示关闭之后。
-        // 旧版本 manifest 的 notes 可能只是占位（Inkpoint x.y.z），此时不弹空弹窗。
-        const willPresentNotice =
-          shouldPresentUpdateNotice(next, promptStateRef.current) &&
-          readReleaseNotesEntry(next) !== null;
-        const shouldDownload = shouldAutoDownloadUpdate({
-          status: next,
-          promptState: promptStateRef.current,
-          automaticDownload: downloadAvailableUpdate,
-          noticePending: willPresentNotice,
-        });
-        setUpdateStatus(next);
-        if (shouldDownload) {
-          const downloaded = await downloadPendingUpdate(setUpdateStatus);
-          if (downloaded.state === "error") {
-            console.warn("自动下载更新失败", downloaded.error ?? downloaded.state);
-            setUpdateStatus(next);
-            return downloaded;
-          }
-          setUpdateStatus(downloaded);
-          return downloaded;
-        }
-
-        return next;
-      } catch (error) {
-        console.warn("自动检测更新失败", error);
-        const failedStatus: UpdateStatus = {
-          currentVersion: appVersion(),
-          state: "error",
-          error: formatUpdateCheckError(error),
-        };
-        if (automatic) {
-          setUpdateStatus(current);
-        } else {
-          setUpdateStatus(failedStatus);
-        }
-        return failedStatus;
-      } finally {
-        isAutoUpdateRunningRef.current = false;
-        setLastCheckedAt(new Date().toISOString());
-      }
-    },
-    [],
-  );
-
-  const checkForUpdate = useCallback(async () => runUpdateCheck(), [runUpdateCheck]);
-
-  const runAutomaticUpdateCheck = useCallback(async () => {
-    if (!isTauri() || !settings.update.automaticCheck) return;
-    await runUpdateCheck({
-      automatic: true,
-      downloadAvailableUpdate: settings.update.automaticDownload,
-    });
-  }, [runUpdateCheck, settings.update.automaticCheck, settings.update.automaticDownload]);
-
-  // 关掉自动检测再打开时，用户期望马上生效：复位首检标记，让下面的 effect 立即检查一次。
-  const previousAutomaticCheckRef = useRef(settings.update.automaticCheck);
-  useEffect(() => {
-    if (!previousAutomaticCheckRef.current && settings.update.automaticCheck) {
-      hasRunInitialCheckRef.current = false;
-    }
-    previousAutomaticCheckRef.current = settings.update.automaticCheck;
-  }, [settings.update.automaticCheck]);
-
-  // 自动更新：设置与提示簿记就绪后立即检查一次，之后按固定周期检查（仅主窗口）。
-  useEffect(() => {
-    if (
-      surface !== "main" ||
-      !hasLoadedSettings ||
-      !hasLoadedPromptState ||
-      !settings.update.automaticCheck ||
-      !isTauri()
-    )
-      return;
-
-    if (!hasRunInitialCheckRef.current) {
-      hasRunInitialCheckRef.current = true;
-      void runAutomaticUpdateCheck();
-    }
-
-    const interval = window.setInterval(
-      () => void runAutomaticUpdateCheck(),
-      AUTO_UPDATE_CHECK_INTERVAL_MS,
-    );
-    return () => window.clearInterval(interval);
-  }, [
-    hasLoadedPromptState,
-    hasLoadedSettings,
-    runAutomaticUpdateCheck,
-    settings.update.automaticCheck,
+  // 应用内更新状态机：主窗口执行，设置窗口镜像（见 updates/use-app-updates.ts）。
+  const updates = useAppUpdates({
     surface,
-  ]);
-
-  /** 写入提示簿记的唯一入口：状态同一份 ref 与 state 必须同步更新。 */
-  const commitPromptState = useCallback((next: UpdatePromptState) => {
-    promptStateRef.current = next;
-    setPromptState(next);
-    void saveUpdatePromptState(next);
-  }, []);
-
-  const skipUpdateVersion = useCallback(
-    async (targetVersion?: string) => {
-      // 设置页调用时没有「当前提示版本」上下文，回落到状态里的最新版本。
-      const version = normalizeVersion(targetVersion ?? updateStatusRef.current.latestVersion);
-      if (!version) return;
-
-      commitPromptState({
-        ...promptStateRef.current,
-        lastNotifiedVersion: version,
-        skippedVersion: version,
-      });
-      showToast(t("settings.updates.toasts.skipped", { version }));
-    },
-    [commitPromptState, showToast],
-  );
-
-  // 关闭提示：记录已提示版本；「跳过」交给 skipUpdateVersion，保证两个入口写同一种状态。
-  const resolveUpdateNotice = useCallback(
-    async (choice: UpdateNoticeChoice, version: string) => {
-      if (choice === "skip") {
-        await skipUpdateVersion(version);
-        return;
-      }
-
-      commitPromptState({ ...promptStateRef.current, lastNotifiedVersion: version });
-
-      // 「立即更新」或开启自动下载时，提示关闭后立刻转入后台下载。
-      if (choice === "update" || settings.update.automaticDownload) {
-        void downloadUpdate();
-      }
-    },
-    [commitPromptState, downloadUpdate, settings.update.automaticDownload, skipUpdateVersion],
-  );
-
-  const updateNotice = useMemo(() => {
-    const entry = readReleaseNotesEntry(updateStatus);
-    const presentation = selectUpdatePresentation({
-      status: updateStatus,
-      promptState,
-      hasPaintedFirstFrame,
-      hasReleaseNotes: entry !== null,
-    });
-    if (presentation.notice !== "release-notes") {
-      return null;
-    }
-    const version = normalizeVersion(updateStatus.latestVersion);
-    if (!version) {
-      return null;
-    }
-    return { version, entry };
-  }, [hasPaintedFirstFrame, promptState, updateStatus]);
-
-  // 第二段提醒：下载完成后只提示一次 toast，不再弹模态打断。
-  useEffect(() => {
-    const version = normalizeVersion(updateStatus.latestVersion);
-    if (updateStatus.state !== "downloaded" || !version) return;
-    if (toastedVersionsRef.current.has(version)) return;
-
-    toastedVersionsRef.current.add(version);
-    showToast(t("settings.updates.toasts.downloaded", { version }));
-  }, [showToast, updateStatus.latestVersion, updateStatus.state]);
+    updateSettings: settings.update,
+    hasLoadedSettings,
+    showToast,
+  });
 
   const effectiveSettings = useMemo(
     () => ({
@@ -527,26 +199,13 @@ export function AppSettingsProvider({
   );
 
   const value: AppSettingsContextValue = {
+    ...updates,
     settings: effectiveSettings,
     hasLoadedSettings,
-    updateStatus,
     isSettingsOpen,
     openSettings,
     closeSettings,
-    checkForUpdate,
-    relaunchUpdate,
-    downloadUpdate,
-    applyDownloadedUpdate,
-    updateNotice,
-    resolveUpdateNotice,
-    skipUpdateVersion,
-    updatePromptState: promptState,
-    lastCheckedAt,
   };
 
   return <AppSettingsContext.Provider value={value}>{children}</AppSettingsContext.Provider>;
-}
-
-function formatUpdateCheckError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

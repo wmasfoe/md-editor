@@ -85,7 +85,9 @@ describe("desktop document controller boundaries", () => {
     expect(windowGuardsSource.match(/isDiscardProtectionRequired\(/gu)).toHaveLength(2);
     expect(desktopControllerSource).toContain("if (!isDiscardProtectionRequired(current))");
     expect(settingsPageSource).not.toContain("relaunchUpdate");
-    expect(settingsPageSource).toContain("onRelaunchAfterUpdate={onRelaunchAfterUpdate}");
+    // 设置页的「安装并重启」必须回到编辑器控制器（内嵌页走 onApplyUpdate，独立窗口走 apply 命令），
+    // 由它统一做未保存文档确认。
+    expect(settingsPageSource).toContain("ctrl.installUpdate(onApplyUpdate)");
   });
 
   it("does not expose snapshot-only document mutation helpers from production stores", () => {

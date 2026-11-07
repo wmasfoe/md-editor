@@ -151,8 +151,6 @@ export function updateStatusMessage(updateStatus: UpdateStatus): string {
       return t("settings.general.updateStatus.installing");
     case "installed":
       return t("settings.general.updateStatus.installed", { app: APP_DISPLAY_NAME, version });
-    case "unconfigured":
-      return t("settings.general.updateStatus.unconfigured");
     case "error":
       return t("settings.general.updateStatus.error", {
         error: updateStatus.error ?? t("settings.general.updateStatus.errorUnknown"),

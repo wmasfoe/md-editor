@@ -6,7 +6,7 @@ import {
 import type { UpdateStatus } from "../../../src/app/settings/app-settings";
 
 function status(partial: Partial<UpdateStatus>): UpdateStatus {
-  return { currentVersion: "0.15.1", state: "available", installKind: "app", ...partial };
+  return { currentVersion: "0.15.1", state: "available", ...partial };
 }
 
 const CHANGELOG = `## 0.16.0 - 2026-10-30 (#190)
