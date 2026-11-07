@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.0 - 2026-11-07 (#217, #218, #219, #220, #221)
+
+- Smart paste: rich text copied from web pages and other sources is converted into clean Markdown (headings, lists, tables, and code blocks are preserved); IDE and plain-text pastes stay verbatim, hold Shift to paste as plain text; pasting a link over a selection wraps it as a Markdown link.
+- Inline HTML block editing: double-click or the "Edit source" button expands the raw HTML in place, Mod-Enter / Esc collapses it; arrow keys only select the whole block, links in the preview open directly; HTML comments stay as muted source lines.
+- Write below a trailing block: when a document ends with a table, HTML, or thematic break, you can keep writing right below it; that blank line is editing-only and is never written to the file.
+- Shortcut adjustments: Open Folder moves to Mod-Alt-O to avoid clashing with the ordered-list shortcut; fixes the replace panel, formatting shortcuts outside the editor, and word-wise double-click drag; no stray caret when an atom block is selected.
+
 ## 0.19.3 - 2026-11-05 (#215, #216)
 
 - Fix custom shortcuts and menu accelerator conflicts; fix first-click caret positioning on collapsed inline markers; honor AI continuation toggle; upload Sentry source maps on production release builds without shipping them
