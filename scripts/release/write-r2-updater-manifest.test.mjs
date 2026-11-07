@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  findMissingPlatforms,
   generateUpdaterManifest,
   r2UrlFor,
   resolveUpdaterArtifacts,
@@ -131,6 +132,26 @@ describe("generateUpdaterManifest", () => {
   });
 });
 
+describe("findMissingPlatforms", () => {
+  it("reports required platforms that have no signed artifact", () => {
+    withArtifacts(
+      {
+        "Inkpoint.app.tar.gz": "mac",
+        "Inkpoint.app.tar.gz.sig": "mac-sig",
+      },
+      (dir) => {
+        assert.deepEqual(
+          findMissingPlatforms(resolveUpdaterArtifacts(dir), [
+            "darwin-aarch64",
+            "linux-x86_64-deb",
+          ]),
+          ["linux-x86_64-deb"],
+        );
+      },
+    );
+  });
+});
+
 describe("resolveUpdaterArtifacts", () => {
   it("把 Tauri v2 的 NSIS 安装器本体识别为 Windows 更新产物", () => {
     // 回归：此前只匹配 `.nsis.zip`，Windows 构建实际只产出 `<...>_x64-setup.exe` + `.sig`。
@@ -186,6 +207,21 @@ describe("resolveUpdaterArtifacts", () => {
       (dir) => {
         const keys = resolveUpdaterArtifacts(dir).flatMap((artifact) => artifact.keys);
         assert.deepEqual(keys, ["linux-x86_64-deb"]);
+      },
+    );
+  });
+
+  it("omits the bare Linux key when the deb entry is missing, so deb installs never get an AppImage", () => {
+    // 回归（PR #225 review）：缺 `.deb.sig` 时 deb 客户端会回落到裸键拿 AppImage 去 `dpkg -i`。
+    withArtifacts(
+      {
+        "Inkpoint_0.21.0_amd64.AppImage": "appimage",
+        "Inkpoint_0.21.0_amd64.AppImage.sig": "appimage-sig",
+        "Inkpoint_0.21.0_amd64.deb": "deb",
+      },
+      (dir) => {
+        const keys = resolveUpdaterArtifacts(dir).flatMap((artifact) => artifact.keys);
+        assert.deepEqual(keys, ["linux-x86_64-appimage"]);
       },
     );
   });

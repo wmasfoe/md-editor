@@ -2,8 +2,9 @@
  * @fileoverview 应用内更新的执行层：封装 tauri-plugin-updater 的检查 / 下载 / 安装
  *
  * 约定：
- * - 检查失败（R2 与备用 endpoint 都不可用、当前平台没有更新条目等）一律按「已是最新」处理。
- *   用户对网络故障无能为力，展示错误只会制造焦虑；失败原因只写日志。
+ * - 检查失败（R2 与备用 endpoint 都不可用、当前平台没有更新条目等）按「已是最新」处理，
+ *   失败原因写日志并放在 `checkFailed` 里：自动检查静默忽略，手动检查由调用方给轻提示，
+ *   避免用户在断网时误以为已是最新。
  * - 下载好的更新包只存在于发起下载的 webview 资源表里（插件按 webview 隔离），
  *   因此只有主窗口调用本模块；设置窗口经 `update-bridge` 把动作转交主窗口。
  */
@@ -33,30 +34,37 @@ const PROGRESS_REPORT_INTERVAL_MS = 100;
 let pendingUpdate: Update | null = null;
 let downloadedUpdate: Update | null = null;
 
+/** 检查结果：`checkFailed` 存在表示检查本身失败（状态仍按「已是最新」给出）。 */
+export interface UpdateCheckResult {
+  readonly status: UpdateStatus;
+  readonly checkFailed?: string;
+}
+
 export async function checkForInstallableUpdate(
   currentVersion = appVersion(),
-): Promise<UpdateStatus> {
+): Promise<UpdateCheckResult> {
   const upToDate: UpdateStatus = { currentVersion, state: "up-to-date" };
   if (!isTauri()) {
-    return upToDate;
+    return { status: upToDate };
   }
 
   // 已下载但未安装：继续沿用这份包，避免重复下载。
   if (downloadedUpdate) {
-    return createUpdateStatus(downloadedUpdate, currentVersion, "downloaded");
+    return { status: createUpdateStatus(downloadedUpdate, currentVersion, "downloaded") };
   }
 
   try {
     await clearPendingUpdate();
     const update = await check({ timeout: CHECK_TIMEOUT_MS });
     if (!update) {
-      return upToDate;
+      return { status: upToDate };
     }
     pendingUpdate = update;
-    return createUpdateStatus(update, currentVersion, "available");
+    return { status: createUpdateStatus(update, currentVersion, "available") };
   } catch (error) {
-    console.warn("检查更新失败，按已是最新处理", formatUpdateError(error));
-    return upToDate;
+    const reason = formatUpdateError(error);
+    console.warn("检查更新失败，按已是最新处理", reason);
+    return { status: upToDate, checkFailed: reason };
   }
 }
 

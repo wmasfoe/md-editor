@@ -10,6 +10,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # 应用内更新清单的必备平台：缺产物或签名时发版失败，避免某个平台静默收不到更新。
+  # Linux aarch64 构建允许失败（build-linux-arm64 设了 continue-on-error），因此不列入。
+  REQUIRED_UPDATER_PLATFORMS: darwin-aarch64,windows-x86_64,linux-x86_64-appimage,linux-x86_64-deb
+
 jobs:
   build-macos:
     name: Build macOS (Apple Silicon)
@@ -451,6 +456,7 @@ jobs:
 
           # 应用内更新的备用 endpoint：与 R2 清单同一生成器、同一组平台，只是下载地址指向 tap Release。
           ARTIFACTS_DIR=release-artifacts \
+          REQUIRED_UPDATER_PLATFORMS="$REQUIRED_UPDATER_PLATFORMS" \
           OUTPUT_PATH="$RUNNER_TEMP/r2-updater-preview.json" \
           TAP_REPOSITORY="wmasfoe/homebrew-tap" \
           TAP_RELEASE_TAG="$RELEASE_TAG" \

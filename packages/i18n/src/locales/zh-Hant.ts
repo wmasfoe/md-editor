@@ -254,6 +254,7 @@ export const zhHant: TranslationSchema = {
         skipped: "已跳過 {{version}}，不再自動提示。",
         downloadFailed: "下載更新失敗：{{error}}",
         installFailed: "安裝更新失敗：{{error}}",
+        checkFailed: "暫時無法檢查更新，請稍後再試。",
       },
     },
     appearance: {

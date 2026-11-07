@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
  * 平台键遵循 tauri-plugin-updater 的查找顺序：先 `{os}-{arch}-{installer}`，再 `{os}-{arch}`。
  * Linux 必须同时写 AppImage 与 deb 的带安装器后缀的键：
  * deb 安装的应用若只能匹配到裸 `linux-x86_64`（AppImage），会拿 AppImage 字节去 `dpkg -i`，安装失败。
+ * 因此裸键带 `requires`：只有 deb 条目也解析成功时才写裸键，缺 deb 时宁可让该架构的
+ * 未知安装类型客户端「收不到更新」，也不能让 deb 用户拿到错的包。
  */
 
 /**
@@ -37,13 +39,15 @@ export const UPDATER_PLATFORMS = [
       (n) => n.includes("x64") && n.endsWith("-setup.exe"),
     ],
   },
-  // Linux AppImage：裸键也指向 AppImage（无法识别安装类型时的默认）。
+  // Linux AppImage：裸键也指向 AppImage（无法识别安装类型时的默认），但仅在 deb 条目齐全时写入。
   {
-    keys: ["linux-x86_64", "linux-x86_64-appimage"],
+    keys: ["linux-x86_64-appimage"],
+    bareKey: { key: "linux-x86_64", requires: "linux-x86_64-deb" },
     matchers: [(n) => n.endsWith("_amd64.AppImage")],
   },
   {
-    keys: ["linux-aarch64", "linux-aarch64-appimage"],
+    keys: ["linux-aarch64-appimage"],
+    bareKey: { key: "linux-aarch64", requires: "linux-aarch64-deb" },
     matchers: [(n) => n.endsWith("_aarch64.AppImage")],
   },
   { keys: ["linux-x86_64-deb"], matchers: [(n) => n.endsWith("_amd64.deb")] },
@@ -65,6 +69,7 @@ function listFiles(dir) {
 /**
  * 在 `artifactsDir` 中解析每个平台的更新产物与签名。
  * 只有同时存在产物与同名 `.sig` 的平台才会进入清单：没有签名的条目会让客户端校验失败。
+ * 裸键（`bareKey`）只在其依赖的条目也解析成功时追加。
  *
  * @returns {Array<{ keys: string[], file: string, name: string, signature: string }>}
  */
@@ -77,13 +82,32 @@ export function resolveUpdaterArtifacts(artifactsDir) {
       .find(Boolean);
     if (!file || !fs.existsSync(`${file}.sig`)) continue;
     resolved.push({
-      keys: platform.keys,
+      platform,
+      keys: [...platform.keys],
       file,
       name: path.basename(file),
       signature: fs.readFileSync(`${file}.sig`, "utf8").trim(),
     });
   }
-  return resolved;
+
+  const resolvedKeys = new Set(resolved.flatMap((artifact) => artifact.keys));
+  for (const artifact of resolved) {
+    const bareKey = artifact.platform.bareKey;
+    if (bareKey && resolvedKeys.has(bareKey.requires)) {
+      artifact.keys.unshift(bareKey.key);
+    }
+  }
+  return resolved.map(({ platform: _platform, ...artifact }) => artifact);
+}
+
+/**
+ * 返回缺失的平台主键（每个平台条目的第一个键）。
+ * CI 用 `REQUIRED_UPDATER_PLATFORMS` 声明必备平台，缺任何一个就让发版失败，
+ * 而不是只打 warning 让某个平台静默失去应用内更新。
+ */
+export function findMissingPlatforms(artifacts, requiredKeys) {
+  const resolvedKeys = new Set(artifacts.flatMap((artifact) => artifact.keys));
+  return requiredKeys.filter((key) => !resolvedKeys.has(key));
 }
 
 /**
@@ -163,11 +187,22 @@ export function runCli() {
   const notes = readNotes();
   const artifacts = resolveUpdaterArtifacts(artifactsDir);
 
-  const resolvedKeys = new Set(artifacts.flatMap((artifact) => artifact.keys));
-  for (const platform of UPDATER_PLATFORMS) {
-    if (!resolvedKeys.has(platform.keys[0])) {
-      console.warn(`⚠️ 未找到 ${platform.keys[0]} 的更新产物或签名：该平台用户收不到应用内更新`);
-    }
+  const missing = findMissingPlatforms(
+    artifacts,
+    UPDATER_PLATFORMS.map((platform) => platform.keys[0]),
+  );
+  for (const key of missing) {
+    console.warn(`⚠️ 未找到 ${key} 的更新产物或签名：该平台用户收不到应用内更新`);
+  }
+  // 必备平台缺失时让发版失败：静默缺失是 Windows（2026-10）与 Linux（2026-11）两次事故的共同根因。
+  const required = (process.env.REQUIRED_UPDATER_PLATFORMS ?? "")
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+  const missingRequired = findMissingPlatforms(artifacts, required);
+  if (missingRequired.length > 0) {
+    console.error(`❌ 缺少必备平台的更新产物或签名：${missingRequired.join(", ")}`);
+    process.exit(1);
   }
 
   const outputs = [{ path: outputPath, urlFor: r2UrlFor(distributionUrl, appName) }];

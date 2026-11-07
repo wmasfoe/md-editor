@@ -252,6 +252,7 @@ export const zh = {
         skipped: "已跳过 {{version}}，不再自动提示。",
         downloadFailed: "下载更新失败：{{error}}",
         installFailed: "安装更新失败：{{error}}",
+        checkFailed: "暂时无法检查更新，请稍后再试。",
       },
     },
     appearance: {

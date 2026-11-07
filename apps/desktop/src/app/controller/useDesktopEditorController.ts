@@ -822,6 +822,10 @@ export function useDesktopEditorController({
 
   // 设置窗口的「安装并重启」转交这里：主窗口才持有更新包，也只有这里能确认未保存文档。
   // 先把主窗口带到前台，确认弹窗才不会藏在设置窗口后面。
+  // runEditorUpdateAction 随下载进度频繁变化，经 ref 读取最新版本，订阅只建立一次，
+  // 避免重订阅的异步间隙里丢掉 apply 命令。
+  const runEditorUpdateActionRef = useRef(runEditorUpdateAction);
+  runEditorUpdateActionRef.current = runEditorUpdateAction;
   useEffect(
     () =>
       listenUpdateCommands((command) => {
@@ -831,9 +835,9 @@ export function useDesktopEditorController({
           .show()
           .then(() => window.setFocus())
           .catch((error: unknown) => console.warn("主窗口前置失败", error));
-        void runEditorUpdateAction();
+        void runEditorUpdateActionRef.current();
       }),
-    [runEditorUpdateAction],
+    [],
   );
 
   useEffect(() => {

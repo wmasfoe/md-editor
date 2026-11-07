@@ -44,13 +44,15 @@ describe("update check wiring", () => {
     // 「安装并重启」交给编辑器控制器，它负责未保存文档确认。
     expect(settingsControllerSource).toContain('sendUpdateCommand("apply")');
     expect(desktopControllerSource).toMatch(
-      /listenUpdateCommands\(\(command\) => \{[\s\S]{0,400}runEditorUpdateAction\(\)/u,
+      /listenUpdateCommands\(\(command\) => \{[\s\S]{0,400}runEditorUpdateActionRef\.current\(\)/u,
     );
   });
 
   it("treats a failed check as up to date and bounds the download time", () => {
     expect(updaterSource).not.toContain("checkForUpdates(");
-    expect(updaterSource).toMatch(/catch \(error\) \{[\s\S]{0,120}return upToDate;/u);
+    expect(updaterSource).toMatch(
+      /catch \(error\) \{[\s\S]{0,200}return \{ status: upToDate, checkFailed: reason \};/u,
+    );
     expect(updaterSource).toContain("timeout: DOWNLOAD_TIMEOUT_MS");
   });
 });

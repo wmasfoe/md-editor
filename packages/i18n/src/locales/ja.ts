@@ -256,6 +256,7 @@ export const ja: TranslationSchema = {
         skipped: "{{version}} は今後自動で表示しません。",
         downloadFailed: "アップデートのダウンロードに失敗しました：{{error}}",
         installFailed: "アップデートのインストールに失敗しました：{{error}}",
+        checkFailed: "現在アップデートを確認できません。しばらくしてからもう一度お試しください。",
       },
     },
     appearance: {

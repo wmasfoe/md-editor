@@ -254,6 +254,7 @@ export const en: TranslationSchema = {
         skipped: "{{version}} will not be shown again.",
         downloadFailed: "Failed to download the update: {{error}}",
         installFailed: "Failed to install the update: {{error}}",
+        checkFailed: "Could not check for updates right now. Please try again later.",
       },
     },
     appearance: {

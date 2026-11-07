@@ -198,12 +198,18 @@ export function useAppUpdates({
       setUpdateStatus({ ...current, state: "checking", error: undefined });
       let next: UpdateStatus;
       try {
-        // 检查失败（R2 与备用 endpoint 都不可用）在 app-updater 内已按「已是最新」处理。
-        next = await checkForInstallableUpdate(appVersion());
+        // 检查失败（R2 与备用 endpoint 都不可用）在 app-updater 内已按「已是最新」处理；
+        // 手动检查额外给轻提示，且不刷新「上次检查」时间，避免断网时看起来像刚确认过已是最新。
+        const result = await checkForInstallableUpdate(appVersion());
+        next = result.status;
         setUpdateStatus(next);
+        if (result.checkFailed) {
+          if (!automatic) showToast(t("settings.updates.toasts.checkFailed"));
+        } else {
+          setLastCheckedAt(new Date().toISOString());
+        }
       } finally {
         isCheckingRef.current = false;
-        setLastCheckedAt(new Date().toISOString());
       }
 
       // 需要向用户展示更新内容时，先让提示出现；是否下载由用户在提示里决定。
@@ -224,7 +230,7 @@ export function useAppUpdates({
         });
       return shouldDownload ? runDownload({ manual: false }) : next;
     },
-    [runDownload, setLastCheckedAt, setUpdateStatus],
+    [runDownload, setLastCheckedAt, setUpdateStatus, showToast],
   );
 
   const checkForUpdate = useCallback(async () => {
