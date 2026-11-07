@@ -33,7 +33,7 @@
 
 import {
   EditorSelection,
-  type EditorState,
+  EditorState,
   type Extension,
   Prec,
   StateField,
@@ -43,6 +43,7 @@ import { Decoration, type DecorationSet, EditorView, keymap, WidgetType } from "
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 import { trailingLineBreakEnd } from "../blocks/block-replacement.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
+import { wysiwygProjectionField } from "../state/projection-field.ts";
 import {
   clearWysiwygAtomSelectionEffect,
   setVirtualTrailingLineActiveEffect,
@@ -91,6 +92,39 @@ export function needsVirtualTrailingLine(state: EditorState): boolean {
 }
 
 /**
+ * 当前主选区是否「站在」虚拟空行上：空光标停在 `doc.length`，且此处需要虚拟空行。
+ *
+ * 只有一种例外：文末块会因光标进入而展开源码（`interactionPolicy === "reveal-source"`，
+ * 目前即 HTML 块），且它**没有**尾随换行。此时 `doc.length` 同时是块闭区间的右端点，
+ * 光标在源码末尾是在编辑源码，属于块，不属于虚拟行；若在这里点亮虚拟行，源码会被收起，
+ * 用户无法在源码末尾继续输入。
+ *
+ * 其他文末块（表格、分割线、MDX 等）不因光标进入而展开，`doc.length` 的光标没有别的归属，
+ * 无论是否有尾随换行都属于虚拟行；有尾随换行时 `doc.length` 本就在块外。
+ */
+export function caretRestsOnVirtualTrailingLine(state: EditorState): boolean {
+  const selection = state.selection;
+  if (selection.ranges.length !== 1) {
+    return false;
+  }
+  const main = selection.main;
+  if (!main.empty || main.head !== state.doc.length) {
+    return false;
+  }
+  if (!needsVirtualTrailingLine(state)) {
+    return false;
+  }
+  const index = state.field(markdownRangeIndexField, false);
+  const terminal = index?.records.find((record) => coversDocumentEnd(record, state));
+  if (!terminal) {
+    return true;
+  }
+  const caretInsideSource =
+    terminal.interactionPolicy === "reveal-source" && terminal.fullRange.to >= state.doc.length;
+  return !caretInsideSource;
+}
+
+/**
  * 计算将虚拟空行物化为真实文档行时需要补充的前导换行符。
  */
 export function calculateMaterializationPrefix(state: EditorState): string {
@@ -116,103 +150,119 @@ export function calculateMaterializationPrefix(state: EditorState): string {
   return "\n";
 }
 
-/**
- * 文末虚拟空行展示 Widget。
- */
-export class VirtualTrailingLineWidget extends WidgetType {
-  constructor(readonly isActive: boolean) {
-    super();
-  }
-
-  eq(other: VirtualTrailingLineWidget): boolean {
-    return this.isActive === other.isActive;
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const dom = document.createElement("div");
-    dom.className = "cm-virtual-trailing-line";
-    dom.setAttribute("role", "presentation");
-    dom.setAttribute("data-virtual-line", "true");
-
-    const content = document.createElement("div");
-    content.className = "cm-virtual-trailing-line__content";
-
-    if (this.isActive) {
-      dom.classList.add("cm-virtual-trailing-line--active");
-      const cursor = document.createElement("span");
-      cursor.className = "cm-cursor cm-cursor-primary cm-virtual-cursor";
-      cursor.setAttribute("role", "presentation");
-      content.appendChild(cursor);
-    }
-
-    // 挂载 br 撑开与标准 .cm-line 完全一致的基线高度
-    const br = document.createElement("br");
-    content.appendChild(br);
-    dom.appendChild(content);
-
-    dom.addEventListener("mousedown", (event) => {
-      if (event.button !== 0) return;
-      placeCaretAtDocumentEnd(view);
-    });
-
-    return dom;
-  }
-
-  updateDOM(dom: HTMLElement, _view: EditorView): boolean {
-    dom.classList.toggle("cm-virtual-trailing-line--active", this.isActive);
-    const content = dom.querySelector(".cm-virtual-trailing-line__content");
-    const cursor = dom.querySelector(".cm-virtual-cursor");
-    if (this.isActive && !cursor && content) {
-      const newCursor = document.createElement("span");
-      newCursor.className = "cm-cursor cm-cursor-primary cm-virtual-cursor";
-      newCursor.setAttribute("role", "presentation");
-      content.prepend(newCursor);
-    } else if (!this.isActive && cursor) {
-      cursor.remove();
-    }
-    return true;
-  }
-
-  ignoreEvent(event: Event): boolean {
-    return event.type !== "mousedown";
-  }
-}
+/** 虚拟空行的 class。e2e 与外部样式只依赖这两个类名，不依赖具体 DOM 结构。 */
+export const VIRTUAL_TRAILING_LINE_CLASS = "cm-virtual-trailing-line";
+export const VIRTUAL_TRAILING_LINE_ACTIVE_CLASS = "cm-virtual-trailing-line--active";
 
 /**
- * 构建虚拟空行装饰：零长度、两端 inclusive 的块级 replace，位置在 `doc.length`。
+ * 构建虚拟空行装饰。
  *
- * 为什么不是 `Decoration.widget({ block: true })`：
- * CM6 视图构建器在两处会给「没有被块 widget 覆盖的位置」补一个空的 `.cm-line`：
- *   ① 放置 `startSide > 0` 的块 widget 之前（`side: 1` 的普通 widget 属此类）；
- *   ② 构建结束时，若末尾位置未被覆盖（`blockPosCovered()` 为假）。
- * 整行块级替换（表格 / HTML / 分割线 / MDX 等）`inclusiveEnd` 为 false，不覆盖其后的位置，
- * 所以普通 widget 无论放在 `side: 1`（空行在它前面）还是 `side: -1`（空行在它后面），
- * 都会与那一行并存，用户看到两个空行。两种放法都实测过。
+ * 首选：在 `doc.length` 放一个 `Decoration.line`，给 CM6 自己在文末合成的那一行加 class。
+ * 整行块级替换（表格 / HTML / 分割线 / MDX 等）`inclusiveEnd` 为 false，不覆盖其后位置，
+ * CM6 构建结束时会在块下方补一个空 `.cm-line`。这一行是文末**唯一的文本落脚点**：
+ * 浏览器的光标只能落在可编辑文本节点里，CM6 写 DOM 选区（`inlineDOMNearPos`）也只找文本行。
+ * 复用它，块下方只有一行，光标也天然画在这一行里。两种「自己再造一行」的做法都实测踩过：
+ * - 叠一个块 widget：块下方出现两个空行；
+ * - 用零长度两端 inclusive 的 replace 把合成行吃掉：文末没有文本行，`doc.length` 的光标被映射回
+ *   上方最近的文本行，Cmd/Ctrl+End 后键入的字写到块的**前面**。
  *
- * 零长度 replace 的四种 inclusive 组合实测（表格结尾的文档，块下方的行序）：
- *   start=true  end=true  → 虚拟行                  ← 唯一只剩一个落脚行的组合
- *   start=true  end=false → 虚拟行 → 空 .cm-line    （没有 IncEnd，② 仍补一行）
- *   start=false end=true  → 空 .cm-line → 虚拟行    （startSide > 0，① 仍补一行）
- *   start=false end=false → CM6 抛 "Invalid range for replacement decoration"
- * 所以两端都必须是 true：`startSide < 0` 不触发 ①，`IncEnd` 让 `blockPosCovered()` 为真不触发 ②。
+ * 退路：块的最后一行是它自己的真实文本行时（Frontmatter 的闭合 `---`、setext 标题的下划线，
+ * 且文档无尾随换行），`doc.length` 不在行首，CM6 不合成空行，行装饰会落在块自己的行上而不可见。
+ * 这时补一个 `side: 1` 的块 widget 作为可见占位。它前面没有整行替换，CM6 不会再补空行，
+ * 所以仍然只有一行；光标停在块的最后一行行尾，键入由物化处理器写成块下方的独立段落。
  */
 function buildVirtualTrailingLineDecorations(state: EditorState): DecorationSet {
   if (!needsVirtualTrailingLine(state)) {
     return Decoration.none;
   }
   const isActive = state.field(virtualTrailingLineActiveField, false) ?? false;
+  const className = isActive
+    ? `${VIRTUAL_TRAILING_LINE_CLASS} ${VIRTUAL_TRAILING_LINE_ACTIVE_CLASS}`
+    : VIRTUAL_TRAILING_LINE_CLASS;
+  const end = state.doc.length;
+  const endsOnLineStart = state.doc.lineAt(end).from === end;
+  // 只有块此刻真的以整行替换呈现时，CM6 才会在其后合成空行。
+  // HTML 块被光标展开成源码时不是替换，而是带行装饰的真实源码行；此时行装饰会落在源码最后一行上，
+  // 没有可复用的合成行，必须走占位 widget。
+  if (endsOnLineStart || documentEndIsCoveredByWholeLineReplacement(state)) {
+    return Decoration.set([
+      Decoration.line({ class: className, attributes: { "data-virtual-line": "true" } }).range(end),
+    ]);
+  }
   return Decoration.set([
-    Decoration.replace({
-      widget: new VirtualTrailingLineWidget(isActive),
+    Decoration.widget({
+      widget: new VirtualTrailingLinePlaceholder(isActive),
+      side: 1,
       block: true,
-      inclusiveStart: true,
-      inclusiveEnd: true,
-    }).range(state.doc.length),
+    }).range(end),
   ]);
 }
 
 /**
- * 驱动虚拟空行 Block Widget 挂载与更新的 StateField。
+ * 文末是否落在整行块级替换的覆盖范围里（替换到 `doc.length` 为止）。
+ * 这类块下面 CM6 一定会合成空行，行装饰会落在合成行上，不需要占位 widget。
+ */
+function documentEndIsCoveredByWholeLineReplacement(state: EditorState): boolean {
+  const index = state.field(markdownRangeIndexField, false);
+  const projection = state.field(wysiwygProjectionField, false);
+  const activeIds = new Set(projection?.activeSyntaxIds ?? []);
+  return (
+    index?.records.some(
+      (record) =>
+        WHOLE_LINE_REPLACED_KINDS.has(record.kind) &&
+        // 展开成源码的 HTML 块此刻不是整行替换（见上）。
+        !(record.kind === "html" && activeIds.has(record.id)) &&
+        trailingLineBreakEnd(record, state) === state.doc.length,
+    ) ?? false
+  );
+}
+
+/**
+ * 整行块级替换渲染的块类型：其后位置不被覆盖，CM6 会在文末合成一个空行。
+ * setext 标题经 `default-visualization.ts` 也走 `buildWholeLineBlockReplacement`，属于此类。
+ * Frontmatter 不是：它用行装饰呈现三行真实文本，最后一行是闭合 `---`。
+ */
+const WHOLE_LINE_REPLACED_KINDS: ReadonlySet<MarkdownRangeRecord["kind"]> = new Set([
+  "html",
+  "table",
+  "thematic-break",
+  "mdx-jsx",
+  "heading-setext",
+]);
+
+/**
+ * 文末占位行：只在块的最后一行是真实文本行（无合成行可复用）时使用。
+ * 光标由 CM6 画在块的最后一行行尾；这里只提供一行可见、可点击的空白。
+ */
+class VirtualTrailingLinePlaceholder extends WidgetType {
+  constructor(readonly isActive: boolean) {
+    super();
+  }
+
+  override eq(other: VirtualTrailingLinePlaceholder): boolean {
+    return this.isActive === other.isActive;
+  }
+
+  override toDOM(): HTMLElement {
+    const dom = document.createElement("div");
+    dom.className = this.isActive
+      ? `${VIRTUAL_TRAILING_LINE_CLASS} ${VIRTUAL_TRAILING_LINE_ACTIVE_CLASS}`
+      : VIRTUAL_TRAILING_LINE_CLASS;
+    dom.setAttribute("data-virtual-line", "true");
+    dom.setAttribute("role", "presentation");
+    // 与普通 .cm-line 同高：放一个 <br> 撑出一行的行高。
+    dom.appendChild(document.createElement("br"));
+    return dom;
+  }
+
+  override ignoreEvent(event: Event): boolean {
+    // mousedown 交给 virtualTrailingLineDOMHandlers 统一处理（点亮并把光标放到文末）。
+    return event.type !== "mousedown";
+  }
+}
+
+/**
+ * 驱动虚拟空行行装饰挂载与更新的 StateField。
  */
 export const virtualTrailingLineDecorationField = StateField.define<DecorationSet>({
   create: (state) => buildVirtualTrailingLineDecorations(state),
@@ -221,30 +271,12 @@ export const virtualTrailingLineDecorationField = StateField.define<DecorationSe
 });
 
 /**
- * 虚拟空行盒模型与光标主题：严格遵循高度图契约，只用 padding，严禁 margin。
+ * 虚拟空行主题。它就是一行普通 `.cm-line`，高度与光标都交给 CM6，不加 margin / padding，
+ * 以免破坏高度图（见「CM6 高度图与点击落点保真规范」）。
  */
 export const virtualTrailingLineTheme: Extension = EditorView.baseTheme({
-  ".cm-virtual-trailing-line": {
-    boxSizing: "border-box",
-    minHeight: "1.5em",
-    padding: "0 4px",
+  [`.${VIRTUAL_TRAILING_LINE_CLASS}`]: {
     cursor: "text",
-    userSelect: "none",
-  },
-  ".cm-virtual-trailing-line__content": {
-    display: "flex",
-    alignItems: "center",
-    minHeight: "1.5em",
-    lineHeight: "inherit",
-  },
-  ".cm-virtual-trailing-line .cm-virtual-cursor": {
-    position: "relative",
-    display: "inline-block",
-    height: "1.2em",
-    borderLeft: "1.2px solid currentColor",
-    marginLeft: "-0.6px",
-    pointerEvents: "none",
-    animation: "cm-blink 1.2s steps(1) infinite",
   },
 });
 
@@ -399,19 +431,6 @@ export const virtualTrailingLineKeymap: Extension = Prec.highest(
       run: (view) =>
         virtualTrailingLineIsActive(view) ? moveUpFromVirtualTrailingLine(view) : false,
     },
-    {
-      key: "Escape",
-      run: (view) => {
-        if (!virtualTrailingLineIsActive(view)) {
-          return false;
-        }
-        view.dispatch({
-          effects: setVirtualTrailingLineActiveEffect.of(false),
-          userEvent: "select",
-        });
-        return true;
-      },
-    },
   ]),
 );
 
@@ -512,6 +531,22 @@ function placeCaretAtDocumentEnd(view: EditorView): void {
   view.focus();
 }
 
+/** 主键点在虚拟空行这一行上（不含 Shift 扩展选区）。 */
+function isClickOnVirtualTrailingLine(view: EditorView, event: MouseEvent): boolean {
+  if (event.button !== 0 || event.shiftKey) {
+    return false;
+  }
+  if (!needsVirtualTrailingLine(view.state)) {
+    return false;
+  }
+  const target = event.target;
+  return (
+    target instanceof Element &&
+    view.contentDOM.contains(target) &&
+    target.closest(`.${VIRTUAL_TRAILING_LINE_CLASS}`) !== null
+  );
+}
+
 /**
  * 点击是否落在最后一行之下的编辑器留白。
  * `.cm-content` 有 `min-height: 100%` 和下内边距，盒子底边包含留白，
@@ -581,10 +616,12 @@ export const virtualTrailingLineDOMHandlers = EditorView.domEventHandlers({
     return false;
   },
   mousedown(event, view) {
-    if (!isClickBelowDocument(view, event)) {
+    // 点在虚拟空行上，或点在它下方的编辑器留白：都是“我要在块下面写东西”。
+    // 必须显式点亮：HTML 块贴文末且无尾随换行时，`doc.length` 在源码闭区间内，
+    // 光标跟随的自动点亮会把它判为“在编辑源码”而跳过。
+    if (!isClickOnVirtualTrailingLine(view, event) && !isClickBelowDocument(view, event)) {
       return false;
     }
-    // 文末留白：光标落到最后一行。虚拟空行存在时，这一行就是虚拟空行。
     placeCaretAtDocumentEnd(view);
     event.preventDefault();
     return true;
@@ -592,10 +629,46 @@ export const virtualTrailingLineDOMHandlers = EditorView.domEventHandlers({
 });
 
 /**
+ * 激活态跟着光标走：任何事务结束时，只要光标站在虚拟空行上（见
+ * `caretRestsOnVirtualTrailingLine`），就点亮它。
+ *
+ * 为什么不能只在点击 / ArrowDown 时点亮：物化处理器只在激活态下接管键入。
+ * 激活态没点亮时，光标停在 `doc.length` 再打字，字由浏览器写进 CM6 在文末合成的那一行，
+ * 解析器把它当作块的延续，表格会多出一行。会让光标停在 `doc.length` 却不点亮的路径包括：
+ * Cmd/Ctrl+End、Cmd/Ctrl+ArrowDown、程序化设置选区、撤销物化（文档变回去，光标回到文末）、
+ * 按 Escape 取消激活。
+ *
+ * 所以这里不区分事务来源，**只看结果**：光标站在虚拟行上 ⇒ 虚拟行是激活的。
+ * 熄灭不需要单独处理：光标一离开 `doc.length` 或文档末尾不再需要虚拟行，结果自然为假。
+ *
+ * Escape 原本用来“取消激活”。在这条规则下它不再有效（光标仍在虚拟行上），
+ * 对应键位已移除：取消激活的唯一方式是把光标移开。
+ */
+const armVirtualTrailingLineOnCaret = EditorState.transactionExtender.of((transaction) => {
+  if (!transaction.selection && !transaction.docChanged) {
+    return null;
+  }
+  const state = transaction.state;
+  const shouldBeActive = caretRestsOnVirtualTrailingLine(state);
+  // 本事务里显式写的值优先作为“当前值”，避免与它重复或相反。
+  let current = state.field(virtualTrailingLineActiveField, false) === true;
+  for (const effect of transaction.effects) {
+    if (effect.is(setVirtualTrailingLineActiveEffect)) {
+      current = effect.value;
+    }
+  }
+  if (!shouldBeActive || current) {
+    return null;
+  }
+  return { effects: setVirtualTrailingLineActiveEffect.of(true) };
+});
+
+/**
  * 文末虚拟空行完整扩展包。
  */
 export const virtualTrailingLineExtension: Extension = [
   virtualTrailingLineActiveField,
+  armVirtualTrailingLineOnCaret,
   virtualTrailingLineDecorationField,
   virtualTrailingLineTheme,
   virtualTrailingLineKeymap,
