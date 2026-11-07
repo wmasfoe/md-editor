@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1 - 2026-11-07 (#225)
+
+- Fix in-app updates: Later no longer downloads and only skips the current run; a failed check now reports up to date instead of erroring; downloads are time-bounded and retryable on failure; the main window owns the update flow, fixing duplicate downloads and stale settings-window status; add in-app updates for Linux.
+
 ## 0.21.0 - 2026-11-07 (#224)
 
 - External plugins: install community plugins from GitHub Releases without rebuilding the app. Supports custom syntax, writing commands, templates, shortcuts and per-plugin settings; the first install shows the source, version and digest and asks for confirmation; supports updates, rollback, disabling, and safe start with --disable-external-plugins. See inkpoint-plugin-starter for plugin development.
