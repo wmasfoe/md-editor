@@ -58,11 +58,11 @@ export function FileTreeNodeView({
     }
 
     return (
-      <div className="relative px-1.5 py-[1px]">
+      <div className="relative px-1.5 pb-0.5">
         <button
           type="button"
           className={cx(
-            "group relative flex h-7 min-h-7 w-full select-none items-center gap-2 rounded-[6px] border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-colors duration-120 ease-out focus-visible:outline-none",
+            "group relative flex h-8 min-h-8 w-full select-none items-center gap-2 rounded-lg border-0 bg-transparent pr-2 text-left text-[13px] leading-[1.35] transition-colors duration-120 ease-out focus-visible:outline-none",
             isActive
               ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
               : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)]",
@@ -98,7 +98,7 @@ export function FileTreeNodeView({
 
   if (isRenaming) {
     return (
-      <div className="px-1.5 py-[1px]">
+      <div className="px-1.5 pb-0.5">
         <InlineInput
           defaultValue={node.name}
           paddingLeft={paddingLeft + 6}
@@ -111,10 +111,10 @@ export function FileTreeNodeView({
 
   return (
     <div>
-      <div className="px-1.5 py-[1px]">
+      <div className="px-1.5 pb-0.5">
         <button
           type="button"
-          className="group flex h-7 min-h-7 w-full select-none items-center gap-1.5 rounded-[6px] border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-colors duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none"
+          className="group flex h-8 min-h-8 w-full select-none items-center gap-1.5 rounded-lg border-0 bg-transparent text-left text-[13px] leading-[1.35] text-[var(--theme-control-subtle)] transition-colors duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none"
           style={{ paddingLeft }}
           title={node.path}
           aria-expanded={!isCollapsed}
@@ -159,7 +159,7 @@ export function FileTreeNodeView({
             />
           ))}
           {isCreatingInside && (
-            <div className="px-1.5 py-[1px]">
+            <div className="px-1.5 pb-0.5">
               <InlineInput
                 defaultValue={editing.defaultName}
                 paddingLeft={10 + (depth + 1) * 14 + 6}

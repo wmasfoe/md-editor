@@ -1,6 +1,6 @@
 import type { RecentFile } from "@md-editor/file-system";
 import { useTranslation } from "@md-editor/i18n";
-import { dialogButtonClassName, primaryDialogButtonClassName } from "./ConfirmActionDialog";
+import { primaryDialogButtonClassName } from "./ConfirmActionDialog";
 
 export interface WelcomeStateProps {
   readonly recentFiles: readonly RecentFile[];
@@ -34,17 +34,17 @@ export function WelcomeState({
           width={40}
           height={40}
           aria-hidden
-          className="size-10 rounded-[10px]"
+          className="size-10 rounded-xl"
         />
       ) : (
         <div
-          className="grid size-10 place-items-center rounded-[10px] border border-[var(--theme-border-strong)] font-mono font-bold text-[var(--theme-primary)]"
+          className="grid size-10 place-items-center rounded-xl border border-[var(--theme-border-strong)] font-mono font-medium text-[var(--theme-primary)]"
           aria-hidden="true"
         >
           M
         </div>
       )}
-      <div className="mb-[26px] mt-[22px]">
+      <div className="mb-6 mt-6">
         <p className="mb-1 mt-0 text-[13px] text-[var(--theme-muted)]">
           {t("editor.welcome.tagline")}
         </p>
@@ -55,20 +55,20 @@ export function WelcomeState({
           {t("editor.welcome.title")}
         </h1>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <button type="button" className={primaryActionClassName} onClick={onNewDocument}>
           {t("editor.welcome.newDoc")}
         </button>
-        <button type="button" className={secondaryActionClassName} onClick={onOpenDocument}>
+        <button type="button" className={textActionClassName} onClick={onOpenDocument}>
           {t("editor.welcome.openFile")}
         </button>
-        <button type="button" className={secondaryActionClassName} onClick={onOpenFolder}>
+        <button type="button" className={textActionClassName} onClick={onOpenFolder}>
           {t("editor.welcome.openFolder")}
         </button>
       </div>
       {recentFiles.length > 0 ? (
-        <div className="mt-[34px]">
-          <h2 className="mb-2 mt-0 text-xs font-semibold uppercase tracking-[0.04em] text-[var(--theme-muted)]">
+        <div className="mt-8">
+          <h2 className="mb-2 mt-0 text-xs font-medium text-[var(--theme-muted)]">
             {t("editor.welcome.recentFiles")}
           </h2>
           <ul className="m-0 list-none p-0">
@@ -76,7 +76,7 @@ export function WelcomeState({
               <li key={file.path}>
                 <button
                   type="button"
-                  className="grid w-full grid-cols-[minmax(100px,180px)_minmax(0,1fr)] gap-4 rounded-[5px] border-0 bg-transparent px-2 py-[7px] text-left hover:bg-[var(--theme-control-hover)]"
+                  className="grid w-full grid-cols-[minmax(100px,180px)_minmax(0,1fr)] gap-4 rounded-lg border-0 bg-transparent px-2 py-2 text-left transition-colors hover:bg-[var(--theme-control-hover)]"
                   onClick={() => onOpenRecent(file.path)}
                   title={file.path}
                 >
@@ -92,7 +92,7 @@ export function WelcomeState({
           </ul>
         </div>
       ) : (
-        <p className="mt-[30px] text-xs text-[var(--theme-control-subtle)]">
+        <p className="mt-8 text-xs text-[var(--theme-control-subtle)]">
           {t("editor.welcome.localOnlyHint")}
         </p>
       )}
@@ -100,6 +100,8 @@ export function WelcomeState({
   );
 }
 
-const secondaryActionClassName = `${dialogButtonClassName} min-h-8 px-3 py-[5px]`;
+/** 次要操作降为文字按钮：欢迎页只保留「新建文档」一个主操作 */
+const textActionClassName =
+  "h-8 rounded-lg border-0 bg-transparent px-1 text-[13px] text-[var(--theme-control-text)] transition-colors hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)]";
 
-const primaryActionClassName = `${primaryDialogButtonClassName} min-h-8 px-3 py-[5px]`;
+const primaryActionClassName = `${primaryDialogButtonClassName} min-h-8 px-3`;

@@ -76,9 +76,9 @@ export function AiSettingsPanel({
         </h2>
         <p className={settingsDescriptionClassName}>{t("settings.ai.desc")}</p>
       </div>
-      <div className="grid gap-3.5">
+      <div className="grid gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <label className="flex min-h-[30px] items-center gap-2">
+          <label className="flex min-h-8 items-center gap-2">
             <input
               type="checkbox"
               className="size-4 accent-[var(--theme-primary)]"
@@ -91,7 +91,7 @@ export function AiSettingsPanel({
             />
             <span className={settingsFieldLabelClassName}>{t("settings.ai.featureEditing")}</span>
           </label>
-          <label className="flex min-h-[30px] items-center gap-2">
+          <label className="flex min-h-8 items-center gap-2">
             <input
               type="checkbox"
               className="size-4 accent-[var(--theme-primary)]"
@@ -345,7 +345,7 @@ function LocalAiSettings({
     modelCards.find((card) => card.id === recommendedId)?.displayName ?? "Standard (1.5B)";
 
   return (
-    <div className="grid gap-3.5">
+    <div className="grid gap-4">
       {/* 硬件概览与智能推荐卡片 */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-chrome)]/60 px-3.5 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
@@ -604,7 +604,7 @@ function LocalAiSettings({
                   <button
                     type="button"
                     disabled
-                    className="w-full rounded-[5px] border border-[var(--theme-border)] py-1 text-center text-xs text-[var(--theme-muted)] opacity-60"
+                    className="w-full rounded-lg border border-[var(--theme-border)] py-1 text-center text-xs text-[var(--theme-muted)] opacity-60"
                   >
                     {t("settings.ai.comingSoon")}
                   </button>
@@ -613,7 +613,7 @@ function LocalAiSettings({
                     {hasUpdate ? (
                       <button
                         type="button"
-                        className="h-[30px] flex-1 rounded-[5px] border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-55"
+                        className="h-8 flex-1 rounded-lg border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-55"
                         onClick={(e) => {
                           e.stopPropagation();
                           onDownloadLocalModel(descriptor.id);
@@ -637,7 +637,7 @@ function LocalAiSettings({
                     )}
                     <button
                       type="button"
-                      className="h-[30px] px-2 rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-xs text-[var(--theme-muted)] hover:border-red-300 hover:text-red-500 disabled:opacity-55 ml-auto"
+                      className="h-8 px-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] text-xs text-[var(--theme-muted)] hover:border-red-300 hover:text-red-500 disabled:opacity-55 ml-auto"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteLocalModel(descriptor.id);

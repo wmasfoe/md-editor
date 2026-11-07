@@ -31,7 +31,7 @@ export function EditorLoadingState({
       aria-live="polite"
       aria-label={ariaLabel ?? title}
     >
-      <div className="flex min-w-[180px] max-w-[240px] flex-col items-center gap-3 rounded-[8px] border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_94%,white)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
+      <div className="flex min-w-[180px] max-w-[240px] flex-col items-center gap-3 rounded-lg border border-[var(--theme-border)] bg-[color-mix(in_oklab,var(--theme-surface)_94%,white)] px-5 py-4 text-center shadow-[var(--theme-shadow)]">
         <span
           className="block size-5 animate-spin rounded-full border-2 border-[var(--theme-border-strong)] border-t-[var(--theme-primary)]"
           aria-hidden="true"

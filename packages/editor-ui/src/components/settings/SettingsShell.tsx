@@ -95,7 +95,7 @@ export function SettingsShell({
     <section
       className={`flex h-full min-h-0 w-full flex-col bg-[var(--theme-surface)] text-[var(--theme-text)] ${
         variant === "modal"
-          ? "h-[min(640px,calc(100vh-32px))] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-[8px] border border-[var(--theme-border)] shadow-[var(--theme-shadow)] select-none"
+          ? "h-[min(640px,calc(100vh-32px))] w-[min(880px,calc(100vw-32px))] overflow-hidden rounded-xl border border-[var(--theme-border)] shadow-[var(--theme-shadow)] select-none"
           : ""
       }`}
       aria-labelledby="settings-shell-title"
@@ -108,7 +108,7 @@ export function SettingsShell({
         <div data-tauri-drag-region={onStartWindowDrag ? true : undefined} className="min-w-0">
           <h1
             id="settings-shell-title"
-            className="m-0 text-[17px] font-semibold leading-[1.35] text-[var(--theme-title)]"
+            className="m-0 text-[17px] font-medium leading-[1.35] text-[var(--theme-title)]"
           >
             {title}
           </h1>
@@ -134,7 +134,7 @@ export function SettingsShell({
                   key={tab.id}
                   className={({ selected }) =>
                     [
-                      "grid min-h-[46px] w-full min-w-0 grid-cols-1 rounded-[6px] border-0 px-3 py-2 text-left outline-none transition-colors max-[720px]:min-w-[132px]",
+                      "grid min-h-12 w-full min-w-0 grid-cols-1 rounded-lg border-0 px-3 py-2 text-left outline-none transition-colors max-[720px]:min-w-[132px]",
                       selected
                         ? "bg-[var(--theme-control-active)] text-[var(--theme-title)]"
                         : "bg-transparent text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]",
@@ -142,7 +142,7 @@ export function SettingsShell({
                     ].join(" ")
                   }
                 >
-                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-semibold leading-[1.3]">
+                  <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium leading-[1.3]">
                     {tab.label}
                   </span>
                   <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-[1.35] text-[var(--theme-muted)]">

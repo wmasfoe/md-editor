@@ -299,4 +299,8 @@ describe("formatKeymapParts", () => {
     expect(formatKeymapParts("Mod-Shift-B", "windows")).toEqual(["Ctrl", "Shift", "B"]);
     expect(formatKeymapParts("Shift-Alt-F", "linux")).toEqual(["Shift", "Alt", "F"]);
   });
+
+  it("keeps a literal minus as the main key", () => {
+    expect(formatKeymapParts("Mod--", "mac")).toEqual(["⌘", "-"]);
+  });
 });

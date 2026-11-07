@@ -85,7 +85,7 @@ function renderInline(text: string): ReactNode[] {
         return (
           <code
             key={index}
-            className="rounded-[3px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-1 py-px font-mono text-[11px] text-[var(--theme-text)]"
+            className="rounded-sm border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-1 py-0.5 font-mono text-[11px] text-[var(--theme-text)]"
           >
             {token.text}
           </code>

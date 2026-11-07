@@ -83,9 +83,7 @@ export function DraftRecoveryBanner({ draftInfo, onRestore, onDiscard }: DraftRe
         >
           <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)] overflow-hidden">
             <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-4 py-3">
-              <h3 className="text-sm font-medium text-[var(--theme-title)]">
-                未保存草稿预览
-              </h3>
+              <h3 className="text-sm font-medium text-[var(--theme-title)]">未保存草稿预览</h3>
               <button
                 type="button"
                 onClick={() => setIsDiffOpen(false)}

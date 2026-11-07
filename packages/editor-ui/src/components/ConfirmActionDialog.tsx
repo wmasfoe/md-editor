@@ -30,7 +30,7 @@ export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDi
     >
       <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.2)]" />
       <div className="fixed inset-0 grid place-items-center p-6">
-        <DialogPanel className="w-[min(420px,100%)] rounded-[10px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
+        <DialogPanel className="w-[min(420px,100%)] rounded-xl border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
           <DialogTitle className="m-0 text-base font-[650] leading-[1.4] text-[var(--theme-title)]">
             {confirmation?.title}
           </DialogTitle>
@@ -71,7 +71,7 @@ export function ConfirmActionDialog({ confirmation, onResolve }: ConfirmActionDi
 }
 
 export const dialogButtonClassName =
-  "h-[30px] min-w-[68px] rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2.5 text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";
+  "h-8 min-w-[68px] rounded-lg border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-2.5 text-[13px] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";
 
 export const primaryDialogButtonClassName =
-  "h-[30px] min-w-[68px] rounded-[5px] border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2.5 text-[13px] text-white hover:bg-[color-mix(in_srgb,var(--theme-primary-fill)_88%,black)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";
+  "h-8 min-w-[68px] rounded-lg border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2.5 text-[13px] text-white hover:bg-[color-mix(in_srgb,var(--theme-primary-fill)_88%,black)] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-primary)] disabled:opacity-55";

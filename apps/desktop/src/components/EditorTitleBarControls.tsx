@@ -48,7 +48,7 @@ import { cx } from "../lib/cx";
 
 /** 标题栏次要图标按钮通用 CSS 类 */
 const titleBarSecondaryButtonClassName =
-  "invisible grid size-[28px] shrink-0 place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+  "invisible grid size-7 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-[var(--theme-control-text)] opacity-0 transition-[visibility,opacity,background-color,color] duration-150 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] group-hover/titlebar-controls:visible group-hover/titlebar-controls:opacity-100 group-focus-within/titlebar-controls:visible group-focus-within/titlebar-controls:opacity-100 motion-reduce:transition-none [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
 /** 支持的文档度量指标列表 */
 const documentMetricKinds: readonly DocumentMetricKind[] = ["words", "lines", "characters"];
@@ -74,11 +74,11 @@ export function EditorTitleBarControls() {
   const metrics = useMemo(() => calculateDocumentMetrics(markdown), [markdown]);
 
   return (
-    <div className="group/titlebar-controls flex h-[30px] items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
+    <div className="group/titlebar-controls flex h-8 items-center gap-1 text-[var(--theme-control-text)] focus-within:[--titlebar-secondary-opacity:1] hover:[--titlebar-secondary-opacity:1]">
       {showUpdateAction ? (
         <button
           type="button"
-          className="h-[22px] cursor-pointer rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
+          className="h-6 cursor-pointer rounded-md border border-[var(--theme-primary)] bg-[var(--theme-primary)] px-2 text-[12px] font-medium leading-none text-white hover:bg-[color-mix(in_srgb,var(--theme-primary)_88%,black)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] disabled:cursor-default disabled:opacity-70"
           onClick={() => void runEditorUpdateAction()}
           disabled={updateBusy}
         >
@@ -163,14 +163,14 @@ function AiWritingMenu({
       </MenuButton>
       <MenuItems
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[200px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
+        className="z-[70] min-w-[200px] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
       >
         <MenuItem>
           {({ focus }) => (
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                "flex h-8 w-full items-center justify-between gap-3 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onFixGrammar}
@@ -185,7 +185,7 @@ function AiWritingMenu({
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                "flex h-8 w-full items-center justify-between gap-3 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onContinueWriting}
@@ -201,7 +201,7 @@ function AiWritingMenu({
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-muted)]",
+                "flex h-8 w-full items-center justify-between gap-3 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-muted)]",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onOpenSettings}
@@ -238,14 +238,14 @@ function ExportMenu({
       </MenuButton>
       <MenuItems
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[180px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl select-none"
+        className="z-[70] min-w-[180px] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl select-none"
       >
         <MenuItem>
           {({ focus }) => (
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center justify-between gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                "flex h-8 w-full items-center justify-between gap-2 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onExportHtml}
@@ -260,7 +260,7 @@ function ExportMenu({
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center justify-between gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                "flex h-8 w-full items-center justify-between gap-2 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onExportPdf}
@@ -276,7 +276,7 @@ function ExportMenu({
             <button
               type="button"
               className={cx(
-                "flex h-8 w-full items-center gap-2 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
+                "flex h-8 w-full items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)] transition-colors",
                 focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
               )}
               onClick={onCopyAsHtml}
@@ -314,13 +314,13 @@ function DocumentMetricMenu({
 
   return (
     <Menu as="div" className="relative">
-      <MenuButton className="flex h-[28px] min-w-[76px] items-center justify-center gap-1 rounded-[5px] border-0 bg-transparent px-2 text-[13px] font-medium leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]">
+      <MenuButton className="flex h-[28px] min-w-[76px] items-center justify-center gap-1 rounded border-0 bg-transparent px-2 text-[13px] font-medium leading-none text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]">
         <span>{getDocumentMetricLabel(metricKind, metrics)}</span>
         <ChevronUpDownIcon className="size-3.5 shrink-0 stroke-[1.5]" aria-hidden="true" />
       </MenuButton>
       <MenuItems
         anchor={{ to: "bottom end", gap: 6, padding: 8 }}
-        className="z-[70] min-w-[132px] rounded-[8px] border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
+        className="z-[70] min-w-[132px] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] p-1 text-[13px] text-[var(--theme-control-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
       >
         {documentMetricKinds.map((kind) => (
           <MenuItem key={kind}>
@@ -328,7 +328,7 @@ function DocumentMetricMenu({
               <button
                 type="button"
                 className={cx(
-                  "flex h-8 w-full items-center justify-between gap-3 rounded-[5px] border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
+                  "flex h-8 w-full items-center justify-between gap-3 rounded border-0 bg-transparent px-2 text-left text-[13px] text-[var(--theme-control-text)]",
                   focus && "bg-[var(--theme-control-hover)] text-[var(--theme-title)]",
                   metricKind === kind && "font-[560] text-[var(--theme-title)]",
                 )}
@@ -386,7 +386,7 @@ function OutlinePopover({
           </PopoverButton>
           <PopoverPanel
             anchor={{ to: "bottom end", gap: 12, padding: 12 }}
-            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-[12px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
+            className="z-[70] w-[min(360px,calc(100vw_-_32px))] rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] shadow-[var(--theme-shadow)] outline-none backdrop-blur-xl"
           >
             <span
               className="absolute right-[16px] top-[-6px] size-3 rotate-45 border-l border-t border-[var(--theme-border)] bg-[var(--theme-surface)]"
@@ -413,7 +413,7 @@ function OutlinePopover({
                       type="button"
                       key={`${item.id}-${item.line}`}
                       className={cx(
-                        "flex min-h-8 w-full items-center rounded-[6px] border-0 bg-transparent py-1 pr-2 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
+                        "flex min-h-8 w-full items-center rounded-lg border-0 bg-transparent py-1 pr-2 text-left text-[13px] leading-[1.35] text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:bg-[var(--theme-control-hover)] focus-visible:text-[var(--theme-title)] focus-visible:outline-none",
                         active &&
                           "bg-[var(--theme-control-active)] font-[560] text-[var(--theme-title)]",
                       )}

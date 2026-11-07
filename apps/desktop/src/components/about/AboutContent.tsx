@@ -49,7 +49,7 @@ export function AboutContent({ version }: { readonly version: string }) {
           src="/logo.png"
           alt=""
           aria-hidden="true"
-          className="size-16 rounded-[14px] border border-[var(--theme-border)]"
+          className="size-16 rounded-xl border border-[var(--theme-border)]"
         />
         <h1 className="m-0 text-[22px] font-medium leading-tight text-[var(--theme-title)]">
           {APP_DISPLAY_NAME}
@@ -63,10 +63,7 @@ export function AboutContent({ version }: { readonly version: string }) {
       </header>
 
       <section aria-labelledby="about-highlights" className="grid gap-2">
-        <h2
-          id="about-highlights"
-          className="m-0 text-[12px] font-medium text-[var(--theme-muted)]"
-        >
+        <h2 id="about-highlights" className="m-0 text-[12px] font-medium text-[var(--theme-muted)]">
           {t("about.highlightsTitle")}
         </h2>
         <ul className="m-0 grid list-none gap-1.5 p-0">
@@ -89,7 +86,7 @@ export function AboutContent({ version }: { readonly version: string }) {
           <button
             key={link.id}
             type="button"
-            className="flex items-center justify-between rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-2 text-left text-[12px] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+            className="flex items-center justify-between rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-2 text-left text-[12px] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
             onClick={() => void openExternalTarget(link.href)}
           >
             <span>{t(link.labelKey)}</span>

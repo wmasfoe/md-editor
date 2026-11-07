@@ -38,7 +38,7 @@ export function AssetPreview({
           </button>
         ) : null}
         <div
-          className="min-w-0 flex-1 overflow-hidden text-[13px] font-semibold leading-[1.35] text-ellipsis whitespace-nowrap text-[var(--theme-control-text)]"
+          className="min-w-0 flex-1 overflow-hidden text-[13px] font-medium leading-[1.35] text-ellipsis whitespace-nowrap text-[var(--theme-control-text)]"
           title={asset.path}
         >
           {asset.name}

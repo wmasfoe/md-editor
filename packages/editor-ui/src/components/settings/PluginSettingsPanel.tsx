@@ -172,7 +172,7 @@ function Switch({
     >
       <span
         aria-hidden="true"
-        className={`pointer-events-none inline-block size-[16px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.12)] ring-0 transition-transform duration-200 ease-in-out ${
+        className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.12)] ring-0 transition-transform duration-200 ease-in-out ${
           checked ? "translate-x-3.5" : "translate-x-0"
         }`}
       />
@@ -215,9 +215,9 @@ function PluginItemCard({
 
   return (
     <div
-      className={`relative flex flex-col justify-between gap-2.5 rounded-lg border px-3.5 py-3 transition-all duration-200 ${
+      className={`relative flex flex-col justify-between gap-2.5 rounded-lg border px-4 py-3 transition-[border-color,background-color] duration-200 ${
         isEnabled
-          ? "border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-xs hover:border-[var(--theme-border-strong)]"
+          ? "border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)]"
           : "border-[var(--theme-border)]/60 bg-[var(--theme-chrome)]/40 opacity-80 hover:opacity-100 hover:border-[var(--theme-border)]"
       }`}
     >
@@ -234,11 +234,11 @@ function PluginItemCard({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[13.5px] font-semibold text-[var(--theme-title)]">
+              <span className="text-[13px] font-medium text-[var(--theme-title)]">
                 {translatedName}
               </span>
 
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                 <OfficialBadgeIcon />
                 <span>{t("settings.plugins.officialBadge")}</span>
               </span>
@@ -249,7 +249,7 @@ function PluginItemCard({
             </p>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[10.5px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
+              <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
                 {translatedHint}
               </span>
               {descriptor.tags.map((tag) => {
@@ -258,7 +258,7 @@ function PluginItemCard({
                 return (
                   <span
                     key={tag}
-                    className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[10.5px] text-[var(--theme-muted)]"
+                    className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[11px] text-[var(--theme-muted)]"
                   >
                     {translatedTag}
                   </span>
@@ -270,7 +270,7 @@ function PluginItemCard({
 
         <div className="flex shrink-0 items-center gap-2 pt-0.5">
           <span
-            className={`text-[11.5px] font-medium transition-colors ${
+            className={`text-[12px] font-medium transition-colors ${
               isEnabled ? "text-[var(--theme-primary)]" : "text-[var(--theme-muted)]"
             }`}
           >
@@ -316,21 +316,21 @@ export function PluginSettingsPanel({
         })}
 
         {!children && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-3.5 py-2.5 transition-colors">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-4 py-2 transition-colors">
             <div className="flex items-center gap-3 min-w-0">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)]">
                 <PuzzleIcon />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
+                  <span className="text-[13px] font-medium text-[var(--theme-title)]">
                     {t("settings.plugins.moreComingTitle")}
                   </span>
                   <span className="rounded-full bg-[var(--theme-primary-soft)] px-1.5 py-0.2 text-[10px] font-medium text-[var(--theme-primary)]">
                     {t("settings.plugins.moreComingBadge")}
                   </span>
                 </div>
-                <p className="m-0 mt-0.5 text-[11.5px] leading-normal text-[var(--theme-muted)]">
+                <p className="m-0 mt-0.5 text-[12px] leading-normal text-[var(--theme-muted)]">
                   {t("settings.plugins.moreComingDesc")}
                 </p>
               </div>

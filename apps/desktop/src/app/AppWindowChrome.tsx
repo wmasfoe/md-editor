@@ -35,7 +35,7 @@ export function AppTitleBar({
     <div
       data-tauri-drag-region
       className={cx(
-        "relative h-[34px] shrink-0 select-none border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-title)] transition-colors duration-150",
+        "relative h-9 shrink-0 select-none border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-title)] transition-colors duration-150",
         titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
         titleAlign === "center"
           ? hasWindowControlsInset

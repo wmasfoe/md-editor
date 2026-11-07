@@ -75,6 +75,12 @@ const OTHER_KEY_LABELS: Readonly<Record<string, string>> = {
   Shift: "Shift",
 };
 
+/** macOS 修饰键展示顺序：⌃ ⌥ ⇧ ⌘；非修饰键返回 -1 */
+const MAC_MODIFIER_ORDER = ["⌃", "⌥", "⇧", "⌘"];
+function macModifierRank(value: string): number {
+  return MAC_MODIFIER_ORDER.indexOf(value);
+}
+
 /**
  * 把 keymap 字符串（如 `Mod-Shift-B`）拆成可渲染为 keycap 的按键片段。
  * macOS 使用 ⌘⇧⌥⌃ 符号；其他平台使用 Ctrl/Alt/Shift 文字。
@@ -95,9 +101,10 @@ export function formatKeymapParts(
     return ordered;
   }
   // macOS 惯例顺序：⌃ ⌥ ⇧ ⌘ 再接主键
-  const rank = (value: string) => ["⌃", "⌥", "⇧", "⌘"].indexOf(value);
-  const modifiers = ordered.filter((value) => rank(value) >= 0).sort((a, b) => rank(a) - rank(b));
-  const keys = ordered.filter((value) => rank(value) < 0);
+  const modifiers = ordered
+    .filter((value) => macModifierRank(value) >= 0)
+    .toSorted((left, right) => macModifierRank(left) - macModifierRank(right));
+  const keys = ordered.filter((value) => macModifierRank(value) < 0);
   return [...modifiers, ...keys];
 }
 

@@ -22,7 +22,11 @@ const HistoryDrawer = lazy(() =>
  */
 function findCommandShortcut(
   commandId: string,
-  customShortcuts: readonly { readonly id: string; readonly commandId: string; readonly key: string }[],
+  customShortcuts: readonly {
+    readonly id: string;
+    readonly commandId: string;
+    readonly key: string;
+  }[],
 ): string | undefined {
   const builtIn = runtime.keymaps.list().find((keymap) => keymap.commandId === commandId);
   const custom = customShortcuts.find(

@@ -28,7 +28,7 @@ export function UpdateNoticeDialog({ version, entry, onResolve }: UpdateNoticeDi
     <Dialog open={isOpen} onClose={() => onResolve("later")} className="relative z-[60]">
       <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.24)]" />
       <div className="fixed inset-0 grid place-items-center p-6">
-        <DialogPanel className="w-[min(460px,100%)] rounded-[10px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
+        <DialogPanel className="w-[min(460px,100%)] rounded-xl border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
           <DialogTitle className="m-0 text-base font-medium leading-[1.4] text-[var(--theme-title)]">
             {t("settings.updates.noticeTitle", { version: version ?? "" })}
           </DialogTitle>
