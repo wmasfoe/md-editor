@@ -1,4 +1,23 @@
+import {
+  ArrowTopRightOnSquareIcon,
+  ExclamationTriangleIcon,
+  PuzzlePieceIcon,
+} from "@heroicons/react/24/outline";
 import { validateKeymapKey } from "@md-editor/editor-core";
+import {
+  PluginCard,
+  pluginBadgeClassName,
+  pluginCodeChipClassName,
+  settingsDangerTextButtonClassName,
+  settingsDescriptionClassName,
+  settingsErrorNoticeClassName,
+  settingsInputClassName,
+  settingsModuleClassName,
+  settingsPrimarySmallButtonClassName,
+  settingsSectionTitleClassName,
+  settingsSmallButtonClassName,
+  settingsTextButtonClassName,
+} from "@md-editor/editor-ui/settings";
 import { useTranslation } from "@md-editor/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -21,6 +40,10 @@ import {
   type UnreadablePlugin,
 } from "../../app/plugins/storage";
 import { PluginInstallConfirmDialog } from "./PluginInstallConfirmDialog";
+import { ExternalPluginCard } from "./ExternalPluginCard";
+
+/** 外部插件区内的分组小标题，与快捷键面板的分组标题一致。 */
+const groupTitleClassName = "m-0 text-xs font-medium text-[var(--theme-muted)]";
 
 /** Each install is explicitly selected and trusted by the user before its code is stored. */
 export function ExternalPluginSettings() {
@@ -98,332 +121,290 @@ export function ExternalPluginSettings() {
       setBusy(false);
     }
   };
+  const findExisting = (pluginId: string) => plugins.find((p) => p.id === pluginId);
+  const setUpdateMessage = (pluginId: string, message: string) =>
+    setUpdateMessages((messages) => ({ ...messages, [pluginId]: message }));
+
+  /** 从目录安装或更新：首次安装进入信任确认，已安装的同仓库插件放入待生效版本。 */
+  const installFromCatalog = (pluginId: string) =>
+    void perform(async () => {
+      if (!catalog) return;
+      const version = await downloadPlugin(catalog, pluginId);
+      const existing = findExisting(pluginId);
+      if (
+        existing &&
+        (existing.current.source.owner.toLowerCase() !== version.source.owner.toLowerCase() ||
+          existing.current.source.repo.toLowerCase() !== version.source.repo.toLowerCase())
+      )
+        throw new Error(t("pluginPreview.otherRepository"));
+      if (existing?.current.source.sha256 === version.source.sha256) {
+        setUpdateMessage(pluginId, t("pluginPreview.currentVersion"));
+        return;
+      }
+      if (existing) {
+        // 更新来自已信任的同一仓库，先放入待生效版本，下次启动才执行。
+        await savePlugin({ ...existing, pending: version });
+        return;
+      }
+      setPendingInstall(version);
+    });
+
+  const previewFromCatalog = (pluginId: string) =>
+    void perform(async () => {
+      if (!catalog) return;
+      const version = await downloadPlugin(catalog, pluginId);
+      await openExternalTarget(createPluginPreviewUrl(version.source));
+    });
+
+  const checkUpdates = (plugin: StoredPlugin) =>
+    void perform(async () => {
+      const latest = await getPluginCatalog(
+        `${plugin.current.source.owner}/${plugin.current.source.repo}`,
+      );
+      if (!latest.plugins.some((entry) => entry.id === plugin.id)) {
+        setUpdateMessage(plugin.id, t("pluginPreview.notListed"));
+        return;
+      }
+      const version = await downloadPlugin(latest, plugin.id);
+      if (version.source.sha256 === plugin.current.source.sha256) {
+        setUpdateMessage(plugin.id, t("pluginPreview.currentVersion"));
+        return;
+      }
+      await savePlugin({ ...plugin, pending: version });
+      setUpdateMessage(plugin.id, t("pluginPreview.updateDownloaded"));
+    });
+
+  const commitShortcut = (
+    plugin: StoredPlugin,
+    keymap: PluginStatusEvent["keymaps"][number],
+    value: string,
+  ) => {
+    // 设置页可能在独立窗口里，拿不到主窗口的快捷键注册表，这里只拦格式；
+    // 冲突由主窗口注册时判断，并通过 overrideError 回传展示。
+    const invalid = validateKeymapKey(value);
+    setShortcutErrors((errors) => {
+      const next = { ...errors };
+      if (invalid) next[keymap.id] = invalid;
+      else delete next[keymap.id];
+      return next;
+    });
+    if (invalid || value === (plugin.keymapOverrides?.[keymap.id] ?? keymap.key)) return;
+    void perform(() =>
+      savePlugin({
+        ...plugin,
+        keymapOverrides: { ...plugin.keymapOverrides, [keymap.id]: value },
+      }),
+    );
+  };
+
+  const hasInstalled = plugins.length > 0 || unreadable.length > 0;
+
   return (
-    <section className="mt-6 grid gap-3" aria-labelledby="external-plugins-title">
+    <section
+      className={`${settingsModuleClassName} mt-4 grid gap-4`}
+      aria-labelledby="external-plugins-title"
+    >
       <div>
-        <h2 id="external-plugins-title" className="text-sm font-medium">
+        <h2 id="external-plugins-title" className={settingsSectionTitleClassName}>
           {t("pluginPreview.externalTitle")}
         </h2>
-        <p className="text-xs text-[var(--theme-muted)]">{t("pluginPreview.trust")}</p>
+        <p className={settingsDescriptionClassName}>{t("pluginPreview.trust")}</p>
       </div>
       {!isTauri() ? (
-        <p>{t("pluginPreview.desktopOnly")}</p>
+        <p className="m-0 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-4 py-3 text-xs text-[var(--theme-muted)]">
+          {t("pluginPreview.desktopOnly")}
+        </p>
       ) : (
         <>
-          <div className="flex gap-2">
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (busy || !source.trim()) return;
+              void perform(async () => setCatalog(await getPluginCatalog(source)));
+            }}
+          >
             <label className="sr-only" htmlFor="plugin-repository">
               {t("pluginPreview.source")}
             </label>
             <input
               id="plugin-repository"
-              className="min-w-0 flex-1 rounded border border-[var(--theme-border)] bg-transparent px-2 py-1"
+              className={`${settingsInputClassName} min-w-0 flex-1`}
               placeholder={t("pluginPreview.sourcePlaceholder")}
               value={source}
               onChange={(e) => setSource(e.target.value)}
             />
             <button
+              type="submit"
+              className={settingsSmallButtonClassName}
               disabled={busy || !source.trim()}
-              onClick={() => void perform(async () => setCatalog(await getPluginCatalog(source)))}
             >
               {t("pluginPreview.showPlugins")}
             </button>
-          </div>
+          </form>
+
           {catalog && (
             <div className="grid gap-2">
-              {catalog.plugins.map((entry) => (
-                <div
-                  key={entry.id}
-                  className="rounded border border-[var(--theme-border)] p-3 text-sm"
-                >
-                  <strong>{entry.name}</strong> · {entry.version}
-                  <p>{entry.description}</p>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void perform(async () => {
-                        const version = await downloadPlugin(catalog, entry.id);
-                        const existing = plugins.find((p) => p.id === entry.id);
-                        if (
-                          existing &&
-                          (existing.current.source.owner.toLowerCase() !==
-                            version.source.owner.toLowerCase() ||
-                            existing.current.source.repo.toLowerCase() !==
-                              version.source.repo.toLowerCase())
-                        )
-                          throw new Error(t("pluginPreview.otherRepository"));
-                        if (existing?.current.source.sha256 === version.source.sha256) {
-                          setUpdateMessages((messages) => ({
-                            ...messages,
-                            [entry.id]: t("pluginPreview.currentVersion"),
-                          }));
-                          return;
-                        }
-                        if (existing) {
-                          // 更新来自已信任的同一仓库，先放入待生效版本，下次启动才执行。
-                          await savePlugin({ ...existing, pending: version });
-                          return;
-                        }
-                        setPendingInstall(version);
-                      })
-                    }
-                  >
-                    {plugins.some((p) => p.id === entry.id)
-                      ? t("pluginPreview.downloadUpdate")
-                      : t("pluginPreview.install")}
-                  </button>
-                  <button
-                    disabled={busy}
-                    className="ml-3"
-                    onClick={() =>
-                      void perform(async () => {
-                        const version = await downloadPlugin(catalog, entry.id);
-                        await openExternalTarget(createPluginPreviewUrl(version.source));
-                      })
-                    }
-                  >
-                    {t("pluginPreview.onlinePreview")}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {plugins.length > 0 && (
-            <button
-              disabled={busy}
-              className="justify-self-start"
-              onClick={() =>
-                void perform(async () => {
-                  for (const plugin of plugins) await savePlugin({ ...plugin, enabled: false });
-                })
-              }
-            >
-              {t("pluginPreview.disableAll")}
-            </button>
-          )}
-          {unreadable.map((item) => (
-            <div
-              key={item.id}
-              role="alert"
-              className="flex flex-wrap items-center gap-3 rounded border border-[var(--theme-border)] p-3 text-sm"
-            >
-              <span>
-                <strong>{item.id}</strong> · {t("pluginPreview.unreadable")}：{item.error}
-              </span>
-              <button
-                disabled={busy}
-                onClick={() => void perform(() => removePlugin(item.id, item.revision))}
-              >
-                {t("pluginPreview.remove")}
-              </button>
-            </div>
-          ))}
-          {plugins.map((plugin) => (
-            <div
-              key={plugin.id}
-              className="grid gap-2 rounded border border-[var(--theme-border)] p-3 text-sm"
-            >
-              <div>
-                <strong>{plugin.current.package.manifest.name}</strong> ·{" "}
-                {plugin.current.package.manifest.version}{" "}
-                <span className="text-[var(--theme-muted)]">
-                  {plugin.current.source.owner}/{plugin.current.source.repo}
-                  {statuses.find((status) => status.id === plugin.id)?.status === "active" &&
-                    ` · ${t("pluginPreview.active")}`}
-                  {statuses.find((status) => status.id === plugin.id)?.status === "loading" &&
-                    ` · ${t("pluginPreview.loading")}`}
-                  {statuses.find((status) => status.id === plugin.id)?.status === "error" && (
-                    <span role="alert">
-                      {" "}
-                      · {t("pluginPreview.failed")}：
-                      {statuses.find((status) => status.id === plugin.id)?.error ??
-                        t("pluginPreview.unknown")}
-                    </span>
-                  )}
+              <h3 className={groupTitleClassName}>
+                {t("pluginPreview.catalogTitle")}
+                <span className="ml-1.5 font-mono font-normal">
+                  {catalog.owner}/{catalog.repo} · {catalog.tag}
                 </span>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={plugin.enabled}
+              </h3>
+              {catalog.plugins.length === 0 ? (
+                <p className="m-0 text-xs text-[var(--theme-muted)]">
+                  {t("pluginPreview.catalogEmpty")}
+                </p>
+              ) : (
+                <div className="grid gap-2.5">
+                  {catalog.plugins.map((entry) => {
+                    const installed = Boolean(findExisting(entry.id));
+                    return (
+                      <PluginCard
+                        key={entry.id}
+                        icon={
+                          <PuzzlePieceIcon
+                            className="size-4 text-[var(--theme-muted)]"
+                            aria-hidden="true"
+                          />
+                        }
+                        title={entry.name}
+                        badges={
+                          <>
+                            <span className={pluginBadgeClassName}>{entry.version}</span>
+                            {installed && (
+                              <span className={pluginBadgeClassName}>
+                                {t("pluginPreview.installedBadge")}
+                              </span>
+                            )}
+                          </>
+                        }
+                        description={entry.description}
+                        meta={<span className={pluginCodeChipClassName}>{entry.id}</span>}
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className={
+                              installed
+                                ? settingsSmallButtonClassName
+                                : settingsPrimarySmallButtonClassName
+                            }
+                            disabled={busy}
+                            onClick={() => installFromCatalog(entry.id)}
+                          >
+                            {installed
+                              ? t("pluginPreview.downloadUpdate")
+                              : t("pluginPreview.install")}
+                          </button>
+                          <button
+                            type="button"
+                            className={settingsTextButtonClassName}
+                            disabled={busy}
+                            onClick={() => previewFromCatalog(entry.id)}
+                          >
+                            {t("pluginPreview.onlinePreview")}
+                            <ArrowTopRightOnSquareIcon className="size-3.5" aria-hidden="true" />
+                          </button>
+                          {updateMessages[entry.id] && (
+                            <span role="status" className="text-xs text-[var(--theme-muted)]">
+                              {updateMessages[entry.id]}
+                            </span>
+                          )}
+                        </div>
+                      </PluginCard>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasInstalled && (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className={groupTitleClassName}>{t("pluginPreview.installedTitle")}</h3>
+                {plugins.some((plugin) => plugin.enabled) && (
+                  <button
+                    type="button"
+                    className={settingsTextButtonClassName}
                     disabled={busy}
-                    onChange={(e) =>
-                      void perform(() => savePlugin({ ...plugin, enabled: e.target.checked }))
+                    onClick={() =>
+                      void perform(async () => {
+                        for (const plugin of plugins)
+                          await savePlugin({ ...plugin, enabled: false });
+                      })
                     }
-                  />{" "}
-                  {t("pluginPreview.enabled")}
-                </label>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void perform(async () => {
-                      const latest = await getPluginCatalog(
-                        `${plugin.current.source.owner}/${plugin.current.source.repo}`,
-                      );
-                      if (!latest.plugins.some((entry) => entry.id === plugin.id)) {
-                        setUpdateMessages((messages) => ({
-                          ...messages,
-                          [plugin.id]: t("pluginPreview.notListed"),
-                        }));
-                        return;
-                      }
-                      const version = await downloadPlugin(latest, plugin.id);
-                      if (version.source.sha256 === plugin.current.source.sha256) {
-                        setUpdateMessages((messages) => ({
-                          ...messages,
-                          [plugin.id]: t("pluginPreview.currentVersion"),
-                        }));
-                        return;
-                      }
-                      await savePlugin({ ...plugin, pending: version });
-                      setUpdateMessages((messages) => ({
-                        ...messages,
-                        [plugin.id]: t("pluginPreview.updateDownloaded"),
-                      }));
-                    })
-                  }
-                >
-                  {t("pluginPreview.checkUpdates")}
-                </button>
-                <button
-                  disabled={busy || !plugin.previous}
-                  onClick={() =>
-                    void perform(() =>
-                      savePlugin({
-                        ...plugin,
-                        current: plugin.previous!,
-                        previous: plugin.current,
-                        pending: null,
-                      }),
-                    )
-                  }
-                >
-                  {t("pluginPreview.rollback")}
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => void perform(() => removePlugin(plugin.id, plugin.revision))}
-                >
-                  {t("pluginPreview.remove")}
-                </button>
-                {plugin.pending && <span>{t("pluginPreview.pending")}</span>}
-                {updateMessages[plugin.id] && (
-                  <span role="status">{updateMessages[plugin.id]}</span>
+                  >
+                    {t("pluginPreview.disableAll")}
+                  </button>
                 )}
               </div>
-              {keymaps
-                .filter((keymap) => keymap.pluginId === plugin.id)
-                .map((keymap) => (
-                  <div key={keymap.id} className="grid gap-1">
-                    <label className="flex items-center gap-2">
-                      {t("pluginPreview.shortcut")} {keymap.id}
-                      <input
-                        defaultValue={plugin.keymapOverrides?.[keymap.id] ?? keymap.key}
-                        aria-invalid={Boolean(shortcutErrors[keymap.id] || keymap.overrideError)}
-                        onBlur={(event) => {
-                          const value = event.target.value.trim() || keymap.key;
-                          // 设置页可能在独立窗口里，拿不到主窗口的快捷键注册表，这里只拦格式；
-                          // 冲突由主窗口注册时判断，并通过 overrideError 回传展示。
-                          const invalid = validateKeymapKey(value);
-                          setShortcutErrors((errors) => {
-                            const next = { ...errors };
-                            if (invalid) next[keymap.id] = invalid;
-                            else delete next[keymap.id];
-                            return next;
-                          });
-                          if (
-                            invalid ||
-                            value === (plugin.keymapOverrides?.[keymap.id] ?? keymap.key)
-                          )
-                            return;
-                          void perform(() =>
-                            savePlugin({
-                              ...plugin,
-                              keymapOverrides: { ...plugin.keymapOverrides, [keymap.id]: value },
-                            }),
-                          );
-                        }}
+              <div className="grid gap-2.5">
+                {unreadable.map((item) => (
+                  <PluginCard
+                    key={item.id}
+                    icon={
+                      <ExclamationTriangleIcon
+                        className="size-4 text-[var(--theme-danger-text)]"
+                        aria-hidden="true"
                       />
-                    </label>
-                    {shortcutErrors[keymap.id] && (
-                      <span role="alert" className="text-xs">
-                        {t("pluginPreview.shortcutInvalid")}
-                        {shortcutErrors[keymap.id]}
+                    }
+                    title={item.id}
+                    description={
+                      <span role="alert">
+                        {t("pluginPreview.unreadable")}：{item.error}
                       </span>
-                    )}
-                    {!shortcutErrors[keymap.id] && keymap.overrideError && (
-                      <span role="alert" className="text-xs">
-                        {keymap.overrideError.kind === "conflict"
-                          ? t("pluginPreview.shortcutConflict")
-                          : t("pluginPreview.shortcutInvalid")}
-                        {keymap.overrideError.message}
-                        {keymap.effectiveKey
-                          ? ` · ${t("pluginPreview.shortcutFallback")}${keymap.effectiveKey}`
-                          : ` · ${t("pluginPreview.shortcutDisabled")}`}
-                      </span>
-                    )}
-                  </div>
+                    }
+                    trailing={
+                      <button
+                        type="button"
+                        className={settingsDangerTextButtonClassName}
+                        disabled={busy}
+                        onClick={() => void perform(() => removePlugin(item.id, item.revision))}
+                      >
+                        {t("pluginPreview.remove")}
+                      </button>
+                    }
+                  />
                 ))}
-              {Object.entries(plugin.current.package.settings ?? {}).map(([key, definition]) => (
-                <label key={key} className="flex items-center gap-2">
-                  {definition.label}
-                  {definition.type === "boolean" ? (
-                    <input
-                      type="checkbox"
-                      checked={Boolean(plugin.settings[key] ?? definition.default)}
-                      onChange={(e) =>
-                        void perform(() =>
-                          savePlugin({
-                            ...plugin,
-                            settings: { ...plugin.settings, [key]: e.target.checked },
-                          }),
-                        )
-                      }
-                    />
-                  ) : definition.type === "enum" ? (
-                    <select
-                      value={String(plugin.settings[key] ?? definition.default)}
-                      onChange={(e) =>
-                        void perform(() =>
-                          savePlugin({
-                            ...plugin,
-                            settings: { ...plugin.settings, [key]: e.target.value },
-                          }),
-                        )
-                      }
-                    >
-                      {definition.values.map((value) => (
-                        <option key={value}>{value}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={definition.type === "number" ? "number" : "text"}
-                      defaultValue={String(plugin.settings[key] ?? definition.default)}
-                      onBlur={(e) =>
-                        void perform(() =>
-                          savePlugin({
-                            ...plugin,
-                            settings: {
-                              ...plugin.settings,
-                              [key]:
-                                definition.type === "number"
-                                  ? Number(e.target.value)
-                                  : e.target.value,
-                            },
-                          }),
-                        )
-                      }
-                    />
-                  )}
-                </label>
-              ))}
+                {plugins.map((plugin) => (
+                  <ExternalPluginCard
+                    key={plugin.id}
+                    plugin={plugin}
+                    status={statuses.find((status) => status.id === plugin.id)}
+                    keymaps={keymaps.filter((keymap) => keymap.pluginId === plugin.id)}
+                    shortcutErrors={shortcutErrors}
+                    updateMessage={updateMessages[plugin.id]}
+                    busy={busy}
+                    onToggle={(enabled) => void perform(() => savePlugin({ ...plugin, enabled }))}
+                    onCheckUpdates={() => checkUpdates(plugin)}
+                    onRollback={() =>
+                      void perform(() =>
+                        savePlugin({
+                          ...plugin,
+                          current: plugin.previous!,
+                          previous: plugin.current,
+                          pending: null,
+                        }),
+                      )
+                    }
+                    onRemove={() => void perform(() => removePlugin(plugin.id, plugin.revision))}
+                    onShortcutCommit={(keymap, value) => commitShortcut(plugin, keymap, value)}
+                    onSettingChange={(key, value) =>
+                      void perform(() =>
+                        savePlugin({ ...plugin, settings: { ...plugin.settings, [key]: value } }),
+                      )
+                    }
+                  />
+                ))}
+              </div>
             </div>
-          ))}
+          )}
         </>
       )}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className={`m-0 ${settingsErrorNoticeClassName}`}>
           {error}
         </p>
       )}

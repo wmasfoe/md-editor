@@ -20,6 +20,7 @@
 | 圆角 | 控件 8px（`rounded-lg`），对话框和面板 12px（`rounded-xl`），8px 菜单内的菜单项 4px |
 | 颜色 | 不使用未定义的 token（如 `--theme-foreground`、`--theme-hover`）；强调按钮使用 `--theme-primary-fill`，错误色使用 `--theme-danger-*` |
 | 欢迎页 | 只保留「新建文档」一个主操作，打开文件和打开文件夹为文字按钮 |
+| 插件卡片 | 内置插件与外部插件统一用 `editor-ui/settings` 的 `PluginCard` + `PluginToggle`（开关为 `SettingsSwitch`）；卡片内次要操作用 `settingsTextButtonClassName`，移除用 `settingsDangerTextButtonClassName`，错误提示用 `settingsErrorNoticeClassName`；不要在调用方手写卡片外框或原生 checkbox 开关 |
 
 ## 已知遗留
 

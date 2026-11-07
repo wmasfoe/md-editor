@@ -58,6 +58,10 @@ export const zh = {
     shortcutFallback: "覆盖键未生效，已使用默认键：",
     shortcutDisabled: "此快捷键已停用，可从命令面板执行命令",
     unreadable: "本地副本已损坏，无法加载",
+    installedTitle: "已安装",
+    catalogTitle: "可安装的插件",
+    catalogEmpty: "此发布中没有可安装的插件",
+    installedBadge: "已安装",
   },
   common: {
     cancel: "取消",

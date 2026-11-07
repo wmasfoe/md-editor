@@ -6,3 +6,5 @@ export * from "./PluginSettingsPanel";
 export * from "./ShortcutSettingsPanel";
 export * from "./GeneralSettingsPanel";
 export * from "../../themes/editor-fonts";
+export * from "./PluginCard";
+export * from "./SettingsSwitch";

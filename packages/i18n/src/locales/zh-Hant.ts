@@ -60,6 +60,10 @@ export const zhHant: TranslationSchema = {
     shortcutFallback: "覆蓋鍵未生效，已使用預設鍵：",
     shortcutDisabled: "此快捷鍵已停用，可從命令面板執行命令",
     unreadable: "本機副本已損壞，無法載入",
+    installedTitle: "已安裝",
+    catalogTitle: "可安裝的外掛",
+    catalogEmpty: "此發佈中沒有可安裝的外掛",
+    installedBadge: "已安裝",
   },
   common: {
     cancel: "取消",
