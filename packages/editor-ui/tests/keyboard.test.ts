@@ -300,6 +300,11 @@ describe("formatKeymapParts", () => {
     expect(formatKeymapParts("Shift-Alt-F", "linux")).toEqual(["Shift", "Alt", "F"]);
   });
 
+  it("maps named keys to symbols instead of upper-casing the key name", () => {
+    expect(formatKeymapParts("Mod-Alt-Backspace", "mac")).toEqual(["⌥", "⌘", "⌫"]);
+    expect(formatKeymapParts("Mod-Alt-ArrowDown", "windows")).toEqual(["Ctrl", "Alt", "↓"]);
+  });
+
   it("keeps a literal minus as the main key", () => {
     expect(formatKeymapParts("Mod--", "mac")).toEqual(["⌘", "-"]);
   });

@@ -274,7 +274,7 @@ function ShortcutKeycaps({ keymap }: { readonly keymap: string | undefined }) {
     return null;
   }
   return (
-    <span className="flex shrink-0 items-center gap-1" aria-label={keymap}>
+    <span className="flex shrink-0 items-center gap-1">
       {formatKeymapParts(keymap).map((part, index) => (
         <kbd
           key={`${part}-${index}`}

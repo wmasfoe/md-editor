@@ -75,6 +75,19 @@ const OTHER_KEY_LABELS: Readonly<Record<string, string>> = {
   Shift: "Shift",
 };
 
+/** 命名主键的展示符号；未列出的主键（字母、数字、标点）按大写原样展示 */
+const NAMED_KEY_SYMBOLS: Readonly<Record<string, string>> = {
+  Backspace: "⌫",
+  Delete: "⌦",
+  Enter: "↵",
+  Tab: "⇥",
+  Escape: "Esc",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+};
+
 /** macOS 修饰键展示顺序：⌃ ⌥ ⇧ ⌘；非修饰键返回 -1 */
 const MAC_MODIFIER_ORDER = ["⌃", "⌥", "⇧", "⌘"];
 function macModifierRank(value: string): number {
@@ -96,7 +109,9 @@ export function formatKeymapParts(
     segments.push("-");
   }
   const symbols = platform === "mac" ? MAC_KEY_SYMBOLS : OTHER_KEY_LABELS;
-  const ordered = segments.map((segment) => symbols[segment] ?? segment.toUpperCase());
+  const ordered = segments.map(
+    (segment) => symbols[segment] ?? NAMED_KEY_SYMBOLS[segment] ?? segment.toUpperCase(),
+  );
   if (platform !== "mac") {
     return ordered;
   }
