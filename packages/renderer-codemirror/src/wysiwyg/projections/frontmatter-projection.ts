@@ -6,11 +6,8 @@ import {
   analyzeFrontmatterYaml,
   type FrontmatterYamlAnalysis,
 } from "../../markdown/frontmatter-yaml.ts";
-import {
-  fingerprintSource,
-  type MarkdownRangeRecord,
-  type SourceRange,
-} from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource } from "../../markdown/range-types.ts";
 import { FrontmatterHeaderWidget } from "../widgets/frontmatter-header-widget.ts";
 
 export function buildFrontmatterLayoutDecorations(

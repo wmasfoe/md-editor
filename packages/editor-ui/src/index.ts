@@ -26,7 +26,6 @@ export * from "./themes";
 export * from "./keyboard";
 export type { TocTarget } from "./types";
 export {
-  type MarkdownSyntaxPlugin,
   type AiSuggestionItem,
   type AiSuggestionLabels,
   type AiSuggestionInput,

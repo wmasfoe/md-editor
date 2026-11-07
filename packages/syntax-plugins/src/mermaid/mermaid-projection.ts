@@ -1,7 +1,7 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { closeMediaViewerFor, openMediaViewer } from "@md-editor/renderer-codemirror";
-import type { MarkdownRangeRecord } from "@md-editor/renderer-codemirror";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { renderMermaidSvg } from "./mermaid-loader.ts";
 import type { MermaidMetadata } from "./mermaid-types.ts";
 

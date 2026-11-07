@@ -13,7 +13,7 @@
  */
 import type { EditorState } from "@codemirror/state";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 
 export interface CodeBlockIndentPlan {
   /** 正文每行最多隐藏的前导空白列数。 */

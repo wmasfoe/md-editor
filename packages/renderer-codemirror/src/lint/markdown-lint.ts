@@ -3,7 +3,7 @@ import { closeLintPanel, setDiagnostics, type Action, type Diagnostic } from "@c
 import { lint as lintMarkdownSync } from "markdownlint/sync";
 import { authorizeWysiwygProtectedChange } from "../wysiwyg/state/change-authorization.ts";
 import { markdownRangeIndexField } from "../markdown/range-index.ts";
-import type { MarkdownSyntaxKind } from "../markdown/range-types.ts";
+import type { MarkdownSyntaxKind } from "@md-editor/plugin-sdk/syntax";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
 import {
   describeFixInfo,

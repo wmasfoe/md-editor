@@ -18,6 +18,7 @@ import {
 export interface PluginSettingsPanelProps {
   readonly plugins: { readonly enabled: Readonly<Record<string, boolean>> };
   readonly onTogglePlugin: (pluginId: string, enabled: boolean) => void;
+  readonly children?: ReactNode;
 }
 
 /**
@@ -286,7 +287,11 @@ function PluginItemCard({
   );
 }
 
-export function PluginSettingsPanel({ plugins, onTogglePlugin }: PluginSettingsPanelProps) {
+export function PluginSettingsPanel({
+  plugins,
+  onTogglePlugin,
+  children,
+}: PluginSettingsPanelProps) {
   const { t } = useTranslation();
   return (
     <section className={settingsModuleClassName} aria-labelledby="plugin-settings-title">
@@ -310,27 +315,30 @@ export function PluginSettingsPanel({ plugins, onTogglePlugin }: PluginSettingsP
           );
         })}
 
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-3.5 py-2.5 transition-colors">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)]">
-              <PuzzleIcon />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
-                  {t("settings.plugins.moreComingTitle")}
-                </span>
-                <span className="rounded-full bg-[var(--theme-primary-soft)] px-1.5 py-0.2 text-[10px] font-medium text-[var(--theme-primary)]">
-                  {t("settings.plugins.moreComingBadge")}
-                </span>
+        {!children && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--theme-border-strong)] bg-[var(--theme-chrome)]/30 px-3.5 py-2.5 transition-colors">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)]">
+                <PuzzleIcon />
               </div>
-              <p className="m-0 mt-0.5 text-[11.5px] leading-normal text-[var(--theme-muted)]">
-                {t("settings.plugins.moreComingDesc")}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
+                    {t("settings.plugins.moreComingTitle")}
+                  </span>
+                  <span className="rounded-full bg-[var(--theme-primary-soft)] px-1.5 py-0.2 text-[10px] font-medium text-[var(--theme-primary)]">
+                    {t("settings.plugins.moreComingBadge")}
+                  </span>
+                </div>
+                <p className="m-0 mt-0.5 text-[11.5px] leading-normal text-[var(--theme-muted)]">
+                  {t("settings.plugins.moreComingDesc")}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
+      {children}
     </section>
   );
 }

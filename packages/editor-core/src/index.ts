@@ -1,4 +1,6 @@
-import type { MdxComponentRegistry } from "@md-editor/mdx-component-registry";
+import type { MdxComponentRegistry } from "@md-editor/plugin-sdk/mdx";
+import type { Disposable } from "@md-editor/plugin-sdk";
+
 import type { DocumentSnapshot, DocumentState } from "./document-state.ts";
 
 export * from "./content.ts";
@@ -36,7 +38,8 @@ export interface CommandDescriptor {
 }
 
 export interface CommandRegistry {
-  register(command: CommandDescriptor): void;
+  register(command: CommandDescriptor): Disposable;
+  unregister(id: string): boolean;
   dispatch(id: string, context: CommandContext): Promise<boolean>;
   list(): readonly CommandDescriptor[];
   /** G007:按 UI 放置声明查询(不过滤 when) */
@@ -56,7 +59,8 @@ export interface KeymapDescriptor {
 }
 
 export interface KeymapRegistry {
-  register(keymap: KeymapDescriptor): void;
+  register(keymap: KeymapDescriptor): Disposable;
+  unregister(id: string): boolean;
   list(): readonly KeymapDescriptor[];
 }
 
@@ -194,7 +198,17 @@ export function createCommandRegistry(): CommandRegistry {
       if (commands.has(command.id)) {
         throw new Error(`Command already registered: ${command.id}`);
       }
-      commands.set(command.id, command);
+      const registration = { ...command };
+      commands.set(command.id, registration);
+      // A stale cleanup handle must not remove a later registration with the same ID.
+      return {
+        dispose() {
+          if (commands.get(command.id) === registration) commands.delete(command.id);
+        },
+      };
+    },
+    unregister(id) {
+      return commands.delete(id);
     },
     async dispatch(id, context) {
       console.log("[Command Dispatch]", id, "registered commands:", [...commands.keys()]);
@@ -261,8 +275,24 @@ export function createKeymapRegistry(): KeymapRegistry {
       if (bindings.has(bindingKey)) {
         throw new Error(`Ambiguous key binding: ${keymap.key}`);
       }
-      keymaps.set(keymap.id, keymap);
+      const registration = { ...keymap };
+      keymaps.set(keymap.id, registration);
       bindings.add(bindingKey);
+      return {
+        dispose() {
+          if (keymaps.get(keymap.id) === registration) {
+            keymaps.delete(keymap.id);
+            bindings.delete(bindingKey);
+          }
+        },
+      };
+    },
+    unregister(id) {
+      const keymap = keymaps.get(id);
+      if (!keymap) return false;
+      keymaps.delete(id);
+      bindings.delete(`${keymap.key}::${keymap.when ?? ""}`);
+      return true;
     },
     list() {
       return [...keymaps.values()];

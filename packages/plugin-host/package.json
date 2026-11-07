@@ -1,15 +1,20 @@
 {
-  "name": "@md-editor/mdx-component-registry",
+  "name": "@md-editor/plugin-host",
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mdx": "./src/mdx.ts",
+    "./github": "./src/github.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@md-editor/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

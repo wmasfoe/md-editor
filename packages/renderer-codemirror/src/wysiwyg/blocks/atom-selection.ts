@@ -9,7 +9,7 @@ import {
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 import { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
 import { clearWysiwygAtomSelectionEffect, selectWysiwygAtomEffect } from "../state/types.ts";
 import { hasWysiwygProjectionFeature, wysiwygProjectionField } from "../state/projection-field.ts";

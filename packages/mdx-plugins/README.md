@@ -7,7 +7,7 @@ Inkpoint 官方内置 MDX 交互组件库与对应元数据插件。包含面向
 ## 1. 架构定位
 
 - **标准 React 实现**：提供高质量、开箱即用且样式美观的官方交互式 MDX 组件；
-- **自包含元数据**：每个内置组件均配对导出符合 `@md-editor/mdx-component-registry` 规范的插件元数据定义，支持直接向注册表注入；
+- **自包含元数据**：每个内置组件均配对导出符合 `@md-editor/plugin-sdk/mdx` 规范的插件元数据定义，支持直接向注册表注入；
 - **全平台复用**：支持在桌面端、Web 端或静态构建环境中作为 MDX 渲染器的 component scope 注入。
 
 ---
@@ -31,7 +31,7 @@ Inkpoint 官方内置 MDX 交互组件库与对应元数据插件。包含面向
 ```tsx
 import React from "react";
 import { Callout, officialMdxPlugins } from "@md-editor/mdx-plugins";
-import { createMdxComponentRegistry } from "@md-editor/mdx-component-registry";
+import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 
 // 1. 批量向注册表注册官方 MDX 插件
 const registry = createMdxComponentRegistry();

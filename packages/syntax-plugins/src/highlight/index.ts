@@ -1,9 +1,9 @@
 import type { SyntaxNode } from "@lezer/common";
-import {
-  type MarkdownNodePolicy,
-  type MarkdownSyntaxKind,
-  type MarkdownSyntaxPlugin,
-} from "@md-editor/renderer-codemirror";
+import type {
+  MarkdownNodePolicy,
+  MarkdownSyntaxKind,
+  MarkdownSyntaxPlugin,
+} from "@md-editor/plugin-sdk/syntax";
 import { highlightMarkdownExtension } from "./highlight-parser.ts";
 import { HIGHLIGHT_NODES } from "./highlight-types.ts";
 

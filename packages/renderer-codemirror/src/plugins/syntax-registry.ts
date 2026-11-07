@@ -2,9 +2,12 @@ import type { EditorState, Range } from "@codemirror/state";
 import type { Decoration } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 import type { MarkdownConfig } from "@lezer/markdown";
-import type { MarkdownRangeRecord, SourceRange } from "../markdown/range-types.ts";
-import type { MarkdownNodePolicy } from "../markdown/node-policy.ts";
-import type { MarkdownSyntaxPlugin } from "./syntax-plugin.ts";
+import type {
+  MarkdownRangeRecord,
+  SourceRange,
+  MarkdownNodePolicy,
+  MarkdownSyntaxPlugin,
+} from "@md-editor/plugin-sdk/syntax";
 
 /**
  * 语法插件注册中心（SyntaxPluginRegistry）。
@@ -22,6 +25,19 @@ export class SyntaxPluginRegistry {
   register(plugin: MarkdownSyntaxPlugin): this {
     if (!plugin || !plugin.id) {
       return this;
+    }
+    if (this.#plugins.has(plugin.id)) {
+      throw new Error(`Syntax plugin already registered: ${plugin.id}`);
+    }
+    // Preflight every node before mutating maps, including the shorthand node policy.
+    const nodes = new Set([
+      ...Object.keys(plugin.nodePolicies ?? {}),
+      ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
+    ]);
+    for (const node of nodes) {
+      if (this.#nodeToPlugin.has(node)) {
+        throw new Error(`Syntax node already registered: ${node}`);
+      }
     }
     this.#plugins.set(plugin.id, plugin);
 
@@ -53,6 +69,21 @@ export class SyntaxPluginRegistry {
   }
 
   registerAll(plugins: readonly MarkdownSyntaxPlugin[]): this {
+    // Validate the full batch first so one conflict cannot leave a partial registration.
+    const ids = new Set(this.#plugins.keys());
+    const nodes = new Set(this.#nodeToPlugin.keys());
+    for (const plugin of plugins) {
+      if (!plugin?.id) continue;
+      if (ids.has(plugin.id)) throw new Error(`Syntax plugin already registered: ${plugin.id}`);
+      ids.add(plugin.id);
+      for (const node of new Set([
+        ...Object.keys(plugin.nodePolicies ?? {}),
+        ...(plugin.nodePolicy ? [plugin.nodePolicy.nodeName] : []),
+      ])) {
+        if (nodes.has(node)) throw new Error(`Syntax node already registered: ${node}`);
+        nodes.add(node);
+      }
+    }
     for (const plugin of plugins) {
       this.register(plugin);
     }
@@ -74,8 +105,12 @@ export class SyntaxPluginRegistry {
    * 常用于用户在设置中动态启用或禁用插件时的原子化重配。
    */
   setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): this {
+    // A failed replacement must leave the previous parser/registry pair intact.
+    const next = new SyntaxPluginRegistry(plugins);
     this.clear();
-    this.registerAll(plugins);
+    for (const [id, plugin] of next.#plugins) this.#plugins.set(id, plugin);
+    for (const [name, policy] of next.#nodePolicies) this.#nodePolicies.set(name, policy);
+    for (const [name, plugin] of next.#nodeToPlugin) this.#nodeToPlugin.set(name, plugin);
     return this;
   }
 

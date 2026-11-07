@@ -1,10 +1,8 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import {
-  createMdxComponentRegistry,
-  type MdxComponentDescriptor,
-} from "@md-editor/mdx-component-registry";
+import type { MdxComponentDescriptor } from "@md-editor/plugin-sdk/mdx";
+import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField, mdxModeFacet } from "../../src/markdown/range-index.ts";

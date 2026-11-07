@@ -1,10 +1,10 @@
 import type { SyntaxNode } from "@lezer/common";
-import {
-  type MarkdownNodePolicy,
-  type MarkdownSyntaxKind,
-  type MarkdownSyntaxPlugin,
-  type SourceRange,
-} from "@md-editor/renderer-codemirror";
+import type {
+  MarkdownNodePolicy,
+  MarkdownSyntaxKind,
+  MarkdownSyntaxPlugin,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
 import { mathMarkdownExtension } from "./math-parser.ts";
 import { buildMathLayoutDecorations } from "./math-projection.ts";
 import { MATH_NODES, type MathMetadata } from "./math-types.ts";

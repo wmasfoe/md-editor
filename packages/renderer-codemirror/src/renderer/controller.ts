@@ -34,7 +34,7 @@ import { normalizeLineEndings } from "@md-editor/shared";
 import { WysiwygDiagnostics } from "../diagnostics.ts";
 import { createModeExtensions, editorModeField } from "../mode.ts";
 import { rendererTransactionOrigin, type RendererTransactionOrigin } from "../origin.ts";
-import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
 import { typewriterModeInitialFacet } from "../wysiwyg/input/typewriter-mode.ts";
 import {
@@ -88,6 +88,7 @@ import {
   setViewSelection,
   toggleViewFocusMode,
   toggleViewTypewriterMode,
+  undoViewEdit,
 } from "./controller/view-operations.ts";
 import type {
   CodeBlockLineNumberPortResult,
@@ -433,8 +434,12 @@ export class CodeMirrorRendererController {
 
   getSelectionSnapshot() {
     return this.#destroyed
-      ? { from: 0, to: 0, text: "", head: 0 }
+      ? { from: 0, to: 0, text: "", head: 0, anchor: 0 }
       : readSelectionSnapshot(this.#view);
+  }
+
+  undo(): boolean {
+    return !this.#destroyed && !this.isComposing && undoViewEdit(this.#view);
   }
 
   focus(): void {

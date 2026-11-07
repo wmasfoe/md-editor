@@ -29,19 +29,18 @@ import {
 } from "@md-editor/markdown-fidelity";
 import { getWysiwygDiagnostics } from "../diagnostics.ts";
 import type { MdxJsxElement } from "./mdx-parse.ts";
-import { getMarkdownNodePolicy, type MarkdownNodePolicy } from "./node-policy.ts";
+import { getMarkdownNodePolicy } from "./node-policy.ts";
 import { SyntaxPluginRegistry } from "../plugins/syntax-registry.ts";
-import {
-  fingerprintSource,
-  sourceRangeContains,
-  sourceRangesOverlap,
-  type MarkdownParseCoverage,
-  type MarkdownDirectiveMetadata,
-  type MarkdownRangeRecord,
-  type MarkdownRangeSegment,
-  type MarkdownSyntaxKind,
-  type SourceRange,
-} from "./range-types.ts";
+import type {
+  MarkdownNodePolicy,
+  MarkdownParseCoverage,
+  MarkdownDirectiveMetadata,
+  MarkdownRangeRecord,
+  MarkdownRangeSegment,
+  MarkdownSyntaxKind,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource, sourceRangeContains, sourceRangesOverlap } from "./range-types.ts";
 import {
   collectMarkerRanges,
   directChildren,

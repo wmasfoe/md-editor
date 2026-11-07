@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@md-editor/mdx-component-registry": "workspace:*",
-    "@md-editor/shared": "workspace:*"
+    "@md-editor/shared": "workspace:*",
+    "@md-editor/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "@md-editor/mdx-plugins": "workspace:*",

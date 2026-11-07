@@ -50,7 +50,7 @@ import {
   virtualTrailingLineActiveField,
 } from "../state/types.ts";
 import { editorModeField } from "../../mode.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { convertHtmlToMarkdown, shouldConvertClipboardHtml } from "../input/smart-paste.ts";
 import { isAtomSelection } from "./code-block-selection.ts";
 

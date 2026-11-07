@@ -21,7 +21,7 @@ import type {
 } from "@md-editor/editor-core";
 import type { Markdown } from "@md-editor/shared";
 import type { WysiwygDiagnosticsSnapshot } from "../diagnostics.ts";
-import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { MdxComponentLookup } from "../wysiwyg/projections/mdx-projection.ts";
 import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/types.ts";
 import type { ImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
@@ -76,7 +76,9 @@ export interface ExternalEditRequest {
   readonly markdown: Markdown;
   readonly expectedGeneration: number;
   readonly expectedContentRevision: number;
-  readonly selection: "preserve-offset-clamped" | "start";
+  readonly selection: "preserve-offset-clamped" | "start" | "end";
+  /** Keep deferred IME edits cancellable after their owner has been disabled. */
+  readonly signal?: AbortSignal;
 }
 
 export type ExternalEditResult =
@@ -94,7 +96,7 @@ export type ExternalEditResult =
     }
   | {
       readonly status: "cancelled";
-      readonly reason: "superseded" | "document-replaced" | "destroyed";
+      readonly reason: "superseded" | "document-replaced" | "destroyed" | "aborted";
     }
   | { readonly status: "reconcile-required" };
 
@@ -153,7 +155,9 @@ export interface CodeMirrorRenderer {
     readonly to: number;
     readonly text: string;
     readonly head: number;
+    readonly anchor: number;
   };
+  undo(): boolean;
   focus(): void;
   setSelection(from: number, to: number): void;
   scrollToLine(

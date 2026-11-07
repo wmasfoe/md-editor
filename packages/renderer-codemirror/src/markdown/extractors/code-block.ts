@@ -7,15 +7,14 @@
 import type { SyntaxNode } from "@lezer/common";
 import type { ChangeDesc } from "@codemirror/state";
 import { findCodeBlockLanguage } from "../code-languages.ts";
-import {
-  fingerprintSource,
-  freezeSourceRange,
-  type MarkdownCodeBlockFenceStyle,
-  type MarkdownCodeBlockLineFingerprint,
-  type MarkdownCodeBlockMetadata,
-  type MarkdownCodeBlockStatus,
-  type SourceRange,
-} from "../range-types.ts";
+import type {
+  MarkdownCodeBlockFenceStyle,
+  MarkdownCodeBlockLineFingerprint,
+  MarkdownCodeBlockMetadata,
+  MarkdownCodeBlockStatus,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource, freezeSourceRange } from "../range-types.ts";
 import {
   envelopeRange,
   fingerprintSourceLines,

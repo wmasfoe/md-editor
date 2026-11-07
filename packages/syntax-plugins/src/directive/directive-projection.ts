@@ -1,10 +1,10 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import {
   CalloutFooterWidget,
   CalloutHeaderWidget,
   defaultCalloutTitle,
-  type MarkdownRangeRecord,
 } from "@md-editor/renderer-codemirror";
 import type { DirectiveMetadata } from "./directive-types.ts";
 

@@ -2,7 +2,7 @@
 import { type EditorState, type Range } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import { type MarkdownRangeIndex } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import {
   buildDefaultAtomAtomicRanges,
   isRenderableDefaultAtom,

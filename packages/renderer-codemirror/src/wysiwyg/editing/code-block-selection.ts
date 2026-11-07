@@ -15,7 +15,7 @@ import {
 } from "@codemirror/view";
 import { editorModeField } from "../../mode.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import {
   getFencedCodeBlockBodyRange,
   isProjectableCodeBlock,

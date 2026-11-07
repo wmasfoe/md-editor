@@ -4,7 +4,7 @@ import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { describe, expect, it } from "vitest";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { buildMarkdownRangeIndex, mdxModeFacet } from "../../src/markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../src/markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 
 function buildRecords(source: string): readonly MarkdownRangeRecord[] {
   const state = EditorState.create({

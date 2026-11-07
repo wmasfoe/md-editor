@@ -17,7 +17,7 @@
  */
 import type { EditorSelection } from "@codemirror/state";
 import type { MarkdownRangeIndex } from "../../markdown/range-index.ts";
-import type { MarkdownSyntaxKind } from "../../markdown/range-types.ts";
+import type { MarkdownSyntaxKind } from "@md-editor/plugin-sdk/syntax";
 import { sortStrings } from "./atoms.ts";
 
 declare const inlineMarkerRevealBrand: unique symbol;

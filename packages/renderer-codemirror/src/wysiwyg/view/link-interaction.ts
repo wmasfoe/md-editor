@@ -1,7 +1,7 @@
 import { Facet, Prec, type EditorState, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 
 /**
  * 链接点击交互(对齐竞品 WYSIWYG 编辑器的链接行为,自研实现):

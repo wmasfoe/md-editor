@@ -1,28 +1,4 @@
-import type {
-  MarkdownEditPolicy,
-  MarkdownInteractionPolicy,
-  MarkdownRenderPolicy,
-  MarkdownSyntaxKind,
-} from "./range-types.ts";
-
-export type MarkdownContentStrategy =
-  | "between-markers"
-  | "after-first-marker"
-  | "before-last-marker"
-  | "link-label"
-  | "url"
-  | "full"
-  | "none";
-
-export interface MarkdownNodePolicy {
-  readonly kind: MarkdownSyntaxKind;
-  readonly renderPolicy: MarkdownRenderPolicy;
-  readonly editPolicy: MarkdownEditPolicy;
-  readonly interactionPolicy: MarkdownInteractionPolicy;
-  readonly priority: number;
-  readonly markerNodeNames: readonly string[];
-  readonly contentStrategy: MarkdownContentStrategy;
-}
+import type { MarkdownNodePolicy } from "@md-editor/plugin-sdk/syntax";
 
 function definePolicy(policy: MarkdownNodePolicy): MarkdownNodePolicy {
   return Object.freeze({

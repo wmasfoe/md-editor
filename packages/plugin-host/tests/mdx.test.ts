@@ -1,9 +1,6 @@
+import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
 import { describe, expect, it } from "vitest";
-import {
-  componentPluginFromDescriptor,
-  createMdxComponentRegistry,
-  type MdxComponentPlugin,
-} from "../src";
+import { componentPluginFromDescriptor, createMdxComponentRegistry } from "../src/mdx.ts";
 
 const calloutPlugin: MdxComponentPlugin = {
   id: "mdx.callout",
