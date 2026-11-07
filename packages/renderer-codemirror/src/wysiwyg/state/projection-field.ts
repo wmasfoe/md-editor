@@ -9,7 +9,7 @@ import {
 import { Decoration, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
 import { markdownRangeIndexField, type MarkdownRangeIndex } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { editorModeField } from "../../mode.ts";
 import { isPlainTextInput } from "../input/plain-text-input.ts";
 import { setCodeBlockLineNumbersEffect } from "../projections/code-block-projection.ts";

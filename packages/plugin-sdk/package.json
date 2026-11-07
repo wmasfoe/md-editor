@@ -1,0 +1,84 @@
+{
+  "name": "@md-editor/plugin-sdk",
+  "version": "0.1.0",
+  "description": "Public contract and types for building Inkpoint (md-editor) plugins: definitions, context API, manifest/catalog, and syntax/MDX contribution types.",
+  "keywords": [
+    "inkpoint",
+    "md-editor",
+    "markdown",
+    "plugin",
+    "plugin-sdk",
+    "codemirror"
+  ],
+  "homepage": "https://github.com/wmasfoe/md-editor/tree/main/packages/plugin-sdk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wmasfoe/md-editor.git",
+    "directory": "packages/plugin-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/wmasfoe/md-editor/issues"
+  },
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./syntax": "./src/syntax.ts",
+    "./mdx": "./src/mdx.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.1",
+    "@lezer/common": "^1.5.2",
+    "@lezer/markdown": "^1.8.0"
+  },
+  "peerDependenciesMeta": {
+    "@codemirror/state": {
+      "optional": true
+    },
+    "@codemirror/view": {
+      "optional": true
+    },
+    "@lezer/common": {
+      "optional": true
+    },
+    "@lezer/markdown": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
+    "@lezer/common": "catalog:",
+    "@lezer/markdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./syntax": {
+        "types": "./dist/syntax.d.ts",
+        "default": "./dist/syntax.js"
+      },
+      "./mdx": {
+        "types": "./dist/mdx.d.ts",
+        "default": "./dist/mdx.js"
+      }
+    }
+  }
+}

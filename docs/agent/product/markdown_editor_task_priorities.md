@@ -1,5 +1,7 @@
 # AI Markdown 编辑器任务优先级
 
+> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/plugin-sdk/mdx`，注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](../architecture/github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
+
 ## 1. 文档用途
 
 本文用于记录当前确认的任务列表、优先级和阶段边界，作为后续拆分 PRD、技术方案和执行任务时的优先级依据。

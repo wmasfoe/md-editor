@@ -12,7 +12,7 @@ import type {
   MarkdownCodeBlockMetadata,
   MarkdownRangeRecord,
   SourceRange,
-} from "../../markdown/range-types.ts";
+} from "@md-editor/plugin-sdk/syntax";
 import { type CodeBlockLogicalLine } from "../editing/code-block-line-numbers.ts";
 import {
   type CodeBlockIndentPlan,

@@ -67,14 +67,23 @@ export function bindRuntimeKeyboardShortcuts(
   settings: AppSettings,
 ) {
   // keymap 来自 editor-core，菜单、命令和快捷键共享同一组 command id，避免各自漂移。
-  const shortcuts = createRuntimeKeyboardShortcuts(dispatchCommand, settings);
-
+  // 外部插件会在运行中注册或注销快捷键，所以匹配表不能只在绑定时建一次；
+  // 但也不必每次按键都重建，按注册表版本号缓存，只在注册内容变化后重建。
+  let cachedVersion = -1;
+  let shortcuts: KeyboardShortcut[] = [];
+  const currentShortcuts = () => {
+    if (runtime.keymaps.version !== cachedVersion) {
+      shortcuts = createRuntimeKeyboardShortcuts(dispatchCommand, settings);
+      cachedVersion = runtime.keymaps.version;
+    }
+    return shortcuts;
+  };
   const listener = (event: KeyboardEvent) => {
     if (isSettingsShortcutCaptureTarget(event.target)) {
       return;
     }
 
-    const shortcut = shortcuts.find((candidate) => candidate.matches(event));
+    const shortcut = currentShortcuts().find((candidate) => candidate.matches(event));
     if (!shortcut) {
       return;
     }

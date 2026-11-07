@@ -4,16 +4,14 @@
  * 支持预筛选、脏区间交集优化、自定义属性与子节点提取。
  */
 
-import {
-  fingerprintSource,
-  freezeSourceRange,
-  sourceRangesOverlap,
-  type MarkdownMdxBlockMetadata,
-  type MarkdownParseCoverage,
-  type MarkdownRangeRecord,
-  type MarkdownRangeSegment,
-  type SourceRange,
-} from "../range-types.ts";
+import type {
+  MarkdownMdxBlockMetadata,
+  MarkdownParseCoverage,
+  MarkdownRangeRecord,
+  MarkdownRangeSegment,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource, freezeSourceRange, sourceRangesOverlap } from "../range-types.ts";
 import { parseMdxJsxElements, type MdxJsxElement } from "../mdx-parse.ts";
 import { freezeRecord, lineRangeForSource } from "./common.ts";
 

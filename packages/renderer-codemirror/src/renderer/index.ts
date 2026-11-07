@@ -12,7 +12,7 @@ import type {
   ModeReceipt,
   ModeRequest,
 } from "@md-editor/editor-core";
-import type { MarkdownSyntaxPlugin } from "../plugins/syntax-plugin.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { AiSuggestionInput, AiSuggestionLabels } from "../wysiwyg/view/suggestion.ts";
 import { CodeMirrorRendererController } from "./controller.ts";
 import { DomRendererViewAdapter, controllerByRenderer } from "./view-adapter.ts";
@@ -73,6 +73,7 @@ function createRendererFacade(controller: CodeMirrorRendererController): CodeMir
     dismissSuggestion: () => controller.dismissSuggestion(),
     getSuggestion: () => controller.getSuggestion(),
     getSelectionSnapshot: () => controller.getSelectionSnapshot(),
+    undo: () => controller.undo(),
     get isComposing(): boolean {
       return controller.isComposing;
     },

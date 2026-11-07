@@ -6,7 +6,7 @@
 
 import { Facet, StateEffect, StateField, type Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { isInlineSourceMarkerKind } from "../state/inline-marker-reveal.ts";
 
 /**

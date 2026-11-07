@@ -10,7 +10,7 @@ import { EditorSelection, EditorState, type Extension } from "@codemirror/state"
 import { EditorView, keymap } from "@codemirror/view";
 import { describe, expect, it, vi } from "vitest";
 import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "../../src/diagnostics.ts";
-import { createMdxComponentRegistry } from "@md-editor/mdx-component-registry";
+import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField, mdxModeFacet } from "../../src/markdown/range-index.ts";
 import { editorModeField, setEditorModeEffect } from "../../src/mode.ts";

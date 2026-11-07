@@ -1,6 +1,6 @@
 import { Facet, type EditorState, type Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
 import {
   MdxComponentWidget,
@@ -9,7 +9,7 @@ import {
 /**
  * 组件白名单的最小查找接口(只依赖 getByComponentName + displayName)。
  * renderer 层不需要 registry 的注册/枚举能力;editor-ui 等接入层可用
- * 相同形状的鸭子类型传递,避免把 mdx-component-registry 拖进包边界。
+ * 相同形状的鸭子类型传递,避免把 plugin-host 拖进包边界。
  */
 export interface MdxComponentLookup {
   getByComponentName(

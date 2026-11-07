@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { WysiwygDiagnostics, provideWysiwygDiagnostics } from "../../src/diagnostics.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 import { markdownRangeIndexField } from "../../src/markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../src/markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { editorModeField } from "../../src/mode.ts";
 import {
   leadingIndentColumns,

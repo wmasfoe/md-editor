@@ -1,5 +1,5 @@
 /** DOM construction and action-menu presentation for table widgets. */
-import type { MarkdownTableCellAlignment } from "../../../markdown/range-types.ts";
+import type { MarkdownTableCellAlignment } from "@md-editor/plugin-sdk/syntax";
 import type { TableRowKind } from "../../editing/table-editing.ts";
 import type { TableGridValue } from "./table-widget.ts";
 

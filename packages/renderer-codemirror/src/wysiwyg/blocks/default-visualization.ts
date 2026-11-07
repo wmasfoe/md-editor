@@ -8,7 +8,7 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { hasCurrentSourceFingerprint, isDefaultAtomRecord } from "./default-atom.ts";
 import { DefaultAtomWidget, type DefaultAtomWidgetValue } from "../widgets/default-atom-widget.ts";
 import { buildWholeLineBlockReplacement } from "./block-replacement.ts";

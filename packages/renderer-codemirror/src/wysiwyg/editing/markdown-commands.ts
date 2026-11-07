@@ -4,7 +4,7 @@ import { indentUnit } from "@codemirror/language";
 import { EditorSelection, Prec, type EditorState, type StateCommand } from "@codemirror/state";
 import { keymap, type Command, type EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import {
   authorizeWysiwygProtectedChange,
   authorizeWysiwygStructuredCommand,

@@ -42,7 +42,7 @@
 
 import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, EditorView, type WidgetType } from "@codemirror/view";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 
 /** 整行块级 widget 的视觉类别：`symbol` 由展示层统一提供默认垂直间距。 */
 export type WysiwygBlockCategory = "symbol" | "content";

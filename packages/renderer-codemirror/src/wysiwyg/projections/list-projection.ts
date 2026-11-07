@@ -1,7 +1,7 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration, WidgetType, type EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics, type WysiwygDiagnostics } from "../../diagnostics.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { toggleTaskMarkerAt } from "../editing/task-toggle.ts";
 import { CalloutHeaderWidget } from "../widgets/callout-widget.ts";
 

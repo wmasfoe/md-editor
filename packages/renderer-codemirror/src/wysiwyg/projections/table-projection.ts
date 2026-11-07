@@ -1,7 +1,7 @@
 import type { EditorState, Extension, Range } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
 import { TableGridWidget, type TableGridValue } from "../widgets/table/index.ts";
 

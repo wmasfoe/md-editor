@@ -92,6 +92,7 @@ function applyExternalEdit(
   markdown: Markdown,
   operationId = "external:1",
   selection: ExternalEditRequest["selection"] = "preserve-offset-clamped",
+  signal?: AbortSignal,
 ): ExternalEditResult {
   const snapshot = setup.document.getSnapshot();
   const request: ExternalEditRequest = {
@@ -100,6 +101,7 @@ function applyExternalEdit(
     expectedGeneration: snapshot.documentGeneration,
     expectedContentRevision: snapshot.contentRevision,
     selection,
+    signal,
   };
   const reservation = setup.document.reserveExternalEdit(request);
   expect(reservation.status).toBe("reserved");
@@ -652,6 +654,37 @@ describe("CodeMirror renderer lifecycle and protocol", () => {
       actualContentRevision: 1,
     });
     expect(changed.harness.probe().markdown).toBe("用户输入\n");
+  });
+
+  it("cancels a disabled plugin edit deferred during composition without changing content or history", () => {
+    const setup = createSetup({ markdown: "original\n" });
+    const abort = new AbortController();
+    setup.harness.startComposition();
+    expect(applyExternalEdit(setup, "plugin\n", "plugin:queued", "end", abort.signal).status).toBe(
+      "queued-composition",
+    );
+    abort.abort();
+    setup.harness.endComposition();
+    const deferred = setup.ready[0];
+    expect(deferred?.signal).toBe(abort.signal);
+    expect(setup.harness.renderer.applyReservedExternalEdit(deferred!)).toEqual({
+      status: "cancelled",
+      reason: "aborted",
+    });
+    expect(setup.harness.probe()).toMatchObject({
+      markdown: "original\n",
+      undoDepth: 0,
+      externalEditTransactionCount: 0,
+    });
+  });
+
+  it("places a plugin template cursor at the end and preserves one undo step", () => {
+    const setup = createSetup({ markdown: "original\n" });
+    expect(applyExternalEdit(setup, "template\n", "plugin:insert", "end").status).toBe("applied");
+    expect(setup.harness.renderer.getSelectionSnapshot().head).toBe("template\n".length);
+    expect(setup.harness.probe().undoDepth).toBe(1);
+    expect(setup.harness.renderer.undo()).toBe(true);
+    expect(setup.document.getSnapshot().markdown).toBe("original\n");
   });
 
   it("R14 cancels queued composition work on boundary replacement and destruction", () => {

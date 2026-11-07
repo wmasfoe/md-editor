@@ -3,7 +3,7 @@
  * @description 控制器语法插件注册协作器：增量注册（`use`）与全量替换（`setPlugins`）。
  *
  * 语义与生命周期契约（与拆分前一致）：
- * 1. 幂等守卫：全量替换前比对新旧插件 ID 清单，完全一致则跳过 Compartment 重配与重排；
+ * 1. 幂等守卫：全量替换前比对新旧插件实例，完全一致则跳过 Compartment 重配与重排；
  * 2. 原子化 Compartment 重构：同步更新 `SyntaxPluginRegistry`，按需重配 Lezer Markdown 语言
  *    与 `syntaxPluginRegistryFacet`，并派发 `refreshMarkdownParseCoverageEffect` /
  *    `refreshWysiwygProjectionEffect` 重绘投影；
@@ -21,7 +21,7 @@ import {
   refreshMarkdownParseCoverageEffect,
   syntaxPluginRegistryFacet,
 } from "../../markdown/range-index.ts";
-import type { MarkdownSyntaxPlugin } from "../../plugins/syntax-plugin.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
 import { refreshWysiwygProjectionEffect } from "../../wysiwyg/state/types.ts";
 import type { RendererViewAdapter } from "../types.ts";
@@ -90,7 +90,7 @@ export function registerSyntaxPlugins(
 }
 
 /**
- * 全量替换已激活插件集合：ID 清单一致时幂等跳过，否则原子重建 Compartment 链。
+ * 全量替换已激活插件集合：实例清单一致时幂等跳过，否则原子重建 Compartment 链。
  */
 export function replaceSyntaxPlugins(
   ctx: SyntaxPluginContext,
@@ -103,11 +103,11 @@ export function replaceSyntaxPlugins(
     }
   }
 
-  // 检查是否与当前注册表已有的插件一致（按 id 顺序与内容比较）
+  // 更新版本可保留 ID，但其解析器、投影或闭包已变化，必须重配新实例。
   const currentPlugins = ctx.registry.plugins;
   if (
     currentPlugins.length === flattened.length &&
-    currentPlugins.every((curr, idx) => curr.id === flattened[idx]?.id)
+    currentPlugins.every((curr, idx) => curr === flattened[idx])
   ) {
     return;
   }

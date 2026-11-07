@@ -4,6 +4,8 @@
 
 ## 文档
 
+- GitHub 外部插件协议、SDK/host 边界、开发模板、桌面安装更新与网页隔离试用： [github_external_plugins.md](./github_external_plugins.md)
+
 - VMark 剩余核心能力落地技术方案（Hot Exit、文档历史、Markdown Lint/链接检查与 HTML/PDF 导出）： [vmark_remaining_features_technical_plan.md](./vmark_remaining_features_technical_plan.md)
 - 技术方案（文件、状态等通用边界继续有效；编辑器内核以 CM6 专项方案为准）： [markdown_editor_technical_plan.md](./markdown_editor_technical_plan.md)
 - 能力边界设计原则： [capability_boundary_design_principles.md](./capability_boundary_design_principles.md)

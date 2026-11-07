@@ -2,7 +2,7 @@ import { foldable, foldEffect, foldedRanges, unfoldEffect } from "@codemirror/la
 import type { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 
 /**
  * M5 折叠逻辑(渲染由 block-toolbar 的按钮承担):

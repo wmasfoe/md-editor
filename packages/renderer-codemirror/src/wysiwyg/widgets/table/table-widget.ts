@@ -7,7 +7,7 @@ import { wysiwygProjectionField } from "../../state/projection-field.ts";
 import { acceptAiSuggestion, aiSuggestionField } from "../../view/suggestion.ts";
 import { dispatchTabActions } from "../../input/tab-arbiter.ts";
 import { escapeBracketInCellDom } from "../cell-caret.ts";
-import type { MarkdownTableCellAlignment } from "../../../markdown/range-types.ts";
+import type { MarkdownTableCellAlignment } from "@md-editor/plugin-sdk/syntax";
 import {
   deleteTableBodyRow,
   deleteTableColumn,

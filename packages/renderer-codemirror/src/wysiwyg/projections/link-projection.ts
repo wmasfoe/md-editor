@@ -7,7 +7,7 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { buildLinkLabelDecoration, linkDestinationFromRecord } from "../view/link-interaction.ts";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
 import { resolveImagePreview } from "../view/image-resolver.ts";

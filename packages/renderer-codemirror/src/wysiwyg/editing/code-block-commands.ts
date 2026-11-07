@@ -14,7 +14,7 @@ import type {
   MarkdownCodeBlockMetadata,
   MarkdownRangeRecord,
   SourceRange,
-} from "../../markdown/range-types.ts";
+} from "@md-editor/plugin-sdk/syntax";
 import { editorModeField } from "../../mode.ts";
 import { getWysiwygDiagnostics } from "../../diagnostics.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";

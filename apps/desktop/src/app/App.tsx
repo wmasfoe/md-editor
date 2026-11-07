@@ -7,6 +7,7 @@ import {
   type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
 import { useTranslation } from "@md-editor/i18n";
+import { useExternalPlugins } from "./plugins/use-external-plugins";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
 import { EditorTitleBarControls } from "../components/EditorTitleBarControls";
 import { SettingsPage } from "../components/SettingsDialog";
@@ -159,6 +160,8 @@ function MainApp({
   } = useDocumentUiStore();
   const { dispatchCommand, openRecentFile, runEditorUpdateAction } = useDesktopEditorActions();
 
+  const [pluginPorts, setPluginPorts] = useState<CodeMirrorEditorPorts | null>(null);
+  const externalPlugins = useExternalPlugins(pluginPorts);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const shouldShowOverlayTitleBar = isMacPlatform();
   const pendingActionDescription = getLoadingDescription(pendingAction);
@@ -255,7 +258,11 @@ function MainApp({
                 {hasActiveDocument ? (
                   <DesktopCodeMirrorEditor
                     hidden={openedAsset !== null}
-                    onRendererPortsChange={onRendererPortsChange}
+                    externalPlugins={externalPlugins}
+                    onRendererPortsChange={(ports) => {
+                      setPluginPorts(ports);
+                      onRendererPortsChange?.(ports);
+                    }}
                     showToast={showToast}
                   />
                 ) : null}
