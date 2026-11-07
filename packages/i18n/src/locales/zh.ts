@@ -530,6 +530,9 @@ export const zh = {
       insert: "插入",
       ai: "AI",
       settings: "设置",
+      tools: "工具",
+      format: "格式",
+      blocks: "块",
       other: "其他",
     },
     titles: {

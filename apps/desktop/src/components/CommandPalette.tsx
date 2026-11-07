@@ -1,6 +1,7 @@
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "@md-editor/i18n";
+import { formatKeymapParts } from "@md-editor/editor-ui";
 import type { CommandDescriptor } from "@md-editor/editor-core";
 import { runtime } from "../app/runtime/editor-runtime";
 
@@ -11,6 +12,11 @@ export interface CommandPaletteProps {
   readonly onClose: () => void;
   /** 执行命令(走宿主 dispatchCommand,命令逻辑不在此复制) */
   readonly onRun: (commandId: string) => void | Promise<void>;
+  /**
+   * 查询命令当前生效的快捷键(keymap 字符串,如 `Mod-Shift-B`)。
+   * 由宿主合并内置 keymap 与用户自定义覆盖后提供;没有快捷键返回 undefined。
+   */
+  readonly getShortcut?: (commandId: string) => string | undefined;
 }
 
 interface PaletteItem {
@@ -29,7 +35,7 @@ interface PaletteItem {
  * 交互:输入框搜索(title + keywords,大小写不敏感)、↑/↓ 导航、Enter 执行、
  * Escape 关闭(HeadlessUI Dialog 内置)、点击执行、空态提示。
  */
-export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
+export function CommandPalette({ open, onClose, onRun, getShortcut }: CommandPaletteProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -77,6 +83,9 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
         插入: "insert",
         AI: "ai",
         设置: "settings",
+        工具: "tools",
+        格式: "format",
+        Blocks: "blocks",
       };
       const key = groupKeyMap[rawGroup] ?? rawGroup.toLowerCase();
       const translate = t as (key: string, options?: { defaultValue?: string }) => string;
@@ -170,7 +179,7 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
     <Dialog open={open} onClose={onClose} className="fixed inset-0 z-[70]">
       <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.2)]" />
       <div className="fixed inset-0 grid place-items-start justify-center pt-[12vh]">
-        <DialogPanel className="w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-[10px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)]">
+        <DialogPanel className="w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)]">
           {/* 搜索输入框 */}
           <div className="flex items-center gap-2 border-b border-[var(--theme-border)] px-4 py-3">
             <svg
@@ -198,9 +207,9 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
               aria-label={t("commandPalette.searchAria", { defaultValue: "命令搜索" })}
               className="w-full bg-transparent text-sm text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-muted)]"
             />
-            <span className="shrink-0 rounded border border-[var(--theme-border)] px-1.5 py-0.5 text-[10px] text-[var(--theme-muted)]">
-              ESC
-            </span>
+            <kbd className="shrink-0 rounded border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1.5 font-mono text-[11px] leading-5 text-[var(--theme-control-subtle)]">
+              Esc
+            </kbd>
           </div>
 
           {/* 命令列表(分组) */}
@@ -212,7 +221,7 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
             ) : (
               groups.map(({ group, groupItems, start }) => (
                 <li key={group}>
-                  <div className="px-4 pb-1 pt-3 text-[11px] font-[600] uppercase tracking-wide text-[var(--theme-muted)]">
+                  <div className="px-4 pb-1 pt-3 text-[12px] font-medium text-[var(--theme-muted)]">
                     {group}
                   </div>
                   <ul>
@@ -233,10 +242,8 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
                             onClick={() => handleRun(item.command.id)}
                           >
                             <span className="truncate">{item.title}</span>
-                            {/* 关键词命中时展示命令 id,帮助用户熟悉命令标识 */}
-                            <span className="shrink-0 text-[11px] text-[var(--theme-muted)]">
-                              {item.command.id}
-                            </span>
+                            {/* 快捷键以 keycap 展示;没有快捷键的命令右侧留空,不暴露内部命令 id */}
+                            <ShortcutKeycaps keymap={getShortcut?.(item.command.id)} />
                           </button>
                         </li>
                       );
@@ -258,5 +265,24 @@ export function CommandPalette({ open, onClose, onRun }: CommandPaletteProps) {
         </DialogPanel>
       </div>
     </Dialog>
+  );
+}
+
+/** 命令右侧的快捷键 keycap 组;无快捷键时不渲染 */
+function ShortcutKeycaps({ keymap }: { readonly keymap: string | undefined }) {
+  if (!keymap) {
+    return null;
+  }
+  return (
+    <span className="flex shrink-0 items-center gap-1" aria-label={keymap}>
+      {formatKeymapParts(keymap).map((part, index) => (
+        <kbd
+          key={`${part}-${index}`}
+          className="min-w-5 rounded border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1 text-center font-mono text-[11px] leading-5 text-[var(--theme-control-subtle)]"
+        >
+          {part}
+        </kbd>
+      ))}
+    </span>
   );
 }

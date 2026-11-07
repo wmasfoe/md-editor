@@ -537,6 +537,9 @@ export const ja: TranslationSchema = {
       insert: "挿入",
       ai: "AI",
       settings: "設定",
+      tools: "ツール",
+      format: "書式",
+      blocks: "ブロック",
       other: "その他",
     },
     titles: {

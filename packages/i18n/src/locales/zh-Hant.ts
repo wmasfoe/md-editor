@@ -532,6 +532,9 @@ export const zhHant: TranslationSchema = {
       insert: "插入",
       ai: "AI",
       settings: "設定",
+      tools: "工具",
+      format: "格式",
+      blocks: "區塊",
       other: "其他",
     },
     titles: {

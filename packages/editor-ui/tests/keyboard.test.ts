@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatKeymapParts,
   getOperatingSystem,
   isComposingKeyboardEvent,
   isLinuxPlatform,
@@ -284,5 +285,18 @@ describe("editor-ui matchesRuntimeKeymap", () => {
         "Mod-B",
       ),
     ).toBe(false);
+  });
+});
+
+describe("formatKeymapParts", () => {
+  it("renders macOS modifier symbols in ⌃⌥⇧⌘ order followed by the key", () => {
+    expect(formatKeymapParts("Mod-Shift-B", "mac")).toEqual(["⇧", "⌘", "B"]);
+    expect(formatKeymapParts("Mod-Alt-O", "mac")).toEqual(["⌥", "⌘", "O"]);
+    expect(formatKeymapParts("Mod-,", "mac")).toEqual(["⌘", ","]);
+  });
+
+  it("renders text labels on non-mac platforms and maps Mod to Ctrl", () => {
+    expect(formatKeymapParts("Mod-Shift-B", "windows")).toEqual(["Ctrl", "Shift", "B"]);
+    expect(formatKeymapParts("Shift-Alt-F", "linux")).toEqual(["Shift", "Alt", "F"]);
   });
 });

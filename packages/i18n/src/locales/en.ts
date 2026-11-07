@@ -533,6 +533,9 @@ export const en: TranslationSchema = {
       insert: "Insert",
       ai: "AI",
       settings: "Settings",
+      tools: "Tools",
+      format: "Format",
+      blocks: "Blocks",
       other: "Other",
     },
     titles: {

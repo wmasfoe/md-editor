@@ -49,9 +49,9 @@ export function AboutContent({ version }: { readonly version: string }) {
           src="/logo.png"
           alt=""
           aria-hidden="true"
-          className="size-16 rounded-[14px] border border-[var(--theme-border)] shadow-[0_6px_18px_rgba(0,0,0,0.12)]"
+          className="size-16 rounded-[14px] border border-[var(--theme-border)]"
         />
-        <h1 className="m-0 text-[22px] font-[650] leading-tight text-[var(--theme-title)]">
+        <h1 className="m-0 text-[22px] font-medium leading-tight text-[var(--theme-title)]">
           {APP_DISPLAY_NAME}
         </h1>
         <p className="m-0 text-[12px] text-[var(--theme-muted)]">
@@ -65,7 +65,7 @@ export function AboutContent({ version }: { readonly version: string }) {
       <section aria-labelledby="about-highlights" className="grid gap-2">
         <h2
           id="about-highlights"
-          className="m-0 text-[11px] font-semibold uppercase tracking-wide text-[var(--theme-muted)]"
+          className="m-0 text-[12px] font-medium text-[var(--theme-muted)]"
         >
           {t("about.highlightsTitle")}
         </h2>

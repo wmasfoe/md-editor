@@ -182,7 +182,7 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
             ) : (
               groups.map(({ group, groupItems, start }) => (
                 <li key={group}>
-                  <div className="px-4 pb-1 pt-3 text-[11px] font-[600] uppercase tracking-wide text-[var(--theme-muted)]">
+                  <div className="px-4 pb-1 pt-3 text-[12px] font-medium text-[var(--theme-muted)]">
                     {group}
                   </div>
                   <ul>
