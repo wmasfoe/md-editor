@@ -1,5 +1,7 @@
 # Web 端（Playground 体验版）架构方案
 
+> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/plugin-sdk/mdx`，注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](./github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
+
 用途：记录 `apps/web`（`@md-editor/web`）的设计原则、能力边界、与桌面端的共用架构契约以及 Web AI 与无文件树布局方案。
 
 ## 1. 核心定位与原则

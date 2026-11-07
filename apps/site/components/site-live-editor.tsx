@@ -12,14 +12,15 @@ import {
   EditorUiProvider,
   type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
-import { findCodeBlockLanguage, type MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import { findCodeBlockLanguage } from "@md-editor/renderer-codemirror";
 import {
   containerDirectivePlugin,
   highlightPlugin,
   mathPlugin,
   mermaidPlugin,
 } from "@md-editor/syntax-plugins";
-import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 import {
   getSampleFilename,

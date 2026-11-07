@@ -21,6 +21,7 @@ import { useAppSettings } from "../app/settings-context";
 import { useSettingsController } from "../app/controller/useSettingsController";
 import { useToast } from "../app/controller/useToast";
 import { EditorToast } from "../app/AppWindowChrome";
+import { ExternalPluginSettings } from "./settings/ExternalPluginSettings";
 import { AiSettingsPanel } from "./settings/AiSettingsPanel";
 import { UpdateSettingsPanel } from "./settings/UpdateSettingsPanel";
 import { isVersionSkipped } from "../app/updates/presentation";
@@ -217,10 +218,9 @@ export function SettingsPage({
         label: t("settings.tabs.plugins"),
         description: t("settings.tabs.pluginsDesc"),
         panel: (
-          <PluginSettingsPanel
-            plugins={ctrl.pluginsDraft}
-            onTogglePlugin={ctrl.togglePluginDraft}
-          />
+          <PluginSettingsPanel plugins={ctrl.pluginsDraft} onTogglePlugin={ctrl.togglePluginDraft}>
+            <ExternalPluginSettings />
+          </PluginSettingsPanel>
         ),
       },
       {

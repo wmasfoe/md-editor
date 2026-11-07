@@ -8,13 +8,13 @@ import {
   findFrontmatterSourceRange,
   type FrontmatterSourceRange,
 } from "@md-editor/markdown-fidelity";
-import {
-  fingerprintSource,
-  type MarkdownParseCoverage,
-  type MarkdownRangeRecord,
-  type MarkdownRangeSegment,
-  type SourceRange,
-} from "../range-types.ts";
+import type {
+  MarkdownParseCoverage,
+  MarkdownRangeRecord,
+  MarkdownRangeSegment,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource } from "../range-types.ts";
 import { freezeRecord, insertMergedRange, lineRangeForSource, rangesTouch } from "./common.ts";
 
 /**

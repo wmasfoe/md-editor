@@ -6,7 +6,7 @@ import type {
   MarkdownRangeRecord,
   MarkdownTableCellAlignment,
   MarkdownTableBlockMetadata,
-} from "../../markdown/range-types.ts";
+} from "@md-editor/plugin-sdk/syntax";
 import { splitTableRowCells } from "../projections/table-projection.ts";
 
 export type TableRowKind = "header" | "body";

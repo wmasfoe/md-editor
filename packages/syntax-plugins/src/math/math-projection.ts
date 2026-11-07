@@ -1,6 +1,6 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import type { MarkdownRangeRecord } from "@md-editor/renderer-codemirror";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { getLoadedKatex, loadKatex, renderMathHtml } from "./math-loader.ts";
 import { MATH_NODES, type MathMetadata } from "./math-types.ts";
 

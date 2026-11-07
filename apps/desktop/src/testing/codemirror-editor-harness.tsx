@@ -16,7 +16,7 @@ import {
   type EditorUiActionsContextValue,
 } from "@md-editor/editor-ui";
 import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirrorEditor/testing";
-import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { calloutPlugin } from "@md-editor/mdx-plugins";
 
 interface SubscriptionDiagnostics {

@@ -1,7 +1,7 @@
 import { EditorSelection, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField, type MarkdownRangeIndex } from "../../markdown/range-index.ts";
-import type { MarkdownSyntaxKind } from "../../markdown/range-types.ts";
+import type { MarkdownSyntaxKind } from "@md-editor/plugin-sdk/syntax";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
 
 /**

@@ -1,5 +1,5 @@
 import type { EditorState } from "@codemirror/state";
-import type { MarkdownRangeRecord } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { fingerprintSource } from "../../markdown/range-types.ts";
 
 export type DefaultAtomRecord = MarkdownRangeRecord & {

@@ -7,7 +7,11 @@
 
 import type { SyntaxNode } from "@lezer/common";
 import { defaultCalloutTitle } from "../../wysiwyg/widgets/callout-widget.ts";
-import type { MarkdownAlertMetadata, MarkdownAlertType, SourceRange } from "../range-types.ts";
+import type {
+  MarkdownAlertMetadata,
+  MarkdownAlertType,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
 
 /**
  * GFM 规范 Alert 首行正规匹配表达式。

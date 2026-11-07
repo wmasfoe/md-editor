@@ -2,6 +2,8 @@
 
 用途：记录基于 CodeMirror 6 与 Lezer AST 的 Markdown 插件扩展规范（`MarkdownSyntaxPlugin`）、独立子包 `@md-editor/syntax-plugins`，以及官方插件 `containerDirectivePlugin`、`mathPlugin`（KaTeX）和 `mermaidPlugin`（Mermaid.js）的实现契约与设计决策。
 
+公共语法契约现位于 `@md-editor/plugin-sdk/syntax`；`@md-editor/plugin-host` 负责外部插件生命周期与贡献注册，渲染器负责编辑器语义和动态重配。GitHub 发布、安装和试用协议见 [GitHub 外部插件](./github_external_plugins.md)。
+
 ---
 
 ## 1. 架构分层与子包解耦原则
@@ -21,7 +23,7 @@
 +-----------------------------+       +-----------------------------+
 |@md-editor/renderer-codemirror|       | @md-editor/syntax-plugins   |
 |  - SyntaxPluginRegistry     |       | (独立语法插件子包)            |
-|  - MarkdownSyntaxPlugin 接口 |       | - containerDirectivePlugin  |
+|  - 消费 SDK 的语法契约       |       | - containerDirectivePlugin  |
 |  - 链式 .use(...) 方法       |       | - mathPlugin (KaTeX)        |
 |  - 动态 Compartment 重配机制 |       | - mermaidPlugin (Mermaid.js)|
 |  - 0% 具体语法硬编码分支       |       | - Lezer 解析扩展与装饰器     |
@@ -42,7 +44,7 @@
 ## 2. 插件契约与注册接口
 
 ### 2.1 `MarkdownSyntaxPlugin` 契约
-每个语法插件遵循统一的标准契约对象：
+每个语法插件遵循 `@md-editor/plugin-sdk/syntax` 导出的标准契约对象：
 
 ```ts
 export interface MarkdownSyntaxPlugin {

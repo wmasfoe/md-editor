@@ -27,7 +27,6 @@
     "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
@@ -41,7 +40,13 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "vite": "catalog:",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "@md-editor/plugin-sdk": "workspace:*",
+    "@md-editor/plugin-host": "workspace:*",
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
+    "@lezer/markdown": "catalog:",
+    "@lezer/common": "catalog:"
   },
   "devDependencies": {
     "@md-editor/renderer-codemirror": "workspace:*",
@@ -53,6 +58,7 @@
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "jsdom": "^30.1.3"
   }
 }

@@ -16,7 +16,6 @@
     "@md-editor/changelog": "workspace:*",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/editor-ui": "workspace:*",
-    "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/renderer-codemirror": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
@@ -26,7 +25,9 @@
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-icons": "^5.7.0"
+    "react-icons": "^5.7.0",
+    "@md-editor/plugin-sdk": "workspace:*",
+    "@md-editor/plugin-host": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",

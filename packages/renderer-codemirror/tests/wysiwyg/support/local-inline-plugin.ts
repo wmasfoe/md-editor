@@ -15,9 +15,11 @@
  *    `between-markers`，可令 contentRange 意外为 null）。
  */
 import type { InlineContext, MarkdownConfig } from "@lezer/markdown";
-import type { MarkdownSyntaxKind } from "../../../src/markdown/range-types.ts";
-import type { MarkdownNodePolicy } from "../../../src/markdown/node-policy.ts";
-import type { MarkdownSyntaxPlugin } from "../../../src/plugins/syntax-plugin.ts";
+import type {
+  MarkdownSyntaxKind,
+  MarkdownNodePolicy,
+  MarkdownSyntaxPlugin,
+} from "@md-editor/plugin-sdk/syntax";
 
 export const LOCAL_INLINE_NODE = "LocalInline";
 export const LOCAL_INLINE_MARK = "LocalInlineMark";

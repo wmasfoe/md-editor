@@ -1,7 +1,7 @@
 /** Atom selection, composition effects, and immutable state helpers. */
 import type { StateEffect, EditorSelection, EditorState, Transaction } from "@codemirror/state";
 import { type MarkdownRangeIndex } from "../../markdown/range-index.ts";
-import type { SourceRange } from "../../markdown/range-types.ts";
+import type { SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { isRenderableDefaultAtom } from "../blocks/default-visualization.ts";
 import { freezeRanges } from "./ranges.ts";
 import type { InlineMarkerRevealIds } from "./inline-marker-reveal.ts";

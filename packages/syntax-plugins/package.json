@@ -22,7 +22,8 @@
     "@lezer/markdown": "catalog:",
     "@md-editor/renderer-codemirror": "workspace:*",
     "katex": "catalog:",
-    "mermaid": "catalog:"
+    "mermaid": "catalog:",
+    "@md-editor/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",

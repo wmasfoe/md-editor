@@ -2,7 +2,7 @@
 import { Facet, StateEffect, StateField } from "@codemirror/state";
 import { type DecorationSet } from "@codemirror/view";
 import type { EditorMode } from "@md-editor/editor-core";
-import type { SourceRange } from "../../markdown/range-types.ts";
+import type { SourceRange } from "@md-editor/plugin-sdk/syntax";
 
 export type WysiwygProjectionFeature =
   | "inline-styles"

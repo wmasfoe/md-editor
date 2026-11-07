@@ -67,14 +67,14 @@ export function bindRuntimeKeyboardShortcuts(
   settings: AppSettings,
 ) {
   // keymap 来自 editor-core，菜单、命令和快捷键共享同一组 command id，避免各自漂移。
-  const shortcuts = createRuntimeKeyboardShortcuts(dispatchCommand, settings);
-
   const listener = (event: KeyboardEvent) => {
     if (isSettingsShortcutCaptureTarget(event.target)) {
       return;
     }
 
-    const shortcut = shortcuts.find((candidate) => candidate.matches(event));
+    const shortcut = createRuntimeKeyboardShortcuts(dispatchCommand, settings).find((candidate) =>
+      candidate.matches(event),
+    );
     if (!shortcut) {
       return;
     }

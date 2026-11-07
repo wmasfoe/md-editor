@@ -7,6 +7,7 @@
  * 跳转/目录/下载，因此这里保持显式顺序调用，不做注册表式重排。
  */
 
+import { handlePluginGitHub } from "./distribution/plugin-github.ts";
 import type { Env } from "./types.ts";
 import { createRouterContext } from "./router/context.ts";
 import { handleCatalogRoutes } from "./router/routes/catalog.ts";
@@ -22,6 +23,9 @@ export async function handleRequest(
   env: Env,
   ctx?: ExecutionContext,
 ): Promise<Response> {
+  const pluginResponse = await handlePluginGitHub(request);
+  if (pluginResponse) return pluginResponse;
+
   const { context, cachedResponse } = await createRouterContext(request, env, ctx);
   if (cachedResponse) {
     return cachedResponse;

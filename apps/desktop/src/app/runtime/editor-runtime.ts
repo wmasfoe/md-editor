@@ -6,7 +6,7 @@ import {
   createEditorRuntime,
   createFeatureRegistry,
 } from "@md-editor/editor-core";
-import { createBuiltInMdxRegistry } from "@md-editor/mdx-component-registry";
+import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 
 const featureRegistry = createFeatureRegistry();

@@ -8,7 +8,7 @@ Inkpoint 编辑器的领域模型核心库，提供与具体渲染引擎（CodeM
 
 根据项目的 [架构能力边界设计原则](../../docs/agent/architecture/capability_boundary_design_principles.md)，`@md-editor/editor-core` 是编辑器的“领域模型层（Domain Layer）”：
 
-- **单向依赖**：仅依赖 `@md-editor/shared` 与 `@md-editor/mdx-component-registry`，不依赖任何 DOM、浏览器特定 API 或 CodeMirror 渲染细节。
+- **单向依赖**：仅依赖 `@md-editor/shared` 与 `@md-editor/plugin-sdk/mdx`，不依赖任何 DOM、浏览器特定 API 或 CodeMirror 渲染细节。
 - **纯粹领域语义**：负责维护文档状态、脏标记、历史栈抽象、统一命令注册与可用性校验、模式切换契约（WYSIWYG ⇄ Source）。
 - **杜绝 AI 抽象泄漏**：不直接引入或 re-export `@md-editor/ai`。AI 结果作为领域数据或命令入参注入，不在此层处理网络、模型解析或流式传输。
 

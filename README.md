@@ -82,7 +82,8 @@
   - 🧮 **LaTeX Mathematics**: High-speed mathematical typesetting for inline and block equations via KaTeX.
   - 💻 **Code Sandbox & Highlighting**: Multi-language syntax highlighting with CodeSandbox embedding support.
   - 📑 **Tabs Component**: Easily organize multi-language code snippets or comparison views.
-- **Component Registry**: Modular protocol (`@md-editor/mdx-component-registry`) enabling custom component extensions.
+- **Component Registry**: Modular protocol (`@md-editor/plugin-sdk/mdx`) enabling custom component extensions.
+- **External Plugins**: Install community plugins from GitHub Releases without rebuilding the app. Plugins are written against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk); fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) for a working example.
 
 ### ⚡ Lightweight, High Performance & Local-First
 - **Native Speed**: Built with Tauri 2 + Rust for native core performance, instant cold startup, and remarkably lower memory footprint than Electron.
@@ -259,7 +260,8 @@ md-editor/
 │   ├── editor-ui/               # Editor React UI components, toolbars, history drawer, file tree, and settings
 │   ├── compiler/                # Headless static Markdown compiler & HTML/PDF exporter (QuickLook / Worker)
 │   ├── syntax-plugins/          # Markdown syntax plugins (highlighting, strikethrough, footnotes, KaTeX, Mermaid)
-│   ├── mdx-component-registry/  # MDX component protocol specifications and runtime static metadata registry
+│   ├── plugin-sdk/              # Public plugin contracts for external authors (published to npm as @md-editor/plugin-sdk)
+│   ├── plugin-host/             # Plugin host: loading, lifecycle, registries (incl. MDX registry), and GitHub release client
 │   ├── mdx-plugins/             # Built-in official interactive MDX components (Callout, Alert cards, etc.)
 │   ├── markdown-fidelity/       # Markdown / MDX lossless fidelity conversion and AST bi-directional mapping
 │   ├── file-system/             # Cross-platform abstract file I/O, session drafts (Hot Exit), history, and link validator

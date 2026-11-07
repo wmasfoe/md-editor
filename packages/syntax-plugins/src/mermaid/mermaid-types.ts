@@ -1,4 +1,4 @@
-import type { SourceRange } from "@md-editor/renderer-codemirror";
+import type { SourceRange } from "@md-editor/plugin-sdk/syntax";
 
 export const MERMAID_NODES = {
   MermaidBlock: "MermaidBlock",

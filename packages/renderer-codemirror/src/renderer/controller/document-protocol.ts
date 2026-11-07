@@ -307,6 +307,9 @@ export function applyReservedExternalEdit(
   if (context.destroyed) {
     return { status: "cancelled", reason: "destroyed" };
   }
+  if (request.signal?.aborted) {
+    return { status: "cancelled", reason: "aborted" };
+  }
   if (
     request.expectedGeneration !== context.documentGeneration ||
     request.expectedContentRevision !== context.contentRevision
@@ -345,7 +348,9 @@ export function applyReservedExternalEdit(
     const selection =
       frozenRequest.selection === "start"
         ? EditorSelection.single(0)
-        : context.clampedSelection(frozenRequest.markdown.length);
+        : frozenRequest.selection === "end"
+          ? EditorSelection.single(frozenRequest.markdown.length)
+          : context.clampedSelection(frozenRequest.markdown.length);
     context.view.dispatch({
       changes: {
         from: 0,

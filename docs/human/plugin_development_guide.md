@@ -109,7 +109,7 @@ export interface MarkdownSyntaxPlugin {
 > **目标**：不发明新语法，只给包含特定元数据或现有节点附加视觉徽标（例如将特定引言块渲染为特殊强调边框）。
 
 ```ts
-import type { MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import { Decoration } from "@codemirror/view";
 
 export const quoteAccentPlugin: MarkdownSyntaxPlugin = {
@@ -178,7 +178,7 @@ export const directiveMarkdownExtension: MarkdownConfig = {
 #### 第二步：组装完整插件定义
 
 ```ts
-import type { MarkdownSyntaxPlugin } from "@md-editor/renderer-codemirror";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import { Decoration } from "@codemirror/view";
 import { directiveMarkdownExtension } from "./parser";
 

@@ -94,7 +94,6 @@ export type {
   RendererSyncResult,
 } from "@md-editor/editor-core";
 
-export { type MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
 export { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
 export {
   CalloutHeaderWidget,
@@ -104,12 +103,7 @@ export {
   getCalloutSvg,
 } from "./wysiwyg/widgets/callout-widget.ts";
 export { markdownRangeIndexField, syntaxPluginRegistryFacet } from "./markdown/range-index.ts";
-export type { MarkdownNodePolicy } from "./markdown/node-policy.ts";
-export type {
-  MarkdownRangeRecord,
-  MarkdownSyntaxKind,
-  SourceRange,
-} from "./markdown/range-types.ts";
+
 export {
   CODE_BLOCK_LANGUAGES,
   findCodeBlockLanguage,

@@ -14,7 +14,7 @@ import {
   refreshMarkdownParseCoverageEffect,
   type MarkdownRangeIndex,
 } from "../../src/markdown/range-index.ts";
-import type { MarkdownRangeRecord } from "../../src/markdown/range-types.ts";
+import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { editorModeField } from "../../src/mode.ts";
 import { codeBlockLineNumbersField } from "../../src/wysiwyg/projections/code-block-projection.ts";
 import {

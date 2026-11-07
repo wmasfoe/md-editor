@@ -1,3 +1,4 @@
+import type { MarkdownSyntaxPlugin, MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import { describe, expect, it } from "vitest";
 import type { EditorState, StateEffect } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
@@ -8,14 +9,28 @@ import {
   type RendererViewFactoryInput,
 } from "../../src/renderer/index.ts";
 import { resolveDimOpacity } from "../../src/wysiwyg/view/focus-mode.ts";
-import {
-  markdownRangeIndexField,
-  SyntaxPluginRegistry,
-  type MarkdownRangeRecord,
-  type MarkdownSyntaxPlugin,
-} from "../../src";
+import { markdownRangeIndexField, SyntaxPluginRegistry } from "../../src";
 
 describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
+  it("rejects conflicting IDs and nodes without partially replacing a valid registry", () => {
+    const first: MarkdownSyntaxPlugin = {
+      id: "author.first",
+      name: "First",
+      nodePolicy: { nodeName: "AuthorNode", kind: "raw-fallback", isBlock: false },
+    };
+    const registry = new SyntaxPluginRegistry([first]);
+    expect(() => registry.register({ ...first })).toThrow("already registered");
+    expect(() => registry.register({ ...first, id: "author.second" })).toThrow("Syntax node");
+    expect(() => registry.registerAll([{ id: "author.new", name: "New" }, first])).toThrow(
+      "already registered",
+    );
+    expect(registry.plugins).toEqual([first]);
+    expect(() => registry.setPlugins([first, { ...first, id: "author.second" }])).toThrow(
+      "Syntax node",
+    );
+    expect(registry.plugins).toEqual([first]);
+    expect(registry.getNodePolicy("AuthorNode")).not.toBeNull();
+  });
   it("allows custom syntax plugin registration and metadata extraction", () => {
     const registry = new SyntaxPluginRegistry();
 
@@ -319,6 +334,11 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     // 2. 幂等性测试：传入完全相同清单，不重复 dispatch
     renderer.setPlugins([pluginMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBe(dispatchCount1);
+
+    // The same stable ID can carry a new parser/projection after an upgrade.
+    const nextMath = { ...pluginMath, name: "Math Plugin v2" };
+    renderer.setPlugins([nextMath, pluginMermaid]);
+    expect(dispatchedEffects.length).toBeGreaterThan(dispatchCount1);
 
     // 3. 禁用 Mermaid 插件（仅保留 Math 插件）：触发重配
     renderer.setPlugins([pluginMath]);

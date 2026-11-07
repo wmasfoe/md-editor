@@ -1,6 +1,6 @@
 import { WidgetType, type EditorView } from "@codemirror/view";
 import type { WysiwygDiagnostics } from "../../diagnostics.ts";
-import type { MarkdownCodeBlockKind } from "../../markdown/range-types.ts";
+import type { MarkdownCodeBlockKind } from "@md-editor/plugin-sdk/syntax";
 import {
   CODE_BLOCK_LANGUAGE_CHOICES,
   copyCodeBlockBodyById,

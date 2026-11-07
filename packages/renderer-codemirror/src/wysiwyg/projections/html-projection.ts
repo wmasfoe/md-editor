@@ -27,7 +27,7 @@ import {
   type SanitizedHtmlBlock,
 } from "../../markdown/html-sanitize.ts";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownRangeRecord, SourceRange } from "../../markdown/range-types.ts";
+import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
 import { buildWholeLineBlockReplacement } from "../blocks/block-replacement.ts";
 import { needsVirtualTrailingLine } from "../editing/virtual-trailing-line.ts";
 import { HtmlBlockWidget, type HtmlBlockWidgetValue } from "../widgets/html-block-widget.ts";

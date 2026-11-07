@@ -38,8 +38,12 @@ export default defineConfig({
         replacement: workspacePath("../../../packages/markdown-fidelity/src/index.ts"),
       },
       {
-        find: /^@md-editor\/mdx-component-registry$/,
-        replacement: workspacePath("../../../packages/mdx-component-registry/src/index.ts"),
+        find: /^@md-editor\/plugin-sdk\/(syntax|mdx)$/,
+        replacement: workspacePath("../../../packages/plugin-sdk/src/$1.ts"),
+      },
+      {
+        find: /^@md-editor\/plugin-host\/mdx$/,
+        replacement: workspacePath("../../../packages/plugin-host/src/mdx.ts"),
       },
       {
         find: /^@md-editor\/shared$/,

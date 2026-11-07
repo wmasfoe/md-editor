@@ -7,17 +7,19 @@
 
 import type { SyntaxNode } from "@lezer/common";
 import type { ChangeDesc, Text } from "@codemirror/state";
-import type { MarkdownNodePolicy } from "../node-policy.ts";
+import type {
+  MarkdownNodePolicy,
+  MarkdownCodeBlockLineFingerprint,
+  MarkdownDirectiveMetadata,
+  MarkdownRangeRecord,
+  MarkdownRangeSegmentRole,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
 import {
   fingerprintSource,
   freezeSourceRange,
   sourceRangeContains,
   sourceRangesOverlap,
-  type MarkdownCodeBlockLineFingerprint,
-  type MarkdownDirectiveMetadata,
-  type MarkdownRangeRecord,
-  type MarkdownRangeSegmentRole,
-  type SourceRange,
 } from "../range-types.ts";
 
 /**

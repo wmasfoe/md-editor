@@ -18,6 +18,7 @@ import {
   type StateEffect,
 } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { undo } from "@codemirror/commands";
 import { openSearchPanel } from "@codemirror/search";
 import { setDiagnostics } from "@codemirror/lint";
 import { rendererTransactionOrigin } from "../../origin.ts";
@@ -83,12 +84,21 @@ export function toggleViewTypewriterMode(view: RendererViewAdapter): boolean {
   return next;
 }
 
-/** 读取主选区快照（from/to/text/head）。 */
+/** Apply undo through the normal renderer transaction pipeline. */
+export function undoViewEdit(view: RendererViewAdapter): boolean {
+  return undo({
+    state: view.state,
+    dispatch: (transaction) => view.dispatchTransaction(transaction),
+  });
+}
+
+/** 读取主选区快照，保留 anchor/head 的选区方向。 */
 export function readSelectionSnapshot(view: RendererViewAdapter): {
   readonly from: number;
   readonly to: number;
   readonly text: string;
   readonly head: number;
+  readonly anchor: number;
 } {
   const selection = view.state.selection.main;
   const text = view.state.doc.sliceString(selection.from, selection.to);
@@ -97,6 +107,7 @@ export function readSelectionSnapshot(view: RendererViewAdapter): {
     to: selection.to,
     text,
     head: selection.head,
+    anchor: selection.anchor,
   };
 }
 

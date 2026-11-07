@@ -37,7 +37,6 @@
     "@lezer/yaml": "^1.0.4",
     "@md-editor/editor-core": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "markdownlint": "^0.42.0",
     "mdast-util-from-markdown": "^2.0.3",
@@ -48,7 +47,9 @@
     "micromark-extension-mdx-md": "2.0.0",
     "sanitize-html": "catalog:",
     "turndown": "catalog:",
-    "turndown-plugin-gfm": "catalog:"
+    "turndown-plugin-gfm": "catalog:",
+    "@md-editor/plugin-sdk": "workspace:*",
+    "@md-editor/plugin-host": "workspace:*"
   },
   "devDependencies": {
     "@types/markdownlint": "^0.18.0",

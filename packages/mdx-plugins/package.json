@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@md-editor/mdx-component-registry": "workspace:*"
+    "@md-editor/plugin-sdk": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18.3.0 <20"

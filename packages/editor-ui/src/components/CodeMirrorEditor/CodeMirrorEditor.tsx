@@ -9,6 +9,7 @@ import {
 import type { DocumentState } from "@md-editor/editor-core";
 import { useTranslation } from "@md-editor/i18n";
 import { useOptionalEditorUiActions } from "../../hooks/useEditorUi";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorEditorBridge,
   type CodeMirrorEditorBridge,
@@ -17,7 +18,6 @@ import {
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
-  type MarkdownSyntaxPlugin,
   type AiSuggestionLabels,
 } from "@md-editor/renderer-codemirror";
 import "./CodeMirrorEditor.css";

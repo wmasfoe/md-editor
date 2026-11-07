@@ -77,7 +77,8 @@
   - 🧮 **LaTeX 数学公式**：基于 KaTeX 极速排版行内公式与独立公式块。
   - 💻 **代码沙盒与高亮**：支持 CodeSandbox 嵌入与多语言语法高亮代码块。
   - 📑 **Tabs 多标签页**：方便呈现多语言代码或对照内容。
-- **组件注册表机制**：模块化组件协议（`@md-editor/mdx-component-registry`），支持灵活扩展自定义业务组件。
+- **组件注册表机制**：模块化组件协议（`@md-editor/plugin-sdk/mdx`），支持灵活扩展自定义业务组件。
+- **外部插件**：无需重新编译应用，即可从 GitHub Release 安装社区插件。插件基于 [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk) 开发，可 Fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) 作为可运行的示例起点。
 
 ### ⚡ 极速轻量与本地优先
 - **原生性能**：基于 Tauri 2 + Rust 原生底层构建，冷启动毫秒级响应，内存占用远低于传统 Electron 应用。
@@ -254,7 +255,8 @@ md-editor/
 │   ├── editor-ui/               # 编辑器 React UI 组件、浮动栏、历史版本抽屉、文件树、大纲与设置
 │   ├── compiler/                # Headless 静态 Markdown 编译器与 HTML/PDF 导出支持
 │   ├── syntax-plugins/          # Markdown 语法插件 (高亮、删除线、脚注、KaTeX、Mermaid)
-│   ├── mdx-component-registry/  # MDX 组件协议规范与运行时静态元数据注册表
+│   ├── plugin-sdk/              # 面向外部作者的公共插件契约 (已发布到 npm：@md-editor/plugin-sdk)
+│   ├── plugin-host/             # 插件宿主：加载、生命周期、注册表 (含 MDX 注册表) 与 GitHub Release 客户端
 │   ├── mdx-plugins/             # 内置官方交互式 MDX 组件库 (Callout, Alert 卡片等)
 │   ├── markdown-fidelity/       # Markdown / MDX 无损保真转换与 AST 双向映射
 │   ├── file-system/             # 跨平台抽象文件 I/O、会话草稿 (Hot Exit)、版本历史与链接探针

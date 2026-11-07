@@ -1,5 +1,7 @@
 # CodeMirror 6 Markdown 可视化编辑器架构方案
 
+> 包名变更（历史说明）：文中的 `@md-editor/mdx-component-registry` 已在 PR `feature/github-external-plugins`（提交 `aa781d1`）中删除；公共 MDX 契约现位于 `@md-editor/plugin-sdk/mdx`，注册表实现位于 `@md-editor/plugin-host/mdx`，详见 [GitHub 外部插件](./github_external_plugins.md)。本文其余内容保留为历史资料，不再随包名变更修改。
+
 > 用途：定义从 Milkdown 迁移到 CodeMirror 6 后的产品行为、领域边界、状态模型、实现顺序和验收契约。
 >
 > 状态：**产品行为已确认；S1/M0 为 CM6-only beta 可用，M1/S2 核心、独立 M1-FM/S5-FM-only、M2/S3 代码块与 M3 可编辑可视化表格均已验证；M3 表格以"始终网格 + 就地单元格编辑"落地（S4 引擎评估触发 No-Go 后不引入嵌套编辑器，contenteditable 单元格 + 受保护 transaction 回写 GFM 源码）。M4（基础 HTML + 官方 MDX 全链路）与 M5（现有能力迁移）已于 2026-08-07 验证通过，M6 稳定发布收口进行中。**

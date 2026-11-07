@@ -8,6 +8,7 @@ mod local_ai_completion;
 mod local_ai_model;
 mod local_ai_runtime;
 mod platform_contract;
+mod plugin_storage;
 mod process_utils;
 #[cfg(target_os = "macos")]
 mod quicklook;
@@ -43,6 +44,10 @@ use local_ai_completion::{cancel_local_ai_request, request_local_ai_continuation
 use local_ai_model::{
     cancel_local_ai_model_download, check_local_ai_model_updates, delete_local_ai_model,
     download_local_ai_model, get_all_local_ai_models_status, get_local_ai_model_status,
+};
+use plugin_storage::{
+    external_plugins_safe_start, load_external_plugins, remove_external_plugin,
+    save_external_plugin,
 };
 use recent_files::{load_recent_files, save_recent_files};
 use save_runtime::SaveCommitGate;
@@ -135,6 +140,10 @@ pub fn run() {
             reveal_file_tree_item_in_finder,
             load_recent_files,
             load_app_settings,
+            external_plugins_safe_start,
+            load_external_plugins,
+            save_external_plugin,
+            remove_external_plugin,
             load_update_prompt_state,
             save_update_prompt_state,
             get_system_specs,

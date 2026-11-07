@@ -26,7 +26,7 @@ import type {
   AiSuggestionLabels,
   AiSuggestionValue,
 } from "./wysiwyg/view/suggestion.ts";
-import type { MarkdownSyntaxPlugin } from "./plugins/syntax-plugin.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Diagnostic } from "@codemirror/lint";
 import type { DocumentLinterOptions } from "./lint/types.ts";
 
@@ -58,7 +58,9 @@ export interface CodeMirrorEditorPorts {
     readonly to: number;
     readonly text: string;
     readonly head: number;
+    readonly anchor: number;
   };
+  undo(): boolean;
   /** D-3 块操作：上移块 */
   moveBlockUp(): boolean;
   /** D-3 块操作：下移块 */
@@ -132,7 +134,7 @@ export type CodeMirrorEditorSyncError =
 
 /**
  * MDX 组件白名单最小接口(与 renderer-codemirror 的 MdxComponentLookup 同形状;
- * 不 import mdx-component-registry,遵守包边界)。
+ * 不 import plugin-host,遵守包边界)。
  */
 export interface MdxComponentsLookup {
   getByComponentName(
@@ -309,6 +311,7 @@ export function createCodeMirrorEditorBridge(
     dismissSuggestion: () => renderer.dismissSuggestion(),
     getSuggestion: () => renderer.getSuggestion(),
     getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
+    undo: () => renderer.undo(),
     focus: () => renderer.focus(),
     setSelection: (from: number, to: number) => renderer.setSelection(from, to),
     scrollToLine: (

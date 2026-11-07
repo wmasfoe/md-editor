@@ -6,14 +6,13 @@
 
 import type { SyntaxNode } from "@lezer/common";
 import type { ChangeDesc } from "@codemirror/state";
-import {
-  fingerprintSource,
-  freezeSourceRange,
-  type MarkdownCodeBlockLineFingerprint,
-  type MarkdownTableBlockMetadata,
-  type MarkdownTableCellAlignment,
-  type SourceRange,
-} from "../range-types.ts";
+import type {
+  MarkdownCodeBlockLineFingerprint,
+  MarkdownTableBlockMetadata,
+  MarkdownTableCellAlignment,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
+import { fingerprintSource, freezeSourceRange } from "../range-types.ts";
 import {
   fingerprintSourceLines,
   lineRangeForSource,

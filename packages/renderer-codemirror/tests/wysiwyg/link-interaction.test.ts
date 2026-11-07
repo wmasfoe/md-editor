@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MarkdownRangeRecord, MarkdownRangeSegment } from "../../src/markdown/range-types.ts";
+import type { MarkdownRangeRecord, MarkdownRangeSegment } from "@md-editor/plugin-sdk/syntax";
 import {
   buildLinkLabelDecoration,
   isSafeLinkTarget,

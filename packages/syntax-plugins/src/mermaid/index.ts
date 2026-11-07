@@ -1,10 +1,10 @@
 import type { SyntaxNode } from "@lezer/common";
-import {
-  type MarkdownNodePolicy,
-  type MarkdownSyntaxKind,
-  type MarkdownSyntaxPlugin,
-  type SourceRange,
-} from "@md-editor/renderer-codemirror";
+import type {
+  MarkdownNodePolicy,
+  MarkdownSyntaxKind,
+  MarkdownSyntaxPlugin,
+  SourceRange,
+} from "@md-editor/plugin-sdk/syntax";
 import { mermaidMarkdownExtension } from "./mermaid-parser.ts";
 import { buildMermaidLayoutDecorations } from "./mermaid-projection.ts";
 import { MERMAID_NODES, type MermaidMetadata } from "./mermaid-types.ts";

@@ -29,7 +29,7 @@
 import { EditorSelection, type EditorState } from "@codemirror/state";
 import type { EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
-import type { MarkdownSyntaxKind } from "../../markdown/range-types.ts";
+import type { MarkdownSyntaxKind } from "@md-editor/plugin-sdk/syntax";
 import { detectBracketUnitInLineRuns } from "./bracket-escape.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
 
