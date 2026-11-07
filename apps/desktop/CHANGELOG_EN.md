@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.2 - 2026-11-07 (#226, #227)
+
+- UI polish: external plugins in Settings now use the same cards, switches and status labels as built-in plugins, and load errors appear inside the card; emoji icons, looping animations and heavy font weights are removed, and spacing, corner radii and shortcut keycaps are made consistent.
+
 ## 0.21.1 - 2026-11-07 (#225)
 
 - Fix in-app updates: Later no longer downloads and only skips the current run; a failed check now reports up to date instead of erroring; downloads are time-bounded and retryable on failure; the main window owns the update flow, fixing duplicate downloads and stale settings-window status; add in-app updates for Linux.
