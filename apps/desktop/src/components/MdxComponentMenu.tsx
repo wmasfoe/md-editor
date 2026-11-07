@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
-import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
+import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+
 import { useTranslation } from "@md-editor/i18n";
 
 export interface MdxComponentMenuProps {

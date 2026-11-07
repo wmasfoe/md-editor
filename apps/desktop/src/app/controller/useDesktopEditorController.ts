@@ -33,7 +33,8 @@ import {
 } from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
 import { useEditorUiActions, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
-import type { MdxComponentPlugin } from "@md-editor/mdx-component-registry";
+import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
+
 import { useConfirmationStore } from "../stores/confirmation-store";
 import { useDocumentUiStore } from "../stores/document-ui-store";
 import { recordModeMenuChecked } from "../stores/mode-menu-store";

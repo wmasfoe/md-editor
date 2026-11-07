@@ -11,7 +11,8 @@
     "deploy": "node ../../scripts/web/deploy-web.mjs",
     "release:web": "node ../../scripts/web/deploy-web.mjs",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@headlessui/react": "catalog:",
@@ -22,14 +23,19 @@
     "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
-    "@md-editor/mdx-component-registry": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
     "@md-editor/renderer-codemirror": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
     "katex": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "@md-editor/plugin-host": "workspace:*",
+    "@md-editor/plugin-sdk": "workspace:*",
+    "@codemirror/state": "catalog:",
+    "@codemirror/view": "catalog:",
+    "@lezer/common": "catalog:",
+    "@lezer/markdown": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
@@ -39,6 +45,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@playwright/test": "catalog:"
   }
 }

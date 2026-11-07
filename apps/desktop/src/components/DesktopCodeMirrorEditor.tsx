@@ -24,10 +24,12 @@ import { bindDropImageListener } from "../app/events/drop-image-listener";
 import { bindPasteImageListener } from "../app/events/paste-image-listener";
 import type { PasteImageRuntime } from "../lib/paste-image";
 import { useConfirmationStore } from "../app/stores/confirmation-store";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { AppSettings } from "../app/settings/app-settings";
 
 export interface DesktopCodeMirrorEditorProps {
   readonly hidden?: boolean;
+  readonly externalPlugins?: readonly MarkdownSyntaxPlugin[];
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
   readonly showToast: (message: string | null) => void;
 }
@@ -41,6 +43,7 @@ const DESKTOP_SYNTAX_PLUGINS = [
 
 export function DesktopCodeMirrorEditor({
   hidden = false,
+  externalPlugins = [],
   onRendererPortsChange,
   showToast,
 }: DesktopCodeMirrorEditorProps) {
@@ -151,8 +154,11 @@ export function DesktopCodeMirrorEditor({
     /<\/?[A-Z]/.test(snapshot.markdown);
 
   const activePlugins = useMemo(() => {
-    return DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true);
-  }, [settings.plugins]);
+    return [
+      ...DESKTOP_SYNTAX_PLUGINS.filter((plugin) => settings.plugins.enabled[plugin.id] ?? true),
+      ...externalPlugins,
+    ];
+  }, [settings.plugins, externalPlugins]);
 
   return (
     <CodeMirrorEditor

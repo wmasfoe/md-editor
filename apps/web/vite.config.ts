@@ -16,5 +16,7 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
   },
+  build: { rollupOptions: { input: { main: "index.html", "plugin-guest": "plugin-guest.html" } } },
+  preview: { headers: { "Access-Control-Allow-Origin": "*" } },
   clearScreen: false,
 });
