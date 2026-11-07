@@ -34,7 +34,7 @@ export function UpdateReleaseNotes({
   return (
     <section aria-label={notesTitle} className="grid gap-2">
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h3 className="m-0 text-[13px] font-semibold text-[var(--theme-title)]">{notesTitle}</h3>
+        <h3 className="m-0 text-[13px] font-medium text-[var(--theme-title)]">{notesTitle}</h3>
         <span className="text-[12px] text-[var(--theme-muted)]">
           v{entry.version || fallbackVersion}
         </span>
@@ -85,14 +85,14 @@ function renderInline(text: string): ReactNode[] {
         return (
           <code
             key={index}
-            className="rounded-[3px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-1 py-px font-mono text-[11px] text-[var(--theme-text)]"
+            className="rounded-sm border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-1 py-0.5 font-mono text-[11px] text-[var(--theme-text)]"
           >
             {token.text}
           </code>
         );
       case "bold":
         return (
-          <strong key={index} className="font-semibold text-[var(--theme-title)]">
+          <strong key={index} className="font-medium text-[var(--theme-title)]">
             {token.text}
           </strong>
         );

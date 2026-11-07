@@ -124,7 +124,7 @@ export function MdxWipeCanvas({
             onClick={() => setMobileMode((m) => (m === "preview" ? "split" : "preview"))}
             className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
               mobileMode === "preview"
-                ? "bg-surface font-semibold text-accent shadow-xs border border-line"
+                ? "bg-surface font-medium text-accent shadow-xs border border-line"
                 : "text-muted hover:text-ink"
             }`}
           >
@@ -135,7 +135,7 @@ export function MdxWipeCanvas({
             onClick={() => setMobileMode((m) => (m === "source" ? "split" : "source"))}
             className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-colors ${
               mobileMode === "source"
-                ? "bg-surface font-semibold text-seal shadow-xs border border-line"
+                ? "bg-surface font-medium text-seal shadow-xs border border-line"
                 : "text-muted hover:text-ink"
             }`}
           >

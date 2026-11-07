@@ -35,7 +35,7 @@ export function AppTitleBar({
     <div
       data-tauri-drag-region
       className={cx(
-        "relative h-[34px] shrink-0 select-none border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-title)] transition-colors duration-150",
+        "relative h-9 shrink-0 select-none border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] text-[13px] text-[var(--theme-title)] transition-colors duration-150",
         titleAlign === "center" ? "grid items-center" : "flex items-center pr-4",
         titleAlign === "center"
           ? hasWindowControlsInset
@@ -52,7 +52,7 @@ export function AppTitleBar({
         <span
           data-tauri-drag-region
           className={cx(
-            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none tracking-tight",
+            "flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden font-medium leading-none",
             titleAlign === "center" && "col-start-2 justify-self-center",
           )}
         >
@@ -146,11 +146,11 @@ export function EditorToast({ toast }: { readonly toast: AppToast | null }) {
         className={cx(
           "pointer-events-auto inline-flex items-center gap-2 max-w-[min(540px,calc(100vw_-_32px))] select-none",
           "rounded-full px-4 py-2 text-[13px] font-medium leading-none",
-          "bg-[var(--theme-surface,#ffffff)]/94 dark:bg-[var(--theme-surface,#1c1b1a)]/94",
+          "bg-[var(--theme-surface,#ffffff)] dark:bg-[var(--theme-surface,#1c1b1a)]",
           "text-[var(--theme-text,#24292f)] dark:text-[var(--theme-text,#e6edf3)]",
           "border border-[var(--theme-border,rgba(0,0,0,0.1))] dark:border-[var(--theme-border,rgba(255,255,255,0.14))]",
-          "shadow-[0_8px_24px_rgba(0,0,0,0.12),0_2px_6px_rgba(0,0,0,0.06)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)]",
-          "backdrop-blur-xl transition-all duration-200 cursor-pointer active:scale-98",
+          "shadow-[var(--theme-shadow)]",
+          "transition-transform duration-200 cursor-pointer active:scale-98",
           "motion-safe:animate-[toast-in_180ms_cubic-bezier(0.16,1,0.3,1)] motion-reduce:animate-none",
         )}
         role="alert"

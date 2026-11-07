@@ -37,8 +37,8 @@ test.describe("G007 command palette (P3-9 unified UI entry)", () => {
 
     const search = page.getByLabel(/命令搜索|Command search/);
     await search.fill("save");
-    // title 命中:Save / Save As
-    await expect(page.getByRole("button", { name: /save|保存/i })).toHaveCount(2);
+    // 命中 file.save / file.saveAs(搜索同时匹配命令 id,按钮文本只显示本地化标题)
+    await expect(page.getByRole("button", { name: /save|保存|另存为/i })).toHaveCount(2);
 
     // keywords 命中:中文 "保存" 只对应 file.save("另存为" 归 file.saveAs)
     await search.fill("保存");

@@ -26,6 +26,15 @@ export interface WebHeaderProps {
   readonly onExport: () => void;
 }
 
+/** 按钮提示文案：名称加快捷键 */
+function shortcutTitle(label: string, shortcut: string): string {
+  return `${label} (${shortcut})`;
+}
+
+/** 标题栏图标按钮：32px 方形，圆角 8px，仅过渡颜色与按下缩放 */
+const iconButtonClassName =
+  "grid size-8 place-items-center rounded-lg text-[var(--theme-control-text)] transition-[background-color,color,transform] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95";
+
 export function WebHeader({
   theme,
   isSidebarVisible,
@@ -47,7 +56,7 @@ export function WebHeader({
     /Mac|iPod|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   const modKey = isMac ? "⌘" : "Ctrl";
 
-  const fileName = activeFilePath ? activeFilePath.split("/").pop() : "草稿文档";
+  const fileName = activeFilePath ? activeFilePath.split("/").pop() : t("web.header.draftName");
 
   return (
     <header className="flex h-12 shrink-0 select-none items-center justify-between border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 text-[var(--theme-text)]">
@@ -56,19 +65,22 @@ export function WebHeader({
         <button
           type="button"
           onClick={onToggleSidebar}
-          title={isSidebarVisible ? "收起侧边栏 (Mod-B)" : "展开侧边栏 (Mod-B)"}
-          className="flex size-7 items-center justify-center rounded-md text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
+          title={shortcutTitle(
+            isSidebarVisible ? t("web.header.collapseSidebar") : t("web.header.expandSidebar"),
+            `${modKey}-B`,
+          )}
+          className={iconButtonClassName}
         >
           <Bars3Icon className="size-4" />
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="flex size-6.5 items-center justify-center rounded-md bg-[var(--theme-primary)] text-white shadow-xs">
-            <span className="text-[11px] font-bold leading-none">Ink</span>
+          <div className="flex size-7 items-center justify-center rounded-lg bg-[var(--theme-primary)] text-white">
+            <span className="text-[11px] font-medium leading-none">Ink</span>
           </div>
 
           <div className="flex min-w-0 items-center gap-1.5 text-xs">
-            <span className="truncate font-semibold text-[var(--theme-title)]">
+            <span className="truncate font-medium text-[var(--theme-title)]">
               {fileName}
               {isDirty ? "*" : ""}
             </span>
@@ -88,22 +100,22 @@ export function WebHeader({
           onClick={() => onToggleMode("wysiwyg")}
           className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
             mode === "wysiwyg"
-              ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-semibold shadow-2xs"
+              ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
               : "text-[var(--theme-control-text)] hover:text-[var(--theme-title)]"
           }`}
         >
-          所见即所得
+          {t("web.header.modeVisual")}
         </button>
         <button
           type="button"
           onClick={() => onToggleMode("source")}
           className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
             mode === "source"
-              ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] font-semibold shadow-2xs"
+              ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]"
               : "text-[var(--theme-control-text)] hover:text-[var(--theme-title)]"
           }`}
         >
-          源码模式
+          {t("web.header.modeSource")}
         </button>
       </div>
 
@@ -113,22 +125,22 @@ export function WebHeader({
         <button
           type="button"
           onClick={onTriggerAi}
-          className="flex h-7.5 items-center gap-1.5 rounded-lg bg-[var(--theme-primary-soft)] px-2.5 text-xs font-medium text-[var(--theme-primary)] transition-all hover:bg-[var(--theme-primary-selected)] active:scale-95"
-          title={`AI 智能续写 (${modKey}-J)`}
+          className="flex h-8 items-center gap-2 rounded-lg bg-[var(--theme-primary-soft)] px-2.5 text-xs font-medium text-[var(--theme-primary)] transition-[background-color,transform] hover:bg-[var(--theme-primary-selected)] active:scale-95"
+          title={t("web.header.aiContinueTitle", { shortcut: `${modKey}-J` })}
         >
-          <SparklesIcon className="size-3.5 animate-pulse" />
-          <span className="hidden sm:inline">AI 续写</span>
+          <SparklesIcon className="size-4" />
+          <span className="hidden sm:inline">{t("web.header.aiContinue")}</span>
         </button>
 
         {/* 复制 */}
         <button
           type="button"
           onClick={onCopy}
-          className="grid size-7.5 place-items-center rounded-md text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
-          title="复制 Markdown"
+          className={iconButtonClassName}
+          title={t("web.header.copyMarkdown")}
         >
           {isCopied ? (
-            <CheckIcon className="size-4 text-emerald-600" />
+            <CheckIcon className="size-4 text-[var(--theme-primary)]" />
           ) : (
             <DocumentDuplicateIcon className="size-4" />
           )}
@@ -138,8 +150,8 @@ export function WebHeader({
         <button
           type="button"
           onClick={onExport}
-          className="grid size-7.5 place-items-center rounded-md text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
-          title="导出 Markdown"
+          className={iconButtonClassName}
+          title={t("web.header.exportMarkdown")}
         >
           <ArrowDownTrayIcon className="size-4" />
         </button>
@@ -148,7 +160,7 @@ export function WebHeader({
         <button
           type="button"
           onClick={onToggleTheme}
-          className="grid size-7.5 place-items-center rounded-md text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
+          className={iconButtonClassName}
           title={theme === "dark" ? t("web.toggleLight") : t("web.toggleDark")}
         >
           {theme === "dark" ? <SunIcon className="size-4" /> : <MoonIcon className="size-4" />}
@@ -158,7 +170,7 @@ export function WebHeader({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="grid size-7.5 place-items-center rounded-md text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95"
+          className={iconButtonClassName}
           title={t("web.openSettingsWithShortcut", { modKey })}
         >
           <Cog6ToothIcon className="size-4" />

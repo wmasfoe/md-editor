@@ -23,16 +23,13 @@ export function DisclaimerModal({ isOpen, onAccept, onClose }: DisclaimerModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="disclaimer-title"
     >
-      <div className="max-w-md w-full rounded-lg bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-xl p-5 text-sm text-[var(--theme-text)]">
-        <h2
-          id="disclaimer-title"
-          className="text-base font-semibold text-[var(--theme-title)] mb-3"
-        >
+      <div className="max-w-md w-full rounded-xl bg-[var(--theme-surface)] border border-[var(--theme-border)] shadow-[var(--theme-shadow)] p-5 text-sm text-[var(--theme-text)]">
+        <h2 id="disclaimer-title" className="text-base font-medium text-[var(--theme-title)] mb-3">
           {AI_DISCLAIMER_CONTENT.title}
         </h2>
 

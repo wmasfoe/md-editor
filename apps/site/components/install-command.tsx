@@ -38,14 +38,14 @@ export function InstallCommand({
           <div className="flex flex-wrap items-center gap-2">
             {recommended ? (
               <span
-                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium tracking-wide text-accent"
+                className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent"
                 title={t.download.recommendedTag}
               >
                 <StarIcon aria-hidden className="h-3 w-3" />
                 {t.download.recommendedTag}
               </span>
             ) : null}
-            <span className="text-xs font-medium tracking-wide text-muted">{title}</span>
+            <span className="text-xs font-medium text-muted">{title}</span>
           </div>
           {description ? (
             <p className="mt-1 text-xs leading-relaxed text-muted/90">{description}</p>

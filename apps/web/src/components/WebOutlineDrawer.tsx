@@ -17,11 +17,11 @@ export function WebOutlineDrawer({ open, onClose }: WebOutlineDrawerProps) {
 
   return (
     <aside
-      className="fixed inset-y-12 right-0 z-30 flex w-72 flex-col border-l border-[var(--theme-border)] bg-[var(--theme-chrome)]/95 shadow-xl backdrop-blur-md transition-transform duration-200 animate-in slide-in-from-right"
+      className="fixed inset-y-12 right-0 z-30 flex w-72 flex-col border-l border-[var(--theme-border)] bg-[var(--theme-chrome)] shadow-[var(--theme-shadow)] transition-transform duration-200 animate-in slide-in-from-right"
       aria-label={t("web.outlineDrawerAria")}
     >
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--theme-border)] px-3.5">
-        <span className="text-xs font-semibold text-[var(--theme-title)]">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--theme-border)] px-4">
+        <span className="text-xs font-medium text-[var(--theme-title)]">
           {t("web.documentOutline")}
         </span>
         <button

@@ -1,4 +1,13 @@
 import { useMemo, useState } from "react";
+import {
+  CheckCircleIcon,
+  CpuChipIcon,
+  ExclamationCircleIcon,
+  LockClosedIcon,
+  ArrowDownTrayIcon,
+  TagIcon,
+  CircleStackIcon,
+} from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
 import {
   AI_URL_PRESETS,
@@ -67,9 +76,9 @@ export function AiSettingsPanel({
         </h2>
         <p className={settingsDescriptionClassName}>{t("settings.ai.desc")}</p>
       </div>
-      <div className="grid gap-3.5">
+      <div className="grid gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <label className="flex min-h-[30px] items-center gap-2">
+          <label className="flex min-h-8 items-center gap-2">
             <input
               type="checkbox"
               className="size-4 accent-[var(--theme-primary)]"
@@ -82,7 +91,7 @@ export function AiSettingsPanel({
             />
             <span className={settingsFieldLabelClassName}>{t("settings.ai.featureEditing")}</span>
           </label>
-          <label className="flex min-h-[30px] items-center gap-2">
+          <label className="flex min-h-8 items-center gap-2">
             <input
               type="checkbox"
               className="size-4 accent-[var(--theme-primary)]"
@@ -283,12 +292,16 @@ function RemoteAiSettings({
             : t("settings.ai.testConnection")}
         </button>
         {testState.status === "success" && (
-          <span className="text-[12px] text-emerald-600 dark:text-emerald-400">
-            ✓ {testState.message}
+          <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600 dark:text-emerald-400">
+            <CheckCircleIcon className="size-4 shrink-0" aria-hidden="true" />
+            {testState.message}
           </span>
         )}
         {testState.status === "error" && (
-          <span className="text-[12px] text-red-600 dark:text-red-400">✗ {testState.message}</span>
+          <span className="inline-flex items-center gap-1 text-[12px] text-red-600 dark:text-red-400">
+            <ExclamationCircleIcon className="size-4 shrink-0" aria-hidden="true" />
+            {testState.message}
+          </span>
         )}
       </div>
     </div>
@@ -332,13 +345,11 @@ function LocalAiSettings({
     modelCards.find((card) => card.id === recommendedId)?.displayName ?? "Standard (1.5B)";
 
   return (
-    <div className="grid gap-3.5">
+    <div className="grid gap-4">
       {/* 硬件概览与智能推荐卡片 */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-chrome)]/60 px-3.5 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-base" aria-hidden="true">
-            💻
-          </span>
+          <CpuChipIcon className="size-4 shrink-0 text-[var(--theme-muted)]" aria-hidden="true" />
           <div className="min-w-0">
             <span className="text-[12px] font-medium text-[var(--theme-title)]">
               {formatSystemSpecsLabel(systemSpecs)}
@@ -426,11 +437,11 @@ function LocalAiSettings({
                   },
                 });
               }}
-              className={`relative flex flex-col justify-between rounded-lg border p-3 transition-all ${
+              className={`relative flex flex-col justify-between rounded-lg border p-3 transition-[border-color,background-color,box-shadow] ${
                 !descriptor.isAvailable
                   ? "border-dashed border-[var(--theme-border)] bg-[var(--theme-chrome)]/30 opacity-70"
                   : isEnabled
-                    ? "border-[var(--theme-primary)] bg-[var(--theme-surface)] shadow-sm ring-1 ring-[var(--theme-primary)]"
+                    ? "border-[var(--theme-primary)] bg-[var(--theme-surface)] ring-1 ring-[var(--theme-primary)]"
                     : "cursor-pointer border-[var(--theme-border)] bg-[var(--theme-chrome)]/50 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-surface)]"
               }`}
             >
@@ -438,7 +449,7 @@ function LocalAiSettings({
                 {/* 头部：名称 + 徽标 + 开关 */}
                 <div className="mb-2 flex items-center justify-between gap-1.5">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-[13px] font-semibold text-[var(--theme-title)] truncate">
+                    <span className="text-[13px] font-medium text-[var(--theme-title)] truncate">
                       {descriptor.displayName}
                     </span>
                     {isRecommended ? (
@@ -452,7 +463,7 @@ function LocalAiSettings({
                       </span>
                     ) : null}
                     {hasUpdate ? (
-                      <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                      <span className="shrink-0 rounded bg-[var(--theme-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--theme-primary)]">
                         {status.latestVersion
                           ? t("settings.ai.newVersion", {
                               version: formatModelVersionTag(status.latestVersion) ?? "",
@@ -509,7 +520,7 @@ function LocalAiSettings({
                           }
                         }}
                       />
-                      <div className="relative h-4 w-7 rounded-full bg-[var(--theme-border)] transition-colors duration-200 peer-checked:bg-[var(--theme-primary)] peer-focus:outline-none after:absolute after:left-[2px] after:top-[2px] after:size-3 after:rounded-full after:bg-white after:shadow-sm after:transition-all after:content-[''] peer-checked:after:translate-x-3 peer-disabled:opacity-50" />
+                      <div className="relative h-4 w-7 rounded-full bg-[var(--theme-border)] transition-colors duration-200 peer-checked:bg-[var(--theme-primary)] peer-focus:outline-none after:absolute after:left-[2px] after:top-[2px] after:size-3 after:rounded-full after:bg-white after:shadow-sm after:transition-transform after:content-[''] peer-checked:after:translate-x-3 peer-disabled:opacity-50" />
                     </label>
                   ) : null}
                 </div>
@@ -522,15 +533,23 @@ function LocalAiSettings({
                 {/* 元数据标签 */}
                 <div className="mb-3 flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] text-[var(--theme-muted)]">
                   {descriptor.downloadSizeBytes > 0 ? (
-                    <span>📦 {formatByteSize(descriptor.downloadSizeBytes)}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <ArrowDownTrayIcon className="size-4 shrink-0" aria-hidden="true" />
+                      {formatByteSize(descriptor.downloadSizeBytes)}
+                    </span>
                   ) : null}
                   {descriptor.recommendedMemoryGb > 0 ? (
-                    <span>
-                      🧠{" "}
+                    <span className="inline-flex items-center gap-1">
+                      <CircleStackIcon className="size-4 shrink-0" aria-hidden="true" />
                       {t("settings.ai.memoryRequirement", { gb: descriptor.recommendedMemoryGb })}
                     </span>
                   ) : null}
-                  {status.version ? <span>🏷 {formatModelVersionTag(status.version)}</span> : null}
+                  {status.version ? (
+                    <span className="inline-flex items-center gap-1">
+                      <TagIcon className="size-4 shrink-0" aria-hidden="true" />
+                      {formatModelVersionTag(status.version)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -550,7 +569,7 @@ function LocalAiSettings({
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--theme-border)]">
                       <div
-                        className="h-full bg-[var(--theme-primary)] transition-all duration-200"
+                        className="h-full bg-[var(--theme-primary)] transition-[width] duration-200 motion-reduce:transition-none"
                         style={{ width: `${progressPercent}%` }}
                       />
                     </div>
@@ -585,7 +604,7 @@ function LocalAiSettings({
                   <button
                     type="button"
                     disabled
-                    className="w-full rounded-[5px] border border-[var(--theme-border)] py-1 text-center text-xs text-[var(--theme-muted)] opacity-60"
+                    className="w-full rounded-lg border border-[var(--theme-border)] py-1 text-center text-xs text-[var(--theme-muted)] opacity-60"
                   >
                     {t("settings.ai.comingSoon")}
                   </button>
@@ -594,7 +613,7 @@ function LocalAiSettings({
                     {hasUpdate ? (
                       <button
                         type="button"
-                        className="h-[30px] flex-1 rounded-[5px] border border-blue-500 bg-blue-600 px-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-55"
+                        className="h-8 flex-1 rounded-lg border border-[var(--theme-primary-fill)] bg-[var(--theme-primary-fill)] px-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-55"
                         onClick={(e) => {
                           e.stopPropagation();
                           onDownloadLocalModel(descriptor.id);
@@ -606,7 +625,7 @@ function LocalAiSettings({
                     ) : (
                       <div className="flex items-center gap-1 text-[11px]">
                         {isEnabled ? (
-                          <span className="font-semibold text-[var(--theme-primary)]">
+                          <span className="font-medium text-[var(--theme-primary)]">
                             {t("settings.ai.modelActive")}
                           </span>
                         ) : (
@@ -618,7 +637,7 @@ function LocalAiSettings({
                     )}
                     <button
                       type="button"
-                      className="h-[30px] px-2 rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-surface)] text-xs text-[var(--theme-muted)] hover:border-red-300 hover:text-red-500 disabled:opacity-55 ml-auto"
+                      className="h-8 px-2 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] text-xs text-[var(--theme-muted)] hover:border-red-300 hover:text-red-500 disabled:opacity-55 ml-auto"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteLocalModel(descriptor.id);
@@ -649,8 +668,9 @@ function LocalAiSettings({
         })}
       </div>
 
-      <p className="m-0 text-[11px] text-[var(--theme-muted)]">
-        🔒 {t("settings.ai.privacyNotice")}
+      <p className="m-0 inline-flex items-center gap-1 text-[11px] text-[var(--theme-muted)]">
+        <LockClosedIcon className="size-4 shrink-0" aria-hidden="true" />
+        {t("settings.ai.privacyNotice")}
       </p>
     </div>
   );

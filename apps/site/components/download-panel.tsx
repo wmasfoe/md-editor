@@ -37,7 +37,7 @@ function renderPlatformLabel(platform: SitePlatform) {
     return (
       <span className="inline-flex items-center gap-1 sm:gap-1.5">
         <span className="text-[12px] sm:text-sm">{platform === "android" ? "Android" : "iOS"}</span>
-        <span className="hidden rounded-full bg-muted/20 px-1.5 py-0.5 text-[9px] font-semibold text-muted leading-none sm:inline-block">
+        <span className="hidden rounded-full bg-muted/20 px-1.5 py-0.5 text-[9px] font-medium text-muted leading-none sm:inline-block">
           源码
         </span>
       </span>
@@ -135,7 +135,7 @@ export function DownloadPanel({
               aria-hidden
               className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
             />
-            <span className="relative z-10 inline-flex items-center gap-2.5 font-semibold tracking-tight">
+            <span className="relative z-10 inline-flex items-center gap-2.5 font-medium tracking-tight">
               <PlatformGlyph platform={platform} className="h-4 w-4 shrink-0 opacity-90" />
               <span>{current.primary.label}</span>
               {isMobile ? <span className="text-xs opacity-75">↗</span> : null}
@@ -147,7 +147,7 @@ export function DownloadPanel({
       <p className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 px-3 text-center text-xs text-muted sm:gap-x-2.5 sm:text-sm">
         {current.isBeta ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-accent">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
             <span>{isMobile ? t.download.sourceOnlyStatus : t.download.betaStatus}</span>
           </span>
         ) : null}
@@ -211,9 +211,7 @@ export function DownloadPanel({
         <div className="mx-auto mt-8 max-w-2xl text-left sm:mt-10">
           <div className="relative overflow-hidden rounded-2xl border border-line-strong/80 bg-surface/75 p-5 shadow-xs backdrop-blur-md sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-3 sm:pb-4">
-              <span className="text-base font-semibold text-ink sm:text-lg">
-                {mobileGuide.title}
-              </span>
+              <span className="text-base font-medium text-ink sm:text-lg">{mobileGuide.title}</span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                 {mobileGuide.badge}
@@ -226,7 +224,7 @@ export function DownloadPanel({
                 {mobileGuide.requirements}
               </p>
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
-                <strong className="font-semibold">{t.download.noPrebuiltNoticeTitle}</strong>
+                <strong className="font-medium">{t.download.noPrebuiltNoticeTitle}</strong>
                 <span>{mobileGuide.description}</span>
               </div>
               <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 whitespace-pre-line text-ink-soft">

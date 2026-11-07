@@ -78,7 +78,7 @@ export function MdxFeatureSection() {
                 <span className="h-1.5 w-1.5 rounded-full bg-seal" />
                 <span>{copy.sectionBadge}</span>
               </div>
-              <h2 className="mt-3 font-sans text-2xl font-bold tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
+              <h2 className="mt-3 font-sans text-2xl font-medium tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
                 {copy.sectionTitle}
               </h2>
               <p className="mx-auto mt-2.5 max-w-xl text-pretty text-sm leading-relaxed text-muted sm:mt-3 sm:text-base">

@@ -302,42 +302,6 @@
       }
     }
   }
-
-  /* 首屏轻感：小幅度位移叠一点呼吸缩放，周期略快，避免坠感 */
-  @keyframes ink-float-light {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-      transform: translate3d(0, -5px, 0) scale(1.012);
-    }
-  }
-
-  @keyframes ink-float-y-soft {
-    0%,
-    100% {
-      transform: translate3d(0, 0, 0);
-    }
-    50% {
-      transform: translate3d(0, -4px, 0);
-    }
-  }
-
-  .ink-float-gentle {
-    animation: ink-float-light 5.1s cubic-bezier(0.37, 0, 0.63, 1) infinite;
-  }
-
-  .ink-float-gentle-slow {
-    animation: ink-float-y-soft 5.8s cubic-bezier(0.37, 0, 0.63, 1) infinite;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ink-float-gentle,
-    .ink-float-gentle-slow {
-      animation: none;
-    }
-  }
 }
 
 /* AI Tab 提示放在 layer 外，避免被 Tailwind 工具层盖掉入场动画 */

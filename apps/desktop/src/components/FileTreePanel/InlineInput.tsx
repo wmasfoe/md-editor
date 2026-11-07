@@ -31,12 +31,12 @@ export function InlineInput({ defaultValue, paddingLeft, onCommit, onCancel }: I
   };
 
   return (
-    <div className="flex h-7 min-h-7 items-center pr-2" style={{ paddingLeft }}>
+    <div className="flex h-8 min-h-8 items-center pr-2" style={{ paddingLeft }}>
       <input
         ref={inputRef}
         type="text"
         defaultValue={defaultValue}
-        className="h-6 w-full min-w-0 rounded-[5px] border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] shadow-xs ring-2 ring-[var(--theme-primary-soft)] outline-none"
+        className="h-6 w-full min-w-0 rounded-md border border-[var(--theme-primary)] bg-[var(--theme-surface)] px-2 text-[13px] leading-tight text-[var(--theme-title)] ring-2 ring-[var(--theme-primary-soft)] outline-none"
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") {

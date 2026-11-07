@@ -20,7 +20,7 @@ export function HeaderDownloadButton({ catalog: _catalog }: HeaderDownloadButton
         aria-hidden
         className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-full"
       />
-      <span className="relative z-10 font-semibold tracking-tight">{t.header.download}</span>
+      <span className="relative z-10 font-medium tracking-tight">{t.header.download}</span>
     </a>
   );
 }

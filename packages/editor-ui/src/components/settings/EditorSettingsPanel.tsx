@@ -217,7 +217,7 @@ export function EditorSettingsPanel({
         </div>
 
         <div className="grid gap-3">
-          <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+          <label className="flex min-h-8 items-center gap-2 text-[13px] text-[var(--theme-text)]">
             <input
               type="checkbox"
               className="size-4 rounded border-[var(--theme-border)] accent-[var(--theme-primary)]"
@@ -227,7 +227,7 @@ export function EditorSettingsPanel({
             <span>{t("settings.appearance.showLineNumbers")}</span>
           </label>
 
-          <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+          <label className="flex min-h-8 items-center gap-2 text-[13px] text-[var(--theme-text)]">
             <input
               type="checkbox"
               className="size-4 rounded border-[var(--theme-border)] accent-[var(--theme-primary)]"
@@ -253,7 +253,7 @@ export function EditorSettingsPanel({
           </p>
         </div>
 
-        <label className="flex min-h-[30px] items-center gap-2 text-[13px] text-[var(--theme-text)]">
+        <label className="flex min-h-8 items-center gap-2 text-[13px] text-[var(--theme-text)]">
           <input
             type="checkbox"
             className="size-4 rounded border-[var(--theme-border)] accent-[var(--theme-primary)]"

@@ -44,7 +44,7 @@ export function UtoolsStatusBar({
         <button
           type="button"
           onClick={onToggleSidebar}
-          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] cursor-pointer border transition-colors text-xs shrink-0 ${
+          className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-pointer border transition-colors text-xs shrink-0 ${
             isSidebarOpen
               ? "bg-[var(--theme-primary-soft)] text-[var(--theme-primary)] border-[var(--theme-primary-soft)] font-medium"
               : "bg-transparent text-[var(--theme-muted)] border-transparent hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)]"
@@ -90,7 +90,7 @@ export function UtoolsStatusBar({
           <button
             type="button"
             onClick={onNewFile}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
             title="新建文档 (快捷键: Cmd+N 或 Ctrl+N)"
           >
             <NewFileIcon className="size-3.5" />
@@ -100,7 +100,7 @@ export function UtoolsStatusBar({
           <button
             type="button"
             onClick={onOpenFile}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
             title="打开本地 Markdown 文件 (快捷键: Cmd+O 或 Ctrl+O)"
           >
             <span>打开文件</span>
@@ -109,7 +109,7 @@ export function UtoolsStatusBar({
           <button
             type="button"
             onClick={onOpenFolder}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors max-w-[140px] truncate"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors max-w-[140px] truncate"
             title={
               hasFolder
                 ? `当前工作区: ${folder?.rootPath ?? ""} (点击更换文件夹，快捷键: Cmd+Option+O / Ctrl+Alt+O)`
@@ -135,7 +135,7 @@ export function UtoolsStatusBar({
         <button
           type="button"
           onClick={onToggleSourceMode}
-          className="px-2 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
+          className="px-2 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors"
           title="切换编辑模式 (快捷键: Cmd+/ 或 Ctrl+/)"
         >
           {editorMode === "source" ? "模式: 源码 (Cmd+/)" : "模式: 所见即所得 (Cmd+/)"}
@@ -146,7 +146,7 @@ export function UtoolsStatusBar({
         <button
           type="button"
           onClick={onOpenSettings}
-          className="px-2 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors flex items-center gap-1"
+          className="px-2 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors flex items-center gap-1"
           title="打开设置偏好与快捷键速查 (快捷键: Cmd+,)"
         >
           <SettingsIcon className="size-3.5" />
@@ -158,7 +158,7 @@ export function UtoolsStatusBar({
         <button
           type="button"
           onClick={() => openOfficialSite("status_bar")}
-          className="px-2 py-0.5 rounded-[4px] text-xs text-[var(--theme-muted)] hover:text-[var(--theme-primary)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors flex items-center gap-1"
+          className="px-2 py-0.5 rounded text-xs text-[var(--theme-muted)] hover:text-[var(--theme-primary)] hover:bg-[var(--theme-control-hover)] cursor-pointer bg-transparent border-0 transition-colors flex items-center gap-1"
           title="前往官网了解更多完整桌面功能"
         >
           <span>官网</span>

@@ -157,7 +157,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
       role="dialog"
       aria-modal="true"
       aria-label="版本历史"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-black/40 backdrop-blur-[4px] animate-in fade-in duration-150 select-none"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 bg-black/40 animate-in fade-in duration-150 select-none"
     >
       {/* 遮罩背景点击退出 */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden />
@@ -177,7 +177,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 ← 列表
               </button>
             )}
-            <h2 className="text-[13px] font-semibold text-[var(--theme-title)]">版本历史</h2>
+            <h2 className="text-[13px] font-medium text-[var(--theme-title)]">版本历史</h2>
             <span className="rounded-full bg-[var(--theme-control-hover)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--theme-muted)]">
               {snapshots.length}
             </span>
@@ -220,9 +220,9 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 type="button"
                 onClick={() => setViewMode("diff")}
                 className={cx(
-                  "rounded-md px-2.5 py-1 text-[11px] transition-all",
+                  "rounded-md px-2.5 py-1 text-[11px] transition-colors",
                   viewMode === "diff"
-                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-medium shadow-xs"
+                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-medium"
                     : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]",
                 )}
               >
@@ -232,9 +232,9 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 type="button"
                 onClick={() => setViewMode("preview")}
                 className={cx(
-                  "rounded-md px-2.5 py-1 text-[11px] transition-all",
+                  "rounded-md px-2.5 py-1 text-[11px] transition-colors",
                   viewMode === "preview"
-                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-medium shadow-xs"
+                    ? "bg-[var(--theme-surface)] text-[var(--theme-title)] font-medium"
                     : "text-[var(--theme-muted)] hover:text-[var(--theme-title)]",
                 )}
               >
@@ -257,7 +257,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                 <button
                   type="button"
                   onClick={() => void handleRevert(activeSnapshot.id)}
-                  className="inline-flex items-center rounded-lg bg-[var(--theme-primary)] hover:opacity-90 active:scale-[0.98] px-3 py-1 text-[11.5px] font-medium text-white transition-all shadow-xs"
+                  className="inline-flex items-center rounded-lg bg-[var(--theme-primary)] hover:opacity-90 active:scale-[0.98] px-3 py-1 text-[12px] font-medium text-white transition-[opacity,transform]"
                 >
                   恢复此版本
                 </button>
@@ -324,7 +324,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                     >
                       {/* 首行：相对时间与轻量标签 */}
                       <div className="flex items-center justify-between">
-                        <span className="text-[12.5px] font-semibold text-[var(--theme-title)]">
+                        <span className="text-[13px] font-medium text-[var(--theme-title)]">
                           {formatRelativeTime(item.timestamp)}
                         </span>
                         <span className="text-[10px] text-[var(--theme-muted)] font-normal rounded px-1.5 py-0.2 bg-[var(--theme-surface)]/70 border border-[var(--theme-border)]/40">
@@ -409,7 +409,7 @@ export function HistoryDrawer({ open, filePath, onClose, onShowToast }: HistoryD
                           {/* 差异标号 + / - */}
                           <span
                             className={cx(
-                              "w-5 shrink-0 select-none text-center font-bold",
+                              "w-5 shrink-0 select-none text-center font-medium",
                               isAdded
                                 ? "text-emerald-600 dark:text-emerald-400"
                                 : isRemoved

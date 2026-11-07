@@ -25,7 +25,7 @@ export interface AppSidebarProps {
 }
 
 const sidebarHeaderIconButtonClassName =
-  "grid size-[28px] place-items-center rounded-[5px] border-0 bg-transparent text-[var(--theme-control-text)] transition-all duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
+  "grid size-7 place-items-center rounded-lg border-0 bg-transparent text-[var(--theme-control-text)] transition-[background-color,color,transform] duration-120 ease-out hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]";
 
 /**
  * 桌面端主界面侧边栏组件。
@@ -97,7 +97,7 @@ export function AppSidebar({
         />
 
         {/* 侧栏顶栏：模式切换按钮、标题与搜索开关 */}
-        <div className="grid h-[38px] shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
+        <div className="grid h-10 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-2.5">
           <button
             type="button"
             className={sidebarHeaderIconButtonClassName}
@@ -115,7 +115,7 @@ export function AppSidebar({
               <QueueListIcon aria-hidden="true" />
             )}
           </button>
-          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-semibold leading-none tracking-tight text-[var(--theme-title)]">
+          <strong className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] font-medium leading-none text-[var(--theme-title)]">
             {sidebarTitle}
           </strong>
           <button
@@ -139,13 +139,13 @@ export function AppSidebar({
         {/* 文件搜索输入框 */}
         {showFileSearch ? (
           <div
-            className="grid min-h-[36px] shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-[7px] border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+            className="grid min-h-9 shrink-0 grid-cols-[16px_minmax(0,1fr)_minmax(16px,auto)] items-center gap-2 border-b border-[var(--theme-border)] bg-[var(--theme-chrome)] px-3 py-1.5 text-[var(--theme-control-subtle)] [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.35] [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
             role="search"
           >
             <MagnifyingGlassIcon aria-hidden="true" />
             <input
               type="search"
-              className="h-[26px] min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
+              className="h-6 min-w-0 border-0 bg-transparent font-sans text-[13px] leading-none text-[var(--theme-title)] outline-none placeholder:text-[var(--theme-control-subtle)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--theme-primary)]"
               value={fileSearchQuery}
               autoFocus
               placeholder={t("sidebar.searchFilesPlaceholder")}

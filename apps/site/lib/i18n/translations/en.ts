@@ -43,14 +43,14 @@ export const en: TranslationSchema = {
   },
   editorFeature: {
     sectionAria: "Core Editor Experience",
-    badge: "WYSIWYG & PURE CRAFT",
+    badge: "WYSIWYG writing",
     title: "Instant, Distraction-Free Typography",
     subtitle:
       "No setup, no waiting. Experience instant inline formatting on a warm paper-like canvas.",
     loadingCanvas: "Preparing writing canvas...",
   },
   editorPreview: {
-    workspace: "WORKSPACE",
+    workspace: "Workspace",
     sampleFile: "focus-writing.md",
     quote: "Zero cluttered toolbars. Keep your focus entirely in the flow of thought.",
     description:
@@ -66,7 +66,7 @@ export const en: TranslationSchema = {
     wysiwygMode: "WYSIWYG",
   },
   mdxShowcase: {
-    sectionBadge: "MDX · COMPONENTS IN PROSE",
+    sectionBadge: "MDX · Components in prose",
     sectionTitle: "Components Live Inside the Writing",
     sectionSubtitle:
       "Drop React components into Markdown. Scroll to switch the same document from preview into source.",
@@ -82,7 +82,7 @@ export const en: TranslationSchema = {
     loadingCanvas: "Preparing MDX canvas...",
   },
   download: {
-    sectionBadge: "GET INKPOINT · BEGIN YOUR FLOW",
+    sectionBadge: "Download",
     sectionTitle: "Start Writing with Focus and Clarity",
     sectionSubtitle:
       "No accounts, zero telemetry. Download Inkpoint desktop for a quiet, focused craft.",
@@ -119,8 +119,7 @@ export const en: TranslationSchema = {
       },
       {
         title: "Markdown / MDX",
-        description:
-          "A seamless editing experience for everyday writing and componentized content.",
+        description: "Write everyday prose and embed components in the same document.",
       },
       {
         title: "Desktop Workflow",
@@ -195,14 +194,14 @@ export const en: TranslationSchema = {
     releases: "Releases",
   },
   aiShowcase: {
-    sectionBadge: "AMBIENT LOCAL AI · IN-FLOW",
+    sectionBadge: "On-device AI · Inline",
     sectionTitle: "Ambient Intelligence, Whisper-Quiet",
     sectionSubtitle:
       "Lightweight on-device models whisper continuous suggestions the moment you pause, with zero cloud dependency.",
     sectionAria: "Ambient AI Showcase",
     loadingCanvas: "Loading On-Device AI Canvas...",
-    tabGrammar: "✍️ Grammar & Punctuation Polish",
-    tabContinuation: "✨ In-Flow Ghost Text Continuation",
+    tabGrammar: "Grammar & punctuation",
+    tabContinuation: "Inline continuation",
     statusSlmReady: "On-Device SLM · Ready",
     statusGrammarReady: "Review Suggestions Ready",
     statusContinuationReady: "Ghost Text Ready",
@@ -213,13 +212,13 @@ export const en: TranslationSchema = {
     retriggerButton: "Re-trigger Suggestion",
     resetButton: "Reset Demo",
     stepFormat: "Item {current} of {total}",
-    tipInteractive: "✨ Shortcuts active: Press Tab to accept & advance, Esc to skip or exit",
-    tipCompleted: "🎉 All steps completed: Click Reset Demo to replay anytime",
-    tipDismissed: "💡 Dismissed: Press Tab to re-trigger suggestions",
+    tipInteractive: "Press Tab to accept and move on, Esc to skip or exit",
+    tipCompleted: "All steps done. Choose Reset Demo to replay",
+    tipDismissed: "Dismissed. Press Tab to bring suggestions back",
     tabHint: "Press Tab to try polish and continuation",
-    phase1Tip: "✨ Phase 1 Polish: Press Tab to accept fix, Esc to skip",
-    phase2Tip: "✨ Phase 2 Continuation: Press Tab to accept inspired ghost text",
-    initialTip: "💡 Tip: Tap buttons above to experience instant grammar polish & continuation",
+    phase1Tip: "Step 1, polish: Tab accepts the fix, Esc skips it",
+    phase2Tip: "Step 2, continuation: Tab accepts the suggested text",
+    initialTip: "Use the buttons above to try grammar polish and continuation",
     bento: {
       local: {
         title: "On-Device Local SLM",
@@ -228,12 +227,12 @@ export const en: TranslationSchema = {
       },
       flow: {
         title: "Polish & Continue in Flow",
-        desc: "Press Tab continuously: flow seamlessly from grammar polish to inspired continuation.",
+        desc: "Press Tab repeatedly to go from grammar polish straight into continuation.",
         tag: "⇥ Flow In-Sync",
       },
       context: {
         title: "Full Context Awareness",
-        desc: "Deeply attuned to your essay structure and tone, providing seamless prose transitions.",
+        desc: "Suggestions follow the structure and tone of your essay, so transitions read naturally.",
         tag: "Context Aware",
       },
     },

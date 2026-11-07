@@ -71,7 +71,7 @@ export function EditorFeatureSection() {
                 <span>{copy.badge}</span>
               </div>
 
-              <h2 className="mt-3 font-sans text-2xl font-bold tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
+              <h2 className="mt-3 font-sans text-2xl font-medium tracking-tight text-ink sm:mt-4 sm:text-3xl lg:text-4xl">
                 {copy.title}
               </h2>
 

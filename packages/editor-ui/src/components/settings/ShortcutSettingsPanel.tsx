@@ -65,17 +65,15 @@ export function ShortcutSettingsPanel({
           <div className="grid gap-4">
             {categories.map((category) => (
               <div key={category.title} className="grid gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--theme-muted)]">
-                  {category.title}
-                </h3>
+                <h3 className="text-xs font-medium text-[var(--theme-muted)]">{category.title}</h3>
                 <div className="grid gap-1.5">
                   {category.items.map((item) => (
                     <div
                       key={item.desc}
-                      className="flex items-center justify-between gap-3 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-chrome)]/40 px-3 py-2 text-xs"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-chrome)]/40 px-3 py-2 text-xs"
                     >
                       <span className="text-[var(--theme-text)]">{item.desc}</span>
-                      <kbd className="rounded border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--theme-title)] shadow-xs">
+                      <kbd className="rounded border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--theme-title)]">
                         {item.key}
                       </kbd>
                     </div>
@@ -135,7 +133,7 @@ export function ShortcutSettingsPanel({
                   {mode === "editable" && onResetShortcut ? (
                     <button
                       type="button"
-                      className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[5px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] disabled:cursor-not-allowed disabled:opacity-40"
                       disabled={!isCustom}
                       onClick={() => onResetShortcut(shortcut.id)}
                       title={t("settings.shortcuts.resetToDefault", { defaultValue: "恢复默认" })}

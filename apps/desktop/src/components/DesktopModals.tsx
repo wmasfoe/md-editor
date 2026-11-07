@@ -17,6 +17,25 @@ const HistoryDrawer = lazy(() =>
 );
 
 /**
+ * 查询命令当前生效的快捷键:用户在设置里的自定义覆盖优先,其次是内置 keymap。
+ * 覆盖项的 id 与内置 keymap id 一致(见 command-bindings.ts),按 keymap id 合并。
+ */
+function findCommandShortcut(
+  commandId: string,
+  customShortcuts: readonly {
+    readonly id: string;
+    readonly commandId: string;
+    readonly key: string;
+  }[],
+): string | undefined {
+  const builtIn = runtime.keymaps.list().find((keymap) => keymap.commandId === commandId);
+  const custom = customShortcuts.find(
+    (shortcut) => shortcut.commandId === commandId || shortcut.id === builtIn?.id,
+  );
+  return custom?.key || builtIn?.key || undefined;
+}
+
+/**
  * 桌面端全局模态弹窗与浮层管理组件。
  *
  * 聚合以下全局对话框：
@@ -38,7 +57,7 @@ export function DesktopModals() {
   } = useDocumentUiStore();
   const { showToast } = useToastStore();
   const { dispatchCommand, insertMdxComponent, insertTable } = useDesktopEditorActions();
-  const { updateNotice, resolveUpdateNotice } = useAppSettings();
+  const { settings, updateNotice, resolveUpdateNotice } = useAppSettings();
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
   // 全局快捷键 Cmd/Ctrl+K 开关命令面板
@@ -64,6 +83,7 @@ export function DesktopModals() {
         open={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onRun={(commandId) => void dispatchCommand(commandId)}
+        getShortcut={(commandId) => findCommandShortcut(commandId, settings.shortcuts)}
       />
 
       {/* MDX 组件插入面板 */}

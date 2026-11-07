@@ -194,10 +194,10 @@ export function WebFileTreePanel({
   if (!folder) {
     return (
       <div className="flex h-full flex-col justify-center p-4 text-center">
-        <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]">
+        <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[var(--theme-primary-soft)] text-[var(--theme-primary)]">
           <FolderIcon className="size-6 stroke-[1.5]" />
         </div>
-        <h3 className="text-sm font-semibold text-[var(--theme-title)]">
+        <h3 className="text-sm font-medium text-[var(--theme-title)]">
           {t("sidebar.noFolderOpened")}
         </h3>
         <p className="mt-1.5 text-xs leading-relaxed text-[var(--theme-muted)]">
@@ -207,7 +207,7 @@ export function WebFileTreePanel({
           <button
             type="button"
             onClick={onOpenFolder}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--theme-primary)] px-3 text-xs font-medium text-white shadow-sm transition-all hover:opacity-90 active:scale-98"
+            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--theme-primary)] px-3 text-xs font-medium text-white transition-[opacity,transform] hover:opacity-90 active:scale-98"
           >
             <FolderOpenIcon className="size-4" />
             {t("sidebar.openFolder")}
@@ -245,7 +245,7 @@ export function WebFileTreePanel({
       return (
         <div key={node.path} className="select-none">
           <div
-            className="group flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
+            className="group flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-[var(--theme-control-text)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
             style={{ paddingLeft }}
             onClick={() => toggleCollapse(node.path)}
             onContextMenu={(e) => handleContextMenu(e, node, node.path)}
@@ -273,7 +273,7 @@ export function WebFileTreePanel({
               {/* 行内新建输入框 */}
               {isInlineCreatingHere && (
                 <div
-                  className="flex h-7 items-center px-2"
+                  className="flex h-8 items-center px-2"
                   style={{ paddingLeft: paddingLeft + 16 }}
                 >
                   <input
@@ -310,7 +310,7 @@ export function WebFileTreePanel({
       return (
         <div
           key={node.path}
-          className="flex h-7 items-center px-2"
+          className="flex h-8 items-center px-2"
           style={{ paddingLeft: paddingLeft + 16 }}
         >
           <input
@@ -333,9 +333,9 @@ export function WebFileTreePanel({
       <div
         key={node.path}
         className={cx(
-          "group flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] transition-colors",
+          "group flex h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] transition-colors",
           isActive
-            ? "bg-[var(--theme-primary-selected)] font-semibold text-[var(--theme-title)]"
+            ? "bg-[var(--theme-primary-selected)] text-[var(--theme-title)]"
             : "text-[var(--theme-control-text)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]",
         )}
         style={{ paddingLeft: paddingLeft + 16 }}
@@ -364,7 +364,7 @@ export function WebFileTreePanel({
       onContextMenu={(e) => handleContextMenu(e, null, folder.rootPath)}
     >
       {/* 根目录信息栏与快捷新建 */}
-      <div className="mb-1 flex h-7 items-center justify-between px-2 text-xs font-semibold text-[var(--theme-title)]">
+      <div className="mb-1 flex h-8 items-center justify-between px-2 text-xs font-medium text-[var(--theme-title)]">
         <span className="truncate">{folder.rootName}</span>
         <div className="flex items-center gap-0.5">
           <button
@@ -393,7 +393,7 @@ export function WebFileTreePanel({
       <div className="flex-1 space-y-0.5">
         {/* 根目录下的行内新建输入框 */}
         {inlineAction && !inlineAction.isRename && inlineAction.parentPath === folder.rootPath && (
-          <div className="flex h-7 items-center px-2">
+          <div className="flex h-8 items-center px-2">
             <input
               type="text"
               autoFocus

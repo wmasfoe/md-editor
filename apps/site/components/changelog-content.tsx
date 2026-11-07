@@ -175,10 +175,8 @@ export function ChangelogContent({
   return (
     <main className="mx-auto max-w-3xl px-4 py-12 sm:px-8 sm:py-20">
       <header className="mb-10 border-b border-line pb-8 sm:mb-14 sm:pb-10">
-        <p className="mb-3 text-xs font-medium tracking-[0.08em] text-accent uppercase sm:text-sm">
-          {t.changelog.badge}
-        </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-4xl">
+        <p className="mb-3 text-xs font-medium text-accent sm:text-sm">{t.changelog.badge}</p>
+        <h1 className="text-2xl font-medium tracking-tight text-ink sm:text-4xl">
           {t.changelog.title}
         </h1>
 
@@ -334,7 +332,7 @@ export function ChangelogContent({
         className={isAndroid ? undefined : "hidden"}
       >
         <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
-          <div className="flex items-center gap-2.5 text-base font-semibold text-ink sm:text-lg">
+          <div className="flex items-center gap-2.5 text-base font-medium text-ink sm:text-lg">
             <span className="h-2 w-2 rounded-full bg-amber-500" />
             <span>
               {t.changelog.androidTab} · {t.changelog.mobileSourceTitle}
@@ -348,7 +346,7 @@ export function ChangelogContent({
               href={ANDROID_SOURCE_GUIDE_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-semibold text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
+              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-medium text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
             >
               <span>{t.changelog.viewSourceGuide}</span>
               <span>→</span>
@@ -364,7 +362,7 @@ export function ChangelogContent({
         className={isIos ? undefined : "hidden"}
       >
         <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
-          <div className="flex items-center gap-2.5 text-base font-semibold text-ink sm:text-lg">
+          <div className="flex items-center gap-2.5 text-base font-medium text-ink sm:text-lg">
             <span className="h-2 w-2 rounded-full bg-amber-500" />
             <span>
               {t.changelog.iosTab} · {t.changelog.mobileSourceTitle}
@@ -378,7 +376,7 @@ export function ChangelogContent({
               href={IOS_SOURCE_GUIDE_URL}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-semibold text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
+              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-medium text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
             >
               <span>{t.changelog.viewSourceGuide}</span>
               <span>→</span>
@@ -466,7 +464,7 @@ function VersionDownloadDropdown({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong/80 bg-surface/80 px-2.5 py-1 text-xs font-medium text-ink-soft shadow-xs backdrop-blur-sm transition-all hover:border-accent/40 hover:bg-surface-raised hover:text-ink"
+        className="inline-flex items-center gap-1.5 rounded-full border border-line-strong/80 bg-surface/80 px-2.5 py-1 text-xs font-medium text-ink-soft shadow-xs backdrop-blur-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] hover:border-accent/40 hover:bg-surface-raised hover:text-ink"
         aria-expanded={isOpen}
       >
         <svg
@@ -492,7 +490,7 @@ function VersionDownloadDropdown({
 
       {isOpen && (
         <div className="absolute right-0 z-30 mt-1.5 w-56 max-w-[calc(100vw-32px)] origin-top-right rounded-xl border border-line-strong/80 bg-surface-raised/95 p-1.5 shadow-xl backdrop-blur-md">
-          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
+          <div className="px-2 py-1 text-[10px] font-medium text-muted">
             v{version} {labels.edgeDownloads}
           </div>
           <a
@@ -560,7 +558,7 @@ function ClientChangelogTimeline({
             <header className="mb-3.5 sm:mb-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                  <h2 className="text-lg font-medium tracking-tight text-ink sm:text-xl">
                     v{entry.version}
                   </h2>
                   <time className="text-sm text-muted" dateTime={entry.date}>
@@ -628,7 +626,7 @@ function ModelChangelogTimeline({
               <header className="mb-3.5 sm:mb-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   {version ? (
-                    <h2 className="text-lg font-semibold tracking-tight text-ink sm:text-xl">
+                    <h2 className="text-lg font-medium tracking-tight text-ink sm:text-xl">
                       v{version}
                     </h2>
                   ) : null}
@@ -680,7 +678,7 @@ function ModelChangelogSection({
 
   return (
     <section className="mt-6 first:mt-5">
-      {title ? <h3 className="mb-3 text-sm font-semibold text-ink">{title}</h3> : null}
+      {title ? <h3 className="mb-3 text-sm font-medium text-ink">{title}</h3> : null}
       {items.length > 0 ? (
         <ul className="space-y-3.5">
           {items.map((item, itemIndex) => (
@@ -915,7 +913,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
         );
       case "bold":
         return (
-          <strong key={index} className="font-semibold text-ink">
+          <strong key={index} className="font-medium text-ink">
             {token.text}
           </strong>
         );

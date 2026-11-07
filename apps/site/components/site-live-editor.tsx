@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BoltIcon, DocumentTextIcon, PencilSquareIcon } from "@heroicons/react/20/solid";
 import {
   createDocumentState,
   switchEditorModeSafely,
@@ -27,6 +28,7 @@ import {
   getSampleMarkdown,
   getSampleTitle,
   SHOWCASE_SAMPLES,
+  type ShowcaseIconKey,
   type ShowcaseSample,
 } from "./showcase-samples";
 import { useI18n } from "../lib/i18n/context";
@@ -96,6 +98,24 @@ const EDITOR_THEME = {
   "--theme-mono-font": '"SF Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace',
   "--theme-editor-line-height": "1.75",
 } as React.CSSProperties;
+
+/** 示例类别对应的线性图标 */
+function ShowcaseIcon({
+  iconKey,
+  className,
+}: {
+  readonly iconKey: ShowcaseIconKey;
+  readonly className?: string;
+}) {
+  switch (iconKey) {
+    case "pen":
+      return <PencilSquareIcon className={className} aria-hidden="true" />;
+    case "component":
+      return <BoltIcon className={className} aria-hidden="true" />;
+    default:
+      return <DocumentTextIcon className={className} aria-hidden="true" />;
+  }
+}
 
 export const SiteLiveEditor = React.memo(function SiteLiveEditor({
   className,
@@ -268,9 +288,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
             <aside className="hidden border-r border-line bg-canvas/60 p-3.5 md:col-span-3 md:flex md:flex-col md:justify-between">
               <div>
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                    {copy.samplesTitle}
-                  </span>
+                  <span className="text-xs font-medium text-muted">{copy.samplesTitle}</span>
                   <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
                 </div>
 
@@ -283,15 +301,13 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
                         key={sample.id}
                         type="button"
                         onClick={() => handleSelectSample(sample)}
-                        className={`group flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition-all ${
+                        className={`group flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition-colors ${
                           isActive
                             ? "bg-surface font-medium text-ink shadow-xs ring-1 ring-black/5"
                             : "text-muted hover:bg-surface-soft/80 hover:text-ink"
                         }`}
                       >
-                        <span className="text-sm transition-transform group-hover:scale-110">
-                          {sample.icon}
-                        </span>
+                        <ShowcaseIcon iconKey={sample.iconKey} className="size-4 shrink-0" />
                         <span className="truncate">{sampleName}</span>
                       </button>
                     );
@@ -300,14 +316,14 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               </div>
 
               <div className="mt-4 rounded-xl border border-line/70 bg-surface-soft/60 p-2.5 text-[11px] leading-relaxed text-muted">
-                <span className="font-semibold text-ink-soft">{copy.canvasTitle}</span>
+                <span className="font-medium text-ink-soft">{copy.canvasTitle}</span>
                 <p className="mt-0.5">{copy.canvasDescription}</p>
               </div>
             </aside>
 
             <div className="relative flex min-h-[280px] flex-col p-3.5 sm:p-4 md:col-span-9 md:p-5">
               <div className="mb-3 flex items-center gap-2 overflow-x-auto border-b border-line pb-2.5 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <span className="shrink-0 text-[11px] font-semibold text-muted">
+                <span className="shrink-0 text-[11px] font-medium text-muted">
                   {copy.samplesPrefix}
                 </span>
                 {samples.map((sample) => {
@@ -318,13 +334,16 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
                       key={sample.id}
                       type="button"
                       onClick={() => handleSelectSample(sample)}
-                      className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                         isActive
                           ? "bg-surface-soft text-ink shadow-xs"
                           : "text-muted hover:text-ink-soft"
                       }`}
                     >
-                      {sample.icon} {title}
+                      <span className="inline-flex items-center gap-1.5">
+                        <ShowcaseIcon iconKey={sample.iconKey} className="size-4 shrink-0" />
+                        {title}
+                      </span>
                     </button>
                   );
                 })}

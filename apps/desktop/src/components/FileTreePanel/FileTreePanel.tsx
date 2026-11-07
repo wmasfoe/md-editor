@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
+import { OPEN_FOLDER_SHORTCUT } from "@md-editor/editor-core";
+import { formatKeymapParts } from "@md-editor/editor-ui";
 import {
   createDefaultCollapsedDirectoryPaths,
   type MarkdownFileTreeNode,
@@ -293,27 +295,35 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
   if (!folder) {
     return (
       <div className="flex min-h-0 flex-1 select-none flex-col items-center justify-center p-5 text-center">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--theme-border)]/60 bg-[var(--theme-surface)] shadow-xs">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)]">
           <FolderIcon
             className="size-5 stroke-[1.75] text-[var(--theme-primary)]"
             aria-hidden="true"
           />
         </div>
-        <p className="mb-1 text-[13px] font-semibold text-[var(--theme-title)]">
+        <p className="mb-1 text-[13px] font-medium text-[var(--theme-title)]">
           {t("fileTree.emptyWorkspaceTitle")}
         </p>
-        <p className="mb-4 max-w-[190px] text-[11px] leading-relaxed text-[var(--theme-control-subtle)]">
+        <p className="mb-4 max-w-[192px] text-xs leading-relaxed text-[var(--theme-control-subtle)]">
           {t("fileTree.emptyWorkspaceDesc")}
         </p>
         <button
           type="button"
-          className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] shadow-xs transition-all duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
+          className="group inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] px-3 py-1.5 text-xs font-medium text-[var(--theme-title)] transition-[background-color,border-color,transform] duration-120 hover:border-[var(--theme-border-strong)] hover:bg-[var(--theme-control-hover)] active:scale-[0.97]"
           onClick={onOpenFolder}
         >
           <span>{t("fileTree.openFolder")}</span>
-          <kbd className="rounded border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1 py-0.2 font-mono text-[10px] text-[var(--theme-control-subtle)] group-hover:text-[var(--theme-title)]">
-            ⌘O
-          </kbd>
+          {/* 快捷键取自内置 keymap 常量，避免展示与实际绑定不一致 */}
+          <span className="flex items-center gap-0.5">
+            {formatKeymapParts(OPEN_FOLDER_SHORTCUT).map((part, index) => (
+              <kbd
+                key={`${part}-${index}`}
+                className="min-w-4 rounded-sm border border-[var(--theme-border)] bg-[var(--theme-control-hover)] px-1 text-center font-mono text-[11px] leading-4 text-[var(--theme-control-subtle)] group-hover:text-[var(--theme-title)]"
+              >
+                {part}
+              </kbd>
+            ))}
+          </span>
         </button>
       </div>
     );

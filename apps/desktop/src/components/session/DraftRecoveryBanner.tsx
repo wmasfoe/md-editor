@@ -6,6 +6,7 @@
 
 import React, { useState } from "react";
 import type { PendingDraftInfo } from "../../app/controller/session-controller.ts";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 
 export interface DraftRecoveryBannerProps {
   readonly draftInfo: PendingDraftInfo | null;
@@ -30,7 +31,7 @@ export function DraftRecoveryBanner({ draftInfo, onRestore, onDiscard }: DraftRe
       <div
         role="alert"
         aria-label="检测到未保存的本地草稿"
-        className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-[var(--theme-foreground)] backdrop-blur-md transition-all animate-in fade-in slide-in-from-top-1"
+        className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-[var(--theme-text)] animate-in fade-in slide-in-from-top-1"
       >
         <div className="flex items-center gap-2">
           <svg
@@ -52,21 +53,21 @@ export function DraftRecoveryBanner({ draftInfo, onRestore, onDiscard }: DraftRe
           <button
             type="button"
             onClick={() => setIsDiffOpen(true)}
-            className="rounded px-2 py-1 text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-hover)] hover:text-[var(--theme-foreground)] transition-colors"
+            className="rounded px-2 py-1 text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)] transition-colors"
           >
             查看草稿预览
           </button>
           <button
             type="button"
             onClick={onDiscard}
-            className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-500/10 hover:text-red-600 transition-colors"
+            className="rounded px-2 py-1 text-xs text-[var(--theme-danger-text)] hover:bg-[var(--theme-danger-bg)] transition-colors"
           >
             放弃草稿
           </button>
           <button
             type="button"
             onClick={onRestore}
-            className="rounded bg-amber-600 hover:bg-amber-700 px-2.5 py-1 text-xs font-medium text-white shadow-sm transition-colors"
+            className="rounded bg-[var(--theme-primary-fill)] px-2.5 py-1 text-xs font-medium text-white transition-opacity hover:opacity-90"
           >
             恢复草稿
           </button>
@@ -78,29 +79,28 @@ export function DraftRecoveryBanner({ draftInfo, onRestore, onDiscard }: DraftRe
           role="dialog"
           aria-modal="true"
           aria-label="草稿内容预览"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
         >
-          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-2xl overflow-hidden">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)] overflow-hidden">
             <div className="flex items-center justify-between border-b border-[var(--theme-border)] px-4 py-3">
-              <h3 className="text-sm font-semibold text-[var(--theme-foreground)]">
-                未保存草稿预览
-              </h3>
+              <h3 className="text-sm font-medium text-[var(--theme-title)]">未保存草稿预览</h3>
               <button
                 type="button"
                 onClick={() => setIsDiffOpen(false)}
-                className="text-[var(--theme-muted)] hover:text-[var(--theme-foreground)]"
+                aria-label="关闭"
+                className="grid size-6 place-items-center rounded text-[var(--theme-muted)] transition-colors hover:bg-[var(--theme-control-hover)] hover:text-[var(--theme-title)]"
               >
-                ✕
+                <XMarkIcon className="size-4" aria-hidden="true" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto p-4 font-mono text-xs text-[var(--theme-foreground)] whitespace-pre-wrap bg-[var(--theme-surface-soft)]">
+            <div className="flex-1 overflow-auto p-4 font-mono text-xs text-[var(--theme-text)] whitespace-pre-wrap bg-[var(--theme-bg-muted)]">
               {draftInfo.draftContent}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-[var(--theme-border)] px-4 py-3 bg-[var(--theme-surface)]">
               <button
                 type="button"
                 onClick={() => setIsDiffOpen(false)}
-                className="rounded px-3 py-1.5 text-xs text-[var(--theme-muted)] hover:bg-[var(--theme-hover)]"
+                className="rounded px-3 py-1.5 text-xs text-[var(--theme-muted)] transition-colors hover:bg-[var(--theme-control-hover)]"
               >
                 关闭
               </button>
@@ -110,7 +110,7 @@ export function DraftRecoveryBanner({ draftInfo, onRestore, onDiscard }: DraftRe
                   setIsDiffOpen(false);
                   onRestore();
                 }}
-                className="rounded bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-medium text-white shadow-sm"
+                className="rounded bg-[var(--theme-primary-fill)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
               >
                 恢复此草稿
               </button>

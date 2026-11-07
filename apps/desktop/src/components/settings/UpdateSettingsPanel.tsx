@@ -106,14 +106,14 @@ export function UpdateSettingsPanel({
           </span>
         </div>
 
-        <div className="mb-3 grid gap-1 rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
+        <div className="mb-3 grid gap-1 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
           <div className="flex items-baseline justify-between gap-3 text-[12px]">
             <span className="text-[var(--theme-muted)]">
               {t("settings.general.currentVersion", {
                 version: updateStatus.currentVersion,
               })}
             </span>
-            <span className="font-[600] text-[var(--theme-title)]">
+            <span className="font-medium text-[var(--theme-title)]">
               {updateStatus.latestVersion
                 ? t("settings.updates.versionTransition", {
                     current: updateStatus.currentVersion,
@@ -182,7 +182,7 @@ export function UpdateSettingsPanel({
           <h2 id="update-notes-title" className={settingsSectionTitleClassName}>
             {t("settings.updates.notesTitle")}
           </h2>
-          <div className="mt-2 max-h-[260px] overflow-y-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
+          <div className="mt-2 max-h-[260px] overflow-y-auto rounded-lg border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-3 py-2">
             <UpdateReleaseNotes
               entry={notesEntry}
               fallbackVersion={updateStatus.latestVersion ?? ""}

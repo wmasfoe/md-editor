@@ -70,7 +70,7 @@ export function LanguageSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         title={t.header.langSwitchAria}
-        className={`group relative inline-flex h-8 w-8 cursor-pointer select-none items-center justify-center rounded-xl transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-canvas sm:h-9 sm:w-9 ${
+        className={`group relative inline-flex h-8 w-8 cursor-pointer select-none items-center justify-center rounded-xl transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-1 focus-visible:ring-offset-canvas sm:h-9 sm:w-9 ${
           isOpen
             ? "bg-surface-soft text-ink shadow-xs"
             : "text-muted hover:bg-surface-soft hover:text-ink active:scale-[0.96]"
@@ -97,9 +97,9 @@ export function LanguageSwitcher() {
                 role="option"
                 aria-selected={isSelected}
                 onClick={() => handleSelect(code)}
-                className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] sm:text-sm transition-all duration-150 ${
+                className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] sm:text-sm transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 ${
                   isSelected
-                    ? "bg-accent/10 font-semibold text-accent"
+                    ? "bg-accent/10 font-medium text-accent"
                     : "font-normal text-ink-soft hover:bg-surface-soft hover:text-ink active:bg-surface-soft/80"
                 }`}
               >

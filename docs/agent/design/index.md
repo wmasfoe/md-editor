@@ -12,3 +12,4 @@
 - Apple Liquid Glass 设计规范与接入指南（物理光学原理、Token 契约与组件落地）： [liquid_glass_design_specifications.md](./liquid_glass_design_specifications.md)
 - 官网 Feature 展区视觉与交互设计规范（钉住滚动、基础编辑、端侧 AI、MDX 源码分栏）： [site_feature_sections_design_spec.md](./site_feature_sections_design_spec.md)
 - AI 建议视觉与交互规范（宣纸墨韵意境、行内续写与语病标点多步连贯修复系统）： [ai_suggestion_ambient_style_spec.md](./ai_suggestion_ambient_style_spec.md)
+- 桌面端界面去 AI 味整理记录（图标、快捷键 keycap、字重、动效、间距与圆角规则）： [unslop_desktop_ui_pass.md](./unslop_desktop_ui_pass.md)

@@ -6,24 +6,24 @@ import { resolveActiveLocale, type LanguageSetting, type Locale } from "@md-edit
  */
 
 export const SHOWCASE_MARKDOWN: Record<Locale, string> = {
-  zh: `# 欢迎体验 Inkpoint 编辑器 ✨
+  zh: `# 欢迎体验 Inkpoint 编辑器
 
-Inkpoint 是一款轻量、优雅且功能完备的 Markdown 与 MDX 编辑器。在纯浏览器环境中，你即可享受丝滑的所见即所得编辑体验！
+Inkpoint 是一款轻量、优雅且功能完备的 Markdown 与 MDX 编辑器。在浏览器里即可体验所见即所得编辑，文件不会上传。
 
 :::tip 快捷键体验提示
-按下快捷键 **Mod-/ (⌘/)**，感受零延迟、无抖动的「所见即所得」与「源码模式」无缝切换！
+按下快捷键 **Mod-/ (⌘/)**，即可在「所见即所得」与「源码模式」之间切换，光标和滚动位置保持不变。
 :::
 
 ---
 
-## 🎨 核心特性演示
+## 核心特性演示
 
 ### 1. MDX 容器指令与 GFM 官方 Alert
 
-Inkpoint 原生支持富文本 Callout 与 GitHub 警示块渲染，输入即见精美卡片：
+Inkpoint 原生支持富文本 Callout 与 GitHub 警示块渲染，输入后立即渲染为卡片：
 
 > [!NOTE] GFM 官方 Alert 警示块
-> 编辑器原生支持 GitHub Flavored Markdown 警示块（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`），完美兼容 GitHub 与 Obsidian 事实标准。
+> 编辑器原生支持 GitHub Flavored Markdown 警示块（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`），与 GitHub、Obsidian 的写法一致。
 
 :::info 架构优势
 编辑器渲染基于 CodeMirror 6，核心模块完全平台无关，桌面端与 Web 端共用同一套高保真解析与装饰管线。
@@ -34,7 +34,7 @@ Inkpoint 原生支持富文本 Callout 与 GitHub 警示块渲染，输入即见
 :::
 
 :::danger 严谨保真
-所有未知的语法标签均会以 Raw 模式严谨保真，绝不破坏原有文档结构！
+所有无法识别的语法标签都会按原文保留，不会改写文档结构。
 :::
 
 ---
@@ -65,41 +65,41 @@ function startWriting(topic: string): InkpointExperience {
 
 - [x] CodeMirror 6 可视化渲染引擎
 - [x] MDX 官方 Callout 组件
-- [x] 智能大纲目录（点击右上角「📑 大纲」展开查看）
-- [x] AI 智能辅助续写（点击右上角「⚙️」配置你的模型）
-- [ ] 更多强大能力持续演进中...
+- [x] 文档大纲（在侧栏顶部切换到大纲）
+- [x] AI 续写（在右上角设置中配置模型）
+- [ ] 更多功能开发中
 
 | 特性分类 | 功能描述 | 体验状态 |
 | :--- | :--- | :---: |
-| **视觉呈现** | 所见即所得富文本渲染与主题适配 | ✅ 丝滑 |
-| **语法控制** | 源码模式原生代码编辑 | ✅ 自由 |
-| **文档结构** | 自动提取大纲层级与平滑跳转 | ✅ 即时 |
-| **数据安全** | 本地草稿记忆防丢失，一键导出 .md | ✅ 安全 |
+| **视觉呈现** | 所见即所得富文本渲染与主题适配 | 可用 |
+| **语法控制** | 源码模式直接编辑 Markdown | 可用 |
+| **文档结构** | 自动提取大纲层级并跳转 | 可用 |
+| **数据安全** | 草稿保存在本地，可导出为 .md | 可用 |
 
 ---
 
-### 4. 试着自己写点东西吧！
-你可以在这篇文档任意修改、插入文字，甚至清空后重新创作。如果想恢复原貌，点击顶部右侧的 **「↺ 重置」** 按钮即可一键复原。
+### 4. 自己试试
+你可以随意修改、插入文字，甚至清空后重新写。想恢复这份演示内容，打开设置，点击「恢复初始演示内容」。
 `,
 
-  "zh-Hant": `# 歡迎體驗 Inkpoint 編輯器 ✨
+  "zh-Hant": `# 歡迎體驗 Inkpoint 編輯器
 
-Inkpoint 是一款輕量、優雅且功能完備的 Markdown 與 MDX 編輯器。在純瀏覽器環境中，你即可享受絲滑的所見即所得編輯體驗！
+Inkpoint 是一款輕量、優雅且功能完備的 Markdown 與 MDX 編輯器。在瀏覽器裡即可體驗所見即所得編輯，檔案不會上傳。
 
 :::tip 快捷鍵體驗提示
-按下快捷鍵 **Mod-/ (⌘/)**，感受零延遲、無抖動的「所見即所得」與「源碼模式」無縫切換！
+按下快捷鍵 **Mod-/ (⌘/)**，即可在「所見即所得」與「原始碼模式」之間切換，游標與捲動位置維持不變。
 :::
 
 ---
 
-## 🎨 核心特性演示
+## 核心特性演示
 
 ### 1. MDX 容器指令與 GFM 官方 Alert
 
-Inkpoint 原生支援富文本 Callout 與 GitHub 警示塊渲染，輸入即見精美卡片：
+Inkpoint 原生支援富文本 Callout 與 GitHub 警示塊渲染，輸入後立即渲染為卡片：
 
 > [!NOTE] GFM 官方 Alert 警示塊
-> 編輯器原生支援 GitHub Flavored Markdown 警示塊（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`），完美兼容 GitHub 與 Obsidian 實質標準。
+> 編輯器原生支援 GitHub Flavored Markdown 警示塊（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`），與 GitHub、Obsidian 的寫法一致。
 
 :::info 架構優勢
 編輯器渲染基於 CodeMirror 6，核心模組完全平台無關，桌面端與 Web 端共用同一套高保真解析與裝飾管線。
@@ -110,7 +110,7 @@ Inkpoint 原生支援富文本 Callout 與 GitHub 警示塊渲染，輸入即見
 :::
 
 :::danger 嚴謹保真
-所有未知的語法標籤均會以 Raw 模式嚴謹保真，絕不破壞原有文檔結構！
+所有無法辨識的語法標籤都會依原文保留，不會改寫文件結構。
 :::
 
 ---
@@ -141,43 +141,43 @@ function startWriting(topic: string): InkpointExperience {
 
 - [x] CodeMirror 6 視覺化渲染引擎
 - [x] MDX 官方 Callout 組件
-- [x] 智慧大綱目錄（點擊右上角「📑 大綱」展開檢視）
-- [x] AI 智慧輔助續寫（點擊右上角「⚙️」設定你的模型）
-- [ ] 更多強大能力持續演進中...
+- [x] 文件大綱（在側欄頂部切換到大綱）
+- [x] AI 續寫（在右上角設定中設定模型）
+- [ ] 更多功能開發中
 
 | 特性分類 | 功能描述 | 體驗狀態 |
 | :--- | :--- | :---: |
-| **視覺呈現** | 所見即所得富文本渲染與主題適配 | ✅ 絲滑 |
-| **語法控制** | 源碼模式原生代碼編輯 | ✅ 自由 |
-| **文檔結構** | 自動提取大綱層級與平滑跳轉 | ✅ 即時 |
-| **數據安全** | 本地草稿記憶防丟失，一鍵導出 .md | ✅ 安全 |
+| **視覺呈現** | 所見即所得富文本渲染與主題適配 | 可用 |
+| **語法控制** | 原始碼模式直接編輯 Markdown | 可用 |
+| **文檔結構** | 自動提取大綱層級並跳轉 | 可用 |
+| **數據安全** | 草稿保存在本地，可匯出為 .md | 可用 |
 
 ---
 
-### 4. 試著自己寫點東西吧！
-你可以在這篇文檔任意修改、插入文字，甚至清空後重新創作。如果想恢復原貌，點擊頂部右側的 **「↺ 重置」** 按鈕即可一鍵復原。
+### 4. 自己試試
+你可以隨意修改、插入文字，甚至清空後重新寫。想恢復這份示範內容，開啟設定，點擊「恢復初始示範內容」。
 `,
 
-  en: `# Welcome to Inkpoint ✨
+  en: `# Welcome to Inkpoint
 
-Inkpoint is a lightweight, elegant, and fully featured Markdown & MDX editor. Enjoy a silky-smooth WYSIWYG editing experience directly in your browser!
+Inkpoint is a lightweight, elegant, and fully featured Markdown & MDX editor. Edit visually in your browser. Your files are not uploaded.
 
 :::tip Quick Shortcut Tip
-Press **Mod-/ (⌘/)** to seamlessly toggle between WYSIWYG and Source mode with zero delay and zero layout jitter!
+Press **Mod-/ (⌘/)** to switch between WYSIWYG and Source mode. The cursor and scroll position stay where they are.
 :::
 
 ---
 
-## 🎨 Core Feature Highlights
+## Core features
 
 ### 1. MDX Directives & GFM Alert Callouts
 
-Inkpoint natively supports rich text callouts and GitHub alerts with instant live rendering:
+Inkpoint renders callouts and GitHub alerts as you type:
 
 > [!NOTE] GFM Official Alerts
-> The editor natively supports GitHub Flavored Markdown alerts (\`> [!NOTE]\`, \`> [!TIP]\`, \`> [!IMPORTANT]\`, \`> [!WARNING]\`, \`> [!CAUTION]\`), fully compatible with GitHub and Obsidian conventions.
+> The editor natively supports GitHub Flavored Markdown alerts (\`> [!NOTE]\`, \`> [!TIP]\`, \`> [!IMPORTANT]\`, \`> [!WARNING]\`, \`> [!CAUTION]\`), the same syntax GitHub and Obsidian use.
 
-:::info Architectural Excellence
+:::info Shared engine
 Built on CodeMirror 6, the core engine is completely platform-agnostic, sharing the exact same high-fidelity parsing and decoration pipeline across desktop and web.
 :::
 
@@ -185,8 +185,8 @@ Built on CodeMirror 6, the core engine is completely platform-agnostic, sharing 
 You can edit the text inside callouts anytime. Focusing the cursor reveals the raw source for inline editing.
 :::
 
-:::danger Strict Fidelity
-All unknown syntax and tags are strictly preserved in raw mode without ever corrupting your document structure!
+:::danger Lossless by design
+Syntax the editor does not recognize is kept as written, so your document structure is never rewritten.
 :::
 
 ---
@@ -217,43 +217,43 @@ function startWriting(topic: string): InkpointExperience {
 
 - [x] CodeMirror 6 visual rendering engine
 - [x] Official MDX Callout components
-- [x] Smart document outline (click "Outline" in the top bar to inspect)
-- [x] Ambient AI continuation (click "Settings" to configure your model)
-- [ ] More powerful capabilities coming soon...
+- [x] Document outline (switch to it from the top of the sidebar)
+- [x] AI continuation (configure a model in Settings)
+- [ ] More in progress
 
 | Category | Description | Status |
 | :--- | :--- | :---: |
-| **Visual Fidelity** | WYSIWYG rich text rendering with theme adaptation | ✅ Smooth |
-| **Syntax Control** | Pure source mode for precise editing | ✅ Flexible |
-| **Document Hierarchy** | Automatic outline extraction with smooth navigation | ✅ Instant |
-| **Data Safety** | Local draft persistence, one-click export to .md | ✅ Safe |
+| **Visual editing** | WYSIWYG rich text rendering with theme support | Available |
+| **Source editing** | Edit Markdown directly in source mode | Available |
+| **Document outline** | Headings are extracted and linked automatically | Available |
+| **Local drafts** | Drafts stay on this device and export to .md | Available |
 
 ---
 
-### 4. Try Writing Something Yourself!
-Feel free to modify, insert, or clear this document to start creating. If you ever want to restore this initial showcase, simply click **"↺ Reset"** in the top navigation.
+### 4. Try it yourself
+Edit, insert, or clear this document. To bring this demo back, open Settings and choose "Restore Default Showcase".
 `,
 
-  ja: `# Inkpoint エディタへようこそ ✨
+  ja: `# Inkpoint エディタへようこそ
 
-Inkpoint は、軽量・洗練・高機能な Markdown & MDX エディタです。ブラウザ上だけで、快適で滑らかな WYSIWYG（見たまま編集）をお楽しみいただけます！
+Inkpoint は、軽量・洗練・高機能な Markdown & MDX エディタです。ブラウザ上で WYSIWYG（見たまま編集）を試せます。ファイルはアップロードされません。
 
 :::tip ショートカットのヒント
-ショートカット **Mod-/ (⌘/)** を押すと、遅延やレイアウト崩れなく「WYSIWYG モード」と「ソースコードモード」を瞬時に切り替えられます！
+ショートカット **Mod-/ (⌘/)** で「WYSIWYG モード」と「ソースコードモード」を切り替えられます。カーソルとスクロール位置は保たれます。
 :::
 
 ---
 
-## 🎨 主な機能のご紹介
+## 主な機能
 
 ### 1. MDX コンテナ記法と GFM 公式 Alert
 
-Inkpoint はリッチな Callout カードと GitHub Alert のリアルタイム描画を標準サポートしています：
+Inkpoint は Callout カードと GitHub Alert を入力と同時に描画します：
 
 > [!NOTE] GFM 公式 Alert 記法
-> GitHub Flavored Markdown の Alert 構文（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`）を標準サポートし、GitHub や Obsidian と高い互換性を保持します。
+> GitHub Flavored Markdown の Alert 構文（\`> [!NOTE]\`、\`> [!TIP]\`、\`> [!IMPORTANT]\`、\`> [!WARNING]\`、\`> [!CAUTION]\`）を標準でサポートします。GitHub や Obsidian と同じ書き方です。
 
-:::info アーキテクチャの強み
+:::info 共通のエンジン
 CodeMirror 6 を基盤とし、コアエンジンは完全にプラットフォーム非依存。デスクトップ版と Web 版で共通の高精度な構文解析・装飾パイプラインを共有しています。
 :::
 
@@ -261,8 +261,8 @@ CodeMirror 6 を基盤とし、コアエンジンは完全にプラットフォ�
 コールアウト内のテキストはいつでも編集可能です。カーソルを合わせるとソースが展開され、その場で修正できます。
 :::
 
-:::danger 厳格な忠実性
-未知の構文やタグも Raw モードで安全に保持され、元のドキュメント構造を壊すことは決してありません！
+:::danger 内容を変えない
+認識できない構文やタグは書かれたまま保持され、ドキュメント構造は書き換えられません。
 :::
 
 ---
@@ -293,21 +293,21 @@ function startWriting(topic: string): InkpointExperience {
 
 - [x] CodeMirror 6 ビジュアルレンダリングエンジン
 - [x] 公式 MDX Callout コンポーネント
-- [x] スマートドキュメントアウトライン（右上の「📑 アウトライン」で展開）
-- [x] AI 執筆支援（右上の「⚙️」からモデルを設定）
-- [ ] さらに高度な機能を継続開発中...
+- [x] ドキュメントアウトライン（サイドバー上部で切り替え）
+- [x] AI による続きの執筆（設定でモデルを指定）
+- [ ] 今後の機能を開発中
 
 | カテゴリ | 機能概要 | 体験状況 |
 | :--- | :--- | :---: |
-| **ビジュアル表現** | WYSIWYG レンダリングとテーマ適応 | ✅ スムーズ |
-| **構文コントロール** | ソースコード直接編集 | ✅ 自由 |
-| **ドキュメント構造** | 見出し階層の自動抽出とジャンプ | ✅ 瞬時 |
-| **データ安全性** | ローカル下書き自動保存、ワンクリック .md 出力 | ✅ 安全 |
+| **ビジュアル編集** | WYSIWYG レンダリングとテーマ対応 | 利用可 |
+| **ソース編集** | ソースモードで Markdown を直接編集 | 利用可 |
+| **ドキュメント構造** | 見出し階層の自動抽出とジャンプ | 利用可 |
+| **ローカル下書き** | 下書きはこの端末に保存され、.md で書き出せます | 利用可 |
 
 ---
 
-### 4. 自由に書いてみましょう！
-このドキュメントを自由に編集・追加したり、すべて消去して新規作成することもできます。初期状態に戻したい場合は、上部ナビゲーションの **「↺ リセット」** ボタンを押すだけで復元できます。
+### 4. 試してみる
+このドキュメントは自由に編集・追加・消去できます。デモ内容を元に戻すには、設定を開いて「初期デモ内容に戻す」を選んでください。
 `,
 };
 

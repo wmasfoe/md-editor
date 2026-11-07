@@ -57,10 +57,10 @@ export function InsertTableDialog({ open, onClose, onConfirm }: InsertTableDialo
 
   return (
     <Dialog open={open} onClose={onClose} className="fixed inset-0 z-[70]">
-      <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.35)] backdrop-blur-[2px] transition-opacity" />
+      <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.35)] transition-opacity" />
       <div className="fixed inset-0 grid place-items-center p-4">
-        <DialogPanel className="w-[min(380px,calc(100vw-2rem))] rounded-[12px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
-          <DialogTitle className="m-0 mb-5 text-center text-[15px] font-[650] leading-[1.4] text-[var(--theme-title)]">
+        <DialogPanel className="w-[min(380px,calc(100vw-2rem))] rounded-xl border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] p-5 shadow-[var(--theme-shadow)]">
+          <DialogTitle className="m-0 mb-5 text-center text-[15px] font-medium leading-[1.4] text-[var(--theme-title)]">
             {t("insertTable.title", { defaultValue: "插入表格" })}
           </DialogTitle>
 
@@ -76,7 +76,7 @@ export function InsertTableDialog({ open, onClose, onConfirm }: InsertTableDialo
                   value={cols}
                   onChange={(e) => setCols(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="h-[34px] w-[88px] rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-center text-[14px] text-[var(--theme-title)] transition-colors focus:border-[var(--theme-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]"
+                  className="h-9 w-[88px] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-center text-[14px] text-[var(--theme-title)] transition-colors focus:border-[var(--theme-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]"
                 />
               </label>
 
@@ -89,7 +89,7 @@ export function InsertTableDialog({ open, onClose, onConfirm }: InsertTableDialo
                   value={rows}
                   onChange={(e) => setRows(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className="h-[34px] w-[88px] rounded-[6px] border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-center text-[14px] text-[var(--theme-title)] transition-colors focus:border-[var(--theme-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]"
+                  className="h-9 w-[88px] rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input-bg,var(--theme-surface))] px-2 text-center text-[14px] text-[var(--theme-title)] transition-colors focus:border-[var(--theme-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-primary)]"
                 />
               </label>
             </div>

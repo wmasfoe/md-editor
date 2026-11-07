@@ -140,7 +140,7 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
     <Dialog open={open} onClose={onClose} className="fixed inset-0 z-[70]">
       <DialogBackdrop className="fixed inset-0 bg-[rgba(20,27,35,0.2)]" />
       <div className="fixed inset-0 grid place-items-start justify-center pt-[15vh]">
-        <DialogPanel className="w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-[10px] border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)]">
+        <DialogPanel className="w-[min(480px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--theme-border-strong)] bg-[var(--theme-surface)] shadow-[var(--theme-shadow)]">
           {/* 顶部搜索框 */}
           <div className="flex items-center gap-2 border-b border-[var(--theme-border)] px-4 py-3">
             <svg
@@ -182,7 +182,7 @@ export function MdxComponentMenu({ open, plugins, onInsert, onClose }: MdxCompon
             ) : (
               groups.map(({ group, groupItems, start }) => (
                 <li key={group}>
-                  <div className="px-4 pb-1 pt-3 text-[11px] font-[600] uppercase tracking-wide text-[var(--theme-muted)]">
+                  <div className="px-4 pb-1 pt-3 text-[12px] font-medium text-[var(--theme-muted)]">
                     {group}
                   </div>
                   <ul>

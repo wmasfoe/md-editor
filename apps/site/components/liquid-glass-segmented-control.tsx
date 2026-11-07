@@ -264,7 +264,7 @@ export function LiquidGlassSegmentedControl<T extends string>({
           className={`liquid-glass-pill absolute top-1 bottom-1 z-0 rounded-full ${
             isDragging
               ? "transition-none shadow-[0_8px_24px_-2px_rgba(28,25,23,0.16),0_3px_8px_rgba(28,25,23,0.08)] scale-[1.02]"
-              : "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+              : "transition-[left,width,box-shadow,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
           }`}
           style={{
             left: `calc(4px + ${effectivePos} * (100% - 8px) / ${count})`,
@@ -296,7 +296,7 @@ export function LiquidGlassSegmentedControl<T extends string>({
                 isDisabled
                   ? "opacity-40 text-muted/60 select-none"
                   : isActive
-                    ? "font-semibold text-ink"
+                    ? "font-medium text-ink"
                     : "font-medium text-muted"
               }`}
             >

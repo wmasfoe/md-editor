@@ -18,12 +18,9 @@ export function ReferralBanner() {
       aria-label="桌面版功能推介"
     >
       <div className="flex items-center gap-2 truncate">
-        <span className="px-1.5 py-0.2 text-[10px] font-semibold bg-[var(--theme-surface)] text-[var(--theme-primary)] rounded border border-[var(--theme-primary-soft)] shrink-0">
-          PRO
-        </span>
-        <span className="text-[var(--theme-title)] font-medium shrink-0">Inkpoint 桌面端：</span>
+        <span className="text-[var(--theme-title)] font-medium shrink-0">Inkpoint 桌面版</span>
         <span className="text-[var(--theme-muted)] truncate">
-          支持多窗口、离线本地专属微调小模型（隐私零外传）、系统级原生菜单
+          多窗口、本地离线模型、系统原生菜单
         </span>
       </div>
 
