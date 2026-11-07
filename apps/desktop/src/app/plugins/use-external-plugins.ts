@@ -11,6 +11,7 @@ import {
   mathPlugin,
   mermaidPlugin,
 } from "@md-editor/syntax-plugins";
+import { validateKeymapKey } from "@md-editor/editor-core";
 import { createPluginHost } from "@md-editor/plugin-host";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
@@ -49,7 +50,7 @@ export function useExternalPlugins(
     const registered = new Map<string, MarkdownSyntaxPlugin>();
     const validationErrors = new Map<string, string>();
     const activationTokens = new Map<string, object>();
-    const contributedKeys = new Map<string, { id: string; key: string; pluginId: string }>();
+    const contributedKeys = new Map<string, PluginStatusEvent["keymaps"][number]>();
     let records: StoredPlugin[] = [];
     let closed = false;
     const safeStart = isTauri()
@@ -85,11 +86,36 @@ export function useExternalPlugins(
             .filter((plugin) => keymap.id.startsWith(`${plugin.id}.`))
             .toSorted((left, right) => right.id.length - left.id.length)[0];
           if (!owner) throw new Error(`Unknown plugin for keymap: ${keymap.id}`);
-          const registration = runtime.keymaps.register({
-            ...keymap,
-            key: owner?.keymapOverrides?.[keymap.id] ?? keymap.key,
+          // 用户覆盖键可能格式不合法，或与内置/其他插件冲突。覆盖键失败时回退到插件声明的
+          // 默认键并把原因展示给用户，不能让一个快捷键拖垮整个插件的语法与命令。
+          const override = owner.keymapOverrides?.[keymap.id];
+          let overrideError: PluginStatusEvent["keymaps"][number]["overrideError"];
+          let effectiveKey: string | null = keymap.key;
+          if (override && override !== keymap.key) {
+            const invalid = validateKeymapKey(override);
+            const conflict = invalid ? undefined : runtime.keymaps.findConflict(override);
+            if (invalid) overrideError = { kind: "invalid", message: invalid };
+            else if (conflict) overrideError = { kind: "conflict", message: conflict.id };
+            else effectiveKey = override;
+          }
+          // 默认键同样可能被内置功能或先启用的插件占用。这时只跳过这条快捷键，
+          // 命令仍可从命令面板执行，语法与其他贡献不受影响。
+          const defaultConflict =
+            effectiveKey === keymap.key ? runtime.keymaps.findConflict(keymap.key) : undefined;
+          if (defaultConflict) {
+            effectiveKey = null;
+            overrideError ??= { kind: "conflict", message: defaultConflict.id };
+          }
+          const registration = effectiveKey
+            ? runtime.keymaps.register({ ...keymap, key: effectiveKey })
+            : { dispose() {} };
+          contributedKeys.set(keymap.id, {
+            id: keymap.id,
+            key: keymap.key,
+            pluginId: owner.id,
+            effectiveKey,
+            ...(overrideError ? { overrideError } : {}),
           });
-          contributedKeys.set(keymap.id, { id: keymap.id, key: keymap.key, pluginId: owner.id });
           publishStatus();
           return {
             dispose() {

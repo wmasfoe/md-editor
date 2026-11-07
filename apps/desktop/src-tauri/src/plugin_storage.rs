@@ -18,11 +18,14 @@ pub(crate) struct PluginSource {
     sha256: String,
 }
 
+/// Only the exact downloaded bytes are persisted. The parsed package is derived from `raw` on
+/// load, so storing it again would double the file size for every current/previous/pending copy.
+/// Older files that still carry a `package` field load fine because unknown fields are ignored,
+/// and the next write drops it.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PluginVersion {
     source: PluginSource,
-    package: Value,
     raw: String,
 }
 
@@ -183,7 +186,6 @@ mod tests {
                 plugin_id: "owner.plugin".into(),
                 sha256: "hash".into(),
             },
-            package: serde_json::json!({"code":"export default {}"}),
             raw: "{}".into(),
         };
         let mut plugin = StoredPlugin {
@@ -233,5 +235,43 @@ mod tests {
         plugin.previous = None;
         assert!(upsert(&path, plugin).is_err());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn reads_legacy_records_with_package_and_drops_it_on_write() {
+        let path = std::env::temp_dir().join(format!(
+            "plugin-storage-legacy-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let legacy = serde_json::json!([{
+            "id": "owner.plugin",
+            "revision": 5,
+            "enabled": true,
+            "settings": {},
+            "keymapOverrides": {},
+            "current": {
+                "source": {
+                    "owner": "owner", "repo": "repo", "releaseId": 1, "tag": "v1",
+                    "assetId": 2, "pluginId": "owner.plugin", "sha256": "hash"
+                },
+                "package": {"code": "export default {}"},
+                "raw": "{}"
+            },
+            "previous": null,
+            "pending": null
+        }]);
+        fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+        let mut plugin = read(&path).unwrap().remove(0);
+        assert_eq!(plugin.current.raw, "{}");
+        plugin.enabled = false;
+        upsert(&path, plugin).unwrap();
+        let written: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert!(written[0]["current"].get("package").is_none());
+        assert_eq!(written[0]["current"]["raw"], "{}");
+        fs::remove_file(path).ok();
     }
 }

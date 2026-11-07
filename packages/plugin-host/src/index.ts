@@ -1,4 +1,4 @@
-export { createPluginHost } from "./host.ts";
+export { createPluginHost, syntaxNodePrefix } from "./host.ts";
 export type { PluginHostOptions, PluginStatus } from "./host.ts";
 export {
   MAX_CATALOG_BYTES,

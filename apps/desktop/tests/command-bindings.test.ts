@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   bindRuntimeKeyboardShortcuts,
   createRuntimeKeyboardShortcuts,
 } from "../src/app/events/command-bindings";
+import { runtime } from "../src/app/runtime/editor-runtime";
 import { createDefaultSettings } from "../src/app/settings/persistence/storage";
 
 function createKeyEvent(overrides: Partial<KeyboardEvent>): KeyboardEvent {
@@ -212,5 +213,57 @@ describe("createRuntimeKeyboardShortcuts", () => {
     unbind();
     globalThis.window = originalWindow;
     globalThis.document = originalDocument;
+  });
+
+  it("bindRuntimeKeyboardShortcuts 只在快捷键注册变化后重建匹配表，并能识别运行中新增的插件快捷键", () => {
+    const originalWindow = globalThis.window;
+    const listeners: Array<(event: KeyboardEvent) => void> = [];
+    (globalThis as unknown as { window: unknown }).window = {
+      addEventListener: (_type: string, listener: (event: KeyboardEvent) => void) => {
+        listeners.push(listener);
+      },
+      removeEventListener: () => {},
+    };
+    const listSpy = vi.spyOn(runtime.keymaps, "list");
+    const dispatched: string[] = [];
+    const unbind = bindRuntimeKeyboardShortcuts(async (id: string) => {
+      dispatched.push(id);
+    }, createDefaultSettings());
+    const press = (key: string) =>
+      listeners[0]!(
+        createKeyEvent({
+          metaKey: true,
+          altKey: true,
+          key,
+          code: `Key${key.toUpperCase()}`,
+          target: { tagName: "DIV", closest: () => null } as unknown as EventTarget,
+          preventDefault: () => {},
+        }),
+      );
+    try {
+      press("q");
+      press("q");
+      press("q");
+      // 三次按键只建一次表：createRuntimeKeyboardShortcuts 每次建表调用两次 list()。
+      expect(listSpy).toHaveBeenCalledTimes(2);
+      expect(dispatched).toEqual([]);
+
+      const registration = runtime.keymaps.register({
+        id: "author.test.key",
+        key: "Mod-Alt-q",
+        commandId: "author.test.command",
+      });
+      press("q");
+      expect(dispatched).toEqual(["author.test.command"]);
+      expect(listSpy).toHaveBeenCalledTimes(4);
+
+      registration.dispose();
+      press("q");
+      expect(dispatched).toEqual(["author.test.command"]);
+    } finally {
+      unbind();
+      listSpy.mockRestore();
+      (globalThis as unknown as { window: unknown }).window = originalWindow;
+    }
   });
 });

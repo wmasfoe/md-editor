@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PluginContext, PluginDefinition, PluginPackage } from "@md-editor/plugin-sdk";
-import { createPluginHost, validateCatalog, validatePluginPackage } from "../src/index.ts";
+import {
+  createPluginHost,
+  syntaxNodePrefix,
+  validateCatalog,
+  validatePluginPackage,
+} from "../src/index.ts";
 
 const pkg: PluginPackage = {
   manifest: {
@@ -93,6 +98,40 @@ describe("plugin host", () => {
     await host.enable(pkg);
     expect(() => host.disable(pkg.manifest.id)).not.toThrow();
     expect(cleanup).toHaveBeenCalledOnce();
+  });
+  it("derives distinct node prefixes for IDs that previously collided", () => {
+    expect(syntaxNodePrefix("author.weekly")).toBe("AuthorWeekly_");
+    expect(syntaxNodePrefix("my-org.tool")).toBe("My_OrgTool_");
+    // `a.b` and `a-b` used to both map to `AB`.
+    expect(syntaxNodePrefix("a.b")).not.toBe(syntaxNodePrefix("a-b"));
+    // `owner.plugin`'s prefix used to also be a prefix of `owner.pluginx`'s.
+    expect(syntaxNodePrefix("owner.pluginx").startsWith(syntaxNodePrefix("owner.plugin"))).toBe(
+      false,
+    );
+  });
+  it("rejects a node that borrows a neighbouring plugin's namespace", async () => {
+    const { host } = setup((ctx) => {
+      ctx.syntax.register({
+        id: "test.plugin.syntax",
+        name: "Syntax",
+        // Valid for `test.pluginx`, so it must not be accepted for `test.plugin`.
+        nodePolicy: { nodeName: "TestPluginx_Node", kind: "raw-fallback", isBlock: false },
+      });
+    });
+    await expect(host.enable(pkg)).rejects.toThrow(
+      "Syntax nodes must be namespaced by TestPlugin_",
+    );
+  });
+  it("accepts nodes under the plugin's own prefix", async () => {
+    const { host, register } = setup((ctx) => {
+      ctx.syntax.register({
+        id: "test.plugin.syntax",
+        name: "Syntax",
+        nodePolicy: { nodeName: "TestPlugin_Node", kind: "raw-fallback", isBlock: false },
+      });
+    });
+    await host.enable(pkg);
+    expect(register).toHaveBeenCalled();
   });
   it("rejects unnamespaced nodes in nested syntax configuration", async () => {
     const { host } = setup((ctx) => {

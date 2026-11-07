@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   records: [] as unknown[],
   listener: undefined as (() => void) | undefined,
   commands: new Map<string, { run(): unknown }>(),
-  keymaps: new Map<string, unknown>(),
+  keymaps: new Map<string, { id: string; key: string }>(),
 }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false, invoke: vi.fn() }));
 vi.mock("@tauri-apps/api/event", () => ({ emit: vi.fn(), listen: vi.fn() }));
@@ -41,17 +41,29 @@ vi.mock("../../../src/app/runtime/editor-runtime", () => ({
         return { dispose: () => state.commands.delete(command.id) };
       },
     },
+    // Mirrors editor-core's registry: a key already bound is rejected, so tests catch the
+    // same conflicts the real runtime would.
     keymaps: {
-      register(keymap: { id: string }) {
+      register(keymap: { id: string; key: string }) {
+        if ([...state.keymaps.values()].some((item) => item.key === keymap.key))
+          throw new Error(`Ambiguous key binding: ${keymap.key}`);
         state.keymaps.set(keymap.id, keymap);
         return { dispose: () => state.keymaps.delete(keymap.id) };
       },
+      findConflict(key: string) {
+        return [...state.keymaps.values()].find((item) => item.key === key);
+      },
+      version: 0,
     },
   },
 }));
 import { useExternalPlugins } from "../../../src/app/plugins/use-external-plugins";
 
-async function record(id: string, updateSettings = false): Promise<StoredPlugin> {
+async function record(
+  id: string,
+  updateSettings = false,
+  key = `Mod-Shift-${id.length % 10}`,
+): Promise<StoredPlugin> {
   const pkg = {
     manifest: { id, name: id, version: "1", description: "test", apiVersion: 1 as const },
     code: `export default { activate(context) {
@@ -60,7 +72,7 @@ async function record(id: string, updateSettings = false): Promise<StoredPlugin>
         globalThis.pluginObservation = { settings: context.settings.get(), snapshot: context.editor.getSnapshot() };
         return context.editor.applyEdit({ markdown: 'after', expectedGeneration: 2, expectedContentRevision: 3 });
       }});
-      context.keymaps.register({ id: context.manifest.id + '.key', key: 'Mod-Shift-9', commandId: context.manifest.id + '.command' });
+      context.keymaps.register({ id: context.manifest.id + '.key', key: ${JSON.stringify(key)}, commandId: context.manifest.id + '.command' });
     } }`,
     examples: [],
     settings: { enabled: { type: "boolean" as const, label: "Enabled", default: false } },
@@ -131,7 +143,10 @@ describe("desktop external plugin lifecycle", () => {
     vi.unstubAllGlobals();
   });
   it("loads independent contributions, synchronizes settings, applies edits, and cleans up on disable and removal", async () => {
-    state.records = [await record("author.one"), await record("author.two")];
+    state.records = [
+      await record("author.one", false, "Mod-Shift-1"),
+      await record("author.two", false, "Mod-Shift-2"),
+    ];
     const ports = {
       getSelectionSnapshot: () => ({ anchor: 1, head: 4 }),
       applyExternalEdit: (request: unknown) => {
@@ -216,5 +231,45 @@ describe("desktop external plugin lifecycle", () => {
     // No storage event is delivered between these writes, as can happen across windows.
     await state.commands.get("author.settings.command")!.run();
     expect(state.records[0]).toMatchObject({ revision: 3, settings: { enabled: false } });
+  });
+
+  it("falls back to the default key when an override is invalid or taken, keeping the plugin active", async () => {
+    const plugin = await record("author.keys", false, "Mod-Shift-3");
+    state.keymaps.set("builtin.save", { id: "builtin.save", key: "Mod-s" });
+    const ports = {
+      getSelectionSnapshot: () => ({ anchor: 0, head: 0 }),
+      applyExternalEdit: () => ({ status: "applied" }),
+    } as unknown as CodeMirrorEditorPorts;
+    function Harness() {
+      useExternalPlugins(ports);
+      return null;
+    }
+    for (const override of ["Mod-s", "Ctrl-x"]) {
+      state.commands.clear();
+      for (const id of state.keymaps.keys()) if (id !== "builtin.save") state.keymaps.delete(id);
+      state.records = [{ ...plugin, keymapOverrides: { "author.keys.key": override } }];
+      await act(async () => root.render(createElement(Harness)));
+      // The command still registers, so a bad shortcut no longer disables the whole plugin.
+      await vi.waitFor(() => expect(state.commands.has("author.keys.command")).toBe(true));
+      expect(state.keymaps.get("author.keys.key")?.key).toBe("Mod-Shift-3");
+      await act(async () => root.render(createElement("div")));
+    }
+  });
+
+  it("skips only the shortcut when the plugin's default key is already taken", async () => {
+    state.keymaps.set("builtin.taken", { id: "builtin.taken", key: "Mod-Shift-4" });
+    state.records = [await record("author.clash", false, "Mod-Shift-4")];
+    const ports = {
+      getSelectionSnapshot: () => ({ anchor: 0, head: 0 }),
+      applyExternalEdit: () => ({ status: "applied" }),
+    } as unknown as CodeMirrorEditorPorts;
+    function Harness() {
+      useExternalPlugins(ports);
+      return null;
+    }
+    await act(async () => root.render(createElement(Harness)));
+    await vi.waitFor(() => expect(state.commands.has("author.clash.command")).toBe(true));
+    expect(state.keymaps.has("author.clash.key")).toBe(false);
+    expect(state.keymaps.get("builtin.taken")?.key).toBe("Mod-Shift-4");
   });
 });

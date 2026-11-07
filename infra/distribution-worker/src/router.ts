@@ -23,7 +23,7 @@ export async function handleRequest(
   env: Env,
   ctx?: ExecutionContext,
 ): Promise<Response> {
-  const pluginResponse = await handlePluginGitHub(request);
+  const pluginResponse = await handlePluginGitHub(request, env);
   if (pluginResponse) return pluginResponse;
 
   const { context, cachedResponse } = await createRouterContext(request, env, ctx);

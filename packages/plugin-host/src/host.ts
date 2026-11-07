@@ -61,6 +61,25 @@ function collectNodes(config: Syntax["markdownExtension"]): string[] {
   return (config.defineNodes ?? []).map((node) => (typeof node === "string" ? node : node.name));
 }
 
+/**
+ * 由插件 ID 推导语法节点名的命名空间前缀，节点名必须是 `<前缀><后缀>`。
+ *
+ * 规则：按 `.` 分段转 PascalCase 后以 `_` 结尾，段内的 `-` 也转大写并保留为 `_`
+ * 以外的独立边界，例如 `author.weekly` → `AuthorWeekly_`，`my-org.tool` → `My_OrgTool_`。
+ *
+ * - 结尾的 `_` 让前缀不再是另一个更长 ID 前缀的前缀（`owner.plugin` 与 `owner.pluginx`）。
+ * - `.` 与 `-` 映射成不同形态，`a.b`（`AB_`）与 `a-b`（`A_B_`）不会得到同一个前缀。
+ * 插件 ID 只含小写字母、数字、`.` 与 `-`（见 `validation.ts`），所以 `_` 只来自本函数。
+ */
+const pascal = (part: string) => part.charAt(0).toUpperCase() + part.slice(1);
+
+export function syntaxNodePrefix(id: string): string {
+  return `${id
+    .split(".")
+    .map((segment) => segment.split("-").map(pascal).join("_"))
+    .join("")}_`;
+}
+
 export function createPluginHost(options: PluginHostOptions) {
   const sessions = new Map<string, Session>();
   const statuses = new Map<string, PluginStatus>();
@@ -187,10 +206,7 @@ export function createPluginHost(options: PluginHostOptions) {
               ...(value.nodePolicy ? [value.nodePolicy.nodeName] : []),
             ];
             const uniqueNames = [...new Set(names)];
-            const prefix = id
-              .split(/[.-]/)
-              .map((part) => part[0]?.toUpperCase() + part.slice(1))
-              .join("");
+            const prefix = syntaxNodePrefix(id);
             if (
               uniqueNames.some((name) => !name.startsWith(prefix) || name.length === prefix.length)
             )

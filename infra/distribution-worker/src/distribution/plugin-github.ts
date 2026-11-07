@@ -1,3 +1,5 @@
+import type { Env } from "../types.ts";
+
 /** Public GitHub release access for plugin catalogs; callers cannot supply upstream URLs. */
 const headers = {
   "User-Agent": "Inkpoint-Plugin-Distribution",
@@ -11,17 +13,43 @@ const cors = {
 const validName = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const validId = /^[1-9][0-9]*$/;
 
-async function github(path: string, signal: AbortSignal, binary = false): Promise<Response> {
+/**
+ * Edge cache lifetimes for upstream metadata, in seconds.
+ * A release addressed by numeric ID and its asset list are effectively immutable once published,
+ * while `latest` and tags can move, so they get a short lifetime to pick up new publishes quickly.
+ */
+const IMMUTABLE_TTL = 3600;
+const MOVING_TTL = 60;
+
+type Cacheable = { cacheTtl: number } | false;
+
+/**
+ * Unauthenticated requests share a 60/hour limit per egress IP, which Workers share. A token lifts
+ * that to 5000/hour. `cache` lets Cloudflare serve repeated metadata reads without hitting GitHub;
+ * binary asset downloads are never cached here because they redirect to GitHub's asset CDN.
+ */
+async function github(
+  env: Env,
+  path: string,
+  signal: AbortSignal,
+  options: { binary?: boolean; cache?: Cacheable } = {},
+): Promise<Response> {
+  const { binary = false, cache = false } = options;
   let url = `https://api.github.com${path}`;
   for (let redirects = 0; redirects < 4; redirects++) {
-    const response = await fetch(url, {
+    // Credentials must only ever be sent to GitHub's API host, never to a redirect target.
+    const sendToken = Boolean(env.GITHUB_TOKEN) && new URL(url).hostname === "api.github.com";
+    const init: RequestInit & { cf?: { cacheTtl: number; cacheEverything: boolean } } = {
       headers: {
         ...headers,
         Accept: binary ? "application/octet-stream" : "application/vnd.github+json",
+        ...(sendToken ? { Authorization: `Bearer ${env.GITHUB_TOKEN}` } : {}),
       },
       redirect: "manual",
       signal,
-    });
+    };
+    if (cache && redirects === 0) init.cf = { cacheTtl: cache.cacheTtl, cacheEverything: true };
+    const response = await fetch(url, init);
     if (response.status < 300 || response.status >= 400) {
       if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
       return response;
@@ -80,7 +108,7 @@ async function bounded(response: Response, limit: number): Promise<Uint8Array> {
   return bytes;
 }
 
-export async function handlePluginGitHub(request: Request): Promise<Response | null> {
+export async function handlePluginGitHub(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/plugins/github/")) return null;
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -102,10 +130,12 @@ export async function handlePluginGitHub(request: Request): Promise<Response | n
       validId.test(rest[1] ?? "")
     ) {
       // Verify membership against the release before retrieving the asset.
-      const assets = await listAssets(base, selector, controller.signal);
+      const assets = await listAssets(env, base, selector, controller.signal, IMMUTABLE_TTL);
       const asset = assets.find((item) => item.id === Number(rest[1]));
       if (!asset) throw new Error("Asset does not belong to release");
-      const response = await github(`${base}/assets/${rest[1]}`, controller.signal, true);
+      const response = await github(env, `${base}/assets/${rest[1]}`, controller.signal, {
+        binary: true,
+      });
       const bytes = await bounded(
         response,
         asset.name === "inkpoint-plugin.json" ? 1024 * 1024 : 10 * 1024 * 1024,
@@ -115,12 +145,16 @@ export async function handlePluginGitHub(request: Request): Promise<Response | n
       });
     }
     let suffix: string;
+    let ttl = MOVING_TTL;
     if (selector === "latest" && rest.length === 0) suffix = "/latest";
-    else if (selector === "id" && rest.length === 1 && validId.test(rest[0] ?? ""))
+    else if (selector === "id" && rest.length === 1 && validId.test(rest[0] ?? "")) {
       suffix = `/${rest[0]}`;
-    else if (selector === "tags" && rest.length === 1 && rest[0]) suffix = `/tags/${rest[0]}`;
+      ttl = IMMUTABLE_TTL;
+    } else if (selector === "tags" && rest.length === 1 && rest[0]) suffix = `/tags/${rest[0]}`;
     else return new Response("Invalid release selector", { status: 400, headers: cors });
-    const response = await github(`${base}${suffix}`, controller.signal);
+    const response = await github(env, `${base}${suffix}`, controller.signal, {
+      cache: { cacheTtl: ttl },
+    });
     const release = JSON.parse(new TextDecoder().decode(await bounded(response, 1024 * 1024))) as {
       id: number;
       tag_name: string;
@@ -133,7 +167,15 @@ export async function handlePluginGitHub(request: Request): Promise<Response | n
       release.draft
     )
       throw new Error("Invalid release");
-    const assets = await listAssets(base, String(release.id), controller.signal);
+    // The asset list of a resolved release ID cannot change underneath that ID, so cache it long
+    // even when the release itself was found through a moving selector.
+    const assets = await listAssets(
+      env,
+      base,
+      String(release.id),
+      controller.signal,
+      IMMUTABLE_TTL,
+    );
     return new Response(JSON.stringify({ id: release.id, tag: release.tag_name, assets }), {
       headers: cors,
     });
@@ -150,14 +192,21 @@ export async function handlePluginGitHub(request: Request): Promise<Response | n
 }
 
 async function listAssets(
+  env: Env,
   base: string,
   releaseId: string,
   signal: AbortSignal,
+  ttl: number,
 ): Promise<Array<{ id: number; name: string; digest: string | null }>> {
   const assets: Array<{ id: number; name: string; digest: string | null }> = [];
   let metadataBytes = 0;
   for (let page = 1; ; page++) {
-    const response = await github(`${base}/${releaseId}/assets?per_page=100&page=${page}`, signal);
+    const response = await github(
+      env,
+      `${base}/${releaseId}/assets?per_page=100&page=${page}`,
+      signal,
+      { cache: { cacheTtl: ttl } },
+    );
     const bytes = await bounded(response, 1024 * 1024);
     metadataBytes += bytes.byteLength;
     if (metadataBytes > 10 * 1024 * 1024)

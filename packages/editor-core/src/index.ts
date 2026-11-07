@@ -9,6 +9,7 @@ export * from "./document-identity.ts";
 export * from "./markdown.ts";
 export * from "./raw-fragments.ts";
 export * from "./session/index.ts";
+export { validateKeymapKey } from "./keymap-validation.ts";
 
 export interface CommandContext {
   readonly document: DocumentState;
@@ -62,6 +63,16 @@ export interface KeymapRegistry {
   register(keymap: KeymapDescriptor): Disposable;
   unregister(id: string): boolean;
   list(): readonly KeymapDescriptor[];
+  /**
+   * 查询已占用某个键位的快捷键（`when` 相同才算冲突），供 UI 在保存前提示，
+   * 避免靠 `register` 抛错才发现冲突。
+   */
+  findConflict(key: string, when?: string): KeymapDescriptor | undefined;
+  /**
+   * 注册内容的版本号，每次注册或注销成功后递增。调用方可以据此缓存由 `list()` 派生的
+   * 数据（如按键匹配表），版本不变时直接复用，不必在每次按键时重建。
+   */
+  readonly version: number;
 }
 
 export interface FeatureContext {
@@ -264,8 +275,12 @@ export function createCommandRegistry(): CommandRegistry {
 export function createKeymapRegistry(): KeymapRegistry {
   const keymaps = new Map<string, KeymapDescriptor>();
   const bindings = new Set<string>();
+  let version = 0;
 
   return {
+    get version() {
+      return version;
+    },
     register(keymap) {
       const bindingKey = `${keymap.key}::${keymap.when ?? ""}`;
       if (keymaps.has(keymap.id)) {
@@ -278,11 +293,13 @@ export function createKeymapRegistry(): KeymapRegistry {
       const registration = { ...keymap };
       keymaps.set(keymap.id, registration);
       bindings.add(bindingKey);
+      version++;
       return {
         dispose() {
           if (keymaps.get(keymap.id) === registration) {
             keymaps.delete(keymap.id);
             bindings.delete(bindingKey);
+            version++;
           }
         },
       };
@@ -292,10 +309,17 @@ export function createKeymapRegistry(): KeymapRegistry {
       if (!keymap) return false;
       keymaps.delete(id);
       bindings.delete(`${keymap.key}::${keymap.when ?? ""}`);
+      version++;
       return true;
     },
     list() {
       return [...keymaps.values()];
+    },
+    findConflict(key, when) {
+      const bindingKey = `${key}::${when ?? ""}`;
+      return [...keymaps.values()].find(
+        (keymap) => `${keymap.key}::${keymap.when ?? ""}` === bindingKey,
+      );
     },
   };
 }

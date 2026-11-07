@@ -1,3 +1,4 @@
+import { validateKeymapKey } from "@md-editor/editor-core";
 import { useTranslation } from "@md-editor/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -11,12 +12,15 @@ import { isTauri } from "@tauri-apps/api/core";
 import { openExternalTarget } from "../../desktop/link-service";
 import {
   listenForPluginChanges,
-  loadPlugins,
+  loadPluginState,
   removePlugin,
   savePlugin,
   type PluginStatusEvent,
+  type PluginVersion,
   type StoredPlugin,
+  type UnreadablePlugin,
 } from "../../app/plugins/storage";
+import { PluginInstallConfirmDialog } from "./PluginInstallConfirmDialog";
 
 /** Each install is explicitly selected and trusted by the user before its code is stored. */
 export function ExternalPluginSettings() {
@@ -29,9 +33,17 @@ export function ExternalPluginSettings() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [updateMessages, setUpdateMessages] = useState<Record<string, string>>({});
+  // 已下载并校验、但尚未得到用户信任确认的首次安装。确认前不写入存储，也就不会执行。
+  const [pendingInstall, setPendingInstall] = useState<PluginVersion | null>(null);
+  // 快捷键输入框的本地格式错误，按 keymap id 记录；冲突由主窗口在真实注册表上判断后回传。
+  const [shortcutErrors, setShortcutErrors] = useState<Record<string, string>>({});
+  const [unreadable, setUnreadable] = useState<UnreadablePlugin[]>([]);
   const refresh = useCallback(() => {
-    void loadPlugins()
-      .then(setPlugins)
+    void loadPluginState()
+      .then((state) => {
+        setPlugins(state.plugins);
+        setUnreadable(state.unreadable);
+      })
       .catch((e) => setError(String(e)));
   }, []);
   useEffect(() => {
@@ -146,20 +158,12 @@ export function ExternalPluginSettings() {
                           }));
                           return;
                         }
-                        await savePlugin(
-                          existing
-                            ? { ...existing, pending: version }
-                            : {
-                                id: entry.id,
-                                revision: 0,
-                                enabled: true,
-                                settings: {},
-                                keymapOverrides: {},
-                                current: version,
-                                previous: null,
-                                pending: null,
-                              },
-                        );
+                        if (existing) {
+                          // 更新来自已信任的同一仓库，先放入待生效版本，下次启动才执行。
+                          await savePlugin({ ...existing, pending: version });
+                          return;
+                        }
+                        setPendingInstall(version);
                       })
                     }
                   >
@@ -196,6 +200,23 @@ export function ExternalPluginSettings() {
               {t("pluginPreview.disableAll")}
             </button>
           )}
+          {unreadable.map((item) => (
+            <div
+              key={item.id}
+              role="alert"
+              className="flex flex-wrap items-center gap-3 rounded border border-[var(--theme-border)] p-3 text-sm"
+            >
+              <span>
+                <strong>{item.id}</strong> · {t("pluginPreview.unreadable")}：{item.error}
+              </span>
+              <button
+                disabled={busy}
+                onClick={() => void perform(() => removePlugin(item.id, item.revision))}
+              >
+                {t("pluginPreview.remove")}
+              </button>
+            </div>
+          ))}
           {plugins.map((plugin) => (
             <div
               key={plugin.id}
@@ -293,23 +314,55 @@ export function ExternalPluginSettings() {
               {keymaps
                 .filter((keymap) => keymap.pluginId === plugin.id)
                 .map((keymap) => (
-                  <label key={keymap.id} className="flex items-center gap-2">
-                    {t("pluginPreview.shortcut")} {keymap.id}
-                    <input
-                      defaultValue={plugin.keymapOverrides?.[keymap.id] ?? keymap.key}
-                      onBlur={(event) =>
-                        void perform(() =>
-                          savePlugin({
-                            ...plugin,
-                            keymapOverrides: {
-                              ...plugin.keymapOverrides,
-                              [keymap.id]: event.target.value || keymap.key,
-                            },
-                          }),
-                        )
-                      }
-                    />
-                  </label>
+                  <div key={keymap.id} className="grid gap-1">
+                    <label className="flex items-center gap-2">
+                      {t("pluginPreview.shortcut")} {keymap.id}
+                      <input
+                        defaultValue={plugin.keymapOverrides?.[keymap.id] ?? keymap.key}
+                        aria-invalid={Boolean(shortcutErrors[keymap.id] || keymap.overrideError)}
+                        onBlur={(event) => {
+                          const value = event.target.value.trim() || keymap.key;
+                          // 设置页可能在独立窗口里，拿不到主窗口的快捷键注册表，这里只拦格式；
+                          // 冲突由主窗口注册时判断，并通过 overrideError 回传展示。
+                          const invalid = validateKeymapKey(value);
+                          setShortcutErrors((errors) => {
+                            const next = { ...errors };
+                            if (invalid) next[keymap.id] = invalid;
+                            else delete next[keymap.id];
+                            return next;
+                          });
+                          if (
+                            invalid ||
+                            value === (plugin.keymapOverrides?.[keymap.id] ?? keymap.key)
+                          )
+                            return;
+                          void perform(() =>
+                            savePlugin({
+                              ...plugin,
+                              keymapOverrides: { ...plugin.keymapOverrides, [keymap.id]: value },
+                            }),
+                          );
+                        }}
+                      />
+                    </label>
+                    {shortcutErrors[keymap.id] && (
+                      <span role="alert" className="text-xs">
+                        {t("pluginPreview.shortcutInvalid")}
+                        {shortcutErrors[keymap.id]}
+                      </span>
+                    )}
+                    {!shortcutErrors[keymap.id] && keymap.overrideError && (
+                      <span role="alert" className="text-xs">
+                        {keymap.overrideError.kind === "conflict"
+                          ? t("pluginPreview.shortcutConflict")
+                          : t("pluginPreview.shortcutInvalid")}
+                        {keymap.overrideError.message}
+                        {keymap.effectiveKey
+                          ? ` · ${t("pluginPreview.shortcutFallback")}${keymap.effectiveKey}`
+                          : ` · ${t("pluginPreview.shortcutDisabled")}`}
+                      </span>
+                    )}
+                  </div>
                 ))}
               {Object.entries(plugin.current.package.settings ?? {}).map(([key, definition]) => (
                 <label key={key} className="flex items-center gap-2">
@@ -374,6 +427,28 @@ export function ExternalPluginSettings() {
           {error}
         </p>
       )}
+      <PluginInstallConfirmDialog
+        version={pendingInstall}
+        busy={busy}
+        onCancel={() => setPendingInstall(null)}
+        onConfirm={() => {
+          const version = pendingInstall;
+          if (!version) return;
+          void perform(async () => {
+            await savePlugin({
+              id: version.source.pluginId,
+              revision: 0,
+              enabled: true,
+              settings: {},
+              keymapOverrides: {},
+              current: version,
+              previous: null,
+              pending: null,
+            });
+            setPendingInstall(null);
+          });
+        }}
+      />
     </section>
   );
 }

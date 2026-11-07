@@ -335,6 +335,12 @@ describe("MarkdownSyntaxPlugin & SyntaxPluginRegistry (Renderer Core)", () => {
     renderer.setPlugins([pluginMath, pluginMermaid]);
     expect(dispatchedEffects.length).toBe(dispatchCount1);
 
+    // 调用方（如 web 端设置变化后 useMemo 重新 filter）常会传入一个新数组，
+    // 但数组里仍是同一批插件实例。比较的是实例而不是数组本身，所以同样不能重配。
+    const rebuiltArray = [pluginMath, pluginMermaid].filter(() => true);
+    renderer.setPlugins(rebuiltArray);
+    expect(dispatchedEffects.length).toBe(dispatchCount1);
+
     // The same stable ID can carry a new parser/projection after an upgrade.
     const nextMath = { ...pluginMath, name: "Math Plugin v2" };
     renderer.setPlugins([nextMath, pluginMermaid]);
