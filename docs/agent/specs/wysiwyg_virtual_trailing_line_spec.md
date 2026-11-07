@@ -15,7 +15,7 @@
 
 配套规范：
 
-- [CM6 块级 widget 的文末落脚行规范](./codemirror_block_widget_trailing_row_spec.md)：为什么虚拟行必须是零长度两端 inclusive 的 `replace`，以及 CM6 构建器的补行机制；
+- [CM6 块级 widget 的文末落脚行规范](./codemirror_block_widget_trailing_row_spec.md)：为什么虚拟行要复用 CM6 在文末合成的那一行、四种自己造行的做法为何都被否决，以及构建器的补行机制；
 - [HTML 块源码展开与预览规范](./html_block_source_reveal_and_preview_spec.md)：HTML 块与虚拟行共用 `doc.length` 光标时谁拥有它；
 - [整行块级替换 Inclusivity 规范](./thematic_break_and_block_inclusivity_spec.md)：虚拟行存在的根因是整行替换会吞掉自己下方的那一行。
 
@@ -61,18 +61,22 @@
    > 反例（已修复）：光标移出文末的注释块（`<!-- -->`）时无条件点亮虚拟行。注释块不在 `TERMINAL_BLOCK_KINDS` 里，文末根本没有虚拟行可显示，激活态却为真，虚拟行的高优先级键位会吞掉 Enter / Backspace / Delete，用户被困在文末。
 
 5. **激活态的生命周期**：`virtualTrailingLineActiveField` 在文档变更，或主选区离开 `doc.length` 时自动清除；显式 `setVirtualTrailingLineActiveEffect` 优先于自动清除。
-6. **块下方只能有一个落脚行**：虚拟行的装饰必须是零长度、`inclusiveStart` 与 `inclusiveEnd` **都为 true** 的块级 `Decoration.replace`，位于 `doc.length`；不要改回普通 `Decoration.widget`。机理与四种组合的实测见「块级 widget 的文末落脚行规范」。文档自带空行（`\n\n` 结尾）时不挂载虚拟行，落脚行就是文档里的那个空行，同样只有一个。
+6. **块下方只能有一个落脚行，并且它就是 CM6 在文末合成的那一行**：虚拟行用 `Decoration.line` 在 `doc.length` 给合成行加 `cm-virtual-trailing-line` class，不自己造行。光标由 CM6 画在这一行里。块的最后一行是它自己的真实文本行时（Frontmatter 闭合 `---` 无尾随换行，或 HTML 块被展开成源码），没有合成行可复用，改用一个 `side: 1` 的占位块 widget。机理、四种被否决的写法与 tile 树实测见「块级 widget 的文末落脚行规范」。文档自带空行（`\n\n` 结尾）时不挂载虚拟行，落脚行就是文档里的那个空行。
+7. **激活态跟着光标走，只看结果**：任何事务结束时，只要光标站在虚拟空行上（`caretRestsOnVirtualTrailingLine`：唯一空光标、在 `doc.length`、此处需要虚拟行），虚拟行就是激活的（`armVirtualTrailingLineOnCaret`，`EditorState.transactionExtender`）。不区分事务来源：点击、ArrowDown、Cmd/Ctrl+End、Cmd/Ctrl+ArrowDown、程序化设置选区、撤销物化后光标回到文末，结果都一样。熄灭不单独处理：光标离开 `doc.length` 即自然熄灭（A.5）。
+
+   > 为什么必须这样：物化处理器只在激活态接管键入。激活态没亮时光标停在 `doc.length` 打字，浏览器把字写进合成行，解析器把它当作块的延续，表格会多出一行。实测会让光标停在文末却不点亮的路径就有 Cmd/Ctrl+End、撤销物化、按 Escape 三条。
+   >
+   > 唯一的例外：文末块会因光标进入而展开源码（`interactionPolicy === "reveal-source"`，即 HTML 块），且没有尾随换行。此时 `doc.length` 是源码闭区间的右端点，光标在这里是在编辑源码，不点亮虚拟行，否则源码会被收起。点击虚拟行本身仍会显式点亮（`isClickOnVirtualTrailingLine`），表达的是「我要在块下面写东西」。
 
 ### B. 虚拟空行上的按键
 
-虚拟空行激活时（高优先级键位 `Prec.highest`）：
+虚拟空行激活时（高优先级键位 `Prec.highest`）。`Escape` **不再**取消激活：光标没离开虚拟行，激活态就保持（A.7），按 Escape 后再打字仍写在块下方。
 
 | 按键 | 行为 | 文档 |
 | --- | --- | --- |
 | `Enter` | 接管但不写入换行 | 不变 |
 | `Backspace` / `Delete` | 接管，什么都不做 | 不变 |
-| `ArrowUp` / `ArrowLeft` | 回到上一块：前一个块被原子选中，否则光标回到最后一行行首 | 不变 |
-| `Escape` | 取消激活 | 不变 |
+| `ArrowUp` / `ArrowLeft` | 回到上一块：前一个块被原子选中，否则光标回到最后一行行首。这是取消激活的方式 | 不变 |
 | 可打印字符 / 粘贴 / 组字开始 | 物化（见 C） | 写入 |
 
 **未激活时这些键必须放行**，否则正文末尾的 Backspace 会失灵。键位绑定的返回值就是「是否接管」。
@@ -105,9 +109,11 @@
 1. **光标停在 `fullRange.to` 的静默错误**：这个位置在无尾随换行的文档里与 `doc.length` 相等，所以只测无尾随换行的文档永远测不出来。**任何涉及文末光标的测试都必须带尾随换行，并前置断言 `record.fullRange.to < doc.length`**，否则测试对这条契约没有区分力。通用方法见 [编辑器交互测试的区分力规范](./editor_interaction_test_discriminating_power_spec.md)。
 2. **折叠 HTML 注释时无条件点亮虚拟行**：初版 `collapseHtmlSource` 在 `atDocumentEnd` 时一律把激活态置为 `true`。对 HTML 块成立，对注释块不成立（A.4）。症状是文末按 Enter 没有反应。回归见 `VTL-09` 与 `html-block-widget.test.ts` 的 "leaving a comment at EOF"。
 3. **jsdom 里 Backspace / Delete 的键位绑定观察不到差别**：文末的删除同时会被 `wysiwygChangeProtection` 拦下，去掉虚拟行对这两个键的绑定，文档与事务数都不变。绑定的真实作用是避免触发「需要切换源码模式」的提示，jsdom 测不到。对应单测只守「文档不变」不变量，且在用例旁注明了覆盖范围；`Enter` 的绑定有区分力（需装 `defaultKeymap`），单独成例。
-4. **只翻转虚拟行标志、光标没动的事务**：`ArrowDown` 场景 2 与 `Escape` 只派发 `setVirtualTrailingLineActiveEffect`，不带选区。投影字段在无选区、无文档变更的事务上走「`!transaction.selection` 则沿用旧投影」的快速路径，不重算 `activeSyntaxIds`。实测此时 HTML 块仍保持展开源码，虚拟行 `--active` 同时亮起。这是**已知的待确认行为**：光标已在 `doc.length` 且贴文末的 HTML 块被展开后，再按 ArrowDown 只是多出一条虚拟行，预览不会折叠。是否要在这类事务上重算投影，需要产品确认后另开任务，本规范不改动现状。
+4. **只翻转虚拟行标志、光标没动的事务**：`ArrowDown` 场景 2 只派发 `setVirtualTrailingLineActiveEffect`，不带选区。投影字段在无选区、无文档变更的事务上走「`!transaction.selection` 则沿用旧投影」的快速路径，不重算 `activeSyntaxIds`。实测此时 HTML 块仍保持展开源码，虚拟行同时亮起。这是**已知的待确认行为**，本规范不改动现状。（`Escape` 原本也属于这一类，已随 A.7 移除。）
 5. **`defaultPrevented` 不能用来判断「没接管粘贴」**：CM6 自带的 `paste` 处理器对空剪贴板也会 `preventDefault`。判断虚拟行是否接管，要看文档与激活态，不能看事件。
-6. **表格 / HTML 下方出现两个空行**：虚拟行初版是普通 `block widget`，CM6 另补了一个空 `.cm-line`，表格结尾的文档下方是「空行 + 虚拟行」。起因是凭代码注释推断「块下方没有 `.cm-line`」而没有在页面上量。详见「块级 widget 的文末落脚行规范」。回归见单测 "leaves exactly one landing row below a terminal block" 与 e2e `VTL-11`。
+6. **表格 / HTML 下方出现两个空行**：虚拟行初版是普通 `block widget`，CM6 另补了一个空 `.cm-line`，表格结尾的文档下方是「空行 + 虚拟行」。起因是凭代码注释推断「块下方没有 `.cm-line`」而没有在页面上量。
+7. **修两个空行时又把光标落点弄坏了**：第一版修复改用零长度两端 inclusive 的 `replace` 吃掉合成行，块下方只剩一行，CI 全绿，但 Cmd/Ctrl+End 后键入的字写到块的**前面**。原因是合成行是文末唯一的文本 tile，吃掉它之后 CM6 写 DOM 选区时找不到落点。这次是只看了「`.cm-content` 有几个子节点」，没看 tile 树，也没测 Cmd/Ctrl+End。由 PR 评审「留意键盘导航」的建议触发排查。回归见 e2e `VTL-12`。
+8. **激活态曾只在点击 / ArrowDown 时点亮**：Cmd/Ctrl+End、撤销物化、按 Escape 都会让光标停在文末而虚拟行不亮，键入直接并进块。这个缺口在 #220 合并时就存在。修法是 A.7。
 
 ---
 
@@ -115,16 +121,16 @@
 
 ### 单元测试（`packages/renderer-codemirror/tests/wysiwyg/virtual-trailing-line.test.ts`）
 
-挂载判定、零污染、前缀规则、ArrowDown 光标落点（table / html / thematic-break 参数化，带尾随换行并前置断言偏移不等）、块下方只有一个落脚行（6 种文末块 + 2 种文档自带空行）、激活态按键（Enter / Backspace / Delete / ArrowLeft 参数化 / Escape）、未激活时放行、物化事务与一次撤销、粘贴（纯文本 / 富文本转换 / Shift / 空剪贴板 / 未激活）、组字（开始 / 取消回收 / 已上屏保留 / 文档已变放弃回收）、点击留白。
+挂载判定、零污染、前缀规则、ArrowDown 光标落点（table / html / thematic-break 参数化，带尾随换行并前置断言偏移不等）、块下方只有一个落脚行（6 种整行替换文末块 + MDX / Frontmatter 4 条 + 2 种文档自带空行）、激活态按键（Enter / Backspace / Delete / ArrowLeft 参数化）、Escape 不熄灭、未激活时放行、物化事务与一次撤销、粘贴（纯文本 / 富文本转换 / Shift / 空剪贴板 / 未激活）、组字（开始 / 取消回收 / 已上屏保留 / 文档已变放弃回收）、点击留白。
 
 ### 浏览器 e2e（`apps/desktop/e2e/`）
 
-- `codemirror-virtual-trailing-line.spec.ts`：`VTL-01` ~ `VTL-11`。核心行为：`VTL-07`（离开文末表格后键入成为独立段落）、`VTL-08`（Enter / Backspace / Delete 文件字节不变）、`VTL-09`（文末注释不困住光标）、`VTL-10`（富文本粘贴落为 Markdown）、`VTL-11`（块下方只有一个落脚行：表格 0 / 1 / 2 个尾随换行、分割线）。
+- `codemirror-virtual-trailing-line.spec.ts`：`VTL-01` ~ `VTL-14`。核心行为：`VTL-07`（离开文末表格后键入成为独立段落）、`VTL-08`（Enter / Backspace / Delete 文件字节不变）、`VTL-09`（文末注释不困住光标）、`VTL-10`（富文本粘贴落为 Markdown）、`VTL-11`（块下方只有一个落脚行：表格 0 / 1 / 2 个尾随换行、分割线）、`VTL-12`（5 种文末块 × Cmd/Ctrl+End / Cmd/Ctrl+ArrowDown / 程序化选区 / 撤销物化，键入落在块下方）、`VTL-13`（Escape 后键入不进表格）、`VTL-14`（光标画在虚拟行内）。
 - `wysiwyg-block-blank-line-fidelity.spec.ts`：文末表格 ArrowDown 离开后光标落在 `doc.length` 且虚拟行激活；表格后还有正文时仍折叠到 `record.fullRange.to`（旧契约在非文末场景下依然成立）。
 
 ### 变异验证
 
-写完测试后逐项破坏实现，确认测试会失败。已验证会被拦住的破坏包括：光标改回 `record.fullRange.to`、折叠后无条件点亮虚拟行、虚拟行改回普通 widget、Shift 粘贴也做转换、粘贴不转换、组字取消不回收、组字回收不检查文档是否已变、`ArrowLeft` 不回上一块、未激活时接管 `Backspace` / `Delete` / `ArrowLeft`、`Enter` 不接管。
+写完测试后逐项破坏实现，确认测试会失败。已验证会被拦住的破坏包括：光标改回 `record.fullRange.to`、折叠后无条件点亮虚拟行、虚拟行改回普通 widget、虚拟行改为零长度 replace（`VTL-12` 在该版本上失败）、Shift 粘贴也做转换、粘贴不转换、组字取消不回收、组字回收不检查文档是否已变、`ArrowLeft` 不回上一块、未激活时接管 `Backspace` / `Delete` / `ArrowLeft`、`Enter` 不接管。
 
 ### 改动前后必跑
 
