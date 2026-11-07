@@ -17,9 +17,7 @@ import {
   destroyCurrentSettingsWindow,
   revealCurrentSettingsWindow,
 } from "../../desktop/settings-window";
-import { runtime } from "../runtime/editor-runtime";
-import { isDiscardProtectionRequired } from "./document-save";
-import { relaunchAfterUpdate } from "../updates/app-updater";
+import { sendUpdateCommand } from "../updates/update-bridge";
 import {
   keyboardShortcutLabel,
   createAppThemePreviewSession,
@@ -86,7 +84,6 @@ export function useSettingsController({
     closeSettings: closeEmbedded,
     checkForUpdate,
     downloadUpdate,
-    applyDownloadedUpdate,
   } = useAppSettings();
   const { t } = useTranslation();
 
@@ -541,36 +538,27 @@ export function useSettingsController({
     await checkForUpdate();
   }, [checkForUpdate]);
 
-  const installUpdate = useCallback(async () => {
-    setSettingsErrorMessage(null);
-    const result =
-      updateStatus.state === "downloaded"
-        ? await applyDownloadedUpdate()
-        : await downloadUpdate().then((downloaded) =>
-            downloaded.state === "downloaded" ? applyDownloadedUpdate() : downloaded,
-          );
-    if (result.state !== "installed") return;
-
-    // 独立设置窗口无法获取主窗口的真实文档保存状态，不能自动重启，以防丢弃主窗口未保存内容
-    if (surface === "settings-window") {
-      showToast(t("settings.general.updateInstalledRestartApp"));
-      return;
-    }
-
-    // 主窗口环境：检查是否有未保存的文档，提示用户保存后再重启
-    const snapshot = runtime.document.getSnapshot();
-    if (isDiscardProtectionRequired(snapshot)) {
-      showToast(t("settings.general.updateInstalledSaveFirst"));
-      return;
-    }
-
-    // 无未保存内容，自动重启以应用更新
-    try {
-      await relaunchAfterUpdate();
-    } catch {
-      showToast(t("settings.general.updateInstalledRestartApp"));
-    }
-  }, [applyDownloadedUpdate, downloadUpdate, showToast, surface, t, updateStatus.state]);
+  /**
+   * 设置页「下载更新 / 安装并重启」。
+   * 安装必须经过编辑器控制器的未保存文档确认：独立设置窗口拿不到主窗口的文档状态，
+   * 因此转交主窗口执行；内嵌设置页（Web 预览降级）直接调用同一入口。
+   */
+  const installUpdate = useCallback(
+    async (applyInMainWindow?: () => void) => {
+      setSettingsErrorMessage(null);
+      if (updateStatus.state === "available") {
+        await downloadUpdate();
+        return;
+      }
+      if (updateStatus.state !== "downloaded" && updateStatus.state !== "installed") return;
+      if (surface === "settings-window") {
+        sendUpdateCommand("apply");
+        return;
+      }
+      applyInMainWindow?.();
+    },
+    [downloadUpdate, surface, updateStatus.state],
+  );
 
   return {
     shortcutDrafts,
@@ -609,8 +597,6 @@ export function useSettingsController({
     deleteLocalModel,
     checkLocalModelUpdates,
     runUpdateCheck,
-    downloadUpdate,
-    applyDownloadedUpdate,
     installUpdate,
   };
 }

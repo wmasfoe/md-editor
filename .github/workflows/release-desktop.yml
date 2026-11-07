@@ -141,7 +141,9 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.zsync
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
             apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb.sig
 
   build-linux-arm64:
     name: Build Linux (aarch64)
@@ -205,7 +207,9 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
             apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.zsync
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage.sig
             apps/desktop/src-tauri/target/release/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/release/bundle/deb/*.deb.sig
 
   build-windows-x64:
     name: Build Windows (x64)
@@ -341,7 +345,7 @@ jobs:
           files=()
           while IFS= read -r file; do
             [[ -n "$file" ]] && files+=("$file")
-          done <<< "$(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.AppImage.zsync' -o -name '*.deb' -o -name '*.exe' -o -name '*.exe.sig' -o -name '*.zip' -o -name '*.app.tar.gz*' \))"
+          done <<< "$(find release-artifacts -type f \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.AppImage.zsync' -o -name '*.deb' -o -name '*.exe' -o -name '*.exe.sig' -o -name '*.AppImage.sig' -o -name '*.deb.sig' -o -name '*.zip' -o -name '*.app.tar.gz*' \))"
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             edit_flags=()
@@ -403,8 +407,6 @@ jobs:
           linux_arm64_file="$(find release-artifacts -type f \( -name '*arm64.AppImage' -o -name '*aarch64.AppImage' \) -print -quit)"
           win_x64_file="$(find release-artifacts -type f \( -name '*x64-setup.exe' -o -name '*x64*.exe' \) -print -quit)"
           win_arm64_file="$(find release-artifacts -type f \( -name '*arm64-setup.exe' -o -name '*arm64*.exe' \) -print -quit)"
-          updater_file="$(find release-artifacts -type f -name '*.app.tar.gz' -print -quit)"
-
           distribution_base="https://download.jiaqi.im/inkpoint/desktop"
 
           to_url() {
@@ -420,7 +422,6 @@ jobs:
           linux_arm64_url="$(to_url "$linux_arm64_file")"
           win_x64_url="$(to_url "$win_x64_file")"
           win_arm64_url="$(to_url "$win_arm64_file")"
-          updater_url="$(to_url "$updater_file")"
 
           export DMG_DOWNLOAD_URL="$dmg_url"
           export DMG_SHA256="$( [ -n "$dmg_file" ] && shasum -a 256 "$dmg_file" | awk '{print $1}' || echo "" )"
@@ -448,33 +449,13 @@ jobs:
 
           node scripts/release/write-install-script-windows.mjs
 
-          if [ -n "$updater_file" ] && [ -f "$updater_file.sig" ]; then
-            export UPDATER_DOWNLOAD_URL="$updater_url"
-            export UPDATER_SIGNATURE="$(cat "$updater_file.sig")"
-            export UPDATER_PLATFORM="darwin-aarch64"
-            export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
-            export RELEASE_NOTES_FILE="$RELEASE_NOTES_FILE"
-            node scripts/release/write-updater-manifest.mjs
-          fi
-
-          win_updater_file="$(find release-artifacts -type f -name '*x64*.nsis.zip' -print -quit)"
-          if [ -z "$win_updater_file" ]; then
-            win_updater_file="$(find release-artifacts -type f -name '*x64*.zip' -print -quit)"
-          fi
-          if [ -z "$win_updater_file" ]; then
-            # Tauri v2 的 NSIS 更新产物就是安装器本体（随包生成同名 .sig），没有 .nsis.zip
-            win_updater_file="$(find release-artifacts -type f -name '*x64-setup.exe' -print -quit)"
-          fi
-          win_updater_url="$(to_url "$win_updater_file")"
-
-          if [ -n "$win_updater_file" ] && [ -f "$win_updater_file.sig" ]; then
-            export UPDATER_DOWNLOAD_URL="$win_updater_url"
-            export UPDATER_SIGNATURE="$(cat "$win_updater_file.sig")"
-            export UPDATER_PLATFORM="windows-x86_64"
-            export UPDATER_MANIFEST_OUTPUT_PATH="homebrew-tap/md-editor-latest.json"
-            export RELEASE_NOTES_FILE="$RELEASE_NOTES_FILE"
-            node scripts/release/write-updater-manifest.mjs
-          fi
+          # 应用内更新的备用 endpoint：与 R2 清单同一生成器、同一组平台，只是下载地址指向 tap Release。
+          ARTIFACTS_DIR=release-artifacts \
+          OUTPUT_PATH="$RUNNER_TEMP/r2-updater-preview.json" \
+          TAP_REPOSITORY="wmasfoe/homebrew-tap" \
+          TAP_RELEASE_TAG="$RELEASE_TAG" \
+          TAP_OUTPUT_PATH="homebrew-tap/md-editor-latest.json" \
+            node scripts/release/write-r2-updater-manifest.mjs
 
       - name: Publish Homebrew tap updates
         if: steps.release_version.outputs.is_prerelease != 'true'

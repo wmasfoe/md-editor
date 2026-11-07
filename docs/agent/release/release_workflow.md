@@ -100,15 +100,21 @@ node scripts/release/purge-download-cache.mjs
 curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 ```
 
-### Windows 应用内更新（`windows-x86_64`）契约
+### 应用内更新 manifest 契约（全平台）
 
-- Tauri v2 的 NSIS 更新产物**就是安装器本体**：`Inkpoint_<version>_x64-setup.exe` + 同名 `.sig`（**没有** `.nsis.zip`）；
-- 发布链路必须按 `.nsis.zip` → `*.zip` → `*-x64-setup.exe` 的优先级解析（`resolveUpdaterArtifacts`），
-  并同时上传签名到 `inkpoint/desktop/<version>/<name>.sig`，否则 `updater.json` 里不会出现 Windows 条目；
-- `inkpoint/desktop/updater.json` 必须**同时**包含 `darwin-aarch64` 与 `windows-x86_64`，缺失即静默失去该平台的应用内更新；
-- 校验：`curl -s https://download.jiaqi.im/inkpoint/desktop/updater.json` 应输出两个平台；
-- 事故记录（2026-10-17）：旧查找只匹配 `*x64*.nsis.zip|*.zip` → 永远命中不到 → Windows 自 0.12.x 起一直收不到
-  应用内更新。已修脚本与 workflow，并对 **0.13.2 做了热修**（补传 `Inkpoint_0.13.2_x64-setup.exe.sig` + 重写双平台 `updater.json`）。
+- 唯一生成器：`scripts/release/write-r2-updater-manifest.mjs`。R2 `inkpoint/desktop/updater.json` 与
+  tap `md-editor-latest.json`（客户端第二 endpoint）由同一次调用生成，平台条目一致，只是下载地址前缀不同；
+  平台匹配规则集中在该脚本的 `UPDATER_PLATFORMS`，新增平台只改这一处。
+- 平台键遵循 tauri-plugin-updater 的查找顺序（先 `{os}-{arch}-{installer}`，再 `{os}-{arch}`）：
+  - macOS：`darwin-aarch64`（+`-app`），产物 `*.app.tar.gz`；Intel 产物名需带 `x64`/`x86_64` 才会进 `darwin-x86_64`；
+  - Windows：`windows-x86_64`（+`-nsis`），产物按 `.nsis.zip` → `*.zip` → `*-x64-setup.exe` 优先级解析；
+  - Linux：`linux-{x86_64,aarch64}`（+`-appimage`）指向 AppImage，`linux-{x86_64,aarch64}-deb` 指向 deb。
+    **deb 键必须存在**：否则 deb 安装的应用会落到裸键拿到 AppImage 字节，`dpkg -i` 失败。
+- 只有「产物 + 同名 `.sig`」齐全的平台才写入清单。Linux job 的 artifact 上传必须包含 `*.AppImage.sig` / `*.deb.sig`
+  （签名在 manifest 里内联，不需要上传到 R2）。
+- 校验：`curl -s https://download.jiaqi.im/inkpoint/desktop/updater.json | jq '.platforms | keys'`。
+- 事故记录（2026-10-17）：旧查找只匹配 `*x64*.nsis.zip|*.zip` → Windows 自 0.12.x 起收不到应用内更新；
+  （2026-11-08）Linux 签名早已生成但从未上传、也从未写入清单 → Linux 从未收到过应用内更新。
 
 ## 合并 PR 后的线上部署决策矩阵
 

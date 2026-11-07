@@ -24,7 +24,7 @@ const updatePanelSource = readFileSync(
 );
 
 function status(partial: Partial<UpdateStatus>): UpdateStatus {
-  return { currentVersion: "0.15.1", state: "idle", installKind: "app", ...partial };
+  return { currentVersion: "0.15.1", state: "idle", ...partial };
 }
 
 describe("updateDownloadProgress", () => {

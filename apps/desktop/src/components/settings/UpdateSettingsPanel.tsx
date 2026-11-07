@@ -2,7 +2,6 @@ import { t } from "@md-editor/i18n";
 import type { ChangelogEntry } from "@md-editor/changelog";
 import type { AppUpdateSettings, UpdateStatus } from "../../app/settings/app-settings";
 import { readReleaseNotesEntry } from "../../app/updates/release-notes";
-import { useEffect, useRef, useState } from "react";
 import { updateDownloadProgress, updateStatusMessage } from "./settingsUtils";
 import { UpdateReleaseNotes } from "../updates/UpdateReleaseNotes";
 import {
@@ -28,13 +27,11 @@ interface UpdateSettingsPanelProps {
   readonly lastCheckedAt: string | null;
   readonly onChangeUpdateSettings: (value: AppUpdateSettings) => void;
   readonly onCheckForUpdates: () => void;
+  /** 「下载更新」或「安装并重启」，由状态决定 */
   readonly onInstallUpdate: () => void;
-  readonly onRelaunchAfterUpdate?: () => void;
   readonly onSkipVersion: () => void;
   readonly onOpenChangelog: () => void;
   readonly onOpenEnglishChangelog: () => void;
-  /** 手动安装通道：打开安装包下载页 */
-  readonly onOpenInstallerDownload: (url: string) => void;
 }
 
 /** 状态徽标：把状态机压成用户能一眼读完的 4 种色调。 */
@@ -73,39 +70,20 @@ export function UpdateSettingsPanel({
   onChangeUpdateSettings,
   onCheckForUpdates,
   onInstallUpdate,
-  onRelaunchAfterUpdate,
   onSkipVersion,
   onOpenChangelog,
   onOpenEnglishChangelog,
-  onOpenInstallerDownload,
 }: UpdateSettingsPanelProps) {
-  const [hasCopiedCommand, setHasCopiedCommand] = useState(false);
-  const copyResetTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(copyResetTimer.current), []);
-
-  const copyInstallCommand = () => {
-    const command = updateStatus.installCommand;
-    if (!command) return;
-    void navigator.clipboard.writeText(command).then(() => {
-      setHasCopiedCommand(true);
-      copyResetTimer.current = window.setTimeout(() => setHasCopiedCommand(false), 2000);
-    });
-  };
-
   const isBusy =
     isCheckingForUpdates ||
     updateStatus.state === "downloading" ||
     updateStatus.state === "installing";
+  // 「已安装」指替换完成但尚未重启：沿用同一个按钮，点击即走确认并重启。
   const canInstall =
-    (updateStatus.state === "available" || updateStatus.state === "downloaded") &&
-    updateStatus.installKind === "app";
-  const canRelaunch = updateStatus.state === "installed";
-  const canSkip =
-    updateStatus.state === "available" && updateStatus.installKind === "app" && !isSkippedVersion;
-  // updater manifest 不可用时后端会退回 GitHub Releases（installKind: "manual"），
-  // 这条降级通道必须保留可执行的恢复动作，否则用户只能自己找安装包。
-  const isManualInstall = updateStatus.installKind === "manual";
+    updateStatus.state === "available" ||
+    updateStatus.state === "downloaded" ||
+    updateStatus.state === "installed";
+  const canSkip = updateStatus.state === "available" && !isSkippedVersion;
   const notesEntry: ChangelogEntry | null = readReleaseNotesEntry(updateStatus);
   const tone = resolveStatusTone(updateStatus.state);
 
@@ -186,18 +164,9 @@ export function UpdateSettingsPanel({
               onClick={onInstallUpdate}
               disabled={isBusy}
             >
-              {updateStatus.state === "downloaded"
-                ? t("settings.updates.actions.installAndRelaunch")
-                : t("settings.updates.actions.download")}
-            </button>
-          ) : null}
-          {canRelaunch && onRelaunchAfterUpdate ? (
-            <button
-              type="button"
-              className={settingsSmallButtonClassName}
-              onClick={onRelaunchAfterUpdate}
-            >
-              {t("settings.updates.actions.relaunch")}
+              {updateStatus.state === "available"
+                ? t("settings.updates.actions.download")
+                : t("settings.updates.actions.installAndRelaunch")}
             </button>
           ) : null}
           {canSkip ? (
@@ -206,39 +175,6 @@ export function UpdateSettingsPanel({
             </button>
           ) : null}
         </div>
-
-        {isManualInstall && updateStatus.installCommand ? (
-          <div className="mt-3 grid gap-1">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-[12px] text-[var(--theme-muted)]">
-                {t("settings.general.manualInstallCommand")}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={settingsSmallButtonClassName}
-                  onClick={copyInstallCommand}
-                >
-                  {hasCopiedCommand
-                    ? t("settings.general.copied")
-                    : t("settings.general.copyCommand")}
-                </button>
-                {updateStatus.downloadUrl ? (
-                  <button
-                    type="button"
-                    className={settingsSmallButtonClassName}
-                    onClick={() => onOpenInstallerDownload(updateStatus.downloadUrl ?? "")}
-                  >
-                    {t("settings.general.downloadInstaller")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            <code className="block overflow-x-auto rounded-[5px] border border-[var(--theme-border)] bg-[var(--theme-code-bg)] px-2 py-1.5 text-[11px] leading-normal text-[var(--theme-text)]">
-              {updateStatus.installCommand}
-            </code>
-          </div>
-        ) : null}
       </section>
 
       {notesEntry ? (
@@ -337,8 +273,6 @@ function updateStatusBadgeLabel(state: UpdateStatus["state"]): string {
       return t("settings.updates.status.installing");
     case "installed":
       return t("settings.updates.status.installed");
-    case "unconfigured":
-      return t("settings.updates.status.unconfigured");
     case "error":
       return t("settings.updates.status.error");
   }

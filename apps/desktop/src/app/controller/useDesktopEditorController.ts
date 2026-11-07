@@ -42,6 +42,7 @@ import { useFileActionStore } from "../stores/file-action-store";
 import { useFileTreeStore } from "../stores/file-tree-store";
 import { useSidebarStore } from "../stores/sidebar-store";
 import { isUpdateActionBusy, shouldShowEditorUpdateAction } from "../updates/update-status";
+import { listenUpdateCommands } from "../updates/update-bridge";
 import type { DesktopEditorActions } from "../context/DesktopEditorActionsContext";
 
 export interface UseDesktopEditorControllerInput {
@@ -685,7 +686,7 @@ export function useDesktopEditorController({
 
     if (nextStatus.state === "available") {
       // 点击标题栏更新按钮本身就是下载意图：不再叠加一层确认弹窗。
-      // 更新内容由 UpdateNoticeDialog 与设置「更新」页展示，这里不再拼 Markdown 原文。
+      // 失败反馈由 downloadUpdate 统一给出（toast），这里只需停止。
       const result = await downloadUpdate();
       if (result.state !== "downloaded") return;
       nextStatus = result;
@@ -817,6 +818,22 @@ export function useDesktopEditorController({
         onError: showToast,
       }),
     [openRecentFile, showToast],
+  );
+
+  // 设置窗口的「安装并重启」转交这里：主窗口才持有更新包，也只有这里能确认未保存文档。
+  // 先把主窗口带到前台，确认弹窗才不会藏在设置窗口后面。
+  useEffect(
+    () =>
+      listenUpdateCommands((command) => {
+        if (command !== "apply") return;
+        const window = getCurrentWindow();
+        void window
+          .show()
+          .then(() => window.setFocus())
+          .catch((error: unknown) => console.warn("主窗口前置失败", error));
+        void runEditorUpdateAction();
+      }),
+    [runEditorUpdateAction],
   );
 
   useEffect(() => {

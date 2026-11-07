@@ -176,7 +176,7 @@ function MainApp({
           hasWindowControlsInset
         />
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SettingsPage surface="main" onRelaunchAfterUpdate={() => void runEditorUpdateAction()} />
+          <SettingsPage surface="main" onApplyUpdate={() => void runEditorUpdateAction()} />
         </div>
       </main>
     );

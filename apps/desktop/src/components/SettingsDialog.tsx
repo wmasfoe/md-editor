@@ -35,13 +35,14 @@ interface SettingsPageProps {
   // "main" = 主窗口内嵌降级，"settings-window" = 独立设置窗口
   readonly surface?: "main" | "settings-window";
   readonly onStartWindowDrag?: (event: MouseEvent<HTMLElement>) => void;
-  readonly onRelaunchAfterUpdate?: () => void;
+  /** 内嵌设置页：安装已下载的更新并重启（由编辑器控制器完成未保存文档确认） */
+  readonly onApplyUpdate?: () => void;
 }
 
 export function SettingsPage({
   surface = "main",
   onStartWindowDrag,
-  onRelaunchAfterUpdate,
+  onApplyUpdate,
 }: SettingsPageProps) {
   const { settings, updateStatus, skipUpdateVersion, updatePromptState, lastCheckedAt } =
     useAppSettings();
@@ -276,14 +277,10 @@ export function SettingsPage({
             lastCheckedAt={lastCheckedAt}
             onChangeUpdateSettings={ctrl.setUpdateSettingsDraft}
             onCheckForUpdates={() => void ctrl.runUpdateCheck()}
-            onInstallUpdate={() => void ctrl.installUpdate()}
-            onRelaunchAfterUpdate={onRelaunchAfterUpdate}
+            onInstallUpdate={() => void ctrl.installUpdate(onApplyUpdate)}
             onSkipVersion={() => void skipUpdateVersion()}
             onOpenChangelog={() => void openExternalTarget(APP_CHANGELOG_URL)}
-            onOpenEnglishChangelog={() =>
-              void openExternalTarget(updateStatus.releaseUrl ?? APP_RELEASES_URL)
-            }
-            onOpenInstallerDownload={(url) => void openExternalTarget(url)}
+            onOpenEnglishChangelog={() => void openExternalTarget(APP_RELEASES_URL)}
           />
         ),
       },
@@ -313,7 +310,7 @@ export function SettingsPage({
       ctrl,
       formattedShortcuts,
       lastCheckedAt,
-      onRelaunchAfterUpdate,
+      onApplyUpdate,
       showToast,
       skipUpdateVersion,
       t,
