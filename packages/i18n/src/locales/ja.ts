@@ -60,6 +60,10 @@ export const ja: TranslationSchema = {
     shortcutFallback: "上書きキーは適用されず、既定のキーを使用しています：",
     shortcutDisabled: "このショートカットは無効です。コマンドパレットから実行してください",
     unreadable: "ローカルのコピーが破損しているため読み込めません",
+    installedTitle: "インストール済み",
+    catalogTitle: "インストールできるプラグイン",
+    catalogEmpty: "このリリースにはインストールできるプラグインがありません",
+    installedBadge: "インストール済み",
   },
   common: {
     cancel: "キャンセル",

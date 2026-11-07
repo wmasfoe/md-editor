@@ -60,6 +60,10 @@ export const en: TranslationSchema = {
     shortcutFallback: "Override not applied, using the default shortcut: ",
     shortcutDisabled: "This shortcut is disabled; run the command from the command palette",
     unreadable: "The local copy is damaged and cannot be loaded",
+    installedTitle: "Installed",
+    catalogTitle: "Available plugins",
+    catalogEmpty: "This release has no installable plugins",
+    installedBadge: "Installed",
   },
   common: {
     cancel: "Cancel",

@@ -10,10 +10,13 @@ import {
 } from "@md-editor/syntax-plugins/metadata";
 import { useTranslation } from "@md-editor/i18n";
 import {
+  pluginCodeChipClassName,
+  pluginTagChipClassName,
   settingsDescriptionClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
 } from "./settings-styles";
+import { PluginCard, PluginToggle } from "./PluginCard";
 
 export interface PluginSettingsPanelProps {
   readonly plugins: { readonly enabled: Readonly<Record<string, boolean>> };
@@ -142,44 +145,6 @@ function PuzzleIcon(): ReactNode {
   );
 }
 
-function Switch({
-  checked,
-  onChange,
-  ariaLabel,
-}: {
-  readonly checked: boolean;
-  readonly onChange: (checked: boolean) => void;
-  readonly ariaLabel: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onChange(!checked);
-        }
-      }}
-      className={`group relative inline-flex h-[20px] w-[34px] shrink-0 cursor-pointer items-center rounded-full p-[2px] transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--theme-surface)] ${
-        checked
-          ? "bg-[var(--theme-primary)] shadow-inner"
-          : "bg-[var(--theme-border-strong)] hover:bg-[var(--theme-border-strong)]/80"
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none inline-block size-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.12)] ring-0 transition-transform duration-200 ease-in-out ${
-          checked ? "translate-x-3.5" : "translate-x-0"
-        }`}
-      />
-    </button>
-  );
-}
-
 const TAG_TRANSLATION_KEYS: Record<string, string> = {
   高亮: "settings.plugins.tags.highlight",
   Obsidian: "settings.plugins.tags.obsidian",
@@ -214,76 +179,42 @@ function PluginItemCard({
   const translatedHint = t(hintKey, { defaultValue: descriptor.syntaxHint });
 
   return (
-    <div
-      className={`relative flex flex-col justify-between gap-2.5 rounded-lg border px-4 py-3 transition-[border-color,background-color] duration-200 ${
-        isEnabled
-          ? "border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)]"
-          : "border-[var(--theme-border)]/60 bg-[var(--theme-chrome)]/40 opacity-80 hover:opacity-100 hover:border-[var(--theme-border)]"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <div
-            className={`flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors ${
-              isEnabled
-                ? "border-[var(--theme-border)] bg-[var(--theme-chrome)]"
-                : "border-[var(--theme-border)]/50 bg-[var(--theme-chrome)]/30 opacity-70"
-            }`}
-          >
-            <PluginIcon id={descriptor.id} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[13px] font-medium text-[var(--theme-title)]">
-                {translatedName}
+    <PluginCard
+      icon={<PluginIcon id={descriptor.id} />}
+      title={translatedName}
+      dimmed={!isEnabled}
+      badges={
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+          <OfficialBadgeIcon />
+          <span>{t("settings.plugins.officialBadge")}</span>
+        </span>
+      }
+      description={translatedDesc}
+      meta={
+        <>
+          <span className={pluginCodeChipClassName}>{translatedHint}</span>
+          {descriptor.tags.map((tag) => {
+            const tagKey = TAG_TRANSLATION_KEYS[tag];
+            const translatedTag = tagKey ? t(tagKey, { defaultValue: tag }) : tag;
+            return (
+              <span key={tag} className={pluginTagChipClassName}>
+                {translatedTag}
               </span>
-
-              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                <OfficialBadgeIcon />
-                <span>{t("settings.plugins.officialBadge")}</span>
-              </span>
-            </div>
-
-            <p className="mb-1.5 mt-0.5 text-[12px] leading-relaxed text-[var(--theme-muted)]">
-              {translatedDesc}
-            </p>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded bg-[var(--theme-chrome)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--theme-control-text)] border border-[var(--theme-border)]">
-                {translatedHint}
-              </span>
-              {descriptor.tags.map((tag) => {
-                const tagKey = TAG_TRANSLATION_KEYS[tag];
-                const translatedTag = tagKey ? t(tagKey, { defaultValue: tag }) : tag;
-                return (
-                  <span
-                    key={tag}
-                    className="rounded bg-[var(--theme-chrome)]/60 px-1.5 py-0.5 text-[11px] text-[var(--theme-muted)]"
-                  >
-                    {translatedTag}
-                  </span>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          <span
-            className={`text-[12px] font-medium transition-colors ${
-              isEnabled ? "text-[var(--theme-primary)]" : "text-[var(--theme-muted)]"
-            }`}
-          >
-            {isEnabled ? t("settings.plugins.enabledStatus") : t("settings.plugins.disabledStatus")}
-          </span>
-          <Switch
-            checked={isEnabled}
-            onChange={onToggle}
-            ariaLabel={t("settings.plugins.toggleAria", { name: translatedName })}
-          />
-        </div>
-      </div>
-    </div>
+            );
+          })}
+        </>
+      }
+      trailing={
+        <PluginToggle
+          checked={isEnabled}
+          onChange={onToggle}
+          ariaLabel={t("settings.plugins.toggleAria", { name: translatedName })}
+          statusLabel={
+            isEnabled ? t("settings.plugins.enabledStatus") : t("settings.plugins.disabledStatus")
+          }
+        />
+      }
+    />
   );
 }
 
