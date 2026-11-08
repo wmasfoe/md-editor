@@ -1880,6 +1880,7 @@ dependencies = [
  "objc2-foundation",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -1887,6 +1888,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "time",
+ "walkdir",
 ]
 
 [[package]]

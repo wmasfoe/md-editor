@@ -17,6 +17,7 @@ mod save_runtime;
 mod session;
 mod settings;
 mod settings_window;
+mod style_learning;
 mod system_info;
 mod text_substitutions;
 mod update_prompt;
@@ -58,6 +59,10 @@ use session::{
 };
 use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
+use style_learning::{
+    clear_style_learning_document, load_style_learning_document, read_style_learning_sample,
+    save_style_learning_document, scan_style_learning_samples, StyleLearningScope,
+};
 use system_info::get_system_specs;
 use update_prompt::{load_update_prompt_state, save_update_prompt_state};
 
@@ -98,6 +103,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SaveCommitGate::default())
         .manage(FolderWatcherState::default())
+        .manage(StyleLearningScope::default())
         .manage(local_ai_runtime::LocalAiRuntimeState::default())
         // D-2：View 菜单勾选态镜像状态（app_menu::set_mode_menu_checked 写入，build_app_menu 读取）
         .manage(ModeMenuState::default())
@@ -122,6 +128,11 @@ pub fn run() {
             allow_asset_path,
             watch_folder,
             unwatch_folder,
+            scan_style_learning_samples,
+            read_style_learning_sample,
+            load_style_learning_document,
+            save_style_learning_document,
+            clear_style_learning_document,
             create_markdown_tree_item,
             rename_markdown_tree_item,
             delete_markdown_tree_item,
