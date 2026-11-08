@@ -2,7 +2,13 @@
  * @file app/request-scheduler.ts
  * @module @md-editor/ai
  * @description
- * 优先级 + Scope 自动抢占 + LoRA 适配器亲和度分组请求调度器。
+ * 优先级 + Scope 自动抢占 + runtime 亲和键分组 + 独占可抢占后台任务的请求调度器。
+ *
+ * 本地推理 runtime 是单进程、单模型、全局 LoRA scale 的共享状态：
+ * - 亲和键（affinityKey）相同的请求可以并发，不同的必须排队，避免模型/LoRA 串扰；
+ * - 云端请求不触碰 runtime 状态，亲和键为 null，可与任何请求并发；
+ * - 独占任务（exclusive，如风格学习）只在调度器完全空闲时运行，
+ *   任何 urgent/normal 请求到达都会立即中止它并释放槽位。
  */
 
 import type { AiTaskKind } from "../domain/types.ts";
@@ -36,10 +42,15 @@ export interface AiScheduleOptions<T> {
   readonly scope: AiRequestScope;
   readonly priority: AiRequestPriority;
   /**
-   * 关联的 LoRA 适配器分组（如 "gec" | "completion" | "distill" | "base"），
-   * 多 Slot 并发时同组并行、跨组排队隔离，避免全局 LoRA scale 切换串扰。
+   * runtime 亲和键：本地请求用 {@link createLocalAffinityKey} 生成（模型 + LoRA 任务），
+   * 同键可并发、异键排队；云端请求传 null 或省略，不参与亲和隔离。
    */
-  readonly loraGroup?: string;
+  readonly affinityKey?: string | null;
+  /**
+   * 独占可抢占任务：仅在没有任何运行中请求、且 urgent/normal 队列为空时派发；
+   * 运行期间不派发其他请求；任何 urgent/normal 请求到达时以 `preempted` 立即中止并释放槽位。
+   */
+  readonly exclusive?: boolean;
   /** 同 scope 的新请求是否取代旧请求（默认 true） */
   readonly replace?: boolean;
   readonly run: (context: AiScheduledRequestContext) => Promise<T>;
@@ -57,7 +68,8 @@ interface QueuedRequest<T> {
   readonly scopeKey: string;
   readonly scope: AiRequestScope;
   readonly priority: AiRequestPriority;
-  readonly loraGroup: string;
+  readonly affinityKey: string | null;
+  readonly exclusive: boolean;
   readonly controller: AbortController;
   readonly run: (context: AiScheduledRequestContext) => Promise<T>;
   readonly resolve: (value: T) => void;
@@ -66,6 +78,16 @@ interface QueuedRequest<T> {
 }
 
 const PRIORITY_ORDER: readonly AiRequestPriority[] = ["urgent", "normal", "background"];
+
+/** 独占任务被用户请求抢占时的取消原因 */
+export const AI_REQUEST_PREEMPTED_REASON = "preempted";
+
+/**
+ * 生成本地 runtime 亲和键。同一模型 + 同一 LoRA 任务的请求才允许并发。
+ */
+export function createLocalAffinityKey(modelId: string, lora: string): string {
+  return `local:${modelId}:${lora}`;
+}
 
 /**
  * AI 请求并发与取消调度器。
@@ -78,9 +100,9 @@ export class AiRequestScheduler {
   };
   private readonly latestByScope = new Map<string, string>();
   private readonly activeById = new Map<string, QueuedRequest<unknown>>();
+  /** 正在占用槽位的请求；被抢占的独占任务会立即移出以释放槽位 */
+  private readonly running = new Set<QueuedRequest<unknown>>();
   private nextSequence = 1;
-  private activeCount = 0;
-  private activeLoRaGroup: string | null = null;
 
   public constructor(private readonly maxConcurrency = 2) {
     if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
@@ -93,7 +115,8 @@ export class AiRequestScheduler {
     const requestId = `ai-${this.nextSequence++}`;
     const controller = new AbortController();
     const replace = options.replace !== false;
-    const loraGroup = options.loraGroup ?? options.scope.task;
+    const affinityKey = options.affinityKey ?? null;
+    const exclusive = options.exclusive === true;
 
     if (replace) {
       this.cancelScope(scopeKey, "superseded");
@@ -107,7 +130,8 @@ export class AiRequestScheduler {
         scopeKey,
         scope: options.scope,
         priority: options.priority,
-        loraGroup,
+        affinityKey,
+        exclusive,
         controller,
         run: options.run,
         resolve,
@@ -122,6 +146,9 @@ export class AiRequestScheduler {
     const request = requestRef;
     this.queues[options.priority].push(request as QueuedRequest<unknown>);
     this.activeById.set(requestId, request as QueuedRequest<unknown>);
+    if (!exclusive && options.priority !== "background") {
+      this.preemptExclusive();
+    }
     this.pump();
 
     return {
@@ -190,15 +217,33 @@ export class AiRequestScheduler {
   }
 
   public get runningCount(): number {
-    return this.activeCount;
+    return this.running.size;
   }
 
-  public get currentLoRaGroup(): string | null {
-    return this.activeLoRaGroup;
+  /** 当前运行中本地请求的亲和键；只有云端请求或空闲时为 null */
+  public get currentAffinityKey(): string | null {
+    for (const request of this.running) {
+      if (request.affinityKey !== null) {
+        return request.affinityKey;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 中止所有运行中的独占任务，并立即释放其槽位，使用户请求在同一 tick 内派发。
+   */
+  private preemptExclusive(): void {
+    // 先收集再处理，避免在遍历 running 时修改它。
+    const exclusive = Array.from(this.running).filter((request) => request.exclusive);
+    for (const request of exclusive) {
+      this.running.delete(request);
+      this.cancelRequest(request.requestId, AI_REQUEST_PREEMPTED_REASON);
+    }
   }
 
   private pump(): void {
-    while (this.activeCount < this.maxConcurrency) {
+    while (this.running.size < this.maxConcurrency) {
       const request = this.takeNext();
       if (!request) {
         return;
@@ -210,36 +255,45 @@ export class AiRequestScheduler {
     }
   }
 
+  /**
+   * 按优先级取出第一个当前可派发的请求。
+   */
   private takeNext(): QueuedRequest<unknown> | undefined {
-    if (this.activeCount === 0) {
-      this.activeLoRaGroup = null;
-    }
-
-    if (this.activeLoRaGroup !== null) {
-      for (const priority of PRIORITY_ORDER) {
-        const queue = this.queues[priority];
-        const matchIndex = queue.findIndex((req) => req.loraGroup === this.activeLoRaGroup);
-        if (matchIndex >= 0) {
-          return queue.splice(matchIndex, 1)[0];
-        }
-      }
-      return undefined;
-    }
-
     for (const priority of PRIORITY_ORDER) {
-      const request = this.queues[priority].shift();
-      if (request) {
-        this.activeLoRaGroup = request.loraGroup;
-        return request;
+      const queue = this.queues[priority];
+      const index = queue.findIndex((request) => this.canDispatch(request));
+      if (index >= 0) {
+        return queue.splice(index, 1)[0];
       }
     }
-
     return undefined;
+  }
+
+  private canDispatch(request: QueuedRequest<unknown>): boolean {
+    if (request.exclusive) {
+      return (
+        this.running.size === 0 &&
+        this.queues.urgent.length === 0 &&
+        this.queues.normal.length === 0
+      );
+    }
+    let runningAffinity: string | null = null;
+    for (const active of this.running) {
+      if (active.exclusive) {
+        return false;
+      }
+      runningAffinity ??= active.affinityKey;
+    }
+    return (
+      request.affinityKey === null ||
+      runningAffinity === null ||
+      runningAffinity === request.affinityKey
+    );
   }
 
   private execute(request: QueuedRequest<unknown>): void {
     request.status = "running";
-    this.activeCount += 1;
+    this.running.add(request);
     const isCurrent = () =>
       this.latestByScope.get(request.scopeKey) === request.requestId &&
       !request.controller.signal.aborted;
@@ -270,13 +324,13 @@ export class AiRequestScheduler {
         request.reject(error);
       })
       .finally(() => {
-        this.activeCount -= 1;
-        this.activeById.delete(request.requestId);
+        // 被抢占的独占任务已提前释放槽位，这里不能重复释放。
+        this.running.delete(request);
+        if (this.activeById.get(request.requestId) === request) {
+          this.activeById.delete(request.requestId);
+        }
         if (this.latestByScope.get(request.scopeKey) === request.requestId) {
           this.latestByScope.delete(request.scopeKey);
-        }
-        if (this.activeCount === 0) {
-          this.activeLoRaGroup = null;
         }
         this.pump();
       });

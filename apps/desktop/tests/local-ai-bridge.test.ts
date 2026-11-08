@@ -58,6 +58,41 @@ describe("local AI bridge contract shared with Rust", () => {
     await bridgePromise;
   });
 
+  it("O-4: never prints style-analysis prompts or outputs in dev logs", async () => {
+    vi.spyOn(console, "groupCollapsed").mockImplementation(() => {});
+    vi.spyOn(console, "group").mockImplementation(() => {});
+    vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+    vi.mocked(invoke).mockResolvedValueOnce("私人模型输出");
+
+    await desktopLocalAiBridge({
+      modelId: "md-editor-writer-standard",
+      task: "style-analysis",
+      messages: [{ role: "user", content: "私人文章正文" }],
+      maxTokens: 16,
+    } as LocalInferenceRequest);
+
+    // 本测试运行在 DEV 下，日志分支确实执行过。
+    expect(log).toHaveBeenCalled();
+    for (const call of [...log.mock.calls, ...debug.mock.calls]) {
+      expect(JSON.stringify(call)).not.toContain("私人");
+    }
+  });
+
+  it("O-4: keeps logging content for ordinary tasks", async () => {
+    vi.spyOn(console, "groupCollapsed").mockImplementation(() => {});
+    vi.spyOn(console, "group").mockImplementation(() => {});
+    vi.spyOn(console, "groupEnd").mockImplementation(() => {});
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "debug").mockImplementation(() => {});
+    vi.mocked(invoke).mockResolvedValueOnce("普通输出");
+
+    await desktopLocalAiBridge(requests[0]!.options as LocalInferenceRequest);
+
+    expect(log.mock.calls.some((call) => JSON.stringify(call).includes("普通输出"))).toBe(true);
+  });
+
   it("rejects browser preview before invoking native inference", async () => {
     vi.mocked(isTauri).mockReturnValueOnce(false);
     const callsBefore = vi.mocked(invoke).mock.calls.length;

@@ -105,6 +105,7 @@ export class AnthropicClient implements ModelClient {
 
     const latencyMs = Date.now() - startTime;
     logLlmSuccess("Anthropic", this.modelId, {
+      task: context.task,
       latencyMs,
       finishReason: parsed.stop_reason ?? undefined,
       textPreview: text.slice(0, 100),

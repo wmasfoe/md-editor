@@ -204,6 +204,7 @@ export class OpenAIClient implements ModelClient {
 
         const latencyMs = Date.now() - startTime;
         logLlmSuccess("OpenAI", this.modelId, {
+          task: context.task,
           latencyMs,
           finishReason: choice?.finish_reason ?? undefined,
           textPreview: text.slice(0, 100),

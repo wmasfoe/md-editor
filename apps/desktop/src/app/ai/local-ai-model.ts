@@ -1,7 +1,11 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { safeUnlisten } from "../../desktop/safe-unlisten";
-import type { LocalInferenceBridge, LocalInferenceRequest } from "@md-editor/ai";
+import {
+  mayLogTaskContent,
+  type LocalInferenceBridge,
+  type LocalInferenceRequest,
+} from "@md-editor/ai";
 import {
   BUILTIN_LOCAL_MODELS,
   DEFAULT_LOCAL_MODEL_ID,
@@ -73,6 +77,8 @@ export const desktopLocalAiInvokeImpl = async (
 
   const options = (args?.options as Record<string, unknown>) || {};
   const task = String(options.task ?? "unknown");
+  // 风格学习的提示词与输出来自用户历史文章，dev 日志也只记录长度与耗时。
+  const mayLogContent = mayLogTaskContent(task);
   const taskLabel =
     task === "gec"
       ? "【阶段 1：语法修复审校 (GEC)】"
@@ -85,7 +91,10 @@ export const desktopLocalAiInvokeImpl = async (
     console.log("模型 ID:", options.modelId);
     console.log("任务类型 (Task):", task);
     console.log("停用词 (Stop Tokens):", options.stop);
-    console.log("输入 Prompt:", options.messages ?? options.rawPrompt ?? "");
+    console.log(
+      "输入 Prompt:",
+      mayLogContent ? (options.messages ?? options.rawPrompt ?? "") : "[正文已隐藏]",
+    );
     console.groupEnd();
   }
 
@@ -95,7 +104,10 @@ export const desktopLocalAiInvokeImpl = async (
     if (isDev && isCompletion) {
       const elapsedMs = (performance.now() - startTime).toFixed(1);
       console.group(`✨ [Local LLM 响应结果] ${taskLabel} (${elapsedMs}ms)`);
-      console.log("【LLM 原样返回 (Raw Output)】:\n", result);
+      console.log(
+        "【LLM 原样返回 (Raw Output)】:\n",
+        mayLogContent ? result : `[正文已隐藏，${String(result ?? "").length} 字符]`,
+      );
       console.debug("调用详情:", {
         modelId: options.modelId,
         task,
@@ -123,7 +135,7 @@ export const desktopLocalAiInvokeImpl = async (
         command,
         modelId: options.modelId,
         task,
-        args,
+        args: mayLogContent ? args : "[正文已隐藏]",
       });
       console.groupEnd();
     }
