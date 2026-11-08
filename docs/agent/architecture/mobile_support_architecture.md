@@ -72,7 +72,7 @@ md-editor/
 3. **触感反馈引擎**：按键点击触发 `UIImpactFeedbackGenerator(style: .light)`，模式切换触发 `.medium`，大纲选中触发 `UISelectionFeedbackGenerator`；
 4. **系统级文档就地编辑**：配置 `LSSupportsOpeningDocumentsInPlace: true` 与 `UIFileSharingEnabled: true`，结合 `UIDocumentPickerViewController` 原地读写 iCloud Drive / 本地文件；
 5. **系统分享扩展 (Share Extension)**：支持在微信或“文件”App 中将选中文本或 `.md` 文件通过深度链接与 App Group 共享直接导入；
-6. **未签名 IPA 自签分发与源码编译**：iOS 客户端不走 App Store / TestFlight，由 `build-ios-ipa.yml` 在 macOS runner 上以 `CODE_SIGNING_ALLOWED=NO` 产出未签名 IPA。**注意：当前阶段移动端官方暂不公开发布安装包，用户如有需要需在本地通过 Xcode 自行编译源码运行。**
+6. **未签名 IPA 与自行编译**：iOS 客户端不走 App Store / TestFlight。`pnpm build:ios`（`scripts/mobile/build-ios-ipa.mjs`）以 `CODE_SIGNING_ALLOWED=NO` 在本机编出未签名 IPA，需用 Sideloadly、AltStore 等工具重签后安装。移动端已停止发版，官网只提供最后发布的 0.2.1，之后的版本需要自行编译。
 
 ---
 
@@ -88,9 +88,11 @@ md-editor/
 
 ---
 
-## 6. CI/CD 自动化验证与打包流水线
+## 6. 构建与测试
 
-流水线配置于 `.github/workflows/mobile-ci.yml`：
-- **`mobile-web-build`** (Ubuntu)：构建前端移动端包，执行 Vitest 桥接单测，校验 Gzip 体积并上传工件；
-- **`ios-ci`** (macOS 14)：执行 Swift 契约单测 (`swift run InkpointContractTests`)，编译 iOS 模拟器产物验证 Xcode 构建无误；
-- **`android-ci`** (Ubuntu + JDK 17)：执行 Android JUnit 单元测试 (`./gradlew testDebugUnitTest`) 并打包调试版 APK (`./gradlew assembleDebug`)。
+移动端没有 CI，也不再发版。本机命令：
+
+- `pnpm --filter @md-editor/mobile-core test`：Web 桥接单测；
+- `swift run InkpointContractTests`（`apps/mobile/ios`）：Swift 桥接契约测试；
+- `./gradlew testDebugUnitTest`（`apps/mobile/android`）：Android JUnit 单测；
+- `pnpm build:android` / `pnpm build:ios`：编出 APK / 未签名 IPA，输出到 `dist-mobile/`。

@@ -139,7 +139,6 @@ For multi-platform releases, version bumps, changelog maintenance, and productio
 | Platform | Command | Tag Pattern | CI Workflow |
 | :--- | :--- | :--- | :--- |
 | **Desktop** | `pnpm release:desktop` | `v*` | `.github/workflows/release-desktop.yml` |
-| **Android** | `pnpm release:android` | `android-v*` | `.github/workflows/release-mobile.yml` |
 | **Web** | `pnpm release:web` | `web-v*` | `.github/workflows/release-web.yml` |
 | **Site** | `pnpm release:site` | N/A | Vercel CLI Prebuilt Deploy |
 | **Worker** | `pnpm deploy:worker` | N/A | Cloudflare Worker CLI |

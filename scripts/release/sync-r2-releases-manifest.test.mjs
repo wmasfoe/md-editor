@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildIosReleaseEntry,
   evaluateReleaseHistoryShrink,
   matchPlatform,
   transformGitHubReleases,
@@ -129,158 +128,68 @@ describe("sync-r2-releases-manifest", () => {
     assert.equal(android.category, "android");
     assert.equal(android.assets[0].platform, "android");
   });
-
-  it("merges and preserves historical Android releases alongside newly discovered versions", () => {
-    const rawDesktopMock = [
-      {
-        tag_name: "v0.10.2",
-        published_at: "2026-09-15T12:00:00Z",
-        prerelease: false,
-        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.10.2",
-        assets: [{ name: "Inkpoint_0.10.2_aarch64.dmg", size: 10000000 }],
-      },
-    ];
-
-    const existingAndroidReleases = [
-      {
-        version: "0.1.0",
-        tagName: "android-v0.1.0",
-        publishedAt: "2026-09-16T12:00:00Z",
-        isLatest: true,
-        isPrerelease: true,
-        category: "android",
-        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.0",
-        assets: [
-          {
-            platform: "android",
-            platformLabel: "Android · APK (Beta)",
-            fileName: "Inkpoint_0.1.0.apk",
-            downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.1.0/Inkpoint_0.1.0.apk",
-            sizeBytes: 45000000,
-            formattedSize: "43 MB",
-            isR2Cached: true,
-          },
-        ],
-      },
-    ];
-
-    const extraAndroidReleases = [
-      {
-        version: "0.1.1",
-        tagName: "android-v0.1.1",
-        publishedAt: "2026-09-17T12:00:00Z",
-        isLatest: false,
-        isPrerelease: true,
-        category: "android",
-        releaseNotesUrl: "https://github.com/wmasfoe/md-editor/releases/tag/android-v0.1.1",
-        assets: [
-          {
-            platform: "android",
-            platformLabel: "Android · APK (Beta)",
-            fileName: "Inkpoint_0.1.1.apk",
-            downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.1.1/Inkpoint_0.1.1.apk",
-            sizeBytes: 46000000,
-            formattedSize: "44 MB",
-            isR2Cached: true,
-          },
-        ],
-      },
-    ];
-
-    const manifest = transformGitHubReleases(
-      rawDesktopMock,
-      "inkpoint",
-      "https://download.jiaqi.im",
-      {
-        existingReleases: existingAndroidReleases,
-        extraAndroidReleases,
-      },
-    );
-
-    assert.equal(manifest.latestAndroidVersion, "0.1.1");
-    assert.equal(manifest.latestReleases.android.version, "0.1.1");
-    const androidList = manifest.releases.filter((r) => r.category === "android");
-    assert.equal(androidList.length, 2);
-    assert.equal(androidList[0].version, "0.1.1");
-    assert.equal(androidList[0].isLatest, true);
-    assert.equal(androidList[1].version, "0.1.0");
-    assert.equal(androidList[1].isLatest, false);
-  });
 });
 
-describe("iOS unsigned IPA releases", () => {
-  it("maps .ipa artifacts to the ios platform with a self-sign label", () => {
-    const matched = matchPlatform("Inkpoint-0.2.1-unsigned.ipa");
-    assert.equal(matched.platform, "ios");
-    assert.match(matched.platformLabel, /未签名 IPA/);
+describe("已发布的移动端历史条目", () => {
+  const desktopRaw = [
+    {
+      tag_name: "v0.13.0",
+      published_at: "2026-09-20T12:00:00Z",
+      prerelease: false,
+      html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.0",
+      assets: [{ name: "Inkpoint_0.13.0_aarch64.dmg", size: 10000000 }],
+    },
+  ];
+
+  it("maps .apk and .ipa artifacts to their own platforms", () => {
+    assert.equal(matchPlatform("Inkpoint_0.1.0.apk").platform, "android");
+    const ipa = matchPlatform("Inkpoint-0.2.1-unsigned.ipa");
+    assert.equal(ipa.platform, "ios");
+    assert.match(ipa.platformLabel, /未签名 IPA/);
   });
 
-  it("merges injected + previously published iOS entries without needing GitHub Releases", () => {
-    const rawDesktopMock = [
-      {
-        tag_name: "v0.13.0",
-        published_at: "2026-09-20T12:00:00Z",
-        prerelease: false,
-        html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.0",
-        assets: [{ name: "Inkpoint_0.13.0_aarch64.dmg", size: 10000000 }],
-      },
-    ];
+  it("carries Android and iOS entries from the live manifest over unchanged", () => {
+    const manifest = transformGitHubReleases(desktopRaw, "inkpoint", "https://download.jiaqi.im", {
+      existingReleases: [
+        iosReleaseEntry("0.2.1", "2026-10-07T12:57:53Z"),
+        {
+          ...iosReleaseEntry("0.2.1", "2026-10-07T12:57:53Z"),
+          version: "0.2.1",
+          tagName: "android-v0.2.1",
+          category: "android",
+          assets: [
+            {
+              platform: "android",
+              platformLabel: "Android · APK",
+              fileName: "Inkpoint_0.2.1.apk",
+              downloadUrl: "https://download.jiaqi.im/inkpoint/android/0.2.1/Inkpoint_0.2.1.apk",
+              sizeBytes: 45000000,
+              formattedSize: "43 MB",
+              isR2Cached: true,
+            },
+          ],
+        },
+      ],
+    });
 
-    const manifest = transformGitHubReleases(
-      rawDesktopMock,
-      "inkpoint",
-      "https://download.jiaqi.im",
-      {
-        extraIosReleases: [
-          buildIosReleaseEntry("0.2.1"),
-          iosReleaseEntry("0.2.0", "2026-09-19T12:00:00Z"),
-        ],
-      },
-    );
-
+    assert.equal(manifest.latestAndroidVersion, "0.2.1");
     assert.equal(manifest.latestIosVersion, "0.2.1");
-    assert.equal(manifest.latestReleases.ios.version, "0.2.1");
-    assert.equal(
-      manifest.latestReleases.ios.downloadUrl,
-      "https://download.jiaqi.im/inkpoint/ios/latest",
-    );
     assert.equal(manifest.latestReleases.ios.fileName, "Inkpoint-0.2.1-unsigned.ipa");
-    assert.equal(manifest.latestReleases.ios.platformLabel, "iOS · 未签名 IPA（自签安装）");
-
-    const iosList = manifest.releases.filter((r) => r.category === "ios");
-    assert.equal(iosList.length, 2);
-    assert.equal(iosList[0].version, "0.2.1");
-    assert.equal(iosList[0].isLatest, true);
-    assert.equal(iosList[1].version, "0.2.0");
-    assert.equal(iosList[1].isLatest, false);
-
-    // iOS 条目不能影响桌面端 Latest 判定
+    assert.equal(manifest.releases.filter((r) => r.category === "android").length, 1);
+    assert.equal(manifest.releases.filter((r) => r.category === "ios").length, 1);
+    // 移动端条目不影响桌面端 Latest 判定
     assert.equal(manifest.latestDesktopVersion, "0.13.0");
   });
 
-  it("ignores an empty IOS_RELEASE_VERSION and keeps other platforms intact", () => {
-    const manifest = transformGitHubReleases(
-      [
-        {
-          tag_name: "v0.13.0",
-          published_at: "2026-09-20T12:00:00Z",
-          prerelease: false,
-          html_url: "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.0",
-          assets: [{ name: "Inkpoint_0.13.0_aarch64.dmg", size: 10000000 }],
-        },
-      ],
-      "inkpoint",
-      "https://download.jiaqi.im",
-      { extraIosReleases: [buildIosReleaseEntry(undefined)] },
-    );
+  it("no longer invents mobile entries when the live manifest has none", () => {
+    const manifest = transformGitHubReleases(desktopRaw, "inkpoint", "https://download.jiaqi.im");
 
-    assert.equal(buildIosReleaseEntry(undefined), null);
     assert.equal(manifest.latestIosVersion, "");
+    assert.equal(manifest.releases.length, 1);
     assert.equal(
-      manifest.releases.some((r) => r.category === "ios"),
+      manifest.releases.some((r) => r.category === "android" || r.category === "ios"),
       false,
     );
-    assert.equal(manifest.releases.length, 1);
   });
 });
 

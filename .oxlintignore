@@ -1,5 +1,3 @@
 # Oxlint Ignore List
-apps/ios/Inkpoint/Resources/editor/
-apps/android/app/src/main/assets/editor/
 **/Resources/editor/**
 **/assets/editor/**

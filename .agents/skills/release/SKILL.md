@@ -9,7 +9,7 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
 
 ## 1. Operating Principles
 
-1. **Strict Platform Symmetry**: Every client platform (`desktop`, `android`, `web`, `site`, `utools`, `worker`) has a clear, isolated release lifecycle and namespace.
+1. **Strict Platform Symmetry**: Every client platform (`desktop`, `web`, `site`, `utools`, `worker`) has a clear, isolated release lifecycle and namespace.
 2. **Single Source of Truth in Git**:
    - **NEVER** build or upload binaries out-of-band without committing the version bump and changelog to the Git repository.
    - Version files (`package.json`, `build.gradle.kts`, `tauri.conf.json`, `Cargo.toml`) and `CHANGELOG.md` (plus `CHANGELOG_EN.md`) must be updated and committed together.
@@ -28,9 +28,8 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
 | Platform / Target | Full Release Command | Version Bump Only | Git Tag Pattern | CI/CD Workflow | Version Files & Changelog | Distribution Target |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Desktop App** | `pnpm release:desktop` | `pnpm release:desktop:version` | `v*` (e.g. `v0.12.1`) | `.github/workflows/release-desktop.yml` | `apps/desktop/package.json`<br>`src-tauri/tauri.conf.json`<br>`src-tauri/Cargo.toml`<br>`apps/desktop/CHANGELOG*.md` | Cloudflare R2 (`/inkpoint/desktop/`)<br>Homebrew Tap<br>GitHub Releases |
-| **Android App** | `pnpm release:android` | `pnpm release:android:version` | `android-v*` (e.g. `android-v0.2.0`) | `.github/workflows/release-mobile.yml` | `apps/mobile/android/app/build.gradle.kts`<br>`apps/mobile/android/CHANGELOG*.md` | Cloudflare R2 (`/inkpoint/android/`)<br>Distribution Gateway |
 | **Web Playground** | `pnpm release:web` | `pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*` (archival tag only) | `.github/workflows/release-web.yml` | `apps/web/package.json`<br>`apps/web/CHANGELOG*.md` | Vercel Production (`editor.jiaqi.im/playground`) |
-| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop, Android & Web changelogs | Vercel Production (`editor.jiaqi.im`) |
+| **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop & Web changelogs | Vercel Production (`editor.jiaqi.im`) |
 | **Distribution Worker** | `pnpm deploy:worker` | N/A | Manual / Infrastructure deploy | Cloudflare Worker CLI | `infra/distribution-worker` | Cloudflare Edge (`download.jiaqi.im`) |
 | **uTools Plugin** | Manual Review | `apps/utools/package.json` | `utools-v*` | `.github/workflows/release-utools.yml` | `apps/utools/package.json`<br>`apps/utools/CHANGELOG*.md` | uTools Developer Center (manual submission) |
 
@@ -56,23 +55,13 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
    - GitHub Actions builds macOS (DMG + updater), Linux (AppImage + DEB), and Windows (Setup EXE).
    - Uploads artifacts to Cloudflare R2, updates `version.json`, purges CDN cache, and triggers `pnpm release:site`.
 
-### 3.2 Android Release (`apps/mobile/android`)
-1. **Pre-check**: Ensure working tree is clean and `pnpm verify` passes.
-2. **Execute release**:
-   ```bash
-   # Interactive mode:
-   pnpm release:android
+### 3.2 Mobile (Android / iOS)
+Mobile is no longer released: there is no release script, no tag-triggered CI, and no changelog to update. The site and the distribution gateway only offer the last published builds (Android 0.2.1, iOS 0.2.1). Newer builds are compiled locally:
 
-   # Or non-interactive CLI:
-   pnpm release:android patch --notes "优化移动端编辑器体验"
-   ```
-3. **What happens automatically**:
-   - Increments `versionCode` and updates `versionName` in `apps/mobile/android/app/build.gradle.kts`.
-   - Prepends new version block into `apps/mobile/android/CHANGELOG.md` and `apps/mobile/android/CHANGELOG_EN.md`.
-   - Creates commit `chore(android): release android-vX.Y.Z` and annotated tag `android-vX.Y.Z`.
-   - Pushes tag to origin, triggering `.github/workflows/release-mobile.yml`.
-   - GitHub Actions builds release APK, signs it, and uploads `Inkpoint_X.Y.Z.apk` to Cloudflare R2.
-   - Updates `version.json` and `releases.json`, purges CDN cache, and triggers `pnpm release:site`.
+```bash
+pnpm build:android   # dist-mobile/Inkpoint_<version>.apk (needs JDK 17 + Android SDK)
+pnpm build:ios       # dist-mobile/Inkpoint-<version>-unsigned.ipa (needs macOS + Xcode)
+```
 
 ### 3.3 Web Playground Release (`apps/web`)
 1. **Scheme A - Vercel CLI Direct Deploy (Recommended)**:
@@ -93,7 +82,7 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
    ```
 2. **Mechanics**:
    - Uses Vercel CLI with prebuilt output (`pull` -> `build --prod` -> `deploy --prebuilt`).
-   - Reads `apps/desktop/CHANGELOG.md`, `apps/mobile/android/CHANGELOG.md`, and `apps/web/CHANGELOG.md`.
+   - Reads `apps/desktop/CHANGELOG.md` and `apps/web/CHANGELOG.md`.
    - `/changelog` route uses Next.js ISR (`export const revalidate = 300`) for high-performance edge caching.
 
 ### 3.5 Distribution Worker Deployment (`infra/distribution-worker`)
@@ -117,15 +106,14 @@ After the release workflow runs, verify each checkpoint:
    Ensure all matrix jobs (build, package, upload, site deploy) are green.
 2. **Distribution Edge API**:
    ```bash
-   curl -s https://download.jiaqi.im/api/inkpoint/releases | jq '{latestDesktopVersion, latestAndroidVersion}'
+   curl -s https://download.jiaqi.im/api/inkpoint/releases | jq '{latestDesktopVersion}'
    ```
-   Confirm `latestDesktopVersion` and `latestAndroidVersion` match the expected versions.
+   Confirm `latestDesktopVersion` matches the expected version.
 3. **Direct Download Links**:
    - Desktop: `https://download.jiaqi.im/inkpoint/desktop/macos/latest`
-   - Android: `https://download.jiaqi.im/inkpoint/android/latest`
 4. **Website Rendering**:
    - Home page: check that the download CTA displays the correct version badge.
-   - Changelog page (`/changelog`): verify all platform tabs (Desktop, Android, Web) show the newly released version and notes.
+   - Changelog page (`/changelog`): verify the tabs (Desktop, Web, Model) show the newly released version and notes.
 
 ---
 

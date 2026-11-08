@@ -86,6 +86,7 @@ tmp/
 temp/
 scratch/
 dist-desktop/
+dist-mobile/
 .omx/
 .omc/
 .pi/

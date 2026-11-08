@@ -54,20 +54,9 @@ export async function runCli() {
     process.exit(1);
   }
 
-  const normalizedVersion = version
-    .replace(/^v/, "")
-    .replace(/^android-v/, "")
-    .replace(/^mobile-v/, "")
-    .replace(/^ios-ipa-v/, "");
-  const platform = process.env.RELEASE_PLATFORM || "desktop";
-  const artifactsDir =
-    process.env.ARTIFACTS_DIR ||
-    (platform === "android" || platform === "ios" ? "dist-mobile" : "release-artifacts");
-  const outputPath =
-    process.env.OUTPUT_PATH ||
-    (platform === "android" || platform === "ios"
-      ? "dist-mobile/version.json"
-      : "dist-desktop/version.json");
+  const normalizedVersion = version.replace(/^v/, "");
+  const artifactsDir = process.env.ARTIFACTS_DIR || "release-artifacts";
+  const outputPath = process.env.OUTPUT_PATH || "dist-desktop/version.json";
   const distributionUrl = process.env.DISTRIBUTION_URL || "https://download.jiaqi.im";
   const appName = process.env.APP_NAME || "inkpoint";
   const githubRepo = process.env.GITHUB_REPO || "wmasfoe/md-editor";
@@ -88,8 +77,10 @@ export async function runCli() {
     console.warn(`Could not fetch remote version.json: ${err.message}. Using local baseline.`);
   }
 
-  // 1.1 若已有清单中缺少 android 节点，尝试从 releases API 恢复最新 Android 版本
-  if (!existingManifest.android && platform !== "android") {
+  // 1.1 线上清单缺少 android 节点时，从 releases API 恢复最新已发布的 Android 版本。
+  // 移动端已停止发版，但 `/android/latest` 依赖这个节点；拉取线上清单失败时，
+  // 桌面发版不能把它从 version.json 里带丢。
+  if (!existingManifest.android) {
     try {
       const relRes = await fetch(`${distributionUrl}/api/${appName}/android/releases`, {
         headers: { "User-Agent": "Inkpoint-Release-Script/1.0" },
@@ -115,77 +106,6 @@ export async function runCli() {
     } catch {
       // Ignore recovery errors
     }
-  }
-
-  if (platform === "android") {
-    // 移动端 Manifest 生成与合并
-    const apkFile = findFile(
-      artifactsDir,
-      (n) => n.endsWith(".apk") && !n.includes("unaligned") && !n.includes("latest"),
-    );
-
-    const fileName = apkFile ? path.basename(apkFile) : `Inkpoint_${normalizedVersion}.apk`;
-    const sizeBytes = apkFile ? fs.statSync(apkFile).size : undefined;
-    const sha256 = apkFile ? computeSha256(apkFile) : undefined;
-
-    const android = {
-      version: normalizedVersion,
-      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/android-v${normalizedVersion}`,
-      apk: {
-        version: normalizedVersion,
-        fileName,
-        downloadUrl: `${distributionUrl}/${appName}/android/latest`,
-        sizeBytes,
-        sha256,
-      },
-    };
-
-    const updatedManifest = mergeVersionManifest(existingManifest, {
-      app: appName,
-      android,
-    });
-
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
-    console.log(`✓ Updated Android version manifest: ${outputPath}`);
-    return;
-  }
-
-  if (platform === "ios") {
-    // iOS 未签名 IPA 槽位：产物由 macOS runner 构建后放进 dist-mobile，
-    // 下载地址统一走分发网关的 /ios/latest 直链（与 Android 对齐）
-    const ipaFile = findFile(artifactsDir, (n) => n.endsWith(".ipa") && !n.includes("latest"));
-
-    const fileName = ipaFile
-      ? path.basename(ipaFile)
-      : `Inkpoint-${normalizedVersion}-unsigned.ipa`;
-    const sizeBytes = ipaFile ? fs.statSync(ipaFile).size : undefined;
-    const sha256 = ipaFile ? computeSha256(ipaFile) : undefined;
-
-    const ios = {
-      version: normalizedVersion,
-      releaseNotesUrl: `https://github.com/${githubRepo}/releases/tag/ios-ipa-v${normalizedVersion}`,
-      ipa: {
-        version: normalizedVersion,
-        fileName,
-        downloadUrl: `${distributionUrl}/${appName}/ios/latest`,
-        sizeBytes,
-        sha256,
-        // 未签名包：由用户侧自签工具（Sideloadly / AltStore / LiveContainer 等）重签后安装
-        unsigned: true,
-        minimumOSVersion: "17.0",
-      },
-    };
-
-    const updatedManifest = mergeVersionManifest(existingManifest, {
-      app: appName,
-      ios,
-    });
-
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, `${JSON.stringify(updatedManifest, null, 2)}\n`);
-    console.log(`✓ Updated iOS version manifest: ${outputPath}`);
-    return;
   }
 
   // 2. 桌面端 Manifest 生成与合并（各槽位按架构精确匹配，见顶层 isArmFileName / isX64FileName）

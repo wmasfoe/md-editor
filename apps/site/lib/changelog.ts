@@ -36,28 +36,10 @@ const defaultWebChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG.m
 
 const defaultWebEnChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG_EN.md");
 
-const defaultAndroidChangelogCandidates = repoCandidates(
-  "apps",
-  "mobile",
-  "android",
-  "CHANGELOG.md",
-);
-
-const defaultAndroidEnChangelogCandidates = repoCandidates(
-  "apps",
-  "mobile",
-  "android",
-  "CHANGELOG_EN.md",
-);
-
-const defaultIosChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG.md");
-
-const defaultIosEnChangelogCandidates = repoCandidates("apps", "mobile", "ios", "CHANGELOG_EN.md");
-
 /**
  * 读取指定平台的更新日志。
  *
- * 四个平台（Desktop / Web / Android / iOS）只有候选文件不同，读取与回退规则完全一致：
+ * 两个平台（Desktop / Web）只有候选文件不同，读取与回退规则完全一致：
  * 英文缺失时回退中文，两者都缺失时返回空数组（官网页面显示空状态，而不是抛错）。
  */
 function readChangelogEntries(
@@ -105,79 +87,6 @@ export function getWebChangelogEntries(locale: Locale = "zh", filePath?: string)
     filePath,
     prefersEnglishChangelog,
   );
-}
-
-/** 获取 Android 移动端的更新日志列表。 */
-export function getAndroidChangelogEntries(
-  locale: Locale = "zh",
-  filePath?: string,
-): ChangelogEntry[] {
-  return readChangelogEntries(
-    locale,
-    defaultAndroidChangelogCandidates,
-    defaultAndroidEnChangelogCandidates,
-    filePath,
-    prefersEnglishChangelog,
-  );
-}
-
-/** 获取 iOS 移动端的更新日志列表。 */
-export function getIosChangelogEntries(locale: Locale = "zh", filePath?: string): ChangelogEntry[] {
-  return readChangelogEntries(
-    locale,
-    defaultIosChangelogCandidates,
-    defaultIosEnChangelogCandidates,
-    filePath,
-    prefersEnglishChangelog,
-  );
-}
-
-/**
- * 获取当前最新的 iOS 版本号。
- * 优先从 iOS 更新日志首条提取，兜底解析 Xcode 工程里的 MARKETING_VERSION。
- */
-export function getLatestIosVersion(): string {
-  const entries = getIosChangelogEntries("zh");
-  if (entries.length > 0 && entries[0].version) {
-    return entries[0].version;
-  }
-  const projectCandidates = repoCandidates(
-    "apps",
-    "mobile",
-    "ios",
-    "Inkpoint.xcodeproj",
-    "project.pbxproj",
-  );
-  for (const candidate of projectCandidates) {
-    if (fs.existsSync(candidate)) {
-      const match = fs.readFileSync(candidate, "utf8").match(/MARKETING_VERSION\s*=\s*([^;]+);/);
-      if (match?.[1]) {
-        return match[1].trim();
-      }
-    }
-  }
-  return "0.1.0";
-}
-
-/**
- * 获取当前最新的 Android 版本号。
- * 优先从 Android 更新日志首条提取，兜底解析 build.gradle.kts 或回退 0.1.1。
- */
-export function getLatestAndroidVersion(): string {
-  const entries = getAndroidChangelogEntries("zh");
-  if (entries.length > 0 && entries[0].version) {
-    return entries[0].version;
-  }
-  const gradleCandidates = repoCandidates("apps", "mobile", "android", "app", "build.gradle.kts");
-  for (const candidate of gradleCandidates) {
-    if (fs.existsSync(candidate)) {
-      const match = fs.readFileSync(candidate, "utf8").match(/versionName\s*=\s*"([^"]+)"/);
-      if (match?.[1]) {
-        return match[1];
-      }
-    }
-  }
-  return "0.1.1";
 }
 
 /**

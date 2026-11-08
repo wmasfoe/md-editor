@@ -1,7 +1,7 @@
 /**
  * 官网下载入口使用的平台。
  * 包含桌面端（macOS、Linux、Windows）与移动端（Android、iOS）。
- * 移动端排在最后并标明测试版状态。
+ * 移动端排在最后；它们已停止发版，只提供已经发布的最后一个版本。
  */
 export const SITE_PLATFORMS = ["macos", "linux", "windows", "android", "ios"] as const;
 
@@ -44,7 +44,7 @@ export function detectSitePlatform(userAgent: string): SitePlatform {
     return "android";
   }
 
-  // iOS 客户端以未签名 IPA 形式分发，iOS 访问直接推荐 iOS 入口
+  // iOS 以未签名 IPA 分发，iOS 访问直接落到 iOS 入口
   if (
     ua.includes("iphone") ||
     ua.includes("ipad") ||

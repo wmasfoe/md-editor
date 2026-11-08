@@ -12,3 +12,9 @@ export const SUPPORTED_APPS = [
 ];
 
 export const KNOWN_PLATFORM_CATEGORIES = new Set(["android", "ios", "desktop", "mobile"]);
+
+/**
+ * 移动端已停止发版，最后发布的版本固定在这里。
+ * 只在 R2 清单缺失时作为兜底；清单存在时以清单为准。
+ */
+export const PUBLISHED_ANDROID_VERSION = "0.2.1";

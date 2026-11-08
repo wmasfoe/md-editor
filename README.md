@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://editor.jiaqi.im/#download">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_Android_%7C_uTools-blue?style=flat-square" alt="Platforms">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_uTools-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
@@ -35,10 +35,7 @@
     <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/desktop-v0.18.0-brightgreen?style=flat-square" alt="Desktop Version">
-  </a>
-  <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/android-v0.1.1-brightgreen?style=flat-square" alt="Android Version">
+    <img src="https://img.shields.io/github/v/release/wmasfoe/md-editor?label=desktop&style=flat-square&color=brightgreen" alt="Desktop Version">
   </a>
   <a href="#license">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
@@ -92,7 +89,6 @@
 
 ### 📱 Multi-Platform & Multi-Form Synergy
 - **Desktop Clients (macOS / Windows / Linux)**: Native window chrome (macOS Liquid Glass vibrancy), tabbed editing, outline trees, file watching, and differential updates.
-- **Mobile Suite (Android / iOS)**: "Jilan" (即览) philosophy combining an offline Webview core with native soft-keyboard accessory bars (`KeyboardAccessoryBar`) and haptic feedback.
 - **Web Playground**: Zero-install in-browser full editor experience powered by an in-memory virtual file system with IndexedDB persistence.
 - **uTools Productivity Plugin**: Dual-mode design (distraction-free quick-note mode & full workspace mode) with zero-pollution physical isolation.
 - **macOS QuickLook Preview**: Built-in headless compiler (`@md-editor/compiler`) enabling instant spacebar previews for `.md` / `.mdx` files in Finder.
@@ -113,8 +109,6 @@ Choose the installation method that best fits your operating system and device:
 | **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | Recommended: Homebrew or one-line script |
 | **Windows** | x64 / ARM64 | `.exe` (NSIS Setup) | Silent install script or manual installer |
 | **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | Standalone AppImage or system package |
-| **Android** | ARM64 / x86_64 (Android 8.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/android](apps/mobile/android/README.md)) |
-| **iOS** | iPhone / iPad (iOS 17.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/ios](apps/mobile/ios/README.md)) |
 | **uTools** | Desktop application environment | `.upxs` (Plugin package) | Search "Inkpoint" in uTools store or trigger via shortcut |
 | **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.jiaqi.im/playground) |
 
@@ -141,9 +135,6 @@ brew install --cask wmasfoe/tap/md-editor
 ### Option 3: Manual Download (Desktop)
 
 Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
-
-> [!NOTE]
-> **Mobile Notice**: Android and iOS mobile versions are currently in active open-source development and **do not provide pre-compiled installation packages (APKs/IPAs)**. If you need to run on mobile, please refer to [apps/mobile/README.md](apps/mobile/README.md) to compile from source locally.
 
 > [!TIP]
 > **macOS Quarantine Notice**: The one-line install script and Homebrew handle Gatekeeper quarantine automatically. If you manually download the `.dmg` and macOS reports "App is damaged" or "Cannot verify developer", run:
@@ -180,17 +171,13 @@ pnpm dev:web
 # 5. Start uTools plugin development server
 pnpm dev:utools
 
-# 6. Start mobile development (Android / iOS)
-pnpm android   # Android emulator or connected device
-pnpm ios       # iOS simulator (macOS only)
-
-# 7. Start official website development server
+# 6. Start official website development server
 pnpm dev:site
 
-# 8. Start edge distribution worker development server
+# 7. Start edge distribution worker development server
 pnpm dev:worker
 
-# 9. Run workspace tests and code quality checks
+# 8. Run workspace tests and code quality checks
 pnpm test        # Run unit tests
 pnpm typecheck   # TypeScript type checks
 pnpm lint        # Oxlint + Prettier + Cargo Clippy
@@ -206,9 +193,6 @@ pnpm build:windows  # Windows (NSIS installer)
 
 # Web online playground build
 pnpm build:web
-
-# Mobile offline webview bundle build & sync to native Android / iOS projects
-pnpm build:mobile
 
 # uTools plugin build (generates dist/ bundle)
 pnpm build:utools
@@ -245,10 +229,6 @@ Inkpoint adopts a modern Monorepo architecture managed by `pnpm workspace` with 
 md-editor/
 ├── apps/
 │   ├── desktop/                 # Tauri 2 cross-platform desktop app (Rust + React 19 Shell)
-│   ├── mobile/                  # Mobile multi-platform suite (Hybrid Webview + Android Compose + iOS SwiftUI)
-│   │   ├── core/                # @md-editor/mobile-core: Mobile offline Webview core and Bridge
-│   │   ├── android/             # Android native project (Kotlin + Jetpack Compose + SAF)
-│   │   └── ios/                 # iOS native project (Swift 6 + SwiftUI + Share Extension)
 │   ├── utools/                  # uTools platform immersive lightweight quick-note plugin
 │   ├── web/                     # Web online Playground editor application (Vite + React 19)
 │   └── site/                    # Inkpoint official website and dynamic download center (Next.js App Router)
@@ -269,7 +249,7 @@ md-editor/
 │   ├── ai/                      # AI provider abstraction, streaming suggestion parser, and multi-protocol harness
 │   └── shared/                  # Common TypeScript utility library and cross-package core types
 ├── docs/                        # Project design specifications, technical proposals, and release guidelines
-└── scripts/                     # Automated release scripts (release:*), mobile asset sync, and CI helpers
+└── scripts/                     # Release scripts (release:*) and CI helpers
 ```
 
 > 💡 Each subpackage and application directory contains its own `README.md` with detailed technical documentation and API specifications.
@@ -281,7 +261,6 @@ md-editor/
 | Domain | Core Technology | Description |
 | :--- | :--- | :--- |
 | **Desktop Runtime** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | Lightweight, secure, low-resource cross-platform desktop foundation |
-| **Mobile Native** | [Jetpack Compose](https://developer.android.com/compose) + [SwiftUI](https://developer.apple.com/xcode/swiftui/) | Native Android & iOS UI, system haptics, keyboard accessory bar & share extensions |
 | **Frontend Architecture** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern declarative UI development with a rigorous type system |
 | **Editor Core** | [CodeMirror 6](https://codemirror.net/) | Next-generation unified WYSIWYG and source editor on a single EditorView |
 | **Headless Compiler** | `@md-editor/compiler` | Pure zero-DOM static Markdown compiler supporting QuickLook and standalone export |
@@ -299,7 +278,6 @@ Comprehensive architecture proposals and design guidelines are located in [`docs
 - 📘 [Agent Knowledge Base Index](docs/agent/index.md) — Unified navigation across architecture, status, specs, and roadmaps
 - 📐 [Capability Boundary Design Principles](docs/agent/architecture/capability_boundary_design_principles.md) — Module boundaries and decoupling rules
 - 🛠️ [VMark Feature Technical Plan](docs/agent/architecture/vmark_remaining_features_technical_plan.md) — Hot Exit, Document History, Linting, and HTML/PDF export
-- 📱 [Mobile Architecture Plan](docs/agent/architecture/mobile_support_architecture.md) — Mobile Webview core and native bridge design
 - 🚀 [Automated Release Workflow](docs/agent/release/release_workflow.md) — CI/CD, GitHub Releases, and distribution automation
 - 💡 [Project Background & Origins](docs/human/project.md) — Insights, reflections, and design philosophies
 

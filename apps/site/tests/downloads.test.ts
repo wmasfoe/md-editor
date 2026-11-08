@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  ANDROID_SOURCE_GUIDE_URL,
   buildDownloadCatalog,
   getMobileDownloadCatalog,
   getPlatformInstall,
-  IOS_SOURCE_GUIDE_URL,
   MACOS_QUARANTINE_COMMAND,
+  PUBLISHED_ANDROID_VERSION,
+  PUBLISHED_IOS_VERSION,
   UNIX_INSTALL_COMMAND,
   WINDOWS_INSTALL_COMMAND,
 } from "../lib/downloads";
@@ -62,48 +62,46 @@ describe("getPlatformInstall", () => {
     expect(getPlatformInstall("ios")).toBeNull();
   });
 
-  it("builds mobile download catalog directing to source build guides", () => {
+  it("points mobile downloads at the last published packages", () => {
     const zh = getMobileDownloadCatalog("zh");
-    expect(zh.android.primary.href).toBe(ANDROID_SOURCE_GUIDE_URL);
-    expect(zh.android.primary.label).toBe("查看 Android 源码编译说明");
-    expect(zh.android.primary.fileName).toBeUndefined();
-    expect(zh.android.format).toBe("Android 8.0+ · 暂无安装包 · 需自行编译源码");
-    expect(zh.android.version).toBe("0.2.1");
-    expect(zh.android.secondary).toEqual([]);
+    expect(zh.android.primary).toEqual({
+      href: "https://download.jiaqi.im/inkpoint/android/0.2.1/Inkpoint_0.2.1.apk",
+      fileName: "Inkpoint_0.2.1.apk",
+      label: "下载 Android",
+    });
+    expect(zh.android.format).toBe("Android 8.0+ · APK");
+    expect(zh.android.version).toBe(PUBLISHED_ANDROID_VERSION);
 
-    expect(zh.ios.primary.href).toBe(IOS_SOURCE_GUIDE_URL);
-    expect(zh.ios.primary.label).toBe("查看 iOS 源码编译说明");
-    expect(zh.ios.primary.fileName).toBeUndefined();
-    expect(zh.ios.format).toBe("iOS 17.0+ · 暂无安装包 · 需自行编译源码");
-    expect(zh.ios.version).toBe("0.2.1");
-    expect(zh.ios.secondary).toEqual([]);
-
-    const custom = getMobileDownloadCatalog("zh", undefined, "0.1.0", "0.1.0");
-    expect(custom.android.primary.href).toBe(ANDROID_SOURCE_GUIDE_URL);
-    expect(custom.android.version).toBe("0.1.0");
-    expect(custom.ios.version).toBe("0.1.0");
-    expect(custom.ios.primary.href).toBe(IOS_SOURCE_GUIDE_URL);
+    expect(zh.ios.primary).toEqual({
+      href: "https://download.jiaqi.im/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa",
+      fileName: "Inkpoint-0.2.1-unsigned.ipa",
+      label: "下载 iOS",
+    });
+    expect(zh.ios.format).toBe("iOS 17.0+ · 未签名 IPA");
+    expect(zh.ios.version).toBe(PUBLISHED_IOS_VERSION);
 
     const en = getMobileDownloadCatalog("en");
-    expect(en.android.primary.label).toBe("View Android Build Guide");
-    expect(en.ios.primary.label).toBe("View iOS Build Guide");
-    expect(en.android.format).toBe("Android 8.0+ · No pre-built package · Build from source");
-    expect(en.ios.format).toBe("iOS 17.0+ · No pre-built package · Build from source");
+    expect(en.android.primary.label).toBe("Download for Android");
+    expect(en.ios.format).toBe("iOS 17.0+ · Unsigned IPA");
+
+    // 自定义分发域名同样生效
+    const custom = getMobileDownloadCatalog("zh", "download.example.com");
+    expect(custom.android.primary.href).toBe(
+      "https://download.example.com/inkpoint/android/0.2.1/Inkpoint_0.2.1.apk",
+    );
   });
 
-  it("includes mobile source platforms in buildDownloadCatalog", () => {
-    const catalog = buildDownloadCatalog("0.10.2", "zh", undefined, "0.1.1", "0.2.1");
-    expect(catalog.android.isBeta).toBe(true);
-    expect(catalog.android.version).toBe("0.1.1");
-    expect(catalog.android.primary.href).toBe(ANDROID_SOURCE_GUIDE_URL);
-    expect(catalog.android.primary.fileName).toBeUndefined();
-    expect(catalog.android.format).toBe("Android 8.0+ · 暂无安装包 · 需自行编译源码");
-    expect(catalog.ios.isBeta).toBe(true);
-    expect(catalog.ios.version).toBe("0.2.1");
-    expect(catalog.ios.primary.href).toBe(IOS_SOURCE_GUIDE_URL);
-    expect(catalog.ios.primary.fileName).toBeUndefined();
-    expect(catalog.ios.format).toBe("iOS 17.0+ · 暂无安装包 · 需自行编译源码");
-    // iOS 全部版本入口指向分发网关的 ios 目录
+  it("includes the published mobile packages in buildDownloadCatalog", () => {
+    const catalog = buildDownloadCatalog("0.10.2", "zh");
+    expect(catalog.android.isBeta).toBe(false);
+    expect(catalog.android.version).toBe(PUBLISHED_ANDROID_VERSION);
+    expect(catalog.android.primary.fileName).toBe("Inkpoint_0.2.1.apk");
+    expect(catalog.ios.isBeta).toBe(false);
+    expect(catalog.ios.primary.fileName).toBe("Inkpoint-0.2.1-unsigned.ipa");
     expect(catalog.iosPackagesUrl).toBe("https://download.jiaqi.im/inkpoint/ios/");
+
+    // 桌面版本缺失时走回退目录，移动端入口仍然可用
+    const fallback = buildDownloadCatalog();
+    expect(fallback.android.primary.fileName).toBe("Inkpoint_0.2.1.apk");
   });
 });

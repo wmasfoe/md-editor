@@ -43,8 +43,8 @@ export interface AppVersionManifest {
     apk: PlatformAssetInfo;
   };
   /**
-   * iOS 未签名 IPA 通道：由 `build-ios-ipa.yml` 构建并上传到 R2，
-   * 官网与分发网关通过 `/:app/ios/latest` 提供直链，用户侧自签后安装。
+   * iOS 未签名 IPA 通道（已停止发版）：R2 里保留已发布的版本，
+   * 分发网关通过 `/:app/ios/latest` 提供直链，用户侧自签后安装。
    */
   ios?: {
     version: string;

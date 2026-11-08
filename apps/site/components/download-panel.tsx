@@ -5,13 +5,13 @@ import { FaAndroid, FaApple, FaLinux, FaWindows } from "react-icons/fa6";
 import { useState } from "react";
 import {
   buildDownloadCatalog,
-  getMobilePlatformGuide,
   getPlatformInstall,
   listSitePlatforms,
   type DownloadCatalog,
 } from "../lib/downloads";
 import { useDistribution } from "../lib/distribution/context";
 import { useI18n } from "../lib/i18n/context";
+import { ANDROID_SOURCE_GUIDE_URL, IOS_SOURCE_GUIDE_URL } from "../lib/site-links";
 import { isMobilePlatform, SITE_PLATFORM_LABELS, type SitePlatform } from "../lib/platform";
 import { InstallCommand } from "./install-command";
 import { LiquidGlassSegmentedControl } from "./liquid-glass-segmented-control";
@@ -33,16 +33,6 @@ function PlatformGlyph({ platform, className }: { platform: SitePlatform; classN
 }
 
 function renderPlatformLabel(platform: SitePlatform) {
-  if (platform === "android" || platform === "ios") {
-    return (
-      <span className="inline-flex items-center gap-1 sm:gap-1.5">
-        <span className="text-[12px] sm:text-sm">{platform === "android" ? "Android" : "iOS"}</span>
-        <span className="hidden rounded-full bg-muted/20 px-1.5 py-0.5 text-[9px] font-medium text-muted leading-none sm:inline-block">
-          源码
-        </span>
-      </span>
-    );
-  }
   if (platform === "windows") {
     return (
       <span className="text-[12px] sm:text-sm">
@@ -54,48 +44,21 @@ function renderPlatformLabel(platform: SitePlatform) {
   return <span className="text-[12px] sm:text-sm">{SITE_PLATFORM_LABELS[platform]}</span>;
 }
 
-function getPlatformAriaLabel(
-  platform: SitePlatform,
-  ariaAndroid?: string,
-  ariaIos?: string,
-): string {
-  if (platform === "android" && ariaAndroid) {
-    return ariaAndroid;
-  }
-  if (platform === "ios" && ariaIos) {
-    return ariaIos;
-  }
-  return SITE_PLATFORM_LABELS[platform];
-}
-
 type DownloadPanelProps = {
   catalog?: DownloadCatalog;
   initialPlatform: SitePlatform;
   version?: string;
-  androidVersion?: string;
-  iosVersion?: string;
 };
 
-const DISABLED_PLATFORMS: SitePlatform[] = ["android", "ios"];
-
-export function DownloadPanel({
-  initialPlatform,
-  version,
-  androidVersion,
-  iosVersion,
-}: DownloadPanelProps) {
+export function DownloadPanel({ initialPlatform, version }: DownloadPanelProps) {
   const { locale, t } = useI18n();
   const { domain } = useDistribution();
-  const defaultPlatform: SitePlatform = DISABLED_PLATFORMS.includes(initialPlatform)
-    ? "macos"
-    : initialPlatform;
-  const [platform, setPlatform] = useState<SitePlatform>(defaultPlatform);
-  const catalog = buildDownloadCatalog(version, locale, domain, androidVersion, iosVersion);
+  const [platform, setPlatform] = useState<SitePlatform>(initialPlatform);
+  const catalog = buildDownloadCatalog(version, locale, domain);
   const current = catalog[platform];
   const install = getPlatformInstall(platform, locale);
   const platforms = listSitePlatforms();
   const isMobile = isMobilePlatform(platform);
-  const mobileGuide = isMobile ? getMobilePlatformGuide(platform, locale) : null;
 
   return (
     <div className="w-full">
@@ -105,14 +68,8 @@ export function DownloadPanel({
           items={platforms}
           value={platform}
           onChange={setPlatform}
-          disabledItems={DISABLED_PLATFORMS}
-          getItemTitle={(p) =>
-            DISABLED_PLATFORMS.includes(p) ? t.download.sourceOnlyTooltip : undefined
-          }
           getLabel={(p) => renderPlatformLabel(p)}
-          getAriaLabel={(p) =>
-            getPlatformAriaLabel(p, t.download.ariaAndroidBeta, t.download.ariaIosBeta)
-          }
+          getAriaLabel={(p) => SITE_PLATFORM_LABELS[p]}
           ariaLabel={t.download.tablistAria}
         />
 
@@ -125,8 +82,6 @@ export function DownloadPanel({
           <a
             href={current.primary.href}
             download={current.primary.fileName}
-            target={isMobile ? "_blank" : undefined}
-            rel={isMobile ? "noreferrer" : undefined}
             aria-label={`${current.primary.label}，${current.format}`}
             className="liquid-glass-button-dark group relative mt-4 inline-flex h-12 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-full px-5 text-sm font-medium text-white sm:h-12 sm:w-fit sm:px-7"
           >
@@ -138,7 +93,6 @@ export function DownloadPanel({
             <span className="relative z-10 inline-flex items-center gap-2.5 font-medium tracking-tight">
               <PlatformGlyph platform={platform} className="h-4 w-4 shrink-0 opacity-90" />
               <span>{current.primary.label}</span>
-              {isMobile ? <span className="text-xs opacity-75">↗</span> : null}
             </span>
           </a>
         </div>
@@ -148,24 +102,22 @@ export function DownloadPanel({
         {current.isBeta ? (
           <span className="inline-flex items-center gap-1.5 font-medium text-accent">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            <span>{isMobile ? t.download.sourceOnlyStatus : t.download.betaStatus}</span>
+            <span>{t.download.betaStatus}</span>
           </span>
         ) : null}
         {current.isBeta ? <span className="text-line-strong">·</span> : null}
         {current.version || version ? (
-          <Link
-            href={
-              platform === "android"
-                ? "/changelog#android"
-                : platform === "ios"
-                  ? "/changelog#ios"
-                  : "/changelog#desktop"
-            }
-            className="transition-colors hover:text-ink hover:underline"
-            title={t.header.changelog}
-          >
-            {t.hero.latestPrefix} v{current.version ?? version}
-          </Link>
+          isMobile ? (
+            <span>v{current.version}</span>
+          ) : (
+            <Link
+              href="/changelog#desktop"
+              className="transition-colors hover:text-ink hover:underline"
+              title={t.header.changelog}
+            >
+              {t.hero.latestPrefix} v{current.version ?? version}
+            </Link>
+          )
         ) : null}
         {current.version || version ? <span className="text-line-strong">·</span> : null}
         <span>{current.format}</span>
@@ -196,7 +148,7 @@ export function DownloadPanel({
         ) : null}
       </p>
 
-      {/* 桌面端命令行一键安装 或 移动端测试版说明指南卡片 */}
+      {/* 桌面端命令行一键安装；移动端只提示后续版本需要自行编译 */}
       {install ? (
         <div className="mx-auto mt-8 max-w-2xl text-left sm:mt-10">
           <InstallCommand
@@ -207,45 +159,19 @@ export function DownloadPanel({
             extra={install.extra}
           />
         </div>
-      ) : mobileGuide ? (
-        <div className="mx-auto mt-8 max-w-2xl text-left sm:mt-10">
-          <div className="relative overflow-hidden rounded-2xl border border-line-strong/80 bg-surface/75 p-5 shadow-xs backdrop-blur-md sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/60 pb-3 sm:pb-4">
-              <span className="text-base font-medium text-ink sm:text-lg">{mobileGuide.title}</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-                {mobileGuide.badge}
-              </span>
-            </div>
-
-            <div className="mt-4 space-y-3 text-xs leading-relaxed text-muted sm:text-sm">
-              <p className="text-ink-soft">
-                <strong className="text-ink">{t.download.systemRequirements}</strong>
-                {mobileGuide.requirements}
-              </p>
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
-                <strong className="font-medium">{t.download.noPrebuiltNoticeTitle}</strong>
-                <span>{mobileGuide.description}</span>
-              </div>
-              <div className="rounded-xl border border-line/70 bg-surface-raised/50 p-3 whitespace-pre-line text-ink-soft">
-                <span className="font-medium text-ink">{t.download.installationTip}</span>
-                {mobileGuide.tips}
-              </div>
-              <p className="text-[11px] text-muted sm:text-xs">
-                {mobileGuide.feedback}{" "}
-                <a
-                  href="https://github.com/wmasfoe/md-editor/issues"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-ink underline decoration-line-strong hover:text-accent"
-                >
-                  GitHub Issues →
-                </a>
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      ) : (
+        <p className="mx-auto mt-8 max-w-xl text-center text-xs leading-relaxed text-muted sm:mt-10 sm:text-sm">
+          {t.download.mobileBuildHint.replace("{version}", current.version ?? "")}{" "}
+          <a
+            href={platform === "ios" ? IOS_SOURCE_GUIDE_URL : ANDROID_SOURCE_GUIDE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-ink-soft underline decoration-line-strong underline-offset-2 transition-colors hover:text-ink"
+          >
+            {t.download.mobileBuildGuide}
+          </a>
+        </p>
+      )}
     </div>
   );
 }

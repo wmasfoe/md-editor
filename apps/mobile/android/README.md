@@ -1,7 +1,7 @@
 # Inkpoint Android - 原生 Android 客户端
 
 > [!IMPORTANT]
-> **暂不提供预编译安装包**：当前 Android 客户端暂不提供官方预编译 APK 安装包。如有使用或体验需求，请按照下方指南在本地克隆仓库并自行编译源码运行。
+> **不再发版**：最后发布的 APK 是 0.2.1，可在[官网下载页](https://editor.jiaqi.im/#download)获取。之后的版本请按下方指南自行编译。
 
 Inkpoint 移动端的 Android 原生工程，基于 **Kotlin + Jetpack Compose + Material Design 3** 构建。
 
@@ -46,17 +46,17 @@ apps/mobile/android/
 ### 运行调试
 ```bash
 # 启动模拟器或通过 USB 连接真机后运行
-pnpm android
+pnpm dev:android
 # 或在当前目录下：
 ./gradlew installDebug
 ```
 
-### 打包发布 APK
+### 打包 APK
 ```bash
-# 打包生成 Universal 测试包
-./gradlew assembleDebug
+# 在仓库根目录：同步前端资源并编出 dist-mobile/Inkpoint_<version>.apk（Debug 签名）
+pnpm build:android
 
-# 打包生产签名包 (需配置环境变量签名密钥)
-./gradlew assembleRelease
+# 或在当前目录只执行 Gradle（需要先 pnpm build:mobile）
+./gradlew assembleDebug
 ```
-产物输出至：`app/build/outputs/apk/`。
+Gradle 的产物在 `app/build/outputs/apk/debug/`。工程里没有配置发布签名，`assembleRelease` 得到的是未签名包。

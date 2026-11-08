@@ -15,17 +15,10 @@ import { PinnedScene } from "./pinned-scene";
 
 interface HomeContentProps {
   latest?: ChangelogEntry;
-  latestAndroid?: ChangelogEntry;
-  latestIos?: ChangelogEntry;
   initialPlatform: SitePlatform;
 }
 
-export function HomeContent({
-  latest,
-  latestAndroid,
-  latestIos,
-  initialPlatform,
-}: HomeContentProps) {
+export function HomeContent({ latest, initialPlatform }: HomeContentProps) {
   const { t } = useI18n();
 
   return (
@@ -109,12 +102,7 @@ export function HomeContent({
             </p>
           </div>
 
-          <DownloadPanel
-            initialPlatform={initialPlatform}
-            version={latest?.version}
-            androidVersion={latestAndroid?.version}
-            iosVersion={latestIos?.version}
-          />
+          <DownloadPanel initialPlatform={initialPlatform} version={latest?.version} />
         </div>
       </section>
     </main>

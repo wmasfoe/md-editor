@@ -119,34 +119,21 @@ Worker 在代理 GitHub 大文件（如 100MB DMG）时，不一次性读取到�
 
 ---
 
-## 5. CI/CD 自动化流水线 (`.github/workflows/release-mobile.yml`)
+## 5. 移动端不再发版
 
-1. **触发契约**：推送 `android-v*` 或 `mobile-v*` 标签时自动触发；
-2. **渐进式签名**：
-   - 若配置了 `secrets.ANDROID_KEYSTORE_BASE64`，自动解码并构建生产签名 APK；
-   - 若未配置，自动构建自签名 APK（`assembleDebug`），开箱即用直接可在手机安装；
-3. **自动化部署**：
-   - 调用 `wrangler r2 object put` 自动上传 `Inkpoint_{version}.apk` 与 `latest.apk`；
-   - 自动更新生成 `inkpoint/version.json` 并推送到 R2 根路径；
-   - 上传 Actions Artifact 保留 30 天双重备份。
+Android 与 iOS 已停止发版，仓库里没有对应的 CI 或发版脚本：
 
-## 5.1 iOS 自签分发流水线 (`.github/workflows/build-ios-ipa.yml`)
-
-1. **触发契约**：推送 `ios-ipa-v*` 标签或手动 `workflow_dispatch`，在 macOS runner 上以 `CODE_SIGNING_ALLOWED=NO` 构建**未签名** device 版 IPA；
-2. **双链路分流**（按版本号形态判定）：
-   - 版本号带后缀（如 `0.1.0-b8`）→ 只出包，仅留 GitHub Actions Artifact（30 天），**绝不覆盖线上分发**；
-   - 版本号为纯 semver（如 `0.2.1`）→ 进入 `publish-ipa` 任务：上传 `ios/{version}/Inkpoint-{version}-unsigned.ipa` 与 `ios/latest.ipa`、合并 `version.json`、刷新全量清单、刷新边缘缓存、触发官网 changelog 发布；
-3. **不发 GitHub Release**：保持仓库 Releases 页 `Latest` 徽标锁定桌面端；iOS 历史版本由「线上 `releases.json` 递推 + `IOS_RELEASE_VERSION` 注入」维护，禁止从 `ios-ipa-v*` tag 反推（历史 tag 可能从未上传过 R2，会产出 404 链接）；
-4. **用户侧安装**：Sideloadly / AltStore / SideStore / LiveContainer 重签后安装，首次启动需在「设置 → 通用 → VPN与设备管理」信任证书；免费 Apple ID 签名有效期 7 天。
-
----
+1. **已发布的版本保留**：R2 里 `android/{version}/`、`ios/{version}/` 下的包不删，最后一个版本是 Android 0.2.1、iOS 0.2.1，官网下载面板直接指向这两个归档直链；
+2. **清单靠线上数据延续**：`releases.json` 里的移动端条目由 `sync-r2-releases-manifest.mjs` 从线上清单原样带过去，脚本不再从 git tag 或环境变量生成移动端条目；`version.json` 的 `android` 节点在桌面发版时保留（拉取线上清单失败时从 releases API 恢复）；
+3. **之后的版本自行编译**：`pnpm build:android` 产出 Debug 签名的 APK，`pnpm build:ios` 产出未签名 IPA（`dist-mobile/`），iOS 的 IPA 需要用 Sideloadly、AltStore 等工具重签后安装；
+4. **`/ios/latest` 目前返回 404**：线上 `version.json` 没有 `ios` 节点，只有 `/ios/0.2.1/...` 这样的版本直链可用，官网也使用版本直链。
 
 ## 6. 官网联动设计 (`site`)
 
 1. **`apps/site/lib/site-links.ts`**：
    - 暴露 `DISTRIBUTION_DOMAIN = "download.jiaqi.im"` 与 `DISTRIBUTION_URL`；
-   - 提供 `buildAcceleratedDesktopUrl`、`buildAndroidApkUrl`、`buildVersionApiUrl` 等安全方法；
+   - 提供 `buildAcceleratedDesktopUrl`、`buildAndroidApkUrl`、`buildIosIpaUrl`、`buildVersionApiUrl` 等安全方法；
 2. **`apps/site/lib/downloads.ts`**：
-   - 导出 `getMobileDownloadCatalog(locale)`，指向移动端源码编译说明链接（当前阶段移动端暂不提供预编译安装包，需克隆源码自行编译）；
+   - 导出 `getMobileDownloadCatalog(locale, domain)`，指向已发布的最后一个移动端版本的直链；版本号固定为 `PUBLISHED_ANDROID_VERSION` / `PUBLISHED_IOS_VERSION`；
 3. **`apps/site/components/download-panel.tsx`**：
-   - 桌面端提供一键安装与多架构安装包下载；移动端展示源码编译与运行指南，清晰标注暂无安装包。
+   - 桌面端提供一键安装与多架构安装包下载；移动端是 Android / iOS 两个标签，直接下载最后发布的版本，下方一行提示后续版本需要自行编译，并链接到编译说明。

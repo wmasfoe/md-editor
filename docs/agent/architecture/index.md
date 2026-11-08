@@ -42,8 +42,8 @@
 - uTools 平台插件接入架构方案： [utools_integration_architecture.md](./utools_integration_architecture.md)
   记录 uTools 平台接入定位（临时导流跳板）、apps/utools 完全隔离设计、文件与数据持久化机制、保存与图片插入防跳顶机制（beginSave/settleSave/applyExternalEdit）及 AI 免责规范。
 - 移动端 (iOS & Android) 原生外壳与离线内核架构方案： [mobile_support_architecture.md](./mobile_support_architecture.md)
-  记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入与 CI/CD 自动化流水线。
+  记录移动端“即览 (Jilan)”产品哲学、CodeMirror 6 离线容器复用方案、双向类型安全 JSBridge 契约、iOS SwiftUI/inputAccessoryView 联动、Android Jetpack Compose/SAF 接入，以及本机构建与测试命令（移动端无 CI、不再发版）。
 - 多平台分发与边缘加速架构方案： [multi_platform_distribution_architecture.md](./multi_platform_distribution_architecture.md)
-  记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计与 CI/CD 自动化流水线。
+  记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计；移动端已停止发版，仅保留已发布版本。
 
 

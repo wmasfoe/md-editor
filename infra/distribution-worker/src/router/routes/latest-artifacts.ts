@@ -91,7 +91,7 @@ export async function handleLatestArtifactsRoutes(
       JSON.stringify({
         error: "Android release artifact not found in R2 bucket",
         app,
-        help: "Please upload APK via GitHub Actions workflow 'release-mobile.yml'",
+        help: "Android packages are no longer published; build from source (apps/mobile/android).",
       }),
       { status: 404, headers: { "Content-Type": "application/json" } },
     );
@@ -133,7 +133,7 @@ export async function handleLatestArtifactsRoutes(
       JSON.stringify({
         error: "iOS release artifact not found in R2 bucket",
         app,
-        help: "Please upload the unsigned IPA via GitHub Actions workflow 'build-ios-ipa.yml'",
+        help: "iOS packages are no longer published; build from source (apps/mobile/ios).",
       }),
       { status: 404, headers: { "Content-Type": "application/json" } },
     );

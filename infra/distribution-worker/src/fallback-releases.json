@@ -1,30 +1,30 @@
 {
   "app": "inkpoint",
-  "updatedAt": "2026-10-17T11:20:28.299Z",
-  "total": 80,
-  "latestVersion": "0.13.1",
-  "latestDesktopVersion": "0.13.1",
+  "updatedAt": "2026-11-08T07:11:44.739Z",
+  "total": 99,
+  "latestVersion": "0.21.2",
+  "latestDesktopVersion": "0.21.2",
   "latestAndroidVersion": "0.2.1",
   "latestIosVersion": "0.2.1",
   "latestReleases": {
     "desktop": {
-      "version": "0.13.1",
-      "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/",
+      "version": "0.21.2",
+      "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/",
       "assets": [
         {
           "platform": "updater",
           "platformLabel": "Tauri 自动更新包",
           "fileName": "Inkpoint.app.tar.gz",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint.app.tar.gz",
-          "sizeBytes": 30425056,
-          "formattedSize": "29 MB",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint.app.tar.gz",
+          "sizeBytes": 30931797,
+          "formattedSize": "29.5 MB",
           "isR2Cached": false
         },
         {
           "platform": "updater",
           "platformLabel": "Tauri 签名文件",
           "fileName": "Inkpoint.app.tar.gz.sig",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint.app.tar.gz.sig",
           "sizeBytes": 408,
           "formattedSize": "408 B",
           "isR2Cached": false
@@ -32,55 +32,118 @@
         {
           "platform": "linux-appimage",
           "platformLabel": "Linux (ARM64) · AppImage",
-          "fileName": "Inkpoint_0.13.1_aarch64.AppImage",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_aarch64.AppImage",
-          "sizeBytes": 82172424,
-          "formattedSize": "78.4 MB",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage",
+          "sizeBytes": 92121608,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage.sig",
+          "sizeBytes": 424,
+          "formattedSize": "424 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage.zsync",
+          "sizeBytes": 315109,
+          "formattedSize": "307.7 KB",
           "isR2Cached": false
         },
         {
           "platform": "macos-arm64",
           "platformLabel": "macOS (Apple Silicon) · DMG",
-          "fileName": "Inkpoint_0.13.1_aarch64.dmg",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_aarch64.dmg",
-          "sizeBytes": 30961854,
-          "formattedSize": "29.5 MB",
+          "fileName": "Inkpoint_0.21.2_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.dmg",
+          "sizeBytes": 31466438,
+          "formattedSize": "30 MB",
           "isR2Cached": false
         },
         {
           "platform": "linux-appimage",
           "platformLabel": "Linux (x86_64) · AppImage",
-          "fileName": "Inkpoint_0.13.1_amd64.AppImage",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_amd64.AppImage",
-          "sizeBytes": 92256760,
-          "formattedSize": "88 MB",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage",
+          "sizeBytes": 96418296,
+          "formattedSize": "92 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage.zsync",
+          "sizeBytes": 329791,
+          "formattedSize": "322.1 KB",
           "isR2Cached": false
         },
         {
           "platform": "linux-deb",
           "platformLabel": "Linux (x86_64) · DEB",
-          "fileName": "Inkpoint_0.13.1_amd64.deb",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_amd64.deb",
-          "sizeBytes": 10648914,
-          "formattedSize": "10.2 MB",
+          "fileName": "Inkpoint_0.21.2_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.deb",
+          "sizeBytes": 8923368,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_amd64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
           "isR2Cached": false
         },
         {
           "platform": "linux-deb",
           "platformLabel": "Linux (ARM64) · DEB",
-          "fileName": "Inkpoint_0.13.1_arm64.deb",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_arm64.deb",
-          "sizeBytes": 8531816,
-          "formattedSize": "8.1 MB",
+          "fileName": "Inkpoint_0.21.2_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_arm64.deb",
+          "sizeBytes": 9070076,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_arm64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_arm64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
           "isR2Cached": false
         },
         {
           "platform": "windows-x64",
           "platformLabel": "Windows (x64) · Setup",
-          "fileName": "Inkpoint_0.13.1_x64-setup.exe",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.1/Inkpoint_0.13.1_x64-setup.exe",
-          "sizeBytes": 8256821,
-          "formattedSize": "7.9 MB",
+          "fileName": "Inkpoint_0.21.2_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_x64-setup.exe",
+          "sizeBytes": 6969770,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
           "isR2Cached": false
         }
       ]
@@ -101,10 +164,2037 @@
   },
   "releases": [
     {
+      "version": "0.21.2",
+      "tagName": "v0.21.2",
+      "publishedAt": "2026-11-07T23:15:42Z",
+      "isLatest": true,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.21.2",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint.app.tar.gz",
+          "sizeBytes": 30931797,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage",
+          "sizeBytes": 92121608,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage.sig",
+          "sizeBytes": 424,
+          "formattedSize": "424 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.2_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.AppImage.zsync",
+          "sizeBytes": 315109,
+          "formattedSize": "307.7 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.21.2_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_aarch64.dmg",
+          "sizeBytes": 31466438,
+          "formattedSize": "30 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage",
+          "sizeBytes": 96418296,
+          "formattedSize": "92 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.2_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.AppImage.zsync",
+          "sizeBytes": 329791,
+          "formattedSize": "322.1 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.21.2_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.deb",
+          "sizeBytes": 8923368,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_amd64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_amd64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.21.2_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_arm64.deb",
+          "sizeBytes": 9070076,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_arm64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_arm64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.21.2_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_x64-setup.exe",
+          "sizeBytes": 6969770,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.2_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.2/Inkpoint_0.21.2_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.21.1",
+      "tagName": "v0.21.1",
+      "publishedAt": "2026-11-07T20:55:34Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.21.1",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint.app.tar.gz",
+          "sizeBytes": 30932392,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.21.1_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_aarch64.AppImage",
+          "sizeBytes": 92117512,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.1_aarch64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_aarch64.AppImage.sig",
+          "sizeBytes": 424,
+          "formattedSize": "424 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.1_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_aarch64.AppImage.zsync",
+          "sizeBytes": 315095,
+          "formattedSize": "307.7 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.21.1_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_aarch64.dmg",
+          "sizeBytes": 31468193,
+          "formattedSize": "30 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.21.1_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_amd64.AppImage",
+          "sizeBytes": 96414200,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.1_amd64.AppImage.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_amd64.AppImage.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.1_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_amd64.AppImage.zsync",
+          "sizeBytes": 329777,
+          "formattedSize": "322 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.21.1_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_amd64.deb",
+          "sizeBytes": 8919968,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.1_amd64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_amd64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.21.1_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_arm64.deb",
+          "sizeBytes": 9067100,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.1_arm64.deb.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_arm64.deb.sig",
+          "sizeBytes": 416,
+          "formattedSize": "416 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.21.1_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_x64-setup.exe",
+          "sizeBytes": 6965410,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.1_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.1/Inkpoint_0.21.1_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.21.0",
+      "tagName": "v0.21.0",
+      "publishedAt": "2026-11-07T16:26:06Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.21.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30933585,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.21.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_aarch64.AppImage",
+          "sizeBytes": 92121608,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.0_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_aarch64.AppImage.zsync",
+          "sizeBytes": 315109,
+          "formattedSize": "307.7 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.21.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_aarch64.dmg",
+          "sizeBytes": 31466168,
+          "formattedSize": "30 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.21.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_amd64.AppImage",
+          "sizeBytes": 96422392,
+          "formattedSize": "92 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.21.0_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_amd64.AppImage.zsync",
+          "sizeBytes": 329805,
+          "formattedSize": "322.1 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.21.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_amd64.deb",
+          "sizeBytes": 8924580,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.21.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_arm64.deb",
+          "sizeBytes": 9066654,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.21.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_x64-setup.exe",
+          "sizeBytes": 6965946,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.21.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.21.0/Inkpoint_0.21.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.20.0",
+      "tagName": "v0.20.0",
+      "publishedAt": "2026-11-07T09:03:23Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.20.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30873404,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.20.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_aarch64.AppImage",
+          "sizeBytes": 92097032,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.20.0_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_aarch64.AppImage.zsync",
+          "sizeBytes": 315025,
+          "formattedSize": "307.6 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.20.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_aarch64.dmg",
+          "sizeBytes": 31413980,
+          "formattedSize": "30 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.20.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_amd64.AppImage",
+          "sizeBytes": 96373240,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.20.0_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_amd64.AppImage.zsync",
+          "sizeBytes": 329637,
+          "formattedSize": "321.9 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.20.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_amd64.deb",
+          "sizeBytes": 8874638,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.20.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_arm64.deb",
+          "sizeBytes": 9012602,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.20.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_x64-setup.exe",
+          "sizeBytes": 6927166,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.20.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.20.0/Inkpoint_0.20.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.19.3",
+      "tagName": "v0.19.3",
+      "publishedAt": "2026-11-05T04:12:44Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.19.3",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint.app.tar.gz",
+          "sizeBytes": 30873413,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.19.3_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_aarch64.AppImage",
+          "sizeBytes": 92092936,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.3_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_aarch64.AppImage.zsync",
+          "sizeBytes": 315011,
+          "formattedSize": "307.6 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.19.3_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_aarch64.dmg",
+          "sizeBytes": 31405817,
+          "formattedSize": "30 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.19.3_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_amd64.AppImage",
+          "sizeBytes": 96365048,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.3_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_amd64.AppImage.zsync",
+          "sizeBytes": 329609,
+          "formattedSize": "321.9 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.19.3_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_amd64.deb",
+          "sizeBytes": 8867942,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.19.3_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_arm64.deb",
+          "sizeBytes": 9003710,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.19.3_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_x64-setup.exe",
+          "sizeBytes": 6917855,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.19.3_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.3/Inkpoint_0.19.3_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.19.2",
+      "tagName": "v0.19.2",
+      "publishedAt": "2026-11-04T06:52:29Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.19.2",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint.app.tar.gz",
+          "sizeBytes": 30865255,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.19.2_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_aarch64.AppImage",
+          "sizeBytes": 92084744,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.2_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_aarch64.AppImage.zsync",
+          "sizeBytes": 314983,
+          "formattedSize": "307.6 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.19.2_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_aarch64.dmg",
+          "sizeBytes": 31401381,
+          "formattedSize": "29.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.19.2_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_amd64.AppImage",
+          "sizeBytes": 96369144,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.2_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_amd64.AppImage.zsync",
+          "sizeBytes": 329623,
+          "formattedSize": "321.9 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.19.2_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_amd64.deb",
+          "sizeBytes": 8864748,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.19.2_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_arm64.deb",
+          "sizeBytes": 9000304,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.19.2_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_x64-setup.exe",
+          "sizeBytes": 6907906,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.19.2_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.2/Inkpoint_0.19.2_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.19.1",
+      "tagName": "v0.19.1",
+      "publishedAt": "2026-11-02T15:20:46Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.19.1",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint.app.tar.gz",
+          "sizeBytes": 30865515,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.19.1_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_aarch64.AppImage",
+          "sizeBytes": 92084744,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.1_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_aarch64.AppImage.zsync",
+          "sizeBytes": 314983,
+          "formattedSize": "307.6 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.19.1_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_aarch64.dmg",
+          "sizeBytes": 31402350,
+          "formattedSize": "29.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.19.1_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_amd64.AppImage",
+          "sizeBytes": 96365048,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.1_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_amd64.AppImage.zsync",
+          "sizeBytes": 329609,
+          "formattedSize": "321.9 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.19.1_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_amd64.deb",
+          "sizeBytes": 8864666,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.19.1_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_arm64.deb",
+          "sizeBytes": 8998900,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.19.1_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_x64-setup.exe",
+          "sizeBytes": 6913777,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.19.1_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.1/Inkpoint_0.19.1_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.19.0",
+      "tagName": "v0.19.0",
+      "publishedAt": "2026-11-01T10:01:43Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.19.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30855968,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.19.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_aarch64.AppImage",
+          "sizeBytes": 92084744,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.0_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_aarch64.AppImage.zsync",
+          "sizeBytes": 314983,
+          "formattedSize": "307.6 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.19.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_aarch64.dmg",
+          "sizeBytes": 31399489,
+          "formattedSize": "29.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.19.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_amd64.AppImage",
+          "sizeBytes": 96365048,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.19.0_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_amd64.AppImage.zsync",
+          "sizeBytes": 329609,
+          "formattedSize": "321.9 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.19.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_amd64.deb",
+          "sizeBytes": 8861006,
+          "formattedSize": "8.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.19.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_arm64.deb",
+          "sizeBytes": 8997324,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.19.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_x64-setup.exe",
+          "sizeBytes": 6908384,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.19.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.19.0/Inkpoint_0.19.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.18.0",
+      "tagName": "v0.18.0",
+      "publishedAt": "2026-10-28T06:09:14Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.18.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30853791,
+          "formattedSize": "29.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.18.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_aarch64.AppImage",
+          "sizeBytes": 92064264,
+          "formattedSize": "87.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.18.0_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_aarch64.AppImage.zsync",
+          "sizeBytes": 314913,
+          "formattedSize": "307.5 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.18.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_aarch64.dmg",
+          "sizeBytes": 31391361,
+          "formattedSize": "29.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.18.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_amd64.AppImage",
+          "sizeBytes": 96340472,
+          "formattedSize": "91.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.18.0_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_amd64.AppImage.zsync",
+          "sizeBytes": 329525,
+          "formattedSize": "321.8 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.18.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_amd64.deb",
+          "sizeBytes": 8843668,
+          "formattedSize": "8.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.18.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_arm64.deb",
+          "sizeBytes": 8977614,
+          "formattedSize": "8.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.18.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_x64-setup.exe",
+          "sizeBytes": 6895519,
+          "formattedSize": "6.6 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.18.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.18.0/Inkpoint_0.18.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.17.1",
+      "tagName": "v0.17.1",
+      "publishedAt": "2026-10-25T15:21:24Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.17.1",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint.app.tar.gz",
+          "sizeBytes": 30420021,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.17.1_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_aarch64.AppImage",
+          "sizeBytes": 91634184,
+          "formattedSize": "87.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.17.1_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_aarch64.AppImage.zsync",
+          "sizeBytes": 313443,
+          "formattedSize": "306.1 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.17.1_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_aarch64.dmg",
+          "sizeBytes": 30968484,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.17.1_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_amd64.AppImage",
+          "sizeBytes": 95922680,
+          "formattedSize": "91.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.17.1_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_amd64.AppImage.zsync",
+          "sizeBytes": 328097,
+          "formattedSize": "320.4 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.17.1_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_amd64.deb",
+          "sizeBytes": 8417316,
+          "formattedSize": "8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.17.1_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_arm64.deb",
+          "sizeBytes": 8558812,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.17.1_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_x64-setup.exe",
+          "sizeBytes": 6483918,
+          "formattedSize": "6.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.17.1_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.1/Inkpoint_0.17.1_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.17.0",
+      "tagName": "v0.17.0",
+      "publishedAt": "2026-10-25T14:29:15Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.17.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30425646,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.17.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_aarch64.AppImage",
+          "sizeBytes": 91630088,
+          "formattedSize": "87.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.17.0_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_aarch64.AppImage.zsync",
+          "sizeBytes": 313429,
+          "formattedSize": "306.1 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.17.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_aarch64.dmg",
+          "sizeBytes": 30943788,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.17.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_amd64.AppImage",
+          "sizeBytes": 95926776,
+          "formattedSize": "91.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.17.0_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_amd64.AppImage.zsync",
+          "sizeBytes": 328111,
+          "formattedSize": "320.4 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.17.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_amd64.deb",
+          "sizeBytes": 8422274,
+          "formattedSize": "8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.17.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_arm64.deb",
+          "sizeBytes": 8558120,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.17.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_x64-setup.exe",
+          "sizeBytes": 6480938,
+          "formattedSize": "6.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.17.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.17.0/Inkpoint_0.17.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.16.5",
+      "tagName": "v0.16.5",
+      "publishedAt": "2026-10-24T15:58:22Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.16.5",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint.app.tar.gz",
+          "sizeBytes": 30415973,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.16.5_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_aarch64.AppImage",
+          "sizeBytes": 82164232,
+          "formattedSize": "78.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.16.5_aarch64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_aarch64.AppImage.zsync",
+          "sizeBytes": 281075,
+          "formattedSize": "274.5 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.16.5_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_aarch64.dmg",
+          "sizeBytes": 30953110,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.16.5_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_amd64.AppImage",
+          "sizeBytes": 92232184,
+          "formattedSize": "88 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "other",
+          "platformLabel": "其他附件",
+          "fileName": "Inkpoint_0.16.5_amd64.AppImage.zsync",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_amd64.AppImage.zsync",
+          "sizeBytes": 315483,
+          "formattedSize": "308.1 KB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.16.5_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_amd64.deb",
+          "sizeBytes": 10639530,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.16.5_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_arm64.deb",
+          "sizeBytes": 8548116,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.16.5_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_x64-setup.exe",
+          "sizeBytes": 8237536,
+          "formattedSize": "7.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.16.5_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.5/Inkpoint_0.16.5_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.16.3",
+      "tagName": "v0.16.3",
+      "publishedAt": "2026-10-24T10:26:35Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.16.3",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint.app.tar.gz",
+          "sizeBytes": 30415646,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.16.3_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_aarch64.AppImage",
+          "sizeBytes": 82172424,
+          "formattedSize": "78.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.16.3_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_aarch64.dmg",
+          "sizeBytes": 30952484,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.16.3_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_amd64.AppImage",
+          "sizeBytes": 92244472,
+          "formattedSize": "88 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.16.3_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_amd64.deb",
+          "sizeBytes": 10638278,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.16.3_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_arm64.deb",
+          "sizeBytes": 8546188,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.16.3_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_x64-setup.exe",
+          "sizeBytes": 8234965,
+          "formattedSize": "7.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.16.3_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.3/Inkpoint_0.16.3_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.16.1",
+      "tagName": "v0.16.1",
+      "publishedAt": "2026-10-23T11:02:01Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.16.1",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint.app.tar.gz",
+          "sizeBytes": 30415805,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.16.1_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_aarch64.AppImage",
+          "sizeBytes": 82172424,
+          "formattedSize": "78.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.16.1_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_aarch64.dmg",
+          "sizeBytes": 30952115,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.16.1_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_amd64.AppImage",
+          "sizeBytes": 92240376,
+          "formattedSize": "88 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.16.1_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_amd64.deb",
+          "sizeBytes": 10639264,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.16.1_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_arm64.deb",
+          "sizeBytes": 8546664,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.16.1_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_x64-setup.exe",
+          "sizeBytes": 8238177,
+          "formattedSize": "7.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.16.1_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.1/Inkpoint_0.16.1_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.16.0",
+      "tagName": "v0.16.0",
+      "publishedAt": "2026-10-23T07:12:23Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.16.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30415629,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.16.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_aarch64.AppImage",
+          "sizeBytes": 82180616,
+          "formattedSize": "78.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.16.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_aarch64.dmg",
+          "sizeBytes": 30952750,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.16.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_amd64.AppImage",
+          "sizeBytes": 92248568,
+          "formattedSize": "88 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.16.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_amd64.deb",
+          "sizeBytes": 10638538,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.16.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_arm64.deb",
+          "sizeBytes": 8548868,
+          "formattedSize": "8.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.16.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_x64-setup.exe",
+          "sizeBytes": 8236513,
+          "formattedSize": "7.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.16.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.16.0/Inkpoint_0.16.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.15.1",
+      "tagName": "v0.15.1",
+      "publishedAt": "2026-10-22T12:01:28Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.15.1",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint.app.tar.gz",
+          "sizeBytes": 30362160,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.15.1_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_aarch64.AppImage",
+          "sizeBytes": 82110984,
+          "formattedSize": "78.3 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.15.1_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_aarch64.dmg",
+          "sizeBytes": 30888903,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.15.1_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_amd64.AppImage",
+          "sizeBytes": 92187128,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.15.1_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_amd64.deb",
+          "sizeBytes": 10584742,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.15.1_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_arm64.deb",
+          "sizeBytes": 8471380,
+          "formattedSize": "8.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.15.1_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_x64-setup.exe",
+          "sizeBytes": 8195713,
+          "formattedSize": "7.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.15.1_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.1/Inkpoint_0.15.1_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.15.0",
+      "tagName": "v0.15.0",
+      "publishedAt": "2026-10-20T14:00:40Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.15.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30363070,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.15.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_aarch64.AppImage",
+          "sizeBytes": 82110984,
+          "formattedSize": "78.3 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.15.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_aarch64.dmg",
+          "sizeBytes": 30891067,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.15.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_amd64.AppImage",
+          "sizeBytes": 92191224,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.15.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_amd64.deb",
+          "sizeBytes": 10584812,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.15.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_arm64.deb",
+          "sizeBytes": 8470946,
+          "formattedSize": "8.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.15.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_x64-setup.exe",
+          "sizeBytes": 8197039,
+          "formattedSize": "7.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.15.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.15.0/Inkpoint_0.15.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.14.0",
+      "tagName": "v0.14.0",
+      "publishedAt": "2026-10-19T21:05:03Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.14.0",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint.app.tar.gz",
+          "sizeBytes": 30361557,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.14.0_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_aarch64.AppImage",
+          "sizeBytes": 82110984,
+          "formattedSize": "78.3 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.14.0_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_aarch64.dmg",
+          "sizeBytes": 30888626,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.14.0_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_amd64.AppImage",
+          "sizeBytes": 92183032,
+          "formattedSize": "87.9 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.14.0_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_amd64.deb",
+          "sizeBytes": 10584036,
+          "formattedSize": "10.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.14.0_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_arm64.deb",
+          "sizeBytes": 8468526,
+          "formattedSize": "8.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.14.0_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_x64-setup.exe",
+          "sizeBytes": 8195298,
+          "formattedSize": "7.8 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint_0.14.0_x64-setup.exe.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.14.0/Inkpoint_0.14.0_x64-setup.exe.sig",
+          "sizeBytes": 420,
+          "formattedSize": "420 B",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
+      "version": "0.13.2",
+      "tagName": "v0.13.2",
+      "publishedAt": "2026-10-17T12:44:38Z",
+      "isLatest": false,
+      "isPrerelease": false,
+      "category": "desktop",
+      "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.2",
+      "assets": [
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 自动更新包",
+          "fileName": "Inkpoint.app.tar.gz",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint.app.tar.gz",
+          "sizeBytes": 30428524,
+          "formattedSize": "29 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "updater",
+          "platformLabel": "Tauri 签名文件",
+          "fileName": "Inkpoint.app.tar.gz.sig",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint.app.tar.gz.sig",
+          "sizeBytes": 408,
+          "formattedSize": "408 B",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (ARM64) · AppImage",
+          "fileName": "Inkpoint_0.13.2_aarch64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_aarch64.AppImage",
+          "sizeBytes": 82176520,
+          "formattedSize": "78.4 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "macos-arm64",
+          "platformLabel": "macOS (Apple Silicon) · DMG",
+          "fileName": "Inkpoint_0.13.2_aarch64.dmg",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_aarch64.dmg",
+          "sizeBytes": 30961726,
+          "formattedSize": "29.5 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-appimage",
+          "platformLabel": "Linux (x86_64) · AppImage",
+          "fileName": "Inkpoint_0.13.2_amd64.AppImage",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_amd64.AppImage",
+          "sizeBytes": 92281336,
+          "formattedSize": "88 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (x86_64) · DEB",
+          "fileName": "Inkpoint_0.13.2_amd64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_amd64.deb",
+          "sizeBytes": 10652018,
+          "formattedSize": "10.2 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "linux-deb",
+          "platformLabel": "Linux (ARM64) · DEB",
+          "fileName": "Inkpoint_0.13.2_arm64.deb",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_arm64.deb",
+          "sizeBytes": 8536996,
+          "formattedSize": "8.1 MB",
+          "isR2Cached": false
+        },
+        {
+          "platform": "windows-x64",
+          "platformLabel": "Windows (x64) · Setup",
+          "fileName": "Inkpoint_0.13.2_x64-setup.exe",
+          "downloadUrl": "https://download.jiaqi.im/inkpoint/0.13.2/Inkpoint_0.13.2_x64-setup.exe",
+          "sizeBytes": 8260836,
+          "formattedSize": "7.9 MB",
+          "isR2Cached": false
+        }
+      ]
+    },
+    {
       "version": "0.13.1",
       "tagName": "v0.13.1",
       "publishedAt": "2026-10-17T09:51:15Z",
-      "isLatest": true,
+      "isLatest": false,
       "isPrerelease": false,
       "category": "desktop",
       "releaseNotesUrl": "https://github.com/wmasfoe/md-editor/releases/tag/v0.13.1",
@@ -4005,7 +6095,7 @@
           "platform": "ios",
           "platformLabel": "iOS · 未签名 IPA（自签安装）",
           "fileName": "Inkpoint-0.2.1-unsigned.ipa",
-          "downloadUrl": "https://download.jiaqi.im/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa",
+          "downloadUrl": "https://download.justdev.cn/inkpoint/ios/0.2.1/Inkpoint-0.2.1-unsigned.ipa",
           "sizeBytes": 4255574,
           "formattedSize": "4.1 MB",
           "isR2Cached": true
