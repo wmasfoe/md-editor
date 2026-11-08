@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildDownloadCatalog, getPlatformInstall } from "../lib/downloads";
 import { detectLocaleFromHeader, en, getTranslation, isLocale, ja, zh, zhHant } from "../lib/i18n";
+import type { Locale } from "../lib/i18n/types";
 
 function extractPaths(obj: Record<string, unknown>, prefix = ""): string[] {
   const paths: string[] = [];
@@ -122,18 +123,24 @@ describe("buildDownloadCatalog with i18n", () => {
   });
 
   it("provides localized labels for the iOS and Android download entries", () => {
-    expect(zh.download.ariaIosBeta).toContain("需自行编译源码");
-    expect(zhHant.download.ariaIosBeta).toContain("需自行編譯原始碼");
-    expect(ja.download.ariaIosBeta).toContain("ビルドが必要");
-    expect(en.download.ariaIosBeta).toContain("build from source");
-    expect(zh.download.ariaAndroidBeta).toContain("需自行编译源码");
-    expect(zhHant.download.ariaAndroidBeta).toContain("需自行編譯原始碼");
-    expect(ja.download.ariaAndroidBeta).toContain("ビルドが必要");
-    expect(en.download.ariaAndroidBeta).toContain("build from source");
-    expect(zh.download.sourceOnlyTooltip).toBe("需自行编译");
-    expect(zhHant.download.sourceOnlyTooltip).toBe("需自行編譯");
-    expect(ja.download.sourceOnlyTooltip).toBe("要ソースコードビルド");
-    expect(en.download.sourceOnlyTooltip).toBe("Build from source required");
+    const labelsByLocale = {
+      zh: ["下载 Android", "下载 iOS"],
+      "zh-Hant": ["下載 Android", "下載 iOS"],
+      ja: ["Android 版をダウンロード", "iOS 版をダウンロード"],
+      en: ["Download for Android", "Download for iOS"],
+    } as const;
+    for (const [locale, [android, ios]] of Object.entries(labelsByLocale)) {
+      const mobile = buildDownloadCatalog("0.1.0", locale as Locale);
+      expect(mobile.android.primary.label).toBe(android);
+      expect(mobile.ios.primary.label).toBe(ios);
+    }
+  });
+
+  it("keeps the {version} placeholder in the mobile build hint for every locale", () => {
+    for (const t of [zh, zhHant, ja, en]) {
+      expect(t.download.mobileBuildHint).toContain("{version}");
+      expect(t.download.mobileBuildGuide.length).toBeGreaterThan(0);
+    }
   });
 });
 

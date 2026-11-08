@@ -125,63 +125,6 @@ export function compareSemver(a, b) {
   return 0;
 }
 
-export function getAndroidGitTags() {
-  try {
-    const stdout = execSync('git tag -l "android-v*"', {
-      encoding: "utf8",
-      stdio: ["pipe", "pipe", "ignore"],
-    });
-    return stdout
-      .split("\n")
-      .map((t) => t.trim())
-      .filter((t) => t.startsWith("android-v"));
-  } catch {
-    return [];
-  }
-}
-
-/**
- * 构建 iOS 未签名 IPA 的清单条目。
- *
- * iOS 刻意不创建 GitHub Release（避免抢占仓库 Releases 页的 Latest 徽标），
- * 所以条目无法从 GitHub Releases 推导，只能：
- *   1. 由发版 workflow 通过 IOS_RELEASE_VERSION 注入当前版本；
- *   2. 从上一版线上 releases.json 里把历史 iOS 条目递推下来（见 fetchRemoteIosReleases）。
- * 这样可以避免历史 tag（例如从未上传过 R2 的 ios-ipa-v0.1.0）产出 404 下载链接。
- */
-export function buildIosReleaseEntry(version, artifactsDir = "dist-mobile") {
-  if (!version) {
-    return null;
-  }
-  const cleanVersion = String(version)
-    .replace(/^ios-ipa-v/, "")
-    .replace(/^v/, "");
-  const fileName = `Inkpoint-${cleanVersion}-unsigned.ipa`;
-  const filePath = path.join(artifactsDir, fileName);
-  const sizeBytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 4300000;
-
-  return {
-    version: cleanVersion,
-    tagName: `ios-ipa-v${cleanVersion}`,
-    publishedAt: new Date().toISOString(),
-    isLatest: false,
-    isPrerelease: true,
-    category: "ios",
-    releaseNotesUrl: `https://github.com/${GITHUB_REPO}/releases/tag/ios-ipa-v${cleanVersion}`,
-    assets: [
-      {
-        platform: "ios",
-        platformLabel: "iOS · 未签名 IPA（自签安装）",
-        fileName,
-        downloadUrl: `${DISTRIBUTION_URL}/${DEFAULT_APP}/ios/${cleanVersion}/${fileName}`,
-        sizeBytes,
-        formattedSize: formatBytes(sizeBytes),
-        isR2Cached: true,
-      },
-    ],
-  };
-}
-
 /**
  * 从线上清单取回已有发行版条目（默认：`/api/<app>/releases`）。
  *
@@ -266,15 +209,6 @@ function countReleaseGroups(releases) {
 }
 
 /**
- * 从线上清单取回历史 iOS 条目（best-effort）。
- * iOS 的历史版本唯一来源就是上一版分发清单，因此必须递推保留。
- */
-export async function fetchRemoteIosReleases(baseUrl = DISTRIBUTION_URL, app = DEFAULT_APP) {
-  const releases = await fetchRemoteReleases(baseUrl, app);
-  return releases.filter((release) => release.category === "ios");
-}
-
-/**
  * 构建完整的 ReleasesManifest
  */
 export function transformGitHubReleases(
@@ -287,7 +221,8 @@ export function transformGitHubReleases(
   const androidMap = new Map();
   const iosMap = new Map();
 
-  // 1. 如果传入了已有的 Android releases 或历史清单，先载入
+  // 1. 载入历史清单里的移动端条目。
+  // 移动端已停止发版，这些条目是已发布安装包的唯一记录，只能从线上清单原样带过去。
   // 只接受形如 `0.10.2` / `0.4.2-beta.sha…` 的版本号：历史清单里曾混入过
   // `utools-v0.1.1` 这类非桌面 tag（脚本早期缺 tag 过滤），合并时必须清洗掉。
   if (Array.isArray(options.existingReleases)) {
@@ -299,27 +234,6 @@ export function transformGitHubReleases(
         androidMap.set(r.version, { ...r, category: "android" });
       }
       if (r.category === "ios" || r.assets?.some((a) => a.platform === "ios")) {
-        iosMap.set(r.version, { ...r, category: "ios" });
-      }
-    }
-  }
-
-  // 2. 如果传入了显式的 extraAndroidReleases，合并入 androidMap
-  if (Array.isArray(options.extraAndroidReleases)) {
-    for (const r of options.extraAndroidReleases) {
-      if (r.version) {
-        androidMap.set(r.version, { ...r, category: "android" });
-      }
-    }
-  }
-
-  // 2.1 同理合并显式的 extraIosReleases（iOS 无 GitHub Release，只能由 tag + R2 产物推导）
-  if (Array.isArray(options.extraIosReleases)) {
-    for (const r of options.extraIosReleases) {
-      if (!r || !r.version) {
-        continue;
-      }
-      if (r.version) {
         iosMap.set(r.version, { ...r, category: "ios" });
       }
     }
@@ -538,44 +452,12 @@ export async function runCli() {
     } catch {}
   }
 
-  // 自动从本地 git tags 发现所有 Android tags (android-v*)
-  const gitTags = getAndroidGitTags();
-  const gitAndroidReleases = gitTags.map((tag) => {
-    const cleanVer = tag.replace(/^android-v/, "");
-    const fileName = `Inkpoint_${cleanVer}.apk`;
-    return {
-      version: cleanVer,
-      tagName: tag,
-      publishedAt: new Date().toISOString(),
-      isLatest: false,
-      isPrerelease: true,
-      category: "android",
-      releaseNotesUrl: `https://github.com/${GITHUB_REPO}/releases/tag/${tag}`,
-      assets: [
-        {
-          platform: "android",
-          platformLabel: "Android · APK (Beta)",
-          fileName,
-          downloadUrl: `${DISTRIBUTION_URL}/${DEFAULT_APP}/android/${cleanVer}/${fileName}`,
-          sizeBytes: 45000000,
-          formattedSize: "43 MB",
-          isR2Cached: true,
-        },
-      ],
-    };
-  });
-
   // 线上清单历史：比仓库内 fallback 更新，优先级更高（同样的版本以线上条目为准）
   const remoteReleases = await fetchRemoteReleases();
   console.log(`✓ Fetched ${remoteReleases.length} releases from live manifest.`);
 
   const manifest = transformGitHubReleases(rawReleases, DEFAULT_APP, DISTRIBUTION_URL, {
     existingReleases: [...existingReleases, ...remoteReleases],
-    extraAndroidReleases: gitAndroidReleases,
-    extraIosReleases: [
-      buildIosReleaseEntry(process.env.IOS_RELEASE_VERSION),
-      ...(await fetchRemoteIosReleases()),
-    ].filter(Boolean),
   });
 
   // 历史护栏：任何原因导致桌面端/移动端历史变少时，拒绝写入与上传（线上清单保持原样）。

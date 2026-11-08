@@ -47,73 +47,21 @@ describe("mergeVersionManifest", () => {
     );
   });
 
-  it("preserves desktop and ios when merging android", () => {
+  it("keeps the published mobile nodes when only desktop data is merged", () => {
     const existing = {
       app: "inkpoint",
       updatedAt: "2026-09-16T10:00:00Z",
-      desktop: {
-        version: "0.10.2",
-        assets: {},
-      },
-      ios: {
-        version: "0.1.0",
-      },
+      desktop: { version: "0.10.2", assets: {} },
+      android: { version: "0.2.1" },
+      ios: { version: "0.2.1" },
     };
 
-    const androidData = {
-      android: {
-        version: "0.2.0",
-        apk: {
-          version: "0.2.0",
-          fileName: "Inkpoint_0.2.0.apk",
-          downloadUrl: "https://download.jiaqi.im/inkpoint/android/latest",
-        },
-      },
-    };
-
-    const merged = mergeVersionManifest(existing, androidData);
-    assert.equal(merged.app, "inkpoint");
-    assert.equal(merged.desktop.version, "0.10.2");
-    assert.equal(merged.android.version, "0.2.0");
-    assert.equal(merged.ios.version, "0.1.0");
-  });
-});
-
-describe("runCli iOS unsigned IPA slot", () => {
-  it("writes an ios node with the IPA asset and preserves existing desktop/android nodes", async () => {
-    const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import("node:fs");
-    const { tmpdir } = await import("node:os");
-    const { join } = await import("node:path");
-    const { runCli } = await import("./update-r2-version-manifest.mjs");
-
-    const dir = mkdtempSync(join(tmpdir(), "inkpoint-ios-artifacts-"));
-    const outDir = mkdtempSync(join(tmpdir(), "inkpoint-ios-manifest-"));
-    writeFileSync(join(dir, "Inkpoint-0.2.1-unsigned.ipa"), "fake-ipa-bytes");
-
-    const savedEnv = { ...process.env };
-    process.env.RELEASE_VERSION = "ios-ipa-v0.2.1";
-    process.env.RELEASE_PLATFORM = "ios";
-    process.env.ARTIFACTS_DIR = dir;
-    process.env.OUTPUT_PATH = join(outDir, "version.json");
-    // 指向关闭端口，使远端清单拉取快速失败，走本地基线。
-    process.env.DISTRIBUTION_URL = "http://127.0.0.1:9";
-    process.env.APP_NAME = "inkpoint";
-    try {
-      await runCli();
-    } finally {
-      process.env = savedEnv;
-    }
-
-    const manifest = JSON.parse(readFileSync(join(outDir, "version.json"), "utf8"));
-    assert.equal(manifest.ios.version, "0.2.1");
-    assert.equal(manifest.ios.ipa.fileName, "Inkpoint-0.2.1-unsigned.ipa");
-    assert.equal(manifest.ios.ipa.downloadUrl, "http://127.0.0.1:9/inkpoint/ios/latest");
-    assert.equal(manifest.ios.ipa.unsigned, true);
-    // tag 里的 ios-ipa-v 前缀必须被剥掉，否则清单里会出现 ios-ipa-v0.2.1 这种版本号
-    assert.ok(!manifest.ios.version.includes("ios-ipa-v"));
-
-    rmSync(dir, { recursive: true, force: true });
-    rmSync(outDir, { recursive: true, force: true });
+    const merged = mergeVersionManifest(existing, {
+      desktop: { version: "0.10.3", assets: {} },
+    });
+    assert.equal(merged.desktop.version, "0.10.3");
+    assert.equal(merged.android.version, "0.2.1");
+    assert.equal(merged.ios.version, "0.2.1");
   });
 });
 

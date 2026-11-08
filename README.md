@@ -37,9 +37,6 @@
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/desktop-v0.18.0-brightgreen?style=flat-square" alt="Desktop Version">
   </a>
-  <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/android-v0.1.1-brightgreen?style=flat-square" alt="Android Version">
-  </a>
   <a href="#license">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
@@ -113,8 +110,8 @@ Choose the installation method that best fits your operating system and device:
 | **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | Recommended: Homebrew or one-line script |
 | **Windows** | x64 / ARM64 | `.exe` (NSIS Setup) | Silent install script or manual installer |
 | **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | Standalone AppImage or system package |
-| **Android** | ARM64 / x86_64 (Android 8.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/android](apps/mobile/android/README.md)) |
-| **iOS** | iPhone / iPad (iOS 17.0+) | Source Build | **No pre-built packages provided**; please compile from source if needed (see [apps/mobile/ios](apps/mobile/ios/README.md)) |
+| **Android** | ARM64 / x86_64 (Android 8.0+) | `.apk` | Last published build is 0.2.1 on the [download page](https://editor.jiaqi.im/#download); build newer versions yourself (see [apps/mobile/android](apps/mobile/android/README.md)) |
+| **iOS** | iPhone / iPad (iOS 17.0+) | unsigned `.ipa` | Last published build is 0.2.1 on the [download page](https://editor.jiaqi.im/#download), re-sign it before installing; build newer versions yourself (see [apps/mobile/ios](apps/mobile/ios/README.md)) |
 | **uTools** | Desktop application environment | `.upxs` (Plugin package) | Search "Inkpoint" in uTools store or trigger via shortcut |
 | **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.jiaqi.im/playground) |
 
@@ -143,7 +140,7 @@ brew install --cask wmasfoe/tap/md-editor
 Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
 
 > [!NOTE]
-> **Mobile Notice**: Android and iOS mobile versions are currently in active open-source development and **do not provide pre-compiled installation packages (APKs/IPAs)**. If you need to run on mobile, please refer to [apps/mobile/README.md](apps/mobile/README.md) to compile from source locally.
+> **Mobile**: Android and iOS are no longer released. The last published builds (0.2.1) stay on the download page; for anything newer, build from source with `pnpm build:android` or `pnpm build:ios`, see [apps/mobile/README.md](apps/mobile/README.md).
 
 > [!TIP]
 > **macOS Quarantine Notice**: The one-line install script and Homebrew handle Gatekeeper quarantine automatically. If you manually download the `.dmg` and macOS reports "App is damaged" or "Cannot verify developer", run:
@@ -181,8 +178,8 @@ pnpm dev:web
 pnpm dev:utools
 
 # 6. Start mobile development (Android / iOS)
-pnpm android   # Android emulator or connected device
-pnpm ios       # iOS simulator (macOS only)
+pnpm dev:android   # Android emulator or connected device
+pnpm dev:ios       # iOS simulator (macOS only)
 
 # 7. Start official website development server
 pnpm dev:site
@@ -209,6 +206,10 @@ pnpm build:web
 
 # Mobile offline webview bundle build & sync to native Android / iOS projects
 pnpm build:mobile
+
+# Mobile packages (local only): Android APK and unsigned iOS IPA, written to dist-mobile/
+pnpm build:android
+pnpm build:ios
 
 # uTools plugin build (generates dist/ bundle)
 pnpm build:utools

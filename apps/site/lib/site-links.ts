@@ -20,9 +20,6 @@ export const PLAYGROUND_URL = `${OFFICIAL_SITE_URL}${PLAYGROUND_PATH}`;
 /** 本项目源码仓库 */
 export const GITHUB_REPO_URL = "https://github.com/wmasfoe/md-editor";
 
-/** 移动端套件源码说明链接 */
-export const MOBILE_SOURCE_GUIDE_URL = `${GITHUB_REPO_URL}/tree/main/apps/mobile#readme`;
-
 /** Android 源码编译指南链接 */
 export const ANDROID_SOURCE_GUIDE_URL = `${GITHUB_REPO_URL}/tree/main/apps/mobile/android#readme`;
 
@@ -71,9 +68,6 @@ export const DESKTOP_PORTAL_URL = `${DISTRIBUTION_URL}/inkpoint/desktop/`;
 
 /** 官方历史全量版本清单 API */
 export const RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/releases`;
-
-/** 官方 Android 版本清单 API URL */
-export const ANDROID_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/android/releases`;
 
 /** 官方 Desktop 版本清单 API URL */
 export const DESKTOP_RELEASES_API_URL = `${DISTRIBUTION_URL}/api/inkpoint/desktop/releases`;

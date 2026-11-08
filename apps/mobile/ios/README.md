@@ -1,7 +1,7 @@
 # Inkpoint iOS - 原生 iOS 客户端
 
 > [!IMPORTANT]
-> **暂不提供预编译安装包**：当前 iOS 客户端暂不提供官方预编译 IPA（未上架 App Store）。如有使用或体验需求，请在 macOS 环境下使用最新 Xcode 克隆仓库并在本地自行编译源码运行。
+> **不再发版**：最后发布的未签名 IPA 是 0.2.1（未上架 App Store），可在[官网下载页](https://editor.jiaqi.im/#download)获取，需要先重签再安装。之后的版本请在 macOS 上用最新 Xcode 自行编译。
 
 Inkpoint 移动端的 iOS 原生工程，基于 **Swift 6 + SwiftUI + WebKit (WKWebView)** 构建。
 
@@ -45,6 +45,13 @@ swift test
 ### 启动模拟器调试
 ```bash
 # 在仓库根目录下启动模拟器
-pnpm ios
+pnpm dev:ios
 ```
 或者直接使用 Xcode 打开 `apps/mobile/ios/Inkpoint.xcodeproj` 选择目标模拟器或真机点击 Run。
+
+### 打包未签名 IPA
+```bash
+# 在仓库根目录：同步前端资源并编出 dist-mobile/Inkpoint-<version>-unsigned.ipa
+pnpm build:ios
+```
+IPA 不带证书和描述文件，需要用 Sideloadly、AltStore 等工具用自己的 Apple ID 重签后才能装到真机。

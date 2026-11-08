@@ -18,27 +18,18 @@ import {
   MODEL_CHANGELOG_URL,
   type JsonRecord,
 } from "../lib/model-changelog";
-import {
-  ANDROID_SOURCE_GUIDE_URL,
-  buildAppPrUrl,
-  buildVersionPackageLinks,
-  IOS_SOURCE_GUIDE_URL,
-} from "../lib/site-links";
+import { buildAppPrUrl, buildVersionPackageLinks } from "../lib/site-links";
 import { useDistribution } from "../lib/distribution/context";
 
 interface ChangelogContentProps {
   entries: ChangelogEntry[];
   entriesEn?: ChangelogEntry[];
-  androidEntries?: ChangelogEntry[];
-  androidEntriesEn?: ChangelogEntry[];
-  iosEntries?: ChangelogEntry[];
-  iosEntriesEn?: ChangelogEntry[];
   webEntries?: ChangelogEntry[];
   webEntriesEn?: ChangelogEntry[];
   modelChangelog: unknown;
 }
 
-type ChangelogSource = "desktop" | "android" | "ios" | "web" | "model";
+type ChangelogSource = "desktop" | "web" | "model";
 type ChangelogLabels = TranslationSchema["changelog"];
 
 const ITEM_TYPE_STYLES: Record<string, string> = {
@@ -63,13 +54,9 @@ export function ChangelogContent({
   const activeWebEntries = isEnOrJa && webEntriesEn.length > 0 ? webEntriesEn : webEntries;
   const [source, setSource] = useState<ChangelogSource>("desktop");
   const desktopTabRef = useRef<HTMLButtonElement>(null);
-  const androidTabRef = useRef<HTMLButtonElement>(null);
-  const iosTabRef = useRef<HTMLButtonElement>(null);
   const webTabRef = useRef<HTMLButtonElement>(null);
   const modelTabRef = useRef<HTMLButtonElement>(null);
   const isDesktop = source === "desktop";
-  const isAndroid = source === "android";
-  const isIos = source === "ios";
   const isWeb = source === "web";
   const isModel = source === "model";
 
@@ -81,20 +68,6 @@ export function ChangelogContent({
       const tabParam = url.searchParams.get("tab") ?? url.searchParams.get("source");
       if (tabParam === "model" || window.location.hash === "#model") {
         setSource("model");
-      } else if (
-        tabParam === "android" ||
-        tabParam === "mobile" ||
-        window.location.hash === "#android" ||
-        window.location.hash === "#mobile"
-      ) {
-        setSource("android");
-      } else if (
-        tabParam === "ios" ||
-        tabParam === "ios-ipa" ||
-        window.location.hash === "#ios" ||
-        window.location.hash === "#ios-ipa"
-      ) {
-        setSource("ios");
       } else if (tabParam === "web" || window.location.hash === "#web") {
         setSource("web");
       } else if (
@@ -122,29 +95,12 @@ export function ChangelogContent({
       const url = new URL(window.location.href);
       url.searchParams.delete("tab");
       url.searchParams.delete("source");
-      url.hash =
-        nextSource === "model"
-          ? "#model"
-          : nextSource === "android"
-            ? "#android"
-            : nextSource === "ios"
-              ? "#ios"
-              : nextSource === "web"
-                ? "#web"
-                : "#desktop";
+      url.hash = nextSource === "model" ? "#model" : nextSource === "web" ? "#web" : "#desktop";
       window.history.replaceState(null, "", url.toString());
     }
     if (moveFocus) {
       const target =
-        nextSource === "desktop"
-          ? desktopTabRef
-          : nextSource === "android"
-            ? androidTabRef
-            : nextSource === "ios"
-              ? iosTabRef
-              : nextSource === "web"
-                ? webTabRef
-                : modelTabRef;
+        nextSource === "desktop" ? desktopTabRef : nextSource === "web" ? webTabRef : modelTabRef;
       requestAnimationFrame(() => target.current?.focus());
     }
   }
@@ -155,7 +111,7 @@ export function ChangelogContent({
     }
 
     event.preventDefault();
-    const order: ChangelogSource[] = ["desktop", "web", "model", "android", "ios"];
+    const order: ChangelogSource[] = ["desktop", "web", "model"];
     const currentIndex = order.indexOf(source);
     let nextIndex: number;
 
@@ -186,32 +142,6 @@ export function ChangelogContent({
             <code className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft">
               {isEnOrJa ? "apps/desktop/CHANGELOG_EN.md" : "apps/desktop/CHANGELOG.md"}
             </code>
-            {t.changelog.descriptionSuffix}
-          </p>
-        ) : isAndroid ? (
-          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
-            {t.changelog.androidDescriptionPrefix}{" "}
-            <a
-              href={ANDROID_SOURCE_GUIDE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft underline hover:text-accent"
-            >
-              apps/mobile/android
-            </a>
-            {t.changelog.descriptionSuffix}
-          </p>
-        ) : isIos ? (
-          <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted sm:mt-4 sm:text-base">
-            {t.changelog.iosDescriptionPrefix}{" "}
-            <a
-              href={IOS_SOURCE_GUIDE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-md bg-surface-soft px-1.5 py-0.5 text-[13px] break-all text-ink-soft underline hover:text-accent"
-            >
-              apps/mobile/ios
-            </a>
             {t.changelog.descriptionSuffix}
           </p>
         ) : isWeb ? (
@@ -270,24 +200,6 @@ export function ChangelogContent({
           >
             {t.changelog.modelTab}
           </ChangelogTab>
-          <ChangelogTab
-            active={isAndroid}
-            buttonRef={androidTabRef}
-            controls="android-changelog-panel"
-            id="android-changelog-tab"
-            onSelect={() => selectSource("android")}
-          >
-            {t.changelog.androidTab}
-          </ChangelogTab>
-          <ChangelogTab
-            active={isIos}
-            buttonRef={iosTabRef}
-            controls="ios-changelog-panel"
-            id="ios-changelog-tab"
-            onSelect={() => selectSource("ios")}
-          >
-            {t.changelog.iosTab}
-          </ChangelogTab>
         </div>
       </header>
 
@@ -323,66 +235,6 @@ export function ChangelogContent({
           <p className="mb-5 text-sm text-muted">{t.changelog.modelOriginalLanguage}</p>
         ) : null}
         <ModelChangelogTimeline payload={modelChangelog} labels={t.changelog} />
-      </section>
-      <section
-        id="android-changelog-panel"
-        role="tabpanel"
-        aria-labelledby="android-changelog-tab"
-        hidden={!isAndroid}
-        className={isAndroid ? undefined : "hidden"}
-      >
-        <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
-          <div className="flex items-center gap-2.5 text-base font-medium text-ink sm:text-lg">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            <span>
-              {t.changelog.androidTab} · {t.changelog.mobileSourceTitle}
-            </span>
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
-            {t.changelog.mobileSourceNotice}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href={ANDROID_SOURCE_GUIDE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-medium text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
-            >
-              <span>{t.changelog.viewSourceGuide}</span>
-              <span>→</span>
-            </a>
-          </div>
-        </div>
-      </section>
-      <section
-        id="ios-changelog-panel"
-        role="tabpanel"
-        aria-labelledby="ios-changelog-tab"
-        hidden={!isIos}
-        className={isIos ? undefined : "hidden"}
-      >
-        <div className="rounded-2xl border border-line-strong/80 bg-surface/75 p-6 shadow-xs backdrop-blur-md sm:p-8">
-          <div className="flex items-center gap-2.5 text-base font-medium text-ink sm:text-lg">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            <span>
-              {t.changelog.iosTab} · {t.changelog.mobileSourceTitle}
-            </span>
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-muted sm:text-base">
-            {t.changelog.mobileSourceNotice}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <a
-              href={IOS_SOURCE_GUIDE_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-xl bg-surface-raised px-4 py-2 text-xs font-medium text-ink shadow-xs transition-colors hover:text-accent sm:text-sm"
-            >
-              <span>{t.changelog.viewSourceGuide}</span>
-              <span>→</span>
-            </a>
-          </div>
-        </div>
       </section>
 
       <div className="mt-10 sm:mt-12">

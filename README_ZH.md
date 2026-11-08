@@ -37,9 +37,6 @@
   <a href="https://github.com/wmasfoe/md-editor/releases">
     <img src="https://img.shields.io/badge/desktop-v0.18.0-brightgreen?style=flat-square" alt="Desktop Version">
   </a>
-  <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/android-v0.1.1-brightgreen?style=flat-square" alt="Android Version">
-  </a>
   <a href="#license">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">
   </a>
@@ -108,8 +105,8 @@
 | **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | 推荐使用 Homebrew 或一键脚本安装 |
 | **Windows** | x64 / ARM64 | `.exe` (NSIS 安装包) | 一键静默安装或手动安装向导 |
 | **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | 免安装 AppImage 或系统软件包 |
-| **Android** | ARM64 / x86_64 (Android 8.0+) | 源码编译 | **暂不提供预编译安装包**，如有需要请自行编译源码（详见 [apps/mobile/android](apps/mobile/android/README.md)） |
-| **iOS** | iPhone / iPad (iOS 17.0+) | 源码编译 | **暂不提供预编译安装包**，如有需要请自行编译源码（详见 [apps/mobile/ios](apps/mobile/ios/README.md)） |
+| **Android** | ARM64 / x86_64 (Android 8.0+) | `.apk` | 最后发布的版本是 0.2.1，见[下载页](https://editor.jiaqi.im/#download)；之后的版本请自行编译（详见 [apps/mobile/android](apps/mobile/android/README.md)） |
+| **iOS** | iPhone / iPad (iOS 17.0+) | 未签名 `.ipa` | 最后发布的版本是 0.2.1，见[下载页](https://editor.jiaqi.im/#download)，需要先重签再安装；之后的版本请自行编译（详见 [apps/mobile/ios](apps/mobile/ios/README.md)） |
 | **uTools** | 跨平台桌面应用环境 | `.upxs` (插件离线包) | uTools 插件中心搜索「Inkpoint」或一键呼出速记 |
 | **Web** | 现代化 Web 浏览器 | 在线即用 (SPA) | 零安装直接访问 [Web Playground](https://editor.jiaqi.im/playground) |
 
@@ -138,7 +135,7 @@ brew install --cask wmasfoe/tap/md-editor
 前往 [官方下载中心](https://editor.jiaqi.im/#download) 或 [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) 页面下载对应桌面系统的最新安装包。
 
 > [!NOTE]
-> **移动端说明**：Android 与 iOS 移动端目前处于开源开发阶段，**暂不提供官方预编译安装包（APK / IPA）**。如有使用或体验需求，请参考 [apps/mobile/README.md](apps/mobile/README.md) 克隆代码并在本地自行编译源码运行。
+> **移动端**：Android 与 iOS 不再发版。最后发布的 0.2.1 仍可在下载页获取；之后的版本请用 `pnpm build:android` 或 `pnpm build:ios` 自行编译，详见 [apps/mobile/README.md](apps/mobile/README.md)。
 
 > [!TIP]
 > **macOS 隔离标记说明**：一键安装脚本与 Homebrew 会自动处理 Gatekeeper 隔离标记。若是手动下载 `.dmg` 安装并在打开时提示“App 已损坏”或“无法验证开发者”，可以在终端中执行以下命令解除隔离：
@@ -176,8 +173,8 @@ pnpm dev:web
 pnpm dev:utools
 
 # 6. 启动移动端开发模式 (Android / iOS)
-pnpm android   # Android 模拟器或真实连接设备
-pnpm ios       # iOS 模拟器 (仅限 macOS)
+pnpm dev:android   # Android 模拟器或真实连接设备
+pnpm dev:ios       # iOS 模拟器 (仅限 macOS)
 
 # 7. 启动官网站点开发模式
 pnpm dev:site
@@ -204,6 +201,10 @@ pnpm build:web
 
 # 移动端离线 Webview 包构建与同步至原生工程
 pnpm build:mobile
+
+# 移动端安装包（仅本机）：Android APK 与未签名 iOS IPA，输出到 dist-mobile/
+pnpm build:android
+pnpm build:ios
 
 # uTools 插件构建
 pnpm build:utools
