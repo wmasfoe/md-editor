@@ -1,106 +1,91 @@
 # @md-editor/ai
 
-Inkpoint 模块化 AI 辅助写作引擎。基于整洁架构（Clean Architecture）与依赖倒置原则（DIP）设计，支持云端三大标准协议（OpenAI、Anthropic、Google Gemini）及自定义 Base URL（如 DeepSeek、Ollama），同时无缝集成端侧离线小语言模型（SLM，基于 RFC-004 v1.4.0 规范）。
+The AI writing layer. It talks to a model, cleans up the answer and returns plain data: a continuation, or an edit with an exact range. It does not draw anything in the editor. `@md-editor/renderer-codemirror` shows suggestions, and the host decides what to do with them.
 
----
+It speaks three cloud protocols, and any OpenAI-compatible endpoint works through a custom base URL. On the desktop app it can also run a local model.
 
-## 1. 架构定位与整洁分层
+| Provider | Client | Notes |
+| :--- | :--- | :--- |
+| OpenAI and compatible (DeepSeek, Ollama, LM Studio, vLLM and others) | `OpenAIClient` | Ollama needs no API key. |
+| Anthropic | `AnthropicClient` | Sends the headers needed for direct browser calls. |
+| Google Gemini | `GoogleClient` | Uses `systemInstruction`. For `gemini-2.5-flash` it sets `thinkingBudget: 0` to cut latency. |
+| Local model | `LocalSlmClient` | Desktop only. The host supplies a `LocalInferenceBridge` that does the actual inference. |
 
-根据整洁架构与 [能力边界设计原则](../../docs/agent/architecture/capability_boundary_design_principles.md)，`@md-editor/ai` 保持严格的由外向内单向依赖：
+`AI_URL_PRESETS` lists the built-in presets and their default models: OpenAI, DeepSeek, Anthropic, Google and Ollama.
+
+## Layers
 
 ```
-                    ┌────────────────────────┐
-                    │       adapters/        │
-                    │  (OpenAI / Anthropic / │
-                    │   Google / LocalSlm)   │
-                    └───────────┬────────────┘
-                                │ (实现契约)
-                                ▼
-┌──────────────────┐   ┌─────────────────────┐
-│       app/       │──>│       domain/       │
-│  (WritingService │   │ (ModelClient / DIP  │
-│   Harness / GEC) │   │  Settings / Types)  │
-└──────────────────┘   └─────────────────────┘
+adapters/  -->  domain/  <--  app/
 ```
 
-- **`domain/`（纯领域层）**：
-  - 定义 `ModelClient` 与 `ModelContext` 依赖倒置契约，与具体网络库、平台 IPC 完全解耦；
-  - 提供多协议端点配置（`openai` | `anthropic` | `google` | `local`）、URL 快速预设（OpenAI、DeepSeek、Anthropic、Google Gemini、Ollama）以及旧版配置无损迁移。
-- **`app/`（应用编排与 Harness 管道）**：
-  - **Pre-Model Guardrails**（前置守卫）：跳过代码块、表格、公式、纯 URL 等无关语境；
-  - **Prompt / GBNF 构造器**：构造纯文本 GEC 输入与 ChatML / FIM 模型上下文；
-  - **Post-Model Sanitizers**：清洗 `<think>` 思考标签，处理光标前后重复边界重叠；
-  - **Quad-Layer Tuple-Diff & Cloud Adaptive Locator**：支持精确切片、`±5` 容错窗口、全文子串定位与静默兜底；
-  - **`AiWritingService`**：统一封装续写、语法润色、文档上下文提炼与连接测试。
-- **`adapters/`（基础设施适配器层）**：
-  - `OpenAIClient`：支持 OpenAI 官方、DeepSeek 及本地 Ollama（免强制 API Key）；
-  - `AnthropicClient`：支持 Claude 3.5 / 4.5 Sonnet，自动携带浏览器直连请求头；
-  - `GoogleClient`：支持 Gemini 2.5 Flash，支持 `systemInstruction` 与 `thinkingBudget: 0`；
-  - `LocalSlmClient`：实现端侧双档位模型矩阵（Lite Qwen 3 0.6B + Standard Gemma 4 E2B），通过 `LocalInferenceBridge` 依赖倒置由宿主注入底层 IPC。
+- `domain/`: types, the `ModelClient` contract, settings, URL presets and migration of older saved settings. It knows nothing about networks or the platform.
+- `app/`: `AiWritingService` and the pipeline around the model call.
+  - **Before the call**: guardrails skip code blocks, tables, formulas and bare URLs; prompt builders produce the text input and, for local models, the ChatML or fill-in-the-middle context and the GBNF grammar.
+  - **After the call**: strips `<think>` blocks and similar reasoning tags, removes text repeated at the cursor boundary, and locates each edit in the document. Models report edits as `[start, end, original, replacement]` with code point offsets. Location checks that exact range first, then a window of ±5 characters around it, then the nearest place where `original` occurs, and drops the edit if `original` is not in the text, so a wrong answer cannot change unrelated text.
+  - A request scheduler, a result cache, and a document-context manager that summarizes the whole document in the background.
+- `adapters/`: one client per provider, each implementing `ModelClient`.
 
----
+Dependencies point inward, so `domain/` can be tested without a network.
 
-## 2. 跨端统一工厂用法
+## Local models
 
-### 2.1 桌面端（启用本地模型桥接）
+The local models run through llama.cpp on the desktop app. The catalog is `BUILTIN_LOCAL_MODELS`:
+
+| Tier | Model | Size | Status |
+| :--- | :--- | :--- | :--- |
+| `lite` | Qwen 3 0.6B (Q8_0) with a grammar-fix LoRA | about 640 MB | available |
+| `standard` | Google Gemma 4 E2B (Q4_K_M) | about 1.7 GB | available |
+| `pro` | not defined yet | none | not available |
+
+`lite` uses the `/completion` endpoint for fill-in-the-middle continuation. Everything else goes through chat completions.
+
+## Creating the service
 
 ```typescript
 import { createAiWritingService } from "@md-editor/ai";
-import { desktopLocalAiBridge } from "./local-ai-model";
 
+// Desktop: allow the local model and pass in the host's inference bridge.
 export const desktopAiService = createAiWritingService({
   allowLocal: true,
   localBridge: desktopLocalAiBridge,
 });
+
+// Web playground and uTools: cloud providers only.
+export const webAiService = createAiWritingService({ allowLocal: false });
 ```
 
-### 2.2 Web 端 / uTools 插件端（纯云端多协议）
+## Using it
+
+`settings` is an `AiSettings` object (`DEFAULT_AI_SETTINGS` is the starting point). `snapshot` is an `AiContextSnapshot`: the text before and after the cursor, the selected text and the editor mode.
 
 ```typescript
-import { createAiWritingService } from "@md-editor/ai";
+const snapshot = {
+  before: "The weather is nice today, ",
+  after: "",
+  selectedText: "",
+  mode: "wysiwyg" as const,
+};
 
-export const webAiService = createAiWritingService({
-  allowLocal: false,
+// Continue writing at the cursor. Returns { hasContinuation, continuation }.
+const continuation = await service.continueWriting(settings, snapshot, { isGhostText: true });
+
+// Fix grammar, typos and punctuation in the selection. Returns { hasEdit, edit }.
+const fix = await service.fixGrammar(settings, {
+  ...snapshot,
+  before: "Here is a ",
+  after: " sentence.",
+  selectedText: "sentance",
 });
+
+// Check the connection from the settings panel.
+const test = await service.testConnection(settings);
+console.log(test.ok ? `connected in ${test.latencyMs} ms` : test.message);
 ```
 
----
+Other methods: `predictUnifiedEdit` makes one model call that decides between an edit and a continuation, `distillDocument` and `scheduleDistillation` summarize the document in the background, `checkReadiness` reports why a feature is unavailable, and `abort` cancels a request. The calls reject with an abort error when you pass an aborted `signal`.
 
-## 3. 核心 API
-
-### 3.1 续写与语法错别字审校
-
-```typescript
-// 1. 行内智能续写
-const suggestion = await writingService.continueWriting(
-  settings,
-  {
-    before: "今天天气真好，",
-    after: "去公园散步。",
-    mode: "wysiwyg",
-  },
-  { isGhostText: true },
-);
-
-// 2. 局部语法修复
-const gecResult = await writingService.fixGrammar(
-  settings,
-  {
-    before: "这里有一句",
-    after: "的话。",
-    selectedText: "错别字",
-    mode: "wysiwyg",
-  },
-);
-
-// 3. 连通性测试
-const testResult = await writingService.testConnection(settings);
-console.log(testResult.ok ? `连接成功: ${testResult.latencyMs}ms` : testResult.message);
-```
-
----
-
-## 4. 开发与验证
+## Development
 
 ```bash
 pnpm test

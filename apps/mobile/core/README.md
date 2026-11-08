@@ -1,49 +1,47 @@
-# @md-editor/mobile-core - 移动端 Web 离线内核
+# @md-editor/mobile-core
 
-Inkpoint 移动端混合架构中的前端渲染与编辑内核。作为嵌入 iOS (WKWebView) 与 Android (WebView) 的轻量级单页容器，提供双向通信桥接（Bridge）、静态阅读态与交互编辑态平滑切换。
+The web page that runs inside the Android WebView and the iOS WKWebView. It renders and edits a document and talks to the native app over a small message bridge. Mobile is no longer released, but the source is kept; see [`apps/mobile`](../README.md).
 
----
+## What it does
 
-## 1. 架构定位与设计考量
+- **Two modes.** Reading mode (`ReaderCanvas`) renders the document as static content. Edit mode (`EditorCanvas`) creates a CodeMirror 6 editor when it is needed and follows the soft keyboard.
+- **Error boundary.** If a plugin or the renderer throws, `ErrorBoundary` shows a retry card instead of a blank page and reports the error to the native side.
+- **Shared code.** It uses the same `@md-editor/renderer-codemirror` and `@md-editor/syntax-plugins` as the desktop app.
 
-- **双模态无缝切换**：
-  - **阅读态 (`ReaderCanvas`)**：纯静态渲染，零光标抖动，专为移动端单手长文滑读优化；
-  - **编辑态 (`EditorCanvas`)**：按需激活 CodeMirror 6 编辑器实例，联动软键盘唤起与选区聚焦；
-- **全端错误边界隔离 (`ErrorBoundary`)**：在移动端 Webview 中，插件语法异常或渲染失败不会导致整页白屏，而是优雅呈现重试卡片，并通过 Bridge 向原生端自动上报异常日志；
-- **触控优化**：专为小屏幕手势优化的滑动大纲导航、触感反馈（Haptics 调度）与长按选择保护。
+## The bridge
 
----
+The message types live in `src/bridge/contracts.ts`. The Swift and Kotlin projects mirror them, and each has a contract test (`InkpointContractTests` for iOS, `BridgeContractTest` for Android).
 
-## 2. 通信桥接契约 (InkpointBridge)
+From native to web, `bridge.dispatchNativeAction` receives `{ id, action, payload }`:
 
-通信契约严格镜像于原生端（Swift 与 Kotlin）：
-
-| 方向 | 消息类型 | 作用说明 |
+| Action | Payload | Effect |
 | :--- | :--- | :--- |
-| **Native → Web** | `loadDocument` | 注入 Markdown 初始文本与阅读/编辑模式 |
-| **Native → Web** | `setMode` | 切换 `read`（阅读）与 `edit`（编辑）状态 |
-| **Native → Web** | `execCommand` | 执行标题、粗体、列表、公式等快速格式化指令 |
-| **Native → Web** | `requestContent` | 原生通知前端回传最新内容以供本地保存 |
-| **Web → Native** | `ready` | Web 容器初始化与 DOM 挂载就绪信号 |
-| **Web → Native** | `contentChange` | 用户键入触发脏状态（`isDirty`）与字数统计上报 |
-| **Web → Native** | `saveResponse` | 回传当前 Markdown 纯文本供原生写入磁盘 |
-| **Web → Native** | `haptic` | 请求原生震动马达执行触感反馈 |
-| **Web → Native** | `error` | 上报未捕获异常堆栈 |
+| `loadDocument` | `{ content, path?, mode?, title? }` | Opens a document in `read` or `edit` mode |
+| `setMode` | `{ mode: "read" \| "edit" }` | Switches mode |
+| `setTheme` | `{ isDark }` | Switches between light and dark |
+| `scrollToHeading` | `{ headingId }` | Scrolls to a heading |
+| `execCommand` | `{ command }` | Runs a formatting command in edit mode: `bold`, `italic`, `strikethrough`, `inlineCode`, `h1`, `h2`, `h3`, `bulletList`, `orderedList`, `taskList`, `quote`, `codeBlock`, `undo` or `redo` |
+| `requestContent` | none | Asks the page to reply with the current text (`saveResponse`) |
 
----
+From web to native, `bridge.postToNative(event, payload)` sends:
 
-## 3. 本地开发与构建
+| Event | Payload | Meaning |
+| :--- | :--- | :--- |
+| `ready` | none | The page has mounted |
+| `contentChange` | `{ isDirty, wordCount }` | The text changed |
+| `selectionChange` | `{ activeFormats }` | Which formats apply at the cursor |
+| `outlineExtracted` | `{ headings, outline? }` | The heading list |
+| `saveResponse` | `{ markdown, isSuccess, path? }` | The text to write to disk |
+| `haptic` | `{ type }` | Ask for haptic feedback: `selection`, `impactLight`, `impactMedium`, `impactHeavy`, `notificationSuccess` or `notificationError` |
+| `error` | the error details | An uncaught error |
+
+## Development
 
 ```bash
-# 启动本地浏览器端预览
-pnpm dev
-
-# 执行生产打包 (输出至 dist)
-pnpm build
-
-# 运行单元测试
-pnpm test
-
-# 执行类型检查
-pnpm typecheck
+pnpm --filter @md-editor/mobile-core dev         # preview in a browser
+pnpm --filter @md-editor/mobile-core build       # writes dist/
+pnpm --filter @md-editor/mobile-core test
+pnpm --filter @md-editor/mobile-core typecheck
 ```
+
+From the repository root, `pnpm build:mobile` builds this package and copies `dist/` into the Android and iOS projects.

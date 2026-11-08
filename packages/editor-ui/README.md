@@ -1,82 +1,86 @@
 # @md-editor/editor-ui
 
-Inkpoint 编辑器的 React UI 视图层组件库。负责提供围绕核心编辑器的界面交互系统，包括编辑器 React 容器包装器、悬浮格式化菜单、斜杠快捷指令面板、文件工作区目录树及实时大纲导航面板。
+The React layer of the editor. It wraps the CodeMirror renderer in a component, adds the outline panel, document bar, welcome screen and dialogs, and holds the theme and settings UI shared by the desktop app, the web playground and the uTools plugin.
 
----
+It sits between the renderer and the apps:
 
-## 1. 架构定位
+- It composes and presents. It turns the state in `@md-editor/editor-core` and the view in `@md-editor/renderer-codemirror` into React components.
+- It does not compute document changes. Edits go through `editor-core` commands or renderer transactions, never through direct changes to the text or an AST.
+- Colors come from CSS variables set by the theme compiler (Tailwind CSS), and strings come from `@md-editor/i18n`.
 
-`@md-editor/editor-ui` 位于渲染引擎与具体应用（Desktop / Web / uTools / Mobile）之间：
+## Components
 
-- **只做组合与视图呈现**：将 `@md-editor/editor-core` 的状态机和 `@md-editor/renderer-codemirror` 的底层视图包装为标准的 React 19 组件。
-- **不承载核心文档计算**：不直接操作 AST 或修改底层文本结构，所有操作通过触发 `editor-core` 的命令或派发 `renderer-codemirror` 的 Transaction 完成。
-- **支持主题与国际化**：全面适配深浅色模式（Tailwind CSS）并深度整合 `@md-editor/i18n` 多语言方案。
+### `CodeMirrorEditor`
 
----
+Mounts the editor for a `DocumentState`. The document state is the data flow: the component reads from it and writes edits back to it, so there is no `onChange` prop. Subscribe to the state to observe changes.
 
-## 2. 核心组件与功能
+Props include:
 
-### 2.1 `CodeMirrorEditor` (`src/components/CodeMirrorEditor/`)
-- **React 生命周期绑定**：优雅处理 React 19 StrictMode 下的挂载、卸载与容器尺寸变化（ResizeObserver）。
-- **外部状态同步**：文档路径、外部变更、编辑模式切换的平滑响应。
-- **事件转发**：对外提供 `onChange`、`onSave`、`onCursorMove` 等干净的 React 属性回调。
+| Group | Props |
+| :--- | :--- |
+| Content | `document` (required), `mdxMode`, `mdxComponents`, `plugins` (syntax plugins) |
+| Appearance | `fontSize`, `proseFontFamily`, `codeFontFamily`, `headingFontFamily`, `lineHeight`, `letterSpacing`, `contentMaxWidth`, `boldFontWeight`, `headingFontWeight`, `codeBlockLineNumbers`, `showInlineStyleMarkers` |
+| Behavior | `enableMarkdownLint` (off by default), `resolveImageSrc`, `openLinkTarget`, `writeClipboardText`, `hidden` |
+| Callbacks | `onCursorLineChange`, `onSyncError`, `onQueuedExternalEditResult`, `onRendererPortsChange` |
 
-### 2.2 `OutlinePanel` (`src/components/OutlinePanel.tsx`)
-- **文档大纲树**：实时解析 Markdown 中的 H1 ~ H6 标题层级，构建整洁的可视化导航树。
-- **视口动态跟随**：监听编辑器滚动位置，自动高亮当前视野对应的标题节点。
-- **平滑定位跳转**：点击大纲项平滑滚动至对应正文位置并定位光标。
+`onRendererPortsChange` hands the host the renderer ports, which expose mode switching, formatting commands, find, lint and suggestions.
 
-### 2.3 `SlashMenu` (斜杠命令面板)
-- **极速唤起**：在空白行输入 `/` 即刻弹出快捷指令浮层。
-- **组件/块级插入**：支持一键快速插入各类标题、表格、代码块、引用、Mermaid 图表、数学公式及 Callout 提示框。
-- **键盘直达**：全键盘导航（方向键选择、Enter 确认、Esc 关闭）。
+The component creates the renderer when it mounts and destroys it on unmount, and it survives React StrictMode's double mount.
 
-### 2.4 `FloatingMenu` (选区悬浮工具栏)
-- **划词即显**：当用户选中一段文本时，在选区上方自适应定位弹出。
-- **富文本快捷操作**：粗体、斜体、删除线、行内代码、超链接包裹等高频操作。
+### `OutlinePanel`
 
----
-
-## 3. 主要 API 与使用
+Shows a heading tree. It takes the outline as data, the id of the active heading and a jump callback:
 
 ```tsx
-import React, { useRef } from "react";
-import { CodeMirrorEditor, OutlinePanel } from "@md-editor/editor-ui";
+import { OutlinePanel, type OutlineItem } from "@md-editor/editor-ui";
+
+const outline: OutlineItem[] = [
+  { id: "intro", level: 1, text: "Intro", line: 1 },
+  { id: "setup", level: 2, text: "Setup", line: 5 },
+];
+
+<OutlinePanel outline={outline} activeId="setup" onJump={(target) => scrollEditorTo(target)} />;
+```
+
+`extractHeadingOutline` in `@md-editor/markdown-fidelity` builds the list. `useOutlineController({ markdown, showToast })` builds it from the current text, tracks the active heading as the cursor moves, and resolves `#fragment` links to a heading. The active item scrolls into view in the panel.
+
+### Other components
+
+- `DocumentBar`: the title bar with the file name and save state.
+- `WelcomeState`: the empty-window screen.
+- `AssetPreview`: preview for non-Markdown files.
+- `ConfirmActionDialog` and its button styles: confirmation dialogs.
+
+## Minimal example
+
+```tsx
 import { createDocumentState } from "@md-editor/editor-core";
+import { CodeMirrorEditor } from "@md-editor/editor-ui";
+import { highlightPlugin, mathPlugin } from "@md-editor/syntax-plugins";
+
+const documentState = createDocumentState({ markdown: "# Hello World" });
 
 export function EditorPage() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const doc = createDocumentState({ initialContent: "# Hello World" });
-
   return (
-    <div className="flex h-screen">
-      {/* 编辑区主视图 */}
-      <div className="flex-1 overflow-hidden" ref={containerRef}>
-        <CodeMirrorEditor
-          documentState={doc}
-          mode="wysiwyg"
-          onChange={(content) => console.log(content)}
-        />
-      </div>
-
-      {/* 右侧大纲面板 */}
-      <div className="w-64 border-l border-neutral-200 dark:border-neutral-800">
-        <OutlinePanel documentState={doc} />
-      </div>
+    <div className="h-screen">
+      <CodeMirrorEditor document={documentState} plugins={[highlightPlugin, mathPlugin]} />
     </div>
   );
 }
 ```
 
----
+## Other exports
 
-## 4. 开发与测试
+| Entry point | Contents |
+| :--- | :--- |
+| `@md-editor/editor-ui` | The components above, `hooks` (editor UI state, file action feedback, `useOutlineController`), `themes` (theme schema, built-in themes, the style compiler, web font loading) and `keyboard` helpers such as `formatKeymapParts` |
+| `@md-editor/editor-ui/settings` | The settings shell and panels (appearance, editor, plugins, shortcuts, general) and shared setting styles |
+| `@md-editor/editor-ui/hooks` | The hooks on their own |
+| `@md-editor/editor-ui/OutlinePanel` | `OutlinePanel` on its own |
+
+## Development
 
 ```bash
-# 运行单测
 pnpm test
-
-# 执行 TypeScript 校验
 pnpm typecheck
-
 ```

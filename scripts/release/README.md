@@ -1,93 +1,58 @@
-# 多端发布与版本管理指南
+# Releasing
 
-本项目已对桌面端（Desktop）、Web 在线端（Web Playground）、uTools 插件与官网展示端（Site）的发版与上线流程全面解耦。所有发版命令统一收敛至 `release:*` 命名空间，消除历史兼容别名包袱，保持命令工整与职责对称。
+Each part of the project is released on its own, with its own version and changelog. All release commands start with `release:`.
 
----
+## Overview
 
-## 1. 架构总览与命名契约
-
-| 端标识 | 对应工作区 | 版本管理与发版命令 | Git Tag 触发契约 | 关联更新日志 | CI/CD 工作流 |
+| Part | Workspace | Commands | Tag | Changelog | Workflow |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Desktop** | `apps/desktop` | `pnpm release:desktop`<br>`pnpm release:desktop:version` | `v*` / `desktop-v*`<br>(基线: `v0.10.2`) | `apps/desktop/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-desktop.yml` |
-| **Web** | `apps/web` | `pnpm release:web`<br>`pnpm release:web:version`<br>`pnpm release:web:publish` | `web-v*`（标签归档，不污染 GitHub Release） | `apps/web/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
-| **uTools** | `apps/utools` | `pnpm build:utools` | `utools-v*`<br>(基线: `utools-v0.1.0`) | `apps/utools/CHANGELOG.md` & `CHANGELOG_EN.md` | `.github/workflows/release-utools.yml` |
-| **Site** | `site` | `pnpm release:site` | 随主干部署或 CI 触发 | 聚合读取全平台中英文 Changelog 并在官网支持多端切换展示 | 静态部署 / Vercel CLI |
+| Desktop | `apps/desktop` | `pnpm release:desktop`, `pnpm release:desktop:version` | `v*` (also `desktop-v*`) | `apps/desktop/CHANGELOG.md` and `CHANGELOG_EN.md` | `.github/workflows/release-desktop.yml` |
+| Web | `apps/web` | `pnpm release:web`, `pnpm release:web:version`, `pnpm release:web:publish` | `web-v*` (a record only, no GitHub Release) | `apps/web/CHANGELOG.md` and `CHANGELOG_EN.md` | `.github/workflows/release-web.yml` |
+| uTools | `apps/utools` | `pnpm build:utools` | `utools-v*` | `apps/utools/CHANGELOG.md` and `CHANGELOG_EN.md` | `.github/workflows/release-utools.yml` |
+| Site | `apps/site` | `pnpm release:site` | none | reads the desktop and web changelogs | Vercel CLI |
+| Worker | `infra/distribution-worker` | `pnpm deploy:worker` | none | none | Wrangler |
 
----
+Mobile is not released any more. See [Mobile](#mobile).
 
-## 2. 桌面客户端发版 (Desktop)
+## Desktop
 
-### 2.1 脚本说明
-- **`pnpm release:desktop:version`** (`scripts/release/version-desktop.mjs`)：
-  - 仅自增版本号（支持 patch/minor/major/beta/custom）并生成更新日志条目；
-  - 同步更新桌面端核心文件（`apps/desktop/package.json`、`tauri.conf.json`、`Cargo.toml`；根目录 `package.json` 保持为 `0.0.0` 容器占位不耦合各端）；
-  - 同步写入 `apps/desktop/CHANGELOG.md`（英文对照维护于同级 `CHANGELOG_EN.md`）；
-  - **不**创建 commit 或推送 tag。
-- **`pnpm release:desktop`** (`scripts/release/publish-desktop.mjs`)：
-  - 包含上述版本号自增与日志记录；
-  - 本地运行构建自检；
-  - 自动创建 `chore: release vX.Y.Z` 提交；
-  - 自动打带附注的 `vX.Y.Z` tag（工作流与客户端同时具备对 `desktop-v*` 的向前兼容）；
-  - 推送至远程主干触发 `.github/workflows/release-desktop.yml` 跨平台多架构打包与发布。
-
-### 2.2 常用指令
-```bash
-# 交互式发布桌面端（推荐）
-pnpm release:desktop
-
-# 命令行指定级别或版本
-pnpm release:desktop patch --notes "优化文件保存并发调度性能"
-pnpm release:desktop 0.10.2 --notes "修复已知缺陷"
-
-# 仅更新版本文件与日志，用于分步审核
-pnpm release:desktop:version
-```
-
----
-
-## 3. 移动端（Android / iOS）
-
-移动端已停止发版：没有发版脚本、没有 tag 触发的 CI，也不再更新 `apps/mobile/*/CHANGELOG*.md`。官网和分发网关只保留已发布的最后一个版本（Android 0.2.1、iOS 0.2.1），之后的版本需要自行编译。
-
-需要安装包时，在本机执行：
+- `pnpm release:desktop:version` (`scripts/release/version-desktop.mjs`) bumps the version and writes the changelog entry. It updates `apps/desktop/package.json`, `tauri.conf.json` and `Cargo.toml`, and writes `CHANGELOG.md` and `CHANGELOG_EN.md`. `Cargo.lock` changes with the version, and the release commit includes it. It makes no commit and no tag. The root `package.json` stays at `0.0.0`.
+- `pnpm release:desktop` (`scripts/release/publish-desktop.mjs`) does that, then commits as `chore(release): release vX.Y.Z`, creates an annotated tag `vX.Y.Z` and pushes the branch and the tag. The tag starts `release-desktop.yml`, which builds every platform and publishes the release.
 
 ```bash
-pnpm build:android   # dist-mobile/Inkpoint_<version>.apk（Debug 签名，需要 JDK 17 与 Android SDK）
-pnpm build:ios       # dist-mobile/Inkpoint-<version>-unsigned.ipa（未签名，需要 macOS 与 Xcode）
+pnpm release:desktop                       # interactive
+pnpm release:desktop patch --notes "Fix a save race" --notes-en "Fix a save race" --pr "226, 227"
+pnpm release:desktop 0.10.2 --notes "Bug fixes"
+pnpm release:desktop:version               # version files and changelog only
 ```
 
-版本号分别取自 `apps/mobile/android/app/build.gradle.kts` 的 `versionName` 和 Xcode 工程的 `MARKETING_VERSION`，也可用 `--version` 覆盖。两个脚本默认先执行 `pnpm build:mobile` 同步前端资源，已同步过可加 `--no-sync`。
+`--pr` takes numbers without the `#` and writes them into the changelog heading. Both release scripts must run on `main` unless you pass `--allow-any-branch`. `release:web:publish` deploys after pushing when you answer yes, or always with `--yes`/`--deploy`, and never with `--no-deploy` or `--no-push`.
 
----
+## Web
 
-## 4. Web 在线版发版 (Web)
+`pnpm release:web` (`scripts/web/deploy-web.mjs`) builds the playground locally and deploys it to Vercel production. It never creates a GitHub Release, so the repository's Latest badge stays on the desktop app. `apps/web/vercel.json` turns off deploys from git pushes.
 
-### 3.1 架构与发布机制 (方案 A)
-- **独立发布，不占 Release 页面**：Web 端为持续在线 Web 服务，不生成 GitHub Release，确保 GitHub Releases 专用于桌面客户端安装包，保持 `Latest` 徽标纯净；
-- **禁用 Git 自动触发**：`apps/web/vercel.json` 显式设置 `"git": { "deploymentEnabled": false }`，合并 PR 或主干更新不会触发 Web 生产上线；
-- **本地一键发布 (类似 release:site)**：通过 `pnpm release:web` 运行 `scripts/web/deploy-web.mjs`，本地完成构建与 Vercel 生产部署；
-- **可选版本归档**：如需记录大版本更新日志，通过 `pnpm release:web:publish` 更新日志并打 `web-v*` tag 归档。
-
-### 3.2 常用指令
 ```bash
-# 1. 本地一键构建并发布至 Vercel 生产环境（推荐）
-pnpm release:web
-
-# 仅预览部署指令（不执行实际上传）
-pnpm release:web --dry-run
-
-# 2. 仅更新版本号与 CHANGELOG
-pnpm release:web:version patch
-
-# 3. 完整发布（版本升级 + CHANGELOG + 打 tag 归档）
-pnpm release:web:publish patch --notes "新增 MDX 动态沙盒预览支持"
+pnpm release:web                                   # build and deploy
+pnpm release:web --dry-run                         # print the commands only
+pnpm release:web:version patch                     # version and changelog only
+pnpm release:web:publish patch --notes "Add MDX preview"   # version, changelog, a web-v* tag, then asks whether to deploy
 ```
 
----
+## Mobile
 
-## 4. uTools 插件发布
+Android and iOS are not released any more. There is no release script, no CI on tags and no changelog to update. The website and the download gateway keep serving the last published builds (Android 0.2.1, iOS 0.2.1). Newer versions are built on your machine:
 
-uTools 插件通过 `utools-v*` 标签自动构建并创建 GitHub Release。CI 会校验 tag、`apps/utools/package.json`、源码与构建后的 `plugin.json` 版本一致，并检查正式包不含 `development` 配置。uTools 市场仍要求使用官方开发者工具提交审核，不能由当前公开 API 自动完成。
+```bash
+pnpm build:android   # dist-mobile/Inkpoint_<version>.apk (debug-signed; needs JDK 17 and the Android SDK)
+pnpm build:ios       # dist-mobile/Inkpoint-<version>-unsigned.ipa (unsigned; needs macOS and Xcode)
+```
+
+The version comes from `versionName` in `apps/mobile/android/app/build.gradle.kts` and `MARKETING_VERSION` in the Xcode project, or from `--version`. Both scripts run `pnpm build:mobile` first to copy the web bundle into the native projects; pass `--no-sync` if you already did.
+
+## uTools
+
+A `utools-v*` tag starts `release-utools.yml`, which builds the plugin and creates a GitHub Release. CI checks that the tag, `apps/utools/package.json`, the source `plugin.json` and the built `plugin.json` have the same version, and that the release build has no `development` block. The uTools market has no public API, so the listing is submitted by hand in the uTools developer tools.
 
 ```bash
 pnpm build:utools
@@ -96,32 +61,22 @@ git tag utools-v0.1.0
 git push origin utools-v0.1.0
 ```
 
----
+## Site
 
-## 5. 官网更新与部署 (Site)
-
-官网 `site` 采用 Next.js 构建，内嵌更新日志展示页面（`/changelog`），并支持「桌面客户端」与「Web 在线版」双端日志 Tab 动态切换。
-
-### 4.1 部署指令
 ```bash
-# 本地预览官网
-pnpm dev:site
-
-# 构建官网静态产物
-pnpm build:site
-
-# 部署官网至生产环境
-pnpm release:site
+pnpm dev:site        # preview
+pnpm build:site      # production build
+pnpm release:site    # deploy to Vercel production
 ```
 
----
+The site shows the desktop and web changelogs at `/changelog`.
 
-## 5. 命令行选项说明
+## Options shared by the desktop and web scripts
 
-桌面与 Web 发版脚本均提供以下高级选项：
-- `--dry-run`：预览将要执行的操作与生成的文件变更，不写入实际更改；
-- `--resume`：用于发版中断后的恢复，复用已修改的版本号文件直接提交；
-- `--no-push`：在本地完成版本修改、提交与打 tag，但不执行 `git push`；
-- `--branch <name>`：强制限定发版分支（默认 `main`）；
-- `--allow-any-branch`：允许在任意分支执行发版；
-- `--yes`, `-y`：跳过最终确认交互提示。
+- `--dry-run`: show what would happen and change nothing.
+- `--resume`: continue after the version files were already changed.
+- `--no-push`: commit and tag locally, do not push.
+- `--branch <name>`: the branch the release must run on (default `main`).
+- `--allow-any-branch`: skip the branch check.
+- `--yes`, `-y`: skip the final confirmation.
+- `--notes <text>`, `--notes-en <text>`, `--pr <numbers>`: the changelog text in Chinese and English, and the pull requests to list.
