@@ -6,9 +6,11 @@ use std::{
 
 use serde_json::json;
 
+#[cfg(unix)]
+use super::scope::resolve_in_scope;
 use super::{
     scan::{is_user_excluded, read_sample, scan_samples, sha256_hex},
-    scope::{resolve_in_scope, validate_relative_path, StyleLearningScope},
+    scope::{validate_relative_path, StyleLearningScope},
     store::{clear_document, load_document, save_document, StyleLearningDocumentKind},
 };
 
