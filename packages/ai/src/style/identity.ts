@@ -114,3 +114,14 @@ export function isStyleProfileExpired(
     Number.isFinite(since) && now.getTime() - since > UNLINKED_RETENTION_DAYS * 24 * 60 * 60 * 1000
   );
 }
+
+/**
+ * 用户排除列表的路径前缀匹配，与 Rust 扫描规则一致：
+ * 排除 `notes` 会排除 `notes` 文件本身与 `notes/` 下的全部内容，但不影响 `notes-old`。
+ */
+export function isUserStyleExcluded(relPath: string, excluded: readonly string[]): boolean {
+  return excluded.some((entry) => {
+    const normalized = entry.replace(/\/+$/u, "");
+    return relPath === normalized || relPath.startsWith(`${normalized}/`);
+  });
+}

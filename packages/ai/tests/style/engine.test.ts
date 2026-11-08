@@ -7,16 +7,18 @@ import {
   type LocalInferenceRequest,
 } from "../../src/index.ts";
 import {
-  BOOTSTRAP_ROUNDS,
-  ROUND_CHANGE_THRESHOLD,
-  STYLE_RUNTIME_BUSY_ERROR,
-  StyleLearningEngine,
   createEmptyStyleProfileDocument,
   hashStyleText,
   type StyleInferencePort,
   type StyleLearningHost,
   type StyleProfileDocument,
 } from "../../src/style/index.ts";
+import {
+  BOOTSTRAP_ROUNDS,
+  ROUND_CHANGE_THRESHOLD,
+  STYLE_RUNTIME_BUSY_ERROR,
+  StyleLearningEngine,
+} from "../../src/style/engine-entry.ts";
 import { spacedTechArticle } from "./fixtures.ts";
 
 /** 内存中的工作区与存储 */

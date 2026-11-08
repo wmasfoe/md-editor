@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   ROUND_HISTORY_LIMIT,
   advanceStyleRule,
-  applyObservations,
-  observeSamples,
   type StyleRuleRecord,
 } from "../../src/style/index.ts";
+import { applyObservations, observeSamples } from "../../src/style/engine-entry.ts";
 import { FIVE_FILES, round, sample } from "./fixtures.ts";
 
 function feed(

@@ -9,7 +9,7 @@ import {
   chunkStyleProse,
   parseStyleClassifyOutput,
   voteStyleLabels,
-} from "../../src/style/index.ts";
+} from "../../src/style/engine-entry.ts";
 
 describe("style classification", () => {
   it("U-CL-1: requests only the local Standard model with prose and an enum grammar", () => {

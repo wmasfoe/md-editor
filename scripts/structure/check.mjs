@@ -164,6 +164,9 @@ export const WYSIWYG_DOMAIN_MEMBERS = {
     "search-panel.ts",
     "parse-progress.ts",
     "suggestion.ts",
+    // AI 建议的数据模型与行内部件，从 suggestion.ts 拆出（2026-11 风格学习 PR5）
+    "suggestion-model.ts",
+    "suggestion-widgets.ts",
     "image-resolver.ts",
     "link-interaction.ts",
   ],

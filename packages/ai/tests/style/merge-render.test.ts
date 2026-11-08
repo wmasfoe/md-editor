@@ -3,15 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   STYLE_PRIORITY_CONTRACT,
   STYLE_TOLERANCE_CONTRACT,
-  applyObservations,
   estimateStyleTokens,
   mergeStyleProfile,
   mergedStyleValue,
-  observeGlobal,
   renderStylePrefix,
   renderStyleTolerancePrefix,
   type StyleRuleRecord,
 } from "../../src/style/index.ts";
+import { applyObservations, observeGlobal } from "../../src/style/engine-entry.ts";
 import { FIVE_FILES, activeRule, round, workspace } from "./fixtures.ts";
 
 describe("style profile merge", () => {

@@ -30,5 +30,7 @@ export {
   type AiSuggestionLabels,
   type AiSuggestionInput,
   type AiSuggestionValue,
+  type AiSuggestionAcceptedEvent,
+  type AiSuggestionKind,
   DEFAULT_AI_SUGGESTION_LABELS,
 } from "@md-editor/renderer-codemirror";

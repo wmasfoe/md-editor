@@ -41,6 +41,14 @@ pub(crate) struct AiSettings {
     #[serde(default)]
     pub(crate) open_ai_compatible: Option<AiOpenAiCompatibleSettings>,
     pub(crate) local_model: Option<AiLocalModelSettings>,
+    /// 风格学习设置。结构由前端 `@md-editor/ai` 定义并规范化，这里原样保留，
+    /// 避免 serde 丢弃未知字段导致开关或云端授权在重启后复位。
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_object_settings"
+    )]
+    pub(crate) style_learning: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -274,6 +282,7 @@ mod tests {
                     model: Some("writer".to_string()),
                     api_key: Some("local-key".to_string()),
                 }),
+                style_learning: None,
                 local_model: Some(AiLocalModelSettings {
                     enabled: Some(false),
                     model_id: Some("md-editor-writer-small-v1".to_string()),
@@ -304,6 +313,24 @@ mod tests {
         write_settings(&path, &settings).unwrap();
         assert_eq!(read_settings(&path), Some(settings));
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn ai_style_learning_survives_rust_round_trip() {
+        let raw = r#"{"ai":{"styleLearning":{"enabled":true,"autoRelink":false,"cloudConsent":{"provider":"openai","origin":"https://api.openai.com","grantedAt":"2026-11-09T00:00:00Z"}}}}"#;
+        let settings: AppSettings = serde_json::from_str(raw).unwrap();
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(json["ai"]["styleLearning"]["enabled"], true);
+        assert_eq!(
+            json["ai"]["styleLearning"]["cloudConsent"]["origin"],
+            "https://api.openai.com"
+        );
+
+        // 旧配置没有该字段时不写入。
+        let legacy: AppSettings = serde_json::from_str(r#"{"ai":{"enabled":true}}"#).unwrap();
+        assert!(!serde_json::to_string(&legacy)
+            .unwrap()
+            .contains("styleLearning"));
     }
 
     #[test]
@@ -351,6 +378,7 @@ mod tests {
                     api_key: Some("sk-secret-key-123".to_string()),
                 }),
                 local_model: None,
+                style_learning: None,
             }),
             update: None,
             plugins: None,

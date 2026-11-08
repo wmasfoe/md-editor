@@ -11,6 +11,7 @@
 import { lexer, type Token, type Tokens } from "marked";
 
 import { hashStyleText, normalizeStyleText } from "./hash.ts";
+import { splitStyleSentences } from "./sentences.ts";
 
 /** 散文少于该字符数的文件不作为样本 */
 export const MIN_SAMPLE_PROSE_CHARS = 200;
@@ -42,20 +43,6 @@ export interface ExtractedProse {
 export interface ExtractProseOptions {
   /** 用户采纳过的 AI 句子 hash，这些句子不参与学习 */
   readonly aiSentenceHashes?: ReadonlySet<string>;
-}
-
-const sentenceSegmenter = new Intl.Segmenter("zh", { granularity: "sentence" });
-
-/** 按句切分，去掉空句 */
-export function splitStyleSentences(text: string): string[] {
-  const sentences: string[] = [];
-  for (const { segment } of sentenceSegmenter.segment(text)) {
-    const sentence = segment.trim();
-    if (sentence) {
-      sentences.push(sentence);
-    }
-  }
-  return sentences;
 }
 
 export function stripFrontmatter(markdown: string): string {

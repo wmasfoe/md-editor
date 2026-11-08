@@ -37,6 +37,7 @@ import {
   aiSuggestionExtension,
   aiSuggestionLabelsFacet,
   type AiSuggestionLabels,
+  aiSuggestionAcceptedAnnotation,
 } from "../../wysiwyg/view/suggestion.ts";
 
 import type { CodeMirrorRendererOptions } from "../types.ts";
@@ -119,6 +120,15 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
       },
     ),
     EditorView.updateListener.of((update) => context.handleViewUpdate(update)),
+    // 采纳 AI 建议的事务带有注解；只在宿主订阅时通知，不参与文档同步协议。
+    EditorView.updateListener.of((update) => {
+      const notify = context.options.onAiSuggestionAccepted;
+      if (!notify) return;
+      for (const transaction of update.transactions) {
+        const accepted = transaction.annotation(aiSuggestionAcceptedAnnotation);
+        if (accepted) notify(accepted);
+      }
+    }),
     EditorView.domEventObservers({
       compositionstart: () => context.startComposition(),
       compositionend: () => {

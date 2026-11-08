@@ -23,6 +23,8 @@ import { useToast } from "../app/controller/useToast";
 import { EditorToast } from "../app/AppWindowChrome";
 import { ExternalPluginSettings } from "./settings/ExternalPluginSettings";
 import { AiSettingsPanel } from "./settings/AiSettingsPanel";
+import { StyleLearningSettings } from "./settings/style-learning/StyleLearningSettings";
+import { STANDARD_LOCAL_MODEL_ID } from "@md-editor/ai";
 import { UpdateSettingsPanel } from "./settings/UpdateSettingsPanel";
 import { isVersionSkipped } from "../app/updates/presentation";
 import { openExternalTarget } from "../desktop/link-service";
@@ -229,18 +231,28 @@ export function SettingsPage({
         label: t("settings.tabs.ai"),
         description: t("settings.tabs.aiDesc"),
         panel: (
-          <AiSettingsPanel
-            aiSettingsDraft={ctrl.aiSettingsDraft}
-            isLocalModelActionPending={ctrl.isLocalModelActionPending}
-            allModelStatuses={ctrl.allModelStatuses}
-            systemSpecs={ctrl.systemSpecs}
-            isCheckingModelUpdates={ctrl.isCheckingModelUpdates}
-            onChangeAiSettings={ctrl.setAiSettingsDraft}
-            onDownloadLocalModel={ctrl.downloadLocalModel}
-            onCancelLocalModelDownload={ctrl.cancelLocalModelDownload}
-            onDeleteLocalModel={ctrl.deleteLocalModel}
-            onCheckModelUpdates={ctrl.checkLocalModelUpdates}
-          />
+          <>
+            <AiSettingsPanel
+              aiSettingsDraft={ctrl.aiSettingsDraft}
+              isLocalModelActionPending={ctrl.isLocalModelActionPending}
+              allModelStatuses={ctrl.allModelStatuses}
+              systemSpecs={ctrl.systemSpecs}
+              isCheckingModelUpdates={ctrl.isCheckingModelUpdates}
+              onChangeAiSettings={ctrl.setAiSettingsDraft}
+              onDownloadLocalModel={ctrl.downloadLocalModel}
+              onCancelLocalModelDownload={ctrl.cancelLocalModelDownload}
+              onDeleteLocalModel={ctrl.deleteLocalModel}
+              onCheckModelUpdates={ctrl.checkLocalModelUpdates}
+            />
+            <StyleLearningSettings
+              aiSettingsDraft={ctrl.aiSettingsDraft}
+              onChangeAiSettings={ctrl.setAiSettingsDraft}
+              standardModelReady={
+                ctrl.allModelStatuses[STANDARD_LOCAL_MODEL_ID]?.status === "available"
+              }
+              onDownloadStandardModel={ctrl.downloadLocalModel}
+            />
+          </>
         ),
       },
       {

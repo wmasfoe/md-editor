@@ -20,6 +20,7 @@ import type {
   AiProtocolId,
   AiProviderType,
   AiSettings,
+  AiStyleLearningSettings,
   AiUrlPreset,
 } from "./types.ts";
 
@@ -179,6 +180,13 @@ export const DEFAULT_LOCAL_MODEL_SETTINGS: AiLocalModelSettings = {
   error: null,
 };
 
+/** 风格学习默认关闭，且未授权云端使用写作偏好 */
+export const DEFAULT_STYLE_LEARNING_SETTINGS: AiStyleLearningSettings = {
+  enabled: false,
+  autoRelink: false,
+  cloudConsent: null,
+};
+
 /** 全局 AI 设置默认值 */
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   enabled: true,
@@ -190,6 +198,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   endpoints: DEFAULT_AI_ENDPOINTS,
   openAiCompatible: DEFAULT_AI_ENDPOINTS.openai,
   localModel: DEFAULT_LOCAL_MODEL_SETTINGS,
+  styleLearning: DEFAULT_STYLE_LEARNING_SETTINGS,
 };
 
 export interface NormalizeAiSettingsOptions {
@@ -477,6 +486,28 @@ export function normalizeAiSettings(
     endpoints,
     openAiCompatible: endpoints.openai,
     localModel: normalizeLocalAiModelSettings(rawLocalModel),
+    styleLearning: normalizeStyleLearningSettings(record.styleLearning),
+  };
+}
+
+/**
+ * 规范化风格学习设置；缺失或非法字段一律按关闭与未授权处理。
+ */
+export function normalizeStyleLearningSettings(raw: unknown): AiStyleLearningSettings {
+  if (!isPlainRecord(raw)) {
+    return DEFAULT_STYLE_LEARNING_SETTINGS;
+  }
+  const consent = raw.cloudConsent;
+  return {
+    enabled: raw.enabled === true,
+    autoRelink: raw.autoRelink === true,
+    cloudConsent:
+      isPlainRecord(consent) &&
+      typeof consent.provider === "string" &&
+      typeof consent.origin === "string" &&
+      typeof consent.grantedAt === "string"
+        ? { provider: consent.provider, origin: consent.origin, grantedAt: consent.grantedAt }
+        : null,
   };
 }
 

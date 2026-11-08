@@ -27,6 +27,7 @@ import type { FileTreeContextMenuState, TreeItemKind } from "../../types";
 import { FileTreeNodeView } from "./FileTreeNodeView";
 import { SearchResultRow } from "./SearchResultRow";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
+import { useFileTreeStyleLearning } from "../../app/ai/style-learning/use-file-tree-style-learning";
 import type { EditingState } from "./types";
 import {
   normalizeSearchQuery,
@@ -49,6 +50,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
   const { dispatchCommand, openDocumentFromTree } = useDesktopEditorActions();
   const { showFileActionError } = useFileActionStore();
   const { filePath: activeFilePath } = useDocumentSnapshot();
+  const styleLearning = useFileTreeStyleLearning();
 
   const onOpenFolder = useCallback(
     () => void dispatchCommand("file.openFolder"),
@@ -220,9 +222,15 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
             onDeleteTreeItem(menu.node);
           }
           break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.styleExclude:
+          if (menu.node) await styleLearning.exclude(menu.node);
+          break;
+        case FILE_TREE_CONTEXT_MENU_ACTION.styleRestore:
+          if (menu.node) await styleLearning.restore(menu.node);
+          break;
       }
     },
-    [folder, onDeleteTreeItem, startCreate, startRename],
+    [folder, onDeleteTreeItem, startCreate, startRename, styleLearning],
   );
 
   const runContextMenuActionWithErrorHandling = useCallback(
@@ -263,6 +271,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
           x: menu.x,
           y: menu.y,
           hasNode: Boolean(node),
+          styleLearning: styleLearning.itemFor(node),
         }).catch((error: unknown) => {
           onContextMenuError?.(error);
         });
@@ -271,7 +280,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
 
       setContextMenu(menu);
     },
-    [onContextMenuError],
+    [onContextMenuError, styleLearning],
   );
 
   const commitEdit = useCallback(
@@ -357,6 +366,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
             menu={contextMenu}
             onClose={() => setContextMenu(null)}
             onRunAction={runContextMenuActionWithErrorHandling}
+            styleLearning={styleLearning.itemFor(contextMenu.node)}
           />
         ) : null}
       </div>
@@ -385,6 +395,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
           menu={contextMenu}
           onClose={() => setContextMenu(null)}
           onRunAction={runContextMenuActionWithErrorHandling}
+          styleLearning={styleLearning.itemFor(contextMenu.node)}
         />
       ) : null}
     </div>

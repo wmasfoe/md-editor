@@ -4,6 +4,7 @@ import {
   findStyleRelinkCandidate,
   isStyleProfileExpired,
   isStyleProfileLinked,
+  isUserStyleExcluded,
   renameStyleRelPath,
   scoreStyleIdentity,
 } from "../../src/style/index.ts";
@@ -92,5 +93,12 @@ describe("style profile identity", () => {
     expect(isStyleProfileExpired(unlinked(31), now)).toBe(true);
     expect(isStyleProfileExpired(unlinked(29), now)).toBe(false);
     expect(isStyleProfileExpired({ linkState: "linked" }, now)).toBe(false);
+  });
+
+  it("matches user exclusions by path prefix like the Rust scanner", () => {
+    expect(isUserStyleExcluded("diary/a.md", ["diary"])).toBe(true);
+    expect(isUserStyleExcluded("diary", ["diary/"])).toBe(true);
+    expect(isUserStyleExcluded("diary-public.md", ["diary"])).toBe(false);
+    expect(isUserStyleExcluded("notes/a.md", [])).toBe(false);
   });
 });

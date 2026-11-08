@@ -9,28 +9,8 @@
  */
 
 import { isLiteLocalModel } from "../app/harness-prompts.ts";
-import type { AiSettings } from "../domain/types.ts";
+import type { AiSettings, AiStyleLearningSettings } from "../domain/types.ts";
 import type { MergedStyleProfile } from "./types.ts";
-
-/** 云端使用画像的授权，绑定到具体的 provider 与服务地址 */
-export interface StyleCloudConsent {
-  readonly provider: string;
-  readonly origin: string;
-  readonly grantedAt: string;
-}
-
-/** 风格学习设置（持久化在 `AiSettings.styleLearning`） */
-export interface StyleLearningSettings {
-  readonly enabled: boolean;
-  readonly autoRelink: boolean;
-  readonly cloudConsent: StyleCloudConsent | null;
-}
-
-export const DEFAULT_STYLE_LEARNING_SETTINGS: StyleLearningSettings = {
-  enabled: false,
-  autoRelink: false,
-  cloudConsent: null,
-};
 
 export type StyleGateDecision =
   | { readonly allowed: true }
@@ -38,25 +18,6 @@ export type StyleGateDecision =
       readonly allowed: false;
       readonly reason: "disabled" | "empty" | "lite-model" | "cloud-consent-required";
     };
-
-/** 规范化持久化数据；缺失或非法字段一律按关闭处理 */
-export function normalizeStyleLearningSettings(raw: unknown): StyleLearningSettings {
-  if (!isRecord(raw)) {
-    return DEFAULT_STYLE_LEARNING_SETTINGS;
-  }
-  const consent = raw.cloudConsent;
-  return {
-    enabled: raw.enabled === true,
-    autoRelink: raw.autoRelink === true,
-    cloudConsent:
-      isRecord(consent) &&
-      typeof consent.provider === "string" &&
-      typeof consent.origin === "string" &&
-      typeof consent.grantedAt === "string"
-        ? { provider: consent.provider, origin: consent.origin, grantedAt: consent.grantedAt }
-        : null,
-  };
-}
 
 /** 当前云端端点的授权范围：provider + 服务地址的 origin */
 export function styleCloudScope(settings: AiSettings): { provider: string; origin: string } {
@@ -67,7 +28,7 @@ export function styleCloudScope(settings: AiSettings): { provider: string; origi
 
 export function evaluateStyleGate(
   settings: AiSettings,
-  styleLearning: StyleLearningSettings,
+  styleLearning: AiStyleLearningSettings,
   profile: MergedStyleProfile | undefined,
 ): StyleGateDecision {
   if (!styleLearning.enabled) {
@@ -92,7 +53,7 @@ export function evaluateStyleGate(
 /** 通过闸门时返回画像本身，否则返回 undefined */
 export function gateStyleProfile(
   settings: AiSettings,
-  styleLearning: StyleLearningSettings,
+  styleLearning: AiStyleLearningSettings,
   profile: MergedStyleProfile | undefined,
 ): MergedStyleProfile | undefined {
   return evaluateStyleGate(settings, styleLearning, profile).allowed ? profile : undefined;
@@ -104,8 +65,4 @@ function originOf(url: string): string {
   } catch {
     return url.trim();
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

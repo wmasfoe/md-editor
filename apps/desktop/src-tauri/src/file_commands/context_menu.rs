@@ -17,6 +17,8 @@ pub(crate) fn show_file_tree_context_menu(
     x: f64,
     y: f64,
     has_node: bool,
+    // 风格学习开启且选中节点时由前端传入："exclude" 或 "restore"。
+    style_learning: Option<String>,
 ) -> Result<(), String> {
     let new_markdown = file_tree_context_menu_item(
         &app,
@@ -60,6 +62,7 @@ pub(crate) fn show_file_tree_context_menu(
         file_tree_context_menu_item(&app, FileTreeContextMenuAction::Delete, "删除", has_node)?;
     let separator_one = PredefinedMenuItem::separator(&app).map_err(tauri_error_to_string)?;
     let separator_two = PredefinedMenuItem::separator(&app).map_err(tauri_error_to_string)?;
+    let separator_three = PredefinedMenuItem::separator(&app).map_err(tauri_error_to_string)?;
 
     let menu = Menu::with_items(
         &app,
@@ -77,6 +80,22 @@ pub(crate) fn show_file_tree_context_menu(
         ],
     )
     .map_err(tauri_error_to_string)?;
+
+    let style_item = match (has_node, style_learning.as_deref()) {
+        (true, Some("exclude")) => {
+            Some((FileTreeContextMenuAction::StyleExclude, "不参与风格学习"))
+        }
+        (true, Some("restore")) => {
+            Some((FileTreeContextMenuAction::StyleRestore, "恢复参与风格学习"))
+        }
+        _ => None,
+    };
+    if let Some((action, label)) = style_item {
+        let item = file_tree_context_menu_item(&app, action, label, true)?;
+        menu.append(&separator_three)
+            .map_err(tauri_error_to_string)?;
+        menu.append(&item).map_err(tauri_error_to_string)?;
+    }
 
     window
         .popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))

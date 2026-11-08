@@ -9,6 +9,8 @@ import { ContextMenuItem } from "./ContextMenuItem";
 
 export interface FileTreeContextMenuProps {
   readonly menu: FileTreeContextMenuState;
+  /** 风格学习开启时针对选中节点显示的菜单项 */
+  readonly styleLearning?: "exclude" | "restore" | null;
   readonly onClose: () => void;
   readonly onRunAction: (menu: FileTreeContextMenuState, action: FileTreeContextMenuAction) => void;
 }
@@ -16,7 +18,12 @@ export interface FileTreeContextMenuProps {
 /**
  * 苹果风格毛玻璃右键上下文菜单
  */
-export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeContextMenuProps) {
+export function FileTreeContextMenu({
+  menu,
+  onClose,
+  onRunAction,
+  styleLearning,
+}: FileTreeContextMenuProps) {
   const { t } = useTranslation();
   const run = useCallback(
     (action: FileTreeContextMenuAction) => {
@@ -68,6 +75,24 @@ export function FileTreeContextMenu({ menu, onClose, onRunAction }: FileTreeCont
           <ContextMenuItem danger onClick={() => run(FILE_TREE_CONTEXT_MENU_ACTION.delete)}>
             {t("fileTree.contextMenu.delete")}
           </ContextMenuItem>
+          {styleLearning ? (
+            <>
+              <div className="my-1 h-px bg-[var(--theme-border)]/60" />
+              <ContextMenuItem
+                onClick={() =>
+                  run(
+                    styleLearning === "exclude"
+                      ? FILE_TREE_CONTEXT_MENU_ACTION.styleExclude
+                      : FILE_TREE_CONTEXT_MENU_ACTION.styleRestore,
+                  )
+                }
+              >
+                {styleLearning === "exclude"
+                  ? t("styleLearning.contextExclude")
+                  : t("styleLearning.contextRestore")}
+              </ContextMenuItem>
+            </>
+          ) : null}
         </>
       ) : null}
     </div>
