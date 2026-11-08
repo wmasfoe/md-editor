@@ -1,7 +1,7 @@
 use std::{fs, path::Path};
 
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 const SETTINGS_FILE_NAME: &str = "settings.json";
 
@@ -41,6 +41,9 @@ pub(crate) struct AiSettings {
     #[serde(default)]
     pub(crate) open_ai_compatible: Option<AiOpenAiCompatibleSettings>,
     pub(crate) local_model: Option<AiLocalModelSettings>,
+    /// 前端新增但 Rust 尚未声明的字段原样保留，避免保存时被 serde 静默丢弃。
+    #[serde(flatten)]
+    pub(crate) extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -71,6 +74,9 @@ pub(crate) struct AiFeatureSettings {
     pub(crate) background_processing: Option<bool>,
     pub(crate) continuation: Option<bool>,
     pub(crate) editing: Option<bool>,
+    /// 同上：保留未知的功能开关字段。
+    #[serde(flatten)]
+    pub(crate) extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -272,6 +278,7 @@ mod tests {
                     background_processing: Some(true),
                     continuation: Some(false),
                     editing: Some(true),
+                    extra: Map::new(),
                 }),
                 endpoints: None,
                 open_ai_compatible: Some(AiOpenAiCompatibleSettings {
@@ -288,6 +295,7 @@ mod tests {
                     total_bytes: Some(0),
                     error: None,
                 }),
+                extra: Map::new(),
             }),
             update: Some(UpdateSettings {
                 automatic_check: Some(true),
@@ -343,6 +351,19 @@ mod tests {
     }
 
     #[test]
+    fn ai_settings_keep_unknown_fields_through_rust_round_trip() {
+        let raw = r#"{"ai":{"provider":"openai","futureSection":{"enabled":true},"features":{"editing":true,"futureToggle":true}}}"#;
+        let settings: AppSettings = serde_json::from_str(raw).unwrap();
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(json["ai"]["futureSection"]["enabled"], true);
+        assert_eq!(json["ai"]["features"]["futureToggle"], true);
+
+        // 再次往返后保持一致。
+        let again: AppSettings = serde_json::from_value(json.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&again).unwrap(), json);
+    }
+
+    #[test]
     fn settings_round_trip_with_multi_protocol_endpoints() {
         let path = std::env::temp_dir().join(format!(
             "md-editor-settings-endpoints-{}-{}.json",
@@ -364,6 +385,7 @@ mod tests {
                     background_processing: None,
                     continuation: Some(false),
                     editing: Some(true),
+                    extra: Map::new(),
                 }),
                 endpoints: Some(AiEndpointsSettings {
                     openai: Some(AiProtocolEndpointSettings {
@@ -388,6 +410,7 @@ mod tests {
                     api_key: Some("sk-secret-key-123".to_string()),
                 }),
                 local_model: None,
+                extra: Map::new(),
             }),
             update: None,
             plugins: None,
