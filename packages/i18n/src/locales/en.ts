@@ -484,6 +484,12 @@ export const en: TranslationSchema = {
     relinkedToast: "Workspace move detected; your writing preferences followed it",
     contextExclude: "Exclude from style learning",
     contextRestore: "Include in style learning",
+    consentTitle: "Use writing preferences with cloud continuation?",
+    consentDesc:
+      "Only the rule text below is sent to {{origin}}; your past articles are never sent. You can revoke this in Settings at any time.\n\n{{rules}}",
+    consentAllow: "Allow",
+    consentGranted: "Cloud access granted: {{origin}}",
+    consentRevoke: "Revoke cloud access",
   },
   fileTree: {
     emptyWorkspaceTitle: "No Folder Opened",

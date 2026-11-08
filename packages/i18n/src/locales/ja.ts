@@ -488,6 +488,12 @@ export const ja: TranslationSchema = {
     relinkedToast: "ワークスペースの移動を検出し、文章の好みを引き継ぎました",
     contextExclude: "スタイル学習から除外",
     contextRestore: "スタイル学習に戻す",
+    consentTitle: "クラウドの続き生成で文章の好みを使いますか？",
+    consentDesc:
+      "以下のルール文のみを {{origin}} に送信し、過去の記事は送信しません。設定からいつでも取り消せます。\n\n{{rules}}",
+    consentAllow: "許可",
+    consentGranted: "クラウド許可済み：{{origin}}",
+    consentRevoke: "クラウド許可を取り消す",
   },
   fileTree: {
     emptyWorkspaceTitle: "ワークスペースが開かれていません",

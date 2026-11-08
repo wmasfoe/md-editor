@@ -16,6 +16,7 @@ import {
 import { shouldSkipAutoGec } from "@md-editor/ai";
 import { desktopAiService } from "../app/ai/desktop-ai-service";
 import { useAcceptedAiTextRecorder } from "../app/ai/style-learning/use-accepted-ai-text";
+import { getStyleProfileForRequest } from "../app/ai/style-learning/style-profile-request";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentSnapshot } from "../app/document-store";
@@ -444,6 +445,8 @@ function useAutomaticAiEditing({
               {
                 isGhostText: true,
                 signal: abortController.signal,
+                // 自动建议从不弹出授权；未授权时服务内闸门不会附带写作偏好。
+                profile: getStyleProfileForRequest(settings.ai),
               },
             );
 

@@ -477,6 +477,12 @@ export const zh = {
     relinkedToast: "已识别工作区移动，写作偏好已跟随",
     contextExclude: "不参与风格学习",
     contextRestore: "恢复参与风格学习",
+    consentTitle: "在云端续写中使用写作偏好？",
+    consentDesc:
+      "将把以下规则文字发送给 {{origin}}，不会发送你的历史文章。可在设置中随时撤销。\n\n{{rules}}",
+    consentAllow: "允许",
+    consentGranted: "云端已授权：{{origin}}",
+    consentRevoke: "撤销云端授权",
   },
   fileTree: {
     emptyWorkspaceTitle: "未打开工作区",

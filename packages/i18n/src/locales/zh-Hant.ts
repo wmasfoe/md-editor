@@ -479,6 +479,12 @@ export const zhHant: TranslationSchema = {
     relinkedToast: "已識別工作區移動，寫作偏好已跟隨",
     contextExclude: "不參與風格學習",
     contextRestore: "恢復參與風格學習",
+    consentTitle: "在雲端續寫中使用寫作偏好？",
+    consentDesc:
+      "將把以下規則文字傳送給 {{origin}}，不會傳送你的歷史文章。可在設定中隨時撤銷。\n\n{{rules}}",
+    consentAllow: "允許",
+    consentGranted: "雲端已授權：{{origin}}",
+    consentRevoke: "撤銷雲端授權",
   },
   fileTree: {
     emptyWorkspaceTitle: "未開啟工作區",
