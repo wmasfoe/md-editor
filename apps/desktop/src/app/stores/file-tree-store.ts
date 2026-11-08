@@ -16,6 +16,7 @@ import { useSidebarStore } from "./sidebar-store";
 import { watchFolder } from "../../desktop/file-adapter";
 import { syncStyleLearningRename } from "../ai/style-learning/style-exclusions";
 import { workspaceRelativePath } from "../ai/style-learning/paths";
+import { useStyleLearningStore } from "../ai/style-learning/style-learning-store";
 
 function syncStyleLearningRenameForTree(
   rootPath: string,
@@ -158,7 +159,10 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       applyFileTreeMutation(result, node.path);
       if (result.affectedPath) {
         // 风格学习的样本与排除列表按相对路径记录，重命名后同步，失败不影响重命名本身。
-        void syncStyleLearningRenameForTree(folder.rootPath, node.path, result.affectedPath);
+        // 只在本次会话加载过风格学习数据（即已开启）时同步，从未开启时不写入任何文件。
+        if (useStyleLearningStore.getState().profile) {
+          void syncStyleLearningRenameForTree(folder.rootPath, node.path, result.affectedPath);
+        }
         await recentFilesStore.move(node.path, {
           path: result.affectedPath,
           name: result.affectedPath.split("/").pop() || name,

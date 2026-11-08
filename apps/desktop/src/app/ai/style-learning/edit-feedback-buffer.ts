@@ -53,13 +53,13 @@ export function withEditFeatures(
   features: readonly StyleEditFeatureRecord[],
 ): StyleProfileDocument {
   if (features.length === 0) return document;
+  const existing = document.editFeedback?.[workspaceId] ?? [];
   return {
     ...document,
-    workspaces: document.workspaces.map((workspace) =>
-      workspace.id === workspaceId
-        ? { ...workspace, editFeedback: appendEditFeatures(workspace.editFeedback, features) }
-        : workspace,
-    ),
+    editFeedback: {
+      ...document.editFeedback,
+      [workspaceId]: appendEditFeatures(existing, features),
+    },
   };
 }
 

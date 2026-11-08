@@ -18,7 +18,6 @@ function documentWithWorkspace(): StyleProfileDocument {
         linkState: "linked",
         samples: [],
         rules: [],
-        editFeedback: [],
         roundCount: 1,
         changesSinceRound: 0,
       },
@@ -41,7 +40,7 @@ describe("edit feedback buffer", () => {
       "2026-11-09T00:00:00Z",
     );
     const next = withEditFeatures(documentWithWorkspace(), "ws-1", features);
-    expect(next.workspaces[0]!.editFeedback).toEqual(
+    expect(next.editFeedback?.["ws-1"]).toEqual(
       expect.arrayContaining([
         { at: "2026-11-09T00:00:00Z", dimension: "cjkLatinSpacing", value: "spaced" },
         { at: "2026-11-09T00:00:00Z", dimension: "cjkPunctuationWidth", value: "fullwidth" },

@@ -13,7 +13,7 @@ pub(crate) mod store;
 mod tests;
 
 pub(crate) use scan::{read_style_learning_sample, scan_style_learning_samples};
-pub(crate) use scope::StyleLearningScope;
+pub(crate) use scope::{get_style_learning_root, StyleLearningScope};
 pub(crate) use store::{
     clear_style_learning_document, load_style_learning_document, save_style_learning_document,
 };

@@ -62,7 +62,6 @@ export function workspace(
     linkState: "linked",
     samples: [],
     rules: [],
-    editFeedback: [],
     roundCount: 0,
     changesSinceRound: 0,
     ...overrides,

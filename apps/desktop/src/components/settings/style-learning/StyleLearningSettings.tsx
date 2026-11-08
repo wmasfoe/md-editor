@@ -42,9 +42,10 @@ import { clearPendingEditFeedback } from "../../../app/ai/style-learning/edit-fe
 import { useStyleLearningData } from "../../../app/ai/style-learning/use-style-learning-data";
 import {
   excludeStylePath,
+  moveStyleExclusions,
   restoreStylePath,
 } from "../../../app/ai/style-learning/style-exclusions";
-import { useFileTreeStore } from "../../../app/stores/file-tree-store";
+import { useStyleLearningRoot } from "../../../app/ai/style-learning/use-style-learning-root";
 import { useToastStore } from "../../../app/stores/toast-store";
 
 export interface StyleLearningSettingsProps {
@@ -73,13 +74,18 @@ async function updateCustomRules(
   useStyleLearningStore.getState().setProfile(next);
 }
 
-/** 撤销一次自动找回（基于磁盘上的最新文档写入） */
-async function undoRelink(profileId: string): Promise<void> {
+/** 撤销一次自动找回（基于磁盘上的最新文档写入），排除列表随之移回原目录 */
+async function undoRelink(
+  profileId: string,
+  currentRoot: string,
+  previousRoot: string,
+): Promise<void> {
   const next = await updateStyleProfile((latest) => ({
     ...latest,
     workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
   }));
   useStyleLearningStore.getState().setProfile(next);
+  await moveStyleExclusions(currentRoot, previousRoot);
 }
 
 /** 清空当前排除列表（应用数据目录中的排除文档） */
@@ -180,7 +186,7 @@ function StyleProfileDataSection() {
   const { t } = useTranslation();
   const profile = useStyleLearningStore((state) => state.profile);
   const exclusions = useStyleLearningStore((state) => state.exclusions);
-  const rootPath = useFileTreeStore((state) => state.folder?.rootPath ?? null);
+  const rootPath = useStyleLearningRoot();
   const workspace = findLinkedWorkspaceProfile(profile, rootPath);
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
@@ -207,7 +213,9 @@ function StyleProfileDataSection() {
             <button
               type="button"
               className={settingsSmallButtonClassName}
-              onClick={() => void undoRelink(workspace.id)}
+              onClick={() =>
+                void undoRelink(workspace.id, workspace.rootPath, workspace.relinkedFrom!.rootPath)
+              }
             >
               {t("styleLearning.undoRelink")}
             </button>

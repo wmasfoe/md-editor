@@ -15,6 +15,7 @@ import {
   loadStyleExclusions,
   loadStyleProfile,
 } from "./style-learning-host";
+import { clearPendingEditFeedback } from "./edit-feedback-buffer";
 import { useStyleLearningStore } from "./style-learning-store";
 
 export function useStyleLearningData(enabled: boolean): void {
@@ -28,9 +29,14 @@ export function useStyleLearningData(enabled: boolean): void {
     });
 
     const unlisteners: Array<Promise<() => void>> = [
-      listen<StyleProfileDocument | null>(STYLE_PROFILE_CHANGED_EVENT, (event) =>
-        useStyleLearningStore.getState().setProfile(event.payload),
-      ),
+      listen<StyleProfileDocument | null>(STYLE_PROFILE_CHANGED_EVENT, (event) => {
+        const current = useStyleLearningStore.getState().profile;
+        // 其他窗口清除了数据：本窗口内存中暂存的 AI 原文一并丢弃。
+        if (!event.payload || (current && event.payload.epoch !== current.epoch)) {
+          clearPendingEditFeedback();
+        }
+        useStyleLearningStore.getState().setProfile(event.payload);
+      }),
       listen<StyleExclusionsDocument>(STYLE_EXCLUSIONS_CHANGED_EVENT, (event) =>
         useStyleLearningStore.getState().setExclusions(event.payload),
       ),

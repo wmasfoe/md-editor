@@ -113,7 +113,7 @@ export function useStyleLearning(): void {
     const unlistenFolder = listenToFolderChanged(() => coordinator.noteWorkspaceChanged());
     // 写作模型为 Lite 时，用户刚用过本地模型就不为学习切换到 Standard。
     const unlistenLocalAi = onLocalAiUse(() => coordinator.noteLocalAiUse());
-    const onVisibility = () => coordinator.noteWorkspaceChanged();
+    const onVisibility = () => coordinator.noteVisibilityChanged();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {

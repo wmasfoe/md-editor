@@ -120,7 +120,6 @@ describe("style cloud consent", () => {
           linkState: "linked",
           samples: [],
           rules: [{ dimension: "termScript", value: "keep-english", status: "active", rounds: [] }],
-          editFeedback: [],
           roundCount: 3,
           changesSinceRound: 0,
         },

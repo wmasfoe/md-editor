@@ -29,7 +29,9 @@ export const useStyleLearningStore = create<StyleLearningStore>((set) => ({
   profile: null,
   exclusions: createEmptyStyleExclusionsDocument(),
   verifiedRoot: null,
-  setProfile: (profile) => set({ profile }),
+  // 广播事件与本地写入的回调可能乱序到达：同一数据代次只接受不更旧的 revision。
+  setProfile: (profile) =>
+    set((state) => (isNewerProfile(state.profile, profile) ? { profile } : state)),
   setExclusions: (exclusions) => set({ exclusions }),
   setVerifiedRoot: (verifiedRoot) => set({ verifiedRoot }),
 }));
@@ -63,4 +65,14 @@ export function resolveMergedStyleProfile(
     custom: profile.custom,
   });
   return merged.rules.length > 0 ? merged : undefined;
+}
+
+/** `next` 是否应替换 `current`：清除（null）、新数据代次或不更旧的 revision */
+export function isNewerProfile(
+  current: StyleProfileDocument | null,
+  next: StyleProfileDocument | null,
+): boolean {
+  if (!next || !current) return true;
+  if (next.epoch !== current.epoch) return true;
+  return (next.revision ?? 0) >= (current.revision ?? 0);
 }

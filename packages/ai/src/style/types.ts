@@ -75,9 +75,10 @@ export interface WorkspaceStyleProfileRecord {
   readonly unlinkedSince?: string;
   /** 最近一次自动找回前的根目录，用于在设置页撤销找回 */
   readonly relinkedFrom?: { readonly rootPath: string; readonly at: string };
+  /** 用户撤销过找回的根目录；之后不再自动找回到这些目录 */
+  readonly relinkDeclined?: readonly string[];
   readonly samples: readonly StyleSampleRecord[];
   readonly rules: readonly StyleRuleRecord[];
-  readonly editFeedback: readonly StyleEditFeatureRecord[];
   /** 已完成的汇总轮数 */
   readonly roundCount: number;
   /** 上一轮之后累计的样本变化数（新增、修改、删除） */
@@ -118,6 +119,8 @@ export interface StyleProfileDocument {
   readonly custom: readonly CustomStyleRule[];
   /** 采纳过的 AI 文本的句子 hash：workspaceId -> relPath -> hashes */
   readonly aiSegments: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>>;
+  /** 采纳 AI 建议后用户修改的特征：workspaceId -> 特征（编辑器写入，学习只读取） */
+  readonly editFeedback?: Readonly<Record<string, readonly StyleEditFeatureRecord[]>>;
 }
 
 /** 排除列表文档（清除学习数据时保留）：工作区根路径 -> 工作区相对路径列表 */

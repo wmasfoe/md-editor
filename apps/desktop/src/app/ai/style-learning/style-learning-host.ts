@@ -51,6 +51,8 @@ async function updateDocument<T>(
   for (let attempt = 1; ; attempt += 1) {
     const latest = (await loadDocument<T>(kind)) ?? empty();
     const next = mutate(latest);
+    // 修改函数没有改动任何内容时不写盘，也不广播。
+    if (next === latest) return latest;
     try {
       const revision = await invoke<number>("save_style_learning_document", {
         kind,

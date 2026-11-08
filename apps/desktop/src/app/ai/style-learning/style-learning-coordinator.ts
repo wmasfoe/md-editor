@@ -69,6 +69,8 @@ export class StyleLearningCoordinator {
   private running: AbortController | null = null;
   /** 是否有尚未处理的变化；为 false 时不安排新的学习 */
   private pending = true;
+  /** 连续失败次数，用于退避，避免同一错误每分钟触发一次全量扫描 */
+  private consecutiveFailures = 0;
   private disposed = false;
 
   public constructor(
@@ -100,6 +102,11 @@ export class StyleLearningCoordinator {
   /** 任何本地模型请求（续写、纠错）发出时调用，用于判断 runtime 是否仍热 */
   public noteLocalAiUse(): void {
     this.lastLocalAiUseAt = this.env.now();
+  }
+
+  /** 窗口重新可见时调用：只重新安排已有的待处理工作，不制造新的扫描 */
+  public noteVisibilityChanged(): void {
+    this.schedule();
   }
 
   /** 文档保存、文件夹内容变化等可能产生新样本时调用 */
@@ -151,7 +158,9 @@ export class StyleLearningCoordinator {
     const now = this.env.now();
     const readyAt = Math.max(
       this.lastInputAt + STYLE_LEARNING_IDLE_MS,
-      this.lastAttemptAt + STYLE_LEARNING_RETRY_MS,
+      // 连续失败时按 1、2、4…分钟退避，最长 1 小时。
+      this.lastAttemptAt +
+        Math.min(STYLE_LEARNING_RETRY_MS * 2 ** this.consecutiveFailures, 60 * 60 * 1000),
       this.conditions?.settings.provider === "local" &&
         this.conditions.settings.localModel.modelId !== STANDARD_LOCAL_MODEL_ID
         ? this.lastLocalAiUseAt + LOCAL_RUNTIME_COLD_MS
@@ -184,7 +193,9 @@ export class StyleLearningCoordinator {
       if (controller.signal.aborted) return;
       // 被抢占、模型忙、失败或刚更新了样本（可能还需继续分类）时稍后再试；学完或无变化时等下一个变化。
       if (outcome.status !== "idle" && outcome.status !== "learned") this.pending = true;
-      if (outcome.status !== "idle") {
+      this.consecutiveFailures = outcome.status === "failed" ? this.consecutiveFailures + 1 : 0;
+      // 只把真正写入磁盘的文档交给宿主；被丢弃或被抢占的轮次不能覆盖内存中的最新数据。
+      if (outcome.document) {
         this.callbacks.onDocumentChanged?.(outcome.document);
       }
       if (outcome.relinked) {
@@ -196,11 +207,12 @@ export class StyleLearningCoordinator {
       if (import.meta.env?.DEV) {
         console.debug("[Style Learning] round finished", {
           status: outcome.status,
-          workspaces: outcome.document.workspaces.length,
+          workspaces: outcome.document?.workspaces.length ?? null,
         });
       }
     } catch (error) {
       this.pending = true;
+      this.consecutiveFailures += 1;
       // 学习失败保持静默，只在 dev 日志中记录（不含正文）。
       if (import.meta.env?.DEV) {
         console.debug("[Style Learning] round failed", (error as Error)?.name);

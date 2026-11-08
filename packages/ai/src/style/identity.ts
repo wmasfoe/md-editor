@@ -76,10 +76,15 @@ export interface StyleRelinkCandidate {
 export function findStyleRelinkCandidate(
   profiles: readonly WorkspaceStyleProfileRecord[],
   currentParagraphHashes: ReadonlySet<string>,
+  rootPath?: string,
 ): StyleRelinkCandidate | undefined {
   let best: StyleRelinkCandidate | undefined;
   for (const profile of profiles) {
-    if (profile.linkState !== "unlinked") {
+    // 用户撤销过找回到这个目录，不再自动找回。
+    if (
+      profile.linkState !== "unlinked" ||
+      (rootPath && profile.relinkDeclined?.includes(rootPath))
+    ) {
       continue;
     }
     const { score, matchedSamples } = scoreStyleIdentity(profile, currentParagraphHashes);
@@ -138,6 +143,12 @@ export function undoStyleRelink(
   return workspaces.map((workspace) => {
     if (workspace.id !== profileId || !workspace.relinkedFrom) return workspace;
     const { relinkedFrom, ...rest } = workspace;
-    return { ...rest, rootPath: relinkedFrom.rootPath, linkState: "unlinked", unlinkedSince: now };
+    return {
+      ...rest,
+      rootPath: relinkedFrom.rootPath,
+      linkState: "unlinked",
+      unlinkedSince: now,
+      relinkDeclined: [...new Set([...(workspace.relinkDeclined ?? []), workspace.rootPath])],
+    };
   });
 }

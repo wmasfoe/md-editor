@@ -8,6 +8,7 @@ import {
 } from "../../src/index.ts";
 import {
   createEmptyStyleProfileDocument,
+  findStyleRelinkCandidate,
   hashStyleText,
   type StyleInferencePort,
   type StyleLearningHost,
@@ -20,7 +21,7 @@ import {
   StyleLearningEngine,
   wasClearedSince,
 } from "../../src/style/engine-entry.ts";
-import { spacedTechArticle } from "./fixtures.ts";
+import { sample as makeSample, spacedTechArticle, workspace as makeWorkspace } from "./fixtures.ts";
 
 /** 内存中的工作区与存储 */
 class FakeHost implements StyleLearningHost {
@@ -330,16 +331,13 @@ describe("style learning engine with edit feedback", () => {
     const before = workspace.rules.find((rule) => rule.dimension === dimension);
     host.document = {
       ...host.document!,
-      workspaces: [
-        {
-          ...workspace,
-          editFeedback: Array.from({ length: count }, (_, i) => ({
-            at: `2099-01-0${i + 1}`,
-            dimension,
-            value,
-          })),
-        },
-      ],
+      editFeedback: {
+        [workspace.id]: Array.from({ length: count }, (_, i) => ({
+          at: `2099-01-0${i + 1}`,
+          dimension,
+          value,
+        })),
+      },
     };
     for (let index = 0; index < ROUND_CHANGE_THRESHOLD; index += 1) {
       host.files.set(`more-${index}.md`, spacedTechArticle(`More${index}`));
@@ -472,7 +470,7 @@ describe("style learning engine after data is cleared", () => {
     host.document = null;
     host.saves = 0;
     release();
-    await expect(run).resolves.toMatchObject({ status: "preempted" });
+    await expect(run).resolves.toEqual({ status: "discarded" });
     expect(host.document).toBeNull();
     expect(host.saves).toBe(0);
   });
@@ -487,5 +485,71 @@ describe("style learning engine after data is cleared", () => {
     expect(
       wasClearedSince(createEmptyStyleProfileDocument(), createEmptyStyleProfileDocument()),
     ).toBe(false);
+  });
+});
+
+describe("style learning engine ownership", () => {
+  it("discards the round when another writer renamed samples or undid a relink meanwhile", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    const workspace = host.document!.workspaces[0]!;
+    // 学习进行中，应用内重命名同步改写了样本路径。
+    host.document = {
+      ...host.document!,
+      revision: (host.document!.revision ?? 0) + 1,
+      workspaces: [
+        {
+          ...workspace,
+          samples: workspace.samples.map((sample) => ({
+            ...sample,
+            relPath: `renamed/${sample.relPath}`,
+          })),
+        },
+      ],
+    };
+    const renamed = structuredClone(host.document);
+    release();
+    await expect(run).resolves.toEqual({ status: "discarded" });
+    expect(host.document).toEqual(renamed);
+  });
+
+  it("keeps edit feedback written by the editor during a run", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    const id = host.document!.workspaces[0]!.id;
+    const feedback = [{ at: "2099-01-01", dimension: "cjkLatinSpacing" as const, value: "spaced" }];
+    host.document = { ...host.document!, editFeedback: { [id]: feedback } };
+    release();
+    await expect(run).resolves.toMatchObject({ status: "learned" });
+    expect(host.document!.editFeedback).toEqual({ [id]: feedback });
+  });
+
+  it("does not relink to a folder where the user undid a relink", () => {
+    const declined = makeWorkspace("w1", {
+      linkState: "unlinked",
+      relinkDeclined: ["/notes/new"],
+      samples: ["a", "b", "c"].map((id) => makeSample(id, { paragraphHashes: [`${id}-1`] })),
+    });
+    const hashes = new Set(["a-1", "b-1", "c-1"]);
+    expect(findStyleRelinkCandidate([declined], hashes, "/notes/new")).toBeUndefined();
+    expect(findStyleRelinkCandidate([declined], hashes, "/notes/other")?.profileId).toBe("w1");
   });
 });

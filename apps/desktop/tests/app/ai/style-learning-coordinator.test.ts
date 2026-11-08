@@ -308,7 +308,6 @@ function base(): StyleProfileDocument {
           },
         ],
         rules: [],
-        editFeedback: [],
         roundCount: 0,
         changesSinceRound: 0,
       },

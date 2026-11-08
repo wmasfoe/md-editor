@@ -45,6 +45,14 @@ impl StyleLearningScope {
     }
 }
 
+/// 当前风格学习范围（主窗口打开的工作区根目录）；独立设置窗口据此展示当前工作区的数据。
+#[tauri::command]
+pub(crate) fn get_style_learning_root(
+    scope: tauri::State<'_, StyleLearningScope>,
+) -> Option<String> {
+    scope.root().ok().map(|root| path_to_string(&root))
+}
+
 /// 把工作区相对路径解析为规范化绝对路径，并确认它仍在工作区内。
 ///
 /// `canonicalize` 会解析符号链接，因此指向工作区外部的链接会被拒绝。

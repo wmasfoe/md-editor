@@ -58,13 +58,19 @@ export type StyleLearningStatus =
   | "learned"
   /** 被用户请求抢占或被调用方取消，本轮未写入 */
   | "preempted"
+  /** 本轮读取后数据被其他写入者改动（清除、撤销找回、重命名），结果已丢弃，下次基于最新数据重算 */
+  | "discarded"
   /** 本地 runtime 正在使用其他模型，放弃本次空闲窗口 */
   | "busy"
   | "failed";
 
 export interface StyleLearningOutcome {
   readonly status: StyleLearningStatus;
-  readonly document: StyleProfileDocument;
+  /**
+   * 本轮写入后的文档；未写入（无变化、被抢占、被丢弃、失败）时为 undefined。
+   * 宿主应以存储层广播的文档为准，这里只用于测试与日志。
+   */
+  readonly document?: StyleProfileDocument;
   readonly workspaceId?: string;
   /** 本次运行通过自动找回改绑的画像 */
   readonly relinked?: { readonly profileId: string; readonly previousRoot: string };
@@ -105,14 +111,20 @@ export class StyleLearningEngine {
     /** 本轮改动过的工作区 id；提交时只把这些记录与全局层合并进最新文档 */
     const touched = new Set<string>();
     let globalTouched = false;
+    /** 本轮最近一次读到或写入的磁盘文档：提交时据此判断其他写入者是否改动了本轮负责的记录 */
+    let baseline = document;
     const commit = async (): Promise<void> => {
       throwIfAborted(options.signal);
       const ours = document;
       document = await this.host.updateProfile((latest) => {
-        // 本轮开始后用户清除了数据：丢弃本轮结果，不能把已清除的数据写回来。
-        if (wasClearedSince(ours, latest)) throw createStaleRunError();
+        // 本轮读取后数据被清除，或本轮负责的工作区被其他写入者改动（撤销找回、重命名同步）：
+        // 丢弃本轮结果，下次基于最新数据重算，不能覆盖用户的操作。
+        if (wasClearedSince(baseline, latest) || ownedRecordsChanged(baseline, latest, touched)) {
+          throw createDiscardedRunError();
+        }
         return mergeOwnedChanges(latest, ours, touched, globalTouched);
       });
+      baseline = document;
     };
     try {
       throwIfAborted(options.signal);
@@ -144,7 +156,11 @@ export class StyleLearningEngine {
 
       let relinked: StyleLearningOutcome["relinked"];
       if (!workspace && options.autoRelink) {
-        const candidate = findStyleRelinkCandidate(document.workspaces, prepared.paragraphHashes);
+        const candidate = findStyleRelinkCandidate(
+          document.workspaces,
+          prepared.paragraphHashes,
+          scan.rootPath,
+        );
         const target = document.workspaces.find((profile) => profile.id === candidate?.profileId);
         if (target) {
           relinked = { profileId: target.id, previousRoot: target.rootPath };
@@ -168,7 +184,6 @@ export class StyleLearningEngine {
         linkState: "linked",
         samples: [],
         rules: [],
-        editFeedback: [],
         roundCount: 0,
         changesSinceRound: 0,
       };
@@ -205,7 +220,7 @@ export class StyleLearningEngine {
         if (changed) await commit();
         return {
           status: changed ? "updated" : "idle",
-          document,
+          document: changed ? document : undefined,
           workspaceId: next.id,
           relinked,
         };
@@ -236,10 +251,11 @@ export class StyleLearningEngine {
         // 已得到的样本标签是样本自身的事实，保留；本轮汇总不写入。
         document = upsertWorkspace(document, next);
         // 本块被用户请求抢占时整轮仍有效，标签照常保存；整轮被取消（关闭学习、切换工作区）时不写入。
-        if (labelled.size > 0 && !options.signal?.aborted) await commit();
+        const saved = labelled.size > 0 && !options.signal?.aborted;
+        if (saved) await commit();
         return {
           status: classifyOutcome.status,
-          document,
+          document: saved ? document : undefined,
           workspaceId: next.id,
           relinked,
           error: classifyOutcome.error,
@@ -256,7 +272,10 @@ export class StyleLearningEngine {
           )
         : [next.samples];
       // 自上一轮以来“用户修改 AI 建议”的特征作为附加观察，只计入最后一轮。
-      const feedback = summarizeEditFeatures(next.editFeedback, next.lastRoundAt);
+      const feedback = summarizeEditFeatures(
+        document.editFeedback?.[next.id] ?? [],
+        next.lastRoundAt,
+      );
       for (const [index, group] of groups.entries()) {
         roundCount += 1;
         const observations = observeSamples(group, roundCount);
@@ -285,10 +304,13 @@ export class StyleLearningEngine {
       await commit();
       return { status: "learned", document, workspaceId: next.id, relinked };
     } catch (error) {
-      if (isAbortError(error)) {
-        return { status: "preempted", document };
+      if (isDiscardedRunError(error)) {
+        return { status: "discarded" };
       }
-      return { status: "failed", document, error: errorMessage(error) };
+      if (isAbortError(error)) {
+        return { status: "preempted" };
+      }
+      return { status: "failed", error: errorMessage(error) };
     }
   }
 
@@ -415,13 +437,14 @@ export class StyleLearningEngine {
         this.inference.bridge(request, { signal: combineAbortSignals(signal, runSignal) }),
     });
     // 关闭风格学习或切换工作区时，调用方取消整个轮次，排队或进行中的分类一并取消。
-    // 派发是同步的，run 内部可能已经触发了取消，所以先检查一次再监听。
+    // 派发是同步的，run 内部可能已经触发了取消，所以先检查一次再监听；结束后移除监听。
+    const cancel = () => scheduled.cancel();
     if (runSignal?.aborted) {
-      scheduled.cancel();
+      cancel();
     } else {
-      runSignal?.addEventListener("abort", () => scheduled.cancel(), { once: true });
+      runSignal?.addEventListener("abort", cancel, { once: true });
     }
-    return scheduled.promise;
+    return scheduled.promise.finally(() => runSignal?.removeEventListener("abort", cancel));
   }
 }
 
@@ -504,6 +527,9 @@ function dropExpiredProfiles(document: StyleProfileDocument, now: Date): StylePr
     aiSegments: Object.fromEntries(
       Object.entries(document.aiSegments).filter(([id]) => !expired.has(id)),
     ),
+    editFeedback: Object.fromEntries(
+      Object.entries(document.editFeedback ?? {}).filter(([id]) => !expired.has(id)),
+    ),
   };
 }
 
@@ -549,13 +575,22 @@ export function mergeOwnedChanges(
   };
 }
 
+/** 合并两个取消信号；不依赖 `AbortSignal.any`（较旧的系统 WebView 不支持） */
 function combineAbortSignals(
   first: AbortSignal | undefined,
   second: AbortSignal | undefined,
 ): AbortSignal | undefined {
   if (!first) return second;
   if (!second) return first;
-  return AbortSignal.any([first, second]);
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (first.aborted || second.aborted) {
+    abort();
+  } else {
+    first.addEventListener("abort", abort, { once: true });
+    second.addEventListener("abort", abort, { once: true });
+  }
+  return controller.signal;
 }
 
 /**
@@ -567,8 +602,41 @@ export function wasClearedSince(ours: StyleProfileDocument, latest: StyleProfile
   return (latest.revision ?? 0) === 0 || latest.epoch !== ours.epoch;
 }
 
-function createStaleRunError(): Error {
-  const error = new Error("风格学习数据已被清除，本轮结果已丢弃。");
-  error.name = "AbortError";
+const DISCARDED_RUN_ERROR = "StyleRunDiscarded";
+
+function createDiscardedRunError(): Error {
+  const error = new Error("风格学习数据已被其他写入者改动，本轮结果已丢弃。");
+  error.name = DISCARDED_RUN_ERROR;
   return error;
+}
+
+function isDiscardedRunError(error: unknown): boolean {
+  return error instanceof Error && error.name === DISCARDED_RUN_ERROR;
+}
+
+/**
+ * 本轮负责的工作区在读取之后是否被其他写入者改动过身份相关字段或样本路径
+ * （撤销找回、应用内重命名同步）。只比较这些字段：学习自身不会改动它们之外的他人字段。
+ */
+export function ownedRecordsChanged(
+  initial: StyleProfileDocument,
+  latest: StyleProfileDocument,
+  touched: ReadonlySet<string>,
+): boolean {
+  const before = new Map(initial.workspaces.map((workspace) => [workspace.id, workspace]));
+  for (const workspace of latest.workspaces) {
+    if (!touched.has(workspace.id)) continue;
+    const original = before.get(workspace.id);
+    if (!original) continue;
+    const identityChanged =
+      original.rootPath !== workspace.rootPath ||
+      original.linkState !== workspace.linkState ||
+      original.relinkedFrom?.at !== workspace.relinkedFrom?.at ||
+      (original.relinkDeclined ?? []).join("\n") !== (workspace.relinkDeclined ?? []).join("\n");
+    const pathsChanged =
+      original.samples.map((sample) => sample.relPath).join("\n") !==
+      workspace.samples.map((sample) => sample.relPath).join("\n");
+    if (identityChanged || pathsChanged) return true;
+  }
+  return false;
 }
