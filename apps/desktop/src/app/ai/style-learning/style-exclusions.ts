@@ -7,12 +7,7 @@
  * 排除后下一次扫描就不会再读取该文件，学习引擎会立刻去掉它对画像的贡献。
  */
 import { isUserStyleExcluded, type StyleExclusionsDocument } from "@md-editor/ai/style";
-import {
-  loadStyleExclusions,
-  loadStyleProfile,
-  saveStyleExclusions,
-  saveStyleProfile,
-} from "./style-learning-host";
+import { updateStyleExclusions, updateStyleProfile } from "./style-learning-host";
 import { renameExclusions, renameInStyleDocument } from "./style-learning-coordinator";
 import { useStyleLearningStore } from "./style-learning-store";
 
@@ -20,15 +15,13 @@ async function updateExclusions(
   rootPath: string,
   update: (current: readonly string[]) => readonly string[],
 ): Promise<StyleExclusionsDocument> {
-  const document = await loadStyleExclusions();
-  const next: StyleExclusionsDocument = {
-    ...document,
+  const next = await updateStyleExclusions((latest) => ({
+    ...latest,
     workspaces: {
-      ...document.workspaces,
-      [rootPath]: [...update(document.workspaces[rootPath] ?? [])],
+      ...latest.workspaces,
+      [rootPath]: [...update(latest.workspaces[rootPath] ?? [])],
     },
-  };
-  await saveStyleExclusions(next);
+  }));
   useStyleLearningStore.getState().setExclusions(next);
   return next;
 }
@@ -81,16 +74,27 @@ export async function syncStyleLearningRename(
   from: string,
   to: string,
 ): Promise<void> {
-  const profile = useStyleLearningStore.getState().profile ?? (await loadStyleProfile());
-  if (profile) {
-    const next = renameInStyleDocument(profile, rootPath, from, to);
-    if (next !== profile) {
-      useStyleLearningStore.getState().setProfile(next);
-      await saveStyleProfile(next);
-    }
-  }
-  const exclusions = await loadStyleExclusions();
-  if ((exclusions.workspaces[rootPath] ?? []).length > 0) {
+  const next = await updateStyleProfile((latest) =>
+    renameInStyleDocument(latest, rootPath, from, to),
+  );
+  useStyleLearningStore.getState().setProfile(next);
+  if ((useStyleLearningStore.getState().exclusions.workspaces[rootPath] ?? []).length > 0) {
     await renameStyleExclusionPath(rootPath, from, to);
   }
+}
+
+/**
+ * 自动找回把画像改绑到新根目录后，把旧根目录的排除列表一并迁移（新根目录已有排除列表时不覆盖）。
+ */
+export async function moveStyleExclusions(fromRoot: string, toRoot: string): Promise<void> {
+  if (fromRoot === toRoot) return;
+  const next = await updateStyleExclusions((latest) => {
+    const moved = latest.workspaces[fromRoot];
+    if (!moved?.length || latest.workspaces[toRoot]?.length) return latest;
+    const rest = Object.fromEntries(
+      Object.entries(latest.workspaces).filter(([root]) => root !== fromRoot),
+    );
+    return { ...latest, workspaces: { ...rest, [toRoot]: moved } };
+  });
+  useStyleLearningStore.getState().setExclusions(next);
 }

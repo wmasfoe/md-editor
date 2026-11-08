@@ -123,6 +123,35 @@ describe("style learning coordinator", () => {
     );
   });
 
+  it("does not rescan while idle; a change or an unfinished round schedules the next run", async () => {
+    const { env, advance } = createEnvironment();
+    const results: StyleLearningOutcome[] = [
+      outcome("learned"),
+      outcome("preempted"),
+      outcome("idle"),
+    ];
+    const runner: StyleLearningRunner = {
+      run: vi.fn(async () => results.shift() ?? outcome("idle")),
+    };
+    const coordinator = new StyleLearningCoordinator(env, runner);
+    coordinator.update({ settings: enabledSettings, standardModelReady: true, rootPath: "/notes" });
+
+    await advance(STYLE_LEARNING_IDLE_MS);
+    expect(runner.run).toHaveBeenCalledTimes(1);
+    // 学完之后一直空闲：不再扫描。
+    await advance(STYLE_LEARNING_IDLE_MS * 20);
+    expect(runner.run).toHaveBeenCalledTimes(1);
+
+    // 保存文档带来新变化；本轮被抢占，稍后自动继续；继续后无变化则停下。
+    coordinator.noteWorkspaceChanged();
+    await advance(STYLE_LEARNING_IDLE_MS);
+    expect(runner.run).toHaveBeenCalledTimes(2);
+    await advance(STYLE_LEARNING_IDLE_MS);
+    expect(runner.run).toHaveBeenCalledTimes(3);
+    await advance(STYLE_LEARNING_IDLE_MS * 20);
+    expect(runner.run).toHaveBeenCalledTimes(3);
+  });
+
   it("I-2: turning style learning off cancels a running round", async () => {
     const { env, advance } = createEnvironment();
     let signal: AbortSignal | undefined;
@@ -237,8 +266,9 @@ describe("style learning coordinator", () => {
         }),
         readSample: async (relPath) => files.get(relPath)!,
         loadProfile: async () => stored,
-        saveProfile: async (document) => {
-          stored = document;
+        updateProfile: async (mutate) => {
+          stored = mutate(stored ?? createEmptyStyleProfileDocument());
+          return stored;
         },
       },
       inference: { schedule: (options) => scheduler.schedule(options), bridge },
@@ -292,7 +322,8 @@ describe("style learning document helpers", () => {
     const hashes = next.aiSegments["ws-1"]?.["post.md"];
     expect(hashes).toEqual([hashStyleText("第一句。"), hashStyleText("第二句！")]);
     expect(JSON.stringify(next)).not.toContain("第一句");
-    expect(recordAcceptedAiText(base(), "ws-1", "post.md", "   ")).toEqual(base());
+    const document = base();
+    expect(recordAcceptedAiText(document, "ws-1", "post.md", "   ")).toBe(document);
   });
 
   it("syncs sample paths, AI segments and exclusions after an in-app rename", () => {

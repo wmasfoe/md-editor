@@ -4,14 +4,16 @@ import { history } from "@codemirror/commands";
 import type { EditorView } from "@codemirror/view";
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_AI_SUGGESTION_LABELS,
   acceptAiSuggestion,
-  aiSuggestionAcceptedAnnotation,
   aiSuggestionExtension,
   dismissAiSuggestion,
   setAiSuggestionEffect,
-  type AiSuggestionAcceptedEvent,
 } from "../../src/wysiwyg/view/suggestion.ts";
+import {
+  DEFAULT_AI_SUGGESTION_LABELS,
+  aiSuggestionAcceptedAnnotation,
+  type AiSuggestionAcceptedEvent,
+} from "../../src/wysiwyg/view/suggestion-model.ts";
 import { createAiBadge } from "../../src/wysiwyg/view/suggestion-widgets.ts";
 
 /** 记录每个事务的采纳注解的最小 EditorView 替身 */

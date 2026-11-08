@@ -17,10 +17,9 @@ import { resolveMergedStyleProfile, useStyleLearningStore } from "./style-learni
 /** 当前工作区的合并写作偏好（未经过闸门）；风格学习关闭时返回 undefined */
 export function getStyleProfileForRequest(settings: AiSettings): MergedStyleProfile | undefined {
   if (!settings.styleLearning.enabled) return undefined;
-  return resolveMergedStyleProfile(
-    useStyleLearningStore.getState().profile,
-    useFileTreeStore.getState().folder?.rootPath,
-  );
+  const { profile, verifiedRoot } = useStyleLearningStore.getState();
+  const rootPath = useFileTreeStore.getState().folder?.rootPath;
+  return resolveMergedStyleProfile(profile, rootPath, verifiedRoot);
 }
 
 /** 当前设置下，云端请求是否需要先取得写作偏好授权 */

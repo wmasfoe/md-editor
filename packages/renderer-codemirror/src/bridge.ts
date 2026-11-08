@@ -26,7 +26,7 @@ import type {
   AiSuggestionLabels,
   AiSuggestionValue,
   AiSuggestionAcceptedEvent,
-} from "./wysiwyg/view/suggestion.ts";
+} from "./wysiwyg/view/suggestion-model.ts";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Diagnostic } from "@codemirror/lint";
 import type { DocumentLinterOptions } from "./lint/types.ts";

@@ -7,7 +7,9 @@
  * - 只在风格学习开启、本地 Standard 已就绪、当前打开了工作区时运行；
  * - 只在空闲时运行：编辑器 2 分钟无输入、当前文档已保存、窗口可见；
  * - 不切换正在使用的本地模型：写作模型为热 Lite 时等待 runtime 变冷；
- * - 一次只运行一轮；用户请求通过共享调度器抢占正在进行的分类。
+ * - 一次只运行一轮；用户请求通过共享调度器抢占正在进行的分类；
+ * - 只在有待处理的变化时运行：打开工作区、保存文档、文件夹变化、开关或模型变化，
+ *   或上一轮被抢占、本地模型忙、出错、刚更新了样本（还可能需要继续）。空闲本身不会触发重复扫描。
  */
 import { STANDARD_LOCAL_MODEL_ID, type AiSettings } from "@md-editor/ai";
 import {
@@ -65,6 +67,8 @@ export class StyleLearningCoordinator {
   private lastAttemptAt = Number.NEGATIVE_INFINITY;
   private timer: unknown = null;
   private running: AbortController | null = null;
+  /** 是否有尚未处理的变化；为 false 时不安排新的学习 */
+  private pending = true;
   private disposed = false;
 
   public constructor(
@@ -83,6 +87,7 @@ export class StyleLearningCoordinator {
       // 关闭开关或切换工作区时立即停止进行中的学习。
       this.cancelRunning();
     }
+    this.pending = true;
     this.schedule();
   }
 
@@ -99,6 +104,7 @@ export class StyleLearningCoordinator {
 
   /** 文档保存、文件夹内容变化等可能产生新样本时调用 */
   public noteWorkspaceChanged(): void {
+    this.pending = true;
     this.schedule();
   }
 
@@ -141,7 +147,7 @@ export class StyleLearningCoordinator {
 
   private schedule(): void {
     this.clearTimer();
-    if (this.disposed || !this.canLearn() || this.running) return;
+    if (this.disposed || !this.canLearn() || this.running || !this.pending) return;
     const now = this.env.now();
     const readyAt = Math.max(
       this.lastInputAt + STYLE_LEARNING_IDLE_MS,
@@ -167,6 +173,8 @@ export class StyleLearningCoordinator {
     const controller = new AbortController();
     this.running = controller;
     this.lastAttemptAt = this.env.now();
+    // 先消耗本次变化；运行期间新到的变化会把它重新置为 true。
+    this.pending = false;
     try {
       const outcome = await this.runner.run({
         rootPath: conditions.rootPath!,
@@ -174,6 +182,8 @@ export class StyleLearningCoordinator {
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      // 被抢占、模型忙、失败或刚更新了样本（可能还需继续分类）时稍后再试；学完或无变化时等下一个变化。
+      if (outcome.status !== "idle" && outcome.status !== "learned") this.pending = true;
       if (outcome.status !== "idle") {
         this.callbacks.onDocumentChanged?.(outcome.document);
       }
@@ -190,6 +200,7 @@ export class StyleLearningCoordinator {
         });
       }
     } catch (error) {
+      this.pending = true;
       // 学习失败保持静默，只在 dev 日志中记录（不含正文）。
       if (import.meta.env?.DEV) {
         console.debug("[Style Learning] round failed", (error as Error)?.name);

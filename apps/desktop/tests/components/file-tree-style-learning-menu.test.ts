@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const invoke = vi.hoisted(() =>
   vi.fn(async (command: string) =>
-    command === "load_style_learning_document" ? { version: 1, workspaces: {} } : null,
+    command === "load_style_learning_document"
+      ? { version: 1, workspaces: {} }
+      : command === "save_style_learning_document"
+        ? 1
+        : null,
   ),
 );
 vi.mock("@tauri-apps/api/core", () => ({ invoke, isTauri: () => false }));
@@ -89,11 +93,13 @@ describe("file tree style learning menu", () => {
     expect(invoke).toHaveBeenCalledWith("save_style_learning_document", {
       kind: "exclusions",
       document: { version: 1, workspaces: { "/notes": ["diary"] } },
+      expectedRevision: 0,
     });
     expect(isStylePathExcluded(excluded, "/notes", "diary/a.md")).toBe(true);
     expect(isStylePathExcluded(excluded, "/notes", "diary-public.md")).toBe(false);
     expect(useStyleLearningStore.getState().exclusions).toEqual(excluded);
 
+    // 磁盘上已是排除后的文档（revision 1），恢复基于它写入。
     invoke.mockImplementationOnce(async () => excluded);
     const restored = await restoreStylePath("/notes", "diary");
     expect(restored.workspaces["/notes"]).toEqual([]);

@@ -18,6 +18,7 @@ import {
   ROUND_CHANGE_THRESHOLD,
   STYLE_RUNTIME_BUSY_ERROR,
   StyleLearningEngine,
+  wasClearedSince,
 } from "../../src/style/engine-entry.ts";
 import { spacedTechArticle } from "./fixtures.ts";
 
@@ -57,6 +58,14 @@ class FakeHost implements StyleLearningHost {
   public async saveProfile(document: StyleProfileDocument) {
     this.saves += 1;
     this.document = structuredClone(document);
+  }
+
+  /** 与桌面宿主相同的语义：基于最新文档应用修改，写入时递增 revision */
+  public async updateProfile(mutate: (latest: StyleProfileDocument) => StyleProfileDocument) {
+    const latest = this.document ?? createEmptyStyleProfileDocument();
+    const next = { ...mutate(latest), revision: (latest.revision ?? 0) + 1 };
+    await this.saveProfile(next);
+    return structuredClone(next);
   }
 }
 
@@ -355,5 +364,128 @@ describe("style learning engine with edit feedback", () => {
     expect(round.value).toBe("formal");
     expect(round.supportSampleIds.filter((id) => id.startsWith("edit:"))).toHaveLength(3);
     expect(latest.rounds.length).toBeGreaterThan(before?.rounds.length ?? 0);
+  });
+});
+
+describe("style learning engine data consistency", () => {
+  it("keeps custom rules and AI segments written by others during a run", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    // 学习进行中，设置窗口新增了自定义规则，编辑器记录了采纳的 AI 句子。
+    host.document = {
+      ...host.document!,
+      custom: [{ kind: "note", id: "n1", text: "少用感叹号。" }],
+      aiSegments: { "ws-x": { "a.md": ["n1:abc"] } },
+    };
+    release();
+    await expect(run).resolves.toMatchObject({ status: "learned" });
+    expect(host.document!.custom).toEqual([{ kind: "note", id: "n1", text: "少用感叹号。" }]);
+    expect(host.document!.aiSegments).toEqual({ "ws-x": { "a.md": ["n1:abc"] } });
+    expect(host.document!.workspaces[0]!.roundCount).toBe(BOOTSTRAP_ROUNDS);
+  });
+
+  it("does not rewrite the profile when nothing changed", async () => {
+    const { engine, host } = setup({ files: 4 });
+    await engine.run();
+    const saves = host.saves;
+    expect((await engine.run()).status).toBe("idle");
+    expect(host.saves).toBe(saves);
+  });
+
+  it("cancelling the run cancels scheduled classification and writes no labels", async () => {
+    const controller = new AbortController();
+    let started = 0;
+    const { engine, host } = setup({
+      files: 6,
+      output: (_request) =>
+        new Promise<string>(() => {
+          started += 1;
+          controller.abort();
+        }),
+    });
+    const outcome = await engine.run({ signal: controller.signal });
+    expect(outcome.status).toBe("preempted");
+    expect(started).toBe(1);
+    expect(
+      host.document!.workspaces[0]!.samples.every(
+        (sample) => Object.keys(sample.labels).length === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not re-classify samples already labelled before a preemption", async () => {
+    let calls = 0;
+    let preemptOnce = true;
+    const { engine, host, scheduler } = setup({
+      files: 6,
+      output: async () => {
+        calls += 1;
+        if (calls === 3 && preemptOnce) {
+          preemptOnce = false;
+          // 用户请求抢占第 3 个分类块。
+          scheduler.schedule({
+            scope: { documentId: "draft.md", task: "completion" },
+            priority: "urgent",
+            run: async () => "x",
+          });
+          await new Promise(() => {});
+        }
+        return FORMAL;
+      },
+    });
+    expect((await engine.run()).status).toBe("preempted");
+    const labelledAfterFirst = host.document!.workspaces[0]!.samples.filter(
+      (sample) => Object.keys(sample.labels).length > 0,
+    ).length;
+    expect(labelledAfterFirst).toBe(2);
+    calls = 0;
+    expect((await engine.run()).status).toBe("learned");
+    expect(calls).toBe(6 - labelledAfterFirst);
+  });
+});
+
+describe("style learning engine after data is cleared", () => {
+  it("discards the round when data was cleared while it ran", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    // 已经保存过一次（有 revision 与 epoch）。
+    host.document = { ...createEmptyStyleProfileDocument(), revision: 3 };
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    // 学习进行中，用户在设置窗口清除了数据。
+    host.document = null;
+    host.saves = 0;
+    release();
+    await expect(run).resolves.toMatchObject({ status: "preempted" });
+    expect(host.document).toBeNull();
+    expect(host.saves).toBe(0);
+  });
+
+  it("detects a cleared or replaced document by revision and epoch", () => {
+    const saved = { ...createEmptyStyleProfileDocument(), revision: 2 };
+    expect(wasClearedSince(saved, { ...createEmptyStyleProfileDocument() })).toBe(true);
+    expect(wasClearedSince(saved, { ...saved, revision: 5 })).toBe(false);
+    expect(wasClearedSince(saved, { ...createEmptyStyleProfileDocument(), revision: 5 })).toBe(
+      true,
+    );
+    expect(
+      wasClearedSince(createEmptyStyleProfileDocument(), createEmptyStyleProfileDocument()),
+    ).toBe(false);
   });
 });

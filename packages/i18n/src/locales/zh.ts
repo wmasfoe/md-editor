@@ -475,6 +475,8 @@ export const zh = {
     clear: "清除风格学习数据",
     clearDone: "已清除风格学习数据",
     relinkedToast: "已识别工作区移动，写作偏好已跟随",
+    relinkedFrom: "已从 {{root}} 找回",
+    undoRelink: "撤销找回",
     contextExclude: "不参与风格学习",
     contextRestore: "恢复参与风格学习",
     consentTitle: "在云端续写中使用写作偏好？",

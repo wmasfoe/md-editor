@@ -11,7 +11,7 @@ import { useFileTreeStore } from "../../stores/file-tree-store";
 import { rememberAcceptedAiText } from "./edit-feedback-buffer";
 import { workspaceRelativePath } from "./paths";
 import { recordAcceptedAiText } from "./style-learning-coordinator";
-import { saveStyleProfile } from "./style-learning-host";
+import { updateStyleProfile } from "./style-learning-host";
 import { findLinkedWorkspaceProfile, useStyleLearningStore } from "./style-learning-store";
 
 export function useAcceptedAiTextRecorder(): (event: AiSuggestionAcceptedEvent) => void {
@@ -30,10 +30,12 @@ export function useAcceptedAiTextRecorder(): (event: AiSuggestionAcceptedEvent) 
       if (!relPath) return;
       // 原文只留在内存，保存时用于提取“用户改了什么”，随后丢弃。
       rememberAcceptedAiText(workspace.id, relPath, event.text);
-      const next = recordAcceptedAiText(profile, workspace.id, relPath, event.text);
-      if (next === profile) return;
-      setProfile(next);
-      void saveStyleProfile(next).catch(() => undefined);
+      // 基于最新文档追加 hash，避免覆盖学习轮次或其他窗口的写入；失败时下次采纳再补。
+      void updateStyleProfile((latest) =>
+        recordAcceptedAiText(latest, workspace.id, relPath, event.text),
+      )
+        .then(setProfile)
+        .catch(() => undefined);
     },
     [enabled],
   );

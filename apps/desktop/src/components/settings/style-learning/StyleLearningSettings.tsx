@@ -15,7 +15,7 @@ import {
   STAT_DIMENSION_IDS,
   CLASS_DIMENSION_IDS,
   createEmptyStyleExclusionsDocument,
-  createEmptyStyleProfileDocument,
+  undoStyleRelink,
   styleDimensionValues,
   type CustomStyleRule,
   type StyleDimensionId,
@@ -36,8 +36,10 @@ import {
 import {
   clearStyleExclusions,
   clearStyleProfile,
-  saveStyleProfile,
+  updateStyleProfile,
 } from "../../../app/ai/style-learning/style-learning-host";
+import { clearPendingEditFeedback } from "../../../app/ai/style-learning/edit-feedback-buffer";
+import { useStyleLearningData } from "../../../app/ai/style-learning/use-style-learning-data";
 import {
   excludeStylePath,
   restoreStylePath,
@@ -60,6 +62,26 @@ function newCustomRuleId(): string {
   return `c-${globalThis.crypto.randomUUID()}`;
 }
 
+/** 基于磁盘上的最新文档修改自定义规则，不会覆盖学习结果或其他窗口的修改 */
+async function updateCustomRules(
+  change: (current: readonly CustomStyleRule[]) => readonly CustomStyleRule[],
+): Promise<void> {
+  const next = await updateStyleProfile((latest) => ({
+    ...latest,
+    custom: change(latest.custom),
+  }));
+  useStyleLearningStore.getState().setProfile(next);
+}
+
+/** 撤销一次自动找回（基于磁盘上的最新文档写入） */
+async function undoRelink(profileId: string): Promise<void> {
+  const next = await updateStyleProfile((latest) => ({
+    ...latest,
+    workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
+  }));
+  useStyleLearningStore.getState().setProfile(next);
+}
+
 /** 清空当前排除列表（应用数据目录中的排除文档） */
 async function clearExclusionList(): Promise<void> {
   await clearStyleExclusions();
@@ -74,6 +96,8 @@ export function StyleLearningSettings({
 }: StyleLearningSettingsProps) {
   const { t } = useTranslation();
   const styleLearning = aiSettingsDraft.styleLearning;
+  // 独立设置窗口不运行学习，但要自己读取并跟随画像与排除列表的变化。
+  useStyleLearningData(styleLearning.enabled);
   const setStyleLearning = (patch: Partial<AiSettings["styleLearning"]>) =>
     onChangeAiSettings({ ...aiSettingsDraft, styleLearning: { ...styleLearning, ...patch } });
 
@@ -161,13 +185,10 @@ function StyleProfileDataSection() {
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
 
-  const updateProfile = async (custom: readonly CustomStyleRule[]) => {
-    const next = { ...(profile ?? createEmptyStyleProfileDocument()), custom };
-    useStyleLearningStore.getState().setProfile(next);
-    await saveStyleProfile(next);
-  };
-
   const clearAll = async () => {
+    // 清除会换新数据代次，正在进行的学习轮次提交时发现代次不同会丢弃结果；
+    // 主窗口通过广播事件同步清空，内存中暂存的 AI 原文一并丢弃。
+    clearPendingEditFeedback();
     await clearStyleProfile();
     useStyleLearningStore.getState().setProfile(null);
     useToastStore.getState().showToast(t("styleLearning.clearDone"));
@@ -178,6 +199,20 @@ function StyleProfileDataSection() {
       <section className="grid gap-2" aria-label={t("styleLearning.aiProfile")}>
         <h4 className={settingsFieldLabelClassName}>{t("styleLearning.aiProfile")}</h4>
         <ActiveRuleList title={t("styleLearning.workspaceLayer")} rules={workspace?.rules ?? []} />
+        {workspace?.relinkedFrom ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <p className={settingsDescriptionClassName}>
+              {t("styleLearning.relinkedFrom", { root: workspace.relinkedFrom.rootPath })}
+            </p>
+            <button
+              type="button"
+              className={settingsSmallButtonClassName}
+              onClick={() => void undoRelink(workspace.id)}
+            >
+              {t("styleLearning.undoRelink")}
+            </button>
+          </div>
+        ) : null}
         <ActiveRuleList
           title={t("styleLearning.globalLayer")}
           rules={profile?.global.rules ?? []}
@@ -186,7 +221,7 @@ function StyleProfileDataSection() {
 
       <CustomRuleEditor
         rules={profile?.custom ?? []}
-        onChange={(custom) => void updateProfile(custom)}
+        onChange={(change) => void updateCustomRules(change)}
       />
 
       {rootPath ? (
@@ -304,7 +339,10 @@ function CustomRuleEditor({
   onChange,
 }: {
   readonly rules: readonly CustomStyleRule[];
-  readonly onChange: (rules: readonly CustomStyleRule[]) => void;
+  /** 以函数形式提交修改，基于最新的规则列表计算结果 */
+  readonly onChange: (
+    change: (current: readonly CustomStyleRule[]) => readonly CustomStyleRule[],
+  ) => void;
 }) {
   const { t } = useTranslation();
   const [note, setNote] = useState("");
@@ -330,7 +368,9 @@ function CustomRuleEditor({
               <button
                 type="button"
                 className={settingsSmallButtonClassName}
-                onClick={() => onChange(rules.filter((candidate) => candidate.id !== rule.id))}
+                onClick={() =>
+                  onChange((current) => current.filter((candidate) => candidate.id !== rule.id))
+                }
               >
                 {t("styleLearning.remove")}
               </button>
@@ -350,7 +390,8 @@ function CustomRuleEditor({
           className={settingsSmallButtonClassName}
           disabled={!note.trim()}
           onClick={() => {
-            onChange([...rules, { kind: "note", id: newCustomRuleId(), text: note.trim() }]);
+            const text = note.trim();
+            onChange((current) => [...current, { kind: "note", id: newCustomRuleId(), text }]);
             setNote("");
           }}
         >
@@ -394,9 +435,9 @@ function CustomRuleEditor({
           type="button"
           className={settingsSmallButtonClassName}
           onClick={() =>
-            onChange([
+            onChange((current) => [
               // 同一维度只保留最新的一条覆盖规则。
-              ...rules.filter((rule) => rule.kind === "note" || rule.dimension !== dimension),
+              ...current.filter((rule) => rule.kind === "note" || rule.dimension !== dimension),
               { kind: "dimension", id: newCustomRuleId(), dimension, value },
             ])
           }

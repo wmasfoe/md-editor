@@ -101,7 +101,7 @@ export function logLlmRetry(
   if (!isDevEnvironment()) {
     return;
   }
-  console.warn(`[AI LLM:${provider}] 🔄 自愈重试 (${modelId})`, details);
+  console.warn(`[AI LLM:${provider}] 🔄 自愈重试 (${modelId})`, redactLlmLogDetails(details));
 }
 
 export function logLlmError(
@@ -116,5 +116,5 @@ export function logLlmError(
   if (!isDevEnvironment()) {
     return;
   }
-  console.error(`[AI LLM:${provider}] ✖ 推理失败 (${modelId})`, details);
+  console.error(`[AI LLM:${provider}] ✖ 推理失败 (${modelId})`, redactLlmLogDetails(details));
 }

@@ -102,11 +102,27 @@ export class StyleLearningEngine {
 
   public async run(options: StyleLearningRunOptions = {}): Promise<StyleLearningOutcome> {
     let document = (await this.host.loadProfile()) ?? createEmptyStyleProfileDocument();
+    /** 本轮改动过的工作区 id；提交时只把这些记录与全局层合并进最新文档 */
+    const touched = new Set<string>();
+    let globalTouched = false;
+    const commit = async (): Promise<void> => {
+      throwIfAborted(options.signal);
+      const ours = document;
+      document = await this.host.updateProfile((latest) => {
+        // 本轮开始后用户清除了数据：丢弃本轮结果，不能把已清除的数据写回来。
+        if (wasClearedSince(ours, latest)) throw createStaleRunError();
+        return mergeOwnedChanges(latest, ours, touched, globalTouched);
+      });
+    };
     try {
       throwIfAborted(options.signal);
       const scan = await this.host.scanSamples();
       const nowIso = this.now().toISOString();
+      const beforeExpiry = new Set(document.workspaces.map((workspace) => workspace.id));
       document = dropExpiredProfiles(document, this.now());
+      for (const id of beforeExpiry) {
+        if (!document.workspaces.some((workspace) => workspace.id === id)) touched.add(id);
+      }
 
       // 1. 找到当前目录对应的画像，并读取变化样本。
       let workspace = document.workspaces.find(
@@ -122,6 +138,7 @@ export class StyleLearningEngine {
           linkState: "unlinked",
           unlinkedSince: nowIso,
         });
+        touched.add(workspace.id);
         workspace = undefined;
       }
 
@@ -131,9 +148,15 @@ export class StyleLearningEngine {
         const target = document.workspaces.find((profile) => profile.id === candidate?.profileId);
         if (target) {
           relinked = { profileId: target.id, previousRoot: target.rootPath };
-          workspace = { ...target, rootPath: scan.rootPath, linkState: "linked" };
-          delete (workspace as { unlinkedSince?: string }).unlinkedSince;
+          const { unlinkedSince: _unlinkedSince, ...rest } = target;
+          workspace = {
+            ...rest,
+            rootPath: scan.rootPath,
+            linkState: "linked",
+            relinkedFrom: { rootPath: target.rootPath, at: nowIso },
+          };
           document = replaceWorkspace(document, workspace);
+          touched.add(workspace.id);
         }
       }
 
@@ -171,14 +194,17 @@ export class StyleLearningEngine {
         };
       }
       document = upsertWorkspace(document, next);
+      const changed = diff.changed > 0 || isNew || Boolean(relinked) || touched.size > 0;
+      touched.add(next.id);
 
       const eligible = samples.filter((sample) => sample.record.eligible);
       const bootstrap = next.roundCount === 0 && eligible.length >= BOOTSTRAP_MIN_SAMPLES;
       const roundDue = next.roundCount > 0 && next.changesSinceRound >= ROUND_CHANGE_THRESHOLD;
       if (!bootstrap && !roundDue) {
-        await this.host.saveProfile(document);
+        // 没有任何变化时不写盘：空闲时的重复检查不应改写画像。
+        if (changed) await commit();
         return {
-          status: diff.changed > 0 || isNew || relinked ? "updated" : "idle",
+          status: changed ? "updated" : "idle",
           document,
           workspaceId: next.id,
           relinked,
@@ -186,12 +212,13 @@ export class StyleLearningEngine {
       }
 
       // 先保存样本变化，分类被抢占时这些变化不会丢失。
-      await this.host.saveProfile(document);
+      await commit();
 
       // 4. 分类尚未打标签的样本（只走本地 Standard，经共享调度器独占派发）。
-      const toClassify = bootstrap
-        ? bootstrapSamples(eligible).flat()
-        : eligible.filter((sample) => Object.keys(sample.record.labels).length === 0);
+      // 已有标签的样本（包括上次被抢占前已分类的）不再重复调用模型。
+      const toClassify = (bootstrap ? bootstrapSamples(eligible).flat() : eligible).filter(
+        (sample) => Object.keys(sample.record.labels).length === 0,
+      );
       const labelled = new Map<string, StyleSampleRecord["labels"]>();
       const classifyOutcome = await this.classifyAll(
         toClassify.slice(0, MAX_CLASSIFY_PER_RUN),
@@ -208,7 +235,8 @@ export class StyleLearningEngine {
       if (classifyOutcome !== "ok") {
         // 已得到的样本标签是样本自身的事实，保留；本轮汇总不写入。
         document = upsertWorkspace(document, next);
-        await this.host.saveProfile(document);
+        // 本块被用户请求抢占时整轮仍有效，标签照常保存；整轮被取消（关闭学习、切换工作区）时不写入。
+        if (labelled.size > 0 && !options.signal?.aborted) await commit();
         return {
           status: classifyOutcome.status,
           document,
@@ -242,6 +270,7 @@ export class StyleLearningEngine {
       next = { ...next, rules, roundCount, changesSinceRound: 0, lastRoundAt: nowIso };
       document = upsertWorkspace(document, next);
 
+      globalTouched = true;
       const globalRound = document.global.roundCount + 1;
       document = {
         ...document,
@@ -253,7 +282,7 @@ export class StyleLearningEngine {
           ),
         },
       };
-      await this.host.saveProfile(document);
+      await commit();
       return { status: "learned", document, workspaceId: next.id, relinked };
     } catch (error) {
       if (isAbortError(error)) {
@@ -261,6 +290,27 @@ export class StyleLearningEngine {
       }
       return { status: "failed", document, error: errorMessage(error) };
     }
+  }
+
+  /**
+   * 使用画像前的身份校验：当前目录的内容是否仍对应已关联的画像（互换、删除后重建时为 false）。
+   * 不调用模型、不写入；没有已关联画像时返回 false。
+   */
+  public async verifyWorkspace(signal?: AbortSignal): Promise<boolean> {
+    const document = await this.host.loadProfile();
+    if (!document) return false;
+    const scan = await this.host.scanSamples();
+    const workspace = document.workspaces.find(
+      (candidate) => candidate.rootPath === scan.rootPath && candidate.linkState === "linked",
+    );
+    if (!workspace) return false;
+    const prepared = await this.prepareSamples(
+      document,
+      workspace,
+      latestSamples(scan.samples),
+      signal,
+    );
+    return isStyleProfileLinked(workspace, prepared.paragraphHashes);
   }
 
   /**
@@ -326,7 +376,12 @@ export class StyleLearningEngine {
         const chunkLabels = [];
         for (const [index, chunk] of chunkStyleProse(paragraphs).entries()) {
           throwIfAborted(signal);
-          const output = await this.classifyChunk(chunk, rootPath, `${sample.record.id}:${index}`);
+          const output = await this.classifyChunk(
+            chunk,
+            rootPath,
+            `${sample.record.id}:${index}`,
+            signal,
+          );
           chunkLabels.push(parseStyleClassifyOutput(output));
         }
         labelled.set(sample.record.id, voteStyleLabels(chunkLabels));
@@ -343,16 +398,30 @@ export class StyleLearningEngine {
     return "ok";
   }
 
-  private classifyChunk(chunk: string, rootPath: string, anchor: string): Promise<string> {
+  private classifyChunk(
+    chunk: string,
+    rootPath: string,
+    anchor: string,
+    runSignal: AbortSignal | undefined,
+  ): Promise<string> {
     const request = buildStyleClassifyRequest(chunk);
-    return this.inference.schedule({
+    const scheduled = this.inference.schedule({
       scope: { documentId: `style:${rootPath}`, task: "style-analysis", anchor },
       priority: "background",
       exclusive: true,
       replace: false,
       affinityKey: createLocalAffinityKey(STANDARD_LOCAL_MODEL_ID, "none"),
-      run: ({ signal }) => this.inference.bridge(request, { signal }),
-    }).promise;
+      run: ({ signal }) =>
+        this.inference.bridge(request, { signal: combineAbortSignals(signal, runSignal) }),
+    });
+    // 关闭风格学习或切换工作区时，调用方取消整个轮次，排队或进行中的分类一并取消。
+    // 派发是同步的，run 内部可能已经触发了取消，所以先检查一次再监听。
+    if (runSignal?.aborted) {
+      scheduled.cancel();
+    } else {
+      runSignal?.addEventListener("abort", () => scheduled.cancel(), { once: true });
+    }
+    return scheduled.promise;
   }
 }
 
@@ -452,4 +521,54 @@ function isAbortError(error: unknown): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * 把本轮负责的字段合并进最新文档：本轮改动过的工作区记录（含删除）与全局层。
+ * 其他字段（自定义规则、采纳 AI 段、本轮未触及的工作区）一律以最新文档为准。
+ * 本轮触及的工作区若已被清除数据（最新文档中没有其他工作区且无 revision），同样以最新为准。
+ */
+export function mergeOwnedChanges(
+  latest: StyleProfileDocument,
+  ours: StyleProfileDocument,
+  touched: ReadonlySet<string>,
+  globalTouched: boolean,
+): StyleProfileDocument {
+  const ourById = new Map(ours.workspaces.map((workspace) => [workspace.id, workspace]));
+  const kept = latest.workspaces
+    .filter((workspace) => !touched.has(workspace.id) || ourById.has(workspace.id))
+    .map((workspace) => (touched.has(workspace.id) ? ourById.get(workspace.id)! : workspace));
+  const added = ours.workspaces.filter(
+    (workspace) =>
+      touched.has(workspace.id) && !latest.workspaces.some((entry) => entry.id === workspace.id),
+  );
+  return {
+    ...latest,
+    workspaces: [...kept, ...added],
+    global: globalTouched ? ours.global : latest.global,
+  };
+}
+
+function combineAbortSignals(
+  first: AbortSignal | undefined,
+  second: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (!first) return second;
+  if (!second) return first;
+  return AbortSignal.any([first, second]);
+}
+
+/**
+ * 判断从 `ours` 读取之后数据是否被清除过：
+ * `ours` 来自已保存的文档，而最新文档不存在（revision 为 0）或已换成新的代次。
+ */
+export function wasClearedSince(ours: StyleProfileDocument, latest: StyleProfileDocument): boolean {
+  if ((ours.revision ?? 0) === 0) return false;
+  return (latest.revision ?? 0) === 0 || latest.epoch !== ours.epoch;
+}
+
+function createStaleRunError(): Error {
+  const error = new Error("风格学习数据已被清除，本轮结果已丢弃。");
+  error.name = "AbortError";
+  return error;
 }

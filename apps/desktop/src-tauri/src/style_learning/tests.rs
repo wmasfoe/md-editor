@@ -11,7 +11,10 @@ use super::scope::resolve_in_scope;
 use super::{
     scan::{is_user_excluded, read_sample, scan_samples, sha256_hex},
     scope::{validate_relative_path, StyleLearningScope},
-    store::{clear_document, load_document, save_document, StyleLearningDocumentKind},
+    store::{
+        clear_document, current_revision, load_document, save_document, save_document_if_current,
+        StyleLearningDocumentKind, STALE_DOCUMENT_ERROR,
+    },
 };
 
 /// 每个测试使用独立的临时目录，结束时删除。
@@ -269,4 +272,46 @@ fn document_kinds_deserialize_from_typescript_names() {
         StyleLearningDocumentKind::Exclusions
     );
     assert!(serde_json::from_value::<StyleLearningDocumentKind>(json!("settings")).is_err());
+}
+
+#[test]
+fn profile_saves_are_rejected_when_another_writer_saved_first() {
+    let dir = TempDir::new("cas");
+    let kind = StyleLearningDocumentKind::Profile;
+    assert_eq!(current_revision(&dir.0, kind), 0);
+
+    let first =
+        save_document_if_current(&dir.0, kind, json!({ "version": 1, "custom": [] }), 0).unwrap();
+    assert_eq!(first, 1);
+    assert_eq!(load_document(&dir.0, kind).unwrap()["revision"], 1);
+
+    // 另一个窗口基于旧 revision 写入：被拒绝，磁盘内容不变。
+    let stale = save_document_if_current(&dir.0, kind, json!({ "version": 1, "custom": ["x"] }), 0);
+    assert_eq!(stale, Err(STALE_DOCUMENT_ERROR.to_string()));
+    assert_eq!(load_document(&dir.0, kind).unwrap()["custom"], json!([]));
+
+    assert_eq!(
+        save_document_if_current(&dir.0, kind, json!({ "version": 1, "custom": ["y"] }), 1),
+        Ok(2)
+    );
+
+    // 清除后 revision 归零，旧副本不能把数据写回来。
+    clear_document(&dir.0, kind).unwrap();
+    assert_eq!(
+        save_document_if_current(&dir.0, kind, json!({ "version": 1 }), 2),
+        Err(STALE_DOCUMENT_ERROR.to_string())
+    );
+}
+
+#[test]
+fn reads_are_rejected_after_the_workspace_changes() {
+    let first = TempDir::new("root-a");
+    let second = TempDir::new("root-b");
+    let scope = StyleLearningScope::default();
+    scope.set_root(&first.0);
+    let first_root = first.0.to_string_lossy().into_owned();
+    assert_eq!(scope.expect_root(&first_root).unwrap(), first.0);
+
+    scope.set_root(&second.0);
+    assert!(scope.expect_root(&first_root).is_err());
 }

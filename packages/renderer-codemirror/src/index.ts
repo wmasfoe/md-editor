@@ -29,8 +29,6 @@ export {
 } from "./renderer/index.ts";
 export {
   aiSuggestionExtension,
-  aiSuggestionLabelsFacet,
-  DEFAULT_AI_SUGGESTION_LABELS,
   acceptAiSuggestion,
   dismissAiSuggestion,
   setAiSuggestionEffect,
@@ -38,6 +36,10 @@ export {
   aiSuggestionField,
   getSuggestionViewportStatus,
   type SuggestionViewportPosition,
+} from "./wysiwyg/view/suggestion.ts";
+export {
+  aiSuggestionLabelsFacet,
+  DEFAULT_AI_SUGGESTION_LABELS,
   type AiSuggestionLabels,
   type AiSuggestionItem,
   type AiSuggestionInput,
@@ -45,7 +47,7 @@ export {
   type AiSuggestionKind,
   type AiSuggestionAcceptedEvent,
   aiSuggestionAcceptedAnnotation,
-} from "./wysiwyg/view/suggestion.ts";
+} from "./wysiwyg/view/suggestion-model.ts";
 export {
   toggleBold,
   toggleItalic,

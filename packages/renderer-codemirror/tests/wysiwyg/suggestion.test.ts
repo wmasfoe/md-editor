@@ -7,13 +7,15 @@ import {
   aiSuggestionDecorations,
   aiSuggestionExtension,
   aiSuggestionField,
-  aiSuggestionLabelsFacet,
   aiViewportCuePlugin,
-  DEFAULT_AI_SUGGESTION_LABELS,
   dismissAiSuggestion,
   getSuggestionViewportStatus,
   setAiSuggestionEffect,
 } from "../../src/wysiwyg/view/suggestion.ts";
+import {
+  aiSuggestionLabelsFacet,
+  DEFAULT_AI_SUGGESTION_LABELS,
+} from "../../src/wysiwyg/view/suggestion-model.ts";
 import { setEditorModeEffect } from "../../src/mode.ts";
 
 function createTestView(doc: string, cursor = 0): EditorView {

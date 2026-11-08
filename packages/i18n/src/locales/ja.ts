@@ -486,6 +486,8 @@ export const ja: TranslationSchema = {
     clear: "スタイル学習データを消去",
     clearDone: "スタイル学習データを消去しました",
     relinkedToast: "ワークスペースの移動を検出し、文章の好みを引き継ぎました",
+    relinkedFrom: "{{root}} から引き継ぎました",
+    undoRelink: "引き継ぎを取り消す",
     contextExclude: "スタイル学習から除外",
     contextRestore: "スタイル学習に戻す",
     consentTitle: "クラウドの続き生成で文章の好みを使いますか？",

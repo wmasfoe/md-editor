@@ -5,6 +5,7 @@ import {
   isStyleProfileExpired,
   isStyleProfileLinked,
   isUserStyleExcluded,
+  undoStyleRelink,
   renameStyleRelPath,
   scoreStyleIdentity,
 } from "../../src/style/index.ts";
@@ -100,5 +101,24 @@ describe("style profile identity", () => {
     expect(isUserStyleExcluded("diary", ["diary/"])).toBe(true);
     expect(isUserStyleExcluded("diary-public.md", ["diary"])).toBe(false);
     expect(isUserStyleExcluded("notes/a.md", [])).toBe(false);
+  });
+});
+
+describe("undo relink", () => {
+  it("returns a relinked profile to its previous root as unlinked", () => {
+    const moved = workspace("w1", {
+      rootPath: "/notes/new",
+      relinkedFrom: { rootPath: "/notes/old", at: "t0" },
+    });
+    const [undone] = undoStyleRelink([moved, workspace("w2")], "w1", "t1");
+    expect(undone).toMatchObject({
+      rootPath: "/notes/old",
+      linkState: "unlinked",
+      unlinkedSince: "t1",
+    });
+    expect(undone).not.toHaveProperty("relinkedFrom");
+    expect(undoStyleRelink([workspace("w3")], "w3", "t1")[0]).toMatchObject({
+      linkState: "linked",
+    });
   });
 });

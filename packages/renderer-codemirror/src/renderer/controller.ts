@@ -46,13 +46,13 @@ import {
   setInlineStyleMarkersEffect,
 } from "../wysiwyg/projections/inline-heading.ts";
 import { focusModeInitialFacet } from "../wysiwyg/view/focus-mode.ts";
+import { setAiSuggestionEffect } from "../wysiwyg/view/suggestion.ts";
 import {
   aiSuggestionLabelsFacet,
-  setAiSuggestionEffect,
   type AiSuggestionInput,
   type AiSuggestionLabels,
   type AiSuggestionValue,
-} from "../wysiwyg/view/suggestion.ts";
+} from "../wysiwyg/view/suggestion-model.ts";
 import {
   dispatchModeChangeWithMemory,
   type ModeViewportContext,

@@ -125,3 +125,19 @@ export function isUserStyleExcluded(relPath: string, excluded: readonly string[]
     return relPath === normalized || relPath.startsWith(`${normalized}/`);
   });
 }
+
+/**
+ * 撤销一次自动找回：画像回到找回前的根目录并标记为失去关联，
+ * 当前目录之后按新目录学习。只对带 `relinkedFrom` 的已关联画像生效。
+ */
+export function undoStyleRelink(
+  workspaces: readonly WorkspaceStyleProfileRecord[],
+  profileId: string,
+  now: string,
+): WorkspaceStyleProfileRecord[] {
+  return workspaces.map((workspace) => {
+    if (workspace.id !== profileId || !workspace.relinkedFrom) return workspace;
+    const { relinkedFrom, ...rest } = workspace;
+    return { ...rest, rootPath: relinkedFrom.rootPath, linkState: "unlinked", unlinkedSince: now };
+  });
+}

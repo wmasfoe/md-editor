@@ -5,7 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_AI_SETTINGS, LITE_LOCAL_MODEL_ID, type AiSettings } from "@md-editor/ai";
 import { createEmptyStyleProfileDocument, type StyleProfileDocument } from "@md-editor/ai/style";
 
-const invoke = vi.hoisted(() => vi.fn(async () => null));
+const disk = vi.hoisted(() => ({ profile: null as unknown }));
+const invoke = vi.hoisted(() =>
+  vi.fn(async (command: string, args?: { kind?: string; document?: unknown }) => {
+    if (command === "load_style_learning_document") {
+      return args?.kind === "profile" ? disk.profile : null;
+    }
+    if (command === "save_style_learning_document") {
+      if (args?.kind === "profile") disk.profile = args.document;
+      return 1;
+    }
+    return null;
+  }),
+);
 vi.mock("@tauri-apps/api/core", () => ({ invoke, isTauri: () => true }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}), emit: vi.fn() }));
 
@@ -79,6 +91,7 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   invoke.mockClear();
+  disk.profile = null;
   useStyleLearningStore.getState().setProfile(null);
   useFileTreeStore.setState({ folder: { rootPath: "/notes", tree: null } as never });
 });
@@ -125,7 +138,8 @@ describe("style learning settings", () => {
     expect(download).toHaveBeenCalledWith("md-editor-writer-standard");
   });
 
-  it("I-9: learned rules are read-only with sources; drafts are hidden; custom rules are editable", () => {
+  it("I-9: learned rules are read-only with sources; drafts are hidden; custom rules are editable", async () => {
+    disk.profile = learnedProfile;
     useStyleLearningStore.getState().setProfile(learnedProfile);
     render(
       createElement(StyleLearningSettings, {
@@ -149,7 +163,9 @@ describe("style learning settings", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "添加")!;
-    act(() => add.click());
+    await act(async () => add.click());
+    // 自定义规则基于磁盘上的最新文档写入，学到的工作区画像保留。
+    expect((disk.profile as typeof learnedProfile).workspaces).toHaveLength(2);
     expect(useStyleLearningStore.getState().profile?.custom).toEqual([
       expect.objectContaining({ kind: "note", text: "少用感叹号。" }),
     ]);

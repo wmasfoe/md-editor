@@ -477,6 +477,8 @@ export const zhHant: TranslationSchema = {
     clear: "清除風格學習資料",
     clearDone: "已清除風格學習資料",
     relinkedToast: "已識別工作區移動，寫作偏好已跟隨",
+    relinkedFrom: "已從 {{root}} 找回",
+    undoRelink: "撤銷找回",
     contextExclude: "不參與風格學習",
     contextRestore: "恢復參與風格學習",
     consentTitle: "在雲端續寫中使用寫作偏好？",

@@ -23,20 +23,6 @@ import {
 } from "./suggestion-model.ts";
 import { DiffAdditionWidget, GhostTextWidget } from "./suggestion-widgets.ts";
 
-// 模型与部件拆分到独立文件后，这里继续作为 AI 建议模块的公共入口。
-export {
-  DEFAULT_AI_SUGGESTION_LABELS,
-  aiSuggestionAcceptedAnnotation,
-  aiSuggestionLabelsFacet,
-  normalizeAiSuggestionValue,
-  type AiSuggestionAcceptedEvent,
-  type AiSuggestionInput,
-  type AiSuggestionItem,
-  type AiSuggestionKind,
-  type AiSuggestionLabels,
-  type AiSuggestionValue,
-} from "./suggestion-model.ts";
-
 export type SuggestionViewportPosition = "above" | "below" | "visible";
 
 /**

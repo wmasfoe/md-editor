@@ -129,6 +129,9 @@ describe("style cloud consent", () => {
       custom: [],
       aiSegments: {},
     });
+    // 身份校验通过之前不应用工作区画像。
+    expect(getStyleProfileForRequest(appSettings({}).ai)).toBeUndefined();
+    useStyleLearningStore.getState().setVerifiedRoot("/notes");
     expect(getStyleProfileForRequest(appSettings({}).ai)?.rules).toHaveLength(1);
     expect(getStyleProfileForRequest(DEFAULT_AI_SETTINGS)).toBeUndefined();
   });

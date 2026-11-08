@@ -730,3 +730,15 @@ function normalizeByteCount(input: unknown): number {
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+/**
+ * 判断指定的本地模型是否采用 Lite (Qwen 3 0.6B) 原生 FIM 续写通道。
+ */
+export function isLiteLocalModel(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase();
+  return (
+    normalized === LITE_LOCAL_MODEL_ID ||
+    normalized.includes("lite") ||
+    normalized.includes("qwen3-0.6b")
+  );
+}

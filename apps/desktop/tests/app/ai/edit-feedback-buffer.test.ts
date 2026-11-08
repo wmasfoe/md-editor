@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createEmptyStyleProfileDocument, type StyleProfileDocument } from "@md-editor/ai/style";
 import {
   clearPendingEditFeedback,
-  flushEditFeedback,
   pendingEditFeedbackSize,
   rememberAcceptedAiText,
+  takeEditFeatures,
+  withEditFeatures,
 } from "../../../src/app/ai/style-learning/edit-feedback-buffer";
 
 function documentWithWorkspace(): StyleProfileDocument {
@@ -33,13 +34,13 @@ describe("edit feedback buffer", () => {
     rememberAcceptedAiText("ws-1", "post.md", aiText);
     expect(pendingEditFeedbackSize()).toBe(1);
 
-    const next = flushEditFeedback(
-      documentWithWorkspace(),
+    const features = takeEditFeatures(
       "ws-1",
       "post.md",
       "# 标题\n\n我们用 React 写界面，然后打包。",
       "2026-11-09T00:00:00Z",
     );
+    const next = withEditFeatures(documentWithWorkspace(), "ws-1", features);
     expect(next.workspaces[0]!.editFeedback).toEqual(
       expect.arrayContaining([
         { at: "2026-11-09T00:00:00Z", dimension: "cjkLatinSpacing", value: "spaced" },
@@ -53,11 +54,10 @@ describe("edit feedback buffer", () => {
 
   it("returns the same document when nothing was accepted or nothing changed", () => {
     const document = documentWithWorkspace();
-    expect(flushEditFeedback(document, "ws-1", "post.md", "正文", "t")).toBe(document);
+    expect(takeEditFeatures("ws-1", "post.md", "正文", "t")).toEqual([]);
     rememberAcceptedAiText("ws-1", "post.md", "原样保留的一句话。");
-    expect(flushEditFeedback(document, "ws-1", "post.md", "原样保留的一句话。", "t")).toBe(
-      document,
-    );
+    expect(takeEditFeatures("ws-1", "post.md", "原样保留的一句话。", "t")).toEqual([]);
+    expect(withEditFeatures(document, "ws-1", [])).toBe(document);
     expect(pendingEditFeedbackSize()).toBe(0);
   });
 

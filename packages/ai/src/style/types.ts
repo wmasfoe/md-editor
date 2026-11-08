@@ -73,6 +73,8 @@ export interface WorkspaceStyleProfileRecord {
   readonly rootPath: string;
   readonly linkState: StyleLinkState;
   readonly unlinkedSince?: string;
+  /** 最近一次自动找回前的根目录，用于在设置页撤销找回 */
+  readonly relinkedFrom?: { readonly rootPath: string; readonly at: string };
   readonly samples: readonly StyleSampleRecord[];
   readonly rules: readonly StyleRuleRecord[];
   readonly editFeedback: readonly StyleEditFeatureRecord[];
@@ -107,6 +109,10 @@ export const STYLE_DIMENSION_DISABLED = "none";
 /** 画像文档（“清除风格学习数据”会删除它） */
 export interface StyleProfileDocument {
   readonly version: typeof STYLE_DOCUMENT_VERSION;
+  /** 写入序号，由存储层在每次成功保存时递增；用于拒绝基于过期副本的写入 */
+  readonly revision?: number;
+  /** 数据代次：清除数据时换新；跨代次的学习结果一律丢弃，避免把已清除的数据写回来 */
+  readonly epoch?: string;
   readonly workspaces: readonly WorkspaceStyleProfileRecord[];
   readonly global: GlobalStyleProfileRecord;
   readonly custom: readonly CustomStyleRule[];
@@ -139,6 +145,7 @@ export interface MergedStyleProfile {
 export function createEmptyStyleProfileDocument(): StyleProfileDocument {
   return {
     version: STYLE_DOCUMENT_VERSION,
+    epoch: globalThis.crypto.randomUUID(),
     workspaces: [],
     global: { rules: [], roundCount: 0 },
     custom: [],

@@ -33,12 +33,12 @@ import {
   openLinkTargetFacet,
 } from "../../wysiwyg/view/link-interaction.ts";
 import { createLiquidSearchPanel } from "../../wysiwyg/view/search-panel.ts";
+import { aiSuggestionExtension } from "../../wysiwyg/view/suggestion.ts";
 import {
-  aiSuggestionExtension,
   aiSuggestionLabelsFacet,
   type AiSuggestionLabels,
   aiSuggestionAcceptedAnnotation,
-} from "../../wysiwyg/view/suggestion.ts";
+} from "../../wysiwyg/view/suggestion-model.ts";
 
 import type { CodeMirrorRendererOptions } from "../types.ts";
 

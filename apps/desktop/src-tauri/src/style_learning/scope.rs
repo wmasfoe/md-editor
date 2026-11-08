@@ -23,6 +23,18 @@ impl StyleLearningScope {
         }
     }
 
+    /// 返回当前工作区根目录，并确认它与调用方期望的根目录一致。
+    ///
+    /// 学习轮次可能跨越一次工作区切换：旧轮次带着旧根目录的排除列表与画像继续运行时，
+    /// 必须拒绝读取新工作区，避免把新目录的内容记到旧画像上或绕过新目录的排除列表。
+    pub(crate) fn expect_root(&self, expected: &str) -> Result<PathBuf, String> {
+        let root = self.root()?;
+        if path_to_string(&root) != expected {
+            return Err("工作区已切换，本轮风格学习已停止。".to_string());
+        }
+        Ok(root)
+    }
+
     /// 返回当前工作区根目录；未打开任何工作区时拒绝一切学习读取。
     pub(crate) fn root(&self) -> Result<PathBuf, String> {
         self.root

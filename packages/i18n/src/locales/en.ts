@@ -482,6 +482,8 @@ export const en: TranslationSchema = {
     clear: "Clear style learning data",
     clearDone: "Style learning data cleared",
     relinkedToast: "Workspace move detected; your writing preferences followed it",
+    relinkedFrom: "Recovered from {{root}}",
+    undoRelink: "Undo recovery",
     contextExclude: "Exclude from style learning",
     contextRestore: "Include in style learning",
     consentTitle: "Use writing preferences with cloud continuation?",
