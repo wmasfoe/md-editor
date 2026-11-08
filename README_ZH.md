@@ -81,7 +81,7 @@
 
 ### 运行环境
 - **桌面端（macOS / Windows / Linux）**：多标签页、大纲树、文件监听、应用内更新。macOS 上窗口使用系统毛玻璃效果。
-- **Web Playground**：在浏览器里使用完整编辑器，数据存在内存文件系统，并持久化到 IndexedDB。
+- **Web Playground**：在浏览器里使用完整编辑器。Chromium 内核的浏览器可以直接打开本地文件夹，草稿保存在 `localStorage`。
 - **uTools 插件**：提供随手记模式和完整工作区模式。
 - **macOS QuickLook**：在 Finder 里选中 `.md` 或 `.mdx` 文件按空格即可预览，由无头的 `@md-editor/compiler` 渲染。
 

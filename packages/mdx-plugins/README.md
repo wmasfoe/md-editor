@@ -1,55 +1,46 @@
 # @md-editor/mdx-plugins
 
-Inkpoint 官方内置 MDX 交互组件库与对应元数据插件。包含面向 MDX 渲染与富文本排版的官方 React 组件实现（如 Callout 提示框等）。
+The MDX components that ship with Inkpoint, plus the metadata the editor needs to list and insert them. Right now there is one component, `Callout`.
 
----
+## Callout
 
-## 1. 架构定位
+```mdx
+<Callout type="warning" title="Heads up">
+  Back up the folder before you run the migration.
+</Callout>
+```
 
-- **标准 React 实现**：提供高质量、开箱即用且样式美观的官方交互式 MDX 组件；
-- **自包含元数据**：每个内置组件均配对导出符合 `@md-editor/plugin-sdk/mdx` 规范的插件元数据定义，支持直接向注册表注入；
-- **全平台复用**：支持在桌面端、Web 端或静态构建环境中作为 MDX 渲染器的 component scope 注入。
+| Prop | Type | Default | Notes |
+| :--- | :--- | :--- | :--- |
+| `type` | `"info"`, `"warning"`, `"success"`, `"danger"` | `"info"` | Picks the color and the default title |
+| `title` | `string` | the type name, for example `Info` | Shown in bold above the content |
+| children | React nodes | none | The body of the callout |
 
----
+The component renders an `<aside data-md-editor-callout="<type>">` with a bold title and the children. It carries no styles of its own, so the host page styles it through that attribute.
 
-## 2. 内置官方组件
+For `:::note` style blocks written without JSX, see the directive plugin in `@md-editor/syntax-plugins`.
 
-### `Callout` 提示卡片
-- **多色态支持 (`CalloutTone`)**：
-  - `note` (中性/信息)
-  - `tip` (成功/技巧)
-  - `important` (核心/关注)
-  - `warning` (警告/提醒)
-  - `caution` (严重/危险)
-- **自适应标题与图标**：支持自定义标题文本及内置标准 SVG 状态指示图标；
-- **双色模式适配**：完美兼容明亮与暗黑主题。
+## Registering it
 
----
-
-## 3. 主要 API 与使用
+Each component has a matching `MdxComponentPlugin` (the contract is in `@md-editor/plugin-sdk/mdx`) with its props, an insert snippet and search keywords. `officialMdxPlugins` lists them all.
 
 ```tsx
-import React from "react";
 import { Callout, officialMdxPlugins } from "@md-editor/mdx-plugins";
 import { createMdxComponentRegistry } from "@md-editor/plugin-host/mdx";
 
-// 1. 批量向注册表注册官方 MDX 插件
 const registry = createMdxComponentRegistry();
 registry.registerMany(officialMdxPlugins);
 
-// 2. 在 MDX 渲染中直接使用组件
 export function Demo() {
   return (
-    <Callout tone="tip" title="专业建议">
-      使用快捷键 <code>Cmd + Shift + B</code> 可以快速折叠侧边栏！
+    <Callout type="success" title="Done">
+      Saved to disk.
     </Callout>
   );
 }
 ```
 
----
-
-## 4. 开发与测试
+## Development
 
 ```bash
 pnpm test

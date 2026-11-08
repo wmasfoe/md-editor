@@ -1,53 +1,62 @@
-# @md-editor/distribution-worker - 全球边缘分发网关
+# @md-editor/distribution-worker
 
-基于 [Cloudflare Workers](https://workers.cloudflare.com/) 构建的 Inkpoint 全球边缘下载网关与动态版本分发服务（规范主域名 `download.jiaqi.im`，历史域名 `download.justdev.cn` 自动重定向至此——更新清单与二进制永远同域输出，避免客户端跨域下载）。
+The download gateway for Inkpoint, a [Cloudflare Worker](https://workers.cloudflare.com/) served at `download.jiaqi.im`. It gives installers a stable address, serves the version lists and the app's update manifest, and works when GitHub is slow or rate limited. The older domain `download.justdev.cn` redirects here.
 
----
+Installers are served from the same domain as the manifests that list them, so a client never has to follow a link to another host.
 
-## 1. 核心架构与设计目标
+## Routes
 
-为了保证全球用户下载客户端二进制（`.dmg`、`.exe`、`.AppImage`、`.deb`、`.apk`）时的极速体验，避免国内网络受 GitHub Release 访问限制及 API Rate Limit 影响，分发网关采用三级高可用容灾与边缘缓存架构：
+`<app>` is `inkpoint`. It can be left out for the default app.
 
-- **极简语义化下载路由**：
-  - `GET /inkpoint/macos/latest` → 自动重定向至最新 macOS 安装包（自动区分 Apple Silicon 与 Intel 架构）；
-  - `GET /inkpoint/windows/latest` → 自动重定向至最新 Windows NSIS 安装包；
-  - `GET /inkpoint/linux/latest` → 自动重定向至最新 Linux AppImage 安装包；
-  - `GET /inkpoint/android/latest` → 自动重定向至最新 Android APK 安装包；
-  - `GET /inkpoint/releases.json` → 获取聚合了 Desktop 与 Mobile 的全量历史版本清单。
-- **三级高可用容灾 (Triple Fallback)**：
-  1. **首选 R2 边缘存储**：直接代理 Cloudflare R2 对象存储中的二进制与 `releases.json`；
-  2. **次选 GitHub Releases API**：实时拉取并格式化官方发布清单；
-  3. **保底内置快照 (`fallback-releases.json`)**：构建时嵌入的静态版本快照，杜绝外部接口全线失效时的服务中断。
-- **发布即生效 (Instant Edge Purge)**：CI 在上传新版发布产物后，通过 Cloudflare API 自动清除全网边缘缓存，实现新版本秒级全网下发。
+| Route | Returns |
+| :--- | :--- |
+| `/<app>/desktop/<platform>/latest` | Redirect to the latest desktop package. Platforms: `macos`, `macos-x64`, `windows`, `windows-arm64`, `linux`, `linux-arm64`, `linux-deb`, `linux-deb-arm64`. |
+| `/<app>/desktop/updater.json` | The update manifest the desktop app reads |
+| `/<app>/desktop/install.sh`, `install.ps1` | The install scripts |
+| `/<app>/android/latest` | The latest published Android APK |
+| `/<app>/ios/latest` | The latest published unsigned iOS IPA, when `version.json` has an iOS entry |
+| `/<app>/<version>/<file>` | A specific file from a specific version |
+| `/api/<app>/version.json` | The latest version of each platform |
+| `/api/<app>/releases` | The full release history, with `/api/<app>/android/releases` and similar per-platform lists |
+| `/<app>/`, `/<app>/<platform>/`, `/releases` | A plain directory-style index of versions |
+| `/gh/<org>/<repo>/releases/download/<tag>/<file>` | A cached mirror of a GitHub release asset |
+| `POST /api/purge-cache` | Clears the edge cache |
 
----
+Android and iOS are no longer released. The routes stay so the last published builds (0.2.1) keep working.
 
-## 2. 目录结构
+## Where the data comes from
+
+The version history tries three sources in order, so the page still works when one of them fails:
+
+1. **R2.** The bucket `inkpoint-releases` holds `releases.json`, `version.json`, the update manifest and the mobile packages. For desktop packages the Worker looks in R2 first and then streams the file from the GitHub release.
+2. **The GitHub Releases API**, read live.
+3. **`src/fallback-releases.json`**, a snapshot bundled into the Worker. It is the only source when both of the others are down.
+
+After a release uploads new files, CI calls `POST /api/purge-cache` and the Cloudflare purge API, so the new version appears at once. Downloads are counted in a D1 database (`DOWNLOAD_ANALYTICS`, see `migrations/`).
+
+## Layout
 
 ```
 infra/distribution-worker/
 ├── src/
-│   ├── index.ts                # Worker 入口与事件监听
-│   ├── router.ts               # 下载与元数据路由规则
-│   └── fallback-releases.json  # 静态容灾版本快照
-├── tests/                      # 路由与 Fallback 单测
-├── wrangler.toml               # Cloudflare Worker 配置
-└── package.json
+│   ├── index.ts                   # Worker entry
+│   ├── router.ts, router/         # route matching: system, catalog, latest-artifacts, manifest-api
+│   ├── distribution/              # GitHub release and asset handling, streaming responses
+│   ├── releases/                  # building the release list, version comparison
+│   ├── portal.ts                  # the directory-style HTML index
+│   ├── analytics.ts               # download counting
+│   └── fallback-releases.json     # bundled snapshot
+├── migrations/                    # D1 schema for download counts
+├── tests/
+└── wrangler.toml
 ```
 
----
-
-## 3. 本地开发与部署
+## Development and deploy
 
 ```bash
-# 启动本地 Worker 模拟服务
-pnpm dev:worker
-# 或在当前目录下：
-pnpm dev
-
-# 运行单测
-pnpm --filter @md-editor/distribution-worker test
-
-# 部署至 Cloudflare Workers 生产环境
-pnpm deploy:worker
+pnpm dev:worker                                      # run locally with Wrangler
+pnpm --filter @md-editor/distribution-worker test    # unit tests
+pnpm deploy:worker                                   # deploy to Cloudflare
 ```
+
+`HMAC_SALT` is set as a secret with `wrangler secret put HMAC_SALT`.

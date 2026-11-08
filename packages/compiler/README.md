@@ -1,71 +1,54 @@
 # @md-editor/compiler
 
-极速、零 DOM、零 CodeMirror 依赖的 Headless 静态 Markdown 编译与 HTML 渲染器。专为 macOS QuickLook 原生预览扩展、Cloudflare Worker 边缘渲染、静态页面构建与大模型 Token 解析而设计。
+Turns Markdown into HTML without a DOM and without CodeMirror. It runs in any JavaScript engine: Node.js, a browser, JavaScriptCore and Workers.
 
----
+## Where it is used
 
-## 1. 架构定位
+- **macOS QuickLook**: `apps/desktop/scripts/build-quicklook-engine.mjs` bundles this package into the engine that renders `.md` and `.mdx` files when you press Space in Finder. That path needs a fast start and no DOM.
+- **HTML export** in the desktop app, through `exportDocumentHtml`.
+- Any other place that needs HTML from Markdown without a browser, such as a Worker or a build script.
 
-传统的富文本与 Markdown 渲染强依赖浏览器 DOM 环境或 CodeMirror 6 实例。在下述场景中，这些依赖会导致沉重的初始化开销或在无 DOM 环境中直接报错：
-- **macOS QuickLook 预览插件**：在 Finder 中按空格键即时预览 `.md` / `.mdx` 文件，要求毫秒级启动与极低内存；
-- **边缘计算 (Cloudflare Worker / Vercel Edge)**：无 Node.js 全量 DOM 模拟库（如 JSDOM）；
-- **后台批量文档索引与 Token 提取**。
+## API
 
-`@md-editor/compiler` 采用 100% 纯逻辑与流式编译设计，能在任何纯 JavaScript 引擎（包括 JavaScriptCore、V8、Node.js）中高效执行。
+| Function | Returns | Use it for |
+| :--- | :--- | :--- |
+| `compileToTokens(markdown, options?)` | the token tree, the title and the front matter | Reading the structure: outlines, indexing, feeding a model |
+| `renderStaticHtml(markdown, options?)` | `{ html, title, frontmatterRaw, tokens }` | An HTML fragment to place inside your own page |
+| `renderStaticDocument(markdown, options?)` | a full HTML string | A standalone page with the CSS, KaTeX styles and a dark mode media query inlined |
+| `await exportDocumentHtml(markdown, options?)` | `{ standaloneHtml, linkedHtml, title }` | Export. `standaloneHtml` is one file with images inlined as base64. `linkedHtml` keeps relative resource links. Pass `resolveImageDataUrl` and `renderMermaidSvg` to inline images and diagrams. |
 
----
+Code blocks are highlighted with `highlight.js` and formulas are rendered with `katex`. Input above 2 MB (`maxBytes`) is truncated. `options.title` overrides the title, which otherwise comes from front matter or the first H1. `options.customCss` adds CSS to the full document, and `options.customRenderer` lets you replace the output for specific tokens.
 
-## 2. 核心功能
+## Usage
 
-### 2.1 结构化 Token 解析器 (`compileToTokens`)
-- 将 Markdown 源文本解析为轻量直观的 `StaticToken[]` 树结构；
-- 自动提取首个 H1 标题或 YAML Frontmatter 元数据；
-- 支持第三方做语义分析、目录索引或大模型结构化消费。
-
-### 2.2 静态 HTML 渲染纯函数 (`renderStaticHtml`)
-- 纯纯函数（0 副作用），支持高亮代码块（基于 `highlight.js`）及数学公式（基于 `katex`）；
-- 输出结构紧凑、样式隔离的 HTML 片段。
-
-### 2.3 独立完整文档模板 (`createStaticDocumentHtml`)
-- 内置针对 Apple 视网膜屏幕优化的现代 Typography 排版样式（系统字体、代码字体、表格边框、深浅色自适应）；
-- 生成包含完整 `<head>`、CSS 样式与 Math 样式的独立单页 HTML，供 QuickLook 或离线阅读直接加载。
-
----
-
-## 3. 主要 API 与使用
-
-```typescript
+````typescript
 import {
-  renderStaticHtml,
-  createStaticDocumentHtml,
   compileToTokens,
+  exportDocumentHtml,
+  renderStaticDocument,
+  renderStaticHtml,
 } from "@md-editor/compiler";
 
-const md = `
-# 标题
-这是一段正文，包含数学公式 $E=mc^2$。
+const markdown = `
+# Title
+
+Euler: $e^{i\\pi} + 1 = 0$
 
 \`\`\`typescript
-const greet = "Hello Inkpoint";
+const greeting = "Hello Inkpoint";
 \`\`\`
 `;
 
-// 1. 编译为结构化 Token 树
-const tokens = compileToTokens(md);
+const { tokens, title } = compileToTokens(markdown);
+const { html } = renderStaticHtml(markdown);
+const page = renderStaticDocument(markdown, { customCss: "body { max-width: 720px; }" });
 
-// 2. 渲染为 HTML 片段
-const { html, title } = renderStaticHtml(md);
-
-// 3. 生成可供 macOS QuickLook 使用的自包含 HTML 文档
-const fullHtmlDoc = createStaticDocumentHtml({
-  markdown: md,
-  theme: "auto",
+const { standaloneHtml } = await exportDocumentHtml(markdown, {
+  resolveImageDataUrl: async (src) => null, // return a data: URL to inline the image
 });
-```
+````
 
----
-
-## 4. 开发与测试
+## Development
 
 ```bash
 pnpm test

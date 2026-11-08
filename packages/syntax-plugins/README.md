@@ -1,70 +1,51 @@
 # @md-editor/syntax-plugins
 
-Inkpoint 的扩展 Markdown 语法插件集合。为 CodeMirror 6 编辑器注入数学公式（KaTeX）、流程图表（Mermaid）及自定义指令块（Directive Callout）等高级语法解析与实时视觉渲染能力。
+The official Markdown syntax extensions for the CodeMirror 6 editor: highlight, math, Mermaid diagrams and container directives. Each one is a `MarkdownSyntaxPlugin` (the contract lives in `@md-editor/plugin-sdk/syntax`), so an editor only loads the ones you pass in.
 
----
+Without a plugin the editor still shows plain CommonMark. A parse error or a library that has not loaded yet falls back to the source text and does not break the editor.
 
-## 1. 架构定位
+## Plugins
 
-`@md-editor/syntax-plugins` 基于 CodeMirror 6 的 ViewPlugin、StateField 及 Lezer 语法分析器扩展：
-- 采用非侵入式的插件化设计，每个语法特性独立封装，可按需装配至编辑器；
-- 遵循即时渲染与平稳降级原则，语法解析出错或网络库未就绪时展现优雅的错误边界，杜绝白屏或编辑器崩溃。
+| Plugin | Id | Syntax | Notes |
+| :--- | :--- | :--- | :--- |
+| `highlightPlugin` | `markdown.highlight` | `==text==` | Shortcut `Mod-Shift-H`. |
+| `mathPlugin` | `markdown.math` | `$E=mc^2$`, `$$ ... $$` | Rendered with KaTeX, which is loaded on first use. Moving the cursor into a formula shows its source. |
+| `mermaidPlugin` | `markdown.mermaid` | ` ```mermaid ` code block | Rendered to SVG, which is loaded on first use. Follows the light and dark theme and supports click-to-zoom. |
+| `containerDirectivePlugin` | `markdown.directive` | `:::info`, `:::tip`, `:::note`, `:::important`, `:::warning`, `:::danger`, `:::caution` | Rendered as a callout card with an icon. |
 
----
+Mermaid example:
 
-## 2. 核心插件模块
+````markdown
+```mermaid
+graph TD
+  A[Client] --> B[Load balancer]
+  B --> C[App server]
+```
+````
 
-### 2.1 数学公式插件 (`src/math/`)
-- **双模式解析**：
-  - 行内公式：`$E = mc^2$`
-  - 独立公式块：`$$\int_{-\infty}^{+\infty} e^{-x^2} dx = \sqrt{\pi}$$`
-- **KaTeX 高性能渲染**：在离开编辑时实时投影为排版精美的数学符号；聚焦时平滑展开 LaTeX 源代码便于修改。
-- **语法错误容灾**：当公式语法错误时，显示醒目但不破坏整体布局的警告标记。
+## Usage
 
-### 2.2 Mermaid 图表插件 (`src/mermaid/`)
-- **代码块语法拦截**：识别标有 `mermaid` 语言标记的代码块：
-  ````markdown
-  ```mermaid
-  graph TD
-    A[客户端] --> B[负载均衡]
-    B --> C[应用服务器]
-  ```
-  ````
-- **SVG 实时渲染**：异步调用 Mermaid 引擎生成矢量图表，内置缩放控制与主题色适配（自动匹配深色/浅色模式）。
+Pass the plugins you want to `CodeMirrorEditor` from `@md-editor/editor-ui`:
 
-### 2.3 自定义指令与提示块 (`src/directive/`)
-- **Callout 语法支持**：支持 `:::note`、`:::tip`、`:::warning`、`:::caution`、`:::important` 等指令块；
-- **视觉增强**：渲染带有主题指示图标、优雅左边框及彩色背景容器的视觉提示卡片。
+```tsx
+import { CodeMirrorEditor } from "@md-editor/editor-ui";
+import {
+  containerDirectivePlugin,
+  highlightPlugin,
+  mathPlugin,
+  mermaidPlugin,
+} from "@md-editor/syntax-plugins";
 
----
+const SYNTAX_PLUGINS = [highlightPlugin, containerDirectivePlugin, mathPlugin, mermaidPlugin];
 
-## 3. 主要 API 与使用
-
-```typescript
-import { mathPlugin } from "@md-editor/syntax-plugins/math";
-import { mermaidPlugin } from "@md-editor/syntax-plugins/mermaid";
-import { directivePlugin } from "@md-editor/syntax-plugins/directive";
-import { EditorState } from "@codemirror/state";
-
-// 装配插件至 CodeMirror 扩展链
-const state = EditorState.create({
-  doc: "# 数学与图表示例\n\n$E=mc^2$\n",
-  extensions: [
-    mathPlugin(),
-    mermaidPlugin(),
-    directivePlugin(),
-  ],
-});
+<CodeMirrorEditor document={documentState} plugins={SYNTAX_PLUGINS} />;
 ```
 
----
+Each plugin is also available from its own entry point: `@md-editor/syntax-plugins/math`, `/mermaid` and `/directive`. `OFFICIAL_SYNTAX_PLUGINS_METADATA` lists their names, descriptions and default state for the settings panel.
 
-## 4. 开发与测试
+## Development
 
 ```bash
-# 运行单测用例
 pnpm test
-
-# 执行类型检查
 pnpm typecheck
 ```

@@ -1,41 +1,37 @@
-# @md-editor/web - Inkpoint 在线体验场 (Web Playground)
+# @md-editor/web
 
-基于 [Vite 6](https://vitejs.dev/) + [React 19](https://react.dev/) 构建的 Inkpoint 官方纯前端在线体验应用。用户无需在本地安装任何桌面客户端，即可直接在浏览器中完整体验 Inkpoint 的所见即所得编辑、原生 MDX 组件与多文档目录树。
+The Inkpoint Web Playground: the editor running in a browser, with nothing to install. It is built with [Vite 6](https://vitejs.dev/) and [React 19](https://react.dev/), uses the same renderer, UI and syntax plugins as the desktop app, and is served at `/playground` on the website.
 
----
+## How it stores things
 
-## 1. 架构特点
+- **Folders and files.** In browsers that support the File System Access API (Chrome, Edge and other Chromium browsers), "Open folder" gives the page a handle to a real folder. The playground reads the folder as a tree and creates, renames, deletes and saves files in it directly. Pasted images are written into the folder. In other browsers the folder picker is unavailable and shows an error. Single files open through the same API when it exists.
+- **Draft.** The document you are editing is also saved to `localStorage` under `md-editor:web:draft`, so reloading the page keeps it. Settings and AI configuration use `localStorage` too.
+- **Download.** Any document can be downloaded as a `.md` file or copied to the clipboard.
 
-- **零安装直达**：纯静态 Web 应用（SPA），支持部署至 Vercel、Cloudflare Pages 或任何静态托管服务；
-- **虚拟文件系统 (In-Memory FS)**：针对浏览器环境，基于 IndexedDB 实现多文档本地持久化存储，支持创建、删除、重命名文件与即时导出 Markdown 纯文本；
-- **组件完整对齐**：完整接入 `@md-editor/renderer-codemirror`、`@md-editor/editor-ui` 及 `@md-editor/syntax-plugins`，保持与桌面端 100% 一致的编辑交互手感；
-- **丰富示例模板**：内置 Markdown 语法速查、MDX 交互组件、Mermaid 图表与 LaTeX 数学公式示例供用户即刻体验。
+The first time a page opens with no saved draft it shows a showcase document, in the current interface language (`src/presets/showcase.ts`).
 
----
+## Differences from the desktop app
 
-## 2. 本地开发与构建
+- Cloud AI providers only. There is no local model (`allowLocal: false`).
+- No Quick Look, no auto-update and no external plugin install, which need the desktop shell. `src/plugin-preview/` is a separate page for trying a plugin from a GitHub release in the browser.
+
+## Development
 
 ```bash
-# 1. 启动 Web 端本地开发服务器 (默认端口 http://localhost:5173)
-pnpm dev:web
-
-# 2. 生产环境打包构建 (输出至 apps/web/dist)
-pnpm build:web
-
-# 3. 本地预览构建产物
-pnpm --filter @md-editor/web preview
-
-# 4. 执行单元测试与类型检查
-pnpm --filter @md-editor/web test
+pnpm dev:web                                  # Vite on http://localhost:5174/playground/
+pnpm build:web                                # writes apps/web/dist
+pnpm --filter @md-editor/web preview          # serve the build locally
+pnpm --filter @md-editor/web test             # unit tests
 pnpm --filter @md-editor/web typecheck
+pnpm --filter @md-editor/web test:browser     # Playwright
 ```
 
----
+The base path is `/playground/` and can be changed with `VITE_BASE_PATH`.
 
-## 3. 部署上线
-
-Web 在线版支持通过统一的发版指令部署至 Vercel 生产环境：
+## Deploy
 
 ```bash
 pnpm release:web
 ```
+
+This builds locally and deploys the result to Vercel production. Git pushes do not deploy it (`vercel.json` turns that off).

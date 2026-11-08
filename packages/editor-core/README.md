@@ -1,86 +1,73 @@
 # @md-editor/editor-core
 
-Inkpoint 编辑器的领域模型核心库，提供与具体渲染引擎（CodeMirror/ProseMirror）和 UI 框架完全解耦的文档状态机、命令调度器与并发保序文件生命周期管理。
+The editor's domain model: document state, the command and keymap registries, and the editor runtime that ties them together. It does not depend on the DOM, CodeMirror or React, so the same code runs in the desktop app, the web playground and the uTools plugin.
 
----
+It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](../../docs/agent/architecture/capability_boundary_design_principles.md).
 
-## 1. 架构定位与职责边界
+## Document state
 
-根据项目的 [架构能力边界设计原则](../../docs/agent/architecture/capability_boundary_design_principles.md)，`@md-editor/editor-core` 是编辑器的“领域模型层（Domain Layer）”：
-
-- **单向依赖**：仅依赖 `@md-editor/shared` 与 `@md-editor/plugin-sdk/mdx`，不依赖任何 DOM、浏览器特定 API 或 CodeMirror 渲染细节。
-- **纯粹领域语义**：负责维护文档状态、脏标记、历史栈抽象、统一命令注册与可用性校验、模式切换契约（WYSIWYG ⇄ Source）。
-- **杜绝 AI 抽象泄漏**：不直接引入或 re-export `@md-editor/ai`。AI 结果作为领域数据或命令入参注入，不在此层处理网络、模型解析或流式传输。
-
----
-
-## 2. 核心功能模块
-
-### 2.1 文档状态机 (`DocumentState` & `document-state.ts`)
-- **状态流转**：管理当前文档路径（`filePath`）、原始内容（`originalContent`）、实时内容（`content`）、编辑模式（`wysiwyg` 或 `source`）及脏状态（`isDirty`）。
-- **并发保序更新**：提供受控的状态更新与事务派发（`dispatch`），防止并发更新产生竞态条件。
-- **快照机制**：支持生成轻量级文档快照（`DocumentSnapshot`），用于保存时的一致性校验和撤销/重做对比。
-
-### 2.2 命令调度系统 (`CommandRegistry` & `index.ts`)
-- **统一命令注册**：提供 `CommandRegistry`，支持通过 `CommandDescriptor` 声明命令。
-- **UI 放置与感知**：支持 `placement` 属性，统一向 `toolbar`（工具栏）、`command-palette`（命令面板）和 `editor-menu`（右键/上下文菜单）分发命令。
-- **动态可用性判定**：通过 `when: (context: CommandContext) => boolean` 函数按需启用或隐藏命令。
-
-### 2.3 文件生命周期调度器 (`FileLifecycle` & `file-lifecycle.ts`)
-- **防抖与强制保存**：提供带状态感知的并发保存调度，支持自动保存、显式快捷键保存与离开前保存。
-- **最近文件列表管理 (`recent-files.ts`)**：支持历史打开文档的 LRU 记录、清理与元数据恢复。
-
-### 2.4 Markdown 结构语义处理
-- **呼出块与提示块 (`callout.ts`)**：支持 Obsidian / GFM 风格的 Callout（Note, Tip, Warning 等）语法识别与状态转换。
-- **原始片段保护 (`raw-fragments.ts`)**：提供特殊语法块（Frontmatter、公式、HTML 标签）的跨模式保真保护机制。
-
----
-
-## 3. 主要 API 与导出
+`createDocumentState` returns the single source of truth for one open document.
 
 ```typescript
-import {
-  DocumentState,
-  createDocumentState,
-  createCommandRegistry,
-  type CommandDescriptor,
-  type CommandContext,
-  type EditorMode,
-} from "@md-editor/editor-core";
+import { createDocumentState } from "@md-editor/editor-core";
 
-// 1. 初始化文档状态
 const doc = createDocumentState({
-  filePath: "/notes/sample.md",
-  initialContent: "# Hello Inkpoint",
-  initialMode: "wysiwyg",
+  markdown: "# Hello Inkpoint",
+  filePath: "/notes/sample.md", // omit for an unsaved document
+  mode: "wysiwyg", // or "source"
 });
 
-// 2. 监听状态变化
-doc.subscribe((state) => {
-  console.log("Dirty status:", state.isDirty);
-});
-
-// 3. 注册并执行统一命令
-const registry = createCommandRegistry();
-registry.register({
-  id: "format.bold",
-  title: "加粗",
-  placement: ["toolbar", "command-palette"],
-  run: (ctx) => {
-    // 触发加粗动作
-  },
+doc.subscribeSnapshot(() => {
+  console.log("dirty:", doc.getSnapshot().isDirty);
 });
 ```
 
----
+A snapshot holds `markdown`, `savedMarkdown`, `filePath`, `mode`, `isDirty`, a document generation that increases whenever the document is replaced, and revision counters.
 
-## 4. 开发与验证
+The state machine also handles:
+
+- editor changes, which carry an origin so a renderer ignores its own echo (`applyEditorChange`);
+- replacing the whole document and changing its path (`replaceDocument`, `setDocumentPath`);
+- switching between WYSIWYG and source (`commitMode`, `switchEditorModeSafely`);
+- external edits from plugins or AI, which reserve the document first and fail if it changed meanwhile (`reserveExternalEdit`, `finalizeExternalEdit`);
+- saves, tracked as checkpoints so a late result cannot mark a newer edit as saved (`beginSave`, `settleSave`).
+
+## Commands and keymaps
+
+```typescript
+import { createCommandRegistry } from "@md-editor/editor-core";
+
+const commands = createCommandRegistry();
+
+commands.register({
+  id: "format.bold",
+  title: "Bold",
+  placement: ["toolbar", "command-palette"], // also "editor-menu"
+  keywords: ["strong"],
+  when: (context) => context.document.getSnapshot().mode === "wysiwyg",
+  run: (context) => {
+    // ...
+  },
+});
+
+await commands.dispatch("format.bold", { document: doc });
+```
+
+`list`, `listByPlacement` and `listAvailable` feed the toolbar, the command palette and menus from the same data. A command without `placement` appears in none of them. `when` decides whether a command is available, and a `when` that throws counts as unavailable.
+
+`createKeymapRegistry` binds keys to command ids and reports conflicts with `findConflict`. `validateKeymapKey` checks a key string such as `Mod-Shift-H`.
+
+## Editor runtime
+
+`createEditorRuntime` combines a document, the command, keymap and feature registries and the MDX component registry. The built-in commands (file, view, formatting, search, block, lint, AI) are registered by `createBuiltInEditorFeature`, `createMarkdownFormattingFeature`, `createEditorSearchFeature`, `createBlockCommandsFeature` and `createAiWritingFeature`.
+
+## Raw fragments
+
+`collectRawFragments` and `serializeWithRawFragments` find the parts of a document that must be written back unchanged: front matter, HTML blocks, MDX components, MDX imports and expressions, and code fences.
+
+## Development
 
 ```bash
-# 运行单元测试
 pnpm test
-
-# 执行 TypeScript 类型校验
 pnpm typecheck
-
 ```

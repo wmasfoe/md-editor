@@ -81,7 +81,7 @@
 
 ### Where it runs
 - **Desktop (macOS, Windows, Linux)**: tabs, outline tree, file watching and in-app updates. On macOS the window uses native vibrancy.
-- **Web Playground**: the full editor in a browser, backed by an in-memory file system with IndexedDB storage.
+- **Web Playground**: the full editor in a browser. In Chromium browsers it can open a real folder; the draft is kept in `localStorage`.
 - **uTools plugin**: a quick-note mode and a full workspace mode.
 - **macOS QuickLook**: press Space on a `.md` or `.mdx` file in Finder to preview it, rendered by the headless `@md-editor/compiler`.
 

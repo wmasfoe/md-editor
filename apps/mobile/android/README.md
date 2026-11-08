@@ -1,62 +1,50 @@
-# Inkpoint Android - 原生 Android 客户端
+# Inkpoint Android
 
-> [!IMPORTANT]
-> **不再发版**：最后发布的 APK 是 0.2.1，可在[官网下载页](https://editor.jiaqi.im/#download)获取。之后的版本请按下方指南自行编译。
+The Android app: Kotlin, [Jetpack Compose](https://developer.android.com/compose) and Material 3, around the web page in [`core`](../core/README.md).
 
-Inkpoint 移动端的 Android 原生工程，基于 **Kotlin + Jetpack Compose + Material Design 3** 构建。
+Mobile is no longer released. The last published APK is 0.2.1 and is on the [download page](https://editor.jiaqi.im/#download). Build newer versions yourself with the steps below.
 
----
+## What it does
 
-## 1. 核心架构与特性
+- **Loads the page from the app.** `WebViewAssetLoader` serves the bundled `assets/editor/` files from a virtual HTTPS origin, so the page does not use `file://` and has no network access of its own.
+- **Opens and saves files with the Storage Access Framework.** It opens a document with `OpenDocument`, keeps access across restarts with `takePersistableUriPermission`, and writes back through `openOutputStream`. No broad storage permission is needed.
+- **Keyboard toolbar.** `KeyboardAccessoryBar` sits above the soft keyboard (it follows the IME insets) with bold, italic, strikethrough, code, lists, headings and undo.
+- **Haptics.** The page can ask for haptic feedback through the bridge, and `MainActivity` plays it with the system vibrator.
 
-- **Material 3 现代界面**：基于 Jetpack Compose 构建响应式界面与动态色彩（Dynamic Color）主题适配；
-- **安全离线资产加载**：通过 `WebViewAssetLoader` 将打包在 `assets/editor/` 中的离线 Webview 内核限制在安全的虚拟域中加载，杜绝本地跨域与网络泄露；
-- **软键盘附件工具栏 (`KeyboardAccessoryBar`)**：监听软键盘展开状态（IME Window Insets），在输入法上方自动贴合快捷格式化工具条（H1~H6、粗体、斜体、列表、代码块、撤销等）；
-- **系统级触感反馈 (Haptics)**：通过 `Vibrator` 提供精准轻柔的点击触感，具备健全的设备硬件兼容与降级处理；
-- **存储访问框架 (SAF)**：直接读写 Android 本地文件或第三方云盘文档，无需授予广泛的全局存储权限。
-
----
-
-## 2. 工程结构
+## Layout
 
 ```
 apps/mobile/android/
 ├── app/
-│   ├── build.gradle.kts      # 模块依赖、SDK 目标版本与签名配置
-│   └── src/main/
-│       ├── AndroidManifest.xml
-│       ├── assets/editor/    # 前端离线包 (由 pnpm build:mobile 自动同步)
-│       └── java/com/inkpoint/editor/
-│           ├── MainActivity.kt        # 宿主 Activity、Bridge 分发与触感控制
-│           └── ui/
-│               ├── EditorWebView.kt   # WebView 封装与通信通道
-│               └── KeyboardAccessoryBar.kt # 软键盘顶部快捷格式化栏
-├── build.gradle.kts          # 顶级 Gradle 配置
-└── gradlew                   # Gradle Wrapper
+│   ├── build.gradle.kts
+│   └── src/
+│       ├── main/
+│       │   ├── assets/editor/            # the web bundle, copied in by pnpm build:mobile
+│       │   └── java/com/inkpoint/editor/
+│       │       ├── MainActivity.kt
+│       │       ├── bridge/               # BridgeContracts.kt, AndroidBridgeInterface.kt
+│       │       ├── model/DocumentViewModel.kt
+│       │       └── ui/                   # DocumentScreen, EditorWebView, KeyboardAccessoryBar, OutlineDrawer
+│       └── test/                         # BridgeContractTest.kt
+├── build.gradle.kts
+└── gradlew
 ```
 
----
+## Build and run
 
-## 3. 本地构建与运行
+You need JDK 17 and the Android SDK (API 34). The app supports Android 8.0 (API 26) and later. Set `ANDROID_HOME`, or put `sdk.dir=<path>` in `apps/mobile/android/local.properties`.
 
-### 前置要求
-- **Java JDK 17**
-- **Android SDK**（API 34，最低支持 API 26 / Android 8.0）
-
-### 运行调试
 ```bash
-# 启动模拟器或通过 USB 连接真机后运行
-pnpm dev:android
-# 或在当前目录下：
-./gradlew installDebug
+pnpm dev:android          # run on an emulator or a connected device
+pnpm build:android        # dist-mobile/Inkpoint_<version>.apk
 ```
 
-### 打包 APK
+To use Gradle directly, run `pnpm build:mobile` once, then in this folder:
+
 ```bash
-# 在仓库根目录：同步前端资源并编出 dist-mobile/Inkpoint_<version>.apk（Debug 签名）
-pnpm build:android
-
-# 或在当前目录只执行 Gradle（需要先 pnpm build:mobile）
-./gradlew assembleDebug
+./gradlew installDebug          # install on a device
+./gradlew assembleDebug         # app/build/outputs/apk/debug/
+./gradlew testDebugUnitTest     # unit tests
 ```
-Gradle 的产物在 `app/build/outputs/apk/debug/`。工程里没有配置发布签名，`assembleRelease` 得到的是未签名包。
+
+The project defines no release signing config, so `assembleRelease` produces an unsigned APK.
