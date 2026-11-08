@@ -7,7 +7,7 @@
 # Inkpoint
 
 <p align="center">
-  A modern, sleek, cross-platform Markdown & MDX editor — bringing <b>Typora-like WYSIWYG</b> editing, <b>native interactive MDX components</b>, and <b>frictionless cross-device synergy</b>.
+  A Markdown and MDX editor for macOS, Windows and Linux. It edits in place like Typora, renders MDX components inline, and keeps your files as plain Markdown on disk.
 </p>
 
 <p align="center">
@@ -46,73 +46,65 @@
 
 ## Features
 
-### 🎨 Typora-like WYSIWYG Editing
-- **Instant Rendering**: Powered by CodeMirror 6's deep projection layer, Markdown syntax markers gracefully tuck away as you type, rendering formatted text while preserving 100% pure Markdown truth.
-- **Single-Editor Homomorphism**: Both WYSIWYG and Source modes share a single CodeMirror 6 `EditorView` instance, delivering zero-latency switching with fully preserved selection, scroll position, and undo history.
-- **Intuitive Interactions**: Features line-level fold toggles, block drag handles, quick slash commands (`/` to insert elements), and contextual selection formatting toolbars.
-- **Distraction-Free Modes**: Toggle **Focus Mode** (highlights current block, softly dims others) and **Typewriter Mode** (smoothly keeps active cursor vertically centered).
+### WYSIWYG editing
+- **Edit in place**: Markdown markers hide as you type and the text renders formatted. The file on disk stays plain Markdown.
+- **One editor for both modes**: WYSIWYG and source mode share a single CodeMirror 6 `EditorView`, so switching keeps your selection, scroll position and undo history.
+- **Editing aids**: line folding, block drag handles, `/` slash commands and a floating format toolbar on selection.
+- **Focus and typewriter modes**: focus mode dims everything but the current block; typewriter mode keeps the cursor vertically centered.
 
-### 🛡️ Trust Foundation: Draft Recovery & Revision Snapshots
-- **Automatic Draft Recovery (Hot Exit)**: Unsaved edits are automatically buffered on window close or unexpected quit. A clean recovery banner prompts at next launch to restore drafts with one click or discard them safely.
-- **Document History Drawer**: Built-in revision drawer tracks local document snapshots over time, complete with visual line-by-line Diff highlights (insertions/deletions), keyboard navigation, and one-click rollback.
+### Drafts and history
+- **Draft recovery**: unsaved edits are kept when the window closes or the app quits unexpectedly. On the next launch a banner offers to restore or discard them.
+- **Document history**: a side drawer keeps local snapshots, shows line-level diffs between versions, supports keyboard navigation and rolls back in one click.
 
-### 🔍 Quality Assurance: Markdown Linting & Proactive Checks
-- **Real-Time Markdown Linting**: Integrated markdownlint engine displaying wavy underlines and localized diagnostic tooltips. Press `⌥⇧L` (`Alt+Shift+L`) to toggle the bottom diagnostic dock, and `⌥⇧F` (`Alt+Shift+F`) to batch auto-fix common formatting issues.
-- **Relative Link Validation**: Proactively validates relative image/document file paths and in-page heading anchors (`[Title](#heading)`), preventing broken links before publication.
-- **Multi-Language Localization**: Diagnostic rules and UI tooltips dynamically switch across English, Chinese, Japanese, and Traditional Chinese.
+### Checks and export
+- **Markdown lint**: markdownlint runs as you type, with wavy underlines and tooltips. `Alt+Shift+L` toggles the diagnostics panel and `Alt+Shift+F` fixes common issues in one pass.
+- **Link checks**: relative file paths and in-page heading anchors (`[Title](#heading)`) are checked, so broken links show up before you publish.
+- **HTML export**: one self-contained file with the theme CSS, KaTeX formulas, Mermaid diagrams and code highlighting inlined.
+- **PDF export**: paginated vector PDF with a clickable outline.
+- **Copy as rich text**: copies formatted HTML to the clipboard for email, Notion or a blog editor.
 
-### 📤 High-Fidelity Standalone Export
-- **Self-Contained HTML**: Export standalone single-file HTML embedding inlined CSS themes, KaTeX formulas, Mermaid diagrams, and syntax highlighting.
-- **Native Vector PDF**: High-quality paginated vector PDF generation with clickable heading outlines, respecting editor typography and print break guards.
-- **Copy as Rich Text HTML**: Direct clipboard export for pasting formatted content into email, Notion, or blog platforms.
+### CJK typography
+- **Emphasis next to CJK punctuation**: `**bold**`, `*italic*`, `~~strikethrough~~` and `==highlight==` are recognized when they sit against Chinese or Japanese punctuation.
+- **Tab to step out**: `Tab` moves the cursor past a closing bracket or link, and an empty cursor does not auto-close brackets.
+- **Spacing and punctuation cleanup**: a local on-device model normalizes spaces between CJK and Latin text and full-width and half-width punctuation.
 
-### 🔤 East Asian (CJK) Typography & Delimiters
-- **Punctuation-Adjacent Emphasis**: Recognizes bold (`**text**`), italic (`*text*`), strikethrough (`~~text~~`), and highlight (`==text==`) adjacent to CJK punctuation without escaping or syntax breakdown.
-- **Smart Pairing & Tab Out**: Automatically steps outside brackets and links when pressing `Tab`, maintaining natural typing rhythm without intrusive auto-closing on empty cursors.
-- **Local SLM Spacing & Punctuation**: Dedicated on-device SLM task for standardizing CJK-Latin spacing and punctuation normalization.
+### MDX and plugins
+- **MDX in the document**: mix Markdown with React and JSX components in one file.
+- **Built in**: `Callout` (info, warning, success, danger), Mermaid diagrams with click-to-zoom, KaTeX formulas, `:::note` style directives and `==highlight==`.
+- **Component registry**: custom MDX components register through `@md-editor/plugin-sdk/mdx`.
+- **External plugins**: install plugins from GitHub Releases without rebuilding the app. Write them against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk), or fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) for a working example.
 
-### 🧩 Native MDX & Interactive Components
-- **Deep MDX Compatibility**: Seamlessly mix standard Markdown content with React / JSX interactive components.
-- **Out-of-the-Box Official Extensions**:
-  - 💬 **Alert / Callout**: Multi-style informational callouts (Note, Tip, Important, Warning, Caution).
-  - 📊 **Mermaid Diagrams**: Live rendering of flowcharts, sequence diagrams, class diagrams, and state diagrams with click-to-zoom modals.
-  - 🧮 **LaTeX Mathematics**: High-speed mathematical typesetting for inline and block equations via KaTeX.
-  - 💻 **Code Sandbox & Highlighting**: Multi-language syntax highlighting with CodeSandbox embedding support.
-  - 📑 **Tabs Component**: Easily organize multi-language code snippets or comparison views.
-- **Component Registry**: Modular protocol (`@md-editor/plugin-sdk/mdx`) enabling custom component extensions.
-- **External Plugins**: Install community plugins from GitHub Releases without rebuilding the app. Plugins are written against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk); fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) for a working example.
+### Local first
+- **Native shell**: built on Tauri 2 and Rust, so it starts fast and uses less memory than an Electron app.
+- **Your files, your folder**: Inkpoint reads and writes files directly and works fully offline. There is no account and no cloud sync.
+- **Lossless round trips**: YAML front matter, raw HTML and custom metadata are kept as written.
 
-### ⚡ Lightweight, High Performance & Local-First
-- **Native Speed**: Built with Tauri 2 + Rust for native core performance, instant cold startup, and remarkably lower memory footprint than Electron.
-- **Local-First Architecture**: Direct file system reads/writes with zero proprietary cloud locks. 100% offline-capable, keeping your data private and secure.
-- **High Formatting Fidelity**: Full preservation of YAML Frontmatter, raw HTML tags, and custom metadata without AST formatting destruction.
+### Where it runs
+- **Desktop (macOS, Windows, Linux)**: tabs, outline tree, file watching and in-app updates. On macOS the window uses native vibrancy.
+- **Web Playground**: the full editor in a browser, backed by an in-memory file system with IndexedDB storage.
+- **uTools plugin**: a quick-note mode and a full workspace mode.
+- **macOS QuickLook**: press Space on a `.md` or `.mdx` file in Finder to preview it, rendered by the headless `@md-editor/compiler`.
 
-### 📱 Multi-Platform & Multi-Form Synergy
-- **Desktop Clients (macOS / Windows / Linux)**: Native window chrome (macOS Liquid Glass vibrancy), tabbed editing, outline trees, file watching, and differential updates.
-- **Web Playground**: Zero-install in-browser full editor experience powered by an in-memory virtual file system with IndexedDB persistence.
-- **uTools Productivity Plugin**: Dual-mode design (distraction-free quick-note mode & full workspace mode) with zero-pollution physical isolation.
-- **macOS QuickLook Preview**: Built-in headless compiler (`@md-editor/compiler`) enabling instant spacebar previews for `.md` / `.mdx` files in Finder.
-
-### 🤖 Modular AI Writing Assistant
-- **Decoupled Architecture**: Clean-architecture AI harness (`@md-editor/ai`) ready to connect with OpenAI, Anthropic Claude, Google Gemini, or local models.
-- **On-Device SLM**: Native macOS dynamic library integration for zero-network local inference powered by Apple Silicon Metal acceleration.
-- **Intelligent Augmentation**: Inline ghost text completions, grammatical polishing, document context distillation, and reviewable stream suggestions.
+### AI writing
+- **Providers**: the `@md-editor/ai` layer connects to OpenAI-compatible services, Anthropic Claude, Google Gemini or a local model.
+- **On-device model**: on Apple Silicon Macs, a bundled llama runtime runs a local model with Metal acceleration and no network.
+- **Suggestions**: inline ghost-text completion, grammar fixes, context summarizing, and rewrite suggestions you accept or reject.
 
 ---
 
 ## Installation & Downloads
 
-Choose the installation method that best fits your operating system and device:
+Pick the package for your system:
 
-| Platform | Architecture / Environment | Package Format | Notes |
+| Platform | Architecture | Format | Notes |
 | :--- | :--- | :--- | :--- |
-| **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | Recommended: Homebrew or one-line script |
-| **Windows** | x64 / ARM64 | `.exe` (NSIS Setup) | Silent install script or manual installer |
-| **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | Standalone AppImage or system package |
-| **uTools** | Desktop application environment | `.upxs` (Plugin package) | Search "Inkpoint" in uTools store or trigger via shortcut |
-| **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.jiaqi.im/playground) |
+| macOS | Apple Silicon, Intel | `.dmg` | Homebrew or the install script |
+| Windows | x64, ARM64 | `.exe` (NSIS) | Install script or the installer |
+| Linux | x86_64, aarch64 | `.AppImage`, `.deb` | AppImage or system package |
+| uTools | uTools desktop app | `.upxs` | Search "Inkpoint" in the uTools store |
+| Web | Any modern browser | none | Open the [Web Playground](https://editor.jiaqi.im/playground) |
 
-### Option 1: One-Line Install Script (Desktop Recommended)
+### Install script
 
 - **macOS / Linux**:
   ```bash
@@ -124,20 +116,18 @@ Choose the installation method that best fits your operating system and device:
   irm https://raw.githubusercontent.com/wmasfoe/homebrew-tap/main/install-md-editor.ps1 | iex
   ```
 
-### Option 2: Package Manager (macOS)
-
-Install via [Homebrew](https://brew.sh/):
+### Homebrew (macOS)
 
 ```bash
 brew install --cask wmasfoe/tap/md-editor
 ```
 
-### Option 3: Manual Download (Desktop)
+### Manual download
 
-Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
+Get the installer from the [download page](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases).
 
 > [!TIP]
-> **macOS Quarantine Notice**: The one-line install script and Homebrew handle Gatekeeper quarantine automatically. If you manually download the `.dmg` and macOS reports "App is damaged" or "Cannot verify developer", run:
+> The install script and Homebrew clear the Gatekeeper quarantine flag for you. If you download the `.dmg` by hand and macOS says the app is damaged or the developer cannot be verified, run:
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/Inkpoint.app
 > ```
@@ -148,9 +138,9 @@ Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitH
 
 ### Prerequisites
 
-- **Node.js**: 18+ (Refer to `.node-version`)
-- **pnpm**: 11.6.0+ (Enable via `corepack enable`)
-- **Rust**: Latest stable toolchain (for Tauri desktop compilation)
+- **Node.js**: the version in `.node-version`
+- **pnpm**: 11.6.0 or later (`corepack enable`)
+- **Rust**: latest stable toolchain, for the Tauri desktop build
 
 ### Local Development
 
@@ -162,136 +152,123 @@ cd md-editor
 # 2. Install workspace dependencies
 pnpm install
 
-# 3. Start desktop development server (Vite + Tauri)
+# 3. Run the desktop app (Vite + Tauri)
 pnpm dev
 
-# 4. Start Web online playground development server
+# 4. Run the Web Playground
 pnpm dev:web
 
-# 5. Start uTools plugin development server
+# 5. Run the uTools plugin
 pnpm dev:utools
 
-# 6. Start official website development server
+# 6. Run the website
 pnpm dev:site
 
-# 7. Start edge distribution worker development server
+# 7. Run the distribution worker
 pnpm dev:worker
 
-# 8. Run workspace tests and code quality checks
-pnpm test        # Run unit tests
-pnpm typecheck   # TypeScript type checks
-pnpm lint        # Oxlint + Prettier + Cargo Clippy
+# 8. Tests and checks
+pnpm test        # unit tests
+pnpm typecheck   # TypeScript
+pnpm lint        # Oxlint, Prettier, Cargo Clippy
 ```
 
 ### Production Build
 
 ```bash
-# Cross-platform desktop builds
-pnpm build:macos    # macOS (.dmg and updater package)
-pnpm build:linux    # Linux (.AppImage and .deb)
-pnpm build:windows  # Windows (NSIS installer)
+# Desktop
+pnpm build:macos    # .dmg and updater package
+pnpm build:linux    # .AppImage and .deb
+pnpm build:windows  # NSIS installer
 
-# Web online playground build
+# Web Playground, uTools plugin, website
 pnpm build:web
-
-# uTools plugin build (generates dist/ bundle)
 pnpm build:utools
-
-# Official website Next.js production build
 pnpm build:site
 ```
 
-### Multi-Platform Releases
-
-All release workflows are unified under the `release:*` namespace:
+### Releases
 
 ```bash
-# Desktop cross-platform release (interactive version bump, dual changelogs, v* tag)
-pnpm release:desktop
-
-# Web online playground deployment (builds locally & deploys directly to Vercel)
-pnpm release:web
-
-# Official website deployment
-pnpm release:site
-
-# Cloudflare Worker global distribution gateway deployment
-pnpm deploy:worker
+pnpm release:desktop   # bump version, write both changelogs, tag v*
+pnpm release:web       # build locally and deploy to Vercel
+pnpm release:site      # deploy the website
+pnpm deploy:worker     # deploy the Cloudflare Worker
 ```
 
 ---
 
 ## Architecture
 
-Inkpoint adopts a modern Monorepo architecture managed by `pnpm workspace` with well-defined responsibility boundaries:
+A pnpm workspace monorepo:
 
 ```
 md-editor/
 ├── apps/
-│   ├── desktop/                 # Tauri 2 cross-platform desktop app (Rust + React 19 Shell)
-│   ├── utools/                  # uTools platform immersive lightweight quick-note plugin
-│   ├── web/                     # Web online Playground editor application (Vite + React 19)
-│   └── site/                    # Inkpoint official website and dynamic download center (Next.js App Router)
+│   ├── desktop/                 # Tauri 2 desktop app (Rust + React 19)
+│   ├── utools/                  # uTools plugin
+│   ├── web/                     # Web Playground (Vite + React 19)
+│   └── site/                    # Website and download center (Next.js)
 ├── infra/
-│   └── distribution-worker/     # Cloudflare Worker global edge download gateway & dynamic proxy (R2 + Fallback)
+│   └── distribution-worker/     # Cloudflare Worker download gateway (R2 with fallback)
 ├── packages/
-│   ├── editor-core/             # Editor core (document state stream, ordered save scheduler, mode switching)
-│   ├── renderer-codemirror/     # CodeMirror 6 rendering layer (isomorphic WYSIWYG projection, decorations, tables, lint)
-│   ├── editor-ui/               # Editor React UI components, toolbars, history drawer, file tree, and settings
-│   ├── compiler/                # Headless static Markdown compiler & HTML/PDF exporter (QuickLook / Worker)
-│   ├── syntax-plugins/          # Markdown syntax plugins (highlighting, strikethrough, footnotes, KaTeX, Mermaid)
-│   ├── plugin-sdk/              # Public plugin contracts for external authors (published to npm as @md-editor/plugin-sdk)
-│   ├── plugin-host/             # Plugin host: loading, lifecycle, registries (incl. MDX registry), and GitHub release client
-│   ├── mdx-plugins/             # Built-in official interactive MDX components (Callout, Alert cards, etc.)
-│   ├── markdown-fidelity/       # Markdown / MDX lossless fidelity conversion and AST bi-directional mapping
-│   ├── file-system/             # Cross-platform abstract file I/O, session drafts (Hot Exit), history, and link validator
-│   ├── i18n/                    # Global i18n system (type-safe bilingual localization dictionaries & locale switcher)
-│   ├── ai/                      # AI provider abstraction, streaming suggestion parser, and multi-protocol harness
-│   └── shared/                  # Common TypeScript utility library and cross-package core types
-├── docs/                        # Project design specifications, technical proposals, and release guidelines
+│   ├── editor-core/             # Document state, ordered saves, mode switching
+│   ├── renderer-codemirror/     # CodeMirror 6 layer: WYSIWYG projection, decorations, tables, lint
+│   ├── editor-ui/               # React UI: toolbars, history drawer, file tree, settings
+│   ├── compiler/                # Headless Markdown compiler and HTML/PDF exporter
+│   ├── syntax-plugins/          # Syntax plugins: highlight, footnotes, KaTeX, Mermaid, directives
+│   ├── plugin-sdk/              # Plugin API for external authors (npm: @md-editor/plugin-sdk)
+│   ├── plugin-host/             # Plugin host: loading, lifecycle, registries, GitHub release client
+│   ├── mdx-plugins/             # Built-in MDX components (Callout)
+│   ├── markdown-fidelity/       # Lossless Markdown and MDX round trips
+│   ├── file-system/             # File I/O, draft recovery, history, link checks
+│   ├── i18n/                    # Localization (en, zh, zh-Hant, ja)
+│   ├── ai/                      # AI providers and streaming suggestion parser
+│   └── shared/                  # Shared utilities and types
+├── docs/                        # Design notes and release guides
 └── scripts/                     # Release scripts (release:*) and CI helpers
 ```
 
-> 💡 Each subpackage and application directory contains its own `README.md` with detailed technical documentation and API specifications.
+Most packages and apps have their own `README.md`.
 
 ---
 
 ## Tech Stack
 
-| Domain | Core Technology | Description |
+| Area | Technology | Used for |
 | :--- | :--- | :--- |
-| **Desktop Runtime** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | Lightweight, secure, low-resource cross-platform desktop foundation |
-| **Frontend Architecture** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern declarative UI development with a rigorous type system |
-| **Editor Core** | [CodeMirror 6](https://codemirror.net/) | Next-generation unified WYSIWYG and source editor on a single EditorView |
-| **Headless Compiler** | `@md-editor/compiler` | Pure zero-DOM static Markdown compiler supporting QuickLook and standalone export |
-| **Edge Distribution** | [Cloudflare Workers](https://workers.cloudflare.com/) + [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) | Global multi-tier fallback download gateway with instant cache invalidation |
-| **Styling & UI** | [Tailwind CSS](https://tailwindcss.com/) + [Lucide Icons](https://lucide.dev/) | Utility-first styling framework and modern icon library |
-| **Monorepo Build** | [Vite 6](https://vitejs.dev/) + [pnpm Workspace](https://pnpm.io/) | Lightning-fast HMR development and efficient dependency sharing |
-| **Testing & Standards** | [Vitest](https://vitest.dev/) + [Oxlint](https://oxc.rs/) + [Prettier](https://prettier.io/) | Ultra-fast unit testing, oxlint static analysis, and code formatting toolchain |
+| **Desktop Runtime** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | Desktop shell |
+| **Frontend Architecture** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | UI and type checking |
+| **Editor Core** | [CodeMirror 6](https://codemirror.net/) | WYSIWYG and source editing on one `EditorView` |
+| **Headless Compiler** | `@md-editor/compiler` | Markdown to HTML without a DOM, for QuickLook and export |
+| **Edge Distribution** | [Cloudflare Workers](https://workers.cloudflare.com/) + [Cloudflare R2](https://www.cloudflare.com/developer-platform/r2/) | Download gateway with fallback tiers |
+| **Styling** | [Tailwind CSS](https://tailwindcss.com/) + [Heroicons](https://heroicons.com/) | Styles and icons |
+| **Monorepo Build** | [Vite 6](https://vitejs.dev/) + [pnpm Workspace](https://pnpm.io/) | Dev server and workspace dependencies |
+| **Testing & Standards** | [Vitest](https://vitest.dev/) + [Oxlint](https://oxc.rs/) + [Prettier](https://prettier.io/) | Tests, linting and formatting |
 
 ---
 
 ## Documentation
 
-Comprehensive architecture proposals and design guidelines are located in [`docs/`](docs/):
+Design notes and guides are in [`docs/`](docs/):
 
-- 📘 [Agent Knowledge Base Index](docs/agent/index.md) — Unified navigation across architecture, status, specs, and roadmaps
-- 📐 [Capability Boundary Design Principles](docs/agent/architecture/capability_boundary_design_principles.md) — Module boundaries and decoupling rules
-- 🛠️ [VMark Feature Technical Plan](docs/agent/architecture/vmark_remaining_features_technical_plan.md) — Hot Exit, Document History, Linting, and HTML/PDF export
-- 🚀 [Automated Release Workflow](docs/agent/release/release_workflow.md) — CI/CD, GitHub Releases, and distribution automation
-- 💡 [Project Background & Origins](docs/human/project.md) — Insights, reflections, and design philosophies
+- [Docs index](docs/agent/index.md): architecture, status, specs and roadmaps
+- [Capability boundaries](docs/agent/architecture/capability_boundary_design_principles.md): module boundaries and decoupling rules
+- [Draft recovery, history, lint and export](docs/agent/architecture/vmark_remaining_features_technical_plan.md)
+- [Release workflow](docs/agent/release/release_workflow.md): CI, GitHub Releases and distribution
+- [Project background](docs/human/project.md)
 
 ---
 
-## Contributing & Guidelines
+## Contributing
 
-For code conventions and Git workflows, please refer to [AGENTS.md](AGENTS.md) (see the "Code structure & naming" section) and the [repository structure & naming convention](docs/agent/architecture/repo_structure_and_naming_conventions.md).
+Code conventions and the Git workflow are in [AGENTS.md](AGENTS.md) and the [repository structure and naming rules](docs/agent/architecture/repo_structure_and_naming_conventions.md).
 
 ---
 
 ## License
 
-Inkpoint is licensed under the [GNU General Public License v3.0 or later (GPL-3.0-or-later)](LICENSE). The license text is [LICENSE](LICENSE). The copyright notice is [NOTICE](NOTICE).
+Inkpoint is released under the [GNU General Public License v3.0 or later](LICENSE). The copyright notice is in [NOTICE](NOTICE).
 
 ---
 
