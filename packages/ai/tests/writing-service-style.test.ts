@@ -141,3 +141,68 @@ describe("writing service style profile gate", () => {
     }
   });
 });
+
+/** 返回固定输出并记录请求的纠错服务 */
+function gecService(output: string) {
+  const contexts: ModelContext[] = [];
+  const client = {
+    generate: vi.fn(async (context: ModelContext) => {
+      contexts.push(context);
+      return { text: output };
+    }),
+  } as unknown as ModelClient;
+  const service = createAiWritingService({ allowLocal: true });
+  (service as unknown as { resolveClient: () => ModelClient }).resolveClient = () => client;
+  return { service, contexts };
+}
+
+describe("grammar fix with writing preferences", () => {
+  const gecProfile = mergeStyleProfile({
+    workspace: [
+      { dimension: "termScript", value: "keep-english", status: "active", rounds: [] },
+      { dimension: "cjkLatinSpacing", value: "spaced", status: "active", rounds: [] },
+    ],
+  });
+  const text = "我门用React写界面";
+  const gecSnapshot: AiContextSnapshot = { ...snapshot, before: "", after: "", selectedText: text };
+
+  const modelOutput = '[[0, 2, "我门", "我们"], [3, 8, "React", "反应"]]';
+
+  it("U-GEC-1/2: drops habit conflicts, adds style suggestions and keeps kinds separate", async () => {
+    const { service } = gecService(modelOutput);
+    const result = await service.fixGrammar(local(STANDARD_LOCAL_MODEL_ID), gecSnapshot, {
+      profile: gecProfile,
+    });
+    expect(result.edit?.diffs?.map((diff) => [diff.kind, diff.original, diff.replacement])).toEqual(
+      [
+        ["fix", "我门", "我们"],
+        ["style", "用R", "用 R"],
+        ["style", "t写", "t 写"],
+      ],
+    );
+  });
+
+  it("U-GEC-1: the cloud prompt explains user habits as not being errors", async () => {
+    const { service, contexts } = gecService("[]");
+    const consent = { ...styleCloudScope(cloudBase), grantedAt: "t" };
+    await service.fixGrammar(withStyle(cloudBase, { cloudConsent: consent }), gecSnapshot, {
+      profile: gecProfile,
+    });
+    expect(contexts[0]!.instruction).toContain("不视为错误");
+    expect(contexts[0]!.instruction).toContain("技术术语保留英文原文");
+  });
+
+  it("U-GEC-3: without an allowed profile the result matches the model output", async () => {
+    const { service } = gecService(modelOutput);
+    const off = await service.fixGrammar(
+      local(STANDARD_LOCAL_MODEL_ID, { enabled: false }),
+      gecSnapshot,
+      { profile: gecProfile },
+    );
+    expect(off.edit?.diffs?.map((diff) => diff.replacement)).toEqual(["我们", "反应"]);
+    const lite = await service.fixGrammar(local(LITE_LOCAL_MODEL_ID), gecSnapshot, {
+      profile: gecProfile,
+    });
+    expect(lite.edit?.diffs?.map((diff) => diff.replacement)).toEqual(["我们", "反应"]);
+  });
+});

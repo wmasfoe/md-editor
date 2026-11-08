@@ -15,7 +15,7 @@
 
 import type { ModelContext } from "../domain/model-client.ts";
 import { LITE_LOCAL_MODEL_ID } from "../domain/settings.ts";
-import { renderStylePrefix } from "../style/render.ts";
+import { renderStylePrefix, renderStyleTolerancePrefix } from "../style/render.ts";
 import type { MergedStyleProfile } from "../style/types.ts";
 import type { AiContextSnapshot, AiDocumentContext, AiDocumentSnapshot } from "../domain/types.ts";
 import { createAiPromptContext } from "./harness-guardrails.ts";
@@ -237,14 +237,20 @@ export function buildCloudGecModelContext(
   options: {
     readonly documentContext?: AiDocumentContext;
     readonly document?: AiDocumentSnapshot;
+    /** 已通过闸门的写作偏好；只把机械书写习惯作为“不视为错误”的说明注入 */
+    readonly profile?: MergedStyleProfile;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
   } = {},
 ): ModelContext {
   const docPrefix = buildDocumentContextPrefix(options.documentContext, options.document);
-  const instruction = docPrefix
-    ? `${CLOUD_GEC_SYSTEM_PROMPT}\n\n${docPrefix}`
-    : CLOUD_GEC_SYSTEM_PROMPT;
+  const instruction = [
+    CLOUD_GEC_SYSTEM_PROMPT,
+    renderStyleTolerancePrefix(options.profile),
+    docPrefix,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 
   return {
     instruction,

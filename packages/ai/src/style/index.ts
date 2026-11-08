@@ -18,3 +18,4 @@ export * from "./render.ts";
 export * from "./gate.ts";
 export * from "./host.ts";
 export * from "./sentences.ts";
+export * from "./grammar-style.ts";
