@@ -20,7 +20,6 @@
     "deploy:worker": "pnpm --filter @md-editor/distribution-worker run deploy",
     "build:web": "pnpm --filter @md-editor/web build",
     "build:mobile": "pnpm --filter @md-editor/mobile-core build && node scripts/mobile/sync-mobile-web.mjs",
-    "build:mobile-web": "pnpm run build:mobile",
     "build:utools": "pnpm --filter @md-editor/utools build",
     "build:site": "pnpm --filter @md-editor/site build",
     "build:macos": "pnpm --filter @md-editor/desktop tauri build --bundles dmg",

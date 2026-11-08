@@ -60,7 +60,7 @@ function findNearestEnabledIndex<T extends string>(
  * 1. 物理真实性：底层为通透晶莹的悬浮水滴药丸（Liquid Glass Pill），带顶部钻石镜面高光弧与多层柔和悬浮阴影；
  * 2. 保证字体绝对清晰：文字层独立居于光学滤镜之上，杜绝色散拉伸、杂色边缘与模糊锯齿；
  * 3. 丝滑阻尼物理滑动：采用 Apple fluid deceleration 缓动曲线与连续拖拽跟随；
- * 4. 原生支持项目置灰禁用（例如 iOS 待发布状态）：不可点击、键盘自动跳过、半透明置灰。
+ * 4. 原生支持项目置灰禁用：不可点击、键盘自动跳过、半透明置灰。
  */
 export function LiquidGlassSegmentedControl<T extends string>({
   items,

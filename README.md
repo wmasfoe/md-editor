@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://editor.jiaqi.im/#download">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_Android_%7C_uTools-blue?style=flat-square" alt="Platforms">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_uTools-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
@@ -89,7 +89,7 @@
 
 ### 📱 Multi-Platform & Multi-Form Synergy
 - **Desktop Clients (macOS / Windows / Linux)**: Native window chrome (macOS Liquid Glass vibrancy), tabbed editing, outline trees, file watching, and differential updates.
-- **Mobile Suite (Android / iOS)**: "Jilan" (即览) philosophy combining an offline Webview core with native soft-keyboard accessory bars (`KeyboardAccessoryBar`) and haptic feedback.
+- **Mobile (Android / iOS)**: native shells around an offline Webview core live in `apps/mobile`. They are no longer released; build them yourself (see [apps/mobile/README.md](apps/mobile/README.md)).
 - **Web Playground**: Zero-install in-browser full editor experience powered by an in-memory virtual file system with IndexedDB persistence.
 - **uTools Productivity Plugin**: Dual-mode design (distraction-free quick-note mode & full workspace mode) with zero-pollution physical isolation.
 - **macOS QuickLook Preview**: Built-in headless compiler (`@md-editor/compiler`) enabling instant spacebar previews for `.md` / `.mdx` files in Finder.
@@ -110,8 +110,6 @@ Choose the installation method that best fits your operating system and device:
 | **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | Recommended: Homebrew or one-line script |
 | **Windows** | x64 / ARM64 | `.exe` (NSIS Setup) | Silent install script or manual installer |
 | **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | Standalone AppImage or system package |
-| **Android** | ARM64 / x86_64 (Android 8.0+) | `.apk` | Last published build is 0.2.1 on the [download page](https://editor.jiaqi.im/#download); build newer versions yourself (see [apps/mobile/android](apps/mobile/android/README.md)) |
-| **iOS** | iPhone / iPad (iOS 17.0+) | unsigned `.ipa` | Last published build is 0.2.1 on the [download page](https://editor.jiaqi.im/#download), re-sign it before installing; build newer versions yourself (see [apps/mobile/ios](apps/mobile/ios/README.md)) |
 | **uTools** | Desktop application environment | `.upxs` (Plugin package) | Search "Inkpoint" in uTools store or trigger via shortcut |
 | **Web** | Modern Web Browsers | Online (SPA) | Zero-install direct access via [Web Playground](https://editor.jiaqi.im/playground) |
 
@@ -140,7 +138,7 @@ brew install --cask wmasfoe/tap/md-editor
 Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
 
 > [!NOTE]
-> **Mobile**: Android and iOS are no longer released. The last published builds (0.2.1) stay on the download page; for anything newer, build from source with `pnpm build:android` or `pnpm build:ios`, see [apps/mobile/README.md](apps/mobile/README.md).
+> **Mobile**: Android and iOS are no longer released. The last published builds (0.2.1) stay on the [download page](https://editor.jiaqi.im/#download); for anything newer, build from source with `pnpm build:android` or `pnpm build:ios`, see [apps/mobile/README.md](apps/mobile/README.md).
 
 > [!TIP]
 > **macOS Quarantine Notice**: The one-line install script and Homebrew handle Gatekeeper quarantine automatically. If you manually download the `.dmg` and macOS reports "App is damaged" or "Cannot verify developer", run:
@@ -270,7 +268,7 @@ md-editor/
 │   ├── ai/                      # AI provider abstraction, streaming suggestion parser, and multi-protocol harness
 │   └── shared/                  # Common TypeScript utility library and cross-package core types
 ├── docs/                        # Project design specifications, technical proposals, and release guidelines
-└── scripts/                     # Automated release scripts (release:*), mobile asset sync, and CI helpers
+└── scripts/                     # Release scripts (release:*), mobile build and asset sync, and CI helpers
 ```
 
 > 💡 Each subpackage and application directory contains its own `README.md` with detailed technical documentation and API specifications.

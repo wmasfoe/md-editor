@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="https://editor.jiaqi.im/#download">
-    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_Android_%7C_uTools-blue?style=flat-square" alt="Platforms">
+    <img src="https://img.shields.io/badge/platform-macOS_%7C_Windows_%7C_Linux_%7C_Web_%7C_uTools-blue?style=flat-square" alt="Platforms">
   </a>
   <a href="https://github.com/wmasfoe/md-editor">
     <img src="https://img.shields.io/badge/built_with-Tauri_2_%2B_React_19-orange?style=flat-square&logo=tauri&logoColor=white" alt="Built with Tauri 2 + React 19">
@@ -84,7 +84,7 @@
 
 ### 📱 全场景与多端协同
 - **桌面客户端 (macOS / Windows / Linux)**：原生窗口质感（macOS Liquid Glass 毛玻璃效果）、多标签页、大纲树、文件监听与差量自动更新。
-- **移动端套件 (Android / iOS)**：即览（Jilan）产品哲学，离线 Webview 渲染内核结合原生软键盘工具栏（`KeyboardAccessoryBar`）与系统级触感反馈。
+- **移动端 (Android / iOS)**：离线 Webview 内核加原生外壳，源码在 `apps/mobile`。已不再发版，需要自行编译（见 [apps/mobile/README.md](apps/mobile/README.md)）。
 - **Web 在线体验场 (Playground)**：基于虚拟内存文件系统，零安装在浏览器中体验完整编辑器功能。
 - **uTools 效率插件**：双模式设计（无干扰随手记模式与完整工作区模式），物理隔离零技术债。
 - **macOS QuickLook 快速预览**：内置 Headless 静态编译器（`@md-editor/compiler`），在 Finder 中按空格键秒级渲染 Markdown / MDX。
@@ -105,8 +105,6 @@
 | **macOS** | Apple Silicon (`aarch64`) / Intel (`x86_64`) | `.dmg` | 推荐使用 Homebrew 或一键脚本安装 |
 | **Windows** | x64 / ARM64 | `.exe` (NSIS 安装包) | 一键静默安装或手动安装向导 |
 | **Linux** | x86_64 / aarch64 | `.AppImage` / `.deb` | 免安装 AppImage 或系统软件包 |
-| **Android** | ARM64 / x86_64 (Android 8.0+) | `.apk` | 最后发布的版本是 0.2.1，见[下载页](https://editor.jiaqi.im/#download)；之后的版本请自行编译（详见 [apps/mobile/android](apps/mobile/android/README.md)） |
-| **iOS** | iPhone / iPad (iOS 17.0+) | 未签名 `.ipa` | 最后发布的版本是 0.2.1，见[下载页](https://editor.jiaqi.im/#download)，需要先重签再安装；之后的版本请自行编译（详见 [apps/mobile/ios](apps/mobile/ios/README.md)） |
 | **uTools** | 跨平台桌面应用环境 | `.upxs` (插件离线包) | uTools 插件中心搜索「Inkpoint」或一键呼出速记 |
 | **Web** | 现代化 Web 浏览器 | 在线即用 (SPA) | 零安装直接访问 [Web Playground](https://editor.jiaqi.im/playground) |
 
@@ -135,7 +133,7 @@ brew install --cask wmasfoe/tap/md-editor
 前往 [官方下载中心](https://editor.jiaqi.im/#download) 或 [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) 页面下载对应桌面系统的最新安装包。
 
 > [!NOTE]
-> **移动端**：Android 与 iOS 不再发版。最后发布的 0.2.1 仍可在下载页获取；之后的版本请用 `pnpm build:android` 或 `pnpm build:ios` 自行编译，详见 [apps/mobile/README.md](apps/mobile/README.md)。
+> **移动端**：Android 与 iOS 不再发版。最后发布的 0.2.1 仍可在[下载页](https://editor.jiaqi.im/#download)获取；之后的版本请用 `pnpm build:android` 或 `pnpm build:ios` 自行编译，详见 [apps/mobile/README.md](apps/mobile/README.md)。
 
 > [!TIP]
 > **macOS 隔离标记说明**：一键安装脚本与 Homebrew 会自动处理 Gatekeeper 隔离标记。若是手动下载 `.dmg` 安装并在打开时提示“App 已损坏”或“无法验证开发者”，可以在终端中执行以下命令解除隔离：
@@ -265,7 +263,7 @@ md-editor/
 │   ├── ai/                      # AI Provider 抽象、流式建议解析与整洁架构多协议 Harness
 │   └── shared/                  # 通用 TypeScript 工具库与跨包核心类型
 ├── docs/                        # 项目设计规范、技术方案、实施状态与发版指南
-└── scripts/                     # 自动化发版脚本 (release:*)、移动端同步工具与质量门禁脚本
+└── scripts/                     # 发版脚本 (release:*)、移动端编译与资源同步工具、质量门禁脚本
 ```
 
 > 💡 每个子包与应用目录下均配有独立的 `README.md`，可前往对应目录查看详尽的技术实现与 API 规范。
