@@ -84,7 +84,6 @@
 
 ### 📱 全场景与多端协同
 - **桌面客户端 (macOS / Windows / Linux)**：原生窗口质感（macOS Liquid Glass 毛玻璃效果）、多标签页、大纲树、文件监听与差量自动更新。
-- **移动端 (Android / iOS)**：离线 Webview 内核加原生外壳，源码在 `apps/mobile`。已不再发版，需要自行编译（见 [apps/mobile/README.md](apps/mobile/README.md)）。
 - **Web 在线体验场 (Playground)**：基于虚拟内存文件系统，零安装在浏览器中体验完整编辑器功能。
 - **uTools 效率插件**：双模式设计（无干扰随手记模式与完整工作区模式），物理隔离零技术债。
 - **macOS QuickLook 快速预览**：内置 Headless 静态编译器（`@md-editor/compiler`），在 Finder 中按空格键秒级渲染 Markdown / MDX。
@@ -133,8 +132,6 @@ brew install --cask wmasfoe/tap/md-editor
 前往 [官方下载中心](https://editor.jiaqi.im/#download) 或 [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) 页面下载对应桌面系统的最新安装包。
 
 > [!NOTE]
-> **移动端**：Android 与 iOS 不再发版。最后发布的 0.2.1 仍可在[下载页](https://editor.jiaqi.im/#download)获取；之后的版本请用 `pnpm build:android` 或 `pnpm build:ios` 自行编译，详见 [apps/mobile/README.md](apps/mobile/README.md)。
-
 > [!TIP]
 > **macOS 隔离标记说明**：一键安装脚本与 Homebrew 会自动处理 Gatekeeper 隔离标记。若是手动下载 `.dmg` 安装并在打开时提示“App 已损坏”或“无法验证开发者”，可以在终端中执行以下命令解除隔离：
 > ```bash
@@ -170,17 +167,13 @@ pnpm dev:web
 # 5. 启动 uTools 插件开发模式
 pnpm dev:utools
 
-# 6. 启动移动端开发模式 (Android / iOS)
-pnpm dev:android   # Android 模拟器或真实连接设备
-pnpm dev:ios       # iOS 模拟器 (仅限 macOS)
-
-# 7. 启动官网站点开发模式
+# 6. 启动官网站点开发模式
 pnpm dev:site
 
-# 8. 启动边缘分发 Worker 开发模式
+# 7. 启动边缘分发 Worker 开发模式
 pnpm dev:worker
 
-# 9. 运行全仓测试与代码质量验证
+# 8. 运行全仓测试与代码质量验证
 pnpm test        # 运行单元测试
 pnpm typecheck   # TypeScript 类型检查
 pnpm lint        # Oxlint + Prettier + Cargo Clippy
@@ -196,13 +189,6 @@ pnpm build:windows  # Windows (NSIS 安装包)
 
 # Web 在线体验场构建
 pnpm build:web
-
-# 移动端离线 Webview 包构建与同步至原生工程
-pnpm build:mobile
-
-# 移动端安装包（仅本机）：Android APK 与未签名 iOS IPA，输出到 dist-mobile/
-pnpm build:android
-pnpm build:ios
 
 # uTools 插件构建
 pnpm build:utools
@@ -239,10 +225,6 @@ Inkpoint 采用基于 `pnpm workspace` 的现代化 Monorepo 架构，职责边�
 md-editor/
 ├── apps/
 │   ├── desktop/                 # Tauri 2 跨平台桌面客户端 (Rust + React 19 Shell)
-│   ├── mobile/                  # 移动端多平台套件 (Hybrid Webview + Android Compose + iOS SwiftUI)
-│   │   ├── core/                # @md-editor/mobile-core: 移动端离线 Webview 内核与 Bridge
-│   │   ├── android/             # Android 原生工程 (Kotlin + Jetpack Compose + SAF)
-│   │   └── ios/                 # iOS 原生工程 (Swift 6 + SwiftUI + 分享扩展)
 │   ├── utools/                  # uTools 平台沉浸式轻记插件
 │   ├── web/                     # Web 在线体验场应用 (Vite + React 19)
 │   └── site/                    # Inkpoint 官方网站与动态分发中心 (Next.js App Router)
@@ -263,7 +245,7 @@ md-editor/
 │   ├── ai/                      # AI Provider 抽象、流式建议解析与整洁架构多协议 Harness
 │   └── shared/                  # 通用 TypeScript 工具库与跨包核心类型
 ├── docs/                        # 项目设计规范、技术方案、实施状态与发版指南
-└── scripts/                     # 发版脚本 (release:*)、移动端编译与资源同步工具、质量门禁脚本
+└── scripts/                     # 发版脚本 (release:*) 与质量门禁脚本
 ```
 
 > 💡 每个子包与应用目录下均配有独立的 `README.md`，可前往对应目录查看详尽的技术实现与 API 规范。
@@ -275,7 +257,6 @@ md-editor/
 | 领域 | 核心技术 | 说明 |
 | :--- | :--- | :--- |
 | **桌面运行时** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | 轻量、高安全、极低资源占用的跨平台桌面底座 |
-| **移动端原生** | [Jetpack Compose](https://developer.android.com/compose) + [SwiftUI](https://developer.apple.com/xcode/swiftui/) | 原生 Android & iOS 界面、系统级触感反馈与软键盘辅助栏 |
 | **前端架构** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | 现代声明式 UI 与严谨的类型系统保障 |
 | **编辑器内核** | [CodeMirror 6](https://codemirror.net/) | 单一 EditorView 承载的同构所见即所得与源码编辑内核 |
 | **无头编译器** | `@md-editor/compiler` | 纯静态零 DOM Markdown 编译器，支持 QuickLook 与离线 HTML/PDF 导出 |

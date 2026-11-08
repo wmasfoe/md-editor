@@ -89,7 +89,6 @@
 
 ### 📱 Multi-Platform & Multi-Form Synergy
 - **Desktop Clients (macOS / Windows / Linux)**: Native window chrome (macOS Liquid Glass vibrancy), tabbed editing, outline trees, file watching, and differential updates.
-- **Mobile (Android / iOS)**: native shells around an offline Webview core live in `apps/mobile`. They are no longer released; build them yourself (see [apps/mobile/README.md](apps/mobile/README.md)).
 - **Web Playground**: Zero-install in-browser full editor experience powered by an in-memory virtual file system with IndexedDB persistence.
 - **uTools Productivity Plugin**: Dual-mode design (distraction-free quick-note mode & full workspace mode) with zero-pollution physical isolation.
 - **macOS QuickLook Preview**: Built-in headless compiler (`@md-editor/compiler`) enabling instant spacebar previews for `.md` / `.mdx` files in Finder.
@@ -137,9 +136,6 @@ brew install --cask wmasfoe/tap/md-editor
 
 Visit the [Official Download Portal](https://editor.jiaqi.im/#download) or [GitHub Releases](https://github.com/wmasfoe/md-editor/releases) to download packages for your desktop operating system.
 
-> [!NOTE]
-> **Mobile**: Android and iOS are no longer released. The last published builds (0.2.1) stay on the [download page](https://editor.jiaqi.im/#download); for anything newer, build from source with `pnpm build:android` or `pnpm build:ios`, see [apps/mobile/README.md](apps/mobile/README.md).
-
 > [!TIP]
 > **macOS Quarantine Notice**: The one-line install script and Homebrew handle Gatekeeper quarantine automatically. If you manually download the `.dmg` and macOS reports "App is damaged" or "Cannot verify developer", run:
 > ```bash
@@ -175,17 +171,13 @@ pnpm dev:web
 # 5. Start uTools plugin development server
 pnpm dev:utools
 
-# 6. Start mobile development (Android / iOS)
-pnpm dev:android   # Android emulator or connected device
-pnpm dev:ios       # iOS simulator (macOS only)
-
-# 7. Start official website development server
+# 6. Start official website development server
 pnpm dev:site
 
-# 8. Start edge distribution worker development server
+# 7. Start edge distribution worker development server
 pnpm dev:worker
 
-# 9. Run workspace tests and code quality checks
+# 8. Run workspace tests and code quality checks
 pnpm test        # Run unit tests
 pnpm typecheck   # TypeScript type checks
 pnpm lint        # Oxlint + Prettier + Cargo Clippy
@@ -201,13 +193,6 @@ pnpm build:windows  # Windows (NSIS installer)
 
 # Web online playground build
 pnpm build:web
-
-# Mobile offline webview bundle build & sync to native Android / iOS projects
-pnpm build:mobile
-
-# Mobile packages (local only): Android APK and unsigned iOS IPA, written to dist-mobile/
-pnpm build:android
-pnpm build:ios
 
 # uTools plugin build (generates dist/ bundle)
 pnpm build:utools
@@ -244,10 +229,6 @@ Inkpoint adopts a modern Monorepo architecture managed by `pnpm workspace` with 
 md-editor/
 ├── apps/
 │   ├── desktop/                 # Tauri 2 cross-platform desktop app (Rust + React 19 Shell)
-│   ├── mobile/                  # Mobile multi-platform suite (Hybrid Webview + Android Compose + iOS SwiftUI)
-│   │   ├── core/                # @md-editor/mobile-core: Mobile offline Webview core and Bridge
-│   │   ├── android/             # Android native project (Kotlin + Jetpack Compose + SAF)
-│   │   └── ios/                 # iOS native project (Swift 6 + SwiftUI + Share Extension)
 │   ├── utools/                  # uTools platform immersive lightweight quick-note plugin
 │   ├── web/                     # Web online Playground editor application (Vite + React 19)
 │   └── site/                    # Inkpoint official website and dynamic download center (Next.js App Router)
@@ -268,7 +249,7 @@ md-editor/
 │   ├── ai/                      # AI provider abstraction, streaming suggestion parser, and multi-protocol harness
 │   └── shared/                  # Common TypeScript utility library and cross-package core types
 ├── docs/                        # Project design specifications, technical proposals, and release guidelines
-└── scripts/                     # Release scripts (release:*), mobile build and asset sync, and CI helpers
+└── scripts/                     # Release scripts (release:*) and CI helpers
 ```
 
 > 💡 Each subpackage and application directory contains its own `README.md` with detailed technical documentation and API specifications.
@@ -280,7 +261,6 @@ md-editor/
 | Domain | Core Technology | Description |
 | :--- | :--- | :--- |
 | **Desktop Runtime** | [Tauri 2](https://v2.tauri.app/) + [Rust](https://www.rust-lang.org/) | Lightweight, secure, low-resource cross-platform desktop foundation |
-| **Mobile Native** | [Jetpack Compose](https://developer.android.com/compose) + [SwiftUI](https://developer.apple.com/xcode/swiftui/) | Native Android & iOS UI, system haptics, keyboard accessory bar & share extensions |
 | **Frontend Architecture** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) | Modern declarative UI development with a rigorous type system |
 | **Editor Core** | [CodeMirror 6](https://codemirror.net/) | Next-generation unified WYSIWYG and source editor on a single EditorView |
 | **Headless Compiler** | `@md-editor/compiler` | Pure zero-DOM static Markdown compiler supporting QuickLook and standalone export |
@@ -298,7 +278,6 @@ Comprehensive architecture proposals and design guidelines are located in [`docs
 - 📘 [Agent Knowledge Base Index](docs/agent/index.md) — Unified navigation across architecture, status, specs, and roadmaps
 - 📐 [Capability Boundary Design Principles](docs/agent/architecture/capability_boundary_design_principles.md) — Module boundaries and decoupling rules
 - 🛠️ [VMark Feature Technical Plan](docs/agent/architecture/vmark_remaining_features_technical_plan.md) — Hot Exit, Document History, Linting, and HTML/PDF export
-- 📱 [Mobile Architecture Plan](docs/agent/architecture/mobile_support_architecture.md) — Mobile Webview core and native bridge design
 - 🚀 [Automated Release Workflow](docs/agent/release/release_workflow.md) — CI/CD, GitHub Releases, and distribution automation
 - 💡 [Project Background & Origins](docs/human/project.md) — Insights, reflections, and design philosophies
 
