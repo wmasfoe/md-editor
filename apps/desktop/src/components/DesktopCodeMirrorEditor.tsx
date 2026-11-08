@@ -217,16 +217,20 @@ function useAutomaticAiEditing({
   }, [settings.ai.enabled, settings.ai.features.continuation]);
 
   useEffect(() => {
-    // 若 AI 未启用，或未开启任何 AI 特性，则不启动后台监听
+    // 后台处理需要独立授权；手动纠错和续写不依赖此开关。
     if (
       !settings.ai.enabled ||
+      !settings.ai.features.backgroundProcessing ||
       (!settings.ai.features.editing && !settings.ai.features.continuation)
     ) {
       if (import.meta.env.DEV) {
-        console.debug("[AI Auto] AI 功能未启用，跳过自动检测。");
+        console.debug("[AI Auto] AI 或后台处理未启用，跳过自动检测。");
       }
       return;
     }
+
+    // 防止已排入事件队列的回调在关闭开关后继续调度后台工作。
+    let active = true;
 
     if (import.meta.env.DEV) {
       console.debug(
@@ -238,6 +242,7 @@ function useAutomaticAiEditing({
 
     const triggerDistillationIfEligible = (markdown: string, filePath?: string | null) => {
       if (
+        active &&
         markdown.trim().length >= 50 &&
         settings.ai.enabled &&
         (settings.ai.provider === "local"
@@ -249,7 +254,7 @@ function useAutomaticAiEditing({
           .scheduleDistillation(docKey, markdown, {
             settings: settings.ai,
             onUpdate: (ctx) => {
-              if (import.meta.env.DEV) {
+              if (active && import.meta.env.DEV) {
                 console.debug("[AI DocContext] 后台大模型文档提炼已完成:", ctx);
               }
             },
@@ -274,6 +279,7 @@ function useAutomaticAiEditing({
     }
 
     const unsubscribe = runtime.document.subscribeTransitions((event) => {
+      if (!active) return;
       // 换文档或重置文档时清除缓存、中断正在进行的推理，并在空闲后调度大模型提炼
       if (event.transition.kind === "document-replace") {
         lastAnalyzedTextRef.current = "";
@@ -362,6 +368,7 @@ function useAutomaticAiEditing({
       // 用户停止输入后防抖 650ms (本地) / 1000ms (云端) 触发流水线
       timerRef.current = setTimeout(
         async () => {
+          if (!active) return;
           const activePorts = portsRef.current;
           if (!activePorts) {
             return;
@@ -582,6 +589,7 @@ function useAutomaticAiEditing({
     });
 
     return () => {
+      active = false;
       unsubscribe();
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -591,7 +599,10 @@ function useAutomaticAiEditing({
       }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
+        abortControllerRef.current = null;
       }
+      // 提炼任务可能已进入队列或网络请求；仅取消该类任务，避免影响手动 AI 操作。
+      desktopAiService.abort(undefined, "distill");
     };
   }, [settings.ai]);
 }

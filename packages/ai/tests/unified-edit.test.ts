@@ -151,7 +151,7 @@ describe("Unified Edit Suite (类 Cursor Tab 单次前向推理与防御守卫)"
 
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
-      features: { continuation: true, editing: true },
+      features: { ...DEFAULT_AI_SETTINGS.features, continuation: true, editing: true },
       endpoints: {
         ...DEFAULT_AI_SETTINGS.endpoints,
         openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4", apiKey: "sk-test" },
@@ -178,7 +178,7 @@ describe("Unified Edit Suite (类 Cursor Tab 单次前向推理与防御守卫)"
 
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
-      features: { continuation: true, editing: true },
+      features: { ...DEFAULT_AI_SETTINGS.features, continuation: true, editing: true },
       endpoints: {
         ...DEFAULT_AI_SETTINGS.endpoints,
         openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4", apiKey: "sk-test" },
@@ -268,6 +268,7 @@ describe("Unified Edit Suite (类 Cursor Tab 单次前向推理与防御守卫)"
       ...DEFAULT_AI_SETTINGS,
       enabled: true,
       features: {
+        ...DEFAULT_AI_SETTINGS.features,
         continuation: false, // 关闭续写
         editing: true, // 开启纠错
       },

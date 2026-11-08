@@ -56,6 +56,7 @@ describe("settings: 多协议配置归一化、预设与向后兼容迁移", () 
     expect(normalized.endpoints.openai.model).toBe("deepseek-chat");
     expect(normalized.endpoints.openai.apiKey).toBe("sk-legacy-key");
     expect(normalized.localModel.modelId).toBe("md-editor-writer-lite"); // 旧版 small-v1 自动升级为 lite
+    expect(normalized.features.backgroundProcessing).toBe(false);
   });
 
   it("无缝迁移 Web 历史扁平数据结构（baseUrl / model / apiKey 在顶层）", () => {
@@ -96,6 +97,46 @@ describe("settings: 多协议配置归一化、预设与向后兼容迁移", () 
     expect(settings.endpoints.anthropic.model).toBe("my-custom-fine-tuned");
   });
 
+  it("后台处理只有在用户明确启用时才开启，并可持久化往返", () => {
+    expect(DEFAULT_AI_SETTINGS.features.backgroundProcessing).toBe(false);
+    expect(normalizeAiSettings({}).features.backgroundProcessing).toBe(false);
+
+    for (const value of [undefined, null, false, 0, 1, "true", {}, []]) {
+      expect(
+        normalizeAiSettings({ features: { backgroundProcessing: value } }).features
+          .backgroundProcessing,
+      ).toBe(false);
+    }
+
+    const enabled = updateAiFeature(DEFAULT_AI_SETTINGS, "backgroundProcessing", true);
+    const saved = JSON.stringify(enabled);
+    expect(normalizeAiSettings(JSON.parse(saved)).features.backgroundProcessing).toBe(true);
+    const disabled = updateAiFeature(enabled, "backgroundProcessing", false);
+    expect(
+      normalizeAiSettings(JSON.parse(JSON.stringify(disabled))).features.backgroundProcessing,
+    ).toBe(false);
+  });
+
+  it("后台处理开关独立于 AI 总开关、手动续写和纠错开关", () => {
+    const initial = {
+      ...DEFAULT_AI_SETTINGS,
+      enabled: false,
+      features: { ...DEFAULT_AI_SETTINGS.features, continuation: true, editing: true },
+    };
+    const enabled = updateAiFeature(initial, "backgroundProcessing", true);
+    expect(enabled.enabled).toBe(false);
+    expect(enabled.features).toEqual({
+      backgroundProcessing: true,
+      continuation: true,
+      editing: true,
+    });
+
+    const disabled = updateAiFeature(enabled, "backgroundProcessing", false);
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.features.continuation).toBe(true);
+    expect(disabled.features.editing).toBe(true);
+  });
+
   it("getAiCompletionReadiness 针对不同协议、任务和本地模型准确返回就绪提示", () => {
     // 1. 未启用
     expect(getAiCompletionReadiness({ ...DEFAULT_AI_SETTINGS, enabled: false })).toBe(
@@ -106,7 +147,7 @@ describe("settings: 多协议配置归一化、预设与向后兼容迁移", () 
     expect(
       getAiCompletionReadiness({
         ...DEFAULT_AI_SETTINGS,
-        features: { continuation: false, editing: false },
+        features: { ...DEFAULT_AI_SETTINGS.features, continuation: false, editing: false },
       }),
     ).toBe("请先开启 AI 续写或语法标点修复。");
 

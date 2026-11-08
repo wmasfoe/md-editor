@@ -335,7 +335,7 @@ export const en: TranslationSchema = {
     },
     ai: {
       title: "AI Settings",
-      desc: "AI requests are only sent when triggered; API keys are saved locally.",
+      desc: "Configure AI services and features. API keys are saved in local settings.",
       enable: "Enable AI Assistant",
       provider: "Provider",
       protocol: "Protocol",
@@ -357,6 +357,9 @@ export const en: TranslationSchema = {
       apiKeyPlaceholder: "sk-...",
       featureEditing: "Grammar & Punctuation Fix",
       featureContinuation: "AI Continuation",
+      featureBackgroundProcessing: "Background AI suggestions and document context",
+      backgroundProcessingDesc:
+        "When enabled, suggestions and document context are generated automatically. A remote service may receive some or all of the current document. Turning this off does not affect manual grammar fixes or continuation.",
       localModelTitle: "Local Model Management",
       localModelDesc: "Run models directly on your machine without internet or API keys.",
       downloadModel: "Download Model",

@@ -333,7 +333,7 @@ export const zh = {
     },
     ai: {
       title: "AI 设置",
-      desc: "AI 只会在你主动触发续写时请求；API Key 会保存在本机设置文件中。",
+      desc: "配置 AI 服务和功能；API Key 会保存在本机设置文件中。",
       enable: "启用 AI 助手",
       provider: "Provider",
       protocol: "协议规范",
@@ -354,6 +354,9 @@ export const zh = {
       apiKeyPlaceholder: "sk-...",
       featureEditing: "语法、标点修复",
       featureContinuation: "AI 续写",
+      featureBackgroundProcessing: "后台 AI 建议与文档提炼",
+      backgroundProcessingDesc:
+        "开启后会自动生成建议并提炼当前文档的上下文。使用远程服务时，当前文档的部分或全部内容可能被发送给该服务。关闭不影响手动纠错和续写。",
       localModelTitle: "本地模型管理",
       localModelDesc: "在本地直接运行模型，无需联网与 API 密钥。",
       downloadModel: "下载本地模型",

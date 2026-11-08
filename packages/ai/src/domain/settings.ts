@@ -184,6 +184,7 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
   enabled: true,
   provider: "openai",
   features: {
+    backgroundProcessing: false,
     continuation: false,
     editing: true,
   },
@@ -451,6 +452,8 @@ export function normalizeAiSettings(
 
   const rawFeatures = isPlainRecord(record.features) ? record.features : null;
   const features = {
+    // 历史配置和无效值不能被视为用户已同意后台处理文档。
+    backgroundProcessing: rawFeatures?.backgroundProcessing === true,
     continuation:
       rawFeatures !== null
         ? Boolean(rawFeatures.continuation)
@@ -564,7 +567,11 @@ export function updateAiFeature(
   };
   return {
     ...settings,
-    enabled: nextFeatures.continuation || nextFeatures.editing,
+    // 后台处理是单独的隐私授权，不应影响 AI 总开关。
+    enabled:
+      feature === "backgroundProcessing"
+        ? settings.enabled
+        : nextFeatures.continuation || nextFeatures.editing,
     features: nextFeatures,
   };
 }

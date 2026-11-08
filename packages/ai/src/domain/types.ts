@@ -66,6 +66,8 @@ export interface AiLocalModelDescriptor {
 
 /** AI 写作子能力开关 */
 export interface AiFeatureSettings {
+  /** 允许自动生成建议和提炼文档上下文；默认关闭 */
+  readonly backgroundProcessing: boolean;
   /** 行内幽灵续写与主动续写 */
   readonly continuation: boolean;
   /** 局部语法、错别字与标点修复 (GEC) */

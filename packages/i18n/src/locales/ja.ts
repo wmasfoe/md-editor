@@ -339,7 +339,7 @@ export const ja: TranslationSchema = {
     },
     ai: {
       title: "AI 設定",
-      desc: "AI アシスタントは手動でトリガーした場合にのみリクエストを送信します。API キーはローカル設定ファイルに安全に保存されます。",
+      desc: "AI サービスと機能を設定します。API キーはローカルの設定ファイルに保存されます。",
       enable: "AI アシスタントを有効にする",
       provider: "プロバイダー",
       protocol: "プロトコル仕様",
@@ -361,6 +361,9 @@ export const ja: TranslationSchema = {
       apiKeyPlaceholder: "sk-...",
       featureEditing: "文法・句読点の校正",
       featureContinuation: "AI 続きの生成",
+      featureBackgroundProcessing: "バックグラウンドの AI 提案と文書コンテキスト",
+      backgroundProcessingDesc:
+        "有効にすると、提案と現在の文書のコンテキストが自動生成されます。リモートサービスを使用する場合、現在の文書の一部または全部が送信されることがあります。無効にしても、手動の校正と続きの生成は使用できます。",
       localModelTitle: "ローカルモデル管理",
       localModelDesc: "インターネット接続や API キーを必要とせず、端末上で直接モデルを実行します。",
       downloadModel: "ローカルモデルをダウンロード",

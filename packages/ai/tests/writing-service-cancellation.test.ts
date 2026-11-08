@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  AiRequestScheduler,
   createAiWritingService,
   DEFAULT_AI_SETTINGS,
   type AiContextSnapshot,
@@ -38,6 +39,35 @@ const activeSettings: AiSettings = {
 };
 
 describe("AiWritingService 请求抢占与生命周期取消", () => {
+  it("取消排队的后台提炼不会取消手动续写", async () => {
+    const manualRequest = deferred<{ text: string }>();
+    const generate = vi.fn().mockImplementation(() => manualRequest.promise);
+    const service = createAiWritingService({ scheduler: new AiRequestScheduler(1) });
+    (service as unknown as { resolveClient: () => ModelClient }).resolveClient = () => ({
+      providerId: "openai",
+      modelId: "gpt-4o",
+      generate,
+    });
+
+    const manual = service.continueWriting(activeSettings, {
+      before: "手动续写",
+      after: "",
+      selectedText: "",
+      mode: "wysiwyg",
+      document: { filePath: "/docs/test.md" },
+    });
+    const distillation = service.scheduleDistillation("/docs/test.md", "内容".repeat(60), {
+      settings: activeSettings,
+    });
+    expect(service.scheduler.pendingCount).toBe(1);
+    service.abort(undefined, "distill");
+    await expect(distillation).rejects.toMatchObject({ name: "AbortError" });
+
+    manualRequest.resolve({ text: "新的文字" });
+    expect((await manual).continuation).toBe("新的文字");
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
   it("连续快速发起两次 continueWriting 时，新请求能自动抢占旧请求，旧请求以 AbortError 中止", async () => {
     const firstRequest = deferred<{ text: string }>();
     const generateFn = vi

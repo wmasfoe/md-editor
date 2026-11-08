@@ -488,6 +488,7 @@ export class AiWritingService {
       ...settings,
       enabled: true,
       features: {
+        ...settings.features,
         continuation: true,
         editing: true,
       },

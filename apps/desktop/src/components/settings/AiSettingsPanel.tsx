@@ -108,6 +108,28 @@ export function AiSettingsPanel({
           </label>
         </div>
 
+        <div>
+          <label className="flex min-h-8 items-center gap-2">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--theme-primary)]"
+              checked={aiSettingsDraft.features.backgroundProcessing}
+              aria-describedby="ai-background-processing-description"
+              onChange={(event) =>
+                onChangeAiSettings(
+                  updateAiFeature(aiSettingsDraft, "backgroundProcessing", event.target.checked),
+                )
+              }
+            />
+            <span className={settingsFieldLabelClassName}>
+              {t("settings.ai.featureBackgroundProcessing")}
+            </span>
+          </label>
+          <p id="ai-background-processing-description" className={settingsDescriptionClassName}>
+            {t("settings.ai.backgroundProcessingDesc")}
+          </p>
+        </div>
+
         <label className="grid grid-cols-[minmax(120px,160px)_minmax(0,1fr)] items-center gap-3 max-[760px]:grid-cols-1">
           <span className={settingsFieldLabelClassName}>{t("settings.ai.protocol")}</span>
           <select
