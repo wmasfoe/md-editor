@@ -922,6 +922,7 @@ mod tests {
         let result = wait_until_runtime_ready(&mut child, port, &|| state.is_cancelled("learn-1"));
 
         assert_eq!(result, Err(LOCAL_AI_CANCELLED_ERROR.to_string()));
+        // 取消在第一次健康检查之前生效，不受平台连接行为影响。
         assert!(started.elapsed() < Duration::from_millis(250));
         assert!(child.try_wait().unwrap().is_some(), "子进程应已被回收");
     }
@@ -941,8 +942,17 @@ mod tests {
         let result = wait_until_runtime_ready(&mut child, port, &|| state.is_cancelled("learn-2"));
 
         assert_eq!(result, Err(LOCAL_AI_CANCELLED_ERROR.to_string()));
-        // 300ms 后取消，最多再等一个轮询间隔（连接被拒，健康检查立即失败）。
-        assert!(started.elapsed() < Duration::from_millis(300) + HEALTH_CHECK_INTERVAL * 2);
+        // 300ms 后取消，最多再等一次健康检查与一个轮询间隔。Windows 上连接未监听端口
+        // 不会立即被拒，而是等到健康检查超时，所以上界必须包含 HEALTH_CHECK_TIMEOUT。
+        let bound = Duration::from_millis(300)
+            + HEALTH_CHECK_TIMEOUT
+            + HEALTH_CHECK_INTERVAL
+            + Duration::from_millis(250);
+        assert!(
+            started.elapsed() < bound,
+            "取消耗时 {:?}",
+            started.elapsed()
+        );
         assert!(child.try_wait().unwrap().is_some());
     }
 
