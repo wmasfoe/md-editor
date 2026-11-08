@@ -80,7 +80,7 @@
 - **Lossless round trips**: YAML front matter, raw HTML and custom metadata are kept as written.
 
 ### Where it runs
-- **Desktop (macOS, Windows, Linux)**: tabs, outline tree, file watching and in-app updates. On macOS the window uses native vibrancy.
+- **Desktop (macOS, Windows, Linux)**: outline tree, file watching and in-app updates. On macOS the window uses native vibrancy.
 - **Web Playground**: the full editor in a browser. In Chromium browsers it can open a real folder; the draft is kept in `localStorage`.
 - **uTools plugin**: a quick-note mode and a full workspace mode.
 - **macOS QuickLook**: press Space on a `.md` or `.mdx` file in Finder to preview it, rendered by the headless `@md-editor/compiler`.
@@ -152,8 +152,11 @@ cd md-editor
 # 2. Install workspace dependencies
 pnpm install
 
-# 3. Run the desktop app (Vite + Tauri)
-pnpm dev
+# 3. Run the desktop app (starts Vite and opens the Tauri window)
+pnpm tauri dev
+
+# Front end only, in a browser
+pnpm dev:desktop
 
 # 4. Run the Web Playground
 pnpm dev:web
@@ -177,7 +180,7 @@ pnpm lint        # Oxlint, Prettier, Cargo Clippy
 
 ```bash
 # Desktop
-pnpm build:macos    # .dmg and updater package
+pnpm build:macos    # .dmg (the updater package comes from build:macos:release)
 pnpm build:linux    # .AppImage and .deb
 pnpm build:windows  # NSIS installer
 
@@ -215,8 +218,8 @@ md-editor/
 │   ├── editor-core/             # Document state, ordered saves, mode switching
 │   ├── renderer-codemirror/     # CodeMirror 6 layer: WYSIWYG projection, decorations, tables, lint
 │   ├── editor-ui/               # React UI: toolbars, history drawer, file tree, settings
-│   ├── compiler/                # Headless Markdown compiler and HTML/PDF exporter
-│   ├── syntax-plugins/          # Syntax plugins: highlight, footnotes, KaTeX, Mermaid, directives
+│   ├── compiler/                # Headless Markdown compiler and HTML exporter
+│   ├── syntax-plugins/          # Syntax plugins: highlight, KaTeX, Mermaid, directives
 │   ├── plugin-sdk/              # Plugin API for external authors (npm: @md-editor/plugin-sdk)
 │   ├── plugin-host/             # Plugin host: loading, lifecycle, registries, GitHub release client
 │   ├── mdx-plugins/             # Built-in MDX components (Callout)

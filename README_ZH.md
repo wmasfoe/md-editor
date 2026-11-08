@@ -80,7 +80,7 @@
 - **往返不丢内容**：YAML Front Matter、原生 HTML 和自定义元数据原样保留。
 
 ### 运行环境
-- **桌面端（macOS / Windows / Linux）**：多标签页、大纲树、文件监听、应用内更新。macOS 上窗口使用系统毛玻璃效果。
+- **桌面端（macOS / Windows / Linux）**：大纲树、文件监听、应用内更新。macOS 上窗口使用系统毛玻璃效果。
 - **Web Playground**：在浏览器里使用完整编辑器。Chromium 内核的浏览器可以直接打开本地文件夹，草稿保存在 `localStorage`。
 - **uTools 插件**：提供随手记模式和完整工作区模式。
 - **macOS QuickLook**：在 Finder 里选中 `.md` 或 `.mdx` 文件按空格即可预览，由无头的 `@md-editor/compiler` 渲染。
@@ -152,8 +152,11 @@ cd md-editor
 # 2. 安装依赖
 pnpm install
 
-# 3. 运行桌面端 (Vite + Tauri)
-pnpm dev
+# 3. 运行桌面端（启动 Vite 并打开 Tauri 窗口）
+pnpm tauri dev
+
+# 仅前端，在浏览器里运行
+pnpm dev:desktop
 
 # 4. 运行 Web Playground
 pnpm dev:web
@@ -177,7 +180,7 @@ pnpm lint        # Oxlint、Prettier、Cargo Clippy
 
 ```bash
 # 桌面端
-pnpm build:macos    # .dmg 与更新包
+pnpm build:macos    # .dmg（更新包由 build:macos:release 生成）
 pnpm build:linux    # .AppImage 与 .deb
 pnpm build:windows  # NSIS 安装包
 
@@ -215,8 +218,8 @@ md-editor/
 │   ├── editor-core/             # 文档状态、有序保存、模式切换
 │   ├── renderer-codemirror/     # CodeMirror 6 层：WYSIWYG 投影、装饰、表格、Lint
 │   ├── editor-ui/               # React UI：工具栏、历史抽屉、文件树、大纲、设置
-│   ├── compiler/                # 无头 Markdown 编译器与 HTML/PDF 导出
-│   ├── syntax-plugins/          # 语法插件：高亮、脚注、KaTeX、Mermaid、指令
+│   ├── compiler/                # 无头 Markdown 编译器与 HTML 导出
+│   ├── syntax-plugins/          # 语法插件：高亮、KaTeX、Mermaid、指令
 │   ├── plugin-sdk/              # 面向外部作者的插件 API (npm：@md-editor/plugin-sdk)
 │   ├── plugin-host/             # 插件宿主：加载、生命周期、注册表、GitHub Release 客户端
 │   ├── mdx-plugins/             # 内置 MDX 组件 (Callout)

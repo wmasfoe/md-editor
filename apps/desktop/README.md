@@ -35,16 +35,16 @@ You need Node.js (the version in `.node-version`), pnpm 11.6.0 or later and the 
 
 ```bash
 # From the repository root: starts Vite and opens the Tauri window
-pnpm dev
+pnpm tauri dev
 
 # Front end only, in a browser
-pnpm --filter @md-editor/desktop dev
+pnpm dev:desktop
 ```
 
 ## Build
 
 ```bash
-pnpm build:macos     # .dmg and the updater package
+pnpm build:macos     # .dmg (the updater package comes from build:macos:release)
 pnpm build:windows   # NSIS installer
 pnpm build:linux     # .AppImage and .deb
 ```
