@@ -6,7 +6,6 @@ import {
   buildDocumentContextPrefix,
   buildLocalContinuationModelContext,
   buildLocalGecModelContext,
-  buildUserStyleProfilePrefix,
   FIM_END,
   FIM_MIDDLE,
   FIM_PREFIX,
@@ -129,16 +128,7 @@ describe("harness-prompts: RFC-004 双档位与云端多协议 Prompt 构建", (
     expect(cloudCont.prompt).toContain("【光标前文】");
   });
 
-  it("前缀构建器保证字典序稳定以保护 KV Cache", () => {
-    const style1 = buildUserStyleProfilePrefix({
-      preferredTerms: ["React", "Markdown", "Antigravity"],
-    });
-    const style2 = buildUserStyleProfilePrefix({
-      preferredTerms: ["Antigravity", "React", "Markdown"],
-    });
-    expect(style1).toBe(style2);
-    expect(style1).toContain("- Preferred: Antigravity, Markdown, React");
-
+  it("文档上下文前缀保证字典序稳定以保护 KV Cache", () => {
     const docPrefix = buildDocumentContextPrefix({
       title: "Title",
       tags: ["z", "a"],

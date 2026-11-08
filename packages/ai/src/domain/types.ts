@@ -170,14 +170,6 @@ export interface ValidatedDiffItem {
   readonly wasAdjusted?: boolean;
 }
 
-/** 用户写作风格画像 */
-export interface UserStyleProfile {
-  readonly language?: string;
-  readonly punctuation?: string;
-  readonly preferredTerms?: readonly string[];
-  readonly tone?: string;
-}
-
 /** 结构化单处或多处语法修改建议 */
 export interface AiWritingEditSuggestion {
   readonly hasEdit?: boolean;

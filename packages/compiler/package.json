@@ -15,7 +15,7 @@
     "@md-editor/shared": "workspace:*",
     "highlight.js": "^11.12.0",
     "katex": "catalog:",
-    "marked": "^18.0.11",
+    "marked": "catalog:",
     "marked-cjk-friendly": "0.1.2"
   },
   "devDependencies": {

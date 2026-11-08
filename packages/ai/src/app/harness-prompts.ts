@@ -15,12 +15,9 @@
 
 import type { ModelContext } from "../domain/model-client.ts";
 import { LITE_LOCAL_MODEL_ID } from "../domain/settings.ts";
-import type {
-  AiContextSnapshot,
-  AiDocumentContext,
-  AiDocumentSnapshot,
-  UserStyleProfile,
-} from "../domain/types.ts";
+import { renderStylePrefix } from "../style/render.ts";
+import type { MergedStyleProfile } from "../style/types.ts";
+import type { AiContextSnapshot, AiDocumentContext, AiDocumentSnapshot } from "../domain/types.ts";
 import { createAiPromptContext } from "./harness-guardrails.ts";
 
 /** Qwen 系列原生 FIM 控制 Token（专用于 Lite 0.6B 极速 `/completion` 通道） */
@@ -70,14 +67,6 @@ export const CLOUD_CONTINUATION_SYSTEM_PROMPT = [
   "保持原文语言、语气与 Markdown 结构一致；不要重复【光标前文】已有的结尾词句，不要输出任何解释、客套话或外层引号围栏。",
 ].join("\n");
 
-/** 默认用户写作风格画像 */
-export const DEFAULT_USER_STYLE_PROFILE: UserStyleProfile = {
-  language: "Mixed (zh-en)",
-  punctuation: "Strict Pangu-spacing, Oxford-comma",
-  preferredTerms: ["TypeScript", "Rust", "Markdown"],
-  tone: "Technical Markdown",
-};
-
 /** 本地模型上下文裁剪窗口（控制 KV Cache 体积以保持毫秒级响应） */
 const LOCAL_BEFORE_WINDOW_CHARS = 1_800;
 const LOCAL_AFTER_WINDOW_CHARS = 600;
@@ -92,31 +81,6 @@ export function isLiteLocalModel(modelId: string): boolean {
     normalized.includes("lite") ||
     normalized.includes("qwen3-0.6b")
   );
-}
-
-/**
- * 构造静态用户风格画像前缀（按字典序稳定排序以保护 KV Cache 命中率）。
- */
-export function buildUserStyleProfilePrefix(
-  profile: UserStyleProfile = DEFAULT_USER_STYLE_PROFILE,
-): string {
-  const lines: string[] = ["[User Style Profile]"];
-
-  if (profile.language) {
-    lines.push(`- Language: ${profile.language}`);
-  }
-  if (profile.punctuation) {
-    lines.push(`- Punctuation: ${profile.punctuation}`);
-  }
-  if (profile.preferredTerms && profile.preferredTerms.length > 0) {
-    const sortedTerms = profile.preferredTerms.toSorted();
-    lines.push(`- Preferred: ${sortedTerms.join(", ")}`);
-  }
-  if (profile.tone) {
-    lines.push(`- Tone: ${profile.tone}`);
-  }
-
-  return lines.join("\n");
 }
 
 /**
@@ -201,7 +165,7 @@ export function buildLocalContinuationModelContext(
   modelId: string,
   options: {
     readonly isGhostText?: boolean;
-    readonly profile?: UserStyleProfile;
+    readonly profile?: MergedStyleProfile;
     readonly documentContext?: AiDocumentContext;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
@@ -246,7 +210,7 @@ export function buildLocalContinuationModelContext(
     options.documentContext ?? snapshot.documentContext,
     snapshot.document,
   );
-  const stylePrefix = options.profile ? buildUserStyleProfilePrefix(options.profile) : "";
+  const stylePrefix = renderStylePrefix(options.profile);
   const instruction = [LOCAL_CONTINUATION_SYSTEM_PROMPT, stylePrefix, docPrefix]
     .filter(Boolean)
     .join("\n\n");
@@ -300,7 +264,7 @@ export function buildCloudContinuationModelContext(
   snapshot: AiContextSnapshot,
   options: {
     readonly isGhostText?: boolean;
-    readonly profile?: UserStyleProfile;
+    readonly profile?: MergedStyleProfile;
     readonly documentContext?: AiDocumentContext;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
@@ -312,7 +276,7 @@ export function buildCloudContinuationModelContext(
     options.documentContext ?? snapshot.documentContext,
     snapshot.document,
   );
-  const stylePrefix = options.profile ? buildUserStyleProfilePrefix(options.profile) : "";
+  const stylePrefix = renderStylePrefix(options.profile);
 
   const ghostRule = isGhostText
     ? "当前为行内幽灵续写模式：仅输出当前光标所在行的自然收尾短句（严格单行，不超过 60 字，禁止换行）。"
@@ -472,7 +436,7 @@ export function buildCloudUnifiedEditModelContext(
   snapshot: AiContextSnapshot,
   options: {
     readonly isGhostText?: boolean;
-    readonly profile?: UserStyleProfile;
+    readonly profile?: MergedStyleProfile;
     readonly documentContext?: AiDocumentContext;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
@@ -483,7 +447,7 @@ export function buildCloudUnifiedEditModelContext(
     options.documentContext ?? snapshot.documentContext,
     snapshot.document,
   );
-  const stylePrefix = options.profile ? buildUserStyleProfilePrefix(options.profile) : "";
+  const stylePrefix = renderStylePrefix(options.profile);
 
   const instruction = [UNIFIED_EDIT_SYSTEM_PROMPT, stylePrefix, docPrefix]
     .filter(Boolean)
@@ -516,7 +480,7 @@ export function buildLocalUnifiedEditModelContext(
   modelId: string,
   options: {
     readonly isGhostText?: boolean;
-    readonly profile?: UserStyleProfile;
+    readonly profile?: MergedStyleProfile;
     readonly documentContext?: AiDocumentContext;
     readonly signal?: AbortSignal;
     readonly timeoutMs?: number;
