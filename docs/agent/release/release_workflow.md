@@ -61,6 +61,11 @@ Worker 优先用该清单，只有清单缺失/为空时才回退到 GitHub Rele
 `infra/distribution-worker/src/fallback-releases.json`。清单由
 `scripts/release/sync-r2-releases-manifest.mjs` 生成并在发版时 `--upload` 覆盖。
 
+内置的 `fallback-releases.json` 只在**本机**跑上面的脚本时更新，发版 CI 不会把它写回仓库，
+所以每次发版后它都会落后一版。它同时是 R2 与 GitHub 都不可用时 Worker 唯一的数据来源，
+也是桌面端兜底版本号的来源（`releases/manifest.ts` 的 `latestFallbackDesktopVersion`）。
+桌面发版后在本机执行一次 `node scripts/release/sync-r2-releases-manifest.mjs`，把更新后的文件随下一个 PR 提交。
+
 因此有两个必须守住的契约：
 
 1. **生成清单必须能读到 GitHub Releases**（桌面端条目唯一来源）：

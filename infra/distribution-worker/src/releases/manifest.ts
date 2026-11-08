@@ -15,7 +15,18 @@ import { fetchAllGitHubReleases } from "../distribution/github-releases.ts";
 import { isArm64AssetName } from "../distribution/platform-assets.ts";
 import { compareSemver } from "./semver.ts";
 import { formatBytes } from "../shared/format-bytes.ts";
+import { PUBLISHED_ANDROID_VERSION } from "../router/config.ts";
 import fallbackManifest from "../fallback-releases.json";
+
+/** 内置清单里最新的桌面版本；R2 与 GitHub 都不可用时用它兜底。 */
+function latestFallbackDesktopVersion(): string {
+  const fallback = fallbackManifest as unknown as ReleasesManifest;
+  return (
+    fallback.latestDesktopVersion ??
+    fallback.releases.find((r) => r.category === "desktop")?.version ??
+    ""
+  );
+}
 
 /**
  * 汇总构建全量历史版本清单
@@ -105,6 +116,7 @@ export async function buildReleasesManifest(
           downloadUrl,
           sizeBytes: asset.size,
           formattedSize: formatBytes(asset.size),
+          // 0.10.2 是唯一手动上传过 R2 的历史版本，之后的版本都走 GitHub 代理，所以只对它打标。
           isR2Cached: rawVersionForAsset === "0.10.2",
         });
       }
@@ -172,12 +184,13 @@ export async function buildReleasesManifest(
   let iosFileName = "";
   let iosSizeBytes = 4300000;
   let iosPublishedAt = "";
-  let androidVersion = "0.1.0";
+  let androidVersion: string = PUBLISHED_ANDROID_VERSION;
   let androidFileName = `Inkpoint_${androidVersion}.apk`;
   let androidSizeBytes = 45000000;
-  let androidPublishedAt = "2026-09-16T12:00:00Z";
+  let androidPublishedAt = "2026-10-07T12:57:53Z";
 
-  let desktopVersion = "0.10.2";
+  // 兜底取内置清单里最新的桌面版本，而不是另写一个会过期的常量。
+  let desktopVersion = latestFallbackDesktopVersion();
   let desktopAssets: ReleaseAssetInfo[] = [];
 
   if (env.RELEASE_BUCKET) {
@@ -512,7 +525,7 @@ export async function buildReleasesManifest(
   const topAndroid = sortedAndroid[0];
   const topIos = sortedIos[0];
 
-  const latestDesktopVersion = desktopRelease?.version || releases[0]?.version || "0.10.2";
+  const latestDesktopVersion = desktopRelease?.version || releases[0]?.version || desktopVersion;
   const latestAndroidVersion = topAndroid?.version || androidVersion;
   const latestIosVersion = topIos?.version || iosVersion;
 

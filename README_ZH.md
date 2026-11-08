@@ -35,7 +35,7 @@
     <img src="https://img.shields.io/badge/editor-CodeMirror_6-8A2BE2?style=flat-square" alt="Editor">
   </a>
   <a href="https://github.com/wmasfoe/md-editor/releases">
-    <img src="https://img.shields.io/badge/desktop-v0.18.0-brightgreen?style=flat-square" alt="Desktop Version">
+    <img src="https://img.shields.io/github/v/release/wmasfoe/md-editor?label=desktop&style=flat-square&color=brightgreen" alt="Desktop Version">
   </a>
   <a href="#license">
     <img src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square" alt="License">

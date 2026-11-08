@@ -11,7 +11,7 @@ import { fetchLatestRelease } from "../../distribution/github-releases.ts";
 import { matchDesktopAsset } from "../../distribution/platform-assets.ts";
 import { proxyGitHubAsset } from "../../distribution/object-responses.ts";
 import { buildReleasesManifest } from "../../releases/manifest.ts";
-import { KNOWN_PLATFORM_CATEGORIES } from "../config.ts";
+import { KNOWN_PLATFORM_CATEGORIES, PUBLISHED_ANDROID_VERSION } from "../config.ts";
 
 export async function handleManifestApiRoutes(
   context: RouterContext,
@@ -168,10 +168,10 @@ export async function handleManifestApiRoutes(
           },
         },
         android: {
-          version: "0.1.0",
+          version: PUBLISHED_ANDROID_VERSION,
           apk: {
-            version: "0.1.0",
-            fileName: "inkpoint-v0.1.0.apk",
+            version: PUBLISHED_ANDROID_VERSION,
+            fileName: `Inkpoint_${PUBLISHED_ANDROID_VERSION}.apk`,
             downloadUrl: `${url.origin}/${app}/android/latest`,
           },
         },

@@ -1,4 +1,5 @@
 import type { ReleaseInfo, ReleasesManifest } from "./types.ts";
+import { PUBLISHED_ANDROID_VERSION } from "./router/config.ts";
 
 /**
  * 极简目录索引样式：经典轻量 HTML 排版，自适应深色模式，无 emoji
@@ -227,7 +228,7 @@ export function renderAppDevicesHtml(
   const latestDesktopVersion =
     manifest.latestDesktopVersion || desktopReleases[0]?.version || manifest.latestVersion;
   const latestAndroidVersion =
-    manifest.latestAndroidVersion || androidReleases[0]?.version || "0.1.0";
+    manifest.latestAndroidVersion || androidReleases[0]?.version || PUBLISHED_ANDROID_VERSION;
   const latestIosVersion = manifest.latestIosVersion || iosReleases[0]?.version || "-";
 
   const latestDesktop = desktopReleases[0];
