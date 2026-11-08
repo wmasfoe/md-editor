@@ -18,9 +18,33 @@ import {
   createDesktopStyleLearningHost,
   loadStyleExclusions,
   loadStyleProfile,
+  saveStyleProfile,
 } from "./style-learning-host";
 import { StyleLearningCoordinator } from "./style-learning-coordinator";
-import { useStyleLearningStore } from "./style-learning-store";
+import { clearPendingEditFeedback, flushEditFeedback } from "./edit-feedback-buffer";
+import { workspaceRelativePath } from "./paths";
+import { findLinkedWorkspaceProfile, useStyleLearningStore } from "./style-learning-store";
+
+/** 文档保存后，把采纳 AI 文本之后的修改特征写入画像（只写特征，不写原文） */
+function flushEditFeedbackOnSave(): void {
+  const snapshot = runtime.document.getSnapshot();
+  const rootPath = useFileTreeStore.getState().folder?.rootPath;
+  const { profile, setProfile } = useStyleLearningStore.getState();
+  const workspace = findLinkedWorkspaceProfile(profile, rootPath);
+  const relPath =
+    rootPath && snapshot.filePath ? workspaceRelativePath(rootPath, snapshot.filePath) : null;
+  if (!profile || !workspace || !relPath) return;
+  const next = flushEditFeedback(
+    profile,
+    workspace.id,
+    relPath,
+    snapshot.markdown,
+    new Date().toISOString(),
+  );
+  if (next === profile) return;
+  setProfile(next);
+  void saveStyleProfile(next).catch(() => undefined);
+}
 
 export function useStyleLearning(): void {
   const { t } = useTranslation();
@@ -65,6 +89,7 @@ export function useStyleLearning(): void {
       if (event.transition.kind === "content") {
         coordinator.noteUserInput();
       } else if (event.transition.kind === "save-settled") {
+        flushEditFeedbackOnSave();
         coordinator.noteWorkspaceChanged();
       }
     });
@@ -83,6 +108,7 @@ export function useStyleLearning(): void {
 
   // 开启时加载本地画像与排除列表；关闭时只停止学习，保留数据直到用户清除。
   useEffect(() => {
+    if (!enabled) clearPendingEditFeedback();
     if (!isTauri() || !enabled) return;
     let cancelled = false;
     void Promise.all([loadStyleProfile(), loadStyleExclusions()]).then(([profile, exclusions]) => {

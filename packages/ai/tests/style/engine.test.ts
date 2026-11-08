@@ -307,3 +307,53 @@ describe("style learning engine", () => {
     expect(createEmptyStyleProfileDocument()).toMatchObject({ version: 1, workspaces: [] });
   });
 });
+
+describe("style learning engine with edit feedback", () => {
+  /** 学习一次后，给工作区写入编辑特征，再新增足够的文章触发下一轮 */
+  async function learnWithFeedback(
+    dimension: "sentenceLength" | "formality",
+    value: string,
+    count: number,
+  ) {
+    const { engine, host } = setup({ files: 6 });
+    await engine.run();
+    const workspace = host.document!.workspaces[0]!;
+    const before = workspace.rules.find((rule) => rule.dimension === dimension);
+    host.document = {
+      ...host.document!,
+      workspaces: [
+        {
+          ...workspace,
+          editFeedback: Array.from({ length: count }, (_, i) => ({
+            at: `2099-01-0${i + 1}`,
+            dimension,
+            value,
+          })),
+        },
+      ],
+    };
+    for (let index = 0; index < ROUND_CHANGE_THRESHOLD; index += 1) {
+      host.files.set(`more-${index}.md`, spacedTechArticle(`More${index}`));
+    }
+    await engine.run();
+    const latest = host.document!.workspaces[0]!.rules.find(
+      (rule) => rule.dimension === dimension,
+    )!;
+    return { before, latest };
+  }
+
+  it("U-EF-3: feedback fills a dimension the samples cannot decide", async () => {
+    const { latest } = await learnWithFeedback("sentenceLength", "short", 4);
+    // 样本统计本轮判定为 medium，与反馈冲突：反馈不覆盖样本结论。
+    expect(latest.rounds.at(-1)!.value).toBe("medium");
+    expect(latest.rounds.at(-1)!.supportSampleIds.some((id) => id.startsWith("edit:"))).toBe(false);
+  });
+
+  it("U-EF-3: feedback agreeing with the samples adds support to the latest round", async () => {
+    const { before, latest } = await learnWithFeedback("formality", "formal", 3);
+    const round = latest.rounds.at(-1)!;
+    expect(round.value).toBe("formal");
+    expect(round.supportSampleIds.filter((id) => id.startsWith("edit:"))).toHaveLength(3);
+    expect(latest.rounds.length).toBeGreaterThan(before?.rounds.length ?? 0);
+  });
+});
