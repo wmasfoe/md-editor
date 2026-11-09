@@ -46,16 +46,18 @@ export function observeSamples(
       dimension,
       withStat.map(({ stat }) => stat as StyleSampleStat),
     );
+    const valueSupport: Record<string, string[]> = {};
+    for (const { sample, stat } of withStat) {
+      const value = classifySampleStat(dimension, stat);
+      (valueSupport[value] ??= []).push(sample.id);
+    }
     observations[dimension] = {
       round,
       value: result.value,
       aggregate: result.aggregate,
       supportSampleIds:
-        result.value === STYLE_UNKNOWN_VALUE
-          ? []
-          : withStat
-              .filter(({ stat }) => classifySampleStat(dimension, stat) === result.value)
-              .map(({ sample }) => sample.id),
+        result.value === STYLE_UNKNOWN_VALUE ? [] : (valueSupport[result.value] ?? []),
+      valueSupport,
     };
   }
 
@@ -68,13 +70,15 @@ export function observeSamples(
       labelled.map(({ label }) => label),
       CLASS_MAJORITY_SHARE,
     );
+    const valueSupport: Record<string, string[]> = {};
+    for (const { sample, label } of labelled) {
+      (valueSupport[label] ??= []).push(sample.id);
+    }
     observations[dimension] = {
       round,
       value,
-      supportSampleIds:
-        value === STYLE_UNKNOWN_VALUE
-          ? []
-          : labelled.filter(({ label }) => label === value).map(({ sample }) => sample.id),
+      supportSampleIds: value === STYLE_UNKNOWN_VALUE ? [] : (valueSupport[value] ?? []),
+      valueSupport,
     };
   }
 

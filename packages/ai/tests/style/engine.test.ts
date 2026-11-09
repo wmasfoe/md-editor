@@ -128,7 +128,17 @@ describe("style learning engine", () => {
     await engine.run();
     const calls = bridge.mock.calls.length;
     host.files.set("new-1.md", spacedTechArticle("New"));
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     expect(host.document!.workspaces[0]!.changesSinceRound).toBe(1);
     expect(bridge.mock.calls.length).toBe(calls);
 
@@ -148,7 +158,17 @@ describe("style learning engine", () => {
     host.files.delete("post-0.md");
     host.files.delete("post-1.md");
 
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     const workspace = host.document!.workspaces[0]!;
     expect(workspace.samples.map((s) => s.relPath)).not.toContain("post-0.md");
     expect(bridge.mock.calls.length).toBe(calls);
@@ -259,7 +279,17 @@ describe("style learning engine", () => {
 
     host.files.set("post-0.md", "我们用React写界面,再用TypeScript写类型.".repeat(12));
     const calls = bridge.mock.calls.length;
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     const after = host.document!.workspaces[0]!.samples.find((s) => s.relPath === "post-0.md")!;
     expect(after.sha256).not.toBe(before.sha256);
     expect(after.labels).toEqual({});
@@ -551,5 +581,38 @@ describe("style learning engine ownership", () => {
     const hashes = new Set(["a-1", "b-1", "c-1"]);
     expect(findStyleRelinkCandidate([declined], hashes, "/notes/new")).toBeUndefined();
     expect(findStyleRelinkCandidate([declined], hashes, "/notes/other")?.profileId).toBe("w1");
+  });
+});
+
+describe("deleting samples refreshes the global layer", () => {
+  it("retires a global rule when its supporting workspace drops below five files", async () => {
+    const { engine, host } = setup({ files: 6 });
+    await engine.run();
+    const first = host.document!.workspaces[0]!;
+    // 两个工作区都生效为正式语气 → 全局层生效。
+    host.document = {
+      ...host.document!,
+      workspaces: [first, { ...first, id: "ws-2", rootPath: "/notes/second" }],
+      global: {
+        roundCount: 3,
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: ["w1:a", "w2:a"] }],
+          },
+        ],
+      },
+    };
+    // 删除 2/6 个文件：身份仍然关联（段落 hash 匹配率 > 0.3），但支持文件降到 4 个。
+    for (const relPath of [...host.files.keys()].slice(0, 2)) host.files.delete(relPath);
+
+    await engine.run();
+    const workspace = host.document!.workspaces.find((entry) => entry.id === first.id)!;
+    expect(workspace.samples).toHaveLength(4);
+    expect(workspace.rules.every((rule) => rule.status !== "active")).toBe(true);
+    // 全局层随之重算：只剩一个工作区支持 formal，规则退场。
+    expect(host.document!.global.rules[0]!.status).toBe("retired");
   });
 });

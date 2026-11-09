@@ -12,6 +12,7 @@
  *   或上一轮被抢占、本地模型忙、出错、刚更新了样本（还可能需要继续）。空闲本身不会触发重复扫描。
  */
 import { STANDARD_LOCAL_MODEL_ID, type AiSettings } from "@md-editor/ai";
+import { captureStyleLearningError } from "../../error-reporting/sentry";
 import {
   hashStyleText,
   renameStyleRelPath,
@@ -44,8 +45,6 @@ export interface StyleLearningRunner {
     readonly signal: AbortSignal;
   }): Promise<StyleLearningOutcome>;
 }
-
-import { captureStyleLearningError } from "../../error-reporting/sentry";
 
 export interface StyleLearningCallbacks {
   /** 调度器计量（PRD §2.6：用户请求排队等待、独占任务被抢占次数） */

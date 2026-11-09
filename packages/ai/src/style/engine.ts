@@ -202,10 +202,11 @@ export class StyleLearningEngine {
         changesSinceRound: base.changesSinceRound + diff.changed,
       };
       if (diff.removed > 0 && next.roundCount > 0) {
-        // 与排除路径共用同一套重算：工作区规则与全局层一起更新。
-        next = recomputeWorkspaceLayers(upsertWorkspace(document, next), next.id).workspaces.find(
-          (entry) => entry.id === next.id,
-        )!;
+        // 与排除路径共用同一套重算：工作区规则与全局层一起更新，
+        // 并把整份结果接回来（globalTouched 让提交时保留重算后的全局层）。
+        document = recomputeWorkspaceLayers(upsertWorkspace(document, next), next.id);
+        next = document.workspaces.find((entry) => entry.id === next.id)!;
+        globalTouched = true;
       }
       document = upsertWorkspace(document, next);
       const changed = diff.changed > 0 || isNew || Boolean(relinked) || touched.size > 0;

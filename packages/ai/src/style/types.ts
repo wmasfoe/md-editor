@@ -23,6 +23,11 @@ export interface StyleObservationRound {
   readonly value: string;
   /** 支持该取值的样本 id */
   readonly supportSampleIds: readonly string[];
+  /**
+   * 本轮每个取值的支持样本数。用于判断“已生效规则自己的取值”是否还有证据，
+   * 而不是只看本轮胜出的取值（胜出值可能已经换成了别的取值）。
+   */
+  readonly valueSupport?: Readonly<Record<string, readonly string[]>>;
   /** 统计维度的聚合值，用于判断多轮之间是否稳定 */
   readonly aggregate?: number;
 }

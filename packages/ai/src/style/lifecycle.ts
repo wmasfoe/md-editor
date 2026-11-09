@@ -94,9 +94,18 @@ function shouldRetire(value: string, rounds: readonly StyleObservationRound[]): 
   if (latest?.value === value && latest.supportSampleIds.length < MIN_SUPPORT_FILES) {
     return true;
   }
-  // 当前轮已经没有任何证据支持该取值（例如支持它的文件全被排除）：立即退场，
-  // 不能让已生效规则继续把被排除的证据注入 prompt。
-  if (latest && latest.value !== value && latest.supportSampleIds.length === 0) {
+  // 该取值自己在本轮已经没有任何证据（例如支持它的文件被排除、或被删除）：
+  // 立即退场，不能让已生效规则继续把被排除的证据注入 prompt。
+  const ownSupport = latest?.valueSupport?.[value];
+  if (latest && latest.value !== value && ownSupport && ownSupport.length === 0) {
+    return true;
+  }
+  if (
+    latest &&
+    latest.value !== value &&
+    !latest.valueSupport &&
+    latest.supportSampleIds.length === 0
+  ) {
     return true;
   }
   if (rounds.length < RETIRE_ROUNDS) {

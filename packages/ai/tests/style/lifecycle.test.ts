@@ -153,3 +153,38 @@ describe("retire when the supporting evidence disappears", () => {
     expect(stillActive.status).toBe("active");
   });
 });
+
+describe("retire when the rule's own value loses support", () => {
+  it("retires even when a competing value wins the round", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    // 支持 formal 的文件全被排除，本轮 casual 有 3 个文件支持。
+    const competing = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"], formal: [] },
+    };
+    expect(advanceStyleRule("formality", active, competing, { replaceLatest: true }).status).toBe(
+      "retired",
+    );
+  });
+
+  it("stays active while its own value still has five files", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    const contested = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"], formal: FIVE_FILES },
+    };
+    expect(advanceStyleRule("formality", active, contested).status).toBe("active");
+  });
+});

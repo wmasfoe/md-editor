@@ -70,3 +70,17 @@ describe("O-3: CJK paths and engine failures", () => {
     );
   });
 });
+
+describe("O-3: uppercase extensions and spaced names", () => {
+  it("strips uppercase extensions and file names containing spaces", () => {
+    expect(scrubPaths({ message: "该文件不能作为风格样本：合同.MD" }).message).toBe(
+      "该文件不能作为风格样本：[file]",
+    );
+    expect(scrubPaths({ message: "该文件不能作为风格样本：我的 笔记.md" }).message).toBe(
+      "该文件不能作为风格样本：[file]",
+    );
+    expect(scrubPaths({ message: "读取样本失败：客户 合同/2024.md 不存在" }).message).toBe(
+      "读取样本失败：[path] 不存在",
+    );
+  });
+});
