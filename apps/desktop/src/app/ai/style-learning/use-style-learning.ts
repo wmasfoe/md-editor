@@ -12,11 +12,17 @@ import { desktopLocalAiBridge, onLocalAiUse, readLocalAiModelStatus } from "../l
 import { runtime } from "../../runtime/editor-runtime";
 import { useAppSettings } from "../../settings-context";
 import { useFileTreeStore } from "../../stores/file-tree-store";
+import { useDesktopEditorActions } from "../../context/DesktopEditorActionsContext";
 import { useToastStore } from "../../stores/toast-store";
 import { listenToFolderChanged } from "../../../desktop/folder-watcher-events";
 import { createDesktopStyleLearningHost, updateStyleProfile } from "./style-learning-host";
 import { useStyleLearningData } from "./use-style-learning-data";
-import { moveStyleExclusions, onStyleLearningChanged, undoStyleRelinkTo } from "./style-exclusions";
+import {
+  listenToStyleOpenSource,
+  moveStyleExclusions,
+  onStyleLearningChanged,
+  undoStyleRelinkTo,
+} from "./style-exclusions";
 import { StyleLearningCoordinator } from "./style-learning-coordinator";
 import {
   clearPendingEditFeedback,
@@ -70,6 +76,7 @@ export function useStyleLearning(): void {
   const rootPath = useFileTreeStore((state) => state.folder?.rootPath ?? null);
   const coordinatorRef = useRef<StyleLearningCoordinator | null>(null);
   const enabled = settings.ai.styleLearning.enabled;
+  const { openDocumentFromTree } = useDesktopEditorActions();
 
   // 创建协调器（主窗口生命周期内只有一个）。
   useEffect(() => {
@@ -122,6 +129,15 @@ export function useStyleLearning(): void {
     const unlistenLocalAi = onLocalAiUse(() => coordinator.noteLocalAiUse());
     // 设置页或文件树排除/恢复文件后立即重新聚合，并在空闲时补读恢复的文件。
     const unlistenExclusions = onStyleLearningChanged(() => coordinator.noteWorkspaceChanged());
+    // 独立设置窗口的“查看来源”请求由主窗口打开（打开文档是主窗口语义）。
+    let unlistenOpenSource: (() => void) | undefined;
+    void listenToStyleOpenSource((absolutePath) => {
+      void openDocumentFromTree(absolutePath).catch(() => undefined);
+    })
+      .then((dispose) => {
+        unlistenOpenSource = dispose;
+      })
+      .catch(() => undefined);
     const onVisibility = () => coordinator.noteVisibilityChanged();
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -130,11 +146,12 @@ export function useStyleLearning(): void {
       unlistenFolder?.();
       unlistenLocalAi();
       unlistenExclusions();
+      unlistenOpenSource?.();
       document.removeEventListener("visibilitychange", onVisibility);
       coordinator.dispose();
       coordinatorRef.current = null;
     };
-  }, [t]);
+  }, [t, openDocumentFromTree]);
 
   // 开启时加载本地画像与排除列表并跟随其他窗口的变化；关闭时丢弃内存中暂存的 AI 原文。
   useStyleLearningData(enabled);

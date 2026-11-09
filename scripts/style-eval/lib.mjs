@@ -44,10 +44,22 @@ export function scoreBlindChoices(answers, choices) {
   let preferProfile = 0;
   let preferBaseline = 0;
   let same = 0;
+  // 未填写（仍为模板默认值 "same"）与未知 id 都不能静默计分，否则报告会偏向基线。
+  const unfilled = [];
+  const unknownIds = [];
+  for (const id of Object.keys(answers)) {
+    const choice = choices[id];
+    if (choice === undefined) unfilled.push(id);
+  }
   for (const [id, choice] of Object.entries(choices)) {
+    if (!(id in answers)) {
+      unknownIds.push(id);
+      continue;
+    }
     if (choice === "same") same += 1;
     else if (choice === answers[id]) preferProfile += 1;
-    else preferBaseline += 1;
+    else if (choice === (answers[id] === "A" ? "B" : "A")) preferBaseline += 1;
+    else unfilled.push(id);
   }
   const decided = preferProfile + preferBaseline;
   return {
@@ -55,6 +67,9 @@ export function scoreBlindChoices(answers, choices) {
     preferBaseline,
     same,
     profileWinRate: decided === 0 ? 0 : preferProfile / decided,
+    incomplete: unfilled.length > 0 || unknownIds.length > 0,
+    unfilled,
+    unknownIds,
   };
 }
 

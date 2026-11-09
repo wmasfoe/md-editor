@@ -156,10 +156,31 @@ export async function undoStyleRelinkTo(
   currentRoot: string,
   previousRoot: string,
 ): Promise<void> {
-  const next = await updateStyleProfile((latest) => ({
-    ...latest,
-    workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
-  }));
+  // 撤销后该工作区失去关联：重算一次派生层，避免它的证据继续留在全局规则里。
+  const next = await updateStyleProfile((latest) => {
+    const undone = {
+      ...latest,
+      workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
+    };
+    return recomputeStyleRound(undone, profileId);
+  });
   useStyleLearningStore.getState().setProfile(next);
   await moveStyleExclusions(currentRoot, previousRoot);
+  notifyStyleLearningChanged();
+}
+
+/** 请求打开一份来源文章（独立设置窗口没有编辑器动作时使用） */
+export const STYLE_OPEN_SOURCE_EVENT = "md-editor-style-open-source";
+
+export async function requestOpenStyleSource(absolutePath: string): Promise<void> {
+  const { emit } = await import("@tauri-apps/api/event");
+  await emit(STYLE_OPEN_SOURCE_EVENT, absolutePath);
+}
+
+/** 主窗口订阅打开请求 */
+export async function listenToStyleOpenSource(
+  handler: (absolutePath: string) => void,
+): Promise<() => void> {
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen<string>(STYLE_OPEN_SOURCE_EVENT, (event) => handler(event.payload));
 }

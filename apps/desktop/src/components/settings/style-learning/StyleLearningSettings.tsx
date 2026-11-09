@@ -44,10 +44,11 @@ import { useStyleLearningData } from "../../../app/ai/style-learning/use-style-l
 import {
   excludeStylePath,
   restoreStylePath,
+  requestOpenStyleSource,
   undoStyleRelinkTo,
 } from "../../../app/ai/style-learning/style-exclusions";
 import { useStyleLearningRoot } from "../../../app/ai/style-learning/use-style-learning-root";
-import { useDesktopEditorActions } from "../../../app/context/DesktopEditorActionsContext";
+import { useOptionalDesktopEditorActions } from "../../../app/context/DesktopEditorActionsContext";
 import { useToastStore } from "../../../app/stores/toast-store";
 
 export interface StyleLearningSettingsProps {
@@ -175,16 +176,28 @@ function StyleProfileDataSection() {
   const profile = useStyleLearningStore((state) => state.profile);
   const exclusions = useStyleLearningStore((state) => state.exclusions);
   const rootPath = useStyleLearningRoot();
-  const { openDocumentFromTree } = useDesktopEditorActions();
+  const actions = useOptionalDesktopEditorActions();
   const workspace = findLinkedWorkspaceProfile(profile, rootPath);
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
   // 样本 id → 工作区相对路径，供规则的“查看来源”使用。
-  const sourcePaths = new Map(
-    (workspace?.samples ?? []).map((sample) => [sample.id, sample.relPath] as const),
-  );
+  // 工作区规则用裸样本 id；全局层的支持 id 形如 `workspaceId:sampleId`，两种都要能解析。
+  const sourcePaths = new Map<string, string>();
+  for (const entry of profile?.workspaces ?? []) {
+    for (const sample of entry.samples) {
+      sourcePaths.set(sample.id, sample.relPath);
+      sourcePaths.set(`${entry.id}:${sample.id}`, sample.relPath);
+    }
+  }
   const openSource = (relPath: string) => {
-    if (rootPath) void openDocumentFromTree(joinPath(rootPath, relPath));
+    if (!rootPath) return;
+    const absolute = joinPath(rootPath, relPath);
+    if (actions) {
+      void actions.openDocumentFromTree(absolute);
+      return;
+    }
+    // 独立设置窗口没有编辑器动作：请求主窗口打开。
+    void requestOpenStyleSource(absolute);
   };
   // 参与学习的文件列表只列出仍在参与的文件；被排除的只出现在下方“已排除”。
   const participating =

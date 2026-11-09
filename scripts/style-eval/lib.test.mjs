@@ -44,6 +44,9 @@ test("EV-1：盲评计分只统计有偏好的选择", () => {
     preferBaseline: 1,
     same: 1,
     profileWinRate: 0.5,
+    incomplete: false,
+    unfilled: [],
+    unknownIds: [],
   });
   const random = seededRandom(3);
   assert.ok(random() >= 0 && random() < 1);
@@ -102,4 +105,23 @@ test("EV-4：盲评交付物齐全（表、答案、填写模板、报告）", a
   assert.match(report, /人工盲评/);
   assert.match(report, /--score/);
   assert.match(report, /\| p0 \| 通过 \| true \| true \|/);
+});
+
+test("EV-5：未填写或未知 id 的盲评不被静默计分", () => {
+  const answers = { a: "A", b: "B" };
+  const partial = scoreBlindChoices(answers, { a: "A" });
+  assert.equal(partial.incomplete, true);
+  assert.deepEqual(partial.unfilled, ["b"]);
+  assert.equal(partial.preferProfile, 1);
+
+  const typo = scoreBlindChoices(answers, { a: "A", b: "B", typo: "A" });
+  assert.deepEqual(typo.unknownIds, ["typo"]);
+  assert.equal(typo.incomplete, true);
+
+  const bad = scoreBlindChoices(answers, { a: "A", b: "maybe" });
+  assert.deepEqual(bad.unfilled, ["b"]);
+
+  const complete = scoreBlindChoices(answers, { a: "A", b: "B" });
+  assert.equal(complete.incomplete, false);
+  assert.equal(complete.profileWinRate, 1);
 });

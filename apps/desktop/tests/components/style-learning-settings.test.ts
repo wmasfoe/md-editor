@@ -273,3 +273,28 @@ describe("rule sources are listed and openable", () => {
     localContainer.remove();
   });
 });
+
+describe("settings window without an editor-actions provider", () => {
+  it("renders the style section instead of crashing", async () => {
+    disk.profile = learnedProfile;
+    useStyleLearningStore.getState().setProfile(learnedProfile);
+    useFileTreeStore.setState({ folder: { rootPath: "/notes", tree: null } as never });
+    const localContainer = document.createElement("div");
+    document.body.append(localContainer);
+    const localRoot = createRoot(localContainer);
+    // 独立设置窗口没有 DesktopEditorActionsContext.Provider：不能抛错。
+    await act(async () =>
+      localRoot.render(
+        createElement(StyleLearningSettings, {
+          aiSettingsDraft: settings({ enabled: true }),
+          onChangeAiSettings: vi.fn(),
+          standardModelReady: true,
+          onDownloadStandardModel: vi.fn(),
+        }),
+      ),
+    );
+    expect(localContainer.textContent).toContain("技术术语保留英文原文");
+    act(() => localRoot.unmount());
+    localContainer.remove();
+  });
+});

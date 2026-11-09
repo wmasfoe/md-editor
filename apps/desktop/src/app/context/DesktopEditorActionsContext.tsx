@@ -23,3 +23,13 @@ export function useDesktopEditorActions(): DesktopEditorActions {
     );
   return ctx;
 }
+
+/**
+ * 可选版本：不在 Provider 内时返回 null 而不是抛错。
+ *
+ * 独立设置窗口没有编辑器动作（打开文档属于主窗口语义），
+ * 需要动作的 UI 应据此隐藏或走跨窗口通道，而不是让整个窗口崩溃。
+ */
+export function useOptionalDesktopEditorActions(): DesktopEditorActions | null {
+  return use(DesktopEditorActionsContext);
+}
