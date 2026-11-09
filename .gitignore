@@ -102,3 +102,4 @@ dist-mobile/
 **/src-tauri/binaries/*.so
 **/src-tauri/binaries/*.dll
 **/src-tauri/binaries/*.dylib
+style-eval-out/

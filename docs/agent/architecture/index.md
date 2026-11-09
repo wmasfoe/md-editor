@@ -31,6 +31,8 @@
 - 独立无头编译器架构方案： [compiler_architecture.md](./compiler_architecture.md)
   记录纯 Headless 编译器子包 @md-editor/compiler 架构、结构化 Token 流抽取 (compileToTokens)、语义 HTML 发射、KaTeX 离线公式与容器指令渲染，以及开放 StaticCustomRenderer 接口设计。
 
+- 用户风格学习（写作偏好）架构： [style_profile_architecture.md](./style_profile_architecture.md)
+  记录 Rust 文件系统层、`@md-editor/ai/style` 与 `style-engine` 分层、学习时机与独占调度、草稿机制、目录身份、画像闸门、续写与纠错的注入契约及验收评测。
 - 本地 AI 任务、模型档位与 Adapter 架构方案： [local_ai_task_adapter_architecture.md](./local_ai_task_adapter_architecture.md)
   记录单一启用 Model Tier、任务枚举、Capability Resolver、隐藏 Adapter、请求调度、缓存边界与两仓库实现契约。
 - AI 写作服务整洁架构与 App Harness 编排规范： [ai_writing_harness_architecture.md](./ai_writing_harness_architecture.md)

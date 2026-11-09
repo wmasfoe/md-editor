@@ -10,7 +10,8 @@
 
 import { createLocalAffinityKey } from "../app/request-scheduler.ts";
 import { STANDARD_LOCAL_MODEL_ID } from "../domain/settings.ts";
-import { applyObservations, observeGlobal, observeSamples } from "./aggregate.ts";
+import { applyObservations, observeGlobal, observeSamples, withEditFeedback } from "./aggregate.ts";
+import { summarizeEditFeatures } from "./edit-feedback.ts";
 import {
   buildStyleClassifyRequest,
   chunkStyleProse,
@@ -226,9 +227,17 @@ export class StyleLearningEngine {
             group.map((sample) => byId.get(sample.record.id)!),
           )
         : [next.samples];
-      for (const group of groups) {
+      // 自上一轮以来“用户修改 AI 建议”的特征作为附加观察，只计入最后一轮。
+      const feedback = summarizeEditFeatures(next.editFeedback, next.lastRoundAt);
+      for (const [index, group] of groups.entries()) {
         roundCount += 1;
-        rules = applyObservations(rules, observeSamples(group, roundCount));
+        const observations = observeSamples(group, roundCount);
+        rules = applyObservations(
+          rules,
+          index === groups.length - 1
+            ? withEditFeedback(observations, feedback, roundCount)
+            : observations,
+        );
       }
       next = { ...next, rules, roundCount, changesSinceRound: 0, lastRoundAt: nowIso };
       document = upsertWorkspace(document, next);

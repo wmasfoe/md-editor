@@ -150,3 +150,33 @@ export function observeGlobal(
   }
   return observations;
 }
+
+/**
+ * 把编辑反馈并入一轮观察：
+ * - 维度本轮证据不足（unknown）而编辑反馈足够时，以反馈取值作为本轮观察；
+ * - 取值一致时，把反馈计入支持（以 `edit:<维度>:<序号>` 标识，不对应样本文件）；
+ * - 取值冲突时不改变本轮观察，冲突由后续多轮学习自然消解。
+ */
+export function withEditFeedback(
+  observations: StyleObservations,
+  feedback: Partial<Record<StyleDimensionId, { readonly value: string; readonly count: number }>>,
+  round: number,
+): StyleObservations {
+  const next: Partial<Record<StyleDimensionId, StyleObservationRound>> = { ...observations };
+  for (const [dimension, summary] of Object.entries(feedback) as Array<
+    [StyleDimensionId, { value: string; count: number }]
+  >) {
+    const support = Array.from(
+      // 每条编辑特征按一个支持证据计。
+      { length: summary.count },
+      (_, index) => `edit:${dimension}:${index}`,
+    );
+    const current = next[dimension];
+    if (!current || current.value === STYLE_UNKNOWN_VALUE) {
+      next[dimension] = { round, value: summary.value, supportSampleIds: support };
+    } else if (current.value === summary.value) {
+      next[dimension] = { ...current, supportSampleIds: [...current.supportSampleIds, ...support] };
+    }
+  }
+  return next;
+}

@@ -19,3 +19,4 @@ export * from "./gate.ts";
 export * from "./host.ts";
 export * from "./sentences.ts";
 export * from "./grammar-style.ts";
+export * from "./edit-feedback.ts";
