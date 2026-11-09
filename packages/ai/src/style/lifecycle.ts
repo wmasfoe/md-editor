@@ -59,6 +59,16 @@ export function advanceStyleRule(
   };
 }
 
+/**
+ * 支持 id 是否来自真实样本文件。
+ *
+ * 编辑反馈以 `edit:<维度>:<序号>` 记录（全局层会加上 `工作区:` 前缀），
+ * 它们只代表“用户改过 AI 文本的方向”，不能冒充独立文件。
+ */
+export function isRealSampleId(id: string): boolean {
+  return !id.split(":").includes("edit");
+}
+
 /** 最近 `PROMOTE_ROUNDS` 轮取值一致、支持文件足够且统计值稳定时返回该取值 */
 function promotionCandidate(
   dimension: StyleDimensionId,
@@ -74,7 +84,7 @@ function promotionCandidate(
   }
   // 只统计真实样本文件；编辑反馈的 `edit:` 伪 id 不能凑够“支持文件 ≥ 5”。
   const supportFiles = new Set(
-    recent.flatMap((round) => round.supportSampleIds.filter((id) => !id.startsWith("edit:"))),
+    recent.flatMap((round) => round.supportSampleIds.filter(isRealSampleId)),
   );
   if (supportFiles.size < MIN_SUPPORT_FILES) {
     return undefined;
@@ -112,8 +122,8 @@ function ownSupportCount(
   value: string,
   round: StyleObservationRound,
 ): number {
-  // 逐样本证据：本轮没有任何样本时 valueSupport 为空对象，自然得到 0。
-  const perSample = round.valueSupport?.[value]?.length;
+  // 逐样本证据：只数真实文件，编辑反馈不能单独支撑一条规则（与晋升口径一致）。
+  const perSample = round.valueSupport?.[value]?.filter(isRealSampleId).length;
   if (perSample !== undefined) {
     return perSample;
   }

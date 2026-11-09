@@ -237,3 +237,38 @@ describe("edit evidence cannot stand in for files", () => {
     expect(rule?.status).toBe("draft");
   });
 });
+
+describe("edit ids never stand in for files anywhere", () => {
+  it("does not promote a global rule from workspace-prefixed edit ids", () => {
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "short",
+      // 全局层的支持 id 带工作区前缀：w1:edit:...
+      supportSampleIds: [`w1:edit:sentenceLength:${n}a`, `w2:edit:sentenceLength:${n}b`],
+      valueSupport: { short: [`w1:edit:sentenceLength:${n}a`, `w2:edit:sentenceLength:${n}b`] },
+      aggregate: 12,
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("sentenceLength", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+
+  it("retires an active rule supported only by edit ids", () => {
+    const edits = [1, 2, 3, 4, 5, 6].map((n) => `edit:formality:${n}`);
+    const previous: StyleRuleRecord = {
+      dimension: "formality",
+      value: "casual",
+      status: "active",
+      rounds: [{ round: 1, value: "casual", supportSampleIds: FIVE_FILES }],
+    };
+    const editsOnly = {
+      round: 2,
+      value: "casual",
+      supportSampleIds: edits,
+      valueSupport: { casual: edits },
+    };
+    expect(advanceStyleRule("formality", previous, editsOnly).status).toBe("retired");
+  });
+});

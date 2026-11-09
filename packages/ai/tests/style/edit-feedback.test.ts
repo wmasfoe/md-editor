@@ -116,11 +116,8 @@ describe("edit feedback preserves measured evidence", () => {
 
     const active = advanceStyleRule("sentenceLength", undefined, round);
     expect(active.status).toBe("draft");
-    const promoted = advanceStyleRule(
-      "sentenceLength",
-      { ...active, status: "active", value: "short" },
-      round,
-    );
-    expect(promoted.status).toBe("active");
+    // 只有 2 个真实文件：编辑反馈不能代替文件，已生效规则因证据不足退场（与晋升口径一致）。
+    const previous = { ...active, status: "active" as const, value: "short" };
+    expect(advanceStyleRule("sentenceLength", previous, round).status).toBe("retired");
   });
 });
