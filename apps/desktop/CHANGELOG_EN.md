@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.22.0 - 2026-11-09
+## 0.22.0 - 2026-11-09 (#230, #231, #232, #233, #234, #235, #236, #237, #238, #239)
 
 - New: writing preferences (first version). Learn your writing habits from workspaces you open and use them for continuation and grammar fixes.
   - Off by default; learning uses the on-device Standard model only and never uploads your articles.

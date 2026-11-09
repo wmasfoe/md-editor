@@ -14,27 +14,42 @@ import { parseChangelog, type ChangelogEntry } from "@md-editor/changelog";
 import type { Locale } from "./i18n/types";
 
 /**
- * 仓库根候选：生产环境（Vercel）与 `pnpm --filter @md-editor/site` 的 cwd 为 `apps/site`，
- * 但本地 vitest 的 cwd 可能是仓库根或 `apps/`。逐个尝试，避免把解析绑死在单一 cwd 假设上。
+ * CHANGELOG 的候选路径。
+ *
+ * 必须是**静态字面量**：Next/Turbopack 的 output file tracing 会对 `path.join(cwd, ...segments)`
+ * 这类动态拼接做保守展开，把整个仓库（数万个文件）trace 进 server function，
+ * 既拖慢构建、也会让部署产物超限。这里改成逐条写死的路径，tracing 只会命中这几个文件。
+ *
+ * cwd 差异（Vercel 为 apps/site，本地 vitest 可能是仓库根或 apps/）用「先尝试再回退」覆盖，
+ * 而不是用循环拼接动态生成路径。
  */
-const repoRootCandidates = [
-  path.resolve(process.cwd(), "..", ".."),
-  path.resolve(process.cwd(), ".."),
-  process.cwd(),
-];
+const CHANGELOG_FILES = {
+  desktopZh: [
+    path.resolve(process.cwd(), "../../apps/desktop/CHANGELOG.md"),
+    path.resolve(process.cwd(), "../apps/desktop/CHANGELOG.md"),
+    path.resolve(process.cwd(), "apps/desktop/CHANGELOG.md"),
+  ],
+  desktopEn: [
+    path.resolve(process.cwd(), "../../apps/desktop/CHANGELOG_EN.md"),
+    path.resolve(process.cwd(), "../apps/desktop/CHANGELOG_EN.md"),
+    path.resolve(process.cwd(), "apps/desktop/CHANGELOG_EN.md"),
+  ],
+  webZh: [
+    path.resolve(process.cwd(), "../../apps/web/CHANGELOG.md"),
+    path.resolve(process.cwd(), "../apps/web/CHANGELOG.md"),
+    path.resolve(process.cwd(), "apps/web/CHANGELOG.md"),
+  ],
+  webEn: [
+    path.resolve(process.cwd(), "../../apps/web/CHANGELOG_EN.md"),
+    path.resolve(process.cwd(), "../apps/web/CHANGELOG_EN.md"),
+    path.resolve(process.cwd(), "apps/web/CHANGELOG_EN.md"),
+  ],
+} as const;
 
-/** 在仓库根候选下展开同一相对路径的候选列表。 */
-function repoCandidates(...segments: string[]): string[] {
-  return repoRootCandidates.map((root) => path.join(root, ...segments));
-}
-
-const defaultDesktopChangelogCandidates = repoCandidates("apps", "desktop", "CHANGELOG.md");
-
-const defaultDesktopEnChangelogCandidates = repoCandidates("apps", "desktop", "CHANGELOG_EN.md");
-
-const defaultWebChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG.md");
-
-const defaultWebEnChangelogCandidates = repoCandidates("apps", "web", "CHANGELOG_EN.md");
+const defaultDesktopChangelogCandidates = [...CHANGELOG_FILES.desktopZh];
+const defaultDesktopEnChangelogCandidates = [...CHANGELOG_FILES.desktopEn];
+const defaultWebChangelogCandidates = [...CHANGELOG_FILES.webZh];
+const defaultWebEnChangelogCandidates = [...CHANGELOG_FILES.webEn];
 
 /**
  * 读取指定平台的更新日志。
