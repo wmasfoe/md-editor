@@ -41,11 +41,6 @@ pub(crate) struct AiSettings {
     #[serde(default)]
     pub(crate) open_ai_compatible: Option<AiOpenAiCompatibleSettings>,
     pub(crate) local_model: Option<AiLocalModelSettings>,
-<<<<<<< HEAD
-    /// 前端新增但 Rust 尚未声明的字段原样保留，避免保存时被 serde 静默丢弃。
-    #[serde(flatten)]
-    pub(crate) extra: Map<String, Value>,
-=======
     /// 风格学习设置。结构由前端 `@md-editor/ai` 定义并规范化，这里原样保留，
     /// 避免 serde 丢弃未知字段导致开关或云端授权在重启后复位。
     #[serde(
@@ -54,7 +49,9 @@ pub(crate) struct AiSettings {
         deserialize_with = "deserialize_object_settings"
     )]
     pub(crate) style_learning: Option<Value>,
->>>>>>> origin/feature/style-learning-runtime
+    /// 前端新增但 Rust 尚未声明的字段原样保留，避免保存时被 serde 静默丢弃。
+    #[serde(flatten)]
+    pub(crate) extra: Map<String, Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -332,7 +329,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
     fn ai_background_processing_survives_rust_round_trip() {
         let raw = r#"{"ai":{"features":{"backgroundProcessing":true,"continuation":true,"editing":false}}}"#;
         let settings: AppSettings = serde_json::from_str(raw).unwrap();
@@ -374,7 +370,9 @@ mod tests {
         // 再次往返后保持一致。
         let again: AppSettings = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(serde_json::to_value(&again).unwrap(), json);
-=======
+    }
+
+    #[test]
     fn ai_style_learning_survives_rust_round_trip() {
         let raw = r#"{"ai":{"styleLearning":{"enabled":true,"autoRelink":false,"cloudConsent":{"provider":"openai","origin":"https://api.openai.com","grantedAt":"2026-11-09T00:00:00Z"}}}}"#;
         let settings: AppSettings = serde_json::from_str(raw).unwrap();
@@ -390,7 +388,6 @@ mod tests {
         assert!(!serde_json::to_string(&legacy)
             .unwrap()
             .contains("styleLearning"));
->>>>>>> origin/feature/style-learning-runtime
     }
 
     #[test]
@@ -440,11 +437,8 @@ mod tests {
                     api_key: Some("sk-secret-key-123".to_string()),
                 }),
                 local_model: None,
-<<<<<<< HEAD
-                extra: Map::new(),
-=======
                 style_learning: None,
->>>>>>> origin/feature/style-learning-runtime
+                extra: Map::new(),
             }),
             update: None,
             plugins: None,
