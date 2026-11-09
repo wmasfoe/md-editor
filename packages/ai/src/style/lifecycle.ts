@@ -9,6 +9,7 @@
  */
 
 import { STYLE_DIMENSIONS, STYLE_UNKNOWN_VALUE, type StyleDimensionId } from "./dimensions.ts";
+import { classifyAggregate } from "./statistics.ts";
 import type { StyleObservationRound, StyleRuleRecord } from "./types.ts";
 
 /** 每条规则保留的最近轮数 */
@@ -38,12 +39,11 @@ export function advanceStyleRule(
   const rounds = [...base, observation].slice(-ROUND_HISTORY_LIMIT);
 
   if (previous?.status === "active") {
-    return {
-      dimension,
-      value: previous.value,
-      status: shouldRetire(previous.value, rounds) ? "retired" : "active",
-      rounds,
-    };
+    if (shouldRetire(dimension, previous.value, rounds)) {
+      // 退场时丢弃旧轮次：证据重新出现后必须重新积累 3 轮，避免在提示中反复进出。
+      return { dimension, value: previous.value, status: "retired", rounds: [observation] };
+    }
+    return { dimension, value: previous.value, status: "active", rounds };
   }
 
   const candidate = promotionCandidate(dimension, rounds);
@@ -88,24 +88,48 @@ function promotionCandidate(
   return value;
 }
 
-function shouldRetire(value: string, rounds: readonly StyleObservationRound[]): boolean {
+/**
+ * 某个取值在本轮还剩多少证据。
+ *
+ * 统计维度用聚合值判定：聚合值仍然落在该取值区间时，证据依然存在，
+ * 不能因为“逐样本类别”分散而误判为无证据。
+ */
+function ownSupportCount(
+  dimension: StyleDimensionId,
+  value: string,
+  round: StyleObservationRound,
+): number {
+  const perSample = round.valueSupport?.[value]?.length;
+  if (perSample !== undefined) {
+    return perSample;
+  }
+  if (STYLE_DIMENSIONS[dimension].kind === "stat" && round.aggregate !== undefined) {
+    return classifyAggregate(
+      dimension as Parameters<typeof classifyAggregate>[0],
+      round.aggregate,
+    ) === value
+      ? Number.MAX_SAFE_INTEGER
+      : 0;
+  }
+  return 0;
+}
+
+function shouldRetire(
+  dimension: StyleDimensionId,
+  value: string,
+  rounds: readonly StyleObservationRound[],
+): boolean {
   const latest = rounds.at(-1);
-  // 样本被删除或排除后，当前轮的支持文件不足。
-  if (latest?.value === value && latest.supportSampleIds.length < MIN_SUPPORT_FILES) {
+  if (!latest) {
+    return false;
+  }
+  const own = ownSupportCount(dimension, value, latest);
+  // 本轮胜出的就是该取值，但支持文件不足。
+  if (latest.value === value && own < MIN_SUPPORT_FILES) {
     return true;
   }
-  // 该取值自己在本轮已经没有任何证据（例如支持它的文件被排除、或被删除）：
-  // 立即退场，不能让已生效规则继续把被排除的证据注入 prompt。
-  const ownSupport = latest?.valueSupport?.[value];
-  if (latest && latest.value !== value && ownSupport && ownSupport.length === 0) {
-    return true;
-  }
-  if (
-    latest &&
-    latest.value !== value &&
-    !latest.valueSupport &&
-    latest.supportSampleIds.length === 0
-  ) {
+  // 该取值自己本轮已无任何证据（例如支持它的文件被排除或删除）：立即退场。
+  if (latest.value !== value && own === 0) {
     return true;
   }
   if (rounds.length < RETIRE_ROUNDS) {

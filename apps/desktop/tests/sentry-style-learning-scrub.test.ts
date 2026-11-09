@@ -84,3 +84,14 @@ describe("O-3: uppercase extensions and spaced names", () => {
     );
   });
 });
+
+describe("O-3: spaced directory names", () => {
+  it("strips paths whose folders contain spaces", () => {
+    expect(scrubPaths({ message: "该文件不能作为风格样本：客户A/我的 笔记.md" }).message).toBe(
+      "该文件不能作为风格样本：[path]",
+    );
+    expect(
+      scrubPaths({ message: "读取样本失败：/Users/me/我的 笔记/秘密.md 不存在" }).message,
+    ).toBe("读取样本失败：[path] 不存在");
+  });
+});

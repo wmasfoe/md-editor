@@ -8,6 +8,16 @@ import {
 import { applyObservations, observeSamples } from "../../src/style/engine-entry.ts";
 import { FIVE_FILES, round, sample } from "./fixtures.ts";
 
+/** 本轮胜出 casual、但 formal 自己仍有 5 个文件支持 */
+function contestedRound(n: number) {
+  return {
+    round: n,
+    value: "casual",
+    supportSampleIds: FIVE_FILES,
+    valueSupport: { casual: FIVE_FILES, formal: FIVE_FILES },
+  };
+}
+
 function feed(
   dimension: StyleRuleRecord["dimension"],
   rounds: ReturnType<typeof round>[],
@@ -70,25 +80,22 @@ describe("style rule lifecycle", () => {
       round(2, "formal", FIVE_FILES),
       round(3, "formal", FIVE_FILES),
     ]);
-    // 一轮被相反取值取代（仍有 5 个文件支持新取值）时保持生效，等连续三轮不支持才退场。
-    const oneMiss = feed("formality", [
-      ...active.rounds.map((r) => round(r.round, r.value, r.supportSampleIds)),
-      round(4, "casual", FIVE_FILES),
-    ]);
-    expect(oneMiss).toMatchObject({ status: "active", value: "formal" });
-    // RETIRE_ROUNDS=3：再连续两轮不支持才退场。
-    const twoMisses = advanceStyleRule("formality", oneMiss, round(5, "casual", FIVE_FILES));
-    expect(twoMisses.status).toBe("active");
-    expect(advanceStyleRule("formality", twoMisses, round(6, "casual", FIVE_FILES)).status).toBe(
-      "retired",
-    );
+    // 本轮胜出取值换成 casual，但 formal 自己仍有 5 个文件支持：保持生效。
+    const contested = advanceStyleRule("formality", active, contestedRound(4));
+    expect(contested).toMatchObject({ status: "active", value: "formal" });
+
+    // 连续三轮 formal 都不再胜出：退场。
+    const two = advanceStyleRule("formality", contested, contestedRound(5));
+    expect(two.status).toBe("active");
+    expect(advanceStyleRule("formality", two, contestedRound(6)).status).toBe("retired");
 
     // 删除样本后重算当前轮，支持文件只剩 4 个。
     const shrunk = advanceStyleRule("formality", active, round(3, "formal", ["a", "b", "c", "d"]), {
       replaceLatest: true,
     });
     expect(shrunk.status).toBe("retired");
-    expect(shrunk.rounds).toHaveLength(3);
+    // 退场时丢弃旧轮次，重新积累才能再次生效。
+    expect(shrunk.rounds).toHaveLength(1);
   });
 
   it("U-LC-3: keeps only the most recent rounds", () => {
@@ -149,7 +156,8 @@ describe("retire when the supporting evidence disappears", () => {
       round(2, "formal", FIVE_FILES),
       round(3, "formal", FIVE_FILES),
     ]);
-    const stillActive = advanceStyleRule("formality", active, round(4, "casual", FIVE_FILES));
+    // formal 自己仍有 5 个文件支持（只是本轮胜出的是 casual）：保持生效。
+    const stillActive = advanceStyleRule("formality", active, contestedRound(4));
     expect(stillActive.status).toBe("active");
   });
 });
@@ -186,5 +194,14 @@ describe("retire when the rule's own value loses support", () => {
       valueSupport: { casual: ["x", "y", "z"], formal: FIVE_FILES },
     };
     expect(advanceStyleRule("formality", active, contested).status).toBe("active");
+
+    // 本轮只有 casual 有证据、formal 缺席（真实产出里缺席即无支持）：立即退场。
+    const absent = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"] },
+    };
+    expect(advanceStyleRule("formality", active, absent).status).toBe("retired");
   });
 });

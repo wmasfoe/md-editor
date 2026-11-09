@@ -6,6 +6,7 @@ import {
   isStyleProfileLinked,
   isUserStyleExcluded,
   recomputeStyleRound,
+  mergeStyleProfile,
   createEmptyStyleProfileDocument,
   undoStyleRelink,
   renameStyleRelPath,
@@ -146,15 +147,17 @@ function excludedProfile() {
   });
 }
 
-describe("exclusions take effect immediately", () => {
-  const document = (): StyleProfileDocument => ({
+function profileWithSecretSample(): StyleProfileDocument {
+  return {
     ...createEmptyStyleProfileDocument(),
     workspaces: [excludedProfile()],
     aiSegments: { w1: { "diary/secret.md": ["n1:a"], "a.md": ["n1:b"] } },
-  });
+  };
+}
 
+describe("exclusions take effect immediately", () => {
   it("drops excluded samples, their AI hashes and re-aggregates without the model", () => {
-    const next = recomputeStyleRound(document(), "w1", { excluded: ["diary"] });
+    const next = recomputeStyleRound(profileWithSecretSample(), "w1", { excluded: ["diary"] });
     expect(next.workspaces[0]!.samples.map((s) => s.relPath)).toEqual(
       FIVE_FILES.map((id) => `${id}.md`),
     );
@@ -164,14 +167,14 @@ describe("exclusions take effect immediately", () => {
   });
 
   it("returns the same document when nothing is excluded", () => {
-    const original = document();
+    const original = profileWithSecretSample();
     expect(recomputeStyleRound(original, "w1", { excluded: ["other"] })).toBe(original);
     expect(recomputeStyleRound(original, "w1")).toBe(original);
     expect(recomputeStyleRound(original, "missing", { excluded: ["a.md"] })).toBe(original);
   });
 
   it("retires a rule when exclusions leave too few supporting files", () => {
-    const small = document();
+    const small = profileWithSecretSample();
     // 排除的是工作区相对路径（`a.md`），不是样本 id。
     const next = recomputeStyleRound(small, "w1", { excluded: ["a.md", "b.md"] });
     expect(next.workspaces[0]!.samples).toHaveLength(4);
@@ -225,5 +228,47 @@ describe("recomputeStyleRound also re-derives the global layer", () => {
     expect(next.global.rules[0]!.status).toBe("retired");
     // 未被排除的 w2 不受影响。
     expect(next.workspaces[1]!.samples).toHaveLength(3);
+  });
+});
+
+/** 5 个 formal 文件 + 3 个 casual 文件的工作区画像 */
+function mixedProfile(): StyleProfileDocument {
+  return {
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [
+      workspace("w1", {
+        roundCount: 3,
+        samples: [
+          ...FIVE_FILES.map((id) =>
+            sample(id, { relPath: `${id}.md`, labels: { formality: "formal" } }),
+          ),
+          ...["x", "y", "z"].map((id) =>
+            sample(id, { relPath: `casual/${id}.md`, labels: { formality: "casual" } }),
+          ),
+        ],
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: FIVE_FILES }],
+          },
+        ],
+      }),
+    ],
+  };
+}
+
+describe("exclusion retires the rule through the real aggregation path", () => {
+  it("retires an active rule when a competing value takes over", () => {
+    // 排除支持 formal 的 5 个文件，剩余 3 个 casual：真实 observeSamples 产出里 formal 缺席。
+    const next = recomputeStyleRound(mixedProfile(), "w1", {
+      excluded: FIVE_FILES.map((id) => `${id}.md`),
+    });
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "formality")!;
+    expect(rule.status).toBe("retired");
+    // 合并后不再把被排除的证据注入前缀。
+    const merged = mergeStyleProfile({ workspace: next.workspaces[0]!.rules });
+    expect(merged.rules.some((entry) => entry.dimension === "formality")).toBe(false);
   });
 });

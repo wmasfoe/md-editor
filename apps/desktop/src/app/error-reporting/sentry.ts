@@ -122,18 +122,14 @@ export function isStyleLearningEvent(event: {
 
 /** 路径片段允许中文、字母数字与内部空格（`我的 笔记.md`） */
 const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?: [\\p{L}\\p{N}_.-]+)*";
-/** 形如 `日记/2024/私人.md` 的相对路径（含常见文档/代码扩展名） */
+const EXTENSION = "\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b";
+/** 形如 `日记/2024/私人.md` 的相对路径：末段同样允许空格 */
 const RELATIVE_PATH = new RegExp(
-  "(?:" + PATH_SEGMENT + "[\\\\/])+[^\\s'\"`,;]*\\.[A-Za-z0-9]{1,5}\\b",
-  "gu",
-);
-/** 裸文件名：必须带常见扩展名（大小写不敏感，`.MD` 也算 Markdown） */
-const BARE_FILE = new RegExp(
-  "(?<![\\p{L}\\p{N}_.])" +
-    PATH_SEGMENT +
-    "\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b",
+  "(?<![\\\\/])[\\\\/]?(?:" + PATH_SEGMENT + "[\\\\/])+" + PATH_SEGMENT + EXTENSION,
   "giu",
 );
+/** 裸文件名（大小写不敏感，`.MD` 也算 Markdown） */
+const BARE_FILE = new RegExp("(?<![\\p{L}\\p{N}_.])" + PATH_SEGMENT + EXTENSION, "giu");
 
 function stripPaths(text: string): string {
   return (
@@ -142,10 +138,27 @@ function stripPaths(text: string): string {
       // 否则 `/2024/私人.md` 会被当成 POSIX 绝对路径而留下前面的目录名）
       .replace(RELATIVE_PATH, "[path]")
       // 盘符路径与 UNC
-      .replace(/[A-Za-z]:[\\/][^\s'"`,;]*/gu, "[path]")
-      .replace(/\\\\[^\s'"`,;]*/gu, "[path]")
+      .replace(
+        new RegExp(
+          "[A-Za-z]:[\\\\/](?:" + PATH_SEGMENT + "[\\\\/])*" + PATH_SEGMENT + EXTENSION,
+          "giu",
+        ),
+        "[path]",
+      )
+      .replace(new RegExp("\\\\\\\\[^\\s'\"`,;]*", "gu"), "[path]")
       // POSIX 绝对路径：/a/b/c，前面不能是路径或文字的一部分；`12/34` 这类数字不算
-      .replace(/(?<![\p{L}\p{N}_.\-/])(?:\/(?:[\p{L}\p{N}_.-]+\/)+[^\s'"`,;]*)/gu, "[path]")
+      .replace(
+        new RegExp(
+          "(?<![\\p{L}\\p{N}_.-])(?:\\/(?:" +
+            PATH_SEGMENT +
+            "\\/)*" +
+            PATH_SEGMENT +
+            EXTENSION +
+            ")",
+          "giu",
+        ),
+        "[path]",
+      )
       // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理
       .replace(BARE_FILE, "[file]")
   );

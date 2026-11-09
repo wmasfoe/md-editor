@@ -170,3 +170,8 @@ function mean(values: readonly number[]): number {
     ? 0
     : values.reduce((total, value) => total + value, 0) / values.length;
 }
+
+/** 按聚合值判定取值（统计维度用它代替“逐样本类别”判断证据是否仍存在） */
+export function classifyAggregate(dimension: StatDimensionId, aggregate: number): string {
+  return STAT_RULES[dimension].classify(aggregate);
+}
