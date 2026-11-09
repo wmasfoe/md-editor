@@ -6,6 +6,10 @@ import type { EditorMode } from "@md-editor/editor-core";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
 import { useAppSettings } from "../settings-context";
+import {
+  ensureStyleCloudConsent,
+  getStyleProfileForRequest,
+} from "../ai/style-learning/style-profile-request";
 import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events/command-bindings";
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
@@ -383,17 +387,12 @@ export function useDesktopEditorController({
             manualAiAbortControllerRef.current = controller;
 
             try {
-              if (import.meta.env.DEV) {
-                console.debug("[AI Desktop] ▶ 触发手动续写 (ai.continueWriting)...", {
-                  insertPosition,
-                  beforeLength: before.length,
-                  afterLength: after.length,
-                  selectedText,
-                });
-              }
+              // 写作偏好：云端首次使用需手动授权；是否附带由服务内闸门决定。
+              const profile = getStyleProfileForRequest(settings.ai);
+              const requestSettings = await ensureStyleCloudConsent(settings, profile);
               showToast("AI 续写思考中...");
               const suggestion = await desktopAiService.continueWriting(
-                settings.ai,
+                requestSettings.ai,
                 {
                   before,
                   after,
@@ -404,7 +403,7 @@ export function useDesktopEditorController({
                   },
                   documentContext: docContext,
                 },
-                { isGhostText: false, signal: controller.signal },
+                { isGhostText: false, signal: controller.signal, profile },
               );
 
               if (import.meta.env.DEV) {

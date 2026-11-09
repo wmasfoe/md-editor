@@ -47,6 +47,7 @@ import {
   createUnifiedMicroSlice,
 } from "./harness-prompts.ts";
 import { AiRequestScheduler, createLocalAffinityKey } from "./request-scheduler.ts";
+import { gateStyleProfile } from "../style/gate.ts";
 import type { MergedStyleProfile } from "../style/types.ts";
 
 export interface AiWritingServiceDeps {
@@ -66,7 +67,10 @@ export interface AiWritingServiceDeps {
 export interface AiContinuationOptions {
   /** 是否为单行幽灵文本（默认 true；快捷键主动续写可设为 false 以允许多行段落） */
   readonly isGhostText?: boolean;
-  /** 已通过画像闸门的合并画像；未传表示不附带画像 */
+  /**
+   * 当前工作区的合并写作偏好（未经过闸门）。服务内统一按 `settings.styleLearning`
+   * 判断能否附带：开关关闭、Lite 模型或云端未授权时都不会进入 prompt。
+   */
   readonly profile?: MergedStyleProfile;
   readonly documentContext?: AiDocumentContext;
   readonly signal?: AbortSignal;
@@ -83,7 +87,10 @@ export interface AiGrammarFixOptions {
 
 export interface AiUnifiedEditOptions {
   readonly isGhostText?: boolean;
-  /** 已通过画像闸门的合并画像；未传表示不附带画像 */
+  /**
+   * 当前工作区的合并写作偏好（未经过闸门）。服务内统一按 `settings.styleLearning`
+   * 判断能否附带：开关关闭、Lite 模型或云端未授权时都不会进入 prompt。
+   */
   readonly profile?: MergedStyleProfile;
   readonly documentContext?: AiDocumentContext;
   readonly signal?: AbortSignal;
@@ -145,6 +152,7 @@ export class AiWritingService {
     const isGhostText = options.isGhostText !== false;
     const client = this.resolveClient(settings, { fetchImpl: options.fetchImpl });
     const documentId = snapshot.document?.filePath || "untitled";
+    const profile = gateStyleProfile(settings, settings.styleLearning, options.profile);
 
     const scheduled = this.scheduler.schedule({
       scope: {
@@ -163,14 +171,14 @@ export class AiWritingService {
           settings.provider === "local"
             ? buildLocalContinuationModelContext(snapshot, settings.localModel.modelId, {
                 isGhostText,
-                profile: options.profile,
+                profile,
                 documentContext: options.documentContext,
                 signal,
                 timeoutMs: options.timeoutMs,
               })
             : buildCloudContinuationModelContext(snapshot, {
                 isGhostText,
-                profile: options.profile,
+                profile,
                 documentContext: options.documentContext,
                 signal,
                 timeoutMs: options.timeoutMs,
@@ -325,6 +333,7 @@ export class AiWritingService {
 
     const client = this.resolveClient(settings, { fetchImpl: options.fetchImpl });
     const documentId = snapshot.document?.filePath || "untitled";
+    const profile = gateStyleProfile(settings, settings.styleLearning, options.profile);
 
     const scheduled = this.scheduler.schedule({
       scope: {
@@ -344,7 +353,7 @@ export class AiWritingService {
           settings.provider === "local"
             ? buildLocalUnifiedEditModelContext(snapshot, settings.localModel.modelId, {
                 isGhostText: options.isGhostText,
-                profile: options.profile,
+                profile,
                 documentContext: options.documentContext,
                 signal,
                 timeoutMs: options.timeoutMs,
@@ -352,7 +361,7 @@ export class AiWritingService {
               })
             : buildCloudUnifiedEditModelContext(snapshot, {
                 isGhostText: options.isGhostText,
-                profile: options.profile,
+                profile,
                 documentContext: options.documentContext,
                 signal,
                 timeoutMs: options.timeoutMs,

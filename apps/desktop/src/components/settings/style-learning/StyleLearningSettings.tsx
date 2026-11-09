@@ -123,6 +123,22 @@ export function StyleLearningSettings({
               </label>
               <p className={settingsDescriptionClassName}>{t("styleLearning.autoRelinkDesc")}</p>
             </div>
+            {styleLearning.cloudConsent ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <p className={settingsDescriptionClassName}>
+                  {t("styleLearning.consentGranted", {
+                    origin: styleLearning.cloudConsent.origin,
+                  })}
+                </p>
+                <button
+                  type="button"
+                  className={settingsSmallButtonClassName}
+                  onClick={() => setStyleLearning({ cloudConsent: null })}
+                >
+                  {t("styleLearning.consentRevoke")}
+                </button>
+              </div>
+            ) : null}
             {aiSettingsDraft.provider === "local" &&
             isLiteLocalModel(aiSettingsDraft.localModel.modelId) ? (
               <p className={settingsDescriptionClassName}>{t("styleLearning.liteNotice")}</p>
