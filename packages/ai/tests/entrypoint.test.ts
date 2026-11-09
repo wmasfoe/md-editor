@@ -18,8 +18,9 @@ describe("AI package main entry import graph", () => {
     const external = new Set<string>();
     const queue = [entry];
     // 覆盖 `import x from "y"`、`export * from "y"` 与副作用导入 `import "y"`。
+    // 同时覆盖静态导入、`export ... from`、副作用导入与动态 `import("...")`。
     const importPattern =
-      /(?:\b(?:import|export)\b[^"';]*?\bfrom\s*|\bimport\s*)["']([^"']+)["']/gu;
+      /(?:\b(?:import|export)\b[^"';]*?\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/gu;
 
     while (queue.length > 0) {
       const file = queue.pop()!;
@@ -50,8 +51,9 @@ describe("light style entry import graph", () => {
     const visited = new Set<string>();
     const external = new Set<string>();
     const queue = [entry];
+    // 同时覆盖静态导入、`export ... from`、副作用导入与动态 `import("...")`。
     const importPattern =
-      /(?:\b(?:import|export)\b[^"';]*?\bfrom\s*|\bimport\s*)["']([^"']+)["']/gu;
+      /(?:\b(?:import|export)\b[^"';]*?\bfrom\s*|\bimport\s*\(?\s*)["']([^"']+)["']/gu;
 
     while (queue.length > 0) {
       const file = queue.pop()!;
