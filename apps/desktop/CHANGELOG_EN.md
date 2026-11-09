@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.22.0 - 2026-11-09
+
+- Writing preferences (first version): learn your writing habits from workspaces you open and use them for continuation and grammar fixes. Off by default; learning runs on the on-device model only and never uploads your articles.
+- Learning uses the local Standard model only, runs silently in the background as a preemptible task while you are idle, and points you to the download when Standard is missing.
+- Three layers merge per dimension: your own preferences > the current workspace profile > the global profile. AI-generated profiles are read-only and shown as plain rules such as "prefers short paragraphs"; each rule lists its source articles and opens them on click.
+- A rule must be consistent across several rounds before it takes effect, so a one-off phrasing does not change your output. Source viewing, undo for folder recovery, and clearing learning data are all available.
+- Right-click a file or folder to exclude it from style learning; exclusion takes effect immediately and nothing is written into your workspace (no more .aiignore).
+- When a folder is moved or renamed, preferences can be recovered by content; success is announced and can be undone.
+- Edits you make to accepted AI text count as extra evidence, while the accepted AI text itself is excluded so the model's wording is never learned as yours.
+- Applies to manual continuation, inline ghost continuation, and grammar and polish fixes. In grammar fixes your habits are not reported as errors, and style suggestions are labelled "style" separately from "fix".
+- Privacy: profiles and learning data stay on this device; using preferences with a cloud provider requires separate consent and sends only the rule text, never your articles. The Lite model does not use preferences.
+
 ## 0.21.2 - 2026-11-07 (#226, #227)
 
 - UI polish: external plugins in Settings now use the same cards, switches and status labels as built-in plugins, and load errors appear inside the card; emoji icons, looping animations and heavy font weights are removed, and spacing, corner radii and shortcut keycaps are made consistent.
