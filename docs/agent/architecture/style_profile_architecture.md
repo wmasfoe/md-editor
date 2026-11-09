@@ -46,7 +46,7 @@
 - 使用前校验：打开或切换工作区时先做一次不调用模型的身份校验（`verifyWorkspace`），通过之前写作请求只使用全局画像与自定义规则。
 - 排除立即生效（PRD §2.10）：文件树右键或设置页排除文件后，`applyExclusions` 立刻调用唯一的重算入口 `recomputeStyleRound`——同时剔除被排除的样本、其 AI 段 hash，并重算工作区规则与全局层（不调用模型），再通知协调器在空闲时补读恢复的文件。学习轮次在删除或修改样本后调用同一模块的 `recomputeWorkspaceLayers`（同样的工作区规则 + 全局层重算，不做排除匹配），避免两套“移除证据”的不变量漂移。已生效规则在“它自己的取值”本轮已没有任何支持样本时立即退场，被排除或删除的证据不会继续注入 prompt。判定口径：观察轮记录每个取值的支持样本数（`valueSupport`），全局层同样记录；没有任何样本时不会伪造聚合值（`aggregate` 为 `undefined`，与“测得 0”区分），因此“没测到”一律按零证据处理，统计维度不会因为 0 落在低区间而被误判为仍有证据。退场时丢弃旧轮次，证据重新出现后必须重新积累 3 轮才会再次生效，避免规则在 prompt 中反复进出。设置页“参与学习的文章”只列出仍在参与的文件，被排除的只出现在“已排除”。
 - 计量（PRD §2.6）：dev 日志每轮输出 `samples`、`observations`、`activeRules`、`retiredRules`、本轮 `preemptions`/`modelSwitches`，当日可学习窗口数（`learnableWindowsToday`），以及调度器的 `urgentWaitMs`（count/max/p95）与 `exclusivePreemptions`。设置页状态行显示上次学习时间、参与样本数与生效规则数。
-- Sentry（PRD §2.8 / O-3）：学习失败经 `captureStyleLearningError` 上报并带 `feature: "style-learning"` 标签；`handleBeforeSend` 据此（消息兜底）去掉绝对路径与文件名，保留错误描述与数字/版本号。
+- Sentry（PRD §2.8 / O-3）：学习失败经 `captureStyleLearningError` 上报并带 `feature: "style-learning"` 标签；`handleBeforeSend` 据此（消息兜底）去掉绝对路径、目录与文件名，保留错误描述与数字/版本号。取舍：冒号之后的内容一律按文件名/路径处理（宁可少留描述，也不让带空格的文件名漏出）。
 - AI 文本：采纳时记录句子 hash，学习时跳过；AI 原文只在内存中保留到保存，用于提取“用户修改 AI 建议”的特征。
 - 编辑反馈的边界（首版已知残余）：编辑特征只有“维度 + 取值方向”，不含文本也不含路径，因此排除某个文件时无法按路径清除它的编辑特征；这些特征最多在下一次汇总轮被消费一次，且不能单独晋升或维持规则（`isRealSampleId` 统一把 `edit:` 伪 id 排除在“支持文件 ≥ 5”之外）。若将来要求严格到“任何痕迹都随排除清除”，需要把 `editFeedback` 改为按 `relPath` 记录。
 

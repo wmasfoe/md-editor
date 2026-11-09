@@ -105,3 +105,26 @@ describe("O-3: whitespace handling", () => {
     expect(scrubPaths({ message: text }).message).toContain("接下来是普通说明文字");
   });
 });
+
+describe("O-3: extensionless absolute directories", () => {
+  it("strips workspace and app-data directory paths", () => {
+    const message =
+      "无法创建风格学习数据目录：/Users/ikun/Library/Application Support/md-editor/style-learning (os error 13)";
+    const scrubbed = scrubPaths({ message }).message;
+    expect(scrubbed).toContain("无法创建风格学习数据目录");
+    expect(scrubbed).not.toContain("/Users/ikun");
+    expect(scrubbed).toContain("(os error 13)");
+
+    const outside = scrubPaths({
+      message: "/Users/ikun/notes/diary/private.md is outside opened folder /Users/ikun/notes.",
+    }).message;
+    expect(outside).not.toContain("/Users/ikun");
+  });
+
+  it("scrubs the whole labelled tail: privacy wins over keeping prose", () => {
+    // 冒号后的整段视为文件名/路径。宁可少留一点描述，也不让带空格的文件名漏出去。
+    expect(scrubPaths({ message: "读取样本失败：无法读取 notes.md" }).message).toBe(
+      "读取样本失败：[file]",
+    );
+  });
+});

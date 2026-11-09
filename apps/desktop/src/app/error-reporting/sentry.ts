@@ -138,7 +138,22 @@ const BARE_FILE = new RegExp("(?<![\\p{L}\\p{N}_.])[\\p{L}\\p{N}_.-]+" + EXTENSI
  * 整句以文件名结尾的中文消息（`该文件不能作为风格样本：我的 笔记.md`）：
  * 冒号之后一律视为路径/文件名，避免放行空格后把整句说明也吞掉。
  */
-const LABELLED_TAIL = new RegExp("([：:])\\s*" + PATH_SEGMENT + EXTENSION, "giu");
+const LABELLED_TAIL = new RegExp(
+  "([：:])\\s*" + PATH_SEGMENT + EXTENSION + "(?![\\p{L}\\p{N}_.-])",
+  "giu",
+);
+/**
+ * 不带扩展名的绝对目录路径（`/Users/me/Library/Application Support/md-editor/style-learning`）：
+ * 至少两段、以路径字符开头，且不以标点结尾。
+ */
+const ABSOLUTE_DIR = new RegExp(
+  "(?<![\\p{L}\\p{N}_.-])(?:\\/(?:" +
+    PATH_SEGMENT +
+    "\\/)+" +
+    PATH_SEGMENT +
+    ")(?![\\p{L}\\p{N}_.-])",
+  "giu",
+);
 
 function stripPaths(text: string): string {
   return (
@@ -168,6 +183,8 @@ function stripPaths(text: string): string {
         ),
         "[path]",
       )
+      // 不带扩展名的绝对目录：整段替换（错误信息里常带工作区根目录）
+      .replace(ABSOLUTE_DIR, "[path]")
       // 带标签的尾部：冒号之后是文件名时整段替换
       .replace(LABELLED_TAIL, "$1[file]")
       // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理

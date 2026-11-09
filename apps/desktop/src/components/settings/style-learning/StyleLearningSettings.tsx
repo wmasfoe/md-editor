@@ -17,6 +17,7 @@ import {
   createEmptyStyleExclusionsDocument,
   undoStyleRelink,
   isUserStyleExcluded,
+  isRealSampleId,
   styleDimensionValues,
   type CustomStyleRule,
   type StyleDimensionId,
@@ -338,7 +339,10 @@ function ActiveRuleList({
       ) : (
         <ul className="grid gap-1 text-sm" data-testid="style-active-rules">
           {active.map((rule) => {
-            const sources = new Set(rule.rounds.flatMap((round) => round.supportSampleIds));
+            // 只统计真实文章；编辑反馈的 edit: 伪 id 不是文件。
+            const sources = new Set(
+              rule.rounds.flatMap((round) => round.supportSampleIds.filter(isRealSampleId)),
+            );
             return (
               <li key={rule.dimension} className="flex items-baseline justify-between gap-3">
                 <span>{STYLE_DIMENSIONS[rule.dimension].templates[rule.value]}</span>
