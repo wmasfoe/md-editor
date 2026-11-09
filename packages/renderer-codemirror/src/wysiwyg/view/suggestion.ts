@@ -1,15 +1,7 @@
-import {
-  Facet,
-  Prec,
-  StateEffect,
-  StateField,
-  type Extension,
-  type Range,
-} from "@codemirror/state";
+import { Prec, StateEffect, StateField, type Extension, type Range } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
-  WidgetType,
   keymap,
   ViewPlugin,
   type ViewUpdate,
@@ -19,118 +11,31 @@ import { isolateHistory } from "@codemirror/commands";
 import { setEditorModeEffect } from "../../mode.ts";
 import { wysiwygProjectionField } from "../state/projection-field.ts";
 import { authorizeWysiwygProtectedChange } from "../state/change-authorization.ts";
+import {
+  DEFAULT_AI_SUGGESTION_LABELS,
+  aiSuggestionAcceptedAnnotation,
+  aiSuggestionLabelsFacet,
+  normalizeAiSuggestionValue,
+  type AiSuggestionInput,
+  type AiSuggestionItem,
+  type AiSuggestionLabels,
+  type AiSuggestionValue,
+} from "./suggestion-model.ts";
+import { DiffAdditionWidget, GhostTextWidget } from "./suggestion-widgets.ts";
 
-export interface AiSuggestionItem {
-  readonly from: number;
-  readonly to: number;
-  readonly text: string;
-  readonly originalText?: string;
-  readonly explanation?: string;
-}
-
-export interface AiSuggestionLabels {
-  readonly accept?: string;
-  readonly dismiss?: string;
-  readonly tabKey?: string;
-  readonly escKey?: string;
-}
-
-export const DEFAULT_AI_SUGGESTION_LABELS: Required<AiSuggestionLabels> = Object.freeze({
-  accept: "接受",
-  dismiss: "取消",
-  tabKey: "Tab",
-  escKey: "Esc",
-});
-
-export const aiSuggestionLabelsFacet = Facet.define<
-  AiSuggestionLabels | undefined,
-  Required<AiSuggestionLabels>
->({
-  combine: (values) =>
-    values.reduce<Required<AiSuggestionLabels>>(
-      (acc, val) => (val ? Object.assign(acc, val) : acc),
-      { ...DEFAULT_AI_SUGGESTION_LABELS },
-    ),
-});
-
-export interface AiSuggestionValue {
-  readonly items: readonly AiSuggestionItem[];
-  readonly activeIndex: number;
-  readonly labels?: AiSuggestionLabels;
-  /** 视口外建议两阶段 Tab 状态：是否已完成第 1 阶段（平滑定位居中） */
-  readonly hasScrolledIntoView?: boolean;
-  /** 触发建议时的光标锚点位置（例如 GEC 触发时光标在文末，建议在文首） */
-  readonly cursorAnchor?: number;
-  // 向后兼容便捷字段（指向当前 active 项）
-  readonly from?: number;
-  readonly to?: number;
-  readonly text?: string;
-  readonly originalText?: string;
-  readonly explanation?: string;
-}
-
-export type AiSuggestionInput =
-  | AiSuggestionValue
-  | AiSuggestionItem
-  | readonly AiSuggestionItem[]
-  | (Partial<AiSuggestionValue> & AiSuggestionItem);
-
-export function normalizeAiSuggestionValue(
-  input: AiSuggestionInput | null | undefined,
-): AiSuggestionValue | null {
-  if (!input) return null;
-
-  let items: readonly AiSuggestionItem[] = [];
-  let activeIndex = 0;
-
-  if (Array.isArray(input)) {
-    items = input;
-  } else {
-    const raw = input as unknown as Record<string, unknown>;
-    if ("items" in raw && Array.isArray(raw.items) && raw.items.length > 0) {
-      items = raw.items as readonly AiSuggestionItem[];
-      activeIndex = Math.min(
-        Math.max(0, typeof raw.activeIndex === "number" ? raw.activeIndex : 0),
-        items.length - 1,
-      );
-    } else if (
-      typeof raw.from === "number" &&
-      typeof raw.to === "number" &&
-      typeof raw.text === "string"
-    ) {
-      items = [raw as unknown as AiSuggestionItem];
-    }
-  }
-
-  const validItems = items.filter(
-    (item) =>
-      typeof item.from === "number" &&
-      typeof item.to === "number" &&
-      item.from <= item.to &&
-      typeof item.text === "string" &&
-      item.text.length > 0 &&
-      (item.originalText === undefined || item.originalText !== item.text),
-  );
-
-  if (validItems.length === 0) return null;
-
-  const clampedIndex = Math.min(Math.max(0, activeIndex), validItems.length - 1);
-  const active = validItems[clampedIndex];
-  const raw = Array.isArray(input) ? null : (input as unknown as Record<string, unknown>);
-  const labels = raw?.labels as AiSuggestionLabels | undefined;
-  const cursorAnchor = typeof raw?.cursorAnchor === "number" ? raw.cursorAnchor : undefined;
-  const hasScrolledIntoView =
-    typeof raw?.hasScrolledIntoView === "boolean" ? raw.hasScrolledIntoView : undefined;
-
-  return {
-    items: validItems,
-    activeIndex: clampedIndex,
-    labels,
-    cursorAnchor,
-    hasScrolledIntoView,
-    ...active,
-  };
-}
+// 模型与部件拆分到独立文件后，这里继续作为 AI 建议模块的公共入口。
+export {
+  DEFAULT_AI_SUGGESTION_LABELS,
+  aiSuggestionAcceptedAnnotation,
+  aiSuggestionLabelsFacet,
+  normalizeAiSuggestionValue,
+  type AiSuggestionAcceptedEvent,
+  type AiSuggestionInput,
+  type AiSuggestionItem,
+  type AiSuggestionKind,
+  type AiSuggestionLabels,
+  type AiSuggestionValue,
+} from "./suggestion-model.ts";
 
 export type SuggestionViewportPosition = "above" | "below" | "visible";
 
@@ -175,102 +80,6 @@ export function getSuggestionViewportStatus(
 export const setAiSuggestionEffect = StateEffect.define<AiSuggestionInput | null>();
 export const clearAiSuggestionEffect = StateEffect.define<void>();
 export const markAiSuggestionScrolledEffect = StateEffect.define<boolean>();
-
-const areLabelsEq = (a?: AiSuggestionLabels, b?: AiSuggestionLabels): boolean =>
-  a === b ||
-  (a?.accept === b?.accept &&
-    a?.dismiss === b?.dismiss &&
-    a?.tabKey === b?.tabKey &&
-    a?.escKey === b?.escKey);
-
-function createAiBadge(
-  doc: Document,
-  labels: Required<AiSuggestionLabels>,
-  step = "",
-): HTMLElement {
-  const badge = doc.createElement("span");
-  badge.className = "cm-md-ai-badge";
-  badge.setAttribute("aria-hidden", "true");
-  badge.textContent = `${labels.tabKey} ${labels.accept}${step} · ${labels.escKey} ${labels.dismiss}`;
-  return badge;
-}
-
-class GhostTextWidget extends WidgetType {
-  constructor(
-    readonly text: string,
-    readonly labels?: Required<AiSuggestionLabels>,
-  ) {
-    super();
-  }
-
-  eq(other: GhostTextWidget): boolean {
-    return other.text === this.text && areLabelsEq(other.labels, this.labels);
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const doc = view?.dom?.ownerDocument ?? (typeof document !== "undefined" ? document : null);
-    if (!doc) return null as never;
-    const span = doc.createElement("span");
-    span.className = "cm-md-ai-ghost-text";
-    span.setAttribute("aria-hidden", "true");
-    span.textContent = this.text;
-    span.append(createAiBadge(doc, this.labels ?? DEFAULT_AI_SUGGESTION_LABELS));
-    return span;
-  }
-
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
-
-class DiffAdditionWidget extends WidgetType {
-  constructor(
-    readonly text: string,
-    readonly options: {
-      readonly isActive: boolean;
-      readonly stepLabel?: string;
-      readonly labels?: Required<AiSuggestionLabels>;
-    } = {
-      isActive: true,
-    },
-  ) {
-    super();
-  }
-
-  eq(other: DiffAdditionWidget): boolean {
-    return (
-      other.text === this.text &&
-      other.options.isActive === this.options.isActive &&
-      other.options.stepLabel === this.options.stepLabel &&
-      areLabelsEq(other.options.labels, this.options.labels)
-    );
-  }
-
-  toDOM(view: EditorView): HTMLElement {
-    const doc = view?.dom?.ownerDocument ?? (typeof document !== "undefined" ? document : null);
-    if (!doc) return null as never;
-    const span = doc.createElement("span");
-    span.className = this.options.isActive
-      ? "cm-md-ai-diff-added"
-      : "cm-md-ai-diff-added cm-md-ai-diff-pending";
-    span.setAttribute("aria-hidden", "true");
-    span.textContent = this.text;
-    if (this.options.isActive) {
-      span.append(
-        createAiBadge(
-          doc,
-          this.options.labels ?? DEFAULT_AI_SUGGESTION_LABELS,
-          this.options.stepLabel || "",
-        ),
-      );
-    }
-    return span;
-  }
-
-  ignoreEvent(): boolean {
-    return true;
-  }
-}
 
 export const aiSuggestionField = StateField.define<AiSuggestionValue | null>({
   create() {
@@ -390,6 +199,7 @@ export const aiSuggestionDecorations = StateField.define<DecorationSet>({
       ranges.push(
         Decoration.widget({
           widget: new DiffAdditionWidget(currentItem.text, {
+            kind: currentItem.kind,
             isActive: true,
             stepLabel: totalRemaining > 1 ? ` (1/${totalRemaining})` : "",
             labels: resolvedLabels,
@@ -480,6 +290,7 @@ export function acceptAiSuggestion(view: EditorView): boolean {
   }
 
   const delta = insertText.length - (to - from);
+  const replacedText = view.state.sliceDoc(from, to);
 
   // 对队列中后续尚未处理的建议项，按长度差量进行坐标平移映射
   const nextItems: AiSuggestionItem[] = suggestion.items.map((item, idx) => {
@@ -525,7 +336,18 @@ export function acceptAiSuggestion(view: EditorView): boolean {
     // 护栏扫描发现（轮1 concern-4 首跑命中）：与 H2 同类 —— AI 接受的插入若落在
     // 受保护区（表格单元格/围栏代码/原子）会被 protection 静默拒绝，建议被消费却无落字。
     // 用户显式接受 = 授权语义，补受保护注解。
-    annotations: [isolateHistory.of("full"), authorizeWysiwygProtectedChange.of(true)],
+    annotations: [
+      isolateHistory.of("full"),
+      authorizeWysiwygProtectedChange.of(true),
+      // 宿主据此登记采纳的 AI 文本（风格学习排除 AI 措辞），不影响采纳本身。
+      aiSuggestionAcceptedAnnotation.of({
+        from,
+        to,
+        text: insertText,
+        originalText: replacedText,
+        kind: currentItem.kind,
+      }),
+    ],
     userEvent: "input.ai",
   });
 

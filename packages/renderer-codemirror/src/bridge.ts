@@ -25,6 +25,7 @@ import type {
   AiSuggestionInput,
   AiSuggestionLabels,
   AiSuggestionValue,
+  AiSuggestionAcceptedEvent,
 } from "./wysiwyg/view/suggestion.ts";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Diagnostic } from "@codemirror/lint";
@@ -161,6 +162,7 @@ export interface CodeMirrorEditorBridgeOptions {
   /** 兼容别名：同 plugins */
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   readonly aiSuggestionLabels?: AiSuggestionLabels;
+  readonly onAiSuggestionAccepted?: (event: AiSuggestionAcceptedEvent) => void;
   readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
 }
@@ -256,6 +258,7 @@ export function createCodeMirrorEditorBridge(
     onCursorLineChange: options.onCursorLineChange,
     plugins: options.plugins ?? options.syntaxPlugins,
     aiSuggestionLabels: options.aiSuggestionLabels,
+    onAiSuggestionAccepted: options.onAiSuggestionAccepted,
     enableMarkdownLint: options.enableMarkdownLint,
     onEditorChange(change) {
       const result = options.document.applyEditorChange(change.markdown, change.origin);

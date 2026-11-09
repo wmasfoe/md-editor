@@ -87,6 +87,23 @@ export interface AiLocalModelSettings {
   readonly error: string | null;
 }
 
+/** 云端使用写作偏好的授权，绑定到具体的 provider 与服务地址 origin */
+export interface AiStyleCloudConsent {
+  readonly provider: string;
+  readonly origin: string;
+  readonly grantedAt: string;
+}
+
+/** 用户风格学习设置；学习只在本地 Standard 模型上进行 */
+export interface AiStyleLearningSettings {
+  /** 风格学习总开关，默认关闭 */
+  readonly enabled: boolean;
+  /** 目录移动后按内容自动找回画像，默认关闭 */
+  readonly autoRelink: boolean;
+  /** 云端请求附带写作偏好的授权；null 表示未授权 */
+  readonly cloudConsent: AiStyleCloudConsent | null;
+}
+
 /** 三端统一的 AI 偏好设置领域对象 */
 export interface AiSettings {
   readonly enabled: boolean;
@@ -94,6 +111,7 @@ export interface AiSettings {
   readonly features: AiFeatureSettings;
   readonly endpoints: AiEndpointsRecord;
   readonly localModel: AiLocalModelSettings;
+  readonly styleLearning: AiStyleLearningSettings;
   /** 兼容历史 openAiCompatible 字段（与 endpoints.openai 双向同步，保障原生存储平滑升级） */
   readonly openAiCompatible?: AiProtocolEndpointSettings;
 }

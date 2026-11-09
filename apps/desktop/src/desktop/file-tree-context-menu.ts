@@ -10,6 +10,8 @@ export const FILE_TREE_CONTEXT_MENU_ACTION = {
   revealInFinder: "reveal-in-finder",
   rename: "rename",
   delete: "delete",
+  styleExclude: "style-exclude",
+  styleRestore: "style-restore",
 } as const;
 
 export type FileTreeContextMenuAction =
@@ -27,6 +29,8 @@ export async function showNativeFileTreeContextMenu(input: {
   readonly x: number;
   readonly y: number;
   readonly hasNode: boolean;
+  /** 风格学习开启且选中节点时显示对应的排除或恢复项 */
+  readonly styleLearning?: "exclude" | "restore" | null;
 }): Promise<void> {
   if (!isTauri()) {
     return;
@@ -36,6 +40,7 @@ export async function showNativeFileTreeContextMenu(input: {
     x: input.x,
     y: input.y,
     hasNode: input.hasNode,
+    styleLearning: input.styleLearning ?? null,
   });
 }
 

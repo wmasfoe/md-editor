@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_STYLE_LEARNING_SETTINGS,
   AnthropicClient,
   createModelClient,
   GoogleClient,
@@ -227,6 +228,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
       enabled: true,
       provider: "openai",
       features: { backgroundProcessing: false, continuation: true, editing: true },
+      styleLearning: DEFAULT_STYLE_LEARNING_SETTINGS,
       endpoints: {
         openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4", apiKey: "k1" },
         anthropic: { baseUrl: "https://api.anthropic.com", model: "claude-3", apiKey: "k2" },

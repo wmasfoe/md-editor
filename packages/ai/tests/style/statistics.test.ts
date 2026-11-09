@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { STYLE_UNKNOWN_VALUE } from "../../src/style/index.ts";
 import {
-  STYLE_UNKNOWN_VALUE,
   aggregateStat,
   computeSampleStats,
   extractStyleProse,
-} from "../../src/style/index.ts";
+} from "../../src/style/engine-entry.ts";
 import { spacedTechArticle } from "./fixtures.ts";
 
 describe("style statistics", () => {

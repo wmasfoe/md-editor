@@ -29,6 +29,7 @@ import type {
   AiSuggestionInput,
   AiSuggestionLabels,
   AiSuggestionValue,
+  AiSuggestionAcceptedEvent,
 } from "../wysiwyg/view/suggestion.ts";
 import type { DocumentLinterOptions } from "../lint/types.ts";
 export type { DocumentLinterOptions };
@@ -69,6 +70,8 @@ export interface CodeMirrorRendererOptions {
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   /** AI 建议徽标国际化文案 */
   readonly aiSuggestionLabels?: AiSuggestionLabels;
+  /** 用户采纳一项 AI 建议并插入文本后回调（不影响采纳本身） */
+  readonly onAiSuggestionAccepted?: (event: AiSuggestionAcceptedEvent) => void;
 }
 
 export interface ExternalEditRequest {

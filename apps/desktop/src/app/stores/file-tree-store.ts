@@ -14,6 +14,19 @@ import { useConfirmationStore } from "./confirmation-store";
 import { useFileActionStore } from "./file-action-store";
 import { useSidebarStore } from "./sidebar-store";
 import { watchFolder } from "../../desktop/file-adapter";
+import { syncStyleLearningRename } from "../ai/style-learning/style-exclusions";
+import { workspaceRelativePath } from "../ai/style-learning/paths";
+
+function syncStyleLearningRenameForTree(
+  rootPath: string,
+  fromPath: string,
+  toPath: string,
+): Promise<void> {
+  const from = workspaceRelativePath(rootPath, fromPath);
+  const to = workspaceRelativePath(rootPath, toPath);
+  if (!from || !to) return Promise.resolve();
+  return syncStyleLearningRename(rootPath, from, to).catch(() => undefined);
+}
 
 export interface FileTreeStore {
   folder: MarkdownFolder | null;
@@ -144,6 +157,8 @@ export const useFileTreeStore = create<FileTreeStore>((set, get) => ({
       set({ folder: result.folder });
       applyFileTreeMutation(result, node.path);
       if (result.affectedPath) {
+        // 风格学习的样本与排除列表按相对路径记录，重命名后同步，失败不影响重命名本身。
+        void syncStyleLearningRenameForTree(folder.rootPath, node.path, result.affectedPath);
         await recentFilesStore.move(node.path, {
           path: result.affectedPath,
           name: result.affectedPath.split("/").pop() || name,

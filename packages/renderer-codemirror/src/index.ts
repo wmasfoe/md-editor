@@ -42,6 +42,9 @@ export {
   type AiSuggestionItem,
   type AiSuggestionInput,
   type AiSuggestionValue,
+  type AiSuggestionKind,
+  type AiSuggestionAcceptedEvent,
+  aiSuggestionAcceptedAnnotation,
 } from "./wysiwyg/view/suggestion.ts";
 export {
   toggleBold,

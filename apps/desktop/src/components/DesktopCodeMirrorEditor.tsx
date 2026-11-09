@@ -15,6 +15,7 @@ import {
 } from "@md-editor/syntax-plugins";
 import { shouldSkipAutoGec } from "@md-editor/ai";
 import { desktopAiService } from "../app/ai/desktop-ai-service";
+import { useAcceptedAiTextRecorder } from "../app/ai/style-learning/use-accepted-ai-text";
 import { runtime } from "../app/runtime/editor-runtime";
 import { useAppSettings } from "../app/settings-context";
 import { useDocumentSnapshot } from "../app/document-store";
@@ -58,9 +59,12 @@ export function DesktopCodeMirrorEditor({
     () => ({
       accept: t("editor.suggestion.accept"),
       dismiss: t("editor.suggestion.dismiss"),
+      kindFix: t("editor.suggestion.kindFix"),
+      kindStyle: t("editor.suggestion.kindStyle"),
     }),
     [t],
   );
+  const recordAcceptedAiText = useAcceptedAiTextRecorder();
 
   const handlePortsChange = (newPorts: CodeMirrorEditorPorts | null) => {
     setPorts(newPorts);
@@ -174,6 +178,7 @@ export function DesktopCodeMirrorEditor({
       enableMarkdownLint={settings.editor.enableMarkdownLint}
       ariaLabel={t("sidebar.editorAria")}
       aiSuggestionLabels={aiSuggestionLabels}
+      onAiSuggestionAccepted={recordAcceptedAiText}
       mdxMode={isMdxDocument}
       mdxComponents={runtime.mdxComponents}
       resolveImageSrc={(source) =>

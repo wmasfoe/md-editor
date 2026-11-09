@@ -101,6 +101,8 @@ pub(crate) enum FileTreeContextMenuAction {
     RevealInFinder,
     Rename,
     Delete,
+    StyleExclude,
+    StyleRestore,
 }
 
 impl FileTreeContextMenuAction {
@@ -114,6 +116,8 @@ impl FileTreeContextMenuAction {
             Self::RevealInFinder => "reveal-in-finder",
             Self::Rename => "rename",
             Self::Delete => "delete",
+            Self::StyleExclude => "style-exclude",
+            Self::StyleRestore => "style-restore",
         }
     }
 }

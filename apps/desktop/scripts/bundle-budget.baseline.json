@@ -1,6 +1,6 @@
 {
-  "bootJavaScriptGzipBytes": 67192,
-  "totalJavaScriptGzipBytes": 2311755,
-  "chunkCount": 87,
+  "bootJavaScriptGzipBytes": 67171,
+  "totalJavaScriptGzipBytes": 2373601,
+  "chunkCount": 88,
   "note": "由 pnpm test:bundle:update 生成：桌面端生产 bundle 的 boot/总 gzip 基线（阈值 = 基线 × 1.03）。指标为 minify+gzip 后的字节数，与机器性能无关。"
 }

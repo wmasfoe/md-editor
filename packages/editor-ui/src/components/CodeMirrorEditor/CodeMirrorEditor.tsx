@@ -18,6 +18,7 @@ import {
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
+  type AiSuggestionAcceptedEvent,
   type AiSuggestionLabels,
 } from "@md-editor/renderer-codemirror";
 import "./CodeMirrorEditor.css";
@@ -57,6 +58,8 @@ export interface CodeMirrorEditorProps {
   readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
   /** AI 建议徽标国际化标签配置 */
   readonly aiSuggestionLabels?: AiSuggestionLabels;
+  /** 用户采纳一项 AI 建议后回调 */
+  readonly onAiSuggestionAccepted?: (event: AiSuggestionAcceptedEvent) => void;
   readonly onSyncError?: (error: CodeMirrorEditorSyncError) => void;
   readonly onQueuedExternalEditResult?: (result: CodeMirrorEditorExternalEditResult) => void;
   readonly onRendererPortsChange?: (ports: CodeMirrorEditorPorts | null) => void;
@@ -89,6 +92,7 @@ export function CodeMirrorEditor({
   plugins,
   syntaxPlugins,
   aiSuggestionLabels,
+  onAiSuggestionAccepted,
   onSyncError,
   onQueuedExternalEditResult,
   onRendererPortsChange,
@@ -110,6 +114,7 @@ export function CodeMirrorEditor({
     plugins,
     syntaxPlugins,
     aiSuggestionLabels,
+    onAiSuggestionAccepted,
     enableMarkdownLint,
     onSyncError,
   });
@@ -125,6 +130,7 @@ export function CodeMirrorEditor({
     plugins,
     syntaxPlugins,
     aiSuggestionLabels,
+    onAiSuggestionAccepted,
     enableMarkdownLint,
     onSyncError,
   };
@@ -158,6 +164,9 @@ export function CodeMirrorEditor({
             return writer(text);
           }
         : undefined,
+      onAiSuggestionAccepted(event) {
+        callbacksRef.current.onAiSuggestionAccepted?.(event);
+      },
       onCursorLineChange(line) {
         callbacksRef.current.onCursorLineChange?.(line);
         uiActionsRef.current?.updateActiveOutlineForLine(line);

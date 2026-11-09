@@ -242,6 +242,8 @@ describe("AI Suggestion: i18n Labels", () => {
       dismiss: "取消",
       tabKey: "Tab",
       escKey: "Esc",
+      kindFix: "修正",
+      kindStyle: "风格",
     });
 
     const view = createTestView("hello world", 0);

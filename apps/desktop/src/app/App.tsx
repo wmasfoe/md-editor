@@ -25,6 +25,7 @@ import { APP_DISPLAY_NAME } from "../lib/app-name";
 import { toAssetUrl } from "../lib/markdown-preview";
 import { AppTitleBar, EditorToast, isMacPlatform } from "./AppWindowChrome";
 import { useDesktopEditorController } from "./controller/useDesktopEditorController";
+import { useStyleLearning } from "./ai/style-learning/use-style-learning";
 import {
   DesktopEditorActionsContext,
   useDesktopEditorActions,
@@ -124,6 +125,8 @@ function DesktopEditorEffects({
   readonly showToast: (message: string | null) => void;
 }) {
   const actions = useDesktopEditorController({ fileService, showToast });
+  // 风格学习只在主窗口运行：空闲时在本地学习当前工作区的写作习惯。
+  useStyleLearning();
   useLayoutEffect(() => {
     onDesktopActionsChange?.(actions);
     return () => onDesktopActionsChange?.(null);

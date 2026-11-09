@@ -2,23 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_AI_SETTINGS,
+  DEFAULT_STYLE_LEARNING_SETTINGS,
   LITE_LOCAL_MODEL_ID,
   STANDARD_LOCAL_MODEL_ID,
+  normalizeAiSettings,
+  normalizeStyleLearningSettings,
   type AiSettings,
+  type AiStyleLearningSettings,
 } from "../../src/index.ts";
 import {
-  DEFAULT_STYLE_LEARNING_SETTINGS,
   evaluateStyleGate,
   gateStyleProfile,
   mergeStyleProfile,
-  normalizeStyleLearningSettings,
   styleCloudScope,
-  type StyleLearningSettings,
 } from "../../src/style/index.ts";
 import { activeRule } from "./fixtures.ts";
 
 const profile = mergeStyleProfile({ workspace: [activeRule("termScript", "keep-english")] });
-const enabled: StyleLearningSettings = { ...DEFAULT_STYLE_LEARNING_SETTINGS, enabled: true };
+const enabled: AiStyleLearningSettings = { ...DEFAULT_STYLE_LEARNING_SETTINGS, enabled: true };
 
 function local(modelId: string): AiSettings {
   return {
@@ -84,6 +85,8 @@ describe("style profile gate", () => {
   });
 
   it("U-SET-1: normalizes missing or malformed settings to off", () => {
+    expect(normalizeAiSettings({}).styleLearning).toEqual(DEFAULT_STYLE_LEARNING_SETTINGS);
+    expect(normalizeAiSettings({ provider: "openai" }).styleLearning.enabled).toBe(false);
     expect(normalizeStyleLearningSettings(undefined)).toEqual(DEFAULT_STYLE_LEARNING_SETTINGS);
     expect(
       normalizeStyleLearningSettings({
