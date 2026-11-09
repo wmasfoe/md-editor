@@ -8,7 +8,7 @@ use crate::{
     local_ai_model::get_available_local_ai_model,
     local_ai_runtime::{
         post_chat_completion, post_raw_completion, schedule_idle_shutdown, LocalAiRuntimeState,
-        LocalAiTask,
+        LocalAiTask, LOCAL_AI_BUSY_ERROR,
     },
 };
 
@@ -60,16 +60,24 @@ pub(crate) async fn request_local_ai_continuation(
     let model_for_runtime = model.clone();
     let task = options.task;
     let request_id = options.request_id;
+    let may_log_content = should_log_content(task);
 
     #[cfg(debug_assertions)]
     {
-        eprintln!(
-            "[Local AI] 📤 发起推理请求 (req={:?}, model={}, raw={}):\n--- [PROMPT 输入] ---\n{}\n--- [PROMPT 结束] ---",
-            request_id,
-            model.model_id,
-            is_raw,
-            request.get("prompt").and_then(Value::as_str).unwrap_or("")
-        );
+        if may_log_content {
+            eprintln!(
+                "[Local AI] 📤 发起推理请求 (req={:?}, model={}, raw={}):\n--- [PROMPT 输入] ---\n{}\n--- [PROMPT 结束] ---",
+                request_id,
+                model.model_id,
+                is_raw,
+                request.get("prompt").and_then(Value::as_str).unwrap_or("")
+            );
+        } else {
+            eprintln!(
+                "[Local AI] 📤 发起推理请求 (req={:?}, model={}, raw={}, 正文已隐藏)",
+                request_id, model.model_id, is_raw
+            );
+        }
     }
 
     let response_body = tauri::async_runtime::spawn_blocking(move || {
@@ -81,9 +89,26 @@ pub(crate) async fn request_local_ai_continuation(
             let mut runtime = runtime_manager
                 .lock()
                 .map_err(|_| "本地推理 runtime 状态锁已损坏。".to_string())?;
-            let ep = match runtime.ensure_ready(&app_handle, &model_for_runtime) {
+            // 风格学习不能杀掉正在服务用户的其他模型，交给 TS 侧放弃本次空闲窗口。
+            if task == Some(LocalAiTask::StyleAnalysis)
+                && runtime.is_other_model_hot(&model_for_runtime.model_id)
+            {
+                return Err(LOCAL_AI_BUSY_ERROR.to_string());
+            }
+            let cancel_state = runtime_state_clone.clone();
+            let cancel_id = request_id.clone();
+            let is_cancelled = move || {
+                cancel_id
+                    .as_deref()
+                    .is_some_and(|id| cancel_state.is_cancelled(id))
+            };
+            let ep = match runtime.ensure_ready(&app_handle, &model_for_runtime, &is_cancelled) {
                 Ok(ep) => ep,
                 Err(err) => {
+                    // 冷加载期间被取消的请求没有注册连接，需要在这里清掉取消标记。
+                    if let Some(id) = request_id.as_deref() {
+                        runtime_state_clone.clear_cancelled(id);
+                    }
                     eprintln!("[Local AI Error] ensure_ready 启动服务失败: {err}");
                     return Err(err);
                 }
@@ -130,13 +155,27 @@ pub(crate) async fn request_local_ai_continuation(
 
     #[cfg(debug_assertions)]
     {
-        eprintln!(
-            "[Local AI] 📥 模型生成返回:\n--- [OUTPUT 输出] ---\n{}\n--- [OUTPUT 结束] ---",
-            content
-        );
+        if may_log_content {
+            eprintln!(
+                "[Local AI] 📥 模型生成返回:\n--- [OUTPUT 输出] ---\n{}\n--- [OUTPUT 结束] ---",
+                content
+            );
+        } else {
+            eprintln!(
+                "[Local AI] 📥 模型生成返回 ({} 字符, 正文已隐藏)",
+                content.chars().count()
+            );
+        }
     }
+    #[cfg(not(debug_assertions))]
+    let _ = may_log_content;
 
     Ok(content)
+}
+
+/// 风格学习的提示词与输出来自用户历史文章，任何构建下都不打印正文。
+fn should_log_content(task: Option<LocalAiTask>) -> bool {
+    task.map_or(true, LocalAiTask::may_log_content)
 }
 
 /// Harness owns prompts; the native host only translates its request to llama-server.
@@ -282,6 +321,27 @@ mod tests {
             let temperature = payload["temperature"].as_f64().unwrap();
             assert!((temperature - source["temperature"].as_f64().unwrap()).abs() < 1e-6);
         }
+    }
+
+    #[test]
+    fn deserializes_style_analysis_task_name_shared_with_typescript() {
+        let options: LocalAiContinuationOptions = serde_json::from_value(json!({
+            "task": "style-analysis",
+            "messages": [{"role": "user", "content": "text"}]
+        }))
+        .unwrap();
+        assert_eq!(options.task, Some(LocalAiTask::StyleAnalysis));
+        assert!(serde_json::from_value::<LocalAiContinuationOptions>(json!({
+            "task": "styleanalysis", "rawPrompt": "text"
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn never_logs_style_analysis_content() {
+        assert!(!should_log_content(Some(LocalAiTask::StyleAnalysis)));
+        assert!(should_log_content(Some(LocalAiTask::Gec)));
+        assert!(should_log_content(None));
     }
 
     #[test]

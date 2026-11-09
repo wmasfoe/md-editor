@@ -101,6 +101,7 @@ export class LocalSlmClient implements ModelClient {
       const latencyMs = Date.now() - startTime;
       logLlmSuccess("LocalSLM", this.modelId, {
         latencyMs,
+        task: context.task,
         textPreview: text.slice(0, 100),
       });
 

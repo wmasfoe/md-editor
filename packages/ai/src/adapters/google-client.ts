@@ -125,6 +125,7 @@ export class GoogleClient implements ModelClient {
 
     const latencyMs = Date.now() - startTime;
     logLlmSuccess("Google", this.modelId, {
+      task: context.task,
       latencyMs,
       finishReason: candidate?.finishReason,
       textPreview: text.slice(0, 100),

@@ -35,6 +35,10 @@ pub(crate) enum LocalAiTask {
     Gec,
     Completion,
     Distill,
+    /// 风格学习分类任务：只在本地 Standard 上运行，不使用任何 LoRA，
+    /// 不能热切换已加载的其他模型，并且提示词与输出属于用户历史文章，禁止打印。
+    #[serde(rename = "style-analysis")]
+    StyleAnalysis,
 }
 
 impl LocalAiTask {
@@ -43,6 +47,7 @@ impl LocalAiTask {
             Self::Gec => "gec",
             Self::Completion => "completion",
             Self::Distill => "distill",
+            Self::StyleAnalysis => return 0.0,
         };
         if path.to_ascii_lowercase().contains(name) {
             1.0
@@ -50,7 +55,17 @@ impl LocalAiTask {
             0.0
         }
     }
+
+    /// 是否允许在 dev 日志中打印该任务的提示词与模型输出。
+    pub(crate) fn may_log_content(self) -> bool {
+        !matches!(self, Self::StyleAnalysis)
+    }
 }
+
+/// 冷加载被取消时返回的错误。
+pub(crate) const LOCAL_AI_CANCELLED_ERROR: &str = "本地推理请求已取消。";
+/// 风格学习不能切换正在使用中的其他模型时返回的错误（TS 侧据此放弃本次空闲窗口）。
+pub(crate) const LOCAL_AI_BUSY_ERROR: &str = "local-ai-busy";
 
 #[derive(Clone, Default)]
 pub(crate) struct LocalAiRuntimeState {
@@ -104,6 +119,12 @@ impl LocalAiRuntimeState {
         cancelled.contains(request_id)
     }
 
+    /// 清除取消标记。冷加载期间被取消的请求从未注册连接，需要在返回时单独清理。
+    pub(crate) fn clear_cancelled(&self, request_id: &str) {
+        let mut cancelled = self.cancelled_request_ids.lock().unwrap();
+        cancelled.remove(request_id);
+    }
+
     /// 主动取消指定请求：强行关闭连接流并标记为已取消，促使 llama-server 立即停止当前 slot
     pub(crate) fn cancel_request(&self, request_id: &str) {
         {
@@ -155,10 +176,21 @@ struct LocalAiRuntimeProcess {
 }
 
 impl LocalAiRuntimeManager {
+    /// 已加载的模型与目标不同，且仍在使用中（未空闲满 `LOCAL_AI_IDLE_TIMEOUT`）时返回 true。
+    ///
+    /// `last_used_at` 在请求开始与结束时都会刷新，单个请求最长 120s，远小于空闲阈值，
+    /// 因此在途请求一定被视为“使用中”。调用方必须持有 manager 锁。
+    pub(crate) fn is_other_model_hot(&self, model_id: &str) -> bool {
+        self.process.as_ref().is_some_and(|process| {
+            process.model_id != model_id && process.last_used_at.elapsed() < LOCAL_AI_IDLE_TIMEOUT
+        })
+    }
+
     pub(crate) fn ensure_ready(
         &mut self,
         app: &AppHandle,
         model: &LocalAiModelFile,
+        is_cancelled: &dyn Fn() -> bool,
     ) -> Result<LocalAiRuntimeEndpoint, String> {
         if let Some(endpoint) = self.reusable_endpoint(model)? {
             return Ok(endpoint);
@@ -198,7 +230,12 @@ impl LocalAiRuntimeManager {
 
         ACTIVE_LLAMA_PID.store(child.id(), Ordering::SeqCst);
 
-        wait_until_runtime_ready(&mut child, port)?;
+        let ready = wait_until_runtime_ready(&mut child, port, is_cancelled);
+        if ready.is_err() {
+            // 启动失败或被取消时子进程已被回收，不能留下指向它的 PID。
+            ACTIVE_LLAMA_PID.store(0, Ordering::SeqCst);
+        }
+        ready?;
 
         self.process = Some(LocalAiRuntimeProcess {
             child,
@@ -476,9 +513,21 @@ fn health_check(port: u16) -> Result<(), String> {
     }
 }
 
-fn wait_until_runtime_ready(child: &mut Child, port: u16) -> Result<(), String> {
+/// 轮询等待 llama-server 就绪。每轮检查一次取消判定，被取消时 kill 并回收子进程，
+/// 使持有 manager 锁的冷加载最多再阻塞一次轮询间隔加一次健康检查超时。
+fn wait_until_runtime_ready(
+    child: &mut Child,
+    port: u16,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<(), String> {
     let deadline = Instant::now() + STARTUP_TIMEOUT;
     loop {
+        if is_cancelled() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(LOCAL_AI_CANCELLED_ERROR.to_string());
+        }
+
         match child.try_wait() {
             Ok(None) => {}
             Ok(Some(status)) => {
@@ -826,6 +875,120 @@ fn truncate_for_error(body: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn style_analysis_never_enables_any_lora_adapter() {
+        for path in [
+            "lite-gec-lora.gguf",
+            "completion.gguf",
+            "style-analysis.gguf",
+        ] {
+            assert_eq!(LocalAiTask::StyleAnalysis.adapter_scale(path), 0.0);
+        }
+        assert!(!LocalAiTask::StyleAnalysis.may_log_content());
+        assert!(LocalAiTask::Completion.may_log_content());
+    }
+
+    fn spawn_idle_child() -> Child {
+        // 一个不会监听任何端口的长寿命子进程，模拟尚未就绪的 llama-server。
+        #[cfg(windows)]
+        let mut command = {
+            let mut command = Command::new("cmd");
+            command.args(["/C", "ping -n 30 127.0.0.1 >NUL"]);
+            command
+        };
+        #[cfg(not(windows))]
+        let mut command = {
+            let mut command = Command::new("sleep");
+            command.arg("30");
+            command
+        };
+        command
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap()
+    }
+
+    #[test]
+    fn cancelling_a_cold_load_kills_the_child_promptly() {
+        let mut child = spawn_idle_child();
+        // 端口不绑定，健康检查的连接会被立即拒绝。
+        let port = pick_available_localhost_port().unwrap();
+        let state = LocalAiRuntimeState::default();
+        state.cancel_request("learn-1");
+
+        let started = Instant::now();
+        let result = wait_until_runtime_ready(&mut child, port, &|| state.is_cancelled("learn-1"));
+
+        assert_eq!(result, Err(LOCAL_AI_CANCELLED_ERROR.to_string()));
+        // 取消在第一次健康检查之前生效，不受平台连接行为影响。
+        assert!(started.elapsed() < Duration::from_millis(250));
+        assert!(child.try_wait().unwrap().is_some(), "子进程应已被回收");
+    }
+
+    #[test]
+    fn cancellation_during_polling_is_observed_within_one_interval() {
+        let mut child = spawn_idle_child();
+        let port = pick_available_localhost_port().unwrap();
+        let state = LocalAiRuntimeState::default();
+        let canceller = state.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(300));
+            canceller.cancel_request("learn-2");
+        });
+
+        let started = Instant::now();
+        let result = wait_until_runtime_ready(&mut child, port, &|| state.is_cancelled("learn-2"));
+
+        assert_eq!(result, Err(LOCAL_AI_CANCELLED_ERROR.to_string()));
+        // 300ms 后取消，最多再等一次健康检查与一个轮询间隔。Windows 上连接未监听端口
+        // 不会立即被拒，而是等到健康检查超时，所以上界必须包含 HEALTH_CHECK_TIMEOUT。
+        let bound = Duration::from_millis(300)
+            + HEALTH_CHECK_TIMEOUT
+            + HEALTH_CHECK_INTERVAL
+            + Duration::from_millis(250);
+        assert!(
+            started.elapsed() < bound,
+            "取消耗时 {:?}",
+            started.elapsed()
+        );
+        assert!(child.try_wait().unwrap().is_some());
+    }
+
+    #[test]
+    fn clear_cancelled_removes_ids_left_by_cold_load_cancellation() {
+        let state = LocalAiRuntimeState::default();
+        state.cancel_request("learn-3");
+        assert!(state.is_cancelled("learn-3"));
+        state.clear_cancelled("learn-3");
+        assert!(!state.is_cancelled("learn-3"));
+    }
+
+    #[test]
+    fn reports_other_model_hot_only_while_it_is_in_use() {
+        let child = spawn_idle_child();
+        let mut runtime = LocalAiRuntimeManager {
+            process: Some(LocalAiRuntimeProcess {
+                child,
+                model_id: "lite".to_string(),
+                port: 0,
+                last_used_at: Instant::now(),
+                active_lora_task: None,
+                has_lora_adapters: false,
+            }),
+        };
+        assert!(runtime.is_other_model_hot("standard"));
+        assert!(!runtime.is_other_model_hot("lite"));
+
+        runtime.process.as_mut().unwrap().last_used_at = Instant::now()
+            .checked_sub(LOCAL_AI_IDLE_TIMEOUT + Duration::from_secs(1))
+            .unwrap();
+        assert!(!runtime.is_other_model_hot("standard"));
+
+        runtime.stop_runtime();
+        assert!(!runtime.is_other_model_hot("standard"));
+    }
 
     #[test]
     fn lite_uses_gec_adapter_only_for_gec() {

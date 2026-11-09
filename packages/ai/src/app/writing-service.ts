@@ -47,7 +47,7 @@ import {
   buildLocalUnifiedEditModelContext,
   createUnifiedMicroSlice,
 } from "./harness-prompts.ts";
-import { AiRequestScheduler } from "./request-scheduler.ts";
+import { AiRequestScheduler, createLocalAffinityKey } from "./request-scheduler.ts";
 
 export interface AiWritingServiceDeps {
   /** 由组合根注入的 `ModelClient` 解析函数 */
@@ -150,7 +150,7 @@ export class AiWritingService {
         task: "completion",
       },
       priority: isGhostText ? "normal" : "urgent",
-      loraGroup: "completion",
+      affinityKey: runtimeAffinityKey(settings, "completion"),
       run: async ({ signal: schedulerSignal }) => {
         const signal = combineSignals(options.signal, schedulerSignal);
         if (signal?.aborted) {
@@ -237,7 +237,7 @@ export class AiWritingService {
         task: "gec",
       },
       priority: "normal",
-      loraGroup: "gec",
+      affinityKey: runtimeAffinityKey(settings, "gec"),
       run: async ({ signal: schedulerSignal }) => {
         const signal = combineSignals(options.signal, schedulerSignal);
         if (signal?.aborted) {
@@ -330,7 +330,7 @@ export class AiWritingService {
         task: "completion",
       },
       priority: options.isGhostText === false ? "urgent" : "normal",
-      loraGroup: "completion",
+      affinityKey: runtimeAffinityKey(settings, "completion"),
       run: async (ctx) => {
         const schedulerSignal = ctx?.signal;
         const signal = combineSignals(options.signal, schedulerSignal);
@@ -457,7 +457,7 @@ export class AiWritingService {
         task: "distill",
       },
       priority: "background",
-      loraGroup: "distill",
+      affinityKey: runtimeAffinityKey(options.settings, "distill"),
       run: async ({ signal: schedulerSignal }) => {
         return this.documentContext.scheduleDistillation(filePath, markdown, {
           client,
@@ -570,4 +570,14 @@ function getParagraphBoundedTargetText(before: string, after: string): string {
   const boundedAfter = paragraphAfter.length <= 200 ? paragraphAfter : paragraphAfter.slice(0, 200);
 
   return `${boundedBefore}${boundedAfter}`.trim();
+}
+
+/**
+ * 计算请求的 runtime 亲和键：本地请求按“模型 + LoRA 任务”隔离，
+ * 云端请求不触碰本地 runtime 状态，返回 null 以允许并发。
+ */
+function runtimeAffinityKey(settings: AiSettings, lora: string): string | null {
+  return settings.provider === "local"
+    ? createLocalAffinityKey(settings.localModel.modelId, lora)
+    : null;
 }
