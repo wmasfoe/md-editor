@@ -242,7 +242,12 @@ describe("style learning coordinator", () => {
     await advance(STYLE_LEARNING_IDLE_MS);
     expect(onRelinked).not.toHaveBeenCalled();
     await advance(STYLE_LEARNING_IDLE_MS);
-    expect(onRelinked).toHaveBeenCalledWith({ fromRoot: "/old/notes", toRoot: "/notes" });
+    // 回调必须带上画像 id，提示里的“撤销”才能定位到这份画像。
+    expect(onRelinked).toHaveBeenCalledWith({
+      fromRoot: "/old/notes",
+      toRoot: "/notes",
+      profileId: "ws-1",
+    });
     expect(onDocumentChanged).toHaveBeenCalledTimes(2);
   });
 

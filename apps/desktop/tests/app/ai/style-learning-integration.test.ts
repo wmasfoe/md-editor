@@ -15,6 +15,7 @@ import {
 import { createEmptyStyleProfileDocument } from "@md-editor/ai/style";
 import { StyleLearningEngine } from "@md-editor/ai/style-engine";
 import { StyleLearningSettings } from "../../../src/components/settings/style-learning/StyleLearningSettings";
+import { DesktopEditorActionsContext } from "../../../src/app/context/DesktopEditorActionsContext";
 import {
   resolveMergedStyleProfile,
   useStyleLearningStore,
@@ -70,15 +71,20 @@ describe("I-12: a full learning round surfaces active rules in settings", () => 
     const root: Root = createRoot(container);
     await act(async () =>
       root.render(
-        createElement(StyleLearningSettings, {
-          aiSettingsDraft: {
-            ...DEFAULT_AI_SETTINGS,
-            styleLearning: { ...DEFAULT_STYLE_LEARNING_SETTINGS, enabled: true },
-          },
-          onChangeAiSettings: vi.fn(),
-          standardModelReady: true,
-          onDownloadStandardModel: vi.fn(),
-        }),
+        // 设置页会通过 actions context 打开来源文章。
+        createElement(
+          DesktopEditorActionsContext,
+          { value: { openDocumentFromTree: vi.fn() } as never },
+          createElement(StyleLearningSettings, {
+            aiSettingsDraft: {
+              ...DEFAULT_AI_SETTINGS,
+              styleLearning: { ...DEFAULT_STYLE_LEARNING_SETTINGS, enabled: true },
+            },
+            onChangeAiSettings: vi.fn(),
+            standardModelReady: true,
+            onDownloadStandardModel: vi.fn(),
+          }),
+        ),
       ),
     );
 

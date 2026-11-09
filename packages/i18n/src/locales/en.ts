@@ -484,6 +484,7 @@ export const en: TranslationSchema = {
     relinkedToast: "Workspace move detected; your writing preferences followed it",
     relinkedFrom: "Recovered from {{root}}",
     statusLine: "Last learned: {{time}} · {{samples}} samples · {{rules}} active rules",
+    openSource: "Open the source article in the editor",
     never: "not yet",
     undoRelink: "Undo recovery",
     contextExclude: "Exclude from style learning",

@@ -488,6 +488,7 @@ export const ja: TranslationSchema = {
     relinkedToast: "ワークスペースの移動を検出し、文章の好みを引き継ぎました",
     relinkedFrom: "{{root}} から引き継ぎました",
     statusLine: "最終学習：{{time}} · サンプル {{samples}} 件 · 有効なルール {{rules}} 件",
+    openSource: "出典の記事をエディターで開く",
     never: "未学習",
     undoRelink: "引き継ぎを取り消す",
     contextExclude: "スタイル学習から除外",

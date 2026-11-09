@@ -479,6 +479,7 @@ export const zhHant: TranslationSchema = {
     relinkedToast: "已識別工作區移動，寫作偏好已跟隨",
     relinkedFrom: "已從 {{root}} 找回",
     statusLine: "上次學習：{{time}} · 參與樣本 {{samples}} 篇 · 生效規則 {{rules}} 條",
+    openSource: "在編輯器中開啟來源文章",
     never: "尚未學習",
     undoRelink: "撤銷找回",
     contextExclude: "不參與風格學習",

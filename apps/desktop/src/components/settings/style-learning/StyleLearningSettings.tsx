@@ -15,7 +15,6 @@ import {
   STAT_DIMENSION_IDS,
   CLASS_DIMENSION_IDS,
   createEmptyStyleExclusionsDocument,
-  undoStyleRelink,
   isUserStyleExcluded,
   isRealSampleId,
   styleDimensionValues,
@@ -44,10 +43,11 @@ import { clearPendingEditFeedback } from "../../../app/ai/style-learning/edit-fe
 import { useStyleLearningData } from "../../../app/ai/style-learning/use-style-learning-data";
 import {
   excludeStylePath,
-  moveStyleExclusions,
   restoreStylePath,
+  undoStyleRelinkTo,
 } from "../../../app/ai/style-learning/style-exclusions";
 import { useStyleLearningRoot } from "../../../app/ai/style-learning/use-style-learning-root";
+import { useDesktopEditorActions } from "../../../app/context/DesktopEditorActionsContext";
 import { useToastStore } from "../../../app/stores/toast-store";
 
 export interface StyleLearningSettingsProps {
@@ -74,20 +74,6 @@ async function updateCustomRules(
     custom: change(latest.custom),
   }));
   useStyleLearningStore.getState().setProfile(next);
-}
-
-/** 撤销一次自动找回（基于磁盘上的最新文档写入），排除列表随之移回原目录 */
-async function undoRelink(
-  profileId: string,
-  currentRoot: string,
-  previousRoot: string,
-): Promise<void> {
-  const next = await updateStyleProfile((latest) => ({
-    ...latest,
-    workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
-  }));
-  useStyleLearningStore.getState().setProfile(next);
-  await moveStyleExclusions(currentRoot, previousRoot);
 }
 
 /** 清空当前排除列表（应用数据目录中的排除文档） */
@@ -189,9 +175,17 @@ function StyleProfileDataSection() {
   const profile = useStyleLearningStore((state) => state.profile);
   const exclusions = useStyleLearningStore((state) => state.exclusions);
   const rootPath = useStyleLearningRoot();
+  const { openDocumentFromTree } = useDesktopEditorActions();
   const workspace = findLinkedWorkspaceProfile(profile, rootPath);
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
+  // 样本 id → 工作区相对路径，供规则的“查看来源”使用。
+  const sourcePaths = new Map(
+    (workspace?.samples ?? []).map((sample) => [sample.id, sample.relPath] as const),
+  );
+  const openSource = (relPath: string) => {
+    if (rootPath) void openDocumentFromTree(joinPath(rootPath, relPath));
+  };
   // 参与学习的文件列表只列出仍在参与的文件；被排除的只出现在下方“已排除”。
   const participating =
     workspace?.samples.filter((sample) => !isUserStyleExcluded(sample.relPath, excluded)) ?? [];
@@ -209,7 +203,12 @@ function StyleProfileDataSection() {
     <div className="grid gap-4">
       <section className="grid gap-2" aria-label={t("styleLearning.aiProfile")}>
         <h4 className={settingsFieldLabelClassName}>{t("styleLearning.aiProfile")}</h4>
-        <ActiveRuleList title={t("styleLearning.workspaceLayer")} rules={workspace?.rules ?? []} />
+        <ActiveRuleList
+          title={t("styleLearning.workspaceLayer")}
+          rules={workspace?.rules ?? []}
+          sources={sourcePaths}
+          onOpenSource={openSource}
+        />
         {workspace?.relinkedFrom ? (
           <div className="flex flex-wrap items-center gap-3">
             <p className={settingsDescriptionClassName}>
@@ -219,7 +218,11 @@ function StyleProfileDataSection() {
               type="button"
               className={settingsSmallButtonClassName}
               onClick={() =>
-                void undoRelink(workspace.id, workspace.rootPath, workspace.relinkedFrom!.rootPath)
+                void undoStyleRelinkTo(
+                  workspace.id,
+                  workspace.rootPath,
+                  workspace.relinkedFrom!.rootPath,
+                )
               }
             >
               {t("styleLearning.undoRelink")}
@@ -229,6 +232,8 @@ function StyleProfileDataSection() {
         <ActiveRuleList
           title={t("styleLearning.globalLayer")}
           rules={profile?.global.rules ?? []}
+          sources={sourcePaths}
+          onOpenSource={openSource}
         />
         <p className={settingsDescriptionClassName} data-testid="style-status-line">
           {t("styleLearning.statusLine", {
@@ -321,13 +326,18 @@ function StyleProfileDataSection() {
   );
 }
 
-/** 只读展示某一层已生效的规则 */
+/** 只读展示某一层已生效的规则，并给出每条规则的来源文章 */
 function ActiveRuleList({
   title,
   rules,
+  sources,
+  onOpenSource,
 }: {
   readonly title: string;
   readonly rules: readonly StyleRuleRecord[];
+  /** 样本 id → 工作区相对路径 */
+  readonly sources: ReadonlyMap<string, string>;
+  readonly onOpenSource: (relPath: string) => void;
 }) {
   const { t } = useTranslation();
   const active = rules.filter((rule) => rule.status === "active");
@@ -340,15 +350,39 @@ function ActiveRuleList({
         <ul className="grid gap-1 text-sm" data-testid="style-active-rules">
           {active.map((rule) => {
             // 只统计真实文章；编辑反馈的 edit: 伪 id 不是文件。
-            const sources = new Set(
-              rule.rounds.flatMap((round) => round.supportSampleIds.filter(isRealSampleId)),
-            );
+            // 来源：该规则各轮支持过的真实文章（编辑反馈的伪 id 不算）。
+            const sampleIds = [
+              ...new Set(
+                rule.rounds.flatMap((round) => round.supportSampleIds.filter(isRealSampleId)),
+              ),
+            ];
+            const paths = sampleIds
+              .map((id) => sources.get(id))
+              .filter((path): path is string => Boolean(path));
             return (
-              <li key={rule.dimension} className="flex items-baseline justify-between gap-3">
-                <span>{STYLE_DIMENSIONS[rule.dimension].templates[rule.value]}</span>
-                <span className="shrink-0 text-xs text-[var(--theme-control-subtle)]">
-                  {t("styleLearning.sources", { count: sources.size })}
-                </span>
+              <li key={rule.dimension} className="grid gap-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span>{STYLE_DIMENSIONS[rule.dimension].templates[rule.value]}</span>
+                  <span className="shrink-0 text-xs text-[var(--theme-control-subtle)]">
+                    {t("styleLearning.sources", { count: paths.length })}
+                  </span>
+                </div>
+                {paths.length > 0 ? (
+                  <ul className="grid gap-0.5 text-xs" data-testid="style-rule-sources">
+                    {paths.slice(0, 5).map((path) => (
+                      <li key={path}>
+                        <button
+                          type="button"
+                          className="max-w-full truncate text-left text-[var(--theme-control-subtle)] underline-offset-2 hover:text-[var(--theme-primary)] hover:underline"
+                          title={t("styleLearning.openSource")}
+                          onClick={() => onOpenSource(path)}
+                        >
+                          {path}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </li>
             );
           })}
@@ -472,4 +506,9 @@ function CustomRuleEditor({
       </div>
     </section>
   );
+}
+
+/** 工作区相对路径 → 绝对路径（统一用 `/`） */
+function joinPath(rootPath: string, relPath: string): string {
+  return `${rootPath.replace(/[\\/]+$/u, "")}/${relPath}`;
 }

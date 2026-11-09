@@ -9,6 +9,7 @@
 import {
   isUserStyleExcluded,
   recomputeStyleRound,
+  undoStyleRelink,
   type StyleExclusionsDocument,
 } from "@md-editor/ai/style";
 import { updateStyleExclusions, updateStyleProfile } from "./style-learning-host";
@@ -144,4 +145,21 @@ export async function moveStyleExclusions(fromRoot: string, toRoot: string): Pro
     return { ...latest, workspaces: { ...rest, [toRoot]: moved } };
   });
   useStyleLearningStore.getState().setExclusions(next);
+}
+
+/**
+ * 撤销一次自动找回：画像回到找回前的目录并标记为失去关联，排除列表随之移回，
+ * 并记录“不再找回到该目录”。设置页按钮与找回提示里的“撤销”共用这里。
+ */
+export async function undoStyleRelinkTo(
+  profileId: string,
+  currentRoot: string,
+  previousRoot: string,
+): Promise<void> {
+  const next = await updateStyleProfile((latest) => ({
+    ...latest,
+    workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
+  }));
+  useStyleLearningStore.getState().setProfile(next);
+  await moveStyleExclusions(currentRoot, previousRoot);
 }

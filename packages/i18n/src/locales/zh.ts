@@ -477,6 +477,7 @@ export const zh = {
     relinkedToast: "已识别工作区移动，写作偏好已跟随",
     relinkedFrom: "已从 {{root}} 找回",
     statusLine: "上次学习：{{time}} · 参与样本 {{samples}} 篇 · 生效规则 {{rules}} 条",
+    openSource: "在编辑器中打开来源文章",
     never: "尚未学习",
     undoRelink: "撤销找回",
     contextExclude: "不参与风格学习",

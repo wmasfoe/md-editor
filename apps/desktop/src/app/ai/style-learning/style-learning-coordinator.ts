@@ -53,7 +53,11 @@ export interface StyleLearningCallbacks {
     readonly exclusivePreemptions: number;
   };
   /** 自动找回成功时通知用户（唯一会提示用户的学习结果） */
-  readonly onRelinked?: (info: { readonly fromRoot: string; readonly toRoot: string }) => void;
+  readonly onRelinked?: (info: {
+    readonly fromRoot: string;
+    readonly toRoot: string;
+    readonly profileId: string;
+  }) => void;
   /** 画像文档有变化时通知（设置页刷新） */
   readonly onDocumentChanged?: (document: StyleProfileDocument) => void;
 }
@@ -244,6 +248,7 @@ export class StyleLearningCoordinator {
         this.callbacks.onRelinked?.({
           fromRoot: outcome.relinked.previousRoot,
           toRoot: conditions.rootPath!,
+          profileId: outcome.relinked.profileId,
         });
       }
       if (import.meta.env?.DEV) {

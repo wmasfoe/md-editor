@@ -16,7 +16,7 @@ import { useToastStore } from "../../stores/toast-store";
 import { listenToFolderChanged } from "../../../desktop/folder-watcher-events";
 import { createDesktopStyleLearningHost, updateStyleProfile } from "./style-learning-host";
 import { useStyleLearningData } from "./use-style-learning-data";
-import { moveStyleExclusions, onStyleLearningChanged } from "./style-exclusions";
+import { moveStyleExclusions, onStyleLearningChanged, undoStyleRelinkTo } from "./style-exclusions";
 import { StyleLearningCoordinator } from "./style-learning-coordinator";
 import {
   clearPendingEditFeedback,
@@ -95,9 +95,15 @@ export function useStyleLearning(): void {
           store.setVerifiedRoot(findLinkedWorkspaceProfile(document, root) ? root : null);
         },
         schedulerMetrics: () => desktopAiService.scheduler.waitMetrics,
-        onRelinked: ({ fromRoot, toRoot }) => {
+        onRelinked: ({ fromRoot, toRoot, profileId }) => {
           void moveStyleExclusions(fromRoot, toRoot).catch(() => undefined);
-          useToastStore.getState().showToast(t("styleLearning.relinkedToast"));
+          // 提示里直接提供“撤销”：不需要用户再去找设置页。
+          useToastStore.getState().showToast(t("styleLearning.relinkedToast"), {
+            label: t("styleLearning.undoRelink"),
+            run: () => {
+              void undoStyleRelinkTo(profileId, toRoot, fromRoot).catch(() => undefined);
+            },
+          });
         },
       },
     );
