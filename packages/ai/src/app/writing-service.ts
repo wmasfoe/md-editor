@@ -23,7 +23,6 @@ import type {
   AiSettings,
   AiWritingSuggestion,
   UnifiedEditDecision,
-  UserStyleProfile,
 } from "../domain/types.ts";
 import {
   type DocumentContextManager,
@@ -48,6 +47,7 @@ import {
   createUnifiedMicroSlice,
 } from "./harness-prompts.ts";
 import { AiRequestScheduler, createLocalAffinityKey } from "./request-scheduler.ts";
+import type { MergedStyleProfile } from "../style/types.ts";
 
 export interface AiWritingServiceDeps {
   /** 由组合根注入的 `ModelClient` 解析函数 */
@@ -66,7 +66,8 @@ export interface AiWritingServiceDeps {
 export interface AiContinuationOptions {
   /** 是否为单行幽灵文本（默认 true；快捷键主动续写可设为 false 以允许多行段落） */
   readonly isGhostText?: boolean;
-  readonly profile?: UserStyleProfile;
+  /** 已通过画像闸门的合并画像；未传表示不附带画像 */
+  readonly profile?: MergedStyleProfile;
   readonly documentContext?: AiDocumentContext;
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
@@ -82,7 +83,8 @@ export interface AiGrammarFixOptions {
 
 export interface AiUnifiedEditOptions {
   readonly isGhostText?: boolean;
-  readonly profile?: UserStyleProfile;
+  /** 已通过画像闸门的合并画像；未传表示不附带画像 */
+  readonly profile?: MergedStyleProfile;
   readonly documentContext?: AiDocumentContext;
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
