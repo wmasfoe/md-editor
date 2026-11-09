@@ -2,15 +2,20 @@
 
 ## 0.22.0 - 2026-11-09
 
-- Writing preferences (first version): learn your writing habits from workspaces you open and use them for continuation and grammar fixes. Off by default; learning runs on the on-device model only and never uploads your articles.
-- Learning uses the local Standard model only, runs silently in the background as a preemptible task while you are idle, and points you to the download when Standard is missing.
-- Three layers merge per dimension: your own preferences > the current workspace profile > the global profile. AI-generated profiles are read-only and shown as plain rules such as "prefers short paragraphs"; each rule lists its source articles and opens them on click.
-- A rule must be consistent across several rounds before it takes effect, so a one-off phrasing does not change your output. Source viewing, undo for folder recovery, and clearing learning data are all available.
-- Right-click a file or folder to exclude it from style learning; exclusion takes effect immediately and nothing is written into your workspace (no more .aiignore).
-- When a folder is moved or renamed, preferences can be recovered by content; success is announced and can be undone.
-- Edits you make to accepted AI text count as extra evidence, while the accepted AI text itself is excluded so the model's wording is never learned as yours.
-- Applies to manual continuation, inline ghost continuation, and grammar and polish fixes. In grammar fixes your habits are not reported as errors, and style suggestions are labelled "style" separately from "fix".
-- Privacy: profiles and learning data stay on this device; using preferences with a cloud provider requires separate consent and sends only the rule text, never your articles. The Lite model does not use preferences.
+- New: writing preferences (first version). Learn your writing habits from workspaces you open and use them for continuation and grammar fixes.
+  - Off by default; learning uses the on-device Standard model only and never uploads your articles.
+  - Learning runs silently in the background as a preemptible task while you are idle, so typing is never blocked; if Standard is missing you are told that style learning is on-device only and offered the download.
+  - Three layers merge per dimension: your own preferences > the current workspace profile > the global profile.
+  - Rules read as plain sentences such as "prefers short paragraphs", and each rule lists its source articles, which open on click.
+  - Undo for folder recovery and clearing learning data are both available.
+- New: "exclude from style learning" on the file tree. Right-click a file or folder and exclusion takes effect immediately.
+  - Nothing is written into your workspace (no more .aiignore).
+  - Excluded files appear only in the excluded list and no longer count as participating articles.
+- New: preferences follow moved folders. When a folder is moved or renamed, preferences are recovered by content; success is announced and can be undone.
+- Improved: rules only take effect after staying consistent across several rounds, so a one-off phrasing does not change your output.
+- Improved: edits you make to accepted AI text count as extra evidence, while the accepted AI text itself is excluded so the model's wording is never learned as yours.
+- Grammar fixes label habits and style separately: your habits are not reported as errors, and style suggestions are labelled "style" rather than "fix".
+- Privacy boundaries: profiles and learning data stay on this device; using preferences with a cloud provider needs separate consent and sends only the rule text, never your articles; the Lite model does not use preferences.
 
 ## 0.21.2 - 2026-11-07 (#226, #227)
 
@@ -18,11 +23,18 @@
 
 ## 0.21.1 - 2026-11-07 (#225)
 
-- Fix in-app updates: Later no longer downloads and only skips the current run; a failed check now reports up to date instead of erroring; downloads are time-bounded and retryable on failure; the main window owns the update flow, fixing duplicate downloads and stale settings-window status; add in-app updates for Linux.
+- Fix in-app updates:
+  - Later no longer downloads and only skips the current run; a failed check reports up to date instead of erroring.
+  - Downloads are time-bounded and retryable on failure.
+  - The main window owns the update flow, fixing duplicate downloads and stale settings-window status.
+- New: in-app updates on Linux.
 
 ## 0.21.0 - 2026-11-07 (#224)
 
-- External plugins: install community plugins from GitHub Releases without rebuilding the app. Supports custom syntax, writing commands, templates, shortcuts and per-plugin settings; the first install shows the source, version and digest and asks for confirmation; supports updates, rollback, disabling, and safe start with --disable-external-plugins. See inkpoint-plugin-starter for plugin development.
+- New: external plugins. Install community plugins from GitHub Releases without rebuilding the app.
+  - Supports custom syntax, writing commands, templates, shortcuts and per-plugin settings.
+  - The first install shows the source, version and digest and asks for confirmation; supports updates, rollback, disabling, and safe start with `--disable-external-plugins`.
+  - See inkpoint-plugin-starter for plugin development.
 
 ## 0.20.0 - 2026-11-07 (#217, #218, #219, #220, #221)
 
@@ -48,10 +60,12 @@
 
 ## 0.19.0 - 2026-11-01 (#205, #206, #207, #208)
 
-- Classic "Kami" Paper & Ink Themes & 3-Layer Style Engine: Added the minimalist "Kami Light" (rice paper texture) and "Kami Dark" (ink wash) built-in themes. Rebuilt the styling architecture into a 3-layer compilation engine (base, theme, user override) with translucent ink-blue selection highlights meeting WCAG 2.1 AA/AAA contrast ratios.
-- Cursor-Tab Unified Inline Completion & Next-Edit Prediction: Added Cursor-style inline AI completion and next-edit prediction across the entire editor area. Contextual completions, corrections, and rewrites can be triggered anywhere and accepted instantly with the Tab key.
-- Local Model Background Scheduling & Lifecycle Management: Completely removed silent cold-boot distillation and typing-pause inference loops, using lightweight AST parsing for instant outline extraction. Added request preemption via TCP socket termination, and guaranteed clean termination of background llama-server processes on app exit.
-- Instant Typography & Font Live Preview: Changing prose fonts, code fonts, or font sizes in Appearance settings now reflects immediately in the main editor window, with automatic rollback on cancellation and seamless persistence on save.
+- New: classic "Kami" paper and ink themes with a 3-layer style engine.
+  - Added "Kami Light" (rice paper texture) and "Kami Dark" (ink wash) built-in themes.
+  - Rebuilt styling into a 3-layer engine (base, theme, user override), with translucent ink-blue selection highlights meeting WCAG 2.1 AA/AAA contrast.
+- New: Cursor-style Tab completion and next-edit prediction across the editor; contextual completions, corrections and rewrites can be triggered anywhere and accepted with Tab.
+- Improved: local model scheduling and lifecycle. Silent cold-boot distillation and typing-pause inference loops are gone, outlines come from lightweight AST parsing, requests can be preempted by closing the TCP socket, and background llama-server processes are cleaned up on exit.
+- Improved: typography and font live preview. Changing prose font, code font or size reflects immediately in the main window, with rollback on cancel and persistence on save.
 
 ## 0.18.0 - 2026-10-28 (#202)
 
