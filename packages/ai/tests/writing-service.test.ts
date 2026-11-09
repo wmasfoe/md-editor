@@ -47,6 +47,7 @@ describe("AiWritingService: App Harness 编排服务", () => {
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
       features: {
+        ...DEFAULT_AI_SETTINGS.features,
         continuation: true,
         editing: true,
       },
@@ -95,6 +96,7 @@ describe("AiWritingService: App Harness 编排服务", () => {
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
       features: {
+        ...DEFAULT_AI_SETTINGS.features,
         continuation: true,
         editing: true,
       },
@@ -136,6 +138,7 @@ describe("AiWritingService: App Harness 编排服务", () => {
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
       features: {
+        ...DEFAULT_AI_SETTINGS.features,
         continuation: true,
         editing: true,
       },
@@ -168,6 +171,7 @@ describe("AiWritingService: App Harness 编排服务", () => {
     const settings: AiSettings = {
       ...DEFAULT_AI_SETTINGS,
       features: {
+        ...DEFAULT_AI_SETTINGS.features,
         continuation: true,
         editing: true,
       },

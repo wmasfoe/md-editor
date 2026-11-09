@@ -226,7 +226,7 @@ describe("adapters: 多协议 ModelClient 适配器与工厂", () => {
     const baseSettings: AiSettings = {
       enabled: true,
       provider: "openai",
-      features: { continuation: true, editing: true },
+      features: { backgroundProcessing: false, continuation: true, editing: true },
       endpoints: {
         openai: { baseUrl: "https://api.openai.com/v1", model: "gpt-4", apiKey: "k1" },
         anthropic: { baseUrl: "https://api.anthropic.com", model: "claude-3", apiKey: "k2" },

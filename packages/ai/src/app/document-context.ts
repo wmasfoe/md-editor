@@ -264,6 +264,8 @@ export async function distillDocumentProgressive(options: {
       });
 
       const response = await client.generate(modelCtx);
+      // 客户端可能忽略取消信号，不能使用取消后才返回的模型结果。
+      if (signal?.aborted) return baseContext;
       const topicOutput = stripThinkingTags(response.text).trim();
       if (topicOutput) {
         accumulatedSummary = topicOutput;
@@ -286,6 +288,7 @@ export async function distillDocumentProgressive(options: {
         });
 
         const response = await client.generate(modelCtx);
+        if (signal?.aborted) return baseContext;
         const stepTopic = stripThinkingTags(response.text).trim();
         if (stepTopic) {
           accumulatedSummary = stepTopic;
@@ -376,7 +379,11 @@ export class DocumentContextManager {
     }
 
     const active = this.inFlightDistillations.get(filePath);
-    if (active && active.contentHash === currentHash) {
+    if (
+      active &&
+      active.contentHash === currentHash &&
+      this.abortControllers.get(filePath)?.signal.aborted === false
+    ) {
       return active.promise;
     }
 
@@ -403,6 +410,7 @@ export class DocumentContextManager {
           signal: abortController.signal,
           timeoutMs: options.timeoutMs,
           onProgress: (interim) => {
+            if (abortController.signal.aborted) return;
             this.set(filePath, interim, currentHash);
             options.onUpdate?.(interim);
           },
@@ -422,9 +430,6 @@ export class DocumentContextManager {
       } finally {
         if (this.abortControllers.get(filePath) === abortController) {
           this.abortControllers.delete(filePath);
-        }
-        const currentActive = this.inFlightDistillations.get(filePath);
-        if (currentActive?.contentHash === currentHash) {
           this.inFlightDistillations.delete(filePath);
         }
       }

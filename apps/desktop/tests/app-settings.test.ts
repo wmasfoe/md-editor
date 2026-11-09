@@ -46,6 +46,7 @@ describe("app settings", () => {
     expect(settings.editor).toEqual(DEFAULT_EDITOR_DISPLAY_SETTINGS);
     expect(settings.theme).toEqual(DEFAULT_THEME_SETTINGS);
     expect(settings.ai.features).toEqual({
+      backgroundProcessing: false,
       continuation: false,
       editing: true,
     });
@@ -492,6 +493,7 @@ describe("app settings", () => {
       ai: {
         ...createDefaultSettings().ai,
         provider: "openai",
+        features: { ...createDefaultSettings().ai.features, backgroundProcessing: true },
         endpoints: {
           openai: {
             baseUrl: "https://api.deepseek.com",
@@ -521,6 +523,7 @@ describe("app settings", () => {
     expect(reloaded.ai.endpoints.anthropic.apiKey).toBe("sk-ant-test-key");
     expect(reloaded.ai.endpoints.google.apiKey).toBe("AIzaSyTestKey");
     expect(reloaded.ai.openAiCompatible?.apiKey).toBe("sk-my-secret-key-12345");
+    expect(reloaded.ai.features.backgroundProcessing).toBe(true);
   });
 
   it("normalizes and preserves all supported language settings including zh-Hant and ja", () => {

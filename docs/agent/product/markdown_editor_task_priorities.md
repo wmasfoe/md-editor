@@ -64,6 +64,7 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 | 官方 MDX 组件最小切片 | 已完成 | `Callout` 已过 registry、AST range、真实渲染、原子选择、后代交互拦截与错误占位全链路（M4/G005，2026-08-04 验证）；实现见 `packages/mdx-plugins/src/callout/` |
 | 错误提示体系 | 部分完成 | 文件操作已有顶部错误提示并接入 Sentry（0.11.0，默认开、可关、过滤文档内容）；解析失败、模式切换失败等仍缺更完整的用户提示 |
 | 基础主题 | 已完成 | 主题模式 system/light/dark（`apps/desktop/src/components/settings/AppearanceSettingsPanel.tsx`）+ 每档自定义 CSS 与内置主题选项（`apps/desktop/src/app/settings/theme-css.ts`、`ThemeCssPicker.tsx`） |
+| 用户风格学习 | 近期规划，未实现 | 先支持 `.aiignore` 与限定范围的历史文章扫描，再用本地模型分析并在本地保存画像；提供独立、默认关闭的开关，详见 [AI 需求 §8](./markdown_editor_ai_feature_requirements.md#8-近期计划用户风格学习) |
 
 ## 4.1 已完成的 v0.1 打磨项
 
@@ -95,14 +96,13 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 
 | 任务 | 目标 |
 |---|---|
-| HTML 导出 | 独立 Exporter 接口，处理主题、图片路径、Frontmatter |
-| PDF 导出 | 通过 HTML 到 PDF 先实现可用导出，再逐步优化排版 |
+| HTML 导出 | 已实现：独立 HTML 导出，处理主题与图片资源；现状见[竞品分析](./vmark_competitive_analysis.md) |
+| PDF 导出 | 已实现：macOS 原生分页 PDF 导出及标题书签；现状见[竞品分析](./vmark_competitive_analysis.md) |
 | 更多官方 MDX 组件 | LinkCard、Video、FileTree、Steps 等 |
 | 图片自定义目录 | 用户可配置 assets 目录和命名规则 |
 | 云端图片上传 | 用户通过自定义 provider 接入云端存储 |
-| AI 显式续写 | Ghost text、Tab 接受、Esc 取消 |
-| AI 静默检查 | 默认关闭，高置信度轻提示 |
-| 用户风格学习 | 本地历史文章索引、风格画像、`.aiignore` |
+| AI 显式续写 | 已实现：Ghost text、Tab 接受、Esc 取消 |
+| AI 静默检查 | 桌面后台建议与文档提炼共用独立开关，默认关闭；手动纠错和续写不受此开关影响 |
 
 ## 6. CM6 迁移里程碑
 
@@ -135,16 +135,16 @@ CM6 迁移顺序和实时进度分别以 [`custom_markdown_renderer_architecture
 - 完成功能矩阵、性能、可访问性、全仓验证和迁移期清理
 - beta 可用不等于 M6 完成
 
-## 7. 当前非目标
+## 7. v0.1 阶段非目标（历史）
 
-当前路线不做：
+以下是原 v0.1 阶段的范围边界，不代表当前实现状态；后续已实现的功能在条目中注明，其他当前状态以对应专项文档为准：
 
 - 完整 MDX runtime。
 - 任意 import / export 执行。
 - 任意 JS expression props 的结构化编辑。
 - 复杂嵌套 JSX 的完整可视化编辑。
-- HTML / PDF 导出。
-- AI 写作辅助。
+- HTML / PDF 导出（已实现）。
+- AI 写作辅助（已实现显式续写、选区语法纠错，以及默认关闭的后台建议；详见 [AI 需求](./markdown_editor_ai_feature_requirements.md)）。
 - 官方 `Callout` 组件的结构化表单编辑。
 - npm 第三方插件加载。
 - 本地插件目录。

@@ -3,6 +3,7 @@
 > 用途：记录对竞品 VMark（vmark.app / `xiaolai/vmark`）的功能调研结论、可借鉴项、应拒绝项，以及落地时的架构边界归属，作为需求优先级调整的输入。
 >
 > 调研日期：2026-09-22
+> 本项目实现状态复核：2026-11-08，基于本次工作区代码；§3 和 §7.1 区分已实现能力与剩余缺口。竞品信息仍以原调研日期为准。
 > **决策记录（opt-in 补记）**：本文档属 spec §12 列出的 opt-in 项（当时标注「未自动执行」），后经属主**显式批准执行**并落盘 —— 系主动选择性产出，非流程自动触发。
 > 信息来源：`https://vmark.app/`、`https://github.com/xiaolai/vmark`（ISC License，已 shallow clone 通读 `website/guide/*.md` 全量产品文档 8853 行）与仓库 `src/` 结构
 > 对照基线：[`markdown_editor_requirements.md`](./markdown_editor_requirements.md)、[`markdown_editor_task_priorities.md`](./markdown_editor_task_priorities.md)、[`markdown_editor_ai_feature_requirements.md`](./markdown_editor_ai_feature_requirements.md)、[`codemirror_renderer_migration_status.md`](../status/codemirror_renderer_migration_status.md)
@@ -49,29 +50,30 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 | 搜索替换 | ✅ 已有 `renderer-codemirror/src/wysiwyg/view/search-panel.ts` | ✅ 含正则/全词/计数 |
 | 命令面板 | ✅ 已有（G007，`Cmd/Ctrl+K`） | ✅ `Mod+Shift+P`，含 when 过滤 |
 | 最近文件 | ✅ 已有 `file-system/src/recent-files.ts` | ✅ |
-| 大纲面板 | ✅ 已有（含当前标题高亮 + 滚动同步） | ✅ 另有过滤输入框 |
+| 大纲面板 | ✅ 已有（含当前标题高亮、滚动同步、点击跳转和文档内标题锚点跳转）；与正文内联 `[TOC]` 不是同一功能 | ✅ 另有过滤输入框 |
 | GFM 可视化表格 | ✅ 已有（M3，就地编辑 + 增删行列 + 对齐） | ✅ 另有 Fit-to-width 列宽 |
 | 图片粘贴 / 拖拽 | ✅ 已有（含 `paste-image` / `drop-image-listener`） | ✅ 另有右键菜单与尺寸显示 |
 | 代码块 | ✅ 已有（M2，高亮/行号/复制/Tab 缩进） | ✅ |
 | Frontmatter 面板 | ✅ 已有（M1-FM） | ✅ 折叠式 |
 | 快捷键自定义 | ✅ 已有 `settings/shortcuts/keys.ts` | ✅ 全量可自定义 |
 | **自动配对 + Tab 跳出** | ✅ 已完成：`wysiwyg/input/smart-pairs.ts` 选区包裹 + `tab-arbitration.ts`（支持括号与链接 Tab 跳出，代码块/行内代码保字面，空光标不自动补右括号以维持手感） | ✅ 含 CJK 括号 |
-| **行/块操作**（移/复/删/并/排序） | ✅ 已完成：`wysiwyg/blocks/block-move.ts` 块移动 + 块级快捷键与占位守护（`a7e43d6`） | ✅ 8 项行操作 |
-| **Focus / Typewriter / 只读模式** | ⚠️ 部分：Focus 模式（当前块高亮/余块淡化）与 Typewriter 模式（光标居中缓动）已完成；只读模式未做（2026-11-07 核实：`renderer-codemirror/src` 无 `EditorState.readOnly` / `EditorView.editable`，见 §7.1） | ✅ 三件套 |
+| **行/块操作**（移/复/删/并/排序） | ⚠️ 部分：已完成块移动、复制、删除及快捷键与占位守护；合并和排序已推迟，见 §4 的勘误 | ✅ 8 项行操作 |
+| **Focus / Typewriter / 只读模式** | ⚠️ 部分：Focus 模式（当前块高亮/余块淡化）与 Typewriter 模式（光标居中缓动）已完成；移动端已有可切回编辑的阅读态，桌面端全文只读开关未找到，见 §7.1 | ✅ 三件套 |
 | **Hot Exit / 会话恢复** | ✅ 已完成（v0.18.0，草稿自动暂存与启动恢复提示） | ✅ 全量含崩溃恢复 |
-| **文档历史快照** | ✅ 已完成（v0.18.0，`.inkpoint/history/` 原子快照 + 历史抽屉 Diff 与回滚） | ✅ JSONL 按日分组 |
-| **CJK 排版规则** | ⚠️ 部分：仅有 CJK 友好强调/删除线定界符解析（`b6e37f1`，`markdown/cjk-friendly-emphasis.ts`）与 CJK 括号 Tab 跳出（`bracket-escape.ts`）。CJK-拉丁间距、全角/半角标点归一、弯直引号配对、技术构造保护均未做。`<|task_punc|>` 只是本地模型的控制 Token（见 `apps/desktop/CHANGELOG.md`），2026-11-07 核实源码中无对应任务调用，不能算已落地 | ✅ **20+ 规则，产品卖点** |
-| **Markdown Lint + 链接检查** | ✅ 已完成（v0.18.0，markdownlint + 本地相对链接与锚点探针，⌥⇧L / ⌥⇧F） | ✅ 13 条规则 + M001/M002 |
-| **导出 HTML / PDF** | ✅ 已完成（v0.18.0，双模 HTML、macOS 原生矢量分页 PDF、富文本剪贴板复制） | ✅ 成熟产品设计 |
-| **Source Peek 块级源码编辑** | ⚠️ 部分：表格与 HTML 块已就地编辑（HTML 块 v0.20.0：双击 / 编辑按钮 / `Mod-Enter` 在文档流内展开源码，不走浮层，见 `html_block_source_reveal_and_preview_spec.md`）；通用的“光标所在任意块按 `F5`”未做 | ✅ `F5` |
+| **文档历史快照** | ✅ 已完成（v0.18.0，桌面快照存于应用数据目录 `md-editor/history/`，支持历史抽屉 Diff 与回滚） | ✅ JSONL 按日分组 |
+| **CJK 排版规则** | ⚠️ 部分：仅有 CJK 友好强调/删除线定界符解析（`b6e37f1`，`markdown/cjk-friendly-emphasis.ts`）与 CJK 括号 Tab 跳出（`bracket-escape.ts`）。CJK-拉丁间距、全角/半角标点归一、弯直引号配对、技术构造保护均未做。`<\|task_punc\|>` 只是本地模型的控制 Token（见 `apps/desktop/CHANGELOG.md`），2026-11-07 核实源码中无对应任务调用，不能算已落地 | ✅ **20+ 规则，产品卖点** |
+| **Markdown Lint + 链接检查** | ✅ 已完成（v0.18.0，markdownlint + 本地相对链接与锚点探针，⌥⇧L / ⌥⇧F）；批量修复包括减少多余连续空行 | ✅ 13 条规则 + M001/M002 |
+| **导出 HTML / PDF** | ✅ 已完成：编译器提供独立/外链 HTML 两种结果，桌面入口保存独立 HTML；macOS 原生矢量分页 PDF 含标题书签，另支持富文本剪贴板复制。大文档导出截取限制见 §7.1 | ✅ 成熟产品设计 |
+| **Source Peek 块级源码编辑** | ⚠️ 部分：HTML 块可通过双击 / 编辑按钮 / `Mod-Enter` 在文档流内展开源码；表格支持可视化单元格就地编辑，不会展开 GFM 源码；通用的“光标所在任意块按 `F5`”未做 | ✅ `F5` |
 | **智能粘贴（HTML/Word→MD）** | ✅ 已完成（v0.20.0，`wysiwyg/input/smart-paste.ts`：turndown + GFM，仅在有结构的富文本上转换，IDE 与纯文本保持原样，Shift 粘贴纯文本，选区粘贴链接生成 Markdown 链接） | ✅ |
-| **AI Genies（选区 AI 改写）** | ⚠️ 部分：底层已完成（多协议 AI Harness、本地模型推理、内联审批式建议，`83fe8df` / `605b06c`），但 AI 命令只有 `ai.continueWriting` 与 `ai.fixGrammar`。Spotlight 选择器、选区改写、Quick Chips、Scope 循环、Prompt 历史均未做 | ✅ 13 个 genie + Spotlight |
+| **AI Genies（选区 AI 改写）** | ⚠️ 部分：已有多协议 AI、本地模型和内联建议；`ai.fixGrammar` 已支持选区纠错，无选区时处理当前行。通用选区润色/精简/自由提示词改写及 Spotlight、Quick Chips、Scope 循环、Prompt 历史未做 | ✅ 13 个 genie + Spotlight |
+| **AI 后台建议** | ✅ 已有输入停止后防抖触发的后台建议和文档提炼；桌面独立开关默认关闭，开启后还需 AI 和 provider 就绪，远程请求可能包含当前文档内容 | — |
 | **MCP 集成** | ⏸ 远期规划（第 6 批，需先完成跨平台分发打包尖刺） | ✅ 一键接入 6 个 AI CLI |
-| 内联 `[TOC]` | ❌ 无（2026-11-07 核实：源码中无 `[TOC]` / 目录投影） | ✅ |
-| 文本清理 / 孤儿图片清理 | ❌ 无（2026-11-07 核实：无大小写转换、行排序、尾随空格清理命令，无 assets 引用扫描） | ✅ |
-| 大文件阈值策略 | ❌ 无（M6 有性能抽查，2026-11-07 核实：打开文件路径上无任何大小判断） | ✅ 1MB/5MB/50MB 分级 |
+| 内联 `[TOC]` | ❌ 无：桌面 Chromium 测试页面输入后仍为文字，静态 HTML 渲染也保留字面量；侧栏大纲和 macOS PDF 书签已实现 | ✅ |
+| 文本清理 / 孤儿图片清理 | ⚠️ 部分：`lint.fixAll` 可连同其他启用规则一起修复多余连续空行；尾随空格规则默认关闭。未找到独立的大小写转换、行排序、尾随空格清理命令或 assets 引用扫描 | ✅ |
+| 大文件阈值策略 | ⚠️ 桌面打开路径未找到分级阈值；静态编译器默认超过 2 MiB 截取并附内容提示，该路径也用于 HTML/PDF 导出，适用范围待核对 | ✅ 1MB/5MB/50MB 分级 |
 | 字体（拉丁/CJK/等宽分离）+ 缩放 | ⚠️ 有字体配置；2026-11-07 核实：快捷键清单中无缩放命令 | ✅ |
-| 多光标（`Mod-D` 选下一处 / `Mod-Shift-L` 全选匹配） | ✅ 已有：`@codemirror/search` 的 `searchKeymap` 自带，`root-extensions.ts` 已装并开启 `allowMultipleSelections`。**未做**：竞品要求的“代码围栏感知” | ✅ |
+| 多光标（`Mod-D` 选下一处 / `Mod-Shift-L` 全选匹配） | ✅ 基础能力已有：`searchKeymap` 已装并开启 `allowMultipleSelections`；代码围栏感知未做。CM6 的纵向加光标默认键与桌面块移动快捷键冲突 | ✅ |
 | 主题 | ✅ 5 款 | 6 款 |
 | i18n | ✅ zh/en | 10 语言 |
 
@@ -119,7 +121,7 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 #### 4.4 无干扰写作三件套：Focus / Typewriter / 只读（P1）
 
-> **状态（2026-11-07）**：Focus、Typewriter 已完成；只读模式未做。
+> **状态（2026-11-08）**：Focus、Typewriter 已完成；移动端有阅读态，桌面端全文只读开关未找到。
 
 - **Focus Mode**：只保留当前块全透明、其余块降透明度。**我们是块级投影层，这个能力天然契合**（已有 block range model / `range-index.ts`，M3 表格已是块级 Widget），成本显著低于 VMark 在 ProseMirror 上的做法。
 - **Typewriter Mode**：当前行垂直居中。CM6 `EditorView` scroll 控制即可，注意阈值防抖（VMark 明确提到"小阈值避免抖动"，这个坑要避开）。
@@ -128,12 +130,16 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 #### 4.5 Hot Exit + 会话恢复（P1，"敢日常用"的信任基石）
 
+> **状态（2026-11-08）**：草稿自动暂存与启动恢复提示已交付；下文是原竞品调研建议，不表示列举的所有会话状态均已实现。
+
 - 保存：打开的 tab 与未保存内容、光标、撤销历史、UI 布局、窗口位置；崩溃后用周期性恢复快照；快照 7 天自动清理。
 - **我们已有强基础**：`editor-core` 的 LF 不可变快照 / generation / revision、`file-system` 的有序保存与 checkpoint、Tauri 的 `SaveCommitGate` + 原子写。**恢复链路可以复用同一套快照与确定性语义，不需要另起一套状态系统**。
 - 注意与现有"关闭前提示未保存"的关系：Hot Exit 后仍保留 dirty 标记（VMark 的做法正确）。
 - **架构归属**：`file-system`（持久化）+ `editor-core`（快照语义）+ desktop 平台适配层（窗口/生命周期）。**不得把会话状态塞进 React 组件**（AGENTS.md 架构边界）。
 
 #### 4.6 文档历史快照（P1）
+
+> **状态（2026-11-08）**：历史快照、对比与回滚已交付，见 §7；下文保留原调研建议。
 
 - 自动快照、按日分组、恢复（恢复前先存一份当前快照）、单条删除、只对已保存文档生效。
 - 我们已有 JSONL/快照与原子写基础，边际成本低。
@@ -143,9 +149,9 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 #### 4.7 AI Genies（P1，与我们 AI 路线完美同构）
 
-> **状态（2026-11-07）**：suggestion 展示/接受/取消基础设施已就绪；选区改写的触发入口与交互（Spotlight 等）未做，见 §3。
+> **状态（2026-11-08）**：suggestion 展示/接受/取消基础设施与选区语法纠错已实现；通用选区润色、精简、自由提示词改写及 Spotlight 等交互未做，见 §3。
 
-VMark 的"选中文本 → `Mod+Y` Spotlight 选择器 → AI 改写 → 内联建议 → 接受/拒绝"，与我们已定的 **AI 显式续写：ghost text + `Tab` 接受 + `Esc` 取消**（见 [`markdown_editor_ai_feature_requirements.md`](./markdown_editor_ai_feature_requirements.md) §3.2）是**同一套 suggestion 展示/接受/取消/失效基础设施**，只是触发源从"续写"扩到"选区改写"。这是投入产出比最高的一条。
+VMark 的“选中文本 → `Mod+Y` Spotlight 选择器 → AI 改写 → 内联建议 → 接受/拒绝”，与我们已有的显式续写和选区语法纠错共用 suggestion 展示/接受/取消/失效能力。后续通用改写可在既有选区处理和 suggestion 交互上扩展，不应把现有纠错当作通用润色。
 
 产品细节可直接吸收：
 - Spotlight 单输入框，输入即过滤 name/description/category，无匹配时**降级为自由 prompt**；
@@ -176,6 +182,8 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 
 #### 4.9 导出 HTML / PDF（P1，PRD v0.3 既有项）
 
+> **状态（2026-11-08）**：桌面入口导出单个独立 HTML；编译器同时提供外链 HTML 结果。macOS 已通过 WebKit/PDFKit 原生导出 PDF 并生成书签；其他平台直接导出未内置原生引擎，可回退系统打印。下文是原调研建议，不表示每项均已实现。
+
 吸收 VMark 的产品设计，减少我们试错：
 - HTML 导出**同时产出两个文件**：`index.html`（外链 `assets/`）+ `standalone.html`（全内联），不做模式选择——直接消灭一个设置项；
 - PDF 导出用**自己的导出对话框**（纸张 A4/Letter/A3/Legal、方向、页边距预设 + 可拖拽自定义、字号、行高、**拉丁与 CJK 字体分开**、样式预设、页码），并产出带可点击标题大纲的 PDF；系统打印（`Cmd+P`）是**另一条独立路径**；
@@ -185,7 +193,7 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 
 #### 4.10 Source Peek 块级源码编辑（P1，架构契合度最高）
 
-> **状态（2026-11-07）**：当前按块类型专属实现（表格、HTML 块），暂不做通用 `F5`。下文是通用化方案；其他块类型是否补做待产品判断，若补做应复用表格与 HTML 块已有的受保护回写通道，不新增第二套。
+> **状态（2026-11-08）**：HTML 块已支持原位展开源码，表格支持网格单元格编辑但不展开 GFM 源码；暂不做通用 `F5`。下文是通用化方案；其他块类型是否补做待产品判断，若补做应沿用各块已有的编辑事务与保护契约。
 
 `F5` 在 WYSIWYG 下针对**光标所在块**打开源码编辑浮层，`Cmd+Enter` 保存、`Esc` 取消、可开实时预览。用于"修表格语法 / 调列表缩进"这类真实痛点。
 
@@ -216,13 +224,13 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 |---|---|---|
 | 内联 `[TOC]` | 自生成目录、点击跳转、实时更新、导出保留 | renderer 投影 |
 | 表格 Fit-to-width | 表格固定到编辑器宽度、列按内容比例分配；支持每表右键覆盖 | renderer 表格投影（M3 已有基础） |
-| 文本清理 | 去尾随空格、合并空行、大小写转换 | editor-core 命令 |
+| 文本清理 | 多余连续空行可通过 `lint.fixAll` 连同其他启用的规则一起修复；独立的尾随空格清理、大小写转换和行排序仍待评估 | editor-core 命令 |
 | 孤儿图片清理 | 扫描 assets 中未被引用的图片 | file-system |
 | 大文件阈值 | >1MB 自动进源码模式、>5MB 二次确认、>50MB 拒绝 | file-system + 平台层 |
 | 大纲过滤框 | 按标题文本过滤、保留祖先链 | editor-ui |
 | 字体缩放快捷键 | `Mod+=/-/0`，与设置项同一数值源，2px 步进 + 上下限 | editor-ui 设置 |
 | 阅读位置保持 | 切 tab / 切模式 / 磁盘重载后回到原位（光标优先） | editor-core |
-| 多光标增强 | `Mod+D` / `Mod+Shift+L` 已由 CM6 自带（见 §3）；仍待做的是**代码围栏感知**与纵向光标 | renderer |
+| 多光标增强 | `Mod+D` / `Mod+Shift+L` 已由 CM6 自带；仍需评估**代码围栏感知**，以及纵向加光标与桌面块移动的默认快捷键冲突 | renderer |
 | Smart Select All | `Mod+A` 按容器逐级扩大（单元格→行→表→文档） | renderer |
 
 ---
@@ -256,33 +264,33 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 
 | 批次 | 内容 | 状态 | 说明 / 理由 |
 |---|---|---|---|
-| 第 1 批（手感） | 4.2 自动配对/Tab 跳出 + 4.3 块操作 + 4.4 专注/打字机模式 | ✅ **已完成** | 已全量合入 main（`smart-pairs`、`tab-arbitration`、`block-move` 快捷键、Focus/Typewriter 模式） |
-| 第 2 批（差异化） | 4.1 CJK 排版 + 4.10 块级就地源码编辑 | ⚠️ **部分完成** | CJK 仅完成友好强调/删除线定界符解析（`b6e37f1`），排版规则引擎未做；块级就地编辑按块类型落地（表格 M3、HTML 块 #218），暂无通用 `F5` |
-| 第 3 批（信任） | 4.5 Hot Exit + 4.6 文档历史 | ✅ **已完成 (v0.18.0)** | 实现了异常退出草稿自动暂存、启动恢复提示 Banner 与基于 `.inkpoint/history/` 的原子快照记录及 HistoryDrawer 抽屉对比与回滚 |
-| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ⚠️ **基础设施已完成，选区改写未做** | AI 多协议 Harness 重构、本地 SLM 轻量桥与审批式流式建议已交付（`83fe8df` / `605b06c`）；现有命令仅续写与语法修复，Spotlight 选区改写未做 |
-| 第 5 批（专业） | 4.8 Lint/链接检查 + 4.9 导出 HTML/PDF | ✅ **已完成 (v0.18.0)** | 实现了 markdownlint + 本地相对链接与锚点探针（⌥⇧L/⌥⇧F 导航与批量修复）、双模 HTML、macOS 原生矢量分页 PDF 导出及富文本剪贴板复制 |
+| 第 1 批（手感） | 4.2 选区包裹/Tab 跳出 + 4.3 基础块操作 + 4.4 专注/打字机模式 | ✅ **首批已完成** | `smart-pairs`、`tab-arbitration`、块移动/复制/删除快捷键、Focus/Typewriter 已落地；空光标自动闭合已明确不做，合并/排序推迟 |
+| 第 2 批（差异化） | 4.1 CJK 排版 + 4.10 块级就地源码编辑 | ⚠️ **部分完成** | CJK 已完成友好强调/删除线定界符解析及括号 Tab 跳出，排版规则引擎未做；HTML 块可原位编辑源码，表格支持可视化单元格编辑，暂无通用 `F5` |
+| 第 3 批（信任） | 4.5 Hot Exit + 4.6 文档历史 | ✅ **已完成 (v0.18.0)** | 实现了异常退出草稿自动暂存、启动恢复提示 Banner，以及应用数据目录中的快照记录与 HistoryDrawer 抽屉对比、回滚 |
+| 第 4 批（AI） | 4.7 AI 交互 / 改写建议系统 | ⚠️ **部分完成** | 已有续写、选区语法纠错和默认关闭的后台建议；通用选区润色/精简/自由提示词改写及 Spotlight 未做。风格学习已列入近期计划，见 §7.1 |
+| 第 5 批（专业） | 4.8 Lint/链接检查 + 4.9 导出 HTML/PDF | ✅ **基础能力已完成 (v0.18.0)** | 已有 markdownlint 和本地链接检查、独立 HTML、macOS 原生分页 PDF 及富文本剪贴板复制；编译器另提供外链 HTML 结果，桌面入口未同时导出两个文件 |
 | 第 6 批（战略） | 4.12 MCP 集成 | ⏸ **远期规划** | 战略价值高但存在平台打包与分发风险，等待技术尖刺完成后推进 |
 | 随手 | B 级小项 | 🔄 **持续穿插** | 穿插在各批次迭代中 |
 
 ---
 
-### 7.1 待办清单（2026-11-07 逐项以代码核实）
+### 7.1 剩余缺口与实现状态（2026-11-08 核对）
 
 本清单只记录**事实与证据**，不排优先级；优先级以 [`markdown_editor_task_priorities.md`](./markdown_editor_task_priorities.md) 为准，由属主决定。每一项的“证据”是核实时在源码中的搜索结果，不是推测。
 
-**一、B 级小项（竞品分析 §4 已列，均未做）**
+**一、B 级小项（竞品分析 §4 已列，列出未覆盖的部分）**
 
-| 项 | 证据（2026-11-07） | 备注 |
+| 项 | 证据与现状 | 备注 |
 | --- | --- | --- |
 | 字体缩放快捷键 `Mod-=` / `Mod-−` / `Mod-0` | `settings/shortcuts/defaults.ts` 的命令清单里没有缩放命令；字体大小只有设置项 | 需与设置项共用同一数值源 |
 | 大纲过滤框 | `editor-ui/src/components/OutlinePanel.tsx` 没有输入框 | 竞品要求保留祖先链 |
-| 内联 `[TOC]` | 全仓无 `[TOC]` / 目录投影 | 归 renderer 投影 |
-| 大文件阈值（1MB 进源码模式 / 5MB 二次确认 / 50MB 拒绝） | 打开文件路径上无大小判断 | 涉及数据安全，阈值需属主确认 |
-| 只读模式 | `renderer-codemirror/src` 无 `EditorState.readOnly` / `EditorView.editable` | 竞品文档曾推迟到“1.5 批” |
-| 文本清理（尾随空格 / 合并空行 / 大小写 / 行排序） | 无对应命令 | 应接入命令注册表 |
+| 内联 `[TOC]` | 桌面 Chromium 测试页面与静态 HTML 渲染均保留字面量；侧栏大纲、手写标题锚点跳转和 macOS PDF 书签已存在 | 仍缺正文自动目录及导出行为；未验证第三方插件和原生 Tauri 窗口 |
+| 大文件阈值（1MB 进源码模式 / 5MB 二次确认 / 50MB 拒绝） | 桌面打开路径未见分级阈值；[静态编译器](../../../packages/compiler/src/parser/tokenizer.ts)默认超过 2 MiB 截取并在内容中附提示，桌面 HTML/PDF 导出使用该编译路径 | 打开阈值及导出截取的适用范围需确认 |
+| 桌面全文只读模式 | `renderer-codemirror/src` 未找到 `EditorState.readOnly` / `EditorView.editable`；[移动端](../../../apps/mobile/core/src/App.tsx)已有可切换的阅读态 | 竞品文档曾推迟到“1.5 批” |
+| 文本清理（尾随空格 / 大小写 / 行排序） | [批量 lint 修复](../../../packages/renderer-codemirror/tests/lint/commands.test.ts)已覆盖多余连续空行，也会修复其他启用的规则；尾随空格规则默认关闭 | 独立清理命令仍待评估 |
 | 孤儿图片清理 | 无 assets 引用扫描 | 必须走 `file-system` 能力边界 |
 | 表格 Fit-to-width | `table` 相关代码无此概念（搜到的 `computeFitWidthScale` 属图片查看器） | M3 已有基础 |
-| 多光标的**代码围栏感知** | `Mod-D` / `Mod-Shift-L` 已由 `searchKeymap` 提供，但围栏内外不区分 | 竞品文档要求；纵向光标也未做 |
+| 多光标的**代码围栏感知** | `Mod-D` / `Mod-Shift-L` 已由 `searchKeymap` 提供，但围栏内外不区分 | CM6 已提供纵向加光标；默认键与桌面块移动冲突，需评估快捷键 |
 
 **二、路线图上的大项**
 
@@ -290,7 +298,8 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | --- | --- | --- |
 | 更多官方 MDX 组件（LinkCard / Video / FileTree / Steps） | `packages/mdx-plugins/src/` 只有 `callout/` | 目前仅 `Callout` |
 | MCP 集成 | 未开始 | 文档要求先做 sidecar 跨平台打包尖刺，再决定是否进路线图 |
-| AI 静默检查 / 用户风格学习 / `.aiignore` / 历史文章索引 | 未实现；`markdown_editor_ai_feature_requirements.md` §7 明确列为延后项 | |
+| AI 静默检查 | 桌面已有后台建议与文档提炼，独立开关默认关闭；关闭后手动功能仍可用 | 用户主动开启后，远程 provider 可能收到当前文档内容，见 [AI 隐私要求](./markdown_editor_ai_feature_requirements.md) |
+| 用户风格学习 / `.aiignore` / 历史文章索引 | 未实现，已列入近期计划 | 先实现 `.aiignore`；独立开关默认关闭、历史文章只用本地模型处理。当前文档提炼不等同于历史文章风格学习 |
 | 云端图片上传 | 只有 `ImageStorageProvider` 扩展点 | 竞品分析建议交给 PicGo 等现成方案，不原生做 |
 | 表格 M3-C：多单元格拖选 / 列宽调整 | `task_priorities` §6 记为“有成熟引擎后恢复” | 评估过无成熟引擎 |
 
@@ -308,6 +317,6 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 ## 8. 待确认事项
 
 1. **CJK 排版默认策略**：规则默认全开还是逐条默认开？改写是否需要"首次提示"？涉及写作习惯，建议按规则分组提供默认预设。
-2. **文档历史的存储位置与上限**：存文档同级 `.inkpoint/` 还是应用数据目录？是否需要容量上限与清理策略？（VMark 存工作区 `.vmark/` 且 git-friendly，值得讨论）
+2. **文档历史的扩展策略**：桌面端当前存于应用数据目录下的 `md-editor/history/`，默认每个文档最多保留 100 条快照；是否需要额外的容量上限或调整清理策略仍待确认。
 3. **MCP sidecar 的分发可行性**：需先出技术尖刺结论（各平台打包体积、签名、更新链路）再决定是否进路线图。
-4. **导出 PDF 引擎选型**：Tauri print-to-PDF vs 开源排版引擎（如 Typst）需要一次小型评估。
+4. **其他平台的 PDF 导出**：macOS 已使用 WebKit/PDFKit 原生导出；其他平台目前可回退系统打印，是否需要原生直接导出仍待评估。

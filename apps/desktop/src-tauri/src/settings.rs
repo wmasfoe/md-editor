@@ -65,6 +65,10 @@ pub(crate) struct AiProtocolEndpointSettings {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiFeatureSettings {
+    /// 后台处理隐私授权（自动建议与文档上下文提炼）。缺省视为未授权；
+    /// 必须在此显式声明，否则 serde 会丢弃该字段，重启后开关复位。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) background_processing: Option<bool>,
     pub(crate) continuation: Option<bool>,
     pub(crate) editing: Option<bool>,
 }
@@ -265,6 +269,7 @@ mod tests {
                 enabled: Some(true),
                 provider: Some("openai-compatible".to_string()),
                 features: Some(AiFeatureSettings {
+                    background_processing: Some(true),
                     continuation: Some(false),
                     editing: Some(true),
                 }),
@@ -307,6 +312,37 @@ mod tests {
     }
 
     #[test]
+    fn ai_background_processing_survives_rust_round_trip() {
+        let raw = r#"{"ai":{"features":{"backgroundProcessing":true,"continuation":true,"editing":false}}}"#;
+        let settings: AppSettings = serde_json::from_str(raw).unwrap();
+        let features = settings
+            .ai
+            .as_ref()
+            .and_then(|ai| ai.features.as_ref())
+            .unwrap();
+        assert_eq!(features.background_processing, Some(true));
+
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"backgroundProcessing\":true"));
+    }
+
+    #[test]
+    fn ai_features_without_background_processing_stay_unset() {
+        let raw = r#"{"ai":{"features":{"continuation":true,"editing":false}}}"#;
+        let settings: AppSettings = serde_json::from_str(raw).unwrap();
+        let features = settings
+            .ai
+            .as_ref()
+            .and_then(|ai| ai.features.as_ref())
+            .unwrap();
+        assert_eq!(features.background_processing, None);
+
+        // 旧配置不应在保存时被写入任何授权值。
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(!json.contains("backgroundProcessing"));
+    }
+
+    #[test]
     fn settings_round_trip_with_multi_protocol_endpoints() {
         let path = std::env::temp_dir().join(format!(
             "md-editor-settings-endpoints-{}-{}.json",
@@ -325,6 +361,7 @@ mod tests {
                 enabled: Some(true),
                 provider: Some("openai".to_string()),
                 features: Some(AiFeatureSettings {
+                    background_processing: None,
                     continuation: Some(false),
                     editing: Some(true),
                 }),

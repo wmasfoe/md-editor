@@ -335,7 +335,7 @@ export const zhHant: TranslationSchema = {
     },
     ai: {
       title: "AI 設定",
-      desc: "AI 只會在您主動觸發續寫時請求；API Key 會儲存在本機設定檔中。",
+      desc: "設定 AI 服務與功能；API Key 會儲存在本機設定檔中。",
       enable: "啟用 AI 助手",
       provider: "Provider",
       protocol: "協定規範",
@@ -356,6 +356,9 @@ export const zhHant: TranslationSchema = {
       apiKeyPlaceholder: "sk-...",
       featureEditing: "語法、標點修復",
       featureContinuation: "AI 續寫",
+      featureBackgroundProcessing: "背景 AI 建議與文件提煉",
+      backgroundProcessingDesc:
+        "開啟後會自動產生建議並提煉目前文件的上下文。使用遠端服務時，目前文件的部分或全部內容可能會傳送給該服務。關閉不影響手動校正與續寫。",
       localModelTitle: "本機模型管理",
       localModelDesc: "在本機直接執行模型，無需連網與 API 金鑰。",
       downloadModel: "下載本機模型",

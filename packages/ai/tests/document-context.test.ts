@@ -142,6 +142,56 @@ def add(a, b):
     expect(fallback.title).toBe("Tauri 2.0 深度实操指南");
   });
 
+  it("取消后忽略客户端迟到的结果，不更新缓存或继续提炼", async () => {
+    const manager = new DocumentContextManager();
+    const controller = new AbortController();
+    const onUpdate = vi.fn();
+    let respond!: (value: string) => void;
+    const { client, generateSpy } = createMockClient(
+      () => new Promise((resolve) => (respond = resolve)),
+    );
+    const markdown = `# 第一章\n${"第一章内容 ".repeat(700)}\n# 第二章\n${"第二章内容 ".repeat(700)}`;
+    const path = "/notes/long.md";
+    const pending = manager.scheduleDistillation(path, markdown, {
+      client,
+      signal: controller.signal,
+      onUpdate,
+    });
+
+    controller.abort();
+    respond("取消后返回的内容");
+    const result = await pending;
+
+    expect(result.isDistilled).toBe(false);
+    expect(generateSpy).toHaveBeenCalledTimes(1);
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(manager.get(path)).toBeUndefined();
+  });
+
+  it("取消后重新启用时，不复用或被旧的同文档任务清除", async () => {
+    const manager = new DocumentContextManager();
+    const controller = new AbortController();
+    const responses: Array<(value: string) => void> = [];
+    const { client, generateSpy } = createMockClient(
+      () => new Promise((resolve) => responses.push(resolve)),
+    );
+    const path = "/notes/restart.md";
+    const old = manager.scheduleDistillation(path, sampleMarkdown, {
+      client,
+      signal: controller.signal,
+    });
+    controller.abort();
+    const current = manager.scheduleDistillation(path, sampleMarkdown, { client });
+    expect(generateSpy).toHaveBeenCalledTimes(2);
+
+    responses[0]?.("过期结果");
+    await old;
+    expect(manager.scheduleDistillation(path, sampleMarkdown, { client })).toBe(current);
+    responses[1]?.("新的提炼结果");
+    expect((await current).topic).toBe("新的提炼结果");
+    expect(manager.get(path)?.topic).toBe("新的提炼结果");
+  });
+
   it("scheduleDistillation: 并发相同内容的提炼请求共享进行中的 Promise，杜绝重复调用底层模型", async () => {
     const manager = new DocumentContextManager();
     const filePath = "test/doc.md";
