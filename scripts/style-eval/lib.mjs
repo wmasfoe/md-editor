@@ -49,7 +49,8 @@ export function scoreBlindChoices(answers, choices) {
   const unknownIds = [];
   for (const id of Object.keys(answers)) {
     const choice = choices[id];
-    if (choice === undefined) unfilled.push(id);
+    // 模板里留空（"" / null）也算未填写。
+    if (choice === undefined || choice === "" || choice === null) unfilled.push(id);
   }
   for (const [id, choice] of Object.entries(choices)) {
     if (!(id in answers)) {
@@ -68,7 +69,7 @@ export function scoreBlindChoices(answers, choices) {
     same,
     profileWinRate: decided === 0 ? 0 : preferProfile / decided,
     incomplete: unfilled.length > 0 || unknownIds.length > 0,
-    unfilled,
+    unfilled: [...new Set(unfilled)],
     unknownIds,
   };
 }
@@ -137,7 +138,8 @@ export function writeEvaluationArtifacts({ dir, sheet, answers, checks, meta }, 
   fs.writeFileSync(`${dir}/checks.json`, `${JSON.stringify(checks, null, 2)}\n`);
   fs.writeFileSync(
     `${dir}/choices.json`,
-    `${JSON.stringify(Object.fromEntries(sheet.map((row) => [row.id, "same"])), null, 2)}\n`,
+    // 模板留空：未填写会被 scoreBlindChoices 标记为 incomplete，而不是静默当成 same。
+    `${JSON.stringify(Object.fromEntries(sheet.map((row) => [row.id, ""])), null, 2)}\n`,
   );
   fs.writeFileSync(
     `${dir}/REPORT.md`,

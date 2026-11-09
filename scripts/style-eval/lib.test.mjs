@@ -125,3 +125,12 @@ test("EV-5：未填写或未知 id 的盲评不被静默计分", () => {
   assert.equal(complete.incomplete, false);
   assert.equal(complete.profileWinRate, 1);
 });
+
+test("EV-6：模板留空时未填写的盲评会被标记", () => {
+  const answers = { a: "A", b: "B" };
+  // 与 writeEvaluationArtifacts 生成的模板形状一致：空字符串。
+  const result = scoreBlindChoices(answers, { a: "", b: "" });
+  assert.equal(result.incomplete, true);
+  assert.deepEqual(result.unfilled.toSorted(), ["a", "b"]);
+  assert.equal(result.preferProfile + result.preferBaseline, 0);
+});

@@ -181,17 +181,18 @@ function StyleProfileDataSection() {
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
   // 样本 id → 工作区相对路径，供规则的“查看来源”使用。
-  // 工作区规则用裸样本 id；全局层的支持 id 形如 `workspaceId:sampleId`，两种都要能解析。
-  const sourcePaths = new Map<string, string>();
+  // 工作区规则用裸样本 id；全局层的支持 id 形如 `workspaceId:sampleId`。
+  // 每条来源都带上它所属工作区的根目录：全局证据可能来自别的工作区。
+  const sourcePaths = new Map<string, { rootPath: string; relPath: string }>();
   for (const entry of profile?.workspaces ?? []) {
     for (const sample of entry.samples) {
-      sourcePaths.set(sample.id, sample.relPath);
-      sourcePaths.set(`${entry.id}:${sample.id}`, sample.relPath);
+      const target = { rootPath: entry.rootPath, relPath: sample.relPath };
+      sourcePaths.set(sample.id, target);
+      sourcePaths.set(`${entry.id}:${sample.id}`, target);
     }
   }
-  const openSource = (relPath: string) => {
-    if (!rootPath) return;
-    const absolute = joinPath(rootPath, relPath);
+  const openSource = (source: { rootPath: string; relPath: string }) => {
+    const absolute = joinPath(source.rootPath, source.relPath);
     if (actions) {
       void actions.openDocumentFromTree(absolute);
       return;
@@ -348,9 +349,9 @@ function ActiveRuleList({
 }: {
   readonly title: string;
   readonly rules: readonly StyleRuleRecord[];
-  /** 样本 id → 工作区相对路径 */
-  readonly sources: ReadonlyMap<string, string>;
-  readonly onOpenSource: (relPath: string) => void;
+  /** 样本 id → 所属工作区根目录与相对路径 */
+  readonly sources: ReadonlyMap<string, { rootPath: string; relPath: string }>;
+  readonly onOpenSource: (source: { rootPath: string; relPath: string }) => void;
 }) {
   const { t } = useTranslation();
   const active = rules.filter((rule) => rule.status === "active");
@@ -369,31 +370,39 @@ function ActiveRuleList({
                 rule.rounds.flatMap((round) => round.supportSampleIds.filter(isRealSampleId)),
               ),
             ];
-            const paths = sampleIds
-              .map((id) => sources.get(id))
-              .filter((path): path is string => Boolean(path));
+            const resolved = sampleIds
+              .map((id) => ({ id, target: sources.get(id) }))
+              .filter(
+                (entry): entry is { id: string; target: { rootPath: string; relPath: string } } =>
+                  Boolean(entry.target),
+              );
             return (
               <li key={rule.dimension} className="grid gap-1">
                 <div className="flex items-baseline justify-between gap-3">
                   <span>{STYLE_DIMENSIONS[rule.dimension].templates[rule.value]}</span>
                   <span className="shrink-0 text-xs text-[var(--theme-control-subtle)]">
-                    {t("styleLearning.sources", { count: paths.length })}
+                    {t("styleLearning.sources", { count: resolved.length })}
                   </span>
                 </div>
-                {paths.length > 0 ? (
+                {resolved.length > 0 ? (
                   <ul className="grid gap-0.5 text-xs" data-testid="style-rule-sources">
-                    {paths.slice(0, 5).map((path) => (
-                      <li key={path}>
+                    {resolved.slice(0, 5).map((entry) => (
+                      <li key={`${entry.id}:${entry.target.relPath}`}>
                         <button
                           type="button"
                           className="max-w-full truncate text-left text-[var(--theme-control-subtle)] underline-offset-2 hover:text-[var(--theme-primary)] hover:underline"
                           title={t("styleLearning.openSource")}
-                          onClick={() => onOpenSource(path)}
+                          onClick={() => onOpenSource(entry.target)}
                         >
-                          {path}
+                          {entry.target.relPath}
                         </button>
                       </li>
                     ))}
+                    {resolved.length > 5 ? (
+                      <li className="text-[var(--theme-control-subtle)]">
+                        {t("styleLearning.sourcesMore", { count: resolved.length - 5 })}
+                      </li>
+                    ) : null}
                   </ul>
                 ) : null}
               </li>

@@ -480,6 +480,7 @@ export const zhHant: TranslationSchema = {
     relinkedFrom: "已從 {{root}} 找回",
     statusLine: "上次學習：{{time}} · 參與樣本 {{samples}} 篇 · 生效規則 {{rules}} 條",
     openSource: "在編輯器中開啟來源文章",
+    sourcesMore: "另有 {{count}} 篇未列出",
     never: "尚未學習",
     undoRelink: "撤銷找回",
     contextExclude: "不參與風格學習",

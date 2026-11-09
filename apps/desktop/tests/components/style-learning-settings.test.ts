@@ -100,6 +100,18 @@ const learnedProfile: StyleProfileDocument = {
       changesSinceRound: 0,
     },
   ],
+  // 全局层：支持 id 带工作区前缀，来源必须能解析。
+  global: {
+    roundCount: 3,
+    rules: [
+      {
+        dimension: "cjkLatinSpacing",
+        value: "spaced",
+        status: "active",
+        rounds: [{ round: 3, value: "spaced", supportSampleIds: ["ws-1:s1"] }],
+      },
+    ],
+  },
 };
 
 beforeEach(() => {
@@ -294,6 +306,43 @@ describe("settings window without an editor-actions provider", () => {
       ),
     );
     expect(localContainer.textContent).toContain("技术术语保留英文原文");
+    act(() => localRoot.unmount());
+    localContainer.remove();
+  });
+});
+
+describe("global rule sources resolve through their workspace", () => {
+  it("shows a source for a workspace-prefixed global support id", async () => {
+    disk.profile = learnedProfile;
+    useStyleLearningStore.getState().setProfile(learnedProfile);
+    useFileTreeStore.setState({ folder: { rootPath: "/notes", tree: null } as never });
+    openDocumentFromTree.mockClear();
+    const localContainer = document.createElement("div");
+    document.body.append(localContainer);
+    const localRoot = createRoot(localContainer);
+    await act(async () =>
+      localRoot.render(
+        createElement(
+          DesktopEditorActionsContext,
+          { value: { openDocumentFromTree } as never },
+          createElement(StyleLearningSettings, {
+            aiSettingsDraft: settings({ enabled: true }),
+            onChangeAiSettings: vi.fn(),
+            standardModelReady: true,
+            onDownloadStandardModel: vi.fn(),
+          }),
+        ),
+      ),
+    );
+
+    // 全局规则的支持 id 是 `ws-1:s1`：必须解析到 a.md 而不是 0 篇。
+    const lists = [...localContainer.querySelectorAll("[data-testid=style-rule-sources]")];
+    expect(lists.length).toBeGreaterThan(1);
+    const globalList = lists.at(-1)!;
+    expect(globalList.textContent).toContain("a.md");
+    act(() => [...globalList.querySelectorAll("button")][0]!.click());
+    expect(openDocumentFromTree).toHaveBeenCalledWith("/notes/a.md");
+
     act(() => localRoot.unmount());
     localContainer.remove();
   });

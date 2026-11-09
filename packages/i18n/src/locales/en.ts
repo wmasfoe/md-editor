@@ -485,6 +485,7 @@ export const en: TranslationSchema = {
     relinkedFrom: "Recovered from {{root}}",
     statusLine: "Last learned: {{time}} · {{samples}} samples · {{rules}} active rules",
     openSource: "Open the source article in the editor",
+    sourcesMore: "{{count}} more not listed",
     never: "not yet",
     undoRelink: "Undo recovery",
     contextExclude: "Exclude from style learning",
