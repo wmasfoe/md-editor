@@ -185,6 +185,8 @@ function stripPaths(text: string): string {
       )
       // 不带扩展名的绝对目录：整段替换（错误信息里常带工作区根目录）
       .replace(ABSOLUTE_DIR, "[path]")
+      // 同上，Windows 反斜杠目录（`C:\Users\me\notes`）
+      .replace(new RegExp("[A-Za-z]:\\\\[^\\s'\"`,;]*", "gu"), "[path]")
       // 带标签的尾部：冒号之后是文件名时整段替换
       .replace(LABELLED_TAIL, "$1[file]")
       // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理

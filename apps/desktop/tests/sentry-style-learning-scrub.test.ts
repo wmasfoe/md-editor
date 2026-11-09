@@ -127,4 +127,11 @@ describe("O-3: extensionless absolute directories", () => {
       "读取样本失败：[file]",
     );
   });
+
+  it("strips Windows directory paths without extensions", () => {
+    const scrubbed = scrubPaths({
+      message: "C:\\Users\\me\\notes\\secret\\a.md is outside opened folder C:\\Users\\me\\notes.",
+    }).message;
+    expect(scrubbed).not.toContain("Users\\me");
+  });
 });

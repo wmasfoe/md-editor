@@ -64,7 +64,14 @@ const learnedProfile: StyleProfileDocument = {
           dimension: "termScript",
           value: "keep-english",
           status: "active",
-          rounds: [{ round: 1, value: "keep-english", supportSampleIds: ["s1", "s2"] }],
+          // s1/s2 是真实文章，edit: 是编辑反馈：来源只应统计真实文章。
+          rounds: [
+            {
+              round: 1,
+              value: "keep-english",
+              supportSampleIds: ["s1", "s2", "edit:termScript:0"],
+            },
+          ],
         },
         { dimension: "formality", value: "casual", status: "draft", rounds: [] },
       ],

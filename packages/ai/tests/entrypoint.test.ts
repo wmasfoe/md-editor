@@ -40,3 +40,38 @@ describe("AI package main entry import graph", () => {
     expect([...visited].some((file) => file.endsWith("/style/engine.ts"))).toBe(false);
   });
 });
+
+describe("light style entry import graph", () => {
+  it("U-ENT-2: @md-editor/ai/style never reaches marked or the engine", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { dirname, resolve } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const entry = fileURLToPath(new URL("../src/style/index.ts", import.meta.url));
+    const visited = new Set<string>();
+    const external = new Set<string>();
+    const queue = [entry];
+    const importPattern =
+      /(?:\b(?:import|export)\b[^"';]*?\bfrom\s*|\bimport\s*)["']([^"']+)["']/gu;
+
+    while (queue.length > 0) {
+      const file = queue.pop()!;
+      if (visited.has(file)) continue;
+      visited.add(file);
+      for (const match of readFileSync(file, "utf8").matchAll(importPattern)) {
+        const specifier = match[1]!;
+        if (specifier.startsWith(".")) {
+          queue.push(resolve(dirname(file), specifier));
+        } else {
+          external.add(specifier);
+        }
+      }
+    }
+
+    expect([...external]).toEqual([]);
+    // classify.ts 只依赖 domain 类型，不含 Markdown 解析器，可以出现在轻量入口；
+    // extraction.ts（marked）与 engine.ts（学习轮次）不允许。
+    for (const forbidden of ["extraction.ts", "engine.ts"]) {
+      expect([...visited].some((file) => file.endsWith(`/style/${forbidden}`))).toBe(false);
+    }
+  });
+});

@@ -164,3 +164,18 @@ export function createEmptyStyleProfileDocument(): StyleProfileDocument {
 export function createEmptyStyleExclusionsDocument(): StyleExclusionsDocument {
   return { version: STYLE_DOCUMENT_VERSION, workspaces: {} };
 }
+
+/**
+ * 抽取后的散文形状。定义在这里而不是 `extraction.ts`，
+ * 使统计模块不必依赖 Markdown 解析器（`marked`）就能标注入参类型。
+ */
+export interface ExtractedProse {
+  readonly paragraphs: readonly string[];
+  readonly listItems: readonly string[];
+  readonly sentences: readonly string[];
+  readonly headingCount: number;
+  readonly emphasisCount: number;
+  readonly proseChars: number;
+  readonly paragraphHashes: readonly string[];
+  readonly eligible: boolean;
+}

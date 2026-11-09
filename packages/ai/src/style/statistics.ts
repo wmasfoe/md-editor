@@ -8,8 +8,7 @@
  */
 
 import { STYLE_UNKNOWN_VALUE, type StatDimensionId } from "./dimensions.ts";
-import type { ExtractedProse } from "./extraction.ts";
-import type { StyleSampleStat } from "./types.ts";
+import type { ExtractedProse, StyleSampleStat } from "./types.ts";
 
 const CJK = String.raw`\p{Script=Han}`;
 const LATIN_OR_DIGIT = "[A-Za-z0-9]";

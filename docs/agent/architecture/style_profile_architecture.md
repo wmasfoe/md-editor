@@ -48,6 +48,7 @@
 - 计量（PRD §2.6）：dev 日志每轮输出 `samples`、`observations`、`activeRules`、`retiredRules`、本轮 `preemptions`/`modelSwitches`，当日可学习窗口数（`learnableWindowsToday`），以及调度器的 `urgentWaitMs`（count/max/p95）与 `exclusivePreemptions`。设置页状态行显示上次学习时间、参与样本数与生效规则数。
 - Sentry（PRD §2.8 / O-3）：学习失败经 `captureStyleLearningError` 上报并带 `feature: "style-learning"` 标签；`handleBeforeSend` 据此（消息兜底）去掉绝对路径、目录与文件名，保留错误描述与数字/版本号。取舍：冒号之后的内容一律按文件名/路径处理（宁可少留描述，也不让带空格的文件名漏出）。
 - AI 文本：采纳时记录句子 hash，学习时跳过；AI 原文只在内存中保留到保存，用于提取“用户修改 AI 建议”的特征。
+- 轻量入口的边界由测试锁定：`U-ENT-2` 从 `@md-editor/ai/style` 出发走静态导入图，要求外部依赖为空且不可达 `extraction.ts`（`marked`）与 `engine.ts`。散文形状类型定义在 `types.ts`，统计模块不依赖 Markdown 解析器。
 - 编辑反馈的边界（首版已知残余）：编辑特征只有“维度 + 取值方向”，不含文本也不含路径，因此排除某个文件时无法按路径清除它的编辑特征；这些特征最多在下一次汇总轮被消费一次，且不能单独晋升或维持规则（`isRealSampleId` 统一把 `edit:` 伪 id 排除在“支持文件 ≥ 5”之外）。若将来要求严格到“任何痕迹都随排除清除”，需要把 `editFeedback` 改为按 `relPath` 记录。
 
 ## 4. 使用
