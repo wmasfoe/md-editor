@@ -188,6 +188,8 @@ export interface ValidatedDiffItem {
   readonly original: string;
   readonly replacement: string;
   readonly wasAdjusted?: boolean;
+  /** 修改种类：`fix` 为模型纠错，`style` 为按写作偏好给出的风格统一建议；缺省视为 `fix` */
+  readonly kind?: "fix" | "style";
 }
 
 /** 结构化单处或多处语法修改建议 */

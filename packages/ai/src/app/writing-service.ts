@@ -23,6 +23,7 @@ import type {
   AiSettings,
   AiWritingSuggestion,
   UnifiedEditDecision,
+  ValidatedDiffItem,
 } from "../domain/types.ts";
 import {
   type DocumentContextManager,
@@ -48,6 +49,7 @@ import {
 } from "./harness-prompts.ts";
 import { AiRequestScheduler, createLocalAffinityKey } from "./request-scheduler.ts";
 import { gateStyleProfile } from "../style/gate.ts";
+import { applyStyleToGrammarDiffs } from "../style/grammar-style.ts";
 import type { MergedStyleProfile } from "../style/types.ts";
 
 export interface AiWritingServiceDeps {
@@ -80,6 +82,12 @@ export interface AiContinuationOptions {
 
 export interface AiGrammarFixOptions {
   readonly documentContext?: AiDocumentContext;
+  /**
+   * 当前工作区的合并写作偏好（未经过闸门）。通过闸门后：
+   * 云端纠错提示中说明哪些写法是用户习惯；结果中丢弃与习惯冲突的修改，
+   * 并按机械维度追加 `kind: "style"` 的风格建议。
+   */
+  readonly profile?: MergedStyleProfile;
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
   readonly fetchImpl?: typeof fetch;
@@ -240,6 +248,10 @@ export class AiWritingService {
 
     const client = this.resolveClient(settings, { fetchImpl: options.fetchImpl });
     const documentId = snapshot.document?.filePath || "untitled";
+    const profile = gateStyleProfile(settings, settings.styleLearning, options.profile);
+    // 无论模型给出什么，都按写作偏好过滤误报并补充风格建议。
+    const withStyle = (diffs: readonly ValidatedDiffItem[]) =>
+      buildEditSuggestionFromDiffs(applyStyleToGrammarDiffs(targetText, diffs, profile));
 
     const scheduled = this.scheduler.schedule({
       scope: {
@@ -263,6 +275,7 @@ export class AiWritingService {
             : buildCloudGecModelContext(targetText, {
                 documentContext: options.documentContext ?? snapshot.documentContext,
                 document: snapshot.document,
+                profile,
                 signal,
                 timeoutMs: options.timeoutMs,
               });
@@ -273,16 +286,12 @@ export class AiWritingService {
         const tupleDiffs = parseTupleDiffOutput(response.text);
         if (tupleDiffs.length > 0) {
           const validated = resolveTripleDefenseDiffs(targetText, tupleDiffs);
-          return buildEditSuggestionFromDiffs(validated);
+          return withStyle(validated);
         }
 
-        // 若返回明确空数组 []，代表无错负样本通过，直接返回无修改
+        // 若返回明确空数组 []，代表无错负样本通过；仍可能有风格建议
         if (response.text.trim() === "[]") {
-          return {
-            hasContinuation: false,
-            hasEdit: false,
-            edit: null,
-          };
+          return withStyle([]);
         }
 
         // 兼容部分云端模型偶发返回 JSON 对象格式 { edit: { original, replacement, reason } }

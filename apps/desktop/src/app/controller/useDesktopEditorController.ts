@@ -10,6 +10,7 @@ import {
   ensureStyleCloudConsent,
   getStyleProfileForRequest,
 } from "../ai/style-learning/style-profile-request";
+import { toGrammarSuggestionItems } from "../ai/grammar-suggestion-items";
 import { bindDesktopMenuCommands, bindRuntimeKeyboardShortcuts } from "../events/command-bindings";
 import { bindRecentFileMenuEvents } from "../events/recent-file-events";
 import { bindBrowserDirtyDocumentGuard, bindTauriCloseGuard } from "../events/window-guards";
@@ -496,6 +497,8 @@ export function useDesktopEditorController({
                 },
                 {
                   signal: controller.signal,
+                  // 写作偏好：避免把用户习惯判为错误，并给出风格统一建议（闸门在服务内）。
+                  profile: getStyleProfileForRequest(settings.ai),
                 },
               );
 
@@ -503,55 +506,23 @@ export function useDesktopEditorController({
                 console.debug("[AI Manual Fix] 审校结果:", suggestion);
               }
 
-              if (suggestion.hasEdit && suggestion.edit && suggestion.edit.replacement) {
-                // 优先使用模型/自适应定位器计算出的精确 UTF-16 偏移；否则兜底回退
-                let editFrom = targetFrom;
-                let editTo = targetTo;
-                let originalText = selectedText;
-
-                if (
-                  typeof suggestion.edit.utf16From === "number" &&
-                  typeof suggestion.edit.utf16To === "number"
-                ) {
-                  editFrom = targetFrom + suggestion.edit.utf16From;
-                  editTo = targetFrom + suggestion.edit.utf16To;
-                  originalText = suggestion.edit.original;
-                } else if (
-                  suggestion.edit.original &&
-                  selectedText.includes(suggestion.edit.original)
-                ) {
-                  const offset = selectedText.indexOf(suggestion.edit.original);
-                  editFrom = targetFrom + offset;
-                  editTo = editFrom + suggestion.edit.original.length;
-                  originalText = suggestion.edit.original;
-                }
-
-                const docSlice = markdown.slice(editFrom, editTo);
-                // 校验：若修改前和修改后的内容完全一致，或文档中当前片段已等于建议词，则剔除
-                if (
-                  originalText === suggestion.edit.replacement ||
-                  docSlice === suggestion.edit.replacement
-                ) {
-                  showToast("未发现明显语法、错别字或标点问题。");
-                  return;
-                }
-
-                portsAccess.ports.showSuggestion({
-                  from: editFrom,
-                  to: editTo,
-                  text: suggestion.edit.replacement,
-                  originalText,
-                  explanation: suggestion.edit.reason,
-                  cursorAnchor,
-                });
-                showToast(
-                  suggestion.edit.reason
-                    ? `AI 建议：${suggestion.edit.reason}（Tab 接受 · Esc 取消）`
-                    : "AI 修复建议已就绪，按 Tab 接受，Esc 取消。",
-                );
-              } else {
+              // 每处修改都成为一个建议项；写作偏好的风格建议带“风格”标记，与修正分开。
+              const items = toGrammarSuggestionItems(suggestion, {
+                from: targetFrom,
+                to: targetTo,
+                text: selectedText,
+                markdown,
+              });
+              if (items.length === 0) {
                 showToast("未发现明显语法、错别字或标点问题。");
+                return;
               }
+              portsAccess.ports.showSuggestion({ items, activeIndex: 0, cursorAnchor });
+              showToast(
+                suggestion.edit?.reason
+                  ? `AI 建议：${suggestion.edit.reason}（Tab 接受 · Esc 取消）`
+                  : "AI 修复建议已就绪，按 Tab 接受，Esc 取消。",
+              );
             } catch (error) {
               if (controller.signal.aborted) {
                 return;
