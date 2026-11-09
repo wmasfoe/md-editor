@@ -272,3 +272,85 @@ describe("exclusion retires the rule through the real aggregation path", () => {
     expect(merged.rules.some((entry) => entry.dimension === "formality")).toBe(false);
   });
 });
+
+/** 5 个句长很短的样本，句长规则已生效为 short */
+function statProfile(): StyleProfileDocument {
+  return {
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [
+      workspace("w1", {
+        roundCount: 3,
+        samples: FIVE_FILES.map((id) =>
+          sample(id, {
+            relPath: `${id}.md`,
+            // 句长很短：聚合值落在 short 区间
+            stats: { sentenceLength: { value: 8, weight: 20 } },
+          }),
+        ),
+        rules: [
+          {
+            dimension: "sentenceLength",
+            value: "short",
+            status: "active",
+            rounds: [{ round: 3, value: "short", supportSampleIds: FIVE_FILES, aggregate: 8 }],
+          },
+        ],
+      }),
+    ],
+  };
+}
+
+describe("stat dimensions retire when their evidence is excluded", () => {
+  it("retires a stat rule whose samples are all excluded (no fabricated aggregate)", () => {
+    const next = recomputeStyleRound(statProfile(), "w1", {
+      excluded: FIVE_FILES.map((id) => `${id}.md`),
+    });
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "sentenceLength")!;
+    expect(next.workspaces[0]!.samples).toHaveLength(0);
+    expect(rule.status).toBe("retired");
+    const merged = mergeStyleProfile({ workspace: next.workspaces[0]!.rules });
+    expect(merged.rules.some((entry) => entry.dimension === "sentenceLength")).toBe(false);
+  });
+
+  it("keeps a stat rule while its aggregate still lands in the same bucket", () => {
+    // 10 个样本：排除 1 个后仍有 9 个（>= 5），聚合值仍在 short 区间。
+    const many = statProfile();
+    const base = many.workspaces[0]!;
+    const extra = Array.from({ length: 5 }, (_, index) =>
+      sample(`extra-${index}`, {
+        relPath: `extra-${index}.md`,
+        stats: { sentenceLength: { value: 8, weight: 20 } },
+      }),
+    );
+    const next = recomputeStyleRound(
+      {
+        ...many,
+        workspaces: [
+          {
+            ...base,
+            samples: [...base.samples, ...extra],
+            rules: [
+              {
+                dimension: "sentenceLength",
+                value: "short",
+                status: "active",
+                rounds: [
+                  {
+                    round: 3,
+                    value: "short",
+                    supportSampleIds: base.samples.map((s) => s.id),
+                    aggregate: 8,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      "w1",
+      { excluded: ["a.md"] },
+    );
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "sentenceLength")!;
+    expect(rule.status).toBe("active");
+  });
+});

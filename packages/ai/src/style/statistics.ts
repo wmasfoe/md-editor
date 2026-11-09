@@ -134,8 +134,8 @@ export function computeSampleStats(
 }
 
 export interface StatAggregate {
-  /** 加权平均值 */
-  readonly aggregate: number;
+  /** 加权平均值；没有证据时为 undefined（区别于测得的 0） */
+  readonly aggregate: number | undefined;
   /** 判定取值；证据不足时为 unknown */
   readonly value: string;
   readonly totalWeight: number;
@@ -148,7 +148,8 @@ export function aggregateStat(
 ): StatAggregate {
   const totalWeight = samples.reduce((total, sample) => total + sample.weight, 0);
   if (totalWeight === 0) {
-    return { aggregate: 0, value: STYLE_UNKNOWN_VALUE, totalWeight };
+    // 没有任何证据时不伪造聚合值：调用方据此区分“测到 0”和“没测到”。
+    return { aggregate: undefined, value: STYLE_UNKNOWN_VALUE, totalWeight };
   }
   const aggregate =
     samples.reduce((total, sample) => total + sample.value * sample.weight, 0) / totalWeight;

@@ -54,7 +54,7 @@ export function observeSamples(
     observations[dimension] = {
       round,
       value: result.value,
-      aggregate: result.aggregate,
+      ...(result.aggregate === undefined ? {} : { aggregate: result.aggregate }),
       supportSampleIds:
         result.value === STYLE_UNKNOWN_VALUE ? [] : (valueSupport[result.value] ?? []),
       valueSupport,
@@ -137,13 +137,16 @@ export function observeGlobal(
     const latestAggregates = active
       .map(({ rule }) => rule.rounds.at(-1)?.aggregate)
       .filter((aggregate): aggregate is number => aggregate !== undefined);
+    const support = active.flatMap(({ workspace, rule }) =>
+      (rule.rounds.at(-1)?.supportSampleIds ?? []).map((id) => `${workspace.id}:${id}`),
+    );
     observations[dimension] = {
       round,
       value: active[0]!.rule.value,
       // 全局层的证据以“工作区:样本”计，保证不同工作区的样本不会重名。
-      supportSampleIds: active.flatMap(({ workspace, rule }) =>
-        (rule.rounds.at(-1)?.supportSampleIds ?? []).map((id) => `${workspace.id}:${id}`),
-      ),
+      supportSampleIds: support,
+      // 全局层只会有这一个取值（一致性检查已通过），逐值证据与支持样本相同。
+      valueSupport: { [active[0]!.rule.value]: support },
       ...(latestAggregates.length === active.length
         ? {
             aggregate:

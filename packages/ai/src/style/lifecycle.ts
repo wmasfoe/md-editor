@@ -99,16 +99,19 @@ function ownSupportCount(
   value: string,
   round: StyleObservationRound,
 ): number {
+  // 逐样本证据：本轮没有任何样本时 valueSupport 为空对象，自然得到 0。
   const perSample = round.valueSupport?.[value]?.length;
   if (perSample !== undefined) {
     return perSample;
   }
+  // 全局层等没有逐样本证据的观察：用聚合值做“是否存在证据”的正向判断，
+  // 但只在真的测到聚合值时才认（`aggregate === undefined` 表示没测到，按 0 计）。
   if (STYLE_DIMENSIONS[dimension].kind === "stat" && round.aggregate !== undefined) {
     return classifyAggregate(
       dimension as Parameters<typeof classifyAggregate>[0],
       round.aggregate,
     ) === value
-      ? Number.MAX_SAFE_INTEGER
+      ? MIN_SUPPORT_FILES
       : 0;
   }
   return 0;
