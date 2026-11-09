@@ -5,7 +5,7 @@ import {
   isStyleProfileExpired,
   isStyleProfileLinked,
   isUserStyleExcluded,
-  dropExcludedSamples,
+  recomputeStyleRound,
   createEmptyStyleProfileDocument,
   undoStyleRelink,
   renameStyleRelPath,
@@ -154,7 +154,7 @@ describe("exclusions take effect immediately", () => {
   });
 
   it("drops excluded samples, their AI hashes and re-aggregates without the model", () => {
-    const next = dropExcludedSamples(document(), "w1", ["diary"]);
+    const next = recomputeStyleRound(document(), "w1", { excluded: ["diary"] });
     expect(next.workspaces[0]!.samples.map((s) => s.relPath)).toEqual(
       FIVE_FILES.map((id) => `${id}.md`),
     );
@@ -165,16 +165,65 @@ describe("exclusions take effect immediately", () => {
 
   it("returns the same document when nothing is excluded", () => {
     const original = document();
-    expect(dropExcludedSamples(original, "w1", ["other"])).toBe(original);
-    expect(dropExcludedSamples(original, "w1", [])).toBe(original);
-    expect(dropExcludedSamples(original, "missing", ["a.md"])).toBe(original);
+    expect(recomputeStyleRound(original, "w1", { excluded: ["other"] })).toBe(original);
+    expect(recomputeStyleRound(original, "w1")).toBe(original);
+    expect(recomputeStyleRound(original, "missing", { excluded: ["a.md"] })).toBe(original);
   });
 
   it("retires a rule when exclusions leave too few supporting files", () => {
     const small = document();
     // 排除的是工作区相对路径（`a.md`），不是样本 id。
-    const next = dropExcludedSamples(small, "w1", ["a.md", "b.md"]);
+    const next = recomputeStyleRound(small, "w1", { excluded: ["a.md", "b.md"] });
     expect(next.workspaces[0]!.samples).toHaveLength(4);
     expect(next.workspaces[0]!.rules[0]!.status).toBe("retired");
+  });
+});
+
+/** 两个工作区都生效为正式语气，用于验证全局层的重算 */
+function sharedWorkspace(id: string) {
+  return {
+    id,
+    rootPath: `/notes/${id}`,
+    linkState: "linked" as const,
+    samples: ["a.md", "b.md", "c.md"].map((relPath, index) =>
+      sample(`${id}-${index}`, { relPath, labels: { formality: "formal" } }),
+    ),
+    rules: [
+      {
+        dimension: "formality" as const,
+        value: "formal",
+        status: "active" as const,
+        rounds: [{ round: 3, value: "formal", supportSampleIds: ["a", "b", "c"] }],
+      },
+    ],
+    roundCount: 3,
+    changesSinceRound: 0,
+  };
+}
+
+describe("recomputeStyleRound also re-derives the global layer", () => {
+  it("drops a global rule whose supporting workspaces were excluded", () => {
+    const document: StyleProfileDocument = {
+      ...createEmptyStyleProfileDocument(),
+      workspaces: [sharedWorkspace("w1"), sharedWorkspace("w2")],
+      global: {
+        roundCount: 3,
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: ["w1:a", "w2:a"] }],
+          },
+        ],
+      },
+    };
+
+    // 排除 w1 的全部样本后，只剩一个工作区支持 formal，全局规则随之退场。
+    const next = recomputeStyleRound(document, "w1", { excluded: ["a.md", "b.md", "c.md"] });
+    expect(next.workspaces[0]!.samples).toHaveLength(0);
+    expect(next.global.rules[0]!.status).toBe("retired");
+    // 未被排除的 w2 不受影响。
+    expect(next.workspaces[1]!.samples).toHaveLength(3);
   });
 });

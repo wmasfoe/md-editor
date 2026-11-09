@@ -156,6 +156,17 @@ describe("I-16: an unlinked workspace contributes no workspace profile", () => {
     document: { filePath: "/notes/post.md" },
   };
 
+  it("positive control: a verified workspace does inject its own profile", async () => {
+    const { resolveMergedStyleProfile } =
+      await import("../../../src/app/ai/style-learning/style-learning-store");
+    const linked = resolveMergedStyleProfile(
+      { ...profile, workspaces: [{ ...profile.workspaces[0]!, linkState: "linked" }] },
+      "/notes",
+      "/notes",
+    );
+    expect(linked?.rules.map((rule) => rule.dimension)).toEqual(["cjkLatinSpacing", "termScript"]);
+  });
+
   it("merges only the global layer for an unlinked workspace", async () => {
     const { service, contexts } = recordingService();
     // 失去关联：verifiedRoot 为 null，工作区画像不参与合并。

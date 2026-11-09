@@ -71,8 +71,6 @@ export interface EditorE2eBridge {
   }): void;
   /** E-3：当前建议项的 kind 列表 */
   getSuggestionKinds(): readonly (string | undefined)[];
-  /** E-3：当前文档正文 */
-  getDocumentMarkdown(): string;
   /**
    * 程序化切换「行内格式标记源码」开关（renderer 标准端口）。
    *
@@ -232,9 +230,6 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
     },
     getSuggestionKinds() {
       return (ports?.getSuggestion()?.items ?? []).map((item) => item.kind);
-    },
-    getDocumentMarkdown() {
-      return runtime.document.getSnapshot().markdown;
     },
     setSelection(from: number, to: number) {
       if (!ports) {

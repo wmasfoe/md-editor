@@ -13,6 +13,7 @@ export * from "./dimensions.ts";
 export * from "./hash.ts";
 export * from "./lifecycle.ts";
 export * from "./identity.ts";
+export * from "./recompute.ts";
 export * from "./merge.ts";
 export * from "./render.ts";
 export * from "./gate.ts";

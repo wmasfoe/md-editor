@@ -45,6 +45,8 @@ export interface StyleLearningRunner {
   }): Promise<StyleLearningOutcome>;
 }
 
+import { captureStyleLearningError } from "../../error-reporting/sentry";
+
 export interface StyleLearningCallbacks {
   /** 调度器计量（PRD §2.6：用户请求排队等待、独占任务被抢占次数） */
   readonly schedulerMetrics?: () => {
@@ -76,8 +78,8 @@ export class StyleLearningCoordinator {
   private pending = true;
   /** 连续失败次数，用于退避，避免同一错误每分钟触发一次全量扫描 */
   private consecutiveFailures = 0;
-  /** 计量：抢占次数、模型切换次数、可学习窗口数（仅 dev 日志使用） */
-  private readonly metrics = { preemptions: 0, modelSwitches: 0, windows: 0 };
+  /** 本轮计量（每次运行重置）：抢占次数、模型切换次数；仅 dev 日志使用 */
+  private roundMetrics = { preemptions: 0, modelSwitches: 0 };
   private disposed = false;
 
   public constructor(
@@ -112,12 +114,8 @@ export class StyleLearningCoordinator {
   }
 
   /** 计量快照（dev 日志与测试使用） */
-  public getMetrics(): {
-    readonly preemptions: number;
-    readonly modelSwitches: number;
-    readonly windows: number;
-  } {
-    return { ...this.metrics };
+  public getMetrics(): { readonly preemptions: number; readonly modelSwitches: number } {
+    return { ...this.roundMetrics };
   }
 
   /** 窗口重新可见时调用：只重新安排已有的待处理工作，不制造新的扫描 */
@@ -200,13 +198,13 @@ export class StyleLearningCoordinator {
     this.lastAttemptAt = this.env.now();
     // 先消耗本次变化；运行期间新到的变化会把它重新置为 true。
     this.pending = false;
-    this.metrics.windows += 1;
+    this.roundMetrics = { preemptions: 0, modelSwitches: 0 };
     if (
       conditions.settings.provider === "local" &&
       conditions.settings.localModel.modelId !== STANDARD_LOCAL_MODEL_ID
     ) {
       // 为学习从 Lite 切到 Standard：记录切换次数，用于评估学习机会与代价。
-      this.metrics.modelSwitches += 1;
+      this.roundMetrics.modelSwitches += 1;
     }
     try {
       const outcome = await this.runner.run({
@@ -214,7 +212,7 @@ export class StyleLearningCoordinator {
         autoRelink: conditions.settings.styleLearning.autoRelink,
         signal: controller.signal,
       });
-      if (outcome.status === "preempted") this.metrics.preemptions += 1;
+      if (outcome.status === "preempted") this.roundMetrics.preemptions += 1;
       if (controller.signal.aborted) return;
       // 被抢占、模型忙、失败或刚更新了样本（可能还需继续分类）时稍后再试；学完或无变化时等下一个变化。
       if (outcome.status !== "idle" && outcome.status !== "learned") this.pending = true;
@@ -230,16 +228,26 @@ export class StyleLearningCoordinator {
         });
       }
       if (import.meta.env?.DEV) {
+        const workspace = outcome.document?.workspaces.find(
+          (candidate) => candidate.rootPath === conditions.rootPath,
+        );
         console.debug("[Style Learning] round finished", {
           status: outcome.status,
           workspaces: outcome.document?.workspaces.length ?? null,
-          ...this.metrics,
+          samples: workspace?.samples.length ?? 0,
+          observations:
+            workspace?.rules.reduce((total, rule) => total + rule.rounds.length, 0) ?? 0,
+          activeRules: workspace?.rules.filter((rule) => rule.status === "active").length ?? 0,
+          retiredRules: workspace?.rules.filter((rule) => rule.status === "retired").length ?? 0,
+          ...this.roundMetrics,
           ...this.callbacks.schedulerMetrics?.(),
         });
       }
     } catch (error) {
       this.pending = true;
       this.consecutiveFailures += 1;
+      // 失败对用户保持静默；错误上报带 feature 标签，由 beforeSend 去掉路径（O-3）。
+      void captureStyleLearningError(error);
       // 学习失败保持静默，只在 dev 日志中记录（不含正文）。
       if (import.meta.env?.DEV) {
         console.debug("[Style Learning] round failed", (error as Error)?.name);

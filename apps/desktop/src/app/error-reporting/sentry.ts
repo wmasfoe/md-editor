@@ -99,23 +99,48 @@ export function handleBeforeSend<
   return event;
 }
 
-/** 风格学习相关的事件：错误信息里可能带工作区路径与文件名 */
+/**
+ * 风格学习相关的事件：错误信息里可能带工作区路径与文件名。
+ * 学习相关代码在上报前会设置 `feature: "style-learning"` 标签；消息匹配只作为兜底。
+ */
 export function isStyleLearningEvent(event: {
   readonly message?: string;
   readonly tags?: Record<string, unknown>;
+  readonly exception?: { values?: Array<{ value?: string }> };
 }): boolean {
   const tag = event.tags?.feature ?? event.tags?.module;
-  return (
-    tag === "style-learning" ||
-    Boolean(event.message?.includes("style-learning")) ||
-    Boolean(event.message?.includes("风格学习"))
+  if (tag === "style-learning") return true;
+  const texts = [event.message ?? "", ...(event.exception?.values ?? []).map((v) => v.value ?? "")];
+  return texts.some(
+    (text) =>
+      text.includes("style-learning") ||
+      text.includes("风格学习") ||
+      text.includes("风格样本") ||
+      text.includes("读取样本失败"),
   );
 }
 
+/** 形如 `a/b/c.md` 的相对路径（含常见文档/代码扩展名） */
+const RELATIVE_PATH = /(?:[\w.-]+[\\/])+[^\s'"`,;]*\.[A-Za-z0-9]{1,5}\b/gu;
+
 function stripPaths(text: string): string {
-  return text
-    .replace(/(?:[A-Za-z]:)?(?:\\|\/)[^\s'"`,;]+/gu, "[path]")
-    .replace(/[^\s/\\]+\.[A-Za-z0-9]{1,5}\b/gu, "[file]");
+  return (
+    text
+      // 绝对路径：盘符路径、UNC、或至少两段的 POSIX 路径；`12/34` 这类数字不算路径
+      .replace(/[A-Za-z]:[\\/][^\s'"`,;]*/gu, "[path]")
+      .replace(/\\\\[^\s'"`,;]*/gu, "[path]")
+      .replace(/(?<![\w./])(?:\/(?:[\w.-]+\/)+[^\s'"`,;]*)/gu, "[path]")
+      // 相对路径中的文件名：只在看起来像文件（带扩展名）时替换，保留目录外的普通文字
+      .replace(RELATIVE_PATH, "[path]")
+      // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号
+      .replace(
+        new RegExp(
+          `(?<![\\w.])[\\w-]+\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b`,
+          "gu",
+        ),
+        "[file]",
+      )
+  );
 }
 
 /** 去掉绝对路径与文件名，只保留事件本身的错误描述 */
@@ -216,4 +241,21 @@ export async function ensureSentryInitialized(): Promise<void> {
   })();
 
   return initPromise;
+}
+
+/**
+ * 上报风格学习失败。学习本身对用户保持静默，但错误上报需要带
+ * `feature: "style-learning"` 标签，`beforeSend` 才会去掉其中的工作区路径与文件名（O-3）。
+ */
+export async function captureStyleLearningError(error: unknown): Promise<void> {
+  if (isDevelopmentEnvironment() || !isErrorReportingEnabled) return;
+  try {
+    const Sentry = await import("@sentry/react");
+    Sentry.withScope((scope) => {
+      scope.setTag("feature", "style-learning");
+      Sentry.captureException(error);
+    });
+  } catch {
+    // Sentry 不可用时不影响学习本身
+  }
 }

@@ -39,4 +39,23 @@ describe("O-3: style-learning events are scrubbed of paths", () => {
     );
     expect(other?.message).toContain("/Users/me");
   });
+
+  it("keeps numbers, versions and ordinary text intact", () => {
+    expect(scrubPaths({ message: "比例 12/34，版本 1.2.3 保持稳定" }).message).toBe(
+      "比例 12/34，版本 1.2.3 保持稳定",
+    );
+  });
+
+  it("matches the real Rust sample errors and strips their paths", () => {
+    for (const message of [
+      "该文件不能作为风格样本：diary/private.md",
+      "读取样本失败：/Users/me/notes/diary/private.md 不存在",
+      "读取样本失败：C:\\Users\\me\\notes\\a.md 不存在",
+    ]) {
+      const scrubbed = scrubPaths({ message });
+      expect(scrubbed.message).not.toContain("private.md");
+      expect(scrubbed.message).not.toContain("a.md");
+      expect(isStyleLearningEvent({ message })).toBe(true);
+    }
+  });
 });

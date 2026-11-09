@@ -234,7 +234,7 @@ function StyleProfileDataSection() {
             time: workspace?.lastRoundAt
               ? new Date(workspace.lastRoundAt).toLocaleString()
               : t("styleLearning.never"),
-            samples: workspace?.samples.length ?? 0,
+            samples: participating.length,
             rules: (workspace?.rules ?? []).filter((rule) => rule.status === "active").length,
           })}
         </p>

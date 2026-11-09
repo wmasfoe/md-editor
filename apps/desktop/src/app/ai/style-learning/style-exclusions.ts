@@ -7,8 +7,8 @@
  * 排除后下一次扫描就不会再读取该文件，学习引擎会立刻去掉它对画像的贡献。
  */
 import {
-  dropExcludedSamples,
   isUserStyleExcluded,
+  recomputeStyleRound,
   type StyleExclusionsDocument,
 } from "@md-editor/ai/style";
 import { updateStyleExclusions, updateStyleProfile } from "./style-learning-host";
@@ -30,8 +30,9 @@ async function applyExclusions(
   );
   if (store.profile && workspace) {
     const excluded = next.workspaces[rootPath] ?? [];
+    // 工作区规则、全局层与采纳 AI 段在同一次重算中更新，排除的证据不会从任何一层漏回 prompt。
     const pruned = await updateStyleProfile((latest) =>
-      dropExcludedSamples(latest, workspace.id, excluded),
+      recomputeStyleRound(latest, workspace.id, { excluded }),
     );
     store.setProfile(pruned);
   }

@@ -32,7 +32,8 @@ test.describe("E-3: fix and style suggestion kinds", () => {
     await expect(page.locator(".cm-md-ai-badge").first()).toContainText("风格");
     await page.keyboard.press("Tab");
     const markdown = await readDoc(page);
-    expect(markdown).toContain("我们用 R写界面");
+    // 第二项只把 `用R` 改成 `用 R`：第一项已把 `我门` 改成 `我们`。
+    expect(markdown).toBe("我们用 React写界面。");
   });
 
   test("Esc dismisses style suggestions without changing the document", async ({ page }) => {

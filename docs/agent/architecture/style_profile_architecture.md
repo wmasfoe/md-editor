@@ -44,9 +44,9 @@
 - 草稿机制：最近 3 轮同值、支持文件 ≥ 5、统计变异系数 ≤ 0.25 才生效；连续 3 轮不支持或支持不足退场。全局层由 ≥ 2 个工作区一致的生效规则推导。
 - 身份：段落 hash 包含度 < 0.3 视为失去关联；开启自动找回时 ≥ 0.5 且匹配 ≥ 3 个样本改绑并提示（设置页可撤销，排除列表随之迁移；撤销后不再自动找回到同一目录）；失联 30 天清理。
 - 使用前校验：打开或切换工作区时先做一次不调用模型的身份校验（`verifyWorkspace`），通过之前写作请求只使用全局画像与自定义规则。
-- 排除立即生效（PRD §2.10）：文件树右键或设置页排除文件后，`applyExclusions` 立刻把被排除的样本与对应 AI 段 hash 从画像中剔除并重新聚合当前轮（不调用模型），再通知协调器在空闲时补读恢复的文件。设置页“参与学习的文章”只列出仍在参与的文件，被排除的只出现在“已排除”。
-- 计量（PRD §2.6）：dev 日志输出本轮 `preemptions`、`modelSwitches`、`windows` 与调度器 `urgentWaitMs`（count/max/p95）、`exclusivePreemptions`。设置页状态行显示上次学习时间、参与样本数与生效规则数。
-- Sentry（PRD §2.8 / O-3）：`handleBeforeSend` 识别风格学习事件并去掉绝对路径与文件名，只保留错误描述。
+- 排除立即生效（PRD §2.10）：文件树右键或设置页排除文件后，`applyExclusions` 立刻调用唯一的重算入口 `recomputeStyleRound`——同时剔除被排除的样本、其 AI 段 hash，并重算工作区规则与全局层（不调用模型），再通知协调器在空闲时补读恢复的文件。学习轮次在删除或修改样本后走同一个入口，避免两套“移除证据”的不变量漂移。设置页“参与学习的文章”只列出仍在参与的文件，被排除的只出现在“已排除”。
+- 计量（PRD §2.6）：dev 日志每轮输出 `samples`、`observations`、`activeRules`、`retiredRules`、本轮 `preemptions`/`modelSwitches`，以及调度器的 `urgentWaitMs`（count/max/p95）与 `exclusivePreemptions`。设置页状态行显示上次学习时间、参与样本数与生效规则数。
+- Sentry（PRD §2.8 / O-3）：学习失败经 `captureStyleLearningError` 上报并带 `feature: "style-learning"` 标签；`handleBeforeSend` 据此（消息兜底）去掉绝对路径与文件名，保留错误描述与数字/版本号。
 - AI 文本：采纳时记录句子 hash，学习时跳过；AI 原文只在内存中保留到保存，用于提取“用户修改 AI 建议”的特征。
 
 ## 4. 使用
