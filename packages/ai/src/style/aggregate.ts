@@ -180,9 +180,24 @@ export function withEditFeedback(
     );
     const current = next[dimension];
     if (!current || current.value === STYLE_UNKNOWN_VALUE) {
-      next[dimension] = { round, value: summary.value, supportSampleIds: support };
+      // 保留本轮已测到的证据（aggregate / valueSupport），只补上取值与反馈支持，
+      // 否则退场判定会把“测到了但本轮取值 unknown”误读成“没有任何证据”。
+      const existing = current?.valueSupport?.[summary.value] ?? [];
+      next[dimension] = {
+        ...current,
+        round,
+        value: summary.value,
+        supportSampleIds: [...existing, ...support],
+        valueSupport: { ...current?.valueSupport, [summary.value]: [...existing, ...support] },
+      };
     } else if (current.value === summary.value) {
-      next[dimension] = { ...current, supportSampleIds: [...current.supportSampleIds, ...support] };
+      const existing = current.valueSupport?.[summary.value] ?? current.supportSampleIds;
+      const merged = [...existing, ...support];
+      next[dimension] = {
+        ...current,
+        supportSampleIds: merged,
+        valueSupport: { ...current.valueSupport, [summary.value]: merged },
+      };
     }
   }
   return next;

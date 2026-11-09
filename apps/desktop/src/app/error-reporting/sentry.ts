@@ -121,7 +121,7 @@ export function isStyleLearningEvent(event: {
 }
 
 /** 路径片段允许中文、字母数字与内部空格（`我的 笔记.md`） */
-const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?: [\\p{L}\\p{N}_.-]+)*";
+const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?:\\s+[\\p{L}\\p{N}_.-]+)*";
 const EXTENSION = "\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b";
 /** 形如 `日记/2024/私人.md` 的相对路径：末段同样允许空格 */
 const RELATIVE_PATH = new RegExp(
