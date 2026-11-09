@@ -85,6 +85,9 @@ function makeSettings(backgroundProcessing: boolean) {
       provider: "openai",
       features: { editing: true, continuation: true, backgroundProcessing },
       endpoints: { openai: { apiKey: "test-key" } },
+      // 风格学习与本地模型是后续新增的设置字段，这里显式关闭。
+      styleLearning: { enabled: false, autoRelink: false, cloudConsent: null },
+      localModel: { enabled: false, modelId: "md-editor-writer-standard", status: "not-downloaded" },
     },
     shortcuts: [],
     assetsDirectory: "assets",
