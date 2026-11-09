@@ -184,9 +184,7 @@ describe("global stat rules stay stable across rounds", () => {
         rules: [
           {
             ...activeRule("sentenceLength", "short"),
-            rounds: [
-              { round: 1, value: "short", supportSampleIds: FIVE_FILES, aggregate: 12 },
-            ],
+            rounds: [{ round: 1, value: "short", supportSampleIds: FIVE_FILES, aggregate: 12 }],
           },
         ],
       }),

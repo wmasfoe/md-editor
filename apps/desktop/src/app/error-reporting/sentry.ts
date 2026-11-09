@@ -121,15 +121,24 @@ export function isStyleLearningEvent(event: {
 }
 
 /** 路径片段允许中文、字母数字与内部空格（`我的 笔记.md`） */
-const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?:\\s+[\\p{L}\\p{N}_.-]+)*";
+const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?:[^\\S\\n]+[\\p{L}\\p{N}_.-]+)*";
 const EXTENSION = "\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b";
 /** 形如 `日记/2024/私人.md` 的相对路径：末段同样允许空格 */
 const RELATIVE_PATH = new RegExp(
   "(?<![\\\\/])[\\\\/]?(?:" + PATH_SEGMENT + "[\\\\/])+" + PATH_SEGMENT + EXTENSION,
   "giu",
 );
-/** 裸文件名（大小写不敏感，`.MD` 也算 Markdown） */
-const BARE_FILE = new RegExp("(?<![\\p{L}\\p{N}_.])" + PATH_SEGMENT + EXTENSION, "giu");
+/**
+ * 裸文件名（大小写不敏感，`.MD` 也算 Markdown）。只匹配不含空白的一段文字：
+ * 含空格的中文句子也可能以 `.txt` 结尾，放行空白会把整句说明吞掉；
+ * 带空格的路径由上面的路径规则覆盖。
+ */
+const BARE_FILE = new RegExp("(?<![\\p{L}\\p{N}_.])[\\p{L}\\p{N}_.-]+" + EXTENSION, "giu");
+/**
+ * 整句以文件名结尾的中文消息（`该文件不能作为风格样本：我的 笔记.md`）：
+ * 冒号之后一律视为路径/文件名，避免放行空格后把整句说明也吞掉。
+ */
+const LABELLED_TAIL = new RegExp("([：:])\\s*" + PATH_SEGMENT + EXTENSION, "giu");
 
 function stripPaths(text: string): string {
   return (
@@ -159,6 +168,8 @@ function stripPaths(text: string): string {
         ),
         "[path]",
       )
+      // 带标签的尾部：冒号之后是文件名时整段替换
+      .replace(LABELLED_TAIL, "$1[file]")
       // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理
       .replace(BARE_FILE, "[file]")
   );

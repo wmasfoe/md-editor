@@ -95,3 +95,13 @@ describe("O-3: spaced directory names", () => {
     ).toBe("读取样本失败：[path] 不存在");
   });
 });
+
+describe("O-3: whitespace handling", () => {
+  it("joins spaced segments but never merges across a newline", () => {
+    expect(scrubPaths({ message: "该文件不能作为风格样本：我的\t笔记.md" }).message).toBe(
+      "该文件不能作为风格样本：[file]",
+    );
+    const text = "读取失败: notes.md\n接下来是普通说明文字 以及更多内容.txt";
+    expect(scrubPaths({ message: text }).message).toContain("接下来是普通说明文字");
+  });
+});

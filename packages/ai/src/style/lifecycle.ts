@@ -72,13 +72,26 @@ function promotionCandidate(
   if (!value || value === STYLE_UNKNOWN_VALUE || recent.some((round) => round.value !== value)) {
     return undefined;
   }
-  const supportFiles = new Set(recent.flatMap((round) => round.supportSampleIds));
+  // 只统计真实样本文件；编辑反馈的 `edit:` 伪 id 不能凑够“支持文件 ≥ 5”。
+  const supportFiles = new Set(
+    recent.flatMap((round) => round.supportSampleIds.filter((id) => !id.startsWith("edit:"))),
+  );
   if (supportFiles.size < MIN_SUPPORT_FILES) {
     return undefined;
   }
   if (STYLE_DIMENSIONS[dimension].kind === "stat") {
     const aggregates = recent.map((round) => round.aggregate);
     if (aggregates.some((aggregate) => aggregate === undefined)) {
+      return undefined;
+    }
+    // 聚合值本身必须仍落在该取值区间，否则不能因为编辑反馈而晋升与之矛盾的取值。
+    if (
+      aggregates.some(
+        (aggregate) =>
+          classifyAggregate(dimension as Parameters<typeof classifyAggregate>[0], aggregate!) !==
+          value,
+      )
+    ) {
       return undefined;
     }
     if (coefficientOfVariation(aggregates as number[]) > MAX_STAT_VARIATION) {

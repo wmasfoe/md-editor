@@ -205,3 +205,35 @@ describe("retire when the rule's own value loses support", () => {
     expect(advanceStyleRule("formality", active, absent).status).toBe("retired");
   });
 });
+
+describe("edit evidence cannot stand in for files", () => {
+  it("does not promote a rule from one file plus edit features", () => {
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "casual",
+      supportSampleIds: ["only-file", `edit:formality:${n}a`, `edit:formality:${n}b`],
+      valueSupport: { casual: ["only-file", `edit:formality:${n}a`, `edit:formality:${n}b`] },
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("formality", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+
+  it("does not promote a stat value that contradicts the measured aggregate", () => {
+    // 聚合值 10 属于 short，但本轮取值被编辑反馈改成了 long。
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "long",
+      supportSampleIds: [...FIVE_FILES, `edit:sentenceLength:${n}`],
+      valueSupport: { long: [...FIVE_FILES, `edit:sentenceLength:${n}`], short: FIVE_FILES },
+      aggregate: 10,
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("sentenceLength", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+});
