@@ -16,7 +16,7 @@ import { useToastStore } from "../../stores/toast-store";
 import { listenToFolderChanged } from "../../../desktop/folder-watcher-events";
 import { createDesktopStyleLearningHost, updateStyleProfile } from "./style-learning-host";
 import { useStyleLearningData } from "./use-style-learning-data";
-import { moveStyleExclusions } from "./style-exclusions";
+import { moveStyleExclusions, onStyleLearningChanged } from "./style-exclusions";
 import { StyleLearningCoordinator } from "./style-learning-coordinator";
 import {
   clearPendingEditFeedback,
@@ -94,6 +94,7 @@ export function useStyleLearning(): void {
           const root = useFileTreeStore.getState().folder?.rootPath ?? null;
           store.setVerifiedRoot(findLinkedWorkspaceProfile(document, root) ? root : null);
         },
+        schedulerMetrics: () => desktopAiService.scheduler.waitMetrics,
         onRelinked: ({ fromRoot, toRoot }) => {
           void moveStyleExclusions(fromRoot, toRoot).catch(() => undefined);
           useToastStore.getState().showToast(t("styleLearning.relinkedToast"));
@@ -113,6 +114,8 @@ export function useStyleLearning(): void {
     const unlistenFolder = listenToFolderChanged(() => coordinator.noteWorkspaceChanged());
     // 写作模型为 Lite 时，用户刚用过本地模型就不为学习切换到 Standard。
     const unlistenLocalAi = onLocalAiUse(() => coordinator.noteLocalAiUse());
+    // 设置页或文件树排除/恢复文件后立即重新聚合，并在空闲时补读恢复的文件。
+    const unlistenExclusions = onStyleLearningChanged(() => coordinator.noteWorkspaceChanged());
     const onVisibility = () => coordinator.noteVisibilityChanged();
     document.addEventListener("visibilitychange", onVisibility);
 
@@ -120,6 +123,7 @@ export function useStyleLearning(): void {
       unsubscribeDocument();
       unlistenFolder?.();
       unlistenLocalAi();
+      unlistenExclusions();
       document.removeEventListener("visibilitychange", onVisibility);
       coordinator.dispose();
       coordinatorRef.current = null;

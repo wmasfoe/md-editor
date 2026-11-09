@@ -483,6 +483,8 @@ export const en: TranslationSchema = {
     clearDone: "Style learning data cleared",
     relinkedToast: "Workspace move detected; your writing preferences followed it",
     relinkedFrom: "Recovered from {{root}}",
+    statusLine: "Last learned: {{time}} · {{samples}} samples · {{rules}} active rules",
+    never: "not yet",
     undoRelink: "Undo recovery",
     contextExclude: "Exclude from style learning",
     contextRestore: "Include in style learning",

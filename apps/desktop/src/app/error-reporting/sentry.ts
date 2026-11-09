@@ -75,7 +75,12 @@ export function sanitizeBreadcrumbs<T extends { category?: string; level?: strin
  * 2. 移除包含敏感文本信息的 console breadcrumbs。
  */
 export function handleBeforeSend<
-  T extends { breadcrumbs?: Array<{ category?: string; level?: string }> },
+  T extends {
+    breadcrumbs?: Array<{ category?: string; level?: string }>;
+    message?: string;
+    exception?: { values?: Array<{ value?: string }> };
+    tags?: Record<string, unknown>;
+  },
 >(event: T, options: { isDev?: boolean; isEnabled?: boolean } = {}): T | null {
   const isDev = options.isDev ?? isDevelopmentEnvironment();
   const isEnabled = options.isEnabled ?? isErrorReportingEnabled;
@@ -87,7 +92,40 @@ export function handleBeforeSend<
   if (event.breadcrumbs) {
     event.breadcrumbs = sanitizeBreadcrumbs(event.breadcrumbs);
   }
+  if (isStyleLearningEvent(event)) {
+    scrubPaths(event);
+  }
 
+  return event;
+}
+
+/** 风格学习相关的事件：错误信息里可能带工作区路径与文件名 */
+export function isStyleLearningEvent(event: {
+  readonly message?: string;
+  readonly tags?: Record<string, unknown>;
+}): boolean {
+  const tag = event.tags?.feature ?? event.tags?.module;
+  return (
+    tag === "style-learning" ||
+    Boolean(event.message?.includes("style-learning")) ||
+    Boolean(event.message?.includes("风格学习"))
+  );
+}
+
+function stripPaths(text: string): string {
+  return text
+    .replace(/(?:[A-Za-z]:)?(?:\\|\/)[^\s'"`,;]+/gu, "[path]")
+    .replace(/[^\s/\\]+\.[A-Za-z0-9]{1,5}\b/gu, "[file]");
+}
+
+/** 去掉绝对路径与文件名，只保留事件本身的错误描述 */
+export function scrubPaths<
+  T extends { message?: string; exception?: { values?: Array<{ value?: string }> } },
+>(event: T): T {
+  if (event.message) event.message = stripPaths(event.message);
+  for (const value of event.exception?.values ?? []) {
+    if (value.value) value.value = stripPaths(value.value);
+  }
   return event;
 }
 

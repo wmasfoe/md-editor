@@ -46,6 +46,11 @@ export interface StyleLearningRunner {
 }
 
 export interface StyleLearningCallbacks {
+  /** 调度器计量（PRD §2.6：用户请求排队等待、独占任务被抢占次数） */
+  readonly schedulerMetrics?: () => {
+    readonly urgentWaitMs: { readonly count: number; readonly max: number; readonly p95: number };
+    readonly exclusivePreemptions: number;
+  };
   /** 自动找回成功时通知用户（唯一会提示用户的学习结果） */
   readonly onRelinked?: (info: { readonly fromRoot: string; readonly toRoot: string }) => void;
   /** 画像文档有变化时通知（设置页刷新） */
@@ -71,6 +76,8 @@ export class StyleLearningCoordinator {
   private pending = true;
   /** 连续失败次数，用于退避，避免同一错误每分钟触发一次全量扫描 */
   private consecutiveFailures = 0;
+  /** 计量：抢占次数、模型切换次数、可学习窗口数（仅 dev 日志使用） */
+  private readonly metrics = { preemptions: 0, modelSwitches: 0, windows: 0 };
   private disposed = false;
 
   public constructor(
@@ -102,6 +109,15 @@ export class StyleLearningCoordinator {
   /** 任何本地模型请求（续写、纠错）发出时调用，用于判断 runtime 是否仍热 */
   public noteLocalAiUse(): void {
     this.lastLocalAiUseAt = this.env.now();
+  }
+
+  /** 计量快照（dev 日志与测试使用） */
+  public getMetrics(): {
+    readonly preemptions: number;
+    readonly modelSwitches: number;
+    readonly windows: number;
+  } {
+    return { ...this.metrics };
   }
 
   /** 窗口重新可见时调用：只重新安排已有的待处理工作，不制造新的扫描 */
@@ -184,12 +200,21 @@ export class StyleLearningCoordinator {
     this.lastAttemptAt = this.env.now();
     // 先消耗本次变化；运行期间新到的变化会把它重新置为 true。
     this.pending = false;
+    this.metrics.windows += 1;
+    if (
+      conditions.settings.provider === "local" &&
+      conditions.settings.localModel.modelId !== STANDARD_LOCAL_MODEL_ID
+    ) {
+      // 为学习从 Lite 切到 Standard：记录切换次数，用于评估学习机会与代价。
+      this.metrics.modelSwitches += 1;
+    }
     try {
       const outcome = await this.runner.run({
         rootPath: conditions.rootPath!,
         autoRelink: conditions.settings.styleLearning.autoRelink,
         signal: controller.signal,
       });
+      if (outcome.status === "preempted") this.metrics.preemptions += 1;
       if (controller.signal.aborted) return;
       // 被抢占、模型忙、失败或刚更新了样本（可能还需继续分类）时稍后再试；学完或无变化时等下一个变化。
       if (outcome.status !== "idle" && outcome.status !== "learned") this.pending = true;
@@ -208,6 +233,8 @@ export class StyleLearningCoordinator {
         console.debug("[Style Learning] round finished", {
           status: outcome.status,
           workspaces: outcome.document?.workspaces.length ?? null,
+          ...this.metrics,
+          ...this.callbacks.schedulerMetrics?.(),
         });
       }
     } catch (error) {

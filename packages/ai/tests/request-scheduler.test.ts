@@ -420,3 +420,47 @@ describe("AiRequestScheduler", () => {
     expect(scheduler.pendingCount).toBe(0);
   });
 });
+
+describe("scheduler metrics (PRD 2.6)", () => {
+  it("records user request wait time and exclusive preemptions", async () => {
+    const scheduler = new AiRequestScheduler(1);
+    const learningStarted = deferred<AiScheduledRequestContext>();
+    const never = deferred<string>();
+    const learning = scheduler.schedule({
+      scope: context("workspace", "style-analysis"),
+      priority: "background",
+      exclusive: true,
+      run: async (runtime) => {
+        learningStarted.resolve(runtime);
+        return never.promise;
+      },
+    });
+    await learningStarted.promise;
+    expect(scheduler.waitMetrics.urgentWaitMs.count).toBe(0);
+
+    const user = scheduler.schedule({
+      scope: context("draft.md", "completion"),
+      priority: "urgent",
+      run: async () => "continued",
+    });
+    await user.promise;
+    await expect(learning.promise).rejects.toMatchObject({ name: "AbortError" });
+
+    const metrics = scheduler.waitMetrics;
+    expect(metrics.exclusivePreemptions).toBe(1);
+    expect(metrics.urgentWaitMs.count).toBe(1);
+    expect(metrics.urgentWaitMs.max).toBeGreaterThanOrEqual(0);
+    expect(metrics.urgentWaitMs.p95).toBe(metrics.urgentWaitMs.max);
+  });
+
+  it("ignores background work in the user wait metric", async () => {
+    const scheduler = new AiRequestScheduler(1);
+    await scheduler.schedule({
+      scope: context("doc.md", "distill"),
+      priority: "background",
+      run: async () => "done",
+    }).promise;
+    expect(scheduler.waitMetrics.urgentWaitMs.count).toBe(0);
+    expect(scheduler.waitMetrics.exclusivePreemptions).toBe(0);
+  });
+});

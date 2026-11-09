@@ -5,11 +5,14 @@ import {
   isStyleProfileExpired,
   isStyleProfileLinked,
   isUserStyleExcluded,
+  dropExcludedSamples,
+  createEmptyStyleProfileDocument,
   undoStyleRelink,
   renameStyleRelPath,
   scoreStyleIdentity,
 } from "../../src/style/index.ts";
-import { sample, workspace } from "./fixtures.ts";
+import { FIVE_FILES, sample, workspace } from "./fixtures.ts";
+import type { StyleProfileDocument } from "../../src/style/index.ts";
 
 /** 每个样本 4 个段落 hash 的画像 */
 function profileWith(prefix: string, files = 10) {
@@ -120,5 +123,58 @@ describe("undo relink", () => {
     expect(undoStyleRelink([workspace("w3")], "w3", "t1")[0]).toMatchObject({
       linkState: "linked",
     });
+  });
+});
+
+function excludedProfile() {
+  return workspace("w1", {
+    roundCount: 2,
+    rules: [
+      {
+        dimension: "formality",
+        value: "formal",
+        status: "active",
+        rounds: [{ round: 2, value: "formal", supportSampleIds: FIVE_FILES }],
+      },
+    ],
+    samples: [
+      ...FIVE_FILES.map((id) =>
+        sample(id, { relPath: `${id}.md`, labels: { formality: "formal" } }),
+      ),
+      sample("secret", { relPath: "diary/secret.md", labels: { formality: "formal" } }),
+    ],
+  });
+}
+
+describe("exclusions take effect immediately", () => {
+  const document = (): StyleProfileDocument => ({
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [excludedProfile()],
+    aiSegments: { w1: { "diary/secret.md": ["n1:a"], "a.md": ["n1:b"] } },
+  });
+
+  it("drops excluded samples, their AI hashes and re-aggregates without the model", () => {
+    const next = dropExcludedSamples(document(), "w1", ["diary"]);
+    expect(next.workspaces[0]!.samples.map((s) => s.relPath)).toEqual(
+      FIVE_FILES.map((id) => `${id}.md`),
+    );
+    expect(next.aiSegments.w1).toEqual({ "a.md": ["n1:b"] });
+    // 支持文件从 6 个降到 5 个，规则仍然生效（不调用模型，只重新聚合当前轮）。
+    expect(next.workspaces[0]!.rules[0]).toMatchObject({ status: "active", value: "formal" });
+  });
+
+  it("returns the same document when nothing is excluded", () => {
+    const original = document();
+    expect(dropExcludedSamples(original, "w1", ["other"])).toBe(original);
+    expect(dropExcludedSamples(original, "w1", [])).toBe(original);
+    expect(dropExcludedSamples(original, "missing", ["a.md"])).toBe(original);
+  });
+
+  it("retires a rule when exclusions leave too few supporting files", () => {
+    const small = document();
+    // 排除的是工作区相对路径（`a.md`），不是样本 id。
+    const next = dropExcludedSamples(small, "w1", ["a.md", "b.md"]);
+    expect(next.workspaces[0]!.samples).toHaveLength(4);
+    expect(next.workspaces[0]!.rules[0]!.status).toBe("retired");
   });
 });

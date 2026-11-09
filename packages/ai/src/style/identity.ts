@@ -8,7 +8,8 @@
  * 段落级 hash 对“只改了几段”的外部编辑也能保持稳定。
  */
 
-import type { WorkspaceStyleProfileRecord } from "./types.ts";
+import { applyObservations, observeSamples } from "./aggregate.ts";
+import type { StyleProfileDocument, WorkspaceStyleProfileRecord } from "./types.ts";
 
 /** 身份分数低于该值时，画像视为与当前目录失去关联 */
 export const LINK_MIN_SCORE = 0.3;
@@ -151,4 +152,45 @@ export function undoStyleRelink(
       relinkDeclined: [...new Set([...(workspace.relinkDeclined ?? []), workspace.rootPath])],
     };
   });
+}
+
+/**
+ * 把已排除的样本从画像中剔除并重新聚合当前轮（不调用模型）。
+ * 排除后立即生效：被排除文件的统计与标签不再参与合并与注入。
+ * 返回原文档表示没有需要剔除的样本。
+ */
+export function dropExcludedSamples(
+  document: StyleProfileDocument,
+  workspaceId: string,
+  excluded: readonly string[],
+): StyleProfileDocument {
+  if (excluded.length === 0) return document;
+  const workspace = document.workspaces.find((candidate) => candidate.id === workspaceId);
+  if (!workspace) return document;
+  const removed = workspace.samples.filter((sample) =>
+    isUserStyleExcluded(sample.relPath, excluded),
+  );
+  if (removed.length === 0) return document;
+  const removedIds = new Set(removed.map((sample) => sample.id));
+  const samples = workspace.samples.filter((sample) => !removedIds.has(sample.id));
+  const rules =
+    workspace.roundCount > 0
+      ? applyObservations(workspace.rules, observeSamples(samples, workspace.roundCount), {
+          replaceLatest: true,
+        })
+      : workspace.rules;
+  return {
+    ...document,
+    workspaces: document.workspaces.map((candidate) =>
+      candidate.id === workspace.id ? { ...candidate, samples, rules } : candidate,
+    ),
+    aiSegments: {
+      ...document.aiSegments,
+      [workspace.id]: Object.fromEntries(
+        Object.entries(document.aiSegments[workspace.id] ?? {}).filter(
+          ([relPath]) => !isUserStyleExcluded(relPath, excluded),
+        ),
+      ),
+    },
+  };
 }

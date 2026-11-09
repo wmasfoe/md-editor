@@ -6,10 +6,53 @@
  * 排除列表保存在应用数据目录，不在工作区写入任何文件；
  * 排除后下一次扫描就不会再读取该文件，学习引擎会立刻去掉它对画像的贡献。
  */
-import { isUserStyleExcluded, type StyleExclusionsDocument } from "@md-editor/ai/style";
+import {
+  dropExcludedSamples,
+  isUserStyleExcluded,
+  type StyleExclusionsDocument,
+} from "@md-editor/ai/style";
 import { updateStyleExclusions, updateStyleProfile } from "./style-learning-host";
 import { renameExclusions, renameInStyleDocument } from "./style-learning-coordinator";
 import { useStyleLearningStore } from "./style-learning-store";
+
+/**
+ * 排除列表变化后立即生效：把被排除的样本从画像中剔除并重新聚合（不调用模型），
+ * 再请求一次学习轮次以纳入新恢复的文件。
+ */
+async function applyExclusions(
+  rootPath: string,
+  next: StyleExclusionsDocument,
+): Promise<StyleExclusionsDocument> {
+  useStyleLearningStore.getState().setExclusions(next);
+  const store = useStyleLearningStore.getState();
+  const workspace = store.profile?.workspaces.find(
+    (candidate) => candidate.rootPath === rootPath && candidate.linkState === "linked",
+  );
+  if (store.profile && workspace) {
+    const excluded = next.workspaces[rootPath] ?? [];
+    const pruned = await updateStyleProfile((latest) =>
+      dropExcludedSamples(latest, workspace.id, excluded),
+    );
+    store.setProfile(pruned);
+  }
+  // 恢复参与的文件需要重新读取与统计：交给学习协调器在空闲时处理。
+  notifyStyleLearningChanged();
+  return next;
+}
+
+/** 由主窗口注册；设置窗口没有学习协调器时为空操作 */
+let changeListener: (() => void) | null = null;
+
+export function onStyleLearningChanged(listener: () => void): () => void {
+  changeListener = listener;
+  return () => {
+    if (changeListener === listener) changeListener = null;
+  };
+}
+
+function notifyStyleLearningChanged(): void {
+  changeListener?.();
+}
 
 async function updateExclusions(
   rootPath: string,
@@ -22,8 +65,7 @@ async function updateExclusions(
       [rootPath]: [...update(latest.workspaces[rootPath] ?? [])],
     },
   }));
-  useStyleLearningStore.getState().setExclusions(next);
-  return next;
+  return applyExclusions(rootPath, next);
 }
 
 /** 排除一个文件或目录（工作区相对路径） */

@@ -16,6 +16,7 @@ import {
   CLASS_DIMENSION_IDS,
   createEmptyStyleExclusionsDocument,
   undoStyleRelink,
+  isUserStyleExcluded,
   styleDimensionValues,
   type CustomStyleRule,
   type StyleDimensionId,
@@ -190,6 +191,9 @@ function StyleProfileDataSection() {
   const workspace = findLinkedWorkspaceProfile(profile, rootPath);
   const unlinked = profile?.workspaces.filter((entry) => entry.linkState === "unlinked") ?? [];
   const excluded = rootPath ? (exclusions.workspaces[rootPath] ?? []) : [];
+  // 参与学习的文件列表只列出仍在参与的文件；被排除的只出现在下方“已排除”。
+  const participating =
+    workspace?.samples.filter((sample) => !isUserStyleExcluded(sample.relPath, excluded)) ?? [];
 
   const clearAll = async () => {
     // 清除会换新数据代次，正在进行的学习轮次提交时发现代次不同会丢弃结果；
@@ -225,6 +229,15 @@ function StyleProfileDataSection() {
           title={t("styleLearning.globalLayer")}
           rules={profile?.global.rules ?? []}
         />
+        <p className={settingsDescriptionClassName} data-testid="style-status-line">
+          {t("styleLearning.statusLine", {
+            time: workspace?.lastRoundAt
+              ? new Date(workspace.lastRoundAt).toLocaleString()
+              : t("styleLearning.never"),
+            samples: workspace?.samples.length ?? 0,
+            rules: (workspace?.rules ?? []).filter((rule) => rule.status === "active").length,
+          })}
+        </p>
       </section>
 
       <CustomRuleEditor
@@ -235,9 +248,9 @@ function StyleProfileDataSection() {
       {rootPath ? (
         <section className="grid gap-2" aria-label={t("styleLearning.samplesTitle")}>
           <h4 className={settingsFieldLabelClassName}>{t("styleLearning.samplesTitle")}</h4>
-          {workspace && workspace.samples.length > 0 ? (
-            <ul className="grid max-h-48 gap-1 overflow-auto text-xs">
-              {workspace.samples.map((sample) => (
+          {participating.length > 0 ? (
+            <ul className="grid max-h-48 gap-1 overflow-auto text-xs" data-testid="style-samples">
+              {participating.map((sample) => (
                 <li key={sample.id} className="flex items-center justify-between gap-2">
                   <span className="truncate">{sample.relPath}</span>
                   <button
