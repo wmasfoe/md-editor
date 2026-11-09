@@ -41,6 +41,8 @@ export function round(
     round: roundNumber,
     value,
     supportSampleIds,
+    // 与 `observeSamples` 的真实产出保持一致：本轮每个出现过的取值都记录支持样本。
+    ...(value === "unknown" ? {} : { valueSupport: { [value]: supportSampleIds } }),
     ...(aggregate === undefined ? {} : { aggregate }),
   };
 }
@@ -62,7 +64,6 @@ export function workspace(
     linkState: "linked",
     samples: [],
     rules: [],
-    editFeedback: [],
     roundCount: 0,
     changesSinceRound: 0,
     ...overrides,

@@ -52,3 +52,14 @@ describe("style statistics", () => {
     );
   });
 });
+
+describe("no evidence is not zero evidence", () => {
+  it("returns an undefined aggregate when there is no measured evidence", () => {
+    const empty = aggregateStat("sentenceLength", []);
+    expect(empty.aggregate).toBeUndefined();
+    expect(empty.value).toBe(STYLE_UNKNOWN_VALUE);
+    // 测到 0 与没测到必须区分：0 权重不算证据。
+    expect(aggregateStat("sentenceLength", [{ value: 0, weight: 0 }]).aggregate).toBeUndefined();
+    expect(aggregateStat("sentenceLength", [{ value: 0, weight: 20 }]).aggregate).toBe(0);
+  });
+});

@@ -23,6 +23,18 @@ impl StyleLearningScope {
         }
     }
 
+    /// 返回当前工作区根目录，并确认它与调用方期望的根目录一致。
+    ///
+    /// 学习轮次可能跨越一次工作区切换：旧轮次带着旧根目录的排除列表与画像继续运行时，
+    /// 必须拒绝读取新工作区，避免把新目录的内容记到旧画像上或绕过新目录的排除列表。
+    pub(crate) fn expect_root(&self, expected: &str) -> Result<PathBuf, String> {
+        let root = self.root()?;
+        if path_to_string(&root) != expected {
+            return Err("工作区已切换，本轮风格学习已停止。".to_string());
+        }
+        Ok(root)
+    }
+
     /// 返回当前工作区根目录；未打开任何工作区时拒绝一切学习读取。
     pub(crate) fn root(&self) -> Result<PathBuf, String> {
         self.root
@@ -31,6 +43,14 @@ impl StyleLearningScope {
             .clone()
             .ok_or_else(|| "当前没有打开的工作区，无法进行风格学习。".to_string())
     }
+}
+
+/// 当前风格学习范围（主窗口打开的工作区根目录）；独立设置窗口据此展示当前工作区的数据。
+#[tauri::command]
+pub(crate) fn get_style_learning_root(
+    scope: tauri::State<'_, StyleLearningScope>,
+) -> Option<String> {
+    scope.root().ok().map(|root| path_to_string(&root))
 }
 
 /// 把工作区相对路径解析为规范化绝对路径，并确认它仍在工作区内。

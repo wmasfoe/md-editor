@@ -9,14 +9,22 @@
  * - `--articles`：留出文章目录（*.md），每篇取前 60% 作为续写上下文；
  * - `--profile`：设置页“写作偏好”渲染出的前缀文本；
  * - `--endpoint`：OpenAI 兼容端点（本地 llama-server 或 Ollama），不会把文章发往其他地址；
- * - 输出 `blind-sheet.md`（给评测人）、`answers.json`（不要给评测人看）、`checks.json`（结构检查）。
+ * - 输出 `blind-sheet.md`（给评测人）、`answers.json`（不要给评测人看）、`checks.json`（结构检查）、
+ *   `choices.json`（评测人填写模板）与 `REPORT.md`（自动检查汇总 + 人工盲评说明）。
+ * - 人工协议：评测人按 `blind-sheet.md` 为每篇填 A/B/same，再运行
+ *   `node scripts/style-eval/run.mjs --out <out> --score <out>/choices.json` 得到有画像版本的胜率。
  *
  * 评测人在盲评表中为每篇填写 A / B / same，再用 `--score choices.json` 计算有画像版本的胜率。
  */
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { buildBlindSheet, checkContinuationStructure, scoreBlindChoices } from "./lib.mjs";
+import {
+  buildBlindSheet,
+  checkContinuationStructure,
+  scoreBlindChoices,
+  writeEvaluationArtifacts,
+} from "./lib.mjs";
 
 const SYSTEM =
   "你是 Markdown 续写引擎。紧接光标前文，直接输出接下来最合理的一到两段正文，不要解释。";
@@ -85,16 +93,14 @@ for (const name of files) {
 }
 
 const { sheet, answers } = buildBlindSheet(pairs, Number(values.seed));
-mkdirSync(values.out, { recursive: true });
-writeFileSync(
-  join(values.out, "blind-sheet.md"),
-  sheet
-    .map(
-      (row) =>
-        `## ${row.id}\n\n> …${row.prompt}\n\n**A**\n\n${row.A}\n\n**B**\n\n${row.B}\n\n选择：A / B / same\n`,
-    )
-    .join("\n---\n\n"),
+writeEvaluationArtifacts(
+  {
+    dir: values.out,
+    sheet,
+    answers,
+    checks,
+    meta: { generatedAt: new Date().toISOString(), endpoint: values.endpoint, model: values.model },
+  },
+  { mkdirSync, writeFileSync },
 );
-writeFileSync(join(values.out, "answers.json"), `${JSON.stringify(answers, null, 2)}\n`);
-writeFileSync(join(values.out, "checks.json"), `${JSON.stringify(checks, null, 2)}\n`);
-console.log(`盲评表：${join(values.out, "blind-sheet.md")}（共 ${sheet.length} 篇）`);
+console.log(`盲评表：${values.out}/blind-sheet.md（共 ${sheet.length} 篇）`);

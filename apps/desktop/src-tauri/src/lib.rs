@@ -60,8 +60,9 @@ use session::{
 use settings::load_app_settings;
 use settings_window::{close_settings_window, open_settings_window};
 use style_learning::{
-    clear_style_learning_document, load_style_learning_document, read_style_learning_sample,
-    save_style_learning_document, scan_style_learning_samples, StyleLearningScope,
+    clear_style_learning_document, get_style_learning_root, load_style_learning_document,
+    read_style_learning_sample, save_style_learning_document, scan_style_learning_samples,
+    StyleLearningScope,
 };
 use system_info::get_system_specs;
 use update_prompt::{load_update_prompt_state, save_update_prompt_state};
@@ -133,6 +134,7 @@ pub fn run() {
             load_style_learning_document,
             save_style_learning_document,
             clear_style_learning_document,
+            get_style_learning_root,
             create_markdown_tree_item,
             rename_markdown_tree_item,
             delete_markdown_tree_item,

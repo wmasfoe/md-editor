@@ -8,20 +8,27 @@ import { isTauri } from "@tauri-apps/api/core";
 import { STANDARD_LOCAL_MODEL_ID } from "@md-editor/ai";
 import { useTranslation } from "@md-editor/i18n";
 import { desktopAiService } from "../desktop-ai-service";
-import { desktopLocalAiBridge, readLocalAiModelStatus } from "../local-ai-model";
+import { desktopLocalAiBridge, onLocalAiUse, readLocalAiModelStatus } from "../local-ai-model";
 import { runtime } from "../../runtime/editor-runtime";
 import { useAppSettings } from "../../settings-context";
 import { useFileTreeStore } from "../../stores/file-tree-store";
+import type { DesktopEditorActions } from "../../context/DesktopEditorActionsContext";
 import { useToastStore } from "../../stores/toast-store";
 import { listenToFolderChanged } from "../../../desktop/folder-watcher-events";
+import { createDesktopStyleLearningHost, updateStyleProfile } from "./style-learning-host";
+import { useStyleLearningData } from "./use-style-learning-data";
 import {
-  createDesktopStyleLearningHost,
-  loadStyleExclusions,
-  loadStyleProfile,
-  saveStyleProfile,
-} from "./style-learning-host";
+  listenToStyleOpenSource,
+  moveStyleExclusions,
+  onStyleLearningChanged,
+  undoStyleRelinkTo,
+} from "./style-exclusions";
 import { StyleLearningCoordinator } from "./style-learning-coordinator";
-import { clearPendingEditFeedback, flushEditFeedback } from "./edit-feedback-buffer";
+import {
+  clearPendingEditFeedback,
+  takeEditFeatures,
+  withEditFeatures,
+} from "./edit-feedback-buffer";
 import { workspaceRelativePath } from "./paths";
 import { findLinkedWorkspaceProfile, useStyleLearningStore } from "./style-learning-store";
 
@@ -34,24 +41,48 @@ function flushEditFeedbackOnSave(): void {
   const relPath =
     rootPath && snapshot.filePath ? workspaceRelativePath(rootPath, snapshot.filePath) : null;
   if (!profile || !workspace || !relPath) return;
-  const next = flushEditFeedback(
-    profile,
+  const features = takeEditFeatures(
     workspace.id,
     relPath,
     snapshot.markdown,
     new Date().toISOString(),
   );
-  if (next === profile) return;
-  setProfile(next);
-  void saveStyleProfile(next).catch(() => undefined);
+  if (features.length === 0) return;
+  void updateStyleProfile((latest) => withEditFeatures(latest, workspace.id, features))
+    .then(setProfile)
+    .catch(() => undefined);
 }
 
-export function useStyleLearning(): void {
+/** 创建当前工作区的学习引擎（引擎依赖 Markdown 解析器，按需加载） */
+async function createStyleLearningEngine(rootPath: string) {
+  const { StyleLearningEngine } = await import("@md-editor/ai/style-engine");
+  return new StyleLearningEngine({
+    host: createDesktopStyleLearningHost(rootPath),
+    inference: {
+      // 与续写、纠错共用同一个调度器，学习任务以独占方式派发并可被抢占。
+      schedule: (options) => desktopAiService.scheduler.schedule(options),
+      bridge: desktopLocalAiBridge,
+    },
+  });
+}
+
+async function verifyStyleWorkspace(rootPath: string, signal: AbortSignal): Promise<boolean> {
+  return (await createStyleLearningEngine(rootPath)).verifyWorkspace(signal);
+}
+
+/**
+ * @param actions 主窗口的编辑器动作。由调用方显式传入：`useStyleLearning` 挂在
+ * `DesktopEditorActionsContext` 的 Provider 之上，不能从 context 里读（读到的永远是 null）。
+ */
+export function useStyleLearning(
+  actions: Pick<DesktopEditorActions, "openDocumentFromTree">,
+): void {
   const { t } = useTranslation();
   const { settings } = useAppSettings();
   const rootPath = useFileTreeStore((state) => state.folder?.rootPath ?? null);
   const coordinatorRef = useRef<StyleLearningCoordinator | null>(null);
   const enabled = settings.ai.styleLearning.enabled;
+  const openDocumentFromTree = actions.openDocumentFromTree;
 
   // 创建协调器（主窗口生命周期内只有一个）。
   useEffect(() => {
@@ -65,22 +96,28 @@ export function useStyleLearning(): void {
         isWindowVisible: () => document.visibilityState === "visible",
       },
       {
-        run: async ({ rootPath: root, autoRelink, signal }) => {
-          // 学习引擎依赖 Markdown 解析器，只在真正开始学习时加载，不影响启动包体。
-          const { StyleLearningEngine } = await import("@md-editor/ai/style-engine");
-          return new StyleLearningEngine({
-            host: createDesktopStyleLearningHost(root),
-            inference: {
-              // 与续写、纠错共用同一个调度器，学习任务以独占方式派发并可被抢占。
-              schedule: (options) => desktopAiService.scheduler.schedule(options),
-              bridge: desktopLocalAiBridge,
-            },
-          }).run({ autoRelink, signal });
-        },
+        run: async ({ rootPath: root, autoRelink, signal }) =>
+          (await createStyleLearningEngine(root)).run({ autoRelink, signal }),
       },
       {
-        onDocumentChanged: (document) => useStyleLearningStore.getState().setProfile(document),
-        onRelinked: () => useToastStore.getState().showToast(t("styleLearning.relinkedToast")),
+        onDocumentChanged: (document) => {
+          const store = useStyleLearningStore.getState();
+          store.setProfile(document);
+          // 学习轮次写入前已做过身份校验，仍关联的工作区可以直接应用画像。
+          const root = useFileTreeStore.getState().folder?.rootPath ?? null;
+          store.setVerifiedRoot(findLinkedWorkspaceProfile(document, root) ? root : null);
+        },
+        schedulerMetrics: () => desktopAiService.scheduler.waitMetrics,
+        onRelinked: ({ fromRoot, toRoot, profileId }) => {
+          void moveStyleExclusions(fromRoot, toRoot).catch(() => undefined);
+          // 提示里直接提供“撤销”：不需要用户再去找设置页。
+          useToastStore.getState().showToast(t("styleLearning.relinkedToast"), {
+            label: t("styleLearning.undoRelink"),
+            run: () => {
+              void undoStyleRelinkTo(profileId, toRoot, fromRoot).catch(() => undefined);
+            },
+          });
+        },
       },
     );
     coordinatorRef.current = coordinator;
@@ -94,32 +131,54 @@ export function useStyleLearning(): void {
       }
     });
     const unlistenFolder = listenToFolderChanged(() => coordinator.noteWorkspaceChanged());
-    const onVisibility = () => coordinator.noteWorkspaceChanged();
+    // 写作模型为 Lite 时，用户刚用过本地模型就不为学习切换到 Standard。
+    const unlistenLocalAi = onLocalAiUse(() => coordinator.noteLocalAiUse());
+    // 设置页或文件树排除/恢复文件后立即重新聚合，并在空闲时补读恢复的文件。
+    const unlistenExclusions = onStyleLearningChanged(() => coordinator.noteWorkspaceChanged());
+    // 独立设置窗口的“查看来源”请求由主窗口打开（打开文档是主窗口语义）。
+    let unlistenOpenSource: (() => void) | undefined;
+    void listenToStyleOpenSource((absolutePath) => {
+      void openDocumentFromTree(absolutePath).catch(() => undefined);
+    })
+      .then((dispose) => {
+        unlistenOpenSource = dispose;
+      })
+      .catch(() => undefined);
+    const onVisibility = () => coordinator.noteVisibilityChanged();
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       unsubscribeDocument();
       unlistenFolder?.();
+      unlistenLocalAi();
+      unlistenExclusions();
+      unlistenOpenSource?.();
       document.removeEventListener("visibilitychange", onVisibility);
       coordinator.dispose();
       coordinatorRef.current = null;
     };
-  }, [t]);
+  }, [t, openDocumentFromTree]);
 
-  // 开启时加载本地画像与排除列表；关闭时只停止学习，保留数据直到用户清除。
+  // 开启时加载本地画像与排除列表并跟随其他窗口的变化；关闭时丢弃内存中暂存的 AI 原文。
+  useStyleLearningData(enabled);
   useEffect(() => {
     if (!enabled) clearPendingEditFeedback();
-    if (!isTauri() || !enabled) return;
-    let cancelled = false;
-    void Promise.all([loadStyleProfile(), loadStyleExclusions()]).then(([profile, exclusions]) => {
-      if (cancelled) return;
-      useStyleLearningStore.getState().setProfile(profile);
-      useStyleLearningStore.getState().setExclusions(exclusions);
-    });
-    return () => {
-      cancelled = true;
-    };
   }, [enabled]);
+
+  // 打开或切换工作区时先做身份校验（不需要模型）；通过之前只使用全局画像与自定义规则。
+  useEffect(() => {
+    useStyleLearningStore.getState().setVerifiedRoot(null);
+    if (!isTauri() || !enabled || !rootPath) return;
+    const controller = new AbortController();
+    void verifyStyleWorkspace(rootPath, controller.signal)
+      .then((linked) => {
+        if (linked && !controller.signal.aborted) {
+          useStyleLearningStore.getState().setVerifiedRoot(rootPath);
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [enabled, rootPath]);
 
   // 设置、模型状态或工作区变化时更新学习前提。
   useEffect(() => {

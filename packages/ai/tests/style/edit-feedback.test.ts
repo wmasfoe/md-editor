@@ -6,6 +6,7 @@ import {
   extractEditFeatures,
   sentenceSimilarity,
   summarizeEditFeatures,
+  advanceStyleRule,
 } from "../../src/style/index.ts";
 import { observeSamples, withEditFeedback } from "../../src/style/engine-entry.ts";
 import { sample } from "./fixtures.ts";
@@ -89,5 +90,34 @@ describe("learning from edits to accepted AI text", () => {
       1,
     );
     expect(conflicting.cjkLatinSpacing).toEqual(observations.cjkLatinSpacing);
+  });
+});
+
+describe("edit feedback preserves measured evidence", () => {
+  it("keeps the measured aggregate and per-value support when the round is unknown", () => {
+    // 句长证据不足（weight < 50）→ 本轮取值 unknown，但聚合值已经测到 10（short）。
+    const observations = observeSamples(
+      ["a", "b"].map((id) => sample(id, { stats: { sentenceLength: { value: 10, weight: 20 } } })),
+      1,
+    );
+    expect(observations.sentenceLength?.value).toBe("unknown");
+    const withFeedback = withEditFeedback(
+      observations,
+      { sentenceLength: { value: "short", count: 6 } },
+      1,
+    );
+    const round = withFeedback.sentenceLength!;
+    expect(round.value).toBe("short");
+    // 聚合值不能被反馈覆盖丢失，否则已生效规则会被误判为“无证据”而退场。
+    expect(round.aggregate).toBe(10);
+    // 2 个真实样本 + 6 条编辑反馈：测量证据与反馈证据都要保留。
+    expect(round.valueSupport?.short).toHaveLength(8);
+    expect(round.valueSupport?.short?.filter((id) => id.startsWith("edit:"))).toHaveLength(6);
+
+    const active = advanceStyleRule("sentenceLength", undefined, round);
+    expect(active.status).toBe("draft");
+    // 只有 2 个真实文件：编辑反馈不能代替文件，已生效规则因证据不足退场（与晋升口径一致）。
+    const previous = { ...active, status: "active" as const, value: "short" };
+    expect(advanceStyleRule("sentenceLength", previous, round).status).toBe("retired");
   });
 });

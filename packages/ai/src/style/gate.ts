@@ -8,7 +8,7 @@
  * 闸门防的是漏传、误传，例如 Lite 模型或未授权的云端请求意外带上画像。
  */
 
-import { isLiteLocalModel } from "../app/harness-prompts.ts";
+import { isLiteLocalModel } from "../domain/settings.ts";
 import type { AiSettings, AiStyleLearningSettings } from "../domain/types.ts";
 import type { MergedStyleProfile } from "./types.ts";
 

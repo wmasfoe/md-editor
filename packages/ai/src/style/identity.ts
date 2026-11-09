@@ -76,10 +76,15 @@ export interface StyleRelinkCandidate {
 export function findStyleRelinkCandidate(
   profiles: readonly WorkspaceStyleProfileRecord[],
   currentParagraphHashes: ReadonlySet<string>,
+  rootPath?: string,
 ): StyleRelinkCandidate | undefined {
   let best: StyleRelinkCandidate | undefined;
   for (const profile of profiles) {
-    if (profile.linkState !== "unlinked") {
+    // 用户撤销过找回到这个目录，不再自动找回。
+    if (
+      profile.linkState !== "unlinked" ||
+      (rootPath && profile.relinkDeclined?.includes(rootPath))
+    ) {
       continue;
     }
     const { score, matchedSamples } = scoreStyleIdentity(profile, currentParagraphHashes);
@@ -123,5 +128,27 @@ export function isUserStyleExcluded(relPath: string, excluded: readonly string[]
   return excluded.some((entry) => {
     const normalized = entry.replace(/\/+$/u, "");
     return relPath === normalized || relPath.startsWith(`${normalized}/`);
+  });
+}
+
+/**
+ * 撤销一次自动找回：画像回到找回前的根目录并标记为失去关联，
+ * 当前目录之后按新目录学习。只对带 `relinkedFrom` 的已关联画像生效。
+ */
+export function undoStyleRelink(
+  workspaces: readonly WorkspaceStyleProfileRecord[],
+  profileId: string,
+  now: string,
+): WorkspaceStyleProfileRecord[] {
+  return workspaces.map((workspace) => {
+    if (workspace.id !== profileId || !workspace.relinkedFrom) return workspace;
+    const { relinkedFrom, ...rest } = workspace;
+    return {
+      ...rest,
+      rootPath: relinkedFrom.rootPath,
+      linkState: "unlinked",
+      unlinkedSince: now,
+      relinkDeclined: [...new Set([...(workspace.relinkDeclined ?? []), workspace.rootPath])],
+    };
   });
 }

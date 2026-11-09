@@ -26,8 +26,8 @@ import {
   acceptAiSuggestion,
   aiSuggestionField,
   dismissAiSuggestion,
-  type AiSuggestionValue,
 } from "../../wysiwyg/view/suggestion.ts";
+import { type AiSuggestionValue } from "../../wysiwyg/view/suggestion-model.ts";
 import {
   setTypewriterModeEffect,
   typewriterModeField,

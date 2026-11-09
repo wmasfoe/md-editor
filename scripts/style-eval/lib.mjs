@@ -44,10 +44,23 @@ export function scoreBlindChoices(answers, choices) {
   let preferProfile = 0;
   let preferBaseline = 0;
   let same = 0;
+  // 未填写（仍为模板默认值 "same"）与未知 id 都不能静默计分，否则报告会偏向基线。
+  const unfilled = [];
+  const unknownIds = [];
+  for (const id of Object.keys(answers)) {
+    const choice = choices[id];
+    // 模板里留空（"" / null）也算未填写。
+    if (choice === undefined || choice === "" || choice === null) unfilled.push(id);
+  }
   for (const [id, choice] of Object.entries(choices)) {
+    if (!(id in answers)) {
+      unknownIds.push(id);
+      continue;
+    }
     if (choice === "same") same += 1;
     else if (choice === answers[id]) preferProfile += 1;
-    else preferBaseline += 1;
+    else if (choice === (answers[id] === "A" ? "B" : "A")) preferBaseline += 1;
+    else unfilled.push(id);
   }
   const decided = preferProfile + preferBaseline;
   return {
@@ -55,6 +68,9 @@ export function scoreBlindChoices(answers, choices) {
     preferBaseline,
     same,
     profileWinRate: decided === 0 ? 0 : preferProfile / decided,
+    incomplete: unfilled.length > 0 || unknownIds.length > 0,
+    unfilled: [...new Set(unfilled)],
+    unknownIds,
   };
 }
 
@@ -101,4 +117,55 @@ export function checkFactsPreserved(before, after) {
   const b = factTokens(after);
   const missing = a.filter((token, index) => b[index] !== token);
   return { ok: a.length === b.length && missing.length === 0, before: a, after: b };
+}
+
+/**
+ * 写出盲评交付物：盲评表、答案、评测人填写模板与报告。
+ * 纯文件写入，便于测试；`sheet`/`answers` 来自 `buildBlindSheet`。
+ */
+export function writeEvaluationArtifacts({ dir, sheet, answers, checks, meta }, fs) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    `${dir}/blind-sheet.md`,
+    sheet
+      .map(
+        (row) =>
+          `## ${row.id}\n\n> …${row.prompt}\n\n**A**\n\n${row.A}\n\n**B**\n\n${row.B}\n\n选择：A / B / same\n`,
+      )
+      .join("\n---\n\n"),
+  );
+  fs.writeFileSync(`${dir}/answers.json`, `${JSON.stringify(answers, null, 2)}\n`);
+  fs.writeFileSync(`${dir}/checks.json`, `${JSON.stringify(checks, null, 2)}\n`);
+  fs.writeFileSync(
+    `${dir}/choices.json`,
+    // 模板留空：未填写会被 scoreBlindChoices 标记为 incomplete，而不是静默当成 same。
+    `${JSON.stringify(Object.fromEntries(sheet.map((row) => [row.id, ""])), null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    `${dir}/REPORT.md`,
+    [
+      "# 风格学习验收评测报告",
+      "",
+      `生成时间：${meta.generatedAt}`,
+      `端点：${meta.endpoint}（模型 ${meta.model}）`,
+      `留出文章：${sheet.length} 篇`,
+      "",
+      "## 自动检查：续写是否破坏 Markdown 结构",
+      "",
+      "| 文章 | 结论 | 有画像 | 无画像 |",
+      "| --- | --- | --- | --- |",
+      ...checks.map(
+        (entry) =>
+          `| ${entry.id} | ${entry.withProfile.ok && entry.withoutProfile.ok ? "通过" : "需检查"} | ${entry.withProfile.ok} | ${entry.withoutProfile.ok} |`,
+      ),
+      "",
+      "## 人工盲评（待用户完成）",
+      "",
+      "1. 打开 `blind-sheet.md`，逐篇比较 A / B，把选择填进 `choices.json`（`A` / `B` / `same`）。",
+      `2. 运行 \`node scripts/style-eval/run.mjs --out ${dir} --score ${dir}/choices.json\`。`,
+      "3. 判定标准：有画像版本被选中过半，且采纳后修改量下降，才扩大自动化范围。",
+      "4. `answers.json` 是答案，评测期间不要打开。",
+      "",
+    ].join("\n"),
+  );
 }

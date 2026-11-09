@@ -29,7 +29,14 @@ export interface StyleLearningHost {
   scanSamples(): Promise<StyleSampleScanResult>;
   readSample(relPath: string): Promise<string>;
   loadProfile(): Promise<StyleProfileDocument | null>;
-  saveProfile(document: StyleProfileDocument): Promise<void>;
+  /**
+   * 以“读取最新文档 → 应用修改 → 比较 revision 后写入”的方式更新画像，冲突时重试。
+   * 学习轮次可能持续数分钟，期间其他窗口可能修改了自定义规则、采纳记录或清除了数据，
+   * 修改函数必须基于传入的最新文档，只改动自己负责的字段。返回写入后的文档。
+   */
+  updateProfile(
+    mutate: (latest: StyleProfileDocument) => StyleProfileDocument,
+  ): Promise<StyleProfileDocument>;
 }
 
 /**

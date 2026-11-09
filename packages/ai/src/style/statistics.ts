@@ -8,8 +8,7 @@
  */
 
 import { STYLE_UNKNOWN_VALUE, type StatDimensionId } from "./dimensions.ts";
-import type { ExtractedProse } from "./extraction.ts";
-import type { StyleSampleStat } from "./types.ts";
+import type { ExtractedProse, StyleSampleStat } from "./types.ts";
 
 const CJK = String.raw`\p{Script=Han}`;
 const LATIN_OR_DIGIT = "[A-Za-z0-9]";
@@ -134,8 +133,8 @@ export function computeSampleStats(
 }
 
 export interface StatAggregate {
-  /** 加权平均值 */
-  readonly aggregate: number;
+  /** 加权平均值；没有证据时为 undefined（区别于测得的 0） */
+  readonly aggregate: number | undefined;
   /** 判定取值；证据不足时为 unknown */
   readonly value: string;
   readonly totalWeight: number;
@@ -148,7 +147,8 @@ export function aggregateStat(
 ): StatAggregate {
   const totalWeight = samples.reduce((total, sample) => total + sample.weight, 0);
   if (totalWeight === 0) {
-    return { aggregate: 0, value: STYLE_UNKNOWN_VALUE, totalWeight };
+    // 没有任何证据时不伪造聚合值：调用方据此区分“测到 0”和“没测到”。
+    return { aggregate: undefined, value: STYLE_UNKNOWN_VALUE, totalWeight };
   }
   const aggregate =
     samples.reduce((total, sample) => total + sample.value * sample.weight, 0) / totalWeight;
@@ -169,4 +169,9 @@ function mean(values: readonly number[]): number {
   return values.length === 0
     ? 0
     : values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+/** 按聚合值判定取值（统计维度用它代替“逐样本类别”判断证据是否仍存在） */
+export function classifyAggregate(dimension: StatDimensionId, aggregate: number): string {
+  return STAT_RULES[dimension].classify(aggregate);
 }

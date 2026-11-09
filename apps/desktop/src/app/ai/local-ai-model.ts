@@ -27,6 +27,14 @@ export {
  * 桌面端原生本地模型推理桥接函数，对齐 `@md-editor/ai` 的 LocalInferenceBridge 依赖倒置契约。
  * 支持与前端 AbortSignal 深度联动，在用户持续输入导致旧请求废弃时，主动向 Rust 端发送 cancel 指令。
  */
+/** 用户侧本地推理（续写、纠错、提炼）发出时的订阅者；风格学习据此判断本地模型是否仍在使用 */
+const localAiUseListeners = new Set<() => void>();
+
+export function onLocalAiUse(listener: () => void): () => void {
+  localAiUseListeners.add(listener);
+  return () => localAiUseListeners.delete(listener);
+}
+
 export const desktopLocalAiBridge: LocalInferenceBridge = async (
   request: LocalInferenceRequest,
   bridgeOptions?: { readonly signal?: AbortSignal },
@@ -37,6 +45,9 @@ export const desktopLocalAiBridge: LocalInferenceBridge = async (
     ...request,
     requestId,
   };
+  if (request.task !== "style-analysis") {
+    for (const listener of localAiUseListeners) listener();
+  }
 
   const signal = bridgeOptions?.signal;
   if (signal?.aborted) {

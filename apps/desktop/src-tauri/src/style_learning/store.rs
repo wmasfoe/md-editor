@@ -7,6 +7,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 use serde::Deserialize;
@@ -42,17 +43,59 @@ pub(crate) fn load_style_learning_document(
     Ok(load_document(&storage_dir()?, kind))
 }
 
+/// 保存文档。`expected_revision` 为调用方读取时看到的 `revision`（文件不存在时为 0），
+/// 与磁盘上当前的 `revision` 不一致时拒绝写入并返回 [`STALE_DOCUMENT_ERROR`]，
+/// 调用方应重新读取、合并自己的修改后再保存。写入成功后返回新的 revision。
 #[tauri::command]
 pub(crate) fn save_style_learning_document(
     kind: StyleLearningDocumentKind,
     document: Value,
-) -> Result<(), String> {
-    save_document(&storage_dir()?, kind, &document)
+    expected_revision: u64,
+) -> Result<u64, String> {
+    let _guard = WRITE_LOCK
+        .lock()
+        .map_err(|_| "风格学习数据写锁已损坏。".to_string())?;
+    save_document_if_current(&storage_dir()?, kind, document, expected_revision)
 }
 
 #[tauri::command]
 pub(crate) fn clear_style_learning_document(kind: StyleLearningDocumentKind) -> Result<(), String> {
+    let _guard = WRITE_LOCK
+        .lock()
+        .map_err(|_| "风格学习数据写锁已损坏。".to_string())?;
     clear_document(&storage_dir()?, kind)
+}
+
+/// 所有窗口的写入经同一把锁串行化，保证“比较 revision → 写入”是原子的。
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
+
+/// 读取到的文档已过期（其他窗口或学习轮次先写入了新版本）。
+pub(crate) const STALE_DOCUMENT_ERROR: &str = "style-learning-stale";
+
+/// 文档当前的 revision；文件缺失、损坏或版本不符时为 0。
+pub(crate) fn current_revision(dir: &Path, kind: StyleLearningDocumentKind) -> u64 {
+    load_document(dir, kind)
+        .and_then(|document| document.get("revision").and_then(Value::as_u64))
+        .unwrap_or(0)
+}
+
+/// 比较并写入：revision 一致时写入 `expected + 1`，否则返回 [`STALE_DOCUMENT_ERROR`]。
+pub(crate) fn save_document_if_current(
+    dir: &Path,
+    kind: StyleLearningDocumentKind,
+    mut document: Value,
+    expected_revision: u64,
+) -> Result<u64, String> {
+    if current_revision(dir, kind) != expected_revision {
+        return Err(STALE_DOCUMENT_ERROR.to_string());
+    }
+    let next = expected_revision + 1;
+    let object = document
+        .as_object_mut()
+        .ok_or_else(|| "风格学习数据必须是对象。".to_string())?;
+    object.insert("revision".to_string(), Value::from(next));
+    save_document(dir, kind, &document)?;
+    Ok(next)
 }
 
 fn storage_dir() -> Result<PathBuf, String> {

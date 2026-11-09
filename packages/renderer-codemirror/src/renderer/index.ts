@@ -13,7 +13,7 @@ import type {
   ModeRequest,
 } from "@md-editor/editor-core";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
-import type { AiSuggestionInput, AiSuggestionLabels } from "../wysiwyg/view/suggestion.ts";
+import type { AiSuggestionInput, AiSuggestionLabels } from "../wysiwyg/view/suggestion-model.ts";
 import { CodeMirrorRendererController } from "./controller.ts";
 import { DomRendererViewAdapter, controllerByRenderer } from "./view-adapter.ts";
 import type {

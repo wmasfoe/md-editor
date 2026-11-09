@@ -30,7 +30,7 @@ import type {
   AiSuggestionLabels,
   AiSuggestionValue,
   AiSuggestionAcceptedEvent,
-} from "../wysiwyg/view/suggestion.ts";
+} from "../wysiwyg/view/suggestion-model.ts";
 import type { DocumentLinterOptions } from "../lint/types.ts";
 export type { DocumentLinterOptions };
 

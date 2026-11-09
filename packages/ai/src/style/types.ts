@@ -23,6 +23,11 @@ export interface StyleObservationRound {
   readonly value: string;
   /** 支持该取值的样本 id */
   readonly supportSampleIds: readonly string[];
+  /**
+   * 本轮每个取值的支持样本数。用于判断“已生效规则自己的取值”是否还有证据，
+   * 而不是只看本轮胜出的取值（胜出值可能已经换成了别的取值）。
+   */
+  readonly valueSupport?: Readonly<Record<string, readonly string[]>>;
   /** 统计维度的聚合值，用于判断多轮之间是否稳定 */
   readonly aggregate?: number;
 }
@@ -73,9 +78,12 @@ export interface WorkspaceStyleProfileRecord {
   readonly rootPath: string;
   readonly linkState: StyleLinkState;
   readonly unlinkedSince?: string;
+  /** 最近一次自动找回前的根目录，用于在设置页撤销找回 */
+  readonly relinkedFrom?: { readonly rootPath: string; readonly at: string };
+  /** 用户撤销过找回的根目录；之后不再自动找回到这些目录 */
+  readonly relinkDeclined?: readonly string[];
   readonly samples: readonly StyleSampleRecord[];
   readonly rules: readonly StyleRuleRecord[];
-  readonly editFeedback: readonly StyleEditFeatureRecord[];
   /** 已完成的汇总轮数 */
   readonly roundCount: number;
   /** 上一轮之后累计的样本变化数（新增、修改、删除） */
@@ -107,11 +115,17 @@ export const STYLE_DIMENSION_DISABLED = "none";
 /** 画像文档（“清除风格学习数据”会删除它） */
 export interface StyleProfileDocument {
   readonly version: typeof STYLE_DOCUMENT_VERSION;
+  /** 写入序号，由存储层在每次成功保存时递增；用于拒绝基于过期副本的写入 */
+  readonly revision?: number;
+  /** 数据代次：清除数据时换新；跨代次的学习结果一律丢弃，避免把已清除的数据写回来 */
+  readonly epoch?: string;
   readonly workspaces: readonly WorkspaceStyleProfileRecord[];
   readonly global: GlobalStyleProfileRecord;
   readonly custom: readonly CustomStyleRule[];
   /** 采纳过的 AI 文本的句子 hash：workspaceId -> relPath -> hashes */
   readonly aiSegments: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>>;
+  /** 采纳 AI 建议后用户修改的特征：workspaceId -> 特征（编辑器写入，学习只读取） */
+  readonly editFeedback?: Readonly<Record<string, readonly StyleEditFeatureRecord[]>>;
 }
 
 /** 排除列表文档（清除学习数据时保留）：工作区根路径 -> 工作区相对路径列表 */
@@ -139,6 +153,7 @@ export interface MergedStyleProfile {
 export function createEmptyStyleProfileDocument(): StyleProfileDocument {
   return {
     version: STYLE_DOCUMENT_VERSION,
+    epoch: globalThis.crypto.randomUUID(),
     workspaces: [],
     global: { rules: [], roundCount: 0 },
     custom: [],
@@ -148,4 +163,19 @@ export function createEmptyStyleProfileDocument(): StyleProfileDocument {
 
 export function createEmptyStyleExclusionsDocument(): StyleExclusionsDocument {
   return { version: STYLE_DOCUMENT_VERSION, workspaces: {} };
+}
+
+/**
+ * 抽取后的散文形状。定义在这里而不是 `extraction.ts`，
+ * 使统计模块不必依赖 Markdown 解析器（`marked`）就能标注入参类型。
+ */
+export interface ExtractedProse {
+  readonly paragraphs: readonly string[];
+  readonly listItems: readonly string[];
+  readonly sentences: readonly string[];
+  readonly headingCount: number;
+  readonly emphasisCount: number;
+  readonly proseChars: number;
+  readonly paragraphHashes: readonly string[];
+  readonly eligible: boolean;
 }

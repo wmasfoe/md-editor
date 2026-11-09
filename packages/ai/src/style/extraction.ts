@@ -11,6 +11,7 @@
 import { lexer, type Token, type Tokens } from "marked";
 
 import { hashStyleText, normalizeStyleText } from "./hash.ts";
+import type { ExtractedProse } from "./types.ts";
 import { splitStyleSentences } from "./sentences.ts";
 
 /** 散文少于该字符数的文件不作为样本 */
@@ -21,24 +22,6 @@ const MIN_IDENTITY_PARAGRAPH_CHARS = 20;
 export const MAX_PARAGRAPH_HASHES = 200;
 
 const FRONTMATTER_PATTERN = /^(?:---|\+\+\+)\r?\n[\s\S]*?\r?\n(?:---|\+\+\+)[ \t]*(?:\r?\n|$)/u;
-
-export interface ExtractedProse {
-  /** 正文段落（已去掉 AI 句子） */
-  readonly paragraphs: readonly string[];
-  /** 列表项文字（已去掉 AI 句子） */
-  readonly listItems: readonly string[];
-  /** 正文段落与列表项中的句子 */
-  readonly sentences: readonly string[];
-  readonly headingCount: number;
-  /** 加粗与斜体的出现次数 */
-  readonly emphasisCount: number;
-  /** 段落与列表项的总字符数 */
-  readonly proseChars: number;
-  /** 段落归一化 hash，用于目录身份校验 */
-  readonly paragraphHashes: readonly string[];
-  /** 散文是否足够作为样本 */
-  readonly eligible: boolean;
-}
 
 export interface ExtractProseOptions {
   /** 用户采纳过的 AI 句子 hash，这些句子不参与学习 */

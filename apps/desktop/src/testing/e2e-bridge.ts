@@ -58,6 +58,19 @@ export interface EditorE2eBridge {
   setAssetPreviewVisible(visible: boolean): void;
   /** 程序化设置编辑器选区(renderer 标准端口,自带焦点;E2E 定位不依赖点击时序) */
   setSelection(from: number, to: number): void;
+  /** E-3：注入带 kind 的 AI 建议（“修正 / 风格”徽标与接受行为） */
+  showSuggestion(suggestion: {
+    readonly items: ReadonlyArray<{
+      readonly from: number;
+      readonly to: number;
+      readonly text: string;
+      readonly originalText?: string;
+      readonly kind?: "fix" | "style";
+    }>;
+    readonly activeIndex?: number;
+  }): void;
+  /** E-3：当前建议项的 kind 列表 */
+  getSuggestionKinds(): readonly (string | undefined)[];
   /**
    * 程序化切换「行内格式标记源码」开关（renderer 标准端口）。
    *
@@ -201,6 +214,22 @@ export function installEditorE2eBridge(_fileService: RuntimeFileService): Editor
         throw new Error("Renderer ports are not mounted.");
       }
       ports.setInlineStyleMarkers(enabled);
+    },
+    showSuggestion(suggestion: {
+      readonly items: ReadonlyArray<{
+        readonly from: number;
+        readonly to: number;
+        readonly text: string;
+        readonly originalText?: string;
+        readonly kind?: "fix" | "style";
+      }>;
+      readonly activeIndex?: number;
+    }) {
+      if (!ports) throw new Error("Renderer ports are not mounted.");
+      ports.showSuggestion(suggestion as never);
+    },
+    getSuggestionKinds() {
+      return (ports?.getSuggestion()?.items ?? []).map((item) => item.kind);
     },
     setSelection(from: number, to: number) {
       if (!ports) {

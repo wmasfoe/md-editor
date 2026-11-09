@@ -6,6 +6,8 @@ import { cx } from "../lib/cx";
 export interface AppToast {
   readonly id: number;
   readonly message: string;
+  /** 可选操作（例如“撤销”），点击后关闭提示 */
+  readonly action?: { readonly label: string; readonly run: () => void };
 }
 
 export function AppTitleBar({
@@ -155,6 +157,19 @@ export function EditorToast({ toast }: { readonly toast: AppToast | null }) {
         )}
         role="alert"
       >
+        {activeToast.action ? (
+          <button
+            type="button"
+            className="ml-1 shrink-0 rounded-full border border-[var(--theme-border)] px-2 py-0.5 text-[12px] font-semibold text-[var(--theme-primary)] hover:bg-[var(--theme-control-hover)]"
+            onClick={(event) => {
+              event.stopPropagation();
+              setActiveToast(null);
+              activeToast.action?.run();
+            }}
+          >
+            {activeToast.action.label}
+          </button>
+        ) : null}
         {isSuccess ? (
           <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
             <svg

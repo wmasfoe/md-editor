@@ -126,7 +126,8 @@ function DesktopEditorEffects({
 }) {
   const actions = useDesktopEditorController({ fileService, showToast });
   // 风格学习只在主窗口运行：空闲时在本地学习当前工作区的写作习惯。
-  useStyleLearning();
+  // 显式传入 actions：本组件位于 Context Provider 之上。
+  useStyleLearning(actions);
   useLayoutEffect(() => {
     onDesktopActionsChange?.(actions);
     return () => onDesktopActionsChange?.(null);

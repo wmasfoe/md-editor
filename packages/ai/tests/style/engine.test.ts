@@ -8,6 +8,7 @@ import {
 } from "../../src/index.ts";
 import {
   createEmptyStyleProfileDocument,
+  findStyleRelinkCandidate,
   hashStyleText,
   type StyleInferencePort,
   type StyleLearningHost,
@@ -18,8 +19,9 @@ import {
   ROUND_CHANGE_THRESHOLD,
   STYLE_RUNTIME_BUSY_ERROR,
   StyleLearningEngine,
+  wasClearedSince,
 } from "../../src/style/engine-entry.ts";
-import { spacedTechArticle } from "./fixtures.ts";
+import { sample as makeSample, spacedTechArticle, workspace as makeWorkspace } from "./fixtures.ts";
 
 /** 内存中的工作区与存储 */
 class FakeHost implements StyleLearningHost {
@@ -57,6 +59,14 @@ class FakeHost implements StyleLearningHost {
   public async saveProfile(document: StyleProfileDocument) {
     this.saves += 1;
     this.document = structuredClone(document);
+  }
+
+  /** 与桌面宿主相同的语义：基于最新文档应用修改，写入时递增 revision */
+  public async updateProfile(mutate: (latest: StyleProfileDocument) => StyleProfileDocument) {
+    const latest = this.document ?? createEmptyStyleProfileDocument();
+    const next = { ...mutate(latest), revision: (latest.revision ?? 0) + 1 };
+    await this.saveProfile(next);
+    return structuredClone(next);
   }
 }
 
@@ -118,7 +128,17 @@ describe("style learning engine", () => {
     await engine.run();
     const calls = bridge.mock.calls.length;
     host.files.set("new-1.md", spacedTechArticle("New"));
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     expect(host.document!.workspaces[0]!.changesSinceRound).toBe(1);
     expect(bridge.mock.calls.length).toBe(calls);
 
@@ -138,7 +158,17 @@ describe("style learning engine", () => {
     host.files.delete("post-0.md");
     host.files.delete("post-1.md");
 
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     const workspace = host.document!.workspaces[0]!;
     expect(workspace.samples.map((s) => s.relPath)).not.toContain("post-0.md");
     expect(bridge.mock.calls.length).toBe(calls);
@@ -249,7 +279,17 @@ describe("style learning engine", () => {
 
     host.files.set("post-0.md", "我们用React写界面,再用TypeScript写类型.".repeat(12));
     const calls = bridge.mock.calls.length;
-    expect((await engine.run()).status).toBe("updated");
+    const outcome = await engine.run();
+    console.log(
+      "status",
+      outcome.status,
+      "files",
+      host.files.size,
+      "ws",
+      JSON.stringify(host.document!.workspaces.map((w) => [w.id, w.rootPath, w.samples.length])),
+      "global",
+      JSON.stringify(host.document!.global.rules),
+    );
     const after = host.document!.workspaces[0]!.samples.find((s) => s.relPath === "post-0.md")!;
     expect(after.sha256).not.toBe(before.sha256);
     expect(after.labels).toEqual({});
@@ -321,16 +361,13 @@ describe("style learning engine with edit feedback", () => {
     const before = workspace.rules.find((rule) => rule.dimension === dimension);
     host.document = {
       ...host.document!,
-      workspaces: [
-        {
-          ...workspace,
-          editFeedback: Array.from({ length: count }, (_, i) => ({
-            at: `2099-01-0${i + 1}`,
-            dimension,
-            value,
-          })),
-        },
-      ],
+      editFeedback: {
+        [workspace.id]: Array.from({ length: count }, (_, i) => ({
+          at: `2099-01-0${i + 1}`,
+          dimension,
+          value,
+        })),
+      },
     };
     for (let index = 0; index < ROUND_CHANGE_THRESHOLD; index += 1) {
       host.files.set(`more-${index}.md`, spacedTechArticle(`More${index}`));
@@ -355,5 +392,227 @@ describe("style learning engine with edit feedback", () => {
     expect(round.value).toBe("formal");
     expect(round.supportSampleIds.filter((id) => id.startsWith("edit:"))).toHaveLength(3);
     expect(latest.rounds.length).toBeGreaterThan(before?.rounds.length ?? 0);
+  });
+});
+
+describe("style learning engine data consistency", () => {
+  it("keeps custom rules and AI segments written by others during a run", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    // 学习进行中，设置窗口新增了自定义规则，编辑器记录了采纳的 AI 句子。
+    host.document = {
+      ...host.document!,
+      custom: [{ kind: "note", id: "n1", text: "少用感叹号。" }],
+      aiSegments: { "ws-x": { "a.md": ["n1:abc"] } },
+    };
+    release();
+    await expect(run).resolves.toMatchObject({ status: "learned" });
+    expect(host.document!.custom).toEqual([{ kind: "note", id: "n1", text: "少用感叹号。" }]);
+    expect(host.document!.aiSegments).toEqual({ "ws-x": { "a.md": ["n1:abc"] } });
+    expect(host.document!.workspaces[0]!.roundCount).toBe(BOOTSTRAP_ROUNDS);
+  });
+
+  it("does not rewrite the profile when nothing changed", async () => {
+    const { engine, host } = setup({ files: 4 });
+    await engine.run();
+    const saves = host.saves;
+    expect((await engine.run()).status).toBe("idle");
+    expect(host.saves).toBe(saves);
+  });
+
+  it("cancelling the run cancels scheduled classification and writes no labels", async () => {
+    const controller = new AbortController();
+    let started = 0;
+    const { engine, host } = setup({
+      files: 6,
+      output: (_request) =>
+        new Promise<string>(() => {
+          started += 1;
+          controller.abort();
+        }),
+    });
+    const outcome = await engine.run({ signal: controller.signal });
+    expect(outcome.status).toBe("preempted");
+    expect(started).toBe(1);
+    expect(
+      host.document!.workspaces[0]!.samples.every(
+        (sample) => Object.keys(sample.labels).length === 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not re-classify samples already labelled before a preemption", async () => {
+    let calls = 0;
+    let preemptOnce = true;
+    const { engine, host, scheduler } = setup({
+      files: 6,
+      output: async () => {
+        calls += 1;
+        if (calls === 3 && preemptOnce) {
+          preemptOnce = false;
+          // 用户请求抢占第 3 个分类块。
+          scheduler.schedule({
+            scope: { documentId: "draft.md", task: "completion" },
+            priority: "urgent",
+            run: async () => "x",
+          });
+          await new Promise(() => {});
+        }
+        return FORMAL;
+      },
+    });
+    expect((await engine.run()).status).toBe("preempted");
+    const labelledAfterFirst = host.document!.workspaces[0]!.samples.filter(
+      (sample) => Object.keys(sample.labels).length > 0,
+    ).length;
+    expect(labelledAfterFirst).toBe(2);
+    calls = 0;
+    expect((await engine.run()).status).toBe("learned");
+    expect(calls).toBe(6 - labelledAfterFirst);
+  });
+});
+
+describe("style learning engine after data is cleared", () => {
+  it("discards the round when data was cleared while it ran", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    // 已经保存过一次（有 revision 与 epoch）。
+    host.document = { ...createEmptyStyleProfileDocument(), revision: 3 };
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    // 学习进行中，用户在设置窗口清除了数据。
+    host.document = null;
+    host.saves = 0;
+    release();
+    await expect(run).resolves.toEqual({ status: "discarded" });
+    expect(host.document).toBeNull();
+    expect(host.saves).toBe(0);
+  });
+
+  it("detects a cleared or replaced document by revision and epoch", () => {
+    const saved = { ...createEmptyStyleProfileDocument(), revision: 2 };
+    expect(wasClearedSince(saved, { ...createEmptyStyleProfileDocument() })).toBe(true);
+    expect(wasClearedSince(saved, { ...saved, revision: 5 })).toBe(false);
+    expect(wasClearedSince(saved, { ...createEmptyStyleProfileDocument(), revision: 5 })).toBe(
+      true,
+    );
+    expect(
+      wasClearedSince(createEmptyStyleProfileDocument(), createEmptyStyleProfileDocument()),
+    ).toBe(false);
+  });
+});
+
+describe("style learning engine ownership", () => {
+  it("discards the round when another writer renamed samples or undid a relink meanwhile", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    const workspace = host.document!.workspaces[0]!;
+    // 学习进行中，应用内重命名同步改写了样本路径。
+    host.document = {
+      ...host.document!,
+      revision: (host.document!.revision ?? 0) + 1,
+      workspaces: [
+        {
+          ...workspace,
+          samples: workspace.samples.map((sample) => ({
+            ...sample,
+            relPath: `renamed/${sample.relPath}`,
+          })),
+        },
+      ],
+    };
+    const renamed = structuredClone(host.document);
+    release();
+    await expect(run).resolves.toEqual({ status: "discarded" });
+    expect(host.document).toEqual(renamed);
+  });
+
+  it("keeps edit feedback written by the editor during a run", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { engine, host } = setup({
+      files: 6,
+      output: async () => {
+        await gate;
+        return FORMAL;
+      },
+    });
+    const run = engine.run();
+    await vi.waitFor(() => expect(host.saves).toBeGreaterThan(0));
+    const id = host.document!.workspaces[0]!.id;
+    const feedback = [{ at: "2099-01-01", dimension: "cjkLatinSpacing" as const, value: "spaced" }];
+    host.document = { ...host.document!, editFeedback: { [id]: feedback } };
+    release();
+    await expect(run).resolves.toMatchObject({ status: "learned" });
+    expect(host.document!.editFeedback).toEqual({ [id]: feedback });
+  });
+
+  it("does not relink to a folder where the user undid a relink", () => {
+    const declined = makeWorkspace("w1", {
+      linkState: "unlinked",
+      relinkDeclined: ["/notes/new"],
+      samples: ["a", "b", "c"].map((id) => makeSample(id, { paragraphHashes: [`${id}-1`] })),
+    });
+    const hashes = new Set(["a-1", "b-1", "c-1"]);
+    expect(findStyleRelinkCandidate([declined], hashes, "/notes/new")).toBeUndefined();
+    expect(findStyleRelinkCandidate([declined], hashes, "/notes/other")?.profileId).toBe("w1");
+  });
+});
+
+describe("deleting samples refreshes the global layer", () => {
+  it("retires a global rule when its supporting workspace drops below five files", async () => {
+    const { engine, host } = setup({ files: 6 });
+    await engine.run();
+    const first = host.document!.workspaces[0]!;
+    // 两个工作区都生效为正式语气 → 全局层生效。
+    host.document = {
+      ...host.document!,
+      workspaces: [first, { ...first, id: "ws-2", rootPath: "/notes/second" }],
+      global: {
+        roundCount: 3,
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: ["w1:a", "w2:a"] }],
+          },
+        ],
+      },
+    };
+    // 删除 2/6 个文件：身份仍然关联（段落 hash 匹配率 > 0.3），但支持文件降到 4 个。
+    for (const relPath of [...host.files.keys()].slice(0, 2)) host.files.delete(relPath);
+
+    await engine.run();
+    const workspace = host.document!.workspaces.find((entry) => entry.id === first.id)!;
+    expect(workspace.samples).toHaveLength(4);
+    expect(workspace.rules.every((rule) => rule.status !== "active")).toBe(true);
+    // 全局层随之重算：只剩一个工作区支持 formal，规则退场。
+    expect(host.document!.global.rules[0]!.status).toBe("retired");
   });
 });

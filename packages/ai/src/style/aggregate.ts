@@ -46,16 +46,18 @@ export function observeSamples(
       dimension,
       withStat.map(({ stat }) => stat as StyleSampleStat),
     );
+    const valueSupport: Record<string, string[]> = {};
+    for (const { sample, stat } of withStat) {
+      const value = classifySampleStat(dimension, stat);
+      (valueSupport[value] ??= []).push(sample.id);
+    }
     observations[dimension] = {
       round,
       value: result.value,
-      aggregate: result.aggregate,
+      ...(result.aggregate === undefined ? {} : { aggregate: result.aggregate }),
       supportSampleIds:
-        result.value === STYLE_UNKNOWN_VALUE
-          ? []
-          : withStat
-              .filter(({ stat }) => classifySampleStat(dimension, stat) === result.value)
-              .map(({ sample }) => sample.id),
+        result.value === STYLE_UNKNOWN_VALUE ? [] : (valueSupport[result.value] ?? []),
+      valueSupport,
     };
   }
 
@@ -68,13 +70,15 @@ export function observeSamples(
       labelled.map(({ label }) => label),
       CLASS_MAJORITY_SHARE,
     );
+    const valueSupport: Record<string, string[]> = {};
+    for (const { sample, label } of labelled) {
+      (valueSupport[label] ??= []).push(sample.id);
+    }
     observations[dimension] = {
       round,
       value,
-      supportSampleIds:
-        value === STYLE_UNKNOWN_VALUE
-          ? []
-          : labelled.filter(({ label }) => label === value).map(({ sample }) => sample.id),
+      supportSampleIds: value === STYLE_UNKNOWN_VALUE ? [] : (valueSupport[value] ?? []),
+      valueSupport,
     };
   }
 
@@ -133,13 +137,16 @@ export function observeGlobal(
     const latestAggregates = active
       .map(({ rule }) => rule.rounds.at(-1)?.aggregate)
       .filter((aggregate): aggregate is number => aggregate !== undefined);
+    const support = active.flatMap(({ workspace, rule }) =>
+      (rule.rounds.at(-1)?.supportSampleIds ?? []).map((id) => `${workspace.id}:${id}`),
+    );
     observations[dimension] = {
       round,
       value: active[0]!.rule.value,
       // 全局层的证据以“工作区:样本”计，保证不同工作区的样本不会重名。
-      supportSampleIds: active.flatMap(({ workspace, rule }) =>
-        (rule.rounds.at(-1)?.supportSampleIds ?? []).map((id) => `${workspace.id}:${id}`),
-      ),
+      supportSampleIds: support,
+      // 全局层只会有这一个取值（一致性检查已通过），逐值证据与支持样本相同。
+      valueSupport: { [active[0]!.rule.value]: support },
       ...(latestAggregates.length === active.length
         ? {
             aggregate:
@@ -173,9 +180,24 @@ export function withEditFeedback(
     );
     const current = next[dimension];
     if (!current || current.value === STYLE_UNKNOWN_VALUE) {
-      next[dimension] = { round, value: summary.value, supportSampleIds: support };
+      // 保留本轮已测到的证据（aggregate / valueSupport），只补上取值与反馈支持，
+      // 否则退场判定会把“测到了但本轮取值 unknown”误读成“没有任何证据”。
+      const existing = current?.valueSupport?.[summary.value] ?? [];
+      next[dimension] = {
+        ...current,
+        round,
+        value: summary.value,
+        supportSampleIds: [...existing, ...support],
+        valueSupport: { ...current?.valueSupport, [summary.value]: [...existing, ...support] },
+      };
     } else if (current.value === summary.value) {
-      next[dimension] = { ...current, supportSampleIds: [...current.supportSampleIds, ...support] };
+      const existing = current.valueSupport?.[summary.value] ?? current.supportSampleIds;
+      const merged = [...existing, ...support];
+      next[dimension] = {
+        ...current,
+        supportSampleIds: merged,
+        valueSupport: { ...current.valueSupport, [summary.value]: merged },
+      };
     }
   }
   return next;

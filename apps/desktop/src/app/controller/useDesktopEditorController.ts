@@ -482,9 +482,12 @@ export function useDesktopEditorController({
             manualAiAbortControllerRef.current = controller;
 
             try {
+              // 与手动续写一致：云端首次使用写作偏好需要授权。
+              const gecProfile = getStyleProfileForRequest(settings.ai);
+              const gecSettings = await ensureStyleCloudConsent(settings, gecProfile);
               showToast("AI 语法修复分析中...");
               const suggestion = await desktopAiService.fixGrammar(
-                settings.ai,
+                gecSettings.ai,
                 {
                   before,
                   after,
@@ -498,7 +501,7 @@ export function useDesktopEditorController({
                 {
                   signal: controller.signal,
                   // 写作偏好：避免把用户习惯判为错误，并给出风格统一建议（闸门在服务内）。
-                  profile: getStyleProfileForRequest(settings.ai),
+                  profile: gecProfile,
                 },
               );
 

@@ -70,6 +70,8 @@ interface QueuedRequest<T> {
   readonly priority: AiRequestPriority;
   readonly affinityKey: string | null;
   readonly exclusive: boolean;
+  /** 入队时间，用于统计用户请求排队等待时长（PRD §2.6 计量） */
+  readonly enqueuedAt: number;
   readonly controller: AbortController;
   readonly run: (context: AiScheduledRequestContext) => Promise<T>;
   readonly resolve: (value: T) => void;
@@ -103,6 +105,9 @@ export class AiRequestScheduler {
   /** 正在占用槽位的请求；被抢占的独占任务会立即移出以释放槽位 */
   private readonly running = new Set<QueuedRequest<unknown>>();
   private nextSequence = 1;
+  /** 最近 200 次用户请求的排队等待时长（毫秒） */
+  private readonly urgentWaits: number[] = [];
+  private exclusivePreemptions = 0;
 
   public constructor(private readonly maxConcurrency = 2) {
     if (!Number.isInteger(maxConcurrency) || maxConcurrency < 1) {
@@ -132,6 +137,7 @@ export class AiRequestScheduler {
         priority: options.priority,
         affinityKey,
         exclusive,
+        enqueuedAt: nowMs(),
         controller,
         run: options.run,
         resolve,
@@ -216,6 +222,25 @@ export class AiRequestScheduler {
     return PRIORITY_ORDER.reduce((count, priority) => count + this.queues[priority].length, 0);
   }
 
+  /**
+   * 计量（PRD §2.6）：用户请求（urgent/normal）从入队到开始执行的等待时长统计。
+   * 只用于 dev 日志与测试，不参与调度决策。
+   */
+  public get waitMetrics(): {
+    readonly urgentWaitMs: { readonly count: number; readonly max: number; readonly p95: number };
+    readonly exclusivePreemptions: number;
+  } {
+    const sorted = [...this.urgentWaits].toSorted((a, b) => a - b);
+    return {
+      urgentWaitMs: {
+        count: sorted.length,
+        max: sorted.at(-1) ?? 0,
+        p95: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] ?? 0,
+      },
+      exclusivePreemptions: this.exclusivePreemptions,
+    };
+  }
+
   public get runningCount(): number {
     return this.running.size;
   }
@@ -238,6 +263,7 @@ export class AiRequestScheduler {
     const exclusive = Array.from(this.running).filter((request) => request.exclusive);
     for (const request of exclusive) {
       this.running.delete(request);
+      this.exclusivePreemptions += 1;
       this.cancelRequest(request.requestId, AI_REQUEST_PREEMPTED_REASON);
     }
   }
@@ -294,6 +320,10 @@ export class AiRequestScheduler {
   private execute(request: QueuedRequest<unknown>): void {
     request.status = "running";
     this.running.add(request);
+    if (request.priority !== "background") {
+      this.urgentWaits.push(nowMs() - request.enqueuedAt);
+      if (this.urgentWaits.length > 200) this.urgentWaits.shift();
+    }
     const isCurrent = () =>
       this.latestByScope.get(request.scopeKey) === request.requestId &&
       !request.controller.signal.aborted;
@@ -358,4 +388,8 @@ function createAiRequestAbortError(reason: string): Error {
   const error = new Error(`AI 请求已取消：${reason}`);
   error.name = "AbortError";
   return error;
+}
+
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
 }

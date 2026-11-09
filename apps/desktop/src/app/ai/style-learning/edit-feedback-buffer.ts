@@ -9,6 +9,7 @@
 import {
   appendEditFeatures,
   collectEditFeatures,
+  type StyleEditFeatureRecord,
   type StyleProfileDocument,
 } from "@md-editor/ai/style";
 
@@ -30,29 +31,35 @@ export function rememberAcceptedAiText(workspaceId: string, relPath: string, tex
 }
 
 /**
- * 文档保存后调用：对比暂存的 AI 原文与保存后的正文，提取编辑特征写入画像，并清空该文件的暂存。
- * 没有暂存或没有提取到特征时返回原文档。
+ * 文档保存后调用：对比暂存的 AI 原文与保存后的正文提取编辑特征，并清空该文件的暂存。
+ * 返回的只有特征；调用方把它们合并进最新的画像文档。
  */
-export function flushEditFeedback(
-  document: StyleProfileDocument,
+export function takeEditFeatures(
   workspaceId: string,
   relPath: string,
   savedMarkdown: string,
   at: string,
-): StyleProfileDocument {
+): StyleEditFeatureRecord[] {
   const entry = key(workspaceId, relPath);
   const texts = pending.get(entry);
   pending.delete(entry);
-  if (!texts?.length) return document;
-  const features = collectEditFeatures(texts, savedMarkdown, at);
+  return texts?.length ? collectEditFeatures(texts, savedMarkdown, at) : [];
+}
+
+/** 把新特征追加到画像中对应工作区 */
+export function withEditFeatures(
+  document: StyleProfileDocument,
+  workspaceId: string,
+  features: readonly StyleEditFeatureRecord[],
+): StyleProfileDocument {
   if (features.length === 0) return document;
+  const existing = document.editFeedback?.[workspaceId] ?? [];
   return {
     ...document,
-    workspaces: document.workspaces.map((workspace) =>
-      workspace.id === workspaceId
-        ? { ...workspace, editFeedback: appendEditFeatures(workspace.editFeedback, features) }
-        : workspace,
-    ),
+    editFeedback: {
+      ...document.editFeedback,
+      [workspaceId]: appendEditFeatures(existing, features),
+    },
   };
 }
 

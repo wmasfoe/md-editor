@@ -73,7 +73,11 @@ export interface CodeMirrorEditorHarnessBridge {
     readonly from: number;
     readonly to: number;
     readonly text: string;
+    /** 建议种类：`fix` 显示“修正”，`style` 显示“风格”（E-3） */
+    readonly kind?: "fix" | "style";
   }): void;
+  /** 测试专用：当前建议项的 kind 列表（E-3 断言徽标种类） */
+  getSuggestionKinds(): readonly (string | undefined)[];
   /** 测试专用：读取当前建议状态(断言是否被接受) */
   getSuggestion(): unknown | null;
   /** 测试专用：合成 IME 组合期(E19/表格 DOM 腿 composition 门控) */
@@ -262,11 +266,18 @@ export function installCodeMirrorEditorHarness(
       readonly from: number;
       readonly to: number;
       readonly text: string;
+      readonly kind?: "fix" | "style";
     }) {
       const access = getRendererAccess();
       if (access.status === "available") {
         access.ports.showSuggestion(suggestion as never);
       }
+    },
+    getSuggestionKinds() {
+      const access = getRendererAccess();
+      if (access.status !== "available") return [];
+      const suggestion = access.ports.getSuggestion();
+      return (suggestion?.items ?? []).map((item) => item.kind);
     },
     getSuggestion() {
       const access = getRendererAccess();

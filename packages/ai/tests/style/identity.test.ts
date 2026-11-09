@@ -5,10 +5,15 @@ import {
   isStyleProfileExpired,
   isStyleProfileLinked,
   isUserStyleExcluded,
+  recomputeStyleRound,
+  mergeStyleProfile,
+  createEmptyStyleProfileDocument,
+  undoStyleRelink,
   renameStyleRelPath,
   scoreStyleIdentity,
 } from "../../src/style/index.ts";
-import { sample, workspace } from "./fixtures.ts";
+import { FIVE_FILES, sample, workspace } from "./fixtures.ts";
+import type { StyleProfileDocument } from "../../src/style/index.ts";
 
 /** 每个样本 4 个段落 hash 的画像 */
 function profileWith(prefix: string, files = 10) {
@@ -100,5 +105,252 @@ describe("style profile identity", () => {
     expect(isUserStyleExcluded("diary", ["diary/"])).toBe(true);
     expect(isUserStyleExcluded("diary-public.md", ["diary"])).toBe(false);
     expect(isUserStyleExcluded("notes/a.md", [])).toBe(false);
+  });
+});
+
+describe("undo relink", () => {
+  it("returns a relinked profile to its previous root as unlinked", () => {
+    const moved = workspace("w1", {
+      rootPath: "/notes/new",
+      relinkedFrom: { rootPath: "/notes/old", at: "t0" },
+    });
+    const [undone] = undoStyleRelink([moved, workspace("w2")], "w1", "t1");
+    expect(undone).toMatchObject({
+      rootPath: "/notes/old",
+      linkState: "unlinked",
+      unlinkedSince: "t1",
+    });
+    expect(undone).not.toHaveProperty("relinkedFrom");
+    expect(undoStyleRelink([workspace("w3")], "w3", "t1")[0]).toMatchObject({
+      linkState: "linked",
+    });
+  });
+});
+
+function excludedProfile() {
+  return workspace("w1", {
+    roundCount: 2,
+    rules: [
+      {
+        dimension: "formality",
+        value: "formal",
+        status: "active",
+        rounds: [{ round: 2, value: "formal", supportSampleIds: FIVE_FILES }],
+      },
+    ],
+    samples: [
+      ...FIVE_FILES.map((id) =>
+        sample(id, { relPath: `${id}.md`, labels: { formality: "formal" } }),
+      ),
+      sample("secret", { relPath: "diary/secret.md", labels: { formality: "formal" } }),
+    ],
+  });
+}
+
+function profileWithSecretSample(): StyleProfileDocument {
+  return {
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [excludedProfile()],
+    aiSegments: { w1: { "diary/secret.md": ["n1:a"], "a.md": ["n1:b"] } },
+  };
+}
+
+describe("exclusions take effect immediately", () => {
+  it("drops excluded samples, their AI hashes and re-aggregates without the model", () => {
+    const next = recomputeStyleRound(profileWithSecretSample(), "w1", { excluded: ["diary"] });
+    expect(next.workspaces[0]!.samples.map((s) => s.relPath)).toEqual(
+      FIVE_FILES.map((id) => `${id}.md`),
+    );
+    expect(next.aiSegments.w1).toEqual({ "a.md": ["n1:b"] });
+    // 支持文件从 6 个降到 5 个，规则仍然生效（不调用模型，只重新聚合当前轮）。
+    expect(next.workspaces[0]!.rules[0]).toMatchObject({ status: "active", value: "formal" });
+  });
+
+  it("returns the same document when nothing is excluded", () => {
+    const original = profileWithSecretSample();
+    expect(recomputeStyleRound(original, "w1", { excluded: ["other"] })).toBe(original);
+    expect(recomputeStyleRound(original, "w1")).toBe(original);
+    expect(recomputeStyleRound(original, "missing", { excluded: ["a.md"] })).toBe(original);
+  });
+
+  it("retires a rule when exclusions leave too few supporting files", () => {
+    const small = profileWithSecretSample();
+    // 排除的是工作区相对路径（`a.md`），不是样本 id。
+    const next = recomputeStyleRound(small, "w1", { excluded: ["a.md", "b.md"] });
+    expect(next.workspaces[0]!.samples).toHaveLength(4);
+    expect(next.workspaces[0]!.rules[0]!.status).toBe("retired");
+  });
+});
+
+/** 两个工作区都生效为正式语气，用于验证全局层的重算 */
+function sharedWorkspace(id: string) {
+  return {
+    id,
+    rootPath: `/notes/${id}`,
+    linkState: "linked" as const,
+    samples: ["a.md", "b.md", "c.md"].map((relPath, index) =>
+      sample(`${id}-${index}`, { relPath, labels: { formality: "formal" } }),
+    ),
+    rules: [
+      {
+        dimension: "formality" as const,
+        value: "formal",
+        status: "active" as const,
+        rounds: [{ round: 3, value: "formal", supportSampleIds: ["a", "b", "c"] }],
+      },
+    ],
+    roundCount: 3,
+    changesSinceRound: 0,
+  };
+}
+
+describe("recomputeStyleRound also re-derives the global layer", () => {
+  it("drops a global rule whose supporting workspaces were excluded", () => {
+    const document: StyleProfileDocument = {
+      ...createEmptyStyleProfileDocument(),
+      workspaces: [sharedWorkspace("w1"), sharedWorkspace("w2")],
+      global: {
+        roundCount: 3,
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: ["w1:a", "w2:a"] }],
+          },
+        ],
+      },
+    };
+
+    // 排除 w1 的全部样本后，只剩一个工作区支持 formal，全局规则随之退场。
+    const next = recomputeStyleRound(document, "w1", { excluded: ["a.md", "b.md", "c.md"] });
+    expect(next.workspaces[0]!.samples).toHaveLength(0);
+    expect(next.global.rules[0]!.status).toBe("retired");
+    // 未被排除的 w2 不受影响。
+    expect(next.workspaces[1]!.samples).toHaveLength(3);
+  });
+});
+
+/** 5 个 formal 文件 + 3 个 casual 文件的工作区画像 */
+function mixedProfile(): StyleProfileDocument {
+  return {
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [
+      workspace("w1", {
+        roundCount: 3,
+        samples: [
+          ...FIVE_FILES.map((id) =>
+            sample(id, { relPath: `${id}.md`, labels: { formality: "formal" } }),
+          ),
+          ...["x", "y", "z"].map((id) =>
+            sample(id, { relPath: `casual/${id}.md`, labels: { formality: "casual" } }),
+          ),
+        ],
+        rules: [
+          {
+            dimension: "formality",
+            value: "formal",
+            status: "active",
+            rounds: [{ round: 3, value: "formal", supportSampleIds: FIVE_FILES }],
+          },
+        ],
+      }),
+    ],
+  };
+}
+
+describe("exclusion retires the rule through the real aggregation path", () => {
+  it("retires an active rule when a competing value takes over", () => {
+    // 排除支持 formal 的 5 个文件，剩余 3 个 casual：真实 observeSamples 产出里 formal 缺席。
+    const next = recomputeStyleRound(mixedProfile(), "w1", {
+      excluded: FIVE_FILES.map((id) => `${id}.md`),
+    });
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "formality")!;
+    expect(rule.status).toBe("retired");
+    // 合并后不再把被排除的证据注入前缀。
+    const merged = mergeStyleProfile({ workspace: next.workspaces[0]!.rules });
+    expect(merged.rules.some((entry) => entry.dimension === "formality")).toBe(false);
+  });
+});
+
+/** 5 个句长很短的样本，句长规则已生效为 short */
+function statProfile(): StyleProfileDocument {
+  return {
+    ...createEmptyStyleProfileDocument(),
+    workspaces: [
+      workspace("w1", {
+        roundCount: 3,
+        samples: FIVE_FILES.map((id) =>
+          sample(id, {
+            relPath: `${id}.md`,
+            // 句长很短：聚合值落在 short 区间
+            stats: { sentenceLength: { value: 8, weight: 20 } },
+          }),
+        ),
+        rules: [
+          {
+            dimension: "sentenceLength",
+            value: "short",
+            status: "active",
+            rounds: [{ round: 3, value: "short", supportSampleIds: FIVE_FILES, aggregate: 8 }],
+          },
+        ],
+      }),
+    ],
+  };
+}
+
+describe("stat dimensions retire when their evidence is excluded", () => {
+  it("retires a stat rule whose samples are all excluded (no fabricated aggregate)", () => {
+    const next = recomputeStyleRound(statProfile(), "w1", {
+      excluded: FIVE_FILES.map((id) => `${id}.md`),
+    });
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "sentenceLength")!;
+    expect(next.workspaces[0]!.samples).toHaveLength(0);
+    expect(rule.status).toBe("retired");
+    const merged = mergeStyleProfile({ workspace: next.workspaces[0]!.rules });
+    expect(merged.rules.some((entry) => entry.dimension === "sentenceLength")).toBe(false);
+  });
+
+  it("keeps a stat rule while its aggregate still lands in the same bucket", () => {
+    // 10 个样本：排除 1 个后仍有 9 个（>= 5），聚合值仍在 short 区间。
+    const many = statProfile();
+    const base = many.workspaces[0]!;
+    const extra = Array.from({ length: 5 }, (_, index) =>
+      sample(`extra-${index}`, {
+        relPath: `extra-${index}.md`,
+        stats: { sentenceLength: { value: 8, weight: 20 } },
+      }),
+    );
+    const next = recomputeStyleRound(
+      {
+        ...many,
+        workspaces: [
+          {
+            ...base,
+            samples: [...base.samples, ...extra],
+            rules: [
+              {
+                dimension: "sentenceLength",
+                value: "short",
+                status: "active",
+                rounds: [
+                  {
+                    round: 3,
+                    value: "short",
+                    supportSampleIds: base.samples.map((s) => s.id),
+                    aggregate: 8,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      "w1",
+      { excluded: ["a.md"] },
+    );
+    const rule = next.workspaces[0]!.rules.find((entry) => entry.dimension === "sentenceLength")!;
+    expect(rule.status).toBe("active");
   });
 });

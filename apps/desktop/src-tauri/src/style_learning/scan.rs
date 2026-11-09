@@ -41,9 +41,10 @@ pub(crate) struct StyleSampleScan {
 #[tauri::command]
 pub(crate) async fn scan_style_learning_samples(
     scope: State<'_, StyleLearningScope>,
+    expected_root: String,
     excluded: Vec<String>,
 ) -> Result<StyleSampleScan, String> {
-    let root = scope.root()?;
+    let root = scope.expect_root(&expected_root)?;
     tauri::async_runtime::spawn_blocking(move || scan_samples(&root, &excluded))
         .await
         .map_err(|error| format!("风格样本扫描任务失败：{error}"))?
@@ -53,9 +54,10 @@ pub(crate) async fn scan_style_learning_samples(
 #[tauri::command]
 pub(crate) async fn read_style_learning_sample(
     scope: State<'_, StyleLearningScope>,
+    expected_root: String,
     rel_path: String,
 ) -> Result<String, String> {
-    let root = scope.root()?;
+    let root = scope.expect_root(&expected_root)?;
     tauri::async_runtime::spawn_blocking(move || read_sample(&root, &rel_path))
         .await
         .map_err(|error| format!("风格样本读取任务失败：{error}"))?

@@ -14,7 +14,7 @@
  */
 
 import type { ModelContext } from "../domain/model-client.ts";
-import { LITE_LOCAL_MODEL_ID } from "../domain/settings.ts";
+import { isLiteLocalModel } from "../domain/settings.ts";
 import { renderStylePrefix, renderStyleTolerancePrefix } from "../style/render.ts";
 import type { MergedStyleProfile } from "../style/types.ts";
 import type { AiContextSnapshot, AiDocumentContext, AiDocumentSnapshot } from "../domain/types.ts";
@@ -70,18 +70,6 @@ export const CLOUD_CONTINUATION_SYSTEM_PROMPT = [
 /** 本地模型上下文裁剪窗口（控制 KV Cache 体积以保持毫秒级响应） */
 const LOCAL_BEFORE_WINDOW_CHARS = 1_800;
 const LOCAL_AFTER_WINDOW_CHARS = 600;
-
-/**
- * 判断指定的本地模型是否采用 Lite (Qwen 3 0.6B) 原生 FIM 续写通道。
- */
-export function isLiteLocalModel(modelId: string): boolean {
-  const normalized = modelId.trim().toLowerCase();
-  return (
-    normalized === LITE_LOCAL_MODEL_ID ||
-    normalized.includes("lite") ||
-    normalized.includes("qwen3-0.6b")
-  );
-}
 
 /**
  * 构造宏观文档结构上下文前缀（Title / Outline / Topic / Domain / Tags）。

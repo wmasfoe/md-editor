@@ -8,6 +8,16 @@ import {
 import { applyObservations, observeSamples } from "../../src/style/engine-entry.ts";
 import { FIVE_FILES, round, sample } from "./fixtures.ts";
 
+/** 本轮胜出 casual、但 formal 自己仍有 5 个文件支持 */
+function contestedRound(n: number) {
+  return {
+    round: n,
+    value: "casual",
+    supportSampleIds: FIVE_FILES,
+    valueSupport: { casual: FIVE_FILES, formal: FIVE_FILES },
+  };
+}
+
 function feed(
   dimension: StyleRuleRecord["dimension"],
   rounds: ReturnType<typeof round>[],
@@ -70,22 +80,22 @@ describe("style rule lifecycle", () => {
       round(2, "formal", FIVE_FILES),
       round(3, "formal", FIVE_FILES),
     ]);
-    const twoMisses = feed("formality", [
-      ...active.rounds.map((r) => round(r.round, r.value, r.supportSampleIds)),
-      round(4, "casual", FIVE_FILES),
-      round(5, "unknown", []),
-    ]);
-    expect(twoMisses).toMatchObject({ status: "active", value: "formal" });
-    expect(advanceStyleRule("formality", twoMisses, round(6, "casual", FIVE_FILES)).status).toBe(
-      "retired",
-    );
+    // 本轮胜出取值换成 casual，但 formal 自己仍有 5 个文件支持：保持生效。
+    const contested = advanceStyleRule("formality", active, contestedRound(4));
+    expect(contested).toMatchObject({ status: "active", value: "formal" });
+
+    // 连续三轮 formal 都不再胜出：退场。
+    const two = advanceStyleRule("formality", contested, contestedRound(5));
+    expect(two.status).toBe("active");
+    expect(advanceStyleRule("formality", two, contestedRound(6)).status).toBe("retired");
 
     // 删除样本后重算当前轮，支持文件只剩 4 个。
     const shrunk = advanceStyleRule("formality", active, round(3, "formal", ["a", "b", "c", "d"]), {
       replaceLatest: true,
     });
     expect(shrunk.status).toBe("retired");
-    expect(shrunk.rounds).toHaveLength(3);
+    // 退场时丢弃旧轮次，重新积累才能再次生效。
+    expect(shrunk.rounds).toHaveLength(1);
   });
 
   it("U-LC-3: keeps only the most recent rounds", () => {
@@ -122,5 +132,143 @@ describe("style rule lifecycle", () => {
       observeSamples([sample("x", { eligible: false, labels: { formality: "casual" } })], 1)
         .formality?.value,
     ).toBe("unknown");
+  });
+});
+
+describe("retire when the supporting evidence disappears", () => {
+  it("retires an active rule as soon as no sample supports it", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    expect(active.status).toBe("active");
+    // 支持它的文件全部被排除：本轮取值 unknown 且没有任何支持样本。
+    const retired = advanceStyleRule("formality", active, round(4, "unknown", []), {
+      replaceLatest: true,
+    });
+    expect(retired.status).toBe("retired");
+  });
+
+  it("keeps the rule when a competing value still has evidence", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    // formal 自己仍有 5 个文件支持（只是本轮胜出的是 casual）：保持生效。
+    const stillActive = advanceStyleRule("formality", active, contestedRound(4));
+    expect(stillActive.status).toBe("active");
+  });
+});
+
+describe("retire when the rule's own value loses support", () => {
+  it("retires even when a competing value wins the round", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    // 支持 formal 的文件全被排除，本轮 casual 有 3 个文件支持。
+    const competing = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"], formal: [] },
+    };
+    expect(advanceStyleRule("formality", active, competing, { replaceLatest: true }).status).toBe(
+      "retired",
+    );
+  });
+
+  it("stays active while its own value still has five files", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    const contested = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"], formal: FIVE_FILES },
+    };
+    expect(advanceStyleRule("formality", active, contested).status).toBe("active");
+
+    // 本轮只有 casual 有证据、formal 缺席（真实产出里缺席即无支持）：立即退场。
+    const absent = {
+      round: 4,
+      value: "casual",
+      supportSampleIds: ["x", "y", "z"],
+      valueSupport: { casual: ["x", "y", "z"] },
+    };
+    expect(advanceStyleRule("formality", active, absent).status).toBe("retired");
+  });
+});
+
+describe("edit evidence cannot stand in for files", () => {
+  it("does not promote a rule from one file plus edit features", () => {
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "casual",
+      supportSampleIds: ["only-file", `edit:formality:${n}a`, `edit:formality:${n}b`],
+      valueSupport: { casual: ["only-file", `edit:formality:${n}a`, `edit:formality:${n}b`] },
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("formality", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+
+  it("does not promote a stat value that contradicts the measured aggregate", () => {
+    // 聚合值 10 属于 short，但本轮取值被编辑反馈改成了 long。
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "long",
+      supportSampleIds: [...FIVE_FILES, `edit:sentenceLength:${n}`],
+      valueSupport: { long: [...FIVE_FILES, `edit:sentenceLength:${n}`], short: FIVE_FILES },
+      aggregate: 10,
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("sentenceLength", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+});
+
+describe("edit ids never stand in for files anywhere", () => {
+  it("does not promote a global rule from workspace-prefixed edit ids", () => {
+    const rounds = [1, 2, 3].map((n) => ({
+      round: n,
+      value: "short",
+      // 全局层的支持 id 带工作区前缀：w1:edit:...
+      supportSampleIds: [`w1:edit:sentenceLength:${n}a`, `w2:edit:sentenceLength:${n}b`],
+      valueSupport: { short: [`w1:edit:sentenceLength:${n}a`, `w2:edit:sentenceLength:${n}b`] },
+      aggregate: 12,
+    }));
+    let rule: StyleRuleRecord | undefined;
+    for (const observation of rounds) {
+      rule = advanceStyleRule("sentenceLength", rule, observation);
+    }
+    expect(rule?.status).toBe("draft");
+  });
+
+  it("retires an active rule supported only by edit ids", () => {
+    const edits = [1, 2, 3, 4, 5, 6].map((n) => `edit:formality:${n}`);
+    const previous: StyleRuleRecord = {
+      dimension: "formality",
+      value: "casual",
+      status: "active",
+      rounds: [{ round: 1, value: "casual", supportSampleIds: FIVE_FILES }],
+    };
+    const editsOnly = {
+      round: 2,
+      value: "casual",
+      supportSampleIds: edits,
+      valueSupport: { casual: edits },
+    };
+    expect(advanceStyleRule("formality", previous, editsOnly).status).toBe("retired");
   });
 });

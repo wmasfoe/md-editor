@@ -18,15 +18,22 @@ import {
 export interface StyleLearningStore {
   readonly profile: StyleProfileDocument | null;
   readonly exclusions: StyleExclusionsDocument;
+  /** 本次会话中已通过身份校验的工作区根目录；未校验的工作区不应用其画像 */
+  readonly verifiedRoot: string | null;
   readonly setProfile: (profile: StyleProfileDocument | null) => void;
   readonly setExclusions: (exclusions: StyleExclusionsDocument) => void;
+  readonly setVerifiedRoot: (rootPath: string | null) => void;
 }
 
 export const useStyleLearningStore = create<StyleLearningStore>((set) => ({
   profile: null,
   exclusions: createEmptyStyleExclusionsDocument(),
-  setProfile: (profile) => set({ profile }),
+  verifiedRoot: null,
+  // 广播事件与本地写入的回调可能乱序到达：同一数据代次只接受不更旧的 revision。
+  setProfile: (profile) =>
+    set((state) => (isNewerProfile(state.profile, profile) ? { profile } : state)),
   setExclusions: (exclusions) => set({ exclusions }),
+  setVerifiedRoot: (verifiedRoot) => set({ verifiedRoot }),
 }));
 
 /** 当前工作区对应的已关联画像 */
@@ -47,12 +54,25 @@ export function findLinkedWorkspaceProfile(
 export function resolveMergedStyleProfile(
   profile: StyleProfileDocument | null,
   rootPath: string | null | undefined,
+  verifiedRoot: string | null,
 ): MergedStyleProfile | undefined {
   if (!profile) return undefined;
+  // 本次会话尚未通过身份校验的工作区，只使用全局画像与自定义规则。
+  const verified = Boolean(rootPath) && rootPath === verifiedRoot;
   const merged = mergeStyleProfile({
     global: profile.global.rules,
-    workspace: findLinkedWorkspaceProfile(profile, rootPath)?.rules,
+    workspace: verified ? findLinkedWorkspaceProfile(profile, rootPath)?.rules : undefined,
     custom: profile.custom,
   });
   return merged.rules.length > 0 ? merged : undefined;
+}
+
+/** `next` 是否应替换 `current`：清除（null）、新数据代次或不更旧的 revision */
+export function isNewerProfile(
+  current: StyleProfileDocument | null,
+  next: StyleProfileDocument | null,
+): boolean {
+  if (!next || !current) return true;
+  if (next.epoch !== current.epoch) return true;
+  return (next.revision ?? 0) >= (current.revision ?? 0);
 }

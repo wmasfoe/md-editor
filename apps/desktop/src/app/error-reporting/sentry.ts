@@ -75,7 +75,12 @@ export function sanitizeBreadcrumbs<T extends { category?: string; level?: strin
  * 2. 移除包含敏感文本信息的 console breadcrumbs。
  */
 export function handleBeforeSend<
-  T extends { breadcrumbs?: Array<{ category?: string; level?: string }> },
+  T extends {
+    breadcrumbs?: Array<{ category?: string; level?: string }>;
+    message?: string;
+    exception?: { values?: Array<{ value?: string }> };
+    tags?: Record<string, unknown>;
+  },
 >(event: T, options: { isDev?: boolean; isEnabled?: boolean } = {}): T | null {
   const isDev = options.isDev ?? isDevelopmentEnvironment();
   const isEnabled = options.isEnabled ?? isErrorReportingEnabled;
@@ -87,7 +92,116 @@ export function handleBeforeSend<
   if (event.breadcrumbs) {
     event.breadcrumbs = sanitizeBreadcrumbs(event.breadcrumbs);
   }
+  if (isStyleLearningEvent(event)) {
+    scrubPaths(event);
+  }
 
+  return event;
+}
+
+/**
+ * 风格学习相关的事件：错误信息里可能带工作区路径与文件名。
+ * 学习相关代码在上报前会设置 `feature: "style-learning"` 标签；消息匹配只作为兜底。
+ */
+export function isStyleLearningEvent(event: {
+  readonly message?: string;
+  readonly tags?: Record<string, unknown>;
+  readonly exception?: { values?: Array<{ value?: string }> };
+}): boolean {
+  const tag = event.tags?.feature ?? event.tags?.module;
+  if (tag === "style-learning") return true;
+  const texts = [event.message ?? "", ...(event.exception?.values ?? []).map((v) => v.value ?? "")];
+  return texts.some(
+    (text) =>
+      text.includes("style-learning") ||
+      text.includes("风格学习") ||
+      text.includes("风格样本") ||
+      text.includes("读取样本失败"),
+  );
+}
+
+/** 路径片段允许中文、字母数字与内部空格（`我的 笔记.md`） */
+const PATH_SEGMENT = "[\\p{L}\\p{N}_.-]+(?:[^\\S\\n]+[\\p{L}\\p{N}_.-]+)*";
+const EXTENSION = "\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b";
+/** 形如 `日记/2024/私人.md` 的相对路径：末段同样允许空格 */
+const RELATIVE_PATH = new RegExp(
+  "(?<![\\\\/])[\\\\/]?(?:" + PATH_SEGMENT + "[\\\\/])+" + PATH_SEGMENT + EXTENSION,
+  "giu",
+);
+/**
+ * 裸文件名（大小写不敏感，`.MD` 也算 Markdown）。只匹配不含空白的一段文字：
+ * 含空格的中文句子也可能以 `.txt` 结尾，放行空白会把整句说明吞掉；
+ * 带空格的路径由上面的路径规则覆盖。
+ */
+const BARE_FILE = new RegExp("(?<![\\p{L}\\p{N}_.])[\\p{L}\\p{N}_.-]+" + EXTENSION, "giu");
+/**
+ * 整句以文件名结尾的中文消息（`该文件不能作为风格样本：我的 笔记.md`）：
+ * 冒号之后一律视为路径/文件名，避免放行空格后把整句说明也吞掉。
+ */
+const LABELLED_TAIL = new RegExp(
+  "([：:])\\s*" + PATH_SEGMENT + EXTENSION + "(?![\\p{L}\\p{N}_.-])",
+  "giu",
+);
+/**
+ * 不带扩展名的绝对目录路径（`/Users/me/Library/Application Support/md-editor/style-learning`）：
+ * 至少两段、以路径字符开头，且不以标点结尾。
+ */
+const ABSOLUTE_DIR = new RegExp(
+  "(?<![\\p{L}\\p{N}_.-])(?:\\/(?:" +
+    PATH_SEGMENT +
+    "\\/)+" +
+    PATH_SEGMENT +
+    ")(?![\\p{L}\\p{N}_.-])",
+  "giu",
+);
+
+function stripPaths(text: string): string {
+  return (
+    text
+      // 相对路径：形如 `日记/2024/私人.md`，整段替换（必须在绝对路径规则之前，
+      // 否则 `/2024/私人.md` 会被当成 POSIX 绝对路径而留下前面的目录名）
+      .replace(RELATIVE_PATH, "[path]")
+      // 盘符路径与 UNC
+      .replace(
+        new RegExp(
+          "[A-Za-z]:[\\\\/](?:" + PATH_SEGMENT + "[\\\\/])*" + PATH_SEGMENT + EXTENSION,
+          "giu",
+        ),
+        "[path]",
+      )
+      .replace(new RegExp("\\\\\\\\[^\\s'\"`,;]*", "gu"), "[path]")
+      // POSIX 绝对路径：/a/b/c，前面不能是路径或文字的一部分；`12/34` 这类数字不算
+      .replace(
+        new RegExp(
+          "(?<![\\p{L}\\p{N}_.-])(?:\\/(?:" +
+            PATH_SEGMENT +
+            "\\/)*" +
+            PATH_SEGMENT +
+            EXTENSION +
+            ")",
+          "giu",
+        ),
+        "[path]",
+      )
+      // 不带扩展名的绝对目录：整段替换（错误信息里常带工作区根目录）
+      .replace(ABSOLUTE_DIR, "[path]")
+      // 同上，Windows 反斜杠目录（`C:\Users\me\notes`）
+      .replace(new RegExp("[A-Za-z]:\\\\[^\\s'\"`,;]*", "gu"), "[path]")
+      // 带标签的尾部：冒号之后是文件名时整段替换
+      .replace(LABELLED_TAIL, "$1[file]")
+      // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理
+      .replace(BARE_FILE, "[file]")
+  );
+}
+
+/** 去掉绝对路径与文件名，只保留事件本身的错误描述 */
+export function scrubPaths<
+  T extends { message?: string; exception?: { values?: Array<{ value?: string }> } },
+>(event: T): T {
+  if (event.message) event.message = stripPaths(event.message);
+  for (const value of event.exception?.values ?? []) {
+    if (value.value) value.value = stripPaths(value.value);
+  }
   return event;
 }
 
@@ -178,4 +292,21 @@ export async function ensureSentryInitialized(): Promise<void> {
   })();
 
   return initPromise;
+}
+
+/**
+ * 上报风格学习失败。学习本身对用户保持静默，但错误上报需要带
+ * `feature: "style-learning"` 标签，`beforeSend` 才会去掉其中的工作区路径与文件名（O-3）。
+ */
+export async function captureStyleLearningError(error: unknown): Promise<void> {
+  if (isDevelopmentEnvironment() || !isErrorReportingEnabled) return;
+  try {
+    const Sentry = await import("@sentry/react");
+    Sentry.withScope((scope) => {
+      scope.setTag("feature", "style-learning");
+      Sentry.captureException(error);
+    });
+  } catch {
+    // Sentry 不可用时不影响学习本身
+  }
 }

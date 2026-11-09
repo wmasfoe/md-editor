@@ -151,3 +151,52 @@ describe("style prefix rendering", () => {
     expect(prefix).not.toContain("少用感叹号");
   });
 });
+
+describe("global rules stay stable across rounds", () => {
+  it("does not flap once activated", () => {
+    const many = Array.from({ length: 5 }, (_, i) =>
+      workspace(`w${i}`, {
+        rules: [
+          {
+            ...activeRule("formality", "formal"),
+            rounds: [{ round: 1, value: "formal", supportSampleIds: FIVE_FILES }],
+          },
+        ],
+      }),
+    );
+    let rules: StyleRuleRecord[] = [];
+    const statuses: string[] = [];
+    for (const n of [1, 2, 3, 4, 5, 6, 7]) {
+      rules = applyObservations(rules, observeGlobal(many, n));
+      statuses.push(rules.find((rule) => rule.dimension === "formality")?.status ?? "missing");
+    }
+    // 生效之后不再来回切换。
+    const activeFrom = statuses.indexOf("active");
+    expect(activeFrom).toBeGreaterThanOrEqual(0);
+    expect(statuses.slice(activeFrom).every((status) => status === "active")).toBe(true);
+  });
+});
+
+describe("global stat rules stay stable across rounds", () => {
+  it("keeps a global stat rule active once promoted", () => {
+    const many = Array.from({ length: 5 }, (_, i) =>
+      workspace(`w${i}`, {
+        rules: [
+          {
+            ...activeRule("sentenceLength", "short"),
+            rounds: [{ round: 1, value: "short", supportSampleIds: FIVE_FILES, aggregate: 12 }],
+          },
+        ],
+      }),
+    );
+    let rules: StyleRuleRecord[] = [];
+    const statuses: string[] = [];
+    for (const n of [1, 2, 3, 4, 5]) {
+      rules = applyObservations(rules, observeGlobal(many, n));
+      statuses.push(rules.find((rule) => rule.dimension === "sentenceLength")?.status ?? "missing");
+    }
+    const activeFrom = statuses.indexOf("active");
+    expect(activeFrom).toBeGreaterThanOrEqual(0);
+    expect(statuses.slice(activeFrom).every((status) => status === "active")).toBe(true);
+  });
+});
