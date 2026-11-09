@@ -70,12 +70,15 @@ describe("style rule lifecycle", () => {
       round(2, "formal", FIVE_FILES),
       round(3, "formal", FIVE_FILES),
     ]);
-    const twoMisses = feed("formality", [
+    // 一轮被相反取值取代（仍有 5 个文件支持新取值）时保持生效，等连续三轮不支持才退场。
+    const oneMiss = feed("formality", [
       ...active.rounds.map((r) => round(r.round, r.value, r.supportSampleIds)),
       round(4, "casual", FIVE_FILES),
-      round(5, "unknown", []),
     ]);
-    expect(twoMisses).toMatchObject({ status: "active", value: "formal" });
+    expect(oneMiss).toMatchObject({ status: "active", value: "formal" });
+    // RETIRE_ROUNDS=3：再连续两轮不支持才退场。
+    const twoMisses = advanceStyleRule("formality", oneMiss, round(5, "casual", FIVE_FILES));
+    expect(twoMisses.status).toBe("active");
     expect(advanceStyleRule("formality", twoMisses, round(6, "casual", FIVE_FILES)).status).toBe(
       "retired",
     );
@@ -122,5 +125,31 @@ describe("style rule lifecycle", () => {
       observeSamples([sample("x", { eligible: false, labels: { formality: "casual" } })], 1)
         .formality?.value,
     ).toBe("unknown");
+  });
+});
+
+describe("retire when the supporting evidence disappears", () => {
+  it("retires an active rule as soon as no sample supports it", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    expect(active.status).toBe("active");
+    // 支持它的文件全部被排除：本轮取值 unknown 且没有任何支持样本。
+    const retired = advanceStyleRule("formality", active, round(4, "unknown", []), {
+      replaceLatest: true,
+    });
+    expect(retired.status).toBe("retired");
+  });
+
+  it("keeps the rule when a competing value still has evidence", () => {
+    const active = feed("formality", [
+      round(1, "formal", FIVE_FILES),
+      round(2, "formal", FIVE_FILES),
+      round(3, "formal", FIVE_FILES),
+    ]);
+    const stillActive = advanceStyleRule("formality", active, round(4, "casual", FIVE_FILES));
+    expect(stillActive.status).toBe("active");
   });
 });

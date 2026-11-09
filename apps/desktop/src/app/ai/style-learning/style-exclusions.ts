@@ -41,18 +41,22 @@ async function applyExclusions(
   return next;
 }
 
-/** 由主窗口注册；设置窗口没有学习协调器时为空操作 */
-let changeListener: (() => void) | null = null;
+/**
+ * 排除列表变化后的唤醒通知。主窗口用它把变化转给学习协调器；
+ * 设置窗口没有协调器，但它的修改会经存储层广播到主窗口（见 `use-style-learning-data`）。
+ */
+const changeListeners = new Set<() => void>();
 
 export function onStyleLearningChanged(listener: () => void): () => void {
-  changeListener = listener;
+  changeListeners.add(listener);
   return () => {
-    if (changeListener === listener) changeListener = null;
+    changeListeners.delete(listener);
   };
 }
 
-function notifyStyleLearningChanged(): void {
-  changeListener?.();
+/** 供跨窗口事件复用：唤醒所有订阅者 */
+export function notifyStyleLearningChanged(): void {
+  for (const listener of changeListeners) listener();
 }
 
 async function updateExclusions(

@@ -152,6 +152,22 @@ describe("style learning coordinator", () => {
     expect(runner.run).toHaveBeenCalledTimes(3);
   });
 
+  it("PRD 2.6: counts learnable windows per day and resets per-round metrics", async () => {
+    const { env, advance } = createEnvironment();
+    const runner: StyleLearningRunner = { run: vi.fn(async () => outcome("learned")) };
+    const coordinator = new StyleLearningCoordinator(env, runner);
+    coordinator.update({ settings: enabledSettings, standardModelReady: true, rootPath: "/notes" });
+    await advance(STYLE_LEARNING_IDLE_MS);
+    expect(coordinator.getMetrics()).toMatchObject({
+      preemptions: 0,
+      modelSwitches: 0,
+      learnableWindowsToday: 1,
+    });
+    coordinator.noteWorkspaceChanged();
+    await advance(STYLE_LEARNING_IDLE_MS);
+    expect(coordinator.getMetrics().learnableWindowsToday).toBe(2);
+  });
+
   it("I-2: turning style learning off cancels a running round", async () => {
     const { env, advance } = createEnvironment();
     let signal: AbortSignal | undefined;

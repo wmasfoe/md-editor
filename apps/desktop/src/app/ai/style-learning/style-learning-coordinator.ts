@@ -80,6 +80,8 @@ export class StyleLearningCoordinator {
   private consecutiveFailures = 0;
   /** 本轮计量（每次运行重置）：抢占次数、模型切换次数；仅 dev 日志使用 */
   private roundMetrics = { preemptions: 0, modelSwitches: 0 };
+  /** 按天统计的可学习窗口数（PRD §2.6 计量） */
+  private readonly windowsByDay = new Map<string, number>();
   private disposed = false;
 
   public constructor(
@@ -114,8 +116,15 @@ export class StyleLearningCoordinator {
   }
 
   /** 计量快照（dev 日志与测试使用） */
-  public getMetrics(): { readonly preemptions: number; readonly modelSwitches: number } {
-    return { ...this.roundMetrics };
+  public getMetrics(): {
+    readonly preemptions: number;
+    readonly modelSwitches: number;
+    readonly learnableWindowsToday: number;
+  } {
+    return {
+      ...this.roundMetrics,
+      learnableWindowsToday: this.windowsByDay.get(dayKey(this.env.now())) ?? 0,
+    };
   }
 
   /** 窗口重新可见时调用：只重新安排已有的待处理工作，不制造新的扫描 */
@@ -199,6 +208,13 @@ export class StyleLearningCoordinator {
     // 先消耗本次变化；运行期间新到的变化会把它重新置为 true。
     this.pending = false;
     this.roundMetrics = { preemptions: 0, modelSwitches: 0 };
+    const today = dayKey(this.env.now());
+    this.windowsByDay.set(today, (this.windowsByDay.get(today) ?? 0) + 1);
+    // 只保留最近 7 天，避免长期运行时无限增长。
+    const cutoff = dayKey(this.env.now() - 7 * 24 * 60 * 60 * 1000);
+    for (const day of this.windowsByDay.keys()) {
+      if (day < cutoff) this.windowsByDay.delete(day);
+    }
     if (
       conditions.settings.provider === "local" &&
       conditions.settings.localModel.modelId !== STANDARD_LOCAL_MODEL_ID
@@ -213,6 +229,10 @@ export class StyleLearningCoordinator {
         signal: controller.signal,
       });
       if (outcome.status === "preempted") this.roundMetrics.preemptions += 1;
+      // 引擎把失败转成状态返回；这里补上带 feature 标签的上报，beforeSend 才会去掉路径（O-3）。
+      if (outcome.status === "failed" && outcome.error) {
+        void captureStyleLearningError(new Error(outcome.error));
+      }
       if (controller.signal.aborted) return;
       // 被抢占、模型忙、失败或刚更新了样本（可能还需继续分类）时稍后再试；学完或无变化时等下一个变化。
       if (outcome.status !== "idle" && outcome.status !== "learned") this.pending = true;
@@ -239,7 +259,7 @@ export class StyleLearningCoordinator {
             workspace?.rules.reduce((total, rule) => total + rule.rounds.length, 0) ?? 0,
           activeRules: workspace?.rules.filter((rule) => rule.status === "active").length ?? 0,
           retiredRules: workspace?.rules.filter((rule) => rule.status === "retired").length ?? 0,
-          ...this.roundMetrics,
+          ...this.getMetrics(),
           ...this.callbacks.schedulerMetrics?.(),
         });
       }
@@ -335,4 +355,12 @@ export function renameInStyleDocument(
 /** 应用内重命名后同步排除列表 */
 export function renameExclusions(excluded: readonly string[], from: string, to: string): string[] {
   return excluded.map((entry) => renameStyleRelPath(entry, from, to));
+}
+
+/** 本地日期的 YYYY-MM-DD，用于按天统计 */
+function dayKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }

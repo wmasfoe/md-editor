@@ -121,23 +121,22 @@ export function isStyleLearningEvent(event: {
 }
 
 /** 形如 `a/b/c.md` 的相对路径（含常见文档/代码扩展名） */
-const RELATIVE_PATH = /(?:[\w.-]+[\\/])+[^\s'"`,;]*\.[A-Za-z0-9]{1,5}\b/gu;
+const RELATIVE_PATH = /(?:[\p{L}\p{N}_.-]+[\\/])+[^\s'"`,;]*\.[A-Za-z0-9]{1,5}\b/gu;
 
 function stripPaths(text: string): string {
   return (
     text
-      // 绝对路径：盘符路径、UNC、或至少两段的 POSIX 路径；`12/34` 这类数字不算路径
+      // 相对路径：形如 `日记/2024/私人.md`，整段替换（必须在绝对路径规则之前，
+      // 否则 `/2024/私人.md` 会被当成 POSIX 绝对路径而留下前面的目录名）
+      .replace(RELATIVE_PATH, "[path]")
+      // 盘符路径与 UNC
       .replace(/[A-Za-z]:[\\/][^\s'"`,;]*/gu, "[path]")
       .replace(/\\\\[^\s'"`,;]*/gu, "[path]")
-      .replace(/(?<![\w./])(?:\/(?:[\w.-]+\/)+[^\s'"`,;]*)/gu, "[path]")
-      // 相对路径中的文件名：只在看起来像文件（带扩展名）时替换，保留目录外的普通文字
-      .replace(RELATIVE_PATH, "[path]")
-      // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号
+      // POSIX 绝对路径：/a/b/c，前面不能是路径或文字的一部分；`12/34` 这类数字不算
+      .replace(/(?<![\p{L}\p{N}_.\-/])(?:\/(?:[\p{L}\p{N}_.-]+\/)+[^\s'"`,;]*)/gu, "[path]")
+      // 裸文件名：必须带常见文档/代码扩展名，避免误伤 1.2.3 这类版本号；中文文件名同样处理
       .replace(
-        new RegExp(
-          `(?<![\\w.])[\\w-]+\\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\\b`,
-          "gu",
-        ),
+        /(?<![\p{L}\p{N}_.])[\p{L}\p{N}_-]+\.(?:md|mdx|markdown|json|ts|tsx|js|jsx|txt|ya?ml|toml)\b/gu,
         "[file]",
       )
   );

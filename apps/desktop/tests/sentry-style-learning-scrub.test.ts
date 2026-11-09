@@ -59,3 +59,14 @@ describe("O-3: style-learning events are scrubbed of paths", () => {
     }
   });
 });
+
+describe("O-3: CJK paths and engine failures", () => {
+  it("strips Chinese file paths and bare Chinese file names", () => {
+    expect(scrubPaths({ message: "该文件不能作为风格样本：日记/2024/私人.md" }).message).toBe(
+      "该文件不能作为风格样本：[path]",
+    );
+    expect(scrubPaths({ message: "该文件不能作为风格样本：客户合同.md" }).message).toBe(
+      "该文件不能作为风格样本：[file]",
+    );
+  });
+});

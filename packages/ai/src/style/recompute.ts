@@ -71,3 +71,32 @@ export function recomputeStyleRound(
     aiSegments: { ...document.aiSegments, [workspace.id]: prunedSegments },
   };
 }
+
+/**
+ * 只用工作区当前的样本重算规则与全局层（不做排除匹配）。
+ * 学习轮次在删除或修改样本后调用，与排除路径共享同一套“重算派生层”的不变量。
+ */
+export function recomputeWorkspaceLayers(
+  document: StyleProfileDocument,
+  workspaceId: string,
+): StyleProfileDocument {
+  const workspace = document.workspaces.find((candidate) => candidate.id === workspaceId);
+  if (!workspace || workspace.roundCount === 0) return document;
+  const rules = applyObservations(
+    workspace.rules,
+    observeSamples(workspace.samples, workspace.roundCount),
+    { replaceLatest: true },
+  );
+  const workspaces = document.workspaces.map((candidate) =>
+    candidate.id === workspace.id ? { ...candidate, rules } : candidate,
+  );
+  const globalRules =
+    document.global.roundCount > 0
+      ? applyObservations(
+          document.global.rules,
+          observeGlobal(workspaces, document.global.roundCount),
+          { replaceLatest: true },
+        )
+      : document.global.rules;
+  return { ...document, workspaces, global: { ...document.global, rules: globalRules } };
+}

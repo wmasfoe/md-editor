@@ -15,7 +15,10 @@ import {
 import { createEmptyStyleProfileDocument } from "@md-editor/ai/style";
 import { StyleLearningEngine } from "@md-editor/ai/style-engine";
 import { StyleLearningSettings } from "../../../src/components/settings/style-learning/StyleLearningSettings";
-import { useStyleLearningStore } from "../../../src/app/ai/style-learning/style-learning-store";
+import {
+  resolveMergedStyleProfile,
+  useStyleLearningStore,
+} from "../../../src/app/ai/style-learning/style-learning-store";
 import { useFileTreeStore } from "../../../src/app/stores/file-tree-store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -156,9 +159,25 @@ describe("I-16: an unlinked workspace contributes no workspace profile", () => {
     document: { filePath: "/notes/post.md" },
   };
 
+  it("positive control through the three services: a linked workspace profile is injected", async () => {
+    const { service, contexts } = recordingService();
+    const linked = resolveMergedStyleProfile(
+      { ...profile, workspaces: [{ ...profile.workspaces[0]!, linkState: "linked" }] },
+      "/notes",
+      "/notes",
+    );
+    await service.continueWriting(settings, snapshot, { profile: linked, isGhostText: false });
+    await service.predictUnifiedEdit(settings, snapshot, { profile: linked });
+    await service.fixGrammar(settings, snapshot, { profile: linked });
+    // 续写与统一建议使用完整前缀；纠错使用宽容版（只列机械书写习惯）。
+    for (const context of contexts.slice(0, 2)) {
+      expect(`${context.instruction ?? ""}\n${context.prompt}`).toContain("技术术语保留英文原文");
+    }
+    // 本地 GEC 走 GBNF 纠错通道，没有指令注入位；其误报过滤与风格建议由结果层完成。
+    expect(`${contexts[2]!.instruction ?? ""}`).not.toContain("技术术语保留英文原文");
+  });
+
   it("positive control: a verified workspace does inject its own profile", async () => {
-    const { resolveMergedStyleProfile } =
-      await import("../../../src/app/ai/style-learning/style-learning-store");
     const linked = resolveMergedStyleProfile(
       { ...profile, workspaces: [{ ...profile.workspaces[0]!, linkState: "linked" }] },
       "/notes",
@@ -170,8 +189,6 @@ describe("I-16: an unlinked workspace contributes no workspace profile", () => {
   it("merges only the global layer for an unlinked workspace", async () => {
     const { service, contexts } = recordingService();
     // 失去关联：verifiedRoot 为 null，工作区画像不参与合并。
-    const { resolveMergedStyleProfile } =
-      await import("../../../src/app/ai/style-learning/style-learning-store");
     const merged = resolveMergedStyleProfile(profile, "/notes", null);
     expect(merged?.rules.map((rule) => rule.dimension)).toEqual(["cjkLatinSpacing"]);
 

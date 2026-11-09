@@ -16,6 +16,7 @@ import {
   loadStyleProfile,
 } from "./style-learning-host";
 import { clearPendingEditFeedback } from "./edit-feedback-buffer";
+import { notifyStyleLearningChanged } from "./style-exclusions";
 import { useStyleLearningStore } from "./style-learning-store";
 
 export function useStyleLearningData(enabled: boolean): void {
@@ -37,9 +38,11 @@ export function useStyleLearningData(enabled: boolean): void {
         }
         useStyleLearningStore.getState().setProfile(event.payload);
       }),
-      listen<StyleExclusionsDocument>(STYLE_EXCLUSIONS_CHANGED_EVENT, (event) =>
-        useStyleLearningStore.getState().setExclusions(event.payload),
-      ),
+      listen<StyleExclusionsDocument>(STYLE_EXCLUSIONS_CHANGED_EVENT, (event) => {
+        useStyleLearningStore.getState().setExclusions(event.payload);
+        // 设置窗口的排除/恢复也要唤醒学习（主窗口的本地修改已经通知过协调器）。
+        notifyStyleLearningChanged();
+      }),
     ];
     return () => {
       cancelled = true;

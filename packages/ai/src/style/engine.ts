@@ -11,6 +11,7 @@
 import { createLocalAffinityKey } from "../app/request-scheduler.ts";
 import { STANDARD_LOCAL_MODEL_ID } from "../domain/settings.ts";
 import { applyObservations, observeGlobal, observeSamples, withEditFeedback } from "./aggregate.ts";
+import { recomputeWorkspaceLayers } from "./recompute.ts";
 import { summarizeEditFeatures } from "./edit-feedback.ts";
 import {
   buildStyleClassifyRequest,
@@ -201,12 +202,10 @@ export class StyleLearningEngine {
         changesSinceRound: base.changesSinceRound + diff.changed,
       };
       if (diff.removed > 0 && next.roundCount > 0) {
-        next = {
-          ...next,
-          rules: applyObservations(next.rules, observeSamples(next.samples, next.roundCount), {
-            replaceLatest: true,
-          }),
-        };
+        // 与排除路径共用同一套重算：工作区规则与全局层一起更新。
+        next = recomputeWorkspaceLayers(upsertWorkspace(document, next), next.id).workspaces.find(
+          (entry) => entry.id === next.id,
+        )!;
       }
       document = upsertWorkspace(document, next);
       const changed = diff.changed > 0 || isNew || Boolean(relinked) || touched.size > 0;
