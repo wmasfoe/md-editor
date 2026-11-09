@@ -14,11 +14,13 @@ use super::{
     },
     types::{MarkdownFileTreeNode, MarkdownFileTreeNodeKind, MarkdownFolder},
 };
+use crate::style_learning::StyleLearningScope;
 
 /// 打开本地文件夹对话框并解析返回 Markdown 目录树结构。
 #[tauri::command]
 pub(crate) async fn open_markdown_folder(
     app: tauri::AppHandle,
+    style_scope: tauri::State<'_, StyleLearningScope>,
 ) -> Result<Option<MarkdownFolder>, String> {
     let selected = app
         .dialog()
@@ -35,6 +37,8 @@ pub(crate) async fn open_markdown_folder(
         .map_err(|error| format!("Selected folder path is not readable: {error}"))?;
     let path = canonicalize_existing_path(&path_to_string(&path), "root folder").unwrap_or(path);
     let _ = allow_asset_directory(&app, &path);
+    // 风格学习只允许读取用户当前打开的工作区。
+    style_scope.set_root(&path);
     Ok(Some(build_markdown_folder(&path)?))
 }
 
@@ -42,10 +46,13 @@ pub(crate) async fn open_markdown_folder(
 #[tauri::command]
 pub(crate) fn refresh_markdown_folder(
     app: tauri::AppHandle,
+    style_scope: tauri::State<'_, StyleLearningScope>,
     root_path: String,
 ) -> Result<MarkdownFolder, String> {
     let root = canonicalize_existing_path(&root_path, "root folder")?;
     let _ = allow_asset_directory(&app, &root);
+    // 会话恢复时前端通过刷新重新打开上次的工作区，同样登记为学习范围。
+    style_scope.set_root(&root);
     build_markdown_folder(&root)
 }
 
