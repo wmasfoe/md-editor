@@ -44,11 +44,30 @@ const relocated = () => ({
       linkState: "linked" as const,
       relinkedFrom: { rootPath: "/notes/old", at: "2026-11-09T00:00:00Z" },
       samples: [],
-      rules: [],
-      roundCount: 1,
+      rules: [
+        {
+          dimension: "formality" as const,
+          value: "formal",
+          status: "active" as const,
+          rounds: [{ round: 2, value: "formal", supportSampleIds: ["s1", "s2", "s3", "s4", "s5"] }],
+        },
+      ],
+      roundCount: 2,
       changesSinceRound: 0,
     },
   ],
+  // 全局层带着这个工作区的证据：撤销后必须被重算掉。
+  global: {
+    roundCount: 2,
+    rules: [
+      {
+        dimension: "formality" as const,
+        value: "formal",
+        status: "active" as const,
+        rounds: [{ round: 2, value: "formal", supportSampleIds: ["ws-1:s1"] }],
+      },
+    ],
+  },
 });
 
 beforeEach(() => {
@@ -85,6 +104,11 @@ describe("I-6: relink notice offers undo", () => {
     });
     // 排除列表跟着回到原目录。
     expect(useStyleLearningStore.getState().exclusions.workspaces["/notes/old"]).toEqual(["diary"]);
+    // 撤销必须真的重算全局层：失去关联的工作区不能再支撑全局规则。
+    const globalRule = useStyleLearningStore
+      .getState()
+      .profile!.global.rules.find((rule) => rule.dimension === "formality")!;
+    expect(globalRule.status).not.toBe("active");
   });
 
   it("a plain toast has no action", () => {

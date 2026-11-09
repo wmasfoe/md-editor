@@ -12,7 +12,7 @@ import { desktopLocalAiBridge, onLocalAiUse, readLocalAiModelStatus } from "../l
 import { runtime } from "../../runtime/editor-runtime";
 import { useAppSettings } from "../../settings-context";
 import { useFileTreeStore } from "../../stores/file-tree-store";
-import { useDesktopEditorActions } from "../../context/DesktopEditorActionsContext";
+import type { DesktopEditorActions } from "../../context/DesktopEditorActionsContext";
 import { useToastStore } from "../../stores/toast-store";
 import { listenToFolderChanged } from "../../../desktop/folder-watcher-events";
 import { createDesktopStyleLearningHost, updateStyleProfile } from "./style-learning-host";
@@ -70,13 +70,19 @@ async function verifyStyleWorkspace(rootPath: string, signal: AbortSignal): Prom
   return (await createStyleLearningEngine(rootPath)).verifyWorkspace(signal);
 }
 
-export function useStyleLearning(): void {
+/**
+ * @param actions 主窗口的编辑器动作。由调用方显式传入：`useStyleLearning` 挂在
+ * `DesktopEditorActionsContext` 的 Provider 之上，不能从 context 里读（读到的永远是 null）。
+ */
+export function useStyleLearning(
+  actions: Pick<DesktopEditorActions, "openDocumentFromTree">,
+): void {
   const { t } = useTranslation();
   const { settings } = useAppSettings();
   const rootPath = useFileTreeStore((state) => state.folder?.rootPath ?? null);
   const coordinatorRef = useRef<StyleLearningCoordinator | null>(null);
   const enabled = settings.ai.styleLearning.enabled;
-  const { openDocumentFromTree } = useDesktopEditorActions();
+  const openDocumentFromTree = actions.openDocumentFromTree;
 
   // 创建协调器（主窗口生命周期内只有一个）。
   useEffect(() => {

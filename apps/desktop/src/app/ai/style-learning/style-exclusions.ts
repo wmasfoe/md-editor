@@ -9,6 +9,7 @@
 import {
   isUserStyleExcluded,
   recomputeStyleRound,
+  recomputeWorkspaceLayers,
   undoStyleRelink,
   type StyleExclusionsDocument,
 } from "@md-editor/ai/style";
@@ -162,7 +163,8 @@ export async function undoStyleRelinkTo(
       ...latest,
       workspaces: undoStyleRelink(latest.workspaces, profileId, new Date().toISOString()),
     };
-    return recomputeStyleRound(undone, profileId);
+    // 撤销没有“排除项”，必须用无条件重算：否则失去关联的工作区证据仍留在全局规则里。
+    return recomputeWorkspaceLayers(undone, profileId);
   });
   useStyleLearningStore.getState().setProfile(next);
   await moveStyleExclusions(currentRoot, previousRoot);
