@@ -102,6 +102,68 @@ describe("--theme-* 变量契约一致性", () => {
   });
 });
 
+describe("样式注入位置：作者样式可以覆盖渲染器", () => {
+  it("插在已有 style/link 之前，后出现的自定义规则在同特异性下胜出", async () => {
+    const { EDITOR_STYLE_ELEMENT_ID, injectEditorStyles } =
+      await import("../../src/styles/index.ts");
+
+    interface FakeNode {
+      tagName: string;
+      id: string;
+      textContent: string | null;
+      setAttribute(name: string, value: string): void;
+    }
+    const children: FakeNode[] = [];
+    const make = (tagName: string, id = ""): FakeNode => ({
+      tagName,
+      id,
+      textContent: null,
+      setAttribute(name: string, value: string) {
+        if (name === "id") this.id = value;
+      },
+    });
+    children.push(make("META"), make("LINK", "app-css"), make("STYLE", "md-editor-custom-theme"));
+
+    const head = {
+      children,
+      append(node: FakeNode) {
+        children.push(node);
+      },
+      insertBefore(node: FakeNode, anchor: FakeNode) {
+        const index = children.indexOf(anchor);
+        children.splice(index < 0 ? children.length : index, 0, node);
+      },
+    };
+    const doc = {
+      createElement: (tag: string) => make(tag),
+      head,
+      getElementById: (id: string) => children.find((node) => node.id === id) ?? null,
+    };
+
+    injectEditorStyles({ document: doc as unknown as Document });
+
+    expect(children.map((node) => node.id)).toEqual([
+      "",
+      EDITOR_STYLE_ELEMENT_ID,
+      "app-css",
+      "md-editor-custom-theme",
+    ]);
+  });
+
+  it("选区背景不使用 !important，宿主的 !important 可以覆盖", () => {
+    const unfocused = EDITOR_STYLE_CSS.match(
+      /\.cm-md-editor\.cm-editor \.cm-selectionBackground,/u,
+    );
+    const focused = EDITOR_STYLE_CSS.match(
+      /\.cm-md-editor\.cm-editor\.cm-focused > \.cm-scroller > \.cm-selectionLayer \.cm-selectionBackground \{[^}]*\}/u,
+    );
+    expect(unfocused).not.toBeNull();
+    expect(focused?.[0]).not.toMatch(/!important/u);
+    // 聚焦规则必须高于 CM6 的 (0,5,0)，否则去掉 !important 后会被 baseTheme 盖住。
+    expect(specOf(focused?.[0]?.split("{")[0] ?? "").b).toBeGreaterThanOrEqual(6);
+  });
+});
+
 describe("样式注入幂等性", () => {
   it("重复调用只产生一个 style 元素", async () => {
     const { ensureStyleElement } = await import("../../src/styles/create-style-tag.ts");

@@ -81,6 +81,12 @@ fn main() {
     expect(result.html).toContain("fn");
   });
 
+  it("renders danger/caution x-circle icons with evenodd so the X is cut out", () => {
+    const result = renderStaticHtml("> [!CAUTION]\n> Stop.");
+    expect(result.html).toContain('fill-rule="evenodd"');
+    expect(result.html).toContain('class="cm-callout cm-callout--caution"');
+  });
+
   it("renders GFM Alert callouts with SVG icons and default titles", () => {
     const calloutMd = `> [!NOTE]
 > This is an important note for Inkpoint.`;

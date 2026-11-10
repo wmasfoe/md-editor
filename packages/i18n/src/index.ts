@@ -9,11 +9,7 @@ declare module "i18next" {
   }
 }
 
-import {
-  useTranslation as useReactI18nextTranslation,
-  type UseTranslationOptions,
-  type UseTranslationResponse,
-} from "react-i18next";
+import { useTranslation as useReactI18nextTranslation } from "react-i18next";
 
 import { ensureI18nInitialized } from "./i18n";
 
@@ -26,13 +22,13 @@ import { ensureI18nInitialized } from "./i18n";
  *
  * 宿主用 `configureI18n({ instance })` 接管后，本包装层不做任何额外工作。
  */
-export function useTranslation(
+export const useTranslation = ((
   namespace?: Parameters<typeof useReactI18nextTranslation>[0],
-  options?: UseTranslationOptions<undefined>,
-): UseTranslationResponse<"translation", undefined> {
+  options?: Parameters<typeof useReactI18nextTranslation>[1],
+) => {
   ensureI18nInitialized();
   return useReactI18nextTranslation(namespace, options);
-}
+}) as typeof useReactI18nextTranslation;
 
 export { Trans, I18nextProvider } from "react-i18next";
 export {

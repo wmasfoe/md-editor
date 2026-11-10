@@ -15,10 +15,6 @@
 import type { SyntaxPluginHostPorts } from "@md-editor/plugin-sdk/syntax";
 
 import { CalloutFooterWidget, CalloutHeaderWidget } from "../wysiwyg/widgets/callout-widget.ts";
-import {
-  readDelimiterNeighbors,
-  resolveCjkFriendlyDelimiterSides,
-} from "@md-editor/plugin-sdk/syntax";
 import { closeMediaViewerFor, openMediaViewer } from "../media-viewer/index.ts";
 
 /**
@@ -31,8 +27,5 @@ export function createDefaultSyntaxPluginHostPorts(): SyntaxPluginHostPorts {
     createCalloutHeaderWidget: ({ type, title, recordId }) =>
       new CalloutHeaderWidget(type, title, recordId),
     createCalloutFooterWidget: () => new CalloutFooterWidget(),
-    resolveDelimiterSides: (marker, neighbors) =>
-      resolveCjkFriendlyDelimiterSides(marker, neighbors),
-    readDelimiterNeighbors: (cx, start, end) => readDelimiterNeighbors(cx, start, end),
   };
 }

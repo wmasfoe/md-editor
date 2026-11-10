@@ -1,7 +1,7 @@
 import type { BlockToken, InlineToken, ListItemToken, StaticToken } from "../tokens/types.ts";
 import { escapeHtml, highlightCode } from "./highlight-code.ts";
 import { renderMathToString } from "./math-render.ts";
-import { getCalloutSvg } from "@md-editor/plugin-sdk/syntax";
+import { getCalloutSvg } from "@md-editor/plugin-sdk/callout";
 import type { StaticCustomRenderer } from "./custom-renderer.ts";
 import { generateLegacyHeadingSlug } from "../parser/tokenizer.ts";
 

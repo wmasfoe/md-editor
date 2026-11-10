@@ -1,4 +1,4 @@
-import { changeLanguage, useTranslation } from "@md-editor/i18n";
+import { changeLanguage, configureI18n, useTranslation } from "@md-editor/i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createDocumentState, switchEditorModeSafely } from "@md-editor/editor-core";
@@ -11,6 +11,9 @@ import * as lezerMarkdown from "@lezer/markdown";
 import * as lezerCommon from "@lezer/common";
 import "../styles.css";
 import "./guest.css";
+
+// 预览页是独立文档，不经过 App.tsx。lint 文案按 documentElement.lang 选语言。
+configureI18n({ syncDocumentLang: true });
 
 type Syntax = Parameters<PluginContext["syntax"]["register"]>[0];
 type Command = Parameters<PluginContext["commands"]["register"]>[0];

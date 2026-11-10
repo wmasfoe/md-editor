@@ -1,4 +1,4 @@
-import type { InlineContext, MarkdownConfig } from "@lezer/markdown";
+import type { MarkdownConfig } from "@lezer/markdown";
 import { Facet, type EditorState, type Range } from "@codemirror/state";
 import type { Decoration, WidgetType } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
@@ -301,7 +301,10 @@ export interface MarkdownNodePolicy {
 
 /**
  * Callout（GFM Alert / Container Directive）图标与默认标题。
- * 纯数据层，无 CodeMirror/DOM 依赖，供 renderer / syntax-plugins / compiler 共用。
+ * 纯数据层，无 CodeMirror/DOM 依赖。
+ *
+ * compiler 请从 `@md-editor/plugin-sdk/callout` 导入：本入口顶层会执行
+ * `Facet.define`，导入它会把 `@codemirror/state` 拉进导出器。
  */
 export { CALLOUT_SVG_ICONS, defaultCalloutTitle, getCalloutSvg } from "./callout-data.ts";
 
@@ -317,6 +320,9 @@ export {
   cjkFriendlyStrikethroughMarkdownExtension,
   readDelimiterNeighbors,
   resolveCjkFriendlyDelimiterSides,
+  type DelimiterMarker,
+  type DelimiterNeighbors,
+  type DelimiterSides,
 } from "./cjk-flanking.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -405,44 +411,6 @@ export interface SyntaxPluginHostPorts {
   }) => WidgetType;
   /** 创建 Callout 尾部 widget（隐藏闭合标记的占位）。 */
   readonly createCalloutFooterWidget?: () => WidgetType;
-  /**
-   * CJK 友好的定界符 flanking 判定。
-   *
-   * 以**函数值**注入而非模块导出：该判定依赖 `micromark-extension-cjk-friendly-util`
-   * 运行期分类器，而本 SDK 的架构边界是「只含类型 + identity helper，零运行期依赖」
-   * （见 `tests/boundary.test.ts`）。宿主渲染器持有实现，插件按值取用。
-   *
-   * 未提供时，插件应回退到 CommonMark 原生 flanking 规则（CJK 紧邻标点的强调会解析失败）。
-   */
-  readonly resolveDelimiterSides?: (
-    marker: DelimiterMarker,
-    neighbors: DelimiterNeighbors,
-  ) => DelimiterSides;
-  /** 从 Lezer `InlineContext` 读取定界符两侧码点；与 `resolveDelimiterSides` 配套使用。 */
-  readonly readDelimiterNeighbors?: (
-    cx: InlineContext,
-    start: number,
-    end: number,
-  ) => DelimiterNeighbors;
-}
-
-/** 定界符种类：`_` 额外禁止词内开合，其余（`*`、`~`、插件自定义 `=`）只做 flanking 判定。 */
-export type DelimiterMarker = "*" | "_" | "~" | "=";
-
-/** 定界符两侧的相邻码点。 */
-export interface DelimiterNeighbors {
-  /** 紧邻定界符之前的码点；行首为 `null`。 */
-  readonly before: number | null;
-  /** 再往前一个码点；用于识别「标点/CJK + 变体选择符」序列，不足时为 `null`。 */
-  readonly beforePrevious: number | null;
-  /** 紧邻定界符之后的码点；行尾为 `null`。 */
-  readonly after: number | null;
-}
-
-/** 定界符的开合能力。 */
-export interface DelimiterSides {
-  readonly canOpen: boolean;
-  readonly canClose: boolean;
 }
 
 /**

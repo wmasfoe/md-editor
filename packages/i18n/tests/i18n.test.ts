@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   changeLanguage,
   configureI18n,
@@ -246,5 +246,27 @@ describe("configureI18n({ instance })：宿主接管", () => {
     } finally {
       configureI18n({ instance: undefined });
     }
+  });
+
+  it("restores the built-in instance after a host instance is cleared", async () => {
+    vi.resetModules();
+    const {
+      changeLanguage: change,
+      configureI18n: configure,
+      t: translate,
+    } = await import("../src/i18n.ts");
+    const { createInstance } = await import("i18next");
+    const host = createInstance();
+    await host.init({
+      resources: { en: { translation: { greeting: "HOST-ONLY" } } },
+      lng: "en",
+    });
+
+    configure({ instance: host });
+    expect(translate("greeting")).toBe("HOST-ONLY");
+
+    configure({ instance: undefined });
+    await change("en");
+    expect(translate("pluginPreview.title")).toBe("Plugin playground");
   });
 });

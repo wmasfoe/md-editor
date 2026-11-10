@@ -89,7 +89,7 @@ export {
   CALLOUT_SVG_ICONS,
   getCalloutSvg,
   defaultCalloutTitle,
-} from "@md-editor/plugin-sdk/syntax";
+} from "@md-editor/plugin-sdk/callout";
 export {
   SUPPORTED_LANGUAGE_METAS,
   resolveLanguageAlias,

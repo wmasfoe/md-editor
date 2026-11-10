@@ -29,6 +29,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./syntax": "./src/syntax.ts",
+    "./callout": "./src/callout-data.ts",
     "./mdx": "./src/mdx.ts"
   },
   "scripts": {
@@ -79,6 +80,10 @@
       "./syntax": {
         "types": "./dist/syntax.d.ts",
         "default": "./dist/syntax.js"
+      },
+      "./callout": {
+        "types": "./dist/callout-data.d.ts",
+        "default": "./dist/callout-data.js"
       },
       "./mdx": {
         "types": "./dist/mdx.d.ts",

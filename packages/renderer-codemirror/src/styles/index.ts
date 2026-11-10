@@ -15,6 +15,13 @@
  *
  * ## 宿主如何覆盖
  *
+ * 样式插在 `<head>` 里第一个 `style` / `link` 之前，后出现的作者样式
+ * （应用 CSS、`#md-editor-custom-theme`）在同特异性下胜出。
+ * 保持无 cascade layer：CodeMirror 的 baseTheme 是后注入的无层样式，
+ * 放进 layer 后会被它盖掉，特异性阶梯就失效了。
+ * 选区背景不标 `!important`，宿主可以用更低特异性的 `!important` 覆盖
+ * （例如 utools 的 `.code-mirror-editor-host .cm-selectionBackground`）。
+ *
  * - 只想换配色：按 `theme-variables.ts` 的契约提供 `--theme-*` 变量即可（全部有 fallback）。
  * - 想完全接管样式：`createCodeMirrorRenderer({ injectStyles: false })`，然后自行引入
  *   `EDITOR_STYLE_CSS` 或写自己的规则。

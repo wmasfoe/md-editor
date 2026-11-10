@@ -22,6 +22,10 @@ export interface StyleElementPort {
 export interface StyleInjectionPort {
   getElementById(id: string): StyleElementPort | null;
   createStyleElement(): StyleElementPort;
+  /**
+   * 把 `<style>` 放进文档。
+   * 浏览器端口插在第一个 `style` / `link` 之前，让后出现的作者样式在同特异性下胜出。
+   */
   appendToHead(node: StyleElementPort): void;
 }
 
@@ -69,9 +73,29 @@ export function createDocumentStylePort(doc: Document): StyleInjectionPort {
       typeof doc.getElementById === "function" ? doc.getElementById(id) : null,
     createStyleElement: () => doc.createElement("style"),
     appendToHead: (node) => {
-      doc.head.append(node as unknown as Node);
+      // 插到已有样式表前面：编辑器往往晚于主题挂载，若 append 到 head 末尾，
+      // 同特异性的用户 CSS（含 #md-editor-custom-theme）会被渲染器盖掉。
+      mountBeforeAuthorStyles(doc.head, node as unknown as Node);
     },
   };
+}
+
+/**
+ * 把样式节点插到 head 里第一个 `style` / `link` 之前。
+ * 没有作者样式表时退回 append。`children` 或 `insertBefore` 缺失（单测 mock）时同样 append。
+ */
+function mountBeforeAuthorStyles(head: HTMLElement, node: Node): void {
+  const children = head.children;
+  if (children && typeof head.insertBefore === "function") {
+    for (const child of Array.from(children)) {
+      const tag = child.tagName?.toUpperCase();
+      if (tag === "STYLE" || tag === "LINK") {
+        head.insertBefore(node, child);
+        return;
+      }
+    }
+  }
+  head.append(node);
 }
 
 /**

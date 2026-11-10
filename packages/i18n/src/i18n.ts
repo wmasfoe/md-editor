@@ -23,7 +23,8 @@ export const resources = {
   },
 } as const;
 
-let isInitialized = false;
+/** 自带实例是否已经 init。与宿主注入的实例无关。 */
+let ownInstanceInitialized = false;
 
 /**
  * 宿主可配置项。
@@ -62,15 +63,18 @@ let configuration: I18nConfiguration = {};
  */
 export function configureI18n(next: I18nConfiguration): void {
   configuration = { ...configuration, ...next };
+  if (!("instance" in next)) return;
   if (next.instance) {
     // 让 react-i18next 认这个实例：`useTranslation` 内部走 `getI18n()`，
     // 只有 `initReactI18next.init()` 会把它登记为默认实例；否则组件会渲染出原始 key。
-    // 同时用 `i18n.use()` 让实例完成 3rdParty 初始化。
     // `use()` 会把插件排进 i18next 的异步初始化队列，未必立刻生效；
     // 直接调用插件的 `init` 才能保证同步登记（这正是 `use()` 最终做的事）。
     initReactI18next.init(next.instance);
-    isInitialized = true;
+    return;
   }
+  // 显式清掉宿主实例时，把 react-i18next 绑回自带实例（若它已经 init）。
+  // 不把「宿主接管」记成自带实例已初始化，否则还原后 `t()` 会一直返回原始 key。
+  if (ownInstanceInitialized) initReactI18next.init(i18n);
 }
 
 /** 当前生效的 i18n 实例（宿主注入的优先，否则为本包自带实例）。 */
@@ -83,7 +87,7 @@ export function ensureI18nInitialized(initialLocale?: LanguageSetting): I18nInst
   if (configuration.instance) {
     return configuration.instance;
   }
-  if (!isInitialized) {
+  if (!ownInstanceInitialized) {
     const activeLocale = resolveActiveLocale(initialLocale ?? detectSystemLocale());
     void i18nUse(initReactI18next).init({
       resources,
@@ -96,7 +100,7 @@ export function ensureI18nInitialized(initialLocale?: LanguageSetting): I18nInst
         useSuspense: false,
       },
     });
-    isInitialized = true;
+    ownInstanceInitialized = true;
   }
   return i18n;
 }

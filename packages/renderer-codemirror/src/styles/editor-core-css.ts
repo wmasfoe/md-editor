@@ -74,8 +74,12 @@ export const coreEditorCss = String.raw`
     max(5.5rem, calc((100% - var(--theme-content-width, 860px)) / 2)) 999999px
   );
 }
-.cm-md-editor.cm-editor .cm-selectionBackground {
-  background: var(--theme-primary-selected, rgba(9, 105, 218, 0.24)) !important;
+/* 选区色不标 important，宿主的 important 规则可以覆盖。
+   未聚焦 (0,3,0) 高于 CM6 baseTheme 的 (0,2,0)。
+   聚焦时 CM6 是 (0,5,0)，下一条 (0,6,0) 盖过它。 */
+.cm-md-editor.cm-editor .cm-selectionBackground,
+.cm-md-editor.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--theme-primary-selected, rgba(9, 105, 218, 0.24));
 }
 .cm-md-editor.cm-editor .cm-cursor {
   border-left-color: var(--theme-text, currentColor);
