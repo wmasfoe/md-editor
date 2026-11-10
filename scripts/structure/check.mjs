@@ -100,6 +100,10 @@ export const PHASE_RULES = {
     "wysiwygDomains",
     "splitTargets",
     "rendererCluster",
+    "declaredWorkspaceDeps",
+    "tailwindSourceEntry",
+    "syntaxPluginsIndependence",
+    "noTopLevelSideEffects",
   ],
 };
 
@@ -520,6 +524,322 @@ export function checkSplitTargets({ root }) {
   return { failures, warnings: [] };
 }
 
+/**
+ * 收集一个源文件里对 `@md-editor/*` 的导入，并判定是否**纯类型导入**。
+ *
+ * 纯类型导入在编译期被擦除，不进运行期产物，因此允许只声明在 `devDependencies`；
+ * 值导入（含副作用导入、动态 import、require）必须声明在 `dependencies` 或
+ * `peerDependencies`，否则消费方安装后会在运行期解析失败。
+ *
+ * 判据：
+ * - `import type { X } from "m"`         → 纯类型
+ * - `import { type A, type B } from "m"` → 纯类型（全部具名都带 `type` 前缀）
+ * - 其余 `import` / `import()` / `require()` → 值导入
+ */
+export function collectWorkspaceImports(file) {
+  const content = readFileSync(file, "utf8");
+  const results = [];
+
+  for (const match of content.matchAll(/import\s+type\s+[^;]*?from\s+["']([^"']+)["']/gu)) {
+    results.push({ specifier: match[1], typeOnly: true });
+  }
+  for (const match of content.matchAll(/import\s*\{([^}]*)\}\s*from\s+["']([^"']+)["']/gu)) {
+    const names = match[1]
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    const allTypeOnly = names.length > 0 && names.every((name) => /^type\s/u.test(name));
+    results.push({ specifier: match[2], typeOnly: allTypeOnly });
+  }
+  for (const match of content.matchAll(/import\s+(?!type\s)[^;{]*?from\s+["']([^"']+)["']/gu)) {
+    results.push({ specifier: match[1], typeOnly: false });
+  }
+  for (const match of content.matchAll(/import\s*["']([^"']+)["']/gu)) {
+    results.push({ specifier: match[1], typeOnly: false });
+  }
+  for (const match of content.matchAll(/import\s*\(\s*["']([^"']+)["']\s*\)/gu)) {
+    results.push({ specifier: match[1], typeOnly: false });
+  }
+  for (const match of content.matchAll(/require\s*\(\s*["']([^"']+)["']\s*\)/gu)) {
+    results.push({ specifier: match[1], typeOnly: false });
+  }
+  // 重导出同样是运行期依赖：`export * from "x"` / `export { a } from "x"`。
+  // `export type { T } from "x"` 是纯类型，可放 devDependencies。
+  for (const match of content.matchAll(/export\s+type\s+[^;]*?from\s+["']([^"']+)["']/gu)) {
+    results.push({ specifier: match[1], typeOnly: true });
+  }
+  for (const match of content.matchAll(/export\s*\{([^}]*)\}\s*from\s+["']([^"']+)["']/gu)) {
+    const names = match[1]
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    const allTypeOnly = names.length > 0 && names.every((name) => /^type\s/u.test(name));
+    results.push({ specifier: match[2], typeOnly: allTypeOnly });
+  }
+  for (const match of content.matchAll(/export\s*\*\s*(?:as\s+\w+\s*)?from\s+["']([^"']+)["']/gu)) {
+    results.push({ specifier: match[1], typeOnly: false });
+  }
+
+  return results;
+}
+
+/**
+ * 规则：每个 workspace 必须声明它实际 import 的 `@md-editor/*` 包。
+ *
+ * 背景：monorepo 里跨包 import 若只靠 pnpm 的解析能力而不写进 package.json，
+ * 在切换 linker 模式、改 hoisting、或单包发包时会直接解析失败。声明即契约。
+ *
+ * 分档：
+ * - `src/**` 的值导入 → 必须在 `dependencies` 或 `peerDependencies`
+ * - `src/**` 的纯类型导入 → 允许只出现在 `devDependencies`
+ * - `tests/**` 的导入 → 任一依赖字段即可
+ */
+export function checkDeclaredWorkspaceDeps({ root, directories = workspaceDirs(root) }) {
+  const failures = [];
+
+  for (const { name, dir } of directories) {
+    const pkgPath = join(dir, "package.json");
+    if (!existsSync(pkgPath)) continue;
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    const runtime = new Set([
+      ...Object.keys(pkg.dependencies ?? {}),
+      ...Object.keys(pkg.peerDependencies ?? {}),
+    ]);
+    const devOnly = new Set(Object.keys(pkg.devDependencies ?? {}));
+
+    // 扫描域：标准 `src/`、`tests/`，以及 Next.js 风格的 `app/`/`components/`/`lib/`
+    // （apps/site 没有 src/，只有这三者——早期只扫 src/tests 导致它完全漏检）。
+    for (const area of ["src", "tests", "app", "components", "lib"]) {
+      const areaDir = join(dir, area);
+      if (!existsSync(areaDir)) continue;
+      for (const file of walkFiles(areaDir, isSourceFile)) {
+        const rel = `${name}/${relative(dir, file).split(sep).join("/")}`;
+        for (const { specifier, typeOnly } of collectWorkspaceImports(file)) {
+          if (!specifier.startsWith("@md-editor/")) continue;
+          const dependency = specifier.split("/").slice(0, 2).join("/");
+          if (dependency === pkg.name) continue;
+          const declaredAtRuntime = runtime.has(dependency);
+          const declaredAnywhere = declaredAtRuntime || devOnly.has(dependency);
+
+          // 只有 `tests/` 是测试域（可放宽到 devDependencies）；其余扫描域都是运行期代码。
+          if (area !== "tests") {
+            if (declaredAtRuntime) continue;
+            if (typeOnly && declaredAnywhere) continue;
+            failures.push(
+              typeOnly
+                ? `${rel}: 类型导入 ${dependency} 未在 dependencies/devDependencies 声明`
+                : `${rel}: 值导入 ${dependency} 未在 dependencies 或 peerDependencies 声明`,
+            );
+          } else if (!declaredAnywhere) {
+            failures.push(`${rel}: 测试导入 ${dependency} 未在任何依赖字段声明`);
+          }
+        }
+      }
+    }
+  }
+
+  return { failures, warnings: [] };
+}
+
+/**
+ * 规则：Tailwind 扫描源必须经由共享入口登记，且不得手抄 `@source`。
+ *
+ * 背景：Tailwind v4 默认不扫描 `node_modules`，而 workspace 包经 pnpm 链接后位于各 app
+ * 的 `node_modules/@md-editor/*`。因此每个用到 `@md-editor/editor-ui` 的 app 必须显式登记
+ * 扫描源，否则该包内的工具类不会生成 CSS，界面静默缺失样式。
+ *
+ * 历史缺陷：四个 app 各自手抄一行 `@source "../../../packages/editor-ui/src";`，
+ * 而 `apps/site` 漏抄——因为 site 当时只用纯 CSS 类组件，样式缺失被掩盖。
+ * 手抄仪式本身才是根因：新增第五个 app 时必然再漏一次。
+ *
+ * 契约：
+ * 1. 引入 Tailwind 的 app 必须 `@import "@md-editor/editor-ui/tailwind-sources.css"`；
+ * 2. 任何 app 的 CSS 不得直接写 `@source`（扫描源只在共享文件里维护）；
+ * 3. 共享文件自身必须恰好包含一处 `@source`。
+ */
+export const TAILWIND_SHARED_SOURCES_IMPORT = "@md-editor/editor-ui/tailwind-sources.css";
+
+export function checkTailwindSourceEntry({ root, directories = workspaceDirs(root) }) {
+  const failures = [];
+  const cssFiles = (dir) => walkFiles(dir, (file) => file.endsWith(".css"));
+
+  for (const { name, dir } of directories) {
+    const pkgPath = join(dir, "package.json");
+    if (!existsSync(pkgPath)) continue;
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
+    const usesTailwind = Object.keys(allDeps).some((dep) => dep === "tailwindcss");
+    if (!usesTailwind) continue;
+
+    const files = [...cssFiles(join(dir, "src")), ...cssFiles(join(dir, "app"))];
+    if (files.length === 0) continue;
+
+    let importsShared = false;
+    for (const file of files) {
+      const rel = `${name}/${relative(dir, file).split(sep).join("/")}`;
+      const content = readFileSync(file, "utf8");
+
+      // 禁止手抄 @source（扫描源集中在共享文件）
+      for (const match of content.matchAll(/^\s*@source\s+(?!inline\()([^;]+);/gmu)) {
+        failures.push(
+          `${rel}: 不得直接写 @source（${match[1].trim()}）；扫描源统一在 ${TAILWIND_SHARED_SOURCES_IMPORT}`,
+        );
+      }
+
+      if (content.includes(`@import "${TAILWIND_SHARED_SOURCES_IMPORT}"`)) importsShared = true;
+    }
+
+    if (!importsShared) {
+      failures.push(
+        `${name}: 使用 tailwindcss 但未引入共享扫描源入口（@import "${TAILWIND_SHARED_SOURCES_IMPORT}"）`,
+      );
+    }
+  }
+
+  // 共享文件自身：必须恰好一处 @source，且指向 ../src
+  const sharedPath = join(root, "packages/editor-ui/styles/tailwind-sources.css");
+  if (!existsSync(sharedPath)) {
+    failures.push("packages/editor-ui/styles/tailwind-sources.css: 共享扫描源入口文件缺失");
+  } else {
+    const content = readFileSync(sharedPath, "utf8");
+    const sources = [...content.matchAll(/^\s*@source\s+(?!inline\()([^;]+);/gmu)].map((m) =>
+      m[1].trim(),
+    );
+    if (sources.length !== 1) {
+      failures.push(
+        `packages/editor-ui/styles/tailwind-sources.css: 应恰好包含 1 处 @source，实际 ${sources.length} 处`,
+      );
+    } else if (sources[0] !== '"../src"') {
+      failures.push(
+        `packages/editor-ui/styles/tailwind-sources.css: @source 应指向 "../src"，实际 ${sources[0]}`,
+      );
+    }
+  }
+
+  return { failures, warnings: [] };
+}
+
+/**
+ * 规则：语法插件包不得反向依赖渲染器实现。
+ *
+ * 背景：`@md-editor/renderer-codemirror` 与 `@md-editor/syntax-plugins` 在架构图里是
+ * **并列兄弟**（都只消费 `@md-editor/plugin-sdk` 的语法契约，见
+ * `docs/agent/architecture/markdown_syntax_plugin_architecture.md` §1）。
+ * 插件依赖插件宿主会让第三方插件作者跟着学坏，且渲染器无法独立演进。
+ *
+ * 两类历史成因与对应出路：
+ * 1. **纯函数 / 纯数据**（如 `defaultCalloutTitle`、CJK flanking）→ 上移至
+ *    `@md-editor/plugin-sdk/syntax`；
+ * 2. **宿主能力**（如媒体查看器、Callout widget 工厂）→ 走 `SyntaxPluginHostPorts`
+ *    端口注入（facet），插件从 `state.facet(...)` 取值，不 import 实现。
+ *
+ * `tests/**` 不在本规则范围内：测试需要渲染器提供 `EditorState` 夹具。
+ */
+export const SYNTAX_PLUGINS_NO_RENDERER_IMPORT = [
+  {
+    name: "syntax-plugins",
+    forbidden: /^@md-editor\/renderer-codemirror(?:\/|$)/u,
+    reason: "语法插件包不得依赖渲染器实现（应走 plugin-sdk 契约或 host 端口）",
+  },
+];
+
+export function checkSyntaxPluginsIndependence({ root, directories = workspaceDirs(root) }) {
+  const failures = [];
+
+  for (const rule of SYNTAX_PLUGINS_NO_RENDERER_IMPORT) {
+    const target = directories.find((entry) => entry.name.endsWith(`/${rule.name}`));
+    if (!target) continue;
+    const srcDir = join(target.dir, "src");
+    if (!existsSync(srcDir)) continue;
+
+    for (const file of walkFiles(srcDir, isSourceFile)) {
+      const rel = `${target.name}/${relative(target.dir, file).split(sep).join("/")}`;
+      for (const specifier of moduleSpecifiers(file)) {
+        if (rule.forbidden.test(specifier)) {
+          failures.push(`${rel}: ${rule.reason} → ${specifier}`);
+        }
+      }
+    }
+  }
+
+  return { failures, warnings: [] };
+}
+
+/**
+ * 规则：库模块不得在顶层产生副作用。
+ *
+ * 背景：`import` 一个库不应改动宿主环境。历史缺陷：`@md-editor/i18n` 在模块顶层
+ * 调用 `ensureI18nInitialized()`，后果是任何 `import` 一个编辑器组件的外部宿主
+ * 都会无条件拉入 i18next + react-i18next + 四份语言包，并悄悄改写
+ * `document.documentElement.lang`。
+ *
+ * 判据：文件的**顶层**（不在任何函数/类/接口/对象字面量内）不得出现表达式语句。
+ * 允许的顶层结构：import、export（含 `export const/function/class/type/interface`）、
+ * 声明（`const`/`let`/`function`/`class`/`type`/`interface`/`enum`）、注释、空行。
+ *
+ * 实现方式：逐行跟踪花括号深度，只看深度 0 的非空行；排除声明关键字开头的行。
+ */
+export const NO_TOP_LEVEL_SIDE_EFFECT_FILES = [
+  {
+    path: "packages/i18n/src/i18n.ts",
+    reason:
+      "库模块不得在 import 时初始化 i18n 或改写宿主 document 属性（改为惰性初始化 + configureI18n）",
+  },
+];
+
+/** 顶层允许出现的行首关键字（含修饰后的声明）。 */
+const TOP_LEVEL_DECLARATION =
+  /^(?:import|export|declare|const|let|var|function|class|type|interface|enum|abstract)\b/u;
+
+export function checkNoTopLevelSideEffects({ root }) {
+  const failures = [];
+
+  for (const entry of NO_TOP_LEVEL_SIDE_EFFECT_FILES) {
+    const file = join(root, entry.path);
+    if (!existsSync(file)) continue;
+    const lines = readFileSync(file, "utf8").split("\n");
+    let depth = 0;
+    let inBlockComment = false;
+
+    for (let index = 0; index < lines.length; index += 1) {
+      const raw = lines[index];
+      const line = raw.trim();
+
+      // 粗略处理块注释：注释内容不参与判定。
+      if (inBlockComment) {
+        if (line.includes("*/")) inBlockComment = false;
+        continue;
+      }
+      if (line.startsWith("/*")) {
+        if (!line.includes("*/", 2)) inBlockComment = true;
+        continue;
+      }
+      if (line === "" || line.startsWith("//") || line.startsWith("*")) {
+        continue;
+      }
+
+      const atTopLevel = depth === 0;
+      // 先更新深度，保证 `}` 收尾的行不被误判。
+      const opens = (line.match(/\{/gu) ?? []).length;
+      const closes = (line.match(/\}/gu) ?? []).length;
+      depth += opens - closes;
+
+      if (!atTopLevel) continue;
+      // 多行声明的续行（如 `export const x =` 换行后的表达式）不在本规则范围内，
+      // 因为行首不是关键字；这里只拦「顶层裸调用」这类明确副作用。
+      if (TOP_LEVEL_DECLARATION.test(line)) continue;
+      // 跳过闭合括号行与纯符号行。
+      if (/^[)}\]);,]*$/u.test(line)) continue;
+
+      failures.push(
+        `${entry.path}:${index + 1}: 顶层不得有执行语句 → ${line.slice(0, 80)}（${entry.reason}）`,
+      );
+    }
+  }
+
+  return { failures, warnings: [] };
+}
+
 /** 运行指定阶段的所有规则。 */
 export function runChecks({ root, phase = "pr1" }) {
   const rules = PHASE_RULES[phase];
@@ -535,6 +855,10 @@ export function runChecks({ root, phase = "pr1" }) {
     wysiwygDomains: checkWysiwygDomains,
     rendererCluster: checkRendererCluster,
     splitTargets: checkSplitTargets,
+    declaredWorkspaceDeps: checkDeclaredWorkspaceDeps,
+    tailwindSourceEntry: checkTailwindSourceEntry,
+    syntaxPluginsIndependence: checkSyntaxPluginsIndependence,
+    noTopLevelSideEffects: checkNoTopLevelSideEffects,
   };
   const failures = [];
   const warnings = [];

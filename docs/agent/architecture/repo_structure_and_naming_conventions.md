@@ -51,8 +51,60 @@
 
 1. **禁止冗余回退段**：`a/b/../c.ts` 必须写成 `a/c.ts`（合法的前导 `../../` 不受影响）。
 2. **禁止跨包深导入**：不得 `import ... from "@md-editor/<pkg>/src/..."`；跨包只使用各包 `exports` 中**显式声明**的子路径（如 `@md-editor/editor-ui/hooks`）。
-3. **依赖方向**：`src/**` 不得引用 `tests/**`。
-4. **不留兼容 re-export**：移动文件后直接改所有调用方（AGENTS.md 第 10 条）；组件内部聚合用的 `index.ts` 属模块边界，不算兼容转发。
+3. **必须声明跨包依赖**：`src/**` 里 import 了 `@md-editor/<pkg>` 就必须写进 `package.json`，不得只靠 pnpm 解析器运气。
+   - **值导入**（普通 `import`、副作用导入、动态 `import()`、`require()`）→ 必须出现在 `dependencies` 或 `peerDependencies`；
+   - **纯类型导入**（`import type {...}`，或 `import { type A, type B }` 全部具名带 `type`）→ 允许只出现在 `devDependencies`（编译期擦除，不进运行期产物）；
+   - **混合具名**（同时含值与类型，如 `import { type A, b }`）按**值导入**校验；
+   - `tests/**` 的导入 → 任一依赖字段即可；
+   - 自引用（包 import 自己）不校验。
+
+   理由：monorepo 里只靠解析器能跑通，但切换 linker 模式、调整 hoisting、或将来单包发包时会在消费方运行期解析失败。声明即契约。
+4. **依赖方向**：`src/**` 不得引用 `tests/**`。
+5. **不留兼容 re-export**：移动文件后直接改所有调用方（AGENTS.md 第 10 条）；组件内部聚合用的 `index.ts` 属模块边界，不算兼容转发。
+6. **语法插件不得依赖插件宿主**：`packages/syntax-plugins/src/**` 不得 import
+   `@md-editor/renderer-codemirror`（`tests/**` 除外，测试需要渲染器夹具）。
+
+   两者在架构图里是**并列兄弟**（都只消费 `@md-editor/plugin-sdk` 的语法契约，见
+   [Markdown 语法插件架构](./markdown_syntax_plugin_architecture.md) §1）。插件依赖宿主会让
+   第三方插件作者跟着学坏，也让渲染器无法独立演进。
+
+   两类历史成因与对应出路：
+
+   | 成因 | 出路 |
+   | :--- | :--- |
+   | **纯函数 / 纯数据**（`defaultCalloutTitle`、CJK flanking） | 上移至 `@md-editor/plugin-sdk/syntax` |
+   | **宿主能力**（媒体查看器、Callout widget 工厂） | 走 `SyntaxPluginHostPorts` 端口注入（facet），插件从 `state.facet(...)` 取值 |
+
+   为什么 CJK flanking 必须进 SDK 而不能端口注入：语法插件在 **Lezer 解析期** 运行，
+   `InlineContext` 只暴露 `parser`/`text`/`offset`/`char()`/`end`/`slice()`/`addDelimiter()`，
+   **不暴露 `EditorState`**，因此读不到 facet。该包在 SDK 中是 optional peer。
+
+7. **库模块不得在顶层产生副作用**：`import` 一个库不得改动宿主环境。顶层只允许
+   `import` / `export` / 声明（`const`/`function`/`class`/`type`/`interface`/`enum`）、注释与空行。
+
+   历史缺陷：`@md-editor/i18n` 在模块顶层调用 `ensureI18nInitialized()`。后果是任何
+   `import` 一个编辑器组件的外部宿主都会无条件拉入 i18next + react-i18next + 四份语言包，
+   并悄悄改写 `document.documentElement.lang`。
+
+   正确做法：**惰性初始化**（首次调用 `useTranslation` / `changeLanguage` / `t` 时才 init，
+   幂等），宿主行为通过显式配置开启——如 `configureI18n({ syncDocumentLang: true })`。
+   需要自有 i18n 的宿主可用 `configureI18n({ instance })` 完全接管。
+
+   注意：Markdown lint 的诊断文案按 `document.documentElement.lang` 选择语言
+   （见 `packages/renderer-codemirror/src/lint/markdown-lint-i18n.ts`），
+   因此**带语言切换 UI 的宿主**（desktop / web）必须在启动时开启 `syncDocumentLang`。
+
+8. **Tailwind 扫描源只在共享入口维护**：引入 `tailwindcss` 的 app 必须写
+   `@import "@md-editor/editor-ui/tailwind-sources.css";`，**不得**在自己的 CSS 里直接写 `@source`
+   （`@source inline(...)` safelist 除外）。新增需要扫描的 workspace 包时，改
+   `packages/editor-ui/styles/tailwind-sources.css` 一处即可。
+
+   背景：Tailwind v4 默认不扫描 `node_modules`，而 workspace 包经 pnpm 链接后位于各 app 的
+   `node_modules/@md-editor/*`。`@source` 路径**相对包含它的样式表**解析，所以共享文件里写一次
+   `@source "../src"` 就对所有 import 它的 app 生效。
+
+   历史缺陷：四个 app 各自手抄一行相对路径，`apps/site` 漏抄——当时 site 只用纯 CSS 类组件，
+   样式缺失被掩盖；一旦它引入任何带工具类的组件就会静默丢样式。手抄仪式本身才是根因。
 
 ## 5. 体量阈值与豁免机制
 
@@ -109,7 +161,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`） |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`）；跨包依赖声明（`declaredWorkspaceDeps`）；Tailwind 扫描源单一入口（`tailwindSourceEntry`）；语法插件独立性（`syntaxPluginsIndependence`）；库模块顶层无副作用（`noTopLevelSideEffects`） |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 
