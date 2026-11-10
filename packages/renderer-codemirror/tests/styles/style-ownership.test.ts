@@ -102,40 +102,48 @@ describe("--theme-* 变量契约一致性", () => {
   });
 });
 
+interface FakeHeadNode {
+  tagName: string;
+  id: string;
+  textContent: string | null;
+  setAttribute(name: string, value: string): void;
+}
+
+function fakeHeadNode(tagName: string, id = ""): FakeHeadNode {
+  return {
+    tagName,
+    id,
+    textContent: null,
+    setAttribute(name: string, value: string) {
+      if (name === "id") this.id = value;
+    },
+  };
+}
+
 describe("样式注入位置：作者样式可以覆盖渲染器", () => {
   it("插在已有 style/link 之前，后出现的自定义规则在同特异性下胜出", async () => {
     const { EDITOR_STYLE_ELEMENT_ID, injectEditorStyles } =
       await import("../../src/styles/index.ts");
 
-    interface FakeNode {
-      tagName: string;
-      id: string;
-      textContent: string | null;
-      setAttribute(name: string, value: string): void;
-    }
-    const children: FakeNode[] = [];
-    const make = (tagName: string, id = ""): FakeNode => ({
-      tagName,
-      id,
-      textContent: null,
-      setAttribute(name: string, value: string) {
-        if (name === "id") this.id = value;
-      },
-    });
-    children.push(make("META"), make("LINK", "app-css"), make("STYLE", "md-editor-custom-theme"));
+    const children: FakeHeadNode[] = [];
+    children.push(
+      fakeHeadNode("META"),
+      fakeHeadNode("LINK", "app-css"),
+      fakeHeadNode("STYLE", "md-editor-custom-theme"),
+    );
 
     const head = {
       children,
-      append(node: FakeNode) {
+      append(node: FakeHeadNode) {
         children.push(node);
       },
-      insertBefore(node: FakeNode, anchor: FakeNode) {
+      insertBefore(node: FakeHeadNode, anchor: FakeHeadNode) {
         const index = children.indexOf(anchor);
         children.splice(index < 0 ? children.length : index, 0, node);
       },
     };
     const doc = {
-      createElement: (tag: string) => make(tag),
+      createElement: (tag: string) => fakeHeadNode(tag),
       head,
       getElementById: (id: string) => children.find((node) => node.id === id) ?? null,
     };
