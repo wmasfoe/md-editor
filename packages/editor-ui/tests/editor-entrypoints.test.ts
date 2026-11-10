@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { EDITOR_STYLE_CSS } from "@md-editor/renderer-codemirror";
 
 const packageJson = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -12,10 +13,8 @@ const codeMirrorEditorSource = readFileSync(
   new URL("../src/components/CodeMirrorEditor/CodeMirrorEditor.tsx", import.meta.url),
   "utf8",
 );
-const codeMirrorEditorStyles = readFileSync(
-  new URL("../src/components/CodeMirrorEditor/CodeMirrorEditor.css", import.meta.url),
-  "utf8",
-);
+// 编辑器区样式已归渲染器所有（renderer 产出 DOM ⇒ 拥有其渲染规则）。
+const codeMirrorEditorStyles = EDITOR_STYLE_CSS;
 
 describe("editor-ui public editor entrypoints", () => {
   it("exposes CodeMirror as the only editor implementation", () => {
@@ -26,6 +25,9 @@ describe("editor-ui public editor entrypoints", () => {
       "./CodeMirrorEditor/testing": "./src/components/CodeMirrorEditor/testing.ts",
       "./OutlinePanel": "./src/components/OutlinePanel.tsx",
       "./settings": "./src/components/settings/index.ts",
+      // Tailwind v4 的扫描源共享入口（非 JS 导出）：所有 app 统一 @import 它，
+      // 不再各自手抄 @source。见 repo_structure_and_naming_conventions.md §4.7。
+      "./tailwind-sources.css": "./styles/tailwind-sources.css",
     });
 
     expect(hooksIndexSource).toContain('export * from "./useEditorUi"');

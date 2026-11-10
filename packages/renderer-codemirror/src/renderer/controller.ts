@@ -21,6 +21,7 @@ import {
   type StateEffect,
 } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
+import { injectEditorStyles } from "../styles/index.ts";
 import type {
   DocumentSnapshot,
   DocumentStateEvent,
@@ -191,6 +192,10 @@ export class CodeMirrorRendererController {
     this.#options = options;
     this.#controllerOptions = controllerOptions;
     this.#aiSuggestionLabels = options.aiSuggestionLabels;
+
+    // 渲染器自持样式：默认注入（幂等，按固定 id），宿主零配置即得正确外观。
+    if (options.injectStyles !== false)
+      injectEditorStyles({ document: options.parent.ownerDocument, nonce: options.styleNonce });
 
     const initialSnapshot = options.initialSnapshot;
     this.#documentGeneration = initialSnapshot.documentGeneration;
