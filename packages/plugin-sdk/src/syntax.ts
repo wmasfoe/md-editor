@@ -1,6 +1,6 @@
-import type { MarkdownConfig } from "@lezer/markdown";
-import type { EditorState, Range } from "@codemirror/state";
-import type { Decoration } from "@codemirror/view";
+import type { InlineContext, MarkdownConfig } from "@lezer/markdown";
+import { Facet, type EditorState, type Range } from "@codemirror/state";
+import type { Decoration, WidgetType } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
 
 /**
@@ -294,3 +294,168 @@ export interface MarkdownNodePolicy {
   readonly markerNodeNames: readonly string[];
   readonly contentStrategy: MarkdownContentStrategy;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 纯数据契约再导出
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Callout（GFM Alert / Container Directive）图标与默认标题。
+ * 纯数据层，无 CodeMirror/DOM 依赖，供 renderer / syntax-plugins / compiler 共用。
+ */
+export { CALLOUT_SVG_ICONS, defaultCalloutTitle, getCalloutSvg } from "./callout-data.ts";
+
+/**
+ * CJK 友好的强调定界符 flanking 判定与 Lezer 行内解析器扩展。
+ *
+ * 放在契约层的原因：语法插件在 Lezer **解析期** 运行，`InlineContext` 不暴露
+ * `EditorState`，无法通过 facet 端口注入，只能直接调用这些纯函数。
+ */
+export {
+  CJK_FRIENDLY_MARKDOWN_EXTENSIONS,
+  cjkFriendlyEmphasisMarkdownExtension,
+  cjkFriendlyStrikethroughMarkdownExtension,
+  readDelimiterNeighbors,
+  resolveCjkFriendlyDelimiterSides,
+} from "./cjk-flanking.ts";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 宿主端口（Host Ports）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 媒体查看器浮层的打开选项。
+ *
+ * 契约层只描述"插件想打开什么"，不描述"怎么实现"：浮层 DOM、层级、缩放手势、
+ * 焦点恢复等全部由宿主渲染器负责。这样插件无需 import 任何宿主实现。
+ */
+export type MediaViewerContent =
+  | { readonly kind: "image"; readonly src: string; readonly alt: string }
+  /**
+   * `svg` 必须是**生产者已消毒过**的标记（本项目为 mermaid 在 `securityLevel: "strict"`
+   * 下的产出，且已过 id 隔离）。宿主会把它当 DOM 节点注入而非 `<img>`，
+   * 因此**不接受**来自不可信输入的原始 SVG 字符串。
+   */
+  | { readonly kind: "svg"; readonly svg: string; readonly label: string };
+
+/** 缩放/平移限制。 */
+export interface MediaViewerZoomPan {
+  /** 上限（以内容 1:1 为 100%）；下限恒为 contain 比例。 */
+  readonly maxScale?: number;
+  /** 平移限位余量。 */
+  readonly panMargin?: number;
+}
+
+export interface MediaViewerOpenOptions {
+  /** 目标文档（插件通常传 widget 所属的 `view.dom.ownerDocument`）。 */
+  readonly document: Document;
+  /** 归属宿主元素：同一 host 重复 open 时复用，`closeMediaViewerFor(host)` 按它关闭。 */
+  readonly host: HTMLElement;
+  readonly content: MediaViewerContent;
+  /** 初始视图：图表默认 `"width"`（适应宽度），图片沿用 `"contain"`。 */
+  readonly fit: "contain" | "width";
+  /** 缩放/平移配置；`false` 关闭手势。 */
+  readonly zoomPan: false | MediaViewerZoomPan;
+  /** 打开时是否接管焦点（浮层是模态，不接管会让键入改到背后文档）。 */
+  readonly takeFocus: boolean;
+  /** 模态期间需要置 `inert` 的背景根；非 `#root` 约定的宿主应显式传入。 */
+  readonly backgroundRoot?: HTMLElement | undefined;
+  /** 浮层内「编辑源码」入口；仅 svg 内容传入。 */
+  readonly onRequestEdit?: (() => void) | undefined;
+  /** 关闭后焦点归还。 */
+  readonly restoreFocus?: (() => void) | undefined;
+}
+
+/** 媒体查看器浮层句柄。 */
+export interface MediaViewerHandle {
+  close(options?: { readonly restoreFocus?: boolean }): void;
+}
+
+/**
+ * 语法插件可用的宿主端口集合。
+ *
+ * ## 为什么需要这一层
+ *
+ * 插件契约（本包）必须能被任何宿主实现消费，因此**不得** import 具体渲染器。
+ * 但有些插件能力（如"点击 Mermaid 图放大"）本质上需要宿主 UI 才能完成。
+ * 解决办法与 ProseMirror 的 `PluginSpec.view(view)`、Tiptap 的 `props.editor`
+ * 一致：宿主把自己的能力作为**值**注入，插件通过参数接收，而不是通过模块依赖获取。
+ *
+ * ## 当前注入路径
+ *
+ * 宿主通过 `syntaxPluginHostPortsFacet`（由渲染器定义、插件从 `state.facet` 读取）
+ * 提供实现。所有成员均为可选：未提供时插件必须优雅降级（例如不显示放大按钮）。
+ */
+export interface SyntaxPluginHostPorts {
+  /** 打开媒体查看器浮层；未提供时插件不应渲染"放大"入口。 */
+  readonly openMediaViewer?: (options: MediaViewerOpenOptions) => MediaViewerHandle;
+  /** 按宿主元素关闭媒体查看器；未提供时由宿主自行在 destroy 时清理。 */
+  readonly closeMediaViewerFor?: (host: HTMLElement) => void;
+  /**
+   * 创建 Callout 头部 widget。
+   *
+   * 之所以是端口而非插件自建：widget 的 DOM 结构、图标、无障碍属性属于**渲染规则**，
+   * 由渲染器统一拥有才能保证所有插件渲染出的 Callout 外观一致。插件只决定"这里要一个
+   * Callout 头部"，具体长什么样由宿主提供。
+   */
+  readonly createCalloutHeaderWidget?: (input: {
+    readonly type: string;
+    readonly title: string;
+    readonly recordId: string;
+  }) => WidgetType;
+  /** 创建 Callout 尾部 widget（隐藏闭合标记的占位）。 */
+  readonly createCalloutFooterWidget?: () => WidgetType;
+  /**
+   * CJK 友好的定界符 flanking 判定。
+   *
+   * 以**函数值**注入而非模块导出：该判定依赖 `micromark-extension-cjk-friendly-util`
+   * 运行期分类器，而本 SDK 的架构边界是「只含类型 + identity helper，零运行期依赖」
+   * （见 `tests/boundary.test.ts`）。宿主渲染器持有实现，插件按值取用。
+   *
+   * 未提供时，插件应回退到 CommonMark 原生 flanking 规则（CJK 紧邻标点的强调会解析失败）。
+   */
+  readonly resolveDelimiterSides?: (
+    marker: DelimiterMarker,
+    neighbors: DelimiterNeighbors,
+  ) => DelimiterSides;
+  /** 从 Lezer `InlineContext` 读取定界符两侧码点；与 `resolveDelimiterSides` 配套使用。 */
+  readonly readDelimiterNeighbors?: (
+    cx: InlineContext,
+    start: number,
+    end: number,
+  ) => DelimiterNeighbors;
+}
+
+/** 定界符种类：`_` 额外禁止词内开合，其余（`*`、`~`、插件自定义 `=`）只做 flanking 判定。 */
+export type DelimiterMarker = "*" | "_" | "~" | "=";
+
+/** 定界符两侧的相邻码点。 */
+export interface DelimiterNeighbors {
+  /** 紧邻定界符之前的码点；行首为 `null`。 */
+  readonly before: number | null;
+  /** 再往前一个码点；用于识别「标点/CJK + 变体选择符」序列，不足时为 `null`。 */
+  readonly beforePrevious: number | null;
+  /** 紧邻定界符之后的码点；行尾为 `null`。 */
+  readonly after: number | null;
+}
+
+/** 定界符的开合能力。 */
+export interface DelimiterSides {
+  readonly canOpen: boolean;
+  readonly canClose: boolean;
+}
+
+/**
+ * 宿主端口 facet。
+ *
+ * **定义在契约层的原因**：facet 实例必须被宿主与插件**共享同一个对象引用**才能命中。
+ * 若 facet 定义在渲染器里，插件就得 import 渲染器才能读到它——正是本契约要消除的反向依赖。
+ * 把 facet 放进 SDK 后：宿主 `syntaxPluginHostPortsFacet.of(ports)` 提供值，
+ * 插件 `state.facet(syntaxPluginHostPortsFacet)` 读取值，双方只依赖契约。
+ *
+ * `@codemirror/state` 在本包是**可选** peer 依赖：只写命令/模板类插件不需要它。
+ */
+export const syntaxPluginHostPortsFacet: Facet<SyntaxPluginHostPorts, SyntaxPluginHostPorts> =
+  Facet.define<SyntaxPluginHostPorts, SyntaxPluginHostPorts>({
+    combine: (values) => values[0] ?? {},
+  });

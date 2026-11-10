@@ -3,10 +3,12 @@ import { EditorSelection, EditorState, type StateEffect } from "@codemirror/stat
 import { describe, expect, it } from "vitest";
 import { createDocumentState } from "@md-editor/editor-core";
 import {
+  createDefaultSyntaxPluginHostPorts,
   markdownRangeIndexField,
   syntaxPluginRegistryFacet,
   SyntaxPluginRegistry,
 } from "@md-editor/renderer-codemirror";
+import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorRendererWithFactory,
   provideWysiwygDiagnostics,
@@ -145,6 +147,8 @@ describe("containerDirectivePlugin (@md-editor/syntax-plugins)", () => {
           markdown({ extensions: [directiveMarkdownExtension] }),
           syntaxPluginRegistryFacet.of(registry),
           markdownRangeIndexField,
+          // Callout widget 由宿主渲染器提供（端口注入）；测试显式注入渲染器默认实现。
+          syntaxPluginHostPortsFacet.of(createDefaultSyntaxPluginHostPorts()),
         ],
       });
 

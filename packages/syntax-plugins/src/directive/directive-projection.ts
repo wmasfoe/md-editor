@@ -1,11 +1,10 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration } from "@codemirror/view";
-import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
 import {
-  CalloutFooterWidget,
-  CalloutHeaderWidget,
   defaultCalloutTitle,
-} from "@md-editor/renderer-codemirror";
+  syntaxPluginHostPortsFacet,
+  type MarkdownRangeRecord,
+} from "@md-editor/plugin-sdk/syntax";
 import type { DirectiveMetadata } from "./directive-types.ts";
 
 /**
@@ -19,6 +18,10 @@ export function buildDirectiveLayoutDecorations(
   if (!meta) {
     return [];
   }
+
+  // 宿主端口：Callout widget 的 DOM 结构属于渲染规则，由渲染器提供（插件不 import 宿主）。
+  const { createCalloutHeaderWidget = () => null, createCalloutFooterWidget = () => null } =
+    state.facet(syntaxPluginHostPortsFacet);
 
   const type = meta.directiveType ?? "info";
   const title = meta.title ?? defaultCalloutTitle(type);
@@ -66,14 +69,17 @@ export function buildDirectiveLayoutDecorations(
 
   // 首行装饰处理：当光标不在首行时，将 `:::type title` 替换为优雅的 Admonition 头部卡片
   if (!isHeaderActive) {
-    decorations.push(
-      Decoration.replace({
-        widget: new CalloutHeaderWidget(type, title, record.id),
-        inclusive: false,
-        wysiwygRecordId: record.id,
-        wysiwygRole: "directive-header-widget",
-      }).range(record.fullRange.from, headerRange.to),
-    );
+    const headerWidget = createCalloutHeaderWidget({ type, title, recordId: record.id });
+    if (headerWidget) {
+      decorations.push(
+        Decoration.replace({
+          widget: headerWidget,
+          inclusive: false,
+          wysiwygRecordId: record.id,
+          wysiwygRole: "directive-header-widget",
+        }).range(record.fullRange.from, headerRange.to),
+      );
+    }
   } else {
     // 光标在首行时显示原始字符供编辑，并对标记施加微光淡化样式
     const openMarker = meta.openingMarkerRange;
@@ -91,14 +97,17 @@ export function buildDirectiveLayoutDecorations(
   // 尾行闭合标记处理：当有独立的闭合 ::: 且光标不在末行时，隐藏闭合字符
   if (closingMarkerRange) {
     if (!isFooterActive) {
-      decorations.push(
-        Decoration.replace({
-          widget: new CalloutFooterWidget(),
-          inclusive: false,
-          wysiwygRecordId: record.id,
-          wysiwygRole: "directive-footer-hidden",
-        }).range(closingMarkerRange.from, closingMarkerRange.to),
-      );
+      const footerWidget = createCalloutFooterWidget();
+      if (footerWidget) {
+        decorations.push(
+          Decoration.replace({
+            widget: footerWidget,
+            inclusive: false,
+            wysiwygRecordId: record.id,
+            wysiwygRole: "directive-footer-hidden",
+          }).range(closingMarkerRange.from, closingMarkerRange.to),
+        );
+      }
     } else {
       decorations.push(
         Decoration.mark({

@@ -13,6 +13,7 @@ import {
   createMarkdownLanguageSupport,
 } from "../../markdown/code-languages.ts";
 import { M1_MARKDOWN_EXTENSIONS } from "../../markdown/extensions.ts";
+import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import {
   markdownRangeIndexField,
   mdxModeFacet,
@@ -21,6 +22,7 @@ import {
 import { editorModeField } from "../../mode.ts";
 
 import type { SyntaxPluginRegistry } from "../../plugins/syntax-registry.ts";
+import { createDefaultSyntaxPluginHostPorts } from "../../plugins/syntax-plugin-ports.ts";
 import { blockToolbarExtension } from "../../wysiwyg/blocks/block-toolbar.ts";
 import { codeBlockSelectionExtension } from "../../wysiwyg/editing/code-block-selection.ts";
 import { createWysiwygProjectionExtensions } from "../../wysiwyg/index.ts";
@@ -78,6 +80,10 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
         : markdown({ extensions: markdownExtensions, addKeymap: false }),
     ),
     context.syntaxRegistryCompartment.of(syntaxPluginRegistryFacet.of(context.syntaxRegistry)),
+    // 语法插件宿主端口：以 facet 值注入渲染器能力，插件不再 import 渲染器。
+    syntaxPluginHostPortsFacet.of(
+      context.options.syntaxPluginHostPorts ?? createDefaultSyntaxPluginHostPorts(),
+    ),
     codeBlockTokenHighlighting,
     provideWysiwygDiagnostics(context.wysiwygDiagnostics),
     context.options.resolveImagePreview

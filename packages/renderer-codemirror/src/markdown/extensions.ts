@@ -6,7 +6,7 @@ import {
   type MarkdownConfig,
   type MarkdownExtension,
 } from "@lezer/markdown";
-import { CJK_FRIENDLY_MARKDOWN_EXTENSIONS } from "./cjk-friendly-emphasis.ts";
+import { CJK_FRIENDLY_MARKDOWN_EXTENSIONS } from "@md-editor/plugin-sdk/syntax";
 
 const FOOTNOTE_LABEL = "[A-Za-z0-9_-]+";
 const INLINE_FOOTNOTE = new RegExp(`^\\[\\^(${FOOTNOTE_LABEL})\\]`, "u");

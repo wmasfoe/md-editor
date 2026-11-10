@@ -100,6 +100,19 @@ export type {
 } from "@md-editor/editor-core";
 
 export { SyntaxPluginRegistry } from "./plugins/syntax-registry.ts";
+export { createDefaultSyntaxPluginHostPorts } from "./plugins/syntax-plugin-ports.ts";
+export {
+  EDITOR_STYLE_CSS,
+  EDITOR_STYLE_ELEMENT_ID,
+  THEME_VARIABLES,
+  createDocumentStylePort,
+  ensureStyleElement,
+  injectEditorStyles,
+  type InjectEditorStylesOptions,
+  type StyleElementPort,
+  type StyleInjectionPort,
+  type ThemeVariableSpec,
+} from "./styles/index.ts";
 export {
   CalloutHeaderWidget,
   CalloutFooterWidget,
@@ -123,7 +136,7 @@ export {
   type DelimiterMarker,
   type DelimiterNeighbors,
   type DelimiterSides,
-} from "./markdown/cjk-friendly-emphasis.ts";
+} from "@md-editor/plugin-sdk/syntax";
 export {
   EDITOR_USER_NOTICE_EVENT,
   dispatchEditorUserNotice,

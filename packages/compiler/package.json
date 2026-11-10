@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@md-editor/plugin-sdk": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "highlight.js": "^11.12.0",
     "katex": "catalog:",
