@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   changeLanguage,
+  configureI18n,
   detectSystemLocale,
   getCurrentLocale,
   normalizeLanguageSetting,
@@ -147,7 +148,30 @@ describe("@md-editor/i18n", () => {
     expect(t("settings.plugins.items.markdown.directive.name")).toBe("コンテナ記法 (Admonition)");
   });
 
-  it("dispatches md-editor:language-changed event and updates document.documentElement.lang", async () => {
+  it("does not touch document.documentElement.lang by default (library must not mutate host globals)", async () => {
+    const eventTarget = new EventTarget();
+    const fakeDocument = { documentElement: { lang: "host-owned" } };
+    const fakeWindow = {
+      dispatchEvent: (event: Event) => eventTarget.dispatchEvent(event),
+      addEventListener: eventTarget.addEventListener.bind(eventTarget),
+      removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+    };
+    const origWindow = (globalThis as unknown as { window?: unknown }).window;
+    const origDoc = (globalThis as unknown as { document?: unknown }).document;
+    try {
+      (globalThis as unknown as { window?: unknown }).window = fakeWindow;
+      (globalThis as unknown as { document?: unknown }).document = fakeDocument;
+
+      await changeLanguage("ja");
+      // 默认 syncDocumentLang = false：库不得单方面改写宿主文档属性。
+      expect(fakeDocument.documentElement.lang).toBe("host-owned");
+    } finally {
+      (globalThis as unknown as { window?: unknown }).window = origWindow;
+      (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
+
+  it("syncs document.documentElement.lang and dispatches the event when explicitly enabled", async () => {
     const receivedEvents: string[] = [];
     const eventTarget = new EventTarget();
     const fakeDocument = { documentElement: { lang: "" } };
@@ -161,6 +185,7 @@ describe("@md-editor/i18n", () => {
     try {
       (globalThis as unknown as { window?: unknown }).window = fakeWindow;
       (globalThis as unknown as { document?: unknown }).document = fakeDocument;
+      configureI18n({ syncDocumentLang: true });
       fakeWindow.addEventListener("md-editor:language-changed", ((
         e: CustomEvent<{ locale: string }>,
       ) => {
@@ -175,8 +200,51 @@ describe("@md-editor/i18n", () => {
       expect(fakeDocument.documentElement.lang).toBe("zh-CN");
       expect(receivedEvents).toContain("zh");
     } finally {
+      configureI18n({ syncDocumentLang: false });
       (globalThis as unknown as { window?: unknown }).window = origWindow;
       (globalThis as unknown as { document?: unknown }).document = origDoc;
+    }
+  });
+});
+
+describe("configureI18n({ instance })：宿主接管", () => {
+  it("注入实例后，本包的 t() 与 useTranslation 都真正走宿主实例", async () => {
+    const { createInstance } = await import("i18next");
+    const host = createInstance();
+    await host.init({
+      resources: { en: { translation: { greeting: "HOST-ONLY" } } },
+      lng: "en",
+    });
+
+    configureI18n({ instance: host });
+    try {
+      // 1) 包级 t() 必须取宿主实例的翻译（旧实现返回 undefined）
+      expect(t("greeting")).toBe("HOST-ONLY");
+
+      // 2) changeLanguage / getCurrentLocale 路由到宿主实例
+      await changeLanguage("en");
+      expect(getCurrentLocale()).toBe("en");
+      expect(host.language).toBe("en");
+    } finally {
+      configureI18n({ instance: undefined });
+    }
+  });
+
+  it("注入实例被 react-i18next 登记（useTranslation 不会拿到 NO_I18NEXT_INSTANCE）", async () => {
+    const { createInstance } = await import("i18next");
+    const { getI18n } = await import("react-i18next");
+    const host = createInstance();
+    await host.init({
+      resources: { en: { translation: { greeting: "HOST-ONLY" } } },
+      lng: "en",
+    });
+
+    configureI18n({ instance: host });
+    try {
+      // react-i18next 的默认实例必须就是宿主实例——这是 useTranslation 能取到值的前提。
+      expect(getI18n()).toBe(host);
+    } finally {
+      configureI18n({ instance: undefined });
     }
   });
 });
