@@ -1,6 +1,16 @@
 /**
- * @file cjk-friendly-emphasis.ts
- * @description CJK 友好的强调定界符解析（CommonMark「CJK-friendly amendments」落地）。
+ * @file cjk-flanking.ts
+ * @description CJK 友好的强调定界符 flanking 判定（CommonMark「CJK-friendly amendments」落地）。
+ *
+ * **纯解析层**：只依赖 `@lezer/markdown` 的类型与 `micromark-extension-cjk-friendly-util`
+ * 的字符分类器，无 CodeMirror 运行时、无 DOM。属于公共契约，供编辑器渲染器与
+ * 官方/第三方语法插件共同消费。
+ *
+ * ## 为什么在 SDK 而不在渲染器
+ *
+ * 语法插件（如 `==高亮==`）在 **Lezer 解析期** 运行，`InlineContext` 不暴露 `EditorState`，
+ * 因此无法像媒体查看器那样通过 facet 端口注入——插件必须能直接调用这些纯函数。
+ * 若实现留在渲染器，插件就得反向 import 宿主，形成"插件依赖插件宿主"的倒置。
  *
  * ## 问题（本模块存在的原因）
  * CommonMark 用 flanking delimiter run 规则判定 `**` / `*` / `~~` 能否开合，而规则里的
@@ -13,24 +23,8 @@
  *              ↑ 前接标点 `」`、后接汉字 `到` ⇒ 闭定界符不满足 right-flanking
  * ```
  *
- * 失败后这一对 `**` 变成字面文本，还会和后面出现的 `**` 跨对错配（例如整行
- * `从**「爆款」**到**「角色锁定」**的完整路径` 会被解析成 `**到**` 加粗），
- * 用户只能手动在标记外侧补空格规避——而补空格会在正文里留下可见空隙。
- *
- * ## 规则来源
- * 采用社区上游的规范修订 https://github.com/tats-u/markdown-cjk-friendly/blob/main/specification.md
- * （对应 commonmark-spec#650）：把 flanking 判定里的「Unicode 标点」收窄为
- * 「非 CJK 标点」，即 CJK 标点按普通文字对待，并把「CJK 序列」与「表意文字变体选择符
- * （IVS）」补进合法的前置集合。**非 CJK 文本的解析结果与标准 CommonMark 完全一致**，
- * 因此本模块是纯增量兼容，而不是全域放宽。
- *
- * Unicode 分类（东亚宽度 W/F/H 且非默认 emoji 展示、Hangul、IVS、变体选择符、标点类别）
- * 复用规范作者的 `micromark-extension-cjk-friendly-util`，避免自维护 Unicode 表。
- *
- * ## 使用方式
- * - 编辑器语法树：把 {@link cjkFriendlyEmphasisMarkdownExtension} 加进 Markdown 扩展链，
- *   它以同名替换的方式接管 `Emphasis` 与 GFM `Strikethrough` 行内解析器；
- * - 其它自定义定界符语法（如 `==高亮==`）：直接复用 {@link resolveCjkFriendlyDelimiterSides}。
+ * 失败后这一对 `**` 变成字面文本，还会和后面出现的 `**` 跨对错配，用户只能手动在标记
+ * 外侧补空格规避——而补空格会在正文里留下可见空隙。
  */
 
 import { InlineContext, type MarkdownConfig } from "@lezer/markdown";

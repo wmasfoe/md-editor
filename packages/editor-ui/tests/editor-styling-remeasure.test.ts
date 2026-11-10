@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { EDITOR_STYLE_CSS } from "@md-editor/renderer-codemirror";
 
 describe("Editor CSS Decoupling & Dynamic Style Variables", () => {
-  const cssPath = resolve(__dirname, "../src/components/CodeMirrorEditor/CodeMirrorEditor.css");
-  const cssContent = readFileSync(cssPath, "utf-8");
+  // 这些规则已随「样式主权」迁入渲染器（renderer 产出 DOM ⇒ 拥有其渲染规则）。
+  const cssContent = EDITOR_STYLE_CSS;
 
   it("decouples bold font weight using CSS variable instead of fixed 700", () => {
     expect(cssContent).not.toMatch(/\.cm-md-bold[^{]*\{[^}]*font-weight:\s*700\s*!important/);

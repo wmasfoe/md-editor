@@ -56,6 +56,46 @@ bridge.destroy();
 
 `createCodeMirrorEditorBridge` also accepts `plugins`, `resolveImageSrc`, `openLinkTarget`, `mdxMode`, `mdxComponents`, `enableMarkdownLint` and `writeClipboardText`.
 
+## Styles and theming
+
+This package owns its own styles. It renders the editor DOM, so it also ships the
+rules for that DOM — the same approach CodeMirror itself takes (`EditorView.baseTheme`
+plus `style-mod`) and Tiptap takes (`createStyleTag` plus a `style.ts` constant).
+
+Styles are injected automatically when a renderer is created. No CSS import is
+needed, and no host class is required:
+
+```typescript
+createCodeMirrorEditorBridge({ parent, document: state, /* ... */ });
+// a single <style id="md-editor-renderer-style"> is appended to document.head
+```
+
+Injection is idempotent — mounting several editors or hot-reloading never stacks
+duplicate rules. Pass `injectStyles: false` to opt out and bring your own CSS, or
+`styleNonce` when your CSP requires a nonce.
+
+### Theme variables
+
+Every color, font and spacing value is read as `var(--theme-xxx, <fallback>)`.
+All 70 variables carry a fallback, so an editor with no theme at all still looks
+right. Provide any subset on an ancestor element (usually `:root`) to theme it:
+
+```css
+:root {
+  --theme-bg: #ffffff;
+  --theme-text: #24292f;
+  --theme-primary: #0969da;
+}
+```
+
+`THEME_VARIABLES` exports the full contract (name, group, purpose) and
+`injectEditorStyles`, `EDITOR_STYLE_CSS`, `EDITOR_STYLE_ELEMENT_ID` are available
+for hosts that want to drive injection themselves. `@md-editor/editor-ui`'s
+`compileThemeCss()` generates the same variables from a theme configuration.
+
+Scope comes from this package's own classes (`.cm-md-editor`, set via
+`EditorView.editorAttributes`), not from a host-provided wrapper.
+
 ## Layout
 
 ```

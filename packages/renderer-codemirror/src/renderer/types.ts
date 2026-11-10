@@ -21,7 +21,7 @@ import type {
 } from "@md-editor/editor-core";
 import type { Markdown } from "@md-editor/shared";
 import type { WysiwygDiagnosticsSnapshot } from "../diagnostics.ts";
-import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import type { MarkdownSyntaxPlugin, SyntaxPluginHostPorts } from "@md-editor/plugin-sdk/syntax";
 import type { MdxComponentLookup } from "../wysiwyg/projections/mdx-projection.ts";
 import type { WysiwygProjectionSnapshot } from "../wysiwyg/state/types.ts";
 import type { ImagePreviewResolver } from "../wysiwyg/view/image-resolver.ts";
@@ -37,6 +37,18 @@ export type { DocumentLinterOptions };
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
   readonly initialSnapshot: DocumentSnapshot;
+  /**
+   * 是否自动注入渲染器自带样式（默认 `true`）。
+   *
+   * 渲染器产出 DOM，因此它自带这些 DOM 的渲染规则（见 `styles/`）。默认注入后，
+   * 任何宿主（React / Vue / 原生）开箱即得正确外观。
+   *
+   * 设为 `false` 的场景：宿主想完全接管样式（自行引入 `EDITOR_STYLE_CSS`
+   * 或写自己的规则）。
+   */
+  readonly injectStyles?: boolean;
+  /** CSP nonce，透传给自动注入的 `<style nonce="...">`。 */
+  readonly styleNonce?: string;
   readonly resolveImagePreview?: ImagePreviewResolver;
   readonly writeClipboardText?: (text: string) => Promise<void>;
   /** MDX 文件模式:大写标签按组件解析(默认 false = 纯 Markdown) */
@@ -45,6 +57,11 @@ export interface CodeMirrorRendererOptions {
   readonly mdxComponents?: MdxComponentLookup;
   /** 链接打开回调(宿主决策:内部 markdown 文件打开文档,外部链接走系统浏览器) */
   readonly openLinkTarget?: (url: string) => void;
+  /**
+   * 语法插件宿主端口。缺省时使用渲染器自带的媒体查看器实现；
+   * 传 `{}` 可让插件降级（例如不渲染“放大”入口）。
+   */
+  readonly syntaxPluginHostPorts?: SyntaxPluginHostPorts;
   readonly onEditorChange: (change: {
     readonly markdown: Markdown;
     readonly origin: {

@@ -8,7 +8,7 @@ import type {
   StaticToken,
   TableCellToken,
 } from "../tokens/types.ts";
-import { defaultCalloutTitle } from "../data/callout-data.ts";
+import { defaultCalloutTitle } from "@md-editor/plugin-sdk/callout";
 
 /**
  * Extracts first Heading 1 from Markdown as document title

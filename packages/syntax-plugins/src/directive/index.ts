@@ -1,14 +1,14 @@
 import type { EditorState, Range } from "@codemirror/state";
 import type { Decoration } from "@codemirror/view";
 import type { SyntaxNode } from "@lezer/common";
-import type {
-  MarkdownNodePolicy,
-  MarkdownRangeRecord,
-  MarkdownSyntaxKind,
-  MarkdownSyntaxPlugin,
-  SourceRange,
+import {
+  defaultCalloutTitle,
+  type MarkdownNodePolicy,
+  type MarkdownRangeRecord,
+  type MarkdownSyntaxKind,
+  type MarkdownSyntaxPlugin,
+  type SourceRange,
 } from "@md-editor/plugin-sdk/syntax";
-import { defaultCalloutTitle } from "@md-editor/renderer-codemirror";
 import { DIRECTIVE_NODES, directiveMarkdownExtension } from "./directive-parser.ts";
 import { buildDirectiveLayoutDecorations } from "./directive-projection.ts";
 import type { DirectiveMetadata } from "./directive-types.ts";

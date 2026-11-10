@@ -20,7 +20,6 @@
     "@codemirror/view": "catalog:",
     "@lezer/common": "catalog:",
     "@lezer/markdown": "catalog:",
-    "@md-editor/renderer-codemirror": "workspace:*",
     "katex": "catalog:",
     "mermaid": "catalog:",
     "@md-editor/plugin-sdk": "workspace:*"
@@ -28,6 +27,7 @@
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",
     "@md-editor/editor-core": "workspace:*",
+    "@md-editor/renderer-codemirror": "workspace:*",
     "@types/katex": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

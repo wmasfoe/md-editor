@@ -10,7 +10,8 @@
     "./CodeMirrorEditor": "./src/components/CodeMirrorEditor/index.ts",
     "./CodeMirrorEditor/testing": "./src/components/CodeMirrorEditor/testing.ts",
     "./OutlinePanel": "./src/components/OutlinePanel.tsx",
-    "./settings": "./src/components/settings/index.ts"
+    "./settings": "./src/components/settings/index.ts",
+    "./tailwind-sources.css": "./styles/tailwind-sources.css"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",

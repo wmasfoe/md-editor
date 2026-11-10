@@ -4,7 +4,7 @@ import {
   resolveCjkFriendlyDelimiterSides,
   type DelimiterMarker,
   type DelimiterNeighbors,
-} from "../../src/markdown/cjk-friendly-emphasis.ts";
+} from "@md-editor/plugin-sdk/syntax";
 import { M1_MARKDOWN_EXTENSIONS } from "../../src/markdown/extensions.ts";
 
 const parser = markdownParser.configure(M1_MARKDOWN_EXTENSIONS);

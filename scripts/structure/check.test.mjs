@@ -421,3 +421,460 @@ test("PR3：renderer 簇新增未登记协作者必须失败", () => {
     },
   );
 });
+
+/**
+ * 依赖声明护栏（declaredWorkspaceDeps）。
+ * 核心不变量：monorepo 跨包 import 必须写进 package.json，不能只靠解析器运气。
+ */
+test("依赖声明：src 值导入未在 deps/peerDeps 必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/consumer/package.json": JSON.stringify({
+        name: "@md-editor/consumer",
+        dependencies: {},
+      }),
+      "packages/consumer/src/use.ts": 'import { thing } from "@md-editor/provider";\n',
+      "packages/provider/package.json": JSON.stringify({ name: "@md-editor/provider" }),
+      "packages/provider/src/index.ts": "export const thing = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "值导入 @md-editor/provider 未在 dependencies 或 peerDependencies 声明"),
+        true,
+        "src 值导入未声明必须失败",
+      );
+    },
+  );
+});
+
+test("依赖声明：src 值导入声明在 peerDependencies 视为合规", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/consumer/package.json": JSON.stringify({
+        name: "@md-editor/consumer",
+        peerDependencies: { "@md-editor/provider": "workspace:*" },
+      }),
+      "packages/consumer/src/use.ts": 'import { thing } from "@md-editor/provider";\n',
+      "packages/provider/package.json": JSON.stringify({ name: "@md-editor/provider" }),
+      "packages/provider/src/index.ts": "export const thing = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "@md-editor/provider"), false, "peerDependencies 声明应视为合规");
+    },
+  );
+});
+
+test("依赖声明：src 纯类型导入允许只声明在 devDependencies", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/consumer/package.json": JSON.stringify({
+        name: "@md-editor/consumer",
+        dependencies: {},
+        devDependencies: { "@md-editor/provider": "workspace:*" },
+      }),
+      // `import type` 与「全部具名带 type」两种纯类型形态都必须放行
+      "packages/consumer/src/a.ts": 'import type { Thing } from "@md-editor/provider";\n',
+      "packages/consumer/src/b.ts": 'import { type Thing } from "@md-editor/provider";\n',
+      "packages/provider/package.json": JSON.stringify({ name: "@md-editor/provider" }),
+      "packages/provider/src/index.ts": "export type Thing = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "@md-editor/provider"), false, "纯类型导入应允许 devDependencies");
+    },
+  );
+});
+
+test("依赖声明：混用具名（值+类型）按值导入处理，devDependencies 不足以放行", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/consumer/package.json": JSON.stringify({
+        name: "@md-editor/consumer",
+        dependencies: {},
+        devDependencies: { "@md-editor/provider": "workspace:*" },
+      }),
+      "packages/consumer/src/mixed.ts":
+        'import { type Thing, createThing } from "@md-editor/provider";\n',
+      "packages/provider/package.json": JSON.stringify({ name: "@md-editor/provider" }),
+      "packages/provider/src/index.ts":
+        "export type Thing = 1;\nexport const createThing = () => 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "值导入 @md-editor/provider"),
+        true,
+        "含值具名的混合导入必须按值导入校验",
+      );
+    },
+  );
+});
+
+test("依赖声明：tests 内导入允许任一依赖字段声明", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/consumer/package.json": JSON.stringify({
+        name: "@md-editor/consumer",
+        devDependencies: { "@md-editor/provider": "workspace:*" },
+      }),
+      "packages/consumer/src/index.ts": "export const x = 1;\n",
+      "packages/consumer/tests/index.test.ts": 'import { thing } from "@md-editor/provider";\n',
+      "packages/provider/package.json": JSON.stringify({ name: "@md-editor/provider" }),
+      "packages/provider/src/index.ts": "export const thing = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "@md-editor/provider"), false, "tests 内 devDependencies 应放行");
+    },
+  );
+});
+
+test("依赖声明：自引用不校验", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/self/package.json": JSON.stringify({ name: "@md-editor/self", dependencies: {} }),
+      "packages/self/src/index.ts": 'import { own } from "@md-editor/self";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "@md-editor/self"), false, "自引用不应触发依赖声明校验");
+    },
+  );
+});
+
+/**
+ * Tailwind 扫描源护栏（tailwindSourceEntry）。
+ * 核心不变量：扫描源只在一处维护，app 不得手抄 @source。
+ */
+const twApp = (name, extra = {}) => ({
+  [`apps/${name}/package.json`]: JSON.stringify({
+    name: `@md-editor/${name}`,
+    devDependencies: { tailwindcss: "catalog:" },
+    ...extra,
+  }),
+});
+
+test("Tailwind：使用 tailwindcss 却未引入共享扫描源必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css": '@import "tailwindcss";\n',
+      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "未引入共享扫描源入口"), true, "缺失共享入口必须失败");
+    },
+  );
+});
+
+test("Tailwind：引入共享入口视为合规", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css":
+        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
+      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "未引入共享扫描源入口"), false, "引入共享入口应放行");
+    },
+  );
+});
+
+test("Tailwind：app 手抄 @source 必须失败（即使已引入共享入口）", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css":
+        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n@source "../../../packages/editor-ui/src";\n',
+      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "不得直接写 @source"), true, "手抄 @source 必须失败");
+    },
+  );
+});
+
+test("Tailwind：@source inline() 是 safelist，不受禁令影响", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css":
+        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n@source inline("underline");\n',
+      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "不得直接写 @source"), false, "@source inline() 应放行");
+    },
+  );
+});
+
+test("Tailwind：共享文件缺失必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css":
+        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "共享扫描源入口文件缺失"), true, "共享文件缺失必须失败");
+    },
+  );
+});
+
+test("Tailwind：共享文件 @source 数量不为 1 必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      ...twApp("demo"),
+      "apps/demo/src/styles.css":
+        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
+      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n@source "../other";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "应恰好包含 1 处 @source"), true, "多余 @source 必须失败");
+    },
+  );
+});
+
+/**
+ * 语法插件独立性护栏（syntaxPluginsIndependence）。
+ * 核心不变量：插件包不得依赖插件宿主实现，否则第三方插件作者会跟着学坏。
+ */
+test("语法插件：src 内 import renderer-codemirror 必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/syntax-plugins/package.json": JSON.stringify({
+        name: "@md-editor/syntax-plugins",
+      }),
+      "packages/syntax-plugins/src/bad.ts":
+        'import { thing } from "@md-editor/renderer-codemirror";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "语法插件包不得依赖渲染器实现"), true, "反向依赖必须失败");
+    },
+  );
+});
+
+test("语法插件：子路径 import 同样被禁止", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/syntax-plugins/package.json": JSON.stringify({
+        name: "@md-editor/syntax-plugins",
+      }),
+      "packages/syntax-plugins/src/bad.ts":
+        'import { t } from "@md-editor/renderer-codemirror/testing";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "语法插件包不得依赖渲染器实现"), true, "子路径反向依赖必须失败");
+    },
+  );
+});
+
+test("语法插件：只依赖 plugin-sdk 视为合规", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/syntax-plugins/package.json": JSON.stringify({
+        name: "@md-editor/syntax-plugins",
+      }),
+      "packages/syntax-plugins/src/good.ts":
+        'import { definePlugin } from "@md-editor/plugin-sdk";\nimport { x } from "@md-editor/plugin-sdk/syntax";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "语法插件包不得依赖渲染器实现"), false, "只依赖契约应放行");
+    },
+  );
+});
+
+test("语法插件：tests 内引用渲染器不受本规则限制", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/syntax-plugins/package.json": JSON.stringify({
+        name: "@md-editor/syntax-plugins",
+      }),
+      "packages/syntax-plugins/src/index.ts": "export const a = 1;\n",
+      "packages/syntax-plugins/tests/a.test.ts":
+        'import { EditorState } from "@md-editor/renderer-codemirror";\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "语法插件包不得依赖渲染器实现"),
+        false,
+        "测试需要渲染器夹具，应放行",
+      );
+    },
+  );
+});
+
+/**
+ * 库模块顶层副作用护栏（noTopLevelSideEffects）。
+ * 核心不变量：import 一个库不得改动宿主环境。
+ */
+test("顶层副作用：i18n.ts 顶层裸调用必须失败", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/i18n/src/i18n.ts":
+        'import { x } from "./x";\nexport const a = 1;\n\nensureI18nInitialized();\n',
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "顶层不得有执行语句"), true, "顶层裸调用必须失败");
+    },
+  );
+});
+
+test("顶层副作用：只有声明与注释视为合规", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/i18n/src/i18n.ts": [
+        "/**",
+        " * 文件头注释",
+        " */",
+        'import { x } from "./x";',
+        "",
+        "export const a = 1;",
+        "export function f() {",
+        "  doSomething();",
+        "}",
+        "export type T = string;",
+        "",
+      ].join("\n"),
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "顶层不得有执行语句"), false, "纯声明应放行");
+    },
+  );
+});
+
+test("顶层副作用：函数体内的调用不受限制", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/i18n/src/i18n.ts":
+        "export function init() {\n  ensureI18nInitialized();\n  return 1;\n}\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "顶层不得有执行语句"), false, "函数体内调用应放行");
+    },
+  );
+});
+
+test("依赖声明：Next 风格 app（components/ 而非 src/）同样受检", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "apps/nextlike/package.json": JSON.stringify({
+        name: "@md-editor/nextlike",
+        dependencies: {},
+      }),
+      "apps/nextlike/components/Widget.tsx": 'import { t } from "@md-editor/i18n";\n',
+      "packages/i18n/package.json": JSON.stringify({ name: "@md-editor/i18n" }),
+      "packages/i18n/src/index.ts": "export const t = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "值导入 @md-editor/i18n"),
+        true,
+        "Next 风格 app 的 components/ 目录必须纳入依赖声明检查",
+      );
+    },
+  );
+});
+
+test("依赖声明：export ... from 重导出按运行期依赖校验", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/reexporter/package.json": JSON.stringify({
+        name: "@md-editor/reexporter",
+        dependencies: {},
+        devDependencies: { "@md-editor/target": "workspace:*" },
+      }),
+      "packages/reexporter/src/index.ts": 'export * from "@md-editor/target";\n',
+      "packages/target/package.json": JSON.stringify({ name: "@md-editor/target" }),
+      "packages/target/src/index.ts": "export const a = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(
+        fails(result, "值导入 @md-editor/target"),
+        true,
+        "export * from 必须按运行期依赖校验（devDependencies 不足以放行）",
+      );
+    },
+  );
+});
+
+test("依赖声明：export type ... from 允许只声明在 devDependencies", () => {
+  withFixture(
+    {
+      "structure-exceptions.json": exceptions([]),
+      ...baselineOf([]),
+      "packages/reexporter/package.json": JSON.stringify({
+        name: "@md-editor/reexporter",
+        dependencies: {},
+        devDependencies: { "@md-editor/target": "workspace:*" },
+      }),
+      "packages/reexporter/src/index.ts": 'export type { T } from "@md-editor/target";\n',
+      "packages/target/package.json": JSON.stringify({ name: "@md-editor/target" }),
+      "packages/target/src/index.ts": "export type T = 1;\n",
+    },
+    (root) => {
+      const result = runChecks({ root, phase: "pr3" });
+      assert.equal(fails(result, "@md-editor/target"), false, "export type 应允许 devDependencies");
+    },
+  );
+});

@@ -12,7 +12,7 @@ import {
   useEditorUiActions,
   type CodeMirrorEditorPorts,
 } from "@md-editor/editor-ui";
-import { useTranslation, changeLanguage } from "@md-editor/i18n";
+import { configureI18n, useTranslation, changeLanguage } from "@md-editor/i18n";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { WebHeader } from "./components/WebHeader";
 import { WebEditor } from "./components/WebEditor";
@@ -36,6 +36,11 @@ import { applyDesktopTheme } from "./lib/theme-manager";
 import { bindWebKeyboardShortcuts } from "./lib/keyboard-shortcuts";
 import { webFileSystem } from "./lib/web-file-system";
 import { useImagePaste } from "./lib/use-image-paste";
+
+// Markdown lint 的诊断文案按 `document.documentElement.lang` 选择语言，
+// 因此本应用需要 i18n 在切换语言时同步该属性（库默认不碰宿主全局 DOM）。
+// 放在 App 而非入口：入口若静态 import i18n，会把四份语言包拉进启动路径。
+configureI18n({ syncDocumentLang: true });
 
 export function App() {
   const [settings, setSettings] = useState<WebSettings>(() => loadWebSettings());

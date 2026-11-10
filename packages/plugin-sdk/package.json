@@ -29,6 +29,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./syntax": "./src/syntax.ts",
+    "./callout": "./src/callout-data.ts",
     "./mdx": "./src/mdx.ts"
   },
   "scripts": {
@@ -41,7 +42,8 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.1",
     "@lezer/common": "^1.5.2",
-    "@lezer/markdown": "^1.8.0"
+    "@lezer/markdown": "^1.8.0",
+    "micromark-extension-cjk-friendly-util": "^3.0.1"
   },
   "peerDependenciesMeta": {
     "@codemirror/state": {
@@ -55,6 +57,9 @@
     },
     "@lezer/markdown": {
       "optional": true
+    },
+    "micromark-extension-cjk-friendly-util": {
+      "optional": true
     }
   },
   "devDependencies": {
@@ -62,6 +67,7 @@
     "@codemirror/view": "catalog:",
     "@lezer/common": "catalog:",
     "@lezer/markdown": "catalog:",
+    "micromark-extension-cjk-friendly-util": "3.0.1",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
@@ -74,6 +80,10 @@
       "./syntax": {
         "types": "./dist/syntax.d.ts",
         "default": "./dist/syntax.js"
+      },
+      "./callout": {
+        "types": "./dist/callout-data.d.ts",
+        "default": "./dist/callout-data.js"
       },
       "./mdx": {
         "types": "./dist/mdx.d.ts",

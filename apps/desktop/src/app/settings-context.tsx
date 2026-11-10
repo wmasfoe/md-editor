@@ -17,8 +17,13 @@ import type { UpdateNoticeChoice } from "./updates/presentation";
 import { useAppUpdates, type UpdateNotice } from "./updates/use-app-updates";
 import { openSettingsWindow } from "../desktop/settings-window";
 import { mergeLocalAiModelStatus, readLocalAiModelStatus } from "./ai/local-ai-model";
-import { changeLanguage } from "@md-editor/i18n";
+import { changeLanguage, configureI18n } from "@md-editor/i18n";
 import { syncSentryWithSettings } from "./error-reporting/sentry";
+
+// Markdown lint 的诊断文案按 `document.documentElement.lang` 选择语言，
+// 因此本应用需要 i18n 在切换语言时同步该属性（库默认不碰宿主全局 DOM）。
+// 放在这里而非入口 main.tsx：入口若静态 import i18n，会把四份语言包拉进启动路径。
+configureI18n({ syncDocumentLang: true });
 
 export interface AppSettingsContextValue {
   readonly settings: AppSettings;

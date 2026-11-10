@@ -1,7 +1,15 @@
 /**
- * 矢量 SVG 图标与 Callout 基础元数据（纯数据层，无 CodeMirror/DOM 依赖，可直接在 Node/JSC/Web 运行）
- * 支持 GFM Alert (NOTE, TIP, IMPORTANT, WARNING, CAUTION) 与常见 Container Directive (info, tip, danger 等)。
+ * @file callout-data.ts
+ * @description Callout（GFM Alert / Container Directive）的矢量图标与默认标题。
+ *
+ * **纯数据层**：无 CodeMirror、无 DOM、无 React 依赖，可直接在 Node / JSC / Worker 运行。
+ * 因此它属于公共契约，供三处共同消费：编辑器渲染器的 Callout widget、
+ * 官方语法插件的 directive 投影、以及 Markdown → HTML 静态导出器。
+ *
+ * 历史上渲染器与导出器各存一份副本。合并时采用导出器的图标：
+ * danger / caution 的 x-circle 路径必须带 `fill-rule="evenodd"`，否则会画成实心圆。
  */
+
 export const CALLOUT_SVG_ICONS: Readonly<Record<string, string>> = Object.freeze({
   info: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" class="cm-md-directive__svg" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" /></svg>`,
   tip: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" class="cm-md-directive__svg" aria-hidden="true"><path d="M10 1a6 6 0 00-3.815 10.631C7.237 12.5 8 13.443 8 14.456v.044a1.5 1.5 0 001.5 1.5h1a1.5 1.5 0 001.5-1.5v-.044c0-1.013.762-1.957 1.815-2.825A6 6 0 0010 1zM8.5 18a1.5 1.5 0 003 0h-3z" /></svg>`,
@@ -12,11 +20,13 @@ export const CALLOUT_SVG_ICONS: Readonly<Record<string, string>> = Object.freeze
   caution: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="16" height="16" class="cm-md-directive__svg" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" /></svg>`,
 });
 
+/** 按 callout 类型取图标 SVG；未知类型回退到 `info`。 */
 export function getCalloutSvg(type: string): string {
   const normalized = type.toLowerCase();
   return CALLOUT_SVG_ICONS[normalized] ?? CALLOUT_SVG_ICONS.info;
 }
 
+/** 按 callout 类型取默认标题（未在文档中显式指定 title 时使用）。 */
 export function defaultCalloutTitle(type: string): string {
   switch (type.toLowerCase()) {
     case "tip":

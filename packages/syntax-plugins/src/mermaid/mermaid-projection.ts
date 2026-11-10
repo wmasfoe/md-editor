@@ -1,7 +1,10 @@
 import type { EditorState, Range } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
-import { closeMediaViewerFor, openMediaViewer } from "@md-editor/renderer-codemirror";
-import type { MarkdownRangeRecord } from "@md-editor/plugin-sdk/syntax";
+import {
+  syntaxPluginHostPortsFacet,
+  type MarkdownRangeRecord,
+  type SyntaxPluginHostPorts,
+} from "@md-editor/plugin-sdk/syntax";
 import { renderMermaidSvg } from "./mermaid-loader.ts";
 import type { MermaidMetadata } from "./mermaid-types.ts";
 
@@ -80,6 +83,10 @@ export class MermaidBlockWidget extends WidgetType {
 
   toDOM(view: EditorView): HTMLElement {
     const doc = view.dom.ownerDocument;
+    // 宿主端口：由渲染器经 facet 注入（见 @md-editor/plugin-sdk/syntax 的 SyntaxPluginHostPorts）。
+    // 插件不 import 任何宿主实现；宿主未提供时优雅降级（不显示「放大」入口）。
+    const hostPorts: SyntaxPluginHostPorts = view.state.facet(syntaxPluginHostPortsFacet);
+    const openMediaViewer = hostPorts.openMediaViewer;
     // 外层包装承载悬浮工具栏：滚动层有 overflow-x:auto，绝对定位的工具栏若放在层内会被裁剪
     const wrapper = doc.createElement("div");
     wrapper.className = "cm-md-mermaid-block";
@@ -197,7 +204,7 @@ export class MermaidBlockWidget extends WidgetType {
      */
     const openViewer = (): void => {
       const svg = renderedSvgByDom.get(container);
-      if (!svg) {
+      if (!svg || !openMediaViewer) {
         return;
       }
       openMediaViewer({
@@ -253,13 +260,13 @@ export class MermaidBlockWidget extends WidgetType {
       return;
     }
     // 浮层句柄按 host DOM 键控：CM6 复用 DOM 时会丢弃旧实例且不调其 destroy ⇒ 必须按 DOM 关闭
-    closeMediaViewerFor(dom);
     const view =
       EditorView.findFromDOM(dom) ??
       (typeof dom.closest === "function" && dom.closest(".cm-editor")
         ? EditorView.findFromDOM(dom.closest(".cm-editor") as HTMLElement)
         : null);
     if (view) {
+      view.state.facet(syntaxPluginHostPortsFacet).closeMediaViewerFor?.(dom);
       scheduleHeightMeasure(view, `mermaid-destroy-${this.recordId}`);
     }
   }

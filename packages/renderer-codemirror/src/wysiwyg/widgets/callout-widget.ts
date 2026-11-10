@@ -6,7 +6,7 @@ import {
   CALLOUT_SVG_ICONS,
   getCalloutSvg,
   defaultCalloutTitle,
-} from "../../markdown/callout-data.ts";
+} from "@md-editor/plugin-sdk/syntax";
 
 export { CALLOUT_SVG_ICONS, getCalloutSvg, defaultCalloutTitle };
 
