@@ -39,9 +39,10 @@ apps/
   web/                     # 后续 Web 端
 
 packages/
-  editor-core/             # 引擎无关文档与命令契约
-  renderer-codemirror/     # CM6 编辑器实现与 Markdown 交互语义
-  editor-ui/               # React UI 组件
+  core/             # 引擎无关文档与命令契约
+  editor/     # CM6 编辑器实现与 Markdown 交互语义
+    src/react/          # @md-editor/editor/react 可选 React 子入口
+  app-ui/               # 应用 UI、AppEditor 接线与设置
   feature-outline/         # 大纲目录
   feature-source-mode/     # 源码模式
   feature-image/           # 图片粘贴、后续拖拽、资源存储
@@ -56,8 +57,8 @@ packages/
 
 ```txt
 packages/
-  editor-core/             # 编辑器 runtime、内置 feature 和文档契约
-  renderer-codemirror/     # CM6 parser adapter、decoration、Widget 和交互状态
+  core/             # 编辑器 runtime、内置 feature 和文档契约
+  editor/     # CM6 parser adapter、decoration、Widget 和交互状态
   file-system/             # 文件服务抽象和桌面端实现
   shared/                  # 公共类型、fixtures、测试工具
 ```
@@ -148,7 +149,7 @@ PDF: HTML render + print / WebView / headless pipeline
 
 ### 4.1 不直接暴露编辑器引擎
 
-`packages/editor-core` 只定义引擎无关的 Runtime 契约，具体 CM6 生命周期由 `renderer-codemirror` 实现：
+`packages/core` 只定义引擎无关的 Runtime 契约，具体 CM6 生命周期由 `editor` 实现：
 
 ```ts
 interface EditorRuntimeContract {
@@ -178,24 +179,24 @@ interface EditorContent {
 
 Runtime 职责边界：
 
-- `editor-core` 只拥有契约、DocumentState、commands、keymaps 和纯领域算法，不依赖 CM6、DOM 或 React。
-- `renderer-codemirror` 实现 Runtime 契约，负责单一 CM6 `EditorView` 的生命周期、模式切换、extensions、parser adapters 和 Widgets。
+- `core` 只拥有契约、DocumentState、commands、keymaps 和纯领域算法，不依赖 CM6、DOM 或 React。
+- `editor` 实现 Runtime 契约，负责单一 CM6 `EditorView` 的生命周期、模式切换、extensions、parser adapters 和 Widgets。
 - Runtime 对外只暴露内容、命令、选区和交互状态，不把底层 `EditorView` 作为常规业务依赖。
 - renderer 从 CM6 文本读取可保存的 `rawMarkdown`；raw fragment 只提供识别、保真和验证能力，不再合成两个编辑器模型。
 - App 层负责文件生命周期、窗口菜单、最近文件、设置和全局 UI，不直接拼接 Markdown。
-- `editor-core` 的内置 Feature 只注册 command、keymap 和 capability metadata；parser adapter 属于 renderer，React UI 属于 `editor-ui`，任何层都不能绕过 CM6 transaction 改写文档权威源。
+- `core` 的内置 Feature 只注册 command、keymap 和 capability metadata；parser adapter 属于 renderer，React bridge 生命周期属于 `editor/react`，应用 UI 与 Provider 接线属于 `app-ui`，任何层都不能绕过 CM6 transaction 改写文档权威源。
 
 ### 4.2 插件组织方式
 
 内置功能按领域 descriptor 与 renderer extension 分层：
 
 ```txt
-editor-core
+core
   ├── commands / keymaps
   ├── feature descriptors
   └── pure domain contracts
 
-renderer-codemirror
+editor
   ├── createEditorView()
   ├── CM6 extensions / parser adapters
   └── interaction StateFields / Widgets
@@ -217,7 +218,7 @@ interface EditorFeatureDescriptor {
   readonly keymaps?: Readonly<Record<string, EditorCommand>>
 }
 
-// 定义在 renderer-codemirror，不进入 editor-core。
+// 定义在 editor，不进入 core。
 interface RendererFeature {
   readonly name: string
   readonly extensions: readonly Extension[]
@@ -772,7 +773,7 @@ interface MDXChildrenSchema {
 1. remark-mdx 解析 MDX。
 2. 未知组件、语法错误和渲染异常使用 source-preserving placeholder。
 3. Component Registry 只提供官方 metadata 和 descriptor。
-4. `editor-ui` 通过 typed map 注入 `officialMdxComponents`，renderer 不直接依赖 `mdx-plugins`。
+4. `app-ui` 通过 typed map 注入 `officialMdxComponents`，renderer 不直接依赖 `mdx-plugins`。
 5. parser 生成精确 MDX AST source range，CM6 Widget 真实渲染官方组件。
 6. 捕获 pointer、click、focus、input 和 keyboard 事件，统一选中整个组件。
 7. `Backspace` / `Delete` 通过一个 CM6 transaction 删除完整源码范围。
@@ -828,7 +829,7 @@ AI 功能后置，不阻塞基础编辑器。
 
 ### 13.1 AI Suggestion Plugin
 
-基于 `renderer-codemirror` 的 StateField、StateEffect 和 decorations 实现。AI 层只返回纯 suggestion；renderer 独立负责展示、接受、取消、失效、选区映射和 history：
+基于 `editor` 的 StateField、StateEffect 和 decorations 实现。AI 层只返回纯 suggestion；renderer 独立负责展示、接受、取消、失效、选区映射和 history：
 
 ```ts
 type AISuggestion =

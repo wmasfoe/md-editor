@@ -1,19 +1,19 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type StateEffect } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
-import { createDocumentState } from "@md-editor/editor-core";
+import { createDocumentState } from "@md-editor/core";
 import {
   createDefaultSyntaxPluginHostPorts,
   markdownRangeIndexField,
   syntaxPluginRegistryFacet,
   SyntaxPluginRegistry,
-} from "@md-editor/renderer-codemirror";
+} from "@md-editor/editor";
 import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorRendererWithFactory,
   provideWysiwygDiagnostics,
   WysiwygDiagnostics,
-} from "@md-editor/renderer-codemirror/testing";
+} from "@md-editor/editor/testing";
 import {
   containerDirectivePlugin,
   directiveMarkdownExtension,

@@ -42,7 +42,7 @@ import { useDocumentUiStore } from "../app/stores/document-ui-store";
 import { useDesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { useSidebarStore } from "../app/stores/sidebar-store";
 import { isUpdateActionBusy, shouldShowEditorUpdateAction } from "../app/updates/update-status";
-import { useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
+import { useEditorUiActions, useEditorUiState } from "@md-editor/app-ui";
 import { editorUpdateActionLabel } from "./settings/settingsUtils";
 import { cx } from "../lib/cx";
 

@@ -29,7 +29,7 @@ To call the plugin from any window, set a global hotkey in uTools (`Cmd/Ctrl + ,
 
 ## Shortcuts
 
-The formatting shortcuts come from `@md-editor/editor-core`, so they match the desktop app. Examples: `Mod+B` bold, `Mod+I` italic, `Mod+E` inline code, `Mod+Shift+H` highlight, `Mod+Alt+1` to `6` headings, `Mod+F` find and `Mod+H` replace. `Mod` is `Cmd` on macOS and `Ctrl` elsewhere.
+The formatting shortcuts come from `@md-editor/core`, so they match the desktop app. Examples: `Mod+B` bold, `Mod+I` italic, `Mod+E` inline code, `Mod+Shift+H` highlight, `Mod+Alt+1` to `6` headings, `Mod+F` find and `Mod+H` replace. `Mod` is `Cmd` on macOS and `Ctrl` elsewhere.
 
 The plugin adds these on top of them:
 

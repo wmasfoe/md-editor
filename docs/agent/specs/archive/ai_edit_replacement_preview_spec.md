@@ -2,7 +2,7 @@
 
 ## 用途
 
-记录 AI 修复建议 replacement preview 的展示规范、实现边界和回归验收点。修改 `packages/editor-ui/src/utils/ai-suggestion.ts`、`packages/editor-ui/src/components/MilkdownEditor.css` 或 AI suggestion 接受/取消逻辑前，先读本规范。
+记录 AI 修复建议 replacement preview 的展示规范、实现边界和回归验收点。修改 `packages/app-ui/src/utils/ai-suggestion.ts`、`packages/app-ui/src/components/MilkdownEditor.css` 或 AI suggestion 接受/取消逻辑前，先读本规范。
 
 这是编辑器核心交互：预览必须让用户准确判断 Tab 后会发生什么。确认前不得改变真实 Markdown、ProseMirror doc、历史记录或选区；只有新增-only 预览可以作为未确认 decoration/widget 参与文档流，把后续原文向下推。
 
@@ -125,15 +125,15 @@ mirror 是 mixed suggestion 的 absolute overlay，只负责视觉预览。它�
 修改 AI edit preview 后至少运行：
 
 ```bash
-./node_modules/.bin/vitest run packages/editor-ui/src/tests/selection-policy.test.ts packages/editor-ui/src/tests/ai-suggestion.test.ts
-./node_modules/.bin/vitest run packages/editor-ui/src/tests/image-selection.test.ts packages/editor-ui/src/tests/ime-composition-guard.test.ts packages/editor-ui/src/tests/editor-surface.test.ts
-./node_modules/.bin/tsc -p packages/editor-ui/tsconfig.json --noEmit
+./node_modules/.bin/vitest run packages/app-ui/src/tests/selection-policy.test.ts packages/app-ui/src/tests/ai-suggestion.test.ts
+./node_modules/.bin/vitest run packages/app-ui/src/tests/image-selection.test.ts packages/app-ui/src/tests/ime-composition-guard.test.ts packages/app-ui/src/tests/editor-surface.test.ts
+./node_modules/.bin/tsc -p packages/app-ui/tsconfig.json --noEmit
 git diff --check
 ```
 
 重点关注：
 
-- `packages/editor-ui/src/tests/ai-suggestion.test.ts`
+- `packages/app-ui/src/tests/ai-suggestion.test.ts`
   - 不移动真实 editor selection。
   - Tab 接受 edit 时才替换 anchored original。
   - 纯文本 textblock 能生成 scoped preview model，并正确归类 delete-only、insert-only、mixed。
@@ -144,9 +144,9 @@ git diff --check
   - rich inline edit preview fail closed。
   - geometry 缺失或 content width 无效时 fail closed。
   - mixed mirror placement 使用 textblock content box 和 line-height/font-size-derived vertical offset。
-- `packages/editor-ui/src/tests/selection-policy.test.ts`
+- `packages/app-ui/src/tests/selection-policy.test.ts`
   - preview / selection CSS 不能破坏全局选区策略。
-- `packages/editor-ui/src/tests/ime-composition-guard.test.ts`
+- `packages/app-ui/src/tests/ime-composition-guard.test.ts`
   - preview 改动不能重新引入 IME composition 行高或 caret 回归。
 
 ## 手动验收场景

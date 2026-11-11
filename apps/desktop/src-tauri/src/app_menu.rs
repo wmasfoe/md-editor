@@ -215,7 +215,7 @@ mod menu_accelerator_collision_tests {
 
 #[cfg(target_os = "macos")]
 pub(crate) fn build_app_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
-    // 菜单项 id 是原生命令契约的一半，React 再映射回 editor-core command id。
+    // 菜单项 id 是原生命令契约的一半，React 再映射回 core command id。
     let locale = detect_menu_locale();
     let open_recent_menu = recent_files::build_open_recent_menu(app, locale)?;
     // D-2 勾选态：从镜像状态读取（默认全关，与 renderer StateField 初始态一致）。

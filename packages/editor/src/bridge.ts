@@ -1,0 +1,355 @@
+import {
+  synchronizeRendererEvent,
+  type DocumentMutationResult,
+  type DocumentState,
+  type ExternalEditFinalizeReceipt,
+  type ExternalEditReservationResult,
+  type ModeReceipt,
+  type ModeRequest,
+  type ModeRendererPort,
+  type MutationBusyResult,
+  type MutationRejectedResult,
+  type RendererSyncDeliveryResult,
+} from "@md-editor/core";
+import {
+  createCodeMirrorRenderer,
+  type CodeMirrorRendererOptions,
+  type CodeBlockLineNumberPortResult,
+  type InlineStyleMarkerPortResult,
+  type MarkdownLintPortResult,
+  type CodeMirrorRenderer,
+  type ExternalEditRequest,
+  type ExternalEditResult,
+} from "./renderer/index.ts";
+import type {
+  AiSuggestionInput,
+  AiSuggestionLabels,
+  AiSuggestionValue,
+  AiSuggestionAcceptedEvent,
+} from "./wysiwyg/view/suggestion-model.ts";
+import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
+import type { Diagnostic } from "@codemirror/lint";
+import type { DocumentLinterOptions } from "./lint/types.ts";
+
+export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
+
+export type CodeMirrorEditorExternalEditResult =
+  | { readonly status: "applied"; readonly receipt: ExternalEditFinalizeReceipt }
+  | Extract<ExternalEditResult, { readonly status: "queued-composition" | "noop" | "stale" }>
+  | Extract<ExternalEditResult, { readonly status: "cancelled" | "reconcile-required" }>
+  | MutationBusyResult
+  | MutationRejectedResult;
+
+export interface CodeMirrorEditorPorts {
+  readonly clientId: string;
+  readonly mode: ModeRendererPort;
+  applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
+  setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
+  setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
+  setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
+  recomputeMarkdownLint(): MarkdownLintPortResult;
+  setHostVisibility(hidden: boolean): void;
+  showSuggestion(suggestion: AiSuggestionInput): void;
+  setAiSuggestionLabels(labels: AiSuggestionLabels): void;
+  acceptSuggestion(): boolean;
+  dismissSuggestion(): boolean;
+  getSuggestion(): AiSuggestionValue | null;
+  getSelectionSnapshot(): {
+    readonly from: number;
+    readonly to: number;
+    readonly text: string;
+    readonly head: number;
+    readonly anchor: number;
+  };
+  undo(): boolean;
+  /** D-3 块操作：上移块 */
+  moveBlockUp(): boolean;
+  /** D-3 块操作：下移块 */
+  moveBlockDown(): boolean;
+  /** D-3 块操作：复制块 */
+  duplicateBlock(): boolean;
+  /** D-3 块操作：删除块 */
+  deleteBlock(): boolean;
+  /** 执行 Markdown 常用格式化命令 */
+  executeFormatting(commandId: string): boolean;
+  /** 打开文档内查找面板 */
+  openFind(): boolean;
+  /** 打开文档内替换面板 */
+  openReplace(): boolean;
+  /** 动态更新格式化快捷键映射 */
+  setFormattingKeymaps(customKeymaps: ReadonlyMap<string, string>): void;
+  /** D-2 视图模式：切换专注模式，返回切换后状态 */
+  toggleFocusMode(): boolean;
+  /** D-2 视图模式：切换打字机模式，返回切换后状态 */
+  toggleTypewriterMode(): boolean;
+  /**
+   * D-2/S1(b) 视图模式：**回读**视图轴（专注/打字机）真实开关态。
+   *
+   * 渲染层的 `focusModeField` / `typewriterModeField` 是单一事实源；
+   * 宿主菜单镜像记的是「最近一次已知勾选态」，文档边界等事件后必须用它校对并**重同步**（MED-4）。
+   */
+  getViewModeState(): { readonly focus: boolean; readonly typewriter: boolean };
+  focus(): void;
+  setSelection(from: number, to: number): void;
+  scrollToLine(
+    line: number,
+    options?: { readonly select?: boolean; readonly focus?: boolean },
+  ): boolean;
+  requestMeasure(): void;
+  /**
+   * 组合输入（IME）是否进行中：宿主据此推迟视口重排与桥接上报，
+   * 避免 iOS WebKit 在组合期把 pre-edit（拼音）当作普通文本提交。
+   */
+  isComposing(): boolean;
+  /** 将当前未提交的投影控件/表单（例如 WYSIWYG 表格单元格）同步刷新到底层文档 */
+  flushPendingEdits(): boolean;
+  /** 全量替换并热重载 Markdown 语法扩展插件列表 */
+  setPlugins(plugins: readonly MarkdownSyntaxPlugin[]): void;
+  /** 执行文档 MarkdownLint 与链接检查，将诊断结果同步分发至视口 */
+  runDocumentLint(options?: DocumentLinterOptions): Promise<readonly Diagnostic[]>;
+  /** 运行或切换 Markdown 规范检查，分发诊断并打开问题面板（若已开启则 Toggle Off 关闭） */
+  runMarkdownLint(config?: Record<string, unknown>): {
+    readonly total: number;
+    readonly errors: number;
+    readonly warnings: number;
+    readonly toggledOff?: boolean;
+  };
+  /** 一键自动修复所有支持自动修复的 Markdown 规范问题 */
+  fixAllMarkdownLint(config?: Record<string, unknown>): {
+    readonly appliedCount: number;
+    readonly remainingCount: number;
+  };
+  /** 清除 Markdown 规范检查状态（波浪线与底部面板） */
+  clearMarkdownLint(): void;
+}
+
+export type CodeMirrorEditorSyncError =
+  | {
+      readonly kind: "renderer-sync";
+      readonly delivery: Extract<RendererSyncDeliveryResult, { readonly status: "sync-error" }>;
+    }
+  | {
+      readonly kind: "local-change-rejected";
+      readonly result: Exclude<DocumentMutationResult, { readonly status: "applied" | "noop" }>;
+    };
+
+/**
+ * MDX 组件白名单最小接口(与 editor 的 MdxComponentLookup 同形状;
+ * 不 import plugin-host,遵守包边界)。
+ */
+export interface MdxComponentsLookup {
+  getByComponentName(
+    name: string,
+  ): { readonly component: { readonly displayName: string } } | undefined;
+}
+
+export interface CodeMirrorEditorBridgeOptions {
+  readonly parent: HTMLElement;
+  readonly document: DocumentState;
+  readonly resolveImageSrc?: (source: string) => string;
+  readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
+  /** MDX 文件模式(透传给 renderer) */
+  readonly mdxMode?: boolean;
+  /** MDX 组件白名单(透传给 renderer;纯 metadata) */
+  readonly mdxComponents?: MdxComponentsLookup;
+  /** 链接打开回调(透传给 renderer;宿主决策内部文件 vs 外部链接) */
+  readonly openLinkTarget?: (url: string) => void;
+  readonly onCursorLineChange?: (line: number) => void;
+  /** 是否开启实时 Markdown 规范检查（默认 false） */
+  readonly enableMarkdownLint?: boolean;
+  /** 可选语法扩展插件列表 */
+  readonly plugins?: readonly MarkdownSyntaxPlugin[];
+  /** 兼容别名：同 plugins */
+  readonly syntaxPlugins?: readonly MarkdownSyntaxPlugin[];
+  readonly aiSuggestionLabels?: AiSuggestionLabels;
+  readonly onAiSuggestionAccepted?: (event: AiSuggestionAcceptedEvent) => void;
+  readonly onSyncError: (error: CodeMirrorEditorSyncError) => void;
+  readonly onQueuedExternalEditResult: (result: CodeMirrorEditorExternalEditResult) => void;
+}
+
+export interface CodeMirrorEditorBridge {
+  readonly ports: CodeMirrorEditorPorts;
+  destroy(): void;
+}
+
+const rendererByPorts = new WeakMap<CodeMirrorEditorPorts, CodeMirrorRenderer>();
+
+function defaultWriteClipboardText(text: string): Promise<void> {
+  const writeText = globalThis.navigator?.clipboard?.writeText;
+  if (typeof writeText !== "function") {
+    return Promise.reject(
+      new Error("Clipboard write is unavailable: navigator.clipboard.writeText is not available."),
+    );
+  }
+  return writeText.call(globalThis.navigator.clipboard, text);
+}
+
+function releaseReservation(
+  document: DocumentState,
+  reservation: Extract<
+    ExternalEditReservationResult,
+    { readonly status: "reserved" }
+  >["reservation"],
+  reason: Parameters<DocumentState["releaseExternalEdit"]>[1],
+): void {
+  document.releaseExternalEdit(reservation, reason);
+}
+
+export function createCodeMirrorEditorBridge(
+  options: CodeMirrorEditorBridgeOptions,
+): CodeMirrorEditorBridge {
+  let destroyed = false;
+
+  const reportSyncError = (error: CodeMirrorEditorSyncError) => {
+    try {
+      options.onSyncError(error);
+    } catch {
+      // Consumer diagnostics must not interrupt CM6 transaction delivery.
+    }
+  };
+
+  const applyExternalEdit = (request: ExternalEditRequest): CodeMirrorEditorExternalEditResult => {
+    const reservationResult = options.document.reserveExternalEdit(request);
+    if (reservationResult.status !== "reserved") {
+      return reservationResult;
+    }
+
+    let rendererResult: ExternalEditResult;
+    try {
+      rendererResult = renderer.applyReservedExternalEdit(request);
+    } catch (error) {
+      releaseReservation(options.document, reservationResult.reservation, "renderer-failed");
+      throw error;
+    }
+
+    switch (rendererResult.status) {
+      case "applied":
+        return {
+          status: "applied",
+          receipt: options.document.finalizeExternalEdit(
+            reservationResult.reservation,
+            rendererResult.receipt,
+          ),
+        };
+      case "noop":
+        releaseReservation(options.document, reservationResult.reservation, "renderer-noop");
+        return rendererResult;
+      case "queued-composition":
+        releaseReservation(options.document, reservationResult.reservation, "composition-deferred");
+        return rendererResult;
+      case "cancelled":
+        releaseReservation(options.document, reservationResult.reservation, "cancelled");
+        return rendererResult;
+      case "reconcile-required":
+      case "stale":
+        releaseReservation(options.document, reservationResult.reservation, "renderer-failed");
+        return rendererResult;
+    }
+  };
+
+  const rendererOptions: CodeMirrorRendererOptions = {
+    parent: options.parent,
+    initialSnapshot: options.document.getSnapshot(),
+    resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
+    writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
+    mdxMode: options.mdxMode ?? false,
+    mdxComponents: options.mdxComponents,
+    openLinkTarget: options.openLinkTarget,
+    onCursorLineChange: options.onCursorLineChange,
+    plugins: options.plugins ?? options.syntaxPlugins,
+    aiSuggestionLabels: options.aiSuggestionLabels,
+    onAiSuggestionAccepted: options.onAiSuggestionAccepted,
+    enableMarkdownLint: options.enableMarkdownLint,
+    onEditorChange(change) {
+      const result = options.document.applyEditorChange(change.markdown, change.origin);
+      if (result.status !== "applied" && result.status !== "noop") {
+        renderer.reconcile(options.document.getSnapshot());
+        reportSyncError({ kind: "local-change-rejected", result });
+      }
+    },
+    onQueuedExternalEditReady(request) {
+      options.onQueuedExternalEditResult(applyExternalEdit(request));
+    },
+    onQueuedExternalEditCancelled(result) {
+      options.onQueuedExternalEditResult(result);
+    },
+  };
+  const renderer = createCodeMirrorRenderer(rendererOptions);
+
+  const unsubscribeTransitions = options.document.subscribeTransitions((event) => {
+    const delivery = synchronizeRendererEvent(options.document, renderer, event);
+    if (delivery.status === "sync-error") {
+      reportSyncError({ kind: "renderer-sync", delivery });
+    }
+  });
+
+  const mode: ModeRendererPort = Object.freeze({
+    applyMode: (request: ModeRequest) => renderer.applyMode(request),
+    rollbackMode: (receipt: ModeReceipt) => renderer.rollbackMode(receipt),
+  });
+  const ports: CodeMirrorEditorPorts = Object.freeze({
+    clientId: renderer.clientId,
+    mode,
+    applyExternalEdit,
+    moveBlockUp: () => renderer.moveBlockUp(),
+    moveBlockDown: () => renderer.moveBlockDown(),
+    duplicateBlock: () => renderer.duplicateBlock(),
+    deleteBlock: () => renderer.deleteBlock(),
+    executeFormatting: (commandId: string) => renderer.executeFormatting(commandId),
+    openFind: () => renderer.openFind(),
+    openReplace: () => renderer.openReplace(),
+    setFormattingKeymaps: (customKeymaps: ReadonlyMap<string, string>) =>
+      renderer.setFormattingKeymaps(customKeymaps),
+    toggleFocusMode: () => renderer.toggleFocusMode(),
+    toggleTypewriterMode: () => renderer.toggleTypewriterMode(),
+    getViewModeState: () => renderer.getViewModeState(),
+    setCodeBlockLineNumbers: (enabled: boolean) => renderer.setCodeBlockLineNumbers(enabled),
+    setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
+    setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
+    recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),
+    setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
+    showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
+    setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),
+    acceptSuggestion: () => renderer.acceptSuggestion(),
+    dismissSuggestion: () => renderer.dismissSuggestion(),
+    getSuggestion: () => renderer.getSuggestion(),
+    getSelectionSnapshot: () => renderer.getSelectionSnapshot(),
+    undo: () => renderer.undo(),
+    focus: () => renderer.focus(),
+    setSelection: (from: number, to: number) => renderer.setSelection(from, to),
+    scrollToLine: (
+      line: number,
+      scrollOptions?: { readonly select?: boolean; readonly focus?: boolean },
+    ) => renderer.scrollToLine(line, scrollOptions),
+    requestMeasure: () => renderer.requestMeasure(),
+    isComposing: () => renderer.isComposing,
+    flushPendingEdits: () => renderer.flushPendingEdits(),
+    setPlugins: (plugins: readonly MarkdownSyntaxPlugin[]) => renderer.setPlugins(plugins),
+    runDocumentLint: (opts?: DocumentLinterOptions) => renderer.runDocumentLint(opts),
+    runMarkdownLint: (config?: Record<string, unknown>) => renderer.runMarkdownLintCommand(config),
+    fixAllMarkdownLint: (config?: Record<string, unknown>) => renderer.fixAllMarkdownLint(config),
+    clearMarkdownLint: () => renderer.clearMarkdownLint(),
+  });
+  rendererByPorts.set(ports, renderer);
+
+  return Object.freeze({
+    ports,
+    destroy() {
+      if (destroyed) {
+        return;
+      }
+      destroyed = true;
+      unsubscribeTransitions();
+      renderer.destroy();
+    },
+  });
+}
+
+/** @internal Used only by the package's testing entrypoint. */
+export function getRendererForTesting(ports: CodeMirrorEditorPorts): CodeMirrorRenderer {
+  const renderer = rendererByPorts.get(ports);
+  if (!renderer) {
+    throw new Error("The editor ports were not created by this package instance.");
+  }
+  return renderer;
+}

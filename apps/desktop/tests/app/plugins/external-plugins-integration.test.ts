@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredPlugin } from "../../../src/app/plugins/storage";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 
 const state = vi.hoisted(() => ({
   records: [] as unknown[],
@@ -41,7 +41,7 @@ vi.mock("../../../src/app/runtime/editor-runtime", () => ({
         return { dispose: () => state.commands.delete(command.id) };
       },
     },
-    // Mirrors editor-core's registry: a key already bound is rejected, so tests catch the
+    // Mirrors core's registry: a key already bound is rejected, so tests catch the
     // same conflicts the real runtime would.
     keymaps: {
       register(keymap: { id: string; key: string }) {

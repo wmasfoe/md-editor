@@ -8,7 +8,7 @@
 
 - **初版定位**：面向官网与在线体验的轻量交互式 Playground 编辑器，做到秒开、沉浸、零门槛体验 Inkpoint 核心亮点能力。
 - **架构复用**：
-  - 严格复用现有核心领域包（`@md-editor/editor-core`、`@md-editor/renderer-codemirror`、`@md-editor/editor-ui`、`@md-editor/markdown-fidelity`、`@md-editor/mdx-component-registry` 等）。
+  - 严格复用现有核心领域包（`@md-editor/core`、`@md-editor/editor`、`@md-editor/app-ui`、`@md-editor/markdown-fidelity`、`@md-editor/mdx-component-registry` 等）。
   - 核心领域能力保持 100% 平台无关，不渗入任何浏览器或特定环境特有耦合。
 - **无文件树全宽极简布局**：
   - 桌面端由于管理本地工程，左侧常驻文件树并在树底部的 `DocumentBar` 放置设置按钮；
@@ -42,7 +42,7 @@ graph TD
 4. **双模式无缝切换**：
    - 所见即所得（WYSIWYG）↔ 源码模式（Source），光标保持，零闪烁。可通过快捷键 `Mod-/` 或在设置中切换。
 5. **滑出式大纲目录（TOC）**：
-   - 复用 `@md-editor/editor-ui` 的 `OutlinePanel`，随编辑实时更新，支持快捷键 `Mod-Shift-B` 快速呼出收起。
+   - 复用 `@md-editor/app-ui` 的 `OutlinePanel`，随编辑实时更新，支持快捷键 `Mod-Shift-B` 快速呼出收起。
 6. **本地草稿持久化**：
    - 自动在 `localStorage` 中记录最新内容，刷新页面或误关标签后自动还原。
 
@@ -59,14 +59,14 @@ graph TD
 
 ## 4. 主题复用架构（与桌面端同源）
 
-- **抽离沉淀**：将桌面端 5 款内置主题的 CSS 变量生成与枚举提取至 `@md-editor/editor-ui`（`built-in-themes.ts`）：
+- **抽离沉淀**：将桌面端 5 款内置主题的 CSS 变量生成与枚举提取至 `@md-editor/app-ui`（`built-in-themes.ts`）：
   - 浅色：宣纸 (`paper-light`)、GitHub 经典 (`github-light`)、冷灰哥特 (`gothic-light`)
   - 深色：炭焙 (`charcoal-dark`)、暗夜 (`night-dark`)
 - **同源变量**：Web 端与桌面端统一使用 `builtInThemeCss()` 注入基础调色盘变量，并通过 `document.documentElement` 同步 `data-theme-scheme` 与 `data-theme-builtin`，保证两端视觉体验高度一致，未来新增主题零维护负担。
 
 ## 5. 快捷键系统
 
-- **底层契约**：复用 `@md-editor/editor-ui` 导出的 `matchesRuntimeKeymap(event, keymap)`，统一处理 Mac (`Meta`) 与 Windows/Linux (`Ctrl`) 的 `Mod` 映射以及 IME 组合键屏蔽。
+- **底层契约**：复用 `@md-editor/app-ui` 导出的 `matchesRuntimeKeymap(event, keymap)`，统一处理 Mac (`Meta`) 与 Windows/Linux (`Ctrl`) 的 `Mod` 映射以及 IME 组合键屏蔽。
 - **核心热键**：
   - `Mod-/`：无缝切换源码 / 所见即所得模式
   - `Mod-Shift-B`：展开 / 收起右侧大纲抽屉

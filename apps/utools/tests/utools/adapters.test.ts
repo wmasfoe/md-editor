@@ -2,7 +2,7 @@
 // uTools 适配层单元测试
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDocumentState } from "@md-editor/editor-core";
+import { createDocumentState } from "@md-editor/core";
 import {
   createUtoolsFileAdapter,
   createUtoolsNativeSaveAdapter,
@@ -25,7 +25,7 @@ import {
   resolveCodeFontStack,
   PROSE_FONT_OPTIONS,
   CODE_FONT_OPTIONS,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
 import {
   hasAcceptedAiDisclaimer,
   acceptAiDisclaimer,

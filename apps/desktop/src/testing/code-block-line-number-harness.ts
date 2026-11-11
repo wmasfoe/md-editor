@@ -1,4 +1,4 @@
-import { installCodeBlockLineNumberGeometryFixture } from "@md-editor/editor-ui/CodeMirrorEditor/testing";
+import { installCodeBlockLineNumberGeometryFixture } from "@md-editor/editor/react/testing";
 
 export function installCodeBlockLineNumberHarness(rootElement: HTMLElement): void {
   rootElement.style.width = "520px";

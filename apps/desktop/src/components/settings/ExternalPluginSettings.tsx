@@ -3,7 +3,7 @@ import {
   ExclamationTriangleIcon,
   PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
-import { validateKeymapKey } from "@md-editor/editor-core";
+import { validateKeymapKey } from "@md-editor/core";
 import {
   PluginCard,
   pluginBadgeClassName,
@@ -17,7 +17,7 @@ import {
   settingsSectionTitleClassName,
   settingsSmallButtonClassName,
   settingsTextButtonClassName,
-} from "@md-editor/editor-ui/settings";
+} from "@md-editor/app-ui/settings";
 import { useTranslation } from "@md-editor/i18n";
 import { useCallback, useEffect, useState } from "react";
 import {

@@ -1,5 +1,5 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { compileThemeCss, setThemeStyleText } from "@md-editor/editor-ui";
+import { compileThemeCss, setThemeStyleText } from "@md-editor/app-ui";
 import type { AppThemeSettings, ThemeSchemeSettings } from "./app-settings";
 import { resolveThemeColorScheme } from "./app-settings";
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { OutlinePanel, useEditorUiActions, useEditorUiState } from "@md-editor/editor-ui";
+import { OutlinePanel, useEditorUiActions, useEditorUiState } from "@md-editor/app-ui";
 import { useTranslation } from "@md-editor/i18n";
 
 export interface WebOutlineDrawerProps {

@@ -1,5 +1,5 @@
 import { normalizeAiSettings, type AiSettings } from "@md-editor/ai";
-import type { BuiltInThemeId } from "@md-editor/editor-ui";
+import type { BuiltInThemeId } from "@md-editor/app-ui";
 
 export const LAST_OPENED_FILE_KEY = "inkpoint_last_opened_file_path";
 

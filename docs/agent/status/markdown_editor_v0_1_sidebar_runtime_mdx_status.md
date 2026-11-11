@@ -46,12 +46,12 @@
 - 已完成：Frontmatter / 未知 MDX 在 WYSIWYG 中以托管 raw block 展示和编辑；Callout 从 raw source 派生轻量预览；保存均恢复为作者源码。
 - 已修复：输入 ``` 生成 fenced code block 时不再把工具条直接插入 ProseMirror 管理的 `pre` DOM，避免编辑器反复同步导致卡死。
 - 已验证：`cargo test` 覆盖空目录显示和新建文件夹刷新树。
-- 已验证：`node packages/editor-ui/node_modules/typescript/bin/tsc -p packages/editor-ui/tsconfig.json --noEmit`。
+- 已验证：`node packages/app-ui/node_modules/typescript/bin/tsc -p packages/app-ui/tsconfig.json --noEmit`。
 - 已验证：`node apps/desktop/node_modules/typescript/bin/tsc -p apps/desktop/tsconfig.json --noEmit`。
 - 已验证：`node packages/markdown-fidelity/node_modules/typescript/bin/tsc -p packages/markdown-fidelity/tsconfig.json --noEmit`。
 - 已验证：`node node_modules/vitest/vitest.mjs run packages/markdown-fidelity/tests/fidelity.test.ts`。
-- 已验证：`node node_modules/vitest/vitest.mjs run packages/editor-ui/src/code-highlight.test.ts`。
-- 已验证：`node node_modules/vitest/vitest.mjs run packages/editor-ui/src/code-block-tools.test.ts packages/editor-ui/src/code-highlight.test.ts`。
+- 已验证：`node node_modules/vitest/vitest.mjs run packages/app-ui/src/code-highlight.test.ts`。
+- 已验证：`node node_modules/vitest/vitest.mjs run packages/app-ui/src/code-block-tools.test.ts packages/app-ui/src/code-highlight.test.ts`。
 
 ## 后续方向
 

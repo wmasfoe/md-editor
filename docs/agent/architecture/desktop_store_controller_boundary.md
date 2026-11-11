@@ -27,7 +27,7 @@ Controller hook 只保留需要 React 生命周期的 wiring：
 
 - 注册和清理快捷键、native menu、窗口关闭 guard。
 - 注册和清理 paste/drop、recent-file events 等全局监听。
-- 连接 React Provider 生命周期本身必须提供的能力，例如 editor-ui command dispatcher、WYSIWYG fragment 跳转、更新确认流程、document revision remount、依赖这些能力的文档打开入口。
+- 连接 React Provider 生命周期本身必须提供的能力，例如 app-ui command dispatcher、WYSIWYG fragment 跳转、更新确认流程、document revision remount、依赖这些能力的文档打开入口。
 
 Controller 不应成为 store action 的隐藏宿主。不要在 controller 里组装业务 action 后用 `useStore.setState(...)` 写进 store。确实依赖 Provider 挂载态的能力，应拆成命名 bridge hook，例如 `useDesktopCommandDispatcher` 或 `useDesktopWysiwygLinkBridge`，并让 hook 名称说明为什么这里需要生命周期 wiring。
 
@@ -51,8 +51,8 @@ initializeSomeStore({ doThing, runtime, service });
 
 直接 import 只适用于同一 ownership 层。以下情况仍应通过 adapter/callback/API 边界：
 
-- `editor-core` 需要保持平台无关、React 无关。
-- `editor-ui` 需要跨 desktop/web/mobile 复用。
+- `core` 需要保持平台无关、React 无关。
+- `app-ui` 需要跨 desktop/web/mobile 复用。
 - 依赖是 Tauri、文件系统、native menu/window 等平台能力，并且目标模块位于 shared package。
 - 依赖是测试时需要替换的外部系统，且没有稳定 fake/service 边界。
 

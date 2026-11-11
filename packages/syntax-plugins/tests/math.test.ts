@@ -6,11 +6,8 @@ import {
   markdownRangeIndexField,
   syntaxPluginRegistryFacet,
   SyntaxPluginRegistry,
-} from "@md-editor/renderer-codemirror";
-import {
-  provideWysiwygDiagnostics,
-  WysiwygDiagnostics,
-} from "@md-editor/renderer-codemirror/testing";
+} from "@md-editor/editor";
+import { provideWysiwygDiagnostics, WysiwygDiagnostics } from "@md-editor/editor/testing";
 import { mathPlugin, mathMarkdownExtension, MATH_NODES, renderMathHtml } from "../src/index.ts";
 
 describe("mathPlugin (@md-editor/syntax-plugins)", () => {

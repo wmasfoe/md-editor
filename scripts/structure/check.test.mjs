@@ -169,8 +169,7 @@ test("N10：跨包深导入必须失败", () => {
     {
       "structure-exceptions.json": exceptions([]),
       ...baselineOf([]),
-      "packages/demo/src/deep.ts":
-        'import { y } from "@md-editor/renderer-codemirror/src/index.ts";\n',
+      "packages/demo/src/deep.ts": 'import { y } from "@md-editor/editor/src/index.ts";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr1" });
@@ -268,19 +267,16 @@ test("N9/N9d：wysiwyg 顶层集合与逐文件域归属（PR2 规则）", () =>
   const base = {
     "structure-exceptions.json": exceptions([]),
     ...baselineOf([]),
-    "packages/renderer-codemirror/src/wysiwyg/index.ts": "export {};\n",
+    "packages/editor/src/wysiwyg/index.ts": "export {};\n",
   };
-  withFixture(
-    { ...base, "packages/renderer-codemirror/src/wysiwyg/loose.ts": "export {};\n" },
-    (root) => {
-      const result = runChecks({ root, phase: "pr2" });
-      assert.equal(fails(result, "未归域的条目"), true, "顶层多出文件必须失败");
-    },
-  );
+  withFixture({ ...base, "packages/editor/src/wysiwyg/loose.ts": "export {};\n" }, (root) => {
+    const result = runChecks({ root, phase: "pr2" });
+    assert.equal(fails(result, "未归域的条目"), true, "顶层多出文件必须失败");
+  });
   withFixture(
     {
       ...base,
-      "packages/renderer-codemirror/src/wysiwyg/state/table-projection.ts": "export {};\n",
+      "packages/editor/src/wysiwyg/state/table-projection.ts": "export {};\n",
     },
     (root) => {
       const result = runChecks({ root, phase: "pr2" });
@@ -342,17 +338,14 @@ test("PR3：state 拆分成员精确匹配，拒绝恢复旧聚合文件", () =>
   assert.deepEqual(WYSIWYG_DOMAIN_MEMBERS.state, members);
   const files = Object.fromEntries(
     Object.entries(WYSIWYG_DOMAIN_MEMBERS).flatMap(([domain, names]) =>
-      names.map((name) => [
-        `packages/renderer-codemirror/src/wysiwyg/${domain}/${name}`,
-        "export {};\n",
-      ]),
+      names.map((name) => [`packages/editor/src/wysiwyg/${domain}/${name}`, "export {};\n"]),
     ),
   );
   withFixture(files, (root) => assert.deepEqual(checkWysiwygDomains({ root }).failures, []));
   withFixture(
     {
       ...files,
-      "packages/renderer-codemirror/src/wysiwyg/state/projection-state.ts": "export {};\n",
+      "packages/editor/src/wysiwyg/state/projection-state.ts": "export {};\n",
     },
     (root) => {
       assert.equal(
@@ -370,14 +363,14 @@ test("cluster 级硬约束：指定包内 >800 行失败，其它包仅警告", 
     {
       "structure-exceptions.json": exceptions([]),
       ...baselineOf([]),
-      "packages/renderer-codemirror/src/big.ts": lines(WARN_LINES + 1),
+      "packages/editor/src/big.ts": lines(WARN_LINES + 1),
     },
     (root) => {
       const result = runChecks({ root, phase: "pr1" });
       assert.equal(
         fails(result, "cluster 级硬约束"),
         true,
-        "renderer-codemirror 内 801 行必须失败（防拆成巨型协作者）",
+        "editor 内 801 行必须失败（防拆成巨型协作者）",
       );
     },
   );
@@ -404,12 +397,12 @@ test("PR3：renderer 簇新增未登记协作者必须失败", () => {
     {
       "structure-exceptions.json": exceptions([]),
       ...baselineOf([]),
-      "packages/renderer-codemirror/src/renderer/index.ts": "export {};\n",
-      "packages/renderer-codemirror/src/renderer/controller.ts": "export {};\n",
-      "packages/renderer-codemirror/src/renderer/types.ts": "export {};\n",
-      "packages/renderer-codemirror/src/renderer/view-adapter.ts": "export {};\n",
-      "packages/renderer-codemirror/src/renderer/controller/probe.ts": "export {};\n",
-      "packages/renderer-codemirror/src/renderer/controller/new-collaborator.ts": "export {};\n",
+      "packages/editor/src/renderer/index.ts": "export {};\n",
+      "packages/editor/src/renderer/controller.ts": "export {};\n",
+      "packages/editor/src/renderer/types.ts": "export {};\n",
+      "packages/editor/src/renderer/view-adapter.ts": "export {};\n",
+      "packages/editor/src/renderer/controller/probe.ts": "export {};\n",
+      "packages/editor/src/renderer/controller/new-collaborator.ts": "export {};\n",
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -575,7 +568,7 @@ test("Tailwind：使用 tailwindcss 却未引入共享扫描源必须失败", ()
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css": '@import "tailwindcss";\n',
-      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+      "packages/app-ui/styles/tailwind-sources.css": '@source "../src";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -591,8 +584,8 @@ test("Tailwind：引入共享入口视为合规", () => {
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css":
-        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
-      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+        '@import "tailwindcss";\n@import "@md-editor/app-ui/tailwind-sources.css";\n',
+      "packages/app-ui/styles/tailwind-sources.css": '@source "../src";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -608,8 +601,8 @@ test("Tailwind：app 手抄 @source 必须失败（即使已引入共享入口�
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css":
-        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n@source "../../../packages/editor-ui/src";\n',
-      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+        '@import "tailwindcss";\n@import "@md-editor/app-ui/tailwind-sources.css";\n@source "../../../packages/app-ui/src";\n',
+      "packages/app-ui/styles/tailwind-sources.css": '@source "../src";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -625,8 +618,8 @@ test("Tailwind：@source inline() 是 safelist，不受禁令影响", () => {
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css":
-        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n@source inline("underline");\n',
-      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n',
+        '@import "tailwindcss";\n@import "@md-editor/app-ui/tailwind-sources.css";\n@source inline("underline");\n',
+      "packages/app-ui/styles/tailwind-sources.css": '@source "../src";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -642,7 +635,7 @@ test("Tailwind：共享文件缺失必须失败", () => {
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css":
-        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
+        '@import "tailwindcss";\n@import "@md-editor/app-ui/tailwind-sources.css";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -658,8 +651,8 @@ test("Tailwind：共享文件 @source 数量不为 1 必须失败", () => {
       ...baselineOf([]),
       ...twApp("demo"),
       "apps/demo/src/styles.css":
-        '@import "tailwindcss";\n@import "@md-editor/editor-ui/tailwind-sources.css";\n',
-      "packages/editor-ui/styles/tailwind-sources.css": '@source "../src";\n@source "../other";\n',
+        '@import "tailwindcss";\n@import "@md-editor/app-ui/tailwind-sources.css";\n',
+      "packages/app-ui/styles/tailwind-sources.css": '@source "../src";\n@source "../other";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -672,7 +665,7 @@ test("Tailwind：共享文件 @source 数量不为 1 必须失败", () => {
  * 语法插件独立性护栏（syntaxPluginsIndependence）。
  * 核心不变量：插件包不得依赖插件宿主实现，否则第三方插件作者会跟着学坏。
  */
-test("语法插件：src 内 import renderer-codemirror 必须失败", () => {
+test("语法插件：src 内 import editor 必须失败", () => {
   withFixture(
     {
       "structure-exceptions.json": exceptions([]),
@@ -680,8 +673,7 @@ test("语法插件：src 内 import renderer-codemirror 必须失败", () => {
       "packages/syntax-plugins/package.json": JSON.stringify({
         name: "@md-editor/syntax-plugins",
       }),
-      "packages/syntax-plugins/src/bad.ts":
-        'import { thing } from "@md-editor/renderer-codemirror";\n',
+      "packages/syntax-plugins/src/bad.ts": 'import { thing } from "@md-editor/editor";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -698,8 +690,7 @@ test("语法插件：子路径 import 同样被禁止", () => {
       "packages/syntax-plugins/package.json": JSON.stringify({
         name: "@md-editor/syntax-plugins",
       }),
-      "packages/syntax-plugins/src/bad.ts":
-        'import { t } from "@md-editor/renderer-codemirror/testing";\n',
+      "packages/syntax-plugins/src/bad.ts": 'import { t } from "@md-editor/editor/testing";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -736,7 +727,7 @@ test("语法插件：tests 内引用渲染器不受本规则限制", () => {
       }),
       "packages/syntax-plugins/src/index.ts": "export const a = 1;\n",
       "packages/syntax-plugins/tests/a.test.ts":
-        'import { EditorState } from "@md-editor/renderer-codemirror";\n',
+        'import { EditorState } from "@md-editor/editor";\n',
     },
     (root) => {
       const result = runChecks({ root, phase: "pr3" });
@@ -744,6 +735,52 @@ test("语法插件：tests 内引用渲染器不受本规则限制", () => {
         fails(result, "语法插件包不得依赖渲染器实现"),
         false,
         "测试需要渲染器夹具，应放行",
+      );
+    },
+  );
+});
+
+/** Editor source, including React, must stay independent of application packages. */
+for (const [path, source] of [
+  ["src/index.ts", 'import { AppEditor } from "@md-editor/app-ui";'],
+  ["src/react/view.ts", 'export { useTranslation } from "@md-editor/i18n";'],
+  ["src/react/lazy.ts", 'const load = () => import("@md-editor/app-ui/hooks");'],
+  ["src/react/types.ts", 'import type { AppEditorProps } from "@md-editor/app-ui";'],
+  ["src/react/setup.ts", 'import "@md-editor/i18n";'],
+]) {
+  test(`编辑器独立性：禁止应用反向依赖 ${path}`, () => {
+    withFixture(
+      {
+        "packages/editor/package.json": JSON.stringify({
+          name: "@md-editor/editor",
+          dependencies: {
+            "@md-editor/app-ui": "workspace:*",
+            "@md-editor/i18n": "workspace:*",
+          },
+        }),
+        [`packages/editor/${path}`]: source,
+      },
+      (root) => {
+        const result = runChecks({ root, phase: "pr3" });
+        assert.equal(fails(result, "编辑器不得依赖应用 UI 或国际化"), true);
+      },
+    );
+  });
+}
+
+test("编辑器独立性：允许 core、React、相近包名及测试夹具", () => {
+  withFixture(
+    {
+      "packages/editor/package.json": JSON.stringify({ name: "@md-editor/editor" }),
+      "packages/editor/src/index.ts": 'export { createDocumentState } from "@md-editor/core";',
+      "packages/editor/src/react/index.ts":
+        'import { useState } from "react";\nimport { x } from "@md-editor/app-ui-tools";',
+      "packages/editor/tests/application.test.ts": 'import { AppEditor } from "@md-editor/app-ui";',
+    },
+    (root) => {
+      assert.equal(
+        fails(runChecks({ root, phase: "pr3" }), "编辑器不得依赖应用 UI 或国际化"),
+        false,
       );
     },
   );

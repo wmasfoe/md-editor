@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { appendImageMarkdown, imageAltTextFromFileName } from "@md-editor/file-system";
 import { webFileSystem } from "./web-file-system";
 

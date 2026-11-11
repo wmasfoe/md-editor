@@ -11,7 +11,7 @@ describe("desktop editor adapter wiring", () => {
   it("mounts one persistent CodeMirror adapter for both editor modes", () => {
     expect(appSource.match(/<DesktopCodeMirrorEditor\b/gu)).toHaveLength(1);
     expect(appSource).not.toContain('snapshot.mode === "source"');
-    expect(desktopCodeMirrorSource).toContain("<CodeMirrorEditor");
+    expect(desktopCodeMirrorSource).toContain("<AppEditor");
     expect(desktopCodeMirrorSource).toContain("document={runtime.document}");
     expect(desktopCodeMirrorSource).toContain("fontSize={settings.editor.wysiwygFontSize}");
     expect(desktopCodeMirrorSource).toContain(

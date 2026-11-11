@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
-@import "@md-editor/editor-ui/tailwind-sources.css";
+@import "@md-editor/app-ui/tailwind-sources.css";
 
 :root {
   /* 兜底 token 对齐 GitHub 主题，避免主题 CSS 注入前闪回旧兜底配色。 */

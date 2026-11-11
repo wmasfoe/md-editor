@@ -1,17 +1,17 @@
 # 界面去 AI 味整理记录（unslop pass）
 
-用途：记录按 unslop 清单对桌面端、`editor-ui`、web、utools 和官网 site 做的界面整理，包含判定、改动范围和后续约束。改动界面样式前可对照本文，避免把已清理的做法改回去。
+用途：记录按 unslop 清单对桌面端、`app-ui`、web、utools 和官网 site 做的界面整理，包含判定、改动范围和后续约束。改动界面样式前可对照本文，避免把已清理的做法改回去。
 
 - 状态：已完成（分支 `refactor/unslop-desktop-ui`）
 - 判定：轻度问题，沿用现有品牌与 `--theme-*` 变量，不重做视觉方向
-- 范围：`apps/desktop`、`packages/editor-ui`、`apps/web`、`apps/utools`、`apps/site`（mobile 为原生代码，tui 无源码，未处理）
+- 范围：`apps/desktop`、`packages/app-ui`、`apps/web`、`apps/utools`、`apps/site`（mobile 为原生代码，tui 无源码，未处理）
 
 ## 已落地的规则
 
 | 方面 | 规则 |
 | --- | --- |
 | 图标 | 界面中不使用 emoji 或 `✓ ✗ ✕` 字符，统一用 `@heroicons/react/24/outline` 线性图标，16px |
-| 快捷键 | 用 keycap 展示，通过 `editor-ui` 的 `formatKeymapParts` 渲染；不得在界面显示内部命令 id，也不得硬编码快捷键文本 |
+| 快捷键 | 用 keycap 展示，通过 `app-ui` 的 `formatKeymapParts` 渲染；不得在界面显示内部命令 id，也不得硬编码快捷键文本 |
 | 文案 | 分组标题、区块标题使用句首大写，不用 `uppercase` 加字距；命令分组必须在 i18n `commands.groups` 中有对应 key |
 | 字重 | 只用 400 和 500；选中态只用底色加指示条，不再叠加字重和阴影 |
 | 动效 | 不用 `transition-all`，写明具体属性；按下反馈保留 `active:scale-*` |
@@ -20,7 +20,7 @@
 | 圆角 | 控件 8px（`rounded-lg`），对话框和面板 12px（`rounded-xl`），8px 菜单内的菜单项 4px |
 | 颜色 | 不使用未定义的 token（如 `--theme-foreground`、`--theme-hover`）；强调按钮使用 `--theme-primary-fill`，错误色使用 `--theme-danger-*` |
 | 欢迎页 | 只保留「新建文档」一个主操作，打开文件和打开文件夹为文字按钮 |
-| 插件卡片 | 内置插件与外部插件统一用 `editor-ui/settings` 的 `PluginCard` + `PluginToggle`（开关为 `SettingsSwitch`）；卡片内次要操作用 `settingsTextButtonClassName`，移除用 `settingsDangerTextButtonClassName`，错误提示用 `settingsErrorNoticeClassName`；不要在调用方手写卡片外框或原生 checkbox 开关 |
+| 插件卡片 | 内置插件与外部插件统一用 `app-ui/settings` 的 `PluginCard` + `PluginToggle`（开关为 `SettingsSwitch`）；卡片内次要操作用 `settingsTextButtonClassName`，移除用 `settingsDangerTextButtonClassName`，错误提示用 `settingsErrorNoticeClassName`；不要在调用方手写卡片外框或原生 checkbox 开关 |
 
 ## 已知遗留
 

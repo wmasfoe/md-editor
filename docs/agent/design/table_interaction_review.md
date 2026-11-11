@@ -2,7 +2,7 @@
 
 > 用途：在用户反馈"整体交互方式还不够优雅"后，对 M3 表格（`TableGridWidget` 可编辑网格）当前交互做全量梳理：交互地图、不优雅点（含根因与代码位置）、改进方案分级。供后续实施与产品验收使用。
 >
-> 涉及代码：`packages/renderer-codemirror/src/wysiwyg/widgets/table-widget.ts`、`atom-selection.ts`、`markdown-commands.ts`、`change-protection.ts`、`projection-state.ts`、`table-editing.ts`、`CodeMirrorEditor.css`。
+> 涉及代码：`packages/editor/src/wysiwyg/widgets/table-widget.ts`、`atom-selection.ts`、`markdown-commands.ts`、`change-protection.ts`、`projection-state.ts`、`table-editing.ts`、`CodeMirrorEditor.css`。
 >
 > **实施状态（2026-08-02 同日）**：第 5 节三项决策已确认并全部实施——末尾 Enter 退出续写段落（P0-A）、Notion 式固定块手柄 + 菜单（P1-D）、列数 > 1 均可删（P1-C，删除项恒提供、下限由 `deleteTableColumn` 兜底）；P0-B（恰好相等选区替换放行）一并落地；P2-E（危险态红色菜单项）随菜单实现。**第三阶段补齐**：P2-F（整表选中态操作提示 tooltip）与 P2-G 的对齐切换（列菜单对齐分组：无对齐/左/中/右，当前项 ✓ 勾选，`setTableColumnAlignment` 重写 delimiter 标记）。剩余：多单元格拖选（与"左键单击即编辑"语义冲突，需新决策）、列宽调整、tab 跳格。
 

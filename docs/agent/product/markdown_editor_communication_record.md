@@ -314,7 +314,7 @@ AI 根据这些信息提供更贴合用户风格的纠错、润色和续写。
 2. 文档保存不能只依赖 ProseMirror doc，需要把 `rawMarkdown` 和 raw fragment 作为源码保真的重要依据。
 3. Frontmatter、未知 MDX、HTML block、raw block 在未主动编辑时应优先保持原始文本。
 4. MDX import/export、expression、未知 JSX 节点第一阶段只做 raw 保真，不执行、不格式化、不做结构化编辑。
-5. 初期包结构可以收敛，先保留 `editor-core`、`file-system`、`shared` 等核心包，feature 边界稳定后再拆分。
+5. 初期包结构可以收敛，先保留 `core`、`file-system`、`shared` 等核心包，feature 边界稳定后再拆分。
 6. PDF 初版以 HTML 导出结果为基础，通过 WebView 或系统打印生成，只承诺可用，不承诺高质量排版。
 7. Tauri 文件读写需要单独设计 `TauriFileService`，并明确 capabilities、dialog 授权、原子写入和错误处理。
 8. 保真测试 fixture 需要标注 `byte-equal` 或 `normalized-equal`，raw 保真节点优先使用 `byte-equal` 验收。

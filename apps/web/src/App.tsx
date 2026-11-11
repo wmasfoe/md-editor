@@ -4,14 +4,14 @@ import {
   resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
-} from "@md-editor/editor-core";
+} from "@md-editor/core";
 import {
   EditorUiProvider,
   AssetPreview,
   useEditorUiState,
   useEditorUiActions,
-  type CodeMirrorEditorPorts,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { configureI18n, useTranslation, changeLanguage } from "@md-editor/i18n";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { WebHeader } from "./components/WebHeader";

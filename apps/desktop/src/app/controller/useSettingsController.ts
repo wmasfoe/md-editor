@@ -41,7 +41,7 @@ import {
   pickThemeCssFile,
   rememberThemeCssFile,
 } from "../settings/theme-css";
-import { formatActionError } from "@md-editor/editor-ui";
+import { formatActionError } from "@md-editor/app-ui";
 import { changeLanguage, useTranslation } from "@md-editor/i18n";
 import { useAppSettings } from "../settings-context";
 

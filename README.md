@@ -215,9 +215,10 @@ md-editor/
 ├── infra/
 │   └── distribution-worker/     # Cloudflare Worker download gateway (R2 with fallback)
 ├── packages/
-│   ├── editor-core/             # Document state, ordered saves, mode switching
-│   ├── renderer-codemirror/     # CodeMirror 6 layer: WYSIWYG projection, decorations, tables, lint
-│   ├── editor-ui/               # React UI: toolbars, history drawer, file tree, settings
+│   ├── core/                    # Headless document state, commands, keymaps and runtime
+│   ├── editor/                  # Framework-independent browser editor built on CodeMirror 6
+│   │   └── src/react/          # Optional @md-editor/editor/react entrypoint
+│   ├── app-ui/                  # Application integration, outline, toolbars, settings and themes
 │   ├── compiler/                # Headless Markdown compiler and HTML exporter
 │   ├── syntax-plugins/          # Syntax plugins: highlight, KaTeX, Mermaid, directives
 │   ├── plugin-sdk/              # Plugin API for external authors (npm: @md-editor/plugin-sdk)

@@ -5,8 +5,8 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { DocumentState } from "@md-editor/editor-core";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import type { DocumentState } from "@md-editor/core";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import {
   appendImageMarkdown,
   imageAltTextFromFileName,

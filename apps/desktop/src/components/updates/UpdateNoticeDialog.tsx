@@ -7,7 +7,7 @@
  */
 
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
-import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
+import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/app-ui";
 import { useTranslation } from "@md-editor/i18n";
 import type { ChangelogEntry } from "@md-editor/changelog";
 import type { UpdateNoticeChoice } from "../../app/updates/presentation";

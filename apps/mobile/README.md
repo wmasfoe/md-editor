@@ -11,7 +11,7 @@ apps/mobile/
 └── ios/       # Swift 6, SwiftUI, Share Extension
 ```
 
-- **`core`** reuses `@md-editor/renderer-codemirror` and `@md-editor/syntax-plugins` from the desktop app, so documents render the same way. It talks to the native side through a message bridge (see [`core`](./core/README.md)).
+- **`core`** reuses `@md-editor/editor` and `@md-editor/syntax-plugins` from the desktop app, so documents render the same way. It talks to the native side through a message bridge (see [`core`](./core/README.md)).
 - **`android`** adds a keyboard toolbar above the soft keyboard, haptics, and file access through the Storage Access Framework (see [`android`](./android/README.md)).
 - **`ios`** adds a keyboard toolbar, haptics and a Share Extension, and loads the page through a custom URL scheme (see [`ios`](./ios/README.md)).
 

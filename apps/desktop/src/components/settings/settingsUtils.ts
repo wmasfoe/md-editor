@@ -7,7 +7,7 @@ import type {
   ThemeSchemeSettings,
   UpdateStatus,
 } from "../../app/settings/app-settings";
-import type { BuiltInThemeOption } from "@md-editor/editor-ui";
+import type { BuiltInThemeOption } from "@md-editor/app-ui";
 import { APP_DISPLAY_NAME } from "../../lib/app-name";
 
 export {

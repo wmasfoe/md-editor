@@ -1,0 +1,187 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
+import type { OutlineItem } from "../components/OutlinePanel";
+import type { TocTarget } from "../types";
+import { subscribeEditorUserNotice } from "./editor-user-notice";
+import { useOutlineController } from "./useOutlineController";
+
+export interface EditorUiUnsupportedCommandResult {
+  readonly status: "unsupported";
+  readonly reason: "not-available-in-active-editor";
+}
+
+export type EditorUiCommandResult = void | EditorUiUnsupportedCommandResult;
+
+export interface EditorUiCommandSlots {
+  readonly openMdxComponentMenu: () => EditorUiCommandResult;
+  readonly continueAiWriting: () => Promise<EditorUiCommandResult>;
+}
+
+export type EditorRendererPortsAccess =
+  | { readonly status: "available"; readonly ports: CodeMirrorEditorPorts }
+  | { readonly status: "unavailable"; readonly reason: "editor-not-mounted" };
+
+export interface EditorUiProviderProps {
+  readonly children?: ReactNode;
+  readonly markdown: string;
+  readonly showToast: (message: string | null) => void;
+}
+
+export interface EditorUiContextValue {
+  readonly state: EditorUiStateContextValue;
+  readonly actions: EditorUiActionsContextValue;
+  readonly outline: readonly OutlineItem[];
+  readonly tocTarget: TocTarget | null;
+  readonly activeOutlineId: string | null;
+  readonly setActiveOutlineId: (id: string | null) => void;
+  readonly jumpToTocItem: (target: Omit<TocTarget, "nonce">) => void;
+  readonly jumpToMarkdownFragment: (markdown: string, fragment: string | null) => void;
+  readonly updateActiveOutlineForLine: (line: number) => void;
+  readonly registerRendererPorts: (ports: CodeMirrorEditorPorts) => () => void;
+  readonly getRendererPorts: () => EditorRendererPortsAccess;
+}
+
+export interface EditorUiStateContextValue {
+  readonly outline: readonly OutlineItem[];
+  readonly tocTarget: TocTarget | null;
+  readonly activeOutlineId: string | null;
+}
+
+export interface EditorUiActionsContextValue {
+  readonly setActiveOutlineId: (id: string | null) => void;
+  readonly jumpToTocItem: (target: Omit<TocTarget, "nonce">) => void;
+  readonly jumpToMarkdownFragment: (markdown: string, fragment: string | null) => void;
+  readonly updateActiveOutlineForLine: (line: number) => void;
+  readonly registerRendererPorts: (ports: CodeMirrorEditorPorts) => () => void;
+  readonly getRendererPorts: () => EditorRendererPortsAccess;
+}
+
+const unsupportedEditorCommandResult: EditorUiUnsupportedCommandResult = Object.freeze({
+  status: "unsupported",
+  reason: "not-available-in-active-editor",
+});
+
+export const unsupportedEditorUiCommandSlots: EditorUiCommandSlots = Object.freeze({
+  openMdxComponentMenu: () => unsupportedEditorCommandResult,
+  continueAiWriting: async () => unsupportedEditorCommandResult,
+});
+
+const unavailableRendererPorts: EditorRendererPortsAccess = Object.freeze({
+  status: "unavailable",
+  reason: "editor-not-mounted",
+});
+
+const EditorUiStateContext = createContext<EditorUiStateContextValue | null>(null);
+const EditorUiActionsContext = createContext<EditorUiActionsContextValue | null>(null);
+
+export function EditorUiProvider({ children, markdown, showToast }: EditorUiProviderProps) {
+  const rendererPortsRef = useRef<CodeMirrorEditorPorts | null>(null);
+  useEffect(() => subscribeEditorUserNotice(window, showToast), [showToast]);
+  const outline = useOutlineController({ markdown, showToast });
+  const outlineRef = useRef(outline);
+  outlineRef.current = outline;
+
+  const registerRendererPorts = useCallback((ports: CodeMirrorEditorPorts) => {
+    if (rendererPortsRef.current !== null) {
+      throw new Error("Only one active Markdown renderer may register with EditorUiProvider.");
+    }
+    rendererPortsRef.current = ports;
+    let registered = true;
+
+    return () => {
+      if (!registered) {
+        return;
+      }
+      registered = false;
+      if (rendererPortsRef.current === ports) {
+        rendererPortsRef.current = null;
+      }
+    };
+  }, []);
+
+  const getRendererPorts = useCallback((): EditorRendererPortsAccess => {
+    const ports = rendererPortsRef.current;
+    return ports === null ? unavailableRendererPorts : { status: "available", ports };
+  }, []);
+
+  const jumpToTocItem = useCallback((target: Omit<TocTarget, "nonce">) => {
+    outlineRef.current.jumpToTocItem(target);
+    rendererPortsRef.current?.scrollToLine(target.line);
+  }, []);
+
+  const jumpToMarkdownFragment = useCallback((targetMarkdown: string, fragment: string | null) => {
+    // 锚点解析（兼容 GitHub 风格与手工 TOC 的标点差异）由 markdown-fidelity 负责，
+    // 大纲控制器只负责同步高亮状态并把解析结果交给调用方滚动定位。
+    const item = outlineRef.current.jumpToMarkdownFragment(targetMarkdown, fragment);
+    if (item) {
+      rendererPortsRef.current?.scrollToLine(item.line);
+    }
+  }, []);
+
+  const state = useMemo<EditorUiStateContextValue>(
+    () => ({
+      outline: outline.outline,
+      tocTarget: outline.tocTarget,
+      activeOutlineId: outline.activeOutlineId,
+    }),
+    [outline.activeOutlineId, outline.outline, outline.tocTarget],
+  );
+
+  const actions = useMemo<EditorUiActionsContextValue>(
+    () => ({
+      setActiveOutlineId: (id) => outlineRef.current.setActiveOutlineId(id),
+      jumpToTocItem,
+      jumpToMarkdownFragment,
+      updateActiveOutlineForLine: (line) => outlineRef.current.updateActiveOutlineForLine(line),
+      registerRendererPorts,
+      getRendererPorts,
+    }),
+    [getRendererPorts, jumpToMarkdownFragment, jumpToTocItem, registerRendererPorts],
+  );
+
+  return (
+    <EditorUiActionsContext.Provider value={actions}>
+      <EditorUiStateContext.Provider value={state}>{children}</EditorUiStateContext.Provider>
+    </EditorUiActionsContext.Provider>
+  );
+}
+
+export function useEditorUiState(): EditorUiStateContextValue {
+  const state = useContext(EditorUiStateContext);
+  if (!state) {
+    throw new Error("useEditorUiState must be used within an EditorUiProvider.");
+  }
+  return state;
+}
+
+export function useOptionalEditorUiActions(): EditorUiActionsContextValue | null {
+  return useContext(EditorUiActionsContext);
+}
+
+export function useEditorUiActions(): EditorUiActionsContextValue {
+  const actions = useContext(EditorUiActionsContext);
+  if (!actions) {
+    throw new Error("useEditorUiActions must be used within an EditorUiProvider.");
+  }
+  return actions;
+}
+
+export function useEditorUi(): EditorUiContextValue {
+  const state = useEditorUiState();
+  const actions = useEditorUiActions();
+
+  return {
+    state,
+    actions,
+    ...state,
+    ...actions,
+  };
+}

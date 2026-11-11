@@ -6,8 +6,8 @@
 
 ## 1. 架构定位与第一性原理
 
-在引入 `@md-editor/compiler` 之前，静态渲染与 HTML 导出逻辑混杂在 `packages/renderer-codemirror/src/static` 中。这造成了多维度的设计倒挂：
-1. **依赖倒置**：`renderer-codemirror` 的核心职责是 Live 交互式 CodeMirror 6 编辑器引擎，而静态渲染只需要纯字符串变换，不应强行捆绑在沉重的编辑器引擎包中；
+在引入 `@md-editor/compiler` 之前，静态渲染与 HTML 导出逻辑混杂在 `packages/editor/src/static` 中。这造成了多维度的设计倒挂：
+1. **依赖倒置**：`editor` 的核心职责是 Live 交互式 CodeMirror 6 编辑器引擎，而静态渲染只需要纯字符串变换，不应强行捆绑在沉重的编辑器引擎包中；
 2. **环境受限**：macOS Finder QuickLook（通过 JavaScriptCore 运行）与移动端首屏预加载需要纯 Headless 运行环境（0 DOM、0 CM6 依赖）；
 3. **能力收敛**：从第一性原理出发，将 Markdown/MDX 解析为结构化 Token 流并统一发射为高保真 HTML，是所有只读消费方（QuickLook、移动端阅读态、HTML 导出、打印、第三方扩展）的核心公共基石。
 
@@ -87,6 +87,6 @@ export function renderStaticDocument(
 ## 4. 零兼容性 Re-export 原则
 
 严格遵守 `AGENTS.md` 规则 9：
-- 抽取 `@md-editor/compiler` 后，彻底物理删除了 `packages/renderer-codemirror/src/static`；
+- 抽取 `@md-editor/compiler` 后，彻底物理删除了 `packages/editor/src/static`；
 - 旧调用方（`build-quicklook-engine.mjs`、`apps/mobile/core`、单元测试）100% 直连新包 `@md-editor/compiler`；
 - 杜绝为了历史向后兼容保留任何空壳 re-export 转发文件。

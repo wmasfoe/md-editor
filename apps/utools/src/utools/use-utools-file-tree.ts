@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { DocumentState } from "@md-editor/editor-core";
-import { resolveReplaceIntent } from "@md-editor/editor-core";
+import type { DocumentState } from "@md-editor/core";
+import { resolveReplaceIntent } from "@md-editor/core";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { saveLastOpenedFile, saveLastOpenedFolder } from "./db-storage";
 import type { EditorMode } from "./types";

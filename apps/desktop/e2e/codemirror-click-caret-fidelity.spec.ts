@@ -16,7 +16,7 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * 实测（修复前）：文档含 2 个 `---`（各 8px 上下 margin = 16px），漏算 32px > 行高 28px
  * ⇒ 点击段落稳定 +1 行。修复：符号型块间距由 margin 改为 padding（进 border-box），
- * 见 `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts`。
+ * 见 `packages/editor/src/wysiwyg/blocks/block-replacement.ts`。
  *
  * ## 为什么两条断言都要
  * 1. 「块行无垂直 margin」是**预防性**的通用护栏：新增任何块类型时若用 margin 做间距，

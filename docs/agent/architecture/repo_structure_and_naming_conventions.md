@@ -5,7 +5,7 @@
 ## 用途（何时必须读）
 
 - 新增/移动**文件或目录**、新增 workspace 包或应用之前；
-- 改动 `packages/renderer-codemirror` 的 `wysiwyg/` 结构、测试位置、或任何"整行块级 widget"之前；
+- 改动 `packages/editor` 的 `wysiwyg/` 结构、测试位置、或任何"整行块级 widget"之前；
 - 调整体量阈值、豁免清单、或 `scripts/structure/**` 检查规则之前；
 - 出现以下任一提示时：`lint:structure` 失败、需要登记豁免、或需要给某文件放行超过 1200 行。
 
@@ -16,7 +16,7 @@
 | 路径 | 职责 | 说明 |
 | --- | --- | --- |
 | `apps/*` | 宿主应用（desktop / web / utools / tui / mobile） | 只做平台适配与 UI 集成，不复制编辑器核心语义 |
-| `packages/*` | 可复用库（editor-core / renderer-codemirror / editor-ui / compiler / ai / i18n / shared / file-system / mdx-* / markdown-fidelity / syntax-plugins） | 包内 `src/` 是源码，`tests/` 是测试，`exports` 是对外唯一入口 |
+| `packages/*` | 可复用库（core / editor / app-ui / compiler / ai / i18n / shared / file-system / mdx-* / markdown-fidelity / syntax-plugins） | 包内 `src/` 是源码，`tests/` 是测试，`exports` 是对外唯一入口 |
 | `infra/*` | 基础设施（如 Cloudflare Worker） | 同样纳入体量阈值域 |
 | `scripts/*` | 仓库级脚本（release / git / mobile / site / structure …） | 每个子目录自带 `*.test.mjs`（Node `node:test`） |
 | `docs/agent/*` | Agent 文档（见 `docs/agent/index.md` 的分类判据） | 新增子目录必须同步更新该 index |
@@ -43,14 +43,14 @@
 
 1. **所有测试位于 `<pkg>/tests/**`**；`src/**` 内不允许任何 `*.test.ts*`，也不允许残留 `<pkg>/src/tests/` 或 `<pkg>/src/**/__tests__/` 目录（空目录同样不允许）。
 2. **顶层目录镜像**：`<pkg>/tests/<top>` 必须有对应 `<pkg>/src/<top>`，**域内允许扁平**（不要求文件级镜像）。
-3. **辅助目录豁免**：`support/`、`fixtures/`、`helpers/`、`__fixtures__/` 不参与镜像检查（存量合法反例：`packages/editor-core/tests/support/`）。
+3. **辅助目录豁免**：`support/`、`fixtures/`、`helpers/`、`__fixtures__/` 不参与镜像检查（存量合法反例：`packages/core/tests/support/`）。
 4. **非 TS 宿主测试不入范围**：如 `apps/mobile/ios/Tests/InkpointContractTests/`（Xcode 测试，无 `src/` 兄弟目录）。
 5. 各包 `vitest.config.ts` 的 `include` 只允许 `tests/**/*.test.ts(x)`（迁出 colocated 后不得保留 `src/**` 条目）。
 
 ## 4. 导入规则
 
 1. **禁止冗余回退段**：`a/b/../c.ts` 必须写成 `a/c.ts`（合法的前导 `../../` 不受影响）。
-2. **禁止跨包深导入**：不得 `import ... from "@md-editor/<pkg>/src/..."`；跨包只使用各包 `exports` 中**显式声明**的子路径（如 `@md-editor/editor-ui/hooks`）。
+2. **禁止跨包深导入**：不得 `import ... from "@md-editor/<pkg>/src/..."`；跨包只使用各包 `exports` 中**显式声明**的子路径（如 `@md-editor/app-ui/hooks`）。
 3. **必须声明跨包依赖**：`src/**` 里 import 了 `@md-editor/<pkg>` 就必须写进 `package.json`，不得只靠 pnpm 解析器运气。
    - **值导入**（普通 `import`、副作用导入、动态 `import()`、`require()`）→ 必须出现在 `dependencies` 或 `peerDependencies`；
    - **纯类型导入**（`import type {...}`，或 `import { type A, type B }` 全部具名带 `type`）→ 允许只出现在 `devDependencies`（编译期擦除，不进运行期产物）；
@@ -62,7 +62,7 @@
 4. **依赖方向**：`src/**` 不得引用 `tests/**`。
 5. **不留兼容 re-export**：移动文件后直接改所有调用方（AGENTS.md 第 10 条）；组件内部聚合用的 `index.ts` 属模块边界，不算兼容转发。
 6. **语法插件不得依赖插件宿主**：`packages/syntax-plugins/src/**` 不得 import
-   `@md-editor/renderer-codemirror`（`tests/**` 除外，测试需要渲染器夹具）。
+   `@md-editor/editor`（`tests/**` 除外，测试需要渲染器夹具）。
 
    两者在架构图里是**并列兄弟**（都只消费 `@md-editor/plugin-sdk` 的语法契约，见
    [Markdown 语法插件架构](./markdown_syntax_plugin_architecture.md) §1）。插件依赖宿主会让
@@ -91,13 +91,13 @@
    需要自有 i18n 的宿主可用 `configureI18n({ instance })` 完全接管。
 
    注意：Markdown lint 的诊断文案按 `document.documentElement.lang` 选择语言
-   （见 `packages/renderer-codemirror/src/lint/markdown-lint-i18n.ts`），
+   （见 `packages/editor/src/lint/markdown-lint-i18n.ts`），
    因此**带语言切换 UI 的宿主**（desktop / web）必须在启动时开启 `syncDocumentLang`。
 
 8. **Tailwind 扫描源只在共享入口维护**：引入 `tailwindcss` 的 app 必须写
-   `@import "@md-editor/editor-ui/tailwind-sources.css";`，**不得**在自己的 CSS 里直接写 `@source`
+   `@import "@md-editor/app-ui/tailwind-sources.css";`，**不得**在自己的 CSS 里直接写 `@source`
    （`@source inline(...)` safelist 除外）。新增需要扫描的 workspace 包时，改
-   `packages/editor-ui/styles/tailwind-sources.css` 一处即可。
+   `packages/app-ui/styles/tailwind-sources.css` 一处即可。
 
    背景：Tailwind v4 默认不扫描 `node_modules`，而 workspace 包经 pnpm 链接后位于各 app 的
    `node_modules/@md-editor/*`。`@source` 路径**相对包含它的样式表**解析，所以共享文件里写一次
@@ -124,7 +124,7 @@
 
 ## 6. 域是职责标签（taxonomy），不是分层（layering）
 
-`packages/renderer-codemirror/src/wysiwyg/` 分为 6 个职责域：`state/`、`blocks/`、`projections/`、`editing/`、`input/`、`view/`（外加既有 `widgets/`）。
+`packages/editor/src/wysiwyg/` 分为 6 个职责域：`state/`、`blocks/`、`projections/`、`editing/`、`input/`、`view/`（外加既有 `widgets/`）。
 
 **不要**据此施加"低层不得依赖高层"的护栏 —— 实测跨域依赖是向外的单向边，例如：
 
@@ -146,7 +146,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 1. **状态归属单一**：可变状态由**入口模块**（owner，如 `CodeMirrorRendererController`、`TableGridWidget`、`wysiwygProjectionField`）持有；协作者是**叶子模块**，只能通过显式参数或窄 context 对象读写 owner 的状态，不得自行持有可变状态。
 2. **例外须登记**：确需共持有的状态必须在**代码注释**与本节各写一处，说明为何不能收敛到 owner（当前实现已全部收敛到 owner，无例外实例；本条目为条件式约束）。
 3. **依赖单向**：协作者之间只允许单向依赖；跨模块共享类型用 `import type`，不得引入运行期双向 import 或求值环。
-4. **cluster 级体量契约（机器强制）**：`CLUSTER_STRICT_PACKAGES`（当前 `packages/renderer-codemirror`）内**任何** `.ts/.tsx` 超过 800 行即**失败**——防止"把巨型文件拆成巨型协作者"。其它包仍为 >800 警告 / >1200 失败。
+4. **cluster 级体量契约（机器强制）**：`CLUSTER_STRICT_PACKAGES`（当前 `packages/editor`）内**任何** `.ts/.tsx` 超过 800 行即**失败**——防止"把巨型文件拆成巨型协作者"。其它包仍为 >800 警告 / >1200 失败。
 5. **命名**：协作者名以其**职责角色**命名（`mode-viewport`、`document-protocol`、`host-visibility`、`transaction-ledger`、`view-operations`、`probe`、`composition`、`selection`、`validation` 等），不得用 `helpers`、`utils`、`misc` 等无语义名。
 6. **登记义务（pr3 起机器强制）**：新增/重命名协作者必须同步登记：`wysiwyg/**` 与 `widgets/**` 走 `WYSIWYG_DOMAIN_MEMBERS`；`renderer/**` 走 `RENDERER_CLUSTER_MEMBERS`（顶层与 `controller/` 两个作用域）。未登记成员会被判为"多出未登记的簇成员"而失败；已登记但缺失同样失败。
 7. **不留副本**：抽取后必须删除原位置实现；禁止保留兼容 re-export（`index.ts` 仅作目录聚合）。
@@ -161,7 +161,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`）；跨包依赖声明（`declaredWorkspaceDeps`）；Tailwind 扫描源单一入口（`tailwindSourceEntry`）；语法插件独立性（`syntaxPluginsIndependence`）；库模块顶层无副作用（`noTopLevelSideEffects`） |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`）；跨包依赖声明（`declaredWorkspaceDeps`）；Tailwind 扫描源单一入口（`tailwindSourceEntry`）；语法插件独立性（`syntaxPluginsIndependence`）；编辑器独立性（`editorIndependence`）；库模块顶层无副作用（`noTopLevelSideEffects`） |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 
@@ -183,3 +183,9 @@ node --test scripts/structure/check.test.mjs            # N 类反例（已串�
 3. 更新本文件对应章节（含初始豁免清单）；
 4. 若涉及新增/移动目录，同步更新 `docs/agent/index.md` 与 `AGENTS.md` 的相关引用；
 5. 跑 `pnpm lint`（含 `lint:structure`）、`pnpm test`（含 `test:structure`）、`pnpm typecheck`。
+
+## 编辑器包边界
+
+`app-ui → editor → core`：`core` 保持无 DOM、无 React、无 CodeMirror；`editor` 持有浏览器编辑与事务语义；`editor/react` 是 `editor` 包内的可选子入口（`src/react/`），仅做 React 挂载和订阅，主入口不得反向导入或导出 React 组件与类型；`app-ui` 负责应用接线与 UI。导入类型也必须指向拥有该契约的包，不在原包保留兼容转发。完整依赖与分发约定见 [编辑器包边界](./editor_package_boundaries.md)。
+
+PR3 的 `editorIndependence` 检查 `packages/editor/src/**`（包含 `src/react/`）的静态导入、类型导入、再导出、动态导入和仅副作用导入，禁止引用 `@md-editor/app-ui`、`@md-editor/i18n` 及其子路径。即使 manifest 声明了这些依赖也不能放行；`tests/**` 夹具不受该源码规则约束。`syntaxPluginsIndependence` 同样覆盖 `@md-editor/editor/react` 子路径。

@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from "@headlessui/react";
 import { useTranslation } from "@md-editor/i18n";
-import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/editor-ui";
+import { dialogButtonClassName, primaryDialogButtonClassName } from "@md-editor/app-ui";
 
 export interface InsertTableDialogProps {
   readonly open: boolean;

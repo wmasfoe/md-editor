@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { getM2CodeBlockPerformanceFixture } from "@md-editor/renderer-codemirror/testing";
+import { getM2CodeBlockPerformanceFixture } from "@md-editor/editor/testing";
 
 async function openHarness(page: Page): Promise<void> {
   await page.goto("/?surface=codemirror-editor");

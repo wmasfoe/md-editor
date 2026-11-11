@@ -11,7 +11,7 @@ import {
   BUILT_IN_LIGHT_THEME_OPTIONS,
   BUILT_IN_DARK_THEME_OPTIONS,
   builtInThemeCss,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
 import { resolveEffectiveColorScheme } from "../src/lib/theme-manager";
 import { bindWebKeyboardShortcuts, handleWebKeyboardEvent } from "../src/lib/keyboard-shortcuts";
 

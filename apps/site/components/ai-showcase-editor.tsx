@@ -9,12 +9,9 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { createDocumentState, type DocumentState } from "@md-editor/editor-core";
-import {
-  CodeMirrorEditor,
-  EditorUiProvider,
-  type CodeMirrorEditorPorts,
-} from "@md-editor/editor-ui";
+import { createDocumentState, type DocumentState } from "@md-editor/core";
+import { AppEditor, EditorUiProvider } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { SHOWCASE_AI_FLOW_DATA, type AiShowcaseStage } from "./showcase-ai-samples";
 import type { Locale } from "../lib/i18n/types";
 import { useI18n } from "../lib/i18n/context";
@@ -383,7 +380,7 @@ export const AiShowcaseEditor = forwardRef<AiShowcaseEditorHandle, AiShowcaseEdi
           }}
           className="site-ai-editor-canvas min-h-[140px] sm:min-h-[160px] w-full"
         >
-          <CodeMirrorEditor
+          <AppEditor
             document={documentState}
             fontSize={17}
             className="site-ai-codemirror text-lg leading-[1.9] sm:text-xl"

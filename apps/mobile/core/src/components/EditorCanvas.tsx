@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from "react";
-import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
-import { createDocumentState } from "@md-editor/editor-core";
+import { AppEditor } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
+import { createDocumentState } from "@md-editor/core";
 import {
   containerDirectivePlugin,
   highlightPlugin,
@@ -235,7 +236,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = ({ initialContent, onCo
 
   return (
     <div className="editor-container">
-      <CodeMirrorEditor
+      <AppEditor
         document={docState}
         plugins={plugins}
         // 移动端编辑画布跟随全局默认（不提供设置入口）；阅读模式走静态 HTML 管线，不在本开关范围。

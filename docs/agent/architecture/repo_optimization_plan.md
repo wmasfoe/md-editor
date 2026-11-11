@@ -59,10 +59,10 @@
 - **首屏加载的根因不是缺少动态拆包，而是模块作用域副作用**：`packages/syntax-plugins/src/math/math-loader.ts:30-35` 在模块求值时无条件 `void loadKatex()`；`packages/syntax-plugins/src/index.ts`（math 块收尾于第 20 行）静态 re-export 该模块，而 web/desktop 从根入口静态导入插件 → 任何文档、哪怕没有公式，都会在启动时拉取 katex chunk。
 - **Ghost dependency**：`apps/desktop`、`apps/web`、`apps/utools` 的 `src/styles.css:2` 都 `@import "katex/dist/katex.min.css"`，但三者的 `package.json` **都没有声明 `katex`**（已核实三者 `node_modules` 下无 katex）。当前依赖 pnpm 的隐式提升侥幸解析成功。
 - **仓库自带的包体探针已失效且零引用**：`apps/desktop/scripts/code-language-bundle-probe.mjs` 用 Vite `build()` API（`write:false`）构建，当前直接失败（`[@tailwindcss/vite:generate:build] Can't resolve 'katex/dist/katex.min.css'`）；同一环境下真实 CLI（`npx vite build`）构建**成功**（exit 0）。探针未被任何 script/workflow/test 引用。
-- **alias 清单实际是 4 份**：`apps/web` 12 条、`apps/desktop` 10 条、`apps/utools` 7 条、`apps/mobile/core` 8 条；另有 `apps/site/next.config.ts` 的 7 条 `transpilePackages` 与 `packages/editor-ui/tsconfig.json` 的 4 条 `paths`。
+- **alias 清单实际是 4 份**：`apps/web` 12 条、`apps/desktop` 10 条、`apps/utools` 7 条、`apps/mobile/core` 8 条；另有 `apps/site/next.config.ts` 的 7 条 `transpilePackages` 与 `packages/app-ui/tsconfig.json` 的 4 条 `paths`。
 - **CI 覆盖矩阵**：main 上 PR 触发的工作流只跑 `lint:oxlint` + `format:prettier:check`（**不含 `lint:structure`**）、`typecheck`、`pnpm test`、e2e、rust 校验；**web 应用生产构建在 PR 上从不运行**（`release-web.yml` 仅 `web-v*` tag 触发），桌面 Vite 产物只在 `workflow_dispatch` 构建；utools/site/mobile 有 PR 构建门禁。
 - **在途分支会改变 O4 落点**：`origin/ci/split-validation-and-macos-build` 新增 `.github/workflows/ci.yml`（单 job `validate`，跑完整 `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm test:rust`），并把 `build-desktop.yml`/`release-desktop.yml` 重命名为 `build-macos.yml`/`release-macos.yml`（原 lint/typecheck/test 职责迁入 `ci.yml`）。该分支一旦落地，**"CI 不跑结构守卫"这一缺口自动消失**。
-- **性能护栏基础设施已存在但未成体系**：`packages/renderer-codemirror/src/diagnostics.ts` 提供 20+ 计数器（`fullIndexBuildCount`、`projectionMapSkipCount`、`languageLoadAttemptCount` 等），已被 `tests/wysiwyg/code-block-performance.test.ts`、`tests/markdown/m1-baseline.test.ts` 与 e2e `codemirror-m2-code-block-performance.spec.ts` 消费；但 `docs/agent/status/codemirror_renderer_migration_status.md` 明确记录 **S6 性能基线「未开始」**。
+- **性能护栏基础设施已存在但未成体系**：`packages/editor/src/diagnostics.ts` 提供 20+ 计数器（`fullIndexBuildCount`、`projectionMapSkipCount`、`languageLoadAttemptCount` 等），已被 `tests/wysiwyg/code-block-performance.test.ts`、`tests/markdown/m1-baseline.test.ts` 与 e2e `codemirror-m2-code-block-performance.spec.ts` 消费；但 `docs/agent/status/codemirror_renderer_migration_status.md` 明确记录 **S6 性能基线「未开始」**。
 - 仓库卫生：远程堆积多批已合并未删除的分支（`refactor/*`、`fix/*` 各 1–2 ahead），违反 AGENTS.md 第 11 条预期。
 
 ---
@@ -125,8 +125,8 @@
    `createWorkspaceAliases(configUrl, profile: "web" | "desktop" | "utools"): Array<{ find: string | RegExp; replacement: string }>`。
    目标路径从对应包的 `exports` 读取，找不到对应 export 必须**失败**而不是拼私有路径；保留现有匹配语义（根包名锚定正则、子路径字符串）。profile 用实测的 12/10/7。
 2. 改三份 `vite.config.ts` 使用 helper；只移 alias，不动 app 自有设置（web 的 `base`/端口、desktop 的 `__APP_VERSION__`/server、utools 的 bundle 插件与 `base: "./"`）。utools 的本地 `workspacePath` **不能删**（还用于复制 logo/preload/plugin.json）。
-3. 补 alias-free 验证：新建 `apps/web/tests/vite-workspace-resolution.test.ts`、`apps/utools/tests/vite-workspace-resolution.test.ts`，并与现有 `apps/desktop/tests/vite-aliases.test.ts` 一同改造 —— 用清空 `resolve.alias` 的 test-only 配置验证 `exports` fallback（至少覆盖 file-system、i18n、`mdx-plugins/metadata`、`editor-ui/hooks`、`editor-ui/CodeMirrorEditor/testing`）。
-4. 同步改造 `packages/editor-ui/tests/hooks-boundary.test.ts`（它读 desktop vite 配置文本，迁到 helper 后会产生假阴性）。
+3. 补 alias-free 验证：新建 `apps/web/tests/vite-workspace-resolution.test.ts`、`apps/utools/tests/vite-workspace-resolution.test.ts`，并与现有 `apps/desktop/tests/vite-aliases.test.ts` 一同改造 —— 用清空 `resolve.alias` 的 test-only 配置验证 `exports` fallback（至少覆盖 file-system、i18n、`mdx-plugins/metadata`、`app-ui/hooks`、`editor/react/testing`）。
+4. 同步改造 `packages/app-ui/tests/hooks-boundary.test.ts`（它读 desktop vite 配置文本，迁到 helper 后会产生假阴性）。
 5. `apps/site` 不纳入 helper（用 `transpilePackages`，无 Vite alias，tsconfig 无 `paths`）；`apps/mobile/core` 的 8 条 alias 作为独立 profile 单列评审，不静默并入。
 
 **已验证的反证**：desktop 的 alias 清单里没有 `@md-editor/file-system` 与 `@md-editor/i18n`，但源码大量直接 import 二者（如 `apps/desktop/src/desktop/file-service.ts:5`、`apps/desktop/src/components/SettingsDialog.tsx:3`），说明 `workspace link + exports` 链路可用。
@@ -135,10 +135,10 @@
 
 **O2 实施记录（已完成，分支 `refactor/workspace-vite-aliases`）**
 
-- 结论比方案更彻底：三个 app 的 alias **全部删除，不引入 helper**。可行性由探针确定（清空 `resolve.alias` 后用真实 Vite resolver 解析）：web 14/14、desktop 14/14 全部经 `exports` 回退解析到 `packages/*/src`；utools 12/14 的两项失败是它**本就不依赖**的包（`i18n`、`renderer-codemirror`）。即所有 alias 均为冗余的第二份入口描述。
+- 结论比方案更彻底：三个 app 的 alias **全部删除，不引入 helper**。可行性由探针确定（清空 `resolve.alias` 后用真实 Vite resolver 解析）：web 14/14、desktop 14/14 全部经 `exports` 回退解析到 `packages/*/src`；utools 12/14 的两项失败是它**本就不依赖**的包（`i18n`、`editor`）。即所有 alias 均为冗余的第二份入口描述。
 - 改动：`apps/{web,desktop,utools}/vite.config.ts` 删除 `resolve.alias`（净减 **29 条**）；utools 的本地 `workspacePath` **保留**（bundle 插件仍用于复制 logo/preload/plugin.json）；新增 3 份解析契约测试（对象级断言无 `resolve.alias` + 源码级断言无 `resolve:` 块 + 每个工作区依赖/子路径经 `exports` 解析到 `packages/*/src`）；删除语义已反转的 `apps/desktop/tests/vite-aliases.test.ts`。
 - `apps/mobile/core` 按方案**单列，本轮不动**（8 条 alias 留待独立评审）。
-- 验证：三 app 构建成功；**dev 冷启动 smoke**（起 dev server 后 curl 首页 + `/@fs/<repo>/packages/editor-core/src/index.ts`）三端均 200 且返回转换后 JS、**无 `.vite/deps` 预打包引用**；三 app 单测 24/196/24 通过；desktop 全套 Playwright（189 tests）通过；`pnpm test/lint/typecheck` 全绿。
+- 验证：三 app 构建成功；**dev 冷启动 smoke**（起 dev server 后 curl 首页 + `/@fs/<repo>/packages/core/src/index.ts`）三端均 200 且返回转换后 JS、**无 `.vite/deps` 预打包引用**；三 app 单测 24/196/24 通过；desktop 全套 Playwright（189 tests）通过；`pnpm test/lint/typecheck` 全绿。
 - smoke 踩坑（供后续复用）：Vite 默认绑定 `localhost`（本机可能解析到 `::1`），smoke 需显式 `--host 127.0.0.1`；带 `base`（如 web 的 `/playground/`）时 `/@fs` 请求也必须带 base 前缀。
 
 ---
@@ -258,7 +258,7 @@ infra/distribution-worker/src/
   - `katex ^0.18.6`（7 个消费方：web / desktop / utools / mobile-core / site / compiler / syntax-plugins）—— 与 `overrides` 联动，必须全仓一致；
   - `@types/katex ^0.16.8`（compiler、syntax-plugins）；
   - `mermaid ^11.17.2`（syntax-plugins；版本与 katex override 耦合）；
-  - CodeMirror 6 家族 `@codemirror/state ^6.6.0`、`@codemirror/view ^6.43.1`、`@lezer/common ^1.5.2`、`@lezer/markdown ^1.8.0`（renderer-codemirror、syntax-plugins）—— 多实例会导致状态/视图错乱，必须版本对齐。
+  - CodeMirror 6 家族 `@codemirror/state ^6.6.0`、`@codemirror/view ^6.43.1`、`@lezer/common ^1.5.2`、`@lezer/markdown ^1.8.0`（editor、syntax-plugins）—— 多实例会导致状态/视图错乱，必须版本对齐。
 - 未收口（单消费方，留在各自包内）：`@codemirror/lang-*`、`@codemirror/language|commands|search|legacy-modes`、`@lezer/highlight|yaml`、`highlight.js`、`marked*`、`micromark-extension-cjk-friendly-util`、`@sentry/react`、`@tauri-apps/plugin-*`、`react-icons`、`lxgw-wenkai-webfont`、`@samasante/liquid-glass`。
 - 验证：lockfile 差异仅为 `catalogs` 新增条目 + `importers` 的 `specifier` 改为 `catalog:`，**解析版本未变**；`pnpm typecheck` / `pnpm test`（含 test:bundle）/ `pnpm lint` 全绿。
 
@@ -281,7 +281,7 @@ infra/distribution-worker/src/
 **O6 实施记录（已完成，分支 `chore/build-artifact-semantics`）**
 
 - 核实（第 1 项）：`tsconfig.base.json:17` 为 `noEmit: true`，12 个 `packages/*` 的 `build` 都是 `tsc -p tsconfig.json` → **不产出任何产物**（`packages/*/dist` 不存在，仓库内 0 处引用）；CI 与脚本也**从不调用根 `pnpm build`**（只用 app 级 `build:web|macos|site|mobile|utools`）。
-- 落地：删除 12 个包的 `build` 脚本（与 `pnpm typecheck` 完全等价，保留只会误导“能构建出产物”），并同步 3 个把它写成“编译子包 / 单独构建该子包”的 README（`packages/{compiler,editor-ui,editor-core}/README.md`）。根 `pnpm build` 语义因此变为“只构建 5 个应用产物”；显式类型检查由 `pnpm typecheck` 承担（CI 与 release 链路均已显式调用）。
+- 落地：删除 12 个包的 `build` 脚本（与 `pnpm typecheck` 完全等价，保留只会误导“能构建出产物”），并同步 3 个把它写成“编译子包 / 单独构建该子包”的 README（`packages/{compiler,app-ui,core}/README.md`）。根 `pnpm build` 语义因此变为“只构建 5 个应用产物”；显式类型检查由 `pnpm typecheck` 承担（CI 与 release 链路均已显式调用）。
 - 核实（第 2 项）：`release-web.yml` 先 `pnpm build:web` 再 `pnpm deploy:web`，而 `scripts/web/deploy-web.mjs:158-167` 自己会 `vercel pull` → `vercel build --prod` → `vercel deploy --prebuilt`；`apps/site` 的 `scripts/site/deploy-site.mjs:37-38` 同样。**结论：同一份源码确实会被构建两次，但不是重复劳动** —— 部署消费的是 Vercel 自己的 `.vercel/output`，本地 `apps/web/dist` 并不参与部署；`pnpm build:web` 的角色是“部署前构建验证”（且 #169 已把它加进 PR CI，PR 阶段即可拦住构建期问题）。
 - 决定：**保留** `release-web.yml` 的 `pnpm build:web`（生产前最后一道构建门禁，成本低），并把“构建两次”的事实记录在此，避免后人误判为可删的冗余。
 - 验证：`pnpm build` 只构建 5 个应用（含 desktop 的 QuickLook 扩展）✅；`pnpm typecheck` 仍覆盖 18 个工作区（12 包 + 5 应用 + worker）✅；`pnpm lint` ✅。
@@ -349,7 +349,7 @@ pnpm typecheck
 - CSS 幽灵依赖：5 处 `styles.css:2` / `globals.css:2`；`apps/{desktop,web,utools}/package.json` 无 `katex`。
 - mermaid 调用面：`.../mermaid/dist/chunks/mermaid.core/chunk-DU6HZSFF.mjs:5212-5245`。
 - 探针：`apps/desktop/scripts/code-language-bundle-probe.mjs:25-49,75-101`（零引用；当前运行失败）。
-- 配置：`apps/web/vite.config.ts:17-62`、`apps/desktop/vite.config.ts:19-56`、`apps/utools/vite.config.ts:61-86`、`apps/mobile/core/vite.config.ts`、`apps/site/next.config.ts:15-23`、`packages/editor-ui/tsconfig.json`。
+- 配置：`apps/web/vite.config.ts:17-62`、`apps/desktop/vite.config.ts:19-56`、`apps/utools/vite.config.ts:61-86`、`apps/mobile/core/vite.config.ts`、`apps/site/next.config.ts:15-23`、`packages/app-ui/tsconfig.json`。
 - 结构守卫：`scripts/structure/check.mjs:24-33,74-93,257-279,320-329,480-502`、`structure-exceptions.json`、`scripts/structure/exceptions.baseline.json`、`docs/agent/architecture/repo_structure_and_naming_conventions.md:57-70,90-99,108-131`。
 - CI：`.github/workflows/build-desktop.yml`（job/step 结构）、`release-web.yml`（仅 tag）、`release-utools.yml:63`、`build-site.yml`、`mobile-ci.yml`、`origin/ci/split-validation-and-macos-build:.github/workflows/ci.yml`。
-- 性能基础设施：`packages/renderer-codemirror/src/diagnostics.ts`、`tests/wysiwyg/code-block-performance.test.ts`、`apps/desktop/e2e/codemirror-m2-code-block-performance.spec.ts`、`apps/tui/tests/perf-guard.test.ts`（在途分支）、`docs/agent/status/codemirror_renderer_migration_status.md`（S6 未开始）。
+- 性能基础设施：`packages/editor/src/diagnostics.ts`、`tests/wysiwyg/code-block-performance.test.ts`、`apps/desktop/e2e/codemirror-m2-code-block-performance.spec.ts`、`apps/tui/tests/perf-guard.test.ts`（在途分支）、`docs/agent/status/codemirror_renderer_migration_status.md`（S6 未开始）。

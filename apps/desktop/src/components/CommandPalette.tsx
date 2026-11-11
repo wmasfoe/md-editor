@@ -1,8 +1,8 @@
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "@md-editor/i18n";
-import { formatKeymapParts } from "@md-editor/editor-ui";
-import type { CommandDescriptor } from "@md-editor/editor-core";
+import { formatKeymapParts } from "@md-editor/app-ui";
+import type { CommandDescriptor } from "@md-editor/core";
 import { runtime } from "../app/runtime/editor-runtime";
 
 export interface CommandPaletteProps {

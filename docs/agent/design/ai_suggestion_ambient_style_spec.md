@@ -111,7 +111,7 @@ stateDiagram-v2
 
 ---
 
-## 5. 对未来核心编辑器（packages/renderer-codemirror）的落地建议
+## 5. 对未来核心编辑器（packages/editor）的落地建议
 
 本次改动根据架构隔离边界原则严格限制在 `site` 前端层面。未来在桌面端核心编辑器引入该设计系统时，建议遵循以下接入规范：
 

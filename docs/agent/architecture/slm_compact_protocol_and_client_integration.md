@@ -24,7 +24,7 @@
 遵照[能力边界设计原则](./capability_boundary_design_principles.md)，编辑器与多 Provider 之间的整体数据流与模块分工如下：
 
 ```txt
-React / CodeMirror 6 (packages/renderer-codemirror & apps/desktop)
+React / CodeMirror 6 (packages/editor & apps/desktop)
   ├── 150ms 键入防抖与单点/选区/换行智能分流
   ├── 渲染 Ghost Text (cm-md-ai-ghost-text) 与 Diff 预览装饰 (cm-md-ai-diff-added)
   └── Tab 采纳 / Esc 取消交互，直接消费确定性坐标 (from, to)，派发采纳事件落库 SQLite

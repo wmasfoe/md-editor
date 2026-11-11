@@ -1,6 +1,6 @@
 # 编辑器交互测试的区分力规范
 
-> 状态：生效。适用于 `packages/renderer-codemirror/tests/**` 与 `apps/desktop/e2e/**` 里所有断言「光标位置、按键接管、DOM 行结构」的测试。
+> 状态：生效。适用于 `packages/editor/tests/**` 与 `apps/desktop/e2e/**` 里所有断言「光标位置、按键接管、DOM 行结构」的测试。
 
 ## 用途
 

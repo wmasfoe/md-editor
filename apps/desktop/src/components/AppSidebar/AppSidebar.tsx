@@ -1,12 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { FolderIcon, MagnifyingGlassIcon, QueueListIcon } from "@heroicons/react/24/outline";
 import type { RuntimeFileService } from "@md-editor/file-system";
-import {
-  DocumentBar,
-  OutlinePanel,
-  useEditorUiActions,
-  useEditorUiState,
-} from "@md-editor/editor-ui";
+import { DocumentBar, OutlinePanel, useEditorUiActions, useEditorUiState } from "@md-editor/app-ui";
 import { useTranslation } from "@md-editor/i18n";
 import { FileTreePanel } from "../FileTreePanel";
 import { AppTitleBar } from "../../app/AppWindowChrome";

@@ -7,7 +7,7 @@
 `useDocumentUiStore` 历史上承担了两类混合职责：
 
 1. **真实 UI 状态**：`hasActiveDocument`、`openedAsset` 等不改变文档语义的状态，store 初始化时依赖 module-level 单例即可实现。
-2. **Provider 依赖型动作**：`dispatchCommand`、`openWysiwygLink`、`runEditorUpdateAction`、`openDocumentFromTree`、`openRecentFile`——这些需要 `useEditorUiActions()`（editor-ui Provider）或 `useAppSettings()`（settings context）才能构造。
+2. **Provider 依赖型动作**：`dispatchCommand`、`openWysiwygLink`、`runEditorUpdateAction`、`openDocumentFromTree`、`openRecentFile`——这些需要 `useEditorUiActions()`（app-ui Provider）或 `useAppSettings()`（settings context）才能构造。
 
 这导致了 `createMissingBridgeAction` 占位模式：store 里放 no-op stub，对应的 bridge hook 在挂载后通过 `useLayoutEffect → setState` 替换真实实现。这是 `desktop_store_controller_boundary.md` 明确反对的反模式——"store 看起来是行为主人，实际只是 no-op 占位，真实逻辑藏在 controller 生命周期里"。
 
@@ -34,7 +34,7 @@ AppSettingsProvider
 | 动作 | 归属 | 原因 |
 |------|------|------|
 | `dispatchCommand` | Context | 需要 `useEditorUiActions().getEditorCommands` |
-| `openWysiwygLink` | Context | 需要 `jumpToMarkdownFragment`（editor-ui） |
+| `openWysiwygLink` | Context | 需要 `jumpToMarkdownFragment`（app-ui） |
 | `runEditorUpdateAction` | Context | 需要 `useAppSettings()` hooks |
 | `openDocumentFromTree` | Context | 需要 `documentActions`（含 discard 检查） |
 | `openRecentFile` | Context | 同上 |

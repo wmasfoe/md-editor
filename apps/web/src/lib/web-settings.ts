@@ -2,7 +2,7 @@ import {
   type BuiltInThemeId,
   BUILT_IN_LIGHT_THEME_OPTIONS,
   BUILT_IN_DARK_THEME_OPTIONS,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
 import { AI_URL_PRESETS, normalizeAiSettings, type AiSettings } from "@md-editor/ai";
 import { normalizeLanguageSetting, type LanguageSetting } from "@md-editor/i18n";
 

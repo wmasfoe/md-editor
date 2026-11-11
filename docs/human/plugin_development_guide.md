@@ -245,7 +245,7 @@ export const containerDirectivePlugin: MarkdownSyntaxPlugin = {
 在 React 应用中（例如使用 `<CodeMirrorEditor />` 或桌面端 / Web 端包装器），通过 `plugins` 属性一次性传入：
 
 ```tsx
-import { CodeMirrorEditor } from "@md-editor/editor-ui";
+import { CodeMirrorEditor } from "@md-editor/editor/react";
 import { containerDirectivePlugin } from "@md-editor/syntax-plugins";
 
 export function MyEditor({ docState }) {

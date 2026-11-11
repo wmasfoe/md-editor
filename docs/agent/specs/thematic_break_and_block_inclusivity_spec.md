@@ -8,7 +8,7 @@
 
 触发阅读的改动范围（任一命中即必须先读本规范）：
 
-- `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts`（契约与规则的**唯一实现来源**）；
+- `packages/editor/src/wysiwyg/blocks/block-replacement.ts`（契约与规则的**唯一实现来源**）；
 - 任何整行块级投影：`table-projection.ts`（表格）、`html-projection.ts`（HTML 块）、`mdx-projection.ts`（MDX 组件块）、`default-visualization.ts`（setext 标题 / 引用式定义 / 脚注定义等兜底原子块）、`link-projection.ts`（分割线）；
 - 任何在 WYSIWYG 中新增“整行块级 widget”或调整其垂直间距的改动。
 
@@ -94,7 +94,7 @@ if (deco.block) {
 
 ## 核心不变量与设计契约 (Core Invariants)
 
-1. **单一实现来源**：所有整行块级替换装饰必须经 `packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，禁止在 projection 文件里手写 `Decoration.replace` 的边界参数；`trailingLineBreakEnd()` 亦只有该模块一份实现。
+1. **单一实现来源**：所有整行块级替换装饰必须经 `packages/editor/src/wysiwyg/blocks/block-replacement.ts` 的 `buildWholeLineBlockReplacement()` 构建，禁止在 projection 文件里手写 `Decoration.replace` 的边界参数；`trailingLineBreakEnd()` 亦只有该模块一份实现。
 2. **不对称 Inclusivity 契约**：
    对于覆盖整行（从行首到行末 `\n`）的块级替换装饰器（如 `ThematicBreakWidget`、`TableGridWidget`、`HtmlBlockWidget`、`MdxComponentWidget`），**必须精准采用不对称 Inclusivity 配置**：
    ```typescript
@@ -149,9 +149,9 @@ if (deco.block) {
   ```
 
 - 当前成员：**分割线**（`ThematicBreakWidget`）。新增同类块只需调用 `applyBlockCategory(dom, "symbol")` 即自动获得该间距。
-- **严禁**在 editor-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`。
+- **严禁**在 app-ui CSS 里对某个符号型 widget 单独写间距（例如曾经的 `.cm-md-thematic-break-widget { margin: 0 }` 会覆盖统一规则，属逐 widget 硬编码），也**严禁**把本规则改回 `margin`。
 - 间距只允许加**垂直方向**，不得改变空行数量、源码或光标步数。
-- 宿主（editor-ui / 移动端等）可通过定义 `--theme-block-symbol-gap` 覆盖数值；未定义时回落到 `0.5rem`（DESIGN.md 4px 基线网格）。
+- 宿主（app-ui / 移动端等）可通过定义 `--theme-block-symbol-gap` 覆盖数值；未定义时回落到 `0.5rem`（DESIGN.md 4px 基线网格）。
 
 > ⚠ **为什么必须是 `padding` 而不是 `margin`（硬约束）**：CM6 的点击→位置映射依赖高度图，而高度图只量
 > border-box、**不含 margin** ⇒ 用 margin 提供的间距会成为累计误差，累计超过一个行高时用户
@@ -166,7 +166,7 @@ if (deco.block) {
 ## 验证与回归防护
 
 1. **契约单元测试（装饰参数层）**：
-   - `packages/renderer-codemirror/tests/wysiwyg/block-replacement.test.ts`：直接断言统一构造器的 `block` / `inclusiveStart` / `inclusiveEnd`、尾换行覆盖开关、起点在行首、类别属性写入。
+   - `packages/editor/tests/wysiwyg/block-replacement.test.ts`：直接断言统一构造器的 `block` / `inclusiveStart` / `inclusiveEnd`、尾换行覆盖开关、起点在行首、类别属性写入。
    - `tests/wysiwyg/link-projection.test.ts` / `table-projection.test.ts` / `html-projection.test.ts` / `mdx-projection.test.ts` / `default-visualization.test.ts`：逐投影断言接线到本契约（`block === true`、`inclusiveStart === true`、`inclusiveEnd === false`、`lineAt(from).from === from`），并断言行内原子仍为 `block: false` + `inclusive: false`。
 2. **端到端 E2E 测试**：
    - `apps/desktop/e2e/thematic-break-rendering.spec.ts`：

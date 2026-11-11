@@ -1,6 +1,6 @@
 // apps/utools/src/components/UtoolsApp.tsx
 // uTools 插件主应用容器
-// 100% 收敛在 apps/utools，复用 @md-editor/editor-core 与 @md-editor/editor-ui 核心
+// 100% 收敛在 apps/utools，复用 @md-editor/core 与 @md-editor/app-ui 核心
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -9,15 +9,15 @@ import {
   resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
-} from "@md-editor/editor-core";
+} from "@md-editor/core";
 import {
-  CodeMirrorEditor,
+  AppEditor,
   EditorUiProvider,
   matchesRuntimeKeymap,
-  type CodeMirrorEditorPorts,
   resolveCodeFontStack,
   resolveProseFontStack,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import {
   clearLastOpenedFolder,
   loadLastOpenedFile,
@@ -589,7 +589,7 @@ export function UtoolsApp() {
         {/* 编辑器核心区域 */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden relative select-text">
           <EditorUiProvider markdown={snapshot.markdown} showToast={showToast}>
-            <CodeMirrorEditor
+            <AppEditor
               document={docState}
               codeBlockLineNumbers={settings.showCodeBlockLineNumbers}
               showInlineStyleMarkers={settings.showInlineStyleMarkers}

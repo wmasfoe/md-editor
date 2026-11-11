@@ -1,10 +1,6 @@
 import React, { useCallback, useMemo } from "react";
-import {
-  CodeMirrorEditor,
-  type CodeMirrorEditorPorts,
-  resolveCodeFontStack,
-  resolveProseFontStack,
-} from "@md-editor/editor-ui";
+import { AppEditor, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
@@ -12,7 +8,7 @@ import {
   mathPlugin,
   mermaidPlugin,
 } from "@md-editor/syntax-plugins";
-import type { DocumentState } from "@md-editor/editor-core";
+import type { DocumentState } from "@md-editor/core";
 import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { officialMdxPlugins } from "@md-editor/mdx-plugins/metadata";
 import type { WebSettings } from "../lib/web-settings";
@@ -64,7 +60,7 @@ export function WebEditor({
 
   return (
     <div className="relative flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden bg-[var(--theme-surface)]">
-      <CodeMirrorEditor
+      <AppEditor
         document={document}
         plugins={plugins}
         mdxMode={true}

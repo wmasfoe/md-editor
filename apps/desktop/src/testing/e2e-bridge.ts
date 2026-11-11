@@ -2,12 +2,9 @@ import {
   switchEditorModeSafely,
   type DocumentReplaceIntent,
   type EditorMode,
-} from "@md-editor/editor-core";
-import type {
-  CodeMirrorEditorExternalEditResult,
-  CodeMirrorEditorPorts,
-} from "@md-editor/editor-ui";
-import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirrorEditor/testing";
+} from "@md-editor/core";
+import type { CodeMirrorEditorExternalEditResult, CodeMirrorEditorPorts } from "@md-editor/editor";
+import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor/react/testing";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import type { DesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";

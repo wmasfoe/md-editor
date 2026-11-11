@@ -130,7 +130,7 @@ heightForGap(from, to) {
 **配套要求**：若该 widget 自带固定 `height` 且为 `border-box`，必须同时改为 `content-box`，
 否则 padding 会被那层高度"吃掉"（间距消失，且高度图依旧漏算）。
 
-**实施位置**：间距规则收敛在 renderer 核心层（`packages/renderer-codemirror/src/wysiwyg/blocks/block-replacement.ts`），
+**实施位置**：间距规则收敛在 renderer 核心层（`packages/editor/src/wysiwyg/blocks/block-replacement.ts`），
 宿主只提供设计值 token（`--theme-block-symbol-gap`）。**禁止**逐 widget 手写间距。
 
 ### I2. 禁止用会影响视觉位置的"测量盲区"手段

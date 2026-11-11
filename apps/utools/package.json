@@ -12,8 +12,8 @@
   },
   "dependencies": {
     "@md-editor/ai": "workspace:*",
-    "@md-editor/editor-core": "workspace:*",
-    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/core": "workspace:*",
+    "@md-editor/app-ui": "workspace:*",
     "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
@@ -21,7 +21,8 @@
     "@md-editor/syntax-plugins": "workspace:*",
     "katex": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "@md-editor/editor": "workspace:*"
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",

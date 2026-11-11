@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { ConfirmActionDialog } from "@md-editor/editor-ui";
+import { ConfirmActionDialog } from "@md-editor/app-ui";
 import { CommandPalette } from "./CommandPalette";
 import { MdxComponentMenu } from "./MdxComponentMenu";
 import { InsertTableDialog } from "./InsertTableDialog";

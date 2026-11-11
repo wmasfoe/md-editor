@@ -232,8 +232,8 @@ WYSIWYG 代码块不是源码围栏预览，而是直接可编辑的代码块：
 当前实现边界（2026-07-18）：
 
 - `markdown-fidelity.findFrontmatterSourceRange` 只负责 LF 文档中 offset 0 的 closed/unterminated 边界和 raw/content fidelity，不解析 YAML。
-- `renderer-codemirror/markdown/frontmatter-yaml.ts` 直接使用 `@lezer/yaml` 生成 YAML token 与 diagnostic ranges；EOF/空白错误会钳制到可见字符，解析错误不阻断编辑。
-- `renderer-codemirror/wysiwyg/projections/frontmatter-projection.ts` 把 opening fence 替换为默认隐藏的 status Widget、隐藏 closing fence、为 YAML body 添加 line/Mark decorations，并只把 fence 放入 atomic/protected ranges。
+- `editor/markdown/frontmatter-yaml.ts` 直接使用 `@lezer/yaml` 生成 YAML token 与 diagnostic ranges；EOF/空白错误会钳制到可见字符，解析错误不阻断编辑。
+- `editor/wysiwyg/projections/frontmatter-projection.ts` 把 opening fence 替换为默认隐藏的 status Widget、隐藏 closing fence、为 YAML body 添加 line/Mark decorations，并只把 fence 放入 atomic/protected ranges。
 - status Widget 在正常状态不占用可见标题内容，只在 YAML 错误或 fence 未闭合时显示状态；YAML 正文、光标与选择仍全部属于主编辑面。
 - YAML body 没有被搬入 Widget、form、nested `EditorView` 或 contenteditable island；它仍是主 `.cm-content` 的普通文本，因此 selection、IME、clipboard 和 history 沿用主 CM6 状态。
 - 未编辑源码不经过 serializer。用户编辑只产生命中正文范围的 CM6 change；全局保存仍遵循既有 LF 契约，不承诺恢复输入文件的 CRLF bytes。
@@ -340,7 +340,7 @@ renderer 维护按源码范围索引的派生状态：
 
 ## 6. 包与职责边界
 
-### 6.1 `@md-editor/editor-core`
+### 6.1 `@md-editor/core`
 
 继续负责：
 
@@ -360,7 +360,7 @@ renderer 维护按源码范围索引的派生状态：
 
 `switchEditorModeSafely` 已退休 Markdown 序列化 adapter，改为 renderer port first，再用 generation/state revision CAS 提交 core；CAS 失败时通过 receipt 同步回滚 renderer。G006 已在 desktop 注入 typed renderer port，G007 已删除旧引擎调用链；G008 cleaner 又把 renderer port 收紧为必需参数，删除可绕过 renderer 的 core-only mode fallback。初轮独立复核后，core 与 desktop 进一步删除 snapshot-only `updateMarkdown` / `markSaved` / `updateSavedBaseline` / `setMode` 兼容 API 和 app/store helper，生产 mutation 只能通过有序 transition 或 renderer port 进入。
 
-### 6.2 `@md-editor/renderer-codemirror`（新包）
+### 6.2 `@md-editor/editor`（新包）
 
 这是 CM6 编辑器实现层，不叫 `renderer-core`，避免把浏览器、CM6 和 React 实现误称为核心协议。
 
@@ -376,7 +376,7 @@ renderer 维护按源码范围索引的派生状态：
 - AI suggestion 展示、接受、取消和失效状态机
 - selection、history、IME 和 scroll 的引擎内行为
 
-G004 已新增 `packages/renderer-codemirror`，G005 在不扩展 S2-S5 语法范围的前提下补齐了 React bridge 所需的 S1 renderer 端口：
+G004 已新增 `packages/editor`，G005 在不扩展 S2-S5 语法范围的前提下补齐了 React bridge 所需的 S1 renderer 端口：
 
 - 生产 factory 直接创建并持有原生 CM6 `EditorView`，不依赖 React wrapper。
 - root extensions 持有 Markdown language、history、`EditorView.lineWrapping`、keymap、update listener 和 composition observer；mode 与 line number 分别由独立 `Compartment` 管理。源码与 WYSIWYG 共用 CM6 视觉行测量，长物理行和连续字符串在可读列内自动换行，不产生编辑器横向滚动。
@@ -384,7 +384,7 @@ G004 已新增 `packages/renderer-codemirror`，G005 在不扩展 S2-S5 语法�
 - 同文档 external edit 使用一个 isolated history transaction；只有新的 `documentGeneration` 才创建新 `EditorState` 并对同一 view 调用 `setState`。
 - composition 期间只保留一个 external request；浏览器 `compositionend` 等待 CM6 最终 DOM mutation flush 后再通知 bridge 重新 reservation。
 - asset preview 只隐藏现有 host；renderer 通过 `setHostVisibility` 在 CM6 测量帧后恢复 focus-owned scroll，不卸载或重建 view。
-- `@md-editor/renderer-codemirror/testing` 只提供 state-backed 用户事务模拟和只读 probe，不暴露可变 `EditorView` / `EditorState`。
+- `@md-editor/editor/testing` 只提供 state-backed 用户事务模拟和只读 probe，不暴露可变 `EditorView` / `EditorState`。
 
 G006 已由 desktop main 产品表面的 `DesktopCodeMirrorEditor` 挂载该组件。`source` / `wysiwyg` 现在只改变同一 renderer 的 mode，React rerender 和 asset preview 不切换编辑器组件。S1 原生验收反馈通过源码等宽字体与 WYSIWYG 正文字体提供最小可观察差异，同时保持右下角原有单图标透明模式按钮。G007 删除 Milkdown、ProseMirror、legacy SourceEditor、旧 wrapper/alias/helper 及其依赖后，后续 M1/S2 工作已在这个单一 renderer 内加入 range index、StateField、Decoration、Widget 与 atomic/protected ranges；该进展仍不能被写成 S3-S5 或完整可视化迁移完成。
 
@@ -395,11 +395,15 @@ G006 已由 desktop main 产品表面的 `DesktopCodeMirrorEditor` 挂载该组�
 - 应用设置页面和 toast
 - 第三方插件加载
 
-### 6.3 `@md-editor/editor-ui`
+### 6.3 `@md-editor/editor/react` 与 `@md-editor/app-ui`
+
+`editor/react` 是 `editor` 包内的可选子入口，只负责 `CodeMirrorEditor` 的 React 挂载、bridge 销毁、snapshot 订阅和 props/callback 转发，不依赖应用 UI、i18n 或平台 runtime。`app-ui` 的 `AppEditor` 连接应用大纲、Provider 端口注册与语言传递，并保留应用 controller、菜单、设置和主题。
+
+`app-ui`
 
 负责：
 
-- React 编辑器表面和工具栏容器
+- `AppEditor` 应用编辑器接线和工具栏容器
 - 搜索面板、大纲和 MDX 插入菜单
 - 注入官方 MDX component map
 - 注入图片 URL resolver、打开链接 callback 和 UI 设置
@@ -463,18 +467,18 @@ Rust app process 持有唯一 `SaveCommitGate`。`attach_save_runtime` 与 order
 依赖方向固定为：
 
 ```txt
-desktop ──adapters──> editor-ui ──> renderer-codemirror ──> editor-core
+desktop ──adapters──> app-ui ──> editor (via /react) ──> core
                               ├──typed map──> mdx-plugins
                               └──metadata───> mdx-component-registry
 
 main bootstrap ──registration──> RuntimeFileService ──adapter──> Tauri SaveCommitGate
-                                                              └──settlement──> editor-core
+                                                              └──settlement──> core
 ```
 
-- `renderer-codemirror` 不依赖 `editor-ui`、desktop 或 `mdx-plugins`；官方组件通过 `editor-ui` 注入的 typed component map 获取。
+- `editor` 不依赖 `app-ui`、desktop 或 `mdx-plugins`；官方组件通过 `app-ui` 注入的 typed component map 获取。
 - renderer 只消费 `mdx-component-registry` 的 metadata / descriptor，不硬编码官方组件名称。
 - 图片预览 URL、链接打开、文件系统、AI 请求结果和平台设置通过 adapter 或纯数据注入。
-- M0 的旧依赖删除条件已由 G007 满足：`editor-ui`、desktop、workspace catalog 和 lockfile 均不再包含 Milkdown、ProseMirror 或 `@uiw/react-codemirror`。历史文档可以保留框架名称，产品与测试运行图不得重新引入这些依赖。
+- M0 的旧依赖删除条件已由 G007 满足：`app-ui`、desktop、workspace catalog 和 lockfile 均不再包含 Milkdown、ProseMirror 或 `@uiw/react-codemirror`。历史文档可以保留框架名称，产品与测试运行图不得重新引入这些依赖。
 
 ### 6.4 其他现有包
 
@@ -643,7 +647,7 @@ S5 必须分开记账：`S5-FM` 是只验证 Frontmatter 的独立子 spike，�
 
 | 里程碑 | 内容 | 完成证据 |
 |---|---|---|
-| M0 | 新建 `renderer-codemirror`；接入单一 EditorView、DocumentState、mode StateField；Desktop 切换到 CM6 并删除 Milkdown 编辑器路径 | S1 自动化回归 + 最小打开/编辑/保存 smoke |
+| M0 | 新建 `editor`；接入单一 EditorView、DocumentState、mode StateField；Desktop 切换到 CM6 并删除 Milkdown 编辑器路径 | S1 自动化回归 + 最小打开/编辑/保存 smoke |
 | M1 | 行内 marker、标题、引用、列表、任务项、链接、图片、分割线、Frontmatter | S2 + selection / IME 测试 |
 | M2 | 代码块完整交互 | S3 + 现有 code-block 回归 |
 | M3 | 可编辑可视化表格（始终网格 + 单元格就地编辑 + 增删行列 + 整表原子删除） | S4（已完成，触发 No-Go 后以自研单元格回写方案落地）+ table 单元测试 |
@@ -659,7 +663,7 @@ M0 通过后可以发布功能体验 beta。Beta 允许后续里程碑尚未完�
 
 - M1 core / S2：核心 projection、G011 图片/编辑面修正与 G012 隐藏 marker 保护已实现，renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，标记为已验证；N09 使用用户明确验收覆盖并保留未独立观测保存产物的 caveat。
 - M1-FM / S5-FM-only：Frontmatter panel、YAML highlight/error、range-only edit、source copy、undo 与原生 N08 已通过，标记为已验证。该结论不包括 HTML/MDX。
-- M2 / S3：代码块实现和当前 renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 已通过；2026-07-24 空 fenced body 修复后的原生 N13 增量复验也已通过，因此标记为“已验证”。
+- M2 / S3：代码块实现和当前 renderer 184/184、app-ui 20/20、desktop 103/103、完整 Chromium 45/45 已通过；2026-07-24 空 fenced body 修复后的原生 N13 增量复验也已通过，因此标记为“已验证”。
 - M3 / S4 表格：M3-A 元数据基座 + 可编辑可视化表格已完成（2026-08-02，renderer 20 files / 230 tests 全绿）；S4 引擎评估无成熟方案触发 No-Go，以"始终网格 + contenteditable 单元格就地编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式手柄菜单增删行列/切换对齐 + 整表原子选中/删除"落地，不再回显源码；多单元格拖选、列宽调整、末端 Tab 退出/循环语义和 cell 内 image/link 结构化编辑继续留待后续。
 - M4 / S5：基础 HTML 白名单渲染、最内层标签展开、官方 MDX 真实渲染、原子选择和错误占位尚未实现；MDX 命令当前明确返回 typed unsupported。
 - M5：AI suggestion、图片粘贴/拖放、链接打开、搜索 parity、完整大纲/主题/可访问性仍未迁移；AI 命令当前明确返回 typed unsupported。

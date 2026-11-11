@@ -3,7 +3,7 @@ import {
   formatActionError,
   shouldShowFileActionOverlay,
   type RunFileAction,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
 import { useToastStore } from "./toast-store";
 
 export interface FileActionStore {

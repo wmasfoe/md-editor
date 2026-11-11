@@ -1,8 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { ColorSchemeOverrides, EditorUiActionsContextValue } from "@md-editor/editor-ui";
-import { compileThemeCss, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/editor-ui";
+import type { ColorSchemeOverrides, EditorUiActionsContextValue } from "@md-editor/app-ui";
+import { compileThemeCss, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/app-ui";
 import { validateMarkdownRelativeLinks } from "@md-editor/file-system";
-import type { LinkDiagnosticItem } from "@md-editor/renderer-codemirror";
+import type { LinkDiagnosticItem } from "@md-editor/editor";
 import { resolvePreviewImageSrc } from "../../lib/markdown-preview";
 import { type AppSettings, resolveThemeColorScheme } from "../settings";
 

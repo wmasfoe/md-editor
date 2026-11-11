@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "rootDir": "../..",
+    "paths": {
+      "@md-editor/core": ["../../packages/core/src/index.ts"],
+      "@md-editor/markdown-fidelity": ["../../packages/markdown-fidelity/src/index.ts"],
+      "@md-editor/editor": ["../../packages/editor/src/index.ts"],
+      "@md-editor/editor/testing": ["../../packages/editor/src/testing.ts"]
+    }
+  },
+  "include": ["src"]
+}

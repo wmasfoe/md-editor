@@ -1,5 +1,5 @@
-import { OPEN_FOLDER_SHORTCUT } from "@md-editor/editor-core";
-import { matchesRuntimeKeymap } from "@md-editor/editor-ui";
+import { OPEN_FOLDER_SHORTCUT } from "@md-editor/core";
+import { matchesRuntimeKeymap } from "@md-editor/app-ui";
 
 export interface WebShortcutHandlers {
   readonly onToggleMode: () => void;
