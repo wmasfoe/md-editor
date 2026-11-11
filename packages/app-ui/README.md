@@ -2,7 +2,7 @@
 
 Shared application UI for desktop, web, mobile, the website and uTools: editor integration, outline, dialogs, themes and settings. Application strings come from `@md-editor/i18n`.
 
-`AppEditor` connects the standalone `CodeMirrorEditor` from `@md-editor/editor/react` to application outline state, renderer-port registration and language events. Use `@md-editor/editor/react` directly when embedding an editor in your own React application. Editor transactions and interaction semantics belong to `@md-editor/editor`; document contracts belong to `@md-editor/core`.
+`AppEditor` connects the standalone `CodeMirrorEditor` from `@md-editor/editor/react` to application outline state, renderer-port registration and language props. Use `@md-editor/editor/react` directly when embedding an editor in your own React application. Editor transactions and interaction semantics belong to `@md-editor/editor`; document contracts belong to `@md-editor/core`.
 
 ## Components
 

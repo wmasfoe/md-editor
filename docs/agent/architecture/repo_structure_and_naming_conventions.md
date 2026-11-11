@@ -161,7 +161,7 @@ PR3 的 `state/` 成员固定为 `types.ts`、`projection-field.ts`、`decoratio
 | --- | --- |
 | `--phase pr1` | 体量阈值+豁免、冗余回退段路径、跨包深导入、测试镜像 |
 | `--phase pr2` | 追加：`src/**` 无测试文件/目录、`wysiwyg/` 顶层集合相等、逐文件域归属 |
-| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`）；跨包依赖声明（`declaredWorkspaceDeps`）；Tailwind 扫描源单一入口（`tailwindSourceEntry`）；语法插件独立性（`syntaxPluginsIndependence`）；库模块顶层无副作用（`noTopLevelSideEffects`） |
+| `--phase pr3` | 追加：renderer/index、renderer/controller、state/projection-field、widgets/table/table-widget 均 ≤800 行；`renderer/**` 簇成员枚举（`RENDERER_CLUSTER_MEMBERS`）；跨包依赖声明（`declaredWorkspaceDeps`）；Tailwind 扫描源单一入口（`tailwindSourceEntry`）；语法插件独立性（`syntaxPluginsIndependence`）；编辑器独立性（`editorIndependence`）；库模块顶层无副作用（`noTopLevelSideEffects`） |
 
 **铁律**：任何形如"全部/精确/不得/零命中"的新判据，必须先在**未迁移的当前 main** 上跑绿再进入验收。
 
@@ -187,3 +187,5 @@ node --test scripts/structure/check.test.mjs            # N 类反例（已串�
 ## 编辑器包边界
 
 `app-ui → editor → core`：`core` 保持无 DOM、无 React、无 CodeMirror；`editor` 持有浏览器编辑与事务语义；`editor/react` 是 `editor` 包内的可选子入口（`src/react/`），仅做 React 挂载和订阅，主入口不得反向导入或导出 React 组件与类型；`app-ui` 负责应用接线与 UI。导入类型也必须指向拥有该契约的包，不在原包保留兼容转发。完整依赖与分发约定见 [编辑器包边界](./editor_package_boundaries.md)。
+
+PR3 的 `editorIndependence` 检查 `packages/editor/src/**`（包含 `src/react/`）的静态导入、类型导入、再导出、动态导入和仅副作用导入，禁止引用 `@md-editor/app-ui`、`@md-editor/i18n` 及其子路径。即使 manifest 声明了这些依赖也不能放行；`tests/**` 夹具不受该源码规则约束。`syntaxPluginsIndependence` 同样覆盖 `@md-editor/editor/react` 子路径。

@@ -103,6 +103,7 @@ export const PHASE_RULES = {
     "declaredWorkspaceDeps",
     "tailwindSourceEntry",
     "syntaxPluginsIndependence",
+    "editorIndependence",
     "noTopLevelSideEffects",
   ],
 };
@@ -250,7 +251,11 @@ function lineCount(file) {
 function moduleSpecifiers(file) {
   const content = readFileSync(file, "utf8");
   const specifiers = [];
-  const patterns = [/from\s+["']([^"']+)["']/gu, /import\s*\(\s*["']([^"']+)["']\s*\)/gu];
+  const patterns = [
+    /from\s+["']([^"']+)["']/gu,
+    /import\s*\(\s*["']([^"']+)["']\s*\)/gu,
+    /\bimport\s*["']([^"']+)["']/gu,
+  ];
   for (const pattern of patterns) {
     for (const match of content.matchAll(pattern)) specifiers.push(match[1]);
   }
@@ -743,10 +748,27 @@ export const SYNTAX_PLUGINS_NO_RENDERER_IMPORT = [
   },
 ];
 
-export function checkSyntaxPluginsIndependence({ root, directories = workspaceDirs(root) }) {
+// Both the browser API and its React adapter consume host data through explicit props/ports.
+export const EDITOR_NO_APP_IMPORT = [
+  {
+    name: "editor",
+    forbidden: /^@md-editor\/(?:app-ui|i18n)(?:\/|$)/u,
+    reason: "编辑器不得依赖应用 UI 或国际化（应通过 props 或端口注入）",
+  },
+];
+
+export function checkSyntaxPluginsIndependence(options) {
+  return checkPackageSourceImports(options, SYNTAX_PLUGINS_NO_RENDERER_IMPORT);
+}
+
+export function checkEditorIndependence(options) {
+  return checkPackageSourceImports(options, EDITOR_NO_APP_IMPORT);
+}
+
+function checkPackageSourceImports({ root, directories = workspaceDirs(root) }, rules) {
   const failures = [];
 
-  for (const rule of SYNTAX_PLUGINS_NO_RENDERER_IMPORT) {
+  for (const rule of rules) {
     const target = directories.find((entry) => entry.name.endsWith(`/${rule.name}`));
     if (!target) continue;
     const srcDir = join(target.dir, "src");
@@ -858,6 +880,7 @@ export function runChecks({ root, phase = "pr1" }) {
     declaredWorkspaceDeps: checkDeclaredWorkspaceDeps,
     tailwindSourceEntry: checkTailwindSourceEntry,
     syntaxPluginsIndependence: checkSyntaxPluginsIndependence,
+    editorIndependence: checkEditorIndependence,
     noTopLevelSideEffects: checkNoTopLevelSideEffects,
   };
   const failures = [];

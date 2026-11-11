@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `@md-editor/core` | 无 DOM、无 React、无 CodeMirror 的文档状态、保存和外部编辑协议、命令/快捷键、无头运行时 | `createDocumentState`、命令与运行时 API |
 | `@md-editor/editor` | 基于 CodeMirror 6 的浏览器编辑器，拥有 transaction、selection、history、IME、投影、lint 与 suggestion 交互；主入口无 React 运行时或类型依赖 | `createCodeMirrorEditorBridge`、editor ports、suggestion 类型；可选 React 子入口见下文 |
-| `@md-editor/app-ui` | 应用接线、大纲、菜单、设置、主题、controller；`AppEditor` 接回大纲、端口注册和应用语言事件 | `AppEditor`、`EditorUiProvider`、面板和 hooks |
+| `@md-editor/app-ui` | 应用接线、大纲、菜单、设置、主题、controller；`AppEditor` 接回大纲、端口注册和应用语言传递 | `AppEditor`、`EditorUiProvider`、面板和 hooks |
 
 ```mermaid
 flowchart LR
@@ -20,7 +20,7 @@ flowchart LR
 
 `@md-editor/editor/react` 是 `editor` 包的可选子入口，源码位于 `packages/editor/src/react/`。它导出 `CodeMirrorEditor` 和 `CodeMirrorEditorProps`，只负责 React 挂载、bridge 生命周期、snapshot 订阅及 props/callback 转发。它与主入口共享包版本，不是独立 workspace 或 npm 包。主入口不能反向导出 React 组件或类型；React 测试辅助 API 位于 `@md-editor/editor/react/testing`。
 
-非 React 宿主从 `core` 创建文档，通过 `editor` 的 bridge 挂载。React 社区使用者从 `editor/react` 挂载组件；无需引入应用 Provider、主题编译器或设置页面。仓库内应用使用 `app-ui` 的 `AppEditor`，延续应用大纲和命令接线。
+非 React 宿主从 `core` 创建文档，通过 `editor` 的 bridge 挂载。React 社区使用者从 `editor/react` 挂载组件；无需引入应用 Provider、主题编译器或设置页面。仓库内应用使用 `app-ui` 的 `AppEditor`，延续应用大纲和命令接线。应用通过 `useTranslation` 将当前语言传给 React 子入口，由组件单次刷新 lint，不再额外监听全局语言事件。
 
 每个调用方直接从契约归属包导入。迁移后不保留旧包、旧子路径和无意义的兼容 re-export。`CodeMirrorEditor` 保留组件名称，因为它明确表示当前具体编辑器实现；包名 `editor` 表示其职责覆盖编辑交互，而不限于视觉渲染。
 
@@ -36,4 +36,4 @@ npm 的 peer 元数据属于整个包，无法按子入口声明。宿主已安�
 
 ## 验证
 
-移动已有 core、editor 与 React 回归测试，并更新各端调用方、工作区依赖、结构约束、CI 路径、注释和中英文 README。主入口边界测试拒绝 React 模块解析，分别验证真实运行时导入和非 React 消费者的类型检查。React bridge 浏览器用例继续验证 StrictMode、外部编辑、history、selection 与 IME；应用接线单测验证大纲、端口注册和语言事件清理。
+移动已有 core、editor 与 React 回归测试，并更新各端调用方、工作区依赖、结构约束、CI 路径、注释和中英文 README。主入口边界测试拒绝 React 模块解析，分别验证真实运行时导入和非 React 消费者的类型检查。React bridge 浏览器用例继续验证 StrictMode、外部编辑、history、selection 与 IME；应用接线单测验证大纲、端口注册，以及语言切换只触发一次 lint 刷新。

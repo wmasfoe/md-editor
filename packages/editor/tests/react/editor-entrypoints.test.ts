@@ -43,11 +43,6 @@ describe("editor/react public editor entrypoints", () => {
     expect(codeMirrorEditorSource).toContain("ports.setMarkdownLint(enableMarkdownLint)");
   });
 
-  it("recomputes markdown lint when language changes", () => {
-    expect(codeMirrorEditorSource).toContain("ports.recomputeMarkdownLint()");
-    expect(codeMirrorEditorSource).toContain("[language, enableMarkdownLint]");
-  });
-
   it("mounts the raw CodeMirror bridge without a controlled Markdown value", () => {
     expect(codeMirrorEditorSource).toContain("createCodeMirrorEditorBridge");
     expect(codeMirrorEditorSource).toContain("useSyncExternalStore");

@@ -740,6 +740,52 @@ test("语法插件：tests 内引用渲染器不受本规则限制", () => {
   );
 });
 
+/** Editor source, including React, must stay independent of application packages. */
+for (const [path, source] of [
+  ["src/index.ts", 'import { AppEditor } from "@md-editor/app-ui";'],
+  ["src/react/view.ts", 'export { useTranslation } from "@md-editor/i18n";'],
+  ["src/react/lazy.ts", 'const load = () => import("@md-editor/app-ui/hooks");'],
+  ["src/react/types.ts", 'import type { AppEditorProps } from "@md-editor/app-ui";'],
+  ["src/react/setup.ts", 'import "@md-editor/i18n";'],
+]) {
+  test(`编辑器独立性：禁止应用反向依赖 ${path}`, () => {
+    withFixture(
+      {
+        "packages/editor/package.json": JSON.stringify({
+          name: "@md-editor/editor",
+          dependencies: {
+            "@md-editor/app-ui": "workspace:*",
+            "@md-editor/i18n": "workspace:*",
+          },
+        }),
+        [`packages/editor/${path}`]: source,
+      },
+      (root) => {
+        const result = runChecks({ root, phase: "pr3" });
+        assert.equal(fails(result, "编辑器不得依赖应用 UI 或国际化"), true);
+      },
+    );
+  });
+}
+
+test("编辑器独立性：允许 core、React、相近包名及测试夹具", () => {
+  withFixture(
+    {
+      "packages/editor/package.json": JSON.stringify({ name: "@md-editor/editor" }),
+      "packages/editor/src/index.ts": 'export { createDocumentState } from "@md-editor/core";',
+      "packages/editor/src/react/index.ts":
+        'import { useState } from "react";\nimport { x } from "@md-editor/app-ui-tools";',
+      "packages/editor/tests/application.test.ts": 'import { AppEditor } from "@md-editor/app-ui";',
+    },
+    (root) => {
+      assert.equal(
+        fails(runChecks({ root, phase: "pr3" }), "编辑器不得依赖应用 UI 或国际化"),
+        false,
+      );
+    },
+  );
+});
+
 /**
  * 库模块顶层副作用护栏（noTopLevelSideEffects）。
  * 核心不变量：import 一个库不得改动宿主环境。

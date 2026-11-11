@@ -26,7 +26,7 @@ packages/app-ui/src/hooks/             # 应用 controller 与 UI 状态
 packages/app-ui/src/components/AppEditor.tsx
 ```
 
-`editor/react` 负责 bridge 生命周期、snapshot 订阅与 props 转发；`app-ui` 的 `AppEditor` 负责应用大纲、端口注册和语言事件。分包不复制编辑器语义，也不合并发布依赖。当前包边界见 [编辑器包边界](./editor_package_boundaries.md)。
+`editor/react` 负责 bridge 生命周期、snapshot 订阅与 props 转发；`app-ui` 的 `AppEditor` 负责应用大纲、端口注册和语言传递。分包不复制编辑器语义，也不合并发布依赖。当前包边界见 [编辑器包边界](./editor_package_boundaries.md)。
 
 ## 2. Renderer 与 React 表面边界
 

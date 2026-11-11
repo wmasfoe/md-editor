@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { act, createElement, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDocumentState } from "@md-editor/core";
 import type { CodeMirrorEditorProps } from "@md-editor/editor/react";
+import { changeLanguage, configureI18n } from "@md-editor/i18n";
 import { AppEditor } from "../../src/components/AppEditor";
 
 const harness = vi.hoisted(() => ({
@@ -14,7 +15,6 @@ const harness = vi.hoisted(() => ({
   outline: vi.fn(),
 }));
 
-vi.mock("@md-editor/i18n", () => ({ useTranslation: () => ({ i18n: { language: "zh" } }) }));
 vi.mock("../../src/hooks/useEditorUi", () => ({
   useOptionalEditorUiActions: () => actions,
 }));
@@ -26,6 +26,10 @@ vi.mock("@md-editor/editor/react", () => ({
       onRendererPortsChange?.(harness.ports as never);
       return () => onRendererPortsChange?.(null);
     }, [onRendererPortsChange]);
+    // Model the child's public language contract; the adapter has its own behavior tests.
+    useLayoutEffect(() => {
+      if (props.enableMarkdownLint) harness.ports.recomputeMarkdownLint();
+    }, [props.language, props.enableMarkdownLint]);
     return null;
   },
 }));
@@ -39,11 +43,18 @@ let root: Root | undefined;
 let container: HTMLDivElement | undefined;
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
+beforeEach(async () => {
+  configureI18n({ syncDocumentLang: true });
+  await changeLanguage("zh");
+});
+
 afterEach(async () => {
   await act(() => root?.unmount());
   root = undefined;
   container?.remove();
+  configureI18n({ syncDocumentLang: false });
   vi.clearAllMocks();
+  harness.ports.recomputeMarkdownLint.mockReset();
 });
 
 async function render(props: CodeMirrorEditorProps) {
@@ -71,7 +82,7 @@ describe("AppEditor application integration", () => {
     expect(onRendererPortsChange).toHaveBeenLastCalledWith(null);
   });
 
-  it("uses the latest callbacks without remounting and removes application language listeners", async () => {
+  it("uses the latest callbacks without remounting and forwards an explicit host language", async () => {
     const state = createDocumentState();
     const first = vi.fn();
     const latest = vi.fn();
@@ -88,11 +99,26 @@ describe("AppEditor application integration", () => {
     harness.props?.onCursorLineChange?.(2);
     expect(first).not.toHaveBeenCalled();
     expect(latest).toHaveBeenNthCalledWith(1, 2);
+    const calls = harness.ports.recomputeMarkdownLint.mock.calls.length;
     window.dispatchEvent(new Event("md-editor:language-changed"));
-    expect(harness.ports.recomputeMarkdownLint).toHaveBeenCalledOnce();
+    expect(harness.ports.recomputeMarkdownLint).toHaveBeenCalledTimes(calls);
     await act(() => root!.unmount());
     root = undefined;
     window.dispatchEvent(new Event("md-editor:language-changed"));
+    expect(harness.ports.recomputeMarkdownLint).toHaveBeenCalledTimes(calls);
+  });
+
+  it("forwards an i18n change through one lint refresh path after the document language updates", async () => {
+    await render({ document: createDocumentState(), enableMarkdownLint: true });
+    harness.ports.recomputeMarkdownLint.mockClear();
+    const documentLanguages: string[] = [];
+    harness.ports.recomputeMarkdownLint.mockImplementation(() => {
+      documentLanguages.push(document.documentElement.lang);
+    });
+    await act(() => changeLanguage("en"));
+    expect(harness.props?.language).toBe("en");
     expect(harness.ports.recomputeMarkdownLint).toHaveBeenCalledOnce();
+    expect(documentLanguages).toEqual(["en"]);
+    harness.ports.recomputeMarkdownLint.mockReset();
   });
 });

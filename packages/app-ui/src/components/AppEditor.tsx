@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { CodeMirrorEditor, type CodeMirrorEditorProps } from "@md-editor/editor/react";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
@@ -28,15 +28,7 @@ export function AppEditor({
     if (ports && actions) return actions.registerRendererPorts(ports);
   }, [actions, ports]);
 
-  // Keep application-wide language events outside the independently usable React package.
-  useEffect(() => {
-    const refreshLint = () => {
-      if (props.enableMarkdownLint) ports?.recomputeMarkdownLint();
-    };
-    window.addEventListener("md-editor:language-changed", refreshLint);
-    return () => window.removeEventListener("md-editor:language-changed", refreshLint);
-  }, [ports, props.enableMarkdownLint]);
-
+  // useTranslation already subscribes to language changes; the child refreshes lint once.
   return (
     <CodeMirrorEditor
       {...props}
