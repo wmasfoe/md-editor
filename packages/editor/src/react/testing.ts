@@ -1,12 +1,12 @@
 import {
   inspectRendererForTesting,
   installCodeBlockLineNumberGeometryFixture,
-} from "@md-editor/editor/testing";
-import { getRendererForTesting, type CodeMirrorEditorPorts } from "@md-editor/editor";
+} from "../testing.ts";
+import { getRendererForTesting, type CodeMirrorEditorPorts } from "../bridge.ts";
 
 export function inspectCodeMirrorEditorForTesting(ports: CodeMirrorEditorPorts) {
   return inspectRendererForTesting(getRendererForTesting(ports));
 }
 
-export type { RendererTestingProbe as CodeMirrorEditorTestingProbe } from "@md-editor/editor/testing";
+export type { RendererTestingProbe as CodeMirrorEditorTestingProbe } from "../testing.ts";
 export { installCodeBlockLineNumberGeometryFixture };

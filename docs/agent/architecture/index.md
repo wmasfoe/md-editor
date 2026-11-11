@@ -50,4 +50,4 @@
 
 
 
-- 编辑器四包职责、直接依赖、社区嵌入入口与保留依赖的 npm 分发约定：[编辑器包边界](./editor_package_boundaries.md)
+- 编辑器三包职责、React 子入口、直接依赖、社区嵌入入口与保留依赖的 npm 分发约定：[编辑器包边界](./editor_package_boundaries.md)

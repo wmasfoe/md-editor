@@ -125,7 +125,7 @@
    `createWorkspaceAliases(configUrl, profile: "web" | "desktop" | "utools"): Array<{ find: string | RegExp; replacement: string }>`。
    目标路径从对应包的 `exports` 读取，找不到对应 export 必须**失败**而不是拼私有路径；保留现有匹配语义（根包名锚定正则、子路径字符串）。profile 用实测的 12/10/7。
 2. 改三份 `vite.config.ts` 使用 helper；只移 alias，不动 app 自有设置（web 的 `base`/端口、desktop 的 `__APP_VERSION__`/server、utools 的 bundle 插件与 `base: "./"`）。utools 的本地 `workspacePath` **不能删**（还用于复制 logo/preload/plugin.json）。
-3. 补 alias-free 验证：新建 `apps/web/tests/vite-workspace-resolution.test.ts`、`apps/utools/tests/vite-workspace-resolution.test.ts`，并与现有 `apps/desktop/tests/vite-aliases.test.ts` 一同改造 —— 用清空 `resolve.alias` 的 test-only 配置验证 `exports` fallback（至少覆盖 file-system、i18n、`mdx-plugins/metadata`、`app-ui/hooks`、`editor-react/testing`）。
+3. 补 alias-free 验证：新建 `apps/web/tests/vite-workspace-resolution.test.ts`、`apps/utools/tests/vite-workspace-resolution.test.ts`，并与现有 `apps/desktop/tests/vite-aliases.test.ts` 一同改造 —— 用清空 `resolve.alias` 的 test-only 配置验证 `exports` fallback（至少覆盖 file-system、i18n、`mdx-plugins/metadata`、`app-ui/hooks`、`editor/react/testing`）。
 4. 同步改造 `packages/app-ui/tests/hooks-boundary.test.ts`（它读 desktop vite 配置文本，迁到 helper 后会产生假阴性）。
 5. `apps/site` 不纳入 helper（用 `transpilePackages`，无 Vite alias，tsconfig 无 `paths`）；`apps/mobile/core` 的 8 条 alias 作为独立 profile 单列评审，不静默并入。
 

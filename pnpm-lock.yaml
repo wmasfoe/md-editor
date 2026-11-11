@@ -197,9 +197,6 @@ importers:
       '@md-editor/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@md-editor/editor-react':
-        specifier: workspace:*
-        version: link:../../packages/editor-react
       '@md-editor/file-system':
         specifier: workspace:*
         version: link:../../packages/file-system
@@ -462,9 +459,6 @@ importers:
         specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@md-editor/editor-react':
-        specifier: workspace:*
-        version: link:../../packages/editor-react
       '@tailwindcss/vite':
         specifier: 'catalog:'
         version: 4.3.0(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.19.2))
@@ -559,9 +553,6 @@ importers:
         specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
     devDependencies:
-      '@md-editor/editor-react':
-        specifier: workspace:*
-        version: link:../../packages/editor-react
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.61.1
@@ -629,9 +620,6 @@ importers:
       '@md-editor/editor':
         specifier: workspace:*
         version: link:../editor
-      '@md-editor/editor-react':
-        specifier: workspace:*
-        version: link:../editor-react
       '@md-editor/file-system':
         specifier: workspace:*
         version: link:../file-system
@@ -843,37 +831,18 @@ importers:
       '@types/markdownlint':
         specifier: ^0.18.0
         version: 0.18.0
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
       '@types/sanitize-html':
         specifier: 'catalog:'
         version: 2.16.1
       '@types/turndown':
         specifier: 'catalog:'
         version: 5.0.6
-      jsdom:
-        specifier: ^30.1.3
-        version: 30.1.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-      vitest:
-        specifier: 'catalog:'
-        version: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.21)(jsdom@30.1.3)(lightningcss@1.32.0)
-
-  packages/editor-react:
-    dependencies:
-      '@md-editor/core':
-        specifier: workspace:*
-        version: link:../core
-      '@md-editor/editor':
-        specifier: workspace:*
-        version: link:../editor
-      '@md-editor/plugin-sdk':
-        specifier: workspace:*
-        version: link:../plugin-sdk
-    devDependencies:
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.17
       jsdom:
         specifier: ^30.1.3
         version: 30.1.3

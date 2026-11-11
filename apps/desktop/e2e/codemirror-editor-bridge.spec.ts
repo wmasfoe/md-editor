@@ -16,7 +16,7 @@ async function diagnostics(page: Page) {
   });
 }
 
-test.describe("standalone editor-react bridge", () => {
+test.describe("standalone editor/react bridge", () => {
   test("preserves one native view across parent rerenders, modes, code-block line numbers, and preview", async ({
     page,
   }) => {

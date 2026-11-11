@@ -217,7 +217,7 @@ md-editor/
 ├── packages/
 │   ├── core/                    # 文档状态、命令、快捷键与无头运行时
 │   ├── editor/                  # 框架无关的浏览器编辑器：CodeMirror 6、事务与交互
-│   ├── editor-react/            # 独立 React 编辑器组件，不依赖应用 UI
+│   │   └── src/react/          # 可选 @md-editor/editor/react 子入口
 │   ├── app-ui/                  # 应用 UI：编辑器接线、大纲、工具栏、设置与主题
 │   ├── compiler/                # 无头 Markdown 编译器与 HTML 导出
 │   ├── syntax-plugins/          # 语法插件：高亮、KaTeX、Mermaid、指令

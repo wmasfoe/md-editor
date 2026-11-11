@@ -217,7 +217,7 @@ md-editor/
 ├── packages/
 │   ├── core/                    # Headless document state, commands, keymaps and runtime
 │   ├── editor/                  # Framework-independent browser editor built on CodeMirror 6
-│   ├── editor-react/            # Standalone React editor component
+│   │   └── src/react/          # Optional @md-editor/editor/react entrypoint
 │   ├── app-ui/                  # Application integration, outline, toolbars, settings and themes
 │   ├── compiler/                # Headless Markdown compiler and HTML exporter
 │   ├── syntax-plugins/          # Syntax plugins: highlight, KaTeX, Mermaid, directives

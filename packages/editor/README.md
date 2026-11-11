@@ -32,7 +32,7 @@ The package shows suggestions produced elsewhere: ghost text, multi-line preview
 
 ## Using it
 
-Most hosts use the React component `CodeMirrorEditor` from `@md-editor/editor-react`, which wraps the bridge below. To mount it yourself, create a bridge with a `DocumentState` from `@md-editor/core`:
+Most hosts use the React component `CodeMirrorEditor` from `@md-editor/editor/react`, which wraps the bridge below. To mount it yourself, create a bridge with a `DocumentState` from `@md-editor/core`:
 
 ```typescript
 import { createDocumentState } from "@md-editor/core";
@@ -55,6 +55,52 @@ bridge.destroy();
 ```
 
 `createCodeMirrorEditorBridge` also accepts `plugins`, `resolveImageSrc`, `openLinkTarget`, `mdxMode`, `mdxComponents`, `enableMarkdownLint` and `writeClipboardText`.
+
+## React integration: `@md-editor/editor/react`
+
+Standalone React integration for `@md-editor/editor`. It exports `CodeMirrorEditor` and `CodeMirrorEditorProps`, mounts the browser editor, subscribes to document snapshots and disposes the bridge on unmount. React is an optional peer of the editor package. The integration has no dependency on application UI, application localization or a platform runtime.
+
+### Usage
+
+```tsx
+import { useState } from "react";
+import { createDocumentState } from "@md-editor/core";
+import { CodeMirrorEditor } from "@md-editor/editor/react";
+
+export function Editor() {
+  const [document] = useState(() => createDocumentState({ markdown: "# Hello" }));
+  return <CodeMirrorEditor document={document} style={{ height: "100vh" }} />;
+}
+```
+
+Keep the `DocumentState` stable across renders. Observe changes through `document.subscribeSnapshot`; the component does not accept a controlled Markdown `value`. It forwards configuration and host callbacks to the browser editor. Optional syntax plugins, MDX metadata, image resolution, link handling, clipboard access and AI labels are injected through props.
+
+`onRendererPortsChange` reports editor ports on mount and `null` on cleanup. Import port and suggestion types directly from `@md-editor/editor`. Changes to styling, visibility and editor configuration update the current view; React StrictMode cleanup disposes each created bridge.
+
+The optional `language` prop invalidates localized lint diagnostics when the host language changes. The host supplies its document language and AI labels; this entrypoint does not subscribe to application language events. Applications using this repository's outline and settings can use `AppEditor` from `@md-editor/app-ui`.
+
+### Styles and tests
+
+Container CSS is imported by the component. The browser editor owns and injects its content styles, with CSS variable fallbacks; application Tailwind styles and `EditorUiProvider` are not required. Mount the component on the client in a DOM environment.
+
+`@md-editor/editor/react/testing` exposes React editor test helpers. Production React code should use `@md-editor/editor/react`.
+
+```bash
+pnpm --filter @md-editor/editor test
+pnpm --filter @md-editor/editor typecheck
+```
+
+Only React consumers need to install React (`>=18.3.0 <20`). The main
+`@md-editor/editor` entrypoint has no React runtime or type dependency. The adapter
+does not import React DOM; your application supplies its own React renderer.
+The optional peer applies to the whole package, so an installed React version may
+still be checked by the package manager. Using `/react` without React fails during
+module resolution or bundling.
+
+This remains a private workspace package. Future npm builds must emit separate
+JavaScript and declaration entrypoints for the browser API and React adapter,
+keep React and its JSX runtime external, and preserve dependencies on `core` and
+other internal packages. Both entrypoints share the editor package version.
 
 ## Styles and theming
 
@@ -102,6 +148,7 @@ Scope comes from this package's own classes (`.cm-md-editor`, set via
 src/
 ├── bridge.ts       # createCodeMirrorEditorBridge: ties a DocumentState to a renderer
 ├── renderer/       # the renderer and its controller
+├── react/          # optional React component and /react/testing helpers
 ├── mode.ts         # the mode compartment and mode switching
 ├── markdown/       # Markdown parsing and the range index
 ├── wysiwyg/        # decorations, widgets, editing commands and input handling

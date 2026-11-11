@@ -24,8 +24,7 @@
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/editor": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
-    "@md-editor/plugin-sdk": "workspace:*",
-    "@md-editor/editor-react": "workspace:*"
+    "@md-editor/plugin-sdk": "workspace:*"
   },
   "peerDependencies": {
     "react": "catalog:",

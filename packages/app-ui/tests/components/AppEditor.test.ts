@@ -3,7 +3,7 @@ import { act, createElement, useLayoutEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDocumentState } from "@md-editor/core";
-import type { CodeMirrorEditorProps } from "@md-editor/editor-react";
+import type { CodeMirrorEditorProps } from "@md-editor/editor/react";
 import { AppEditor } from "../../src/components/AppEditor";
 
 const harness = vi.hoisted(() => ({
@@ -18,7 +18,7 @@ vi.mock("@md-editor/i18n", () => ({ useTranslation: () => ({ i18n: { language: "
 vi.mock("../../src/hooks/useEditorUi", () => ({
   useOptionalEditorUiActions: () => actions,
 }));
-vi.mock("@md-editor/editor-react", () => ({
+vi.mock("@md-editor/editor/react", () => ({
   CodeMirrorEditor: (props: CodeMirrorEditorProps) => {
     harness.props = props;
     const { onRendererPortsChange } = props;

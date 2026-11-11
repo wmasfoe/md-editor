@@ -7,7 +7,6 @@ on:
       - "apps/utools/**"
       - "packages/core/**"
       - "packages/app-ui/**"
-      - "packages/editor-react/**"
       - "packages/file-system/**"
       - "packages/markdown-fidelity/**"
       - "packages/editor/**"

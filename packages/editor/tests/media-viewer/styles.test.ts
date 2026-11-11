@@ -114,13 +114,8 @@ describe("ensureViewerStyleElement", () => {
 });
 
 describe("死规则清理（结构性约束）", () => {
-  it("editor-react 的 CodeMirrorEditor.css 不再存在带宿主前缀的 .cm-md-image-viewer 规则", () => {
-    const cssPath = fileURLToPath(
-      new URL(
-        "../../../editor-react/src/components/CodeMirrorEditor/CodeMirrorEditor.css",
-        import.meta.url,
-      ),
-    );
+  it("editor/react 的 CodeMirrorEditor.css 不再存在带宿主前缀的 .cm-md-image-viewer 规则", () => {
+    const cssPath = fileURLToPath(new URL("../../src/react/CodeMirrorEditor.css", import.meta.url));
     const css = readFileSync(cssPath, "utf-8");
     // 只检查**选择器**（注释里可以提到类名；真正的风险是活规则）
     const offenders = topLevelSelectors(css).filter((selector) =>

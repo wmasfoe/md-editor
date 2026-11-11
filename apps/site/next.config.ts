@@ -33,7 +33,6 @@ const nextConfig: NextConfig = {
     "@md-editor/plugin-host",
     "@md-editor/mdx-plugins",
     "@md-editor/editor",
-    "@md-editor/editor-react",
     "@md-editor/shared",
     "@md-editor/syntax-plugins",
   ],

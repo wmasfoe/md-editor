@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CodeMirrorEditor, type CodeMirrorEditorProps } from "@md-editor/editor-react";
+import { CodeMirrorEditor, type CodeMirrorEditorProps } from "@md-editor/editor/react";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import { useOptionalEditorUiActions } from "../hooks/useEditorUi";

@@ -41,7 +41,7 @@ apps/
 packages/
   core/             # 引擎无关文档与命令契约
   editor/     # CM6 编辑器实现与 Markdown 交互语义
-  editor-react/         # 独立 React 编辑器组件
+    src/react/          # @md-editor/editor/react 可选 React 子入口
   app-ui/               # 应用 UI、AppEditor 接线与设置
   feature-outline/         # 大纲目录
   feature-source-mode/     # 源码模式
@@ -184,7 +184,7 @@ Runtime 职责边界：
 - Runtime 对外只暴露内容、命令、选区和交互状态，不把底层 `EditorView` 作为常规业务依赖。
 - renderer 从 CM6 文本读取可保存的 `rawMarkdown`；raw fragment 只提供识别、保真和验证能力，不再合成两个编辑器模型。
 - App 层负责文件生命周期、窗口菜单、最近文件、设置和全局 UI，不直接拼接 Markdown。
-- `core` 的内置 Feature 只注册 command、keymap 和 capability metadata；parser adapter 属于 renderer，React bridge 生命周期属于 `editor-react`，应用 UI 与 Provider 接线属于 `app-ui`，任何层都不能绕过 CM6 transaction 改写文档权威源。
+- `core` 的内置 Feature 只注册 command、keymap 和 capability metadata；parser adapter 属于 renderer，React bridge 生命周期属于 `editor/react`，应用 UI 与 Provider 接线属于 `app-ui`，任何层都不能绕过 CM6 transaction 改写文档权威源。
 
 ### 4.2 插件组织方式
 

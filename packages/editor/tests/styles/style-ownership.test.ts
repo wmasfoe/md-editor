@@ -1,9 +1,9 @@
 /**
  * @file style-ownership.test.ts
- * @description 样式归属的反向断言：renderer 归属的规则不得回流到 editor-react。
+ * @description 样式归属的反向断言：renderer 归属的规则不得回流到 editor/react。
  *
  * 背景见 `src/styles/index.ts` 的文件头。核心不变量：
- * 1. `editor-react` 的 `CodeMirrorEditor.css` 只保留宿主容器布局，不得再出现任何
+ * 1. `editor/react` 的 `CodeMirrorEditor.css` 只保留宿主容器布局，不得再出现任何
  *    CodeMirror 内部 DOM 或 renderer 产出类的选择器（`.cm-*`、`.cm-md-*`、`.cm-liquid-*`）；
  * 2. renderer 自持样式**不得依赖宿主类**（`.code-mirror-editor-host`），
  *    否则非 React 宿主依旧拿不到样式；
@@ -24,10 +24,7 @@ function specOf(selector: string): { b: number; c: number } {
   return { b: classes + attrs, c: elements };
 }
 
-const EDITOR_UI_CSS = new URL(
-  "../../../editor-react/src/components/CodeMirrorEditor/CodeMirrorEditor.css",
-  import.meta.url,
-);
+const EDITOR_UI_CSS = new URL("../../src/react/CodeMirrorEditor.css", import.meta.url);
 
 /** 提取顶层规则块的选择器（`{` 之前的部分，去注释）。 */
 function topLevelSelectors(css: string): string[] {
@@ -52,7 +49,7 @@ function topLevelSelectors(css: string): string[] {
 }
 
 describe("样式归属（反向断言）", () => {
-  it("editor-react 的 CodeMirrorEditor.css 不得包含 renderer 归属选择器", () => {
+  it("editor/react 的 CodeMirrorEditor.css 不得包含 renderer 归属选择器", () => {
     const css = readFileSync(EDITOR_UI_CSS, "utf8");
     const offenders = topLevelSelectors(css).filter((selector) =>
       /\.cm-(?:md-|liquid-)?[a-z]/u.test(selector),
@@ -60,7 +57,7 @@ describe("样式归属（反向断言）", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("editor-react 的 CodeMirrorEditor.css 只保留宿主容器布局", () => {
+  it("editor/react 的 CodeMirrorEditor.css 只保留宿主容器布局", () => {
     const css = readFileSync(EDITOR_UI_CSS, "utf8");
     const selectors = topLevelSelectors(css);
     // 只允许宿主自己的容器类（可带 .dark / :root 等宿主侧前缀）。

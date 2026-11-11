@@ -6,13 +6,13 @@
 
 ## 1. 目标与边界
 
-目标不是把平台状态塞进 CM6 renderer，也不是把 React hooks 放进 `core`。目标是明确四个包及应用适配层：
+目标不是把平台状态塞进 CM6 renderer，也不是把 React hooks 放进 `core`。目标是明确三个包、React 子入口及应用适配层：
 
 | 层 | 职责 | 不应承担 |
 | --- | --- | --- |
 | `packages/core` | 编辑器领域类型、文档状态契约、命令/快捷键契约、Markdown 纯类型、平台无关算法和 headless store；只保留编辑器命令 ID 等必须理解的 AI 交互入口 | React hooks、DOM、CM6、Tauri、desktop runtime 单例、AI provider/request parsing、agent 编排和 prompt cache |
 | `packages/editor` | 单一 CM6 `EditorView`、解析索引、decorations、Widgets、history/selection/IME/scroll 和 AI suggestion 交互状态 | React 页面编排、Tauri、文件系统、AI provider/request parsing |
-| `packages/editor-react` | 独立 React 组件、bridge 生命周期、snapshot 订阅、props 与 callback 转发 | 应用 Provider、大纲、应用语言事件、平台 runtime |
+| `packages/editor/src/react`（`@md-editor/editor/react` 子入口） | 独立 React 组件、bridge 生命周期、snapshot 订阅、props 与 callback 转发 | 应用 Provider、大纲、应用语言事件、平台 runtime |
 | `packages/app-ui` React-facing 层 | `AppEditor` 应用接线、React hooks、菜单和外部 UI controller 状态，向 editor 注入 adapter 与官方 MDX component map | 编辑器源码范围、原子选择、事务、Tauri 文件系统、native menu/window、平台 runtime 直接调用 |
 | `apps/desktop` | Tauri/file-system/settings/native menu/window 适配，向 UI/hooks 注入 callback 和数据 | 重复编辑器领域语义、把通用状态硬编码在 desktop wrapper 内 |
 
@@ -21,12 +21,12 @@
 ```text
 packages/core/                         # 文档与运行时契约
 packages/editor/                       # 浏览器编辑器实现
-packages/editor-react/                 # 独立 React 挂载组件
+packages/editor/src/react/                 # editor 包内的可选 React 子入口
 packages/app-ui/src/hooks/             # 应用 controller 与 UI 状态
 packages/app-ui/src/components/AppEditor.tsx
 ```
 
-`editor-react` 负责 bridge 生命周期、snapshot 订阅与 props 转发；`app-ui` 的 `AppEditor` 负责应用大纲、端口注册和语言事件。分包不复制编辑器语义，也不合并发布依赖。当前包边界见 [编辑器包边界](./editor_package_boundaries.md)。
+`editor/react` 负责 bridge 生命周期、snapshot 订阅与 props 转发；`app-ui` 的 `AppEditor` 负责应用大纲、端口注册和语言事件。分包不复制编辑器语义，也不合并发布依赖。当前包边界见 [编辑器包边界](./editor_package_boundaries.md)。
 
 ## 2. Renderer 与 React 表面边界
 
@@ -52,7 +52,7 @@ renderer 是平台 adapter 无关的 CM6 编辑器实现。它持有唯一 `Edit
 
 ### 2.2 外层公开 `AppEditor`
 
-外层组件放在 `app-ui`，作为各端复用的 React connected layer。对外使用 `AppEditor` 命名，独立嵌入入口为 `editor-react` 的 `CodeMirrorEditor`，各端通过 adapter/callback 注入平台能力。
+外层组件放在 `app-ui`，作为各端复用的 React connected layer。对外使用 `AppEditor` 命名，独立嵌入入口为 `editor/react` 的 `CodeMirrorEditor`，各端通过 adapter/callback 注入平台能力。
 
 职责：
 

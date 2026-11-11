@@ -35,4 +35,4 @@
 - 新增子目录时必须同步更新本文件。
 - 及时更新对应的文档，文档和代码的状态要保持同步。
 
-- 编辑器四包职责、直接依赖、社区嵌入入口与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)
+- 编辑器三包职责、React 子入口、直接依赖、社区嵌入入口与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)

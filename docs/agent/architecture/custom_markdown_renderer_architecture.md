@@ -395,9 +395,9 @@ G006 已由 desktop main 产品表面的 `DesktopCodeMirrorEditor` 挂载该组�
 - 应用设置页面和 toast
 - 第三方插件加载
 
-### 6.3 `@md-editor/editor-react` 与 `@md-editor/app-ui`
+### 6.3 `@md-editor/editor/react` 与 `@md-editor/app-ui`
 
-`editor-react` 只负责 `CodeMirrorEditor` 的 React 挂载、bridge 销毁、snapshot 订阅和 props/callback 转发，不依赖应用 UI、i18n 或平台 runtime。`app-ui` 的 `AppEditor` 连接应用大纲、Provider 端口注册与语言事件，并保留应用 controller、菜单、设置和主题。
+`editor/react` 是 `editor` 包内的可选子入口，只负责 `CodeMirrorEditor` 的 React 挂载、bridge 销毁、snapshot 订阅和 props/callback 转发，不依赖应用 UI、i18n 或平台 runtime。`app-ui` 的 `AppEditor` 连接应用大纲、Provider 端口注册与语言事件，并保留应用 controller、菜单、设置和主题。
 
 `app-ui`
 
@@ -467,7 +467,7 @@ Rust app process 持有唯一 `SaveCommitGate`。`attach_save_runtime` 与 order
 依赖方向固定为：
 
 ```txt
-desktop ──adapters──> app-ui ──> editor-react ──> editor ──> core
+desktop ──adapters──> app-ui ──> editor (via /react) ──> core
                               ├──typed map──> mdx-plugins
                               └──metadata───> mdx-component-registry
 

@@ -37,14 +37,14 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - [`main.tsx`](../../../apps/desktop/src/main.tsx) 与 [`platform-bootstrap.ts`](../../../apps/desktop/src/app/platform-bootstrap.ts) 实现 React 前的 main/settings 分流和 required service 注入。
 - [`document-save.ts`](../../../apps/desktop/src/app/controller/document-save.ts) 实现 checkpoint 同步入队、单次 settlement、certainty feedback 与 discard protection。
 - [`app-ui/package.json`](../../../packages/app-ui/package.json)、desktop/root manifests、workspace catalog 与 lockfile 已移除 Milkdown、ProseMirror 和 `@uiw/react-codemirror` 依赖。
-- [`app-ui/src/index.ts`](../../../packages/app-ui/src/index.ts) 导出 `AppEditor` 应用表面，独立 `CodeMirrorEditor` 从 `editor-react` 导出；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
+- [`app-ui/src/index.ts`](../../../packages/app-ui/src/index.ts) 导出 `AppEditor` 应用表面，独立 `CodeMirrorEditor` 从 `editor/react` 导出；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
 - [`renderer.ts`](../../../packages/editor/src/renderer.ts) 是 G004 的原生 CM6 lifecycle/sync 实现；只有 generation boundary 调用 `setState`。
 - [`range-index.ts`](../../../packages/editor/src/markdown/range-index.ts) 与 [`range-types.ts`](../../../packages/editor/src/markdown/range-types.ts) 持有 fenced/indented 精确 ranges、block status、source fingerprint 与增量 mapping。
 - [`code-languages.ts`](../../../packages/editor/src/markdown/code-languages.ts) 持有 20 个 direct `LanguageDescription` loader、exact alias resolver、native `codeLanguages` 接入和 theme-backed token highlighting。
 - [`code-block-projection.ts`](../../../packages/editor/src/wysiwyg/projections/code-block-projection.ts)、[`code-block-line-numbers.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-line-numbers.ts) 与 [`code-block-commands.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-commands.ts) 分别拥有 projection/ranges、logical line geometry 和编辑语义。
 - [`renderer.test.ts`](../../../packages/editor/src/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
 - [`testing.ts`](../../../packages/editor/src/testing.ts) 提供只读 probe 和用户 transaction 模拟，不把可变 `EditorView` / `EditorState` 暴露给消费方。
-- [`CodeMirrorEditor`](../../../packages/editor-react/src/components/CodeMirrorEditor/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
+- [`CodeMirrorEditor`](../../../packages/editor/src/react/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
 - [`codemirror-editor-bridge.spec.ts`](../../../apps/desktop/e2e/codemirror-editor-bridge.spec.ts) 在专用 E2E surface 上验证真实 DOM `EditorView` 身份、StrictMode、preview、外部编辑和文档边界。
 - [`s1-capability-inventory.ts`](../../../apps/desktop/src/app/s1-capability-inventory.ts) 精确覆盖当前 runtime 的 12 个注册命令，并为 12 个已移除格式命令及非命令能力保留 S1 审计记录。
 - [`codemirror-s1-single-view.spec.ts`](../../../apps/desktop/e2e/codemirror-s1-single-view.spec.ts) 验证真实产品 E1-E11，并补充空文件夹 D3、main reload P5、settings reload 隔离和 deferred controls 的可见 typed-unsupported 反馈。
@@ -332,7 +332,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## G005 新鲜验证证据
 
-- 新增 `packages/editor-react/src/components/CodeMirrorEditor`：稳定 React host 每次真实挂载只创建一个 renderer；transition 订阅负责 `sync/reconcile`，snapshot 订阅只触发 React 元数据失效，不把 Markdown 回灌为 controlled value。
+- 新增 `packages/editor/src/react`：稳定 React host 每次真实挂载只创建一个 renderer；transition 订阅负责 `sync/reconcile`，snapshot 订阅只触发 React 元数据失效，不把 Markdown 回灌为 controlled value。
 - `EditorUiProvider` 提供唯一 active renderer 的 typed port registry；mode、external edit、line number、host visibility、focus 和 measure 都通过 facade 调用，未挂载时返回 typed unavailable。MDX/AI 旧命令在当前 editor 不支持时显示明确反馈，不再静默成功。
 - 同文档外部编辑同步完成 reservation、一个 isolated CM6 transaction 和 finalize/release；document replacement 保持同一 `EditorView`，只在 generation boundary 替换 `EditorState` 并重置 history/selection/scroll。
 - 已删除 document remount key、`app-ui-state.ts` 和 SourceEditor/Milkdown 间的 scroll-ratio/target handoff；对应 desktop 测试改为阻止这些旧机制重新出现。

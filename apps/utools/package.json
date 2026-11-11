@@ -33,7 +33,6 @@
     "typescript": "catalog:",
     "utools-api-types": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
-    "@md-editor/editor-react": "workspace:*"
+    "vitest": "catalog:"
   }
 }

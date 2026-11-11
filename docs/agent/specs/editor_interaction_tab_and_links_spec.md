@@ -50,7 +50,7 @@
    **引用定义查找**（`[ref]: url`，按 `label` segment 规范化后匹配：去方括号、折叠空白、**大小写不敏感**，对齐 CommonMark）。
 
 ### 打开通路的接线（宿主侧，链已存在，勿重复实现）
-`renderer` 的 `openLinkTarget` option → `editor-react` 的 `CodeMirrorEditor` 与 `app-ui` 的 `AppEditor` 转发 →
+`renderer` 的 `openLinkTarget` option → `editor/react` 的 `CodeMirrorEditor` 与 `app-ui` 的 `AppEditor` 转发 →
 `apps/desktop` 的 `DesktopCodeMirrorEditor` → `DesktopEditorActions.openWysiwygLink`
 （`useDesktopEditorController` 内的**唯一**分派点：文档内锚点 / 内部文档 / 资产 / 外部 URL）→
 `link-service.openExternalTarget` → `invoke("open_external_target")` → Rust

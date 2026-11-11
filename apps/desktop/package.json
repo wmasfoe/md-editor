@@ -47,8 +47,7 @@
     "@codemirror/view": "catalog:",
     "@lezer/markdown": "catalog:",
     "@lezer/common": "catalog:",
-    "@md-editor/editor": "workspace:*",
-    "@md-editor/editor-react": "workspace:*"
+    "@md-editor/editor": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "catalog:",

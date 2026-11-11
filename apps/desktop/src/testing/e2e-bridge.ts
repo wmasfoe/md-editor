@@ -4,7 +4,7 @@ import {
   type EditorMode,
 } from "@md-editor/core";
 import type { CodeMirrorEditorExternalEditResult, CodeMirrorEditorPorts } from "@md-editor/editor";
-import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-react/testing";
+import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor/react/testing";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import type { DesktopEditorActions } from "../app/context/DesktopEditorActionsContext";
 import { runtime } from "../app/runtime/editor-runtime";

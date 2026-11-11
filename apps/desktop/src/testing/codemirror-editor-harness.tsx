@@ -17,8 +17,8 @@ import {
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
 } from "@md-editor/editor";
-import { CodeMirrorEditor } from "@md-editor/editor-react";
-import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-react/testing";
+import { CodeMirrorEditor } from "@md-editor/editor/react";
+import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor/react/testing";
 import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { calloutPlugin } from "@md-editor/mdx-plugins";
 

@@ -3,40 +3,33 @@ import { describe, expect, it } from "vitest";
 import { EDITOR_STYLE_CSS } from "@md-editor/editor";
 
 const packageJson = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as {
   exports?: Record<string, string>;
   dependencies?: Record<string, string>;
 };
-const indexSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../../src/react/index.ts", import.meta.url), "utf8");
 const codeMirrorEditorSource = readFileSync(
-  new URL("../src/components/CodeMirrorEditor/CodeMirrorEditor.tsx", import.meta.url),
+  new URL("../../src/react/CodeMirrorEditor.tsx", import.meta.url),
   "utf8",
 );
 // 编辑器区样式已归渲染器所有（renderer 产出 DOM ⇒ 拥有其渲染规则）。
 const codeMirrorEditorStyles = EDITOR_STYLE_CSS;
 
-describe("editor-react public editor entrypoints", () => {
+describe("editor/react public editor entrypoints", () => {
   it("keeps the standalone React layer independent of application UI and localization", () => {
-    expect(Object.keys(packageJson.dependencies ?? {}).toSorted()).toEqual([
-      "@md-editor/core",
-      "@md-editor/editor",
-      "@md-editor/plugin-sdk",
-    ]);
+    expect(packageJson.dependencies?.["@md-editor/app-ui"]).toBeUndefined();
+    expect(packageJson.dependencies?.["@md-editor/i18n"]).toBeUndefined();
     expect(codeMirrorEditorSource).not.toContain("md-editor:language-changed");
     expect(codeMirrorEditorSource).not.toContain("useTranslation");
     expect(codeMirrorEditorSource).not.toContain("useOptionalEditorUiActions");
   });
 
   it("exposes CodeMirror as the only editor implementation", () => {
-    expect(packageJson.exports).toEqual({
-      ".": "./src/index.ts",
-      "./testing": "./src/components/CodeMirrorEditor/testing.ts",
-    });
+    expect(packageJson.exports?.["./react"]).toBe("./src/react/index.ts");
+    expect(packageJson.exports?.["./react/testing"]).toBe("./src/react/testing.ts");
     expect(indexSource).toContain("CodeMirrorEditorProps");
-    expect(runtimeExportSources(indexSource)).toContain(
-      "./components/CodeMirrorEditor/CodeMirrorEditor",
-    );
+    expect(runtimeExportSources(indexSource)).toContain("./CodeMirrorEditor");
   });
 
   it("forwards the inline-style marker source toggle to renderer ports", () => {

@@ -2,7 +2,7 @@
 
 Shared application UI for desktop, web, mobile, the website and uTools: editor integration, outline, dialogs, themes and settings. Application strings come from `@md-editor/i18n`.
 
-`AppEditor` connects the standalone `CodeMirrorEditor` from `@md-editor/editor-react` to application outline state, renderer-port registration and language events. Use `@md-editor/editor-react` directly when embedding an editor in your own React application. Editor transactions and interaction semantics belong to `@md-editor/editor`; document contracts belong to `@md-editor/core`.
+`AppEditor` connects the standalone `CodeMirrorEditor` from `@md-editor/editor/react` to application outline state, renderer-port registration and language events. Use `@md-editor/editor/react` directly when embedding an editor in your own React application. Editor transactions and interaction semantics belong to `@md-editor/editor`; document contracts belong to `@md-editor/core`.
 
 ## Components
 
@@ -21,7 +21,7 @@ Props include:
 
 `onRendererPortsChange` hands the host the renderer ports, which expose mode switching, formatting commands, find, lint and suggestions.
 
-`AppEditor` uses `EditorUiProvider` when present to register ports and update the active outline heading. It forwards the React editor props and callbacks. Bridge creation, document subscriptions and cleanup belong to `@md-editor/editor-react`.
+`AppEditor` uses `EditorUiProvider` when present to register ports and update the active outline heading. It forwards the React editor props and callbacks. Bridge creation, document subscriptions and cleanup belong to `@md-editor/editor/react`.
 
 ### `OutlinePanel`
 
@@ -83,6 +83,6 @@ pnpm typecheck
 
 ## Package boundaries
 
-`app-ui → editor-react → editor → core` is the main dependency direction. Each layer also declares direct dependencies for the contracts it imports. Editor ports and AI suggestion types are imported directly from `@md-editor/editor`, and React editor props from `@md-editor/editor-react`; this package does not forward those APIs.
+`app-ui → editor → core` is the package dependency direction. The React adapter is provided by the optional `@md-editor/editor/react` sub-entrypoint inside `editor`. Each layer also declares direct dependencies for the contracts it imports. Editor ports and AI suggestion types are imported directly from `@md-editor/editor`, and React editor props from `@md-editor/editor/react`; this package does not forward those APIs.
 
 These packages currently remain private workspace packages. Future npm distribution should preserve dependencies between them.

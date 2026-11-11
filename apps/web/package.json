@@ -46,7 +46,6 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "@playwright/test": "catalog:",
-    "@md-editor/editor-react": "workspace:*"
+    "@playwright/test": "catalog:"
   }
 }

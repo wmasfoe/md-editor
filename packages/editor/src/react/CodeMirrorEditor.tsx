@@ -16,9 +16,11 @@ import {
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
-  type AiSuggestionAcceptedEvent,
-  type AiSuggestionLabels,
-} from "@md-editor/editor";
+} from "../bridge.ts";
+import type {
+  AiSuggestionAcceptedEvent,
+  AiSuggestionLabels,
+} from "../wysiwyg/view/suggestion-model.ts";
 import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {

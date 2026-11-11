@@ -16,7 +16,7 @@
 | 路径 | 职责 | 说明 |
 | --- | --- | --- |
 | `apps/*` | 宿主应用（desktop / web / utools / tui / mobile） | 只做平台适配与 UI 集成，不复制编辑器核心语义 |
-| `packages/*` | 可复用库（core / editor / editor-react / app-ui / compiler / ai / i18n / shared / file-system / mdx-* / markdown-fidelity / syntax-plugins） | 包内 `src/` 是源码，`tests/` 是测试，`exports` 是对外唯一入口 |
+| `packages/*` | 可复用库（core / editor / app-ui / compiler / ai / i18n / shared / file-system / mdx-* / markdown-fidelity / syntax-plugins） | 包内 `src/` 是源码，`tests/` 是测试，`exports` 是对外唯一入口 |
 | `infra/*` | 基础设施（如 Cloudflare Worker） | 同样纳入体量阈值域 |
 | `scripts/*` | 仓库级脚本（release / git / mobile / site / structure …） | 每个子目录自带 `*.test.mjs`（Node `node:test`） |
 | `docs/agent/*` | Agent 文档（见 `docs/agent/index.md` 的分类判据） | 新增子目录必须同步更新该 index |
@@ -186,4 +186,4 @@ node --test scripts/structure/check.test.mjs            # N 类反例（已串�
 
 ## 编辑器包边界
 
-`app-ui → editor-react → editor → core`：`core` 保持无 DOM、无 React、无 CodeMirror；`editor` 持有浏览器编辑与事务语义；`editor-react` 仅做独立 React 挂载和订阅；`app-ui` 负责应用接线与 UI。导入类型也必须指向拥有该契约的包，不在原包保留兼容转发。完整依赖与分发约定见 [编辑器包边界](./editor_package_boundaries.md)。
+`app-ui → editor → core`：`core` 保持无 DOM、无 React、无 CodeMirror；`editor` 持有浏览器编辑与事务语义；`editor/react` 是 `editor` 包内的可选子入口（`src/react/`），仅做 React 挂载和订阅，主入口不得反向导入或导出 React 组件与类型；`app-ui` 负责应用接线与 UI。导入类型也必须指向拥有该契约的包，不在原包保留兼容转发。完整依赖与分发约定见 [编辑器包边界](./editor_package_boundaries.md)。
