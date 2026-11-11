@@ -8,11 +8,11 @@
 
 触发阅读的改动范围（任一命中即必须先读本规范）：
 
-- `packages/renderer-codemirror/src/wysiwyg/projections/html-projection.ts`（展开 / 折叠 / 快捷键 / 注释块）；
-- `packages/renderer-codemirror/src/wysiwyg/widgets/html-block-widget.ts`（预览挂载与点击）；
-- `packages/renderer-codemirror/src/wysiwyg/state/projection-field.ts` 中的 `selectionActivatesRecord` / `virtualTrailingLineOwnsDocumentEnd`；
-- `packages/renderer-codemirror/src/wysiwyg/blocks/atom-selection.ts` 中 HTML 相关的方向键行为；
-- `packages/renderer-codemirror/src/markdown/node-policy.ts` 中 `HTMLBlock` / `CommentBlock` 的策略。
+- `packages/editor/src/wysiwyg/projections/html-projection.ts`（展开 / 折叠 / 快捷键 / 注释块）；
+- `packages/editor/src/wysiwyg/widgets/html-block-widget.ts`（预览挂载与点击）；
+- `packages/editor/src/wysiwyg/state/projection-field.ts` 中的 `selectionActivatesRecord` / `virtualTrailingLineOwnsDocumentEnd`；
+- `packages/editor/src/wysiwyg/blocks/atom-selection.ts` 中 HTML 相关的方向键行为；
+- `packages/editor/src/markdown/node-policy.ts` 中 `HTMLBlock` / `CommentBlock` 的策略。
 
 配套规范：
 
@@ -76,7 +76,7 @@ HTML 块贴在文末（无尾随换行）时，块的闭区间右端点与虚拟
 
 ## 验证与回归防护
 
-### 单元测试（`packages/renderer-codemirror/tests/wysiwyg/`）
+### 单元测试（`packages/editor/tests/wysiwyg/`）
 
 - `html-projection.test.ts`：虚拟行持有文末光标时的展开 / 折叠判定（含读取同一事务 effect、多光标、范围选区、光标不在文末）、注释块弱化渲染。
 - `widgets/html-block-widget.test.ts`：预览链接点击（安全 / 不安全 / 无 `href` / 不冒泡 / 不选中）、`DOMParser` 重建（`script` / `iframe` / `object` / `embed`、`on*`、`javascript:` / `vbscript:` / 前导空格、普通属性与嵌套保留、无 `DOMParser` 退化）、源码横幅点击与非主键、注释块文末 Escape。
@@ -93,7 +93,7 @@ HTML 块贴在文末（无尾随换行）时，块的闭区间右端点与虚拟
 
 ### 改动前后必跑
 
-- `pnpm --filter @md-editor/renderer-codemirror test`
+- `pnpm --filter @md-editor/editor test`
 - `pnpm --filter @md-editor/desktop exec playwright test e2e/codemirror-m4-html-mdx.spec.ts e2e/codemirror-virtual-trailing-line.spec.ts`
 
 ---

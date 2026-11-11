@@ -9,7 +9,7 @@ import {
   settingsModuleClassName,
   settingsSectionTitleClassName,
   settingsSmallButtonClassName,
-} from "@md-editor/editor-ui/settings";
+} from "@md-editor/app-ui/settings";
 
 /**
  * @fileoverview 设置 →「更新」Tab

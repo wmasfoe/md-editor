@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import type { DocumentReplaceIntent } from "@md-editor/editor-core";
+import type { DocumentReplaceIntent } from "@md-editor/core";
 
 /**
  * E2E 共享 helper（ai-slop-cleaner Pass 2 去重）：

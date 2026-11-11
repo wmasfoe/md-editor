@@ -21,8 +21,8 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@md-editor/editor-ui", () => ({
-  CodeMirrorEditor: (props: { onRendererPortsChange: (ports: unknown) => void }) => {
+vi.mock("@md-editor/app-ui", () => ({
+  AppEditor: (props: { onRendererPortsChange: (ports: unknown) => void }) => {
     mocks.exposePorts = props.onRendererPortsChange;
     return null;
   },

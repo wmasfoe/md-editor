@@ -25,10 +25,10 @@ const workspacePackages = Object.keys({
 
 /** 仓库实际使用的工作区子路径入口（仅校验本应用确实声明了其根包的那些） */
 const WORKSPACE_SUBPATHS = [
-  "@md-editor/editor-ui/hooks",
-  "@md-editor/editor-ui/CodeMirrorEditor/testing",
+  "@md-editor/app-ui/hooks",
+  "@md-editor/editor-react/testing",
   "@md-editor/mdx-plugins/metadata",
-  "@md-editor/renderer-codemirror/testing",
+  "@md-editor/editor/testing",
   "@md-editor/syntax-plugins/math",
 ];
 

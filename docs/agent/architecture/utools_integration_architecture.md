@@ -11,7 +11,7 @@
    - 未来可能根据运营数据或维护成本随时放弃兼容并下线。
 2. **绝对零污染原则（可拔插隔离）**：
    - 所有的 uTools 平台逻辑、Node.js Preload 脚本、`plugin.json`、事件生命周期路由、免责声明等代码，**100% 必须限制并收敛在单子包 `apps/utools` 中**。
-   - 严禁向 `packages/*` 领域核心（如 `editor-core`、`file-system`、`ai`）反向注入任何针对 uTools 的特性逻辑或全局类型。
+   - 严禁向 `packages/*` 领域核心（如 `core`、`file-system`、`ai`）反向注入任何针对 uTools 的特性逻辑或全局类型。
    - 若后续下线 uTools 插件，仅需执行 `rm -rf apps/utools` 即可彻底剥离，不遗留任何技术债。
 
 ---
@@ -31,8 +31,8 @@
 ┌────────────────────────────────────────────────────────┐
 │                   packages/ 核心领域层                  │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │ @md-editor/editor-core (文档状态机、命令/快捷键注册) │  │
-│  │ @md-editor/editor-ui (React 编辑器 UI、CodeMirror) │  │
+│  │ @md-editor/core (文档状态机、命令/快捷键注册) │  │
+│  │ @md-editor/app-ui (React 编辑器 UI、CodeMirror) │  │
 │  │ @md-editor/file-system (存储接口契约、保存调度器)     │  │
 │  │ @md-editor/markdown-fidelity (保真解析、大纲提取)    │  │
 │  │ @md-editor/shared (通用类型、Result 容器、基础工具)   │  │

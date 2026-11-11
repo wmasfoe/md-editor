@@ -7,7 +7,7 @@ import { openFullApp as openApp } from "./editor-e2e-helpers";
  * 现象（属主）：直接打字输入 `https://example.com/some/path` 这种裸链接后，
  * 光标一旦离开该处再回来就**改不了**，而且**删不掉**；光标进/点击时会出**黑色描边**。
  *
- * 根因（源码 + 探针双确认）：`packages/renderer-codemirror/src/markdown/node-policy.ts`
+ * 根因（源码 + 探针双确认）：`packages/editor/src/markdown/node-policy.ts`
  * 的 `BARE_AUTOLINK_POLICY` 给裸 URL 赋了 `renderPolicy: "source-only-atom"` +
  * `editPolicy: "source-mode-only"` + `interactionPolicy: "source-mode-required"` ⇒
  * ① 不渲染（普通黑字）② 作为**原子**（描边、光标进不去内部）③ 所见即得模式下**受保护**（改不了）

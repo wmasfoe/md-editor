@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FolderIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
-import { OPEN_FOLDER_SHORTCUT } from "@md-editor/editor-core";
-import { formatKeymapParts } from "@md-editor/editor-ui";
+import { OPEN_FOLDER_SHORTCUT } from "@md-editor/core";
+import { formatKeymapParts } from "@md-editor/app-ui";
 import {
   createDefaultCollapsedDirectoryPaths,
   type MarkdownFileTreeNode,

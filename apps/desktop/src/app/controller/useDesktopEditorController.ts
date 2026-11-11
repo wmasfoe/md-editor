@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { isTauri, invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useTranslation } from "@md-editor/i18n";
-import type { EditorMode } from "@md-editor/editor-core";
+import type { EditorMode } from "@md-editor/core";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import { useDocumentSnapshot } from "../document-store";
 import { useAppSettings } from "../settings-context";
@@ -37,7 +37,8 @@ import {
   resolveExportStyling,
 } from "./export-controller";
 import { useDocumentActionsController } from "./useDocumentActionsController";
-import { useEditorUiActions, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { useEditorUiActions } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import type { MdxComponentPlugin } from "@md-editor/plugin-sdk/mdx";
 
 import { useConfirmationStore } from "../stores/confirmation-store";
@@ -690,7 +691,7 @@ export function useDesktopEditorController({
 
   // --- openWysiwygLink ---
   // 所见即所得模式下 Cmd/Ctrl+点击（或 Mod+Enter）的唯一链接入口：
-  // 文档内锚点 `#fragment` 交给 editor-ui 解析并滚动，其余判定委托 Rust 侧
+  // 文档内锚点 `#fragment` 交给 app-ui 解析并滚动，其余判定委托 Rust 侧
   // inspect_linked_file（相对路径按当前文档目录解析）。
   const openWysiwygLink = useCallback(
     async (href: string) => {

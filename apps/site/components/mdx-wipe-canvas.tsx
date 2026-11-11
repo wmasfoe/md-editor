@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createDocumentState, type DocumentState } from "@md-editor/editor-core";
+import { createDocumentState, type DocumentState } from "@md-editor/core";
 import { useI18n } from "../lib/i18n/context";
 import { getSampleMarkdown, MDX_SHOWCASE_SAMPLE } from "./showcase-samples";
 import { SiteLiveEditor } from "./site-live-editor";

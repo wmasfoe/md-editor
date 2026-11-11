@@ -25,7 +25,7 @@
 ## 2. 总体架构与数据流
 
 ```txt
-React / editor-ui (Claude & Open Design 规范)
+React / app-ui (Claude & Open Design 规范)
   ├── 系统硬件概览卡片 (get_system_specs 硬件检测 + 智能推荐徽标)
   ├── 三档位模型卡片网格 (Lite 0.5B / Standard 1.5B / Pro 3B 占位)
   ├── 独立模型生命周期操作 (下载 / 更新模型 / 删除模型 / 取消下载)

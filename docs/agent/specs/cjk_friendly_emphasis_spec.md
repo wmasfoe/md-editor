@@ -3,7 +3,7 @@
 用途：记录「中文（CJK）句子里的强调标记为什么曾经不生效、现在按什么规则解析、两个渲染引擎各自落在哪」。
 改动**强调 / 斜体 / 删除线 / 高亮的定界符解析**、lezer Markdown 扩展链、或 `@md-editor/compiler` 的 marked 配置前先读本文件。
 
-适用范围：`packages/renderer-codemirror`（编辑器语法树与 WYSIWYG 投影）、`packages/syntax-plugins`（`==高亮==` 等插件语法）、`packages/compiler`（静态渲染：移动端阅读器 / QuickLook / 导出）。
+适用范围：`packages/editor`（编辑器语法树与 WYSIWYG 投影）、`packages/syntax-plugins`（`==高亮==` 等插件语法）、`packages/compiler`（静态渲染：移动端阅读器 / QuickLook / 导出）。
 
 ---
 
@@ -44,7 +44,7 @@ GitHub / GFM 同样不复现中文标点邻接的加粗。因此这是**有意�
 
 | 引擎 | 落点 | 说明 |
 | --- | --- | --- |
-| lezer 语法树（WYSIWYG 编辑器） | `packages/renderer-codemirror/src/markdown/cjk-friendly-emphasis.ts` | 按名替换 `Emphasis` 与 GFM `Strikethrough` 行内解析器；`M1_MARKDOWN_EXTENSIONS` 统一挂载（必须在 `GFM` 之后） |
+| lezer 语法树（WYSIWYG 编辑器） | `packages/editor/src/markdown/cjk-friendly-emphasis.ts` | 按名替换 `Emphasis` 与 GFM `Strikethrough` 行内解析器；`M1_MARKDOWN_EXTENSIONS` 统一挂载（必须在 `GFM` 之后） |
 | 共享判定函数 | `resolveCjkFriendlyDelimiterSides()` + `readDelimiterNeighbors()`（同上文件，经包入口导出） | `==高亮==` 等自定义定界符直接复用，不再各自复刻标点正则 |
 | marked（静态渲染 / 移动端阅读器 / QuickLook） | `packages/compiler/src/parser/tokenizer.ts` | 接入 `marked-cjk-friendly`，但**只接管 `*` 家族与 `~~`**；`_` / `__` 交回 marked 默认实现 |
 
@@ -66,7 +66,7 @@ GitHub / GFM 同样不复现中文标点邻接的加粗。因此这是**有意�
    对 5 类定界符 × 25 种边界字符（空 / 空格 / ASCII / CJK 汉字 / 日文 / 韩文 / 全角标点 / ASCII 标点 / emoji / VS15 / VS16 / IVS / CJK 扩展区）× 25 的矩阵比对，当前为 **3125 例 0 分歧**。
 2. **跨引擎一致**：编辑器语法树 vs `compileToTokens` 的同类矩阵（2646 例）中，`*` / `**` / `~~` / `==` 全量一致；
    `_` / `__` 剩余 56 例差异**全部**落在"变体选择符（VS15/IVS）与下划线直接相邻"这一**规范标注为 Unspecified** 的窄带（或 marked 默认实现不处理星号面代理对的 `prevChar`）。
-3. 回归用例：`packages/renderer-codemirror/tests/markdown/cjk-friendly-emphasis.test.ts`、
+3. 回归用例：`packages/editor/tests/markdown/cjk-friendly-emphasis.test.ts`、
    `packages/compiler/tests/cjk-emphasis.test.ts`、`packages/syntax-plugins/tests/highlight.test.ts`（CJK 邻接用例）。
    三条用例都锁定了**本次报告的原始串**与"不得再出现 `**到**` 跨对错配"。
 

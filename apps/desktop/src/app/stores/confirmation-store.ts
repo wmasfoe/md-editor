@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ConfirmationChoice, ConfirmationState } from "@md-editor/editor-ui";
+import type { ConfirmationChoice, ConfirmationState } from "@md-editor/app-ui";
 
 export interface ConfirmationStore {
   confirmation: ConfirmationState | null;

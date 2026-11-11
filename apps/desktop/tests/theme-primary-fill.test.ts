@@ -1,4 +1,4 @@
-import { builtInThemeCss, primaryDialogButtonClassName } from "@md-editor/editor-ui";
+import { builtInThemeCss, primaryDialogButtonClassName } from "@md-editor/app-ui";
 import { describe, expect, it } from "vitest";
 
 describe("primary button theme token", () => {

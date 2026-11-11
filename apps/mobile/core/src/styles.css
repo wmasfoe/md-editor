@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
-@import "@md-editor/editor-ui/tailwind-sources.css";
+@import "@md-editor/app-ui/tailwind-sources.css";
 
 :root {
   color-scheme: light dark;

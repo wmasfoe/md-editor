@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 async function openHarness(page: Page, strictMode = false) {
-  await page.goto(`/?surface=codemirror-editor${strictMode ? "&strict=true" : ""}`);
+  await page.goto(`/?surface=codemirror-editor&standalone=1${strictMode ? "&strict=true" : ""}`);
   await expect(page.locator(".cm-editor")).toHaveCount(1);
   await expect
     .poll(() => page.evaluate(() => window.__CODEMIRROR_EDITOR_E2E__?.getDiagnostics()))
@@ -16,7 +16,7 @@ async function diagnostics(page: Page) {
   });
 }
 
-test.describe("CodeMirrorEditor React bridge", () => {
+test.describe("standalone editor-react bridge", () => {
   test("preserves one native view across parent rerenders, modes, code-block line numbers, and preview", async ({
     page,
   }) => {

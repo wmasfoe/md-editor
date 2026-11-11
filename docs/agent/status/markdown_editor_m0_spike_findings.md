@@ -6,7 +6,7 @@
 
 ## 结论
 
-- 已建立最小 pnpm workspace 与 `@md-editor/editor-core` / `@md-editor/shared` 包骨架。
+- 已建立最小 pnpm workspace 与 `@md-editor/core` / `@md-editor/shared` 包骨架。
 - `rawMarkdown` 是保存权威源，`dirty` 由 `rawMarkdown !== savedRawMarkdown` 派生。
 - 普通 Markdown round-trip 先采用 normalized-equal fixture seam，覆盖 heading、paragraph、list、blockquote、image、code fence 等常见块。
 - Frontmatter、HTML/raw block、未知 MDX、MDX ESM / expression、code fence metadata 进入 raw fragment 保真路径，未编辑时优先使用原始 `rawSource`。
@@ -23,14 +23,14 @@
 - Inline MDX 的 source range 仍是高风险点；当前已做 stale range fail-fast，但后续真实 parser 接入时仍必须验证 range remap 或改用 node-bound raw source。
 - Callout extension smoke 在当前环境记录为 blocker：尚未安装 / 验证真实 Milkdown 或 ProseMirror extension API。
 - 桌面层已接入 Milkdown / CodeMirror，WYSIWYG 不会因为 Frontmatter / MDX / HTML raw block 自动切到源码模式；源码模式由用户显式切换。
-- 本地 `node` 可用，且 `node --experimental-strip-types scripts/smoke-editor-core.mjs` 已通过无依赖 runtime smoke。
+- 本地 `node` 可用，且 `node --experimental-strip-types scripts/smoke-core.mjs` 已通过无依赖 runtime smoke。
 - 当前环境下 `pnpm test` 和 `pnpm typecheck` 会被 pnpm 11.6.0 registry signature fetch 失败挡住，需要恢复 pnpm 校验或使用已安装二进制做局部验证。
 
 ## P1 边界
 
 - 源码模式仍为 P1，本次只保留 `rawMarkdown` 权威模型，不接入 CodeMirror。
 - 导出模块仍为 P1，本次不实现 HTML / PDF / docx export。
-- 桌面 native dialog、recent file、窗口关闭提示不进入 editor-core；后续桌面层只能通过 file lifecycle seam 接入。
+- 桌面 native dialog、recent file、窗口关闭提示不进入 core；后续桌面层只能通过 file lifecycle seam 接入。
 
 ## 后续优先级状态
 

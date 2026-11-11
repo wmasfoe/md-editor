@@ -215,9 +215,10 @@ md-editor/
 ├── infra/
 │   └── distribution-worker/     # Cloudflare Worker 下载网关 (R2，带兜底)
 ├── packages/
-│   ├── editor-core/             # 文档状态、有序保存、模式切换
-│   ├── renderer-codemirror/     # CodeMirror 6 层：WYSIWYG 投影、装饰、表格、Lint
-│   ├── editor-ui/               # React UI：工具栏、历史抽屉、文件树、大纲、设置
+│   ├── core/                    # 文档状态、命令、快捷键与无头运行时
+│   ├── editor/                  # 框架无关的浏览器编辑器：CodeMirror 6、事务与交互
+│   ├── editor-react/            # 独立 React 编辑器组件，不依赖应用 UI
+│   ├── app-ui/                  # 应用 UI：编辑器接线、大纲、工具栏、设置与主题
 │   ├── compiler/                # 无头 Markdown 编译器与 HTML 导出
 │   ├── syntax-plugins/          # 语法插件：高亮、KaTeX、Mermaid、指令
 │   ├── plugin-sdk/              # 面向外部作者的插件 API (npm：@md-editor/plugin-sdk)

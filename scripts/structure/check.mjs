@@ -29,9 +29,9 @@ export const FAIL_LINES = 1200;
  * **cluster 级硬约束**：这些包内任何 `.ts/.tsx` 超过 `WARN_LINES` 即**失败**
  * （而非仅警告）——防止"把巨型文件拆成巨型协作者"，即 PR3 之后的回涨防线。
  */
-export const CLUSTER_STRICT_PACKAGES = ["packages/renderer-codemirror"];
+export const CLUSTER_STRICT_PACKAGES = ["packages/editor"];
 export const MOVE_HEADROOM = 5;
-/** 测试辅助目录不入镜像检查（存量合法反例：packages/editor-core/tests/support）。 */
+/** 测试辅助目录不入镜像检查（存量合法反例：packages/core/tests/support）。 */
 export const MIRROR_EXEMPT_DIRS = new Set(["support", "fixtures", "helpers", "__fixtures__"]);
 /** `wysiwyg/` 顶层（PR2 起）必须精确等于该集合。 */
 /** `renderer/` 簇成员登记（PR3 拆分后）：顶层文件 + `controller/` 协作者。 */
@@ -64,10 +64,10 @@ export const WYSIWYG_TOP_LEVEL = [
 ];
 /** PR3 起必须 ≤ 单一职责簇阈值的目标文件（路径 → 允许上限）。 */
 export const SPLIT_TARGETS = {
-  "packages/renderer-codemirror/src/renderer/index.ts": WARN_LINES,
-  "packages/renderer-codemirror/src/renderer/controller.ts": WARN_LINES,
-  "packages/renderer-codemirror/src/wysiwyg/state/projection-field.ts": WARN_LINES,
-  "packages/renderer-codemirror/src/wysiwyg/widgets/table/table-widget.ts": WARN_LINES,
+  "packages/editor/src/renderer/index.ts": WARN_LINES,
+  "packages/editor/src/renderer/controller.ts": WARN_LINES,
+  "packages/editor/src/wysiwyg/state/projection-field.ts": WARN_LINES,
+  "packages/editor/src/wysiwyg/widgets/table/table-widget.ts": WARN_LINES,
 };
 
 /** 各阶段启用的规则集合（分批上线，见文件头说明）。 */
@@ -453,7 +453,7 @@ function findDirs(dir, name, out = []) {
 /** 规则（PR2+）：`wysiwyg/` 顶层集合精确相等。 */
 export function checkWysiwygTopLevel({ root }) {
   const failures = [];
-  const dir = join(root, "packages/renderer-codemirror/src/wysiwyg");
+  const dir = join(root, "packages/editor/src/wysiwyg");
   if (!existsSync(dir)) return { failures: [`缺少目录 ${relative(root, dir)}`], warnings: [] };
   const actual = readdirSync(dir).filter((entry) => !entry.startsWith("."));
   const missing = WYSIWYG_TOP_LEVEL.filter((entry) => !actual.includes(entry));
@@ -466,7 +466,7 @@ export function checkWysiwygTopLevel({ root }) {
 /** 规则（PR2+）：`wysiwyg/` 逐文件域归属（集合逐项相等）。 */
 export function checkWysiwygDomains({ root }) {
   const failures = [];
-  const base = join(root, "packages/renderer-codemirror/src/wysiwyg");
+  const base = join(root, "packages/editor/src/wysiwyg");
   if (!existsSync(base)) return { failures: [], warnings: [] };
   for (const [domain, expected] of Object.entries(WYSIWYG_DOMAIN_MEMBERS)) {
     const dir = join(base, domain);
@@ -489,7 +489,7 @@ export function checkWysiwygDomains({ root }) {
  */
 export function checkRendererCluster({ root }) {
   const failures = [];
-  const base = join(root, "packages/renderer-codemirror/src/renderer");
+  const base = join(root, "packages/editor/src/renderer");
   if (!existsSync(base)) return { failures: [], warnings: [] };
   for (const [scope, expected] of Object.entries(RENDERER_CLUSTER_MEMBERS)) {
     const dir = scope === "." ? base : join(base, scope);
@@ -645,19 +645,19 @@ export function checkDeclaredWorkspaceDeps({ root, directories = workspaceDirs(r
  * 规则：Tailwind 扫描源必须经由共享入口登记，且不得手抄 `@source`。
  *
  * 背景：Tailwind v4 默认不扫描 `node_modules`，而 workspace 包经 pnpm 链接后位于各 app
- * 的 `node_modules/@md-editor/*`。因此每个用到 `@md-editor/editor-ui` 的 app 必须显式登记
+ * 的 `node_modules/@md-editor/*`。因此每个用到 `@md-editor/app-ui` 的 app 必须显式登记
  * 扫描源，否则该包内的工具类不会生成 CSS，界面静默缺失样式。
  *
- * 历史缺陷：四个 app 各自手抄一行 `@source "../../../packages/editor-ui/src";`，
+ * 历史缺陷：四个 app 各自手抄一行 `@source "../../../packages/app-ui/src";`，
  * 而 `apps/site` 漏抄——因为 site 当时只用纯 CSS 类组件，样式缺失被掩盖。
  * 手抄仪式本身才是根因：新增第五个 app 时必然再漏一次。
  *
  * 契约：
- * 1. 引入 Tailwind 的 app 必须 `@import "@md-editor/editor-ui/tailwind-sources.css"`；
+ * 1. 引入 Tailwind 的 app 必须 `@import "@md-editor/app-ui/tailwind-sources.css"`；
  * 2. 任何 app 的 CSS 不得直接写 `@source`（扫描源只在共享文件里维护）；
  * 3. 共享文件自身必须恰好包含一处 `@source`。
  */
-export const TAILWIND_SHARED_SOURCES_IMPORT = "@md-editor/editor-ui/tailwind-sources.css";
+export const TAILWIND_SHARED_SOURCES_IMPORT = "@md-editor/app-ui/tailwind-sources.css";
 
 export function checkTailwindSourceEntry({ root, directories = workspaceDirs(root) }) {
   const failures = [];
@@ -697,9 +697,9 @@ export function checkTailwindSourceEntry({ root, directories = workspaceDirs(roo
   }
 
   // 共享文件自身：必须恰好一处 @source，且指向 ../src
-  const sharedPath = join(root, "packages/editor-ui/styles/tailwind-sources.css");
+  const sharedPath = join(root, "packages/app-ui/styles/tailwind-sources.css");
   if (!existsSync(sharedPath)) {
-    failures.push("packages/editor-ui/styles/tailwind-sources.css: 共享扫描源入口文件缺失");
+    failures.push("packages/app-ui/styles/tailwind-sources.css: 共享扫描源入口文件缺失");
   } else {
     const content = readFileSync(sharedPath, "utf8");
     const sources = [...content.matchAll(/^\s*@source\s+(?!inline\()([^;]+);/gmu)].map((m) =>
@@ -707,11 +707,11 @@ export function checkTailwindSourceEntry({ root, directories = workspaceDirs(roo
     );
     if (sources.length !== 1) {
       failures.push(
-        `packages/editor-ui/styles/tailwind-sources.css: 应恰好包含 1 处 @source，实际 ${sources.length} 处`,
+        `packages/app-ui/styles/tailwind-sources.css: 应恰好包含 1 处 @source，实际 ${sources.length} 处`,
       );
     } else if (sources[0] !== '"../src"') {
       failures.push(
-        `packages/editor-ui/styles/tailwind-sources.css: @source 应指向 "../src"，实际 ${sources[0]}`,
+        `packages/app-ui/styles/tailwind-sources.css: @source 应指向 "../src"，实际 ${sources[0]}`,
       );
     }
   }
@@ -722,7 +722,7 @@ export function checkTailwindSourceEntry({ root, directories = workspaceDirs(roo
 /**
  * 规则：语法插件包不得反向依赖渲染器实现。
  *
- * 背景：`@md-editor/renderer-codemirror` 与 `@md-editor/syntax-plugins` 在架构图里是
+ * 背景：`@md-editor/editor` 与 `@md-editor/syntax-plugins` 在架构图里是
  * **并列兄弟**（都只消费 `@md-editor/plugin-sdk` 的语法契约，见
  * `docs/agent/architecture/markdown_syntax_plugin_architecture.md` §1）。
  * 插件依赖插件宿主会让第三方插件作者跟着学坏，且渲染器无法独立演进。
@@ -738,7 +738,7 @@ export function checkTailwindSourceEntry({ root, directories = workspaceDirs(roo
 export const SYNTAX_PLUGINS_NO_RENDERER_IMPORT = [
   {
     name: "syntax-plugins",
-    forbidden: /^@md-editor\/renderer-codemirror(?:\/|$)/u,
+    forbidden: /^@md-editor\/editor(?:\/|$)/u,
     reason: "语法插件包不得依赖渲染器实现（应走 plugin-sdk 契约或 host 端口）",
   },
 ];

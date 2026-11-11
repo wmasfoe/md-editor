@@ -8,8 +8,8 @@
 
 触发阅读的改动范围（任一命中即必须先读本规范）：
 
-- `packages/renderer-codemirror/src/wysiwyg/editing/virtual-trailing-line.ts`（虚拟空行的**唯一实现来源**）；
-- `packages/renderer-codemirror/src/wysiwyg/state/projection-field.ts` 中的 `virtualTrailingLineOwnsDocumentEnd`；
+- `packages/editor/src/wysiwyg/editing/virtual-trailing-line.ts`（虚拟空行的**唯一实现来源**）；
+- `packages/editor/src/wysiwyg/state/projection-field.ts` 中的 `virtualTrailingLineOwnsDocumentEnd`；
 - 任何新增「整行块级 widget」且可能出现在文末的改动（需判断是否加入 `TERMINAL_BLOCK_KINDS`）；
 - 任何在文档末尾派发选区、插入换行或改写 `virtualTrailingLineActiveField` 的改动。
 
@@ -119,7 +119,7 @@
 
 ## 验证与回归防护
 
-### 单元测试（`packages/renderer-codemirror/tests/wysiwyg/virtual-trailing-line.test.ts`）
+### 单元测试（`packages/editor/tests/wysiwyg/virtual-trailing-line.test.ts`）
 
 挂载判定、零污染、前缀规则、ArrowDown 光标落点（table / html / thematic-break 参数化，带尾随换行并前置断言偏移不等）、块下方只有一个落脚行（6 种整行替换文末块 + MDX / Frontmatter 4 条 + 2 种文档自带空行）、激活态按键（Enter / Backspace / Delete / ArrowLeft 参数化）、Escape 不熄灭、未激活时放行、物化事务与一次撤销、粘贴（纯文本 / 富文本转换 / Shift / 空剪贴板 / 未激活）、组字（开始 / 取消回收 / 已上屏保留 / 文档已变放弃回收）、点击留白。
 
@@ -134,7 +134,7 @@
 
 ### 改动前后必跑
 
-- `pnpm --filter @md-editor/renderer-codemirror test`
+- `pnpm --filter @md-editor/editor test`
 - `pnpm --filter @md-editor/desktop exec playwright test e2e/codemirror-virtual-trailing-line.spec.ts e2e/wysiwyg-block-blank-line-fidelity.spec.ts e2e/codemirror-m4-html-mdx.spec.ts`
 - 桌面专属行为（真实 Tauri 窗口里的 IME 组字、原生菜单）E2E 覆盖不到，只能手测；不得把「Chromium e2e 全绿」说成「桌面端已验证」。
 

@@ -18,16 +18,16 @@ export default defineConfig({
         replacement: workspacePath("../../../packages/compiler/src/index.ts"),
       },
       {
-        find: /^@md-editor\/editor-ui$/,
-        replacement: workspacePath("../../../packages/editor-ui/src/index.ts"),
+        find: /^@md-editor\/app-ui$/,
+        replacement: workspacePath("../../../packages/app-ui/src/index.ts"),
       },
       {
-        find: /^@md-editor\/renderer-codemirror$/,
-        replacement: workspacePath("../../../packages/renderer-codemirror/src/index.ts"),
+        find: /^@md-editor\/editor$/,
+        replacement: workspacePath("../../../packages/editor/src/index.ts"),
       },
       {
-        find: /^@md-editor\/editor-core$/,
-        replacement: workspacePath("../../../packages/editor-core/src/index.ts"),
+        find: /^@md-editor\/core$/,
+        replacement: workspacePath("../../../packages/core/src/index.ts"),
       },
       {
         find: /^@md-editor\/syntax-plugins$/,

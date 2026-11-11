@@ -1,4 +1,4 @@
-import { createDocumentState, type SaveOutcome } from "@md-editor/editor-core";
+import { createDocumentState, type SaveOutcome } from "@md-editor/core";
 import type { FileSaveJob } from "@md-editor/file-system";
 import { describe, expect, it, vi } from "vitest";
 import {

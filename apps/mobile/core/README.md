@@ -6,7 +6,7 @@ The web page that runs inside the Android WebView and the iOS WKWebView. It rend
 
 - **Two modes.** Reading mode (`ReaderCanvas`) renders the document as static content. Edit mode (`EditorCanvas`) creates a CodeMirror 6 editor when it is needed and follows the soft keyboard.
 - **Error boundary.** If a plugin or the renderer throws, `ErrorBoundary` shows a retry card instead of a blank page and reports the error to the native side.
-- **Shared code.** It uses the same `@md-editor/renderer-codemirror` and `@md-editor/syntax-plugins` as the desktop app.
+- **Shared code.** It uses the same `@md-editor/editor` and `@md-editor/syntax-plugins` as the desktop app.
 
 ## The bridge
 

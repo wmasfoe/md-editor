@@ -3,7 +3,7 @@
 用途：记录**属主手测驱动**定下的三条编辑器交互契约（Tab 归属 / 链接类文本的可编辑性与打开通路 / 图片视频的本地与云端口径），
 以及实现过程中真实踩到的坑、守护用例与**已知缺口**。改到 Tab、链接、图片渲染或"用系统浏览器打开"相关代码前先读本文件。
 
-适用范围：`packages/renderer-codemirror`（编辑器语义层）、`packages/editor-ui`（宿主组件）、`apps/desktop`（宿主接线与 Rust 命令）。
+适用范围：`packages/editor`（编辑器语义层）、`packages/app-ui`（宿主组件）、`apps/desktop`（宿主接线与 Rust 命令）。
 
 ---
 
@@ -50,7 +50,7 @@
    **引用定义查找**（`[ref]: url`，按 `label` segment 规范化后匹配：去方括号、折叠空白、**大小写不敏感**，对齐 CommonMark）。
 
 ### 打开通路的接线（宿主侧，链已存在，勿重复实现）
-`renderer` 的 `openLinkTarget` option → `editor-ui` 的 `CodeMirrorEditor` 转发 →
+`renderer` 的 `openLinkTarget` option → `editor-react` 的 `CodeMirrorEditor` 与 `app-ui` 的 `AppEditor` 转发 →
 `apps/desktop` 的 `DesktopCodeMirrorEditor` → `DesktopEditorActions.openWysiwygLink`
 （`useDesktopEditorController` 内的**唯一**分派点：文档内锚点 / 内部文档 / 资产 / 外部 URL）→
 `link-service.openExternalTarget` → `invoke("open_external_target")` → Rust
@@ -102,7 +102,7 @@
 - **锚点跳转**：`A1`（手工目录项 Cmd/Ctrl+点击跳到标题且无错误 toast）、`A2`（`➔`/双连字符等标点策略不一致仍命中）、
   `A3`（未命中提示、光标不动、文档不变）、`A4`（`#` 空片段回到顶部）；
   单测 `markdown-fidelity/tests/fidelity.test.ts`（GitHub slug / 宽松匹配 / 百分号编码 / 重复标题 / 行内标记）与
-  `editor-ui/tests/editor-ui-state.test.ts`（跳转接线 + 未命中提示）。
+  `app-ui/tests/app-ui-state.test.ts`（跳转接线 + 未命中提示）。
 - **结构护栏**：`document-identity-convention.test.ts`（**自证伪**：删掉某宿主声明后定向变红）、
   `typewriter-single-scroll-owner.test.ts`（renderer 级单滚动所有权）、`focusable-controls-convention.test.ts`、
   `dispatch-annotation-convention.test.ts`（含 `paragraph-indent.ts` 的授权透传理由）。

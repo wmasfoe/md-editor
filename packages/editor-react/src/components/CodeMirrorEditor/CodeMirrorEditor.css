@@ -1,0 +1,20 @@
+/**
+ * @file CodeMirrorEditor.css
+ * @description React 宿主的**布局规则**（仅此）。
+ *
+ * 渲染器自己产出 CodeMirror 编辑区、WYSIWYG widget、lint/search 面板的 DOM，因此那些
+ * DOM 的渲染规则由 `@md-editor/editor` 自持并在运行时幂等注入
+ * （见该包 `src/styles/`）。本文件只保留**本组件独占的宿主容器布局**：它撑满父容器、
+ * 裁掉溢出、给出底色，这是 React 外壳的职责，不属于渲染器。
+ *
+ * 历史上本文件包含全部 1988 行样式，且每条规则都带 `.code-mirror-editor-host` 前缀——
+ * 那是只有 React 宿主才挂的类。后果：任何非 React 宿主用 `createCodeMirrorRenderer`
+ * 拿到的都是无样式裸编辑器。归属已归还渲染器，本文件只剩下面这 7 行。
+ */
+.code-mirror-editor-host {
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--theme-surface, var(--theme-bg, transparent));
+}

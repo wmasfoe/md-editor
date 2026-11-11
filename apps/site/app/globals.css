@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "@md-editor/editor-ui/tailwind-sources.css";
+@import "@md-editor/app-ui/tailwind-sources.css";
 @import "katex/dist/katex.min.css";
 @import "lxgw-wenkai-webfont/lxgwwenkai-regular.css";
 @import "lxgw-wenkai-webfont/lxgwwenkai-bold.css";

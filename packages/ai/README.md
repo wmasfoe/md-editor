@@ -1,6 +1,6 @@
 # @md-editor/ai
 
-The AI writing layer. It talks to a model, cleans up the answer and returns plain data: a continuation, or an edit with an exact range. It does not draw anything in the editor. `@md-editor/renderer-codemirror` shows suggestions, and the host decides what to do with them.
+The AI writing layer. It talks to a model, cleans up the answer and returns plain data: a continuation, or an edit with an exact range. It does not draw anything in the editor. `@md-editor/editor` shows suggestions, and the host decides what to do with them.
 
 It speaks three cloud protocols, and any OpenAI-compatible endpoint works through a custom base URL. On the desktop app it can also run a local model.
 

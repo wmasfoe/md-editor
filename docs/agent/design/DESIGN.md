@@ -9,7 +9,7 @@
 - 官网词标：Fraunces；`Ink` 斜体、`Point` 正体；`o` 是固定墨点（`--color-blot`，外形与暹罗猫棕呼应，不要改）。水墨洇开、淡墨和朱文印只加在字母与落款上，不要套到这滴 o 上。
 - 官网中文：霞鹜文楷（`LXGW WenKai`）。拉丁正文仍走 Inter，词标拉丁仍走 Fraunces。
 - 主要产品界面：macOS 桌面外壳、uTools 轻量插件外壳、可收起文件/大纲侧栏、文档栏、单一 CodeMirror 6 编辑器、资源预览、欢迎状态和原生菜单。
-- 已审阅证据：`README.md`、产品与迁移状态文档、`apps/desktop/src/app/App.tsx`、桌面组件与样式、`apps/utools/src/components/UtoolsApp.tsx`、`apps/utools/src/components/SettingsModal.tsx`、`apps/utools/src/styles.css`、`packages/editor-ui/src/components/CodeMirrorEditor/`、`packages/renderer-codemirror/src/wysiwyg/` 以及桌面自动化用例。
+- 已审阅证据：`README.md`、产品与迁移状态文档、`apps/desktop/src/app/App.tsx`、桌面组件与样式、`apps/utools/src/components/UtoolsApp.tsx`、`apps/utools/src/components/SettingsModal.tsx`、`apps/utools/src/styles.css`、`packages/editor-react/src/components/CodeMirrorEditor/`、`packages/editor/src/wysiwyg/` 以及桌面自动化用例。
 - 证据边界：当前事实来自仓库实现、自动化用例和 1280 x 720 / 760 x 520 产品截图；仓库内仍没有用户研究或产品分析数据。
 
 ## 品牌
@@ -90,7 +90,7 @@
 - 复用现有组件：`CodeMirrorEditor`、`FileTreePanel`、`OutlinePanel`、`DocumentBar`、`WelcomeState`、`AssetPreview`、现有侧栏标签和主题变量。
 - 后续新增或调整组件：`SelectionToolbar`、`BlockInsertMenu`、主题化的 `SourceSearchPanel`、`CommandPalette`、`ToastRegion` 和剩余格式化入口。
 - 变体与状态：文档栏包含已保存/未保存/保存中/错误；侧栏包含展开/收起/窄屏；编辑器包含所见即所得/源码/只读；工具栏包含隐藏/选区/链接；对话框包含保存/放弃/删除；欢迎页包含有/无最近文件。
-- 所有权：语义设计变量归桌面主题 CSS 管理；编辑内容变量保留在可复用的 `editor-ui`；命令 ID 和快捷键继续由 `editor-core` 管理；可见控件与原生菜单必须分发同一组命令 ID。
+- 所有权：语义设计变量归桌面主题 CSS 管理；编辑内容变量保留在可复用的 `app-ui`；命令 ID 和快捷键继续由 `core` 管理；可见控件与原生菜单必须分发同一组命令 ID。
 
 ## 无障碍
 
@@ -123,7 +123,7 @@
 
 ## 实现约束
 
-- 框架与样式：React 19、Tauri 2、CodeMirror 6、Tailwind 工具类、`apps/desktop/src/styles.css` 和 `packages/editor-ui` 内容样式；生产路径不再包含 Milkdown/ProseMirror。
+- 框架与样式：React 19、Tauri 2、CodeMirror 6、Tailwind 工具类、`apps/desktop/src/styles.css` 和 `packages/app-ui` 内容样式；生产路径不再包含 Milkdown/ProseMirror。
 - 设计变量：优先扩展现有 `--theme-*`，不得另建第二套变量系统；修改相关界面时逐步替换硬编码颜色。
 - 平台一致性：uTools 设置页复用桌面端的信息架构、控件密度和主题变量，只排除 Tauri 专属能力；平台层负责读取和保存设置，字体测量、编辑指针与代码高亮等编辑语义由共享编辑器组件承担。
 - 性能：输入更新保持局部；大纲和字数等派生计算需要防抖；保存状态或界面外壳更新不得重新挂载 CodeMirror；只有测量证明必要时才虚拟化大型目录或文档。

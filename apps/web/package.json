@@ -18,13 +18,13 @@
     "@headlessui/react": "catalog:",
     "@heroicons/react": "catalog:",
     "@md-editor/ai": "workspace:*",
-    "@md-editor/editor-core": "workspace:*",
-    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/core": "workspace:*",
+    "@md-editor/app-ui": "workspace:*",
     "@md-editor/file-system": "workspace:*",
     "@md-editor/i18n": "workspace:*",
     "@md-editor/markdown-fidelity": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
-    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/editor": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
     "katex": "catalog:",
@@ -46,6 +46,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "@playwright/test": "catalog:"
+    "@playwright/test": "catalog:",
+    "@md-editor/editor-react": "workspace:*"
   }
 }

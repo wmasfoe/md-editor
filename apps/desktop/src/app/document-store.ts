@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { DocumentSnapshot } from "@md-editor/editor-core";
+import type { DocumentSnapshot } from "@md-editor/core";
 import { runtime } from "./runtime/editor-runtime";
 
 /**

@@ -12,17 +12,13 @@
  */
 
 import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
-import {
-  resolveReplaceIntent,
-  switchEditorModeSafely,
-  type EditorMode,
-} from "@md-editor/editor-core";
+import { resolveReplaceIntent, switchEditorModeSafely, type EditorMode } from "@md-editor/core";
 import type {
   ConfirmationChoice,
   ConfirmationState,
   EditorUiActionsContextValue,
   RunFileAction,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";
 import type {
   MarkdownDocumentFile,
   MarkdownFolder,
@@ -194,7 +190,7 @@ export function useDocumentActionsController({
           savedMarkdown: document.markdown,
           filePath: document.filePath,
           // S7（architect 终审驱动项 ①）：**文档身份由宿主显式声明**，渲染层不再推断。
-          // 规则收敛在 editor-core 的 `resolveReplaceIntent`（desktop/web/utools 三宿主共用，
+          // 规则收敛在 core 的 `resolveReplaceIntent`（desktop/web/utools 三宿主共用，
           // 避免各写一份而漂移 —— web/utools 曾因缺声明而在重开同一文件时把视口弹回顶部）。
           replaceIntent: resolveReplaceIntent(currentFilePath, document.filePath),
         },

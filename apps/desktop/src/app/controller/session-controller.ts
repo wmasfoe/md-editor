@@ -17,7 +17,7 @@ import {
   restoreDraftToDocument,
   revertDocumentToSnapshot,
   type DocumentSnapshot,
-} from "@md-editor/editor-core";
+} from "@md-editor/core";
 import {
   createDesktopHistoryStorageAdapter,
   createDesktopSessionStorageAdapter,

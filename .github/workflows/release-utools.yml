@@ -5,11 +5,12 @@ on:
   pull_request:
     paths:
       - "apps/utools/**"
-      - "packages/editor-core/**"
-      - "packages/editor-ui/**"
+      - "packages/core/**"
+      - "packages/app-ui/**"
+      - "packages/editor-react/**"
       - "packages/file-system/**"
       - "packages/markdown-fidelity/**"
-      - "packages/renderer-codemirror/**"
+      - "packages/editor/**"
       - "packages/shared/**"
       - "packages/syntax-plugins/**"
       - "scripts/release/validate-utools-release*"

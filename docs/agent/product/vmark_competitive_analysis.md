@@ -16,7 +16,7 @@
 |---|---|---|
 | 一句话定位 | 纯文本工作台：人与 AI 协作读写同一批工件 | 面向技术写作者的 Typora 替代品 + MDX 组件 + AI 写作辅助 |
 | 技术栈 | Tauri v2 + React 19 + **Tiptap(ProseMirror) + CodeMirror 6** | Tauri 2 + React 19 + **CodeMirror 6 单实例投影层** |
-| 状态管理 | Zustand v5 | 自建 `editor-core` 文档协议 |
+| 状态管理 | Zustand v5 | 自建 `core` 文档协议 |
 | 许可 | ISC（宽松） | GPL-3.0-or-later |
 | 热度 | 526 stars / 87 forks | — |
 | 覆盖格式 | Markdown / YAML / JSON / TOML / Mermaid / SVG / HTML + 9 种代码查看格式 | Markdown / MDX |
@@ -47,7 +47,7 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 
 | 能力 | 我们现状 | VMark |
 |---|---|---|
-| 搜索替换 | ✅ 已有 `renderer-codemirror/src/wysiwyg/view/search-panel.ts` | ✅ 含正则/全词/计数 |
+| 搜索替换 | ✅ 已有 `editor/src/wysiwyg/view/search-panel.ts` | ✅ 含正则/全词/计数 |
 | 命令面板 | ✅ 已有（G007，`Cmd/Ctrl+K`） | ✅ `Mod+Shift+P`，含 when 过滤 |
 | 最近文件 | ✅ 已有 `file-system/src/recent-files.ts` | ✅ |
 | 大纲面板 | ✅ 已有（含当前标题高亮、滚动同步、点击跳转和文档内标题锚点跳转）；与正文内联 `[TOC]` 不是同一功能 | ✅ 另有过滤输入框 |
@@ -102,7 +102,7 @@ VMark 的 WYSIWYG 用 Tiptap/ProseMirror、Source 用 CodeMirror 6，是**两个
 VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖点。我们目标用户**就是中文技术写作者**，这是必争之地。
 
 - 能力：CJK-拉丁间距、全角/半角标点归一、弯直引号智能配对、`「」『』（）【】《》` 配对、技术构造保护（URL / 版本号 / 时间 / 小数不被误改）、光标处引号风格切换。
-- **架构归属**：属于**编辑器语义/文档模型**，实现应落在 `packages/renderer-codemirror`（输入事务拦截 + 文本改写）或独立 `packages/cjk-format` 纯函数包（规则表 + 纯文本变换，便于单测与复用到导出链路）。**不属于 AI 层**。
+- **架构归属**：属于**编辑器语义/文档模型**，实现应落在 `packages/editor`（输入事务拦截 + 文本改写）或独立 `packages/cjk-format` 纯函数包（规则表 + 纯文本变换，便于单测与复用到导出链路）。**不属于 AI 层**。
 - **复用优先**（AGENTS.md 第 2 条）：优先调研 `pangu.js` / `@lint-md/...` 等成熟开源分词间距方案；规则表本身需要我们自建，因为带"技术构造保护"。
 - 规则必须**逐条可配置、默认开启可整体关闭**，且改写必须走可撤销事务（不能绕过 history）。
 
@@ -110,14 +110,14 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 - CM6 官方 `@codemirror/autocomplete` 的 `closeBrackets` 直接可用，**几乎零成本**。
 - 需自建部分：CJK 括号规则表、"Tab 跳出右括号"、WYSIWYG 下格式标记（`**bold**`）的配对与跳出、**代码块/行内代码内必须禁用**（VMark 已踩过这个坑，代码里的括号必须保字面）。
-- **架构归属**：`renderer-codemirror` 的 keymap/input handler 层。
+- **架构归属**：`editor` 的 keymap/input handler 层。
 
 #### 4.3 行操作命令集（P0）
 
 移动行上/下、复制行、删除行、合并行、去空行、升/降序排序。
 - 多为 CM6 现成命令（`moveLineUp/Down`、`copyLineDown`、`deleteLine`、`joinLines`）+ 少量自研（排序）。
 - **必须接入既有命令注册表**（G007 的 `registry` + `listByPlacement`/`listAvailable`），自动获得命令面板入口 + 可自定义快捷键 + when 过滤。
-- **架构归属**：`editor-core` 的 Command 层。
+- **架构归属**：`core` 的 Command 层。
 
 #### 4.4 无干扰写作三件套：Focus / Typewriter / 只读（P1）
 
@@ -126,16 +126,16 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 - **Focus Mode**：只保留当前块全透明、其余块降透明度。**我们是块级投影层，这个能力天然契合**（已有 block range model / `range-index.ts`，M3 表格已是块级 Widget），成本显著低于 VMark 在 ProseMirror 上的做法。
 - **Typewriter Mode**：当前行垂直居中。CM6 `EditorView` scroll 控制即可，注意阈值防抖（VMark 明确提到"小阈值避免抖动"，这个坑要避开）。
 - **Read-Only**：`EditorState.readOnly` + `EditorView.editable` compartment，注意与我们既有的 `protectedRanges` 语义区分（只读是全文级，protected 是范围级）。
-- **架构归属**：`renderer-codemirror` 视图状态；开关命令走 `editor-core` Command 层。
+- **架构归属**：`editor` 视图状态；开关命令走 `core` Command 层。
 
 #### 4.5 Hot Exit + 会话恢复（P1，"敢日常用"的信任基石）
 
 > **状态（2026-11-08）**：草稿自动暂存与启动恢复提示已交付；下文是原竞品调研建议，不表示列举的所有会话状态均已实现。
 
 - 保存：打开的 tab 与未保存内容、光标、撤销历史、UI 布局、窗口位置；崩溃后用周期性恢复快照；快照 7 天自动清理。
-- **我们已有强基础**：`editor-core` 的 LF 不可变快照 / generation / revision、`file-system` 的有序保存与 checkpoint、Tauri 的 `SaveCommitGate` + 原子写。**恢复链路可以复用同一套快照与确定性语义，不需要另起一套状态系统**。
+- **我们已有强基础**：`core` 的 LF 不可变快照 / generation / revision、`file-system` 的有序保存与 checkpoint、Tauri 的 `SaveCommitGate` + 原子写。**恢复链路可以复用同一套快照与确定性语义，不需要另起一套状态系统**。
 - 注意与现有"关闭前提示未保存"的关系：Hot Exit 后仍保留 dirty 标记（VMark 的做法正确）。
-- **架构归属**：`file-system`（持久化）+ `editor-core`（快照语义）+ desktop 平台适配层（窗口/生命周期）。**不得把会话状态塞进 React 组件**（AGENTS.md 架构边界）。
+- **架构归属**：`file-system`（持久化）+ `core`（快照语义）+ desktop 平台适配层（窗口/生命周期）。**不得把会话状态塞进 React 组件**（AGENTS.md 架构边界）。
 
 #### 4.6 文档历史快照（P1）
 
@@ -143,7 +143,7 @@ VMark 靠"终于有一个懂中文排版的编辑器"出圈，官网首屏主卖
 
 - 自动快照、按日分组、恢复（恢复前先存一份当前快照）、单条删除、只对已保存文档生效。
 - 我们已有 JSONL/快照与原子写基础，边际成本低。
-- **架构归属**：`file-system` 拥有历史存储与清理策略；`editor-core` 提供"恢复为一次受控外部编辑"的入口（复用 external-edit port，天然可撤销）。
+- **架构归属**：`file-system` 拥有历史存储与清理策略；`core` 提供"恢复为一次受控外部编辑"的入口（复用 external-edit port，天然可撤销）。
 
 ### A 级：纳入规划（中成本 / 明显差异化）
 
@@ -164,7 +164,7 @@ VMark 的“选中文本 → `Mod+Y` Spotlight 选择器 → AI 改写 → 内�
 
 **架构归属（严格遵守 AGENTS.md 边界）**：
 - `packages/ai` **只负责**：构造请求、调用模型、解析结果为结构化 suggestion，以及 provider 配置/失败分类。
-- `packages/editor-core` + `renderer-codemirror` **负责**：suggestion 的展示、接受、取消、失效、选区映射与换行语义。
+- `packages/core` + `editor` **负责**：suggestion 的展示、接受、取消、失效、选区映射与换行语义。
 - genie 模板（prompt 定义）应作为**编译期内置数据**放独立模块，不进 AI 请求层。
 
 #### 4.8 Markdown Lint + 本地链接检查（P1）
@@ -189,7 +189,7 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 - PDF 导出用**自己的导出对话框**（纸张 A4/Letter/A3/Legal、方向、页边距预设 + 可拖拽自定义、字号、行高、**拉丁与 CJK 字体分开**、样式预设、页码），并产出带可点击标题大纲的 PDF；系统打印（`Cmd+P`）是**另一条独立路径**；
 - **Copy as HTML** 与 **Copy Format**（把 Markdown 语法写进 `text/plain`）两个小命令，成本极低但很实用。
 
-**架构归属**：导出模块必须与编辑器核心解耦（PRD §5.7 的 `Exporter` 接口），主题样式复用 `editor-ui` 的主题 token。PDF 建议复用 Tauri 的 print-to-PDF 或成熟开源排版引擎，不自研排版。
+**架构归属**：导出模块必须与编辑器核心解耦（PRD §5.7 的 `Exporter` 接口），主题样式复用 `app-ui` 的主题 token。PDF 建议复用 Tauri 的 print-to-PDF 或成熟开源排版引擎，不自研排版。
 
 #### 4.10 Source Peek 块级源码编辑（P1，架构契合度最高）
 
@@ -199,14 +199,14 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 
 对我们而言这块成本异常低：**我们已有精确 block range model（`range-index.ts` 持有 fenced/indented 精确 ranges + block status），M3 表格已实现"块级 Widget + 就地编辑 + 受保护 transaction 回写 GFM 源码"**，Source Peek 是同一套能力的通用化。
 
-**架构归属**：`renderer-codemirror`（块定位 + 受保护回写）；浮层 UI 在 `editor-ui`。可借鉴的边界：VMark 明确排除了已有专属编辑机制的块（代码块/图片/前端元数据/HTML 块/分割线）不走 Source Peek——这个排除表直接抄，避免重复交互。
+**架构归属**：`editor`（块定位 + 受保护回写）；浮层 UI 在 `app-ui`。可借鉴的边界：VMark 明确排除了已有专属编辑机制的块（代码块/图片/前端元数据/HTML 块/分割线）不走 Source Peek——这个排除表直接抄，避免重复交互。
 
 #### 4.11 智能粘贴：HTML / Word → 干净 Markdown（P1）
 
 真实场景：从网页、飞书、语雀、Word 搬内容。
 - **复用开源**（AGENTS.md 第 2 条）：HTML→Markdown 用 `turndown`，不自研。
 - 与我们已有的图片粘贴链路（`paste-image-listener.ts`）统一到同一个粘贴决策入口，注意**代码块内粘贴必须原样**（与 4.2 的禁用规则同源）。
-- **架构归属**：粘贴策略属于编辑器交互语义（`renderer-codemirror` / `editor-core` 命令），转换器为独立纯函数依赖。
+- **架构归属**：粘贴策略属于编辑器交互语义（`editor` / `core` 命令），转换器为独立纯函数依赖。
 
 #### 4.12 MCP 集成（P2，但战略价值高）
 
@@ -216,7 +216,7 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 - **隐私边界**：只绑定 `127.0.0.1`，不落任何云端凭据，与我们「本地优先、无私有云端绑定」承诺一致；
 - **风险提示**：VMark 的知识库功能因 sidecar 分发问题**至今没有任何发布版包含该 runtime**（文档明确写出这个坑）。MCP sidecar 的**跨平台打包与分发必须先做技术尖刺**，否则会重蹈覆辙。
 
-**架构归属**：MCP 是**接入层**，只做协议适配与命令转发；文档语义、保存确定性、冲突处理仍由 `editor-core` / `file-system` 拥有，MCP 写入必须走既有的受控外部编辑 port + 有序保存链路，**不得绕过 `SaveCommitGate`**。
+**架构归属**：MCP 是**接入层**，只做协议适配与命令转发；文档语义、保存确定性、冲突处理仍由 `core` / `file-system` 拥有，MCP 写入必须走既有的受控外部编辑 port + 有序保存链路，**不得绕过 `SaveCommitGate`**。
 
 ### B 级：选择性吸收（小成本）
 
@@ -224,12 +224,12 @@ VMark 的链接检查设计可直接抄（`link-check.md`）：
 |---|---|---|
 | 内联 `[TOC]` | 自生成目录、点击跳转、实时更新、导出保留 | renderer 投影 |
 | 表格 Fit-to-width | 表格固定到编辑器宽度、列按内容比例分配；支持每表右键覆盖 | renderer 表格投影（M3 已有基础） |
-| 文本清理 | 多余连续空行可通过 `lint.fixAll` 连同其他启用的规则一起修复；独立的尾随空格清理、大小写转换和行排序仍待评估 | editor-core 命令 |
+| 文本清理 | 多余连续空行可通过 `lint.fixAll` 连同其他启用的规则一起修复；独立的尾随空格清理、大小写转换和行排序仍待评估 | core 命令 |
 | 孤儿图片清理 | 扫描 assets 中未被引用的图片 | file-system |
 | 大文件阈值 | >1MB 自动进源码模式、>5MB 二次确认、>50MB 拒绝 | file-system + 平台层 |
-| 大纲过滤框 | 按标题文本过滤、保留祖先链 | editor-ui |
-| 字体缩放快捷键 | `Mod+=/-/0`，与设置项同一数值源，2px 步进 + 上下限 | editor-ui 设置 |
-| 阅读位置保持 | 切 tab / 切模式 / 磁盘重载后回到原位（光标优先） | editor-core |
+| 大纲过滤框 | 按标题文本过滤、保留祖先链 | app-ui |
+| 字体缩放快捷键 | `Mod+=/-/0`，与设置项同一数值源，2px 步进 + 上下限 | app-ui 设置 |
+| 阅读位置保持 | 切 tab / 切模式 / 磁盘重载后回到原位（光标优先） | core |
 | 多光标增强 | `Mod+D` / `Mod+Shift+L` 已由 CM6 自带；仍需评估**代码围栏感知**，以及纵向加光标与桌面块移动的默认快捷键冲突 | renderer |
 | Smart Select All | `Mod+A` 按容器逐级扩大（单元格→行→表→文档） | renderer |
 
@@ -283,11 +283,11 @@ VMark 的定位已从「Markdown 编辑器」漂移成「通用纯文本工作�
 | 项 | 证据与现状 | 备注 |
 | --- | --- | --- |
 | 字体缩放快捷键 `Mod-=` / `Mod-−` / `Mod-0` | `settings/shortcuts/defaults.ts` 的命令清单里没有缩放命令；字体大小只有设置项 | 需与设置项共用同一数值源 |
-| 大纲过滤框 | `editor-ui/src/components/OutlinePanel.tsx` 没有输入框 | 竞品要求保留祖先链 |
+| 大纲过滤框 | `app-ui/src/components/OutlinePanel.tsx` 没有输入框 | 竞品要求保留祖先链 |
 | 内联 `[TOC]` | 桌面 Chromium 测试页面与静态 HTML 渲染均保留字面量；侧栏大纲、手写标题锚点跳转和 macOS PDF 书签已存在 | 仍缺正文自动目录及导出行为；未验证第三方插件和原生 Tauri 窗口 |
 | 大文件阈值（1MB 进源码模式 / 5MB 二次确认 / 50MB 拒绝） | 桌面打开路径未见分级阈值；[静态编译器](../../../packages/compiler/src/parser/tokenizer.ts)默认超过 2 MiB 截取并在内容中附提示，桌面 HTML/PDF 导出使用该编译路径 | 打开阈值及导出截取的适用范围需确认 |
-| 桌面全文只读模式 | `renderer-codemirror/src` 未找到 `EditorState.readOnly` / `EditorView.editable`；[移动端](../../../apps/mobile/core/src/App.tsx)已有可切换的阅读态 | 竞品文档曾推迟到“1.5 批” |
-| 文本清理（尾随空格 / 大小写 / 行排序） | [批量 lint 修复](../../../packages/renderer-codemirror/tests/lint/commands.test.ts)已覆盖多余连续空行，也会修复其他启用的规则；尾随空格规则默认关闭 | 独立清理命令仍待评估 |
+| 桌面全文只读模式 | `editor/src` 未找到 `EditorState.readOnly` / `EditorView.editable`；[移动端](../../../apps/mobile/core/src/App.tsx)已有可切换的阅读态 | 竞品文档曾推迟到“1.5 批” |
+| 文本清理（尾随空格 / 大小写 / 行排序） | [批量 lint 修复](../../../packages/editor/tests/lint/commands.test.ts)已覆盖多余连续空行，也会修复其他启用的规则；尾随空格规则默认关闭 | 独立清理命令仍待评估 |
 | 孤儿图片清理 | 无 assets 引用扫描 | 必须走 `file-system` 能力边界 |
 | 表格 Fit-to-width | `table` 相关代码无此概念（搜到的 `computeFitWidthScale` 属图片查看器） | M3 已有基础 |
 | 多光标的**代码围栏感知** | `Mod-D` / `Mod-Shift-L` 已由 `searchKeymap` 提供，但围栏内外不区分 | CM6 已提供纵向加光标；默认键与桌面块移动冲突，需评估快捷键 |

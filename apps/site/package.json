@@ -14,10 +14,10 @@
   "dependencies": {
     "@heroicons/react": "catalog:",
     "@md-editor/changelog": "workspace:*",
-    "@md-editor/editor-core": "workspace:*",
-    "@md-editor/editor-ui": "workspace:*",
+    "@md-editor/core": "workspace:*",
+    "@md-editor/app-ui": "workspace:*",
     "@md-editor/mdx-plugins": "workspace:*",
-    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/editor": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
     "@samasante/liquid-glass": "^0.1.1",
     "katex": "catalog:",

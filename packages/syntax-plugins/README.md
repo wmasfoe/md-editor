@@ -25,10 +25,10 @@ graph TD
 
 ## Usage
 
-Pass the plugins you want to `CodeMirrorEditor` from `@md-editor/editor-ui`:
+Pass the plugins you want to `CodeMirrorEditor` from `@md-editor/editor-react`:
 
 ```tsx
-import { CodeMirrorEditor } from "@md-editor/editor-ui";
+import { CodeMirrorEditor } from "@md-editor/editor-react";
 import {
   containerDirectivePlugin,
   highlightPlugin,

@@ -63,7 +63,7 @@ const defaultEmStrong = Tokenizer.prototype.emStrong;
  *
  * `marked-cjk-friendly` 是上游实现，但它把 CJK 字符整体按标点对待，`_` 家族会比规范修订
  * 更宽松（例如 `这是 _斜体_文字` 会被解析成斜体）。规范修订刻意保留 `_` 的词内限制，
- * 编辑器语法树（`@md-editor/renderer-codemirror` 的 `cjkFriendlyEmphasisMarkdownExtension`）
+ * 编辑器语法树（`@md-editor/editor` 的 `cjkFriendlyEmphasisMarkdownExtension`）
  * 也按该口径解析，因此这里只让扩展接管 `*` / `**` / `~~`，`_` / `__` 交回 marked 默认实现，
  * 保证「编辑器所见 = 静态渲染所得」。
  */

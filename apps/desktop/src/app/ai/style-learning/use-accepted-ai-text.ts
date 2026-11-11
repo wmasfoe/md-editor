@@ -4,7 +4,7 @@
  * 记录用户采纳的 AI 文本（只存句子 hash），学习时跳过这些句子，避免把模型措辞学成用户风格。
  */
 import { useCallback } from "react";
-import type { AiSuggestionAcceptedEvent } from "@md-editor/editor-ui";
+import type { AiSuggestionAcceptedEvent } from "@md-editor/editor";
 import { runtime } from "../../runtime/editor-runtime";
 import { useAppSettings } from "../../settings-context";
 import { useFileTreeStore } from "../../stores/file-tree-store";

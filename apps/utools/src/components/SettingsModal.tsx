@@ -8,7 +8,7 @@ import {
   settingsDescriptionClassName,
   settingsModuleClassName,
   settingsSectionTitleClassName,
-} from "@md-editor/editor-ui/settings";
+} from "@md-editor/app-ui/settings";
 import type { UtoolsSettings } from "../utools/db-storage";
 import { CloseIcon, InfoIcon } from "./Icons";
 import { UtoolsAiSettingsPanel } from "./UtoolsAiSettingsPanel";

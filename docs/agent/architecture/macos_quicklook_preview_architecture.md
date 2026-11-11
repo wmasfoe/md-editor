@@ -66,7 +66,7 @@ Inkpoint.app/
             │   ├── Info.plist (com.apple.quicklook.preview, QLIsDataBasedPreview: true)
             │   ├── MacOS/InkpointQuickLook (Swift 原生 arm64 二进制)
             │   └── Resources/
-            │       └── quicklook-engine.js (由 renderer-codemirror/static 打包的纯 JS 引擎)
+            │       └── quicklook-engine.js (由 editor/static 打包的纯 JS 引擎)
 ```
 
 ### 扩展通信与安全执行模型
@@ -92,7 +92,7 @@ Inkpoint.app/
 ## 5. 构建流水线与打包规范
 
 1. **引擎打包脚本**：`apps/desktop/scripts/build-quicklook-engine.mjs`
-   - 使用 Vite programmatic build (iife 格式) 将 `packages/renderer-codemirror/src/static/index.ts` 打包为纯纯独立的 `quicklook-engine.js`，无任何 DOM 或浏览器全局对象依赖；
+   - 使用 Vite programmatic build (iife 格式) 将 `packages/editor/src/static/index.ts` 打包为纯纯独立的 `quicklook-engine.js`，无任何 DOM 或浏览器全局对象依赖；
    - 包含 marked 解析、highlight.js 代码着色和内联主题 CSS。
 2. **扩展编译脚本**：`apps/desktop/scripts/build-quicklook.sh`
    - 先执行 `build-quicklook-engine.mjs` 确保引擎最新；

@@ -47,7 +47,7 @@
 - 定义插入菜单 metadata。
 - 定义 props schema。
 - 提供 registry 容器和查询 API。
-- 给 `editor-core` / `editor-ui` / `mdx-plugins` 共享类型。
+- 给 `core` / `app-ui` / `mdx-plugins` 共享类型。
 - 只注册应用编译期内置并明确允许的官方组件 metadata。
 
 不负责：
@@ -142,7 +142,7 @@ export const officialMdxComponents = {
 };
 ```
 
-同时需要提供 metadata-only 子出口，供 `editor-core`、桌面 runtime、Node smoke 脚本使用，避免这些非 React 环境为了读取 metadata 而解析 `.tsx` 组件文件：
+同时需要提供 metadata-only 子出口，供 `core`、桌面 runtime、Node smoke 脚本使用，避免这些非 React 环境为了读取 metadata 而解析 `.tsx` 组件文件：
 
 ```ts
 // @md-editor/mdx-plugins/metadata
@@ -177,7 +177,7 @@ mdxComponents.registerMany(officialMdxPlugins);
 
 这里的 `registerMany` 是应用启动时装配官方 metadata 的内部 API，不表示允许用户或第三方在运行时注册组件。
 
-### 3.3 `@md-editor/editor-core`
+### 3.3 `@md-editor/core`
 
 定位：编辑器核心运行时。
 
@@ -195,7 +195,7 @@ mdxComponents.registerMany(officialMdxPlugins);
 - 不导出业务侧 React 组件。
 - 不承担 npm 组件包发布职责。
 
-### 3.4 `@md-editor/editor-ui`
+### 3.4 `@md-editor/app-ui`
 
 定位：编辑器 UI 层。
 
@@ -213,7 +213,7 @@ mdxComponents.registerMany(officialMdxPlugins);
 - 不计算 MDX 源码范围、原子选择、事件拦截或删除 transaction。
 - 不绕过 core 直接改写保存内容。
 
-### 3.5 `@md-editor/renderer-codemirror`
+### 3.5 `@md-editor/editor`
 
 定位：MDX 的 CM6 解析、渲染和编辑器交互所有者。
 
@@ -235,7 +235,7 @@ mdxComponents.registerMany(officialMdxPlugins);
 
 如果只有 `@md-editor/mdx-plugins`，编辑器、UI 和业务博客都会直接依赖官方组件包。短期简单，但会带来三个问题：
 
-1. `editor-core` 会被具体组件污染，逐渐硬编码 `Callout`、`Steps`、`LinkCard`。
+1. `core` 会被具体组件污染，逐渐硬编码 `Callout`、`Steps`、`LinkCard`。
 2. metadata-only 消费端会被迫加载 React 和组件样式，破坏 Node / core 环境边界。
 3. 编辑器内部协议变化会和官方组件发布节奏绑死。
 
@@ -246,7 +246,7 @@ mdx-plugins ──types──────> mdx-component-registry
       ↑                              ↑
       │ typed component map          │ metadata protocol
       │                              │
-editor-ui ───────────────> renderer-codemirror ──> editor-core
+app-ui ───────────────> editor ──> core
 ```
 
 `mdx-component-registry` 是稳定协议；`mdx-plugins` 是官方实现。
@@ -310,8 +310,8 @@ WYSIWYG 中真实渲染官方组件。点击组件任意位置后显示高亮描
 - 所有 MDX 插件增强都必须以源码保真为前提。
 - `.mdx` 文件保存权威是 Markdown / MDX 字符串，不是 React 组件树。
 - `mdx-plugins` 可以被博客复用，因此不能依赖桌面端能力。
-- `editor-core` 不能硬编码官方组件名称。
-- renderer 不能直接依赖 `mdx-plugins`；组件实现通过 `editor-ui` 的 typed map 注入。
+- `core` 不能硬编码官方组件名称。
+- renderer 不能直接依赖 `mdx-plugins`；组件实现通过 `app-ui` 的 typed map 注入。
 - WYSIWYG 中官方组件是原子交互边界，后代 DOM 不能打开链接、提交表单、接收输入或改变 Markdown。
 - 快捷键配置必须复用现有设置体系。
 - UI 插入菜单应保持写作低干扰，不引入固定工具栏作为第一入口。

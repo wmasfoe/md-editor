@@ -29,7 +29,7 @@ describe("public SDK dependency boundary", () => {
       .map((name) => readFileSync(new URL(name, directory), "utf8"))
       .join("\n");
     expect(source).not.toMatch(
-      /@md-editor\/(?:plugin-host|editor-core|renderer-codemirror|syntax-plugins|mdx-plugins)|@tauri-apps|from ["']react/,
+      /@md-editor\/(?:plugin-host|core|editor|syntax-plugins|mdx-plugins)|@tauri-apps|from ["']react/,
     );
     const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     // SDK 自身不得有硬依赖：所有运行期同伴都必须是 optional peer，

@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "@md-editor/compiler": "workspace:*",
-    "@md-editor/editor-core": "workspace:*",
-    "@md-editor/editor-ui": "workspace:*",
-    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/core": "workspace:*",
+    "@md-editor/app-ui": "workspace:*",
+    "@md-editor/editor": "workspace:*",
     "@md-editor/shared": "workspace:*",
     "@md-editor/syntax-plugins": "workspace:*",
     "katex": "catalog:",

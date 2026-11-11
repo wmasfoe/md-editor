@@ -21,7 +21,7 @@
        |                                             |
        v                                             v
 +-----------------------------+       +-----------------------------+
-|@md-editor/renderer-codemirror|       | @md-editor/syntax-plugins   |
+|@md-editor/editor|       | @md-editor/syntax-plugins   |
 |  - SyntaxPluginRegistry     |       | (独立语法插件子包)            |
 |  - 消费 SDK 的语法契约       |       | - containerDirectivePlugin  |
 |  - 链式 .use(...) 方法       |       | - mathPlugin (KaTeX)        |
@@ -31,7 +31,7 @@
 ```
 
 ### 1.1 核心渲染器纯净性
-- `@md-editor/renderer-codemirror` 核心源码（`node-policy.ts`、`range-index.ts`、`projection-state.ts`）内**严禁出现任何特定插件的硬编码节点名称或分支逻辑**（例如无 `ContainerDirective`、无 `InlineMath`、无 `MermaidBlock` 硬编码分支）。
+- `@md-editor/editor` 核心源码（`node-policy.ts`、`range-index.ts`、`projection-state.ts`）内**严禁出现任何特定插件的硬编码节点名称或分支逻辑**（例如无 `ContainerDirective`、无 `InlineMath`、无 `MermaidBlock` 硬编码分支）。
 - 所有扩展节点的解析策略、元数据提取和所见即所得装饰均由 `SyntaxPluginRegistry` 委派给已注册的插件。
 
 ### 1.2 独立插件子包 `@md-editor/syntax-plugins`
@@ -176,11 +176,11 @@ renderer
   - **编辑入口显式化**：块内悬浮工具栏「编辑源码」与浮层内「编辑源码」两处；**不新增任何 keymap**（块边界已激活源码 ⇒ `Enter` 冗余；且仓库已有两个 `Prec.highest` 的 `Enter` 属主），也不再依赖 `mousedown` 内 `dispatch` 选区来进入编辑。
 - **`ignoreEvent` 返回 `true`**：块体不把指针事件交给 CM6（否则点击会按坐标把光标放到块边界 → 触发激活态）；真正阻止“单击即源码”的是**删除 dispatch**（主因）与 `ignoreEvent` 门控 selectionchange 回读（第二道防线）。
 - **加载/失败态**：SVG 未就绪时「放大查看」禁用且单击不打开；渲染失败卡片单击 = 进入源码编辑（无图可看时编辑是唯一有意义动作，卡片文案“点击卡片进入源码编辑”保持自洽）。
-- **媒体查看能力不在本插件内实现**：浮层、缩放平移、id 隔离、样式与生命周期均由 `@md-editor/renderer-codemirror` 的 `media-viewer` 模块提供（图片与图表共用），插件只做内容注入与事件接线。
+- **媒体查看能力不在本插件内实现**：浮层、缩放平移、id 隔离、样式与生命周期均由 `@md-editor/editor` 的 `media-viewer` 模块提供（图片与图表共用），插件只做内容注入与事件接线。
 - **浮层样式为运行期注入的无前缀常量**（非典型决策，故意登记）：
   - 浮层挂在 `document.body`，而宿主样式表规则统一带 `.code-mirror-editor-host` 前缀（只挂在 React 宿主 div 上）⇒ 带前缀的规则**永不匹配**（这是仓库历史上的真实缺陷，曾导致图片浮层长期“全裸”）；
   - `EditorView.baseTheme` 同样不行：它把不含 `&` 的选择器编译为 `.<baseThemeID> <sel>`（要求目标是 `.cm-editor` 的**后代**）；
-  - 因此样式常量放在 `media-viewer/styles.ts` 并在打开时幂等注入 `document.head`，选择器**一律无祖先前缀**（`.cm-md-media-viewer*`）；`editor-ui` 不得再放带前缀的浮层规则，`tests/media-viewer/styles.test.ts` 会把它钉成可失败断言。
+  - 因此样式常量放在 `media-viewer/styles.ts` 并在打开时幂等注入 `document.head`，选择器**一律无祖先前缀**（`.cm-md-media-viewer*`）；`app-ui` 不得再放带前缀的浮层规则，`tests/media-viewer/styles.test.ts` 会把它钉成可失败断言。
 - **键盘归属**：`Escape` **只关浮层**（document 捕获相 + `preventDefault`）；`Mod+K` **互斥**——先关浮层且不消费事件，让桌面命令面板（window 冒泡相、不检查 `defaultPrevented`）照常打开（命令面板 `z-[70]` 低于浮层 `1000`，因此“面板盖在浮层上”不可能成立）。
   - **防腐约束（除文件隐式契约）**：桌面命令面板的 `Mod+K` 处理器**不得新增 `defaultPrevented` 早退**，否则互斥语义在非本平台键上会出现“面板不开、浮层也关了”的噪声。
   - **已知偏差（已登记）**：浮层不做平台判定，同时接受 Meta 与 Ctrl——非本平台键会“关浮层但不打开面板”，属无害噪声；宁可保持跨平台宽松，也不引入平台检测这一新的注入面。
@@ -241,9 +241,9 @@ renderer
   - 定界符区间赋予 `cm-md-marker cm-md-marker--highlight`，在未聚焦时光滑浅显半透明显示，光标移入时即时原位编辑；
   - CSS 自适应明亮模式（柔和黄色荧光）与暗黑模式（柔和琥珀黄）；
 - **快捷键联动**：
-  - 与 `@md-editor/renderer-codemirror` 现有的 `toggleHighlight`（`toggleInlineMarkup("==")`) 与 `Mod-Shift-h` 快捷键完全闭环；
+  - 与 `@md-editor/editor` 现有的 `toggleHighlight`（`toggleInlineMarkup("==")`) 与 `Mod-Shift-h` 快捷键完全闭环；
 - **静态渲染一致性**：
-  - 在 `packages/renderer-codemirror/src/static/render.ts` 中同步配置 `marked` 的 inline highlight 扩展，使静态导出与 QuickLook 快速预览保持 100% 视觉一致。
+  - 在 `packages/editor/src/static/render.ts` 中同步配置 `marked` 的 inline highlight 扩展，使静态导出与 QuickLook 快速预览保持 100% 视觉一致。
 
 
 

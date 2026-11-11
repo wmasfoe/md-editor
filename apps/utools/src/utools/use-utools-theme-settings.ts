@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { compileThemeCss, setThemeStyleText } from "@md-editor/editor-ui";
+import { compileThemeCss, setThemeStyleText } from "@md-editor/app-ui";
 import { loadUtoolsSettings, saveUtoolsSettings, type UtoolsSettings } from "./db-storage";
 import { applyResolvedUtoolsTheme, resolveUtoolsTheme } from "./theme";
 

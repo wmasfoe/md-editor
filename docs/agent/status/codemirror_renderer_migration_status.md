@@ -11,8 +11,8 @@
 - **阶段：S1/M0 beta 可用，M1/S2、M1-FM/S5-FM-only、M2/S3 已验证，M3 表格可视化已完成（始终显示可编辑网格 + 单元格就地编辑 + 增删行列 + 整表原子选中/删除，不再回显源码）。desktop production graph 只保留单一 CM6 产品表面、语义 controller、ordered save 与 main/settings 平台隔离；代码块继续复用同一 EditorView/EditorState/history/selection/scroll。M5 已完成、M6 已完成，可宣称接近完整迁移（AI 预览等个别能力除外）。**
 - `App.tsx` 对活动 Markdown 文档只挂载一个持久 `DesktopCodeMirrorEditor`。source/WYSIWYG 复用同一 `EditorView`，编辑区通过源码等宽/所见即所得正文排版区分；右下角继续使用原有单图标透明模式按钮。资源预览只隐藏/inert 该 host，不卸载 renderer。
 - 旧 `DesktopMilkdownEditor`、`DesktopSourceEditor`、Milkdown / ProseMirror / `@uiw/react-codemirror` 源码、exports、Vite aliases、manifest 依赖和 lockfile entries 已删除；production bundle 扫描也不再包含旧引擎或测试 composition setter。
-- `@md-editor/renderer-codemirror` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
-- `@md-editor/editor-core` 已实现 LF 不可变快照、generation/revision、有序 transition/snapshot 订阅、外部编辑 reservation/finalize、文档边界、path/mode CAS、save checkpoint、commit-certainty settlement 和 verification barrier。
+- `@md-editor/editor` 已使用原生 CM6 `EditorView` factory、root/mode/line-number compartments、typed transaction origin、external-edit isolated history、generation boundary `setState`、显式 reconcile、composition queue 和 host visibility 恢复；生产 API 不暴露可变 view/state。
+- `@md-editor/core` 已实现 LF 不可变快照、generation/revision、有序 transition/snapshot 订阅、外部编辑 reservation/finalize、文档边界、path/mode CAS、save checkpoint、commit-certainty settlement 和 verification barrier。
 - `@md-editor/file-system` 已实现显式构造的 `RuntimeFileService`、同步 checkpoint 入队校验、epoch runtime sequence 和完整 native job FIFO；throw、timeout 与非法 payload 都分类为 `indeterminate`。
 - Tauri 已注册进程级 `SaveCommitGate`、main-WebView-only attach/ordered save、`spawn_blocking` wrapper、temp write + `sync_all` + atomic rename commit boundary、post-commit warning、reattach/poison recovery 和 retired/non-monotonic rejection。
 - Desktop 新建/打开/空文件夹/删除走 atomic `replaceDocument`，rename/move 走 `setDocumentPath`；程序化同文档修改走 renderer external-edit port，mode 走 typed mode port，不再由 controller 调用旧 snapshot-only 文档兼容方法。
@@ -20,36 +20,36 @@
 - 保存 controller 在第一个 `await` 前同步 `beginSave` + enqueue，typed outcome 只 settle 一次；成功采用实际返回 path，warning/failed/cancel/indeterminate 分别反馈，verification-required 继续阻止无提示放弃。
 - 当前是 **CM6-only beta 可用**：S1/M0、M1 与 M2 已通过对应自动化和原生门禁。格式化命令 silent no-op、deferred paste/drop 全局监听、旧 engine runtime 和 snapshot-only 文档 mutation 旁路均已移除。该结论不代表 M3-M6 已完成。
 - G004（竞品调研项 P0 三项，2026-08-04 完成）：① projection 快速路径要求纯 Unicode 字母/组合标记/数字插入且光标前后均在纯文本段落；visible-marks 快速路径另要求光标不在 inline marker、mode 不变、仅一个 docChanged transaction，且新 visibleRanges 与旧 ranges 经 changes 映射后精确一致，否则 fail closed；Variation Selector/emoji/ZWJ/结构字符均回退；② composition guard 存在时仍只 map 并同步映射 guard ranges，compositionend 同时刷新 projection 与 visible-marks；③ typedBoundary 由输入事务推导，快速路径/全量刷新保持状态一致，selection、非输入变更与 blur 清空，link/image 闭合 `)` 右缘保持 reveal。renderer 25 files / 302 tests（15 个 G004 测试）、workspace 569 tests + release 5 tests、E2E G004/M3/M4 15/15 通过；第四轮审查后快速路径要求 record ID 集合稳定，结构记录前的插入回退增量重建，消除 decoration identity 失同步；P1-4 visibleRanges 限定全量重建转后续 PRD。
-- G005（M4 官方 MDX 白名单组件求值，2026-08-04 完成）：micromark 无 acorn 模式解析（`mdx-parse.ts`）→ `mdx-jsx` record（`mdxModeFacet` 开关，仅 MDX 文件启用；`<[A-Z]` 预筛）→ registry 白名单匹配 → `MdxComponentWidget`（禁 innerHTML，createElement/textContent 构建；未注册组件占位）。安全不变量：表达式属性/children 表达式整元素丢弃、组件名仅大写开头（script/div 走 HTML 路径）、事件属性与 javascript: 协议在投影层剔除、无 estree。原子选中/删除/undo 复用 table/html 语义（protected kind=`mdx`）。链路：renderer options `mdxMode`/`mdxComponents` → editor-ui CodeMirrorEditor props → bridge → facet 注入。renderer 28 files / 322 tests（G005 新增 20：mdx-parse 9 + mdx-range 5 + mdx-projection 6）、workspace 589 tests + release 5、E2E G005 5/5 且 M4 HTML/M3/G004 全量通过（仅既有 M2 Meta+z ×2 + S1 flaky ×1）；攻击向量 A1-A8 由解析层/投影层/E2E 覆盖。
+- G005（M4 官方 MDX 白名单组件求值，2026-08-04 完成）：micromark 无 acorn 模式解析（`mdx-parse.ts`）→ `mdx-jsx` record（`mdxModeFacet` 开关，仅 MDX 文件启用；`<[A-Z]` 预筛）→ registry 白名单匹配 → `MdxComponentWidget`（禁 innerHTML，createElement/textContent 构建；未注册组件占位）。安全不变量：表达式属性/children 表达式整元素丢弃、组件名仅大写开头（script/div 走 HTML 路径）、事件属性与 javascript: 协议在投影层剔除、无 estree。原子选中/删除/undo 复用 table/html 语义（protected kind=`mdx`）。链路：renderer options `mdxMode`/`mdxComponents` → app-ui CodeMirrorEditor props → bridge → facet 注入。renderer 28 files / 322 tests（G005 新增 20：mdx-parse 9 + mdx-range 5 + mdx-projection 6）、workspace 589 tests + release 5、E2E G005 5/5 且 M4 HTML/M3/G004 全量通过（仅既有 M2 Meta+z ×2 + S1 flaky ×1）；攻击向量 A1-A8 由解析层/投影层/E2E 覆盖。
 - G006（P1-4 visibleRanges 限定全量重建，2026-08-04 完成）：新增 `setWysiwygVisibleRangesEffect` + `visibleRangesProbePlugin`（ViewPlugin 采集 view.visibleRanges，viewportChanged/geometryChanged 时经 effect 注入）；`compileProjection` 全量重建按可见区过滤 layoutDecorations（与任一可见区相交即完整构建，装饰 range 不裁剪，整块 widget 天然不可截断）；atomicRanges/protectedRanges 保持全文（选择授权不受可见性影响）；无可见区信息时全文构建（fail-safe）；effect 去重（ranges 相等不重建）。2000 行 fixture 可见 ~3 行场景装饰缩减 >90%。renderer 29 files / 328 tests（G006 新增 6）、workspace 595 tests + release 5、E2E G004/M3/M4 全量 20/20 通过。
 - G007（P3-9 命令注册表统一 UI 入口，2026-08-04 完成）：registry 扩展 placement/keywords/group/when + `listByPlacement`/`listAvailable`（when 过滤 + 分组排序 + 异常 fail-closed）；内置命令补元数据（文件/视图/设置/插入/AI 五组）；桌面 CommandPalette（Cmd/Ctrl+K 唤起，title+keywords 搜索、分组展示、↑/↓ 导航、Enter 执行走宿主 dispatchCommand、Escape 关闭、空态）；E2E G007 4/4（打开/搜索/执行/关闭）。renderer 328 tests、workspace 607 tests + release 5、E2E 全量 66 passed（仅 M2×2 + S1 既有 flaky）。**竞品调研项 P0-P3 九项全部收官**。
-MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLookup`，editor-ui 用同形状鸭子接口透传（遵守包边界测试，不依赖 mdx-component-registry）。
+MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLookup`，app-ui 用同形状鸭子接口透传（遵守包边界测试，不依赖 mdx-component-registry）。
 - M1/S2 核心投影已在同一 `EditorView` / `EditorState` 上实现 inline marker、活动标题、引用/列表/任务项、链接、图片、分割线和默认可视化；M1-FM/S5-FM-only 又实现了 `.cm-content` 内的 Frontmatter 面板。G011 进一步完成活动图片源码与实时预览并存、成功/失败图片的键盘进入、分割线纵向键盘选择、源码/WYSIWYG 自动换行、失败占位、可读列布局和 Frontmatter 视觉层级；G012 补齐隐藏 block marker 的修改保护。renderer 126/126、完整 Chromium 32/32 与 macOS Tauri/WebKit N01-N10 已通过，M1/S2 与 M1-FM 标记为已验证；N09 的通过来自用户明确验收覆盖，报告的保存产物未被独立观测。
-- M2/S3 在相同状态栈上实现 fenced/indented code range model、curated native mixed-language loading、WYSIWYG projection、语言菜单、block-local 行号、body-only copy 和 renderer-owned 编辑命令。当前工作树重新验证 renderer 18 files / 184 tests、editor-ui 5 files / 20 tests、desktop 27 files / 103 tests 与完整 Chromium 45/45。真实 Tauri/WebKit N01-N12 于 2026-07-23 在修复前快照通过；2026-07-24 的独立 N13 又验证零长度 fenced body 首次输入、pointer/Enter、undo/redo、WYSIWYG Backspace 保护和单 backtick 删除降级，M2/S3 因此标记为已验证。
+- M2/S3 在相同状态栈上实现 fenced/indented code range model、curated native mixed-language loading、WYSIWYG projection、语言菜单、block-local 行号、body-only copy 和 renderer-owned 编辑命令。当前工作树重新验证 renderer 18 files / 184 tests、app-ui 5 files / 20 tests、desktop 27 files / 103 tests 与完整 Chromium 45/45。真实 Tauri/WebKit N01-N12 于 2026-07-23 在修复前快照通过；2026-07-24 的独立 N13 又验证零长度 fenced body 首次输入、pointer/Enter、undo/redo、WYSIWYG Backspace 保护和单 backtick 删除降级，M2/S3 因此标记为已验证。
 - Playwright E2E 现在运行真实 desktop `App` 与 E2E-only 内存平台 adapter；产品 bridge 只暴露只读诊断/受控命令并且不进入 production bundle。独立 React bridge harness 保留为窄层 lifecycle 验证。
 - 迁移开始后只维护 CM6 编辑器路径，不增加 Milkdown / CM6 功能开关或双向同步层。
 
 - **围栏代码块行装饰锚点修复（2026-09-21）**：`code-block-projection.ts` 的结构行隐藏装饰（`buildStructuralLineDecorations`）与语义行起点（`collectSemanticLineStarts`）此前直接使用语法子范围偏移（`openingFenceRange.from` / `closingFenceRange.from`，fenced 分支用 `CodeText.from`）。这些位置在围栏行带前置缩进（CommonMark 允许 1~3 空格）、围栏位于列表容器内（lezer 已从 `CodeText` 剔除容器缩进）或引用块内时晚于物理行首，而 CM6 的行装饰只在行首生效、晚到的 `Decoration.line` 被**静默丢弃**，症状为：围栏行按全高渲染并与工具栏之间留出一行高度的断层（实测 26px，非缩进场景为 0px）、列表/引用内代码块的正文行卡片样式整体丢失（只剩孤立工具栏）、空体缩进围栏连唯一可见代码行都消失。修复：结构行锚定 `state.doc.lineAt(range.from).from`；空体排除 `emptyBodyAnchor` 改按行首粒度比较（否则空块唯一可见代码行会被错误折叠）；语义行起点恒取 `line.from`。回归证据：新增 `tests/wysiwyg/code-block-fence-line-anchor.test.ts`（4 条，暂存修复后 3 条失败：结构行位置 `[10,33]` vs 期望 `[8,31]`）、E2E `codemirror-m2-code-block-projection.spec.ts` 新增缩进围栏几何断言（structural 高度 `[0,0]`、工具栏到正文间隙 0）。验证：renderer 42 files / 445 tests、workspace 1071 tests + release 35 tests 全绿；`pnpm lint`（oxlint + prettier + cargo fmt/clippy）与全仓 `pnpm typecheck` 通过；apps/desktop 全量 E2E 116 passed（5 项既有失败：G007 命令面板 ×4 与 S1 ×1，已在改动前基线复现，与本修复无关）。
-- **代码块结构缩进显示与列表子项卡片右移（2026-09-21）**：新增 `packages/renderer-codemirror/src/wysiwyg/editing/code-block-indent.ts` 收敛围栏代码块的缩进规则，投影层（显示）与命令层（复制）共用一份实现。规则：`stripColumns` = 开围栏行的前导空白列数（围栏自身 1~3 空格缩进 + 容器缩进，制表符按 4 列制表位），正文每行**只隐藏不超过该列数**的前导空白，超出的部分属于代码内容必须保留；`cardInsetColumns` 仅当围栏行被容器记录（`list-item-unordered` / `list-item-ordered` / `task` / `quote`）覆盖时等于 `stripColumns`，顶层缩进围栏只去缩进、卡片不右移。实现：投影层追加隐藏前缀的 replace 装饰，并把 `--md-code-inset` 注入代码行与工具栏行容器（工具栏新增外层 `.cm-md-code-toolbar-row`，其字体与字号与代码行一致，因此 `N * 1ch` 精确等于代码行里 N 个空格的宽度，避免两个元素字号不同导致卡片与工具栏左右缘错位）；隐藏前缀纳入 `atomicRanges`（Home/方向键不会停在隐藏缩进内部），但**不**纳入 `protectedRanges`（否则代码起点输入会被判为触碰禁用区而静默拒绝、`Shift+Tab` 去缩进失效）；命令层 `readFencedBodyText` 复用 `stripCodeBlockIndent`。实测（900px 视窗，改动前 → 改动后）：列表子项围栏卡片左缘 88 → 104.89（= 2 × 8.4482px），代码文字起点 119.5 → 119.48（位置不变，等价于把缩进从卡片内侧搬到卡片外侧），正文 4 空格场景保留 2 空格内容缩进（136.38），顶层缩进围栏卡片左缘保持 88、无缩进围栏零 diff（102.59）；工具栏行左缘与卡片一致、工具栏高度 32.11px 与基线相同、工具栏到正文间隙 0。验证：新增 `tests/wysiwyg/code-block-indent.test.ts` 8 条（顶层/列表子项/内容缩进保留/无缩进零 diff/空体缩进围栏/复制去缩进/列数换算）与 E2E `apps/desktop/e2e/codemirror-code-block-indent-inset.spec.ts` 2 条（几何：`1ch` 换算、卡片与工具栏对齐、无断层、工具栏高度一致、内容缩进保留；真实剪贴板：Copy 得到 `console.log(123);\n`）；renderer 43 files / 453 tests、workspace 1079 tests + release 35 tests 全绿；`pnpm lint`（oxlint + prettier + cargo fmt/clippy）与全仓 `pnpm typecheck` 通过；apps/desktop 全量 E2E 119 passed（4 项既有失败：G007 命令面板 ×4，已在改动前基线复现，与本变更无关）。已知行为边界（本变更有意保留）：在代码行最前端（隐藏缩进之前）输入会让该行前导空白不再满足隐藏条件、缩进以内容形式显示；在代码起点 Backspace 会删除一个不可见的结构缩进空格；引用块内代码块的卡片位置与去缩进、缩进代码块（4 空格）卡片位置均不在本次范围。
+- **代码块结构缩进显示与列表子项卡片右移（2026-09-21）**：新增 `packages/editor/src/wysiwyg/editing/code-block-indent.ts` 收敛围栏代码块的缩进规则，投影层（显示）与命令层（复制）共用一份实现。规则：`stripColumns` = 开围栏行的前导空白列数（围栏自身 1~3 空格缩进 + 容器缩进，制表符按 4 列制表位），正文每行**只隐藏不超过该列数**的前导空白，超出的部分属于代码内容必须保留；`cardInsetColumns` 仅当围栏行被容器记录（`list-item-unordered` / `list-item-ordered` / `task` / `quote`）覆盖时等于 `stripColumns`，顶层缩进围栏只去缩进、卡片不右移。实现：投影层追加隐藏前缀的 replace 装饰，并把 `--md-code-inset` 注入代码行与工具栏行容器（工具栏新增外层 `.cm-md-code-toolbar-row`，其字体与字号与代码行一致，因此 `N * 1ch` 精确等于代码行里 N 个空格的宽度，避免两个元素字号不同导致卡片与工具栏左右缘错位）；隐藏前缀纳入 `atomicRanges`（Home/方向键不会停在隐藏缩进内部），但**不**纳入 `protectedRanges`（否则代码起点输入会被判为触碰禁用区而静默拒绝、`Shift+Tab` 去缩进失效）；命令层 `readFencedBodyText` 复用 `stripCodeBlockIndent`。实测（900px 视窗，改动前 → 改动后）：列表子项围栏卡片左缘 88 → 104.89（= 2 × 8.4482px），代码文字起点 119.5 → 119.48（位置不变，等价于把缩进从卡片内侧搬到卡片外侧），正文 4 空格场景保留 2 空格内容缩进（136.38），顶层缩进围栏卡片左缘保持 88、无缩进围栏零 diff（102.59）；工具栏行左缘与卡片一致、工具栏高度 32.11px 与基线相同、工具栏到正文间隙 0。验证：新增 `tests/wysiwyg/code-block-indent.test.ts` 8 条（顶层/列表子项/内容缩进保留/无缩进零 diff/空体缩进围栏/复制去缩进/列数换算）与 E2E `apps/desktop/e2e/codemirror-code-block-indent-inset.spec.ts` 2 条（几何：`1ch` 换算、卡片与工具栏对齐、无断层、工具栏高度一致、内容缩进保留；真实剪贴板：Copy 得到 `console.log(123);\n`）；renderer 43 files / 453 tests、workspace 1079 tests + release 35 tests 全绿；`pnpm lint`（oxlint + prettier + cargo fmt/clippy）与全仓 `pnpm typecheck` 通过；apps/desktop 全量 E2E 119 passed（4 项既有失败：G007 命令面板 ×4，已在改动前基线复现，与本变更无关）。已知行为边界（本变更有意保留）：在代码行最前端（隐藏缩进之前）输入会让该行前导空白不再满足隐藏条件、缩进以内容形式显示；在代码起点 Backspace 会删除一个不可见的结构缩进空格；引用块内代码块的卡片位置与去缩进、缩进代码块（4 空格）卡片位置均不在本次范围。
 代码证据：
 
 - [`App.tsx`](../../../apps/desktop/src/app/App.tsx) 只挂载持久 [`DesktopCodeMirrorEditor.tsx`](../../../apps/desktop/src/components/DesktopCodeMirrorEditor.tsx)，preview 为 sibling overlay。
 - [`main.tsx`](../../../apps/desktop/src/main.tsx) 与 [`platform-bootstrap.ts`](../../../apps/desktop/src/app/platform-bootstrap.ts) 实现 React 前的 main/settings 分流和 required service 注入。
 - [`document-save.ts`](../../../apps/desktop/src/app/controller/document-save.ts) 实现 checkpoint 同步入队、单次 settlement、certainty feedback 与 discard protection。
-- [`editor-ui/package.json`](../../../packages/editor-ui/package.json)、desktop/root manifests、workspace catalog 与 lockfile 已移除 Milkdown、ProseMirror 和 `@uiw/react-codemirror` 依赖。
-- [`editor-ui/src/index.ts`](../../../packages/editor-ui/src/index.ts) 只导出 `CodeMirrorEditor` 产品表面；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
-- [`renderer.ts`](../../../packages/renderer-codemirror/src/renderer.ts) 是 G004 的原生 CM6 lifecycle/sync 实现；只有 generation boundary 调用 `setState`。
-- [`range-index.ts`](../../../packages/renderer-codemirror/src/markdown/range-index.ts) 与 [`range-types.ts`](../../../packages/renderer-codemirror/src/markdown/range-types.ts) 持有 fenced/indented 精确 ranges、block status、source fingerprint 与增量 mapping。
-- [`code-languages.ts`](../../../packages/renderer-codemirror/src/markdown/code-languages.ts) 持有 20 个 direct `LanguageDescription` loader、exact alias resolver、native `codeLanguages` 接入和 theme-backed token highlighting。
-- [`code-block-projection.ts`](../../../packages/renderer-codemirror/src/wysiwyg/projections/code-block-projection.ts)、[`code-block-line-numbers.ts`](../../../packages/renderer-codemirror/src/wysiwyg/editing/code-block-line-numbers.ts) 与 [`code-block-commands.ts`](../../../packages/renderer-codemirror/src/wysiwyg/editing/code-block-commands.ts) 分别拥有 projection/ranges、logical line geometry 和编辑语义。
-- [`renderer.test.ts`](../../../packages/renderer-codemirror/src/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
-- [`testing.ts`](../../../packages/renderer-codemirror/src/testing.ts) 提供只读 probe 和用户 transaction 模拟，不把可变 `EditorView` / `EditorState` 暴露给消费方。
-- [`CodeMirrorEditor`](../../../packages/editor-ui/src/components/CodeMirrorEditor/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
+- [`app-ui/package.json`](../../../packages/app-ui/package.json)、desktop/root manifests、workspace catalog 与 lockfile 已移除 Milkdown、ProseMirror 和 `@uiw/react-codemirror` 依赖。
+- [`app-ui/src/index.ts`](../../../packages/app-ui/src/index.ts) 导出 `AppEditor` 应用表面，独立 `CodeMirrorEditor` 从 `editor-react` 导出；旧 Milkdown/SourceEditor 目录、desktop wrappers 和专用工具均已删除。
+- [`renderer.ts`](../../../packages/editor/src/renderer.ts) 是 G004 的原生 CM6 lifecycle/sync 实现；只有 generation boundary 调用 `setState`。
+- [`range-index.ts`](../../../packages/editor/src/markdown/range-index.ts) 与 [`range-types.ts`](../../../packages/editor/src/markdown/range-types.ts) 持有 fenced/indented 精确 ranges、block status、source fingerprint 与增量 mapping。
+- [`code-languages.ts`](../../../packages/editor/src/markdown/code-languages.ts) 持有 20 个 direct `LanguageDescription` loader、exact alias resolver、native `codeLanguages` 接入和 theme-backed token highlighting。
+- [`code-block-projection.ts`](../../../packages/editor/src/wysiwyg/projections/code-block-projection.ts)、[`code-block-line-numbers.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-line-numbers.ts) 与 [`code-block-commands.ts`](../../../packages/editor/src/wysiwyg/editing/code-block-commands.ts) 分别拥有 projection/ranges、logical line geometry 和编辑语义。
+- [`renderer.test.ts`](../../../packages/editor/src/renderer.test.ts) 以 state-backed CM6 view 覆盖 R1-R18，不依赖 React、desktop 或 DOM 模拟库。
+- [`testing.ts`](../../../packages/editor/src/testing.ts) 提供只读 probe 和用户 transaction 模拟，不把可变 `EditorView` / `EditorState` 暴露给消费方。
+- [`CodeMirrorEditor`](../../../packages/editor-react/src/components/CodeMirrorEditor/) 是 G005 的 stable React/renderer bridge；transition 与 snapshot 订阅分离，外部编辑和模式切换只通过 typed ports。
 - [`codemirror-editor-bridge.spec.ts`](../../../apps/desktop/e2e/codemirror-editor-bridge.spec.ts) 在专用 E2E surface 上验证真实 DOM `EditorView` 身份、StrictMode、preview、外部编辑和文档边界。
 - [`s1-capability-inventory.ts`](../../../apps/desktop/src/app/s1-capability-inventory.ts) 精确覆盖当前 runtime 的 12 个注册命令，并为 12 个已移除格式命令及非命令能力保留 S1 审计记录。
 - [`codemirror-s1-single-view.spec.ts`](../../../apps/desktop/e2e/codemirror-s1-single-view.spec.ts) 验证真实产品 E1-E11，并补充空文件夹 D3、main reload P5、settings reload 隔离和 deferred controls 的可见 typed-unsupported 反馈。
-- [`document-state.ts`](../../../packages/editor-core/src/document-state.ts) 是 G002 的 headless 文档协议实现，不依赖 React、CM6、desktop 或 Tauri。
-- [`document-protocol.test.ts`](../../../packages/editor-core/tests/document-protocol.test.ts) 覆盖 C1-C19，包括 notification 顺序、reservation 单次 token、mode rollback、save promotion 和 verification barrier。
+- [`document-state.ts`](../../../packages/core/src/document-state.ts) 是 G002 的 headless 文档协议实现，不依赖 React、CM6、desktop 或 Tauri。
+- [`document-protocol.test.ts`](../../../packages/core/tests/document-protocol.test.ts) 覆盖 C1-C19，包括 notification 顺序、reservation 单次 token、mode rollback、save promotion 和 verification barrier。
 - [`save-scheduler.ts`](../../../packages/file-system/src/save-scheduler.ts) 实现 runtime FIFO、双序列边界和 native outcome classification。
 - [`save_runtime.rs`](../../../apps/desktop/src-tauri/src/save_runtime.rs) 实现进程级 epoch gate、poison recovery、reattach 和 typed native result。
 - [`file_commands.rs`](../../../apps/desktop/src-tauri/src/file_commands.rs) 把 caller authorization、`spawn_blocking`、dialog、sync/rename 和 post-commit warning 接到 Tauri command。
@@ -73,7 +73,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 | M0 CM6 单编辑器主链路 | beta 可用 | CM6-only 主链路、旧引擎删除、E1-E12、G008 自动化质量门禁、独立复核与必需原生人工证据均已通过 |
 | M1 core 基础 Markdown | 已验证 | S2 核心行为、G011 图片/分割线键盘与视觉修正、G012 隐藏 marker 保护均已实现；renderer 126/126、完整 Chromium 32/32 与原生 N01-N10 通过 |
 | M1-FM Frontmatter 子故事 | 已验证 | 面板、错误降级、范围编辑、source mode、undo、源码复制与原生 N08 已通过 |
-| M2 代码块 | 已验证 | renderer 184/184、editor-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
+| M2 代码块 | 已验证 | renderer 184/184、app-ui 20/20、desktop 103/103、完整 Chromium 45/45 与 2026-07-24 原生 N13 均通过 |
 | M3 GFM 表格 | 已验证 | renderer 21 files / 243 tests（含 M3-A 元数据基座 + 表格投影 12 + 表格编辑 10 + 表格原子选择 4 + 表格 widget DOM 生命周期 9 + 整表进入单元格 2 + 单元格内全选 2）、typecheck/lint/build 全绿；Chromium 浏览器套件 52/52 全绿（2026-08-03，B6 末尾 Enter 续写修复后）；表格恒显示为可编辑网格（contenteditable 单元格左键即编辑 + 受保护 transaction 回写 GFM 源码 + Notion 式行/列块手柄与操作菜单增删行列及列对齐切换 + 整表原子选中/删除与选中态等价替换 + 选中态操作提示 + Arrow 对称整表选中 + Tab/Enter 进入单元格 + 末尾 Enter 退出表格续写段落 + 单元格内 Cmd+A 渐进式全选），不再回显源码；多单元格拖选、列宽调整、tab 跳格留待后续 |
 | M4 基础 HTML / 官方 MDX | 已验证(2026-08-04) | 基础 HTML 安全投影 + 官方 MDX 全链路(解析/白名单/组件 Widget/E2E 5/5) |
 | M5 现有能力迁移 | 已验证(2026-08-07) | 链接打开✅ 块拖拽✅ 折叠✅ 标题 H 控件✅ 图片闭环(就地编辑源码+放大查看器)✅；E2E codemirror-m5-* 全绿 |
@@ -81,7 +81,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## 已有可迁移能力
 
-- `editor-core` 已有文档状态、命令、快捷键、feature 和文件生命周期边界。
+- `core` 已有文档状态、命令、快捷键、feature 和文件生命周期边界。
 - `markdown-fidelity` 已有 Frontmatter、raw fragment、图片路径和换行相关保真测试。
 - `mdx-component-registry` 已有 metadata registry；`mdx-plugins` 已有官方 `Callout`、component map、metadata 子出口和组件测试。
 - 已删除的 Milkdown 表面曾提供官方 MDX 插入菜单、`Mod-Shift-M` 快捷键和 snippet 插入链路；这些事实只保留在历史文档/Git 中，当前代码没有可复用旧运行时。
@@ -130,7 +130,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 ## M1-FM / S5-FM-only 自动化实现记录
 
 - `markdown-fidelity` 只识别 offset 0 的 closed/unterminated Frontmatter 并返回精确 opening/content/closing/raw 范围；它不依赖 YAML parser，也不承担渲染或诊断。
-- `renderer-codemirror` 直接依赖 `@lezer/yaml`。`frontmatter-yaml.ts` 产生不可变 token/diagnostic ranges，并对 EOF/空白解析错误做可见范围钳制与去重。
+- `editor` 直接依赖 `@lezer/yaml`。`frontmatter-yaml.ts` 产生不可变 token/diagnostic ranges，并对 EOF/空白解析错误做可见范围钳制与去重。
 - `frontmatter-projection.ts` 只消费 range-index 中的 `frontmatter` record：opening fence 替换为 `Frontmatter` header Widget，closing fence 隐藏，YAML body 仍是同一 `.cm-content` 中的原始可编辑文本；fence ranges 同时进入 atomic/protected ranges。
 - panel 没有 `input`、`textarea`、嵌套 `.cm-editor` 或第二套 history/selection/IME 状态。YAML body 输入是普通 CM6 transaction，undo/redo 与 source mode 继续使用主 `EditorState`。
 - invalid YAML 显示 `YAML error` 并保留可编辑原文；unterminated top matter 显示 `Unterminated`，不降级成 HR/Setext。后置 `---`、相邻 HTML 和 MDX 不进入 Frontmatter 路径。
@@ -201,7 +201,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - language command 只修改首个 token 并保留 suffix；Plain 的 suffix 分支、toolbar Select/Copy、clipboard failure feedback、focus restoration、fenced/indented Enter/Tab/Shift+Tab、边界 Backspace/Delete、两段式 Mod-A、多选区、pointer/arrow entry、IME 和 undo/redo 均由 renderer command 层验证。
 - line number 使用 block-local `Decoration.line` 和 CSS counter data，不启用 editor-wide gutter。真实 WebKit 首轮发现 `.cm-line` padding specificity 覆盖导致数字压住首字；selector 提升到 `.cm-content .cm-md-code-line-numbered` 后，light/dark/narrow 原生截图与 geometry assertion 均证明 number 不覆盖首 token，wrapped continuation row 不重复编号。
 - 固定性能 fixture 为 50 个 200 行 fenced block 加一个 20,000 行 fenced block，共 51 blocks / 30,000 body lines。单元 diagnostics 对 body/info/huge-block edit 均证明 `delta fullIndex=0`、`delta fullProjection=0`、`delta dirtyBlock=1`、`delta dirtyCodeBlock=1`；浏览器测试把 CM6 合法的 lazy parse coverage refresh 单独归因，防止把后台解析误算为编辑全量 rebuild。
-- 新鲜自动化：11-workspace typecheck 通过；renderer 18 files / 184 tests、editor-ui 5 files / 20 tests、desktop 27 files / 103 tests、release 5/5 通过；Oxlint、Prettier、Rust fmt/clippy、完整 workspace build 与 Chromium 45/45 均通过。
+- 新鲜自动化：11-workspace typecheck 通过；renderer 18 files / 184 tests、app-ui 5 files / 20 tests、desktop 27 files / 103 tests、release 5/5 通过；Oxlint、Prettier、Rust fmt/clippy、完整 workspace build 与 Chromium 45/45 均通过。
 - 历史原生证据目录：`/private/tmp/md-editor-m2-s3-code-blocks/20260723T045021Z`。2026-07-23 验收时 `code-block-native-evidence.mjs verify` 确认 N01-N12 全部 PASS、toolbar copied body 115 bytes、saved Markdown 244 bytes、LF-only。该目录中的 `working.md` 于 2026-07-24 被后续空代码块复测继续编辑，当前不再与 `expected-saved.md` byte-equal，因此不能再描述为可重放通过的归档；`notes.md`、copy 产物、expected 文件和截图只保留历史验收记录。
 - Post-fix 原生证据目录：`/private/tmp/md-editor-m2-s3-code-blocks/20260723T194530Z-n13`。当前 `verify-n13` 可重放确认 N13 PASS，覆盖直接键入、pointer 进入、Enter materialization、单步 undo/redo、WYSIWYG Backspace 保护、源码模式删除一个 closing backtick 后的 fail-open 与下方段落无缩进；保存 Markdown 66 bytes 且 LF-only。
 
@@ -227,7 +227,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - `projection-state.ts` 暴露 `WysiwygProjectionFeature.tables`；`buildProtectedRanges` 把"每 record 收集多处"重构为累加，使 blocks / tables 互不短路。
 - `wysiwyg/index.ts` 注入 `tableProjectionTheme`；`renderer.ts` 把 `"tables"` 加入 `createWysiwygProjectionExtensions` 的 features 数组。
 - 6 个 M3 表格 fixture（aligned / minimal / no-leading-pipes / sparse / inline-content / no-body）+ 6 个 M3 range-index 测试 + 6 个 M3 投影测试，全部在 Node 下用 headless `EditorState` 跑通，无需 React / DOM / Tauri。
-- 工作区全量门禁：11-workspace `pnpm typecheck` 通过；`pnpm test` 各包通过（renderer 197、editor-ui 20、desktop 103、file-system 25、editor-core 69、ai 20、mdx-plugins 2、mdx-component-registry 3、markdown-fidelity 18、shared 1、site 6 + release 5）；`pnpm lint:oxlint` / `pnpm format:prettier:check` / `pnpm lint:rust` 全绿。
+- 工作区全量门禁：11-workspace `pnpm typecheck` 通过；`pnpm test` 各包通过（renderer 197、app-ui 20、desktop 103、file-system 25、core 69、ai 20、mdx-plugins 2、mdx-component-registry 3、markdown-fidelity 18、shared 1、site 6 + release 5）；`pnpm lint:oxlint` / `pnpm format:prettier:check` / `pnpm lint:rust` 全绿。
 - 明确不做：cell 投影、对齐切换、tab 跳格、toolbar、image / link 在 cell 内的可视化结构化编辑——这些是 M3-B 的目标。
 
 ## M3 可编辑可视化表格（2026-08-02，从 M3-B 只读版升级）
@@ -240,7 +240,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - 关键 bug 修复：
   - **Tailwind preflight 清零 widget 边框**：`@tailwindcss/vite` preflight 全局 `border-width: 0` 覆盖 widget 边框导致表格看起来是原始文本；修复为 `.cm-md-table-widget` / `th` / `td` 边框加 `!important`（调试期曾用红边框 + console 日志确认 widget 真实创建）。
   - **range-index 删末行丢表**：删除表格最后一行时 `newDirty` 落在剩余 Table 节点之外、`expandNewDirtyRange` 不扩到表格，导致 rebuild 跳过表格记录；修复为 `updateMarkdownRangeIndex` 先 `ensureSyntaxTree(transaction.state, doc.length, 5_000)`，再把 `oldDirty` 经 `transaction.changes` 映射并入 `newDirty` 后统一 `expandNewDirtyRange`（含回归测试）。
-- 新增/修改文件：`wysiwyg/editing/table-editing.ts`（新，序列化/提交/行列增删纯逻辑）、`wysiwyg/table-editing.test.ts`（新，5 tests，mock `EditorView`：`get state()` + `dispatch` 内 `state.update(spec)`）、`wysiwyg/widgets/table-widget.ts`（重写为可编辑网格 + 工具栏）、`wysiwyg/projections/table-projection.ts`（恒 grid + 恒整表 atomic/protected）、`wysiwyg/state/projection-state.ts`（table 恒非 active）、`wysiwyg/blocks/atom-selection.ts`（table 不再 reveal）、`markdown/range-index.ts`（删末行修复）、`editor-ui` CSS（网格/工具栏/单元格样式）。
+- 新增/修改文件：`wysiwyg/editing/table-editing.ts`（新，序列化/提交/行列增删纯逻辑）、`wysiwyg/table-editing.test.ts`（新，5 tests，mock `EditorView`：`get state()` + `dispatch` 内 `state.update(spec)`）、`wysiwyg/widgets/table-widget.ts`（重写为可编辑网格 + 工具栏）、`wysiwyg/projections/table-projection.ts`（恒 grid + 恒整表 atomic/protected）、`wysiwyg/state/projection-state.ts`（table 恒非 active）、`wysiwyg/blocks/atom-selection.ts`（table 不再 reveal）、`markdown/range-index.ts`（删末行修复）、`app-ui` CSS（网格/工具栏/单元格样式）。
 - 验证：renderer 全量 **213 tests 全绿**（20 files；table-projection 12 + table-editing 5 + atom-selection 24 含 4 个表格原子测试 + range-index 25）；`pnpm prettier`、`pnpm lint`（oxlint + clippy）、`pnpm typecheck` 全绿。dev server（vite 7273 + tauri debug）下人工确认 widget 渲染（红边框调试已移除）。
 - 后续阶段继续留待：多单元格拖拽选区、column resize、末端 Tab 退出/循环语义、cell 内 image / link 可视化结构化编辑；对齐切换已在第三阶段通过列菜单实现。
 
@@ -259,13 +259,13 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 - **症状**：在所见即所得（WYSIWYG）模式手工输入目录（`[标题](#锚点)`）后，Cmd/Ctrl+左击目录项不跳转，并弹出「无法打开链接：#…」。
 - **根因**：① `apps/desktop` 的 CM6 适配层当时保留了一份与前 Milkdown 路径并行的链接解析，只处理外部协议与相对文件，`#fragment` 直接落到
-  `inspect_linked_file` 失败分支；② `editor-ui` 的 fragment 跳转只按 `extractHeadingOutline` 的 id 做精确比较，容不下 TOC 生成器之间不一致的
+  `inspect_linked_file` 失败分支；② `app-ui` 的 fragment 跳转只按 `extractHeadingOutline` 的 id 做精确比较，容不下 TOC 生成器之间不一致的
   标点→连字符策略（`、`/`：`/`（）`/`➔` 有的转 `-`、有的丢弃）。
 - **修法**：`DesktopCodeMirrorEditor` 删除本地 `handleOpenLink`，统一调用 `openWysiwygLink`（锚点 / 内部文档 / 资产 / 外部 URL 的唯一分派点）；
   `markdown-fidelity` 新增 `headingAnchorSlug`（按标题可见文本生成 GitHub 兼容 slug）与 `resolveHeadingAnchor`（精确 → GitHub 后缀 → 宽松匹配，
   容忍前导 `#`、百分号编码、大小写）；`useOutlineController.jumpToMarkdownFragment` 返回命中项，`useEditorUi` 复用该结果滚动，不再二次解析。
 - **验证**：E2E `codemirror-anchor-link-jump.spec.ts` A1–A4（旧代码 A1 红、修复后绿）；`markdown-fidelity` 单测覆盖真实 TOC 锚点 / 行内标记 /
-  重复标题 / 百分号编码 / 未命中；`editor-ui` 单测覆盖容忍锚点跳转与未命中提示（旧代码红）。锚点链接不再可选，属主报告的目录可直接点击。
+  重复标题 / 百分号编码 / 未命中；`app-ui` 单测覆盖容忍锚点跳转与未命中提示（旧代码红）。锚点链接不再可选，属主报告的目录可直接点击。
 
 ## 文档同步记录
 
@@ -283,7 +283,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## 初始架构审查验证（历史记录）
 
-- 代码事实核对：desktop 仍挂载 `DesktopMilkdownEditor` / `DesktopSourceEditor`；`editor-ui` 同时包含待接入的独立 `CodeMirrorEditor` bridge 和待 G007 删除的旧 Milkdown 路径。
+- 代码事实核对：desktop 仍挂载 `DesktopMilkdownEditor` / `DesktopSourceEditor`；`app-ui` 同时包含待接入的独立 `CodeMirrorEditor` bridge 和待 G007 删除的旧 Milkdown 路径。
 - 当前 Callout 行为核对：轻量预览已有 ProseMirror `NodeSelection`、选中描边和两步整块删除，但没有官方 React 渲染、后代事件拦截或 CM6 Widget 生命周期证据。
 - 文档检查：18 个变更文档通过 Prettier，全部相对 Markdown 链接可解析，`git diff --check` 通过。
 - 契约检查：跨文档断言确认 13 个 CM6 spike / 里程碑仍为“未开始”，并确认单编辑器、HTML、MDX、GFM 表格、Frontmatter、AI、LF 和 beta 状态不变量。
@@ -292,11 +292,11 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## G001 新鲜验证证据
 
-- 迁移前 focused baseline：`editor-core` 4 files / 50 tests、`editor-ui` 19 files / 140 tests、desktop 21 files / 78 tests 全部通过。
+- 迁移前 focused baseline：`core` 4 files / 50 tests、`app-ui` 19 files / 140 tests、desktop 21 files / 78 tests 全部通过。
 - 新增能力清单测试：`apps/desktop/tests/s1-capability-inventory.test.ts` 3 tests 通过，并与 desktop runtime 的 24 个 command id 精确比对。
 - Desktop 包级 Vitest：新增 `apps/desktop/vitest.config.ts` 复用现有 Vite alias，并把 Vitest 收集范围限定到 `src/**/*.test.ts` 和 `tests/**/*.test.ts`；标准包级运行 22 files / 81 tests 通过，Playwright spec 不再被 Vitest 误收集。
 - Desktop TypeScript：`tsc -p apps/desktop/tsconfig.json --noEmit` 通过。
-- Desktop production build：Vite 生产构建通过；对 `apps/desktop/dist` 扫描 `__MD_EDITOR_E2E__`、`legacy-dual-editor-baseline` 和 `renderer-codemirror-not-mounted` 均无匹配，证明 E2E-only bridge 未进入生产产物。现有动态/静态导入和 chunk size 警告仍在，但无新增构建错误。
+- Desktop production build：Vite 生产构建通过；对 `apps/desktop/dist` 扫描 `__MD_EDITOR_E2E__`、`legacy-dual-editor-baseline` 和 `editor-not-mounted` 均无匹配，证明 E2E-only bridge 未进入生产产物。现有动态/静态导入和 chunk size 警告仍在，但无新增构建错误。
 - 变更文件静态检查：oxlint、Prettier 和 `git diff --check` 通过。
 - Playwright Chromium：`apps/desktop/e2e/codemirror-s1-single-view.spec.ts` 2 tests 通过；验证欢迎 shell、E2E-only 只读 baseline、明确的 renderer unavailable 状态，以及 LF-only 内存持久化 fixture。
 - 浏览器依赖：workspace catalog 和 desktop dev dependency 已加入 `@playwright/test`，lockfile 已重新解析；Chromium 由 Playwright managed browser 安装。
@@ -305,10 +305,10 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## G002 新鲜验证证据
 
-- 新增 `packages/editor-core/src/document-state.ts` 并由 package root 重导出；核心协议使用既有 `normalizeLineEndings`，没有引入 React、CM6、desktop、Tauri 或新依赖。
-- C1-C19：`packages/editor-core/tests/document-protocol.test.ts` 19 tests 通过；与既有 document-state 测试合计 targeted 28/28 通过。
-- Editor core 全量：5 files / 69 tests 通过；`tsc -p packages/editor-core/tsconfig.json --noEmit` 通过。
-- 依赖回归：`editor-ui` 19 files / 140 tests 和 TypeScript 通过；desktop 22 files / 81 tests 和 TypeScript 通过。
+- 新增 `packages/core/src/document-state.ts` 并由 package root 重导出；核心协议使用既有 `normalizeLineEndings`，没有引入 React、CM6、desktop、Tauri 或新依赖。
+- C1-C19：`packages/core/tests/document-protocol.test.ts` 19 tests 通过；与既有 document-state 测试合计 targeted 28/28 通过。
+- Editor core 全量：5 files / 69 tests 通过；`tsc -p packages/core/tsconfig.json --noEmit` 通过。
+- 依赖回归：`app-ui` 19 files / 140 tests 和 TypeScript 通过；desktop 22 files / 81 tests 和 TypeScript 通过。
 - 变更文件 oxlint 与 Prettier 通过；独立 code-reviewer 首轮发现 C11 同轮 listener 注册/取消边界，修复并增加回归测试后复核结果为 `APPROVE`。
 - 未验证：G002 只完成 headless core contract；R/U/D/F/P/N/E 系列、CM6 history/IME、FileService/native ordering、Tauri smoke 和单 `EditorView` browser identity 仍属于后续故事，不得据此宣称 beta 可用。
 
@@ -318,35 +318,35 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - 原生 N0-N3、N6-N9：Rust `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --lib` 38 tests 通过；覆盖 helper thread、唯一 critical job、atomic rename 后 warning、temp write/sync/rename failure、dialog cancellation、out-of-order delivery、reattach 两种竞态、poison recovery、TS/Rust serde contract 和 non-main no-touch rejection。
 - 跨层一致性：`apps/desktop/tests/save-settlement-integration.test.ts` 验证 higher warned same-path commit 与 lower Save As promotion 的最终 bytes、baseline、实际 path 和 dirty 状态一致。
 - Desktop runtime 边界：attach/adapter 不传 caller label，TypeScript/Rust `main` 常量契约一致，runtime factory 模块导入不调用 native command；desktop 全量 24 files / 90 tests 和 TypeScript 通过。
-- Core 回归：editor-core 5 files / 69 tests 和 TypeScript 通过；变更 TS 文件 oxlint、Prettier、Rust fmt 均通过。
+- Core 回归：core 5 files / 69 tests 和 TypeScript 通过；变更 TS 文件 oxlint、Prettier、Rust fmt 均通过。
 - F6 line-number port 已由 G004 renderer 完成；P1-P5、D/E controller/main/settings 模块图迁移仍属于 G006。尚未运行手动 Tauri dialog/主窗口/设置窗口 smoke，因此不能宣称 desktop 主链路或 beta 可用。
 
 ## G004 新鲜验证证据
 
-- 新增 `@md-editor/renderer-codemirror`，直接依赖对齐的 `@codemirror/commands`、`lang-markdown`、`state`、`view` 以及 headless `editor-core/shared`；不依赖 React、`editor-ui`、desktop、Tauri、Milkdown、ProseMirror 或 `@uiw/react-codemirror`。
+- 新增 `@md-editor/editor`，直接依赖对齐的 `@codemirror/commands`、`lang-markdown`、`state`、`view` 以及 headless `core/shared`；不依赖 React、`app-ui`、desktop、Tauri、Milkdown、ProseMirror 或 `@uiw/react-codemirror`。
 - 生产路径只由 `createCodeMirrorRenderer` 创建原生 `EditorView`；root extension 与 mode/line-number compartments 分离，external edit、mode、rollback、reconcile 和 line number 都使用 typed origin annotation。
-- R1-R17：`packages/renderer-codemirror/src/renderer.test.ts` 18 tests 通过；覆盖单次 create/destroy、local acknowledgement、future sequence fail-closed、isolated external undo/redo、same-text no-op、generation replacement、50 次 mode switch、baseline no-op、IME supersede/local-wins、LF、三类 reconcile 和显式 scroll reset。
-- Renderer 包级 `test` 1 file / 18 tests、TypeScript、oxlint、Prettier 与 `git diff --check` 通过；editor-core 回归 5 files / 69 tests 和 TypeScript 通过。
+- R1-R17：`packages/editor/src/renderer.test.ts` 18 tests 通过；覆盖单次 create/destroy、local acknowledgement、future sequence fail-closed、isolated external undo/redo、same-text no-op、generation replacement、50 次 mode switch、baseline no-op、IME supersede/local-wins、LF、三类 reconcile 和显式 scroll reset。
+- Renderer 包级 `test` 1 file / 18 tests、TypeScript、oxlint、Prettier 与 `git diff --check` 通过；core 回归 5 files / 69 tests 和 TypeScript 通过。
 - 测试子路径只暴露只读 identity/revision/history/selection/scroll/counter probe 与 state-backed 用户事务模拟；可变 CM6 view/state 没有进入公共 API。
-- G004 阶段当时的明确缺口：R-series 是 Node 下的 CM6 state/protocol 测试。真实 DOM `EditorView` 的单实例、focus/scroll/StrictMode/asset overlay 证据属于 G005/G006 browser integration；该阶段 desktop bridge 仍报告 `renderer-codemirror-not-mounted`，因此当时尚未达到 beta 或 S1 完成条件。
+- G004 阶段当时的明确缺口：R-series 是 Node 下的 CM6 state/protocol 测试。真实 DOM `EditorView` 的单实例、focus/scroll/StrictMode/asset overlay 证据属于 G005/G006 browser integration；该阶段 desktop bridge 仍报告 `editor-not-mounted`，因此当时尚未达到 beta 或 S1 完成条件。
 
 ## G005 新鲜验证证据
 
-- 新增 `packages/editor-ui/src/components/CodeMirrorEditor`：稳定 React host 每次真实挂载只创建一个 renderer；transition 订阅负责 `sync/reconcile`，snapshot 订阅只触发 React 元数据失效，不把 Markdown 回灌为 controlled value。
+- 新增 `packages/editor-react/src/components/CodeMirrorEditor`：稳定 React host 每次真实挂载只创建一个 renderer；transition 订阅负责 `sync/reconcile`，snapshot 订阅只触发 React 元数据失效，不把 Markdown 回灌为 controlled value。
 - `EditorUiProvider` 提供唯一 active renderer 的 typed port registry；mode、external edit、line number、host visibility、focus 和 measure 都通过 facade 调用，未挂载时返回 typed unavailable。MDX/AI 旧命令在当前 editor 不支持时显示明确反馈，不再静默成功。
 - 同文档外部编辑同步完成 reservation、一个 isolated CM6 transaction 和 finalize/release；document replacement 保持同一 `EditorView`，只在 generation boundary 替换 `EditorState` 并重置 history/selection/scroll。
-- 已删除 document remount key、`editor-ui-state.ts` 和 SourceEditor/Milkdown 间的 scroll-ratio/target handoff；对应 desktop 测试改为阻止这些旧机制重新出现。
+- 已删除 document remount key、`app-ui-state.ts` 和 SourceEditor/Milkdown 间的 scroll-ratio/target handoff；对应 desktop 测试改为阻止这些旧机制重新出现。
 - R18 与真实 Chromium 验证 asset preview：editor host 作为 sibling 只切换 inert/visibility，renderer 在 CodeMirror measure frame 后恢复 focus-owned scroll。Renderer 现为 1 file / 19 tests，TypeScript 通过。
 - `apps/desktop/e2e/codemirror-editor-bridge.spec.ts` Chromium 3/3 通过：覆盖 U1-U8 及保留的 U9 设置路径，包括单 `.cm-editor`、rerender/mode/preview 身份、history/selection/focus/scroll、独立订阅、external edit、document boundary、真实 unmount/remount 和 StrictMode probe 销毁。
-- 工作区 11 个项目的递归 TypeScript 与 Vitest 全部通过；其中 `editor-ui` 19 files / 140 tests、desktop 24 files / 87 tests。Desktop production build 通过，产物扫描未发现 `__CODEMIRROR_EDITOR_E2E__`、`codemirror-editor-harness` 或专用 surface 标记。
+- 工作区 11 个项目的递归 TypeScript 与 Vitest 全部通过；其中 `app-ui` 19 files / 140 tests、desktop 24 files / 87 tests。Desktop production build 通过，产物扫描未发现 `__CODEMIRROR_EDITOR_E2E__`、`codemirror-editor-harness` 或专用 surface 标记。
 - G005 阶段当时的明确缺口：专用 E2E harness 不进入 production graph；`App.tsx` 仍挂载旧双编辑器，desktop controller/main 也尚未注入 G002/G003/G005 semantic ports。G006 前不得标记 S1/M0 完成或发布 CM6 beta。
 
 ## G006 新鲜验证证据
 
 - Desktop 产品接入：`main.tsx` 在 React 前按 window surface 动态分流；main 严格执行 attach -> FileService factory -> App render，settings 不求值 main controller/FileService/attach graph，unknown/attach failure fail closed。`App.tsx` 只挂载一个持久 `DesktopCodeMirrorEditor`。
 - 文档语义：new/open/open-tree/empty-folder/delete 使用 generation boundary，rename 只更新 path；程序化修改和 mode 只经 renderer ports。保存 checkpoint 在第一个 `await` 前同步入队，实际 path、promotion、warning、failure、cancel 和 verification-required 均由 core settlement 决定。
-- Focused TypeScript 全部通过：`renderer-codemirror`、`editor-ui`、desktop、`file-system`。
-- Focused Vitest 全部通过：renderer 1 file / 19 tests、editor-ui 19 files / 140 tests、desktop 28 files / 102 tests、file-system 3 files / 28 tests。
+- Focused TypeScript 全部通过：`editor`、`app-ui`、desktop、`file-system`。
+- Focused Vitest 全部通过：renderer 1 file / 19 tests、app-ui 19 files / 140 tests、desktop 28 files / 102 tests、file-system 3 files / 28 tests。
 - D9 能力处置：当前 runtime 不再注册 12 个格式化日志 no-op，deferred paste/drop listener 不再绑定；inventory 同时锁住 12 个当前注册命令和 12 个 removed audit entries。MDX/AI retained API 返回 typed unsupported 并显示 toast。
 - 产品 Chromium 11/11 通过：3 个 React bridge lifecycle 用例，以及 8 个真实 desktop App 用例覆盖 E1-E10、D3、P5 和 settings open/reload/close；证明单 view、mode/rerender/preview 状态保持、无 echo、external undo、new/open/相同文本 boundary、IME queue、重叠保存、LF bytes、main-only reattach 和 settings 隔离。
 - Rust `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml` 38/38 通过，覆盖 main caller 授权、non-main no-touch、单 gate/critical job、epoch/sequence、spawn_blocking、atomic rename、warning/failure/cancel 和 poison recovery。
@@ -357,13 +357,13 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 
 ## G007 新鲜验证证据
 
-- 代码收口：删除 desktop Milkdown/SourceEditor wrappers、`editor-ui` 旧表面/工具/测试、旧 MDX menu/AI adapter、旧 mode scroll handoff、Vite aliases 和废弃 exports；产品只保留 raw CM6 `CodeMirrorEditor`。
-- 依赖收口：root、desktop、`editor-ui`、workspace catalog 和 lockfile 中 Milkdown、ProseMirror、`@uiw/react-codemirror` 均为零匹配；production dependency graph 不再携带第二套编辑器。
+- 代码收口：删除 desktop Milkdown/SourceEditor wrappers、`app-ui` 旧表面/工具/测试、旧 MDX menu/AI adapter、旧 mode scroll handoff、Vite aliases 和废弃 exports；产品只保留 raw CM6 `CodeMirrorEditor`。
+- 依赖收口：root、desktop、`app-ui`、workspace catalog 和 lockfile 中 Milkdown、ProseMirror、`@uiw/react-codemirror` 均为零匹配；production dependency graph 不再携带第二套编辑器。
 - 保存 API 收口：删除旧 `save_markdown_document` Tauri command、TypeScript adapter/FileService 兼容方法和 Rust legacy save job；main 只通过 attach 后的 ordered scheduler 保存。
 - 明确降级：MDX/AI retained commands 使用 immutable unsupported slots，返回 typed unsupported 并显示 toast；E11 同时校验 inventory disposition 与两条可见反馈，不存在 default no-op wiring。
 - 测试边界：renderer 生产 API 不再导出 `setCompositionActiveForTesting`；browser E2E 通过真实 `CompositionEvent` 驱动 `.cm-content`，state-backed testing adapter 只保留测试内部可变状态。
 - Chromium E1-E11 为 12/12 通过；production E12 构建通过，产物未检出 E2E bridge、fixture-only id、测试 composition setter、Milkdown 或 ProseMirror 标记。
-- 定向测试在 G007 收口时通过：editor-core 69 tests、renderer 19 tests、editor-ui 14 tests、desktop 98 tests、file-system 25 tests、Rust 38 tests；五个相关 TypeScript 包的定向 typecheck 也全部通过。最终全仓数字以 G008 重验为准。
+- 定向测试在 G007 收口时通过：core 69 tests、renderer 19 tests、app-ui 14 tests、desktop 98 tests、file-system 25 tests、Rust 38 tests；五个相关 TypeScript 包的定向 typecheck 也全部通过。最终全仓数字以 G008 重验为准。
 - Production build 从旧引擎仍可达时的约 1998 modules 降至约 702 modules；该数字只证明依赖图显著收缩，不替代 S6 性能基线。
 - 未验证：系统中文 IME、原生 Save/Save As dialog、settings 原生窗口和真实文件 LF bytes 仍无人工证据；G008 全量门禁尚未完成。因此 G007 可 checkpoint 为代码/自动化切换完成，但 S1/M0 仍只标 beta 候选，不标迁移完成。
 
@@ -386,7 +386,7 @@ MDX 注入链路同步收口：renderer 定义最小查找接口 `MdxComponentLo
 - 2026-07-18 原生验收发现 source / WYSIWYG 切换后编辑区和单图标按钮视觉上无法可靠区分。代码检查确认 mode transaction 与 `data-editor-mode` 正确变化，但当时没有任何 `.cm-md-editor--source` / `.cm-md-editor--wysiwyg` 样式，按钮也没有常驻文字或明显活动态。
 - 首轮修复曾把 `DocumentBar` 改为带文字和背景活动态的“所见即所得 / 源码”分段控件；产品验收明确要求右下角维持原有样式后，该 UI 变化已完整撤回，继续使用 30×30px 单图标透明按钮，不增加常驻文案或背景色。
 - 编辑区在保持相同垂直行高的前提下，WYSIWYG 使用正文 UI 字体，source 使用等宽字体。该差异补齐 S1 的最小可观察 mode reconfiguration，不实现 S2 Markdown decoration，也不改变右下角 chrome。
-- 产品 Playwright E1 通过原有按钮驱动模式切换，并新增 `aria-pressed`、`data-editor-mode` 和 computed font-family 断言；完整 Chromium E1-E11 仍为 12/12 通过，并继续验证同一 view、history、selection、focus 和 scroll 保持。`editor-ui` 恢复为 4 files / 14 tests，package typecheck 通过。
+- 产品 Playwright E1 通过原有按钮驱动模式切换，并新增 `aria-pressed`、`data-editor-mode` 和 computed font-family 断言；完整 Chromium E1-E11 仍为 12/12 通过，并继续验证同一 view、history、selection、focus 和 scroll 保持。`app-ui` 恢复为 4 files / 14 tests，package typecheck 通过。
 - 产品确认模式差异修复后的原生验证没有问题；该反馈与下述完整人工验收记录共同关闭 S1/M0 的人工证据门禁。
 
 ## S1/M0 原生人工验收通过记录
@@ -428,13 +428,13 @@ M5/M6 完成后，用户对行首控件区提出三点反馈：`.cm-content` 左
 结合折镜（FoldingMirror）纸上排版、12 项动效设计原则与能力边界设计原则，落地 AI 写作与审批式建议系统：
 1. **纸质主题与微交互**：新增 `paper-light`（宣纸）与 `charcoal-dark`（炭焙）双模内置主题，配置霞鹜文楷字体栈、朱砂红印章强调色与 1.88 行高；代码块三段式 Header 卡片与就地微发光表格。
 2. **AI 审批式建议内核（Approval-First Diff Stream）**：
-   - `packages/renderer-codemirror/src/wysiwyg/view/suggestion.ts`：实现 `aiSuggestionField`、`aiSuggestionDecorations`、`setAiSuggestionEffect`；
+   - `packages/editor/src/wysiwyg/view/suggestion.ts`：实现 `aiSuggestionField`、`aiSuggestionDecorations`、`setAiSuggestionEffect`；
    - 续写（Continuation）：光标处渲染幽灵文本卡片（Ghost Text）及 `[Tab 接受 · Esc 取消]` 徽标；
    - 重写/语法修复（Rewrite/Edit）：原内容删除线高亮 + 绿色新增候选词；
    - 快捷键交互：`Tab` / `Cmd+Enter` 接受建议并以单次事务写入撤销历史（`isolateHistory`），`Escape` 驳回建议，光标移出或普通键入自动失效。
 3. **架构解耦与接入**：
    - `@md-editor/ai` 负责模型请求与结果归一化；
-   - `@md-editor/renderer-codemirror` 负责 suggestion 展示、选区和快捷键；
+   - `@md-editor/editor` 负责 suggestion 展示、选区和快捷键；
    - `useDesktopEditorController` 提取选区与文档快照调用 AI 并注入 suggestion。
 
 ### 验证证据

@@ -7,15 +7,15 @@
 ### 核心目标
 1. **消灭巨型单体文件**：拆分行数过多（>800行）且职责混杂的巨型模块，按关注点分离（Separation of Concerns）进行子目录化拆解；
 2. **全量补全架构与业务注释**：所有跨层调用、核心数据流转、复杂算法与异步状态管理，必须配齐清晰的中文注释；
-3. **并发保序保存调度设计**：在 `@md-editor/editor-core` 层收敛文件自动保存与手动保存的并发调度逻辑，避免异步 I/O 竞争与数据覆盖；
+3. **并发保序保存调度设计**：在 `@md-editor/core` 层收敛文件自动保存与手动保存的并发调度逻辑，避免异步 I/O 竞争与数据覆盖；
 4. **多端发布与更新日志解耦**：将更新日志拆分为桌面端专属日志与 Web 在线版专属日志，官网通过双 Tab 独立展示；消除向后兼容包袱，统一发版脚本至 `release:*` 命名空间。
 
 ---
 
 ## 2. 核心领域模块化拆解
 
-### 2.1 类型系统模块化 (`packages/editor-core/src/types/`)
-- **原状**：原 `packages/editor-core/src/types.ts` 超过 1045 行，混杂了文档模型、编辑器模式、UI 事件、设置项与 AI 交互类型。
+### 2.1 类型系统模块化 (`packages/core/src/types/`)
+- **原状**：原 `packages/core/src/types.ts` 超过 1045 行，混杂了文档模型、编辑器模式、UI 事件、设置项与 AI 交互类型。
 - **拆解方案**：
   - `document.ts`：文档模型、元数据、Frontmatter、保存状态契约；
   - `editor.ts`：编辑器实例、模式枚举（所见即所得 / 源码）、选区与滚动位置；
@@ -23,9 +23,9 @@
   - `ai.ts`：AI 补全、润色建议、流式推理协议；
   - `events.ts`：编辑器总线事件、快捷键分发、生命周期钩子；
   - `view.ts`：CodeMirror 视图状态、DOM 挂载与投影层配置；
-  - `index.ts`：统一 re-export 所有子模块，保持外部 `import ... from '@md-editor/editor-core'` 100% 零破坏兼容。
+  - `index.ts`：统一 re-export 所有子模块，保持外部 `import ... from '@md-editor/core'` 100% 零破坏兼容。
 
-### 2.2 设置面板组件拆解 (`packages/editor-ui/src/components/SettingsModal/`)
+### 2.2 设置面板组件拆解 (`packages/app-ui/src/components/SettingsModal/`)
 - **原状**：原 `SettingsModal.tsx` 达 943 行，单组件承载所有设置 Tab（通用、外观、编辑器行为、AI 配置、关于）的状态与渲染逻辑，难以维护与扩展。
 - **拆解方案**：
   - `SettingsModal.tsx`：仅负责对话框容器、外层动画遮罩、Tab 导航栏切换与全局确认取消行为；
@@ -64,7 +64,7 @@
 如果仅使用朴素的 `async/await`，当一次耗时较长的磁盘 I/O（例如大文件或云同步目录）尚未完成时，后续的保存请求若先行完成，将导致**写覆盖（Lost Update）**或**状态不一致（Race Condition）**。
 
 ### 3.2 架构设计
-调度器由 `@md-editor/editor-core` 统一实现，具有以下设计契约：
+调度器由 `@md-editor/core` 统一实现，具有以下设计契约：
 
 ```mermaid
 flowchart TD

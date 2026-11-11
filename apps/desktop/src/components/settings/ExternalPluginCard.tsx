@@ -13,7 +13,7 @@ import {
   settingsInputClassName,
   settingsTextButtonClassName,
   type PluginToggleTone,
-} from "@md-editor/editor-ui/settings";
+} from "@md-editor/app-ui/settings";
 import type { PluginStatusEvent, StoredPlugin } from "../../app/plugins/storage";
 
 type PluginKeymapStatus = PluginStatusEvent["keymaps"][number];

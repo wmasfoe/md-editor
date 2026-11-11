@@ -4,7 +4,7 @@
 
 Inkpoint 移动端整体架构秉持 **“即览 (Jilan)”** 产品哲学：
 - **Markdown 作为核心数据层**：纯文本数据，不绑定任何私有云格式与私有账号系统，零登录门槛，即开即览；
-- **HTML / Web 技术栈作为高表现力渲染层**：复用桌面端成熟的 `@md-editor/renderer-codemirror`（静态阅读态与交互编辑态）与 Markdown 语法插件体系，确保桌面端与移动端 100% 渲染与排版一致性；
+- **HTML / Web 技术栈作为高表现力渲染层**：复用桌面端成熟的 `@md-editor/editor`（静态阅读态与交互编辑态）与 Markdown 语法插件体系，确保桌面端与移动端 100% 渲染与排版一致性；
 - **原生外壳提供极致触感与系统级深度集成**：iOS 采用 Swift 6 + SwiftUI，Android 采用 Kotlin + Jetpack Compose，提供原生弹簧微动效、软键盘顶起工具栏（InputAccessoryView / IME Insets）、系统级触感反馈（Haptics）、系统文件安全持久化（iOS In-Place Document / Android SAF）以及系统级分享扩展（Share Extension）。
 
 ---

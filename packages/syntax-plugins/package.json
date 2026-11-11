@@ -26,8 +26,8 @@
   },
   "devDependencies": {
     "@codemirror/lang-markdown": "catalog:",
-    "@md-editor/editor-core": "workspace:*",
-    "@md-editor/renderer-codemirror": "workspace:*",
+    "@md-editor/core": "workspace:*",
+    "@md-editor/editor": "workspace:*",
     "@types/katex": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

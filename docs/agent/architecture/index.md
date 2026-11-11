@@ -14,7 +14,7 @@
 - 仓库结构与命名规范（目录职责/命名后缀/测试位置/导入规则/体量阈值与豁免/规则分批上线）： [repo_structure_and_naming_conventions.md](./repo_structure_and_naming_conventions.md)
   唯一事实来源的机器可读部分在 `scripts/structure/check.mjs`；改动结构、移动文件、调整阈值或登记豁免前必读。
 - Desktop Store 与 Controller 边界规范： [desktop_store_controller_boundary.md](./desktop_store_controller_boundary.md)
-- Hooks 迁移到 React-facing 层与 editor-core 平台依赖清理手册： [hooks-migration-to-editor-core.md](./hooks-migration-to-editor-core.md)
+- Hooks 迁移到 React-facing 层与 core 平台依赖清理手册： [hooks-migration-to-core.md](./hooks-migration-to-core.md)
 - macOS 窗口 Chrome 规范： [macos_window_chrome_guidelines.md](./macos_window_chrome_guidelines.md)
 - MDX 官方组件分层方案： [mdx_component_plugin_architecture.md](./mdx_component_plugin_architecture.md)
 - 本地小模型接入方案（含 macOS runtime 动态库布局、ad-hoc 签名例外与验证方式）： [local_ai_model_integration_plan.md](./local_ai_model_integration_plan.md)
@@ -49,3 +49,5 @@
   记录基于 Cloudflare R2（免流量费、移动端独立存储）与 Cloudflare Worker（桌面端大文件流式代理加速、统一多 App 版本元数据契约）的全球无污染分发基建设计；移动端已停止发版，仅保留已发布版本。
 
 
+
+- 编辑器四包职责、直接依赖、社区嵌入入口与保留依赖的 npm 分发约定：[编辑器包边界](./editor_package_boundaries.md)

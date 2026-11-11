@@ -5,7 +5,7 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { DocumentBar, OutlinePanel, type OutlineItem } from "@md-editor/editor-ui";
+import { DocumentBar, OutlinePanel, type OutlineItem } from "@md-editor/app-ui";
 import { useTranslation } from "@md-editor/i18n";
 import type { MarkdownFileTreeNode, MarkdownFolder } from "@md-editor/file-system";
 import { WebFileTreePanel } from "./WebFileTreePanel";

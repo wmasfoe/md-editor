@@ -1,8 +1,9 @@
 import { changeLanguage, configureI18n, useTranslation } from "@md-editor/i18n";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { createDocumentState, switchEditorModeSafely } from "@md-editor/editor-core";
-import { CodeMirrorEditor, type CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import { createDocumentState, switchEditorModeSafely } from "@md-editor/core";
+import { AppEditor } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { createPluginHost } from "@md-editor/plugin-host";
 import type { PluginContext, PluginPackage, PluginSettingValue } from "@md-editor/plugin-sdk";
 import * as codemirrorState from "@codemirror/state";
@@ -280,7 +281,7 @@ function Guest({
       ))}
       <p>{keymaps.map((item) => `${item.key}: ${item.commandId}`).join(" · ")}</p>
       <div className="editor">
-        <CodeMirrorEditor
+        <AppEditor
           document={documentState}
           plugins={syntax}
           onRendererPortsChange={(value) => {

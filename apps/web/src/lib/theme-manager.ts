@@ -1,4 +1,4 @@
-import { compileThemeCss, setThemeStyleText, type BuiltInThemeId } from "@md-editor/editor-ui";
+import { compileThemeCss, setThemeStyleText, type BuiltInThemeId } from "@md-editor/app-ui";
 import type { WebSettings } from "./web-settings";
 
 export function resolveEffectiveColorScheme(theme: "light" | "dark" | "system"): "light" | "dark" {

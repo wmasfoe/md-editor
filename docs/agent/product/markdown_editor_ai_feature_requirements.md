@@ -133,9 +133,9 @@ AI 功能应作为内置 Feature 接入现有编辑器运行时，而不是一�
 建议边界：
 
 - `@md-editor/ai` 定义 AI provider、请求解析和 AI 相关类型；调用方直接从该包导入。
-- `editor-core` 只定义编辑器命令、Feature descriptor 和跨模式编辑器契约，不 re-export AI 包。
+- `core` 只定义编辑器命令、Feature descriptor 和跨模式编辑器契约，不 re-export AI 包。
 - desktop app 负责设置、provider 配置、请求执行、错误提示和快捷键绑定。
-- `renderer-codemirror` 在单一 `EditorView` 中负责 suggestion 展示、接受、取消、失效、选区映射和 history；AI 层只注入纯 suggestion 数据。
+- `editor` 在单一 `EditorView` 中负责 suggestion 展示、接受、取消、失效、选区映射和 history；AI 层只注入纯 suggestion 数据。
 - WYSIWYG 与源码模式共享同一份 request / suggestion 状态，不按模式建立第二套 ghost text 或撤销语义；具体可见性由 renderer 的 mode StateField 决定。
 
 不要在第一版引入：

@@ -5,17 +5,20 @@ import {
   switchEditorModeSafely,
   type DocumentState,
   type EditorMode,
-} from "@md-editor/editor-core";
+} from "@md-editor/core";
 import {
-  CodeMirrorEditor,
+  AppEditor,
   EditorUiProvider,
   useEditorUiActions,
+  type EditorUiActionsContextValue,
+} from "@md-editor/app-ui";
+import {
   type CodeMirrorEditorExternalEditResult,
   type CodeMirrorEditorPorts,
   type CodeMirrorEditorSyncError,
-  type EditorUiActionsContextValue,
-} from "@md-editor/editor-ui";
-import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-ui/CodeMirrorEditor/testing";
+} from "@md-editor/editor";
+import { CodeMirrorEditor } from "@md-editor/editor-react";
+import { inspectCodeMirrorEditorForTesting } from "@md-editor/editor-react/testing";
 import { createBuiltInMdxRegistry } from "@md-editor/plugin-host/mdx";
 import { calloutPlugin } from "@md-editor/mdx-plugins";
 
@@ -167,6 +170,8 @@ export function installCodeMirrorEditorHarness(
   mdxMode = false,
 ): void {
   const runtime = createInstrumentedDocument();
+  const standalone = new URLSearchParams(window.location.search).has("standalone");
+  let standalonePorts: CodeMirrorEditorPorts | null = null;
   // MDX E2E 白名单:官方 Callout 组件(纯 metadata,不执行组件代码)
   const mdxRegistry = createBuiltInMdxRegistry([calloutPlugin]);
   // 链接打开回调的收集器(E2E 断言点击/Mod-Enter 触发)
@@ -187,7 +192,9 @@ export function installCodeMirrorEditorHarness(
 
   function getRendererAccess() {
     return (
-      actions?.getRendererPorts() ?? {
+      (standalone && standalonePorts
+        ? { status: "available" as const, ports: standalonePorts }
+        : actions?.getRendererPorts()) ?? {
         status: "unavailable" as const,
         reason: "editor-not-mounted" as const,
       }
@@ -343,52 +350,60 @@ export function installCodeMirrorEditorHarness(
       rerender: () => setRenderSequence((sequence) => sequence + 1),
     };
 
-    return (
+    // Exercise the community component without application providers as well as AppEditor.
+    const EditorComponent = standalone ? CodeMirrorEditor : AppEditor;
+    const content = (
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          flexDirection: "column",
+          height: 360,
+          width: 720,
+        }}
+      >
+        {editorMounted ? (
+          <EditorComponent
+            document={runtime.document}
+            fontSize={fontSize}
+            codeBlockLineNumbers={codeBlockLineNumbers}
+            showInlineStyleMarkers={inlineStyleMarkers}
+            hidden={previewVisible}
+            writeClipboardText={async (text) => {
+              if (nextClipboardFailure) {
+                const error = nextClipboardFailure;
+                nextClipboardFailure = null;
+                throw error;
+              }
+              copiedText.push(text);
+            }}
+            onSyncError={(error) => syncErrors.push(error)}
+            onQueuedExternalEditResult={(result) => queuedResults.push(result)}
+            mdxMode={mdxMode}
+            mdxComponents={mdxRegistry}
+            openLinkTarget={(url) => openedLinks.push(url)}
+            onRendererPortsChange={(ports) => {
+              standalonePorts = ports;
+              if (ports && rendererLifecycles.at(-1) !== ports) {
+                rendererLifecycles.push(ports);
+              }
+            }}
+          />
+        ) : null}
+        {previewVisible ? (
+          <div
+            data-testid="asset-preview"
+            style={{ position: "absolute", inset: 0, background: "white" }}
+          />
+        ) : null}
+      </div>
+    );
+    return standalone ? (
+      content
+    ) : (
       <EditorUiProvider markdown={runtime.document.getSnapshot().markdown} showToast={() => {}}>
         <ActionCapture onActions={(value) => (actions = value)} />
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            flexDirection: "column",
-            height: 360,
-            width: 720,
-          }}
-        >
-          {editorMounted ? (
-            <CodeMirrorEditor
-              document={runtime.document}
-              fontSize={fontSize}
-              codeBlockLineNumbers={codeBlockLineNumbers}
-              showInlineStyleMarkers={inlineStyleMarkers}
-              hidden={previewVisible}
-              writeClipboardText={async (text) => {
-                if (nextClipboardFailure) {
-                  const error = nextClipboardFailure;
-                  nextClipboardFailure = null;
-                  throw error;
-                }
-                copiedText.push(text);
-              }}
-              onSyncError={(error) => syncErrors.push(error)}
-              onQueuedExternalEditResult={(result) => queuedResults.push(result)}
-              mdxMode={mdxMode}
-              mdxComponents={mdxRegistry}
-              openLinkTarget={(url) => openedLinks.push(url)}
-              onRendererPortsChange={(ports) => {
-                if (ports && rendererLifecycles.at(-1) !== ports) {
-                  rendererLifecycles.push(ports);
-                }
-              }}
-            />
-          ) : null}
-          {previewVisible ? (
-            <div
-              data-testid="asset-preview"
-              style={{ position: "absolute", inset: 0, background: "white" }}
-            />
-          ) : null}
-        </div>
+        {content}
       </EditorUiProvider>
     );
   }

@@ -78,7 +78,7 @@
      - 默认态：`px-3 py-2 rounded-xl text-xs text-muted hover:text-ink hover:bg-surface-soft/60 transition-all`；
      - 激活态：`bg-surface font-medium text-ink shadow-[0_1px_3px_rgba(20,18,15,0.04)] ring-1 ring-black/5`。
 3. **右侧真实编辑器工作面**：
-   - 纯客户端引入 `@md-editor/editor-ui` 的 `CodeMirrorEditor`；
+   - 纯客户端引入 `@md-editor/app-ui` 的 `AppEditor`；
    - 高度范围：`min-h-[380px] max-h-[460px] overflow-y-auto`，滚动条采用 4px 超薄微距圆角；
    - 零本地持久化：使用 `createDocumentState({ markdown: sample.markdown, mode: "wysiwyg" })`；
    - 点击侧栏切换时调用 `replaceDocument(...)`，无页面重刷，光标自动保持合理状态。

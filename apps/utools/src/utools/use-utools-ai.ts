@@ -9,7 +9,7 @@
  */
 
 import { useCallback, useState } from "react";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { shouldSkipAutoGec } from "@md-editor/ai";
 import { utoolsAiService } from "./ai-service";
 import { acceptAiDisclaimer, hasAcceptedAiDisclaimer } from "./ai-disclaimer";

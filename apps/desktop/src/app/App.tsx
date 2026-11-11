@@ -1,11 +1,7 @@
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import type { RuntimeFileService } from "@md-editor/file-system";
-import {
-  AssetPreview,
-  EditorUiProvider,
-  WelcomeState,
-  type CodeMirrorEditorPorts,
-} from "@md-editor/editor-ui";
+import { AssetPreview, EditorUiProvider, WelcomeState } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import { useExternalPlugins } from "./plugins/use-external-plugins";
 import { DesktopCodeMirrorEditor } from "../components/DesktopCodeMirrorEditor";
@@ -88,7 +84,7 @@ export function App({ fileService, onDesktopActionsChange, onRendererPortsChange
  * 桌面端编辑器 UI 上下文适配器。
  *
  * 为什么存在 DesktopEditorUiProvider 并在此注入 snapshot = useDocumentSnapshot()？
- * 1. 架构解耦：@md-editor/editor-ui 是通用包，其 EditorUiProvider 只接收纯 markdown 属性，不感知桌面端的状态管理；
+ * 1. 架构解耦：@md-editor/app-ui 是通用包，其 EditorUiProvider 只接收纯 markdown 属性，不感知桌面端的状态管理；
  * 2. 大纲响应计算：EditorUiProvider 内部封装了 useOutlineController，必须实时获得最新 markdown 才能解析 TOC 与目录树；
  * 3. 上下文层级保障：DesktopEditorEffects 内部需要调用 useEditorUiActions()，故必须被包裹在 EditorUiProvider 内；
  * 4. 渲染范围隔离：在子组件中订阅 snapshot，避免在打字时引发最外层的 App 与 AppSettingsProvider 重绘。

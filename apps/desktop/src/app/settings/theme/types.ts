@@ -2,7 +2,7 @@
  * @fileoverview 主题设置模型与实时预览协议类型
  */
 
-import type { BuiltInThemeId, ThemeColorScheme } from "@md-editor/editor-ui";
+import type { BuiltInThemeId, ThemeColorScheme } from "@md-editor/app-ui";
 
 export type { BuiltInThemeId, ThemeColorScheme };
 

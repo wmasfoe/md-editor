@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  CodeMirrorEditor,
-  type AiSuggestionItem,
-  type CodeMirrorEditorPorts,
-  resolveCodeFontStack,
-  resolveProseFontStack,
-} from "@md-editor/editor-ui";
+import { AppEditor, resolveCodeFontStack, resolveProseFontStack } from "@md-editor/app-ui";
+import { type AiSuggestionItem, type CodeMirrorEditorPorts } from "@md-editor/editor";
 import { useTranslation } from "@md-editor/i18n";
 import {
   containerDirectivePlugin,
@@ -148,7 +143,7 @@ export function DesktopCodeMirrorEditor({
 
   // 链接打开:内部文档 / 锚点 / 资产 / 外部 URL 的判定全部收敛在 controller
   // (`openWysiwygLink`)，渲染层只把通过协议白名单的 URL 交回宿主。
-  // 锚点链接(`#fragment`)由 controller 交给 editor-ui 解析并滚动定位。
+  // 锚点链接(`#fragment`)由 controller 交给 app-ui 解析并滚动定位。
   const handleOpenLink = (url: string): void => {
     void openWysiwygLink(url);
   };
@@ -166,7 +161,7 @@ export function DesktopCodeMirrorEditor({
   }, [settings.plugins, externalPlugins]);
 
   return (
-    <CodeMirrorEditor
+    <AppEditor
       document={runtime.document}
       plugins={activePlugins}
       className="min-h-0 flex-1"

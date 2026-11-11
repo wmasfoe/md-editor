@@ -7,7 +7,7 @@
  * 编辑器据此显示“修正 / 风格”标记，用户可以逐项接受或取消。
  */
 import type { AiWritingSuggestion } from "@md-editor/ai";
-import type { AiSuggestionItem } from "@md-editor/editor-ui";
+import type { AiSuggestionItem } from "@md-editor/editor";
 
 export interface GrammarSuggestionTarget {
   /** 被检查文本在文档中的起点 */

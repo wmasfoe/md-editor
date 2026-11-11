@@ -4,7 +4,7 @@
 
 ## 用途
 
-记录所见即所得（WYSIWYG）与源码（Source）模式相互切换时，编辑器视口发生剧烈跳动、光标脱离可见视口的根本原因，以及基于**视口相对光标几何补偿（Screen Offset Anchoring）**与**双模式往返无损记忆（Round-trip Memory）**的解决方案。涉及 `packages/renderer-codemirror/src/renderer.ts` 的模式切换派发、滚动位置维护或视口测量时，必须先读本规范。
+记录所见即所得（WYSIWYG）与源码（Source）模式相互切换时，编辑器视口发生剧烈跳动、光标脱离可见视口的根本原因，以及基于**视口相对光标几何补偿（Screen Offset Anchoring）**与**双模式往返无损记忆（Round-trip Memory）**的解决方案。涉及 `packages/editor/src/renderer.ts` 的模式切换派发、滚动位置维护或视口测量时，必须先读本规范。
 
 ---
 
@@ -51,7 +51,7 @@ this.#view.setScrollTop(scrollTop);
 
 ## 核心不变量与设计契约 (Core Invariants)
 
-为彻底解决该问题，在 [`packages/renderer-codemirror/src/renderer.ts`](file:///Users/ikun/code/md-editor/packages/renderer-codemirror/src/renderer.ts) 中确立以下四项核心设计契约：
+为彻底解决该问题，在 [`packages/editor/src/renderer.ts`](file:///Users/ikun/code/md-editor/packages/editor/src/renderer.ts) 中确立以下四项核心设计契约：
 
 ### 1. 视口相对光标几何锚定补偿契约 (Screen Offset Anchoring)
 
@@ -122,5 +122,5 @@ this.#view.requestMeasure?.({
    - **用例 3**：视口外光标测试（阅读场景），断言切换后视口不发生猛烈回弹跳跃；
    - **用例 4**：UI 按钮点击切换测试，断言通过状态栏/工具栏触发时逻辑行为完全一致。
 2. **全量回归保障**：
-   - 核心渲染器单元测试：`packages/renderer-codemirror` 全量 438 个单元测试持续 100% 通过；
+   - 核心渲染器单元测试：`packages/editor` 全量 438 个单元测试持续 100% 通过；
    - 历史模式切换用例：`codemirror-s1-single-view.spec.ts`、`codemirror-m1-s2-wysiwyg.spec.ts` 零破坏。

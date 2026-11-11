@@ -10,7 +10,7 @@
 
 ### 新增语言支持
 
-在 `packages/editor-ui/src/utils/code-highlight.ts` 中添加了以下语言的关键字高亮：
+在 `packages/app-ui/src/utils/code-highlight.ts` 中添加了以下语言的关键字高亮：
 
 - **Python**: def, class, async, await, import, from, if, for, while 等
 - **Rust**: fn, let, mut, impl, trait, struct, enum, match 等
@@ -33,7 +33,7 @@
 
 ### 测试覆盖
 
-在 `packages/editor-ui/src/tests/code-highlight.test.ts` 中添加了新语言的测试用例：
+在 `packages/app-ui/src/tests/code-highlight.test.ts` 中添加了新语言的测试用例：
 - Python 关键字识别
 - Rust fn/let 关键字
 - SQL 大小写不敏感关键字
@@ -64,7 +64,7 @@
 
 虽然快捷键已经内置，我们仍然创建了命令框架，为未来扩展做准备：
 
-在 `packages/editor-core/src/markdown-format-commands.ts` 中创建了新的 feature，包含以下命令：
+在 `packages/core/src/markdown-format-commands.ts` 中创建了新的 feature，包含以下命令：
 
 #### 文本格式化
 - `format.bold` - 加粗 (`Cmd+B`) - 由 Milkdown 处理
@@ -109,7 +109,7 @@ Milkdown 在 ProseMirror 层处理快捷键，这些快捷键不会冒泡到我�
 
 ### 数据层
 
-在 `packages/editor-core/src/recent-files.ts` 中实现了最近文件存储：
+在 `packages/core/src/recent-files.ts` 中实现了最近文件存储：
 
 #### RecentFilesStore API
 - `add(file)` - 添加文件到最近列表（自动移到顶部）
@@ -134,7 +134,7 @@ Milkdown 在 ProseMirror 层处理快捷键，这些快捷键不会冒泡到我�
 
 ### 测试覆盖
 
-在 `packages/editor-core/tests/recent-files.test.ts` 中添加了完整测试：
+在 `packages/core/tests/recent-files.test.ts` 中添加了完整测试：
 - 添加文件到列表
 - 重复文件移到顶部
 - 限制最大数量

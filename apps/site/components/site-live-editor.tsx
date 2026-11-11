@@ -7,14 +7,11 @@ import {
   switchEditorModeSafely,
   type DocumentState,
   type EditorMode,
-} from "@md-editor/editor-core";
-import {
-  CodeMirrorEditor,
-  EditorUiProvider,
-  type CodeMirrorEditorPorts,
-} from "@md-editor/editor-ui";
+} from "@md-editor/core";
+import { AppEditor, EditorUiProvider } from "@md-editor/app-ui";
+import { type CodeMirrorEditorPorts } from "@md-editor/editor";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
-import { findCodeBlockLanguage } from "@md-editor/renderer-codemirror";
+import { findCodeBlockLanguage } from "@md-editor/editor";
 import {
   containerDirectivePlugin,
   highlightPlugin,
@@ -42,7 +39,7 @@ export interface SiteLiveEditorProps {
   /** 大写 JSX 标签按 MDX 组件解析 */
   mdxMode?: boolean;
   /**
-   * 由滚动场景驱动的目标模式。变化时走 editor-core 的 mode switch，
+   * 由滚动场景驱动的目标模式。变化时走 core 的 mode switch，
    * 在同一份文档上切换所见即所得 / 源码，而不是另开一栏。
    */
   requestedMode?: EditorMode;
@@ -261,7 +258,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               </div>
             ) : null}
             <div className="min-h-0 flex-1 p-3.5 sm:p-4">
-              <CodeMirrorEditor
+              <AppEditor
                 document={documentState}
                 plugins={activePlugins}
                 fontSize={15}
@@ -350,7 +347,7 @@ export const SiteLiveEditor = React.memo(function SiteLiveEditor({
               </div>
 
               <div className="min-h-0 flex-1">
-                <CodeMirrorEditor
+                <AppEditor
                   document={documentState}
                   plugins={activePlugins}
                   fontSize={15}

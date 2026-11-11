@@ -37,13 +37,13 @@ DevTools 证据显示，中文 composition 后段落 DOM 可能出现：
 
 ### Separator image
 
-`packages/editor-ui/src/utils/image-selection.ts` 只处理真实图片节点：
+`packages/app-ui/src/utils/image-selection.ts` 只处理真实图片节点：
 
 - `prepareImageDom()` 遇到 `img.ProseMirror-separator` 时必须跳过，并清理旧逻辑可能写上的 `data-md-editor-image`、`draggable`、`contenteditable` 和选中 class。
 - `findImageElement()` 不能命中 `img.ProseMirror-separator`。
 - `hasProseMirrorSeparatorImageClass()` 是 separator class 判断的测试入口。
 
-`packages/editor-ui/src/components/MilkdownEditor.css` 中正文图片样式必须排除 separator：
+`packages/app-ui/src/components/MilkdownEditor.css` 中正文图片样式必须排除 separator：
 
 ```css
 .milkdown .ProseMirror img:not(.ProseMirror-separator) { ... }
@@ -71,7 +71,7 @@ DevTools 证据显示，中文 composition 后段落 DOM 可能出现：
 
 ### Composition settle
 
-`packages/editor-ui/src/utils/ime-composition-guard.ts` 在 composition settle 后必须保持三段式修复：
+`packages/app-ui/src/utils/ime-composition-guard.ts` 在 composition settle 后必须保持三段式修复：
 
 1. `forceCompositionDomFlush(view)`：主动 flush ProseMirror DOM observer。
 2. `refreshCompositionDom(view)`：派发 `docChanged=false`、`addToHistory=false` 的 no-op transaction，让 ProseMirror view 重算 stale DOM hack。
@@ -81,15 +81,15 @@ DevTools 证据显示，中文 composition 后段落 DOM 可能出现：
 
 ## 回归测试入口
 
-- `packages/editor-ui/src/tests/ime-composition-guard.test.ts`
+- `packages/app-ui/src/tests/ime-composition-guard.test.ts`
   - hardbreak cleanup
   - composition DOM flush
   - no-op refresh transaction 不改文档、不进历史
   - 取消拼音时的 selection restore 条件
-- `packages/editor-ui/src/tests/image-selection.test.ts`
+- `packages/app-ui/src/tests/image-selection.test.ts`
   - separator image class 识别
   - 图片节点选中和跨块文本选区完整性
-- `packages/editor-ui/src/tests/selection-policy.test.ts`
+- `packages/app-ui/src/tests/selection-policy.test.ts`
   - 正文图片样式排除 `ProseMirror-separator`
   - 禁止全局隐藏 `br.ProseMirror-trailingBreak`
   - 仅允许 `.milkdown-host--ime-composing` scope 下隐藏 trailing break

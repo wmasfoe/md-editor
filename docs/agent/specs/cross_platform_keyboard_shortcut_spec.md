@@ -4,7 +4,7 @@
 
 ## 用途
 
-记录桌面端与 Web 端的快捷键配置、呈现格式化、键盘事件比对算法以及输入法状态机契约。修改 `packages/editor-ui/src/keyboard.ts`、`apps/desktop/src/app/settings/app-settings.ts`、`apps/desktop/src-tauri/src/app_menu.rs` 或快捷键监听时，先读本规范。
+记录桌面端与 Web 端的快捷键配置、呈现格式化、键盘事件比对算法以及输入法状态机契约。修改 `packages/app-ui/src/keyboard.ts`、`apps/desktop/src/app/settings/app-settings.ts`、`apps/desktop/src-tauri/src/app_menu.rs` 或快捷键监听时，先读本规范。
 
 ---
 

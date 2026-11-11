@@ -13,7 +13,7 @@ const settingsDialogSource = readFileSync(
 );
 const generalPanelSource = readFileSync(
   new URL(
-    "../../../../packages/editor-ui/src/components/settings/GeneralSettingsPanel.tsx",
+    "../../../../packages/app-ui/src/components/settings/GeneralSettingsPanel.tsx",
     import.meta.url,
   ),
   "utf8",

@@ -12,7 +12,7 @@
 | 画像领域（轻量） | `@md-editor/ai/style`（`packages/ai/src/style/index.ts`） | 类型、维度目录、生命周期、身份校验、合并、渲染、闸门、纠错风格规则、编辑反馈特征。无 Markdown 解析依赖，主入口可安全引用。 |
 | 学习引擎 | `@md-editor/ai/style-engine`（`engine-entry.ts`） | 散文抽取（`marked`）、统计、分类请求与解析、聚合、学习轮次引擎。桌面端在首次学习时动态加载。 |
 | 写作服务 | `packages/ai/src/app/writing-service.ts` | 在续写、统一建议、纠错内调用闸门；纠错结果经误报过滤与风格建议处理。 |
-| 编辑器 | `packages/renderer-codemirror` | 建议项 `kind`（`fix` / `style`）与徽标；采纳建议时在事务上附 `aiSuggestionAcceptedAnnotation`。 |
+| 编辑器 | `packages/editor` | 建议项 `kind`（`fix` / `style`）与徽标；采纳建议时在事务上附 `aiSuggestionAcceptedAnnotation`。 |
 | 桌面组合根 | `apps/desktop/src/app/ai/style-learning/` | 学习时机（协调器）、宿主端口实现、采纳登记、编辑反馈缓冲、排除列表、云端授权、设置页与文件树菜单。 |
 
 ## 2. 数据

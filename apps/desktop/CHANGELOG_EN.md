@@ -270,7 +270,7 @@
   - Built as a pure native App Extension (InkpointQuickLook.appex) with a lightweight standalone renderer, opening in milliseconds with 2MB protection limits.
   - Visual styling strictly matches Inkpoint WYSIWYG formatting: light inline syntax markers, vector callout cards, and syntax highlighting.
 - Decoupled and unified core rendering infrastructure:
-  - Extracted @md-editor/renderer-codemirror/static subpath for Quick Look and future document static exports (PDF/images).
+  - Extracted @md-editor/editor/static subpath for Quick Look and future document static exports (PDF/images).
   - Extracted callout vector icons and language mappings into DOM-independent pure data modules for Headless, JSC, and Node.js environments.
 
 ## 0.7.0 - 2026-09-06 (#46)
@@ -424,7 +424,7 @@
 
 - Refactored dependency hierarchy and improved performance.
 - Introduced Zustand, breaking large controllers into composable stores and autonomous components.
-- Consolidated cross-platform editor state into editor-ui.
+- Consolidated cross-platform editor state into app-ui.
 
 ## 0.3.12 - 2026-07-07
 
@@ -541,7 +541,7 @@
 - Added Markdown formatting and heading shortcuts.
 - Added Recent Files feature with dynamic menu updates and persistence.
 - Refined editor interactions: blank-area focus, sidebar selection prevention, and localized Cmd+A selection within code blocks.
-- Improved documentation and refactored editor-ui directory structure.
+- Improved documentation and refactored app-ui directory structure.
 
 ## 0.1.12 - 2026-06-18
 

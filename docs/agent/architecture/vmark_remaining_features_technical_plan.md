@@ -26,12 +26,12 @@ flowchart TD
     LinkValidator["PathResolver / LinkValidator<br/>(相对路径与锚点安全探针)"]
   end
 
-  subgraph Core["packages/editor-core (文档模型与命令契约)"]
+  subgraph Core["packages/core (文档模型与命令契约)"]
     SessionSnapshot["SessionSnapshot<br/>(LF文本/选区/dirty/generation)"]
     ExternalEditPort["external-edit port<br/>(历史版本受控原子回滚)"]
   end
 
-  subgraph Renderer["packages/renderer-codemirror (视图状态与诊断投影)"]
+  subgraph Renderer["packages/editor (视图状态与诊断投影)"]
     LintExtension["CM6 Diagnostic / Lint Extension<br/>(块左边缘标记 + 源码下划线)"]
   end
 
@@ -57,9 +57,9 @@ flowchart TD
 
 | 能力模块 | 领域本体 | 核心承载包 | 接入与 UI 容器 | 严格禁止事项（反模式） |
 |---|---|---|---|---|
-| **4.5 Hot Exit** | 会话持久化与生命周期 | `packages/file-system`<br/>`packages/editor-core` | `apps/desktop` (`window-guards.ts`) | 严禁把未保存草稿直接覆盖用户磁盘原文件；严禁把会话状态保存在 React 组件 state 中。 |
-| **4.6 文档历史** | 版本存储与原子回滚 | `packages/file-system` (版本存取)<br/>`packages/editor-core` (受控事务) | `apps/desktop`<br/>`packages/editor-ui` | 严禁历史恢复绕过 CM6 transaction（必须天然支持 `Cmd+Z` 撤销反悔）；严禁在用户工作区随意散落隐藏文件夹。 |
-| **4.8 Lint / 链接检查** | 语法自检与文件可达性 | 外部复用 `markdownlint`<br/>`packages/file-system` (路径探测) | `packages/renderer-codemirror` (诊断投影) | 严禁自研 50+ 条脆弱正则规则（必须复用成熟开源）；严禁 Lint 模块直接调用 Node fs 穿透检查；严禁按键实时查磁盘。 |
+| **4.5 Hot Exit** | 会话持久化与生命周期 | `packages/file-system`<br/>`packages/core` | `apps/desktop` (`window-guards.ts`) | 严禁把未保存草稿直接覆盖用户磁盘原文件；严禁把会话状态保存在 React 组件 state 中。 |
+| **4.6 文档历史** | 版本存储与原子回滚 | `packages/file-system` (版本存取)<br/>`packages/core` (受控事务) | `apps/desktop`<br/>`packages/app-ui` | 严禁历史恢复绕过 CM6 transaction（必须天然支持 `Cmd+Z` 撤销反悔）；严禁在用户工作区随意散落隐藏文件夹。 |
+| **4.8 Lint / 链接检查** | 语法自检与文件可达性 | 外部复用 `markdownlint`<br/>`packages/file-system` (路径探测) | `packages/editor` (诊断投影) | 严禁自研 50+ 条脆弱正则规则（必须复用成熟开源）；严禁 Lint 模块直接调用 Node fs 穿透检查；严禁按键实时查磁盘。 |
 | **4.9 导出 HTML / PDF** | 静态排版与文档分发 | `packages/compiler` (静态文档)<br/>Tauri 2 原生 Webview Print | `apps/desktop` (导出面板) | 严禁自研 PDF 复杂排版引擎；严禁让用户纠结“单文件还是外链”设置（直接同时产出两份）。 |
 
 ---
@@ -75,7 +75,7 @@ sequenceDiagram
   actor User as 用户
   participant Win as Desktop 窗口 (window-guards)
   participant FS as file-system (SessionStore)
-  participant Core as editor-core (Runtime)
+  participant Core as core (Runtime)
   participant Disk as 磁盘原文件
 
   User->>Win: 退出应用 / 关闭窗口 (未保存状态)
@@ -128,7 +128,7 @@ app_data_dir/
   - 单个文档最多保留 100 个快照，超过上限时自动按 FIFO 淘汰最老快照（保留每天的第一个快照）。
 
 #### 3. 原子受控回滚（Zero-Risk Revert）
-- 恢复历史版本**严禁绕过编辑器事务**。必须通过 `editor-core` 的受控外部编辑通道（`applyExternalEdit`）执行整篇替换。
+- 恢复历史版本**严禁绕过编辑器事务**。必须通过 `core` 的受控外部编辑通道（`applyExternalEdit`）执行整篇替换。
 - **收益**：恢复历史版本在 CM6 中被视为一次普通编辑，用户立即按 `Cmd+Z` 即可反悔撤销恢复，彻底消除误操作风险。
 
 ---
@@ -153,7 +153,7 @@ app_data_dir/
    - 遇到系统无权限、路径受限或沙箱隔离错误时，标记为 `error`（跳过）而非 `missing`（未找到），遵循“宁可漏报，不可误报”的保信原则。
 
 #### 3. 视图层投影
-- 在 `packages/renderer-codemirror` 中接入 CodeMirror 6 原生 `@codemirror/lint`：
+- 在 `packages/editor` 中接入 CodeMirror 6 原生 `@codemirror/lint`：
   - **WYSIWYG 模式**：不在正文文字下方加杂乱波浪线（破坏沉浸感），统一在块左侧边缘或 Gutter 显示轻量提示点，鼠标悬停展开 Hover Tooltip；
   - **Source 模式**：CM6 标准波浪线下划线 + 行号槽诊断图标；
   - **快捷跳转**：注册 `F2`（下一处问题）与 `Shift+F2`（上一处问题）命令。
@@ -206,7 +206,7 @@ gantt
 | 步骤 | 任务目标 | 核心改动文件 / 模块 | 验收标准 |
 |---|---|---|---|
 | **Step 1.1** | `file-system` 会话与草稿存储 | `packages/file-system/src/session/` (新建 `session-store.ts`, `draft-store.ts`) | 纯单测覆盖会话保存、草稿落盘、TTL 清理与异常隔离。 |
-| **Step 1.2** | `editor-core` 会话快照与受控回滚契约 | `packages/editor-core/src/session/`, `packages/editor-core/src/commands/` | 快照精确包含 LF 文本、选区、generation、dirty 标记；历史恢复通过受控外部编辑通道天然可撤销。 |
+| **Step 1.2** | `core` 会话快照与受控回滚契约 | `packages/core/src/session/`, `packages/core/src/commands/` | 快照精确包含 LF 文本、选区、generation、dirty 标记；历史恢复通过受控外部编辑通道天然可撤销。 |
 | **Step 1.3** | 桌面端 Hot Exit 闭环 | `apps/desktop/src/app/events/window-guards.ts`, `useDesktopEditorController.ts` | 退出时静默落盘未保存草稿；重新打开应用无缝还原现场，窗口保留 dirty 星号。 |
 | **Step 1.4** | 文档历史快照与时间轴面板 | `packages/file-system/src/history/`, `apps/desktop/src/components/history/` | 每次保存与静默定时记录快照；抽屉式时间轴查看器支持查看版本 Diff 并一键回滚。 |
 
@@ -217,7 +217,7 @@ gantt
 | **Step 2.1** | HTML 独立文件与外链双模导出 | `packages/compiler/src/`, `apps/desktop/src/app/controller/export-controller.ts` | 一键同时产出 `standalone.html`（内联图片）与 `index.html`，样式保真。 |
 | **Step 2.2** | PDF 打印通道与 ExportDialog | `apps/desktop/src-tauri/`, `apps/desktop/src/components/export/` | 调起 Tauri 打印通道输出带分页防截断保护的 PDF；支持 A4/Letter 预设。 |
 | **Step 2.3** | Markdown Lint 规则挂载与链接检查 | `packages/file-system/src/link/`, `packages/lint/` (新建独立轻量包或收敛于 core) | 复用 markdownlint；链接检查相对路径百分号解码并安全探针；fail-open 容错。 |
-| **Step 2.4** | CM6 诊断投影与跳转 | `packages/renderer-codemirror/src/wysiwyg/view/lint-extension.ts` | WYSIWYG 块级边缘标记，Source 下划线高亮，`F2`/`Shift+F2` 顺畅跳转。 |
+| **Step 2.4** | CM6 诊断投影与跳转 | `packages/editor/src/wysiwyg/view/lint-extension.ts` | WYSIWYG 块级边缘标记，Source 下划线高亮，`F2`/`Shift+F2` 顺畅跳转。 |
 
 ---
 

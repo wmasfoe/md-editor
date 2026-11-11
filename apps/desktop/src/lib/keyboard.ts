@@ -6,4 +6,4 @@ export {
   isComposingKeyboardEvent,
   matchesRuntimeKeymap,
   type OperatingSystem,
-} from "@md-editor/editor-ui";
+} from "@md-editor/app-ui";

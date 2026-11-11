@@ -38,19 +38,19 @@
 已改文件（`git diff --stat`）：
 - `apps/desktop/src/app/settings/built-in-themes.ts`：三套 scheme（light/warm/dark）各新增 6 个变量 `--theme-heading-accent` / `--theme-strong-accent` / `--theme-em-accent` / `--theme-del-accent` / `--theme-code-accent` / `--theme-marker-dim`（亮暗各一套取值）。
 - `apps/desktop/src/styles.css`：+12 行（应为变量兜底/全局声明，需核对）。
-- `packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.css`：heading `color` 改 `var(--theme-heading-accent, color-mix(...))`；`li::marker` 改 `var(--theme-marker-dim, ...)`；删掉了 h6 的 `--theme-muted` 覆盖。**注意：`.md-marker-dim` / `.md-strong` / `.md-em` / `.md-del` / `.md-code` 的 CSS 规则可能还没加全，需核对补齐**。
-- `packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx`：移除 `commonmark`/`gfm` import，`.use(commonmark).use(gfm)` 替换为 `.use(inlineMarkerPreset).use(inlineSyntaxDecorationPlugin)`，config 阶段加 `configureInlineMarkerSerializer(ctx)`。
+- `packages/app-ui/src/components/MilkdownEditor/MilkdownEditor.css`：heading `color` 改 `var(--theme-heading-accent, color-mix(...))`；`li::marker` 改 `var(--theme-marker-dim, ...)`；删掉了 h6 的 `--theme-muted` 覆盖。**注意：`.md-marker-dim` / `.md-strong` / `.md-em` / `.md-del` / `.md-code` 的 CSS 规则可能还没加全，需核对补齐**。
+- `packages/app-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx`：移除 `commonmark`/`gfm` import，`.use(commonmark).use(gfm)` 替换为 `.use(inlineMarkerPreset).use(inlineSyntaxDecorationPlugin)`，config 阶段加 `configureInlineMarkerSerializer(ctx)`。
 
 新增文件（未纳入 git）：
-- `packages/editor-ui/src/components/MilkdownEditor/inlineMarkerPreset.ts`（~417 行）：含 `DISABLED_MICROMARK_CONSTRUCTS`、`REMOVED_MARK_NAMES`、`createRawInlineMarkerTextHandler`、`configureInlineMarkerSerializer`、`disableInlineMarkTokenizationPlugin`、`commonmarkKeepList`、`gfmKeepList`、`inlineMarkerPreset`、`collectMarkSchemaNames`/`collectNodeSchemaNames`。
-- `packages/editor-ui/src/components/MilkdownEditor/inlineSyntaxDecorationPlugin.ts`（~226 行）：含 `inlineSyntaxDecorationPluginKey`、`SYNTAX_RULES`（4 条正则）、`collectBlockDecorationSpans`（按 textblock 拼接扫描 + `￼` 占位符跳过 + 重叠 claim 去冲突）、decoration 下发逻辑。
+- `packages/app-ui/src/components/MilkdownEditor/inlineMarkerPreset.ts`（~417 行）：含 `DISABLED_MICROMARK_CONSTRUCTS`、`REMOVED_MARK_NAMES`、`createRawInlineMarkerTextHandler`、`configureInlineMarkerSerializer`、`disableInlineMarkTokenizationPlugin`、`commonmarkKeepList`、`gfmKeepList`、`inlineMarkerPreset`、`collectMarkSchemaNames`/`collectNodeSchemaNames`。
+- `packages/app-ui/src/components/MilkdownEditor/inlineSyntaxDecorationPlugin.ts`（~226 行）：含 `inlineSyntaxDecorationPluginKey`、`SYNTAX_RULES`（4 条正则）、`collectBlockDecorationSpans`（按 textblock 拼接扫描 + `￼` 占位符跳过 + 重叠 claim 去冲突）、decoration 下发逻辑。
 
 ## 4. 历史执行清单
 
 以下任务用于解释当前 Milkdown 代码来源和已有测试，不再作为未来迁移清单。CM6 迁移必须按新架构执行，不为完成本节任务继续增加 Milkdown 专用代码。
 
 ### T1 — 编译与既有测试基线
-- `pnpm typecheck`（全包）与 `pnpm --filter @md-editor/editor-ui test` 跑通。记录初始错误。
+- `pnpm typecheck`（全包）与 `pnpm --filter @md-editor/app-ui test` 跑通。记录初始错误。
 - 逐一修复类型错误（重点 `inlineMarkerPreset.ts` / `inlineSyntaxDecorationPlugin.ts` 的 Milkdown 类型：`MilkdownPlugin`、`$remark`、`Ctx`、`remarkStringifyOptionsCtx`、`Decoration`/`DecorationSet`/`PluginKey`）。
 
 ### T2 — 核对 keep-list 重组正确性（组件2 · Step 1）
@@ -62,7 +62,7 @@
 - 单测断言 `view.state.schema.marks` **不含** strong/emphasis/inlineCode/strike_through。
 - 键入 `**x**` 不触发自动加粗；Cmd-B/Cmd-I/Cmd-`/Cmd-Shift-X 按下**不报错**（keymap 已移除，光标处不产生 mark）。
 - 从外部富文本粘贴 → 落为纯文本无 mark（`transformPasted`/parseDOM 命不中）。
-- 注意：editor-ui 的 vitest 环境为 `node`（无 jsdom）。需要真实 Editor + DOM 的断言，评估用 jsdom/happy-dom 或迁到能起 ProseMirror view 的测试环境；若成本高，至少覆盖 schema 键集与 parser/serializer 层断言。
+- 注意：app-ui 的 vitest 环境为 `node`（无 jsdom）。需要真实 Editor + DOM 的断言，评估用 jsdom/happy-dom 或迁到能起 ProseMirror view 的测试环境；若成本高，至少覆盖 schema 键集与 parser/serializer 层断言。
 
 ### T4 — decoration 染色正确性（组件2 · Step 2）
 - 核对 `SYNTAX_RULES` 4 条正则与 commonmark 语义一致、防贪婪/嵌套误判；`*` 斜体正则须排除 `**` 加粗歧义（当前 `/\*(?![\s*])([^*\n]*[^\s*])\*/g` + 重叠 claim 机制，需测试验证）。
@@ -87,7 +87,7 @@
 - 参照图（Effie）的行高/段间距/列表缩进为主观项——若需精确对齐，向用户索取数值区间，否则标注 provisional。
 
 ### T8 — 收口
-- `pnpm typecheck` + `pnpm test`（全包）+ `pnpm --filter @md-editor/editor-ui test` 全绿。
+- `pnpm typecheck` + `pnpm test`（全包）+ `pnpm --filter @md-editor/app-ui test` 全绿。
 - 手动验证清单（见 `.omc/plans/wysiwyg-ui-route-d.md` 的 Verification Steps）逐项过。
 - 汇报改动文件、新增单测、验证输出。
 
@@ -95,7 +95,7 @@
 
 | 位置 | 用途 |
 |------|------|
-| `packages/editor-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx:448-461` | 插件链组装点（`.use(...)`），序列化经 `serializerCtx`(:282)、AI 插入经 `parserCtx`(:481) |
+| `packages/app-ui/src/components/MilkdownEditor/MilkdownEditorPrimitive.tsx:448-461` | 插件链组装点（`.use(...)`），序列化经 `serializerCtx`(:282)、AI 插入经 `parserCtx`(:481) |
 | `@milkdown/core@7.21.2/lib/index.js:139` | `remarkPluginsCtx.reduce` 组装点（`$remark` 注入处）|
 | `@milkdown/core/lib/index.js:75-78,107-108` | `remarkStringifyOptionsCtx` 默认值 + `init` 重建 processor（自定义 handler 注入点）|
 | `mdast-util-to-markdown@2.1.2/lib/handle/text.js` | 默认 text handler = `state.safe(...)`（一行）|
@@ -107,7 +107,7 @@
 | `@milkdown/preset-gfm@7.21.2/lib/index.js:1037` | `gfm` 扁平 bundle 定义（strikethrough 散布 schema/keymap/command/markInputRules）|
 | `apps/desktop/src/app/settings/built-in-themes.ts:41/82/127` | light/warm/dark 三套 scheme（新变量注入处）|
 | `apps/desktop/src/app/settings/theme-css.ts:134` | custom 主题判定（新变量必须带 fallback 兜底）|
-| `packages/editor-ui/src/components/MilkdownEditor/MilkdownEditor.css:238/246/248/285/329` | heading group / heading color / heading line-height / 段落间距 / `li::marker` |
+| `packages/app-ui/src/components/MilkdownEditor/MilkdownEditor.css:238/246/248/285/329` | heading group / heading color / heading line-height / 段落间距 / `li::marker` |
 
 ## 6. 验收标准（对齐规格 #1–#9）
 

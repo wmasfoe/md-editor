@@ -4,7 +4,7 @@
 
 ## 用途
 
-记录 CodeMirror 6 原生自绘选区（`drawSelection()`）的渲染机制、几何坐标计算原理、跨行选区左右溢出防御以及行高/光标对齐契约。修改编辑器基础扩展（`packages/renderer-codemirror/src/renderer.ts`）、编辑器核心容器排版样式（`packages/editor-ui/src/components/CodeMirrorEditor/CodeMirrorEditor.css`）或行首折叠/工具栏逻辑前，必须先读本规范。
+记录 CodeMirror 6 原生自绘选区（`drawSelection()`）的渲染机制、几何坐标计算原理、跨行选区左右溢出防御以及行高/光标对齐契约。修改编辑器基础扩展（`packages/editor/src/renderer.ts`）、编辑器核心容器排版样式（`packages/editor-react/src/components/CodeMirrorEditor/CodeMirrorEditor.css`）或行首折叠/工具栏逻辑前，必须先读本规范。
 
 ---
 

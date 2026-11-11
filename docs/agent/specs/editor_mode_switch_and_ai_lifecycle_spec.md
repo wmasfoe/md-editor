@@ -4,7 +4,7 @@
 
 ## 用途
 
-记录编辑器在 WYSIWYG 与 Source 模式切换时的状态机流转规则、并发防重入保护，以及与外部异步服务（AI 续写流、Ghost Suggestion）的生命周期解耦契约。修改 `packages/editor-core/src/document-state.ts`、`apps/desktop/src/app/controller/useDocumentActionsController.ts` 或 `packages/renderer-codemirror/src/wysiwyg/view/suggestion.ts` 前先读本规范。
+记录编辑器在 WYSIWYG 与 Source 模式切换时的状态机流转规则、并发防重入保护，以及与外部异步服务（AI 续写流、Ghost Suggestion）的生命周期解耦契约。修改 `packages/core/src/document-state.ts`、`apps/desktop/src/app/controller/useDocumentActionsController.ts` 或 `packages/editor/src/wysiwyg/view/suggestion.ts` 前先读本规范。
 
 ---
 
@@ -13,7 +13,7 @@
 ### 1. `switchEditorModeSafely` 模式幂等性契约
 
 - 当调用方请求的目标渲染模式（`targetMode`）与编辑器当前模式相同时，渲染器将返回 `noop`（表示无状态变更）。
-- 核心状态层（`packages/editor-core/src/document-state.ts`）必须将 `noop` 视为合法的幂等成功，直接返回成功状态，**严禁**上抛异常（历史缺陷：连续快速点击导致 UI 抛出 `Renderer mode change failed: noop` 导致崩溃）。
+- 核心状态层（`packages/core/src/document-state.ts`）必须将 `noop` 视为合法的幂等成功，直接返回成功状态，**严禁**上抛异常（历史缺陷：连续快速点击导致 UI 抛出 `Renderer mode change failed: noop` 导致崩溃）。
 
 ```typescript
 // 模式切换幂等状态判定
@@ -37,7 +37,7 @@ if (rendererResult.kind === "noop") {
 
 ### 3. 幽灵建议 (Ghost Suggestion) 物理清理契约
 
-- 渲染器（`packages/renderer-codemirror/src/wysiwyg/view/suggestion.ts`）在模式发生切换时，必须主动清除视图内活动的所有 AI 建议装饰（Decoration）：
+- 渲染器（`packages/editor/src/wysiwyg/view/suggestion.ts`）在模式发生切换时，必须主动清除视图内活动的所有 AI 建议装饰（Decoration）：
   ```typescript
   // 模式切换时清空建议浮层与内联 ghost text
   view.dispatch({

@@ -22,7 +22,7 @@ import {
   settingsModuleClassName,
   settingsSectionTitleClassName,
   settingsSmallButtonClassName,
-} from "@md-editor/editor-ui/settings";
+} from "@md-editor/app-ui/settings";
 import { type BuiltInThemeId, type WebSettings } from "../lib/web-settings";
 import {
   AI_URL_PRESETS,

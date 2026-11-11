@@ -7,7 +7,7 @@
 - **Milkdown 中文输入法 composition 行高稳定性规范**： [wysiwyg_chinese_ime_composition_layout_spec.md](./wysiwyg_chinese_ime_composition_layout_spec.md)
   - 归档原因：基于 Milkdown / ProseMirror 独有的 `img.ProseMirror-separator` 与 `br.ProseMirror-trailingBreak` DOM 机制。当前已全量迁移至 CodeMirror 6，相关 DOM 结构与修复类名（如 `MilkdownEditor.css`）已全部废弃。
 - **Milkdown AI 编辑建议 replacement preview 规范**： [ai_edit_replacement_preview_spec.md](./ai_edit_replacement_preview_spec.md)
-  - 归档原因：基于 ProseMirror doc 事务和早期 Milkdown 浮层镜像模型。当前 AI suggestion 与编辑器能力正在重构并收敛至 `@md-editor/editor-core` 与 CodeMirror 6 投影层。
+  - 归档原因：基于 ProseMirror doc 事务和早期 Milkdown 浮层镜像模型。当前 AI suggestion 与编辑器能力正在重构并收敛至 `@md-editor/core` 与 CodeMirror 6 投影层。
 
 ## 注意事项
 

@@ -11,10 +11,10 @@ import {
   mathPlugin,
   mermaidPlugin,
 } from "@md-editor/syntax-plugins";
-import { validateKeymapKey } from "@md-editor/editor-core";
+import { validateKeymapKey } from "@md-editor/core";
 import { createPluginHost } from "@md-editor/plugin-host";
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor-ui";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import { promotePendingPlugins } from "./promote-pending";
 import { verifyStoredPlugin } from "./verify-plugin";
 import { runtime } from "../runtime/editor-runtime";

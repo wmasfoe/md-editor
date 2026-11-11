@@ -4,7 +4,7 @@
  * @description
  * 桌面端文档落盘保存流程适配器。
  *
- * 紧密衔接 `@md-editor/editor-core` 的状态机检查点机制与 `@md-editor/file-system` 的 FIFO 排队调度器：
+ * 紧密衔接 `@md-editor/core` 的状态机检查点机制与 `@md-editor/file-system` 的 FIFO 排队调度器：
  * 1. 同步生成不可逆检查点（`beginSave`）；
  * 2. 立即将任务推入调度器排队（`enqueueSaveJob`），锁定序号与队列顺位；
  * 3. 异步等待保存裁决结果并回调结算状态机（`settleSave`）；
@@ -17,7 +17,7 @@ import type {
   DocumentState,
   SaveOutcome,
   SettleSaveResult,
-} from "@md-editor/editor-core";
+} from "@md-editor/core";
 import type { RuntimeFileService } from "@md-editor/file-system";
 import { t } from "@md-editor/i18n";
 

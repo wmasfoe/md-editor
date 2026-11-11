@@ -4,7 +4,7 @@ import {
   resolveAssetsDirectoryForDocument,
 } from "@md-editor/file-system";
 import { checkPathExists, createLocalAssetsImageStorageProvider } from "../desktop/file-adapter";
-import type { ConfirmationChoice, ConfirmationState } from "@md-editor/editor-ui";
+import type { ConfirmationChoice, ConfirmationState } from "@md-editor/app-ui";
 import { runtime } from "../app/runtime/editor-runtime";
 import type { PastedImageInput } from "../types";
 
