@@ -84,5 +84,3 @@ pnpm typecheck
 ## Package boundaries
 
 `app-ui → editor → core` is the package dependency direction. The React adapter is provided by the optional `@md-editor/editor/react` sub-entrypoint inside `editor`. Each layer also declares direct dependencies for the contracts it imports. Editor ports and AI suggestion types are imported directly from `@md-editor/editor`, and React editor props from `@md-editor/editor/react`; this package does not forward those APIs.
-
-These packages currently remain private workspace packages. Future npm distribution should preserve dependencies between them.

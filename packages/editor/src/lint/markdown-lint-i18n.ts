@@ -1,3 +1,4 @@
+import { StateEffect, StateField, type EditorState } from "@codemirror/state";
 /**
  * @file markdown-lint-i18n.ts
  * @description MarkdownLint 规则、建议与上下文详情的多语言国际化管理（支持 zh, zh-Hant, ja, en）。
@@ -21,18 +22,27 @@ export {
 
 export type LintLocale = "zh" | "zh-Hant" | "ja" | "en";
 
-/**
- * 获取当前宿主环境的语言代码
- */
-export function getActiveLintLocale(): LintLocale {
-  if (typeof document === "undefined") return "zh";
-  const lang = document.documentElement?.lang;
+/** Each editor owns its language; an omitted language follows the host document. */
+export const setLintLanguageEffect = StateEffect.define<string | undefined>();
+export const lintLanguageField = StateField.define<string | undefined>({
+  create: () => undefined,
+  update(value, transaction) {
+    for (const effect of transaction.effects) {
+      if (effect.is(setLintLanguageEffect)) value = effect.value;
+    }
+    return value;
+  },
+});
+
+export function getActiveLintLocale(state?: EditorState): LintLocale {
+  const lang =
+    state?.field(lintLanguageField, false) ??
+    (typeof document === "undefined" ? undefined : document.documentElement?.lang);
   if (!lang) return "zh";
   if (lang === "en" || lang.startsWith("en-")) return "en";
   if (lang === "ja" || lang.startsWith("ja-")) return "ja";
-  if (lang === "zh-TW" || lang === "zh-HK" || lang === "zh-Hant" || lang.includes("Hant")) {
+  if (lang === "zh-TW" || lang === "zh-HK" || lang === "zh-Hant" || lang.includes("Hant"))
     return "zh-Hant";
-  }
   if (lang.startsWith("zh")) return "zh";
   return "en";
 }

@@ -25,7 +25,7 @@ import "./CodeMirrorEditor.css";
 
 export interface CodeMirrorEditorProps {
   readonly document: DocumentState;
-  /** Host language revision; changing it refreshes localized lint diagnostics. */
+  /** Per-editor language for lint diagnostics. */
   readonly language?: string;
   readonly codeBlockLineNumbers?: boolean;
   /** 是否常显加粗/斜体/删除线/行内代码的 markdown 标记源码（默认 false = 仅触及时临时显形）。 */
@@ -116,6 +116,7 @@ export function CodeMirrorEditor({
     aiSuggestionLabels,
     onAiSuggestionAccepted,
     enableMarkdownLint,
+    language,
     onSyncError,
   });
   callbacksRef.current = {
@@ -132,6 +133,7 @@ export function CodeMirrorEditor({
     aiSuggestionLabels,
     onAiSuggestionAccepted,
     enableMarkdownLint,
+    language,
     onSyncError,
   };
   const hasClipboardWriter = writeClipboardText !== undefined;
@@ -183,6 +185,7 @@ export function CodeMirrorEditor({
       plugins: callbacksRef.current.plugins ?? callbacksRef.current.syntaxPlugins,
       aiSuggestionLabels: callbacksRef.current.aiSuggestionLabels,
       enableMarkdownLint: callbacksRef.current.enableMarkdownLint,
+      language: callbacksRef.current.language,
     });
     bridgeRef.current = bridge;
     callbacksRef.current.onRendererPortsChange?.(bridge.ports);
@@ -207,10 +210,8 @@ export function CodeMirrorEditor({
   }, [enableMarkdownLint]);
 
   useLayoutEffect(() => {
-    if (enableMarkdownLint) {
-      bridgeRef.current?.ports.recomputeMarkdownLint();
-    }
-  }, [language, enableMarkdownLint]);
+    bridgeRef.current?.ports.setLanguage(language);
+  }, [language, document, hasClipboardWriter]);
 
   useLayoutEffect(() => {
     if (aiSuggestionLabels) {

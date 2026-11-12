@@ -33,7 +33,7 @@
     "./mdx": "./src/mdx.ts"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node ../../scripts/packages/build.mjs",
     "prepack": "pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
@@ -89,6 +89,7 @@
         "types": "./dist/mdx.d.ts",
         "default": "./dist/mdx.js"
       }
-    }
+    },
+    "access": "public"
   }
 }

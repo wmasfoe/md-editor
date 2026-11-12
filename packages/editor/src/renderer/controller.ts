@@ -1,3 +1,4 @@
+import { lintLanguageField } from "../lint/markdown-lint-i18n.ts";
 /**
  * @file controller.ts
  * @description CodeMirror 渲染器控制器：持有协议状态、编排视图与投影扩展，并驱动端口语义。
@@ -47,7 +48,6 @@ import {
   setInlineStyleMarkersEffect,
 } from "../wysiwyg/projections/inline-heading.ts";
 import { focusModeInitialFacet } from "../wysiwyg/view/focus-mode.ts";
-import { setAiSuggestionEffect } from "../wysiwyg/view/suggestion.ts";
 import {
   aiSuggestionLabelsFacet,
   type AiSuggestionInput,
@@ -87,6 +87,8 @@ import {
   scrollViewToLine,
   setFormattingViewKeymaps,
   setViewSelection,
+  setViewLanguage,
+  showViewAiSuggestion,
   toggleViewFocusMode,
   toggleViewTypewriterMode,
   undoViewEdit,
@@ -207,6 +209,7 @@ export class CodeMirrorRendererController {
     const initialPlugins = options.plugins ?? options.syntaxPlugins ?? [];
     this.#syntaxRegistry = new SyntaxPluginRegistry(initialPlugins);
     this.#rootExtensions = createRootExtensions({
+      language: () => (this.#view ? this.#view.state.field(lintLanguageField) : options.language),
       aiSuggestionLabels: this.#aiSuggestionLabels,
       aiSuggestionLabelsCompartment: this.#aiSuggestionLabelsCompartment,
       finishComposition: () => this.#finishComposition(),
@@ -325,13 +328,14 @@ export class CodeMirrorRendererController {
     return { status: "applied" };
   }
 
+  setLanguage(language: string | undefined): MarkdownLintPortResult {
+    if (this.#destroyed) return { status: "destroyed" };
+    return setViewLanguage(this.#view, language, this.#markdownLintEnabled);
+  }
+
   recomputeMarkdownLint(): MarkdownLintPortResult {
-    if (this.#destroyed) {
-      return { status: "destroyed" };
-    }
-    if (!this.#markdownLintEnabled) {
-      return { status: "noop" };
-    }
+    if (this.#destroyed) return { status: "destroyed" };
+    if (!this.#markdownLintEnabled) return { status: "noop" };
     recomputeViewMarkdownLint(this.#view);
     return { status: "applied" };
   }
@@ -360,13 +364,7 @@ export class CodeMirrorRendererController {
   }
 
   showSuggestion(suggestion: AiSuggestionInput): void {
-    if (this.#destroyed) {
-      return;
-    }
-    this.#view.dispatch({
-      effects: setAiSuggestionEffect.of(suggestion),
-    });
-    this.#view.focus();
+    if (!this.#destroyed) showViewAiSuggestion(this.#view, suggestion);
   }
 
   setAiSuggestionLabels(labels: AiSuggestionLabels): void {

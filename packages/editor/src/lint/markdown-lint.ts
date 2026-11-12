@@ -125,7 +125,7 @@ export function runMarkdownLint(
       const ruleAlias = issue.ruleNames[1];
       const severity = issue.severity === "error" ? "error" : "warning";
 
-      const activeLocale = getActiveLintLocale();
+      const activeLocale = getActiveLintLocale(state);
       const ruleInfo = getMarkdownLintRuleInfo(ruleCode, activeLocale);
       const displayAlias = ruleInfo?.alias ?? ruleAlias ?? ruleCode;
       const displayDesc = ruleInfo?.description ?? issue.ruleDescription;

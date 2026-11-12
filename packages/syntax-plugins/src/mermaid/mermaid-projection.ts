@@ -324,7 +324,7 @@ export function buildMermaidLayoutDecorations(
     decorations.push(
       Decoration.replace({
         widget: new MermaidBlockWidget(record.id, meta.code, record.fullRange.from),
-        inclusive: false,
+        // The host renderer normalizes full-block replacement boundaries.
         block: true,
         wysiwygRecordId: record.id,
         wysiwygRole: "mermaid-block-widget",

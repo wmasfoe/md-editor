@@ -4,13 +4,13 @@
 
 ## 用途
 
-记录文末虚拟空行（Virtual Trailing Line）的行为契约：文档以整行块级替换的块（表格 / HTML 块 / 分割线 / MDX / Frontmatter / setext 标题）结尾时，块下方需要一个**只存在于展示层、不写入文档**的占位行，让用户能在块下继续书写。
+记录文末虚拟空行（Virtual Trailing Line）的行为契约：文档以整行块级替换的块（表格 / HTML 块 / 分割线 / MDX / Frontmatter / setext 标题 / 插件面板，以及引用 / 列表容器）结尾时，块下方需要一个**只存在于展示层、不写入文档**的占位行，让用户能在块下继续书写。
 
 触发阅读的改动范围（任一命中即必须先读本规范）：
 
 - `packages/editor/src/wysiwyg/editing/virtual-trailing-line.ts`（虚拟空行的**唯一实现来源**）；
 - `packages/editor/src/wysiwyg/state/projection-field.ts` 中的 `virtualTrailingLineOwnsDocumentEnd`；
-- 任何新增「整行块级 widget」且可能出现在文末的改动（需判断是否加入 `TERMINAL_BLOCK_KINDS`）；
+- 任何新增「整行块级 widget」且可能出现在文末的改动（需检查核心 kind 或插件 `directive-panel` 契约）；
 - 任何在文档末尾派发选区、插入换行或改写 `virtualTrailingLineActiveField` 的改动。
 
 配套规范：
@@ -50,7 +50,7 @@
 ### A. 虚拟空行本体
 
 1. **零磁盘污染**：虚拟空行只是展示层 widget。点亮、取消、来回切换都不得改变 `state.doc`。保存、导出、快照一律以用户原始内容为准。
-2. **精准挂载（Deterministic Gating）**：只在「`TERMINAL_BLOCK_KINDS` 中的块，其 `trailingLineBreakEnd` 等于 `doc.length`」时挂载。
+2. **精准挂载（Deterministic Gating）**：只在核心文末块（含引用 / 列表）或 `directive-panel` 插件块的 `trailingLineBreakEnd` 等于 `doc.length` 时挂载。
    - 普通段落末行**不挂载**：它有原生行尾光标，点击文末空白只是续写当前段，不是新起一行。
    - 文末已有真实空行时不挂载（`\n\n` 结尾）。
    - 源码模式、空文档不挂载。
@@ -66,7 +66,7 @@
 
    > 为什么必须这样：物化处理器只在激活态接管键入。激活态没亮时光标停在 `doc.length` 打字，浏览器把字写进合成行，解析器把它当作块的延续，表格会多出一行。实测会让光标停在文末却不点亮的路径就有 Cmd/Ctrl+End、撤销物化、按 Escape 三条。
    >
-   > 唯一的例外：文末块会因光标进入而展开源码（`interactionPolicy === "reveal-source"`，即 HTML 块），且没有尾随换行。此时 `doc.length` 是源码闭区间的右端点，光标在这里是在编辑源码，不点亮虚拟行，否则源码会被收起。点击虚拟行本身仍会显式点亮（`isClickOnVirtualTrailingLine`），表达的是「我要在块下面写东西」。
+   > 可编辑内容的例外：HTML 源码、插件面板、引用 / 列表容器没有尾随换行时，此时 `doc.length` 是源码闭区间的右端点，光标在这里是在编辑源码，不点亮虚拟行，否则源码会被收起。点击虚拟行本身仍会显式点亮（`isClickOnVirtualTrailingLine`），表达的是「我要在块下面写东西」。
 
 ### B. 虚拟空行上的按键
 
@@ -109,7 +109,7 @@
 1. **光标停在 `fullRange.to` 的静默错误**：这个位置在无尾随换行的文档里与 `doc.length` 相等，所以只测无尾随换行的文档永远测不出来。**任何涉及文末光标的测试都必须带尾随换行，并前置断言 `record.fullRange.to < doc.length`**，否则测试对这条契约没有区分力。通用方法见 [编辑器交互测试的区分力规范](./editor_interaction_test_discriminating_power_spec.md)。
 2. **折叠 HTML 注释时无条件点亮虚拟行**：初版 `collapseHtmlSource` 在 `atDocumentEnd` 时一律把激活态置为 `true`。对 HTML 块成立，对注释块不成立（A.4）。症状是文末按 Enter 没有反应。回归见 `VTL-09` 与 `html-block-widget.test.ts` 的 "leaving a comment at EOF"。
 3. **jsdom 里 Backspace / Delete 的键位绑定观察不到差别**：文末的删除同时会被 `wysiwygChangeProtection` 拦下，去掉虚拟行对这两个键的绑定，文档与事务数都不变。绑定的真实作用是避免触发「需要切换源码模式」的提示，jsdom 测不到。对应单测只守「文档不变」不变量，且在用例旁注明了覆盖范围；`Enter` 的绑定有区分力（需装 `defaultKeymap`），单独成例。
-4. **只翻转虚拟行标志、光标没动的事务**：`ArrowDown` 场景 2 只派发 `setVirtualTrailingLineActiveEffect`，不带选区。投影字段在无选区、无文档变更的事务上走「`!transaction.selection` 则沿用旧投影」的快速路径，不重算 `activeSyntaxIds`。实测此时 HTML 块仍保持展开源码，虚拟行同时亮起。这是**已知的待确认行为**，本规范不改动现状。（`Escape` 原本也属于这一类，已随 A.7 移除。）
+4. **只翻转虚拟行标志、光标没动的事务**：`ArrowDown` 场景 2 只派发 `setVirtualTrailingLineActiveEffect`，不带选区。投影字段在无选区、无文档变更的事务上走「`!transaction.selection` 则沿用旧投影」的快速路径，不重算 `activeSyntaxIds`。实测此时 HTML 块仍保持展开源码，虚拟行同时亮起。现已修复：虚拟行激活 effect 参与投影刷新，源码随进入落脚行折叠。（`Escape` 原本也属于这一类，已随 A.7 移除。）
 5. **`defaultPrevented` 不能用来判断「没接管粘贴」**：CM6 自带的 `paste` 处理器对空剪贴板也会 `preventDefault`。判断虚拟行是否接管，要看文档与激活态，不能看事件。
 6. **表格 / HTML 下方出现两个空行**：虚拟行初版是普通 `block widget`，CM6 另补了一个空 `.cm-line`，表格结尾的文档下方是「空行 + 虚拟行」。起因是凭代码注释推断「块下方没有 `.cm-line`」而没有在页面上量。
 7. **修两个空行时又把光标落点弄坏了**：第一版修复改用零长度两端 inclusive 的 `replace` 吃掉合成行，块下方只剩一行，CI 全绿，但 Cmd/Ctrl+End 后键入的字写到块的**前面**。原因是合成行是文末唯一的文本 tile，吃掉它之后 CM6 写 DOM 选区时找不到落点。这次是只看了「`.cm-content` 有几个子节点」，没看 tile 树，也没测 Cmd/Ctrl+End。由 PR 评审「留意键盘导航」的建议触发排查。回归见 e2e `VTL-12`。
@@ -123,9 +123,12 @@
 
 挂载判定、零污染、前缀规则、ArrowDown 光标落点（table / html / thematic-break 参数化，带尾随换行并前置断言偏移不等）、块下方只有一个落脚行（6 种整行替换文末块 + MDX / Frontmatter 4 条 + 2 种文档自带空行）、激活态按键（Enter / Backspace / Delete / ArrowLeft 参数化）、Escape 不熄灭、未激活时放行、物化事务与一次撤销、粘贴（纯文本 / 富文本转换 / Shift / 空剪贴板 / 未激活）、组字（开始 / 取消回收 / 已上屏保留 / 文档已变放弃回收）、点击留白。
 
+新增 `virtual-terminal-blocks.test.ts` 覆盖插件、引用 / 列表内嵌套块、投影 effect-only 刷新、容器外独立段落及撤销。
+
 ### 浏览器 e2e（`apps/desktop/e2e/`）
 
 - `codemirror-virtual-trailing-line.spec.ts`：`VTL-01` ~ `VTL-14`。核心行为：`VTL-07`（离开文末表格后键入成为独立段落）、`VTL-08`（Enter / Backspace / Delete 文件字节不变）、`VTL-09`（文末注释不困住光标）、`VTL-10`（富文本粘贴落为 Markdown）、`VTL-11`（块下方只有一个落脚行：表格 0 / 1 / 2 个尾随换行、分割线）、`VTL-12`（5 种文末块 × Cmd/Ctrl+End / Cmd/Ctrl+ArrowDown / 程序化选区 / 撤销物化，键入落在块下方）、`VTL-13`（Escape 后键入不进表格）、`VTL-14`（光标画在虚拟行内）。
+- `codemirror-terminal-blocks.spec.ts`：真实 Mermaid 插件及引用 / 列表的落脚行点击、首次输入、撤销和源码 ArrowDown 折叠。
 - `wysiwyg-block-blank-line-fidelity.spec.ts`：文末表格 ArrowDown 离开后光标落在 `doc.length` 且虚拟行激活；表格后还有正文时仍折叠到 `record.fullRange.to`（旧契约在非文末场景下依然成立）。
 
 ### 变异验证
@@ -135,7 +138,7 @@
 ### 改动前后必跑
 
 - `pnpm --filter @md-editor/editor test`
-- `pnpm --filter @md-editor/desktop exec playwright test e2e/codemirror-virtual-trailing-line.spec.ts e2e/wysiwyg-block-blank-line-fidelity.spec.ts e2e/codemirror-m4-html-mdx.spec.ts`
+- `pnpm --filter @md-editor/desktop exec playwright test e2e/codemirror-terminal-blocks.spec.ts e2e/codemirror-mermaid-viewer.spec.ts e2e/codemirror-virtual-trailing-line.spec.ts e2e/wysiwyg-block-blank-line-fidelity.spec.ts e2e/codemirror-m4-html-mdx.spec.ts`
 - 桌面专属行为（真实 Tauri 窗口里的 IME 组字、原生菜单）E2E 覆盖不到，只能手测；不得把「Chromium e2e 全绿」说成「桌面端已验证」。
 
 ---
@@ -144,5 +147,3 @@
 
 - 非文末的块后输入（块后已有真实内容时，沿用既有「折叠到 `record.fullRange.to`」契约，不引入虚拟行）；
 - 段落结尾且没有尾随换行时是否渲染虚拟行：当前不渲染（普通段落有原生行尾光标）。**产品期望与此不同**——期望「末尾没有空行就渲染虚拟行」，待另开任务确认；
-- 引用块 / 列表内的块结尾（`TERMINAL_BLOCK_KINDS` 只匹配顶层记录）；
-- Mermaid 块：其装饰仍是手写 `inclusive: false`（见 Inclusivity 规范「已登记豁免」），不在 `TERMINAL_BLOCK_KINDS` 中，文末的 Mermaid 暂无虚拟行。

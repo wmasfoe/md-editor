@@ -84,12 +84,6 @@ export type { StaticCustomRenderer } from "./emitter/custom-renderer.ts";
 export { renderMathToString, type MathRenderOptions } from "./emitter/math-render.ts";
 export { highlightCode, escapeHtml, type HighlightResult } from "./emitter/highlight-code.ts";
 
-// 导出元数据工具
-export {
-  CALLOUT_SVG_ICONS,
-  getCalloutSvg,
-  defaultCalloutTitle,
-} from "@md-editor/plugin-sdk/callout";
 export {
   SUPPORTED_LANGUAGE_METAS,
   resolveLanguageAlias,

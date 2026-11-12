@@ -5,27 +5,10 @@
  * 以及基于 localStorage 的持久化状态读写逻辑，供 Web、Desktop、uTools 等各端统一复用。
  */
 
+import { dirname, isSameOrChildPath, isSamePath, normalizePath } from "./path.ts";
 import type { MarkdownFileTreeNode } from "./index.ts";
 
 const COLLAPSED_PATHS_STORAGE_PREFIX = "md-editor:file-tree:collapsed:";
-
-/**
- * 规范化提取路径的父目录路径
- */
-export function getDirectoryPath(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  return index <= 0 ? "." : normalized.slice(0, index);
-}
-
-/**
- * 判断目标路径是否与父路径相同，或者是其子孙路径
- */
-export function isSameOrChildPath(path: string, parentPath: string): boolean {
-  const normalizedPath = path.replace(/\\/g, "/");
-  const normalizedParent = parentPath.replace(/\\/g, "/").replace(/\/$/u, "");
-  return normalizedPath === normalizedParent || normalizedPath.startsWith(`${normalizedParent}/`);
-}
 
 /**
  * 广度优先层级遍历查找文件树中的第一个 Markdown 文件路径
@@ -72,18 +55,18 @@ export function collectAncestorDirectoryPaths(
   rootPath: string,
   filePath: string | null,
 ): ReadonlySet<string> {
-  const paths = new Set<string>([rootPath]);
+  const paths = new Set<string>([normalizePath(rootPath)]);
   if (!filePath) {
     return paths;
   }
 
-  let current = getDirectoryPath(filePath);
+  let current = dirname(filePath);
   while (isSameOrChildPath(current, rootPath)) {
     paths.add(current);
-    if (current === rootPath) {
+    if (isSamePath(current, rootPath)) {
       break;
     }
-    const parent = getDirectoryPath(current);
+    const parent = dirname(current);
     if (parent === current) {
       break;
     }
@@ -107,7 +90,10 @@ export function createDefaultCollapsedDirectoryPaths(
   const collapsedPaths = new Set<string>();
 
   visitDirectoryNodes(root, (node) => {
-    if (node.path !== root.path && !expandedDirectoryPaths.has(node.path)) {
+    if (
+      !isSamePath(node.path, root.path) &&
+      ![...expandedDirectoryPaths].some((path) => isSamePath(path, node.path))
+    ) {
       collapsedPaths.add(node.path);
     }
   });

@@ -3,7 +3,7 @@ import { linter, lintKeymap, setDiagnostics, type Diagnostic } from "@codemirror
 import { EditorView, keymap } from "@codemirror/view";
 import { runMarkdownLint } from "./markdown-lint.ts";
 import { runLinkValidation } from "./link-lint.ts";
-import { getClosePanelTooltipLabel } from "./markdown-lint-i18n.ts";
+import { getActiveLintLocale, getClosePanelTooltipLabel } from "./markdown-lint-i18n.ts";
 import {
   clearMarkdownLintCommand,
   countActiveMarkdownLintDiagnostics,
@@ -261,11 +261,14 @@ export function createLintBaseExtensions(): Extension {
     ]),
     lintLiquidTheme,
     EditorView.domEventHandlers({
-      mouseenter(event) {
+      mouseenter(event, view) {
         const target = event.target as HTMLElement | null;
         const closeBtn = target?.closest?.(".cm-panel-lint [name='close']");
         if (closeBtn && !closeBtn.getAttribute("title")) {
-          closeBtn.setAttribute("title", getClosePanelTooltipLabel());
+          closeBtn.setAttribute(
+            "title",
+            getClosePanelTooltipLabel(getActiveLintLocale(view.state)),
+          );
         }
       },
       click(event, view) {

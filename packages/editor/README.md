@@ -97,11 +97,6 @@ The optional peer applies to the whole package, so an installed React version ma
 still be checked by the package manager. Using `/react` without React fails during
 module resolution or bundling.
 
-This remains a private workspace package. Future npm builds must emit separate
-JavaScript and declaration entrypoints for the browser API and React adapter,
-keep React and its JSX runtime external, and preserve dependencies on `core` and
-other internal packages. Both entrypoints share the editor package version.
-
 ## Styles and theming
 
 This package owns its own styles. It renders the editor DOM, so it also ships the

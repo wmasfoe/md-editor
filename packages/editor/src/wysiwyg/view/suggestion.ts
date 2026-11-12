@@ -5,6 +5,7 @@ import {
   keymap,
   ViewPlugin,
   type ViewUpdate,
+  type PluginValue,
   type DecorationSet,
 } from "@codemirror/view";
 import { isolateHistory } from "@codemirror/commands";
@@ -498,7 +499,7 @@ export const aiSuggestionTheme = EditorView.baseTheme({
   },
 });
 
-export const aiViewportCuePlugin = ViewPlugin.fromClass(
+export const aiViewportCuePlugin: ViewPlugin<PluginValue> = ViewPlugin.fromClass(
   class {
     private readonly dom: HTMLElement;
     private readonly textSpan: HTMLElement;

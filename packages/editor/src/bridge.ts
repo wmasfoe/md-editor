@@ -48,6 +48,7 @@ export interface CodeMirrorEditorPorts {
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
   recomputeMarkdownLint(): MarkdownLintPortResult;
+  setLanguage(language: string | undefined): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -145,6 +146,8 @@ export interface MdxComponentsLookup {
 
 export interface CodeMirrorEditorBridgeOptions {
   readonly parent: HTMLElement;
+  /** Per-editor lint language; omitted values follow the host document. */
+  readonly language?: string;
   readonly document: DocumentState;
   readonly resolveImageSrc?: (source: string) => string;
   readonly writeClipboardText?: CodeMirrorEditorClipboardWriter;
@@ -249,6 +252,7 @@ export function createCodeMirrorEditorBridge(
 
   const rendererOptions: CodeMirrorRendererOptions = {
     parent: options.parent,
+    language: options.language,
     initialSnapshot: options.document.getSnapshot(),
     resolveImagePreview: ({ source }) => options.resolveImageSrc?.(source) ?? source,
     writeClipboardText: options.writeClipboardText ?? defaultWriteClipboardText,
@@ -307,6 +311,7 @@ export function createCodeMirrorEditorBridge(
     setInlineStyleMarkers: (enabled: boolean) => renderer.setInlineStyleMarkers(enabled),
     setMarkdownLint: (enabled: boolean) => renderer.setMarkdownLint(enabled),
     recomputeMarkdownLint: () => renderer.recomputeMarkdownLint(),
+    setLanguage: (language: string | undefined) => renderer.setLanguage(language),
     setHostVisibility: (hidden: boolean) => renderer.setHostVisibility(hidden),
     showSuggestion: (suggestion: AiSuggestionInput) => renderer.showSuggestion(suggestion),
     setAiSuggestionLabels: (labels: AiSuggestionLabels) => renderer.setAiSuggestionLabels(labels),

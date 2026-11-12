@@ -26,8 +26,12 @@ import {
   acceptAiSuggestion,
   aiSuggestionField,
   dismissAiSuggestion,
+  setAiSuggestionEffect,
 } from "../../wysiwyg/view/suggestion.ts";
-import { type AiSuggestionValue } from "../../wysiwyg/view/suggestion-model.ts";
+import {
+  type AiSuggestionValue,
+  type AiSuggestionInput,
+} from "../../wysiwyg/view/suggestion-model.ts";
 import {
   setTypewriterModeEffect,
   typewriterModeField,
@@ -44,7 +48,8 @@ import {
   duplicateBlock as duplicateCmBlock,
   deleteBlock as deleteCmBlock,
 } from "../../wysiwyg/blocks/block-move.ts";
-import type { RendererViewAdapter } from "../types.ts";
+import { lintLanguageField, setLintLanguageEffect } from "../../lint/markdown-lint-i18n.ts";
+import type { MarkdownLintPortResult, RendererViewAdapter } from "../types.ts";
 
 /**
  * 读取**视图轴**（专注/打字机）当前开关态。
@@ -330,4 +335,31 @@ export function createMarkdownLintClearEffects(
     (setDiagnostics(state, collectPreservedNonMarkdownDiagnostics(state))
       .effects as readonly StateEffect<unknown>[]) ?? []
   );
+}
+
+/** Language is view configuration: preserve document/history and refresh only active lint. */
+export function setViewLanguage(
+  view: RendererViewAdapter,
+  language: string | undefined,
+  lintEnabled: boolean,
+): MarkdownLintPortResult {
+  if (view.state.field(lintLanguageField) === language) return { status: "noop" };
+  view.dispatch({
+    effects: setLintLanguageEffect.of(language),
+    annotations: [
+      Transaction.addToHistory.of(false),
+      rendererTransactionOrigin.of({ kind: "markdown-lint" }),
+    ],
+  });
+  if (lintEnabled) recomputeViewMarkdownLint(view);
+  return { status: "applied" };
+}
+
+/** Present a suggestion through the same view pipeline as accept/dismiss. */
+export function showViewAiSuggestion(
+  view: RendererViewAdapter,
+  suggestion: AiSuggestionInput,
+): void {
+  view.dispatch({ effects: setAiSuggestionEffect.of(suggestion) });
+  view.focus();
 }

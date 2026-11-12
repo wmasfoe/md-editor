@@ -2,14 +2,15 @@
   "name": "@md-editor/markdown-fidelity",
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
-  "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "node ../../scripts/packages/build.mjs",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@md-editor/shared": "workspace:*"
@@ -17,5 +18,18 @@
   "devDependencies": {
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
   }
 }

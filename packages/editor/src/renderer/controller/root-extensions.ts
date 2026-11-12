@@ -1,3 +1,4 @@
+import { lintLanguageField } from "../../lint/markdown-lint-i18n.ts";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
@@ -46,6 +47,7 @@ import type { CodeMirrorRendererOptions } from "../types.ts";
 
 /** Constructor-only extension assembly; no controller state is retained here. */
 export interface RootExtensionContext {
+  readonly language: () => string | undefined;
   readonly aiSuggestionLabels: AiSuggestionLabels | undefined;
   readonly aiSuggestionLabelsCompartment: Compartment;
   readonly finishComposition: () => void;
@@ -65,6 +67,7 @@ export function createRootExtensions(context: RootExtensionContext): readonly Ex
 
   return Object.freeze([
     history(),
+    lintLanguageField.init(context.language),
     createLintBaseExtensions(),
     EditorState.allowMultipleSelections.of(true),
     EditorView.lineWrapping,

@@ -117,8 +117,6 @@ export {
   CalloutHeaderWidget,
   CalloutFooterWidget,
   DirectiveHeaderWidget,
-  defaultCalloutTitle,
-  getCalloutSvg,
 } from "./wysiwyg/widgets/callout-widget.ts";
 export { markdownRangeIndexField, syntaxPluginRegistryFacet } from "./markdown/range-index.ts";
 
@@ -127,16 +125,6 @@ export {
   findCodeBlockLanguage,
   type CodeBlockLanguageLoadObserver,
 } from "./markdown/code-languages.ts";
-export {
-  CJK_FRIENDLY_MARKDOWN_EXTENSIONS,
-  cjkFriendlyEmphasisMarkdownExtension,
-  cjkFriendlyStrikethroughMarkdownExtension,
-  resolveCjkFriendlyDelimiterSides,
-  readDelimiterNeighbors,
-  type DelimiterMarker,
-  type DelimiterNeighbors,
-  type DelimiterSides,
-} from "@md-editor/plugin-sdk/syntax";
 export {
   EDITOR_USER_NOTICE_EVENT,
   dispatchEditorUserNotice,

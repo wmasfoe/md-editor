@@ -1,3 +1,5 @@
+import { basename, dirname, joinPath } from "./path.ts";
+export * from "./path.ts";
 import { err, normalizeLineEndings, ok, type Result } from "@md-editor/shared";
 import {
   createFileSaveScheduler,
@@ -274,12 +276,6 @@ export interface ResolvedAssetsDirectory {
   readonly markdownDirectory: string;
 }
 
-export function basename(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  return index >= 0 ? normalized.slice(index + 1) : normalized;
-}
-
 export function documentStem(documentPath: string): string {
   const name = basename(documentPath);
   const dotIndex = name.lastIndexOf(".");
@@ -357,20 +353,6 @@ export function resolveAssetsDirectoryForDocument(
 
 export function defaultAssetsDirectoryForDocument(documentPath: string): string {
   return resolveAssetsDirectoryForDocument(documentPath, "assets").assetsDirectory;
-}
-
-export function dirname(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  if (index <= 0) {
-    return ".";
-  }
-  const prefix = normalized.slice(0, index);
-  return /^[a-zA-Z]:$/.test(prefix) ? `${prefix}/` : prefix;
-}
-
-export function joinPath(...segments: readonly string[]): string {
-  return segments.filter(Boolean).join("/").replace(/\/+/g, "/");
 }
 
 function timestampSlug(date: Date): string {

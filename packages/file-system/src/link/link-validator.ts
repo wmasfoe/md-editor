@@ -8,7 +8,7 @@
  * 4. 容错降级（Fail-open）：I/O 权限异常判 access-error 而非 missing。
  */
 
-import { dirname, joinPath } from "../index.ts";
+import { dirname, joinPath, normalizePath } from "../path.ts";
 
 export interface LinkDiagnostic {
   readonly from: number;
@@ -36,37 +36,6 @@ interface ExtractedLink {
   readonly from: number;
   readonly to: number;
   readonly rawUrl: string;
-}
-
-/**
- * 规范化路径段，消除 `.` 与 `..`
- */
-export function normalizePath(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
-  const isAbsolute = normalized.startsWith("/");
-  const isWindowsAbsolute = /^[a-zA-Z]:\//i.test(normalized);
-  const segments = normalized.split("/");
-  const result: string[] = [];
-
-  for (const seg of segments) {
-    if (!seg || seg === ".") continue;
-    if (seg === "..") {
-      if (result.length > 0 && result[result.length - 1] !== "..") {
-        result.pop();
-      } else if (!isAbsolute && !isWindowsAbsolute) {
-        result.push("..");
-      }
-    } else {
-      result.push(seg);
-    }
-  }
-
-  if (isWindowsAbsolute) {
-    const drive = normalized.slice(0, 2);
-    const rest = result.slice(1).join("/");
-    return rest ? `${drive}/${rest}` : `${drive}/`;
-  }
-  return (isAbsolute ? "/" : "") + result.join("/");
 }
 
 /**

@@ -7,6 +7,8 @@ import {
   collectAncestorDirectoryPaths,
   createDefaultCollapsedDirectoryPaths,
   isSameOrChildPath,
+  dirname,
+  relativePathFromRoot,
   type MarkdownFileTreeNode,
   type MarkdownFolder,
 } from "@md-editor/file-system";
@@ -33,27 +35,6 @@ export interface UtoolsFileTreeProps {
   onCloseFolder: () => void;
   onOpenFolder: () => void;
   onToast?: (msg: string) => void;
-}
-
-function normalizePath(p: string): string {
-  return p.replace(/\\/g, "/");
-}
-
-function getDirname(p: string): string {
-  const norm = normalizePath(p);
-  const lastIndex = norm.lastIndexOf("/");
-  if (lastIndex === -1) return norm;
-  return norm.slice(0, lastIndex) || "/";
-}
-
-function getRelativePath(rootPath: string, targetPath: string): string {
-  const normRoot = normalizePath(rootPath);
-  const normTarget = normalizePath(targetPath);
-  if (normTarget === normRoot) return ".";
-  if (normTarget.startsWith(normRoot + "/")) {
-    return normTarget.slice(normRoot.length + 1);
-  }
-  return normTarget;
 }
 
 async function copyToClipboard(text: string): Promise<void> {
@@ -574,7 +555,7 @@ export function UtoolsFileTree({
               const targetParent = contextMenu.node
                 ? contextMenu.node.kind === "directory"
                   ? contextMenu.node.path
-                  : getDirname(contextMenu.node.path)
+                  : dirname(contextMenu.node.path)
                 : folder.rootPath;
               handleStartCreate(targetParent, "markdown");
               setContextMenu(null);
@@ -587,7 +568,7 @@ export function UtoolsFileTree({
               const targetParent = contextMenu.node
                 ? contextMenu.node.kind === "directory"
                   ? contextMenu.node.path
-                  : getDirname(contextMenu.node.path)
+                  : dirname(contextMenu.node.path)
                 : folder.rootPath;
               handleStartCreate(targetParent, "directory");
               setContextMenu(null);
@@ -602,7 +583,7 @@ export function UtoolsFileTree({
               <ContextMenuItem
                 onClick={async () => {
                   const node = contextMenu.node!;
-                  const rel = getRelativePath(folder.rootPath, node.path);
+                  const rel = relativePathFromRoot(folder.rootPath, node.path) || ".";
                   try {
                     await copyToClipboard(rel);
                   } catch (err) {

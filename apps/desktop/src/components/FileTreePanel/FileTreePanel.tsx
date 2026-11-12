@@ -5,6 +5,9 @@ import { OPEN_FOLDER_SHORTCUT } from "@md-editor/core";
 import { formatKeymapParts } from "@md-editor/app-ui";
 import {
   createDefaultCollapsedDirectoryPaths,
+  readCollapsedPaths,
+  writeCollapsedPaths,
+  isSameOrChildPath,
   type MarkdownFileTreeNode,
   type RuntimeFileService,
 } from "@md-editor/file-system";
@@ -29,13 +32,7 @@ import { SearchResultRow } from "./SearchResultRow";
 import { FileTreeContextMenu } from "./FileTreeContextMenu";
 import { useFileTreeStyleLearning } from "../../app/ai/style-learning/use-file-tree-style-learning";
 import type { EditingState } from "./types";
-import {
-  normalizeSearchQuery,
-  collectSearchResults,
-  readCollapsedPaths,
-  writeCollapsedPaths,
-  isPathInsideRoot,
-} from "./utils";
+import { normalizeSearchQuery, collectSearchResults } from "./utils";
 import "./FileTreePanel.css";
 
 export interface FileTreePanelProps {
@@ -109,7 +106,7 @@ export function FileTreePanel({ fileService, searchQuery = "" }: FileTreePanelPr
       storedCollapsedPaths ??
         createDefaultCollapsedDirectoryPaths(
           folder.tree,
-          activeFilePath && isPathInsideRoot(activeFilePath, folder.rootPath)
+          activeFilePath && isSameOrChildPath(activeFilePath, folder.rootPath)
             ? activeFilePath
             : findFirstMarkdownPath(folder.tree),
         ),
