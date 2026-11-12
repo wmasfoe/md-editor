@@ -1,9 +1,15 @@
+/**
+ * 模型 changelog 的 raw 地址。
+ * 仓库现为 inkpoint-editor/md-editor-models（默认分支 master）。
+ * 旧的 wmasfoe/md-editor-models 地址会自动 301 到这里。
+ */
 export const MODEL_CHANGELOG_URL =
-  "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/changelog.json";
+  "https://raw.githubusercontent.com/inkpoint-editor/md-editor-models/master/changelog.json";
 
-export const MODEL_REPO_URL = "https://github.com/wmasfoe/md-editor-models";
+/** 模型仓库主页，与 {@link MODEL_CHANGELOG_URL} 同属 inkpoint-editor/md-editor-models。 */
+export const MODEL_REPO_URL = "https://github.com/inkpoint-editor/md-editor-models";
 
-/** 根据 PR 编号构建 md-editor-models 仓库的 Pull Request 页面直链 */
+/** 根据 PR 编号构建 inkpoint-editor/md-editor-models 仓库的 Pull Request 页面直链 */
 export function buildModelPrUrl(prNumber: number): string {
   return `${MODEL_REPO_URL}/pull/${prNumber}`;
 }

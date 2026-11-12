@@ -67,6 +67,9 @@ impl LocalAiModelManifest {
 }
 
 /// 内置轻量级 Lite 模型（Qwen3 0.6B + 专用任务 LoRA）。
+///
+/// 下载地址与 [`REMOTE_MANIFEST_CANDIDATE_URLS`] 同属
+/// `inkpoint-editor/md-editor-models`。旧的 `wmasfoe/md-editor-models` 会自动 301。
 pub(crate) fn default_lite_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: LITE_MODEL_ID.to_string(),
@@ -74,7 +77,7 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
         description: canonical_description_for_tier(LITE_MODEL_ID),
         version: "v1.4.0".to_string(),
         filename: "lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
+        download_url: "https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf".to_string(),
         // Pin the released artifact metadata, not the illustrative RFC values.
         size_bytes: 639_446_688,
         sha256: "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031".to_string(),
@@ -87,7 +90,7 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
                 "gec".to_string(),
                 LocalAiFileSpec {
                     filename: "lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
-                    download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
+                    download_url: "https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf".to_string(),
                     size_bytes: 5_073_568,
                     sha256: "084533a775dfa6eba375bfa5448c4c0eddd87c85e2520d3cf11734b07cc51b31".to_string(),
                 },
@@ -104,7 +107,7 @@ pub(crate) fn default_standard_model() -> LocalAiModelManifest {
         description: canonical_description_for_tier(STANDARD_MODEL_ID),
         version: "v1.4.0".to_string(),
         filename: "standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
-        download_url: "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
+        download_url: "https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
         size_bytes: 1_680_000_000,
         sha256: "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a".to_string(),
         context_size: 8192,
@@ -221,16 +224,21 @@ pub(crate) fn save_cached_remote_manifest(manifest: &RemoteManifest) -> Result<(
     Ok(())
 }
 
+/// 远端模型清单候选地址，按优先级排列。
+///
+/// 模型仓库现为 `inkpoint-editor/md-editor-models`（默认分支 `master`）。
+/// 它已从 `wmasfoe/md-editor-models` 迁入 inkpoint-editor 组织，旧的 API、
+/// Release 与 raw 地址会自动 301 到这里。`main` 只作为历史分支名兜底。
+pub(crate) const REMOTE_MANIFEST_CANDIDATE_URLS: &[&str] = &[
+    "https://github.com/inkpoint-editor/md-editor-models/releases/latest/download/manifest.json",
+    "https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/manifest.json",
+    "https://raw.githubusercontent.com/inkpoint-editor/md-editor-models/master/manifest.json",
+    "https://raw.githubusercontent.com/inkpoint-editor/md-editor-models/main/manifest.json",
+];
+
 /// 尝试从远端 GitHub Release 及备用源拉取最新的模型配置清单。
 pub(crate) fn fetch_remote_manifest() -> Result<RemoteManifest, String> {
-    let urls = [
-        "https://github.com/wmasfoe/md-editor-models/releases/latest/download/manifest.json",
-        "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/manifest.json",
-        "https://raw.githubusercontent.com/wmasfoe/md-editor-models/master/manifest.json",
-        "https://raw.githubusercontent.com/wmasfoe/md-editor-models/main/manifest.json",
-    ];
-
-    for url in urls {
+    for url in REMOTE_MANIFEST_CANDIDATE_URLS {
         let output = silent_command("curl")
             .arg("-sL")
             .arg("--connect-timeout")

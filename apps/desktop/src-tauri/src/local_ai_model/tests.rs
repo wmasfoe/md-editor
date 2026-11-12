@@ -228,6 +228,48 @@ fn can_reuse_local_component_checks_sha256_and_size() {
 }
 
 #[test]
+fn builtin_and_remote_model_urls_use_inkpoint_editor_repository() {
+    const RELEASE_PREFIX: &str = "https://github.com/inkpoint-editor/md-editor-models/";
+
+    for manifest in [default_lite_model(), default_standard_model()] {
+        assert!(
+            manifest.download_url.starts_with(RELEASE_PREFIX),
+            "{}",
+            manifest.download_url
+        );
+        assert!(
+            !manifest.download_url.contains("wmasfoe/"),
+            "{}",
+            manifest.download_url
+        );
+        for (_, adapter) in &manifest.adapters {
+            assert!(
+                adapter.download_url.starts_with(RELEASE_PREFIX),
+                "{}",
+                adapter.download_url
+            );
+            assert!(
+                !adapter.download_url.contains("wmasfoe/"),
+                "{}",
+                adapter.download_url
+            );
+        }
+    }
+
+    assert!(!REMOTE_MANIFEST_CANDIDATE_URLS.is_empty());
+    for url in REMOTE_MANIFEST_CANDIDATE_URLS {
+        assert!(
+            url.contains("inkpoint-editor/md-editor-models"),
+            "{url} must use the canonical model repository"
+        );
+        assert!(
+            !url.contains("wmasfoe/"),
+            "{url} must not keep the previous owner"
+        );
+    }
+}
+
+#[test]
 fn default_manifests_have_valid_integrity_specs() {
     for manifest in [default_lite_model(), default_standard_model()] {
         assert_eq!(manifest.version, "v1.4.0");

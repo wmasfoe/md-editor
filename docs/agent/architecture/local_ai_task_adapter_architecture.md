@@ -4,7 +4,7 @@
 >
 > 适用范围：当前阶段的本地 AI 修复、续写、文档总结与风格分析。端云协作只作为未来扩展方向保留，不作为本阶段实现前提。
 >
-> 关联仓库：`md-editor` 客户端与 `md-editor-models` 微调/发布仓库
+> 关联仓库：`md-editor` 客户端（仍在 [wmasfoe/md-editor](https://github.com/wmasfoe/md-editor)）与 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models) 微调/发布仓库（默认分支 `master`）。模型仓库与插件模板仓库 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 现已属于 inkpoint-editor 组织，旧的 `wmasfoe/md-editor-models` 与 `wmasfoe/inkpoint-plugin-starter` 地址会自动跳转。
 
 ## 1. 已确认的产品约束
 
@@ -358,7 +358,7 @@ llama-server 不负责根据文本猜测任务，也不负责判断结果是否�
 
 ## 11. 实施顺序
 
-1. 先在 `md-editor-models` 训练并发布 Qwen3-0.6B Lite 的基座/Adapter 产物，建立真实 manifest。
+1. 先在 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models) 训练并发布 Qwen3-0.6B Lite 的基座/Adapter 产物，建立真实 manifest。旧的 `wmasfoe/md-editor-models` 地址会自动跳转。
 2. 在 `md-editor` 新建 `feature/` 分支，先引入逻辑任务枚举和 Model/Capability 层，不改变用户 UI。
 3. 扩展本地模型下载状态，使一个逻辑 Lite 包含 Base 与多个 Adapter。
 4. Runtime 先保持单进程、单活动任务、`--parallel 1`，打通 Adapter 执行。

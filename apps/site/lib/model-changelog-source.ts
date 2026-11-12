@@ -4,7 +4,8 @@ import { MODEL_CHANGELOG_URL } from "./model-changelog";
 export const MODEL_CHANGELOG_REVALIDATE_SECONDS = 5 * 60;
 
 /**
- * 远端 changelog 由模型仓库（md-editor-models）单一事实源维护。
+ * 远端 changelog 由模型仓库 inkpoint-editor/md-editor-models 单一事实源维护。
+ * 该仓库已从 wmasfoe/md-editor-models 迁入 inkpoint-editor 组织，旧地址会自动跳转。
  * 每次请求按 ISR 缓存策略从 GitHub raw 动态拉取最新 JSON；
  * 模型仓库只要合入 PR 或修改 changelog.json，站点无需重新发版，缓存到期后自动同步最新内容。
  */

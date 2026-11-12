@@ -122,6 +122,9 @@ Bundled sidecar + downloaded models
 ## 6. 二次开发专属模型工程方案（路线 B）
 
 为构建专属于 `md-editor` 的本地写作模型壁垒：
+
+> 模型仓库现位于 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`），插件模板仓库现位于 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter)。二者已从 `wmasfoe/md-editor-models` 与 `wmasfoe/inkpoint-plugin-starter` 迁入 inkpoint-editor 组织，旧地址会自动跳转。
+
 1. **独立仓库**：建立 `md-editor-models` 仓库，隔离 Python/PyTorch/CUDA/Unsloth 庞大环境与几十 GB 的训练权重；
 2. **专用数据集**：构建 50k~80k 条中英文 Markdown 语料（续写、错别字纠错、Pangu 标点空格规范、MDX 边界保护、负样本）；
 3. **微调与发布**：基于 `Qwen2.5-Coder-1.5B` 进行 SFT 训练，使用 `llama.cpp` 量化为 `Q4_K_M` GGUF，托管在 Hugging Face / CDN，客户端通过 Manifest 版本更新机制无感推送到用户端。

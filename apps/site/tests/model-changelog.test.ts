@@ -6,6 +6,7 @@ import {
   asPrNumbers,
   buildModelPrUrl,
   MODEL_CHANGELOG_URL,
+  MODEL_REPO_URL,
 } from "../lib/model-changelog";
 import {
   getModelChangelog,
@@ -66,7 +67,13 @@ describe("permissive model changelog rendering helpers", () => {
     expect(asPrNumbers([-1, 0, "abc"])).toEqual([]);
   });
 
-  it("builds the correct model pull request url", () => {
-    expect(buildModelPrUrl(1)).toBe("https://github.com/wmasfoe/md-editor-models/pull/1");
+  it("builds model changelog and pull request urls on the inkpoint-editor repository", () => {
+    expect(MODEL_REPO_URL).toBe("https://github.com/inkpoint-editor/md-editor-models");
+    expect(MODEL_CHANGELOG_URL).toBe(
+      "https://raw.githubusercontent.com/inkpoint-editor/md-editor-models/master/changelog.json",
+    );
+    expect(buildModelPrUrl(1)).toBe("https://github.com/inkpoint-editor/md-editor-models/pull/1");
+    expect(MODEL_REPO_URL).not.toContain("wmasfoe/md-editor-models");
+    expect(MODEL_CHANGELOG_URL).not.toContain("wmasfoe/md-editor-models");
   });
 });

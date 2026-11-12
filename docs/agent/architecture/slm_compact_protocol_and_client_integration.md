@@ -2,6 +2,8 @@
 
 用途：记录 `md-editor` 桌面端与自研端侧小模型（`md-editor-models` RFC-002）之间的紧凑协议、Task Control Tokens、紧凑元组 JSON Diff 语法、Unicode 坐标转换算法、Prefix KV Cache 画像拼装规则、CodeMirror 6 三重防御替换流水线、本地与云端模型统一适配架构及本地习惯自学习落地方案。后续维护端侧 SLM、优化编辑器实时审校与 Ghost Text 续写时以此为权威标准。
 
+模型仓库现为 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`），插件模板仓库现为 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter)。二者已从 `wmasfoe/md-editor-models` 与 `wmasfoe/inkpoint-plugin-starter` 迁入 inkpoint-editor 组织，旧地址会自动跳转。
+
 ---
 
 ## 1. 背景与核心指标
