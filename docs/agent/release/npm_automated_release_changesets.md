@@ -83,7 +83,7 @@ Changesets 采用 **「变更意图声明（Intent-based）」** 机制，**不�
 
 ## 5. 相关脚本与文件清单
 
-* 配置：[`.changeset/config.json`](file:///Users/ikun/code/md-editor/.changeset/config.json)
-* CI 流水线：[`.github/workflows/release-npm-packages.yml`](file:///Users/ikun/code/md-editor/.github/workflows/release-npm-packages.yml)
-* 预发布验证与发布包装脚本：[`scripts/packages/publish.mjs`](file:///Users/ikun/code/md-editor/scripts/packages/publish.mjs)
-* PR 变更集守卫检查：[`scripts/packages/check-changeset.mjs`](file:///Users/ikun/code/md-editor/scripts/packages/check-changeset.mjs)
+* 配置：[`.changeset/config.json`](../../../.changeset/config.json)
+* CI 流水线：[`.github/workflows/release-npm-packages.yml`](../../../.github/workflows/release-npm-packages.yml)
+* 预发布验证与发布包装脚本：[`scripts/packages/publish.mjs`](../../../scripts/packages/publish.mjs)
+* PR 变更集守卫检查：[`scripts/packages/check-changeset.mjs`](../../../scripts/packages/check-changeset.mjs)

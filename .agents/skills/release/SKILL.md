@@ -98,7 +98,7 @@ pnpm build:ios       # dist-mobile/Inkpoint-<version>-unsigned.ipa (needs macOS 
 2. **Changeset generation**: When modifying public packages (`core`, `editor`, `plugin-sdk`, `shared`, `markdown-fidelity`, `plugin-host`), run `pnpm changeset` in your PR branch, choose the SemVer type, write an English description, and commit `.changeset/*.md`.
 3. **Automated Versioning**: When changesets merge into `main`, `.github/workflows/release-npm-packages.yml` automatically updates the "chore(release): version npm packages" PR with bumped versions and changelogs.
 4. **Automated Publishing**: Merging the "Version Packages" PR triggers `.github/workflows/release-npm-packages.yml`, executing `pnpm release:packages` (which runs `pnpm verify:packages` and publishes to npm with Git tags).
-5. **Reference**: See [`docs/agent/release/npm_automated_release_changesets.md`](file:///Users/ikun/code/md-editor/docs/agent/release/npm_automated_release_changesets.md).
+5. **Reference**: See [`docs/agent/release/npm_automated_release_changesets.md`](../../../docs/agent/release/npm_automated_release_changesets.md).
 
 ---
 

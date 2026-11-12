@@ -132,7 +132,7 @@ gh pr merge <pr_number_or_url> --squash --auto --delete-branch
 ## 6. Multi-Platform Release Protocol
 
 For multi-platform releases, version bumps, changelog maintenance, and production deployment, refer to the dedicated **Release Skill**:
-- [`.agents/skills/release/SKILL.md`](file:///Users/ikun/code/md-editor/.agents/skills/release/SKILL.md)
+- [`.agents/skills/release/SKILL.md`](../release/SKILL.md)
 
 ### Release Command Quick Reference
 
@@ -169,7 +169,7 @@ For public npm packages (`packages/core`, `packages/editor`, `packages/plugin-sd
    - Merging changesets into `main` automatically creates/updates the **"chore(release): version npm packages"** PR via `.github/workflows/release-npm-packages.yml`.
    - Merging that release PR triggers `pnpm release:packages`, which executes `pnpm verify:packages` and publishes updated packages to npm with Git tags.
 6. **Detailed Documentation**:
-   See [`docs/agent/release/npm_automated_release_changesets.md`](file:///Users/ikun/code/md-editor/docs/agent/release/npm_automated_release_changesets.md).
+   See [`docs/agent/release/npm_automated_release_changesets.md`](../../../docs/agent/release/npm_automated_release_changesets.md).
 
 
 

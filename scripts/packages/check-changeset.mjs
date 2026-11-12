@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const PUBLISHED_PACKAGE_DIRS = new Set([
@@ -14,28 +13,29 @@ export const PUBLISHED_PACKAGE_DIRS = new Set([
 
 /**
  * Given a list of changed file paths, determine which published packages were touched
- * and whether any new/modified changeset files accompany them.
+ * and whether any new/modified changeset files accompany them in the same changeset diff.
  */
-export function evaluateChangesetRequirement({ changedFiles, changesetFiles }) {
+export function evaluateChangesetRequirement({ changedFiles }) {
   const touchedPackages = new Set();
+  const touchedChangesets = [];
 
   for (const file of changedFiles) {
     const normalized = file.replace(/\\/g, "/");
-    const match = normalized.match(/^packages\/([^/]+)\//);
-    if (match && PUBLISHED_PACKAGE_DIRS.has(match[1])) {
-      touchedPackages.add(`@md-editor/${match[1]}`);
+    const pkgMatch = normalized.match(/^packages\/([^/]+)\//);
+    if (pkgMatch && PUBLISHED_PACKAGE_DIRS.has(pkgMatch[1])) {
+      touchedPackages.add(`@md-editor/${pkgMatch[1]}`);
+    }
+    const csMatch = normalized.match(/^\.changeset\/([^/]+\.md)$/i);
+    if (csMatch && csMatch[1].toLowerCase() !== "readme.md") {
+      touchedChangesets.push(csMatch[1]);
     }
   }
-
-  const activeChangesets = changesetFiles.filter(
-    (name) => name.endsWith(".md") && name.toLowerCase() !== "readme.md",
-  );
 
   return {
     needsChangeset: touchedPackages.size > 0,
     touchedPackages: Array.from(touchedPackages).toSorted(),
-    hasChangeset: activeChangesets.length > 0,
-    activeChangesets,
+    hasChangeset: touchedChangesets.length > 0,
+    activeChangesets: touchedChangesets.toSorted(),
   };
 }
 
@@ -46,14 +46,20 @@ function getChangedFilesFromGit(root, baseRef = "origin/main") {
       encoding: "utf8",
     });
     return stdout.trim().split("\n").filter(Boolean);
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[check-changeset] Notice: could not compare with base ref '${baseRef}' (${err.message.trim()}). Falling back to HEAD~1 diff.`,
+    );
     try {
       const stdout = execFileSync("git", ["diff", "--name-only", "HEAD~1"], {
         cwd: root,
         encoding: "utf8",
       });
       return stdout.trim().split("\n").filter(Boolean);
-    } catch {
+    } catch (fallbackErr) {
+      console.warn(
+        `[check-changeset] Warning: fallback diff against HEAD~1 also failed (${fallbackErr.message.trim()}). No changed files detected.`,
+      );
       return [];
     }
   }
@@ -66,18 +72,11 @@ function run() {
     : "origin/main";
 
   const changedFiles = getChangedFilesFromGit(root, baseRef);
-  let changesetFiles = [];
-  try {
-    changesetFiles = readdirSync(join(root, ".changeset"));
-  } catch {
-    changesetFiles = [];
-  }
-
-  const result = evaluateChangesetRequirement({ changedFiles, changesetFiles });
+  const result = evaluateChangesetRequirement({ changedFiles });
 
   if (result.needsChangeset && !result.hasChangeset) {
     const msg = [
-      `Notice: Changes detected in published packages (${result.touchedPackages.join(", ")}), but no changeset was found.`,
+      `Notice: Changes detected in published packages (${result.touchedPackages.join(", ")}), but no changeset was found in this PR.`,
       "If this PR should trigger a release or update documentation, please run 'pnpm changeset' to add a changeset fragment.",
     ].join(" ");
 
