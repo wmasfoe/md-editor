@@ -37,7 +37,7 @@
     "release:web:version": "node scripts/release/version-web.mjs",
     "release:packages": "node scripts/packages/publish.mjs",
     "changeset": "changeset",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && pnpm install --lockfile-only",
     "deploy:web": "node scripts/web/deploy-web.mjs",
     "release:site": "node scripts/site/deploy-site.mjs",
     "smoke:core": "node --experimental-strip-types scripts/smoke-core.mjs",
