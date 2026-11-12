@@ -31,5 +31,14 @@
         "default": "./dist/index.js"
       }
     }
+  },
+  "description": "Markdown source preservation and round-trip utilities for Inkpoint.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wmasfoe/md-editor.git",
+    "directory": "packages/markdown-fidelity"
+  },
+  "bugs": {
+    "url": "https://github.com/wmasfoe/md-editor/issues"
   }
 }

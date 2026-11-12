@@ -17,14 +17,14 @@ export const PUBLISHED_PACKAGE_DIRS = [
 /**
  * Check which public packages have a local version not yet published on the npm registry.
  */
-export function getPendingPublishPackages(rootDir = root) {
+export function getPendingPublishPackages(rootDir = root, runNpm = execFileSync) {
   const pending = [];
   for (const dir of PUBLISHED_PACKAGE_DIRS) {
     const pkgJsonPath = join(rootDir, "packages", dir, "package.json");
     const manifest = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
     const localVersion = manifest.version;
     try {
-      const stdout = execFileSync(
+      const stdout = runNpm(
         "npm",
         ["view", manifest.name, "versions", "--json", "--registry", "https://registry.npmjs.org"],
         { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
@@ -34,8 +34,21 @@ export function getPendingPublishPackages(rootDir = root) {
       if (!remoteVersions.includes(localVersion)) {
         pending.push({ name: manifest.name, version: localVersion });
       }
-    } catch {
-      // Package not found on registry or network issue; treat as pending publish
+    } catch (error) {
+      let code;
+      for (const output of [error.stdout, error.stderr]) {
+        const text = String(output ?? "");
+        try {
+          code = JSON.parse(text).error?.code;
+        } catch {
+          // npm can report errors as plain text on stderr.
+          if (/^npm (?:ERR!|error) code E404\s*$/m.test(text)) code = "E404";
+        }
+        if (code) break;
+      }
+      if (code !== "E404") {
+        throw new Error(`Failed to query npm versions for ${manifest.name}`, { cause: error });
+      }
       pending.push({ name: manifest.name, version: localVersion });
     }
   }

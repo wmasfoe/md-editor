@@ -1,8 +1,8 @@
 # @md-editor/core
 
-The editor's domain model: document state, the command and keymap registries, and the editor runtime that ties them together. It does not depend on the DOM, CodeMirror or React, so the same code runs in the desktop app, the web playground and the uTools plugin.
+The editor's domain model: document state, the command and keymap registries, and the editor runtime that ties them together. Its implementation does not import the DOM, CodeMirror or React, so the same code runs in the desktop app, the web playground and the uTools plugin.
 
-It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](../../docs/agent/architecture/capability_boundary_design_principles.md).
+It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](https://github.com/wmasfoe/md-editor/blob/main/docs/agent/architecture/capability_boundary_design_principles.md).
 
 ## Install
 
@@ -10,8 +10,11 @@ It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not 
 npm install @md-editor/core
 ```
 
-The package ships ESM JavaScript and TypeScript declarations. Its workspace
+The package ships ESM JavaScript and TypeScript declarations. Its package
 dependencies are installed automatically; a TypeScript source loader is not needed.
+`@md-editor/plugin-sdk` declares required CodeMirror, Lezer and CJK utility peers
+for its public types. Install compatible versions if your package manager does not
+install peers automatically, even when using core without the editor.
 
 ## Document state
 

@@ -2,24 +2,25 @@
 
 Public contract and TypeScript types for building **Inkpoint** (md-editor) plugins.
 
-This package is the stable, app-decoupled surface that plugin authors import. It
+This package provides an app-decoupled surface for plugin authors. It
 contains plugin definitions, the `PluginContext` API, the manifest/catalog shapes,
 and the syntax/MDX contribution types. The root and `/mdx` entrypoints are
 lightweight contracts; `/callout` provides plain data and helpers without DOM or
 CodeMirror dependencies. `/syntax` also provides executable syntax helpers and
-the host-ports facet, so syntax consumers need its optional CodeMirror, Lezer and
-CJK utility peers. The package does not bundle the editor or those runtimes.
+the host-ports facet. The package does not bundle the editor or its peer runtimes.
 
 ## Install
 
 ```bash
-npm install -D @md-editor/plugin-sdk
-# or: pnpm add -D @md-editor/plugin-sdk
+npm install @md-editor/plugin-sdk
+# or: pnpm add @md-editor/plugin-sdk
 ```
 
-CodeMirror, Lezer and the CJK utility are declared as **optional peer dependencies**.
-Install them when using `/syntax` at runtime or referencing its declarations;
-command/keymap/template plugins using only the root do not need them.
+CodeMirror, Lezer and the CJK utility are peer dependencies. The root TypeScript
+contract references their types, and `/syntax` uses some of them at runtime.
+Install compatible peer versions when your package manager does not install peers
+automatically. Keep the SDK as a runtime dependency if your output imports
+`definePlugin`; it can be a dev dependency only when your build bundles it.
 
 ## Usage
 
@@ -60,13 +61,6 @@ export default definePlugin({
 Fork the starter, or click **Use this template** on GitHub, to scaffold, build, and
 publish plugins through GitHub Releases:
 <https://github.com/inkpoint-editor/inkpoint-plugin-starter>
-
-[inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) and the
-on-device model repository
-[md-editor-models](https://github.com/inkpoint-editor/md-editor-models) now belong to the
-inkpoint-editor organization. They moved from `wmasfoe/inkpoint-plugin-starter` and
-`wmasfoe/md-editor-models`; those old addresses redirect automatically. The model
-repository's default branch is `master`.
 
 ## License
 
