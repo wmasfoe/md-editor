@@ -94,15 +94,21 @@ export function createI18nScope(initial: I18nConfiguration = {}): I18nScope {
 // The application facade has one explicitly shared scope. Embedded hosts create
 // their own scopes instead of configuring this application default.
 const defaultScope = createI18nScope();
+let registeredReactInstance: I18nInstance | undefined;
 export function configureI18n(next: I18nConfiguration): void {
   defaultScope.configure(next);
   if ("instance" in next && (next.instance || defaultScope.instance.isInitialized)) {
-    initReactI18next.init(defaultScope.instance);
+    ensureI18nInitialized();
   }
 }
 export function ensureI18nInitialized(initialLocale?: LanguageSetting): I18nInstance {
   const instance = defaultScope.ensureI18nInitialized(initialLocale);
-  initReactI18next.init(instance);
+  // Register on initial use or an explicit instance switch. Translation calls
+  // must not repeatedly reclaim a React default subsequently set by the host.
+  if (registeredReactInstance !== instance) {
+    initReactI18next.init(instance);
+    registeredReactInstance = instance;
+  }
   return instance;
 }
 export function t(...args: unknown[]): string {

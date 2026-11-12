@@ -72,5 +72,13 @@ export function basename(path: string): string {
 }
 
 export function joinPath(...segments: readonly string[]): string {
-  return normalizePath(segments.filter(Boolean).join("/"));
+  const [first = "", ...rest] = segments
+    .filter(Boolean)
+    .map((segment) => segment.replace(/\\/g, "/"));
+  // Only the first segment owns the root; a joining separator must not create UNC.
+  const joined = rest.reduce(
+    (path, segment) => `${path.replace(/\/+$/, "")}/${segment.replace(/^\/+/, "")}`,
+    first,
+  );
+  return normalizePath(joined);
 }

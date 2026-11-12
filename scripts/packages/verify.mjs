@@ -60,6 +60,7 @@ try {
     const installed = join(temporary, "node_modules", manifest.name);
     mkdirSync(installed, { recursive: true });
     execFileSync("tar", ["-xzf", join(tarballs, file), "--strip-components=1", "-C", installed]);
+    assert.ok(existsSync(join(installed, "LICENSE")), `${manifest.name} lacks its license text`);
     for (const [entry, target] of Object.entries(manifest.exports)) {
       if (typeof target === "string") {
         assert.ok(existsSync(join(installed, target)), `${manifest.name}: ${target}`);

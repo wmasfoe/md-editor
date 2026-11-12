@@ -96,6 +96,19 @@ describe("path utilities", () => {
 });
 
 describe("shared path boundaries", () => {
+  it.each([
+    [["/", "assets/a.png"], "/assets/a.png"],
+    [["/", "/assets/a.png"], "/assets/a.png"],
+    [["/notes/", "/assets/", "a.png"], "/notes/assets/a.png"],
+    [["C:\\", "assets\\a.png"], "C:/assets/a.png"],
+    [["//server/share/", "/assets/a.png"], "//server/share/assets/a.png"],
+    [["\\\\server\\share\\", "\\assets\\a.png"], "//server/share/assets/a.png"],
+    [["/"], "/"],
+    [["", "/", "", "assets/a.png"], "/assets/a.png"],
+  ])("joins %j without introducing or losing a filesystem root", (segments, expected) => {
+    expect(joinPath(...segments)).toBe(expected);
+  });
+
   it("preserves drive-relative paths without resolving a per-drive current directory", () => {
     expect(normalizePath("c:notes/../a.md")).toBe("C:a.md");
     expect(normalizePath("c:notes/../../a.md")).toBe("C:../a.md");

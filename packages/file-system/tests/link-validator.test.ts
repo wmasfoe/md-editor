@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { validateMarkdownRelativeLinks } from "../src/link/index.ts";
 
 describe("LinkValidator (本地相对链接与图片检查探针)", () => {
+  it("resolves resources relative to a document in the POSIX root", async () => {
+    const paths: string[] = [];
+    const diagnostics = await validateMarkdownRelativeLinks("![Image](assets/A.png)", {
+      documentPath: "/document.md",
+      fileExists: async (path) => {
+        paths.push(path);
+        return true;
+      },
+    });
+    expect(paths).toEqual(["/assets/A.png"]);
+    expect(diagnostics).toEqual([]);
+  });
+
   it("跳过外部链接和同文档纯锚点", async () => {
     const markdown = `
 [Google](https://google.com)

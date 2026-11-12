@@ -22,7 +22,7 @@
 - 公开包：plugin-sdk、shared、compiler、markdown-fidelity、core、plugin-host、editor、syntax-plugins。app-ui 等应用专属包保持 private，不进入 pack 消费验证。
 - `pnpm verify` 和 PR 的 Unit Tests job 包含分发验证。构建脚本自身的路径解析反例包含在 `pnpm test`。
 - 发布必须使用 pnpm，才能转换 `workspace:` / `catalog:` 并应用 `publishConfig.exports`。
-- 本轮不修改版本、不推送、不发布。SDK 的 0.1.0 已存在于 npm，后续发布其变更必须选择新的版本。
+- 本轮不修改版本、不发布 npm。SDK 的 0.1.0 已存在于 npm，后续发布其变更必须选择新的版本。
 
 ## 宿主语言契约
 
@@ -73,3 +73,15 @@ Mermaid 原始运行时与 Turndown 服务是内部实现，移除未使用的�
 - 本轮不存在需要保留的错误掩盖 fallback；已有可选 peer 缺失处理属于 npm 契约，保留并补测。修改后运行定向回归、浏览器导航验证和全仓门禁。
 
 完成结果：三项均已修复。方向键精确落点回归和盘符丢失回归先失败后通过；发布脚本共 27 条测试通过。全仓 lint/test/typecheck 与 8 包、20 入口的 tarball 消费复验通过；terminal-blocks 与 mermaid-viewer 两组 Chromium 回归共 30 条通过，包含两个方向的精确源码入口验证。semver 7.8.5 仅作为根开发依赖用于检查器，不进入公开包运行时。验证仅在本地进行，未执行 npm 发布。
+
+## PR #242 评论核查与修复计划
+
+用途：记录审查建议的复现、处理边界与验证证据。
+
+- 先复现 POSIX 根目录拼接变成 UNC 的问题，补路径与根目录文档资源解析回归；仅规范拼接边界的分隔符，保留第一段的 UNC 身份。
+- 先复现默认 scope 的反复 React 全局登记，覆盖 `t()`、无 Provider 渲染、实例切换与恢复；同一默认实例只登记一次，独立 scope 继续不登记全局。
+- pnpm 发布约束已在上文明确。pnpm 会自动将 workspace 根 LICENSE 打进子包；已实际检查 plugin-sdk tarball，后续消费验证同时断言每个包的许可证存在，无需复制 8 份许可证。[pnpm 发布契约](https://pnpm.io/cli/publish)
+- WKWebView 最低版本属于全仓运行时基线问题：当前 Tauri 主应用配置未显式设置最低 macOS 版本，editor/desktop 已广泛使用 `toSorted` 等新 API；本 PR 不通过替换一个调用宣称旧 Safari 已受支持。后续需统一最低系统版本、构建目标和兼容验证。
+- 冗余入口移除已写入 PR 破坏性变更说明；首次正式发布时须补对应发布说明，不在本轮虚构版本发布记录。
+
+完成结果：根路径与全局实例覆盖回归先失败后通过。全仓 lint/test/typecheck 通过，其中 file-system 96 条、i18n 16 条；8 个 tarball、20 个入口的消费验证通过，且每个包均包含 LICENSE。原提交 `e0f452ae` 的完整 CI 全绿；本轮修复另行追加提交并复验 CI。

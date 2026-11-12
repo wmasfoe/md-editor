@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getI18n } from "react-i18next";
+import { getI18n, initReactI18next } from "react-i18next";
 import { createInstance } from "i18next";
-import { createI18nScope } from "../src/i18n";
+import { configureI18n, createI18nScope, ensureI18nInitialized, t as translate } from "../src/i18n";
 
 describe("independent host translations", () => {
   it("restores its own resources when an initially injected instance is cleared", async () => {
@@ -53,4 +53,32 @@ it("renders each provider through its own instance without initializing the appl
   await first.changeLanguage("ja");
   expect(render(second)).toBe("<span>保存</span>");
   expect(getI18n()).toBe(previous);
+});
+
+it("does not reclaim a host React default on repeated facade calls or providerless renders", async () => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { useTranslation } = await import("../src/index");
+  const application = ensureI18nInitialized("en");
+  const host = createInstance();
+  await host.init({ lng: "en", resources: { en: { translation: { host: "HOST" } } } });
+  initReactI18next.init(host);
+  function Label() {
+    const { t } = useTranslation();
+    return createElement("span", null, t("common.save"));
+  }
+  try {
+    expect(translate("common.save")).toBe("Save");
+    expect(ensureI18nInitialized()).toBe(application);
+    expect(renderToStaticMarkup(createElement(Label))).toBe("<span>Save</span>");
+    expect(getI18n()).toBe(host);
+    // Explicitly switching the application instance still registers the new one.
+    configureI18n({ instance: host });
+    expect(getI18n()).toBe(host);
+    configureI18n({ instance: undefined });
+    expect(getI18n()).toBe(application);
+  } finally {
+    configureI18n({ instance: undefined });
+    initReactI18next.init(application);
+  }
 });
