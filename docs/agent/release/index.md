@@ -6,6 +6,7 @@
 
 ## 文档
 
+- npm core/editor 最小发布闭包、验证与发布命令：[npm 分发收口](./npm_package_readiness.md)；版本及消费变更：[中文](./npm-editor-sdk/CHANGELOG.md)、[English](./npm-editor-sdk/CHANGELOG_EN.md)
 - macOS DMG、GitHub Release、Homebrew tap、官网与 Cloudflare Worker 边缘网关发版流程： [release_workflow.md](./release_workflow.md)
 - Linux / Windows / ARM 多平台构建、发布与一键安装方案： [../architecture/cross_platform_support_plan.md](../architecture/cross_platform_support_plan.md)
 - 多平台分发、Cloudflare R2 存储与 Worker 边缘加速方案： [../architecture/multi_platform_distribution_architecture.md](../architecture/multi_platform_distribution_architecture.md)

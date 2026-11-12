@@ -32,6 +32,22 @@ The package shows suggestions produced elsewhere: ghost text, multi-line preview
 
 ## Using it
 
+```bash
+npm install @md-editor/core @md-editor/editor
+# For the optional /react entrypoint:
+npm install react react-dom
+```
+
+The package ships ESM JavaScript, TypeScript declarations and its own styles.
+Use a browser bundler that handles CSS imports. The editor requires a DOM and
+modern JavaScript APIs, including `Array.prototype.toSorted`; server rendering
+should mount the editor on the client. Older WebViews require host-provided
+polyfills and separate compatibility testing.
+
+`@md-editor/plugin-sdk@^0.2.0` and the other runtime dependencies are installed
+automatically. Syntax plugins such as math and Mermaid are separate integrations;
+they are not required to use the core editor.
+
 Most hosts use the React component `CodeMirrorEditor` from `@md-editor/editor/react`, which wraps the bridge below. To mount it yourself, create a bridge with a `DocumentState` from `@md-editor/core`:
 
 ```typescript

@@ -2,6 +2,66 @@
 
 用途：记录子包发布产物、独立宿主语言隔离和消费验证的约束与验证入口。
 
+## core/editor 发布准备计划
+
+1. 锁定最小运行时闭包：core、editor、shared、markdown-fidelity、plugin-host、plugin-sdk；不沿 devDependencies 扩大发布范围。
+2. 先补定向闭包回归，再复用现有 tarball 验证器支持指定根包；默认全量验证保留。
+3. plugin-sdk 已发布的 0.1.0 缺少 editor 使用的 callout 子入口与语法宿主接口，升级到 0.2.0，并在 editor 声明明确的最低 SDK 版本。
+4. 补充安装说明与中英文发布记录；验证最终 JS、声明、样式、版本范围和许可证。暂缓 compiler、syntax-plugins 的发布，不改应用版本。
+5. 本轮只准备并验证产物，不处理认证、不上传 npm。没有需要新增或保留的错误掩盖 fallback。
+
+## PR #243 审查收口计划
+
+用途：处理 SDK 补丁版本兼容、定向验证的 CI 覆盖与重复根包参数三个审查建议。
+
+- 先用真实 pnpm 打包后的清单复现：core/plugin-host 的精确 SDK 依赖无法接受同一个兼容补丁版本。三个首发消费者统一使用 `workspace:^0.2.0`，既允许兼容补丁，也保留 editor 的最低接口版本。
+- 先补重复根包的回归，再在遍历闭包前去重，保持首次出现顺序和既有依赖发现规则。
+- CI 的 Unit Tests job 同时运行全量与 `verify:editor-packages` 定向消费者验证，保证六包闭包不依赖暂缓发布的包。
+- 不新增兼容转发或错误掩盖 fallback，不修改其他暂缓包的依赖范围；回归后跑全仓门禁和实际 tarball 消费。
+
+完成结果：三个 SDK 消费者均声明 `workspace:^0.2.0`；真实 pnpm 打包清单允许同一个兼容补丁版本，仍拒绝旧 SDK 0.1.0。重复根包仅保留首次出现项。两条新增回归先失败后通过，分发脚本共 32 条测试通过；全仓 `pnpm verify` 和六包、14 个入口的定向消费验证通过。CI 已加入独立的 core/editor 闭包验证步骤，未执行 npm 上传。
+
+## core/editor 首发范围与操作
+
+用途：认证恢复后只发布核心编辑器及其运行时依赖，不将其他公开包顺带发布。下文旧 PR 的「本轮不改版本」仅描述当时的改动；本次 SDK 版本更新以本节为准。
+
+| 包 | 本次版本 | 原因 |
+| --- | --- | --- |
+| `@md-editor/core` | `0.1.0` | 核心文档状态与事务 |
+| `@md-editor/editor` | `0.1.0` | 编辑器及可选 React 入口 |
+| `@md-editor/plugin-sdk` | `0.2.0` | editor 所需的新 callout/语法宿主接口，不能复用 npm 上的 0.1.0 |
+| `@md-editor/shared` | `0.1.0` | core/editor/fidelity 的运行时依赖 |
+| `@md-editor/markdown-fidelity` | `0.1.0` | editor 的直接运行时依赖 |
+| `@md-editor/plugin-host` | `0.1.0` | editor 的直接运行时依赖 |
+
+先合入版本与发布记录，在干净且最新的 `main` 上运行：
+
+```bash
+pnpm verify
+pnpm verify:editor-packages
+```
+
+定向验证会真实打包这六个包，检查包名/版本范围闭包，并从 tarball 验证 JS、严格 NodeNext 声明、所有子入口、样式和许可证。它不访问 registry；第三方依赖仍复用本机已安装版本。
+
+核对发布范围和产物（`--filter-prod` 只追踪运行时依赖，不跟随 core 的 private 开发依赖）：
+
+```bash
+pnpm --filter-prod '@md-editor/editor...' list --depth -1
+pnpm --filter-prod '@md-editor/editor...' -r publish --dry-run --publish-branch main --access public --registry https://registry.npmjs.org
+```
+
+认证、范围及产物确认后，实际发布命令为：
+
+```bash
+pnpm --filter-prod '@md-editor/editor...' -r publish --publish-branch main --access public --registry https://registry.npmjs.org
+```
+
+使用 pnpm 转换发布清单；不要改用 `npm publish`，也不要使用无过滤条件的递归发布。compiler、syntax-plugins 暂缓。认证恢复不代表已上传，发布完成后才更新中英文记录中的未发布状态，并从 registry 安装 core/editor 做消费复验。
+
+版本与消费变更见 [中文发布记录](./npm-editor-sdk/CHANGELOG.md) 和 [English changelog](./npm-editor-sdk/CHANGELOG_EN.md)。
+
+本地准备验证（2026-11-12）：全仓 `pnpm verify` 通过；分发脚本 30 条测试通过，新增的三个定向闭包回归先失败后通过。六包独立消费者的 14 个 JS/类型入口、CSS、许可证与依赖范围验证通过；未执行 npm 上传。
+
 ## 本轮清理计划
 
 1. 先补充失败回归：不同编辑器的 lint 语言、不同 i18n 宿主、打包后的导出与资源。

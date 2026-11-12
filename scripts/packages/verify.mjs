@@ -14,10 +14,14 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 import ts from "typescript";
 import { selectPublicationPackages, validatePublicationClosure } from "./publication.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const { values } = parseArgs({
+  options: { package: { type: "string", multiple: true } },
+});
 const temporary = mkdtempSync(join(tmpdir(), "inkpoint-npm-consumer-"));
 const entries = [];
 try {
@@ -25,6 +29,7 @@ try {
     readdirSync(join(root, "packages")).map((name) =>
       JSON.parse(readFileSync(join(root, "packages", name, "package.json"), "utf8")),
     ),
+    values.package,
   );
   const tarballs = join(temporary, "tarballs");
   mkdirSync(tarballs);
@@ -45,6 +50,7 @@ try {
     },
   );
   const archives = readdirSync(tarballs);
+  assert.equal(archives.length, packages.length, "Every selected package must produce one tarball");
   const packed = archives.map((file) => {
     const manifest = JSON.parse(
       execFileSync("tar", ["-xOf", join(tarballs, file), "package/package.json"], {
@@ -154,9 +160,10 @@ try {
     entries.map((entry) => `await import(${JSON.stringify(entry)});`).join("\n"),
   );
   execFileSync(process.execPath, ["--loader", loader, runtime], { cwd: temporary, stdio: "pipe" });
-  assert.ok(
-    existsSync(join(temporary, "node_modules/@md-editor/editor/dist/react/CodeMirrorEditor.css")),
-  );
+  if (packages.some((pkg) => pkg.name === "@md-editor/editor"))
+    assert.ok(
+      existsSync(join(temporary, "node_modules/@md-editor/editor/dist/react/CodeMirrorEditor.css")),
+    );
   console.log(
     `PASS: ${archives.length} tarballs, ${entries.length} JS/type entrypoints, CSS resources; no private packages or workspace sources`,
   );

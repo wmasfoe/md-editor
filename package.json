@@ -60,7 +60,8 @@
     "test:structure": "node --test scripts/structure/*.test.mjs",
     "build:packages": "pnpm --filter \"./packages/**\" -r --sort build",
     "test:packages": "node --test scripts/packages/*.test.mjs",
-    "verify:packages": "pnpm build:packages && node scripts/packages/verify.mjs"
+    "verify:packages": "pnpm build:packages && node scripts/packages/verify.mjs",
+    "verify:editor-packages": "pnpm --filter-prod @md-editor/editor... -r --sort build && node scripts/packages/verify.mjs --package @md-editor/core --package @md-editor/editor"
   },
   "devDependencies": {
     "@types/node": "catalog:",

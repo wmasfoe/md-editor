@@ -15,7 +15,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@md-editor/plugin-sdk": "workspace:*"
+    "@md-editor/plugin-sdk": "workspace:^0.2.0"
   },
   "devDependencies": {
     "typescript": "catalog:",

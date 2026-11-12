@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/plugin-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Public contract and types for building Inkpoint (md-editor) plugins: definitions, context API, manifest/catalog, and syntax/MDX contribution types.",
   "keywords": [
     "inkpoint",

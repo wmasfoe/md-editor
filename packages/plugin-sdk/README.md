@@ -4,9 +4,11 @@ Public contract and TypeScript types for building **Inkpoint** (md-editor) plugi
 
 This package is the stable, app-decoupled surface that plugin authors import. It
 contains plugin definitions, the `PluginContext` API, the manifest/catalog shapes,
-and the syntax/MDX contribution types. It ships **only types plus a single identity
-helper** (`definePlugin`) — it does not bundle the editor, CodeMirror, or Lezer
-runtimes. Those are injected by the host at runtime via `context.dependencies`.
+and the syntax/MDX contribution types. The root and `/mdx` entrypoints are
+lightweight contracts; `/callout` provides plain data and helpers without DOM or
+CodeMirror dependencies. `/syntax` also provides executable syntax helpers and
+the host-ports facet, so syntax consumers need its optional CodeMirror, Lezer and
+CJK utility peers. The package does not bundle the editor or those runtimes.
 
 ## Install
 
@@ -15,9 +17,9 @@ npm install -D @md-editor/plugin-sdk
 # or: pnpm add -D @md-editor/plugin-sdk
 ```
 
-CodeMirror / Lezer are declared as **optional peer dependencies**. You only need
-them installed if you author syntax plugins and reference their types directly;
-command/keymap/template plugins do not need them.
+CodeMirror, Lezer and the CJK utility are declared as **optional peer dependencies**.
+Install them when using `/syntax` at runtime or referencing its declarations;
+command/keymap/template plugins using only the root do not need them.
 
 ## Usage
 
