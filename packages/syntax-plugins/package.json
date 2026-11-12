@@ -2,7 +2,6 @@
   "name": "@md-editor/syntax-plugins",
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
-  "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -13,7 +12,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "node ../../scripts/packages/build.mjs",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@codemirror/state": "catalog:",
@@ -31,5 +32,34 @@
     "@types/katex": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./directive": {
+        "types": "./dist/directive/index.d.ts",
+        "default": "./dist/directive/index.js"
+      },
+      "./math": {
+        "types": "./dist/math/index.d.ts",
+        "default": "./dist/math/index.js"
+      },
+      "./mermaid": {
+        "types": "./dist/mermaid/index.d.ts",
+        "default": "./dist/mermaid/index.js"
+      },
+      "./metadata": {
+        "types": "./dist/metadata.d.ts",
+        "default": "./dist/metadata.js"
+      }
+    }
   }
 }

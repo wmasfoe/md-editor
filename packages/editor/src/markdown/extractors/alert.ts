@@ -6,7 +6,7 @@
  */
 
 import type { SyntaxNode } from "@lezer/common";
-import { defaultCalloutTitle } from "../../wysiwyg/widgets/callout-widget.ts";
+import { defaultCalloutTitle } from "@md-editor/plugin-sdk/callout";
 import type {
   MarkdownAlertMetadata,
   MarkdownAlertType,

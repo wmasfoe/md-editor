@@ -2,13 +2,7 @@ import { EditorSelection } from "@codemirror/state";
 import { WidgetType, type EditorView } from "@codemirror/view";
 import { markdownRangeIndexField } from "../../markdown/range-index.ts";
 
-import {
-  CALLOUT_SVG_ICONS,
-  getCalloutSvg,
-  defaultCalloutTitle,
-} from "@md-editor/plugin-sdk/syntax";
-
-export { CALLOUT_SVG_ICONS, getCalloutSvg, defaultCalloutTitle };
+import { getCalloutSvg, defaultCalloutTitle } from "@md-editor/plugin-sdk/syntax";
 
 /**
  * 通用 Callout/Admonition 头部 Widget。

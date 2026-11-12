@@ -1,3 +1,4 @@
+import { getActiveLintLocale } from "./markdown-lint-i18n.ts";
 import type { EditorState } from "@codemirror/state";
 import type { Diagnostic } from "@codemirror/lint";
 import { createDiagnosticDomNode } from "./diagnostic-dom.ts";
@@ -43,6 +44,7 @@ export async function runLinkValidation(
         message: `[链接检查] ${item.message}`,
         renderMessage: () =>
           createDiagnosticDomNode({
+            locale: getActiveLintLocale(state),
             ruleCode: "Link",
             ruleAlias: "local-link",
             description: item.message,

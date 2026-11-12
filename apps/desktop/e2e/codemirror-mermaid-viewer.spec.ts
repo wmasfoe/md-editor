@@ -241,14 +241,8 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await openMermaidDoc(page, MERMAID_DOC);
     await waitForSvg(page);
 
-    // 把光标放到 mermaid 块上一行（"# 图表"），再向下移动进入块
-    const container = page.locator(".cm-md-mermaid-container").first();
-    const box = await container.boundingBox();
-    expect(box).not.toBeNull();
-    if (!box) {
-      return;
-    }
-    await page.mouse.click(box.x + 10, box.y - 40);
+    // 按文档位置停在 fence 前的真实空行，不依赖旧幽灵行的高度。
+    await setCaret(page, MERMAID_DOC.indexOf("```mermaid") - 1);
     await page.keyboard.press("ArrowDown");
     await expect(page.locator(".cm-md-marker--mermaid").first()).toBeVisible({ timeout: 10_000 });
   });
@@ -540,18 +534,13 @@ test.describe("Mermaid 图表查看与编辑解耦", () => {
     await expect(overlay.locator("svg")).toBeVisible();
   });
 
-  test("块间空行保真（已登记偏差）：mermaid 在源码 0 空行时会多出 1 个幽灵行", async ({ page }) => {
+  test("块间空行保真：mermaid 的视觉空行与源码一致", async ({ page }) => {
     test.setTimeout(120_000);
-    // 背景：MermaidBlockWidget 仍手写 `inclusive:false + block:true`，未走 buildWholeLineBlockReplacement，
-    // 因此它**不受**不对称 Inclusivity 契约保护（见 thematic_break_and_block_inclusivity_spec.md
-    // 的「已登记豁免：Mermaid 块」）。本用例把当前行为**钉死**：
-    //   源码 1 个空行 ⇒ 视觉 1 个空行（正常）
-    //   源码 0 个空行 ⇒ 视觉 1 个空行（**偏差**：多一个幽灵行）
-    //   源码 1 个空行 ⇒ 视觉 2 个空行（**偏差**：同样多一个）——即**恒定 +1**
-    // 后续把 mermaid 改走统一实现时本用例会变红——届时按契约改为 N ⇒ N 并删除偏差声明。
+    // 整块插件装饰由 editor 统一归一，源码 N 个空行必须对应 N 个视觉行。
     const expectations = [
-      { blankCount: 0, visualLines: 1 },
-      { blankCount: 1, visualLines: 2 },
+      { blankCount: 0, visualLines: 0 },
+      { blankCount: 1, visualLines: 1 },
+      { blankCount: 2, visualLines: 2 },
     ] as const;
 
     for (const { blankCount, visualLines } of expectations) {

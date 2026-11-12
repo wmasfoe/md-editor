@@ -24,7 +24,7 @@
 已登记的复用缺口（进度与后续）：
 
 - **已收口（2026-10-22）**：uTools 文件树曾本地重写 `tree-view-state` 的 `isSameOrChildPath` / `visitDirectoryNodes` / `collectAncestorDirectoryPaths` / `createDefaultCollapsedDirectoryPaths`，现全部改为从 `@md-editor/file-system` 导入；同时删除了 `apps/desktop/src/app/files/file-tree-view-state.ts` 这个纯 re-export 垫片及其重复测试。契约回归见 `apps/utools/tests/file-tree-collapse-contract.test.ts`。
-- **仍待处理（更大的第二批，尚未开工）**：文件树路径能力实际存在**三套**并存实现——① `packages/file-system`（`dirname` / `getDirectoryPath` 自身也已互相重复）；② `apps/desktop/src/lib/path.ts`（`normalizePath` / `dirname` / `isSameOrChildPath`，是三者中**最强**的实现：处理 `\\?\` 扩展前缀、盘符大写、尾斜杠与 Windows 大小写不敏感）；③ `apps/desktop/src/components/FileTreePanel/utils.ts`（重复了 `storageKeyForRoot` / `readCollapsedPaths` / `writeCollapsedPaths` 与 `relativePathFromRoot`）。收口需要把 ② 的语义上提到 `packages/file-system` 作为唯一实现，再迁移 ①②③ 全部调用方；因涉及 Windows 路径语义变化，必须单独一轮并补齐测试，不与机械去重混做。
+- **已收口（2026-11-12，本地工作区）**：文件树路径语义归一到 `packages/file-system/src/path.ts`；删除 desktop 的 `lib/path.ts`、文件树 utils 的路径/持久化副本和 uTools 局部路径实现，link-validator 也直接复用该模块。统一覆盖 Windows 扩展前缀、盘符与 UNC 大小写、POSIX 根目录、点段及目录边界；路径回归迁至 `packages/file-system/tests/path.test.ts`，默认折叠状态另覆盖 Windows 混合表示的祖先展开。
 
 ---
 

@@ -1,7 +1,6 @@
+import { dirname, isSameOrChildPath } from "../src/index";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
-  getDirectoryPath,
-  isSameOrChildPath,
   findFirstMarkdownPath,
   collectAncestorDirectoryPaths,
   createDefaultCollapsedDirectoryPaths,
@@ -37,9 +36,9 @@ describe("tree-view-state", () => {
 
   describe("path utilities", () => {
     it("extracts directory path correctly", () => {
-      expect(getDirectoryPath("/docs/sub/readme.md")).toBe("/docs/sub");
-      expect(getDirectoryPath("/docs/readme.md")).toBe("/docs");
-      expect(getDirectoryPath("/readme.md")).toBe(".");
+      expect(dirname("/docs/sub/readme.md")).toBe("/docs/sub");
+      expect(dirname("/docs/readme.md")).toBe("/docs");
+      expect(dirname("/readme.md")).toBe("/");
     });
 
     it("checks isSameOrChildPath correctly", () => {
@@ -94,6 +93,22 @@ describe("tree-view-state", () => {
   });
 
   describe("createDefaultCollapsedDirectoryPaths", () => {
+    it("keeps Windows ancestors expanded across slash, verbatim and case differences", () => {
+      const tree = {
+        name: "Docs",
+        path: "C:/Docs",
+        kind: "directory" as const,
+        children: [
+          { name: "Drafts", path: "C:/Docs/Drafts", kind: "directory" as const },
+          { name: "Other", path: "C:/Docs/Other", kind: "directory" as const },
+        ],
+      };
+      expect(createDefaultCollapsedDirectoryPaths(tree, "//?/c:/docs/drafts/a.md")).toEqual(
+        new Set(["C:/Docs/Other"]),
+      );
+      expect([...collectAncestorDirectoryPaths("/", "/notes/a.md")]).toEqual(["/", "/notes"]);
+    });
+
     it("collapses all non-ancestor child directories by default", () => {
       const tree = {
         name: "docs",

@@ -362,7 +362,7 @@ let turndownServiceInstance: TurndownService | null = null;
 /**
  * 获取或创建单例 Turndown 转换服务
  */
-export function getTurndownService(): TurndownService {
+function getTurndownService(): TurndownService {
   if (!turndownServiceInstance) {
     const service = new TurndownService({
       headingStyle: "atx",

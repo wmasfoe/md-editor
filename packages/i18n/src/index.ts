@@ -9,7 +9,8 @@ declare module "i18next" {
   }
 }
 
-import { useTranslation as useReactI18nextTranslation } from "react-i18next";
+import { useContext } from "react";
+import { I18nContext, useTranslation as useReactI18nextTranslation } from "react-i18next";
 
 import { ensureI18nInitialized } from "./i18n";
 
@@ -26,8 +27,10 @@ export const useTranslation = ((
   namespace?: Parameters<typeof useReactI18nextTranslation>[0],
   options?: Parameters<typeof useReactI18nextTranslation>[1],
 ) => {
-  ensureI18nInitialized();
-  return useReactI18nextTranslation(namespace, options);
+  const context = useContext(I18nContext);
+  // A provider or explicit instance belongs to its host, never initialize the app default for it.
+  const instance = options?.i18n ?? context?.i18n ?? ensureI18nInitialized();
+  return useReactI18nextTranslation(namespace, { ...options, i18n: instance });
 }) as typeof useReactI18nextTranslation;
 
 export { Trans, I18nextProvider } from "react-i18next";
@@ -38,8 +41,10 @@ export {
   getCurrentLocale,
   ensureI18nInitialized,
   configureI18n,
+  createI18nScope,
   resources,
   type I18nConfiguration,
+  type I18nScope,
 } from "./i18n";
 export { detectSystemLocale, normalizeLanguageSetting, resolveActiveLocale } from "./detect";
 export {

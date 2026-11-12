@@ -13,7 +13,7 @@ let currentTheme: "dark" | "default" | null = null;
 /**
  * 动态按需加载 Mermaid 运行时模块（单例与并发去重）。
  */
-export async function loadMermaid(): Promise<typeof MermaidType> {
+async function loadMermaid(): Promise<typeof MermaidType> {
   if (mermaidInstance) {
     return mermaidInstance;
   }
@@ -34,10 +34,6 @@ export async function loadMermaid(): Promise<typeof MermaidType> {
       });
   }
   return mermaidPromise;
-}
-
-export function getLoadedMermaid(): typeof MermaidType | null {
-  return mermaidInstance;
 }
 
 /**

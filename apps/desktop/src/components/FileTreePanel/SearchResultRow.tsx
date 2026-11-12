@@ -1,7 +1,7 @@
 import type { MarkdownFileTreeNode } from "@md-editor/file-system";
 import { cx } from "../../lib/cx";
 import { FileKindIcon } from "./FileKindIcon";
-import { relativePathFromRoot } from "./utils";
+import { relativePathFromRoot } from "@md-editor/file-system";
 import type { SearchResultNode } from "./types";
 
 export interface SearchResultRowProps {

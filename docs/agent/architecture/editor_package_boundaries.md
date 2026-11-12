@@ -26,14 +26,16 @@ flowchart LR
 
 ## npm 分发
 
-当前这三个包仍为 `private` workspace 包，本次只完成职责拆分、命名迁移和子入口整理，不代表已经发布。
+core / editor 的工作区入口保持源码导出，`pnpm pack` / `pnpm publish` 通过 `publishConfig.exports` 使用 `dist` 的 JavaScript 与声明文件。app-ui 保持 private，不发布；公开包的配置不代表版本已经上传 npm。
 
-后续构建并发布 npm 包时，保留包依赖：`editor` 通过正常 dependencies 依赖 `core` 等实际使用的包，不把内部包打入同一产物。每个包都发布可解析的 JavaScript、类型声明和必要样式/资源，并为实际使用的子路径配置 `exports`。发布顺序和版本范围应覆盖所有尚未发布的传递 workspace 依赖。
+构建与发布保留包依赖：`editor` 通过正常 dependencies 依赖 `core` 等实际使用的包，不把内部包打入同一产物。公开包提供可解析的 JavaScript、类型声明和必要样式/资源，并为实际使用的子路径配置 `exports`。发布顺序和版本范围应覆盖所有尚未发布的传递 workspace 依赖；markdown-fidelity 是 editor 的直接依赖，需包含在该闭包中。
 
 React 声明为 `editor` 的 optional peer（`>=18.3.0 <20`，`peerDependenciesMeta.react.optional = true`），并作为开发依赖支持本仓库测试。只使用主入口的消费者无需安装 React；导入 `/react` 的消费者自行安装符合范围的 React。组件不直接使用 React DOM，所以 React DOM 仅作为开发依赖，由 React 宿主自行选择和安装。
 
-npm 的 peer 元数据属于整个包，无法按子入口声明。宿主已安装 React 时仍可能受到 peer 版本检查；缺少 React 而使用 `/react` 时，错误会在模块解析或构建阶段出现。后续发布构建必须分别输出主入口与 React 子入口的 JS / 类型声明，并将 React 和 JSX runtime 保持为外部依赖，避免主入口产物引入 React。
+npm 的 peer 元数据属于整个包，无法按子入口声明。宿主已安装 React 时仍可能受到 peer 版本检查；缺少 React 而使用 `/react` 时，错误会在模块解析或构建阶段出现。发布构建分别输出主入口与 React 子入口的 JS / 类型声明，并将 React 和 JSX runtime 保持为外部依赖，避免主入口产物引入 React。
 
 ## 验证
 
 移动已有 core、editor 与 React 回归测试，并更新各端调用方、工作区依赖、结构约束、CI 路径、注释和中英文 README。主入口边界测试拒绝 React 模块解析，分别验证真实运行时导入和非 React 消费者的类型检查。React bridge 浏览器用例继续验证 StrictMode、外部编辑、history、selection 与 IME；应用接线单测验证大纲、端口注册，以及语言切换只触发一次 lint 刷新。
+
+分发验证：`pnpm verify:packages` 按依赖顺序构建全部子包，仅对公开包执行真实 prepack/pack，再用独立临时消费者解析 JS、类型和 editor CSS 资源。详见 [npm 分发收口](../release/npm_package_readiness.md)。

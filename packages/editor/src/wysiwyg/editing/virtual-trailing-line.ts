@@ -62,11 +62,14 @@ const TERMINAL_BLOCK_KINDS: ReadonlySet<MarkdownRangeRecord["kind"]> = new Set([
   "mdx-jsx",
   "frontmatter",
   "heading-setext",
+  "quote",
+  "list-item-ordered",
+  "list-item-unordered",
 ]);
 
 function coversDocumentEnd(record: MarkdownRangeRecord, state: EditorState): boolean {
   return (
-    TERMINAL_BLOCK_KINDS.has(record.kind) &&
+    (TERMINAL_BLOCK_KINDS.has(record.kind) || record.renderPolicy === "directive-panel") &&
     trailingLineBreakEnd(record, state) === state.doc.length
   );
 }
@@ -94,13 +97,9 @@ export function needsVirtualTrailingLine(state: EditorState): boolean {
 /**
  * 当前主选区是否「站在」虚拟空行上：空光标停在 `doc.length`，且此处需要虚拟空行。
  *
- * 只有一种例外：文末块会因光标进入而展开源码（`interactionPolicy === "reveal-source"`，
- * 目前即 HTML 块），且它**没有**尾随换行。此时 `doc.length` 同时是块闭区间的右端点，
- * 光标在源码末尾是在编辑源码，属于块，不属于虚拟行；若在这里点亮虚拟行，源码会被收起，
- * 用户无法在源码末尾继续输入。
- *
- * 其他文末块（表格、分割线、MDX 等）不因光标进入而展开，`doc.length` 的光标没有别的归属，
- * 无论是否有尾随换行都属于虚拟行；有尾随换行时 `doc.length` 本就在块外。
+ * 无尾随换行时，HTML、插件面板和引用/列表的 `doc.length` 仍属于可编辑内容，
+ * 不能仅凭偏移自动激活，否则会收起源码或阻断容器内续写。
+ * 点击落脚行或 ArrowDown 会显式激活；有尾随换行时该偏移已在块外。
  */
 export function caretRestsOnVirtualTrailingLine(state: EditorState): boolean {
   const selection = state.selection;
@@ -115,12 +114,15 @@ export function caretRestsOnVirtualTrailingLine(state: EditorState): boolean {
     return false;
   }
   const index = state.field(markdownRangeIndexField, false);
-  const terminal = index?.records.find((record) => coversDocumentEnd(record, state));
+  const terminal = index?.records.findLast((record) => coversDocumentEnd(record, state));
   if (!terminal) {
     return true;
   }
   const caretInsideSource =
-    terminal.interactionPolicy === "reveal-source" && terminal.fullRange.to >= state.doc.length;
+    (terminal.interactionPolicy === "reveal-source" ||
+      terminal.renderPolicy === "marker-hidden" ||
+      terminal.renderPolicy === "directive-panel") &&
+    terminal.fullRange.to >= state.doc.length;
   return !caretInsideSource;
 }
 
@@ -203,32 +205,16 @@ function buildVirtualTrailingLineDecorations(state: EditorState): DecorationSet 
  * 这类块下面 CM6 一定会合成空行，行装饰会落在合成行上，不需要占位 widget。
  */
 function documentEndIsCoveredByWholeLineReplacement(state: EditorState): boolean {
-  const index = state.field(markdownRangeIndexField, false);
   const projection = state.field(wysiwygProjectionField, false);
-  const activeIds = new Set(projection?.activeSyntaxIds ?? []);
-  return (
-    index?.records.some(
-      (record) =>
-        WHOLE_LINE_REPLACED_KINDS.has(record.kind) &&
-        // 展开成源码的 HTML 块此刻不是整行替换（见上）。
-        !(record.kind === "html" && activeIds.has(record.id)) &&
-        trailingLineBreakEnd(record, state) === state.doc.length,
-    ) ?? false
-  );
+  let covered = false;
+  // Inspect the actual layout, so nested and third-party blocks share the same
+  // rule without maintaining a second list of concrete plugin node kinds.
+  projection?.layoutDecorations.between(0, state.doc.length, (from, to, value) => {
+    if (from < to && to === state.doc.length && value.spec.block && value.spec.widget)
+      covered = true;
+  });
+  return covered;
 }
-
-/**
- * 整行块级替换渲染的块类型：其后位置不被覆盖，CM6 会在文末合成一个空行。
- * setext 标题经 `default-visualization.ts` 也走 `buildWholeLineBlockReplacement`，属于此类。
- * Frontmatter 不是：它用行装饰呈现三行真实文本，最后一行是闭合 `---`。
- */
-const WHOLE_LINE_REPLACED_KINDS: ReadonlySet<MarkdownRangeRecord["kind"]> = new Set([
-  "html",
-  "table",
-  "thematic-break",
-  "mdx-jsx",
-  "heading-setext",
-]);
 
 /**
  * 文末占位行：只在块的最后一行是真实文本行（无合成行可复用）时使用。

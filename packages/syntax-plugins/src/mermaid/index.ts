@@ -12,7 +12,7 @@ import { MERMAID_NODES, type MermaidMetadata } from "./mermaid-types.ts";
 export { MERMAID_NODES, type MermaidMetadata } from "./mermaid-types.ts";
 export { mermaidMarkdownExtension } from "./mermaid-parser.ts";
 export { buildMermaidLayoutDecorations, MermaidBlockWidget } from "./mermaid-projection.ts";
-export { loadMermaid, getLoadedMermaid, renderMermaidSvg } from "./mermaid-loader.ts";
+export { renderMermaidSvg } from "./mermaid-loader.ts";
 
 /**
  * 官方 Mermaid 图表扩展插件（Mermaid Syntax Plugin）。

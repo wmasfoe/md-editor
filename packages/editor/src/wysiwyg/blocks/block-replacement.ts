@@ -69,6 +69,8 @@ export interface WholeLineBlockReplacement {
   readonly widget: WidgetType;
   /** `wysiwygRole`，用于投影诊断与测试断言。 */
   readonly role: string;
+  /** Preserve plugin-specific metadata while the core owns boundary semantics. */
+  readonly decorationSpec?: Decoration["spec"];
   /**
    * 是否把记录末尾的换行一并纳入替换范围（默认 `true`）。
    * 块级投影（表格 / HTML / MDX / setext 标题）需要在**不吞并**换行的前提下覆盖到行尾；
@@ -89,6 +91,7 @@ export function buildWholeLineBlockReplacement(
       : trailingLineBreakEnd(spec.record, spec.state);
   return [
     Decoration.replace({
+      ...spec.decorationSpec,
       widget: spec.widget,
       block: true,
       inclusiveStart: true,
@@ -97,6 +100,32 @@ export function buildWholeLineBlockReplacement(
       wysiwygRole: spec.role,
     }).range(spec.record.fullRange.from, replacementTo),
   ];
+}
+
+/** Normalize full-block plugin replacements through the renderer's existing contract. */
+export function normalizePluginBlockReplacements(
+  record: MarkdownRangeRecord,
+  state: EditorState,
+  ranges: readonly Range<Decoration>[],
+): readonly Range<Decoration>[] {
+  return ranges.flatMap((range) => {
+    const spec = range.value.spec;
+    if (
+      !spec.block ||
+      !spec.widget ||
+      range.from !== record.fullRange.from ||
+      (range.to !== record.fullRange.to && range.to !== trailingLineBreakEnd(record, state))
+    ) {
+      return [range];
+    }
+    return buildWholeLineBlockReplacement({
+      record,
+      state,
+      widget: spec.widget,
+      role: spec.wysiwygRole ?? "plugin-block-widget",
+      decorationSpec: spec,
+    });
+  });
 }
 
 /**

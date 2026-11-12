@@ -90,9 +90,8 @@
    幂等），宿主行为通过显式配置开启——如 `configureI18n({ syncDocumentLang: true })`。
    需要自有 i18n 的宿主可用 `configureI18n({ instance })` 完全接管。
 
-   注意：Markdown lint 的诊断文案按 `document.documentElement.lang` 选择语言
-   （见 `packages/editor/src/lint/markdown-lint-i18n.ts`），
-   因此**带语言切换 UI 的宿主**（desktop / web）必须在启动时开启 `syncDocumentLang`。
+   Markdown lint 的语言由 editor 实例状态持有，宿主通过 `language` / `setLanguage` 注入。
+   未提供时才回退到 `document.documentElement.lang`；应用同步页面语言属于宿主的显式选择。
 
 8. **Tailwind 扫描源只在共享入口维护**：引入 `tailwindcss` 的 app 必须写
    `@import "@md-editor/app-ui/tailwind-sources.css";`，**不得**在自己的 CSS 里直接写 `@source`

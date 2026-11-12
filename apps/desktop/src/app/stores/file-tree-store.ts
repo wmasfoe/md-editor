@@ -6,7 +6,7 @@ import type {
   RuntimeFileService,
 } from "@md-editor/file-system";
 import type { TreeItemKind } from "../../types";
-import { dirname, isSameOrChildPath } from "../../lib/path";
+import { dirname, isSameOrChildPath } from "@md-editor/file-system";
 import { resolveOpenDocumentMutation } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "../controller/recent-files-store";

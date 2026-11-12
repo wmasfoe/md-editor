@@ -23,6 +23,7 @@ import {
   isProjectableTable,
 } from "../projections/table-projection.ts";
 import { configuredProjectionFeatures } from "./types.ts";
+import { normalizePluginBlockReplacements } from "../blocks/block-replacement.ts";
 
 export function buildLayoutDecorations(
   index: MarkdownRangeIndex,
@@ -160,7 +161,7 @@ function buildLayoutDecorationsForRecord(
     selected: selectedAtomIds.includes(record.id),
   });
   if (pluginDecorations.length > 0) {
-    return pluginDecorations;
+    return normalizePluginBlockReplacements(record, state, pluginDecorations);
   }
   if (
     // 裸 URL / 尖括号 autolink：与行内链接同属"链接类"，同样需要走链接渲染

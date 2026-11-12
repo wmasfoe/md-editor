@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dirname, isSameOrChildPath, normalizePath } from "../src/lib/path";
+import {
+  basename,
+  dirname,
+  isSameOrChildPath,
+  isSamePath,
+  joinPath,
+  normalizePath,
+  relativePathFromRoot,
+} from "../src/index";
 
 describe("path utilities", () => {
   describe("normalizePath", () => {
@@ -84,5 +92,45 @@ describe("path utilities", () => {
         false,
       );
     });
+  });
+});
+
+describe("shared path boundaries", () => {
+  it("preserves drive-relative paths without resolving a per-drive current directory", () => {
+    expect(normalizePath("c:notes/../a.md")).toBe("C:a.md");
+    expect(normalizePath("c:notes/../../a.md")).toBe("C:../a.md");
+    expect(normalizePath("c:../a.md")).toBe("C:../a.md");
+    expect(normalizePath("c:")).toBe("C:");
+    expect(dirname("C:a.md")).toBe("C:");
+    expect(basename("C:a.md")).toBe("a.md");
+    expect(basename("C:")).toBe("");
+    expect(joinPath("C:notes", "../a.md")).toBe("C:a.md");
+    expect(isSamePath("c:NOTES/a.md", "C:notes/a.md")).toBe(true);
+    expect(isSamePath("C:notes/a.md", "C:/notes/a.md")).toBe(false);
+    expect(isSameOrChildPath("C:notes/a.md", "c:NOTES")).toBe(true);
+    expect(isSameOrChildPath("C:notes/a.md", "C:/notes")).toBe(false);
+    expect(relativePathFromRoot("C:notes", "c:NOTES/a.md")).toBe("a.md");
+  });
+  it("keeps filesystem roots and matches root descendants", () => {
+    expect(dirname("/")).toBe("/");
+    expect(dirname("C:/")).toBe("C:/");
+    expect(normalizePath("//server/share/../../file.md")).toBe("//server/share/file.md");
+    expect(normalizePath("c:/notes/../../file.md")).toBe("C:/file.md");
+    expect(normalizePath("../../notes/./a.md")).toBe("../../notes/a.md");
+    expect(isSameOrChildPath("/notes/a.md", "/")).toBe(true);
+    expect(isSameOrChildPath("C:/notes/a.md", "c:/")).toBe(true);
+    expect(isSameOrChildPath("/notes/a.md", "")).toBe(false);
+  });
+  it("preserves UNC shares, including Windows extended UNC paths", () => {
+    expect(normalizePath("//?/UNC/server/share/docs/")).toBe("//server/share/docs");
+    expect(dirname("//server/share")).toBe("//server/share");
+    expect(isSameOrChildPath("//SERVER/share/docs/a.md", "//server/SHARE/")).toBe(true);
+    expect(isSameOrChildPath("//server/share-other/a.md", "//server/share")).toBe(false);
+  });
+  it("relativizes with the same root and Windows identity rules", () => {
+    expect(relativePathFromRoot("/", "/notes/a.md")).toBe("notes/a.md");
+    expect(relativePathFromRoot("c:/NOTES/", "//?/C:/notes/Sub/a.md")).toBe("Sub/a.md");
+    expect(relativePathFromRoot("/notes", "/notes-other/a.md")).toBe("/notes-other/a.md");
+    expect(relativePathFromRoot("/notes", "/notes")).toBe("");
   });
 });

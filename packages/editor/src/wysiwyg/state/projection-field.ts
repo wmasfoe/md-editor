@@ -226,7 +226,11 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       );
     }
 
-    if (!transaction.selection && typedBoundary === previous.typedBoundary) {
+    if (
+      !transaction.selection &&
+      !transaction.effects.some((effect) => effect.is(setVirtualTrailingLineActiveEffect)) &&
+      typedBoundary === previous.typedBoundary
+    ) {
       return previous;
     }
 
@@ -655,6 +659,15 @@ function selectionActivatesRecord(
   state: EditorState,
   transaction?: Transaction,
 ): boolean {
+  // The EOF offset belongs to the virtual line once explicitly activated,
+  // including plugin and nested blocks. Effect-only ArrowDown must fold source.
+  if (
+    from === to &&
+    from === state.doc.length &&
+    record.fullRange.to >= from &&
+    virtualTrailingLineOwnsDocumentEnd(state, transaction)
+  )
+    return false;
   if (record.kind === "frontmatter") {
     return false;
   }
@@ -673,13 +686,6 @@ function selectionActivatesRecord(
     // 光标落在块内（含首尾闭区间）才展开源码，这样行首和行尾都能继续输入。
     // 贴在文末时 `to === doc.length`，虚拟空行也停在这个偏移上：那种光标不展开。
     if (from === to) {
-      if (
-        virtualTrailingLineOwnsDocumentEnd(state, transaction) &&
-        record.fullRange.to >= state.doc.length &&
-        from === state.doc.length
-      ) {
-        return false;
-      }
       return from >= record.fullRange.from && from <= record.fullRange.to;
     }
     return from < record.fullRange.to && to > record.fullRange.from;

@@ -1,5 +1,5 @@
 import type { FileTreeMutationResult, MarkdownFileTreeNode } from "@md-editor/file-system";
-import { isSameOrChildPath } from "../../lib/path";
+import { isSameOrChildPath } from "@md-editor/file-system";
 
 export type OpenDocumentMutation =
   | {

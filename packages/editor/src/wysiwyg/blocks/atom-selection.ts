@@ -251,7 +251,7 @@ type AtomMovementTarget =
 type VerticalMovementTarget =
   | { readonly kind: "native"; readonly selection: SelectionRange }
   | { readonly kind: "navigate"; readonly selection: SelectionRange }
-  | { readonly kind: "reveal-image"; readonly selection: SelectionRange }
+  | { readonly kind: "reveal-source"; readonly selection: SelectionRange }
   | {
       readonly kind: "select";
       readonly atom: SelectableAtom;
@@ -456,12 +456,9 @@ function verticalMovementTarget(
     };
   }
   return {
-    kind: "reveal-image",
-    selection: revealedSourceCursor(
-      atom,
-      moved.head <= atom.fullRange.from ? "forward" : "backward",
-      moved,
-    ),
+    kind: "reveal-source",
+    // Native movement may skip the entire widget; its landing side is not the entry side.
+    selection: revealedSourceCursor(atom, direction, moved),
   };
 }
 
@@ -477,7 +474,7 @@ function revealedSourceCursor(
     const position = Math.max(minimum, Math.min(maximum, preferred));
     return EditorSelection.cursor(position, movement?.assoc, undefined, movement?.goalColumn);
   }
-  // 表格：光标进入表头行首个 cell 内容之后，让源码立即回显。
+  // 块级源码：落点位于记录内部，让投影立即回显，不停在相邻合成行。
   const minimum = atom.fullRange.from + 1;
   const maximum = Math.max(minimum, atom.fullRange.to - 1);
   const position = direction === "forward" ? minimum : maximum;
@@ -550,6 +547,7 @@ function isSelectableAtom(record: MarkdownRangeRecord, state: EditorState): bool
 }
 
 function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  if (record.renderPolicy === "directive-panel") return true;
   // HTML 与表格/图片一致：方向键只原子选中整块。源码由双击、编辑按钮或 Mod-Enter 进入。
   if (record.kind === "html") {
     return false;
@@ -559,6 +557,23 @@ function isKeyboardRevealAtom(record: MarkdownRangeRecord, state: EditorState): 
 }
 
 function isKeyboardProjectedAtom(record: MarkdownRangeRecord, state: EditorState): boolean {
+  if (record.renderPolicy === "directive-panel") {
+    // A whole-block plugin widget may be skipped by CM6's native visual movement
+    // after boundary normalization. Reveal it through the same navigation owner.
+    let projected = false;
+    state
+      .field(wysiwygProjectionField, false)
+      ?.layoutDecorations.between(record.fullRange.from, record.fullRange.to, (from, to, value) => {
+        if (
+          from === record.fullRange.from &&
+          to >= record.fullRange.to &&
+          value.spec.block &&
+          value.spec.widget
+        )
+          projected = true;
+      });
+    return projected;
+  }
   if (!isSelectableAtom(record, state)) {
     return false;
   }

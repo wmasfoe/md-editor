@@ -2,7 +2,6 @@
   "name": "@md-editor/editor",
   "version": "0.1.0",
   "license": "GPL-3.0-or-later",
-  "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
@@ -12,7 +11,9 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build": "node ../../scripts/packages/build.mjs",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -71,6 +72,34 @@
   "peerDependenciesMeta": {
     "react": {
       "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./testing": {
+        "types": "./dist/testing.d.ts",
+        "default": "./dist/testing.js"
+      },
+      "./react": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "./react/testing": {
+        "types": "./dist/react/testing.d.ts",
+        "default": "./dist/react/testing.js"
+      }
     }
   }
 }

@@ -40,10 +40,10 @@
     "smoke:core": "node --experimental-strip-types scripts/smoke-core.mjs",
     "build": "pnpm -r --sort build",
     "typecheck": "pnpm -r --sort typecheck",
-    "verify": "pnpm lint && pnpm test && pnpm typecheck",
+    "verify": "pnpm lint && pnpm test && pnpm typecheck && pnpm verify:packages",
     "pr:watch": "node scripts/git/watch-pr.mjs",
     "prepare": "node scripts/git/install-hooks.mjs",
-    "test": "pnpm -r --sort test && pnpm test:release && pnpm test:structure && pnpm test:style-eval && pnpm test:bundle",
+    "test": "pnpm -r --sort test && pnpm test:release && pnpm test:structure && pnpm test:style-eval && pnpm test:bundle && pnpm test:packages",
     "test:bundle": "node --test apps/desktop/scripts/bundle-budget.test.mjs && node apps/desktop/scripts/code-language-bundle-probe.mjs",
     "test:bundle:update": "node apps/desktop/scripts/code-language-bundle-probe.mjs --update-budget",
     "test:release": "node --test scripts/release/*.test.mjs scripts/mobile/*.test.mjs",
@@ -57,7 +57,10 @@
     "format:check": "pnpm format:prettier:check && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check",
     "format:prettier:check": "prettier --check .",
     "lint:structure": "node scripts/structure/check.mjs --phase pr3",
-    "test:structure": "node --test scripts/structure/*.test.mjs"
+    "test:structure": "node --test scripts/structure/*.test.mjs",
+    "build:packages": "pnpm --filter \"./packages/**\" -r --sort build",
+    "test:packages": "node --test scripts/packages/*.test.mjs",
+    "verify:packages": "pnpm build:packages && node scripts/packages/verify.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -67,6 +70,7 @@
     "prettier": "^3.9.4",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "semver": "7.8.5",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

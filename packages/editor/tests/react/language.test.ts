@@ -11,6 +11,7 @@ const bridge = vi.hoisted(() => ({
     setInlineStyleMarkers: vi.fn(),
     setMarkdownLint: vi.fn(),
     recomputeMarkdownLint: vi.fn(),
+    setLanguage: vi.fn(),
     requestMeasure: vi.fn(),
     setHostVisibility: vi.fn(),
   },
@@ -30,7 +31,7 @@ afterEach(async () => {
 
 describe("React editor language changes", () => {
   it.each([false, true])(
-    "refreshes diagnostics only when lint is enabled (%s)",
+    "forwards instance language without remounting with lint enabled=%s",
     async (enabled) => {
       const documentState = createDocumentState();
       container = document.createElement("div");
@@ -47,12 +48,14 @@ describe("React editor language changes", () => {
           ),
         );
       await render("en");
-      bridge.ports.recomputeMarkdownLint.mockClear();
+      bridge.ports.setLanguage.mockClear();
       await render("zh");
-      expect(bridge.ports.recomputeMarkdownLint).toHaveBeenCalledTimes(enabled ? 1 : 0);
+      expect(bridge.ports.setLanguage).toHaveBeenCalledTimes(1);
+      expect(bridge.ports.setLanguage).toHaveBeenCalledWith("zh");
       expect(bridge.destroy).not.toHaveBeenCalled();
       await render("zh");
-      expect(bridge.ports.recomputeMarkdownLint).toHaveBeenCalledTimes(enabled ? 1 : 0);
+      expect(bridge.ports.setLanguage).toHaveBeenCalledTimes(1);
+      expect(bridge.ports.setLanguage).toHaveBeenCalledWith("zh");
     },
   );
 });

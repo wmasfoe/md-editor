@@ -36,6 +36,8 @@ export type { DocumentLinterOptions };
 
 export interface CodeMirrorRendererOptions {
   readonly parent: HTMLElement;
+  /** Per-editor lint language; omitted values follow the host document. */
+  readonly language?: string;
   readonly initialSnapshot: DocumentSnapshot;
   /**
    * 是否自动注入渲染器自带样式（默认 `true`）。
@@ -146,6 +148,7 @@ export interface CodeMirrorRenderer {
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
   recomputeMarkdownLint(): MarkdownLintPortResult;
+  setLanguage(language: string | undefined): MarkdownLintPortResult;
   setHostVisibility(hidden: boolean): void;
   showSuggestion(suggestion: AiSuggestionInput): void;
   setAiSuggestionLabels(labels: AiSuggestionLabels): void;
@@ -261,6 +264,8 @@ export interface RendererViewAdapter {
 
 export interface RendererViewFactoryInput {
   readonly parent: HTMLElement;
+  /** Per-editor lint language; omitted values follow the host document. */
+  readonly language?: string;
   readonly state: EditorState;
   readonly onCompositionStart: () => void;
   readonly onCompositionEnd: () => void;

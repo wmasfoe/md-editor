@@ -115,19 +115,13 @@ if (deco.block) {
 6. **空行保真优先于视觉节奏**：WYSIWYG 的空行数量必须与源码 1:1（源码 N 个空行 ⇒ 视觉 N 个空行；0 个 ⇒ 相邻）。不允许用伪造空行来制造间距。
 7. **整块原子选中态键入必须收敛为光标**：`inclusiveStart: true` 会让 CM6 把 widget 标记为 `TileFlag.IncStart`，`resolveBlock` 因此把 DOM 选区锚点放进 **widget 内部**；当键入字符替换整块时，浏览器选区会顺着被替换掉的 widget DOM 回读成**覆盖刚键入文本的范围**，下一次键入就会把上一字符删掉（现象：丢首字符，例如 `replacement` → `eplacement`）。因此整行块级原子（表格 / HTML / MDX / 块级兜底原子）的键入必须由 `blockAtomTypingInputHandler`（`atom-selection.ts`）显式派发事务（changes + 折叠光标），不得依赖 DOM 选区回读。行内原子、普通文本选区、IME 组字保持原生路径。
 
-### 已登记豁免：Mermaid 块（2026-10）
+### 插件整块装饰（2026-11-12）
 
-`MermaidBlockWidget`（`packages/syntax-plugins/src/mermaid/mermaid-projection.ts`）目前仍**手写** `Decoration.replace({ …, inclusive: false, block: true })`，未经 `buildWholeLineBlockReplacement()`——即与不变量 #1/#4 存在漂移。
+Mermaid 的历史豁免已移除。syntax-plugins 只描述 widget 与记录范围；editor 在聚合插件装饰时，用 `normalizePluginBlockReplacements()` 将匹配完整记录的块级 widget 归一到 `buildWholeLineBlockReplacement()`，统一尾换行和不对称 Inclusivity，保留插件元数据。插件不依赖 editor。
 
-**本仓库显式接受该现状**，理由与约束：
+`codemirror-mermaid-viewer.spec.ts` 按源码 0 / 1 / 2 个空行检查视觉行数一致；`virtual-terminal-blocks.test.ts` 检查插件经过聚合后的装饰边界。
 
-- 改走统一实现会移动替换 range，并打破既有装饰几何断言（`packages/syntax-plugins/tests/mermaid.test.ts` 中 `inactiveDecos[0].from/to === record.fullRange.to`），属独立风险面，需另开任务；
-- 因此 **Mermaid 块暂不受 #2（不对称 Inclusivity）约束**，也不得借本豁免去放宽其它块级 widget；
-- **已知回归缺口（2026-10 实测确认，不再是推测）**：既有块级空行保真 e2e 的夹具只覆盖表格 / HTML / MDX / 分割线，**未覆盖 mermaid**；而在启用 mermaid 插件的完整 app harness 中实测：
-  - 源码 1 个空行 ⇒ 视觉 **2** 个空行（**多一个幽灵行**）；
-  - 源码 **0** 个空行 ⇒ 视觉 **1** 个空行（同样多一个）——即 mermaid 块目前**恒定多渲染 1 个幽灵行**。
-
-  这正是手写 `inclusive:false` 未采用不对称 Inclusivity 的后果，已由 `codemirror-mermaid-viewer.spec.ts` 的「块间空行保真（已登记偏差）」用例**钉死当前行为**（非假绿：后续改走统一实现时该用例会变红，需同步改断言并删除本偏差声明）。修复方向：让 mermaid 改走 `buildWholeLineBlockReplacement()`（会移动 range 并需同步调整 `packages/syntax-plugins/tests/mermaid.test.ts` 的装饰几何断言），属独立任务。
+纵向导航复用核心 `moveAtomVertically`：原生视觉移动跨过插件整块 widget 时，显式落入该记录源码。判定读取实际投影，不给已展开源码重复施加导航；浏览器定位使用真实文档位置，不依赖幽灵行高度。
 
 ### 符号型块（symbol block）默认间距规则
 

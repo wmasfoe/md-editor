@@ -36,3 +36,5 @@
 - 及时更新对应的文档，文档和代码的状态要保持同步。
 
 - 编辑器三包职责、React 子入口、独立性护栏与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)
+
+- npm 公开包范围、产物/版本范围闭包、宿主语言隔离及路径/文末块收口：[npm 分发收口](./release/npm_package_readiness.md)

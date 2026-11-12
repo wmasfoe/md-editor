@@ -25,8 +25,6 @@ export {
   mermaidMarkdownExtension,
   buildMermaidLayoutDecorations,
   type MermaidMetadata,
-  loadMermaid,
-  getLoadedMermaid,
   renderMermaidSvg,
 } from "./mermaid/index.ts";
 
