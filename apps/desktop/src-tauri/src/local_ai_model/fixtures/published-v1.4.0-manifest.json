@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "version": "1.4.0",
+  "updatedAt": "2026-10-25T12:11:43.378408+00:00",
+  "contextSize": 8192,
+  "languages": ["zh", "en", "ja", "ko", "ru", "fr"],
+  "specialTokens": {
+    "fimPrefix": "<|fim_prefix|>",
+    "fimSuffix": "<|fim_suffix|>",
+    "fimMiddle": "<|fim_middle|>",
+    "fimEnd": "<|fim_end|>",
+    "distill": "<|task_distill|>",
+    "completion": "<|task_completion|>",
+    "gecMixed": "<|task_gec_mixed|>",
+    "gecZh": "<|task_gec_zh|>",
+    "gecEn": "<|task_gec_en|>",
+    "gecJa": "<|task_gec_ja|>",
+    "gecKo": "<|task_gec_ko|>",
+    "gecRu": "<|task_gec_ru|>",
+    "gecFr": "<|task_gec_fr|>",
+    "punc": "<|task_punc|>",
+    "preserve": "<|task_preserve|>"
+  },
+  "models": [
+    {
+      "modelId": "md-editor-writer-lite",
+      "tier": "lite",
+      "displayName": "Lite (0.6b)",
+      "description": "任务专用 LoRA Adapter（gec）",
+      "recommended": false,
+      "isAvailable": true,
+      "capabilities": {
+        "gec": {
+          "version": "1.4.0",
+          "filename": "lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf",
+          "sizeBytes": 5073568,
+          "sha256": "084533a775dfa6eba375bfa5448c4c0eddd87c85e2520d3cf11734b07cc51b31",
+          "downloadUrl": "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-gec-qwen3-0.6b-v1.4.0-lora-f16.gguf",
+          "quant": "f16",
+          "adapterId": "md-editor-writer-lite-gec",
+          "task": "gec",
+          "baseModelId": "md-editor-writer-lite",
+          "baseModelVersion": "",
+          "baseSha256": ""
+        }
+      },
+      "base": {
+        "version": "1.4.0",
+        "filename": "lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf",
+        "sizeBytes": 639446688,
+        "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031",
+        "downloadUrl": "https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/lite-base-qwen3-0.6b-v1.4.0-Q8_0.gguf",
+        "quant": "Q8_0"
+      }
+    },
+    {
+      "modelId": "md-editor-writer-pro",
+      "tier": "pro",
+      "displayName": "Pro",
+      "description": "旗舰级深度长文创作、论文润色与逻辑重构（敬请期待）。",
+      "recommended": false,
+      "isAvailable": false,
+      "capabilities": {},
+      "version": "1.4.0",
+      "filename": "",
+      "sizeBytes": 0,
+      "sha256": "",
+      "downloadUrl": "",
+      "quant": "Q4_K_M"
+    },
+    {
+      "modelId": "md-editor-writer-standard",
+      "tier": "standard",
+      "displayName": "Standard (e2b)",
+      "description": "本地基座模型：与任务 Adapter 配合实现 GEC/续写等能力",
+      "recommended": false,
+      "isAvailable": true,
+      "capabilities": {
+        "gec": {
+          "adapterId": null,
+          "filename": null,
+          "sizeBytes": 0,
+          "sha256": "",
+          "downloadUrl": "",
+          "promptProtocol": "harness-chatml-v1",
+          "grammar": "rfc002_tuple"
+        }
+      },
+      "base": {
+        "version": "1.4.0",
+        "filename": "standard-base-gemma4-e2b-v1.4.0-Q8_0.gguf",
+        "sizeBytes": 5048352864,
+        "sha256": "605d3c2647d7c58c1e4b5375ccb5702acf94c2611b4c8d4877812f8fdd32d053",
+        "downloadUrl": "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf",
+        "quant": "Q8_0"
+      }
+    }
+  ]
+}

@@ -79,7 +79,7 @@ packages/ai/src/
   - Adapter：单个 GEC LoRA（`gec.gguf`）；
   - 续写走裸 `/completion` 原生 FIM，LoRA scale 置 0.0；语法修复走单个 LoRA scale 1.0。
 - **Standard (`md-editor-writer-standard`)**：
-  - 基座：Google Gemma 4 E2B Q4_K_M（`base.gguf`）；
+  - 基座：Google Gemma 4 E2B Q8_0（`base.gguf`，5,048,352,864 字节）；
   - Adapter：0 LoRA（原生强基座能力）；
   - 续写与语法修复统一走 `/v1/chat/completions` 标准 ChatML。
 
@@ -99,9 +99,9 @@ packages/ai/src/
 
 2026-10-25 核对了 [v1.4.0 发布清单](https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/manifest.json)。模型仓库现为 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`），插件模板仓库 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 同样迁入 inkpoint-editor 组织；旧的 `wmasfoe/md-editor-models` 与 `wmasfoe/inkpoint-plugin-starter` 地址会自动跳转。该清单与 RFC 示例不同，模型文件摘要必须取自实际发布清单，不能复制示例占位值：
 
-- Lite 基座 `639,446,688` 字节，GEC LoRA `5,073,568` 字节；客户端内置摘要与下载体积已按发布清单校正。
-- Standard 实际发布条目为 Q8_0、`5,048,352,864` 字节，下载源为 Hugging Face；RFC 描述的是 Q4_K_M、约 1.68 GB。当前默认 Q4_K_M 条目的摘要仍为占位值，需在量化规格确定后与真实产物统一。远程清单有效时会覆盖默认条目。
-- [上游模型元数据](https://huggingface.co/api/models/unsloth/gemma-4-E2B-it-GGUF?blobs=true)在 revision `0314792d7f1f7e229411f620751375812bb9faf2` 已包含 Q4_K_M：`3,106,738,272` 字节，SHA256 为 `740185b21d22ceb83a11c3aa62ad5842ef32c70f6096d756bbee85a1e4ec34b8`。因此 Q4_K_M 也需修正文档中的体积，并同步模型仓库的发布清单。
+- Lite 基座 `639,446,688` 字节（Q8_0），GEC LoRA `5,073,568` 字节（f16）。清单里的下载地址仍写着迁移前的 `wmasfoe/md-editor-models`，GitHub 会 301 到 `inkpoint-editor/md-editor-models` 的同一资产；内置条目保存跳转后的地址，文件名、体积和 SHA256 与清单一致。
+- Standard 发布条目是 Q8_0、`5,048,352,864` 字节，SHA256 `605d3c2647d7c58c1e4b5375ccb5702acf94c2611b4c8d4877812f8fdd32d053`。权重不在 GitHub Release 里，下载地址是 Hugging Face 的 `gemma-4-E2B-it-Q8_0.gguf`；本地文件名仍用清单中的 `standard-base-gemma4-e2b-v1.4.0-Q8_0.gguf`。早先内置的 Q4_K_M 文件名和约 1.68 GB 占位摘要会 404，已改为这条发布记录。
+- 上游仓库另有一份 Q4_K_M blob，但 v1.4.0 `manifest.json` 没有发布它。内置 Standard 只跟随这份清单，不改回 Q4_K_M。
 
 架构来源由用户指定为 [《10 分钟学会设计 Agent 架构》](https://www.youtube.com/watch?v=0QrSy9dKuH8)。本轮仅获取到视频元数据，未获取到字幕或正文，以上边界核对依据仓库契约与 RFC，不代表已完成视频逐项验收。
 
