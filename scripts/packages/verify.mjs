@@ -101,14 +101,24 @@ try {
     }
   }
   writeFileSync(join(temporary, "package.json"), JSON.stringify({ type: "module" }));
-  // Verify the SDK root as a non-React consumer before adding any React packages.
-  if (packages.some((pkg) => pkg.name === "@md-editor/plugin-sdk")) {
-    const sdkConsumer = join(temporary, "sdk-consumer.ts");
+  // Check non-React entry points before installing the React host dependencies.
+  const nonReactEntries = [
+    "@md-editor/plugin-sdk",
+    "@md-editor/core",
+    "@md-editor/plugin-host",
+  ].filter((name) => packages.some((pkg) => pkg.name === name));
+  if (nonReactEntries.length) {
+    const consumer = join(temporary, "non-react-consumer.ts");
     writeFileSync(
-      sdkConsumer,
-      'import { definePlugin } from "@md-editor/plugin-sdk"; void definePlugin;',
+      consumer,
+      nonReactEntries
+        .map(
+          (name, index) =>
+            `import * as api${index} from ${JSON.stringify(name)}; void api${index};`,
+        )
+        .join("\n"),
     );
-    const sdkProgram = ts.createProgram([sdkConsumer], {
+    const program = ts.createProgram([consumer], {
       noEmit: true,
       strict: true,
       skipLibCheck: false,
@@ -117,7 +127,7 @@ try {
       moduleResolution: ts.ModuleResolutionKind.NodeNext,
       target: ts.ScriptTarget.ES2022,
     });
-    const errors = ts.getPreEmitDiagnostics(sdkProgram);
+    const errors = ts.getPreEmitDiagnostics(program);
     assert.equal(
       errors.length,
       0,

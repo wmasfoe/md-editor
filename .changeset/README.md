@@ -17,6 +17,10 @@ Whenever a pull request makes changes to any of the published public npm package
 3. Write a concise summary of the changes in English.
 4. Commit the generated `.changeset/*.md` file alongside your PR.
 
+If the changes do not warrant a package release (for example, test-only changes),
+run `pnpm changeset --empty` and commit the resulting empty changeset. This is an
+explicit no-release decision for packages without another release entry.
+
 ## Release Process
 
 When changesets are merged into the `main` branch:

@@ -34,9 +34,15 @@ export function evaluateChangesetRequirement({ changedFiles, changesetContents =
 
   // Changesets frontmatter maps package names to semver bump levels.
   const covered = new Set();
+  let noRelease = false;
   for (const file of touchedChangesets) {
     const content = changesetContents[file] ?? "";
-    const frontmatter = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
+    // An empty changeset explicitly allows packages without a release.
+    if (/^---[ \t]*\r?\n(?:[ \t]*\r?\n)*---[ \t]*(?:\r?\n|$)/.test(content)) {
+      noRelease = true;
+      continue;
+    }
+    const frontmatter = content.match(/^---[ \t]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];
     if (!frontmatter) continue;
     for (const line of frontmatter.split(/\r?\n/)) {
       const entry = line.match(
@@ -45,10 +51,13 @@ export function evaluateChangesetRequirement({ changedFiles, changesetContents =
       if (entry) covered.add(entry[1]);
     }
   }
-  const missingPackages = [...touchedPackages].filter((name) => !covered.has(name)).toSorted();
+  const missingPackages = noRelease
+    ? []
+    : [...touchedPackages].filter((name) => !covered.has(name)).toSorted();
 
   return {
     missingPackages,
+    noRelease,
     needsChangeset: touchedPackages.size > 0,
     touchedPackages: Array.from(touchedPackages).toSorted(),
     hasChangeset: touchedChangesets.length > 0,
@@ -113,6 +122,8 @@ function run() {
     if (process.argv.includes("--strict")) {
       process.exit(1);
     }
+  } else if (result.noRelease && result.needsChangeset) {
+    console.log("✅ Empty changeset explicitly allows packages without a release.");
   } else if (result.needsChangeset && result.hasChangeset) {
     console.log(
       `✅ Changeset check passed for packages: ${result.touchedPackages.join(", ")} (${result.activeChangesets.join(", ")})`,

@@ -36,10 +36,15 @@ export function getPendingPublishPackages(rootDir = root, runNpm = execFileSync)
       }
     } catch (error) {
       let code;
-      try {
-        code = JSON.parse(String(error.stdout ?? "")).error?.code;
-      } catch {
-        // Malformed or missing registry response is an operational failure.
+      for (const output of [error.stdout, error.stderr]) {
+        const text = String(output ?? "");
+        try {
+          code = JSON.parse(text).error?.code;
+        } catch {
+          // npm can report errors as plain text on stderr.
+          if (/^npm (?:ERR!|error) code E404\s*$/m.test(text)) code = "E404";
+        }
+        if (code) break;
       }
       if (code !== "E404") {
         throw new Error(`Failed to query npm versions for ${manifest.name}`, { cause: error });

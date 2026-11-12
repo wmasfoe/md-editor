@@ -95,3 +95,25 @@ test("does not count deleted changesets or mentions outside frontmatter", () => 
   });
   assert.deepEqual(result.missingPackages, ["@md-editor/core"]);
 });
+
+test("accepts an explicit empty changeset as a no-release decision", () => {
+  for (const content of ["---\n---\n", "---\n\n---\n\n", "---\r\n---\r\nNo release.\r\n"]) {
+    const result = evaluateChangesetRequirement({
+      changedFiles: ["packages/core/tests/state.test.ts", ".changeset/empty.md"],
+      changesetContents: { "empty.md": content },
+    });
+    assert.equal(result.noRelease, true);
+    assert.deepEqual(result.missingPackages, []);
+  }
+});
+
+test("does not treat malformed or deleted changesets as an opt-out", () => {
+  for (const content of ["", "---\ninvalid\n---\n", "---\n---not-frontmatter\n"]) {
+    const result = evaluateChangesetRequirement({
+      changedFiles: ["packages/core/src/index.ts", ".changeset/empty.md"],
+      changesetContents: { "empty.md": content },
+    });
+    assert.equal(result.noRelease, false);
+    assert.deepEqual(result.missingPackages, ["@md-editor/core"]);
+  }
+});

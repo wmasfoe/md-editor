@@ -22,7 +22,9 @@ console.log(catalog.plugins);
 
 ## Entry points
 
-The package ships ESM and TypeScript declarations:
+The package ships ESM and TypeScript declarations. Its `@md-editor/plugin-sdk`
+dependency declares required CodeMirror, Lezer and CJK utility peers. Install
+compatible versions if your package manager does not install peers automatically:
 
 - `@md-editor/plugin-host`: plugin host and package/catalog validation.
 - `@md-editor/plugin-host/mdx`: MDX component metadata registry.
