@@ -1,6 +1,6 @@
 # npm Editor SDK 发布记录
 
-用途：记录 core/editor 及其必需依赖的 npm 版本和消费侧变更。以下版本已准备，尚未发布。
+用途：记录 core/editor 及其必需依赖的 npm 版本和消费侧变更。以下版本已于 2026-11-12 发布到 npm。
 
 ## core 0.1.0 / editor 0.1.0
 

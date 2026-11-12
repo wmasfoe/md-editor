@@ -1,6 +1,6 @@
 # npm Editor SDK changelog
 
-Purpose: record npm versions and consumer changes for core/editor and their required dependencies. These versions are prepared and have not been published.
+Purpose: record npm versions and consumer changes for core/editor and their required dependencies. These versions were published to npm on 2026-11-12.
 
 ## core 0.1.0 / editor 0.1.0
 

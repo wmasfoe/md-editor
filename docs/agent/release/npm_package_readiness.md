@@ -2,6 +2,25 @@
 
 用途：记录子包发布产物、独立宿主语言隔离和消费验证的约束与验证入口。
 
+## npm 首发结果（2026-11-12）
+
+以下六包已从干净的 `main` 提交 `d64d336135b9bd85227c55b8e1b03292965ceac0` 发布，registry 的目标版本与 `latest` 标签已核对。下文准备阶段的「未上传」描述保留为历史记录，以本节发布结果为准。
+
+| 包 | 已发布版本 |
+| --- | --- |
+| `@md-editor/core` | `0.1.0` |
+| `@md-editor/editor` | `0.1.0` |
+| `@md-editor/plugin-sdk` | `0.2.0` |
+| `@md-editor/shared` | `0.1.0` |
+| `@md-editor/markdown-fidelity` | `0.1.0` |
+| `@md-editor/plugin-host` | `0.1.0` |
+
+发布前全仓 `pnpm verify` 与 `pnpm verify:editor-packages` 通过，后者覆盖六包 14 个 JS/类型入口、CSS 和许可证。发布使用上文约定的 pnpm 运行时闭包命令；compiler、syntax-plugins 及 private 应用包均未发布，应用版本未改动。
+
+发布后从 npm 在独立目录安装 core/editor，验证六包 14 个 JS/严格类型入口、CSS 和许可证；基础入口无需 React，React 生产构建及 Chromium 中的编辑和状态同步通过。
+
+新版本上传成功后可能暂时无法安装：[npm 发布扫描说明](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/) 给出的典型等待约为五分钟。应等待 registry 可见性并完成安装复验，不重复上传同一版本。
+
 ## core/editor 发布准备计划
 
 1. 锁定最小运行时闭包：core、editor、shared、markdown-fidelity、plugin-host、plugin-sdk；不沿 devDependencies 扩大发布范围。
