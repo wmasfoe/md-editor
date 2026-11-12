@@ -1,0 +1,61 @@
+name: Release NPM Packages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-packages:
+    name: Version or Publish NPM Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Verify NPM Authentication
+        run: |
+          echo "Verifying npm registry authentication..."
+          npm whoami --registry https://registry.npmjs.org
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create Release Pull Request or Publish to NPM
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm changeset:version
+          publish: pnpm release:packages
+          title: "chore(release): version npm packages"
+          commit: "chore(release): version npm packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
