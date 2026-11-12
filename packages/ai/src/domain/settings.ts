@@ -112,7 +112,7 @@ export const AI_URL_PRESETS: readonly AiUrlPreset[] = [
 /**
  * RFC-004 (v1.4.0) 内置本地 AI 模型规格目录：
  * - Lite: Qwen 3 0.6B Q8_0 + GEC LoRA
- * - Standard: Google Gemma 4 E2B Q4_K_M 原生零微调
+ * - Standard: Google Gemma 4 E2B Q8_0 原生零微调
  */
 export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
   {
@@ -130,7 +130,7 @@ export const BUILTIN_LOCAL_MODELS: readonly AiLocalModelDescriptor[] = [
     tier: "standard",
     displayName: "Standard (Google Gemma 4 E2B)",
     parameterSize: "E2B",
-    downloadSizeBytes: 1_680_000_000,
+    downloadSizeBytes: 5_048_352_864,
     recommendedMemoryGb: 8,
     description:
       "高精度专业档：Google Gemma 4 端侧基座，原生推理与长句逻辑极强，无错识别率接近 100%",

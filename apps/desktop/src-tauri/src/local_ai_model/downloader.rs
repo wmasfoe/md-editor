@@ -179,6 +179,8 @@ pub(crate) async fn download_model(
                     )
                 })?;
 
+            // `-L` 跟随跳转。GitHub Release 会 302 到资源域名；Standard 的发布地址在
+            // Hugging Face，同样会跳到 CDN。下载器不按主机名过滤，清单里的 URL 原样交给 curl。
             let mut curl = silent_command("curl")
                 .arg("-L")
                 .arg("--fail")

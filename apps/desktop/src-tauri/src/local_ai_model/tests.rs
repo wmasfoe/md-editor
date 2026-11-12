@@ -231,30 +231,47 @@ fn can_reuse_local_component_checks_sha256_and_size() {
 fn builtin_and_remote_model_urls_use_inkpoint_editor_repository() {
     const RELEASE_PREFIX: &str = "https://github.com/inkpoint-editor/md-editor-models/";
 
-    for manifest in [default_lite_model(), default_standard_model()] {
+    // Lite 权重在 GitHub Release 上。清单仍写迁移前的 wmasfoe 地址，
+    // 内置条目保存 301 之后的 inkpoint-editor 地址。
+    let lite = default_lite_model();
+    assert!(
+        lite.download_url.starts_with(RELEASE_PREFIX),
+        "{}",
+        lite.download_url
+    );
+    assert!(
+        !lite.download_url.contains("wmasfoe/"),
+        "{}",
+        lite.download_url
+    );
+    for (_, adapter) in &lite.adapters {
         assert!(
-            manifest.download_url.starts_with(RELEASE_PREFIX),
+            adapter.download_url.starts_with(RELEASE_PREFIX),
             "{}",
-            manifest.download_url
+            adapter.download_url
         );
         assert!(
-            !manifest.download_url.contains("wmasfoe/"),
+            !adapter.download_url.contains("wmasfoe/"),
             "{}",
-            manifest.download_url
+            adapter.download_url
         );
-        for (_, adapter) in &manifest.adapters {
-            assert!(
-                adapter.download_url.starts_with(RELEASE_PREFIX),
-                "{}",
-                adapter.download_url
-            );
-            assert!(
-                !adapter.download_url.contains("wmasfoe/"),
-                "{}",
-                adapter.download_url
-            );
-        }
     }
+
+    // Standard 的 Q8_0 不在该 Release 资产中，下载地址是发布清单里的 Hugging Face URL。
+    let standard = default_standard_model();
+    assert!(
+        standard
+            .download_url
+            .starts_with("https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/"),
+        "{}",
+        standard.download_url
+    );
+    assert!(
+        !standard.download_url.contains("wmasfoe/"),
+        "{}",
+        standard.download_url
+    );
+    assert!(standard.adapters.is_empty());
 
     assert!(!REMOTE_MANIFEST_CANDIDATE_URLS.is_empty());
     for url in REMOTE_MANIFEST_CANDIDATE_URLS {
@@ -339,4 +356,131 @@ fn parses_rfc004_v140_manifest_with_zero_lora_standard() {
     assert_eq!(standard.adapters.len(), 0); // adapterId: null 且 url 为空，成功忽略并不注册为下载项
     assert_eq!(standard.all_download_specs().len(), 1); // 仅有 base.gguf
     assert_eq!(standard.all_download_specs()[0].0, "base");
+}
+
+/// v1.4.0 清单里的 GitHub 地址仍指向迁移前仓库，实际 301 到 inkpoint-editor。
+fn canonical_published_download_url(url: &str) -> String {
+    url.replace(
+        "https://github.com/wmasfoe/md-editor-models/",
+        "https://github.com/inkpoint-editor/md-editor-models/",
+    )
+}
+
+fn assert_builtin_asset_matches_published(
+    label: &str,
+    filename: &str,
+    download_url: &str,
+    size_bytes: u64,
+    sha256: &str,
+    published: &RemoteModelAsset,
+) {
+    assert_eq!(
+        filename,
+        published.filename.as_deref().unwrap(),
+        "{label} filename"
+    );
+    assert_eq!(
+        size_bytes,
+        published.size_bytes.unwrap(),
+        "{label} size_bytes"
+    );
+    assert_eq!(
+        sha256,
+        published.sha256.as_deref().unwrap(),
+        "{label} sha256"
+    );
+    let published_url = published.download_url.as_deref().unwrap();
+    assert_eq!(
+        download_url,
+        canonical_published_download_url(published_url),
+        "{label} download_url"
+    );
+    if let Some(quant) = published.quant.as_deref() {
+        assert!(
+            filename.contains(quant),
+            "{label} filename {filename} must carry quant {quant}"
+        );
+    }
+}
+
+#[test]
+fn builtin_entries_match_published_v140_manifest() {
+    let remote: RemoteManifest =
+        serde_json::from_str(include_str!("fixtures/published-v1.4.0-manifest.json"))
+            .expect("published v1.4.0 manifest fixture must parse");
+    assert_eq!(remote.version, "1.4.0");
+    assert_eq!(remote.context_size, Some(8192));
+
+    let lite_entry = remote
+        .models
+        .iter()
+        .find(|entry| entry.model_id.as_deref() == Some(LITE_MODEL_ID))
+        .unwrap();
+    let lite = default_lite_model();
+    assert_builtin_asset_matches_published(
+        "lite base",
+        &lite.filename,
+        &lite.download_url,
+        lite.size_bytes,
+        &lite.sha256,
+        lite_entry.base.as_ref().unwrap(),
+    );
+    assert_eq!(lite.context_size, remote.context_size.unwrap());
+    assert!(lite.is_available);
+    let published_gec = lite_entry
+        .capabilities
+        .as_ref()
+        .unwrap()
+        .get("gec")
+        .unwrap();
+    assert_eq!(lite.adapters.len(), 1);
+    let (task, adapter) = &lite.adapters[0];
+    assert_eq!(task, "gec");
+    assert_builtin_asset_matches_published(
+        "lite gec",
+        &adapter.filename,
+        &adapter.download_url,
+        adapter.size_bytes,
+        &adapter.sha256,
+        &published_gec.asset,
+    );
+
+    let standard_entry = remote
+        .models
+        .iter()
+        .find(|entry| entry.model_id.as_deref() == Some(STANDARD_MODEL_ID))
+        .unwrap();
+    let standard = default_standard_model();
+    let standard_base = standard_entry.base.as_ref().unwrap();
+    assert_builtin_asset_matches_published(
+        "standard base",
+        &standard.filename,
+        &standard.download_url,
+        standard.size_bytes,
+        &standard.sha256,
+        standard_base,
+    );
+    // 非 GitHub 地址必须与清单原文一致，不能再改写成 Release 路径。
+    assert_eq!(
+        standard.download_url,
+        standard_base.download_url.as_deref().unwrap()
+    );
+    assert!(standard.adapters.is_empty());
+    assert_eq!(standard.all_download_specs().len(), 1);
+    assert!(standard.is_available);
+    assert_eq!(standard.context_size, remote.context_size.unwrap());
+
+    let pro_entry = remote
+        .models
+        .iter()
+        .find(|entry| entry.model_id.as_deref() == Some(PRO_MODEL_ID))
+        .unwrap();
+    let pro = default_pro_model();
+    assert_eq!(pro_entry.is_available, Some(false));
+    assert!(!pro.is_available);
+    assert!(pro.download_url.is_empty());
+    assert_eq!(pro.size_bytes, 0);
+    assert!(pro.sha256.is_empty());
+    assert!(pro.adapters.is_empty());
+    assert!(pro.all_download_specs().is_empty());
 }

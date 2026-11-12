@@ -28,6 +28,8 @@ describe("local AI multi-tier models and system specs", () => {
 
     expect(standard?.isAvailable).toBe(true);
     expect(standard?.recommendedMemoryGb).toBe(8);
+    expect(standard?.downloadSizeBytes).toBe(5_048_352_864);
+    expect(lite?.downloadSizeBytes).toBe(644_520_256);
 
     expect(pro?.isAvailable).toBe(false);
     expect(pro?.displayName).toBe("Pro");

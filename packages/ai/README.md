@@ -35,7 +35,7 @@ The local models run through llama.cpp on the desktop app. The catalog is `BUILT
 | Tier | Model | Size | Status |
 | :--- | :--- | :--- | :--- |
 | `lite` | Qwen 3 0.6B (Q8_0) with a grammar-fix LoRA | about 640 MB | available |
-| `standard` | Google Gemma 4 E2B (Q4_K_M) | about 1.7 GB | available |
+| `standard` | Google Gemma 4 E2B (Q8_0) | 4.7 GB | available |
 | `pro` | not defined yet | none | not available |
 
 `lite` uses the `/completion` endpoint for fill-in-the-middle continuation. Everything else goes through chat completions.

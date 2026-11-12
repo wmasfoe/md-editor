@@ -100,16 +100,21 @@ pub(crate) fn default_lite_model() -> LocalAiModelManifest {
 }
 
 /// 内置标准级 Standard 模型（Google Gemma 4 E2B 原生基座）。
+///
+/// 文件名、体积和 SHA256 取自 `md-editor-models` v1.4.0 发布清单的 `base`。
+/// 该 GGUF 不在 GitHub Release 资产里（旧的 `Q4_K_M` 文件名会 404），
+/// 清单给出的下载地址是 Hugging Face 上的 Q8_0 权重。本地文件名仍用清单里的
+/// `standard-base-...-Q8_0.gguf`，与上游 blob 名 `gemma-4-E2B-it-Q8_0.gguf` 分开保存。
 pub(crate) fn default_standard_model() -> LocalAiModelManifest {
     LocalAiModelManifest {
         id: STANDARD_MODEL_ID.to_string(),
         display_name: "Standard (Google Gemma 4 E2B)".to_string(),
         description: canonical_description_for_tier(STANDARD_MODEL_ID),
         version: "v1.4.0".to_string(),
-        filename: "standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
-        download_url: "https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/standard-base-gemma4-e2b-v1.4.0-Q4_K_M.gguf".to_string(),
-        size_bytes: 1_680_000_000,
-        sha256: "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a".to_string(),
+        filename: "standard-base-gemma4-e2b-v1.4.0-Q8_0.gguf".to_string(),
+        download_url: "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q8_0.gguf".to_string(),
+        size_bytes: 5_048_352_864,
+        sha256: "605d3c2647d7c58c1e4b5375ccb5702acf94c2611b4c8d4877812f8fdd32d053".to_string(),
         context_size: 8192,
         default_max_tokens: 260,
         is_available: true,
