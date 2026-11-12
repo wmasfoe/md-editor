@@ -1,12 +1,56 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import semver from "semver";
 import { selectPublicationPackages, validatePublicationClosure } from "./publication.mjs";
 
 const workspacePackages = () =>
   readdirSync(new URL("../../packages/", import.meta.url)).map((name) =>
     JSON.parse(readFileSync(new URL(`../../packages/${name}/package.json`, import.meta.url))),
   );
+
+test("packed editor SDK consumers accept one shared compatible SDK patch", () => {
+  const consumers = ["@md-editor/core", "@md-editor/editor", "@md-editor/plugin-host"];
+  const sdk = workspacePackages().find((pkg) => pkg.name === "@md-editor/plugin-sdk");
+  const nextPatch = semver.inc(sdk.version, "patch");
+  const directory = mkdtempSync(join(tmpdir(), "inkpoint-sdk-ranges-"));
+  try {
+    // Only inspect pnpm's converted manifests here; dist consumption is verified
+    // separately, and this regression must also work before the first build.
+    execFileSync(
+      "pnpm",
+      [
+        ...consumers.flatMap((name) => ["--filter", name]),
+        "-r",
+        "pack",
+        "--config.ignore-scripts=true",
+        "--pack-destination",
+        directory,
+      ],
+      { cwd: fileURLToPath(new URL("../..", import.meta.url)), stdio: "pipe" },
+    );
+    assert.equal(readdirSync(directory).length, consumers.length);
+    for (const file of readdirSync(directory)) {
+      const pkg = JSON.parse(
+        execFileSync("tar", ["-xOf", join(directory, file), "package/package.json"], {
+          encoding: "utf8",
+        }),
+      );
+      const range = pkg.dependencies[sdk.name];
+      assert.ok(
+        semver.satisfies(nextPatch, range),
+        `${pkg.name}: ${sdk.name}@${nextPatch} does not satisfy ${range}`,
+      );
+      assert.ok(!semver.satisfies("0.1.0", range), `${pkg.name} accepts the incompatible SDK`);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("public package closure excludes the six application packages", () => {
   assert.deepEqual(
@@ -39,6 +83,23 @@ test("core/editor publication includes only their six runtime packages", () => {
       "@md-editor/plugin-sdk",
       "@md-editor/shared",
     ],
+  );
+});
+
+test("repeated roots produce each package once in first-seen order", () => {
+  const packages = [
+    { name: "@md-editor/first", dependencies: { "@md-editor/shared": "workspace:*" } },
+    { name: "@md-editor/second", dependencies: { "@md-editor/shared": "workspace:*" } },
+    { name: "@md-editor/shared" },
+  ];
+  assert.deepEqual(
+    selectPublicationPackages(packages, [
+      "@md-editor/second",
+      "@md-editor/first",
+      "@md-editor/second",
+      "@md-editor/first",
+    ]).map((pkg) => pkg.name),
+    ["@md-editor/second", "@md-editor/first", "@md-editor/shared"],
   );
 });
 

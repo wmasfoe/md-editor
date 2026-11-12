@@ -99,6 +99,9 @@ jobs:
       - name: Verify npm tarball consumers
         run: pnpm verify:packages
 
+      - name: Verify core/editor npm closure
+        run: pnpm verify:editor-packages
+
       # 生产构建 smoke：apps/web 的产物此前只在 web-v* tag 发布时才构建，
       # PR 阶段发现不了构建期问题（例如幽灵依赖导致的 CSS 解析失败）。
       # 桌面端产物已由 `pnpm test` 中的 test:bundle 探针覆盖（它会做一次完整 desktop Vite 构建）。

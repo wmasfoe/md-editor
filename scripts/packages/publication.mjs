@@ -5,7 +5,7 @@ import semver from "semver";
 export function selectPublicationPackages(packages, roots) {
   const byName = new Map(packages.map((pkg) => [pkg.name, pkg]));
   const selected = roots
-    ? roots.map((name) => {
+    ? [...new Set(roots)].map((name) => {
         const pkg = byName.get(name);
         assert.ok(pkg, `${name} is an unknown publication root`);
         assert.ok(!pkg.private, `${name} is private`);

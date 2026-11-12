@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@md-editor/shared": "workspace:*",
-    "@md-editor/plugin-sdk": "workspace:*"
+    "@md-editor/plugin-sdk": "workspace:^0.2.0"
   },
   "devDependencies": {
     "@md-editor/mdx-plugins": "workspace:*",
