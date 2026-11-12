@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@md-editor/desktop",
+    "@md-editor/mobile-core",
+    "@md-editor/site",
+    "@md-editor/utools",
+    "@md-editor/web",
+    "@md-editor/distribution-worker",
+    "@md-editor/ai",
+    "@md-editor/app-ui",
+    "@md-editor/changelog",
+    "@md-editor/file-system",
+    "@md-editor/i18n",
+    "@md-editor/mdx-plugins",
+    "@md-editor/compiler",
+    "@md-editor/syntax-plugins"
+  ]
+}

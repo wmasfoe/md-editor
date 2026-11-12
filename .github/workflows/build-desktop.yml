@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -47,6 +49,10 @@ jobs:
       # 注意不能直接换成 `pnpm lint`：那会连带执行 cargo fmt/clippy，而本 job 未安装 Rust。
       - name: Lint (Structure)
         run: pnpm lint:structure
+
+      - name: Check Changeset
+        if: github.event_name == 'pull_request'
+        run: node scripts/packages/check-changeset.mjs
 
   typecheck:
     name: Typecheck

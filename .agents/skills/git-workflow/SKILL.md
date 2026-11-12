@@ -132,7 +132,7 @@ gh pr merge <pr_number_or_url> --squash --auto --delete-branch
 ## 6. Multi-Platform Release Protocol
 
 For multi-platform releases, version bumps, changelog maintenance, and production deployment, refer to the dedicated **Release Skill**:
-- [`.agents/skills/release/SKILL.md`](file:///Users/ikun/code/md-editor/.agents/skills/release/SKILL.md)
+- [`.agents/skills/release/SKILL.md`](../release/SKILL.md)
 
 ### Release Command Quick Reference
 
@@ -142,4 +142,34 @@ For multi-platform releases, version bumps, changelog maintenance, and productio
 | **Web** | `pnpm release:web` | `web-v*` | `.github/workflows/release-web.yml` |
 | **Site** | `pnpm release:site` | N/A | Vercel CLI Prebuilt Deploy |
 | **Worker** | `pnpm deploy:worker` | N/A | Cloudflare Worker CLI |
+
+---
+
+## 7. Public NPM Packages Release Protocol (Changesets)
+
+For public npm packages (`packages/core`, `packages/editor`, `packages/plugin-sdk`, `packages/shared`, `packages/markdown-fidelity`, `packages/plugin-host`):
+
+1. **Before pushing or opening a PR**:
+   If changes affect any of the public npm packages above, generate a changeset fragment:
+   ```bash
+   pnpm changeset
+   ```
+   Select affected package(s), select SemVer type (`patch` / `minor` / `major`), and provide a clear English change description.
+2. **Commit changeset file**:
+   Commit the generated `.changeset/*.md` file with your PR:
+   ```bash
+   git add .changeset/*.md
+   ```
+3. **DO NOT manually bump version in package.json**:
+   Versions, changelogs, and npm distribution are handled automatically by Changesets when merging into `main`.
+4. **CI Changeset Guard**:
+   The PR `lint` job runs `node scripts/packages/check-changeset.mjs`. If public packages are touched without a changeset, it warns the PR author.
+5. **Release Trigger (For Maintainers)**:
+   - Ensure `NPM_TOKEN` is configured in GitHub Repository Secrets (**Settings -> Secrets and variables -> Actions**).
+   - Merging changesets into `main` automatically creates/updates the **"chore(release): version npm packages"** PR via `.github/workflows/release-npm-packages.yml`.
+   - Merging that release PR triggers `pnpm release:packages`, which executes `pnpm verify:packages` and publishes updated packages to npm with Git tags.
+6. **Detailed Documentation**:
+   See [`docs/agent/release/npm_automated_release_changesets.md`](../../../docs/agent/release/npm_automated_release_changesets.md).
+
+
 

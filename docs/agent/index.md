@@ -37,5 +37,6 @@
 
 - 编辑器三包职责、React 子入口、独立性护栏与保留依赖的 npm 分发约定：[编辑器包边界](./architecture/editor_package_boundaries.md)
 
+- npm 公开子包基于 Changesets 的自动化版本管理、变更集声明与发版规范：[npm Changesets 自动化发版](./release/npm_automated_release_changesets.md)
 - npm 实际发布结果、公开包范围、版本闭包、SDK 补丁兼容、定向 CI、宿主隔离与路径/文末块审查记录：[npm 分发收口](./release/npm_package_readiness.md)
 - core/editor 首发与 SDK 0.2.0 的版本、消费变更和运行要求：[中文发布记录](./release/npm-editor-sdk/CHANGELOG.md)、[English changelog](./release/npm-editor-sdk/CHANGELOG_EN.md)

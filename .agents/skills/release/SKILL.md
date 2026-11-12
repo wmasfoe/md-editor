@@ -32,6 +32,7 @@ This skill guides agents through the end-to-end lifecycle for versioning, change
 | **Official Site** | `pnpm release:site` | N/A | Triggered on release or manual | Vercel CLI Prebuilt Deploy | Sourced from Desktop & Web changelogs | Vercel Production (`editor.jiaqi.im`) |
 | **Distribution Worker** | `pnpm deploy:worker` | N/A | Manual / Infrastructure deploy | Cloudflare Worker CLI | `infra/distribution-worker` | Cloudflare Edge (`download.jiaqi.im`) |
 | **uTools Plugin** | Manual Review | `apps/utools/package.json` | `utools-v*` | `.github/workflows/release-utools.yml` | `apps/utools/package.json`<br>`apps/utools/CHANGELOG*.md` | uTools Developer Center (manual submission) |
+| **Public NPM Packages** | `pnpm release:packages` | `pnpm changeset:version` | `<pkg>@<version>` | `.github/workflows/release-npm-packages.yml` | `packages/*/package.json`<br>`packages/*/CHANGELOG.md` | npm registry (`https://registry.npmjs.org`) |
 
 ---
 
@@ -91,6 +92,13 @@ pnpm build:ios       # dist-mobile/Inkpoint-<version>-unsigned.ipa (needs macOS 
    pnpm deploy:worker
    ```
 2. Deploys updated Cloudflare Worker handling download redirects, device directories, and release API metadata.
+
+### 3.6 Public NPM Packages Release (`packages/*`)
+1. **Prerequisite**: Ensure `NPM_TOKEN` is configured in GitHub Repository Secrets (**Settings -> Secrets and variables -> Actions**).
+2. **Changeset generation**: When modifying public packages (`core`, `editor`, `plugin-sdk`, `shared`, `markdown-fidelity`, `plugin-host`), run `pnpm changeset` in your PR branch, choose the SemVer type, write an English description, and commit `.changeset/*.md`.
+3. **Automated Versioning**: When changesets merge into `main`, `.github/workflows/release-npm-packages.yml` automatically updates the "chore(release): version npm packages" PR with bumped versions and changelogs.
+4. **Automated Publishing**: Merging the "Version Packages" PR triggers `.github/workflows/release-npm-packages.yml`, executing `pnpm release:packages` (which runs `pnpm verify:packages` and publishes to npm with Git tags).
+5. **Reference**: See [`docs/agent/release/npm_automated_release_changesets.md`](../../../docs/agent/release/npm_automated_release_changesets.md).
 
 ---
 

@@ -35,6 +35,9 @@
     "release:web": "node scripts/web/deploy-web.mjs",
     "release:web:publish": "node scripts/release/publish-web.mjs",
     "release:web:version": "node scripts/release/version-web.mjs",
+    "release:packages": "node scripts/packages/publish.mjs",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
     "deploy:web": "node scripts/web/deploy-web.mjs",
     "release:site": "node scripts/site/deploy-site.mjs",
     "smoke:core": "node --experimental-strip-types scripts/smoke-core.mjs",
@@ -64,6 +67,7 @@
     "verify:editor-packages": "pnpm --filter-prod @md-editor/editor... -r --sort build && node scripts/packages/verify.mjs --package @md-editor/core --package @md-editor/editor"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
