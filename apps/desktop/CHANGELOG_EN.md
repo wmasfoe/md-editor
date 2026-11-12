@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased — model and plugin template repositories moved
+## 0.22.1 - 2026-11-12 (#246)
 
-- The model repository and the plugin template repository moved to the inkpoint-editor organization; old addresses redirect automatically.
+- Fix Standard local model downloads when using the built-in catalog and correct the download size to about 4.7 GiB.
 
 ## 0.22.0 - 2026-11-09 (#230, #231, #232, #233, #234, #235, #236, #237, #238, #239)
 
