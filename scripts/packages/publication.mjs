@@ -2,9 +2,19 @@ import assert from "node:assert/strict";
 import semver from "semver";
 
 /** A public package must have a complete, public workspace dependency closure. */
-export function selectPublicationPackages(packages) {
+export function selectPublicationPackages(packages, roots) {
   const byName = new Map(packages.map((pkg) => [pkg.name, pkg]));
-  const selected = packages.filter((pkg) => !pkg.private);
+  const selected = roots
+    ? roots.map((name) => {
+        const pkg = byName.get(name);
+        assert.ok(pkg, `${name} is an unknown publication root`);
+        assert.ok(!pkg.private, `${name} is private`);
+        return pkg;
+      })
+    : packages.filter((pkg) => !pkg.private);
+  const names = new Set(selected.map((pkg) => pkg.name));
+  // Appending discovered packages visits their runtime closure too, including
+  // peers and optional dependencies, without pulling in development-only tools.
   for (const pkg of selected) {
     for (const name of Object.keys({
       ...pkg.dependencies,
@@ -13,6 +23,10 @@ export function selectPublicationPackages(packages) {
     })) {
       const dependency = byName.get(name);
       assert.ok(!dependency?.private, `${pkg.name} depends on private package ${name}`);
+      if (dependency && !names.has(name)) {
+        names.add(name);
+        selected.push(dependency);
+      }
     }
   }
   return selected;

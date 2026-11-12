@@ -1,6 +1,12 @@
 {
   "name": "@md-editor/core",
   "version": "0.1.0",
+  "description": "Headless Markdown document state, transactions, commands and editor runtime without DOM or UI dependencies.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wmasfoe/md-editor.git",
+    "directory": "packages/core"
+  },
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {

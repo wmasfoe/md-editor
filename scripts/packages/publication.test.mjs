@@ -3,12 +3,14 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { selectPublicationPackages, validatePublicationClosure } from "./publication.mjs";
 
-test("public package closure excludes the six application packages", () => {
-  const packages = readdirSync(new URL("../../packages/", import.meta.url)).map((name) =>
+const workspacePackages = () =>
+  readdirSync(new URL("../../packages/", import.meta.url)).map((name) =>
     JSON.parse(readFileSync(new URL(`../../packages/${name}/package.json`, import.meta.url))),
   );
+
+test("public package closure excludes the six application packages", () => {
   assert.deepEqual(
-    selectPublicationPackages(packages)
+    selectPublicationPackages(workspacePackages())
       .map((pkg) => pkg.name)
       .toSorted(),
     [
@@ -21,6 +23,56 @@ test("public package closure excludes the six application packages", () => {
       "@md-editor/shared",
       "@md-editor/syntax-plugins",
     ],
+  );
+});
+
+test("core/editor publication includes only their six runtime packages", () => {
+  assert.deepEqual(
+    selectPublicationPackages(workspacePackages(), ["@md-editor/core", "@md-editor/editor"])
+      .map((pkg) => pkg.name)
+      .toSorted(),
+    [
+      "@md-editor/core",
+      "@md-editor/editor",
+      "@md-editor/markdown-fidelity",
+      "@md-editor/plugin-host",
+      "@md-editor/plugin-sdk",
+      "@md-editor/shared",
+    ],
+  );
+});
+
+test("scoped publication follows runtime and peer cycles but ignores dev dependencies", () => {
+  const packages = [
+    {
+      name: "@md-editor/root",
+      dependencies: { "@md-editor/dependency": "workspace:*" },
+      devDependencies: { "@md-editor/private": "workspace:*" },
+    },
+    {
+      name: "@md-editor/dependency",
+      optionalDependencies: { "@md-editor/optional": "workspace:*" },
+      peerDependencies: { "@md-editor/root": "*" },
+    },
+    { name: "@md-editor/optional" },
+    { name: "@md-editor/private", private: true },
+    { name: "@md-editor/deferred" },
+  ];
+  assert.deepEqual(
+    selectPublicationPackages(packages, ["@md-editor/root"]).map((pkg) => pkg.name),
+    ["@md-editor/root", "@md-editor/dependency", "@md-editor/optional"],
+  );
+});
+
+test("scoped publication rejects unknown and private roots", () => {
+  const packages = [{ name: "@md-editor/private", private: true }];
+  assert.throws(
+    () => selectPublicationPackages(packages, ["@md-editor/missing"]),
+    /missing.*unknown/,
+  );
+  assert.throws(
+    () => selectPublicationPackages(packages, ["@md-editor/private"]),
+    /private.*private/,
   );
 });
 
