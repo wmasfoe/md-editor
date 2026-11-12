@@ -14,17 +14,15 @@ Here the document is always the plain Markdown string. WYSIWYG mode adds decorat
 
 ## What WYSIWYG mode renders
 
-Under `src/wysiwyg/`:
-
 - **Headings** with a fold toggle, **blockquotes and callouts**, **lists** and **task lists**. Clicking a task checkbox toggles `[ ]` and `[x]` in the text.
-- **Tables**: edit cells in place, add or remove rows and columns (`editing/table-editing.ts`).
+- **Tables**: edit cells in place, add or remove rows and columns.
 - **Code blocks** with highlighting, a language selector, a copy button and optional line numbers.
 - **Inline marks**: bold, italic, strikethrough, inline code and links. Their markers show when the cursor touches them.
 - **Images, front matter, HTML blocks and MDX components**, shown as widgets. The source stays the source.
 - **Block tools**: move, duplicate and delete a block, and drag handles.
 - **Input helpers**: smart pairs, `Tab` to step out of brackets and links, smart paste, focus mode and typewriter mode.
 
-Syntax beyond CommonMark (math, Mermaid, directives, highlight) comes from plugins. See `@md-editor/syntax-plugins`.
+Syntax beyond CommonMark (math, Mermaid, directives, highlight) comes from plugins. The repository contains `@md-editor/syntax-plugins`, which is currently excluded from the npm release workflow; external hosts must supply compatible plugins separately.
 
 ## AI suggestions
 
@@ -44,7 +42,7 @@ modern JavaScript APIs, including `Array.prototype.toSorted`; server rendering
 should mount the editor on the client. Older WebViews require host-provided
 polyfills and separate compatibility testing.
 
-`@md-editor/plugin-sdk@^0.2.0` and the other runtime dependencies are installed
+`@md-editor/plugin-sdk` and the other runtime dependencies are installed
 automatically. Syntax plugins such as math and Mermaid are separate integrations;
 they are not required to use the core editor.
 

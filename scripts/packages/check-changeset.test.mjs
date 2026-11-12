@@ -15,11 +15,15 @@ test("identifies published package changes requiring a changeset", () => {
 test("passes when a valid changeset markdown file is in changedFiles", () => {
   const result = evaluateChangesetRequirement({
     changedFiles: ["packages/editor/src/index.ts", ".changeset/cyan-lions-dance.md"],
+    changesetContents: {
+      "cyan-lions-dance.md": '---\n"@md-editor/editor": patch\n---\nFix editor.\n',
+    },
   });
 
   assert.equal(result.needsChangeset, true);
   assert.deepEqual(result.touchedPackages, ["@md-editor/editor"]);
   assert.equal(result.hasChangeset, true);
+  assert.deepEqual(result.missingPackages, []);
   assert.deepEqual(result.activeChangesets, ["cyan-lions-dance.md"]);
 });
 
@@ -66,4 +70,28 @@ test("handles multiple touched published packages in sorted order", () => {
     "@md-editor/shared",
   ]);
   assert.equal(result.hasChangeset, true);
+});
+
+test("reports every package not covered by valid changeset frontmatter", () => {
+  const result = evaluateChangesetRequirement({
+    changedFiles: [
+      "packages/core/src/index.ts",
+      "packages/editor/src/index.ts",
+      ".changeset/fix.md",
+    ],
+    changesetContents: {
+      "fix.md": '---\n"@md-editor/core": patch\n"@md-editor/editor": invalid\n---\nFix.\n',
+    },
+  });
+  assert.deepEqual(result.missingPackages, ["@md-editor/editor"]);
+});
+
+test("does not count deleted changesets or mentions outside frontmatter", () => {
+  const result = evaluateChangesetRequirement({
+    changedFiles: ["packages/core/src/index.ts", ".changeset/deleted.md", ".changeset/other.md"],
+    changesetContents: {
+      "other.md": '---\n"@md-editor/editor": patch\n---\n"@md-editor/core": patch\n',
+    },
+  });
+  assert.deepEqual(result.missingPackages, ["@md-editor/core"]);
 });

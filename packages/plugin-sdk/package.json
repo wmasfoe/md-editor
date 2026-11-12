@@ -45,23 +45,6 @@
     "@lezer/markdown": "^1.8.0",
     "micromark-extension-cjk-friendly-util": "^3.0.1"
   },
-  "peerDependenciesMeta": {
-    "@codemirror/state": {
-      "optional": true
-    },
-    "@codemirror/view": {
-      "optional": true
-    },
-    "@lezer/common": {
-      "optional": true
-    },
-    "@lezer/markdown": {
-      "optional": true
-    },
-    "micromark-extension-cjk-friendly-util": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@codemirror/state": "catalog:",
     "@codemirror/view": "catalog:",

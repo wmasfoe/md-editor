@@ -2,7 +2,7 @@
 
 The editor's domain model: document state, the command and keymap registries, and the editor runtime that ties them together. It does not depend on the DOM, CodeMirror or React, so the same code runs in the desktop app, the web playground and the uTools plugin.
 
-It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](../../docs/agent/architecture/capability_boundary_design_principles.md).
+It depends only on `@md-editor/shared` and `@md-editor/plugin-sdk`. It does not import `@md-editor/ai`. AI results reach it as plain data or command arguments, and network and model handling stay in the AI package. See the [capability boundaries](https://github.com/wmasfoe/md-editor/blob/main/docs/agent/architecture/capability_boundary_design_principles.md).
 
 ## Install
 

@@ -1,10 +1,10 @@
 # @md-editor/markdown-fidelity
 
-Pure functions that keep a Markdown file unchanged while the editor shows it in another form. They protect front matter and MDX blocks, map image paths for preview and back, and build the heading outline. There is no DOM and no CodeMirror dependency.
+Functions for preserving Markdown source through preview and editing. They protect front matter and MDX blocks, map image paths for preview and back, and build a heading outline without DOM or CodeMirror dependencies.
 
 ## Why it exists
 
-An editor that shows rendered text usually has to rewrite part of the file. Front matter gets reformatted, raw HTML is stripped, image paths change. This package holds the small set of transforms Inkpoint uses to avoid that, and each one has a matching inverse.
+Rendering and saving Markdown can alter front matter, raw HTML or image paths. This package provides the transforms Inkpoint uses to preserve those parts. Preview rewrites have corresponding restore functions; `serializeRoundTrip` deliberately normalizes line endings and adds a final newline.
 
 ## What is in it
 
@@ -17,6 +17,12 @@ An editor that shows rendered text usually has to rewrite part of the file. Fron
 | Anchors | `headingAnchorSlug`, `resolveHeadingAnchor` | Resolves `[text](#heading)` links to a heading. |
 | Line endings | `serializeRoundTrip` | Converts to `\n` and makes sure the file ends with a newline. It changes nothing else. |
 | Detection | `isLikelyMdxBlock` | True when the text starts with an uppercase JSX tag. |
+
+## Install
+
+```bash
+npm install @md-editor/markdown-fidelity
+```
 
 ## Usage
 

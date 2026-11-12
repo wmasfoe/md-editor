@@ -421,7 +421,7 @@ export interface SyntaxPluginHostPorts {
  * 把 facet 放进 SDK 后：宿主 `syntaxPluginHostPortsFacet.of(ports)` 提供值，
  * 插件 `state.facet(syntaxPluginHostPortsFacet)` 读取值，双方只依赖契约。
  *
- * `@codemirror/state` 在本包是**可选** peer 依赖：只写命令/模板类插件不需要它。
+ * `@codemirror/state` 是必需的 peer 依赖，宿主与插件应使用兼容的共享实例。
  */
 export const syntaxPluginHostPortsFacet: Facet<SyntaxPluginHostPorts, SyntaxPluginHostPorts> =
   Facet.define<SyntaxPluginHostPorts, SyntaxPluginHostPorts>({

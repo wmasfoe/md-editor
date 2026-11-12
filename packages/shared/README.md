@@ -1,6 +1,12 @@
 # @md-editor/shared
 
-Small utilities and types used by the other packages. It has no heavy dependencies.
+Small utilities and types used by the other Inkpoint packages. It has no runtime dependencies.
+
+## Install
+
+```bash
+npm install @md-editor/shared
+```
 
 ## Exports
 

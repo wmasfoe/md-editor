@@ -51,8 +51,8 @@ jobs:
         run: pnpm lint:structure
 
       - name: Check Changeset
-        if: github.event_name == 'pull_request'
-        run: node scripts/packages/check-changeset.mjs
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+        run: node scripts/packages/check-changeset.mjs --strict
 
   typecheck:
     name: Typecheck

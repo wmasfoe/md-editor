@@ -17,14 +17,14 @@ export const PUBLISHED_PACKAGE_DIRS = [
 /**
  * Check which public packages have a local version not yet published on the npm registry.
  */
-export function getPendingPublishPackages(rootDir = root) {
+export function getPendingPublishPackages(rootDir = root, runNpm = execFileSync) {
   const pending = [];
   for (const dir of PUBLISHED_PACKAGE_DIRS) {
     const pkgJsonPath = join(rootDir, "packages", dir, "package.json");
     const manifest = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
     const localVersion = manifest.version;
     try {
-      const stdout = execFileSync(
+      const stdout = runNpm(
         "npm",
         ["view", manifest.name, "versions", "--json", "--registry", "https://registry.npmjs.org"],
         { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] },
@@ -34,8 +34,16 @@ export function getPendingPublishPackages(rootDir = root) {
       if (!remoteVersions.includes(localVersion)) {
         pending.push({ name: manifest.name, version: localVersion });
       }
-    } catch {
-      // Package not found on registry or network issue; treat as pending publish
+    } catch (error) {
+      let code;
+      try {
+        code = JSON.parse(String(error.stdout ?? "")).error?.code;
+      } catch {
+        // Malformed or missing registry response is an operational failure.
+      }
+      if (code !== "E404") {
+        throw new Error(`Failed to query npm versions for ${manifest.name}`, { cause: error });
+      }
       pending.push({ name: manifest.name, version: localVersion });
     }
   }

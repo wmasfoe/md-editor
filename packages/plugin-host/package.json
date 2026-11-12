@@ -41,5 +41,14 @@
         "default": "./dist/github.js"
       }
     }
+  },
+  "description": "Plugin host and validation utilities for Inkpoint.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wmasfoe/md-editor.git",
+    "directory": "packages/plugin-host"
+  },
+  "bugs": {
+    "url": "https://github.com/wmasfoe/md-editor/issues"
   }
 }

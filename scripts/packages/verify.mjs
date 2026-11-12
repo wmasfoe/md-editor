@@ -100,6 +100,34 @@ try {
       symlinkSync(realpathSync(dependency), target, "dir");
     }
   }
+  writeFileSync(join(temporary, "package.json"), JSON.stringify({ type: "module" }));
+  // Verify the SDK root as a non-React consumer before adding any React packages.
+  if (packages.some((pkg) => pkg.name === "@md-editor/plugin-sdk")) {
+    const sdkConsumer = join(temporary, "sdk-consumer.ts");
+    writeFileSync(
+      sdkConsumer,
+      'import { definePlugin } from "@md-editor/plugin-sdk"; void definePlugin;',
+    );
+    const sdkProgram = ts.createProgram([sdkConsumer], {
+      noEmit: true,
+      strict: true,
+      skipLibCheck: false,
+      types: [],
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      target: ts.ScriptTarget.ES2022,
+    });
+    const errors = ts.getPreEmitDiagnostics(sdkProgram);
+    assert.equal(
+      errors.length,
+      0,
+      ts.formatDiagnosticsWithColorAndContext(errors, {
+        getCanonicalFileName: (file) => file,
+        getCurrentDirectory: () => temporary,
+        getNewLine: () => "\n",
+      }),
+    );
+  }
   // React hosts provide React and its ambient types. No other dev dependencies
   // are installed into the consumer, so leaked declaration dependencies fail.
   for (const name of ["react", "react-dom", "@types/react", "@types/react-dom"]) {
@@ -107,7 +135,6 @@ try {
     mkdirSync(dirname(target), { recursive: true });
     symlinkSync(realpathSync(join(root, "node_modules", name)), target, "dir");
   }
-  writeFileSync(join(temporary, "package.json"), JSON.stringify({ type: "module" }));
   const consumer = join(temporary, "consumer.ts");
   writeFileSync(
     consumer,
