@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless Markdown document state, transactions, commands and editor runtime without DOM or UI dependencies.",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@md-editor/shared": "workspace:*",
-    "@md-editor/plugin-sdk": "workspace:^0.2.0"
+    "@md-editor/plugin-sdk": "workspace:^0.3.0"
   },
   "devDependencies": {
     "@md-editor/mdx-plugins": "workspace:*",

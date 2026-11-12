@@ -707,7 +707,7 @@ importers:
   packages/core:
     dependencies:
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.2.0
+        specifier: workspace:^0.3.0
         version: link:../plugin-sdk
       '@md-editor/shared':
         specifier: workspace:*
@@ -801,7 +801,7 @@ importers:
         specifier: workspace:*
         version: link:../plugin-host
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.2.0
+        specifier: workspace:^0.3.0
         version: link:../plugin-sdk
       '@md-editor/shared':
         specifier: workspace:*
@@ -941,7 +941,7 @@ importers:
   packages/plugin-host:
     dependencies:
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.2.0
+        specifier: workspace:^0.3.0
         version: link:../plugin-sdk
     devDependencies:
       typescript:

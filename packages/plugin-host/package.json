@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/plugin-host",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "exports": {
@@ -15,7 +15,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@md-editor/plugin-sdk": "workspace:^0.2.0"
+    "@md-editor/plugin-sdk": "workspace:^0.3.0"
   },
   "devDependencies": {
     "typescript": "catalog:",
