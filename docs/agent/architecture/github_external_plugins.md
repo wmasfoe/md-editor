@@ -47,7 +47,7 @@ Worker 入口为 `/plugins/github/:owner/:repo/releases/`，支持 `latest`、`i
 
 ## 开发与发布
 
-开发模板位于独立仓库 [wmasfoe/inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter)（GitHub Template Repository），可直接 Fork 或 “Use this template”，主仓库不再保存模板副本。每个 `plugins/<name>/plugin.json` 描述一个插件，与相邻入口和可选样式一起构建。新增目录即可扩展插件数量。
+开发模板位于独立仓库 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter)（GitHub Template Repository）。该仓库与端侧模型仓库 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models) 现已属于 inkpoint-editor 组织，分别从 `wmasfoe/inkpoint-plugin-starter` 与 `wmasfoe/md-editor-models` 迁入，旧地址会自动跳转。模板可直接 Fork，或在 GitHub 上使用 “Use this template”；主仓库不再保存模板副本。每个 `plugins/<name>/plugin.json` 描述一个插件，与相邻入口和可选样式一起构建。新增目录即可扩展插件数量。
 
 插件从 SDK 导入公共契约和开发辅助 API：
 

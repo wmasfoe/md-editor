@@ -72,7 +72,8 @@
 - **MDX in the document**: mix Markdown with React and JSX components in one file.
 - **Built in**: `Callout` (info, warning, success, danger), Mermaid diagrams with click-to-zoom, KaTeX formulas, `:::note` style directives and `==highlight==`.
 - **Component registry**: custom MDX components register through `@md-editor/plugin-sdk/mdx`.
-- **External plugins**: install plugins from GitHub Releases without rebuilding the app. Write them against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk), or fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) for a working example.
+- **External plugins**: install plugins from GitHub Releases without rebuilding the app. Write them against [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk), or start from [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter). On GitHub, use **Use this template** or fork that repository.
+- **Moved repositories**: [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) and the on-device model repository [md-editor-models](https://github.com/inkpoint-editor/md-editor-models) (default branch `master`) now belong to the inkpoint-editor organization. The old `wmasfoe/inkpoint-plugin-starter` and `wmasfoe/md-editor-models` addresses redirect automatically. This application stays at [wmasfoe/md-editor](https://github.com/wmasfoe/md-editor).
 
 ### Local first
 - **Native shell**: built on Tauri 2 and Rust, so it starts fast and uses less memory than an Electron app.
@@ -87,7 +88,7 @@
 
 ### AI writing
 - **Providers**: the `@md-editor/ai` layer connects to OpenAI-compatible services, Anthropic Claude, Google Gemini or a local model.
-- **On-device model**: on Apple Silicon Macs, a bundled llama runtime runs a local model with Metal acceleration and no network.
+- **On-device model**: on Apple Silicon Macs, a bundled llama runtime runs a local model with Metal acceleration and no network. Published weights and the manifest come from [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models); `wmasfoe/md-editor-models` redirects there automatically.
 - **Suggestions**: inline ghost-text completion, grammar fixes, context summarizing, and rewrite suggestions you accept or reject.
 
 ---

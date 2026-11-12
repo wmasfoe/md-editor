@@ -97,7 +97,7 @@ packages/ai/src/
 
 ### 4.4 发布清单与 RFC 示例的差异
 
-2026-10-25 核对了 [v1.4.0 发布清单](https://github.com/wmasfoe/md-editor-models/releases/download/v1.4.0/manifest.json)。该清单与 RFC 示例不同，模型文件摘要必须取自实际发布清单，不能复制示例占位值：
+2026-10-25 核对了 [v1.4.0 发布清单](https://github.com/inkpoint-editor/md-editor-models/releases/download/v1.4.0/manifest.json)。模型仓库现为 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`），插件模板仓库 [inkpoint-editor/inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 同样迁入 inkpoint-editor 组织；旧的 `wmasfoe/md-editor-models` 与 `wmasfoe/inkpoint-plugin-starter` 地址会自动跳转。该清单与 RFC 示例不同，模型文件摘要必须取自实际发布清单，不能复制示例占位值：
 
 - Lite 基座 `639,446,688` 字节，GEC LoRA `5,073,568` 字节；客户端内置摘要与下载体积已按发布清单校正。
 - Standard 实际发布条目为 Q8_0、`5,048,352,864` 字节，下载源为 Hugging Face；RFC 描述的是 Q4_K_M、约 1.68 GB。当前默认 Q4_K_M 条目的摘要仍为占位值，需在量化规格确定后与真实产物统一。远程清单有效时会覆盖默认条目。

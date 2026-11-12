@@ -72,7 +72,8 @@
 - **文档里直接写 MDX**：同一个文件里混排 Markdown 与 React / JSX 组件。
 - **内置功能**：`Callout`（info、warning、success、danger）、可点击放大的 Mermaid 图表、KaTeX 公式、`:::note` 一类的指令语法、`==高亮==`。
 - **组件注册表**：自定义 MDX 组件通过 `@md-editor/plugin-sdk/mdx` 注册。
-- **外部插件**：无需重新编译应用，从 GitHub Release 安装插件。基于 [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk) 开发，也可以 Fork [inkpoint-plugin-starter](https://github.com/wmasfoe/inkpoint-plugin-starter) 作为可运行的起点。
+- **外部插件**：无需重新编译应用，从 GitHub Release 安装插件。基于 [`@md-editor/plugin-sdk`](https://www.npmjs.com/package/@md-editor/plugin-sdk) 开发，也可以从 [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 起步。在 GitHub 上使用 **Use this template**，或 Fork 该仓库。
+- **仓库迁移**：插件模板 [inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) 与端侧模型仓库 [md-editor-models](https://github.com/inkpoint-editor/md-editor-models)（默认分支 `master`）现已属于 inkpoint-editor 组织。旧地址 `wmasfoe/inkpoint-plugin-starter` 与 `wmasfoe/md-editor-models` 会自动跳转。本应用仓库仍在 [wmasfoe/md-editor](https://github.com/wmasfoe/md-editor)。
 
 ### 本地优先
 - **原生外壳**：基于 Tauri 2 和 Rust，启动快，内存占用比 Electron 应用低。
@@ -87,7 +88,7 @@
 
 ### AI 写作
 - **接入的模型**：`@md-editor/ai` 可连接 OpenAI 兼容服务、Anthropic Claude、Google Gemini 或本地模型。
-- **端侧模型**：Apple Silicon 的 Mac 上，随应用打包的 llama 运行时用 Metal 加速，不联网即可推理。
+- **端侧模型**：Apple Silicon 的 Mac 上，随应用打包的 llama 运行时用 Metal 加速，不联网即可推理。发布的权重与清单来自 [inkpoint-editor/md-editor-models](https://github.com/inkpoint-editor/md-editor-models)；`wmasfoe/md-editor-models` 会自动跳转到该地址。
 - **建议类型**：行内幽灵文本补全、语法纠错、上下文摘要，以及可以接受或拒绝的改写建议。
 
 ---

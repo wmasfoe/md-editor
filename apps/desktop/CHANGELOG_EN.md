@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — model and plugin template repositories moved
+
+- The model repository and the plugin template repository moved to the inkpoint-editor organization; old addresses redirect automatically.
+
 ## 0.22.0 - 2026-11-09 (#230, #231, #232, #233, #234, #235, #236, #237, #238, #239)
 
 - New: writing preferences (first version). Learn your writing habits from workspaces you open and use them for continuation and grammar fixes.

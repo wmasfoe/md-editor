@@ -57,8 +57,16 @@ export default definePlugin({
 
 ## Getting started
 
-Fork the starter template to scaffold, build, and publish plugins through GitHub
-Releases: <https://github.com/wmasfoe/inkpoint-plugin-starter>
+Fork the starter, or click **Use this template** on GitHub, to scaffold, build, and
+publish plugins through GitHub Releases:
+<https://github.com/inkpoint-editor/inkpoint-plugin-starter>
+
+[inkpoint-plugin-starter](https://github.com/inkpoint-editor/inkpoint-plugin-starter) and the
+on-device model repository
+[md-editor-models](https://github.com/inkpoint-editor/md-editor-models) now belong to the
+inkpoint-editor organization. They moved from `wmasfoe/inkpoint-plugin-starter` and
+`wmasfoe/md-editor-models`; those old addresses redirect automatically. The model
+repository's default branch is `master`.
 
 ## License
 
