@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { PuzzlePieceIcon } from "@heroicons/react/24/outline";
 import { useTranslation } from "@md-editor/i18n";
 import type { PluginStatus } from "@md-editor/plugin-host";
@@ -67,6 +68,18 @@ export function ExternalPluginCard({
   const { manifest } = plugin.current.package;
   const { source } = plugin.current;
   const settingEntries = Object.entries(plugin.current.package.settings ?? {});
+  // Keep saved bindings visible after an update removes a command, or while a plugin is disabled.
+  const unavailable = Object.keys(plugin.keymapOverrides)
+    .filter((id) => !keymaps.some((item) => item.id === id || item.legacyIds.includes(id)))
+    .map((id): PluginKeymapStatus => ({
+      id,
+      pluginId: plugin.id,
+      title: id,
+      key: "",
+      legacyIds: [],
+      effectiveKey: null,
+    }));
+  const shortcuts = [...keymaps, ...unavailable];
   const toggle = resolveToggleState(plugin.enabled, status);
 
   return (
@@ -130,13 +143,21 @@ export function ExternalPluginCard({
         )}
       </div>
 
-      {(keymaps.length > 0 || settingEntries.length > 0) && (
+      {(shortcuts.length > 0 || settingEntries.length > 0) && (
         <div className="grid gap-2 border-t border-[var(--theme-border)] pt-2.5">
-          {keymaps.map((keymap) => (
+          {shortcuts.map((keymap) => (
             <ShortcutField
               key={keymap.id}
               keymap={keymap}
-              value={plugin.keymapOverrides?.[keymap.id] ?? keymap.key}
+              value={
+                plugin.keymapOverrides[keymap.id] ??
+                keymap.legacyIds
+                  .map((id) => plugin.keymapOverrides[id])
+                  .find((key) => key !== undefined) ??
+                ""
+              }
+              disabled={busy}
+              unavailable={unavailable.includes(keymap)}
               localError={shortcutErrors[keymap.id]}
               onCommit={(value) => onShortcutCommit(keymap, value)}
             />
@@ -186,33 +207,74 @@ function ShortcutField({
   keymap,
   value,
   localError,
+  disabled,
+  unavailable,
   onCommit,
 }: {
   readonly keymap: PluginKeymapStatus;
   readonly value: string;
   readonly localError: string | undefined;
+  readonly disabled: boolean;
+  readonly unavailable: boolean;
   readonly onCommit: (value: string) => void;
 }) {
   const { t } = useTranslation();
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
   return (
     <div className="grid gap-1">
       <label className={fieldRowClassName}>
         <span className="min-w-0">
-          <span className={settingsFieldLabelClassName}>{t("pluginPreview.shortcut")}</span>
+          <span className={settingsFieldLabelClassName}>{keymap.title}</span>
           <small className="block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-[var(--theme-muted)]">
             {keymap.id}
           </small>
         </span>
-        <input
-          className={settingsInputClassName}
-          defaultValue={value}
-          aria-invalid={Boolean(localError || keymap.overrideError)}
-          onBlur={(event) => onCommit(event.target.value.trim() || keymap.key)}
-        />
+        <div className="flex items-center gap-2">
+          <input
+            className={`${settingsInputClassName} min-w-0 flex-1`}
+            aria-label={`${keymap.title} · ${t("pluginPreview.shortcut")}`}
+            placeholder={t("pluginPreview.shortcutUnbound")}
+            value={draft}
+            disabled={disabled || unavailable}
+            aria-invalid={Boolean(localError || keymap.overrideError)}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => onCommit(draft.trim())}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+          />
+          <button
+            type="button"
+            className={settingsTextButtonClassName}
+            disabled={disabled || !draft}
+            // Clearing must not first submit a dirty field through its blur handler.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setDraft("");
+              onCommit("");
+            }}
+          >
+            {t("pluginPreview.shortcutClear")}
+          </button>
+        </div>
       </label>
+      {keymap.description && (
+        <p className="m-0 text-xs text-[var(--theme-muted)]">{keymap.description}</p>
+      )}
+      {keymap.key && (
+        <p className="m-0 text-xs text-[var(--theme-muted)]">
+          {t("pluginPreview.shortcutSuggested")}
+          {keymap.key}
+        </p>
+      )}
+      {unavailable && (
+        <p role="status" className="m-0 text-xs text-[var(--theme-muted)]">
+          {t("pluginPreview.shortcutUnavailable")}
+        </p>
+      )}
       {localError && (
         <span role="alert" className="text-xs text-[var(--theme-danger-text)]">
-          {t("pluginPreview.shortcutInvalid")}
           {localError}
         </span>
       )}
@@ -222,9 +284,7 @@ function ShortcutField({
             ? t("pluginPreview.shortcutConflict")
             : t("pluginPreview.shortcutInvalid")}
           {keymap.overrideError.message}
-          {keymap.effectiveKey
-            ? ` · ${t("pluginPreview.shortcutFallback")}${keymap.effectiveKey}`
-            : ` · ${t("pluginPreview.shortcutDisabled")}`}
+          {` · ${t("pluginPreview.shortcutDisabled")}`}
         </span>
       )}
     </div>

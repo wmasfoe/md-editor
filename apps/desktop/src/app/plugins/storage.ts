@@ -1,25 +1,16 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { PluginPackage, PluginSettingValue } from "@md-editor/plugin-sdk";
-import { validatePluginPackage, type PluginStatus } from "@md-editor/plugin-host";
+import {
+  validatePluginPackage,
+  type PluginStatus,
+  type PluginCommandBinding,
+} from "@md-editor/plugin-host";
 import type { PluginSource } from "@md-editor/plugin-host/github";
 
 export interface PluginStatusEvent {
   readonly statuses: readonly PluginStatus[];
-  readonly keymaps: readonly {
-    readonly id: string;
-    readonly key: string;
-    readonly pluginId: string;
-    /**
-     * 实际生效的键位。用户覆盖键不可用时回退为默认键；默认键也被占用时为 `null`，
-     * 表示这条快捷键被跳过，插件的其他贡献照常生效。
-     */
-    readonly effectiveKey: string | null;
-    /** 用户覆盖键未生效的原因；覆盖生效或未设置覆盖时为空。 */
-    readonly overrideError?: {
-      readonly kind: "invalid" | "conflict";
-      readonly message: string;
-    };
-  }[];
+  readonly keymaps: readonly PluginCommandBinding[];
+  readonly occupiedKeys: readonly { readonly id: string; readonly key: string }[];
 }
 
 /**

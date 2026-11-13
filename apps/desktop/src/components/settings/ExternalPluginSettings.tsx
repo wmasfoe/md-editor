@@ -53,6 +53,7 @@ export function ExternalPluginSettings() {
   const [plugins, setPlugins] = useState<StoredPlugin[]>([]);
   const [statuses, setStatuses] = useState<readonly PluginStatus[]>([]);
   const [keymaps, setKeymaps] = useState<PluginStatusEvent["keymaps"]>([]);
+  const [occupiedKeys, setOccupiedKeys] = useState<PluginStatusEvent["occupiedKeys"]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [updateMessages, setUpdateMessages] = useState<Record<string, string>>({});
@@ -91,6 +92,7 @@ export function ExternalPluginSettings() {
     void listen<PluginStatusEvent>("inkpoint:plugin-status", (event) => {
       setStatuses(event.payload.statuses);
       setKeymaps(event.payload.keymaps);
+      setOccupiedKeys(event.payload.occupiedKeys);
     })
       .then((fn) => {
         if (closed) fn();
@@ -179,20 +181,38 @@ export function ExternalPluginSettings() {
     keymap: PluginStatusEvent["keymaps"][number],
     value: string,
   ) => {
-    // 设置页可能在独立窗口里，拿不到主窗口的快捷键注册表，这里只拦格式；
-    // 冲突由主窗口注册时判断，并通过 overrideError 回传展示。
-    const invalid = validateKeymapKey(value);
+    // 独立设置窗口使用主窗口回传的占用快照预检；主窗口实际注册时仍会再次检查。
+    const conflict = value
+      ? occupiedKeys.find((item) => item.key === value && item.id !== keymap.id)
+      : undefined;
+    const formatError = value ? validateKeymapKey(value) : null;
+    const invalid = formatError
+      ? `${t("pluginPreview.shortcutInvalid")}${formatError}`
+      : conflict
+        ? `${t("pluginPreview.shortcutConflict")}${conflict.id}`
+        : null;
     setShortcutErrors((errors) => {
       const next = { ...errors };
       if (invalid) next[keymap.id] = invalid;
       else delete next[keymap.id];
       return next;
     });
-    if (invalid || value === (plugin.keymapOverrides?.[keymap.id] ?? keymap.key)) return;
+    if (invalid) return;
+    const saved =
+      plugin.keymapOverrides[keymap.id] ??
+      keymap.legacyIds.map((id) => plugin.keymapOverrides[id]).find((key) => key !== undefined) ??
+      "";
+    if (value === saved) return;
+    const overrides = { ...plugin.keymapOverrides };
+    // Saving a command binding also migrates explicit choices from old keymap IDs.
+    for (const id of keymap.legacyIds) delete overrides[id];
+    if (value) overrides[keymap.id] = value;
+    else delete overrides[keymap.id];
+    if (JSON.stringify(overrides) === JSON.stringify(plugin.keymapOverrides)) return;
     void perform(() =>
       savePlugin({
         ...plugin,
-        keymapOverrides: { ...plugin.keymapOverrides, [keymap.id]: value },
+        keymapOverrides: overrides,
       }),
     );
   };

@@ -49,6 +49,9 @@ export interface Disposable {
 export interface PluginCommand {
   readonly id: string;
   readonly title: string;
+  readonly description?: string;
+  /** Suggested only: hosts bind shortcuts after the user explicitly chooses one. */
+  readonly suggestedKey?: string;
   run(): void | Promise<void>;
 }
 export interface PluginKeymap {

@@ -53,6 +53,7 @@ vi.mock("../../../src/app/runtime/editor-runtime", () => ({
       findConflict(key: string) {
         return [...state.keymaps.values()].find((item) => item.key === key);
       },
+      list: () => [...state.keymaps.values()],
       version: 0,
     },
   },
@@ -162,7 +163,7 @@ describe("desktop external plugin lifecycle", () => {
       root.render(createElement(Harness));
     });
     await vi.waitFor(() => expect(state.commands.size).toBe(2));
-    expect(state.keymaps.size).toBe(2);
+    expect(state.keymaps.size).toBe(0);
     state.records = (state.records as StoredPlugin[]).map((item) =>
       item.id === "author.two" ? { ...item, settings: { enabled: true } } : item,
     );
@@ -216,6 +217,38 @@ describe("desktop external plugin lifecycle", () => {
     expect(state.keymaps.size).toBe(0);
   });
 
+  it("applies, clears and restores a saved command binding without a plugin default", async () => {
+    const plugin = await record("author.user");
+    state.records = [plugin];
+    const ports = {
+      getSelectionSnapshot: () => ({ anchor: 0, head: 0 }),
+      applyExternalEdit: () => ({ status: "applied" }),
+    } as unknown as CodeMirrorEditorPorts;
+    function Harness() {
+      useExternalPlugins(ports);
+      return null;
+    }
+    await act(async () => root.render(createElement(Harness)));
+    await vi.waitFor(() => expect(state.commands.size).toBe(1));
+    expect(state.keymaps.size).toBe(0);
+    for (const binding of ["Mod-i", "", "Mod-j"]) {
+      state.records = (state.records as StoredPlugin[]).map((item) => ({
+        ...item,
+        keymapOverrides: binding ? { "author.user.command": binding } : {},
+      }));
+      await act(async () => state.listener?.());
+      await vi.waitFor(() =>
+        expect(state.keymaps.get("author.user.command")?.key).toBe(binding || undefined),
+      );
+    }
+    state.records = (state.records as StoredPlugin[]).map((item) => ({ ...item, enabled: false }));
+    await act(async () => state.listener?.());
+    await vi.waitFor(() => expect(state.keymaps.size).toBe(0));
+    state.records = (state.records as StoredPlugin[]).map((item) => ({ ...item, enabled: true }));
+    await act(async () => state.listener?.());
+    await vi.waitFor(() => expect(state.keymaps.get("author.user.command")?.key).toBe("Mod-j"));
+  });
+
   it("persists consecutive SDK settings updates before storage events arrive", async () => {
     state.records = [await record("author.settings", true)];
     const ports = {
@@ -233,7 +266,7 @@ describe("desktop external plugin lifecycle", () => {
     expect(state.records[0]).toMatchObject({ revision: 3, settings: { enabled: false } });
   });
 
-  it("falls back to the default key when an override is invalid or taken, keeping the plugin active", async () => {
+  it("leaves invalid or taken user bindings unbound, keeping the plugin active", async () => {
     const plugin = await record("author.keys", false, "Mod-Shift-3");
     state.keymaps.set("builtin.save", { id: "builtin.save", key: "Mod-s" });
     const ports = {
@@ -251,12 +284,12 @@ describe("desktop external plugin lifecycle", () => {
       await act(async () => root.render(createElement(Harness)));
       // The command still registers, so a bad shortcut no longer disables the whole plugin.
       await vi.waitFor(() => expect(state.commands.has("author.keys.command")).toBe(true));
-      expect(state.keymaps.get("author.keys.key")?.key).toBe("Mod-Shift-3");
+      expect(state.keymaps.has("author.keys.command")).toBe(false);
       await act(async () => root.render(createElement("div")));
     }
   });
 
-  it("skips only the shortcut when the plugin's default key is already taken", async () => {
+  it("never registers a plugin suggestion automatically", async () => {
     state.keymaps.set("builtin.taken", { id: "builtin.taken", key: "Mod-Shift-4" });
     state.records = [await record("author.clash", false, "Mod-Shift-4")];
     const ports = {
@@ -269,7 +302,7 @@ describe("desktop external plugin lifecycle", () => {
     }
     await act(async () => root.render(createElement(Harness)));
     await vi.waitFor(() => expect(state.commands.has("author.clash.command")).toBe(true));
-    expect(state.keymaps.has("author.clash.key")).toBe(false);
+    expect(state.keymaps.has("author.clash.command")).toBe(false);
     expect(state.keymaps.get("builtin.taken")?.key).toBe("Mod-Shift-4");
   });
 });

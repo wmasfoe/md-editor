@@ -11,7 +11,7 @@ type Syntax = Parameters<PluginContext["syntax"]["register"]>[0];
 type Command = Parameters<PluginContext["commands"]["register"]>[0];
 type Keymap = Parameters<PluginContext["keymaps"]["register"]>[0];
 type Edit = Parameters<PluginContext["editor"]["applyEdit"]>[0];
-type Registry<T> = { register(value: T): Disposable };
+type Registry<T> = { register(value: T, pluginId: string): Disposable };
 export interface PluginHostOptions {
   syntax: Registry<Syntax>;
   commands: Registry<Command>;
@@ -164,7 +164,7 @@ export function createPluginHost(options: PluginHostOptions) {
         new Set(names).size !== names.length
       )
         throw new Error("Conflicting plugin contribution");
-      const resource = registry.register(value);
+      const resource = registry.register(value, id);
       ids.add(key);
       session.ids.add(key);
       for (const name of names) {

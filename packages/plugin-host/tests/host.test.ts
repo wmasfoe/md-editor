@@ -45,6 +45,26 @@ function setup(activate: PluginDefinition["activate"]) {
 }
 
 describe("plugin host", () => {
+  it("passes the plugin owner to contribution adapters", async () => {
+    const { host, register } = setup((context) => {
+      context.commands.register({ id: "test.plugin.command", title: "Command", run() {} });
+      context.keymaps.register({
+        id: "test.plugin.key",
+        commandId: "test.plugin.command",
+        key: "Mod-i",
+      });
+    });
+    await host.enable(pkg);
+    expect(register).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "test.plugin.command" }),
+      "test.plugin",
+    );
+    expect(register).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "test.plugin.key" }),
+      "test.plugin",
+    );
+    host.dispose();
+  });
   it("cleans up asynchronous activation after disable and guards retained context", async () => {
     let context!: PluginContext;
     let finish!: (value: () => void) => void;
