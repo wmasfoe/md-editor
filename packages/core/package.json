@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/core",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Headless Markdown document state, transactions, commands and editor runtime without DOM or UI dependencies.",
   "repository": {
     "type": "git",

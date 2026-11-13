@@ -1,5 +1,17 @@
 # @md-editor/editor
 
+## 0.2.0
+
+### Minor Changes
+
+- 6d9509a: Add a platform-independent document save use case and prepared image insertion with stale-document guards, selection replacement, and atomic undo support.
+
+### Patch Changes
+
+- 6d9509a: Restore the native text caret in editable table cells instead of inheriting the main editor's transparent caret color.
+- Updated dependencies [6d9509a]
+  - @md-editor/core@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
