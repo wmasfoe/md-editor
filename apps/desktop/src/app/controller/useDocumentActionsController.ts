@@ -12,7 +12,13 @@
  */
 
 import { useCallback, useRef, type Dispatch, type SetStateAction } from "react";
-import { resolveReplaceIntent, switchEditorModeSafely, type EditorMode } from "@md-editor/core";
+import {
+  executeDocumentSave,
+  isDiscardProtectionRequired,
+  resolveReplaceIntent,
+  switchEditorModeSafely,
+  type EditorMode,
+} from "@md-editor/core";
 import type {
   ConfirmationChoice,
   ConfirmationState,
@@ -30,7 +36,7 @@ import { findFirstMarkdownPath } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
-import { executeDocumentSave, getSaveFeedback, isDiscardProtectionRequired } from "./document-save";
+import { getSaveFeedback } from "./document-save";
 import { checkPendingDraft, recordDocumentHistory, sessionStore } from "./session-controller";
 import { checkDocumentLinksAndLint } from "./export-controller";
 import { useDocumentUiStore } from "../stores/document-ui-store";
@@ -242,7 +248,18 @@ export function useDocumentActionsController({
       await runFileAction(
         forceDialog ? "正在另存为" : "正在保存",
         async () => {
-          const execution = await executeDocumentSave(runtime.document, fileService, forceDialog);
+          const execution = await executeDocumentSave(
+            runtime.document,
+            (checkpoint) =>
+              fileService.enqueueSaveJob({
+                jobId: checkpoint.id,
+                checkpointSequence: checkpoint.sequence,
+                documentGeneration: checkpoint.documentGeneration,
+                markdownLf: checkpoint.markdownLf,
+                destination: checkpoint.destination,
+              }),
+            forceDialog,
+          );
           const { checkpoint, outcome, previousPath, settlement } = execution;
           const feedback = getSaveFeedback(outcome, settlement);
           if (feedback) {

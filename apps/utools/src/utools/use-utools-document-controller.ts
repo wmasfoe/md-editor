@@ -5,13 +5,13 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { DocumentState } from "@md-editor/core";
-import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import {
-  appendImageMarkdown,
-  imageAltTextFromFileName,
-  type MarkdownFolder,
-} from "@md-editor/file-system";
+  executeDocumentSave,
+  isDiscardProtectionRequired,
+  type DocumentState,
+} from "@md-editor/core";
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
+import { imageAltTextFromFileName, type MarkdownFolder } from "@md-editor/file-system";
 import { clearLastOpenedFile, saveLastOpenedFile } from "./db-storage";
 import type { EditorMode } from "./types";
 
@@ -35,123 +35,84 @@ export function useUtoolsDocumentController({
   showToast,
 }: UseUtoolsDocumentControllerOptions) {
   const handleSaveDocument = useCallback(async (): Promise<boolean> => {
-    const current = docState.getSnapshot();
-    let targetPath = current.filePath;
-
-    if (!targetPath) {
-      if (typeof window === "undefined" || !window.utools) {
-        showToast("当前环境不支持文件保存窗口");
-        return false;
-      }
-      const chosen = window.utools.showSaveDialog({
-        title: "保存 Markdown 文档",
-        defaultPath: "未命名.md",
-        filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
-        buttonLabel: "保存",
-      });
-      if (!chosen) {
-        return false;
-      }
-      targetPath = chosen;
+    const bridge = window.inkpointNodeBridge;
+    if (!bridge) {
+      showToast("当前环境不支持文件保存");
+      return false;
     }
-
-    if (window.inkpointNodeBridge) {
-      const destination = current.filePath
-        ? ({ kind: "current-path" as const, path: current.filePath } as const)
-        : ({ kind: "prompt" as const, suggestedPath: targetPath } as const);
-      const checkpoint = docState.beginSave(destination);
-
-      try {
-        window.inkpointNodeBridge.writeFile(targetPath, checkpoint.markdownLf);
-        docState.settleSave(checkpoint, {
-          status: "succeeded",
-          commit: "committed",
-          filePath: targetPath,
-          warnings: [],
-        });
-        saveLastOpenedFile(targetPath);
-
-        const activeFolder = folderRef.current;
-        if (activeFolder && targetPath.startsWith(activeFolder.rootPath)) {
-          try {
-            const updated = window.inkpointNodeBridge.scanFolder(activeFolder.rootPath);
-            setFolder(updated);
-          } catch {
-            // 忽略
-          }
-        }
-
-        return true;
-      } catch (err) {
-        docState.settleSave(checkpoint, {
-          status: "failed",
+    rendererPorts?.flushPendingEdits();
+    const execution = await executeDocumentSave(docState, (checkpoint) => {
+      const destination = checkpoint.destination;
+      const targetPath =
+        destination.kind === "current-path"
+          ? destination.path
+          : window.utools?.showSaveDialog({
+              title: "保存 Markdown 文档",
+              defaultPath: destination.suggestedPath ?? "未命名.md",
+              filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
+              buttonLabel: "保存",
+            });
+      if (!targetPath)
+        return {
+          status: "cancelled",
           commit: "not-committed",
-          phase: "temp-write",
-          errorCode: err instanceof Error ? err.message : String(err),
-        });
-        showToast(`保存失败: ${err instanceof Error ? err.message : String(err)}`);
-        return false;
+          phase: "dialog",
+          reason: "dialog-cancelled",
+        };
+      bridge.writeFile(targetPath, checkpoint.markdownLf);
+      return { status: "succeeded", commit: "committed", filePath: targetPath, warnings: [] };
+    });
+    const { outcome, checkpoint } = execution;
+    if (outcome.status === "failed" || outcome.status === "indeterminate") {
+      showToast(`保存失败或结果无法确认: ${outcome.errorCode}`);
+      return false;
+    }
+    const latest = docState.getSnapshot();
+    if (
+      latest.documentGeneration !== checkpoint.documentGeneration ||
+      isDiscardProtectionRequired(latest)
+    )
+      return false;
+    if (outcome.status !== "succeeded") return false;
+    saveLastOpenedFile(outcome.filePath);
+    const activeFolder = folderRef.current;
+    if (activeFolder && outcome.filePath.startsWith(activeFolder.rootPath)) {
+      try {
+        setFolder(bridge.scanFolder(activeFolder.rootPath));
+      } catch (error) {
+        // A tree refresh failure must not turn an already committed save into a failed write.
+        console.warn("保存后刷新目录失败", error);
       }
     }
-    return false;
-  }, [docState, folderRef, setFolder, showToast]);
+    return true;
+  }, [docState, folderRef, rendererPorts, setFolder, showToast]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       const current = docState.getSnapshot();
-      if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-        const checkpoint = docState.beginSave({
-          kind: "current-path",
-          path: current.filePath,
-        });
-        try {
-          window.inkpointNodeBridge.writeFile(current.filePath, checkpoint.markdownLf);
-          docState.settleSave(checkpoint, {
-            status: "succeeded",
-            commit: "committed",
-            filePath: current.filePath,
-            warnings: [],
-          });
-        } catch (err) {
-          docState.settleSave(checkpoint, {
-            status: "failed",
-            commit: "not-committed",
-            phase: "temp-write",
-            errorCode: err instanceof Error ? err.message : String(err),
-          });
-          console.error("自动保存文件失败:", err);
-        }
-      }
+      if (current.filePath && current.isDirty) void handleSaveDocument();
     }, 600);
-
     return () => clearTimeout(timer);
-  }, [docState, markdown]);
+  }, [docState, markdown, handleSaveDocument]);
 
-  const handleNewFile = useCallback(() => {
+  const handleNewFile = useCallback(async () => {
+    rendererPorts?.flushPendingEdits();
     const current = docState.getSnapshot();
-    if (current.filePath && current.isDirty && window.inkpointNodeBridge) {
-      try {
-        window.inkpointNodeBridge.writeFile(current.filePath, current.markdown);
-      } catch {
-        // 忽略
-      }
-    }
+    if (isDiscardProtectionRequired(current) && !(await handleSaveDocument())) return;
+    // A save may have completed after another action already switched documents.
+    if (docState.getSnapshot().documentGeneration !== current.documentGeneration) return;
     docState.replaceDocument(
-      {
-        markdown: "",
-        savedMarkdown: "",
-        filePath: null,
-        mode: docState.getSnapshot().mode,
-      },
+      { markdown: "", savedMarkdown: "", filePath: null, mode: docState.getSnapshot().mode },
       { kind: "command", commandId: "file.new" },
     );
     clearLastOpenedFile();
     setMode("file");
-  }, [docState, setMode]);
+  }, [docState, handleSaveDocument, rendererPorts, setMode]);
 
   const handleInsertImageFile = useCallback(
     async (file: File) => {
       let current = docState.getSnapshot();
+      const generation = current.documentGeneration;
       const altText = imageAltTextFromFileName(file.name) || "image";
 
       if (!current.filePath) {
@@ -161,6 +122,7 @@ export function useUtoolsDocumentController({
           return;
         }
         current = docState.getSnapshot();
+        if (current.documentGeneration !== generation) return;
       }
 
       if (!current.filePath || !window.inkpointNodeBridge?.savePastedImage) {
@@ -168,6 +130,8 @@ export function useUtoolsDocumentController({
         return;
       }
 
+      if (!rendererPorts) return;
+      const insertImage = rendererPorts.prepareImageInsertion({ layout: "block" });
       try {
         const buffer = await file.arrayBuffer();
         const res = window.inkpointNodeBridge.savePastedImage(
@@ -177,57 +141,13 @@ export function useUtoolsDocumentController({
           file.name,
         );
 
-        const targetSrc = res.markdownPath;
-        const cursorPos = rendererPorts?.getSelectionSnapshot().head;
-        const tag = `![${altText}](${targetSrc})`;
-        let nextMarkdown: string;
-        let nextCursorPos: number;
+        const result = insertImage({ src: res.markdownPath, alt: altText });
         if (
-          cursorPos !== undefined &&
-          cursorPos !== null &&
-          cursorPos >= 0 &&
-          cursorPos <= current.markdown.length
+          result.status !== "applied" &&
+          result.status !== "noop" &&
+          result.status !== "queued-composition"
         ) {
-          const before = current.markdown.slice(0, cursorPos);
-          const after = current.markdown.slice(cursorPos);
-          const needsPrefixNewline = before.length > 0 && !before.endsWith("\n");
-          const needsSuffixNewline = after.length > 0 && !after.startsWith("\n");
-          const insertedText = `${needsPrefixNewline ? "\n\n" : ""}${tag}${needsSuffixNewline ? "\n\n" : ""}`;
-          nextMarkdown = `${before}${insertedText}${after}`;
-          nextCursorPos = before.length + insertedText.length;
-        } else {
-          nextMarkdown = appendImageMarkdown(current.markdown, targetSrc, altText);
-          nextCursorPos = nextMarkdown.length;
-        }
-
-        if (rendererPorts) {
-          const editResult = rendererPorts.applyExternalEdit({
-            operationId: `utools:insert-image:${Date.now()}`,
-            markdown: nextMarkdown,
-            expectedGeneration: current.documentGeneration,
-            expectedContentRevision: current.contentRevision,
-            selection: "preserve-offset-clamped",
-          });
-
-          if (
-            editResult.status === "applied" ||
-            editResult.status === "noop" ||
-            editResult.status === "queued-composition"
-          ) {
-            rendererPorts.setSelection(nextCursorPos, nextCursorPos);
-            rendererPorts.focus();
-          } else {
-            docState.replaceDocument(
-              {
-                markdown: nextMarkdown,
-                savedMarkdown: current.savedMarkdown,
-                filePath: current.filePath,
-                mode: current.mode,
-                replaceIntent: "same",
-              },
-              { kind: "command", commandId: "utools.insertImageFallback" },
-            );
-          }
+          showToast("文档已变化或编辑器暂不可用，请重新插入图片。");
         }
       } catch (err) {
         showToast(`插入图片失败: ${err instanceof Error ? err.message : String(err)}`);

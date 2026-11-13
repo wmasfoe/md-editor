@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import type { ImageInsertionInput } from "@md-editor/editor";
+import { describe, expect, it, vi } from "vitest";
 import {
   getDroppedImage,
   getPastedImage,
@@ -38,7 +39,7 @@ describe("paste-image helpers", () => {
     expect(result?.mimeType).toBe("image/jpeg");
   });
 
-  it("inserts image at cursor position when getCursorPosition is provided", async () => {
+  it("delegates the stored image address to the prepared editor insertion", async () => {
     // 设置已保存文件状态
     runtime.document.replaceDocument(
       {
@@ -49,7 +50,7 @@ describe("paste-image helpers", () => {
       { kind: "command", commandId: "test.setup" },
     );
 
-    let appliedMarkdown = "";
+    let insertedImage: ImageInsertionInput | undefined;
     const fakeFile = new File(["dummy bytes"], "logo.png", { type: "image/png" });
 
     const pasteRuntime: PasteImageRuntime = {
@@ -57,10 +58,11 @@ describe("paste-image helpers", () => {
       runFileAction: async (_label, action) => {
         await action();
       },
-      applyMarkdown: (md) => {
-        appliedMarkdown = md;
+      prepareImageInsertion: () => (image) => {
+        insertedImage = image;
+        return { status: "noop" };
       },
-      getCursorPosition: () => 5, // 光标在 "Hello" 后面 (index 5)
+      checkDirectoryExists: async () => true,
       assetsDirectory: "assets",
       storageProvider: {
         save: async ({ context }) => ({
@@ -79,8 +81,7 @@ describe("paste-image helpers", () => {
       pasteRuntime,
     );
 
-    expect(appliedMarkdown).toContain("Hello![logo](./assets/");
-    expect(appliedMarkdown).toContain("world!");
+    expect(insertedImage).toEqual({ src: "./assets/logo.png", alt: "logo" });
   });
 
   it("aborts pasting if the target directory does not exist and user cancels confirmation", async () => {
@@ -102,7 +103,7 @@ describe("paste-image helpers", () => {
       runFileAction: async (_label, action) => {
         await action();
       },
-      applyMarkdown: () => {},
+      prepareImageInsertion: () => () => ({ status: "noop" }),
       assetsDirectory: "./imgs",
       checkDirectoryExists: async () => false,
       requestConfirmation: async (options) => {
@@ -143,7 +144,7 @@ describe("paste-image helpers", () => {
     );
 
     let saveCalled = false;
-    let appliedMarkdown = "";
+    let insertedImage: ImageInsertionInput | undefined;
     const fakeFile = new File(["dummy bytes"], "logo.png", { type: "image/png" });
 
     const pasteRuntime: PasteImageRuntime = {
@@ -151,8 +152,9 @@ describe("paste-image helpers", () => {
       runFileAction: async (_label, action) => {
         await action();
       },
-      applyMarkdown: (md) => {
-        appliedMarkdown = md;
+      prepareImageInsertion: () => (image) => {
+        insertedImage = image;
+        return { status: "noop" };
       },
       assetsDirectory: "./imgs",
       checkDirectoryExists: async () => false,
@@ -175,7 +177,7 @@ describe("paste-image helpers", () => {
     );
 
     expect(saveCalled).toBe(true);
-    expect(appliedMarkdown).toContain("![logo](./imgs/logo.png)");
+    expect(insertedImage).toEqual({ src: "./imgs/logo.png", alt: "logo" });
   });
 
   it("calls afterSaveImage callback with document path after image is saved", async () => {
@@ -196,7 +198,7 @@ describe("paste-image helpers", () => {
       runFileAction: async (_label, action) => {
         await action();
       },
-      applyMarkdown: () => {},
+      prepareImageInsertion: () => () => ({ status: "noop" }),
       assetsDirectory: "assets",
       checkDirectoryExists: async () => true,
       afterSaveImage: async (filePath) => {
@@ -220,5 +222,36 @@ describe("paste-image helpers", () => {
     );
 
     expect(afterSaveDocumentPath).toBe("/Users/test/docs/intro.md");
+  });
+  it("captures the editor insertion before storage and surfaces stale results without replacing content", async () => {
+    runtime.document.replaceDocument(
+      { markdown: "original", filePath: "/docs/a.md" },
+      { kind: "command", commandId: "test.setup" },
+    );
+    const calls: string[] = [];
+    const replace = vi.spyOn(runtime.document, "replaceDocument");
+    const actions: PasteImageRuntime = {
+      ensureDocumentSaved: async () => true,
+      runFileAction: async (_label, action) => {
+        await action();
+      },
+      checkDirectoryExists: async () => true,
+      prepareImageInsertion: () => {
+        calls.push("prepare");
+        return () => ({ status: "stale", actualGeneration: 2, actualContentRevision: 0 });
+      },
+      storageProvider: {
+        save: async () => {
+          calls.push("store");
+          return { src: "a.png" };
+        },
+      },
+    };
+    await expect(
+      pasteImageInput({ file: new File(["bytes"], "a.png"), mimeType: "image/png" }, actions),
+    ).rejects.toThrow("文档已变化");
+    expect(calls).toEqual(["prepare", "store"]);
+    expect(replace).not.toHaveBeenCalled();
+    replace.mockRestore();
   });
 });

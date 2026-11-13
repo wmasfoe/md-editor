@@ -14,10 +14,27 @@ export function isNonNegativeSafeInteger(value: number): boolean {
 }
 
 export function freezeExternalRequest(request: ExternalEditRequest): ExternalEditRequest {
-  return Object.freeze({ ...request });
+  return Object.freeze({
+    ...request,
+    selection:
+      typeof request.selection === "object"
+        ? Object.freeze({ ...request.selection })
+        : request.selection,
+  });
 }
 
 export function validateExternalRequest(request: ExternalEditRequest): void {
+  if (typeof request.selection === "object") {
+    const { anchor, head = anchor } = request.selection;
+    if (
+      !isNonNegativeSafeInteger(anchor) ||
+      !isNonNegativeSafeInteger(head) ||
+      anchor > request.markdown.length ||
+      head > request.markdown.length
+    ) {
+      throw new Error("External edit selection must be within the resulting document.");
+    }
+  }
   if (
     request.operationId.length === 0 ||
     !isNonNegativeSafeInteger(request.expectedGeneration) ||

@@ -1,7 +1,7 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { safeUnlisten } from "../../desktop/safe-unlisten";
-import { isDiscardProtectionRequired } from "../controller/document-save";
+import { isDiscardProtectionRequired } from "@md-editor/core";
 import { runtime } from "../runtime/editor-runtime";
 import { saveHotExitSession } from "../controller/session-controller";
 

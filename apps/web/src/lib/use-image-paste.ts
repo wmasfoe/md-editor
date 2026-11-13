@@ -1,12 +1,10 @@
 import { useEffect } from "react";
 import type { CodeMirrorEditorPorts } from "@md-editor/editor";
-import { appendImageMarkdown, imageAltTextFromFileName } from "@md-editor/file-system";
+import { imageAltTextFromFileName } from "@md-editor/file-system";
 import { webFileSystem } from "./web-file-system";
 
 export interface UseImagePasteOptions {
   ports: CodeMirrorEditorPorts | null;
-  currentMarkdown: string;
-  onUpdateMarkdown: (nextMarkdown: string) => void;
   showToast: (message: string) => void;
 }
 
@@ -14,16 +12,13 @@ export interface UseImagePasteOptions {
  * 监听全局图片剪贴板复制粘贴 (paste) 与文件拖拽 (drop) 事件。
  * - 已打开本地工作区时：自动保存为本地 ./assets/ 目录文件并插入相对路径；
  * - 纯临时草稿时：自动转为 Base64 Data URL 内联图片；
- * - 优先在当前光标或选区处插入，无光标时追加至末尾。
+ * - 由编辑器在存储前捕获选区，存储完成后校验版本并插入图片。
  */
-export function useImagePaste({
-  ports,
-  currentMarkdown,
-  onUpdateMarkdown,
-  showToast,
-}: UseImagePasteOptions) {
+export function useImagePaste({ ports, showToast }: UseImagePasteOptions) {
   useEffect(() => {
     const handleImageFile = async (file: File) => {
+      if (!ports) return;
+      const insertImage = ports.prepareImageInsertion();
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const mimeType = file.type || "image/png";
@@ -31,21 +26,14 @@ export function useImagePaste({
 
         const { src } = await webFileSystem.saveAssetImage(bytes, mimeType, file.name);
 
-        const imageTag = `![${altText}](${src})`;
-
-        // 计算光标插入位置
-        let nextMarkdown: string;
-        const selection = ports?.getSelectionSnapshot();
-
-        if (selection && selection.from >= 0 && selection.from <= currentMarkdown.length) {
-          const from = selection.from;
-          const to = selection.to;
-          nextMarkdown = `${currentMarkdown.slice(0, from)}${imageTag}${currentMarkdown.slice(to)}`;
-        } else {
-          nextMarkdown = appendImageMarkdown(currentMarkdown, src, altText);
+        const result = insertImage({ src, alt: altText });
+        if (
+          result.status !== "applied" &&
+          result.status !== "noop" &&
+          result.status !== "queued-composition"
+        ) {
+          showToast("文档已变化或编辑器暂不可用，请重新插入图片。");
         }
-
-        onUpdateMarkdown(nextMarkdown);
       } catch (err) {
         console.error("Failed to process image paste:", err);
         showToast("图片插入失败");
@@ -103,5 +91,5 @@ export function useImagePaste({
       window.removeEventListener("dragover", onDragOver, false);
       window.removeEventListener("drop", onDrop, false);
     };
-  }, [ports, currentMarkdown, onUpdateMarkdown, showToast]);
+  }, [ports, showToast]);
 }

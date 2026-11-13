@@ -98,7 +98,11 @@ export interface ExternalEditRequest {
   readonly markdown: Markdown;
   readonly expectedGeneration: number;
   readonly expectedContentRevision: number;
-  readonly selection: "preserve-offset-clamped" | "start" | "end";
+  readonly selection:
+    | "preserve-offset-clamped"
+    | "start"
+    | "end"
+    | { readonly anchor: number; readonly head?: number };
   /** Keep deferred IME edits cancellable after their owner has been disabled. */
   readonly signal?: AbortSignal;
 }

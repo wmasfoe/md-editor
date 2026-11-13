@@ -1,3 +1,4 @@
+import { prepareImageInsertion } from "../src/image-insertion.ts";
 import {
   createDocumentState,
   switchEditorModeSafely,
@@ -1070,6 +1071,64 @@ describe("CodeMirror renderer failure recovery", () => {
     expect(() => setup.harness.renderer.rollbackMode(applied.receipt)).toThrow(
       "Mode rollback receipt is stale",
     );
+  });
+});
+
+function prepare(setup: RendererSetup) {
+  return prepareImageInsertion(setup.document, setup.harness.renderer, (request) => {
+    const reservation = setup.document.reserveExternalEdit(request);
+    if (reservation.status !== "reserved") return reservation;
+    const result = setup.harness.renderer.applyReservedExternalEdit(request);
+    if (result.status === "applied") {
+      return {
+        status: "applied",
+        receipt: setup.document.finalizeExternalEdit(reservation.reservation, result.receipt),
+      };
+    }
+    setup.document.releaseExternalEdit(
+      reservation.reservation,
+      result.status === "queued-composition" ? "composition-deferred" : "renderer-noop",
+    );
+    return result;
+  });
+}
+
+describe("image insertion transactions", () => {
+  it("replaces a selection with one undoable transaction and restores it on undo", () => {
+    const setup = createSetup({ markdown: "Hello world", mode: "source" });
+    setup.harness.setSelection(6, 11);
+    const result = prepare(setup)({ src: "a.png", alt: "photo" });
+    expect(result.status).toBe("applied");
+    expect(setup.harness.probe()).toMatchObject({
+      markdown: "Hello ![photo](a.png)",
+      selectionAnchor: 21,
+      selectionHead: 21,
+      externalEditTransactionCount: 1,
+    });
+    expect(setup.harness.undo()).toBe(true);
+    expect(setup.document.getSnapshot().markdown).toBe("Hello world");
+    expect(setup.harness.probe()).toMatchObject({ selectionAnchor: 6, selectionHead: 11 });
+    setup.harness.renderer.destroy();
+  });
+
+  it("defers the caret change with the image during composition", () => {
+    const setup = createSetup({ markdown: "abc", mode: "source" });
+    setup.harness.setSelection(1);
+    const insert = prepare(setup);
+    setup.harness.startComposition();
+    expect(insert({ src: "a.png", alt: "" }).status).toBe("queued-composition");
+    expect(setup.harness.probe()).toMatchObject({ markdown: "abc", selectionAnchor: 1 });
+    setup.harness.endComposition();
+    const request = setup.ready[0]!;
+    expect(
+      applyExternalEdit(setup, request.markdown, request.operationId, request.selection).status,
+    ).toBe("applied");
+    expect(setup.harness.probe()).toMatchObject({
+      markdown: "a![](a.png)bc",
+      selectionAnchor: 11,
+      externalEditTransactionCount: 1,
+    });
+    setup.harness.renderer.destroy();
   });
 });
 

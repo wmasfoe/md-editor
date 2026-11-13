@@ -88,40 +88,15 @@ export function DesktopCodeMirrorEditor({
         return Boolean(runtime.document.getSnapshot().filePath);
       },
       runFileAction: async (_label, action) => {
-        await action();
-      },
-      applyMarkdown: (nextMarkdown) => {
-        const current = runtime.document.getSnapshot();
-        if (ports) {
-          const res = ports.applyExternalEdit({
-            operationId: `desktop:paste-image:${Date.now()}`,
-            markdown: nextMarkdown,
-            expectedGeneration: current.documentGeneration,
-            expectedContentRevision: current.contentRevision,
-            selection: "preserve-offset-clamped",
-          });
-          if (
-            res.status === "applied" ||
-            res.status === "noop" ||
-            res.status === "queued-composition"
-          ) {
-            return;
-          }
+        try {
+          await action();
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : String(error));
         }
-        runtime.document.replaceDocument(
-          {
-            markdown: nextMarkdown,
-            savedMarkdown: current.savedMarkdown,
-            filePath: current.filePath,
-            // 粘贴图片 = **同一篇文档内**的内容变更（走整篇替换管道）⇒ 显式声明 same，
-            // 否则渲染层会把这次替换当成换文档而把正在阅读的用户弹回顶部（S7）。
-            replaceIntent: "same",
-          },
-          { kind: "command", commandId: "editor.pasteImage" },
-        );
       },
-      getCursorPosition: () => {
-        return ports?.getSelectionSnapshot().head ?? null;
+      prepareImageInsertion: () => {
+        if (!ports) throw new Error("编辑器尚未就绪");
+        return ports.prepareImageInsertion();
       },
       assetsDirectory: settings.assetsDirectory,
       requestConfirmation: (state) => useConfirmationStore.getState().requestConfirmation(state),
@@ -139,7 +114,7 @@ export function DesktopCodeMirrorEditor({
       cleanupDrop();
       cleanupPaste();
     };
-  }, [settings.assetsDirectory, dispatchCommand, ports, refreshFolderForDocumentPath]);
+  }, [settings.assetsDirectory, dispatchCommand, ports, refreshFolderForDocumentPath, showToast]);
 
   // 链接打开:内部文档 / 锚点 / 资产 / 外部 URL 的判定全部收敛在 controller
   // (`openWysiwygLink`)，渲染层只把通过协议白名单的 URL 交回宿主。

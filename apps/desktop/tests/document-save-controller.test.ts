@@ -1,11 +1,13 @@
-import { createDocumentState, type SaveOutcome } from "@md-editor/core";
+import {
+  createDocumentState,
+  executeDocumentSave,
+  isDiscardProtectionRequired,
+  type SaveOutcome,
+  type DocumentSaveCheckpoint,
+} from "@md-editor/core";
 import type { FileSaveJob } from "@md-editor/file-system";
 import { describe, expect, it, vi } from "vitest";
-import {
-  executeDocumentSave,
-  getSaveFeedback,
-  isDiscardProtectionRequired,
-} from "../src/app/controller/document-save";
+import { getSaveFeedback } from "../src/app/controller/document-save";
 
 describe("desktop document save orchestration", () => {
   it("enqueues synchronously after beginSave and settles the exact checkpoint once", async () => {
@@ -26,7 +28,7 @@ describe("desktop document save orchestration", () => {
       },
     };
 
-    const pending = executeDocumentSave(document, fileService, false);
+    const pending = executeDocumentSave(document, savePort(fileService), false);
     expect(jobs).toEqual([
       expect.objectContaining({
         checkpointSequence: 1,
@@ -63,13 +65,13 @@ describe("desktop document save orchestration", () => {
       },
     };
 
-    const lower = executeDocumentSave(document, fileService, false);
+    const lower = executeDocumentSave(document, savePort(fileService), false);
     document.applyEditorChange("B\n", {
       kind: "renderer",
       clientId: "document-save-controller-test",
       sequence: 1,
     });
-    const higher = executeDocumentSave(document, fileService, true);
+    const higher = executeDocumentSave(document, savePort(fileService), true);
     expect(jobs.map((job) => job.checkpointSequence)).toEqual([1, 2]);
     expect(jobs[1]?.destination).toEqual({ kind: "prompt", suggestedPath: "/doc.md" });
 
@@ -98,15 +100,13 @@ describe("desktop document save orchestration", () => {
     });
     const execution = await executeDocumentSave(
       document,
-      {
-        enqueueSaveJob: async () => ({
-          status: "indeterminate",
-          commit: "unknown",
-          candidatePath: "/doc.md",
-          errorCode: "transport-lost",
-          verificationRequired: true,
-        }),
-      },
+      async () => ({
+        status: "indeterminate",
+        commit: "unknown",
+        candidatePath: "/doc.md",
+        errorCode: "transport-lost",
+        verificationRequired: true,
+      }),
       false,
     );
 
@@ -167,4 +167,15 @@ function committed(filePath: string): SaveOutcome {
     filePath,
     warnings: [],
   };
+}
+
+function savePort(service: { enqueueSaveJob(job: FileSaveJob): Promise<SaveOutcome> }) {
+  return (checkpoint: DocumentSaveCheckpoint) =>
+    service.enqueueSaveJob({
+      jobId: checkpoint.id,
+      checkpointSequence: checkpoint.sequence,
+      documentGeneration: checkpoint.documentGeneration,
+      markdownLf: checkpoint.markdownLf,
+      destination: checkpoint.destination,
+    });
 }
