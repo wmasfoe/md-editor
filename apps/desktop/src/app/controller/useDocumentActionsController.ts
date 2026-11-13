@@ -36,7 +36,7 @@ import { findFirstMarkdownPath } from "../files/file-tree-mutations";
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { shouldRefreshFolderAfterSave } from "./save-folder-refresh";
-import { getSaveFeedback } from "./document-save";
+import { createDesktopSavePort, getSaveFeedback } from "./document-save";
 import { checkPendingDraft, recordDocumentHistory, sessionStore } from "./session-controller";
 import { checkDocumentLinksAndLint } from "./export-controller";
 import { useDocumentUiStore } from "../stores/document-ui-store";
@@ -250,14 +250,7 @@ export function useDocumentActionsController({
         async () => {
           const execution = await executeDocumentSave(
             runtime.document,
-            (checkpoint) =>
-              fileService.enqueueSaveJob({
-                jobId: checkpoint.id,
-                checkpointSequence: checkpoint.sequence,
-                documentGeneration: checkpoint.documentGeneration,
-                markdownLf: checkpoint.markdownLf,
-                destination: checkpoint.destination,
-              }),
+            createDesktopSavePort(fileService),
             forceDialog,
           );
           const { checkpoint, outcome, previousPath, settlement } = execution;

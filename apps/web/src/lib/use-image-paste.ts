@@ -17,7 +17,10 @@ export interface UseImagePasteOptions {
 export function useImagePaste({ ports, showToast }: UseImagePasteOptions) {
   useEffect(() => {
     const handleImageFile = async (file: File) => {
-      if (!ports) return;
+      if (!ports) {
+        showToast("编辑器尚未就绪，请稍后重新插入图片。");
+        return;
+      }
       const insertImage = ports.prepareImageInsertion();
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());

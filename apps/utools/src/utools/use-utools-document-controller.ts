@@ -34,66 +34,72 @@ export function useUtoolsDocumentController({
   rendererPorts,
   showToast,
 }: UseUtoolsDocumentControllerOptions) {
-  const handleSaveDocument = useCallback(async (): Promise<boolean> => {
-    const bridge = window.inkpointNodeBridge;
-    if (!bridge) {
-      showToast("当前环境不支持文件保存");
-      return false;
-    }
-    rendererPorts?.flushPendingEdits();
-    const execution = await executeDocumentSave(docState, (checkpoint) => {
-      const destination = checkpoint.destination;
-      const targetPath =
-        destination.kind === "current-path"
-          ? destination.path
-          : window.utools?.showSaveDialog({
-              title: "保存 Markdown 文档",
-              defaultPath: destination.suggestedPath ?? "未命名.md",
-              filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
-              buttonLabel: "保存",
-            });
-      if (!targetPath)
-        return {
-          status: "cancelled",
-          commit: "not-committed",
-          phase: "dialog",
-          reason: "dialog-cancelled",
-        };
-      bridge.writeFile(targetPath, checkpoint.markdownLf);
-      return { status: "succeeded", commit: "committed", filePath: targetPath, warnings: [] };
-    });
-    const { outcome, checkpoint } = execution;
-    if (outcome.status === "failed" || outcome.status === "indeterminate") {
-      showToast(`保存失败或结果无法确认: ${outcome.errorCode}`);
-      return false;
-    }
-    const latest = docState.getSnapshot();
-    if (
-      latest.documentGeneration !== checkpoint.documentGeneration ||
-      isDiscardProtectionRequired(latest)
-    )
-      return false;
-    if (outcome.status !== "succeeded") return false;
-    saveLastOpenedFile(outcome.filePath);
-    const activeFolder = folderRef.current;
-    if (activeFolder && outcome.filePath.startsWith(activeFolder.rootPath)) {
-      try {
-        setFolder(bridge.scanFolder(activeFolder.rootPath));
-      } catch (error) {
-        // A tree refresh failure must not turn an already committed save into a failed write.
-        console.warn("保存后刷新目录失败", error);
+  const saveDocument = useCallback(
+    async (intent: "manual" | "automatic"): Promise<boolean> => {
+      const bridge = window.inkpointNodeBridge;
+      if (!bridge) {
+        if (intent === "manual") showToast("当前环境不支持文件保存");
+        return false;
       }
-    }
-    return true;
-  }, [docState, folderRef, rendererPorts, setFolder, showToast]);
+      // Autosave persists the published snapshot without committing an active table/IME edit.
+      if (intent === "manual") rendererPorts?.flushPendingEdits();
+      const execution = await executeDocumentSave(docState, (checkpoint) => {
+        const destination = checkpoint.destination;
+        const targetPath =
+          destination.kind === "current-path"
+            ? destination.path
+            : window.utools?.showSaveDialog({
+                title: "保存 Markdown 文档",
+                defaultPath: destination.suggestedPath ?? "未命名.md",
+                filters: [{ name: "Markdown", extensions: ["md", "markdown", "mdx"] }],
+                buttonLabel: "保存",
+              });
+        if (!targetPath)
+          return {
+            status: "cancelled",
+            commit: "not-committed",
+            phase: "dialog",
+            reason: "dialog-cancelled",
+          };
+        bridge.writeFile(targetPath, checkpoint.markdownLf);
+        return { status: "succeeded", commit: "committed", filePath: targetPath, warnings: [] };
+      });
+      const { outcome, checkpoint } = execution;
+      if (outcome.status === "failed" || outcome.status === "indeterminate") {
+        if (intent === "manual") showToast(`保存失败或结果无法确认: ${outcome.errorCode}`);
+        return false;
+      }
+      const latest = docState.getSnapshot();
+      if (
+        latest.documentGeneration !== checkpoint.documentGeneration ||
+        isDiscardProtectionRequired(latest)
+      )
+        return false;
+      if (outcome.status !== "succeeded") return false;
+      saveLastOpenedFile(outcome.filePath);
+      const activeFolder = folderRef.current;
+      if (activeFolder && outcome.filePath.startsWith(activeFolder.rootPath)) {
+        try {
+          setFolder(bridge.scanFolder(activeFolder.rootPath));
+        } catch (error) {
+          // A tree refresh failure must not turn an already committed save into a failed write.
+          console.warn("保存后刷新目录失败", error);
+        }
+      }
+      return true;
+    },
+    [docState, folderRef, rendererPorts, setFolder, showToast],
+  );
+
+  const handleSaveDocument = useCallback(() => saveDocument("manual"), [saveDocument]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       const current = docState.getSnapshot();
-      if (current.filePath && current.isDirty) void handleSaveDocument();
+      if (current.filePath && current.isDirty) void saveDocument("automatic");
     }, 600);
     return () => clearTimeout(timer);
-  }, [docState, markdown, handleSaveDocument]);
+  }, [docState, markdown, saveDocument]);
 
   const handleNewFile = useCallback(async () => {
     rendererPorts?.flushPendingEdits();
@@ -111,6 +117,10 @@ export function useUtoolsDocumentController({
 
   const handleInsertImageFile = useCallback(
     async (file: File) => {
+      if (!rendererPorts) {
+        showToast("编辑器尚未就绪，请稍后重新插入图片。");
+        return;
+      }
       let current = docState.getSnapshot();
       const generation = current.documentGeneration;
       const altText = imageAltTextFromFileName(file.name) || "image";
@@ -130,7 +140,6 @@ export function useUtoolsDocumentController({
         return;
       }
 
-      if (!rendererPorts) return;
       const insertImage = rendererPorts.prepareImageInsertion({ layout: "block" });
       try {
         const buffer = await file.arrayBuffer();
