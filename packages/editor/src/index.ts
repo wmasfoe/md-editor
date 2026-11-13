@@ -17,6 +17,11 @@ export {
   type CodeMirrorEditorClipboardWriter,
   type MdxComponentsLookup,
 } from "./bridge.ts";
+export type {
+  ImageInsertionInput,
+  ImageInsertionOptions,
+  PreparedImageInsertion,
+} from "./image-insertion.ts";
 
 export {
   createCodeMirrorRenderer,

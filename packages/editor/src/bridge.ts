@@ -30,6 +30,11 @@ import type {
 import type { MarkdownSyntaxPlugin } from "@md-editor/plugin-sdk/syntax";
 import type { Diagnostic } from "@codemirror/lint";
 import type { DocumentLinterOptions } from "./lint/types.ts";
+import {
+  prepareImageInsertion,
+  type ImageInsertionOptions,
+  type PreparedImageInsertion,
+} from "./image-insertion.ts";
 
 export type CodeMirrorEditorClipboardWriter = (text: string) => Promise<void>;
 
@@ -44,6 +49,8 @@ export interface CodeMirrorEditorPorts {
   readonly clientId: string;
   readonly mode: ModeRendererPort;
   applyExternalEdit(request: ExternalEditRequest): CodeMirrorEditorExternalEditResult;
+  /** Capture the selection before storing an image, then inject the resolved image address. */
+  prepareImageInsertion(options?: ImageInsertionOptions): PreparedImageInsertion;
   setCodeBlockLineNumbers(enabled: boolean): CodeBlockLineNumberPortResult;
   setInlineStyleMarkers(enabled: boolean): InlineStyleMarkerPortResult;
   setMarkdownLint(enabled: boolean): MarkdownLintPortResult;
@@ -295,6 +302,18 @@ export function createCodeMirrorEditorBridge(
     clientId: renderer.clientId,
     mode,
     applyExternalEdit,
+    prepareImageInsertion: (insertionOptions?: ImageInsertionOptions) =>
+      prepareImageInsertion(
+        options.document,
+        renderer,
+        (request) => {
+          if (destroyed) return { status: "cancelled", reason: "destroyed" };
+          const result = applyExternalEdit(request);
+          if (result.status === "applied") renderer.focus();
+          return result;
+        },
+        insertionOptions,
+      ),
     moveBlockUp: () => renderer.moveBlockUp(),
     moveBlockDown: () => renderer.moveBlockDown(),
     duplicateBlock: () => renderer.duplicateBlock(),

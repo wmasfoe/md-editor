@@ -1,5 +1,5 @@
+import type { CodeMirrorEditorPorts } from "@md-editor/editor";
 import {
-  appendImageMarkdown,
   imageAltTextFromFileName,
   resolveAssetsDirectoryForDocument,
 } from "@md-editor/file-system";
@@ -13,8 +13,7 @@ const imageStorageProvider = createLocalAssetsImageStorageProvider();
 export interface PasteImageRuntime {
   readonly ensureDocumentSaved: () => Promise<boolean>;
   readonly runFileAction: (label: string, action: () => Promise<void> | void) => Promise<void>;
-  readonly applyMarkdown: (markdown: string) => void;
-  readonly getCursorPosition?: () => number | null;
+  readonly prepareImageInsertion: CodeMirrorEditorPorts["prepareImageInsertion"];
   readonly afterSaveImage?: (documentPath: string) => Promise<void> | void;
   readonly assetsDirectory?: string;
   readonly requestConfirmation?: (state: ConfirmationState) => Promise<ConfirmationChoice>;
@@ -66,6 +65,7 @@ export async function pasteImageInput(
 ) {
   await runtimeActions.runFileAction(label, async () => {
     let current = runtime.document.getSnapshot();
+    const generation = current.documentGeneration;
 
     // 图片资源依赖已保存 Markdown 的目录；未命名文档需要先另存为，后端才能计算稳定目录。
     if (!current.filePath) {
@@ -73,12 +73,14 @@ export async function pasteImageInput(
         return;
       }
       current = runtime.document.getSnapshot();
+      if (current.documentGeneration !== generation) return;
     }
 
     if (!current.filePath) {
       throw new Error("Save the document before pasting images.");
     }
 
+    const insertImage = runtimeActions.prepareImageInsertion();
     const pattern = runtimeActions.assetsDirectory ?? "assets";
     const resolved = resolveAssetsDirectoryForDocument(current.filePath, pattern);
     const targetDir = resolved.assetsDirectory;
@@ -109,26 +111,17 @@ export async function pasteImageInput(
       },
     });
 
-    const altText = imageAltTextFromFileName(image.preferredName);
-    const imageTag = `![${altText}](${savedImage.src})`;
-    const cursorPos = runtimeActions.getCursorPosition?.();
-
-    let nextMarkdown: string;
+    const result = insertImage({
+      src: savedImage.src,
+      alt: imageAltTextFromFileName(image.preferredName),
+    });
     if (
-      cursorPos !== undefined &&
-      cursorPos !== null &&
-      cursorPos >= 0 &&
-      cursorPos <= current.markdown.length
+      result.status !== "applied" &&
+      result.status !== "noop" &&
+      result.status !== "queued-composition"
     ) {
-      const before = current.markdown.slice(0, cursorPos);
-      const after = current.markdown.slice(cursorPos);
-      nextMarkdown = `${before}${imageTag}${after}`;
-    } else {
-      nextMarkdown = appendImageMarkdown(current.markdown, savedImage.src, altText);
+      throw new Error("文档已变化或编辑器暂不可用，请重新插入图片。");
     }
-
-    // 图片文件已经落盘，但 Markdown 引用仍是未保存编辑；保持 dirty 状态直到用户保存文档。
-    runtimeActions.applyMarkdown(nextMarkdown);
     await runtimeActions.afterSaveImage?.(current.filePath);
   });
 }

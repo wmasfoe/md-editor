@@ -346,11 +346,16 @@ export function applyReservedExternalEdit(
   context.pendingExternalEdit = frozenRequest;
   try {
     const selection =
-      frozenRequest.selection === "start"
-        ? EditorSelection.single(0)
-        : frozenRequest.selection === "end"
-          ? EditorSelection.single(frozenRequest.markdown.length)
-          : context.clampedSelection(frozenRequest.markdown.length);
+      typeof frozenRequest.selection === "object"
+        ? EditorSelection.single(
+            frozenRequest.selection.anchor,
+            frozenRequest.selection.head ?? frozenRequest.selection.anchor,
+          )
+        : frozenRequest.selection === "start"
+          ? EditorSelection.single(0)
+          : frozenRequest.selection === "end"
+            ? EditorSelection.single(frozenRequest.markdown.length)
+            : context.clampedSelection(frozenRequest.markdown.length);
     context.view.dispatch({
       changes: {
         from: 0,

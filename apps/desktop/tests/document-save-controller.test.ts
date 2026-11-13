@@ -1,11 +1,12 @@
-import { createDocumentState, type SaveOutcome } from "@md-editor/core";
-import type { FileSaveJob } from "@md-editor/file-system";
-import { describe, expect, it, vi } from "vitest";
 import {
+  createDocumentState,
   executeDocumentSave,
-  getSaveFeedback,
   isDiscardProtectionRequired,
-} from "../src/app/controller/document-save";
+  type SaveOutcome,
+} from "@md-editor/core";
+import { FileSaveInvariantError, type FileSaveJob } from "@md-editor/file-system";
+import { describe, expect, it, vi } from "vitest";
+import { createDesktopSavePort, getSaveFeedback } from "../src/app/controller/document-save";
 
 describe("desktop document save orchestration", () => {
   it("enqueues synchronously after beginSave and settles the exact checkpoint once", async () => {
@@ -26,7 +27,7 @@ describe("desktop document save orchestration", () => {
       },
     };
 
-    const pending = executeDocumentSave(document, fileService, false);
+    const pending = executeDocumentSave(document, createDesktopSavePort(fileService), false);
     expect(jobs).toEqual([
       expect.objectContaining({
         checkpointSequence: 1,
@@ -63,13 +64,13 @@ describe("desktop document save orchestration", () => {
       },
     };
 
-    const lower = executeDocumentSave(document, fileService, false);
+    const lower = executeDocumentSave(document, createDesktopSavePort(fileService), false);
     document.applyEditorChange("B\n", {
       kind: "renderer",
       clientId: "document-save-controller-test",
       sequence: 1,
     });
-    const higher = executeDocumentSave(document, fileService, true);
+    const higher = executeDocumentSave(document, createDesktopSavePort(fileService), true);
     expect(jobs.map((job) => job.checkpointSequence)).toEqual([1, 2]);
     expect(jobs[1]?.destination).toEqual({ kind: "prompt", suggestedPath: "/doc.md" });
 
@@ -98,15 +99,13 @@ describe("desktop document save orchestration", () => {
     });
     const execution = await executeDocumentSave(
       document,
-      {
-        enqueueSaveJob: async () => ({
-          status: "indeterminate",
-          commit: "unknown",
-          candidatePath: "/doc.md",
-          errorCode: "transport-lost",
-          verificationRequired: true,
-        }),
-      },
+      async () => ({
+        status: "indeterminate",
+        commit: "unknown",
+        candidatePath: "/doc.md",
+        errorCode: "transport-lost",
+        verificationRequired: true,
+      }),
       false,
     );
 
@@ -114,6 +113,38 @@ describe("desktop document save orchestration", () => {
     expect(document.getSnapshot().isDirty).toBe(false);
     expect(isDiscardProtectionRequired(document.getSnapshot())).toBe(true);
     expect(getSaveFeedback(execution.outcome, execution.settlement)).toContain("无法确认");
+  });
+
+  it("settles a known pre-enqueue validation failure without requiring verification", async () => {
+    const document = createDocumentState({
+      markdown: "text",
+      savedMarkdown: "",
+      filePath: "/doc.md",
+    });
+    const port = createDesktopSavePort({
+      enqueueSaveJob: () => {
+        throw new FileSaveInvariantError("RUNTIME_SEQUENCE_EXHAUSTED", "restart required");
+      },
+    });
+    const execution = await executeDocumentSave(document, port);
+    expect(execution.outcome).toEqual({
+      status: "failed",
+      commit: "not-committed",
+      phase: "validation",
+      errorCode: "RUNTIME_SEQUENCE_EXHAUSTED",
+    });
+    expect(document.getSnapshot().isDirty).toBe(true);
+    expect(document.getSnapshot().persistenceStatus.kind).not.toBe("verification-required");
+  });
+
+  it("keeps unknown adapter exceptions indeterminate", async () => {
+    const document = createDocumentState({ markdown: "text", filePath: "/doc.md" });
+    const port = createDesktopSavePort({
+      enqueueSaveJob: () => {
+        throw new Error("unknown-write-state");
+      },
+    });
+    expect((await executeDocumentSave(document, port)).outcome.status).toBe("indeterminate");
   });
 
   it("classifies success, warning, failure, and cancellation feedback", () => {

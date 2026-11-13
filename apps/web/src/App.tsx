@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createDocumentState,
+  executeDocumentSave,
   resolveReplaceIntent,
   switchEditorModeSafely,
   type DocumentState,
@@ -185,20 +186,6 @@ function MainWebEditorApp({
   // 图片复制粘贴与拖拽落盘系统
   useImagePaste({
     ports,
-    currentMarkdown,
-    onUpdateMarkdown: (nextMarkdown) => {
-      documentState.replaceDocument(
-        {
-          markdown: nextMarkdown,
-          savedMarkdown: documentState.getSnapshot().savedMarkdown,
-          filePath: activeFilePath,
-          // 粘贴图片 = **同一篇文档内**的内容变更（走整篇替换管道）⇒ 必须保留阅读位置。
-          // 不声明会回落 fail-safe `"different"`，把正在阅读的用户弹回顶部（architect 终审残留）。
-          replaceIntent: "same",
-        },
-        { kind: "command", commandId: "image.paste" },
-      );
-    },
     showToast,
   });
 
@@ -345,17 +332,19 @@ function MainWebEditorApp({
   const handleSave = useCallback(async () => {
     if (activeFilePath && webFileSystem.hasOpenedFolder()) {
       try {
-        const checkpoint = documentState.beginSave({
-          kind: "current-path",
-          path: activeFilePath,
+        ports?.flushPendingEdits();
+        const execution = await executeDocumentSave(documentState, async (checkpoint) => {
+          await webFileSystem.writeFile(activeFilePath, checkpoint.markdownLf);
+          return {
+            status: "succeeded",
+            commit: "committed",
+            filePath: activeFilePath,
+            warnings: [],
+          };
         });
-        await webFileSystem.writeFile(activeFilePath, currentMarkdown);
-        documentState.settleSave(checkpoint, {
-          status: "succeeded",
-          commit: "committed",
-          filePath: activeFilePath,
-          warnings: [],
-        });
+        if (execution.outcome.status === "indeterminate" || execution.outcome.status === "failed") {
+          showToast(t("toasts.saveFailed", { error: execution.outcome.errorCode }));
+        }
       } catch (err: unknown) {
         console.error(err);
         showToast(t("toasts.saveFailed", { error: getErrorMessage(err) }));
@@ -363,7 +352,7 @@ function MainWebEditorApp({
     } else {
       saveDraft(currentMarkdown);
     }
-  }, [activeFilePath, currentMarkdown, documentState, showToast, t]);
+  }, [activeFilePath, currentMarkdown, documentState, ports, showToast, t]);
 
   // 新建文件或文件夹
   const handleCreateItem = useCallback(

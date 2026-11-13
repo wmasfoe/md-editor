@@ -27,7 +27,7 @@ import {
 import { runtime } from "../runtime/editor-runtime";
 import { recentFilesStore } from "./recent-files-store";
 import { desktopAiService } from "../ai/desktop-ai-service.ts";
-import { isDiscardProtectionRequired } from "./document-save";
+import { isDiscardProtectionRequired } from "@md-editor/core";
 import { checkPendingDraft } from "./session-controller";
 import {
   copyDocumentAsHtml,
