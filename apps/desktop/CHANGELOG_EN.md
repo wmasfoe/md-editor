@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.2 - 2026-11-13 (#250)
+
+- Fix the invisible text caret when editing table cells.
+- Improve image insertion with selection replacement and a single undo step; request a retry if the document changes during processing to protect newer edits.
+- Improve save error handling by distinguishing validation failures before queueing from writes whose outcome cannot be confirmed.
+
 ## 0.22.1 - 2026-11-12 (#246)
 
 - Fix Standard local model downloads when using the built-in catalog and correct the download size to about 4.7 GiB.
