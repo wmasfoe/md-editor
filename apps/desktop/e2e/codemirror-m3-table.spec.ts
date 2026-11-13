@@ -120,6 +120,39 @@ test.describe("CodeMirror M3 table interaction surface", () => {
     await expect(bodyCell(page, 1, 0)).not.toHaveClass(/cm-md-table-widget__cell--editing/u);
   });
 
+  test("cell editors retain a visible native caret while the main editor uses a drawn caret", async ({
+    page,
+  }) => {
+    await loadTable(page, TABLE_MARKDOWN.replace("| 1 | 2 |", "| text |  |"));
+    const editors = [
+      page.locator("thead .cm-md-table-widget__cell-editor").first(),
+      bodyCell(page, 0, 0).locator(".cm-md-table-widget__cell-editor"),
+      bodyCell(page, 0, 1).locator(".cm-md-table-widget__cell-editor"),
+    ];
+
+    // Test the actual cascade: DOM-only tests do not model inherited caret-color correctly.
+    await expect(page.locator(".cm-content")).toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
+    for (const editor of editors) {
+      await editor.click();
+      await expect(editor).toBeFocused();
+      const textColor = await editor.evaluate((element) => getComputedStyle(element).color);
+      await expect(editor).toHaveCSS("caret-color", textColor);
+      await expect(editor).not.toHaveCSS("caret-color", "rgba(0, 0, 0, 0)");
+    }
+
+    const bodyEditor = editors[1]!;
+    await bodyEditor.click();
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Backspace");
+    await expect(bodyEditor).toHaveText("tet");
+    await page.keyboard.press("Tab");
+    await expect(editors[2]!).toBeFocused();
+    await expect
+      .poll(async () => (await diagnostics(page)).renderer!.markdown)
+      .toContain("| tet |  |");
+  });
+
   test("B4: row/col block handles and action menus mutate the table without breaking source", async ({
     page,
   }) => {

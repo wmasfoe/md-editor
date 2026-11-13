@@ -56,6 +56,8 @@ export const tableCss = String.raw`
   min-height: 1.35em;
   width: 100%;
   outline: none;
+  /* 单元格由浏览器绘制原生光标，不能继承正文自绘光标所需的透明 caret-color。 */
+  caret-color: var(--theme-text, currentColor);
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
