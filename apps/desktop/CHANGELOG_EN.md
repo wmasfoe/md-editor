@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.22.4 - 2026-11-14 (#258, #259)
+
+- Fix CodeMirror tile tree corruption caused by multiline Setext heading widgets
+- Ensure Sentry source maps are generated and uploaded on production releases
+
 ## 0.22.3 - 2026-11-14 (#252, #254)
 
 - Manage external plugin command shortcuts in settings, including changing, disabling, and restoring bindings with conflict feedback.
