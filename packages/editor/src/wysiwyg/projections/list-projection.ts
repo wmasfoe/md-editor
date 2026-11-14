@@ -32,6 +32,9 @@ export function buildBlockLayoutDecorations(
   // GFM Alert / Callout 警示框处理（> [!NOTE] 等）
   if (record.alert) {
     const alert = record.alert;
+    const headerActive =
+      state.selection.main.from <= alert.headerLineRange.to &&
+      state.selection.main.to >= alert.headerLineRange.from;
     const startLine = doc.lineAt(record.fullRange.from);
     const safeTo =
       record.fullRange.to > record.fullRange.from &&
@@ -76,7 +79,8 @@ export function buildBlockLayoutDecorations(
     for (const marker of record.markerRanges) {
       const markerLine = doc.lineAt(marker.from);
       if (markerLine.number === startLine.number) {
-        // 首行：始终用 CalloutHeaderWidget 替换首行整行文本（纯视觉只读卡片，绝不展开源码）
+        // Reveal the real header source when selected; keep it editable in this state.
+        if (headerActive) continue;
         decorations.push(
           Decoration.replace({
             widget: new CalloutHeaderWidget(alert.alertType, alert.title, record.id),
@@ -169,12 +173,13 @@ export function getBlockProtectedRanges(
     return [];
   }
 
-  // GFM Alert 首行作为纯视觉只读卡片，整行 [startLine.from, startLine.to] 纳入受保护区间，
-  // 禁止误编辑破坏 Alert 语法；后续行正常将其 `>` 标记纳入受保护区间
+  // Only the projected header is protected. A disclosed header is ordinary source.
   if (record.alert) {
     const doc = state.doc;
     const startLine = doc.lineAt(record.fullRange.from);
-    const ranges: SourceRange[] = [{ from: startLine.from, to: startLine.to }];
+    const headerActive =
+      state.selection.main.from <= startLine.to && state.selection.main.to >= startLine.from;
+    const ranges: SourceRange[] = headerActive ? [] : [{ from: startLine.from, to: startLine.to }];
 
     for (const marker of record.markerRanges) {
       if (doc.lineAt(marker.from).number !== startLine.number) {

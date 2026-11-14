@@ -13,6 +13,7 @@ Container Directive (Admonition) Styling
    ───────────────────────────────────────────────────────────── */
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive-line, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-alert {
   padding-left: 1rem;
+  padding-right: 1rem;
   border-left: 3.5px solid var(--directive-border, var(--theme-primary, #0969da));
   background-color: var(--directive-bg, var(--theme-primary-soft, rgba(9, 105, 218, 0.06)));
   box-sizing: border-box;
@@ -20,12 +21,19 @@ Container Directive (Admonition) Styling
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive-line--first, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-alert--first {
   border-top-left-radius: var(--theme-radius-base, 6px);
   border-top-right-radius: var(--theme-radius-base, 6px);
-  padding-top: 0.35rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.25rem;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive-line--last, .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-alert--last {
   border-bottom-left-radius: var(--theme-radius-base, 6px);
   border-bottom-right-radius: var(--theme-radius-base, 6px);
-  padding-bottom: 0.65rem;
+  padding-bottom: 0.75rem;
+}
+/* The hidden closing fence is a boundary, not an extra empty body line.
+   Keep its padding for the card's inset; restore a normal line when editing it. */
+.cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive-line--footer-hidden {
+  font-size: 0;
+  line-height: 0;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-alert--empty {
   min-height: 0.4rem;
@@ -57,7 +65,10 @@ Container Directive (Admonition) Styling
   --directive-color: #d1242f;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive__header-content {
-  display: flex;
+  /* Keep the widget inside CM's text line: block flex creates extra line boxes
+     around the cursor buffers and makes source disclosure collapse the header. */
+  display: inline-flex;
+  vertical-align: top;
   width: 100%;
   box-sizing: border-box;
   align-items: center;
@@ -65,11 +76,9 @@ Container Directive (Admonition) Styling
   font-size: 0.85em;
   font-weight: 700;
   letter-spacing: 0.02em;
-  line-height: 1.2;
+  line-height: inherit;
   color: var(--directive-color, var(--theme-primary, #0969da));
   user-select: none;
-  padding-bottom: 0.15rem;
-  min-height: 1.25rem;
 }
 .cm-md-editor.cm-editor.cm-md-editor--wysiwyg .cm-md-directive__icon-wrap {
   display: inline-flex;

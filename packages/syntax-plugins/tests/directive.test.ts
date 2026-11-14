@@ -1,6 +1,7 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState, type StateEffect } from "@codemirror/state";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { EditorView, WidgetType } from "@codemirror/view";
 import { createDocumentState } from "@md-editor/core";
 import {
   createDefaultSyntaxPluginHostPorts,
@@ -11,6 +12,7 @@ import {
 import { syntaxPluginHostPortsFacet } from "@md-editor/plugin-sdk/syntax";
 import {
   createCodeMirrorRendererWithFactory,
+  findLayoutDecorationsForTesting,
   provideWysiwygDiagnostics,
   WysiwygDiagnostics,
 } from "@md-editor/editor/testing";
@@ -205,6 +207,98 @@ describe("containerDirectivePlugin (@md-editor/syntax-plugins)", () => {
       );
       expect(markerDecos.length).toBeGreaterThan(0);
     });
+  });
+
+  describe("Header pointer disclosure", () => {
+    it.each([":::tip 快捷键体验提示", ":::warning"])(
+      "reveals and edits %s on click, then restores the header when leaving",
+      (header) => {
+        const doc = `${header}\n按下快捷键 **Mod-/**\n:::\n\n后续段落`;
+        let state: EditorState;
+        const renderer = createCodeMirrorRendererWithFactory(
+          {
+            parent: {} as HTMLElement,
+            initialSnapshot: createDocumentState({ markdown: doc, mode: "wysiwyg" }).getSnapshot(),
+            onEditorChange: () => {},
+            onQueuedExternalEditReady: () => {},
+            onQueuedExternalEditCancelled: () => {},
+            plugins: [containerDirectivePlugin],
+          },
+          (input) => {
+            state = input.state;
+            return {
+              get state() {
+                return state;
+              },
+              isComposing: false,
+              dispatch: () => {},
+              dispatchTransaction: () => {},
+              setState: (next) => {
+                state = next;
+              },
+              scrollSnapshot: () => ({}) as StateEffect<unknown>,
+              getScrollTop: () => 0,
+              setScrollTop: () => {},
+              hasFocus: () => false,
+              focus: () => {},
+              requestMeasure: () => {},
+              clearDomSelection: () => {},
+              destroy: () => {},
+            };
+          },
+        );
+        // Starting in the body also checks updates while the container stays active.
+        state = state!.update({ selection: EditorSelection.cursor(doc.indexOf("按下")) }).state;
+        const record = () =>
+          state.field(markdownRangeIndexField).records.find((r) => r.kind === "directive")!;
+        const headerDecoration = () =>
+          findLayoutDecorationsForTesting(state, "directive-header-widget")[0];
+        // A small DOM surface keeps this interaction test independent of browser layout.
+        const ownerDocument = {
+          createElement: () =>
+            Object.assign(new EventTarget(), {
+              dataset: {},
+              appendChild: () => {},
+            }),
+        } as unknown as Document;
+        const focus = vi.fn();
+        const view = {
+          dom: { ownerDocument },
+          get state() {
+            return state;
+          },
+          dispatch: (spec: Parameters<EditorState["update"]>[0]) => {
+            state = state.update(spec).state;
+          },
+          focus,
+        } as unknown as EditorView;
+        const widget = headerDecoration()!.spec.widget as WidgetType;
+        const dom = widget.toDOM(view);
+        const event = new Event("mousedown", { cancelable: true });
+        dom.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(state.doc.lineAt(state.selection.main.head).number).toBe(1);
+        expect(focus).toHaveBeenCalledOnce();
+        expect(headerDecoration()).toBeUndefined();
+        expect(state.doc.toString()).toBe(doc);
+
+        const headerEnd = state.doc.line(1).to;
+        state = state.update({ changes: { from: headerEnd, insert: " 新标题" } }).state;
+        expect(record().directive?.title).toContain("新标题");
+        state = state.update({ selection: EditorSelection.cursor(state.doc.line(2).from) }).state;
+        expect(headerDecoration()).toBeDefined();
+        // Keyboard selection follows the same disclosure path, including the footer.
+        state = state.update({ selection: EditorSelection.cursor(4) }).state;
+        expect(headerDecoration()).toBeUndefined();
+        state = state.update({ selection: EditorSelection.cursor(state.doc.line(3).from) }).state;
+        expect(headerDecoration()).toBeDefined();
+        expect(findLayoutDecorationsForTesting(state, "directive-footer-hidden")).toHaveLength(0);
+        state = state.update({ selection: EditorSelection.cursor(state.doc.line(2).from) }).state;
+        expect(findLayoutDecorationsForTesting(state, "directive-footer-hidden")).toHaveLength(1);
+        renderer.destroy();
+      },
+    );
   });
 
   describe("Renderer Integration with plugins", () => {

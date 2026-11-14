@@ -39,6 +39,7 @@ export function buildDirectiveLayoutDecorations(
     closingMarkerRange !== null &&
     selection.from <= record.fullRange.to &&
     selection.to >= closingMarkerRange.from;
+  const footerWidget = closingMarkerRange && !isFooterActive ? createCalloutFooterWidget() : null;
 
   const decorations: Range<Decoration>[] = [];
 
@@ -53,6 +54,7 @@ export function buildDirectiveLayoutDecorations(
       `cm-md-directive--${type.toLowerCase()}`,
       isFirst ? "cm-md-directive-line--first" : "",
       isLast ? "cm-md-directive-line--last" : "",
+      isLast && footerWidget ? "cm-md-directive-line--footer-hidden" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -97,7 +99,6 @@ export function buildDirectiveLayoutDecorations(
   // 尾行闭合标记处理：当有独立的闭合 ::: 且光标不在末行时，隐藏闭合字符
   if (closingMarkerRange) {
     if (!isFooterActive) {
-      const footerWidget = createCalloutFooterWidget();
       if (footerWidget) {
         decorations.push(
           Decoration.replace({

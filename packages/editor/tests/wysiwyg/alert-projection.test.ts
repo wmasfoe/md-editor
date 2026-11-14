@@ -173,7 +173,7 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(headerWidget?.title).toBe("技巧提示");
     });
 
-    it("preserves header widget even when cursor focuses on the first line (No Inline Disclosure)", () => {
+    it("reveals editable header source when the cursor enters the first line", () => {
       const doc = ["> [!WARNING] 警告标题", "> 正文内容"].join("\n");
       // 光标位于第 5 个字符（在首行内部）
       const state = createEditorState(doc, EditorSelection.single(5));
@@ -182,13 +182,17 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
 
       const decos = buildBlockLayoutDecorations(record, state);
 
-      // 光标在首行时，依然恒定替换为只读卡片头部，绝不原位回显源码
+      // The active header is source text, with no atomic/protected replacement.
       const headerWidgetDecos = decos.filter(
         (d) =>
           (d.value as unknown as { spec?: { wysiwygRole?: string } }).spec?.wysiwygRole ===
           "alert-header-widget",
       );
-      expect(headerWidgetDecos).toHaveLength(1);
+      expect(headerWidgetDecos).toHaveLength(0);
+      expect(getBlockProtectedRanges(record, state)).not.toContainEqual({
+        from: 0,
+        to: state.doc.line(1).to,
+      });
     });
   });
 
@@ -298,7 +302,7 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(head).toBeLessThanOrEqual(line3.to);
     });
 
-    it("skips read-only header and moves above alert when pressing ArrowUp from first content line", () => {
+    it("enters header source when pressing ArrowUp from first content line", () => {
       const doc = ["title above", "> [!NOTE]", "> content line"].join("\n");
       // 光标位于第 3 行（Alert 首个内容行）
       const contentLine = doc.indexOf("> content line") + 2;
@@ -309,13 +313,13 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(handled).toBe(true);
 
       const head = getState().selection.main.head;
-      const line1 = state.doc.line(1);
-      // 光标自动跨越只读 Header，直接退到上方行
+      const line1 = state.doc.line(2);
+      // The caret enters the header source instead of skipping it.
       expect(head).toBeGreaterThanOrEqual(line1.from);
       expect(head).toBeLessThanOrEqual(line1.to);
     });
 
-    it("skips read-only header and moves into first content line when pressing ArrowDown from above alert", () => {
+    it("enters header source when pressing ArrowDown from above alert", () => {
       const doc = ["title above", "> [!NOTE]", "> content line"].join("\n");
       // 光标位于第 1 行（上方行）
       const state = createWysiwygState(doc, EditorSelection.single(0));
@@ -325,9 +329,9 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(handled).toBe(true);
 
       const head = getState().selection.main.head;
-      const line3 = state.doc.line(3);
-      // 光标自动跨越只读 Header，直接落入 Alert 首个内容行
-      expect(head).toBeGreaterThanOrEqual(line3.from + 2);
+      const line3 = state.doc.line(2);
+      // The caret enters the header source.
+      expect(head).toBeGreaterThanOrEqual(line3.from);
       expect(head).toBeLessThanOrEqual(line3.to);
     });
   });

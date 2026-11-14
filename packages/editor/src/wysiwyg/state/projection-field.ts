@@ -34,6 +34,7 @@ import {
 import { buildLayoutDecorations, updateChangedLayoutDecorations } from "./decorations.ts";
 import {
   buildAtomicRanges,
+  collectCalloutBoundaryDeltaIds,
   buildProtectedRanges,
   freezeRanges,
   mapCompositionGuardRanges,
@@ -241,7 +242,12 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
       transaction.state,
       transaction,
     );
-    const changedIds = symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds);
+    const changedIds = [
+      ...new Set([
+        ...symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds),
+        ...collectCalloutBoundaryDeltaIds(index, transaction.startState, transaction.state),
+      ]),
+    ];
     if (changedIds.length === 0) {
       if (previous.lastSelectionDeltaIds.length === 0 && typedBoundary === previous.typedBoundary) {
         // 范围选区贴边的失效路径：active 不变，但闭区间触及点集可能已变。
@@ -283,7 +289,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     // selection 变化同样会改变该集合，必须在此同步重算。
     const protectedRanges = changedIds.some((id) => {
       const kind = index.get(id)?.kind;
-      return kind === "table" || kind === "html";
+      return kind === "table" || kind === "html" || Boolean(index.get(id)?.alert);
     })
       ? buildProtectedRanges(index, activeSyntaxIds, transaction.state, previous.selectedAtomIds)
       : previous.protectedRanges;

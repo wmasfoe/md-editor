@@ -34,6 +34,36 @@ import {
 } from "../projections/table-projection.ts";
 import { type ProtectedSourceRange, configuredProjectionFeatures } from "./types.ts";
 
+/** Callout boundary disclosure can change while the containing block stays active. */
+export function collectCalloutBoundaryDeltaIds(
+  index: MarkdownRangeIndex,
+  beforeState: EditorState,
+  afterState: EditorState,
+): readonly string[] {
+  const before = beforeState.selection.main;
+  const after = afterState.selection.main;
+  const candidates = new Set([
+    ...index.overlapping(before.from, before.to),
+    ...index.overlapping(after.from, after.to),
+  ]);
+  const changed: string[] = [];
+  for (const record of candidates) {
+    const boundaries = record.directive
+      ? [record.directive.headerRange, record.directive.closingMarkerRange]
+      : [record.alert?.headerLineRange];
+    if (
+      boundaries.some(
+        (range) =>
+          range &&
+          (before.from <= range.to && before.to >= range.from) !==
+            (after.from <= range.to && after.to >= range.from),
+      )
+    )
+      changed.push(record.id);
+  }
+  return changed;
+}
+
 export function buildAtomicRanges(
   index: MarkdownRangeIndex,
   activeSyntaxIds: readonly string[],

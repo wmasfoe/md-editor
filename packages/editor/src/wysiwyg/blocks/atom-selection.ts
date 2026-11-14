@@ -276,24 +276,14 @@ function quoteBoundaryMovementTarget(
 
   // 场景 1：方向向后（ArrowUp 向上移动）
   if (direction === "backward") {
-    // 场景 1A：当前处于 Alert 首个内容行，向上移动时自动跳过只读 Header，退出至 Alert 上方行
-    const currentAlertRecord = index.records.find((r) => {
-      if (r.kind !== "quote" || !r.alert) {
-        return false;
-      }
-      const startLine = doc.lineAt(r.fullRange.from);
-      return currentLine.number === startLine.number + 1;
-    });
-
-    if (currentAlertRecord) {
-      const startLine = doc.lineAt(currentAlertRecord.fullRange.from);
-      if (startLine.number > 1) {
-        const lineAbove = doc.line(startLine.number - 1);
-        const colOffset = Math.max(0, range.head - currentLine.from);
-        const targetPos = Math.min(lineAbove.to, lineAbove.from + colOffset);
-        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
-      }
-      return EditorSelection.cursor(0);
+    // Move from the first Alert body line into its editable header source.
+    const currentAlert = index.records.find(
+      (record) =>
+        record.alert &&
+        currentLine.number === doc.lineAt(record.alert.headerLineRange.from).number + 1,
+    );
+    if (currentAlert?.alert) {
+      return EditorSelection.cursor(currentAlert.alert.headerLineRange.to);
     }
 
     // 场景 1B：当前处于引用块或 Alert 下方行，按 ArrowUp 必须精确移入上方引用块/Alert 内容区的最后一行
@@ -340,34 +330,14 @@ function quoteBoundaryMovementTarget(
 
   // 场景 2：方向向前（ArrowDown 向下移动）
   if (direction === "forward") {
-    // 场景 2A：当前处于 Alert 上方行，向下移动时自动跳过只读 Header，直接落入 Alert 首个内容行
-    const alertBelow = index.records.find((r) => {
-      if (r.kind !== "quote" || !r.alert) {
-        return false;
-      }
-      const startLine = doc.lineAt(r.fullRange.from);
-      return currentLine.number + 1 === startLine.number;
-    });
-
-    if (alertBelow) {
-      const startLine = doc.lineAt(alertBelow.fullRange.from);
-      const safeTo =
-        alertBelow.fullRange.to > alertBelow.fullRange.from &&
-        doc.sliceString(alertBelow.fullRange.to - 1, alertBelow.fullRange.to) === "\n"
-          ? alertBelow.fullRange.to - 1
-          : alertBelow.fullRange.to;
-      const endLine = doc.lineAt(safeTo);
-
-      if (startLine.number < endLine.number) {
-        const firstContentLine = doc.line(startLine.number + 1);
-        const match = /^(\s*> ?)/.exec(firstContentLine.text);
-        const prefixLen = match ? match[1].length : 0;
-        const contentStart = firstContentLine.from + prefixLen;
-        const contentEnd = firstContentLine.to;
-        const colOffset = Math.max(0, range.head - currentLine.from);
-        const targetPos = Math.max(contentStart, Math.min(contentEnd, contentStart + colOffset));
-        return EditorSelection.cursor(targetPos, undefined, undefined, range.goalColumn);
-      }
+    // Enter the header before proceeding to the body, including header-only Alerts.
+    const alertBelow = index.records.find(
+      (record) =>
+        record.alert &&
+        currentLine.number + 1 === doc.lineAt(record.alert.headerLineRange.from).number,
+    );
+    if (alertBelow?.alert) {
+      return EditorSelection.cursor(alertBelow.alert.headerLineRange.to);
     }
   }
 

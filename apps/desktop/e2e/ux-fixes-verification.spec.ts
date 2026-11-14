@@ -277,14 +277,17 @@ test.describe("UX Fixes Verification", () => {
   });
 
   // ==========================================
-  // Test 9: GFM Alert Header never reveals source code
+  // Test 9: GFM Alert header discloses editable source
   // ==========================================
-  test("GFM Alert Header never reveals raw [!NOTE] source code", async ({ page }) => {
+  test("GFM Alert header reveals raw [!NOTE] source code", async ({ page }) => {
     await openApp(page);
 
     const doc = "> [!NOTE]\n> 123";
     await setMarkdown(page, doc);
     await page.waitForTimeout(200);
+
+    // Start in the body; an initial header selection now intentionally discloses source.
+    await setCaret(page, doc.indexOf("> 123") + 2);
 
     // 1. 验证 Header 渲染为卡片头部
     const headerWidget = page.locator(".cm-md-directive__header-content");
@@ -294,14 +297,9 @@ test.describe("UX Fixes Verification", () => {
     await headerWidget.click();
     await page.waitForTimeout(100);
 
-    // 3. 验证 Header 依然保持卡片渲染，绝不展开回显 [!NOTE] 原文
-    await expect(headerWidget).toBeVisible();
-    const contentText = await page.locator(".cm-content").innerText();
-    expect(contentText).not.toContain("[!NOTE]");
-
-    // 4. 验证光标位于内容行
+    await expect(headerWidget).toHaveCount(0);
+    await expect(page.locator(".cm-md-alert--first")).toHaveText("> [!NOTE]");
     const diag = await page.evaluate(() => window.__MD_EDITOR_E2E__?.getDiagnostics());
-    const pos = diag?.renderer?.selectionAnchor ?? -1;
-    expect(pos).toBeGreaterThanOrEqual(doc.indexOf("> 123"));
+    expect(diag?.renderer?.selectionAnchor).toBe("> [!NOTE]".length);
   });
 });
