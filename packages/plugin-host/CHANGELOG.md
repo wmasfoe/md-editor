@@ -1,5 +1,18 @@
 # @md-editor/plugin-host
 
+## 0.2.0
+
+### Minor Changes
+
+- c4221f5: Add optional command descriptions and suggested shortcuts, explicit contribution ownership, and reusable user-managed command bindings. Preserve existing user overrides while leaving plugin suggestions unbound by default.
+  
+  Isolate runtime shortcut registration failures without disabling plugin commands and roll back failed suggestion registrations.
+
+### Patch Changes
+
+- Updated dependencies [c4221f5]
+  - @md-editor/plugin-sdk@0.4.0
+
 ## 0.1.1
 
 ### Patch Changes

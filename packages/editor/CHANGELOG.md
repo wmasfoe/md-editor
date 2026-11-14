@@ -1,5 +1,14 @@
 # @md-editor/editor
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [c4221f5]
+  - @md-editor/plugin-sdk@0.4.0
+  - @md-editor/plugin-host@0.2.0
+  - @md-editor/core@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
