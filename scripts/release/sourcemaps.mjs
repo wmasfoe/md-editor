@@ -1,9 +1,9 @@
 /**
  * @fileoverview 生产构建 source map 清理与防回流检查
  *
- * 桌面端 Vite 生产构建使用 `sourcemap: "hidden"`：生成 .map，但不写入
- * sourceMappingURL。Sentry 插件在 `vite build` 期间上传（有 token 时）。
- * 本模块在上传之后删除全部 .map，并去掉残留的 sourceMappingURL，
+ * 桌面端只在有 `SENTRY_AUTH_TOKEN` 时用 `sourcemap: "hidden"` 生成 .map（不写
+ * sourceMappingURL），并由 Sentry 插件在 `vite build` 期间上传后删除。
+ * 本模块再删一遍残留 .map，并去掉残留的 sourceMappingURL，
  * 这样 Tauri 嵌入 `frontendDist` 时不会把源码映射打进安装包。
  *
  * Debug ID 注释（`//# debugId=`）必须保留，Sentry 靠它匹配已上传的 map。

@@ -2,8 +2,8 @@
 /**
  * @fileoverview 删除构建产物中的 source map。
  *
- * 没有 `SENTRY_AUTH_TOKEN` 时上传步骤不会运行（Vite 插件不挂载），
- * 这里仍然删除 map 并打印明确日志，构建不因此失败。
+ * 没有 `SENTRY_AUTH_TOKEN` 时 Vite 不挂载 Sentry 插件，也不生成 `.map`。
+ * 这里仍然扫描并删除残留 map，上传失败时同样兜底，构建不因此失败。
  *
  * 用法（路径相对当前工作目录）：
  *   node scripts/release/strip-sourcemaps.mjs dist
@@ -26,7 +26,7 @@ if (token) {
   );
 } else {
   console.log(
-    "[sentry] SENTRY_AUTH_TOKEN is not set; skipping Sentry sourcemap upload. Sourcemaps are still removed so they are not shipped.",
+    "[sentry] SENTRY_AUTH_TOKEN is not set; Vite skipped sourcemap generation and upload. Removing any leftover sourcemaps so they are not shipped.",
   );
 }
 

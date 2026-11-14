@@ -5,6 +5,7 @@ import {
   sentryReleaseName,
   sentryViteReleaseOptions,
   shouldEmitDesktopSourcemaps,
+  shouldUploadDesktopSourcemaps,
   warnSentryUploadFailure,
 } from "../src/app/error-reporting/sentry-release.ts";
 
@@ -42,7 +43,7 @@ describe("sentry sourcemap upload contract", () => {
     expect(configured.releaseName).toBe("inkpoint@1.2.3");
   });
 
-  it("emits sourcemaps for the desktop production build and not for tests", () => {
+  it("treats the desktop production build as shippable and skips tests", () => {
     expect(shouldEmitDesktopSourcemaps({ npm_lifecycle_event: "build" }, [])).toBe(true);
     expect(shouldEmitDesktopSourcemaps({ npm_lifecycle_event: "test" }, ["build"])).toBe(false);
     expect(shouldEmitDesktopSourcemaps({ npm_lifecycle_event: "test:bundle" }, [])).toBe(false);
@@ -57,6 +58,29 @@ describe("sentry sourcemap upload contract", () => {
         "node",
         "apps/desktop/scripts/code-language-bundle-probe.mjs",
       ]),
+    ).toBe(false);
+  });
+
+  it("uploads hidden sourcemaps only when a shippable build has a token", () => {
+    expect(shouldUploadDesktopSourcemaps({ npm_lifecycle_event: "build" }, [], "0.22.3")).toBe(
+      false,
+    );
+    expect(
+      shouldUploadDesktopSourcemaps(
+        { npm_lifecycle_event: "build", SENTRY_AUTH_TOKEN: "  token  " },
+        [],
+        "0.22.3",
+      ),
+    ).toBe(true);
+    expect(
+      shouldUploadDesktopSourcemaps(
+        { npm_lifecycle_event: "test", SENTRY_AUTH_TOKEN: "token" },
+        ["build"],
+        "0.22.3",
+      ),
+    ).toBe(false);
+    expect(
+      shouldUploadDesktopSourcemaps({ VITEST: "true", SENTRY_AUTH_TOKEN: "token" }, [], "0.22.3"),
     ).toBe(false);
   });
 
@@ -86,6 +110,10 @@ describe("sentry sourcemap upload contract", () => {
 
     const viteConfig = readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
     expect(viteConfig).toContain("errorHandler: warnSentryUploadFailure");
+    expect(viteConfig).toContain('filesToDeleteAfterUpload: ["./dist/**/*.map"]');
+    expect(viteConfig).toContain('sourcemap: uploadSourcemaps ? "hidden" : false');
+    expect(viteConfig).toContain("sentryViteReleaseOptions(packageJson.version)");
+    expect(viteConfig).toContain("shouldUploadDesktopSourcemaps");
   });
 
   it("injects the Sentry token only in release workflows", () => {
@@ -94,15 +122,19 @@ describe("sentry sourcemap upload contract", () => {
       "utf8",
     );
     expect(pullRequestBuild).not.toContain("SENTRY_AUTH_TOKEN");
+    expect(pullRequestBuild).not.toContain("note-sentry-auth.mjs");
     expect(pullRequestBuild).toContain("assert-no-sourcemaps.mjs");
-    expect(
-      readFileSync(
-        new URL("../../../.github/workflows/release-desktop.yml", import.meta.url),
-        "utf8",
-      ),
-    ).toContain("SENTRY_AUTH_TOKEN");
-    expect(
-      readFileSync(new URL("../../../.github/workflows/release-beta.yml", import.meta.url), "utf8"),
-    ).toContain("SENTRY_AUTH_TOKEN");
+    const releaseDesktop = readFileSync(
+      new URL("../../../.github/workflows/release-desktop.yml", import.meta.url),
+      "utf8",
+    );
+    const releaseBeta = readFileSync(
+      new URL("../../../.github/workflows/release-beta.yml", import.meta.url),
+      "utf8",
+    );
+    expect(releaseDesktop).toContain("SENTRY_AUTH_TOKEN");
+    expect(releaseBeta).toContain("SENTRY_AUTH_TOKEN");
+    expect(releaseDesktop).toContain("note-sentry-auth.mjs");
+    expect(releaseBeta).toContain("note-sentry-auth.mjs");
   });
 });

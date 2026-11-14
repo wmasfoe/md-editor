@@ -82,9 +82,10 @@ export function sentryViteReleaseOptions(version: string): {
 }
 
 /**
- * 只在真正打进安装包的生产构建里生成 source map。
+ * 这次命令是不是会打进安装包的桌面生产构建。
  * Vitest 与包体探针（`pnpm test` / `test:bundle`）会加载这份 Vite 配置，
  * 但它们不是发版产物，生成 map 只会拖慢测试。
+ * 真正写出 `.map` 还要有上传 token，见 `shouldUploadDesktopSourcemaps`。
  */
 export function shouldEmitDesktopSourcemaps(
   env: SentrySourcemapEnv,
@@ -102,4 +103,18 @@ export function shouldEmitDesktopSourcemaps(
   }
   const invokedVite = argv.some((arg) => /(^|[\\/])vite(\.js)?$/u.test(arg) || arg === "vite");
   return invokedVite && argv.includes("build");
+}
+
+/**
+ * 只有发版生产构建且配置了 `SENTRY_AUTH_TOKEN` 时才生成 hidden source map 并上传。
+ * 没有 token 时不挂插件、也不写 `.map`，本地、fork 和 PR 构建的产物里不会留下源码映射。
+ */
+export function shouldUploadDesktopSourcemaps(
+  env: SentrySourcemapEnv,
+  argv: readonly string[],
+  version: string,
+): boolean {
+  return (
+    shouldEmitDesktopSourcemaps(env, argv) && resolveSentrySourcemapTarget(env, version).upload
+  );
 }
