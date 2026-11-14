@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.3 - 2026-11-14 (#252, #254)
+
+- Manage external plugin command shortcuts in settings, including changing, disabling, and restoring bindings with conflict feedback.
+- Edit callout and GFM alert headers as Markdown by clicking or navigating into them while preserving the keyboard column. A caret on the first header reveals its source when the document opens.
+- Balance callout padding and header spacing, avoid height jumps when revealing source, and allow clicking the closing fence to edit it.
+
 ## 0.22.2 - 2026-11-13 (#250)
 
 - Fix the invisible text caret when editing table cells.
