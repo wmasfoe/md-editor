@@ -1,5 +1,12 @@
 # Changelog - Web Playground
 
+## 0.3.1 - 2026-11-14 (#226, #250, #254, #259)
+
+- Sync core editor fix: resolve CodeMirror tile tree corruption caused by multiline Setext heading widgets
+- Improve callout and GFM alert header editing and balance card padding
+- Fix caret visibility in table cells and improve image insertion undo
+- Refine UI visual style and layout details
+
 ## 0.3.0 - 2026-11-07 (#224)
 
 - Plugin playground: new /playground/plugins page to browse plugins from a GitHub repository, try the selected plugin in an isolated sandbox (with example switching, enable/disable, source mode, undo and theme toggle), and copy an install link for the desktop app.
