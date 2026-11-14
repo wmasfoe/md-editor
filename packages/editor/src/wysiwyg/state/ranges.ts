@@ -1,5 +1,5 @@
 /** Atomic/protected range construction and mapping. */
-import { type EditorState, type Range } from "@codemirror/state";
+import { type EditorState, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import { type MarkdownRangeIndex } from "../../markdown/range-index.ts";
 import type { MarkdownRangeRecord, SourceRange } from "@md-editor/plugin-sdk/syntax";
@@ -33,6 +33,39 @@ import {
   isProjectableTable,
 } from "../projections/table-projection.ts";
 import { type ProtectedSourceRange, configuredProjectionFeatures } from "./types.ts";
+
+/** Callout boundary disclosure can change while the containing block stays active. */
+export function collectCalloutBoundaryDeltaIds(
+  index: MarkdownRangeIndex,
+  transaction: Transaction,
+): readonly string[] {
+  // Document edits use updateDocumentProjection; comparing unmapped coordinates
+  // here would mix document versions. This helper handles selection-only changes.
+  if (transaction.docChanged) return [];
+  // Disclosure intentionally follows the primary caret, like its decorations and protection.
+  const before = transaction.startState.selection.main;
+  const after = transaction.state.selection.main;
+  const candidates = new Set([
+    ...index.overlapping(before.from, before.to),
+    ...index.overlapping(after.from, after.to),
+  ]);
+  const changed: string[] = [];
+  for (const record of candidates) {
+    const boundaries = record.directive
+      ? [record.directive.headerRange, record.directive.closingMarkerRange]
+      : [record.alert?.headerLineRange];
+    if (
+      boundaries.some(
+        (range) =>
+          range &&
+          (before.from <= range.to && before.to >= range.from) !==
+            (after.from <= range.to && after.to >= range.from),
+      )
+    )
+      changed.push(record.id);
+  }
+  return changed;
+}
 
 export function buildAtomicRanges(
   index: MarkdownRangeIndex,

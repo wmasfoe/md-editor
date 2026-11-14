@@ -20,6 +20,7 @@ import {
   configureWysiwygProjectionFeatures,
   wysiwygProjectionField,
 } from "../../src/wysiwyg/state/projection-field.ts";
+import { collectCalloutBoundaryDeltaIds } from "../../src/wysiwyg/state/ranges.ts";
 import { createRendererTestHarness } from "../../src/testing.ts";
 import { type CodeMirrorRenderer } from "../../src/index.ts";
 
@@ -173,7 +174,7 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(headerWidget?.title).toBe("技巧提示");
     });
 
-    it("preserves header widget even when cursor focuses on the first line (No Inline Disclosure)", () => {
+    it("reveals editable header source when the cursor enters the first line", () => {
       const doc = ["> [!WARNING] 警告标题", "> 正文内容"].join("\n");
       // 光标位于第 5 个字符（在首行内部）
       const state = createEditorState(doc, EditorSelection.single(5));
@@ -182,13 +183,17 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
 
       const decos = buildBlockLayoutDecorations(record, state);
 
-      // 光标在首行时，依然恒定替换为只读卡片头部，绝不原位回显源码
+      // The active header is source text, with no atomic/protected replacement.
       const headerWidgetDecos = decos.filter(
         (d) =>
           (d.value as unknown as { spec?: { wysiwygRole?: string } }).spec?.wysiwygRole ===
           "alert-header-widget",
       );
-      expect(headerWidgetDecos).toHaveLength(1);
+      expect(headerWidgetDecos).toHaveLength(0);
+      expect(getBlockProtectedRanges(record, state)).not.toContainEqual({
+        from: 0,
+        to: state.doc.line(1).to,
+      });
     });
   });
 
@@ -266,6 +271,24 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
     });
   });
 
+  describe("Callout boundary invalidation", () => {
+    it("compares selections only within the same document version", () => {
+      const doc = "before\n> [!NOTE] title\n> body";
+      const state = createWysiwygState(doc, EditorSelection.single(doc.indexOf("body")));
+      const header = state.doc.line(2);
+      const selection = state.update({ selection: EditorSelection.cursor(header.from + 3) });
+      const index = selection.state.field(markdownRangeIndexField);
+      const record = index.records.find((r) => r.alert)!;
+      expect(collectCalloutBoundaryDeltaIds(index, selection)).toContain(record.id);
+      // Removing the preceding newline shifts the AST and all boundary coordinates.
+      // Document projection owns that path; this helper must not compare old positions.
+      const edit = state.update({ changes: { from: 6, to: 7 } });
+      expect(
+        collectCalloutBoundaryDeltaIds(edit.state.field(markdownRangeIndexField), edit),
+      ).toEqual([]);
+    });
+  });
+
   describe("Quote & Alert vertical boundary navigation", () => {
     it("moves cursor into the last line of quote content area when pressing ArrowUp from below", () => {
       const doc = ["> line 1", "> line 2", ""].join("\n");
@@ -298,7 +321,32 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(head).toBeLessThanOrEqual(line3.to);
     });
 
-    it("skips read-only header and moves above alert when pressing ArrowUp from first content line", () => {
+    it.each(["backward", "forward"] as const)(
+      "preserves column and goalColumn entering the header %s",
+      (direction) => {
+        const doc = "above long enough\n> [!NOTE] long header\n> body long enough";
+        const initial = createWysiwygState(doc);
+        const line = initial.doc.line(direction === "backward" ? 3 : 1);
+        const range = EditorSelection.cursor(line.from + 4, undefined, undefined, 48);
+        const state = createWysiwygState(doc, EditorSelection.create([range]));
+        const { view, getState } = createMockView(state);
+        expect(moveAtomVertically(view, direction)).toBe(true);
+        expect(getState().selection.main.head).toBe(state.doc.line(2).from + 4);
+        expect(getState().selection.main.goalColumn).toBe(48);
+      },
+    );
+
+    it("moves from the header into body content beyond the protected quote prefix", () => {
+      const doc = "> [!NOTE] title\n> body";
+      const range = EditorSelection.cursor(0, undefined, undefined, 0);
+      const state = createWysiwygState(doc, EditorSelection.create([range]));
+      const { view, getState } = createMockView(state);
+      expect(moveAtomVertically(view, "forward")).toBe(true);
+      expect(getState().selection.main.head).toBe(state.doc.line(2).from + 2);
+      expect(getState().selection.main.goalColumn).toBe(0);
+    });
+
+    it("enters header source when pressing ArrowUp from first content line", () => {
       const doc = ["title above", "> [!NOTE]", "> content line"].join("\n");
       // 光标位于第 3 行（Alert 首个内容行）
       const contentLine = doc.indexOf("> content line") + 2;
@@ -309,13 +357,13 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(handled).toBe(true);
 
       const head = getState().selection.main.head;
-      const line1 = state.doc.line(1);
-      // 光标自动跨越只读 Header，直接退到上方行
+      const line1 = state.doc.line(2);
+      // The caret enters the header source instead of skipping it.
       expect(head).toBeGreaterThanOrEqual(line1.from);
       expect(head).toBeLessThanOrEqual(line1.to);
     });
 
-    it("skips read-only header and moves into first content line when pressing ArrowDown from above alert", () => {
+    it("enters header source when pressing ArrowDown from above alert", () => {
       const doc = ["title above", "> [!NOTE]", "> content line"].join("\n");
       // 光标位于第 1 行（上方行）
       const state = createWysiwygState(doc, EditorSelection.single(0));
@@ -325,9 +373,9 @@ describe("GFM Alerts & Callouts (> [!NOTE])", () => {
       expect(handled).toBe(true);
 
       const head = getState().selection.main.head;
-      const line3 = state.doc.line(3);
-      // 光标自动跨越只读 Header，直接落入 Alert 首个内容行
-      expect(head).toBeGreaterThanOrEqual(line3.from + 2);
+      const line3 = state.doc.line(2);
+      // The caret enters the header source.
+      expect(head).toBeGreaterThanOrEqual(line3.from);
       expect(head).toBeLessThanOrEqual(line3.to);
     });
   });

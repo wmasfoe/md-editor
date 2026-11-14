@@ -56,27 +56,18 @@ export class CalloutHeaderWidget extends WidgetType {
           return;
         }
         const state = view.state;
-        const editorDoc = state.doc;
         const index = state.field(markdownRangeIndexField, false);
         const record = index?.get(this.recordId);
-        if (record && record.alert) {
-          const startLine = editorDoc.lineAt(record.fullRange.from);
-          const safeTo =
-            record.fullRange.to > record.fullRange.from &&
-            editorDoc.sliceString(record.fullRange.to - 1, record.fullRange.to) === "\n"
-              ? record.fullRange.to - 1
-              : record.fullRange.to;
-          const endLine = editorDoc.lineAt(safeTo);
-          if (startLine.number < endLine.number) {
-            const firstContentLine = editorDoc.line(startLine.number + 1);
-            const match = /^(\s*> ?)/.exec(firstContentLine.text);
-            const targetPos = firstContentLine.from + (match ? match[1].length : 0);
-            view.dispatch({
-              selection: EditorSelection.cursor(targetPos),
-              userEvent: "select.pointer",
-            });
-            view.focus();
-          }
+        const headerRange = record?.directive?.headerRange ?? record?.alert?.headerLineRange;
+        if (headerRange) {
+          // Enter the header's source range so the plugin's inline disclosure
+          // reveals the original callout syntax; resolve the range after document edits.
+          view.dispatch({
+            selection: EditorSelection.cursor(headerRange.to),
+            userEvent: "select.pointer",
+          });
+          view.focus();
+          return;
         }
       });
     }
