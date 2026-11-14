@@ -71,7 +71,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: pnpm build:macos:release
+        run: node scripts/release/note-sentry-auth.mjs --require && pnpm build:macos:release
 
       - name: Assert no shipped sourcemaps
         run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
@@ -134,7 +134,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: pnpm build:linux:release
+        run: node scripts/release/note-sentry-auth.mjs --require && pnpm build:linux:release
 
       - name: Assert no shipped sourcemaps
         run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
@@ -200,7 +200,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: pnpm build:linux:release
+        run: node scripts/release/note-sentry-auth.mjs --require && pnpm build:linux:release
 
       - name: Assert no shipped sourcemaps
         run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
@@ -256,7 +256,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-        run: pnpm build:windows:release
+        run: node scripts/release/note-sentry-auth.mjs --require && pnpm build:windows:release
 
       - name: Assert no shipped sourcemaps
         run: node scripts/release/assert-no-sourcemaps.mjs apps/desktop/dist apps/desktop/src-tauri/target/release/bundle
