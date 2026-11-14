@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   card: null as ExternalPluginCardProps | null,
   onStatus: undefined as ((event: { payload: PluginStatusEvent }) => void) | undefined,
   save: vi.fn(),
+  request: vi.fn(),
 }));
 vi.mock("@md-editor/i18n", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => true }));
@@ -28,6 +29,7 @@ vi.mock("../../src/app/plugins/storage", () => ({
     state.plugin = plugin;
   },
   removePlugin: vi.fn(),
+  requestPluginStatus: state.request,
 }));
 vi.mock("../../src/components/settings/ExternalPluginCard", () => ({
   ExternalPluginCard: (props: ExternalPluginCardProps) => {
@@ -44,6 +46,7 @@ let cleanup: (() => void) | undefined;
 afterEach(() => {
   cleanup?.();
   state.save.mockClear();
+  state.request.mockReset();
   vi.unstubAllGlobals();
 });
 it("rejects occupied keys before saving, migrates legacy bindings, and allows clearing", async () => {
@@ -85,13 +88,31 @@ it("rejects occupied keys before saving, migrates legacy bindings, and allows cl
       },
     }),
   );
+  expect(container.textContent).toContain("pluginPreview.shortcutUpgradeNotice");
+  state.request.mockResolvedValue({ occupiedKeys: [{ id: "builtin.save", key: "Mod-s" }] });
   await act(async () => state.card!.onShortcutCommit(command, "Mod-s"));
   expect(state.save).not.toHaveBeenCalled();
   expect(state.card!.shortcutErrors[command.id]).toContain("builtin.save");
+  // The broadcast still says Mod-s is taken, but the live host now reports it released.
+  state.request.mockResolvedValue({ occupiedKeys: [] });
+  await act(async () => state.card!.onShortcutCommit(command, "Mod-s"));
+  expect(state.plugin!.keymapOverrides).toEqual({ [command.id]: "Mod-s" });
+  state.save.mockClear();
+  // Conversely, a key absent from the old snapshot may have become occupied.
+  state.request.mockResolvedValue({ occupiedKeys: [{ id: "builtin.new", key: "Mod-k" }] });
+  await act(async () => state.card!.onShortcutCommit(command, "Mod-k"));
+  expect(state.save).not.toHaveBeenCalled();
+  expect(state.card!.shortcutErrors[command.id]).toContain("builtin.new");
   await act(async () => state.card!.onShortcutCommit(command, "Ctrl-x"));
   expect(state.save).not.toHaveBeenCalled();
+  state.request.mockResolvedValue({ occupiedKeys: [] });
   await act(async () => state.card!.onShortcutCommit(command, "Mod-k"));
   expect(state.plugin!.keymapOverrides).toEqual({ [command.id]: "Mod-k" });
   await act(async () => state.card!.onShortcutCommit(command, ""));
   expect(state.plugin!.keymapOverrides).toEqual({});
+  state.save.mockClear();
+  state.request.mockRejectedValue(new Error("Host unavailable"));
+  await act(async () => state.card!.onShortcutCommit(command, "Mod-l"));
+  expect(state.save).not.toHaveBeenCalled();
+  expect(container.textContent).toContain("pluginPreview.shortcutStatusUnavailable");
 });

@@ -9,7 +9,10 @@ export interface PluginCommandBinding {
   readonly key: string;
   readonly legacyIds: readonly string[];
   readonly effectiveKey: string | null;
-  readonly overrideError?: { readonly kind: "invalid" | "conflict"; readonly message: string };
+  readonly overrideError?: {
+    readonly kind: "invalid" | "conflict" | "registration";
+    readonly message: string;
+  };
 }
 
 interface BindingOptions {
@@ -53,8 +56,16 @@ export function createPluginCommandBindings(options: BindingOptions) {
       if (invalid) overrideError = { kind: "invalid", message: invalid };
       else if (conflict) overrideError = { kind: "conflict", message: conflict.id };
       else {
-        entry.binding = options.keymaps.register({ id: commandId, commandId, key: configured });
-        effectiveKey = configured;
+        try {
+          entry.binding = options.keymaps.register({ id: commandId, commandId, key: configured });
+          effectiveKey = configured;
+        } catch (error) {
+          // A runtime registry failure disables only this shortcut, never the plugin's commands.
+          overrideError = {
+            kind: "registration",
+            message: error instanceof Error ? error.message : String(error),
+          };
+        }
       }
     }
     statuses.set(commandId, {
@@ -78,7 +89,9 @@ export function createPluginCommandBindings(options: BindingOptions) {
         try {
           refresh(command.id);
         } catch (error) {
+          commands.get(command.id)?.binding?.dispose();
           commands.delete(command.id);
+          statuses.delete(command.id);
           registration.dispose();
           throw error;
         }
@@ -96,7 +109,12 @@ export function createPluginCommandBindings(options: BindingOptions) {
     keymaps: {
       register(keymap: PluginKeymap, pluginId: string): Disposable {
         suggestions.set(keymap.id, { keymap, pluginId });
-        refresh(keymap.commandId);
+        try {
+          refresh(keymap.commandId);
+        } catch (error) {
+          suggestions.delete(keymap.id);
+          throw error;
+        }
         return {
           dispose() {
             suggestions.delete(keymap.id);

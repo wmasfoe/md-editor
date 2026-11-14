@@ -149,9 +149,10 @@ export function useExternalPlugins(
         },
       },
     });
-    const publishStatus = () => {
+    const publishStatus = (requestId?: string) => {
       if (isTauri())
         void emit<PluginStatusEvent>("inkpoint:plugin-status", {
+          ...(requestId ? { requestId } : {}),
           statuses: [
             ...host.getStatuses().filter((status) => !validationErrors.has(status.id)),
             ...[...validationErrors].map(([id, error]) => ({
@@ -167,7 +168,9 @@ export function useExternalPlugins(
     const statusSubscription = host.subscribe(publishStatus);
     let stopStatusRequest: (() => void) | undefined;
     if (isTauri())
-      void listen("inkpoint:plugin-status-request", publishStatus).then((fn) => {
+      void listen<{ requestId?: string }>("inkpoint:plugin-status-request", (event) => {
+        publishStatus(event.payload?.requestId);
+      }).then((fn) => {
         if (closed) fn();
         else stopStatusRequest = fn;
       });

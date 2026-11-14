@@ -33,6 +33,7 @@ import {
   listenForPluginChanges,
   loadPluginState,
   removePlugin,
+  requestPluginStatus,
   savePlugin,
   type PluginStatusEvent,
   type PluginVersion,
@@ -53,7 +54,6 @@ export function ExternalPluginSettings() {
   const [plugins, setPlugins] = useState<StoredPlugin[]>([]);
   const [statuses, setStatuses] = useState<readonly PluginStatus[]>([]);
   const [keymaps, setKeymaps] = useState<PluginStatusEvent["keymaps"]>([]);
-  const [occupiedKeys, setOccupiedKeys] = useState<PluginStatusEvent["occupiedKeys"]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [updateMessages, setUpdateMessages] = useState<Record<string, string>>({});
@@ -92,7 +92,6 @@ export function ExternalPluginSettings() {
     void listen<PluginStatusEvent>("inkpoint:plugin-status", (event) => {
       setStatuses(event.payload.statuses);
       setKeymaps(event.payload.keymaps);
-      setOccupiedKeys(event.payload.occupiedKeys);
     })
       .then((fn) => {
         if (closed) fn();
@@ -181,40 +180,44 @@ export function ExternalPluginSettings() {
     keymap: PluginStatusEvent["keymaps"][number],
     value: string,
   ) => {
-    // 独立设置窗口使用主窗口回传的占用快照预检；主窗口实际注册时仍会再次检查。
-    const conflict = value
-      ? occupiedKeys.find((item) => item.key === value && item.id !== keymap.id)
-      : undefined;
+    const setShortcutError = (message: string | null) =>
+      setShortcutErrors((errors) => {
+        const next = { ...errors };
+        if (message) next[keymap.id] = message;
+        else delete next[keymap.id];
+        return next;
+      });
     const formatError = value ? validateKeymapKey(value) : null;
-    const invalid = formatError
-      ? `${t("pluginPreview.shortcutInvalid")}${formatError}`
-      : conflict
-        ? `${t("pluginPreview.shortcutConflict")}${conflict.id}`
-        : null;
-    setShortcutErrors((errors) => {
-      const next = { ...errors };
-      if (invalid) next[keymap.id] = invalid;
-      else delete next[keymap.id];
-      return next;
-    });
-    if (invalid) return;
+    if (formatError) {
+      setShortcutError(`${t("pluginPreview.shortcutInvalid")}${formatError}`);
+      return;
+    }
+    setShortcutError(null);
     const saved =
       plugin.keymapOverrides[keymap.id] ??
       keymap.legacyIds.map((id) => plugin.keymapOverrides[id]).find((key) => key !== undefined) ??
       "";
     if (value === saved) return;
-    const overrides = { ...plugin.keymapOverrides };
-    // Saving a command binding also migrates explicit choices from old keymap IDs.
-    for (const id of keymap.legacyIds) delete overrides[id];
-    if (value) overrides[keymap.id] = value;
-    else delete overrides[keymap.id];
-    if (JSON.stringify(overrides) === JSON.stringify(plugin.keymapOverrides)) return;
-    void perform(() =>
-      savePlugin({
-        ...plugin,
-        keymapOverrides: overrides,
-      }),
-    );
+    void perform(async () => {
+      if (value) {
+        // Only a correlated on-demand response can authorize preflight; cached broadcasts may be stale.
+        const latest = await requestPluginStatus().catch(() => {
+          throw new Error(t("pluginPreview.shortcutStatusUnavailable"));
+        });
+        const conflict = latest.occupiedKeys.find(
+          (item) => item.key === value && item.id !== keymap.id,
+        );
+        if (conflict) {
+          setShortcutError(`${t("pluginPreview.shortcutConflict")}${conflict.id}`);
+          return;
+        }
+      }
+      const overrides = { ...plugin.keymapOverrides };
+      for (const id of keymap.legacyIds) delete overrides[id];
+      if (value) overrides[keymap.id] = value;
+      else delete overrides[keymap.id];
+      await savePlugin({ ...plugin, keymapOverrides: overrides });
+    });
   };
 
   const hasInstalled = plugins.length > 0 || unreadable.length > 0;
@@ -342,6 +345,9 @@ export function ExternalPluginSettings() {
 
           {hasInstalled && (
             <div className="grid gap-2">
+              <p role="note" className={`m-0 ${settingsDescriptionClassName}`}>
+                {t("pluginPreview.shortcutUpgradeNotice")}
+              </p>
               <div className="flex items-center justify-between gap-3">
                 <h3 className={groupTitleClassName}>{t("pluginPreview.installedTitle")}</h3>
                 {plugins.some((plugin) => plugin.enabled) && (

@@ -57,6 +57,10 @@ export const en: TranslationSchema = {
     confirmInstall: "Install",
     shortcutInvalid: "Invalid shortcut: ",
     shortcutConflict: "Shortcut already in use: ",
+    shortcutUpgradeNotice:
+      "Plugin shortcuts are now yours to configure. Previously automatic defaults are suggestions; your saved bindings are preserved. Bind the commands you need below.",
+    shortcutStatusUnavailable: "Could not get the latest shortcut status. Please try again.",
+    shortcutRegistrationFailed: "Shortcut registration failed: ",
     shortcutUnbound: "Unbound",
     shortcutClear: "Clear",
     shortcutSuggested: "Suggested: ",

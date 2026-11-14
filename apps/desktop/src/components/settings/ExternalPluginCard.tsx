@@ -282,7 +282,9 @@ function ShortcutField({
         <span role="alert" className="text-xs text-[var(--theme-danger-text)]">
           {keymap.overrideError.kind === "conflict"
             ? t("pluginPreview.shortcutConflict")
-            : t("pluginPreview.shortcutInvalid")}
+            : keymap.overrideError.kind === "registration"
+              ? t("pluginPreview.shortcutRegistrationFailed")
+              : t("pluginPreview.shortcutInvalid")}
           {keymap.overrideError.message}
           {` · ${t("pluginPreview.shortcutDisabled")}`}
         </span>

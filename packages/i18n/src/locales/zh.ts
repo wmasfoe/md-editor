@@ -55,6 +55,10 @@ export const zh = {
     confirmInstall: "确认安装",
     shortcutInvalid: "快捷键格式不正确：",
     shortcutConflict: "快捷键已被占用：",
+    shortcutUpgradeNotice:
+      "插件快捷键现由你自行设置。旧版自动启用的默认键已改为建议键；你之前保存的绑定会保留。请在下方为需要的命令绑定快捷键。",
+    shortcutStatusUnavailable: "无法获取最新快捷键状态，请稍后重试。",
+    shortcutRegistrationFailed: "快捷键注册失败：",
     shortcutUnbound: "未绑定",
     shortcutClear: "清除",
     shortcutSuggested: "建议快捷键：",

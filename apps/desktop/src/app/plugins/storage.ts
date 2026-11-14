@@ -8,6 +8,8 @@ import {
 import type { PluginSource } from "@md-editor/plugin-host/github";
 
 export interface PluginStatusEvent {
+  /** Correlates on-demand responses; unsolicited status updates leave this unset. */
+  readonly requestId?: string;
   readonly statuses: readonly PluginStatus[];
   readonly keymaps: readonly PluginCommandBinding[];
   readonly occupiedKeys: readonly { readonly id: string; readonly key: string }[];
@@ -131,4 +133,30 @@ export async function listenForPluginChanges(callback: () => void): Promise<() =
   if (!isTauri()) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
   return listen(EVENT, callback);
+}
+
+/** Subscribe before requesting so even an immediate cross-window reply is observed. */
+export async function requestPluginStatus(): Promise<PluginStatusEvent> {
+  const { emit, listen } = await import("@tauri-apps/api/event");
+  const requestId = crypto.randomUUID();
+  let resolveReply!: (status: PluginStatusEvent) => void;
+  let rejectReply!: (error: Error) => void;
+  const reply = new Promise<PluginStatusEvent>((resolve, reject) => {
+    resolveReply = resolve;
+    rejectReply = reject;
+  });
+  const stop = await listen<PluginStatusEvent>("inkpoint:plugin-status", ({ payload }) => {
+    if (payload.requestId === requestId) resolveReply(payload);
+  });
+  const timer = setTimeout(() => rejectReply(new Error("Plugin host did not respond")), 5000);
+  try {
+    const [, status] = await Promise.all([
+      emit("inkpoint:plugin-status-request", { requestId }),
+      reply,
+    ]);
+    return status;
+  } finally {
+    clearTimeout(timer);
+    stop();
+  }
 }

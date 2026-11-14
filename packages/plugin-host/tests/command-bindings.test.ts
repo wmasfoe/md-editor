@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createPluginCommandBindings } from "../src/index.ts";
 
 function setup(bindings: Record<string, Record<string, string>> = {}) {
+  const failures = { register: false, settings: false };
   const commands = new Map<string, unknown>();
   const keys = new Map<string, { id: string; key: string; commandId: string }>();
   const registry = createPluginCommandBindings({
@@ -17,6 +18,7 @@ function setup(bindings: Record<string, Record<string, string>> = {}) {
     },
     keymaps: {
       register(keymap) {
+        if (failures.register) throw new Error("Keymap already registered");
         keys.set(keymap.id, keymap);
         return {
           dispose: () => {
@@ -26,11 +28,14 @@ function setup(bindings: Record<string, Record<string, string>> = {}) {
       },
       findConflict: (key) => [...keys.values()].find((item) => item.key === key),
     },
-    getBindings: (id) => bindings[id] ?? {},
+    getBindings: (id) => {
+      if (failures.settings) throw new Error("Settings unavailable");
+      return bindings[id] ?? {};
+    },
     validateKey: (key) => (key === "invalid" ? "Invalid key" : null),
     onChange: vi.fn(),
   });
-  return { registry, commands, keys };
+  return { registry, commands, keys, failures };
 }
 const command = { id: "author.tool.insert", title: "Insert", description: "Insert text", run() {} };
 
@@ -86,6 +91,44 @@ describe("user-owned plugin command bindings", () => {
     );
     expect(keys.get(command.id)?.key).toBe("Mod-i");
     expect(registry.getStatuses()[0].pluginId).toBe("author.tool");
+  });
+
+  it("isolates runtime registration failures and cleans up the declaration", () => {
+    const { registry, failures, commands, keys } = setup({
+      "author.tool": { "author.tool.key": "Mod-i" },
+    });
+    registry.commands.register(command, "author.tool");
+    failures.register = true;
+    const declaration = registry.keymaps.register(
+      { id: "author.tool.key", commandId: command.id, key: "Mod-j" },
+      "author.tool",
+    );
+    expect(commands.has(command.id)).toBe(true);
+    expect(keys.size).toBe(0);
+    expect(registry.getStatuses()[0]).toMatchObject({
+      effectiveKey: null,
+      overrideError: { kind: "registration", message: "Keymap already registered" },
+    });
+    declaration.dispose();
+    expect(registry.getStatuses()[0]).toMatchObject({ key: "", legacyIds: [], effectiveKey: null });
+  });
+
+  it("rolls back a suggestion when refreshing fails unexpectedly", () => {
+    const { registry, failures } = setup();
+    registry.commands.register(command, "author.tool");
+    failures.settings = true;
+    expect(() =>
+      registry.keymaps.register(
+        { id: "author.tool.failed", commandId: command.id, key: "Mod-i" },
+        "author.tool",
+      ),
+    ).toThrow("Settings unavailable");
+    failures.settings = false;
+    registry.keymaps.register(
+      { id: "author.tool.good", commandId: command.id, key: "Mod-j" },
+      "author.tool",
+    );
+    expect(registry.getStatuses()[0].legacyIds).toEqual(["author.tool.good"]);
   });
 
   it("supports legacy declaration order and lets an explicit clear override old bindings", () => {

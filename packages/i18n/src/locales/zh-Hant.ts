@@ -57,6 +57,10 @@ export const zhHant: TranslationSchema = {
     confirmInstall: "確認安裝",
     shortcutInvalid: "快捷鍵格式不正確：",
     shortcutConflict: "快捷鍵已被占用：",
+    shortcutUpgradeNotice:
+      "外掛快捷鍵現由你自行設定。舊版自動啟用的預設鍵已改為建議鍵；你先前儲存的綁定會保留。請在下方為需要的命令綁定快捷鍵。",
+    shortcutStatusUnavailable: "無法取得最新快捷鍵狀態，請稍後重試。",
+    shortcutRegistrationFailed: "快捷鍵註冊失敗：",
     shortcutUnbound: "未綁定",
     shortcutClear: "清除",
     shortcutSuggested: "建議快捷鍵：",
