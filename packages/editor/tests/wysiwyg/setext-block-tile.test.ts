@@ -36,15 +36,27 @@ interface DocViewTile {
   resolveBlock(pos: number, side: number): unknown;
 }
 
-function docViewOf(view: EditorView): {
+interface DocViewProbe {
   tile: DocViewTile;
   lineHasWidget(pos: number): boolean;
-} {
-  return (
-    view as unknown as {
-      docView: { tile: DocViewTile; lineHasWidget(pos: number): boolean };
-    }
-  ).docView;
+}
+
+/**
+ * 有意探测 CodeMirror 的私有实现，不是公开 API：`view.docView.tile.resolveBlock`
+ * 与 `view.docView.lineHasWidget`。这里失败时，先确认这两个内部方法有没有被改名，
+ * 再判断是不是 tile 树回归。
+ */
+function docViewOf(view: EditorView): DocViewProbe {
+  const docView = (view as unknown as { docView?: Partial<DocViewProbe> }).docView;
+  if (typeof docView?.tile?.resolveBlock !== "function") {
+    throw new Error(
+      "CodeMirror internal API docView.tile.resolveBlock not found — internals changed",
+    );
+  }
+  if (typeof docView.lineHasWidget !== "function") {
+    throw new Error("CodeMirror internal API docView.lineHasWidget not found — internals changed");
+  }
+  return docView as DocViewProbe;
 }
 
 function expectTileCoversDocument(view: EditorView): void {
@@ -56,28 +68,31 @@ function expectTileCoversDocument(view: EditorView): void {
   }
 }
 
-function mountEditor(doc: string): EditorView {
+function mountEditor(doc: string): { view: EditorView; parent: HTMLDivElement } {
   const parent = document.createElement("div");
   document.body.appendChild(parent);
-  return new EditorView({
+  return {
     parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        EditorView.lineWrapping,
-        markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
-        editorModeField,
-        markdownRangeIndexField,
-        createWysiwygProjectionExtensions([
-          "headings",
-          "default-atoms",
-          "blocks",
-          "thematic-breaks",
-          "links",
-        ]),
-      ],
+    view: new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        extensions: [
+          EditorView.lineWrapping,
+          markdown({ extensions: M1_MARKDOWN_EXTENSIONS }),
+          editorModeField,
+          markdownRangeIndexField,
+          createWysiwygProjectionExtensions([
+            "headings",
+            "default-atoms",
+            "blocks",
+            "thematic-breaks",
+            "links",
+          ]),
+        ],
+      }),
     }),
-  });
+  };
 }
 
 function blockWidgetRange(view: EditorView): { from: number; to: number } | null {
@@ -106,7 +121,7 @@ class ProbeWidget extends WidgetType {
 
 describe("multiline setext block widget tile tree", () => {
   it("keeps every document position tiled after a composition edit and a second click", () => {
-    const view = mountEditor(SETEXT_DOC);
+    const { view, parent } = mountEditor(SETEXT_DOC);
     try {
       const initial = blockWidgetRange(view);
       expect(initial).toEqual({ from: 502, to: 512 });
@@ -142,6 +157,7 @@ describe("multiline setext block widget tile tree", () => {
       expect(() => docViewOf(view).lineHasWidget(selection.to)).not.toThrow();
     } finally {
       view.destroy();
+      parent.remove();
     }
   });
 
