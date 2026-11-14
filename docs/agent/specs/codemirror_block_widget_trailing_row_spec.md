@@ -1,6 +1,6 @@
 # CM6 块级 widget 的文末落脚行规范
 
-> 状态：CodeMirror 6 当前生效契约（`@codemirror/view` 6.43.1 实测）。升级 `@codemirror/view` 后必须重跑本规范「验证」一节的探针。
+> 状态：CodeMirror 6 当前生效契约（`@codemirror/view` 6.43.15 实测）。升级 `@codemirror/view` 后必须重跑本规范「验证」一节的探针。
 
 ## 用途
 

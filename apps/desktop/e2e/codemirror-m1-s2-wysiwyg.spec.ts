@@ -782,10 +782,15 @@ test.describe("CodeMirror M1/S2 link, image, and thematic-break surface", () => 
     expect(wysiwyg.renderer).toMatchObject({
       viewId: selected.renderer!.viewId,
       stateEpochId: selected.renderer!.stateEpochId,
-      selectionAnchor: 0,
-      selectionHead: FIXTURE_MARKDOWN.length,
       markdown: FIXTURE_MARKDOWN,
     });
+    // @codemirror/view 6.43.6 起，Chrome 在视口没有盖住全文时，会把碰到
+    // block gap 的全选改写成 head 在文首、anchor 在文末（DOMChange 对
+    // iOS/Chrome select-all 的修正）。切到所见即所得后只要求选区仍覆盖整篇。
+    expect(Math.min(wysiwyg.renderer!.selectionAnchor, wysiwyg.renderer!.selectionHead)).toBe(0);
+    expect(Math.max(wysiwyg.renderer!.selectionAnchor, wysiwyg.renderer!.selectionHead)).toBe(
+      FIXTURE_MARKDOWN.length,
+    );
     await content.press(COPY_KEY);
     await expect.poll(() => readClipboard(page)).toBe(FIXTURE_MARKDOWN);
 
