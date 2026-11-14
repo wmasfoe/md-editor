@@ -171,9 +171,9 @@ curl -s https://download.jiaqi.im/api/inkpoint/releases | head -c 400
 
 桌面端运行时 release 来自 `sentryReleaseName()`（`apps/desktop/src/app/error-reporting/sentry-release.ts`），形如 `inkpoint@0.22.3`，**不设置 dist**。`@sentry/vite-plugin` 的 release 选项调用同一个函数，避免和 `Sentry.init({ release })` 漂移。组织默认 `lijiaqi`，项目默认 `inkpoint`。
 
-只有发版生产构建且环境变量 `SENTRY_AUTH_TOKEN` 非空时，Vite 才把 `build.sourcemap` 设为 `hidden` 并挂上插件：插件注入 Debug ID、上传 source map，然后按 `sourcemaps.filesToDeleteAfterUpload`（`./dist/**/*.map`）删除映射。没有 token 时不挂插件，`sourcemap` 为 `false`，`vite build` 的 `dist` 里没有 `.map`。
+只有会打进安装包的生产构建（`isShippableDesktopBuild`）且环境变量 `SENTRY_AUTH_TOKEN` 非空时，Vite 才把 `build.sourcemap` 设为 `hidden` 并挂上插件：插件注入 Debug ID、上传 source map，然后按 `sourcemaps.filesToDeleteAfterUpload`（`./dist/**/*.map`）删除映射。没有 token 时不挂插件，`sourcemap` 为 `false`，`vite build` 的 `dist` 里没有 `.map`。插件选项和 sourcemap 模式由 `desktopSentryVitePluginOptions` 与 `desktopSourcemapSetting` 提供。
 
-`apps/desktop/package.json` 的 `build`（Tauri `beforeBuildCommand`）在 `vite build` 之后仍运行 `scripts/release/strip-sourcemaps.mjs`，删掉上传失败时可能留下的 `.map` 和 `sourceMappingURL`。Tauri 嵌入的是 `frontendDist: ../dist`，`bundle.resources` 为空，不会另带一份映射。`scripts/release/assert-no-sourcemaps.mjs` 在桌面构建、网页构建和各平台打包后失败退出，只要产物里还剩 map 或注释。Token 失效或 Sentry 不可用时插件只 `console.warn`。没有 token、上传失败，构建都不因此失败。
+`apps/desktop/package.json` 的 `build`（Tauri `beforeBuildCommand`）在 `vite build` 之后仍运行 `scripts/release/strip-sourcemaps.mjs`，删掉上传失败时可能留下的 `.map` 和 `sourceMappingURL`。Tauri 嵌入的是 `frontendDist: ../dist`，`bundle.resources` 为空，不会另带一份映射。`scripts/release/assert-no-sourcemaps.mjs` 在桌面构建、网页构建和各平台打包后失败退出，只要产物里还剩 map 或注释。Token 失效或 Sentry 不可用时，`warnSentryUploadFailure` 在 GitHub Actions 里输出 `::warning::`，本地则 `console.warn`，构建继续。macOS 正式版仍执行 `pnpm build:macos:release`（dmg 与 updater 各构建一次），上传次数不变。
 
 Web 不启用 Sentry，也不生成 source map，但网页构建同样检查 `apps/web/dist`。
 
@@ -188,7 +188,7 @@ Token 只来自环境变量 `SENTRY_AUTH_TOKEN`。不要写入仓库，也不要
 - `VERCEL_TOKEN`: 官网 CLI 部署。
 - `VERCEL_ORG_ID`: 官网目标 Org ID。
 - `VERCEL_PROJECT_ID`: 官网目标 Project ID。
-- `SENTRY_AUTH_TOKEN`: **Secret**（Settings → Secrets and variables → Actions → Secrets）。按 [Sentry 权限文档](https://docs.sentry.io/api/permissions/)，上传 source map 的 token 需要 `project:releases` 和 `org:read`（`sentry-cli` 管理 release 时，`project:releases` 之外还要 `org:read`）。Vite 插件文档也接受 Organization auth token，或带 Project: Read & Write 与 Release: Admin 的 personal token。只在发版打包步骤里注入：`.github/workflows/release-desktop.yml`（macOS、Linux x64、Linux aarch64、Windows）和 `.github/workflows/release-beta.yml`（macOS、Linux x64、Windows）。这些步骤会先跑 `scripts/release/note-sentry-auth.mjs`：secret 为空时打出警告并继续构建。`.github/workflows/build-desktop.yml` 的 PR Linux AppImage 与手动多平台构建不注入 token，只跑 strip 和 assert。未配置时跳过上传。创建入口：`https://sentry.io/orgredirect/organizations/lijiaqi/settings/auth-tokens/`。
+- `SENTRY_AUTH_TOKEN`: **Secret**（Settings → Secrets and variables → Actions → Secrets）。按 [Sentry 权限文档](https://docs.sentry.io/api/permissions/)，上传 source map 的 token 需要 `project:releases` 和 `org:read`（`sentry-cli` 管理 release 时，`project:releases` 之外还要 `org:read`）。Vite 插件文档也接受 Organization auth token，或带 Project: Read & Write 与 Release: Admin 的 personal token。只在发版打包步骤里注入：`.github/workflows/release-desktop.yml`（macOS、Linux x64、Linux aarch64、Windows）和 `.github/workflows/release-beta.yml`（macOS、Linux x64、Windows）。这些步骤会先跑 `scripts/release/note-sentry-auth.mjs`。正式版 `release-desktop.yml` 带 `--require`：secret 缺失或只有空白时退出码 1，发版停止。Beta `release-beta.yml` 不带该参数，secret 为空时只警告并继续。`.github/workflows/build-desktop.yml` 的 PR Linux AppImage 与手动多平台构建不注入 token，只跑 strip 和 assert。未配置时跳过上传。创建入口：`https://sentry.io/orgredirect/organizations/lijiaqi/settings/auth-tokens/`。
 
 可选 Variables（Settings → Secrets and variables → Actions → Variables），不配则用代码里的默认值：
 - `SENTRY_ORG`: 默认 `lijiaqi`。

@@ -4,10 +4,10 @@ import tailwindcss from "@tailwindcss/vite";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import packageJson from "./package.json" with { type: "json" };
 import {
+  desktopSentryVitePluginOptions,
+  desktopSourcemapSetting,
   resolveSentrySourcemapTarget,
-  sentryViteReleaseOptions,
   shouldUploadDesktopSourcemaps,
-  warnSentryUploadFailure,
 } from "./src/app/error-reporting/sentry-release.ts";
 
 /**
@@ -41,20 +41,7 @@ export default defineConfig({
     // 必须放在其它插件之后，Debug ID 才能打进最终产物。
     // 没有 token 时不挂载插件，上传整个跳过。
     ...(uploadSourcemaps
-      ? sentryVitePlugin({
-          org: sentryTarget.org,
-          project: sentryTarget.project,
-          authToken: sentryTarget.authToken,
-          telemetry: false,
-          // token 失效或 Sentry 不可用时只警告，不让 vite build 失败。
-          errorHandler: warnSentryUploadFailure,
-          release: sentryViteReleaseOptions(packageJson.version),
-          sourcemaps: {
-            assets: "./dist/**",
-            // 上传结束后删除 map。插件在 writeBundle 的 finally 里执行，上传失败也会删。
-            filesToDeleteAfterUpload: ["./dist/**/*.map"],
-          },
-        })
+      ? sentryVitePlugin(desktopSentryVitePluginOptions(sentryTarget, packageJson.version))
       : []),
   ],
   define: {
@@ -63,7 +50,7 @@ export default defineConfig({
   build: {
     // hidden：写出 .map 供上传，但不在 JS/CSS 里留 sourceMappingURL。
     // 没有 token 时为 false，vite build 的 dist 里不会出现 .map。
-    sourcemap: uploadSourcemaps ? "hidden" : false,
+    sourcemap: desktopSourcemapSetting(uploadSourcemaps),
   },
   server: {
     port: 7273,

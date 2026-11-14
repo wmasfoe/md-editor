@@ -81,7 +81,7 @@ Beta 会生成 GitHub **prerelease**，**不会**更新公开 Homebrew tap、cas
 
 桌面发版会把仓库 Secret `SENTRY_AUTH_TOKEN` 传给 macOS、Linux、Windows 的打包步骤。有 token 时，Vite 用 `@sentry/vite-plugin` 把 hidden source map 上传到 Sentry 项目 `lijiaqi/inkpoint`，release 名是 `inkpoint@<版本号>`，与应用里的 `Sentry.init` 相同。上传后删除 `.map`，安装包不带源码映射。
 
-还没有这个 Secret 时，发版日志会警告并跳过上传，构建不会失败，产物里也不会留下 `.map`。
+正式版工作流在打包前运行 `scripts/release/note-sentry-auth.mjs --require`。Secret 缺失或为空时这一步失败，避免再发出没有 source map 的正式版。Beta 不带 `--require`，只警告并继续构建。上传本身失败时只记警告，构建继续，随后仍会删掉本地 `.map`。
 
 在 **Settings → Secrets and variables → Actions → Secrets** 添加 `SENTRY_AUTH_TOKEN`。按 [Sentry 权限文档](https://docs.sentry.io/api/permissions/)，token 需要 `project:releases` 和 `org:read`。不要把 token 写进仓库。
 
