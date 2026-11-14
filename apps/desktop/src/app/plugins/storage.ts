@@ -1,25 +1,18 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import type { PluginPackage, PluginSettingValue } from "@md-editor/plugin-sdk";
-import { validatePluginPackage, type PluginStatus } from "@md-editor/plugin-host";
+import {
+  validatePluginPackage,
+  type PluginStatus,
+  type PluginCommandBinding,
+} from "@md-editor/plugin-host";
 import type { PluginSource } from "@md-editor/plugin-host/github";
 
 export interface PluginStatusEvent {
+  /** Correlates on-demand responses; unsolicited status updates leave this unset. */
+  readonly requestId?: string;
   readonly statuses: readonly PluginStatus[];
-  readonly keymaps: readonly {
-    readonly id: string;
-    readonly key: string;
-    readonly pluginId: string;
-    /**
-     * 实际生效的键位。用户覆盖键不可用时回退为默认键；默认键也被占用时为 `null`，
-     * 表示这条快捷键被跳过，插件的其他贡献照常生效。
-     */
-    readonly effectiveKey: string | null;
-    /** 用户覆盖键未生效的原因；覆盖生效或未设置覆盖时为空。 */
-    readonly overrideError?: {
-      readonly kind: "invalid" | "conflict";
-      readonly message: string;
-    };
-  }[];
+  readonly keymaps: readonly PluginCommandBinding[];
+  readonly occupiedKeys: readonly { readonly id: string; readonly key: string }[];
 }
 
 /**
@@ -140,4 +133,30 @@ export async function listenForPluginChanges(callback: () => void): Promise<() =
   if (!isTauri()) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
   return listen(EVENT, callback);
+}
+
+/** Subscribe before requesting so even an immediate cross-window reply is observed. */
+export async function requestPluginStatus(): Promise<PluginStatusEvent> {
+  const { emit, listen } = await import("@tauri-apps/api/event");
+  const requestId = crypto.randomUUID();
+  let resolveReply!: (status: PluginStatusEvent) => void;
+  let rejectReply!: (error: Error) => void;
+  const reply = new Promise<PluginStatusEvent>((resolve, reject) => {
+    resolveReply = resolve;
+    rejectReply = reject;
+  });
+  const stop = await listen<PluginStatusEvent>("inkpoint:plugin-status", ({ payload }) => {
+    if (payload.requestId === requestId) resolveReply(payload);
+  });
+  const timer = setTimeout(() => rejectReply(new Error("Plugin host did not respond")), 5000);
+  try {
+    const [, status] = await Promise.all([
+      emit("inkpoint:plugin-status-request", { requestId }),
+      reply,
+    ]);
+    return status;
+  } finally {
+    clearTimeout(timer);
+    stop();
+  }
 }

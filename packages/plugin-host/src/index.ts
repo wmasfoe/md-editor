@@ -7,3 +7,5 @@ export {
   validateCatalog,
   validatePluginPackage,
 } from "./validation.ts";
+export { createPluginCommandBindings } from "./command-bindings.ts";
+export type { PluginCommandBinding } from "./command-bindings.ts";

@@ -33,6 +33,7 @@ import {
   listenForPluginChanges,
   loadPluginState,
   removePlugin,
+  requestPluginStatus,
   savePlugin,
   type PluginStatusEvent,
   type PluginVersion,
@@ -179,22 +180,44 @@ export function ExternalPluginSettings() {
     keymap: PluginStatusEvent["keymaps"][number],
     value: string,
   ) => {
-    // 设置页可能在独立窗口里，拿不到主窗口的快捷键注册表，这里只拦格式；
-    // 冲突由主窗口注册时判断，并通过 overrideError 回传展示。
-    const invalid = validateKeymapKey(value);
-    setShortcutErrors((errors) => {
-      const next = { ...errors };
-      if (invalid) next[keymap.id] = invalid;
-      else delete next[keymap.id];
-      return next;
+    const setShortcutError = (message: string | null) =>
+      setShortcutErrors((errors) => {
+        const next = { ...errors };
+        if (message) next[keymap.id] = message;
+        else delete next[keymap.id];
+        return next;
+      });
+    const formatError = value ? validateKeymapKey(value) : null;
+    if (formatError) {
+      setShortcutError(`${t("pluginPreview.shortcutInvalid")}${formatError}`);
+      return;
+    }
+    setShortcutError(null);
+    const saved =
+      plugin.keymapOverrides[keymap.id] ??
+      keymap.legacyIds.map((id) => plugin.keymapOverrides[id]).find((key) => key !== undefined) ??
+      "";
+    if (value === saved) return;
+    void perform(async () => {
+      if (value) {
+        // Only a correlated on-demand response can authorize preflight; cached broadcasts may be stale.
+        const latest = await requestPluginStatus().catch(() => {
+          throw new Error(t("pluginPreview.shortcutStatusUnavailable"));
+        });
+        const conflict = latest.occupiedKeys.find(
+          (item) => item.key === value && item.id !== keymap.id,
+        );
+        if (conflict) {
+          setShortcutError(`${t("pluginPreview.shortcutConflict")}${conflict.id}`);
+          return;
+        }
+      }
+      const overrides = { ...plugin.keymapOverrides };
+      for (const id of keymap.legacyIds) delete overrides[id];
+      if (value) overrides[keymap.id] = value;
+      else delete overrides[keymap.id];
+      await savePlugin({ ...plugin, keymapOverrides: overrides });
     });
-    if (invalid || value === (plugin.keymapOverrides?.[keymap.id] ?? keymap.key)) return;
-    void perform(() =>
-      savePlugin({
-        ...plugin,
-        keymapOverrides: { ...plugin.keymapOverrides, [keymap.id]: value },
-      }),
-    );
   };
 
   const hasInstalled = plugins.length > 0 || unreadable.length > 0;
@@ -322,6 +345,9 @@ export function ExternalPluginSettings() {
 
           {hasInstalled && (
             <div className="grid gap-2">
+              <p role="note" className={`m-0 ${settingsDescriptionClassName}`}>
+                {t("pluginPreview.shortcutUpgradeNotice")}
+              </p>
               <div className="flex items-center justify-between gap-3">
                 <h3 className={groupTitleClassName}>{t("pluginPreview.installedTitle")}</h3>
                 {plugins.some((plugin) => plugin.enabled) && (

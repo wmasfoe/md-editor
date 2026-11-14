@@ -57,7 +57,15 @@ export const ja: TranslationSchema = {
     confirmInstall: "インストール",
     shortcutInvalid: "ショートカットの形式が正しくありません：",
     shortcutConflict: "ショートカットは既に使用されています：",
-    shortcutFallback: "上書きキーは適用されず、既定のキーを使用しています：",
+    shortcutUpgradeNotice:
+      "プラグインのショートカットはユーザーが設定する方式になりました。以前の自動設定キーは推奨表示となり、保存済みの設定は保持されます。必要なコマンドに以下でキーを設定してください。",
+    shortcutStatusUnavailable:
+      "最新のショートカット状態を取得できませんでした。もう一度お試しください。",
+    shortcutRegistrationFailed: "ショートカットの登録に失敗しました: ",
+    shortcutUnbound: "未設定",
+    shortcutClear: "解除",
+    shortcutSuggested: "推奨: ",
+    shortcutUnavailable: "コマンドが利用できないかプラグインが無効です。設定を解除できます",
     shortcutDisabled: "このショートカットは無効です。コマンドパレットから実行してください",
     unreadable: "ローカルのコピーが破損しているため読み込めません",
     installedTitle: "インストール済み",
