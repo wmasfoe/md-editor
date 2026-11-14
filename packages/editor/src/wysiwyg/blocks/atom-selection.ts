@@ -283,7 +283,14 @@ function quoteBoundaryMovementTarget(
         currentLine.number === doc.lineAt(record.alert.headerLineRange.from).number + 1,
     );
     if (currentAlert?.alert) {
-      return EditorSelection.cursor(currentAlert.alert.headerLineRange.to);
+      const headerLine = doc.lineAt(currentAlert.alert.headerLineRange.from);
+      const offset = Math.max(0, range.head - currentLine.from);
+      return EditorSelection.cursor(
+        Math.min(headerLine.to, headerLine.from + offset),
+        undefined,
+        undefined,
+        range.goalColumn,
+      );
     }
 
     // 场景 1B：当前处于引用块或 Alert 下方行，按 ArrowUp 必须精确移入上方引用块/Alert 内容区的最后一行
@@ -330,6 +337,24 @@ function quoteBoundaryMovementTarget(
 
   // 场景 2：方向向前（ArrowDown 向下移动）
   if (direction === "forward") {
+    const header = index.records.find(
+      (record) => record.alert && currentLine.from === record.alert.headerLineRange.from,
+    );
+    if (header?.alert && currentLine.to + 1 < header.fullRange.to) {
+      const moved = view.moveVertically(range, true);
+      // Let native movement traverse wrapped visual rows within the header first.
+      if (moved.head !== range.head && doc.lineAt(moved.head).number === currentLine.number)
+        return null;
+      const bodyLine = doc.line(currentLine.number + 1);
+      const prefix = /^(\s*> ?)/.exec(bodyLine.text)?.[1].length ?? 0;
+      const offset = Math.max(prefix, range.head - currentLine.from);
+      return EditorSelection.cursor(
+        Math.min(bodyLine.to, bodyLine.from + offset),
+        undefined,
+        undefined,
+        range.goalColumn ?? moved.goalColumn,
+      );
+    }
     // Enter the header before proceeding to the body, including header-only Alerts.
     const alertBelow = index.records.find(
       (record) =>
@@ -337,7 +362,14 @@ function quoteBoundaryMovementTarget(
         currentLine.number + 1 === doc.lineAt(record.alert.headerLineRange.from).number,
     );
     if (alertBelow?.alert) {
-      return EditorSelection.cursor(alertBelow.alert.headerLineRange.to);
+      const headerLine = doc.lineAt(alertBelow.alert.headerLineRange.from);
+      const offset = Math.max(0, range.head - currentLine.from);
+      return EditorSelection.cursor(
+        Math.min(headerLine.to, headerLine.from + offset),
+        undefined,
+        undefined,
+        range.goalColumn,
+      );
     }
   }
 
@@ -399,7 +431,7 @@ function verticalMovementTarget(
     return null;
   }
 
-  // 优先处理 Quote / Alert 边界导航（进入内容区最后一行、跳过只读 Header 等）
+  // Quote / Alert boundary navigation also reveals editable header source.
   const quoteTarget = quoteBoundaryMovementTarget(view, range, direction);
   if (quoteTarget) {
     return { kind: "navigate", selection: quoteTarget };

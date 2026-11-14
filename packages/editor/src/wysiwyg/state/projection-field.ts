@@ -245,7 +245,7 @@ export const wysiwygProjectionField = StateField.define<WysiwygProjectionState>(
     const changedIds = [
       ...new Set([
         ...symmetricDifference(previous.activeSyntaxIds, activeSyntaxIds),
-        ...collectCalloutBoundaryDeltaIds(index, transaction.startState, transaction.state),
+        ...collectCalloutBoundaryDeltaIds(index, transaction),
       ]),
     ];
     if (changedIds.length === 0) {

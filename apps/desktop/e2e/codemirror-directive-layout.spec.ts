@@ -149,6 +149,16 @@ for (const body of [
     // A GFM Alert has no closing fence; never synthesize directive syntax.
     expect(edited).not.toContain(":::");
     if (body) {
+      await page.keyboard.press("ArrowDown");
+      await expect(widget).toBeVisible();
+      const bodyStart = edited.indexOf("编辑器");
+      const bodyCaret = await page.evaluate(
+        () => window.__MD_EDITOR_E2E__?.getDiagnostics().renderer?.selectionHead,
+      );
+      expect(bodyCaret).toBeGreaterThanOrEqual(bodyStart);
+      expect(bodyCaret).toBeLessThanOrEqual(
+        edited.indexOf("\n", bodyStart) < 0 ? edited.length : edited.indexOf("\n", bodyStart),
+      );
       await page.evaluate(
         (position) => window.__MD_EDITOR_E2E__?.setSelection(position, position),
         edited.indexOf("编辑器"),
