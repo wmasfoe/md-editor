@@ -801,7 +801,7 @@ importers:
         specifier: workspace:*
         version: link:../plugin-host
       '@md-editor/plugin-sdk':
-        specifier: workspace:^0.4.0
+        specifier: workspace:^0.4.1
         version: link:../plugin-sdk
       '@md-editor/shared':
         specifier: workspace:*
