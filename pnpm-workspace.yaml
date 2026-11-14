@@ -47,8 +47,8 @@ catalog:
   "@types/katex": ^0.16.8
   mermaid: ^11.17.2
   # CodeMirror 6 家族：多实例会导致状态/视图错乱，必须版本对齐
-  "@codemirror/state": ^6.6.0
-  "@codemirror/view": ^6.43.1
+  "@codemirror/state": ^6.7.6
+  "@codemirror/view": ^6.43.15
   "@lezer/common": ^1.5.2
   "@lezer/markdown": ^1.8.0
   # Turndown GFM 富文本转换管线

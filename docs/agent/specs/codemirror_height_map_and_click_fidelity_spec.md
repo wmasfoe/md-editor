@@ -41,7 +41,7 @@
 
 ### 1. 点击 → 位置的映射完全建立在高度图上
 
-`@codemirror/view@6.43.1` `dist/index.js:3768` `function posAtCoords`：
+`@codemirror/view@6.43.15` `dist/index.js:3845` `function posAtCoords`：
 
 ```js
 let content = view.contentDOM.getBoundingClientRect();
