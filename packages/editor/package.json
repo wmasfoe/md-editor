@@ -1,6 +1,6 @@
 {
   "name": "@md-editor/editor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A Markdown source and WYSIWYG editor built on CodeMirror 6, with an optional React adapter.",
   "repository": {
     "type": "git",
@@ -57,7 +57,7 @@
     "sanitize-html": "catalog:",
     "turndown": "catalog:",
     "turndown-plugin-gfm": "catalog:",
-    "@md-editor/plugin-sdk": "workspace:^0.4.0",
+    "@md-editor/plugin-sdk": "workspace:^0.4.1",
     "@md-editor/plugin-host": "workspace:*"
   },
   "devDependencies": {
